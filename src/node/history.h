@@ -3,11 +3,14 @@
 #pragma once
 
 #include "ccf/crypto/cose_verifier.h"
+#include "ccf/ds/x509_time_fmt.h"
+#include "ccf/node/ledger_sign_mode.h"
 #include "ccf/pal/locking.h"
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/service.h"
+#include "common/configuration.h"
+#include "cose/cose_rs_ffi.h"
 #include "crypto/cose.h"
-#include "crypto/openssl/cose_sign.h"
 #include "crypto/openssl/ec_key_pair.h"
 #include "crypto/openssl/hash.h"
 #include "crypto/public_key.h"
@@ -15,6 +18,8 @@
 #include "endian.h"
 #include "kv/kv_types.h"
 #include "kv/store.h"
+#include "node/cose_common.h"
+#include "node/no_get_ledger_sign_mode.cpp" // NOLINT(bugprone-suspicious-include)
 #include "node_signature_verify.h"
 #include "service/tables/signatures.h"
 #include "tasks/basic_task.h"
@@ -310,6 +315,8 @@ namespace ccf
     ccf::crypto::ECKeyPair_OpenSSL& service_kp;
     ccf::crypto::Pem& endorsed_cert;
     const ccf::COSESignaturesConfig& cose_signatures_config;
+    const ccf::LedgerSignMode ledger_sign_mode;
+    std::unordered_map<std::string, CoseKey>& cose_key_cache;
 
   public:
     MerkleTreeHistoryPendingTx(
@@ -320,7 +327,9 @@ namespace ccf
       ccf::crypto::ECKeyPair& node_kp_,
       ccf::crypto::ECKeyPair_OpenSSL& service_kp_,
       ccf::crypto::Pem& endorsed_cert_,
-      const ccf::COSESignaturesConfig& cose_signatures_config_) :
+      const ccf::COSESignaturesConfig& cose_signatures_config_,
+      ccf::LedgerSignMode ledger_sign_mode_,
+      std::unordered_map<std::string, CoseKey>& cose_key_cache_) :
       txid(txid_),
       store(store_),
       history(history_),
@@ -328,81 +337,97 @@ namespace ccf
       node_kp(node_kp_),
       service_kp(service_kp_),
       endorsed_cert(endorsed_cert_),
-      cose_signatures_config(cose_signatures_config_)
+      cose_signatures_config(cose_signatures_config_),
+      ledger_sign_mode(ledger_sign_mode_),
+      cose_key_cache(cose_key_cache_)
     {}
 
     ccf::kv::PendingTxInfo call() override
     {
       auto sig = store.create_reserved_tx(txid);
-      auto* signatures =
-        sig.template wo<ccf::Signatures>(ccf::Tables::SIGNATURES);
-      auto* cose_signatures =
-        sig.template wo<ccf::CoseSignatures>(ccf::Tables::COSE_SIGNATURES);
-      auto* serialised_tree = sig.template wo<ccf::SerialisedMerkleTree>(
-        ccf::Tables::SERIALISED_MERKLE_TREE);
       ccf::crypto::Sha256Hash root = history.get_replicated_state_root();
-
-      std::vector<uint8_t> primary_sig;
 
       std::vector<uint8_t> root_hash{
         root.h.data(), root.h.data() + root.h.size()};
-      primary_sig = node_kp.sign_hash(root_hash.data(), root_hash.size());
 
-      PrimarySignature sig_value(
-        id,
-        txid.seqno,
-        txid.view,
-        root,
-        {}, // Nonce is currently empty
-        primary_sig,
-        endorsed_cert);
+      if (ledger_sign_mode == ccf::LedgerSignMode::Dual)
+      {
+        auto* signatures =
+          sig.template wo<ccf::Signatures>(ccf::Tables::SIGNATURES);
+        auto primary_sig =
+          node_kp.sign_hash(root_hash.data(), root_hash.size());
+
+        PrimarySignature sig_value(
+          id,
+          txid.seqno,
+          txid.view,
+          root,
+          {}, // Nonce is currently empty
+          primary_sig,
+          endorsed_cert);
+
+        signatures->put(sig_value);
+      }
+
+      auto* cose_signatures =
+        sig.template wo<ccf::CoseSignatures>(ccf::Tables::COSE_SIGNATURES);
 
       auto kid = ccf::crypto::kid_from_key(service_kp.public_key_der());
-      std::span<const uint8_t> kid_span{
-        reinterpret_cast<const uint8_t*>(kid.data()), kid.size()};
+      const auto tx_id = txid.to_str();
 
       const auto time_since_epoch =
         std::chrono::duration_cast<std::chrono::seconds>(
           std::chrono::system_clock::now().time_since_epoch())
           .count();
 
-      std::vector<cbor::MapItem> ccf_headers;
-      const auto tx_id = txid.to_str();
-      ccf_headers.emplace_back(
-        cbor::make_string(ccf::cose::header::custom::TX_ID),
-        cbor::make_string(tx_id));
+      auto it = cose_key_cache.find(kid);
+      if (it == cose_key_cache.end())
+      {
+        auto key_der = service_kp.private_key_der();
+        CoseBuffer key_err;
+        auto cose_key =
+          CoseKey::from_private(key_der.data(), key_der.size(), key_err);
+        if (!cose_key.is_set())
+        {
+          throw std::runtime_error(fmt::format(
+            "cose_key_from_der_private failed: {}",
+            key_err.is_set() ? key_err.to_string() : "unknown error"));
+        }
+        auto [inserted, _] = cose_key_cache.emplace(kid, std::move(cose_key));
+        it = inserted;
+      }
 
-      std::vector<cbor::MapItem> cwt_headers;
-      cwt_headers.emplace_back(
-        cbor::make_signed(ccf::cwt::header::iana::IAT),
-        cbor::make_signed(time_since_epoch));
-      cwt_headers.emplace_back(
-        cbor::make_signed(ccf::cwt::header::iana::ISS),
-        cbor::make_string(cose_signatures_config.issuer));
-      cwt_headers.emplace_back(
-        cbor::make_signed(ccf::cwt::header::iana::SUB),
-        cbor::make_string(cose_signatures_config.subject));
+      CoseBuffer cose_buf;
+      CoseBuffer cose_err;
+      auto rc = cose_sign_ledger(
+        it->second,
+        reinterpret_cast<const uint8_t*>(kid.data()),
+        kid.size(),
+        time_since_epoch,
+        reinterpret_cast<const uint8_t*>(cose_signatures_config.issuer.data()),
+        cose_signatures_config.issuer.size(),
+        reinterpret_cast<const uint8_t*>(cose_signatures_config.subject.data()),
+        cose_signatures_config.subject.size(),
+        reinterpret_cast<const uint8_t*>(tx_id.data()),
+        tx_id.size(),
+        root_hash.data(),
+        root_hash.size(),
+        cose_buf,
+        cose_err);
+      if (rc != 0 || !cose_buf.is_set())
+      {
+        throw std::runtime_error(fmt::format(
+          "cose_sign_ledger failed: {}",
+          cose_err.is_set() ? cose_err.to_string() : "unknown error"));
+      }
+      std::vector<uint8_t> cose_sign(cose_buf.to_vector());
 
-      std::vector<cbor::MapItem> phdr;
-      phdr.emplace_back(
-        cbor::make_signed(ccf::cose::header::iana::KID),
-        cbor::make_bytes(kid_span));
-      phdr.emplace_back(
-        cbor::make_signed(ccf::cose::header::iana::VDS),
-        cbor::make_signed(ccf::cose::value::CCF_LEDGER_SHA256));
-      phdr.emplace_back(
-        cbor::make_signed(ccf::cose::header::iana::CWT_CLAIMS),
-        cbor::make_map(std::move(cwt_headers)));
-      phdr.emplace_back(
-        cbor::make_string(ccf::cose::header::custom::CCF_V1),
-        cbor::make_map(std::move(ccf_headers)));
-
-      auto phdr_map = cbor::make_map(std::move(phdr));
-      auto cose_sign = crypto::cose_sign1(service_kp, phdr_map, root_hash);
-
-      signatures->put(sig_value);
       cose_signatures->put(cose_sign);
+
+      auto* serialised_tree = sig.template wo<ccf::SerialisedMerkleTree>(
+        ccf::Tables::SERIALISED_MERKLE_TREE);
       serialised_tree->put(history.serialise_tree(txid.seqno - 1));
+
       return sig.commit_reserved();
     }
   };
@@ -542,7 +567,7 @@ namespace ccf
 
     ccf::crypto::ECKeyPair& node_kp;
     ccf::crypto::COSEVerifierUniquePtr cose_verifier;
-    std::vector<uint8_t> cose_cert_cached;
+    ccf::crypto::Pem cose_cert_cached;
 
     ccf::tasks::Task emit_signature_periodic_task;
     size_t sig_tx_interval;
@@ -558,9 +583,12 @@ namespace ccf
     {
       const std::shared_ptr<ccf::crypto::ECKeyPair_OpenSSL> service_kp;
       const ccf::COSESignaturesConfig cose_signatures_config;
+      const ccf::LedgerSignMode ledger_sign_mode = ccf::LedgerSignMode::Dual;
     };
 
     std::optional<ServiceSigningIdentity> signing_identity = std::nullopt;
+
+    std::unordered_map<std::string, CoseKey> cose_key_cache;
 
   public:
     HashedTxHistory(
@@ -592,13 +620,17 @@ namespace ccf
           "Called set_service_signing_identity() multiple times");
       }
 
-      signing_identity.emplace(
-        ServiceSigningIdentity{service_kp_, cose_signatures_config_});
+      const auto ledger_sign_mode_ = ccf::get_ledger_sign_mode();
+
+      signing_identity.emplace(ServiceSigningIdentity{
+        service_kp_, cose_signatures_config_, ledger_sign_mode_});
 
       LOG_INFO_FMT(
-        "Setting service signing identity to iss: {} sub: {}",
+        "Setting service signing identity to iss: {} sub: {}. Ledger "
+        "signature mode: {}",
         cose_signatures_config_.issuer,
-        cose_signatures_config_.subject);
+        cose_signatures_config_.subject,
+        nlohmann::json(ledger_sign_mode_).dump());
     }
 
     const ccf::COSESignaturesConfig& get_cose_signatures_config() override
@@ -637,7 +669,17 @@ namespace ccf
               }
               case ccf::kv::Consensus::SignatureDisposition::CAN_SIGN:
               {
-                if (this->store.committable_gap() > 0)
+                // To snapshot we need to complete the chunk and to do that we
+                // need to set the force_chunk_after flag on the last snapshot
+                // in it.
+                // At this point the previous signature is already replicating
+                // and is immutable.
+                // So if we need to snapshot, we need to emit a new signature to
+                // ensure we can set the force_chunk_after flag, even if there
+                // are no other transactions between this and the last snapshot
+                if (
+                  this->store.committable_gap() > 0 ||
+                  this->store.should_schedule_snapshot())
                 {
                   should_emit_signature = true;
                 }
@@ -730,20 +772,27 @@ namespace ccf
     {
       auto tx = store.create_read_only_tx();
 
+      auto root = get_replicated_state_root();
+      log_hash(root, VERIFY);
+
       auto* signatures =
         tx.template ro<ccf::Signatures>(ccf::Tables::SIGNATURES);
       auto sig = signatures->get();
-      if (!sig.has_value())
+      if (sig.has_value())
       {
-        LOG_FAIL_FMT("No signature found in signatures map");
-        return false;
-      }
-
-      auto root = get_replicated_state_root();
-      log_hash(root, VERIFY);
-      if (!verify_node_signature(tx, sig->node, sig->sig, root))
-      {
-        return false;
+        // Only verify the node signature if it was actually written in this
+        // version. In COSE-only mode, the signatures table is not written,
+        // so an old value may be present from a previous dual-signed
+        // transaction. Verifying that stale signature against the current
+        // root would fail.
+        const auto sig_version = signatures->get_version_of_previous_write();
+        if (sig_version.has_value() && sig_version.value() == version)
+        {
+          if (!verify_node_signature(tx, sig->node, sig->sig, root))
+          {
+            return false;
+          }
+        }
       }
 
       auto* cose_signatures =
@@ -752,7 +801,15 @@ namespace ccf
 
       if (!cose_sig.has_value())
       {
-        return true;
+        // It's possible we are reading some old non-COSE ledger entry.
+        // In that case, it's enough to only verify regular sig.
+        if (sig.has_value())
+        {
+          return true;
+        }
+
+        LOG_FAIL_FMT("No signatures found in COSE signatures map");
+        return false;
       }
 
       // Since COSE signatures have not always been emitted, it is possible in a
@@ -781,12 +838,39 @@ namespace ccf
         return false;
       }
 
-      const auto raw_cert = service_info->cert.raw();
       std::vector<uint8_t> root_hash{
         root.h.data(), root.h.data() + root.h.size()};
+      if (!cose_verifier_cached(service_info->cert)
+             ->verify_detached(cose_sig.value(), root_hash))
+      {
+        return false;
+      }
 
-      return cose_verifier_cached(raw_cert)->verify_detached(
-        cose_sig.value(), root_hash);
+      if (ccf::logger::config::ok(LoggerLevel::DEBUG))
+      {
+        try
+        {
+          auto receipt = ccf::cose::decode_ccf_receipt(
+            cose_sig.value(), /* recompute_root */ false);
+          if (receipt.phdr.cwt.iat.has_value())
+          {
+            LOG_DEBUG_FMT(
+              "Verified COSE signature for TxID {}, issued at {}",
+              receipt.phdr.ccf.txid,
+              ccf::ds::to_x509_time_string(
+                std::chrono::system_clock::from_time_t(
+                  receipt.phdr.cwt.iat.value())));
+          }
+        }
+        catch (const std::exception& e)
+        {
+          LOG_DEBUG_FMT(
+            "Failed to decode COSE protected header for debug logging: {}",
+            e.what());
+        }
+      }
+
+      return true;
     }
 
     std::vector<uint8_t> serialise_tree(size_t to) override
@@ -885,7 +969,9 @@ namespace ccf
           node_kp,
           *signing_identity->service_kp,
           endorsed_cert.value(),
-          signing_identity->cose_signatures_config),
+          signing_identity->cose_signatures_config,
+          signing_identity->ledger_sign_mode,
+          cose_key_cache),
         true);
     }
 
@@ -941,13 +1027,13 @@ namespace ccf
 
   private:
     ccf::crypto::COSEVerifierUniquePtr& cose_verifier_cached(
-      const std::vector<uint8_t>& cert)
+      const ccf::crypto::Pem& cert)
     {
       if (cert != cose_cert_cached)
       {
         cose_cert_cached = cert;
         cose_verifier =
-          ccf::crypto::make_cose_verifier_from_cert(cose_cert_cached);
+          ccf::crypto::make_cose_verifier_from_pem_cert(cose_cert_cached);
       }
       return cose_verifier;
     }

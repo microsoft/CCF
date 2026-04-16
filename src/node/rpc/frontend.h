@@ -16,6 +16,7 @@
 #include "enclave/rpc_handler.h"
 #include "forwarder.h"
 #include "http/http_jwt.h"
+#include "http/http_rpc_context.h"
 #include "kv/compacted_version_conflict.h"
 #include "kv/store.h"
 #include "node/endpoint_context_impl.h"
@@ -812,15 +813,38 @@ namespace ccf
           // else args owns a valid Tx relating to a non-pending response, which
           // should be applied
           ccf::kv::CommittableTx& tx = *args.owned_tx;
-          ccf::kv::CommitResult result = tx.commit(ctx->claims);
+
+          // Only capture write set digest and commit evidence if the
+          // handler has set a consensus committed callback that may need
+          // them for receipt construction. Avoids unnecessary hashing
+          // on the common path.
+          ccf::crypto::Sha256Hash captured_ws_digest;
+          std::string captured_commit_evidence;
+          ccf::kv::CommittableTx::WriteSetObserver ws_observer = nullptr;
+          ccf::endpoints::ConsensusCommittedEndpointFunction committed_func =
+            ctx->consensus_committed_func;
+          if (committed_func != nullptr)
+          {
+            ws_observer = [&captured_ws_digest, &captured_commit_evidence](
+                            const ccf::crypto::Sha256Hash& ws_digest,
+                            const std::string& ce) {
+              captured_ws_digest = ws_digest;
+              captured_commit_evidence = ce;
+            };
+          }
+
+          ccf::kv::CommitResult result =
+            tx.commit(ctx->claims, nullptr, ws_observer);
 
           switch (result)
           {
             case ccf::kv::CommitResult::SUCCESS:
             {
-              auto tx_id = tx.get_txid();
-              if (tx_id.has_value() && consensus != nullptr)
+              auto tx_id_opt = tx.get_txid();
+              if (tx_id_opt.has_value() && consensus != nullptr)
               {
+                ccf::TxID tx_id = tx_id_opt.value();
+
                 try
                 {
                   // Only transactions that acquired one or more map handles
@@ -828,14 +852,13 @@ namespace ccf
                   // don't. Also, only report a TxID if the consensus is set, as
                   // the consensus is required to verify that a TxID is valid.
                   endpoints.execute_endpoint_locally_committed(
-                    endpoint, args, tx_id.value());
+                    endpoint, args, tx_id);
                 }
                 catch (const std::exception& e)
                 {
                   // run default handler to set transaction id in header
                   ctx->clear_response_headers();
-                  ccf::endpoints::default_locally_committed_func(
-                    args, tx_id.value());
+                  ccf::endpoints::default_locally_committed_func(args, tx_id);
                   ctx->set_error(
                     HTTP_STATUS_INTERNAL_SERVER_ERROR,
                     ccf::errors::InternalError,
@@ -847,12 +870,24 @@ namespace ccf
                 {
                   // run default handler to set transaction id in header
                   ctx->clear_response_headers();
-                  ccf::endpoints::default_locally_committed_func(
-                    args, tx_id.value());
+                  ccf::endpoints::default_locally_committed_func(args, tx_id);
                   ctx->set_error(
                     HTTP_STATUS_INTERNAL_SERVER_ERROR,
                     ccf::errors::InternalError,
                     "Failed to execute local commit handler func");
+                }
+
+                {
+                  if (committed_func != nullptr)
+                  {
+                    ctx->respond_on_commit =
+                      ccf::RpcContextImpl::RespondOnCommitInfo{
+                        tx_id,
+                        committed_func,
+                        std::move(captured_ws_digest),
+                        std::move(captured_commit_evidence),
+                        ctx->claims};
+                  }
                 }
               }
 

@@ -138,7 +138,7 @@ namespace ccf::crypto
         return false;
       }
 
-      CHECK1(sk_X509_push(chain_stack, cert));
+      CHECKPOSITIVE(sk_X509_push(chain_stack, cert));
       CHECK1(X509_up_ref(cert));
     }
 

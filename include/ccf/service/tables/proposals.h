@@ -72,13 +72,18 @@ struct formatter<ccf::ProposalState>
       {
         return format_to(ctx.out(), "rejected");
       }
+      case (ccf::ProposalState::FAILED):
+      {
+        return format_to(ctx.out(), "failed");
+      }
       case (ccf::ProposalState::DROPPED):
       {
         return format_to(ctx.out(), "dropped");
       }
       default:
       {
-        return format_to(ctx.out(), "UNKNOWN");
+        throw std::logic_error(fmt::format(
+          "Unknown proposal state {}", static_cast<uint8_t>(state)));
       }
     }
   }

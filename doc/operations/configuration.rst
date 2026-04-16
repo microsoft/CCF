@@ -29,7 +29,8 @@ The `enabled_operator_features` configuration field allows enabling or disabling
 Currently supported features are:
 
 1. 'SnapshotRead': gates access to endpoints used to fetch snapshots directly from nodes (:http:GET:`/node/snapshot`, :http:HEAD:`/node/snapshot`, :http:GET:`/node/snapshot/{snapshot_name}` and :http:HEAD:`/node/snapshot/{snapshot_name}`).
-2. 'LedgerChunkRead': gates access to endpoints used to retrieve ledger chunks, to be added in a future release.
+2. 'LedgerChunkRead': gates access to endpoints used to retrieve ledger chunks (:http:GET:`/node/ledger_chunk`, :http:HEAD:`/node/ledger_chunk`, :http:GET:`/node/ledger_chunk/{chunk_name}` and :http:HEAD:`/node/ledger_chunk/{chunk_name}`).
+3. 'SnapshotCreate': gates access to the operator endpoint used to create a snapshot on the next signature transaction (:http:POST:`/node/snapshot:create`).
 
 Since these operations may require disk IO and produce large responses, these features should not be enabled on interfaces with public access, and instead restricted to interfaces with local connectivity for node-to-node and operator access.
 
@@ -39,3 +40,22 @@ Since these operations may require disk IO and produce large responses, these fe
     - Size strings are expressed as the value suffixed with the size in bytes (``B``, ``KB``, ``MB``, ``GB``, ``TB``, as factors of 1024), e.g. ``"20MB"``, ``"100KB"`` or ``"2048"`` (bytes).
 
     - Time strings are expressed as the value suffixed with the duration (``us``, ``ms``, ``s``, ``min``, ``h``), e.g. ``"1000ms"``, ``"10s"`` or ``"30min"``.
+
+
+Upgrading to COSE-Only Ledger Signatures
+-----------------------------------------
+
+By default, CCF nodes emit **dual** ledger signatures: a traditional node signature and a COSE Sign1 signature. Applications control this via the ``ccf::get_ledger_sign_mode()`` weak-symbol callback declared in ``ccf/node/ledger_sign_mode.h``, which returns one of three modes:
+
+- ``Dual`` (default) — emit both signature types, accept all joiners.
+- ``CoseAllowDualJoin`` — emit only COSE signatures, but still accept join requests from ``Dual``-mode nodes. Use during rolling upgrades.
+- ``CoseOnly`` — emit only COSE signatures, reject ``Dual``-mode joiners. Final state after upgrade.
+
+The mode is set at link time by providing a strong definition in the application binary. Joining nodes advertise their signing mode in the join request.
+
+A rolling upgrade from ``Dual`` to ``CoseOnly`` is a two-step process:
+
+1. **CoseAllowDualJoin.** Deploy a binary that returns ``CoseAllowDualJoin``. Replace nodes one at a time. During this phase, new nodes running the old ``Dual`` binary can still join as replacements.
+
+2. **CoseOnly.** Once all nodes are upgraded, deploy a binary that returns ``CoseOnly``. Replace nodes again. After this, ``Dual`` joiners are rejected.
+

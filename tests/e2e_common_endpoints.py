@@ -187,23 +187,6 @@ def test_node_ids(network, args):
     return network
 
 
-@reqs.description("Memory usage")
-def test_memory(network, args):
-    primary, _ = network.find_primary()
-    with primary.client() as c:
-        r = c.get("/node/memory")
-        assert r.status_code == http.HTTPStatus.OK.value
-        assert (
-            r.body.json()["peak_allocated_heap_size"]
-            <= r.body.json()["max_total_heap_size"]
-        )
-        assert (
-            r.body.json()["current_allocated_heap_size"]
-            <= r.body.json()["peak_allocated_heap_size"]
-        )
-    return network
-
-
 @reqs.description("Frontend readiness")
 def test_readiness(network, args):
     primary, _ = network.find_primary()
@@ -337,7 +320,6 @@ def run(args):
         test_primary(network, args)
         test_network_node_info(network, args)
         test_node_ids(network, args)
-        test_memory(network, args)
         test_large_messages(network, args)
         test_readiness(network, args)
 

@@ -11,7 +11,6 @@
 #include "ccf/node/quote.h"
 #include "ccf/odata_error.h"
 #include "ccf/pal/attestation.h"
-#include "ccf/pal/mem.h"
 #include "ccf/service/reconfiguration_type.h"
 #include "ccf/version.h"
 #include "crypto/certs.h"
@@ -19,6 +18,7 @@
 #include "ds/files.h"
 #include "ds/std_formatters.h"
 #include "frontend.h"
+#include "node/cose_common.h"
 #include "node/network_state.h"
 #include "node/rpc/file_serving_handlers.h"
 #include "node/rpc/jwt_management.h"
@@ -31,6 +31,7 @@
 #include "service/internal_tables_access.h"
 #include "service/tables/local_sealing.h"
 #include "service/tables/previous_service_identity.h"
+#include "service/tables/snapshot_status.h"
 
 #include <llhttp/llhttp.h>
 #include <stdexcept>
@@ -92,6 +93,19 @@ namespace ccf
 
   DECLARE_JSON_TYPE(NodeMetrics);
   DECLARE_JSON_REQUIRED_FIELDS(NodeMetrics, sessions);
+
+  struct GetHistoricalCacheInfo
+  {
+    using In = void;
+
+    struct Out
+    {
+      size_t estimated_size;
+    };
+  };
+
+  DECLARE_JSON_TYPE(GetHistoricalCacheInfo::Out);
+  DECLARE_JSON_REQUIRED_FIELDS(GetHistoricalCacheInfo::Out, estimated_size);
 
   struct JavaScriptMetrics
   {
@@ -302,6 +316,19 @@ namespace ccf
         return make_error(code, ccf::errors::InvalidQuote, message);
       }
 
+      // Check if the joining node's signing mode is acceptable
+      if (
+        in.ledger_sign_mode.has_value() &&
+        in.ledger_sign_mode.value() == ccf::LedgerSignMode::Dual &&
+        ccf::get_ledger_sign_mode() == ccf::LedgerSignMode::CoseOnly)
+      {
+        return make_error(
+          HTTP_STATUS_BAD_REQUEST,
+          ccf::errors::InvalidInput,
+          "This network does not accept nodes running in Dual signing "
+          "mode. The joining node must use COSE-only signing.");
+      }
+
       std::optional<ccf::kv::Version> ledger_secret_seqno = std::nullopt;
       if (node_status == NodeStatus::TRUSTED)
       {
@@ -420,7 +447,7 @@ namespace ccf
       openapi_info.description =
         "This API provides public, uncredentialed access to service and node "
         "state.";
-      openapi_info.document_version = "5.0.3";
+      openapi_info.document_version = "5.0.5";
     }
 
     void init_handlers() override
@@ -664,16 +691,34 @@ namespace ccf
         result.startup_seqno =
           this->node_operation.get_startup_snapshot_seqno();
 
+        // Read last signed seqno from both raw and COSE signature tables
         auto signatures = args.tx.template ro<Signatures>(Tables::SIGNATURES);
         auto sig = signatures->get();
-        if (!sig.has_value())
+
+        ccf::kv::Version raw_seqno = 0;
+        if (sig.has_value())
         {
-          result.last_signed_seqno = 0;
+          raw_seqno = sig.value().seqno;
         }
-        else
+
+        ccf::kv::Version cose_seqno = 0;
+        auto cose_signatures =
+          args.tx.template ro<CoseSignatures>(Tables::COSE_SIGNATURES);
+        auto cose_sig = cose_signatures->get();
+        if (cose_sig.has_value() && !cose_sig->empty())
         {
-          result.last_signed_seqno = sig.value().seqno;
+          auto receipt = ccf::cose::decode_ccf_receipt(cose_sig.value(), false);
+          auto txid = ccf::TxID::from_str(receipt.phdr.ccf.txid);
+          if (!txid.has_value())
+          {
+            throw std::logic_error(fmt::format(
+              "Failed to parse txid from COSE signature: {}",
+              receipt.phdr.ccf.txid));
+          }
+          cose_seqno = txid->seqno;
         }
+
+        result.last_signed_seqno = std::max(raw_seqno, cose_seqno);
 
         auto node_configuration_subsystem =
           this->context.get_subsystem<NodeConfigurationSubsystem>();
@@ -1404,27 +1449,6 @@ namespace ccf
         .set_auto_schema<void, ConsensusConfigDetails>()
         .install();
 
-      auto memory_usage = [](auto& args) {
-        ccf::pal::MallocInfo info;
-        if (ccf::pal::get_mallinfo(info))
-        {
-          MemoryUsage::Out mu(info);
-          args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-          args.rpc_ctx->set_response_header(
-            http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
-          args.rpc_ctx->set_response_body(nlohmann::json(mu).dump());
-          return;
-        }
-
-        args.rpc_ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
-        args.rpc_ctx->set_response_body("Failed to read memory usage");
-      };
-
-      make_command_endpoint("/memory", HTTP_GET, memory_usage, no_auth_required)
-        .set_forwarding_required(endpoints::ForwardingRequired::Never)
-        .set_auto_schema<MemoryUsage>()
-        .install();
-
       auto node_metrics = [this](auto& args) {
         NodeMetrics nm;
         nm.sessions = node_operation.get_session_metrics();
@@ -1623,8 +1647,7 @@ namespace ccf
               ctx.tx, attestation);
             break;
           }
-
-          default:
+          case QuoteFormat::oe_sgx_v1:
           {
             break;
           }
@@ -1845,9 +1868,42 @@ namespace ccf
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .install();
 
+      auto create_snapshot = [this](auto& args, nlohmann::json&&) {
+        auto* snapshot_create = args.tx.template rw<ccf::SnapshotCreate>(
+          ccf::Tables::SNAPSHOT_CREATE);
+        snapshot_create->touch();
+        this->node_operation.trigger_snapshot(args.tx);
+        return make_success();
+      };
+      make_endpoint(
+        "/snapshot:create",
+        HTTP_POST,
+        json_adapter(create_snapshot),
+        no_auth_required)
+        .set_auto_schema<void, void>()
+        .set_forwarding_required(endpoints::ForwardingRequired::Never)
+        .require_operator_feature(endpoints::OperatorFeature::SnapshotCreate)
+        .install();
+
       ccf::node::init_recovery_decision_protocol_handlers(*this, context);
 
       ccf::node::init_file_serving_handlers(*this, context);
+
+      auto historical_cache_info = [this](
+                                     [[maybe_unused]] auto& args,
+                                     [[maybe_unused]] nlohmann::json&&) {
+        GetHistoricalCacheInfo::Out result{};
+        result.estimated_size =
+          this->context.get_historical_state().get_estimated_store_cache_size();
+        return make_success(result);
+      };
+      make_read_only_endpoint(
+        "/historical_cache",
+        HTTP_GET,
+        json_read_only_adapter(historical_cache_info),
+        no_auth_required)
+        .set_auto_schema<GetHistoricalCacheInfo>()
+        .install();
     }
   };
 

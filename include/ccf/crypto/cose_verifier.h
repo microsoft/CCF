@@ -17,13 +17,23 @@ namespace ccf::crypto
     [[nodiscard]] virtual bool verify_detached(
       std::span<const uint8_t> envelope,
       std::span<const uint8_t> payload) const = 0;
+    [[nodiscard]] virtual bool verify_decomposed(
+      std::span<const uint8_t> phdr,
+      std::span<const uint8_t> payload,
+      std::span<const uint8_t> sig,
+      int64_t alg) const = 0;
     virtual ~COSEVerifier() = default;
   };
 
   using COSEVerifierUniquePtr = std::unique_ptr<COSEVerifier>;
 
-  COSEVerifierUniquePtr make_cose_verifier_from_cert(
+  /// Create a verifier from a certificate in either PEM or DER format.
+  /// Tries PEM first, then DER.
+  COSEVerifierUniquePtr make_cose_verifier_any_cert(
     const std::vector<uint8_t>& cert);
+  COSEVerifierUniquePtr make_cose_verifier_from_pem_cert(const Pem& pem);
+  COSEVerifierUniquePtr make_cose_verifier_from_der_cert(
+    const std::vector<uint8_t>& der);
   COSEVerifierUniquePtr make_cose_verifier_from_key(const Pem& public_key);
   COSEVerifierUniquePtr make_cose_verifier_from_key(
     std::span<const uint8_t> public_key);

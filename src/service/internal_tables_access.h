@@ -16,7 +16,8 @@
 #include "ccf/service/tables/virtual_measurements.h"
 #include "ccf/tx.h"
 #include "consensus/aft/raft_types.h"
-#include "crypto/openssl/cose_sign.h"
+#include "cose/cose_rs_ffi.h"
+#include "node/history.h"
 #include "node/ledger_secrets.h"
 #include "node/uvm_endorsements.h"
 #include "service/tables/governance_history.h"
@@ -189,7 +190,6 @@ namespace ccf
       auto* member_certs = tx.rw<ccf::MemberCerts>(Tables::MEMBER_CERTS);
       auto* member_info = tx.rw<ccf::MemberInfo>(Tables::MEMBER_INFO);
       auto* member_acks = tx.rw<ccf::MemberAcks>(Tables::MEMBER_ACKS);
-      auto* signatures = tx.ro<ccf::Signatures>(Tables::SIGNATURES);
 
       auto member_cert_der =
         ccf::crypto::make_verifier(member_pub_info.cert)->cert_der();
@@ -248,14 +248,17 @@ namespace ccf
           id, member_pub_info.encryption_pub_key.value());
       }
 
-      auto s = signatures->get();
-      if (!s)
+      auto* tree_h =
+        tx.ro<ccf::SerialisedMerkleTree>(Tables::SERIALISED_MERKLE_TREE);
+      auto tree = tree_h->get();
+      if (!tree.has_value())
       {
         member_acks->put(id, MemberAck());
       }
       else
       {
-        member_acks->put(id, MemberAck(s->root));
+        MerkleTreeHistory history(tree.value());
+        member_acks->put(id, MemberAck(history.get_root()));
       }
       return id;
     }
@@ -499,19 +502,21 @@ namespace ccf
 
         auto* last_signed_root = tx.wo<ccf::PreviousServiceLastSignedRoot>(
           ccf::Tables::PREVIOUS_SERVICE_LAST_SIGNED_ROOT);
-        auto* sigs = tx.ro<ccf::Signatures>(ccf::Tables::SIGNATURES);
-        if (!sigs->has())
+        auto* tree_handle =
+          tx.ro<ccf::SerialisedMerkleTree>(ccf::Tables::SERIALISED_MERKLE_TREE);
+        if (!tree_handle->has())
         {
           throw std::logic_error(
-            "Previous service doesn't have any signed transactions");
+            "Previous service doesn't have a serialised merkle tree");
         }
-        auto sig_opt = sigs->get();
-        if (!sig_opt.has_value())
+        auto tree_opt = tree_handle->get();
+        if (!tree_opt.has_value())
         {
           throw std::logic_error(
-            "Previous service doesn't have signature value");
+            "Previous service doesn't have serialised merkle tree value");
         }
-        last_signed_root->put(sig_opt->root);
+        ccf::MerkleTreeHistory tree(tree_opt.value());
+        last_signed_root->put(tree.get_root());
 
         // Record number of recoveries for service. If the value does
         // not exist in the table (i.e. pre 2.x ledger), assume it is the
@@ -622,25 +627,11 @@ namespace ccf
         key_to_endorse = endorsement.endorsing_key;
       }
 
-      std::vector<cbor::MapItem> ccf_headers;
       auto from_txid = endorsement.endorsement_epoch_begin.to_str();
-      ccf_headers.emplace_back(
-        cbor::make_string(ccf::cose::header::custom::TX_RANGE_BEGIN),
-        cbor::make_string(from_txid));
-
       std::string to_txid{};
       if (endorsement.endorsement_epoch_end)
       {
         to_txid = endorsement.endorsement_epoch_end->to_str();
-        ccf_headers.emplace_back(
-          cbor::make_string(ccf::cose::header::custom::TX_RANGE_END),
-          cbor::make_string(to_txid));
-      }
-      if (!previous_root.empty())
-      {
-        ccf_headers.emplace_back(
-          cbor::make_string(ccf::cose::header::custom::EPOCH_LAST_MERKLE_ROOT),
-          cbor::make_bytes(previous_root));
       }
 
       const auto time_since_epoch =
@@ -648,34 +639,39 @@ namespace ccf
           std::chrono::system_clock::now().time_since_epoch())
           .count();
 
-      std::vector<cbor::MapItem> cwt_headers;
-      cwt_headers.emplace_back(
-        cbor::make_signed(ccf::cwt::header::iana::IAT),
-        cbor::make_signed(time_since_epoch));
-
-      std::vector<cbor::MapItem> phdr;
-      phdr.emplace_back(
-        cbor::make_signed(ccf::cose::header::iana::CWT_CLAIMS),
-        cbor::make_map(std::move(cwt_headers)));
-      phdr.emplace_back(
-        cbor::make_string(ccf::cose::header::custom::CCF_V1),
-        cbor::make_map(std::move(ccf_headers)));
-
-      auto phdr_map = cbor::make_map(std::move(phdr));
-      try
+      auto key_der = service_key.private_key_der();
+      CoseBuffer key_err;
+      auto cose_key =
+        CoseKey::from_private(key_der.data(), key_der.size(), key_err);
+      if (key_err.is_set())
       {
-        endorsement.endorsement = cose_sign1(
-          service_key,
-          phdr_map,
-          key_to_endorse,
-          false // detached payload
-        );
-      }
-      catch (const ccf::crypto::COSESignError& e)
-      {
-        LOG_FAIL_FMT("Failed to sign previous service identity: {}", e.what());
+        LOG_FAIL_FMT("Failed to create signing key: {}", key_err.to_string());
         return false;
       }
+
+      CoseBuffer cose_buf;
+      CoseBuffer cose_err;
+      auto rc = cose_sign_endorsement(
+        cose_key,
+        time_since_epoch,
+        reinterpret_cast<const uint8_t*>(from_txid.data()),
+        from_txid.size(),
+        reinterpret_cast<const uint8_t*>(to_txid.data()),
+        to_txid.size(),
+        previous_root.data(),
+        previous_root.size(),
+        key_to_endorse.data(),
+        key_to_endorse.size(),
+        cose_buf,
+        cose_err);
+      if (rc != 0 || !cose_buf.is_set())
+      {
+        LOG_FAIL_FMT(
+          "Failed to sign previous service identity: {}",
+          cose_err.is_set() ? cose_err.to_string() : "unknown error");
+        return false;
+      }
+      endorsement.endorsement = cose_buf.to_vector();
 
       previous_identity_endorsement->put(endorsement);
       return true;

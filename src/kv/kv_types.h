@@ -5,15 +5,18 @@
 #include "ccf/claims_digest.h"
 #include "ccf/crypto/hash_bytes.h"
 #include "ccf/crypto/pem.h"
+#include "ccf/ds/hex.h"
 #include "ccf/ds/nonstd.h"
 #include "ccf/entity_id.h"
 #include "ccf/kv/get_name.h"
 #include "ccf/kv/hooks.h"
 #include "ccf/kv/version.h"
 #include "ccf/node/cose_signatures_config.h"
+#include "ccf/node/startup_config.h"
 #include "ccf/service/consensus_type.h"
 #include "ccf/service/reconfiguration_type.h"
 #include "ccf/tx_id.h"
+#include "ccf/tx_status.h"
 #include "crypto/openssl/ec_key_pair.h"
 #include "kv/ledger_chunker_interface.h"
 #include "serialiser_declare.h"
@@ -410,7 +413,17 @@ namespace ccf::kv
       ccf::SeqNo /*seqno*/, const std::vector<NodeId>& node_ids)
     {}
 
-    virtual void nominate_successor() {};
+    virtual void nominate_successor() {}
+
+    ccf::TxStatus evaluate_tx_status(
+      ccf::View target_view, ccf::SeqNo target_seqno)
+    {
+      const auto local_view = get_view(target_seqno);
+      const auto [committed_view, committed_seqno] = get_committed_txid();
+
+      return ccf::evaluate_tx_status(
+        target_view, target_seqno, local_view, committed_view, committed_seqno);
+    }
   };
 
   struct PendingTxInfo
@@ -502,6 +515,14 @@ namespace ccf::kv
 
     virtual ccf::crypto::HashBytes get_commit_nonce(
       const ccf::TxID& tx_id, bool historical_hint = false) = 0;
+
+    std::string get_commit_evidence(
+      const ccf::TxID& tx_id, bool historical_hint = false)
+    {
+      auto nonce = get_commit_nonce(tx_id, historical_hint);
+      return fmt::format(
+        "ce:{}.{}:{}", tx_id.view, tx_id.seqno, ccf::ds::to_hex(nonce));
+    }
   };
   using EncryptorPtr = std::shared_ptr<AbstractTxEncryptor>;
 
@@ -511,6 +532,7 @@ namespace ccf::kv
     virtual ~AbstractSnapshotter() = default;
 
     virtual bool record_committable(ccf::kv::Version v) = 0;
+    virtual bool should_schedule_snapshot(ccf::kv::Version v) = 0;
     virtual void commit(ccf::kv::Version v, bool generate_snapshot) = 0;
     virtual void rollback(ccf::kv::Version v) = 0;
   };

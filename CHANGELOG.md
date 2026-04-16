@@ -5,25 +5,96 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [7.0.0-rc2]
+
+[7.0.0-rc2]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-rc2
+
+### Changed
+
+- `set_consensus_committed_function()` has moved from an endpoint-registration-time decorator (`Endpoint::set_consensus_committed_function()`) to a runtime call on the RPC context (`ctx.rpc_ctx->set_consensus_committed_function()`). This allows the same endpoint to conditionally block until committed based on query parameters, headers, or other per-request state. The endpoint-level method has been removed. See the logging sample app (`/log/private/optional_commit`) for example usage.
+
+### Removed
+
+- Removed `CHECK0()` from `ccf::crypto::OpenSSL` in the public header `openssl_wrappers.h` (#7817).
+- Removed `aes_gcm_encrypt()`, `aes_gcm_decrypt()`, and `default_iv` from `ccf::crypto` (#7811).
+- Removed `get_responder()` from the public `ccf::RpcContext` API and made `http_responder.h` a private header (#7818).
+- Removed the `/node/memory` endpoint. This endpoint was originally useful for monitoring SGX enclave memory usage, which is no longer relevant now that SGX support has been removed.
+
+## [7.0.0-rc1]
+
+[7.0.0-rc1]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-rc1
+
+### Added
+
+- Added support for COSE-only ledger signatures. Networks can start in COSE-only mode or transition from dual signing (#7772).
+- Added `/receipt/cose` endpoint returning a COSE Sign1 receipt with Merkle proof for a given transaction. Returns 404 if no COSE receipt is available (e.g. for signature transactions) (#7772).
+- Added support for inline transaction receipt construction at commit time. Endpoint authors can use `build_receipt_for_committed_tx()` to construct a full `TxReceiptImpl` from the `CommittedTxInfo` passed to their `ConsensusCommittedEndpointFunction` callback. See the logging sample app (`/log/blocking/private/receipt`) for example usage (#7785).
+
+### Changed
+
+- The `ConsensusCommittedEndpointFunction` callback signature now receives a `CommittedTxInfo&` struct (containing `rpc_ctx`, `tx_id`, `status`, `write_set_digest`, `commit_evidence`, `claims_digest`) instead of individual arguments. This enables commit callbacks to construct receipts inline (#7785).
+- `ccf::endpoints::default_respond_on_commit_func` has been removed from the public API. A sample implementation is provided in the logging and basic sample apps (#7785).
+
+### Deprecated
+
+- `snapshots.read_only_directory` configuration option is deprecated and will be removed in a future release. A warning will be logged if this option is set at startup. Use `snapshots.backup_fetch` to have backup nodes automatically fetch snapshots from the primary node instead.
+
+## [7.0.0-rc0]
+
+[7.0.0-rc0]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-rc0
+
+### Added
+
+- Added `files_cleanup.max_committed_ledger_chunks` configuration option to limit the number of committed ledger chunk files retained in the main ledger directory. When the number of committed chunks exceeds this value, the oldest chunks (by sequence number) are automatically deleted, but only after verifying that an identical copy (by SHA-256 digest) exists in at least one `ledger.read_only_directories` entry. Committed ledger chunks that contain entries at or beyond the sequence number of the newest committed snapshot are never deleted, ensuring a complete ledger history from that snapshot for disaster recovery. At least one read-only ledger directory must be configured; the node will refuse to start otherwise.
+- Added `files_cleanup.max_snapshots` configuration option to limit the number of committed snapshot files retained on disk. When the number of committed snapshots exceeds this value, the oldest snapshots (by sequence number) are automatically deleted. The value must be at least 1 if set.
+- Added `files_cleanup.interval` configuration option (default `"30s"`) to periodically scan the snapshot directory and delete old committed snapshots exceeding `max_snapshots`. This ensures backup nodes (which receive snapshots via `backup_fetch`) also prune old snapshots. Only effective when `max_snapshots` is set.
+- Added `POST /node/snapshot:create`, gated by the `SnapshotCreate` RPC interface operator feature, to create a snapshot via an operator endpoint rather than a governance action.
+- Added `make_cose_verifier_from_pem_cert()` and `make_cose_verifier_from_der_cert()` that accept certificates in a known format. The existing `make_cose_verifier_cert()` is renamed to `make_cose_verifier_any_cert()` (#7768).
+
+### Changed
+
+- The `since` query parameter on the `GET /node/snapshot` endpoint now uses closed (inclusive) semantics, consistent with the `since` parameter on `GET /node/ledger_chunk`. A request with `?since=N` will now return snapshots with index greater than or equal to `N`, rather than strictly greater than `N` (#7742).
+
+## [7.0.0-dev13]
+
+[7.0.0-dev13]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev13
+
+### Added
+
+- Added time-based snapshot scheduling. Snapshots can now be triggered after a configurable wall-clock interval (`snapshots.time_interval`) elapses, in addition to the existing transaction-count threshold (`snapshots.tx_count`). A new `snapshots.min_tx_count` option (default 2) sets the minimum number of transactions required before a time-based snapshot fires. Snapshot timing state is replicated to backups via a new `public:ccf.internal.snapshot_status` internal table (#7731).
+- Added support for endpoints that defer their HTTP response until the submitted transaction reaches a terminal consensus state (committed or invalidated). Endpoint authors can call `set_consensus_committed_function()` when installing an endpoint to register a callback that is invoked once the transaction is globally committed or invalidated. The callback receives the `ccf::TxID` and a `ccf::FinalTxStatus` (either `Committed` or `Invalid`), and may inspect or modify the response before it is sent. A built-in `ccf::endpoints::default_respond_on_commit_func` is provided that returns the original response on commit, or an error on invalidation. See the logging sample app (`/log/blocking/private`) for example usage (#7562).
+
+### Changed
+
+- Renamed `/node/ledger-chunk` and `/node/ledger-chunk/{chunk_name}` endpoints to `/node/ledger_chunk` and `/node/ledger_chunk/{chunk_name}` for consistency with the naming convention used by other `/node/*` endpoints.
+
+### Fixed
+
+- Fixed the Turin SEV-SNP CPUID mapping used for product detection (#7748).
+- Fixed cache size calculations for historical queries, resolving a bug where signature transactions could become orphaned and fill the cache's useful space, resulting in incoming user-requested stores being immediately evicted (#7755).
+
 ## [7.0.0-dev12]
 
 [7.0.0-dev12]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev12
 
 ### Added
 
+- Added `COSEVerifier::verify_decomposed()` method that accepts pre-parsed COSE_Sign1 components (protected header, payload, signature, algorithm), bypassing envelope parsing.
 - Backup nodes can now be configured to automatically fetch snapshots from the primary when snapshot evidence is detected. This is controlled by the `snapshots.backup_fetch` configuration section, with `enabled`, `max_attempts`, `retry_interval`, `max_size` and `target_rpc_interface` options. Note that the target RPC interface selected must have the `SnapshotRead` operator feature enabled.
 - Added `ccf::IdentityHistoryNotFetched` exception type to distinguish identity-history-fetching errors from other logic errors in the network identity subsystem (#7708).
 - Added `ccf::describe_cose_receipt_v1(receipt)` to obtain COSE receipts with Merkle proof in unprotected header for non-signature TXs, and empty unprotected header for signature TXs (#7700).
 - `NetworkIdentitySubsystemInterface` now exposes `get_trusted_keys()`, returning all trusted network identity keys as a `TrustedKeys` map (#7690).
 - Added support for self-transparent code update policies (#7681).
+- Added `scripts/coverage.sh` to aggregate LLVM coverage data produced by tests built with `-DCOVERAGE=ON`. The script merges all `.profraw` files in the build directory, prints an overall coverage summary, and optionally shows uncovered lines (`--show-uncovered`) or generates an HTML report (`--html <dir>`). CMake now also generates `coverage_binaries.txt` in the build directory listing all instrumented test binaries, and automatically sets `LLVM_PROFILE_FILE` for each unit test so that parallel test runs produce uniquely-named profile files.
 
 ### Changed
 
 - On recovery, the UVM descriptor SVN is now set to the minimum of the previously stored value in the KV and the value found in the new node's startup endorsements. On start, the behaviour is unchanged (#7716).
-- Refactored the user facing surface of self-healing-open and local sealing. The whole feature is now `sealing-recovery` with `self-healing-open` now referred to as the `recovery-decision-protocol`. (#7679)
-  - Local sealing is enabled by setting the `sealing-recovery` config field (for both the sealing node, and the unsealing recovery node)
-  - The local sealing identity is under `sealing-recovery.location.name`
-  - The recovery-decision-protocol is configured via `sealing-recovery.recovery_decision_protocol`
+- Refactored the user facing surface of self-healing-open and local sealing. The whole feature is now `sealing-recovery` with `self-healing-open` now referred to as the `recovery-decision-protocol` (#7679).
+  - Local sealing is enabled by setting the `sealing-recovery` config field (for both the sealing node, and the unsealing recovery node).
+  - The local sealing identity is under `sealing-recovery.location.name`.
+  - The recovery-decision-protocol is configured via `sealing-recovery.recovery_decision_protocol`.
+- Snapshots now carry COSE receipts, JSON receipts are no longer included (#7711).
 
 ## [7.0.0-dev11]
 

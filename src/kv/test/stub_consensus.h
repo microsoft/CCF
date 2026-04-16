@@ -5,6 +5,7 @@
 #include "ccf/crypto/symmetric_key.h"
 #include "consensus/aft/impl/state.h"
 #include "kv/kv_types.h"
+#include "kv/store.h"
 
 #include <algorithm>
 #include <iostream>

@@ -106,31 +106,4 @@ namespace ccf::crypto
       throw std::runtime_error("Unsupported key size");
     }
   }
-
-  /** Default initialization vector for AES-GCM (12 zeroes) */
-  static std::vector<uint8_t> default_iv(iv_size, 0);
-
-  /// AES-GCM Encryption with @p key of @p data
-  /// @param key The key
-  /// @param plaintext The data
-  /// @param iv Intialization vector
-  /// @param aad Additional authenticated data
-  /// @return ciphertext
-  std::vector<uint8_t> aes_gcm_encrypt(
-    std::span<const uint8_t> key,
-    std::span<const uint8_t> plaintext,
-    const std::vector<uint8_t>& iv = default_iv,
-    const std::vector<uint8_t>& aad = {});
-
-  /// AES-GCM Decryption with @p key of @p data
-  /// @param key The key
-  /// @param ciphertext The (encrypted) data
-  /// @param iv Initialization vector
-  /// @param aad Additional authenticated data
-  /// @return plaintext
-  std::vector<uint8_t> aes_gcm_decrypt(
-    std::span<const uint8_t> key,
-    std::span<const uint8_t> ciphertext,
-    const std::vector<uint8_t>& iv = default_iv,
-    const std::vector<uint8_t>& aad = {});
 }

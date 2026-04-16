@@ -9,9 +9,9 @@ namespace ccf::kv::serialisers
   // Unit serialisations are used as a utility type to convert ccf::kv::Maps to
   // ccf::kv::Maps and ccf::kv::Sets. Specifically, these are implemented as
   // wrappers so that ccf::kv::Value<T> is essentially ccf::kv::Map<Unit, T>,
-  // and ccf::kv::Set<T> is ccf::kv::Map<T, Unit>. This is used as a template
-  // parameter allowing the caller to specify what value is inserted into the
-  // ledger.
+  // ccf::kv::Set<T> is ccf::kv::Map<T, Unit>, and ccf::kv::UnitValue is
+  // ccf::kv::Map<Unit, Unit>. This is used as a template parameter allowing
+  // the caller to specify what value is inserted into the ledger.
 
   // This is the default UnitCreator, returning 8 null bytes for compatibility
   // with old ledgers (where Values were previously Maps with a single entry

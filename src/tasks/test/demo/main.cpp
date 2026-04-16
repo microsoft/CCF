@@ -263,12 +263,14 @@ void describe_dispatcher(Dispatcher& d)
   {
     size_t pending;
     bool active;
-    tasks->get_queue_summary(pending, active);
+    bool is_paused;
+    tasks->get_queue_summary(pending, active, is_paused);
     LOG_INFO_FMT(
-      "  {}: {} (active: {}, queue.size: {})",
+      "  {}: {} (active: {}, paused: {}, queue.size: {})",
       session->name,
       tasks->get_name(),
       active,
+      is_paused,
       pending);
   }
 }

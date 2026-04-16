@@ -268,7 +268,8 @@ namespace programmabilityapp
             "Failed to check if action is original");
           return true;
         }
-        default:
+        case ccf::ApiResult::Uninitialised:
+        case ccf::ApiResult::NotFound:
         {
           return true;
         }

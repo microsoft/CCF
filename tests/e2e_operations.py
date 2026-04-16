@@ -33,8 +33,12 @@ import cbor2
 import pathlib
 import infra.concurrency
 import ccf.read_ledger
+import ccf.cose
+import infra.commit
+import infra.utils
 import re
 import hashlib
+from contextlib import contextmanager
 
 from loguru import logger as LOG
 
@@ -170,6 +174,21 @@ def test_forced_ledger_chunk(network, args):
     return network
 
 
+def find_snapshot_after_seqno(snapshots_dir, seqno):
+    for snapshot_name in os.listdir(snapshots_dir):
+        with ccf.ledger.Snapshot(
+            os.path.join(snapshots_dir, snapshot_name)
+        ) as snapshot:
+            snapshot_seqno = snapshot.get_public_domain().get_seqno()
+            if snapshot_seqno > seqno:
+                LOG.info(f"Found a snapshot at {snapshot_seqno} which is after {seqno}")
+                return snapshot_seqno
+
+    raise RuntimeError(
+        f"Could not find a snapshot after seqno {seqno} in {snapshots_dir}"
+    )
+
+
 @reqs.description("Forced snapshot")
 @app.scoped_txs()
 def test_forced_snapshot(network, args):
@@ -185,34 +204,50 @@ def test_forced_snapshot(network, args):
     # Ensure there is at least one signature greater than the hwm
     network.txs.issue(network, number_txs=1, wait_for_sync=True)
 
-    # Submit a proposal to force a snapshot
-    proposal_body, careful_vote = network.consortium.make_proposal("trigger_snapshot")
-    proposal = network.consortium.get_any_active_member().propose(
-        primary, proposal_body
-    )
-    proposal = network.consortium.vote_using_majority(
-        primary,
-        proposal,
-        careful_vote,
-    )
+    # Force a snapshot
+    primary.trigger_snapshot()
 
     # Issue some more transactions
     network.txs.issue(network, number_txs=5)
 
     snapshots_dir = network.get_committed_snapshots(
-        primary, target_seqno=hwm_pre_proposal + 1
+        primary, target_seqno=hwm_pre_proposal + 1, wait_for_target_seqno=True
     )
+    find_snapshot_after_seqno(snapshots_dir, hwm_pre_proposal)
 
-    for s in os.listdir(snapshots_dir):
-        with ccf.ledger.Snapshot(os.path.join(snapshots_dir, s)) as snapshot:
-            snapshot_seqno = snapshot.get_public_domain().get_seqno()
-            if snapshot_seqno > hwm_pre_proposal:
-                LOG.info(
-                    f"Found a snapshot at {snapshot_seqno} which is after the pre-proposal-high-water-mark {hwm_pre_proposal}"
-                )
-                return network
+    return network
 
-    raise RuntimeError("Could not find matching snapshot file")
+
+@reqs.description("Create snapshot from node endpoint")
+@app.scoped_txs()
+def test_snapshot_create_endpoint(network, args):
+    primary, _ = network.find_primary()
+
+    network.txs.issue(network, number_txs=3)
+
+    with primary.client() as c:
+        r = c.get("/node/commit").body.json()
+        hwm_pre_request = TxID.from_str(r["transaction_id"]).seqno
+
+    with primary.client(interface_name=infra.interfaces.PRIMARY_RPC_INTERFACE) as c:
+        r = c.post("/node/snapshot:create")
+        assert r.status_code == http.HTTPStatus.NOT_FOUND, r
+
+    with primary.client(
+        interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
+    ) as c:
+        r = c.post("/node/snapshot:create")
+        assert r.status_code == http.HTTPStatus.NO_CONTENT, r
+
+    snapshots_dir = network.get_committed_snapshots(
+        primary,
+        target_seqno=hwm_pre_request + 1,
+        force_txs=False,
+        wait_for_target_seqno=True,
+    )
+    find_snapshot_after_seqno(snapshots_dir, hwm_pre_request)
+
+    return network
 
 
 # https://github.com/microsoft/CCF/issues/1858
@@ -232,16 +267,8 @@ def test_large_snapshot(network, args):
                 log_capture=[],
             )
 
-    # Submit a proposal to force a snapshot at the following signature
-    proposal_body, careful_vote = network.consortium.make_proposal("trigger_snapshot")
-    proposal = network.consortium.get_any_active_member().propose(
-        primary, proposal_body
-    )
-    proposal = network.consortium.vote_using_majority(
-        primary,
-        proposal,
-        careful_vote,
-    )
+    # Force a snapshot at the following signature
+    primary.trigger_snapshot()
 
     # Check that there is at least a snapshot larger than args.max_msg_size_bytes
     snapshots_dir = network.get_committed_snapshots(primary)
@@ -304,13 +331,17 @@ def test_snapshot_access(network, args):
             assert location == f"{loc}{path}"
             LOG.warning(r.headers)
 
+            # since uses closed/inclusive semantics: since=N returns snapshots
+            # with index >= N. So since=snapshot_index returns the snapshot
+            # (inclusive boundary), while since=snapshot_index+1 does not
+            # (strictly past the available snapshot index).
             for since, expected in (
                 (0, location),
                 (1, location),
                 (snapshot_index // 2, location),
                 (snapshot_index - 1, location),
-                (snapshot_index, None),
-                (snapshot_index + 1, None),
+                (snapshot_index, location),  # inclusive: exact index is returned
+                (snapshot_index + 1, None),  # strictly past: nothing returned
             ):
                 for method in ("GET", "HEAD"):
                     r = do_request(
@@ -515,6 +546,7 @@ def run_manual_snapshot_tests(const_args):
 
         test_snapshot_selection(network, args)
         test_forced_snapshot(network, args)
+        test_snapshot_create_endpoint(network, args)
 
 
 def test_snapshot_selection(network, args):
@@ -529,24 +561,10 @@ def test_snapshot_selection(network, args):
         )
         network.trust_node(new_node, args)
 
-    def trigger_snapshot(node):
-        LOG.info(f"Triggering snapshot on {node.local_node_id}")
-        proposal_body, careful_vote = network.consortium.make_proposal(
-            "trigger_snapshot"
-        )
-        proposal = network.consortium.get_any_active_member().propose(
-            node, proposal_body
-        )
-        network.consortium.vote_using_majority(
-            node,
-            proposal,
-            careful_vote,
-        )
-
     LOG.info("Creating snapshots")
     primary, backups = network.find_nodes()
     for i in range(3):
-        trigger_snapshot(primary)
+        primary.trigger_snapshot()
         # Snapshot creation and commit takes time. All of the helpers we have to track/poll this
         # are expensive, so try a short sleep
         time.sleep(1)
@@ -983,18 +1001,18 @@ def test_ledger_chunk_access(network, args):
                 # Asking about any index in the chunk should redirect to the chunk
                 for index in (start_index, end_index, (start_index + end_index) // 2):
                     r = c.head(
-                        f"/node/ledger-chunk?since={index}", allow_redirects=False
+                        f"/node/ledger_chunk?since={index}", allow_redirects=False
                     )
                     assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value, r
                     assert r.headers["Location"].endswith(
-                        f"/node/ledger-chunk/{chunk}"
+                        f"/node/ledger_chunk/{chunk}"
                     ), r
                     r = c.get(
-                        f"/node/ledger-chunk?since={index}", allow_redirects=False
+                        f"/node/ledger_chunk?since={index}", allow_redirects=False
                     )
                     assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value, r
                     assert r.headers["Location"].endswith(
-                        f"/node/ledger-chunk/{chunk}"
+                        f"/node/ledger_chunk/{chunk}"
                     ), r
 
                     chunk_url = urllib.parse.urlparse(r.headers["Location"])
@@ -1022,14 +1040,14 @@ def test_ledger_chunk_access(network, args):
 
             LOG.info("Accessing an empty chunk always returns an error")
             with tempfile.NamedTemporaryFile(dir=main_ledger_dir) as temp_chunk:
-                chunk_url = f"/node/ledger-chunk/{os.path.basename(temp_chunk.name)}"
+                chunk_url = f"/node/ledger_chunk/{os.path.basename(temp_chunk.name)}"
                 r = c.get(
                     chunk_url,
                     allow_redirects=True,
                 )
                 assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r
 
-                chunk_url = f"/node/ledger-chunk/{os.path.basename(temp_chunk.name)}"
+                chunk_url = f"/node/ledger_chunk/{os.path.basename(temp_chunk.name)}"
                 for range_value in ("bytes=0-10", "bytes=0-", "bytes=0-0"):
                     r = c.get(
                         chunk_url,
@@ -1049,7 +1067,7 @@ def test_ledger_chunk_access(network, args):
         )
         assert len(chunks) > 0, "No committed chunks found"
         _, _, chunk = chunks[0]
-        chunk_url = f"/node/ledger-chunk/{chunk}"
+        chunk_url = f"/node/ledger_chunk/{chunk}"
         ledger_chunk_path = os.path.join(main_ledger_dir, chunk)
         with open(ledger_chunk_path, "rb") as f:
             chunk_data = f.read()
@@ -1224,7 +1242,7 @@ def test_ledger_chunk_access(network, args):
 def test_ledger_chunk_repr_digest(network, args):
     """
     Verify that the Want-Repr-Digest / Repr-Digest headers work correctly
-    on the ledger-chunk endpoints for GET and HEAD, including sha-256,
+    on the ledger_chunk endpoints for GET and HEAD, including sha-256,
     sha-384 and sha-512 algorithms.
     """
     primary, _ = network.find_nodes()
@@ -1240,7 +1258,7 @@ def test_ledger_chunk_repr_digest(network, args):
         assert len(chunks) > 0, "No committed chunks found"
 
         _, _, chunk = chunks[0]
-        chunk_url = f"/node/ledger-chunk/{chunk}"
+        chunk_url = f"/node/ledger_chunk/{chunk}"
         ledger_chunk_path = os.path.join(main_ledger_dir, chunk)
         with open(ledger_chunk_path, "rb") as f:
             chunk_data = f.read()
@@ -1369,7 +1387,7 @@ def test_ledger_chunk_redirect_recent(network, args):
         interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
     ) as c:
         r = c.head(
-            f"/node/ledger-chunk?since={start_of_last_chunk}", allow_redirects=False
+            f"/node/ledger_chunk?since={start_of_last_chunk}", allow_redirects=False
         )
         assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value, r
         expected_host = primary.get_public_rpc_host(
@@ -1378,10 +1396,10 @@ def test_ledger_chunk_redirect_recent(network, args):
         expected_port = primary.get_public_rpc_port(
             interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
         )
-        expected_location = f"https://{expected_host}:{expected_port}/node/ledger-chunk?since={start_of_last_chunk}"
+        expected_location = f"https://{expected_host}:{expected_port}/node/ledger_chunk?since={start_of_last_chunk}"
         assert r.headers["Location"] == expected_location, r
         r = c.get(
-            f"/node/ledger-chunk?since={start_of_last_chunk}", allow_redirects=True
+            f"/node/ledger_chunk?since={start_of_last_chunk}", allow_redirects=True
         )
         primary_main_ledger_dir = primary.get_main_ledger_dir()
         ledger_chunk_path = os.path.join(primary_main_ledger_dir, chunks[-1])
@@ -1442,7 +1460,7 @@ def test_ledger_chunk_redirect_gap(network, args):
             interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
         ) as c:
             r = c.head(
-                f"/node/ledger-chunk?since={download_index}", allow_redirects=False
+                f"/node/ledger_chunk?since={download_index}", allow_redirects=False
             )
             assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value, r
             # Should redirect to any existing node
@@ -1471,7 +1489,7 @@ def test_ledger_chunk_redirect_gap(network, args):
             ), "Ledger chunk redirect should not point to self"
 
             r = c.get(
-                f"/node/ledger-chunk?since={download_index}", allow_redirects=True
+                f"/node/ledger_chunk?since={download_index}", allow_redirects=True
             )
             chunk_name = os.path.basename(r.headers["x-ms-ccf-ledger-chunk-name"])
             ledger_chunk_path = os.path.join(
@@ -1830,6 +1848,226 @@ def run_service_subject_name_check(args):
             cert_pem = r.body.json()["service_certificate"]
             cert = x509.load_pem_x509_certificate(cert_pem.encode(), default_backend())
             assert cert.subject.rfc4514_string() == "CN=This test service", cert
+
+
+def run_cose_only_mode_upgrade(args):
+
+    def get_service_key(network):
+        service_cert_path = os.path.join(network.common_dir, "service_cert.pem")
+        service_cert = x509.load_pem_x509_certificate(
+            open(service_cert_path, "rb").read(), default_backend()
+        )
+        return service_cert.public_key()
+
+    def verify_receipt_available(node, view, seqno, service_key, expect_regular=True):
+        with node.client("user0") as c:
+            infra.commit.wait_for_commit(c, seqno, view, timeout=3)
+
+            start_time = time.time()
+            while time.time() < start_time + 3:
+                rc = c.get(f"/node/receipt?transaction_id={view}.{seqno}")
+                if rc.status_code != http.HTTPStatus.ACCEPTED:
+                    break
+                time.sleep(0.1)
+
+            if expect_regular:
+                assert (
+                    rc.status_code == http.HTTPStatus.OK
+                ), f"Regular receipt should be available, got {rc.status_code}"
+            else:
+                assert (
+                    rc.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR
+                ), f"Regular receipt should fail on COSE-only network, got {rc.status_code}"
+
+            start_time = time.time()
+            while time.time() < start_time + 3:
+                cose_rc = c.get(f"/node/receipt/cose?transaction_id={view}.{seqno}")
+                if cose_rc.status_code != http.HTTPStatus.ACCEPTED:
+                    break
+                time.sleep(0.1)
+
+            assert (
+                cose_rc.status_code == http.HTTPStatus.OK
+            ), f"COSE receipt should be available, got {cose_rc.status_code}"
+            ccf.cose.verify_receipt(cose_rc.body.data(), service_key, b"\0" * 32)
+
+        LOG.info(
+            f"Receipt check OK for {view}.{seqno} "
+            f"(regular={'available' if expect_regular else 'unavailable'})"
+        )
+
+    def assert_ledger_cose_only_after(node, start_seqno):
+        current_ledger_dir, committed_ledger_dirs = node.get_ledger()
+        ledger = ccf.ledger.Ledger(
+            committed_ledger_dirs + [current_ledger_dir], committed_only=False
+        )
+
+        cose_sig_count = 0
+        for chunk in ledger:
+            for tx in chunk:
+                pd = tx.get_public_domain()
+                tables = pd.get_tables()
+                seqno = pd.get_seqno()
+
+                if seqno <= start_seqno:
+                    continue
+
+                assert ccf.ledger.SIGNATURE_TX_TABLE_NAME not in tables, (
+                    f"Found traditional (non-COSE) signature at seqno {seqno}, "
+                    f"expected COSE-only after seqno {start_seqno}"
+                )
+
+                if ccf.ledger.COSE_SIGNATURE_TX_TABLE_NAME in tables:
+                    cose_sig_count += 1
+
+        assert (
+            cose_sig_count > 0
+        ), "No COSE signatures found in ledger after old nodes were removed"
+        return cose_sig_count
+
+    def trust_package_host_data(network, primary, package):
+        host_data, _ = infra.utils.get_host_data_and_security_policy(
+            infra.platform_detection.get_platform(),
+            package,
+            binary_dir=nargs.binary_dir,
+        )
+        network.consortium.add_host_data(
+            primary,
+            infra.platform_detection.get_platform(),
+            host_data,
+        )
+
+    def replace_nodes(network, old_nodes, new_package):
+        new_nodes = []
+        for _ in range(len(old_nodes)):
+            new_node = network.create_node()
+            network.join_node(new_node, new_package, nargs)
+            network.trust_node(new_node, nargs)
+            new_nodes.append(new_node)
+
+        network.txs.issue(network, number_txs=5)
+
+        new_primary = new_nodes[0]
+        for old_node in old_nodes:
+            network.retire_node(new_primary, old_node)
+            old_node.stop()
+
+        return new_nodes
+
+    nargs = copy.deepcopy(args)
+    nargs.nodes = infra.e2e_args.max_nodes(nargs, f=0)
+
+    with infra.network.network(
+        nargs.nodes,
+        nargs.binary_dir,
+        nargs.debug_nodes,
+        pdb=nargs.pdb,
+        txs=app.LoggingTxs("user0"),
+    ) as network:
+        network.start_and_open(nargs)
+
+        primary, _ = network.find_nodes()
+        dual_nodes = network.get_joined_nodes()
+        service_key = get_service_key(network)
+
+        # Verify both regular and COSE receipts work on the dual-signing network
+        LOG.info("Verifying both receipt types work on dual-signing network")
+        pre_idx = network.txs.idx + 1
+        network.txs.issue(network, number_txs=1)
+        pre_msg = network.txs.priv[pre_idx][0]
+        verify_receipt_available(
+            primary, pre_msg["view"], pre_msg["seqno"], service_key, expect_regular=True
+        )
+
+        # ---- Phase 1: Dual -> COSE-only (allow dual joiners) ----
+        cose_only_allow_dual_package = nargs.package + "_cose_only_allow_join_dual"
+        LOG.info("Phase 1: Replacing dual nodes with COSE-only (allow dual joiners)")
+        trust_package_host_data(network, primary, cose_only_allow_dual_package)
+        cose_nodes = replace_nodes(network, dual_nodes, cose_only_allow_dual_package)
+
+        # Record the seqno after all dual nodes are removed
+        cose_primary = cose_nodes[0]
+        with cose_primary.client() as c:
+            r = c.get("/node/state")
+            cose_only_start_seqno = r.body.json()["last_signed_seqno"]
+        LOG.info(
+            f"Dual nodes removed. COSE-only starts after seqno {cose_only_start_seqno}"
+        )
+
+        network.txs.issue(network, number_txs=3)
+
+        # Verify a Dual joiner can still join (allow_dual_signing_joinee=true)
+        LOG.info("Verifying Dual joiner can still join COSE-only (allow dual) network")
+        dual_joiner = network.create_node()
+        network.join_node(dual_joiner, nargs.package, nargs)
+        network.trust_node(dual_joiner, nargs)
+        LOG.success("Dual joiner successfully joined COSE-only network")
+
+        # Remove the Dual joiner
+        cose_primary, _ = network.find_primary()
+        network.retire_node(cose_primary, dual_joiner)
+        dual_joiner.stop()
+
+        # Verify receipts
+        LOG.info("Verifying receipts after phase 1")
+        cose_primary, _ = network.find_primary()
+        post_msg = network.txs.priv[network.txs.idx][0]
+        verify_receipt_available(
+            cose_primary,
+            pre_msg["view"],
+            pre_msg["seqno"],
+            service_key,
+            expect_regular=True,
+        )
+        verify_receipt_available(
+            cose_primary,
+            post_msg["view"],
+            post_msg["seqno"],
+            service_key,
+            expect_regular=False,
+        )
+
+        # ---- Phase 2: COSE-only (allow dual) -> COSE-only (disallow dual) ----
+        cose_only_package = nargs.package + "_cose_only"
+        LOG.info("Phase 2: Replacing with COSE-only (disallow dual joiners)")
+        trust_package_host_data(network, cose_primary, cose_only_package)
+        replace_nodes(network, cose_nodes, cose_only_package)
+
+        network.txs.issue(network, number_txs=3)
+
+        # Verify a Dual joiner is now rejected
+        LOG.info("Verifying Dual joiner is rejected by COSE-only-no-dual network")
+        rejected_joiner = network.create_node()
+        try:
+            network.join_node(rejected_joiner, nargs.package, nargs, timeout=10)
+            network.trust_node(rejected_joiner, nargs)
+            assert False, "Dual joiner should have been rejected"
+        except Exception as e:
+            LOG.success(f"Dual joiner correctly rejected: {e}")
+
+        # Verify COSE receipts still work
+        LOG.info("Verifying COSE receipts after phase 2")
+        no_dual_primary, _ = network.find_primary()
+        final_msg = network.txs.priv[network.txs.idx][0]
+        verify_receipt_available(
+            no_dual_primary,
+            final_msg["view"],
+            final_msg["seqno"],
+            service_key,
+            expect_regular=False,
+        )
+
+        # Verify ledger is COSE-only signed
+        LOG.info("Verifying ledger is COSE-only signed")
+        network.wait_for_all_nodes_to_commit(primary=no_dual_primary)
+        cose_sig_count = assert_ledger_cose_only_after(
+            no_dual_primary, cose_only_start_seqno
+        )
+
+        LOG.success(
+            f"COSE-only mode upgrade test passed. "
+            f"Found {cose_sig_count} COSE-only signatures after seqno {cose_only_start_seqno}"
+        )
 
 
 def run_cose_signatures_config_check(args):
@@ -2943,32 +3181,32 @@ def test_backup_snapshot_fetch_max_size(network, args):
     )
     network.trust_node(new_node, args)
     new_node.wait_for_node_to_join(timeout=5)
-    # Check the snapshot directory for the new node only contains a single file
     snapshot_dir = os.path.join(
         new_node.remote.remote.root, new_node.remote.snapshots_dir_name
     )
 
-    def assert_no_snapshot_present():
-        timeout_s = 10
-        end_time = time.time() + timeout_s
+    def assert_no_snapshot_is_present(duration_s=10):
+        """
+        On a join node, the snapshot directory is expected to be empty until
+        the node attempts to fetch a snapshot from the primary. Directory creation
+        is not always visible immediately, so we defer enforcing the expectation
+        that the directory exists.
+        """
+        end_time = time.time() + duration_s
         while time.time() < end_time:
             if os.path.exists(snapshot_dir):
                 files = os.listdir(snapshot_dir)
-                if len(files) > 0:
-                    LOG.info(
-                        f"New node {new_node.local_node_id}: found snapshot file {files[0]} in {snapshot_dir}"
-                    )
-                    break
-
-                LOG.info(
-                    f"New node {new_node.local_node_id}: expected to find a single snapshot file in {snapshot_dir}, but found {files}; retrying"
-                )
-
+                assert (
+                    files == []
+                ), f"Expected no snapshot in {snapshot_dir}, but found {files}"
             time.sleep(0.1)
+        assert os.path.exists(
+            snapshot_dir
+        ), f"Expected snapshot directory {snapshot_dir} to exist"
 
-    assert_no_snapshot_present()
+    assert_no_snapshot_is_present()
     network.txs.issue(network, number_txs=args.snapshot_tx_interval * 2)
-    assert_no_snapshot_present()
+    assert_no_snapshot_is_present()
     expected_log_message = "Failed writing received data to disk/application"
     out_path, _ = new_node.get_logs()
     for line in open(out_path, "r", encoding="utf-8").readlines():
@@ -3039,6 +3277,200 @@ def run_propose_request_vote(const_args):
                 node.remote.remote.proc.send_signal(signal.SIGTERM)
 
 
+def run_time_based_snapshotting(const_args):
+    args = copy.deepcopy(const_args)
+    args.label += "_tb_snapshot"
+    args.snapshot_tx_interval = (
+        10000  # Large interval to avoid interference from regular snapshots
+    )
+    args.snapshot_time_interval = "1s"
+
+    @contextmanager
+    def net_with_min_tx(label, min_tx_interval):
+        inner_args = copy.deepcopy(args)
+        inner_args.snapshot_min_tx_interval = min_tx_interval
+        inner_args.label += label
+        with infra.network.network(
+            inner_args.nodes,
+            inner_args.binary_dir,
+            inner_args.debug_nodes,
+            pdb=inner_args.pdb,
+            txs=app.LoggingTxs("user0"),
+        ) as net:
+            net.start_and_open(inner_args)
+            yield net
+
+    def get_committed_snapshot_files(net):
+        primary, _ = net.find_primary()
+        snapshots_dirs = [
+            os.path.join(primary.remote.remote.root, primary.remote.snapshots_dir_name)
+        ]
+        if primary.remote.read_only_snapshots_dir_name is not None:
+            snapshots_dirs.append(
+                os.path.join(
+                    primary.remote.remote.root,
+                    primary.remote.read_only_snapshots_dir_name,
+                )
+            )
+
+        snapshots = set()
+        for snapshots_dir in snapshots_dirs:
+            if not os.path.isdir(snapshots_dir):
+                continue
+
+            for snapshot_name in os.listdir(snapshots_dir):
+                if ccf.ledger.is_snapshot_file_committed(snapshot_name):
+                    snapshots.add(snapshot_name)
+
+        return snapshots
+
+    # Pattern for these tests:
+    # 1. wait for any startup triggered txs to commit and net to settle
+    # 2. wait for a snapshot with the latest committed tx, or wait 5s
+    # 3. record baseline
+    # 4. record new snapshots over 10s and compare that to the baseline
+
+    # min_tx set low
+    with net_with_min_tx("_low", 0) as net:
+        time.sleep(1)
+        net.get_committed_snapshots(
+            net.find_primary()[0],
+            force_txs=False,
+            wait_for_target_seqno=True,
+            timeout=5,
+        )
+        baseline = get_committed_snapshot_files(net)
+        time.sleep(10)
+        final = get_committed_snapshot_files(net)
+        assert (
+            len(final - baseline) >= 8
+        ), f"With min_tx_interval set to 0 we expect snapshots to be generated at around 1 per second, but got {final} snapshots 10s after a baseline of {baseline}, with {final - baseline} new snapshots seen over the test."
+
+    # min_tx set just right
+    with net_with_min_tx("_exact", 2) as net:
+        time.sleep(1)
+        try:
+            net.get_committed_snapshots(
+                net.find_primary()[0],
+                force_txs=False,
+                wait_for_target_seqno=True,
+                timeout=5,
+            )
+        except TimeoutError:
+            pass
+        baseline = get_committed_snapshot_files(net)
+        time.sleep(10)
+        final = get_committed_snapshot_files(net)
+        assert (
+            final == baseline
+        ), f"With min_tx_interval set to 2 we expect no snapshots to be generated without transactions, but got {final} snapshots 10s after a baseline of {baseline}, with {final - baseline} new snapshots seen over the test."
+
+    # set much higher to show that
+    with net_with_min_tx("_high", 10) as net:
+        time.sleep(1)
+        try:
+            net.get_committed_snapshots(
+                net.find_primary()[0],
+                force_txs=False,
+                wait_for_target_seqno=True,
+                timeout=5,
+            )
+        except TimeoutError:
+            pass
+        baseline = get_committed_snapshot_files(net)
+        time.sleep(10)
+        final = get_committed_snapshot_files(net)
+        assert (
+            final == baseline
+        ), f"With min_tx_interval set to 10 we expect no snapshots to be generated without transactions, but got {final} snapshots 10s after a baseline of {baseline}, with {final - baseline} new snapshots seen over the test."
+
+        tx_id = net.txs.issue(net, number_txs=1)
+        baseline = get_committed_snapshot_files(net)
+        time.sleep(10)
+        final = get_committed_snapshot_files(net)
+        assert (
+            final == baseline
+        ), f"With min_tx_interval set to 10 and we expect no snapshots to be generated with only one extra tx, but got {final} snapshots 10s after a baseline of {baseline}, and in total saw {final - baseline} new snapshots over the test."
+
+        net.txs.issue(net, number_txs=20)
+        primary, _ = net.find_primary()
+        net.get_committed_snapshots(
+            primary,
+            target_seqno=tx_id.seqno,
+            force_txs=False,
+            wait_for_target_seqno=True,
+        )
+
+
+def run_snapshot_persistence_across_primary_failure(const_args):
+    """
+    Verify that the snapshot generation rate stays consistent across
+    leadership changes. Suspends the primary to trigger an election,
+    then resumes it. If the time baseline reset on each election,
+    new primaries would snapshot immediately, inflating the count.
+    """
+    snapshot_interval_ms = 5000
+    test_duration_s = 60
+    stable_time_s = 5
+
+    args = copy.deepcopy(const_args)
+    args.label += "_tb_snapshot_persist"
+    args.nodes = infra.e2e_args.nodes(args, 3)
+    args.snapshot_tx_interval = 10000  # High to avoid tx-count-triggered snapshots
+    args.snapshot_time_interval = f"{snapshot_interval_ms}ms"
+    args.snapshot_min_tx_interval = 0
+
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        pdb=args.pdb,
+        txs=app.LoggingTxs("user0"),
+    ) as net:
+        net.start_and_open(args)
+
+        start_time = time.time()
+        end_time = time.time() + test_duration_s
+
+        while True:
+            primary, _ = net.find_primary()
+            LOG.info(f"Leadership change suspending {primary.local_node_id}")
+            primary.suspend()
+            new_primary, _ = net.wait_for_new_primary(primary)
+            LOG.info(f"New primary is {new_primary.local_node_id}")
+            primary.resume()
+            if time.time() < end_time:
+                time.sleep(stable_time_s)
+            else:
+                break
+
+        elapsed = time.time() - start_time
+        snapshots = set()
+        for node in net.nodes:
+            snapshots_dir = net.get_committed_snapshots(node, force_txs=False)
+            snapshots = snapshots.union(set(os.listdir(snapshots_dir)))
+
+        total_snapshots = len(snapshots)
+
+        snapshot_interval_s = snapshot_interval_ms / 1000
+        election_timeout_s = args.election_timeout_ms / 1000
+        # In the worst case, each snapshot is delayed by one extra election timeout
+        # beyond the nominal snapshot interval while leadership is re-established.
+        min_expected = elapsed / (snapshot_interval_s + election_timeout_s * 1.2)
+        max_expected = elapsed / snapshot_interval_s * 0.9
+        LOG.info(
+            f"Elapsed: {elapsed:.1f}s, snapshots: {total_snapshots}, "
+            f"expected bounds [{min_expected:.1f}, {max_expected:.1f}] "
+            f"(interval={snapshot_interval_ms}ms, election_timeout={args.election_timeout_ms}ms)"
+        )
+
+        assert min_expected <= total_snapshots <= max_expected, (
+            f"Snapshot count {total_snapshots} is outside expected bounds "
+            f"[{min_expected:.1f}, {max_expected:.1f}] based on elapsed time, "
+            f"snapshot interval, and election timeout"
+        )
+
+
 def run_snp_tests(args):
     run_initial_uvm_descriptor_checks(args)
     run_initial_tcb_version_checks(args)
@@ -3057,10 +3489,756 @@ def run_snp_tests(args):
     run_recovery_decision_protocol_multiple_timeout(args)
 
 
+def test_max_retained_snapshot_files(network, args):
+    max_retained = args.files_cleanup_max_snapshots
+    primary, _ = network.find_primary()
+
+    snapshots_dir = os.path.join(
+        primary.remote.remote.root,
+        primary.remote.snapshots_dir_name,
+    )
+
+    def wait_for_snapshot_seqnos(count, timeout=10):
+        end_time = time.time() + timeout
+        observed_seqnos = set()
+        while time.time() < end_time:
+            observed_seqnos = set()
+            for f in os.listdir(snapshots_dir):
+                if f.startswith("snapshot_") and ccf.ledger.is_snapshot_file_committed(
+                    f
+                ):
+                    seqno, _ = ccf.ledger.snapshot_index_from_filename(f)
+                    observed_seqnos.add(seqno)
+
+            if len(observed_seqnos) >= count:
+                return sorted(observed_seqnos)
+
+            time.sleep(0.1)
+
+        raise TimeoutError(
+            f"Timed out waiting for at least {count} committed snapshots in "
+            f"{snapshots_dir}. Last observed {len(observed_seqnos)}: {sorted(observed_seqnos)}"
+        )
+
+    def wait_for_cleanup(max_count, timeout=10):
+        """Wait for the periodic cleanup timer to prune snapshots."""
+        end_time = time.time() + timeout
+        while time.time() < end_time:
+            committed = [
+                f
+                for f in os.listdir(snapshots_dir)
+                if f.startswith("snapshot_")
+                and ccf.ledger.is_snapshot_file_committed(f)
+            ]
+            if len(committed) <= max_count:
+                return
+            time.sleep(0.5)
+        raise TimeoutError(
+            f"Timed out waiting for snapshot count to drop to {max_count} in "
+            f"{snapshots_dir}. Found {len(committed)}: {sorted(committed)}"
+        )
+
+    # We expect an initial snapshot, created by network open.
+    prev_seqnos = wait_for_snapshot_seqnos(count=1)
+    LOG.info(f"Initial snapshots on disk: {prev_seqnos}")
+
+    # Generate more snapshots than the retention limit, checking invariants at each step
+    num_snapshots_to_create = max_retained + 3
+    for i in range(num_snapshots_to_create):
+        LOG.info(f"Triggering snapshot {i + 1}/{num_snapshots_to_create}")
+        network.txs.issue(network, number_txs=3)
+
+        with primary.client() as c:
+            r = c.get("/node/commit").body.json()
+            seqno_before = TxID.from_str(r["transaction_id"]).seqno
+
+        primary.trigger_snapshot()
+        network.txs.issue(network, number_txs=3)
+
+        # Wait for a new committed snapshot to appear. Once at the retention
+        # limit the cleanup timer may prune before we observe a higher total,
+        # so we look for a *new* seqno rather than an increased count.
+        def wait_for_new_snapshot(prev, timeout=10):
+            end_time = time.time() + timeout
+            while time.time() < end_time:
+                observed = set()
+                for f in os.listdir(snapshots_dir):
+                    if f.startswith(
+                        "snapshot_"
+                    ) and ccf.ledger.is_snapshot_file_committed(f):
+                        seqno, _ = ccf.ledger.snapshot_index_from_filename(f)
+                        observed.add(seqno)
+                if observed - set(prev):
+                    return sorted(observed)
+                time.sleep(0.1)
+            raise TimeoutError(
+                f"Timed out waiting for a new committed snapshot in "
+                f"{snapshots_dir}. Previous: {prev}, last observed: {sorted(observed)}"
+            )
+
+        current_seqnos = wait_for_new_snapshot(prev_seqnos)
+
+        LOG.info(
+            f"Snapshot {i + 1}: seqnos on disk: {current_seqnos}, "
+            f"previous iteration: {prev_seqnos}"
+        )
+
+        # The latest snapshot is the one we just created
+        assert current_seqnos[-1] >= seqno_before, (
+            f"Expected the newest snapshot seqno {current_seqnos[-1]} "
+            f"to be >= seqno_before {seqno_before}"
+        )
+
+        # Wait for the periodic cleanup timer to prune old snapshots
+        if len(current_seqnos) > max_retained:
+            wait_for_cleanup(max_retained)
+
+        # Re-read the snapshot list after cleanup
+        current_seqnos = sorted(
+            {
+                ccf.ledger.snapshot_index_from_filename(f)[0]
+                for f in os.listdir(snapshots_dir)
+                if f.startswith("snapshot_")
+                and ccf.ledger.is_snapshot_file_committed(f)
+            }
+        )
+
+        assert len(current_seqnos) <= max_retained, (
+            f"Expected at most {max_retained} snapshots after iteration {i + 1}, "
+            f"found {len(current_seqnos)}: {current_seqnos}"
+        )
+
+        # All snapshots except the latest were present in the previous iteration
+        for seqno in current_seqnos[:-1]:
+            assert seqno in prev_seqnos, (
+                f"Snapshot with seqno {seqno} was not present in the previous "
+                f"iteration {prev_seqnos}"
+            )
+
+        prev_seqnos = current_seqnos
+
+    return network
+
+
+def run_max_retained_snapshot_files(const_args):
+    args = copy.deepcopy(const_args)
+    args.common_read_only_ledger_dir = None
+    args.label = f"{args.label}_max_retained_snapshots"
+    args.snapshot_tx_interval = 10000
+    args.files_cleanup_max_snapshots = 3
+    args.files_cleanup_interval = "1s"
+
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        pdb=args.pdb,
+        txs=app.LoggingTxs("user0"),
+    ) as network:
+        network.start_and_open(args)
+        test_max_retained_snapshot_files(network, args)
+
+
+def test_backup_snapshot_cleanup(network, args):
+    max_retained = args.files_cleanup_max_snapshots
+    primary, _ = network.find_primary()
+    backups = network.find_backups()
+    assert len(backups) > 0, "Expected at least one backup node"
+
+    num_snapshots_to_create = max_retained + 3
+    for i in range(num_snapshots_to_create):
+        LOG.info(f"Triggering snapshot {i + 1}/{num_snapshots_to_create}")
+        network.txs.issue(network, number_txs=3)
+        primary.trigger_snapshot()
+        network.txs.issue(network, number_txs=3)
+
+    # Wait for backups to download and clean up snapshots.
+    # The cleanup timer should fire within the configured interval.
+    for backup in backups:
+        backup_snapshots_dir = os.path.join(
+            backup.remote.remote.root, backup.remote.snapshots_dir_name
+        )
+        LOG.info(
+            f"Waiting for backup {backup.local_node_id} to prune snapshots "
+            f"in {backup_snapshots_dir} to at most {max_retained}"
+        )
+
+        timeout_s = 30
+        end_time = time.time() + timeout_s
+        while time.time() < end_time:
+            committed = [
+                f
+                for f in os.listdir(backup_snapshots_dir)
+                if f.startswith("snapshot_")
+                and ccf.ledger.is_snapshot_file_committed(f)
+            ]
+            if len(committed) <= max_retained:
+                LOG.success(
+                    f"Backup {backup.local_node_id}: "
+                    f"{len(committed)} committed snapshots (<= {max_retained})"
+                )
+                break
+            time.sleep(0.5)
+        else:
+            committed = [
+                f
+                for f in os.listdir(backup_snapshots_dir)
+                if f.startswith("snapshot_")
+                and ccf.ledger.is_snapshot_file_committed(f)
+            ]
+            raise AssertionError(
+                f"Backup {backup.local_node_id} has {len(committed)} committed "
+                f"snapshots after {timeout_s}s, expected at most {max_retained}: "
+                f"{sorted(committed)}"
+            )
+
+    return network
+
+
+def run_backup_snapshot_cleanup(const_args):
+    args = copy.deepcopy(const_args)
+    args.common_read_only_ledger_dir = None
+    args.label = f"{args.label}_backup_snapshot_cleanup"
+    args.snapshot_tx_interval = 30
+    args.files_cleanup_max_snapshots = 3
+    args.files_cleanup_interval = "1s"
+    args.nodes = infra.e2e_args.max_nodes(args, f=0)
+
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        pdb=args.pdb,
+        txs=app.LoggingTxs("user0"),
+    ) as network:
+        network.start_and_open(args, backup_snapshot_fetch_enabled=True)
+        test_backup_snapshot_cleanup(network, args)
+
+
+def test_max_committed_ledger_chunk_files(network, args, read_only_ledger_dir):
+    """
+    Verify that the periodic cleanup timer deletes committed ledger chunks
+    from the main ledger directory down to the configured retention limit.
+    Chunks are copied to the read-only dir so the digest check passes.
+    """
+    max_retained = args.files_cleanup_max_committed_ledger_chunks
+    primary, _ = network.find_primary()
+    main_ledger_dir = primary.get_main_ledger_dir()
+
+    def get_committed_chunks():
+        return sorted(
+            [
+                f
+                for f in os.listdir(main_ledger_dir)
+                if f.startswith("ledger_") and ccf.ledger.is_ledger_chunk_committed(f)
+            ],
+            key=lambda f: ccf.ledger.range_from_filename(f)[0],
+        )
+
+    def copy_new_committed_to_readonly():
+        """Copy any committed chunks from main dir to read-only dir."""
+        for f in os.listdir(main_ledger_dir):
+            if f.startswith("ledger_") and ccf.ledger.is_ledger_chunk_committed(f):
+                dst = os.path.join(read_only_ledger_dir, f)
+                if not os.path.exists(dst):
+                    shutil.copy2(os.path.join(main_ledger_dir, f), dst)
+
+    def wait_for_cleanup(max_count, timeout=15):
+        end_time = time.time() + timeout
+        while time.time() < end_time:
+            committed = get_committed_chunks()
+            if len(committed) <= max_count:
+                return committed
+            time.sleep(0.5)
+        current = get_committed_chunks()
+        raise TimeoutError(
+            f"Timed out waiting for committed chunk count to drop to {max_count} in "
+            f"{main_ledger_dir}. Found {len(current)}: {sorted(current)}"
+        )
+
+    initial_committed = get_committed_chunks()
+    LOG.info(f"Initial committed chunks: {len(initial_committed)}")
+
+    # Generate more committed chunks than the retention limit
+    num_chunks_to_create = max_retained + 4
+    for i in range(num_chunks_to_create):
+        LOG.info(f"Forcing ledger chunk {i + 1}/{num_chunks_to_create}")
+        network.txs.issue(network, number_txs=3)
+        network.consortium.force_ledger_chunk(primary)
+        network.txs.issue(network, number_txs=3)
+        # Copy committed chunks to read-only dir so digest check passes
+        copy_new_committed_to_readonly()
+
+    # Wait for committed chunks to appear then for cleanup to prune
+    time.sleep(2)
+    committed_after = get_committed_chunks()
+    LOG.info(f"Committed chunks after issuing: {len(committed_after)}")
+
+    if len(committed_after) > max_retained:
+        committed_after = wait_for_cleanup(max_retained)
+
+    assert len(committed_after) <= max_retained, (
+        f"Expected at most {max_retained} committed chunks, "
+        f"found {len(committed_after)}: {committed_after}"
+    )
+
+    # Verify the retained chunks are the newest
+    all_start_seqnos = [ccf.ledger.range_from_filename(f)[0] for f in committed_after]
+    assert all_start_seqnos == sorted(
+        all_start_seqnos
+    ), f"Retained chunks are not sorted: {all_start_seqnos}"
+
+    return network
+
+
+def run_max_committed_ledger_chunk_files(const_args):
+    args = copy.deepcopy(const_args)
+    args.label = f"{args.label}_max_committed_ledger_chunks"
+    args.ledger_chunk_bytes = "20KB"
+    args.files_cleanup_max_committed_ledger_chunks = 3
+    args.files_cleanup_interval = "1s"
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        args.common_read_only_ledger_dir = tmp_dir
+
+        with infra.network.network(
+            args.nodes,
+            args.binary_dir,
+            args.debug_nodes,
+            pdb=args.pdb,
+            txs=app.LoggingTxs("user0"),
+        ) as network:
+            network.start_and_open(args)
+
+            # Copy all existing committed chunks to read-only dir so they can be pruned
+            primary, _ = network.find_primary()
+            main_ledger_dir = primary.get_main_ledger_dir()
+            for f in os.listdir(main_ledger_dir):
+                if f.startswith("ledger_") and ccf.ledger.is_ledger_chunk_committed(f):
+                    shutil.copy2(
+                        os.path.join(main_ledger_dir, f),
+                        os.path.join(tmp_dir, f),
+                    )
+
+            test_max_committed_ledger_chunk_files(network, args, tmp_dir)
+
+
+def test_ledger_chunk_cleanup_with_read_only_dir(network, args):
+    """
+    When read-only ledger directories are configured, only committed ledger
+    chunks that have an identical copy (by SHA-256 digest) in a read-only
+    directory should be deleted. Chunks not present there must be kept.
+    """
+    max_retained = args.files_cleanup_max_committed_ledger_chunks
+    primary, _ = network.find_primary()
+    main_ledger_dir = primary.get_main_ledger_dir()
+
+    # The read-only ledger dir for this node
+    read_only_ledger_dir = os.path.join(
+        primary.remote.remote.root,
+        primary.remote.read_only_ledger_dirs_names[0],
+    )
+    os.makedirs(read_only_ledger_dir, exist_ok=True)
+
+    def get_committed_chunks(d):
+        return sorted(
+            [
+                f
+                for f in os.listdir(d)
+                if f.startswith("ledger_") and ccf.ledger.is_ledger_chunk_committed(f)
+            ],
+            key=lambda f: ccf.ledger.range_from_filename(f)[0],
+        )
+
+    # Generate lots of committed chunks
+    num_chunks = max_retained + 5
+    for i in range(num_chunks):
+        network.txs.issue(network, number_txs=3)
+        network.consortium.force_ledger_chunk(primary)
+        network.txs.issue(network, number_txs=3)
+
+    time.sleep(1)
+
+    # Pause cleanup by collecting committed chunks before they're pruned.
+    # Copy only some of the oldest chunks to read-only dir.
+    committed = get_committed_chunks(main_ledger_dir)
+    LOG.info(f"Committed chunks before backup: {len(committed)}")
+
+    # Copy the 2 oldest committed chunks to read-only dir
+    num_to_backup = 2
+    backed_up = []
+    for f in committed[:num_to_backup]:
+        src = os.path.join(main_ledger_dir, f)
+        dst = os.path.join(read_only_ledger_dir, f)
+        shutil.copy2(src, dst)
+        backed_up.append(f)
+        LOG.info(f"Backed up {f} to read-only dir")
+
+    # Wait for the cleanup timer to process
+    timeout = 20
+    end_time = time.time() + timeout
+    while time.time() < end_time:
+        current = get_committed_chunks(main_ledger_dir)
+        if len(current) <= max_retained + (
+            len(committed) - max_retained - num_to_backup
+        ):
+            break
+        time.sleep(0.5)
+
+    current = get_committed_chunks(main_ledger_dir)
+    LOG.info(f"Committed chunks after cleanup: {len(current)}, files: {current}")
+
+    # The backed-up chunks should have been deleted from main dir
+    for f in backed_up:
+        assert f not in current, (
+            f"Chunk {f} was backed up to read-only dir but was not deleted "
+            f"from main dir. Current: {current}"
+        )
+
+    # Chunks not in read-only dir that were over the limit should still be present
+    # (they couldn't be safely deleted)
+    not_backed_up_over_limit = [f for f in committed if f not in backed_up][
+        : len(committed) - max_retained - num_to_backup
+    ]
+    for f in not_backed_up_over_limit:
+        assert f in current, (
+            f"Chunk {f} was NOT in read-only dir and should have been kept, "
+            f"but was deleted. Current: {current}"
+        )
+
+    # Clean up read-only dir so leftover files don't interfere with shutdown
+    # ledger validation
+    for f in os.listdir(read_only_ledger_dir):
+        try:
+            os.remove(os.path.join(read_only_ledger_dir, f))
+        except OSError as e:
+            LOG.warning(f"Failed to clean up read-only ledger file {f}: {e}")
+
+    return network
+
+
+def test_ledger_chunk_cleanup_digest_mismatch(network, args):
+    """
+    When a committed chunk exists in the read-only directory but its digest
+    does not match the local copy, the chunk must NOT be deleted.
+    """
+    max_retained = args.files_cleanup_max_committed_ledger_chunks
+    primary, _ = network.find_primary()
+    main_ledger_dir = primary.get_main_ledger_dir()
+
+    read_only_ledger_dir = os.path.join(
+        primary.remote.remote.root,
+        primary.remote.read_only_ledger_dirs_names[0],
+    )
+    os.makedirs(read_only_ledger_dir, exist_ok=True)
+
+    def get_committed_chunks(d):
+        return sorted(
+            [
+                f
+                for f in os.listdir(d)
+                if f.startswith("ledger_") and ccf.ledger.is_ledger_chunk_committed(f)
+            ],
+            key=lambda f: ccf.ledger.range_from_filename(f)[0],
+        )
+
+    # Generate committed chunks
+    num_chunks = max_retained + 3
+    for i in range(num_chunks):
+        network.txs.issue(network, number_txs=3)
+        network.consortium.force_ledger_chunk(primary)
+        network.txs.issue(network, number_txs=3)
+
+    time.sleep(1)
+    committed = get_committed_chunks(main_ledger_dir)
+    LOG.info(f"Committed chunks: {len(committed)}")
+
+    if len(committed) <= max_retained:
+        LOG.warning("Not enough committed chunks to test cleanup, skipping")
+        return network
+
+    # Copy oldest chunk to read-only dir, but corrupt it
+    target_chunk = committed[0]
+    src = os.path.join(main_ledger_dir, target_chunk)
+    dst = os.path.join(read_only_ledger_dir, target_chunk)
+    shutil.copy2(src, dst)
+
+    # Corrupt the read-only copy by flipping a byte
+    with open(dst, "r+b") as f:
+        f.seek(0)
+        original_byte = f.read(1)
+        f.seek(0)
+        f.write(bytes([original_byte[0] ^ 0xFF]))
+
+    LOG.info(f"Corrupted read-only copy of {target_chunk}")
+
+    # Wait for cleanup timer
+    time.sleep(3)
+
+    current = get_committed_chunks(main_ledger_dir)
+    LOG.info(f"Committed chunks after cleanup: {len(current)}")
+
+    # The target chunk should still exist because the digest didn't match
+    assert target_chunk in current, (
+        f"Chunk {target_chunk} was deleted despite digest mismatch with "
+        f"read-only copy. Current: {current}"
+    )
+
+    # Clean up corrupted read-only copy so it doesn't interfere with shutdown
+    # ledger validation
+    for f in os.listdir(read_only_ledger_dir):
+        try:
+            os.remove(os.path.join(read_only_ledger_dir, f))
+        except OSError as e:
+            LOG.warning(f"Failed to clean up read-only ledger file {f}: {e}")
+
+    return network
+
+
+def test_post_snapshot_chunks_retained(network, args, read_only_ledger_dir):
+    """
+    Verify that committed ledger chunks created after the latest snapshot are
+    NOT deleted even when the total count exceeds max_committed_ledger_chunks.
+    The cleanup logic must preserve all chunks newer than the snapshot watermark
+    so that a node can still recover from that snapshot.
+    """
+    max_retained = args.files_cleanup_max_committed_ledger_chunks
+    primary, _ = network.find_primary()
+    main_ledger_dir = primary.get_main_ledger_dir()
+    snapshots_dir = os.path.join(
+        primary.remote.remote.root,
+        primary.remote.snapshots_dir_name,
+    )
+
+    def get_committed_chunks():
+        return sorted(
+            [
+                f
+                for f in os.listdir(main_ledger_dir)
+                if f.startswith("ledger_") and ccf.ledger.is_ledger_chunk_committed(f)
+            ],
+            key=lambda f: ccf.ledger.range_from_filename(f)[0],
+        )
+
+    def copy_new_committed_to_readonly():
+        for f in os.listdir(main_ledger_dir):
+            if f.startswith("ledger_") and ccf.ledger.is_ledger_chunk_committed(f):
+                dst = os.path.join(read_only_ledger_dir, f)
+                if not os.path.exists(dst):
+                    shutil.copy2(os.path.join(main_ledger_dir, f), dst)
+
+    def get_latest_committed_snapshot_seqno():
+        best = None
+        for f in os.listdir(snapshots_dir):
+            if f.startswith("snapshot_") and ccf.ledger.is_snapshot_file_committed(f):
+                seqno, _ = ccf.ledger.snapshot_index_from_filename(f)
+                if best is None or seqno > best:
+                    best = seqno
+        return best
+
+    # Step 1: Generate some chunks and trigger a snapshot so we have a watermark
+    LOG.info("Generating initial chunks and triggering a snapshot")
+    for _ in range(3):
+        network.txs.issue(network, number_txs=3)
+        network.consortium.force_ledger_chunk(primary)
+        network.txs.issue(network, number_txs=3)
+    copy_new_committed_to_readonly()
+
+    snapshot_tx_id = primary.trigger_snapshot()
+
+    # Wait for the snapshot to appear
+    timeout = 10
+    end_time = time.time() + timeout
+    snapshot_seqno = None
+    while time.time() < end_time:
+        snapshot_seqno = get_latest_committed_snapshot_seqno()
+        if snapshot_seqno is not None and snapshot_seqno >= snapshot_tx_id.seqno:
+            break
+        time.sleep(0.5)
+    assert (
+        snapshot_seqno is not None
+    ), f"Timed out waiting for a committed snapshot covering {snapshot_tx_id.seqno} in {snapshots_dir}"
+    LOG.info(f"Latest committed snapshot seqno: {snapshot_seqno}")
+
+    # Step 2: Generate many chunks AFTER the snapshot so they exceed max_retained
+    num_post_snapshot_chunks = max_retained + 3
+    LOG.info(
+        f"Generating {num_post_snapshot_chunks} chunks after snapshot "
+        f"(max_retained={max_retained})"
+    )
+    for i in range(num_post_snapshot_chunks):
+        network.txs.issue(network, number_txs=3)
+        network.consortium.force_ledger_chunk(primary)
+        network.txs.issue(network, number_txs=3)
+        copy_new_committed_to_readonly()
+
+    # Step 3: Re-query the latest snapshot seqno, since new snapshots may have
+    # been auto-triggered during Step 2. The C++ cleanup uses the latest
+    # snapshot as its watermark, so the test must compare against the same value.
+    snapshot_seqno = get_latest_committed_snapshot_seqno()
+    assert snapshot_seqno is not None
+    LOG.info(f"Latest committed snapshot seqno (post Step 2): {snapshot_seqno}")
+
+    # Step 4: Let the cleanup timer run
+    time.sleep(3)
+
+    # Step 5: Verify that all chunks after the snapshot watermark are retained
+    committed = get_committed_chunks()
+    LOG.info(f"Committed chunks after cleanup: {len(committed)}")
+
+    post_snapshot_chunks = [
+        f
+        for f in committed
+        if ccf.ledger.range_from_filename(f)[1] is not None
+        and ccf.ledger.range_from_filename(f)[1] >= snapshot_seqno
+    ]
+
+    LOG.info(
+        f"Post-snapshot chunks (end >= {snapshot_seqno}): "
+        f"{len(post_snapshot_chunks)}"
+    )
+
+    # There must be more post-snapshot chunks than max_retained to prove
+    # that the watermark prevented deletion
+    assert len(post_snapshot_chunks) > max_retained, (
+        f"Expected more than {max_retained} post-snapshot chunks to be retained, "
+        f"but only found {len(post_snapshot_chunks)}: {post_snapshot_chunks}. "
+        f"Snapshot watermark: {snapshot_seqno}"
+    )
+
+    # All post-snapshot chunks must still be present
+    for chunk in post_snapshot_chunks:
+        chunk_start, chunk_end = ccf.ledger.range_from_filename(chunk)
+        assert chunk_end >= snapshot_seqno, (
+            f"Post-snapshot chunk {chunk} (end={chunk_end}) should not have "
+            f"been deleted (snapshot watermark={snapshot_seqno})"
+        )
+
+    return network
+
+
+def run_post_snapshot_chunk_retention(const_args):
+    args = copy.deepcopy(const_args)
+    args.label = f"{args.label}_post_snapshot_chunk_retention"
+    args.ledger_chunk_bytes = "20KB"
+    # Use a very low retention limit so cleanup would aggressively delete
+    # if the snapshot watermark were not respected
+    args.files_cleanup_max_committed_ledger_chunks = 1
+    args.files_cleanup_interval = "1s"
+    # High to avoid tx-count-triggered snapshots during chunk generation
+    args.snapshot_tx_interval = 100000
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        args.common_read_only_ledger_dir = tmp_dir
+
+        with infra.network.network(
+            args.nodes,
+            args.binary_dir,
+            args.debug_nodes,
+            pdb=args.pdb,
+            txs=app.LoggingTxs("user0"),
+        ) as network:
+            network.start_and_open(args)
+
+            primary, _ = network.find_primary()
+            main_ledger_dir = primary.get_main_ledger_dir()
+            for f in os.listdir(main_ledger_dir):
+                if f.startswith("ledger_") and ccf.ledger.is_ledger_chunk_committed(f):
+                    shutil.copy2(
+                        os.path.join(main_ledger_dir, f),
+                        os.path.join(tmp_dir, f),
+                    )
+
+            test_post_snapshot_chunks_retained(network, args, tmp_dir)
+
+
+def run_ledger_cleanup_no_read_only_dir_check(const_args):
+    """
+    Verify that a node fails to start when max_committed_ledger_chunks is
+    configured but no read-only ledger directory is provided.
+    """
+    args = copy.deepcopy(const_args)
+    args.label = f"{args.label}_ledger_cleanup_no_ro_dir"
+    args.nodes = infra.e2e_args.nodes(args, 1)
+    args.files_cleanup_max_committed_ledger_chunks = 3
+    args.files_cleanup_interval = "1s"
+
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        pdb=args.pdb,
+    ) as network:
+        try:
+            network.start(args)
+        except Exception:
+            pass
+
+        network.skip_verify_chunking = True
+        network.ignore_errors_on_shutdown()
+
+        node = network.nodes[0]
+        expected_msg = (
+            "files_cleanup.max_committed_ledger_chunks requires at least one "
+            "ledger.read_only_directories entry"
+        )
+        _, err_path = node.get_logs()
+        found = False
+        if err_path is not None:
+            with open(err_path, "r") as f:
+                for line in f:
+                    if expected_msg in line:
+                        found = True
+                        break
+        if not found:
+            raise AssertionError(
+                "Expected node error message about missing read-only ledger "
+                "directory when max_committed_ledger_chunks is configured"
+            )
+
+        LOG.success(
+            "Node correctly refused to start without read-only ledger directory"
+        )
+
+
+def run_ledger_chunk_cleanup_tests(const_args):
+    args = copy.deepcopy(const_args)
+    args.label = f"{args.label}_ledger_chunk_cleanup"
+    args.ledger_chunk_bytes = "20KB"
+    args.files_cleanup_max_committed_ledger_chunks = 3
+    args.files_cleanup_interval = "1s"
+
+    # Use a common read-only ledger dir for the read-only dir tests
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        args.common_read_only_ledger_dir = tmp_dir
+
+        with infra.network.network(
+            args.nodes,
+            args.binary_dir,
+            args.debug_nodes,
+            pdb=args.pdb,
+            txs=app.LoggingTxs("user0"),
+        ) as network:
+            network.start_and_open(args)
+            # These tests intentionally produce [fail] log lines when chunks
+            # are kept because no matching read-only copy exists, or because
+            # the digest does not match.
+            network.ignore_error_pattern_on_shutdown("Keeping ledger chunk")
+            network.ignore_error_pattern_on_shutdown("digest does not match")
+            test_ledger_chunk_cleanup_with_read_only_dir(network, args)
+            test_ledger_chunk_cleanup_digest_mismatch(network, args)
+
+
 def run(args):
     run_max_uncommitted_tx_count(args)
     run_file_operations(args)
     run_manual_snapshot_tests(args)
+    run_max_retained_snapshot_files(args)
+    run_backup_snapshot_cleanup(args)
+    run_max_committed_ledger_chunk_files(args)
+    run_post_snapshot_chunk_retention(args)
+    run_ledger_cleanup_no_read_only_dir_check(args)
+    run_ledger_chunk_cleanup_tests(args)
     run_tls_san_checks(args)
     run_config_timeout_check(args)
     run_configuration_file_checks(args)
@@ -3074,3 +4252,6 @@ def run(args):
     run_read_ledger_on_testdata(args)
     run_merkle_verification_level(args)
     run_propose_request_vote(args)
+    run_time_based_snapshotting(args)
+    run_snapshot_persistence_across_primary_failure(args)
+    run_cose_only_mode_upgrade(args)

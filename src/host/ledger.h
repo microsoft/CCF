@@ -11,6 +11,7 @@
 #include "ds/serialized.h"
 #include "kv/kv_types.h"
 #include "kv/serialised_entry_format.h"
+#include "ledger_filenames.h"
 #include "time_bound_logger.h"
 
 #include <cstdint>
@@ -29,76 +30,6 @@ namespace fs = std::filesystem;
 namespace asynchost
 {
   static constexpr size_t ledger_max_read_cache_files_default = 5;
-
-  static constexpr auto ledger_committed_suffix = "committed";
-  static constexpr auto ledger_start_idx_delimiter = "_";
-  static constexpr auto ledger_last_idx_delimiter = "-";
-  static constexpr auto ledger_recovery_file_suffix = "recovery";
-  static constexpr auto ledger_ignored_file_suffix = "ignored";
-
-  static inline size_t get_start_idx_from_file_name(
-    const std::string& file_name)
-  {
-    auto pos = file_name.find(ledger_start_idx_delimiter);
-    if (pos == std::string::npos)
-    {
-      throw std::logic_error(fmt::format(
-        "Ledger file name {} does not contain a start seqno", file_name));
-    }
-
-    return std::stol(file_name.substr(pos + 1));
-  }
-
-  static inline std::optional<size_t> get_last_idx_from_file_name(
-    const std::string& file_name)
-  {
-    auto pos = file_name.find(ledger_last_idx_delimiter);
-    if (pos == std::string::npos)
-    {
-      // Non-committed file names do not contain a last idx
-      return std::nullopt;
-    }
-
-    return std::stol(file_name.substr(pos + 1));
-  }
-
-  static inline bool is_ledger_file_name_committed(const std::string& file_name)
-  {
-    return file_name.ends_with(ledger_committed_suffix);
-  }
-
-  static inline bool is_ledger_file_name_recovery(const std::string& file_name)
-  {
-    return file_name.ends_with(ledger_recovery_file_suffix);
-  }
-
-  static inline bool is_ledger_file_name_ignored(const std::string& file_name)
-  {
-    return file_name.ends_with(ledger_ignored_file_suffix);
-  }
-
-  static inline bool is_ledger_file_ignored(const std::string& file_name)
-  {
-    // Catch-all for all files that should be ignored
-    return is_ledger_file_name_recovery(file_name) ||
-      is_ledger_file_name_ignored(file_name);
-  }
-
-  static inline fs::path remove_suffix(
-    std::string_view file_name, const std::string& suffix)
-  {
-    if (file_name.ends_with(suffix))
-    {
-      file_name.remove_suffix(suffix.size());
-    }
-    return file_name;
-  }
-
-  static inline fs::path remove_recovery_suffix(std::string_view file_name)
-  {
-    return remove_suffix(
-      file_name, fmt::format(".{}", ledger_recovery_file_suffix));
-  }
 
   static std::optional<std::string> get_file_name_with_idx(
     const std::string& dir, size_t idx, bool allow_recovery_files)
@@ -184,22 +115,25 @@ namespace asynchost
       if (recovery)
       {
         file_name =
-          fmt::format("{}.{}", file_name.string(), ledger_recovery_file_suffix);
+          fmt::format("{}{}", file_name.string(), ledger_recovery_file_suffix);
       }
 
       auto file_path = dir / file_name;
-      if (fs::exists(file_path))
-      {
-        throw std::logic_error(fmt::format(
-          "Cannot create new ledger file {} in main ledger directory {} as it "
-          "already exists",
-          file_name,
-          dir));
-      }
+
+      // Use exclusive-create mode ("x") to atomically fail if the file
+      // already exists, avoiding a separate fs::exists() stat call.
       // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
-      file = fopen(file_path.c_str(), "w+b");
+      file = fopen(file_path.c_str(), "w+bx");
       if (file == nullptr)
       {
+        if (errno == EEXIST)
+        {
+          throw std::logic_error(fmt::format(
+            "Cannot create new ledger file {} in main ledger directory {} as "
+            "it already exists",
+            file_name,
+            dir));
+        }
         throw std::logic_error(fmt::format(
           "Unable to open ledger file {}: {}",
           file_path,
@@ -604,8 +538,14 @@ namespace asynchost
       // truncated on the primary, so we have to make sure that whenever we
       // complete the file it doesn't contain anything past the last_idx, which
       // can happen on the follower unless explicitly truncated before
-      // completion.
-      truncate(get_last_idx(), /* remove_file_if_empty = */ false);
+      // completion. This is only necessary when the file was recovered from an
+      // existing file on disk (from_existing_file is true). For fresh files,
+      // total_len always matches the physical file size, so avoid a potentially
+      // expensive truncate.
+      if (from_existing_file)
+      {
+        truncate(get_last_idx(), /* remove_file_if_empty = */ false);
+      }
 
       fseeko(file, total_len, SEEK_SET);
       size_t table_offset = ftello(file);
@@ -690,7 +630,7 @@ namespace asynchost
       }
 
       auto committed_file_name = fmt::format(
-        "{}_{}-{}.{}",
+        "{}_{}-{}{}",
         file_name_prefix,
         start_idx,
         get_last_idx(),
@@ -698,8 +638,8 @@ namespace asynchost
 
       if (recovery)
       {
-        committed_file_name = fmt::format(
-          "{}.{}", committed_file_name, ledger_recovery_file_suffix);
+        committed_file_name =
+          fmt::format("{}{}", committed_file_name, ledger_recovery_file_suffix);
       }
 
       if (!rename(committed_file_name))
@@ -978,7 +918,7 @@ namespace asynchost
       }
 
       auto ignored_file_name =
-        fmt::format("{}.{}", file_name, ledger_ignored_file_suffix);
+        fmt::format("{}{}", file_name, ledger_ignored_file_suffix);
       files::rename(ledger_dir / file_name, ledger_dir / ignored_file_name);
     }
 
@@ -1267,7 +1207,7 @@ namespace asynchost
               remove_suffix(
                 file_name.string(),
                 fmt::format(
-                  "{}{}.{}",
+                  "{}{}{}",
                   ledger_last_idx_delimiter,
                   last_idx_file.value(),
                   ledger_committed_suffix)));

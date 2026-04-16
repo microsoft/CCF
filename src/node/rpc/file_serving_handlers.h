@@ -719,7 +719,7 @@ namespace ccf::node
         const auto chunk_filename = chunk_path.value().filename();
 
         auto redirect_url = fmt::format(
-          "https://{}/node/ledger-chunk/{}", address.value(), chunk_filename);
+          "https://{}/node/ledger_chunk/{}", address.value(), chunk_filename);
         LOG_DEBUG_FMT("Redirecting to ledger chunk: {}", redirect_url);
         ctx.rpc_ctx->set_response_header(
           ccf::http::headers::LOCATION, redirect_url);
@@ -746,7 +746,7 @@ namespace ccf::node
         }
 
         auto location = fmt::format(
-          "https://{}/node/ledger-chunk?{}={}",
+          "https://{}/node/ledger_chunk?{}={}",
           address.value(),
           file_since_param_key,
           since_idx);
@@ -773,7 +773,7 @@ namespace ccf::node
           if (address.has_value())
           {
             auto location =
-              fmt::format("https://{}/node/ledger-chunk", address.value());
+              fmt::format("https://{}/node/ledger_chunk", address.value());
             location += fmt::format("?{}={}", file_since_param_key, since_idx);
 
             ctx.rpc_ctx->set_response_header(http::headers::LOCATION, location);
@@ -799,27 +799,27 @@ namespace ccf::node
     };
     registry
       .make_read_only_endpoint(
-        "/ledger-chunk", HTTP_HEAD, find_chunk, no_auth_required)
+        "/ledger_chunk", HTTP_HEAD, find_chunk, no_auth_required)
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
       .add_query_parameter<ccf::SeqNo>(
         file_since_param_key, ccf::endpoints::RequiredParameter)
       .require_operator_feature(endpoints::OperatorFeature::LedgerChunkRead)
       .set_openapi_summary("Ledger chunk metadata")
       .set_openapi_description(
-        "Redirect to the corresponding /node/ledger-chunk/{chunk_name} "
+        "Redirect to the corresponding /node/ledger_chunk/{chunk_name} "
         "endpoint for the ledger chunk including the sequence number specified "
         "in the 'since' query parameter.")
       .install();
     registry
       .make_read_only_endpoint(
-        "/ledger-chunk", HTTP_GET, find_chunk, no_auth_required)
+        "/ledger_chunk", HTTP_GET, find_chunk, no_auth_required)
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
       .add_query_parameter<ccf::SeqNo>(
         file_since_param_key, ccf::endpoints::RequiredParameter)
       .require_operator_feature(endpoints::OperatorFeature::LedgerChunkRead)
       .set_openapi_summary("Download ledger chunk")
       .set_openapi_description(
-        "Redirect to the corresponding /node/ledger-chunk/{chunk_name} "
+        "Redirect to the corresponding /node/ledger_chunk/{chunk_name} "
         "endpoint for the ledger chunk including the sequence number specified "
         "in the 'since' query parameter.")
       .install();
@@ -938,7 +938,7 @@ namespace ccf::node
     };
     registry
       .make_command_endpoint(
-        "/ledger-chunk/{chunk_name}",
+        "/ledger_chunk/{chunk_name}",
         HTTP_HEAD,
         get_ledger_chunk,
         no_auth_required)
@@ -951,7 +951,7 @@ namespace ccf::node
       .install();
     registry
       .make_command_endpoint(
-        "/ledger-chunk/{chunk_name}",
+        "/ledger_chunk/{chunk_name}",
         HTTP_GET,
         get_ledger_chunk,
         no_auth_required)

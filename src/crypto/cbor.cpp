@@ -554,6 +554,13 @@ namespace ccf::cbor
         Error::DECODE_FAILED, "Failed to parse top-level cbor");
     }
 
+    if (cbor_parse_size > 0)
+    {
+      throw CBORDecodeError(
+        Error::DECODE_FAILED,
+        fmt::format("Trailing {} byte(s) after CBOR item", cbor_parse_size));
+    }
+
     return consume(cbor);
   }
 

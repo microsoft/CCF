@@ -1712,3 +1712,30 @@ TEST_CASE("CBOR: throw with context")
     expected_err.c_str(),
     CBORDecodeError);
 }
+
+TEST_CASE("CBOR: trailing bytes rejected")
+{
+  // Valid CBOR integer 42 = 0x182a
+  auto valid = ccf::ds::from_hex("182a");
+  REQUIRE_NOTHROW(parse(valid));
+
+  // Append trailing byte — should be rejected
+  auto with_trailing = ccf::ds::from_hex("182a00");
+  REQUIRE_THROWS_AS(parse(with_trailing), CBORDecodeError);
+
+  // Valid CBOR byte string h'0102' = 0x420102
+  auto valid_bstr = ccf::ds::from_hex("420102");
+  REQUIRE_NOTHROW(parse(valid_bstr));
+
+  // Append trailing bytes
+  auto bstr_trailing = ccf::ds::from_hex("420102ff");
+  REQUIRE_THROWS_AS(parse(bstr_trailing), CBORDecodeError);
+
+  // Valid CBOR array [1, 2] = 0x820102
+  auto valid_array = ccf::ds::from_hex("820102");
+  REQUIRE_NOTHROW(parse(valid_array));
+
+  // Append trailing byte
+  auto array_trailing = ccf::ds::from_hex("82010203");
+  REQUIRE_THROWS_AS(parse(array_trailing), CBORDecodeError);
+}
