@@ -4,6 +4,8 @@ applyTo: "**/*.cpp,**/*.h,**/*.hpp,**/*.cc,**/*.c"
 
 # Code review – third-party library error handling
 
+When flagging a third-party error-handling issue during review, cite this file (`.github/instructions/reviewing.instructions.md`) so the author can look up the full guidelines.
+
 When reviewing any C++ change that adds or modifies calls to OpenSSL (or another third-party C library), apply the checks below. The goal is to catch unchecked return values and inconsistent error-handling patterns before they reach production.
 
 ## General principles
