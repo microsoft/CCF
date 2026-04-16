@@ -37,7 +37,8 @@ namespace ccf
     certificate_signing_request,
     node_data,
     sealing_recovery_data,
-    code_transparent_statement);
+    code_transparent_statement,
+    ledger_sign_mode);
 
   DECLARE_JSON_TYPE(NetworkIdentity);
   DECLARE_JSON_REQUIRED_FIELDS(NetworkIdentity, cert, priv_key);
