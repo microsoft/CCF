@@ -119,18 +119,21 @@ namespace asynchost
       }
 
       auto file_path = dir / file_name;
-      if (fs::exists(file_path))
-      {
-        throw std::logic_error(fmt::format(
-          "Cannot create new ledger file {} in main ledger directory {} as it "
-          "already exists",
-          file_name,
-          dir));
-      }
+
+      // Use exclusive-create mode ("x") to atomically fail if the file
+      // already exists, avoiding a separate fs::exists() stat call.
       // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
-      file = fopen(file_path.c_str(), "w+b");
+      file = fopen(file_path.c_str(), "w+bx");
       if (file == nullptr)
       {
+        if (errno == EEXIST)
+        {
+          throw std::logic_error(fmt::format(
+            "Cannot create new ledger file {} in main ledger directory {} as "
+            "it already exists",
+            file_name,
+            dir));
+        }
         throw std::logic_error(fmt::format(
           "Unable to open ledger file {}: {}",
           file_path,
