@@ -6,6 +6,7 @@
 #include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "crypto/openssl/hash.h"
 
+#include <climits>
 #include <openssl/core_names.h>
 
 namespace ccf::crypto
@@ -223,6 +224,11 @@ namespace ccf::crypto
     Unique_EVP_PKEY_CTX pctx(key);
     CHECK1(EVP_PKEY_sign_init(pctx));
     CHECKPOSITIVE(EVP_PKEY_CTX_set_rsa_padding(pctx, RSA_PKCS1_PSS_PADDING));
+    if (salt_length > INT_MAX)
+    {
+      throw std::invalid_argument(fmt::format(
+        "salt_length {} exceeds maximum ({})", salt_length, INT_MAX));
+    }
     CHECKPOSITIVE(EVP_PKEY_CTX_set_rsa_pss_saltlen(pctx, salt_length));
     CHECKPOSITIVE(EVP_PKEY_CTX_set_signature_md(pctx, get_md_type(md_type)));
     size_t olen = r.size();

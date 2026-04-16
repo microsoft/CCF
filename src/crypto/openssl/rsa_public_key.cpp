@@ -5,6 +5,7 @@
 #include "crypto/openssl/hash.h"
 #include "crypto/openssl/rsa_key_pair.h"
 
+#include <climits>
 #include <openssl/core_names.h>
 #include <openssl/encoder.h>
 
@@ -231,6 +232,11 @@ namespace ccf::crypto
     CHECKPOSITIVE(EVP_PKEY_CTX_set_rsa_padding(pctx, ossl_padding->second));
     if (ossl_padding->first == RSAPadding::PKCS_PSS)
     {
+      if (salt_length > INT_MAX)
+      {
+        throw std::invalid_argument(fmt::format(
+          "salt_length {} exceeds maximum ({})", salt_length, INT_MAX));
+      }
       CHECKPOSITIVE(EVP_PKEY_CTX_set_rsa_pss_saltlen(pctx, salt_length));
     }
     CHECKPOSITIVE(EVP_PKEY_CTX_set_signature_md(pctx, get_md_type(md_type)));
