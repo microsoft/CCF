@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [7.0.0-rc2]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-rc2
 
+### Changed
+
+- `set_consensus_committed_function()` has moved from an endpoint-registration-time decorator (`Endpoint::set_consensus_committed_function()`) to a runtime call on the RPC context (`ctx.rpc_ctx->set_consensus_committed_function()`). This allows the same endpoint to conditionally block until committed based on query parameters, headers, or other per-request state. The endpoint-level method has been removed. See the logging sample app (`/log/private/optional_commit`) for example usage.
+
 ### Removed
 
 - Removed `aes_gcm_encrypt()`, `aes_gcm_decrypt()`, and `default_iv` from `ccf::crypto` (#7811).
