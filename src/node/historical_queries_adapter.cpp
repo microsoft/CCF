@@ -70,8 +70,7 @@ namespace ccf
 
     if (!receipt.signature.has_value())
     {
-      throw std::logic_error(
-        "Non-COSE receipt requires a non-COSE signature TX");
+      throw std::logic_error("describe_receipt_v1 requires a raw signature TX");
     }
     out["signature"] = ccf::crypto::b64_from_raw(receipt.signature.value());
 
@@ -107,7 +106,7 @@ namespace ccf
       if (!receipt.root.has_value())
       {
         throw std::logic_error(
-          "Non-COSE receipt on a signature requires root to be set");
+          "describe_receipt_v1 requires root to be set for a raw signature TX");
       }
       out["leaf"] = receipt.root.value().to_string();
     }
