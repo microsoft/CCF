@@ -119,18 +119,21 @@ namespace asynchost
       }
 
       auto file_path = dir / file_name;
-      if (fs::exists(file_path))
-      {
-        throw std::logic_error(fmt::format(
-          "Cannot create new ledger file {} in main ledger directory {} as it "
-          "already exists",
-          file_name,
-          dir));
-      }
+
+      // Use exclusive-create mode ("x") to atomically fail if the file
+      // already exists, avoiding a separate fs::exists() stat call.
       // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
-      file = fopen(file_path.c_str(), "w+b");
+      file = fopen(file_path.c_str(), "w+bx");
       if (file == nullptr)
       {
+        if (errno == EEXIST)
+        {
+          throw std::logic_error(fmt::format(
+            "Cannot create new ledger file {} in main ledger directory {} as "
+            "it already exists",
+            file_name,
+            dir));
+        }
         throw std::logic_error(fmt::format(
           "Unable to open ledger file {}: {}",
           file_path,
@@ -535,8 +538,14 @@ namespace asynchost
       // truncated on the primary, so we have to make sure that whenever we
       // complete the file it doesn't contain anything past the last_idx, which
       // can happen on the follower unless explicitly truncated before
-      // completion.
-      truncate(get_last_idx(), /* remove_file_if_empty = */ false);
+      // completion. This is only necessary when the file was recovered from an
+      // existing file on disk (from_existing_file is true). For fresh files,
+      // total_len always matches the physical file size, so avoid a potentially
+      // expensive truncate.
+      if (from_existing_file)
+      {
+        truncate(get_last_idx(), /* remove_file_if_empty = */ false);
+      }
 
       fseeko(file, total_len, SEEK_SET);
       size_t table_offset = ftello(file);
