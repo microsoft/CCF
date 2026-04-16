@@ -1,6 +1,5 @@
 ---
-name: Reviewing
-description: Guidelines for reviewing C++ code that calls OpenSSL or other third-party libraries. Focuses on return-value checking, error-handling consistency, and resource safety.
+applyTo: "**/*.cpp,**/*.h,**/*.hpp,**/*.cc,**/*.c"
 ---
 
 # Code review – third-party library error handling
