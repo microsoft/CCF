@@ -12,6 +12,7 @@
 #include "ccf/kv/hooks.h"
 #include "ccf/kv/version.h"
 #include "ccf/node/cose_signatures_config.h"
+#include "ccf/node/startup_config.h"
 #include "ccf/service/consensus_type.h"
 #include "ccf/service/reconfiguration_type.h"
 #include "ccf/tx_id.h"

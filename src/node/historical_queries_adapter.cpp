@@ -68,7 +68,11 @@ namespace ccf
     // Legacy JSON format, retained for compatibility
     nlohmann::json out = nlohmann::json::object();
 
-    out["signature"] = ccf::crypto::b64_from_raw(receipt.signature);
+    if (!receipt.signature.has_value())
+    {
+      throw std::logic_error("describe_receipt_v1 requires a raw signature TX");
+    }
+    out["signature"] = ccf::crypto::b64_from_raw(receipt.signature.value());
 
     auto proof = nlohmann::json::array();
     if (receipt.path != nullptr)
@@ -99,7 +103,12 @@ namespace ccf
     if (receipt.path == nullptr)
     {
       // Signature transaction
-      out["leaf"] = receipt.root.to_string();
+      if (!receipt.root.has_value())
+      {
+        throw std::logic_error(
+          "describe_receipt_v1 requires root to be set for a raw signature TX");
+      }
+      out["leaf"] = receipt.root.value().to_string();
     }
     else if (!receipt.commit_evidence.has_value())
     {
@@ -181,17 +190,23 @@ namespace ccf
     else
     {
       // Signature transaction
-      auto sig_receipt = std::make_shared<SignatureReceipt>();
-      sig_receipt->signed_root = ccf::crypto::Sha256Hash::from_span(
-        std::span<const uint8_t, ccf::ClaimsDigest::Digest::SIZE>(
-          in.root.bytes, sizeof(in.root.bytes)));
 
+      auto sig_receipt = std::make_shared<SignatureReceipt>();
+      if (in.root.has_value())
+      {
+        sig_receipt->signed_root = ccf::crypto::Sha256Hash::from_span(
+          std::span<const uint8_t, ccf::ClaimsDigest::Digest::SIZE>(
+            in.root.value().bytes, sizeof(in.root.value().bytes)));
+      }
       receipt = sig_receipt;
     }
 
     auto& out = *receipt;
 
-    out.signature = in.signature;
+    if (in.signature.has_value())
+    {
+      out.signature = in.signature.value();
+    }
 
     out.node_id = in.node_id;
 
@@ -264,12 +279,10 @@ namespace ccf
     {
       return std::nullopt;
     }
-
     auto proof = describe_merkle_proof_v1(receipt);
     if (!proof.has_value())
     {
-      // Signature TX: return COSE signature as-is, with empty UHDR
-      return signature;
+      return std::nullopt;
     }
 
     auto inclusion_proof =

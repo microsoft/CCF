@@ -515,7 +515,7 @@ namespace loggingapp
         "recording messages at client-specified IDs. It demonstrates most of "
         "the features available to CCF apps.";
 
-      openapi_info.document_version = "2.8.2";
+      openapi_info.document_version = "2.8.3";
     };
 
     void init_handlers() override
@@ -564,24 +564,67 @@ namespace loggingapp
         .install();
       // SNIPPET_END: install_record
 
+      // SNIPPET_START: blocking_record
+      auto blocking_record = [record](auto& ctx, nlohmann::json&& params) {
+        ctx.rpc_ctx->set_consensus_committed_function(
+          ccf::samples::default_respond_on_commit);
+        return record(ctx, std::move(params));
+      };
       make_endpoint(
         "/log/blocking/private",
         HTTP_POST,
-        ccf::json_adapter(record),
+        ccf::json_adapter(blocking_record),
         auth_policies)
         .set_auto_schema<LoggingRecord::In, bool>()
-        .set_consensus_committed_function(
-          ccf::samples::default_respond_on_commit)
         .install();
+      // SNIPPET_END: blocking_record
 
+      auto blocking_record_with_receipt =
+        [this, record](auto& ctx, nlohmann::json&& params) {
+          ctx.rpc_ctx->set_consensus_committed_function(
+            ccf::samples::make_respond_with_receipt_on_commit(context));
+          return record(ctx, std::move(params));
+        };
       make_endpoint(
         "/log/blocking/private/receipt",
         HTTP_POST,
-        ccf::json_adapter(record),
+        ccf::json_adapter(blocking_record_with_receipt),
         auth_policies)
-        .set_consensus_committed_function(
-          ccf::samples::make_respond_with_receipt_on_commit(context))
         .install();
+
+      // Demonstrates per-request opt-in to blocking-until-committed via a
+      // query parameter. The same endpoint can return immediately or hold
+      // the response depending on the caller's choice.
+      // SNIPPET_START: optional_commit
+      auto optional_commit_record =
+        [record](auto& ctx, nlohmann::json&& params) {
+          const auto parsed_query =
+            ccf::http::parse_query(ctx.rpc_ctx->get_request_query());
+          std::string error_reason;
+          std::string wait_for_commit;
+          // Safe to ignore the return value of get_query_value here as we'll
+          // just treat any failure to parse the parameter as meaning "don't
+          // wait for commit"
+          ccf::http::get_query_value(
+            parsed_query, "wait_for_commit", wait_for_commit, error_reason);
+          if (wait_for_commit == "true")
+          {
+            ctx.rpc_ctx->set_consensus_committed_function(
+              ccf::samples::default_respond_on_commit);
+          }
+          return record(ctx, std::move(params));
+        };
+      make_endpoint(
+        "/log/private/optional_commit",
+        HTTP_POST,
+        ccf::json_adapter(optional_commit_record),
+        auth_policies)
+        .add_query_parameter<bool>(
+          "wait_for_commit",
+          ccf::endpoints::QueryParamPresence::OptionalParameter)
+        .set_auto_schema<LoggingRecord::In, bool>()
+        .install();
+      // SNIPPET_END: optional_commit
 
       auto add_txid_in_body_put = [](auto& ctx, const auto& tx_id) {
         static constexpr auto CCF_TX_ID = "x-ms-ccf-transaction-id";
@@ -689,15 +732,18 @@ namespace loggingapp
         .install();
       // SNIPPET_END: install_get
 
+      auto blocking_get = [get](auto& ctx, nlohmann::json&& params) {
+        ctx.rpc_ctx->set_consensus_committed_function(
+          ccf::samples::default_respond_on_commit);
+        return get(ctx, std::move(params));
+      };
       make_read_only_endpoint(
         "/log/blocking/private",
         HTTP_GET,
-        ccf::json_read_only_adapter(get),
+        ccf::json_read_only_adapter(blocking_get),
         auth_policies)
         .set_auto_schema<void, LoggingGet::Out>()
         .add_query_parameter<size_t>("id")
-        .set_consensus_committed_function(
-          ccf::samples::default_respond_on_commit)
         .install();
 
       make_read_only_endpoint(
