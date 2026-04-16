@@ -540,7 +540,8 @@ namespace asynchost
       // can happen on the follower unless explicitly truncated before
       // completion. This is only necessary when the file was recovered from an
       // existing file on disk (from_existing_file is true). For fresh files,
-      // total_len always matches the physical file size, so avoid a potentially expensive truncate.
+      // total_len always matches the physical file size, so avoid a potentially
+      // expensive truncate.
       if (from_existing_file)
       {
         truncate(get_last_idx(), /* remove_file_if_empty = */ false);
