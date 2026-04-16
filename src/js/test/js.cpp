@@ -538,6 +538,55 @@ foo.bar.baz;
   }
 }
 
+static int get_ref_count(JSValue v)
+{
+  REQUIRE(JS_VALUE_HAS_REF_COUNT(v));
+  auto* p = (JSRefCountHeader*)JS_VALUE_GET_PTR(v);
+  return p->ref_count;
+}
+
+TEST_CASE("JSWrappedValue copy assignment frees old value")
+{
+  JSRuntime* rt = JS_NewRuntime();
+  REQUIRE(rt != nullptr);
+  JSContext* ctx = JS_NewContext(rt);
+  REQUIRE(ctx != nullptr);
+
+  // Create two distinct JS objects (heap-allocated, so ref-counted)
+  JSValue obj_a = JS_NewObject(ctx); // ref_count == 1
+  JSValue obj_b = JS_NewObject(ctx); // ref_count == 1
+
+  // Keep raw copies so we can inspect ref counts after wrapping
+  JSValue raw_a = JS_DupValue(ctx, obj_a); // ref_count(a) == 2
+  JSValue raw_b = JS_DupValue(ctx, obj_b); // ref_count(b) == 2
+
+  {
+    // Wrap both via the rvalue constructor (takes ownership, no dup)
+    ccf::js::core::JSWrappedValue wa(ctx, std::move(obj_a));
+    ccf::js::core::JSWrappedValue wb(ctx, std::move(obj_b));
+
+    // raw_a has ref 2 (raw_a + wa), raw_b has ref 2 (raw_b + wb)
+    REQUIRE(get_ref_count(raw_a) == 2);
+    REQUIRE(get_ref_count(raw_b) == 2);
+
+    // Copy-assign: wa = wb.  This should free the old obj_a held by wa
+    wa = wb;
+
+    // obj_a should have been freed by the assignment, leaving only raw_a
+    REQUIRE(get_ref_count(raw_a) == 1);
+    // obj_b should now be referenced by wa, wb, and raw_b
+    REQUIRE(get_ref_count(raw_b) == 3);
+  }
+  // After both wrappers are destroyed, only our raw refs should remain
+  REQUIRE(get_ref_count(raw_a) == 1);
+  REQUIRE(get_ref_count(raw_b) == 1);
+
+  JS_FreeValue(ctx, raw_a);
+  JS_FreeValue(ctx, raw_b);
+  JS_FreeContext(ctx);
+  JS_FreeRuntime(rt);
+}
+
 int main(int argc, char** argv)
 {
   ccf::js::register_class_ids();
