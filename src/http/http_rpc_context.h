@@ -288,6 +288,7 @@ namespace http
       response_body.clear();
       response_status = HTTP_STATUS_OK;
       explicit_apply_writes.reset();
+      consensus_committed_func = nullptr;
     }
 
     [[nodiscard]] std::vector<uint8_t> serialise_response() const override

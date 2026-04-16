@@ -137,10 +137,4 @@ namespace ccf
   DECLARE_JSON_TYPE(SubmitRecoveryShare::Out);
   DECLARE_JSON_REQUIRED_FIELDS(SubmitRecoveryShare::Out, message);
 
-  DECLARE_JSON_TYPE(MemoryUsage::Out);
-  DECLARE_JSON_REQUIRED_FIELDS(
-    MemoryUsage::Out,
-    max_total_heap_size,
-    current_allocated_heap_size,
-    peak_allocated_heap_size);
 }

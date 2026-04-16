@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/claims_digest.h"
+#include "ccf/endpoint_context.h"
 #include "ccf/frame_format.h"
 #include "ccf/http_consts.h"
 #include "ccf/http_header_map.h"
@@ -187,6 +188,16 @@ namespace ccf
     /// the transaction serialisation format or what is stored in the KV.
     /// The digest will be included in receipts issued for that transaction.
     virtual void set_claims_digest(ccf::ClaimsDigest::Digest&& digest) = 0;
+
+    /// Tells the framework to hold the response for this request until the
+    /// transaction reaches a terminal consensus state (committed or
+    /// invalidated). The provided callback will be invoked with a
+    /// CommittedTxInfo describing the outcome, and may inspect or modify the
+    /// response before it is sent to the client. If this method is not called
+    /// during endpoint execution, the response is sent immediately after local
+    /// commit.
+    virtual void set_consensus_committed_function(
+      ccf::endpoints::ConsensusCommittedEndpointFunction func) = 0;
     ///@}
   };
 }
