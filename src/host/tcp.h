@@ -12,6 +12,7 @@
 
 #include <netinet/in.h>
 #include <optional>
+#include <unistd.h>
 
 namespace asynchost
 {
@@ -192,6 +193,13 @@ namespace asynchost
       }
       else
       {
+        if (!set_connection_timeout_on_uv_handle())
+        {
+          assert_status(BINDING, BINDING_FAILED);
+          behaviour->on_bind_failed();
+          return;
+        }
+
         assert_status(BINDING, CONNECTING_RESOLVING);
         if (addr_current != nullptr)
         {
@@ -520,34 +528,34 @@ namespace asynchost
       if (is_client && !client_host.has_value() && addr_current != nullptr)
       {
         int rc = 0;
-        const int family = addr_current->ai_family;
-        uv_os_sock_t sock = 0;
-        if ((sock = socket(family, SOCK_STREAM, IPPROTO_TCP)) == -1)
+        uv_os_fd_t existing_sock = 0;
+        if (
+          uv_fileno(
+            reinterpret_cast<const uv_handle_t*>(&uv_handle), &existing_sock) <
+          0)
         {
-          LOG_FAIL_FMT(
-            "socket creation failed: {}",
-            std::strerror(errno)); // NOLINT(concurrency-mt-unsafe)
-          return false;
-        }
-
-        if (connection_timeout.has_value())
-        {
-          const unsigned int ms = connection_timeout->count();
-          const auto ret =
-            setsockopt(sock, IPPROTO_TCP, TCP_USER_TIMEOUT, &ms, sizeof(ms));
-          if (ret != 0)
+          const int family = addr_current->ai_family;
+          uv_os_sock_t sock = 0;
+          if ((sock = socket(family, SOCK_STREAM, IPPROTO_TCP)) == -1)
           {
             LOG_FAIL_FMT(
-              "Failed to set socket option (TCP_USER_TIMEOUT): {}",
+              "socket creation failed: {}",
               std::strerror(errno)); // NOLINT(concurrency-mt-unsafe)
             return false;
           }
-        }
 
-        if ((rc = uv_tcp_open(&uv_handle, sock)) < 0)
-        {
-          LOG_FAIL_FMT("uv_tcp_open failed: {}", uv_strerror(rc));
-          return false;
+          if (!set_connection_timeout(sock))
+          {
+            close(sock);
+            return false;
+          }
+
+          if ((rc = uv_tcp_open(&uv_handle, sock)) < 0)
+          {
+            LOG_FAIL_FMT("uv_tcp_open failed: {}", uv_strerror(rc));
+            close(sock);
+            return false;
+          }
         }
       }
 
@@ -578,6 +586,41 @@ namespace asynchost
 
       behaviour->on_connect_failed();
       return false;
+    }
+
+    bool set_connection_timeout(uv_os_sock_t sock)
+    {
+      if (!connection_timeout.has_value())
+      {
+        return true;
+      }
+
+      const unsigned int ms = connection_timeout->count();
+      const auto ret =
+        setsockopt(sock, IPPROTO_TCP, TCP_USER_TIMEOUT, &ms, sizeof(ms));
+      if (ret != 0)
+      {
+        LOG_FAIL_FMT(
+          "Failed to set socket option (TCP_USER_TIMEOUT): {}",
+          std::strerror(errno)); // NOLINT(concurrency-mt-unsafe)
+        return false;
+      }
+
+      return true;
+    }
+
+    bool set_connection_timeout_on_uv_handle()
+    {
+      uv_os_fd_t sock = 0;
+      const auto rc =
+        uv_fileno(reinterpret_cast<const uv_handle_t*>(&uv_handle), &sock);
+      if (rc < 0)
+      {
+        LOG_FAIL_FMT("uv_fileno failed: {}", uv_strerror(rc));
+        return false;
+      }
+
+      return set_connection_timeout(sock);
     }
 
     void assert_status(Status from, Status to)
