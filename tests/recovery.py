@@ -1512,7 +1512,7 @@ def run_recovery_after_cose_upgrade(args):
         post_msg = recovered_network.txs.priv[recovered_network.txs.idx][0]
         with new_primary.client("user0") as c:
             fetch_and_verify_cose_receipt(
-                c, post_msg["view"], post_msg["seqno"], service_key
+                c, post_msg["view"], post_msg["seqno"], service_key, b"\0" * 32
             )
 
         LOG.success("Recovery after dual-to-COSE-only upgrade succeeded")
@@ -1591,7 +1591,11 @@ def run_recovery_after_cose_upgrade(args):
         strict_msg = strict_network.txs.priv[strict_network.txs.idx][0]
         with final_primary.client("user0") as c:
             fetch_and_verify_cose_receipt(
-                c, strict_msg["view"], strict_msg["seqno"], strict_service_key
+                c,
+                strict_msg["view"],
+                strict_msg["seqno"],
+                strict_service_key,
+                b"\0" * 32,
             )
 
         LOG.success("Recovery with strict COSE-only after live upgrade succeeded")
@@ -1664,7 +1668,7 @@ def run_recovery_dual_to_cose_only(args):
         post_msg = recovered_network.txs.priv[recovered_network.txs.idx][0]
         with new_primary.client("user0") as c:
             fetch_and_verify_cose_receipt(
-                c, post_msg["view"], post_msg["seqno"], service_key
+                c, post_msg["view"], post_msg["seqno"], service_key, b"\0" * 32
             )
 
         # Dual receipts from before recovery should still be available
@@ -1762,7 +1766,7 @@ def run_recovery_cose_only_network(args):
         post_msg = cose_recovery_network.txs.priv[cose_recovery_network.txs.idx][0]
         with new_primary.client("user0") as c:
             fetch_and_verify_cose_receipt(
-                c, post_msg["view"], post_msg["seqno"], service_key
+                c, post_msg["view"], post_msg["seqno"], service_key, b"\0" * 32
             )
 
         LOG.success("COSE-only network recovered as COSE-only")

@@ -1889,7 +1889,7 @@ def run_cose_only_mode_upgrade(args):
             assert (
                 cose_rc.status_code == http.HTTPStatus.OK
             ), f"COSE receipt should be available, got {cose_rc.status_code}"
-            ccf.cose.verify_receipt(cose_rc.body.data(), service_key, None)
+            ccf.cose.verify_receipt(cose_rc.body.data(), service_key, b"\0" * 32)
 
         LOG.info(
             f"Receipt check OK for {view}.{seqno} "

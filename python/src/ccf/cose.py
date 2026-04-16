@@ -196,7 +196,6 @@ def verify_receipt(
     Verify a COSE Sign1 receipt as defined in https://datatracker.ietf.org/doc/draft-ietf-cose-merkle-tree-proofs/,
     using the CCF tree algorithm defined in https://datatracker.ietf.org/doc/draft-birkholz-cose-receipts-ccf-profile/
 
-    If claim_digest is None, the claims digest in the leaf is not verified.
     """
     key_pem = key.public_bytes(Encoding.PEM, PublicFormat.SubjectPublicKeyInfo).decode(
         "ascii"
@@ -229,7 +228,7 @@ def verify_receipt(
         proof = cbor2.loads(inclusion_proof)
         assert CCF_PROOF_LEAF_LABEL in proof, "Leaf must be present"
         leaf = proof[CCF_PROOF_LEAF_LABEL]
-        if claim_digest is not None and claim_digest != leaf[2]:
+        if claim_digest != leaf[2]:
             raise ValueError(f"Claim digest mismatch: {leaf[2]!r} != {claim_digest!r}")
         accumulator = hashlib.sha256(
             leaf[0] + hashlib.sha256(leaf[1].encode()).digest() + leaf[2]

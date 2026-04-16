@@ -323,7 +323,9 @@ namespace ccf
       .set_openapi_description(
         "A COSE Sign1 envelope containing a signed statement from the "
         "service over a transaction entry in the ledger, with a Merkle "
-        "proof in the unprotected header.")
+        "proof in the unprotected header. See "
+        "https://datatracker.ietf.org/doc/draft-ietf-scitt-receipts-ccf-"
+        "profile/ for a complete description.")
       .install();
   }
 

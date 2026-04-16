@@ -54,7 +54,7 @@ def get_service_key(network):
 
 
 def fetch_and_verify_cose_receipt(
-    client, view, seqno, service_key, claim_digest=None, timeout=3.0
+    client, view, seqno, service_key, claim_digest, timeout=3.0
 ):
     start_time = time.time()
     while time.time() < (start_time + timeout):
@@ -852,7 +852,11 @@ def test_historical_receipts(network, args):
                         c, first_msg["seqno"], first_msg["view"], timeout=3
                     )
                     fetch_and_verify_cose_receipt(
-                        c, first_msg["view"], first_msg["seqno"], service_key
+                        c,
+                        first_msg["view"],
+                        first_msg["seqno"],
+                        service_key,
+                        b"\0" * 32,
                     )
     else:
         for idx in range(start_idx, TXS_COUNT + start_idx):
@@ -932,7 +936,17 @@ def test_genesis_receipt(network, args):
     if cose_only:
         service_key = get_service_key(network)
         with primary.client("user0") as c:
-            rc = fetch_and_verify_cose_receipt(c, 2, 1, service_key)
+            with primary.client() as gov_c:
+                constitution = gov_c.get(
+                    "/gov/service/constitution?api-version=2023-06-01-preview"
+                ).body.text()
+            if args.package.startswith("samples/apps/logging/logging"):
+                genesis_claim_digest = sha256(constitution.encode()).digest()
+            else:
+                genesis_claim_digest = b"\0" * 32
+            rc = fetch_and_verify_cose_receipt(
+                c, 2, 1, service_key, genesis_claim_digest
+            )
             assert rc.status_code == http.HTTPStatus.OK, rc
     else:
         genesis_receipt = primary.get_receipt(2, 1)
@@ -1779,7 +1793,9 @@ def test_receipts(network, args):
             for j in range(10):
                 idx = j + 10000
                 r = network.txs.issue(network, 1, idx=idx, send_public=False, msg=msg)
-                fetch_and_verify_cose_receipt(c, r.view, r.seqno, service_key)
+                fetch_and_verify_cose_receipt(
+                    c, r.view, r.seqno, service_key, b"\0" * 32
+                )
     else:
         with primary.client("user0") as c:
             for j in range(10):
@@ -1812,6 +1828,14 @@ def test_random_receipts(
     log_capture=None,
 ):
     cose_only = args.package.endswith("_cose_only")
+
+    # Extract claims digest from a COSE receipt leaf — needed because
+    # randomly sampled seqnos may hit any TX and we don't know its claims.
+    def claims_digest_from_receipt(receipt_bytes):
+        receipt = cbor2.loads(receipt_bytes)
+        _, uhdr, _, _ = receipt.value
+        proof = uhdr[396][-1]  # VDP / inclusion proofs
+        return cbor2.loads(proof[0])[1][2]  # leaf[2] = claims_digest
 
     if node is None:
         node, _ = network.find_primary_and_any_backup()
@@ -1859,7 +1883,15 @@ def test_random_receipts(
                     )
                     if rc.status_code == http.HTTPStatus.OK:
                         receipt_bytes = rc.body.data()
-                        claim_digest = additional_seqnos.get(s)
+                        # For randomly sampled seqnos we don't know which
+                        # transaction they correspond to, so extract the
+                        # claims digest from the receipt itself. For seqnos
+                        # with known claims, verify it matches.
+                        claim_digest = claims_digest_from_receipt(receipt_bytes)
+                        if s in additional_seqnos:
+                            assert (
+                                claim_digest == additional_seqnos[s]
+                            ), f"Claim digest mismatch for seqno {s}"
                         ccf.cose.verify_receipt(
                             receipt_bytes, service_key, claim_digest
                         )
@@ -2427,11 +2459,10 @@ def test_blocking_calls(network, args):
                 assert r.headers["content-type"] == "application/cose", r.headers[
                     "content-type"
                 ]
-                empty_claims_digest = b"\0" * 32
                 ccf.cose.verify_receipt(
                     r.body.data(),
                     network.cert.public_key(),
-                    empty_claims_digest,
+                    b"\0" * 32,
                 )
 
             now = datetime.now()

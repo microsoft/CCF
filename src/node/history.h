@@ -4,8 +4,8 @@
 
 #include "ccf/crypto/cose_verifier.h"
 #include "ccf/ds/x509_time_fmt.h"
-#include "ccf/pal/locking.h"
 #include "ccf/node/ledger_sign_mode.h"
+#include "ccf/pal/locking.h"
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/service.h"
 #include "common/configuration.h"
@@ -18,8 +18,8 @@
 #include "endian.h"
 #include "kv/kv_types.h"
 #include "kv/store.h"
-#include "node/no_get_ledger_sign_mode.cpp" // NOLINT(bugprone-suspicious-include)
 #include "node/cose_common.h"
+#include "node/no_get_ledger_sign_mode.cpp" // NOLINT(bugprone-suspicious-include)
 #include "node_signature_verify.h"
 #include "service/tables/signatures.h"
 #include "tasks/basic_task.h"
