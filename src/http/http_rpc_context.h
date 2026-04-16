@@ -6,7 +6,6 @@
 #include "ccf/rpc_context.h"
 #include "ds/actors.h"
 #include "http_parser.h"
-#include "http_responder.h"
 #include "node/rpc_context_impl.h"
 
 namespace http
