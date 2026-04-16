@@ -439,25 +439,6 @@ def run(args):
 
                 perf_label = args.perf_label
 
-                if not args.stop_primary_after_s:
-                    primary, _ = network.find_primary()
-                    with primary.client() as nc:
-                        r = nc.get("/node/memory")
-                        assert r.status_code == http.HTTPStatus.OK.value
-
-                        results = r.body.json()
-                        current_value = results["current_allocated_heap_size"]
-                        peak_value = results["peak_allocated_heap_size"]
-
-                        bf = infra.bencher.Bencher()
-                        bf.set(
-                            perf_label,
-                            infra.bencher.Memory(
-                                current_value,
-                                high_value=peak_value,
-                            ),
-                        )
-
                 network.stop_all_nodes()
 
                 agg = []

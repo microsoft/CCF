@@ -11,8 +11,6 @@
 #include "ccf/node/quote.h"
 #include "ccf/odata_error.h"
 #include "ccf/pal/attestation.h"
-#include "ccf/pal/mem.h"
-#include "ccf/node/ledger_sign_mode.h"
 #include "ccf/service/reconfiguration_type.h"
 #include "ccf/version.h"
 #include "crypto/certs.h"
@@ -1430,27 +1428,6 @@ namespace ccf
         no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .set_auto_schema<void, ConsensusConfigDetails>()
-        .install();
-
-      auto memory_usage = [](auto& args) {
-        ccf::pal::MallocInfo info;
-        if (ccf::pal::get_mallinfo(info))
-        {
-          MemoryUsage::Out mu(info);
-          args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-          args.rpc_ctx->set_response_header(
-            http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
-          args.rpc_ctx->set_response_body(nlohmann::json(mu).dump());
-          return;
-        }
-
-        args.rpc_ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
-        args.rpc_ctx->set_response_body("Failed to read memory usage");
-      };
-
-      make_command_endpoint("/memory", HTTP_GET, memory_usage, no_auth_required)
-        .set_forwarding_required(endpoints::ForwardingRequired::Never)
-        .set_auto_schema<MemoryUsage>()
         .install();
 
       auto node_metrics = [this](auto& args) {

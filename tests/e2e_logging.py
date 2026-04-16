@@ -2410,6 +2410,8 @@ def test_blocking_calls(network, args):
         "/log/private",
         "/log/blocking/private",
         "/log/blocking/private/receipt",
+        "/log/private/optional_commit",
+        "/log/private/optional_commit?wait_for_commit=true",
     ]
     n_requests = 5
     request_order = paths * n_requests
@@ -2476,6 +2478,13 @@ def test_blocking_calls(network, args):
     assert (
         mean_commit_deltas["/log/blocking/private/receipt"]
         < mean_commit_deltas["/log/private"]
+    )
+    # The optional_commit endpoint with wait_for_commit=true should behave
+    # like the blocking endpoints, while without the parameter it should
+    # behave like the non-blocking endpoint.
+    assert (
+        mean_commit_deltas["/log/private/optional_commit?wait_for_commit=true"]
+        < mean_commit_deltas["/log/private/optional_commit"]
     )
 
     return network

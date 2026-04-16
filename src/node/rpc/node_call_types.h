@@ -5,8 +5,6 @@
 #include "ccf/ds/json_schema.h"
 #include "ccf/node/cose_signatures_config.h"
 #include "ccf/node_startup_state.h"
-#include "ccf/pal/mem.h"
-#include "ccf/node/ledger_sign_mode.h"
 #include "ccf/service/local_sealing.h"
 #include "ccf/service/node_info_network.h"
 #include "ccf/service/tables/code_id.h"
@@ -160,22 +158,4 @@ namespace ccf
     };
   };
 
-  struct MemoryUsage
-  {
-    using In = void;
-
-    struct Out
-    {
-      Out(const pal::MallocInfo& info) :
-        max_total_heap_size(info.max_total_heap_size),
-        current_allocated_heap_size(info.current_allocated_heap_size),
-        peak_allocated_heap_size(info.peak_allocated_heap_size)
-      {}
-      Out() = default;
-
-      size_t max_total_heap_size = 0;
-      size_t current_allocated_heap_size = 0;
-      size_t peak_allocated_heap_size = 0;
-    };
-  };
 }
