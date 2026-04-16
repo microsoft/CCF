@@ -1769,6 +1769,26 @@ def run_recovery_cose_only_network(args):
                 c, post_msg["view"], post_msg["seqno"], service_key, b"\0" * 32
             )
 
+        # Verify /node/state reports last_signed_seqno advancing
+        with new_primary.client() as c:
+            r = c.get("/node/state")
+            assert r.status_code == http.HTTPStatus.OK, r
+            last_signed_before = r.body.json()["last_signed_seqno"]
+            assert (
+                last_signed_before > 0
+            ), f"last_signed_seqno should be > 0 after recovery, got {last_signed_before}"
+
+        cose_recovery_network.txs.issue(cose_recovery_network, number_txs=3)
+
+        with new_primary.client() as c:
+            r = c.get("/node/state")
+            assert r.status_code == http.HTTPStatus.OK, r
+            last_signed_after = r.body.json()["last_signed_seqno"]
+            assert last_signed_after > last_signed_before, (
+                f"last_signed_seqno should advance after issuing TXs, "
+                f"got {last_signed_after} (was {last_signed_before})"
+            )
+
         LOG.success("COSE-only network recovered as COSE-only")
 
 
