@@ -159,6 +159,7 @@ auto val = handle->get(key);  // Returns std::optional
 
 - Never comment on code formatting when performing code reviews.
 - When shell scripts or bash scripts are created or modified, if they contain any use of the pipe (|) operator, they must also set the pipefail option (set -o pipefail). Remind the PR author if they have missed that.
+- When writing a pull request review summary, include a "Custom instructions used" section that lists every repository instruction file (from `.github/copilot-instructions.md` and `.github/instructions/`) that was loaded and applied during the review. This lets the PR author verify the correct instruction files were active.
 
 ### Code Review Security Focus
 
