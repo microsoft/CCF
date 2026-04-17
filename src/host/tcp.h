@@ -608,15 +608,10 @@ namespace asynchost
         setsockopt(sock, IPPROTO_TCP, TCP_USER_TIMEOUT, &ms, sizeof(ms));
       if (ret != 0)
       {
-#ifdef _WIN32
-        const auto err = WSAGetLastError();
-        LOG_FAIL_FMT("Failed to set socket option (TCP_USER_TIMEOUT): {}", err);
-#else
         const auto err = errno;
         LOG_FAIL_FMT(
           "Failed to set socket option (TCP_USER_TIMEOUT): {}",
           std::strerror(err)); // NOLINT(concurrency-mt-unsafe)
-#endif
         return false;
       }
 
@@ -630,23 +625,14 @@ namespace asynchost
       // This is best-effort cleanup on an existing failure path: we only log
       // close() errors (including EINTR). We intentionally do not retry
       // close(), since retrying may close a reused fd.
-#ifdef _WIN32
-      const auto rc = closesocket(sock);
-#else
-      const auto rc = close(sock);
-#endif
+      const auto rc = ::close(sock);
       if (rc != 0)
       {
-#ifdef _WIN32
-        const auto err = WSAGetLastError();
-        LOG_FAIL_FMT("Failed to close socket {}: {}", sock, err);
-#else
         const auto err = errno;
         LOG_FAIL_FMT(
           "Failed to close socket {}: {}",
           sock,
           std::strerror(err)); // NOLINT(concurrency-mt-unsafe)
-#endif
       }
     }
 
