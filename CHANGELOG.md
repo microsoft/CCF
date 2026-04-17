@@ -30,7 +30,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Added `files_cleanup.max_snapshots` configuration option to limit the number of committed snapshot files retained on disk. When exceeded, the oldest snapshots are automatically deleted. The value must be at least 1 if set.
 - Added `files_cleanup.interval` configuration option (default `"30s"`) to periodically scan and delete old committed snapshots exceeding `max_snapshots`.
 - Added `POST /node/snapshot:create`, gated by the `SnapshotCreate` RPC interface operator feature, to create a snapshot via an operator endpoint rather than a governance action.
-- Added `GET` and `HEAD` `/node/ledger_chunk` and `/node/ledger_chunk/{chunk_name}` endpoints, gated by the `LedgerChunkDownload` RPC interface operator feature. These endpoints support `Want-Repr-Digest` / `Repr-Digest` headers (RFC 9530, algorithms `sha-256`, `sha-384`, `sha-512`) and `ETag` / `If-None-Match` for conditional downloads (#7650, #7652).
+- Added `GET` and `HEAD` `/node/ledger_chunk` and `/node/ledger_chunk/{chunk_name}` endpoints, gated by the `LedgerChunkDownload` RPC interface operator feature. These endpoints, along with `/node/snapshot/{snapshot_name}`, support `Want-Repr-Digest` / `Repr-Digest` headers (RFC 9530, algorithms `sha-256`, `sha-384`, `sha-512`) and `ETag` / `If-None-Match` for conditional downloads (#7650, #7652).
 - Added experimental self-healing recovery (recovery-decision-protocol) for automatically transitioning-to-open during disaster recovery without operator intervention. Local sealing recovery now stores sealed secrets in the ledger, with recovery keys in `public:ccf.gov.nodes.sealed_recovery_keys` and encrypted shares in `public:ccf.internal.sealed_shares`. The constitution is updated to reseal whenever a node is added. The feature is configured via the `sealing-recovery` configuration section (#7189, #7554, #7679).
 - Added support for self-transparent code update policies (#7681).
 - Enabled PreVote optimisation, requiring followers to check electability before becoming candidates. This improves Raft availability under omission faults such as partial network partitions (#7419, #7445, #7462).
@@ -62,7 +62,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   - Error-prone inheritance between RSA and EC key classes has been removed.
   - RSA keys no longer re-use CSR functionality from the EC key interface.
 - The C++ API for installing endpoints with local commit handlers has changed. Handlers should now be added to an `Endpoint` with `.set_locally_committed_function(handler)`, and the `make_[read_only_]endpoint_with_local_commit_handler` methods on `EndpointRegistry` have been removed (#7487).
-- `set_consensus_committed_function()` has moved from an endpoint-registration-time decorator to a runtime call on `ctx.rpc_ctx->set_consensus_committed_function()`. The callback signature now receives a `CommittedTxInfo&` struct instead of individual arguments. This allows the same endpoint to conditionally block until committed based on per-request state (#7785).
+- `set_consensus_committed_function()` has moved from an endpoint-registration-time decorator to a runtime call on `ctx.rpc_ctx->set_consensus_committed_function()`. The callback signature now receives a `CommittedTxInfo&` struct instead of individual arguments. This allows the same endpoint to conditionally block until committed based on per-request state. `ccf::endpoints::default_respond_on_commit_func` has been removed from the public API; a sample implementation is provided in the logging and basic sample apps (#7785).
 - Refactored the user-facing surface of local sealing and self-healing recovery. The feature is now called `sealing-recovery` with self-healing-open referred to as `recovery-decision-protocol`. Local sealing is enabled via the `sealing-recovery` config field; the local sealing identity is under `sealing-recovery.location.name`; the recovery-decision-protocol is configured via `sealing-recovery.recovery_decision_protocol` (#7679).
 - In the C++ API, `get_txid()` on `ccf::kv::ReadOnlyStore` has been renamed to `current_txid()` (#7477).
 - `ccf::crypto::HashProvider::Hash()` has been renamed to `ccf::crypto::HashProvider::hash()` (#7660).
@@ -104,6 +104,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - CBOR and COSE dependencies are now internal; their headers are no longer exposed (#7616, #7617).
 - Fixed linking issue that could affect applications not including `main.cpp` in their executable (#7595).
 - Fixed two issues that could affect build reproducibility (#7606, #7607).
+- Python test dependency update (#7609).
 - CheckQuorum now requires a quorum in every configuration (#7375).
 - Correctly validate the full AMD ASK endorsement chain (#7233).
 - Validate endorsement metadata (tcb version and chip id) against attestation (#7240).
