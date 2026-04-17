@@ -12,9 +12,7 @@
 
 #include <netinet/in.h>
 #include <optional>
-#ifndef _WIN32
-#  include <unistd.h>
-#endif
+#include <unistd.h>
 
 namespace asynchost
 {
