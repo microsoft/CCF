@@ -11,7 +11,6 @@
 #include "ccf/node/quote.h"
 #include "ccf/odata_error.h"
 #include "ccf/pal/attestation.h"
-#include "ccf/pal/mem.h"
 #include "ccf/service/reconfiguration_type.h"
 #include "ccf/version.h"
 #include "crypto/certs.h"
@@ -19,6 +18,7 @@
 #include "ds/files.h"
 #include "ds/std_formatters.h"
 #include "frontend.h"
+#include "node/cose_common.h"
 #include "node/network_state.h"
 #include "node/rpc/file_serving_handlers.h"
 #include "node/rpc/jwt_management.h"
@@ -314,6 +314,19 @@ namespace ccf
       {
         const auto [code, message] = quote_verification_error(verify_result);
         return make_error(code, ccf::errors::InvalidQuote, message);
+      }
+
+      // Check if the joining node's signing mode is acceptable
+      if (
+        in.ledger_sign_mode.has_value() &&
+        in.ledger_sign_mode.value() == ccf::LedgerSignMode::Dual &&
+        ccf::get_ledger_sign_mode() == ccf::LedgerSignMode::CoseOnly)
+      {
+        return make_error(
+          HTTP_STATUS_BAD_REQUEST,
+          ccf::errors::InvalidInput,
+          "This network does not accept nodes running in Dual signing "
+          "mode. The joining node must use COSE-only signing.");
       }
 
       std::optional<ccf::kv::Version> ledger_secret_seqno = std::nullopt;
@@ -678,16 +691,34 @@ namespace ccf
         result.startup_seqno =
           this->node_operation.get_startup_snapshot_seqno();
 
+        // Read last signed seqno from both raw and COSE signature tables
         auto signatures = args.tx.template ro<Signatures>(Tables::SIGNATURES);
         auto sig = signatures->get();
-        if (!sig.has_value())
+
+        ccf::kv::Version raw_seqno = 0;
+        if (sig.has_value())
         {
-          result.last_signed_seqno = 0;
+          raw_seqno = sig.value().seqno;
         }
-        else
+
+        ccf::kv::Version cose_seqno = 0;
+        auto cose_signatures =
+          args.tx.template ro<CoseSignatures>(Tables::COSE_SIGNATURES);
+        auto cose_sig = cose_signatures->get();
+        if (cose_sig.has_value() && !cose_sig->empty())
         {
-          result.last_signed_seqno = sig.value().seqno;
+          auto receipt = ccf::cose::decode_ccf_receipt(cose_sig.value(), false);
+          auto txid = ccf::TxID::from_str(receipt.phdr.ccf.txid);
+          if (!txid.has_value())
+          {
+            throw std::logic_error(fmt::format(
+              "Failed to parse txid from COSE signature: {}",
+              receipt.phdr.ccf.txid));
+          }
+          cose_seqno = txid->seqno;
         }
+
+        result.last_signed_seqno = std::max(raw_seqno, cose_seqno);
 
         auto node_configuration_subsystem =
           this->context.get_subsystem<NodeConfigurationSubsystem>();
@@ -1416,27 +1447,6 @@ namespace ccf
         no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .set_auto_schema<void, ConsensusConfigDetails>()
-        .install();
-
-      auto memory_usage = [](auto& args) {
-        ccf::pal::MallocInfo info;
-        if (ccf::pal::get_mallinfo(info))
-        {
-          MemoryUsage::Out mu(info);
-          args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-          args.rpc_ctx->set_response_header(
-            http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
-          args.rpc_ctx->set_response_body(nlohmann::json(mu).dump());
-          return;
-        }
-
-        args.rpc_ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
-        args.rpc_ctx->set_response_body("Failed to read memory usage");
-      };
-
-      make_command_endpoint("/memory", HTTP_GET, memory_usage, no_auth_required)
-        .set_forwarding_required(endpoints::ForwardingRequired::Never)
-        .set_auto_schema<MemoryUsage>()
         .install();
 
       auto node_metrics = [this](auto& args) {

@@ -22,7 +22,7 @@ namespace ccf
 
       [[nodiscard]] bool is_complete() const
       {
-        return sig.has_value() && cose_signature.has_value() &&
+        return (sig.has_value() || cose_signature.has_value()) &&
           serialised_tree.has_value();
       }
     };
@@ -82,15 +82,15 @@ namespace ccf
 
       const auto& [version, entry] = *it;
       if (
-        !entry.sig.has_value() || !entry.cose_signature.has_value() ||
+        !(entry.sig.has_value() || entry.cose_signature.has_value()) ||
         !entry.serialised_tree.has_value())
       {
         return std::nullopt;
       }
 
       return CachedSignature{
-        entry.sig.value(),
-        entry.cose_signature.value(),
+        entry.sig,
+        entry.cose_signature,
         entry.serialised_tree.value(),
         version};
     }

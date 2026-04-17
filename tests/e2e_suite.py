@@ -24,18 +24,6 @@ class TestStatus(Enum):
     skipped = auto()
 
 
-def mem_stats(network):
-    mem = {}
-    for node in network.get_joined_nodes():
-        try:
-            with node.client() as c:
-                r = c.get("/node/memory", timeout=0.1)
-                mem[node.local_node_id] = r.body.json()
-        except Exception:
-            pass
-    return mem
-
-
 def run(args):
     chosen_suite = []
 
@@ -138,7 +126,6 @@ def run(args):
                 {
                     "status": status.name,
                     "elapsed (s)": round(test_elapsed, 2),
-                    "memory": mem_stats(new_network),
                 }
             )
 

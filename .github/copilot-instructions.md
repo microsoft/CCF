@@ -159,6 +159,7 @@ auto val = handle->get(key);  // Returns std::optional
 
 - Never comment on code formatting when performing code reviews.
 - When shell scripts or bash scripts are created or modified, if they contain any use of the pipe (|) operator, they must also set the pipefail option (set -o pipefail). Remind the PR author if they have missed that.
+- When writing a pull request review summary, include a "Custom instructions used" section that lists every repository instruction file (from `.github/copilot-instructions.md` and `.github/instructions/`) that was loaded and applied during the review. This lets the PR author verify the correct instruction files were active.
 
 ### Code Review Security Focus
 
@@ -169,3 +170,7 @@ When reviewing code, pay special attention to:
 - Input parsing and validation
 - Memory management
 - Error handling in security-critical paths
+
+### Third-party library return values and error handling
+
+See [reviewing instructions](/.github/instructions/reviewing.instructions.md) for detailed guidance on checking return values from OpenSSL, libcurl, llhttp, nghttp2, QuickJS, and other third-party C libraries. When a diff adds or modifies calls to any of these libraries, verify that every call that can fail has its return value checked, the correct check macro is used, and error handling is consistent within each function.

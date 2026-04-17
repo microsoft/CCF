@@ -256,13 +256,24 @@ namespace ccf::endpoints
     }
     auto proof = tree.get_proof(info.tx_id.seqno);
 
+    std::optional<std::vector<uint8_t>> sig;
+    std::optional<ccf::crypto::Pem> cert;
+    NodeId node{};
+
+    if (cached_sig->sig)
+    {
+      sig = cached_sig->sig->sig;
+      cert = cached_sig->sig->cert;
+      node = cached_sig->sig->node;
+    }
+
     return std::make_shared<TxReceiptImpl>(
-      cached_sig->sig.sig,
+      sig,
       cached_sig->cose_signature,
       proof.get_root(),
       proof.get_path(),
-      cached_sig->sig.node,
-      cached_sig->sig.cert,
+      node,
+      cert,
       info.write_set_digest,
       info.commit_evidence,
       info.claims_digest);

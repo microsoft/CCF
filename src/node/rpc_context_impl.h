@@ -107,6 +107,15 @@ namespace ccf
         http::headervalues::contenttype::JSON);
     }
 
+    ccf::endpoints::ConsensusCommittedEndpointFunction
+      consensus_committed_func = nullptr;
+
+    void set_consensus_committed_function(
+      ccf::endpoints::ConsensusCommittedEndpointFunction func) override
+    {
+      consensus_committed_func = std::move(func);
+    }
+
     bool response_is_pending = false;
     bool terminate_session = false;
 

@@ -985,7 +985,10 @@ if(BUILD_TESTS)
   add_e2e_test(
     NAME recovery_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
-    ADDITIONAL_ARGS ${ADDITIONAL_RECOVERY_ARGS}
+    ADDITIONAL_ARGS
+      ${ADDITIONAL_RECOVERY_ARGS}
+      --constitution
+      ${CMAKE_SOURCE_DIR}/samples/constitutions/virtual/virtual_attestation_actions.js
   )
 
   add_e2e_test(
@@ -1227,6 +1230,8 @@ if(BUILD_TESTS)
     NAME schema_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/schema.py
     ADDITIONAL_ARGS
+      --constitution
+      ${CMAKE_SOURCE_DIR}/samples/constitutions/virtual/virtual_attestation_actions.js
       --schema-dir
       ${CMAKE_SOURCE_DIR}/doc/schemas
       --ledger-tutorial
