@@ -351,6 +351,7 @@ class Network:
         copy_ledger=True,
         read_only_ledger_dirs=None,
         from_snapshot=True,
+        fetch_recent_snapshot=True,
         snapshots_dir=None,
         **kwargs,
     ):
@@ -383,6 +384,10 @@ class Network:
                 LOG.warning(
                     f"Attempting to join from snapshot but {snapshots_dir},{read_only_snapshots_dir} are empty: defaulting to complete replay of transaction history"
                 )
+        elif fetch_recent_snapshot:
+            LOG.info(
+                "Joining without snapshot: fetching recent snapshot from target node"
+            )
         else:
             LOG.info(
                 "Joining without snapshot: complete transaction history will be replayed"
@@ -411,6 +416,7 @@ class Network:
             read_only_snapshots_dir=read_only_snapshots_dir,
             ledger_dir=current_ledger_dir,
             read_only_ledger_dirs=committed_ledger_dirs,
+            fetch_recent_snapshot=fetch_recent_snapshot,
             **kwargs,
         )
 
@@ -424,7 +430,7 @@ class Network:
         ledger_dir=None,
         copy_ledger=True,
         read_only_ledger_dirs=None,
-        from_snapshot=True,
+        fetch_recent_snapshot=True,
         snapshots_dir=None,
         **kwargs,
     ):
@@ -432,13 +438,14 @@ class Network:
             node,
             lib_name,
             args,
-            target_node,
-            recovery,
-            ledger_dir,
-            copy_ledger,
-            read_only_ledger_dirs,
-            from_snapshot,
-            snapshots_dir,
+            target_node=target_node,
+            recovery=recovery,
+            ledger_dir=ledger_dir,
+            copy_ledger=copy_ledger,
+            read_only_ledger_dirs=read_only_ledger_dirs,
+            from_snapshot=False,
+            fetch_recent_snapshot=fetch_recent_snapshot,
+            snapshots_dir=snapshots_dir,
             **kwargs,
         )
         node.complete_join()
