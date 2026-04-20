@@ -20,19 +20,19 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
-- Added support for COSE-only ledger signatures. Networks can start in COSE-only mode or transition from dual signing (#7772).
+- Added support for COSE-only ledger signatures. Networks can start in COSE-only mode or transition from dual signing, see [documentation](https://ccf.dev/main/operations/configuration.html#upgrading-to-cose-only-ledger-signatures) for details (#7772).
 - Added `/receipt/cose` endpoint returning a COSE Sign1 receipt with Merkle proof for a given transaction. Returns 404 if no COSE receipt is available (e.g. for signature transactions) (#7772).
 - Added support for endpoints that defer their HTTP response until the submitted transaction reaches a terminal consensus state (committed or invalidated). A `set_consensus_committed_function()` call on the `RpcContext` registers a callback invoked once the transaction is globally committed or invalidated. The callback receives a `CommittedTxInfo&` struct (containing `rpc_ctx`, `tx_id`, `status`, `write_set_digest`, `commit_evidence`, `claims_digest`). See the logging sample app (`/log/private/optional_commit` and `/log/blocking/private`) for example usage (#7562, #7785).
 - Added support for inline transaction receipt construction at commit time. Endpoint authors can use `build_receipt_for_committed_tx()` to construct a full `TxReceiptImpl` from the `CommittedTxInfo` passed to their consensus committed callback. See the logging sample app (`/log/blocking/private/receipt`) for example usage (#7785).
 - Backup nodes can now be configured to automatically fetch snapshots from the primary when snapshot evidence is detected. This is controlled by the `snapshots.backup_fetch` configuration section, with `enabled`, `max_attempts`, `retry_interval`, `max_size` and `target_rpc_interface` options. The target RPC interface must have the `SnapshotRead` operator feature enabled. Snapshot fetching occurs in response to a `StartupSeqnoIsOld` error during join, and fetched snapshots are verified before use (#7314, #7630).
 - Added time-based snapshot scheduling. Snapshots can now be triggered after a configurable wall-clock interval (`snapshots.time_interval`) elapses, in addition to the existing transaction-count threshold (`snapshots.tx_count`). A new `snapshots.min_tx_count` option (default 2) sets the minimum number of transactions required before a time-based snapshot fires (#7731).
-- Added `files_cleanup.max_committed_ledger_chunks` configuration option to limit the number of committed ledger chunk files retained in the main ledger directory. When exceeded, the oldest chunks are automatically deleted, but only after verifying that an identical copy exists in at least one `ledger.read_only_directories` entry. At least one read-only ledger directory must be configured; the node will refuse to start otherwise.
+- Added `files_cleanup.max_committed_ledger_chunks` configuration option to limit the number of committed ledger chunk files retained in the main ledger directory. When exceeded, the oldest chunks are automatically deleted, but only after verifying that an identical copy exists in at least one `ledger.read_only_directories` entry. At least one read-only ledger directory must be configured; the node will refuse to start otherwise. See [documentation](https://ccf.dev/main/operations/ledger_snapshot.html#periodic-file-cleanup) for details.
 - Added `files_cleanup.max_snapshots` configuration option to limit the number of committed snapshot files retained on disk. When exceeded, the oldest snapshots are automatically deleted. The value must be at least 1 if set.
 - Added `files_cleanup.interval` configuration option (default `"30s"`) to periodically scan and delete old committed snapshots exceeding `max_snapshots`.
 - Added `POST /node/snapshot:create`, gated by the `SnapshotCreate` RPC interface operator feature, to create a snapshot via an operator endpoint rather than a governance action.
-- Added `GET` and `HEAD` `/node/ledger_chunk` and `/node/ledger_chunk/{chunk_name}` endpoints, gated by the `LedgerChunkDownload` RPC interface operator feature. These endpoints, along with `/node/snapshot/{snapshot_name}`, support `Want-Repr-Digest` / `Repr-Digest` headers (RFC 9530, algorithms `sha-256`, `sha-384`, `sha-512`) and `ETag` / `If-None-Match` for conditional downloads (#7650, #7652).
+- Added `GET` and `HEAD` `/node/ledger_chunk` and `/node/ledger_chunk/{chunk_name}` endpoints, gated by the `LedgerChunkDownload` RPC interface operator feature. These endpoints, along with `/node/snapshot/{snapshot_name}`, support `Want-Repr-Digest` / `Repr-Digest` headers (RFC 9530, algorithms `sha-256`, `sha-384`, `sha-512`) and `ETag` / `If-None-Match` for conditional downloads (#7650, #7652). See [documentation](https://ccf.dev/main/operations/ledger_snapshot.html#download-endpoints) for details.
 - Added experimental self-healing recovery (recovery-decision-protocol) for automatically transitioning-to-open during disaster recovery without operator intervention. Local sealing recovery now stores sealed secrets in the ledger, with recovery keys in `public:ccf.gov.nodes.sealed_recovery_keys` and encrypted shares in `public:ccf.internal.sealed_shares`. The constitution is updated to reseal whenever a node is added. The feature is configured via the `sealing-recovery` configuration section (#7189, #7554, #7679).
-- Added support for self-transparent code update policies (#7681).
+- Added support for self-transparent code update policies (#7681). See [documentation](https://ccf.dev/main/operations/code_upgrade.html#code-update-policy) for details.
 - Enabled PreVote optimisation, requiring followers to check electability before becoming candidates. This improves Raft availability under omission faults such as partial network partitions (#7419, #7445, #7462).
 - Added ProposeRequestVote on SIGTERM. When a primary with `ignore_first_sigterm` receives the first SIGTERM, it nominates a successor, allowing the successor to call an election immediately without waiting for the election timeout (#7514).
 - Added support for Turin and Genoa attestations (#7499, #7051).
@@ -61,7 +61,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   - `ccf::crypto::KeyPair` becomes `ccf::crypto::ECKeyPair`.
   - Error-prone inheritance between RSA and EC key classes has been removed.
   - RSA keys no longer re-use CSR functionality from the EC key interface.
-- The C++ API for installing endpoints with local commit handlers has changed. Handlers should now be added to an `Endpoint` with `.set_locally_committed_function(handler)`, and the `make_[read_only_]endpoint_with_local_commit_handler` methods on `EndpointRegistry` have been removed (#7487).
 - `set_consensus_committed_function()` has moved from an endpoint-registration-time decorator to a runtime call on `ctx.rpc_ctx->set_consensus_committed_function()`. The callback signature now receives a `CommittedTxInfo&` struct instead of individual arguments. This allows the same endpoint to conditionally block until committed based on per-request state. `ccf::endpoints::default_respond_on_commit_func` has been removed from the public API; a sample implementation is provided in the logging and basic sample apps (#7785).
 - Refactored the user-facing surface of local sealing and self-healing recovery. The feature is now called `sealing-recovery` with self-healing-open referred to as `recovery-decision-protocol`. Local sealing is enabled via the `sealing-recovery` config field; the local sealing identity is under `sealing-recovery.location.name`; the recovery-decision-protocol is configured via `sealing-recovery.recovery_decision_protocol` (#7679).
 - In the C++ API, `get_txid()` on `ccf::kv::ReadOnlyStore` has been renamed to `current_txid()` (#7477).
@@ -93,6 +92,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Removed `ccf::crypt::openssl_sha256_init()` and `ccf::crypt::openssl_sha256_shutdown()` (#7251).
 - Removed the `ccf/pal/hardware_info.h` header (#7117).
 - Removed the unused experimental `ccf.host.triggerSubprocess()` JS API.
+- Removed the `make_[read_only_]endpoint_with_local_commit_handler` methods on `EndpointRegistry` (#7487).
 
 ### Fixed
 
@@ -119,7 +119,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Dependencies
 
-- Updated snmalloc to 0.7.1.
+- Updated snmalloc to 0.7.3.
 
 ## [7.0.0-rc2]
 
