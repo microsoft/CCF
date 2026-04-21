@@ -7,6 +7,7 @@
 #include "consensus/ledger_enclave_types.h"
 #include "ds/ccf_assert.h"
 #include "kv/store.h"
+#include "node/cose_common.h"
 #include "node/encryptor.h"
 #include "node/history.h"
 #include "node/ledger_secrets.h"
@@ -496,11 +497,11 @@ namespace ccf::historical
         // Iterate through earlier indices. If this signature covers them
         // then create a receipt for them
         const auto sig = get_signature(sig_details->store);
-        if (!sig.has_value())
+        const auto cose_sig = get_cose_signature(sig_details->store);
+        if (!sig.has_value() && !cose_sig.has_value())
         {
           return false;
         }
-        const auto cose_sig = get_cose_signature(sig_details->store);
         const auto serialised_tree = get_tree(sig_details->store);
         if (!serialised_tree.has_value())
         {
@@ -526,17 +527,46 @@ namespace ccf::historical
               if (details != nullptr && details->store != nullptr)
               {
                 auto proof = tree.get_proof(seqno);
-                details->transaction_id = {sig->view, seqno};
-                details->receipt = std::make_shared<TxReceiptImpl>(
-                  sig->sig,
-                  cose_sig,
-                  proof.get_root(),
-                  proof.get_path(),
-                  sig->node,
-                  sig->cert,
-                  details->entry_digest,
-                  details->get_commit_evidence(),
-                  details->claims_digest);
+
+                if (sig.has_value())
+                {
+                  details->transaction_id = {sig->view, seqno};
+                  details->receipt = std::make_shared<TxReceiptImpl>(
+                    sig->sig,
+                    cose_sig,
+                    proof.get_root(),
+                    proof.get_path(),
+                    sig->node,
+                    sig->cert,
+                    details->entry_digest,
+                    details->get_commit_evidence(),
+                    details->claims_digest);
+                }
+                else
+                {
+                  auto cose_receipt =
+                    ccf::cose::decode_ccf_receipt(cose_sig.value(), false);
+                  auto parsed_txid =
+                    ccf::TxID::from_str(cose_receipt.phdr.ccf.txid);
+                  if (!parsed_txid.has_value())
+                  {
+                    throw std::logic_error(fmt::format(
+                      "Cannot parse CCF TxID: {}", cose_receipt.phdr.ccf.txid));
+                  }
+
+                  details->transaction_id = {parsed_txid->view, seqno};
+                  details->receipt = std::make_shared<TxReceiptImpl>(
+                    std::nullopt,
+                    cose_sig,
+                    proof.get_root(),
+                    proof.get_path(),
+                    ccf::NodeId{},
+                    std::nullopt,
+                    details->entry_digest,
+                    details->get_commit_evidence(),
+                    details->claims_digest);
+                }
+
                 HISTORICAL_LOG(
                   "Assigned a receipt for {} after given signature at {}",
                   seqno,
@@ -818,6 +848,32 @@ namespace ccf::historical
           details->transaction_id = {sig->view, sig->seqno};
           details->receipt = std::make_shared<TxReceiptImpl>(
             sig->sig, cose_sig, sig->root.h, nullptr, sig->node, sig->cert);
+        }
+        else if (cose_sig.has_value())
+        {
+          auto as_receipt =
+            ccf::cose::decode_ccf_receipt(cose_sig.value(), false);
+          const auto& txid = as_receipt.phdr.ccf.txid;
+          auto parsed_txid = ccf::TxID::from_str(txid);
+
+          if (!parsed_txid.has_value())
+          {
+            throw std::logic_error(
+              fmt::format("Cannot parse CCF TxID: {}", txid));
+          }
+          details->transaction_id = parsed_txid.value();
+          details->receipt = std::make_shared<TxReceiptImpl>(
+            std::nullopt,
+            cose_sig,
+            std::nullopt,
+            nullptr,
+            ccf::NodeId{},
+            std::nullopt);
+        }
+        else
+        {
+          throw std::logic_error(
+            fmt::format("Seqno {} is a signature of an unknown type", seqno));
         }
       }
 

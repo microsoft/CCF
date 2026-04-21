@@ -40,3 +40,22 @@ Since these operations may require disk IO and produce large responses, these fe
     - Size strings are expressed as the value suffixed with the size in bytes (``B``, ``KB``, ``MB``, ``GB``, ``TB``, as factors of 1024), e.g. ``"20MB"``, ``"100KB"`` or ``"2048"`` (bytes).
 
     - Time strings are expressed as the value suffixed with the duration (``us``, ``ms``, ``s``, ``min``, ``h``), e.g. ``"1000ms"``, ``"10s"`` or ``"30min"``.
+
+
+Upgrading to COSE-Only Ledger Signatures
+-----------------------------------------
+
+By default, CCF nodes emit **dual** ledger signatures: a traditional node signature and a COSE Sign1 signature. Applications control this via the ``ccf::get_ledger_sign_mode()`` weak-symbol callback declared in ``ccf/node/ledger_sign_mode.h``, which returns one of three modes:
+
+- ``Dual`` (default) — emit both signature types, accept all joiners.
+- ``CoseAllowDualJoin`` — emit only COSE signatures, but still accept join requests from ``Dual``-mode nodes. Use during rolling upgrades.
+- ``CoseOnly`` — emit only COSE signatures, reject ``Dual``-mode joiners. Final state after upgrade.
+
+The mode is set at link time by providing a strong definition in the application binary. Joining nodes advertise their signing mode in the join request.
+
+A rolling upgrade from ``Dual`` to ``CoseOnly`` is a two-step process:
+
+1. **CoseAllowDualJoin.** Deploy a binary that returns ``CoseAllowDualJoin``. Replace nodes one at a time. During this phase, new nodes running the old ``Dual`` binary can still join as replacements.
+
+2. **CoseOnly.** Once all nodes are upgraded, deploy a binary that returns ``CoseOnly``. Replace nodes again. After this, ``Dual`` joiners are rejected.
+

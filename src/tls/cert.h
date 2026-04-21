@@ -64,7 +64,7 @@ namespace tls
             Unique_BIO certbio(*it);
             Unique_X509 cert(certbio, true);
 
-            CHECK1(sk_X509_push(chain, cert));
+            CHECKPOSITIVE(sk_X509_push(chain, cert));
             CHECK1(X509_up_ref(cert));
           }
         }

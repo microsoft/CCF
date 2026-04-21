@@ -103,13 +103,6 @@ namespace ccf::endpoints
     return *this;
   }
 
-  Endpoint& Endpoint::set_consensus_committed_function(
-    const ConsensusCommittedEndpointFunction& ccf_)
-  {
-    consensus_committed_func = ccf_;
-    return *this;
-  }
-
   Endpoint& Endpoint::set_openapi_description(const std::string& description)
   {
     openapi_description = description;
