@@ -785,6 +785,7 @@ def test_corrupt_snapshot_handling(network, args):
             args.package,
             args,
             snapshots_dir=writable_dir,
+            from_snapshot=True,
             fetch_recent_snapshot=False,
         )
 
@@ -877,6 +878,7 @@ def test_corrupt_snapshot_handling(network, args):
             args.package,
             args,
             snapshots_dir=restricted_dir,
+            from_snapshot=True,
             fetch_recent_snapshot=False,
         )
 
@@ -1944,7 +1946,7 @@ def run_cose_only_mode_upgrade(args):
         new_nodes = []
         for _ in range(len(old_nodes)):
             new_node = network.create_node()
-            network.join_node(new_node, new_package, nargs)
+            network.join_node(new_node, new_package, nargs, from_snapshot=False)
             network.trust_node(new_node, nargs)
             new_nodes.append(new_node)
 
@@ -2002,7 +2004,7 @@ def run_cose_only_mode_upgrade(args):
         # Verify a Dual joiner can still join (allow_dual_signing_joinee=true)
         LOG.info("Verifying Dual joiner can still join COSE-only (allow dual) network")
         dual_joiner = network.create_node()
-        network.join_node(dual_joiner, nargs.package, nargs)
+        network.join_node(dual_joiner, nargs.package, nargs, from_snapshot=False)
         network.trust_node(dual_joiner, nargs)
         LOG.success("Dual joiner successfully joined COSE-only network")
 
@@ -2042,7 +2044,7 @@ def run_cose_only_mode_upgrade(args):
         LOG.info("Verifying Dual joiner is rejected by COSE-only-no-dual network")
         rejected_joiner = network.create_node()
         try:
-            network.join_node(rejected_joiner, nargs.package, nargs, timeout=10)
+            network.join_node(rejected_joiner, nargs.package, nargs, timeout=10, from_snapshot=False)
             network.trust_node(rejected_joiner, nargs)
             assert False, "Dual joiner should have been rejected"
         except Exception as e:

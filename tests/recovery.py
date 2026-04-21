@@ -1462,7 +1462,7 @@ def run_recovery_after_cose_upgrade(args):
         new_nodes = []
         for _ in range(len(old_nodes)):
             new_node = network.create_node()
-            network.join_node(new_node, cose_only_package, args)
+            network.join_node(new_node, cose_only_package, args, from_snapshot=False)
             network.trust_node(new_node, args)
             new_nodes.append(new_node)
 
@@ -1540,7 +1540,7 @@ def run_recovery_after_cose_upgrade(args):
         strict_nodes = []
         for _ in range(len(phase2_old_nodes)):
             n = recovered_network.create_node()
-            recovered_network.join_node(n, cose_strict_package, recovered_args)
+            recovered_network.join_node(n, cose_strict_package, recovered_args, from_snapshot=False)
             recovered_network.trust_node(n, recovered_args)
             strict_nodes.append(n)
 
