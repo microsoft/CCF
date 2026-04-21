@@ -798,7 +798,7 @@ def run_all(args):
 
         test_add_as_many_pending_nodes(network, args)
         test_add_node_invalid_service_cert(network, args)
-        test_add_node(network, args, from_snapshot=False)
+        test_add_node(network, args, copy_snapshot=True)
         test_add_node_with_read_only_ledger(network, args)
         test_join_straddling_primary_replacement(network, args)
         test_node_replacement(network, args)
@@ -806,7 +806,7 @@ def run_all(args):
         test_add_node_endorsements_endpoints(network, args)
         test_add_node_on_other_curve(network, args)
         test_retire_backup(network, args)
-        test_add_node(network, args)
+        test_add_node(network, args, copy_snapshot=True)
         test_retire_primary(network, args)
 
         test_add_node_from_snapshot(network, args)
