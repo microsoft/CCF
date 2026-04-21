@@ -369,7 +369,7 @@ class Network:
 
         # Note: Copy snapshot before ledger as retrieving the latest snapshot may require
         # to produce more ledger entries
-        if from_snapshot:
+        if from_snapshot or snapshots_dir is not None:
             # Only retrieve snapshot from primary if the snapshot directory is not specified
             if snapshots_dir is None:
                 primary, _ = self.find_primary(
@@ -432,6 +432,7 @@ class Network:
         read_only_ledger_dirs=None,
         fetch_recent_snapshot=True,
         snapshots_dir=None,
+        from_snapshot=False,
         **kwargs,
     ):
         self._setup_node(
@@ -443,9 +444,9 @@ class Network:
             ledger_dir=ledger_dir,
             copy_ledger=copy_ledger,
             read_only_ledger_dirs=read_only_ledger_dirs,
-            from_snapshot=False,
             fetch_recent_snapshot=fetch_recent_snapshot,
             snapshots_dir=snapshots_dir,
+            from_snapshot=from_snapshot,
             **kwargs,
         )
         node.complete_join()
@@ -530,7 +531,6 @@ class Network:
                         args,
                         recovery=recovery,
                         ledger_dir=ledger_dir,
-                        from_snapshot=snapshots_dir is not None,
                         read_only_ledger_dirs=read_only_ledger_dirs,
                         snapshots_dir=snapshots_dir,
                         **forwarded_args_with_overrides,
