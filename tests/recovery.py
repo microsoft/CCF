@@ -820,6 +820,7 @@ def test_persistence_old_snapshot(network, args):
         args.package,
         args,
         copy_ledger=False,
+        from_snapshot=True,
         snapshots_dir=snapshots_dir,
         ledger_dir=current_ledger_dir,
     )

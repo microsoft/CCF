@@ -90,6 +90,7 @@ def test_add_node_invalid_service_cert(network, args):
             service_cert_file=service_cert_file,
             timeout=3,
             stop_on_error=True,
+            from_snapshot=False,
         )
     except infra.network.ServiceCertificateInvalid:
         LOG.info(
@@ -104,7 +105,7 @@ def test_add_node_invalid_service_cert(network, args):
 
 
 @reqs.description("Adding a valid node")
-def test_add_node(network, args, from_snapshot=True):
+def test_add_node(network, args, copy_snapshot=False, fetch_recent_snapshot=True):
     # Add an operator interface for early access/validation
     operator_rpc_interface = "operator_rpc_interface"
 
@@ -117,12 +118,17 @@ def test_add_node(network, args, from_snapshot=True):
 
     new_node = network.create_node(host_spec)
 
+    snapshots_dir = None
+    if copy_snapshot:
+        primary, _ = network.find_primary()
+        snapshots_dir = network.get_committed_snapshots(primary)
     network.join_node(
         new_node,
         args.package,
         args,
-        from_snapshot=from_snapshot,
-        fetch_recent_snapshot=from_snapshot,
+        snapshots_dir=snapshots_dir,
+        from_snapshot=snapshots_dir is not None,
+        fetch_recent_snapshot=fetch_recent_snapshot,
     )
 
     # Verify self-signed node certificate validity period
@@ -155,7 +161,7 @@ def test_ignore_first_sigterm(network, args):
     # assigned IPs for the interfaces, something which the test infra doesn't
     # support widely yet.
     new_node = network.create_node()
-    network.join_node(new_node, args.package, args, ignore_first_sigterm=True)
+    network.join_node(new_node, args.package, args, ignore_first_sigterm=True, from_snapshot=False)
     network.trust_node(new_node, args)
 
     with new_node.client() as c:
@@ -185,7 +191,7 @@ def test_ignore_first_sigterm(network, args):
 @reqs.description("Adding a node with an invalid certificate validity period")
 def test_add_node_invalid_validity_period(network, args):
     new_node = network.create_node()
-    network.join_node(new_node, args.package, args)
+    network.join_node(new_node, args.package, args, from_snapshot=False)
     try:
         network.trust_node(
             new_node,
@@ -237,6 +243,7 @@ def test_add_node_from_backup(network, args):
         args.package,
         args,
         target_node=network.find_any_backup(),
+        from_snapshot=False,
     )
     network.trust_node(new_node, args)
     return network
@@ -280,6 +287,7 @@ def test_add_node_endorsements_endpoints(network, args):
                 args.package,
                 args_copy,
                 timeout=per_request_retry_timeout * 4 * len(servers) + 5,
+                from_snapshot=False,
             )
         except infra.network.CollateralFetchTimeout as e:
             LOG.info(
@@ -315,12 +323,14 @@ def test_add_node_from_snapshot(network, args, copy_ledger=True, from_backup=Fal
     network.txs.issue(network, number_txs=1, repeat=True)
 
     new_node = network.create_node()
+    snapshots_dir = network.get_committed_snapshots()
     network.join_node(
         new_node,
         args.package,
         args,
         copy_ledger=copy_ledger,
         target_node=network.find_any_backup() if from_backup else None,
+        snapshots_dir=snapshots_dir,
         from_snapshot=True,
     )
     network.trust_node(new_node, args)
@@ -421,7 +431,7 @@ def test_add_as_many_pending_nodes(network, args):
     new_nodes = []
     for _ in range(number_new_nodes):
         new_node = network.create_node()
-        network.join_node(new_node, args.package, args)
+        network.join_node(new_node, args.package, args, from_snapshot=False)
         new_nodes.append(new_node)
 
     for new_node in new_nodes:
@@ -493,7 +503,7 @@ def test_node_filter(network, args):
         pending_before = get_nodes("Pending")
         retired_before = get_nodes("Retired")
         new_node = network.create_node()
-        network.join_node(new_node, args.package, args, target_node=primary)
+        network.join_node(new_node, args.package, args, target_node=primary, from_snapshot=False)
         trusted_after = get_nodes("Trusted")
         pending_after = get_nodes("Pending")
         retired_after = get_nodes("Retired")
@@ -622,7 +632,7 @@ def test_node_replacement(network, args):
         f"local://{node_to_replace.get_public_rpc_host()}:{node_to_replace.get_public_rpc_port()}",
         node_port=node_to_replace.n2n_interface.port,
     )
-    network.join_node(replacement_node, args.package, args)
+    network.join_node(replacement_node, args.package, args, from_snapshot=False)
     network.trust_node(replacement_node, args)
 
     assert replacement_node.node_id != node_to_replace.node_id
@@ -658,7 +668,7 @@ def test_join_straddling_primary_replacement(network, args):
     test_add_node(network, args)
     primary, _ = network.find_primary()
     new_node = network.create_node()
-    network.join_node(new_node, args.package, args)
+    network.join_node(new_node, args.package, args, from_snapshot=False)
     proposal_body = {
         "actions": [
             {
@@ -750,7 +760,7 @@ def test_add_node_with_read_only_ledger(network, args):
 
     new_node = network.create_node()
     network.join_node(
-        new_node, args.package, args, from_snapshot=False, copy_ledger=True
+        new_node, args.package, args, from_snapshot=False, copy_ledger=True, fetch_recent_snapshot=False
     )
     network.trust_node(new_node, args)
     return network
@@ -846,10 +856,12 @@ def run_join_old_snapshot(const_args):
 
             for _ in range(0, 2):
                 new_node = network.create_node()
+                snapshots_dir = network.get_committed_snapshots()
                 network.join_node(
                     new_node,
                     args.package,
                     args,
+                    snapshots_dir=snapshots_dir,
                     from_snapshot=True,
                 )
                 network.trust_node(new_node, args)
@@ -868,8 +880,8 @@ def run_join_old_snapshot(const_args):
                     args.package,
                     args,
                     from_snapshot=True,
-                    fetch_recent_snapshot=False,
                     snapshots_dir=tmp_dir,
+                    fetch_recent_snapshot=False,
                     timeout=3,
                 )
             except infra.network.StartupSeqnoIsOld as e:

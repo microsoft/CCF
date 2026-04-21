@@ -686,6 +686,7 @@ def test_empty_snapshot(network, args):
                 snapshots_dir=snapshots_dir,
                 # Don't try to fetch a snapshot, look at the local files
                 fetch_recent_snapshot=False,
+                from_snapshot=True,
             )
             new_node.stop()
 
@@ -725,6 +726,7 @@ def test_nulled_snapshot(network, args):
                 snapshots_dir=snapshots_dir,
                 # Don't try to fetch a snapshot, look at the local files
                 fetch_recent_snapshot=False,
+                from_snapshot=True,
             )
         except Exception as e:
             failed = True
@@ -1427,6 +1429,7 @@ def test_ledger_chunk_redirect_gap(network, args):
         args,
         # Fetch recent snapshot to speed up joining
         fetch_recent_snapshot=True,
+        from_snapshot=False,
     )
     network.trust_node(new_node, args)
 
@@ -1588,7 +1591,7 @@ def run_tls_san_checks(const_args):
         )
         new_node = network.create_node(host_spec)
         args.subject_alt_names = [f"dNSName:{dummy_san}"]
-        network.join_node(new_node, args.package, args)
+        network.join_node(new_node, args.package, args, from_snapshot=False)
         sans = infra.crypto.get_san_from_pem_cert(new_node.get_tls_certificate_pem())
         assert len(sans) == 1, "Expected exactly one SAN"
         assert sans[0].value == dummy_san
@@ -1603,7 +1606,7 @@ def run_tls_san_checks(const_args):
             dummy_public_rpc_hosts.add(ipaddress.ip_address(dummy_public_rpc_host))
 
         new_node = network.create_node(host_spec)
-        network.join_node(new_node, args.package, args)
+        network.join_node(new_node, args.package, args, from_snapshot=False)
         # Cannot trust the node here as client cannot authenticate dummy public IP in cert
         with open(
             os.path.join(network.common_dir, f"{new_node.local_node_id}.pem"),
@@ -1966,7 +1969,7 @@ def run_late_mounted_ledger_check(args):
                 new_node,
                 nargs.package,
                 nargs,
-                from_snapshot=True,
+                from_snapshot=False,
                 copy_ledger=False,
                 common_read_only_ledger_dir=temp_dir,  # New node will try to read from temp directory
             )
@@ -2781,7 +2784,7 @@ def run_error_message_on_failure_to_read_aci_sec_context(args):
         args_copy.snp_endorsements_file = "/a/fake/path"
         failed = False
         try:
-            network.join_node(new_node, args.package, args_copy, timeout=20)
+            network.join_node(new_node, args.package, args_copy, timeout=20, from_snapshot=False)
         except infra.network.CollateralFetchTimeout:
             LOG.info(
                 "Node with invalid quote endorsement servers could not join as expected"
@@ -2952,6 +2955,7 @@ def test_backup_snapshot_fetch_max_size(network, args):
         args,
         target_node=primary,
         timeout=5,
+        from_snapshot=False,
         backup_snapshot_fetch_enabled=True,
         backup_snapshot_fetch_max_attempts=1,
         backup_snapshot_fetch_max_size="1KB",

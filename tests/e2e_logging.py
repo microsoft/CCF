@@ -1463,7 +1463,7 @@ def test_long_lived_forwarding(network, args):
 
     new_node_args = copy.deepcopy(args)
     new_node_args.node_to_node_message_limit = message_limit
-    network.join_node(new_node, args.package, new_node_args)
+    network.join_node(new_node, args.package, new_node_args, from_snapshot=False)
     network.trust_node(new_node, new_node_args)
 
     # Send many messages to new node over long-lived connections,

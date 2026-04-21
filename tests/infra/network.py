@@ -368,13 +368,15 @@ class Network:
 
         # Note: Copy snapshot before ledger as retrieving the latest snapshot may require
         # to produce more ledger entries
+        # Note: from_snapshot is not true in the start_and_open case nor start_in_recovery
         if from_snapshot:
             # Only retrieve snapshot from primary if the snapshot directory is not specified
             if snapshots_dir is None:
-                primary, _ = self.find_primary(
-                    timeout=args.ledger_recovery_timeout if recovery else 10
-                )
-                read_only_snapshots_dir = self.get_committed_snapshots(primary)
+                assert False, "snapshot_dir must be provided when from_snapshot is True"
+                #primary, _ = self.find_primary(
+                #    timeout=args.ledger_recovery_timeout if recovery else 10
+                #)
+                #read_only_snapshots_dir = self.get_committed_snapshots(primary)
             if os.listdir(snapshots_dir) or os.listdir(read_only_snapshots_dir):
                 LOG.info(
                     f"Joining from snapshot directories: {snapshots_dir},{read_only_snapshots_dir}"
@@ -1603,7 +1605,7 @@ class Network:
         LOG.info(f"Resizing network from {initial_node_count} to {target_count} nodes")
         while node_count < target_count:
             new_node = self.create_node()
-            self.join_node(new_node, args.package, args)
+            self.join_node(new_node, args.package, args, from_snapshot=False)
             self.trust_node(new_node, args)
             node_count += 1
         while node_count > target_count:
@@ -1870,12 +1872,14 @@ class Network:
 
     def get_committed_snapshots(
         self,
-        node,
+        node = None,
         target_seqno=None,
         force_txs=True,
         wait_for_target_seqno=False,
         timeout=20,
     ):
+        if node is None:
+            node, _ = self.find_primary()
         # Wait for the snapshot including target_seqno to be committed before
         # copying snapshot directory. Do not issue transactions if force_txs is False
         # and expect snapshot to have already been created.
