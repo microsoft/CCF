@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 > - **`cchost` has been removed.** Each CCF application is now built as its own standalone binary. The `add_ccf_app` CMake function builds an executable; callers provide a `main` function and invoke `ccf::run()` (see `samples/apps/main.cpp`). The `js_generic` sample is now installed at `/ccf/bin/js_generic`. The separate "run" package is no longer published — only the `-devel` package is available.
 > - **Unified platform build.** There is no longer a separate SNP or Virtual build. A single build auto-detects the platform at runtime, so the `COMPILE_TARGET` CMake option and per-platform release artifacts are gone.
 > - **Classic governance API removed.** The legacy `/gov` endpoints (without an `api-version` query parameter), deprecated since 5.0.0, have been removed. All `/gov` endpoints now require passing an `api-version` query parameter. The most recent value is `2024-07-01`.
-> - **COSE-only ledger signatures.** Networks can start in COSE-only signing mode or transition from dual signing, and a new `/receipt/cose` endpoint returns COSE Sign1 receipts with Merkle proofs (See https://datatracker.ietf.org/doc/draft-ietf-cose-merkle-tree-proofs/18/ and https://datatracker.ietf.org/doc/draft-ietf-scitt-receipts-ccf-profile/01/ for a full specification).
+> - **COSE-only ledger signatures.** Networks can start in COSE-only signing mode or transition from dual signing, and a new `/receipt/cose` endpoint returns COSE Sign1 receipts with Merkle proofs (see https://datatracker.ietf.org/doc/draft-ietf-cose-merkle-tree-proofs/18/ and https://datatracker.ietf.org/doc/draft-ietf-scitt-receipts-ccf-profile/01/ for a full specification).
 > - **Commit-aware endpoints.** Endpoints can now defer their HTTP response until the transaction reaches a terminal consensus state (committed or invalidated), with optional inline receipt construction at commit time.
 > - **Improved snapshot management.** Backup nodes can auto-fetch snapshots from the primary, snapshots can be scheduled by wall-clock interval, and new file-cleanup options automatically prune old ledger chunks and snapshots.
 
@@ -89,7 +89,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Removed `aes_gcm_encrypt()`, `aes_gcm_decrypt()`, and `default_iv` from `ccf::crypto` (#7811).
 - Removed `get_responder()` from the public `ccf::RpcContext` API and made `http_responder.h` a private header (#7818).
 - Removed the `/node/memory` endpoint, which was originally useful for monitoring SGX enclave memory usage.
-- Removed `ccf::crypt::openssl_sha256_init()` and `ccf::crypt::openssl_sha256_shutdown()` (#7251).
+- Removed `ccf::crypto::openssl_sha256_init()` and `ccf::crypto::openssl_sha256_shutdown()` (#7251).
 - Removed the `ccf/pal/hardware_info.h` header (#7117).
 - Removed the unused experimental `ccf.host.triggerSubprocess()` JS API.
 - Removed the `make_[read_only_]endpoint_with_local_commit_handler` methods on `EndpointRegistry` (#7487).
