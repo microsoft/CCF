@@ -139,7 +139,7 @@ def test_add_node(network, args, copy_snapshot=False, fetch_recent_snapshot=True
         validity_period_days=args.maximum_node_certificate_validity_days // 2,
     )
 
-    if (not copy_snapshot) or (not fetch_recent_snapshot):
+    if not (copy_snapshot or fetch_recent_snapshot):
         with new_node.client() as c:
             s = c.get("/node/state")
             body = s.body.json()
