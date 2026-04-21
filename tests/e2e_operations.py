@@ -2044,7 +2044,9 @@ def run_cose_only_mode_upgrade(args):
         LOG.info("Verifying Dual joiner is rejected by COSE-only-no-dual network")
         rejected_joiner = network.create_node()
         try:
-            network.join_node(rejected_joiner, nargs.package, nargs, timeout=10, from_snapshot=False)
+            network.join_node(
+                rejected_joiner, nargs.package, nargs, timeout=10, from_snapshot=False
+            )
             network.trust_node(rejected_joiner, nargs)
             assert False, "Dual joiner should have been rejected"
         except Exception as e:
@@ -3009,7 +3011,9 @@ def run_error_message_on_failure_to_read_aci_sec_context(args):
         args_copy.snp_endorsements_file = "/a/fake/path"
         failed = False
         try:
-            network.join_node(new_node, args.package, args_copy, timeout=20, from_snapshot=False)
+            network.join_node(
+                new_node, args.package, args_copy, timeout=20, from_snapshot=False
+            )
         except infra.network.CollateralFetchTimeout:
             LOG.info(
                 "Node with invalid quote endorsement servers could not join as expected"

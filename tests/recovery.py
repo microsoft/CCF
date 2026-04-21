@@ -1540,7 +1540,9 @@ def run_recovery_after_cose_upgrade(args):
         strict_nodes = []
         for _ in range(len(phase2_old_nodes)):
             n = recovered_network.create_node()
-            recovered_network.join_node(n, cose_strict_package, recovered_args, from_snapshot=False)
+            recovered_network.join_node(
+                n, cose_strict_package, recovered_args, from_snapshot=False
+            )
             recovered_network.trust_node(n, recovered_args)
             strict_nodes.append(n)
 

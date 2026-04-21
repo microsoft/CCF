@@ -726,7 +726,9 @@ def test_add_node_via_code_policy(network, args):
         ),
     )
     new_node = network.create_node()
-    network.join_node(new_node, joiner_args.package, joiner_args, timeout=3, from_snapshot=False)
+    network.join_node(
+        new_node, joiner_args.package, joiner_args, timeout=3, from_snapshot=False
+    )
     network.trust_node(new_node, joiner_args)
 
     # Cleanup: restore host data and remove code update policy.

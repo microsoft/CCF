@@ -266,7 +266,13 @@ def test_new_joiner_helps_liveness(network, args):
     with contextlib.ExitStack() as stack:
         # Add a new node, but partition them before trusting them
         new_node = network.create_node()
-        network.join_node(new_node, args.package, args, from_snapshot=False, fetch_recent_snapshot=True)
+        network.join_node(
+            new_node,
+            args.package,
+            args,
+            from_snapshot=False,
+            fetch_recent_snapshot=True,
+        )
         new_joiner_partition = [new_node]
         new_joiner_rules = stack.enter_context(
             network.partitioner.partition([primary, *backups], new_joiner_partition)
