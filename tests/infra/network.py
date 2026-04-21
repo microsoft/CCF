@@ -373,11 +373,15 @@ class Network:
             # Only retrieve snapshot from primary if the snapshot directory is not specified
             if snapshots_dir is None:
                 assert False, "snapshot_dir must be provided when from_snapshot is True"
-                #primary, _ = self.find_primary(
+                # primary, _ = self.find_primary(
                 #    timeout=args.ledger_recovery_timeout if recovery else 10
-                #)
-                #read_only_snapshots_dir = self.get_committed_snapshots(primary)
-            if os.listdir(snapshots_dir) or os.listdir(read_only_snapshots_dir):
+                # )
+                # read_only_snapshots_dir = self.get_committed_snapshots(primary)
+            snapshots_exist = snapshots_dir and os.listdir(snapshots_dir)
+            read_only_snapshots_exist = read_only_snapshots_dir and os.listdir(
+                read_only_snapshots_dir
+            )
+            if snapshots_exist or read_only_snapshots_exst:
                 LOG.info(
                     f"Joining from snapshot directories: {snapshots_dir},{read_only_snapshots_dir}"
                 )
@@ -1872,7 +1876,7 @@ class Network:
 
     def get_committed_snapshots(
         self,
-        node = None,
+        node=None,
         target_seqno=None,
         force_txs=True,
         wait_for_target_seqno=False,

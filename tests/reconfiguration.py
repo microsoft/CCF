@@ -120,8 +120,7 @@ def test_add_node(network, args, copy_snapshot=False, fetch_recent_snapshot=True
 
     snapshots_dir = None
     if copy_snapshot:
-        primary, _ = network.find_primary()
-        snapshots_dir = network.get_committed_snapshots(primary)
+        snapshots_dir = network.get_committed_snapshots()
     network.join_node(
         new_node,
         args.package,
@@ -140,7 +139,7 @@ def test_add_node(network, args, copy_snapshot=False, fetch_recent_snapshot=True
         validity_period_days=args.maximum_node_certificate_validity_days // 2,
     )
 
-    if not from_snapshot:
+    if (not copy_snapshot) or (not fetch_recent_snapshot):
         with new_node.client() as c:
             s = c.get("/node/state")
             body = s.body.json()
@@ -161,7 +160,9 @@ def test_ignore_first_sigterm(network, args):
     # assigned IPs for the interfaces, something which the test infra doesn't
     # support widely yet.
     new_node = network.create_node()
-    network.join_node(new_node, args.package, args, ignore_first_sigterm=True, from_snapshot=False)
+    network.join_node(
+        new_node, args.package, args, ignore_first_sigterm=True, from_snapshot=False
+    )
     network.trust_node(new_node, args)
 
     with new_node.client() as c:
@@ -503,7 +504,9 @@ def test_node_filter(network, args):
         pending_before = get_nodes("Pending")
         retired_before = get_nodes("Retired")
         new_node = network.create_node()
-        network.join_node(new_node, args.package, args, target_node=primary, from_snapshot=False)
+        network.join_node(
+            new_node, args.package, args, target_node=primary, from_snapshot=False
+        )
         trusted_after = get_nodes("Trusted")
         pending_after = get_nodes("Pending")
         retired_after = get_nodes("Retired")
@@ -760,7 +763,12 @@ def test_add_node_with_read_only_ledger(network, args):
 
     new_node = network.create_node()
     network.join_node(
-        new_node, args.package, args, from_snapshot=False, copy_ledger=True, fetch_recent_snapshot=False
+        new_node,
+        args.package,
+        args,
+        from_snapshot=False,
+        copy_ledger=True,
+        fetch_recent_snapshot=False,
     )
     network.trust_node(new_node, args)
     return network

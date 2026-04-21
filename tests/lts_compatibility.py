@@ -146,7 +146,7 @@ def test_new_service(
             new_node,
             args.package,
             args,
-            from_snapshot=False,
+            from_snapshot=True,
             snapshots_dir=snapshots_dir,
             **kwargs,
         )
@@ -390,17 +390,16 @@ def run_code_upgrade_from(
                         args.package,
                         args,
                         from_snapshot=False,
-                        fetch_recent_snapshot=fetch_recent_snapshot,
+                        fetch_recent_snapshot=True,
                     )
                 else:
-                    primary, _ = network.find_primary()
-                    snapshots_dir = network.get_committed_snapshots(primary)
                     network.join_node(
                         new_node,
                         args.package,
                         args,
-                        snapshots_dir=snapshots_dir,
-                        from_snapshot=True,
+                        copy_ledger=True,
+                        from_snapshot=False,
+                        fetch_recent_snapshot=False,
                     )
                 network.trust_node(
                     new_node,
