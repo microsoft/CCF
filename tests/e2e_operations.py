@@ -1427,6 +1427,9 @@ def test_ledger_chunk_redirect_gap(network, args):
         r = c.get("/node/commit").body.json()
         commit_seqno = TxID.from_str(r["transaction_id"]).seqno
 
+    # force primary to generate a new snapshot after commit idx
+    network.get_committed_snapshots(primary)
+
     new_node = network.create_node()
     network.join_node(
         new_node,
