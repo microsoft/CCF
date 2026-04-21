@@ -3091,10 +3091,16 @@ def test_join_time_snapshot_fetch_failure(network, args):
     intermediate_node.wait_for_node_to_join(timeout=10)
 
     # Now join a fresh node (no snapshot) targeting the intermediate node via
-    # primary_rpc_interface.  StartupSeqnoIsOld is expected, so use a short
-    # timeout and catch the exception.
-    # Timeout accounts for: 3 fetch attempts × 1s retry_interval = ~3s, plus
-    # join retry overhead and test environment scheduling headroom.
+    # primary_rpc_interface.  The join target replies StartupSeqnoIsOld, which
+    # triggers a snapshot fetch on the joiner.  primary_rpc_interface lacks
+    # the SnapshotRead operator feature, so all fetch attempts return HTTP
+    # 404 and the FetchSnapshot retry loop logs "Exceeded maximum snapshot
+    # fetch retries (3), giving up".  The joiner then retries the whole join,
+    # so it never registers in the KV; we wait long enough for at least one
+    # full fetch cycle to be emitted to the log, then expect a TimeoutError
+    # from wait_for_node_in_store.  log_errors only inspects [fail ]/[fatal]
+    # lines so the StartupSeqnoIsOld info-level message is not promoted to a
+    # specific exception type.
     failing_node = network.create_node()
     try:
         network.join_node(
@@ -3106,7 +3112,7 @@ def test_join_time_snapshot_fetch_failure(network, args):
             join_target_interface_name=infra.interfaces.PRIMARY_RPC_INTERFACE,
             timeout=15,
         )
-    except infra.network.StartupSeqnoIsOld:
+    except TimeoutError:
         pass  # expected: FetchSnapshot exhausts retries and node cannot join
 
     _assert_snapshot_fetch_failure_messages(failing_node)
