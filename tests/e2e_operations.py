@@ -1437,7 +1437,7 @@ def test_ledger_chunk_redirect_gap(network, args):
         args.package,
         args,
         # Tmp fix until the primary expresses an opinion
-        snapshots_dir = snapshots,
+        snapshots_dir=snapshots,
         from_snapshot=True,
         # Fetch recent snapshot to speed up joining
         fetch_recent_snapshot=True,
@@ -2198,11 +2198,16 @@ def run_late_mounted_ledger_check(args):
         # Create a temporary directory to manually construct a ledger in
         with tempfile.TemporaryDirectory() as temp_dir:
             new_node = network.create_node()
+
+            # TMP: must copy the snapshots folder to ensure it starts with a recent snapshot
+            # Only fetch after #7835 is merged
+            snapshots_dir = network.get_committed_snapshots()
             network.join_node(
                 new_node,
                 nargs.package,
                 nargs,
-                from_snapshot=False,
+                from_snapshot=True,
+                snapshots_dir=snapshots_dir,
                 copy_ledger=False,
                 common_read_only_ledger_dir=temp_dir,  # New node will try to read from temp directory
             )

@@ -381,7 +381,7 @@ class Network:
             read_only_snapshots_exist = read_only_snapshots_dir and os.listdir(
                 read_only_snapshots_dir
             )
-            if snapshots_exist or read_only_snapshots_exst:
+            if snapshots_exist or read_only_snapshots_exist:
                 LOG.info(
                     f"Joining from snapshot directories: {snapshots_dir},{read_only_snapshots_dir}"
                 )
