@@ -32,7 +32,7 @@ namespace asynchost
       return fmt::format("{:>7.03f}s", s);
     }
 
-    static std::chrono::microseconds default_max_time;
+    static inline std::chrono::microseconds default_max_time{10'000};
 
     std::string message;
     TClock::duration max_time;
