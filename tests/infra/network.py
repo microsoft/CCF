@@ -350,7 +350,7 @@ class Network:
         ledger_dir=None,
         copy_ledger=True,
         read_only_ledger_dirs=None,
-        from_snapshot=True,
+        from_snapshot=False,
         snapshots_dir=None,
         **kwargs,
     ):
@@ -426,7 +426,7 @@ class Network:
         ledger_dir=None,
         copy_ledger=True,
         read_only_ledger_dirs=None,
-        from_snapshot=True,
+        from_snapshot=False,
         snapshots_dir=None,
         **kwargs,
     ):
