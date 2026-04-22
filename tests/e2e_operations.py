@@ -1431,13 +1431,16 @@ def test_ledger_chunk_redirect_gap(network, args):
     network.get_committed_snapshots(primary)
 
     new_node = network.create_node()
+    snapshots = network.get_committed_snapshots()
     network.join_node(
         new_node,
         args.package,
         args,
+        # Tmp fix until the primary expresses an opinion
+        snapshots_dir = snapshots,
+        from_snapshot=True,
         # Fetch recent snapshot to speed up joining
         fetch_recent_snapshot=True,
-        from_snapshot=False,
     )
     network.trust_node(new_node, args)
 
