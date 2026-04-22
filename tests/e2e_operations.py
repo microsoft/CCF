@@ -3139,7 +3139,6 @@ def test_error_message_on_failure_to_fetch_snapshot(network, args):
         backup_snapshot_fetch_target_rpc_interface=infra.interfaces.PRIMARY_RPC_INTERFACE,
     )
     network.trust_node(new_node, args)
-    new_node.wait_for_node_to_join(timeout=5)
 
     # Issue enough transactions to trigger a new snapshot on the primary.
     # The snapshot_evidence hook on new_node then schedules BackupSnapshotFetch,
