@@ -1427,10 +1427,8 @@ def test_ledger_chunk_redirect_gap(network, args):
         r = c.get("/node/commit").body.json()
         commit_seqno = TxID.from_str(r["transaction_id"]).seqno
 
-    # force primary to generate a new snapshot after commit idx
-    network.get_committed_snapshots(primary)
-
     new_node = network.create_node()
+    # force primary to generate a new snapshot after commit idx
     snapshots = network.get_committed_snapshots()
     network.join_node(
         new_node,
@@ -2199,8 +2197,6 @@ def run_late_mounted_ledger_check(args):
         with tempfile.TemporaryDirectory() as temp_dir:
             new_node = network.create_node()
 
-            # TMP: must copy the snapshots folder to ensure it starts with a recent snapshot
-            # Only fetch after #7835 is merged
             snapshots_dir = network.get_committed_snapshots()
             network.join_node(
                 new_node,
