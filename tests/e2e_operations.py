@@ -3113,6 +3113,11 @@ def test_join_time_snapshot_fetch_failure(network, args):
         )
     except TimeoutError:
         pass  # expected: FetchSnapshot exhausts retries and node cannot join
+    else:
+        raise AssertionError(
+            "Expected network.join_node() to raise TimeoutError after snapshot "
+            "fetch retries were exhausted, but it succeeded"
+        )
 
     _assert_snapshot_fetch_failure_messages(failing_node)
 
