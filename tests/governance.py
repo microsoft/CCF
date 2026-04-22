@@ -133,7 +133,7 @@ def test_no_quote(network, args):
             }
         )
     )
-    network.join_node(untrusted_node, args.package, args)
+    network.join_node(untrusted_node, args.package, args, from_snapshot=False)
     with untrusted_node.client(
         ca=os.path.join(
             untrusted_node.common_dir, f"{untrusted_node.local_node_id}.pem"
@@ -175,7 +175,7 @@ def test_node_data(network, args):
             )
 
             # NB: This new node joins but is never trusted
-            network.join_node(untrusted_node, args.package, args)
+            network.join_node(untrusted_node, args.package, args, from_snapshot=False)
 
             nodes = get_nodes()
             assert untrusted_node.node_id in nodes, nodes

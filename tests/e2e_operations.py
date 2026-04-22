@@ -689,6 +689,7 @@ def test_empty_snapshot(network, args):
                 snapshots_dir=snapshots_dir,
                 # Don't try to fetch a snapshot, look at the local files
                 fetch_recent_snapshot=False,
+                from_snapshot=True,
             )
             new_node.stop()
 
@@ -728,6 +729,7 @@ def test_nulled_snapshot(network, args):
                 snapshots_dir=snapshots_dir,
                 # Don't try to fetch a snapshot, look at the local files
                 fetch_recent_snapshot=False,
+                from_snapshot=True,
             )
         except Exception as e:
             failed = True
@@ -783,6 +785,7 @@ def test_corrupt_snapshot_handling(network, args):
             args.package,
             args,
             snapshots_dir=writable_dir,
+            from_snapshot=True,
             fetch_recent_snapshot=False,
         )
 
@@ -875,6 +878,7 @@ def test_corrupt_snapshot_handling(network, args):
             args.package,
             args,
             snapshots_dir=restricted_dir,
+            from_snapshot=True,
             fetch_recent_snapshot=False,
         )
 
@@ -1424,10 +1428,15 @@ def test_ledger_chunk_redirect_gap(network, args):
         commit_seqno = TxID.from_str(r["transaction_id"]).seqno
 
     new_node = network.create_node()
+    # force primary to generate a new snapshot after commit idx
+    snapshots = network.get_committed_snapshots()
     network.join_node(
         new_node,
         args.package,
         args,
+        # Tmp fix until the primary expresses an opinion
+        snapshots_dir=snapshots,
+        from_snapshot=True,
         # Fetch recent snapshot to speed up joining
         fetch_recent_snapshot=True,
     )
@@ -1591,7 +1600,7 @@ def run_tls_san_checks(const_args):
         )
         new_node = network.create_node(host_spec)
         args.subject_alt_names = [f"dNSName:{dummy_san}"]
-        network.join_node(new_node, args.package, args)
+        network.join_node(new_node, args.package, args, from_snapshot=False)
         sans = infra.crypto.get_san_from_pem_cert(new_node.get_tls_certificate_pem())
         assert len(sans) == 1, "Expected exactly one SAN"
         assert sans[0].value == dummy_san
@@ -1606,7 +1615,7 @@ def run_tls_san_checks(const_args):
             dummy_public_rpc_hosts.add(ipaddress.ip_address(dummy_public_rpc_host))
 
         new_node = network.create_node(host_spec)
-        network.join_node(new_node, args.package, args)
+        network.join_node(new_node, args.package, args, from_snapshot=False)
         # Cannot trust the node here as client cannot authenticate dummy public IP in cert
         with open(
             os.path.join(network.common_dir, f"{new_node.local_node_id}.pem"),
@@ -1941,7 +1950,7 @@ def run_cose_only_mode_upgrade(args):
         new_nodes = []
         for _ in range(len(old_nodes)):
             new_node = network.create_node()
-            network.join_node(new_node, new_package, nargs)
+            network.join_node(new_node, new_package, nargs, from_snapshot=False)
             network.trust_node(new_node, nargs)
             new_nodes.append(new_node)
 
@@ -1999,7 +2008,7 @@ def run_cose_only_mode_upgrade(args):
         # Verify a Dual joiner can still join (allow_dual_signing_joinee=true)
         LOG.info("Verifying Dual joiner can still join COSE-only (allow dual) network")
         dual_joiner = network.create_node()
-        network.join_node(dual_joiner, nargs.package, nargs)
+        network.join_node(dual_joiner, nargs.package, nargs, from_snapshot=False)
         network.trust_node(dual_joiner, nargs)
         LOG.success("Dual joiner successfully joined COSE-only network")
 
@@ -2039,7 +2048,9 @@ def run_cose_only_mode_upgrade(args):
         LOG.info("Verifying Dual joiner is rejected by COSE-only-no-dual network")
         rejected_joiner = network.create_node()
         try:
-            network.join_node(rejected_joiner, nargs.package, nargs, timeout=10)
+            network.join_node(
+                rejected_joiner, nargs.package, nargs, timeout=10, from_snapshot=False
+            )
             network.trust_node(rejected_joiner, nargs)
             assert False, "Dual joiner should have been rejected"
         except Exception as e:
@@ -2185,11 +2196,14 @@ def run_late_mounted_ledger_check(args):
         # Create a temporary directory to manually construct a ledger in
         with tempfile.TemporaryDirectory() as temp_dir:
             new_node = network.create_node()
+
+            snapshots_dir = network.get_committed_snapshots()
             network.join_node(
                 new_node,
                 nargs.package,
                 nargs,
                 from_snapshot=True,
+                snapshots_dir=snapshots_dir,
                 copy_ledger=False,
                 common_read_only_ledger_dir=temp_dir,  # New node will try to read from temp directory
             )
@@ -3004,7 +3018,9 @@ def run_error_message_on_failure_to_read_aci_sec_context(args):
         args_copy.snp_endorsements_file = "/a/fake/path"
         failed = False
         try:
-            network.join_node(new_node, args.package, args_copy, timeout=20)
+            network.join_node(
+                new_node, args.package, args_copy, timeout=20, from_snapshot=False
+            )
         except infra.network.CollateralFetchTimeout:
             LOG.info(
                 "Node with invalid quote endorsement servers could not join as expected"
@@ -3175,6 +3191,7 @@ def test_backup_snapshot_fetch_max_size(network, args):
         args,
         target_node=primary,
         timeout=5,
+        from_snapshot=False,
         backup_snapshot_fetch_enabled=True,
         backup_snapshot_fetch_max_attempts=1,
         backup_snapshot_fetch_max_size="1KB",

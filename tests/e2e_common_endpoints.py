@@ -33,7 +33,7 @@ def test_primary(network, args):
     host_spec.with_args(args)
 
     new_backup = network.create_node(host_spec)
-    network.join_node(new_backup, args.package, args)
+    network.join_node(new_backup, args.package, args, from_snapshot=False)
     network.trust_node(new_backup, args)
 
     primary_interfaces = primary.host.rpc_interfaces
@@ -149,7 +149,7 @@ def test_network_node_info(network, args):
     host_spec.with_args(args)
 
     new_node = network.create_node(host_spec)
-    network.join_node(new_node, args.package, args)
+    network.join_node(new_node, args.package, args, from_snapshot=False)
 
     with new_node.client(interface_name=operator_rpc_interface) as c:
         r = c.get("/node/network/nodes/self", allow_redirects=False)
