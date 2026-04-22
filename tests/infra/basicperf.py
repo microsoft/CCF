@@ -693,7 +693,12 @@ def run(args):
                     )
                     all_seconds.update(ce["second"].to_list())
 
-                seconds = sorted(all_seconds)
+                # Use a contiguous range so that idle seconds appear as
+                # empty bars rather than being skipped entirely.
+                if all_seconds:
+                    seconds = list(range(min(all_seconds), max(all_seconds) + 1))
+                else:
+                    seconds = []
 
                 # With many clients, bin them into groups so each group gets
                 # enough bar width to be visible. Target ~chart_width/4 groups max.
