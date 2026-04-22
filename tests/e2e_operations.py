@@ -3088,7 +3088,6 @@ def test_join_time_snapshot_fetch_failure(network, args):
     intermediate_node = network.create_node()
     network.join_node(intermediate_node, args.package, args, target_node=primary)
     network.trust_node(intermediate_node, args)
-    intermediate_node.wait_for_node_to_join(timeout=10)
 
     # Now join a fresh node (no snapshot) targeting the intermediate node via
     # primary_rpc_interface.  The join target replies StartupSeqnoIsOld, which
