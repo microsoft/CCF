@@ -373,17 +373,13 @@ class Network:
             # Only retrieve snapshot from primary if the snapshot directory is not specified
             if snapshots_dir is None:
                 assert False, "snapshot_dir must be provided when from_snapshot is True"
-            snapshots_exist = snapshots_dir and os.listdir(snapshots_dir)
-            read_only_snapshots_exist = read_only_snapshots_dir and os.listdir(
-                read_only_snapshots_dir
-            )
-            if snapshots_exist or read_only_snapshots_exist:
+            if snapshots_dir and os.listdir(snapshots_dir):
                 LOG.info(
-                    f"Joining from snapshot directories: {snapshots_dir},{read_only_snapshots_dir}"
+                    f"Joining from snapshot directories: {snapshots_dir}"
                 )
             else:
                 LOG.warning(
-                    f"Attempting to join from snapshot but {snapshots_dir},{read_only_snapshots_dir} are empty: defaulting to complete replay of transaction history"
+                    f"Attempting to join from snapshot but {snapshots_dir} is empty: defaulting to complete replay of transaction history"
                 )
         else:
             LOG.info(
