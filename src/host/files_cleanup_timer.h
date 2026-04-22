@@ -83,7 +83,12 @@ namespace asynchost
     inline std::optional<ccf::crypto::Sha256Hash> hash_file(
       const std::filesystem::path& path)
     {
-      std::ifstream f(path, std::ios::binary);
+      std::ifstream f;
+      {
+        TimeBoundLogger log_if_slow(
+          fmt::format("Hashing file - ifstream open({})", path));
+        f.open(path, std::ios::binary);
+      }
       if (!f)
       {
         return std::nullopt;
@@ -91,13 +96,17 @@ namespace asynchost
 
       auto hasher = ccf::crypto::make_incremental_sha256();
       std::vector<uint8_t> buf(HASH_READ_CHUNK_SIZE);
-      while (f.read(reinterpret_cast<char*>(buf.data()), buf.size()) ||
-             f.gcount() > 0)
       {
-        hasher->update_hash({buf.data(), static_cast<size_t>(f.gcount())});
-        if (f.eof())
+        TimeBoundLogger log_if_slow(
+          fmt::format("Hashing file - read loop({})", path));
+        while (f.read(reinterpret_cast<char*>(buf.data()), buf.size()) ||
+               f.gcount() > 0)
         {
-          break;
+          hasher->update_hash({buf.data(), static_cast<size_t>(f.gcount())});
+          if (f.eof())
+          {
+            break;
+          }
         }
       }
 
@@ -278,7 +287,11 @@ namespace asynchost
             path.filename(),
             max_retained);
           std::error_code ec;
-          std::filesystem::remove(path, ec);
+          {
+            TimeBoundLogger log_remove_if_slow(fmt::format(
+              "Deleting old snapshot - remove({})", path.filename()));
+            std::filesystem::remove(path, ec);
+          }
           if (ec)
           {
             LOG_FAIL_FMT(
@@ -387,7 +400,11 @@ namespace asynchost
           path.filename(),
           max_retained);
         std::error_code ec;
-        std::filesystem::remove(path, ec);
+        {
+          TimeBoundLogger log_remove_if_slow(fmt::format(
+            "Deleting old ledger chunk - remove({})", path.filename()));
+          std::filesystem::remove(path, ec);
+        }
         if (ec)
         {
           if (ec == std::errc::no_such_file_or_directory)
