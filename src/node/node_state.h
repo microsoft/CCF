@@ -54,6 +54,7 @@
 #include "service/internal_tables_access.h"
 #include "service/tables/local_sealing.h"
 #include "service/tables/recovery_type.h"
+#include "service/tables/shards.h"
 #include "share_manager.h"
 #include "snapshots/fetch.h"
 #include "snapshots/filenames.h"
@@ -461,6 +462,27 @@ namespace ccf
       cached_sealed_recovery_data = std::nullopt;
     ::consensus::Index last_recovered_idx = 0;
     static const size_t recovery_batch_size = 100;
+
+    //
+    // Temporal sharding
+    //
+    uint64_t current_shard_id = 0;
+    ccf::kv::Version current_shard_seqno_start = 1;
+    bool shard_seal_in_progress = false;
+    std::chrono::milliseconds current_shard_elapsed{0};
+
+    // Tracks info needed to complete a seal after snapshot commits
+    struct PendingSealInfo
+    {
+      uint64_t shard_id = 0;
+      ccf::kv::Version seqno_start = 0;
+      ccf::kv::Version seqno_end = 0;
+    };
+    std::optional<PendingSealInfo> pending_seal_info = std::nullopt;
+
+    // Set by the snapshotter callback (which runs under the store maps lock,
+    // so we cannot do KV work there). Checked and cleared in tick().
+    std::atomic<bool> seal_snapshot_committed{false};
 
     //
     // JWT key auto-refresh
@@ -1872,6 +1894,8 @@ namespace ccf
           throw std::logic_error("Service could not be opened");
         }
 
+        initialize_sharding(tx);
+
         // Trigger a snapshot (at next signature) to ensure we have a working
         // snapshot signed by the current (now new) service identity, in case
         // we need to recover soon again.
@@ -2136,6 +2160,7 @@ namespace ccf
         InternalTablesAccess::open_service(tx);
         InternalTablesAccess::endorse_previous_identity(
           tx, *network.identity->get_key_pair());
+        initialize_sharding(tx);
         trigger_snapshot(tx);
         return;
       }
@@ -2197,6 +2222,17 @@ namespace ccf
       {
         const auto tx_id = consensus->get_committed_txid();
         indexer->update_strategies(elapsed, {tx_id.first, tx_id.second});
+
+        // Check if a shard-seal snapshot was committed (flag set by
+        // the snapshotter callback) and complete the seal transition
+        if (
+          seal_snapshot_committed.exchange(false) &&
+          pending_seal_info.has_value())
+        {
+          complete_shard_seal(pending_seal_info->shard_id);
+        }
+
+        check_auto_seal(elapsed, tx_id.second);
       }
 
       n2n_channels->tick(elapsed);
@@ -2384,6 +2420,320 @@ namespace ccf
         std::move(new_ledger_secret));
 
       return true;
+    }
+
+    bool seal_shard(ccf::kv::Tx& tx) override
+    {
+      std::lock_guard<pal::Mutex> guard(lock);
+      sm.expect(NodeStartupState::partOfNetwork);
+
+      if (!config.sharding.enabled)
+      {
+        LOG_FAIL_FMT("Cannot seal shard: sharding is not enabled");
+        return false;
+      }
+
+      const auto service_status = InternalTablesAccess::get_service_status(tx);
+      if (
+        !service_status.has_value() ||
+        service_status.value() != ServiceStatus::OPEN)
+      {
+        LOG_FAIL_FMT("Cannot seal shard while the service is not open");
+        return false;
+      }
+
+      if (shard_seal_in_progress)
+      {
+        LOG_FAIL_FMT(
+          "Cannot seal shard: a seal operation is already in progress");
+        return false;
+      }
+
+      shard_seal_in_progress = true;
+
+      // 1. Record the shard boundary in the Shards table, marking it as
+      // Sealing
+      auto* shards = tx.rw<ccf::Shards>(Tables::SHARDS);
+      auto committed_seqno = consensus->get_committed_seqno();
+
+      ShardInfo sealing_shard;
+      sealing_shard.shard_id = current_shard_id;
+      sealing_shard.seqno_start = current_shard_seqno_start;
+      sealing_shard.seqno_end = committed_seqno;
+      sealing_shard.status = ShardStatus::Sealing;
+      sealing_shard.snapshot_seqno = committed_seqno;
+      shards->put(current_shard_id, sealing_shard);
+
+      // 2. Trigger a snapshot at the current committed seqno (shard boundary)
+      auto* committable_tx = dynamic_cast<ccf::kv::CommittableTx*>(&tx);
+      if (committable_tx != nullptr)
+      {
+        committable_tx->set_tx_flag(
+          ccf::kv::CommittableTx::TxFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
+      }
+
+      // Mark the snapshot as a shard seal snapshot
+      if (snapshotter)
+      {
+        snapshotter->mark_next_snapshot_as_shard_seal(current_shard_id);
+      }
+
+      // 3. Force a ledger secret rekey — the new shard gets a fresh key
+      auto new_ledger_secret = make_ledger_secret();
+      share_manager.issue_recovery_shares_for_shard_seal(
+        tx, new_ledger_secret);
+
+      // Record ledger secret version for the sealed shard
+      auto latest_secret = network.ledger_secrets->get_latest(tx);
+      sealing_shard.ledger_secret_version = latest_secret.first;
+      shards->put(current_shard_id, sealing_shard);
+
+      LedgerSecretsBroadcast::broadcast_new(
+        InternalTablesAccess::get_trusted_nodes(tx),
+        tx.wo(network.secrets),
+        std::move(new_ledger_secret));
+
+      // 4. Prepare the new active shard
+      auto new_shard_id = current_shard_id + 1;
+      ShardInfo new_shard;
+      new_shard.shard_id = new_shard_id;
+      new_shard.seqno_start = committed_seqno + 1;
+      new_shard.seqno_end = std::numeric_limits<ccf::kv::Version>::max();
+      new_shard.status = ShardStatus::Active;
+      shards->put(new_shard_id, new_shard);
+
+      LOG_INFO_FMT(
+        "Shard {} sealing initiated at seqno {}. New active shard {} starts "
+        "at seqno {}",
+        current_shard_id,
+        committed_seqno,
+        new_shard_id,
+        committed_seqno + 1);
+
+      // 5. Store pending seal info — the shard stays in Sealing state until
+      // the snapshot callback fires and transitions it to Sealed + notifies
+      // the host
+      pending_seal_info = PendingSealInfo{
+        sealing_shard.shard_id, current_shard_seqno_start, committed_seqno};
+
+      current_shard_id = new_shard_id;
+      current_shard_seqno_start = committed_seqno + 1;
+      current_shard_elapsed = std::chrono::milliseconds{0};
+      // shard_seal_in_progress remains true until the callback fires
+
+      return true;
+    }
+
+    void set_shard_policy(ccf::kv::Tx& tx, const ShardPolicyInfo& policy)
+      override
+    {
+      auto* shard_policy = tx.rw<ccf::ShardPolicy>(Tables::SHARD_POLICY);
+      shard_policy->put(policy);
+      LOG_INFO_FMT(
+        "Shard policy updated: auto_seal_after_seqno_count={}, "
+        "auto_seal_after_duration_s={}, max_active_shard_memory_mb={}",
+        policy.auto_seal_after_seqno_count,
+        policy.auto_seal_after_duration_s,
+        policy.max_active_shard_memory_mb);
+    }
+
+    void complete_shard_seal(uint64_t shard_id)
+    {
+      // Called from tick() when the snapshotter notifies us that the
+      // shard-seal snapshot has been committed. Transitions the shard from
+      // Sealing → Sealed and notifies the host to archive the ledger chunks.
+      std::lock_guard<pal::Mutex> guard(lock);
+
+      if (
+        !pending_seal_info.has_value() ||
+        pending_seal_info->shard_id != shard_id)
+      {
+        LOG_FAIL_FMT(
+          "Received shard seal completion for shard {} but no matching "
+          "pending seal",
+          shard_id);
+        return;
+      }
+
+      auto seal_info = pending_seal_info.value();
+      pending_seal_info = std::nullopt;
+
+      // Update the shard status to Sealed in the KV
+      auto tx = network.tables->create_tx();
+      auto* shards = tx.rw<ccf::Shards>(Tables::SHARDS);
+      auto shard = shards->get(shard_id);
+      if (shard.has_value())
+      {
+        shard->status = ShardStatus::Sealed;
+        shards->put(shard_id, shard.value());
+        auto rc = tx.commit();
+        if (rc != ccf::kv::CommitResult::SUCCESS)
+        {
+          LOG_FAIL_FMT(
+            "Failed to commit Sealed status for shard {}: {}", shard_id, rc);
+        }
+      }
+
+      // Notify the host to hard-link sealed shard's ledger chunks
+      if (!config.ledger.read_only_directories.empty())
+      {
+        auto shard_writer = writer_factory.create_writer_to_outside();
+        RINGBUFFER_WRITE_MESSAGE(
+          ::consensus::ledger_shard_sealed,
+          shard_writer,
+          seal_info.shard_id,
+          seal_info.seqno_start,
+          seal_info.seqno_end);
+      }
+
+      shard_seal_in_progress = false;
+
+      LOG_INFO_FMT(
+        "Shard {} sealed: seqno range [{}, {}] archived to read-only "
+        "directory",
+        shard_id,
+        seal_info.seqno_start,
+        seal_info.seqno_end);
+    }
+
+    void initialize_sharding(ccf::kv::Tx& tx)
+    {
+      if (!config.sharding.enabled)
+      {
+        return;
+      }
+
+      if (config.ledger.read_only_directories.empty())
+      {
+        LOG_FAIL_FMT(
+          "Sharding is enabled but ledger.read_only_directories is empty. "
+          "Sealed shard data requires at least one read-only ledger directory "
+          "(shared PVC mount) to be configured. Disabling sharding.");
+        return;
+      }
+
+      auto* shards = tx.rw<ccf::Shards>(Tables::SHARDS);
+
+      // Check if shards already exist (e.g. after recovery)
+      bool has_shards = false;
+      shards->foreach([&has_shards](const uint64_t&, const ShardInfo&) {
+        has_shards = true;
+        return false;
+      });
+
+      if (!has_shards)
+      {
+        ShardInfo initial_shard;
+        initial_shard.shard_id = 0;
+        initial_shard.seqno_start = 1;
+        initial_shard.seqno_end = std::numeric_limits<ccf::kv::Version>::max();
+        initial_shard.status = ShardStatus::Active;
+        shards->put(0, initial_shard);
+
+        LOG_INFO_FMT("Initialized temporal sharding with initial shard 0");
+      }
+      else
+      {
+        // Find the current active shard
+        shards->foreach([this](const uint64_t&, const ShardInfo& info) {
+          if (info.status == ShardStatus::Active)
+          {
+            current_shard_id = info.shard_id;
+            current_shard_seqno_start = info.seqno_start;
+          }
+          return true;
+        });
+
+        LOG_INFO_FMT(
+          "Recovered sharding state: active shard {} starting at seqno {}",
+          current_shard_id,
+          current_shard_seqno_start);
+      }
+
+      // Apply shard policy from configuration if not already set
+      auto* shard_policy = tx.rw<ccf::ShardPolicy>(Tables::SHARD_POLICY);
+      if (!shard_policy->get().has_value())
+      {
+        ShardPolicyInfo policy;
+        policy.auto_seal_after_seqno_count =
+          config.sharding.auto_seal_after_seqno_count;
+        policy.auto_seal_after_duration_s =
+          config.sharding.auto_seal_after_duration_s;
+        policy.max_active_shard_memory_mb =
+          config.sharding.max_active_shard_memory_mb;
+        shard_policy->put(policy);
+      }
+    }
+
+    void check_auto_seal(
+      std::chrono::milliseconds elapsed, ccf::kv::Version committed_seqno)
+    {
+      if (!config.sharding.enabled || shard_seal_in_progress)
+      {
+        return;
+      }
+
+      if (!consensus->is_primary())
+      {
+        return;
+      }
+
+      current_shard_elapsed += elapsed;
+
+      bool should_seal = false;
+
+      // Check seqno count threshold
+      if (
+        config.sharding.auto_seal_after_seqno_count > 0 &&
+        committed_seqno >= current_shard_seqno_start)
+      {
+        auto seqno_count =
+          static_cast<size_t>(committed_seqno - current_shard_seqno_start + 1);
+        if (seqno_count >= config.sharding.auto_seal_after_seqno_count)
+        {
+          LOG_INFO_FMT(
+            "Auto-seal triggered: shard {} has {} seqnos (threshold: {})",
+            current_shard_id,
+            seqno_count,
+            config.sharding.auto_seal_after_seqno_count);
+          should_seal = true;
+        }
+      }
+
+      // Check duration threshold
+      if (
+        !should_seal && config.sharding.auto_seal_after_duration_s > 0 &&
+        current_shard_elapsed.count() >=
+          static_cast<int64_t>(
+            config.sharding.auto_seal_after_duration_s * 1000))
+      {
+        LOG_INFO_FMT(
+          "Auto-seal triggered: shard {} exceeded duration threshold "
+          "({}s >= {}s)",
+          current_shard_id,
+          current_shard_elapsed.count() / 1000,
+          config.sharding.auto_seal_after_duration_s);
+        should_seal = true;
+      }
+
+      if (should_seal)
+      {
+        auto tx = network.tables->create_tx();
+        if (seal_shard(tx))
+        {
+          auto result = tx.commit();
+          if (result == ccf::kv::CommitResult::SUCCESS)
+          {
+            current_shard_elapsed = std::chrono::milliseconds{0};
+            LOG_INFO_FMT(
+              "Auto-seal committed for shard {}", current_shard_id - 1);
+          }
+          else
+          {
+            LOG_FAIL_FMT("Auto-seal commit failed: {}", result);
+          }
+        }
+      }
     }
 
     [[nodiscard]] NodeId get_node_id() const
@@ -3252,6 +3602,13 @@ namespace ccf
         config.snapshots.tx_count,
         config.snapshots.min_tx_count,
         config.snapshots.time_interval);
+
+      // Register shard seal completion callback so that when a shard-seal
+      // snapshot is committed, we get notified. The callback runs under the
+      // store's maps lock, so it just sets an atomic flag — the actual
+      // completion work (KV update + ring buffer message) happens in tick().
+      snapshotter->set_on_shard_seal_committed(
+        [this](uint64_t) { seal_snapshot_committed.store(true); });
     }
 
     void read_ledger_entries(::consensus::Index from, ::consensus::Index to)

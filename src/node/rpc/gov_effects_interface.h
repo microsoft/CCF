@@ -6,8 +6,12 @@
 #include "ccf/node_subsystem_interface.h"
 #include "ccf/tx.h"
 
+#include <string>
+
 namespace ccf
 {
+  struct ShardPolicyInfo;
+
   class AbstractGovernanceEffects : public ccf::AbstractNodeSubSystem
   {
   public:
@@ -31,5 +35,8 @@ namespace ccf
     virtual void trigger_ledger_chunk(ccf::kv::Tx& tx) = 0;
     virtual void trigger_snapshot(ccf::kv::Tx& tx) = 0;
     virtual void shuffle_sealed_shares(ccf::kv::Tx& tx) = 0;
+    virtual bool seal_shard(ccf::kv::Tx& tx) = 0;
+    virtual void set_shard_policy(
+      ccf::kv::Tx& tx, const ShardPolicyInfo& policy) = 0;
   };
 }

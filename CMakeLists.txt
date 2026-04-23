@@ -768,6 +768,15 @@ if(BUILD_TESTS)
     )
 
     add_unit_test(
+      sharding_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/sharding.cpp
+    )
+    target_link_libraries(
+      sharding_test
+      PRIVATE ccf_kv ccf_endpoints ccf_tasks
+    )
+
+    add_unit_test(
       node_info_json_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/node_info_json.cpp
     )

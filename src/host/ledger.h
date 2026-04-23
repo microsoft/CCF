@@ -1804,6 +1804,104 @@ namespace asynchost
               purpose);
           }
         });
+
+      DISPATCHER_SET_MESSAGE_HANDLER(
+        disp,
+        ::consensus::ledger_shard_sealed,
+        [this](const uint8_t* data, size_t size) {
+          auto shard_id = serialized::read<uint64_t>(data, size);
+          auto seqno_start =
+            serialized::read<::consensus::Index>(data, size);
+          auto seqno_end = serialized::read<::consensus::Index>(data, size);
+          handle_shard_sealed(shard_id, seqno_start, seqno_end);
+        });
+    }
+
+  private:
+    void handle_shard_sealed(
+      uint64_t shard_id,
+      ::consensus::Index seqno_start,
+      ::consensus::Index seqno_end)
+    {
+      if (read_ledger_dirs.empty())
+      {
+        LOG_FAIL_FMT(
+          "Cannot archive sealed shard {}: no read-only ledger directories "
+          "configured",
+          shard_id);
+        return;
+      }
+
+      const auto& target_dir = read_ledger_dirs.front();
+      const auto shard_dir =
+        target_dir / "shards" / std::to_string(shard_id);
+
+      try
+      {
+        fs::create_directories(shard_dir);
+      }
+      catch (const std::exception& e)
+      {
+        LOG_FAIL_FMT(
+          "Failed to create shard directory {}: {}", shard_dir.string(), e.what());
+        return;
+      }
+
+      // Hard-link committed ledger chunk files covering [seqno_start,
+      // seqno_end] from the primary ledger directory into the shard directory
+      size_t linked_count = 0;
+      for (auto const& f : fs::directory_iterator(ledger_dir))
+      {
+        auto file_name = f.path().filename().string();
+        if (
+          !is_ledger_file_name_committed(file_name) ||
+          is_ledger_file_name_ignored(file_name))
+        {
+          continue;
+        }
+
+        auto first_idx = get_start_idx_from_file_name(file_name);
+        auto chunk_last_idx = get_last_idx_from_file_name(file_name);
+        if (!chunk_last_idx.has_value())
+        {
+          continue;
+        }
+
+        // Include any chunk that overlaps with the shard's seqno range
+        if (chunk_last_idx.value() >= seqno_start && first_idx <= seqno_end)
+        {
+          const auto src = ledger_dir / file_name;
+          const auto dst = shard_dir / file_name;
+
+          std::error_code ec;
+          fs::create_hard_link(src, dst, ec);
+          if (ec)
+          {
+            // Fall back to copy if hard link fails (e.g. cross-device)
+            fs::copy_file(
+              src, dst, fs::copy_options::skip_existing, ec);
+            if (ec)
+            {
+              LOG_FAIL_FMT(
+                "Failed to link/copy {} to {}: {}",
+                src.string(),
+                dst.string(),
+                ec.message());
+              continue;
+            }
+          }
+          linked_count++;
+        }
+      }
+
+      LOG_INFO_FMT(
+        "Shard {} sealed: archived {} ledger chunk(s) covering seqnos "
+        "[{}, {}] to {}",
+        shard_id,
+        linked_count,
+        seqno_start,
+        seqno_end,
+        shard_dir.string());
     }
   };
 }

@@ -45,5 +45,16 @@ namespace ccf
     {
       impl.shuffle_sealed_shares(tx);
     }
+
+    bool seal_shard(ccf::kv::Tx& tx) override
+    {
+      return impl.seal_shard(tx);
+    }
+
+    void set_shard_policy(
+      ccf::kv::Tx& tx, const ShardPolicyInfo& policy) override
+    {
+      impl.set_shard_policy(tx, policy);
+    }
   };
 }

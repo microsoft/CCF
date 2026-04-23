@@ -221,6 +221,10 @@ class Network:
         "subject_name",
         "idle_connection_timeout_s",
         "host_data_transparent_statement_path",
+        "sharding_enabled",
+        "sharding_auto_seal_after_seqno_count",
+        "sharding_auto_seal_after_duration_s",
+        "sharding_max_active_shard_memory_mb",
     ]
 
     # Maximum delay (seconds) for updates to propagate from the primary to backups
