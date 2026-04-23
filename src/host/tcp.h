@@ -12,6 +12,7 @@
 
 #include <netinet/in.h>
 #include <optional>
+#include <unistd.h>
 
 namespace asynchost
 {
@@ -192,6 +193,13 @@ namespace asynchost
       }
       else
       {
+        if (!set_connection_timeout_on_uv_handle())
+        {
+          assert_status(BINDING, BINDING_FAILED);
+          behaviour->on_bind_failed();
+          return;
+        }
+
         assert_status(BINDING, CONNECTING_RESOLVING);
         if (addr_current != nullptr)
         {
@@ -411,37 +419,8 @@ namespace asynchost
         return false;
       }
 
-      if (is_client)
-      {
-        uv_os_sock_t sock = 0;
-        if ((sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1)
-        {
-          LOG_FAIL_FMT(
-            "socket creation failed: {}",
-            std::strerror(errno)); // NOLINT(concurrency-mt-unsafe)
-          return false;
-        }
-
-        if (connection_timeout.has_value())
-        {
-          const unsigned int ms = connection_timeout->count();
-          const auto ret =
-            setsockopt(sock, IPPROTO_TCP, TCP_USER_TIMEOUT, &ms, sizeof(ms));
-          if (ret != 0)
-          {
-            LOG_FAIL_FMT(
-              "Failed to set socket option (TCP_USER_TIMEOUT): {}",
-              std::strerror(errno)); // NOLINT(concurrency-mt-unsafe)
-            return false;
-          }
-        }
-
-        if ((rc = uv_tcp_open(&uv_handle, sock)) < 0)
-        {
-          LOG_FAIL_FMT("uv_tcp_open failed: {}", uv_strerror(rc));
-          return false;
-        }
-      }
+      // Client socket creation is deferred to connect_resolved(), where
+      // the resolved address family (AF_INET or AF_INET6) is known.
 
       if ((rc = uv_tcp_keepalive(&uv_handle, 1, 30)) < 0)
       {
@@ -544,6 +523,50 @@ namespace asynchost
 
     bool connect_resolved()
     {
+      // Create the client socket with the correct address family, but only
+      // if client_bind() hasn't already created one via uv_tcp_bind().
+      if (is_client && !client_host.has_value() && addr_current != nullptr)
+      {
+        int rc = 0;
+        uv_os_fd_t existing_fd = {};
+        const auto uv_fileno_rc = uv_fileno(
+          reinterpret_cast<const uv_handle_t*>(&uv_handle), &existing_fd);
+        if (uv_fileno_rc < 0 && uv_fileno_rc != UV_EBADF)
+        {
+          LOG_FAIL_FMT(
+            "uv_fileno returned unexpected error while checking TCP handle "
+            "state: {}",
+            uv_strerror(uv_fileno_rc));
+          return false;
+        }
+
+        if (uv_fileno_rc == UV_EBADF)
+        {
+          const int family = addr_current->ai_family;
+          uv_os_sock_t sock = 0;
+          if ((sock = socket(family, SOCK_STREAM, IPPROTO_TCP)) == -1)
+          {
+            LOG_FAIL_FMT(
+              "socket creation failed: {}",
+              std::strerror(errno)); // NOLINT(concurrency-mt-unsafe)
+            return false;
+          }
+
+          if (!set_connection_timeout(sock))
+          {
+            close_socket_before_uv_ownership(sock);
+            return false;
+          }
+
+          if ((rc = uv_tcp_open(&uv_handle, sock)) < 0)
+          {
+            LOG_FAIL_FMT("uv_tcp_open failed: {}", uv_strerror(rc));
+            close_socket_before_uv_ownership(sock);
+            return false;
+          }
+        }
+      }
+
       auto* req = new uv_connect_t; // NOLINT(cppcoreguidelines-owning-memory)
       int rc = 0;
 
@@ -571,6 +594,62 @@ namespace asynchost
 
       behaviour->on_connect_failed();
       return false;
+    }
+
+    bool set_connection_timeout(uv_os_sock_t sock)
+    {
+      if (!connection_timeout.has_value())
+      {
+        return true;
+      }
+
+      const unsigned int ms = connection_timeout->count();
+      const auto ret =
+        setsockopt(sock, IPPROTO_TCP, TCP_USER_TIMEOUT, &ms, sizeof(ms));
+      if (ret != 0)
+      {
+        const auto err = errno;
+        LOG_FAIL_FMT(
+          "Failed to set socket option (TCP_USER_TIMEOUT): {}",
+          std::strerror(err)); // NOLINT(concurrency-mt-unsafe)
+        return false;
+      }
+
+      return true;
+    }
+
+    static void close_socket_before_uv_ownership(uv_os_sock_t sock)
+    {
+      // Socket ownership is transferred to libuv only if uv_tcp_open succeeds.
+      // Before that, this socket must be closed by the caller.
+      // This is best-effort cleanup on an existing failure path: we only log
+      // close() errors (including EINTR). We intentionally do not retry
+      // close(), since retrying may close a reused fd.
+      const auto rc = ::close(sock);
+      if (rc != 0)
+      {
+        const auto err = errno;
+        LOG_FAIL_FMT(
+          "Failed to close socket {}: {}",
+          sock,
+          std::strerror(err)); // NOLINT(concurrency-mt-unsafe)
+      }
+    }
+
+    bool set_connection_timeout_on_uv_handle()
+    {
+      uv_os_fd_t existing_fd = {};
+      const auto rc = uv_fileno(
+        reinterpret_cast<const uv_handle_t*>(&uv_handle), &existing_fd);
+      if (rc < 0)
+      {
+        LOG_FAIL_FMT(
+          "uv_fileno failed while applying TCP_USER_TIMEOUT: {}",
+          uv_strerror(rc));
+        return false;
+      }
+
+      return set_connection_timeout(existing_fd);
     }
 
     void assert_status(Status from, Status to)
