@@ -52,6 +52,23 @@ function(add_unit_test name)
   add_san_test_properties(${name})
 endfunction()
 
+# Fuzz test wrapper (requires -DFUZZING=ON)
+function(add_fuzz_test name)
+  add_executable(${name} ${CCF_DIR}/src/enclave/thread_local.cpp ${ARGN})
+  target_compile_options(${name} PRIVATE ${COMPILE_LIBCXX} -fsanitize=fuzzer)
+  target_link_options(${name} PRIVATE -fsanitize=fuzzer)
+  target_include_directories(${name} PRIVATE src ${CCFCRYPTO_INC})
+  target_link_libraries(${name} PRIVATE ${LINK_LIBCXX} -pthread)
+  add_san(${name})
+
+  # Disable UBSAN's vptr check: libstdc++'s shared_ptr triggers a false
+  # positive where _S_atomic and (_Lock_policy)2 are the same enum value
+  # but UBSAN sees different type names. Must come after add_san() so that
+  # -fno-sanitize=vptr is not overridden by -fsanitize=undefined.
+  target_compile_options(${name} PRIVATE -fno-sanitize=vptr)
+  target_link_options(${name} PRIVATE -fno-sanitize=vptr)
+endfunction()
+
 # Test binary wrapper
 function(add_test_bin name)
   add_executable(${name} ${CCF_DIR}/src/enclave/thread_local.cpp ${ARGN})
