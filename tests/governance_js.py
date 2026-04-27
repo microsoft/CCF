@@ -261,6 +261,7 @@ def test_proposal_storage(network, args):
                 "proposalState": "Open",
                 "proposalId": proposal_id,
                 "ballotCount": 0,
+                "ballotSubmitters": [],
             }
             assert r.body.json() == expected, r.body.json()
 
@@ -306,6 +307,7 @@ def test_proposal_withdrawal(network, args):
                 "proposalState": "Open",
                 "proposalId": proposal_id,
                 "ballotCount": 0,
+                "ballotSubmitters": [],
             }
             assert r.body.json() == expected, r.body.json()
 
@@ -316,6 +318,7 @@ def test_proposal_withdrawal(network, args):
                 "proposalState": "Withdrawn",
                 "proposalId": proposal_id,
                 "ballotCount": 0,
+                "ballotSubmitters": [],
             }
             assert r.body.json() == expected, r.body.json()
 
@@ -405,6 +408,8 @@ def test_pure_proposals(network, args):
             r = c.post("/gov/members/proposals:create", prop)
             assert r.status_code == 200, r.body.text()
             assert r.body.json()["proposalState"] == state, r.body.json()
+            assert "finalVotes" in r.body.json(), r.body.json()
+            assert r.body.json()["finalVotes"] == {}, r.body.json()
             proposal_id = r.body.json()["proposalId"]
 
             ballot = ballot_yes
@@ -568,6 +573,10 @@ def test_proposals_with_votes(network, args):
             )
             assert r.status_code == 200, r.body.text()
             assert r.body.json()["proposalState"] == state, r.body.json()
+            assert "finalVotes" in r.body.json(), r.body.json()
+            assert r.body.json()["finalVotes"] == {
+                member_id: direction == "true"
+            }, r.body.json()
 
             infra.clients.get_clock().advance()
 
@@ -585,6 +594,10 @@ def test_proposals_with_votes(network, args):
             )
             assert r.status_code == 200, r.body.text()
             assert r.body.json()["proposalState"] == state, r.body.json()
+            assert "finalVotes" in r.body.json(), r.body.json()
+            assert r.body.json()["finalVotes"] == {
+                member_id: direction == "true"
+            }, r.body.json()
 
         for prop, state, ballot in [
             (always_accept_with_two_votes, "Accepted", ballot_yes),
@@ -593,6 +606,7 @@ def test_proposals_with_votes(network, args):
             r = c.post("/gov/members/proposals:create", prop)
             assert r.status_code == 200, r.body.text()
             assert r.body.json()["proposalState"] == "Open", r.body.json()
+            assert r.body.json()["ballotSubmitters"] == [], r.body.json()
             proposal_id = r.body.json()["proposalId"]
 
             r = c.post(
@@ -601,6 +615,7 @@ def test_proposals_with_votes(network, args):
             )
             assert r.status_code == 200, r.body.text()
             assert r.body.json()["proposalState"] == "Open", r.body.json()
+            assert r.body.json()["ballotSubmitters"] == [member_id], r.body.json()
 
             with node.api_versioned_client(
                 None, None, "member1", api_version=args.gov_api_version
@@ -614,6 +629,16 @@ def test_proposals_with_votes(network, args):
                 )
                 assert r.status_code == 200, r.body.text()
                 assert r.body.json()["proposalState"] == state, r.body.json()
+                assert set(r.body.json()["ballotSubmitters"]) == {
+                    member_id,
+                    other_member_id,
+                }, r.body.json()
+                assert "finalVotes" in r.body.json(), r.body.json()
+                expected_vote = state == "Accepted"
+                assert r.body.json()["finalVotes"] == {
+                    member_id: expected_vote,
+                    other_member_id: expected_vote,
+                }, r.body.json()
 
     return network
 
@@ -640,34 +665,38 @@ def test_vote_failure_reporting(network, args):
     with node.api_versioned_client(
         None, None, "member0", api_version=args.gov_api_version
     ) as c:
-        member_id = network.consortium.get_member_by_local_id("member0").service_id
+        member0_id = network.consortium.get_member_by_local_id("member0").service_id
         r = c.post("/gov/members/proposals:create", always_accept_with_one_vote)
         assert r.status_code == 200, r.body.text()
         assert r.body.json()["proposalState"] == "Open", r.body.json()
+        assert r.body.json()["ballotSubmitters"] == [], r.body.json()
         proposal_id = r.body.json()["proposalId"]
 
         ballot = vote(f'throw new Error("{error_body}")')
         r = c.post(
-            f"/gov/members/proposals/{proposal_id}/ballots/{member_id}:submit", ballot
+            f"/gov/members/proposals/{proposal_id}/ballots/{member0_id}:submit", ballot
         )
         assert r.status_code == 200, r.body.text()
         assert r.body.json()["proposalState"] == "Open", r.body.json()
+        assert r.body.json()["ballotSubmitters"] == [member0_id], r.body.json()
 
     with node.api_versioned_client(
         None, None, "member1", api_version=args.gov_api_version
     ) as c:
         ballot = ballot_yes
-        member_id = network.consortium.get_member_by_local_id("member1").service_id
+        member1_id = network.consortium.get_member_by_local_id("member1").service_id
         r = c.post(
-            f"/gov/members/proposals/{proposal_id}/ballots/{member_id}:submit", ballot
+            f"/gov/members/proposals/{proposal_id}/ballots/{member1_id}:submit", ballot
         )
         assert r.status_code == 200, r.body.text()
         rj = r.body.json()
         LOG.warning(rj)
         assert rj["proposalState"] == "Accepted", r.body.json()
+        assert set(rj["ballotSubmitters"]) == {member0_id, member1_id}, rj
+        assert "finalVotes" in rj, rj
+        assert rj["finalVotes"] == {member1_id: True}, rj
         assert len(rj["voteFailures"]) == 1, rj["voteFailures"]
-        member_id = network.consortium.get_member_by_local_id("member0").service_id
-        assert rj["voteFailures"][member_id]["reason"] == f"Error: {error_body}", rj[
+        assert rj["voteFailures"][member0_id]["reason"] == f"Error: {error_body}", rj[
             "voteFailures"
         ]
 
@@ -692,6 +721,7 @@ def test_operator_proposals_and_votes(network, args):
         )
         assert r.status_code == 200, r.body.text()
         assert r.body.json()["proposalState"] == "Accepted", r.body.json()
+        assert r.body.json()["finalVotes"] == {member_id: True}, r.body.json()
 
         r = c.post(
             "/gov/members/proposals:create", always_accept_if_proposed_by_operator
@@ -1392,10 +1422,20 @@ def test_final_proposal_visibility(network, args):
         LOG.info("Confirm that finalVotes is present in submit-ballot response")
         body = response.body.json()
         assert "finalVotes" in body, body
+        assert set(body["ballotSubmitters"]) == {
+            booster.service_id,
+            turncoat.service_id,
+            fairweather.service_id,
+        }, body
 
         LOG.info("Confirm that finalVotes is present in get-proposal response")
         body = consortium.get_proposal_raw(primary, third.proposal_id)
         assert "finalVotes" in body, body
+        assert set(body["ballotSubmitters"]) == {
+            booster.service_id,
+            turncoat.service_id,
+            fairweather.service_id,
+        }, body
 
     LOG.info("Confirm that expected values were actually written to the KV")
     # To avoid creating an extra endpoint in the app, we smuggle a read into a new

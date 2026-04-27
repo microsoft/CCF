@@ -92,10 +92,6 @@ void print_version(int64_t ignored)
   exit(0); // NOLINT(concurrency-mt-unsafe)
 }
 
-static constexpr size_t max_time_us = 10'000;
-std::chrono::microseconds asynchost::TimeBoundLogger::default_max_time(
-  max_time_us);
-
 static constexpr size_t retry_interval_ms = 100;
 
 namespace ccf
