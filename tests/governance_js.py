@@ -405,6 +405,8 @@ def test_pure_proposals(network, args):
             r = c.post("/gov/members/proposals:create", prop)
             assert r.status_code == 200, r.body.text()
             assert r.body.json()["proposalState"] == state, r.body.json()
+            assert "finalVotes" in r.body.json(), r.body.json()
+            assert r.body.json()["finalVotes"] == {}, r.body.json()
             proposal_id = r.body.json()["proposalId"]
 
             ballot = ballot_yes
@@ -568,6 +570,10 @@ def test_proposals_with_votes(network, args):
             )
             assert r.status_code == 200, r.body.text()
             assert r.body.json()["proposalState"] == state, r.body.json()
+            assert "finalVotes" in r.body.json(), r.body.json()
+            assert r.body.json()["finalVotes"] == {
+                member_id: direction == "true"
+            }, r.body.json()
 
             infra.clients.get_clock().advance()
 
@@ -585,6 +591,10 @@ def test_proposals_with_votes(network, args):
             )
             assert r.status_code == 200, r.body.text()
             assert r.body.json()["proposalState"] == state, r.body.json()
+            assert "finalVotes" in r.body.json(), r.body.json()
+            assert r.body.json()["finalVotes"] == {
+                member_id: direction == "true"
+            }, r.body.json()
 
         for prop, state, ballot in [
             (always_accept_with_two_votes, "Accepted", ballot_yes),
@@ -619,6 +629,12 @@ def test_proposals_with_votes(network, args):
                 assert set(r.body.json()["ballotSubmitters"]) == {
                     member_id,
                     other_member_id,
+                }, r.body.json()
+                assert "finalVotes" in r.body.json(), r.body.json()
+                expected_vote = state == "Accepted"
+                assert r.body.json()["finalVotes"] == {
+                    member_id: expected_vote,
+                    other_member_id: expected_vote,
                 }, r.body.json()
 
     return network
@@ -674,6 +690,8 @@ def test_vote_failure_reporting(network, args):
         LOG.warning(rj)
         assert rj["proposalState"] == "Accepted", r.body.json()
         assert set(rj["ballotSubmitters"]) == {member0_id, member1_id}, rj
+        assert "finalVotes" in rj, rj
+        assert rj["finalVotes"] == {member1_id: True}, rj
         assert len(rj["voteFailures"]) == 1, rj["voteFailures"]
         assert rj["voteFailures"][member0_id]["reason"] == f"Error: {error_body}", rj[
             "voteFailures"
@@ -700,6 +718,7 @@ def test_operator_proposals_and_votes(network, args):
         )
         assert r.status_code == 200, r.body.text()
         assert r.body.json()["proposalState"] == "Accepted", r.body.json()
+        assert r.body.json()["finalVotes"] == {member_id: True}, r.body.json()
 
         r = c.post(
             "/gov/members/proposals:create", always_accept_if_proposed_by_operator

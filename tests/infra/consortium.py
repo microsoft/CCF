@@ -318,8 +318,10 @@ class Consortium:
             raise infra.proposal.ProposalNotAccepted(proposal, response)
 
         raw = self.get_proposal_raw(remote_node, proposal.proposal_id)
-        final_votes = raw.get("finalVotes", {})
-        assert final_votes, f"Expected finalVotes to be populated, got: {raw}"
+        assert (
+            "finalVotes" in raw
+        ), f"Expected finalVotes field to be present, got: {raw}"
+        final_votes = raw["finalVotes"]
         for voter_id in proposal.voters:
             assert (
                 voter_id in final_votes
