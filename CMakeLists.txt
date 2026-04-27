@@ -192,8 +192,7 @@ include(${CCF_DIR}/cmake/evercbor.cmake)
 
 # Launcher library
 list(
-  APPEND
-  CCF_LAUNCHER_SOURCES
+  APPEND CCF_LAUNCHER_SOURCES
   ${CCF_DIR}/src/host/run.cpp
   ${CCF_DIR}/src/host/env.cpp
 )
@@ -363,8 +362,7 @@ configure_file(
 install(FILES ${CCF_DIR}/include/ccf/version.h DESTINATION include/ccf)
 
 file(
-  READ
-  ${CCF_DIR}/doc/host_config_schema/cchost_config.json
+  READ ${CCF_DIR}/doc/host_config_schema/cchost_config.json
   HOST_CONFIG_SCHEMA
 )
 set_property(
@@ -380,8 +378,7 @@ configure_file(
 )
 
 file(
-  READ
-  ${CCF_DIR}/doc/schemas/gov/2023-06-01-preview/gov.json
+  READ ${CCF_DIR}/doc/schemas/gov/2023-06-01-preview/gov.json
   GOV_API_SCHEMA_2023_06_01_PREVIEW
 )
 set_property(
@@ -392,8 +389,7 @@ set_property(
       ${CCF_DIR}/doc/schemas/gov/2023-06-01-preview/gov.json
 )
 file(
-  READ
-  ${CCF_DIR}/doc/schemas/gov/2024-07-01/gov.json
+  READ ${CCF_DIR}/doc/schemas/gov/2024-07-01/gov.json
   GOV_API_SCHEMA_2024_07_01
 )
 set_property(
@@ -1408,8 +1404,7 @@ if(BUILD_TESTS)
     endforeach()
     string(REPLACE ";" "\n" _cov_binaries_nl "${_cov_binaries}")
     file(
-      GENERATE OUTPUT
-      "${CMAKE_BINARY_DIR}/coverage_binaries.txt"
+      GENERATE OUTPUT "${CMAKE_BINARY_DIR}/coverage_binaries.txt"
       CONTENT "${_cov_binaries_nl}\n"
     )
   endif()

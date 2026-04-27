@@ -15,8 +15,7 @@ endif()
 # Enclave library wrapper
 function(add_ccf_app name)
   cmake_parse_arguments(
-    PARSE_ARGV
-    1
+    PARSE_ARGV 1
     PARSED_ARGS
     ""
     ""

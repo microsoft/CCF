@@ -33,13 +33,16 @@ if [ ! -x "$(command -v uv)" ]; then
   exit 1
 fi
 
-GERSEMI="uvx gersemi@0.17.0"
+GERSEMI="uvx gersemi@0.27.0 --warnings-as-errors"
 
 FILES=$(git ls-files "$@" | grep -e '\.cmake$' -e 'CMakeLists\.txt$')
 
 if $fix ; then
   # shellcheck disable=SC2086
-  $GERSEMI -i $FILES
+  if ! $GERSEMI -i $FILES; then
+    echo "Formatting failed (unknown commands or other warnings treated as errors)"
+    exit 1
+  fi
   echo "All files formatted!"
 else
   # shellcheck disable=SC2086
