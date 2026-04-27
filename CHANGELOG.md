@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
-- The governance proposal endpoints now include a `ballotSubmitters` field in their responses, containing the list of member IDs that have submitted a ballot for the proposal.
+- The governance proposal endpoints now include a `ballotSubmitters` field in their responses, containing the list of member IDs that have submitted a ballot for the proposal (#7840).
 
 ## [7.0.1]
 
