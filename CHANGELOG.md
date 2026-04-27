@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [7.0.2]
+
+[7.0.2]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.2
+
+### Added
+
+- The governance proposal endpoints now include a `ballotSubmitters` field in their responses, containing the list of member IDs that have submitted a ballot for the proposal (#7840).
+
 ## [7.0.1]
 
 [7.0.1]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.1
