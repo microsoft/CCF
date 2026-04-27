@@ -81,7 +81,7 @@ namespace
     std::list<std::vector<cbor_raw>> arrays;
     std::list<std::vector<cbor_map_entry>> maps;
   };
-  Value consume(cbor_nondet_t cbor);
+  Value consume(cbor_nondet_t cbor, size_t depth, size_t max_depth);
 
   void print_indent(std::ostringstream& os, size_t indent)
   {
@@ -129,7 +129,7 @@ namespace
     return std::make_shared<ValueImpl>(value);
   }
 
-  Value consume_array(cbor_nondet_t cbor)
+  Value consume_array(cbor_nondet_t cbor, size_t depth, size_t max_depth)
   {
     cbor_nondet_array_iterator_t iter;
     if (!cbor_nondet_array_iterator_start(cbor, &iter))
@@ -147,12 +147,12 @@ namespace
         throw CBORDecodeError(
           Error::DECODE_FAILED, "Failed to get next array item");
       }
-      array.items.push_back(consume(item));
+      array.items.push_back(consume(item, depth + 1, max_depth));
     }
     return std::make_shared<ValueImpl>(std::move(array));
   }
 
-  Value consume_map(cbor_nondet_t cbor)
+  Value consume_map(cbor_nondet_t cbor, size_t depth, size_t max_depth)
   {
     cbor_map_iterator iter;
     if (!cbor_nondet_map_iterator_start(cbor, &iter))
@@ -171,12 +171,14 @@ namespace
         throw CBORDecodeError(
           Error::DECODE_FAILED, "Failed to get next map entry");
       }
-      map.items.emplace_back(consume(key_raw), consume(value_raw));
+      map.items.emplace_back(
+        consume(key_raw, depth + 1, max_depth),
+        consume(value_raw, depth + 1, max_depth));
     }
     return std::make_shared<ValueImpl>(std::move(map));
   }
 
-  Value consume_tagged(cbor_nondet_t cbor)
+  Value consume_tagged(cbor_nondet_t cbor, size_t depth, size_t max_depth)
   {
     uint64_t tag = 0;
     cbor_nondet_t payload;
@@ -188,7 +190,7 @@ namespace
 
     Tagged tagged;
     tagged.tag = tag;
-    tagged.item = consume(payload);
+    tagged.item = consume(payload, depth + 1, max_depth);
     return std::make_shared<ValueImpl>(std::move(tagged));
   }
 
@@ -206,8 +208,15 @@ namespace
     return std::make_shared<ValueImpl>(value);
   }
 
-  Value consume(cbor_nondet_t cbor)
+  Value consume(cbor_nondet_t cbor, size_t depth, size_t max_depth)
   {
+    if (depth > max_depth)
+    {
+      throw CBORDecodeError(
+        Error::DECODE_FAILED,
+        fmt::format("Maximum CBOR nesting depth ({}) exceeded", max_depth));
+    }
+
     const auto mt = cbor_nondet_major_type(cbor);
     switch (mt)
     {
@@ -219,11 +228,11 @@ namespace
       case CBOR_MAJOR_TYPE_TEXT_STRING:
         return consume_text_string(cbor);
       case CBOR_MAJOR_TYPE_ARRAY:
-        return consume_array(cbor);
+        return consume_array(cbor, depth, max_depth);
       case CBOR_MAJOR_TYPE_MAP:
-        return consume_map(cbor);
+        return consume_map(cbor, depth, max_depth);
       case CBOR_MAJOR_TYPE_TAGGED:
-        return consume_tagged(cbor);
+        return consume_tagged(cbor, depth, max_depth);
       case CBOR_MAJOR_TYPE_SIMPLE_VALUE:
         return consume_simple(cbor);
       default:
@@ -249,7 +258,8 @@ namespace
     }
   }
 
-  cbor_raw to_raw_cbor(const Value& value, CborRawArena& arena);
+  cbor_raw to_raw_cbor(
+    const Value& value, CborRawArena& arena, size_t depth, size_t max_depth);
 
   cbor_raw to_raw_signed(const Signed& v)
   {
@@ -295,10 +305,11 @@ namespace
     return result;
   }
 
-  cbor_raw to_raw_tagged(const Tagged& v, CborRawArena& arena)
+  cbor_raw to_raw_tagged(
+    const Tagged& v, CborRawArena& arena, size_t depth, size_t max_depth)
   {
     cbor_raw result;
-    arena.push(to_raw_cbor(v.item, arena));
+    arena.push(to_raw_cbor(v.item, arena, depth + 1, max_depth));
     if (!cbor_nondet_mk_tagged(v.tag, arena.single(), &result))
     {
       throw CBOREncodeError(
@@ -308,14 +319,15 @@ namespace
     return result;
   }
 
-  cbor_raw to_raw_array(const Array& v, CborRawArena& arena)
+  cbor_raw to_raw_array(
+    const Array& v, CborRawArena& arena, size_t depth, size_t max_depth)
   {
     cbor_raw result;
     std::vector<cbor_raw> items;
     items.reserve(v.items.size());
     for (const auto& item : v.items)
     {
-      items.push_back(to_raw_cbor(item, arena));
+      items.push_back(to_raw_cbor(item, arena, depth + 1, max_depth));
     }
 
     size_t arr_size = items.size();
@@ -337,7 +349,8 @@ namespace
     return result;
   }
 
-  cbor_raw to_raw_map(const Map& v, CborRawArena& arena)
+  cbor_raw to_raw_map(
+    const Map& v, CborRawArena& arena, size_t depth, size_t max_depth)
   {
     cbor_raw result;
 
@@ -345,8 +358,8 @@ namespace
     entries.reserve(v.items.size());
     for (const auto& [key, value] : v.items)
     {
-      auto cbor_key = to_raw_cbor(key, arena);
-      auto cbor_value = to_raw_cbor(value, arena);
+      auto cbor_key = to_raw_cbor(key, arena, depth + 1, max_depth);
+      auto cbor_value = to_raw_cbor(value, arena, depth + 1, max_depth);
       entries.push_back(cbor_nondet_mk_map_entry(cbor_key, cbor_value));
     }
 
@@ -369,8 +382,16 @@ namespace
     return result;
   }
 
-  cbor_raw to_raw_cbor(const Value& value, CborRawArena& arena)
+  cbor_raw to_raw_cbor(
+    const Value& value, CborRawArena& arena, size_t depth, size_t max_depth)
   {
+    if (depth > max_depth)
+    {
+      throw CBOREncodeError(
+        Error::ENCODE_FAILED,
+        fmt::format("Maximum CBOR nesting depth ({}) exceeded", max_depth));
+    }
+
     return std::visit(
       [&](const auto& v) {
         using T = std::decay_t<decltype(v)>;
@@ -392,15 +413,15 @@ namespace
         }
         if constexpr (std::is_same_v<T, Tagged>)
         {
-          return to_raw_tagged(v, arena);
+          return to_raw_tagged(v, arena, depth, max_depth);
         }
         if constexpr (std::is_same_v<T, Array>)
         {
-          return to_raw_array(v, arena);
+          return to_raw_array(v, arena, depth, max_depth);
         }
         if constexpr (std::is_same_v<T, Map>)
         {
-          return to_raw_map(v, arena);
+          return to_raw_map(v, arena, depth, max_depth);
         }
       },
       value->value);
@@ -536,7 +557,7 @@ namespace ccf::cbor
     return std::make_shared<ValueImpl>(Map{.items = std::move(data)});
   }
 
-  Value parse(std::span<const uint8_t> raw)
+  Value parse(std::span<const uint8_t> raw, size_t max_depth)
   {
     cbor_nondet_t cbor;
     const bool check_map_key_bound = false;
@@ -561,13 +582,13 @@ namespace ccf::cbor
         fmt::format("Trailing {} byte(s) after CBOR item", cbor_parse_size));
     }
 
-    return consume(cbor);
+    return consume(cbor, 0, max_depth);
   }
 
-  std::vector<uint8_t> serialize(const Value& value)
+  std::vector<uint8_t> serialize(const Value& value, size_t max_depth)
   {
     CborRawArena arena{};
-    auto raw = to_raw_cbor(value, arena);
+    auto raw = to_raw_cbor(value, arena, 0, max_depth);
     const auto expected_size =
       cbor_nondet_size(raw, std::numeric_limits<size_t>::max());
 
