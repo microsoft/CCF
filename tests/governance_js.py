@@ -261,6 +261,7 @@ def test_proposal_storage(network, args):
                 "proposalState": "Open",
                 "proposalId": proposal_id,
                 "ballotCount": 0,
+                "ballotSubmitters": [],
             }
             assert r.body.json() == expected, r.body.json()
 
@@ -306,6 +307,7 @@ def test_proposal_withdrawal(network, args):
                 "proposalState": "Open",
                 "proposalId": proposal_id,
                 "ballotCount": 0,
+                "ballotSubmitters": [],
             }
             assert r.body.json() == expected, r.body.json()
 
@@ -316,6 +318,7 @@ def test_proposal_withdrawal(network, args):
                 "proposalState": "Withdrawn",
                 "proposalId": proposal_id,
                 "ballotCount": 0,
+                "ballotSubmitters": [],
             }
             assert r.body.json() == expected, r.body.json()
 
