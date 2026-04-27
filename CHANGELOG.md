@@ -3663,3 +3663,4 @@ Initial pre-release
 [5.0.0]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.0
 [7.0.0-dev0]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev0
 [7.0.1]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.1
+[7.0.2]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.2
