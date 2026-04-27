@@ -122,8 +122,12 @@ namespace asynchost
 
       // Use exclusive-create mode ("x") to atomically fail if the file
       // already exists, avoiding a separate fs::exists() stat call.
-      // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
-      file = fopen(file_path.c_str(), "w+bx");
+      {
+        TimeBoundLogger log_if_slow(
+          fmt::format("Creating ledger file - fopen({})", file_path));
+        // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+        file = fopen(file_path.c_str(), "w+bx");
+      }
       if (file == nullptr)
       {
         if (errno == EEXIST)
@@ -161,8 +165,12 @@ namespace asynchost
 
       const auto* const mode = committed ? "rb" : "r+b";
 
-      // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
-      file = fopen(file_path.c_str(), mode);
+      {
+        TimeBoundLogger log_if_slow(
+          fmt::format("Opening ledger file - fopen({})", file_path));
+        // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+        file = fopen(file_path.c_str(), mode);
+      }
 
       if (file == nullptr)
       {
@@ -179,10 +187,15 @@ namespace asynchost
       // Second, read offset to header table
       fseeko(file, 0, SEEK_SET);
       positions_offset_header_t table_offset = 0;
-      if (fread(&table_offset, sizeof(positions_offset_header_t), 1, file) != 1)
       {
-        throw std::logic_error(fmt::format(
-          "Failed to read positions offset from ledger file {}", file_path));
+        TimeBoundLogger log_if_slow(
+          fmt::format("Reading positions offset - fread({})", file_path));
+        if (
+          fread(&table_offset, sizeof(positions_offset_header_t), 1, file) != 1)
+        {
+          throw std::logic_error(fmt::format(
+            "Failed to read positions offset from ledger file {}", file_path));
+        }
       }
 
       if (committed && table_offset == 0)
@@ -219,15 +232,21 @@ namespace asynchost
         positions.resize(
           (total_file_size - table_offset) / sizeof(positions.at(0)));
 
-        if (
-          fread(
-            positions.data(),
-            sizeof(positions.at(0)),
-            positions.size(),
-            file) != positions.size())
         {
-          throw std::logic_error(fmt::format(
-            "Failed to read positions table from ledger file {}", file_path));
+          TimeBoundLogger log_if_slow(fmt::format(
+            "Reading positions table ({} entries) - fread({})",
+            positions.size(),
+            file_path));
+          if (
+            fread(
+              positions.data(),
+              sizeof(positions.at(0)),
+              positions.size(),
+              file) != positions.size())
+          {
+            throw std::logic_error(fmt::format(
+              "Failed to read positions table from ledger file {}", file_path));
+          }
         }
         completed = true;
       }
@@ -237,6 +256,11 @@ namespace asynchost
         // positions table
         total_len = sizeof(positions_offset_header_t);
         auto len = total_file_size - total_len;
+
+        TimeBoundLogger log_if_slow(fmt::format(
+          "Recovering entries from incomplete ledger file {} ({} bytes)",
+          file_path,
+          len));
 
         ccf::kv::SerialisedEntryHeader entry_header = {};
         size_t current_idx = start_idx;
@@ -291,6 +315,8 @@ namespace asynchost
     {
       if (file != nullptr)
       {
+        TimeBoundLogger log_if_slow(
+          fmt::format("Closing ledger file - fclose({})", file_name));
         std::ignore =
           fclose(file); // NOLINT(cppcoreguidelines-owning-memory,cert-err33-c)
       }
@@ -338,9 +364,16 @@ namespace asynchost
       if (from_existing_file)
       {
         std::vector<uint8_t> entry(size);
-        if (
-          fread(entry.data(), size, 1, file) != 1 ||
-          memcmp(entry.data(), data, size) != 0)
+        bool read_mismatch = false;
+        {
+          TimeBoundLogger log_if_slow(fmt::format(
+            "Reading existing entry for comparison ({} bytes) - fread({})",
+            size,
+            file_name));
+          read_mismatch = fread(entry.data(), size, 1, file) != 1 ||
+            memcmp(entry.data(), data, size) != 0;
+        }
+        if (read_mismatch)
         {
           // Divergence between existing and new entry. Truncate this file,
           // write the new entry and notify the caller for further cleanup.
@@ -358,17 +391,26 @@ namespace asynchost
 
       if (should_write)
       {
-        if (fwrite(data, size, 1, file) != 1)
         {
-          throw std::logic_error("Failed to write entry to ledger");
+          TimeBoundLogger log_if_slow(fmt::format(
+            "Writing ledger entry ({} bytes) - fwrite({})", size, file_name));
+          if (fwrite(data, size, 1, file) != 1)
+          {
+            throw std::logic_error("Failed to write entry to ledger");
+          }
         }
 
         // Committable entries get flushed straight away
-        if (committable && fflush(file) != 0)
+        if (committable)
         {
-          throw std::logic_error(fmt::format(
-            "Failed to flush entry to ledger: {}",
-            std::strerror(errno))); // NOLINT(concurrency-mt-unsafe)
+          TimeBoundLogger log_if_slow(
+            fmt::format("Flushing ledger entry - fflush({})", file_name));
+          if (fflush(file) != 0)
+          {
+            throw std::logic_error(fmt::format(
+              "Failed to flush entry to ledger: {}",
+              std::strerror(errno))); // NOLINT(concurrency-mt-unsafe)
+          }
         }
       }
 
@@ -460,13 +502,21 @@ namespace asynchost
       std::vector<uint8_t> entries(size);
       fseeko(file, positions.at(from - start_idx), SEEK_SET);
 
-      if (fread(entries.data(), size, 1, file) != 1)
       {
-        throw std::logic_error(fmt::format(
-          "Failed to read entry range {} - {} from file {}",
+        TimeBoundLogger log_if_slow(fmt::format(
+          "Reading ledger entries {} to {} ({} bytes) - fread({})",
           from,
-          to,
+          to_,
+          size,
           file_name));
+        if (fread(entries.data(), size, 1, file) != 1)
+        {
+          throw std::logic_error(fmt::format(
+            "Failed to read entry range {} - {} from file {}",
+            from,
+            to,
+            file_name));
+        }
       }
 
       return LedgerReadResult{entries, to_};
@@ -484,10 +534,14 @@ namespace asynchost
       if (remove_file_if_empty && idx == start_idx - 1)
       {
         // Truncating everything triggers file deletion
-        if (!fs::remove(dir / file_name))
         {
-          throw std::logic_error(
-            fmt::format("Could not remove file {}", file_name));
+          TimeBoundLogger log_if_slow(fmt::format(
+            "Removing ledger file on truncation - remove({})", file_name));
+          if (!fs::remove(dir / file_name))
+          {
+            throw std::logic_error(
+              fmt::format("Could not remove file {}", file_name));
+          }
         }
         LOG_TRACE_FMT(
           "Removed ledger file {} on truncation at {}", file_name, idx);
@@ -497,9 +551,13 @@ namespace asynchost
       // Reset positions offset header
       fseeko(file, 0, SEEK_SET);
       positions_offset_header_t table_offset = 0;
-      if (fwrite(&table_offset, sizeof(table_offset), 1, file) != 1)
       {
-        throw std::logic_error("Failed to reset positions table offset");
+        TimeBoundLogger log_if_slow(
+          fmt::format("Resetting positions offset - fwrite({})", file_name));
+        if (fwrite(&table_offset, sizeof(table_offset), 1, file) != 1)
+        {
+          throw std::logic_error("Failed to reset positions table offset");
+        }
       }
 
       completed = false;
@@ -509,18 +567,26 @@ namespace asynchost
         positions.resize(idx - start_idx + 1);
       }
 
-      if (fflush(file) != 0)
       {
-        throw std::logic_error(fmt::format(
-          "Failed to flush ledger file: {}",
-          std::strerror(errno))); // NOLINT(concurrency-mt-unsafe)
+        TimeBoundLogger log_if_slow(
+          fmt::format("Flushing truncated ledger - fflush({})", file_name));
+        if (fflush(file) != 0)
+        {
+          throw std::logic_error(fmt::format(
+            "Failed to flush ledger file: {}",
+            std::strerror(errno))); // NOLINT(concurrency-mt-unsafe)
+        }
       }
 
-      if (ftruncate(fileno(file), total_len) != 0)
       {
-        throw std::logic_error(fmt::format(
-          "Failed to truncate ledger: {}",
-          std::strerror(errno))); // NOLINT(concurrency-mt-unsafe)
+        TimeBoundLogger log_if_slow(
+          fmt::format("Truncating ledger file - ftruncate({})", file_name));
+        if (ftruncate(fileno(file), total_len) != 0)
+        {
+          throw std::logic_error(fmt::format(
+            "Failed to truncate ledger: {}",
+            std::strerror(errno))); // NOLINT(concurrency-mt-unsafe)
+        }
       }
 
       fseeko(file, total_len, SEEK_SET);
@@ -550,14 +616,20 @@ namespace asynchost
       fseeko(file, total_len, SEEK_SET);
       size_t table_offset = ftello(file);
 
-      if (
-        fwrite(
-          reinterpret_cast<uint8_t*>(positions.data()),
-          sizeof(positions.at(0)),
-          positions.size(),
-          file) != positions.size())
       {
-        throw std::logic_error("Failed to write positions table to ledger");
+        TimeBoundLogger log_if_slow(fmt::format(
+          "Writing positions table ({} entries) - fwrite({})",
+          positions.size(),
+          file_name));
+        if (
+          fwrite(
+            reinterpret_cast<uint8_t*>(positions.data()),
+            sizeof(positions.at(0)),
+            positions.size(),
+            file) != positions.size())
+        {
+          throw std::logic_error("Failed to write positions table to ledger");
+        }
       }
 
       // Write positions table offset at start of file
@@ -566,16 +638,25 @@ namespace asynchost
         throw std::logic_error("Failed to set file offset to 0");
       }
 
-      if (fwrite(&table_offset, sizeof(table_offset), 1, file) != 1)
       {
-        throw std::logic_error("Failed to write positions table to ledger");
+        TimeBoundLogger log_if_slow(fmt::format(
+          "Writing positions table offset - fwrite({})", file_name));
+        if (fwrite(&table_offset, sizeof(table_offset), 1, file) != 1)
+        {
+          throw std::logic_error(
+            "Failed to write positions table offset to ledger");
+        }
       }
 
-      if (fflush(file) != 0)
       {
-        throw std::logic_error(fmt::format(
-          "Failed to flush ledger file: {}",
-          std::strerror(errno))); // NOLINT(concurrency-mt-unsafe)
+        TimeBoundLogger log_if_slow(
+          fmt::format("Completing ledger file - fflush({})", file_name));
+        if (fflush(file) != 0)
+        {
+          throw std::logic_error(fmt::format(
+            "Failed to flush ledger file: {}",
+            std::strerror(errno))); // NOLINT(concurrency-mt-unsafe)
+        }
       }
 
       LOG_TRACE_FMT("Completed ledger file {}", file_name);
@@ -590,6 +671,10 @@ namespace asynchost
 
       try
       {
+        TimeBoundLogger log_if_slow(fmt::format(
+          "Renaming ledger file {} to {} - rename()",
+          file_name,
+          new_file_name));
         files::rename(file_path, new_file_path);
       }
       catch (const std::exception& e)
@@ -622,11 +707,15 @@ namespace asynchost
       // (acquired in LedgerFiles::commit()) to ensure that any file returned by
       // committed_ledger_path_with_idx() is complete and can be safely read and
       // served to other nodes.
-      if (fsync(fileno(file)) != 0)
       {
-        throw std::logic_error(fmt::format(
-          "Failed to flush ledger file: {}",
-          std::strerror(errno))); // NOLINT(concurrency-mt-unsafe)
+        TimeBoundLogger log_if_slow(
+          fmt::format("Committing ledger file - fsync({})", file_name));
+        if (fsync(fileno(file)) != 0)
+        {
+          throw std::logic_error(fmt::format(
+            "Failed to flush ledger file: {}",
+            std::strerror(errno))); // NOLINT(concurrency-mt-unsafe)
+        }
       }
 
       auto committed_file_name = fmt::format(
@@ -919,7 +1008,13 @@ namespace asynchost
 
       auto ignored_file_name =
         fmt::format("{}{}", file_name, ledger_ignored_file_suffix);
-      files::rename(ledger_dir / file_name, ledger_dir / ignored_file_name);
+      {
+        TimeBoundLogger log_if_slow(fmt::format(
+          "Ignoring ledger file - rename({} to {})",
+          file_name,
+          ignored_file_name));
+        files::rename(ledger_dir / file_name, ledger_dir / ignored_file_name);
+      }
     }
 
     void delete_ledger_files_after_idx(size_t idx)
@@ -931,6 +1026,8 @@ namespace asynchost
         auto start_idx = get_start_idx_from_file_name(file_name);
         if (start_idx > idx)
         {
+          TimeBoundLogger log_if_slow(fmt::format(
+            "Deleting divergent ledger file - remove({})", file_name));
           if (!fs::remove(ledger_dir / file_name))
           {
             throw std::logic_error(
@@ -1148,6 +1245,8 @@ namespace asynchost
       }
       else
       {
+        TimeBoundLogger log_if_slow(fmt::format(
+          "Creating ledger directory - create_directory({})", ledger_dir));
         if (!fs::create_directory(ledger_dir))
         {
           throw std::logic_error(fmt::format(
@@ -1201,16 +1300,20 @@ namespace asynchost
             idx,
             last_idx_file.value());
 
-          files::rename(
-            ledger_dir / file_name,
-            ledger_dir /
-              remove_suffix(
-                file_name.string(),
-                fmt::format(
-                  "{}{}{}",
-                  ledger_last_idx_delimiter,
-                  last_idx_file.value(),
-                  ledger_committed_suffix)));
+          {
+            TimeBoundLogger log_rename_if_slow(
+              fmt::format("Removing committed suffix - rename({})", file_name));
+            files::rename(
+              ledger_dir / file_name,
+              ledger_dir /
+                remove_suffix(
+                  file_name.string(),
+                  fmt::format(
+                    "{}{}{}",
+                    ledger_last_idx_delimiter,
+                    last_idx_file.value(),
+                    ledger_committed_suffix)));
+          }
         }
       }
 
