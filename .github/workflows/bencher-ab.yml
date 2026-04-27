@@ -36,14 +36,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Machine info
-        run: |
-          set -ex
-          uname -a
-          nproc
-          cat /proc/cpuinfo
-          cat /proc/meminfo
-
       - name: Install dependencies
         run: ./scripts/setup-ci.sh
 
@@ -94,14 +86,6 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
-
-      - name: Machine info
-        run: |
-          set -ex
-          uname -a
-          nproc
-          cat /proc/cpuinfo
-          cat /proc/meminfo
 
       - name: Install dependencies
         run: ./scripts/setup-ci.sh
