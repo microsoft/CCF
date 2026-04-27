@@ -358,6 +358,13 @@ namespace ccf::gov::endpoints
       response_body["proposalState"] = summary.state;
       response_body["ballotCount"] = summary.ballots.size();
 
+      auto ballot_submitters = nlohmann::json::array();
+      for (const auto& [member_id, _] : summary.ballots)
+      {
+        ballot_submitters.push_back(member_id);
+      }
+      response_body["ballotSubmitters"] = ballot_submitters;
+
       std::optional<ccf::jsgov::Votes> votes = summary.final_votes;
 
       if (votes.has_value())
