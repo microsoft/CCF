@@ -484,7 +484,8 @@ namespace ccf
         // snapshot is committed during the joiner's snapshot fetch.
         auto this_startup_seqno =
           this->node_operation.get_startup_snapshot_seqno();
-        ccf::kv::Version min_acceptable_seqno = this_startup_seqno;
+        ccf::kv::Version required_seqno = this_startup_seqno;
+        ccf::kv::Version preferred_seqno = this_startup_seqno;
         const auto retry_count = in.retry_count.value_or(0);
         if (retry_count == 0)
         {
@@ -502,26 +503,41 @@ namespace ccf
               const auto latest_snapshot_seqno =
                 snapshots::get_snapshot_idx_from_file_name(
                   latest_committed_snapshot->filename().string());
-              min_acceptable_seqno = std::max(
-                min_acceptable_seqno,
+              preferred_seqno = std::max(
+                preferred_seqno,
                 static_cast<ccf::kv::Version>(latest_snapshot_seqno));
             }
           }
         }
         if (
           in.startup_seqno.has_value() &&
-          min_acceptable_seqno > in.startup_seqno.value())
+          preferred_seqno > in.startup_seqno.value())
         {
+          if (preferred_seqno > required_seqno)
+          {
+            return make_error(
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::StartupSeqnoIsOld,
+              fmt::format(
+                "Node requested to join from seqno {} which is older than "
+                "this node's preferred recent snapshot seqno {} (the latest "
+                "committed snapshot held on disk by this node). A snapshot "
+                "at least as recent as {} should be used instead.",
+                in.startup_seqno.value(),
+                preferred_seqno,
+                preferred_seqno));
+          }
           return make_error(
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::StartupSeqnoIsOld,
             fmt::format(
               "Node requested to join from seqno {} which is older than this "
-              "node's minimum acceptable seqno {}. A snapshot at least as "
-              "recent as {} must be used instead.",
+              "node's required minimum snapshot seqno {} (this node's "
+              "startup seqno). A snapshot at least as recent as {} must be "
+              "used instead.",
               in.startup_seqno.value(),
-              min_acceptable_seqno,
-              min_acceptable_seqno));
+              required_seqno,
+              required_seqno));
         }
 
         auto nodes = args.tx.rw(this->network.nodes);
