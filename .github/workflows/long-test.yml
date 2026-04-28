@@ -190,6 +190,18 @@ jobs:
           cd build
           ./tests.sh --output-on-failure --timeout 1600 -LE "benchmark"
 
+      - name: "Run CBOR fuzz test"
+        run: |
+          set -o pipefail
+          set -ex
+          mkdir -p build_fuzz
+          cd build_fuzz
+          rm -f CMakeCache.txt
+          cmake -GNinja -DFUZZING=ON -DSAN=ON -DUSE_LIBCXX=ON -DUSE_SNMALLOC=OFF ..
+          ninja cbor_fuzz_test
+          mkdir -p /tmp/cbor_fuzz_live
+          ./cbor_fuzz_test /tmp/cbor_fuzz_live ../src/crypto/test/cbor_fuzz_corpus -max_total_time=60
+
       - name: "Upload logs"
         if: success() || failure()
         uses: actions/upload-artifact@v7

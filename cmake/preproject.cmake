@@ -57,6 +57,11 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
 endif()
 
 option(TSAN "Enable Thread Sanitizers" OFF)
+option(FUZZING "Enable libFuzzer fuzz testing" OFF)
+
+if(FUZZING AND TSAN)
+  message(FATAL_ERROR "FUZZING and TSAN cannot be enabled together")
+endif()
 
 option(COLORED_OUTPUT "Always produce ANSI-colored output." ON)
 

@@ -677,6 +677,15 @@ if(BUILD_TESTS)
     target_include_directories(cbor_test PRIVATE ${CCFCRYPTO_INC})
     target_link_libraries(cbor_test PRIVATE ccfcrypto)
 
+    if(FUZZING)
+      add_fuzz_test(
+        cbor_fuzz_test
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/cbor.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/cbor_fuzz.cpp
+      )
+      target_link_libraries(cbor_fuzz_test PRIVATE evercbor)
+    endif()
+
     add_unit_test(
       sharing_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/secret_sharing.cpp
