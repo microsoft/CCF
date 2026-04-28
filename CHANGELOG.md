@@ -5,11 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [7.0.3]
+
+[7.0.3]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.3
 
 ### Fixed
 
-- A node joining the network without a local snapshot (or with an old snapshot) is no longer accepted by an "original" primary that itself started without a snapshot, which would previously cause the joiner to replay the entire ledger. The primary now requires the joiner's startup seqno to be at least as recent as the latest committed snapshot on disk on the first attempt; on subsequent retries (after the joiner has fetched a fresher snapshot via `fetch_recent_snapshot`) it falls back to the primary's own startup seqno to avoid chasing.
+- A node joining the network without a local snapshot (or with an old snapshot) is no longer accepted by an "original" primary that itself started without a snapshot, which would previously cause the joiner to replay the entire ledger. The primary now requires the joiner's startup seqno to be at least as recent as the latest committed snapshot on disk on the first attempt; on subsequent retries (after the joiner has fetched a fresher snapshot via `fetch_recent_snapshot`) it falls back to the primary's own startup seqno to avoid chasing (#7844).
 
 ## [7.0.2]
 
