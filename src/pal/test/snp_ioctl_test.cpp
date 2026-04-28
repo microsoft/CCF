@@ -42,10 +42,17 @@ TEST_CASE("SNP derive key")
     ccf::ds::to_hex(key1->get_raw()), ccf::ds::to_hex(key2->get_raw()));
 
   std::vector<uint8_t> expected_plaintext = {0xde, 0xad, 0xbe, 0xef};
-  auto ciphertext =
-    ccf::crypto::aes_gcm_encrypt(key1->get_raw(), expected_plaintext);
-  auto decrypted_plaintext =
-    ccf::crypto::aes_gcm_decrypt(key2->get_raw(), ciphertext);
+  auto entropy = ccf::crypto::get_entropy();
+  auto iv = entropy->random(ccf::crypto::iv_size);
+
+  auto k1 = ccf::crypto::make_key_aes_gcm(key1->get_raw());
+  std::vector<uint8_t> cipher;
+  uint8_t tag[ccf::crypto::GCM_SIZE_TAG];
+  k1->encrypt(iv, expected_plaintext, {}, cipher, tag);
+
+  auto k2 = ccf::crypto::make_key_aes_gcm(key2->get_raw());
+  std::vector<uint8_t> decrypted_plaintext;
+  REQUIRE(k2->decrypt(iv, tag, cipher, {}, decrypted_plaintext));
 
   CHECK_EQ(
     ccf::ds::to_hex(expected_plaintext), ccf::ds::to_hex(decrypted_plaintext));
@@ -63,21 +70,17 @@ TEST_CASE("SNP derived keys with different TCBs should be different")
   CHECK_NE(ccf::ds::to_hex(key1->get_raw()), ccf::ds::to_hex(key2->get_raw()));
 
   std::vector<uint8_t> expected_plaintext = {0xde, 0xad, 0xbe, 0xef};
-  bool threw = false;
-  try
-  {
-    auto ciphertext =
-      ccf::crypto::aes_gcm_encrypt(key1->get_raw(), expected_plaintext);
-    auto decrypted_plaintext =
-      ccf::crypto::aes_gcm_decrypt(key2->get_raw(), ciphertext);
-  }
-  catch (std::runtime_error& e)
-  {
-    CHECK(std::string(e.what()) == "Failed to decrypt");
-    threw = true;
-  }
+  auto entropy = ccf::crypto::get_entropy();
+  auto iv = entropy->random(ccf::crypto::iv_size);
 
-  CHECK(threw == true);
+  auto k1 = ccf::crypto::make_key_aes_gcm(key1->get_raw());
+  std::vector<uint8_t> cipher;
+  uint8_t tag[ccf::crypto::GCM_SIZE_TAG];
+  k1->encrypt(iv, expected_plaintext, {}, cipher, tag);
+
+  auto k2 = ccf::crypto::make_key_aes_gcm(key2->get_raw());
+  std::vector<uint8_t> decrypted_plaintext;
+  CHECK_FALSE(k2->decrypt(iv, tag, cipher, {}, decrypted_plaintext));
 }
 
 int main(int argc, char** argv)

@@ -198,6 +198,10 @@
         ],
         "type": "string"
       },
+      "Cose": {
+        "format": "binary",
+        "type": "string"
+      },
       "Endorsement": {
         "properties": {
           "authority": {
@@ -231,6 +235,17 @@
         },
         "required": [
           "transaction_id"
+        ],
+        "type": "object"
+      },
+      "GetHistoricalCacheInfo__Out": {
+        "properties": {
+          "estimated_size": {
+            "$ref": "#/components/schemas/uint64"
+          }
+        },
+        "required": [
+          "estimated_size"
         ],
         "type": "object"
       },
@@ -473,25 +488,6 @@
         ],
         "type": "string"
       },
-      "MemoryUsage__Out": {
-        "properties": {
-          "current_allocated_heap_size": {
-            "$ref": "#/components/schemas/uint64"
-          },
-          "max_total_heap_size": {
-            "$ref": "#/components/schemas/uint64"
-          },
-          "peak_allocated_heap_size": {
-            "$ref": "#/components/schemas/uint64"
-          }
-        },
-        "required": [
-          "max_total_heap_size",
-          "current_allocated_heap_size",
-          "peak_allocated_heap_size"
-        ],
-        "type": "object"
-      },
       "NodeId": {
         "format": "hex",
         "pattern": "^[a-f0-9]{64}$",
@@ -592,7 +588,8 @@
       "OperatorFeature": {
         "enum": [
           "SnapshotRead",
-          "LedgerChunkRead"
+          "LedgerChunkRead",
+          "SnapshotCreate"
         ],
         "type": "string"
       },
@@ -918,7 +915,7 @@
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "5.0.3"
+    "version": "5.0.5"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -1097,6 +1094,29 @@
         }
       }
     },
+    "/node/historical_cache": {
+      "get": {
+        "operationId": "GetNodeHistoricalCache",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetHistoricalCacheInfo__Out"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
     "/node/index/strategies": {
       "get": {
         "operationId": "GetNodeIndexStrategies",
@@ -1166,9 +1186,9 @@
         }
       }
     },
-    "/node/ledger-chunk": {
+    "/node/ledger_chunk": {
       "get": {
-        "description": "Redirect to the corresponding /node/ledger-chunk/{chunk_name} endpoint for the ledger chunk including the sequence number specified in the 'since' query parameter.",
+        "description": "Redirect to the corresponding /node/ledger_chunk/{chunk_name} endpoint for the ledger chunk including the sequence number specified in the 'since' query parameter.",
         "operationId": "GetNodeLedgerChunk",
         "parameters": [
           {
@@ -1194,7 +1214,7 @@
         }
       },
       "head": {
-        "description": "Redirect to the corresponding /node/ledger-chunk/{chunk_name} endpoint for the ledger chunk including the sequence number specified in the 'since' query parameter.",
+        "description": "Redirect to the corresponding /node/ledger_chunk/{chunk_name} endpoint for the ledger chunk including the sequence number specified in the 'since' query parameter.",
         "operationId": "HeadNodeLedgerChunk",
         "parameters": [
           {
@@ -1220,7 +1240,7 @@
         }
       }
     },
-    "/node/ledger-chunk/{chunk_name}": {
+    "/node/ledger_chunk/{chunk_name}": {
       "get": {
         "description": "Download a specific ledger chunk by name. Supports HTTP Range header for partial downloads.",
         "operationId": "GetNodeLedgerChunkChunkName",
@@ -1263,29 +1283,6 @@
           }
         }
       ]
-    },
-    "/node/memory": {
-      "get": {
-        "operationId": "GetNodeMemory",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MemoryUsage__Out"
-                }
-              }
-            },
-            "description": "Default response description"
-          },
-          "default": {
-            "$ref": "#/components/responses/default"
-          }
-        },
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/never"
-        }
-      }
     },
     "/node/metrics": {
       "get": {
@@ -1648,6 +1645,41 @@
         }
       }
     },
+    "/node/receipt/cose": {
+      "get": {
+        "description": "A COSE Sign1 envelope containing a signed statement from the service over a transaction entry in the ledger, with a Merkle proof in the unprotected header. See https://datatracker.ietf.org/doc/draft-ietf-scitt-receipts-ccf-profile/ for a complete description.",
+        "operationId": "GetNodeReceiptCose",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "transaction_id",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/TransactionId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/cose": {
+                "schema": {
+                  "$ref": "#/components/schemas/Cose"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "summary": "COSE receipt for a transaction",
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
     "/node/self_signed_certificate": {
       "get": {
         "operationId": "GetNodeSelfSignedCertificate",
@@ -1806,6 +1838,22 @@
           }
         }
       ]
+    },
+    "/node/snapshot:create": {
+      "post": {
+        "operationId": "PostNodeSnapshotCreate",
+        "responses": {
+          "204": {
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/never"
+        }
+      }
     },
     "/node/state": {
       "get": {

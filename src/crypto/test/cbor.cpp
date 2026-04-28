@@ -1712,3 +1712,69 @@ TEST_CASE("CBOR: throw with context")
     expected_err.c_str(),
     CBORDecodeError);
 }
+
+TEST_CASE("CBOR: trailing bytes rejected")
+{
+  // Valid CBOR integer 42 = 0x182a
+  auto valid = ccf::ds::from_hex("182a");
+  REQUIRE_NOTHROW(parse(valid));
+
+  // Append trailing byte — should be rejected
+  auto with_trailing = ccf::ds::from_hex("182a00");
+  REQUIRE_THROWS_AS(parse(with_trailing), CBORDecodeError);
+
+  // Valid CBOR byte string h'0102' = 0x420102
+  auto valid_bstr = ccf::ds::from_hex("420102");
+  REQUIRE_NOTHROW(parse(valid_bstr));
+
+  // Append trailing bytes
+  auto bstr_trailing = ccf::ds::from_hex("420102ff");
+  REQUIRE_THROWS_AS(parse(bstr_trailing), CBORDecodeError);
+
+  // Valid CBOR array [1, 2] = 0x820102
+  auto valid_array = ccf::ds::from_hex("820102");
+  REQUIRE_NOTHROW(parse(valid_array));
+
+  // Append trailing byte
+  auto array_trailing = ccf::ds::from_hex("82010203");
+  REQUIRE_THROWS_AS(parse(array_trailing), CBORDecodeError);
+}
+
+TEST_CASE("CBOR: parse max depth")
+{
+  // depth 1: [42] -- should pass at max_depth=2
+  auto depth1 = ccf::ds::from_hex("81182a");
+  REQUIRE_NOTHROW(parse(depth1, 2));
+
+  // depth 2: [[42]] -- should pass at max_depth=2
+  auto depth2 = ccf::ds::from_hex("8181182a");
+  REQUIRE_NOTHROW(parse(depth2, 2));
+
+  // depth 3: [[[42]]] -- should fail at max_depth=2
+  auto depth3 = ccf::ds::from_hex("818181182a");
+  REQUIRE_THROWS_AS(parse(depth3, 2), CBORDecodeError);
+
+  // map depth 3: {1: {1: {1: 42}}} -- should fail at max_depth=2
+  auto map_depth3 = ccf::ds::from_hex("a101a101a101182a");
+  REQUIRE_THROWS_AS(parse(map_depth3, 2), CBORDecodeError);
+
+  // map depth 2: {1: {1: 42}} -- should pass at max_depth=2
+  auto map_depth2 = ccf::ds::from_hex("a101a101182a");
+  REQUIRE_NOTHROW(parse(map_depth2, 2));
+}
+
+TEST_CASE("CBOR: serialize max depth")
+{
+  // depth 1: [42] -- should pass at max_depth=1,2
+  auto shallow = make_array({make_signed(42)});
+  REQUIRE_NOTHROW(serialize(shallow, 1));
+  REQUIRE_NOTHROW(serialize(shallow, 2));
+
+  // Build 3 levels: [[[42]]]
+  auto deep = make_array({make_array({make_array({make_signed(42)})})});
+  REQUIRE_THROWS_AS(serialize(deep, 2), CBOREncodeError);
+
+  // Same deep tree passes at higher limit
+  REQUIRE_NOTHROW(serialize(deep, 3));
+  REQUIRE_NOTHROW(serialize(deep, 4));
+}

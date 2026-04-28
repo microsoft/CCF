@@ -308,7 +308,11 @@ class HostSpec:
         default_factory=lambda: {
             PRIMARY_RPC_INTERFACE: RPCInterface(),
             FILE_SERVING_RPC_INTERFACE: RPCInterface(
-                enabled_operator_features=["SnapshotRead", "LedgerChunkRead"],
+                enabled_operator_features=[
+                    "SnapshotRead",
+                    "LedgerChunkRead",
+                    "SnapshotCreate",
+                ],
             ),
         }
     )

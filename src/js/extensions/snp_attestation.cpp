@@ -61,7 +61,7 @@ namespace ccf::js::extensions
       }
 
       std::optional<std::vector<uint8_t>> uvm_endorsements;
-      if (JS_IsUndefined(argv[2]) == 0)
+      if (argc >= 3 && JS_IsUndefined(argv[2]) == 0)
       {
         size_t uvm_endorsements_size = 0;
         uint8_t* uvm_endorsements_array =
@@ -76,7 +76,7 @@ namespace ccf::js::extensions
       }
 
       std::optional<std::string> endorsed_tcb;
-      if (JS_IsUndefined(argv[3]) == 0)
+      if (argc >= 4 && JS_IsUndefined(argv[3]) == 0)
       {
         endorsed_tcb = jsctx.to_str(argv[3]);
         if (!endorsed_tcb)

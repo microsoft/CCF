@@ -259,7 +259,9 @@ namespace ccf::endpoints
   {
     // Functor which is invoked to process requests for this Endpoint
     EndpointFunction func;
-    // Functor which is invoked to modify the response post commit.
+
+    // Functor which is invoked to modify the response after it is locally
+    // committed (ie - assigned a transaction ID)
     LocallyCommittedEndpointFunction locally_committed_func;
 
     struct Installer

@@ -113,8 +113,8 @@ namespace ccf::cbor
   Value make_array(std::vector<Value>&& data);
   Value make_map(std::vector<MapItem>&& data);
 
-  Value parse(std::span<const uint8_t> raw);
-  std::vector<uint8_t> serialize(const Value& value);
+  Value parse(std::span<const uint8_t> raw, size_t max_depth = 16);
+  std::vector<uint8_t> serialize(const Value& value, size_t max_depth = 16);
 
   std::string to_string(const Value& value);
   bool simple_to_boolean(const Simple& value);

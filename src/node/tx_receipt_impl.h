@@ -12,9 +12,9 @@ namespace ccf
   // public interface by ccf::Receipt
   struct TxReceiptImpl
   {
-    std::vector<uint8_t> signature;
+    std::optional<std::vector<uint8_t>> signature;
     std::optional<std::vector<uint8_t>> cose_signature = std::nullopt;
-    HistoryTree::Hash root;
+    std::optional<HistoryTree::Hash> root;
     std::shared_ptr<ccf::HistoryTree::Path> path;
     ccf::NodeId node_id;
     std::optional<ccf::crypto::Pem> node_cert = std::nullopt;
@@ -26,9 +26,9 @@ namespace ccf
     std::optional<CoseEndorsementsChain> cose_endorsements = std::nullopt;
 
     TxReceiptImpl(
-      const std::vector<uint8_t>& signature_,
+      const std::optional<std::vector<uint8_t>>& signature_,
       const std::optional<std::vector<uint8_t>>& cose_signature,
-      const HistoryTree::Hash& root_,
+      const std::optional<HistoryTree::Hash>& root_,
       std::shared_ptr<ccf::HistoryTree::Path> path_,
       NodeId node_id_,
       const std::optional<ccf::crypto::Pem>& node_cert_,

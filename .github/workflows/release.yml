@@ -5,6 +5,11 @@ on:
     tags:
       - "ccf-[567].*"
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Run the full pipeline without creating a GitHub release"
+        type: boolean
+        default: true
 
 permissions: read-all
 
@@ -40,6 +45,7 @@ jobs:
 
   release_notes:
     name: Release Notes
+    if: ${{ !inputs.dry_run }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -89,7 +95,7 @@ jobs:
 
   build_release:
     name: Build Release
-    needs: [release_notes, image_digest]
+    needs: image_digest
     runs-on:
       [
         self-hosted,
@@ -211,11 +217,17 @@ jobs:
           cat /tmp/install_prefix | xargs -i bash -c "PYTHON_PACKAGE_PATH=../python ./recovery_benchmark.sh {}"
         shell: bash
 
-      - name: "Test Building a Sample Against Installed CCF"
+      - name: "Test Building `logging` Sample App Against Installed CCF"
         run: |
           set -ex
           ./tests/test_install_build.sh
         shell: bash
+
+      - name: "Upload `logging` Sample App"
+        uses: actions/upload-artifact@v7
+        with:
+          name: logging
+          path: build_against_install/logging
 
       - name: "Upload .rpm Package"
         uses: actions/upload-artifact@v7
@@ -417,12 +429,14 @@ jobs:
           path: ${{ env.REPRO_DIR }}
 
   create_release:
+    if: ${{ !inputs.dry_run }}
     permissions:
       contents: write
     needs:
       - reproduce_rpm
       - test_rpm_against_app
       - build_release
+      - release_notes
       - make_sbom
     name: Create Release
     runs-on: ubuntu-latest
@@ -463,6 +477,10 @@ jobs:
         with:
           path: sbom
           name: sbom
+      - name: Download Logging Sample App
+        uses: actions/download-artifact@v8
+        with:
+          name: logging
       - name: Download Reproducibility Metadata
         uses: actions/download-artifact@v8
         with:
@@ -473,7 +491,7 @@ jobs:
           set -ex
           CCF_VERSION=${{ github.ref_name }}
           CCF_VERSION=${CCF_VERSION#ccf-}
-          gh release create --title $CCF_VERSION --draft --notes-file rel-notes.md ${{ github.ref_name }} pkg/* wheel/*.whl tstgz/*.tgz sbom/* tls_report.html compatibility_report.json repro/* ./reproduce/start_container_and_reproduce_rpm.sh
+          gh release create --title $CCF_VERSION --draft --notes-file rel-notes.md ${{ github.ref_name }} pkg/* wheel/*.whl tstgz/*.tgz sbom/* tls_report.html compatibility_report.json repro/* logging ./reproduce/start_container_and_reproduce_rpm.sh
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}

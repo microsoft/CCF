@@ -18,8 +18,4 @@ add_ccf_app(ccfapp SRCS ccfapp.cpp)
 
 include(cpack.cmake)
 
-install(
-  TARGETS ccfapp
-  EXPORT ccfapp
-  DESTINATION bin
-)
+install(TARGETS ccfapp EXPORT ccfapp DESTINATION bin)

@@ -74,12 +74,7 @@ namespace ccf::kv
         throw KvSerialiserException("No encryptor set");
       }
 
-      auto commit_nonce = e->get_commit_nonce({pimpl->commit_view, version});
-      commit_evidence = fmt::format(
-        "ce:{}.{}:{}",
-        pimpl->commit_view,
-        version,
-        ccf::ds::to_hex(commit_nonce));
+      commit_evidence = e->get_commit_evidence({pimpl->commit_view, version});
       LOG_TRACE_FMT("Commit evidence: {}", commit_evidence);
       ccf::crypto::Sha256Hash tx_commit_evidence_digest(commit_evidence);
       commit_evidence_digest = tx_commit_evidence_digest;
@@ -120,6 +115,10 @@ namespace ccf::kv
   public:
     CommittableTx(AbstractStore* _store) : Tx(_store) {}
 
+    using WriteSetObserver = std::function<void(
+      const ccf::crypto::Sha256Hash& write_set_digest,
+      const std::string& commit_evidence)>;
+
     /** Commit this transaction to the local KV and submit it to consensus for
      * replication
      *
@@ -137,9 +136,7 @@ namespace ccf::kv
       const ccf::ClaimsDigest& claims = ccf::empty_claims(),
       std::function<std::tuple<Version, Version>(bool has_new_map)>
         version_resolver = nullptr,
-      std::function<void(
-        const std::vector<uint8_t>& write_set,
-        const std::string& commit_evidence)> write_set_observer = nullptr)
+      WriteSetObserver write_set_observer = nullptr)
     {
       if (committed)
       {
@@ -234,7 +231,8 @@ namespace ccf::kv
 
         if (write_set_observer != nullptr)
         {
-          write_set_observer(data, commit_evidence);
+          ccf::crypto::Sha256Hash ws_digest({data.data(), data.size()});
+          write_set_observer(ws_digest, commit_evidence);
         }
 
         auto claims_ = claims;
@@ -414,7 +412,14 @@ namespace ccf::kv
 
       if (!success)
       {
-        throw std::logic_error("Failed to commit reserved transaction");
+        if (pimpl->store->check_rollback_count(rollback_count))
+        {
+          throw std::logic_error("Failed to commit reserved transaction");
+        }
+
+        committed = true;
+        return {
+          CommitResult::FAIL_NO_REPLICATE, {}, ccf::empty_claims(), {}, {}};
       }
 
       ccf::crypto::Sha256Hash commit_evidence_digest;

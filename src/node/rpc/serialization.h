@@ -37,7 +37,8 @@ namespace ccf
     certificate_signing_request,
     node_data,
     sealing_recovery_data,
-    code_transparent_statement);
+    code_transparent_statement,
+    ledger_sign_mode);
 
   DECLARE_JSON_TYPE(NetworkIdentity);
   DECLARE_JSON_REQUIRED_FIELDS(NetworkIdentity, cert, priv_key);
@@ -137,10 +138,4 @@ namespace ccf
   DECLARE_JSON_TYPE(SubmitRecoveryShare::Out);
   DECLARE_JSON_REQUIRED_FIELDS(SubmitRecoveryShare::Out, message);
 
-  DECLARE_JSON_TYPE(MemoryUsage::Out);
-  DECLARE_JSON_REQUIRED_FIELDS(
-    MemoryUsage::Out,
-    max_total_heap_size,
-    current_allocated_heap_size,
-    peak_allocated_heap_size);
 }

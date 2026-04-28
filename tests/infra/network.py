@@ -192,6 +192,11 @@ class Network:
         "ledger_chunk_bytes",
         "subject_alt_names",
         "snapshot_tx_interval",
+        "snapshot_min_tx_interval",
+        "snapshot_time_interval",
+        "files_cleanup_max_snapshots",
+        "files_cleanup_max_committed_ledger_chunks",
+        "files_cleanup_interval",
         "max_open_sessions",
         "max_open_sessions_hard",
         "forwarding_timeout_ms",
@@ -347,6 +352,7 @@ class Network:
         read_only_ledger_dirs=None,
         from_snapshot=True,
         snapshots_dir=None,
+        join_target_interface_name=None,
         **kwargs,
     ):
         # Contact primary if no target node is set
@@ -400,7 +406,8 @@ class Network:
             label=args.label,
             common_dir=self.common_dir,
             target_rpc_address=target_node.get_public_rpc_address(
-                interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
+                interface_name=join_target_interface_name
+                or infra.interfaces.FILE_SERVING_RPC_INTERFACE
             ),
             snapshots_dir=snapshots_dir,
             read_only_snapshots_dir=read_only_snapshots_dir,
@@ -1863,7 +1870,14 @@ class Network:
         )
         return primary
 
-    def get_committed_snapshots(self, node, target_seqno=None, force_txs=True):
+    def get_committed_snapshots(
+        self,
+        node,
+        target_seqno=None,
+        force_txs=True,
+        wait_for_target_seqno=False,
+        timeout=20,
+    ):
         # Wait for the snapshot including target_seqno to be committed before
         # copying snapshot directory. Do not issue transactions if force_txs is False
         # and expect snapshot to have already been created.
@@ -1872,8 +1886,10 @@ class Network:
                 r = c.get("/node/commit").body.json()
                 target_seqno = TxID.from_str(r["transaction_id"]).seqno
 
-        def wait_for_snapshots_to_be_committed(src_dir, list_src_dir_func, timeout=20):
-            if not force_txs:
+        def wait_for_snapshots_to_be_committed(
+            src_dir, list_src_dir_func, timeout=timeout
+        ):
+            if not wait_for_target_seqno and not force_txs:
                 return True
 
             LOG.info(
@@ -1897,12 +1913,13 @@ class Network:
                     )
                     return False
 
-                # Update state digest as a neutral write operation, to advance commit
-                member = self.consortium.get_any_active_member()
-                for _ in range(self.args.snapshot_tx_interval // 2):
-                    r = member.update_ack_state_digest(node)
-                with node.client() as c:
-                    c.wait_for_commit(r)
+                if force_txs:
+                    # Update state digest as a neutral write operation, to advance commit
+                    member = self.consortium.get_any_active_member()
+                    for _ in range(self.args.snapshot_tx_interval // 2):
+                        r = member.update_ack_state_digest(node)
+                    with node.client() as c:
+                        c.wait_for_commit(r)
                 time.sleep(0.1)
 
         return node.get_committed_snapshots(wait_for_snapshots_to_be_committed)

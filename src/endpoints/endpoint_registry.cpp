@@ -4,11 +4,15 @@
 #include "ccf/endpoint_registry.h"
 
 #include "ccf/common_auth_policies.h"
+#include "ccf/node_context.h"
 #include "ccf/pal/locking.h"
 #include "ds/nonstd.h"
 #include "endpoint_utils.h"
 #include "http/http_parser.h"
+#include "node/rpc/claims.h"
 #include "node/rpc_context_impl.h"
+#include "node/signature_cache_interface.h"
+#include "node/tx_receipt_impl.h"
 
 namespace ccf::endpoints
 {
@@ -199,6 +203,80 @@ namespace ccf::endpoints
     CommandEndpointContext& ctx, const TxID& tx_id)
   {
     ctx.rpc_ctx->set_response_header(http::headers::CCF_TX_ID, tx_id.to_str());
+  }
+
+  TxReceiptImplPtr build_receipt_for_committed_tx(
+    ccf::AbstractNodeContext& context, CommittedTxInfo& info)
+  {
+    if (info.commit_evidence.empty())
+    {
+      info.rpc_ctx->set_error(
+        HTTP_STATUS_INTERNAL_SERVER_ERROR,
+        ccf::errors::InternalError,
+        fmt::format(
+          "Cannot construct receipt for TxID {}: transaction produced no "
+          "write set (read-only transactions do not have receipts)",
+          info.tx_id.to_str()));
+      return nullptr;
+    }
+
+    auto sig_cache = context.get_subsystem<ccf::SignatureCacheInterface>();
+    if (sig_cache == nullptr)
+    {
+      info.rpc_ctx->set_error(
+        HTTP_STATUS_INTERNAL_SERVER_ERROR,
+        ccf::errors::InternalError,
+        "SignatureCacheInterface subsystem is not installed");
+      return nullptr;
+    }
+
+    auto cached_sig = sig_cache->get_signature_for(info.tx_id.seqno);
+    if (!cached_sig.has_value())
+    {
+      info.rpc_ctx->set_error(
+        HTTP_STATUS_INTERNAL_SERVER_ERROR,
+        ccf::errors::InternalError,
+        fmt::format(
+          "No cached signature found covering TxID {}", info.tx_id.to_str()));
+      return nullptr;
+    }
+
+    // Reconstruct merkle tree from the cached serialised tree and
+    // extract a proof for this specific seqno
+    ccf::MerkleTreeHistory tree(cached_sig->serialised_tree);
+    if (!tree.in_range(info.tx_id.seqno))
+    {
+      info.rpc_ctx->set_error(
+        HTTP_STATUS_INTERNAL_SERVER_ERROR,
+        ccf::errors::InternalError,
+        fmt::format(
+          "Seqno {} is not in range of cached signature tree",
+          info.tx_id.seqno));
+      return nullptr;
+    }
+    auto proof = tree.get_proof(info.tx_id.seqno);
+
+    std::optional<std::vector<uint8_t>> sig;
+    std::optional<ccf::crypto::Pem> cert;
+    NodeId node{};
+
+    if (cached_sig->sig)
+    {
+      sig = cached_sig->sig->sig;
+      cert = cached_sig->sig->cert;
+      node = cached_sig->sig->node;
+    }
+
+    return std::make_shared<TxReceiptImpl>(
+      sig,
+      cached_sig->cose_signature,
+      proof.get_root(),
+      proof.get_path(),
+      node,
+      cert,
+      info.write_set_digest,
+      info.commit_evidence,
+      info.claims_digest);
   }
 
   Endpoint EndpointRegistry::make_endpoint(

@@ -54,7 +54,10 @@ def run(args):
                     ),
                 )
 
-            interface.enabled_operator_features = ["SnapshotRead", "LedgerChunkRead"]
+            interface.enabled_operator_features = [
+                "SnapshotRead",
+                "LedgerChunkRead",
+            ]
 
             hosts.append(
                 infra.interfaces.HostSpec(

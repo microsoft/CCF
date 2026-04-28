@@ -116,6 +116,15 @@ namespace ccf::crypto
       return key;
     }
 
+    [[nodiscard]] std::vector<uint8_t> public_key_der() const
+    {
+      OpenSSL::Unique_BIO buf;
+      OpenSSL::CHECK1(i2d_PUBKEY_bio(buf, key));
+      BUF_MEM* bptr = nullptr;
+      BIO_get_mem_ptr(buf, &bptr);
+      return {bptr->data, bptr->data + bptr->length};
+    }
+
     virtual ~PublicKey_OpenSSL()
     {
       if (key != nullptr)

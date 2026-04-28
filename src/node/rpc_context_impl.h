@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/claims_digest.h"
+#include "ccf/endpoint_context.h"
 #include "ccf/rpc_context.h"
 
 namespace ccf
@@ -106,8 +107,27 @@ namespace ccf
         http::headervalues::contenttype::JSON);
     }
 
+    ccf::endpoints::ConsensusCommittedEndpointFunction
+      consensus_committed_func = nullptr;
+
+    void set_consensus_committed_function(
+      ccf::endpoints::ConsensusCommittedEndpointFunction func) override
+    {
+      consensus_committed_func = std::move(func);
+    }
+
     bool response_is_pending = false;
     bool terminate_session = false;
+
+    struct RespondOnCommitInfo
+    {
+      ccf::TxID tx_id;
+      ccf::endpoints::ConsensusCommittedEndpointFunction committed_func;
+      ccf::crypto::Sha256Hash write_set_digest;
+      std::string commit_evidence;
+      ccf::ClaimsDigest claims_digest;
+    };
+    std::optional<RespondOnCommitInfo> respond_on_commit = std::nullopt;
 
     [[nodiscard]] virtual bool should_apply_writes() const = 0;
     virtual void reset_response() = 0;
