@@ -32,6 +32,7 @@
 #include "service/tables/local_sealing.h"
 #include "service/tables/previous_service_identity.h"
 #include "service/tables/snapshot_status.h"
+#include "snapshots/filenames.h"
 
 #include <llhttp/llhttp.h>
 #include <stdexcept>
@@ -471,22 +472,56 @@ namespace ccf
         // Make sure that the joiner's snapshot is more recent than this node's
         // snapshot. Otherwise, the joiner may not be given all the ledger
         // secrets required to replay historical transactions.
+        //
+        // On the joiner's first attempt (retry_count == 0), additionally
+        // require the joiner's startup_seqno to be at least as recent as the
+        // latest committed snapshot file currently held on disk by this node.
+        // This prevents a snapshot-less joiner from being accepted by an
+        // original (snapshot-less) primary, which would otherwise cause it to
+        // replay the entire ledger. On subsequent retries (retry_count > 0),
+        // we relax the check back to the primary's startup_seqno only, to
+        // avoid the joiner chasing an ever-moving target if a fresher
+        // snapshot is committed during the joiner's snapshot fetch.
         auto this_startup_seqno =
           this->node_operation.get_startup_snapshot_seqno();
+        ccf::kv::Version min_acceptable_seqno = this_startup_seqno;
+        const auto retry_count = in.retry_count.value_or(0);
+        if (retry_count == 0)
+        {
+          auto node_configuration_subsystem =
+            this->context.get_subsystem<NodeConfigurationSubsystem>();
+          if (node_configuration_subsystem != nullptr)
+          {
+            const auto& snapshots_config =
+              node_configuration_subsystem->get().node_config.snapshots;
+            const auto latest_committed_snapshot =
+              snapshots::find_latest_committed_snapshot_in_directory(
+                snapshots_config.directory);
+            if (latest_committed_snapshot.has_value())
+            {
+              const auto latest_snapshot_seqno =
+                snapshots::get_snapshot_idx_from_file_name(
+                  latest_committed_snapshot->filename().string());
+              min_acceptable_seqno = std::max(
+                min_acceptable_seqno,
+                static_cast<ccf::kv::Version>(latest_snapshot_seqno));
+            }
+          }
+        }
         if (
           in.startup_seqno.has_value() &&
-          this_startup_seqno > in.startup_seqno.value())
+          min_acceptable_seqno > in.startup_seqno.value())
         {
           return make_error(
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::StartupSeqnoIsOld,
             fmt::format(
               "Node requested to join from seqno {} which is older than this "
-              "node startup seqno {}. A snapshot at least as recent as {} must "
-              "be used instead.",
+              "node's minimum acceptable seqno {}. A snapshot at least as "
+              "recent as {} must be used instead.",
               in.startup_seqno.value(),
-              this_startup_seqno,
-              this_startup_seqno));
+              min_acceptable_seqno,
+              min_acceptable_seqno));
         }
 
         auto nodes = args.tx.rw(this->network.nodes);

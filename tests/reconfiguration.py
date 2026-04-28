@@ -812,6 +812,7 @@ def run_all(args):
         test_ledger_invariants(network, args)
 
     run_join_old_snapshot(args)
+    run_join_no_snapshot_against_original_primary(args)
 
 
 def run_join_old_snapshot(const_args):
@@ -929,3 +930,90 @@ def run_join_old_snapshot(const_args):
                 fetch_recent_snapshot=True,
                 timeout=3,
             )
+
+
+def run_join_no_snapshot_against_original_primary(const_args):
+    # Regression test for the case where a node joins an "original" primary
+    # (one that itself started without a snapshot, so its own startup_seqno is
+    # 0) using from_snapshot=False. Previously the primary would accept the
+    # join request because `0 == 0`, causing the joiner to replay the entire
+    # ledger. The primary now compares the joiner's startup_seqno against the
+    # latest committed snapshot on disk, so the join must be rejected unless
+    # the joiner first fetches a recent snapshot from the primary.
+    txs = app.LoggingTxs("user0")
+    args = deepcopy(const_args)
+    args.nodes = infra.e2e_args.nodes(args, 1)
+    args.label += "_no_snapshot_against_original_primary"
+
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        pdb=args.pdb,
+        txs=txs,
+    ) as network:
+        network.start_and_open(args)
+        primary, _ = network.find_primary()
+
+        # The original primary started without a snapshot; sanity-check this.
+        with primary.client() as c:
+            body = c.get("/node/state").body.json()
+            assert (
+                body["startup_seqno"] == 0
+            ), f"Original primary should have startup_seqno == 0, got {body['startup_seqno']}"
+
+        # Issue enough transactions for the primary to generate and commit a
+        # snapshot. Wait until that snapshot is on disk.
+        txs.issue(network, number_txs=args.snapshot_tx_interval)
+        committed_snapshots_dir = network.get_committed_snapshots(primary)
+        assert os.listdir(
+            committed_snapshots_dir
+        ), f"Expected committed snapshot in {committed_snapshots_dir}"
+
+        # Demonstrate the bug & fix: a node joining without any snapshot, and
+        # without fetching one (`fetch_recent_snapshot=False`), must now be
+        # rejected by the primary even though both startup_seqnos are 0,
+        # because the primary holds a more recent snapshot on disk.
+        try:
+            new_node = network.create_node()
+            network.join_node(
+                new_node,
+                args.package,
+                args,
+                from_snapshot=False,
+                fetch_recent_snapshot=False,
+                timeout=3,
+            )
+        except infra.network.StartupSeqnoIsOld as e:
+            LOG.info(
+                f"Node {new_node.local_node_id} joining a primary which holds a "
+                f"committed snapshot was correctly rejected with "
+                f"StartupSeqnoIsOld: {e}"
+            )
+            assert e.has_stopped, "Expected node to stop on receiving StartupSeqnoIsOld"
+        else:
+            raise RuntimeError(
+                f"Node {new_node.local_node_id} joined a primary which holds a "
+                f"committed snapshot without fetching one - this would replay "
+                f"the entire ledger"
+            )
+
+        # Now demonstrate the fix's recovery path: a node joining without a
+        # local snapshot but with `fetch_recent_snapshot=True` must succeed,
+        # because it fetches the latest snapshot from the primary, and on
+        # retry the primary accepts the (now recent) startup_seqno.
+        new_node = network.create_node()
+        network.join_node(
+            new_node,
+            args.package,
+            args,
+            from_snapshot=False,
+            fetch_recent_snapshot=True,
+            timeout=10,
+        )
+        network.trust_node(new_node, args)
+        with new_node.client() as c:
+            body = c.get("/node/state").body.json()
+            assert (
+                body["startup_seqno"] > 0
+            ), f"Joiner should have started from a fetched snapshot, got startup_seqno={body['startup_seqno']}"

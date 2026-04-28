@@ -476,6 +476,12 @@ namespace ccf
     ccf::tasks::Task snapshot_fetch_task;
     ccf::tasks::Task backup_snapshot_fetch_task;
 
+    // Number of times we've retried the join request after receiving a
+    // StartupSeqnoIsOld error from the primary. Sent in the join request so
+    // the primary can decide how strict to be about the joiner's startup
+    // seqno (see `accept` handler in NodeEndpoints).
+    size_t join_retry_count = 0;
+
     std::shared_ptr<ccf::kv::AbstractTxEncryptor> make_encryptor()
     {
 #ifdef USE_NULL_ENCRYPTOR
@@ -1100,6 +1106,15 @@ namespace ccf
                 target_address,
                 ccf::errors::StartupSeqnoIsOld);
 
+              // Record that we have been bounced once, so the next join
+              // request will inform the primary that this is a retry. This
+              // lets the primary relax its check from "at least as recent as
+              // the latest committed snapshot" to "at least as recent as my
+              // own startup seqno", preventing the joiner from chasing an
+              // ever-moving target if a new snapshot is committed during the
+              // fetch.
+              join_retry_count += 1;
+
               // If we've followed a redirect, it will have been updated in
               // config.join. Note that this is fire-and-forget, it is assumed
               // that it proceeds in the background, updating state when it
@@ -1317,6 +1332,7 @@ namespace ccf
       join_params.public_encryption_key = node_encrypt_kp->public_key_pem();
       join_params.quote_info = quote_info;
       join_params.startup_seqno = startup_seqno;
+      join_params.retry_count = join_retry_count;
       join_params.certificate_signing_request = node_sign_kp->create_csr(
         config.node_certificate.subject_name, subject_alt_names);
       join_params.node_data = config.node_data;

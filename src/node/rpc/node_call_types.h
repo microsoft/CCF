@@ -97,6 +97,12 @@ namespace ccf
       std::optional<std::vector<uint8_t>> code_transparent_statement =
         std::nullopt;
       std::optional<ccf::LedgerSignMode> ledger_sign_mode = std::nullopt;
+      // Incremented by the joiner each time it retries a join request after
+      // receiving a StartupSeqnoIsOld response. Used by the primary to decide
+      // whether to require the joiner's startup_seqno to be at least as recent
+      // as the latest committed snapshot (retry_count == 0) or only as recent
+      // as the primary's own startup_seqno (retry_count > 0).
+      std::optional<size_t> retry_count = std::nullopt;
     };
 
     struct Out
