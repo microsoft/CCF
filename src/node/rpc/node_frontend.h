@@ -482,11 +482,15 @@ namespace ccf
         // we relax the check back to the primary's startup_seqno only, to
         // avoid the joiner chasing an ever-moving target if a fresher
         // snapshot is committed during the joiner's snapshot fetch.
+        //
+        // Older joiners which do not populate retry_count are treated as if
+        // they were already retrying (value_or(1)), so they keep the legacy
+        // "minimum required" behaviour and never fall into the chasing path.
         auto this_startup_seqno =
           this->node_operation.get_startup_snapshot_seqno();
         ccf::kv::Version required_seqno = this_startup_seqno;
         ccf::kv::Version preferred_seqno = this_startup_seqno;
-        const auto retry_count = in.retry_count.value_or(0);
+        const auto retry_count = in.retry_count.value_or(1);
         if (retry_count == 0)
         {
           auto node_configuration_subsystem =
