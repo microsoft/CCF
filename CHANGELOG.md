@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
-- A node joining the network without a local snapshot (or with an old snapshot) is no longer accepted by an "original" primary that itself started without a snapshot, which would previously cause the joiner to replay the entire ledger. The primary now requires the joiner's startup seqno to be at least as recent as the latest committed snapshot on disk on the first attempt; on subsequent retries (after the joiner has fetched a fresher snapshot via `fetch_recent_snapshot`) it falls back to the primary's own startup seqno to avoid chasing (#7844).
+- On a joiner's first attempt, the primary now requires the joiner's startup seqno to be at least as recent as its latest committed snapshot on disk, preventing snapshot-less joiners from replaying the entire ledger (#7844).
 
 ## [7.0.2]
 
