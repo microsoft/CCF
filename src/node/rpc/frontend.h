@@ -25,6 +25,7 @@
 
 #define FMT_HEADER_ONLY
 
+#include <atomic>
 #include <fmt/format.h>
 #include <utility>
 #include <vector>
@@ -42,9 +43,9 @@ namespace ccf
     ccf::pal::Mutex open_lock;
     bool is_open_ = false;
 
-    ccf::kv::Consensus* consensus{nullptr};
+    std::atomic<ccf::kv::Consensus*> consensus{nullptr};
     std::shared_ptr<AbstractForwarder> cmd_forwarder;
-    ccf::kv::TxHistory* history{nullptr};
+    std::atomic<ccf::kv::TxHistory*> history{nullptr};
 
     size_t sig_tx_interval = 5000;
     std::chrono::milliseconds sig_ms_interval = std::chrono::milliseconds(1000);
@@ -108,7 +109,7 @@ namespace ccf
       const endpoints::EndpointDefinitionPtr& endpoint)
     {
       auto interface_id = ctx->get_session_context()->interface_id;
-      if ((consensus != nullptr) && interface_id)
+      if ((consensus.load() != nullptr) && interface_id)
       {
         if (!node_configuration_subsystem)
         {
@@ -232,7 +233,7 @@ namespace ccf
             target_node_its;
           const auto nodes = InternalTablesAccess::get_trusted_nodes(tx);
           {
-            const auto primary_id = consensus->primary();
+            const auto primary_id = consensus.load()->primary();
             if (seeking_primary && primary_id.has_value())
             {
               target_node_its.push_back(nodes.find(primary_id.value()));
@@ -300,7 +301,7 @@ namespace ccf
         case (ccf::endpoints::RedirectionStrategy::ToPrimary):
         {
           const bool is_primary =
-            (consensus != nullptr) && consensus->can_replicate();
+            (consensus.load() != nullptr) && consensus.load()->can_replicate();
 
           if (!is_primary)
           {
@@ -335,7 +336,7 @@ namespace ccf
         case (ccf::endpoints::RedirectionStrategy::ToBackup):
         {
           const bool is_backup =
-            (consensus != nullptr) && !consensus->can_replicate();
+            (consensus.load() != nullptr) && !consensus.load()->can_replicate();
 
           if (!is_backup)
           {
@@ -405,9 +406,10 @@ namespace ccf
 
     bool check_session_consistency(std::shared_ptr<ccf::RpcContextImpl> ctx)
     {
-      if (consensus != nullptr)
+      auto c = consensus.load();
+      if (c != nullptr)
       {
-        auto current_view = consensus->get_view();
+        auto current_view = c->get_view();
         auto session_ctx = ctx->get_session_context();
         if (!session_ctx->active_view.has_value())
         {
@@ -528,7 +530,7 @@ namespace ccf
         return;
       }
 
-      if (!cmd_forwarder || (consensus == nullptr))
+      if (!cmd_forwarder || (consensus.load() == nullptr))
       {
         ctx->set_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
@@ -557,7 +559,7 @@ namespace ccf
         return;
       }
 
-      auto primary_id = consensus->primary();
+      auto primary_id = consensus.load()->primary();
       if (!primary_id.has_value())
       {
         ctx->set_error(
@@ -637,11 +639,12 @@ namespace ccf
       constexpr auto max_attempts = 30;
       while (attempts < max_attempts)
       {
-        if (consensus != nullptr)
+        auto c = consensus.load();
+        if (c != nullptr)
         {
           if (
             endpoints.apply_uncommitted_tx_backpressure() &&
-            consensus->is_at_max_capacity())
+            c->is_at_max_capacity())
           {
             ctx->set_error(
               HTTP_STATUS_SERVICE_UNAVAILABLE,
@@ -707,9 +710,10 @@ namespace ccf
           }
           else
           {
+            auto c2 = consensus.load();
             bool is_primary =
-              (consensus == nullptr) || consensus->can_replicate();
-            const bool forwardable = (consensus != nullptr);
+              (c2 == nullptr) || c2->can_replicate();
+            const bool forwardable = (c2 != nullptr);
 
             if (!is_primary && forwardable)
             {
@@ -822,7 +826,7 @@ namespace ccf
             case ccf::kv::CommitResult::SUCCESS:
             {
               auto tx_id_opt = tx.get_txid();
-              if (tx_id_opt.has_value() && consensus != nullptr)
+              if (tx_id_opt.has_value() && consensus.load() != nullptr)
               {
                 ccf::TxID tx_id = tx_id_opt.value();
 
@@ -872,11 +876,13 @@ namespace ccf
                 }
               }
 
-              if (
-                consensus != nullptr && consensus->can_replicate() &&
-                history != nullptr)
               {
-                history->try_emit_signature();
+                auto c3 = consensus.load();
+                auto h = history.load();
+                if (c3 != nullptr && c3->can_replicate() && h != nullptr)
+                {
+                  h->try_emit_signature();
+                }
               }
 
               return;
@@ -1002,11 +1008,11 @@ namespace ccf
     void set_consensus_and_history(
       ccf::kv::Consensus* consensus_, ccf::kv::TxHistory* history_) override
     {
-      consensus = consensus_;
-      endpoints.set_consensus(consensus);
+      consensus.store(consensus_);
+      endpoints.set_consensus(consensus_);
 
-      history = history_;
-      endpoints.set_history(history);
+      history.store(history_);
+      endpoints.set_history(history_);
     }
 
     bool is_open() override
@@ -1020,14 +1026,15 @@ namespace ccf
     {
       if (endpoints.request_needs_root(ctx))
       {
-        if (history != nullptr)
+        auto h = history.load();
+        if (h != nullptr)
         {
           // Warning: Retrieving the current TxID and root from the history
           // should only ever be used for the proposal creation endpoint and
           // nothing else. Many bad things could happen otherwise (e.g. breaking
           // session consistency).
           const auto& [txid, root, term_of_next_version] =
-            history->get_replicated_state_txid_and_root();
+            h->get_replicated_state_txid_and_root();
           tx.set_read_txid(txid, term_of_next_version);
           tx.set_root_at_read_version(root);
         }

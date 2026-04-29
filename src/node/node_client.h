@@ -14,8 +14,8 @@ namespace ccf
   protected:
     std::shared_ptr<ccf::RPCMap> rpc_map;
     ccf::crypto::ECKeyPairPtr node_sign_kp;
-    const ccf::crypto::Pem& self_signed_node_cert;
-    const std::optional<ccf::crypto::Pem>& endorsed_node_cert = std::nullopt;
+    ccf::crypto::Pem self_signed_node_cert;
+    std::optional<ccf::crypto::Pem> endorsed_node_cert;
 
   public:
     NodeClient(

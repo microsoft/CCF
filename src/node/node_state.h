@@ -950,7 +950,6 @@ namespace ccf
       StartType start_type_, const ccf::StartupConfig& config_)
     {
       std::lock_guard<pal::Mutex> guard(lock);
-      std::lock_guard<pal::Mutex> cert_guard(endorsed_cert_lock);
       sm.expect(NodeStartupState::initialized);
       start_type = start_type_;
 
@@ -958,12 +957,23 @@ namespace ccf
       subject_alt_names = get_subject_alternative_names();
 
       js::register_class_ids();
-      self_signed_node_cert = create_self_signed_cert(
-        node_sign_kp,
-        config.node_certificate.subject_name,
-        subject_alt_names,
-        config.startup_host_time,
-        config.node_certificate.initial_validity_days);
+
+      // Hold endorsed_cert_lock only while mutating self_signed_node_cert.
+      // Must be released before initiate_quote_generation(), which may call
+      // Store::deserialise_snapshot and acquire maps_lock — holding both
+      // would invert the lock order with KV hooks that acquire
+      // endorsed_cert_lock under maps_lock.
+      ccf::crypto::Pem self_signed_cert_snapshot;
+      {
+        std::lock_guard<pal::Mutex> cert_guard(endorsed_cert_lock);
+        self_signed_node_cert = create_self_signed_cert(
+          node_sign_kp,
+          config.node_certificate.subject_name,
+          subject_alt_names,
+          config.startup_host_time,
+          config.node_certificate.initial_validity_days);
+        self_signed_cert_snapshot = self_signed_node_cert;
+      }
 
       accept_node_tls_connections();
       open_frontend(ActorsType::nodes);
@@ -992,18 +1002,21 @@ namespace ccf
           history->set_service_signing_identity(
             network.identity->get_key_pair(), config.cose_signatures);
 
+          // No endorsed certificate exists yet on the Start path — it is
+          // created later by the boot request and applied via the
+          // node_endorsed_certificates hook.
           setup_consensus(
             false,
-            endorsed_node_cert,
+            std::nullopt,
             RaftType::StartupState{RaftType::StartupRole::Primary});
 
           LOG_INFO_FMT("Created new node {}", self);
-          return {self_signed_node_cert, network.identity->cert};
+          return {self_signed_cert_snapshot, network.identity->cert};
         }
         case StartType::Join:
         {
           LOG_INFO_FMT("Created join node {}", self);
-          return {self_signed_node_cert, {}};
+          return {self_signed_cert_snapshot, {}};
         }
         case StartType::Recover:
         {
@@ -1024,7 +1037,7 @@ namespace ccf
             config.initial_service_certificate_validity_days);
 
           LOG_INFO_FMT("Created recovery node {}", self);
-          return {self_signed_node_cert, network.identity->cert};
+          return {self_signed_cert_snapshot, network.identity->cert};
         }
         default:
         {
@@ -2855,8 +2868,11 @@ namespace ccf
                 retired_committed_nodes.push_back(node_id);
               }
             }
-            consensus->set_retired_committed(
-              hook_version, retired_committed_nodes);
+            if (consensus != nullptr)
+            {
+              consensus->set_retired_committed(
+                hook_version, retired_committed_nodes);
+            }
           }));
 
       // Service-endorsed certificate is passed to history as early as _local_
@@ -3238,10 +3254,13 @@ namespace ccf
 
       auto shared_state = std::make_shared<aft::State>(self);
 
-      // Caller must ensure endorsed_cert_lock is held, or that the cert
-      // fields are stable (e.g. during single-threaded startup).
+      // endorsed_node_certificate_ is the endorsed cert available at this
+      // point (from the join response, or nullopt on Start/Recover where it
+      // arrives later via the node_endorsed_certificates hook).
+      // self_signed_node_cert is stable here: all callers are either during
+      // single-threaded startup or holding NodeState::lock.
       auto node_client = std::make_shared<HTTPNodeClient>(
-        rpc_map, node_sign_kp, self_signed_node_cert, endorsed_node_cert);
+        rpc_map, node_sign_kp, self_signed_node_cert, endorsed_node_certificate_);
 
       consensus = std::make_shared<RaftType>(
         consensus_config,
