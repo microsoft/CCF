@@ -18,7 +18,7 @@ classifiers = [
 ]
 dependencies = [
     "cbor2 >= 5.6, < 7",
-    "cryptography >= 46, < 47",
+    "cryptography >= 46, < 48",
     "cwt >= 3.2.0, < 4",
     "packaging >= 25, < 27"
 ]

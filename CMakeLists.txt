@@ -60,8 +60,6 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 find_package(Threads REQUIRED)
 
-option(PROFILE_TESTS "Profile tests" OFF)
-
 if("$ENV{CI}" STREQUAL "")
   set(PYTHON unbuffer python3)
 else()
