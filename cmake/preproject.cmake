@@ -56,7 +56,12 @@ if(FUZZING AND TSAN)
   message(FATAL_ERROR "FUZZING and TSAN cannot be enabled together")
 endif()
 
-add_compile_options(-fcolor-diagnostics)
+add_compile_options(
+  $<$<COMPILE_LANG_AND_ID:C,Clang>:-fcolor-diagnostics>
+  $<$<COMPILE_LANG_AND_ID:CXX,Clang>:-fcolor-diagnostics>
+  $<$<COMPILE_LANG_AND_ID:C,GNU>:-fdiagnostics-color=always>
+  $<$<COMPILE_LANG_AND_ID:CXX,GNU>:-fdiagnostics-color=always>
+)
 
 function(add_warning_checks name)
   target_compile_options(
