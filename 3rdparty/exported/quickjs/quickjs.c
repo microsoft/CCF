@@ -49605,12 +49605,7 @@ static JSValue get_date_string(JSContext *ctx, JSValueConst this_val,
 }
 
 /* OS dependent: return the UTC time in ms since 1970. */
-// vvv CCF Patch vvv
-// Implement date_now as a macro, to additionally capture ctx argument from
-// callsite
-#define date_now() _date_now(ctx)
-static int64_t _date_now(JSContext* ctx) {
-// ^^^ CCF Patch ^^^
+static int64_t date_now(void) {
     struct timeval tv;
     gettimeofday(&tv, NULL);
     return (int64_t)tv.tv_sec * 1000 + (tv.tv_usec / 1000);
