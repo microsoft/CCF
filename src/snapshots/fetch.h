@@ -207,7 +207,8 @@ namespace snapshots
   static std::optional<SnapshotResponse> try_fetch_from_peer(
     const std::string& peer_address,
     const std::vector<uint8_t>& peer_ca,
-    size_t max_size)
+    size_t max_size,
+    std::optional<size_t> since_seqno = std::nullopt)
   {
     try
     {
@@ -222,8 +223,16 @@ namespace snapshots
       // redirects terminate, the final response is likely to be extremely
       // large so is fetched over multiple requests for a sub-range, returning
       // PARTIAL_CONTENT each time.
-      std::string snapshot_url =
-        fmt::format("https://{}/node/snapshot", peer_address);
+      std::string snapshot_url;
+      if (since_seqno.has_value())
+      {
+        snapshot_url = fmt::format(
+          "https://{}/node/snapshot?since={}", peer_address, *since_seqno);
+      }
+      else
+      {
+        snapshot_url = fmt::format("https://{}/node/snapshot", peer_address);
+      }
 
       // Fetch 4MB chunks at a time
       constexpr size_t range_size = 4L * 1024 * 1024;
@@ -440,13 +449,15 @@ namespace snapshots
     const std::vector<uint8_t>& peer_ca,
     size_t max_attempts,
     size_t retry_delay_ms,
-    size_t max_size)
+    size_t max_size,
+    std::optional<size_t> since_seqno = std::nullopt)
   {
     for (size_t attempt = 0; attempt < max_attempts; ++attempt)
     {
       LOG_INFO_FMT(
-        "Fetching snapshot from {} (attempt {}/{})",
+        "Fetching snapshot from {} since {} (attempt {}/{})",
         peer_address,
+        since_seqno.has_value() ? std::to_string(*since_seqno) : "any",
         attempt + 1,
         max_attempts);
 
@@ -455,7 +466,8 @@ namespace snapshots
         std::this_thread::sleep_for(std::chrono::milliseconds(retry_delay_ms));
       }
 
-      auto response = try_fetch_from_peer(peer_address, peer_ca, max_size);
+      auto response =
+        try_fetch_from_peer(peer_address, peer_ca, max_size, since_seqno);
       if (response.has_value())
       {
         return response;

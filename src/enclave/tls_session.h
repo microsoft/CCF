@@ -279,8 +279,11 @@ namespace ccf
           break;
         }
 
-        default:
+        case closed:
+        case authfail:
+        case error:
         {
+          break;
         }
       }
     }
@@ -435,8 +438,11 @@ namespace ccf
         case error:
           return;
 
-        default:
+        case handshake:
+        case ready:
+        case closing:
         {
+          break;
         }
       }
 
@@ -444,6 +450,11 @@ namespace ccf
 
       switch (status)
       {
+        case handshake:
+        case ready:
+        {
+          break;
+        }
         case closing:
         case closed:
         {
@@ -471,8 +482,8 @@ namespace ccf
         }
 
         default:
-        {
-        }
+          throw std::logic_error(
+            fmt::format("TLS {} unknown status: {}", session_id, status));
       }
     }
 

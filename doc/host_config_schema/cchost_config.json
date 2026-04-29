@@ -138,7 +138,7 @@
               "enabled_operator_features": {
                 "type": "array",
                 "items": {
-                  "enum": ["SnapshotRead", "LedgerChunkRead"],
+                  "enum": ["SnapshotRead", "LedgerChunkRead", "SnapshotCreate"],
                   "type": "string"
                 },
                 "description": "An array of features which should be enabled on this interface, providing access to endpoints with specific security or performance constraints."
@@ -325,6 +325,11 @@
                     "type": "string",
                     "default": "10GB",
                     "description": "Maximum size of snapshot this node is willing to fetch"
+                  },
+                  "host_data_transparent_statement_path": {
+                    "type": ["string", "null"],
+                    "default": null,
+                    "description": "Path to a SCITT Transparent Statement over the attested host_data of the node"
                   }
                 },
                 "required": ["target_rpc_address"],
@@ -490,12 +495,78 @@
           "description": "Number of transactions after which a snapshot is automatically generated",
           "minimum": 1
         },
+        "min_tx_count": {
+          "type": "integer",
+          "default": 2,
+          "description": "Minimum number of transactions that must have elapsed since the last snapshot before a time-based snapshot can be triggered. Has no effect if time_interval is not set. If lower than 2 while time_interval is enabled, snapshots will be triggered indefinitely."
+        },
+        "time_interval": {
+          "type": "string",
+          "default": "0s",
+          "description": "Time interval after which a snapshot should be triggered, provided more than min_tx_count transactions have elapsed since the last snapshot. Set this to 0s to disable time-based snapshotting."
+        },
         "read_only_directory": {
           "type": ["string", "null"],
-          "description": "Path to read-only snapshots directory"
+          "description": "Path to read-only snapshots directory. Deprecated: this option is deprecated and will be removed in a future release. Use join.fetch_recent_snapshot and snapshots.backup_fetch to have joining and/or backup nodes automatically fetch snapshots from the primary node instead."
+        },
+        "backup_fetch": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": false,
+              "description": "If true, backup nodes will automatically fetch snapshots from the primary when snapshot evidence is detected"
+            },
+            "max_attempts": {
+              "type": "integer",
+              "default": 3,
+              "description": "Maximum number of fetch attempts before giving up",
+              "minimum": 1
+            },
+            "retry_interval": {
+              "type": "string",
+              "default": "1000ms",
+              "description": "Delay between retry attempts"
+            },
+            "target_rpc_interface": {
+              "type": "string",
+              "default": "primary_rpc_interface",
+              "description": "Name of the RPC interface on the primary node to use for downloading snapshots. Must have the SnapshotRead feature enabled."
+            },
+            "max_size": {
+              "type": "string",
+              "default": "200MB",
+              "description": "Maximum size of snapshot this node is willing to fetch"
+            }
+          },
+          "description": "Configuration for automatic snapshot fetching by backup nodes",
+          "additionalProperties": false
         }
       },
       "description": "This section includes configuration for the snapshot directories and files",
+      "additionalProperties": false
+    },
+    "files_cleanup": {
+      "type": "object",
+      "properties": {
+        "max_snapshots": {
+          "type": ["integer", "null"],
+          "default": null,
+          "description": "Maximum number of committed snapshot files to retain. When the number of committed snapshots exceeds this value, the oldest snapshots are deleted. Must be at least 1 if set. If null or unset, no automated snapshot garbage collection is performed.",
+          "minimum": 1
+        },
+        "max_committed_ledger_chunks": {
+          "type": ["integer", "null"],
+          "default": null,
+          "description": "Maximum number of committed ledger chunk files to retain in the main ledger directory. When the number of committed chunks exceeds this value, the oldest chunks are deleted, but only after verifying that an identical copy (by SHA-256 digest) exists in at least one read-only ledger directory. Chunks whose entries extend to or beyond the sequence number of the newest committed snapshot are never deleted, ensuring a complete ledger history from that snapshot for disaster recovery. Requires at least one ledger.read_only_directories entry; the node will refuse to start otherwise. If null or unset, no automated ledger chunk garbage collection is performed."
+        },
+        "interval": {
+          "type": "string",
+          "default": "30s",
+          "description": "Time interval at which to scan and delete old committed files (snapshots and ledger chunks) that exceed the configured retention limits. This periodic cleanup executes regardless of the node's status (primary or backup)."
+        }
+      },
+      "description": "This section includes configuration for periodic cleanup of old files (snapshots, ledger chunks)",
       "additionalProperties": false
     },
     "logging": {
@@ -621,7 +692,7 @@
     "worker_threads": {
       "type": "integer",
       "default": 0,
-      "description": "Experimental. Number of additional threads processing incoming client requests in the enclave (modify with care!)",
+      "description": "Number of additional threads processing incoming client requests",
       "minimum": 0
     },
     "memory": {

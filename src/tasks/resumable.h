@@ -7,7 +7,9 @@
 namespace ccf::tasks
 {
   struct IResumable;
-  void resume_task(std::unique_ptr<IResumable>&& resumable);
+  using Resumable = std::shared_ptr<IResumable>;
+
+  void resume_task(Resumable resumable);
 
   struct IResumable
   {
@@ -17,12 +19,8 @@ namespace ccf::tasks
   public:
     virtual ~IResumable() = default;
 
-    friend void ccf::tasks::resume_task(
-      std::unique_ptr<IResumable>&& resumable);
+    friend void ccf::tasks::resume_task(Resumable resumable);
   };
 
-  using Resumable = std::unique_ptr<IResumable>;
-
   Resumable pause_current_task();
-  void resume_task(Resumable&& resumable);
 }

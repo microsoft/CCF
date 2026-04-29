@@ -46,6 +46,10 @@ namespace ccf::js::core
   {
     if (this != &other)
     {
+      if ((ctx != nullptr) && (JS_VALUE_GET_TAG(val) != JS_TAG_MODULE))
+      {
+        JS_FreeValue(ctx, val);
+      }
       ctx = other.ctx;
       val = JS_DupValue(ctx, other.val);
     }

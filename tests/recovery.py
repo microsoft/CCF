@@ -16,7 +16,12 @@ from infra.runner import ConcurrentRunner
 from infra.consortium import slurp_file
 import infra.health_watcher
 import time
-from e2e_logging import verify_receipt, test_cose_receipt_schema
+from e2e_logging import (
+    verify_receipt,
+    test_cose_receipt_schema,
+    get_service_key,
+    fetch_and_verify_cose_receipt,
+)
 import infra.service_load
 import ccf.tx_id
 import tempfile
@@ -28,6 +33,10 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
 from ccf.cose import verify_cose_sign1_with_key  # type: ignore
 import random
+import copy
+import infra.commit
+import infra.utils
+import infra.platform_detection
 from loguru import logger as LOG
 
 
@@ -375,7 +384,7 @@ def test_recover_service_with_wrong_identity(network, args):
         raise ValueError("Recovery should have failed")
 
     if not broken_network.nodes[0].check_log_for_error_message(
-        "Previous service identity does not endorse the node identity that signed the snapshot"
+        "Previous service identity does not match the service identity that signed the snapshot"
     ):
         raise ValueError("Node log does not contain the expected error message")
 
@@ -527,55 +536,71 @@ def test_recover_service_with_wrong_identity(network, args):
             response = query_endorsements_chain(primary, tx)
             assert response.status_code == http.HTTPStatus.NOT_FOUND, response
 
-        # Collect expected keys: current service key + all previous from endorsement chain
-        expected_keys_der = set()
-        expected_keys_der.add(
-            bytes(
-                cert.public_key().public_bytes(
-                    serialization.Encoding.DER,
-                    serialization.PublicFormat.SubjectPublicKeyInfo,
-                )
-            )
-        )
-        chain_pubkey = cert.public_key().public_bytes(
-            serialization.Encoding.PEM,
-            serialization.PublicFormat.SubjectPublicKeyInfo,
-        )
-        response = query_endorsements_chain(primary, txids[0])
-        chain_endorsements = [
-            base64.b64decode(x) for x in response.body.json()["endorsements"]
-        ]
-        for endorsement in chain_endorsements:
-            _, _, payload = verify_cose_sign1_with_key(chain_pubkey, endorsement)
-            expected_keys_der.add(bytes(payload))
-            chain_pubkey = infra.crypto.pub_key_der_to_pem(payload).encode("ascii")
-
-        # Verify trusted keys from the endpoint match endorsement keys
-        with primary.client() as cli:
-            r = cli.get("/log/public/trusted_keys")
-            assert r.status_code == http.HTTPStatus.OK, r
-            jwks = r.body.json()
-            assert "keys" in jwks, jwks
-
-            endpoint_keys_der = set()
-            for key in jwks["keys"]:
-                assert "kid" in key, key
-                der = bytes(infra.crypto.pub_key_der_from_jwk(key))
-                expected_kid = infra.crypto.compute_public_key_der_hash_hex(der)
-                assert (
-                    key["kid"] == expected_kid
-                ), f"kid mismatch: got {key['kid']}, expected {expected_kid}"
-                endpoint_keys_der.add(der)
-            assert endpoint_keys_der == expected_keys_der, (
-                f"Keys from trusted_keys endpoint do not match endorsement keys. "
-                f"Expected {len(expected_keys_der)}, got {len(endpoint_keys_der)}"
-            )
-
         return recovered_network
 
 
+@reqs.description("Test trusted keys as JWKs via logging app endpoint")
+@reqs.sufficient_network_recovery_count(required_count=2)
+def test_trusted_keys_vs_endorsements(network, args):
+    primary, _ = network.find_primary()
+
+    with primary.client() as cli:
+        service_cert = cli.get("/node/network").body.json()["service_certificate"]
+        cert = load_pem_x509_certificate(
+            service_cert.encode("ascii"), default_backend()
+        )
+
+    expected_keys_der = set()
+    expected_keys_der.add(
+        bytes(
+            cert.public_key().public_bytes(
+                serialization.Encoding.DER,
+                serialization.PublicFormat.SubjectPublicKeyInfo,
+            )
+        )
+    )
+    chain_pubkey = cert.public_key().public_bytes(
+        serialization.Encoding.PEM,
+        serialization.PublicFormat.SubjectPublicKeyInfo,
+    )
+
+    look_from = ccf.tx_id.TxID(2, 3)
+    response = query_endorsements_chain(primary, look_from)
+    chain_endorsements = [
+        base64.b64decode(x) for x in response.body.json()["endorsements"]
+    ]
+    for endorsement in chain_endorsements:
+        _, _, payload = verify_cose_sign1_with_key(chain_pubkey, endorsement)
+        expected_keys_der.add(bytes(payload))
+        chain_pubkey = infra.crypto.pub_key_der_to_pem(payload).encode("ascii")
+
+    # Verify trusted keys from the endpoint match endorsement keys
+    with primary.client() as cli:
+        r = cli.get("/log/public/trusted_keys")
+        assert r.status_code == http.HTTPStatus.OK, r
+        jwks = r.body.json()
+        assert "keys" in jwks, jwks
+
+        endpoint_keys_der = set()
+        for key in jwks["keys"]:
+            assert "kid" in key, key
+            der = bytes(infra.crypto.pub_key_der_from_jwk(key))
+            expected_kid = infra.crypto.compute_public_key_der_hash_hex(der)
+            assert (
+                key["kid"] == expected_kid
+            ), f"kid mismatch: got {key['kid']}, expected {expected_kid}"
+            endpoint_keys_der.add(der)
+
+        assert endpoint_keys_der == expected_keys_der, (
+            f"Keys from trusted_keys endpoint do not match endorsement keys. "
+            f"Expected {len(expected_keys_der)}, got {len(endpoint_keys_der)}"
+        )
+
+    return network
+
+
 @reqs.description("Recover a service from local files")
-def test_recover_service_from_files(
+def run_recover_service_from_files(
     args,
     directory,
     expected_recovery_count,
@@ -1124,6 +1149,7 @@ def run(args):
 
         network = test_persistence_old_snapshot(network, args)
         network = test_recover_service_with_wrong_identity(network, args)
+        network = test_trusted_keys_vs_endorsements(network, args)
 
         for i in range(recoveries_count):
             # Issue transactions which will required historical ledger queries recovery
@@ -1185,7 +1211,7 @@ def run(args):
 
 
 def run_recovery_from_files(args):
-    test_recover_service_from_files(
+    run_recover_service_from_files(
         args,
         directory=args.directory,
         expected_recovery_count=args.expected_recovery_count,
@@ -1398,6 +1424,381 @@ def run_recover_via_added_recovery_owner(args):
         return network
 
 
+def run_recovery_after_cose_upgrade(args):
+    """Start Dual, upgrade to COSE-only via node replacement, then recover
+    with allow-dual-joiners. Then live-upgrade the recovered network to strict
+    COSE-only by replacing nodes again, and recover from ledger files.
+    Exercises the full upgrade path: Dual → COSE (allow dual) → COSE (strict),
+    with recovery at each transition."""
+    cose_only_package = args.package + "_cose_only_allow_join_dual"
+
+    txs = app.LoggingTxs("user0")
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        pdb=args.pdb,
+        txs=txs,
+    ) as network:
+        network.start_and_open(args)
+        network.txs.issue(network, number_txs=5)
+
+        primary, _ = network.find_primary()
+        old_nodes = network.get_joined_nodes()
+
+        # Trust COSE-only binary and replace all nodes
+        cose_host_data, _ = infra.utils.get_host_data_and_security_policy(
+            infra.platform_detection.get_platform(),
+            cose_only_package,
+            binary_dir=args.binary_dir,
+        )
+        network.consortium.add_host_data(
+            primary,
+            infra.platform_detection.get_platform(),
+            cose_host_data,
+        )
+
+        new_nodes = []
+        for _ in range(len(old_nodes)):
+            new_node = network.create_node()
+            network.join_node(new_node, cose_only_package, args)
+            network.trust_node(new_node, args)
+            new_nodes.append(new_node)
+
+        network.txs.issue(network, number_txs=5)
+
+        new_primary = new_nodes[0]
+        for old_node in old_nodes:
+            network.retire_node(new_primary, old_node)
+            old_node.stop()
+
+        # Issue more TXs in COSE-only mode (new view after election)
+        network.txs.issue(network, number_txs=5)
+
+        # Now stop and recover — the ledger has dual sigs then COSE-only sigs
+        network.save_service_identity(args)
+        recover_primary, _ = network.find_primary()
+        current_ledger_dir, committed_ledger_dirs = recover_primary.get_ledger()
+
+        watcher = infra.health_watcher.NetworkHealthWatcher(network, args, verbose=True)
+        watcher.start()
+        for node in network.get_joined_nodes():
+            time.sleep(args.election_timeout_ms / 1000)
+            node.stop()
+        watcher.wait_for_recovery()
+
+        # Recover with COSE-only binary
+        recovered_args = copy.deepcopy(args)
+        recovered_args.package = cose_only_package
+        recovered_network = infra.network.Network(
+            args.nodes,
+            args.binary_dir,
+            args.debug_nodes,
+            existing_network=network,
+        )
+        recovered_network.start_in_recovery(
+            recovered_args,
+            ledger_dir=current_ledger_dir,
+            committed_ledger_dirs=committed_ledger_dirs,
+            # No snapshot - force full ledger replay so the recovery path
+            # encounters both dual and COSE-only signature entries.
+        )
+        recovered_network.recover(recovered_args)
+
+        # Verify the recovered network works
+        recovered_network.txs.issue(recovered_network, number_txs=3)
+        new_primary, _ = recovered_network.find_primary()
+        service_key = get_service_key(recovered_network)
+        post_msg = recovered_network.txs.priv[recovered_network.txs.idx][0]
+        with new_primary.client("user0") as c:
+            fetch_and_verify_cose_receipt(
+                c, post_msg["view"], post_msg["seqno"], service_key, b"\0" * 32
+            )
+
+        LOG.success("Recovery after dual-to-COSE-only upgrade succeeded")
+
+        # --- Phase 2: live-upgrade recovered network to strict COSE-only,
+        # then recover from ledger files ---
+        cose_strict_package = args.package + "_cose_only"
+
+        phase2_primary, _ = recovered_network.find_primary()
+        phase2_old_nodes = recovered_network.get_joined_nodes()
+
+        # Trust strict COSE-only binary and replace all nodes
+        strict_host_data, _ = infra.utils.get_host_data_and_security_policy(
+            infra.platform_detection.get_platform(),
+            cose_strict_package,
+            binary_dir=args.binary_dir,
+        )
+        recovered_network.consortium.add_host_data(
+            phase2_primary,
+            infra.platform_detection.get_platform(),
+            strict_host_data,
+        )
+
+        strict_nodes = []
+        for _ in range(len(phase2_old_nodes)):
+            n = recovered_network.create_node()
+            recovered_network.join_node(n, cose_strict_package, recovered_args)
+            recovered_network.trust_node(n, recovered_args)
+            strict_nodes.append(n)
+
+        recovered_network.txs.issue(recovered_network, number_txs=5)
+
+        strict_primary = strict_nodes[0]
+        for old in phase2_old_nodes:
+            recovered_network.retire_node(strict_primary, old)
+            old.stop()
+
+        # Issue TXs in strict COSE-only mode
+        recovered_network.txs.issue(recovered_network, number_txs=5)
+
+        # Stop and recover from ledger
+        recovered_network.save_service_identity(recovered_args)
+        phase2_primary, _ = recovered_network.find_primary()
+        phase2_ledger_dir, phase2_committed_dirs = phase2_primary.get_ledger()
+
+        watcher2 = infra.health_watcher.NetworkHealthWatcher(
+            recovered_network, recovered_args, verbose=True
+        )
+        watcher2.start()
+        for node in recovered_network.get_joined_nodes():
+            time.sleep(args.election_timeout_ms / 1000)
+            node.stop()
+        watcher2.wait_for_recovery()
+
+        strict_args = copy.deepcopy(args)
+        strict_args.package = cose_strict_package
+        strict_args.previous_service_identity_file = (
+            recovered_args.previous_service_identity_file
+        )
+        strict_network = infra.network.Network(
+            args.nodes,
+            args.binary_dir,
+            args.debug_nodes,
+            existing_network=recovered_network,
+        )
+        strict_network.start_in_recovery(
+            strict_args,
+            ledger_dir=phase2_ledger_dir,
+            committed_ledger_dirs=phase2_committed_dirs,
+        )
+        strict_network.recover(strict_args)
+
+        strict_network.txs.issue(strict_network, number_txs=3)
+        final_primary, _ = strict_network.find_primary()
+        strict_service_key = get_service_key(strict_network)
+        strict_msg = strict_network.txs.priv[strict_network.txs.idx][0]
+        with final_primary.client("user0") as c:
+            fetch_and_verify_cose_receipt(
+                c,
+                strict_msg["view"],
+                strict_msg["seqno"],
+                strict_service_key,
+                b"\0" * 32,
+            )
+
+        LOG.success("Recovery with strict COSE-only after live upgrade succeeded")
+
+
+def run_recovery_dual_to_cose_only(args):
+    """Recover a Dual network in COSE-only mode.
+    Verifies COSE receipts after recovery and that pre-recovery dual receipts
+    remain available."""
+    cose_only_package = args.package + "_cose_only"
+
+    txs = app.LoggingTxs("user0")
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        pdb=args.pdb,
+        txs=txs,
+    ) as network:
+        network.start_and_open(args)
+        network.txs.issue(network, number_txs=5)
+
+        # Verify dual receipts work before recovery
+        primary, _ = network.find_nodes()
+        first_msg = network.txs.priv[network.txs.idx][0]
+        first_receipt = network.txs.get_receipt(
+            primary,
+            network.txs.idx,
+            first_msg["seqno"],
+            first_msg["view"],
+        )
+        verify_receipt(first_receipt.json()["receipt"], network.cert)
+        dual_seqno = first_msg["seqno"]
+        dual_view = first_msg["view"]
+
+        # Stop all nodes
+        network.save_service_identity(args)
+        old_primary, _ = network.find_primary()
+        snapshots_dir = network.get_committed_snapshots(old_primary)
+        current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
+
+        watcher = infra.health_watcher.NetworkHealthWatcher(network, args, verbose=True)
+        watcher.start()
+        for node in network.get_joined_nodes():
+            time.sleep(args.election_timeout_ms / 1000)
+            node.stop()
+        watcher.wait_for_recovery()
+
+        # Recover with COSE-only binary
+        recovered_args = copy.deepcopy(args)
+        recovered_args.package = cose_only_package
+        recovered_network = infra.network.Network(
+            args.nodes,
+            args.binary_dir,
+            args.debug_nodes,
+            existing_network=network,
+        )
+        recovered_network.start_in_recovery(
+            recovered_args,
+            ledger_dir=current_ledger_dir,
+            committed_ledger_dirs=committed_ledger_dirs,
+            snapshots_dir=snapshots_dir,
+        )
+        recovered_network.recover(recovered_args)
+
+        # Verify COSE receipts work after recovery
+        recovered_network.txs.issue(recovered_network, number_txs=3)
+        new_primary, _ = recovered_network.find_primary()
+        service_key = get_service_key(recovered_network)
+        post_msg = recovered_network.txs.priv[recovered_network.txs.idx][0]
+        with new_primary.client("user0") as c:
+            fetch_and_verify_cose_receipt(
+                c, post_msg["view"], post_msg["seqno"], service_key, b"\0" * 32
+            )
+
+        # Dual receipts from before recovery should still be available
+        with new_primary.client("user0") as c:
+            infra.commit.wait_for_commit(c, dual_seqno, dual_view, timeout=3)
+            start_time = time.time()
+            while time.time() < start_time + 10:
+                rc = c.get(f"/app/receipt?transaction_id={dual_view}.{dual_seqno}")
+                if rc.status_code == http.HTTPStatus.OK:
+                    verify_receipt(rc.body.json(), recovered_network.cert)
+                    break
+                elif rc.status_code == http.HTTPStatus.ACCEPTED:
+                    time.sleep(0.5)
+                else:
+                    assert False, rc
+            else:
+                assert False, "Timed out waiting for dual receipt"
+
+        LOG.success("Dual network recovered in COSE-only mode")
+
+
+def run_recovery_cose_only_network(args):
+    """Start a COSE-only network, stop it, then verify:
+    - Recovering as Dual fails.
+    - Recovering as COSE-only succeeds with valid COSE receipts."""
+    cose_only_package = args.package + "_cose_only"
+    cose_args = copy.deepcopy(args)
+    cose_args.package = cose_only_package
+
+    txs = app.LoggingTxs("user0")
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        pdb=args.pdb,
+        txs=txs,
+    ) as network:
+        network.start_and_open(cose_args)
+        network.txs.issue(network, number_txs=5)
+
+        # Stop all nodes
+        network.save_service_identity(cose_args)
+        old_primary, _ = network.find_primary()
+        snapshots_dir = network.get_committed_snapshots(old_primary)
+        current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
+
+        watcher = infra.health_watcher.NetworkHealthWatcher(network, args, verbose=True)
+        watcher.start()
+        for node in network.get_joined_nodes():
+            time.sleep(args.election_timeout_ms / 1000)
+            node.stop()
+        watcher.wait_for_recovery()
+
+        # Recovering as Dual should fail
+        LOG.info("Recovering COSE-only network as Dual (expect failure)")
+        dual_recovery_network = infra.network.Network(
+            args.nodes,
+            args.binary_dir,
+            args.debug_nodes,
+            existing_network=network,
+        )
+        try:
+            dual_recovery_network.start_in_recovery(
+                args,  # Dual package
+                ledger_dir=current_ledger_dir,
+                committed_ledger_dirs=committed_ledger_dirs,
+                snapshots_dir=snapshots_dir,
+            )
+            assert False, "Dual recovery of COSE-only ledger should have failed"
+        except Exception as e:
+            LOG.success(f"Dual recovery correctly failed: {e}")
+            for node in dual_recovery_network.nodes:
+                node.stop()
+
+        # Recovering as COSE-only should succeed
+        LOG.info("Recovering COSE-only network as COSE-only (expect success)")
+        cose_recovery_network = infra.network.Network(
+            args.nodes,
+            args.binary_dir,
+            args.debug_nodes,
+            existing_network=network,
+        )
+        cose_recovery_network.start_in_recovery(
+            cose_args,
+            ledger_dir=current_ledger_dir,
+            committed_ledger_dirs=committed_ledger_dirs,
+            snapshots_dir=snapshots_dir,
+        )
+        cose_recovery_network.recover(cose_args)
+
+        # Verify COSE receipts work
+        cose_recovery_network.txs.issue(cose_recovery_network, number_txs=3)
+        new_primary, _ = cose_recovery_network.find_primary()
+        service_key = get_service_key(cose_recovery_network)
+        post_msg = cose_recovery_network.txs.priv[cose_recovery_network.txs.idx][0]
+        with new_primary.client("user0") as c:
+            fetch_and_verify_cose_receipt(
+                c, post_msg["view"], post_msg["seqno"], service_key, b"\0" * 32
+            )
+
+        # Verify /node/state reports last_signed_seqno advancing
+        with new_primary.client() as c:
+            r = c.get("/node/state")
+            assert r.status_code == http.HTTPStatus.OK, r
+            last_signed_before = r.body.json()["last_signed_seqno"]
+            assert (
+                last_signed_before > 0
+            ), f"last_signed_seqno should be > 0 after recovery, got {last_signed_before}"
+
+        cose_recovery_network.txs.issue(cose_recovery_network, number_txs=3)
+
+        with new_primary.client() as c:
+            r = c.get("/node/state")
+            assert r.status_code == http.HTTPStatus.OK, r
+            last_signed_after = r.body.json()["last_signed_seqno"]
+            assert last_signed_after > last_signed_before, (
+                f"last_signed_seqno should advance after issuing TXs, "
+                f"got {last_signed_after} (was {last_signed_before})"
+            )
+
+        LOG.success("COSE-only network recovered as COSE-only")
+
+
+def run_recovery_cose_only(args):
+    """Run all COSE-only recovery test scenarios."""
+    run_recovery_after_cose_upgrade(args)
+    run_recovery_dual_to_cose_only(args)
+    run_recovery_cose_only_network(args)
+
+
 if __name__ == "__main__":
 
     def add(parser):
@@ -1518,6 +1919,15 @@ checked. Note that the key for each logging message is unique (per table).
         nodes=infra.e2e_args.min_nodes(cr.args, f=1),
         ledger_chunk_bytes="50KB",
         snapshot_tx_interval=10000,
+    )
+
+    cr.add(
+        "recovery_cose_only",
+        run_recovery_cose_only,
+        package="samples/apps/logging/logging",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+        ledger_chunk_bytes="50KB",
+        snapshot_tx_interval=30,
     )
 
     cr.run()

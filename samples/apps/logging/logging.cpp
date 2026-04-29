@@ -4,11 +4,15 @@
 // This app's includes
 #include "logging_schema.h"
 
+// Sample apps common
+#include "../common/default_on_commit.h"
+
 // CCF
 #include "ccf/app_interface.h"
 #include "ccf/common_auth_policies.h"
 #include "ccf/cose_signatures_config_interface.h"
 #include "ccf/crypto/cose.h"
+#include "ccf/crypto/sha256_hash.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/hash.h"
 #include "ccf/endpoints/authentication/all_of_auth.h"
@@ -21,7 +25,6 @@
 #include "ccf/json_handler.h"
 #include "ccf/network_identity_interface.h"
 #include "ccf/version.h"
-#include "crypto/public_key.h"
 
 #include <charconv>
 #define FMT_HEADER_ONLY
@@ -36,6 +39,16 @@ namespace loggingapp
   using RecordsMap = ccf::kv::Map<size_t, string>;
   static constexpr auto PUBLIC_RECORDS = "public:records";
   static constexpr auto PRIVATE_RECORDS = "records";
+
+  using ScittTransparentStatementMap =
+    ccf::kv::RawCopySerialisedValue<std::vector<uint8_t>>;
+  static constexpr auto COSE_SIGNED_STATEMENTS =
+    "public:cose_transparent_statements";
+
+  // IANA COSE header labels
+  // https://www.iana.org/assignments/cose/cose.xhtml
+  static constexpr int64_t COSE_HEADER_PARAM_INCLUSION_PROOFS = -1;
+  static constexpr int64_t COSE_HEADER_PARAM_VDP = 396;
 
   // SNIPPET_START: indexing_strategy_definition
   using RecordsIndexingStrategy = ccf::indexing::LazyStrategy<
@@ -232,6 +245,39 @@ namespace loggingapp
 
     std::shared_ptr<RecordsIndexingStrategy> index_per_public_key = nullptr;
     std::shared_ptr<CommittedRecords> committed_records = nullptr;
+
+    // Build a COSE receipt (signature + Merkle inclusion proof) from a
+    // historical receipt. Returns nullopt and sets an error on ctx if the
+    // receipt cannot be constructed.
+    static std::optional<std::vector<uint8_t>> build_cose_receipt(
+      ccf::endpoints::ReadOnlyEndpointContext& ctx,
+      const ccf::TxReceiptImplPtr& receipt)
+    {
+      auto signature = describe_cose_signature_v1(*receipt);
+      if (!signature.has_value())
+      {
+        ctx.rpc_ctx->set_error(
+          HTTP_STATUS_NOT_FOUND,
+          ccf::errors::ResourceNotFound,
+          "No COSE signature available for this transaction");
+        return std::nullopt;
+      }
+      auto proof = describe_merkle_proof_v1(*receipt);
+      if (!proof.has_value())
+      {
+        ctx.rpc_ctx->set_error(
+          HTTP_STATUS_NOT_FOUND,
+          ccf::errors::ResourceNotFound,
+          "No Merkle proof available for this transaction");
+        return std::nullopt;
+      }
+
+      auto inclusion_proof =
+        ccf::cose::edit::pos::AtKey{COSE_HEADER_PARAM_INCLUSION_PROOFS};
+      ccf::cose::edit::desc::Value desc{
+        inclusion_proof, COSE_HEADER_PARAM_VDP, *proof};
+      return ccf::cose::edit::set_unprotected_header(*signature, desc);
+    }
 
     std::string describe_identity(
       ccf::endpoints::EndpointContext& ctx,
@@ -469,7 +515,7 @@ namespace loggingapp
         "recording messages at client-specified IDs. It demonstrates most of "
         "the features available to CCF apps.";
 
-      openapi_info.document_version = "2.8.0";
+      openapi_info.document_version = "2.8.3";
     };
 
     void init_handlers() override
@@ -517,6 +563,68 @@ namespace loggingapp
         .set_auto_schema<LoggingRecord::In, bool>()
         .install();
       // SNIPPET_END: install_record
+
+      // SNIPPET_START: blocking_record
+      auto blocking_record = [record](auto& ctx, nlohmann::json&& params) {
+        ctx.rpc_ctx->set_consensus_committed_function(
+          ccf::samples::default_respond_on_commit);
+        return record(ctx, std::move(params));
+      };
+      make_endpoint(
+        "/log/blocking/private",
+        HTTP_POST,
+        ccf::json_adapter(blocking_record),
+        auth_policies)
+        .set_auto_schema<LoggingRecord::In, bool>()
+        .install();
+      // SNIPPET_END: blocking_record
+
+      auto blocking_record_with_receipt =
+        [this, record](auto& ctx, nlohmann::json&& params) {
+          ctx.rpc_ctx->set_consensus_committed_function(
+            ccf::samples::make_respond_with_receipt_on_commit(context));
+          return record(ctx, std::move(params));
+        };
+      make_endpoint(
+        "/log/blocking/private/receipt",
+        HTTP_POST,
+        ccf::json_adapter(blocking_record_with_receipt),
+        auth_policies)
+        .install();
+
+      // Demonstrates per-request opt-in to blocking-until-committed via a
+      // query parameter. The same endpoint can return immediately or hold
+      // the response depending on the caller's choice.
+      // SNIPPET_START: optional_commit
+      auto optional_commit_record =
+        [record](auto& ctx, nlohmann::json&& params) {
+          const auto parsed_query =
+            ccf::http::parse_query(ctx.rpc_ctx->get_request_query());
+          std::string error_reason;
+          std::string wait_for_commit;
+          // Safe to ignore the return value of get_query_value here as we'll
+          // just treat any failure to parse the parameter as meaning "don't
+          // wait for commit"
+          ccf::http::get_query_value(
+            parsed_query, "wait_for_commit", wait_for_commit, error_reason);
+          if (wait_for_commit == "true")
+          {
+            ctx.rpc_ctx->set_consensus_committed_function(
+              ccf::samples::default_respond_on_commit);
+          }
+          return record(ctx, std::move(params));
+        };
+      make_endpoint(
+        "/log/private/optional_commit",
+        HTTP_POST,
+        ccf::json_adapter(optional_commit_record),
+        auth_policies)
+        .add_query_parameter<bool>(
+          "wait_for_commit",
+          ccf::endpoints::QueryParamPresence::OptionalParameter)
+        .set_auto_schema<LoggingRecord::In, bool>()
+        .install();
+      // SNIPPET_END: optional_commit
 
       auto add_txid_in_body_put = [](auto& ctx, const auto& tx_id) {
         static constexpr auto CCF_TX_ID = "x-ms-ccf-transaction-id";
@@ -623,6 +731,20 @@ namespace loggingapp
         .add_query_parameter<size_t>("id")
         .install();
       // SNIPPET_END: install_get
+
+      auto blocking_get = [get](auto& ctx, nlohmann::json&& params) {
+        ctx.rpc_ctx->set_consensus_committed_function(
+          ccf::samples::default_respond_on_commit);
+        return get(ctx, std::move(params));
+      };
+      make_read_only_endpoint(
+        "/log/blocking/private",
+        HTTP_GET,
+        ccf::json_read_only_adapter(blocking_get),
+        auth_policies)
+        .set_auto_schema<void, LoggingGet::Out>()
+        .add_query_parameter<size_t>("id")
+        .install();
 
       make_read_only_endpoint(
         "/log/private/backup",
@@ -2110,31 +2232,32 @@ namespace loggingapp
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
         .install();
 
-      auto get_trusted_keys = [&](
-                                ccf::endpoints::ReadOnlyEndpointContext& ctx) {
-        auto network_identity_subsystem =
-          context.get_subsystem<ccf::NetworkIdentitySubsystemInterface>();
-        if (network_identity_subsystem == nullptr)
-        {
-          ctx.rpc_ctx->set_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            ccf::errors::InternalError,
-            "Network identity subsystem not available");
-          return;
-        }
+      auto get_trusted_keys =
+        [&](ccf::endpoints::ReadOnlyEndpointContext& ctx) {
+          auto network_identity_subsystem =
+            context.get_subsystem<ccf::NetworkIdentitySubsystemInterface>();
+          if (network_identity_subsystem == nullptr)
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              "Network identity subsystem not available");
+            return;
+          }
 
-        auto keys = network_identity_subsystem->get_trusted_keys();
-        nlohmann::json jwks = nlohmann::json::object();
-        auto keys_array = nlohmann::json::array();
-        for (const auto& [seqno, key_ptr] : keys)
-        {
-          const auto kid = ccf::crypto::kid_from_key(key_ptr->public_key_der());
-          keys_array.push_back(key_ptr->public_key_jwk(kid));
-        }
-        jwks["keys"] = keys_array;
+          auto keys = network_identity_subsystem->get_trusted_keys();
+          nlohmann::json jwks = nlohmann::json::object();
+          auto keys_array = nlohmann::json::array();
+          for (const auto& [seqno, key_ptr] : keys)
+          {
+            const auto kid =
+              ccf::crypto::Sha256Hash(key_ptr->public_key_der()).hex_str();
+            keys_array.push_back(key_ptr->public_key_jwk(kid));
+          }
+          jwks["keys"] = keys_array;
 
-        ctx.rpc_ctx->set_response_json(jwks, HTTP_STATUS_OK);
-      };
+          ctx.rpc_ctx->set_response_json(jwks, HTTP_STATUS_OK);
+        };
       make_read_only_endpoint(
         "/log/public/trusted_keys",
         HTTP_GET,
@@ -2179,6 +2302,7 @@ namespace loggingapp
                                 ccf::endpoints::ReadOnlyEndpointContext& ctx,
                                 ccf::historical::StatePtr historical_state) {
         assert(historical_state->receipt);
+
         auto cose_receipt =
           describe_cose_receipt_v1(*historical_state->receipt);
         if (!cose_receipt.has_value())
@@ -2187,6 +2311,7 @@ namespace loggingapp
             HTTP_STATUS_NOT_FOUND,
             ccf::errors::ResourceNotFound,
             "No COSE receipt available for this transaction");
+
           return;
         }
 
@@ -2257,6 +2382,108 @@ namespace loggingapp
         "/log/public/verify_cose_receipt",
         HTTP_GET,
         verify_cose_receipt,
+        ccf::no_auth_required)
+        .set_auto_schema<void, void>()
+        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
+        .install();
+
+      // Endpoint to register a signed statement (raw COSE_Sign1),
+      // binding its digest as a claims_digest in the Merkle tree.
+      auto register_signed_statement =
+        [](ccf::endpoints::EndpointContext& ctx) {
+          const auto& body = ctx.rpc_ctx->get_request_body();
+          if (body.empty())
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::InvalidInput,
+              "Body must not be empty");
+            return;
+          }
+
+          const auto signed_statement = ccf::cose::edit::set_unprotected_header(
+            body, ccf::cose::edit::desc::Empty{});
+
+          ctx.rpc_ctx->set_claims_digest(
+            ccf::ClaimsDigest::Digest(signed_statement));
+
+          auto* entry_table = ctx.tx.template rw<ScittTransparentStatementMap>(
+            COSE_SIGNED_STATEMENTS);
+          entry_table->put(signed_statement);
+
+          CCF_APP_INFO(
+            "Registered signed statement of size {} bytes", body.size());
+
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+        };
+
+      make_endpoint(
+        "/log/signed_statement",
+        HTTP_POST,
+        register_signed_statement,
+        ccf::no_auth_required)
+        .set_auto_schema<void, void>()
+        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Always)
+        .set_locally_committed_function(
+          ccf::endpoints::default_locally_committed_func)
+        .install();
+
+      // Endpoint to retrieve a transparent statement: the stored signed
+      // statement with a COSE receipt (including Merkle proof) embedded in
+      // its unprotected header.
+      auto get_transparent_statement =
+        [](
+          ccf::endpoints::ReadOnlyEndpointContext& ctx,
+          ccf::historical::StatePtr historical_state) {
+          auto historical_tx = historical_state->store->create_read_only_tx();
+
+          auto* entries =
+            historical_tx.template ro<ScittTransparentStatementMap>(
+              COSE_SIGNED_STATEMENTS);
+          auto entry = entries->get();
+          if (!entry.has_value())
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_NOT_FOUND,
+              ccf::errors::ResourceNotFound,
+              fmt::format(
+                "Transaction ID {} does not correspond to a COSE entry.",
+                historical_state->transaction_id.to_str()));
+            return;
+          }
+
+          assert(historical_state->receipt);
+          auto cose_receipt =
+            build_cose_receipt(ctx, historical_state->receipt);
+          if (!cose_receipt.has_value())
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              "Failed to build COSE receipt for this transaction");
+            return;
+          }
+
+          // Build "transparent statement".
+          ccf::cose::edit::desc::Value receipts_desc{
+            ccf::cose::edit::pos::InArray{},
+            COSE_HEADER_PARAM_VDP,
+            *cose_receipt};
+          auto transparent_statement =
+            ccf::cose::edit::set_unprotected_header(*entry, receipts_desc);
+
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+          ctx.rpc_ctx->set_response_header(
+            ccf::http::headers::CONTENT_TYPE,
+            ccf::http::headervalues::contenttype::COSE);
+          ctx.rpc_ctx->set_response_body(transparent_statement);
+        };
+
+      make_read_only_endpoint(
+        "/log/transparent_statement",
+        HTTP_GET,
+        ccf::historical::read_only_adapter_v4(
+          get_transparent_statement, context, is_tx_committed),
         ccf::no_auth_required)
         .set_auto_schema<void, void>()
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)

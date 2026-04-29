@@ -97,11 +97,35 @@ namespace ccf
     {
       std::string directory = "snapshots";
       size_t tx_count = 10'000;
+      size_t min_tx_count = 2;
+      ccf::ds::TimeString time_interval = {"0s"};
       std::optional<std::string> read_only_directory = std::nullopt;
+
+      struct BackupFetch
+      {
+        bool enabled = false;
+        size_t max_attempts = 3;
+        ccf::ds::TimeString retry_interval = {"1000ms"};
+        std::string target_rpc_interface = ccf::PRIMARY_RPC_INTERFACE;
+        ccf::ds::SizeString max_size = {"200MB"};
+
+        bool operator==(const BackupFetch&) const = default;
+      };
+      BackupFetch backup_fetch = {};
 
       bool operator==(const Snapshots&) const = default;
     };
     Snapshots snapshots = {};
+
+    struct FilesCleanup
+    {
+      std::optional<size_t> max_snapshots = std::nullopt;
+      std::optional<size_t> max_committed_ledger_chunks = std::nullopt;
+      ccf::ds::TimeString interval = {"30s"};
+
+      bool operator==(const FilesCleanup&) const = default;
+    };
+    FilesCleanup files_cleanup = {};
   };
 
   struct RecoveryDecisionProtocolConfig
@@ -159,6 +183,8 @@ namespace ccf
       size_t fetch_snapshot_max_attempts{};
       ccf::ds::TimeString fetch_snapshot_retry_interval;
       ccf::ds::SizeString fetch_snapshot_max_size;
+      std::optional<std::string> host_data_transparent_statement_path =
+        std::nullopt;
     };
     Join join = {};
 

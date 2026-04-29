@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ds/internal_logger.h"
+#include "host/time_bound_logger.h"
 
 #include <algorithm>
 #include <filesystem>
@@ -44,7 +45,13 @@ namespace snapshots
 
     auto ignored_file_name =
       fmt::format("{}.{}", file_name, snapshot_ignored_file_suffix);
-    files::rename(dir / file_name, dir / ignored_file_name);
+    {
+      asynchost::TimeBoundLogger log_if_slow(fmt::format(
+        "Ignoring snapshot file - rename({} to {})",
+        file_name,
+        ignored_file_name));
+      files::rename(dir / file_name, dir / ignored_file_name);
+    }
   }
 
   static size_t read_idx(const std::string& str)
@@ -187,7 +194,7 @@ namespace snapshots
         }
 
         const auto idx = get_snapshot_idx_from_file_name(file_name.string());
-        if (minimum_idx.has_value() && idx <= minimum_idx.value())
+        if (minimum_idx.has_value() && idx < minimum_idx.value())
         {
           LOG_DEBUG_FMT(
             "Ignoring snapshot file {} below minimum idx {}",

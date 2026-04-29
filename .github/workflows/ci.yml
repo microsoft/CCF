@@ -181,6 +181,109 @@ jobs:
           if-no-files-found: ignore
         if: success() || failure()
 
+  vmss-virtual-c:
+    name: "VMSS Virtual C" # Code coverage
+    runs-on:
+      [
+        self-hosted,
+        1ES.Pool=gha-vmss-d16av5-ci,
+        "JobId=ci_coverage-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
+      ]
+    container:
+      image: mcr.microsoft.com/azurelinux/base/core:3.0
+      options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
+
+    steps:
+      - name: "Checkout dependencies"
+        shell: bash
+        run: |
+          set -ex
+          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
+          tdnf -y update
+          tdnf -y install ca-certificates git
+
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: "Install dependencies"
+        shell: bash
+        run: |
+          set -ex
+          ./scripts/setup-ci.sh
+
+      - name: "Build Debug with coverage"
+        run: |
+          set -ex
+          git config --global --add safe.directory /__w/CCF/CCF
+          mkdir build
+          cd build
+          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DCOVERAGE=ON ..
+          ninja
+        shell: bash
+
+      - name: "Run Unit tests"
+        run: |
+          set -ex
+          cd build
+          ./tests.sh --output-on-failure -L unit -j$(nproc --all)
+        shell: bash
+
+      - name: "End to end tests except partition"
+        run: |
+          set -ex
+          cd build
+          rm -rf /github/home/.cache
+          mkdir -p /github/home/.cache
+
+          # End to end tests
+          ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|suite|unit"
+        shell: bash
+
+      - name: "Generate coverage reports"
+        run: |
+          set -ex
+          cd build
+          ../scripts/coverage.sh --html coverage_html | tee coverage_report.txt
+        shell: bash
+
+      - name: "Write coverage summary"
+        if: always()
+        run: |
+          set -ex
+          cd build
+          if [[ -f coverage_report.txt ]]; then
+            {
+              echo '## Code Coverage'
+              echo ''
+              echo '```'
+              cat coverage_report.txt
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+        shell: bash
+
+      - name: "Upload HTML coverage report"
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-report-html
+          path: build/coverage_html/
+          if-no-files-found: ignore
+        if: success() || failure()
+
+      - name: "Upload logs for virtual C"
+        uses: actions/upload-artifact@v7
+        with:
+          name: logs-azurelinux-virtual-c
+          path: |
+            build/workspace/*/*.config.json
+            build/workspace/*/out
+            build/workspace/*/err
+            build/workspace/*/*.ledger/*
+            build/workspace/*/stack_trace
+          if-no-files-found: ignore
+        if: success() || failure()
+
   aci_snp_milan:
     name: "ACI SNP Milan"
     runs-on:

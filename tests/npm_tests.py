@@ -154,7 +154,7 @@ def generate_and_verify_jwk(client):
         assert body["pem"] == pub_pem
 
 
-def test_apply_writes(c):
+def check_apply_writes(c):
     ### Default behaviour
     # Writes are applied for 2xx response codes
     r = c.post("/app/rpc/apply_writes", {"val": "aaa", "statusCode": 200})
@@ -695,7 +695,7 @@ def test_npm_app(network, args):
         v3 = r.body.json()["version"]
         assert v3 == v1
 
-        test_apply_writes(c)
+        check_apply_writes(c)
 
         priv_key_pem, _ = infra.crypto.generate_rsa_keypair(2048)
         pem = infra.crypto.generate_cert(priv_key_pem)

@@ -2,7 +2,6 @@
 # Licensed under the Apache 2.0 License.
 import getpass
 import time
-import http
 import logging
 from random import seed
 import infra.jwt_issuer
@@ -158,21 +157,6 @@ def run(get_command, args):
                     bf.set(
                         perf_label,
                         infra.bencher.Throughput(perf_result),
-                    )
-
-                primary, _ = network.find_primary()
-                with primary.client() as nc:
-                    r = nc.get("/node/memory")
-                    assert r.status_code == http.HTTPStatus.OK.value
-
-                    results = r.body.json()
-                    current_value = results["current_allocated_heap_size"]
-                    peak_value = results["peak_allocated_heap_size"]
-
-                    bf = infra.bencher.Bencher()
-                    bf.set(
-                        perf_label,
-                        infra.bencher.Memory(current_value, high_value=peak_value),
                     )
 
                 for remote_client in clients:

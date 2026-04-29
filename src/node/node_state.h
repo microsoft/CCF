@@ -34,6 +34,7 @@
 #include "indexing/indexer.h"
 #include "js/global_class_ids.h"
 #include "network_state.h"
+#include "node/commit_callback_subsystem.h"
 #include "node/hooks.h"
 #include "node/http_node_client.h"
 #include "node/jwt_key_auto_refresh.h"
@@ -42,6 +43,7 @@
 #include "node/local_sealing.h"
 #include "node/node_to_node_channel_manager.h"
 #include "node/recovery_decision_protocol.h"
+#include "node/signature_cache_subsystem.h"
 #include "node/snapshotter.h"
 #include "node_to_node.h"
 #include "pal/quote_generation.h"
@@ -66,6 +68,7 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <limits>
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
 #include <nlohmann/json.hpp>
@@ -87,6 +90,48 @@ namespace ccf
   {
     data.clear();
     data.shrink_to_fit();
+  }
+
+  // Resolve the latest signature view from both signature tables.
+  // In a mixed dual/COSE-only ledger, the traditional signature table may
+  // contain a stale entry from before the switch to COSE-only. Always pick
+  // the signature at the higher seqno.
+  inline ccf::kv::Term resolve_latest_sig_view(ccf::kv::ReadOnlyTx& tx)
+  {
+    ccf::kv::Version best_seqno = 0;
+    ccf::kv::Term best_view = 0;
+
+    auto ls = tx.ro<ccf::Signatures>(Tables::SIGNATURES)->get();
+    if (ls.has_value())
+    {
+      best_seqno = ls->seqno;
+      best_view = ls->view;
+    }
+
+    auto lcs = tx.ro<ccf::CoseSignatures>(Tables::COSE_SIGNATURES)->get();
+    if (lcs.has_value())
+    {
+      auto receipt = cose::decode_ccf_receipt(lcs.value(), false);
+      auto tx_id_opt = ccf::TxID::from_str(receipt.phdr.ccf.txid);
+      if (!tx_id_opt.has_value())
+      {
+        throw std::logic_error(fmt::format(
+          "Failed to parse TxID from COSE signature: {}",
+          receipt.phdr.ccf.txid));
+      }
+      if (tx_id_opt->seqno > best_seqno)
+      {
+        best_seqno = tx_id_opt->seqno;
+        best_view = tx_id_opt->view;
+      }
+    }
+
+    if (best_seqno == 0)
+    {
+      throw std::logic_error("No signature found");
+    }
+
+    return best_view;
   }
 
   class NodeState : public AbstractNodeState
@@ -202,6 +247,153 @@ namespace ccf
       }
     };
 
+    struct BackupSnapshotFetch : public ccf::tasks::BaseTask
+    {
+      const ccf::CCFConfig::Snapshots snapshot_config;
+      ccf::kv::Version since_seqno;
+      NodeState* owner;
+
+      BackupSnapshotFetch(
+        ccf::CCFConfig::Snapshots snapshot_config_,
+        ccf::kv::Version since_seqno_,
+        NodeState* owner_) :
+        snapshot_config(std::move(snapshot_config_)),
+        since_seqno(since_seqno_),
+        owner(owner_)
+      {}
+
+      void do_task_implementation() override
+      {
+        struct ClearOnExit
+        {
+          NodeState* owner;
+          ~ClearOnExit()
+          {
+            std::lock_guard<pal::Mutex> guard(owner->lock);
+            owner->backup_snapshot_fetch_task = nullptr;
+          }
+        } clear_on_exit{owner};
+
+        // Resolve the primary's RPC address
+        std::string primary_address;
+        std::vector<uint8_t> service_cert;
+        {
+          auto primary_id = owner->consensus->primary();
+          if (!primary_id.has_value())
+          {
+            LOG_INFO_FMT(
+              "BackupSnapshotFetch: No known primary, skipping fetch");
+            return;
+          }
+
+          auto tx = owner->network.tables->create_read_only_tx();
+          auto* nodes = tx.ro<ccf::Nodes>(Tables::NODES);
+          auto node_info = nodes->get(primary_id.value());
+          if (!node_info.has_value())
+          {
+            LOG_INFO_FMT(
+              "BackupSnapshotFetch: Could not find primary node {} in nodes "
+              "table",
+              primary_id.value());
+            return;
+          }
+
+          // Use the configured RPC interface to find the primary's address
+          const auto& target_interface =
+            snapshot_config.backup_fetch.target_rpc_interface;
+          auto iface_it = node_info->rpc_interfaces.find(target_interface);
+          if (iface_it == node_info->rpc_interfaces.end())
+          {
+            LOG_INFO_FMT(
+              "BackupSnapshotFetch: Primary node {} does not have RPC "
+              "interface '{}' configured",
+              primary_id.value(),
+              target_interface);
+            return;
+          }
+          primary_address = iface_it->second.published_address;
+
+          if (owner->network.identity == nullptr)
+          {
+            LOG_INFO_FMT(
+              "BackupSnapshotFetch: No service identity available, cannot "
+              "construct TLS credentials for fetching snapshot");
+            return;
+          }
+
+          service_cert = owner->network.identity->cert.raw();
+        }
+
+        LOG_INFO_FMT(
+          "BackupSnapshotFetch: Attempting to fetch snapshot from primary at "
+          "{}",
+          primary_address);
+
+        const auto& bf = snapshot_config.backup_fetch;
+
+        auto latest_peer_snapshot = snapshots::fetch_from_peer(
+          primary_address,
+          service_cert,
+          bf.max_attempts,
+          bf.retry_interval.count_ms(),
+          bf.max_size.count_bytes(),
+          since_seqno);
+
+        if (latest_peer_snapshot.has_value())
+        {
+          LOG_INFO_FMT(
+            "BackupSnapshotFetch: Received snapshot {} from primary (size: "
+            "{})",
+            latest_peer_snapshot->snapshot_name,
+            latest_peer_snapshot->snapshot_data.size());
+
+          const auto snapshot_path =
+            std::filesystem::path(latest_peer_snapshot->snapshot_name);
+
+          if (
+            snapshot_path.empty() || snapshot_path.is_absolute() ||
+            snapshot_path.has_parent_path() ||
+            snapshot_path.filename() != snapshot_path)
+          {
+            LOG_FAIL_FMT(
+              "BackupSnapshotFetch: Rejecting snapshot with invalid name "
+              "'{}' from primary",
+              latest_peer_snapshot->snapshot_name);
+            return;
+          }
+
+          const auto dst_path =
+            std::filesystem::path(snapshot_config.directory) / snapshot_path;
+
+          if (files::exists(dst_path))
+          {
+            LOG_INFO_FMT(
+              "BackupSnapshotFetch: Snapshot {} already exists locally, "
+              "skipping write",
+              dst_path.string());
+            return;
+          }
+
+          files::dump(latest_peer_snapshot->snapshot_data, dst_path);
+          LOG_INFO_FMT(
+            "BackupSnapshotFetch: Wrote snapshot {} ({} bytes)",
+            dst_path.string(),
+            latest_peer_snapshot->snapshot_data.size());
+        }
+        else
+        {
+          LOG_INFO_FMT(
+            "BackupSnapshotFetch: No snapshot available from primary");
+        }
+      }
+
+      [[nodiscard]] const std::string& get_name() const override
+      {
+        static const std::string name = "BackupSnapshotFetch";
+        return name;
+      }
+    };
+
   private:
     //
     // this node's core state
@@ -244,6 +436,8 @@ namespace ccf
     std::shared_ptr<indexing::Indexer> indexer;
     std::shared_ptr<NodeToNode> n2n_channels;
     std::shared_ptr<Forwarder<NodeToNode>> cmd_forwarder;
+    std::shared_ptr<ccf::CommitCallbackSubsystem> commit_callbacks = nullptr;
+    std::shared_ptr<ccf::SignatureCacheSubsystem> signature_cache = nullptr;
     std::shared_ptr<RPCSessions> rpcsessions;
 
     std::shared_ptr<ccf::kv::TxHistory> history;
@@ -280,6 +474,7 @@ namespace ccf
 
     ccf::tasks::Task join_periodic_task;
     ccf::tasks::Task snapshot_fetch_task;
+    ccf::tasks::Task backup_snapshot_fetch_task;
 
     std::shared_ptr<ccf::kv::AbstractTxEncryptor> make_encryptor()
     {
@@ -387,7 +582,15 @@ namespace ccf
           &view_history,
           true /* public_only */);
 
-        snapshotter->set_last_snapshot_idx(last_recovered_idx);
+        {
+          auto tx = network.tables->create_read_only_tx();
+          auto status =
+            tx.ro<SnapshotStatusValue>(Tables::SNAPSHOT_STATUS)->get();
+          if (status.has_value())
+          {
+            snapshotter->init_from_snapshot_status(status.value());
+          }
+        }
       }
     }
 
@@ -416,10 +619,18 @@ namespace ccf
       ccf::kv::ReadOnlyTx& tx,
       const QuoteInfo& quote_info_,
       const std::vector<uint8_t>& expected_node_public_key_der,
-      pal::PlatformAttestationMeasurement& measurement) override
+      pal::PlatformAttestationMeasurement& measurement,
+      const std::optional<std::vector<uint8_t>>& code_transparent_statement,
+      std::shared_ptr<NetworkIdentitySubsystemInterface>
+        network_identity_subsystem) override
     {
       return AttestationProvider::verify_quote_against_store(
-        tx, quote_info_, expected_node_public_key_der, measurement);
+        tx,
+        quote_info_,
+        expected_node_public_key_der,
+        measurement,
+        code_transparent_statement,
+        network_identity_subsystem);
     }
 
     //
@@ -430,6 +641,8 @@ namespace ccf
       std::shared_ptr<RPCMap> rpc_map_,
       std::shared_ptr<AbstractRPCResponder> rpc_sessions_,
       std::shared_ptr<indexing::Indexer> indexer_,
+      std::shared_ptr<ccf::CommitCallbackSubsystem> commit_callbacks_,
+      std::shared_ptr<ccf::SignatureCacheSubsystem> signature_cache_,
       size_t sig_tx_interval_,
       size_t sig_ms_interval_)
     {
@@ -438,7 +651,11 @@ namespace ccf
 
       consensus_config = consensus_config_;
       rpc_map = rpc_map_;
+
       indexer = indexer_;
+      commit_callbacks = commit_callbacks_;
+      signature_cache = signature_cache_;
+
       sig_tx_interval = sig_tx_interval_;
       sig_ms_interval = sig_ms_interval_;
 
@@ -1019,14 +1236,7 @@ namespace ccf
               }
 
               auto tx = network.tables->create_read_only_tx();
-              auto* signatures = tx.ro(network.signatures);
-              auto sig = signatures->get();
-              if (!sig.has_value())
-              {
-                throw std::logic_error(
-                  fmt::format("No signatures found after applying snapshot"));
-              }
-              view = sig->view;
+              view = resolve_latest_sig_view(tx);
 
               if (!resp.network_info->public_only)
               {
@@ -1049,8 +1259,15 @@ namespace ccf
               view_history_,
               last_recovered_signed_idx);
 
-            snapshotter->set_last_snapshot_idx(
-              network.tables->current_version());
+            {
+              auto snap_tx = network.tables->create_read_only_tx();
+              auto snapshot_status =
+                snap_tx.ro<SnapshotStatusValue>(Tables::SNAPSHOT_STATUS)->get();
+              if (snapshot_status.has_value())
+              {
+                snapshotter->init_from_snapshot_status(snapshot_status.value());
+              }
+            }
             history->start_signature_emit_timer();
 
             if (resp.network_info->public_only)
@@ -1103,11 +1320,22 @@ namespace ccf
       join_params.certificate_signing_request = node_sign_kp->create_csr(
         config.node_certificate.subject_name, subject_alt_names);
       join_params.node_data = config.node_data;
+      join_params.ledger_sign_mode = ccf::get_ledger_sign_mode();
       if (config.sealing_recovery.has_value() && snp_tcb_version.has_value())
       {
         join_params.sealing_recovery_data = std::make_pair(
           sealing::get_snp_sealed_recovery_key(snp_tcb_version.value()),
           config.sealing_recovery->location.name);
+      }
+
+      if (config.join.host_data_transparent_statement_path.has_value())
+      {
+        LOG_INFO_FMT(
+          "Reading code_transparent_statement from file: {}",
+          config.join.host_data_transparent_statement_path.value());
+        auto ts = files::slurp(
+          config.join.host_data_transparent_statement_path.value());
+        join_params.code_transparent_statement = std::move(ts);
       }
 
       LOG_DEBUG_FMT(
@@ -1261,17 +1489,11 @@ namespace ccf
           // If the ledger entry is a signature, it is safe to compact the store
           network.tables->compact(last_recovered_idx);
           auto tx = network.tables->create_read_only_tx();
-          auto last_sig = tx.ro(network.signatures)->get();
 
-          if (!last_sig.has_value())
-          {
-            throw std::logic_error("Signature missing");
-          }
+          ccf::kv::Term sig_view = resolve_latest_sig_view(tx);
 
           LOG_DEBUG_FMT(
-            "Read signature at {} for view {}",
-            last_recovered_idx,
-            last_sig->view);
+            "Read signature at {} for view {}", last_recovered_idx, sig_view);
           // Initial transactions, before the first signature, must have
           // happened in the first signature's view (eg - if the first
           // signature is at seqno 20 in view 4, then transactions 1->19 must
@@ -1281,12 +1503,8 @@ namespace ccf
           // valid signature.
           const auto view_start_idx =
             view_history.empty() ? 1 : last_recovered_signed_idx + 1;
-          CCF_ASSERT_FMT(
-            last_sig->view >= 0,
-            "last_sig->view is invalid, {}",
-            last_sig->view);
-          for (auto i = view_history.size();
-               i < static_cast<size_t>(last_sig->view);
+          CCF_ASSERT_FMT(sig_view >= 0, "sig_view is invalid, {}", sig_view);
+          for (auto i = view_history.size(); i < static_cast<size_t>(sig_view);
                ++i)
           {
             view_history.push_back(view_start_idx);
@@ -1347,6 +1565,8 @@ namespace ccf
       snapshotter->init_after_public_recovery();
       snapshotter->set_snapshot_generation(false);
 
+      ccf::kv::Version sig_seqno = 0;
+      ccf::kv::Version cose_seqno = 0;
       ccf::kv::Version index = 0;
       ccf::kv::Term view = 0;
 
@@ -1354,12 +1574,9 @@ namespace ccf
       if (ls.has_value())
       {
         auto s = ls.value();
+        sig_seqno = s.seqno;
         index = s.seqno;
         view = s.view;
-      }
-      else
-      {
-        throw std::logic_error("No signature found after recovery");
       }
 
       ccf::COSESignaturesConfig cs_cfg{};
@@ -1368,14 +1585,36 @@ namespace ccf
       {
         CoseSignature cs = lcs.value();
         LOG_INFO_FMT("COSE signature found after recovery");
+
+        auto as_receipt =
+          cose::decode_ccf_receipt(cs, /* recompute_root */ false);
+
         try
         {
-          auto receipt =
-            cose::decode_ccf_receipt(cs, /* recompute_root */ false);
-          auto issuer = receipt.phdr.cwt.iss;
-          auto subject = receipt.phdr.cwt.sub;
+          auto tx_id_opt = ccf::TxID::from_str(as_receipt.phdr.ccf.txid);
+          if (!tx_id_opt.has_value())
+          {
+            throw std::logic_error(fmt::format(
+              "Failed to parse TxID from COSE signature: {}",
+              as_receipt.phdr.ccf.txid));
+          }
+
+          cose_seqno = tx_id_opt->seqno;
+
+          // Use the COSE signature's TxID only if it is newer than the
+          // traditional signature's. In flip-flop scenarios (dual -> COSE ->
+          // dual) the COSE signature may be older than the traditional one.
+          if (tx_id_opt->seqno > index)
+          {
+            index = tx_id_opt->seqno;
+            view = tx_id_opt->view;
+          }
+
+          auto issuer = as_receipt.phdr.cwt.iss;
+          auto subject = as_receipt.phdr.cwt.sub;
           LOG_INFO_FMT(
             "COSE signature issuer: {}, subject: {}", issuer, subject);
+
           cs_cfg = ccf::COSESignaturesConfig{issuer, subject};
         }
         catch (const cose::COSEDecodeError& e)
@@ -1387,6 +1626,23 @@ namespace ccf
       else
       {
         LOG_INFO_FMT("No COSE signature found after recovery");
+      }
+
+      if (!ls.has_value() && !lcs.has_value())
+      {
+        throw std::logic_error("No signature found after recovery");
+      }
+
+      // Prevent downgrade: a Dual binary must not recover a COSE-only ledger
+      // (one where the latest signature is COSE-only, i.e. COSE seqno is
+      // strictly ahead of any traditional signature).
+      if (
+        ccf::get_ledger_sign_mode() == ccf::LedgerSignMode::Dual &&
+        lcs.has_value() && cose_seqno > sig_seqno)
+      {
+        throw std::logic_error(
+          "Cannot recover a COSE-only ledger with a Dual signing binary. "
+          "Use a COSE-only binary to recover this ledger.");
       }
 
       history->set_service_signing_identity(
@@ -1998,23 +2254,28 @@ namespace ccf
 
         switch (msg_type)
         {
+          case forwarded_msg:
+          {
+            LOG_FAIL_FMT("Unexpected forwarded_msg in recv_node_inbound");
+            return;
+          }
           case channel_msg:
           {
             n2n_channels->recv_channel_message(
               from, payload_data, payload_size);
-            break;
+            return;
           }
 
           case consensus_msg:
           {
             consensus->recv_message(from, payload_data, payload_size);
-            break;
+            return;
           }
-
           default:
           {
-            LOG_FAIL_FMT("Unknown node message type: {}", msg_type);
-            return;
+            throw std::logic_error(fmt::format(
+              "Unknown node message type: {}",
+              static_cast<uint32_t>(msg_type)));
           }
         }
       }
@@ -2849,6 +3110,7 @@ namespace ccf
         n2n_channels,
         shared_state,
         node_client,
+        commit_callbacks,
         public_only);
 
       network.tables->set_consensus(consensus);
@@ -2871,14 +3133,13 @@ namespace ccf
       // are always written by each signature transaction.
 
       network.tables->set_map_hook(
-        network.signatures.get_name(),
-        Signatures::wrap_map_hook(
+        network.cose_signatures.get_name(),
+        CoseSignatures::wrap_map_hook(
           [s = this->snapshotter](
             ccf::kv::Version version,
-            const Signatures::Write& w) -> ccf::kv::ConsensusHookPtr {
+            const CoseSignatures::Write& w) -> ccf::kv::ConsensusHookPtr {
             assert(w.has_value());
-            auto sig = w.value();
-            s->record_signature(version, sig.sig, sig.node, sig.cert);
+            s->record_cose_signature(version, w.value());
             return {nullptr};
           }));
 
@@ -2906,6 +3167,63 @@ namespace ccf
             return {nullptr};
           }));
 
+      network.tables->set_global_hook(
+        network.snapshot_evidence.get_name(),
+        SnapshotEvidence::wrap_commit_hook(
+          [this](
+            [[maybe_unused]] ccf::kv::Version version,
+            const SnapshotEvidence::Write& w) {
+            if (!w.has_value())
+            {
+              return;
+            }
+
+            auto snapshot_evidence = w.value();
+
+            // If backup snapshot fetching is enabled and this node is a
+            // backup, schedule a fetch task
+            if (
+              config.snapshots.backup_fetch.enabled && consensus != nullptr &&
+              !consensus->is_primary())
+            {
+              std::lock_guard<pal::Mutex> guard(lock);
+              if (
+                backup_snapshot_fetch_task != nullptr &&
+                !backup_snapshot_fetch_task->is_cancelled())
+              {
+                LOG_DEBUG_FMT(
+                  "Backup snapshot fetch already in progress, skipping");
+              }
+              else
+              {
+                LOG_INFO_FMT(
+                  "Snapshot evidence detected on backup - scheduling "
+                  "snapshot fetch from primary (since seqno: {})",
+                  snapshot_evidence.version);
+                backup_snapshot_fetch_task =
+                  std::make_shared<BackupSnapshotFetch>(
+                    config.snapshots, snapshot_evidence.version, this);
+                ccf::tasks::add_task(backup_snapshot_fetch_task);
+              }
+            }
+          }));
+
+      // Keep the globally committed snapshot baseline in sync between primary
+      // and backups for bounded snapshotting.
+      network.tables->set_global_hook(
+        Tables::SNAPSHOT_STATUS,
+        SnapshotStatusValue::wrap_commit_hook(
+          [s = this->snapshotter](
+            ccf::kv::Version, const SnapshotStatusValue::Write& w) {
+            assert(w.has_value());
+            s->record_snapshot_status(w.value());
+          }));
+
+      if (signature_cache != nullptr)
+      {
+        signature_cache->register_hooks(*network.tables);
+      }
+
       setup_basic_hooks();
     }
 
@@ -2915,8 +3233,25 @@ namespace ccf
       {
         throw std::logic_error("Snapshotter already initialised");
       }
+
+      if (
+        config.snapshots.min_tx_count < 2 &&
+        std::chrono::microseconds(config.snapshots.time_interval).count() > 0)
+      {
+        LOG_INFO_FMT(
+          "snapshots.min_tx_count is lower than 2 while "
+          "snapshots.time_interval is set to {}. Time-based snapshots may "
+          "continue to be generated without application writes due to the "
+          "writes to snapshot evidence and its signature.",
+          config.snapshots.time_interval.str);
+      }
+
       snapshotter = std::make_shared<Snapshotter>(
-        writer_factory, network.tables, config.snapshots.tx_count);
+        writer_factory,
+        network.tables,
+        config.snapshots.tx_count,
+        config.snapshots.min_tx_count,
+        config.snapshots.time_interval);
     }
 
     void read_ledger_entries(::consensus::Index from, ::consensus::Index to)

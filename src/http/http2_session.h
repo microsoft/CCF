@@ -2,13 +2,13 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/http_responder.h"
 #include "ds/internal_logger.h"
 #include "enclave/client_session.h"
 #include "enclave/rpc_map.h"
 #include "error_reporter.h"
 #include "http/http2_types.h"
 #include "http2_parser.h"
+#include "http_responder.h"
 #include "http_rpc_context.h"
 
 namespace http
@@ -352,8 +352,7 @@ namespace http
             verb,
             url,
             std::move(headers),
-            std::move(body),
-            responder);
+            std::move(body));
         }
         catch (std::exception& e)
         {
@@ -361,6 +360,7 @@ namespace http
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
             fmt::format("Error constructing RpcContext: {}", e.what())});
+          return;
         }
         std::shared_ptr<ccf::RpcHandler> search =
           http::fetch_rpc_handler(rpc_ctx, rpc_map);

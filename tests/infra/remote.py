@@ -4,6 +4,7 @@ import os
 import time
 from enum import Enum, auto
 import subprocess
+import infra.interfaces
 import infra.path
 import signal
 import re
@@ -335,6 +336,12 @@ class CCFRemote(object):
         cose_signatures_subject="ledger.signature",
         sealing_recovery_location=None,
         recovery_decision_protocol_expected_locations=None,
+        backup_snapshot_fetch_enabled=False,
+        backup_snapshot_fetch_max_attempts=None,
+        backup_snapshot_fetch_retry_interval=None,
+        backup_snapshot_fetch_target_rpc_interface=None,
+        backup_snapshot_fetch_max_size=None,
+        host_data_transparent_statement_path=None,
         **kwargs,
     ):
         """
@@ -365,6 +372,8 @@ class CCFRemote(object):
         env["ASAN_OPTIONS"] = os.environ.get("ASAN_OPTIONS", "")
         env["ASAN_SYMBOLIZER_PATH"] = os.environ.get("ASAN_SYMBOLIZER_PATH", "")
         env["TSAN_SYMBOLIZER_PATH"] = os.environ.get("TSAN_SYMBOLIZER_PATH", "")
+        if "LLVM_PROFILE_FILE" in os.environ:
+            env["LLVM_PROFILE_FILE"] = os.environ["LLVM_PROFILE_FILE"]
 
         self.name = f"{label}_{local_node_id}"
         self.start_type = start_type
@@ -527,6 +536,13 @@ class CCFRemote(object):
                 cose_signatures_subject=cose_signatures_subject,
                 sealing_recovery_location=sealing_recovery_location,
                 recovery_decision_protocol_expected_locations=recovery_decision_protocol_expected_locations,
+                backup_snapshot_fetch_enabled=backup_snapshot_fetch_enabled,
+                backup_snapshot_fetch_max_attempts=backup_snapshot_fetch_max_attempts,
+                backup_snapshot_fetch_retry_interval=backup_snapshot_fetch_retry_interval,
+                backup_snapshot_fetch_target_rpc_interface=backup_snapshot_fetch_target_rpc_interface
+                or infra.interfaces.FILE_SERVING_RPC_INTERFACE,
+                backup_snapshot_fetch_max_size=backup_snapshot_fetch_max_size,
+                host_data_transparent_statement_path=host_data_transparent_statement_path,
                 **kwargs,
             )
 

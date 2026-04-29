@@ -46,7 +46,10 @@ namespace ccf
       ccf::kv::ReadOnlyTx& tx,
       const QuoteInfo& quote_info,
       const std::vector<uint8_t>& expected_node_public_key_der,
-      pal::PlatformAttestationMeasurement& measurement) = 0;
+      pal::PlatformAttestationMeasurement& measurement,
+      const std::optional<std::vector<uint8_t>>& code_transparent_statement,
+      std::shared_ptr<NetworkIdentitySubsystemInterface>
+        network_identity_subsystem) = 0;
     virtual ccf::kv::Version get_startup_snapshot_seqno() = 0;
     virtual SessionMetrics get_session_metrics() = 0;
     virtual size_t get_jwt_attempts() = 0;

@@ -95,15 +95,28 @@ namespace ccf
       ccf::kv::ReadOnlyTx& tx,
       const QuoteInfo& quote_info,
       const std::vector<uint8_t>& expected_node_public_key_der,
-      pal::PlatformAttestationMeasurement& measurement) override
+      pal::PlatformAttestationMeasurement& measurement,
+      const std::optional<std::vector<uint8_t>>& code_transparent_statement,
+      std::shared_ptr<NetworkIdentitySubsystemInterface>
+        network_identity_subsystem) override
     {
       return impl.verify_quote(
-        tx, quote_info, expected_node_public_key_der, measurement);
+        tx,
+        quote_info,
+        expected_node_public_key_der,
+        measurement,
+        code_transparent_statement,
+        network_identity_subsystem);
     }
 
     void initiate_private_recovery(ccf::kv::Tx& tx) override
     {
       impl.initiate_private_recovery(tx);
+    }
+
+    void trigger_snapshot(ccf::kv::Tx& tx) override
+    {
+      impl.trigger_snapshot(tx);
     }
 
     ccf::crypto::Pem get_self_signed_node_certificate() override

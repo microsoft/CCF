@@ -257,6 +257,18 @@ def cli_args(
         default=10,
     )
     parser.add_argument(
+        "--snapshot-min-tx-interval",
+        help="Minimum number of transactions before a time-based snapshot can trigger",
+        type=int,
+        default=2,
+    )
+    parser.add_argument(
+        "--snapshot-time-interval",
+        help="Time interval after which a snapshot should be triggered (e.g. 30s, 5min)",
+        type=str,
+        default="0s",
+    )
+    parser.add_argument(
         "--max-open-sessions",
         help="Soft cap on max open TLS sessions on each node",
         default=1000,
