@@ -3260,7 +3260,10 @@ namespace ccf
       // self_signed_node_cert is stable here: all callers are either during
       // single-threaded startup or holding NodeState::lock.
       auto node_client = std::make_shared<HTTPNodeClient>(
-        rpc_map, node_sign_kp, self_signed_node_cert, endorsed_node_certificate_);
+        rpc_map,
+        node_sign_kp,
+        self_signed_node_cert,
+        endorsed_node_certificate_);
 
       consensus = std::make_shared<RaftType>(
         consensus_config,

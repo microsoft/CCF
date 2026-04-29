@@ -406,7 +406,7 @@ namespace ccf
 
     bool check_session_consistency(std::shared_ptr<ccf::RpcContextImpl> ctx)
     {
-      auto c = consensus.load();
+      auto* c = consensus.load();
       if (c != nullptr)
       {
         auto current_view = c->get_view();
@@ -639,7 +639,7 @@ namespace ccf
       constexpr auto max_attempts = 30;
       while (attempts < max_attempts)
       {
-        auto c = consensus.load();
+        auto* c = consensus.load();
         if (c != nullptr)
         {
           if (
@@ -710,10 +710,8 @@ namespace ccf
           }
           else
           {
-            auto c2 = consensus.load();
-            bool is_primary =
-              (c2 == nullptr) || c2->can_replicate();
-            const bool forwardable = (c2 != nullptr);
+            bool is_primary = (c == nullptr) || c->can_replicate();
+            const bool forwardable = (c != nullptr);
 
             if (!is_primary && forwardable)
             {
@@ -877,9 +875,8 @@ namespace ccf
               }
 
               {
-                auto c3 = consensus.load();
-                auto h = history.load();
-                if (c3 != nullptr && c3->can_replicate() && h != nullptr)
+                auto* h = history.load();
+                if (c != nullptr && c->can_replicate() && h != nullptr)
                 {
                   h->try_emit_signature();
                 }
@@ -1026,7 +1023,7 @@ namespace ccf
     {
       if (endpoints.request_needs_root(ctx))
       {
-        auto h = history.load();
+        auto* h = history.load();
         if (h != nullptr)
         {
           // Warning: Retrieving the current TxID and root from the history
