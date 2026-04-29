@@ -1487,7 +1487,7 @@ namespace ccf
 
           // Consensus may not exist yet, in which case there's nothing for
           // these hooks to do
-          if (consensus.get())
+          if (consensus != nullptr)
           {
             // Not synchronised because consensus isn't effectively running then
             for (auto& hook : r->get_hooks())
