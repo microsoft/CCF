@@ -95,6 +95,16 @@ if(KV_STATE_RB)
   add_compile_definitions(KV_STATE_RB)
 endif()
 
+option(KV_STATE_BTREE "Enable BTreeMap as underlying KV state implementation" OFF)
+if(KV_STATE_BTREE)
+  add_compile_definitions(KV_STATE_BTREE)
+endif()
+
+option(KV_STATE_BPLUS "Enable B+TreeMap as underlying KV state implementation" OFF)
+if(KV_STATE_BPLUS)
+  add_compile_definitions(KV_STATE_BPLUS)
+endif()
+
 option(USE_SNMALLOC "Link against snmalloc" ON)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/snmalloc.cmake)
 
