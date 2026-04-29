@@ -1,12 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-set(
-  QUICKJS_PREFIX
-  ${CCF_3RD_PARTY_EXPORTED_DIR}/quickjs
-  CACHE PATH
-  "Prefix to the QuickJS library"
-)
+set(QUICKJS_PREFIX ${CCF_3RD_PARTY_EXPORTED_DIR}/quickjs)
 
 set(QUICKJS_INC ${QUICKJS_PREFIX})
 
