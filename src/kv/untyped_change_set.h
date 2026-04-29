@@ -8,12 +8,8 @@
 #include "kv/kv_types.h"
 #include "kv/version_v.h"
 
-#if defined(KV_STATE_BPLUS)
-#  include "ds/bplus_map.h"
-#elif defined(KV_STATE_BTREE)
+#if defined(KV_STATE_BTREE)
 #  include "ds/btree_map.h"
-#elif defined(KV_STATE_RB)
-#  include "ds/rb_map.h"
 #else
 #  include "ds/champ_map.h"
 #endif
@@ -29,12 +25,8 @@ namespace ccf::kv::untyped
 
   using VersionV = ccf::kv::VersionV<V>;
 
-#if defined(KV_STATE_BPLUS)
-  using State = bplus::Map<K, VersionV>;
-#elif defined(KV_STATE_BTREE)
+#if defined(KV_STATE_BTREE)
   using State = btree::Map<K, VersionV>;
-#elif defined(KV_STATE_RB)
-  using State = rb::Map<K, VersionV>;
 #else
   using State = champ::Map<K, VersionV, H>;
 #endif
