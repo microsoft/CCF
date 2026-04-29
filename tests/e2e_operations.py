@@ -3068,23 +3068,48 @@ def test_join_time_snapshot_fetch_failure(network, args):
     # and "giving up" log messages when the snapshot endpoint is unreachable.
     #
     # Strategy:
-    #  1. Add an intermediate node joined from a snapshot so its startup_seqno
-    #     > 0.  That node will act as the join target.
-    #  2. Join a fresh node (no snapshot, startup_seqno = 0) targeting the
-    #     intermediate node via primary_rpc_interface.  Because the
-    #     intermediate node's startup_seqno > 0, it returns StartupSeqnoIsOld
-    #     for the fresh joiner, triggering the FetchSnapshot task.
-    #  3. primary_rpc_interface lacks the SnapshotRead operator feature, so
+    #  1. Fully reconfigure the network: for each of the X original nodes
+    #     (which were bootstrapped at network start with startup_seqno = 0),
+    #     add a replacement node joined from a snapshot (startup_seqno > 0),
+    #     then retire and stop the originals. After this, every remaining
+    #     node has startup_seqno > 0, so any fresh joiner with
+    #     startup_seqno = 0 is rejected with StartupSeqnoIsOld -- regardless
+    #     of which node a join request gets redirected to (the join endpoint
+    #     redirects backups to the primary before checking StartupSeqnoIsOld,
+    #     so the primary must also reject).
+    #  2. Add an intermediate node joined from a snapshot to use as the
+    #     failing-join target via primary_rpc_interface.
+    #  3. Join a fresh node (no snapshot, startup_seqno = 0) targeting the
+    #     intermediate node via primary_rpc_interface.  The target replies
+    #     StartupSeqnoIsOld, triggering the FetchSnapshot task.
+    #  4. primary_rpc_interface lacks the SnapshotRead operator feature, so
     #     GET /node/snapshot returns HTTP 404, exhausting the 3-attempt retry
     #     loop and logging "Exceeded maximum snapshot fetch retries".
     primary, _ = network.find_primary()
 
-    # Ensure at least one committed snapshot exists so that a joining node
+    # Ensure at least one committed snapshot exists so that joining nodes
     # can be given one (startup_seqno > 0).
     network.txs.issue(network, number_txs=args.snapshot_tx_interval * 2)
     network.get_committed_snapshots(primary)
 
-    # Add an intermediate node that starts from that snapshot.
+    # Full reconfigure so every remaining node has startup_seqno > 0
+    # (otherwise a redirect to the primary would let the joiner succeed).
+    # Add all replacements before retiring any original, to preserve quorum
+    # throughout the reconfiguration.
+    original_nodes = list(network.get_joined_nodes())
+    for _ in original_nodes:
+        new_node = network.create_node()
+        network.join_node(new_node, args.package, args, from_snapshot=True)
+        network.trust_node(new_node, args)
+    for old in original_nodes:
+        current_primary, _ = network.find_primary()
+        network.retire_node(current_primary, old)
+        old.stop()
+    primary, _ = network.find_primary()
+    network.wait_for_all_nodes_to_commit(primary)
+
+    # Add an intermediate node (also snapshot-joined) to act as the
+    # failing-join target.
     intermediate_node = network.create_node()
     network.join_node(intermediate_node, args.package, args, target_node=primary)
     network.trust_node(intermediate_node, args)
