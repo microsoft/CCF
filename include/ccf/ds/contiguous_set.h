@@ -28,7 +28,7 @@ namespace ccf::ds
     {
       using iterator_category = std::random_access_iterator_tag;
       using value_type = size_t;
-      using difference_type = size_t;
+      using difference_type = ptrdiff_t;
       using pointer = const size_t*;
       using reference = size_t;
 
@@ -97,9 +97,11 @@ namespace ccf::ds
       {
         if (n_ < 0)
         {
-          return (*this) -= (size_t)-n_;
+          // Avoid signed overflow: compute magnitude safely via unsigned
+          // arithmetic (two's complement negation).
+          return (*this) -= static_cast<size_t>(-(n_ + 1)) + 1;
         }
-        size_t n = n_;
+        size_t n = static_cast<size_t>(n_);
         while (offset + n > it->second)
         {
           n -= (it->second - offset + 1);
@@ -110,14 +112,14 @@ namespace ccf::ds
         return (*this);
       }
 
-      ConstIterator operator+(size_t n) const
+      ConstIterator operator+(difference_type n) const
       {
         ConstIterator copy(it, offset);
         copy += n;
         return copy;
       }
 
-      friend ConstIterator operator+(size_t n, const ConstIterator& other)
+      friend ConstIterator operator+(difference_type n, const ConstIterator& other)
       {
         return other + n;
       }
@@ -134,10 +136,10 @@ namespace ccf::ds
         return (*this);
       }
 
-      ConstIterator operator-(size_t n) const
+      ConstIterator operator-(difference_type n) const
       {
         ConstIterator copy(it, offset);
-        copy -= n;
+        copy += -n;
         return copy;
       }
 
@@ -146,7 +148,8 @@ namespace ccf::ds
         if (it == other.it)
         {
           // In same range, simple diff
-          return offset - other.offset;
+          return static_cast<difference_type>(offset) -
+            static_cast<difference_type>(other.offset);
         }
 
         if (it < other.it)
@@ -157,15 +160,39 @@ namespace ccf::ds
         // it > other.it
         // Walk from this->it to other.it, summing all of the ranges that are
         // passed
-        difference_type sum = std::accumulate(
+        size_t sum = std::accumulate(
           std::reverse_iterator(it),
           std::prev(std::reverse_iterator(other.it)),
           offset + 1,
-          [](difference_type acc, const auto& range) {
+          [](size_t acc, const auto& range) {
             return acc + range.second + 1;
           });
         sum += other.it->second - other.offset;
-        return sum;
+        return static_cast<difference_type>(sum);
+      }
+
+      bool operator<(const ConstIterator& other) const
+      {
+        if (it != other.it)
+        {
+          return it < other.it;
+        }
+        return offset < other.offset;
+      }
+
+      bool operator<=(const ConstIterator& other) const
+      {
+        return !(other < *this);
+      }
+
+      bool operator>(const ConstIterator& other) const
+      {
+        return other < *this;
+      }
+
+      bool operator>=(const ConstIterator& other) const
+      {
+        return !(*this < other);
       }
     };
 
