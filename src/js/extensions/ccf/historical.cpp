@@ -465,7 +465,11 @@ namespace ccf::js
     .define_own_property = {},
     .has_property = {},
     .get_property = {},
-    .set_property = {}};
+    .set_property = {},
+    .get_prototype = {},
+    .set_prototype = {},
+    .is_extensible = {},
+    .prevent_extensions = {}};
   JSClassDef kv_historical_class_def = {
     .class_name = "Read-only Historical KV Tables",
     .finalizer = {},

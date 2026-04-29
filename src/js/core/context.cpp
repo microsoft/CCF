@@ -267,7 +267,10 @@ namespace ccf::js::core
     const std::string& func,
     const std::string& path)
   {
-    auto eval_val = wrap(JS_EvalFunction(ctx, module.val));
+    // JS_EvalFunction consumes one reference to the module value, so we must
+    // provide it with its own via JS_DupValue. Our JSWrappedValue destructor
+    // will free the original reference separately.
+    auto eval_val = wrap(JS_EvalFunction(ctx, JS_DupValue(ctx, module.val)));
 
     if (eval_val.is_exception())
     {
@@ -281,30 +284,32 @@ namespace ccf::js::core
         fmt::format("Failed to execute {}: {}", path, reason));
     }
 
-    // Get exported function from module
+    // Get exported function from module via namespace object
     assert(JS_VALUE_GET_TAG(module.val) == JS_TAG_MODULE);
     auto* module_def =
       reinterpret_cast<JSModuleDef*>(JS_VALUE_GET_PTR(module.val));
-    auto export_count = JS_GetModuleExportEntriesCount(module_def);
-    for (auto i = 0; i < export_count; i++)
+    auto ns = wrap(JS_GetModuleNamespace(ctx, module_def));
+    if (JS_IsException(ns.val))
     {
-      auto export_name_atom = JS_GetModuleExportEntryName(ctx, module_def, i);
-      auto export_name = to_str(export_name_atom);
-      JS_FreeAtom(ctx, export_name_atom);
-      if (export_name.value_or("") == func)
-      {
-        auto export_func = wrap(JS_GetModuleExportEntry(ctx, module_def, i));
-        if (JS_IsFunction(ctx, export_func.val) == 0)
-        {
-          throw std::runtime_error(fmt::format(
-            "Export '{}' of module '{}' is not a function", func, path));
-        }
-        return export_func;
-      }
+      throw std::runtime_error(
+        fmt::format("Failed to get namespace for module '{}'", path));
     }
 
-    throw std::runtime_error(
-      fmt::format("Failed to find export '{}' in module '{}'", func, path));
+    auto func_atom = JS_NewAtom(ctx, func.c_str());
+    auto export_func = wrap(JS_GetProperty(ctx, ns.val, func_atom));
+    JS_FreeAtom(ctx, func_atom);
+
+    if (JS_IsUndefined(export_func.val))
+    {
+      throw std::runtime_error(
+        fmt::format("Failed to find export '{}' in module '{}'", func, path));
+    }
+    if (JS_IsFunction(ctx, export_func.val) == 0)
+    {
+      throw std::runtime_error(fmt::format(
+        "Export '{}' of module '{}' is not a function", func, path));
+    }
+    return export_func;
   }
 
   JSWrappedValue Context::null() const
