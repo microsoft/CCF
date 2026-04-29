@@ -97,21 +97,7 @@ function(add_e2e_test)
   endif()
 
   if(BUILD_END_TO_END_TESTS)
-    if(PROFILE_TESTS)
-      set(
-        PYTHON_WRAPPER
-        py-spy
-        record
-        --format
-        speedscope
-        -o
-        ${PARSED_ARGS_NAME}.trace
-        --
-        python3
-      )
-    else()
-      set(PYTHON_WRAPPER ${PYTHON})
-    endif()
+    set(PYTHON_WRAPPER ${PYTHON})
 
     # For fast e2e runs, tick node faster than default value (except for
     # instrumented builds which may process ticks slower).
