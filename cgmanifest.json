@@ -56,7 +56,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/bellard/quickjs",
-          "commitHash": "3f81070e573e3592728dbbbd04c84c498b20d6dc"
+          "commitHash": "fa628f8c523ecac8ce560c081411e91fcaba2d20"
         }
       }
     },
