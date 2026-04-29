@@ -31,6 +31,7 @@ def _detect_amd_platform_name():
     pattern = re.compile(r"model name\s*:\s*AMD EPYC (....) ")
     milan = re.compile(r"7..3")
     genoa = re.compile(r"9..4")
+    turin = re.compile(r"9..5")
     with open("/proc/cpuinfo", "r") as cpuinfo_file:
         for line in cpuinfo_file:
             match = pattern.match(line)
@@ -40,6 +41,8 @@ def _detect_amd_platform_name():
                     return "milan"
                 elif genoa.match(num):
                     return "genoa"
+                elif turin.match(num):
+                    return "turin"
     return "unknown"
 
 
@@ -71,7 +74,7 @@ if __name__ == "__main__":
     elif len(sys.argv) in (2, 3):
         expectation = sys.argv[1:]
         if expectation == [current, amd_name] or expectation == [current]:
-            print(f"Confirmed running on expected platform: {current}")
+            print(f"Confirmed running on expected platform: {current} {amd_name}")
         else:
             print(
                 f"Not running on expected platform. Expected: {" ".join(expectation)}. Actual: {current} {amd_name}",
