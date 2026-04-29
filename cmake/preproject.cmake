@@ -63,11 +63,7 @@ if(FUZZING AND TSAN)
   message(FATAL_ERROR "FUZZING and TSAN cannot be enabled together")
 endif()
 
-option(COLORED_OUTPUT "Always produce ANSI-colored output." ON)
-
-if(${COLORED_OUTPUT})
-  add_compile_options(-fcolor-diagnostics)
-endif()
+add_compile_options(-fcolor-diagnostics)
 
 function(add_warning_checks name)
   target_compile_options(
