@@ -289,7 +289,7 @@ namespace ccf::js::core
     auto* module_def =
       reinterpret_cast<JSModuleDef*>(JS_VALUE_GET_PTR(module.val));
     auto ns = wrap(JS_GetModuleNamespace(ctx, module_def));
-    if (JS_IsException(ns.val))
+    if (JS_IsException(ns.val) != 0)
     {
       throw std::runtime_error(
         fmt::format("Failed to get namespace for module '{}'", path));
@@ -299,7 +299,7 @@ namespace ccf::js::core
     auto export_func = wrap(JS_GetProperty(ctx, ns.val, func_atom));
     JS_FreeAtom(ctx, func_atom);
 
-    if (JS_IsUndefined(export_func.val))
+    if (JS_IsUndefined(export_func.val) != 0)
     {
       throw std::runtime_error(
         fmt::format("Failed to find export '{}' in module '{}'", func, path));
