@@ -15,13 +15,6 @@ if(
   find_program(FOUND_CMAKE_C_COMPILER NAMES clang)
   find_program(FOUND_CMAKE_CXX_COMPILER NAMES clang++)
 
-  # vvvvv Ubuntu-20.04, to be removed after support dropped. vvvvv #
-  if(NOT (FOUND_CMAKE_C_COMPILER AND FOUND_CMAKE_CXX_COMPILER))
-    find_program(FOUND_CMAKE_C_COMPILER NAMES clang-15)
-    find_program(FOUND_CMAKE_CXX_COMPILER NAMES clang++-15)
-  endif()
-  # ^^^^^ Ubuntu-20.04, to be removed after support dropped. ^^^^^ #
-
   if(NOT (FOUND_CMAKE_C_COMPILER AND FOUND_CMAKE_CXX_COMPILER))
     message(
       WARNING
