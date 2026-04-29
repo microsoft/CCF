@@ -34,12 +34,12 @@ set(
 # + build toolchain
 set(
   CCF_RPM_DEPENDENCIES
-  "${CCF_RPM_DEPENDENCIES}, cmake >= 3.21, build-essential >= 3.0, clang >= ${CLANG_AND_LIBCXXABI_MINIMAL_VERSION}, ninja-build >= 1.11.1"
+  "${CCF_RPM_DEPENDENCIES}, cmake >= 3.21, build-essential >= 3.0, clang >= ${CLANG_MINIMAL_VERSION}, ninja-build >= 1.11.1"
 )
 # + runtime dependencies
 set(
   CCF_RPM_DEPENDENCIES
-  "${CCF_RPM_DEPENDENCIES}, libuv-devel >= ${LIBUV_MINIMAL_VERSION}, curl-devel >= ${CURL_MINIMAL_VERSION}, libcxxabi-devel >= ${CLANG_AND_LIBCXXABI_MINIMAL_VERSION}"
+  "${CCF_RPM_DEPENDENCIES}, libuv-devel >= ${LIBUV_MINIMAL_VERSION}, curl-devel >= ${CURL_MINIMAL_VERSION}"
 )
 # + alter name
 set(CPACK_PACKAGE_NAME "${CPACK_PACKAGE_NAME}_devel")

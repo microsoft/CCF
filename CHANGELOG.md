@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - The governance proposal endpoints now include a `ballotSubmitters` field in their responses, containing the list of member IDs that have submitted a ballot for the proposal (#7840).
 
+### Removed
+
+- The `USE_LIBCXX` CMake option and all associated libc++/libc++abi build and packaging support have been removed. CCF now builds exclusively with libstdc++ (#7843).
+
 ## [7.0.1]
 
 [7.0.1]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.1

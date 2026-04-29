@@ -29,13 +29,12 @@ endfunction()
 # Unit test wrapper
 function(add_unit_test name)
   add_executable(${name} ${CCF_DIR}/src/enclave/thread_local.cpp ${ARGN})
-  target_compile_options(${name} PRIVATE ${COMPILE_LIBCXX})
   target_include_directories(
     ${name}
     PRIVATE src ${CCFCRYPTO_INC} ${CCF_DIR}/3rdparty/test
   )
   enable_coverage(${name})
-  target_link_libraries(${name} PRIVATE ${LINK_LIBCXX} ccfcrypto -pthread)
+  target_link_libraries(${name} PRIVATE ccfcrypto -pthread)
   add_san(${name})
 
   add_test(NAME ${name} COMMAND ${name})
@@ -52,33 +51,25 @@ function(add_unit_test name)
   add_san_test_properties(${name})
 endfunction()
 
-# Fuzz test wrapper (requires -DFUZZING=ON -DUSE_LIBCXX=ON)
+# Fuzz test wrapper (requires -DFUZZING=ON)
 function(add_fuzz_test name)
-  if(NOT USE_LIBCXX)
-    message(
-      FATAL_ERROR
-      "Fuzz targets require USE_LIBCXX=ON to avoid UBSAN false positives from libstdc++ shared_ptr"
-    )
-  endif()
-
   add_executable(${name} ${CCF_DIR}/src/enclave/thread_local.cpp ${ARGN})
-  target_compile_options(${name} PRIVATE ${COMPILE_LIBCXX} -fsanitize=fuzzer)
+  target_compile_options(${name} PRIVATE -fsanitize=fuzzer)
   target_link_options(${name} PRIVATE -fsanitize=fuzzer)
   target_include_directories(${name} PRIVATE src ${CCFCRYPTO_INC})
-  target_link_libraries(${name} PRIVATE ${LINK_LIBCXX} -pthread)
+  target_link_libraries(${name} PRIVATE -pthread)
   add_san(${name})
 endfunction()
 
 # Test binary wrapper
 function(add_test_bin name)
   add_executable(${name} ${CCF_DIR}/src/enclave/thread_local.cpp ${ARGN})
-  target_compile_options(${name} PRIVATE ${COMPILE_LIBCXX})
   target_include_directories(
     ${name}
     PRIVATE src ${CCFCRYPTO_INC} ${CCF_DIR}/3rdparty/test
   )
   enable_coverage(${name})
-  target_link_libraries(${name} PRIVATE ${LINK_LIBCXX} ccfcrypto)
+  target_link_libraries(${name} PRIVATE ccfcrypto)
   add_san(${name})
 endfunction()
 

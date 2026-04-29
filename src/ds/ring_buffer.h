@@ -430,8 +430,8 @@ namespace ringbuffer
       std::atomic_ref<uint64_t> slot(ref);
       slot.store(value, std::memory_order_release);
 #else
-      // __atomic_store is used instead of std::atomic_ref since it's not
-      // supported by libc++ yet.
+      // __atomic_store is used instead of std::atomic_ref for compilers
+      // that do not yet define __cpp_lib_atomic_ref.
       // https://en.cppreference.com/w/Template:cpp/compiler_support/20
       __atomic_store(
         reinterpret_cast<uint64_t*>(bd.data + index), &value, __ATOMIC_RELEASE);
