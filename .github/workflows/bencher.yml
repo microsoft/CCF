@@ -36,7 +36,7 @@ jobs:
 
       - name: "Machine info"
         shell: bash
-        run: |
+        run: &machine_info |
           set -ex
           uname -a
           nproc
@@ -59,7 +59,7 @@ jobs:
           set -euo pipefail
           output=$(python3 tests/infra/platform_detection.py virtual)
           echo "$output"
-          CCF_PLATFORM_SLUG=$(echo "$output" | awk -F': ' '{print $2}' | tr ' ' '-')
+          CCF_PLATFORM_SLUG=$(echo "$output" | head -1 | tr ' ' '-')
           echo "CCF_PLATFORM_SLUG=${CCF_PLATFORM_SLUG}" >> "$GITHUB_ENV"
 
       - name: Build and run virtual perf tests
@@ -93,7 +93,7 @@ jobs:
 
       - uses: bencherdev/bencher@main
       - name: Track base branch benchmarks with Bencher
-        run: |
+        run: &bencher_run |
           bencher run \
           --project ccf \
           --token '${{ secrets.BENCHER_API_TOKEN }}' \
@@ -118,16 +118,7 @@ jobs:
 
       - name: "Machine info"
         shell: bash
-        run: |
-          set -ex
-          uname -a
-          nproc
-          cat /proc/cpuinfo
-          cat /proc/meminfo
-          cpuid=$(awk '/^cpu family/{f=$NF} /^model\t/{m=$NF} /^stepping/{s=$NF; printf "%02x%02x%02x",f,m,s; exit}' /proc/cpuinfo)
-          echo "CCF_CPUID=${cpuid}" >> "$GITHUB_ENV"
-          echo "CCF_CORES=$(nproc)" >> "$GITHUB_ENV"
-          echo "CCF_MEM_GB=$(awk '/^MemTotal/{printf "%d",$2/1024/1024}' /proc/meminfo)" >> "$GITHUB_ENV"
+        run: *machine_info
 
       - name: "Confirm running on SEV-SNP"
         shell: bash
@@ -135,7 +126,7 @@ jobs:
           set -euo pipefail
           output=$(python3 tests/infra/platform_detection.py snp)
           echo "$output"
-          CCF_PLATFORM_SLUG=$(echo "$output" | awk -F': ' '{print $2}' | tr ' ' '-')
+          CCF_PLATFORM_SLUG=$(echo "$output" | head -1 | tr ' ' '-')
           echo "CCF_PLATFORM_SLUG=${CCF_PLATFORM_SLUG}" >> "$GITHUB_ENV"
 
       - name: Build and run SNP perf tests
@@ -170,12 +161,4 @@ jobs:
 
       - uses: bencherdev/bencher@main
       - name: Track base branch benchmarks with Bencher
-        run: |
-          bencher run \
-          --project ccf \
-          --token '${{ secrets.BENCHER_API_TOKEN }}' \
-          --branch main \
-          --testbed "${CCF_PLATFORM_SLUG}-${CCF_CPUID}-${CCF_CORES}cores-${CCF_MEM_GB}g" \
-          --adapter json \
-          --err \
-          --file build/bencher.json
+        run: *bencher_run
