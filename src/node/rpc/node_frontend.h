@@ -458,8 +458,7 @@ namespace ccf
           !this->node_operation.is_part_of_public_network() &&
           !this->node_operation.is_reading_private_ledger())
         {
-          LOG_INFO_FMT(
-            "Join request rejected: we are not part of network");
+          LOG_INFO_FMT("Join request rejected: we are not part of network");
           return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
