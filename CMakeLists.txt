@@ -1436,7 +1436,7 @@ install(
   DESTINATION ${CMAKE_INSTALL_PREFIX}/cmake
 )
 
-  # Perf tool executable (requires Arrow/Parquet, not compatible with GLIBCXX_DEBUG)
-  if(NOT GLIBCXX_DEBUG)
-    include(${CCF_DIR}/tests/perf-system/submitter/CMakeLists.txt)
-  endif()
+# Perf tool executable (requires Arrow/Parquet, not compatible with GLIBCXX_DEBUG)
+if(NOT GLIBCXX_DEBUG)
+  include(${CCF_DIR}/tests/perf-system/submitter/CMakeLists.txt)
+endif()
