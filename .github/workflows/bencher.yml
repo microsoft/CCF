@@ -46,6 +46,11 @@ jobs:
           echo "CCF_CPUID=${cpuid}" >> "$GITHUB_ENV"
           echo "CCF_CORES=$(nproc)" >> "$GITHUB_ENV"
           echo "CCF_MEM_GB=$(awk '/^MemTotal/{printf "%d",$2/1024/1024}' /proc/meminfo)" >> "$GITHUB_ENV"
+          if [[ -e /dev/sev-guest ]]; then
+            echo "CCF_PLATFORM_SLUG=snp" >> "$GITHUB_ENV"
+          else
+            echo "CCF_PLATFORM_SLUG=virtual" >> "$GITHUB_ENV"
+          fi
 
       - name: "Install dependencies"
         shell: bash
@@ -54,13 +59,10 @@ jobs:
           ./scripts/setup-ci.sh
 
       - name: "Confirm running on Virtual"
-        shell: bash
         run: |
-          set -euo pipefail
-          output=$(python3 tests/infra/platform_detection.py virtual)
-          echo "$output"
-          CCF_PLATFORM_SLUG=$(echo "$output" | head -1 | tr ' ' '-')
-          echo "CCF_PLATFORM_SLUG=${CCF_PLATFORM_SLUG}" >> "$GITHUB_ENV"
+          set -ex
+          python3 tests/infra/platform_detection.py virtual
+        shell: bash
 
       - name: Build and run virtual perf tests
         run: |
@@ -121,13 +123,10 @@ jobs:
         run: *machine_info
 
       - name: "Confirm running on SEV-SNP"
-        shell: bash
         run: |
-          set -euo pipefail
-          output=$(python3 tests/infra/platform_detection.py snp)
-          echo "$output"
-          CCF_PLATFORM_SLUG=$(echo "$output" | head -1 | tr ' ' '-')
-          echo "CCF_PLATFORM_SLUG=${CCF_PLATFORM_SLUG}" >> "$GITHUB_ENV"
+          set -ex
+          python3 tests/infra/platform_detection.py snp
+        shell: bash
 
       - name: Build and run SNP perf tests
         run: |

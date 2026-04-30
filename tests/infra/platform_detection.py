@@ -69,11 +69,13 @@ def is_virtual():
 if __name__ == "__main__":
     current = get_platform()
     amd_name = get_amd_platform_name()
-    # First line is machine-parsed by CI scripts (e.g. bencher.yml) — change format with care
-    print(f"{current} {amd_name}")
-    if len(sys.argv) in (2, 3):
+    if len(sys.argv) == 1:
+        print(f"Detected platform is: {current} {amd_name}")
+    elif len(sys.argv) in (2, 3):
         expectation = sys.argv[1:]
-        if expectation != [current, amd_name] and expectation != [current]:
+        if expectation == [current, amd_name] or expectation == [current]:
+            print(f"Confirmed running on expected platform: {current}")
+        else:
             print(
                 f"Not running on expected platform. Expected: {" ".join(expectation)}. Actual: {current} {amd_name}",
                 file=sys.stderr,
