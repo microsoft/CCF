@@ -178,7 +178,7 @@ jobs:
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="-D_GLIBCXX_DEBUG" -DLONG_TESTS=ON ..
+          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DGLIBCXX_DEBUG=ON -DLONG_TESTS=ON ..
           ninja
 
       - name: "Test"

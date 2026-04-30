@@ -99,6 +99,16 @@ option(USE_SNMALLOC "Link against snmalloc" ON)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/snmalloc.cmake)
 
 option(CLANG_TIDY "Run clang-tidy on the codebase" OFF)
+
+option(
+  GLIBCXX_DEBUG
+  "Enable libstdc++ debug mode (_GLIBCXX_DEBUG). Disables the submit binary (which links against Arrow, not built with _GLIBCXX_DEBUG)."
+  OFF
+)
+if(GLIBCXX_DEBUG)
+  add_compile_definitions(_GLIBCXX_DEBUG)
+endif()
+
 # Must happen before tools.cmake is included
 if(CLANG_TIDY)
   find_program(
@@ -1426,5 +1436,7 @@ install(
   DESTINATION ${CMAKE_INSTALL_PREFIX}/cmake
 )
 
-  # Perf tool executable
-  include(${CCF_DIR}/tests/perf-system/submitter/CMakeLists.txt)
+  # Perf tool executable (requires Arrow/Parquet, not compatible with GLIBCXX_DEBUG)
+  if(NOT GLIBCXX_DEBUG)
+    include(${CCF_DIR}/tests/perf-system/submitter/CMakeLists.txt)
+  endif()
