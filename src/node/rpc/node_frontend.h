@@ -264,11 +264,6 @@ namespace ccf
       return duplicate_node_id;
     }
 
-    bool is_taking_part_in_acking(NodeStatus node_status)
-    {
-      return node_status == NodeStatus::TRUSTED;
-    }
-
     auto add_node(
       ccf::kv::Tx& tx,
       const std::vector<uint8_t>& node_der,
