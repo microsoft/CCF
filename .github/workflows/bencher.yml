@@ -34,6 +34,12 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: "Install dependencies"
+        shell: bash
+        run: |
+          set -ex
+          ./scripts/setup-ci.sh
+
       - name: "Machine info"
         shell: bash
         run: &machine_info |
@@ -51,12 +57,6 @@ jobs:
           else
             echo "CCF_PLATFORM_SLUG=virtual" >> "$GITHUB_ENV"
           fi
-
-      - name: "Install dependencies"
-        shell: bash
-        run: |
-          set -ex
-          ./scripts/setup-ci.sh
 
       - name: "Confirm running on Virtual"
         run: |
