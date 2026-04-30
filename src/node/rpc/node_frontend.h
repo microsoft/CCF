@@ -463,6 +463,8 @@ namespace ccf
           !this->node_operation.is_part_of_public_network() &&
           !this->node_operation.is_reading_private_ledger())
         {
+          LOG_INFO_FMT(
+            "Join request rejected: we are not part of network");
           return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
@@ -474,6 +476,7 @@ namespace ccf
         auto active_service = service->get();
         if (!active_service.has_value())
         {
+          LOG_INFO_FMT("Join request rejected: no active service");
           return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
@@ -507,15 +510,28 @@ namespace ccf
               existing_node_info->endorsed_certificate,
               node_operation.get_cose_signatures_config());
 
+            LOG_INFO_FMT(
+              "Join request from already-known node {} short-circuited at "
+              "check_node_exists with status TRUSTED",
+              existing_node_info->node_id);
             return make_success(rep);
           }
 
           if (node_status == NodeStatus::PENDING)
           {
             // Only return node status and ID
+            LOG_INFO_FMT(
+              "Join request from already-known node {} short-circuited at "
+              "check_node_exists with status PENDING",
+              existing_node_info->node_id);
             return make_success(rep);
           }
 
+          LOG_INFO_FMT(
+            "Join request from already-known node {} rejected: unexpected "
+            "status {}",
+            existing_node_info->node_id,
+            node_status);
           return make_error(
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::InvalidNodeState,
@@ -533,6 +549,10 @@ namespace ccf
               args, args.tx, primary_id.value());
             if (!address.has_value())
             {
+              LOG_INFO_FMT(
+                "Join request received on backup but no redirect address "
+                "available for primary {}",
+                primary_id.value());
               return already_populated_response();
             }
 
@@ -540,12 +560,18 @@ namespace ccf
               http::headers::LOCATION,
               fmt::format("https://{}/node/join", address.value()));
 
+            LOG_INFO_FMT(
+              "Redirecting join request to primary {} at {}",
+              primary_id.value(),
+              address.value());
             return make_error(
               HTTP_STATUS_PERMANENT_REDIRECT,
               ccf::errors::NodeCannotHandleRequest,
               "Node is not primary; cannot handle write");
           }
 
+          LOG_INFO_FMT(
+            "Join request received on backup but primary is unknown");
           return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
@@ -563,6 +589,11 @@ namespace ccf
           // Make sure that the joiner's snapshot is more recent than this
           // node's snapshot. Otherwise, the joiner may not be given all the
           // ledger secrets required to replay historical transactions.
+          LOG_INFO_FMT(
+            "Join request rejected: joiner startup seqno {} is older than "
+            "this node's startup seqno {}",
+            in.startup_seqno.value(),
+            this_startup_seqno);
           return make_error(
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::StartupSeqnoIsOld,
