@@ -160,9 +160,7 @@ def run(get_command, args):
                     )
 
                 primary, _ = network.find_primary()
-                mem = infra.proc.get_proc_memory_stats(
-                    primary.remote.remote.proc.pid
-                )
+                mem = infra.proc.get_proc_memory_stats(primary.remote.remote.proc.pid)
                 if mem is not None:
                     LOG.info(
                         f"Primary memory: RSS={mem['current_rss']}, "
