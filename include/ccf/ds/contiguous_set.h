@@ -6,6 +6,7 @@
 #include <fmt/format.h>
 #include <fmt/ranges.h>
 #include <numeric>
+#include <utility>
 #include <vector>
 
 namespace ccf::ds
@@ -37,7 +38,7 @@ namespace ccf::ds
       RangeIt it;
       size_t offset = 0;
 
-      ConstIterator(RangeIt i, size_t o = 0) : it(i), offset(o) {}
+      ConstIterator(RangeIt i, size_t o = 0) : it(std::move(i)), offset(o) {}
 
       T operator*() const
       {
@@ -101,7 +102,7 @@ namespace ccf::ds
           // arithmetic (two's complement negation).
           return (*this) -= static_cast<size_t>(-(n_ + 1)) + 1;
         }
-        size_t n = static_cast<size_t>(n_);
+        auto n = static_cast<size_t>(n_);
         while (offset + n > it->second)
         {
           n -= (it->second - offset + 1);
@@ -119,7 +120,8 @@ namespace ccf::ds
         return copy;
       }
 
-      friend ConstIterator operator+(difference_type n, const ConstIterator& other)
+      friend ConstIterator operator+(
+        difference_type n, const ConstIterator& other)
       {
         return other + n;
       }
@@ -164,9 +166,7 @@ namespace ccf::ds
           std::reverse_iterator(it),
           std::prev(std::reverse_iterator(other.it)),
           offset + 1,
-          [](size_t acc, const auto& range) {
-            return acc + range.second + 1;
-          });
+          [](size_t acc, const auto& range) { return acc + range.second + 1; });
         sum += other.it->second - other.offset;
         return static_cast<difference_type>(sum);
       }
