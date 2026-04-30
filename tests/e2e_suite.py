@@ -33,8 +33,11 @@ def mem_stats(network):
             stats = infra.proc.get_proc_memory_stats(pid)
             if stats is not None:
                 mem[node.local_node_id] = stats
-        except Exception:
-            pass
+        except (AttributeError, OSError) as exc:
+            LOG.debug(
+                f"Unable to collect memory stats for node "
+                f"{getattr(node, 'local_node_id', '<unknown>')}: {exc}"
+            )
     return mem
 
 

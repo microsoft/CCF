@@ -446,19 +446,8 @@ def run(args):
                         primary.remote.remote.proc.pid
                     )
                     if mem is not None:
-                        LOG.info(
-                            f"Primary memory: RSS={mem['current_rss']}, "
-                            f"Peak RSS={mem['peak_rss']}, "
-                            f"Virtual={mem['virtual_size']}"
-                        )
                         bf = infra.bencher.Bencher()
-                        bf.set(
-                            perf_label,
-                            infra.bencher.Memory(
-                                mem["current_rss"],
-                                high_value=mem["peak_rss"],
-                            ),
-                        )
+                        bf.set_memory(perf_label, mem)
 
                 network.stop_all_nodes()
 
