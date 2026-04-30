@@ -20,6 +20,7 @@ import datetime
 import ccf.ledger
 import plotext as plt
 import infra.bencher
+import infra.proc
 
 
 def configure_remote_client(args, client_id, client_host, common_dir):
@@ -438,6 +439,26 @@ def run(args):
                     remote_client.stop()
 
                 perf_label = args.perf_label
+
+                if not args.stop_primary_after_s:
+                    primary, _ = network.find_primary()
+                    mem = infra.proc.get_proc_memory_stats(
+                        primary.remote.remote.proc.pid
+                    )
+                    if mem is not None:
+                        LOG.info(
+                            f"Primary memory: RSS={mem['current_rss']}, "
+                            f"Peak RSS={mem['peak_rss']}, "
+                            f"Virtual={mem['virtual_size']}"
+                        )
+                        bf = infra.bencher.Bencher()
+                        bf.set(
+                            perf_label,
+                            infra.bencher.Memory(
+                                mem["current_rss"],
+                                high_value=mem["peak_rss"],
+                            ),
+                        )
 
                 network.stop_all_nodes()
 

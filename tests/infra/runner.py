@@ -159,6 +159,25 @@ def run(get_command, args):
                         infra.bencher.Throughput(perf_result),
                     )
 
+                primary, _ = network.find_primary()
+                mem = infra.proc.get_proc_memory_stats(
+                    primary.remote.remote.proc.pid
+                )
+                if mem is not None:
+                    LOG.info(
+                        f"Primary memory: RSS={mem['current_rss']}, "
+                        f"Peak RSS={mem['peak_rss']}, "
+                        f"Virtual={mem['virtual_size']}"
+                    )
+                    bf = infra.bencher.Bencher()
+                    bf.set(
+                        perf_label,
+                        infra.bencher.Memory(
+                            mem["current_rss"],
+                            high_value=mem["peak_rss"],
+                        ),
+                    )
+
                 for remote_client in clients:
                     remote_client.stop()
 
