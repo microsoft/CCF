@@ -10,7 +10,6 @@
 #include "ccf/pal/locking.h"
 
 #include <chrono>
-#include <quickjs/quickjs-exports.h>
 #include <quickjs/quickjs.h>
 #include <span>
 

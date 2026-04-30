@@ -1,14 +1,13 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
+# Path prefix to the QuickJS library source directory
 set(QUICKJS_PREFIX ${CCF_3RD_PARTY_EXPORTED_DIR}/quickjs)
-
-set(QUICKJS_INC ${QUICKJS_PREFIX})
 
 set(
   QUICKJS_SRC
   ${QUICKJS_PREFIX}/cutils.c
-  ${QUICKJS_PREFIX}/libbf.c
+  ${QUICKJS_PREFIX}/dtoa.c
   ${QUICKJS_PREFIX}/libunicode.c
   ${QUICKJS_PREFIX}/libregexp.c
   ${QUICKJS_PREFIX}/quickjs.c
@@ -28,7 +27,7 @@ message(STATUS "QuickJS prefix: ${QUICKJS_PREFIX} version: ${QUICKJS_VERSION}")
 add_library(quickjs STATIC ${QUICKJS_SRC})
 target_compile_options(
   quickjs
-  PUBLIC -DCONFIG_VERSION="${QUICKJS_VERSION}" -DCONFIG_BIGNUM
+  PUBLIC -DCONFIG_VERSION="${QUICKJS_VERSION}"
   PRIVATE $<$<CONFIG:Debug>:-DDUMP_LEAKS>
 )
 add_san(quickjs)
