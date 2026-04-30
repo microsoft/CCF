@@ -3,9 +3,9 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "ccf/byte_vector.h"
 #include "ccf/kv/serialisers/serialised_entry.h"
+#include "ds/btree_map.h"
 #include "ds/champ_map.h"
 #include "ds/internal_logger.h"
-#include "ds/rb_map.h"
 #include "ds/std_formatters.h"
 #include "kv/untyped_change_set.h"
 
@@ -52,8 +52,8 @@ using UntypedChampMap = champ::Map<Key, Value, H<Key>>;
 using ChampMap = UntypedChampMap<K, V>;
 
 template <typename Key, typename Value>
-using UntypedRBMap = rb::Map<Key, Value>;
-using RBMap = UntypedRBMap<K, V>;
+using UntypedBTreeMap = btree::Map<Key, Value>;
+using BTreeMap = UntypedBTreeMap<K, V>;
 
 class Model
 {
@@ -186,7 +186,7 @@ std::vector<std::unique_ptr<Op<M>>> gen_ops(size_t n)
   return ops;
 }
 
-TEST_CASE_TEMPLATE("Persistent map operations", M, RBMap, ChampMap)
+TEST_CASE_TEMPLATE("Persistent map operations", M, BTreeMap, ChampMap)
 {
   Model model;
   M map;
@@ -246,7 +246,7 @@ static const M gen_map(size_t size)
   return map;
 }
 
-TEST_CASE_TEMPLATE("Snapshot map", M, ChampMap, RBMap)
+TEST_CASE_TEMPLATE("Snapshot map", M, ChampMap, BTreeMap)
 {
   size_t ops_count = 2048;
   auto map = gen_map<M>(ops_count);
@@ -317,7 +317,7 @@ std::map<K, V> get_all_entries(const M& map)
   return entries;
 }
 
-TEST_CASE_TEMPLATE("Snapshot is immutable", M, ChampMap, RBMap)
+TEST_CASE_TEMPLATE("Snapshot is immutable", M, ChampMap, BTreeMap)
 {
   size_t ops_count = 2048;
   auto map = gen_map<M>(ops_count);
@@ -386,18 +386,18 @@ TEST_CASE("Snapshot compatibility")
 {
   size_t size = 100;
 
-  INFO("CHAMP -> RB");
+  INFO("CHAMP -> BTree");
   {
     auto champ_map = gen_map<ChampMap>(size);
-    RBMap rb_map;
-    verify_snapshot_compatibility<ChampMap, RBMap>(champ_map, rb_map);
+    BTreeMap btree_map;
+    verify_snapshot_compatibility<ChampMap, BTreeMap>(champ_map, btree_map);
   }
 
-  INFO("RB -> CHAMP");
+  INFO("BTree -> CHAMP");
   {
-    auto rb_map = gen_map<RBMap>(size);
+    auto btree_map = gen_map<BTreeMap>(size);
     ChampMap champ_map;
-    verify_snapshot_compatibility<RBMap, ChampMap>(rb_map, champ_map);
+    verify_snapshot_compatibility<BTreeMap, ChampMap>(btree_map, champ_map);
   }
 }
 
@@ -416,7 +416,7 @@ void forall_threshold(const M& map, size_t threshold)
   REQUIRE(iterations_count == threshold);
 }
 
-TEST_CASE_TEMPLATE("Foreach", M, RBMap, ChampMap)
+TEST_CASE_TEMPLATE("Foreach", M, BTreeMap, ChampMap)
 {
   size_t size = 100;
   auto map = gen_map<M>(size);

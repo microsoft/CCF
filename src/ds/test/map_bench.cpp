@@ -1,8 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #define PICOBENCH_IMPLEMENT_WITH_MAIN
+#include "../btree_map.h"
 #include "../champ_map.h"
-#include "../rb_map.h"
 
 #include <map>
 #include <picobench/picobench.hpp>
@@ -37,7 +37,8 @@ static const M gen_map(size_t size)
   for (uint64_t i = 0; i < size; ++i)
   {
     if constexpr (
-      std::is_same_v<M, champ::Map<K, V>> || std::is_same_v<M, rb::Map<K, V>>)
+      std::is_same_v<M, champ::Map<K, V>> ||
+      std::is_same_v<M, btree::Map<K, V>>)
     {
       map = map.put(i, v);
     }
@@ -71,7 +72,8 @@ static void benchmark_put(picobench::state& s)
   {
     (void)_;
     if constexpr (
-      std::is_same_v<M, champ::Map<K, V>> || std::is_same_v<M, rb::Map<K, V>>)
+      std::is_same_v<M, champ::Map<K, V>> ||
+      std::is_same_v<M, btree::Map<K, V>>)
     {
       auto res = map.put(size, v);
       do_not_optimize(res);
@@ -95,7 +97,8 @@ static void benchmark_get(picobench::state& s)
   {
     (void)_;
     if constexpr (
-      std::is_same_v<M, champ::Map<K, V>> || std::is_same_v<M, rb::Map<K, V>>)
+      std::is_same_v<M, champ::Map<K, V>> ||
+      std::is_same_v<M, btree::Map<K, V>>)
     {
       auto res = map.get(0);
       do_not_optimize(res);
@@ -136,7 +139,8 @@ static void benchmark_remove(picobench::state& s)
   {
     (void)_;
     if constexpr (
-      std::is_same_v<M, champ::Map<K, V>> || std::is_same_v<M, rb::Map<K, V>>)
+      std::is_same_v<M, champ::Map<K, V>> ||
+      std::is_same_v<M, btree::Map<K, V>>)
     {
       auto res = map.remove(0);
       do_not_optimize(res);
@@ -162,7 +166,8 @@ static void benchmark_foreach(picobench::state& s)
   {
     (void)_;
     if constexpr (
-      std::is_same_v<M, champ::Map<K, V>> || std::is_same_v<M, rb::Map<K, V>>)
+      std::is_same_v<M, champ::Map<K, V>> ||
+      std::is_same_v<M, btree::Map<K, V>>)
     {
       map.foreach([&count, map](const auto& key, const auto& value) {
         count++;
@@ -185,10 +190,10 @@ static void benchmark_foreach(picobench::state& s)
 const std::vector<int> sizes = {32, 32 << 2, 32 << 4, 32 << 6, 32 << 8};
 
 PICOBENCH_SUITE("put");
-auto bench_rb_map_put = benchmark_put<rb::Map<K, V>>;
-PICOBENCH(bench_rb_map_put).iterations(sizes).baseline();
 auto bench_champ_map_put = benchmark_put<champ::Map<K, V>>;
-PICOBENCH(bench_champ_map_put).iterations(sizes);
+PICOBENCH(bench_champ_map_put).iterations(sizes).baseline();
+auto bench_btree_map_put = benchmark_put<btree::Map<K, V>>;
+PICOBENCH(bench_btree_map_put).iterations(sizes);
 
 // std
 auto bench_std_map_put = benchmark_put<std::map<K, V>>;
@@ -197,10 +202,10 @@ auto bench_std_unord_map_put = benchmark_put<std::unordered_map<K, V>>;
 PICOBENCH(bench_std_unord_map_put).iterations(sizes);
 
 PICOBENCH_SUITE("get");
-auto bench_rb_map_get = benchmark_get<rb::Map<K, V>>;
-PICOBENCH(bench_rb_map_get).iterations(sizes).baseline();
 auto bench_champ_map_get = benchmark_get<champ::Map<K, V>>;
-PICOBENCH(bench_champ_map_get).iterations(sizes);
+PICOBENCH(bench_champ_map_get).iterations(sizes).baseline();
+auto bench_btree_map_get = benchmark_get<btree::Map<K, V>>;
+PICOBENCH(bench_btree_map_get).iterations(sizes);
 
 // std
 auto bench_std_map_get = benchmark_get<std::map<K, V>>;
@@ -209,16 +214,16 @@ auto bench_std_unord_map_get = benchmark_get<std::unordered_map<K, V>>;
 PICOBENCH(bench_std_unord_map_get).iterations(sizes);
 
 PICOBENCH_SUITE("getp");
-auto bench_rb_map_getp = benchmark_getp<rb::Map<K, V>>;
-PICOBENCH(bench_rb_map_getp).iterations(sizes).baseline();
 auto bench_champ_map_getp = benchmark_getp<champ::Map<K, V>>;
-PICOBENCH(bench_champ_map_getp).iterations(sizes);
+PICOBENCH(bench_champ_map_getp).iterations(sizes).baseline();
+auto bench_btree_map_getp = benchmark_getp<btree::Map<K, V>>;
+PICOBENCH(bench_btree_map_getp).iterations(sizes);
 
 PICOBENCH_SUITE("foreach");
-auto bench_rb_map_foreach = benchmark_foreach<rb::Map<K, V>>;
-PICOBENCH(bench_rb_map_foreach).iterations(sizes).baseline();
 auto bench_champ_map_foreach = benchmark_foreach<champ::Map<K, V>>;
-PICOBENCH(bench_champ_map_foreach).iterations(sizes);
+PICOBENCH(bench_champ_map_foreach).iterations(sizes).baseline();
+auto bench_btree_map_foreach = benchmark_foreach<btree::Map<K, V>>;
+PICOBENCH(bench_btree_map_foreach).iterations(sizes);
 
 // std
 auto bench_std_map_foreach = benchmark_foreach<std::map<K, V>>;
@@ -227,10 +232,10 @@ auto bench_unord_map_foreach = benchmark_foreach<std::unordered_map<K, V>>;
 PICOBENCH(bench_unord_map_foreach).iterations(sizes);
 
 PICOBENCH_SUITE("remove");
-auto bench_rb_map_remove = benchmark_remove<rb::Map<K, V>>;
-PICOBENCH(bench_rb_map_remove).iterations(sizes).baseline();
 auto bench_champ_map_remove = benchmark_remove<champ::Map<K, V>>;
-PICOBENCH(bench_champ_map_remove).iterations(sizes);
+PICOBENCH(bench_champ_map_remove).iterations(sizes).baseline();
+auto bench_btree_map_remove = benchmark_remove<btree::Map<K, V>>;
+PICOBENCH(bench_btree_map_remove).iterations(sizes);
 
 // std
 auto bench_std_map_remove = benchmark_remove<std::map<K, V>>;

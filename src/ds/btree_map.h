@@ -64,8 +64,9 @@ namespace btree
           else
             hi = mid;
         }
-        if (lo < count() && !(key < entries[lo]->key) &&
-            !(entries[lo]->key < key))
+        if (
+          lo < count() && !(key < entries[lo]->key) &&
+          !(entries[lo]->key < key))
           return {true, lo};
         return {false, lo};
       }
@@ -75,8 +76,7 @@ namespace btree
     size_t _size = 0;
     size_t _serialized_size = 0;
 
-    explicit Map(
-      std::shared_ptr<const Node> root, size_t sz, size_t ser_sz) :
+    explicit Map(std::shared_ptr<const Node> root, size_t sz, size_t ser_sz) :
       _root(std::move(root)),
       _size(sz),
       _serialized_size(ser_sz)
@@ -307,8 +307,7 @@ namespace btree
       n->children.back() = r.node;
       if (r.underflow)
       {
-        auto fr =
-          fix_underflow(n, static_cast<int>(n->children.size()) - 1);
+        auto fr = fix_underflow(n, static_cast<int>(n->children.size()) - 1);
         return {fr.node, r.entry, fr.underflow};
       }
       return {n, r.entry, n->count() < MIN_KEYS};
@@ -317,13 +316,15 @@ namespace btree
     static RemoveResult fix_underflow(std::shared_ptr<Node>& node, int ci)
     {
       // Try borrow from left sibling
-      if (ci > 0 && node->children[ci - 1] &&
-          node->children[ci - 1]->count() > MIN_KEYS)
+      if (
+        ci > 0 && node->children[ci - 1] &&
+        node->children[ci - 1]->count() > MIN_KEYS)
         return borrow_left(node, ci);
 
       // Try borrow from right sibling
-      if (ci < node->count() && node->children[ci + 1] &&
-          node->children[ci + 1]->count() > MIN_KEYS)
+      if (
+        ci < node->count() && node->children[ci + 1] &&
+        node->children[ci + 1]->count() > MIN_KEYS)
         return borrow_right(node, ci);
 
       // Merge
@@ -335,17 +336,14 @@ namespace btree
     static RemoveResult borrow_left(std::shared_ptr<Node>& parent, int ci)
     {
       auto sib = clone(parent->children[ci - 1]);
-      auto child =
-        parent->children[ci] ? clone(parent->children[ci]) :
-                               std::make_shared<Node>();
+      auto child = parent->children[ci] ? clone(parent->children[ci]) :
+                                          std::make_shared<Node>();
       child->leaf = sib->leaf;
 
       // Rotate: parent entry down to child, sibling's last entry up
-      child->entries.insert(
-        child->entries.begin(), parent->entries[ci - 1]);
+      child->entries.insert(child->entries.begin(), parent->entries[ci - 1]);
       if (!child->leaf)
-        child->children.insert(
-          child->children.begin(), sib->children.back());
+        child->children.insert(child->children.begin(), sib->children.back());
 
       parent->entries[ci - 1] = sib->entries.back();
       sib->entries.pop_back();
@@ -359,9 +357,8 @@ namespace btree
 
     static RemoveResult borrow_right(std::shared_ptr<Node>& parent, int ci)
     {
-      auto child =
-        parent->children[ci] ? clone(parent->children[ci]) :
-                               std::make_shared<Node>();
+      auto child = parent->children[ci] ? clone(parent->children[ci]) :
+                                          std::make_shared<Node>();
       auto sib = clone(parent->children[ci + 1]);
       child->leaf = sib->leaf;
 
@@ -382,9 +379,8 @@ namespace btree
 
     static RemoveResult merge(std::shared_ptr<Node>& parent, int idx)
     {
-      auto left =
-        parent->children[idx] ? clone(parent->children[idx]) :
-                                std::make_shared<Node>();
+      auto left = parent->children[idx] ? clone(parent->children[idx]) :
+                                          std::make_shared<Node>();
       auto* right = parent->children[idx + 1].get();
 
       // Pull parent entry down, append right's entries and children
@@ -495,8 +491,7 @@ namespace btree
       size_t new_ser = _serialized_size + kv_ser_size(key, value);
       if (result.replaced)
       {
-        new_ser -= kv_ser_size(
-          result.replaced->key, result.replaced->value);
+        new_ser -= kv_ser_size(result.replaced->key, result.replaced->value);
       }
       else
       {
