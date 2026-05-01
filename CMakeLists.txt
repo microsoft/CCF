@@ -681,6 +681,20 @@ if(BUILD_TESTS)
     endif()
 
     add_unit_test(
+      msgpack_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/msgpack/test/encode_test.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/msgpack/test/differential_test.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/msgpack/test/fuzz_script_test.cpp
+    )
+
+    if(FUZZING)
+      add_fuzz_test(
+        msgpack_fuzz_test
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/msgpack/test/msgpack_fuzz.cpp
+      )
+    endif()
+
+    add_unit_test(
       sharing_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/secret_sharing.cpp
     )
