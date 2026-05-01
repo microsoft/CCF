@@ -159,6 +159,12 @@ def run(get_command, args):
                         infra.bencher.Throughput(perf_result),
                     )
 
+                primary, _ = network.find_primary()
+                mem = infra.proc.get_proc_memory_stats(primary.remote.remote.proc.pid)
+                if mem is not None:
+                    bf = infra.bencher.Bencher()
+                    bf.set_memory(perf_label, mem)
+
                 for remote_client in clients:
                     remote_client.stop()
 
