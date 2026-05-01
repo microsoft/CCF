@@ -15,6 +15,7 @@ import json
 from piccolo import generator
 from piccolo import analyzer
 import infra.bencher
+import infra.proc
 
 
 def get_command_args(args, network, get_command):
@@ -214,6 +215,12 @@ def run(get_command, args):
                         perf_label,
                         infra.bencher.Throughput(perf_result),
                     )
+
+                primary, _ = network.find_primary()
+                mem = infra.proc.get_proc_memory_stats(primary.remote.remote.proc.pid)
+                if mem is not None:
+                    bf = infra.bencher.Bencher()
+                    bf.set_memory(perf_label, mem)
 
                 for remote_client in clients:
                     remote_client.stop()
