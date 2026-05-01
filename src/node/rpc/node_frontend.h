@@ -264,11 +264,6 @@ namespace ccf
       return duplicate_node_id;
     }
 
-    bool is_taking_part_in_acking(NodeStatus node_status)
-    {
-      return node_status == NodeStatus::TRUSTED;
-    }
-
     auto add_node(
       ccf::kv::Tx& tx,
       const std::vector<uint8_t>& node_der,
@@ -457,120 +452,38 @@ namespace ccf
       auto accept = [this](auto& args, const nlohmann::json& params) {
         const auto in = params.get<JoinNetworkNodeToNode::In>();
 
+        // Not part of network => Internal error
         if (
           !this->node_operation.is_part_of_network() &&
           !this->node_operation.is_part_of_public_network() &&
           !this->node_operation.is_reading_private_ledger())
         {
+          const std::string payload =
+            "Target node should be part of network to accept new nodes.";
+          LOG_INFO_FMT("Join request rejected: {}", payload);
           return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
-            "Target node should be part of network to accept new nodes.");
+            payload);
         }
 
-        // Make sure that the joiner's snapshot is more recent than this node's
-        // snapshot. Otherwise, the joiner may not be given all the ledger
-        // secrets required to replay historical transactions.
-        auto this_startup_seqno =
-          this->node_operation.get_startup_snapshot_seqno();
-        if (
-          in.startup_seqno.has_value() &&
-          this_startup_seqno > in.startup_seqno.value())
-        {
-          return make_error(
-            HTTP_STATUS_BAD_REQUEST,
-            ccf::errors::StartupSeqnoIsOld,
-            fmt::format(
-              "Node requested to join from seqno {} which is older than this "
-              "node startup seqno {}. A snapshot at least as recent as {} must "
-              "be used instead.",
-              in.startup_seqno.value(),
-              this_startup_seqno,
-              this_startup_seqno));
-        }
-
-        auto nodes = args.tx.rw(this->network.nodes);
+        // No service => Internal error
         auto service = args.tx.rw(this->network.service);
-
         auto active_service = service->get();
         if (!active_service.has_value())
         {
+          const std::string payload =
+            "No service is available to accept new node.";
+          LOG_INFO_FMT("Join request rejected: {}", payload);
           return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
-            "No service is available to accept new node.");
+            payload);
         }
 
-        if (
-          active_service->status == ServiceStatus::OPENING ||
-          active_service->status == ServiceStatus::RECOVERING)
-        {
-          // If the service is opening, new nodes are trusted straight away
-          NodeStatus joining_node_status = NodeStatus::TRUSTED;
+        auto nodes = args.tx.ro(network.nodes);
 
-          // If the node is already trusted, return network secrets
-          auto existing_node_info = check_node_exists(
-            args.tx,
-            args.rpc_ctx->get_session_context()->caller_cert,
-            joining_node_status);
-          if (existing_node_info.has_value())
-          {
-            JoinNetworkNodeToNode::Out rep;
-            rep.node_status = joining_node_status;
-            rep.network_info = JoinNetworkNodeToNode::Out::NetworkInfo(
-              node_operation.is_part_of_public_network(),
-              node_operation.get_last_recovered_signed_idx(),
-              this->network.ledger_secrets->get(
-                args.tx, existing_node_info->ledger_secret_seqno),
-              *this->network.identity,
-              active_service->status,
-              existing_node_info->endorsed_certificate,
-              node_operation.get_cose_signatures_config());
-
-            return make_success(rep);
-          }
-
-          if (consensus != nullptr && !this->node_operation.can_replicate())
-          {
-            auto primary_id = consensus->primary();
-            if (primary_id.has_value())
-            {
-              const auto address = node::get_redirect_address_for_node(
-                args, args.tx, primary_id.value());
-              if (!address.has_value())
-              {
-                return already_populated_response();
-              }
-
-              args.rpc_ctx->set_response_header(
-                http::headers::LOCATION,
-                fmt::format("https://{}/node/join", address.value()));
-
-              return make_error(
-                HTTP_STATUS_PERMANENT_REDIRECT,
-                ccf::errors::NodeCannotHandleRequest,
-                "Node is not primary; cannot handle write");
-            }
-
-            return make_error(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              ccf::errors::InternalError,
-              "Primary unknown");
-          }
-
-          return add_node(
-            args.tx,
-            args.rpc_ctx->get_session_context()->caller_cert,
-            in,
-            joining_node_status,
-            active_service->status);
-        }
-
-        // If the service is open, new nodes are first added as pending and
-        // then only trusted via member governance. It is expected that a new
-        // node polls the network to retrieve the network secrets until it is
-        // trusted
-
+        // If already joined => return equivalent response
         auto existing_node_info = check_node_exists(
           args.tx, args.rpc_ctx->get_session_context()->caller_cert);
         if (existing_node_info.has_value())
@@ -583,7 +496,7 @@ namespace ccf
           auto node_status = node_info->status;
           rep.node_status = node_status;
           rep.node_id = existing_node_info->node_id;
-          if (is_taking_part_in_acking(node_status))
+          if (node_status == NodeStatus::TRUSTED)
           {
             rep.network_info = JoinNetworkNodeToNode::Out::NetworkInfo(
               node_operation.is_part_of_public_network(),
@@ -595,22 +508,29 @@ namespace ccf
               existing_node_info->endorsed_certificate,
               node_operation.get_cose_signatures_config());
 
+            LOG_DEBUG_FMT(
+              "Join request accepted: {} already marked as TRUSTED",
+              existing_node_info->node_id);
             return make_success(rep);
           }
 
           if (node_status == NodeStatus::PENDING)
           {
             // Only return node status and ID
+            LOG_DEBUG_FMT(
+              "Join request accepted: {} already marked as PENDING",
+              existing_node_info->node_id);
             return make_success(rep);
           }
 
+          const std::string payload = fmt::format(
+            "Joining node is not in expected state ({}).", node_status);
+          LOG_INFO_FMT("Join request rejected: {}", payload);
           return make_error(
-            HTTP_STATUS_BAD_REQUEST,
-            ccf::errors::InvalidNodeState,
-            fmt::format(
-              "Joining node is not in expected state ({}).", node_status));
+            HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidNodeState, payload);
         }
 
+        // Not the primary => Redirect if possible to primary
         if (consensus != nullptr && !this->node_operation.can_replicate())
         {
           auto primary_id = consensus->primary();
@@ -620,6 +540,10 @@ namespace ccf
               args, args.tx, primary_id.value());
             if (!address.has_value())
             {
+              LOG_INFO_FMT(
+                "Join request rejected: no redirect address for "
+                "primary {}",
+                primary_id.value());
               return already_populated_response();
             }
 
@@ -627,24 +551,64 @@ namespace ccf
               http::headers::LOCATION,
               fmt::format("https://{}/node/join", address.value()));
 
+            const std::string payload =
+              "Node is not primary; cannot handle write";
+            LOG_INFO_FMT(
+              "Join request redirected to primary {} at {}: {}",
+              primary_id.value(),
+              address.value(),
+              payload);
             return make_error(
               HTTP_STATUS_PERMANENT_REDIRECT,
               ccf::errors::NodeCannotHandleRequest,
-              "Node is not primary; cannot handle write");
+              "payload");
           }
 
+          const std::string payload = "Primary unknown";
+          LOG_INFO_FMT("Join request rejected: {}", payload);
           return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
-            "Primary unknown");
+            payload);
         }
 
-        // If the node does not exist, add it to the KV in state pending
+        // Joiner's snapshot too old => StartupSeqnoIsOld
+        // (cause it to fetch a more recent snapshot)
+        auto this_startup_seqno =
+          this->node_operation.get_startup_snapshot_seqno();
+        if (
+          in.startup_seqno.has_value() &&
+          this_startup_seqno > in.startup_seqno.value())
+        {
+          // Make sure that the joiner's snapshot is more recent than this
+          // node's snapshot. Otherwise, the joiner may not be given all the
+          // ledger secrets required to replay historical transactions.
+          const std::string payload = fmt::format(
+            "Node requested to join from seqno {} which is older than this "
+            "node startup seqno {}. A snapshot at least as recent as {} must "
+            "be used instead.",
+            in.startup_seqno.value(),
+            this_startup_seqno,
+            this_startup_seqno);
+          LOG_INFO_FMT("Join request rejected: {}", payload);
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST, ccf::errors::StartupSeqnoIsOld, payload);
+        }
+
+        auto joining_node_status = NodeStatus::PENDING;
+        // If the service is opening, new nodes are trusted straight away
+        if (
+          active_service->status == ServiceStatus::OPENING ||
+          active_service->status == ServiceStatus::RECOVERING)
+        {
+          joining_node_status = NodeStatus::TRUSTED;
+        }
+
         return add_node(
           args.tx,
           args.rpc_ctx->get_session_context()->caller_cert,
           in,
-          NodeStatus::PENDING,
+          joining_node_status,
           active_service->status);
       };
       make_endpoint("/join", HTTP_POST, json_adapter(accept), no_auth_required)
