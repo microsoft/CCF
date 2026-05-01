@@ -458,11 +458,13 @@ namespace ccf
           !this->node_operation.is_part_of_public_network() &&
           !this->node_operation.is_reading_private_ledger())
         {
-          LOG_INFO_FMT("Join request rejected: we are not part of network");
+          const std::string payload =
+            "Target node should be part of network to accept new nodes.";
+          LOG_INFO_FMT("Join request rejected: {}", payload);
           return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
-            "Target node should be part of network to accept new nodes.");
+            payload);
         }
 
         // No service => Internal error
@@ -470,11 +472,13 @@ namespace ccf
         auto active_service = service->get();
         if (!active_service.has_value())
         {
-          LOG_INFO_FMT("Join request rejected: no active service");
+          const std::string payload =
+            "No service is available to accept new node.";
+          LOG_INFO_FMT("Join request rejected: {}", payload);
           return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
-            "No service is available to accept new node.");
+            payload);
         }
 
         auto nodes = args.tx.ro(network.nodes);
@@ -505,8 +509,7 @@ namespace ccf
               node_operation.get_cose_signatures_config());
 
             LOG_INFO_FMT(
-              "Join request from already-known node {} short-circuited at "
-              "check_node_exists with status TRUSTED",
+              "Join request accepted: {} already marked as TRUSTED",
               existing_node_info->node_id);
             return make_success(rep);
           }
@@ -515,22 +518,16 @@ namespace ccf
           {
             // Only return node status and ID
             LOG_INFO_FMT(
-              "Join request from already-known node {} short-circuited at "
-              "check_node_exists with status PENDING",
+              "Join request accepted: {} already marked as PENDING",
               existing_node_info->node_id);
             return make_success(rep);
           }
 
-          LOG_INFO_FMT(
-            "Join request from already-known node {} rejected: unexpected "
-            "status {}",
-            existing_node_info->node_id,
-            node_status);
+          const std::string payload = fmt::format(
+            "Joining node is not in expected state ({}).", node_status);
+          LOG_INFO_FMT("Join request rejected: {}", payload);
           return make_error(
-            HTTP_STATUS_BAD_REQUEST,
-            ccf::errors::InvalidNodeState,
-            fmt::format(
-              "Joining node is not in expected state ({}).", node_status));
+            HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidNodeState, payload);
         }
 
         // Not the primary => Redirect if possible to primary
@@ -544,8 +541,8 @@ namespace ccf
             if (!address.has_value())
             {
               LOG_INFO_FMT(
-                "Join request received on backup but no redirect address "
-                "available for primary {}",
+                "Join request rejected: no redirect address for "
+                "primary {}",
                 primary_id.value());
               return already_populated_response();
             }
@@ -554,26 +551,29 @@ namespace ccf
               http::headers::LOCATION,
               fmt::format("https://{}/node/join", address.value()));
 
+            const std::string payload =
+              "Node is not primary; cannot handle write";
             LOG_INFO_FMT(
-              "Redirecting join request to primary {} at {}",
+              "Join request redirected to primary {} at {}: {}",
               primary_id.value(),
-              address.value());
+              address.value(),
+              payload);
             return make_error(
               HTTP_STATUS_PERMANENT_REDIRECT,
               ccf::errors::NodeCannotHandleRequest,
-              "Node is not primary; cannot handle write");
+              "payload");
           }
 
-          LOG_INFO_FMT(
-            "Join request received on backup but primary is unknown");
+          const std::string payload = "Primary unknown";
+          LOG_INFO_FMT("Join request rejected: {}", payload);
           return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
-            "Primary unknown");
+            payload);
         }
 
-        // Joiner's snapshot too old => StartupSeqnoIsOld (cause it to fetch a
-        // more recent snapshot)
+        // Joiner's snapshot too old => StartupSeqnoIsOld 
+        // (cause it to fetch a more recent snapshot)
         auto this_startup_seqno =
           this->node_operation.get_startup_snapshot_seqno();
         if (
@@ -583,21 +583,16 @@ namespace ccf
           // Make sure that the joiner's snapshot is more recent than this
           // node's snapshot. Otherwise, the joiner may not be given all the
           // ledger secrets required to replay historical transactions.
-          LOG_INFO_FMT(
-            "Join request rejected: joiner startup seqno {} is older than "
-            "this node's startup seqno {}",
+          const std::string payload = fmt::format(
+            "Node requested to join from seqno {} which is older than this "
+            "node startup seqno {}. A snapshot at least as recent as {} must "
+            "be used instead.",
             in.startup_seqno.value(),
+            this_startup_seqno,
             this_startup_seqno);
+          LOG_INFO_FMT("Join request rejected: {}", payload);
           return make_error(
-            HTTP_STATUS_BAD_REQUEST,
-            ccf::errors::StartupSeqnoIsOld,
-            fmt::format(
-              "Node requested to join from seqno {} which is older than this "
-              "node startup seqno {}. A snapshot at least as recent as {} must "
-              "be used instead.",
-              in.startup_seqno.value(),
-              this_startup_seqno,
-              this_startup_seqno));
+            HTTP_STATUS_BAD_REQUEST, ccf::errors::StartupSeqnoIsOld, payload);
         }
 
         auto joining_node_status = NodeStatus::PENDING;
