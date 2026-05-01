@@ -90,11 +90,6 @@ option(BUILD_END_TO_END_TESTS "Build end to end tests" ON)
 option(COVERAGE "Enable coverage mapping" OFF)
 option(SHUFFLE_SUITE "Shuffle end to end test suite" OFF)
 option(LONG_TESTS "Enable long end-to-end tests" OFF)
-option(KV_STATE_RB "Enable RBMap as underlying KV state implementation" OFF)
-if(KV_STATE_RB)
-  add_compile_definitions(KV_STATE_RB)
-endif()
-
 option(USE_SNMALLOC "Link against snmalloc" ON)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/snmalloc.cmake)
 
