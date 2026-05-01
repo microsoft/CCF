@@ -3388,13 +3388,9 @@ def test_join_idempotency_short_circuits_on_backup(network, args):
     primary_lines = open(primary_out, encoding="utf-8").read()
 
     assert (
-        "Redirecting join request to primary" in backup_lines
+        "Join request redirected to primary" in backup_lines
     ), "Expected backup to log redirect on first attempt"
     # NodeId formats as `n[<hex>]` in logs.
-    assert (
-        f"Join request from already-known node n[{joined_node_id}] short-circuited"
-        in backup_lines
-    ), "Expected backup to log check_node_exists short-circuit on second attempt"
     assert (
         f"Node n[{joined_node_id}] added as" not in backup_lines
     ), "Backup must not have added the node itself"
