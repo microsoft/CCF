@@ -572,7 +572,7 @@ namespace ccf
             payload);
         }
 
-        // Joiner's snapshot too old => StartupSeqnoIsOld 
+        // Joiner's snapshot too old => StartupSeqnoIsOld
         // (cause it to fetch a more recent snapshot)
         auto this_startup_seqno =
           this->node_operation.get_startup_snapshot_seqno();
