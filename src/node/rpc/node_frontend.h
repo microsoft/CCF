@@ -508,7 +508,7 @@ namespace ccf
               existing_node_info->endorsed_certificate,
               node_operation.get_cose_signatures_config());
 
-            LOG_INFO_FMT(
+            LOG_DEBUG_FMT(
               "Join request accepted: {} already marked as TRUSTED",
               existing_node_info->node_id);
             return make_success(rep);
@@ -517,7 +517,7 @@ namespace ccf
           if (node_status == NodeStatus::PENDING)
           {
             // Only return node status and ID
-            LOG_INFO_FMT(
+            LOG_DEBUG_FMT(
               "Join request accepted: {} already marked as PENDING",
               existing_node_info->node_id);
             return make_success(rep);
