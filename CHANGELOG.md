@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - The `USE_LIBCXX` CMake option and all associated libc++/libc++abi build and packaging support have been removed. CCF now builds exclusively with libstdc++ (#7850).
 
+### Changed
+
+- Upgraded QuickJS from 2024-01-13 to 2025-09-13 (#7849).
+
 ## [7.0.2]
 
 [7.0.2]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.2
