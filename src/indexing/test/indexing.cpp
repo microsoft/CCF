@@ -446,7 +446,9 @@ TEST_CASE_TEMPLATE(
 }
 
 using namespace std::chrono_literals;
-const auto max_multithread_run_time = 500s;
+// Generous bound: under Debug + _GLIBCXX_DEBUG this test can be ~10x slower
+// than Release. The watchdog only exists to catch true deadlocks.
+const auto max_multithread_run_time = 1500s;
 
 // Uses the real classes, and access + update them concurrently
 TEST_CASE(
