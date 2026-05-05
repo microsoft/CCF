@@ -1138,11 +1138,13 @@ TEST_CASE("Incremental hash")
     {
       constexpr size_t chunk_size = 10;
       auto ihash = make_incremental_sha256();
-      for (auto it = contents.begin(); it < contents.end(); it += chunk_size)
+      for (auto it = contents.begin(); it < contents.end();)
       {
-        auto end =
-          it + chunk_size > contents.end() ? contents.end() : it + chunk_size;
+        auto remaining = static_cast<size_t>(std::distance(it, contents.end()));
+        auto step = std::min(chunk_size, remaining);
+        auto end = it + step;
         ihash->update(std::vector<uint8_t>{it, end});
+        it = end;
       }
       auto final_hash = ihash->finalise();
       REQUIRE(final_hash == simple_hash);
