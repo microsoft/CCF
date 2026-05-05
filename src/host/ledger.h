@@ -1523,7 +1523,9 @@ namespace asynchost
 
       auto f_from = get_it_contains_idx(idx + 1);
       auto f_to = get_it_contains_idx(last_idx);
-      auto f_end = std::next(f_to);
+      // std::next(end()) is undefined behaviour, which libstdc++'s debug
+      // iterators correctly detect; use end() directly when f_to is end().
+      auto f_end = (f_to == files.end()) ? files.end() : std::next(f_to);
 
       // Note: do not compare iterators against `f_from` inside the loop, as
       // it may be invalidated by `files.erase(it)` below. Use a flag for the
@@ -1565,7 +1567,9 @@ namespace asynchost
       auto f_from = (committed_idx == 0) ? get_it_contains_idx(1) :
                                            get_it_contains_idx(committed_idx);
       auto f_to = get_it_contains_idx(idx);
-      auto f_end = std::next(f_to);
+      // std::next(end()) is undefined behaviour, which libstdc++'s debug
+      // iterators correctly detect; use end() directly when f_to is end().
+      auto f_end = (f_to == files.end()) ? files.end() : std::next(f_to);
 
       for (auto it = f_from; it != f_end;)
       {
