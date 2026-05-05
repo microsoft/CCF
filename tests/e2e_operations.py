@@ -3068,23 +3068,48 @@ def test_join_time_snapshot_fetch_failure(network, args):
     # and "giving up" log messages when the snapshot endpoint is unreachable.
     #
     # Strategy:
-    #  1. Add an intermediate node joined from a snapshot so its startup_seqno
-    #     > 0.  That node will act as the join target.
-    #  2. Join a fresh node (no snapshot, startup_seqno = 0) targeting the
-    #     intermediate node via primary_rpc_interface.  Because the
-    #     intermediate node's startup_seqno > 0, it returns StartupSeqnoIsOld
-    #     for the fresh joiner, triggering the FetchSnapshot task.
-    #  3. primary_rpc_interface lacks the SnapshotRead operator feature, so
+    #  1. Fully reconfigure the network: for each of the X original nodes
+    #     (which were bootstrapped at network start with startup_seqno = 0),
+    #     add a replacement node joined from a snapshot (startup_seqno > 0),
+    #     then retire and stop the originals. After this, every remaining
+    #     node has startup_seqno > 0, so any fresh joiner with
+    #     startup_seqno = 0 is rejected with StartupSeqnoIsOld -- regardless
+    #     of which node a join request gets redirected to (the join endpoint
+    #     redirects backups to the primary before checking StartupSeqnoIsOld,
+    #     so the primary must also reject).
+    #  2. Add an intermediate node joined from a snapshot to use as the
+    #     failing-join target via primary_rpc_interface.
+    #  3. Join a fresh node (no snapshot, startup_seqno = 0) targeting the
+    #     intermediate node via primary_rpc_interface.  The target replies
+    #     StartupSeqnoIsOld, triggering the FetchSnapshot task.
+    #  4. primary_rpc_interface lacks the SnapshotRead operator feature, so
     #     GET /node/snapshot returns HTTP 404, exhausting the 3-attempt retry
     #     loop and logging "Exceeded maximum snapshot fetch retries".
     primary, _ = network.find_primary()
 
-    # Ensure at least one committed snapshot exists so that a joining node
+    # Ensure at least one committed snapshot exists so that joining nodes
     # can be given one (startup_seqno > 0).
     network.txs.issue(network, number_txs=args.snapshot_tx_interval * 2)
     network.get_committed_snapshots(primary)
 
-    # Add an intermediate node that starts from that snapshot.
+    # Full reconfigure so every remaining node has startup_seqno > 0
+    # (otherwise a redirect to the primary would let the joiner succeed).
+    # Add all replacements before retiring any original, to preserve quorum
+    # throughout the reconfiguration.
+    original_nodes = list(network.get_joined_nodes())
+    for _ in original_nodes:
+        new_node = network.create_node()
+        network.join_node(new_node, args.package, args, from_snapshot=True)
+        network.trust_node(new_node, args)
+    for old in original_nodes:
+        current_primary, _ = network.find_primary()
+        network.retire_node(current_primary, old)
+        old.stop()
+    primary, _ = network.find_primary()
+    network.wait_for_all_nodes_to_commit(primary)
+
+    # Add an intermediate node (also snapshot-joined) to act as the
+    # failing-join target.
     intermediate_node = network.create_node()
     network.join_node(intermediate_node, args.package, args, target_node=primary)
     network.trust_node(intermediate_node, args)
@@ -3273,6 +3298,114 @@ def test_backup_snapshot_fetch_max_size(network, args):
         )
 
 
+def test_join_idempotency_short_circuits_on_backup(network, args):
+    # Verify that once the primary has registered a joining identity as
+    # PENDING, a subsequent /node/join request from the same TLS identity
+    # sent to a backup is short-circuited via check_node_exists
+    # (src/node/rpc/node_frontend.h:486-524) and answered locally with
+    # 200 + node_status=PENDING -- no redirect, no duplicate add_node.
+    #
+    # The C++ joiner cannot exercise this path: after the first 308 it
+    # permanently retargets the primary (node_state.h:1144), so its retries
+    # never re-hit the backup. We therefore drive /node/join directly from
+    # Python via Network.fake_join, which forges a virtual quote bound to
+    # a synthetic keypair (precedent: test_issue_fake_join in
+    # reconfiguration.py).
+    #
+    # Skipped on snp because we cannot synthesize a valid SNP quote.
+    if infra.platform_detection.get_platform() == "snp":
+        LOG.warning(
+            "Skipping test_join_idempotency_short_circuits_on_backup on snp: "
+            "cannot synthesize a valid SNP quote for raw Python join."
+        )
+        return
+
+    primary, backups = network.find_nodes()
+    assert backups, "Test requires at least one backup"
+    backup = backups[0]
+
+    # Generate a fresh synthetic identity once and reuse it across all three
+    # POSTs. add_node binds the virtual quote to the joiner's public key
+    # (src/node/quote.cpp:122-132 verify_quoted_node_public_key).
+    priv_pem, _ = infra.crypto.generate_ec_keypair()
+    cert_pem = infra.crypto.generate_cert(priv_pem, cn="fake_joiner")
+    kp = (priv_pem, cert_pem)
+
+    # --- Attempt 1: POST to backup, expect 308 redirect to primary ---
+    r1, expected_node_id = network.fake_join(backup, kp)
+    assert r1.status_code == http.HTTPStatus.PERMANENT_REDIRECT, (
+        f"Expected 308 from backup on first attempt, got {r1.status_code}: "
+        f"{r1.body.text()}"
+    )
+    location = next((v for k, v in r1.headers.items() if k.lower() == "location"), None)
+    assert location, "Expected Location header on 308"
+
+    # --- Follow redirect manually: POST same identity to primary ---
+    r_primary, _ = network.fake_join(primary, kp)
+    assert r_primary.status_code == http.HTTPStatus.OK, (
+        f"Primary should accept join, got {r_primary.status_code}: "
+        f"{r_primary.body.text()}"
+    )
+    body = r_primary.body.json()
+    assert body["node_status"] == "Pending", body
+    joined_node_id = body["node_id"]
+    assert joined_node_id == expected_node_id, (
+        f"node_id mismatch: server returned {joined_node_id}, expected "
+        f"sha256(DER pubkey) = {expected_node_id}"
+    )
+    assert (
+        body.get("network_info") is None
+    ), "PENDING response must not include network_info"
+
+    # Wait for the new node entry to be replicated and committed on the backup
+    # so that its check_node_exists lookup succeeds on the second attempt.
+    network.wait_for_all_nodes_to_commit(primary)
+
+    # --- Attempt 2: POST to SAME backup, expect 200 + Pending (early-exit) ---
+    r2, _ = network.fake_join(backup, kp)
+    assert r2.status_code == http.HTTPStatus.OK, (
+        f"Backup must short-circuit and return 200 on second attempt, "
+        f"got {r2.status_code}: {r2.body.text()}"
+    )
+    assert not any(
+        k.lower() == "location" for k in r2.headers
+    ), "Short-circuit response must not include a Location header"
+    body2 = r2.body.json()
+    assert body2["node_status"] == "Pending", body2
+    assert body2["node_id"] == joined_node_id, (
+        f"Idempotency violated: second attempt returned different node_id "
+        f"({body2['node_id']} vs {joined_node_id})"
+    )
+    assert (
+        body2.get("network_info") is None
+    ), "PENDING response must not include network_info"
+
+    # Log assertions: backup logged BOTH branches; backup did not run add_node;
+    # primary ran add_node exactly once for this id.
+    backup_out, _ = backup.get_logs()
+    primary_out, _ = primary.get_logs()
+    backup_lines = open(backup_out, encoding="utf-8").read()
+    primary_lines = open(primary_out, encoding="utf-8").read()
+
+    assert (
+        "Join request redirected to primary" in backup_lines
+    ), "Expected backup to log redirect on first attempt"
+    # NodeId formats as `n[<hex>]` in logs.
+    assert (
+        f"Node n[{joined_node_id}] added as" not in backup_lines
+    ), "Backup must not have added the node itself"
+    add_count = primary_lines.count(
+        f"Node n[{joined_node_id}] added as PENDING"
+    ) + backup_lines.count(f"Node n[{joined_node_id}] added as PENDING")
+    assert (
+        add_count == 1
+    ), f"Primary should have added the node exactly once, found {add_count}"
+
+    # Cleanup: retire the never-started PENDING node so it doesn't pollute
+    # later tests in this run.
+    network.consortium.retire_node_by_id(primary, joined_node_id)
+
+
 def run_backup_snapshot_download(const_args):
     args = copy.deepcopy(const_args)
     args.label += "_backup_snapshot_download"
@@ -3289,6 +3422,7 @@ def run_backup_snapshot_download(const_args):
         network.start_and_open(args, backup_snapshot_fetch_enabled=True)
         test_backup_snapshot_fetch(network, args)
         test_backup_snapshot_fetch_max_size(network, args)
+        test_join_idempotency_short_circuits_on_backup(network, args)
         test_join_time_snapshot_fetch_failure(network, args)
         test_error_message_on_failure_to_fetch_snapshot(network, args)
 

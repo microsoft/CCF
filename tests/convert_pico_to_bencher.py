@@ -46,18 +46,6 @@ benchmark_specs = {
             "Benchmark": "bench_champ_map_get",
             "D": "2048",
         },
-        {
-            "_name": "RBMap put",
-            "Suite": "put",
-            "Benchmark": "bench_rb_map_put",
-            "D": "2048",
-        },
-        {
-            "_name": "RBMap get",
-            "Suite": "get",
-            "Benchmark": "bench_rb_map_get",
-            "D": "2048",
-        },
     ],
 }
 
