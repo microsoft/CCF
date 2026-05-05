@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
-- On a joiner's first attempt, the primary now requires the joiner's startup seqno to be at least as recent as its latest committed snapshot on disk, preventing snapshot-less joiners from replaying the entire ledger (#7844).
+- On a joiner's first attempt, the primary now requires the joiner's startup seqno to be at least as recent as the primary's latest committed snapshot on disk, preventing snapshot-less joiners from replaying the entire ledger (#7844).
 
 ### Changed
 

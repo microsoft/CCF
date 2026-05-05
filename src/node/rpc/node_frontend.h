@@ -576,13 +576,13 @@ namespace ccf
         // Joiner's snapshot too old => StartupSeqnoIsOld
         // (causes joiner to fetch a more recent snapshot)
         //
-        // We want the joiner to always use the most recent snapshot.
+        // The joiner always wants to use the most recent snapshot.
         // However this will result in the joiner chasing the primary if
         // snapshot production period ~= snapshot fetching delay
         //
         // So we have hysteresis in the fetching constraint:
-        // If you have already fetched a snapshot: joiner > startup
-        // Otherwise: joiner > latest on disk
+        // If the joiner has already fetched a snapshot: joiner seqno > startup snapshot seqno
+        // Otherwise: joiner seqno > latest snapshot on disk seqno
         auto this_startup_seqno =
           this->node_operation.get_startup_snapshot_seqno();
         ccf::kv::Version required_seqno = this_startup_seqno;
