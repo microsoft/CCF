@@ -39,7 +39,7 @@ namespace ccf
     sealing_recovery_data,
     code_transparent_statement,
     ledger_sign_mode,
-    retry_count);
+    join_fetch_count);
 
   DECLARE_JSON_TYPE(NetworkIdentity);
   DECLARE_JSON_REQUIRED_FIELDS(NetworkIdentity, cert, priv_key);

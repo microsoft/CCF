@@ -575,20 +575,18 @@ namespace ccf
 
         // Joiner's snapshot too old => StartupSeqnoIsOld
         // (causes joiner to fetch a more recent snapshot)
-        // 
+        //
         // We want the joiner to always use the most recent snapshot.
         // However this will result in the joiner chasing the primary if
         // snapshot production period ~= snapshot fetching delay
         //
-        // So we have hysterisis in the fetching constraint:
-        // If you have already fetched a snapshot: joiner > starutp
+        // So we have hysteresis in the fetching constraint:
+        // If you have already fetched a snapshot: joiner > startup
         // Otherwise: joiner > latest on disk
         auto this_startup_seqno =
           this->node_operation.get_startup_snapshot_seqno();
         ccf::kv::Version required_seqno = this_startup_seqno;
-        // Joiners without a retry_count should use the required bound
-        const auto retry_count = in.retry_count.value_or(1);
-        if (retry_count == 0)
+        if (in.join_fetch_count == 0)
         {
           auto node_configuration_subsystem =
             this->context.get_subsystem<NodeConfigurationSubsystem>();
@@ -621,8 +619,8 @@ namespace ccf
             "Node requested to join from seqno {} which is older than this "
             "node {} {}. A snapshot at least as recent as {} must "
             "be used instead.",
-            retry_count == 0 ? "latest_on_disk_seqno" : "startup_seqno" 
             in.startup_seqno.value(),
+            in.join_fetch_count == 0 ? "latest_on_disk_seqno" : "startup_seqno",
             this_startup_seqno,
             this_startup_seqno);
           LOG_INFO_FMT("Join request rejected: {}", payload);
