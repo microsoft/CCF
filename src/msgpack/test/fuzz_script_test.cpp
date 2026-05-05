@@ -71,6 +71,22 @@ namespace
   {
     dst.insert(dst.end(), src.begin(), src.end());
   }
+
+  void check_binary_payload(
+    const json& value,
+    const std::vector<uint8_t>& expected,
+    bool expect_subtype,
+    uint8_t subtype = 0)
+  {
+    REQUIRE(value.is_binary());
+    const auto& bin = value.get_binary();
+    CHECK(std::vector<uint8_t>(bin.begin(), bin.end()) == expected);
+    CHECK(bin.has_subtype() == expect_subtype);
+    if (expect_subtype)
+    {
+      CHECK(bin.subtype() == subtype);
+    }
+  }
 }
 
 // ===== Atoms =====
@@ -99,6 +115,44 @@ TEST_CASE("encode_one: empty object at top level")
   auto [buf, mirror] = run_script({9, 0});
   CHECK(buf == std::vector<uint8_t>{0x80});
   CHECK(mirror == json::object());
+  CHECK(json::from_msgpack(buf) == mirror);
+}
+
+TEST_CASE("encode_one: bin at top level")
+{
+  const std::vector<uint8_t> payload = {0xDE, 0xAD, 0xBE};
+
+  // Op 6, length 3, then 3 payload bytes. Expected wire: bin8(3) ++ payload.
+  auto [buf, mirror] = run_script({6, 3, 0xDE, 0xAD, 0xBE});
+  CHECK(buf == std::vector<uint8_t>{0xC4, 0x03, 0xDE, 0xAD, 0xBE});
+  check_binary_payload(mirror, payload, false);
+  CHECK(json::from_msgpack(buf) == mirror);
+}
+
+TEST_CASE("encode_one: FluentdEventTime at top level")
+{
+  const std::vector<uint8_t> payload = {
+    0x01, 0x02, 0x03, 0x04, 0x00, 0x00, 0x00, 0x00};
+
+  // Op 7, then seconds u64 and nanoseconds u64. Nanoseconds are zero so
+  // the expected payload is independent of system_clock tick precision.
+  auto [buf, mirror] = run_script(
+    {7,
+     0, 0, 0, 0, 0x01, 0x02, 0x03, 0x04,
+     0, 0, 0, 0, 0, 0, 0, 0});
+  CHECK(
+    buf == std::vector<uint8_t>{
+             0xD7,
+             0x00,
+             0x01,
+             0x02,
+             0x03,
+             0x04,
+             0x00,
+             0x00,
+             0x00,
+             0x00});
+  check_binary_payload(mirror, payload, true, 0);
   CHECK(json::from_msgpack(buf) == mirror);
 }
 
@@ -282,6 +336,67 @@ TEST_CASE("encode_one: array mixing object and empty array")
   json expected = json::array();
   expected.push_back(child0);
   expected.push_back(json::array());
+  CHECK(mirror == expected);
+  CHECK(json::from_msgpack(buf) == mirror);
+}
+
+TEST_CASE("encode_one: array containing bin and FluentdEventTime")
+{
+  const std::vector<uint8_t> bin_payload = {0xAA, 0xBB};
+  const std::vector<uint8_t> event_time_payload = {
+    0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00};
+
+  // array(2): bin8(2, 0xAA 0xBB), EventTime(seconds=1, nanoseconds=0).
+  auto [buf, mirror] = run_script(
+    {8,
+     2,
+     6,
+     2,
+     0xAA,
+     0xBB,
+     7,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     1,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0});
+  CHECK(
+    buf == std::vector<uint8_t>{
+             0x92,
+             0xC4,
+             0x02,
+             0xAA,
+             0xBB,
+             0xD7,
+             0x00,
+             0x00,
+             0x00,
+             0x00,
+             0x01,
+             0x00,
+             0x00,
+             0x00,
+             0x00});
+
+  REQUIRE(mirror.is_array());
+  REQUIRE(mirror.size() == 2);
+  check_binary_payload(mirror[0], bin_payload, false);
+  check_binary_payload(mirror[1], event_time_payload, true, 0);
+
+  json expected = json::array();
+  expected.push_back(json::binary(bin_payload));
+  expected.push_back(json::binary(event_time_payload, 0));
   CHECK(mirror == expected);
   CHECK(json::from_msgpack(buf) == mirror);
 }

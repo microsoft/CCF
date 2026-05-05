@@ -17,15 +17,11 @@
 // non-canonical (wrong format family) or non-deterministic, and the
 // harness traps.
 //
-// Trials that include msgpack types not cleanly comparable through the
-// JSON oracle (bin, ext) skip the comparison via a sentinel exception;
-// the encoding still ran and any encoder-side bug (UB, assertion,
-// out-of-bounds) would still be caught by the sanitizers libFuzzer is
-// built with.
+// Binary and ext values are mirrored using nlohmann::json::binary, matching
+// the representation produced by from_msgpack.
 //
-// `encode_one`, `StreamReader`, and `SkipTrial` live in `gen.h` so the
-// canned tests in `fuzz_script_test.cpp` can exercise the same code
-// paths as this harness.
+// `encode_one` and `StreamReader` live in `gen.h` so the canned tests in
+// `fuzz_script_test.cpp` can exercise the same code paths as this harness.
 
 #include "msgpack/encode.h"
 #include "msgpack/test/gen.h"
@@ -53,14 +49,6 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
     // Expected: e.g. MAP_TOO_LARGE if the script asks for one. Not a bug.
     return 0;
   }
-  catch (const gen::SkipTrial&)
-  {
-    // Trial includes a value the JSON oracle can't cleanly compare
-    // (bin / ext). The encoding still ran; sanitizers under libFuzzer
-    // would still have caught any encoder-side fault.
-    return 0;
-  }
-
   // Round-trip check: oracle must decode our bytes into a value equal
   // to the JSON mirror we built alongside the encoding.
   json decoded;

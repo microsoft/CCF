@@ -180,13 +180,6 @@ namespace ccf::msgpack::test::gen
   using nlohmann::json;
   using namespace ccf::msgpack;
 
-  // Sentinel for trials that include msgpack types not cleanly
-  // comparable through the JSON oracle (bin, ext). Throwing a
-  // dedicated empty type avoids overlap with std::exception
-  // hierarchies that real bugs might raise.
-  struct SkipTrial
-  {};
-
   class StreamReader
   {
   public:
@@ -267,6 +260,21 @@ namespace ccf::msgpack::test::gen
     return key;
   }
 
+  inline std::vector<uint8_t> event_time_payload(FluentdEventTime t)
+  {
+    std::vector<uint8_t> payload;
+    payload.reserve(8);
+    auto append_u32_be = [&payload](uint32_t v) {
+      payload.push_back(static_cast<uint8_t>((v >> 24) & 0xFFu));
+      payload.push_back(static_cast<uint8_t>((v >> 16) & 0xFFu));
+      payload.push_back(static_cast<uint8_t>((v >> 8) & 0xFFu));
+      payload.push_back(static_cast<uint8_t>(v & 0xFFu));
+    };
+    append_u32_be(t.seconds());
+    append_u32_be(t.nanoseconds());
+    return payload;
+  }
+
   // Splice a value into the top-of-stack composite, consuming any
   // pending object key. The caller must guarantee the stack is
   // non-empty; the top-of-stack `root` must be an array or object.
@@ -287,8 +295,7 @@ namespace ccf::msgpack::test::gen
   }
 
   // Drive the script and return the produced json mirror, writing
-  // encoded bytes into `buf`. Throws SkipTrial for trials containing
-  // bin/ext (which the JSON oracle can't compare cleanly).
+  // encoded bytes into `buf`.
   inline json encode_one(StreamReader& r, std::vector<uint8_t>& buf)
   {
     // The root frame is a 1-slot array that receives the user's
@@ -420,18 +427,16 @@ namespace ccf::msgpack::test::gen
           splice_into(frame, json(s));
           break;
         }
-        case 6: // bin (skips the round-trip comparison)
+        case 6: // bin
         {
           const size_t n = r.u8();
           std::vector<uint8_t> bytes;
           r.take(bytes, n);
           write_bin(buf, bytes);
-          // The JSON oracle decodes bin as binary_t, which doesn't
-          // compare equal to anything we'd build into the mirror.
-          // Sanitizers under libFuzzer still cover the encode path.
-          throw SkipTrial{};
+          splice_into(frame, json::binary(bytes));
+          break;
         }
-        case 7: // FluentdEventTime (skips the round-trip comparison)
+        case 7: // FluentdEventTime
         {
           using namespace std::chrono;
           // Seconds: keep within uint32_t so make() doesn't reject the
@@ -442,17 +447,16 @@ namespace ccf::msgpack::test::gen
             static_cast<uint32_t>(r.u64() & 0xFFFFFFFFu) % 1'000'000'000u;
           // Build the time_point through system_clock::duration, since
           // its tick period is implementation-defined (nanoseconds on
-          // libstdc++, microseconds on libc++). duration_cast handles
-          // either, with the libc++ case losing sub-microsecond
-          // precision — acceptable here because this trial is skipped
-          // from the JSON-oracle round-trip anyway.
+          // libstdc++, microseconds on libc++). The mirror below is
+          // built from the validated EventTime, not from raw `ns`, so it
+          // reflects any precision loss from duration_cast.
           const auto since_epoch = duration_cast<system_clock::duration>(
             seconds{static_cast<int64_t>(s)} + nanoseconds{ns});
           const auto tp = system_clock::time_point{since_epoch};
-          write_event_time(buf, FluentdEventTime::make(tp));
-          // Same skip rationale as bin: the oracle decodes ext types
-          // as binary_t.
-          throw SkipTrial{};
+          const auto et = FluentdEventTime::make(tp);
+          write_event_time(buf, et);
+          splice_into(frame, json::binary(event_time_payload(et), 0));
+          break;
         }
         case 8: // Array
         {
