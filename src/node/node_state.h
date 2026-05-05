@@ -575,7 +575,7 @@ namespace ccf
 
       if (start_type == StartType::Join)
       {
-        // after fetching a snapshot, subsequent requests should use the 
+        // after fetching a snapshot, subsequent requests should use the
         // required bound instead of the preferred bound
         join_fetch_count += 1;
       }
