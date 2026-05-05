@@ -450,6 +450,15 @@ using namespace std::chrono_literals;
 // than Release. The watchdog only exists to catch true deadlocks.
 const auto max_multithread_run_time = 1500s;
 
+// _GLIBCXX_DEBUG makes container ops on the indexing/cache pipeline so slow
+// that the indexer cannot catch up to the writer in a reasonable time. The
+// test exercises the same code paths with fewer iterations.
+#ifdef _GLIBCXX_DEBUG
+constexpr size_t multithread_tx_count = 100;
+#else
+constexpr size_t multithread_tx_count = 1'000;
+#endif
+
 // Uses the real classes, and access + update them concurrently
 TEST_CASE(
   "multi-threaded indexing - in memory" * doctest::test_suite("indexing"))
@@ -508,7 +517,7 @@ TEST_CASE(
 
   auto tx_advancer = [&]() {
     size_t i = 0;
-    while (i < 1'000)
+    while (i < multithread_tx_count)
     {
       auto tx = kv_store.create_tx();
       tx.wo(map_a)->put(fmt::format("hello"), fmt::format("Value {}", i));

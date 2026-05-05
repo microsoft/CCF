@@ -6,6 +6,7 @@ import infra.checker
 import infra.jwt_issuer
 import time
 import http
+import os
 import random
 import infra.clients
 import infra.commit
@@ -232,12 +233,13 @@ class LoggingTxs:
 
         if timeout is None:
             # Calculate default timeout increasing with length of ledger.
-            # Assume fetch rate of at least 100/s
+            # Assume fetch rate of at least 100/s (or 25/s under
+            # _GLIBCXX_DEBUG, where container ops are significantly slower).
             with node.client(self.user) as c:
                 r = c.get("/node/commit")
             assert r.status_code == 200, r
             seqno = TxID.from_str(r.body.json()["transaction_id"]).seqno
-            seqnos_per_sec = 100
+            seqnos_per_sec = 25 if os.getenv("CCF_GLIBCXX_DEBUG") else 100
             timeout = max(3, math.ceil(seqno / seqnos_per_sec))
 
         LOG.info(
