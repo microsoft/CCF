@@ -1135,7 +1135,12 @@ class Network:
             log_capture = []
             try:
                 self.txs.verify(network=self, log_capture=log_capture)
-                self.txs.verify_range(log_capture=log_capture)
+                # verify_range walks the historical query subsystem across
+                # the full ledger, which is prohibitively slow under
+                # _GLIBCXX_DEBUG (debug-mode containers). Skip it in that
+                # case; the same coverage is exercised by Release CI.
+                if not os.getenv("CCF_GLIBCXX_DEBUG"):
+                    self.txs.verify_range(log_capture=log_capture)
             except:
                 flush_info(log_capture, None)
                 raise
