@@ -581,8 +581,9 @@ namespace ccf
         // snapshot production period ~= snapshot fetching delay
         //
         // So we have hysteresis in the fetching constraint:
-        // If the joiner has already fetched a snapshot: joiner seqno > startup snapshot seqno
-        // Otherwise: joiner seqno > latest snapshot on disk seqno
+        // If the joiner has already fetched a snapshot: joiner seqno > startup
+        // snapshot seqno Otherwise: joiner seqno > latest snapshot on disk
+        // seqno
         auto this_startup_seqno =
           this->node_operation.get_startup_snapshot_seqno();
         ccf::kv::Version required_seqno = this_startup_seqno;

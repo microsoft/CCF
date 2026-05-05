@@ -1330,7 +1330,9 @@ namespace ccf
       if (config.join.fetch_recent_snapshot)
       {
         join_params.join_fetch_count = join_fetch_count;
-      } else {
+      }
+      else
+      {
         join_params.join_fetch_count = 1;
       }
       join_params.certificate_signing_request = node_sign_kp->create_csr(
