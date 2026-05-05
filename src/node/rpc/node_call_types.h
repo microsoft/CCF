@@ -99,8 +99,7 @@ namespace ccf
       std::optional<ccf::LedgerSignMode> ledger_sign_mode = std::nullopt;
       // Incremented by the joiner each time it retries a join request after
       // receiving a StartupSeqnoIsOld response.
-      // default to 1 ensuring old versions use required startup bound
-      uint32_t join_fetch_count = 1;
+      std::optional<uint32_t> join_fetch_count = std::nullopt;
     };
 
     struct Out

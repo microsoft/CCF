@@ -1327,7 +1327,12 @@ namespace ccf
       join_params.public_encryption_key = node_encrypt_kp->public_key_pem();
       join_params.quote_info = quote_info;
       join_params.startup_seqno = startup_seqno;
-      join_params.join_fetch_count = join_fetch_count;
+      if (config.join.fetch_recent_snapshot)
+      {
+        join_params.join_fetch_count = join_fetch_count;
+      } else {
+        join_params.join_fetch_count = 1;
+      }
       join_params.certificate_signing_request = node_sign_kp->create_csr(
         config.node_certificate.subject_name, subject_alt_names);
       join_params.node_data = config.node_data;

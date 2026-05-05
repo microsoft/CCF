@@ -586,7 +586,11 @@ namespace ccf
         auto this_startup_seqno =
           this->node_operation.get_startup_snapshot_seqno();
         ccf::kv::Version required_seqno = this_startup_seqno;
-        if (in.join_fetch_count == 0)
+        // If the joiner is not able to fetch, default back to minimal
+        // requirements
+        bool using_preferred_bound =
+          (in.join_fetch_count.has_value() && in.join_fetch_count.value() == 0);
+        if (using_preferred_bound)
         {
           auto node_configuration_subsystem =
             this->context.get_subsystem<NodeConfigurationSubsystem>();
@@ -620,9 +624,9 @@ namespace ccf
             "node {} {}. A snapshot at least as recent as {} must "
             "be used instead.",
             in.startup_seqno.value(),
-            in.join_fetch_count == 0 ? "latest_on_disk_seqno" : "startup_seqno",
-            this_startup_seqno,
-            this_startup_seqno);
+            using_preferred_bound ? "latest_on_disk_seqno" : "startup_seqno",
+            required_seqno,
+            required_seqno);
           LOG_INFO_FMT("Join request rejected: {}", payload);
           return make_error(
             HTTP_STATUS_BAD_REQUEST, ccf::errors::StartupSeqnoIsOld, payload);
