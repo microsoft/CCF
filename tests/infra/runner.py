@@ -257,6 +257,19 @@ class ConcurrentRunner:
             max_concurrent = int(safety_factor * cores_count / avg_nodes_per_network)
             assert max_concurrent > 0
 
+        if os.getenv("CCF_GLIBCXX_DEBUG"):
+            # _GLIBCXX_DEBUG checks make every container op significantly
+            # slower, so a Debug build cannot sustain as many concurrent
+            # networks. Cap concurrency to avoid CPU starvation that
+            # manifests as spurious leadership elections / session loss.
+            cores_count = len(os.sched_getaffinity(0))
+            avg_nodes_per_network = 3
+            safety_factor = 0.5
+            debug_cap = max(
+                1, int(safety_factor * cores_count / avg_nodes_per_network)
+            )
+            max_concurrent = min(max_concurrent, debug_cap)
+
         thread_groups = [
             self.threads[i : i + max_concurrent]
             for i in range(0, len(self.threads), max_concurrent)
