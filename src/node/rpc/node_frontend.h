@@ -586,8 +586,10 @@ namespace ccf
         auto this_startup_seqno =
           this->node_operation.get_startup_snapshot_seqno();
         ccf::kv::Version required_seqno = this_startup_seqno;
-        // If the joiner is not able to fetch, default back to minimal
-        // requirements
+        // If the joiner does not enable fetching, or is a legacy node,
+        // join_fetch_count is unset and we should use the required bound to
+        // prevent it chasing the primary.
+        // Otherwise if this is the first request, use the preferred bound
         bool using_preferred_bound =
           (in.join_fetch_count.has_value() && in.join_fetch_count.value() == 0);
         if (using_preferred_bound)
