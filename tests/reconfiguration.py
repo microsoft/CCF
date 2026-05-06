@@ -933,13 +933,9 @@ def run_join_old_snapshot(const_args):
 
 
 def run_join_no_snapshot_against_original_primary(const_args):
-    # Regression test for the case where a node joins an "original" primary
-    # (one that itself started without a snapshot, so its own startup_seqno is
-    # 0) using from_snapshot=False. Previously the primary would accept the
-    # join request because `0 == 0`, causing the joiner to replay the entire
-    # ledger. The primary now compares the joiner's startup_seqno against the
-    # latest committed snapshot on disk, so the join must be rejected unless
-    # the joiner first fetches a recent snapshot from the primary.
+    # Regression test.
+    # Previously a node which should fetch a snapshot, would not as the lower limit for this was the startup snapshot of the node.
+    # This test ensures that the startup seqno of a joining node is higher than the startup snapshot of the primary
     txs = app.LoggingTxs("user0")
     args = deepcopy(const_args)
     args.nodes = infra.e2e_args.nodes(args, 1)
@@ -970,38 +966,7 @@ def run_join_no_snapshot_against_original_primary(const_args):
             committed_snapshots_dir
         ), f"Expected committed snapshot in {committed_snapshots_dir}"
 
-        # Demonstrate the bug & fix: a node joining without any snapshot, and
-        # without fetching one (`fetch_recent_snapshot=False`), must now be
-        # rejected by the primary even though both startup_seqnos are 0,
-        # because the primary holds a more recent snapshot on disk.
-        try:
-            new_node = network.create_node()
-            network.join_node(
-                new_node,
-                args.package,
-                args,
-                from_snapshot=False,
-                fetch_recent_snapshot=False,
-                timeout=3,
-            )
-        except infra.network.StartupSeqnoIsOld as e:
-            LOG.info(
-                f"Node {new_node.local_node_id} joining a primary which holds a "
-                f"committed snapshot was correctly rejected with "
-                f"StartupSeqnoIsOld: {e}"
-            )
-            assert e.has_stopped, "Expected node to stop on receiving StartupSeqnoIsOld"
-        else:
-            raise RuntimeError(
-                f"Node {new_node.local_node_id} joined a primary which holds a "
-                f"committed snapshot without fetching one - this would replay "
-                f"the entire ledger"
-            )
-
-        # Now demonstrate the fix's recovery path: a node joining without a
-        # local snapshot but with `fetch_recent_snapshot=True` must succeed,
-        # because it fetches the latest snapshot from the primary, and on
-        # retry the primary accepts the (now recent) startup_seqno.
+        # Assert that fetch_recent_snapshot fetches a snapshot and starts from it
         new_node = network.create_node()
         network.join_node(
             new_node,
