@@ -32,6 +32,7 @@
 #include "service/tables/local_sealing.h"
 #include "service/tables/previous_service_identity.h"
 #include "service/tables/snapshot_status.h"
+#include "snapshots/filenames.h"
 
 #include <llhttp/llhttp.h>
 #include <stdexcept>
@@ -573,23 +574,62 @@ namespace ccf
         }
 
         // Joiner's snapshot too old => StartupSeqnoIsOld
-        // (cause it to fetch a more recent snapshot)
+        // (causes joiner to fetch a more recent snapshot)
+        //
+        // The joiner always wants to use the most recent snapshot.
+        // However this will result in the joiner chasing the primary if
+        // snapshot production period ~= snapshot fetching delay
+        //
+        // So we have hysteresis in the fetching constraint:
+        // If the joiner has already fetched a snapshot: joiner seqno > startup
+        // snapshot seqno Otherwise: joiner seqno > latest snapshot on disk
+        // seqno
         auto this_startup_seqno =
           this->node_operation.get_startup_snapshot_seqno();
+        ccf::kv::Version required_seqno = this_startup_seqno;
+        // If the joiner does not enable fetching, or is a legacy node,
+        // join_fetch_count is unset and we should use the required bound to
+        // prevent it chasing the primary.
+        // Otherwise if this is the first request, use the preferred bound
+        bool using_preferred_bound =
+          (in.join_fetch_count.has_value() && in.join_fetch_count.value() == 0);
+        if (using_preferred_bound)
+        {
+          auto node_configuration_subsystem =
+            this->context.get_subsystem<NodeConfigurationSubsystem>();
+          if (node_configuration_subsystem != nullptr)
+          {
+            const auto& snapshots_config =
+              node_configuration_subsystem->get().node_config.snapshots;
+            const auto latest_committed_snapshot =
+              snapshots::find_latest_committed_snapshot_in_directory(
+                snapshots_config.directory);
+            if (latest_committed_snapshot.has_value())
+            {
+              const auto latest_snapshot_seqno =
+                snapshots::get_snapshot_idx_from_file_name(
+                  latest_committed_snapshot->filename().string());
+              required_seqno = std::max(
+                required_seqno,
+                static_cast<ccf::kv::Version>(latest_snapshot_seqno));
+            }
+          }
+        }
         if (
           in.startup_seqno.has_value() &&
-          this_startup_seqno > in.startup_seqno.value())
+          in.startup_seqno.value() < required_seqno)
         {
           // Make sure that the joiner's snapshot is more recent than this
           // node's snapshot. Otherwise, the joiner may not be given all the
           // ledger secrets required to replay historical transactions.
           const std::string payload = fmt::format(
             "Node requested to join from seqno {} which is older than this "
-            "node startup seqno {}. A snapshot at least as recent as {} must "
+            "node {} {}. A snapshot at least as recent as {} must "
             "be used instead.",
             in.startup_seqno.value(),
-            this_startup_seqno,
-            this_startup_seqno);
+            using_preferred_bound ? "latest_on_disk_seqno" : "startup_seqno",
+            required_seqno,
+            required_seqno);
           LOG_INFO_FMT("Join request rejected: {}", payload);
           return make_error(
             HTTP_STATUS_BAD_REQUEST, ccf::errors::StartupSeqnoIsOld, payload);
