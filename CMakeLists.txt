@@ -93,10 +93,17 @@ option(LONG_TESTS "Enable long end-to-end tests" OFF)
 option(USE_SNMALLOC "Link against snmalloc" ON)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/snmalloc.cmake)
 
-# Useful for debugging with libc++ hardening options
-option(USE_LIBCXX "Use libc++ instead of libstdc++" OFF)
-
 option(CLANG_TIDY "Run clang-tidy on the codebase" OFF)
+
+option(
+  GLIBCXX_DEBUG
+  "Enable libstdc++ debug mode (_GLIBCXX_DEBUG). Disables the submit binary (which links against Arrow, not built with _GLIBCXX_DEBUG)."
+  OFF
+)
+if(GLIBCXX_DEBUG)
+  add_compile_definitions(_GLIBCXX_DEBUG)
+endif()
+
 # Must happen before tools.cmake is included
 if(CLANG_TIDY)
   find_program(
@@ -198,7 +205,6 @@ add_ccf_static_library(
     ${TLS_LIBRARY}
     ${CMAKE_DL_LIBS}
     ${CMAKE_THREAD_LIBS_INIT}
-    ${LINK_LIBCXX}
     ccfcrypto
     curl
     http_parser
@@ -291,12 +297,6 @@ add_ccf_static_library(
     ${CCF_DIR}/src/tasks/worker.cpp
 )
 target_link_libraries(ccf_tasks PRIVATE ${CMAKE_DL_LIBS})
-if(USE_LIBCXX)
-  # worker.cpp uses backtrace() which, under libc++, resolves through libunwind.
-  # On systems where libunwind is built with LZMA support (e.g. Azure Linux),
-  # this creates a transitive dependency on liblzma.
-  target_link_libraries(ccf_tasks PRIVATE lzma)
-endif()
 
 # Common test args for Python scripts starting up CCF networks
 set(
@@ -420,7 +420,6 @@ add_ccf_static_library(
   ccf
   SRCS ${CCF_IMPL_SOURCE}
   LINK_LIBS
-    ${LINK_LIBCXX}
     http_parser
     ccf_js
     ccf_endpoints
@@ -901,10 +900,9 @@ if(BUILD_TESTS)
       src/node/test/merkle_mem.cpp
       ${CCF_DIR}/src/enclave/thread_local.cpp
     )
-    target_compile_options(merkle_mem PRIVATE ${COMPILE_LIBCXX})
     target_link_libraries(
       merkle_mem
-      PRIVATE ${CMAKE_THREAD_LIBS_INIT} ${LINK_LIBCXX} ccfcrypto
+      PRIVATE ${CMAKE_THREAD_LIBS_INIT} ccfcrypto
     )
 
     # Raft driver and scenario test
@@ -941,7 +939,7 @@ if(BUILD_TESTS)
     )
   endif()
 
-  if(NOT TSAN AND NOT USE_LIBCXX)
+  if(NOT TSAN)
     # Picobench benchmarks
     add_picobench(map_bench SRCS src/ds/test/map_bench.cpp)
     add_picobench(logger_bench SRCS src/ds/test/logger_bench.cpp)
@@ -1433,7 +1431,7 @@ install(
   DESTINATION ${CMAKE_INSTALL_PREFIX}/cmake
 )
 
-if(NOT USE_LIBCXX)
-  # Perf tool executable
+# Perf tool executable (requires Arrow/Parquet, not compatible with GLIBCXX_DEBUG)
+if(NOT GLIBCXX_DEBUG)
   include(${CCF_DIR}/tests/perf-system/submitter/CMakeLists.txt)
 endif()

@@ -172,16 +172,13 @@ jobs:
         run: |
           set -ex
           ./scripts/setup-ci.sh
-          # This run requires libc++ to run with hardening mode
-          tdnf -y install libcxx-devel libunwind-devel
 
       - name: "Build"
         run: |
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          # Use libc++ to enable hardening/bounds checking during tests
-          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DLONG_TESTS=ON -DUSE_LIBCXX=ON -DUSE_SNMALLOC=OFF ..
+          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DGLIBCXX_DEBUG=ON -DLONG_TESTS=ON ..
           ninja
 
       - name: "Test"
@@ -197,7 +194,7 @@ jobs:
           mkdir -p build_fuzz
           cd build_fuzz
           rm -f CMakeCache.txt
-          cmake -GNinja -DFUZZING=ON -DSAN=ON -DUSE_LIBCXX=ON -DUSE_SNMALLOC=OFF ..
+          cmake -GNinja -DFUZZING=ON -DSAN=ON -DUSE_SNMALLOC=OFF ..
           ninja cbor_fuzz_test
           mkdir -p /tmp/cbor_fuzz_live
           ./cbor_fuzz_test /tmp/cbor_fuzz_live ../src/crypto/test/cbor_fuzz_corpus -max_total_time=60

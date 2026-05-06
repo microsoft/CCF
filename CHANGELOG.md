@@ -9,13 +9,18 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [7.0.3]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.3
 
-### Fixed
+### Added
 
-- On a joiner's first attempt, the primary now requires the joiner's startup seqno to be at least as recent as the primary's latest committed snapshot on disk, preventing snapshot-less joiners from replaying the entire ledger (#7844).
+- Added a `GLIBCXX_DEBUG` CMake option to enable libstdc++ debug mode (`_GLIBCXX_DEBUG`) for CCF and its tests. When set, end-to-end tests run via `ConcurrentRunner` are throttled to fewer parallel suites to compensate for the slower runtime, and the `submit` binary (which links against Arrow) is disabled because Arrow is not built with `_GLIBCXX_DEBUG` (#7850).
+
+### Removed
+
+- The `USE_LIBCXX` CMake option and all associated libc++/libc++abi build and packaging support have been removed. CCF now builds exclusively with libstdc++ (#7850).
 
 ### Changed
 
 - Upgraded QuickJS from 2024-01-13 to 2025-09-13 (#7849).
+- On a joiner's first attempt, the primary now requires the joiner's startup seqno to be at least as recent as the primary's latest committed snapshot on disk, preventing snapshot-less joiners from replaying the entire ledger (#7844).
 
 ## [7.0.2]
 
