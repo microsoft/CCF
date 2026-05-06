@@ -749,11 +749,17 @@ describe("polyfill", function () {
   // This test case should be the last until https://github.com/nodejs/node/pull/45377 is addressed.
   describe("isValidX509CertChain", function (this) {
     const supported = "X509Certificate" in crypto;
+    let pems: string[];
+    before(function () {
+      if (!supported) {
+        this.skip();
+      }
+      pems = generateCertChain(3);
+    });
     it("returns true for valid cert chains", function () {
       if (!supported) {
         this.skip();
       }
-      const pems = generateCertChain(3);
       const chain = [pems[0], pems[1]].join("\n");
       const trusted = pems[2];
       assert.isTrue(ccf.crypto.isValidX509CertChain(chain, trusted));
@@ -762,7 +768,6 @@ describe("polyfill", function () {
       if (!supported) {
         this.skip();
       }
-      const pems = generateCertChain(3);
       const chain = pems[0];
       const trusted = pems[2];
       assert.isFalse(ccf.crypto.isValidX509CertChain(chain, trusted));

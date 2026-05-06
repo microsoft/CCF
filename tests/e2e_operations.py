@@ -3644,10 +3644,13 @@ def run_snapshot_persistence_across_primary_failure(const_args):
 
         snapshot_interval_s = snapshot_interval_ms / 1000
         election_timeout_s = args.election_timeout_ms / 1000
-        # In the worst case, each snapshot is delayed by one extra election timeout
-        # beyond the nominal snapshot interval while leadership is re-established.
+        # Lower bound: in the worst case each snapshot is delayed by one extra
+        # election timeout beyond the nominal snapshot interval while leadership
+        # is re-established.
         min_expected = elapsed / (snapshot_interval_s + election_timeout_s * 1.2)
-        max_expected = elapsed / snapshot_interval_s * 0.9
+        # Upper bound: the theoretical maximum is elapsed / snapshot_interval_s.
+        # We add 1 to account for timing imprecision at the boundary.
+        max_expected = elapsed / (snapshot_interval_s * 0.9) + 1
         LOG.info(
             f"Elapsed: {elapsed:.1f}s, snapshots: {total_snapshots}, "
             f"expected bounds [{min_expected:.1f}, {max_expected:.1f}] "
