@@ -134,31 +134,27 @@ def test_new_service(
     kwargs = {}
     kwargs["reconfiguration_type"] = "OneTransaction"
 
+    if infra.node.CCFVersion(version) < infra.node.CCFVersion("ccf-6.0.0"):
+        primary, _ = network.find_primary()
+        snapshots_dir = network.get_committed_snapshots(primary)
+        kwargs["from_snapshot"] = True
+        kwargs["snapshots_dir"] = snapshots_dir
+    else:
+        kwargs["from_snapshot"] = False
+        kwargs["fetch_recent_snapshot"] = True
+
     new_node = network.create_node(
         binary_dir=binary_dir,
         library_dir=library_dir,
         version=version,
     )
-    if infra.node.CCFVersion(version) < infra.node.CCFVersion("ccf-6.0.0"):
-        primary, _ = network.find_primary()
-        snapshots_dir = network.get_committed_snapshots(primary)
-        network.join_node(
-            new_node,
-            args.package,
-            args,
-            from_snapshot=True,
-            snapshots_dir=snapshots_dir,
-            **kwargs,
-        )
-    else:
-        network.join_node(
-            new_node,
-            args.package,
-            args,
-            from_snapshot=False,
-            fetch_recent_snapshot=True,
-            **kwargs,
-        )
+
+    network.join_node(
+        new_node,
+        args.package,
+        args,
+        **kwargs
+    )
     network.trust_node(
         new_node,
         args,
@@ -384,23 +380,19 @@ def run_code_upgrade_from(
                     library_dir=to_library_dir,
                     version=to_version,
                 )
-                if fetch_recent_snapshot:
-                    network.join_node(
-                        new_node,
-                        args.package,
-                        args,
-                        from_snapshot=False,
-                        fetch_recent_snapshot=True,
-                    )
-                else:
-                    network.join_node(
-                        new_node,
-                        args.package,
-                        args,
-                        copy_ledger=True,
-                        from_snapshot=False,
-                        fetch_recent_snapshot=False,
-                    )
+
+                kwargs = {}
+                kwargs["fetch_recent_snapshot"] = fetch_recent_snapshot
+                if not fetch_recent_snapshot:
+                    kwargs["copy_ledger"] = True
+
+                network.join_node(
+                    new_node,
+                    args.package,
+                    args,
+                    from_snapshot=False,
+                    **kwargs
+                )
                 network.trust_node(
                     new_node,
                     args,
