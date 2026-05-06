@@ -812,6 +812,7 @@ def run_all(args):
         test_ledger_invariants(network, args)
 
     run_join_old_snapshot(args)
+    run_join_no_snapshot_against_original_primary(args)
 
 
 def run_join_old_snapshot(const_args):
@@ -929,3 +930,55 @@ def run_join_old_snapshot(const_args):
                 fetch_recent_snapshot=True,
                 timeout=3,
             )
+
+
+def run_join_no_snapshot_against_original_primary(const_args):
+    # Regression test.
+    # Previously a node which should fetch a snapshot, would not as the lower limit for this was the startup snapshot of the node.
+    # This test ensures that the startup seqno of a joining node is higher than the startup snapshot of the primary
+    txs = app.LoggingTxs("user0")
+    args = deepcopy(const_args)
+    args.nodes = infra.e2e_args.nodes(args, 1)
+    args.label += "_no_snapshot_against_original_primary"
+
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        pdb=args.pdb,
+        txs=txs,
+    ) as network:
+        network.start_and_open(args)
+        primary, _ = network.find_primary()
+
+        # The original primary started without a snapshot; sanity-check this.
+        with primary.client() as c:
+            body = c.get("/node/state").body.json()
+            assert (
+                body["startup_seqno"] == 0
+            ), f"Original primary should have startup_seqno == 0, got {body['startup_seqno']}"
+
+        # Issue enough transactions for the primary to generate and commit a
+        # snapshot. Wait until that snapshot is on disk.
+        txs.issue(network, number_txs=args.snapshot_tx_interval)
+        committed_snapshots_dir = network.get_committed_snapshots(primary)
+        assert os.listdir(
+            committed_snapshots_dir
+        ), f"Expected committed snapshot in {committed_snapshots_dir}"
+
+        # Assert that fetch_recent_snapshot fetches a snapshot and starts from it
+        new_node = network.create_node()
+        network.join_node(
+            new_node,
+            args.package,
+            args,
+            from_snapshot=False,
+            fetch_recent_snapshot=True,
+            timeout=10,
+        )
+        network.trust_node(new_node, args)
+        with new_node.client() as c:
+            body = c.get("/node/state").body.json()
+            assert (
+                body["startup_seqno"] > 0
+            ), f"Joiner should have started from a fetched snapshot, got startup_seqno={body['startup_seqno']}"
