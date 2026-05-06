@@ -1429,14 +1429,12 @@ def test_ledger_chunk_redirect_gap(network, args):
 
     new_node = network.create_node()
     # force primary to generate a new snapshot after commit idx
-    snapshots = network.get_committed_snapshots()
+    network.get_committed_snapshots()
     network.join_node(
         new_node,
         args.package,
         args,
-        # Tmp fix until the primary expresses an opinion
-        snapshots_dir=snapshots,
-        from_snapshot=True,
+        from_snapshot=False,
         # Fetch recent snapshot to speed up joining
         fetch_recent_snapshot=True,
     )
@@ -3106,7 +3104,7 @@ def test_join_time_snapshot_fetch_failure(network, args):
     # Ensure at least one committed snapshot exists so that joining nodes
     # can be given one (startup_seqno > 0).
     network.txs.issue(network, number_txs=args.snapshot_tx_interval * 2)
-    snapshots_dir = network.get_committed_snapshots(primary)
+    network.get_committed_snapshots(primary)
 
     # Full reconfigure so every remaining node has startup_seqno > 0
     # (otherwise a redirect to the primary would let the joiner succeed).
@@ -3119,8 +3117,8 @@ def test_join_time_snapshot_fetch_failure(network, args):
             new_node,
             args.package,
             args,
-            snapshots_dir=snapshots_dir,
-            from_snapshot=True,
+            from_snapshot=False,
+            fetch_recent_snapshot=True,
         )
         network.trust_node(new_node, args)
     for old in original_nodes:
@@ -3138,8 +3136,8 @@ def test_join_time_snapshot_fetch_failure(network, args):
         args.package,
         args,
         target_node=primary,
-        snapshots_dir=snapshots_dir,
-        from_snapshot=True,
+        from_snapshot=False,
+        fetch_recent_snapshot=True,
     )
     network.trust_node(intermediate_node, args)
 
@@ -3162,6 +3160,7 @@ def test_join_time_snapshot_fetch_failure(network, args):
             args,
             target_node=intermediate_node,
             from_snapshot=False,
+            fetch_recent_snapshot=True,
             join_target_interface_name=infra.interfaces.PRIMARY_RPC_INTERFACE,
             timeout=15,
         )
