@@ -149,12 +149,7 @@ def test_new_service(
         version=version,
     )
 
-    network.join_node(
-        new_node,
-        args.package,
-        args,
-        **kwargs
-    )
+    network.join_node(new_node, args.package, args, **kwargs)
     network.trust_node(
         new_node,
         args,
@@ -387,11 +382,7 @@ def run_code_upgrade_from(
                     kwargs["copy_ledger"] = True
 
                 network.join_node(
-                    new_node,
-                    args.package,
-                    args,
-                    from_snapshot=False,
-                    **kwargs
+                    new_node, args.package, args, from_snapshot=False, **kwargs
                 )
                 network.trust_node(
                     new_node,
