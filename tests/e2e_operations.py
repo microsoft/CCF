@@ -3282,6 +3282,7 @@ def test_backup_snapshot_fetch_max_size(network, args):
         args,
         target_node=primary,
         timeout=5,
+        fetch_recent_snapshot=False,
         from_snapshot=False,
         backup_snapshot_fetch_enabled=True,
         backup_snapshot_fetch_max_attempts=1,
