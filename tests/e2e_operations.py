@@ -3649,8 +3649,7 @@ def run_snapshot_persistence_across_primary_failure(const_args):
         # is re-established.
         min_expected = elapsed / (snapshot_interval_s + election_timeout_s * 1.2)
         # Upper bound: the theoretical maximum is elapsed / snapshot_interval_s.
-        # We add 1 to account for timing imprecision at the boundary.  A fast
-        # election recovery is correct behaviour, so we must not penalise it.
+        # We add 1 to account for timing imprecision at the boundary.
         max_expected = elapsed / snapshot_interval_s + 1
         LOG.info(
             f"Elapsed: {elapsed:.1f}s, snapshots: {total_snapshots}, "
