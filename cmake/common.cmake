@@ -59,6 +59,23 @@ function(add_fuzz_test name)
   target_include_directories(${name} PRIVATE src ${CCFCRYPTO_INC})
   target_link_libraries(${name} PRIVATE -pthread)
   add_san(${name})
+  # UBSan's vptr check fires inside libstdc++'s
+  # std::_Sp_counted_ptr_inplace<T,A,_Lp>::_Sp_counted_ptr_inplace ctor
+  # (used by std::make_shared) when the inplace control block is being
+  # constructed: that ctor reinterpret_casts uninitialised memory to T*
+  # in order to call std::allocator_traits<T>::construct, and UBSan reads
+  # whatever bytes happen to be there as a vptr. The same false positive
+  # is documented and explicitly excluded by CFI in
+  # compiler-rt/lib/cfi/cfi_ignorelist.txt
+  # (entry: "fun:_ZNSt23_Sp_counted_ptr_inplace*"); UBSan has no
+  # equivalent ignorelist for vptr. See LLVM issue #48337 for context.
+  # The diagnostic is reliably reproducible when libclang_rt.fuzzer is
+  # linked in, because libfuzzer's allocator activity leaves non-zero
+  # bytes in the freshly returned heap slot.
+  # Fuzz binaries don't exercise vtable correctness, so disabling vptr
+  # is the simplest workaround.
+  target_compile_options(${name} PRIVATE -fno-sanitize=vptr)
+  target_link_options(${name} PRIVATE -fno-sanitize=vptr)
 endfunction()
 
 # Test binary wrapper
