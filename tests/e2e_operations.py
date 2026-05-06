@@ -3106,7 +3106,7 @@ def test_join_time_snapshot_fetch_failure(network, args):
     # Ensure at least one committed snapshot exists so that joining nodes
     # can be given one (startup_seqno > 0).
     network.txs.issue(network, number_txs=args.snapshot_tx_interval * 2)
-    network.get_committed_snapshots(primary)
+    snapshots_dir = network.get_committed_snapshots(primary)
 
     # Full reconfigure so every remaining node has startup_seqno > 0
     # (otherwise a redirect to the primary would let the joiner succeed).
@@ -3115,7 +3115,13 @@ def test_join_time_snapshot_fetch_failure(network, args):
     original_nodes = list(network.get_joined_nodes())
     for _ in original_nodes:
         new_node = network.create_node()
-        network.join_node(new_node, args.package, args, from_snapshot=True)
+        network.join_node(
+            new_node,
+            args.package,
+            args,
+            snapshots_dir=snapshots_dir,
+            from_snapshot=True,
+        )
         network.trust_node(new_node, args)
     for old in original_nodes:
         current_primary, _ = network.find_primary()
@@ -3127,7 +3133,14 @@ def test_join_time_snapshot_fetch_failure(network, args):
     # Add an intermediate node (also snapshot-joined) to act as the
     # failing-join target.
     intermediate_node = network.create_node()
-    network.join_node(intermediate_node, args.package, args, target_node=primary)
+    network.join_node(
+        intermediate_node,
+        args.package,
+        args,
+        target_node=primary,
+        snapshots_dir=snapshots_dir,
+        from_snapshot=True,
+    )
     network.trust_node(intermediate_node, args)
 
     # Now join a fresh node (no snapshot) targeting the intermediate node via
