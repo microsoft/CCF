@@ -7,8 +7,7 @@
 
 function(add_ccf_app name)
   cmake_parse_arguments(
-    PARSE_ARGV
-    1
+    PARSE_ARGV 1
     PARSED_ARGS
     ""
     ""
@@ -22,8 +21,7 @@ endfunction()
 
 function(add_e2e_test)
   cmake_parse_arguments(
-    PARSE_ARGV
-    0
+    PARSE_ARGV 0
     PARSED_ARGS
     ""
     "NAME;PYTHON_SCRIPT;LABEL;CURL_CLIENT"
@@ -33,8 +31,7 @@ endfunction()
 
 function(add_piccolo_test)
   cmake_parse_arguments(
-    PARSE_ARGV
-    0
+    PARSE_ARGV 0
     PARSED_ARGS
     ""
     "NAME;PYTHON_SCRIPT;CONSTITUTION;CLIENT_BIN;PERF_LABEL"
@@ -44,8 +41,7 @@ endfunction()
 
 function(add_picobench name)
   cmake_parse_arguments(
-    PARSE_ARGV
-    1
+    PARSE_ARGV 1
     PARSED_ARGS
     ""
     ""
@@ -54,6 +50,9 @@ function(add_picobench name)
 endfunction()
 
 function(add_test_bin name)
+endfunction()
+
+function(add_fuzz_test name)
 endfunction()
 
 function(add_unit_test name)
@@ -77,8 +76,7 @@ endfunction()
 # Third-party: Corrosion (corrosion-rs/corrosion)
 function(corrosion_import_crate)
   cmake_parse_arguments(
-    PARSE_ARGV
-    0
+    PARSE_ARGV 0
     PARSED_ARGS
     ""
     "MANIFEST_PATH;PROFILE"

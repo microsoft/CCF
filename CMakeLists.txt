@@ -60,8 +60,6 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 find_package(Threads REQUIRED)
 
-option(PROFILE_TESTS "Profile tests" OFF)
-
 if("$ENV{CI}" STREQUAL "")
   set(PYTHON unbuffer python3)
 else()
@@ -92,18 +90,20 @@ option(BUILD_END_TO_END_TESTS "Build end to end tests" ON)
 option(COVERAGE "Enable coverage mapping" OFF)
 option(SHUFFLE_SUITE "Shuffle end to end test suite" OFF)
 option(LONG_TESTS "Enable long end-to-end tests" OFF)
-option(KV_STATE_RB "Enable RBMap as underlying KV state implementation" OFF)
-if(KV_STATE_RB)
-  add_compile_definitions(KV_STATE_RB)
-endif()
-
 option(USE_SNMALLOC "Link against snmalloc" ON)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/snmalloc.cmake)
 
-# Useful for debugging with libc++ hardening options
-option(USE_LIBCXX "Use libc++ instead of libstdc++" OFF)
-
 option(CLANG_TIDY "Run clang-tidy on the codebase" OFF)
+
+option(
+  GLIBCXX_DEBUG
+  "Enable libstdc++ debug mode (_GLIBCXX_DEBUG). Disables the submit binary (which links against Arrow, not built with _GLIBCXX_DEBUG)."
+  OFF
+)
+if(GLIBCXX_DEBUG)
+  add_compile_definitions(_GLIBCXX_DEBUG)
+endif()
+
 # Must happen before tools.cmake is included
 if(CLANG_TIDY)
   find_program(
@@ -192,8 +192,7 @@ include(${CCF_DIR}/cmake/evercbor.cmake)
 
 # Launcher library
 list(
-  APPEND
-  CCF_LAUNCHER_SOURCES
+  APPEND CCF_LAUNCHER_SOURCES
   ${CCF_DIR}/src/host/run.cpp
   ${CCF_DIR}/src/host/env.cpp
 )
@@ -206,7 +205,6 @@ add_ccf_static_library(
     ${TLS_LIBRARY}
     ${CMAKE_DL_LIBS}
     ${CMAKE_THREAD_LIBS_INIT}
-    ${LINK_LIBCXX}
     ccfcrypto
     curl
     http_parser
@@ -299,12 +297,6 @@ add_ccf_static_library(
     ${CCF_DIR}/src/tasks/worker.cpp
 )
 target_link_libraries(ccf_tasks PRIVATE ${CMAKE_DL_LIBS})
-if(USE_LIBCXX)
-  # worker.cpp uses backtrace() which, under libc++, resolves through libunwind.
-  # On systems where libunwind is built with LZMA support (e.g. Azure Linux),
-  # this creates a transitive dependency on liblzma.
-  target_link_libraries(ccf_tasks PRIVATE lzma)
-endif()
 
 # Common test args for Python scripts starting up CCF networks
 set(
@@ -363,8 +355,7 @@ configure_file(
 install(FILES ${CCF_DIR}/include/ccf/version.h DESTINATION include/ccf)
 
 file(
-  READ
-  ${CCF_DIR}/doc/host_config_schema/cchost_config.json
+  READ ${CCF_DIR}/doc/host_config_schema/cchost_config.json
   HOST_CONFIG_SCHEMA
 )
 set_property(
@@ -380,8 +371,7 @@ configure_file(
 )
 
 file(
-  READ
-  ${CCF_DIR}/doc/schemas/gov/2023-06-01-preview/gov.json
+  READ ${CCF_DIR}/doc/schemas/gov/2023-06-01-preview/gov.json
   GOV_API_SCHEMA_2023_06_01_PREVIEW
 )
 set_property(
@@ -392,8 +382,7 @@ set_property(
       ${CCF_DIR}/doc/schemas/gov/2023-06-01-preview/gov.json
 )
 file(
-  READ
-  ${CCF_DIR}/doc/schemas/gov/2024-07-01/gov.json
+  READ ${CCF_DIR}/doc/schemas/gov/2024-07-01/gov.json
   GOV_API_SCHEMA_2024_07_01
 )
 set_property(
@@ -431,7 +420,6 @@ add_ccf_static_library(
   ccf
   SRCS ${CCF_IMPL_SOURCE}
   LINK_LIBS
-    ${LINK_LIBCXX}
     http_parser
     ccf_js
     ccf_endpoints
@@ -677,6 +665,15 @@ if(BUILD_TESTS)
     target_include_directories(cbor_test PRIVATE ${CCFCRYPTO_INC})
     target_link_libraries(cbor_test PRIVATE ccfcrypto)
 
+    if(FUZZING)
+      add_fuzz_test(
+        cbor_fuzz_test
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/cbor.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/cbor_fuzz.cpp
+      )
+      target_link_libraries(cbor_fuzz_test PRIVATE evercbor)
+    endif()
+
     add_unit_test(
       sharing_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/secret_sharing.cpp
@@ -903,10 +900,9 @@ if(BUILD_TESTS)
       src/node/test/merkle_mem.cpp
       ${CCF_DIR}/src/enclave/thread_local.cpp
     )
-    target_compile_options(merkle_mem PRIVATE ${COMPILE_LIBCXX})
     target_link_libraries(
       merkle_mem
-      PRIVATE ${CMAKE_THREAD_LIBS_INIT} ${LINK_LIBCXX} ccfcrypto
+      PRIVATE ${CMAKE_THREAD_LIBS_INIT} ccfcrypto
     )
 
     # Raft driver and scenario test
@@ -943,7 +939,7 @@ if(BUILD_TESTS)
     )
   endif()
 
-  if(NOT TSAN AND NOT USE_LIBCXX)
+  if(NOT TSAN)
     # Picobench benchmarks
     add_picobench(map_bench SRCS src/ds/test/map_bench.cpp)
     add_picobench(logger_bench SRCS src/ds/test/logger_bench.cpp)
@@ -1408,8 +1404,7 @@ if(BUILD_TESTS)
     endforeach()
     string(REPLACE ";" "\n" _cov_binaries_nl "${_cov_binaries}")
     file(
-      GENERATE OUTPUT
-      "${CMAKE_BINARY_DIR}/coverage_binaries.txt"
+      GENERATE OUTPUT "${CMAKE_BINARY_DIR}/coverage_binaries.txt"
       CONTENT "${_cov_binaries_nl}\n"
     )
   endif()
@@ -1436,7 +1431,7 @@ install(
   DESTINATION ${CMAKE_INSTALL_PREFIX}/cmake
 )
 
-if(NOT USE_LIBCXX)
-  # Perf tool executable
+# Perf tool executable (requires Arrow/Parquet, not compatible with GLIBCXX_DEBUG)
+if(NOT GLIBCXX_DEBUG)
   include(${CCF_DIR}/tests/perf-system/submitter/CMakeLists.txt)
 endif()

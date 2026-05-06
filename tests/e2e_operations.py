@@ -3050,65 +3050,144 @@ def run_error_message_on_failure_to_read_aci_sec_context(args):
         ), f"Did not find expected log messages: {expected_log_messages}"
 
 
-def run_error_message_on_failure_to_fetch_snapshot(const_args):
-    args = copy.deepcopy(const_args)
-    args.nodes = infra.e2e_args.min_nodes(args, 0)
-    with infra.network.network(
-        args.nodes,
-        args.binary_dir,
-        args.debug_nodes,
-        pdb=args.pdb,
-    ) as network:
-        network.start_and_open(args)
+def _assert_snapshot_fetch_failure_messages(node, timeout_s=0):
+    """Assert that the expected snapshot fetch failure messages appear in node's logs.
 
-        primary, _ = network.find_primary()
+    Polls the node's logs until all expected messages are found or timeout_s elapses.
+    Use the default timeout_s=0 for nodes that have already stopped (single pass).
+    Pass a positive timeout_s for nodes still running (poll until messages appear).
+    """
+    expected_patterns = [
+        re.compile(r"Fetching snapshot from .* \(attempt 1/3\)"),
+        re.compile(r"Fetching snapshot from .* \(attempt 2/3\)"),
+        re.compile(r"Fetching snapshot from .* \(attempt 3/3\)"),
+        re.compile(r"Exceeded maximum snapshot fetch retries \([0-9]+\), giving up"),
+    ]
+    end_time = time.time() + timeout_s
+    remaining = list(expected_patterns)
+    while True:
+        out_path, _ = node.get_logs()
+        with open(out_path, "r", encoding="utf-8") as f:
+            for line in f:
+                matched = [e for e in remaining if re.search(e, line)]
+                for m in matched:
+                    remaining.remove(m)
+                    LOG.info(f"Found expected log message: {line.rstrip()}")
+        if not remaining or time.time() >= end_time:
+            break
+        time.sleep(0.5)
+    assert not remaining, f"Did not find expected log messages: {remaining}"
 
+
+def test_join_time_snapshot_fetch_failure(network, args):
+    # Test that the join-time FetchSnapshot task produces the expected retry
+    # and "giving up" log messages when the snapshot endpoint is unreachable.
+    #
+    # Strategy:
+    #  1. Fully reconfigure the network: for each of the X original nodes
+    #     (which were bootstrapped at network start with startup_seqno = 0),
+    #     add a replacement node joined from a snapshot (startup_seqno > 0),
+    #     then retire and stop the originals. After this, every remaining
+    #     node has startup_seqno > 0, so any fresh joiner with
+    #     startup_seqno = 0 is rejected with StartupSeqnoIsOld -- regardless
+    #     of which node a join request gets redirected to (the join endpoint
+    #     redirects backups to the primary before checking StartupSeqnoIsOld,
+    #     so the primary must also reject).
+    #  2. Add an intermediate node joined from a snapshot to use as the
+    #     failing-join target via primary_rpc_interface.
+    #  3. Join a fresh node (no snapshot, startup_seqno = 0) targeting the
+    #     intermediate node via primary_rpc_interface.  The target replies
+    #     StartupSeqnoIsOld, triggering the FetchSnapshot task.
+    #  4. primary_rpc_interface lacks the SnapshotRead operator feature, so
+    #     GET /node/snapshot returns HTTP 404, exhausting the 3-attempt retry
+    #     loop and logging "Exceeded maximum snapshot fetch retries".
+    primary, _ = network.find_primary()
+
+    # Ensure at least one committed snapshot exists so that joining nodes
+    # can be given one (startup_seqno > 0).
+    network.txs.issue(network, number_txs=args.snapshot_tx_interval * 2)
+    network.get_committed_snapshots(primary)
+
+    # Full reconfigure so every remaining node has startup_seqno > 0
+    # (otherwise a redirect to the primary would let the joiner succeed).
+    # Add all replacements before retiring any original, to preserve quorum
+    # throughout the reconfiguration.
+    original_nodes = list(network.get_joined_nodes())
+    for _ in original_nodes:
         new_node = network.create_node()
+        network.join_node(new_node, args.package, args, from_snapshot=True)
+        network.trust_node(new_node, args)
+    for old in original_nodes:
+        current_primary, _ = network.find_primary()
+        network.retire_node(current_primary, old)
+        old.stop()
+    primary, _ = network.find_primary()
+    network.wait_for_all_nodes_to_commit(primary)
 
-        # Shut down primary to cause snapshot fetch to fail
-        primary.remote.stop()
+    # Add an intermediate node (also snapshot-joined) to act as the
+    # failing-join target.
+    intermediate_node = network.create_node()
+    network.join_node(intermediate_node, args.package, args, target_node=primary)
+    network.trust_node(intermediate_node, args)
 
-        failed = False
-        try:
-            LOG.info("Starting join")
-            network.join_node(
-                new_node,
-                args.package,
-                args,
-                target_node=primary,
-                timeout=10,
-                from_snapshot=False,
-                wait_for_node_in_store=False,
-            )
-            new_node.wait_for_node_to_join(timeout=5)
-        except Exception as e:
-            LOG.info(f"Joining node could not join as expected {e}")
-            failed = True
+    # Now join a fresh node (no snapshot) targeting the intermediate node via
+    # primary_rpc_interface.  The join target replies StartupSeqnoIsOld, which
+    # triggers a snapshot fetch on the joiner.  primary_rpc_interface lacks
+    # the SnapshotRead operator feature, so all fetch attempts return HTTP
+    # 404 and the FetchSnapshot retry loop logs "Exceeded maximum snapshot
+    # fetch retries (3), giving up".  The joiner then retries the whole join,
+    # so it never registers in the KV; we wait long enough for at least one
+    # full fetch cycle to be emitted to the log, then expect a TimeoutError
+    # from wait_for_node_in_store.  log_errors only inspects [fail ]/[fatal]
+    # lines so the StartupSeqnoIsOld info-level message is not promoted to a
+    # specific exception type.
+    failing_node = network.create_node()
+    try:
+        network.join_node(
+            failing_node,
+            args.package,
+            args,
+            target_node=intermediate_node,
+            from_snapshot=False,
+            join_target_interface_name=infra.interfaces.PRIMARY_RPC_INTERFACE,
+            timeout=15,
+        )
+    except TimeoutError:
+        pass  # expected: FetchSnapshot exhausts retries and node cannot join
+    else:
+        raise AssertionError(
+            "Expected network.join_node() to raise TimeoutError after snapshot "
+            "fetch retries were exhausted, but it succeeded"
+        )
 
-        assert failed, "Joining node could not join failed node as expected"
+    _assert_snapshot_fetch_failure_messages(failing_node)
 
-        expected_log_messages = [
-            re.compile(r"Fetching snapshot from .* \(attempt 1/3\)"),
-            re.compile(r"Fetching snapshot from .* \(attempt 2/3\)"),
-            re.compile(r"Fetching snapshot from .* \(attempt 3/3\)"),
-            re.compile(
-                r"Exceeded maximum snapshot fetch retries \([0-9]+\), giving up"
-            ),
-        ]
 
-        out_path, _ = new_node.get_logs()
-        for line in open(out_path, "r", encoding="utf-8").readlines():
-            for expected in expected_log_messages:
-                match = re.search(expected, line)
-                if match:
-                    expected_log_messages.remove(expected)
-                    LOG.info(f"Found expected log message: {line}")
-            if len(expected_log_messages) == 0:
-                break
+def test_error_message_on_failure_to_fetch_snapshot(network, args):
+    # Add a new backup node pointed at the primary_rpc_interface for snapshot
+    # fetching. That interface does NOT expose the SnapshotRead operator
+    # feature, so every fetch request returns HTTP 404, reliably driving the
+    # BackupSnapshotFetch retry loop to exhaustion.
+    primary, _ = network.find_primary()
+    new_node = network.create_node()
+    network.join_node(
+        new_node,
+        args.package,
+        args,
+        target_node=primary,
+        timeout=5,
+        backup_snapshot_fetch_enabled=True,
+        backup_snapshot_fetch_target_rpc_interface=infra.interfaces.PRIMARY_RPC_INTERFACE,
+    )
+    network.trust_node(new_node, args)
 
-        assert (
-            len(expected_log_messages) == 0
-        ), f"Did not find expected log messages: {expected_log_messages}"
+    # Issue enough transactions to trigger a new snapshot on the primary.
+    # The snapshot_evidence hook on new_node then schedules BackupSnapshotFetch,
+    # which exhausts its 3 attempts (all HTTP 404) and logs "giving up".
+    network.txs.issue(network, number_txs=args.snapshot_tx_interval * 2)
+    network.get_committed_snapshots(primary)
+
+    _assert_snapshot_fetch_failure_messages(new_node, timeout_s=30)
 
 
 def test_backup_snapshot_fetch(network, args):
@@ -3236,6 +3315,114 @@ def test_backup_snapshot_fetch_max_size(network, args):
         )
 
 
+def test_join_idempotency_short_circuits_on_backup(network, args):
+    # Verify that once the primary has registered a joining identity as
+    # PENDING, a subsequent /node/join request from the same TLS identity
+    # sent to a backup is short-circuited via check_node_exists
+    # (src/node/rpc/node_frontend.h:486-524) and answered locally with
+    # 200 + node_status=PENDING -- no redirect, no duplicate add_node.
+    #
+    # The C++ joiner cannot exercise this path: after the first 308 it
+    # permanently retargets the primary (node_state.h:1144), so its retries
+    # never re-hit the backup. We therefore drive /node/join directly from
+    # Python via Network.fake_join, which forges a virtual quote bound to
+    # a synthetic keypair (precedent: test_issue_fake_join in
+    # reconfiguration.py).
+    #
+    # Skipped on snp because we cannot synthesize a valid SNP quote.
+    if infra.platform_detection.get_platform() == "snp":
+        LOG.warning(
+            "Skipping test_join_idempotency_short_circuits_on_backup on snp: "
+            "cannot synthesize a valid SNP quote for raw Python join."
+        )
+        return
+
+    primary, backups = network.find_nodes()
+    assert backups, "Test requires at least one backup"
+    backup = backups[0]
+
+    # Generate a fresh synthetic identity once and reuse it across all three
+    # POSTs. add_node binds the virtual quote to the joiner's public key
+    # (src/node/quote.cpp:122-132 verify_quoted_node_public_key).
+    priv_pem, _ = infra.crypto.generate_ec_keypair()
+    cert_pem = infra.crypto.generate_cert(priv_pem, cn="fake_joiner")
+    kp = (priv_pem, cert_pem)
+
+    # --- Attempt 1: POST to backup, expect 308 redirect to primary ---
+    r1, expected_node_id = network.fake_join(backup, kp)
+    assert r1.status_code == http.HTTPStatus.PERMANENT_REDIRECT, (
+        f"Expected 308 from backup on first attempt, got {r1.status_code}: "
+        f"{r1.body.text()}"
+    )
+    location = next((v for k, v in r1.headers.items() if k.lower() == "location"), None)
+    assert location, "Expected Location header on 308"
+
+    # --- Follow redirect manually: POST same identity to primary ---
+    r_primary, _ = network.fake_join(primary, kp)
+    assert r_primary.status_code == http.HTTPStatus.OK, (
+        f"Primary should accept join, got {r_primary.status_code}: "
+        f"{r_primary.body.text()}"
+    )
+    body = r_primary.body.json()
+    assert body["node_status"] == "Pending", body
+    joined_node_id = body["node_id"]
+    assert joined_node_id == expected_node_id, (
+        f"node_id mismatch: server returned {joined_node_id}, expected "
+        f"sha256(DER pubkey) = {expected_node_id}"
+    )
+    assert (
+        body.get("network_info") is None
+    ), "PENDING response must not include network_info"
+
+    # Wait for the new node entry to be replicated and committed on the backup
+    # so that its check_node_exists lookup succeeds on the second attempt.
+    network.wait_for_all_nodes_to_commit(primary)
+
+    # --- Attempt 2: POST to SAME backup, expect 200 + Pending (early-exit) ---
+    r2, _ = network.fake_join(backup, kp)
+    assert r2.status_code == http.HTTPStatus.OK, (
+        f"Backup must short-circuit and return 200 on second attempt, "
+        f"got {r2.status_code}: {r2.body.text()}"
+    )
+    assert not any(
+        k.lower() == "location" for k in r2.headers
+    ), "Short-circuit response must not include a Location header"
+    body2 = r2.body.json()
+    assert body2["node_status"] == "Pending", body2
+    assert body2["node_id"] == joined_node_id, (
+        f"Idempotency violated: second attempt returned different node_id "
+        f"({body2['node_id']} vs {joined_node_id})"
+    )
+    assert (
+        body2.get("network_info") is None
+    ), "PENDING response must not include network_info"
+
+    # Log assertions: backup logged BOTH branches; backup did not run add_node;
+    # primary ran add_node exactly once for this id.
+    backup_out, _ = backup.get_logs()
+    primary_out, _ = primary.get_logs()
+    backup_lines = open(backup_out, encoding="utf-8").read()
+    primary_lines = open(primary_out, encoding="utf-8").read()
+
+    assert (
+        "Join request redirected to primary" in backup_lines
+    ), "Expected backup to log redirect on first attempt"
+    # NodeId formats as `n[<hex>]` in logs.
+    assert (
+        f"Node n[{joined_node_id}] added as" not in backup_lines
+    ), "Backup must not have added the node itself"
+    add_count = primary_lines.count(
+        f"Node n[{joined_node_id}] added as PENDING"
+    ) + backup_lines.count(f"Node n[{joined_node_id}] added as PENDING")
+    assert (
+        add_count == 1
+    ), f"Primary should have added the node exactly once, found {add_count}"
+
+    # Cleanup: retire the never-started PENDING node so it doesn't pollute
+    # later tests in this run.
+    network.consortium.retire_node_by_id(primary, joined_node_id)
+
+
 def run_backup_snapshot_download(const_args):
     args = copy.deepcopy(const_args)
     args.label += "_backup_snapshot_download"
@@ -3252,6 +3439,9 @@ def run_backup_snapshot_download(const_args):
         network.start_and_open(args, backup_snapshot_fetch_enabled=True)
         test_backup_snapshot_fetch(network, args)
         test_backup_snapshot_fetch_max_size(network, args)
+        test_join_idempotency_short_circuits_on_backup(network, args)
+        test_join_time_snapshot_fetch_failure(network, args)
+        test_error_message_on_failure_to_fetch_snapshot(network, args)
 
 
 def run_propose_request_vote(const_args):
@@ -3471,10 +3661,13 @@ def run_snapshot_persistence_across_primary_failure(const_args):
 
         snapshot_interval_s = snapshot_interval_ms / 1000
         election_timeout_s = args.election_timeout_ms / 1000
-        # In the worst case, each snapshot is delayed by one extra election timeout
-        # beyond the nominal snapshot interval while leadership is re-established.
+        # Lower bound: in the worst case each snapshot is delayed by one extra
+        # election timeout beyond the nominal snapshot interval while leadership
+        # is re-established.
         min_expected = elapsed / (snapshot_interval_s + election_timeout_s * 1.2)
-        max_expected = elapsed / snapshot_interval_s * 0.9
+        # Upper bound: the theoretical maximum is elapsed / snapshot_interval_s.
+        # We add 1 to account for timing imprecision at the boundary.
+        max_expected = elapsed / (snapshot_interval_s * 0.9) + 1
         LOG.info(
             f"Elapsed: {elapsed:.1f}s, snapshots: {total_snapshots}, "
             f"expected bounds [{min_expected:.1f}, {max_expected:.1f}] "

@@ -159,6 +159,12 @@ def run(get_command, args):
                         infra.bencher.Throughput(perf_result),
                     )
 
+                primary, _ = network.find_primary()
+                mem = infra.proc.get_proc_memory_stats(primary.remote.remote.proc.pid)
+                if mem is not None:
+                    bf = infra.bencher.Bencher()
+                    bf.set_memory(perf_label, mem)
+
                 for remote_client in clients:
                     remote_client.stop()
 
@@ -250,6 +256,17 @@ class ConcurrentRunner:
             safety_factor = 0.5
             max_concurrent = int(safety_factor * cores_count / avg_nodes_per_network)
             assert max_concurrent > 0
+
+        if os.getenv("CCF_GLIBCXX_DEBUG"):
+            # _GLIBCXX_DEBUG checks make every container op significantly
+            # slower, so a Debug build cannot sustain as many concurrent
+            # networks. Cap concurrency to avoid CPU starvation that
+            # manifests as spurious leadership elections / session loss.
+            cores_count = len(os.sched_getaffinity(0))
+            avg_nodes_per_network = 3
+            safety_factor = 0.5
+            debug_cap = max(1, int(safety_factor * cores_count / avg_nodes_per_network))
+            max_concurrent = min(max_concurrent, debug_cap)
 
         thread_groups = [
             self.threads[i : i + max_concurrent]

@@ -1,11 +1,13 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
+import base64
 import os
 import time
 
 from contextlib import contextmanager
 from enum import Enum, IntEnum, auto
 from infra.clients import flush_info, CCFConnectionException, CCFIOException
+import infra.crypto
 import infra.member
 import infra.path
 import infra.proc
@@ -352,6 +354,7 @@ class Network:
         read_only_ledger_dirs=None,
         from_snapshot=False,
         snapshots_dir=None,
+        join_target_interface_name=None,
         **kwargs,
     ):
         # Contact primary if no target node is set
@@ -401,7 +404,8 @@ class Network:
             label=args.label,
             common_dir=self.common_dir,
             target_rpc_address=target_node.get_public_rpc_address(
-                interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
+                interface_name=join_target_interface_name
+                or infra.interfaces.FILE_SERVING_RPC_INTERFACE
             ),
             snapshots_dir=snapshots_dir,
             read_only_snapshots_dir=read_only_snapshots_dir,
@@ -1127,7 +1131,12 @@ class Network:
             log_capture = []
             try:
                 self.txs.verify(network=self, log_capture=log_capture)
-                self.txs.verify_range(log_capture=log_capture)
+                # verify_range walks the historical query subsystem across
+                # the full ledger, which is prohibitively slow under
+                # _GLIBCXX_DEBUG (debug-mode containers). Skip it in that
+                # case; the same coverage is exercised by Release CI.
+                if not os.getenv("CCF_GLIBCXX_DEBUG"):
+                    self.txs.verify_range(log_capture=log_capture)
             except:
                 flush_info(log_capture, None)
                 raise
@@ -1341,6 +1350,79 @@ class Network:
                 raise TimeoutError(f"Timed out waiting for node to become removed: {r}")
 
         self.nodes.remove(node_to_retire)
+
+    def fake_join(self, target_node, kp):
+        """
+        Submit a join request to target_node using kp
+        THis is
+        """
+        priv_pem, cert_pem = kp
+
+        # Stable name: only one synthetic identity per Network, which is all
+        # any current caller needs. If multiple are needed later, add a
+        # `name` kwarg.
+        name = "fake_joiner"
+        priv_path = os.path.join(self.common_dir, f"{name}_privk.pem")
+        cert_path = os.path.join(self.common_dir, f"{name}_cert.pem")
+        with open(priv_path, "w", encoding="utf-8") as f:
+            f.write(priv_pem)
+        with open(cert_path, "w", encoding="utf-8") as f:
+            f.write(cert_pem)
+
+        # node_id = hex(sha256(DER pubkey)); same hash report_data must carry.
+        pubkey_hash_hex = infra.crypto.compute_public_key_der_hash_hex_from_pem(
+            cert_pem
+        )
+        pubkey_hash_bytes = list(bytes.fromhex(pubkey_hash_hex))
+
+        # /node/quotes/self is no_auth_required (src/node/rpc/node_frontend.h).
+        with target_node.client() as c:
+            own_quote = c.get("/node/quotes/self").body.json()
+
+        # Couples to the virtual quote JSON shape parsed in
+        # src/pal/attestation.cpp::verify_virtual_attestation_report and the
+        # format string in include/ccf/ds/quote_info.h.
+        assert own_quote["format"] == "Insecure_Virtual", (
+            f"fake_join only supports Insecure_Virtual quotes; got "
+            f"{own_quote['format']}. Caller must skip on non-virtual platforms."
+        )
+        template = json.loads(base64.b64decode(own_quote["raw"]))
+        forged_quote_bytes = json.dumps(
+            {
+                "host_data": template["host_data"],
+                "measurement": template["measurement"],
+                "report_data": pubkey_hash_bytes,
+            }
+        ).encode("utf-8")
+        forged_quote_b64 = base64.b64encode(forged_quote_bytes).decode("ascii")
+
+        net = {"bind_address": "0:0"}
+        req = {
+            "node_info_network": {
+                "node_to_node_interface": net,
+                "rpc_interfaces": {"name": net},
+            },
+            "consensus_type": "CFT",
+            "startup_seqno": 0,
+            "quote_info": {
+                "format": own_quote["format"],
+                "quote": forged_quote_b64,
+                "endorsements": own_quote["endorsements"],
+            },
+        }
+        if "uvm_endorsements" in own_quote:
+            req["quote_info"]["uvm_endorsements"] = own_quote["uvm_endorsements"]
+        with open(
+            os.path.join(self.common_dir, "member0_enc_pubk.pem"),
+            "r",
+            encoding="utf-8",
+        ) as f:
+            req["public_encryption_key"] = f.read()
+
+        with target_node.client(identity=name) as c:
+            response = c.post("/node/join", body=req, allow_redirects=False)
+
+        return response, pubkey_hash_hex
 
     def replace_stopped_node(
         self,
