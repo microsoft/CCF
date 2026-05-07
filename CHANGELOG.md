@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - The `USE_LIBCXX` CMake option and all associated libc++/libc++abi build and packaging support have been removed. CCF now builds exclusively with libstdc++ (#7850).
 
+### Fixed
+
+- `ledger_viz` now correctly identifies signature transactions in COSE-only signed ledgers, where signatures are recorded in `public:ccf.internal.cose_signatures` rather than `public:ccf.internal.signatures`. Previously such transactions were misclassified as "Internal".
+
 ### Changed
 
 - Upgraded QuickJS from 2024-01-13 to 2025-09-13 (#7849).

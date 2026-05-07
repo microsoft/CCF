@@ -175,7 +175,10 @@ def main():
             view = tx.gcm_header.view
             seqno = tx.gcm_header.seqno
             if not has_private:
-                if ccf.ledger.SIGNATURE_TX_TABLE_NAME in public:
+                if (
+                    ccf.ledger.SIGNATURE_TX_TABLE_NAME in public
+                    or ccf.ledger.COSE_SIGNATURE_TX_TABLE_NAME in public
+                ):
                     liner.entry("Signature", view, seqno)
                 else:
                     if all(
