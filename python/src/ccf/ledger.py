@@ -553,7 +553,7 @@ class LedgerValidator(BaseValidator):
         # Don't hash empty bytes array.
         self.merkle = MerkleTree()
         empty_bytes_array = bytearray(SHA256_DIGEST_SIZE)
-        self.merkle.add_leaf(empty_bytes_array, do_hash=False)
+        self.merkle.add_leaf(bytes(empty_bytes_array), do_hash=False)
 
         self.last_verified_seqno = 0
         self.last_verified_view = 0
