@@ -34,6 +34,7 @@ import pathlib
 import infra.concurrency
 import ccf.read_ledger
 import ccf.cose
+import ccf.split_ledger
 import infra.commit
 import infra.utils
 import re
@@ -941,7 +942,11 @@ def split_all_ledger_files_in_dir(input_dir, output_dir):
         )
         for transaction in ledger_chunk:
             public_domain = transaction.get_public_domain()
-            if ccf.ledger.SIGNATURE_TX_TABLE_NAME in public_domain.get_tables().keys():
+            tables = public_domain.get_tables().keys()
+            if (
+                ccf.ledger.SIGNATURE_TX_TABLE_NAME in tables
+                or ccf.ledger.COSE_SIGNATURE_TX_TABLE_NAME in tables
+            ):
                 sig_seqnos.append(public_domain.get_seqno())
 
         if len(sig_seqnos) <= 1:
@@ -961,6 +966,30 @@ def split_all_ledger_files_in_dir(input_dir, output_dir):
         os.remove(ledger_file_path)
 
 
+def run_ledger_viz_check(ledger_dirs, expected_categories):
+    """Invoke ledger_viz.py on the given ledger directories and verify that
+    every expected category appears in the colourised output (each category
+    maps to a unique ANSI background-colour code). The legend printed by
+    ledger_viz.help() includes every category once, so we require strictly
+    more than one occurrence to ensure the category was actually painted in
+    the body.
+    """
+    env = os.environ.copy()
+    env["COLUMNS"] = "200"
+    env["LINES"] = "80"
+    cmd = ["python3", "-m", "ccf.ledger_viz", *ledger_dirs]
+    result = subprocess.run(cmd, capture_output=True, text=True, env=env, check=True)
+    output = result.stdout
+    for category, color_code in expected_categories.items():
+        ansi = f"\033[{color_code}m"
+        count = output.count(ansi)
+        assert count > 1, (
+            f"Expected category '{category}' (color {color_code}) to be "
+            f"painted in ledger_viz output, but found {count} occurrence(s) "
+            f"of {ansi!r} (legend prints each category once)"
+        )
+
+
 @reqs.description("Split ledger")
 def test_split_ledger_on_stopped_network(primary, args):
     # Test that ledger files can be arbitrarily split.
@@ -977,6 +1006,22 @@ def test_split_ledger_on_stopped_network(primary, args):
     # Check that the split ledger can be read successfully
     ccf.ledger.Ledger(
         [current_ledger_dir] + committed_ledger_dirs, committed_only=False
+    )
+
+    # Visualise the (split) ledger and check every expected category is
+    # actually painted in the output. Recovering Service is omitted as
+    # this test does not exercise recovery.
+    run_ledger_viz_check(
+        [current_ledger_dir] + committed_ledger_dirs,
+        expected_categories={
+            "New Service": 40,
+            "Service Open": 47,
+            "Governance": 43,
+            "Signature": 42,
+            "Internal": 45,
+            "User Public": 44,
+            "User Private": 46,
+        },
     )
 
 
@@ -2077,6 +2122,42 @@ def run_cose_only_mode_upgrade(args):
             f"COSE-only mode upgrade test passed. "
             f"Found {cose_sig_count} COSE-only signatures after seqno {cose_only_start_seqno}"
         )
+
+        # Stop the network so we can split and visualise the resulting
+        # COSE-only ledger.
+        network.stop_all_nodes(skip_verification=True)
+
+        # Test that split_ledger.py works on a COSE-only signed ledger
+        # (signatures are recorded in COSE_SIGNATURE_TX_TABLE_NAME, not
+        # SIGNATURE_TX_TABLE_NAME).
+        LOG.info("Testing split_ledger.py on COSE-only ledger")
+        current_ledger_dir, committed_ledger_dirs = no_dual_primary.get_ledger()
+        split_all_ledger_files_in_dir(current_ledger_dir, current_ledger_dir)
+        if committed_ledger_dirs:
+            split_all_ledger_files_in_dir(
+                committed_ledger_dirs[0], committed_ledger_dirs[0]
+            )
+        ccf.ledger.Ledger(
+            [current_ledger_dir] + committed_ledger_dirs, committed_only=False
+        )
+        LOG.success("split_ledger.py works on COSE-only ledger")
+
+        # Test that ledger_viz.py colours every category present in the
+        # ledger, including COSE-only signatures.
+        LOG.info("Testing ledger_viz.py on COSE-only ledger")
+        run_ledger_viz_check(
+            [current_ledger_dir] + committed_ledger_dirs,
+            expected_categories={
+                "New Service": 40,
+                "Service Open": 47,
+                "Governance": 43,
+                "Signature": 42,
+                "Internal": 45,
+                "User Public": 44,
+                "User Private": 46,
+            },
+        )
+        LOG.success("ledger_viz.py colours all expected categories")
 
 
 def run_cose_signatures_config_check(args):

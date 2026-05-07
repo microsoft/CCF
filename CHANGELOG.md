@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - `ledger_viz` now correctly identifies signature transactions in COSE-only signed ledgers, where signatures are recorded in `public:ccf.internal.cose_signatures` rather than `public:ccf.internal.signatures`. Previously such transactions were misclassified as "Internal".
+- `split_ledger` now correctly splits COSE-only signed ledgers, where signatures are recorded in `public:ccf.internal.cose_signatures` rather than `public:ccf.internal.signatures`.
 
 ### Changed
 
