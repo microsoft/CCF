@@ -24,7 +24,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
-- logging app now correctly sets @nextLink across empty pages (#7869)
+- Fix early exit of /log/public/historical/range when there are empty pages (#7869)
 
 ## [7.0.2]
 
