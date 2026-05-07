@@ -1914,6 +1914,9 @@ namespace loggingapp
             std::min(to_seqno, next_page_start + max_seqno_per_page);
           const auto next_seqnos = index_per_public_key->get_write_txs_in_range(
             id, next_page_start, next_range_end);
+
+          // if we know the next page has some interesting seqnos, begin
+          // fetching them
           if (next_seqnos.has_value() && !next_seqnos->empty())
           {
             const auto next_page_end = next_seqnos->back();
@@ -1924,19 +1927,14 @@ namespace loggingapp
               next_page_handle, next_page_start, next_page_end);
           }
 
-          // If we don't yet know the next seqnos, or know for sure there are
-          // some, then set a next_link
-          if (!next_seqnos.has_value() || !next_seqnos->empty())
-          {
-            // NB: This path tells the caller to continue to ask until the end
-            // of the range, even if the next response is paginated
-            response.next_link = fmt::format(
-              "/app{}?from_seqno={}&to_seqno={}&id={}",
-              get_historical_range_path,
-              next_page_start,
-              to_seqno,
-              id);
-          }
+          // NB: This path tells the caller to continue to ask until the end
+          // of the range, even if the next response is paginated
+          response.next_link = fmt::format(
+            "/app{}?from_seqno={}&to_seqno={}&id={}",
+            get_historical_range_path,
+            next_page_start,
+            to_seqno,
+            id);
         }
 
         // Construct the HTTP response
