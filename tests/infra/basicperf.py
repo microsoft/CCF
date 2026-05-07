@@ -241,6 +241,7 @@ def replace_primary(network, host, old_primary, snapshots_dir, statistics):
         timeout=10,
         copy_ledger=False,
         snapshots_dir=snapshots_dir,
+        from_snapshot=snapshots_dir is not None,
         follow_redirect=False,
     )
     LOG.info(f"Shut down primary: {old_primary.local_node_id}")
