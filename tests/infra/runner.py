@@ -202,9 +202,7 @@ class ConcurrentRunner:
     # '|'-separated list, e.g. CR_FILTER="testname1|testname2". When set,
     # only sub-tests whose name fully matches one of the entries are added.
     _test_filter = (
-        set(filter(None, os.environ["CR_FILTER"].split("|")))
-        if os.environ.get("CR_FILTER")
-        else None
+        os.environ["CR_FILTER"].split("|") if os.environ.get("CR_FILTER") else None
     )
 
     def __init__(self, add_options=None) -> None:
