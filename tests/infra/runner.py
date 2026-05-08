@@ -201,7 +201,7 @@ class ConcurrentRunner:
     # Env var to filter sub-tests by exact name match. Value is a
     # '|'-separated list, e.g. CR_FILTER="testname1|testname2". When set,
     # only sub-tests whose name fully matches one of the entries are added.
-    _filter = (
+    _test_filter = (
         set(filter(None, os.environ["CR_FILTER"].split("|")))
         if os.environ.get("CR_FILTER")
         else None
@@ -227,7 +227,7 @@ class ConcurrentRunner:
         self.args = infra.e2e_args.cli_args(add=add)
 
     def add(self, prefix, target, **args_overrides):
-        if self._filter is not None and prefix not in self._filter:
+        if self._test_filter is not None and prefix not in self._test_filter:
             return
         args_ = copy.deepcopy(self.args)
         for k, v in args_overrides.items():
