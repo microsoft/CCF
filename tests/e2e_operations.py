@@ -2842,16 +2842,6 @@ def run_read_ledger_on_testdata(args):
 def run_ledger_viz_test(args):
     """Offline test: visualise a checked-in Dual->COSE upgraded ledger and
     require an exact byte-for-byte match against a golden output file.
-
-    This catches both coverage regressions (a category disappearing from the
-    output, e.g. New Service / Service Open if categorisation logic
-    regresses) and unexpected rendering changes (colour codes reassigned,
-    transaction order altered, legend reformatted).
-
-    The check is offline so it does not depend on stable transaction sequences
-    from a freshly-spun-up network. To regenerate the golden file after an
-    intentional ledger_viz change, re-run this function with the actual
-    output redirected to expected_viz.txt.
     """
     testdata_dir = os.path.join(args.historical_testdata, "cose_upgraded_service")
     ledger_dir = os.path.join(testdata_dir, "ledger")
