@@ -3,7 +3,7 @@
 
 import ccf.ledger
 import argparse
-import shutil
+import os
 import json
 
 COLORS = {
@@ -28,7 +28,7 @@ def cs(s: str, background_colour: str | None = None) -> str:
 class Liner:
     _line = ""
     _len = 0
-    MAX_LENGTH = shutil.get_terminal_size().columns
+    MAX_LENGTH = os.get_terminal_size().columns
 
     def flush(self):
         print(self._line)
