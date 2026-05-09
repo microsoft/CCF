@@ -1275,6 +1275,46 @@ namespace asynchost
       // non-empty state, i.e. snapshot. It is assumed that idx is included in a
       // committed ledger file.
 
+      // Any writable files recovered from the main ledger directory whose
+      // entries are entirely covered by the snapshot at idx are promoted to
+      // committed, so the on-disk ledger remains contiguous up to idx. This
+      // matters when a joiner copied an in-progress (uncommitted) chunk from
+      // its target: without this, that chunk would never gain its .committed
+      // suffix, leaving an apparent gap between the read-only committed
+      // chunks and any new chunks the joiner writes after replaying from
+      // idx+1. See issue #7871.
+      for (auto& f : files)
+      {
+        if (f->is_committed() || f->get_last_idx() > idx)
+        {
+          continue;
+        }
+
+        try
+        {
+          f->complete();
+          if (f->commit(f->get_last_idx()))
+          {
+            LOG_INFO_FMT(
+              "Promoted writable ledger file [{}, {}] to committed during "
+              "init at {}",
+              f->get_start_idx(),
+              f->get_last_idx(),
+              idx);
+          }
+        }
+        catch (const std::exception& e)
+        {
+          LOG_FAIL_FMT(
+            "Failed to promote writable ledger file [{}, {}] to committed "
+            "during init at {}: {}",
+            f->get_start_idx(),
+            f->get_last_idx(),
+            idx,
+            e.what());
+        }
+      }
+
       // To restart from a snapshot cleanly, in the main ledger directory,
       // mark all subsequent ledger as non-committed as their contents will be
       // replayed.

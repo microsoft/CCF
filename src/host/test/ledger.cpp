@@ -1928,6 +1928,103 @@ TEST_CASE("Recover both ledger dirs")
   }
 }
 
+TEST_CASE("Ledger init promotes subsumed writable files to committed")
+{
+  // Reproduces the scenario from issue #7871: a joiner copies its target's
+  // ledger including an in-progress (uncommitted) chunk, then resumes from a
+  // snapshot whose seqno is at or beyond the last entry of that chunk. After
+  // init(), the writable chunk should be promoted to .committed so that the
+  // on-disk ledger is contiguous up to the snapshot seqno.
+  auto dir = AutoDeleteFolder(ledger_dir);
+
+  size_t chunk_threshold = 30;
+  size_t entries_per_chunk = get_entries_per_chunk(chunk_threshold);
+  size_t chunk_count = 4;
+  size_t last_idx = 0;
+  size_t commit_idx = 0;
+
+  INFO("Create ledger with some committed chunks and an in-progress chunk");
+  {
+    Ledger ledger(ledger_dir, wf);
+    TestEntrySubmitter entry_submitter(ledger, chunk_threshold);
+
+    initialise_ledger(entry_submitter, entries_per_chunk, chunk_count);
+
+    last_idx = ledger.get_last_idx();
+    // Commit the first two chunks, leaving chunks 3 and 4 as writable
+    // (uncommitted) on disk, mirroring an in-progress chunk on the join
+    // target.
+    commit_idx = 2 * entries_per_chunk;
+    ledger.commit(commit_idx);
+  }
+
+  INFO("Init new ledger at end of last writable chunk");
+  {
+    Ledger ledger(ledger_dir, wf);
+
+    // Before init, only the first two chunks are .committed; the rest are
+    // writable.
+    size_t committed_before = 0;
+    size_t writable_before = 0;
+    for (auto const& f : fs::directory_iterator(ledger_dir))
+    {
+      if (is_ledger_file_name_committed(f.path().filename().string()))
+      {
+        committed_before++;
+      }
+      else
+      {
+        writable_before++;
+      }
+    }
+    REQUIRE(committed_before == 2);
+    REQUIRE(writable_before >= 2);
+
+    // Init at last_idx, as if a snapshot covering all currently-known
+    // entries had been received.
+    ledger.init(last_idx);
+
+    // After init, every writable file whose last entry is <= last_idx must
+    // have been promoted to .committed, so there is no gap between the
+    // existing .committed files and last_idx.
+    size_t writable_after = 0;
+    std::vector<std::pair<size_t, size_t>> committed_ranges;
+    for (auto const& f : fs::directory_iterator(ledger_dir))
+    {
+      auto file_name = f.path().filename().string();
+      if (is_ledger_file_name_committed(file_name))
+      {
+        auto start = get_start_idx_from_file_name(file_name);
+        auto end = get_last_idx_from_file_name(file_name);
+        REQUIRE(end.has_value());
+        committed_ranges.emplace_back(start, end.value());
+      }
+      else
+      {
+        writable_after++;
+      }
+    }
+    REQUIRE(writable_after == 0);
+
+    std::sort(committed_ranges.begin(), committed_ranges.end());
+    REQUIRE_FALSE(committed_ranges.empty());
+    REQUIRE(committed_ranges.front().first == 1);
+    REQUIRE(committed_ranges.back().second == last_idx);
+    for (size_t i = 1; i < committed_ranges.size(); ++i)
+    {
+      REQUIRE(
+        committed_ranges[i - 1].second + 1 == committed_ranges[i].first);
+    }
+  }
+
+  INFO("Re-open the ledger and verify entries can be read up to last_idx");
+  {
+    Ledger ledger(ledger_dir, wf);
+    REQUIRE(ledger.get_last_idx() >= last_idx);
+    read_entries_range_from_ledger(ledger, 1, last_idx);
+  }
+}
+
 TEST_CASE("Ledger init with existing files")
 {
   auto dir = AutoDeleteFolder(ledger_dir);
