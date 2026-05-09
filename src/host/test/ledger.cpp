@@ -2012,8 +2012,7 @@ TEST_CASE("Ledger init promotes subsumed writable files to committed")
     REQUIRE(committed_ranges.back().second == last_idx);
     for (size_t i = 1; i < committed_ranges.size(); ++i)
     {
-      REQUIRE(
-        committed_ranges[i - 1].second + 1 == committed_ranges[i].first);
+      REQUIRE(committed_ranges[i - 1].second + 1 == committed_ranges[i].first);
     }
   }
 
