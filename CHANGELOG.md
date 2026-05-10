@@ -22,6 +22,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Upgraded QuickJS from 2024-01-13 to 2025-09-13 (#7849).
 - On a joiner's first attempt, the primary now requires the joiner's startup seqno to be at least as recent as the primary's latest committed snapshot on disk, preventing snapshot-less joiners from replaying the entire ledger (#7844).
 
+### Fixed
+
+- Fix early exit of /log/public/historical/range when there are empty pages (#7869).
+
 ## [7.0.2]
 
 [7.0.2]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.2
