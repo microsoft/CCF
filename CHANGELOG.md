@@ -17,10 +17,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - The `USE_LIBCXX` CMake option and all associated libc++/libc++abi build and packaging support have been removed. CCF now builds exclusively with libstdc++ (#7850).
 
-### Fixed
-
-- `ledger_viz` and `split_ledger` now recognise signature transactions in COSE-only signed ledgers (recorded in `public:ccf.internal.cose_signatures`) (#7868).
-
 ### Changed
 
 - Upgraded QuickJS from 2024-01-13 to 2025-09-13 (#7849).
@@ -28,6 +24,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- `ledger_viz` and `split_ledger` now recognise signature transactions in COSE-only signed ledgers (recorded in `public:ccf.internal.cose_signatures`) (#7868).
 - Fix early exit of /log/public/historical/range when there are empty pages (#7869).
 
 ## [7.0.2]
