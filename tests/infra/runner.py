@@ -198,6 +198,13 @@ threading.excepthook = log_exception
 class ConcurrentRunner:
     threads: List[threading.Thread] = []
 
+    # Env var to filter sub-tests by exact name match. Value is a
+    # '|'-separated list, e.g. CR_FILTER="testname1|testname2". When set,
+    # only sub-tests whose name fully matches one of the entries are added.
+    _test_filter = (
+        os.environ["CR_FILTER"].split("|") if os.environ.get("CR_FILTER") else None
+    )
+
     def __init__(self, add_options=None) -> None:
         def add(parser):
             parser.add_argument(
@@ -218,6 +225,8 @@ class ConcurrentRunner:
         self.args = infra.e2e_args.cli_args(add=add)
 
     def add(self, prefix, target, **args_overrides):
+        if self._test_filter is not None and prefix not in self._test_filter:
+            return
         args_ = copy.deepcopy(self.args)
         for k, v in args_overrides.items():
             setattr(args_, k, v)
