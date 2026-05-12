@@ -1517,7 +1517,7 @@ namespace ccf
         .set_auto_schema<GetVersion>()
         .install();
 
-      auto create = [this, node_id = this->context.get_node_id()](
+      auto create = [this](
                       auto& ctx, nlohmann::json&& params) {
         LOG_INFO_FMT("Processing create RPC");
 
@@ -1536,13 +1536,14 @@ namespace ccf
 
         const auto& sig_auth_ident =
           ctx.template get_caller<ccf::AnyCertAuthnIdentity>();
-        const auto caller_node_id = compute_node_id_from_cert_der(
-          ccf::crypto::make_verifier(sig_auth_ident.cert)->cert_der());
-        if (caller_node_id != node_id)
+        // AnyCertAuthnIdentity requires DER format certificates
+        const auto caller_node_id =
+          compute_node_id_from_cert_der(sig_auth_ident.cert);
+        if (caller_node_id != this->context.get_node_id())
         {
           return make_error(
             HTTP_STATUS_FORBIDDEN,
-            ccf::errors::InternalError,
+            ccf::errors::AuthorizationFailed,
             "Only the node itself can call this endpoint.");
         }
 
