@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
-- Backport the SnapshotCreate operator feature to preserve LTS compatibility on join with #7767 (#7773)
+- Nodes now allow other nodes using the SnapshotCreate operator feature (introduced in 7.0.0, #7767) to join the network. Note that the SnapshotCreate feature itself is _not_ supported by 6.0.27, and will cause incompatibility with pre-6.0.27 nodes if activated on 6.0.27 nodes themselves. (#7773)
 
 ## [6.0.26]
 
