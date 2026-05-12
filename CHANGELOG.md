@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - When a joiner copied an in-progress (uncommitted) ledger chunk from its target and then resumed from a snapshot whose seqno covered the chunk's last entry, that chunk used to remain forever as a writable file on disk, leaving an apparent gap between the joiner's read-only `.committed` chunks and any new chunks it produced. `Ledger::init` now promotes such writable files to `.committed` so that the on-disk ledger remains contiguous up to the snapshot seqno (#7872).
+- `ledger_viz` and `split_ledger` now recognise signature transactions in COSE-only signed ledgers (recorded in `public:ccf.internal.cose_signatures`) (#7868).
 - Fix early exit of /log/public/historical/range when there are empty pages (#7869).
 
 ## [7.0.2]
