@@ -1311,7 +1311,7 @@ class Ledger:
         committed_only: bool = True,
         read_recovery_files: bool = False,
         verification_level: VerificationLevel = VerificationLevel.NONE,
-        contiguous_suffix : bool = False,
+        contiguous_suffix: bool = False,
     ):
         self._filenames = []
         self._verification_level = verification_level
