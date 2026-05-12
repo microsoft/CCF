@@ -1534,17 +1534,17 @@ def test_stale_copied_ledger_snapshot_invariant(network, args):
 
     # Ensure that at least one ledger chunk is between the copied ledger, and the latest snapshot
     for _ in range(2):
-      with primary.client() as c:
-          r = c.get("/node/commit").body.json()["transaction_id"]
-          hwm = TxID.from_str(r).seqno
-      
-      network.txs.issue(network, number_txs=1, wait_for_sync=True)
-      primary.trigger_snapshot()
-      snapshots_dir = network.get_committed_snapshots(
-          primary, target_seqno=hwm+1, wait_for_target_seqno=True
-      )
-      snapshot_seqno = find_snapshot_after_seqno(snapshots_dir, hwm)
-      assert snapshot_seqno > hwm
+        with primary.client() as c:
+            r = c.get("/node/commit").body.json()["transaction_id"]
+            hwm = TxID.from_str(r).seqno
+
+        network.txs.issue(network, number_txs=1, wait_for_sync=True)
+        primary.trigger_snapshot()
+        snapshots_dir = network.get_committed_snapshots(
+            primary, target_seqno=hwm + 1, wait_for_target_seqno=True
+        )
+        snapshot_seqno = find_snapshot_after_seqno(snapshots_dir, hwm)
+        assert snapshot_seqno > hwm
 
     new_node = network.create_node()
     network.join_node(
@@ -1611,7 +1611,7 @@ def run_file_operations(args):
                 test_empty_snapshot(network, args)
                 test_nulled_snapshot(network, args)
                 test_corrupt_snapshot_handling(network, args)
-                test_stale_copied_ledger_snapshot_invariant(network,args)
+                test_stale_copied_ledger_snapshot_invariant(network, args)
 
                 # Ensure that the network is still live
                 primary, _ = network.find_primary()
