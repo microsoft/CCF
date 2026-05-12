@@ -5,6 +5,7 @@
 #include "ccf/common_auth_policies.h"
 #include "ccf/common_endpoint_registry.h"
 #include "ccf/endpoint_context.h"
+#include "ccf/endpoints/authentication/cert_auth.h"
 #include "ccf/http_query.h"
 #include "ccf/js/core/context.h"
 #include "ccf/json_handler.h"
@@ -1532,6 +1533,19 @@ namespace ccf
             "Node is not in initial state.");
         }
 
+        const auto& sig_auth_ident =
+          ctx.template get_caller<ccf::AnyCertAuthnIdentity>();
+        // AnyCertAuthnIdentity requires DER format certificates
+        const auto caller_node_id =
+          compute_node_id_from_cert_der(sig_auth_ident.cert);
+        if (caller_node_id != this->context.get_node_id())
+        {
+          return make_error(
+            HTTP_STATUS_FORBIDDEN,
+            ccf::errors::AuthorizationFailed,
+            "Only the node itself can call this endpoint.");
+        }
+
         const auto in = params.get<CreateNetworkNodeToNode::In>();
 
         if (InternalTablesAccess::is_service_created(ctx.tx, in.service_cert))
@@ -1673,7 +1687,10 @@ namespace ccf
         return make_success(true);
       };
       make_endpoint(
-        "/create", HTTP_POST, json_adapter(create), no_auth_required)
+        "/create",
+        HTTP_POST,
+        json_adapter(create),
+        {std::make_shared<AnyCertAuthnPolicy>()})
         .set_openapi_hidden(true)
         .install();
 
