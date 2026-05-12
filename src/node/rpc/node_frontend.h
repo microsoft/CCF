@@ -1516,7 +1516,8 @@ namespace ccf
         .set_auto_schema<GetVersion>()
         .install();
 
-      auto create = [this](auto& ctx, nlohmann::json&& params) {
+      auto create = [this, node_id = this->context.get_node_id()](
+                      auto& ctx, nlohmann::json&& params) {
         LOG_INFO_FMT("Processing create RPC");
 
         bool recovering = node_operation.is_reading_public_ledger();
@@ -1530,6 +1531,16 @@ namespace ccf
             HTTP_STATUS_FORBIDDEN,
             ccf::errors::InternalError,
             "Node is not in initial state.");
+        }
+
+        const auto& sig_auth_ident =
+          args.template get_caller<ccf::NodeCertAuthnIdentity>();
+        if (sig_auth_ident.node_id != node_id)
+        {
+          return make_error(
+            HTTP_STATUS_FORBIDDEN,
+            ccf::errors::InternalError,
+            "Only the node itself can call this endpoint.");
         }
 
         const auto in = params.get<CreateNetworkNodeToNode::In>();
@@ -1673,7 +1684,10 @@ namespace ccf
         return make_success(true);
       };
       make_endpoint(
-        "/create", HTTP_POST, json_adapter(create), no_auth_required)
+        "/create",
+        HTTP_POST,
+        json_adapter(create),
+        {std::make_shared<NodeCertAuthnPolicy>()})
         .set_openapi_hidden(true)
         .install();
 
