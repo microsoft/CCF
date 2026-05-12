@@ -5,6 +5,7 @@
 #include "ccf/common_auth_policies.h"
 #include "ccf/common_endpoint_registry.h"
 #include "ccf/endpoint_context.h"
+#include "ccf/endpoints/authentication/cert_auth.h"
 #include "ccf/http_query.h"
 #include "ccf/js/core/context.h"
 #include "ccf/json_handler.h"
@@ -1534,8 +1535,10 @@ namespace ccf
         }
 
         const auto& sig_auth_ident =
-          args.template get_caller<ccf::NodeCertAuthnIdentity>();
-        if (sig_auth_ident.node_id != node_id)
+          ctx.template get_caller<ccf::AnyCertAuthnIdentity>();
+        const auto caller_node_id = compute_node_id_from_cert_der(
+          ccf::crypto::make_verifier(sig_auth_ident.cert)->cert_der());
+        if (caller_node_id != node_id)
         {
           return make_error(
             HTTP_STATUS_FORBIDDEN,
@@ -1687,7 +1690,7 @@ namespace ccf
         "/create",
         HTTP_POST,
         json_adapter(create),
-        {std::make_shared<NodeCertAuthnPolicy>()})
+        {std::make_shared<AnyCertAuthnPolicy>()})
         .set_openapi_hidden(true)
         .install();
 
