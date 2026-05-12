@@ -782,7 +782,7 @@ def test_ledger_invariants(network, args):
     for node in network.nodes:
         LOG.info(f"Examining ledger on node {node.local_node_id}")
         ledger_directories = node.remote.ledger_paths()
-        ledger = ccf.ledger.Ledger(ledger_directories)
+        ledger = ccf.ledger.Ledger(ledger_directories, contiguous_suffix=True)
         check_signatures(ledger)
 
     return network
