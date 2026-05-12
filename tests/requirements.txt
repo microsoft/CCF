@@ -14,6 +14,7 @@ httpx[http2] == 0.23.*
 locust
 JWCrypto>=1.5.1 # x25519 support
 pycose
+cbor2<6.0
 rich
 gelidum
 matplotlib
