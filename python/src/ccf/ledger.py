@@ -1357,34 +1357,39 @@ class Ledger:
 
         suffix = []
         # [(ledger_100_105, None), ..., (None, ledger_0_5)]
-        for i in range(len(filenames) + 1):
-            idx_n = len(filenames) - i
-            file_newer = filenames[idx_n] if idx_n % len(filenames) == idx_n else None
-            idx_o = len(filenames) - i - 1
-            file_older = filenames[idx_o] if idx_o % len(filenames) == idx_o else None
+        if len(filenames) > 0:
+            for i in range(len(filenames) + 1):
+                idx_n = len(filenames) - i
+                file_newer = (
+                    filenames[idx_n] if idx_n % len(filenames) == idx_n else None
+                )
+                idx_o = len(filenames) - i - 1
+                file_older = (
+                    filenames[idx_o] if idx_o % len(filenames) == idx_o else None
+                )
 
-            if file_newer is None:
-                continue
-            suffix.append(file_newer)
-            if file_older is None:
-                continue
-            range_newer = range_from_filename(file_newer)
-            range_older = range_from_filename(file_older)
-            # old_X ~> new_A_B =>  unknown where old_X ends
-            if range_older[1] is None:
-                if not contiguous_suffix:
-                    raise ValueError(
-                        f"Ledger cannot parse committed chunk {file_newer} following uncommitted chunk {file_older}"
-                    )
-                break
-            # old_X_Y ~> new_A but Y != A => noncontiguous
-            if range_older[1] is not None and range_older[1] + 1 != range_newer[0]:
-                if not contiguous_suffix:
-                    raise ValueError(
-                        f"Ledger cannot parse non-contiguous chunks {file_older} and {file_newer}"
-                    )
-                break
-        self._filenames = list(reversed(suffix))
+                if file_newer is None:
+                    continue
+                suffix.append(file_newer)
+                if file_older is None:
+                    continue
+                range_newer = range_from_filename(file_newer)
+                range_older = range_from_filename(file_older)
+                # old_X ~> new_A_B =>  unknown where old_X ends
+                if range_older[1] is None:
+                    if not contiguous_suffix:
+                        raise ValueError(
+                            f"Ledger cannot parse committed chunk {file_newer} following uncommitted chunk {file_older}"
+                        )
+                    break
+                # old_X_Y ~> new_A but Y != A => noncontiguous
+                if range_older[1] is not None and range_older[1] + 1 != range_newer[0]:
+                    if not contiguous_suffix:
+                        raise ValueError(
+                            f"Ledger cannot parse non-contiguous chunks {file_older} and {file_newer}"
+                        )
+                    break
+            self._filenames = list(reversed(suffix))
 
     @property
     def last_committed_chunk_range(self) -> tuple[int, int | None]:
