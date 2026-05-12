@@ -1517,8 +1517,7 @@ namespace ccf
         .set_auto_schema<GetVersion>()
         .install();
 
-      auto create = [this](
-                      auto& ctx, nlohmann::json&& params) {
+      auto create = [this](auto& ctx, nlohmann::json&& params) {
         LOG_INFO_FMT("Processing create RPC");
 
         bool recovering = node_operation.is_reading_public_ledger();
