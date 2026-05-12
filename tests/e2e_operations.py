@@ -34,11 +34,14 @@ import pathlib
 import infra.concurrency
 import ccf.read_ledger
 import ccf.cose
+import ccf.split_ledger
 import infra.commit
 import infra.utils
 import re
 import hashlib
-from contextlib import contextmanager
+import io
+from contextlib import contextmanager, redirect_stdout
+import ccf.ledger_viz
 
 from loguru import logger as LOG
 
@@ -941,7 +944,11 @@ def split_all_ledger_files_in_dir(input_dir, output_dir):
         )
         for transaction in ledger_chunk:
             public_domain = transaction.get_public_domain()
-            if ccf.ledger.SIGNATURE_TX_TABLE_NAME in public_domain.get_tables().keys():
+            tables = public_domain.get_tables().keys()
+            if (
+                ccf.ledger.SIGNATURE_TX_TABLE_NAME in tables
+                or ccf.ledger.COSE_SIGNATURE_TX_TABLE_NAME in tables
+            ):
                 sig_seqnos.append(public_domain.get_seqno())
 
         if len(sig_seqnos) <= 1:
@@ -2832,6 +2839,106 @@ def run_read_ledger_on_testdata(args):
                     )
 
 
+def run_ledger_viz_test(args):
+    """Offline test: visualise a checked-in Dual->COSE upgraded ledger and
+    require an exact byte-for-byte match against a golden output file.
+    """
+    testdata_dir = os.path.join(args.historical_testdata, "cose_upgraded_service")
+    ledger_dir = os.path.join(testdata_dir, "ledger")
+    expected_file = os.path.join(testdata_dir, "expected_viz.txt")
+
+    LOG.info(f"Testing ledger_viz on {ledger_dir} against {expected_file}")
+
+    ledger = ccf.ledger.Ledger([ledger_dir], committed_only=True)
+    liner = ccf.ledger_viz.DefaultLiner(
+        write_views=False, split_views=False, split_services=False
+    )
+    # Override on the instance to avoid mutating the class attribute and so
+    # affecting unrelated callers in the same process.
+    liner.MAX_LENGTH = 80
+    validator = ccf.ledger.LedgerValidator()
+
+    buf = io.StringIO()
+    with redirect_stdout(buf):
+        liner.help()
+        ccf.ledger_viz.visualise(ledger, liner, validator=validator)
+    actual = buf.getvalue()
+
+    with open(expected_file, "r") as f:
+        expected = f.read()
+
+    assert actual == expected, (
+        f"ledger_viz output for {ledger_dir} does not match {expected_file}.\n"
+        f"--- expected ({len(expected)} bytes) ---\n{expected!r}\n"
+        f"--- actual ({len(actual)} bytes) ---\n{actual!r}"
+    )
+    LOG.success(f"ledger_viz output matches golden file {expected_file}")
+
+
+def run_split_ledger_test(args):
+    """Offline test: run split_ledger on a checked-in Dual->COSE upgraded
+    ledger and verify the result still reads cleanly.
+
+    Picks two hardcoded signature seqnos from the testdata: one dual
+    signature (SIGNATURE_TX_TABLE_NAME + COSE_SIGNATURE_TX_TABLE_NAME) and
+    one COSE-only signature (COSE_SIGNATURE_TX_TABLE_NAME only) so both
+    split_ledger code paths are exercised. Files are copied to a temp
+    directory first since split_ledger mutates input chunks.
+    """
+    testdata_dir = os.path.join(args.historical_testdata, "cose_upgraded_service")
+    src_ledger_dir = os.path.join(testdata_dir, "ledger")
+
+    LOG.info(f"Testing split_ledger on {src_ledger_dir}")
+
+    # Pinned to the checked-in cose_upgraded_service ledger.
+    # - 9 is a dual signature inside ledger_3-12.committed
+    # - 88 is a COSE-only signature inside ledger_80-91.committed
+    # Each split turns one chunk into two, so 19 input chunks become 21.
+    split_targets = [
+        ("ledger_3-12.committed", 9),
+        ("ledger_80-91.committed", 88),
+    ]
+    expected_before = 19
+    expected_after = expected_before + len(split_targets)
+
+    with tempfile.TemporaryDirectory() as tmp_ledger_dir:
+        for entry in os.scandir(src_ledger_dir):
+            if entry.is_file():
+                shutil.copy2(entry.path, tmp_ledger_dir)
+
+        files_before = len(os.listdir(tmp_ledger_dir))
+        assert files_before == expected_before, (
+            f"Unexpected file count before split in {tmp_ledger_dir}: "
+            f"got {files_before}, expected {expected_before}"
+        )
+
+        for chunk_name, split_seqno in split_targets:
+            chunk_path = os.path.join(tmp_ledger_dir, chunk_name)
+            assert os.path.exists(chunk_path), f"Missing testdata chunk {chunk_path}"
+            assert ccf.split_ledger.run(
+                [chunk_path, str(split_seqno), f"--output-dir={tmp_ledger_dir}"]
+            ), f"Failed to split {chunk_path} at {split_seqno}"
+            os.remove(chunk_path)
+
+        files_after = len(os.listdir(tmp_ledger_dir))
+        assert files_after == expected_after, (
+            f"Unexpected file count after split in {tmp_ledger_dir}: "
+            f"got {files_after}, expected {expected_after}"
+        )
+
+        # Confirm the post-split directory still parses as a valid ledger.
+        # Iterate to actually parse each chunk; Ledger.__init__ only checks
+        # filename ranges, real parsing happens during iteration.
+        ledger = ccf.ledger.Ledger([tmp_ledger_dir], committed_only=False)
+        tx_count = 0
+        for chunk in ledger:
+            for _ in chunk:
+                tx_count += 1
+        assert tx_count > 0, f"Post-split ledger {tmp_ledger_dir} contains no txs"
+
+    LOG.success(f"split_ledger works on COSE-only ledger {src_ledger_dir}")
+
+
 def run_merkle_verification_level(args):
     """Test MERKLE verification level on isolated chunks and full ledgers"""
     LOG.info("Testing MERKLE verification level")
@@ -4453,6 +4560,8 @@ def run_ledger_chunk_cleanup_tests(const_args):
 
 
 def run(args):
+    run_ledger_viz_test(args)
+    run_split_ledger_test(args)
     run_max_uncommitted_tx_count(args)
     run_file_operations(args)
     run_manual_snapshot_tests(args)

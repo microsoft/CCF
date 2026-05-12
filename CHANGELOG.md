@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- `ledger_viz` and `split_ledger` now recognise signature transactions in COSE-only signed ledgers (recorded in `public:ccf.internal.cose_signatures`) (#7868).
 - Fix early exit of /log/public/historical/range when there are empty pages (#7869).
 
 ## [7.0.2]
