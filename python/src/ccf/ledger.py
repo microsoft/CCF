@@ -519,7 +519,7 @@ class LedgerValidator(BaseValidator):
         # Start with empty bytes array. CCF MerkleTree uses an empty array as the first leaf of its merkle tree.
         # Don't hash empty bytes array.
         self.merkle = MerkleTree()
-        empty_bytes_array = bytearray(SHA256_DIGEST_SIZE)
+        empty_bytes_array = bytes(SHA256_DIGEST_SIZE)
         self.merkle.add_leaf(empty_bytes_array, do_hash=False)
 
         self.last_verified_seqno = 0
