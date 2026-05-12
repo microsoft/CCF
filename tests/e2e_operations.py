@@ -1571,15 +1571,7 @@ def test_stale_copied_ledger_snapshot_invariant(network, args):
     network.wait_for_all_nodes_to_commit(primary)
 
     ledger_paths = new_node.remote.ledger_paths()
-    try:
-        ccf.ledger.Ledger(ledger_paths)
-    except ValueError as e:
-        assert "non-contiguous chunks" in str(e), e
-        LOG.info(f"Stale copied ledger produced expected non-contiguous ledger: {e}")
-    else:
-        raise AssertionError(
-            f"Expected stale copied ledger plus newer snapshot to be non-contiguous: {ledger_paths}"
-        )
+    ccf.ledger.Ledger(ledger_paths)
 
     return network
 
