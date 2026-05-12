@@ -365,3 +365,36 @@ DELETE /app/log/public/{idx}
     :dedent:
 
 The framework provides a :cpp:class:`ccf::http::Matcher` class, which can be used to evaluate these conditions.
+
+Deferring Response Until Commit
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+By default, CCF sends the HTTP response as soon as a transaction is locally committed (assigned a :term:`Transaction ID`), without waiting for it to be globally committed by consensus. This means a successful response indicates the transaction has been `accepted` but not yet `durably replicated` across the network. Clients that need stronger guarantees — for example, to know a write is durable before proceeding — can poll the ``/commit`` endpoint or the transaction status API.
+
+CCF also supports deferring the HTTP response until the transaction reaches a terminal consensus state: either globally committed, or invalidated (e.g. due to a view change). This is controlled per-request from within the endpoint handler by calling ``set_consensus_committed_function()`` on the RPC context, passing a callback that will be invoked once the transaction's fate is known.
+
+The simplest use is to unconditionally block:
+
+.. literalinclude:: ../../samples/apps/logging/logging.cpp
+    :language: cpp
+    :start-after: SNIPPET_START: blocking_record
+    :end-before: SNIPPET_END: blocking_record
+    :dedent:
+
+The ``default_respond_on_commit`` callback used here is defined in the sample apps (``samples/apps/common/default_on_commit.h``), not in the CCF public API. It simply returns the original response on commit, or replaces it with an error if the transaction was invalidated. The same file also contains ``make_respond_with_receipt_on_commit``, which constructs an inline COSE receipt at commit time. Applications should use these as reference implementations and write their own callbacks to suit their needs.
+
+Because this is a runtime decision made inside the handler, the `same` endpoint can conditionally block based on query parameters, headers, or other request state. This is useful for APIs where some callers want the convenience of fire-and-forget while others need commit confirmation:
+
+.. literalinclude:: ../../samples/apps/logging/logging.cpp
+    :language: cpp
+    :start-after: SNIPPET_START: optional_commit
+    :end-before: SNIPPET_END: optional_commit
+    :dedent:
+
+The callback receives a ``CommittedTxInfo`` struct containing the ``TxID``, ``FinalTxStatus`` (``Committed`` or ``Invalid``), and — for write transactions — the ``write_set_digest``, ``commit_evidence``, and ``claims_digest`` needed to construct a receipt.
+
+.. note::
+
+    This feature is currently supported on HTTP/1.1 connections only. HTTP/2 sessions send responses immediately regardless of whether a consensus-committed callback is set.
+
+    Read-only endpoints may also use this mechanism to confirm that their response reflects committed state. However, attempting to construct a receipt for a read-only transaction will throw, since read-only transactions do not produce the write set digest or commit evidence required for receipt construction.

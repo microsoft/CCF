@@ -40,6 +40,24 @@ jobs:
           set -ex
           ./scripts/setup-ci.sh
 
+      - name: "Machine info"
+        shell: bash
+        run: &machine_info |
+          set -ex
+          uname -a
+          nproc
+          cat /proc/cpuinfo
+          cat /proc/meminfo
+          cpuid=$(awk '/^cpu family/{f=$NF} /^model\t/{m=$NF} /^stepping/{s=$NF; printf "%02x%02x%02x",f,m,s; exit}' /proc/cpuinfo)
+          echo "CCF_CPUID=${cpuid}" >> "$GITHUB_ENV"
+          echo "CCF_CORES=$(nproc)" >> "$GITHUB_ENV"
+          echo "CCF_MEM_GB=$(awk '/^MemTotal/{printf "%d",$2/1024/1024}' /proc/meminfo)" >> "$GITHUB_ENV"
+          if [[ -e /dev/sev-guest ]]; then
+            echo "CCF_PLATFORM_SLUG=snp" >> "$GITHUB_ENV"
+          else
+            echo "CCF_PLATFORM_SLUG=virtual" >> "$GITHUB_ENV"
+          fi
+
       - name: "Confirm running on Virtual"
         run: |
           set -ex
@@ -62,14 +80,27 @@ jobs:
           PYTHONPATH=../tests python convert_pico_to_bencher.py
         shell: bash
 
+      - name: "Upload logs"
+        uses: actions/upload-artifact@v7
+        with:
+          name: logs-bench-virtual
+          path: |
+            build/workspace/*/*.config.json
+            build/workspace/*/out
+            build/workspace/*/err
+            build/workspace/*/*.ledger/*
+            build/workspace/*/stack_trace
+          if-no-files-found: ignore
+        if: success() || failure()
+
       - uses: bencherdev/bencher@main
       - name: Track base branch benchmarks with Bencher
-        run: |
+        run: &bencher_run |
           bencher run \
           --project ccf \
           --token '${{ secrets.BENCHER_API_TOKEN }}' \
           --branch main \
-          --testbed gha-vmss-d16av5-ci \
+          --testbed "${CCF_PLATFORM_SLUG}-${CCF_CPUID}-${CCF_CORES}cores-${CCF_MEM_GB}g" \
           --adapter json \
           --err \
           --file build/bencher.json
@@ -86,6 +117,10 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
+
+      - name: "Machine info"
+        shell: bash
+        run: *machine_info
 
       - name: "Confirm running on SEV-SNP"
         run: |
@@ -109,14 +144,20 @@ jobs:
           PYTHONPATH=../tests python convert_pico_to_bencher.py
         shell: bash
 
+      - name: "Upload logs"
+        uses: actions/upload-artifact@v7
+        with:
+          name: logs-bench-snp
+          path: |
+            dmesg.log
+            build/workspace/*/*.config.json
+            build/workspace/*/out
+            build/workspace/*/err
+            build/workspace/*/*.ledger/*
+            build/workspace/*/stack_trace
+          if-no-files-found: ignore
+        if: success() || failure()
+
       - uses: bencherdev/bencher@main
       - name: Track base branch benchmarks with Bencher
-        run: |
-          bencher run \
-          --project ccf \
-          --token '${{ secrets.BENCHER_API_TOKEN }}' \
-          --branch main \
-          --testbed gha-c-aci-ci \
-          --adapter json \
-          --err \
-          --file build/bencher.json
+        run: *bencher_run

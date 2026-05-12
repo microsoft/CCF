@@ -33,7 +33,7 @@ def test_primary(network, args):
     host_spec.with_args(args)
 
     new_backup = network.create_node(host_spec)
-    network.join_node(new_backup, args.package, args)
+    network.join_node(new_backup, args.package, args, from_snapshot=False)
     network.trust_node(new_backup, args)
 
     primary_interfaces = primary.host.rpc_interfaces
@@ -149,7 +149,7 @@ def test_network_node_info(network, args):
     host_spec.with_args(args)
 
     new_node = network.create_node(host_spec)
-    network.join_node(new_node, args.package, args)
+    network.join_node(new_node, args.package, args, from_snapshot=False)
 
     with new_node.client(interface_name=operator_rpc_interface) as c:
         r = c.get("/node/network/nodes/self", allow_redirects=False)
@@ -182,23 +182,6 @@ def test_node_ids(network, args):
                 assert info[0]["node_id"] == node.node_id
                 assert info[0]["status"] == NodeStatus.TRUSTED.value
                 assert len(info[0]["rpc_interfaces"]) == len(node.host.rpc_interfaces)
-    return network
-
-
-@reqs.description("Memory usage")
-def test_memory(network, args):
-    primary, _ = network.find_primary()
-    with primary.client() as c:
-        r = c.get("/node/memory")
-        assert r.status_code == http.HTTPStatus.OK.value
-        assert (
-            r.body.json()["peak_allocated_heap_size"]
-            <= r.body.json()["max_total_heap_size"]
-        )
-        assert (
-            r.body.json()["current_allocated_heap_size"]
-            <= r.body.json()["peak_allocated_heap_size"]
-        )
     return network
 
 
@@ -335,6 +318,5 @@ def run(args):
         test_primary(network, args)
         test_network_node_info(network, args)
         test_node_ids(network, args)
-        test_memory(network, args)
         test_large_messages(network, args)
         test_readiness(network, args)

@@ -242,7 +242,9 @@ def cli_args(
         "--ledger-recovery-timeout",
         help="On recovery, maximum timeout (s) while reading the ledger",
         type=int,
-        default=30,
+        # _GLIBCXX_DEBUG significantly slows down ledger replay, so allow
+        # more time when running tests against a debug build.
+        default=120 if os.getenv("CCF_GLIBCXX_DEBUG") else 30,
     )
     parser.add_argument(
         "--ledger-chunk-bytes",

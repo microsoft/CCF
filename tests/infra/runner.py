@@ -2,7 +2,6 @@
 # Licensed under the Apache 2.0 License.
 import getpass
 import time
-import http
 import logging
 from random import seed
 import infra.jwt_issuer
@@ -161,19 +160,10 @@ def run(get_command, args):
                     )
 
                 primary, _ = network.find_primary()
-                with primary.client() as nc:
-                    r = nc.get("/node/memory")
-                    assert r.status_code == http.HTTPStatus.OK.value
-
-                    results = r.body.json()
-                    current_value = results["current_allocated_heap_size"]
-                    peak_value = results["peak_allocated_heap_size"]
-
+                mem = infra.proc.get_proc_memory_stats(primary.remote.remote.proc.pid)
+                if mem is not None:
                     bf = infra.bencher.Bencher()
-                    bf.set(
-                        perf_label,
-                        infra.bencher.Memory(current_value, high_value=peak_value),
-                    )
+                    bf.set_memory(perf_label, mem)
 
                 for remote_client in clients:
                     remote_client.stop()
@@ -208,6 +198,13 @@ threading.excepthook = log_exception
 class ConcurrentRunner:
     threads: List[threading.Thread] = []
 
+    # Env var to filter sub-tests by exact name match. Value is a
+    # '|'-separated list, e.g. CR_FILTER="testname1|testname2". When set,
+    # only sub-tests whose name fully matches one of the entries are added.
+    _test_filter = (
+        os.environ["CR_FILTER"].split("|") if os.environ.get("CR_FILTER") else None
+    )
+
     def __init__(self, add_options=None) -> None:
         def add(parser):
             parser.add_argument(
@@ -228,6 +225,8 @@ class ConcurrentRunner:
         self.args = infra.e2e_args.cli_args(add=add)
 
     def add(self, prefix, target, **args_overrides):
+        if self._test_filter is not None and prefix not in self._test_filter:
+            return
         args_ = copy.deepcopy(self.args)
         for k, v in args_overrides.items():
             setattr(args_, k, v)
@@ -266,6 +265,17 @@ class ConcurrentRunner:
             safety_factor = 0.5
             max_concurrent = int(safety_factor * cores_count / avg_nodes_per_network)
             assert max_concurrent > 0
+
+        if os.getenv("CCF_GLIBCXX_DEBUG"):
+            # _GLIBCXX_DEBUG checks make every container op significantly
+            # slower, so a Debug build cannot sustain as many concurrent
+            # networks. Cap concurrency to avoid CPU starvation that
+            # manifests as spurious leadership elections / session loss.
+            cores_count = len(os.sched_getaffinity(0))
+            avg_nodes_per_network = 3
+            safety_factor = 0.5
+            debug_cap = max(1, int(safety_factor * cores_count / avg_nodes_per_network))
+            max_concurrent = min(max_concurrent, debug_cap)
 
         thread_groups = [
             self.threads[i : i + max_concurrent]

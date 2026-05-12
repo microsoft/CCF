@@ -5,13 +5,13 @@
 #include "ccf/common_auth_policies.h"
 #include "ccf/common_endpoint_registry.h"
 #include "ccf/endpoint_context.h"
+#include "ccf/endpoints/authentication/cert_auth.h"
 #include "ccf/http_query.h"
 #include "ccf/js/core/context.h"
 #include "ccf/json_handler.h"
 #include "ccf/node/quote.h"
 #include "ccf/odata_error.h"
 #include "ccf/pal/attestation.h"
-#include "ccf/pal/mem.h"
 #include "ccf/service/reconfiguration_type.h"
 #include "ccf/version.h"
 #include "crypto/certs.h"
@@ -19,6 +19,7 @@
 #include "ds/files.h"
 #include "ds/std_formatters.h"
 #include "frontend.h"
+#include "node/cose_common.h"
 #include "node/network_state.h"
 #include "node/rpc/file_serving_handlers.h"
 #include "node/rpc/jwt_management.h"
@@ -32,6 +33,7 @@
 #include "service/tables/local_sealing.h"
 #include "service/tables/previous_service_identity.h"
 #include "service/tables/snapshot_status.h"
+#include "snapshots/filenames.h"
 
 #include <llhttp/llhttp.h>
 #include <stdexcept>
@@ -264,11 +266,6 @@ namespace ccf
       return duplicate_node_id;
     }
 
-    bool is_taking_part_in_acking(NodeStatus node_status)
-    {
-      return node_status == NodeStatus::TRUSTED;
-    }
-
     auto add_node(
       ccf::kv::Tx& tx,
       const std::vector<uint8_t>& node_der,
@@ -314,6 +311,19 @@ namespace ccf
       {
         const auto [code, message] = quote_verification_error(verify_result);
         return make_error(code, ccf::errors::InvalidQuote, message);
+      }
+
+      // Check if the joining node's signing mode is acceptable
+      if (
+        in.ledger_sign_mode.has_value() &&
+        in.ledger_sign_mode.value() == ccf::LedgerSignMode::Dual &&
+        ccf::get_ledger_sign_mode() == ccf::LedgerSignMode::CoseOnly)
+      {
+        return make_error(
+          HTTP_STATUS_BAD_REQUEST,
+          ccf::errors::InvalidInput,
+          "This network does not accept nodes running in Dual signing "
+          "mode. The joining node must use COSE-only signing.");
       }
 
       std::optional<ccf::kv::Version> ledger_secret_seqno = std::nullopt;
@@ -444,120 +454,38 @@ namespace ccf
       auto accept = [this](auto& args, const nlohmann::json& params) {
         const auto in = params.get<JoinNetworkNodeToNode::In>();
 
+        // Not part of network => Internal error
         if (
           !this->node_operation.is_part_of_network() &&
           !this->node_operation.is_part_of_public_network() &&
           !this->node_operation.is_reading_private_ledger())
         {
+          const std::string payload =
+            "Target node should be part of network to accept new nodes.";
+          LOG_INFO_FMT("Join request rejected: {}", payload);
           return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
-            "Target node should be part of network to accept new nodes.");
+            payload);
         }
 
-        // Make sure that the joiner's snapshot is more recent than this node's
-        // snapshot. Otherwise, the joiner may not be given all the ledger
-        // secrets required to replay historical transactions.
-        auto this_startup_seqno =
-          this->node_operation.get_startup_snapshot_seqno();
-        if (
-          in.startup_seqno.has_value() &&
-          this_startup_seqno > in.startup_seqno.value())
-        {
-          return make_error(
-            HTTP_STATUS_BAD_REQUEST,
-            ccf::errors::StartupSeqnoIsOld,
-            fmt::format(
-              "Node requested to join from seqno {} which is older than this "
-              "node startup seqno {}. A snapshot at least as recent as {} must "
-              "be used instead.",
-              in.startup_seqno.value(),
-              this_startup_seqno,
-              this_startup_seqno));
-        }
-
-        auto nodes = args.tx.rw(this->network.nodes);
+        // No service => Internal error
         auto service = args.tx.rw(this->network.service);
-
         auto active_service = service->get();
         if (!active_service.has_value())
         {
+          const std::string payload =
+            "No service is available to accept new node.";
+          LOG_INFO_FMT("Join request rejected: {}", payload);
           return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
-            "No service is available to accept new node.");
+            payload);
         }
 
-        if (
-          active_service->status == ServiceStatus::OPENING ||
-          active_service->status == ServiceStatus::RECOVERING)
-        {
-          // If the service is opening, new nodes are trusted straight away
-          NodeStatus joining_node_status = NodeStatus::TRUSTED;
+        auto nodes = args.tx.ro(network.nodes);
 
-          // If the node is already trusted, return network secrets
-          auto existing_node_info = check_node_exists(
-            args.tx,
-            args.rpc_ctx->get_session_context()->caller_cert,
-            joining_node_status);
-          if (existing_node_info.has_value())
-          {
-            JoinNetworkNodeToNode::Out rep;
-            rep.node_status = joining_node_status;
-            rep.network_info = JoinNetworkNodeToNode::Out::NetworkInfo(
-              node_operation.is_part_of_public_network(),
-              node_operation.get_last_recovered_signed_idx(),
-              this->network.ledger_secrets->get(
-                args.tx, existing_node_info->ledger_secret_seqno),
-              *this->network.identity,
-              active_service->status,
-              existing_node_info->endorsed_certificate,
-              node_operation.get_cose_signatures_config());
-
-            return make_success(rep);
-          }
-
-          if (consensus != nullptr && !this->node_operation.can_replicate())
-          {
-            auto primary_id = consensus->primary();
-            if (primary_id.has_value())
-            {
-              const auto address = node::get_redirect_address_for_node(
-                args, args.tx, primary_id.value());
-              if (!address.has_value())
-              {
-                return already_populated_response();
-              }
-
-              args.rpc_ctx->set_response_header(
-                http::headers::LOCATION,
-                fmt::format("https://{}/node/join", address.value()));
-
-              return make_error(
-                HTTP_STATUS_PERMANENT_REDIRECT,
-                ccf::errors::NodeCannotHandleRequest,
-                "Node is not primary; cannot handle write");
-            }
-
-            return make_error(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              ccf::errors::InternalError,
-              "Primary unknown");
-          }
-
-          return add_node(
-            args.tx,
-            args.rpc_ctx->get_session_context()->caller_cert,
-            in,
-            joining_node_status,
-            active_service->status);
-        }
-
-        // If the service is open, new nodes are first added as pending and
-        // then only trusted via member governance. It is expected that a new
-        // node polls the network to retrieve the network secrets until it is
-        // trusted
-
+        // If already joined => return equivalent response
         auto existing_node_info = check_node_exists(
           args.tx, args.rpc_ctx->get_session_context()->caller_cert);
         if (existing_node_info.has_value())
@@ -570,7 +498,7 @@ namespace ccf
           auto node_status = node_info->status;
           rep.node_status = node_status;
           rep.node_id = existing_node_info->node_id;
-          if (is_taking_part_in_acking(node_status))
+          if (node_status == NodeStatus::TRUSTED)
           {
             rep.network_info = JoinNetworkNodeToNode::Out::NetworkInfo(
               node_operation.is_part_of_public_network(),
@@ -582,22 +510,29 @@ namespace ccf
               existing_node_info->endorsed_certificate,
               node_operation.get_cose_signatures_config());
 
+            LOG_DEBUG_FMT(
+              "Join request accepted: {} already marked as TRUSTED",
+              existing_node_info->node_id);
             return make_success(rep);
           }
 
           if (node_status == NodeStatus::PENDING)
           {
             // Only return node status and ID
+            LOG_DEBUG_FMT(
+              "Join request accepted: {} already marked as PENDING",
+              existing_node_info->node_id);
             return make_success(rep);
           }
 
+          const std::string payload = fmt::format(
+            "Joining node is not in expected state ({}).", node_status);
+          LOG_INFO_FMT("Join request rejected: {}", payload);
           return make_error(
-            HTTP_STATUS_BAD_REQUEST,
-            ccf::errors::InvalidNodeState,
-            fmt::format(
-              "Joining node is not in expected state ({}).", node_status));
+            HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidNodeState, payload);
         }
 
+        // Not the primary => Redirect if possible to primary
         if (consensus != nullptr && !this->node_operation.can_replicate())
         {
           auto primary_id = consensus->primary();
@@ -607,6 +542,10 @@ namespace ccf
               args, args.tx, primary_id.value());
             if (!address.has_value())
             {
+              LOG_INFO_FMT(
+                "Join request rejected: no redirect address for "
+                "primary {}",
+                primary_id.value());
               return already_populated_response();
             }
 
@@ -614,24 +553,103 @@ namespace ccf
               http::headers::LOCATION,
               fmt::format("https://{}/node/join", address.value()));
 
+            const std::string payload =
+              "Node is not primary; cannot handle write";
+            LOG_INFO_FMT(
+              "Join request redirected to primary {} at {}: {}",
+              primary_id.value(),
+              address.value(),
+              payload);
             return make_error(
               HTTP_STATUS_PERMANENT_REDIRECT,
               ccf::errors::NodeCannotHandleRequest,
-              "Node is not primary; cannot handle write");
+              "payload");
           }
 
+          const std::string payload = "Primary unknown";
+          LOG_INFO_FMT("Join request rejected: {}", payload);
           return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
-            "Primary unknown");
+            payload);
         }
 
-        // If the node does not exist, add it to the KV in state pending
+        // Joiner's snapshot too old => StartupSeqnoIsOld
+        // (causes joiner to fetch a more recent snapshot)
+        //
+        // The joiner always wants to use the most recent snapshot.
+        // However this will result in the joiner chasing the primary if
+        // snapshot production period ~= snapshot fetching delay
+        //
+        // So we have hysteresis in the fetching constraint:
+        // If the joiner has already fetched a snapshot: joiner seqno > startup
+        // snapshot seqno Otherwise: joiner seqno > latest snapshot on disk
+        // seqno
+        auto this_startup_seqno =
+          this->node_operation.get_startup_snapshot_seqno();
+        ccf::kv::Version required_seqno = this_startup_seqno;
+        // If the joiner does not enable fetching, or is a legacy node,
+        // join_fetch_count is unset and we should use the required bound to
+        // prevent it chasing the primary.
+        // Otherwise if this is the first request, use the preferred bound
+        bool using_preferred_bound =
+          (in.join_fetch_count.has_value() && in.join_fetch_count.value() == 0);
+        if (using_preferred_bound)
+        {
+          auto node_configuration_subsystem =
+            this->context.get_subsystem<NodeConfigurationSubsystem>();
+          if (node_configuration_subsystem != nullptr)
+          {
+            const auto& snapshots_config =
+              node_configuration_subsystem->get().node_config.snapshots;
+            const auto latest_committed_snapshot =
+              snapshots::find_latest_committed_snapshot_in_directory(
+                snapshots_config.directory);
+            if (latest_committed_snapshot.has_value())
+            {
+              const auto latest_snapshot_seqno =
+                snapshots::get_snapshot_idx_from_file_name(
+                  latest_committed_snapshot->filename().string());
+              required_seqno = std::max(
+                required_seqno,
+                static_cast<ccf::kv::Version>(latest_snapshot_seqno));
+            }
+          }
+        }
+        if (
+          in.startup_seqno.has_value() &&
+          in.startup_seqno.value() < required_seqno)
+        {
+          // Make sure that the joiner's snapshot is more recent than this
+          // node's snapshot. Otherwise, the joiner may not be given all the
+          // ledger secrets required to replay historical transactions.
+          const std::string payload = fmt::format(
+            "Node requested to join from seqno {} which is older than this "
+            "node {} {}. A snapshot at least as recent as {} must "
+            "be used instead.",
+            in.startup_seqno.value(),
+            using_preferred_bound ? "latest_on_disk_seqno" : "startup_seqno",
+            required_seqno,
+            required_seqno);
+          LOG_INFO_FMT("Join request rejected: {}", payload);
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST, ccf::errors::StartupSeqnoIsOld, payload);
+        }
+
+        auto joining_node_status = NodeStatus::PENDING;
+        // If the service is opening, new nodes are trusted straight away
+        if (
+          active_service->status == ServiceStatus::OPENING ||
+          active_service->status == ServiceStatus::RECOVERING)
+        {
+          joining_node_status = NodeStatus::TRUSTED;
+        }
+
         return add_node(
           args.tx,
           args.rpc_ctx->get_session_context()->caller_cert,
           in,
-          NodeStatus::PENDING,
+          joining_node_status,
           active_service->status);
       };
       make_endpoint("/join", HTTP_POST, json_adapter(accept), no_auth_required)
@@ -678,16 +696,34 @@ namespace ccf
         result.startup_seqno =
           this->node_operation.get_startup_snapshot_seqno();
 
+        // Read last signed seqno from both raw and COSE signature tables
         auto signatures = args.tx.template ro<Signatures>(Tables::SIGNATURES);
         auto sig = signatures->get();
-        if (!sig.has_value())
+
+        ccf::kv::Version raw_seqno = 0;
+        if (sig.has_value())
         {
-          result.last_signed_seqno = 0;
+          raw_seqno = sig.value().seqno;
         }
-        else
+
+        ccf::kv::Version cose_seqno = 0;
+        auto cose_signatures =
+          args.tx.template ro<CoseSignatures>(Tables::COSE_SIGNATURES);
+        auto cose_sig = cose_signatures->get();
+        if (cose_sig.has_value() && !cose_sig->empty())
         {
-          result.last_signed_seqno = sig.value().seqno;
+          auto receipt = ccf::cose::decode_ccf_receipt(cose_sig.value(), false);
+          auto txid = ccf::TxID::from_str(receipt.phdr.ccf.txid);
+          if (!txid.has_value())
+          {
+            throw std::logic_error(fmt::format(
+              "Failed to parse txid from COSE signature: {}",
+              receipt.phdr.ccf.txid));
+          }
+          cose_seqno = txid->seqno;
         }
+
+        result.last_signed_seqno = std::max(raw_seqno, cose_seqno);
 
         auto node_configuration_subsystem =
           this->context.get_subsystem<NodeConfigurationSubsystem>();
@@ -1418,27 +1454,6 @@ namespace ccf
         .set_auto_schema<void, ConsensusConfigDetails>()
         .install();
 
-      auto memory_usage = [](auto& args) {
-        ccf::pal::MallocInfo info;
-        if (ccf::pal::get_mallinfo(info))
-        {
-          MemoryUsage::Out mu(info);
-          args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-          args.rpc_ctx->set_response_header(
-            http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
-          args.rpc_ctx->set_response_body(nlohmann::json(mu).dump());
-          return;
-        }
-
-        args.rpc_ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
-        args.rpc_ctx->set_response_body("Failed to read memory usage");
-      };
-
-      make_command_endpoint("/memory", HTTP_GET, memory_usage, no_auth_required)
-        .set_forwarding_required(endpoints::ForwardingRequired::Never)
-        .set_auto_schema<MemoryUsage>()
-        .install();
-
       auto node_metrics = [this](auto& args) {
         NodeMetrics nm;
         nm.sessions = node_operation.get_session_metrics();
@@ -1516,6 +1531,19 @@ namespace ccf
             HTTP_STATUS_FORBIDDEN,
             ccf::errors::InternalError,
             "Node is not in initial state.");
+        }
+
+        const auto& sig_auth_ident =
+          ctx.template get_caller<ccf::AnyCertAuthnIdentity>();
+        // AnyCertAuthnIdentity requires DER format certificates
+        const auto caller_node_id =
+          compute_node_id_from_cert_der(sig_auth_ident.cert);
+        if (caller_node_id != this->context.get_node_id())
+        {
+          return make_error(
+            HTTP_STATUS_FORBIDDEN,
+            ccf::errors::AuthorizationFailed,
+            "Only the node itself can call this endpoint.");
         }
 
         const auto in = params.get<CreateNetworkNodeToNode::In>();
@@ -1659,7 +1687,10 @@ namespace ccf
         return make_success(true);
       };
       make_endpoint(
-        "/create", HTTP_POST, json_adapter(create), no_auth_required)
+        "/create",
+        HTTP_POST,
+        json_adapter(create),
+        {std::make_shared<AnyCertAuthnPolicy>()})
         .set_openapi_hidden(true)
         .install();
 

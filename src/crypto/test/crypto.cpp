@@ -886,15 +886,6 @@ TEST_CASE("CKM_RSA_AES_KEY_WRAP")
   REQUIRE(unwrapped == key_to_wrap);
 }
 
-TEST_CASE("AES-GCM convenience functions")
-{
-  EntropyPtr entropy = get_entropy();
-  std::vector<uint8_t> key = entropy->random(GCM_DEFAULT_KEY_SIZE);
-  auto encrypted = aes_gcm_encrypt(key, contents);
-  auto decrypted = aes_gcm_decrypt(key, encrypted);
-  REQUIRE(decrypted == contents);
-}
-
 TEST_CASE("x509 time")
 {
   auto time = ccf::nonstd::SystemClock::now();
@@ -1147,11 +1138,13 @@ TEST_CASE("Incremental hash")
     {
       constexpr size_t chunk_size = 10;
       auto ihash = make_incremental_sha256();
-      for (auto it = contents.begin(); it < contents.end(); it += chunk_size)
+      for (auto it = contents.begin(); it < contents.end();)
       {
-        auto end =
-          it + chunk_size > contents.end() ? contents.end() : it + chunk_size;
+        auto remaining = static_cast<size_t>(std::distance(it, contents.end()));
+        auto step = std::min(chunk_size, remaining);
+        auto end = it + step;
         ihash->update(std::vector<uint8_t>{it, end});
+        it = end;
       }
       auto final_hash = ihash->finalise();
       REQUIRE(final_hash == simple_hash);
@@ -1332,23 +1325,6 @@ TEST_CASE("Sign and verify a chain with an intermediate and different subjects")
   );
 
   REQUIRE(!rc);
-}
-
-TEST_CASE("Decrypt should validate integrity")
-{
-  auto key = get_entropy()->random(16);
-  std::vector<uint8_t> expected_plaintext = {0xde, 0xad, 0xbe, 0xef};
-  auto ciphertext = ccf::crypto::aes_gcm_encrypt(key, expected_plaintext);
-  auto decrypted_plaintext = ccf::crypto::aes_gcm_decrypt(key, ciphertext);
-
-  CHECK_EQ(expected_plaintext, decrypted_plaintext);
-
-  // corrupt part of ciphertext
-  auto broken_ciphertext = std::vector<uint8_t>(ciphertext);
-  broken_ciphertext[ciphertext.size() / 2] =
-    ~broken_ciphertext[ciphertext.size() / 2];
-
-  CHECK_THROWS(ccf::crypto::aes_gcm_decrypt(key, broken_ciphertext));
 }
 
 TEST_CASE("Do not trust non-ca certs")

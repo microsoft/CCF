@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/http_responder.h"
 #include "ccf/pal/locking.h"
 #include "ccf/service/node_info_network.h"
 #include "ds/internal_logger.h"
@@ -10,6 +9,7 @@
 #include "enclave/session.h"
 #include "forwarder_types.h"
 #include "http/http2_session.h"
+#include "http/http_responder.h"
 #include "http/http_session.h"
 #include "node/rpc/custom_protocol_subsystem.h"
 #include "node/session_metrics.h"

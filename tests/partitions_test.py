@@ -266,7 +266,13 @@ def test_new_joiner_helps_liveness(network, args):
     with contextlib.ExitStack() as stack:
         # Add a new node, but partition them before trusting them
         new_node = network.create_node()
-        network.join_node(new_node, args.package, args, from_snapshot=False)
+        network.join_node(
+            new_node,
+            args.package,
+            args,
+            from_snapshot=False,
+            fetch_recent_snapshot=True,
+        )
         new_joiner_partition = [new_node]
         new_joiner_rules = stack.enter_context(
             network.partitioner.partition([primary, *backups], new_joiner_partition)
@@ -554,6 +560,11 @@ def test_forwarding_timeout(network, args):
 )
 @reqs.at_least_n_nodes(3)
 def test_invalidated_blocking_calls(network, args):
+    for path in ["/app/log/blocking/private", "/app/log/blocking/private/receipt"]:
+        _test_invalidated_blocking_call(network, args, path)
+
+
+def _test_invalidated_blocking_call(network, args, blocking_path):
     primary, backups = network.find_nodes()
     key = 42
     val_a = "Hello"
@@ -562,13 +573,13 @@ def test_invalidated_blocking_calls(network, args):
     partition_created = threading.Event()
 
     def blocking_send():
-        LOG.info("Make a blocking respond-on-commit call to a partitioned primary")
+        LOG.info(
+            f"Make a blocking respond-on-commit call to {blocking_path} on a partitioned primary"
+        )
         with primary.client("user0") as c:
             ready_to_go.set()
             partition_created.wait()
-            r = c.post(
-                "/app/log/blocking/private", {"id": key, "msg": val_a}, timeout=10
-            )
+            r = c.post(blocking_path, {"id": key, "msg": val_a}, timeout=10)
             assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR
             tx_id = r.headers[infra.clients.CCF_TX_ID_HEADER]
             body = r.body.json()

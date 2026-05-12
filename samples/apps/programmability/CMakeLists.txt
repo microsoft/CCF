@@ -12,5 +12,6 @@ if(NOT TARGET "ccf")
 endif()
 
 add_ccf_app(
-  programmability SRCS programmability.cpp ${CCF_DIR}/samples/apps/main.cpp
+  programmability
+  SRCS programmability.cpp ${CCF_DIR}/samples/apps/main.cpp
 )

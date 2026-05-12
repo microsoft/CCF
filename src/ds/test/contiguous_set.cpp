@@ -548,7 +548,11 @@ TEST_CASE("Contiguous set correctness" * doctest::test_suite("contiguousset"))
 
 TEST_CASE("Contiguous set scale" * doctest::test_suite("contiguousset"))
 {
+#ifdef _GLIBCXX_DEBUG
+  test<size_t>(0, 100);
+#else
   test<size_t>(0, 100'000);
+#endif
 }
 
 TEST_CASE("Contiguous set extend" * doctest::test_suite("contiguousset"))

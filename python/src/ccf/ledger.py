@@ -553,7 +553,7 @@ class LedgerValidator(BaseValidator):
         # Don't hash empty bytes array.
         self.merkle = MerkleTree()
         empty_bytes_array = bytearray(SHA256_DIGEST_SIZE)
-        self.merkle.add_leaf(empty_bytes_array, do_hash=False)
+        self.merkle.add_leaf(bytes(empty_bytes_array), do_hash=False)
 
         self.last_verified_seqno = 0
         self.last_verified_view = 0
@@ -724,10 +724,14 @@ class LedgerValidator(BaseValidator):
                 else:
                     self.node_certificates[node_id] = endorsed_node_cert
 
-        # This is a merkle root/signature tx if the table exists
-        if SIGNATURE_TX_TABLE_NAME in tables:
+        # This is a merkle root/signature tx if either signature table exists
+        is_signature_tx = (
+            SIGNATURE_TX_TABLE_NAME in tables or COSE_SIGNATURE_TX_TABLE_NAME in tables
+        )
+        if is_signature_tx:
             self.signature_count += 1
 
+        if SIGNATURE_TX_TABLE_NAME in tables:
             if self.verification_level >= VerificationLevel.MERKLE:
                 signature_table = tables[SIGNATURE_TX_TABLE_NAME]
 

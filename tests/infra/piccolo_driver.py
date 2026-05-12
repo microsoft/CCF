@@ -10,12 +10,12 @@ from random import seed
 import getpass
 from loguru import logger as LOG
 import time
-import http
 import hashlib
 import json
 from piccolo import generator
 from piccolo import analyzer
 import infra.bencher
+import infra.proc
 
 
 def get_command_args(args, network, get_command):
@@ -217,18 +217,10 @@ def run(get_command, args):
                     )
 
                 primary, _ = network.find_primary()
-                with primary.client() as nc:
-                    r = nc.get("/node/memory")
-                    assert r.status_code == http.HTTPStatus.OK.value
-                    results = r.body.json()
-                    current_value = results["current_allocated_heap_size"]
-                    peak_value = results["peak_allocated_heap_size"]
-
+                mem = infra.proc.get_proc_memory_stats(primary.remote.remote.proc.pid)
+                if mem is not None:
                     bf = infra.bencher.Bencher()
-                    bf.set(
-                        perf_label,
-                        infra.bencher.Memory(current_value, high_value=peak_value),
-                    )
+                    bf.set_memory(perf_label, mem)
 
                 for remote_client in clients:
                     remote_client.stop()

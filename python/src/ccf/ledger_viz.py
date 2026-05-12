@@ -3,7 +3,7 @@
 
 import ccf.ledger
 import argparse
-import os
+import shutil
 import json
 
 COLORS = {
@@ -28,7 +28,7 @@ def cs(s: str, background_colour: str | None = None) -> str:
 class Liner:
     _line = ""
     _len = 0
-    MAX_LENGTH = os.get_terminal_size().columns
+    MAX_LENGTH = shutil.get_terminal_size().columns
 
     def flush(self):
         print(self._line)
@@ -113,6 +113,58 @@ def try_get_service_info(public_tables):
     )
 
 
+def visualise(ledger, liner, validator=None):
+    """Iterate over the given ledger and dispatch each transaction to
+    ``liner.entry(category, view, seqno)`` after categorising it. If a
+    ``validator`` is provided, every transaction is also fed to it via
+    ``validator.add_transaction(tx)``. Calls ``liner.flush()`` at the end.
+    """
+    current_service_identity = None
+
+    for chunk in ledger:
+        for tx in chunk:
+            if validator:
+                validator.add_transaction(tx)
+
+            public = tx.get_public_domain().get_tables()
+            has_private = tx.get_private_domain_size()
+
+            view = tx.gcm_header.view
+            seqno = tx.gcm_header.seqno
+            if not has_private:
+                if (
+                    ccf.ledger.SIGNATURE_TX_TABLE_NAME in public
+                    or ccf.ledger.COSE_SIGNATURE_TX_TABLE_NAME in public
+                ):
+                    liner.entry("Signature", view, seqno)
+                else:
+                    if all(
+                        table.startswith("public:ccf.internal.") for table in public
+                    ):
+                        liner.entry("Internal", view, seqno)
+                    elif any(table.startswith("public:ccf.gov.") for table in public):
+                        service_info = try_get_service_info(public)
+                        if service_info is None:
+                            liner.entry("Governance", view, seqno)
+                        elif service_info["status"] == "Opening":
+                            liner.entry("New Service", view, seqno)
+                            current_service_identity = service_info["cert"]
+                        elif service_info["status"] == "Recovering":
+                            liner.entry("Recovering Service", view, seqno)
+                            current_service_identity = service_info["cert"]
+                        elif (
+                            service_info["cert"] == current_service_identity
+                            and service_info["status"] == "Open"
+                        ):
+                            liner.entry("Service Open", view, seqno)
+                    else:
+                        liner.entry("User Public", view, seqno)
+            else:
+                liner.entry("User Private", view, seqno)
+
+    liner.flush()
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Visualise content of CCF ledger",
@@ -158,51 +210,12 @@ def main():
 
     liner = DefaultLiner(args.write_views, args.split_views, args.split_services)
     liner.help()
-    current_service_identity = None
 
     validator = (
         ccf.ledger.LedgerValidator() if not args.insecure_skip_verification else None
     )
 
-    for chunk in ledger:
-        for tx in chunk:
-            if validator:
-                validator.add_transaction(tx)
-
-            public = tx.get_public_domain().get_tables()
-            has_private = tx.get_private_domain_size()
-
-            view = tx.gcm_header.view
-            seqno = tx.gcm_header.seqno
-            if not has_private:
-                if ccf.ledger.SIGNATURE_TX_TABLE_NAME in public:
-                    liner.entry("Signature", view, seqno)
-                else:
-                    if all(
-                        table.startswith("public:ccf.internal.") for table in public
-                    ):
-                        liner.entry("Internal", view, seqno)
-                    elif any(table.startswith("public:ccf.gov.") for table in public):
-                        service_info = try_get_service_info(public)
-                        if service_info is None:
-                            liner.entry("Governance", view, seqno)
-                        elif service_info["status"] == "Opening":
-                            liner.entry("New Service", view, seqno)
-                            current_service_identity = service_info["cert"]
-                        elif service_info["status"] == "Recovering":
-                            liner.entry("Recovering Service", view, seqno)
-                            current_service_identity = service_info["cert"]
-                        elif (
-                            service_info["cert"] == current_service_identity
-                            and service_info["status"] == "Open"
-                        ):
-                            liner.entry("Service Open", view, seqno)
-                    else:
-                        liner.entry("User Public", view, seqno)
-            else:
-                liner.entry("User Private", view, seqno)
-
-    liner.flush()
+    visualise(ledger, liner, validator=validator)
 
 
 if __name__ == "__main__":

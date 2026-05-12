@@ -11,14 +11,9 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 ROOT_DIR=$( dirname "$SCRIPT_DIR" )
 cd "$ROOT_DIR" || exit 1
 
-# Ensure venv exists and activate (uses a dedicated venv to allow concurrent runs)
-if [ ! -f "scripts/env-types/bin/activate" ]; then
-  python3 -m venv scripts/env-types || exit 1
+if [ ! -x "$(command -v uv)" ]; then
+  echo "uv is required but not installed. See https://docs.astral.sh/uv/getting-started/installation/" >&2
+  exit 1
 fi
-source scripts/env-types/bin/activate || exit 1
 
-pip install -U pip > /dev/null || exit 1
-pip install -U wheel pytest-mypy mypy 1>/dev/null || exit 1
-pip install ./python 1>/dev/null || exit 1
-
-git ls-files python/ | grep -e '\.py$' | xargs mypy
+git ls-files python/ | grep -e '\.py$' | xargs uvx --with ./python --with pytest mypy

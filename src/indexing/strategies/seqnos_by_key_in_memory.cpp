@@ -32,7 +32,7 @@ namespace ccf::indexing::strategies
 
       if (
         max_seqnos.has_value() &&
-        std::distance(from_it, seqnos.end()) > *max_seqnos)
+        static_cast<size_t>(std::distance(from_it, seqnos.end())) > *max_seqnos)
       {
         std::advance(to_it, *max_seqnos);
       }

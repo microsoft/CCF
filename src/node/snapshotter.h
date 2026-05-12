@@ -239,10 +239,9 @@ namespace ccf
       std::string commit_evidence;
       auto capture_ws_digest_and_commit_evidence =
         [&ws_digest, &commit_evidence](
-          const std::vector<uint8_t>& write_set,
+          const ccf::crypto::Sha256Hash& write_set_digest,
           const std::string& commit_evidence_) {
-          new (&ws_digest)
-            ccf::crypto::Sha256Hash({write_set.data(), write_set.size()});
+          ws_digest = write_set_digest;
           commit_evidence = commit_evidence_;
         };
 

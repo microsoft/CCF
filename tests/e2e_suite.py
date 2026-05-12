@@ -3,6 +3,7 @@
 
 import infra.e2e_args
 import infra.network
+import infra.proc
 import suite.test_suite as s
 import suite.test_requirements as reqs
 import infra.logging_app as app
@@ -28,11 +29,15 @@ def mem_stats(network):
     mem = {}
     for node in network.get_joined_nodes():
         try:
-            with node.client() as c:
-                r = c.get("/node/memory", timeout=0.1)
-                mem[node.local_node_id] = r.body.json()
-        except Exception:
-            pass
+            pid = node.remote.remote.proc.pid
+            stats = infra.proc.get_proc_memory_stats(pid)
+            if stats is not None:
+                mem[node.local_node_id] = stats
+        except (AttributeError, OSError) as exc:
+            LOG.debug(
+                f"Unable to collect memory stats for node "
+                f"{getattr(node, 'local_node_id', '<unknown>')}: {exc}"
+            )
     return mem
 
 

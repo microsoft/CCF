@@ -134,11 +134,21 @@ def test_new_service(
     kwargs = {}
     kwargs["reconfiguration_type"] = "OneTransaction"
 
+    if infra.node.CCFVersion(version) < infra.node.CCFVersion("ccf-6.0.0"):
+        primary, _ = network.find_primary()
+        snapshots_dir = network.get_committed_snapshots(primary)
+        kwargs["from_snapshot"] = True
+        kwargs["snapshots_dir"] = snapshots_dir
+    else:
+        kwargs["from_snapshot"] = False
+        kwargs["fetch_recent_snapshot"] = True
+
     new_node = network.create_node(
         binary_dir=binary_dir,
         library_dir=library_dir,
         version=version,
     )
+
     network.join_node(new_node, args.package, args, **kwargs)
     network.trust_node(
         new_node,
@@ -358,15 +368,21 @@ def run_code_upgrade_from(
 
             # Note: alternate between joining from snapshot and replaying entire ledger
             new_nodes = []
-            from_snapshot = True
+            fetch_recent_snapshot = True
             for _ in range(0, len(old_nodes)):
                 new_node = network.create_node(
                     binary_dir=to_binary_dir,
                     library_dir=to_library_dir,
                     version=to_version,
                 )
+
+                kwargs = {}
+                kwargs["fetch_recent_snapshot"] = fetch_recent_snapshot
+                if not fetch_recent_snapshot:
+                    kwargs["copy_ledger"] = True
+
                 network.join_node(
-                    new_node, args.package, args, from_snapshot=from_snapshot
+                    new_node, args.package, args, from_snapshot=False, **kwargs
                 )
                 network.trust_node(
                     new_node,
@@ -382,7 +398,7 @@ def run_code_upgrade_from(
                     expected_validity_period_days=DEFAULT_NODE_CERTIFICATE_VALIDITY_DAYS,
                     ignore_proposal_valid_from=True,
                 )
-                from_snapshot = not from_snapshot
+                fetch_recent_snapshot = not fetch_recent_snapshot
                 new_nodes.append(new_node)
 
             # Verify that all nodes run the expected CCF version

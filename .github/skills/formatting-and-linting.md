@@ -21,7 +21,7 @@ These scripts accept a `-f` flag that automatically corrects issues. Always run 
 | `scripts/python-format-checks.sh` | `scripts/python-format-checks.sh -f` | `.py` in `tests/`, `python/`, `scripts/`, `tla/`                              | black                    |
 | `scripts/python-lint-checks.sh`   | `scripts/python-lint-checks.sh -f`   | `.py` in `python/`, `tests/`                                                  | ruff                     |
 | `scripts/prettier-checks.sh`      | `scripts/prettier-checks.sh -f`      | `.ts`, `.js`, `.md`, `.yaml`, `.yml`, `.json` (excludes `tests/sandbox/`)     | prettier                 |
-| `scripts/cmake-format-checks.sh`  | `scripts/cmake-format-checks.sh -f`  | `CMakeLists.txt` and `.cmake` files in `cmake/`, `samples/`, `src/`, `tests/` | cmake-format             |
+| `scripts/cmake-format-checks.sh`  | `scripts/cmake-format-checks.sh -f`  | `CMakeLists.txt` and `.cmake` files in `cmake/`, `samples/`, `src/`, `tests/` | gersemi                  |
 | `scripts/release-notes-checks.sh` | `scripts/release-notes-checks.sh -f` | Release notes in `CHANGELOG.md`                                               | extract-release-notes.py |
 
 ## Scripts without auto-fix

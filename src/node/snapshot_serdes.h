@@ -52,6 +52,15 @@ namespace ccf
       throw std::logic_error("Snapshot transaction size should not be zero");
     }
 
+    if (store_snapshot_size > size)
+    {
+      throw std::invalid_argument(fmt::format(
+        "Snapshot transaction header claims size {} which exceeds available "
+        "buffer size {}",
+        store_snapshot_size,
+        size));
+    }
+
     const auto* receipt_data = data + store_snapshot_size;
     auto receipt_size = size - store_snapshot_size;
 
