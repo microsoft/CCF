@@ -1521,6 +1521,69 @@ def test_ledger_chunk_redirect_gap(network, args):
             assert download_index is not None, chunk_name
 
 
+@reqs.description(
+    "Stale copied ledgers may not be parseable after joining from a newer snapshot"
+)
+def test_stale_copied_ledger_snapshot_invariant(network, args):
+    primary, _ = network.find_primary()
+
+    # Copy the primary's ledger to the common workspace before newer snapshots
+    # are created. This deliberately captures a stale boundary between the
+    # current and committed ledger directories.
+    copied_current_ledger_dir, copied_committed_ledger_dirs = primary.get_ledger()
+
+    # Ensure that at least one ledger chunk is between the copied ledger, and the latest snapshot
+    for _ in range(2):
+      with primary.client() as c:
+          r = c.get("/node/commit").body.json()["transaction_id"]
+          hwm = TxID.from_str(r).seqno
+      
+      network.txs.issue(network, number_txs=1, wait_for_sync=True)
+      primary.trigger_snapshot()
+      snapshots_dir = network.get_committed_snapshots(
+          primary, target_seqno=hwm+1, wait_for_target_seqno=True
+      )
+      snapshot_seqno = find_snapshot_after_seqno(snapshots_dir, hwm)
+      assert snapshot_seqno > hwm
+
+    new_node = network.create_node()
+    network.join_node(
+        new_node,
+        args.package,
+        args,
+        target_node=primary,
+        ledger_dir=copied_current_ledger_dir,
+        read_only_ledger_dirs=copied_committed_ledger_dirs,
+        from_snapshot=False,
+        fetch_recent_snapshot=True,
+    )
+    network.trust_node(new_node, args)
+
+    with new_node.client() as c:
+        startup_seqno = c.get("/node/state").body.json()["startup_seqno"]
+    assert startup_seqno >= snapshot_seqno, (
+        f"Expected node to start from a snapshot at or after "
+        f"{snapshot_seqno}, got {startup_seqno}"
+    )
+
+    network.txs.issue(network, number_txs=5, wait_for_sync=True)
+    network.consortium.force_ledger_chunk(primary)
+    network.wait_for_all_nodes_to_commit(primary)
+
+    ledger_paths = new_node.remote.ledger_paths()
+    try:
+        ccf.ledger.Ledger(ledger_paths)
+    except ValueError as e:
+        assert "non-contiguous chunks" in str(e), e
+        LOG.info(f"Stale copied ledger produced expected non-contiguous ledger: {e}")
+    else:
+        raise AssertionError(
+            f"Expected stale copied ledger plus newer snapshot to be non-contiguous: {ledger_paths}"
+        )
+
+    return network
+
+
 def run_file_operations(args):
     with tempfile.NamedTemporaryFile(mode="w+") as ntf:
         service_data = {"the owls": "are not", "what": "they seem"}
@@ -1556,6 +1619,7 @@ def run_file_operations(args):
                 test_empty_snapshot(network, args)
                 test_nulled_snapshot(network, args)
                 test_corrupt_snapshot_handling(network, args)
+                test_stale_copied_ledger_snapshot_invariant(network,args)
 
                 # Ensure that the network is still live
                 primary, _ = network.find_primary()
