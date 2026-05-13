@@ -81,7 +81,9 @@ class HttpSig(httpx.Auth):
 
     def __init__(self, key_id, pem_private_key):
         self.key_id = key_id
-        self.private_key = load_pem_private_key(pem_private_key, password=None, backend=default_backend())
+        self.private_key = load_pem_private_key(
+            pem_private_key, password=None, backend=default_backend()
+        )
 
     @staticmethod
     def add_signature_headers(headers, content, method, path, key_id, private_key):
@@ -94,10 +96,16 @@ class HttpSig(httpx.Auth):
                 f"content-length: {len(content)}",
             ]
         ).encode("utf-8")
-        digest_algo = {256: hashes.SHA256(), 384: hashes.SHA384()}[private_key.curve.key_size]
-        signature = private_key.sign(signature_algorithm=ec.ECDSA(algorithm=digest_algo), data=string_to_sign)
+        digest_algo = {256: hashes.SHA256(), 384: hashes.SHA384()}[
+            private_key.curve.key_size
+        ]
+        signature = private_key.sign(
+            signature_algorithm=ec.ECDSA(algorithm=digest_algo), data=string_to_sign
+        )
         b64signature = base64.b64encode(signature).decode("ascii")
-        headers["authorization"] = f'Signature keyId="{key_id}",algorithm="hs2019",headers="(request-target) digest content-length",signature="{b64signature}"'
+        headers["authorization"] = (
+            f'Signature keyId="{key_id}",algorithm="hs2019",headers="(request-target) digest content-length",signature="{b64signature}"'
+        )
 
     def auth_flow(self, request):
         HttpSig.add_signature_headers(
@@ -120,7 +128,7 @@ def escape_loguru_tags(s):
 
 def truncate(string: str, max_len: int = 256):
     if len(string) > max_len:
-        return f"{string[:max_len]} + {len(string) - max_len} chars"
+        return f"{string[: max_len]} + {len(string) - max_len} chars"
     else:
         return string
 
@@ -152,10 +160,13 @@ class Request:
         if self.headers:
             string += f" <blue>{truncate(str(self.headers), max_len=25)}</>"
         if self.body is not None:
-            if "content-type" in self.headers and self.headers["content-type"] == "application/octet-stream":
+            if (
+                "content-type" in self.headers
+                and self.headers["content-type"] == "application/octet-stream"
+            ):
                 string += f"<binary: {len(self.body)} bytes>"
             else:
-                string += escape_loguru_tags(f" {truncate(f'{self.body}')}")
+                string += escape_loguru_tags(f' {truncate(f"{self.body}")}')
 
         return string
 
@@ -257,9 +268,14 @@ class Response:
         versioned = (self.view, self.seqno) != (None, None)
         status_category = self.status_code // 100
         redirect = status_category == 3
-        status_color = "red" if status_category in (4, 5) else "yellow" if redirect else "green"
+        status_color = (
+            "red" if status_category in (4, 5) else "yellow" if redirect else "green"
+        )
 
-        if "content-type" in self.headers and self.headers["content-type"] == "application/octet-stream":
+        if (
+            "content-type" in self.headers
+            and self.headers["content-type"] == "application/octet-stream"
+        ):
             body_s = f"<binary: {len(self.body)} bytes>"
         else:
             body_s = escape_loguru_tags(truncate(str(self.body)))
@@ -268,7 +284,16 @@ class Response:
         if len(body_s) > 0 and body_s[-1] == "\\":
             body_s += " "
 
-        return f"<{status_color}>{self.status_code}</> " + (f"<yellow>[Redirect to -> {self.headers.get('location')}]</> " if redirect else "") + (f"@<magenta>{self.view}.{self.seqno}</> " if versioned else "") + f"<yellow>{body_s}</>"
+        return (
+            f"<{status_color}>{self.status_code}</> "
+            + (
+                f"<yellow>[Redirect to -> {self.headers.get('location')}]</> "
+                if redirect
+                else ""
+            )
+            + (f"@<magenta>{self.view}.{self.seqno}</> " if versioned else "")
+            + f"<yellow>{body_s}</>"
+        )
 
     @staticmethod
     def from_requests_response(rr):
@@ -352,7 +377,9 @@ class CCFIOException(Exception):
 def get_curve(ca_file):
     # Auto detect EC curve to use based on server CA
     ca_bytes = open(ca_file, "rb").read()
-    return x509.load_pem_x509_certificate(ca_bytes, default_backend()).public_key().curve
+    return (
+        x509.load_pem_x509_certificate(ca_bytes, default_backend()).public_key().curve
+    )
 
 
 def unpack_seqno_or_view(data):
@@ -363,7 +390,9 @@ def unpack_seqno_or_view(data):
 
 
 def cose_protected_headers_api_v1(request_path, created_at=None):
-    assert created_at is None or isinstance(created_at, int) or created_at.tzinfo, "created_at must be None, an int or a timezone aware datetime"
+    assert (
+        created_at is None or isinstance(created_at, int) or created_at.tzinfo
+    ), "created_at must be None, an int or a timezone aware datetime"
     phdr = {"ccf.gov.msg.created_at": created_at or get_clock().moment()}
 
     hex_id = "([a-f0-9]+)"
@@ -407,7 +436,9 @@ def cose_protected_headers_api_v1(request_path, created_at=None):
 
 
 def cose_protected_headers_api_classic(request_path, created_at=None):
-    assert created_at is None or isinstance(created_at, int) or created_at.tzinfo, "created_at must be None, an int or a timezone aware datetime"
+    assert (
+        created_at is None or isinstance(created_at, int) or created_at.tzinfo
+    ), "created_at must be None, an int or a timezone aware datetime"
     phdr = {"ccf.gov.msg.created_at": created_at or get_clock().moment()}
 
     if request_path.endswith("gov/ack/update_state_digest"):
@@ -523,7 +554,9 @@ class CurlClient:
                 created_at = phdr["ccf.gov.msg.created_at"]
                 pre_cmd.extend(["--ccf-gov-msg-created_at", created_at.isoformat()])
                 if "ccf.gov.msg.proposal_id" in phdr:
-                    pre_cmd.extend(["--ccf-gov-msg-proposal_id", phdr["ccf.gov.msg.proposal_id"]])
+                    pre_cmd.extend(
+                        ["--ccf-gov-msg-proposal_id", phdr["ccf.gov.msg.proposal_id"]]
+                    )
                 pre_cmd.extend(["--signing-key", self.cose_signing_auth.key])
                 pre_cmd.extend(["--signing-cert", self.cose_signing_auth.cert])
                 pre_cmd.extend(["--content", content_path.strip("@")])
@@ -561,7 +594,9 @@ class CurlClient:
                 pre_cmd_s = " ".join(pre_cmd)
                 LOG.debug(f"Running: {pre_cmd_s} | {cmd_s}")
                 pre_sub = subprocess.Popen(pre_cmd, stdout=subprocess.PIPE)
-                rc = subprocess.run(cmd, capture_output=True, check=False, env=env, stdin=pre_sub.stdout)
+                rc = subprocess.run(
+                    cmd, capture_output=True, check=False, env=env, stdin=pre_sub.stdout
+                )
                 pre_sub.wait()
             else:
                 LOG.debug(f"Running: {cmd_s}")
@@ -648,7 +683,13 @@ class HttpxClient:
         sig_auth = signing_auth or cose_signing_auth
         if sig_auth:
             with open(sig_auth.cert, encoding="utf-8") as cert_file:
-                self.key_id = x509.load_pem_x509_certificate(cert_file.read().encode(), default_backend()).fingerprint(hashes.SHA256()).hex()
+                self.key_id = (
+                    x509.load_pem_x509_certificate(
+                        cert_file.read().encode(), default_backend()
+                    )
+                    .fingerprint(hashes.SHA256())
+                    .hex()
+                )
         self.cose_header_builder = cose_protected_headers_api_classic
 
     def _request(
@@ -676,7 +717,9 @@ class HttpxClient:
         except (httpx.WriteError, httpx.ReadError, httpx.RemoteProtocolError) as exc:
             raise CCFIOException from exc
         except Exception as exc:
-            raise RuntimeError(f"HttpxClient failed with unexpected error: {exc}") from exc
+            raise RuntimeError(
+                f"HttpxClient failed with unexpected error: {exc}"
+            ) from exc
 
         return Response.from_requests_response(response)
 
@@ -699,11 +742,18 @@ class HttpxClient:
         if self.signing_auth is not None:
             # Add content length of 0 when signing a GET request
             if request.http_verb == "GET":
-                if "Content-Length" in extra_headers and extra_headers.get("Content-Length") != "0":
-                    raise ValueError("Content-Length should be set to 0 for GET requests")
+                if (
+                    "Content-Length" in extra_headers
+                    and extra_headers.get("Content-Length") != "0"
+                ):
+                    raise ValueError(
+                        "Content-Length should be set to 0 for GET requests"
+                    )
                 else:
                     extra_headers["Content-Length"] = "0"
-            auth = self._auth_provider(self.key_id, open(self.signing_auth.key, "rb").read())
+            auth = self._auth_provider(
+                self.key_id, open(self.signing_auth.key, "rb").read()
+            )
 
         request_body = None
         if request.body is not None:
@@ -733,16 +783,32 @@ class HttpxClient:
             cert = open(self.cose_signing_auth.cert, encoding="utf-8").read()
             phdr = self.cose_header_builder(request.path, self.created_at_override)
             phdr.update(cose_header_parameters_override or {})
-            if "ccf.gov.msg.created_at" in phdr and not isinstance(phdr["ccf.gov.msg.created_at"], int):
-                assert phdr["ccf.gov.msg.created_at"].tzinfo, "created_at must be timezone aware"
-                phdr["ccf.gov.msg.created_at"] = int(phdr["ccf.gov.msg.created_at"].timestamp())
-            request_body = ccf.cose.create_cose_sign1(request_body or b"", key, cert, phdr)
+            if "ccf.gov.msg.created_at" in phdr and not isinstance(
+                phdr["ccf.gov.msg.created_at"], int
+            ):
+                assert phdr[
+                    "ccf.gov.msg.created_at"
+                ].tzinfo, "created_at must be timezone aware"
+                phdr["ccf.gov.msg.created_at"] = int(
+                    phdr["ccf.gov.msg.created_at"].timestamp()
+                )
+            request_body = ccf.cose.create_cose_sign1(
+                request_body or b"", key, cert, phdr
+            )
             if self._corrupt_signature:
                 corrupt_byte_idx = random.randint(-32, -1)
                 corrupt_bit_idx = random.randint(0, 7)
                 byte_to_corrupt = int(request_body[corrupt_byte_idx])
                 byte_to_corrupt ^= 2**corrupt_bit_idx
-                request_body = request_body[:corrupt_byte_idx] + byte_to_corrupt.to_bytes(1, "big") + (request_body[corrupt_byte_idx + 1 :] if corrupt_byte_idx != -1 else b"")
+                request_body = (
+                    request_body[:corrupt_byte_idx]
+                    + byte_to_corrupt.to_bytes(1, "big")
+                    + (
+                        request_body[corrupt_byte_idx + 1 :]
+                        if corrupt_byte_idx != -1
+                        else b""
+                    )
+                )
 
             extra_headers["content-type"] = CONTENT_TYPE_COSE
 
@@ -799,7 +865,13 @@ class RawSocketClient:
 
         if signing_auth:
             with open(signing_auth.cert, encoding="utf-8") as cert_file:
-                key_id = x509.load_pem_x509_certificate(cert_file.read().encode(), default_backend()).fingerprint(hashes.SHA256()).hex()
+                key_id = (
+                    x509.load_pem_x509_certificate(
+                        cert_file.read().encode(), default_backend()
+                    )
+                    .fingerprint(hashes.SHA256())
+                    .hex()
+                )
                 private_key = load_pem_private_key(
                     open(signing_auth.key, "rb").read(),
                     password=None,
@@ -831,12 +903,16 @@ class RawSocketClient:
                     )
 
                 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                ssl_socket = context.wrap_socket(sock, server_side=False, server_hostname=hostname)
+                ssl_socket = context.wrap_socket(
+                    sock, server_side=False, server_hostname=hostname
+                )
                 ssl_socket.connect((hostname, port))
                 return ssl_socket
             except (ssl.SSLEOFError, ConnectionResetError) as exc:
                 if time.time() > end_time:
-                    raise CCFConnectionException("Timed out connecting to node") from exc
+                    raise CCFConnectionException(
+                        "Timed out connecting to node"
+                    ) from exc
                 else:
                     # If the initial connection fails (e.g. due to node certificate
                     # not yet being endorsed by the network) sleep briefly and try again
@@ -954,13 +1030,19 @@ class CCFClient:
     A :py:exc:`CCFConnectionException` exception is raised if the connection is not established successfully within ``connection_timeout`` seconds.
     """
 
-    default_impl_type = CurlClient if os.getenv("CURL_CLIENT") else RawSocketClient if os.getenv("SOCKET_CLIENT") else HttpxClient
+    default_impl_type = (
+        CurlClient
+        if os.getenv("CURL_CLIENT")
+        else RawSocketClient if os.getenv("SOCKET_CLIENT") else HttpxClient
+    )
 
     def set_created_at_override(self, value):
         if isinstance(self.client_impl, CurlClient):
             assert value.tzinfo, "created_at must be timezone aware"
         elif isinstance(self.client_impl, HttpxClient):
-            assert isinstance(value, int) or value.tzinfo, "created_at must be integer or timezone aware"
+            assert (
+                isinstance(value, int) or value.tzinfo
+            ), "created_at must be integer or timezone aware"
         self.client_impl.created_at_override = value
 
     def __init__(
@@ -1026,9 +1108,15 @@ class CCFClient:
         # client implementation to do so without modifying the request (eg - removing
         # the Authorization header)
         redirect_count = 0
-        while allow_redirects and redirect_count < 20 and (response.status_code == 308 or response.status_code == 307):
+        while (
+            allow_redirects
+            and redirect_count < 20
+            and (response.status_code == 308 or response.status_code == 307)
+        ):
             redirect_count += 1
-            assert "location" in response.headers, f"Received redirect response without location header: {response}"
+            assert (
+                "location" in response.headers
+            ), f"Received redirect response without location header: {response}"
 
             redirect_url = response.headers["location"]
             split = urllib.parse.urlsplit(redirect_url)
@@ -1117,7 +1205,9 @@ class CCFClient:
                 # not yet being endorsed by the network) sleep briefly and try again
                 if time.time() > end_time:
                     flush_info(logs, log_capture, 2)
-                    raise CCFConnectionException(f"Connection still failing after {self.connection_timeout}s") from e
+                    raise CCFConnectionException(
+                        f"Connection still failing after {self.connection_timeout}s"
+                    ) from e
                 time.sleep(0.1)
 
     def get(self, *args, **kwargs) -> Response:
@@ -1255,7 +1345,9 @@ class APIVersionedCCFClient(CCFClient):
         ):
             self.client_impl.cose_header_builder = cose_protected_headers_api_v1
         else:
-            LOG.error(f"Unrecognised api version {self.api_version} - don't know how to determine COSE protected headers")
+            LOG.error(
+                f"Unrecognised api version {self.api_version} - don't know how to determine COSE protected headers"
+            )
 
     @staticmethod
     def add_query_arg_to_path(path, arg_name, arg_value):
@@ -1264,7 +1356,9 @@ class APIVersionedCCFClient(CCFClient):
         return f"{parts[0]}?{new_query}"
 
     def call(self, path: str, *args, **kwargs):
-        modified_path = APIVersionedCCFClient.add_query_arg_to_path(path, "api-version", self.api_version)
+        modified_path = APIVersionedCCFClient.add_query_arg_to_path(
+            path, "api-version", self.api_version
+        )
         return super(APIVersionedCCFClient, self).call(modified_path, *args, **kwargs)
 
 
