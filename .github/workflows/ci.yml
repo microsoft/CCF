@@ -204,7 +204,7 @@ jobs:
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DCOMPILE_TARGET=snp -DCMAKE_BUILD_TYPE=Debug ..
+          cmake -GNinja -DCOMPILE_TARGET=snp -DCMAKE_BUILD_TYPE=Debug -DWORKER_THREADS=1 ..
           ninja
         shell: bash
 
@@ -219,6 +219,8 @@ jobs:
           # End to end tests
           ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|suite|unit"
         shell: bash
+        env:
+          ELECTION_TIMEOUT_MS: 10000
 
       - name: "Capture dmesg"
         run: |
@@ -286,7 +288,7 @@ jobs:
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DCOMPILE_TARGET=snp -DCMAKE_BUILD_TYPE=Debug ..
+          cmake -GNinja -DCOMPILE_TARGET=snp -DCMAKE_BUILD_TYPE=Debug -DWORKER_THREADS=1 ..
           ninja
         shell: bash
 
@@ -303,6 +305,8 @@ jobs:
           # End to end tests for code update (attestation verification)
           ./tests.sh --timeout 360 --output-on-failure -R code_update
         shell: bash
+        env:
+          ELECTION_TIMEOUT_MS: 10000
 
       - name: "Capture dmesg"
         run: |
