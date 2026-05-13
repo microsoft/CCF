@@ -284,10 +284,8 @@ class LocalRemote(CmdMixin):
 
 
 class CCFRemote(object):
-    # Default binary name for older (pre-7.x) releases which still shipped a
-    # separate "cchost" entry-point. For 7.x and later this is overridden with
-    # the application enclave binary path below.
-    BIN = "cchost"
+    # Must be set by the caller (e.g. to the path of the node executable).
+    BIN = ""
     TEMPLATE_CONFIGURATION_FILE = "config.jinja"
     DEPS = []
 
@@ -386,7 +384,7 @@ class CCFRemote(object):
         self.rpc_addresses_file = f"{local_node_id}.rpc_addresses"
 
         self.BIN = infra.path.build_bin_path(self.BIN, binary_dir=binary_dir)
-        # 7.x releases combined binaries and removed the separate cchost entry-point
+        # 7.x and later releases use the application binary directly
         if major_version is None or major_version >= 7:
             self.BIN = enclave_file
 
