@@ -11,9 +11,7 @@ from infra.tx_status import TxStatus
 from infra.log_capture import flush_info
 
 
-def wait_for_commit(
-    client, seqno: int, view: int, timeout: Optional[int] = None, log_capture: Optional[list] = None
-) -> None:
+def wait_for_commit(client, seqno: int, view: int, timeout: Optional[int] = None, log_capture: Optional[list] = None) -> None:
     """
     Waits for a specific seqno/view pair to be committed by the network,
     as per the node to which client is connected to.
@@ -44,20 +42,14 @@ def wait_for_commit(
             assert r.body.json()["error"]["code"] == "SessionConsistencyLost", r
             continue
 
-        assert (
-            r.status_code == http.HTTPStatus.OK
-        ), f"tx request returned HTTP status {r.status_code}"
+        assert r.status_code == http.HTTPStatus.OK, f"tx request returned HTTP status {r.status_code}"
         status = TxStatus(r.body.json()["status"])
         if status == TxStatus.Committed:
             flush_info(logs, log_capture, 1)
             return
         elif status == TxStatus.Invalid:
-            raise RuntimeError(
-                f"Transaction ID {view}.{seqno} is marked invalid and will never be committed"
-            )
+            raise RuntimeError(f"Transaction ID {view}.{seqno} is marked invalid and will never be committed")
         else:
             time.sleep(0.1)
     flush_info(logs, log_capture, 1)
-    raise TimeoutError(
-        f'Timed out waiting {timeout}s for commit: {pprint.pformat(client.get("/node/commit").body.json())}\n{pprint.pformat(client.get("/node/consensus").body.json())}'
-    )
+    raise TimeoutError(f"Timed out waiting {timeout}s for commit: {pprint.pformat(client.get('/node/commit').body.json())}\n{pprint.pformat(client.get('/node/consensus').body.json())}")
