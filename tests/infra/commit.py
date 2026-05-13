@@ -11,11 +11,9 @@ from typing import Optional, List
 from infra.tx_status import TxStatus
 from infra.log_capture import flush_info
 
-_DEFAULT_ELECTION_TIMEOUT_MS = int(os.getenv("ELECTION_TIMEOUT_MS") or 4000)
-
 
 def wait_for_commit(
-    client, seqno: int, view: int, timeout: int = _DEFAULT_ELECTION_TIMEOUT_MS // 1000, log_capture: Optional[list] = None
+    client, seqno: int, view: int, timeout: Optional[int] = None, log_capture: Optional[list] = None
 ) -> None:
     """
     Waits for a specific seqno/view pair to be committed by the network,
@@ -25,10 +23,13 @@ def wait_for_commit(
     :param int seqno: Transaction sequence number.
     :param int view: Consensus view.
     :param str timeout: Maximum time to wait for this seqno/view pair to be committed before giving up.
+        Defaults to the election timeout (``ELECTION_TIMEOUT_MS`` env var, or 4000ms).
     :param list log_capture: Rather than emit to default handler, capture log lines to list (optional).
 
     A TimeoutError exception is raised if the commit index is not committed within the given timeout.
     """
+    if timeout is None:
+        timeout = int(os.getenv("ELECTION_TIMEOUT_MS") or 4000) // 1000
     if view is None or seqno is None:
         raise ValueError(f"{view}.{seqno} is not a valid transaction ID")
 
