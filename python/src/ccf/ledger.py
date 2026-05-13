@@ -1379,7 +1379,7 @@ class Ledger:
                 if range_older[1] is None:
                     if not contiguous_suffix:
                         raise ValueError(
-                            f"Ledger cannot parse committed chunk {file_newer} following uncommitted chunk {file_older}"
+                            f"Ledger cannot parse chunk {file_newer} following uncommitted chunk {file_older}"
                         )
                     break
                 # old_X_Y ~> new_A but Y != A => noncontiguous
