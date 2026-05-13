@@ -2,7 +2,6 @@
 # Licensed under the Apache 2.0 License.
 
 import http
-import os
 import time
 import pprint
 
@@ -10,6 +9,8 @@ from typing import Optional, List
 
 from infra.tx_status import TxStatus
 from infra.log_capture import flush_info
+
+_DEFAULT_ELECTION_TIMEOUT_MS = 4000
 
 
 def wait_for_commit(
@@ -23,13 +24,13 @@ def wait_for_commit(
     :param int seqno: Transaction sequence number.
     :param int view: Consensus view.
     :param str timeout: Maximum time to wait for this seqno/view pair to be committed before giving up.
-        Defaults to the election timeout (``ELECTION_TIMEOUT_MS`` env var, or 4000ms).
+        Defaults to the election timeout configured on the client.
     :param list log_capture: Rather than emit to default handler, capture log lines to list (optional).
 
     A TimeoutError exception is raised if the commit index is not committed within the given timeout.
     """
     if timeout is None:
-        timeout = int(os.getenv("ELECTION_TIMEOUT_MS") or 4000) // 1000
+        timeout = getattr(client, "election_timeout_ms", _DEFAULT_ELECTION_TIMEOUT_MS) // 1000
     if view is None or seqno is None:
         raise ValueError(f"{view}.{seqno} is not a valid transaction ID")
 

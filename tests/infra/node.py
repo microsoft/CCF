@@ -324,6 +324,7 @@ class Node:
 
         self.host_data_transparent_statement_path = host_data_transparent_statement_path
         self.certificate_validity_days = kwargs.get("initial_node_cert_validity_days")
+        self.election_timeout_ms = kwargs.get("election_timeout_ms", 4000)
         self.remote = infra.remote.CCFRemote(
             start_type,
             lib_path,
@@ -728,6 +729,7 @@ class Node:
         if description_suffix is not None:
             description += f"|{description_suffix}"
         akwargs["description"] = f"[{description}]"
+        akwargs.setdefault("election_timeout_ms", self.election_timeout_ms)
         akwargs.update(kwargs)
 
         if hasattr(self, "client_impl"):
