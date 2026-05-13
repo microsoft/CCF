@@ -3154,7 +3154,7 @@ def run_merkle_verification_level(args):
             dst_f.write(corrupted_data)
 
         try:
-            chunk = ccf.ledger.LedgerChunk(corrupted_chunk_path, contiguous_suffix=True)
+            chunk = ccf.ledger.LedgerChunk(corrupted_chunk_path)
             for tx in chunk:
                 tx.get_public_domain()
 
