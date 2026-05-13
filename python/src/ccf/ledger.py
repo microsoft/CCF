@@ -1311,6 +1311,7 @@ class Ledger:
         committed_only: bool = True,
         read_recovery_files: bool = False,
         verification_level: VerificationLevel = VerificationLevel.NONE,
+        contiguous_suffix: bool = False,
     ):
         self._filenames = []
         self._verification_level = verification_level
@@ -1349,23 +1350,46 @@ class Ledger:
 
         # Sorts the list based off the first number after ledger_ so that
         # the ledger is verified in sequence
-        self._filenames = sorted(
+        filenames = sorted(
             ledger_files,
             key=lambda x: range_from_filename(x)[0],
         )
 
-        # If we do not have a single contiguous range, report an error
-        for file_a, file_b in zip(self._filenames[:-1], self._filenames[1:]):
-            range_a = range_from_filename(file_a)
-            range_b = range_from_filename(file_b)
-            if range_a[1] is None and range_b[1] is not None:
-                raise ValueError(
-                    f"Ledger cannot parse committed chunk {file_b} following uncommitted chunk {file_a}"
+        suffix = []
+        # [(ledger_100_105, None), ..., (None, ledger_0_5)]
+        if len(filenames) > 0:
+            for i in range(len(filenames) + 1):
+                idx_n = len(filenames) - i
+                file_newer = (
+                    filenames[idx_n] if idx_n % len(filenames) == idx_n else None
                 )
-            if range_a[1] is not None and range_a[1] + 1 != range_b[0]:
-                raise ValueError(
-                    f"Ledger cannot parse non-contiguous chunks {file_a} and {file_b}"
+                idx_o = len(filenames) - i - 1
+                file_older = (
+                    filenames[idx_o] if idx_o % len(filenames) == idx_o else None
                 )
+
+                if file_newer is None:
+                    continue
+                suffix.append(file_newer)
+                if file_older is None:
+                    continue
+                range_newer = range_from_filename(file_newer)
+                range_older = range_from_filename(file_older)
+                # old_X ~> new_A_B =>  unknown where old_X ends
+                if range_older[1] is None:
+                    if not contiguous_suffix:
+                        raise ValueError(
+                            f"Ledger cannot parse chunk {file_newer} following uncommitted chunk {file_older}"
+                        )
+                    break
+                # old_X_Y ~> new_A but Y != A => noncontiguous
+                if range_older[1] is not None and range_older[1] + 1 != range_newer[0]:
+                    if not contiguous_suffix:
+                        raise ValueError(
+                            f"Ledger cannot parse non-contiguous chunks {file_older} and {file_newer}"
+                        )
+                    break
+            self._filenames = list(reversed(suffix))
 
     @property
     def last_committed_chunk_range(self) -> tuple[int, int | None]:

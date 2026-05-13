@@ -977,7 +977,9 @@ def test_recover_service_truncated_ledger(network, args, get_truncation_point):
     )
 
     # Corrupt _uncommitted_ ledger before starting new service
-    ledger = ccf.ledger.Ledger([current_ledger_dir], committed_only=False)
+    ledger = ccf.ledger.Ledger(
+        [current_ledger_dir], committed_only=False, contiguous_suffix=True
+    )
 
     chunk_filename, truncate_offset = get_truncation_point(ledger)
 
@@ -1060,7 +1062,9 @@ def run_corrupted_ledger(args):
 
     # Make sure ledger can be read once recovered (i.e. ledger corruption does not affect recovered ledger)
     for node in network.nodes:
-        ledger = ccf.ledger.Ledger(node.remote.ledger_paths(), committed_only=False)
+        ledger = ccf.ledger.Ledger(
+            node.remote.ledger_paths(), committed_only=False, contiguous_suffix=True
+        )
         _, last_seqno = ledger.get_latest_public_state()
         LOG.info(
             f"Successfully read ledger for node {node.local_node_id} up to seqno {last_seqno}"
@@ -1075,7 +1079,9 @@ def find_recovery_tx_seqno(node):
             return None
         min_recovery_seqno = r["last_recovered_seqno"]
 
-    ledger = ccf.ledger.Ledger(node.remote.ledger_paths(), committed_only=False)
+    ledger = ccf.ledger.Ledger(
+        node.remote.ledger_paths(), committed_only=False, contiguous_suffix=True
+    )
     for chunk in ledger:
         _, chunk_end_seqno = chunk.get_seqnos()
         if chunk_end_seqno < min_recovery_seqno:
@@ -1189,6 +1195,7 @@ def run(args):
     ledger = ccf.ledger.Ledger(
         primary.remote.ledger_paths(),
         committed_only=False,
+        contiguous_suffix=True,
     )
     for chunk in ledger:
         chunk_start_seqno, _ = chunk.get_seqnos()
@@ -1263,6 +1270,7 @@ def test_incomplete_ledger_recovery(network, args):
         ledger = ccf.ledger.Ledger(
             primary.remote.ledger_paths(),
             committed_only=False,
+            contiguous_suffix=True,
         )
 
         _, last_seqno = ledger.get_latest_public_state()
