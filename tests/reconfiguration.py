@@ -713,7 +713,7 @@ def test_retiring_nodes_emit_at_most_one_signature(network, args):
 
     # Force ledger flush of all transactions so far
     network.get_latest_ledger_public_state()
-    ledger = ccf.ledger.Ledger(primary.remote.ledger_paths())
+    ledger = ccf.ledger.Ledger(primary.remote.ledger_paths(), contiguous_suffix=True)
 
     retiring_nodes = set()
     retired_nodes = set()

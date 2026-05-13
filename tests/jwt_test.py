@@ -473,7 +473,7 @@ def test_jwt_key_auto_refresh_entries(network, args):
         # Check that despite refreshing JWTs multiple times, only a single
         # transaction was created for this kid.
         ledger_directories = primary.remote.ledger_paths()
-        ledger = ccf.ledger.Ledger(ledger_directories)
+        ledger = ccf.ledger.Ledger(ledger_directories, contiguous_suffix=True)
 
         last_key_refresh = None
         for chunk in ledger:

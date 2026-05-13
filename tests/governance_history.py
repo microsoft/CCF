@@ -174,7 +174,7 @@ def remove_prefix(s, prefix):
 def test_tables_doc(network, args):
     primary, _ = network.find_primary()
     ledger_directories = primary.remote.ledger_paths()
-    ledger = ccf.ledger.Ledger(ledger_directories)
+    ledger = ccf.ledger.Ledger(ledger_directories, contiguous_suffix=True)
     table_names_in_ledger = ledger.get_latest_public_state()[0].keys()
     check_all_tables_are_documented(
         table_names_in_ledger, "../doc/audit/builtin_maps.rst"
@@ -188,7 +188,7 @@ def test_ledger_is_readable(network, args):
     for node in (primary, *backups):
         ledger_dirs = node.remote.ledger_paths()
         LOG.info(f"Reading ledger from {ledger_dirs}")
-        ledger = ccf.ledger.Ledger(ledger_dirs)
+        ledger = ccf.ledger.Ledger(ledger_dirs, contiguous_suffix=True)
         for chunk in ledger:
             for _ in chunk:
                 pass
@@ -293,7 +293,7 @@ def run(args):
         # Force ledger flush of all transactions so far
         network.get_latest_ledger_public_state()
 
-        ledger = ccf.ledger.Ledger(ledger_directories)
+        ledger = ccf.ledger.Ledger(ledger_directories, contiguous_suffix=True)
         check_operations(ledger, governance_operations)
         check_signatures(ledger)
 

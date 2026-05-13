@@ -164,7 +164,7 @@ def test_forced_ledger_chunk(network, args):
 
     # Check that there is indeed a ledger chunk that ends at the
     # first signature after proposal.completed_seqno
-    ledger = ccf.ledger.Ledger(ledger_dirs)
+    ledger = ccf.ledger.Ledger(ledger_dirs, contiguous_suffix=True)
     chunk, _, last, next_signature = find_ledger_chunk_for_seqno(
         ledger, proposal.completed_seqno
     )
@@ -983,7 +983,9 @@ def test_split_ledger_on_stopped_network(primary, args):
 
     # Check that the split ledger can be read successfully
     ccf.ledger.Ledger(
-        [current_ledger_dir] + committed_ledger_dirs, committed_only=False
+        [current_ledger_dir] + committed_ledger_dirs,
+        committed_only=False,
+        contiguous_suffix=True,
     )
 
 
@@ -1571,6 +1573,7 @@ def test_stale_copied_ledger_snapshot_invariant(network, args):
     network.wait_for_all_nodes_to_commit(primary)
 
     import reconfiguration
+
     reconfiguration.test_ledger_invariants(network, args)
 
     return network
@@ -1969,7 +1972,9 @@ def run_cose_only_mode_upgrade(args):
     def assert_ledger_cose_only_after(node, start_seqno):
         current_ledger_dir, committed_ledger_dirs = node.get_ledger()
         ledger = ccf.ledger.Ledger(
-            committed_ledger_dirs + [current_ledger_dir], committed_only=False
+            committed_ledger_dirs + [current_ledger_dir],
+            committed_only=False,
+            contiguous_suffix=True,
         )
 
         cose_sig_count = 0
@@ -2417,7 +2422,7 @@ def run_initial_uvm_descriptor_checks(const_args):
         LOG.info("Check that the a UVM descriptor is present")
 
         ledger_dirs = primary.remote.ledger_paths()
-        ledger = ccf.ledger.Ledger(ledger_dirs)
+        ledger = ccf.ledger.Ledger(ledger_dirs, contiguous_suffix=True)
         first_chunk = next(iter(ledger))
         first_tx = next(iter(first_chunk))
         tables = first_tx.get_public_domain().get_tables()
@@ -2459,6 +2464,7 @@ def run_initial_uvm_descriptor_checks(const_args):
                 recovered_primary.remote.ledger_paths(),
                 committed_only=False,
                 read_recovery_files=True,
+                contiguous_suffix=True,
             )
             for chunk in ledger:
                 _, chunk_end_seqno = chunk.get_seqnos()
@@ -2502,7 +2508,7 @@ def run_initial_tcb_version_checks(const_args):
 
         LOG.info("Check that the a SNP tcb_version is present")
         ledger_dirs = primary.remote.ledger_paths()
-        ledger = ccf.ledger.Ledger(ledger_dirs)
+        ledger = ccf.ledger.Ledger(ledger_dirs, contiguous_suffix=True)
         first_chunk = next(iter(ledger))
         first_tx = next(iter(first_chunk))
         tables = first_tx.get_public_domain().get_tables()
@@ -2541,6 +2547,7 @@ def run_initial_tcb_version_checks(const_args):
                 recovered_primary.remote.ledger_paths(),
                 committed_only=False,
                 read_recovery_files=True,
+                contiguous_suffix=True,
             )
             for chunk in ledger:
                 _, chunk_end_seqno = chunk.get_seqnos()
@@ -2874,6 +2881,7 @@ def run_read_ledger_on_testdata(args):
             [testdata_path],
             committed_only=False,
             read_recovery_files=False,
+            contiguous_suffix=True,
         )
         for chunk in ledger:
             for tx in chunk:
@@ -2905,7 +2913,9 @@ def run_ledger_viz_test(args):
 
     LOG.info(f"Testing ledger_viz on {ledger_dir} against {expected_file}")
 
-    ledger = ccf.ledger.Ledger([ledger_dir], committed_only=True)
+    ledger = ccf.ledger.Ledger(
+        [ledger_dir], committed_only=True, contiguous_suffix=True
+    )
     liner = ccf.ledger_viz.DefaultLiner(
         write_views=False, split_views=False, split_services=False
     )
@@ -2985,7 +2995,9 @@ def run_split_ledger_test(args):
         # Confirm the post-split directory still parses as a valid ledger.
         # Iterate to actually parse each chunk; Ledger.__init__ only checks
         # filename ranges, real parsing happens during iteration.
-        ledger = ccf.ledger.Ledger([tmp_ledger_dir], committed_only=False)
+        ledger = ccf.ledger.Ledger(
+            [tmp_ledger_dir], committed_only=False, contiguous_suffix=True
+        )
         tx_count = 0
         for chunk in ledger:
             for _ in chunk:
@@ -3142,7 +3154,7 @@ def run_merkle_verification_level(args):
             dst_f.write(corrupted_data)
 
         try:
-            chunk = ccf.ledger.LedgerChunk(corrupted_chunk_path)
+            chunk = ccf.ledger.LedgerChunk(corrupted_chunk_path, contiguous_suffix=True)
             for tx in chunk:
                 tx.get_public_domain()
 
