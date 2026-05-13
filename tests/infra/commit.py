@@ -10,8 +10,6 @@ from typing import Optional, List
 from infra.tx_status import TxStatus
 from infra.log_capture import flush_info
 
-_DEFAULT_ELECTION_TIMEOUT_MS = 4000
-
 
 def wait_for_commit(
     client, seqno: int, view: int, timeout: Optional[int] = None, log_capture: Optional[list] = None
@@ -30,7 +28,7 @@ def wait_for_commit(
     A TimeoutError exception is raised if the commit index is not committed within the given timeout.
     """
     if timeout is None:
-        timeout = getattr(client, "election_timeout_ms", _DEFAULT_ELECTION_TIMEOUT_MS) // 1000
+        timeout = client.election_timeout_ms // 1000
     if view is None or seqno is None:
         raise ValueError(f"{view}.{seqno} is not a valid transaction ID")
 
