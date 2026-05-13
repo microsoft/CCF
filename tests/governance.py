@@ -35,7 +35,7 @@ from loguru import logger as LOG
 @reqs.description("Test create endpoint is not available")
 def test_create_endpoint(network, args):
     primary, _ = network.find_nodes()
-    with primary.client() as c:
+    with primary.client("user0") as c:
         r = c.post("/node/create")
         assert r.status_code == http.HTTPStatus.FORBIDDEN.value
         assert r.body.json()["error"]["message"] == "Node is not in initial state."
