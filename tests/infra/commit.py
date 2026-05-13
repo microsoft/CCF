@@ -2,6 +2,7 @@
 # Licensed under the Apache 2.0 License.
 
 import http
+import os
 import time
 import pprint
 
@@ -10,9 +11,11 @@ from typing import Optional, List
 from infra.tx_status import TxStatus
 from infra.log_capture import flush_info
 
+_DEFAULT_ELECTION_TIMEOUT_MS = int(os.getenv("ELECTION_TIMEOUT_MS") or 4000)
+
 
 def wait_for_commit(
-    client, seqno: int, view: int, timeout: int = 5, log_capture: Optional[list] = None
+    client, seqno: int, view: int, timeout: int = _DEFAULT_ELECTION_TIMEOUT_MS // 1000, log_capture: Optional[list] = None
 ) -> None:
     """
     Waits for a specific seqno/view pair to be committed by the network,
