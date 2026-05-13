@@ -32,7 +32,11 @@ def wait_for_commit(
     A TimeoutError exception is raised if the commit index is not committed within the given timeout.
     """
     if timeout is None:
-        timeout = client.election_timeout_ms // 1000
+        timeout = (
+            client.election_timeout_ms // 1000
+            if client.election_timeout_ms is not None
+            else 5
+        )
     if view is None or seqno is None:
         raise ValueError(f"{view}.{seqno} is not a valid transaction ID")
 

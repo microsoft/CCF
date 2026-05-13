@@ -1022,7 +1022,7 @@ class CCFClient:
     :param Identity session_auth: Path to private key and certificate to be used as client authentication for the session (optional).
     :param Identity signing_auth: Path to private key and certificate to be used to sign requests for the session (optional).
     :param int connection_timeout: Maximum time to wait for successful connection establishment before giving up.
-    :param int election_timeout_ms: Election timeout (in milliseconds) of the network this client connects to. Used as the default timeout for :py:meth:`wait_for_commit`.
+    :param int election_timeout_ms: Election timeout (in milliseconds) of the network this client connects to. If set, used as the default timeout for :py:meth:`wait_for_commit`.
     :param str description: Message to print on each request emitted with this client.
     :param dict common_headers: Headers which should be added to every request.
     :param dict kwargs: Keyword args to be forwarded to the client implementation.
@@ -1054,7 +1054,7 @@ class CCFClient:
         signing_auth: Optional[Identity] = None,
         cose_signing_auth: Optional[Identity] = None,
         connection_timeout: int = DEFAULT_CONNECTION_TIMEOUT_SEC,
-        election_timeout_ms: int = 4000,
+        election_timeout_ms: Optional[int] = None,
         description: Optional[str] = None,
         impl_type: Union[CurlClient, HttpxClient, RawSocketClient] = default_impl_type,
         common_headers: Optional[dict] = None,
@@ -1317,7 +1317,7 @@ class CCFClient:
         if response.seqno is None or response.view is None:
             raise ValueError(f"Response seqno and view should not be None: {response}")
 
-        if timeout is None:
+        if timeout is None and self.election_timeout_ms is not None:
             timeout = self.election_timeout_ms // 1000
         infra.commit.wait_for_commit(self, response.seqno, response.view, timeout)
 
