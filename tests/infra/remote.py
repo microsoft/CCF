@@ -284,6 +284,9 @@ class LocalRemote(CmdMixin):
 
 
 class CCFRemote(object):
+    # Default binary name for older (pre-7.x) releases which still shipped a
+    # separate "cchost" entry-point. For 7.x and later this is overridden with
+    # the application enclave binary path below.
     BIN = "cchost"
     TEMPLATE_CONFIGURATION_FILE = "config.jinja"
     DEPS = []

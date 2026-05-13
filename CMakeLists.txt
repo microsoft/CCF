@@ -355,14 +355,14 @@ configure_file(
 install(FILES ${CCF_DIR}/include/ccf/version.h DESTINATION include/ccf)
 
 file(
-  READ ${CCF_DIR}/doc/host_config_schema/cchost_config.json
+  READ ${CCF_DIR}/doc/host_config_schema/host_config.json
   HOST_CONFIG_SCHEMA
 )
 set_property(
   DIRECTORY
   APPEND
   PROPERTY
-    CMAKE_CONFIGURE_DEPENDS ${CCF_DIR}/doc/host_config_schema/cchost_config.json
+    CMAKE_CONFIGURE_DEPENDS ${CCF_DIR}/doc/host_config_schema/host_config.json
 )
 configure_file(
   ${CCF_DIR}/src/host/config_schema.h.in
