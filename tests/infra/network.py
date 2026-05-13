@@ -1976,7 +1976,7 @@ class Network:
             end_time = time.time() + timeout
             while True:
                 for f in list_src_dir_func(src_dir):
-                    snapshot_seqno = infra.node.get_snapshot_seqnos(f)[1]
+                    snapshot_seqno = infra.node.get_snapshot_seqnos(f)[0]
                     if snapshot_seqno >= target_seqno and infra.node.is_file_committed(
                         f
                     ):
