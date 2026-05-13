@@ -1570,8 +1570,8 @@ def test_stale_copied_ledger_snapshot_invariant(network, args):
     network.consortium.force_ledger_chunk(primary)
     network.wait_for_all_nodes_to_commit(primary)
 
-    ledger_paths = new_node.remote.ledger_paths()
-    ccf.ledger.Ledger(ledger_paths)
+    import reconfiguration
+    reconfiguration.test_ledger_invariants(network, args)
 
     return network
 
