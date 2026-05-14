@@ -61,6 +61,7 @@ sphinx-build --fail-on-warning -b html doc doc/html
 ## Code changes
 
 - `ci-checks.sh` must run successfully before any commit is pushed.
+- Always run `./scripts/ci-checks.sh` in the same way as CI before pushing. If it reports `CMake format` failures, run `./scripts/cmake-format-checks.sh -f` and re-run `./scripts/ci-checks.sh` before committing.
 - All tests in `ci.yml` must pass before a PR can be merged. Consider which are likely to be affected by your changes and run those locally before pushing.
 - Take particular care with any changes that may affect compatibility with older releases, and ensure these are tested, via the `lts_compatibility` test with `LONG_TESTS=1` enabled.
 - Take particular care with changes to the consensus and crypto code, as these are critical for security and correctness. Ensure you have a thorough understanding of the existing code and the implications of your changes before proceeding.
