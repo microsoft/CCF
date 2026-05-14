@@ -284,8 +284,6 @@ class LocalRemote(CmdMixin):
 
 
 class CCFRemote(object):
-    # Must be set by the caller (e.g. to the path of the node executable).
-    BIN = ""
     TEMPLATE_CONFIGURATION_FILE = "config.jinja"
     DEPS = []
 
@@ -295,6 +293,7 @@ class CCFRemote(object):
         enclave_file,
         workspace,
         common_dir,
+        binary_name=None,
         label="",
         binary_dir=".",
         local_node_id=None,
@@ -383,10 +382,12 @@ class CCFRemote(object):
         self.node_address_file = f"{local_node_id}.node_address"
         self.rpc_addresses_file = f"{local_node_id}.rpc_addresses"
 
-        self.BIN = infra.path.build_bin_path(self.BIN, binary_dir=binary_dir)
         # 7.x releases combined binaries and removed the separate cchost entry-point
         if major_version is None or major_version >= 7:
             self.BIN = enclave_file
+        else:
+            assert binary_name, "binary_name must be provided when major_version < 7"
+            self.BIN = infra.path.build_bin_path(binary_name, binary_dir=binary_dir)
 
         self.common_dir = common_dir
         self.pub_host = host.get_primary_interface().public_host
