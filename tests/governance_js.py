@@ -1484,7 +1484,7 @@ def test_ledger_governance_invariants(network, args):
     node = network.nodes[0]
     ledger_dirs = node.remote.ledger_paths()
 
-    ledger = ccf.ledger.Ledger(ledger_dirs)
+    ledger = ccf.ledger.Ledger(ledger_dirs, contiguous_suffix=True)
 
     LOG.info("Completed proposals contain final_vote for each submitted ballot")
     table_name = "public:ccf.gov.proposals_info"
