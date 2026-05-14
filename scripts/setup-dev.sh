@@ -58,8 +58,12 @@ install_python_tools() {
 
 install_shellcheck() {
     # For shellcheck
-    curl -L https://github.com/koalaman/shellcheck/releases/download/stable/shellcheck-stable.linux.x86_64.tar.xz  \
-        --output shellcheck.tar.gz &&
+    if ! curl -L https://github.com/koalaman/shellcheck/releases/download/stable/shellcheck-stable.linux.x86_64.tar.xz  \
+        --output shellcheck.tar.gz; then
+        echo "Failed to download shellcheck"
+        return 1
+    fi
+
     mkdir -p shellcheck-dir &&
     tar -xvf shellcheck.tar.gz -C shellcheck-dir &&
     mv shellcheck-dir/shellcheck-stable/shellcheck /usr/local/bin/shellcheck &&

@@ -91,7 +91,11 @@ install_test_dependencies() {
 }
 
 install_h2spec() {
-    curl -L --output h2spec_linux_amd64.tar.gz https://github.com/summerwind/h2spec/releases/download/$H2SPEC_VERSION/h2spec_linux_amd64.tar.gz &&
+    if ! curl -L --output h2spec_linux_amd64.tar.gz https://github.com/summerwind/h2spec/releases/download/$H2SPEC_VERSION/h2spec_linux_amd64.tar.gz; then
+        echo "Failed to download h2spec"
+        return 1
+    fi
+
     tar -xvf h2spec_linux_amd64.tar.gz &&
     mkdir -p /opt/h2spec &&
     mv h2spec /opt/h2spec/h2spec &&
