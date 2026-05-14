@@ -13,7 +13,7 @@ retry() {
     local description=$1
     shift
 
-    if [[ -z ${CI:-} ]]; then
+    if [[ -z ${CI+x} ]]; then
         "$@"
         return
     fi
