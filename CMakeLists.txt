@@ -354,10 +354,7 @@ configure_file(
 )
 install(FILES ${CCF_DIR}/include/ccf/version.h DESTINATION include/ccf)
 
-file(
-  READ ${CCF_DIR}/doc/host_config_schema/host_config.json
-  HOST_CONFIG_SCHEMA
-)
+file(READ ${CCF_DIR}/doc/host_config_schema/host_config.json HOST_CONFIG_SCHEMA)
 set_property(
   DIRECTORY
   APPEND
