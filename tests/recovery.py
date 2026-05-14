@@ -768,7 +768,7 @@ def test_recover_service_aborted(network, args, from_snapshot=False):
     aborted_network.stop_all_nodes(
         skip_verification=True,
         allow_recovery=True,
-        accept_ledger_diff=True,
+        check_file_invariants=False,
     )
 
     current_ledger_dir, committed_ledger_dirs = primary.get_ledger()

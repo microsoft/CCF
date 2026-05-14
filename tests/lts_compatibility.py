@@ -770,7 +770,7 @@ def run_ledger_compatibility_since_first(
                 network.save_service_identity(args)
 
                 # Ledger file chunking changed from 1.x to 2.x and if it does not join from a snapshot the eol ledger files will be re-chunked differently on the joining node
-                accept_ledger_diff = not use_snapshot
+                check_file_invariants = use_snapshot
 
                 skip_verification = test_jwt_cleanup
 
@@ -780,7 +780,7 @@ def run_ledger_compatibility_since_first(
                     )
                 )
                 network.stop_all_nodes(
-                    accept_ledger_diff=accept_ledger_diff,
+                    check_file_invariants=check_file_invariants,
                     skip_verification=skip_verification,
                 )
 

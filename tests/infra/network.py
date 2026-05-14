@@ -1285,7 +1285,7 @@ class Network:
         self,
         skip_verification=False,
         verbose_verification=False,
-        accept_ledger_diff=False,
+        check_file_invariants=True,
         skip_verify_chunking=None,
         **kwargs,
     ):
@@ -1330,7 +1330,7 @@ class Network:
                 fatal_error_found = True
 
         LOG.info("All nodes stopped")
-        if not accept_ledger_diff:
+        if check_file_invariants:
             self.ledger_files_invariant(**kwargs)
             self.snapshot_files_invariants()
 
@@ -2334,7 +2334,7 @@ def close_on_error(net, pdb=False):
 
         LOG.info("Stopping network")
         net.stop_all_nodes(
-            skip_verification=True, accept_ledger_diff=True, skip_verify_chunking=True
+            skip_verification=True, check_file_invariants=False, skip_verify_chunking=True
         )
 
         raise
@@ -2390,7 +2390,7 @@ def network(
     LOG.info("Stopping network")
     net.stop_all_nodes(
         skip_verification=True,
-        accept_ledger_diff=True,
+        check_file_invariants=True,
     )
     if init_partitioner:
         net.partitioner.cleanup()
