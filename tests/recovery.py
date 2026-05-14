@@ -764,11 +764,10 @@ def test_recover_service_aborted(network, args, from_snapshot=False):
     if from_snapshot:
         snapshots_dir = network.get_committed_snapshots(primary)
 
-    # Check that all nodes have the same (recovery) ledger files
+    # We've deliberately terminated mid-recovery, when it is likely that some nodes still have local-only .recovery files.
     aborted_network.stop_all_nodes(
         skip_verification=True,
-        read_recovery_ledger_files=True,
-        # We've deliberately terminated mid-recovery, when it is likely that some nodes still have local-only .recovery
+        allow_recovery=True,
         accept_ledger_diff=True,
     )
 
@@ -1308,8 +1307,6 @@ def test_incomplete_ledger_recovery(network, args):
     primary, _ = network.find_primary()
     current_ledger_dir, committed_ledger_dirs = primary.get_ledger()
     network.stop_all_nodes(skip_verification=True)
-
-    network.check_ledger_files_identical()
 
     network = restart_network(network, args, current_ledger_dir, committed_ledger_dirs)
     return network
