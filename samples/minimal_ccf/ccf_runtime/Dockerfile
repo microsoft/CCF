@@ -17,7 +17,7 @@ RUN mkdir /staging \
     && rm -rf /staging/run/* \
     && rm -rf /staging/var/cache/tdnf \
     && find /staging/var/log -type f -size +0 -delete \
-    && mv /staging/opt/ccf_${PLATFORM}/bin/cchost /staging/usr/bin/cchost 
+    && mv /staging/opt/ccf_${PLATFORM}/bin/cchost /staging/usr/bin/cchost
 
 FROM mcr.microsoft.com/azurelinux/distroless/minimal:3.0
 
