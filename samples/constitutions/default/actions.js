@@ -1604,4 +1604,69 @@ const actions = new Map([
       },
     ),
   ],
+  [
+    "seal_current_shard",
+    new Action(
+      function (args) {
+        checkNone(args);
+      },
+      function (args) {
+        ccf.node.sealShard();
+      },
+    ),
+  ],
+  [
+    "set_shard_policy",
+    new Action(
+      function (args) {
+        if (args.auto_seal_after_seqno_count !== undefined) {
+          checkType(
+            args.auto_seal_after_seqno_count,
+            "number",
+            "auto_seal_after_seqno_count",
+          );
+          checkBounds(
+            args.auto_seal_after_seqno_count,
+            0,
+            Number.MAX_SAFE_INTEGER,
+            "auto_seal_after_seqno_count",
+          );
+        }
+        if (args.auto_seal_after_duration_s !== undefined) {
+          checkType(
+            args.auto_seal_after_duration_s,
+            "number",
+            "auto_seal_after_duration_s",
+          );
+          checkBounds(
+            args.auto_seal_after_duration_s,
+            0,
+            Number.MAX_SAFE_INTEGER,
+            "auto_seal_after_duration_s",
+          );
+        }
+        if (args.max_active_shard_memory_mb !== undefined) {
+          checkType(
+            args.max_active_shard_memory_mb,
+            "number",
+            "max_active_shard_memory_mb",
+          );
+          checkBounds(
+            args.max_active_shard_memory_mb,
+            0,
+            Number.MAX_SAFE_INTEGER,
+            "max_active_shard_memory_mb",
+          );
+        }
+      },
+      function (args) {
+        const policy = {
+          auto_seal_after_seqno_count: args.auto_seal_after_seqno_count || 0,
+          auto_seal_after_duration_s: args.auto_seal_after_duration_s || 0,
+          max_active_shard_memory_mb: args.max_active_shard_memory_mb || 0,
+        };
+        ccf.node.setShardPolicy(ccf.jsonCompatibleToBuf(policy));
+      },
+    ),
+  ],
 ]);

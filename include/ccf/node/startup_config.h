@@ -126,6 +126,17 @@ namespace ccf
       bool operator==(const FilesCleanup&) const = default;
     };
     FilesCleanup files_cleanup = {};
+
+    struct Sharding
+    {
+      bool enabled = false;
+      size_t auto_seal_after_seqno_count = 0;
+      size_t auto_seal_after_duration_s = 0;
+      size_t max_active_shard_memory_mb = 0;
+
+      bool operator==(const Sharding&) const = default;
+    };
+    Sharding sharding = {};
   };
 
   struct RecoveryDecisionProtocolConfig

@@ -136,5 +136,11 @@
     {% endif %}
   }{% endif %}{% if node_to_node_message_limit %},
   "node_to_node_message_limit": {{ node_to_node_message_limit|tojson }}{% endif %}{% if historical_cache_soft_limit %},
-  "historical_cache_soft_limit": {{ historical_cache_soft_limit|tojson }}{% endif %}
+  "historical_cache_soft_limit": {{ historical_cache_soft_limit|tojson }}{% endif %}{% if sharding_enabled %},
+  "sharding": {
+    "enabled": {{ sharding_enabled|tojson }}{% if sharding_auto_seal_after_seqno_count %},
+    "auto_seal_after_seqno_count": {{ sharding_auto_seal_after_seqno_count }}{% endif %}{% if sharding_auto_seal_after_duration_s %},
+    "auto_seal_after_duration_s": {{ sharding_auto_seal_after_duration_s }}{% endif %}{% if sharding_max_active_shard_memory_mb %},
+    "max_active_shard_memory_mb": {{ sharding_max_active_shard_memory_mb }}{% endif %}
+  }{% endif %}
 }

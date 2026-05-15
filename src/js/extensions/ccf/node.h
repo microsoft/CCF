@@ -15,6 +15,8 @@ namespace ccf::js::extensions
    * - ccf.node.triggerRecoverySharesRefresh
    * - ccf.node.triggerLedgerChunk
    * - ccf.node.triggerSnapshot
+   * - ccf.node.sealShard
+   * - ccf.node.setShardPolicy
    *
    **/
   class NodeExtension : public ExtensionInterface

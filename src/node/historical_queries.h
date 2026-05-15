@@ -14,6 +14,7 @@
 #include "node/rpc/node_interface.h"
 #include "node/tx_receipt_impl.h"
 #include "service/tables/node_signature.h"
+#include "service/tables/shards.h"
 
 #include <list>
 #include <map>
@@ -111,6 +112,25 @@ namespace ccf::historical
     };
 
     using LedgerEntry = std::vector<uint8_t>;
+
+    std::optional<ccf::ShardInfo> get_shard_for_seqno(ccf::SeqNo seqno)
+    {
+      auto tx = source_store.create_read_only_tx();
+      auto* shards = tx.ro<ccf::Shards>(ccf::Tables::SHARDS);
+      std::optional<ccf::ShardInfo> result = std::nullopt;
+
+      shards->foreach(
+        [&result, seqno](const uint64_t&, const ccf::ShardInfo& info) {
+          if (seqno >= info.seqno_start && seqno <= info.seqno_end)
+          {
+            result = info;
+            return false;
+          }
+          return true;
+        });
+
+      return result;
+    }
 
     void update_earliest_known_ledger_secret()
     {

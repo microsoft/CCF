@@ -96,6 +96,13 @@ This section describes how :term:`Operators` manage the different nodes constitu
 
     ---
 
+    :fa:`layer-group` :doc:`sharding`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Seal completed ledger ranges into immutable, independently-addressable shards.
+
+    ---
+
     :fa:`terminal` :doc:`operator_rpc_api`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -117,4 +124,5 @@ This section describes how :term:`Operators` manage the different nodes constitu
     platforms/index
     troubleshooting
     resource_usage
+    sharding
     operator_rpc_api

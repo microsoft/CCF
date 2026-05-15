@@ -28,6 +28,7 @@ namespace ccf
     std::shared_ptr<ccf::crypto::KeyAesGcm> key;
     std::optional<ccf::kv::Version> previous_secret_stored_version =
       std::nullopt;
+    std::optional<uint64_t> shard_id = std::nullopt;
     ccf::crypto::HashBytes commit_secret;
 
     static ccf::crypto::HashBytes derive_commit_secret(
@@ -79,7 +80,8 @@ namespace ccf
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(LedgerSecret);
   DECLARE_JSON_REQUIRED_FIELDS(LedgerSecret, raw_key);
-  DECLARE_JSON_OPTIONAL_FIELDS(LedgerSecret, previous_secret_stored_version);
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    LedgerSecret, previous_secret_stored_version, shard_id);
 
   using LedgerSecretPtr = std::shared_ptr<LedgerSecret>;
 

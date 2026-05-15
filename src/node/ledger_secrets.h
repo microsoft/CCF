@@ -280,6 +280,26 @@ namespace ccf
       LOG_INFO_FMT("Added new ledger secret at seqno {}", version);
     }
 
+    void set_secret(
+      ccf::kv::Version version,
+      LedgerSecretPtr&& secret,
+      uint64_t shard_id)
+    {
+      secret->shard_id = shard_id;
+      set_secret(version, std::move(secret));
+    }
+
+    std::optional<uint64_t> get_shard_id_for(ccf::kv::Version version)
+    {
+      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      auto ls = get_secret_for_version(version, true);
+      if (ls == nullptr)
+      {
+        return std::nullopt;
+      }
+      return ls->shard_id;
+    }
+
     void rollback(ccf::kv::Version version)
     {
       std::lock_guard<ccf::pal::Mutex> guard(lock);

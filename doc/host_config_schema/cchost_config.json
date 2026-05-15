@@ -569,6 +569,36 @@
       "description": "This section includes configuration for periodic cleanup of old files (snapshots, ledger chunks)",
       "additionalProperties": false
     },
+    "sharding": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable temporal sharding of the ledger."
+        },
+        "auto_seal_after_seqno_count": {
+          "type": "integer",
+          "default": 0,
+          "minimum": 0,
+          "description": "Automatically seal the active shard after this many committed sequence numbers. 0 disables auto-seal by count."
+        },
+        "auto_seal_after_duration_s": {
+          "type": "integer",
+          "default": 0,
+          "minimum": 0,
+          "description": "Automatically seal the active shard after this many seconds. 0 disables auto-seal by time."
+        },
+        "max_active_shard_memory_mb": {
+          "type": "integer",
+          "default": 0,
+          "minimum": 0,
+          "description": "Advisory memory limit for the active shard in megabytes. 0 means unlimited."
+        }
+      },
+      "description": "This section includes configuration for temporal sharding of the ledger",
+      "additionalProperties": false
+    },
     "logging": {
       "type": "object",
       "properties": {
