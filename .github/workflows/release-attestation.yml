@@ -3,12 +3,6 @@ name: Release Attestation
 on:
   release:
     types: [published]
-  workflow_dispatch:
-    inputs:
-      release_tag:
-        description: "Release tag to attest"
-        required: true
-        type: string
 
 permissions: read-all
 
@@ -49,7 +43,7 @@ jobs:
           set -ex
           # Rename to match https://github.com/ossf/scorecard/blob/main/docs/checks.md#signed-releases
           cp ${{ steps.attest.outputs.bundle-path }} release-assets/attestation.sigstore.json
-          gh release upload --repo microsoft/ccf ${{ steps.download.outputs.release_tag }} release-assets/attestation.sigstore.json --clobber
+          gh release upload --repo microsoft/ccf ${{ steps.download.outputs.release_tag }} release-assets/attestation.sigstore.json
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
