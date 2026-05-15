@@ -74,8 +74,8 @@ def run(get_command, args):
         hosts = infra.e2e_args.nodes(args, minimum_number_of_local_nodes(args))
 
     args.initial_user_count = 3
-    args.sig_ms_interval = 1000  # Set to node default value
-    args.ledger_chunk_bytes = "5MB"  # Set to node default value
+    args.sig_ms_interval = 1000  # Set to cchost default value
+    args.ledger_chunk_bytes = "5MB"  # Set to cchost default value
 
     LOG.info("Starting nodes on {}".format(hosts))
 

@@ -17,9 +17,7 @@ RUN mkdir /staging \
     && rm -rf /staging/run/* \
     && rm -rf /staging/var/cache/tdnf \
     && find /staging/var/log -type f -size +0 -delete \
-    # Stage js_generic on PATH as a sample application binary. Replace this
-    # with the actual intended application binary when adapting this image.
-    && mv /staging/opt/ccf_${PLATFORM}/bin/js_generic /staging/usr/bin/js_generic
+    && mv /staging/opt/ccf_${PLATFORM}/bin/cchost /staging/usr/bin/cchost 
 
 FROM mcr.microsoft.com/azurelinux/distroless/minimal:3.0
 

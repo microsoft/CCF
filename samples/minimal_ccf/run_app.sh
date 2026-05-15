@@ -10,6 +10,6 @@ docker run \
     --name ccf \
     --rm -v "$(pwd)/app:/app" \
     -p 8080:8080 \
-    ${my_app_target} js_generic --config /app/config_${PLATFORM}_js.json &
+    ${my_app_target} cchost --config /app/cchost_config_${PLATFORM}_js.json &
 
 sleep 3 && docker rm -f ccf

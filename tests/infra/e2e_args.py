@@ -65,7 +65,7 @@ def cli_args(
     parser.add_argument(
         "-b",
         "--binary-dir",
-        help="Path to CCF binaries (node executable, scurl, keygenerator)",
+        help="Path to CCF binaries (cchost, scurl, keygenerator)",
         default=".",
     )
     parser.add_argument(

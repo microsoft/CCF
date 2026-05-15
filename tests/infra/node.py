@@ -330,11 +330,6 @@ class Node:
             lib_path,
             workspace,
             common_dir,
-            binary_name=(
-                "cchost"
-                if self.major_version is not None and self.major_version < 7
-                else None
-            ),
             binary_dir=self.binary_dir,
             label=label,
             local_node_id=self.local_node_id,

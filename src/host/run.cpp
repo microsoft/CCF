@@ -96,7 +96,7 @@ static constexpr size_t retry_interval_ms = 100;
 
 namespace ccf
 {
-  void validate_and_adjust_recovery_threshold(host::HostConfig& config)
+  void validate_and_adjust_recovery_threshold(host::CCHostConfig& config)
   {
     if (config.command.type != StartType::Start)
     {
@@ -191,7 +191,7 @@ namespace ccf
   };
 
   void setup_rpc_interfaces(
-    host::HostConfig& config,
+    host::CCHostConfig& config,
     asynchost::RPCConnections<asynchost::TCP>& rpc,
     asynchost::RPCConnections<asynchost::UDP>& rpc_udp)
   {
@@ -341,7 +341,7 @@ namespace ccf
   }
 
   void populate_config_for_start(
-    const host::HostConfig& config, ccf::StartupConfig& startup_config)
+    const host::CCHostConfig& config, ccf::StartupConfig& startup_config)
   {
     for (auto const& member : config.command.start.members)
     {
@@ -404,7 +404,7 @@ namespace ccf
   }
 
   void populate_config_for_join(
-    const host::HostConfig& config, ccf::StartupConfig& startup_config)
+    const host::CCHostConfig& config, ccf::StartupConfig& startup_config)
   {
     LOG_INFO_FMT(
       "Creating new node - join existing network at {}",
@@ -428,7 +428,7 @@ namespace ccf
   }
 
   void populate_config_for_recover(
-    const host::HostConfig& config, ccf::StartupConfig& startup_config)
+    const host::CCHostConfig& config, ccf::StartupConfig& startup_config)
   {
     LOG_INFO_FMT("Creating new node - recover");
     startup_config.initial_service_certificate_validity_days =
@@ -446,7 +446,7 @@ namespace ccf
   }
 
   std::optional<size_t> create_enclave_node(
-    const host::HostConfig& config,
+    const host::CCHostConfig& config,
     messaging::BufferProcessor& buffer_processor,
     ringbuffer::Circuit& circuit,
     EnclaveConfig& enclave_config,
@@ -508,7 +508,7 @@ namespace ccf
   }
 
   void write_certificates_to_disk(
-    const host::HostConfig& config,
+    const host::CCHostConfig& config,
     const std::vector<uint8_t>& node_cert,
     const std::vector<uint8_t>& service_cert)
   {
@@ -529,7 +529,7 @@ namespace ccf
     }
   }
 
-  void run_enclave_threads(const host::HostConfig& config)
+  void run_enclave_threads(const host::CCHostConfig& config)
   {
     auto enclave_thread_start = [&](threading::ThreadID thread_id) {
       threading::set_current_thread_id(thread_id);
@@ -573,7 +573,7 @@ namespace ccf
   }
 
   std::optional<size_t> run_main_loop(
-    host::HostConfig& config,
+    host::CCHostConfig& config,
     messaging::BufferProcessor& buffer_processor,
     ringbuffer::Circuit& circuit,
     EnclaveConfig& enclave_config,
@@ -954,7 +954,7 @@ namespace ccf
         schema_error_msg.value()));
     }
 
-    host::HostConfig config = config_json;
+    host::CCHostConfig config = config_json;
 
     if (config.logging.format == host::LogFormat::JSON)
     {
