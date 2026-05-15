@@ -1002,9 +1002,12 @@ class Network:
     def ignore_error_pattern_on_shutdown(self, pattern):
         self.ignore_error_patterns.append(pattern)
 
-    def snapshot_files_invariants(self):
+    def snapshot_files_invariants(self, nodes=None):
         # Note: Should be called on stopped service
         # 1. Every snapshot corresponds to a chunk boundary
+
+        if nodes == None:
+            nodes = self.nodes
 
         def list_snapshot_files(snapshot_paths):
             return sorted(
@@ -1046,7 +1049,7 @@ class Network:
                         boundaries.add(range_end)
             return boundaries
 
-        for node in self.nodes:
+        for node in nodes:
             if node.network_state != infra.node.NodeNetworkState.stopped:
                 raise RuntimeError(
                     f"Node {node.node_id} should be stopped before verifying snapshot consistency"
@@ -1065,11 +1068,14 @@ class Network:
                     "not correspond to a ledger chunk boundary"
                 )
 
-    def ledger_files_invariant(self, allow_recovery=False):
+    def ledger_files_invariant(self, nodes=None, allow_recovery=False):
         # Note: Should be called on stopped service
         # 1. A node's ledger history will be contiguous from its startup seqno onwards
         # 2. If two committed chunks start at the same point in the ledger they are identical
         # 3. Across the network, there is a single contiguous history of committed chunks
+
+        if nodes == None:
+            nodes = self.nodes
 
         def get_startup_seqno(node):
             out_path, _ = node.get_logs()
@@ -1141,7 +1147,7 @@ class Network:
             )
 
         # 1. A node's ledger history is contiguous from its startup seqno onwards
-        for node in self.nodes:
+        for node in nodes:
             if node.network_state != infra.node.NodeNetworkState.stopped:
                 raise RuntimeError(
                     f"Node {node.node_id} should be stopped before verifying ledger consistency"
@@ -1191,7 +1197,7 @@ class Network:
         all_committed_chunks = sorted(
             [
                 f
-                for n in self.nodes
+                for n in nodes
                 if n.remote is not None
                 for f in list_files_in_dirs_with_checksums(
                     n.remote.ledger_paths(), False

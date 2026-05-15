@@ -946,16 +946,13 @@ def test_joining_nodes_snapshot_ledger_offset(network, args):
                 timeout=10,
             )
 
-            new_node.stop()
             out_path, _ = new_node.get_logs()
             with open(out_path, encoding="utf-8") as out:
                 assert f"snapshot_{snapshot_seqno}_" in out.read()
-            original_nodes = network.nodes
-            try:
-                network.nodes = [new_node]
-                network.ledger_files_invariant()
-            finally:
-                network.nodes = original_nodes
+
+            network.retire_node(primary, new_node)
+            new_node.stop()
+            network.ledger_files_invariant([new_node])
         finally:
             if not new_node.is_stopped():
                 new_node.stop()
