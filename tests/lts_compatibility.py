@@ -188,7 +188,9 @@ def test_new_service(
             network.consortium.force_ledger_chunk(primary)
             for _ in range(10):
                 ledger = ccf.ledger.Ledger(
-                    primary.remote.ledger_paths(), committed_only=True
+                    primary.remote.ledger_paths(),
+                    committed_only=True,
+                    contiguous_suffix=True,
                 )
                 public_state, last_seqno = ledger.get_latest_public_state()
                 if last_seqno >= target_seqno:
@@ -785,7 +787,9 @@ def run_ledger_compatibility_since_first(
                 ledger_dir, committed_ledger_dirs = primary.get_ledger()
 
                 # Check that ledger and snapshots can be parsed
-                ccf.ledger.Ledger(committed_ledger_dirs).get_latest_public_state()
+                ccf.ledger.Ledger(
+                    committed_ledger_dirs, contiguous_suffix=True
+                ).get_latest_public_state()
                 if snapshots_dir:
                     for s in os.listdir(snapshots_dir):
                         with ccf.ledger.Snapshot(
