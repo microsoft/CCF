@@ -59,9 +59,9 @@ def test_cert_store(network, args):
         )
 
         stored_cert = json.loads(
-            network.get_ledger_public_state_at(set_proposal.completed_seqno)[
-                "public:ccf.gov.tls.ca_cert_bundles"
-            ][raw_cert_name]
+            network.get_ledger_public_state_at(
+                set_proposal.completed_seqno, timeout=10
+            )["public:ccf.gov.tls.ca_cert_bundles"][raw_cert_name]
         )
         cert_ref = cert_pem + cert2_pem
         assert (
@@ -72,7 +72,7 @@ def test_cert_store(network, args):
     remove_proposal = network.consortium.remove_ca_cert_bundle(primary, cert_name)
 
     assert (
-        network.get_ledger_public_state_at(remove_proposal.completed_seqno)[
+        network.get_ledger_public_state_at(remove_proposal.completed_seqno, timeout=10)[
             "public:ccf.gov.tls.ca_cert_bundles"
         ][raw_cert_name]
         is None
