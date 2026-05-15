@@ -2043,7 +2043,9 @@ def run_recovery_cose_only(args):
 
 def run_recover_snapshot_ledger_offset(args):
     txs = app.LoggingTxs("user0")
-    with infra.network.network(args.nodes, args.binary_dir, args.debug_nodes, txs=txs) as net:
+    with infra.network.network(
+        args.nodes, args.binary_dir, args.debug_nodes, txs=txs
+    ) as net:
         net.start_and_open(args)
         new_net = test_recover_service_snapshot_ledger_offset(net, args)
         new_net.stop_all_nodes()

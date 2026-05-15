@@ -754,11 +754,20 @@ class CCFRemote(object):
     def log_path(self):
         return self.remote.out
 
-    def ledger_paths(self):
-        paths = [os.path.join(self.remote.root, self.ledger_dir_name)]
+    def read_only_ledger_paths(self):
+        paths = []
         for read_only_ledger_dir_name in self.read_only_ledger_dirs_names:
             paths += [os.path.join(self.remote.root, read_only_ledger_dir_name)]
         return [path for path in paths if os.path.exists(path)]
+
+    def current_ledger_path(self):
+        return os.path.join(self.remote.root, self.ledger_dir_name)
+
+    def ledger_paths(self):
+        return [
+            path for path in [self.current_ledger_path(), *self.read_only_ledger_paths()]
+            if os.path.exists(path)
+        ]
 
     def get_logs(self):
         return self.remote.get_logs()

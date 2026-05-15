@@ -1006,7 +1006,7 @@ class Network:
         # Note: Should be called on stopped service
         # 1. Every snapshot corresponds to a chunk boundary
 
-        if nodes == None:
+        if nodes is None:
             nodes = self.nodes
 
         def list_snapshot_files(snapshot_paths):
@@ -1074,7 +1074,7 @@ class Network:
         # 2. If two committed chunks start at the same point in the ledger they are identical
         # 3. Across the network, there is a single contiguous history of committed chunks
 
-        if nodes == None:
+        if nodes is None:
             nodes = self.nodes
 
         def get_startup_seqno(node):
@@ -1118,8 +1118,8 @@ class Network:
             return startup_seqno
 
         # List ledger chunks, plus checksum, in order of starting seqno
-        def list_files_in_dirs_with_checksums(dirs, allow_uncommitted):
-            def pred(f):
+        def node_ledger_files(node, allow_uncommitted):
+            def pred(f, allow_uncommitted, allow_recovery):
                 if f.endswith(ccf.ledger.IGNORED_FILE_SUFFIX):
                     return False
                 is_committed = f.endswith(ccf.ledger.COMMITTED_FILE_SUFFIX) or (
@@ -1133,18 +1133,20 @@ class Network:
                 valid_recovery = (not is_recovery) or (is_recovery and allow_recovery)
                 return valid_committed and valid_recovery
 
-            return sorted(
-                [
-                    (
-                        os.path.join(d, f),
-                        infra.path.compute_file_checksum(os.path.join(d, f)),
-                    )
-                    for d in dirs
-                    for f in os.listdir(d)
-                    if pred(f)
-                ],
-                key=lambda x: ccf.ledger.range_from_filename(x[0])[0],
-            )
+            if node.remote is None:
+                return []
+
+            return [
+                os.path.join(d, f)
+                for d, allow_uncommitted, allow_recovery in [
+                    # We potentially want all ledger files in the current dir
+                    (node.remote.current_ledger_path(), allow_uncommitted, allow_recovery),
+                    # We only want committed files in the read-only
+                    *[(d, False, False) for d in node.remote.read_only_ledger_paths()],
+                ]
+                for f in os.listdir(d)
+                if pred(f, allow_uncommitted, allow_recovery)
+            ]
 
         # 1. A node's ledger history is contiguous from its startup seqno onwards
         for node in nodes:
@@ -1161,13 +1163,16 @@ class Network:
                 continue
 
             startup = get_startup_seqno(node)
-            files = list_files_in_dirs_with_checksums(ledger_paths, True)
+            files = sorted(
+                node_ledger_files(node, True),
+                key=lambda x: ccf.ledger.range_from_filename(x)[0],
+            )
 
             # Trace contiguous chunks after the startup snapshot. Chunks wholly
             # before the snapshot may have been copied from another node, and
             # are covered by the network-wide committed-history check below.
             prev_range = (0, startup)
-            for curr, _ in files:
+            for curr in files:
                 curr_range = ccf.ledger.range_from_filename(curr)
 
                 # Snapshots force chunk boundaries => expect a chunk starting after the startup snapshot
@@ -1185,7 +1190,7 @@ class Network:
                 if curr_range[1] is None:
                     remaining_files = [
                         f
-                        for f, _ in files
+                        for f in files
                         if curr_range[0] < ccf.ledger.range_from_filename(f)[0]
                     ]
                     assert (
@@ -1196,12 +1201,10 @@ class Network:
 
         all_committed_chunks = sorted(
             [
-                f
+                (f, infra.path.compute_file_checksum(f))
                 for n in nodes
                 if n.remote is not None
-                for f in list_files_in_dirs_with_checksums(
-                    n.remote.ledger_paths(), False
-                )
+                for f in node_ledger_files(n, False)
             ],
             key=lambda x: ccf.ledger.range_from_filename(x[0])[0],
         )
@@ -2340,7 +2343,9 @@ def close_on_error(net, pdb=False):
 
         LOG.info("Stopping network")
         net.stop_all_nodes(
-            skip_verification=True, check_file_invariants=False, skip_verify_chunking=True
+            skip_verification=True,
+            check_file_invariants=False,
+            skip_verify_chunking=True,
         )
 
         raise
