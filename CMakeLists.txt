@@ -19,6 +19,12 @@ message(STATUS "CCF version = ${CCF_VERSION}")
 message(STATUS "CCF release version = ${CCF_RELEASE_VERSION}")
 message(STATUS "CCF version suffix = ${CCF_VERSION_SUFFIX}")
 
+option(
+  CCF_ENABLE_RELEASE_HARDENING
+  "Enable supported compiler hardening options for release configurations"
+  ON
+)
+
 # Set the default install prefix for CCF. Users may override this value with the
 # cmake command. For example:
 #
@@ -47,6 +53,35 @@ include(GNUInstallDirs)
 
 # Use fixed name instead of absolute path for reproducible builds
 add_compile_options("-ffile-prefix-map=${CCF_DIR}=CCF")
+
+if(CCF_ENABLE_RELEASE_HARDENING)
+  include(CheckCompilerFlag)
+
+  set(
+    CCF_RELEASE_CONFIGURATION
+    "$<OR:$<CONFIG:Release>,$<CONFIG:RelWithDebInfo>,$<CONFIG:MinSizeRel>>"
+  )
+
+  foreach(LANG C CXX)
+    foreach(
+      FLAG
+      IN
+      ITEMS
+        "-fstack-protector-strong"
+        "-D_FORTIFY_SOURCE=2"
+        "-fstack-clash-protection"
+    )
+      string(MAKE_C_IDENTIFIER "${LANG}_${FLAG}" FLAG_ID)
+      check_compiler_flag(${LANG} "${FLAG}" CCF_${FLAG_ID}_SUPPORTED)
+      if(CCF_${FLAG_ID}_SUPPORTED)
+        message(STATUS "Enabling ${FLAG} for ${LANG} release builds")
+        add_compile_options(
+          "$<$<AND:${CCF_RELEASE_CONFIGURATION},$<COMPILE_LANGUAGE:${LANG}>>:${FLAG}>"
+        )
+      endif()
+    endforeach()
+  endforeach()
+endif()
 
 # In Debug builds, export symbols to the dynamic symbol table so that
 # backtrace_symbols can resolve function names in stacktraces, and preserve
