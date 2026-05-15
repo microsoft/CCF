@@ -272,7 +272,7 @@ class Consortium:
         )
 
     def vote_using_majority(
-        self, remote_node, proposal, ballot, wait_for_commit=True, timeout=5
+        self, remote_node, proposal, ballot, wait_for_commit=True, timeout=10
     ):
         response = None
 
@@ -650,7 +650,7 @@ class Consortium:
             "set_jwt_public_signing_keys", issuer=issuer, jwks=obj
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
-        return self.vote_using_majority(remote_node, proposal, careful_vote, timeout=10)
+        return self.vote_using_majority(remote_node, proposal, careful_vote)
 
     def set_ca_cert_bundle(
         self, remote_node, cert_name, cert_bundle_path, skip_checks=False
