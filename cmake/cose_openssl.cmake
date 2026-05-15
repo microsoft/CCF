@@ -60,11 +60,12 @@ add_custom_target(
   COMMAND "${CMAKE_COMMAND}" -E make_directory "${COSE_RS_CARGO_TARGET_DIR}"
   COMMAND
     "${CMAKE_COMMAND}" -E env --unset=CARGO_BUILD_TARGET
-    "RUSTFLAGS=${COSE_RS_RUSTFLAGS}" "CC=${CMAKE_C_COMPILER}"
-    "CXX=${CMAKE_CXX_COMPILER}" "AR=${CMAKE_AR}" "CARGO_BUILD_RUSTC=${RUSTC}"
-    "${CARGO}" build --lib --package "${COSE_RS_PACKAGE}" --manifest-path
-    "${COSE_RS_MANIFEST_PATH}" --target-dir "${COSE_RS_CARGO_TARGET_DIR}"
-    ${COSE_RS_CARGO_PROFILE_FLAG} --locked
+    "RUSTFLAGS=${COSE_RS_RUSTFLAGS}" "CARGO_NET_RETRY=10"
+    "CARGO_HTTP_TIMEOUT=60" "CC=${CMAKE_C_COMPILER}" "CXX=${CMAKE_CXX_COMPILER}"
+    "AR=${CMAKE_AR}" "CARGO_BUILD_RUSTC=${RUSTC}" "${CARGO}" build --lib
+    --package "${COSE_RS_PACKAGE}" --manifest-path "${COSE_RS_MANIFEST_PATH}"
+    --target-dir "${COSE_RS_CARGO_TARGET_DIR}" ${COSE_RS_CARGO_PROFILE_FLAG}
+    --locked
   COMMAND
     "${CMAKE_COMMAND}" -E copy_if_different "${COSE_RS_CARGO_LIB_PATH}"
     "${CMAKE_BINARY_DIR}"
