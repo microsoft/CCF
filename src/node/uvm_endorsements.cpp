@@ -3,6 +3,7 @@
 
 #include "node/uvm_endorsements.h"
 
+#include "ccf/ds/json.h"
 #include "crypto/cbor.h"
 #include "crypto/cose_utils.h"
 #include "ds/internal_logger.h"
@@ -266,7 +267,7 @@ namespace ccf
     const auto& did = phdr.iss;
 
     ccf::crypto::Pem pubk;
-    const auto jwk = nlohmann::json::parse(
+    const auto jwk = ccf::parse_json_safe(
       didx509::resolve_jwk(pem_chain, did, true /* ignore time */));
     const auto generic_jwk = jwk.get<ccf::crypto::JsonWebKey>();
     switch (generic_jwk.kty)
@@ -304,7 +305,7 @@ namespace ccf
           cose::value::CT_JSON));
       }
 
-      auto payload = nlohmann::json::parse(raw_payload);
+      auto payload = ccf::parse_json_safe(raw_payload);
       sevsnpvm_launch_measurement =
         payload["x-ms-sevsnpvm-launchmeasurement"].get<std::string>();
       auto sevsnpvm_guest_svn_obj = payload["x-ms-sevsnpvm-guestsvn"];

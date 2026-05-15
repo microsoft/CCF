@@ -1281,7 +1281,7 @@ namespace loggingapp
           ctx.template get_caller<ccf::UserCertAuthnIdentity>();
 
         const nlohmann::json body_j =
-          nlohmann::json::parse(ctx.rpc_ctx->get_request_body());
+          ccf::parse_json_safe(ctx.rpc_ctx->get_request_body());
 
         const auto in = body_j.get<LoggingRecord::In>();
         if (in.msg.empty())

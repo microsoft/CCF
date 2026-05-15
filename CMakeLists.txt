@@ -563,6 +563,11 @@ if(BUILD_TESTS)
     )
 
     add_unit_test(
+      parse_json_safe_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/parse_json_safe.cpp
+    )
+
+    add_unit_test(
       logger_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/logger.cpp
     )

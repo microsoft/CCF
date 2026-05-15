@@ -6,6 +6,7 @@
 #include "ccf/crypto/ecdsa.h"
 #include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "ccf/crypto/verifier.h"
+#include "ccf/ds/json.h"
 #include "ccf/pal/attestation_sev_snp.h"
 #include "ccf/pal/sev_snp_cpuid.h"
 #include "ds/internal_logger.h"
@@ -24,7 +25,7 @@ namespace ccf::pal
     PlatformAttestationMeasurement& measurement,
     PlatformAttestationReportData& report_data)
   {
-    auto j = nlohmann::json::parse(quote_info.quote);
+    auto j = ccf::parse_json_safe(quote_info.quote);
 
     const auto s_measurement = j["measurement"].get<std::string>();
     measurement.data =

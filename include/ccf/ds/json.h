@@ -43,6 +43,46 @@ namespace ccf
       return fmt::format("At {}: {}", pointer(), what());
     }
   };
+
+  inline constexpr int MAX_JSON_NESTING_DEPTH = 64;
+
+  class JsonTooDeep : public ccf::JsonParseError
+  {
+  public:
+    JsonTooDeep() :
+      ccf::JsonParseError(fmt::format(
+        "JSON object/array nesting exceeds maximum depth of {}",
+        MAX_JSON_NESTING_DEPTH))
+    {}
+  };
+
+  inline bool depth_limit_callback(
+    int depth, nlohmann::json::parse_event_t event, nlohmann::json& /*parsed*/)
+  {
+    using E = nlohmann::json::parse_event_t;
+    if (
+      (event == E::object_start || event == E::array_start) &&
+      depth >= MAX_JSON_NESTING_DEPTH)
+    {
+      throw JsonTooDeep{};
+    }
+    return true;
+  }
+
+  // Depth-bounded alternative to nlohmann::json::parse, for inputs whose
+  // depth has not been validated upstream.
+  template <typename Bytes>
+  nlohmann::json parse_json_safe(Bytes&& bytes)
+  {
+    return nlohmann::json::parse(
+      std::forward<Bytes>(bytes), depth_limit_callback);
+  }
+
+  template <typename Iter>
+  nlohmann::json parse_json_safe(Iter first, Iter last)
+  {
+    return nlohmann::json::parse(first, last, depth_limit_callback);
+  }
 }
 
 // NOLINTBEGIN(cert-dcl58-cpp)
