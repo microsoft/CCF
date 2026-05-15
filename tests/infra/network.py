@@ -1034,21 +1034,6 @@ class Network:
                 )
             return [path for path in paths if os.path.isdir(path)]
 
-        def ledger_chunk_boundaries(ledger_paths):
-            boundaries = set()
-            for ledger_path in ledger_paths:
-                for f in os.listdir(ledger_path):
-                    if f.endswith(ccf.ledger.IGNORED_FILE_SUFFIX):
-                        continue
-                    if not f.startswith("ledger_"):
-                        continue
-
-                    range_start, range_end = ccf.ledger.range_from_filename(f)
-                    boundaries.add(range_start - 1)
-                    if range_end is not None:
-                        boundaries.add(range_end)
-            return boundaries
-
         for node in nodes:
             if node.network_state != infra.node.NodeNetworkState.stopped:
                 raise RuntimeError(
@@ -1058,14 +1043,23 @@ class Network:
             if node.remote is None:
                 continue
 
-            boundaries = ledger_chunk_boundaries(node.remote.ledger_paths())
+            ranges = [
+                ccf.ledger.range_from_filename(f), f
+                for d in node.remote.ledger_paths()
+                for f in os.listdir(d)
+            ]
+
             for snapshot_file in list_snapshot_files(snapshot_paths(node)):
                 snapshot_seqno, _ = ccf.ledger.snapshot_index_from_filename(
                     snapshot_file
                 )
-                assert snapshot_seqno in boundaries, (
-                    f"Snapshot {snapshot_file} on node {node.local_node_id} does "
-                    "not correspond to a ledger chunk boundary"
+                chunks_with_snapshot_in_middle = [
+                    f
+                    for range,f in ranges
+                    if range[0] <= snapshot_seqno < range[1]
+                ]
+                assert len(chunks_with_snapshot_in_middle) == 0, (
+                  f"Snapshot {snapshot_file} occurred in the middle of chunks {chunks_with_snapshot_in_middle}"
                 )
 
     def ledger_files_invariant(self, nodes=None, allow_recovery=False):
