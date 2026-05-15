@@ -56,12 +56,15 @@ add_compile_options("-ffile-prefix-map=${CCF_DIR}=CCF")
 
 if(CCF_ENABLE_RELEASE_HARDENING)
   include(CheckCompilerFlag)
+  include(CheckLinkerFlag)
 
   set(
     CCF_RELEASE_CONFIGURATION
     "$<OR:$<CONFIG:Release>,$<CONFIG:RelWithDebInfo>,$<CONFIG:MinSizeRel>>"
   )
 
+  # _FORTIFY_SOURCE only has an effect with optimisation enabled, so these
+  # options are limited to CCF's optimised release configurations.
   foreach(LANG C CXX)
     foreach(
       FLAG
@@ -77,6 +80,19 @@ if(CCF_ENABLE_RELEASE_HARDENING)
         message(STATUS "Enabling ${FLAG} for ${LANG} release builds")
         add_compile_options(
           "$<$<AND:${CCF_RELEASE_CONFIGURATION},$<COMPILE_LANGUAGE:${LANG}>>:${FLAG}>"
+        )
+      endif()
+    endforeach()
+  endforeach()
+
+  foreach(LANG C CXX)
+    foreach(FLAG IN ITEMS "LINKER:-z,relro" "LINKER:-z,now")
+      string(MAKE_C_IDENTIFIER "${LANG}_${FLAG}" FLAG_ID)
+      check_linker_flag(${LANG} "${FLAG}" CCF_${FLAG_ID}_SUPPORTED)
+      if(CCF_${FLAG_ID}_SUPPORTED)
+        message(STATUS "Enabling ${FLAG} for ${LANG} release links")
+        add_link_options(
+          "$<$<AND:${CCF_RELEASE_CONFIGURATION},$<LINK_LANGUAGE:${LANG}>>:${FLAG}>"
         )
       endif()
     endforeach()
