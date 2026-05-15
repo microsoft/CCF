@@ -68,26 +68,24 @@ install_build_dependencies() {
 }
 
 install_test_dependencies() {
-    # To run standard tests
-    tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install  \
-        lldb  \
-        expect  \
-        npm  \
-        jq &&
-
-    # Extra-dependency for CDDL schema checker
-    tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install rubygems &&
-    gem install cddl &&
-
-    # Release (extended) tests
-    tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install procps &&
-
-    # protocoltest
-    tdnf --snapshottime=$SOURCE_DATE_EPOCH install -y bind-utils &&
-
-    # partitions test
-    tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install iptables &&
-    tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install strace
+    {
+        # To run standard tests
+        tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install  \
+            lldb  \
+            expect  \
+            npm  \
+            jq &&
+        # Extra-dependency for CDDL schema checker
+        tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install rubygems &&
+        gem install cddl &&
+        # Release (extended) tests
+        tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install procps &&
+        # protocoltest
+        tdnf --snapshottime=$SOURCE_DATE_EPOCH install -y bind-utils &&
+        # partitions test
+        tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install iptables &&
+        tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install strace
+    }
 }
 
 install_h2spec() {
