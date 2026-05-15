@@ -21,9 +21,20 @@ message(STATUS "CCF version suffix = ${CCF_VERSION_SUFFIX}")
 
 option(
   CCF_ENABLE_RELEASE_HARDENING
-  "Enable supported compiler hardening options for release configurations"
+  "Enable supported compiler and linker hardening options for release configurations"
   ON
 )
+
+# Enable common release-build hardening where the active toolchain supports it:
+# -fstack-protector-strong adds canary checks to functions with vulnerable stack
+# objects, -D_FORTIFY_SOURCE=2 enables fortified libc wrappers when optimisation
+# is enabled, -fstack-clash-protection probes large stack allocations, and
+# -z relro/-z now make dynamic relocation metadata read-only after eager binding.
+# See GCC's instrumentation options
+# (https://gcc.gnu.org/onlinedocs/gcc/Instrumentation-Options.html), glibc's
+# fortification documentation
+# (https://sourceware.org/glibc/wiki/Source_Fortification), and GNU ld's options
+# (https://sourceware.org/binutils/docs/ld/Options.html).
 
 # Set the default install prefix for CCF. Users may override this value with the
 # cmake command. For example:
