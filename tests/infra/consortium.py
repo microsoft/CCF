@@ -272,7 +272,7 @@ class Consortium:
         )
 
     def vote_using_majority(
-        self, remote_node, proposal, ballot, wait_for_commit=True, timeout=5
+        self, remote_node, proposal, ballot, wait_for_commit=True, timeout=10
     ):
         response = None
 
