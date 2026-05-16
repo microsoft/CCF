@@ -624,6 +624,7 @@ def run(args):
 
 if __name__ == "__main__":
     cr = ConcurrentRunner()
+    jwt_forwarding_timeout_ms = 10000
 
     cr.add(
         "programmability",
@@ -642,6 +643,7 @@ if __name__ == "__main__":
         nodes=infra.e2e_args.min_nodes(cr.args, f=1),
         jwt_key_refresh_interval_s=1,
         issuer_port=12345,
+        forwarding_timeout_ms=jwt_forwarding_timeout_ms,
     )
 
     cr.add(
@@ -651,6 +653,7 @@ if __name__ == "__main__":
         nodes=infra.e2e_args.min_nodes(cr.args, f=1),
         jwt_key_refresh_interval_s=100000,
         issuer_port=12346,
+        forwarding_timeout_ms=jwt_forwarding_timeout_ms,
     )
 
     cr.add(
@@ -658,6 +661,7 @@ if __name__ == "__main__":
         jwt_test.run_ca_cert,
         package="samples/apps/logging/logging",
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+        forwarding_timeout_ms=jwt_forwarding_timeout_ms,
     )
 
     cr.run()
