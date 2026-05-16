@@ -72,7 +72,7 @@ jobs:
 
       - name: "Generate coverage reports"
         run: |
-          set -ex
+          set -exo pipefail
           cd build
           ../scripts/coverage.sh --html coverage_html | tee coverage_report.txt
         shell: bash
