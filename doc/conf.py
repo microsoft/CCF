@@ -484,7 +484,7 @@ def setup(app):
             )
 
     # configuration generator
-    input_file_path = doc_dir / "host_config_schema/cchost_config.json"
+    input_file_path = doc_dir / "host_config_schema/host_config.json"
     output_file_path = doc_dir / "operations/generated_config.rst"
 
     if os.path.exists(input_file_path):
