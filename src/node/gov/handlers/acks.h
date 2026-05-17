@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/base_endpoint_registry.h"
+#include "ccf/ds/json.h"
 #include "node/gov/api_version.h"
 #include "node/gov/handlers/helpers.h"
 #include "node/history.h"
@@ -219,7 +220,7 @@ namespace ccf::gov::endpoints
 
           // Check signed digest matches expected digest in KV
           const auto expected_digest = ack->state_digest;
-          const auto signed_body = nlohmann::json::parse(cose_ident.content);
+          const auto signed_body = ccf::parse_json_safe(cose_ident.content);
           const auto actual_digest =
             signed_body["stateDigest"].template get<std::string>();
           if (expected_digest != actual_digest)

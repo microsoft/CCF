@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/base_endpoint_registry.h"
+#include "ccf/ds/json.h"
 #include "ccf/js/common_context.h"
 #include "ccf/js/extensions/ccf/gov_effects.h"
 #include "js/checks.h"
@@ -969,7 +970,7 @@ namespace ccf::gov::endpoints
           }
 
           // Parse and validate incoming ballot
-          const auto params = nlohmann::json::parse(cose_ident.content);
+          const auto params = ccf::parse_json_safe(cose_ident.content);
           const auto ballot_it = params.find("ballot");
           if (ballot_it == params.end() || !ballot_it.value().is_string())
           {
