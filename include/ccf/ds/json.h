@@ -44,44 +44,53 @@ namespace ccf
     }
   };
 
-  inline constexpr int MAX_JSON_NESTING_DEPTH = 64;
+  inline constexpr size_t MAX_JSON_NESTING_DEPTH = 64;
 
   class JsonTooDeep : public ccf::JsonParseError
   {
   public:
-    JsonTooDeep() :
+    explicit JsonTooDeep(size_t max_depth) :
       ccf::JsonParseError(fmt::format(
-        "JSON object/array nesting exceeds maximum depth of {}",
-        MAX_JSON_NESTING_DEPTH))
+        "JSON object/array nesting exceeds maximum depth of {}", max_depth))
     {}
   };
 
-  inline bool depth_limit_callback(
-    int depth, nlohmann::json::parse_event_t event, nlohmann::json& /*parsed*/)
+  inline nlohmann::json::parser_callback_t make_depth_limit_callback(
+    size_t max_depth)
   {
-    using E = nlohmann::json::parse_event_t;
-    if (
-      (event == E::object_start || event == E::array_start) &&
-      depth >= MAX_JSON_NESTING_DEPTH)
-    {
-      throw JsonTooDeep{};
-    }
-    return true;
+    return [max_depth](
+             int depth,
+             nlohmann::json::parse_event_t event,
+             nlohmann::json& /*parsed*/) {
+      using E = nlohmann::json::parse_event_t;
+      if (
+        (event == E::object_start || event == E::array_start) &&
+        static_cast<size_t>(depth) >= max_depth)
+      {
+        throw JsonTooDeep{max_depth};
+      }
+      return true;
+    };
   }
 
   // Depth-bounded alternative to nlohmann::json::parse, for inputs whose
-  // depth has not been validated upstream.
+  // depth has not been validated upstream. max_depth defaults to
+  // MAX_JSON_NESTING_DEPTH but can be overridden at the call site for
+  // applications with stricter or more permissive requirements.
   template <typename Bytes>
-  nlohmann::json parse_json_safe(Bytes&& bytes)
+  nlohmann::json parse_json_safe(
+    Bytes&& bytes, size_t max_depth = MAX_JSON_NESTING_DEPTH)
   {
     return nlohmann::json::parse(
-      std::forward<Bytes>(bytes), depth_limit_callback);
+      std::forward<Bytes>(bytes), make_depth_limit_callback(max_depth));
   }
 
   template <typename Iter>
-  nlohmann::json parse_json_safe(Iter first, Iter last)
+  nlohmann::json parse_json_safe(
+    Iter first, Iter last, size_t max_depth = MAX_JSON_NESTING_DEPTH)
   {
-    return nlohmann::json::parse(first, last, depth_limit_callback);
+    return nlohmann::json::parse(
+      first, last, make_depth_limit_callback(max_depth));
   }
 }
 

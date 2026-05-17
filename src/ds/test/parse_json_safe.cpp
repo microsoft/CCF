@@ -2,15 +2,15 @@
 // Licensed under the Apache 2.0 License.
 //
 // Tests for ccf::parse_json_safe - the depth-bounded JSON parse chokepoint.
-// parse_json_safe wraps nlohmann::json::parse with the library's parser_callback_t
-// and aborts the parse before any DOM node is materialised once an
-// object_start or array_start is reached at depth ccf::MAX_JSON_NESTING_DEPTH.
+// parse_json_safe wraps nlohmann::json::parse with the library's
+// parser_callback_t and aborts the parse before any DOM node is materialised
+// once an object_start or array_start is reached at the configured maximum
+// depth (default: ccf::MAX_JSON_NESTING_DEPTH, overridable per call site).
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "ccf/ds/json.h"
 
 #include <doctest/doctest.h>
-
 #include <string>
 
 namespace
@@ -139,4 +139,48 @@ TEST_CASE("JsonTooDeep is catchable as ccf::JsonParseError")
   // hierarchy to convert the failure into HTTP 400 InvalidInput.
   const auto body = nest_obj(kAttackDepth);
   CHECK_THROWS_AS(ccf::parse_json_safe(body), ccf::JsonParseError);
+}
+
+TEST_CASE("parse_json_safe honours a caller-supplied max_depth override")
+{
+  // A caller-supplied limit must take precedence over the default, both for
+  // tightening (reject something the default would accept) and loosening
+  // (accept something the default would reject) the bound.
+  constexpr size_t kCustomLimit = 8;
+
+  // Tighten: depth above kCustomLimit but well within the default must now
+  // be rejected when the caller passes kCustomLimit.
+  const auto tight_reject = nest_obj(kCustomLimit + 1);
+  CHECK_THROWS_AS(
+    ccf::parse_json_safe(tight_reject, kCustomLimit), ccf::JsonTooDeep);
+
+  // Tighten boundary: exactly kCustomLimit must still be accepted when the
+  // caller passes kCustomLimit, mirroring the inclusive default boundary.
+  const auto tight_accept = nest_obj(kCustomLimit);
+  nlohmann::json j;
+  CHECK_NOTHROW(j = ccf::parse_json_safe(tight_accept, kCustomLimit));
+  CHECK(j.is_object());
+
+  // Loosen: depth above the default but within an explicit larger limit must
+  // be accepted, proving the override is not just an upper bound on the
+  // default.
+  constexpr size_t kLooseLimit = ccf::MAX_JSON_NESTING_DEPTH + 16;
+  const auto loose_accept = nest_obj(ccf::MAX_JSON_NESTING_DEPTH + 8);
+  CHECK_NOTHROW(j = ccf::parse_json_safe(loose_accept, kLooseLimit));
+  CHECK(j.is_object());
+}
+
+TEST_CASE("parse_json_safe iterator overload honours max_depth override")
+{
+  constexpr size_t kCustomLimit = 4;
+  const auto body = nest_arr(kCustomLimit + 1);
+  CHECK_THROWS_AS(
+    ccf::parse_json_safe(body.begin(), body.end(), kCustomLimit),
+    ccf::JsonTooDeep);
+
+  const auto shallow = nest_arr(kCustomLimit);
+  nlohmann::json j;
+  CHECK_NOTHROW(
+    j = ccf::parse_json_safe(shallow.begin(), shallow.end(), kCustomLimit));
+  CHECK(j.is_array());
 }
