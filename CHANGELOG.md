@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
-- JSON parsing now can reject inputs whose object/array nesting depth exceeds a certain value, defaulting to 64 levels and overridable per call site via `ccf::parse_json_safe`'s `max_depth` parameter (#7896).
+- JSON parsing can now reject inputs whose object/array nesting depth exceeds a certain value, defaulting to 64 levels and overridable per call site via `ccf::parse_json_safe`'s `max_depth` parameter (#7896).
 
 ## [7.0.3]
 
