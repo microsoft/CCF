@@ -7,6 +7,7 @@ from infra.node import strip_version
 from packaging.version import Version  # type: ignore
 import os
 import ccf
+import ccf.ledger
 import ccf.split_ledger
 
 from loguru import logger as LOG
@@ -44,6 +45,14 @@ def write_ledger_chunk(outdir, entries, end_seqno, complete):
     assert selected_entries, f"No entries selected up to {end_seqno}"
 
     ledger_file = ccf.split_ledger.create_new_ledger_file(outdir)
+    if complete:
+        final_seqno, final_raw_tx = selected_entries[-1]
+        flagged_final_raw_tx = bytearray(final_raw_tx)
+        flagged_final_raw_tx[
+            ccf.ledger.TransactionHeader.VERSION_LENGTH
+        ] |= ccf.ledger.TransactionFlags.FORCE_CHUNK_AFTER.value
+        selected_entries[-1] = (final_seqno, bytes(flagged_final_raw_tx))
+
     entry_positions = []
     for _, raw_tx in selected_entries:
         entry_positions.append(ledger_file.tell())

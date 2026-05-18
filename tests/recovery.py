@@ -864,7 +864,7 @@ def run_recover_service_from_files(
         ), f"Could not copy {file} to {new_common}"
 
     with infra.network.network(
-        args.nodes, args.binary_dir, skip_verify_chunking=True
+        args.nodes, args.binary_dir, skip_verify_chunking=True, check_file_invariants=False
     ) as network:
 
         args.previous_service_identity_file = os.path.join(
@@ -1077,6 +1077,9 @@ def test_persistence_old_snapshot(network, args):
         ), "Trusting new node should have failed as n2n interface is not valid"
 
     new_node_ledger_path = new_node.remote.ledger_paths()[0]
+
+    primary, _ = network.find_primary()
+    network.retire_node(primary, new_node)
 
     network.stop_all_nodes()
 

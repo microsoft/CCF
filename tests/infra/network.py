@@ -1017,6 +1017,7 @@ class Network:
                     for f in os.listdir(d)
                     if f.startswith("snapshot_")
                     and not f.endswith(ccf.ledger.IGNORED_FILE_SUFFIX)
+                    and f.endswith(ccf.ledger.COMMITTED_FILE_SUFFIX)
                 ],
                 key=lambda f: ccf.ledger.snapshot_index_from_filename(f)[0],
             )
@@ -1044,9 +1045,12 @@ class Network:
                 continue
 
             ranges = [
-                ccf.ledger.range_from_filename(f), f
+                (ccf.ledger.get_range_from_file(os.path.join(d, f)), f)
                 for d in node.remote.ledger_paths()
                 for f in os.listdir(d)
+                if f.startswith("ledger_")
+                and not f.endswith(ccf.ledger.IGNORED_FILE_SUFFIX)
+                and f.endswith(ccf.ledger.COMMITTED_FILE_SUFFIX)
             ]
 
             for snapshot_file in list_snapshot_files(snapshot_paths(node)):
@@ -1055,11 +1059,12 @@ class Network:
                 )
                 chunks_with_snapshot_in_middle = [
                     f
-                    for range,f in ranges
-                    if range[0] <= snapshot_seqno < range[1]
+                    for ledger_range, f in ranges
+                    if ledger_range[0] <= snapshot_seqno < ledger_range[1]
                 ]
                 assert len(chunks_with_snapshot_in_middle) == 0, (
-                  f"Snapshot {snapshot_file} occurred in the middle of chunks {chunks_with_snapshot_in_middle}"
+                    f"Snapshot {snapshot_file} occurred in the middle of chunks "
+                    f"{chunks_with_snapshot_in_middle}"
                 )
 
     def ledger_files_invariant(self, nodes=None, allow_recovery=False):
@@ -1134,10 +1139,15 @@ class Network:
                 os.path.join(d, f)
                 for d, allow_uncommitted, allow_recovery in [
                     # We potentially want all ledger files in the current dir
-                    (node.remote.current_ledger_path(), allow_uncommitted, allow_recovery),
+                    (
+                        node.remote.current_ledger_path(),
+                        allow_uncommitted,
+                        allow_recovery,
+                    ),
                     # We only want committed files in the read-only
                     *[(d, False, False) for d in node.remote.read_only_ledger_paths()],
                 ]
+                if os.path.isdir(d)
                 for f in os.listdir(d)
                 if pred(f, allow_uncommitted, allow_recovery)
             ]
@@ -1159,7 +1169,7 @@ class Network:
             startup = get_startup_seqno(node)
             files = sorted(
                 node_ledger_files(node, True),
-                key=lambda x: ccf.ledger.range_from_filename(x)[0],
+                key=lambda x: ccf.ledger.get_range_from_file(x)[0],
             )
 
             # Trace contiguous chunks after the startup snapshot. Chunks wholly
@@ -1167,7 +1177,7 @@ class Network:
             # are covered by the network-wide committed-history check below.
             prev_range = (0, startup)
             for curr in files:
-                curr_range = ccf.ledger.range_from_filename(curr)
+                curr_range = ccf.ledger.get_range_from_file(curr)
 
                 # Snapshots force chunk boundaries => expect a chunk starting after the startup snapshot
                 if curr_range[0] <= startup:
@@ -1185,7 +1195,7 @@ class Network:
                     remaining_files = [
                         f
                         for f in files
-                        if curr_range[0] < ccf.ledger.range_from_filename(f)[0]
+                        if curr_range[0] < ccf.ledger.get_range_from_file(f)[0]
                     ]
                     assert (
                         len(remaining_files) == 0
@@ -1200,15 +1210,15 @@ class Network:
                 if n.remote is not None
                 for f in node_ledger_files(n, False)
             ],
-            key=lambda x: ccf.ledger.range_from_filename(x[0])[0],
+            key=lambda x: ccf.ledger.get_range_from_file(x[0])[0],
         )
         if len(all_committed_chunks) > 0:
 
             # 2. If two committed chunks start at the same point in the ledger they are identical
             prev = all_committed_chunks[0]
             for curr in all_committed_chunks[1:]:
-                range_prev = ccf.ledger.range_from_filename(prev[0])
-                range_curr = ccf.ledger.range_from_filename(curr[0])
+                range_prev = ccf.ledger.get_range_from_file(prev[0])
+                range_curr = ccf.ledger.get_range_from_file(curr[0])
                 if range_prev[0] == range_curr[0]:
                     assert (
                         range_prev == range_curr
@@ -1221,8 +1231,8 @@ class Network:
             # 3. Across the network there is a single contiguous history of committed chunks
             prev = all_committed_chunks[0][0]
             for curr, _ in all_committed_chunks[1:]:
-                prev_range = ccf.ledger.range_from_filename(prev)
-                curr_range = ccf.ledger.range_from_filename(curr)
+                prev_range = ccf.ledger.get_range_from_file(prev)
+                curr_range = ccf.ledger.get_range_from_file(curr)
                 if curr_range == prev_range:
                     continue
                 assert (
@@ -2359,6 +2369,7 @@ def network(
     service_load=None,
     node_data_json_file=None,
     skip_verify_chunking=False,
+    check_file_invariants=True,
     **kwargs,
 ):
     """
@@ -2395,7 +2406,7 @@ def network(
     LOG.info("Stopping network")
     net.stop_all_nodes(
         skip_verification=True,
-        check_file_invariants=True,
+        check_file_invariants=check_file_invariants,
     )
     if init_partitioner:
         net.partitioner.cleanup()
