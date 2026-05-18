@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [7.0.4]
+
+[7.0.4]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.4
+
+### Changed
+
+- JSON parsing now can reject inputs whose object/array nesting depth exceeds a certain value, defaulting to 64 levels and overridable per call site via `ccf::parse_json_safe`'s `max_depth` parameter (#7896).
+
 ## [7.0.3]
 
 [7.0.3]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.3
@@ -21,7 +29,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Upgraded QuickJS from 2024-01-13 to 2025-09-13 (#7849).
 - On a joiner's first attempt, the primary now requires the joiner's startup seqno to be at least as recent as the primary's latest committed snapshot on disk, preventing snapshot-less joiners from replaying the entire ledger (#7844).
-- JSON parsing now can reject inputs whose object/array nesting depth exceeds a certain value, defaulting to 64 levels and overridable per call site via `ccf::parse_json_safe`'s `max_depth` parameter (#7896).
 
 ### Fixed
 
