@@ -4,6 +4,7 @@
 
 #include "ccf/crypto/base64.h"
 #include "ccf/crypto/verifier.h"
+#include "ccf/ds/json.h"
 #include "ccf/http_consts.h"
 #include "http_parser.h"
 
@@ -152,8 +153,15 @@ namespace http
       nlohmann::json payload;
       try
       {
-        header = nlohmann::json::parse(header_raw);
-        payload = nlohmann::json::parse(payload_raw);
+        header = ccf::parse_json_safe(header_raw);
+        payload = ccf::parse_json_safe(payload_raw);
+      }
+      catch (const ccf::JsonParseError& e)
+      {
+        error_reason = fmt::format(
+          "JWT header or payload exceeds permitted JSON nesting depth: {}",
+          e.what());
+        return std::nullopt;
       }
       catch (const nlohmann::json::parse_error& e)
       {
