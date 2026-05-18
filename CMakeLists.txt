@@ -354,15 +354,12 @@ configure_file(
 )
 install(FILES ${CCF_DIR}/include/ccf/version.h DESTINATION include/ccf)
 
-file(
-  READ ${CCF_DIR}/doc/host_config_schema/cchost_config.json
-  HOST_CONFIG_SCHEMA
-)
+file(READ ${CCF_DIR}/doc/host_config_schema/host_config.json HOST_CONFIG_SCHEMA)
 set_property(
   DIRECTORY
   APPEND
   PROPERTY
-    CMAKE_CONFIGURE_DEPENDS ${CCF_DIR}/doc/host_config_schema/cchost_config.json
+    CMAKE_CONFIGURE_DEPENDS ${CCF_DIR}/doc/host_config_schema/host_config.json
 )
 configure_file(
   ${CCF_DIR}/src/host/config_schema.h.in
@@ -560,6 +557,11 @@ if(BUILD_TESTS)
     add_unit_test(
       json_schema
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/json_schema.cpp
+    )
+
+    add_unit_test(
+      parse_json_safe_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/parse_json_safe.cpp
     )
 
     add_unit_test(
