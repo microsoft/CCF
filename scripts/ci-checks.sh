@@ -48,6 +48,7 @@ CHECKS=(
   "Python format:python-format-checks.sh"
   "Python lint:python-lint-checks.sh"
   "Python types:python-types-checks.sh"
+  "CI test buckets:test-buckets-checks.sh"
 )
 
 declare -A PID_TO_IDX

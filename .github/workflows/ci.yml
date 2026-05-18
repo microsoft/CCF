@@ -15,7 +15,7 @@ permissions: read-all
 
 jobs:
   vmss-virtual-a:
-    name: "VMSS Virtual A" # CI Checks, Clang Tidy, Python package tests, Doc build, Unit tests, Partitions tests
+    name: "VMSS Virtual A" # CI Checks, Clang Tidy, Python package tests, Doc build, Unit tests, e2e (bucket_a)
     runs-on:
       [
         self-hosted,
@@ -84,14 +84,11 @@ jobs:
           cd build
           ./tests.sh --output-on-failure -L unit -j$(nproc --all)
 
-        # Note that those are only run on the virtual CI, as they require enough
-        # privileges to configure iptables. ACI-based pools run unprivileged
-        # containers, and so cannot run these tests unfortunately.
-      - name: "Run partitions tests"
+      - name: "Run e2e tests (bucket_a)"
         run: |
           set -ex
           cd build
-          ./tests.sh --timeout 360 --output-on-failure -L partitions -C partitions
+          ./tests.sh --timeout 360 --output-on-failure -L bucket_a
 
       - name: "Upload logs for virtual A"
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -107,7 +104,7 @@ jobs:
         if: success() || failure()
 
   vmss-virtual-b:
-    name: "VMSS Virtual B" # End-to-end tests, heavy bucket: schema_test, recovery_test, nodes_test
+    name: "VMSS Virtual B" # End-to-end tests (bucket_b)
     runs-on:
       [
         self-hosted,
@@ -164,8 +161,7 @@ jobs:
           rm -rf /github/home/.cache
           mkdir -p /github/home/.cache
 
-          # End to end tests - heavy bucket (rest run on virtual C)
-          ./tests.sh --timeout 360 --output-on-failure -R "^(schema_test|recovery_test|nodes_test)$"
+          ./tests.sh --timeout 360 --output-on-failure -L bucket_b
         shell: bash
 
       - name: "Upload logs for virtual B"
@@ -182,7 +178,7 @@ jobs:
         if: success() || failure()
 
   vmss-virtual-c:
-    name: "VMSS Virtual C" # End-to-end tests, rest bucket (everything not on virtual B)
+    name: "VMSS Virtual C" # End-to-end tests (bucket_c)
     runs-on:
       [
         self-hosted,
@@ -229,9 +225,14 @@ jobs:
           rm -rf /github/home/.cache
           mkdir -p /github/home/.cache
 
-          # End to end tests - rest bucket (heavy ones run on virtual B)
-          ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|suite|unit" -E "^(schema_test|recovery_test|nodes_test|partitions)$"
+          ./tests.sh --timeout 360 --output-on-failure -L bucket_c
         shell: bash
+
+      - name: "Run partitions tests"
+        run: |
+          set -ex
+          cd build
+          ./tests.sh --timeout 360 --output-on-failure -L partitions -C partitions
 
       - name: "Upload logs for virtual C"
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
