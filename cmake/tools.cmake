@@ -78,6 +78,8 @@ function(add_hardening name)
     endforeach()
   endforeach()
 
+  # Static, object, and interface libraries do not perform a link step here, but
+  # compile hardening still applies to their object files.
   get_target_property(target_type ${name} TYPE)
   if(
     target_type STREQUAL "STATIC_LIBRARY"
