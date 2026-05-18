@@ -15,5 +15,6 @@ target_include_directories(
 target_compile_options(evercbor PRIVATE -Wno-everything)
 set_property(TARGET evercbor PROPERTY POSITION_INDEPENDENT_CODE ON)
 add_san(evercbor)
+add_hardening(evercbor)
 
 install(TARGETS evercbor EXPORT ccf DESTINATION lib)

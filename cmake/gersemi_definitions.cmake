@@ -67,6 +67,9 @@ endfunction()
 function(add_san name)
 endfunction()
 
+function(add_hardening name)
+endfunction()
+
 function(add_tidy name)
 endfunction()
 

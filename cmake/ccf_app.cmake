@@ -41,6 +41,7 @@ function(add_ccf_app name)
   set_property(TARGET ${name} PROPERTY POSITION_INDEPENDENT_CODE ON)
 
   add_san(${name})
+  add_hardening(${name})
   add_tidy(${name})
   enable_coverage(${name})
 
@@ -68,6 +69,7 @@ function(add_ccf_static_library name)
   set_property(TARGET ${name} PROPERTY POSITION_INDEPENDENT_CODE ON)
 
   add_san(${name})
+  add_hardening(${name})
   add_tidy(${name})
   add_warning_checks(${name})
 

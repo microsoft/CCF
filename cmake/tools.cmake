@@ -43,6 +43,66 @@ function(add_san name)
   endif()
 endfunction()
 
+function(add_hardening name)
+  if(NOT CCF_ENABLE_RELEASE_HARDENING)
+    return()
+  endif()
+
+  include(CheckCompilerFlag)
+  include(CheckLinkerFlag)
+
+  set(
+    release_configuration
+    "$<OR:$<CONFIG:Release>,$<CONFIG:RelWithDebInfo>,$<CONFIG:MinSizeRel>>"
+  )
+
+  foreach(lang C CXX)
+    foreach(
+      flag
+      IN
+      ITEMS
+        "-fstack-protector-strong"
+        "-D_FORTIFY_SOURCE=2"
+        "-fstack-clash-protection"
+    )
+      string(MAKE_C_IDENTIFIER "${lang}_${flag}" flag_id)
+      set(supported_var "CCF_${flag_id}_SUPPORTED")
+      check_compiler_flag(${lang} "${flag}" ${supported_var})
+      if(${supported_var})
+        target_compile_options(
+          ${name}
+          PRIVATE
+            "$<$<AND:${release_configuration},$<COMPILE_LANGUAGE:${lang}>>:${flag}>"
+        )
+      endif()
+    endforeach()
+  endforeach()
+
+  get_target_property(target_type ${name} TYPE)
+  if(
+    target_type STREQUAL "STATIC_LIBRARY"
+    OR target_type STREQUAL "OBJECT_LIBRARY"
+    OR target_type STREQUAL "INTERFACE_LIBRARY"
+  )
+    return()
+  endif()
+
+  foreach(lang C CXX)
+    foreach(flag IN ITEMS "LINKER:-z,relro" "LINKER:-z,now")
+      string(MAKE_C_IDENTIFIER "${lang}_${flag}" flag_id)
+      set(supported_var "CCF_${flag_id}_SUPPORTED")
+      check_linker_flag(${lang} "${flag}" ${supported_var})
+      if(${supported_var})
+        target_link_options(
+          ${name}
+          PRIVATE
+            "$<$<AND:${release_configuration},$<LINK_LANGUAGE:${lang}>>:${flag}>"
+        )
+      endif()
+    endforeach()
+  endforeach()
+endfunction()
+
 function(add_tidy name)
   set_target_properties(
     ${name}

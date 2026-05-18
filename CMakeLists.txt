@@ -65,51 +65,6 @@ include(GNUInstallDirs)
 # Use fixed name instead of absolute path for reproducible builds
 add_compile_options("-ffile-prefix-map=${CCF_DIR}=CCF")
 
-if(CCF_ENABLE_RELEASE_HARDENING)
-  include(CheckCompilerFlag)
-  include(CheckLinkerFlag)
-
-  set(
-    CCF_RELEASE_CONFIGURATION
-    "$<OR:$<CONFIG:Release>,$<CONFIG:RelWithDebInfo>,$<CONFIG:MinSizeRel>>"
-  )
-
-  # _FORTIFY_SOURCE only has an effect with optimisation enabled, so these
-  # options are limited to CCF's optimised release configurations.
-  foreach(LANG C CXX)
-    foreach(
-      FLAG
-      IN
-      ITEMS
-        "-fstack-protector-strong"
-        "-D_FORTIFY_SOURCE=2"
-        "-fstack-clash-protection"
-    )
-      string(MAKE_C_IDENTIFIER "${LANG}_${FLAG}" FLAG_ID)
-      check_compiler_flag(${LANG} "${FLAG}" CCF_${FLAG_ID}_SUPPORTED)
-      if(CCF_${FLAG_ID}_SUPPORTED)
-        message(STATUS "Enabling ${FLAG} for ${LANG} release builds")
-        add_compile_options(
-          "$<$<AND:${CCF_RELEASE_CONFIGURATION},$<COMPILE_LANGUAGE:${LANG}>>:${FLAG}>"
-        )
-      endif()
-    endforeach()
-  endforeach()
-
-  foreach(LANG C CXX)
-    foreach(FLAG IN ITEMS "LINKER:-z,relro" "LINKER:-z,now")
-      string(MAKE_C_IDENTIFIER "${LANG}_${FLAG}" FLAG_ID)
-      check_linker_flag(${LANG} "${FLAG}" CCF_${FLAG_ID}_SUPPORTED)
-      if(CCF_${FLAG_ID}_SUPPORTED)
-        message(STATUS "Enabling ${FLAG} for ${LANG} release links")
-        add_link_options(
-          "$<$<AND:${CCF_RELEASE_CONFIGURATION},$<LINK_LANGUAGE:${LANG}>>:${FLAG}>"
-        )
-      endif()
-    endforeach()
-  endforeach()
-endif()
-
 # In Debug builds, export symbols to the dynamic symbol table so that
 # backtrace_symbols can resolve function names in stacktraces, and preserve
 # frame pointers so that backtrace() can walk the full call stack.
@@ -277,6 +232,7 @@ target_include_directories(ccf_launcher PRIVATE ${CCF_GENERATED_DIR})
 # HTTP parser
 add_library(http_parser "${HTTP_PARSER_SOURCES}")
 set_property(TARGET http_parser PROPERTY POSITION_INDEPENDENT_CODE ON)
+add_hardening(http_parser)
 install(TARGETS http_parser EXPORT ccf DESTINATION lib)
 
 # CCF platform agnostic library
@@ -561,6 +517,7 @@ target_link_libraries(
   verify_uvm_attestation_and_endorsements
   PRIVATE ccf_pal ccf
 )
+add_hardening(verify_uvm_attestation_and_endorsements)
 install(TARGETS verify_uvm_attestation_and_endorsements DESTINATION bin)
 
 # SNP attestation fetching and verification binary
@@ -572,6 +529,7 @@ target_link_libraries(
   verify_attestation
   PRIVATE ccf_pal ccf_tasks uv curl http_parser
 )
+add_hardening(verify_attestation)
 install(TARGETS verify_attestation DESTINATION bin)
 
 if(BUILD_TESTS)
@@ -1498,4 +1456,5 @@ install(
 # Perf tool executable (requires Arrow/Parquet, not compatible with GLIBCXX_DEBUG)
 if(NOT GLIBCXX_DEBUG)
   include(${CCF_DIR}/tests/perf-system/submitter/CMakeLists.txt)
+  add_hardening(submit)
 endif()
