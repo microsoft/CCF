@@ -1,9 +1,4 @@
 {
-  "enclave": {
-    "file": "/opt/ccf_virtual/lib/libjs_generic.virtual.so",
-    "type": "Virtual",
-    "platform": "Virtual"
-  },
   "network": {
     "node_to_node_interface": { "bind_address": "127.0.0.1:8081" },
     "rpc_interfaces": {
