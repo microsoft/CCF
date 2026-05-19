@@ -1071,7 +1071,7 @@ class Network:
         # Note: Should be called on stopped service
         # 1. A node's ledger history will be contiguous from its startup seqno onwards
         # 2. If two committed chunks start at the same point in the ledger they are identical
-        # 3. Across the network, there is a single contiguous history of committed chunks
+        # 3. Across the network, there is a single history of committed chunks
 
         if nodes is None:
             nodes = self.nodes
@@ -1228,7 +1228,8 @@ class Network:
                     ), f"Mismatched contents in committed ledger chunk with same start index at {prev} and {curr}"
                 prev = curr
 
-            # 3. Across the network there is a single contiguous history of committed chunks
+            # 3. Across the network there is a single history of committed chunks
+            #    Gaps within that history are possible
             prev = all_committed_chunks[0][0]
             for curr, _ in all_committed_chunks[1:]:
                 prev_range = ccf.ledger.get_range_from_file(prev)
@@ -1239,8 +1240,8 @@ class Network:
                     prev_range[1] is not None
                 ), f"Committed ledger chunk {prev} is incomplete"
                 assert (
-                    prev_range[1] + 1 == curr_range[0]
-                ), f"Ledger is non-contiguous: {curr} does not follow {prev}"
+                    prev_range[1] + 1 <= curr_range[0]
+                ), f"Ledger is inconsistent: {curr} starts within {prev}"
                 prev = curr
 
     def check_ledger_files_chunk_flags(self):
