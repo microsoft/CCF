@@ -902,7 +902,7 @@ namespace asynchost
             return idx >= f->get_start_idx();
           });
 
-        if (f != files.rend())
+        if (f != files.rend() && idx <= (*f)->get_last_idx())
         {
           return *f;
         }
@@ -1500,18 +1500,54 @@ namespace asynchost
       return last_idx;
     }
 
-    void truncate(size_t idx)
+    void truncate(size_t idx, bool recovery_mode = false)
     {
       TimeBoundLogger log_if_slow(fmt::format("Truncating ledger at {}", idx));
 
       std::unique_lock<ccf::pal::Mutex> guard(state_lock);
 
-      LOG_DEBUG_FMT("Ledger truncate: {}/{}", idx, last_idx);
+      LOG_DEBUG_FMT(
+        "Ledger truncate: {}/{} [recovery: {}]", idx, last_idx, recovery_mode);
 
-      // Conservative check to avoid truncating to future indices, or dropping
-      // committed entries. If the ledger is being initialised from a snapshot
-      // alone, the first truncation effectively sets the last index.
-      if (last_idx != 0 && (idx >= last_idx || idx < committed_idx))
+      // Conservative check to avoid dropping committed entries.
+      if (last_idx != 0 && idx < committed_idx)
+      {
+        LOG_DEBUG_FMT(
+          "Ignoring truncate to {} - last_idx: {}, committed_idx: {}",
+          idx,
+          last_idx,
+          committed_idx);
+        return;
+      }
+
+      // During recovery, a snapshot can be at or after the current end of the
+      // host ledger. Establish the recovered snapshot boundary without running
+      // the file-level truncation path, which assumes the target index exists
+      // in the local ledger.
+      if (recovery_mode && idx >= last_idx)
+      {
+        recovery_start_idx = idx;
+
+        if (idx > committed_idx)
+        {
+          committed_idx = idx;
+        }
+
+        auto file = get_latest_file();
+        if (file != nullptr)
+        {
+          file->complete();
+        }
+        use_existing_files = false;
+        last_idx_on_init.reset();
+        last_idx = idx;
+        return;
+      }
+
+      // Conservative check to avoid truncating to future indices. If the
+      // ledger is being initialised from a snapshot alone, the first truncation
+      // effectively sets the last index.
+      if (last_idx != 0 && idx >= last_idx)
       {
         LOG_DEBUG_FMT(
           "Ignoring truncate to {} - last_idx: {}, committed_idx: {}",
@@ -1732,7 +1768,7 @@ namespace asynchost
         [this](const uint8_t* data, size_t size) {
           auto idx = serialized::read<::consensus::Index>(data, size);
           auto recovery_mode = serialized::read<bool>(data, size);
-          truncate(idx);
+          truncate(idx, recovery_mode);
           if (recovery_mode)
           {
             set_recovery_start_idx(idx);

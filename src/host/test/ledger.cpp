@@ -1736,6 +1736,108 @@ TEST_CASE("Recovery")
   size_t chunk_threshold = 30;
   size_t entries_per_chunk = get_entries_per_chunk(chunk_threshold);
 
+  SUBCASE("Future non-recovery truncate remains a no-op")
+  {
+    Ledger ledger(ledger_dir, wf);
+    TestEntrySubmitter entry_submitter(ledger, chunk_threshold);
+
+    entry_submitter.write(true);
+    const auto last_idx = ledger.get_last_idx();
+
+    ledger.truncate(last_idx + 4);
+    REQUIRE(ledger.get_last_idx() == last_idx);
+
+    entry_submitter.write(true);
+    REQUIRE(ledger.get_last_idx() == last_idx + 1);
+    REQUIRE(number_of_recovery_files_in_ledger_dir() == 0);
+  }
+
+  SUBCASE("Recovery truncate beyond ledger end positions recovery writes")
+  {
+    Ledger ledger(ledger_dir, wf);
+    TestEntrySubmitter entry_submitter(ledger, chunk_threshold);
+
+    entry_submitter.write(true);
+    const auto recovery_idx = ledger.get_last_idx() + 4;
+
+    ledger.truncate(recovery_idx, true);
+    REQUIRE(ledger.get_last_idx() == recovery_idx);
+
+    TestEntrySubmitter recovery_submitter(
+      ledger, chunk_threshold, recovery_idx);
+    recovery_submitter.write(true);
+
+    REQUIRE(ledger.get_last_idx() == recovery_idx + 1);
+    REQUIRE(number_of_recovery_files_in_ledger_dir() == 1);
+    read_entry_from_ledger(ledger, recovery_idx + 1);
+  }
+
+  SUBCASE("Recovery truncate beyond empty ledger end positions recovery writes")
+  {
+    Ledger ledger(ledger_dir, wf);
+    const auto recovery_idx = 5;
+
+    ledger.truncate(recovery_idx, true);
+    REQUIRE(ledger.get_last_idx() == recovery_idx);
+
+    ledger.truncate(recovery_idx - 1);
+    REQUIRE(ledger.get_last_idx() == recovery_idx);
+
+    TestEntrySubmitter recovery_submitter(
+      ledger, chunk_threshold, recovery_idx);
+    recovery_submitter.write(true);
+
+    REQUIRE(ledger.get_last_idx() == recovery_idx + 1);
+    REQUIRE(number_of_recovery_files_in_ledger_dir() == 1);
+    read_entry_from_ledger(ledger, recovery_idx + 1);
+  }
+
+  SUBCASE("Recovery truncate at ledger end positions recovery writes")
+  {
+    Ledger ledger(ledger_dir, wf);
+    TestEntrySubmitter entry_submitter(ledger, chunk_threshold);
+
+    entry_submitter.write(true);
+    const auto recovery_idx = ledger.get_last_idx();
+
+    ledger.truncate(recovery_idx, true);
+    REQUIRE(ledger.get_last_idx() == recovery_idx);
+    read_entry_from_ledger(ledger, recovery_idx);
+
+    entry_submitter.write(true);
+
+    REQUIRE(ledger.get_last_idx() == recovery_idx + 1);
+    REQUIRE(number_of_recovery_files_in_ledger_dir() == 1);
+    read_entry_from_ledger(ledger, recovery_idx + 1);
+  }
+
+  SUBCASE("Recovery truncate inside ledger positions recovery writes")
+  {
+    Ledger ledger(ledger_dir, wf);
+    TestEntrySubmitter entry_submitter(ledger, chunk_threshold);
+
+    for (size_t i = 0; i < 5; ++i)
+    {
+      entry_submitter.write(true);
+    }
+
+    const auto recovery_idx = ledger.get_last_idx() - 2;
+    ledger.truncate(recovery_idx, true);
+    REQUIRE(ledger.get_last_idx() == recovery_idx);
+
+    ledger.truncate(recovery_idx - 1);
+    REQUIRE(ledger.get_last_idx() == recovery_idx);
+    read_entry_from_ledger(ledger, recovery_idx);
+
+    TestEntrySubmitter recovery_submitter(
+      ledger, chunk_threshold, recovery_idx);
+    recovery_submitter.write(true);
+
+    REQUIRE(ledger.get_last_idx() == recovery_idx + 1);
+    REQUIRE(number_of_recovery_files_in_ledger_dir() == 1);
+    read_entry_from_ledger(ledger, recovery_idx + 1);
+  }
+
   SUBCASE("Enable and complete recovery")
   {
     Ledger ledger(ledger_dir, wf);
