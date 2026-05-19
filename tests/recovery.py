@@ -770,7 +770,6 @@ def test_recover_service_aborted(network, args, from_snapshot=False):
     # We've deliberately terminated mid-recovery, when it is likely that some nodes still have local-only .recovery files.
     aborted_network.stop_all_nodes(
         skip_verification=True,
-        allow_recovery=True,
         check_file_invariants=False,
     )
 
