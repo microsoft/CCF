@@ -765,7 +765,8 @@ class CCFRemote(object):
 
     def ledger_paths(self):
         return [
-            path for path in [self.current_ledger_path(), *self.read_only_ledger_paths()]
+            path
+            for path in [self.current_ledger_path(), *self.read_only_ledger_paths()]
             if os.path.exists(path)
         ]
 

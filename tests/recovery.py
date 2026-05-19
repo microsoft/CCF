@@ -864,7 +864,10 @@ def run_recover_service_from_files(
         ), f"Could not copy {file} to {new_common}"
 
     with infra.network.network(
-        args.nodes, args.binary_dir, skip_verify_chunking=True, check_file_invariants=False
+        args.nodes,
+        args.binary_dir,
+        skip_verify_chunking=True,
+        check_file_invariants=False,
     ) as network:
 
         args.previous_service_identity_file = os.path.join(
