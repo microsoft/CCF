@@ -2787,6 +2787,7 @@ def run_recovery_decision_protocol_multiple_timeout(const_args):
             recovery_args.binary_dir,
             recovery_args.debug_nodes,
             existing_network=network,
+            check_file_invariants=False,
         ) as recovered_network:
             recovered_network.start_in_recovery_decision_protocol(
                 recovery_args,
