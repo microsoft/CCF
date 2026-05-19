@@ -1,56 +1,40 @@
-# Frozen snapshot of CI e2e test bucket membership. Edited by
-# scripts/test-buckets-checks.sh; do not hand-edit.
-#
-# Unit tests are not listed: they are selected with `ctest -L unit` and
-# don't need explicit bucketing. Anything labeled `unit` is excluded from
-# the no_bucket: section below.
-#
-# Buckets are assigned via add_e2e_test BUCKET (cmake/common.cmake) and
-# consumed by .github/workflows/ci.yml as -L bucket_a/b/c.
-#
-# Snapshot is for the default CMake config (no LONG_TESTS, SAN, COVERAGE,
-# CLIENT_PROTOCOLS_TEST). Tests gated by those flags do not appear here.
-#
-# To regenerate after an intentional change:
-#   ./scripts/test-buckets-checks.sh -f
-
 bucket_a:
   lts_compatibility
 
 bucket_b:
-  nodes_test
   recovery_test
   schema_test
+  nodes_test
 
 bucket_c:
-  auth
-  code_update_test
-  e2e_limits
-  e2e_logging
-  e2e_logging_http2
-  e2e_redirects
+  raft_scenario_test
+  versionifier_test
   github_version_lts_test
-  governance_test
   js_batched_stress_test
   modules_test
+  auth
+  governance_test
+  code_update_test
+  e2e_logging
   programmability_and_jwt
-  raft_scenario_test
+  e2e_limits
+  e2e_redirects
+  e2e_logging_http2
   tls_stress_test
-  versionifier_test
 
 no_bucket:
-  cose_bench
-  crypto_bench
-  full_test_suite
-  hash_bench
-  history_bench
-  json_bench
-  kv_bench
-  logger_bench
   map_bench
-  merkle_bench
-  reconfiguration_test_suite
-  recovery_test_suite
+  logger_bench
+  json_bench
   ring_buffer_bench
+  crypto_bench
+  cose_bench
+  history_bench
+  kv_bench
+  merkle_bench
+  hash_bench
   task_bench
+  recovery_test_suite
+  reconfiguration_test_suite
+  full_test_suite
 
