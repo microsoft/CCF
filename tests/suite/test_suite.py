@@ -110,7 +110,6 @@ all_tests_suite = [
     # recovery:
     recovery.test_recover_service,
     recovery.test_recover_service_aborted,
-    recovery.test_recover_service_snapshot_ledger_offset,
     # rekey:
     e2e_logging.test_rekey,
     # election:

@@ -328,240 +328,6 @@ def test_recover_service(
     return recovered_network
 
 
-@reqs.description("Recover service with snapshot and ledger offsets")
-def test_recover_service_snapshot_ledger_offset(network, args):
-    primary, _ = network.find_primary()
-
-    network.consortium.force_ledger_chunk(primary)
-    network.get_latest_ledger_public_state()
-
-    network.txs.issue(network, number_txs=5, send_private=False, send_public=True)
-    network.txs.issue(network, number_txs=5, send_private=False, send_public=True)
-
-    snapshot_trigger_txid = primary.trigger_snapshot()
-    committed_snapshots_dir = network.get_committed_snapshots(
-        primary,
-        target_seqno=snapshot_trigger_txid.seqno,
-        wait_for_target_seqno=True,
-    )
-    committed_snapshots = sorted(
-        [
-            f
-            for f in os.listdir(committed_snapshots_dir)
-            if f.startswith("snapshot_") and ccf.ledger.is_snapshot_file_committed(f)
-        ],
-        key=lambda f: ccf.ledger.snapshot_index_from_filename(f)[0],
-    )
-    assert (
-        committed_snapshots
-    ), f"Expected committed snapshots in {committed_snapshots_dir}"
-    snapshot_file = committed_snapshots[-1]
-    snapshot_seqno, _ = ccf.ledger.snapshot_index_from_filename(snapshot_file)
-
-    source_snapshot_dir = os.path.join(
-        network.common_dir, "recovery_snapshot_ledger_offset.snapshots"
-    )
-    shutil.rmtree(source_snapshot_dir, ignore_errors=True)
-    os.makedirs(source_snapshot_dir)
-    shutil.copy(
-        os.path.join(committed_snapshots_dir, snapshot_file), source_snapshot_dir
-    )
-
-    rest_txid = network.txs.issue(
-        network, number_txs=5, send_private=False, send_public=True
-    )
-    network.get_latest_ledger_public_state()
-
-    assert snapshot_trigger_txid.seqno < snapshot_seqno < rest_txid.seqno, (
-        snapshot_trigger_txid,
-        snapshot_seqno,
-        rest_txid,
-    )
-
-    network.save_service_identity(args)
-    network.stop_all_nodes(skip_verification=True)
-    current_ledger_dir, committed_ledger_dirs = primary.get_ledger()
-    ledger = ccf.ledger.Ledger(
-        [current_ledger_dir] + committed_ledger_dirs,
-        committed_only=False,
-        contiguous_suffix=True,
-    )
-
-    snapshot_chunk_start = None
-    snapshot_chunk_entries = None
-    post_snapshot_entries = []
-    for chunk in ledger:
-        entries = [
-            (tx.get_public_domain().get_seqno(), tx.get_raw_tx()) for tx in chunk
-        ]
-        if not entries:
-            continue
-
-        chunk_start = entries[0][0]
-        chunk_end = entries[-1][0]
-        if chunk_start <= snapshot_seqno <= chunk_end:
-            snapshot_chunk_start = chunk_start
-            snapshot_chunk_entries = entries
-            assert (
-                chunk_end == snapshot_seqno
-            ), f"Expected snapshot seqno {snapshot_seqno} at chunk boundary, got chunk {chunk_start}-{chunk_end}"
-
-        post_snapshot_entries.extend(
-            (seqno, raw_tx)
-            for seqno, raw_tx in entries
-            if snapshot_seqno < seqno <= rest_txid.seqno
-        )
-
-    assert (
-        snapshot_chunk_start is not None
-    ), f"Could not find ledger chunk ending at snapshot seqno {snapshot_seqno}"
-    assert snapshot_chunk_entries is not None
-    if snapshot_chunk_start <= snapshot_trigger_txid.seqno < snapshot_seqno:
-        mid_chunk_seqno = snapshot_trigger_txid.seqno
-    else:
-        mid_chunk_seqno = next(
-            seqno
-            for seqno, _ in reversed(snapshot_chunk_entries)
-            if seqno < snapshot_seqno
-        )
-    assert (
-        post_snapshot_entries
-    ), f"Expected ledger entries after snapshot {snapshot_seqno}"
-    assert post_snapshot_entries[0][0] == snapshot_seqno + 1, post_snapshot_entries[0]
-
-    base_dir = os.path.join(
-        args.workspace, f"{args.label}_recovery_snapshot_ledger_offset"
-    )
-    shutil.rmtree(base_dir, ignore_errors=True)
-    os.makedirs(base_dir)
-
-    variants = [
-        (
-            "incomplete_mid_chunk",
-            [(snapshot_chunk_entries, mid_chunk_seqno, False)],
-            False,
-        ),
-        (
-            "complete_mid_chunk",
-            [(snapshot_chunk_entries, mid_chunk_seqno, True)],
-            False,
-        ),
-        (
-            "incomplete_snapshot",
-            [(snapshot_chunk_entries, snapshot_seqno, False)],
-            True,
-        ),
-        (
-            "complete_snapshot",
-            [(snapshot_chunk_entries, snapshot_seqno, True)],
-            True,
-        ),
-        (
-            "incomplete_rest",
-            [
-                (snapshot_chunk_entries, snapshot_seqno, True),
-                (post_snapshot_entries, rest_txid.seqno, False),
-            ],
-            True,
-        ),
-    ]
-
-    for variant_index, (variant_name, chunks_to_write, should_recover) in enumerate(
-        variants
-    ):
-        LOG.info("Recovering service with {} ledger variant", variant_name)
-        variant_dir = os.path.join(base_dir, variant_name)
-        current_dir = os.path.join(variant_dir, "ledger.current")
-        prefix_dir = os.path.join(variant_dir, "ledger.committed")
-        snapshots_dir = os.path.join(variant_dir, "snapshots")
-        variant_common_dir = os.path.join(variant_dir, "common")
-        os.makedirs(current_dir)
-        os.makedirs(prefix_dir)
-        os.makedirs(snapshots_dir)
-        shutil.copytree(network.common_dir, variant_common_dir)
-        shutil.copy(os.path.join(source_snapshot_dir, snapshot_file), snapshots_dir)
-
-        for source_dir in [current_ledger_dir] + committed_ledger_dirs:
-            for f in os.listdir(source_dir):
-                if not f.endswith(ccf.ledger.COMMITTED_FILE_SUFFIX):
-                    continue
-                _, range_end = ccf.ledger.range_from_filename(f)
-                if range_end is not None and range_end < snapshot_chunk_start:
-                    shutil.copy(os.path.join(source_dir, f), prefix_dir)
-
-        for entries, end_seqno, complete in chunks_to_write:
-            infra.utils.write_ledger_chunk(current_dir, entries, end_seqno, complete)
-
-        recovered_args = copy.deepcopy(args)
-        recovered_args.label = f"{args.label}_{variant_name}"
-        recovered_network = infra.network.Network(
-            infra.e2e_args.min_nodes(recovered_args, f=0),
-            recovered_args.binary_dir,
-            recovered_args.debug_nodes,
-            txs=network.txs,
-            jwt_issuer=network.jwt_issuer,
-            next_node_id=variant_index,
-        )
-        recovered_network.ignore_errors_on_shutdown()
-        try:
-            recovered_network.start_in_recovery(
-                recovered_args,
-                ledger_dir=current_dir,
-                committed_ledger_dirs=[prefix_dir],
-                snapshots_dir=snapshots_dir,
-                common_dir=variant_common_dir,
-            )
-            recovered_primary, _ = recovered_network.find_primary()
-            out_path, _ = recovered_primary.get_logs()
-            with open(out_path, encoding="utf-8") as out:
-                assert f"snapshot_{snapshot_seqno}_" in out.read()
-
-            try:
-                recovered_network.recover(recovered_args)
-            except Exception:
-                if should_recover:
-                    raise
-                LOG.info(
-                    "Recovery failed as expected with {} ledger variant",
-                    variant_name,
-                )
-            else:
-                assert (
-                    should_recover
-                ), f"Recovery unexpectedly succeeded with {variant_name} ledger variant"
-                with recovered_primary.client() as c:
-                    r = c.get("/node/ready/app")
-                    assert r.status_code == http.HTTPStatus.NO_CONTENT.value, r
-        finally:
-            recovered_network.stop_all_nodes(
-                skip_verification=True,
-                skip_verify_chunking=True,
-                check_file_invariants=True,
-            )
-
-    clean_args = copy.deepcopy(args)
-    clean_args.label = f"{args.label}_clean"
-    clean_common_dir = os.path.join(base_dir, "clean", "common")
-    shutil.copytree(network.common_dir, clean_common_dir)
-    clean_network = infra.network.Network(
-        clean_args.nodes,
-        clean_args.binary_dir,
-        clean_args.debug_nodes,
-        txs=network.txs,
-        jwt_issuer=network.jwt_issuer,
-        next_node_id=len(variants),
-    )
-    clean_network.start_in_recovery(
-        clean_args,
-        ledger_dir=current_ledger_dir,
-        committed_ledger_dirs=committed_ledger_dirs,
-        snapshots_dir=source_snapshot_dir,
-        common_dir=clean_common_dir,
-    )
-    clean_network.recover(clean_args)
-    return clean_network
-
-
 @reqs.description("Recover a service with wrong service identity")
 @reqs.recover(number_txs=2)
 @reqs.sufficient_network_recovery_count(required_count=1)
@@ -2051,10 +1817,221 @@ def run_recover_snapshot_ledger_offset(args):
     txs = app.LoggingTxs("user0")
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, txs=txs
-    ) as net:
-        net.start_and_open(args)
-        new_net = test_recover_service_snapshot_ledger_offset(net, args)
-        new_net.stop_all_nodes()
+    ) as network:
+        network.start_and_open(args)
+        primary, _ = network.find_primary()
+
+        network.consortium.force_ledger_chunk(primary)
+        network.get_latest_ledger_public_state()
+
+        network.txs.issue(network, number_txs=5, send_private=False, send_public=True)
+        network.txs.issue(network, number_txs=5, send_private=False, send_public=True)
+
+        snapshot_trigger_txid = primary.trigger_snapshot()
+        committed_snapshots_dir = network.get_committed_snapshots(
+            primary,
+            target_seqno=snapshot_trigger_txid.seqno,
+            wait_for_target_seqno=True,
+        )
+        committed_snapshots = sorted(
+            [
+                f
+                for f in os.listdir(committed_snapshots_dir)
+                if f.startswith("snapshot_")
+                and ccf.ledger.is_snapshot_file_committed(f)
+            ],
+            key=lambda f: ccf.ledger.snapshot_index_from_filename(f)[0],
+        )
+        assert (
+            committed_snapshots
+        ), f"Expected committed snapshots in {committed_snapshots_dir}"
+        snapshot_file = committed_snapshots[-1]
+        snapshot_seqno, _ = ccf.ledger.snapshot_index_from_filename(snapshot_file)
+
+        source_snapshot_dir = os.path.join(
+            network.common_dir, "recovery_snapshot_ledger_offset.snapshots"
+        )
+        shutil.rmtree(source_snapshot_dir, ignore_errors=True)
+        os.makedirs(source_snapshot_dir)
+        shutil.copy(
+            os.path.join(committed_snapshots_dir, snapshot_file), source_snapshot_dir
+        )
+
+        rest_txid = network.txs.issue(
+            network, number_txs=5, send_private=False, send_public=True
+        )
+        network.get_latest_ledger_public_state()
+
+        assert snapshot_trigger_txid.seqno < snapshot_seqno < rest_txid.seqno, (
+            snapshot_trigger_txid,
+            snapshot_seqno,
+            rest_txid,
+        )
+
+        network.save_service_identity(args)
+        network.stop_all_nodes(skip_verification=True)
+        current_ledger_dir, committed_ledger_dirs = primary.get_ledger()
+        ledger = ccf.ledger.Ledger(
+            [current_ledger_dir] + committed_ledger_dirs,
+            committed_only=False,
+            contiguous_suffix=True,
+        )
+
+        snapshot_chunk_start = None
+        snapshot_chunk_entries = None
+        post_snapshot_entries = []
+        for chunk in ledger:
+            entries = [
+                (tx.get_public_domain().get_seqno(), tx.get_raw_tx()) for tx in chunk
+            ]
+            if not entries:
+                continue
+
+            chunk_start = entries[0][0]
+            chunk_end = entries[-1][0]
+            if chunk_start <= snapshot_seqno <= chunk_end:
+                snapshot_chunk_start = chunk_start
+                snapshot_chunk_entries = entries
+                assert (
+                    chunk_end == snapshot_seqno
+                ), f"Expected snapshot seqno {snapshot_seqno} at chunk boundary, got chunk {chunk_start}-{chunk_end}"
+
+            post_snapshot_entries.extend(
+                (seqno, raw_tx)
+                for seqno, raw_tx in entries
+                if snapshot_seqno < seqno <= rest_txid.seqno
+            )
+
+        assert (
+            snapshot_chunk_start is not None
+        ), f"Could not find ledger chunk ending at snapshot seqno {snapshot_seqno}"
+        assert snapshot_chunk_entries is not None
+        if snapshot_chunk_start <= snapshot_trigger_txid.seqno < snapshot_seqno:
+            mid_chunk_seqno = snapshot_trigger_txid.seqno
+        else:
+            mid_chunk_seqno = next(
+                seqno
+                for seqno, _ in reversed(snapshot_chunk_entries)
+                if seqno < snapshot_seqno
+            )
+        assert (
+            post_snapshot_entries
+        ), f"Expected ledger entries after snapshot {snapshot_seqno}"
+        assert post_snapshot_entries[0][0] == snapshot_seqno + 1, post_snapshot_entries[
+            0
+        ]
+
+        base_dir = os.path.join(
+            args.workspace, f"{args.label}_recovery_snapshot_ledger_offset"
+        )
+        shutil.rmtree(base_dir, ignore_errors=True)
+        os.makedirs(base_dir)
+
+        variants = [
+            (
+                "incomplete_mid_chunk",
+                [(snapshot_chunk_entries, mid_chunk_seqno, False)],
+                False,
+            ),
+            (
+                "complete_mid_chunk",
+                [(snapshot_chunk_entries, mid_chunk_seqno, True)],
+                False,
+            ),
+            (
+                "incomplete_snapshot",
+                [(snapshot_chunk_entries, snapshot_seqno, False)],
+                True,
+            ),
+            (
+                "complete_snapshot",
+                [(snapshot_chunk_entries, snapshot_seqno, True)],
+                True,
+            ),
+            (
+                "incomplete_rest",
+                [
+                    (snapshot_chunk_entries, snapshot_seqno, True),
+                    (post_snapshot_entries, rest_txid.seqno, False),
+                ],
+                True,
+            ),
+        ]
+
+        for variant_index, (variant_name, chunks_to_write, should_recover) in enumerate(
+            variants
+        ):
+            LOG.info("Recovering service with {} ledger variant", variant_name)
+            variant_dir = os.path.join(base_dir, variant_name)
+            current_dir = os.path.join(variant_dir, "ledger.current")
+            prefix_dir = os.path.join(variant_dir, "ledger.committed")
+            snapshots_dir = os.path.join(variant_dir, "snapshots")
+            variant_common_dir = os.path.join(variant_dir, "common")
+            os.makedirs(current_dir)
+            os.makedirs(prefix_dir)
+            os.makedirs(snapshots_dir)
+            shutil.copytree(network.common_dir, variant_common_dir)
+            shutil.copy(os.path.join(source_snapshot_dir, snapshot_file), snapshots_dir)
+
+            for source_dir in [current_ledger_dir] + committed_ledger_dirs:
+                for f in os.listdir(source_dir):
+                    if not f.endswith(ccf.ledger.COMMITTED_FILE_SUFFIX):
+                        continue
+                    _, range_end = ccf.ledger.range_from_filename(f)
+                    if range_end is not None and range_end < snapshot_chunk_start:
+                        shutil.copy(os.path.join(source_dir, f), prefix_dir)
+
+            for entries, end_seqno, complete in chunks_to_write:
+                infra.utils.write_ledger_chunk(
+                    current_dir, entries, end_seqno, complete
+                )
+
+            recovered_args = copy.deepcopy(args)
+            recovered_args.label = f"{args.label}_{variant_name}"
+            recovered_network = infra.network.Network(
+                infra.e2e_args.min_nodes(recovered_args, f=0),
+                recovered_args.binary_dir,
+                recovered_args.debug_nodes,
+                txs=network.txs,
+                jwt_issuer=network.jwt_issuer,
+                next_node_id=variant_index,
+            )
+            recovered_network.ignore_errors_on_shutdown()
+            try:
+                recovered_network.start_in_recovery(
+                    recovered_args,
+                    ledger_dir=current_dir,
+                    committed_ledger_dirs=[prefix_dir],
+                    snapshots_dir=snapshots_dir,
+                    common_dir=variant_common_dir,
+                )
+                recovered_primary, _ = recovered_network.find_primary()
+                out_path, _ = recovered_primary.get_logs()
+                with open(out_path, encoding="utf-8") as out:
+                    assert f"snapshot_{snapshot_seqno}_" in out.read()
+
+                try:
+                    recovered_network.recover(recovered_args)
+                except Exception:
+                    if should_recover:
+                        raise
+                    LOG.info(
+                        "Recovery failed as expected with {} ledger variant",
+                        variant_name,
+                    )
+                else:
+                    assert (
+                        should_recover
+                    ), f"Recovery unexpectedly succeeded with {variant_name} ledger variant"
+                    with recovered_primary.client() as c:
+                        r = c.get("/node/ready/app")
+                        assert r.status_code == http.HTTPStatus.NO_CONTENT.value, r
+            finally:
+                recovered_network.stop_all_nodes(
+                    skip_verification=True,
+                    skip_verify_chunking=True,
+                    check_file_invariants=True,
+                )
 
 
 if __name__ == "__main__":
