@@ -1950,9 +1950,7 @@ def run_recover_snapshot_ledger_offset(args):
             ),
         ]
 
-        for variant_index, (variant_name, chunks_to_write) in enumerate(
-            variants
-        ):
+        for variant_index, (variant_name, chunks_to_write) in enumerate(variants):
             LOG.info("Recovering service with {} ledger variant", variant_name)
             variant_dir = os.path.join(base_dir, variant_name)
             current_dir = os.path.join(variant_dir, "ledger.current")
