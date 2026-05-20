@@ -2272,6 +2272,8 @@ class NetworkTestCase(unittest.TestCase):
         cls.args = infra.e2e_args.cli_args(argv=[])
         cls.args.label = cls.label
         cls.args.package = cls.package
+        if not os.path.isabs(cls.args.package):
+            cls.args.package = os.path.join(cls.args.binary_dir, cls.args.package)
         for name, value in cls.resolve_args_overrides(cls.args).items():
             setattr(cls.args, name, value)
 
