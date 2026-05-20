@@ -15,6 +15,7 @@
 #   ./scripts/test-buckets-checks.sh -f
 
 bucket_a:
+  e2e_unittests
   lts_compatibility
 
 bucket_b:

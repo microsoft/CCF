@@ -2261,10 +2261,12 @@ class NetworkTestCase(unittest.TestCase):
         return cls.test_config_overrides(args)
 
     @classmethod
-    def cleanup(cls):
+    def _cleanup(cls):
         if cls._failing_test_id is None:
             cls.network.stop_all_nodes(**cls.success_stop_kwargs)
         else:
+            cls.network.txs = None
+            cls.network.log_stack_traces(timeout=10)
             cls.network.stop_all_nodes(**cls.failure_stop_kwargs)
 
     @classmethod
@@ -2286,7 +2288,7 @@ class NetworkTestCase(unittest.TestCase):
         with infra.network.close_on_error(cls.network, pdb=cls.args.pdb):
             cls.network.start_and_open(cls.args, **cls.start_and_open_kwargs)
         cls._failing_test_id = None
-        cls.addClassCleanup(cls.cleanup)
+        cls.addClassCleanup(cls._cleanup)
 
     # Record traces on exceptions
     def _callTestMethod(self, method):
@@ -2295,10 +2297,13 @@ class NetworkTestCase(unittest.TestCase):
                 f"Skipping test due to previous failure: {type(self)._failing_test_id}"
             )
         try:
-            with infra.network.close_on_error(self.network, pdb=self.args.pdb):
-                return method()
+            return method()
         except unittest.SkipTest:
             raise
-        except BaseException:
+        except Exception:
             type(self)._failing_test_id = self.id()
+            if self.args.pdb:
+                import pdb
+
+                pdb.post_mortem()
             raise

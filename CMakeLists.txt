@@ -1285,7 +1285,7 @@ if(BUILD_TESTS)
   if(BUILD_END_TO_END_TESTS)
     add_test(
       NAME e2e_unittests
-      COMMAND ${PYTHON} -m unittest discover -s ${CMAKE_SOURCE_DIR}/tests
+      COMMAND ${PYTHON} -m unittest discover -s ${CMAKE_SOURCE_DIR}/tests -v
     )
     set_property(
       TEST e2e_unittests
