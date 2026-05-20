@@ -1346,7 +1346,7 @@ class Network:
         LOG.info("All nodes stopped")
         if check_file_invariants:
             self.ledger_files_invariant(**kwargs)
-            self.snapshot_files_invariants()
+            self.snapshot_files_invariants(**kwargs)
 
         if not skip_verify_chunking:
             LOG.info("Verifying ledger chunk flags before shutdown")

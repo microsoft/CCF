@@ -847,7 +847,10 @@ def test_persistence_old_snapshot(network, args):
     new_node_ledger_path = new_node.remote.ledger_paths()[0]
 
     primary, _ = network.find_primary()
-    network.retire_node(primary, new_node)
+    try:
+        network.retire_node(primary, new_node)
+    finally:
+        new_node.stop()
 
     network.stop_all_nodes()
 
