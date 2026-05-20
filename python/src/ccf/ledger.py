@@ -445,7 +445,8 @@ class SimpleBuffer:
 
     @staticmethod
     def from_file(filename):
-        return SimpleBuffer(filename, open(filename, "rb").read())
+        with open(filename, "rb") as f:
+            return SimpleBuffer(filename, f.read())
 
 
 def _byte_read_safe(file: SimpleBuffer, num_of_bytes):
