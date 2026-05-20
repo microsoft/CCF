@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import argparse
+import json
 import os
 import infra.interfaces
 import infra.path
@@ -46,11 +47,26 @@ def default_platform():
     return "virtual"
 
 
+def _load_test_config():
+    config_path = os.getenv("CCF_TEST_CONFIG")
+    if config_path:
+        with open(config_path, encoding="utf-8") as f:
+            return json.load(f)
+
+    config_path = os.path.join(os.getcwd(), "test_config.json")
+    if os.path.isfile(config_path):
+        with open(config_path, encoding="utf-8") as f:
+            return json.load(f)
+
+    return None
+
+
 def cli_args(
     add=lambda x: None,
     parser=None,
     accept_unknown=False,
     ledger_chunk_bytes_override=None,
+    argv=None,
 ):
     LOG.remove()
     LOG.add(
@@ -400,10 +416,20 @@ def cli_args(
     )
     add(parser)
 
+    test_config = _load_test_config()
+    if test_config is not None:
+        config_defaults = {
+            k: v for k, v in test_config.items() if k != "default_constitution"
+        }
+        parser.set_defaults(**config_defaults)
+
     if accept_unknown:
-        args, unknown_args = parser.parse_known_args()
+        args, unknown_args = parser.parse_known_args(argv)
     else:
-        args = parser.parse_args()
+        args = parser.parse_args(argv)
+
+    if test_config is not None and not args.constitution:
+        args.constitution = test_config.get("default_constitution", [])
 
     args.binary_dir = os.path.abspath(args.binary_dir)
 

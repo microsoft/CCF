@@ -112,14 +112,6 @@ function(add_e2e_test)
   if(BUILD_END_TO_END_TESTS)
     set(PYTHON_WRAPPER ${PYTHON})
 
-    # For fast e2e runs, tick node faster than default value (except for
-    # instrumented builds which may process ticks slower).
-    if(SAN)
-      set(NODE_TICK_MS 10)
-    else()
-      set(NODE_TICK_MS 1)
-    endif()
-
     if(NOT PARSED_ARGS_PERF_LABEL)
       set(PARSED_ARGS_PERF_LABEL ${PARSED_ARGS_NAME})
     endif()
