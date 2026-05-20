@@ -17,8 +17,7 @@ import ccf.cose
 import ccf.receipt
 
 # Re-exports for backwards compatibility — these are imported from
-# ``ccf.ledger`` by external callers. ``X as X`` is the PEP 484 explicit
-# re-export form.
+# ``ccf.ledger`` by external callers.
 from ccf.signatures import (
     COSE_SIGNATURE_TX_TABLE_NAME as COSE_SIGNATURE_TX_TABLE_NAME,
     InvalidRootCoseSignatureException as InvalidRootCoseSignatureException,
@@ -26,6 +25,7 @@ from ccf.signatures import (
     InvalidRootSignatureException as InvalidRootSignatureException,
     SIGNATURE_TX_TABLE_NAME as SIGNATURE_TX_TABLE_NAME,
     UntrustedNodeException as UntrustedNodeException,
+    WELL_KNOWN_SINGLETON_TABLE_KEY as WELL_KNOWN_SINGLETON_TABLE_KEY,
     is_signature_transaction as is_signature_transaction,
     parse_classical_signatures as parse_classical_signatures,
     parse_cose_signature as parse_cose_signature,
@@ -54,9 +54,6 @@ SERVICE_INFO_TABLE_NAME = "public:ccf.gov.service.info"
 COMMITTED_FILE_SUFFIX = ".committed"
 RECOVERY_FILE_SUFFIX = ".recovery"
 IGNORED_FILE_SUFFIX = ".ignored"
-
-# Key used by CCF to record single-key tables
-WELL_KNOWN_SINGLETON_TABLE_KEY = bytes(bytearray(8))
 
 SHA256_DIGEST_SIZE = sha256().digest_size
 ENCODED_COSE_SIGN1_TAG = 0xD2
@@ -637,13 +634,6 @@ class LedgerValidator:
                 else:
                     self.node_certificates[node_id] = endorsed_node_cert
 
-        is_signature_tx = is_signature_transaction(tables)
-        if is_signature_tx:
-            self.signature_count += 1
-
-        # Apply any service-info update *before* signature verification so the
-        # COSE branch sees the new service cert if the same tx happens to
-        # carry both (only meaningful at FULL).
         if (
             self.verification_level >= VerificationLevel.FULL
             and SERVICE_INFO_TABLE_NAME in tables
@@ -672,6 +662,10 @@ class LedgerValidator:
                 assert self.service_status is None, self.service_status
             self.service_status = updated_status
             self.service_cert = updated_service_json["cert"]
+
+        is_signature_tx = is_signature_transaction(tables)
+        if is_signature_tx:
+            self.signature_count += 1
 
         if is_signature_tx and self.verification_level >= VerificationLevel.MERKLE:
             if self.verification_level >= VerificationLevel.FULL:

@@ -31,6 +31,9 @@ SIGNATURE_TABLE_NAMES: frozenset[str] = frozenset(
 )
 """All KV table names that carry a ledger-transaction signature."""
 
+WELL_KNOWN_SINGLETON_TABLE_KEY: bytes = bytes(bytearray(8))
+"""Key used by CCF to record entries in single-row KV tables."""
+
 
 def is_signature_transaction(tables: Container[str]) -> bool:
     """Return ``True`` if ``tables`` contains any signature table.
@@ -141,10 +144,6 @@ def parse_cose_signature(tables: Mapping[str, Any]) -> Optional[bytes]:
     cose_table = tables.get(COSE_SIGNATURE_TX_TABLE_NAME)
     if cose_table is None:
         return None
-    # Deferred to break the import cycle: ccf.ledger imports from this module
-    # but owns the generic KV constant.
-    from ccf.ledger import WELL_KNOWN_SINGLETON_TABLE_KEY
-
     raw = cose_table.get(WELL_KNOWN_SINGLETON_TABLE_KEY)
     if raw is None:
         return None
