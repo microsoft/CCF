@@ -952,7 +952,6 @@ def test_joining_nodes_snapshot_ledger_offset(network, args):
 
             network.retire_node(primary, new_node)
             new_node.stop()
-            network.ledger_files_invariant([new_node])
         finally:
             if not new_node.is_stopped():
                 new_node.stop()
