@@ -1282,6 +1282,27 @@ if(BUILD_TESTS)
   )
   set_tests_properties(schema_test PROPERTIES TIMEOUT 900)
 
+  if(BUILD_END_TO_END_TESTS)
+    add_test(
+      NAME e2e_unittests
+      COMMAND ${PYTHON} -m unittest discover -s ${CMAKE_SOURCE_DIR}/tests
+    )
+    set_property(
+      TEST e2e_unittests
+      APPEND
+      PROPERTY ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH}"
+    )
+    set_property(
+      TEST e2e_unittests
+      APPEND
+      PROPERTY ENVIRONMENT "CCF_TEST_CONFIG=${CMAKE_BINARY_DIR}/test_config.json"
+    )
+    set_property(TEST e2e_unittests APPEND PROPERTY LABELS e2e)
+    set_property(TEST e2e_unittests APPEND PROPERTY LABELS e2e_unittest)
+    set_property(TEST e2e_unittests APPEND PROPERTY LABELS bucket_a)
+    add_san_test_properties(e2e_unittests)
+  endif()
+
   add_e2e_test(
     NAME snp_platform_tests
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/amd_snp.py

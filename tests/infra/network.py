@@ -2279,7 +2279,6 @@ class NetworkTestCase(unittest.TestCase):
             cls.args.nodes,
             cls.args.binary_dir,
             cls.args.debug_nodes,
-            pdb=cls.args.pdb,
             **cls.network_kwargs(cls.args),
         )
         with infra.network.close_on_error(cls.network, pdb=cls.args.pdb):

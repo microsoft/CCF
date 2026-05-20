@@ -1,6 +1,6 @@
 import infra.logging_app as app
 import infra
-from tests.e2e_operations import (
+from e2e_operations import (
     test_backup_snapshot_fetch,
     test_backup_snapshot_fetch_max_size,
     test_error_message_on_failure_to_fetch_snapshot,
@@ -17,6 +17,9 @@ class BackupSnapshotDownload(infra.network.NetworkTestCase):
     }
     start_and_open_kwargs = {"backup_snapshot_fetch_enabled": True}
     network_kwargs = lambda _: {"txs": app.LoggingTxs("user0")}
+    success_stop_kwargs = {
+        "skip_verification": True,
+    }
 
     def test_backup_snapshot_fetch(self):
         test_backup_snapshot_fetch(self.network, self.args)
