@@ -5,23 +5,39 @@ import struct
 import os
 from enum import Enum, IntEnum, Flag, auto
 
-from typing import NamedTuple
-
 import json
-import base64
 from dataclasses import dataclass
-import functools
 
 from cryptography.x509 import load_pem_x509_certificate
-from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.backends import default_backend
-from cryptography.exceptions import InvalidSignature
-from cryptography.hazmat.primitives.asymmetric import utils, ec
 
 from ccf.merkletree import MerkleTree
 from ccf.tx_id import TxID
 import ccf.cose
 import ccf.receipt
+
+# Re-exports for backwards compatibility — these are imported from
+# ``ccf.ledger`` by external callers. ``X as X`` is the PEP 484 explicit
+# re-export form.
+from ccf.signatures import (
+    COSE_SIGNATURE_TX_TABLE_NAME as COSE_SIGNATURE_TX_TABLE_NAME,
+    InvalidRootCoseSignatureException as InvalidRootCoseSignatureException,
+    InvalidRootException as InvalidRootException,
+    InvalidRootSignatureException as InvalidRootSignatureException,
+    SIGNATURE_TX_TABLE_NAME as SIGNATURE_TX_TABLE_NAME,
+    UntrustedNodeException as UntrustedNodeException,
+    is_signature_transaction as is_signature_transaction,
+    parse_classical_signatures as parse_classical_signatures,
+    parse_cose_signature as parse_cose_signature,
+)
+
+from ccf.signatures import (
+    spki_from_cert,
+    verify_cose_root_signature,
+    verify_merkle_root,
+    verify_root_signature,
+)
+
 from hashlib import sha256
 
 GCM_SIZE_TAG = 16
@@ -29,9 +45,7 @@ GCM_SIZE_IV = 12
 LEDGER_DOMAIN_SIZE = 8
 LEDGER_HEADER_SIZE = 8
 
-# Public table names as defined in CCF
-SIGNATURE_TX_TABLE_NAME = "public:ccf.internal.signatures"
-COSE_SIGNATURE_TX_TABLE_NAME = "public:ccf.internal.cose_signatures"
+# Public table names as defined in CCF.
 TREE_TABLE_NAME = "public:ccf.internal.tree"
 NODES_TABLE_NAME = "public:ccf.gov.nodes.info"
 ENDORSED_NODE_CERTIFICATES_TABLE_NAME = "public:ccf.gov.nodes.endorsed_certificates"
@@ -137,15 +151,6 @@ def unpack_array(buf, fmt):
         except StopIteration:
             break
     return ret
-
-
-@functools.lru_cache(maxsize=64)
-def spki_from_cert(cert: bytes) -> bytes:
-    cert_obj = load_pem_x509_certificate(cert)
-    return cert_obj.public_key().public_bytes(
-        encoding=serialization.Encoding.DER,
-        format=serialization.PublicFormat.SubjectPublicKeyInfo,
-    )
 
 
 def range_from_filename(filename: str) -> tuple[int, int | None]:
@@ -430,99 +435,7 @@ def _peek_all(file: SimpleBuffer, pos=None):
     return buffer
 
 
-class TxBundleInfo(NamedTuple):
-    """Bundle for transaction information required for validation"""
-
-    merkle_tree: MerkleTree
-    existing_root: bytes
-    node_cert: bytes
-    signature: bytes
-    node_activity: dict
-    signing_node: str
-
-
-class BaseValidator:
-    @staticmethod
-    def _verify_tx_bundle(tx_info: TxBundleInfo):
-        """
-        Verify items 1, 2, and 3 for all the transactions up until a signature.
-        """
-        # 1) The merkle root is signed by a Trusted node in the given network, else throws
-        BaseValidator._verify_node_status(tx_info)
-        # 2) The merkle root and signature are verified with the node cert, else throws
-        BaseValidator._verify_root_signature(
-            tx_info.node_cert, tx_info.existing_root, tx_info.signature
-        )
-        # 3) The merkle root is correct for the set of transactions and matches with the one extracted from the ledger, else throws
-        BaseValidator._verify_merkle_root(tx_info.merkle_tree, tx_info.existing_root)
-
-    @staticmethod
-    def _verify_node_status(tx_info: TxBundleInfo):
-        """Verify item 1, The merkle root is signed by a valid node in the given network"""
-        if tx_info.signing_node not in tx_info.node_activity:
-            raise UntrustedNodeException(
-                f"The signing node {tx_info.signing_node} is not part of the network"
-            )
-        node_info = tx_info.node_activity[tx_info.signing_node]
-        node_status = NodeStatus(node_info[0])
-        # Note: Even nodes that are Retired, and for which retired_committed is True
-        # may be issuing signatures, to ensure the liveness of a reconfiguring
-        # network. They will stop doing so once the transaction that sets retired_committed is itself committed,
-        # but that is unfortunately not observable from the ledger alone.
-        if node_status == NodeStatus.PENDING:
-            raise UntrustedNodeException(
-                f"The signing node {tx_info.signing_node} has unexpected status {node_status.value}"
-            )
-
-    @staticmethod
-    def _verify_root_signature(node_cert: bytes, root: bytes, signature: bytes):
-        """Verify item 2, that the Merkle root signature validates against the node certificate"""
-        try:
-            cert = load_pem_x509_certificate(node_cert)
-            pub_key = cert.public_key()
-
-            assert isinstance(pub_key, ec.EllipticCurvePublicKey)
-            pub_key.verify(
-                signature,
-                root,
-                ec.ECDSA(utils.Prehashed(hashes.SHA256())),
-            )  # type: ignore[override]
-        # This exception is thrown from x509, catch for logging and raise our own
-        except InvalidSignature:
-            raise InvalidRootSignatureException(
-                "Signature verification failed:"
-                + f"\nCertificate: {node_cert.decode()}"
-                + f"\nSignature: {base64.b64encode(signature).decode()}"
-                + f"\nRoot: {root.hex()}"
-            ) from InvalidSignature
-
-    @staticmethod
-    def _verify_root_cose_signature(service_cert, root, cose_sign1):
-        try:
-            ccf.cose.verify_cose_sign1_with_cert(
-                certificate=service_cert.encode("ascii"),
-                cose_sign1=cose_sign1,
-                use_key=True,
-                payload=root,
-            )
-        except Exception as exc:
-            raise InvalidRootCoseSignatureException(
-                "Signature verification failed:"
-                + f"\nCertificate: {service_cert}"
-                + f"\nRoot: {root}"
-            ) from exc
-
-    @staticmethod
-    def _verify_merkle_root(merkletree: MerkleTree, existing_root: bytes):
-        """Verify item 3, by comparing the roots from the merkle tree that's maintained by this class and from the one extracted from the ledger"""
-        root = merkletree.get_merkle_root()
-        if root != existing_root:
-            raise InvalidRootException(
-                f"\nComputed root: {root.hex()} \nExisting root from ledger: {existing_root.hex()}"
-            )
-
-
-class LedgerValidator(BaseValidator):
+class LedgerValidator:
     """
     Ledger Validator contains the logic to verify that the ledger hasn't been tampered with.
     It has the ability to take transactions and it maintains a MerkleTree data structure similar to CCF.
@@ -724,79 +637,13 @@ class LedgerValidator(BaseValidator):
                 else:
                     self.node_certificates[node_id] = endorsed_node_cert
 
-        # This is a merkle root/signature tx if either signature table exists
-        is_signature_tx = (
-            SIGNATURE_TX_TABLE_NAME in tables or COSE_SIGNATURE_TX_TABLE_NAME in tables
-        )
+        is_signature_tx = is_signature_transaction(tables)
         if is_signature_tx:
             self.signature_count += 1
 
-        if SIGNATURE_TX_TABLE_NAME in tables:
-            if self.verification_level >= VerificationLevel.MERKLE:
-                signature_table = tables[SIGNATURE_TX_TABLE_NAME]
-
-                for _, signature in signature_table.items():
-                    signature = json.loads(signature)
-                    current_seqno = signature["seqno"]
-                    current_view = signature["view"]
-                    signing_node = signature["node"]
-
-                    # Get binary representations for the cert, existing root, and signature
-                    existing_root = bytes.fromhex(signature["root"])
-
-                    if self.verification_level >= VerificationLevel.FULL:
-                        # Full verification includes signature validation
-                        cert = self.node_certificates[signing_node]
-                        sig = base64.b64decode(signature["sig"])
-
-                        # Check that key in cert matches that in node table
-                        # when present
-                        if "cert" in signature:
-                            sig_cert = signature["cert"].encode("utf-8")
-                            assert spki_from_cert(cert) == spki_from_cert(
-                                sig_cert
-                            ), f"Mismatch in public key for node {signing_node}"
-
-                        tx_info = TxBundleInfo(
-                            self.merkle,
-                            existing_root,
-                            cert,
-                            sig,
-                            self.node_activity_status,
-                            signing_node,
-                        )
-
-                        # validations for 1, 2 and 3
-                        # throws if ledger validation failed.
-                        self._verify_tx_bundle(tx_info)
-                    else:
-                        # MERKLE level: trust first signature, verify subsequent ones
-                        if not self.first_signature_seen:
-                            # Trust the first signature: reinitialize merkle tree from the mini-tree
-                            # This allows verifying isolated chunks without the full ledger history
-                            if TREE_TABLE_NAME in tables:
-                                tree_table = tables[TREE_TABLE_NAME]
-                                if WELL_KNOWN_SINGLETON_TABLE_KEY in tree_table:
-                                    tree_data = tree_table[
-                                        WELL_KNOWN_SINGLETON_TABLE_KEY
-                                    ]
-                                    # Deserialize the merkle tree from the binary format
-                                    self.merkle = MerkleTree()
-                                    self.merkle.deserialise(tree_data)
-                                    self.first_signature_seen = True
-                            # If no tree table (old ledger format), we cannot do partial
-                            # Merkle verification - first_signature_seen stays False and
-                            # subsequent signatures won't be verified
-                        else:
-                            # Verify subsequent signatures against computed merkle root
-                            BaseValidator._verify_merkle_root(
-                                self.merkle, existing_root
-                            )
-
-                    self.last_verified_seqno = current_seqno
-                    self.last_verified_view = current_view
-
-        # Check service status transitions (only for FULL verification)
+        # Apply any service-info update *before* signature verification so the
+        # COSE branch sees the new service cert if the same tx happens to
+        # carry both (only meaningful at FULL).
         if (
             self.verification_level >= VerificationLevel.FULL
             and SERVICE_INFO_TABLE_NAME in tables
@@ -826,17 +673,61 @@ class LedgerValidator(BaseValidator):
             self.service_status = updated_status
             self.service_cert = updated_service_json["cert"]
 
-        if (
-            self.verification_level >= VerificationLevel.FULL
-            and COSE_SIGNATURE_TX_TABLE_NAME in tables
-        ):
-            cose_signature_table = tables[COSE_SIGNATURE_TX_TABLE_NAME]
-            cose_signature = cose_signature_table.get(WELL_KNOWN_SINGLETON_TABLE_KEY)
-            signature = json.loads(cose_signature)
-            cose_sign1 = base64.b64decode(signature)
-            self._verify_root_cose_signature(
-                self.service_cert, self.merkle.get_merkle_root(), cose_sign1
-            )
+        if is_signature_tx and self.verification_level >= VerificationLevel.MERKLE:
+            if self.verification_level >= VerificationLevel.FULL:
+                verified_count = 0
+
+                for payload in parse_classical_signatures(tables):
+                    self._verify_signing_node_status(payload.signing_node)
+                    cert = self.node_certificates[payload.signing_node]
+                    if payload.embedded_cert is not None:
+                        assert spki_from_cert(cert) == spki_from_cert(
+                            payload.embedded_cert
+                        ), f"Mismatch in public key for node {payload.signing_node}"
+                    verify_root_signature(cert, payload.root, payload.signature)
+                    verify_merkle_root(self.merkle, payload.root)
+                    verified_count += 1
+
+                cose_sign1 = parse_cose_signature(tables)
+                if cose_sign1 is not None:
+                    assert (
+                        self.service_cert is not None
+                    ), "Cannot verify COSE root signature without a known service certificate"
+                    verify_cose_root_signature(
+                        self.service_cert,
+                        self.merkle.get_merkle_root(),
+                        cose_sign1,
+                    )
+                    verified_count += 1
+
+                assert verified_count > 0, (
+                    f"Signature transaction {transaction.gcm_header.view}."
+                    f"{transaction.gcm_header.seqno} contained no verifiable "
+                    "signature blob"
+                )
+
+                self.last_verified_seqno = transaction.gcm_header.seqno
+                self.last_verified_view = transaction.gcm_header.view
+            else:
+                # MERKLE level: classical-only. Seed the running tree from the
+                # embedded mini-tree on the first classical signature, then
+                # check subsequent roots against it.
+                for payload in parse_classical_signatures(tables):
+                    if not self.first_signature_seen:
+                        tree_table = tables.get(TREE_TABLE_NAME)
+                        if (
+                            tree_table is not None
+                            and WELL_KNOWN_SINGLETON_TABLE_KEY in tree_table
+                        ):
+                            tree_data = tree_table[WELL_KNOWN_SINGLETON_TABLE_KEY]
+                            self.merkle = MerkleTree()
+                            self.merkle.deserialise(tree_data)
+                            self.first_signature_seen = True
+                    else:
+                        verify_merkle_root(self.merkle, payload.root)
+
+                    self.last_verified_seqno = payload.seqno
+                    self.last_verified_view = payload.view
 
         # Checks complete, add this transaction to tree (for MERKLE and above)
         if self.verification_level >= VerificationLevel.MERKLE:
@@ -847,6 +738,24 @@ class LedgerValidator(BaseValidator):
                     self.merkle.add_leaf(transaction.get_tx_digest(), False)
             else:
                 self.merkle.add_leaf(transaction.get_tx_digest(), False)
+
+    def _verify_signing_node_status(self, signing_node: str) -> None:
+        """Verify that ``signing_node`` is a known, non-pending member of the network.
+
+        Retired nodes may legitimately still issue signatures to keep a
+        reconfiguring network live until the retirement is committed; only
+        ``Pending`` nodes are rejected here.
+        """
+        if signing_node not in self.node_activity_status:
+            raise UntrustedNodeException(
+                f"The signing node {signing_node} is not part of the network"
+            )
+        node_info = self.node_activity_status[signing_node]
+        node_status = NodeStatus(node_info[0])
+        if node_status == NodeStatus.PENDING:
+            raise UntrustedNodeException(
+                f"The signing node {signing_node} has unexpected status {node_status.value}"
+            )
 
 
 @dataclass
@@ -1480,24 +1389,8 @@ class Ledger:
         return public_tables, latest_seqno
 
 
-class InvalidRootException(Exception):
-    """MerkleTree root doesn't match with the root reported in the signature's table"""
-
-
-class InvalidRootSignatureException(Exception):
-    """Signature of the MerkleRoot doesn't match with the signature that's reported in the signature's table"""
-
-
-class InvalidRootCoseSignatureException(Exception):
-    """COSE signature of the MerkleRoot doesn't pass COSE verification"""
-
-
 class CommitIdRangeException(Exception):
     """Missing ledger chunk in the ledger directory"""
-
-
-class UntrustedNodeException(Exception):
-    """The signing node wasn't part of the network"""
 
 
 class UnknownTransaction(Exception):

@@ -2,6 +2,7 @@
 # Licensed under the Apache 2.0 License.
 
 import ccf.ledger
+import ccf.signatures
 import argparse
 import shutil
 import json
@@ -132,10 +133,7 @@ def visualise(ledger, liner, validator=None):
             view = tx.gcm_header.view
             seqno = tx.gcm_header.seqno
             if not has_private:
-                if (
-                    ccf.ledger.SIGNATURE_TX_TABLE_NAME in public
-                    or ccf.ledger.COSE_SIGNATURE_TX_TABLE_NAME in public
-                ):
+                if ccf.signatures.is_signature_transaction(public):
                     liner.entry("Signature", view, seqno)
                 else:
                     if all(

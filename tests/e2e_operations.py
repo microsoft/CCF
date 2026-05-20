@@ -11,6 +11,7 @@ import infra.e2e_args
 import infra.network
 import infra.platform_detection
 import ccf.ledger
+import ccf.signatures
 from ccf.tx_id import TxID
 import base64
 import suite.test_requirements as reqs
@@ -138,7 +139,7 @@ def find_ledger_chunk_for_seqno(ledger, seqno):
             if (
                 pd.get_seqno() >= seqno
                 and next_signature is None
-                and ccf.ledger.SIGNATURE_TX_TABLE_NAME in tables
+                and ccf.signatures.is_signature_transaction(tables)
             ):
                 next_signature = pd.get_seqno()
         if first <= seqno and seqno <= last:
@@ -945,10 +946,7 @@ def split_all_ledger_files_in_dir(input_dir, output_dir):
         for transaction in ledger_chunk:
             public_domain = transaction.get_public_domain()
             tables = public_domain.get_tables().keys()
-            if (
-                ccf.ledger.SIGNATURE_TX_TABLE_NAME in tables
-                or ccf.ledger.COSE_SIGNATURE_TX_TABLE_NAME in tables
-            ):
+            if ccf.signatures.is_signature_transaction(tables):
                 sig_seqnos.append(public_domain.get_seqno())
 
         if len(sig_seqnos) <= 1:

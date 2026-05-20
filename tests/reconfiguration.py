@@ -731,13 +731,12 @@ def test_retiring_nodes_emit_at_most_one_signature(network, args):
                         retiring_nodes.add(nid)
 
             if ccf.ledger.SIGNATURE_TX_TABLE_NAME in tables:
-                sigs = tables[ccf.ledger.SIGNATURE_TX_TABLE_NAME]
-                assert len(sigs) == 1, sigs.keys()
-                (sig_,) = sigs.values()
-                sig = json.loads(sig_)
+                classical = ccf.ledger.parse_classical_signatures(tables)
+                assert len(classical) == 1, classical
+                (sig,) = classical
                 assert (
-                    sig["node"] not in retired_nodes
-                ), f"Unexpected signature from {sig['node']}"
+                    sig.signing_node not in retired_nodes
+                ), f"Unexpected signature from {sig.signing_node}"
                 retired_nodes |= retiring_nodes
                 retiring_nodes = set()
 
