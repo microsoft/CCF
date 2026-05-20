@@ -354,15 +354,12 @@ configure_file(
 )
 install(FILES ${CCF_DIR}/include/ccf/version.h DESTINATION include/ccf)
 
-file(
-  READ ${CCF_DIR}/doc/host_config_schema/cchost_config.json
-  HOST_CONFIG_SCHEMA
-)
+file(READ ${CCF_DIR}/doc/host_config_schema/host_config.json HOST_CONFIG_SCHEMA)
 set_property(
   DIRECTORY
   APPEND
   PROPERTY
-    CMAKE_CONFIGURE_DEPENDS ${CCF_DIR}/doc/host_config_schema/cchost_config.json
+    CMAKE_CONFIGURE_DEPENDS ${CCF_DIR}/doc/host_config_schema/host_config.json
 )
 configure_file(
   ${CCF_DIR}/src/host/config_schema.h.in
@@ -560,6 +557,11 @@ if(BUILD_TESTS)
     add_unit_test(
       json_schema
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/json_schema.cpp
+    )
+
+    add_unit_test(
+      parse_json_safe_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/parse_json_safe.cpp
     )
 
     add_unit_test(
@@ -921,6 +923,7 @@ if(BUILD_TESTS)
         ./raft_driver ${CMAKE_SOURCE_DIR}/tests/raft_scenarios/
     )
     set_property(TEST raft_scenario_test PROPERTY LABELS raft_scenario)
+    set_property(TEST raft_scenario_test APPEND PROPERTY LABELS bucket_c)
 
     add_test(
       NAME csr_test
@@ -932,11 +935,13 @@ if(BUILD_TESTS)
       NAME versionifier_test
       COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/python/src/ccf/_versionifier.py
     )
+    set_property(TEST versionifier_test APPEND PROPERTY LABELS bucket_c)
 
     add_test(
       NAME github_version_lts_test
       COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/infra/github.py
     )
+    set_property(TEST github_version_lts_test APPEND PROPERTY LABELS bucket_c)
   endif()
 
   if(NOT TSAN)
@@ -981,6 +986,7 @@ if(BUILD_TESTS)
   add_e2e_test(
     NAME recovery_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
+    BUCKET bucket_b
     ADDITIONAL_ARGS
       ${ADDITIONAL_RECOVERY_ARGS}
       --constitution
@@ -1049,6 +1055,7 @@ if(BUILD_TESTS)
   add_e2e_test(
     NAME js_batched_stress_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_batched.py
+    BUCKET bucket_c
     ADDITIONAL_ARGS
       --js-app-bundle
       ${CMAKE_SOURCE_DIR}/src/apps/batched
@@ -1060,6 +1067,7 @@ if(BUILD_TESTS)
   add_e2e_test(
     NAME modules_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/js-modules/modules.py
+    BUCKET bucket_c
     ADDITIONAL_ARGS
       --package
       js_generic
@@ -1073,6 +1081,7 @@ if(BUILD_TESTS)
     NAME auth
     PYTHON_SCRIPT
       ${CMAKE_SOURCE_DIR}/tests/js-custom-authorization/custom_authorization.py
+    BUCKET bucket_c
     ADDITIONAL_ARGS
       --package
       js_generic
@@ -1098,6 +1107,7 @@ if(BUILD_TESTS)
     NAME governance_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
     CONSTITUTION ${CONSTITUTION_ARGS}
+    BUCKET bucket_c
     ADDITIONAL_ARGS
       --initial-operator-count
       1
@@ -1108,6 +1118,7 @@ if(BUILD_TESTS)
   add_e2e_test(
     NAME code_update_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
+    BUCKET bucket_c
     ADDITIONAL_ARGS
       --js-app-bundle
       ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
@@ -1134,6 +1145,7 @@ if(BUILD_TESTS)
   add_e2e_test(
     NAME e2e_logging
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
+    BUCKET bucket_c
     ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
   )
 
@@ -1156,6 +1168,7 @@ if(BUILD_TESTS)
     CONSTITUTION ${RBAC_CONSTITUTION_ARGS}
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/programmability.py
     LABEL snp
+    BUCKET bucket_c
   )
 
   # This test uses large requests (so too slow for SAN)
@@ -1163,18 +1176,21 @@ if(BUILD_TESTS)
     add_e2e_test(
       NAME e2e_limits
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/limits.py
+      BUCKET bucket_c
     )
   endif()
 
   add_e2e_test(
     NAME e2e_redirects
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/redirects.py
+    BUCKET bucket_c
     ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
   )
 
   add_e2e_test(
     NAME e2e_logging_http2
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
+    BUCKET bucket_c
     ADDITIONAL_ARGS
       --js-app-bundle
       ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
@@ -1212,6 +1228,7 @@ if(BUILD_TESTS)
   add_e2e_test(
     NAME tls_stress_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/connections.py
+    BUCKET bucket_c
   )
 
   if(CLIENT_PROTOCOLS_TEST)
@@ -1219,12 +1236,14 @@ if(BUILD_TESTS)
       NAME client_protocols
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/client_protocols.py
       LABEL protocolstest
+      BUCKET bucket_c
     )
   endif()
 
   add_e2e_test(
     NAME schema_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/schema.py
+    BUCKET bucket_b
     ADDITIONAL_ARGS
       --constitution
       ${CMAKE_SOURCE_DIR}/samples/constitutions/virtual/virtual_attestation_actions.js
@@ -1256,6 +1275,7 @@ if(BUILD_TESTS)
       NAME lts_compatibility
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/lts_compatibility.py
       LABEL e2e
+      BUCKET bucket_a
       ADDITIONAL_ARGS
         ${LTS_TEST_ARGS}
         --constitution
@@ -1281,6 +1301,7 @@ if(BUILD_TESTS)
   add_e2e_test(
     NAME nodes_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/nodes.py
+    BUCKET bucket_b
     ADDITIONAL_ARGS ${RECONFIG_TEST_ARGS} ${ROTATION_TEST_ARGS}
   )
 
@@ -1382,16 +1403,19 @@ if(BUILD_TESTS)
     add_e2e_test(
       NAME e2e_curl
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_curl.py
+      BUCKET bucket_c
     )
 
     add_e2e_test(
       NAME historical_query_cache_test
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/historical_query_cache.py
+      BUCKET bucket_c
     )
 
     add_e2e_test(
       NAME consistency_trace_validation
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/consistency_trace_validation.py
+      BUCKET bucket_c
     )
   endif()
 

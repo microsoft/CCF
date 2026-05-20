@@ -837,7 +837,7 @@ namespace ccf
               const auto raw_data = ccf::crypto::raw_from_b64(
                 config.attestation.environment.snp_endorsements.value());
 
-              const auto j = nlohmann::json::parse(raw_data);
+              const auto j = ccf::parse_json_safe(raw_data);
               const auto aci_endorsements =
                 j.get<ccf::pal::snp::ACIReportEndorsements>();
 
@@ -1087,8 +1087,16 @@ namespace ccf
 
             try
             {
-              auto j = nlohmann::json::parse(data);
+              auto j = ccf::parse_json_safe(data);
               error_response = j.get<ccf::ODataErrorResponse>();
+            }
+            catch (const ccf::JsonParseError& e)
+            {
+              LOG_FAIL_FMT(
+                "Join request returned {}, body exceeds permitted JSON nesting "
+                "depth: {}",
+                status,
+                e.what());
             }
             catch (const nlohmann::json::exception& e)
             {
@@ -1172,7 +1180,7 @@ namespace ccf
           JoinNetworkNodeToNode::Out resp;
           try
           {
-            auto j = nlohmann::json::parse(data);
+            auto j = ccf::parse_json_safe(data);
             resp = j.get<JoinNetworkNodeToNode::Out>();
           }
           catch (const std::exception& e)
@@ -2629,7 +2637,7 @@ namespace ccf
         return false;
       }
 
-      const auto body = nlohmann::json::parse(raw_body);
+      const auto body = ccf::parse_json_safe(raw_body);
       if (!body.is_boolean())
       {
         LOG_FAIL_FMT("Expected boolean body in create response");
