@@ -1787,8 +1787,7 @@ TEST_CASE("Recovery")
 
     TestEntrySubmitter replay_submitter(
       ledger, chunk_threshold, recovery_idx - 1);
-    replay_submitter.write(
-      true, ccf::kv::EntryFlags::FORCE_LEDGER_CHUNK_AFTER);
+    replay_submitter.write(true, ccf::kv::EntryFlags::FORCE_LEDGER_CHUNK_AFTER);
     REQUIRE(ledger.get_last_idx() == recovery_idx);
     REQUIRE(number_of_recovery_files_in_ledger_dir() == 0);
 
@@ -1839,8 +1838,7 @@ TEST_CASE("Recovery")
 
     TestEntrySubmitter replay_submitter(
       ledger, chunk_threshold, recovery_idx - 1);
-    replay_submitter.write(
-      true, ccf::kv::EntryFlags::FORCE_LEDGER_CHUNK_AFTER);
+    replay_submitter.write(true, ccf::kv::EntryFlags::FORCE_LEDGER_CHUNK_AFTER);
     REQUIRE(ledger.get_last_idx() == recovery_idx);
     REQUIRE(number_of_recovery_files_in_ledger_dir() == 0);
 
