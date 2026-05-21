@@ -1528,11 +1528,6 @@ namespace asynchost
       {
         recovery_start_idx = idx;
 
-        if (idx > committed_idx)
-        {
-          committed_idx = idx;
-        }
-
         auto file = get_latest_file();
         if (file != nullptr)
         {
