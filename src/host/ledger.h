@@ -1526,8 +1526,6 @@ namespace asynchost
       // in the local ledger.
       if (recovery_mode && idx >= last_idx)
       {
-        recovery_start_idx = idx;
-
         auto file = get_latest_file();
         if (file != nullptr)
         {
