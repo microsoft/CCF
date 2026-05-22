@@ -722,28 +722,27 @@ class LedgerValidator:
                 self.last_verified_seqno = transaction.gcm_header.seqno
                 self.last_verified_view = transaction.gcm_header.view
             else:
-                # MERKLE level: raw-only. Seed the running tree from the
-                # embedded mini-tree on the first raw signature, then
-                # check subsequent roots against it.
-                payload = signatures.parse_raw_signature_from_tx(tables)
-                if payload is not None:
+                # MERKLE level: trust the first signature, then verify
+                # subsequent ones against the embedded mini-tree's root.
+                # Uses TREE_TABLE rather than the raw-signature payload
+                # so this also works on COSE-only ledgers.
+                tree_table = tables.get(TREE_TABLE_NAME)
+                if (
+                    tree_table is not None
+                    and signatures.WELL_KNOWN_SINGLETON_TABLE_KEY in tree_table
+                ):
+                    tree_data = tree_table[signatures.WELL_KNOWN_SINGLETON_TABLE_KEY]
+                    embedded_tree = MerkleTree()
+                    embedded_tree.deserialise(tree_data)
                     if not self.first_signature_seen:
-                        tree_table = tables.get(TREE_TABLE_NAME)
-                        if (
-                            tree_table is not None
-                            and signatures.WELL_KNOWN_SINGLETON_TABLE_KEY in tree_table
-                        ):
-                            tree_data = tree_table[
-                                signatures.WELL_KNOWN_SINGLETON_TABLE_KEY
-                            ]
-                            self.merkle = MerkleTree()
-                            self.merkle.deserialise(tree_data)
-                            self.first_signature_seen = True
+                        self.merkle = embedded_tree
+                        self.first_signature_seen = True
                     else:
-                        signatures.verify_merkle_root(self.merkle, payload.root)
-
-                    self.last_verified_seqno = payload.seqno
-                    self.last_verified_view = payload.view
+                        signatures.verify_merkle_root(
+                            self.merkle, embedded_tree.get_merkle_root()
+                        )
+                    self.last_verified_seqno = transaction.gcm_header.seqno
+                    self.last_verified_view = transaction.gcm_header.view
 
         # Checks complete, add this transaction to tree (for MERKLE and above)
         if self.verification_level >= VerificationLevel.MERKLE:

@@ -729,7 +729,7 @@ def test_retiring_nodes_emit_at_most_one_signature(network, args):
                         continue
                     info = json.loads(info_)
                     if info["status"] == "Retired":
-                        retiring_nodes.add(nid)
+                        retiring_nodes.add(nid.decode())
 
             if ccf.signatures.SIGNATURE_TX_TABLE_NAME in tables:
                 sig = ccf.signatures.parse_raw_signature_from_tx(tables)

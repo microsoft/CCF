@@ -2952,6 +2952,26 @@ def run_merkle_verification_level(args):
     """Test MERKLE verification level on isolated chunks and full ledgers"""
     LOG.info("Testing MERKLE verification level")
 
+    def validate(path, level):
+        validator = ccf.ledger.LedgerValidator(verification_level=level)
+        ledger = ccf.ledger.Ledger([path], committed_only=False, contiguous_suffix=True)
+        for chunk in ledger:
+            for tx in chunk:
+                validator.add_transaction(tx)
+        return validator
+
+    def assert_modes_agree(path):
+        full = validate(path, ccf.ledger.VerificationLevel.FULL)
+        merkle = validate(path, ccf.ledger.VerificationLevel.MERKLE)
+        assert full.last_verified_txid() == merkle.last_verified_txid(), (
+            f"MERKLE last_verified {merkle.last_verified_txid()} "
+            f"!= FULL last_verified {full.last_verified_txid()} for {path}"
+        )
+        assert full.signature_count == merkle.signature_count, (
+            f"MERKLE signature_count {merkle.signature_count} "
+            f"!= FULL signature_count {full.signature_count} for {path}"
+        )
+
     # Test 1: MERKLE verification on full ledger
     for testdata_dir in os.scandir(args.historical_testdata):
         if not testdata_dir.is_dir():
@@ -2967,6 +2987,10 @@ def run_merkle_verification_level(args):
             print_mode=ccf.read_ledger.PrintMode.Quiet,
             verification_level=ccf.ledger.VerificationLevel.MERKLE,
         )
+        # Cross-check that MERKLE reached the same last_verified TxID and
+        # walked over the same signature count as FULL. Catches silent
+        # no-ops in the MERKLE-only path (e.g. on COSE-only sig TXs).
+        assert_modes_agree(testdata_path)
 
     # Test 2: MERKLE verification on isolated chunks
     # Find chunks with multiple signatures to test the "trust first signature" logic
