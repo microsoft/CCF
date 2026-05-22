@@ -712,11 +712,12 @@ class LedgerValidator:
                     )
                     verified_count += 1
 
-                assert verified_count > 0, (
-                    f"Signature transaction {transaction.gcm_header.view}."
-                    f"{transaction.gcm_header.seqno} contained no verifiable "
-                    "signature blob"
-                )
+                if verified_count == 0:
+                    raise ValueError(
+                        f"Signature transaction {transaction.gcm_header.view}."
+                        f"{transaction.gcm_header.seqno} contained no verifiable "
+                        "signature blob"
+                    )
 
                 self.last_verified_seqno = transaction.gcm_header.seqno
                 self.last_verified_view = transaction.gcm_header.view
