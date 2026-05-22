@@ -7,9 +7,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [7.0.5]
 
+[7.0.5]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.5
+
 ### Deprecated
 
 - Accessing ledger-signature names (table names, exception classes) via `ccf.ledger` now emits a `DeprecationWarning`; import them from `ccf.signatures` instead (#7904).
+
+### Fixed
+
+- `ccf.ledger` `MERKLE` verification level now also verifies COSE-only ledgers (previously a silent no-op) (#7904).
 
 ## [7.0.4]
 
@@ -3706,3 +3712,4 @@ Initial pre-release
 [3.0.0-rc2]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.0-rc2
 [5.0.0]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.0
 [7.0.0-dev0]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev0
+[7.0.5]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.5
