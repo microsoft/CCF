@@ -1928,12 +1928,12 @@ def run_cose_only_mode_upgrade(args):
                 if seqno <= start_seqno:
                     continue
 
-                assert ccf.ledger.SIGNATURE_TX_TABLE_NAME not in tables, (
+                assert ccf.signatures.SIGNATURE_TX_TABLE_NAME not in tables, (
                     f"Found traditional (non-COSE) signature at seqno {seqno}, "
                     f"expected COSE-only after seqno {start_seqno}"
                 )
 
-                if ccf.ledger.COSE_SIGNATURE_TX_TABLE_NAME in tables:
+                if ccf.signatures.COSE_SIGNATURE_TX_TABLE_NAME in tables:
                     cose_sig_count += 1
 
         assert (

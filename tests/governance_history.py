@@ -4,6 +4,7 @@
 import infra.network
 import infra.crypto
 import ccf.ledger
+import ccf.signatures
 import infra.doc
 from infra.proposal import ProposalState
 import http
@@ -109,30 +110,29 @@ def check_signatures(ledger):
     for chunk in ledger:
         for tr in chunk:
             tables = tr.get_public_domain().get_tables()
-            if not ccf.ledger.is_signature_transaction(tables):
+            if not ccf.signatures.is_signature_transaction(tables):
                 continue
 
             gcm_view = tr.gcm_header.view
             gcm_seqno = tr.gcm_header.seqno
             sig_txid = TxID(gcm_view, gcm_seqno)
 
-            classical_table = tables.get(ccf.ledger.SIGNATURE_TX_TABLE_NAME)
-            if classical_table is not None:
-                payloads = ccf.ledger.parse_classical_signatures(tables)
-                assert len(payloads) == 1, payloads
-                (payload,) = payloads
+            raw_table = tables.get(ccf.signatures.SIGNATURE_TX_TABLE_NAME)
+            if raw_table is not None:
+                payload = ccf.signatures.parse_raw_signature_from_tx(tables)
+                assert payload is not None, raw_table
                 assert payload.view == gcm_view, (payload, gcm_view)
                 assert payload.seqno == gcm_seqno, (payload, gcm_seqno)
-                raw_entries = list(classical_table.items())
+                raw_entries = list(raw_table.items())
                 assert len(raw_entries) == 1, raw_entries
                 raw_sig = json.loads(raw_entries[0][1])
                 assert raw_sig["commit_view"] == 0, raw_sig
                 assert raw_sig["commit_seqno"] == 0, raw_sig
 
-            if ccf.ledger.COSE_SIGNATURE_TX_TABLE_NAME in tables:
-                cose_sign1 = ccf.ledger.parse_cose_signature(tables)
+            if ccf.signatures.COSE_SIGNATURE_TX_TABLE_NAME in tables:
+                cose_sign1 = ccf.signatures.parse_cose_signature_from_tx(tables)
                 assert cose_sign1 is not None, tables[
-                    ccf.ledger.COSE_SIGNATURE_TX_TABLE_NAME
+                    ccf.signatures.COSE_SIGNATURE_TX_TABLE_NAME
                 ]
                 msg = cwt.COSEMessage.loads(cose_sign1)
                 assert msg.type == cwt.COSETypes.SIGN1, msg

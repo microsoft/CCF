@@ -14,6 +14,7 @@ from copy import deepcopy
 import os
 import time
 import ccf.ledger
+import ccf.signatures
 import json
 import infra.crypto
 from datetime import datetime
@@ -730,10 +731,9 @@ def test_retiring_nodes_emit_at_most_one_signature(network, args):
                     if info["status"] == "Retired":
                         retiring_nodes.add(nid)
 
-            if ccf.ledger.SIGNATURE_TX_TABLE_NAME in tables:
-                classical = ccf.ledger.parse_classical_signatures(tables)
-                assert len(classical) == 1, classical
-                (sig,) = classical
+            if ccf.signatures.SIGNATURE_TX_TABLE_NAME in tables:
+                sig = ccf.signatures.parse_raw_signature_from_tx(tables)
+                assert sig is not None, tables
                 assert (
                     sig.signing_node not in retired_nodes
                 ), f"Unexpected signature from {sig.signing_node}"

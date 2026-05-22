@@ -1093,7 +1093,7 @@ def find_recovery_tx_seqno(node):
             if ccf.ledger.SERVICE_INFO_TABLE_NAME in tables:
                 service_status = json.loads(
                     tables[ccf.ledger.SERVICE_INFO_TABLE_NAME][
-                        ccf.ledger.WELL_KNOWN_SINGLETON_TABLE_KEY
+                        ccf.signatures.WELL_KNOWN_SINGLETON_TABLE_KEY
                     ]
                 )["status"]
                 if service_status == "Open":
@@ -1207,7 +1207,7 @@ def run(args):
             if ccf.ledger.SERVICE_INFO_TABLE_NAME in tables:
                 service_status = json.loads(
                     tables[ccf.ledger.SERVICE_INFO_TABLE_NAME][
-                        ccf.ledger.WELL_KNOWN_SINGLETON_TABLE_KEY
+                        ccf.signatures.WELL_KNOWN_SINGLETON_TABLE_KEY
                     ]
                 )["status"]
                 if service_status == "Opening" or service_status == "Recovering":

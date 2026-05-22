@@ -5,7 +5,7 @@ import base64
 import functools
 import json
 from dataclasses import dataclass
-from typing import Any, Container, List, Mapping, Optional
+from typing import Any, Container, Mapping, Optional
 
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import hashes, serialization
@@ -21,7 +21,7 @@ from ccf.merkletree import MerkleTree
 
 
 SIGNATURE_TX_TABLE_NAME: str = "public:ccf.internal.signatures"
-"""KV table carrying the classical ECDSA signature over the Merkle root."""
+"""KV table carrying the raw ECDSA signature over the Merkle root."""
 
 COSE_SIGNATURE_TX_TABLE_NAME: str = "public:ccf.internal.cose_signatures"
 """KV table carrying the COSE Sign1 signature over the Merkle root."""
@@ -35,14 +35,14 @@ WELL_KNOWN_SINGLETON_TABLE_KEY: bytes = bytes(bytearray(8))
 """Key used by CCF to record entries in single-row KV tables."""
 
 
-def is_signature_transaction(tables: Container[str]) -> bool:
-    """Return ``True`` if ``tables`` contains any signature table.
+def is_signature_transaction(tx_tables: Container[str]) -> bool:
+    """Return ``True`` if ``tx_tables`` contains any signature table.
 
-    ``tables`` is any object supporting ``in`` over table names. Typical
+    ``tx_tables`` is any object supporting ``in`` over table names. Typical
     callers pass the dict returned by
     ``transaction.get_public_domain().get_tables()``.
     """
-    return any(name in tables for name in SIGNATURE_TABLE_NAMES)
+    return any(name in tx_tables for name in SIGNATURE_TABLE_NAMES)
 
 
 # ---------------------------------------------------------------------------
@@ -87,8 +87,8 @@ def spki_from_cert(cert: bytes) -> bytes:
 
 
 @dataclass(frozen=True)
-class ClassicalSignaturePayload:
-    """A single classical-signature entry parsed from a signature transaction.
+class RawSignaturePayload:
+    """A single raw-signature entry parsed from a signature transaction.
 
     Every field is derived from the per-tx contents of
     :data:`SIGNATURE_TX_TABLE_NAME`; nothing here depends on validator state.
@@ -104,50 +104,47 @@ class ClassicalSignaturePayload:
     signature entry (``"cert"`` field), or ``None`` if absent."""
 
 
-def parse_classical_signatures(
-    tables: Mapping[str, Any],
-) -> List[ClassicalSignaturePayload]:
-    """Return all classical signature payloads in this tx.
+def parse_raw_signature_from_tx(
+    tx_tables: Mapping[str, Any],
+) -> Optional[RawSignaturePayload]:
+    """Return the raw signature payload in this tx, or ``None`` if absent.
 
-    A signature transaction may contain multiple classical signature entries
-    (e.g. one per signing node during a reconfiguration window); each becomes
-    a :class:`ClassicalSignaturePayload`. Returns ``[]`` when the table is
-    absent.
+    The signature table is a singleton (one entry per tx, keyed by
+    :data:`WELL_KNOWN_SINGLETON_TABLE_KEY`), so at most one payload exists.
     """
-    signature_table = tables.get(SIGNATURE_TX_TABLE_NAME)
+    signature_table = tx_tables.get(SIGNATURE_TX_TABLE_NAME)
     if signature_table is None:
-        return []
+        return None
 
-    payloads: List[ClassicalSignaturePayload] = []
-    for _, raw in signature_table.items():
-        sig = json.loads(raw)
-        embedded_cert = sig["cert"].encode("utf-8") if "cert" in sig else None
-        payloads.append(
-            ClassicalSignaturePayload(
-                seqno=sig["seqno"],
-                view=sig["view"],
-                signing_node=sig["node"],
-                root=bytes.fromhex(sig["root"]),
-                signature=base64.b64decode(sig["sig"]),
-                embedded_cert=embedded_cert,
-            )
-        )
-    return payloads
+    encoded = signature_table.get(WELL_KNOWN_SINGLETON_TABLE_KEY)
+    if encoded is None:
+        return None
+
+    sig = json.loads(encoded)
+    embedded_cert = sig["cert"].encode("utf-8") if "cert" in sig else None
+    return RawSignaturePayload(
+        seqno=sig["seqno"],
+        view=sig["view"],
+        signing_node=sig["node"],
+        root=bytes.fromhex(sig["root"]),
+        signature=base64.b64decode(sig["sig"]),
+        embedded_cert=embedded_cert,
+    )
 
 
-def parse_cose_signature(tables: Mapping[str, Any]) -> Optional[bytes]:
+def parse_cose_signature_from_tx(tx_tables: Mapping[str, Any]) -> Optional[bytes]:
     """Return the COSE Sign1 bytes from this tx, or ``None`` if absent.
 
     Strips the JSON-string + base64 wrapper used in the KV table and returns
-    the raw COSE Sign1 bytes ready for :func:`verify_cose_root_signature`.
+    the decoded COSE Sign1 bytes ready for :func:`verify_cose_root_signature`.
     """
-    cose_table = tables.get(COSE_SIGNATURE_TX_TABLE_NAME)
+    cose_table = tx_tables.get(COSE_SIGNATURE_TX_TABLE_NAME)
     if cose_table is None:
         return None
-    raw = cose_table.get(WELL_KNOWN_SINGLETON_TABLE_KEY)
-    if raw is None:
+    encoded = cose_table.get(WELL_KNOWN_SINGLETON_TABLE_KEY)
+    if encoded is None:
         return None
-    return base64.b64decode(json.loads(raw))
+    return base64.b64decode(json.loads(encoded))
 
 
 # ---------------------------------------------------------------------------
@@ -155,8 +152,8 @@ def parse_cose_signature(tables: Mapping[str, Any]) -> Optional[bytes]:
 # ---------------------------------------------------------------------------
 
 
-def verify_root_signature(node_cert: bytes, root: bytes, signature: bytes) -> None:
-    """Verify a classical ECDSA signature over a (prehashed) Merkle root.
+def verify_raw_root_signature(node_cert: bytes, root: bytes, signature: bytes) -> None:
+    """Verify a raw ECDSA signature over a (prehashed) Merkle root.
 
     Raises :class:`InvalidRootSignatureException` if verification fails.
     """

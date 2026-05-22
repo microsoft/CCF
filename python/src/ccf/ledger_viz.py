@@ -106,7 +106,7 @@ def try_get_service_info(public_tables):
     return (
         json.loads(
             public_tables[ccf.ledger.SERVICE_INFO_TABLE_NAME][
-                ccf.ledger.WELL_KNOWN_SINGLETON_TABLE_KEY
+                ccf.signatures.WELL_KNOWN_SINGLETON_TABLE_KEY
             ]
         )
         if ccf.ledger.SERVICE_INFO_TABLE_NAME in public_tables
