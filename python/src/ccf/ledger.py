@@ -686,6 +686,16 @@ class LedgerValidator:
 
                 payload = signatures.parse_raw_signature_from_tx(tables)
                 if payload is not None:
+                    if (
+                        payload.view != transaction.gcm_header.view
+                        or payload.seqno != transaction.gcm_header.seqno
+                    ):
+                        raise ValueError(
+                            f"Signature payload position "
+                            f"{payload.view}.{payload.seqno} does not match "
+                            f"transaction header position "
+                            f"{transaction.gcm_header.view}.{transaction.gcm_header.seqno}"
+                        )
                     self._verify_signing_node_status(payload.signing_node)
                     cert = self.node_certificates[payload.signing_node]
                     if payload.embedded_cert is not None:
