@@ -708,16 +708,21 @@ def test_join_straddling_primary_replacement(network, args):
 
 
 @reqs.description(
-    "Test retired nodes stop signing once retired_committed is observed in the ledger"
+    "Test retired nodes stop signing once retired_committed is globally committed"
 )
 def test_retired_nodes_stop_signing_after_retired_committed(network, args):
     primary, _ = network.find_primary()
 
     # Force ledger flush of all transactions so far
     network.get_latest_ledger_public_state()
-    ledger = ccf.ledger.Ledger(primary.remote.ledger_paths())
+    ledger = ccf.ledger.Ledger(primary.remote.ledger_paths(), contiguous_suffix=True)
 
-    retired_committed_nodes: set[str] = set()
+    # True once a subsequent signature has committed the retired_committed tx
+    # itself: rc is then globally committed and the node's retired_committed
+    # hook must have fired, so any further signature from that node is a
+    # violation. Presence in this dict means rc has been observed for the node.
+    rc_globally_committed: dict[str, bool] = {}
+
     for chunk in ledger:
         for tr in chunk:
             tables = tr.get_public_domain().get_tables()
@@ -727,22 +732,39 @@ def test_retired_nodes_stop_signing_after_retired_committed(network, args):
                     if info_ is None:
                         continue
                     info = json.loads(info_)
-                    if info.get("retired_committed"):
-                        retired_committed_nodes.add(nid_bytes.decode())
+                    nid = nid_bytes.decode()
+                    if (
+                        info.get("retired_committed")
+                        and nid not in rc_globally_committed
+                    ):
+                        rc_globally_committed[nid] = False
 
             if ccf.ledger.SIGNATURE_TX_TABLE_NAME in tables:
                 sigs = tables[ccf.ledger.SIGNATURE_TX_TABLE_NAME]
                 assert len(sigs) == 1, sigs.keys()
                 (sig_,) = sigs.values()
                 sig = json.loads(sig_)
-                assert sig["node"] not in retired_committed_nodes, (
-                    f"Node {sig['node']} signed at seqno {sig['seqno']} after "
-                    f"its retired_committed was observed in the ledger"
+                signing_node = sig["node"]
+                sig_seqno = sig["seqno"]
+
+                # Check BEFORE marking. A node may legally emit exactly one
+                # signature past its rc tx (the chain-closer that commits it).
+                # Once that chain-closer has been seen, the node's
+                # retired_committed hook must have fired, so any further
+                # signature from that node is a violation.
+                assert not rc_globally_committed.get(signing_node, False), (
+                    f"Node {signing_node} signed at seqno {sig_seqno} after "
+                    f"its retired_committed was already globally committed"
                 )
+
+                # Ledger iteration is seqno-ordered, so any tracked rc was
+                # written at a lower seqno than this sig; the sig commits it.
+                for nid in rc_globally_committed:
+                    rc_globally_committed[nid] = True
 
     LOG.info(
         "{} nodes had retired_committed observed throughout test",
-        len(retired_committed_nodes),
+        len(rc_globally_committed),
     )
 
     wait_for_reconfiguration_to_complete(network)
