@@ -2013,7 +2013,7 @@ def run_recover_snapshot_ledger_offset(args):
                 recovered_network.stop_all_nodes(
                     skip_verification=True,
                     skip_verify_chunking=True,
-                    accept_ledger_diff=True,
+                    check_file_invariants=True,
                 )
 
 
