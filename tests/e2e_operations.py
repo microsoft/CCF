@@ -1575,6 +1575,7 @@ def run_ledger_chunk_download(args):
         args.debug_nodes,
         pdb=args.pdb,
         txs=app.LoggingTxs("user0"),
+        check_file_invariants=False,
     ) as network:
         network.start_and_open(args)
         # Issue enough transactions to create multiple ledger chunks
@@ -2291,6 +2292,7 @@ def run_empty_ledger_dir_check(args):
         args.binary_dir,
         args.debug_nodes,
         pdb=args.pdb,
+        check_file_invariants=False,
     ) as network:
         LOG.info("Check that empty ledger directory is handled correctly")
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -2785,6 +2787,7 @@ def run_recovery_decision_protocol_multiple_timeout(const_args):
             recovery_args.binary_dir,
             recovery_args.debug_nodes,
             existing_network=network,
+            check_file_invariants=False,
         ) as recovered_network:
             recovered_network.start_in_recovery_decision_protocol(
                 recovery_args,
@@ -4559,6 +4562,7 @@ def run_ledger_chunk_cleanup_tests(const_args):
             args.debug_nodes,
             pdb=args.pdb,
             txs=app.LoggingTxs("user0"),
+            check_file_invariants=False,
         ) as network:
             network.start_and_open(args)
             # These tests intentionally produce [fail] log lines when chunks
