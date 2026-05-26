@@ -164,6 +164,52 @@ def range_from_filename(filename: str) -> tuple[int, int | None]:
         raise ValueError(f"Could not read seqno range from ledger file {filename}")
 
 
+def get_range_from_file(ledger_file_path: str) -> tuple[int, int | None]:
+    start, end = range_from_filename(ledger_file_path)
+    if end is not None:
+        return start, end
+
+    # Open-ended ledger chunks may be observed while they are still being
+    # created, for instance during shutdown. Treat any failure to infer an end
+    # from the offset table as an incomplete chunk.
+    try:
+        with open(ledger_file_path, "rb") as ledger_file:
+            header = ledger_file.read(LEDGER_HEADER_SIZE)
+
+        if len(header) != LEDGER_HEADER_SIZE:
+            raise ValueError(
+                f"Invalid ledger chunk {ledger_file_path}: expected "
+                f"{LEDGER_HEADER_SIZE} header bytes, found {len(header)}"
+            )
+
+        table_offset = int.from_bytes(header, byteorder="little")
+
+        if table_offset == 0:
+            return start, None
+
+        file_size = os.path.getsize(ledger_file_path)
+        if table_offset > file_size:
+            raise ValueError(
+                f"Invalid ledger chunk {ledger_file_path}: positions table offset "
+                f"{table_offset} is beyond file size {file_size}"
+            )
+
+        positions_size = file_size - table_offset
+        if positions_size % 4 != 0:
+            raise ValueError(
+                f"Invalid ledger chunk {ledger_file_path}: positions table has "
+                f"unexpected size {positions_size}"
+            )
+
+        positions_count = positions_size // 4
+        if positions_count == 0:
+            return start, None
+
+        return start, start + positions_count - 1
+    except (OSError, ValueError):
+        return start, None
+
+
 def snapshot_index_from_filename(filename: str) -> tuple[int, int]:
     elements = (
         os.path.basename(filename)
