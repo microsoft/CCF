@@ -1002,31 +1002,158 @@ class Network:
     def ignore_error_pattern_on_shutdown(self, pattern):
         self.ignore_error_patterns.append(pattern)
 
-    def check_ledger_files_identical(self, read_recovery_ledger_files=False):
+    def snapshot_files_invariants(self, nodes=None):
         # Note: Should be called on stopped service
-        # Verify that all ledger files on stopped nodes exist on most up-to-date node
-        # and are identical
+        # 1. Every snapshot corresponds to a chunk boundary
 
-        def list_files_in_dirs_with_checksums(dirs):
+        if nodes is None:
+            nodes = self.nodes
+
+        def list_snapshot_files(snapshot_paths):
             return sorted(
                 [
-                    (f, infra.path.compute_file_checksum(os.path.join(d, f)))
-                    for d in dirs
+                    os.path.join(d, f)
+                    for d in snapshot_paths
                     for f in os.listdir(d)
-                    if f.endswith(ccf.ledger.COMMITTED_FILE_SUFFIX)
-                    or (
-                        read_recovery_ledger_files
-                        and f.endswith(ccf.ledger.RECOVERY_FILE_SUFFIX)
-                        and ccf.ledger.COMMITTED_FILE_SUFFIX in f
-                    )
+                    if f.startswith("snapshot_")
+                    and not f.endswith(ccf.ledger.IGNORED_FILE_SUFFIX)
+                    and f.endswith(ccf.ledger.COMMITTED_FILE_SUFFIX)
                 ],
-                key=lambda x: ccf.ledger.range_from_filename(x[0])[0],
+                key=lambda f: ccf.ledger.snapshot_index_from_filename(f)[0],
             )
 
-        longest_ledger_files = None
-        longest_ledger_node = None
-        longest_ledger_seqno = 0
-        for node in self.nodes:
+        def snapshot_paths(node):
+            paths = [
+                os.path.join(node.remote.remote.root, node.remote.snapshots_dir_name)
+            ]
+            if node.remote.read_only_snapshots_dir_name is not None:
+                paths.append(
+                    os.path.join(
+                        node.remote.remote.root,
+                        node.remote.read_only_snapshots_dir_name,
+                    )
+                )
+            return [path for path in paths if os.path.isdir(path)]
+
+        for node in nodes:
+            if node.network_state != infra.node.NodeNetworkState.stopped:
+                raise RuntimeError(
+                    f"Node {node.node_id} should be stopped before verifying snapshot consistency"
+                )
+
+            if node.remote is None:
+                continue
+
+            ranges = [
+                (ccf.ledger.get_range_from_file(os.path.join(d, f)), f)
+                for d in node.remote.ledger_paths()
+                for f in os.listdir(d)
+                if f.startswith("ledger_")
+                and not f.endswith(ccf.ledger.IGNORED_FILE_SUFFIX)
+                and f.endswith(ccf.ledger.COMMITTED_FILE_SUFFIX)
+            ]
+
+            for snapshot_file in list_snapshot_files(snapshot_paths(node)):
+                snapshot_seqno, _ = ccf.ledger.snapshot_index_from_filename(
+                    snapshot_file
+                )
+                chunks_with_snapshot_in_middle = [
+                    f
+                    for ledger_range, f in ranges
+                    if ledger_range[0] <= snapshot_seqno < ledger_range[1]
+                ]
+                assert len(chunks_with_snapshot_in_middle) == 0, (
+                    f"Snapshot {snapshot_file} occurred in the middle of chunks "
+                    f"{chunks_with_snapshot_in_middle}"
+                )
+
+    def ledger_files_invariant(self, nodes=None, allow_recovery=False):
+        # Note: Should be called on stopped service
+        # 1. A node's ledger history will be contiguous from its startup seqno onwards
+        # 2. If two committed chunks start at the same point in the ledger they are identical
+        # 3. Across the network, there is a single history of committed chunks
+
+        if nodes is None:
+            nodes = self.nodes
+
+        def get_startup_seqno(node):
+            out_path, _ = node.get_logs()
+            if out_path is None or not os.path.isfile(out_path):
+                return 0
+
+            startup_seqno = 0
+            local_snapshot_path = None
+            resumed_snapshot_re = re.compile(
+                r"Joiner successfully resumed from snapshot at seqno (\d+) and view \d+"
+            )
+            local_snapshot_re = re.compile(
+                r"Found latest local snapshot file: (.*snapshot_(\d+)_\d+\.committed) "
+                r"\(size: \d+\)"
+            )
+            local_snapshot_error_re = re.compile(r"Error while verifying (.*):")
+
+            with open(out_path, "r", encoding="utf-8", errors="replace") as lines:
+                for line in lines:
+                    resumed_snapshot = resumed_snapshot_re.search(line)
+                    if resumed_snapshot is not None:
+                        startup_seqno = int(resumed_snapshot.group(1))
+                        local_snapshot_path = None
+                        continue
+
+                    local_snapshot = local_snapshot_re.search(line)
+                    if local_snapshot is not None:
+                        local_snapshot_path = local_snapshot.group(1)
+                        startup_seqno = int(local_snapshot.group(2))
+                        continue
+
+                    local_snapshot_error = local_snapshot_error_re.search(line)
+                    if (
+                        local_snapshot_error is not None
+                        and local_snapshot_error.group(1) == local_snapshot_path
+                    ):
+                        local_snapshot_path = None
+                        startup_seqno = 0
+
+            return startup_seqno
+
+        # List ledger chunks, plus checksum, in order of starting seqno
+        def node_ledger_files(node, allow_uncommitted):
+            def pred(f, allow_uncommitted, allow_recovery):
+                if f.endswith(ccf.ledger.IGNORED_FILE_SUFFIX):
+                    return False
+                is_committed = f.endswith(ccf.ledger.COMMITTED_FILE_SUFFIX) or (
+                    f.endswith(ccf.ledger.RECOVERY_FILE_SUFFIX)
+                    and ccf.ledger.COMMITTED_FILE_SUFFIX in f
+                )
+                valid_committed = is_committed or (
+                    not is_committed and allow_uncommitted
+                )
+                is_recovery = f.endswith(ccf.ledger.RECOVERY_FILE_SUFFIX)
+                valid_recovery = (not is_recovery) or (is_recovery and allow_recovery)
+                return valid_committed and valid_recovery
+
+            if node.remote is None:
+                return []
+
+            return [
+                os.path.join(d, f)
+                for d, allow_uncommitted, allow_recovery in [
+                    # We potentially want all ledger files in the current dir
+                    (
+                        node.remote.current_ledger_path(),
+                        allow_uncommitted,
+                        allow_recovery,
+                    ),
+                    # We only want committed files in the read-only
+                    *[(d, False, False) for d in node.remote.read_only_ledger_paths()],
+                ]
+                if os.path.isdir(d)
+                for f in os.listdir(d)
+                if pred(f, allow_uncommitted, allow_recovery)
+            ]
+
+        # 1. A node's ledger history is contiguous from its startup seqno onwards
+        for node in nodes:
             if node.network_state != infra.node.NodeNetworkState.stopped:
                 raise RuntimeError(
                     f"Node {node.node_id} should be stopped before verifying ledger consistency"
@@ -1036,35 +1163,86 @@ class Network:
                 continue
 
             ledger_paths = node.remote.ledger_paths()
-
-            # Check that at least the main ledger directory, created by
-            # the node on startup, exists
-            if not os.path.isdir(ledger_paths[0]):
-                return
-
-            ledger_files = list_files_in_dirs_with_checksums(ledger_paths)
-            if not ledger_files:
+            if not ledger_paths:
                 continue
 
-            last_ledger_seqno = ccf.ledger.range_from_filename(ledger_files[-1][0])[1]
-            ledger_files = set(ledger_files)
-
-            if last_ledger_seqno > longest_ledger_seqno:
-                assert longest_ledger_files is None or longest_ledger_files.issubset(
-                    ledger_files
-                ), f"Ledger files on node {longest_ledger_node.local_node_id} do not match files on node {node.local_node_id}: {longest_ledger_files}, expected subset of {ledger_files}, diff: (Only on {node.local_node_id}: {ledger_files - longest_ledger_files}, Only on {longest_ledger_node.local_node_id}: {longest_ledger_files - ledger_files})"
-                longest_ledger_files = ledger_files
-                longest_ledger_node = node
-                longest_ledger_seqno = last_ledger_seqno
-            else:
-                assert ledger_files.issubset(
-                    longest_ledger_files
-                ), f"Ledger files on node {node.local_node_id} do not match files on node {longest_ledger_node.local_node_id}: {ledger_files}, expected subset of {longest_ledger_files}, diff: (Only on {longest_ledger_node.local_node_id}: {longest_ledger_files - ledger_files}, Only on {node.local_node_id}: {ledger_files - longest_ledger_files})"
-
-        if longest_ledger_files:
-            LOG.info(
-                f"Verified {len(longest_ledger_files)} ledger files consistency on all {len(self.nodes)} stopped nodes"
+            startup = get_startup_seqno(node)
+            files = sorted(
+                node_ledger_files(node, True),
+                key=lambda x: ccf.ledger.get_range_from_file(x)[0],
             )
+
+            # Trace contiguous chunks after the startup snapshot. Chunks wholly
+            # before the snapshot may have been copied from another node, and
+            # are covered by the network-wide committed-history check below.
+            prev_range = (0, startup)
+            for curr in files:
+                curr_range = ccf.ledger.get_range_from_file(curr)
+
+                # Snapshots force chunk boundaries => expect a chunk starting after the startup snapshot
+                if curr_range[0] <= startup:
+                    continue
+
+                # ignore duplicated files on disk
+                if curr_range == prev_range:
+                    continue
+
+                assert (
+                    prev_range[1] + 1 == curr_range[0]
+                ), f"Ledger is non-contiguous after startup: missing entries between {prev_range} and {curr}"
+
+                if curr_range[1] is None:
+                    remaining_files = [
+                        f
+                        for f in files
+                        if curr_range[0] < ccf.ledger.get_range_from_file(f)[0]
+                    ]
+                    assert (
+                        len(remaining_files) == 0
+                    ), f"{remaining_files} have start indices after first incomplete file post startup"
+                    break
+                prev_range = curr_range
+
+        all_committed_chunks = sorted(
+            [
+                (f, infra.path.compute_file_checksum(f))
+                for n in nodes
+                if n.remote is not None
+                for f in node_ledger_files(n, False)
+            ],
+            key=lambda x: ccf.ledger.get_range_from_file(x[0])[0],
+        )
+        if len(all_committed_chunks) > 0:
+
+            # 2. If two committed chunks start at the same point in the ledger they are identical
+            prev = all_committed_chunks[0]
+            for curr in all_committed_chunks[1:]:
+                range_prev = ccf.ledger.get_range_from_file(prev[0])
+                range_curr = ccf.ledger.get_range_from_file(curr[0])
+                if range_prev[0] == range_curr[0]:
+                    assert (
+                        range_prev == range_curr
+                    ), f"Mismatched ranges in committed ledger chunk with same start index at {prev} and {curr}"
+                    assert (
+                        prev[1] == curr[1]
+                    ), f"Mismatched contents in committed ledger chunk with same start index at {prev} and {curr}"
+                prev = curr
+
+            # 3. Across the network there is a single history of committed chunks
+            #    Gaps within that history are possible
+            prev = all_committed_chunks[0][0]
+            for curr, _ in all_committed_chunks[1:]:
+                prev_range = ccf.ledger.get_range_from_file(prev)
+                curr_range = ccf.ledger.get_range_from_file(curr)
+                if curr_range == prev_range:
+                    continue
+                assert (
+                    prev_range[1] is not None
+                ), f"Committed ledger chunk {prev} is incomplete"
+                assert (
+                    prev_range[1] + 1 <= curr_range[0]
+                ), f"Ledger is inconsistent: {curr} starts within {prev}"
+                prev = curr
 
     def check_ledger_files_chunk_flags(self):
         for node in self.nodes:
@@ -1121,7 +1299,7 @@ class Network:
         self,
         skip_verification=False,
         verbose_verification=False,
-        accept_ledger_diff=False,
+        check_file_invariants=True,
         skip_verify_chunking=None,
         **kwargs,
     ):
@@ -1166,8 +1344,9 @@ class Network:
                 fatal_error_found = True
 
         LOG.info("All nodes stopped")
-        if not accept_ledger_diff:
-            self.check_ledger_files_identical(**kwargs)
+        if check_file_invariants:
+            self.ledger_files_invariant(**kwargs)
+            self.snapshot_files_invariants(**kwargs)
 
         if not skip_verify_chunking:
             LOG.info("Verifying ledger chunk flags before shutdown")
@@ -2169,7 +2348,9 @@ def close_on_error(net, pdb=False):
 
         LOG.info("Stopping network")
         net.stop_all_nodes(
-            skip_verification=True, accept_ledger_diff=True, skip_verify_chunking=True
+            skip_verification=True,
+            check_file_invariants=False,
+            skip_verify_chunking=True,
         )
 
         raise
@@ -2189,6 +2370,7 @@ def network(
     service_load=None,
     node_data_json_file=None,
     skip_verify_chunking=False,
+    check_file_invariants=True,
     **kwargs,
 ):
     """
@@ -2225,7 +2407,7 @@ def network(
     LOG.info("Stopping network")
     net.stop_all_nodes(
         skip_verification=True,
-        accept_ledger_diff=True,
+        check_file_invariants=check_file_invariants,
     )
     if init_partitioner:
         net.partitioner.cleanup()
