@@ -21,7 +21,7 @@ matplotlib >= 3.10.7, < 4
 fastparquet >= 2024.11.0, < 2025
 prettytable >= 3.16.0, < 4
 # Freeze due to https://github.com/pola-rs/polars/issues/27749
-polars == 1.40.0
+polars == 1.40.*
 plotext >= 5.3.2, < 6
 boofuzz >= 0.4.2, < 0.5
 numpy >= 1.26.4, < 2
