@@ -1105,7 +1105,7 @@ def run_ledger_chunk_bytes_check(const_args):
             c.wait_for_commit(r)
 
         # This explicitly checks that ledger chunks match on each node, which is the critical property
-        network.stop_all_nodes(accept_ledger_diff=False)
+        network.stop_all_nodes(check_file_invariants=True)
 
         # Confirm that at least one ledger chunk of each expected size was produced
         current, committeds = primary.get_ledger()
