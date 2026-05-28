@@ -708,40 +708,63 @@ def test_join_straddling_primary_replacement(network, args):
     return network
 
 
-@reqs.description("Test retired nodes have emitted at most one signature")
-def test_retiring_nodes_emit_at_most_one_signature(network, args):
+@reqs.description(
+    "Test retired nodes stop signing once retired_committed is globally committed"
+)
+def test_retired_nodes_stop_signing_after_retired_committed(network, args):
     primary, _ = network.find_primary()
 
     # Force ledger flush of all transactions so far
     network.get_latest_ledger_public_state()
     ledger = ccf.ledger.Ledger(primary.remote.ledger_paths(), contiguous_suffix=True)
 
-    retiring_nodes = set()
-    retired_nodes = set()
+    # True once a subsequent signature has committed the retired_committed tx
+    # itself: rc is then globally committed and the node's retired_committed
+    # hook must have fired, so any further signature from that node is a
+    # violation. Presence in this dict means rc has been observed for the node.
+    rc_globally_committed: dict[str, bool] = {}
+
     for chunk in ledger:
         for tr in chunk:
             tables = tr.get_public_domain().get_tables()
+
             if ccf.ledger.NODES_TABLE_NAME in tables:
-                nodes = tables[ccf.ledger.NODES_TABLE_NAME]
-                for nid, info_ in nodes.items():
+                for nid_bytes, info_ in tables[ccf.ledger.NODES_TABLE_NAME].items():
                     if info_ is None:
-                        # Node was removed
                         continue
                     info = json.loads(info_)
-                    if info["status"] == "Retired":
-                        retiring_nodes.add(nid.decode())
+                    nid = nid_bytes.decode()
+                    if (
+                        info.get("retired_committed")
+                        and nid not in rc_globally_committed
+                    ):
+                        rc_globally_committed[nid] = False
 
             if ccf.signatures.SIGNATURE_TX_TABLE_NAME in tables:
                 sig = ccf.signatures.parse_raw_signature_from_tx(tables)
                 assert sig is not None, tables
-                assert (
-                    sig.signing_node not in retired_nodes
-                ), f"Unexpected signature from {sig.signing_node}"
-                retired_nodes |= retiring_nodes
-                retiring_nodes = set()
+                signing_node = sig.signing_node
+                sig_seqno = sig.seqno
 
-    assert not retiring_nodes, (retiring_nodes, retired_nodes)
-    LOG.info("{} nodes retired throughout test", len(retired_nodes))
+                # Check BEFORE marking. A node may legally emit exactly one
+                # signature past its rc tx (the chain-closer that commits it).
+                # Once that chain-closer has been seen, the node's
+                # retired_committed hook must have fired, so any further
+                # signature from that node is a violation.
+                assert not rc_globally_committed.get(signing_node, False), (
+                    f"Node {signing_node} signed at seqno {sig_seqno} after "
+                    f"its retired_committed was already globally committed"
+                )
+
+                # Ledger iteration is seqno-ordered, so any tracked rc was
+                # written at a lower seqno than this sig; the sig commits it.
+                for nid in rc_globally_committed:
+                    rc_globally_committed[nid] = True
+
+    LOG.info(
+        "{} nodes had retired_committed observed throughout test",
+        len(rc_globally_committed),
+    )
 
     wait_for_reconfiguration_to_complete(network)
 
@@ -823,7 +846,7 @@ def run_all(args):
         test_add_node_from_snapshot(network, args, copy_ledger=False)
 
         test_node_filter(network, args)
-        test_retiring_nodes_emit_at_most_one_signature(network, args)
+        test_retired_nodes_stop_signing_after_retired_committed(network, args)
 
         test_node_certificates_validity_period(network, args)
         test_add_node_invalid_validity_period(network, args)
