@@ -11,6 +11,7 @@ import infra.e2e_args
 import infra.network
 import infra.platform_detection
 import ccf.ledger
+import ccf.signatures
 from ccf.tx_id import TxID
 import base64
 import suite.test_requirements as reqs
@@ -138,7 +139,7 @@ def find_ledger_chunk_for_seqno(ledger, seqno):
             if (
                 pd.get_seqno() >= seqno
                 and next_signature is None
-                and ccf.ledger.SIGNATURE_TX_TABLE_NAME in tables
+                and ccf.signatures.is_signature_transaction(tables)
             ):
                 next_signature = pd.get_seqno()
         if first <= seqno and seqno <= last:
@@ -945,10 +946,7 @@ def split_all_ledger_files_in_dir(input_dir, output_dir):
         for transaction in ledger_chunk:
             public_domain = transaction.get_public_domain()
             tables = public_domain.get_tables().keys()
-            if (
-                ccf.ledger.SIGNATURE_TX_TABLE_NAME in tables
-                or ccf.ledger.COSE_SIGNATURE_TX_TABLE_NAME in tables
-            ):
+            if ccf.signatures.is_signature_transaction(tables):
                 sig_seqnos.append(public_domain.get_seqno())
 
         if len(sig_seqnos) <= 1:
@@ -1931,12 +1929,12 @@ def run_cose_only_mode_upgrade(args):
                 if seqno <= start_seqno:
                     continue
 
-                assert ccf.ledger.SIGNATURE_TX_TABLE_NAME not in tables, (
+                assert ccf.signatures.SIGNATURE_TX_TABLE_NAME not in tables, (
                     f"Found traditional (non-COSE) signature at seqno {seqno}, "
                     f"expected COSE-only after seqno {start_seqno}"
                 )
 
-                if ccf.ledger.COSE_SIGNATURE_TX_TABLE_NAME in tables:
+                if ccf.signatures.COSE_SIGNATURE_TX_TABLE_NAME in tables:
                     cose_sig_count += 1
 
         assert (
@@ -2957,6 +2955,26 @@ def run_merkle_verification_level(args):
     """Test MERKLE verification level on isolated chunks and full ledgers"""
     LOG.info("Testing MERKLE verification level")
 
+    def validate(path, level):
+        validator = ccf.ledger.LedgerValidator(verification_level=level)
+        ledger = ccf.ledger.Ledger([path], committed_only=False, contiguous_suffix=True)
+        for chunk in ledger:
+            for tx in chunk:
+                validator.add_transaction(tx)
+        return validator
+
+    def assert_modes_agree(path):
+        full = validate(path, ccf.ledger.VerificationLevel.FULL)
+        merkle = validate(path, ccf.ledger.VerificationLevel.MERKLE)
+        assert full.last_verified_txid() == merkle.last_verified_txid(), (
+            f"MERKLE last_verified {merkle.last_verified_txid()} "
+            f"!= FULL last_verified {full.last_verified_txid()} for {path}"
+        )
+        assert full.signature_count == merkle.signature_count, (
+            f"MERKLE signature_count {merkle.signature_count} "
+            f"!= FULL signature_count {full.signature_count} for {path}"
+        )
+
     # Test 1: MERKLE verification on full ledger
     for testdata_dir in os.scandir(args.historical_testdata):
         if not testdata_dir.is_dir():
@@ -2972,6 +2990,10 @@ def run_merkle_verification_level(args):
             print_mode=ccf.read_ledger.PrintMode.Quiet,
             verification_level=ccf.ledger.VerificationLevel.MERKLE,
         )
+        # Cross-check that MERKLE reached the same last_verified TxID and
+        # walked over the same signature count as FULL. Catches silent
+        # no-ops in the MERKLE-only path (e.g. on COSE-only sig TXs).
+        assert_modes_agree(testdata_path)
 
     # Test 2: MERKLE verification on isolated chunks
     # Find chunks with multiple signatures to test the "trust first signature" logic

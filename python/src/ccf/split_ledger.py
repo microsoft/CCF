@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import ccf.ledger
+import ccf.signatures
 import sys
 import argparse
 import os
@@ -106,10 +107,7 @@ def run(args_):
         entry_seqno = public_entry.get_seqno()
 
         if looking_for_following_signature:
-            if (
-                ccf.ledger.SIGNATURE_TX_TABLE_NAME in public_entry.get_tables()
-                or ccf.ledger.COSE_SIGNATURE_TX_TABLE_NAME in public_entry.get_tables()
-            ):
+            if ccf.signatures.is_signature_transaction(public_entry.get_tables()):
                 next_signature_seqno = entry_seqno
                 break
             else:
@@ -125,9 +123,7 @@ def run(args_):
 
         if entry_seqno == args.seqno:
             if (
-                ccf.ledger.SIGNATURE_TX_TABLE_NAME not in public_entry.get_tables()
-                and ccf.ledger.COSE_SIGNATURE_TX_TABLE_NAME
-                not in public_entry.get_tables()
+                not ccf.signatures.is_signature_transaction(public_entry.get_tables())
                 and not args.allow_non_signature
             ):
                 looking_for_following_signature = True

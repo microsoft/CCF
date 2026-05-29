@@ -14,6 +14,7 @@ from copy import deepcopy
 import os
 import time
 import ccf.ledger
+import ccf.signatures
 import json
 import infra.crypto
 from datetime import datetime
@@ -739,13 +740,11 @@ def test_retired_nodes_stop_signing_after_retired_committed(network, args):
                     ):
                         rc_globally_committed[nid] = False
 
-            if ccf.ledger.SIGNATURE_TX_TABLE_NAME in tables:
-                sigs = tables[ccf.ledger.SIGNATURE_TX_TABLE_NAME]
-                assert len(sigs) == 1, sigs.keys()
-                (sig_,) = sigs.values()
-                sig = json.loads(sig_)
-                signing_node = sig["node"]
-                sig_seqno = sig["seqno"]
+            if ccf.signatures.SIGNATURE_TX_TABLE_NAME in tables:
+                sig = ccf.signatures.parse_raw_signature_from_tx(tables)
+                assert sig is not None, tables
+                signing_node = sig.signing_node
+                sig_seqno = sig.seqno
 
                 # Check BEFORE marking. A node may legally emit exactly one
                 # signature past its rc tx (the chain-closer that commits it).
