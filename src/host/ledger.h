@@ -902,17 +902,9 @@ namespace asynchost
             return idx >= f->get_start_idx();
           });
 
-        if (f != files.rend())
+        if (f != files.rend() && idx <= (*f)->get_last_idx())
         {
-          if (idx <= (*f)->get_last_idx())
-          {
-            return *f;
-          }
-          
-          LOG_INFO_FMT(
-            "File {} open for writing but prev-check would accept idx {}",
-            (*f)->get_last_idx(),
-            idx);
+          return *f;
         }
       }
 
