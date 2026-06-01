@@ -851,7 +851,6 @@ def test_joining_nodes_snapshot_ledger_offset(network, args):
     rest_txid = network.txs.issue(
         network, number_txs=5, send_private=False, send_public=True
     )
-    network.get_latest_ledger_public_state()
 
     assert snapshot_trigger_txid.seqno < snapshot_seqno < rest_txid.seqno, (
         snapshot_trigger_txid,
@@ -859,10 +858,13 @@ def test_joining_nodes_snapshot_ledger_offset(network, args):
         rest_txid,
     )
 
-    current_ledger_dir, committed_ledger_dirs = primary.get_ledger()
+    # flush ledger to disk from commit index
+    network.get_latest_ledger_public_state()
+    # Only use the committed ledger files flushed from above
+    _, committed_ledger_dirs = primary.get_ledger()
     ledger = ccf.ledger.Ledger(
-        [current_ledger_dir] + committed_ledger_dirs,
-        committed_only=False,
+        committed_ledger_dirs,
+        committed_only=True,
         contiguous_suffix=True,
     )
 
@@ -936,7 +938,7 @@ def test_joining_nodes_snapshot_ledger_offset(network, args):
         os.makedirs(current_dir)
         os.makedirs(prefix_dir)
 
-        for source_dir in [current_ledger_dir] + committed_ledger_dirs:
+        for source_dir in committed_ledger_dirs:
             for f in os.listdir(source_dir):
                 if not f.endswith(ccf.ledger.COMMITTED_FILE_SUFFIX):
                     continue
