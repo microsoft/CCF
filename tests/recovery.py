@@ -9,6 +9,7 @@ import infra.checker
 import infra.crypto
 import suite.test_requirements as reqs
 import ccf.ledger
+import ccf.signatures
 import os
 import subprocess
 import json
@@ -1055,7 +1056,7 @@ def run_corrupted_ledger(args):
             LOG.info("Finding first sig to corrupt")
             for chunk, tx in all_txs(ledger, verbose):
                 tables = tx.get_public_domain().get_tables()
-                if ccf.ledger.SIGNATURE_TX_TABLE_NAME in tables:
+                if ccf.signatures.is_signature_transaction(tables):
                     return chunk.filename(), get_middle_tx_offset(tx)
             return None, None
 
@@ -1099,7 +1100,7 @@ def find_recovery_tx_seqno(node):
             if ccf.ledger.SERVICE_INFO_TABLE_NAME in tables:
                 service_status = json.loads(
                     tables[ccf.ledger.SERVICE_INFO_TABLE_NAME][
-                        ccf.ledger.WELL_KNOWN_SINGLETON_TABLE_KEY
+                        ccf.signatures.WELL_KNOWN_SINGLETON_TABLE_KEY
                     ]
                 )["status"]
                 if service_status == "Open":
@@ -1213,7 +1214,7 @@ def run(args):
             if ccf.ledger.SERVICE_INFO_TABLE_NAME in tables:
                 service_status = json.loads(
                     tables[ccf.ledger.SERVICE_INFO_TABLE_NAME][
-                        ccf.ledger.WELL_KNOWN_SINGLETON_TABLE_KEY
+                        ccf.signatures.WELL_KNOWN_SINGLETON_TABLE_KEY
                     ]
                 )["status"]
                 if service_status == "Opening" or service_status == "Recovering":
@@ -1283,7 +1284,9 @@ def test_incomplete_ledger_recovery(network, args):
         _, last_seqno = ledger.get_latest_public_state()
         last_tx = ledger.get_transaction(last_seqno)
 
-        if "ccf.internal.signatures" in last_tx.get_raw_tx().decode(errors="ignore"):
+        if ccf.signatures.is_signature_transaction(
+            last_tx.get_public_domain().get_tables()
+        ):
             LOG.info(
                 f"Found signature in last tx {last_tx.get_tx_digest()}, not a suitable candidate for this test"
             )

@@ -4,6 +4,7 @@
 import infra.network
 import infra.crypto
 import ccf.ledger
+import ccf.signatures
 import infra.doc
 from infra.proposal import ProposalState
 import http
@@ -109,33 +110,64 @@ def check_signatures(ledger):
     for chunk in ledger:
         for tr in chunk:
             tables = tr.get_public_domain().get_tables()
-            signatures_table_name = "public:ccf.internal.signatures"
-            if signatures_table_name in tables:
-                signatures_table = tables[signatures_table_name]
-                signatures = list(signatures_table.items())
-                assert len(signatures) == 1, signatures
-                signature_raw = signatures[0][1]
-                signature = json.loads(signature_raw)
-                # commit_view and commit_seqno fields are unsigned, deprecated, and set to 0
-                assert signature["commit_view"] == 0, signature
-                assert signature["commit_seqno"] == 0, signature
-                # view and seqno fields are unsigned, and always match the txID contained in the GcmHeader
-                assert tr.gcm_header.view == signature["view"]
-                assert tr.gcm_header.seqno == signature["seqno"]
+            if not ccf.signatures.is_signature_transaction(tables):
+                continue
 
-                sig_txid = TxID(tr.gcm_header.view, tr.gcm_header.seqno)
+            gcm_view = tr.gcm_header.view
+            gcm_seqno = tr.gcm_header.seqno
+            sig_txid = TxID(gcm_view, gcm_seqno)
 
-                # Adjacent signatures only occur on a view change
-                if prev_sig_txid is not None:
-                    if prev_sig_txid.seqno + 1 == sig_txid.seqno:
-                        # Reduced from assert while investigating cause
-                        # https://github.com/microsoft/CCF/issues/5078
-                        if sig_txid.view <= prev_sig_txid.view:
-                            LOG.error(
-                                f"Adjacent signatures at {prev_sig_txid} and {sig_txid}"
-                            )
+            raw_table = tables.get(ccf.signatures.SIGNATURE_TX_TABLE_NAME)
+            if raw_table is not None:
+                payload = ccf.signatures.parse_raw_signature_from_tx(tables)
+                assert payload is not None, raw_table
+                assert payload.view == gcm_view, (payload, gcm_view)
+                assert payload.seqno == gcm_seqno, (payload, gcm_seqno)
+                raw_entries = list(raw_table.items())
+                assert len(raw_entries) == 1, raw_entries
+                raw_sig = json.loads(raw_entries[0][1])
+                assert raw_sig["commit_view"] == 0, raw_sig
+                assert raw_sig["commit_seqno"] == 0, raw_sig
 
-                prev_sig_txid = sig_txid
+            if ccf.signatures.COSE_SIGNATURE_TX_TABLE_NAME in tables:
+                cose_sign1 = ccf.signatures.parse_cose_signature_from_tx(tables)
+                assert cose_sign1 is not None, tables[
+                    ccf.signatures.COSE_SIGNATURE_TX_TABLE_NAME
+                ]
+                msg = cwt.COSEMessage.loads(cose_sign1)
+                assert msg.type == cwt.COSETypes.SIGN1, msg
+                assert msg.payload is None, msg
+                phdr = msg.protected
+
+                KID = 4
+                kid = phdr.get(KID)
+                assert isinstance(kid, bytes) and len(kid) > 0, phdr
+
+                VDS = 395
+                CCF_LEDGER_SHA256 = 2
+                assert phdr[VDS] == CCF_LEDGER_SHA256, phdr
+
+                CWT_CLAIMS = 15
+                IAT, ISS, SUB = 6, 1, 2
+                cwt_claims = phdr[CWT_CLAIMS]
+                for label in (IAT, ISS, SUB):
+                    assert label in cwt_claims, (label, cwt_claims)
+
+                cose_txid = TxID.from_str(phdr["ccf.v1"]["txid"])
+                assert cose_txid.view == gcm_view, (cose_txid, gcm_view)
+                assert cose_txid.seqno == gcm_seqno, (cose_txid, gcm_seqno)
+
+            # Adjacent signatures only occur on a view change
+            if prev_sig_txid is not None:
+                if prev_sig_txid.seqno + 1 == sig_txid.seqno:
+                    # Reduced from assert while investigating cause
+                    # https://github.com/microsoft/CCF/issues/5078
+                    if sig_txid.view <= prev_sig_txid.view:
+                        LOG.error(
+                            f"Adjacent signatures at {prev_sig_txid} and {sig_txid}"
+                        )
+
+            prev_sig_txid = sig_txid
 
 
 def check_all_tables_are_documented(table_names_in_ledger, doc_path):
