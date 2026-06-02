@@ -3,6 +3,7 @@
 #pragma once
 
 #include <cerrno>
+#include <cstddef>
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
@@ -160,7 +161,8 @@ namespace files
     return nlohmann::json::parse(v.begin(), v.end());
   }
 
-  static void dump(std::span<const uint8_t> data, const fs::path& file)
+  static void dump_bytes(
+    std::span<const std::byte> data, const fs::path& file)
   {
     auto* f = open_file(file, O_WRONLY | O_CREAT | O_TRUNC, "wb");
     if (f == nullptr)
@@ -172,7 +174,7 @@ namespace files
     }
 
     const auto bytes_written =
-      fwrite(data.data(), sizeof(uint8_t), data.size(), f);
+      fwrite(data.data(), sizeof(std::byte), data.size(), f);
     const auto write_errno = errno;
     // Preserve any write-side errno before fclose() can overwrite it.
     errno = 0;
@@ -196,18 +198,25 @@ namespace files
   }
 
   /**
-   * @brief Writes the content of a string to a file
+   * @brief Writes the content of a byte span to a file
    *
-   * @param data string to write
+   * @param data bytes to write
+   * @param file the path
+   */
+  static void dump(std::span<const uint8_t> data, const fs::path& file)
+  {
+    dump_bytes(std::as_bytes(data), file);
+  }
+
+  /**
+   * @brief Writes the content of a string view to a file
+   *
+   * @param data string view to write
    * @param file the path
    */
   static void dump(std::string_view data, const fs::path& file)
   {
-    dump(
-      std::span(
-        reinterpret_cast<const uint8_t*>(data.data()),
-        data.size()),
-      file);
+    dump_bytes(std::as_bytes(std::span(data)), file);
   }
 
   static void rename(const fs::path& src, const fs::path& dst)
