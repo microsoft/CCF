@@ -97,6 +97,9 @@ namespace ccf
       std::optional<std::vector<uint8_t>> code_transparent_statement =
         std::nullopt;
       std::optional<ccf::LedgerSignMode> ledger_sign_mode = std::nullopt;
+      // Incremented by the joiner each time it retries a join request after
+      // receiving a StartupSeqnoIsOld response.
+      std::optional<uint32_t> join_fetch_count = std::nullopt;
     };
 
     struct Out

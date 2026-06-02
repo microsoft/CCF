@@ -371,7 +371,7 @@ def test_tcb_version_tables(network, args):
     thrown_exception = None
     try:
         new_node = network.create_node()
-        network.join_node(new_node, args.package, args, timeout=3)
+        network.join_node(new_node, args.package, args, timeout=3, from_snapshot=False)
         network.trust_node(new_node, args)
     except TimeoutError as e:
         thrown_exception = e
@@ -392,7 +392,7 @@ def test_tcb_version_tables(network, args):
 
     LOG.info("Checking new nodes are allowed to join using expanded api")
     new_node = network.create_node()
-    network.join_node(new_node, args.package, args, timeout=3)
+    network.join_node(new_node, args.package, args, timeout=3, from_snapshot=False)
     network.trust_node(new_node, args)
 
     LOG.info("Change the current cpuid's TCB version using the new API")
@@ -413,7 +413,7 @@ def test_tcb_version_tables(network, args):
 
     LOG.info("Checking new nodes are allowed to join using hexstring api")
     new_node = network.create_node()
-    network.join_node(new_node, args.package, args, timeout=3)
+    network.join_node(new_node, args.package, args, timeout=3, from_snapshot=False)
     network.trust_node(new_node, args)
 
 
@@ -433,6 +433,7 @@ def test_add_node_without_security_policy(network, args):
             args,
             timeout=3,
             snp_uvm_security_context_dir=snp_dir if security_context_dir else None,
+            from_snapshot=False,
         )
         network.trust_node(new_node, args)
         return network
@@ -459,7 +460,7 @@ def test_add_node_with_stubbed_security_policy(network, args):
 
     # If we don't throw an exception, joining was successful
     new_node = network.create_node()
-    network.join_node(new_node, args.package, args, timeout=3)
+    network.join_node(new_node, args.package, args, timeout=3, from_snapshot=False)
     network.trust_node(new_node, args)
 
     # Revert to original state
@@ -494,6 +495,7 @@ def test_start_node_with_mismatched_host_data(network, args):
                 args,
                 timeout=3,
                 snp_uvm_security_context_dir=snp_dir if security_context_dir else None,
+                from_snapshot=False,
             )
     except (TimeoutError, RuntimeError):
         LOG.info("As expected, node with invalid security policy failed to startup")
@@ -518,7 +520,7 @@ def test_add_node_with_untrusted_measurement(network, args):
 
     new_node = network.create_node()
     try:
-        network.join_node(new_node, args.package, args, timeout=3)
+        network.join_node(new_node, args.package, args, timeout=3, from_snapshot=False)
     except infra.network.MeasurementNotFound:
         LOG.info("As expected, node with untrusted measurement failed to join")
     else:
@@ -586,7 +588,7 @@ def assert_node_join_fails(network, args):
     """Create a node and assert that joining the network raises HostDataNotFound."""
     new_node = network.create_node()
     try:
-        network.join_node(new_node, args.package, args, timeout=3)
+        network.join_node(new_node, args.package, args, timeout=3, from_snapshot=False)
     except infra.network.HostDataNotFound as e:
         LOG.info(f"As expected, node join failed: {e.error_line}")
         assert (
@@ -724,7 +726,9 @@ def test_add_node_via_code_policy(network, args):
         ),
     )
     new_node = network.create_node()
-    network.join_node(new_node, joiner_args.package, joiner_args, timeout=3)
+    network.join_node(
+        new_node, joiner_args.package, joiner_args, timeout=3, from_snapshot=False
+    )
     network.trust_node(new_node, joiner_args)
 
     # Cleanup: restore host data and remove code update policy.
@@ -754,7 +758,7 @@ def test_add_node_with_untrusted_host_data(network, args):
 
     new_node = network.create_node()
     try:
-        network.join_node(new_node, args.package, args, timeout=3)
+        network.join_node(new_node, args.package, args, timeout=3, from_snapshot=False)
     except infra.network.HostDataNotFound:
         LOG.info("As expected, node with untrusted host data failed to join")
     else:
@@ -788,6 +792,7 @@ def test_add_node_with_no_uvm_endorsements(network, args):
                 args,
                 timeout=3,
                 snp_uvm_security_context_dir=snp_dir if security_context_dir else None,
+                from_snapshot=False,
             )
         except infra.network.MeasurementNotFound:
             LOG.info("As expected, node with no UVM endorsements failed to join")
@@ -810,6 +815,7 @@ def test_add_node_with_no_uvm_endorsements(network, args):
             args,
             timeout=3,
             snp_uvm_security_context_dir=snp_dir if security_context_dir else None,
+            from_snapshot=False,
         )
         new_node.stop()
 
@@ -840,6 +846,7 @@ def test_add_node_with_different_package(network, args):
             replacement_package,
             args,
             timeout=3,
+            from_snapshot=False,
         )
 
     except (infra.network.MeasurementNotFound, infra.network.HostDataNotFound) as err:
@@ -994,7 +1001,7 @@ def test_update_all_nodes(network, args):
     LOG.info("Start fresh nodes running new code")
     for _ in range(0, len(old_nodes)):
         new_node = network.create_node()
-        network.join_node(new_node, replacement_package, args)
+        network.join_node(new_node, replacement_package, args, from_snapshot=False)
         network.trust_node(new_node, args)
 
     LOG.info("Retire original nodes running old code")
@@ -1075,7 +1082,7 @@ def test_add_node_with_no_uvm_endorsements_in_kv(network, args):
 
     try:
         new_node = network.create_node()
-        network.join_node(new_node, args.package, args, timeout=3)
+        network.join_node(new_node, args.package, args, timeout=3, from_snapshot=False)
     except infra.network.UVMEndorsementsNotAuthorised:
         LOG.info("As expected, node with no UVM endorsements failed to join")
     else:

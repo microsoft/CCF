@@ -29,13 +29,12 @@ endfunction()
 # Unit test wrapper
 function(add_unit_test name)
   add_executable(${name} ${CCF_DIR}/src/enclave/thread_local.cpp ${ARGN})
-  target_compile_options(${name} PRIVATE ${COMPILE_LIBCXX})
   target_include_directories(
     ${name}
     PRIVATE src ${CCFCRYPTO_INC} ${CCF_DIR}/3rdparty/test
   )
   enable_coverage(${name})
-  target_link_libraries(${name} PRIVATE ${LINK_LIBCXX} ccfcrypto -pthread)
+  target_link_libraries(${name} PRIVATE ccfcrypto -pthread)
   add_san(${name})
 
   add_test(NAME ${name} COMMAND ${name})
@@ -52,43 +51,57 @@ function(add_unit_test name)
   add_san_test_properties(${name})
 endfunction()
 
-# Fuzz test wrapper (requires -DFUZZING=ON -DUSE_LIBCXX=ON)
+# Fuzz test wrapper (requires -DFUZZING=ON)
 function(add_fuzz_test name)
-  if(NOT USE_LIBCXX)
-    message(
-      FATAL_ERROR
-      "Fuzz targets require USE_LIBCXX=ON to avoid UBSAN false positives from libstdc++ shared_ptr"
-    )
-  endif()
-
   add_executable(${name} ${CCF_DIR}/src/enclave/thread_local.cpp ${ARGN})
-  target_compile_options(${name} PRIVATE ${COMPILE_LIBCXX} -fsanitize=fuzzer)
+  target_compile_options(${name} PRIVATE -fsanitize=fuzzer)
   target_link_options(${name} PRIVATE -fsanitize=fuzzer)
   target_include_directories(${name} PRIVATE src ${CCFCRYPTO_INC})
-  target_link_libraries(${name} PRIVATE ${LINK_LIBCXX} -pthread)
+  target_link_libraries(${name} PRIVATE -pthread)
   add_san(${name})
+  # UBSan's vptr check fires inside libstdc++'s
+  # std::_Sp_counted_ptr_inplace<T,A,_Lp>::_Sp_counted_ptr_inplace ctor
+  # (used by std::make_shared) when the inplace control block is being
+  # constructed: that ctor reinterpret_casts uninitialised memory to T*
+  # in order to call std::allocator_traits<T>::construct, and UBSan reads
+  # whatever bytes happen to be there as a vptr. The same false positive
+  # is documented and explicitly excluded by CFI in
+  # compiler-rt/lib/cfi/cfi_ignorelist.txt
+  # (entry: "fun:_ZNSt23_Sp_counted_ptr_inplace*"); UBSan has no
+  # equivalent ignorelist for vptr. See LLVM issue #48337 for context.
+  # The diagnostic is reliably reproducible when libclang_rt.fuzzer is
+  # linked in, because libfuzzer's allocator activity leaves non-zero
+  # bytes in the freshly returned heap slot.
+  # Fuzz binaries don't exercise vtable correctness, so disabling vptr
+  # is the simplest workaround.
+  target_compile_options(${name} PRIVATE -fno-sanitize=vptr)
+  target_link_options(${name} PRIVATE -fno-sanitize=vptr)
 endfunction()
 
 # Test binary wrapper
 function(add_test_bin name)
   add_executable(${name} ${CCF_DIR}/src/enclave/thread_local.cpp ${ARGN})
-  target_compile_options(${name} PRIVATE ${COMPILE_LIBCXX})
   target_include_directories(
     ${name}
     PRIVATE src ${CCFCRYPTO_INC} ${CCF_DIR}/3rdparty/test
   )
   enable_coverage(${name})
-  target_link_libraries(${name} PRIVATE ${LINK_LIBCXX} ccfcrypto)
+  target_link_libraries(${name} PRIVATE ccfcrypto)
   add_san(${name})
 endfunction()
 
-# Helper for building end-to-end function tests using the python infrastructure
+# Helper for building end-to-end function tests using the python infrastructure.
+#
+# BUCKET assigns the test to one of the CI runner buckets (bucket_a, bucket_b,
+# bucket_c) so that .github/workflows/ci.yml can select the per-runner test set
+# with `ctest -L bucket_X`. Every PR-CI e2e test must be in exactly one bucket;
+# scripts/test-buckets-checks.sh flags unbucketed tests in `no_bucket:`.
 function(add_e2e_test)
   cmake_parse_arguments(
     PARSE_ARGV 0
     PARSED_ARGS
     ""
-    "NAME;PYTHON_SCRIPT;LABEL;CURL_CLIENT"
+    "NAME;PYTHON_SCRIPT;LABEL;CURL_CLIENT;BUCKET"
     "CONSTITUTION;ADDITIONAL_ARGS;CONFIGURATIONS"
   )
 
@@ -135,6 +148,14 @@ function(add_e2e_test)
       )
     endif()
 
+    if(GLIBCXX_DEBUG)
+      set_property(
+        TEST ${PARSED_ARGS_NAME}
+        APPEND
+        PROPERTY ENVIRONMENT "CCF_GLIBCXX_DEBUG=1"
+      )
+    endif()
+
     if("${PARSED_ARGS_LABEL}" STREQUAL "partitions")
       set_property(
         TEST ${PARSED_ARGS_NAME}
@@ -161,6 +182,14 @@ function(add_e2e_test)
       APPEND
       PROPERTY LABELS ${PARSED_ARGS_LABEL}
     )
+
+    if(PARSED_ARGS_BUCKET)
+      set_property(
+        TEST ${PARSED_ARGS_NAME}
+        APPEND
+        PROPERTY LABELS ${PARSED_ARGS_BUCKET}
+      )
+    endif()
 
     if(${PARSED_ARGS_CURL_CLIENT})
       set_property(

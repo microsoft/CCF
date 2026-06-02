@@ -15,6 +15,7 @@ import json
 from piccolo import generator
 from piccolo import analyzer
 import infra.bencher
+import infra.proc
 
 
 def get_command_args(args, network, get_command):
@@ -80,7 +81,7 @@ def run(get_command, args):
 
     args.initial_user_count = 3
     args.sig_ms_interval = 100
-    args.ledger_chunk_bytes = "5MB"  # Set to cchost default value
+    args.ledger_chunk_bytes = "5MB"  # Set to node default value
 
     LOG.info("Starting nodes on {}".format(hosts))
 
@@ -214,6 +215,12 @@ def run(get_command, args):
                         perf_label,
                         infra.bencher.Throughput(perf_result),
                     )
+
+                primary, _ = network.find_primary()
+                mem = infra.proc.get_proc_memory_stats(primary.remote.remote.proc.pid)
+                if mem is not None:
+                    bf = infra.bencher.Bencher()
+                    bf.set_memory(perf_label, mem)
 
                 for remote_client in clients:
                     remote_client.stop()

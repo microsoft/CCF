@@ -4,6 +4,7 @@
 #include "ccf/node/quote.h"
 
 #include "ccf/crypto/cose.h"
+#include "ccf/ds/json.h"
 #include "ccf/historical_queries_utils.h"
 #include "ccf/pal/attestation.h"
 #include "ccf/pal/attestation_sev_snp.h"
@@ -179,7 +180,7 @@ namespace ccf
     {
       case QuoteFormat::insecure_virtual:
       {
-        auto j = nlohmann::json::parse(quote_info.quote);
+        auto j = ccf::parse_json_safe(quote_info.quote);
 
         auto it = j.find("host_data");
         if (it != j.end())
@@ -328,8 +329,8 @@ namespace ccf
         pem_chain.emplace_back(ccf::crypto::cert_der_to_pem(c).str());
       }
 
-      auto jwk = nlohmann::json::parse(
-        didx509::resolve_jwk(pem_chain, issuer_did, true));
+      auto jwk =
+        ccf::parse_json_safe(didx509::resolve_jwk(pem_chain, issuer_did, true));
       auto generic_jwk = jwk.get<ccf::crypto::JsonWebKey>();
 
       if (generic_jwk.kty != ccf::crypto::JsonWebKeyType::EC)

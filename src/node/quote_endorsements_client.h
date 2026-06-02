@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/crypto/verifier.h"
+#include "ccf/ds/json.h"
 #include "ccf/http_consts.h"
 #include "ccf/pal/attestation.h"
 #include "ccf/pal/attestation_sev_snp_endorsements.h"
@@ -87,7 +88,7 @@ namespace ccf
       }
       else if (endpoint.response_is_thim_json)
       {
-        auto j = nlohmann::json::parse(data);
+        auto j = ccf::parse_json_safe(data);
         auto vcekCert = j.at("vcekCert").get<std::string>();
         auto certificateChain = j.at("certificateChain").get<std::string>();
         endorsements_pem.insert(
