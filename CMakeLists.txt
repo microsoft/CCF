@@ -19,10 +19,15 @@ message(STATUS "CCF version = ${CCF_VERSION}")
 message(STATUS "CCF release version = ${CCF_RELEASE_VERSION}")
 message(STATUS "CCF version suffix = ${CCF_VERSION_SUFFIX}")
 
+set(CCF_ENABLE_RELEASE_HARDENING_DEFAULT ON)
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+  set(CCF_ENABLE_RELEASE_HARDENING_DEFAULT OFF)
+endif()
+
 option(
   CCF_ENABLE_RELEASE_HARDENING
   "Enable supported compiler and linker hardening options for release configurations"
-  ON
+  ${CCF_ENABLE_RELEASE_HARDENING_DEFAULT}
 )
 
 # Enable common release-build hardening where the active toolchain supports it:
@@ -35,6 +40,8 @@ option(
 # fortification documentation
 # (https://sourceware.org/glibc/wiki/Source_Fortification), and GNU ld's options
 # (https://sourceware.org/binutils/docs/ld/Options.html).
+# This defaults to OFF only for Debug builds, and ON for other CMAKE_BUILD_TYPE
+# values unless explicitly overridden.
 
 # Set the default install prefix for CCF. Users may override this value with the
 # cmake command. For example:
