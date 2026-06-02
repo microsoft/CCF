@@ -618,9 +618,8 @@ namespace ccf::node
 
       const auto& snapshot_name = latest_committed_snapshot->filename();
 
-      const auto address =
-        get_redirect_address_for_node(
-          ctx, ctx.tx, node_context_ptr->get_node_id());
+      const auto address = get_redirect_address_for_node(
+        ctx, ctx.tx, node_context_ptr->get_node_id());
       if (!address.has_value())
       {
         return;
@@ -698,9 +697,8 @@ namespace ccf::node
         return;
       }
 
-      auto address =
-        get_redirect_address_for_node(
-          ctx, ctx.tx, node_context_ptr->get_node_id());
+      auto address = get_redirect_address_for_node(
+        ctx, ctx.tx, node_context_ptr->get_node_id());
       if (!address.has_value())
       {
         return;
@@ -831,55 +829,55 @@ namespace ccf::node
         "in the 'since' query parameter.")
       .install();
 
-    auto get_snapshot = [node_context_ptr](
-                          ccf::endpoints::CommandEndpointContext& ctx) {
-      auto node_configuration_subsystem =
-        get_node_configuration_subsystem(*node_context_ptr, ctx);
-      if (node_configuration_subsystem == nullptr)
-      {
+    auto get_snapshot =
+      [node_context_ptr](ccf::endpoints::CommandEndpointContext& ctx) {
+        auto node_configuration_subsystem =
+          get_node_configuration_subsystem(*node_context_ptr, ctx);
+        if (node_configuration_subsystem == nullptr)
+        {
+          return;
+        }
+
+        const auto& snapshots_config =
+          node_configuration_subsystem->get().node_config.snapshots;
+
+        std::string snapshot_name;
+        std::string error;
+        if (!ccf::endpoints::get_path_param(
+              ctx.rpc_ctx->get_request_path_params(),
+              "snapshot_name",
+              snapshot_name,
+              error))
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::InvalidResourceName,
+            std::move(error));
+          return;
+        }
+
+        files::fs::path snapshot_path =
+          files::fs::path(snapshots_config.directory) / snapshot_name;
+
+        std::ifstream f(snapshot_path, std::ios::binary);
+        if (!f.good())
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_NOT_FOUND,
+            ccf::errors::ResourceNotFound,
+            fmt::format(
+              "This node does not have a snapshot named {}", snapshot_name));
+          return;
+        }
+
+        LOG_DEBUG_FMT("Found snapshot: {}", snapshot_path.string());
+
+        ctx.rpc_ctx->set_response_header(
+          ccf::http::headers::CCF_SNAPSHOT_NAME, snapshot_name);
+
+        fill_range_response_from_file(ctx, f);
         return;
-      }
-
-      const auto& snapshots_config =
-        node_configuration_subsystem->get().node_config.snapshots;
-
-      std::string snapshot_name;
-      std::string error;
-      if (!ccf::endpoints::get_path_param(
-            ctx.rpc_ctx->get_request_path_params(),
-            "snapshot_name",
-            snapshot_name,
-            error))
-      {
-        ctx.rpc_ctx->set_error(
-          HTTP_STATUS_BAD_REQUEST,
-          ccf::errors::InvalidResourceName,
-          std::move(error));
-        return;
-      }
-
-      files::fs::path snapshot_path =
-        files::fs::path(snapshots_config.directory) / snapshot_name;
-
-      std::ifstream f(snapshot_path, std::ios::binary);
-      if (!f.good())
-      {
-        ctx.rpc_ctx->set_error(
-          HTTP_STATUS_NOT_FOUND,
-          ccf::errors::ResourceNotFound,
-          fmt::format(
-            "This node does not have a snapshot named {}", snapshot_name));
-        return;
-      }
-
-      LOG_DEBUG_FMT("Found snapshot: {}", snapshot_path.string());
-
-      ctx.rpc_ctx->set_response_header(
-        ccf::http::headers::CCF_SNAPSHOT_NAME, snapshot_name);
-
-      fill_range_response_from_file(ctx, f);
-      return;
-    };
+      };
     registry
       .make_command_endpoint(
         "/snapshot/{snapshot_name}", HTTP_HEAD, get_snapshot, no_auth_required)
@@ -893,58 +891,58 @@ namespace ccf::node
       .require_operator_feature(endpoints::OperatorFeature::SnapshotRead)
       .install();
 
-    auto get_ledger_chunk = [node_context_ptr](
-                              ccf::endpoints::CommandEndpointContext& ctx) {
-      auto node_configuration_subsystem =
-        get_node_configuration_subsystem(*node_context_ptr, ctx);
-      if (node_configuration_subsystem == nullptr)
-      {
+    auto get_ledger_chunk =
+      [node_context_ptr](ccf::endpoints::CommandEndpointContext& ctx) {
+        auto node_configuration_subsystem =
+          get_node_configuration_subsystem(*node_context_ptr, ctx);
+        if (node_configuration_subsystem == nullptr)
+        {
+          return;
+        }
+
+        const auto& ledger_config =
+          node_configuration_subsystem->get().node_config.ledger;
+
+        std::string chunk_name;
+        std::string error;
+        if (!ccf::endpoints::get_path_param(
+              ctx.rpc_ctx->get_request_path_params(),
+              "chunk_name",
+              chunk_name,
+              error))
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::InvalidResourceName,
+            std::move(error));
+          return;
+        }
+
+        LOG_DEBUG_FMT("Fetching ledger chunk {}", chunk_name);
+
+        files::fs::path chunk_path =
+          files::fs::path(ledger_config.directory) / chunk_name;
+
+        std::ifstream f(chunk_path, std::ios::binary);
+        if (!f.good())
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_NOT_FOUND,
+            ccf::errors::ResourceNotFound,
+            fmt::format(
+              "This node does not have a ledger chunk named {}", chunk_name));
+          return;
+        }
+
+        LOG_DEBUG_FMT("Found ledger chunk: {}", chunk_path.string());
+
+        ctx.rpc_ctx->set_response_header(
+          ccf::http::headers::CCF_LEDGER_CHUNK_NAME, chunk_name);
+
+        fill_range_response_from_file(ctx, f);
+
         return;
-      }
-
-      const auto& ledger_config =
-        node_configuration_subsystem->get().node_config.ledger;
-
-      std::string chunk_name;
-      std::string error;
-      if (!ccf::endpoints::get_path_param(
-            ctx.rpc_ctx->get_request_path_params(),
-            "chunk_name",
-            chunk_name,
-            error))
-      {
-        ctx.rpc_ctx->set_error(
-          HTTP_STATUS_BAD_REQUEST,
-          ccf::errors::InvalidResourceName,
-          std::move(error));
-        return;
-      }
-
-      LOG_DEBUG_FMT("Fetching ledger chunk {}", chunk_name);
-
-      files::fs::path chunk_path =
-        files::fs::path(ledger_config.directory) / chunk_name;
-
-      std::ifstream f(chunk_path, std::ios::binary);
-      if (!f.good())
-      {
-        ctx.rpc_ctx->set_error(
-          HTTP_STATUS_NOT_FOUND,
-          ccf::errors::ResourceNotFound,
-          fmt::format(
-            "This node does not have a ledger chunk named {}", chunk_name));
-        return;
-      }
-
-      LOG_DEBUG_FMT("Found ledger chunk: {}", chunk_path.string());
-
-      ctx.rpc_ctx->set_response_header(
-        ccf::http::headers::CCF_LEDGER_CHUNK_NAME, chunk_name);
-
-      fill_range_response_from_file(ctx, f);
-
-      return;
-    };
+      };
     registry
       .make_command_endpoint(
         "/ledger_chunk/{chunk_name}",
