@@ -52,6 +52,8 @@ namespace files
     if (f == nullptr)
     {
       auto saved_errno = errno;
+      // Preserve the original fdopen() failure when it set errno, and only
+      // fall back to close()'s errno if fdopen() did not.
       if (close(fd) != 0 && saved_errno == 0)
       {
         saved_errno = errno;
@@ -169,14 +171,20 @@ namespace files
 
     const auto bytes_written = fwrite(data, sizeof(uint8_t), size, f);
     const auto write_errno = errno;
+    // Preserve any write-side errno before fclose() can overwrite it.
     errno = 0;
     const auto close_rc = fclose(f);
     const auto close_errno = errno;
     if (bytes_written != size || close_rc != 0)
     {
-      errno = bytes_written != size ?
-        (write_errno != 0 ? write_errno : EIO) :
-        (close_errno != 0 ? close_errno : EIO);
+      if (bytes_written != size)
+      {
+        errno = write_errno != 0 ? write_errno : EIO;
+      }
+      else
+      {
+        errno = close_errno != 0 ? close_errno : EIO;
+      }
       throw std::logic_error(fmt::format(
         "Failed to write to file {}: {}",
         file.string(),

@@ -50,7 +50,7 @@ namespace asynchost
           const auto target_path = root_dir / key;
           {
             TimeBoundLogger log_if_slow(fmt::format(
-              "Writing LFS file ({} bytes) - dump({})",
+              "Writing LFS file ({} bytes) - {}",
               encrypted.size(),
               target_path));
             LOG_TRACE_FMT(
