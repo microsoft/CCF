@@ -12,8 +12,10 @@
 #include <iostream>
 #include <nlohmann/json.hpp>
 #include <optional>
+#include <span>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <sys/stat.h>
 #include <unistd.h>
 #include <vector>
@@ -158,7 +160,7 @@ namespace files
     return nlohmann::json::parse(v.begin(), v.end());
   }
 
-  static void dump(const uint8_t* data, size_t size, const fs::path& file)
+  static void dump(std::span<const uint8_t> data, const fs::path& file)
   {
     auto* f = open_file(file, O_WRONLY | O_CREAT | O_TRUNC, "wb");
     if (f == nullptr)
@@ -169,15 +171,16 @@ namespace files
         std::strerror(errno))); // NOLINT(concurrency-mt-unsafe)
     }
 
-    const auto bytes_written = fwrite(data, sizeof(uint8_t), size, f);
+    const auto bytes_written =
+      fwrite(data.data(), sizeof(uint8_t), data.size(), f);
     const auto write_errno = errno;
     // Preserve any write-side errno before fclose() can overwrite it.
     errno = 0;
     const auto close_rc = fclose(f);
     const auto close_errno = errno;
-    if (bytes_written != size || close_rc != 0)
+    if (bytes_written != data.size() || close_rc != 0)
     {
-      if (bytes_written != size)
+      if (bytes_written != data.size())
       {
         errno = write_errno != 0 ? write_errno : EIO;
       }
@@ -193,38 +196,18 @@ namespace files
   }
 
   /**
-   * @brief Writes the content of a vector to a file
+   * @brief Writes the content of a byte span to a file
    *
-   * @param data vector to write
+   * @param data bytes to write
    * @param file the path
    */
-  static void dump(const std::vector<uint8_t>& data, const std::string& file)
-  {
-    dump(data.data(), data.size(), file);
-  }
-
-  static void dump(const std::vector<uint8_t>& data, const fs::path& file)
-  {
-    dump(data.data(), data.size(), file);
-  }
-
-  /**
-   * @brief Writes the content of a string to a file
-   *
-   * @param data string to write
-   * @param file the path
-   */
-  static void dump(const std::string& data, const std::string& file)
+  static void dump(std::string_view data, const fs::path& file)
   {
     dump(
-      reinterpret_cast<const uint8_t*>(data.data()),
-      data.size(),
-      fs::path(file));
-  }
-
-  static void dump(const std::string& data, const fs::path& file)
-  {
-    dump(reinterpret_cast<const uint8_t*>(data.data()), data.size(), file);
+      std::span(
+        reinterpret_cast<const uint8_t*>(data.data()),
+        data.size()),
+      file);
   }
 
   static void rename(const fs::path& src, const fs::path& dst)
