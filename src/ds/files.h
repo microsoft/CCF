@@ -2,7 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include <cerrno>
+#include <cstdio>
 #include <cstring>
+#include <filesystem>
+#include <fcntl.h>
 #include <fstream>
 #include <glob.h>
 #include <iostream>
@@ -10,6 +14,8 @@
 #include <optional>
 #include <sstream>
 #include <string>
+#include <sys/stat.h>
+#include <unistd.h>
 #include <vector>
 
 #define FMT_HEADER_ONLY
@@ -19,6 +25,39 @@
 namespace files
 {
   namespace fs = std::filesystem;
+  static constexpr mode_t private_file_permissions = S_IRUSR | S_IWUSR;
+
+  static int open_fd(
+    const fs::path& file,
+    int flags,
+    mode_t permissions = private_file_permissions)
+  {
+    return ::open(file.c_str(), flags, permissions);
+  }
+
+  static FILE* open_file(
+    const fs::path& file,
+    int flags,
+    const char* mode,
+    mode_t permissions = private_file_permissions)
+  {
+    const auto fd = open_fd(file, flags, permissions);
+    if (fd == -1)
+    {
+      return nullptr;
+    }
+
+    // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+    auto* f = fdopen(fd, mode);
+    if (f == nullptr)
+    {
+      const auto saved_errno = errno;
+      close(fd);
+      errno = saved_errno;
+    }
+
+    return f;
+  }
 
   /**
    * @brief Checks if a path exists
@@ -114,6 +153,30 @@ namespace files
     return nlohmann::json::parse(v.begin(), v.end());
   }
 
+  static void dump(const uint8_t* data, size_t size, const fs::path& file)
+  {
+    auto* f = open_file(file, O_WRONLY | O_CREAT | O_TRUNC, "wb");
+    if (f == nullptr)
+    {
+      throw std::logic_error(fmt::format(
+        "Failed to open file {} for writing: {}",
+        file.string(),
+        std::strerror(errno))); // NOLINT(concurrency-mt-unsafe)
+    }
+
+    const auto bytes_written = fwrite(data, sizeof(uint8_t), size, f);
+    const auto write_errno = errno;
+    const auto close_rc = fclose(f);
+    if (bytes_written != size || close_rc != 0)
+    {
+      errno = close_rc != 0 ? errno : write_errno;
+      throw std::logic_error(fmt::format(
+        "Failed to write to file {}: {}",
+        file.string(),
+        std::strerror(errno))); // NOLINT(concurrency-mt-unsafe)
+    }
+  }
+
   /**
    * @brief Writes the content of a vector to a file
    *
@@ -122,13 +185,12 @@ namespace files
    */
   static void dump(const std::vector<uint8_t>& data, const std::string& file)
   {
-    using namespace std;
-    ofstream f(file, ios::binary | ios::trunc);
-    f.write(reinterpret_cast<const char*>(data.data()), data.size());
-    if (!f)
-    {
-      throw logic_error("Failed to write to file: " + file);
-    }
+    dump(data.data(), data.size(), file);
+  }
+
+  static void dump(const std::vector<uint8_t>& data, const fs::path& file)
+  {
+    dump(data.data(), data.size(), file);
   }
 
   /**
@@ -139,7 +201,15 @@ namespace files
    */
   static void dump(const std::string& data, const std::string& file)
   {
-    dump(std::vector<uint8_t>(data.begin(), data.end()), file);
+    dump(
+      reinterpret_cast<const uint8_t*>(data.data()),
+      data.size(),
+      fs::path(file));
+  }
+
+  static void dump(const std::string& data, const fs::path& file)
+  {
+    dump(reinterpret_cast<const uint8_t*>(data.data()), data.size(), file);
   }
 
   static void rename(const fs::path& src, const fs::path& dst)

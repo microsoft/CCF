@@ -17,13 +17,10 @@
 #include <cstdint>
 #include <cstdio>
 #include <filesystem>
-#include <fcntl.h>
 #include <list>
 #include <map>
 #include <string>
-#include <sys/stat.h>
 #include <sys/types.h>
-#include <unistd.h>
 #include <uv.h>
 #include <vector>
 
@@ -127,17 +124,7 @@ namespace asynchost
       {
         TimeBoundLogger log_if_slow(
           fmt::format("Creating ledger file - open({})", file_path));
-        int fd = open(
-          file_path.c_str(), O_RDWR | O_CREAT | O_EXCL, S_IRUSR | S_IWUSR);
-        if (fd != -1)
-        {
-          // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
-          file = fdopen(fd, "w+b");
-          if (file == nullptr)
-          {
-            close(fd);
-          }
-        }
+        file = files::open_file(file_path, O_RDWR | O_CREAT | O_EXCL, "w+b");
       }
       if (file == nullptr)
       {

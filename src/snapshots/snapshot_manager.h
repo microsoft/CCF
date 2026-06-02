@@ -4,6 +4,7 @@
 
 #include "ccf/ds/nonstd.h"
 #include "consensus/ledger_enclave_types.h"
+#include "ds/files.h"
 #include "host/time_bound_logger.h"
 #include "snapshots/filenames.h"
 
@@ -185,8 +186,8 @@ namespace snapshots
             {
               asynchost::TimeBoundLogger log_open_if_slow(
                 fmt::format("Opening snapshot file - open({})", file_name));
-              snapshot_fd = open(
-                full_snapshot_path.c_str(), O_CREAT | O_EXCL | O_WRONLY, 0664);
+              snapshot_fd =
+                files::open_fd(full_snapshot_path, O_CREAT | O_EXCL | O_WRONLY);
             }
             if (snapshot_fd == -1)
             {
