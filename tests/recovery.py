@@ -9,6 +9,7 @@ import infra.checker
 import infra.crypto
 import suite.test_requirements as reqs
 import ccf.ledger
+import ccf.signatures
 import os
 import subprocess
 import json
@@ -630,7 +631,10 @@ def run_recover_service_from_files(
         ), f"Could not copy {file} to {new_common}"
 
     with infra.network.network(
-        args.nodes, args.binary_dir, skip_verify_chunking=True
+        args.nodes,
+        args.binary_dir,
+        skip_verify_chunking=True,
+        check_file_invariants=False,
     ) as network:
 
         args.previous_service_identity_file = os.path.join(
@@ -764,12 +768,10 @@ def test_recover_service_aborted(network, args, from_snapshot=False):
     if from_snapshot:
         snapshots_dir = network.get_committed_snapshots(primary)
 
-    # Check that all nodes have the same (recovery) ledger files
+    # We've deliberately terminated mid-recovery, when it is likely that some nodes still have local-only .recovery files.
     aborted_network.stop_all_nodes(
         skip_verification=True,
-        read_recovery_ledger_files=True,
-        # We've deliberately terminated mid-recovery, when it is likely that some nodes still have local-only .recovery
-        accept_ledger_diff=True,
+        check_file_invariants=False,
     )
 
     current_ledger_dir, committed_ledger_dirs = primary.get_ledger()
@@ -844,6 +846,12 @@ def test_persistence_old_snapshot(network, args):
         ), "Trusting new node should have failed as n2n interface is not valid"
 
     new_node_ledger_path = new_node.remote.ledger_paths()[0]
+
+    primary, _ = network.find_primary()
+    try:
+        network.retire_node(primary, new_node)
+    finally:
+        new_node.stop()
 
     network.stop_all_nodes()
 
@@ -1048,7 +1056,7 @@ def run_corrupted_ledger(args):
             LOG.info("Finding first sig to corrupt")
             for chunk, tx in all_txs(ledger, verbose):
                 tables = tx.get_public_domain().get_tables()
-                if ccf.ledger.SIGNATURE_TX_TABLE_NAME in tables:
+                if ccf.signatures.is_signature_transaction(tables):
                     return chunk.filename(), get_middle_tx_offset(tx)
             return None, None
 
@@ -1092,7 +1100,7 @@ def find_recovery_tx_seqno(node):
             if ccf.ledger.SERVICE_INFO_TABLE_NAME in tables:
                 service_status = json.loads(
                     tables[ccf.ledger.SERVICE_INFO_TABLE_NAME][
-                        ccf.ledger.WELL_KNOWN_SINGLETON_TABLE_KEY
+                        ccf.signatures.WELL_KNOWN_SINGLETON_TABLE_KEY
                     ]
                 )["status"]
                 if service_status == "Open":
@@ -1206,7 +1214,7 @@ def run(args):
             if ccf.ledger.SERVICE_INFO_TABLE_NAME in tables:
                 service_status = json.loads(
                     tables[ccf.ledger.SERVICE_INFO_TABLE_NAME][
-                        ccf.ledger.WELL_KNOWN_SINGLETON_TABLE_KEY
+                        ccf.signatures.WELL_KNOWN_SINGLETON_TABLE_KEY
                     ]
                 )["status"]
                 if service_status == "Opening" or service_status == "Recovering":
@@ -1276,7 +1284,9 @@ def test_incomplete_ledger_recovery(network, args):
         _, last_seqno = ledger.get_latest_public_state()
         last_tx = ledger.get_transaction(last_seqno)
 
-        if "ccf.internal.signatures" in last_tx.get_raw_tx().decode(errors="ignore"):
+        if ccf.signatures.is_signature_transaction(
+            last_tx.get_public_domain().get_tables()
+        ):
             LOG.info(
                 f"Found signature in last tx {last_tx.get_tx_digest()}, not a suitable candidate for this test"
             )
@@ -1307,9 +1317,7 @@ def test_incomplete_ledger_recovery(network, args):
     network.save_service_identity(args)
     primary, _ = network.find_primary()
     current_ledger_dir, committed_ledger_dirs = primary.get_ledger()
-    network.stop_all_nodes(skip_verification=True)
-
-    network.check_ledger_files_identical()
+    network.stop_all_nodes(skip_verification=True, check_file_invariants=True)
 
     network = restart_network(network, args, current_ledger_dir, committed_ledger_dirs)
     return network
