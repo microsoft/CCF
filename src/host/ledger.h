@@ -1528,9 +1528,14 @@ namespace asynchost
       {
         // Close any open files as the ledger should restart cleanly from a new
         // chunk.
-        files.clear();
+        auto file = get_latest_file();
+        if (file != nullptr)
+        {
+          file->complete();
+        }
         // Don't use any of the files on disk for writing
         use_existing_files = false;
+        last_idx_on_init.reset();
         // Set last_idx to the recovery idx, which may be past the current end
         // of the ledger
         last_idx = idx;
