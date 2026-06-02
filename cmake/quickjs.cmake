@@ -31,6 +31,7 @@ target_compile_options(
   PRIVATE $<$<CONFIG:Debug>:-DDUMP_LEAKS>
 )
 add_san(quickjs)
+add_hardening(quickjs)
 set_property(TARGET quickjs PROPERTY POSITION_INDEPENDENT_CODE ON)
 target_include_directories(
   quickjs
