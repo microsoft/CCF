@@ -27,7 +27,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
-- Fixed recovery and node joins from a snapshot when the local ledger ends at or before the snapshot seqno, so subsequent recovery writes resume from the snapshot boundary (#7901).
+- Nodes started in recovery or join mode from a snapshot more recent than the latest ledger file now correctly resume writing from the snapshot boundary (#7901).
 
 ## [7.0.3]
 
