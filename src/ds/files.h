@@ -177,6 +177,7 @@ namespace files
     const auto write_errno = errno;
     // Preserve any write-side errno before fclose() can overwrite it.
     errno = 0;
+    // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
     const auto close_rc = fclose(f);
     const auto close_errno = errno;
     if (bytes_written != data.size() || close_rc != 0)
