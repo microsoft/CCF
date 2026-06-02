@@ -51,9 +51,12 @@ namespace files
     auto* f = fdopen(fd, mode);
     if (f == nullptr)
     {
-      const auto saved_errno = errno;
-      close(fd);
-      errno = saved_errno;
+      auto saved_errno = errno;
+      if (close(fd) != 0 && saved_errno == 0)
+      {
+        saved_errno = errno;
+      }
+      errno = saved_errno != 0 ? saved_errno : EIO;
     }
 
     return f;
@@ -166,10 +169,14 @@ namespace files
 
     const auto bytes_written = fwrite(data, sizeof(uint8_t), size, f);
     const auto write_errno = errno;
+    errno = 0;
     const auto close_rc = fclose(f);
+    const auto close_errno = errno;
     if (bytes_written != size || close_rc != 0)
     {
-      errno = close_rc != 0 ? errno : write_errno;
+      errno = bytes_written != size ?
+        (write_errno != 0 ? write_errno : EIO) :
+        (close_errno != 0 ? close_errno : EIO);
       throw std::logic_error(fmt::format(
         "Failed to write to file {}: {}",
         file.string(),
