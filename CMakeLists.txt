@@ -19,6 +19,30 @@ message(STATUS "CCF version = ${CCF_VERSION}")
 message(STATUS "CCF release version = ${CCF_RELEASE_VERSION}")
 message(STATUS "CCF version suffix = ${CCF_VERSION_SUFFIX}")
 
+set(CCF_ENABLE_RELEASE_HARDENING_DEFAULT ON)
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+  set(CCF_ENABLE_RELEASE_HARDENING_DEFAULT OFF)
+endif()
+
+option(
+  CCF_ENABLE_RELEASE_HARDENING
+  "Enable supported compiler and linker hardening options for release configurations"
+  ${CCF_ENABLE_RELEASE_HARDENING_DEFAULT}
+)
+
+# Enable common release-build hardening where the active toolchain supports it:
+# -fstack-protector-strong adds canary checks to functions with vulnerable stack
+# objects, -D_FORTIFY_SOURCE=2 enables fortified libc wrappers when optimisation
+# is enabled, -fstack-clash-protection probes large stack allocations, and
+# -z relro/-z now make dynamic relocation metadata read-only after eager binding.
+# See GCC's instrumentation options
+# (https://gcc.gnu.org/onlinedocs/gcc/Instrumentation-Options.html), glibc's
+# fortification documentation
+# (https://sourceware.org/glibc/wiki/Source_Fortification), and GNU ld's options
+# (https://sourceware.org/binutils/docs/ld/Options.html).
+# This defaults to OFF only for Debug builds, and ON for other CMAKE_BUILD_TYPE
+# values unless explicitly overridden.
+
 # Set the default install prefix for CCF. Users may override this value with the
 # cmake command. For example:
 #
@@ -215,6 +239,7 @@ target_include_directories(ccf_launcher PRIVATE ${CCF_GENERATED_DIR})
 # HTTP parser
 add_library(http_parser "${HTTP_PARSER_SOURCES}")
 set_property(TARGET http_parser PROPERTY POSITION_INDEPENDENT_CODE ON)
+add_hardening(http_parser)
 install(TARGETS http_parser EXPORT ccf DESTINATION lib)
 
 # CCF platform agnostic library
@@ -499,6 +524,7 @@ target_link_libraries(
   verify_uvm_attestation_and_endorsements
   PRIVATE ccf_pal ccf
 )
+add_hardening(verify_uvm_attestation_and_endorsements)
 install(TARGETS verify_uvm_attestation_and_endorsements DESTINATION bin)
 
 # SNP attestation fetching and verification binary
@@ -510,6 +536,7 @@ target_link_libraries(
   verify_attestation
   PRIVATE ccf_pal ccf_tasks uv curl http_parser
 )
+add_hardening(verify_attestation)
 install(TARGETS verify_attestation DESTINATION bin)
 
 if(BUILD_TESTS)
@@ -1458,4 +1485,5 @@ install(
 # Perf tool executable (requires Arrow/Parquet, not compatible with GLIBCXX_DEBUG)
 if(NOT GLIBCXX_DEBUG)
   include(${CCF_DIR}/tests/perf-system/submitter/CMakeLists.txt)
+  add_hardening(submit)
 endif()
