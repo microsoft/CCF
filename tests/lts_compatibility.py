@@ -188,7 +188,9 @@ def test_new_service(
             network.consortium.force_ledger_chunk(primary)
             for _ in range(10):
                 ledger = ccf.ledger.Ledger(
-                    primary.remote.ledger_paths(), committed_only=True
+                    primary.remote.ledger_paths(),
+                    committed_only=True,
+                    contiguous_suffix=True,
                 )
                 public_state, last_seqno = ledger.get_latest_public_state()
                 if last_seqno >= target_seqno:
@@ -768,7 +770,7 @@ def run_ledger_compatibility_since_first(
                 network.save_service_identity(args)
 
                 # Ledger file chunking changed from 1.x to 2.x and if it does not join from a snapshot the eol ledger files will be re-chunked differently on the joining node
-                accept_ledger_diff = not use_snapshot
+                check_file_invariants = use_snapshot
 
                 skip_verification = test_jwt_cleanup
 
@@ -778,14 +780,16 @@ def run_ledger_compatibility_since_first(
                     )
                 )
                 network.stop_all_nodes(
-                    accept_ledger_diff=accept_ledger_diff,
+                    check_file_invariants=check_file_invariants,
                     skip_verification=skip_verification,
                 )
 
                 ledger_dir, committed_ledger_dirs = primary.get_ledger()
 
                 # Check that ledger and snapshots can be parsed
-                ccf.ledger.Ledger(committed_ledger_dirs).get_latest_public_state()
+                ccf.ledger.Ledger(
+                    committed_ledger_dirs, contiguous_suffix=True
+                ).get_latest_public_state()
                 if snapshots_dir:
                     for s in os.listdir(snapshots_dir):
                         with ccf.ledger.Snapshot(
@@ -821,7 +825,7 @@ if __name__ == "__main__":
     args.package = "js_generic"
     args.nodes = infra.e2e_args.max_nodes(args, f=0)
     args.jwt_key_refresh_interval_s = 3
-    args.sig_ms_interval = 1000  # Set to cchost default value
+    args.sig_ms_interval = 1000  # Set to node default value
 
     # Hardcoded because host only accepts info log on release builds
     args.log_level = "info"

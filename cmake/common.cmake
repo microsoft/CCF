@@ -90,13 +90,18 @@ function(add_test_bin name)
   add_san(${name})
 endfunction()
 
-# Helper for building end-to-end function tests using the python infrastructure
+# Helper for building end-to-end function tests using the python infrastructure.
+#
+# BUCKET assigns the test to one of the CI runner buckets (bucket_a, bucket_b,
+# bucket_c) so that .github/workflows/ci.yml can select the per-runner test set
+# with `ctest -L bucket_X`. Every PR-CI e2e test must be in exactly one bucket;
+# scripts/test-buckets-checks.sh flags unbucketed tests in `no_bucket:`.
 function(add_e2e_test)
   cmake_parse_arguments(
     PARSE_ARGV 0
     PARSED_ARGS
     ""
-    "NAME;PYTHON_SCRIPT;LABEL;CURL_CLIENT"
+    "NAME;PYTHON_SCRIPT;LABEL;CURL_CLIENT;BUCKET"
     "CONSTITUTION;ADDITIONAL_ARGS;CONFIGURATIONS"
   )
 
@@ -177,6 +182,14 @@ function(add_e2e_test)
       APPEND
       PROPERTY LABELS ${PARSED_ARGS_LABEL}
     )
+
+    if(PARSED_ARGS_BUCKET)
+      set_property(
+        TEST ${PARSED_ARGS_NAME}
+        APPEND
+        PROPERTY LABELS ${PARSED_ARGS_BUCKET}
+      )
+    endif()
 
     if(${PARSED_ARGS_CURL_CLIENT})
       set_property(

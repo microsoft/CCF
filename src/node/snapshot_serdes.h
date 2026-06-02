@@ -5,6 +5,7 @@
 #include "ccf/crypto/cose.h"
 #include "ccf/crypto/cose_verifier.h"
 #include "ccf/crypto/pem.h"
+#include "ccf/ds/json.h"
 #include "ccf/historical_queries_adapter.h"
 #include "ccf/service/tables/nodes.h"
 #include "crypto/cose.h"
@@ -117,7 +118,7 @@ namespace ccf
     const std::optional<std::vector<uint8_t>>& prev_service_identity)
   {
     auto j =
-      nlohmann::json::parse(segments.receipt.begin(), segments.receipt.end());
+      ccf::parse_json_safe(segments.receipt.begin(), segments.receipt.end());
     auto receipt_p = j.get<ReceiptPtr>();
     auto receipt = std::dynamic_pointer_cast<ccf::ProofReceipt>(receipt_p);
     if (receipt == nullptr)

@@ -15,7 +15,7 @@ permissions: read-all
 
 jobs:
   vmss-virtual-a:
-    name: "VMSS Virtual A" # CI Checks, Clang Tidy, Python package tests, Doc build, Unit tests, Partitions tests
+    name: "VMSS Virtual A" # CI Checks, Clang Tidy, Python package tests, Doc build, Unit tests, e2e (bucket_a)
     runs-on:
       [
         self-hosted,
@@ -35,7 +35,7 @@ jobs:
           tdnf -y update
           tdnf -y install ca-certificates git
 
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 0
 
@@ -84,17 +84,14 @@ jobs:
           cd build
           ./tests.sh --output-on-failure -L unit -j$(nproc --all)
 
-        # Note that those are only run on the virtual CI, as they require enough
-        # privileges to configure iptables. ACI-based pools run unprivileged
-        # containers, and so cannot run these tests unfortunately.
-      - name: "Run partitions tests"
+      - name: "Run e2e tests (bucket_a)"
         run: |
           set -ex
           cd build
-          ./tests.sh --timeout 360 --output-on-failure -L partitions -C partitions
+          ./tests.sh --timeout 360 --output-on-failure -L bucket_a
 
       - name: "Upload logs for virtual A"
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: logs-azurelinux-virtual-a
           path: |
@@ -107,7 +104,7 @@ jobs:
         if: success() || failure()
 
   vmss-virtual-b:
-    name: "VMSS Virtual B" # End-to-end tests, except for partitions
+    name: "VMSS Virtual B" # End-to-end tests (bucket_b)
     runs-on:
       [
         self-hosted,
@@ -126,7 +123,7 @@ jobs:
           tdnf -y update
           tdnf -y install ca-certificates git
 
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 0
 
@@ -164,12 +161,11 @@ jobs:
           rm -rf /github/home/.cache
           mkdir -p /github/home/.cache
 
-          # End to end tests
-          ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|suite|unit"
+          ./tests.sh --timeout 360 --output-on-failure -L bucket_b
         shell: bash
 
       - name: "Upload logs for virtual B"
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: logs-azurelinux-virtual-b
           path: |
@@ -182,12 +178,12 @@ jobs:
         if: success() || failure()
 
   vmss-virtual-c:
-    name: "VMSS Virtual C" # Code coverage
+    name: "VMSS Virtual C" # End-to-end tests (bucket_c)
     runs-on:
       [
         self-hosted,
         1ES.Pool=gha-vmss-d16av5-ci,
-        "JobId=ci_coverage-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
+        "JobId=ci_build_test_virtual_rest-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
       ]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
@@ -202,7 +198,7 @@ jobs:
           tdnf -y update
           tdnf -y install ca-certificates git
 
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 0
 
@@ -212,67 +208,34 @@ jobs:
           set -ex
           ./scripts/setup-ci.sh
 
-      - name: "Build Debug with coverage"
+      - name: "Build Debug"
         run: |
           set -ex
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DCOVERAGE=ON ..
+          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug ..
           ninja
         shell: bash
 
-      - name: "Run Unit tests"
-        run: |
-          set -ex
-          cd build
-          ./tests.sh --output-on-failure -L unit -j$(nproc --all)
-        shell: bash
-
-      - name: "End to end tests except partition"
+      - name: "Test virtual"
         run: |
           set -ex
           cd build
           rm -rf /github/home/.cache
           mkdir -p /github/home/.cache
 
-          # End to end tests
-          ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|suite|unit"
+          ./tests.sh --timeout 360 --output-on-failure -L bucket_c
         shell: bash
 
-      - name: "Generate coverage reports"
+      - name: "Run partitions tests"
         run: |
           set -ex
           cd build
-          ../scripts/coverage.sh --html coverage_html | tee coverage_report.txt
-        shell: bash
-
-      - name: "Write coverage summary"
-        if: always()
-        run: |
-          set -ex
-          cd build
-          if [[ -f coverage_report.txt ]]; then
-            {
-              echo '## Code Coverage'
-              echo ''
-              echo '```'
-              cat coverage_report.txt
-              echo '```'
-            } >> "$GITHUB_STEP_SUMMARY"
-          fi
-        shell: bash
-
-      - name: "Upload HTML coverage report"
-        uses: actions/upload-artifact@v7
-        with:
-          name: coverage-report-html
-          path: build/coverage_html/
-          if-no-files-found: ignore
-        if: success() || failure()
+          ./tests.sh --timeout 360 --output-on-failure -L partitions -C partitions
 
       - name: "Upload logs for virtual C"
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: logs-azurelinux-virtual-c
           path: |
@@ -294,7 +257,7 @@ jobs:
       ]
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 0
 
@@ -327,7 +290,7 @@ jobs:
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug ..
+          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DWORKER_THREADS=1 ..
           ninja
         shell: bash
 
@@ -340,6 +303,8 @@ jobs:
           ./tests.sh --timeout 360 --output-on-failure -C snp -L snp
           ./tests.sh --timeout 360 --output-on-failure -R code_update
         shell: bash
+        env:
+          ELECTION_TIMEOUT_MS: 10000
 
       - name: "Capture dmesg"
         run: |
@@ -352,7 +317,7 @@ jobs:
         if: success() || failure()
 
       - name: "Upload logs"
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: logs-aci-snp-milan
           path: |
@@ -375,7 +340,7 @@ jobs:
       ]
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 0
 
@@ -408,7 +373,7 @@ jobs:
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug ..
+          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DWORKER_THREADS=1 ..
           ninja
         shell: bash
 
@@ -421,6 +386,8 @@ jobs:
           ./tests.sh --timeout 360 --output-on-failure -C snp -L snp
           ./tests.sh --timeout 360 --output-on-failure -R code_update
         shell: bash
+        env:
+          ELECTION_TIMEOUT_MS: 10000
 
       - name: "Capture dmesg"
         run: |
@@ -433,7 +400,7 @@ jobs:
         if: success() || failure()
 
       - name: "Upload logs"
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: logs-caci-snp-genoa
           path: |

@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/json.h"
 #include "ccf/service/tables/jwt.h"
 #include "http/http_builder.h"
 #include "http/http_rpc_context.h"
@@ -153,7 +154,7 @@ namespace ccf
       JsonWebKeySet jwks;
       try
       {
-        jwks = nlohmann::json::parse(data).get<JsonWebKeySet>();
+        jwks = ccf::parse_json_safe(data).get<JsonWebKeySet>();
       }
       catch (const std::exception& e)
       {
@@ -212,7 +213,7 @@ namespace ccf
       nlohmann::json metadata;
       try
       {
-        metadata = nlohmann::json::parse(data);
+        metadata = ccf::parse_json_safe(data);
         jwks_url_str = metadata.at("jwks_uri").get<std::string>();
       }
       catch (const std::exception& e)

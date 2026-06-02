@@ -11,6 +11,7 @@ import infra.e2e_args
 import infra.network
 import infra.platform_detection
 import ccf.ledger
+import ccf.signatures
 from ccf.tx_id import TxID
 import base64
 import suite.test_requirements as reqs
@@ -138,7 +139,7 @@ def find_ledger_chunk_for_seqno(ledger, seqno):
             if (
                 pd.get_seqno() >= seqno
                 and next_signature is None
-                and ccf.ledger.SIGNATURE_TX_TABLE_NAME in tables
+                and ccf.signatures.is_signature_transaction(tables)
             ):
                 next_signature = pd.get_seqno()
         if first <= seqno and seqno <= last:
@@ -164,7 +165,7 @@ def test_forced_ledger_chunk(network, args):
 
     # Check that there is indeed a ledger chunk that ends at the
     # first signature after proposal.completed_seqno
-    ledger = ccf.ledger.Ledger(ledger_dirs)
+    ledger = ccf.ledger.Ledger(ledger_dirs, contiguous_suffix=True)
     chunk, _, last, next_signature = find_ledger_chunk_for_seqno(
         ledger, proposal.completed_seqno
     )
@@ -945,10 +946,7 @@ def split_all_ledger_files_in_dir(input_dir, output_dir):
         for transaction in ledger_chunk:
             public_domain = transaction.get_public_domain()
             tables = public_domain.get_tables().keys()
-            if (
-                ccf.ledger.SIGNATURE_TX_TABLE_NAME in tables
-                or ccf.ledger.COSE_SIGNATURE_TX_TABLE_NAME in tables
-            ):
+            if ccf.signatures.is_signature_transaction(tables):
                 sig_seqnos.append(public_domain.get_seqno())
 
         if len(sig_seqnos) <= 1:
@@ -983,7 +981,9 @@ def test_split_ledger_on_stopped_network(primary, args):
 
     # Check that the split ledger can be read successfully
     ccf.ledger.Ledger(
-        [current_ledger_dir] + committed_ledger_dirs, committed_only=False
+        [current_ledger_dir] + committed_ledger_dirs,
+        committed_only=False,
+        contiguous_suffix=True,
     )
 
 
@@ -1573,6 +1573,7 @@ def run_ledger_chunk_download(args):
         args.debug_nodes,
         pdb=args.pdb,
         txs=app.LoggingTxs("user0"),
+        check_file_invariants=False,
     ) as network:
         network.start_and_open(args)
         # Issue enough transactions to create multiple ledger chunks
@@ -1913,7 +1914,9 @@ def run_cose_only_mode_upgrade(args):
     def assert_ledger_cose_only_after(node, start_seqno):
         current_ledger_dir, committed_ledger_dirs = node.get_ledger()
         ledger = ccf.ledger.Ledger(
-            committed_ledger_dirs + [current_ledger_dir], committed_only=False
+            committed_ledger_dirs + [current_ledger_dir],
+            committed_only=False,
+            contiguous_suffix=True,
         )
 
         cose_sig_count = 0
@@ -1926,12 +1929,12 @@ def run_cose_only_mode_upgrade(args):
                 if seqno <= start_seqno:
                     continue
 
-                assert ccf.ledger.SIGNATURE_TX_TABLE_NAME not in tables, (
+                assert ccf.signatures.SIGNATURE_TX_TABLE_NAME not in tables, (
                     f"Found traditional (non-COSE) signature at seqno {seqno}, "
                     f"expected COSE-only after seqno {start_seqno}"
                 )
 
-                if ccf.ledger.COSE_SIGNATURE_TX_TABLE_NAME in tables:
+                if ccf.signatures.COSE_SIGNATURE_TX_TABLE_NAME in tables:
                     cose_sig_count += 1
 
         assert (
@@ -2287,6 +2290,7 @@ def run_empty_ledger_dir_check(args):
         args.binary_dir,
         args.debug_nodes,
         pdb=args.pdb,
+        check_file_invariants=False,
     ) as network:
         LOG.info("Check that empty ledger directory is handled correctly")
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -2361,7 +2365,7 @@ def run_initial_uvm_descriptor_checks(const_args):
         LOG.info("Check that the a UVM descriptor is present")
 
         ledger_dirs = primary.remote.ledger_paths()
-        ledger = ccf.ledger.Ledger(ledger_dirs)
+        ledger = ccf.ledger.Ledger(ledger_dirs, contiguous_suffix=True)
         first_chunk = next(iter(ledger))
         first_tx = next(iter(first_chunk))
         tables = first_tx.get_public_domain().get_tables()
@@ -2403,6 +2407,7 @@ def run_initial_uvm_descriptor_checks(const_args):
                 recovered_primary.remote.ledger_paths(),
                 committed_only=False,
                 read_recovery_files=True,
+                contiguous_suffix=True,
             )
             for chunk in ledger:
                 _, chunk_end_seqno = chunk.get_seqnos()
@@ -2446,7 +2451,7 @@ def run_initial_tcb_version_checks(const_args):
 
         LOG.info("Check that the a SNP tcb_version is present")
         ledger_dirs = primary.remote.ledger_paths()
-        ledger = ccf.ledger.Ledger(ledger_dirs)
+        ledger = ccf.ledger.Ledger(ledger_dirs, contiguous_suffix=True)
         first_chunk = next(iter(ledger))
         first_tx = next(iter(first_chunk))
         tables = first_tx.get_public_domain().get_tables()
@@ -2485,6 +2490,7 @@ def run_initial_tcb_version_checks(const_args):
                 recovered_primary.remote.ledger_paths(),
                 committed_only=False,
                 read_recovery_files=True,
+                contiguous_suffix=True,
             )
             for chunk in ledger:
                 _, chunk_end_seqno = chunk.get_seqnos()
@@ -2779,6 +2785,7 @@ def run_recovery_decision_protocol_multiple_timeout(const_args):
             recovery_args.binary_dir,
             recovery_args.debug_nodes,
             existing_network=network,
+            check_file_invariants=False,
         ) as recovered_network:
             recovered_network.start_in_recovery_decision_protocol(
                 recovery_args,
@@ -2818,6 +2825,7 @@ def run_read_ledger_on_testdata(args):
             [testdata_path],
             committed_only=False,
             read_recovery_files=False,
+            contiguous_suffix=True,
         )
         for chunk in ledger:
             for tx in chunk:
@@ -2849,7 +2857,9 @@ def run_ledger_viz_test(args):
 
     LOG.info(f"Testing ledger_viz on {ledger_dir} against {expected_file}")
 
-    ledger = ccf.ledger.Ledger([ledger_dir], committed_only=True)
+    ledger = ccf.ledger.Ledger(
+        [ledger_dir], committed_only=True, contiguous_suffix=True
+    )
     liner = ccf.ledger_viz.DefaultLiner(
         write_views=False, split_views=False, split_services=False
     )
@@ -2929,7 +2939,9 @@ def run_split_ledger_test(args):
         # Confirm the post-split directory still parses as a valid ledger.
         # Iterate to actually parse each chunk; Ledger.__init__ only checks
         # filename ranges, real parsing happens during iteration.
-        ledger = ccf.ledger.Ledger([tmp_ledger_dir], committed_only=False)
+        ledger = ccf.ledger.Ledger(
+            [tmp_ledger_dir], committed_only=False, contiguous_suffix=True
+        )
         tx_count = 0
         for chunk in ledger:
             for _ in chunk:
@@ -2942,6 +2954,26 @@ def run_split_ledger_test(args):
 def run_merkle_verification_level(args):
     """Test MERKLE verification level on isolated chunks and full ledgers"""
     LOG.info("Testing MERKLE verification level")
+
+    def validate(path, level):
+        validator = ccf.ledger.LedgerValidator(verification_level=level)
+        ledger = ccf.ledger.Ledger([path], committed_only=False, contiguous_suffix=True)
+        for chunk in ledger:
+            for tx in chunk:
+                validator.add_transaction(tx)
+        return validator
+
+    def assert_modes_agree(path):
+        full = validate(path, ccf.ledger.VerificationLevel.FULL)
+        merkle = validate(path, ccf.ledger.VerificationLevel.MERKLE)
+        assert full.last_verified_txid() == merkle.last_verified_txid(), (
+            f"MERKLE last_verified {merkle.last_verified_txid()} "
+            f"!= FULL last_verified {full.last_verified_txid()} for {path}"
+        )
+        assert full.signature_count == merkle.signature_count, (
+            f"MERKLE signature_count {merkle.signature_count} "
+            f"!= FULL signature_count {full.signature_count} for {path}"
+        )
 
     # Test 1: MERKLE verification on full ledger
     for testdata_dir in os.scandir(args.historical_testdata):
@@ -2958,6 +2990,10 @@ def run_merkle_verification_level(args):
             print_mode=ccf.read_ledger.PrintMode.Quiet,
             verification_level=ccf.ledger.VerificationLevel.MERKLE,
         )
+        # Cross-check that MERKLE reached the same last_verified TxID and
+        # walked over the same signature count as FULL. Catches silent
+        # no-ops in the MERKLE-only path (e.g. on COSE-only sig TXs).
+        assert_modes_agree(testdata_path)
 
     # Test 2: MERKLE verification on isolated chunks
     # Find chunks with multiple signatures to test the "trust first signature" logic
@@ -4501,6 +4537,7 @@ def run_ledger_chunk_cleanup_tests(const_args):
             args.debug_nodes,
             pdb=args.pdb,
             txs=app.LoggingTxs("user0"),
+            check_file_invariants=False,
         ) as network:
             network.start_and_open(args)
             # These tests intentionally produce [fail] log lines when chunks

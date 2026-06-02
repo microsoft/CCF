@@ -12,6 +12,7 @@
 #include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/crypto/sha256.h"
 #include "ccf/crypto/verifier.h"
+#include "ccf/ds/json.h"
 #include "ccf/js/core/context.h"
 #include "ds/internal_logger.h"
 #include "js/checks.h"
@@ -502,7 +503,7 @@ namespace ccf::js::extensions
 
       try
       {
-        T jwk = nlohmann::json::parse(jwk_str.value());
+        T jwk = ccf::parse_json_safe(jwk_str.value());
 
         if constexpr (std::is_same_v<T, ccf::crypto::JsonWebKeyECPublic>)
         {
