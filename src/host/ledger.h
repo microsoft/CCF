@@ -1520,19 +1520,16 @@ namespace asynchost
         return;
       }
 
-      // During recovery, a snapshot can be at or after the current end of the
-      // host ledger. Establish the recovered snapshot boundary without running
-      // the file-level truncation path, which assumes the target index exists
-      // in the local ledger.
+      // During recovery, a snapshot can be after the current end of the host ledger.
+      // Regular truncation requires that the truncation index is within the ledger and otherwise skips the truncation.
+      // This is a special case to handle the recovery forward truncation
       if (recovery_mode && idx >= last_idx)
       {
-        auto file = get_latest_file();
-        if (file != nullptr)
-        {
-          file->complete();
-        }
+        // Close any open files as the ledger should restart cleanly from a new chunk.
+        files.clear();
+        // Don't use any of the files on disk for writing
         use_existing_files = false;
-        last_idx_on_init.reset();
+        // Set last_idx to the recovery idx, which may be past the current end of the ledger
         last_idx = idx;
         return;
       }
