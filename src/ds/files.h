@@ -196,9 +196,9 @@ namespace files
   }
 
   /**
-   * @brief Writes the content of a byte span to a file
+   * @brief Writes the content of a string to a file
    *
-   * @param data bytes to write
+   * @param data string to write
    * @param file the path
    */
   static void dump(std::string_view data, const fs::path& file)
