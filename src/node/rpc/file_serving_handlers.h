@@ -518,8 +518,10 @@ namespace ccf::node
     ccf::BaseEndpointRegistry& registry, ccf::AbstractNodeContext& node_context)
   {
     static constexpr auto file_since_param_key = "since";
+    auto* node_context_ptr = &node_context;
 
-    auto find_snapshot = [&](ccf::endpoints::ReadOnlyEndpointContext& ctx) {
+    auto find_snapshot = [node_context_ptr](
+                           ccf::endpoints::ReadOnlyEndpointContext& ctx) {
       size_t latest_idx = 0;
       {
         // Get latest_idx from query param, if present
@@ -544,7 +546,8 @@ namespace ccf::node
         }
       }
 
-      auto node_operation = node_context.get_subsystem<AbstractNodeOperation>();
+      auto node_operation =
+        node_context_ptr->get_subsystem<AbstractNodeOperation>();
       if (node_operation == nullptr)
       {
         ctx.rpc_ctx->set_error(
@@ -589,7 +592,7 @@ namespace ccf::node
       }
 
       auto node_configuration_subsystem =
-        get_node_configuration_subsystem(node_context, ctx);
+        get_node_configuration_subsystem(*node_context_ptr, ctx);
       if (node_configuration_subsystem == nullptr)
       {
         return;
@@ -616,7 +619,8 @@ namespace ccf::node
       const auto& snapshot_name = latest_committed_snapshot->filename();
 
       const auto address =
-        get_redirect_address_for_node(ctx, ctx.tx, node_context.get_node_id());
+        get_redirect_address_for_node(
+          ctx, ctx.tx, node_context_ptr->get_node_id());
       if (!address.has_value())
       {
         return;
@@ -647,7 +651,8 @@ namespace ccf::node
       .install();
 
     // Find a ledger chunk that includes the since value
-    auto find_chunk = [&](ccf::endpoints::ReadOnlyEndpointContext& ctx) {
+    auto find_chunk = [node_context_ptr](
+                        ccf::endpoints::ReadOnlyEndpointContext& ctx) {
       size_t since_idx = 0;
       {
         // Get since_idx from query param, if present
@@ -682,7 +687,8 @@ namespace ccf::node
       }
       LOG_DEBUG_FMT("Finding ledger chunk including index {}", since_idx);
 
-      auto node_operation = node_context.get_subsystem<AbstractNodeOperation>();
+      auto node_operation =
+        node_context_ptr->get_subsystem<AbstractNodeOperation>();
       if (node_operation == nullptr)
       {
         ctx.rpc_ctx->set_error(
@@ -693,14 +699,15 @@ namespace ccf::node
       }
 
       auto address =
-        get_redirect_address_for_node(ctx, ctx.tx, node_context.get_node_id());
+        get_redirect_address_for_node(
+          ctx, ctx.tx, node_context_ptr->get_node_id());
       if (!address.has_value())
       {
         return;
       }
 
       auto read_ledger_subsystem =
-        node_context.get_subsystem<ccf::ReadLedgerSubsystem>();
+        node_context_ptr->get_subsystem<ccf::ReadLedgerSubsystem>();
       if (read_ledger_subsystem == nullptr)
       {
         ctx.rpc_ctx->set_error(
@@ -739,7 +746,7 @@ namespace ccf::node
           init_idx);
 
         address = get_redirect_address_for_next_node(
-          ctx, ctx.tx, node_context.get_node_id());
+          ctx, ctx.tx, node_context_ptr->get_node_id());
         if (!address.has_value())
         {
           return;
@@ -824,9 +831,10 @@ namespace ccf::node
         "in the 'since' query parameter.")
       .install();
 
-    auto get_snapshot = [&](ccf::endpoints::CommandEndpointContext& ctx) {
+    auto get_snapshot = [node_context_ptr](
+                          ccf::endpoints::CommandEndpointContext& ctx) {
       auto node_configuration_subsystem =
-        get_node_configuration_subsystem(node_context, ctx);
+        get_node_configuration_subsystem(*node_context_ptr, ctx);
       if (node_configuration_subsystem == nullptr)
       {
         return;
@@ -885,9 +893,10 @@ namespace ccf::node
       .require_operator_feature(endpoints::OperatorFeature::SnapshotRead)
       .install();
 
-    auto get_ledger_chunk = [&](ccf::endpoints::CommandEndpointContext& ctx) {
+    auto get_ledger_chunk = [node_context_ptr](
+                              ccf::endpoints::CommandEndpointContext& ctx) {
       auto node_configuration_subsystem =
-        get_node_configuration_subsystem(node_context, ctx);
+        get_node_configuration_subsystem(*node_context_ptr, ctx);
       if (node_configuration_subsystem == nullptr)
       {
         return;

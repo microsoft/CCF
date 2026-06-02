@@ -1755,7 +1755,7 @@ namespace asynchost
       DISPATCHER_SET_MESSAGE_HANDLER(
         disp,
         ::consensus::ledger_get_range,
-        [&](const uint8_t* data, size_t size) {
+        [this](const uint8_t* data, size_t size) {
           auto [from_idx, to_idx, purpose] =
             ringbuffer::read_message<::consensus::ledger_get_range>(data, size);
 
