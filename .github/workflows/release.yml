@@ -144,7 +144,7 @@ jobs:
           find . -type f -exec touch {} +
           mkdir build
           cd build
-          cmake -GNinja -DCLIENT_PROTOCOLS_TEST=ON -DCCF_ENABLE_RELEASE_HARDENING=ON -DCMAKE_BUILD_TYPE=Release ..
+          cmake -GNinja -DCLIENT_PROTOCOLS_TEST=ON -DCMAKE_BUILD_TYPE=Release ..
           ninja -v | tee build.log
 
       - name: "Test"
@@ -183,7 +183,7 @@ jobs:
 
           # Reset cmake config to affect cpack settings
           rm CMakeCache.txt
-          cmake -GNinja -DCCF_ENABLE_RELEASE_HARDENING=ON -DCMAKE_BUILD_TYPE=Release ..
+          cmake -GNinja -DCMAKE_BUILD_TYPE=Release ..
 
           cmake -L .. 2>/dev/null | grep CMAKE_INSTALL_PREFIX: | cut -d = -f 2 > /tmp/install_prefix
           cpack -V -G RPM
@@ -353,7 +353,7 @@ jobs:
           cd tests/ccfapp
           mkdir -p build
           cd build
-          CC=clang CXX=clang++ cmake -GNinja -DCMAKE_BUILD_TYPE=Release -DCCF_ENABLE_RELEASE_HARDENING=ON ..
+          CC=clang CXX=clang++ cmake -GNinja -DCMAKE_BUILD_TYPE=Release ..
           ninja -v
           ./ccfapp > out.txt
           grep "I'm a CCF test app" out.txt
