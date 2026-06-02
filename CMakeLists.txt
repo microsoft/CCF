@@ -19,6 +19,30 @@ message(STATUS "CCF version = ${CCF_VERSION}")
 message(STATUS "CCF release version = ${CCF_RELEASE_VERSION}")
 message(STATUS "CCF version suffix = ${CCF_VERSION_SUFFIX}")
 
+set(CCF_ENABLE_RELEASE_HARDENING_DEFAULT ON)
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+  set(CCF_ENABLE_RELEASE_HARDENING_DEFAULT OFF)
+endif()
+
+option(
+  CCF_ENABLE_RELEASE_HARDENING
+  "Enable supported compiler and linker hardening options for release configurations"
+  ${CCF_ENABLE_RELEASE_HARDENING_DEFAULT}
+)
+
+# Enable common release-build hardening where the active toolchain supports it:
+# -fstack-protector-strong adds canary checks to functions with vulnerable stack
+# objects, -D_FORTIFY_SOURCE=2 enables fortified libc wrappers when optimisation
+# is enabled, -fstack-clash-protection probes large stack allocations, and
+# -z relro/-z now make dynamic relocation metadata read-only after eager binding.
+# See GCC's instrumentation options
+# (https://gcc.gnu.org/onlinedocs/gcc/Instrumentation-Options.html), glibc's
+# fortification documentation
+# (https://sourceware.org/glibc/wiki/Source_Fortification), and GNU ld's options
+# (https://sourceware.org/binutils/docs/ld/Options.html).
+# This defaults to OFF only for Debug builds, and ON for other CMAKE_BUILD_TYPE
+# values unless explicitly overridden.
+
 # Set the default install prefix for CCF. Users may override this value with the
 # cmake command. For example:
 #
@@ -60,8 +84,6 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 find_package(Threads REQUIRED)
 
-option(PROFILE_TESTS "Profile tests" OFF)
-
 if("$ENV{CI}" STREQUAL "")
   set(PYTHON unbuffer python3)
 else()
@@ -92,18 +114,20 @@ option(BUILD_END_TO_END_TESTS "Build end to end tests" ON)
 option(COVERAGE "Enable coverage mapping" OFF)
 option(SHUFFLE_SUITE "Shuffle end to end test suite" OFF)
 option(LONG_TESTS "Enable long end-to-end tests" OFF)
-option(KV_STATE_RB "Enable RBMap as underlying KV state implementation" OFF)
-if(KV_STATE_RB)
-  add_compile_definitions(KV_STATE_RB)
-endif()
-
 option(USE_SNMALLOC "Link against snmalloc" ON)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/snmalloc.cmake)
 
-# Useful for debugging with libc++ hardening options
-option(USE_LIBCXX "Use libc++ instead of libstdc++" OFF)
-
 option(CLANG_TIDY "Run clang-tidy on the codebase" OFF)
+
+option(
+  GLIBCXX_DEBUG
+  "Enable libstdc++ debug mode (_GLIBCXX_DEBUG). Disables the submit binary (which links against Arrow, not built with _GLIBCXX_DEBUG)."
+  OFF
+)
+if(GLIBCXX_DEBUG)
+  add_compile_definitions(_GLIBCXX_DEBUG)
+endif()
+
 # Must happen before tools.cmake is included
 if(CLANG_TIDY)
   find_program(
@@ -192,8 +216,7 @@ include(${CCF_DIR}/cmake/evercbor.cmake)
 
 # Launcher library
 list(
-  APPEND
-  CCF_LAUNCHER_SOURCES
+  APPEND CCF_LAUNCHER_SOURCES
   ${CCF_DIR}/src/host/run.cpp
   ${CCF_DIR}/src/host/env.cpp
 )
@@ -206,7 +229,6 @@ add_ccf_static_library(
     ${TLS_LIBRARY}
     ${CMAKE_DL_LIBS}
     ${CMAKE_THREAD_LIBS_INIT}
-    ${LINK_LIBCXX}
     ccfcrypto
     curl
     http_parser
@@ -217,6 +239,7 @@ target_include_directories(ccf_launcher PRIVATE ${CCF_GENERATED_DIR})
 # HTTP parser
 add_library(http_parser "${HTTP_PARSER_SOURCES}")
 set_property(TARGET http_parser PROPERTY POSITION_INDEPENDENT_CODE ON)
+add_hardening(http_parser)
 install(TARGETS http_parser EXPORT ccf DESTINATION lib)
 
 # CCF platform agnostic library
@@ -299,12 +322,6 @@ add_ccf_static_library(
     ${CCF_DIR}/src/tasks/worker.cpp
 )
 target_link_libraries(ccf_tasks PRIVATE ${CMAKE_DL_LIBS})
-if(USE_LIBCXX)
-  # worker.cpp uses backtrace() which, under libc++, resolves through libunwind.
-  # On systems where libunwind is built with LZMA support (e.g. Azure Linux),
-  # this creates a transitive dependency on liblzma.
-  target_link_libraries(ccf_tasks PRIVATE lzma)
-endif()
 
 # Common test args for Python scripts starting up CCF networks
 set(
@@ -362,16 +379,12 @@ configure_file(
 )
 install(FILES ${CCF_DIR}/include/ccf/version.h DESTINATION include/ccf)
 
-file(
-  READ
-  ${CCF_DIR}/doc/host_config_schema/cchost_config.json
-  HOST_CONFIG_SCHEMA
-)
+file(READ ${CCF_DIR}/doc/host_config_schema/host_config.json HOST_CONFIG_SCHEMA)
 set_property(
   DIRECTORY
   APPEND
   PROPERTY
-    CMAKE_CONFIGURE_DEPENDS ${CCF_DIR}/doc/host_config_schema/cchost_config.json
+    CMAKE_CONFIGURE_DEPENDS ${CCF_DIR}/doc/host_config_schema/host_config.json
 )
 configure_file(
   ${CCF_DIR}/src/host/config_schema.h.in
@@ -380,8 +393,7 @@ configure_file(
 )
 
 file(
-  READ
-  ${CCF_DIR}/doc/schemas/gov/2023-06-01-preview/gov.json
+  READ ${CCF_DIR}/doc/schemas/gov/2023-06-01-preview/gov.json
   GOV_API_SCHEMA_2023_06_01_PREVIEW
 )
 set_property(
@@ -392,8 +404,7 @@ set_property(
       ${CCF_DIR}/doc/schemas/gov/2023-06-01-preview/gov.json
 )
 file(
-  READ
-  ${CCF_DIR}/doc/schemas/gov/2024-07-01/gov.json
+  READ ${CCF_DIR}/doc/schemas/gov/2024-07-01/gov.json
   GOV_API_SCHEMA_2024_07_01
 )
 set_property(
@@ -431,7 +442,6 @@ add_ccf_static_library(
   ccf
   SRCS ${CCF_IMPL_SOURCE}
   LINK_LIBS
-    ${LINK_LIBCXX}
     http_parser
     ccf_js
     ccf_endpoints
@@ -514,6 +524,7 @@ target_link_libraries(
   verify_uvm_attestation_and_endorsements
   PRIVATE ccf_pal ccf
 )
+add_hardening(verify_uvm_attestation_and_endorsements)
 install(TARGETS verify_uvm_attestation_and_endorsements DESTINATION bin)
 
 # SNP attestation fetching and verification binary
@@ -525,6 +536,7 @@ target_link_libraries(
   verify_attestation
   PRIVATE ccf_pal ccf_tasks uv curl http_parser
 )
+add_hardening(verify_attestation)
 install(TARGETS verify_attestation DESTINATION bin)
 
 if(BUILD_TESTS)
@@ -572,6 +584,11 @@ if(BUILD_TESTS)
     add_unit_test(
       json_schema
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/json_schema.cpp
+    )
+
+    add_unit_test(
+      parse_json_safe_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/parse_json_safe.cpp
     )
 
     add_unit_test(
@@ -676,6 +693,15 @@ if(BUILD_TESTS)
     )
     target_include_directories(cbor_test PRIVATE ${CCFCRYPTO_INC})
     target_link_libraries(cbor_test PRIVATE ccfcrypto)
+
+    if(FUZZING)
+      add_fuzz_test(
+        cbor_fuzz_test
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/cbor.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/cbor_fuzz.cpp
+      )
+      target_link_libraries(cbor_fuzz_test PRIVATE evercbor)
+    endif()
 
     add_unit_test(
       sharing_test
@@ -903,10 +929,9 @@ if(BUILD_TESTS)
       src/node/test/merkle_mem.cpp
       ${CCF_DIR}/src/enclave/thread_local.cpp
     )
-    target_compile_options(merkle_mem PRIVATE ${COMPILE_LIBCXX})
     target_link_libraries(
       merkle_mem
-      PRIVATE ${CMAKE_THREAD_LIBS_INIT} ${LINK_LIBCXX} ccfcrypto
+      PRIVATE ${CMAKE_THREAD_LIBS_INIT} ccfcrypto
     )
 
     # Raft driver and scenario test
@@ -925,6 +950,7 @@ if(BUILD_TESTS)
         ./raft_driver ${CMAKE_SOURCE_DIR}/tests/raft_scenarios/
     )
     set_property(TEST raft_scenario_test PROPERTY LABELS raft_scenario)
+    set_property(TEST raft_scenario_test APPEND PROPERTY LABELS bucket_c)
 
     add_test(
       NAME csr_test
@@ -936,14 +962,16 @@ if(BUILD_TESTS)
       NAME versionifier_test
       COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/python/src/ccf/_versionifier.py
     )
+    set_property(TEST versionifier_test APPEND PROPERTY LABELS bucket_c)
 
     add_test(
       NAME github_version_lts_test
       COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/infra/github.py
     )
+    set_property(TEST github_version_lts_test APPEND PROPERTY LABELS bucket_c)
   endif()
 
-  if(NOT TSAN AND NOT USE_LIBCXX)
+  if(NOT TSAN)
     # Picobench benchmarks
     add_picobench(map_bench SRCS src/ds/test/map_bench.cpp)
     add_picobench(logger_bench SRCS src/ds/test/logger_bench.cpp)
@@ -985,6 +1013,7 @@ if(BUILD_TESTS)
   add_e2e_test(
     NAME recovery_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
+    BUCKET bucket_b
     ADDITIONAL_ARGS
       ${ADDITIONAL_RECOVERY_ARGS}
       --constitution
@@ -1053,6 +1082,7 @@ if(BUILD_TESTS)
   add_e2e_test(
     NAME js_batched_stress_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_batched.py
+    BUCKET bucket_c
     ADDITIONAL_ARGS
       --js-app-bundle
       ${CMAKE_SOURCE_DIR}/src/apps/batched
@@ -1064,6 +1094,7 @@ if(BUILD_TESTS)
   add_e2e_test(
     NAME modules_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/js-modules/modules.py
+    BUCKET bucket_c
     ADDITIONAL_ARGS
       --package
       js_generic
@@ -1077,6 +1108,7 @@ if(BUILD_TESTS)
     NAME auth
     PYTHON_SCRIPT
       ${CMAKE_SOURCE_DIR}/tests/js-custom-authorization/custom_authorization.py
+    BUCKET bucket_c
     ADDITIONAL_ARGS
       --package
       js_generic
@@ -1102,6 +1134,7 @@ if(BUILD_TESTS)
     NAME governance_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
     CONSTITUTION ${CONSTITUTION_ARGS}
+    BUCKET bucket_c
     ADDITIONAL_ARGS
       --initial-operator-count
       1
@@ -1112,6 +1145,7 @@ if(BUILD_TESTS)
   add_e2e_test(
     NAME code_update_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
+    BUCKET bucket_c
     ADDITIONAL_ARGS
       --js-app-bundle
       ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
@@ -1138,6 +1172,7 @@ if(BUILD_TESTS)
   add_e2e_test(
     NAME e2e_logging
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
+    BUCKET bucket_c
     ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
   )
 
@@ -1160,6 +1195,7 @@ if(BUILD_TESTS)
     CONSTITUTION ${RBAC_CONSTITUTION_ARGS}
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/programmability.py
     LABEL snp
+    BUCKET bucket_c
   )
 
   # This test uses large requests (so too slow for SAN)
@@ -1167,18 +1203,21 @@ if(BUILD_TESTS)
     add_e2e_test(
       NAME e2e_limits
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/limits.py
+      BUCKET bucket_c
     )
   endif()
 
   add_e2e_test(
     NAME e2e_redirects
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/redirects.py
+    BUCKET bucket_c
     ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
   )
 
   add_e2e_test(
     NAME e2e_logging_http2
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
+    BUCKET bucket_c
     ADDITIONAL_ARGS
       --js-app-bundle
       ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
@@ -1216,6 +1255,7 @@ if(BUILD_TESTS)
   add_e2e_test(
     NAME tls_stress_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/connections.py
+    BUCKET bucket_c
   )
 
   if(CLIENT_PROTOCOLS_TEST)
@@ -1223,12 +1263,14 @@ if(BUILD_TESTS)
       NAME client_protocols
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/client_protocols.py
       LABEL protocolstest
+      BUCKET bucket_c
     )
   endif()
 
   add_e2e_test(
     NAME schema_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/schema.py
+    BUCKET bucket_b
     ADDITIONAL_ARGS
       --constitution
       ${CMAKE_SOURCE_DIR}/samples/constitutions/virtual/virtual_attestation_actions.js
@@ -1260,6 +1302,7 @@ if(BUILD_TESTS)
       NAME lts_compatibility
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/lts_compatibility.py
       LABEL e2e
+      BUCKET bucket_a
       ADDITIONAL_ARGS
         ${LTS_TEST_ARGS}
         --constitution
@@ -1285,6 +1328,7 @@ if(BUILD_TESTS)
   add_e2e_test(
     NAME nodes_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/nodes.py
+    BUCKET bucket_b
     ADDITIONAL_ARGS ${RECONFIG_TEST_ARGS} ${ROTATION_TEST_ARGS}
   )
 
@@ -1386,16 +1430,19 @@ if(BUILD_TESTS)
     add_e2e_test(
       NAME e2e_curl
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_curl.py
+      BUCKET bucket_c
     )
 
     add_e2e_test(
       NAME historical_query_cache_test
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/historical_query_cache.py
+      BUCKET bucket_c
     )
 
     add_e2e_test(
       NAME consistency_trace_validation
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/consistency_trace_validation.py
+      BUCKET bucket_c
     )
   endif()
 
@@ -1408,8 +1455,7 @@ if(BUILD_TESTS)
     endforeach()
     string(REPLACE ";" "\n" _cov_binaries_nl "${_cov_binaries}")
     file(
-      GENERATE OUTPUT
-      "${CMAKE_BINARY_DIR}/coverage_binaries.txt"
+      GENERATE OUTPUT "${CMAKE_BINARY_DIR}/coverage_binaries.txt"
       CONTENT "${_cov_binaries_nl}\n"
     )
   endif()
@@ -1436,7 +1482,8 @@ install(
   DESTINATION ${CMAKE_INSTALL_PREFIX}/cmake
 )
 
-if(NOT USE_LIBCXX)
-  # Perf tool executable
+# Perf tool executable (requires Arrow/Parquet, not compatible with GLIBCXX_DEBUG)
+if(NOT GLIBCXX_DEBUG)
   include(${CCF_DIR}/tests/perf-system/submitter/CMakeLists.txt)
+  add_hardening(submit)
 endif()

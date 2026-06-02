@@ -46,14 +46,14 @@ TEST_CASE("Reconstruction" * doctest::test_suite("oversized"))
   DISPATCHER_SET_MESSAGE_HANDLER(
     disp, ascending, [&](const uint8_t* data, size_t size) {
       REQUIRE(size == payload_size);
-      REQUIRE(std::is_sorted(data, data + size, std::less_equal<uint8_t>()));
+      REQUIRE(std::is_sorted(data, data + size));
       ++complete_messages;
     });
 
   DISPATCHER_SET_MESSAGE_HANDLER(
     disp, descending, [&](const uint8_t* data, size_t size) {
       REQUIRE(size == payload_size);
-      REQUIRE(std::is_sorted(data, data + size, std::greater_equal<uint8_t>()));
+      REQUIRE(std::is_sorted(data, data + size, std::greater<uint8_t>()));
       ++complete_messages;
     });
 
@@ -272,14 +272,14 @@ TEST_CASE("Writing" * doctest::test_suite("oversized"))
 
   DISPATCHER_SET_MESSAGE_HANDLER(
     bp, ascending, [&](const uint8_t* data, size_t size) {
-      REQUIRE(std::is_sorted(data, data + size, std::less_equal<uint8_t>()));
+      REQUIRE(std::is_sorted(data, data + size));
       last_message_size = size;
       ++ascending_reads;
     });
 
   DISPATCHER_SET_MESSAGE_HANDLER(
     bp, descending, [&](const uint8_t* data, size_t size) {
-      REQUIRE(std::is_sorted(data, data + size, std::greater_equal<uint8_t>()));
+      REQUIRE(std::is_sorted(data, data + size, std::greater<uint8_t>()));
       last_message_size = size;
       ++descending_reads;
     });

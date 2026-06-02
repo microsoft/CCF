@@ -1092,6 +1092,7 @@ def test_metrics_logging(network, args):
         new_node,
         args.package,
         args,
+        from_snapshot=False,
     )
     network.trust_node(new_node, args)
 

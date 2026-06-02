@@ -331,11 +331,17 @@ class Node:
 
         self.host_data_transparent_statement_path = host_data_transparent_statement_path
         self.certificate_validity_days = kwargs.get("initial_node_cert_validity_days")
+        self.election_timeout_ms = kwargs.get("election_timeout_ms")
         self.remote = infra.remote.CCFRemote(
             start_type,
             lib_path,
             workspace,
             common_dir,
+            binary_name=(
+                "cchost"
+                if self.major_version is not None and self.major_version < 7
+                else None
+            ),
             binary_dir=self.binary_dir,
             label=label,
             local_node_id=self.local_node_id,
@@ -735,6 +741,8 @@ class Node:
         if description_suffix is not None:
             description += f"|{description_suffix}"
         akwargs["description"] = f"[{description}]"
+        if self.election_timeout_ms is not None:
+            akwargs.setdefault("election_timeout_ms", self.election_timeout_ms)
         akwargs.update(kwargs)
 
         if hasattr(self, "client_impl"):

@@ -476,6 +476,9 @@ namespace ccf
     ccf::tasks::Task snapshot_fetch_task;
     ccf::tasks::Task backup_snapshot_fetch_task;
 
+    // Number of times we have fetched the latest snapshot from the primary
+    size_t join_fetch_count = 0;
+
     std::shared_ptr<ccf::kv::AbstractTxEncryptor> make_encryptor()
     {
 #ifdef USE_NULL_ENCRYPTOR
@@ -569,6 +572,13 @@ namespace ccf
       startup_seqno = startup_snapshot_info->seqno;
       last_recovered_idx = startup_seqno;
       last_recovered_signed_idx = last_recovered_idx;
+
+      if (start_type == StartType::Join)
+      {
+        // after fetching a snapshot, subsequent requests should use the
+        // required bound instead of the preferred bound
+        join_fetch_count += 1;
+      }
 
       if (start_type == StartType::Recover)
       {
@@ -827,7 +837,7 @@ namespace ccf
               const auto raw_data = ccf::crypto::raw_from_b64(
                 config.attestation.environment.snp_endorsements.value());
 
-              const auto j = nlohmann::json::parse(raw_data);
+              const auto j = ccf::parse_json_safe(raw_data);
               const auto aci_endorsements =
                 j.get<ccf::pal::snp::ACIReportEndorsements>();
 
@@ -1077,8 +1087,16 @@ namespace ccf
 
             try
             {
-              auto j = nlohmann::json::parse(data);
+              auto j = ccf::parse_json_safe(data);
               error_response = j.get<ccf::ODataErrorResponse>();
+            }
+            catch (const ccf::JsonParseError& e)
+            {
+              LOG_FAIL_FMT(
+                "Join request returned {}, body exceeds permitted JSON nesting "
+                "depth: {}",
+                status,
+                e.what());
             }
             catch (const nlohmann::json::exception& e)
             {
@@ -1162,7 +1180,7 @@ namespace ccf
           JoinNetworkNodeToNode::Out resp;
           try
           {
-            auto j = nlohmann::json::parse(data);
+            auto j = ccf::parse_json_safe(data);
             resp = j.get<JoinNetworkNodeToNode::Out>();
           }
           catch (const std::exception& e)
@@ -1317,6 +1335,14 @@ namespace ccf
       join_params.public_encryption_key = node_encrypt_kp->public_key_pem();
       join_params.quote_info = quote_info;
       join_params.startup_seqno = startup_seqno;
+      if (config.join.fetch_recent_snapshot)
+      {
+        join_params.join_fetch_count = join_fetch_count;
+      }
+      else
+      {
+        join_params.join_fetch_count = 1;
+      }
       join_params.certificate_signing_request = node_sign_kp->create_csr(
         config.node_certificate.subject_name, subject_alt_names);
       join_params.node_data = config.node_data;
@@ -2615,7 +2641,7 @@ namespace ccf
         return false;
       }
 
-      const auto body = nlohmann::json::parse(raw_body);
+      const auto body = ccf::parse_json_safe(raw_body);
       if (!body.is_boolean())
       {
         LOG_FAIL_FMT("Expected boolean body in create response");

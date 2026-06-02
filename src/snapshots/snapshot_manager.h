@@ -45,10 +45,15 @@ namespace snapshots
         LOG_INFO_FMT(
           "Snapshots will be stored in existing directory: {}", snapshot_dir);
       }
-      else if (!fs::create_directory(snapshot_dir))
+      else
       {
-        throw std::logic_error(
-          fmt::format("Could not create snapshot directory: {}", snapshot_dir));
+        asynchost::TimeBoundLogger log_if_slow(fmt::format(
+          "Creating snapshot directory - create_directory({})", snapshot_dir));
+        if (!fs::create_directory(snapshot_dir))
+        {
+          throw std::logic_error(fmt::format(
+            "Could not create snapshot directory: {}", snapshot_dir));
+        }
       }
 
       if (
@@ -118,7 +123,11 @@ namespace snapshots
         fsync(data->snapshot_fd); // NOLINT(concurrency-mt-unsafe)
       }
 
-      close(data->snapshot_fd); // NOLINT(concurrency-mt-unsafe)
+      {
+        asynchost::TimeBoundLogger log_if_slow(fmt::format(
+          "Closing snapshot file - close({})", data->tmp_file_name));
+        close(data->snapshot_fd); // NOLINT(concurrency-mt-unsafe)
+      }
 
       // e.g. snapshot_100_105.committed
       data->committed_file_name =
@@ -126,7 +135,11 @@ namespace snapshots
       const auto full_committed_path = data->dir / data->committed_file_name;
 
       const auto full_tmp_path = data->dir / data->tmp_file_name;
-      files::rename(full_tmp_path, full_committed_path);
+      {
+        asynchost::TimeBoundLogger log_if_slow(fmt::format(
+          "Renaming snapshot to committed - rename({})", data->tmp_file_name));
+        files::rename(full_tmp_path, full_committed_path);
+      }
     }
 
     static void on_snapshot_sync_and_rename_complete(
@@ -168,8 +181,13 @@ namespace snapshots
               it->second.evidence_idx);
             auto full_snapshot_path = snapshot_dir / file_name;
 
-            int snapshot_fd = open(
-              full_snapshot_path.c_str(), O_CREAT | O_EXCL | O_WRONLY, 0664);
+            int snapshot_fd = -1;
+            {
+              asynchost::TimeBoundLogger log_open_if_slow(
+                fmt::format("Opening snapshot file - open({})", file_name));
+              snapshot_fd = open(
+                full_snapshot_path.c_str(), O_CREAT | O_EXCL | O_WRONLY, 0664);
+            }
             if (snapshot_fd == -1)
             {
               if (errno == EEXIST)
@@ -193,12 +211,20 @@ namespace snapshots
               const auto& snapshot = it->second.snapshot;
 
               {
-                asynchost::TimeBoundLogger log_write_if_slow(
-                  fmt::format("Writing snapshot to {}", file_name));
+                asynchost::TimeBoundLogger log_write_if_slow(fmt::format(
+                  "Writing snapshot data ({} bytes) - write({})",
+                  snapshot->size(),
+                  file_name));
                 // NOLINTNEXTLINE(concurrency-mt-unsafe)
                 THROW_ON_ERROR(
                   write(snapshot_fd, snapshot->data(), snapshot->size()),
                   file_name);
+              }
+              {
+                asynchost::TimeBoundLogger log_write_if_slow(fmt::format(
+                  "Writing snapshot receipt ({} bytes) - write({})",
+                  receipt_size,
+                  file_name));
                 // NOLINTNEXTLINE(concurrency-mt-unsafe)
                 THROW_ON_ERROR(
                   write(snapshot_fd, receipt_data, receipt_size), file_name);

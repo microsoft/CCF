@@ -10,9 +10,13 @@ jobs:
   build_and_publish:
     name: "Publish ccf package to PyPi"
     runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      contents: read
+      id-token: write
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Get release number from git tag (release) or latest (branch)
         run: |
@@ -21,15 +25,16 @@ jobs:
 
       - name: Fetch PyPi Package from release
         run: |
-          cd python
-          RELEASE_WHEEL_URL=$(curl -s  https://api.github.com/repos/microsoft/ccf/releases/tags/ccf-${{steps.tref.outputs.version}} | jq -r '.assets[] | select(.name|test("ccf-.*.whl")) | .browser_download_url')
-          wget ${RELEASE_WHEEL_URL}
+          set -euo pipefail
+          mkdir -p dist
+          cd dist
+          RELEASE_WHEEL_URL=$(
+            curl -fsS "https://api.github.com/repos/microsoft/ccf/releases/tags/ccf-${{ steps.tref.outputs.version }}" |
+              jq -r '[.assets[] | select(.name | test("^ccf-.*\\.whl$")) | .browser_download_url] | if length == 1 then .[0] else error("expected exactly one CCF wheel asset, found \(length)") end'
+          )
+          wget "${RELEASE_WHEEL_URL}"
 
       - name: Publish PyPi Package to https://pypi.org/project/ccf/
-        run: |
-          set -ex
-          cd python
-          python3 -m venv env
-          source ./env/bin/activate
-          pip install twine
-          twine upload -u __token__ -p ${{ secrets.PYPI_TOKEN }} --skip-existing *.whl
+        uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # v1.14.0
+        with:
+          skip-existing: true

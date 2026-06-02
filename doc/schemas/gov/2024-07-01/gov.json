@@ -1494,6 +1494,13 @@
           "$ref": "#/definitions/safeuint",
           "description": "Count of how many ballots have been submitted for this proposal."
         },
+        "ballotSubmitters": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/memberId"
+          },
+          "description": "List of member IDs who have submitted a ballot for this proposal."
+        },
         "finalVotes": {
           "$ref": "#/definitions/Proposals.MemberVotes",
           "description": "If a proposal is not open, then this contains the result of each ballot when the proposal transitioned from open."
@@ -1511,7 +1518,8 @@
         "proposalId",
         "proposerId",
         "proposalState",
-        "ballotCount"
+        "ballotCount",
+        "ballotSubmitters"
       ]
     },
     "Proposals.ProposalActions": {

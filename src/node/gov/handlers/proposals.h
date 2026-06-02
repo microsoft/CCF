@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/base_endpoint_registry.h"
+#include "ccf/ds/json.h"
 #include "ccf/js/common_context.h"
 #include "ccf/js/extensions/ccf/gov_effects.h"
 #include "js/checks.h"
@@ -357,6 +358,19 @@ namespace ccf::gov::endpoints
       response_body["proposerId"] = summary.proposer_id;
       response_body["proposalState"] = summary.state;
       response_body["ballotCount"] = summary.ballots.size();
+
+      auto ballot_submitters = nlohmann::json::array();
+      std::vector<ccf::MemberId> submitter_ids;
+      for (const auto& [member_id, _] : summary.ballots)
+      {
+        submitter_ids.push_back(member_id);
+      }
+      std::sort(submitter_ids.begin(), submitter_ids.end());
+      for (const auto& member_id : submitter_ids)
+      {
+        ballot_submitters.push_back(member_id);
+      }
+      response_body["ballotSubmitters"] = ballot_submitters;
 
       std::optional<ccf::jsgov::Votes> votes = summary.final_votes;
 
@@ -956,7 +970,7 @@ namespace ccf::gov::endpoints
           }
 
           // Parse and validate incoming ballot
-          const auto params = nlohmann::json::parse(cose_ident.content);
+          const auto params = ccf::parse_json_safe(cose_ident.content);
           const auto ballot_it = params.find("ballot");
           if (ballot_it == params.end() || !ballot_it.value().is_string())
           {

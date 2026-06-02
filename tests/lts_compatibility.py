@@ -134,11 +134,21 @@ def test_new_service(
     kwargs = {}
     kwargs["reconfiguration_type"] = "OneTransaction"
 
+    if infra.node.CCFVersion(version) < infra.node.CCFVersion("ccf-6.0.0"):
+        primary, _ = network.find_primary()
+        snapshots_dir = network.get_committed_snapshots(primary)
+        kwargs["from_snapshot"] = True
+        kwargs["snapshots_dir"] = snapshots_dir
+    else:
+        kwargs["from_snapshot"] = False
+        kwargs["fetch_recent_snapshot"] = True
+
     new_node = network.create_node(
         binary_dir=binary_dir,
         library_dir=library_dir,
         version=version,
     )
+
     network.join_node(new_node, args.package, args, **kwargs)
     network.trust_node(
         new_node,
@@ -178,7 +188,9 @@ def test_new_service(
             network.consortium.force_ledger_chunk(primary)
             for _ in range(10):
                 ledger = ccf.ledger.Ledger(
-                    primary.remote.ledger_paths(), committed_only=True
+                    primary.remote.ledger_paths(),
+                    committed_only=True,
+                    contiguous_suffix=True,
                 )
                 public_state, last_seqno = ledger.get_latest_public_state()
                 if last_seqno >= target_seqno:
@@ -358,15 +370,21 @@ def run_code_upgrade_from(
 
             # Note: alternate between joining from snapshot and replaying entire ledger
             new_nodes = []
-            from_snapshot = True
+            fetch_recent_snapshot = True
             for _ in range(0, len(old_nodes)):
                 new_node = network.create_node(
                     binary_dir=to_binary_dir,
                     library_dir=to_library_dir,
                     version=to_version,
                 )
+
+                kwargs = {}
+                kwargs["fetch_recent_snapshot"] = fetch_recent_snapshot
+                if not fetch_recent_snapshot:
+                    kwargs["copy_ledger"] = True
+
                 network.join_node(
-                    new_node, args.package, args, from_snapshot=from_snapshot
+                    new_node, args.package, args, from_snapshot=False, **kwargs
                 )
                 network.trust_node(
                     new_node,
@@ -382,7 +400,7 @@ def run_code_upgrade_from(
                     expected_validity_period_days=DEFAULT_NODE_CERTIFICATE_VALIDITY_DAYS,
                     ignore_proposal_valid_from=True,
                 )
-                from_snapshot = not from_snapshot
+                fetch_recent_snapshot = not fetch_recent_snapshot
                 new_nodes.append(new_node)
 
             # Verify that all nodes run the expected CCF version
@@ -752,7 +770,7 @@ def run_ledger_compatibility_since_first(
                 network.save_service_identity(args)
 
                 # Ledger file chunking changed from 1.x to 2.x and if it does not join from a snapshot the eol ledger files will be re-chunked differently on the joining node
-                accept_ledger_diff = not use_snapshot
+                check_file_invariants = use_snapshot
 
                 skip_verification = test_jwt_cleanup
 
@@ -762,14 +780,16 @@ def run_ledger_compatibility_since_first(
                     )
                 )
                 network.stop_all_nodes(
-                    accept_ledger_diff=accept_ledger_diff,
+                    check_file_invariants=check_file_invariants,
                     skip_verification=skip_verification,
                 )
 
                 ledger_dir, committed_ledger_dirs = primary.get_ledger()
 
                 # Check that ledger and snapshots can be parsed
-                ccf.ledger.Ledger(committed_ledger_dirs).get_latest_public_state()
+                ccf.ledger.Ledger(
+                    committed_ledger_dirs, contiguous_suffix=True
+                ).get_latest_public_state()
                 if snapshots_dir:
                     for s in os.listdir(snapshots_dir):
                         with ccf.ledger.Snapshot(
@@ -805,7 +825,7 @@ if __name__ == "__main__":
     args.package = "js_generic"
     args.nodes = infra.e2e_args.max_nodes(args, f=0)
     args.jwt_key_refresh_interval_s = 3
-    args.sig_ms_interval = 1000  # Set to cchost default value
+    args.sig_ms_interval = 1000  # Set to node default value
 
     # Hardcoded because host only accepts info log on release builds
     args.log_level = "info"

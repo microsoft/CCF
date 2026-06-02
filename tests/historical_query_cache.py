@@ -246,7 +246,7 @@ if __name__ == "__main__":
     args.package = "samples/apps/logging/logging"
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
     args.initial_member_count = 1
-    args.sig_ms_interval = 1000  # Set to cchost default value
+    args.sig_ms_interval = 1000  # Set to node default value
     args.historical_cache_soft_limit = "20KB"
 
     run(args)

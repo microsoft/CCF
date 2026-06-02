@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/base_endpoint_registry.h"
+#include "ccf/ds/json.h"
 #include "node/gov/api_version.h"
 
 namespace ccf::gov::endpoints
@@ -110,8 +111,7 @@ namespace ccf::gov::endpoints
         quote_info["rawQuote"] = node_info.quote_info.quote;
 
         {
-          const auto details =
-            nlohmann::json::parse(node_info.quote_info.quote);
+          const auto details = ccf::parse_json_safe(node_info.quote_info.quote);
           auto j_details = nlohmann::json::object();
           j_details["measurement"] = details["measurement"];
           j_details["reportData"] = details["report_data"];
@@ -362,7 +362,7 @@ namespace ccf::gov::endpoints
                   }
                   const auto& raw_value = raw_value_opt.value();
                   operation =
-                    nlohmann::json::parse(raw_value.begin(), raw_value.end());
+                    ccf::parse_json_safe(raw_value.begin(), raw_value.end());
                 }
                 else
                 {

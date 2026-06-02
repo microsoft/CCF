@@ -20,6 +20,7 @@ import datetime
 import ccf.ledger
 import plotext as plt
 import infra.bencher
+import infra.proc
 
 
 def configure_remote_client(args, client_id, client_host, common_dir):
@@ -240,6 +241,7 @@ def replace_primary(network, host, old_primary, snapshots_dir, statistics):
         timeout=10,
         copy_ledger=False,
         snapshots_dir=snapshots_dir,
+        from_snapshot=snapshots_dir is not None,
         follow_redirect=False,
     )
     LOG.info(f"Shut down primary: {old_primary.local_node_id}")
@@ -438,6 +440,15 @@ def run(args):
                     remote_client.stop()
 
                 perf_label = args.perf_label
+
+                if not args.stop_primary_after_s:
+                    primary, _ = network.find_primary()
+                    mem = infra.proc.get_proc_memory_stats(
+                        primary.remote.remote.proc.pid
+                    )
+                    if mem is not None:
+                        bf = infra.bencher.Bencher()
+                        bf.set_memory(perf_label, mem)
 
                 network.stop_all_nodes()
 
@@ -693,7 +704,12 @@ def run(args):
                     )
                     all_seconds.update(ce["second"].to_list())
 
-                seconds = sorted(all_seconds)
+                # Use a contiguous range so that idle seconds appear as
+                # empty bars rather than being skipped entirely.
+                if all_seconds:
+                    seconds = list(range(min(all_seconds), max(all_seconds) + 1))
+                else:
+                    seconds = []
 
                 # With many clients, bin them into groups so each group gets
                 # enough bar width to be visible. Target ~chart_width/4 groups max.

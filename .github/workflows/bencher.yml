@@ -30,7 +30,7 @@ jobs:
           tdnf -y update
           tdnf -y install ca-certificates git
 
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 0
 
@@ -39,6 +39,24 @@ jobs:
         run: |
           set -ex
           ./scripts/setup-ci.sh
+
+      - name: "Machine info"
+        shell: bash
+        run: &machine_info |
+          set -ex
+          uname -a
+          nproc
+          cat /proc/cpuinfo
+          cat /proc/meminfo
+          cpuid=$(awk '/^cpu family/{f=$NF} /^model\t/{m=$NF} /^stepping/{s=$NF; printf "%02x%02x%02x",f,m,s; exit}' /proc/cpuinfo)
+          echo "CCF_CPUID=${cpuid}" >> "$GITHUB_ENV"
+          echo "CCF_CORES=$(nproc)" >> "$GITHUB_ENV"
+          echo "CCF_MEM_GB=$(awk '/^MemTotal/{printf "%d",$2/1024/1024}' /proc/meminfo)" >> "$GITHUB_ENV"
+          if [[ -e /dev/sev-guest ]]; then
+            echo "CCF_PLATFORM_SLUG=snp" >> "$GITHUB_ENV"
+          else
+            echo "CCF_PLATFORM_SLUG=virtual" >> "$GITHUB_ENV"
+          fi
 
       - name: "Confirm running on Virtual"
         run: |
@@ -63,7 +81,7 @@ jobs:
         shell: bash
 
       - name: "Upload logs"
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: logs-bench-virtual
           path: |
@@ -75,14 +93,14 @@ jobs:
           if-no-files-found: ignore
         if: success() || failure()
 
-      - uses: bencherdev/bencher@main
+      - uses: bencherdev/bencher@50fb1e138651a46d2fb704fab1adab38c181552e # v0.6.6
       - name: Track base branch benchmarks with Bencher
-        run: |
+        run: &bencher_run |
           bencher run \
           --project ccf \
           --token '${{ secrets.BENCHER_API_TOKEN }}' \
           --branch main \
-          --testbed gha-vmss-d16av5-ci \
+          --testbed "${CCF_PLATFORM_SLUG}-${CCF_CPUID}-${CCF_CORES}cores-${CCF_MEM_GB}g" \
           --adapter json \
           --err \
           --file build/bencher.json
@@ -96,9 +114,13 @@ jobs:
         "JobId=bench_snp-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
       ]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 0
+
+      - name: "Machine info"
+        shell: bash
+        run: *machine_info
 
       - name: "Confirm running on SEV-SNP"
         run: |
@@ -123,7 +145,7 @@ jobs:
         shell: bash
 
       - name: "Upload logs"
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: logs-bench-snp
           path: |
@@ -136,14 +158,6 @@ jobs:
           if-no-files-found: ignore
         if: success() || failure()
 
-      - uses: bencherdev/bencher@main
+      - uses: bencherdev/bencher@50fb1e138651a46d2fb704fab1adab38c181552e # v0.6.6
       - name: Track base branch benchmarks with Bencher
-        run: |
-          bencher run \
-          --project ccf \
-          --token '${{ secrets.BENCHER_API_TOKEN }}' \
-          --branch main \
-          --testbed gha-c-aci-ci \
-          --adapter json \
-          --err \
-          --file build/bencher.json
+        run: *bencher_run
