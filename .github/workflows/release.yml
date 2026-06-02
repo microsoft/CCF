@@ -353,7 +353,7 @@ jobs:
           cd tests/ccfapp
           mkdir -p build
           cd build
-          CC=clang CXX=clang++ cmake -GNinja -DCMAKE_BUILD_TYPE=Release ..
+          CC=clang CXX=clang++ cmake -GNinja -DCMAKE_BUILD_TYPE=Release -DCCF_ENABLE_RELEASE_HARDENING=ON ..
           ninja -v
           ./ccfapp > out.txt
           grep "I'm a CCF test app" out.txt

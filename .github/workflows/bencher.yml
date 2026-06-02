@@ -69,7 +69,7 @@ jobs:
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DWORKER_THREADS=2 ..
+          cmake -GNinja -DWORKER_THREADS=2 -DCCF_ENABLE_RELEASE_HARDENING=ON ..
           ninja
           # Microbenchmarks
           ./tests.sh -VV -L benchmark
@@ -133,7 +133,7 @@ jobs:
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DWORKER_THREADS=2 ..
+          cmake -GNinja -DWORKER_THREADS=2 -DCCF_ENABLE_RELEASE_HARDENING=ON ..
           ninja
           # Microbenchmarks
           ./tests.sh -VV -L benchmark -E task_bench

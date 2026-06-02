@@ -250,7 +250,7 @@ jobs:
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DCMAKE_BUILD_TYPE=Release -DCLIENT_PROTOCOLS_TEST=ON -DLONG_TESTS=ON ..
+          cmake -GNinja -DCMAKE_BUILD_TYPE=Release -DCLIENT_PROTOCOLS_TEST=ON -DLONG_TESTS=ON -DCCF_ENABLE_RELEASE_HARDENING=ON ..
           ninja
 
       - name: "Test"
