@@ -161,8 +161,7 @@ namespace files
     return nlohmann::json::parse(v.begin(), v.end());
   }
 
-  static void dump_bytes(
-    std::span<const std::byte> data, const fs::path& file)
+  static void dump(std::span<const std::byte> data, const fs::path& file)
   {
     auto* f = open_file(file, O_WRONLY | O_CREAT | O_TRUNC, "wb");
     if (f == nullptr)
@@ -205,7 +204,7 @@ namespace files
    */
   static void dump(std::span<const uint8_t> data, const fs::path& file)
   {
-    dump_bytes(std::as_bytes(data), file);
+    dump(std::as_bytes(data), file);
   }
 
   /**
@@ -216,7 +215,7 @@ namespace files
    */
   static void dump(std::string_view data, const fs::path& file)
   {
-    dump_bytes(std::as_bytes(std::span(data)), file);
+    dump(std::as_bytes(std::span(data)), file);
   }
 
   static void rename(const fs::path& src, const fs::path& dst)
