@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [7.0.5]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.5
 
+### Changed
+
+- Missing previous-identity endorsement ledger chunks no longer block node startup: the network identity subsystem now exposes a `Partial` fetch status, serves the validated chain prefix, and offers a `trigger_extension()` call so callers can request another fetch attempt. Chain-integrity violations still fail-hard (#7913).
+
 ### Deprecated
 
 - Accessing ledger-signature names (table names, exception classes) via `ccf.ledger` now emits a `DeprecationWarning`; import them from `ccf.signatures` instead (#7904).

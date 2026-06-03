@@ -2020,6 +2020,300 @@ def run_recover_snapshot_ledger_offset(args):
                 )
 
 
+def _find_endorsement_write_chunks(committed_ledger_dirs):
+    """Walk all committed ledger chunks; return a list of
+    (write_seqno, chunk_path) for every transaction that writes to the
+    public:ccf.internal.previous_service_identity_endorsement table.
+
+    Ordered by ascending write_seqno. There is one such write per service
+    epoch (each service writes the previous-identity endorsement at open).
+    """
+    endorsement_table = "public:ccf.internal.previous_service_identity_endorsement"
+    writes = []
+    for ledger_dir in committed_ledger_dirs:
+        for filename in os.listdir(ledger_dir):
+            if not ccf.ledger.is_ledger_chunk_committed(filename):
+                continue
+            chunk_path = os.path.join(ledger_dir, filename)
+            chunk = ccf.ledger.LedgerChunk(chunk_path)
+            for transaction in chunk:
+                public_domain = transaction.get_public_domain()
+                tables = public_domain.get_tables()
+                if endorsement_table in tables:
+                    writes.append((public_domain.get_seqno(), chunk_path))
+    writes.sort(key=lambda w: w[0])
+    return writes
+
+
+def _poll_endorsements(node, tx, *, expect_status, attempts=60, sleep_s=0.5):
+    """Poll /log/public/cose_endorsements at `tx` until the response status
+    matches `expect_status`, or `attempts` are exhausted. Returns the last
+    response. Defaults give a 30-second polling budget, comfortably longer
+    than the partial-Done extension budget (30 retries at 100ms intervals)."""
+    response = None
+    for _ in range(attempts):
+        with node.client("user0") as cli:
+            response = cli.get(
+                "/log/public/cose_endorsements",
+                headers={infra.clients.CCF_TX_ID_HEADER: str(tx)},
+            )
+            if response.status_code == expect_status:
+                return response
+        time.sleep(sleep_s)
+    return response
+
+
+def _get_trusted_keys_count(node, *, attempts=60, sleep_s=0.5):
+    """Return the number of trusted keys exposed by the network identity
+    subsystem on `node`. While the subsystem is in Partial, this excludes
+    any older-epoch keys whose endorsements could not be validated; in
+    Done it includes the full historical set. Polls so that callers can
+    observe the partial chain growing as extensions land."""
+    last = None
+    for _ in range(attempts):
+        with node.client() as cli:
+            r = cli.get("/log/public/trusted_keys")
+            if r.status_code == http.HTTPStatus.OK:
+                return len(r.body.json()["keys"])
+            last = r
+        time.sleep(sleep_s)
+    raise AssertionError(
+        f"/log/public/trusted_keys never returned 200 within budget: {last}"
+    )
+
+
+@reqs.description("COSE endorsement chain heals when missing ledger chunks reappear")
+def run_recovery_endorsement_chain_heals(args):
+    """End-to-end test for the resilient COSE endorsement-chain fetching.
+
+    Builds a chain over 2 recoveries (S1 -> S2 -> S3), then captures a tx
+    in the S1 epoch (whose receipt-chain crosses the predecessor link we are
+    about to break). Stops the network, moves the ledger chunk that contains
+    the write of the S2-era endorsement out of the ledger dir, recovers a
+    third time (-> S4). Because the missing chunk leaves a gap, queries for
+    S1-era receipts get HTTP 202 and the subsystem transitions to Partial
+    (trusted_keys exposes only the validated subset). Each 202 response
+    triggers a fresh extension cycle; once the chunk is restored a
+    triggered cycle heals the chain back to Done and the S1-era receipts
+    succeed."""
+    txs = app.LoggingTxs("user0")
+
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        pdb=args.pdb,
+        txs=txs,
+    ) as network:
+        network.start_and_open(args)
+
+        # S1 epoch transaction. After the third recovery (post chunk
+        # deletion) this receipt query must initially return 202 and
+        # then, after the chunk is restored, transition to 200.
+        network.txs.issue(network, number_txs=2)
+        _, s1_msg = network.txs.get_last_tx()
+        s1_tx = ccf.tx_id.TxID(s1_msg["view"], s1_msg["seqno"])
+
+        # First recovery -> S2.
+        network = test_recover_service(network, args)
+        network.txs.issue(network, number_txs=2)
+
+        # Second recovery -> S3.
+        network = test_recover_service(network, args)
+        network.txs.issue(network, number_txs=2)
+
+        primary, _ = network.find_primary()
+        with primary.client() as cli:
+            s3_create_txid = ccf.tx_id.TxID.from_str(
+                cli.get("/node/network").body.json()["current_service_create_txid"]
+            )
+        LOG.info(f"After 2 recoveries: s1_tx={s1_tx}, s3_create_txid={s3_create_txid}")
+
+        # Snapshot and ledger for the next (third) recovery.
+        snapshots_dir = network.get_committed_snapshots(primary)
+        network.save_service_identity(args)
+        network.stop_all_nodes()
+        current_ledger_dir, committed_ledger_dirs = primary.get_ledger()
+
+        # Locate the chunk containing the write of the S2-era endorsement
+        # (the second-oldest write to the endorsement table). The third
+        # recovery's chain walk fetches this from a historical ledger
+        # chunk; removing it forces the partial-Done path.
+        writes = _find_endorsement_write_chunks(committed_ledger_dirs)
+        LOG.info(f"Endorsement-table writes across committed ledger: {writes}")
+        assert len(writes) >= 3, (
+            "Expected at least 3 endorsement writes (one per service open "
+            "across S1, S2, S3) in the committed ledger, got: "
+            f"{writes}"
+        )
+        target_seqno, target_chunk = writes[1]
+        # Make sure the chunk we are about to move does not also contain
+        # the latest endorsement write (deterministic isolation).
+        other_writes_in_target_chunk = [
+            seq
+            for seq, chunk in writes
+            if chunk == target_chunk and seq != target_seqno
+        ]
+        assert not other_writes_in_target_chunk, (
+            f"Chunk {target_chunk} contains additional endorsement writes "
+            f"at seqnos {other_writes_in_target_chunk}; the test cannot "
+            "deterministically isolate the predecessor link to break. "
+            "Consider tightening ledger_chunk_bytes."
+        )
+        deleted_chunk_range = ccf.ledger.range_from_filename(
+            os.path.basename(target_chunk)
+        )
+        LOG.info(
+            f"Selected chunk to move out: {target_chunk} (seqno range "
+            f"{deleted_chunk_range}, contains endorsement write at "
+            f"seqno {target_seqno})"
+        )
+
+        backup_dir = tempfile.mkdtemp(prefix="ccf_missing_chunk_")
+        moved_chunk_path = os.path.join(backup_dir, os.path.basename(target_chunk))
+        LOG.info(
+            f"Moving chunk {target_chunk} (containing endorsement write at "
+            f"seqno {target_seqno}) to {moved_chunk_path}"
+        )
+        shutil.move(target_chunk, moved_chunk_path)
+
+        # Third recovery (S4) with the missing chunk. Recovery itself
+        # replays from the snapshot forward, so it does not require the
+        # older chunk; only the endorsement chain walk does.
+        recovered_network = infra.network.Network(
+            args.nodes,
+            args.binary_dir,
+            args.debug_nodes,
+            existing_network=network,
+            txs=txs,
+        )
+        with infra.network.close_on_error(recovered_network):
+            recovered_network.start_in_recovery(
+                args,
+                ledger_dir=current_ledger_dir,
+                committed_ledger_dirs=committed_ledger_dirs,
+                snapshots_dir=snapshots_dir,
+            )
+            recovered_network.recover(args)
+
+            primary, _ = recovered_network.find_primary()
+            with primary.client() as cli:
+                s4_create_txid = ccf.tx_id.TxID.from_str(
+                    cli.get("/node/network").body.json()["current_service_create_txid"]
+                )
+                service_cert = cli.get("/node/network").body.json()[
+                    "service_certificate"
+                ]
+            cert = load_pem_x509_certificate(
+                service_cert.encode("ascii"), default_backend()
+            )
+            cert_pubkey = cert.public_key().public_bytes(
+                serialization.Encoding.PEM,
+                serialization.PublicFormat.SubjectPublicKeyInfo,
+            )
+
+            # Current-epoch (S4) receipts need no chain — the request is
+            # served by the current-store endorsement read alone and is
+            # independent of the missing predecessor chunk. Serves as a
+            # liveness check.
+            LOG.info("Verifying S4-era receipts are served with empty chain")
+            response = _poll_endorsements(
+                primary, s4_create_txid, expect_status=http.HTTPStatus.NOT_FOUND
+            )
+            assert response.status_code == http.HTTPStatus.NOT_FOUND, response
+
+            # S1-era receipts depend on the predecessor chunk that we
+            # moved out (both for the chain walk and possibly for
+            # historical-state reconstruction), so they must keep getting
+            # 202 while the chunk is missing. The exact reason for the
+            # 202 — endorsement-chain gap or historical-state dependency
+            # — does not matter for this test; what matters is the
+            # transition to 200 once the chunk is restored.
+            LOG.info(
+                f"Verifying S1-era receipt at {s1_tx} keeps returning 202 "
+                "while the predecessor chunk is missing"
+            )
+            for _ in range(3):
+                with primary.client("user0") as cli:
+                    response = cli.get(
+                        "/log/public/cose_endorsements",
+                        headers={infra.clients.CCF_TX_ID_HEADER: str(s1_tx)},
+                    )
+                assert response.status_code == http.HTTPStatus.ACCEPTED, (
+                    f"Expected 202 for S1-era tx {s1_tx} while chunk is "
+                    f"missing, got {response.status_code}: {response}"
+                )
+                time.sleep(0.5)
+
+            # The subsystem must be in Partial: the trusted_keys endpoint
+            # exposes only the keys whose endorsements were validated, so
+            # the older-epoch key (the one endorsed by the missing chunk)
+            # should be absent.
+            partial_keys_count = _get_trusted_keys_count(primary)
+            LOG.info(f"trusted_keys count while in Partial: {partial_keys_count}")
+            assert partial_keys_count >= 1, (
+                f"Expected at least the current-service key to be trusted "
+                f"in Partial, got {partial_keys_count}"
+            )
+
+            # Restore the chunk into the live node's read-only ledger
+            # directory (the new recovery network copied the original
+            # committed_ledger_dirs into its workspace at startup, so we
+            # cannot heal by moving the backup back into the source dir).
+            live_read_only_dirs = primary.remote.read_only_ledger_paths()
+            assert live_read_only_dirs, (
+                "Expected at least one read-only ledger directory on the "
+                "live recovered primary so the missing chunk can be "
+                "restored, got none"
+            )
+            restored_chunk_path = os.path.join(
+                live_read_only_dirs[0], os.path.basename(target_chunk)
+            )
+            LOG.info(
+                f"Restoring chunk to live read-only dir at "
+                f"{restored_chunk_path}; the chain must heal within the "
+                "1s polling cap"
+            )
+            shutil.move(moved_chunk_path, restored_chunk_path)
+            shutil.rmtree(backup_dir, ignore_errors=True)
+
+            response = _poll_endorsements(
+                primary,
+                s1_tx,
+                expect_status=http.HTTPStatus.OK,
+                attempts=60,
+                sleep_s=0.5,
+            )
+            assert response.status_code == http.HTTPStatus.OK, (
+                f"Chain failed to heal: S1-era tx {s1_tx} still not "
+                f"served after restoring the chunk: {response}"
+            )
+            endorsements = [
+                base64.b64decode(x) for x in response.body.json()["endorsements"]
+            ]
+            assert len(endorsements) >= 2, (
+                f"Expected chain length >= 2 after healing for S1-era tx "
+                f"{s1_tx}, got {len(endorsements)}"
+            )
+            verify_endorsements_chain(primary, endorsements, cert_pubkey)
+
+            # After healing the chain, the missing older-epoch key must
+            # have been added to the trusted set: at minimum one more
+            # than the Partial-state count.
+            healed_keys_count = _get_trusted_keys_count(primary)
+            LOG.info(f"trusted_keys count after healing: {healed_keys_count}")
+            assert healed_keys_count > partial_keys_count, (
+                f"Expected trusted_keys to grow after healing, "
+                f"partial={partial_keys_count}, healed={healed_keys_count}"
+            )
+
+            LOG.success(
+                "COSE endorsement chain healed: S1-era receipts now "
+                "served with a full chain after the missing chunk was "
+                "restored."
+            )
+
+
 if __name__ == "__main__":
 
     def add(parser):
@@ -2158,6 +2452,19 @@ checked. Note that the key for each logging message is unique (per table).
         nodes=infra.e2e_args.min_nodes(cr.args, f=1),
         ledger_chunk_bytes="50MB",
         snapshot_tx_interval=50,
+    )
+
+    cr.add(
+        "recovery_chain_heals",
+        run_recovery_endorsement_chain_heals,
+        package="samples/apps/logging/logging",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=0),
+        # Short chunks so each recovery's previous-identity endorsement
+        # write lands in its own ledger chunk; this lets us deterministically
+        # move out the predecessor chunk without taking unrelated writes
+        # with it.
+        ledger_chunk_bytes="20KB",
+        snapshot_tx_interval=30,
     )
 
     cr.run()

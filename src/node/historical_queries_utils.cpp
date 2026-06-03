@@ -222,10 +222,6 @@ namespace ccf
 
       const auto fetching =
         network_identity_subsystem->endorsements_fetching_status();
-      if (fetching == FetchStatus::Retry)
-      {
-        return false;
-      }
       if (fetching == FetchStatus::Failed)
       {
         throw std::runtime_error(fmt::format(
@@ -233,14 +229,23 @@ namespace ccf
           "cannot be fetched",
           state->transaction_id.seqno));
       }
-      if (fetching != FetchStatus::Done)
-      {
-        throw std::logic_error("Unexpected endorsements fetching status");
-      }
 
       auto cose_endorsements =
         network_identity_subsystem->get_cose_endorsements_chain(
           state->transaction_id.seqno);
+      if (!cose_endorsements.has_value())
+      {
+        // The chain does not yet reach back to the requested seqno
+        // (either the initial walk hasn't gotten there or a previous
+        // extension cycle exhausted its retries). Trigger a fresh
+        // extension cycle (no-op if not in Partial or one is already
+        // running) and signal the caller to retry.
+        if (fetching == FetchStatus::Partial)
+        {
+          network_identity_subsystem->trigger_extension();
+        }
+        return false;
+      }
       state->receipt->cose_endorsements = cose_endorsements;
       return true;
     }

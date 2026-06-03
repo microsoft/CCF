@@ -771,6 +771,15 @@ if(BUILD_TESTS)
       historical_queries_test
       PRIVATE http_parser ccf_kv ccf_endpoints ccf_tasks
     )
+
+    add_unit_test(
+      network_identity_subsystem_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/network_identity_subsystem.cpp
+    )
+    target_link_libraries(
+      network_identity_subsystem_test
+      PRIVATE ccf_kv ccf_endpoints ccf_tasks
+    )
     add_unit_test(
       indexing_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/indexing/test/indexing.cpp
