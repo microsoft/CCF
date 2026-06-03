@@ -638,6 +638,11 @@ namespace asynchost
 
     bool set_connection_timeout_on_uv_handle()
     {
+      if (!connection_timeout.has_value())
+      {
+        return true;
+      }
+
       uv_os_fd_t existing_fd = {};
       const auto rc = uv_fileno(
         reinterpret_cast<const uv_handle_t*>(&uv_handle), &existing_fd);
