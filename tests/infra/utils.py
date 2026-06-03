@@ -13,7 +13,6 @@ import infra.proc
 
 from loguru import logger as LOG
 
-
 FORCE_LEDGER_CHUNK_AFTER = 0x01
 
 

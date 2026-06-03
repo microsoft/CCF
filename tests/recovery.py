@@ -1532,6 +1532,7 @@ def run_recover_snapshot_ledger_offset(args):
                     skip_verification=True,
                 )
 
+
 if __name__ == "__main__":
 
     def add(parser):
