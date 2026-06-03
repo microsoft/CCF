@@ -25,6 +25,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - JSON parsing can now reject inputs whose object/array nesting depth exceeds a certain value, defaulting to 64 levels and overridable per call site via `ccf::parse_json_safe`'s `max_depth` parameter (#7896).
 
+### Fixed
+
+- Nodes started in recovery or join mode from a snapshot more recent than the latest ledger file now correctly resume writing from the snapshot boundary (#7901).
+
 ## [7.0.3]
 
 [7.0.3]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.3
