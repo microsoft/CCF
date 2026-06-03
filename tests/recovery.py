@@ -2272,7 +2272,7 @@ def run_recovery_endorsement_chain_heals(args):
             LOG.info(
                 f"Restoring chunk to live read-only dir at "
                 f"{restored_chunk_path}; the chain must heal within the "
-                "1s polling cap"
+                "30s polling budget"
             )
             shutil.move(moved_chunk_path, restored_chunk_path)
             shutil.rmtree(backup_dir, ignore_errors=True)

@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <fmt/format.h>
 #include <mutex>
 #include <span>
 #include <vector>
@@ -166,7 +167,7 @@ namespace ccf
         fetch_attempts = 0;
         if (!endorsements.empty())
         {
-          seq = endorsements.begin()->second.previous_version.value();
+          seq = endorsements.begin()->second.previous_version;
         }
       }
 
@@ -389,6 +390,15 @@ namespace ccf
 
     void process_endorsement(const ccf::CoseEndorsement& endorsement)
     {
+      try
+      {
+        validate_fetched_endorsement(endorsement);
+      }
+      catch (const std::exception& e)
+      {
+        fail_fetching(e.what());
+      }
+
       if (is_ill_formed(endorsement))
       {
         // For double-sealed cases, which could have happened in the past.
@@ -592,15 +602,6 @@ namespace ccf
       {
         retry_fetch_next(seq);
         return;
-      }
-
-      try
-      {
-        validate_fetched_endorsement(endorsement.value());
-      }
-      catch (const std::exception& e)
-      {
-        fail_fetching(e.what());
       }
 
       // Successful fetch: reset attempt counter.

@@ -912,6 +912,26 @@ TEST_CASE("Failed: bad signature on topmost detected during bootstrap")
   REQUIRE_THROWS_AS({ auto sub = f.make_subsystem(); }, std::exception);
 }
 
+TEST_CASE(
+  "Failed: topmost COSE header range disagrees with table fields → "
+  "Failed during bootstrap")
+{
+  SubsystemFixture f;
+  ChainBuilder cb;
+  cb.add_self({2, 1}).add_next({2, 1}, {4, 200});
+  f.use_identity_key(cb.current_key_pair());
+  wire_chain(f, cb);
+
+  // Tamper the topmost's table-side epoch_end so it disagrees with the
+  // signed COSE header range. process_endorsement runs
+  // validate_fetched_endorsement on the topmost (just like on
+  // historically-fetched links), detects the mismatch, and fail-hards.
+  REQUIRE(f.node_state->topmost.has_value());
+  f.node_state->topmost->endorsement_epoch_end = ccf::TxID{99, 99999};
+
+  REQUIRE_THROWS_AS({ auto sub = f.make_subsystem(); }, std::exception);
+}
+
 TEST_CASE("Failed: tampered epoch range detected during extension cycle")
 {
   SubsystemFixture f;
