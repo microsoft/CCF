@@ -173,10 +173,10 @@ namespace files
         std::strerror(errno))); // NOLINT(concurrency-mt-unsafe)
     }
 
+    errno = 0;
     const auto bytes_written =
       fwrite(data.data(), sizeof(std::byte), data.size(), f);
     const auto write_errno = errno;
-    // Preserve any write-side errno before fclose() can overwrite it.
     errno = 0;
     // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
     const auto close_rc = fclose(f);
