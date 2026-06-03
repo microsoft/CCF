@@ -1018,10 +1018,7 @@ namespace asynchost
     Ledger(
       const fs::path& ledger_dir,
       ringbuffer::AbstractWriterFactory& writer_factory) :
-      Ledger(
-        ledger_dir,
-        writer_factory,
-        max_chunk_threshold_size)
+      Ledger(ledger_dir, writer_factory, max_chunk_threshold_size)
     {}
 
     Ledger(
