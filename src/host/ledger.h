@@ -1712,7 +1712,8 @@ namespace asynchost
       delete req; // NOLINT(cppcoreguidelines-owning-memory)
     }
 
-    void write_ledger_get_range_response(
+    static void write_ledger_get_range_response(
+      const ringbuffer::WriterPtr& to_enclave_,
       size_t from_idx,
       size_t to_idx,
       std::optional<LedgerReadResult>&& read_result,
@@ -1722,7 +1723,7 @@ namespace asynchost
       {
         RINGBUFFER_WRITE_MESSAGE(
           ::consensus::ledger_entry_range,
-          to_enclave,
+          to_enclave_,
           from_idx,
           read_result->end_idx,
           purpose,
@@ -1732,11 +1733,21 @@ namespace asynchost
       {
         RINGBUFFER_WRITE_MESSAGE(
           ::consensus::ledger_no_entry_range,
-          to_enclave,
+          to_enclave_,
           from_idx,
           to_idx,
           purpose);
       }
+    }
+
+    void write_ledger_get_range_response(
+      size_t from_idx,
+      size_t to_idx,
+      std::optional<LedgerReadResult>&& read_result,
+      ::consensus::LedgerRequestPurpose purpose)
+    {
+      write_ledger_get_range_response(
+        to_enclave, from_idx, to_idx, std::move(read_result), purpose);
     }
 
     void register_message_handlers(
@@ -1789,7 +1800,7 @@ namespace asynchost
       DISPATCHER_SET_MESSAGE_HANDLER(
         disp,
         ::consensus::ledger_get_range,
-        [&](const uint8_t* data, size_t size) {
+        [this](const uint8_t* data, size_t size) {
           auto [from_idx, to_idx, purpose] =
             ringbuffer::read_message<::consensus::ledger_get_range>(data, size);
 
@@ -1813,14 +1824,15 @@ namespace asynchost
               job->from_idx = from_idx;
               job->to_idx = to_idx;
               job->max_size = max_entries_size;
-              job->result_cb = [this,
+              job->result_cb = [to_enclave_ = to_enclave,
                                 from_idx_ = from_idx,
                                 to_idx_ = to_idx,
                                 purpose_ =
                                   purpose](auto&& read_result, int /*status*/) {
                 // NB: Even if status is cancelled (and entry is empty), we
                 // want to write this result back to the enclave
-                write_ledger_get_range_response(
+                Ledger::write_ledger_get_range_response(
+                  to_enclave_,
                   from_idx_,
                   to_idx_,
                   std::forward<decltype(read_result)>(read_result),
