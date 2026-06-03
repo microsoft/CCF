@@ -250,8 +250,8 @@ class RPCInterface(Interface):
             "endorsement": Endorsement.to_json(interface.endorsement),
         }
         if interface.public_host:
-            r["published_address"] = (
-                f"{interface.public_host}:{interface.public_port or 0}"
+            r["published_address"] = make_address(
+                interface.public_host, interface.public_port or 0
             )
         if interface.accepted_endpoints:
             r["accepted_endpoints"] = interface.accepted_endpoints

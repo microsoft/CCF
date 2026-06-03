@@ -355,4 +355,9 @@ def run_ipv6(args):
         ), f"Expected IPv6 address, got {primary_interface.host}"
         LOG.info(f"Confirmed primary is using IPv6 address: {primary_interface.host}")
 
+        _, backups = network.find_nodes()
+        with backups[0].client() as c:
+            r = c.head("/node/primary", allow_redirects=True)
+            assert r.status_code == http.HTTPStatus.OK.value
+
         test_primary(network, args)
