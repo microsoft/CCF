@@ -4,6 +4,7 @@ import infra.e2e_args
 import infra.network
 import infra.proc
 import infra.net
+import infra.utils
 import infra.logging_app as app
 from infra.tx_status import TxStatus
 import suite.test_requirements as reqs
@@ -775,6 +776,180 @@ def test_ledger_invariants(network, args):
     return network
 
 
+@reqs.description("Join nodes with snapshot and ledger offsets")
+def test_joining_nodes_snapshot_ledger_offset(network, args):
+    primary, _ = network.find_primary()
+
+    network.consortium.force_ledger_chunk(primary)
+    network.get_latest_ledger_public_state()
+
+    network.txs.issue(network, number_txs=5, send_private=False, send_public=True)
+    network.txs.issue(network, number_txs=5, send_private=False, send_public=True)
+
+    snapshot_trigger_txid = primary.trigger_snapshot()
+    committed_snapshots_dir = network.get_committed_snapshots(
+        primary,
+        target_seqno=snapshot_trigger_txid.seqno,
+        wait_for_target_seqno=True,
+    )
+    committed_snapshots = sorted(
+        [
+            f
+            for f in os.listdir(committed_snapshots_dir)
+            if f.startswith("snapshot_") and ccf.ledger.is_snapshot_file_committed(f)
+        ],
+        key=lambda f: ccf.ledger.snapshot_index_from_filename(f)[0],
+    )
+    assert (
+        committed_snapshots
+    ), f"Expected committed snapshots in {committed_snapshots_dir}"
+    snapshot_file = committed_snapshots[-1]
+    snapshot_seqno, _ = ccf.ledger.snapshot_index_from_filename(snapshot_file)
+
+    snapshot_dir = os.path.join(
+        network.common_dir, "joining_nodes_snapshot_ledger_offset.snapshots"
+    )
+    rmtree(snapshot_dir, ignore_errors=True)
+    os.makedirs(snapshot_dir)
+    copy(os.path.join(committed_snapshots_dir, snapshot_file), snapshot_dir)
+
+    rest_txid = network.txs.issue(
+        network, number_txs=5, send_private=False, send_public=True
+    )
+
+    assert snapshot_trigger_txid.seqno < snapshot_seqno < rest_txid.seqno, (
+        snapshot_trigger_txid,
+        snapshot_seqno,
+        rest_txid,
+    )
+
+    # flush ledger to disk from commit index
+    network.get_latest_ledger_public_state()
+    # Only use the committed ledger files flushed from above
+    _, committed_ledger_dirs = primary.get_ledger()
+    ledger = ccf.ledger.Ledger(
+        committed_ledger_dirs,
+        committed_only=True,
+        contiguous_suffix=True,
+    )
+
+    snapshot_chunk_start = None
+    snapshot_chunk_entries = None
+    post_snapshot_entries = []
+    for chunk in ledger:
+        entries = [
+            (tx.get_public_domain().get_seqno(), tx.get_raw_tx()) for tx in chunk
+        ]
+        if not entries:
+            continue
+
+        chunk_start = entries[0][0]
+        chunk_end = entries[-1][0]
+        if chunk_start <= snapshot_seqno <= chunk_end:
+            snapshot_chunk_start = chunk_start
+            snapshot_chunk_entries = entries
+            assert (
+                chunk_end == snapshot_seqno
+            ), f"Expected snapshot seqno {snapshot_seqno} at chunk boundary, got chunk {chunk_start}-{chunk_end}"
+
+        post_snapshot_entries.extend(
+            (seqno, raw_tx)
+            for seqno, raw_tx in entries
+            if snapshot_seqno < seqno <= rest_txid.seqno
+        )
+
+    assert (
+        snapshot_chunk_start is not None
+    ), f"Could not find ledger chunk ending at snapshot seqno {snapshot_seqno}"
+    assert snapshot_chunk_entries is not None
+    if snapshot_chunk_start <= snapshot_trigger_txid.seqno < snapshot_seqno:
+        mid_chunk_seqno = snapshot_trigger_txid.seqno
+    else:
+        mid_chunk_seqno = next(
+            seqno
+            for seqno, _ in reversed(snapshot_chunk_entries)
+            if seqno < snapshot_seqno
+        )
+    assert (
+        post_snapshot_entries
+    ), f"Expected ledger entries after snapshot {snapshot_seqno}"
+    assert post_snapshot_entries[0][0] == snapshot_seqno + 1, post_snapshot_entries[0]
+
+    base_dir = os.path.join(network.common_dir, "joining_nodes_snapshot_ledger_offset")
+    rmtree(base_dir, ignore_errors=True)
+    os.makedirs(base_dir)
+
+    variants = [
+        (
+            "incomplete_mid_chunk",
+            [(snapshot_chunk_entries, mid_chunk_seqno, False)],
+        ),
+        ("complete_mid_chunk", [(snapshot_chunk_entries, mid_chunk_seqno, True)]),
+        ("incomplete_snapshot", [(snapshot_chunk_entries, snapshot_seqno, False)]),
+        ("complete_snapshot", [(snapshot_chunk_entries, snapshot_seqno, True)]),
+        (
+            "incomplete_rest",
+            [
+                (snapshot_chunk_entries, snapshot_seqno, True),
+                (post_snapshot_entries, rest_txid.seqno, False),
+            ],
+        ),
+    ]
+
+    for variant_name, chunks_to_write in variants:
+        variant_dir = os.path.join(base_dir, variant_name)
+        current_dir = os.path.join(variant_dir, "ledger.current")
+        prefix_dir = os.path.join(variant_dir, "ledger.committed")
+        os.makedirs(current_dir)
+        os.makedirs(prefix_dir)
+
+        for source_dir in committed_ledger_dirs:
+            for f in os.listdir(source_dir):
+                if not f.endswith(ccf.ledger.COMMITTED_FILE_SUFFIX):
+                    continue
+                _, range_end = ccf.ledger.range_from_filename(f)
+                if range_end is not None and range_end < snapshot_chunk_start:
+                    copy(os.path.join(source_dir, f), prefix_dir)
+
+        for entries, end_seqno, complete in chunks_to_write:
+            infra.utils.write_ledger_chunk(current_dir, entries, end_seqno, complete)
+
+        LOG.info(
+            "Joining node with {} ledger variant from snapshot {}",
+            variant_name,
+            snapshot_file,
+        )
+        new_node = network.create_node()
+        try:
+            network.join_node(
+                new_node,
+                args.package,
+                args,
+                target_node=primary,
+                ledger_dir=current_dir,
+                read_only_ledger_dirs=[prefix_dir],
+                from_snapshot=True,
+                snapshots_dir=snapshot_dir,
+                copy_ledger=False,
+                fetch_recent_snapshot=False,
+                timeout=10,
+            )
+
+            out_path, _ = new_node.get_logs()
+            with open(out_path, encoding="utf-8") as out:
+                assert f"snapshot_{snapshot_seqno}_" in out.read()
+
+            network.retire_node(primary, new_node)
+            new_node.stop()
+        finally:
+            if not new_node.is_stopped():
+                new_node.stop()
+            if new_node in network.nodes:
+                network.nodes.remove(new_node)
+
+    return network
+
+
 def run_all(args):
     txs = app.LoggingTxs("user0")
     with infra.network.network(
@@ -808,6 +983,7 @@ def run_all(args):
         test_add_node_from_snapshot(network, args)
         test_add_node_from_snapshot(network, args, from_backup=True)
         test_add_node_from_snapshot(network, args, copy_ledger=False)
+        test_joining_nodes_snapshot_ledger_offset(network, args)
 
         test_node_filter(network, args)
         test_retiring_nodes_emit_at_most_one_signature(network, args)

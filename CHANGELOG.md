@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [6.0.28]
+
+[6.0.28]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.28
+
+### Fixed
+
+- Nodes started in recovery or join mode from a snapshot more recent than the latest ledger file now correctly resume writing from the snapshot boundary (#7901).
+
 ## [6.0.27]
 
 [6.0.27]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.27
@@ -19,7 +27,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
-- Fixed cache size calculations for historical queries, resolving a bug where signature transactions could become orphaned and fill the cache's useful space, resulting in incoming user-requested stores being immediately evicted (#7755).
+ Fixed cache size calculations for historical queries, resolving a bug where signature transactions could become orphaned and fill the cache's useful space, resulting in incoming user-requested stores being immediately evicted (#7755).
 
 ## [6.0.25]
 
