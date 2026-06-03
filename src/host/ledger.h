@@ -1017,6 +1017,15 @@ namespace asynchost
   public:
     Ledger(
       const fs::path& ledger_dir,
+      ringbuffer::AbstractWriterFactory& writer_factory) :
+      Ledger(
+        ledger_dir,
+        writer_factory,
+        max_chunk_threshold_size)
+    {}
+
+    Ledger(
+      const fs::path& ledger_dir,
       ringbuffer::AbstractWriterFactory& writer_factory,
       size_t chunk_threshold,
       size_t max_read_cache_files = ledger_max_read_cache_files_default,
