@@ -50,6 +50,7 @@ namespace files
       return nullptr;
     }
 
+    errno = 0;
     // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
     auto* f = fdopen(fd, mode);
     if (f == nullptr)
