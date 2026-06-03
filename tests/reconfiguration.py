@@ -166,7 +166,7 @@ def test_add_node_with_corrupted_ledger(network, args):
         new_node,
         args.package,
         args,
-        from_snapshot=True,
+        from_snapshot=False,
         fetch_recent_snapshot=True,
     )
 
