@@ -55,14 +55,14 @@ namespace files
     auto* f = fdopen(fd, mode);
     if (f == nullptr)
     {
-      auto saved_errno = errno;
+      auto fdopen_errno = errno;
       // Preserve the original fdopen() failure when it set errno, and only
       // fall back to close()'s errno if fdopen() did not.
-      if (close(fd) != 0 && saved_errno == 0)
+      if (close(fd) != 0 && fdopen_errno == 0)
       {
-        saved_errno = errno;
+        fdopen_errno = errno;
       }
-      errno = saved_errno != 0 ? saved_errno : EIO;
+      errno = fdopen_errno != 0 ? fdopen_errno : EIO;
     }
 
     return f;
