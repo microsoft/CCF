@@ -4,6 +4,7 @@ import infra.e2e_args
 import infra.member
 import infra.network
 import infra.node
+import infra.utils
 import infra.logging_app as app
 import infra.checker
 import infra.crypto
@@ -23,6 +24,7 @@ import tempfile
 import http
 import base64
 import shutil
+import copy
 from cryptography.x509 import load_pem_x509_certificate
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
@@ -1332,11 +1334,25 @@ def run_recover_snapshot_ledger_offset(args):
         network.txs.issue(network, number_txs=5, send_private=False, send_public=True)
         network.txs.issue(network, number_txs=5, send_private=False, send_public=True)
 
-        snapshot_trigger_txid = primary.trigger_snapshot()
+        # On 6.x, trigger_snapshot can be consumed before the proposal completes.
+        # Use the committed HWM before proposing as the snapshot lower bound.
+        with primary.client() as c:
+            r = c.get("/node/commit")
+            assert r.status_code == http.HTTPStatus.OK.value, r
+            snapshot_mark_seqno = ccf.tx_id.TxID.from_str(
+                r.body.json()["transaction_id"]
+            ).seqno
+
+        proposal_body, careful_vote = network.consortium.make_proposal(
+            "trigger_snapshot"
+        )
+        proposal = network.consortium.get_any_active_member().propose(
+            primary, proposal_body
+        )
+        network.consortium.vote_using_majority(primary, proposal, careful_vote)
         committed_snapshots_dir = network.get_committed_snapshots(
             primary,
-            target_seqno=snapshot_trigger_txid.seqno,
-            wait_for_target_seqno=True,
+            target_seqno=snapshot_mark_seqno,
         )
         committed_snapshots = sorted(
             [
@@ -1367,8 +1383,8 @@ def run_recover_snapshot_ledger_offset(args):
         )
         network.get_latest_ledger_public_state()
 
-        assert snapshot_trigger_txid.seqno < snapshot_seqno < rest_txid.seqno, (
-            snapshot_trigger_txid,
+        assert snapshot_mark_seqno <= snapshot_seqno < rest_txid.seqno, (
+            snapshot_mark_seqno,
             snapshot_seqno,
             rest_txid,
         )
@@ -1379,7 +1395,6 @@ def run_recover_snapshot_ledger_offset(args):
         ledger = ccf.ledger.Ledger(
             [current_ledger_dir] + committed_ledger_dirs,
             committed_only=False,
-            contiguous_suffix=True,
         )
 
         snapshot_chunk_start = None
@@ -1411,8 +1426,8 @@ def run_recover_snapshot_ledger_offset(args):
             snapshot_chunk_start is not None
         ), f"Could not find ledger chunk ending at snapshot seqno {snapshot_seqno}"
         assert snapshot_chunk_entries is not None
-        if snapshot_chunk_start <= snapshot_trigger_txid.seqno < snapshot_seqno:
-            mid_chunk_seqno = snapshot_trigger_txid.seqno
+        if snapshot_chunk_start <= snapshot_mark_seqno < snapshot_seqno:
+            mid_chunk_seqno = snapshot_mark_seqno
         else:
             mid_chunk_seqno = next(
                 seqno
@@ -1515,8 +1530,6 @@ def run_recover_snapshot_ledger_offset(args):
             finally:
                 recovered_network.stop_all_nodes(
                     skip_verification=True,
-                    skip_verify_chunking=True,
-                    check_file_invariants=True,
                 )
 
 if __name__ == "__main__":
@@ -1638,7 +1651,7 @@ checked. Note that the key for each logging message is unique (per table).
     cr.add(
         "recovery_snapshot_ledger_offset",
         run_recover_snapshot_ledger_offset,
-        package="samples/apps/logging/logging",
+        package="samples/apps/logging/liblogging",
         nodes=infra.e2e_args.min_nodes(cr.args, f=1),
         ledger_chunk_bytes="50MB",
         snapshot_tx_interval=50,

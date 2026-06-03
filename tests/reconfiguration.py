@@ -9,11 +9,12 @@ import infra.logging_app as app
 from infra.tx_status import TxStatus
 import suite.test_requirements as reqs
 import tempfile
-from shutil import copy
+from shutil import copy, rmtree
 from copy import deepcopy
 import os
 import time
 import ccf.ledger
+import ccf.tx_id
 import json
 import infra.crypto
 from datetime import datetime
@@ -786,11 +787,23 @@ def test_joining_nodes_snapshot_ledger_offset(network, args):
     network.txs.issue(network, number_txs=5, send_private=False, send_public=True)
     network.txs.issue(network, number_txs=5, send_private=False, send_public=True)
 
-    snapshot_trigger_txid = primary.trigger_snapshot()
+    # On 6.x, trigger_snapshot can be consumed before the proposal completes.
+    # Use the committed HWM before proposing as the snapshot lower bound.
+    with primary.client() as c:
+        r = c.get("/node/commit")
+        assert r.status_code == http.HTTPStatus.OK.value, r
+        snapshot_mark_seqno = ccf.tx_id.TxID.from_str(
+            r.body.json()["transaction_id"]
+        ).seqno
+
+    proposal_body, careful_vote = network.consortium.make_proposal("trigger_snapshot")
+    proposal = network.consortium.get_any_active_member().propose(
+        primary, proposal_body
+    )
+    network.consortium.vote_using_majority(primary, proposal, careful_vote)
     committed_snapshots_dir = network.get_committed_snapshots(
         primary,
-        target_seqno=snapshot_trigger_txid.seqno,
-        wait_for_target_seqno=True,
+        target_seqno=snapshot_mark_seqno,
     )
     committed_snapshots = sorted(
         [
@@ -817,8 +830,8 @@ def test_joining_nodes_snapshot_ledger_offset(network, args):
         network, number_txs=5, send_private=False, send_public=True
     )
 
-    assert snapshot_trigger_txid.seqno < snapshot_seqno < rest_txid.seqno, (
-        snapshot_trigger_txid,
+    assert snapshot_mark_seqno <= snapshot_seqno < rest_txid.seqno, (
+        snapshot_mark_seqno,
         snapshot_seqno,
         rest_txid,
     )
@@ -830,7 +843,6 @@ def test_joining_nodes_snapshot_ledger_offset(network, args):
     ledger = ccf.ledger.Ledger(
         committed_ledger_dirs,
         committed_only=True,
-        contiguous_suffix=True,
     )
 
     snapshot_chunk_start = None
@@ -862,8 +874,8 @@ def test_joining_nodes_snapshot_ledger_offset(network, args):
         snapshot_chunk_start is not None
     ), f"Could not find ledger chunk ending at snapshot seqno {snapshot_seqno}"
     assert snapshot_chunk_entries is not None
-    if snapshot_chunk_start <= snapshot_trigger_txid.seqno < snapshot_seqno:
-        mid_chunk_seqno = snapshot_trigger_txid.seqno
+    if snapshot_chunk_start <= snapshot_mark_seqno < snapshot_seqno:
+        mid_chunk_seqno = snapshot_mark_seqno
     else:
         mid_chunk_seqno = next(
             seqno

@@ -14,6 +14,9 @@ import infra.proc
 from loguru import logger as LOG
 
 
+FORCE_LEDGER_CHUNK_AFTER = 0x01
+
+
 def get_measurement(enclave_type, enclave_platform, package, library_dir="."):
     if enclave_platform == "virtual":
         return "Insecure hard-coded virtual measurement v1"
@@ -50,7 +53,7 @@ def write_ledger_chunk(outdir, entries, end_seqno, complete):
         flagged_final_raw_tx = bytearray(final_raw_tx)
         flagged_final_raw_tx[
             ccf.ledger.TransactionHeader.VERSION_LENGTH
-        ] |= ccf.ledger.TransactionFlags.FORCE_CHUNK_AFTER.value
+        ] |= FORCE_LEDGER_CHUNK_AFTER
         selected_entries[-1] = (final_seqno, bytes(flagged_final_raw_tx))
 
     entry_positions = []

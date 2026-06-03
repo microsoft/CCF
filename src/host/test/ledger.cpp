@@ -1735,7 +1735,7 @@ TEST_CASE("Recovery")
 
   SUBCASE("Future non-recovery truncate remains a no-op")
   {
-    Ledger ledger(ledger_dir, wf);
+    Ledger ledger(ledger_dir, wf, chunk_threshold);
     TestEntrySubmitter entry_submitter(ledger, chunk_threshold);
 
     entry_submitter.write(true);
@@ -1751,7 +1751,7 @@ TEST_CASE("Recovery")
 
   SUBCASE("Recovery truncate beyond ledger end positions recovery writes")
   {
-    Ledger ledger(ledger_dir, wf);
+    Ledger ledger(ledger_dir, wf, chunk_threshold);
     TestEntrySubmitter entry_submitter(ledger, chunk_threshold);
 
     entry_submitter.write(true);
@@ -1772,7 +1772,7 @@ TEST_CASE("Recovery")
 
   SUBCASE("Recovery truncate beyond empty ledger end positions recovery writes")
   {
-    Ledger ledger(ledger_dir, wf);
+    Ledger ledger(ledger_dir, wf, chunk_threshold);
     const auto recovery_idx = 5;
 
     ledger.truncate(recovery_idx, true);
@@ -1797,7 +1797,7 @@ TEST_CASE("Recovery")
 
   SUBCASE("Recovery truncate at ledger end positions recovery writes")
   {
-    Ledger ledger(ledger_dir, wf);
+    Ledger ledger(ledger_dir, wf, chunk_threshold);
     TestEntrySubmitter entry_submitter(ledger, chunk_threshold);
 
     entry_submitter.write(true);
@@ -1817,7 +1817,7 @@ TEST_CASE("Recovery")
 
   SUBCASE("Recovery truncate inside ledger positions recovery writes")
   {
-    Ledger ledger(ledger_dir, wf);
+    Ledger ledger(ledger_dir, wf, chunk_threshold);
     TestEntrySubmitter entry_submitter(ledger, chunk_threshold);
 
     for (size_t i = 0; i < 5; ++i)
