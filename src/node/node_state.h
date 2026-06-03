@@ -59,6 +59,7 @@
 #include "snapshots/filenames.h"
 #include "uvm_endorsements.h"
 
+#include <arpa/inet.h>
 #include <optional>
 
 #ifdef USE_NULL_ENCRYPTOR
@@ -2449,6 +2450,15 @@ namespace ccf
   private:
     bool is_ip(const std::string_view& hostname)
     {
+      if (hostname.find(':') != std::string_view::npos)
+      {
+        in6_addr addr;
+        if (inet_pton(AF_INET6, std::string(hostname).c_str(), &addr) == 1)
+        {
+          return true;
+        }
+      }
+
       // IP address components are purely numeric. DNS names may be largely
       // numeric, but at least the final component (TLD) must not be
       // all-numeric. So this distinguishes "1.2.3.4" (an IP address) from
