@@ -2,13 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-// Production adapters for the interfaces declared in
-// network_identity_accessors.h. NodeStateAccessor wraps
-// AbstractNodeState to read the live SERVICE / PREVIOUS_SERVICE_IDENTITY
-// tables. HistoricalStateAccessor wraps StateCacheImpl to look
-// up endorsement entries at historical kv versions. TaskSchedulerImpl
-// wraps the process-wide ccf::tasks scheduler.
-
 #include "ccf/service/tables/service.h"
 #include "node/historical_queries.h"
 #include "node/rpc/network_identity_accessors.h"

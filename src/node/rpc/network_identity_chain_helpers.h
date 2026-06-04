@@ -2,10 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-// Pure chain-shape predicates used by NetworkIdentitySubsystem. Kept in
-// a small header so the unit test target can link against them without
-// pulling in the heavyweight subsystem dependencies.
-
 #include "ccf/network_identity_interface.h"
 #include "ccf/tx_id.h"
 #include "consensus/aft/raft_types.h"

@@ -25,8 +25,9 @@ namespace ccf
     Done, ///< Fetching trusted identities completed successfully
     Partial, ///< Chain is still being built or fetching attempts were
              ///< exhausted (e.g. ledger files missing). Readers see the
-             ///< validated subset; @ref trigger_extension can request
-             ///< more.
+             ///< validated subset; @ref
+             ///< NetworkIdentitySubsystemInterface::trigger_extension
+             ///< can request more.
     Failed ///< Fetching failed with error and cannot be resumed
   };
 
@@ -52,8 +53,8 @@ namespace ccf
     /// Returns the current status of endorsement fetching. Callers
     /// should check this before acting on a nullopt/nullptr/empty
     /// reader result: in @ref FetchStatus::Partial more data may
-    /// arrive via @ref trigger_extension; in @ref FetchStatus::Failed
-    /// the fetch is unrecoverable.
+    /// arrive via @ref NetworkIdentitySubsystemInterface::trigger_extension;
+    /// in @ref FetchStatus::Failed the fetch is unrecoverable.
     [[nodiscard]] virtual FetchStatus endorsements_fetching_status() const = 0;
 
     /// Schedule a fresh attempt to fetch the next missing predecessor
@@ -63,19 +64,22 @@ namespace ccf
 
     /// Returns the COSE endorsements chain for the given sequence number,
     /// or std::nullopt if the chain does not yet reach back to the
-    /// requested seqno (see @ref trigger_extension).
+    /// requested seqno (see @ref
+    /// NetworkIdentitySubsystemInterface::trigger_extension).
     [[nodiscard]] virtual std::optional<CoseEndorsementsChain>
     get_cose_endorsements_chain(ccf::SeqNo seqno) const = 0;
 
     /// Returns the trusted EC public key that was active at the given
     /// sequence number, or nullptr if the sequence number predates the
-    /// earliest known trusted key (see @ref trigger_extension).
+    /// earliest known trusted key (see @ref
+    /// NetworkIdentitySubsystemInterface::trigger_extension).
     [[nodiscard]] virtual ccf::crypto::ECPublicKeyPtr get_trusted_identity_for(
       ccf::SeqNo seqno) const = 0;
 
     /// Returns all trusted network identity keys as a map from sequence
     /// number to EC public key. In @ref FetchStatus::Partial older epochs
-    /// may be missing -- see @ref trigger_extension.
+    /// may be missing -- see @ref
+    /// NetworkIdentitySubsystemInterface::trigger_extension.
     [[nodiscard]] virtual TrustedKeys get_trusted_keys() const = 0;
   };
 }
