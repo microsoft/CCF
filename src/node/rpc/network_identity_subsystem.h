@@ -17,7 +17,6 @@
 #include "service/internal_tables_access.h"
 
 #include <algorithm>
-#include <atomic>
 #include <chrono>
 #include <fmt/format.h>
 #include <mutex>
@@ -82,33 +81,36 @@ namespace ccf
 
   class NetworkIdentitySubsystem : public NetworkIdentitySubsystemInterface
   {
+    // Threading: every method is either a lock-taking wrapper that
+    // forwards to its `_unsafe` sibling, or an `_unsafe` method that
+    // assumes chain_mutex is held and may only call other `_unsafe`
+    // methods (calling a wrapper would re-enter the non-recursive
+    // chain_mutex and deadlock).
+
   protected:
     static constexpr std::chrono::milliseconds RETRY_INTERVAL{100};
     static constexpr int MAX_FETCH_ATTEMPTS = 30;
 
+    // Immutable after construction.
     std::shared_ptr<INodeStateAccessor> node_state_accessor;
     std::shared_ptr<IHistoricalStateAccessor> historical_state_accessor;
     const std::unique_ptr<NetworkIdentity>& network_identity;
     std::shared_ptr<TaskScheduler> scheduler;
 
-    // Five fields below guarded by chain_mutex. fetch_status and
-    // fetch_active are atomic and accessed without the lock.
+    // All mutable state is guarded by chain_mutex.
     mutable std::mutex chain_mutex;
+
     std::map<SeqNo, CoseEndorsement> endorsements;
     std::map<SeqNo, ccf::crypto::ECPublicKeyPtr> trusted_keys;
     std::optional<TxID> current_service_from;
     SeqNo earliest_endorsed_seq{0};
     bool has_predecessors{false};
-
-    // Reaches MAX_FETCH_ATTEMPTS → cycle ends in Partial. Guarded by
-    // chain_mutex.
     int fetch_attempts{0};
-
-    std::atomic<FetchStatus> fetch_status{FetchStatus::Partial};
-
-    // CAS gate so only one cycle is in flight; stale delayed callbacks
-    // bail out when it is false.
-    std::atomic<bool> fetch_active{true};
+    FetchStatus fetch_status{FetchStatus::Partial};
+    // True while a fetch cycle is in flight; cleared by complete_unsafe /
+    // fail_fetching_unsafe. Starts true because the constructor
+    // synchronously claims the initial bootstrap cycle.
+    bool fetch_active{true};
 
   public:
     NetworkIdentitySubsystem(
@@ -135,11 +137,15 @@ namespace ccf
       fetch_first();
     }
 
+    // --- Public wrappers ----------------------------------------------
+
     [[nodiscard]] FetchStatus endorsements_fetching_status() const override
     {
-      return fetch_status.load();
+      std::lock_guard<std::mutex> g(chain_mutex);
+      return endorsements_fetching_status_unsafe();
     }
 
+    // Returns an immutable reference; no lock needed.
     const std::unique_ptr<NetworkIdentity>& get() override
     {
       return network_identity;
@@ -147,28 +153,74 @@ namespace ccf
 
     void trigger_extension() override
     {
-      if (fetch_status.load() != FetchStatus::Partial)
-      {
-        return;
-      }
+      std::lock_guard<std::mutex> g(chain_mutex);
+      trigger_extension_unsafe();
+    }
 
-      bool expected = false;
-      if (!fetch_active.compare_exchange_strong(expected, true))
+    [[nodiscard]] std::optional<CoseEndorsementsChain>
+    get_cose_endorsements_chain(ccf::SeqNo seqno) const override
+    {
+      std::lock_guard<std::mutex> g(chain_mutex);
+      return get_cose_endorsements_chain_unsafe(seqno);
+    }
+
+    [[nodiscard]] ccf::crypto::ECPublicKeyPtr get_trusted_identity_for(
+      ccf::SeqNo seqno) const override
+    {
+      std::lock_guard<std::mutex> g(chain_mutex);
+      return get_trusted_identity_for_unsafe(seqno);
+    }
+
+    [[nodiscard]] TrustedKeys get_trusted_keys() const override
+    {
+      std::lock_guard<std::mutex> g(chain_mutex);
+      return get_trusted_keys_unsafe();
+    }
+
+  private:
+    // --- Private wrappers (scheduler-callback entry points) ----------
+
+    void fetch_first()
+    {
+      std::lock_guard<std::mutex> g(chain_mutex);
+      fetch_first_unsafe();
+    }
+
+    void fetch_next_at(ccf::SeqNo seq)
+    {
+      std::lock_guard<std::mutex> g(chain_mutex);
+      fetch_next_at_unsafe(seq);
+    }
+
+    // --- `_unsafe` methods (chain_mutex held by caller) --------------
+
+    [[nodiscard]] FetchStatus endorsements_fetching_status_unsafe() const
+    {
+      return fetch_status;
+    }
+
+    void trigger_extension_unsafe()
+    {
+      if (fetch_status != FetchStatus::Partial)
       {
         return;
       }
+      if (fetch_active)
+      {
+        // A cycle is already in flight (initial bootstrap or a prior
+        // extension); folding this trigger in is a no-op.
+        return;
+      }
+      fetch_active = true;
+      fetch_attempts = 0;
 
       // Resume from the earliest validated link, or re-run fetch_first
       // when nothing has been inserted yet (ill-formed or unfetched
       // topmost).
       std::optional<SeqNo> seq;
+      if (!endorsements.empty())
       {
-        std::lock_guard<std::mutex> g(chain_mutex);
-        fetch_attempts = 0;
-        if (!endorsements.empty())
-        {
-          seq = endorsements.begin()->second.previous_version;
-        }
+        seq = endorsements.begin()->second.previous_version;
       }
 
       if (seq.has_value())
@@ -182,11 +234,8 @@ namespace ccf
     }
 
     [[nodiscard]] std::optional<CoseEndorsementsChain>
-    get_cose_endorsements_chain(ccf::SeqNo seqno) const override
+    get_cose_endorsements_chain_unsafe(ccf::SeqNo seqno) const
     {
-      const auto status = fetch_status.load();
-      std::lock_guard<std::mutex> g(chain_mutex);
-
       if (!current_service_from.has_value())
       {
         return std::nullopt;
@@ -199,9 +248,9 @@ namespace ccf
 
       if (!has_predecessors)
       {
-        // Done: confirmed self-only chain → empty. Partial: topmost
-        // not yet read → nullopt so caller can trigger_extension.
-        return status == FetchStatus::Done ?
+        // Done: confirmed self-only chain -> empty. Partial: topmost
+        // not yet read -> nullopt so caller can trigger_extension.
+        return fetch_status == FetchStatus::Done ?
           std::optional<CoseEndorsementsChain>(CoseEndorsementsChain{}) :
           std::nullopt;
       }
@@ -209,9 +258,9 @@ namespace ccf
       auto it = endorsements.upper_bound(seqno);
       if (it == endorsements.begin())
       {
-        // Below the earliest validated link. Done: pre-history → empty.
-        // Partial: caller may trigger_extension → nullopt.
-        if (status == FetchStatus::Done)
+        // Below the earliest validated link. Done: pre-history -> empty.
+        // Partial: caller may trigger_extension -> nullopt.
+        if (fetch_status == FetchStatus::Done)
         {
           return CoseEndorsementsChain{};
         }
@@ -227,10 +276,9 @@ namespace ccf
       return result;
     }
 
-    [[nodiscard]] ccf::crypto::ECPublicKeyPtr get_trusted_identity_for(
-      ccf::SeqNo seqno) const override
+    [[nodiscard]] ccf::crypto::ECPublicKeyPtr get_trusted_identity_for_unsafe(
+      ccf::SeqNo seqno) const
     {
-      std::lock_guard<std::mutex> g(chain_mutex);
       auto it = trusted_keys.upper_bound(seqno);
       if (it == trusted_keys.begin())
       {
@@ -249,29 +297,18 @@ namespace ccf
       return key_ptr;
     }
 
-    [[nodiscard]] TrustedKeys get_trusted_keys() const override
+    [[nodiscard]] TrustedKeys get_trusted_keys_unsafe() const
     {
-      std::lock_guard<std::mutex> g(chain_mutex);
       return trusted_keys;
     }
 
-  private:
-    void retry_first_fetch()
+    void retry_first_fetch_unsafe()
     {
       using namespace std::chrono_literals;
       static constexpr auto retry_after = 1s;
 
-      bool exhausted = false;
-      {
-        std::lock_guard<std::mutex> g(chain_mutex);
-        ++fetch_attempts;
-        if (fetch_attempts >= MAX_FETCH_ATTEMPTS)
-        {
-          exhausted = true;
-        }
-      }
-
-      if (exhausted)
+      ++fetch_attempts;
+      if (fetch_attempts >= MAX_FETCH_ATTEMPTS)
       {
         LOG_FAIL_FMT(
           "Could not start fetching network identity after {} attempts at "
@@ -279,7 +316,7 @@ namespace ccf
           MAX_FETCH_ATTEMPTS,
           std::chrono::duration_cast<std::chrono::milliseconds>(retry_after)
             .count());
-        complete(FetchStatus::Partial);
+        complete_unsafe(FetchStatus::Partial);
         return;
       }
 
@@ -287,39 +324,38 @@ namespace ccf
         [this]() { this->fetch_first(); }, retry_after);
     }
 
-    void fail_fetching(const std::string& err = "")
+    void fail_fetching_unsafe(const std::string& err = "")
     {
       if (!err.empty())
       {
         LOG_FAIL_FMT("Failed fetching network identity: {}", err);
       }
-      fetch_status.store(FetchStatus::Failed);
-      fetch_active.store(false);
+      fetch_status = FetchStatus::Failed;
+      fetch_active = false;
 
-      // The caller may want to re-capture this, but by default it's supposed
-      // to fail the node startup early. This is purely reading, so there's
-      // no risk of corruption, but the endorsement chain is essential for
-      // the node to produce receipts for the past epochs, which is a
-      // must-have functionality.
+      // By default this fails node startup early. The throw unwinds
+      // out through the lock-taking wrapper, releasing chain_mutex
+      // cleanly via the lock_guard destructor. Readers are unaffected:
+      // they will observe FetchStatus::Failed on their next call and
+      // return empty/nullopt rather than throwing.
       throw std::runtime_error("Failed fetching network identity: " + err);
     }
 
-    void complete(FetchStatus target_status)
+    void complete_unsafe(FetchStatus target_status)
     {
-      std::lock_guard<std::mutex> g(chain_mutex);
       fetch_attempts = 0;
-      fetch_status.store(target_status);
-      fetch_active.store(false);
+      fetch_status = target_status;
+      fetch_active = false;
     }
 
-    void fetch_first()
+    void fetch_first_unsafe()
     {
       if (!node_state_accessor->is_part_of_network())
       {
         LOG_INFO_FMT(
           "Retry fetching network identity as node is not part of the network "
           "yet");
-        retry_first_fetch();
+        retry_first_fetch_unsafe();
         return;
       }
 
@@ -331,23 +367,19 @@ namespace ccf
           LOG_INFO_FMT(
             "Retrying fetching network identity as current service create "
             "txid is not yet available or service is not yet open");
-          retry_first_fetch();
+          retry_first_fetch_unsafe();
           return;
         }
         current_service_from = cs;
       }
 
       // Seed trusted_keys with the current-service key (idempotent).
+      if (trusted_keys.find(current_service_from->seqno) == trusted_keys.end())
       {
-        std::lock_guard<std::mutex> g(chain_mutex);
-        if (
-          trusted_keys.find(current_service_from->seqno) == trusted_keys.end())
-        {
-          trusted_keys.insert(
-            {current_service_from->seqno,
-             ccf::crypto::make_ec_public_key(
-               network_identity->get_key_pair()->public_key_der())});
-        }
+        trusted_keys.insert(
+          {current_service_from->seqno,
+           ccf::crypto::make_ec_public_key(
+             network_identity->get_key_pair()->public_key_der())});
       }
 
       auto endorsement = node_state_accessor->read_topmost_endorsement();
@@ -356,9 +388,14 @@ namespace ccf
         LOG_INFO_FMT(
           "Retrying fetching network identity as there is no previous service "
           "identity endorsement yet");
-        retry_first_fetch();
+        retry_first_fetch_unsafe();
         return;
       }
+
+      // Reset the per-step counter for the chain walk: retries spent
+      // waiting for the topmost entry must not eat into the per-chunk
+      // budget consumed below.
+      fetch_attempts = 0;
 
       if (is_self_endorsement(endorsement.value()))
       {
@@ -366,7 +403,7 @@ namespace ccf
           current_service_from->seqno !=
           endorsement->endorsement_epoch_begin.seqno)
         {
-          fail_fetching(fmt::format(
+          fail_fetching_unsafe(fmt::format(
             "The first fetched endorsement is a self-endorsement with seqno {} "
             "which is different from current_service_create_txid {}",
             endorsement->endorsement_epoch_begin.seqno,
@@ -379,16 +416,16 @@ namespace ccf
           current_service_from->seqno);
 
         has_predecessors = false;
-        complete(FetchStatus::Done);
+        complete_unsafe(FetchStatus::Done);
         return;
       }
 
       has_predecessors = true;
       earliest_endorsed_seq = current_service_from->seqno;
-      process_endorsement(endorsement.value());
+      process_endorsement_unsafe(endorsement.value());
     }
 
-    void process_endorsement(const ccf::CoseEndorsement& endorsement)
+    void process_endorsement_unsafe(const ccf::CoseEndorsement& endorsement)
     {
       try
       {
@@ -396,7 +433,7 @@ namespace ccf
       }
       catch (const std::exception& e)
       {
-        fail_fetching(e.what());
+        fail_fetching_unsafe(e.what());
       }
 
       if (is_ill_formed(endorsement))
@@ -412,179 +449,176 @@ namespace ccf
             "predecessor, so skipping this entry",
             endorsement.endorsement_epoch_begin.to_str(),
             format_epoch(endorsement.endorsement_epoch_end));
-          fetch_next_at(endorsement.previous_version.value());
+          fetch_next_at_unsafe(endorsement.previous_version.value());
           return;
         }
-        fail_fetching(fmt::format(
+        fail_fetching_unsafe(fmt::format(
           "Found an ill-formed endorsement for {} - {} which has no "
           "predecessor",
           endorsement.endorsement_epoch_begin.to_str(),
           format_epoch(endorsement.endorsement_epoch_end)));
       }
 
-      process_link(endorsement);
+      process_link_unsafe(endorsement);
     }
 
     // Verify and append a single endorsement to the chain. Used for
     // both the initial walk and extension cycles; the two cases differ
     // only in whether `endorsements` is empty when the link arrives.
     //
-    // Chain-link predicate (oldest→newest):
+    // Chain-link predicate (oldest->newest):
     //   adjacent (older A, newer B): B.endorsed_key == A.endorsing_key
     //   newest entry N: N.endorsing_key == current_service_pkey
     // Extending backward with NEW becoming the new oldest:
     //   existing_earliest.endorsed_key == NEW.endorsing_key
-    void process_link(const ccf::CoseEndorsement& endorsement)
+    void process_link_unsafe(const ccf::CoseEndorsement& endorsement)
     {
       const auto from = endorsement.endorsement_epoch_begin.seqno;
 
       if (is_self_endorsement(endorsement))
       {
+        if (endorsements.find(from) == endorsements.end())
         {
-          std::lock_guard<std::mutex> g(chain_mutex);
-          if (endorsements.find(from) == endorsements.end())
-          {
-            fail_fetching(fmt::format(
-              "Fetched self-endorsement with seqno {} which has not been seen",
-              from));
-          }
+          fail_fetching_unsafe(fmt::format(
+            "Fetched self-endorsement with seqno {} which has not been seen",
+            from));
         }
         LOG_INFO_FMT(
           "COSE endorsement chain reached self-endorsement at {}", from);
-        complete(FetchStatus::Done);
+        complete_unsafe(FetchStatus::Done);
         return;
       }
 
       if (!endorsement.endorsement_epoch_end.has_value())
       {
-        fail_fetching(
+        fail_fetching_unsafe(
           fmt::format("Fetched endorsement at {} has no epoch end", from));
         return; // to silence clang-tidy unchecked optional
       }
 
-      ccf::crypto::ECPublicKeyPtr new_trusted_key;
+      if (!current_service_from.has_value())
       {
-        std::lock_guard<std::mutex> g(chain_mutex);
-        if (!current_service_from.has_value())
-        {
-          fail_fetching("Unset current_service_from when extending chain");
-          return; // to silence clang-tidy unchecked optional
-        }
-        if (from >= earliest_endorsed_seq)
-        {
-          fail_fetching(fmt::format(
-            "Fetched service endorsement with seqno {} which is not earlier "
-            "than the current earliest known {}",
-            from,
-            earliest_endorsed_seq));
-        }
-        if (endorsements.find(from) != endorsements.end())
-        {
-          fail_fetching(fmt::format(
-            "Fetched service endorsement with seqno {} which already exists",
-            from));
-        }
+        fail_fetching_unsafe("Unset current_service_from when extending chain");
+        return; // to silence clang-tidy unchecked optional
+      }
+      if (from >= earliest_endorsed_seq)
+      {
+        fail_fetching_unsafe(fmt::format(
+          "Fetched service endorsement with seqno {} which is not earlier "
+          "than the current earliest known {}",
+          from,
+          earliest_endorsed_seq));
+      }
+      if (endorsements.find(from) != endorsements.end())
+      {
+        fail_fetching_unsafe(fmt::format(
+          "Fetched service endorsement with seqno {} which already exists",
+          from));
+      }
 
-        std::vector<uint8_t> expected_new_endorsing_key_der;
-        if (!endorsements.empty())
+      std::vector<uint8_t> expected_new_endorsing_key_der;
+      if (!endorsements.empty())
+      {
+        const auto& existing_earliest = endorsements.begin()->second;
+        auto trusted_it =
+          trusted_keys.find(existing_earliest.endorsement_epoch_begin.seqno);
+        if (trusted_it == trusted_keys.end())
         {
-          const auto& existing_earliest = endorsements.begin()->second;
-          auto trusted_it =
-            trusted_keys.find(existing_earliest.endorsement_epoch_begin.seqno);
-          if (trusted_it == trusted_keys.end())
-          {
-            fail_fetching(fmt::format(
-              "Missing trusted key entry for existing earliest endorsement "
-              "at seqno {}",
-              existing_earliest.endorsement_epoch_begin.seqno));
-            return; // to silence clang-tidy unchecked iterator
-          }
-          expected_new_endorsing_key_der = trusted_it->second->public_key_der();
-
-          try
-          {
-            verify_endorsements_connected(existing_earliest, endorsement);
-          }
-          catch (const std::exception& e)
-          {
-            fail_fetching(e.what());
-          }
+          fail_fetching_unsafe(fmt::format(
+            "Missing trusted key entry for existing earliest endorsement "
+            "at seqno {}",
+            existing_earliest.endorsement_epoch_begin.seqno));
+          return; // to silence clang-tidy unchecked iterator
         }
-        else
-        {
-          expected_new_endorsing_key_der =
-            network_identity->get_key_pair()->public_key_der();
-          try
-          {
-            validate_chain_front_connection(endorsement, *current_service_from);
-          }
-          catch (const std::exception& e)
-          {
-            fail_fetching(e.what());
-          }
-        }
+        expected_new_endorsing_key_der = trusted_it->second->public_key_der();
 
         try
         {
-          auto verifier =
-            ccf::crypto::make_cose_verifier_from_key(endorsement.endorsing_key);
-          std::span<uint8_t> endorsed_key;
-          if (!verifier->verify(endorsement.endorsement, endorsed_key))
-          {
-            throw std::logic_error(fmt::format(
-              "Endorsement from {} to {} failed signature verification",
-              endorsement.endorsement_epoch_begin.to_str(),
-              format_epoch(endorsement.endorsement_epoch_end)));
-          }
-          if (
-            endorsement.endorsing_key.size() !=
-              expected_new_endorsing_key_der.size() ||
-            !std::equal(
-              endorsement.endorsing_key.begin(),
-              endorsement.endorsing_key.end(),
-              expected_new_endorsing_key_der.begin()))
-          {
-            throw std::logic_error(fmt::format(
-              "Endorsement from {} to {} signed by key {} does not chain with "
-              "the expected next key {}",
-              endorsement.endorsement_epoch_begin.to_str(),
-              format_epoch(endorsement.endorsement_epoch_end),
-              ccf::ds::to_hex(endorsement.endorsing_key),
-              ccf::ds::to_hex(expected_new_endorsing_key_der)));
-          }
-          new_trusted_key = ccf::crypto::make_ec_public_key(endorsed_key);
+          verify_endorsements_connected(existing_earliest, endorsement);
         }
         catch (const std::exception& e)
         {
-          fail_fetching(e.what());
+          fail_fetching_unsafe(e.what());
         }
-
-        LOG_INFO_FMT(
-          "COSE endorsement chain extended to seqno {} (epoch {} - {})",
-          from,
-          endorsement.endorsement_epoch_begin.to_str(),
-          endorsement.endorsement_epoch_end->to_str());
-
-        endorsements.insert({from, endorsement});
-        trusted_keys.insert({from, std::move(new_trusted_key)});
-        earliest_endorsed_seq = from;
       }
+      else
+      {
+        expected_new_endorsing_key_der =
+          network_identity->get_key_pair()->public_key_der();
+        try
+        {
+          validate_chain_front_connection(endorsement, *current_service_from);
+        }
+        catch (const std::exception& e)
+        {
+          fail_fetching_unsafe(e.what());
+        }
+      }
+
+      ccf::crypto::ECPublicKeyPtr new_trusted_key;
+      try
+      {
+        auto verifier =
+          ccf::crypto::make_cose_verifier_from_key(endorsement.endorsing_key);
+        std::span<uint8_t> endorsed_key;
+        if (!verifier->verify(endorsement.endorsement, endorsed_key))
+        {
+          throw std::logic_error(fmt::format(
+            "Endorsement from {} to {} failed signature verification",
+            endorsement.endorsement_epoch_begin.to_str(),
+            format_epoch(endorsement.endorsement_epoch_end)));
+        }
+        if (
+          endorsement.endorsing_key.size() !=
+            expected_new_endorsing_key_der.size() ||
+          !std::equal(
+            endorsement.endorsing_key.begin(),
+            endorsement.endorsing_key.end(),
+            expected_new_endorsing_key_der.begin()))
+        {
+          throw std::logic_error(fmt::format(
+            "Endorsement from {} to {} signed by key {} does not chain with "
+            "the expected next key {}",
+            endorsement.endorsement_epoch_begin.to_str(),
+            format_epoch(endorsement.endorsement_epoch_end),
+            ccf::ds::to_hex(endorsement.endorsing_key),
+            ccf::ds::to_hex(expected_new_endorsing_key_der)));
+        }
+        new_trusted_key = ccf::crypto::make_ec_public_key(endorsed_key);
+      }
+      catch (const std::exception& e)
+      {
+        fail_fetching_unsafe(e.what());
+      }
+
+      LOG_INFO_FMT(
+        "COSE endorsement chain extended to seqno {} (epoch {} - {})",
+        from,
+        endorsement.endorsement_epoch_begin.to_str(),
+        endorsement.endorsement_epoch_end->to_str());
+
+      endorsements.insert({from, endorsement});
+      trusted_keys.insert({from, std::move(new_trusted_key)});
+      earliest_endorsed_seq = from;
 
       if (!endorsement.previous_version.has_value())
       {
-        fail_fetching(fmt::format(
+        fail_fetching_unsafe(fmt::format(
           "Non-self-endorsement at seqno {} unexpectedly has no "
           "previous_version",
           from));
         return; // to silence clang-tidy unchecked optional
       }
-      fetch_next_at(*endorsement.previous_version);
+      fetch_next_at_unsafe(*endorsement.previous_version);
     }
 
-    void fetch_next_at(ccf::SeqNo seq)
+    void fetch_next_at_unsafe(ccf::SeqNo seq)
     {
-      // Bail out on stale callbacks from cycles that have already ended.
-      if (!fetch_active.load())
+      // Bail out on stale callbacks from cycles that have already
+      // ended. Belt-and-braces: under the monitor discipline a single
+      // cycle has at most one outstanding scheduled task, so genuine
+      // stale callbacks should not occur. Cheap to keep as a guard.
+      if (!fetch_active)
       {
         return;
       }
@@ -596,35 +630,23 @@ namespace ccf
       }
       catch (const std::exception& e)
       {
-        fail_fetching(e.what());
+        fail_fetching_unsafe(e.what());
       }
       if (!endorsement.has_value())
       {
-        retry_fetch_next(seq);
+        retry_fetch_next_unsafe(seq);
         return;
       }
 
       // Successful fetch: reset attempt counter.
-      {
-        std::lock_guard<std::mutex> g(chain_mutex);
-        fetch_attempts = 0;
-      }
-      process_endorsement(endorsement.value());
+      fetch_attempts = 0;
+      process_endorsement_unsafe(endorsement.value());
     }
 
-    void retry_fetch_next(ccf::SeqNo seq)
+    void retry_fetch_next_unsafe(ccf::SeqNo seq)
     {
-      bool exhausted = false;
-      {
-        std::lock_guard<std::mutex> g(chain_mutex);
-        ++fetch_attempts;
-        if (fetch_attempts >= MAX_FETCH_ATTEMPTS)
-        {
-          exhausted = true;
-        }
-      }
-
-      if (exhausted)
+      ++fetch_attempts;
+      if (fetch_attempts >= MAX_FETCH_ATTEMPTS)
       {
         LOG_FAIL_FMT(
           "Could not fetch previous service identity endorsement at seqno {} "
@@ -633,7 +655,7 @@ namespace ccf
           seq,
           MAX_FETCH_ATTEMPTS,
           RETRY_INTERVAL.count());
-        complete(FetchStatus::Partial);
+        complete_unsafe(FetchStatus::Partial);
         return;
       }
 

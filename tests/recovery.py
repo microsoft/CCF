@@ -1445,7 +1445,7 @@ def run_recovery_after_cose_upgrade(args):
     """Start Dual, upgrade to COSE-only via node replacement, then recover
     with allow-dual-joiners. Then live-upgrade the recovered network to strict
     COSE-only by replacing nodes again, and recover from ledger files.
-    Exercises the full upgrade path: Dual → COSE (allow dual) → COSE (strict),
+    Exercises the full upgrade path: Dual -> COSE (allow dual) -> COSE (strict),
     with recovery at each transition."""
     cose_only_package = args.package + "_cose_only_allow_join_dual"
 
@@ -1492,7 +1492,7 @@ def run_recovery_after_cose_upgrade(args):
         # Issue more TXs in COSE-only mode (new view after election)
         network.txs.issue(network, number_txs=5)
 
-        # Now stop and recover — the ledger has dual sigs then COSE-only sigs
+        # Now stop and recover -- the ledger has dual sigs then COSE-only sigs
         network.save_service_identity(args)
         recover_primary, _ = network.find_primary()
         current_ledger_dir, committed_ledger_dirs = recover_primary.get_ledger()
@@ -2212,7 +2212,7 @@ def run_recovery_endorsement_chain_heals(args):
                 serialization.PublicFormat.SubjectPublicKeyInfo,
             )
 
-            # Current-epoch (S4) receipts need no chain — the request is
+            # Current-epoch (S4) receipts need no chain -- the request is
             # served by the current-store endorsement read alone and is
             # independent of the missing predecessor chunk. Serves as a
             # liveness check.
@@ -2226,8 +2226,8 @@ def run_recovery_endorsement_chain_heals(args):
             # moved out (both for the chain walk and possibly for
             # historical-state reconstruction), so they must keep getting
             # 202 while the chunk is missing. The exact reason for the
-            # 202 — endorsement-chain gap or historical-state dependency
-            # — does not matter for this test; what matters is the
+            # 202 -- endorsement-chain gap or historical-state dependency
+            # -- does not matter for this test; what matters is the
             # transition to 200 once the chunk is restored.
             LOG.info(
                 f"Verifying S1-era receipt at {s1_tx} keeps returning 202 "

@@ -10,6 +10,7 @@
 #include "tasks/basic_task.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+#include <atomic>
 #include <chrono>
 #include <deque>
 #include <doctest/doctest.h>
@@ -48,9 +49,9 @@ namespace
     return e;
   }
 
-  // Test scaffolding ─────────────────────────────────────────────────────
+  // Test scaffolding -----------------------------------------------------
 
-  // Mocks — in-memory canned responses. `unavailable` lets tests
+  // Mocks -- in-memory canned responses. `unavailable` lets tests
   // simulate "ledger chunk is not yet loadable" by making
   // get_endorsement_at(seq) return nullopt.
   class MockNodeStateAccessor : public ccf::INodeStateAccessor
@@ -96,7 +97,7 @@ namespace
     }
   };
 
-  // Fake TaskScheduler — queues immediate and delayed tasks for tests
+  // Fake TaskScheduler -- queues immediate and delayed tasks for tests
   // to fire deterministically. Thread-safe for concurrent add_task /
   // add_delayed_task calls (the subsystem may schedule from multiple
   // threads in trigger_extension scenarios); single-threaded for
@@ -183,7 +184,7 @@ namespace
     }
   };
 
-  // ChainBuilder — mints real COSE-signed endorsements via the same
+  // ChainBuilder -- mints real COSE-signed endorsements via the same
   // cose-rs path production uses. Layout mirrors production:
   //
   //   * Service S_0 self-endorses, producing entry e_0. e_0 has no
@@ -203,7 +204,7 @@ namespace
   //     which is what `process_link` checks against
   //     `network_identity->get_key_pair()->public_key_der()`.
   //
-  // For Test purposes we ignore the "previous_root" semantics — the
+  // For Test purposes we ignore the "previous_root" semantics -- the
   // subsystem doesn't validate it.
   class ChainBuilder
   {
@@ -253,7 +254,7 @@ namespace
       return *this;
     }
 
-    // The current service's public key (DER) — matches the most-recent
+    // The current service's public key (DER) -- matches the most-recent
     // entry's signing key, which `process_link` checks against
     // `network_identity->get_key_pair()->public_key_der()`.
     [[nodiscard]] std::vector<uint8_t> current_pkey_der() const
@@ -476,12 +477,12 @@ TEST_CASE(
     ccf::validate_chain_front_connection(bad, after), std::logic_error);
 }
 
-// ────────────────────────────────────────────────────────────────────────
+// ------------------------------------------------------------------------
 // State-machine tests using Mock{NodeState,HistoricalState}Accessor +
 // FakeTaskScheduler + ChainBuilder. Each test wires a synthetic ledger,
 // constructs the subsystem, drives the scheduler, and asserts on the
 // public state.
-// ────────────────────────────────────────────────────────────────────────
+// ------------------------------------------------------------------------
 
 TEST_CASE("Bootstrap with self-only chain transitions immediately to Done")
 {
@@ -503,7 +504,7 @@ TEST_CASE("Bootstrap with self-only chain transitions immediately to Done")
   // Current-epoch seqno: empty chain (short-circuited by the
   // seqno >= current_service_from branch).
   REQUIRE(sub->get_cose_endorsements_chain(100)->empty());
-  // Older seqno: Done + !has_predecessors → empty chain (pre-history,
+  // Older seqno: Done + !has_predecessors -> empty chain (pre-history,
   // no historical endorsements will ever cover it).
   REQUIRE(sub->get_cose_endorsements_chain(50)->empty());
 }
@@ -539,7 +540,8 @@ TEST_CASE("Bootstrap with N-link chain reaches Done with full key map")
 }
 
 TEST_CASE(
-  "Bootstrap exhausts → Partial; trigger_extension when chunk reappears → Done")
+  "Bootstrap exhausts -> Partial; trigger_extension when chunk reappears -> "
+  "Done")
 {
   SubsystemFixture f;
   ChainBuilder cb;
@@ -616,23 +618,24 @@ TEST_CASE("Back-to-back trigger_extension calls schedule at most one new cycle")
   REQUIRE(f.scheduler->pending_delayed_count() == 0);
 
   // Source still has the chunk unavailable, so the new cycle will not
-  // succeed on its first try — it must schedule a retry. Multiple
+  // succeed on its first try -- it must schedule a retry. Multiple
   // back-to-back trigger calls should fold into the SAME single cycle.
   sub->trigger_extension();
   sub->trigger_extension();
   sub->trigger_extension();
 
-  // Exactly one immediate task was added (the others CAS-failed).
+  // Exactly one immediate task was added (the others saw fetch_active
+  // set under chain_mutex and bailed).
   REQUIRE(f.scheduler->pending_immediate_count() == 1);
   f.scheduler->run_immediate();
   // That task's failed fetch enqueues exactly one delayed retry.
   REQUIRE(f.scheduler->pending_delayed_count() == 1);
 }
 
-// ────────────────────────────────────────────────────────────────────────
+// ------------------------------------------------------------------------
 // Extended coverage: bootstrap waiting cases, multi-step extension,
 // Failed transitions, reader semantics, concurrency, stale callbacks.
-// ────────────────────────────────────────────────────────────────────────
+// ------------------------------------------------------------------------
 
 TEST_CASE("Bootstrap waits for is_part_of_network then proceeds")
 {
@@ -649,7 +652,7 @@ TEST_CASE("Bootstrap waits for is_part_of_network then proceeds")
   // A delayed retry_first_fetch should have been scheduled.
   REQUIRE(f.scheduler->pending_delayed_count() == 1);
 
-  // Fire it: still not part of network → another retry queued.
+  // Fire it: still not part of network -> another retry queued.
   f.scheduler->fire_delayed_once();
   REQUIRE(sub->endorsements_fetching_status() == ccf::FetchStatus::Partial);
   REQUIRE(f.scheduler->pending_delayed_count() == 1);
@@ -664,7 +667,8 @@ TEST_CASE("Bootstrap waits for is_part_of_network then proceeds")
 // Readers must be safe to call before fetch_first has produced anything
 // useful: no nullopt-deref of current_service_from, no iterator-deref of
 // empty trusted_keys / endorsements, and trigger_extension is a no-op
-// (the initial cycle still holds fetch_active).
+// (the constructor's synchronous fetch_first has already claimed
+// fetch_active).
 TEST_CASE("Readers safe immediately after construction (nothing fetched yet)")
 {
   SubsystemFixture f;
@@ -678,8 +682,8 @@ TEST_CASE("Readers safe immediately after construction (nothing fetched yet)")
   REQUIRE(sub->get_trusted_identity_for(999) == nullptr);
   REQUIRE(sub->get_trusted_keys().empty());
 
-  // trigger_extension folds into the active initial cycle (CAS on
-  // fetch_active fails), so no new task is scheduled.
+  // trigger_extension observes fetch_active = true (held by the
+  // in-flight initial cycle) and bails, so no new task is scheduled.
   const auto immediate_before = f.scheduler->pending_immediate_count();
   sub->trigger_extension();
   REQUIRE(f.scheduler->pending_immediate_count() == immediate_before);
@@ -738,7 +742,7 @@ TEST_CASE("retry_first_fetch respects MAX_FETCH_ATTEMPTS budget")
   REQUIRE(f.scheduler->pending_delayed_count() == 1);
 
   // Fire the budget-minus-two times: 28 more retries; counter goes from
-  // 1 → 29, still under MAX_FETCH_ATTEMPTS == 30. Each firing should
+  // 1 -> 29, still under MAX_FETCH_ATTEMPTS == 30. Each firing should
   // re-queue another delayed task.
   for (int i = 0; i < 28; ++i)
   {
@@ -753,7 +757,7 @@ TEST_CASE("retry_first_fetch respects MAX_FETCH_ATTEMPTS budget")
   REQUIRE(sub->endorsements_fetching_status() == ccf::FetchStatus::Partial);
   REQUIRE(f.scheduler->pending_delayed_count() == 0);
 
-  // Readers return nothing meaningful — current_service_from never
+  // Readers return nothing meaningful -- current_service_from never
   // resolved.
   REQUIRE_FALSE(sub->get_cose_endorsements_chain(50).has_value());
   REQUIRE(sub->get_trusted_identity_for(50) == nullptr);
@@ -794,12 +798,12 @@ TEST_CASE("retry_first_fetch budget reset by successful progress")
 }
 
 TEST_CASE(
-  "retry_first_fetch exhausted with service info set but no topmost → "
+  "retry_first_fetch exhausted with service info set but no topmost -> "
   "Partial; readers return nullopt instead of false 'pre-history'")
 {
   SubsystemFixture f;
   // current_service_from is resolvable, but read_topmost_endorsement
-  // returns nullopt forever. Exhaustion → complete_partial → Partial
+  // returns nullopt forever. Exhaustion -> complete_partial -> Partial
   // (current_service_from is set). has_predecessors stays false (we
   // never read the topmost), but the reader must distinguish this
   // from a confirmed self-only chain and return nullopt for any older
@@ -829,7 +833,7 @@ TEST_CASE(
   REQUIRE(keys.count(100) == 1);
 }
 
-TEST_CASE("Partial → Partial: re-trigger that also exhausts")
+TEST_CASE("Partial -> Partial: re-trigger that also exhausts")
 {
   SubsystemFixture f;
   ChainBuilder cb;
@@ -904,7 +908,7 @@ TEST_CASE("Failed: bad signature on topmost detected during bootstrap")
 
   // Tamper the topmost's signature. process_link verifies it during
   // the synchronous initial fetch, throws, fail_fetching transitions
-  // to Failed and re-throws — escaping the constructor since the
+  // to Failed and re-throws -- escaping the constructor since the
   // all-available chain runs to completion synchronously.
   REQUIRE(f.node_state->topmost.has_value());
   f.node_state->topmost->endorsement.back() ^= 0xFF;
@@ -913,7 +917,7 @@ TEST_CASE("Failed: bad signature on topmost detected during bootstrap")
 }
 
 TEST_CASE(
-  "Failed: topmost COSE header range disagrees with table fields → "
+  "Failed: topmost COSE header range disagrees with table fields -> "
   "Failed during bootstrap")
 {
   SubsystemFixture f;
@@ -952,7 +956,7 @@ TEST_CASE("Failed: tampered epoch range detected during extension cycle")
 
   // Restore the chunk but tamper the epoch_end on the table side.
   // validate_fetched_endorsement compares the COSE header range
-  // against the table fields; mismatch → throw → Failed.
+  // against the table fields; mismatch -> throw -> Failed.
   f.historical->unavailable.clear();
   f.historical->entries.at(mid_wv).endorsement_epoch_end = ccf::TxID{99, 99999};
 
@@ -1008,7 +1012,7 @@ TEST_CASE("Reader: get_cose_endorsements_chain returns nullopt while waiting")
   REQUIRE_FALSE(chain.has_value());
 }
 
-// In Failed, readers must not throw — they serve whatever was validated
+// In Failed, readers must not throw -- they serve whatever was validated
 // before the failure (the validator rejected the next link without
 // committing). Caller checks status to decide what to do.
 TEST_CASE("Reader: all three readers serve validated prefix in Failed")
@@ -1121,7 +1125,7 @@ TEST_CASE("Reader: get_trusted_identity_for boundary semantics")
   REQUIRE(sub->endorsements_fetching_status() == ccf::FetchStatus::Done);
 
   // trusted_keys are at seqnos {1, 201, 401}
-  // Below the earliest → nullptr
+  // Below the earliest -> nullptr
   REQUIRE(sub->get_trusted_identity_for(0) == nullptr);
   // Exact boundary returns the key at that seqno
   REQUIRE(sub->get_trusted_identity_for(1) != nullptr);
@@ -1129,7 +1133,7 @@ TEST_CASE("Reader: get_trusted_identity_for boundary semantics")
   REQUIRE(sub->get_trusted_identity_for(100) != nullptr);
   REQUIRE(sub->get_trusted_identity_for(200) != nullptr);
   REQUIRE(sub->get_trusted_identity_for(201) != nullptr);
-  // Far above last boundary → returns the most-recent (current)
+  // Far above last boundary -> returns the most-recent (current)
   REQUIRE(sub->get_trusted_identity_for(1000000) != nullptr);
 }
 
@@ -1187,7 +1191,7 @@ TEST_CASE("Concurrent threads triggering all fold into one cycle")
   {
     t.join();
   }
-  // CAS gate guarantees exactly one cycle started.
+  // fetch_active under chain_mutex guarantees exactly one cycle started.
   REQUIRE(f.scheduler->pending_immediate_count() == 1);
 }
 
@@ -1204,4 +1208,287 @@ TEST_CASE("Done is terminal: no tasks queued after reaching Done")
   REQUIRE(sub->endorsements_fetching_status() == ccf::FetchStatus::Done);
   REQUIRE(f.scheduler->pending_immediate_count() == 0);
   REQUIRE(f.scheduler->pending_delayed_count() == 0);
+}
+
+// ------------------------------------------------------------------------
+// Concurrency tests: readers running concurrently with the worker-thread
+// fetch_first writing current_service_from / has_predecessors /
+// earliest_endorsed_seq. Under the monitor discipline these writes
+// happen inside fetch_first_unsafe with chain_mutex held, and the
+// readers acquire the same mutex, so the access is serialised. The
+// tests serve as defensive regressions against any future change that
+// weakens that discipline (e.g. demoting a wrapper or moving a field
+// write out of an _unsafe method).
+// ------------------------------------------------------------------------
+
+TEST_CASE("Concurrent readers vs fetch_first establishing current_service_from")
+{
+  SubsystemFixture f;
+  ChainBuilder cb;
+  cb.add_self({2, 100});
+  f.use_identity_key(cb.current_key_pair());
+  // Start in Partial with current_service_from STILL UNSET. The
+  // worker-thread fetch_first will assign it while readers concurrently
+  // call the get_* methods; chain_mutex serialises both sides.
+  f.node_state->part_of_network = false;
+
+  auto sub = f.make_subsystem();
+  for (int i = 0; i < 30; ++i)
+  {
+    f.scheduler->fire_delayed_once();
+  }
+  REQUIRE(sub->endorsements_fetching_status() == ccf::FetchStatus::Partial);
+
+  std::atomic<bool> stop{false};
+  std::vector<std::thread> readers;
+  for (int i = 0; i < 4; ++i)
+  {
+    readers.emplace_back([&] {
+      while (!stop.load(std::memory_order_relaxed))
+      {
+        (void)sub->get_cose_endorsements_chain(50);
+        (void)sub->get_trusted_keys();
+      }
+    });
+  }
+
+  f.node_state->part_of_network = true;
+  f.node_state->current_service_from = ccf::TxID{2, 100};
+  f.node_state->topmost = cb.topmost_entry();
+
+  for (int round = 0; round < 8; ++round)
+  {
+    sub->trigger_extension();
+    std::thread writer([&] { f.scheduler->run_immediate(); });
+    writer.join();
+    if (sub->endorsements_fetching_status() == ccf::FetchStatus::Done)
+    {
+      break;
+    }
+  }
+
+  stop.store(true, std::memory_order_relaxed);
+  for (auto& t : readers)
+  {
+    t.join();
+  }
+  REQUIRE(sub->endorsements_fetching_status() == ccf::FetchStatus::Done);
+}
+
+TEST_CASE("Concurrent readers vs fetch_first self-only termination")
+{
+  SubsystemFixture f;
+  ChainBuilder cb;
+  cb.add_self({2, 100});
+  f.use_identity_key(cb.current_key_pair());
+  // Self-only chain: fetch_first takes the self-endorsement branch and
+  // writes has_predecessors = false. Force Partial first so the
+  // dispatched fetch_first runs on a worker concurrently with readers;
+  // chain_mutex serialises the write against the readers.
+  f.node_state->current_service_from = ccf::TxID{2, 100};
+  f.node_state->topmost = cb.topmost_entry();
+  f.node_state->part_of_network = false;
+
+  auto sub = f.make_subsystem();
+  for (int i = 0; i < 30; ++i)
+  {
+    f.scheduler->fire_delayed_once();
+  }
+  REQUIRE(sub->endorsements_fetching_status() == ccf::FetchStatus::Partial);
+
+  std::atomic<bool> stop{false};
+  std::vector<std::thread> readers;
+  for (int i = 0; i < 4; ++i)
+  {
+    readers.emplace_back([&] {
+      while (!stop.load(std::memory_order_relaxed))
+      {
+        (void)sub->get_cose_endorsements_chain(50);
+        (void)sub->get_cose_endorsements_chain(150);
+      }
+    });
+  }
+
+  f.node_state->part_of_network = true;
+  sub->trigger_extension();
+  std::thread writer([&] { f.scheduler->run_immediate(); });
+  writer.join();
+
+  stop.store(true, std::memory_order_relaxed);
+  for (auto& t : readers)
+  {
+    t.join();
+  }
+  REQUIRE(sub->endorsements_fetching_status() == ccf::FetchStatus::Done);
+}
+
+TEST_CASE("Concurrent readers vs fetch_first non-self chain walk start")
+{
+  SubsystemFixture f;
+  ChainBuilder cb;
+  cb.add_self({2, 1}).add_next({2, 1}, {4, 200});
+  f.use_identity_key(cb.current_key_pair());
+  // Multi-link chain: fetch_first takes the non-self branch and writes
+  // has_predecessors = true + earliest_endorsed_seq = ... before
+  // delegating to process_endorsement.
+  f.node_state->current_service_from = cb.synthesised_current_service_from();
+  f.node_state->topmost = cb.topmost_entry();
+  f.historical->entries = cb.historical_entries();
+  f.node_state->part_of_network = false;
+
+  auto sub = f.make_subsystem();
+  for (int i = 0; i < 30; ++i)
+  {
+    f.scheduler->fire_delayed_once();
+  }
+  REQUIRE(sub->endorsements_fetching_status() == ccf::FetchStatus::Partial);
+
+  std::atomic<bool> stop{false};
+  std::vector<std::thread> readers;
+  for (int i = 0; i < 4; ++i)
+  {
+    readers.emplace_back([&] {
+      while (!stop.load(std::memory_order_relaxed))
+      {
+        (void)sub->get_cose_endorsements_chain(50);
+        (void)sub->get_cose_endorsements_chain(150);
+        (void)sub->get_trusted_keys();
+      }
+    });
+  }
+
+  f.node_state->part_of_network = true;
+  sub->trigger_extension();
+  std::thread writer([&] { f.scheduler->run_to_completion(); });
+  writer.join();
+
+  stop.store(true, std::memory_order_relaxed);
+  for (auto& t : readers)
+  {
+    t.join();
+  }
+  REQUIRE(sub->endorsements_fetching_status() == ccf::FetchStatus::Done);
+}
+
+// ------------------------------------------------------------------------
+// Chain-walk retry budget must be independent of topmost-wait retries:
+// retries spent in retry_first_fetch waiting for the topmost entry must
+// not eat into the per-chunk retry budget consumed by retry_fetch_next.
+// ------------------------------------------------------------------------
+
+TEST_CASE("Chain-walk retry budget independent of topmost-wait retries")
+{
+  SubsystemFixture f;
+  ChainBuilder cb;
+  cb.add_self({2, 1}).add_next({2, 1}, {4, 200});
+  f.use_identity_key(cb.current_key_pair());
+
+  // Service info ready immediately so the only thing fetch_first waits
+  // on in phase 1 is the topmost endorsement entry.
+  f.node_state->part_of_network = true;
+  f.node_state->current_service_from = cb.synthesised_current_service_from();
+  // Topmost intentionally left unset.
+
+  static constexpr int K = 10;
+  static constexpr int MAX = 30;
+
+  // Phase 1: ctor's synchronous fetch_first sees topmost==nullopt and
+  // schedules retry #1. Fire K-1 more times to reach K topmost-wait
+  // retries total; fetch_attempts is now K.
+  auto sub = f.make_subsystem();
+  REQUIRE(f.scheduler->pending_delayed_count() == 1);
+  for (int i = 0; i < K - 1; ++i)
+  {
+    f.scheduler->fire_delayed_once();
+    REQUIRE(sub->endorsements_fetching_status() == ccf::FetchStatus::Partial);
+    REQUIRE(f.scheduler->pending_delayed_count() == 1);
+  }
+
+  // Phase 2: topmost appears, first historical chunk is missing. Count
+  // every scheduled retry until the cycle ends in Partial.
+  f.node_state->topmost = cb.topmost_entry();
+  f.historical->entries = cb.historical_entries();
+  f.historical->unavailable.insert(cb.write_versions.at(0));
+
+  int fires_after_toggle = 0;
+  while (f.scheduler->pending_delayed_count() > 0)
+  {
+    f.scheduler->fire_delayed_once();
+    ++fires_after_toggle;
+  }
+
+  // With the bug: chain walk inherits the K-bumped counter, so it only
+  // gets MAX-K=20 retries before complete(Partial). With the fix: full
+  // MAX=30 retries dedicated to the chain walk.
+  REQUIRE(fires_after_toggle == MAX);
+  REQUIRE(sub->endorsements_fetching_status() == ccf::FetchStatus::Partial);
+}
+
+// ------------------------------------------------------------------------
+// trigger_extension must not dispatch a new cycle after the prior cycle
+// has reached a terminal state. Under the monitor discipline the
+// fetch_status check and the fetch_active claim both happen under
+// chain_mutex, so a trigger that observes Partial+!fetch_active and
+// then schedules cannot interleave with a concurrent complete_unsafe.
+// This stress test guards against future regressions that might split
+// the check and the claim across two critical sections again.
+// ------------------------------------------------------------------------
+
+TEST_CASE("trigger_extension must not dispatch after complete() flips to Done")
+{
+  // The original (CAS-based) bug fired within ~1 iteration on x86, so
+  // this count gives a wide safety margin against any plausible
+  // regression that re-introduces a non-atomic check-and-claim while
+  // keeping the test under a few seconds.
+  static constexpr int ITERATIONS = 200;
+  for (int it = 0; it < ITERATIONS; ++it)
+  {
+    SubsystemFixture f;
+    ChainBuilder cb;
+    cb.add_self({2, 1}).add_next({2, 1}, {4, 200});
+    f.use_identity_key(cb.current_key_pair());
+    wire_chain(f, cb);
+    // Force initial cycle into Partial by withholding the chunk.
+    f.historical->unavailable.insert(cb.write_versions.at(0));
+
+    auto sub = f.make_subsystem();
+    for (int i = 0; i < 30; ++i)
+    {
+      f.scheduler->fire_delayed_once();
+    }
+    REQUIRE(sub->endorsements_fetching_status() == ccf::FetchStatus::Partial);
+
+    // Restore the chunk and trigger an extension cycle.
+    f.historical->unavailable.clear();
+    sub->trigger_extension();
+
+    // Thread A drives the cycle to Done.
+    std::thread completer([&] { f.scheduler->run_to_completion(); });
+
+    // Thread B races trigger_extension calls against the completion.
+    // Any task scheduled AFTER status moves to Done is a bug.
+    std::atomic<bool> stop{false};
+    int post_done_dispatches = 0;
+    std::thread racer([&] {
+      while (!stop.load(std::memory_order_relaxed))
+      {
+        const auto before = f.scheduler->pending_immediate_count();
+        sub->trigger_extension();
+        const auto after = f.scheduler->pending_immediate_count();
+        if (
+          after > before &&
+          sub->endorsements_fetching_status() == ccf::FetchStatus::Done)
+        {
+          ++post_done_dispatches;
+        }
+      }
+    });
+
+    completer.join();
+    stop.store(true, std::memory_order_relaxed);
+    racer.join();
+
+    REQUIRE(post_done_dispatches == 0);
+    REQUIRE(sub->endorsements_fetching_status() == ccf::FetchStatus::Done);
+  }
 }

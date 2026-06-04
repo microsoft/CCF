@@ -75,7 +75,7 @@ namespace ccf
 
     /// Returns all trusted network identity keys as a map from sequence
     /// number to EC public key. In @ref FetchStatus::Partial older epochs
-    /// may be missing — see @ref trigger_extension.
+    /// may be missing -- see @ref trigger_extension.
     [[nodiscard]] virtual TrustedKeys get_trusted_keys() const = 0;
   };
 }
