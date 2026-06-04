@@ -80,4 +80,4 @@ if ! diff -q "$SNAPSHOT" "$ACTUAL" >/dev/null; then
   exit 1
 fi
 
-echo "Test buckets match snapshot ✓"
+echo "Test buckets match snapshot"

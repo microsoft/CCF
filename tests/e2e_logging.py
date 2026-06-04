@@ -1829,7 +1829,7 @@ def test_random_receipts(
 ):
     cose_only = args.package.endswith("_cose_only")
 
-    # Extract claims digest from a COSE receipt leaf — needed because
+    # Extract claims digest from a COSE receipt leaf - needed because
     # randomly sampled seqnos may hit any TX and we don't know its claims.
     def claims_digest_from_receipt(receipt_bytes):
         receipt = cbor2.loads(receipt_bytes)
@@ -1897,7 +1897,7 @@ def test_random_receipts(
                         )
                         break
                     elif rc.status_code == http.HTTPStatus.NOT_FOUND:
-                        # Signature TX — no COSE receipt available, skip
+                        # Signature TX - no COSE receipt available, skip
                         LOG.warning(
                             f"Skipping signature TX at {view}.{s} (no COSE receipt)"
                         )
@@ -2501,7 +2501,7 @@ def test_blocking_calls(network, args):
     #   with negligible overhead.
     #
     # Our actual test has far more variation (small sample, timing noise),
-    # so we can only make much broader claims — each blocking mean is
+    # so we can only make much broader claims - each blocking mean is
     # smaller than the non-blocking mean.
     assert (
         mean_commit_deltas["/log/blocking/private"] < mean_commit_deltas["/log/private"]
