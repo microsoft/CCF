@@ -902,7 +902,7 @@ namespace asynchost
             return idx >= f->get_start_idx();
           });
 
-        if (f != files.rend())
+        if (f != files.rend() && idx <= (*f)->get_last_idx())
         {
           return *f;
         }
@@ -1500,18 +1500,52 @@ namespace asynchost
       return last_idx;
     }
 
-    void truncate(size_t idx)
+    void truncate(size_t idx, bool recovery_mode = false)
     {
       TimeBoundLogger log_if_slow(fmt::format("Truncating ledger at {}", idx));
 
       std::unique_lock<ccf::pal::Mutex> guard(state_lock);
 
-      LOG_DEBUG_FMT("Ledger truncate: {}/{}", idx, last_idx);
+      LOG_DEBUG_FMT(
+        "Ledger truncate: {}/{} [recovery: {}]", idx, last_idx, recovery_mode);
 
-      // Conservative check to avoid truncating to future indices, or dropping
-      // committed entries. If the ledger is being initialised from a snapshot
-      // alone, the first truncation effectively sets the last index.
-      if (last_idx != 0 && (idx >= last_idx || idx < committed_idx))
+      // Conservative check to avoid dropping committed entries.
+      if (last_idx != 0 && idx < committed_idx)
+      {
+        LOG_DEBUG_FMT(
+          "Ignoring truncate to {} - last_idx: {}, committed_idx: {}",
+          idx,
+          last_idx,
+          committed_idx);
+        return;
+      }
+
+      // During recovery, a snapshot can be after the current end of the host
+      // ledger. Regular truncation requires that the truncation index is within
+      // the ledger and otherwise skips the truncation. This is a special case
+      // to handle the recovery forward truncation
+      if (recovery_mode && idx >= last_idx)
+      {
+        // Close any open files as the ledger should restart cleanly from a new
+        // chunk.
+        auto file = get_latest_file();
+        if (file != nullptr)
+        {
+          file->complete();
+        }
+        // Don't use any of the files on disk for writing
+        use_existing_files = false;
+        last_idx_on_init.reset();
+        // Set last_idx to the recovery idx, which may be past the current end
+        // of the ledger
+        last_idx = idx;
+        return;
+      }
+
+      // Conservative check to avoid truncating to future indices. If the
+      // ledger is being initialised from a snapshot alone, the first truncation
+      // effectively sets the last index.
+      if (last_idx != 0 && idx >= last_idx)
       {
         LOG_DEBUG_FMT(
           "Ignoring truncate to {} - last_idx: {}, committed_idx: {}",
@@ -1678,7 +1712,8 @@ namespace asynchost
       delete req; // NOLINT(cppcoreguidelines-owning-memory)
     }
 
-    void write_ledger_get_range_response(
+    static void write_ledger_get_range_response(
+      const ringbuffer::WriterPtr& to_enclave_,
       size_t from_idx,
       size_t to_idx,
       std::optional<LedgerReadResult>&& read_result,
@@ -1688,7 +1723,7 @@ namespace asynchost
       {
         RINGBUFFER_WRITE_MESSAGE(
           ::consensus::ledger_entry_range,
-          to_enclave,
+          to_enclave_,
           from_idx,
           read_result->end_idx,
           purpose,
@@ -1698,11 +1733,21 @@ namespace asynchost
       {
         RINGBUFFER_WRITE_MESSAGE(
           ::consensus::ledger_no_entry_range,
-          to_enclave,
+          to_enclave_,
           from_idx,
           to_idx,
           purpose);
       }
+    }
+
+    void write_ledger_get_range_response(
+      size_t from_idx,
+      size_t to_idx,
+      std::optional<LedgerReadResult>&& read_result,
+      ::consensus::LedgerRequestPurpose purpose)
+    {
+      write_ledger_get_range_response(
+        to_enclave, from_idx, to_idx, std::move(read_result), purpose);
     }
 
     void register_message_handlers(
@@ -1732,7 +1777,7 @@ namespace asynchost
         [this](const uint8_t* data, size_t size) {
           auto idx = serialized::read<::consensus::Index>(data, size);
           auto recovery_mode = serialized::read<bool>(data, size);
-          truncate(idx);
+          truncate(idx, recovery_mode);
           if (recovery_mode)
           {
             set_recovery_start_idx(idx);
@@ -1755,7 +1800,7 @@ namespace asynchost
       DISPATCHER_SET_MESSAGE_HANDLER(
         disp,
         ::consensus::ledger_get_range,
-        [&](const uint8_t* data, size_t size) {
+        [this](const uint8_t* data, size_t size) {
           auto [from_idx, to_idx, purpose] =
             ringbuffer::read_message<::consensus::ledger_get_range>(data, size);
 
@@ -1779,14 +1824,15 @@ namespace asynchost
               job->from_idx = from_idx;
               job->to_idx = to_idx;
               job->max_size = max_entries_size;
-              job->result_cb = [this,
+              job->result_cb = [to_enclave_ = to_enclave,
                                 from_idx_ = from_idx,
                                 to_idx_ = to_idx,
                                 purpose_ =
                                   purpose](auto&& read_result, int /*status*/) {
                 // NB: Even if status is cancelled (and entry is empty), we
                 // want to write this result back to the enclave
-                write_ledger_get_range_response(
+                Ledger::write_ledger_get_range_response(
+                  to_enclave_,
                   from_idx_,
                   to_idx_,
                   std::forward<decltype(read_result)>(read_result),
