@@ -50,7 +50,7 @@ done < <(git ls-files '*.h' '*.hpp' '*.cpp' '*.c' '*.py' | grep -v -e '^3rdparty
 
 if [ "$failed" -ne 0 ]; then
   echo "Replace non-ASCII characters with their plain ASCII equivalents."
-  echo "If the non-ASCII content is intentional, add the file to ALLOWLIST in scripts/non-ascii-checks.sh."
+  echo "If the non-ASCII content is intentional, add the file to ALLOWLIST in scripts/ascii-checks.sh."
   exit 1
 fi
 
