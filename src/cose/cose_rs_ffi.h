@@ -133,8 +133,8 @@ extern "C"
 /// Pass data()/size() to FFI functions that accept ptr/len output pairs.
 ///
 /// Used for both output envelopes and error strings:
-///   is_set() / to_vector()  — for sign output buffers.
-///   is_set() / to_string() — for error strings.
+///   is_set() / to_vector()  - for sign output buffers.
+///   is_set() / to_string() - for error strings.
 class CoseBuffer
 {
   uint8_t* ptr = nullptr;
