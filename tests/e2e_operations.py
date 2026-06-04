@@ -816,9 +816,9 @@ def test_corrupt_snapshot_handling(network, args):
         with open(config_path, "w", encoding="utf-8") as f:
             json.dump(config, f, indent=2)
 
-        # Start the node – it should fall back to ledger replay after
+        # Start the node - it should fall back to ledger replay after
         # discarding both corrupt snapshots.  If the node fails to join
-        # (e.g. timeout), that is acceptable – the snapshot selection
+        # (e.g. timeout), that is acceptable - the snapshot selection
         # behaviour we care about happens during startup before the join
         # protocol completes.
         try:
@@ -1187,7 +1187,7 @@ def test_ledger_chunk_access(network, args):
             range_etag == f'"sha-256=:{range_expected_b64}:"'
         ), f"Range ETag mismatch: expected sha-256=:{range_expected_b64}:, got {range_etag}"
 
-        # Non-matching If-None-Match on range → fresh partial download
+        # Non-matching If-None-Match on range -> fresh partial download
         r = c.call(
             chunk_url,
             http_verb="GET",
@@ -1204,7 +1204,7 @@ def test_ledger_chunk_access(network, args):
             r.body.data() == partial_data
         ), "Body content should match partial data for non-matching If-None-Match with Range"
 
-        # Matching If-None-Match on range → 304 Not Modified
+        # Matching If-None-Match on range -> 304 Not Modified
         r = c.call(
             chunk_url,
             http_verb="GET",
@@ -1235,7 +1235,7 @@ def test_ledger_chunk_access(network, args):
             head_range_etag == range_etag
         ), f"HEAD Range ETag mismatch: expected {range_etag}, got {head_range_etag}"
 
-        # Matching If-None-Match on HEAD + Range → 304 Not Modified
+        # Matching If-None-Match on HEAD + Range -> 304 Not Modified
         r = c.call(
             chunk_url,
             http_verb="HEAD",
