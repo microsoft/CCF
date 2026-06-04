@@ -168,7 +168,9 @@ def test_add_node_with_corrupted_ledger(network, args):
         args.package,
         args,
         from_snapshot=False,
-        fetch_recent_snapshot=True,
+        # This regression test must replay the copied ledger, rather than
+        # fetching a newer snapshot which could bypass the corrupted chunk.
+        fetch_recent_snapshot=False,
     )
 
     # Find the latest uncommitted ledger file in the node's working directory
@@ -200,7 +202,7 @@ def test_add_node_with_corrupted_ledger(network, args):
     LOG.info(
         f"Corrupting ledger file {chunk_filename} by truncating at offset {truncate_offset}"
     )
-    with open(chunk_filename, "r+", encoding="utf-8") as f:
+    with open(chunk_filename, "rb+") as f:
         f.truncate(truncate_offset)
 
     # Attempt to start the node - it should fail due to the corrupted ledger
