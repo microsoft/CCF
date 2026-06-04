@@ -25,6 +25,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [7.0.4]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.4
 
+### Added
+
+- Added `verify_uvm_attestation_and_endorsements` as a release artifact alongside the logging sample app (#7920).
+
 ### Changed
 
 - JSON parsing can now reject inputs whose object/array nesting depth exceeds a certain value, defaulting to 64 levels and overridable per call site via `ccf::parse_json_safe`'s `max_depth` parameter (#7896).
