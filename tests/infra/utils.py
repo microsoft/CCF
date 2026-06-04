@@ -3,8 +3,6 @@
 import infra.path
 from hashlib import sha256
 import infra.snp as snp
-from infra.node import strip_version
-from packaging.version import Version  # type: ignore
 import os
 import ccf
 import ccf.ledger
