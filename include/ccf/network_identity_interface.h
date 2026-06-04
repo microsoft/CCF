@@ -26,7 +26,11 @@ namespace ccf
   {
     Retry, ///< Fetching should be retried
     Done, ///< Fetching completed successfully
-    Failed ///< Fetching failed
+    Failed, ///< Fetching failed
+    Partial ///< Fetching completed but only a validated suffix of the
+            ///< chain is available (e.g. ledger chunks were missing).
+            ///< Terminal state: the subsystem will not attempt to
+            ///< extend the chain.
   };
 
   /// Map from sequence number to EC public key, representing the trusted

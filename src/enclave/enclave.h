@@ -203,6 +203,18 @@ namespace ccf
       historical_state_cache->set_soft_cache_limit(
         ccf_config_.historical_cache_soft_limit);
 
+      auto network_identity_subsystem =
+        context->get_subsystem<ccf::NetworkIdentitySubsystem>();
+      if (network_identity_subsystem == nullptr)
+      {
+        LOG_FAIL_FMT(
+          "NetworkIdentitySubsystem is not installed; cannot start "
+          "network identity fetching");
+        return CreateNodeStatus::InternalError;
+      }
+      network_identity_subsystem->start_with_config(
+        ccf_config_.identity_history_fetch);
+
       // If we haven't heard from a node for multiple elections, then cleanup
       // their node-to-node channel
       const auto idle_timeout =

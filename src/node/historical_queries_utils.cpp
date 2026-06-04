@@ -233,7 +233,7 @@ namespace ccf
           "cannot be fetched",
           state->transaction_id.seqno));
       }
-      if (fetching != FetchStatus::Done)
+      if (fetching != FetchStatus::Done && fetching != FetchStatus::Partial)
       {
         throw std::logic_error("Unexpected endorsements fetching status");
       }
@@ -241,6 +241,14 @@ namespace ccf
       auto cose_endorsements =
         network_identity_subsystem->get_cose_endorsements_chain(
           state->transaction_id.seqno);
+      if (!cose_endorsements.has_value())
+      {
+        // Cannot tell whether this seqno was ever endorsed.
+        throw std::runtime_error(fmt::format(
+          "Cannot determine the service identity endorsement chain "
+          "for the receipt at seqno {}",
+          state->transaction_id.seqno));
+      }
       state->receipt->cose_endorsements = cose_endorsements;
       return true;
     }

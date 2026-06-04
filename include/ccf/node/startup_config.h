@@ -126,6 +126,15 @@ namespace ccf
       bool operator==(const FilesCleanup&) const = default;
     };
     FilesCleanup files_cleanup = {};
+
+    struct IdentityHistoryFetch
+    {
+      size_t max_attempts = 60;
+      ccf::ds::TimeString retry_interval = {"1000ms"};
+
+      bool operator==(const IdentityHistoryFetch&) const = default;
+    };
+    IdentityHistoryFetch identity_history_fetch = {};
   };
 
   struct RecoveryDecisionProtocolConfig

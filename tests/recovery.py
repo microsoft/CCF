@@ -2020,6 +2020,172 @@ def run_recover_snapshot_ledger_offset(args):
                 )
 
 
+def _find_endorsement_write_chunks(committed_ledger_dirs):
+    """Return [(seqno, chunk_path), ...] for every write to the previous
+    service identity endorsement table across the committed ledger
+    directories, sorted by seqno. Used by the partial-chain e2e test to
+    locate a chunk whose removal will break the chain walk."""
+    endorsement_table = "public:ccf.internal.previous_service_identity_endorsement"
+    writes = []
+    for ledger_dir in committed_ledger_dirs:
+        for filename in os.listdir(ledger_dir):
+            if not ccf.ledger.is_ledger_chunk_committed(filename):
+                continue
+            chunk_path = os.path.join(ledger_dir, filename)
+            chunk = ccf.ledger.LedgerChunk(chunk_path)
+            for transaction in chunk:
+                public_domain = transaction.get_public_domain()
+                tables = public_domain.get_tables()
+                if endorsement_table in tables:
+                    writes.append((public_domain.get_seqno(), chunk_path))
+    writes.sort(key=lambda w: w[0])
+    return writes
+
+
+@reqs.description(
+    "Network identity subsystem settles in Partial when a previous-identity "
+    "endorsement ledger chunk is missing"
+)
+def run_recovery_partial_when_ledger_gap(args):
+    """Builds a chain over 2 recoveries (S1 -> S2 -> S3), stops the
+    network, moves out the ledger chunk that contains the S2-era
+    endorsement write, and recovers once more (-> S4). With the
+    missing chunk the endorsement chain walk cannot complete; we
+    configure the subsystem with a small retry budget so it settles
+    in Partial quickly. We assert:
+
+      * the subsystem reaches Partial (not Done, not Failed);
+      * the validated suffix is available via the trusted_keys
+        endpoint.
+
+    No "restore the chunk and re-fetch" step: Partial is terminal."""
+    txs = app.LoggingTxs("user0")
+
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        pdb=args.pdb,
+        txs=txs,
+    ) as network:
+        network.start_and_open(args)
+
+        # A couple of transactions in the first epoch so the recovery
+        # chain has non-trivial content to walk.
+        network.txs.issue(network, number_txs=2)
+
+        # First recovery -> S2.
+        network = test_recover_service(network, args)
+        network.txs.issue(network, number_txs=2)
+
+        # Second recovery -> S3.
+        network = test_recover_service(network, args)
+        network.txs.issue(network, number_txs=2)
+
+        primary, _ = network.find_primary()
+
+        snapshots_dir = network.get_committed_snapshots(primary)
+        network.save_service_identity(args)
+        network.stop_all_nodes()
+        current_ledger_dir, committed_ledger_dirs = primary.get_ledger()
+
+        # Move out the chunk containing the S2-era endorsement write
+        # (the second-oldest write to the endorsement table). The third
+        # recovery's chain walk fetches this from a historical ledger
+        # chunk; removing it forces the Partial path.
+        writes = _find_endorsement_write_chunks(committed_ledger_dirs)
+        LOG.info(f"Endorsement-table writes across committed ledger: {writes}")
+        assert len(writes) >= 3, (
+            "Expected at least 3 endorsement writes (one per service open "
+            "across S1, S2, S3) in the committed ledger, got: "
+            f"{writes}"
+        )
+        target_seqno, target_chunk = writes[1]
+        other_writes_in_target_chunk = [
+            seq
+            for seq, chunk in writes
+            if chunk == target_chunk and seq != target_seqno
+        ]
+        assert not other_writes_in_target_chunk, (
+            f"Chunk {target_chunk} contains additional endorsement writes "
+            f"at seqnos {other_writes_in_target_chunk}; the test cannot "
+            "deterministically isolate the chain link to break."
+        )
+
+        backup_dir = tempfile.mkdtemp(prefix="ccf_missing_chunk_")
+        moved_chunk_path = os.path.join(backup_dir, os.path.basename(target_chunk))
+        LOG.info(
+            f"Moving chunk {target_chunk} (containing endorsement write at "
+            f"seqno {target_seqno}) to {moved_chunk_path}"
+        )
+        shutil.move(target_chunk, moved_chunk_path)
+
+        # Third recovery (S4) with the missing chunk. The
+        # identity-history retry budget is shrunk so the test does
+        # not have to wait long for the chain walk to exhaust.
+        recovered_network = infra.network.Network(
+            args.nodes,
+            args.binary_dir,
+            args.debug_nodes,
+            existing_network=network,
+            txs=txs,
+        )
+        with infra.network.close_on_error(recovered_network):
+            recovered_network.start_in_recovery(
+                args,
+                ledger_dir=current_ledger_dir,
+                committed_ledger_dirs=committed_ledger_dirs,
+                snapshots_dir=snapshots_dir,
+                identity_history_fetch_max_attempts=5,
+                identity_history_fetch_retry_interval="200ms",
+            )
+            recovered_network.recover(args)
+
+            primary, _ = recovered_network.find_primary()
+
+            # Poll /log/public/trusted_keys. While the subsystem is in
+            # Retry the endpoint returns 5xx (the underlying
+            # get_trusted_keys() throws IdentityHistoryNotFetched).
+            # Once the bounded retries settle in Partial (a few seconds
+            # under the small test budget), the endpoint returns 200
+            # with whatever validated suffix was built.
+            LOG.info(
+                "Polling /log/public/trusted_keys until subsystem settles "
+                "out of Retry"
+            )
+            deadline = time.time() + 30
+            settled_response = None
+            while time.time() < deadline:
+                with primary.client() as cli:
+                    r = cli.get("/log/public/trusted_keys")
+                if r.status_code == http.HTTPStatus.OK:
+                    settled_response = r
+                    break
+                time.sleep(0.5)
+
+            assert settled_response is not None, (
+                "trusted_keys never returned 200 within 30s; subsystem "
+                "stayed in Retry beyond the configured retry budget."
+            )
+
+            partial_keys = settled_response.body.json()["keys"]
+            LOG.info(f"trusted_keys count while in Partial: {len(partial_keys)}")
+            # Current-service key (from the live identity) + the key
+            # endorsed by the topmost endorsement.
+            assert len(partial_keys) >= 2, (
+                f"Expected at least 2 trusted keys, got {len(partial_keys)}: "
+                f"{partial_keys}"
+            )
+
+            shutil.rmtree(backup_dir, ignore_errors=True)
+
+            LOG.success(
+                f"Subsystem settled in Partial with {len(partial_keys)} "
+                "validated trusted keys; the missing ledger chunk did "
+                "not block node startup."
+            )
+
+
 if __name__ == "__main__":
 
     def add(parser):
@@ -2158,6 +2324,15 @@ checked. Note that the key for each logging message is unique (per table).
         nodes=infra.e2e_args.min_nodes(cr.args, f=1),
         ledger_chunk_bytes="50MB",
         snapshot_tx_interval=50,
+    )
+
+    cr.add(
+        "recovery_partial_when_ledger_gap",
+        run_recovery_partial_when_ledger_gap,
+        package="samples/apps/logging/logging",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+        ledger_chunk_bytes="50KB",
+        snapshot_tx_interval=30,
     )
 
     cr.run()

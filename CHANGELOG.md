@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - JSON parsing can now reject inputs whose object/array nesting depth exceeds a certain value, defaulting to 64 levels and overridable per call site via `ccf::parse_json_safe`'s `max_depth` parameter (#7896).
+- `NetworkIdentitySubsystem` retries are now bounded by a new optional `identity_history_fetch` node config (`max_attempts`, `retry_interval`); on exhaustion the subsystem settles in a new terminal `FetchStatus::Partial`; validated suffix is served, historical receipts below it return an error instead of looping at HTTP 202 (#7913).
 
 ### Deprecated
 
