@@ -1719,7 +1719,7 @@ TEST_CASE("CBOR: trailing bytes rejected")
   auto valid = ccf::ds::from_hex("182a");
   REQUIRE_NOTHROW(parse(valid));
 
-  // Append trailing byte — should be rejected
+  // Append trailing byte - should be rejected
   auto with_trailing = ccf::ds::from_hex("182a00");
   REQUIRE_THROWS_AS(parse(with_trailing), CBORDecodeError);
 

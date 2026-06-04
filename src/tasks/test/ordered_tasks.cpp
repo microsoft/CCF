@@ -231,7 +231,7 @@ TEST_CASE(
   REQUIRE(job_board.get_task() == nullptr);
   REQUIRE(resumable != nullptr);
 
-  // Step 3: Simulate concurrent operations — add_action + resume_task
+  // Step 3: Simulate concurrent operations - add_action + resume_task
   tasks->add_action(
     ccf::tasks::make_basic_action([&]() { execution_order.push_back(2); }));
 
