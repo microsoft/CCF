@@ -250,7 +250,9 @@ function checkJwks(value, field) {
       for (const [j, b64der] of jwk.x5c.entries()) {
         checkType(b64der, "string", `${field}.keys[${i}].x5c[${j}]`);
         if (!/^[A-Za-z0-9+/]+={0,2}$/.test(b64der)) {
-          throw new Error(`${field}.keys[${i}].x5c[${j}] must be base64 encoded`);
+          throw new Error(
+            `${field}.keys[${i}].x5c[${j}] must be base64 encoded`,
+          );
         }
         const pem =
           "-----BEGIN CERTIFICATE-----\n" +
@@ -265,6 +267,18 @@ function checkJwks(value, field) {
         "\n-----END CERTIFICATE-----";
       if (!ccf.crypto.isValidX509CertChain(certBundle, trustedRoot)) {
         throw new Error(`${field}.keys[${i}].x5c must chain to its root`);
+      }
+      if (jwk.n !== undefined || jwk.e !== undefined) {
+        if (jwk.kty !== "RSA") {
+          throw new Error(`${field}.keys[${i}].kty must be RSA for n/e keys`);
+        }
+        checkRsaPublicKey(jwk, keyField);
+      }
+      if (jwk.x !== undefined || jwk.y !== undefined || jwk.crv !== undefined) {
+        if (jwk.kty !== "EC") {
+          throw new Error(`${field}.keys[${i}].kty must be EC for x/y keys`);
+        }
+        checkEcPublicKey(jwk, keyField);
       }
     } else if (jwk.n && jwk.e) {
       if (jwk.kty !== "RSA") {
@@ -518,7 +532,10 @@ const actions = new Map([
             "Cannot specify a recovery_role value when encryption_pub_key is not specified",
           );
         }
-        if (args.encryption_pub_key !== null && args.encryption_pub_key !== undefined) {
+        if (
+          args.encryption_pub_key !== null &&
+          args.encryption_pub_key !== undefined
+        ) {
           checkRsaPublicKey(
             ccf.crypto.pubRsaPemToJwk(args.encryption_pub_key),
             "encryption_pub_key",
