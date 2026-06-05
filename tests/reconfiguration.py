@@ -190,7 +190,13 @@ def test_add_node_with_corrupted_ledger(network, args):
         ],
         key=lambda f: ccf.ledger.range_from_filename(f)[0],
     )
-    assert ledger_files, "Expected uncommitted ledger files to corrupt"
+    assert (
+        ledger_files
+    ), "Expected to find uncommitted ledger files for corruption test"
+    ledger_ranges = {
+        ledger_file: ccf.ledger.range_from_filename(ledger_file)
+        for ledger_file in ledger_files
+    }
 
     # Prefer a chunk whose range is older than the snapshot we are joining from.
     corrupted_ledger_file = next(
@@ -198,8 +204,8 @@ def test_add_node_with_corrupted_ledger(network, args):
             f
             for f in ledger_files
             if (
-                ccf.ledger.range_from_filename(f)[1] is not None
-                and ccf.ledger.range_from_filename(f)[1] < snapshot_trigger_txid.seqno
+                ledger_ranges[f][1] is not None
+                and ledger_ranges[f][1] < snapshot_trigger_txid.seqno
             )
         ),
         ledger_files[-1],
@@ -218,6 +224,12 @@ def test_add_node_with_corrupted_ledger(network, args):
             offset, next_offset = tx.get_offsets()
             chunk_filename = chunk.filename()
             truncate_offset = offset + (next_offset - offset) // 2
+            # Corrupting a single transaction in the selected chunk is
+            # sufficient to make the file malformed.
+            break
+
+        if truncate_offset is not None:
+            break
 
     assert truncate_offset is not None, "Should always find a transaction to corrupt"
 
@@ -242,8 +254,15 @@ def test_add_node_with_corrupted_ledger(network, args):
             out_logs = out.read()
         with open(err_path, encoding="utf-8") as err:
             err_logs = err.read()
-        if "Malformed incomplete ledger file" in (out_logs + err_logs):
+        # Depending on where recovery skips/truncates the stale chunk, this
+        # malformed-ledger line may or may not be emitted.
+        combined_logs = (out_logs + err_logs).lower()
+        if "malformed" in combined_logs and "ledger file" in combined_logs:
             LOG.info("Observed malformed ledger handling while joining from snapshot")
+        else:
+            LOG.info(
+                "Did not observe malformed ledger log line; join success remains the test invariant"
+            )
 
     primary, _ = network.find_primary()
     network.retire_node(primary, new_node)
