@@ -59,6 +59,12 @@ def test_jwt_issuer_and_jwks_validation(network, args):
 
     assert_set_jwt_issuer_rejected(network, primary, {"issuer": "example.issuer"})
     assert_set_jwt_issuer_rejected(
+        network, primary, {"issuer": "https://example.issuer?foo=bar"}
+    )
+    assert_set_jwt_issuer_rejected(
+        network, primary, {"issuer": "https://example.issuer#fragment"}
+    )
+    assert_set_jwt_issuer_rejected(
         network,
         primary,
         {"issuer": issuer.name, "jwks": {"keys": [valid_key, valid_key]}},

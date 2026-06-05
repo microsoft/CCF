@@ -134,12 +134,16 @@ function checkRsaPublicKey(jwk, field) {
     throw new Error(`${field}.n must be at least 2048 bits`);
   }
   base64UrlByteLength(jwk.e, `${field}.e`);
-  ccf.crypto.pubRsaJwkToPem({
-    kty: "RSA",
-    kid: jwk.kid,
-    n: jwk.n,
-    e: jwk.e,
-  });
+  try {
+    ccf.crypto.pubRsaJwkToPem({
+      kty: "RSA",
+      kid: jwk.kid,
+      n: jwk.n,
+      e: jwk.e,
+    });
+  } catch (e) {
+    throw new Error(`${field} must be a valid RSA public key`);
+  }
 }
 
 function checkEcPublicKey(jwk, field) {
@@ -154,13 +158,17 @@ function checkEcPublicKey(jwk, field) {
   if (base64UrlByteLength(jwk.y, `${field}.y`) !== coordinateLength) {
     throw new Error(`${field}.y must be ${coordinateLength} bytes`);
   }
-  ccf.crypto.pubJwkToPem({
-    kty: "EC",
-    kid: jwk.kid,
-    crv: jwk.crv,
-    x: jwk.x,
-    y: jwk.y,
-  });
+  try {
+    ccf.crypto.pubJwkToPem({
+      kty: "EC",
+      kid: jwk.kid,
+      crv: jwk.crv,
+      x: jwk.x,
+      y: jwk.y,
+    });
+  } catch (e) {
+    throw new Error(`${field} must be a valid EC public key`);
+  }
 }
 
 const cpuid_length_bytes = 4;
