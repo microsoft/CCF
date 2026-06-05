@@ -122,6 +122,11 @@ namespace ccf
     max_committed_ledger_chunks,
     interval);
 
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::IdentityHistoryFetch);
+  DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::IdentityHistoryFetch);
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    CCFConfig::IdentityHistoryFetch, max_attempts, retry_interval);
+
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig);
   DECLARE_JSON_REQUIRED_FIELDS(CCFConfig, network);
   DECLARE_JSON_OPTIONAL_FIELDS(
@@ -136,7 +141,8 @@ namespace ccf
     snapshots,
     files_cleanup,
     node_to_node_message_limit,
-    historical_cache_soft_limit);
+    historical_cache_soft_limit,
+    identity_history_fetch);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(RecoveryDecisionProtocolConfig);
   DECLARE_JSON_REQUIRED_FIELDS(
