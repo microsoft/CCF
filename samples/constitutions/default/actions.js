@@ -104,7 +104,7 @@ function checkBase64Url(value, field) {
 
 function base64UrlByteLength(value, field) {
   checkBase64Url(value, field);
-  return Math.floor((value.length * 3) / 4);
+  return Math.floor(value.length / 4) * 3 + [0, 0, 1, 2][value.length % 4];
 }
 
 function splitX509CertBundle(value) {
