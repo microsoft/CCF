@@ -2113,77 +2113,78 @@ def run_recovery_partial_when_ledger_gap(args):
         )
 
         backup_dir = tempfile.mkdtemp(prefix="ccf_missing_chunk_")
-        moved_chunk_path = os.path.join(backup_dir, os.path.basename(target_chunk))
-        LOG.info(
-            f"Moving chunk {target_chunk} (containing endorsement write at "
-            f"seqno {target_seqno}) to {moved_chunk_path}"
-        )
-        shutil.move(target_chunk, moved_chunk_path)
-
-        # Third recovery (S4) with the missing chunk. The
-        # identity-history retry budget is shrunk so the test does
-        # not have to wait long for the chain walk to exhaust.
-        recovered_network = infra.network.Network(
-            args.nodes,
-            args.binary_dir,
-            args.debug_nodes,
-            existing_network=network,
-            txs=txs,
-        )
-        with infra.network.close_on_error(recovered_network):
-            recovered_network.start_in_recovery(
-                args,
-                ledger_dir=current_ledger_dir,
-                committed_ledger_dirs=committed_ledger_dirs,
-                snapshots_dir=snapshots_dir,
-                identity_history_fetch_max_attempts=5,
-                identity_history_fetch_retry_interval="200ms",
-            )
-            recovered_network.recover(args)
-
-            primary, _ = recovered_network.find_primary()
-
-            # Poll /log/public/trusted_keys. While the subsystem is in
-            # Retry the endpoint returns 5xx (the underlying
-            # get_trusted_keys() throws IdentityHistoryNotFetched).
-            # Once the bounded retries settle in Partial (a few seconds
-            # under the small test budget), the endpoint returns 200
-            # with whatever validated suffix was built.
+        try:
+            moved_chunk_path = os.path.join(backup_dir, os.path.basename(target_chunk))
             LOG.info(
-                "Polling /log/public/trusted_keys until subsystem settles "
-                "out of Retry"
+                f"Moving chunk {target_chunk} (containing endorsement write at "
+                f"seqno {target_seqno}) to {moved_chunk_path}"
             )
-            deadline = time.time() + 30
-            settled_response = None
-            while time.time() < deadline:
-                with primary.client() as cli:
-                    r = cli.get("/log/public/trusted_keys")
-                if r.status_code == http.HTTPStatus.OK:
-                    settled_response = r
-                    break
-                time.sleep(0.5)
+            shutil.move(target_chunk, moved_chunk_path)
 
-            assert settled_response is not None, (
-                "trusted_keys never returned 200 within 30s; subsystem "
-                "stayed in Retry beyond the configured retry budget."
+            # Third recovery (S4) with the missing chunk. The
+            # identity-history retry budget is shrunk so the test does
+            # not have to wait long for the chain walk to exhaust.
+            recovered_network = infra.network.Network(
+                args.nodes,
+                args.binary_dir,
+                args.debug_nodes,
+                existing_network=network,
+                txs=txs,
             )
+            with infra.network.close_on_error(recovered_network):
+                recovered_network.start_in_recovery(
+                    args,
+                    ledger_dir=current_ledger_dir,
+                    committed_ledger_dirs=committed_ledger_dirs,
+                    snapshots_dir=snapshots_dir,
+                    identity_history_fetch_max_attempts=5,
+                    identity_history_fetch_retry_interval="200ms",
+                )
+                recovered_network.recover(args)
 
-            partial_keys = settled_response.body.json()["keys"]
-            LOG.info(f"trusted_keys count while in Partial: {len(partial_keys)}")
-            # Current-service key (from the live identity) + the key
-            # endorsed by the topmost endorsement.
-            assert len(partial_keys) >= 2, (
-                f"Expected at least 2 trusted keys, got {len(partial_keys)}: "
-                f"{partial_keys}"
-            )
+                primary, _ = recovered_network.find_primary()
 
+                # Poll /log/public/trusted_keys. While the subsystem is in
+                # Retry the endpoint returns 5xx (the underlying
+                # get_trusted_keys() throws IdentityHistoryNotFetched).
+                # Once the bounded retries settle in Partial (a few seconds
+                # under the small test budget), the endpoint returns 200
+                # with whatever validated suffix was built.
+                LOG.info(
+                    "Polling /log/public/trusted_keys until subsystem settles "
+                    "out of Retry"
+                )
+                deadline = time.time() + 30
+                settled_response = None
+                while time.time() < deadline:
+                    with primary.client() as cli:
+                        r = cli.get("/log/public/trusted_keys")
+                    if r.status_code == http.HTTPStatus.OK:
+                        settled_response = r
+                        break
+                    time.sleep(0.5)
+
+                assert settled_response is not None, (
+                    "trusted_keys never returned 200 within 30s; subsystem "
+                    "stayed in Retry beyond the configured retry budget."
+                )
+
+                partial_keys = settled_response.body.json()["keys"]
+                LOG.info(f"trusted_keys count while in Partial: {len(partial_keys)}")
+                # Current-service key (from the live identity) + the key
+                # endorsed by the topmost endorsement.
+                assert len(partial_keys) >= 2, (
+                    f"Expected at least 2 trusted keys, got {len(partial_keys)}: "
+                    f"{partial_keys}"
+                )
+
+                LOG.success(
+                    f"Subsystem settled in Partial with {len(partial_keys)} "
+                    "validated trusted keys; the missing ledger chunk did "
+                    "not block node startup."
+                )
+        finally:
             shutil.rmtree(backup_dir, ignore_errors=True)
-
-            LOG.success(
-                f"Subsystem settled in Partial with {len(partial_keys)} "
-                "validated trusted keys; the missing ledger chunk did "
-                "not block node startup."
-            )
 
 
 if __name__ == "__main__":

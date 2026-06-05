@@ -7,14 +7,11 @@
 #include "crypto/openssl/ec_key_pair.h"
 #include "node/rpc/network_identity_accessors.h"
 #include "node/rpc/network_identity_chain_helpers.h"
-#include "tasks/basic_task.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
-#include <atomic>
 #include <chrono>
 #include <deque>
 #include <doctest/doctest.h>
-#include <thread>
 
 using namespace std::chrono_literals;
 
@@ -65,11 +62,11 @@ namespace
     {
       return part_of_network;
     }
-    std::optional<ccf::TxID> read_current_service_from() override
+    std::optional<ccf::TxID> get_current_service_txid() override
     {
       return current_service_from;
     }
-    std::optional<ccf::CoseEndorsement> read_topmost_endorsement() override
+    std::optional<ccf::CoseEndorsement> get_current_endorsement() override
     {
       return topmost;
     }
@@ -103,14 +100,7 @@ namespace
   {
   public:
     std::mutex mtx;
-    std::deque<std::function<void()>> immediate;
     std::deque<std::function<void()>> delayed;
-
-    void add_task(std::function<void()> fn) override
-    {
-      std::lock_guard<std::mutex> g(mtx);
-      immediate.push_back(std::move(fn));
-    }
 
     void add_delayed_task(
       std::function<void()> fn, std::chrono::milliseconds /* delay */) override
@@ -119,39 +109,13 @@ namespace
       delayed.push_back(std::move(fn));
     }
 
-    [[nodiscard]] size_t pending_immediate_count()
-    {
-      std::lock_guard<std::mutex> g(mtx);
-      return immediate.size();
-    }
-
     [[nodiscard]] size_t pending_delayed_count()
     {
       std::lock_guard<std::mutex> g(mtx);
       return delayed.size();
     }
 
-    // Drain all immediate tasks, calling each. May push new ones.
-    void run_immediate()
-    {
-      while (true)
-      {
-        std::function<void()> fn;
-        {
-          std::lock_guard<std::mutex> g(mtx);
-          if (immediate.empty())
-          {
-            return;
-          }
-          fn = std::move(immediate.front());
-          immediate.pop_front();
-        }
-        fn();
-      }
-    }
-
-    // Fire all delayed tasks and drain any immediate tasks they enqueue.
-    // Returns the number of delayed tasks fired.
+    // Fire all currently queued delayed tasks. Returns the number fired.
     size_t fire_delayed_once()
     {
       std::deque<std::function<void()>> batch;
@@ -166,14 +130,12 @@ namespace
         fn();
         ++ran;
       }
-      run_immediate();
       return ran;
     }
 
-    // Loop firing immediate + delayed until both are empty.
+    // Loop firing delayed tasks until the queue is empty.
     void run_to_completion(size_t safety_cap = 100)
     {
-      run_immediate();
       while (pending_delayed_count() > 0 && safety_cap-- > 0)
       {
         fire_delayed_once();
@@ -194,8 +156,8 @@ namespace
   //     next_tx_if_recovery(prev.epoch_end). e_i.epoch_end is one txid
   //     before S_i's create TxID. e_i.previous_version is the kv::Version
   //     at which e_{i-1} was written.
-  //   * In production, e_N (the topmost) is what
-  //     `read_topmost_endorsement` returns. e_0..e_{N-1} are what
+  //   * In production, e_N (the current KV entry) is what
+  //     `get_current_endorsement` returns. e_0..e_{N-1} are what
   //     `get_endorsement_at(write_version)` returns. The current
   //     service's public key (in DER) must match e_N's signing key.
   //
@@ -278,8 +240,8 @@ namespace
         last.endorsement_epoch_end->seqno + 1};
     }
 
-    // For sources: pop the topmost entry off (it lives in
-    // read_topmost_endorsement, not in `historical`).
+    // For sources: pop the latest entry off (it lives in
+    // get_current_endorsement, not in `historical`).
     ccf::CoseEndorsement topmost_entry() const
     {
       REQUIRE(!entries.empty());
@@ -405,12 +367,14 @@ TEST_CASE("is_self_endorsement detects absence of previous_version")
   REQUIRE_FALSE(ccf::is_self_endorsement(make_range_endorsement(3, 11, 3, 20)));
 }
 
-TEST_CASE("is_ill_formed detects inverted range")
+TEST_CASE("has_ill_formed_epoch_range detects inverted range")
 {
-  REQUIRE(ccf::is_ill_formed(make_range_endorsement(3, 20, 3, 10)));
-  REQUIRE_FALSE(ccf::is_ill_formed(make_range_endorsement(3, 10, 3, 20)));
+  REQUIRE(
+    ccf::has_ill_formed_epoch_range(make_range_endorsement(3, 20, 3, 10)));
+  REQUIRE_FALSE(
+    ccf::has_ill_formed_epoch_range(make_range_endorsement(3, 10, 3, 20)));
   // Self-endorsement has no epoch_end, so it is never ill-formed
-  REQUIRE_FALSE(ccf::is_ill_formed(make_self_endorsement(2, 10)));
+  REQUIRE_FALSE(ccf::has_ill_formed_epoch_range(make_self_endorsement(2, 10)));
 }
 
 TEST_CASE("verify_endorsements_connected accepts adjacent endorsements")
@@ -508,7 +472,6 @@ TEST_CASE(
     f.node_state, f.historical, f.identity, f.scheduler);
 
   REQUIRE(sub->endorsements_fetching_status() == ccf::FetchStatus::Retry);
-  REQUIRE(f.scheduler->pending_immediate_count() == 0);
   REQUIRE(f.scheduler->pending_delayed_count() == 0);
   REQUIRE_THROWS_AS(sub->get_trusted_keys(), ccf::IdentityHistoryNotFetched);
 

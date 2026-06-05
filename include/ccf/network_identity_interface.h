@@ -10,6 +10,7 @@
 #include <map>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace ccf
@@ -32,6 +33,22 @@ namespace ccf
             ///< Terminal state: the subsystem will not attempt to
             ///< extend the chain.
   };
+
+  inline std::string_view to_string(FetchStatus status)
+  {
+    switch (status)
+    {
+      case FetchStatus::Retry:
+        return "Retry";
+      case FetchStatus::Done:
+        return "Done";
+      case FetchStatus::Failed:
+        return "Failed";
+      case FetchStatus::Partial:
+        return "Partial";
+    }
+    return "Unknown";
+  }
 
   /// Map from sequence number to EC public key, representing the trusted
   /// network identity keys over the history of the service.

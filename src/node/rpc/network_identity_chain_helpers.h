@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/network_identity_interface.h"
 #include "ccf/tx_id.h"
 #include "consensus/aft/raft_types.h"
 #include "service/tables/previous_service_identity.h"
@@ -17,7 +16,8 @@ namespace ccf
     return !endorsement.previous_version.has_value();
   }
 
-  inline bool is_ill_formed(const ccf::CoseEndorsement& endorsement)
+  inline bool has_ill_formed_epoch_range(
+    const ccf::CoseEndorsement& endorsement)
   {
     return endorsement.endorsement_epoch_end.has_value() &&
       endorsement.endorsement_epoch_end->seqno <
@@ -57,7 +57,7 @@ namespace ccf
     {
       throw std::logic_error(fmt::format(
         "The last fetched endorsement at {} has no epoch end",
-        newest.endorsement_epoch_begin.seqno));
+        newest.endorsement_epoch_begin.to_str()));
     }
     if (
       current_service_from.view - aft::starting_view_change !=

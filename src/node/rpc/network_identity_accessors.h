@@ -4,7 +4,6 @@
 
 #include "ccf/tx_id.h"
 #include "service/tables/previous_service_identity.h"
-#include "tasks/task_system.h"
 
 #include <chrono>
 #include <functional>
@@ -19,10 +18,11 @@ namespace ccf
     [[nodiscard]] virtual bool is_part_of_network() const = 0;
 
     // Current service's create-txid, or nullopt if not yet available.
-    virtual std::optional<TxID> read_current_service_from() = 0;
+    virtual std::optional<TxID> get_current_service_txid() = 0;
 
-    // Topmost previous-identity endorsement entry, or nullopt if none.
-    virtual std::optional<CoseEndorsement> read_topmost_endorsement() = 0;
+    // Current previous-identity endorsement entry in the live KV, or
+    // nullopt if none has been written yet.
+    virtual std::optional<CoseEndorsement> get_current_endorsement() = 0;
   };
 
   struct IHistoricalStateAccessor
@@ -38,8 +38,6 @@ namespace ccf
   struct TaskScheduler
   {
     virtual ~TaskScheduler() = default;
-
-    virtual void add_task(std::function<void()> fn) = 0;
 
     virtual void add_delayed_task(
       std::function<void()> fn, std::chrono::milliseconds delay) = 0;

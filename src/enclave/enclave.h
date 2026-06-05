@@ -27,6 +27,7 @@
 #include "node/rpc/gov_effects.h"
 #include "node/rpc/ledger_subsystem.h"
 #include "node/rpc/member_frontend.h"
+#include "node/rpc/network_identity_accessors_impl.h"
 #include "node/rpc/network_identity_subsystem.h"
 #include "node/rpc/node_frontend.h"
 #include "node/rpc/node_operation.h"
@@ -132,7 +133,11 @@ namespace ccf
 
       context->install_subsystem(
         std::make_shared<ccf::NetworkIdentitySubsystem>(
-          *node, network.identity, historical_state_cache));
+          std::make_shared<ccf::NodeStateAccessor>(*node),
+          std::make_shared<ccf::HistoricalStateAccessor>(
+            historical_state_cache),
+          network.identity,
+          std::make_shared<ccf::TaskSchedulerImpl>()));
 
       context->install_subsystem(
         std::make_shared<ccf::NodeConfigurationSubsystem>(*node));

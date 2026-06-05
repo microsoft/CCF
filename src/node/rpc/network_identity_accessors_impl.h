@@ -6,7 +6,6 @@
 #include "node/historical_queries.h"
 #include "node/rpc/network_identity_accessors.h"
 #include "node/rpc/node_interface.h"
-#include "service/internal_tables_access.h"
 #include "tasks/basic_task.h"
 #include "tasks/task_system.h"
 
@@ -31,7 +30,7 @@ namespace ccf
       return node_state.is_part_of_network();
     }
 
-    std::optional<TxID> read_current_service_from() override
+    std::optional<TxID> get_current_service_txid() override
     {
       auto store = node_state.get_store();
       auto tx = store->create_read_only_tx();
@@ -56,7 +55,7 @@ namespace ccf
       return service_info->current_service_create_txid;
     }
 
-    std::optional<CoseEndorsement> read_topmost_endorsement() override
+    std::optional<CoseEndorsement> get_current_endorsement() override
     {
       auto store = node_state.get_store();
       auto tx = store->create_read_only_tx();
@@ -115,11 +114,6 @@ namespace ccf
   class TaskSchedulerImpl : public TaskScheduler
   {
   public:
-    void add_task(std::function<void()> fn) override
-    {
-      ccf::tasks::add_task(ccf::tasks::make_basic_task(std::move(fn)));
-    }
-
     void add_delayed_task(
       std::function<void()> fn, std::chrono::milliseconds delay) override
     {

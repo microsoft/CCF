@@ -235,7 +235,10 @@ namespace ccf
       }
       if (fetching != FetchStatus::Done && fetching != FetchStatus::Partial)
       {
-        throw std::logic_error("Unexpected endorsements fetching status");
+        throw std::runtime_error(fmt::format(
+          "Unexpected endorsements fetching status: expected Done or Partial; "
+          "got {}",
+          ccf::to_string(fetching)));
       }
 
       auto cose_endorsements =
@@ -246,8 +249,8 @@ namespace ccf
         // Cannot tell whether this seqno was ever endorsed.
         throw std::runtime_error(fmt::format(
           "Cannot determine the service identity endorsement chain "
-          "for the receipt at seqno {}",
-          state->transaction_id.seqno));
+          "for the receipt at {}",
+          state->transaction_id.to_str()));
       }
       state->receipt->cose_endorsements = cose_endorsements;
       return true;

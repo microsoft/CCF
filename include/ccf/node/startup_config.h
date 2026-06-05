@@ -129,8 +129,8 @@ namespace ccf
 
     struct IdentityHistoryFetch
     {
-      size_t max_attempts = 60;
-      ccf::ds::TimeString retry_interval = {"1000ms"};
+      size_t max_attempts = 100;
+      ccf::ds::TimeString retry_interval = {"100ms"};
 
       bool operator==(const IdentityHistoryFetch&) const = default;
     };
