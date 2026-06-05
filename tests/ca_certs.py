@@ -45,11 +45,24 @@ def test_cert_store(network, args):
         else:
             assert False, "Proposal should not have been accepted"
 
+    LOG.info("Member makes a ca cert update proposal with a non-CA cert")
+    key_priv_pem, _ = infra.crypto.generate_rsa_keypair(2048)
+    non_ca_cert_pem = infra.crypto.generate_cert(key_priv_pem)
+    with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as cert_pem_fp:
+        cert_pem_fp.write(non_ca_cert_pem)
+        cert_pem_fp.flush()
+        try:
+            network.consortium.set_ca_cert_bundle(primary, cert_name, cert_pem_fp.name)
+        except (infra.proposal.ProposalNotAccepted, infra.proposal.ProposalNotCreated):
+            pass
+        else:
+            assert False, "Proposal should not have accepted a non-CA certificate"
+
     LOG.info("Member makes a ca cert update proposal with valid certs")
     key_priv_pem, _ = infra.crypto.generate_rsa_keypair(2048)
-    cert_pem = infra.crypto.generate_cert(key_priv_pem)
+    cert_pem = infra.crypto.generate_cert(key_priv_pem, ca=True)
     key2_priv_pem, _ = infra.crypto.generate_rsa_keypair(2048)
-    cert2_pem = infra.crypto.generate_cert(key2_priv_pem)
+    cert2_pem = infra.crypto.generate_cert(key2_priv_pem, ca=True)
     with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as cert_pem_fp:
         cert_pem_fp.write(cert_pem)
         cert_pem_fp.write(cert2_pem)

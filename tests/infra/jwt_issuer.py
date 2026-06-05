@@ -156,7 +156,7 @@ class JwtIssuer:
         else:
             raise ValueError(f"Unsupported algorithm: {self._alg}")
 
-        cert = infra.crypto.generate_cert(key_priv, cn=cn)
+        cert = infra.crypto.generate_cert(key_priv, cn=cn, ca=True)
         return (key_priv, key_pub), cert
 
     def __init__(

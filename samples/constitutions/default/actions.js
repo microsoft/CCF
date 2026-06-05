@@ -95,6 +95,74 @@ function checkArrayBufferLength(value, min, max, field) {
   }
 }
 
+function checkBase64Url(value, field) {
+  checkType(value, "string", field);
+  if (!/^[A-Za-z0-9_-]+$/.test(value) || value.length % 4 === 1) {
+    throw new Error(`${field} must be base64url encoded`);
+  }
+}
+
+function base64UrlByteLength(value, field) {
+  checkBase64Url(value, field);
+  return Math.floor((value.length * 3) / 4);
+}
+
+function splitX509CertBundle(value) {
+  const sep = "-----END CERTIFICATE-----";
+  const items = value.split(sep);
+  if (items.length === 1) {
+    return [];
+  }
+  return items.slice(0, -1).map((p) => p + sep);
+}
+
+function checkX509CACertBundle(value, field) {
+  checkX509CertBundle(value, field);
+  for (const [i, cert] of splitX509CertBundle(value).entries()) {
+    if (!ccf.crypto.isValidX509CertChain(cert, cert)) {
+      throw new Error(
+        `${field}[${i}] must be a valid CA certificate with a currently valid chain to itself`,
+      );
+    }
+  }
+}
+
+function checkRsaPublicKey(jwk, field) {
+  checkType(jwk.n, "string", `${field}.n`);
+  checkType(jwk.e, "string", `${field}.e`);
+  if (base64UrlByteLength(jwk.n, `${field}.n`) < 256) {
+    throw new Error(`${field}.n must be at least 2048 bits`);
+  }
+  base64UrlByteLength(jwk.e, `${field}.e`);
+  ccf.crypto.pubRsaJwkToPem({
+    kty: "RSA",
+    kid: jwk.kid,
+    n: jwk.n,
+    e: jwk.e,
+  });
+}
+
+function checkEcPublicKey(jwk, field) {
+  checkType(jwk.x, "string", `${field}.x`);
+  checkType(jwk.y, "string", `${field}.y`);
+  checkType(jwk.crv, "string", `${field}.crv`);
+  checkEnum(jwk.crv, ["P-256", "P-384"], `${field}.crv`);
+  const coordinateLength = jwk.crv === "P-256" ? 32 : 48;
+  if (base64UrlByteLength(jwk.x, `${field}.x`) !== coordinateLength) {
+    throw new Error(`${field}.x must be ${coordinateLength} bytes`);
+  }
+  if (base64UrlByteLength(jwk.y, `${field}.y`) !== coordinateLength) {
+    throw new Error(`${field}.y must be ${coordinateLength} bytes`);
+  }
+  ccf.crypto.pubJwkToPem({
+    kty: "EC",
+    kid: jwk.kid,
+    crv: jwk.crv,
+    x: jwk.x,
+    y: jwk.y,
+  });
+}
+
 const cpuid_length_bytes = 4;
 function checkValidCpuid(value, field) {
   checkType(value, "string", field);
@@ -174,26 +242,60 @@ function getActiveRecoveryMembersCount() {
 function checkJwks(value, field) {
   checkType(value, "object", field);
   checkType(value.keys, "array", `${field}.keys`);
+  const kids = new Set();
   for (const [i, jwk] of value.keys.entries()) {
+    const keyField = `${field}.keys[${i}]`;
     checkType(jwk.kid, "string", `${field}.keys[${i}].kid`);
+    if (kids.has(jwk.kid)) {
+      throw new Error(`${field}.keys[${i}].kid must be unique`);
+    }
+    kids.add(jwk.kid);
     checkType(jwk.kty, "string", `${field}.keys[${i}].kty`);
+    checkEnum(jwk.kty, ["RSA", "EC"], `${field}.keys[${i}].kty`);
+    if (jwk.use !== undefined) {
+      checkType(jwk.use, "string", `${keyField}.use`);
+      checkEnum(jwk.use, ["sig"], `${keyField}.use`);
+    }
+    if (jwk.alg !== undefined) {
+      checkType(jwk.alg, "string", `${keyField}.alg`);
+      checkEnum(
+        jwk.alg,
+        jwk.kty === "RSA" ? ["RS256"] : ["ES256"],
+        `${keyField}.alg`,
+      );
+    }
     if (jwk.x5c) {
       checkArrayLength(jwk.x5c, 1, null, `${field}.keys[${i}].x5c`);
+      let certBundle = "";
       for (const [j, b64der] of jwk.x5c.entries()) {
         checkType(b64der, "string", `${field}.keys[${i}].x5c[${j}]`);
+        if (!/^[A-Za-z0-9+/]+={0,2}$/.test(b64der)) {
+          throw new Error(`${field}.keys[${i}].x5c[${j}] must be base64 encoded`);
+        }
         const pem =
           "-----BEGIN CERTIFICATE-----\n" +
           b64der +
           "\n-----END CERTIFICATE-----";
         checkX509CertBundle(pem, `${field}.keys[${i}].x5c[${j}]`);
+        certBundle += pem;
+      }
+      const trustedRoot =
+        "-----BEGIN CERTIFICATE-----\n" +
+        jwk.x5c[jwk.x5c.length - 1] +
+        "\n-----END CERTIFICATE-----";
+      if (!ccf.crypto.isValidX509CertChain(certBundle, trustedRoot)) {
+        throw new Error(`${field}.keys[${i}].x5c must chain to its root`);
       }
     } else if (jwk.n && jwk.e) {
-      checkType(jwk.n, "string", `${field}.keys[${i}].n`);
-      checkType(jwk.e, "string", `${field}.keys[${i}].e`);
+      if (jwk.kty !== "RSA") {
+        throw new Error(`${field}.keys[${i}].kty must be RSA for n/e keys`);
+      }
+      checkRsaPublicKey(jwk, keyField);
     } else if (jwk.x && jwk.y) {
-      checkType(jwk.x, "string", `${field}.keys[${i}].x`);
-      checkType(jwk.y, "string", `${field}.keys[${i}].y`);
-      checkType(jwk.crv, "string", `${field}.keys[${i}].crv`);
+      if (jwk.kty !== "EC") {
+        throw new Error(`${field}.keys[${i}].kty must be EC for x/y keys`);
+      }
+      checkEcPublicKey(jwk, keyField);
     } else {
       throw new Error(
         "JWK must contain either x5c, or n/e for RSA key type, or x/y/crv for EC key type",
@@ -437,7 +539,12 @@ const actions = new Map([
             "Cannot specify a recovery_role value when encryption_pub_key is not specified",
           );
         }
-        // Also check that public encryption key is well formed, if it exists
+        if (args.encryption_pub_key !== null && args.encryption_pub_key !== undefined) {
+          checkRsaPublicKey(
+            ccf.crypto.pubRsaPemToJwk(args.encryption_pub_key),
+            "encryption_pub_key",
+          );
+        }
       },
 
       function (args) {
@@ -928,7 +1035,7 @@ const actions = new Map([
     new Action(
       function (args) {
         checkType(args.name, "string", "name");
-        checkX509CertBundle(args.cert_bundle, "cert_bundle");
+        checkX509CACertBundle(args.cert_bundle, "cert_bundle");
       },
       function (args) {
         const name = args.name;
@@ -963,26 +1070,22 @@ const actions = new Map([
         if (args.jwks) {
           checkJwks(args.jwks, "jwks");
         }
+        let url;
+        try {
+          url = parseUrl(args.issuer);
+        } catch (e) {
+          throw new Error("issuer must be a URL");
+        }
+        if (url.scheme != "https" || !url.authority) {
+          throw new Error("issuer must be a URL starting with https://");
+        }
+        if (url.query || url.fragment) {
+          throw new Error("issuer must be a URL without query/fragment");
+        }
         if (args.auto_refresh) {
           if (!args.ca_cert_bundle_name) {
             throw new Error(
               "ca_cert_bundle_name is missing but required if auto_refresh is true",
-            );
-          }
-          let url;
-          try {
-            url = parseUrl(args.issuer);
-          } catch (e) {
-            throw new Error("issuer must be a URL if auto_refresh is true");
-          }
-          if (url.scheme != "https") {
-            throw new Error(
-              "issuer must be a URL starting with https:// if auto_refresh is true",
-            );
-          }
-          if (url.query || url.fragment) {
-            throw new Error(
-              "issuer must be a URL without query/fragment if auto_refresh is true",
             );
           }
         }
