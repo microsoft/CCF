@@ -5,6 +5,7 @@ import infra.member
 import infra.network
 import infra.node
 import infra.utils
+import infra.clients
 import infra.logging_app as app
 import infra.checker
 import infra.crypto
@@ -1321,6 +1322,8 @@ def run_recover_via_added_recovery_owner(args):
 
 
 def run_recover_snapshot_ledger_offset(args):
+    if args.gov_api_version == infra.clients.API_VERSION_CLASSIC:
+      return
     txs = app.LoggingTxs("user0")
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, txs=txs
