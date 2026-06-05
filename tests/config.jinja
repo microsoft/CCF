@@ -117,7 +117,11 @@
     "max_msg_size": "{{ max_msg_size_bytes }}",
     "max_fragment_size": "256KB"
   },
-  "ignore_first_sigterm": {{ ignore_first_sigterm|tojson }}{% if sealing_recovery_location %},
+  "ignore_first_sigterm": {{ ignore_first_sigterm|tojson }}{% if identity_history_fetch_max_attempts or identity_history_fetch_retry_interval %},
+  "identity_history_fetch": {
+    {% if identity_history_fetch_max_attempts %}"max_attempts": {{ identity_history_fetch_max_attempts }}{% endif %}{% if identity_history_fetch_max_attempts and identity_history_fetch_retry_interval %},
+    {% endif %}{% if identity_history_fetch_retry_interval %}"retry_interval": "{{ identity_history_fetch_retry_interval }}"{% endif %}
+  }{% endif %}{% if sealing_recovery_location %},
   "sealing_recovery": {
     "location": {
       "name": "{{ sealing_recovery_location.name }}",
