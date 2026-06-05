@@ -217,8 +217,16 @@ namespace ccf
           "network identity fetching");
         return CreateNodeStatus::InternalError;
       }
-      network_identity_subsystem->start_with_config(
-        ccf_config_.identity_history_fetch);
+      try
+      {
+        network_identity_subsystem->start_with_config(
+          ccf_config_.identity_history_fetch);
+      }
+      catch (const std::exception& e)
+      {
+        LOG_FAIL_FMT("Failed to start network identity fetching: {}", e.what());
+        return CreateNodeStatus::InternalError;
+      }
 
       // If we haven't heard from a node for multiple elections, then cleanup
       // their node-to-node channel
