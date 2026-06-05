@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - `ccf.ledger` `MERKLE` verification level now also verifies COSE-only ledgers (previously a silent no-op) (#7904).
 - Nodes started in recovery or join mode from a snapshot more recent than the latest ledger file now correctly resume writing from the snapshot boundary (#7901).
+- Sample constitution validation now rejects weak or malformed JWT, CA bundle, and member encryption key inputs, and supports P-521 EC JWK validation (#7924).
 
 ## [7.0.3]
 
