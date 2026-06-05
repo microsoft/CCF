@@ -1006,7 +1006,8 @@ TEST_CASE("PEM to JWK and back")
 
   INFO("EC");
   {
-    auto curves = {CurveID::SECP384R1, CurveID::SECP256R1};
+    auto curves = {
+      CurveID::SECP384R1, CurveID::SECP256R1, CurveID::SECP521R1};
 
     for (auto const& curve : curves)
     {
@@ -1252,6 +1253,30 @@ TEST_CASE("COSE algorithm validation")
     REQUIRE_THROWS_WITH(
       p384_pubkey->check_is_cose_compatible(-100),
       "secp384r1 key cannot be used with COSE algorithm -100");
+
+    // P-521 (secp521r1) requires COSE alg -36
+    auto p521_kp = ccf::crypto::make_ec_key_pair(CurveID::SECP521R1);
+    auto p521_pubkey = std::dynamic_pointer_cast<ECPublicKey_OpenSSL>(
+      ccf::crypto::make_ec_public_key(p521_kp->public_key_pem()));
+
+    // Correct algorithm should work
+    REQUIRE_NOTHROW(p521_pubkey->check_is_cose_compatible(-36));
+
+    // Wrong algorithms should throw
+    REQUIRE_THROWS_WITH(
+      p521_pubkey->check_is_cose_compatible(-7),
+      "secp521r1 key cannot be used with COSE algorithm -7");
+    REQUIRE_THROWS_WITH(
+      p521_pubkey->check_is_cose_compatible(-35),
+      "secp521r1 key cannot be used with COSE algorithm -35");
+
+    // Unknown COSE algorithm for EC keys should throw
+    REQUIRE_THROWS_WITH(
+      p521_pubkey->check_is_cose_compatible(0),
+      "secp521r1 key cannot be used with COSE algorithm 0");
+    REQUIRE_THROWS_WITH(
+      p521_pubkey->check_is_cose_compatible(-100),
+      "secp521r1 key cannot be used with COSE algorithm -100");
   }
 
   INFO("RSA keys accept PS256, PS384, and PS512");

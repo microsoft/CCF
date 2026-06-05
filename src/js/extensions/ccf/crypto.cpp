@@ -154,10 +154,15 @@ namespace ccf::js::extensions
       {
         cid = ccf::crypto::CurveID::SECP384R1;
       }
+      else if (curve == "secp521r1")
+      {
+        cid = ccf::crypto::CurveID::SECP521R1;
+      }
       else
       {
         return JS_ThrowRangeError(
-          ctx, "Unsupported curve id, supported: secp256r1, secp384r1");
+          ctx,
+          "Unsupported curve id, supported: secp256r1, secp384r1, secp521r1");
       }
 
       try

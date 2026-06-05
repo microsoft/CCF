@@ -150,8 +150,9 @@ function checkEcPublicKey(jwk, field) {
   checkType(jwk.x, "string", `${field}.x`);
   checkType(jwk.y, "string", `${field}.y`);
   checkType(jwk.crv, "string", `${field}.crv`);
-  checkEnum(jwk.crv, ["P-256", "P-384"], `${field}.crv`);
-  const coordinateLength = jwk.crv === "P-256" ? 32 : 48;
+  checkEnum(jwk.crv, ["P-256", "P-384", "P-521"], `${field}.crv`);
+  const coordinateLengths = { "P-256": 32, "P-384": 48, "P-521": 66 };
+  const coordinateLength = coordinateLengths[jwk.crv];
   if (base64UrlByteLength(jwk.x, `${field}.x`) !== coordinateLength) {
     throw new Error(`${field}.x must be ${coordinateLength} bytes`);
   }
