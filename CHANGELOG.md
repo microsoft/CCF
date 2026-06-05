@@ -28,7 +28,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Dependencies
 
-- Updated merklecpp to 1.1.2.
+- Updated merklecpp to 1.1.2 (#7923).
 
 ## [7.0.3]
 
