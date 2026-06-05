@@ -167,7 +167,7 @@ namespace ccf
       // suffix were ever endorsed; signal absence via nullopt.
       if (
         status == FetchStatus::Partial && seqno < current_service_from->seqno &&
-        (!has_predecessors || seqno < earliest_endorsed_seq))
+        seqno < earliest_endorsed_seq)
       {
         return std::nullopt;
       }
@@ -241,7 +241,7 @@ namespace ccf
       return trusted_keys;
     }
 
-  private:
+  protected:
     // Returns true if a retry was scheduled. Returns false if the
     // budget is exhausted.
     [[nodiscard]] bool schedule_retry(std::function<void()> fn)
@@ -275,42 +275,26 @@ namespace ccf
     {
       if (!current_service_from.has_value())
       {
-        // No current_service_from: settle without building a chain.
-        log_terminal_status(target_status);
-        fetch_status.store(target_status);
-        return;
+        // Invariant: every complete_fetching call site is downstream of
+        // current_service_from being set. Reaching this branch means a
+        // caller violated that contract.
+        fail_fetching("Unset current_service_from when completing fetching");
       }
 
-      if (!endorsements.empty())
+      try
       {
-        auto next = endorsements.begin();
-        auto prev = next++;
-        try
+        if (!endorsements.empty())
         {
+          auto next = endorsements.begin();
+          auto prev = next++;
           while (next != endorsements.end())
           {
             verify_endorsements_connected(next->second, prev->second);
             ++prev;
             ++next;
           }
-        }
-        catch (const std::exception& e)
-        {
-          fail_fetching(e.what());
-        }
-
-        try
-        {
           validate_chain_front_connection(prev->second, *current_service_from);
         }
-        catch (const std::exception& e)
-        {
-          fail_fetching(e.what());
-        }
-      }
-
-      try
-      {
         build_trusted_key_chain();
       }
       catch (const std::exception& e)
@@ -318,22 +302,14 @@ namespace ccf
         fail_fetching(e.what());
       }
 
-      log_terminal_status(target_status);
+      log_status(target_status);
       fetch_status.store(target_status);
     }
 
-    static void log_terminal_status(FetchStatus status)
+    static void log_status(FetchStatus status)
     {
-      if (status == FetchStatus::Partial)
-      {
-        LOG_FAIL_FMT(
-          "Network identity fetching settled at Partial: only the validated "
-          "suffix of the endorsement chain is available");
-      }
-      else
-      {
-        LOG_INFO_FMT("Network identity fetching settled at Done");
-      }
+      LOG_INFO_FMT(
+        "Network identity fetching settled at {}", ccf::to_string(status));
     }
 
     void fetch_first()
@@ -380,10 +356,6 @@ namespace ccf
           std::chrono::milliseconds(retry_interval_ms));
         return;
       }
-
-      // Current endorsement found: fresh budget for the chain walk
-      // below.
-      fetch_attempts = 0;
 
       if (is_self_endorsement(endorsement.value()))
       {

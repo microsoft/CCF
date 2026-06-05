@@ -28,6 +28,7 @@ import ccf.tx_id
 import tempfile
 import http
 import base64
+import hashlib
 import shutil
 from cryptography.x509 import load_pem_x509_certificate
 from cryptography.hazmat.backends import default_backend
@@ -2070,17 +2071,32 @@ def run_recovery_partial_when_ledger_gap(args):
     ) as network:
         network.start_and_open(args)
 
-        # A couple of transactions in the first epoch so the recovery
-        # chain has non-trivial content to walk.
+        # S1 is live. Capture an S1-era txid (after the issue) so we
+        # can later prove a receipt for it cannot be served in
+        # Partial mode.
         network.txs.issue(network, number_txs=2)
+        _, msg = network.txs.get_last_tx(priv=True)
+        s1_era_txid = ccf.tx_id.TxID(msg["view"], msg["seqno"])
 
         # First recovery -> S2.
         network = test_recover_service(network, args)
+        # S2 is live: capture its cert and an S2-era txid.
+        primary, _ = network.find_primary()
+        with primary.client() as cli:
+            s2_cert_pem = cli.get("/node/network").body.json()["service_certificate"]
         network.txs.issue(network, number_txs=2)
+        _, msg = network.txs.get_last_tx(priv=True)
+        s2_era_txid = ccf.tx_id.TxID(msg["view"], msg["seqno"])
 
         # Second recovery -> S3.
         network = test_recover_service(network, args)
+        # S3 is live: capture its cert and an S3-era txid.
+        primary, _ = network.find_primary()
+        with primary.client() as cli:
+            s3_cert_pem = cli.get("/node/network").body.json()["service_certificate"]
         network.txs.issue(network, number_txs=2)
+        _, msg = network.txs.get_last_tx(priv=True)
+        s3_era_txid = ccf.tx_id.TxID(msg["view"], msg["seqno"])
 
         primary, _ = network.find_primary()
 
@@ -2089,16 +2105,29 @@ def run_recovery_partial_when_ledger_gap(args):
         network.stop_all_nodes()
         current_ledger_dir, committed_ledger_dirs = primary.get_ledger()
 
-        # Move out the chunk containing the S2-era endorsement write
-        # (the second-oldest write to the endorsement table). The third
-        # recovery's chain walk fetches this from a historical ledger
-        # chunk; removing it forces the Partial path.
+        # The committed ledger captured before the final recovery
+        # contains 3 endorsement-table writes:
+        #   writes[0]: self-endorsement of S1 (written when S1 first
+        #              opened; no previous service to endorse).
+        #   writes[1]: e_S1 (written by S2's recovery, endorses S1).
+        #   writes[2]: e_S2 (written by S3's recovery, endorses S2).
+        # We move out the chunk containing writes[1] (e_S1's write)
+        # to break the chain walk for S4 at the S1 link: S4's
+        # recovery bootstraps from a snapshot taken later than the
+        # missing chunk and proceeds normally; the chain walk then
+        # successfully fetches e_S2 historically but fails to fetch
+        # e_S1 from the moved chunk and settles in Partial. The
+        # validated suffix is then exactly three trusted keys -- S2
+        # endorsed by e_S2, S3 endorsed by e_S3 (the fresh entry S4
+        # just wrote), and S4 itself -- and a historical receipt for
+        # any S1-era seqno must return an error from the historical
+        # adapter (seqno below the validated suffix).
         writes = _find_endorsement_write_chunks(committed_ledger_dirs)
         LOG.info(f"Endorsement-table writes across committed ledger: {writes}")
-        assert len(writes) >= 3, (
-            "Expected at least 3 endorsement writes (one per service open "
-            "across S1, S2, S3) in the committed ledger, got: "
-            f"{writes}"
+        assert len(writes) == 3, (
+            "Expected exactly 3 endorsement writes (self-endorsement "
+            "of S1 + one per recovery across S2, S3) in the committed "
+            f"ledger, got: {writes}"
         )
         target_seqno, target_chunk = writes[1]
         other_writes_in_target_chunk = [
@@ -2144,6 +2173,16 @@ def run_recovery_partial_when_ledger_gap(args):
 
                 primary, _ = recovered_network.find_primary()
 
+                # S4 is live. Capture its cert and an S4-era txid for
+                # the receipt assertions below.
+                with primary.client() as cli:
+                    s4_cert_pem = cli.get("/node/network").body.json()[
+                        "service_certificate"
+                    ]
+                recovered_network.txs.issue(recovered_network, number_txs=2)
+                _, msg = recovered_network.txs.get_last_tx(priv=True)
+                s4_era_txid = ccf.tx_id.TxID(msg["view"], msg["seqno"])
+
                 # Poll /log/public/trusted_keys. While the subsystem is in
                 # Retry the endpoint returns 5xx (the underlying
                 # get_trusted_keys() throws IdentityHistoryNotFetched).
@@ -2171,17 +2210,87 @@ def run_recovery_partial_when_ledger_gap(args):
 
                 partial_keys = settled_response.body.json()["keys"]
                 LOG.info(f"trusted_keys count while in Partial: {len(partial_keys)}")
-                # Current-service key (from the live identity) + the key
-                # endorsed by the topmost endorsement.
-                assert len(partial_keys) >= 2, (
-                    f"Expected at least 2 trusted keys, got {len(partial_keys)}: "
-                    f"{partial_keys}"
+
+                # Expected validated suffix: S2, S3, S4. S1's key is
+                # NOT reachable because e_S1's ledger chunk was moved
+                # out, so the chain walk fails on the S2 -> S1 hop
+                # and settles in Partial.
+                def kid_for_cert_pem(cert_pem):
+                    cert = load_pem_x509_certificate(
+                        (
+                            cert_pem.encode("ascii")
+                            if isinstance(cert_pem, str)
+                            else cert_pem
+                        ),
+                        default_backend(),
+                    )
+                    pk_der = cert.public_key().public_bytes(
+                        serialization.Encoding.DER,
+                        serialization.PublicFormat.SubjectPublicKeyInfo,
+                    )
+                    return hashlib.sha256(pk_der).hexdigest()
+
+                expected_kids = {
+                    kid_for_cert_pem(s2_cert_pem),
+                    kid_for_cert_pem(s3_cert_pem),
+                    kid_for_cert_pem(s4_cert_pem),
+                }
+                got_kids = {k["kid"] for k in partial_keys}
+                assert got_kids == expected_kids, (
+                    f"trusted_keys mismatch in Partial.\n"
+                    f"  expected (S2 + S3 + S4): "
+                    f"{sorted(expected_kids)}\n"
+                    f"  got: {sorted(got_kids)}"
+                )
+
+                # User-visible Partial-vs-Done discriminator. A
+                # receipt for an S2/S3/S4-era seqno must be served
+                # successfully (the chain reader returns a valid sub-
+                # chain or an empty chain for current-service
+                # seqnos), but a receipt for an S1-era seqno must
+                # fail because the historical adapter cannot
+                # determine the endorsement chain for any seqno below
+                # the validated suffix.
+                def poll_receipt(txid, timeout=10):
+                    deadline = time.time() + timeout
+                    rc = None
+                    while time.time() < deadline:
+                        with primary.client() as cli:
+                            rc = cli.get(f"/node/receipt/cose?transaction_id={txid}")
+                        if rc.status_code != http.HTTPStatus.ACCEPTED:
+                            return rc
+                        time.sleep(0.2)
+                    return rc
+
+                for label, txid in (
+                    ("S2", s2_era_txid),
+                    ("S3", s3_era_txid),
+                    ("S4", s4_era_txid),
+                ):
+                    rc = poll_receipt(txid)
+                    assert rc.status_code == http.HTTPStatus.OK, (
+                        f"Receipt fetch for {label}-era {txid} failed: "
+                        f"{rc.status_code} {rc.body!r}"
+                    )
+                    LOG.info(f"Receipt for {label}-era {txid} -> 200 OK")
+
+                rc_s1 = poll_receipt(s1_era_txid)
+                assert rc_s1.status_code != http.HTTPStatus.OK, (
+                    f"Receipt fetch for S1-era {s1_era_txid} unexpectedly "
+                    f"succeeded; subsystem appears to be in Done, not "
+                    f"Partial. Response: {rc_s1.status_code} {rc_s1.body!r}"
+                )
+                LOG.info(
+                    f"Receipt for S1-era {s1_era_txid} -> {rc_s1.status_code} "
+                    "as expected (seqno below validated suffix)"
                 )
 
                 LOG.success(
-                    f"Subsystem settled in Partial with {len(partial_keys)} "
-                    "validated trusted keys; the missing ledger chunk did "
-                    "not block node startup."
+                    "Subsystem settled in Partial with exactly three "
+                    "validated trusted keys (S2 + S3 + S4); receipts "
+                    "serve for S2/S3/S4 seqnos and fail for S1 seqnos; "
+                    "the missing ledger chunk did not block node "
+                    "startup."
                 )
         finally:
             shutil.rmtree(backup_dir, ignore_errors=True)

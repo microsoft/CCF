@@ -88,7 +88,13 @@ namespace
       auto it = entries.find(seq);
       if (it == entries.end())
       {
-        return std::nullopt;
+        // Mirror production: HistoricalStateAccessor throws when the
+        // entry is missing from a loaded historical state (as opposed
+        // to nullopt, which means "state not yet loaded"). Reaching
+        // here from a test is a test-author bug -- surface it loudly
+        // rather than silently dropping the subsystem into Retry.
+        throw std::runtime_error(fmt::format(
+          "MockHistoricalStateAccessor: no entry for seqno {}", seq));
       }
       return it->second;
     }
@@ -843,4 +849,47 @@ TEST_CASE("Chain walk exhausts retries on missing chunk and settles in Partial")
   // succeeded (topmost + current-service).
   REQUIRE_FALSE(sub->get_cose_endorsements_chain(50).has_value());
   REQUIRE(sub->get_trusted_keys().size() == 2);
+}
+
+// White-box invariant test: locks the contract that complete_fetching
+// must be called only after current_service_from has been populated.
+// Reaching that branch indicates a programmer error in a future
+// refactor; we want a hard fail (matching the pre-PR fail_fetching
+// behaviour) rather than a silent settle that leaves the subsystem
+// usable-but-empty in a state that should be unreachable.
+namespace
+{
+  class ExposedSubsystem : public ccf::NetworkIdentitySubsystem
+  {
+  public:
+    using ccf::NetworkIdentitySubsystem::complete_fetching;
+    using ccf::NetworkIdentitySubsystem::NetworkIdentitySubsystem;
+  };
+}
+
+TEST_CASE(
+  "complete_fetching with unset current_service_from is a hard invariant "
+  "violation (Failed, not silent settle)")
+{
+  SubsystemFixture f;
+  ChainBuilder cb;
+  cb.add_self({2, 1});
+  f.use_identity_key(cb.current_key_pair());
+
+  // Construct directly without start_with_config so we can drive
+  // complete_fetching with a fresh subsystem whose current_service_from
+  // is still nullopt.
+  ExposedSubsystem sub(f.node_state, f.historical, f.identity, f.scheduler);
+
+  REQUIRE(sub.endorsements_fetching_status() == ccf::FetchStatus::Retry);
+
+  // Both target statuses must trip the invariant: Done and Partial
+  // alike are illegitimate outcomes when the chain root is unknown.
+  for (auto target : {ccf::FetchStatus::Done, ccf::FetchStatus::Partial})
+  {
+    REQUIRE_THROWS_AS(sub.complete_fetching(target), std::runtime_error);
+    // Settles in Failed (set by fail_fetching), not in the requested
+    // target_status.
+    REQUIRE(sub.endorsements_fetching_status() == ccf::FetchStatus::Failed);
+  }
 }
