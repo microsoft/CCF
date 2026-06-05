@@ -20,7 +20,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
   }
 
   // If parse succeeded, exercise serialization round-trip and string
-  // rendering. Any failure here is a real bug — let the fuzzer surface it.
+  // rendering. Any failure here is a real bug - let the fuzzer surface it.
   std::ignore = ccf::cbor::to_string(value);
   auto serialized = ccf::cbor::serialize(value);
   auto reparsed = ccf::cbor::parse(serialized);

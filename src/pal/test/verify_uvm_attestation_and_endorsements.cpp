@@ -132,10 +132,28 @@ ccf::QuoteVerificationResult validate_join_policy(
     return ccf::QuoteVerificationResult::Failed;
   }
 
-  ccf::verify_uvm_endorsements_against_roots_of_trust(
-    quote_info.uvm_endorsements.value(),
-    measurement,
-    ccf::default_uvm_roots_of_trust);
+  if (quote_info.uvm_endorsements.has_value())
+  {
+    try
+    {
+      ccf::verify_uvm_endorsements_against_roots_of_trust(
+        quote_info.uvm_endorsements.value(),
+        measurement,
+        ccf::default_uvm_roots_of_trust);
+    }
+    catch (const std::exception& e)
+    {
+      LOG_FAIL_FMT(
+        "Failed to verify UVM endorsements against default roots of trust: {}",
+        e.what());
+      return ccf::QuoteVerificationResult::FailedUVMEndorsementsNotFound;
+    }
+  }
+  else
+  {
+    LOG_INFO_FMT(
+      "No UVM endorsements provided, skipping root of trust validation");
+  }
 
   auto rc = ccf::verify_quoted_node_public_key(expected_pubk_der, quoted_hash);
 
@@ -259,7 +277,7 @@ int main(int argc, char** argv)
       },
       {});
   }
-  catch (const std::invalid_argument& e)
+  catch (const std::exception& e)
   {
     LOG_FAIL_FMT("Error: {}", e.what());
     return 2;

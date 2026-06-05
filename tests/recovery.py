@@ -1445,7 +1445,7 @@ def run_recovery_after_cose_upgrade(args):
     """Start Dual, upgrade to COSE-only via node replacement, then recover
     with allow-dual-joiners. Then live-upgrade the recovered network to strict
     COSE-only by replacing nodes again, and recover from ledger files.
-    Exercises the full upgrade path: Dual → COSE (allow dual) → COSE (strict),
+    Exercises the full upgrade path: Dual -> COSE (allow dual) -> COSE (strict),
     with recovery at each transition."""
     cose_only_package = args.package + "_cose_only_allow_join_dual"
 
@@ -1492,7 +1492,7 @@ def run_recovery_after_cose_upgrade(args):
         # Issue more TXs in COSE-only mode (new view after election)
         network.txs.issue(network, number_txs=5)
 
-        # Now stop and recover — the ledger has dual sigs then COSE-only sigs
+        # Now stop and recover - the ledger has dual sigs then COSE-only sigs
         network.save_service_identity(args)
         recover_primary, _ = network.find_primary()
         current_ledger_dir, committed_ledger_dirs = recover_primary.get_ledger()
