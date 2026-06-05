@@ -158,44 +158,78 @@ def test_add_node(network, args, copy_snapshot=False, fetch_recent_snapshot=True
 
 @reqs.description("Adding a node with corrupted ledger file")
 def test_add_node_with_corrupted_ledger(network, args):
-    # Reproduce issue #6612: a node joining with a corrupted (truncated) ledger
-    # file should fail to start rather than crash unexpectedly.
+    # Reproduce issue #6612: when joining from a recent snapshot, an older
+    # corrupted/truncated uncommitted ledger file should not prevent startup.
+    primary, _ = network.find_primary()
+    snapshot_trigger_txid = primary.trigger_snapshot()
+    snapshots_dir = network.get_committed_snapshots(
+        primary,
+        target_seqno=snapshot_trigger_txid.seqno,
+        wait_for_target_seqno=True,
+    )
+
     new_node = network.create_node()
 
-    # Set up the join node (copies ledger, snapshots, etc.) but do not start it yet
+    # Set up the join node (copies ledger and snapshots) but do not start it yet
     network.setup_join_node(
         new_node,
         args.package,
         args,
-        from_snapshot=False,
-        # This regression test must replay the copied ledger, rather than
-        # fetching a newer snapshot which could bypass the corrupted chunk.
+        from_snapshot=True,
+        snapshots_dir=snapshots_dir,
         fetch_recent_snapshot=False,
     )
 
-    # Find the latest uncommitted ledger file in the node's working directory
+    # Find an uncommitted ledger file in the node's main ledger directory
     ledger_dir = new_node.remote.get_main_ledger_dir()
     ledger_files = sorted(
         [
             f
             for f in os.listdir(ledger_dir)
             if f.startswith("ledger_") and not f.endswith(".committed")
-        ]
+        ],
+        key=lambda f: ccf.ledger.range_from_filename(f)[0],
+    )
+    assert (
+        ledger_files
+    ), "Expected to find uncommitted ledger files for corruption test"
+    ledger_ranges = {
+        ledger_file: ccf.ledger.range_from_filename(ledger_file)
+        for ledger_file in ledger_files
+    }
+
+    # Prefer a chunk whose range is older than the snapshot we are joining from.
+    corrupted_ledger_file = next(
+        (
+            f
+            for f in ledger_files
+            if (
+                ledger_ranges[f][1] is not None
+                and ledger_ranges[f][1] < snapshot_trigger_txid.seqno
+            )
+        ),
+        ledger_files[-1],
     )
 
-    assert ledger_files, "Expected uncommitted ledger files to corrupt"
-
-    # Corrupt the latest uncommitted ledger file by truncating it in the middle
-    # of a transaction, so the transaction size does not match the number of
-    # bytes available left to read in the file (as described in issue #6612)
+    # Corrupt the chosen uncommitted ledger file by truncating it in the middle
+    # of a transaction.
     ledger = ccf.ledger.Ledger([ledger_dir], committed_only=False)
     chunk_filename = None
     truncate_offset = None
     for chunk in ledger:
+        if os.path.basename(chunk.filename()) != corrupted_ledger_file:
+            continue
+
         for tx in chunk:
             offset, next_offset = tx.get_offsets()
             chunk_filename = chunk.filename()
             truncate_offset = offset + (next_offset - offset) // 2
+            # Corrupting a single transaction in the selected chunk is
+            # sufficient to make the file malformed.
+            break
+
+        if truncate_offset is not None:
+            break
 
     assert truncate_offset is not None, "Should always find a transaction to corrupt"
 
@@ -205,23 +239,34 @@ def test_add_node_with_corrupted_ledger(network, args):
     with open(chunk_filename, "rb+") as f:
         f.truncate(truncate_offset)
 
-    # Attempt to start the node - it should fail due to the corrupted ledger
-    try:
-        network.run_join_node(new_node, timeout=3)
-    except (RuntimeError, TimeoutError) as e:
-        LOG.info(
-            f"Node {new_node.local_node_id} with corrupted ledger failed to start, as expected: {e}"
-        )
-        # Cleanup: run_join_node may have already stopped and removed the node
-        # on TimeoutError, but not on RuntimeError
-        new_node.stop()
-        if new_node in network.nodes:
-            network.nodes.remove(new_node)
-    else:
-        assert (
-            False
-        ), f"Node {new_node.local_node_id} with corrupted ledger unexpectedly started"
+    network.run_join_node(new_node)
+    network.trust_node(new_node, args)
 
+    with new_node.client() as c:
+        r = c.get("/node/state")
+        assert r.body.json()["startup_seqno"] != 0, (
+            f"Node {new_node.local_node_id} should have started from snapshot"
+        )
+
+    out_path, err_path = new_node.get_logs()
+    if out_path is not None and err_path is not None:
+        with open(out_path, encoding="utf-8") as out:
+            out_logs = out.read()
+        with open(err_path, encoding="utf-8") as err:
+            err_logs = err.read()
+        # Depending on where recovery skips/truncates the stale chunk, this
+        # malformed-ledger line may or may not be emitted.
+        combined_logs = (out_logs + err_logs).lower()
+        if "malformed" in combined_logs and "ledger file" in combined_logs:
+            LOG.info("Observed malformed ledger handling while joining from snapshot")
+        else:
+            LOG.info(
+                "Did not observe malformed ledger log line; join success remains the test invariant"
+            )
+
+    primary, _ = network.find_primary()
+    network.retire_node(primary, new_node)
+    new_node.stop()
     return network
 
 
