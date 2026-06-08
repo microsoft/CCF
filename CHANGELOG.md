@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [7.0.5]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.5
 
+### Changed
+
+- The default and minimal sample constitutions reject `set_jwt_issuer` proposals whose `issuer` is not an `https://` URL with no query or fragment. Previously, any string was accepted when `auto_refresh` was `false` (#7924).
+- The default and minimal sample constitutions reject `set_ca_cert_bundle` proposals containing non-CA certificates (#7924).
+- The default and minimal sample constitutions validate every JWK in `set_jwt_issuer` and `set_jwt_public_signing_keys` proposals: `n`/`e`/`x`/`y` must be base64url-encoded, `kty` must match the supplied key material, `kid` must be unique within a key set, `use` (if present) must be `"sig"`, and `alg` (if present) must match the key type and curve per RFC 7518 section 3.4 (`RS256` for RSA; `ES256`/`ES384`/`ES512` bound to `P-256`/`P-384`/`P-521`). RSA keys must be at least 2048 bits, and EC coordinates must use the full zero-padded length for their curve (RFC 7518 section 6.2.1.2). P-521 is now an accepted EC curve (#7924).
+- The default and minimal sample constitutions validate that `set_member`'s `encryption_pub_key`, when present, is a well-formed RSA public key (#7924).
+
 ### Security
 
 - Host-created files (ledger chunks, snapshots, PID file, and node certificate/key files) are now created with restrictive permissions (`0600`) instead of relying on the process `umask`. Existing deployments will not see existing files affected; only newly created files will have these restricted permissions (#7916).
@@ -25,10 +32,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - JSON parsing can now reject inputs whose object/array nesting depth exceeds a certain value, defaulting to 64 levels and overridable per call site via `ccf::parse_json_safe`'s `max_depth` parameter (#7896).
 - `NetworkIdentitySubsystem` retries when walking the previous-identity endorsement chain are now bounded by a new optional `identity_history_fetch` node startup config (`max_attempts`, `retry_interval`). On exhaustion the subsystem transitions to a new terminal `FetchStatus::Partial`: the validated suffix of the chain is still served, but historical receipts for seqnos below it fail with an error. Both the chain-extension retries and the pre-bootstrap waits (for the node to join the network, for the service-create txid, and for the first endorsement entry) now poll at `retry_interval` (default `100ms`); the pre-bootstrap polling interval was previously hardcoded to `1s` (#7922).
-- The default and minimal sample constitutions reject `set_jwt_issuer` proposals whose `issuer` is not an `https://` URL with no query or fragment. Previously, any string was accepted when `auto_refresh` was `false` (#7924).
-- The default and minimal sample constitutions reject `set_ca_cert_bundle` proposals containing non-CA certificates (#7924).
-- The default and minimal sample constitutions validate every JWK in `set_jwt_issuer` and `set_jwt_public_signing_keys` proposals: `n`/`e`/`x`/`y` must be base64url-encoded, `kty` must match the supplied key material, `kid` must be unique within a key set, `use` (if present) must be `"sig"`, and `alg` (if present) must match the key type and curve per RFC 7518 section 3.4 (`RS256` for RSA; `ES256`/`ES384`/`ES512` bound to `P-256`/`P-384`/`P-521`). RSA keys must be at least 2048 bits, and EC coordinates must use the full zero-padded length for their curve (RFC 7518 section 6.2.1.2). P-521 is now an accepted EC curve (#7924).
-- The default and minimal sample constitutions validate that `set_member`'s `encryption_pub_key`, when present, is a well-formed RSA public key (#7924).
 
 ### Deprecated
 
