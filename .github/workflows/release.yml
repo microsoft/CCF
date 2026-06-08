@@ -65,7 +65,12 @@ jobs:
           path: rel-notes.md
 
   image_digest:
-    runs-on: [self-hosted, 1ES.Pool=gha-vmss-d16av5-ci]
+    runs-on:
+      [
+        self-hosted,
+        1ES.Pool=gha-vmss-d16av5-ci,
+        "JobId=release_image_digest-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
+      ]
     name: Snapshot Build Image Digest and SOURCE_DATE_EPOCH
     outputs:
       image_digest: ${{ steps.digest.outputs.digest }}
@@ -97,7 +102,12 @@ jobs:
           - name: snp
             os: azure-linux
 
-    runs-on: [self-hosted, 1ES.Pool=gha-vmss-d16av5-ci]
+    runs-on:
+      [
+        self-hosted,
+        1ES.Pool=gha-vmss-d16av5-ci,
+        "JobId=release_build_release_${{ matrix.platform.name }}-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
+      ]
     container:
       image: ${{ needs.image_digest.outputs.image_digest }}
       options: "--user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE"
@@ -343,7 +353,12 @@ jobs:
             os: azure-linux
           - name: snp
             os: azure-linux
-    runs-on: [self-hosted, 1ES.Pool=gha-vmss-d16av5-ci]
+    runs-on:
+      [
+        self-hosted,
+        1ES.Pool=gha-vmss-d16av5-ci,
+        "JobId=release_reproduce_rpm_${{ matrix.platform.name }}-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
+      ]
     env:
       REPRO_DIR: /tmp/reproduced
     container:
