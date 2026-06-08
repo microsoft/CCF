@@ -141,7 +141,8 @@ def get_jwt_keys(args, node):
 
 def to_b64(number: int):
     as_bytes = number.to_bytes((number.bit_length() + 7) // 8, "big")
-    return base64.b64encode(as_bytes).decode("ascii")
+    # JWK requires base64url without padding (RFC 7518).
+    return base64.urlsafe_b64encode(as_bytes).rstrip(b"=").decode("ascii")
 
 
 class JwtIssuer:
