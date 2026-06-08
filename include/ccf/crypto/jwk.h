@@ -10,7 +10,7 @@
 
 namespace ccf::crypto
 {
-  enum class JsonWebKeyType : uint8_t
+  enum class JsonWebKeyType
   {
     EC = 0,
     RSA = 1,
@@ -24,7 +24,7 @@ namespace ccf::crypto
 
   struct JsonWebKey
   {
-    JsonWebKeyType kty = JsonWebKeyType::EC;
+    JsonWebKeyType kty;
     std::optional<std::string> kid = std::nullopt;
     std::optional<std::vector<std::string>> x5c = std::nullopt;
 
@@ -34,7 +34,7 @@ namespace ccf::crypto
   DECLARE_JSON_REQUIRED_FIELDS(JsonWebKey, kty);
   DECLARE_JSON_OPTIONAL_FIELDS(JsonWebKey, kid, x5c);
 
-  enum class JsonWebKeyECCurve : uint8_t
+  enum class JsonWebKeyECCurve
   {
     P256 = 0,
     P384 = 1,
@@ -48,7 +48,7 @@ namespace ccf::crypto
 
   struct JsonWebKeyData
   {
-    JsonWebKeyType kty = JsonWebKeyType::EC;
+    JsonWebKeyType kty;
     std::optional<std::string> kid = std::nullopt;
     std::optional<std::vector<std::string>> x5c = std::nullopt;
     std::optional<std::string> n = std::nullopt;
@@ -69,11 +69,6 @@ namespace ccf::crypto
   {
     switch (curve_id)
     {
-      case CurveID::NONE:
-      case CurveID::CURVE25519:
-      case CurveID::X25519:
-        throw std::logic_error(
-          fmt::format("Invalid JWK EC CurveId {}", curve_id));
       case CurveID::SECP384R1:
         return JsonWebKeyECCurve::P384;
       case CurveID::SECP256R1:
@@ -87,9 +82,6 @@ namespace ccf::crypto
   {
     switch (jwk_curve)
     {
-      case JsonWebKeyECCurve::P521:
-        throw std::logic_error(
-          fmt::format("Unsupported JWK curve {}", jwk_curve));
       case JsonWebKeyECCurve::P384:
         return CurveID::SECP384R1;
       case JsonWebKeyECCurve::P256:
@@ -99,7 +91,7 @@ namespace ccf::crypto
     }
   }
 
-  enum class JsonWebKeyEdDSACurve : std::uint8_t
+  enum class JsonWebKeyEdDSACurve
   {
     ED25519 = 0,
     X25519 = 1
@@ -113,10 +105,6 @@ namespace ccf::crypto
   {
     switch (curve_id)
     {
-      case CurveID::NONE:
-      case CurveID::SECP384R1:
-      case CurveID::SECP256R1:
-        throw std::logic_error(fmt::format("Invalid EdDSA curve {}", curve_id));
       case CurveID::CURVE25519:
         return JsonWebKeyEdDSACurve::ED25519;
       case CurveID::X25519:
@@ -128,7 +116,7 @@ namespace ccf::crypto
 
   struct JsonWebKeyECPublic : JsonWebKey
   {
-    JsonWebKeyECCurve crv = JsonWebKeyECCurve::P256;
+    JsonWebKeyECCurve crv;
     std::string x; // base64url
     std::string y; // base64url
 
@@ -172,7 +160,7 @@ namespace ccf::crypto
 
   struct JsonWebKeyEdDSAPublic : JsonWebKey
   {
-    JsonWebKeyEdDSACurve crv = JsonWebKeyEdDSACurve::ED25519;
+    JsonWebKeyEdDSACurve crv;
     std::string x; // base64url
 
     bool operator==(const JsonWebKeyEdDSAPublic&) const = default;

@@ -6,8 +6,6 @@ on:
       - main
   workflow_dispatch:
 
-permissions: read-all
-
 jobs:
   build:
     name: Build
@@ -24,13 +22,13 @@ jobs:
 
       - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
       - name: Setup Pages
         id: pages
-        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6
+        uses: actions/configure-pages@v6
 
       - name: Build Documentation
         run: |
@@ -54,19 +52,19 @@ jobs:
         shell: bash
 
       - name: Upload pages
-        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5
+        uses: actions/upload-pages-artifact@v4
         with:
           path: build/html
 
+  # This is purposefully separate to keep the scope with
+  # with the permissions to deploy to a minimum.
   deploy:
     name: Deploy
     needs: build
     runs-on: ubuntu-latest
     permissions:
-      # Needed to authorize deployment to GitHub Pages
+      contents: read
       pages: write
-      # Needed to authenticate via OIDC
-      # See https://github.com/actions/deploy-pages?tab=readme-ov-file#usage
       id-token: write
     environment:
       name: github-pages
@@ -74,4 +72,4 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5
+        uses: actions/deploy-pages@v5

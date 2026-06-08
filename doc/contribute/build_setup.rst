@@ -31,27 +31,17 @@ If you use `Visual Studio Code`_ you can install the `Remote Container`_ extensi
 Developing for Azure Linux OS
 -----------------------------
 
-Developing in GitHub Codespaces
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Setting up Azure Linux VM
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
-CCF devcontainer setup works just fine with codespaces. It's recommended to pre-configure for 16-cores one.
+There's no current way to choose an Azure Linux image in Azure UI, so an Azure Linux based VM must be created through the az CLI:
 
-Tweaks for codespaces:
+.. code-block:: bash
 
-* In order to run lldb in a container, run this command first "settings set target.disable-aslr false"
+    az group create --name [GROUP_NAME] --location eastus2
+    az vm create --name [VM-NAME] --resource-group [GROUP_NAME] --image MicrosoftCBLMariner:azure-linux-3:azure-linux-3:latest --admin-username [USERNAME] --ssh-key-values C:\Users\[USERNAME\.ssh\[KEY].pub --os-disk-size-gb 512
 
-Running Docker containers in Codespaces
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-If you want to run Docker containers within your Codespace, you'll need to modify the devcontainer configuration to mount the Docker socket. Add the following to :ccf_repo:`.devcontainer/devcontainer.json <.devcontainer/devcontainer.json>`:
-
-.. code-block:: json
-
-    "mounts": [
-      "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind"
-    ]
-
-This mount configuration gives the devcontainer access to the host's Docker daemon, enabling you to run Docker commands within your Codespace.
+Afterwards, go to your VM and select a proper RAM and CPU profile. If you don't know which one you want, select `Standard D16s v3` (64 RAM and 16 CPU cores).
 
 How to install docker
 ~~~~~~~~~~~~~~~~~~~~~

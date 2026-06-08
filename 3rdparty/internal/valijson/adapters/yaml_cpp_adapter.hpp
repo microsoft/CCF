@@ -638,7 +638,7 @@ class YamlCppObjectMemberIterator
     }
 
   private:
-    /// Internal copy of the original YamlCpp iterator
+    /// Iternal copy of the original YamlCpp iterator
     YAML::Node::const_iterator m_itr;
 };
 

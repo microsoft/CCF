@@ -6,10 +6,8 @@
 
 #include "ccf/js/extensions/ccf/gov_effects.h"
 
-#include "ccf/ds/json.h"
 #include "ccf/js/core/context.h"
 #include "ccf/version.h"
-#include "js/checks.h"
 #include "js/modules/kv_module_loader.h"
 #include "node/rpc/jwt_management.h"
 
@@ -20,13 +18,9 @@ namespace ccf::js::extensions
   namespace
   {
     JSValue js_refresh_app_bytecode_cache(
-      JSContext* ctx,
-      [[maybe_unused]] JSValueConst this_val,
-      int argc,
-      [[maybe_unused]] JSValueConst* argv)
+      JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
     {
-      js::core::Context& jsctx =
-        *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
+      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
       if (argc != 0)
       {
@@ -34,13 +28,13 @@ namespace ccf::js::extensions
           ctx, "Passed %d arguments but expected none", argc);
       }
 
-      auto* extension = jsctx.get_extension<GovEffectsExtension>();
+      auto extension = jsctx.get_extension<GovEffectsExtension>();
       if (extension == nullptr)
       {
         return JS_ThrowInternalError(ctx, "Failed to get extension object");
       }
 
-      auto* tx_ptr = extension->tx;
+      auto tx_ptr = extension->tx;
       if (tx_ptr == nullptr)
       {
         return JS_ThrowInternalError(ctx, "No transaction available");
@@ -49,22 +43,22 @@ namespace ccf::js::extensions
       auto& tx = *tx_ptr;
 
       js::core::Context ctx2(js::TxAccess::APP_RW);
-      auto* options_handle = tx.ro<ccf::JSEngine>(ccf::Tables::JSENGINE);
+      const auto options_handle = tx.ro<ccf::JSEngine>(ccf::Tables::JSENGINE);
       ctx2.runtime().set_runtime_options(
         options_handle->get(),
         js::core::RuntimeLimitsPolicy::NO_LOWER_THAN_DEFAULTS);
 
-      auto* quickjs_version =
+      auto quickjs_version =
         tx.wo<ccf::ModulesQuickJsVersion>(ccf::Tables::MODULES_QUICKJS_VERSION);
       quickjs_version->put(ccf::quickjs_version);
 
-      auto* quickjs_bytecode = tx.wo<ccf::ModulesQuickJsBytecode>(
+      auto quickjs_bytecode = tx.wo<ccf::ModulesQuickJsBytecode>(
         ccf::Tables::MODULES_QUICKJS_BYTECODE);
       quickjs_bytecode->clear();
 
       try
       {
-        auto* modules = tx.ro<ccf::Modules>(ccf::Tables::MODULES);
+        auto modules = tx.ro<ccf::Modules>(ccf::Tables::MODULES);
         ctx2.set_module_loader(
           std::make_shared<ccf::js::modules::KvModuleLoader>(modules));
 
@@ -75,8 +69,8 @@ namespace ccf::js::extensions
             name.c_str(),
             JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
 
-          uint8_t* out_buf = nullptr;
-          size_t out_buf_len = 0;
+          uint8_t* out_buf;
+          size_t out_buf_len;
           int flags = JS_WRITE_OBJ_BYTECODE;
           out_buf = JS_WriteObject(ctx2, &out_buf_len, module_val.val, flags);
           if (!out_buf)
@@ -107,8 +101,7 @@ namespace ccf::js::extensions
       int argc,
       JSValueConst* argv)
     {
-      js::core::Context& jsctx =
-        *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
+      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
       if (argc != 3)
       {
@@ -116,13 +109,13 @@ namespace ccf::js::extensions
           ctx, "Passed %d arguments but expected 3", argc);
       }
 
-      auto* extension = jsctx.get_extension<GovEffectsExtension>();
+      auto extension = jsctx.get_extension<GovEffectsExtension>();
       if (extension == nullptr)
       {
         return JS_ThrowInternalError(ctx, "Failed to get extension object");
       }
 
-      auto* tx_ptr = extension->tx;
+      auto tx_ptr = extension->tx;
       if (tx_ptr == nullptr)
       {
         return JS_ThrowInternalError(ctx, "No transaction available");
@@ -162,8 +155,8 @@ namespace ccf::js::extensions
       try
       {
         auto metadata =
-          ccf::parse_json_safe(*metadata_json).get<ccf::JwtIssuerMetadata>();
-        auto jwks = ccf::parse_json_safe(*jwks_json).get<ccf::JsonWebKeySet>();
+          nlohmann::json::parse(*metadata_json).get<ccf::JwtIssuerMetadata>();
+        auto jwks = nlohmann::json::parse(*jwks_json).get<ccf::JsonWebKeySet>();
         auto success =
           ccf::set_jwt_public_signing_keys(tx, "<js>", *issuer, metadata, jwks);
         if (!success)
@@ -186,8 +179,7 @@ namespace ccf::js::extensions
       int argc,
       JSValueConst* argv)
     {
-      js::core::Context& jsctx =
-        *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
+      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
       if (argc != 1)
       {
@@ -195,13 +187,13 @@ namespace ccf::js::extensions
           ctx, "Passed %d arguments but expected 1", argc);
       }
 
-      auto* extension = jsctx.get_extension<GovEffectsExtension>();
+      auto extension = jsctx.get_extension<GovEffectsExtension>();
       if (extension == nullptr)
       {
         return JS_ThrowInternalError(ctx, "Failed to get extension object");
       }
 
-      auto* tx_ptr = extension->tx;
+      auto tx_ptr = extension->tx;
       if (tx_ptr == nullptr)
       {
         return JS_ThrowInternalError(ctx, "No transaction available");
@@ -231,19 +223,19 @@ namespace ccf::js::extensions
   {
     auto ccf = ctx.get_or_create_global_property("ccf", ctx.new_obj());
 
-    JS_CHECK_OR_THROW(ccf.set(
+    ccf.set(
       "refreshAppBytecodeCache",
       ctx.new_c_function(
-        js_refresh_app_bytecode_cache, "refreshAppBytecodeCache", 0)));
-    JS_CHECK_OR_THROW(ccf.set(
+        js_refresh_app_bytecode_cache, "refreshAppBytecodeCache", 0));
+    ccf.set(
       "setJwtPublicSigningKeys",
       ctx.new_c_function(
-        js_gov_set_jwt_public_signing_keys, "setJwtPublicSigningKeys", 3)));
-    JS_CHECK_OR_THROW(ccf.set(
+        js_gov_set_jwt_public_signing_keys, "setJwtPublicSigningKeys", 3));
+    ccf.set(
       "removeJwtPublicSigningKeys",
       ctx.new_c_function(
         js_gov_remove_jwt_public_signing_keys,
         "removeJwtPublicSigningKeys",
-        1)));
+        1));
   }
 }

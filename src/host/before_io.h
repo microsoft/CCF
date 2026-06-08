@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ds/internal_logger.h"
+#include "ccf/ds/logger.h"
 #include "proxy.h"
 
 namespace asynchost
@@ -17,7 +17,7 @@ namespace asynchost
     template <typename... Args>
     BeforeIO(Args&&... args) : behaviour(std::forward<Args>(args)...)
     {
-      int rc = 0;
+      int rc;
 
       if ((rc = uv_prepare_init(uv_default_loop(), &uv_handle)) < 0)
       {

@@ -6,7 +6,7 @@
 
 namespace ccf
 {
-  enum ReconfigurationType : uint8_t
+  enum ReconfigurationType
   {
     ONE_TRANSACTION = 0,
     TWO_TRANSACTION = 1
@@ -15,5 +15,5 @@ namespace ccf
   DECLARE_JSON_ENUM(
     ReconfigurationType,
     {{ReconfigurationType::ONE_TRANSACTION, "OneTransaction"},
-     {ReconfigurationType::TWO_TRANSACTION, "TwoTransaction"}});
+     {ReconfigurationType::TWO_TRANSACTION, "TwoTransaction"}})
 }

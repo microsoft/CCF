@@ -676,7 +676,7 @@ public:
 
 private:
 
-    /// Internal copy of the original PicoJson iterator
+    /// Iternal copy of the original PicoJson iterator
     picojson::object::const_iterator m_itr;
 };
 

@@ -4,7 +4,6 @@
 
 #include "ccf/kv/map.h"
 #include "ccf/kv/set.h"
-#include "ccf/kv/unit_value.h"
 #include "ccf/kv/value.h"
 
 namespace ccf
@@ -33,7 +32,4 @@ namespace ccf
     K,
     ccf::kv::serialisers::BlitSerialiser,
     ccf::kv::serialisers::ZeroBlitUnitCreator>;
-
-  using ServiceUnit =
-    ccf::kv::UnitValue<ccf::kv::serialisers::ZeroBlitUnitCreator>;
 }

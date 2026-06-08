@@ -22,7 +22,7 @@ namespace ccf
   class NodeConfigurationInterface : public AbstractNodeSubSystem
   {
   public:
-    ~NodeConfigurationInterface() override = default;
+    virtual ~NodeConfigurationInterface() = default;
 
     static char const* get_subsystem_name()
     {

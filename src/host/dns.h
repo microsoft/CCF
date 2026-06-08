@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/logger.h"
 #include "ccf/pal/locking.h"
-#include "ds/internal_logger.h"
 
 #include <unordered_set>
 #include <uv.h>
@@ -23,14 +23,13 @@ namespace asynchost
       uv_getaddrinfo_cb cb,
       bool async)
     {
-      addrinfo hints{};
+      struct addrinfo hints;
       hints.ai_family = AF_UNSPEC;
       hints.ai_socktype = SOCK_STREAM;
       hints.ai_protocol = IPPROTO_TCP;
       hints.ai_flags = 0;
 
-      // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
-      auto* resolver = new uv_getaddrinfo_t;
+      auto resolver = new uv_getaddrinfo_t;
       resolver->data = ud;
 
       std::string host =
@@ -38,7 +37,7 @@ namespace asynchost
            host_.substr(1, host_.size() - 2) :
            host_);
 
-      int rc = 0;
+      int rc;
 
       if (async)
       {
@@ -67,7 +66,7 @@ namespace asynchost
               pending_resolve_requests_mtx);
             pending_resolve_requests.erase(resolver);
           }
-          delete resolver; // NOLINT(cppcoreguidelines-owning-memory)
+          delete resolver;
           return false;
         }
       }
@@ -87,7 +86,7 @@ namespace asynchost
             host,
             service,
             uv_strerror(rc));
-          delete resolver; // NOLINT(cppcoreguidelines-owning-memory)
+          delete resolver;
           return false;
         }
 

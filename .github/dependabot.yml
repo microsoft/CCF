@@ -18,11 +18,5 @@ updates:
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      # Check for updates to GitHub Actions daily, but only surface them
-      # after the cooldown below has elapsed.
-      interval: "daily"
-    # Wait 5 days after a new release is published before opening an update
-    # PR, to reduce the supply-chain risk of pulling in a freshly tagged
-    # (and potentially compromised) release.
-    cooldown:
-      default-days: 5
+      # Check for updates to GitHub Actions every week
+      interval: "weekly"

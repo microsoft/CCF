@@ -23,11 +23,11 @@ namespace ccf::historical
     ccf::TxID transaction_id;
 
     State(
-      ccf::kv::ReadOnlyStorePtr store_,
-      TxReceiptImplPtr receipt_,
+      const ccf::kv::ReadOnlyStorePtr& store_,
+      const TxReceiptImplPtr& receipt_,
       const ccf::TxID& transaction_id_) :
-      store(std::move(store_)),
-      receipt(std::move(receipt_)),
+      store(store_),
+      receipt(receipt_),
       transaction_id(transaction_id_)
     {}
 
@@ -66,7 +66,7 @@ namespace ccf::historical
   class AbstractStateCache : public ccf::AbstractNodeSubSystem
   {
   public:
-    ~AbstractStateCache() override = default;
+    virtual ~AbstractStateCache() = default;
 
     static char const* get_subsystem_name()
     {

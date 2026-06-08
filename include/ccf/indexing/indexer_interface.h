@@ -24,7 +24,7 @@ namespace ccf::indexing
     std::set<StrategyPtr> strategies;
 
   public:
-    ~IndexingStrategies() override = default;
+    virtual ~IndexingStrategies() = default;
 
     static char const* get_subsystem_name()
     {

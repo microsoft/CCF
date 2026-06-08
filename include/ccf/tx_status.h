@@ -9,7 +9,7 @@ namespace ccf
 {
   /** Describes the status of a transaction, as seen by this node.
    */
-  enum class TxStatus : uint8_t
+  enum class TxStatus
   {
     /** This node has not received this transaction, and knows nothing about it
      */
@@ -29,14 +29,6 @@ namespace ccf
        given a new Transaction ID). This also describes IDs which are known to
        be impossible given the currently committed IDs */
     Invalid,
-  };
-
-  // Contains only the terminal values of TxStatus
-  enum class FinalTxStatus : std::underlying_type_t<TxStatus>
-  {
-    Committed =
-      static_cast<std::underlying_type_t<TxStatus>>(TxStatus::Committed),
-    Invalid = static_cast<std::underlying_type_t<TxStatus>>(TxStatus::Invalid),
   };
 
   constexpr char const* tx_status_to_str(TxStatus status)
@@ -100,30 +92,33 @@ namespace ccf
       {
         return TxStatus::Committed;
       }
-      return TxStatus::Invalid;
+      else
+      {
+        return TxStatus::Invalid;
+      }
     }
-
-    if (views_match)
+    else if (views_match)
     {
       // This node knows about the requested tx id, but it is not globally
       // committed
       return TxStatus::Pending;
     }
-
-    if (committed_view > target_view)
+    else if (committed_view > target_view)
     {
       // This node has seen the seqno in a different view, and committed
       // further, so the requested tx id is impossible
       return TxStatus::Invalid;
     }
-
-    // Otherwise, we cannot state anything about this tx id. The most common
-    // reason is that the local_view is unknown (this transaction has never
-    // existed, or has not reached this node yet). It is also possible that
-    // this node believes locally that this tx id is impossible, but does not
-    // have a global commit to back this up - it will eventually receive
-    // either a global commit confirming this belief, or an election and
-    // global commit making this tx id invalid
-    return TxStatus::Unknown;
+    else
+    {
+      // Otherwise, we cannot state anything about this tx id. The most common
+      // reason is that the local_view is unknown (this transaction has never
+      // existed, or has not reached this node yet). It is also possible that
+      // this node believes locally that this tx id is impossible, but does not
+      // have a global commit to back this up - it will eventually receive
+      // either a global commit confirming this belief, or an election and
+      // global commit making this tx id invalid
+      return TxStatus::Unknown;
+    }
   }
 }

@@ -4,8 +4,8 @@
 #include "ccf/indexing/strategies/seqnos_by_key_bucketed.h"
 
 #include "ccf/ds/hex.h"
+#include "ccf/ds/logger.h"
 #include "ccf/pal/locking.h"
-#include "ds/internal_logger.h"
 #include "ds/lru.h"
 #include "ds/serialized.h"
 #include "indexing/lfs_interface.h"
@@ -65,7 +65,9 @@ namespace ccf::indexing::strategies
       }
     }
 
-    static LFSContents serialise(SeqNoCollection&& seqnos)
+    static LFSContents serialise(
+      SeqNoCollection&&
+        seqnos) // NOLINT(cppcoreguidelines-rvalue-reference-param-not-moved)
     {
       LFSContents blob;
 
@@ -231,12 +233,12 @@ namespace ccf::indexing::strategies
             const auto fetch_result = bucket_value.first->fetch_result.load();
             switch (fetch_result)
             {
-              case (ccf::indexing::FetchResult::FetchResultType::Fetching):
+              case (FetchResult::Fetching):
               {
                 complete = false;
                 break;
               }
-              case (ccf::indexing::FetchResult::FetchResultType::Loaded):
+              case (FetchResult::Loaded):
               {
                 bool corrupt = false;
                 bucket_value.second =
@@ -250,16 +252,15 @@ namespace ccf::indexing::strategies
                 // deserialise the value, consider the file corrupted
                 LOG_FAIL_FMT("Deserialisation failed");
               }
-              case (ccf::indexing::FetchResult::FetchResultType::NotFound):
-              case (ccf::indexing::FetchResult::FetchResultType::Corrupt):
+              case (FetchResult::NotFound):
+              case (FetchResult::Corrupt):
               {
                 // This class previously wrote a bucket to disk which is no
                 // longer available or corrupted. Reset the watermark of what
                 // has been indexed, to re-index and rewrite those files.
-                const auto* problem = fetch_result ==
-                    ccf::indexing::FetchResult::FetchResultType::NotFound ?
-                  "missing" :
-                  "corrupt";
+                complete = false;
+                const auto* problem =
+                  fetch_result == FetchResult::NotFound ? "missing" : "corrupt";
                 LOG_FAIL_FMT(
                   "A file that {} requires is {}. Re-indexing.", name, problem);
                 LOG_DEBUG_FMT(
@@ -280,6 +281,7 @@ namespace ccf::indexing::strategies
                 current_results.clear();
 
                 return std::nullopt;
+                break;
               }
             }
           }

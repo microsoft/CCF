@@ -6,7 +6,7 @@
 
 namespace ccf::js
 {
-  enum class KVAccessPermissions : uint8_t
+  enum class KVAccessPermissions
   {
     ILLEGAL = 0,
     READ_ONLY = 1 << 0,

@@ -51,86 +51,83 @@ namespace ccf::crypto::sharing
     return x;
   }
 
-  namespace
+  static element mul(element x, element y)
   {
-    element mul(element x, element y)
-    {
-      return ct_reduce(x * y);
-    }
+    return ct_reduce(x * y);
+  }
 
-    element add(element x, element y)
-    {
-      return ct_reduce(x + y);
-    }
+  static element add(element x, element y)
+  {
+    return ct_reduce(x + y);
+  }
 
-    element sub(element x, element y)
-    {
-      return ct_reduce(prime + x - y);
-    }
+  static element sub(element x, element y)
+  {
+    return ct_reduce(prime + x - y);
+  }
 
-    // naive algorithm, used only to compute coefficients, not for use on
-    // secrets!
-    element exp(element x, size_t n)
+  // naive algorithm, used only to compute coefficients, not for use on
+  // secrets!
+  static element exp(element x, size_t n)
+  {
+    element y = 1;
+    while (n > 0)
     {
-      element y = 1;
-      while (n > 0)
+      if ((n & 1UL) != 0UL)
       {
-        if ((n & 1UL) != 0UL)
-        {
-          y = mul(y, x);
-        }
-        x = mul(x, x);
-        n >>= 1;
+        y = mul(y, x);
       }
-      return y;
+      x = mul(x, x);
+      n >>= 1;
     }
+    return y;
+  }
 
-    element inv(element x)
+  static element inv(element x)
+  {
+    if (x == 0)
     {
-      if (x == 0)
-      {
-        throw std::invalid_argument("division by zero");
-      }
-      return exp(x, prime - 2);
+      throw std::invalid_argument("division by zero");
     }
+    return exp(x, prime - 2);
+  }
 
-    // This function is specific to prime=2^31-1.
-    // We assume the lower 31 bits are uniformly distributed,
-    // and retry if they are all set to get uniformity in F[prime].
+  // This function is specific to prime=2^31-1.
+  // We assume the lower 31 bits are uniformly distributed,
+  // and retry if they are all set to get uniformity in F[prime].
 
-    element sample(const ccf::crypto::EntropyPtr& entropy)
+  static element sample(const ccf::crypto::EntropyPtr& entropy)
+  {
+    uint64_t res = prime;
+    while (res == prime)
     {
-      uint64_t res = prime;
-      while (res == prime)
-      {
-        res = entropy->random64() & prime;
-      }
-      return res;
+      res = entropy->random64() & prime;
     }
+    return res;
+  }
 
-    /* POLYNOMIAL SHARING AND INTERPOLATION */
+  /* POLYNOMIAL SHARING AND INTERPOLATION */
 
-    void sample_polynomial(
-      element p[], size_t degree, const ccf::crypto::EntropyPtr& entropy)
+  static void sample_polynomial(
+    element p[], size_t degree, const ccf::crypto::EntropyPtr& entropy)
+  {
+    for (size_t i = 0; i <= degree; i++)
     {
-      for (size_t i = 0; i <= degree; i++)
-      {
-        p[i] = sample(entropy);
-      }
+      p[i] = sample(entropy);
     }
+  }
 
-    element eval(element p[], size_t degree, element x)
+  static element eval(element p[], size_t degree, element x)
+  {
+    element y = 0;
+    element x_i = 1;
+    for (size_t i = 0; i <= degree; i++)
     {
-      element y = 0;
-      element x_i = 1;
-      for (size_t i = 0; i <= degree; i++)
-      {
-        // x_i == x^i
-        y = add(y, mul(p[i], x_i));
-        x_i = mul(x, x_i);
-      }
-      return y;
+      // x_i == x^i
+      y = add(y, mul(p[i], x_i));
+      x_i = mul(x, x_i);
     }
+    return y;
   }
 
   void sample_secret_and_shares(

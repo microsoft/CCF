@@ -1,20 +1,21 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-# Path prefix to the QuickJS library source directory
-set(QUICKJS_PREFIX ${CCF_3RD_PARTY_EXPORTED_DIR}/quickjs)
+set(QUICKJS_PREFIX
+    ${CCF_3RD_PARTY_EXPORTED_DIR}/quickjs
+    CACHE PATH "Prefix to the QuickJS library"
+)
 
-set(
-  QUICKJS_SRC
-  ${QUICKJS_PREFIX}/cutils.c
-  ${QUICKJS_PREFIX}/dtoa.c
-  ${QUICKJS_PREFIX}/libunicode.c
-  ${QUICKJS_PREFIX}/libregexp.c
-  ${QUICKJS_PREFIX}/quickjs.c
+set(QUICKJS_INC ${QUICKJS_PREFIX})
+
+set(QUICKJS_SRC
+    ${QUICKJS_PREFIX}/cutils.c ${QUICKJS_PREFIX}/libbf.c
+    ${QUICKJS_PREFIX}/libunicode.c ${QUICKJS_PREFIX}/libregexp.c
+    ${QUICKJS_PREFIX}/quickjs.c
 )
 set_source_files_properties(
-  ${QUICKJS_PREFIX}/quickjs.c
-  PROPERTIES COMPILE_FLAGS -Wno-implicit-int-float-conversion
+  ${QUICKJS_PREFIX}/quickjs.c PROPERTIES COMPILE_FLAGS
+                                         -Wno-implicit-int-float-conversion
 )
 
 execute_process(
@@ -24,20 +25,48 @@ execute_process(
 )
 message(STATUS "QuickJS prefix: ${QUICKJS_PREFIX} version: ${QUICKJS_VERSION}")
 
-add_library(quickjs STATIC ${QUICKJS_SRC})
+# We need two versions of libquickjs, because it depends on libc
+
+if(COMPILE_TARGET STREQUAL "snp")
+  add_library(quickjs.snp STATIC ${QUICKJS_SRC})
+  target_compile_options(
+    quickjs.snp
+    PUBLIC -DCONFIG_VERSION="${QUICKJS_VERSION}" -DCONFIG_BIGNUM
+    PRIVATE $<$<CONFIG:Debug>:-DDUMP_LEAKS>
+  )
+  add_san(quickjs.snp)
+  set_property(TARGET quickjs.snp PROPERTY POSITION_INDEPENDENT_CODE ON)
+  target_include_directories(
+    quickjs.snp PUBLIC $<BUILD_INTERFACE:${CCF_3RD_PARTY_EXPORTED_DIR}/quickjs>
+                       $<INSTALL_INTERFACE:include/3rdparty/quickjs>
+  )
+
+  if(CCF_DEVEL)
+    install(
+      TARGETS quickjs.snp
+      EXPORT ccf
+      DESTINATION lib
+    )
+  endif()
+endif()
+
+add_library(quickjs.host STATIC ${QUICKJS_SRC})
 target_compile_options(
-  quickjs
-  PUBLIC -DCONFIG_VERSION="${QUICKJS_VERSION}"
+  quickjs.host
+  PUBLIC -DCONFIG_VERSION="${QUICKJS_VERSION}" -DCONFIG_BIGNUM
   PRIVATE $<$<CONFIG:Debug>:-DDUMP_LEAKS>
 )
-add_san(quickjs)
-add_hardening(quickjs)
-set_property(TARGET quickjs PROPERTY POSITION_INDEPENDENT_CODE ON)
+add_san(quickjs.host)
+set_property(TARGET quickjs.host PROPERTY POSITION_INDEPENDENT_CODE ON)
 target_include_directories(
-  quickjs
-  PUBLIC
-    $<BUILD_INTERFACE:${CCF_3RD_PARTY_EXPORTED_DIR}/quickjs>
-    $<INSTALL_INTERFACE:include/3rdparty/quickjs>
+  quickjs.host PUBLIC $<BUILD_INTERFACE:${CCF_3RD_PARTY_EXPORTED_DIR}/quickjs>
+                      $<INSTALL_INTERFACE:include/3rdparty/quickjs>
 )
 
-install(TARGETS quickjs EXPORT ccf DESTINATION lib)
+if(INSTALL_VIRTUAL_LIBRARIES)
+  install(
+    TARGETS quickjs.host
+    EXPORT ccf
+    DESTINATION lib
+  )
+endif()

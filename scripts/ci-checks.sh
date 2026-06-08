@@ -2,119 +2,147 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-if [ "${1:-}" == "-f" ]; then
-  FIX_ARG="-f"
+set -e
+
+if [ "$1" == "-f" ]; then
+  FIX=1
 else
-  FIX_ARG=""
+  FIX=0
 fi
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 ROOT_DIR=$( dirname "$SCRIPT_DIR" )
-pushd "$ROOT_DIR" > /dev/null || exit 1
+pushd "$ROOT_DIR" > /dev/null
 
 # GitHub actions workflow commands: https://docs.github.com/en/actions/using-workflows/workflow-commands-for-github-actions
 function group(){
-    if [[ ${CI:-} ]]; then
+    # Only do this in GitHub actions, where CI is defined according to
+    # https://docs.github.com/en/actions/learn-github-actions/environment-variables#default-environment-variables
+    if [[ ${CI} ]]; then
       echo "::group::$1"
     else
       echo "-=[ $1 ]=-"
     fi
 }
 function endgroup() {
-    if [[ ${CI:-} ]]; then
+    if [[ ${CI} ]]; then
       echo "::endgroup::"
     fi
 }
 
-# --- Concurrent execution of all checks ---
-# Each check runs as a background job with output captured to a temp file.
-# After all jobs complete, outputs are printed in order with CI group annotations.
 
-TMPDIR_CHECKS=$(mktemp -d) || { echo "Failed to create temporary directory for ci-checks" >&2; exit 1; }
-trap 'rm -rf "$TMPDIR_CHECKS"' EXIT
-
-# Declare the checks: "group_name:script_name"
-CHECKS=(
-  "Shell scripts:shellcheck-checks.sh"
-  "TODOs:todo-checks.sh"
-  "Includes:includes-checks.sh"
-  "Release notes:release-notes-checks.sh"
-  "Non-ASCII characters:ascii-checks.sh"
-  "C/C++ format:cpp-format-checks.sh"
-  "TypeScript, JavaScript, Markdown, TypeSpec, YAML and JSON format:prettier-checks.sh"
-  "OpenAPI:openapi-checks.sh"
-  "Copyright notice headers:copyright-checks.sh"
-  "CMake format:cmake-format-checks.sh"
-  "Python format:python-format-checks.sh"
-  "Python lint:python-lint-checks.sh"
-  "Python types:python-types-checks.sh"
-  "CI test buckets:test-buckets-checks.sh"
-)
-
-declare -A PID_TO_IDX
-for i in "${!CHECKS[@]}"; do
-  IFS=: read -r _name script <<< "${CHECKS[$i]}"
-  (
-    start=$SECONDS
-    # shellcheck disable=SC2086
-    "$SCRIPT_DIR"/$script $FIX_ARG
-    echo $? > "$TMPDIR_CHECKS/$i.rc"
-    echo $((SECONDS - start)) > "$TMPDIR_CHECKS/$i.time"
-  ) > "$TMPDIR_CHECKS/$i.out" 2>&1 &
-  PID_TO_IDX[$!]=$i
-done
-
-# Print output from each check as it finishes (no interleaving)
-FAIL=""
-REMAINING=${#CHECKS[@]}
-while [ "$REMAINING" -gt 0 ]; do
-  DONE_PID=""
-  wait -n -p DONE_PID "${!PID_TO_IDX[@]}" 2>/dev/null || true
-  if [[ -z "$DONE_PID" ]]; then
-    break
-  fi
-  i=${PID_TO_IDX[$DONE_PID]}
-  IFS=: read -r name _script <<< "${CHECKS[$i]}"
-  rc=$(cat "$TMPDIR_CHECKS/$i.rc")
-
-  group "$name"
-  cat "$TMPDIR_CHECKS/$i.out"
-  if [ "$rc" != "0" ]; then
-    if [ -z "$FAIL" ]; then
-      FAIL="$name"
-    else
-      FAIL="$FAIL;$name"
-    fi
-  fi
-  endgroup
-  unset "PID_TO_IDX[$DONE_PID]"
-  REMAINING=$((REMAINING - 1))
-done
-
-group "Timing"
-printf "%-70s %6s  %s\n" "Check" "Time" "Status"
-printf "%-70s %6s  %s\n" "-----" "----" "------"
-for i in "${!CHECKS[@]}"; do
-  IFS=: read -r name _script <<< "${CHECKS[$i]}"
-  rc=$(cat "$TMPDIR_CHECKS/$i.rc")
-  elapsed=$(cat "$TMPDIR_CHECKS/$i.time")
-  if [ "$rc" = "0" ]; then
-    status="OK"
-  else
-    status="FAIL"
-  fi
-  printf "%-70s %5ds  %s\n" "$name" "$elapsed" "$status"
-done
+group "Shell scripts"
+git ls-files | grep -e '\.sh$' | grep -E -v "^3rdparty" | xargs shellcheck -S warning -s bash
 endgroup
 
-group "Summary"
-if [[ -n "$FAIL" ]]; then
-  echo "The following checks failed: ${FAIL//;/, }"
-  endgroup
+# No inline TODOs in the codebase, use tickets, with a pointer to the code if necessary.
+group "TODOs"
+"$SCRIPT_DIR"/check-todo.sh .
+endgroup
+
+group "Public includes"
+# Enforce that no private headers are included from public header files
+violations=$(find "$ROOT_DIR/include/ccf" -type f -print0 | xargs --null grep -e "#include \"" | grep -v "#include \"ccf" | sort)
+if [[ -n "$violations" ]]; then
+  echo "Public headers include private implementation files:"
+  echo "$violations"
   exit 1
 else
-  echo "All checks passed"
-  endgroup
-  exit 0
+  echo "No public-private include violations"
 fi
+endgroup
+
+group "Public header namespaces"
+# Enforce that all public headers namespace their exports
+# NB: This only greps for a namespace definition in each file, doesn't precisely enforce that no types escape that namespace - mistakes are possible
+violations=$(find "$ROOT_DIR/include/ccf" -type f -name "*.h" -print0 | xargs --null grep -L "namespace ccf" | sort || true)
+if [[ -n "$violations" ]]; then
+  echo "Public headers missing ccf namespace:"
+  echo "$violations"
+  exit 1
+else
+  echo "No public header namespace violations"
+fi
+endgroup
+
+group "Release notes"
+if [ $FIX -ne 0 ]; then
+  python3 "$SCRIPT_DIR"/extract-release-notes.py -f
+else
+  python3 "$SCRIPT_DIR"/extract-release-notes.py
+fi
+endgroup
+
+group "C/C++/Proto format"
+if [ $FIX -ne 0 ]; then
+  "$SCRIPT_DIR"/check-format.sh -f include src samples
+else
+  "$SCRIPT_DIR"/check-format.sh include src samples
+fi
+endgroup
+
+group "TypeScript, JavaScript, Markdown, TypeSpec, YAML and JSON format"
+npm install --loglevel=error --no-save prettier @typespec/prettier-plugin-typespec 1>/dev/null
+if [ $FIX -ne 0 ]; then
+  git ls-files | grep -e '\.ts$' -e '\.js$' -e '\.md$' -e '\.yaml$' -e '\.yml$' -e '\.json$' | grep -v -e 'tests/sandbox/' | xargs npx prettier --write
+else
+  git ls-files | grep -e '\.ts$' -e '\.js$' -e '\.md$' -e '\.yaml$' -e '\.yml$' -e '\.json$' | grep -v -e 'tests/sandbox/' | xargs npx prettier --check
+fi
+endgroup
+
+group "OpenAPI"
+npm install --loglevel=error --no-save @apidevtools/swagger-cli 1>/dev/null
+find doc/schemas/*.json -exec npx swagger-cli validate {} \;
+find doc/schemas/gov/*/*.json -exec npx swagger-cli validate {} \;
+endgroup
+
+group "Copyright notice headers"
+python3 "$SCRIPT_DIR"/notice-check.py
+endgroup
+
+group "CMake format"
+if [ $FIX -ne 0 ]; then
+  "$SCRIPT_DIR"/check-cmake-format.sh -f cmake samples src tests CMakeLists.txt
+else
+  "$SCRIPT_DIR"/check-cmake-format.sh cmake samples src tests CMakeLists.txt
+fi
+endgroup
+
+group "Python dependencies"
+# Virtual Environment w/ dependencies for Python steps
+if [ ! -f "scripts/env/bin/activate" ]
+    then
+        python3 -m venv scripts/env
+fi
+
+source scripts/env/bin/activate
+pip install -U pip
+pip install -U wheel black mypy ruff 1>/dev/null
+endgroup
+
+group "Python format"
+if [ $FIX -ne 0 ]; then
+  git ls-files tests/ python/ scripts/ tla/ .cmake-format.py | grep -e '\.py$' | xargs black
+else
+  git ls-files tests/ python/ scripts/ tla/ .cmake-format.py | grep -e '\.py$' | xargs black --check
+fi
+endgroup
+
+group "Python lint dependencies"
+# Install test dependencies before linting
+pip install -U -r tests/requirements.txt 1>/dev/null
+pip install -U -e python 1>/dev/null
+endgroup
+
+group "Python lint"
+if [ $FIX -ne 0 ]; then
+  ruff check --fix python/ tests/
+else
+  ruff check python/ tests/
+fi
+endgroup
+
+group "Python types"
+git ls-files python/ | grep -e '\.py$' | xargs mypy
+endgroup

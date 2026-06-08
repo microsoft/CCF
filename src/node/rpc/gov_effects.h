@@ -41,9 +41,12 @@ namespace ccf
       impl.trigger_snapshot(tx);
     }
 
-    void shuffle_sealed_shares(ccf::kv::Tx& tx) override
+    void trigger_acme_refresh(
+      ccf::kv::Tx& tx,
+      const std::optional<std::vector<std::string>>& interfaces =
+        std::nullopt) override
     {
-      impl.shuffle_sealed_shares(tx);
+      impl.trigger_acme_refresh(tx, interfaces);
     }
   };
 }

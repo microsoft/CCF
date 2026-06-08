@@ -15,7 +15,7 @@ namespace ccf
    * stored in the KV, and passed to the JS constitution functions for
    * validation and execution.
    */
-  enum class ProposalState : uint8_t
+  enum class ProposalState
   {
     OPEN, //< Proposal is active and can be voted on
     ACCEPTED, //< Proposal passed a successful vote and was enacted
@@ -72,18 +72,13 @@ struct formatter<ccf::ProposalState>
       {
         return format_to(ctx.out(), "rejected");
       }
-      case (ccf::ProposalState::FAILED):
-      {
-        return format_to(ctx.out(), "failed");
-      }
       case (ccf::ProposalState::DROPPED):
       {
         return format_to(ctx.out(), "dropped");
       }
       default:
       {
-        throw std::logic_error(fmt::format(
-          "Unknown proposal state {}", static_cast<uint8_t>(state)));
+        return format_to(ctx.out(), "UNKNOWN");
       }
     }
   }

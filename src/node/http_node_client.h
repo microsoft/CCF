@@ -13,16 +13,16 @@ namespace ccf
   public:
     HTTPNodeClient(
       std::shared_ptr<ccf::RPCMap> rpc_map,
-      ccf::crypto::ECKeyPairPtr node_sign_kp,
+      ccf::crypto::KeyPairPtr node_sign_kp,
       const ccf::crypto::Pem& self_signed_node_cert_,
       const std::optional<ccf::crypto::Pem>& endorsed_node_cert_) :
       NodeClient(
         rpc_map, node_sign_kp, self_signed_node_cert_, endorsed_node_cert_)
     {}
 
-    ~HTTPNodeClient() override = default;
+    virtual ~HTTPNodeClient() {}
 
-    bool make_request(::http::Request& request) override
+    virtual bool make_request(::http::Request& request) override
     {
       const auto& node_cert = endorsed_node_cert.has_value() ?
         endorsed_node_cert.value() :
@@ -44,8 +44,7 @@ namespace ccf
       if (rs != HTTP_STATUS_OK)
       {
         auto ser_res = ctx->serialise_response();
-        std::string str(
-          reinterpret_cast<char*>(ser_res.data()), ser_res.size());
+        std::string str((char*)ser_res.data(), ser_res.size());
         LOG_DEBUG_FMT("Request failed: {}", str);
       }
 

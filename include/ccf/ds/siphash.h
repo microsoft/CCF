@@ -4,11 +4,9 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <stdexcept>
 #include <vector>
 
 // C++ port of reference implementation
-// NOLINTBEGIN(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
 namespace ccf::siphash
 {
   using SipState = uint64_t[4];
@@ -63,7 +61,7 @@ namespace ccf::siphash
     }
   }
 
-  enum class OutputLength : uint8_t
+  enum class OutputLength
   {
     EightBytes = 8,
     SixteenBytes = 16,
@@ -97,7 +95,7 @@ namespace ccf::siphash
       s[1] ^= 0xee;
     }
 
-    uint64_t m = 0;
+    uint64_t m;
     for (; in != end; in += 8)
     {
       m = bytes_to_64_le(in);
@@ -129,8 +127,6 @@ namespace ccf::siphash
         b |= (uint64_t)in[0];
       case 0:
         break;
-      default:
-        throw std::logic_error("unreachable");
     }
 
     s[3] ^= b;
@@ -164,12 +160,14 @@ namespace ccf::siphash
 
     b = s[0] ^ s[1] ^ s[2] ^ s[3];
     u64_to_bytes_le(b, out + 8);
+
+    return;
   }
 
   template <size_t CompressionRounds, size_t FinalizationRounds>
   uint64_t siphash(const uint8_t* data, size_t size, const SipKey& key)
   {
-    uint64_t out = 0;
+    uint64_t out;
 
     siphash_raw<
       CompressionRounds,
@@ -187,4 +185,3 @@ namespace ccf::siphash
       in.data(), in.size(), key);
   }
 }
-// NOLINTEND(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)

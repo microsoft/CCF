@@ -4,7 +4,6 @@
 
 #include "ccf/crypto/curve.h"
 #include "ccf/ds/unit_strings.h"
-#include "ccf/entity_id.h"
 #include "ccf/node/cose_signatures_config.h"
 #include "ccf/pal/attestation_sev_snp_endorsements.h"
 #include "ccf/service/consensus_config.h"
@@ -12,7 +11,6 @@
 #include "ccf/service/service_config.h"
 #include "ccf/service/tables/host_data.h"
 #include "ccf/service/tables/members.h"
-#include "ccf/service/tables/self_healing_open.h"
 
 #include <optional>
 #include <string>
@@ -30,12 +28,12 @@ namespace ccf
     ccf::ds::SizeString historical_cache_soft_limit = {"512MB"};
 
     ccf::consensus::Configuration consensus = {};
-    ccf::NodeInfoNetwork network;
+    ccf::NodeInfoNetwork network = {};
 
     struct NodeCertificateInfo
     {
       std::string subject_name = "CN=CCF Node";
-      std::vector<std::string> subject_alt_names;
+      std::vector<std::string> subject_alt_names = {};
       ccf::crypto::CurveID curve_id = ccf::crypto::CurveID::SECP384R1;
       size_t initial_validity_days = 1;
 
@@ -46,7 +44,7 @@ namespace ccf
     struct Ledger
     {
       std::string directory = "ledger";
-      std::vector<std::string> read_only_directories;
+      std::vector<std::string> read_only_directories = {};
       ccf::ds::SizeString chunk_size = {"5MB"};
 
       bool operator==(const Ledger&) const = default;
@@ -72,7 +70,7 @@ namespace ccf
 
     struct Attestation
     {
-      ccf::pal::snp::EndorsementsServers snp_endorsements_servers;
+      ccf::pal::snp::EndorsementsServers snp_endorsements_servers = {};
       std::optional<std::string> snp_security_policy_file = std::nullopt;
       std::optional<std::string> snp_uvm_endorsements_file = std::nullopt;
       std::optional<std::string> snp_endorsements_file = std::nullopt;
@@ -97,60 +95,11 @@ namespace ccf
     {
       std::string directory = "snapshots";
       size_t tx_count = 10'000;
-      size_t min_tx_count = 2;
-      ccf::ds::TimeString time_interval = {"0s"};
       std::optional<std::string> read_only_directory = std::nullopt;
-
-      struct BackupFetch
-      {
-        bool enabled = false;
-        size_t max_attempts = 3;
-        ccf::ds::TimeString retry_interval = {"1000ms"};
-        std::string target_rpc_interface = ccf::PRIMARY_RPC_INTERFACE;
-        ccf::ds::SizeString max_size = {"200MB"};
-
-        bool operator==(const BackupFetch&) const = default;
-      };
-      BackupFetch backup_fetch = {};
 
       bool operator==(const Snapshots&) const = default;
     };
     Snapshots snapshots = {};
-
-    struct FilesCleanup
-    {
-      std::optional<size_t> max_snapshots = std::nullopt;
-      std::optional<size_t> max_committed_ledger_chunks = std::nullopt;
-      ccf::ds::TimeString interval = {"30s"};
-
-      bool operator==(const FilesCleanup&) const = default;
-    };
-    FilesCleanup files_cleanup = {};
-
-    struct IdentityHistoryFetch
-    {
-      size_t max_attempts = 100;
-      ccf::ds::TimeString retry_interval = {"100ms"};
-
-      bool operator==(const IdentityHistoryFetch&) const = default;
-    };
-    IdentityHistoryFetch identity_history_fetch = {};
-  };
-
-  struct RecoveryDecisionProtocolConfig
-  {
-    std::vector<sealing_recovery::Location> expected_locations;
-    ccf::ds::TimeString message_retry_timeout = {"100ms"};
-    ccf::ds::TimeString failover_timeout = {"2000ms"};
-    bool operator==(const RecoveryDecisionProtocolConfig&) const = default;
-  };
-
-  struct SealingRecoveryConfig
-  {
-    sealing_recovery::Location location;
-    std::optional<RecoveryDecisionProtocolConfig> recovery_decision_protocol =
-      std::nullopt;
-    bool operator==(const SealingRecoveryConfig&) const = default;
   };
 
   struct StartupConfig : CCFConfig
@@ -166,7 +115,7 @@ namespace ccf
     std::string service_subject_name = "CN=CCF Service";
     ccf::COSESignaturesConfig cose_signatures;
 
-    std::optional<SealingRecoveryConfig> sealing_recovery = std::nullopt;
+    std::optional<std::string> sealed_ledger_secret_location;
 
     nlohmann::json service_data = nullptr;
 
@@ -185,21 +134,17 @@ namespace ccf
     struct Join
     {
       ccf::NodeInfoNetwork::NetAddress target_rpc_address;
-      ccf::ds::TimeString retry_timeout;
-      std::vector<uint8_t> service_cert;
-      bool follow_redirect{};
-      bool fetch_recent_snapshot{};
-      size_t fetch_snapshot_max_attempts{};
-      ccf::ds::TimeString fetch_snapshot_retry_interval;
-      ccf::ds::SizeString fetch_snapshot_max_size;
-      std::optional<std::string> host_data_transparent_statement_path =
-        std::nullopt;
+      ccf::ds::TimeString retry_timeout = {"1000ms"};
+      std::vector<uint8_t> service_cert = {};
+      bool follow_redirect = true;
     };
     Join join = {};
 
     struct Recover
     {
       std::optional<std::vector<uint8_t>> previous_service_identity =
+        std::nullopt;
+      std::optional<std::string> previous_sealed_ledger_secret_location =
         std::nullopt;
     };
     Recover recover = {};

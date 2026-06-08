@@ -5,11 +5,12 @@
 
 #define DOCTEST_CONFIG_IMPLEMENT
 #include "ccf/app_interface.h"
+#include "ccf/ds/logger.h"
 #include "ccf/json_handler.h"
 #include "ccf/kv/map.h"
 #include "crypto/openssl/hash.h"
 #include "ds/files.h"
-#include "ds/internal_logger.h"
+#include "enclave/enclave_time.h"
 #include "frontend_test_infra.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
@@ -24,6 +25,12 @@
 #include <doctest/doctest.h>
 #include <iostream>
 #include <string>
+
+namespace threading
+{
+  std::unique_ptr<::threading::ThreadMessaging> ThreadMessaging::singleton =
+    nullptr;
+};
 
 using namespace ccf;
 using namespace std;
@@ -441,7 +448,7 @@ auto member_caller_der = ccf::crypto::make_verifier(member_cert)->cert_der();
 auto node_caller = kp->self_sign("CN=node", valid_from, valid_to);
 auto node_caller_der = ccf::crypto::make_verifier(node_caller)->cert_der();
 
-auto kp_other = ccf::crypto::make_ec_key_pair();
+auto kp_other = ccf::crypto::make_key_pair();
 auto invalid_caller = kp_other->self_sign("CN=name", valid_from, valid_to);
 auto invalid_caller_der =
   ccf::crypto::make_verifier(invalid_caller)->cert_der();
@@ -1555,15 +1562,18 @@ TEST_CASE("Manual conflicts")
   auto call_pausable = [&](
                          std::shared_ptr<ccf::SessionContext> session,
                          ccf::http_status expected_status) {
+    ccf::crypto::openssl_sha256_init();
     auto req = create_simple_request("/pausable");
     auto serialized_call = req.build_request();
     auto rpc_ctx = ccf::make_rpc_context(session, serialized_call);
     frontend.process(rpc_ctx);
     auto response = parse_response(rpc_ctx->serialise_response());
     CHECK(response.status == expected_status);
+    ccf::crypto::openssl_sha256_shutdown();
   };
 
   auto get_metrics = [&]() {
+    ccf::crypto::openssl_sha256_init();
     auto req = create_simple_request("/pausable/metrics");
     req.set_method(HTTP_GET);
     auto serialized_call = req.build_request();
@@ -1576,30 +1586,36 @@ TEST_CASE("Manual conflicts")
     ret.calls = body["calls"].get<size_t>();
     ret.retries = body["retries"].get<size_t>();
     ret.errors = body["errors"].get<size_t>();
+    ccf::crypto::openssl_sha256_shutdown();
     return ret;
   };
 
   auto get_value = [&](const std::string& table = TF::DST) {
+    ccf::crypto::openssl_sha256_init();
     auto tx = network.tables->create_tx();
     auto handle = tx.ro<TF::MyVals>(table);
     auto ret = handle->get(TF::KEY);
     REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+    ccf::crypto::openssl_sha256_shutdown();
     return ret;
   };
 
   auto update_value =
     [&](size_t n, const std::string& table = TF::SRC, size_t key = TF::KEY) {
+      ccf::crypto::openssl_sha256_init();
       auto tx = network.tables->create_tx();
       using TF = TestManualConflictsFrontend;
       auto handle = tx.wo<TF::MyVals>(table);
       handle->put(key, n);
       REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+      ccf::crypto::openssl_sha256_shutdown();
     };
 
   auto run_test = [&](
                     std::function<void()>&& read_write_op,
                     std::shared_ptr<ccf::SessionContext> session = user_session,
                     ccf::http_status expected_status = HTTP_STATUS_OK) {
+    ccf::crypto::openssl_sha256_init();
     frontend.registry.before_read.ready = false;
     frontend.registry.after_read.ready = false;
     frontend.registry.before_write.ready = false;
@@ -1616,6 +1632,7 @@ TEST_CASE("Manual conflicts")
     frontend.registry.after_write.wait();
 
     worker.join();
+    ccf::crypto::openssl_sha256_shutdown();
   };
 
   {
@@ -1775,9 +1792,16 @@ TEST_CASE("Manual conflicts")
 
 int main(int argc, char** argv)
 {
+  ccf::enclavetime::last_value =
+    std::chrono::duration_cast<std::chrono::microseconds>(
+      std::chrono::system_clock::now().time_since_epoch());
+
+  ::threading::ThreadMessaging::init(1);
+  ccf::crypto::openssl_sha256_init();
   doctest::Context context;
   context.applyCommandLine(argc, argv);
   int res = context.run();
+  ccf::crypto::openssl_sha256_shutdown();
   if (context.shouldExit())
     return res;
   return res;

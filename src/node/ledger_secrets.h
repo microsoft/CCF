@@ -6,7 +6,6 @@
 #include "ccf/pal/locking.h"
 #include "ccf/tx.h"
 #include "ds/ccf_assert.h"
-#include "ds/internal_logger.h"
 #include "kv/kv_types.h"
 #include "ledger_secret.h"
 #include "service/tables/secrets.h"
@@ -102,7 +101,7 @@ namespace ccf
       // another tx. To prevent conflicts, accessing the ledger secrets
       // require access to a tx object, which must take a dependency on the
       // secrets table.
-      auto* secrets = tx.ro<Secrets>(Tables::ENCRYPTED_LEDGER_SECRETS);
+      auto secrets = tx.ro<Secrets>(Tables::ENCRYPTED_LEDGER_SECRETS);
       secrets->get();
     }
 
@@ -225,7 +224,7 @@ namespace ccf
           fmt::format("No ledger secrets at {}", up_to.has_value()));
       }
 
-      return {ledger_secrets.begin(), ++search};
+      return LedgerSecretsMap(ledger_secrets.begin(), ++search);
     }
 
     void restore_historical(LedgerSecretsMap&& restored_ledger_secrets)

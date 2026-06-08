@@ -1,9 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-// Sample apps common
-#include "../common/default_on_commit.h"
-
 // CCF
 #include "ccf/app_interface.h"
 #include "ccf/common_auth_policies.h"
@@ -34,11 +31,6 @@ namespace basicapp
       openapi_info.description =
         "Lightweight application for benchmarking purposes";
       openapi_info.document_version = "0.0.1";
-    }
-
-    void init_handlers() override
-    {
-      CommonEndpointRegistry::init_handlers();
 
       auto put = [this](ccf::endpoints::EndpointContext& ctx) {
         std::string key;
@@ -53,25 +45,12 @@ namespace basicapp
           return;
         }
 
-        auto* records_handle = ctx.tx.template rw<RecordsMap>(PRIVATE_RECORDS);
+        auto records_handle = ctx.tx.template rw<RecordsMap>(PRIVATE_RECORDS);
         records_handle->put(key, ctx.rpc_ctx->get_request_body());
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
       };
       make_endpoint(
         "/records/{key}", HTTP_PUT, put, {ccf::user_cert_auth_policy})
-        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
-        .install();
-
-      auto blocking_put = [put](ccf::endpoints::EndpointContext& ctx) {
-        ctx.rpc_ctx->set_consensus_committed_function(
-          ccf::samples::default_respond_on_commit);
-        put(ctx);
-      };
-      make_endpoint(
-        "/records/blocking/{key}",
-        HTTP_PUT,
-        blocking_put,
-        {ccf::user_cert_auth_policy})
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
         .install();
 
@@ -88,7 +67,7 @@ namespace basicapp
           return;
         }
 
-        auto* records_handle = ctx.tx.template ro<RecordsMap>(PRIVATE_RECORDS);
+        auto records_handle = ctx.tx.template ro<RecordsMap>(PRIVATE_RECORDS);
         auto record = records_handle->get(key);
 
         if (record.has_value())
@@ -111,26 +90,13 @@ namespace basicapp
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
         .install();
 
-      auto blocking_get = [get](ccf::endpoints::ReadOnlyEndpointContext& ctx) {
-        ctx.rpc_ctx->set_consensus_committed_function(
-          ccf::samples::default_respond_on_commit);
-        get(ctx);
-      };
-      make_read_only_endpoint(
-        "/records/blocking/{key}",
-        HTTP_GET,
-        blocking_get,
-        {ccf::user_cert_auth_policy})
-        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
-        .install();
-
-      auto post = [](ccf::endpoints::EndpointContext& ctx) {
+      auto post = [this](ccf::endpoints::EndpointContext& ctx) {
         const nlohmann::json body =
-          ccf::parse_json_safe(ctx.rpc_ctx->get_request_body());
+          nlohmann::json::parse(ctx.rpc_ctx->get_request_body());
 
         const auto records = body.get<std::map<std::string, std::string>>();
 
-        auto* records_handle = ctx.tx.template rw<RecordsMap>(PRIVATE_RECORDS);
+        auto records_handle = ctx.tx.template rw<RecordsMap>(PRIVATE_RECORDS);
         for (const auto& [key, value] : records)
         {
           const std::vector<uint8_t> value_vec(value.begin(), value.end());

@@ -43,6 +43,9 @@ def max_f(args, number_nodes):
 
 
 def default_platform():
+    if os.path.exists("PLATFORM"):
+        with open("PLATFORM") as f:
+            return f.read().strip()
     return "virtual"
 
 
@@ -65,7 +68,7 @@ def cli_args(
     parser.add_argument(
         "-b",
         "--binary-dir",
-        help="Path to CCF binaries (node executable, scurl, keygenerator)",
+        help="Path to CCF binaries (cchost, scurl, keygenerator)",
         default=".",
     )
     parser.add_argument(
@@ -80,11 +83,40 @@ def cli_args(
         action="append",
         default=[],
     )
+    parser.add_argument(
+        "--perf-nodes",
+        help="List of node ids. Nodes that should be run under perf, capturing performance data",
+        action="append",
+        default=[],
+    )
+    # "virtual" is deprecated (use enclave-platform)
+    parser.add_argument(
+        "-e",
+        "--enclave-type",
+        help="Enclave type",
+        default=os.getenv("TEST_ENCLAVE", os.getenv("DEFAULT_ENCLAVE_TYPE", "release")),
+        choices=("release", "debug", "virtual"),
+    )
+    parser.add_argument(
+        "-t",
+        "--enclave-platform",
+        help="Enclave platform (Trusted Execution Environment)",
+        default=os.getenv(
+            "TEST_ENCLAVE", os.getenv("DEFAULT_ENCLAVE_PLATFORM", default_platform())
+        ),
+        choices=("sgx", "snp", "virtual"),
+    )
     log_level_choices = ("trace", "debug", "info", "fail", "fatal")
     default_log_level = "info"
     parser.add_argument(
-        "--log-level",
-        help="Runtime log level",
+        "--host-log-level",
+        help="Runtime host log level",
+        default=default_log_level,
+        choices=log_level_choices,
+    )
+    parser.add_argument(
+        "--enclave-log-level",
+        help="Runtime enclave log level",
         default=default_log_level,
         choices=log_level_choices,
     )
@@ -97,7 +129,7 @@ def cli_args(
     parser.add_argument(
         "-p",
         "--package",
-        help="The enclave package to load (e.g., logging)",
+        help="The enclave package to load (e.g., liblogging)",
     )
     parser.add_argument(
         "--constitution",
@@ -146,6 +178,12 @@ def cli_args(
         help="Raft maximum timeout before primary sends updates",
         type=int,
         default=100,
+    )
+    parser.add_argument(
+        "--consensus",
+        help="Consensus",
+        default="CFT",
+        choices=("CFT",),
     )
     parser.add_argument(
         "--worker-threads",
@@ -242,9 +280,7 @@ def cli_args(
         "--ledger-recovery-timeout",
         help="On recovery, maximum timeout (s) while reading the ledger",
         type=int,
-        # _GLIBCXX_DEBUG significantly slows down ledger replay, so allow
-        # more time when running tests against a debug build.
-        default=120 if os.getenv("CCF_GLIBCXX_DEBUG") else 30,
+        default=30,
     )
     parser.add_argument(
         "--ledger-chunk-bytes",
@@ -257,18 +293,6 @@ def cli_args(
         help="Number of transactions between two snapshots",
         type=int,
         default=10,
-    )
-    parser.add_argument(
-        "--snapshot-min-tx-interval",
-        help="Minimum number of transactions before a time-based snapshot can trigger",
-        type=int,
-        default=2,
-    )
-    parser.add_argument(
-        "--snapshot-time-interval",
-        help="Time interval after which a snapshot should be triggered (e.g. 30s, 5min)",
-        type=str,
-        default="0s",
     )
     parser.add_argument(
         "--max-open-sessions",
@@ -372,7 +396,11 @@ def cli_args(
         help="Servers used to retrieve attestation report endorsement certificates (AMD SEV-SNP only)",
         action="append",
         # ACI default
-        default=(["THIM:$Fabric_NodeIPOrFQDN:2377"]),
+        default=(
+            ["THIM:$Fabric_NodeIPOrFQDN:2377"]
+            if os.getenv("DEFAULT_ENCLAVE_PLATFORM") == "snp"
+            else []
+        ),
     )
     parser.add_argument(
         "--forwarding-timeout-ms",
@@ -414,7 +442,7 @@ def cli_args(
             args.library_dir = args.binary_dir
 
     if not args.package and args.js_app_bundle:
-        args.package = "js_generic"
+        args.package = "libjs_generic"
 
     if accept_unknown:
         return args, unknown_args

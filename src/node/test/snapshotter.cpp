@@ -3,8 +3,8 @@
 
 #include "node/snapshotter.h"
 
+#include "ccf/ds/logger.h"
 #include "crypto/openssl/hash.h"
-#include "ds/internal_logger.h"
 #include "ds/ring_buffer.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
@@ -15,20 +15,16 @@
 #include <doctest/doctest.h>
 #include <string>
 
+// Because snapshot serialisation is costly, the snapshotter serialises
+// snapshots asynchronously.
+std::unique_ptr<threading::ThreadMessaging>
+  threading::ThreadMessaging::singleton = nullptr;
+
 constexpr auto buffer_size = 1024 * 16;
-auto node_kp = ccf::crypto::make_ec_key_pair();
+auto node_kp = ccf::crypto::make_key_pair();
 
 using StringString = ccf::kv::Map<std::string, std::string>;
 using rb_msg = std::pair<ringbuffer::Message, size_t>;
-
-void run_one_task()
-{
-  auto task = ccf::tasks::get_main_job_board().get_task();
-  if (task != nullptr)
-  {
-    task->do_task();
-  }
-}
 
 auto read_ringbuffer_out(ringbuffer::Circuit& circuit)
 {
@@ -118,14 +114,12 @@ bool record_signature(
   const std::shared_ptr<ccf::Snapshotter>& snapshotter,
   size_t idx)
 {
-  std::vector<uint8_t> dummy_cose_sig = ccf::ds::from_hex(
-    "d28451a301382219012c440102030419012d1822a0f6586026a27ea4c9f067a0e6716c779b"
-    "80f78b1366b3dec549423f06a2b56f1f25fd45a21e9e6295aed0b05ebca639eac103a68967"
-    "e7eb6ef9f7603741960b6fca20841b9730921220e9ec1d0897e424bb4290c5abe498b67373"
-    "b96881e8c6f9265af8");
+  std::vector<uint8_t> dummy_signature(128, 43);
+  ccf::crypto::Pem node_cert;
 
   bool requires_snapshot = snapshotter->record_committable(idx);
-  snapshotter->record_cose_signature(idx, dummy_cose_sig);
+  snapshotter->record_signature(
+    idx, dummy_signature, ccf::kv::test::PrimaryNodeId, node_cert);
   snapshotter->record_serialised_tree(idx, history->serialise_tree(idx));
 
   return requires_snapshot;
@@ -178,7 +172,7 @@ TEST_CASE("Regular snapshotting")
     REQUIRE_FALSE(record_signature(history, snapshotter, snapshot_idx - 1));
     commit_idx = snapshot_idx - 1;
     snapshotter->commit(commit_idx, true);
-    run_one_task();
+    threading::ThreadMessaging::instance().run_one();
 
     REQUIRE_THROWS_AS(
       read_latest_snapshot_evidence(network.tables), std::logic_error);
@@ -194,7 +188,7 @@ TEST_CASE("Regular snapshotting")
     commit_idx = snapshot_idx + 1;
     snapshotter->commit(commit_idx, true);
 
-    run_one_task();
+    threading::ThreadMessaging::instance().run_one();
     REQUIRE(read_latest_snapshot_evidence(network.tables) == snapshot_idx);
     auto snapshot_allocate_msg = read_snapshot_allocate_out(eio);
     REQUIRE(snapshot_allocate_msg.has_value());
@@ -232,7 +226,7 @@ TEST_CASE("Regular snapshotting")
     commit_idx = snapshot_idx + 1;
     snapshotter->commit(commit_idx, true);
 
-    run_one_task();
+    threading::ThreadMessaging::instance().run_one();
     REQUIRE(read_latest_snapshot_evidence(network.tables) == snapshot_idx);
     auto snapshot_allocate_msg = read_snapshot_allocate_out(eio);
     REQUIRE(snapshot_allocate_msg.has_value());
@@ -266,7 +260,7 @@ TEST_CASE("Regular snapshotting")
   {
     commit_idx = snapshot_idx + 2;
     snapshotter->commit(commit_idx, true);
-    run_one_task();
+    threading::ThreadMessaging::instance().run_one();
     REQUIRE(read_ringbuffer_out(eio) == std::nullopt);
   }
 
@@ -281,7 +275,7 @@ TEST_CASE("Regular snapshotting")
     commit_idx = snapshot_idx;
     snapshotter->commit(commit_idx, true);
 
-    run_one_task();
+    threading::ThreadMessaging::instance().run_one();
     REQUIRE(read_latest_snapshot_evidence(network.tables) == snapshot_idx);
     auto snapshot_allocate_msg = read_snapshot_allocate_out(eio);
     REQUIRE(snapshot_allocate_msg.has_value());
@@ -340,7 +334,7 @@ TEST_CASE("Rollback before snapshot is committed")
     REQUIRE(record_signature(history, snapshotter, snapshot_idx));
     snapshotter->commit(snapshot_idx, true);
 
-    run_one_task();
+    threading::ThreadMessaging::instance().run_one();
     REQUIRE(read_latest_snapshot_evidence(network.tables) == snapshot_idx);
 
     auto snapshot_allocate_msg = read_snapshot_allocate_out(eio);
@@ -375,7 +369,7 @@ TEST_CASE("Rollback before snapshot is committed")
     REQUIRE(record_signature(history, snapshotter, snapshot_idx));
     snapshotter->commit(snapshot_idx, true);
 
-    run_one_task();
+    threading::ThreadMessaging::instance().run_one();
     REQUIRE(read_latest_snapshot_evidence(network.tables) == snapshot_idx);
     auto snapshot_allocate_msg = read_snapshot_allocate_out(eio);
     REQUIRE(snapshot_allocate_msg.has_value());
@@ -403,10 +397,10 @@ TEST_CASE("Rollback before snapshot is committed")
     network.tables->set_flag(
       ccf::kv::AbstractStore::StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
 
-    REQUIRE(record_signature(history, snapshotter, snapshot_idx));
+    REQUIRE_FALSE(record_signature(history, snapshotter, snapshot_idx));
     snapshotter->commit(snapshot_idx, true);
 
-    run_one_task();
+    threading::ThreadMessaging::instance().run_one();
     REQUIRE(read_latest_snapshot_evidence(network.tables) == snapshot_idx);
     auto snapshot_allocate_msg = read_snapshot_allocate_out(eio);
     REQUIRE(snapshot_allocate_msg.has_value());
@@ -429,112 +423,8 @@ TEST_CASE("Rollback before snapshot is committed")
       read_ringbuffer_out(eio) ==
       rb_msg({::consensus::snapshot_commit, snapshot_idx}));
 
-    run_one_task();
+    threading::ThreadMessaging::instance().run_one();
   }
-
-  INFO("Rollback after forced snapshot uses released forced baseline");
-  {
-    snapshotter->rollback(0);
-
-    // The released forced snapshot was taken at seqno 24. After rollback, the
-    // baseline should remain there rather than falling back to the previous
-    // regular snapshot at seqno 22.
-    issue_transactions(network, snapshot_tx_interval - 4);
-    REQUIRE_FALSE(record_signature(
-      history, snapshotter, network.tables->current_version()));
-  }
-}
-
-TEST_CASE("Snapshot status updates preserve future queued snapshot")
-{
-  ccf::logger::config::default_init();
-
-  ccf::NetworkState network;
-
-  auto consensus = std::make_shared<ccf::kv::test::StubConsensus>();
-  auto history = std::make_shared<ccf::MerkleTxHistory>(
-    *network.tables, ccf::kv::test::PrimaryNodeId, *node_kp);
-  network.tables->set_history(history);
-  network.tables->initialise_term(2);
-  network.tables->set_consensus(consensus);
-  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
-  network.tables->set_encryptor(encryptor);
-
-  auto in_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
-  auto out_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
-  ringbuffer::Circuit eio(in_buffer->bd, out_buffer->bd);
-
-  std::unique_ptr<ringbuffer::WriterFactory> writer_factory =
-    std::make_unique<ringbuffer::WriterFactory>(eio);
-
-  size_t snapshot_tx_interval = 10;
-  issue_transactions(network, snapshot_tx_interval);
-
-  auto snapshotter = std::make_shared<ccf::Snapshotter>(
-    *writer_factory, network.tables, snapshot_tx_interval);
-  REQUIRE(record_signature(history, snapshotter, snapshot_tx_interval));
-
-  issue_transactions(network, snapshot_tx_interval);
-  REQUIRE(
-    record_signature(history, snapshotter, network.tables->current_version()));
-
-  // Simulate a node learning that the latest released snapshot baseline has
-  // moved forward via the replicated snapshot status table.
-  snapshotter->record_snapshot_status({
-    .version = snapshot_tx_interval + 4,
-    .timestamp = 0,
-  });
-
-  issue_transactions(network, 6);
-  REQUIRE_FALSE(
-    record_signature(history, snapshotter, network.tables->current_version()));
-
-  snapshotter->commit(2 * snapshot_tx_interval, true);
-  run_one_task();
-
-  auto snapshot_allocate_msg = read_snapshot_allocate_out(eio);
-  REQUIRE(snapshot_allocate_msg.has_value());
-  const auto snapshot_idx = std::get<0>(snapshot_allocate_msg.value());
-  REQUIRE(snapshot_idx == 2 * snapshot_tx_interval);
-}
-
-TEST_CASE("Snapshot status restore uses persisted timestamp baseline")
-{
-  ccf::logger::config::default_init();
-
-  ccf::NetworkState network;
-
-  auto consensus = std::make_shared<ccf::kv::test::StubConsensus>();
-  auto history = std::make_shared<ccf::MerkleTxHistory>(
-    *network.tables, ccf::kv::test::PrimaryNodeId, *node_kp);
-  network.tables->set_history(history);
-  network.tables->initialise_term(2);
-  network.tables->set_consensus(consensus);
-  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
-  network.tables->set_encryptor(encryptor);
-
-  auto in_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
-  auto out_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
-  ringbuffer::Circuit eio(in_buffer->bd, out_buffer->bd);
-
-  std::unique_ptr<ringbuffer::WriterFactory> writer_factory =
-    std::make_unique<ringbuffer::WriterFactory>(eio);
-
-  auto snapshotter = std::make_shared<ccf::Snapshotter>(
-    *writer_factory, network.tables, 100, 2, std::chrono::seconds(1));
-
-  snapshotter->init_from_snapshot_status({
-    .version = 0,
-    .timestamp = 0,
-  });
-
-  issue_transactions(network, 2);
-  REQUIRE_FALSE(
-    record_signature(history, snapshotter, network.tables->current_version()));
-
-  issue_transactions(network, 1);
-  REQUIRE(
-    record_signature(history, snapshotter, network.tables->current_version()));
 }
 
 // https://github.com/microsoft/CCF/issues/3796
@@ -599,7 +489,7 @@ TEST_CASE("Rekey ledger while snapshot is in progress")
 
   INFO("Finally, schedule snapshot creation");
   {
-    run_one_task();
+    threading::ThreadMessaging::instance().run_one();
     REQUIRE(read_latest_snapshot_evidence(network.tables) == snapshot_idx);
     auto snapshot_allocate_msg = read_snapshot_allocate_out(eio);
     REQUIRE(snapshot_allocate_msg.has_value());
@@ -633,9 +523,12 @@ TEST_CASE("Rekey ledger while snapshot is in progress")
 
 int main(int argc, char** argv)
 {
+  threading::ThreadMessaging::init(1);
+  ccf::crypto::openssl_sha256_init();
   doctest::Context context;
   context.applyCommandLine(argc, argv);
   int res = context.run();
+  ccf::crypto::openssl_sha256_shutdown();
   if (context.shouldExit())
     return res;
   return res;

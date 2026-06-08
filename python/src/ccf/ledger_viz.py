@@ -2,42 +2,25 @@
 # Licensed under the Apache 2.0 License.
 
 import ccf.ledger
-import ccf.signatures
 import argparse
-import shutil
+import os
+from stringcolor import cs  # type: ignore
 import json
-
-COLORS = {
-    "Black": 40,
-    "Red": 41,
-    "Green": 42,
-    "Yellow": 43,
-    "Blue": 44,
-    "Magenta": 45,
-    "Cyan": 46,
-    "White": 47,
-    "Grey": 100,
-}
-
-
-def cs(s: str, background_colour: str | None = None) -> str:
-    if background_colour is not None and background_colour in COLORS:
-        return f"\033[{COLORS[background_colour]}m{s}\033[0m"
-    return s
+from typing import Optional
 
 
 class Liner:
     _line = ""
     _len = 0
-    MAX_LENGTH = shutil.get_terminal_size().columns
+    MAX_LENGTH = os.get_terminal_size().columns
 
     def flush(self):
         print(self._line)
         self._line = ""
         self._len = 0
 
-    def append(self, s: str, background_colour: str | None = None):
-        self._line += cs(s, background_colour)
+    def append(self, s: str, colour: str, background_colour: Optional[str] = None):
+        self._line += cs(s, colour, background_colour)
         self._len += len(s)
         if self._len >= self.MAX_LENGTH:
             self.flush()
@@ -45,16 +28,17 @@ class Liner:
 
 class DefaultLiner(Liner):
     _bg_colour_mapping = {
-        "New Service": "Black",
-        "Recovering Service": "Red",
-        "Service Open": "White",
-        "Governance": "Yellow",
+        "New Service": "White",
+        "Recovering Service": "Grey",
+        "Service Open": "Magenta",
+        "Governance": "Red",
         "Signature": "Green",
-        "Internal": "Magenta",
+        "Internal": "Orange",
         "User Public": "Blue",
-        "User Private": "Cyan",
+        "User Private": "DarkBlue",
     }
     _last_view = None
+    _fg_colour = "Black"
 
     @staticmethod
     def view_to_char(view):
@@ -85,20 +69,27 @@ class DefaultLiner(Liner):
         if self.write_views:
             char = "‾" if not view_change else self.view_to_char(view)
 
+        fg_colour = self._fg_colour
         bg_colour = self._bg_colour_mapping[category]
-        self.append(char, bg_colour)
+        self.append(char, fg_colour, bg_colour)
 
     def help(self):
         print(
             " | ".join(
                 [
-                    f"{category} {cs(' ', bg_colour)}"
+                    f"{category} {cs(' ', 'White', bg_colour)}"
                     for category, bg_colour in self._bg_colour_mapping.items()
                 ]
             )
         )
         if self.write_views:
-            print(" ".join([f"Start of view 3: {cs(self.view_to_char(3), 'Grey')}"]))
+            print(
+                " ".join(
+                    [
+                        f"Start of view 3: {cs(self.view_to_char(3), self._fg_colour, 'DarkGrey')}"
+                    ]
+                )
+            )
         print()
 
 
@@ -106,61 +97,12 @@ def try_get_service_info(public_tables):
     return (
         json.loads(
             public_tables[ccf.ledger.SERVICE_INFO_TABLE_NAME][
-                ccf.signatures.WELL_KNOWN_SINGLETON_TABLE_KEY
+                ccf.ledger.WELL_KNOWN_SINGLETON_TABLE_KEY
             ]
         )
         if ccf.ledger.SERVICE_INFO_TABLE_NAME in public_tables
         else None
     )
-
-
-def visualise(ledger, liner, validator=None):
-    """Iterate over the given ledger and dispatch each transaction to
-    ``liner.entry(category, view, seqno)`` after categorising it. If a
-    ``validator`` is provided, every transaction is also fed to it via
-    ``validator.add_transaction(tx)``. Calls ``liner.flush()`` at the end.
-    """
-    current_service_identity = None
-
-    for chunk in ledger:
-        for tx in chunk:
-            if validator:
-                validator.add_transaction(tx)
-
-            public = tx.get_public_domain().get_tables()
-            has_private = tx.get_private_domain_size()
-
-            view = tx.gcm_header.view
-            seqno = tx.gcm_header.seqno
-            if not has_private:
-                if ccf.signatures.is_signature_transaction(public):
-                    liner.entry("Signature", view, seqno)
-                else:
-                    if all(
-                        table.startswith("public:ccf.internal.") for table in public
-                    ):
-                        liner.entry("Internal", view, seqno)
-                    elif any(table.startswith("public:ccf.gov.") for table in public):
-                        service_info = try_get_service_info(public)
-                        if service_info is None:
-                            liner.entry("Governance", view, seqno)
-                        elif service_info["status"] == "Opening":
-                            liner.entry("New Service", view, seqno)
-                            current_service_identity = service_info["cert"]
-                        elif service_info["status"] == "Recovering":
-                            liner.entry("Recovering Service", view, seqno)
-                            current_service_identity = service_info["cert"]
-                        elif (
-                            service_info["cert"] == current_service_identity
-                            and service_info["status"] == "Open"
-                        ):
-                            liner.entry("Service Open", view, seqno)
-                    else:
-                        liner.entry("User Public", view, seqno)
-            else:
-                liner.entry("User Private", view, seqno)
-
-    liner.flush()
 
 
 def main():
@@ -208,12 +150,51 @@ def main():
 
     liner = DefaultLiner(args.write_views, args.split_views, args.split_services)
     liner.help()
+    current_service_identity = None
 
     validator = (
         ccf.ledger.LedgerValidator() if not args.insecure_skip_verification else None
     )
 
-    visualise(ledger, liner, validator=validator)
+    for chunk in ledger:
+        for tx in chunk:
+            if validator:
+                validator.add_transaction(tx)
+
+            public = tx.get_public_domain().get_tables()
+            has_private = tx.get_private_domain_size()
+
+            view = tx.gcm_header.view
+            seqno = tx.gcm_header.seqno
+            if not has_private:
+                if ccf.ledger.SIGNATURE_TX_TABLE_NAME in public:
+                    liner.entry("Signature", view, seqno)
+                else:
+                    if all(
+                        table.startswith("public:ccf.internal.") for table in public
+                    ):
+                        liner.entry("Internal", view, seqno)
+                    elif any(table.startswith("public:ccf.gov.") for table in public):
+                        service_info = try_get_service_info(public)
+                        if service_info is None:
+                            liner.entry("Governance", view, seqno)
+                        elif service_info["status"] == "Opening":
+                            liner.entry("New Service", view, seqno)
+                            current_service_identity = service_info["cert"]
+                        elif service_info["status"] == "Recovering":
+                            liner.entry("Recovering Service", view, seqno)
+                            current_service_identity = service_info["cert"]
+                        elif (
+                            service_info["cert"] == current_service_identity
+                            and service_info["status"] == "Open"
+                        ):
+                            liner.entry("Service Open", view, seqno)
+                    else:
+                        liner.entry("User Public", view, seqno)
+            else:
+                liner.entry("User Private", view, seqno)
+
+    liner.flush()
 
 
 if __name__ == "__main__":

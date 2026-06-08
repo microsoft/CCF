@@ -1,13 +1,13 @@
 import { assert } from "chai";
 import * as crypto from "crypto";
 import "../src/polyfill.js";
-import type {
+import {
   AesKwpParams,
+  ccf,
   DigestAlgorithm,
   RsaOaepAesKwpParams,
   RsaOaepParams,
 } from "../src/global.js";
-import { ccf } from "../src/global.js";
 import * as textcodec from "../src/textcodec.js";
 import { generateSelfSignedCert, generateCertChain } from "./crypto.js";
 import { toArrayBuffer } from "../src/utils.js";
@@ -606,20 +606,14 @@ describe("polyfill", function () {
           assert.equal(jwk.kty, "EC");
           assert.notExists(jwk.kid);
           const pem = ccf.crypto.jwkToPem(jwk);
-          assert.deepEqual(
-            crypto.createPrivateKey(pem).export({ format: "jwk" }),
-            crypto.createPrivateKey(pair.privateKey).export({ format: "jwk" }),
-          );
+          assert.equal(pem, pair.privateKey);
         }
         {
           const jwk = ccf.crypto.pemToJwk(pair.privateKey, my_kid);
           assert.equal(jwk.kty, "EC");
           assert.equal(jwk.kid, my_kid);
           const pem = ccf.crypto.jwkToPem(jwk);
-          assert.deepEqual(
-            crypto.createPrivateKey(pem).export({ format: "jwk" }),
-            crypto.createPrivateKey(pair.privateKey).export({ format: "jwk" }),
-          );
+          assert.equal(pem, pair.privateKey);
         }
       }
     });
@@ -755,17 +749,11 @@ describe("polyfill", function () {
   // This test case should be the last until https://github.com/nodejs/node/pull/45377 is addressed.
   describe("isValidX509CertChain", function (this) {
     const supported = "X509Certificate" in crypto;
-    let pems: string[];
-    before(function () {
-      if (!supported) {
-        this.skip();
-      }
-      pems = generateCertChain(3);
-    });
     it("returns true for valid cert chains", function () {
       if (!supported) {
         this.skip();
       }
+      const pems = generateCertChain(3);
       const chain = [pems[0], pems[1]].join("\n");
       const trusted = pems[2];
       assert.isTrue(ccf.crypto.isValidX509CertChain(chain, trusted));
@@ -774,6 +762,7 @@ describe("polyfill", function () {
       if (!supported) {
         this.skip();
       }
+      const pems = generateCertChain(3);
       const chain = pems[0];
       const trusted = pems[2];
       assert.isFalse(ccf.crypto.isValidX509CertChain(chain, trusted));

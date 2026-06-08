@@ -22,7 +22,6 @@
 #include <signal.h>
 #include <time.h>
 
-
 using namespace std;
 using namespace client;
 
@@ -268,6 +267,7 @@ int main(int argc, char** argv)
 
   ccf::logger::config::default_init();
   ccf::logger::config::level() = ccf::LoggerLevel::INFO;
+  ccf::crypto::openssl_sha256_init();
   CLI::App cli_app{"Perf Tool"};
   ArgumentParser args("Perf Tool", cli_app);
   CLI11_PARSE(cli_app, argc, argv);
@@ -381,6 +381,7 @@ int main(int argc, char** argv)
   }
 
   store_parquet_results(args, data_handler);
+  ccf::crypto::openssl_sha256_shutdown();
 
   return 0;
 }

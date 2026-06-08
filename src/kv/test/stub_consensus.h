@@ -5,7 +5,6 @@
 #include "ccf/crypto/symmetric_key.h"
 #include "consensus/aft/impl/state.h"
 #include "kv/kv_types.h"
-#include "kv/store.h"
 
 #include <algorithm>
 #include <iostream>
@@ -202,7 +201,10 @@ namespace ccf::kv::test
     {}
 
     void add_configuration(
-      ccf::SeqNo seqno, const Configuration::Nodes& conf) override
+      ccf::SeqNo seqno,
+      const Configuration::Nodes& conf,
+      const std::unordered_set<NodeId>& learners = {},
+      const std::unordered_set<NodeId>& retired_nodes = {}) override
     {}
 
     Configuration::Nodes get_latest_configuration_unsafe() const override

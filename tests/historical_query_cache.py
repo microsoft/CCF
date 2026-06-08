@@ -10,6 +10,7 @@ import random
 from loguru import logger as LOG
 
 from ccf.tx_id import TxID
+from infra.snp import IS_SNP
 
 
 def large_message(idx):
@@ -226,7 +227,7 @@ def test_historical_query_cache_is(network, predicate):
 
 def run(args):
     with infra.network.network(
-        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
+        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
         network = test_historical_query_cache_is(network, lambda size: size == 0)
@@ -242,11 +243,12 @@ def run(args):
 
 
 if __name__ == "__main__":
-    args = infra.e2e_args.cli_args()
-    args.package = "samples/apps/logging/logging"
-    args.nodes = infra.e2e_args.min_nodes(args, f=1)
-    args.initial_member_count = 1
-    args.sig_ms_interval = 1000  # Set to node default value
-    args.historical_cache_soft_limit = "20KB"
+    if not IS_SNP:
+        args = infra.e2e_args.cli_args()
+        args.package = "samples/apps/logging/liblogging"
+        args.nodes = infra.e2e_args.min_nodes(args, f=1)
+        args.initial_member_count = 1
+        args.sig_ms_interval = 1000  # Set to cchost default value
+        args.historical_cache_soft_limit = "20KB"
 
-    run(args)
+        run(args)

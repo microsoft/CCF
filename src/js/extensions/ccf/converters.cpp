@@ -24,8 +24,7 @@ namespace ccf::js::extensions
     JSValue js_str_to_buf(
       JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
     {
-      js::core::Context& jsctx =
-        *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
+      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
       if (argc != 1)
       {
@@ -33,19 +32,19 @@ namespace ccf::js::extensions
           ctx, "Passed %d arguments, but expected 1", argc);
       }
 
-      if (JS_IsString(argv[0]) == 0)
+      if (!JS_IsString(argv[0]))
       {
         return JS_ThrowTypeError(ctx, "Argument must be a string");
       }
 
       auto str = jsctx.to_str(argv[0]);
-      if (!str.has_value())
+      if (!str)
       {
         return ccf::js::core::constants::Exception;
       }
 
-      auto buf = jsctx.new_array_buffer_copy(
-        reinterpret_cast<const uint8_t*>(str->c_str()), str->size());
+      auto buf =
+        jsctx.new_array_buffer_copy((uint8_t*)str->c_str(), str->size());
       JS_CHECK_EXC(buf);
 
       return buf.take();
@@ -54,8 +53,7 @@ namespace ccf::js::extensions
     JSValue js_buf_to_str(
       JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
     {
-      js::core::Context& jsctx =
-        *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
+      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
       if (argc != 1)
       {
@@ -63,15 +61,15 @@ namespace ccf::js::extensions
           ctx, "Passed %d arguments, but expected 1", argc);
       }
 
-      size_t buf_size = 0;
+      size_t buf_size;
       uint8_t* buf = JS_GetArrayBuffer(ctx, &buf_size, argv[0]);
 
-      if (buf == nullptr)
+      if (!buf)
       {
         return JS_ThrowTypeError(ctx, "Argument must be an ArrayBuffer");
       }
 
-      auto str = jsctx.new_string_len(reinterpret_cast<char*>(buf), buf_size);
+      auto str = jsctx.new_string_len((char*)buf, buf_size);
       JS_CHECK_EXC(str);
 
       return str.take();
@@ -80,8 +78,7 @@ namespace ccf::js::extensions
     JSValue js_json_compatible_to_buf(
       JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
     {
-      js::core::Context& jsctx =
-        *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
+      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
       if (argc != 1)
       {
@@ -98,8 +95,7 @@ namespace ccf::js::extensions
     JSValue js_buf_to_json_compatible(
       JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
     {
-      js::core::Context& jsctx =
-        *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
+      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
       if (argc != 1)
       {
@@ -107,10 +103,10 @@ namespace ccf::js::extensions
           ctx, "Passed %d arguments, but expected 1", argc);
       }
 
-      size_t buf_size = 0;
+      size_t buf_size;
       uint8_t* buf = JS_GetArrayBuffer(ctx, &buf_size, argv[0]);
 
-      if (buf == nullptr)
+      if (!buf)
       {
         return JS_ThrowTypeError(ctx, "Argument must be an ArrayBuffer");
       }
@@ -119,10 +115,8 @@ namespace ccf::js::extensions
       buf_null_terminated[buf_size] = 0;
       buf_null_terminated.assign(buf, buf + buf_size);
 
-      auto obj = jsctx.parse_json(
-        reinterpret_cast<char*>(buf_null_terminated.data()),
-        buf_size,
-        "<json>");
+      auto obj =
+        jsctx.parse_json((char*)buf_null_terminated.data(), buf_size, "<json>");
       JS_CHECK_EXC(obj);
 
       return obj.take();
@@ -137,7 +131,17 @@ namespace ccf::js::extensions
           ctx, "Passed %d arguments, but expected 1", argc);
       }
 
-      return JS_NewBool(ctx, JS_ToBool(ctx, argv[0]));
+      const auto v = argv[0];
+      if (!JS_IsBool(v))
+      {
+        return JS_ThrowTypeError(ctx, "First argument must be a boolean");
+      }
+      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
+
+      const auto previous = jsctx.implement_untrusted_time;
+      jsctx.implement_untrusted_time = JS_ToBool(ctx, v);
+
+      return JS_NewBool(ctx, previous);
     }
 
     JSValue js_enable_metrics_logging(
@@ -150,33 +154,29 @@ namespace ccf::js::extensions
       }
 
       const auto v = argv[0];
-      if (JS_IsBool(v) == 0)
+      if (!JS_IsBool(v))
       {
         return JS_ThrowTypeError(ctx, "First argument must be a boolean");
       }
 
-      js::core::Context& jsctx =
-        *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
+      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
       const auto previous = jsctx.log_execution_metrics;
-      jsctx.log_execution_metrics = (JS_ToBool(ctx, v) != 0);
+      jsctx.log_execution_metrics = JS_ToBool(ctx, v);
 
-      return JS_NewBool(ctx, static_cast<int>(previous));
+      return JS_NewBool(ctx, previous);
     }
 
     JSValue js_pem_to_id(
       JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
     {
       if (argc != 1)
-      {
         return JS_ThrowTypeError(
           ctx, "Passed %d arguments, but expected 1", argc);
-      }
 
-      js::core::Context& jsctx =
-        *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
+      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
       auto pem_str = jsctx.to_str(argv[0]);
-      if (!pem_str.has_value())
+      if (!pem_str)
       {
         return ccf::js::core::constants::Exception;
       }
@@ -204,8 +204,7 @@ namespace ccf::js::extensions
         return JS_ThrowTypeError(
           ctx, "Passed %d arguments, but expected 2", argc);
       }
-      js::core::Context& jsctx =
-        *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
+      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
       auto hex_cpuid = jsctx.to_str(argv[0]);
       if (!hex_cpuid.has_value())
@@ -264,33 +263,29 @@ namespace ccf::js::extensions
   {
     auto ccf = ctx.get_or_create_global_property("ccf", ctx.new_obj());
 
-    JS_CHECK_OR_THROW(
-      ccf.set("strToBuf", ctx.new_c_function(js_str_to_buf, "strToBuf", 1)));
-    JS_CHECK_OR_THROW(
-      ccf.set("bufToStr", ctx.new_c_function(js_buf_to_str, "bufToStr", 1)));
+    ccf.set("strToBuf", ctx.new_c_function(js_str_to_buf, "strToBuf", 1));
+    ccf.set("bufToStr", ctx.new_c_function(js_buf_to_str, "bufToStr", 1));
 
-    JS_CHECK_OR_THROW(ccf.set(
+    ccf.set(
       "jsonCompatibleToBuf",
-      ctx.new_c_function(js_json_compatible_to_buf, "jsonCompatibleToBuf", 1)));
-    JS_CHECK_OR_THROW(ccf.set(
+      ctx.new_c_function(js_json_compatible_to_buf, "jsonCompatibleToBuf", 1));
+    ccf.set(
       "bufToJsonCompatible",
-      ctx.new_c_function(js_buf_to_json_compatible, "bufToJsonCompatible", 1)));
+      ctx.new_c_function(js_buf_to_json_compatible, "bufToJsonCompatible", 1));
 
-    JS_CHECK_OR_THROW(ccf.set(
+    ccf.set(
       "enableUntrustedDateTime",
       ctx.new_c_function(
-        js_enable_untrusted_date_time, "enableUntrustedDateTime", 1)));
+        js_enable_untrusted_date_time, "enableUntrustedDateTime", 1));
 
-    JS_CHECK_OR_THROW(ccf.set(
+    ccf.set(
       "enableMetricsLogging",
-      ctx.new_c_function(
-        js_enable_metrics_logging, "enableMetricsLogging", 1)));
+      ctx.new_c_function(js_enable_metrics_logging, "enableMetricsLogging", 1));
 
-    JS_CHECK_OR_THROW(
-      ccf.set("pemToId", ctx.new_c_function(js_pem_to_id, "pemToId", 1)));
+    ccf.set("pemToId", ctx.new_c_function(js_pem_to_id, "pemToId", 1));
 
-    JS_CHECK_OR_THROW(ccf.set(
+    ccf.set(
       "tcbHexToPolicy",
-      ctx.new_c_function(js_tcb_hex_to_policy, "tcbHexToPolicy", 2)));
+      ctx.new_c_function(js_tcb_hex_to_policy, "tcbHexToPolicy", 2));
   }
 }

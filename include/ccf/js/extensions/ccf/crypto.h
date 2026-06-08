@@ -44,7 +44,7 @@ namespace ccf::js::extensions
   class CryptoExtension : public ExtensionInterface
   {
   public:
-    CryptoExtension() = default;
+    CryptoExtension() {}
 
     void install(js::core::Context& ctx) override;
   };

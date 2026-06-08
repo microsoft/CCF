@@ -25,76 +25,24 @@ namespace ccf
   class JsonParseError : public std::invalid_argument
   {
   public:
-    std::vector<std::string> pointer_elements;
+    std::vector<std::string> pointer_elements = {};
 
     using std::invalid_argument::invalid_argument;
 
-    JsonParseError(const JsonParseError& other) noexcept = default;
-
-    [[nodiscard]] std::string pointer() const
+    std::string pointer() const
     {
       return fmt::format(
         "#/{}",
         fmt::join(pointer_elements.crbegin(), pointer_elements.crend(), "/"));
     }
 
-    [[nodiscard]] std::string describe() const
+    std::string describe() const
     {
       return fmt::format("At {}: {}", pointer(), what());
     }
   };
-
-  inline constexpr size_t MAX_JSON_NESTING_DEPTH = 64;
-
-  class JsonTooDeep : public ccf::JsonParseError
-  {
-  public:
-    explicit JsonTooDeep(size_t max_depth) :
-      ccf::JsonParseError(fmt::format(
-        "JSON object/array nesting exceeds maximum depth of {}", max_depth))
-    {}
-  };
-
-  inline nlohmann::json::parser_callback_t make_depth_limit_callback(
-    size_t max_depth)
-  {
-    return [max_depth](
-             int depth,
-             nlohmann::json::parse_event_t event,
-             nlohmann::json& /*parsed*/) {
-      using E = nlohmann::json::parse_event_t;
-      if (
-        (event == E::object_start || event == E::array_start) &&
-        static_cast<size_t>(depth) >= max_depth)
-      {
-        throw JsonTooDeep{max_depth};
-      }
-      return true;
-    };
-  }
-
-  // Depth-bounded alternative to nlohmann::json::parse, for inputs whose
-  // depth has not been validated upstream. max_depth defaults to
-  // MAX_JSON_NESTING_DEPTH but can be overridden at the call site for
-  // applications with stricter or more permissive requirements.
-  template <typename Bytes>
-  nlohmann::json parse_json_safe(
-    Bytes&& bytes, size_t max_depth = MAX_JSON_NESTING_DEPTH)
-  {
-    return nlohmann::json::parse(
-      std::forward<Bytes>(bytes), make_depth_limit_callback(max_depth));
-  }
-
-  template <typename Iter>
-  nlohmann::json parse_json_safe(
-    Iter first, Iter last, size_t max_depth = MAX_JSON_NESTING_DEPTH)
-  {
-    return nlohmann::json::parse(
-      first, last, make_depth_limit_callback(max_depth));
-  }
 }
 
-// NOLINTBEGIN(cert-dcl58-cpp)
 namespace std
 {
   template <typename T>
@@ -176,7 +124,6 @@ namespace std
     }
   }
 }
-// NOLINTEND(cert-dcl58-cpp)
 
 // FOREACH macro machinery for counting args
 
@@ -465,7 +412,7 @@ namespace std
     } \
     catch (ccf::JsonParseError & jpe) \
     { \
-      jpe.pointer_elements.emplace_back(JSON_FIELD); \
+      jpe.pointer_elements.push_back(JSON_FIELD); \
       throw; \
     } \
   }
@@ -558,23 +505,6 @@ namespace std
   { \
     #FIELD \
   }
-
-// Some macros below use variadic macro args, so we need to suppress the clang
-// diagnostic which objects to them.
-// Since these suppressions need to be produced as a result of macro expansions,
-// they cannot be emitted by a #pragma directive and must use the _Pragma
-// operator (C99 feature introduced for exactly this purpose).
-// However, if we use _Pragma("foo") inline directly in a multiline macro, we
-// must terminate it with a semicolon (_Pragma("foo");). This terminating
-// semicolon gets shunted to its own line during expansion (when the _Pragma has
-// become a #pragma), and so can unhelpfully count as the terminator for
-// REQUIRES_SEMICOLON_TERMINATION below. We _need_ those semicolons to exist at
-// the call-site, to placate doxygen, so we introduce this horrible indirection
-// that lets us use _Pragma _without_ terminating semicolons.
-#define NESTED_PRAGMA(arg) _Pragma(arg)
-
-#define REQUIRES_SEMICOLON_TERMINATION \
-  static_assert(true, "Semicolon required after macro")
 
 /** Defines from_json, to_json, fill_json_schema, schema_name and
  * add_schema_components functions for struct/class types, converting member
@@ -728,8 +658,7 @@ namespace std
     PRE_ADD_SCHEMA; \
     add_schema_components_required_fields(doc, j, t); \
     POST_ADD_SCHEMA; \
-  } \
-  REQUIRES_SEMICOLON_TERMINATION
+  }
 
 #define DECLARE_JSON_TYPE(TYPE) DECLARE_JSON_TYPE_IMPL(TYPE, , , , , , , , )
 
@@ -783,9 +712,8 @@ namespace std
     add_schema_components_optional_fields(doc, j, t))
 
 #define DECLARE_JSON_REQUIRED_FIELDS(TYPE, ...) \
-  NESTED_PRAGMA("clang diagnostic push") \
-  NESTED_PRAGMA( \
-    "clang diagnostic ignored \"-Wgnu-zero-variadic-macro-arguments\"") \
+  _Pragma("clang diagnostic push"); \
+  _Pragma("clang diagnostic ignored \"-Wgnu-zero-variadic-macro-arguments\""); \
   inline void to_json_required_fields( \
     nlohmann::json& j, [[maybe_unused]] const TYPE& t) \
   { \
@@ -819,8 +747,7 @@ namespace std
     _FOR_JSON_COUNT_NN(__VA_ARGS__) \
     (POP1)(ADD_SCHEMA_COMPONENTS_REQUIRED, TYPE, ##__VA_ARGS__); \
   } \
-  NESTED_PRAGMA("clang diagnostic pop") \
-  REQUIRES_SEMICOLON_TERMINATION
+  _Pragma("clang diagnostic pop");
 
 #define DECLARE_JSON_REQUIRED_FIELDS_WITH_RENAMES(TYPE, ...) \
   inline void to_json_required_fields(nlohmann::json& j, const TYPE& t) \
@@ -854,8 +781,7 @@ namespace std
     j["type"] = "object"; \
     _FOR_JSON_COUNT_NN(__VA_ARGS__) \
     (POP2)(ADD_SCHEMA_COMPONENTS_REQUIRED_WITH_RENAMES, TYPE, ##__VA_ARGS__); \
-  } \
-  REQUIRES_SEMICOLON_TERMINATION
+  }
 
 #define DECLARE_JSON_OPTIONAL_FIELDS(TYPE, ...) \
   inline void to_json_optional_fields(nlohmann::json& j, const TYPE& t) \
@@ -878,8 +804,7 @@ namespace std
   { \
     _FOR_JSON_COUNT_NN(__VA_ARGS__) \
     (POP1)(ADD_SCHEMA_COMPONENTS_OPTIONAL, TYPE, ##__VA_ARGS__); \
-  } \
-  REQUIRES_SEMICOLON_TERMINATION
+  }
 
 #define DECLARE_JSON_OPTIONAL_FIELDS_WITH_RENAMES(TYPE, ...) \
   inline void to_json_optional_fields(nlohmann::json& j, const TYPE& t) \
@@ -905,8 +830,7 @@ namespace std
   { \
     _FOR_JSON_COUNT_NN(__VA_ARGS__) \
     (POP2)(ADD_SCHEMA_COMPONENTS_OPTIONAL_WITH_RENAMES, TYPE, ##__VA_ARGS__); \
-  } \
-  REQUIRES_SEMICOLON_TERMINATION
+  }
 
 // Enum conversion, based on NLOHMANN_JSON_SERIALIZE_ENUM, but less permissive
 // (throws on unknown JSON values)
@@ -914,7 +838,7 @@ namespace std
   template <typename BasicJsonType> \
   inline void to_json(BasicJsonType& j, const TYPE& e) \
   { \
-    static_assert(std::is_enum_v<TYPE>, #TYPE " must be an enum!"); \
+    static_assert(std::is_enum<TYPE>::value, #TYPE " must be an enum!"); \
     static const std::pair<TYPE, BasicJsonType> m[] = __VA_ARGS__; \
     auto it = std::find_if( \
       std::begin(m), \
@@ -933,7 +857,7 @@ namespace std
   template <typename BasicJsonType> \
   inline void from_json(const BasicJsonType& j, TYPE& e) \
   { \
-    static_assert(std::is_enum_v<TYPE>, #TYPE " must be an enum!"); \
+    static_assert(std::is_enum<TYPE>::value, #TYPE " must be an enum!"); \
     static const std::pair<TYPE, BasicJsonType> m[] = __VA_ARGS__; \
     auto it = std::find_if( \
       std::begin(m), \
@@ -962,7 +886,6 @@ namespace std
     } \
     j["enum"] = enums; \
     j["type"] = "string"; \
-  } \
-  REQUIRES_SEMICOLON_TERMINATION
+  }
 
 #pragma clang diagnostic pop

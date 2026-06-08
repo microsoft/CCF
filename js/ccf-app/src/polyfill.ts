@@ -21,7 +21,7 @@ import { TextEncoder, TextDecoder } from "util";
 
 // Note: It is important that only types are imported here to prevent executing
 // the module at this point (which would query the ccf global before we polyfilled it).
-import type {
+import {
   CCF,
   KvMaps,
   KvMap,
@@ -32,7 +32,6 @@ import type {
   SnpAttestation,
   SnpAttestationResult,
   SigningAlgorithm,
-  JsonWebKey,
   JsonWebKeyECPublic,
   JsonWebKeyECPrivate,
   JsonWebKeyRSAPublic,
@@ -470,14 +469,8 @@ class CCFPolyfill implements CCF {
       const jwk = key.export({
         format: "jwk",
       });
-      const jwkWithKid = {
-        kty: jwk.kty,
-        crv: jwk.crv,
-        x: jwk.x,
-        y: jwk.y,
-        kid: kid,
-      };
-      return jwkWithKid as JsonWebKeyECPublic;
+      jwk.kid = kid;
+      return jwk as JsonWebKeyECPrivate;
     },
     pemToJwk(pem: string, kid?: string): JsonWebKeyECPrivate {
       const key = jscrypto.createPrivateKey({
@@ -486,15 +479,8 @@ class CCFPolyfill implements CCF {
       const jwk = key.export({
         format: "jwk",
       });
-      const jwkWithKid = {
-        kty: jwk.kty,
-        crv: jwk.crv,
-        x: jwk.x,
-        y: jwk.y,
-        d: jwk.d,
-        kid: kid,
-      };
-      return jwkWithKid as JsonWebKeyECPrivate;
+      jwk.kid = kid;
+      return jwk as JsonWebKeyECPrivate;
     },
     pubRsaPemToJwk(pem: string, kid?: string): JsonWebKeyRSAPublic {
       const key = jscrypto.createPublicKey({
@@ -503,13 +489,8 @@ class CCFPolyfill implements CCF {
       const jwk = key.export({
         format: "jwk",
       });
-      const jwkWithKid = {
-        kty: jwk.kty,
-        n: jwk.n,
-        e: jwk.e,
-        kid: kid,
-      };
-      return jwkWithKid as JsonWebKeyRSAPublic;
+      jwk.kid = kid;
+      return jwk as JsonWebKeyRSAPublic;
     },
     rsaPemToJwk(pem: string, kid?: string): JsonWebKeyRSAPrivate {
       const key = jscrypto.createPrivateKey({
@@ -518,19 +499,8 @@ class CCFPolyfill implements CCF {
       const jwk = key.export({
         format: "jwk",
       });
-      const jwkWithKid = {
-        kty: jwk.kty,
-        n: jwk.n,
-        e: jwk.e,
-        d: jwk.d,
-        p: jwk.p,
-        q: jwk.q,
-        dp: jwk.dp,
-        dq: jwk.dq,
-        qi: jwk.qi,
-        kid: kid,
-      };
-      return jwkWithKid as JsonWebKeyRSAPrivate;
+      jwk.kid = kid;
+      return jwk as JsonWebKeyRSAPrivate;
     },
     pubEddsaPemToJwk(pem: string, kid?: string): JsonWebKeyEdDSAPublic {
       const key = jscrypto.createPublicKey({
@@ -539,13 +509,8 @@ class CCFPolyfill implements CCF {
       const jwk = key.export({
         format: "jwk",
       });
-      const jwkWithKid = {
-        kty: jwk.kty,
-        crv: jwk.crv,
-        x: jwk.x,
-        kid: kid,
-      };
-      return jwkWithKid as JsonWebKeyEdDSAPublic;
+      jwk.kid = kid;
+      return jwk as JsonWebKeyEdDSAPublic;
     },
     eddsaPemToJwk(pem: string, kid?: string): JsonWebKeyEdDSAPrivate {
       const key = jscrypto.createPrivateKey({
@@ -554,53 +519,47 @@ class CCFPolyfill implements CCF {
       const jwk = key.export({
         format: "jwk",
       });
-      const jwkWithKid = {
-        kty: jwk.kty,
-        crv: jwk.crv,
-        x: jwk.x,
-        d: jwk.d,
-        kid: kid,
-      };
-      return jwkWithKid as JsonWebKeyEdDSAPrivate;
+      jwk.kid = kid;
+      return jwk as JsonWebKeyEdDSAPrivate;
     },
     pubJwkToPem(jwk: JsonWebKeyECPublic): string {
       const key = jscrypto.createPublicKey({
-        key: jwk as JsonWebKey,
+        key: jwk as jscrypto.JsonWebKey,
         format: "jwk",
       });
       return key.export({ type: "spki", format: "pem" }).toString();
     },
     jwkToPem(jwk: JsonWebKeyECPrivate): string {
       const key = jscrypto.createPrivateKey({
-        key: jwk as JsonWebKey,
+        key: jwk as jscrypto.JsonWebKey,
         format: "jwk",
       });
       return key.export({ type: "pkcs8", format: "pem" }).toString();
     },
     pubRsaJwkToPem(jwk: JsonWebKeyRSAPublic): string {
       const key = jscrypto.createPublicKey({
-        key: jwk as JsonWebKey,
+        key: jwk as jscrypto.JsonWebKey,
         format: "jwk",
       });
       return key.export({ type: "spki", format: "pem" }).toString();
     },
     rsaJwkToPem(jwk: JsonWebKeyRSAPrivate): string {
       const key = jscrypto.createPrivateKey({
-        key: jwk as JsonWebKey,
+        key: jwk as jscrypto.JsonWebKey,
         format: "jwk",
       });
       return key.export({ type: "pkcs8", format: "pem" }).toString();
     },
     pubEddsaJwkToPem(jwk: JsonWebKeyEdDSAPublic): string {
       const key = jscrypto.createPublicKey({
-        key: jwk as JsonWebKey,
+        key: jwk as jscrypto.JsonWebKey,
         format: "jwk",
       });
       return key.export({ type: "spki", format: "pem" }).toString();
     },
     eddsaJwkToPem(jwk: JsonWebKeyEdDSAPrivate): string {
       const key = jscrypto.createPrivateKey({
-        key: jwk as JsonWebKey,
+        key: jwk as jscrypto.JsonWebKey,
         format: "jwk",
       });
       return key.export({ type: "pkcs8", format: "pem" }).toString();

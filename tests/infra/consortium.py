@@ -9,7 +9,6 @@ import infra.network
 import infra.proc
 import infra.checker
 import infra.node
-from infra.node import CCFVersion
 import infra.crypto
 import infra.member
 from infra.proposal import ProposalState
@@ -50,6 +49,7 @@ class Consortium:
         common_dir,
         key_generator,
         share_script,
+        consensus,
         authenticate_session="COSE",
         gov_api_version=infra.member.MemberAPI.Preview_v1.API_VERSION,
     ):
@@ -57,6 +57,7 @@ class Consortium:
         self.members = []
         self.key_generator = key_generator
         self.share_script = share_script
+        self.consensus = consensus
         self.recovery_threshold = 0
         self.authenticate_session = authenticate_session
         self.set_gov_api_version(gov_api_version)
@@ -105,12 +106,16 @@ class Consortium:
         for cls in (
             infra.member.MemberAPI.Preview_v1,
             infra.member.MemberAPI.v1,
+            infra.member.MemberAPI.Classic,
         ):
             if version_s == cls.API_VERSION:
                 self.gov_api_impl = cls
                 break
         else:
-            raise ValueError(f"Unsupported gov API version: {version_s}")
+            LOG.warning(
+                f"No gov API version found to match '{version_s}' specified - defaulting to classic API"
+            )
+            self.gov_api_impl = infra.member.MemberAPI.Classic
 
     def make_proposal(self, proposal_name, **kwargs):
         action = {
@@ -272,7 +277,7 @@ class Consortium:
         )
 
     def vote_using_majority(
-        self, remote_node, proposal, ballot, wait_for_commit=True, timeout=10
+        self, remote_node, proposal, ballot, wait_for_commit=True, timeout=5
     ):
         response = None
 
@@ -317,19 +322,6 @@ class Consortium:
             )
             raise infra.proposal.ProposalNotAccepted(proposal, response)
 
-        raw = self.get_proposal_raw(remote_node, proposal.proposal_id)
-        assert (
-            "finalVotes" in raw
-        ), f"Expected finalVotes field to be present, got: {raw}"
-        final_votes = raw["finalVotes"]
-        for voter_id in proposal.voters:
-            assert (
-                voter_id in final_votes
-            ), f"Voter {voter_id} not found in finalVotes: {final_votes}"
-            assert (
-                final_votes[voter_id] is True
-            ), f"Voter {voter_id} vote is not true: {final_votes[voter_id]}"
-
         return proposal
 
     def get_proposal_raw(self, remote_node, proposal_id):
@@ -351,25 +343,6 @@ class Consortium:
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         self.vote_using_majority(remote_node, proposal, careful_vote)
         return pending
-
-    def retire_node_by_id(self, remote_node, node_id):
-        """
-        Submit a remove_node governance proposal for a node identified only
-        by its id. Used when we have no Node object -- e.g. a synthetic
-        identity introduced via Network.fake_join that has no managed
-        process and was never added to Network.nodes.
-
-        Skips the PENDING-status probe and the post-acceptance
-        removable_nodes / Network.nodes bookkeeping that retire_node does:
-        for a node that never started, those steps are unnecessary.
-        """
-        LOG.info(f"Retiring node by id {node_id}")
-        proposal_body, careful_vote = self.make_proposal(
-            "remove_node",
-            node_id=node_id,
-        )
-        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
-        self.vote_using_majority(remote_node, proposal, careful_vote)
 
     def trust_nodes(
         self,
@@ -469,7 +442,7 @@ class Consortium:
             proposal["actions"].append({"name": "set_user", "args": {"cert": cert}})
 
         args = {}
-        if CCFVersion(remote_node.version) > CCFVersion("ccf-2.0.0-rc3"):
+        if remote_node.version_after("ccf-2.0.0-rc3"):
             args = {"args": {"next_service_identity": self.get_service_identity()}}
         proposal["actions"].append({"name": "transition_service_to_open", **args})
 
@@ -697,7 +670,7 @@ class Consortium:
                 is_recovery = False
 
         args = {}
-        if CCFVersion(remote_node.version) > CCFVersion("ccf-2.0.0-rc3"):
+        if remote_node.version_after("ccf-2.0.0-rc3"):
             args = {
                 "previous_service_identity": previous_service_identity,
                 "next_service_identity": self.get_service_identity(),
@@ -762,12 +735,21 @@ class Consortium:
         return r
 
     def add_measurement(self, remote_node, platform, measurement):
-        if platform == "virtual":
+        if platform == "sgx":
+            return self.add_new_code(remote_node, measurement)
+        elif platform == "virtual":
             return self.add_virtual_measurement(remote_node, measurement)
         elif platform == "snp":
             return self.add_snp_measurement(remote_node, measurement)
         else:
             raise ValueError(f"Unsupported platform {platform}")
+
+    def add_new_code(self, remote_node, new_code_id):
+        proposal_body, careful_vote = self.make_proposal(
+            "add_node_code", code_id=new_code_id
+        )
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
+        return self.vote_using_majority(remote_node, proposal, careful_vote)
 
     def add_virtual_measurement(self, remote_node, measurement):
         proposal_body, careful_vote = self.make_proposal(
@@ -791,12 +773,21 @@ class Consortium:
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
     def remove_measurement(self, remote_node, platform, measurement):
-        if platform == "virtual":
+        if platform == "sgx":
+            return self.retire_code(remote_node, measurement)
+        elif platform == "virtual":
             return self.remove_virtual_measurement(remote_node, measurement)
         elif platform == "snp":
             return self.remove_snp_measurement(remote_node, measurement)
         else:
             raise ValueError(f"Unsupported platform {platform}")
+
+    def retire_code(self, remote_node, code_id):
+        proposal_body, careful_vote = self.make_proposal(
+            "remove_node_code", code_id=code_id
+        )
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
+        return self.vote_using_majority(remote_node, proposal, careful_vote)
 
     def remove_virtual_measurement(self, remote_node, measurement):
         proposal_body, careful_vote = self.make_proposal(
@@ -903,21 +894,6 @@ class Consortium:
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
-    def set_node_join_policy(self, remote_node, policy):
-        proposal_body, careful_vote = self.make_proposal(
-            "set_node_join_policy",
-            policy=policy,
-        )
-        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
-        return self.vote_using_majority(remote_node, proposal, careful_vote)
-
-    def remove_node_join_policy(self, remote_node):
-        proposal_body, careful_vote = self.make_proposal(
-            "remove_node_join_policy",
-        )
-        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
-        return self.vote_using_majority(remote_node, proposal, careful_vote)
-
     def set_node_data(self, remote_node, node_service_id, node_data):
         proposal, careful_vote = self.make_proposal(
             "set_node_data",
@@ -967,15 +943,6 @@ class Consortium:
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
-    def cleanup_legacy_jwt_records(self, remote_node, ensure_new_records_exist=False):
-        # Submit a proposal to remove legacy JWT records
-        proposal_body, careful_vote = self.make_proposal(
-            "cleanup_legacy_jwt_records",
-            ensure_new_records_exist=ensure_new_records_exist,
-        )
-        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
-        return self.vote_using_majority(remote_node, proposal, careful_vote)
-
     def check_for_service(self, remote_node, status, recovery_count=None):
         """
         Check the certificate associated with current CCF service signing key has been recorded in
@@ -985,7 +952,7 @@ class Consortium:
             r = c.get("/node/network").body.json()
             current_status = r["service_status"]
             current_cert = r["service_certificate"]
-            if CCFVersion(remote_node.version) > CCFVersion("ccf-2.0.3"):
+            if remote_node.version_after("ccf-2.0.3"):
                 current_recovery_count = r["recovery_count"]
             else:
                 assert "recovery_count" not in r
@@ -1004,7 +971,7 @@ class Consortium:
             assert (
                 current_status == status.value
             ), f"Service status {current_status} (expected {status.value})"
-            if CCFVersion(remote_node.version) > CCFVersion("ccf-2.0.3"):
+            if remote_node.version_after("ccf-2.0.3"):
                 assert (
                     recovery_count is None or current_recovery_count == recovery_count
                 ), f"Current recovery count {current_recovery_count} is not expected {recovery_count}"

@@ -1,6 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-from hashlib import sha256
+from hashlib import md5
 import itertools
 import time
 
@@ -27,7 +27,7 @@ def test(network, args, batch_size=100, write_key_divisor=1, write_size_multipli
 
         message_ids = [next(id_gen) for _ in range(batch_size)]
         messages = [
-            {"id": i, "msg": f"A unique message: {sha256(i.to_bytes(8)).hexdigest()}"}
+            {"id": i, "msg": f"A unique message: {md5(bytes(i)).hexdigest()}"}
             for i in message_ids
         ]
 
@@ -59,7 +59,7 @@ def test(network, args, batch_size=100, write_key_divisor=1, write_size_multipli
 
 def run(args):
     with infra.network.network(
-        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
+        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
 
@@ -91,7 +91,7 @@ def run(args):
 
 def run_to_destruction(args):
     with infra.network.network(
-        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
+        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
 
@@ -135,7 +135,7 @@ def run_to_destruction(args):
 
 if __name__ == "__main__":
     args = infra.e2e_args.cli_args()
-    args.package = "js_generic"
+    args.package = "libjs_generic"
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
 
     # Helps ensure expected destruction workflow. See #6373 for details.

@@ -11,24 +11,20 @@
 
 namespace ccf::ds
 {
-  constexpr size_t ascii_offset = 10;
   static uint8_t hex_char_to_int(char c)
   {
     if (c <= '9')
     {
       return c - '0';
     }
-
-    if (c <= 'F')
+    else if (c <= 'F')
     {
-      return c - 'A' + ascii_offset;
+      return c - 'A' + 10;
     }
-
-    if (c <= 'f')
+    else if (c <= 'f')
     {
-      return c - 'a' + ascii_offset;
+      return c - 'a' + 10;
     }
-
     return c;
   }
 
@@ -49,13 +45,9 @@ namespace ccf::ds
   {
     std::string r;
     for (auto c : buf)
-    {
       r += fmt::format("{:02x}", c);
-    }
     return r;
   }
-
-  constexpr size_t hex_base = 16;
 
   template <typename Iter>
   static void from_hex(const std::string& str, Iter begin, Iter end)
@@ -77,7 +69,7 @@ namespace ccf::ds
     auto it = begin;
     for (size_t i = 0; i < str.size(); i += 2, ++it)
     {
-      *it = hex_base * hex_char_to_int(str[i]) + hex_char_to_int(str[i + 1]);
+      *it = 16 * hex_char_to_int(str[i]) + hex_char_to_int(str[i + 1]);
     }
   }
 

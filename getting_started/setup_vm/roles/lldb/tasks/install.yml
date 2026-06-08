@@ -1,0 +1,8 @@
+- name: Include vars
+  include_vars: common.yml
+
+- name: Install debs
+  apt:
+    name: "lldb"
+    update_cache: yes
+  become: yes

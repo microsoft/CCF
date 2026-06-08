@@ -1,8 +1,6 @@
-Documents the various GitHub Actions workflows, the role they fulfill and 3rd party (i.e. outside of https://github.com/actions/) dependencies if any.
+Documents the various GitHub Actions workflows, the role they fulfil and 3rd party dependencies if any.
 
-# Maintained
-
-## Bencher
+# Bencher
 
 Builds and runs CCF performance tests, both end to end and micro-benchmarks. Results are posted to bencher.dev, and [plotted to make regressions obvious](https://bencher.dev/console/projects/ccf/plots).
 Triggered on every commit on `main`, but not on PR builds because the setup required to build from forks is complex and fragile in terms of security, and the increase in pool usage would be substantial.
@@ -14,14 +12,18 @@ File: `bencher.yml`
 
 - `bencherdev/bencher@main`
 
-## Bencher A/B
+# Continuous Integration Containers GHCR
 
-Builds and runs CCF performance tests, and perform a comparison to main. Triggered on PRs that have the label `bench-ab`.
+Produces the build images used by CI and release workflows between 5.0.0-rc0 and 6.0.0 (excluded). Complete images are attested and published to GHCR. Triggered on label creation (`build/*`).
 
-File: `bencher-ab.yml`
+File: `ci-containers-ghcr.yml`
 3rd party dependencies:
 
-- `bencherdev/bencher@main`
+- `docker/login-action@v3`
+- `docker/metadata-action@v5`
+- `docker/build-push-action@v6`
+
+Note: This job is being kept until 5.0.x goes out of support.
 
 # Continuous Integration
 
@@ -42,7 +44,7 @@ File: `long-test.yml`
 
 # CodeQL analysis
 
-Builds CCF with CodeQL, and runs the security-extended checks. Triggered on PRs that affect ".github/workflows/codeql-analysis.yml", on pushes to main, and once a week on schedule.
+Builds CCF with CodeQL, and runs the security-extended checks. Triggered on PRs that affect ".github/workflows/codeql-analysis.yml", and once a week on main.
 
 File: `codeql-analysis.yml`
 3rd party dependencies:
@@ -74,12 +76,18 @@ Produces CCF reference release artefacts from 5.0.0-rc0 onwards, for all languag
 File: `release.yml`
 3rd party dependencies: None
 
-# Release Attestation
+# Containers GHCR
 
-Generate signed build provenance attestations for release artifacts. Triggered by release creation.
+Produces reference release images for 5.x release versions. Not used from 6.0.0 onwards. Complete images are attested and published to GHCR. Triggered on release publishing.
 
-File: `release-attestation.yml`
-3rd party dependencies: None
+File: `containers-ghcr.yml`
+3rd party dependencies:
+
+- `docker/login-action@v3`
+- `docker/metadata-action@v5`
+- `docker/build-push-action@v6`
+
+Note: This job is being kept until 5.0.x goes out of support.
 
 # NPM
 
@@ -100,4 +108,6 @@ File: `pypi.yml`
 Builds and publishes documentation to GitHub Pages. Triggered on pushes to main, and manually. Note that special permissions (Settings > Environment) are configured.
 
 File: `doc.yml`
-3rd party dependencies: None
+3rd party dependencies:
+
+- peaceiris/actions-gh-pages@v3

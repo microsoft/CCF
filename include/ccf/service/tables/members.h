@@ -13,7 +13,7 @@
 
 namespace ccf
 {
-  enum class MemberStatus : uint8_t
+  enum class MemberStatus
   {
     ACCEPTED = 0,
     ACTIVE = 1,
@@ -22,7 +22,7 @@ namespace ccf
     MemberStatus,
     {{MemberStatus::ACCEPTED, "Accepted"}, {MemberStatus::ACTIVE, "Active"}});
 
-  enum class MemberRecoveryRole : uint8_t
+  enum class MemberRecoveryRole
   {
     NonParticipant = 0,
     Participant,
@@ -44,20 +44,20 @@ namespace ccf
 
     // If encryption public key is set, the member is a recovery member
     std::optional<ccf::crypto::Pem> encryption_pub_key = std::nullopt;
-    nlohmann::json member_data;
+    nlohmann::json member_data = nullptr;
 
     std::optional<MemberRecoveryRole> recovery_role = std::nullopt;
 
-    NewMember() = default;
+    NewMember() {}
 
     NewMember(
-      ccf::crypto::Pem cert_,
+      const ccf::crypto::Pem& cert_,
       const std::optional<ccf::crypto::Pem>& encryption_pub_key_ = std::nullopt,
-      nlohmann::json member_data_ = {},
+      const nlohmann::json& member_data_ = nullptr,
       const std::optional<MemberRecoveryRole>& recovery_role_ = std::nullopt) :
-      cert(std::move(cert_)),
+      cert(cert_),
       encryption_pub_key(encryption_pub_key_),
-      member_data(std::move(member_data_)),
+      member_data(member_data_),
       recovery_role(recovery_role_)
     {}
 
@@ -67,8 +67,8 @@ namespace ccf
         member_data == rhs.member_data && recovery_role == rhs.recovery_role;
     }
   };
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(NewMember);
-  DECLARE_JSON_REQUIRED_FIELDS(NewMember, cert);
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(NewMember)
+  DECLARE_JSON_REQUIRED_FIELDS(NewMember, cert)
   DECLARE_JSON_OPTIONAL_FIELDS(
     NewMember, encryption_pub_key, member_data, recovery_role);
 
@@ -89,9 +89,9 @@ namespace ccf
         recovery_role == rhs.recovery_role;
     }
   };
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(MemberDetails);
-  DECLARE_JSON_REQUIRED_FIELDS(MemberDetails, status);
-  DECLARE_JSON_OPTIONAL_FIELDS(MemberDetails, member_data, recovery_role);
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(MemberDetails)
+  DECLARE_JSON_REQUIRED_FIELDS(MemberDetails, status)
+  DECLARE_JSON_OPTIONAL_FIELDS(MemberDetails, member_data, recovery_role)
 
   using MemberInfo = ServiceMap<MemberId, MemberDetails>;
 
@@ -115,14 +115,14 @@ namespace ccf
     /// Next state digest the member is expected to sign.
     std::string state_digest;
 
-    StateDigest() = default;
+    StateDigest() {}
 
     StateDigest(const ccf::crypto::Sha256Hash& root) :
       state_digest(root.hex_str())
     {}
   };
-  DECLARE_JSON_TYPE(StateDigest);
-  DECLARE_JSON_REQUIRED_FIELDS(StateDigest, state_digest);
+  DECLARE_JSON_TYPE(StateDigest)
+  DECLARE_JSON_REQUIRED_FIELDS(StateDigest, state_digest)
 
   struct MemberAck : public StateDigest
   {
@@ -132,7 +132,7 @@ namespace ccf
     /// COSE Sign1 containing the last state digest
     std::optional<std::vector<uint8_t>> cose_sign1_req = std::nullopt;
 
-    MemberAck() = default;
+    MemberAck() {}
 
     MemberAck(const ccf::crypto::Sha256Hash& root) : StateDigest(root) {}
 
@@ -149,13 +149,13 @@ namespace ccf
       cose_sign1_req(cose_sign1_req_)
     {}
   };
-  DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(MemberAck, StateDigest);
+  DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(MemberAck, StateDigest)
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunused-parameter"
 #pragma clang diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
-  DECLARE_JSON_REQUIRED_FIELDS(MemberAck);
+  DECLARE_JSON_REQUIRED_FIELDS(MemberAck)
 #pragma clang diagnostic pop
-  DECLARE_JSON_OPTIONAL_FIELDS(MemberAck, signed_req, cose_sign1_req);
+  DECLARE_JSON_OPTIONAL_FIELDS(MemberAck, signed_req, cose_sign1_req)
   using MemberAcks = ServiceMap<MemberId, MemberAck>;
   namespace Tables
   {

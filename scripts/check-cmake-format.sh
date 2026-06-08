@@ -2,7 +2,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-set -uo pipefail
+set -u
 
 if [ "$#" -eq 0 ]; then
   echo "No args given - specify dir(s) to be formatted"
@@ -28,28 +28,39 @@ else
   echo "Checking file format in" "$@"
 fi
 
-if [ ! -x "$(command -v uv)" ]; then
-  echo "uv is required but not installed. See https://docs.astral.sh/uv/getting-started/installation/" >&2
-  exit 1
+if [ ! -f "scripts/env/bin/activate" ]
+    then
+        python3 -m venv scripts/env
 fi
 
-GERSEMI="uvx gersemi@0.27.0 --warnings-as-errors"
+source scripts/env/bin/activate
+pip install -U pip
+pip install cmake_format==0.6.11 1>/dev/null
 
-FILES=$(git ls-files "$@" | grep -e '\.cmake$' -e 'CMakeLists\.txt$')
-
-if $fix ; then
-  # shellcheck disable=SC2086
-  if ! $GERSEMI -i $FILES; then
-    echo "Formatting failed (unknown commands or other warnings treated as errors)"
-    exit 1
+unformatted_files=""
+for file in $(git ls-files "$@" | grep -e '\.cmake$' -e 'CMakeLists\.txt$'); do
+  cmake-format --check "$file" > /dev/null
+  d=$?
+  if $fix ; then
+    cmake-format -i "$file"
   fi
-  echo "All files formatted!"
-else
-  # shellcheck disable=SC2086
-  if $GERSEMI --check $FILES; then
-    echo "All files formatted correctly!"
+  if [ $d -ne 0 ]; then
+    if [ "$unformatted_files" != "" ]; then
+      unformatted_files+=$'\n'
+    fi
+    unformatted_files+="$file"
+  fi
+done
+
+if [ "$unformatted_files" != "" ]; then
+  if $fix ; then
+    echo "Formatted files:"
   else
-    echo "Fix formatting by running: scripts/cmake-format-checks.sh -f"
-    exit 1
+    echo "Fix formatting:"
   fi
+
+  echo "$unformatted_files"
+  exit 1
+else
+  echo "All files formatted correctly!"
 fi

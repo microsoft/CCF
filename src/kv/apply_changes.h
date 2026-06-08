@@ -15,6 +15,12 @@ namespace ccf::kv
   // maps in a stable order. The order here is by map name
   using MapCollection = std::map<std::string, std::shared_ptr<AbstractMap>>;
 
+  struct AbstractChangeContainer
+  {
+    virtual ~AbstractChangeContainer() = default;
+    virtual void set_change_list(OrderedChanges&& change_list, Term term) = 0;
+  };
+
   // Atomically checks for conflicts then applies the writes in the given change
   // sets to their underlying Maps. Calls f() at most once, iff the writes are
   // applied, to retrieve a unique Version for the write set and return the max
@@ -46,10 +52,10 @@ namespace ccf::kv
       views[map_name] = mc.map->create_committer(mc.changeset.get());
     }
 
-    for (auto& [map_name, mc] : changes)
+    for (auto it = changes.begin(); it != changes.end(); ++it)
     {
-      has_writes |= mc.changeset->has_writes();
-      mc.map->lock();
+      has_writes |= it->second.changeset->has_writes();
+      it->second.map->lock();
     }
 
     bool ok = true;
@@ -59,7 +65,7 @@ namespace ccf::kv
       // expected_rollback_count is only set on signature transactions
       // which always contain some writes, and on which all the maps
       // point to the same store.
-      auto* store = changes.begin()->second.map->get_store();
+      auto store = changes.begin()->second.map->get_store();
       if (store != nullptr)
       {
         // Note that this is done when holding the lock on at least some maps
@@ -75,9 +81,9 @@ namespace ccf::kv
 
     if (ok && has_writes)
     {
-      for (auto& [view_name, view_ptr] : views)
+      for (auto it = views.begin(); it != views.end(); ++it)
       {
-        if (!view_ptr->prepare())
+        if (!it->second->prepare())
         {
           ok = false;
           break;
@@ -93,11 +99,11 @@ namespace ccf::kv
       // versions. This is fine - none can create maps (ie - change their
       // conflict set with this operation) while we hold the store lock. Assume
       // that the caller is currently holding store->lock()
-      auto* store = map_ptr->get_store();
+      auto store = map_ptr->get_store();
 
       // This is to avoid recursively locking version_lock by calling
       // current_version() in the commit_reserved case.
-      ccf::kv::Version current_v = 0;
+      ccf::kv::Version current_v;
       if (new_maps_conflict_version.has_value())
       {
         current_v = *new_maps_conflict_version;
@@ -117,7 +123,7 @@ namespace ccf::kv
     if (ok && has_writes)
     {
       // Get the version number to be used for this commit.
-      ccf::kv::Version version_last_new_map = 0;
+      ccf::kv::Version version_last_new_map;
       std::tie(version, version_last_new_map) =
         version_resolver_fn(!new_maps.empty());
 
@@ -132,15 +138,15 @@ namespace ccf::kv
         }
       }
 
-      for (auto& [view_name, view_ptr] : views)
+      for (auto it = views.begin(); it != views.end(); ++it)
       {
-        view_ptr->commit(version, track_deletes_on_missing_keys);
+        it->second->commit(version, track_deletes_on_missing_keys);
       }
 
       // Collect ConsensusHooks
-      for (auto& [view_name, view_ptr] : views)
+      for (auto it = views.begin(); it != views.end(); ++it)
       {
-        auto hook_ptr = view_ptr->post_commit();
+        auto hook_ptr = it->second->post_commit();
         if (hook_ptr != nullptr)
         {
           hooks.push_back(std::move(hook_ptr));
@@ -148,9 +154,9 @@ namespace ccf::kv
       }
     }
 
-    for (auto& [map_name, mc] : changes)
+    for (auto it = changes.begin(); it != changes.end(); ++it)
     {
-      mc.map->unlock();
+      it->second.map->unlock();
     }
 
     if (!ok)

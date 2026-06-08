@@ -11,13 +11,26 @@ First, checkout the CCF repository:
 
 To build CCF from source, run the following:
 
-.. code-block:: bash
+.. tab:: SNP
 
-    $ cd CCF
-    $ mkdir build
-    $ cd build
-    $ cmake -GNinja .. 
-    $ ninja
+    .. code-block:: bash
+
+        $ cd CCF
+        $ mkdir build
+        $ cd build
+        $ cmake -GNinja -DCOMPILE_TARGET=snp .. 
+        $ ninja
+
+
+.. tab:: Virtual
+
+    .. code-block:: bash
+
+        $ cd CCF
+        $ mkdir build
+        $ cd build
+        $ cmake -GNinja -DCOMPILE_TARGET=virtual ..
+        $ ninja
 
 .. note:::
 
@@ -40,6 +53,7 @@ The most common build switches include:
 
 * **BUILD_TESTS**: Boolean. Build all tests for CCF. Default to ON.
 * **SAN**: Boolean. Build unit tests with Address and Undefined behaviour sanitizers enabled. Default to OFF.
+* **COMPILE_TARGET**: String. Target compilation platform. Defaults to ``snp``. Supported values are ``snp``, or ``virtual``.
 
 Run Tests
 ---------
@@ -53,12 +67,35 @@ Tests can be started through the ``tests.sh`` wrapper for ``ctest``.
 
 Although CCF's unit tests can be run through ``ctest`` directly, the end-to-end tests that start a network require some Python infrastructure. :ccf_repo:`tests.sh </tests/tests.sh>` will set up a virtual environment with these dependencies and activate it before running ``ctest``. Add ``-VV`` for verbose test output. Further runs will re-use that virtual environment.
 
+.. note::
+    On a full build of CCF, it is also possible to run tests with virtual enclaves by setting the ``TEST_ENCLAVE`` environment variable:
+
+    .. code-block:: bash
+
+        $ TEST_ENCLAVE=virtual ./tests.sh [-VV]
+
+    Tests that require enclave attestation will be skipped.
+
 Build Older Versions of CCF
 ---------------------------
 
-Building older versions of CCF may require a different toolchain than the one used to build the current ``main`` branch.
-To build a 5.x version of CCF locally without having to install another toolchain that may conflict with the current one, it is possible to use the ``ghcr.io/microsoft/ccf/ci/(default|sgx)`` images.
-The version tag of the ``ccf/ci`` image used to build the old version can be found in the :ccf_repo:`.github/workflows/ci.yml` YAML file.
+Building older versions of CCF may require a different toolchain than the one used to build the current ``main`` branch (e.g. 1.x CCF releases are built with `clang-8`).
+To build an old version of CCF locally without having to install another toolchain that may conflict with the current one, it is recommended to use the ``ccfciteam/ccf-ci`` docker image, later ``ccfmsrc.azurecr.io/ccf/ci`` and now ``ghcr.io/microsoft/ccf/ci/(default|sgx)`` since 5.0.0-rc0.
+The version tag of the ``cci-ci`` (later ``ccf/ci``) image used to build the old version can be found in the :ccf_repo:`.azure-pipelines.yml` YAML file (under ``resources:container:image``) before 5.0.0-rc0, and in the :ccf_repo:`.github/workflows/ci.yml` YAML file afterwards.
+
+.. code-block:: bash
+
+    $ export CCF_CI_IMAGE_TAG="oe0.17.2-clang-8" # e.g. building CCF 1.0.15
+    $ export LOCAL_CCF_CHECKOUT_PATH=/path/to/local/ccf/checkout
+    $ cd $LOCAL_CCF_CHECKOUT_PATH
+    $ git checkout ccf-1.0.15 # e.g. building CCF 1.0.15
+    $ docker run -ti --device /dev/sgx_enclave:/dev/sgx_enclave --device /dev/sgx_provision:/dev/sgx_provision -v $LOCAL_CCF_CHECKOUT_PATH:/CCF ccfmsrc.azurecr.io/ccf/ci:$CCF_CI_IMAGE_TAG-sgx bash
+    # container started, following lines are in container
+     $ cd CCF/
+     $ mkdir build_docker && cd build_docker
+     $ cmake -GNinja .. && ninja
+
+The built libraries and binaries are then available outside of the container in the ``build_docker`` directory in the local CCF checkout.
 
 Update the Documentation
 ------------------------

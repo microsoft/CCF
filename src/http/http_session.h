@@ -2,13 +2,13 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ds/internal_logger.h"
+#include "ccf/ds/logger.h"
+#include "ccf/http_responder.h"
 #include "enclave/client_session.h"
 #include "enclave/rpc_handler.h"
 #include "enclave/rpc_map.h"
 #include "error_reporter.h"
 #include "http_parser.h"
-#include "http_responder.h"
 #include "http_rpc_context.h"
 
 namespace http
@@ -26,25 +26,22 @@ namespace http
     std::shared_ptr<ccf::RpcHandler> handler;
     std::shared_ptr<ccf::SessionContext> session_ctx;
     std::shared_ptr<ErrorReporter> error_reporter;
-    std::shared_ptr<ccf::CommitCallbackSubsystem> commit_callbacks;
     ccf::ListenInterfaceID interface_id;
 
   public:
     HTTPServerSession(
-      std::shared_ptr<ccf::RPCMap> rpc_map_,
+      std::shared_ptr<ccf::RPCMap> rpc_map,
       ::tcp::ConnID session_id_,
-      ccf::ListenInterfaceID interface_id_,
+      const ccf::ListenInterfaceID& interface_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<ccf::tls::Context> ctx,
       const ccf::http::ParserConfiguration& configuration,
-      const std::shared_ptr<ErrorReporter>& error_reporter_,
-      const std::shared_ptr<ccf::CommitCallbackSubsystem>& commit_callbacks_) :
+      const std::shared_ptr<ErrorReporter>& error_reporter = nullptr) :
       HTTPSession(session_id_, writer_factory, std::move(ctx)),
       request_parser(*this, configuration),
-      rpc_map(std::move(rpc_map_)),
-      error_reporter(error_reporter_),
-      commit_callbacks(commit_callbacks_),
-      interface_id(std::move(interface_id_))
+      rpc_map(rpc_map),
+      error_reporter(error_reporter),
+      interface_id(interface_id)
     {}
 
     bool parse(std::span<const uint8_t> data) override
@@ -70,7 +67,7 @@ namespace http
           ccf::errors::RequestBodyTooLarge,
           e.what()});
 
-        close_session();
+        tls_io->close();
       }
       catch (RequestHeaderTooLargeException& e)
       {
@@ -86,7 +83,7 @@ namespace http
           ccf::errors::RequestHeaderTooLarge,
           e.what()});
 
-        close_session();
+        tls_io->close();
       }
       catch (const std::exception& e)
       {
@@ -116,7 +113,7 @@ namespace http
           {},
           std::move(response_body));
 
-        close_session();
+        tls_io->close();
       }
 
       return false;
@@ -127,7 +124,7 @@ namespace http
       const std::string_view& url,
       ccf::http::HeaderMap&& headers,
       std::vector<uint8_t>&& body,
-      int32_t /*stream_id*/) override
+      int32_t) override
     {
       LOG_TRACE_FMT(
         "Processing msg({}, {} [{} bytes])",
@@ -160,8 +157,7 @@ namespace http
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
             fmt::format("Error constructing RpcContext: {}", e.what())});
-          close_session();
-          return;
+          tls_io->close();
         }
 
         std::shared_ptr<ccf::RpcHandler> search =
@@ -175,74 +171,17 @@ namespace http
           LOG_TRACE_FMT("Pending");
           return;
         }
-
-        const auto& respond_on_commit = rpc_ctx->respond_on_commit;
-        if (respond_on_commit.has_value())
-        {
-          const auto& info = respond_on_commit.value();
-          auto tx_id = info.tx_id;
-          auto committed_func = info.committed_func;
-          auto ws_digest = info.write_set_digest;
-          auto ce = info.commit_evidence;
-          auto claims = info.claims_digest;
-
-          // Block any future work from happening on this session, to
-          // maintain session consistency
-          ccf::tasks::Resumable paused_task = ccf::tasks::pause_current_task();
-
-          // shared_from_this returns a base session type
-          std::shared_ptr<ccf::ThreadedSession> self = shared_from_this();
-
-          // Register for a callback when this TxID is committed (or
-          // invalidated)
-          commit_callbacks->add_callback(
-            tx_id,
-            [self, rpc_ctx, paused_task, committed_func, ws_digest, ce, claims](
-              ccf::TxID transaction_id, ccf::FinalTxStatus status) {
-              try
-              {
-                // Build the context and let the handler modify the response
-                ccf::endpoints::CommittedTxInfo info{
-                  rpc_ctx, transaction_id, status, ws_digest, ce, claims};
-                committed_func(info);
-
-                // Write the response
-                send_response_impl(
-                  *self,
-                  rpc_ctx->get_response_http_status(),
-                  rpc_ctx->get_response_headers(),
-                  rpc_ctx->get_response_trailers(),
-                  std::move(rpc_ctx->take_response_body()));
-              }
-              catch (const std::exception& e)
-              {
-                LOG_FAIL_FMT(
-                  "Exception thrown while executing commit callback for {}: {}",
-                  transaction_id.to_str(),
-                  e.what());
-                rpc_ctx->terminate_session = true;
-              }
-
-              if (rpc_ctx->terminate_session)
-              {
-                self->close_session();
-              }
-
-              // Resume processing work for this session
-              ccf::tasks::resume_task(paused_task);
-            });
-        }
         else
         {
           send_response(
             rpc_ctx->get_response_http_status(),
             rpc_ctx->get_response_headers(),
             rpc_ctx->get_response_trailers(),
-            std::move(rpc_ctx->take_response_body()));
+            std::move(rpc_ctx->get_response_body()));
 
           if (rpc_ctx->terminate_session)
           {
-            close_session();
+            tls_io->close();
           }
         }
       }
@@ -256,17 +195,16 @@ namespace http
         // On any exception, close the connection.
         LOG_FAIL_FMT("Closing connection");
         LOG_DEBUG_FMT("Closing connection due to exception: {}", e.what());
-        close_session();
+        tls_io->close();
         throw;
       }
     }
 
-    static bool send_response_impl(
-      ccf::ThreadedSession& session,
+    bool send_response(
       ccf::http_status status_code,
       ccf::http::HeaderMap&& headers,
       ccf::http::HeaderMap&& trailers,
-      std::vector<uint8_t>&& body)
+      std::span<const uint8_t> body) override
     {
       if (!trailers.empty())
       {
@@ -285,22 +223,31 @@ namespace http
         false /* Don't overwrite any existing content-length header */
       );
 
-      session.send_data(response.build_response());
+      auto data = response.build_response();
+      tls_io->send_raw(data.data(), data.size());
       return true;
     }
 
-    bool send_response(
-      ccf::http_status status_code,
-      ccf::http::HeaderMap&& headers,
-      ccf::http::HeaderMap&& trailers,
-      std::vector<uint8_t>&& body) override
+    bool start_stream(
+      ccf::http_status status, const ccf::http::HeaderMap& headers) override
     {
-      return send_response_impl(
-        *this,
-        status_code,
-        std::move(headers),
-        std::move(trailers),
-        std::move(body));
+      throw std::logic_error("Not implemented!");
+    }
+
+    bool stream_data(std::span<const uint8_t> data) override
+    {
+      throw std::logic_error("Not implemented!");
+    }
+
+    bool close_stream(ccf::http::HeaderMap&&) override
+    {
+      throw std::logic_error("Not implemented!");
+    }
+
+    bool set_on_stream_close_callback(
+      ccf::http::StreamOnCloseCallback cb) override
+    {
+      throw std::logic_error("Not implemented!");
     }
   };
 
@@ -337,8 +284,7 @@ namespace http
         LOG_DEBUG_FMT(
           "Error occurred while parsing fragment {} byte fragment:\n{}",
           data.size(),
-          std::string_view(
-            reinterpret_cast<char const*>(data.data()), data.size()));
+          std::string_view((char const*)data.data(), data.size()));
 
         close_session();
       }
@@ -348,7 +294,7 @@ namespace http
     void send_request(http::Request&& request) override
     {
       auto data = request.build_request();
-      send_data(std::move(data));
+      send_data(data);
     }
 
     void connect(
@@ -415,8 +361,7 @@ namespace http
         LOG_DEBUG_FMT(
           "Error occurred while parsing fragment {} byte fragment:\n{}",
           data.size(),
-          std::string_view(
-            reinterpret_cast<char const*>(data.data()), data.size()));
+          std::string_view((char const*)data.data(), data.size()));
 
         close_session();
       }
@@ -426,7 +371,7 @@ namespace http
     void send_request(http::Request&& request) override
     {
       auto data = request.build_request();
-      send_data(std::move(data));
+      send_data(data);
     }
 
     void connect(

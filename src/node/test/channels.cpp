@@ -18,14 +18,30 @@
 #include <queue>
 #include <random>
 
-#define DOCTEST_CONFIG_IMPLEMENT
+#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
+
+namespace ccf::enclavetime
+{
+  std::atomic<long long>* host_time_us = nullptr;
+  std::atomic<std::chrono::microseconds> last_value(
+    std::chrono::microseconds(0));
+}
+
+namespace ccf
+{
+  std::chrono::microseconds Channel::min_gap_between_initiation_attempts(5'000);
+}
 
 void sleep_to_reinitiate()
 {
-  std::this_thread::sleep_for(
-    2 * ccf::Channel::min_gap_between_initiation_attempts());
+  ccf::enclavetime::last_value.store(
+    ccf::enclavetime::last_value.load() +
+    2 * ccf::Channel::min_gap_between_initiation_attempts);
 }
+
+std::unique_ptr<threading::ThreadMessaging>
+  threading::ThreadMessaging::singleton = nullptr;
 
 class IORingbuffersFixture
 {
@@ -81,7 +97,7 @@ static std::pair<std::string, size_t> make_validity_pair(bool expired)
 }
 
 static ccf::crypto::Pem generate_self_signed_cert(
-  const ccf::crypto::ECKeyPairPtr& kp,
+  const ccf::crypto::KeyPairPtr& kp,
   const std::string& name,
   bool expired = false)
 {
@@ -92,9 +108,9 @@ static ccf::crypto::Pem generate_self_signed_cert(
 }
 
 static ccf::crypto::Pem generate_endorsed_cert(
-  const ccf::crypto::ECKeyPairPtr& kp,
+  const ccf::crypto::KeyPairPtr& kp,
   const std::string& name,
-  const ccf::crypto::ECKeyPairPtr& issuer_kp,
+  const ccf::crypto::KeyPairPtr& issuer_kp,
   const ccf::crypto::Pem& issuer_cert,
   bool expired = false)
 {
@@ -227,14 +243,14 @@ NodeOutboundMsg<MsgType> get_first(
 
 TEST_CASE_FIXTURE(IORingbuffersFixture, "Client/Server key exchange")
 {
-  auto network_kp = ccf::crypto::make_ec_key_pair(default_curve);
+  auto network_kp = ccf::crypto::make_key_pair(default_curve);
   auto service_cert = generate_self_signed_cert(network_kp, "CN=Network");
 
-  auto channel1_kp = ccf::crypto::make_ec_key_pair(default_curve);
+  auto channel1_kp = ccf::crypto::make_key_pair(default_curve);
   auto channel1_cert =
     generate_endorsed_cert(channel1_kp, "CN=Node1", network_kp, service_cert);
 
-  auto channel2_kp = ccf::crypto::make_ec_key_pair(default_curve);
+  auto channel2_kp = ccf::crypto::make_key_pair(default_curve);
   auto channel2_cert =
     generate_endorsed_cert(channel2_kp, "CN=Node2", network_kp, service_cert);
 
@@ -438,14 +454,14 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Client/Server key exchange")
 
 TEST_CASE_FIXTURE(IORingbuffersFixture, "Replay and out-of-order")
 {
-  auto network_kp = ccf::crypto::make_ec_key_pair(default_curve);
+  auto network_kp = ccf::crypto::make_key_pair(default_curve);
   auto service_cert = generate_self_signed_cert(network_kp, "CN=Network");
 
-  auto channel1_kp = ccf::crypto::make_ec_key_pair(default_curve);
+  auto channel1_kp = ccf::crypto::make_key_pair(default_curve);
   auto channel1_cert =
     generate_endorsed_cert(channel1_kp, "CN=Node1", network_kp, service_cert);
 
-  auto channel2_kp = ccf::crypto::make_ec_key_pair(default_curve);
+  auto channel2_kp = ccf::crypto::make_key_pair(default_curve);
   auto channel2_cert =
     generate_endorsed_cert(channel2_kp, "CN=Node2", network_kp, service_cert);
 
@@ -614,10 +630,10 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Replay and out-of-order")
 
 TEST_CASE_FIXTURE(IORingbuffersFixture, "Host connections")
 {
-  auto network_kp = ccf::crypto::make_ec_key_pair(default_curve);
+  auto network_kp = ccf::crypto::make_key_pair(default_curve);
   auto service_cert = generate_self_signed_cert(network_kp, "CN=Network");
 
-  auto channel_kp = ccf::crypto::make_ec_key_pair(default_curve);
+  auto channel_kp = ccf::crypto::make_key_pair(default_curve);
   auto channel_cert =
     generate_endorsed_cert(channel_kp, "CN=Node", network_kp, service_cert);
 
@@ -663,14 +679,14 @@ static std::vector<NodeOutboundMsg<MsgType>> get_all_msgs(
 
 TEST_CASE_FIXTURE(IORingbuffersFixture, "Concurrent key exchange init")
 {
-  auto network_kp = ccf::crypto::make_ec_key_pair(default_curve);
+  auto network_kp = ccf::crypto::make_key_pair(default_curve);
   auto service_cert = generate_self_signed_cert(network_kp, "CN=Network");
 
-  auto channel1_kp = ccf::crypto::make_ec_key_pair(default_curve);
+  auto channel1_kp = ccf::crypto::make_key_pair(default_curve);
   auto channel1_cert =
     generate_endorsed_cert(channel1_kp, "CN=Node1", network_kp, service_cert);
 
-  auto channel2_kp = ccf::crypto::make_ec_key_pair(default_curve);
+  auto channel2_kp = ccf::crypto::make_key_pair(default_curve);
   auto channel2_cert =
     generate_endorsed_cert(channel2_kp, "CN=Node1", network_kp, service_cert);
 
@@ -788,16 +804,16 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Full NodeToNode test")
   {
     LOG_DEBUG_FMT("Iteration: {}", i++);
 
-    auto network_kp = ccf::crypto::make_ec_key_pair(curves.network);
+    auto network_kp = ccf::crypto::make_key_pair(curves.network);
     auto service_cert = generate_self_signed_cert(network_kp, "CN=Network");
 
     auto ni1 = std::string("N1");
-    auto channel1_kp = ccf::crypto::make_ec_key_pair(curves.node_1);
+    auto channel1_kp = ccf::crypto::make_key_pair(curves.node_1);
     auto channel1_cert =
       generate_endorsed_cert(channel1_kp, "CN=Node1", network_kp, service_cert);
 
     auto ni2 = std::string("N2");
-    auto channel2_kp = ccf::crypto::make_ec_key_pair(curves.node_2);
+    auto channel2_kp = ccf::crypto::make_key_pair(curves.node_2);
     auto channel2_cert =
       generate_endorsed_cert(channel2_kp, "CN=Node2", network_kp, service_cert);
 
@@ -883,14 +899,14 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Full NodeToNode test")
 
 TEST_CASE_FIXTURE(IORingbuffersFixture, "Interrupted key exchange")
 {
-  auto network_kp = ccf::crypto::make_ec_key_pair(default_curve);
+  auto network_kp = ccf::crypto::make_key_pair(default_curve);
   auto service_cert = generate_self_signed_cert(network_kp, "CN=Network");
 
-  auto channel1_kp = ccf::crypto::make_ec_key_pair(default_curve);
+  auto channel1_kp = ccf::crypto::make_key_pair(default_curve);
   auto channel1_cert =
     generate_endorsed_cert(channel1_kp, "CN=Node1", network_kp, service_cert);
 
-  auto channel2_kp = ccf::crypto::make_ec_key_pair(default_curve);
+  auto channel2_kp = ccf::crypto::make_key_pair(default_curve);
   auto channel2_cert =
     generate_endorsed_cert(channel2_kp, "CN=Node1", network_kp, service_cert);
 
@@ -1034,14 +1050,14 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Stuttering handshake")
   MsgType aad;
   aad.fill(0x10);
 
-  auto network_kp = ccf::crypto::make_ec_key_pair(default_curve);
+  auto network_kp = ccf::crypto::make_key_pair(default_curve);
   auto service_cert = generate_self_signed_cert(network_kp, "CN=Network");
 
-  auto channel1_kp = ccf::crypto::make_ec_key_pair(default_curve);
+  auto channel1_kp = ccf::crypto::make_key_pair(default_curve);
   auto channel1_cert =
     generate_endorsed_cert(channel1_kp, "CN=Node1", network_kp, service_cert);
 
-  auto channel2_kp = ccf::crypto::make_ec_key_pair(default_curve);
+  auto channel2_kp = ccf::crypto::make_key_pair(default_curve);
   auto channel2_cert =
     generate_endorsed_cert(channel2_kp, "CN=Node1", network_kp, service_cert);
 
@@ -1108,9 +1124,9 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Stuttering handshake")
 
 TEST_CASE_FIXTURE(IORingbuffersFixture, "Expired certs")
 {
-  auto network_kp = ccf::crypto::make_ec_key_pair(default_curve);
-  auto channel1_kp = ccf::crypto::make_ec_key_pair(default_curve);
-  auto channel2_kp = ccf::crypto::make_ec_key_pair(default_curve);
+  auto network_kp = ccf::crypto::make_key_pair(default_curve);
+  auto channel1_kp = ccf::crypto::make_key_pair(default_curve);
+  auto channel2_kp = ccf::crypto::make_key_pair(default_curve);
 
   auto service_cert = generate_self_signed_cert(network_kp, "CN=MyNetwork");
   auto channel1_cert =
@@ -1167,14 +1183,14 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Expired certs")
 
 TEST_CASE_FIXTURE(IORingbuffersFixture, "Robust key exchange")
 {
-  auto network_kp = ccf::crypto::make_ec_key_pair(default_curve);
+  auto network_kp = ccf::crypto::make_key_pair(default_curve);
   auto service_cert = generate_self_signed_cert(network_kp, "CN=Network");
 
-  auto channel1_kp = ccf::crypto::make_ec_key_pair(default_curve);
+  auto channel1_kp = ccf::crypto::make_key_pair(default_curve);
   auto channel1_cert =
     generate_endorsed_cert(channel1_kp, "CN=Node1", network_kp, service_cert);
 
-  auto channel2_kp = ccf::crypto::make_ec_key_pair(default_curve);
+  auto channel2_kp = ccf::crypto::make_key_pair(default_curve);
   auto channel2_cert =
     generate_endorsed_cert(channel2_kp, "CN=Node1", network_kp, service_cert);
 
@@ -1406,7 +1422,7 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Robust key exchange")
 // multiple key rotation exchanges happening during the sequence
 TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
 {
-  auto network_kp = ccf::crypto::make_ec_key_pair(default_curve);
+  auto network_kp = ccf::crypto::make_key_pair(default_curve);
   auto service_cert = generate_self_signed_cert(network_kp, "CN=Network");
 
   using SendQueue = std::queue<std::vector<uint8_t>>;
@@ -1589,7 +1605,7 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
     }
   }
 
-  auto kp1 = ccf::crypto::make_ec_key_pair(default_curve);
+  auto kp1 = ccf::crypto::make_key_pair(default_curve);
   NodeToNodeChannelManager channels1(nbwf1);
   channels1.initialize(
     nid1,
@@ -1600,7 +1616,7 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
   channels1.set_message_limit(message_limit);
   TmpChannel tc1(nid1, nid2, eio2, nbwf1, channels1, to_send_from_1);
 
-  auto kp2 = ccf::crypto::make_ec_key_pair(default_curve);
+  auto kp2 = ccf::crypto::make_key_pair(default_curve);
   NodeToNodeChannelManager channels2(nbwf2);
   channels2.initialize(
     nid2,
@@ -1676,14 +1692,14 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
 
 TEST_CASE_FIXTURE(IORingbuffersFixture, "Timeout idle channels")
 {
-  auto network_kp = ccf::crypto::make_ec_key_pair(default_curve);
+  auto network_kp = ccf::crypto::make_key_pair(default_curve);
   auto service_cert = generate_self_signed_cert(network_kp, "CN=Network");
 
-  auto channel1_kp = ccf::crypto::make_ec_key_pair(default_curve);
+  auto channel1_kp = ccf::crypto::make_key_pair(default_curve);
   auto channel1_cert =
     generate_endorsed_cert(channel1_kp, "CN=Node1", network_kp, service_cert);
 
-  auto channel2_kp = ccf::crypto::make_ec_key_pair(default_curve);
+  auto channel2_kp = ccf::crypto::make_key_pair(default_curve);
   auto channel2_cert =
     generate_endorsed_cert(channel2_kp, "CN=Node2", network_kp, service_cert);
 
@@ -1819,19 +1835,4 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Timeout idle channels")
     channels2.tick(not_quite_idle);
     REQUIRE_FALSE(channels2.have_channel(nid1));
   }
-}
-
-int main(int argc, char** argv)
-{
-  // We regularly sleep to re-initiate during this test, so reduce this value to
-  // reduce total test run-time
-  Channel::min_gap_between_initiation_attempts() =
-    std::chrono::microseconds(5'000);
-
-  doctest::Context context;
-  context.applyCommandLine(argc, argv);
-  int res = context.run();
-  if (context.shouldExit())
-    return res;
-  return res;
 }

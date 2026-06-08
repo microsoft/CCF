@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
@@ -6,14 +5,6 @@ import argparse
 import re
 import sys
 import subprocess
-import tomllib
-
-
-# Utility function that can convert a git/CCF version
-# (e.g. 7.0.0-dev10) into a Python version (e.g. 7.0.0.dev10) for comparison with the version in pyproject.toml.
-def git_to_python_version(git_version):
-    python_version = git_version.replace("-", ".", 1)
-    return python_version
 
 
 def main():
@@ -62,11 +53,15 @@ def main():
     release_notes = {}
     links_found = []
 
-    version_in_pyproject = None
-    with open("python/pyproject.toml", "rb") as pyproject:
-        config = tomllib.load(pyproject)
-        version_in_pyproject = config.get("project", {}).get("version")
-    assert version_in_pyproject is not None, "Could not find version in pyproject.toml"
+    # Check that pyproject.toml is up to date
+    # Once we have upgraded to Python 3.11, we can use tomllib to parse pyproject.toml
+    pyproject_version = None
+    with open("python/pyproject.toml") as pyproject:
+        for line in pyproject:
+            if line.startswith("version"):
+                _, version = line.split("=")
+                pyproject_version = version.strip().strip('"')
+    assert pyproject_version is not None, "Could not find version in pyproject.toml"
 
     # Parse file, bucketing lines into each version's release notes
     current_release_notes = None
@@ -77,8 +72,8 @@ def main():
                 current_release_notes = []
                 if not release_notes:
                     assert (
-                        git_to_python_version(log_version) == version_in_pyproject
-                    ), f"First version in CHANGELOG ({log_version}) must match version in pyproject.toml ({version_in_pyproject})"
+                        log_version == pyproject_version
+                    ), f"First version in CHANGELOG ({log_version}) must match version in pyproject.toml ({pyproject_version})"
                 release_notes[log_version] = current_release_notes
             elif match := link_definition.match(line):
                 link_version = match.group(1)

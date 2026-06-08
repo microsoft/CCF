@@ -20,7 +20,7 @@ namespace ccf::indexing
 
   struct FetchResult
   {
-    enum class FetchResultType : uint8_t
+    enum FetchResultType
     {
       Fetching,
       Loaded,
@@ -39,7 +39,7 @@ namespace ccf::indexing
   class AbstractLFSAccess : public ccf::AbstractNodeSubSystem
   {
   public:
-    ~AbstractLFSAccess() override = default;
+    virtual ~AbstractLFSAccess() = default;
 
     static char const* get_subsystem_name()
     {

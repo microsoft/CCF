@@ -126,10 +126,7 @@ Supporting Types
 Historical Queries
 ------------------
 
-.. doxygenfunction:: ccf::historical::read_only_adapter_v4
-   :project: CCF
-
-.. doxygenfunction:: ccf::historical::read_write_adapter_v4
+.. doxygenfunction:: ccf::historical::adapter_v3
    :project: CCF
 
 .. doxygenclass:: ccf::historical::AbstractStateCache
@@ -187,22 +184,3 @@ COSE
 
 .. doxygenfunction:: ccf::cose::edit::set_unprotected_header
    :project: CCF
-
-Network Identity
-----------------
-
-.. doxygentypedef:: ccf::RawCoseEndorsement
-   :project: CCF
-
-.. doxygentypedef:: ccf::CoseEndorsementsChain
-   :project: CCF
-
-.. doxygenenum:: ccf::FetchStatus
-   :project: CCF
-
-.. doxygentypedef:: ccf::TrustedKeys
-   :project: CCF
-
-.. doxygenclass:: ccf::NetworkIdentitySubsystemInterface
-   :project: CCF
-   :members:

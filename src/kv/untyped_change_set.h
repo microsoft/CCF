@@ -5,9 +5,14 @@
 #include "ccf/byte_vector.h"
 #include "ccf/kv/hooks.h"
 #include "ccf/kv/untyped.h"
-#include "ds/champ_map.h"
 #include "kv/kv_types.h"
 #include "kv/version_v.h"
+
+#ifndef KV_STATE_RB
+#  include "ds/champ_map.h"
+#else
+#  include "ds/rb_map.h"
+#endif
 
 namespace ccf::kv::untyped
 {
@@ -20,7 +25,11 @@ namespace ccf::kv::untyped
 
   using VersionV = ccf::kv::VersionV<V>;
 
+#ifndef KV_STATE_RB
   using State = champ::Map<K, VersionV, H>;
+#else
+  using State = rb::Map<K, VersionV>;
+#endif
 
   // This is a map of keys and with a tuple of the key's write version and
   // the version of last transaction which read the key and committed
@@ -33,17 +42,17 @@ namespace ccf::kv::untyped
   struct ChangeSet : public AbstractChangeSet
   {
   protected:
-    ChangeSet() = default;
+    ChangeSet() {}
 
   public:
     const size_t rollback_counter = {};
-    const ccf::kv::untyped::State state;
-    const ccf::kv::untyped::State committed;
+    const ccf::kv::untyped::State state = {};
+    const ccf::kv::untyped::State committed = {};
     const Version start_version = {};
 
     Version read_version = NoVersion;
-    ccf::kv::untyped::Read reads;
-    ccf::kv::untyped::Write writes;
+    ccf::kv::untyped::Read reads = {};
+    ccf::kv::untyped::Write writes = {};
 
     ChangeSet(
       size_t rollbacks,
@@ -55,12 +64,12 @@ namespace ccf::kv::untyped
       state(current_state),
       committed(committed_state),
       start_version(current_version),
-      writes(std::move(changed_writes))
+      writes(changed_writes)
     {}
 
     ChangeSet(ChangeSet&) = delete;
 
-    [[nodiscard]] bool has_writes() const override
+    bool has_writes() const override
     {
       return !writes.empty();
     }
@@ -83,7 +92,7 @@ namespace ccf::kv::untyped
 
     SnapshotChangeSet(SnapshotChangeSet&) = delete;
 
-    [[nodiscard]] bool has_writes() const override
+    bool has_writes() const override
     {
       return true;
     }
@@ -127,8 +136,8 @@ namespace map
     const uint8_t*& data, size_t& size)
   {
     ccf::kv::untyped::VersionV ret;
-    auto data_size = serialized::read<uint64_t>(data, size);
-    auto version = serialized::read<ccf::kv::Version>(data, size);
+    uint64_t data_size = serialized::read<uint64_t>(data, size);
+    ccf::kv::Version version = serialized::read<ccf::kv::Version>(data, size);
     ret.version = version;
     data_size -= sizeof(ccf::kv::Version);
     ret.value.append(data, data + data_size);
@@ -162,7 +171,7 @@ namespace map
   inline ccf::kv::untyped::SerialisedEntry deserialize<
     ccf::kv::untyped::SerialisedEntry>(const uint8_t*& data, size_t& size)
   {
-    auto data_size = serialized::read<uint64_t>(data, size);
+    uint64_t data_size = serialized::read<uint64_t>(data, size);
     ccf::kv::untyped::SerialisedEntry ret;
     ret.append(data, data + data_size);
     serialized::skip(data, size, data_size);

@@ -17,16 +17,15 @@ namespace ccf
     static constexpr auto SECURITY_SCHEME_NAME = "no_auth";
 
     std::unique_ptr<AuthnIdentity> authenticate(
-      [[maybe_unused]] ccf::kv::ReadOnlyTx& tx,
-      [[maybe_unused]] const std::shared_ptr<ccf::RpcContext>& ctx,
-      [[maybe_unused]] std::string& error_reason) override;
+      ccf::kv::ReadOnlyTx&,
+      const std::shared_ptr<ccf::RpcContext>&,
+      std::string&) override;
 
     void set_unauthenticated_error(
-      [[maybe_unused]] std::shared_ptr<ccf::RpcContext> ctx,
-      [[maybe_unused]] std::string&& error_reason) override;
+      std::shared_ptr<ccf::RpcContext>, std::string&&) override;
 
-    [[nodiscard]] std::optional<OpenAPISecuritySchema>
-    get_openapi_security_schema() const override
+    std::optional<OpenAPISecuritySchema> get_openapi_security_schema()
+      const override
     {
       return unauthenticated_schema;
     }

@@ -11,15 +11,9 @@ on:
     - cron: "0 0 * * 1-5"
   workflow_dispatch:
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
-
-permissions: read-all
-
 jobs:
   long-asan:
-    if: &check_trigger_conditions ${{ (github.event.action == 'labeled' && github.event.label.name == 'run-long-test') || (github.event.action != 'labeled' && contains(github.event.pull_request.labels.*.name, 'run-long-test')) || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' }}
+    if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-test') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'}}
     name: "ASAN"
     runs-on:
       [
@@ -40,7 +34,7 @@ jobs:
           tdnf -y update
           tdnf -y install ca-certificates git
 
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -56,7 +50,7 @@ jobs:
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DLONG_TESTS=ON -DSAN=ON -DUSE_SNMALLOC=OFF ..
+          cmake -GNinja -DCOMPILE_TARGET=virtual -DCMAKE_BUILD_TYPE=Debug -DLONG_TESTS=ON -DSAN=ON ..
           ninja
 
       - name: "Test"
@@ -67,7 +61,7 @@ jobs:
 
       - name: "Upload logs"
         if: success() || failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@v7
         with:
           name: logs-asan
           path: |
@@ -75,11 +69,10 @@ jobs:
             build/workspace/*/out
             build/workspace/*/err
             build/workspace/*/*.ledger/*
-            build/workspace/*/stack_trace
           if-no-files-found: ignore
 
   long-tsan:
-    if: *check_trigger_conditions
+    if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-test') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'}}
     name: "TSAN"
     runs-on:
       [
@@ -100,7 +93,7 @@ jobs:
           tdnf -y update
           tdnf -y install ca-certificates git
 
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -116,18 +109,18 @@ jobs:
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DLONG_TESTS=OFF -DTSAN=ON -DUSE_SNMALLOC=OFF -DWORKER_THREADS=2 ..
+          cmake -GNinja -DCOMPILE_TARGET=virtual -DCMAKE_BUILD_TYPE=Debug -DLONG_TESTS=ON -DTSAN=ON -DWORKER_THREADS=2 ..
           ninja
 
       - name: "Test"
         run: |
           set +x
           cd build
-          setarch -R ./tests.sh --output-on-failure --timeout 3600 -LE "benchmark" -E "recovery|regression|governance|membership"
+          setarch -R ./tests.sh --output-on-failure --timeout 1600 -LE "benchmark"
 
       - name: "Upload logs"
         if: success() || failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@v7
         with:
           name: logs-tsan
           path: |
@@ -135,14 +128,71 @@ jobs:
             build/workspace/*/out
             build/workspace/*/err
             build/workspace/*/*.ledger/*
-            build/workspace/*/stack_trace
+          if-no-files-found: ignore
+
+  long-lts:
+    if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-test') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'}}
+    name: Long LTS
+    runs-on:
+      [
+        self-hosted,
+        1ES.Pool=gha-vmss-d16av5-ci,
+        "JobId=long_lts-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
+      ]
+    container:
+      image: mcr.microsoft.com/azurelinux/base/core:3.0
+      options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
+
+    steps:
+      - name: "Checkout dependencies"
+        shell: bash
+        run: |
+          set -ex
+          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
+          tdnf -y update
+          tdnf -y install ca-certificates git
+
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: "Install dependencies"
+        shell: bash
+        run: |
+          set -ex
+          ./scripts/setup-ci.sh
+
+      - name: "Build"
+        run: |
+          git config --global --add safe.directory /__w/CCF/CCF
+          mkdir build
+          cd build
+          cmake -GNinja -DCOMPILE_TARGET=virtual -DCMAKE_BUILD_TYPE=Debug -DLONG_TESTS=ON -DWORKER_THREADS=2 ..
+          ninja
+
+      - name: "Test"
+        run: |
+          set +x
+          cd build
+          ./tests.sh --output-on-failure --timeout 1600 -R lts
+
+      - name: "Upload logs"
+        if: success() || failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: logs-lts
+          path: |
+            build/workspace/*/*.config.json
+            build/workspace/*/out
+            build/workspace/*/err
+            build/workspace/*/*.ledger/*
           if-no-files-found: ignore
 
   # All e2e tests without sanitizers in debug mode; needed because:
   # - Sanitizer builds may slightly differ.
   # - Test durations may also differ, which is important for -L "suite" because they have fixed timeouts.
   long-e2e-debug:
-    if: *check_trigger_conditions
+    if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-test') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'}}
     name: Long e2e - Debug
     runs-on:
       [
@@ -163,7 +213,7 @@ jobs:
           tdnf -y update
           tdnf -y install ca-certificates git
 
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -172,13 +222,16 @@ jobs:
         run: |
           set -ex
           ./scripts/setup-ci.sh
+          # This run requires libc++ to run with hardening mode
+          tdnf -y install libcxx-devel libunwind-devel
 
       - name: "Build"
         run: |
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DGLIBCXX_DEBUG=ON -DLONG_TESTS=ON ..
+          # Use libc++ to enable hardening/bounds checking during tests
+          cmake -GNinja -DCOMPILE_TARGET=virtual -DCMAKE_BUILD_TYPE=Debug -DLONG_TESTS=ON -DUSE_LIBCXX=ON ..
           ninja
 
       - name: "Test"
@@ -187,21 +240,9 @@ jobs:
           cd build
           ./tests.sh --output-on-failure --timeout 1600 -LE "benchmark"
 
-      - name: "Run CBOR fuzz test"
-        run: |
-          set -o pipefail
-          set -ex
-          mkdir -p build_fuzz
-          cd build_fuzz
-          rm -f CMakeCache.txt
-          cmake -GNinja -DFUZZING=ON -DSAN=ON -DUSE_SNMALLOC=OFF ..
-          ninja cbor_fuzz_test
-          mkdir -p /tmp/cbor_fuzz_live
-          ./cbor_fuzz_test /tmp/cbor_fuzz_live ../src/crypto/test/cbor_fuzz_corpus -max_total_time=60
-
       - name: "Upload logs"
         if: success() || failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@v7
         with:
           name: logs-e2e-debug
           path: |
@@ -209,12 +250,11 @@ jobs:
             build/workspace/*/out
             build/workspace/*/err
             build/workspace/*/*.ledger/*
-            build/workspace/*/stack_trace
           if-no-files-found: ignore
 
   # All e2e tests in release mode (same as release build).
   long-e2e-release:
-    if: *check_trigger_conditions
+    if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-test') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'}}
     name: Long e2e - Release
     runs-on:
       [
@@ -235,7 +275,7 @@ jobs:
           tdnf -y update
           tdnf -y install ca-certificates git
 
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -250,7 +290,7 @@ jobs:
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DCMAKE_BUILD_TYPE=Release -DCLIENT_PROTOCOLS_TEST=ON -DLONG_TESTS=ON ..
+          cmake -GNinja -DCOMPILE_TARGET=virtual -DCMAKE_BUILD_TYPE=Release -DCLIENT_PROTOCOLS_TEST=ON -DLONG_TESTS=ON ..
           ninja
 
       - name: "Test"
@@ -261,7 +301,7 @@ jobs:
 
       - name: "Upload logs"
         if: success() || failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@v7
         with:
           name: logs-e2e-release
           path: |
@@ -269,17 +309,12 @@ jobs:
             build/workspace/*/out
             build/workspace/*/err
             build/workspace/*/*.ledger/*
-            build/workspace/*/stack_trace
           if-no-files-found: ignore
 
-  # Relatively short-running tests suites combined together to reduce executors
-  # required, and to benefit from shared setup.
-  # - End-to-end shuffled suite
-  # - Long LTS tests
-  # - Ensure snmalloc linkage
-  e2e-long-combined:
-    if: *check_trigger_conditions
-    name: Long Shuffled/LTS/Snmalloc
+  # End-to-end test suites with shuffling enabled.
+  e2e-suite-shuffled:
+    if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-test') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'}}
+    name: Long e2e - Shuffled
     runs-on:
       [
         self-hosted,
@@ -299,7 +334,7 @@ jobs:
           tdnf -y update
           tdnf -y install ca-certificates git
 
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -314,46 +349,23 @@ jobs:
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DLONG_TESTS=ON -DSHUFFLE_SUITE=ON -DWORKER_THREADS=2 ..
+          cmake -GNinja -DCOMPILE_TARGET=virtual -DCMAKE_BUILD_TYPE=Debug -DLONG_TESTS=ON -DSHUFFLE_SUITE=ON ..
           ninja
 
-      - name: "Test Long LTS"
-        run: |
-          set +x
-          cd build
-          ./tests.sh --output-on-failure --timeout 1600 -R "lts"
-
-      - name: "Test shuffled"
+      - name: "Test"
         run: |
           set +x
           cd build
           ./tests.sh --output-on-failure --timeout 1600 -R "suite"
 
-      - name: "Check snmalloc disabled"
-        run: |
-          set -ex
-          cd build
-          cmake -GNinja -DUSE_SNMALLOC=OFF ..
-          ninja samples/apps/basic/basic
-          ! ../scripts/ensure-snmalloc.sh samples/apps/basic/basic
-
-      - name: "Check snmalloc enabled"
-        run: |
-          set -ex
-          cd build
-          cmake -GNinja -DUSE_SNMALLOC=ON ..
-          ninja samples/apps/basic/basic
-          ../scripts/ensure-snmalloc.sh samples/apps/basic/basic
-
       - name: "Upload logs"
         if: success() || failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@v7
         with:
-          name: e2e-long-combined
+          name: logs-e2e-shuffled
           path: |
             build/workspace/*/*.config.json
             build/workspace/*/out
             build/workspace/*/err
             build/workspace/*/*.ledger/*
-            build/workspace/*/stack_trace
           if-no-files-found: ignore

@@ -14,7 +14,7 @@ namespace ccf
     std::map<std::string, std::shared_ptr<ccf::AbstractNodeSubSystem>>
       subsystems;
 
-    void install_subsystem_by_name(
+    void install_subsystem(
       const std::shared_ptr<ccf::AbstractNodeSubSystem>& subsystem,
       const std::string& name)
     {
@@ -33,9 +33,8 @@ namespace ccf
       subsystems.emplace_hint(it, name, subsystem);
     }
 
-    template <SubsystemType T>
-    [[nodiscard]] std::shared_ptr<T> get_subsystem_by_name(
-      const std::string& name) const
+    template <typename T>
+    std::shared_ptr<T> get_subsystem(const std::string& name) const
     {
       const auto it = subsystems.find(name);
       if (it != subsystems.end())
@@ -50,30 +49,29 @@ namespace ccf
   public:
     virtual ~AbstractNodeContext() = default;
 
-    template <SubsystemType T>
+    template <typename T>
     void install_subsystem(const std::shared_ptr<T>& subsystem)
     {
-      install_subsystem_by_name(subsystem, T::get_subsystem_name());
+      install_subsystem(subsystem, T::get_subsystem_name());
     }
 
-    template <SubsystemType T>
-    [[nodiscard]] std::shared_ptr<T> get_subsystem() const
+    template <typename T>
+    std::shared_ptr<T> get_subsystem() const
     {
-      return get_subsystem_by_name<T>(T::get_subsystem_name());
+      return get_subsystem<T>(T::get_subsystem_name());
     }
 
-    [[nodiscard]] virtual ccf::NodeId get_node_id() const
-    {
-      return {};
-    }
-
-    [[nodiscard]] virtual ccf::crypto::Pem get_self_signed_certificate() const
+    virtual ccf::NodeId get_node_id() const
     {
       return {};
     }
 
-    [[nodiscard]] ccf::historical::AbstractStateCache& get_historical_state()
-      const
+    virtual ccf::crypto::Pem get_self_signed_certificate() const
+    {
+      return {};
+    }
+
+    ccf::historical::AbstractStateCache& get_historical_state()
     {
       auto historical_state_cache =
         get_subsystem<ccf::historical::AbstractStateCache>();
@@ -85,8 +83,7 @@ namespace ccf
       return *historical_state_cache;
     }
 
-    [[nodiscard]] ccf::indexing::IndexingStrategies& get_indexing_strategies()
-      const
+    ccf::indexing::IndexingStrategies& get_indexing_strategies()
     {
       auto indexer = get_subsystem<ccf::indexing::IndexingStrategies>();
       if (indexer == nullptr)

@@ -6,7 +6,7 @@
 
 namespace ccf
 {
-  enum class NodeStartupState : uint8_t
+  enum class NodeStartupState
   {
     uninitialized,
     initialized,
@@ -25,11 +25,10 @@ namespace ccf
      {ccf::NodeStartupState::partOfPublicNetwork, "PartOfPublicNetwork"},
      {ccf::NodeStartupState::partOfNetwork, "PartOfNetwork"},
      {ccf::NodeStartupState::readingPublicLedger, "ReadingPublicLedger"},
-     {ccf::NodeStartupState::readingPrivateLedger, "ReadingPrivateLedger"}});
+     {ccf::NodeStartupState::readingPrivateLedger, "ReadingPrivateLedger"}})
 }
 
 // Used by fmtlib to render ccf::State
-// NOLINTBEGIN(cert-dcl58-cpp)
 namespace std
 {
   inline std::ostream& operator<<(std::ostream& os, ccf::NodeStartupState s)
@@ -39,4 +38,3 @@ namespace std
     return os << j.dump();
   }
 }
-// NOLINTEND(cert-dcl58-cpp)

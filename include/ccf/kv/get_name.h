@@ -12,10 +12,10 @@ namespace ccf::kv
     std::string name;
 
   public:
-    GetName(std::string s) : name(std::move(s)) {}
+    GetName(const std::string& s) : name(s) {}
     virtual ~GetName() = default;
 
-    [[nodiscard]] const std::string& get_name() const
+    const std::string& get_name() const
     {
       return name;
     }

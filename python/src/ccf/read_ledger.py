@@ -9,6 +9,8 @@ import argparse
 from datetime import datetime
 from enum import Enum, auto
 
+from loguru import logger as LOG
+
 
 class PrintMode(Enum):
     Quiet = auto()
@@ -91,9 +93,9 @@ def print_key(key, table_name, tables_format_rules, indent_s, is_removed=False):
     k = find_rule(tables_format_rules, table_name)["key"](key)
 
     if is_removed:
-        print(f"{indent_s}Removed {k}")
+        LOG.error(f"{indent_s}Removed {k}")
     else:
-        print(f"{indent_s}{k}:")
+        LOG.info(f"{indent_s}{k}:")
 
 
 def counted_string(string, name):
@@ -111,20 +113,22 @@ def dump_entry(entry, table_filter, tables_format_rules):
     private_table_size = entry.get_private_domain_size()
     if private_table_size and table_filter is None:
         if not printed_tx_header:
-            print(tx_header)
+            LOG.success(tx_header)
             printed_tx_header = True
 
-        print(f"{indent(2)}-- private: {private_table_size} bytes")
+        LOG.error(f"{indent(2)}-- private: {private_table_size} bytes")
 
     for table_name, records in public_tables.items():
         if table_filter is not None and not table_filter.match(table_name):
             continue
 
         if not printed_tx_header:
-            print(tx_header)
+            LOG.success(tx_header)
             printed_tx_header = True
 
-        print(f'{indent(4)}table "{table_name}" ({counted_string(records, "write")}):')
+        LOG.warning(
+            f'{indent(4)}table "{table_name}" ({counted_string(records, "write")}):'
+        )
         key_indent = indent(6)
         value_indent = indent(8)
         for key, value in records.items():
@@ -138,7 +142,7 @@ def dump_entry(entry, table_filter, tables_format_rules):
                     pass
                 finally:
                     print_key(key, table_name, tables_format_rules, key_indent)
-                    print(f"{value_indent}{value}")
+                    LOG.info(f"{value_indent}{value}")
             else:
                 print_key(
                     key, table_name, tables_format_rules, key_indent, is_removed=True
@@ -150,24 +154,11 @@ def run(
     print_mode: PrintMode,
     is_snapshot=False,
     tables_regex=None,
-    verification_level=None,
+    insecure_skip_verification=False,
     uncommitted=False,
     read_recovery_files=False,
     tables_format_rules=None,
-    # Deprecated parameter, kept for backward compatibility
-    insecure_skip_verification=None,
 ):
-    # Handle backward compatibility
-    if insecure_skip_verification is not None and verification_level is None:
-        verification_level = (
-            ccf.ledger.VerificationLevel.NONE
-            if insecure_skip_verification
-            else ccf.ledger.VerificationLevel.FULL
-        )
-    elif verification_level is None:
-        # Default to FULL if neither is specified
-        verification_level = ccf.ledger.VerificationLevel.FULL
-
     table_filter = re.compile(tables_regex) if tables_regex is not None else None
 
     # Extend and compile rules
@@ -180,32 +171,28 @@ def run(
     if is_snapshot:
         snapshot_file = paths[0]
         with ccf.ledger.Snapshot(snapshot_file) as snapshot:
-            print(
+            LOG.info(
                 f"Reading snapshot from {snapshot_file} ({'' if snapshot.is_committed() else 'un'}committed)"
             )
             dump_entry(snapshot, table_filter, tables_format_rules)
         return True
     else:
-        # Create validator if verification level is not NONE
         validator = (
-            ccf.ledger.LedgerValidator(verification_level=verification_level)
-            if verification_level != ccf.ledger.VerificationLevel.NONE
-            else None
+            ccf.ledger.LedgerValidator() if not insecure_skip_verification else None
         )
         ledger_paths = paths
         ledger = ccf.ledger.Ledger(
             ledger_paths,
             committed_only=not uncommitted,
             read_recovery_files=read_recovery_files,
-            verification_level=verification_level,
         )
 
-        print(f"Reading ledger from {ledger_paths}")
-        print(f"Contains {counted_string(ledger, 'chunk')}")
+        LOG.info(f"Reading ledger from {ledger_paths}")
+        LOG.info(f"Contains {counted_string(ledger, 'chunk')}")
 
         try:
             for chunk in ledger:
-                print(
+                LOG.info(
                     f"chunk {chunk.filename()} ({'' if chunk.is_committed() else 'un'}committed)"
                 )
                 for transaction in chunk:
@@ -221,31 +208,28 @@ def run(
                     if validator:
                         validator.add_transaction(transaction)
         except Exception as e:
-            print(f"Error parsing ledger: {e}")
+            LOG.exception(f"Error parsing ledger: {e}")
             has_error = True
         else:
-            print("Ledger verification complete")
+            LOG.success("Ledger verification complete")
             has_error = False
         finally:
             if not validator:
-                print("Skipped ledger integrity verification")
+                LOG.warning("Skipped ledger integrity verification")
             else:
-                # Build appropriate message based on verification level
-                if verification_level >= ccf.ledger.VerificationLevel.MERKLE:
-                    # For MERKLE and FULL, report signature verification
-                    print(
-                        f"Verified {verification_level.name} - {validator.transaction_count} transactions, "
-                        f"{validator.signature_count} signatures, until {validator.last_verified_txid()}"
-                    )
-                else:
-                    # For OFFSETS and HEADERS, just report transaction count
-                    print(
-                        f"Verified {verification_level.name} - {validator.transaction_count} transactions"
-                    )
+                LOG.info(
+                    f"Found {validator.signature_count} signatures, and verified until {validator.last_verified_txid()}"
+                )
         return not has_error
 
 
 def main():
+    LOG.remove()
+    LOG.add(
+        sys.stdout,
+        format="<level>{message}</level>",
+    )
+
     parser = argparse.ArgumentParser(
         description="Read CCF ledger or snapshot",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -253,8 +237,7 @@ def main():
     parser.add_argument(
         "paths",
         help="Path to ledger directories, ledger chunks, or snapshot file. "
-        "Note that parsing individual ledger chunks requires --verification-level=MERKLE or lower "
-        "(FULL verification requires context from the complete ledger)",
+        "Note that parsing individual ledger chunks requires the additional --insecure-skip-verification option",
         nargs="+",
     )
     parser.add_argument(
@@ -296,38 +279,13 @@ def main():
     )
 
     parser.add_argument(
-        "--verification-level",
-        help=(
-            "Ledger verification level (ordered by increasing computation cost). "
-            "NONE: No verification, just parse; "
-            "OFFSETS: Validate offset table consistency; "
-            "HEADERS: Validate transaction headers (size, version, flags); "
-            "MERKLE: Validate merkle tree (trust first signature); "
-            "FULL: Full cryptographic verification including signatures (default)"
-        ),
-        type=str,
-        choices=[level.name for level in ccf.ledger.VerificationLevel],
-        default=None,
-    )
-
-    parser.add_argument(
         "--insecure-skip-verification",
-        help="DEPRECATED: Use --verification-level=NONE instead. INSECURE: skip all ledger verification",
+        help="INSECURE: skip ledger Merkle tree integrity verification",
         action="store_true",
         default=False,
     )
 
     args = parser.parse_args()
-
-    # Parse verification level
-    verification_level = None
-    if args.verification_level:
-        verification_level = ccf.ledger.VerificationLevel[args.verification_level]
-
-    # Handle deprecated flag
-    insecure_skip_verification = (
-        args.insecure_skip_verification if not args.verification_level else None
-    )
 
     print_mode = PrintMode.Contents
     if args.quiet:
@@ -340,8 +298,7 @@ def main():
         print_mode,
         is_snapshot=args.snapshot,
         tables_regex=args.tables,
-        verification_level=verification_level,
-        insecure_skip_verification=insecure_skip_verification,
+        insecure_skip_verification=args.insecure_skip_verification,
         uncommitted=args.uncommitted,
         read_recovery_files=args.recovery,
     ):

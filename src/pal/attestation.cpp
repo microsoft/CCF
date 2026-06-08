@@ -6,10 +6,8 @@
 #include "ccf/crypto/ecdsa.h"
 #include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "ccf/crypto/verifier.h"
-#include "ccf/ds/json.h"
 #include "ccf/pal/attestation_sev_snp.h"
 #include "ccf/pal/sev_snp_cpuid.h"
-#include "ds/internal_logger.h"
 
 #include <cstdint>
 
@@ -25,7 +23,7 @@ namespace ccf::pal
     PlatformAttestationMeasurement& measurement,
     PlatformAttestationReportData& report_data)
   {
-    auto j = ccf::parse_json_safe(quote_info.quote);
+    auto j = nlohmann::json::parse(quote_info.quote);
 
     const auto s_measurement = j["measurement"].get<std::string>();
     measurement.data =
@@ -426,6 +424,8 @@ namespace ccf::pal
     measurement = SnpAttestationMeasurement(quote.measurement);
   }
 
+#if !defined(INSIDE_ENCLAVE) || defined(VIRTUAL_ENCLAVE)
+
   void verify_quote(
     const QuoteInfo& quote_info,
     PlatformAttestationMeasurement& measurement,
@@ -442,7 +442,8 @@ namespace ccf::pal
     else
     {
       throw std::logic_error(
-        "CCF 7.0.0 only supports SNP and Virtual attestation formats");
+        "SGX attestation reports are no longer supported from 6.0.0 onwards");
     }
   }
+#endif
 }

@@ -2,13 +2,11 @@ name: "Benchmarks"
 
 on:
   schedule:
-    - cron: "0 8,20 * * 1-5"
+    - cron: "0 0 * * 0"
   push:
     branches:
       - main
   workflow_dispatch:
-
-permissions: read-all
 
 jobs:
   benchmark_virtual:
@@ -30,7 +28,7 @@ jobs:
           tdnf -y update
           tdnf -y install ca-certificates git
 
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -40,36 +38,12 @@ jobs:
           set -ex
           ./scripts/setup-ci.sh
 
-      - name: "Machine info"
-        shell: bash
-        run: &machine_info |
-          set -ex
-          uname -a
-          nproc
-          cat /proc/cpuinfo
-          cat /proc/meminfo
-          cpuid=$(awk '/^cpu family/{f=$NF} /^model\t/{m=$NF} /^stepping/{s=$NF; printf "%02x%02x%02x",f,m,s; exit}' /proc/cpuinfo)
-          echo "CCF_CPUID=${cpuid}" >> "$GITHUB_ENV"
-          echo "CCF_CORES=$(nproc)" >> "$GITHUB_ENV"
-          echo "CCF_MEM_GB=$(awk '/^MemTotal/{printf "%d",$2/1024/1024}' /proc/meminfo)" >> "$GITHUB_ENV"
-          if [[ -e /dev/sev-guest ]]; then
-            echo "CCF_PLATFORM_SLUG=snp" >> "$GITHUB_ENV"
-          else
-            echo "CCF_PLATFORM_SLUG=virtual" >> "$GITHUB_ENV"
-          fi
-
-      - name: "Confirm running on Virtual"
-        run: |
-          set -ex
-          python3 tests/infra/platform_detection.py virtual
-        shell: bash
-
       - name: Build and run virtual perf tests
         run: |
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DWORKER_THREADS=2 ..
+          cmake -GNinja -DCOMPILE_TARGET=virtual -DWORKER_THREADS=2 -DBUILD_TPCC=ON ..
           ninja
           # Microbenchmarks
           ./tests.sh -VV -L benchmark
@@ -80,27 +54,14 @@ jobs:
           PYTHONPATH=../tests python convert_pico_to_bencher.py
         shell: bash
 
-      - name: "Upload logs"
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: logs-bench-virtual
-          path: |
-            build/workspace/*/*.config.json
-            build/workspace/*/out
-            build/workspace/*/err
-            build/workspace/*/*.ledger/*
-            build/workspace/*/stack_trace
-          if-no-files-found: ignore
-        if: success() || failure()
-
-      - uses: bencherdev/bencher@50fb1e138651a46d2fb704fab1adab38c181552e # v0.6.6
+      - uses: bencherdev/bencher@main
       - name: Track base branch benchmarks with Bencher
-        run: &bencher_run |
+        run: |
           bencher run \
           --project ccf \
           --token '${{ secrets.BENCHER_API_TOKEN }}' \
           --branch main \
-          --testbed "${CCF_PLATFORM_SLUG}-${CCF_CPUID}-${CCF_CORES}cores-${CCF_MEM_GB}g" \
+          --testbed gha-vmss-d16av5-ci \
           --adapter json \
           --err \
           --file build/bencher.json
@@ -114,29 +75,19 @@ jobs:
         "JobId=bench_snp-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
       ]
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
-      - name: "Machine info"
-        shell: bash
-        run: *machine_info
-
-      - name: "Confirm running on SEV-SNP"
-        run: |
-          set -ex
-          python3 tests/infra/platform_detection.py snp
-        shell: bash
-
-      - name: Build and run SNP perf tests
+      - name: Build and run virtual perf tests
         run: |
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DWORKER_THREADS=2 ..
+          cmake -GNinja -DCOMPILE_TARGET=virtual -DWORKER_THREADS=2 -DBUILD_TPCC=ON ..
           ninja
           # Microbenchmarks
-          ./tests.sh -VV -L benchmark -E task_bench
+          ./tests.sh -VV -L benchmark
           # End to end performance tests
           ./tests.sh -VV -L perf -C perf
           # Convert microbenchmark output to bencher json
@@ -144,20 +95,14 @@ jobs:
           PYTHONPATH=../tests python convert_pico_to_bencher.py
         shell: bash
 
-      - name: "Upload logs"
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: logs-bench-snp
-          path: |
-            dmesg.log
-            build/workspace/*/*.config.json
-            build/workspace/*/out
-            build/workspace/*/err
-            build/workspace/*/*.ledger/*
-            build/workspace/*/stack_trace
-          if-no-files-found: ignore
-        if: success() || failure()
-
-      - uses: bencherdev/bencher@50fb1e138651a46d2fb704fab1adab38c181552e # v0.6.6
+      - uses: bencherdev/bencher@main
       - name: Track base branch benchmarks with Bencher
-        run: *bencher_run
+        run: |
+          bencher run \
+          --project ccf \
+          --token '${{ secrets.BENCHER_API_TOKEN }}' \
+          --branch main \
+          --testbed gha-c-aci-ci \
+          --adapter json \
+          --err \
+          --file build/bencher.json

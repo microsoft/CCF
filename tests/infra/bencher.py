@@ -6,8 +6,6 @@ import json
 import dataclasses
 from typing import Optional, Union
 
-from loguru import logger as LOG
-
 BENCHER_FILE = "bencher.json"
 
 # See https://bencher.dev/docs/reference/bencher-metric-format/
@@ -77,17 +75,6 @@ class Bencher:
         if not os.path.isfile(BENCHER_FILE):
             with open(BENCHER_FILE, "w+") as bf:
                 json.dump({}, bf)
-
-    def set_memory(self, key: str, proc_stats: dict):
-        LOG.info(
-            f"Memory: RSS={proc_stats['current_rss']}, "
-            f"Peak RSS={proc_stats['peak_rss']}, "
-            f"Virtual={proc_stats['virtual_size']}"
-        )
-        self.set(
-            key,
-            Memory(proc_stats["current_rss"], high_value=proc_stats["peak_rss"]),
-        )
 
     def set(self, key: str, metric: Union[Latency, Throughput, Memory]):
         with open(BENCHER_FILE, "r") as bf:

@@ -8,10 +8,8 @@ namespace ccf
   {
   public:
     virtual ~AbstractNodeSubSystem() = default;
-  };
 
-  template <typename T>
-  concept SubsystemType = requires(T) {
-    { T::get_subsystem_name() } -> std::convertible_to<std::string_view>;
-  } && std::is_base_of_v<AbstractNodeSubSystem, T>;
+    // Must contain a static function with signature:
+    // static char const* get_subsystem_name()
+  };
 }

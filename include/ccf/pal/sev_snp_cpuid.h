@@ -29,20 +29,20 @@ namespace ccf::pal::snp
     uint8_t reserved2 : 4;
 
     bool operator==(const CPUID&) const = default;
-    [[nodiscard]] std::string hex_str() const
+    std::string hex_str() const
     {
       CPUID buf = *this;
-      auto* buf_ptr = reinterpret_cast<uint8_t*>(&buf);
+      auto buf_ptr = reinterpret_cast<uint8_t*>(&buf);
       const std::span<const uint8_t> tcb_bytes{
         buf_ptr, buf_ptr + sizeof(CPUID)};
       return fmt::format(
         "{:02x}", fmt::join(tcb_bytes.rbegin(), tcb_bytes.rend(), ""));
     }
-    [[nodiscard]] uint8_t get_family_id() const
+    inline uint8_t get_family_id() const
     {
       return this->base_family + this->extended_family;
     }
-    [[nodiscard]] uint8_t get_model_id() const
+    inline uint8_t get_model_id() const
     {
       return (this->extended_model << 4) | this->base_model;
     }
@@ -83,7 +83,7 @@ namespace ccf::pal::snp
     return cpuid;
   }
 
-  enum class ProductName : uint8_t
+  enum class ProductName
   {
     Milan,
     Genoa,

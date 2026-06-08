@@ -3,8 +3,12 @@ name: Release Attestation
 on:
   release:
     types: [published]
-
-permissions: read-all
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Release tag to attest"
+        required: true
+        type: string
 
 jobs:
   attest-release-assets:
@@ -14,8 +18,6 @@ jobs:
       contents: write
       # Necessary to persist attestations
       attestations: write
-      # OIDC authentication is needed to produce the attestation
-      # See https://github.com/actions/attest-build-provenance?tab=readme-ov-file#usage
       id-token: write
     steps:
       - name: Download release assets
@@ -35,7 +37,7 @@ jobs:
 
       - name: Attest release assets
         id: attest
-        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4
+        uses: actions/attest-build-provenance@v4
         with:
           subject-path: "release-assets/*"
 
@@ -43,7 +45,7 @@ jobs:
           set -ex
           # Rename to match https://github.com/ossf/scorecard/blob/main/docs/checks.md#signed-releases
           cp ${{ steps.attest.outputs.bundle-path }} release-assets/attestation.sigstore.json
-          gh release upload --repo microsoft/ccf ${{ steps.download.outputs.release_tag }} release-assets/attestation.sigstore.json
+          gh release upload --repo microsoft/ccf ${{ steps.download.outputs.release_tag }} release-assets/attestation.sigstore.json --clobber
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}

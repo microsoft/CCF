@@ -9,7 +9,7 @@
 
 namespace ccf::gov::endpoints
 {
-  enum class ApiVersion : uint8_t
+  enum class ApiVersion
   {
     preview_v1,
     MIN = preview_v1,
@@ -21,7 +21,7 @@ namespace ccf::gov::endpoints
     {ApiVersion::preview_v1, "2023-06-01-preview"},
     {ApiVersion::v1, "2024-07-01"}};
 
-  inline std::optional<ApiVersion> get_api_version(
+  std::optional<ApiVersion> get_api_version(
     ccf::endpoints::CommandEndpointContext& ctx,
     ApiVersion min_accepted,
     // Optional out-parameter indicating why API version wasn't found
@@ -47,7 +47,7 @@ namespace ccf::gov::endpoints
       }
     }
 
-    const auto* const param_name = "api-version";
+    const auto param_name = "api-version";
     const auto parsed_query =
       http::parse_query(ctx.rpc_ctx->get_request_query());
     const auto qit = parsed_query.find(param_name);
@@ -68,7 +68,7 @@ namespace ccf::gov::endpoints
       return std::nullopt;
     }
 
-    const auto* const it = std::find_if(
+    const auto it = std::find_if(
       std::begin(api_version_strings),
       std::end(api_version_strings),
       [&qit](const auto& p) { return p.second == qit->second; });
@@ -100,7 +100,7 @@ namespace ccf::gov::endpoints
   template <typename Fn>
   auto api_version_adapter(Fn&& f, ApiVersion min_accepted = ApiVersion::MIN)
   {
-    return [f = std::forward<Fn>(f), min_accepted](auto& ctx) {
+    return [f, min_accepted](auto& ctx) {
       const auto api_version = get_api_version(ctx, min_accepted);
       if (api_version.has_value())
       {

@@ -2,11 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/logger.h"
 #include "ccf/kv/untyped_map_diff.h"
 #include "ccf/kv/untyped_map_handle.h"
 #include "ccf/pal/locking.h"
 #include "ds/dl_list.h"
-#include "ds/internal_logger.h"
 #include "kv/kv_serialiser.h"
 #include "kv/kv_types.h"
 #include "kv/untyped_change_set.h"
@@ -21,13 +21,13 @@ namespace ccf::kv::untyped
   struct LocalCommit
   {
     LocalCommit() = default;
-    LocalCommit(Version v, State&& s, Write w) :
+    LocalCommit(Version v, State&& s, const Write& w) :
       version(v),
       state(std::move(s)),
-      writes(std::move(w))
+      writes(w)
     {}
 
-    Version version{0};
+    Version version;
     State state;
     Write writes;
     LocalCommit* next = nullptr;
@@ -38,7 +38,7 @@ namespace ccf::kv::untyped
   struct Roll
   {
     std::unique_ptr<LocalCommits> commits;
-    size_t rollback_counter{0};
+    size_t rollback_counter;
 
     LocalCommits empty_commits;
 
@@ -54,7 +54,6 @@ namespace ccf::kv::untyped
       LocalCommit* c = empty_commits.pop();
       if (c == nullptr)
       {
-        // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
         c = new LocalCommit(std::forward<Args>(args)...);
       }
       else
@@ -151,13 +150,10 @@ namespace ccf::kv::untyped
         // If the parent map has rolled back since this transaction began, this
         // transaction must fail.
         if (change_set.rollback_counter != map_roll.rollback_counter)
-        {
           return false;
-        }
 
         // If we have iterated over the map, check for a global version match.
-        // Check each key in our read set.
-        auto* current = map_roll.commits->get_tail();
+        auto current = map_roll.commits->get_tail();
         if (
           (change_set.read_version != NoVersion) &&
           (change_set.read_version != current->version))
@@ -167,12 +163,13 @@ namespace ccf::kv::untyped
         }
 
         // Check each key in our read set.
-        for (const auto& [key, value] : change_set.reads)
+        for (auto it = change_set.reads.begin(); it != change_set.reads.end();
+             ++it)
         {
           // Get the value from the current state.
-          auto search = current->state.get(key);
+          auto search = current->state.get(it->first);
 
-          if (std::get<0>(value) == NoVersion)
+          if (std::get<0>(it->second) == NoVersion)
           {
             // If we depend on the key not existing, it must be absent.
             if (search.has_value())
@@ -188,7 +185,7 @@ namespace ccf::kv::untyped
             // conflicts then ensure that the read versions also match.
             if (
               !search.has_value() ||
-              std::get<0>(value) != search.value().version)
+              std::get<0>(it->second) != search.value().version)
             {
               LOG_DEBUG_FMT("Read depends on invalid version of entry");
               return false;
@@ -214,23 +211,23 @@ namespace ccf::kv::untyped
         commit_version = v;
         committed_writes = true;
 
-        for (const auto& [key, maybe_value] : change_set.writes)
+        for (auto it = change_set.writes.begin(); it != change_set.writes.end();
+             ++it)
         {
-          if (maybe_value.has_value())
+          if (it->second.has_value())
           {
             // Write the new value with the global version.
             changes = true;
-            // NOLINTNEXTLINE(bugprone-unchecked-optional-access)
-            state = state.put(key, VersionV{v, v, maybe_value.value()});
+            state = state.put(it->first, VersionV{v, v, it->second.value()});
           }
           else
           {
             // Delete the key if it exists
-            auto search = state.get(key);
+            auto search = state.get(it->first);
             if (search.has_value())
             {
               changes = true;
-              state = state.remove(key);
+              state = state.remove(it->first);
             }
             else if (track_deletes_on_missing_keys)
             {
@@ -273,11 +270,11 @@ namespace ccf::kv::untyped
 
     public:
       Snapshot(
-        std::string name_,
+        const std::string& name_,
         SecurityDomain security_domain_,
         ccf::kv::Version version_,
         std::unique_ptr<StateSnapshot>&& map_snapshot_) :
-        name(std::move(name_)),
+        name(name_),
         security_domain(security_domain_),
         version(version_),
         map_snapshot(std::move(map_snapshot_))
@@ -294,7 +291,7 @@ namespace ccf::kv::untyped
         s.serialise_raw(ret);
       }
 
-      [[nodiscard]] SecurityDomain get_security_domain() const override
+      SecurityDomain get_security_domain() const override
       {
         return security_domain;
       }
@@ -320,9 +317,9 @@ namespace ccf::kv::untyped
 
     Map(const Map& that) = delete;
 
-    AbstractMap* clone(AbstractStore* other) override
+    virtual AbstractMap* clone(AbstractStore* other) override
     {
-      return static_cast<AbstractMap*>(new Map(other, name, security_domain));
+      return (AbstractMap*)new Map(other, name, security_domain);
     }
 
     void serialise_changes(
@@ -330,7 +327,7 @@ namespace ccf::kv::untyped
       KvStoreSerialiser& s,
       bool include_reads) override
     {
-      const auto* const non_abstract =
+      const auto non_abstract =
         dynamic_cast<const ccf::kv::untyped::ChangeSet*>(changes);
       if (non_abstract == nullptr)
       {
@@ -347,9 +344,10 @@ namespace ccf::kv::untyped
         s.serialise_entry_version(change_set.read_version);
 
         s.serialise_count_header(change_set.reads.size());
-        for (const auto& [key, value] : change_set.reads)
+        for (auto it = change_set.reads.begin(); it != change_set.reads.end();
+             ++it)
         {
-          s.serialise_read(key, std::get<0>(value));
+          s.serialise_read(it->first, std::get<0>(it->second));
         }
       }
       else
@@ -360,9 +358,10 @@ namespace ccf::kv::untyped
 
       uint64_t write_ctr = 0;
       uint64_t remove_ctr = 0;
-      for (const auto& [key, maybe_value] : change_set.writes)
+      for (auto it = change_set.writes.begin(); it != change_set.writes.end();
+           ++it)
       {
-        if (maybe_value.has_value())
+        if (it->second.has_value())
         {
           ++write_ctr;
         }
@@ -373,21 +372,22 @@ namespace ccf::kv::untyped
       }
 
       s.serialise_count_header(write_ctr);
-      for (const auto& [key, maybe_value] : change_set.writes)
+      for (auto it = change_set.writes.begin(); it != change_set.writes.end();
+           ++it)
       {
-        if (maybe_value.has_value())
+        if (it->second.has_value())
         {
-          // NOLINTNEXTLINE(bugprone-unchecked-optional-access)
-          s.serialise_write(key, maybe_value.value());
+          s.serialise_write(it->first, it->second.value());
         }
       }
 
       s.serialise_count_header(remove_ctr);
-      for (const auto& [key, maybe_value] : change_set.writes)
+      for (auto it = change_set.writes.begin(); it != change_set.writes.end();
+           ++it)
       {
-        if (!maybe_value.has_value())
+        if (!it->second.has_value())
         {
-          s.serialise_remove(key);
+          s.serialise_remove(it->first);
         }
       }
     }
@@ -426,7 +426,7 @@ namespace ccf::kv::untyped
         map.roll.reset_commits();
         map.roll.rollback_counter++;
 
-        auto* r = map.roll.commits->get_head();
+        auto r = map.roll.commits->get_head();
 
         r->state = change_set.state;
         r->version = change_set.version;
@@ -444,7 +444,7 @@ namespace ccf::kv::untyped
 
       ConsensusHookPtr post_commit() override
       {
-        auto* r = map.roll.commits->get_head();
+        auto r = map.roll.commits->get_head();
         return map.trigger_map_hook(change_set.version, r->writes);
       }
     };
@@ -479,7 +479,7 @@ namespace ccf::kv::untyped
 
       auto& change_set = *change_set_ptr;
 
-      uint64_t ctr = 0;
+      uint64_t ctr;
 
       auto rv = d.deserialise_entry_version();
       if (rv != NoVersion)
@@ -515,14 +515,13 @@ namespace ccf::kv::untyped
     std::unique_ptr<AbstractCommitter> create_committer(
       AbstractChangeSet* changes) override
     {
-      auto* non_abstract = dynamic_cast<ChangeSet*>(changes);
+      auto non_abstract = dynamic_cast<ChangeSet*>(changes);
       if (non_abstract == nullptr)
       {
         throw std::logic_error("Type confusion error");
       }
 
-      auto* snapshot_change_set =
-        dynamic_cast<SnapshotChangeSet*>(non_abstract);
+      auto snapshot_change_set = dynamic_cast<SnapshotChangeSet*>(non_abstract);
       if (snapshot_change_set != nullptr)
       {
         return std::make_unique<SnapshotHandleCommitter>(
@@ -571,7 +570,7 @@ namespace ccf::kv::untyped
      *
      * @return Security domain of the map (affects serialisation)
      */
-    SecurityDomain get_security_domain() override
+    virtual SecurityDomain get_security_domain() override
     {
       return security_domain;
     }
@@ -579,17 +578,13 @@ namespace ccf::kv::untyped
     bool operator==(const Map& that) const
     {
       if (name != that.name)
-      {
         return false;
-      }
 
-      auto* state1 = roll.commits->get_tail();
-      auto* state2 = that.roll.commits->get_tail();
+      auto state1 = roll.commits->get_tail();
+      auto state2 = that.roll.commits->get_tail();
 
       if (state1->version != state2->version)
-      {
         return false;
-      }
 
       size_t count = 0;
       state2->state.foreach([&count](const K&, const VersionV&) {
@@ -609,7 +604,7 @@ namespace ccf::kv::untyped
             {
               return false;
             }
-            if (found.value != v.value)
+            else if (found.value != v.value)
             {
               return false;
             }
@@ -624,9 +619,7 @@ namespace ccf::kv::untyped
         });
 
       if (i != count)
-      {
         ok = false;
-      }
 
       return ok;
     }
@@ -643,9 +636,9 @@ namespace ccf::kv::untyped
       // This takes a snapshot of the state of the map at the last entry
       // committed at or before this version. The Map expects to be locked while
       // taking the snapshot.
-      auto* r = roll.commits->get_head();
+      auto r = roll.commits->get_head();
 
-      for (auto* current = roll.commits->get_tail(); current != nullptr;
+      for (auto current = roll.commits->get_tail(); current != nullptr;
            current = current->prev)
       {
         if (current->version <= v)
@@ -667,7 +660,7 @@ namespace ccf::kv::untyped
       // compaction.
       while (roll.commits->get_head() != roll.commits->get_tail())
       {
-        auto* r = roll.commits->get_head();
+        auto r = roll.commits->get_head();
 
         // Globally committed but not discardable.
         if (r->version == v)
@@ -689,16 +682,14 @@ namespace ccf::kv::untyped
         // Stop if the next state may be rolled back or is the only state.
         // This ensures there is always a state present.
         if (r->next->version > v)
-        {
           return;
-        }
 
-        auto* c = roll.commits->pop();
+        auto c = roll.commits->pop();
         roll.empty_commits.insert(c);
       }
 
       // There is only one roll. We may need to call the commit hook.
-      auto* r = roll.commits->get_head();
+      auto r = roll.commits->get_head();
 
       if (global_hook && !r->writes.empty())
       {
@@ -731,24 +722,20 @@ namespace ccf::kv::untyped
 
       while (roll.commits->get_head() != roll.commits->get_tail())
       {
-        auto* r = roll.commits->get_tail();
+        auto r = roll.commits->get_tail();
 
         // The initial empty state has v = 0, so will not be discarded if it
         // is present.
         if (r->version <= v)
-        {
           break;
-        }
 
         advance = true;
-        auto* c = roll.commits->pop_tail();
+        auto c = roll.commits->pop_tail();
         roll.empty_commits.insert(c);
       }
 
       if (advance)
-      {
         roll.rollback_counter++;
-      }
     }
 
     void clear() override
@@ -769,15 +756,12 @@ namespace ccf::kv::untyped
       sl.unlock();
     }
 
-    // NOLINTNEXTLINE(bugprone-exception-escape)
     void swap(AbstractMap* map_) override
     {
-      auto* map = dynamic_cast<Map*>(map_);
+      Map* map = dynamic_cast<Map*>(map_);
       if (map == nullptr)
-      {
         throw std::logic_error(
           "Attempted to swap maps with incompatible types");
-      }
 
       std::swap(roll, map->roll);
     }
@@ -790,7 +774,7 @@ namespace ccf::kv::untyped
       ChangeSetPtr changes = nullptr;
 
       // Find the last entry committed at or before this version.
-      for (auto* current = roll.commits->get_tail(); current != nullptr;
+      for (auto current = roll.commits->get_tail(); current != nullptr;
            current = current->prev)
       {
         if (current->version <= version)

@@ -8,90 +8,6 @@
 #include <openssl/sha.h>
 #include <stdexcept>
 
-namespace
-{
-  struct Sha256Context
-  {
-    Sha256Context()
-    {
-      openssl_sha256_init();
-    }
-
-    Sha256Context(const Sha256Context&) = delete;
-    Sha256Context& operator=(const Sha256Context&) = delete;
-
-    Sha256Context(Sha256Context&&) = delete;
-    Sha256Context& operator=(Sha256Context&&) = delete;
-
-    ~Sha256Context()
-    {
-      openssl_sha256_shutdown();
-    }
-
-    [[nodiscard]] EVP_MD_CTX* get_basectx() const
-    {
-      return basectx;
-    }
-
-    [[nodiscard]] EVP_MD_CTX* get_mdctx() const
-    {
-      return mdctx;
-    }
-
-  private:
-    void openssl_sha256_init()
-    {
-      if (mdctx != nullptr || basectx != nullptr)
-      {
-        throw std::logic_error(
-          "openssl_sha256_init: double-init of the context");
-      }
-
-      mdctx = EVP_MD_CTX_new();
-      if (mdctx == nullptr)
-      {
-        throw std::logic_error("openssl_sha256_init: failed to create mdctx");
-      }
-
-      basectx = EVP_MD_CTX_new();
-      if (basectx == nullptr)
-      {
-        mdctx = nullptr;
-        throw std::logic_error("openssl_sha256_init: failed to create basectx");
-      }
-
-      if (EVP_DigestInit_ex(basectx, EVP_sha256(), nullptr) != 1)
-      {
-        mdctx = nullptr;
-        basectx = nullptr;
-        throw std::logic_error("EVP_DigestInit_ex failed");
-      }
-
-      EVP_MD_CTX* mdctx{nullptr};
-      EVP_MD_CTX* basectx{nullptr};
-    }
-
-    void openssl_sha256_shutdown()
-    {
-      if (mdctx != nullptr)
-      {
-        EVP_MD_CTX_free(mdctx);
-        mdctx = nullptr;
-      }
-      if (basectx != nullptr)
-      {
-        EVP_MD_CTX_free(basectx);
-        basectx = nullptr;
-      }
-    }
-
-    EVP_MD_CTX* basectx{nullptr};
-    EVP_MD_CTX* mdctx{nullptr};
-  };
-
-  thread_local const Sha256Context sha256_context{};
-}
-
 namespace ccf::crypto
 {
   namespace OpenSSL
@@ -104,36 +20,81 @@ namespace ccf::crypto
       const std::span<const uint8_t>& info)
     {
       const auto* md = get_md_type(md_type);
+      EVP_PKEY_CTX* pctx = nullptr;
       std::vector<uint8_t> r(length);
-      Unique_EVP_PKEY_CTX pctx(EVP_PKEY_HKDF);
+      pctx = EVP_PKEY_CTX_new_id(EVP_PKEY_HKDF, nullptr);
       CHECK1(EVP_PKEY_derive_init(pctx));
-      CHECKPOSITIVE(EVP_PKEY_CTX_set_hkdf_md(pctx, md));
+      CHECK1(EVP_PKEY_CTX_set_hkdf_md(pctx, md));
       if (salt.size() > std::numeric_limits<int>::max())
       {
         throw std::logic_error("Salt size is too large");
       }
       int salt_size = static_cast<int>(salt.size());
-      CHECKPOSITIVE(EVP_PKEY_CTX_set1_hkdf_salt(pctx, salt.data(), salt_size));
+      CHECK1(EVP_PKEY_CTX_set1_hkdf_salt(pctx, salt.data(), salt_size));
       if (ikm.size() > std::numeric_limits<int>::max())
       {
         throw std::logic_error("IKM size is too large");
       }
       int ikm_size = static_cast<int>(ikm.size());
-      CHECKPOSITIVE(EVP_PKEY_CTX_set1_hkdf_key(pctx, ikm.data(), ikm_size));
+      CHECK1(EVP_PKEY_CTX_set1_hkdf_key(pctx, ikm.data(), ikm_size));
       if (info.size() > std::numeric_limits<int>::max())
       {
         throw std::logic_error("Info size is too large");
       }
       int info_size = static_cast<int>(info.size());
-      CHECKPOSITIVE(EVP_PKEY_CTX_add1_hkdf_info(pctx, info.data(), info_size));
+      CHECK1(EVP_PKEY_CTX_add1_hkdf_info(pctx, info.data(), info_size));
       size_t outlen = length;
       CHECK1(EVP_PKEY_derive(pctx, r.data(), &outlen));
+      EVP_PKEY_CTX_free(pctx);
       r.resize(outlen);
       return r;
     }
   }
 
   using namespace OpenSSL;
+
+  static thread_local EVP_MD_CTX* mdctx = nullptr;
+  static thread_local EVP_MD_CTX* basectx = nullptr;
+
+  void openssl_sha256_init()
+  {
+    if (mdctx != nullptr || basectx != nullptr)
+    {
+      return; // Already initialised
+    }
+
+    mdctx = EVP_MD_CTX_new();
+    if (mdctx == nullptr)
+    {
+      throw std::logic_error("openssl_sha256_init: failed to create mdctx");
+    }
+    basectx = EVP_MD_CTX_new();
+    if (basectx == nullptr)
+    {
+      mdctx = nullptr;
+      throw std::logic_error("openssl_sha256_init: failed to create basectx");
+    }
+    if (EVP_DigestInit_ex(basectx, EVP_sha256(), nullptr) != 1)
+    {
+      mdctx = nullptr;
+      basectx = nullptr;
+      throw std::logic_error("EVP_DigestInit_ex failed");
+    }
+  }
+
+  void openssl_sha256_shutdown()
+  {
+    if (mdctx != nullptr)
+    {
+      EVP_MD_CTX_free(mdctx);
+      mdctx = nullptr;
+    }
+    if (basectx != nullptr)
+    {
+      EVP_MD_CTX_free(basectx);
+      basectx = nullptr;
+    }
+  }
 
   void openssl_sha256(const std::span<const uint8_t>& data, uint8_t* h)
   {
@@ -142,9 +103,6 @@ namespace ccf::crypto
     // calls to EVP_DigestInit_ex() by keeping 2 static thread-local contexts
     // and reusing them between calls. This is about 2x faster than EVP_Digest
     // for 128-byte buffers.
-
-    auto* const mdctx = sha256_context.get_mdctx();
-    auto* const basectx = sha256_context.get_basectx();
 
     if (mdctx == nullptr || basectx == nullptr)
     {
@@ -157,13 +115,11 @@ namespace ccf::crypto
     {
       throw std::logic_error(fmt::format("EVP_MD_CTX_copy_ex failed: {}", rc));
     }
-
     rc = EVP_DigestUpdate(mdctx, data.data(), data.size());
     if (rc != 1)
     {
       throw std::logic_error(fmt::format("EVP_DigestUpdate failed: {}", rc));
     }
-
     rc = EVP_DigestFinal_ex(mdctx, h, nullptr);
     if (rc != 1)
     {

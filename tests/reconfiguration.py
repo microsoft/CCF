@@ -3,28 +3,25 @@
 import infra.e2e_args
 import infra.network
 import infra.proc
-import infra.platform_detection
 import infra.net
-import infra.utils
 import infra.logging_app as app
 from infra.tx_status import TxStatus
 import suite.test_requirements as reqs
 import tempfile
-from shutil import copy, rmtree
+from shutil import copy
 from copy import deepcopy
 import os
 import time
 import ccf.ledger
-import ccf.signatures
 import json
 import infra.crypto
 from datetime import datetime
 from infra.checker import check_can_progress
 from governance_history import check_signatures
-from infra.snp import SNP_SUPPORT
+from infra.snp import IS_SNP
+from infra.runner import ConcurrentRunner
 import http
 import random
-import pathlib
 
 from loguru import logger as LOG
 
@@ -92,7 +89,6 @@ def test_add_node_invalid_service_cert(network, args):
             service_cert_file=service_cert_file,
             timeout=3,
             stop_on_error=True,
-            from_snapshot=False,
         )
     except infra.network.ServiceCertificateInvalid:
         LOG.info(
@@ -107,7 +103,7 @@ def test_add_node_invalid_service_cert(network, args):
 
 
 @reqs.description("Adding a valid node")
-def test_add_node(network, args, copy_snapshot=False, fetch_recent_snapshot=True):
+def test_add_node(network, args, from_snapshot=True):
     # Add an operator interface for early access/validation
     operator_rpc_interface = "operator_rpc_interface"
 
@@ -120,16 +116,12 @@ def test_add_node(network, args, copy_snapshot=False, fetch_recent_snapshot=True
 
     new_node = network.create_node(host_spec)
 
-    snapshots_dir = None
-    if copy_snapshot:
-        snapshots_dir = network.get_committed_snapshots()
     network.join_node(
         new_node,
         args.package,
         args,
-        snapshots_dir=snapshots_dir,
-        from_snapshot=snapshots_dir is not None,
-        fetch_recent_snapshot=fetch_recent_snapshot,
+        from_snapshot=from_snapshot,
+        fetch_recent_snapshot=from_snapshot,
     )
 
     # Verify self-signed node certificate validity period
@@ -141,7 +133,7 @@ def test_add_node(network, args, copy_snapshot=False, fetch_recent_snapshot=True
         validity_period_days=args.maximum_node_certificate_validity_days // 2,
     )
 
-    if not (copy_snapshot or fetch_recent_snapshot):
+    if not from_snapshot:
         with new_node.client() as c:
             s = c.get("/node/state")
             body = s.body.json()
@@ -162,9 +154,7 @@ def test_ignore_first_sigterm(network, args):
     # assigned IPs for the interfaces, something which the test infra doesn't
     # support widely yet.
     new_node = network.create_node()
-    network.join_node(
-        new_node, args.package, args, ignore_first_sigterm=True, from_snapshot=False
-    )
+    network.join_node(new_node, args.package, args, ignore_first_sigterm=True)
     network.trust_node(new_node, args)
 
     with new_node.client() as c:
@@ -194,7 +184,7 @@ def test_ignore_first_sigterm(network, args):
 @reqs.description("Adding a node with an invalid certificate validity period")
 def test_add_node_invalid_validity_period(network, args):
     new_node = network.create_node()
-    network.join_node(new_node, args.package, args, from_snapshot=False)
+    network.join_node(new_node, args.package, args)
     try:
         network.trust_node(
             new_node,
@@ -246,7 +236,6 @@ def test_add_node_from_backup(network, args):
         args.package,
         args,
         target_node=network.find_any_backup(),
-        from_snapshot=False,
     )
     network.trust_node(new_node, args)
     return network
@@ -258,7 +247,7 @@ def test_add_node_endorsements_endpoints(network, args):
     # However, we still want to support fetching those from a remote server, which is
     # tested here
     primary, _ = network.find_primary()
-    if not SNP_SUPPORT:
+    if not IS_SNP:
         LOG.warning("Skipping test as running on non SEV-SNP")
         return network
 
@@ -290,7 +279,6 @@ def test_add_node_endorsements_endpoints(network, args):
                 args.package,
                 args_copy,
                 timeout=per_request_retry_timeout * 4 * len(servers) + 5,
-                from_snapshot=False,
             )
         except infra.network.CollateralFetchTimeout as e:
             LOG.info(
@@ -326,14 +314,12 @@ def test_add_node_from_snapshot(network, args, copy_ledger=True, from_backup=Fal
     network.txs.issue(network, number_txs=1, repeat=True)
 
     new_node = network.create_node()
-    snapshots_dir = network.get_committed_snapshots()
     network.join_node(
         new_node,
         args.package,
         args,
         copy_ledger=copy_ledger,
         target_node=network.find_any_backup() if from_backup else None,
-        snapshots_dir=snapshots_dir,
         from_snapshot=True,
     )
     network.trust_node(new_node, args)
@@ -434,7 +420,7 @@ def test_add_as_many_pending_nodes(network, args):
     new_nodes = []
     for _ in range(number_new_nodes):
         new_node = network.create_node()
-        network.join_node(new_node, args.package, args, from_snapshot=False)
+        network.join_node(new_node, args.package, args)
         new_nodes.append(new_node)
 
     for new_node in new_nodes:
@@ -506,9 +492,7 @@ def test_node_filter(network, args):
         pending_before = get_nodes("Pending")
         retired_before = get_nodes("Retired")
         new_node = network.create_node()
-        network.join_node(
-            new_node, args.package, args, target_node=primary, from_snapshot=False
-        )
+        network.join_node(new_node, args.package, args, target_node=primary)
         trusted_after = get_nodes("Trusted")
         pending_after = get_nodes("Pending")
         retired_after = get_nodes("Retired")
@@ -583,7 +567,13 @@ def test_issue_fake_join(network, args):
         r = c.post("/node/join", body=req)
         assert r.status_code == http.HTTPStatus.UNAUTHORIZED
         assert r.body.json()["error"]["code"] == "InvalidQuote"
-        assert r.body.json()["error"]["message"] == "Quote could not be verified"
+        if args.enclave_platform != "sgx":
+            assert r.body.json()["error"]["message"] == "Quote could not be verified"
+        else:
+            assert (
+                r.body.json()["error"]["message"]
+                == "Quote report data does not contain node's public key hash"
+            )
 
         for platform, info, format in (
             (
@@ -603,10 +593,10 @@ def test_issue_fake_join(network, args):
                 "quote": own_quote["raw"],
                 "endorsements": own_quote["endorsements"],
             }
-            if "uvm_endorsements" in own_quote:
+            if args.enclave_platform == "snp":
                 req["quote_info"]["uvm_endorsements"] = own_quote["uvm_endorsements"]
             r = c.post("/node/join", body=req)
-            if infra.platform_detection.get_platform() != platform:
+            if args.enclave_platform != platform:
                 assert r.status_code == http.HTTPStatus.UNAUTHORIZED
                 assert r.body.json()["error"]["code"] == "InvalidQuote"
                 assert (
@@ -615,7 +605,7 @@ def test_issue_fake_join(network, args):
             else:
                 assert (
                     r.body.json()["error"]["message"]
-                    == "Quote report data does not match the hash of the public key for this node"
+                    == "Quote report data does not contain node's public key hash"
                 )
 
     return network
@@ -637,7 +627,7 @@ def test_node_replacement(network, args):
         f"local://{node_to_replace.get_public_rpc_host()}:{node_to_replace.get_public_rpc_port()}",
         node_port=node_to_replace.n2n_interface.port,
     )
-    network.join_node(replacement_node, args.package, args, from_snapshot=False)
+    network.join_node(replacement_node, args.package, args)
     network.trust_node(replacement_node, args)
 
     assert replacement_node.node_id != node_to_replace.node_id
@@ -673,7 +663,7 @@ def test_join_straddling_primary_replacement(network, args):
     test_add_node(network, args)
     primary, _ = network.find_primary()
     new_node = network.create_node()
-    network.join_node(new_node, args.package, args, from_snapshot=False)
+    network.join_node(new_node, args.package, args)
     proposal_body = {
         "actions": [
             {
@@ -709,63 +699,42 @@ def test_join_straddling_primary_replacement(network, args):
     return network
 
 
-@reqs.description(
-    "Test retired nodes stop signing once retired_committed is globally committed"
-)
-def test_retired_nodes_stop_signing_after_retired_committed(network, args):
+@reqs.description("Test retired nodes have emitted at most one signature")
+def test_retiring_nodes_emit_at_most_one_signature(network, args):
     primary, _ = network.find_primary()
 
     # Force ledger flush of all transactions so far
     network.get_latest_ledger_public_state()
-    ledger = ccf.ledger.Ledger(primary.remote.ledger_paths(), contiguous_suffix=True)
+    ledger = ccf.ledger.Ledger(primary.remote.ledger_paths())
 
-    # True once a subsequent signature has committed the retired_committed tx
-    # itself: rc is then globally committed and the node's retired_committed
-    # hook must have fired, so any further signature from that node is a
-    # violation. Presence in this dict means rc has been observed for the node.
-    rc_globally_committed: dict[str, bool] = {}
-
+    retiring_nodes = set()
+    retired_nodes = set()
     for chunk in ledger:
         for tr in chunk:
             tables = tr.get_public_domain().get_tables()
-
             if ccf.ledger.NODES_TABLE_NAME in tables:
-                for nid_bytes, info_ in tables[ccf.ledger.NODES_TABLE_NAME].items():
+                nodes = tables[ccf.ledger.NODES_TABLE_NAME]
+                for nid, info_ in nodes.items():
                     if info_ is None:
+                        # Node was removed
                         continue
                     info = json.loads(info_)
-                    nid = nid_bytes.decode()
-                    if (
-                        info.get("retired_committed")
-                        and nid not in rc_globally_committed
-                    ):
-                        rc_globally_committed[nid] = False
+                    if info["status"] == "Retired":
+                        retiring_nodes.add(nid)
 
-            if ccf.signatures.SIGNATURE_TX_TABLE_NAME in tables:
-                sig = ccf.signatures.parse_raw_signature_from_tx(tables)
-                assert sig is not None, tables
-                signing_node = sig.signing_node
-                sig_seqno = sig.seqno
+            if ccf.ledger.SIGNATURE_TX_TABLE_NAME in tables:
+                sigs = tables[ccf.ledger.SIGNATURE_TX_TABLE_NAME]
+                assert len(sigs) == 1, sigs.keys()
+                (sig_,) = sigs.values()
+                sig = json.loads(sig_)
+                assert (
+                    sig["node"] not in retired_nodes
+                ), f"Unexpected signature from {sig['node']}"
+                retired_nodes |= retiring_nodes
+                retiring_nodes = set()
 
-                # Check BEFORE marking. A node may legally emit exactly one
-                # signature past its rc tx (the chain-closer that commits it).
-                # Once that chain-closer has been seen, the node's
-                # retired_committed hook must have fired, so any further
-                # signature from that node is a violation.
-                assert not rc_globally_committed.get(signing_node, False), (
-                    f"Node {signing_node} signed at seqno {sig_seqno} after "
-                    f"its retired_committed was already globally committed"
-                )
-
-                # Ledger iteration is seqno-ordered, so any tracked rc was
-                # written at a lower seqno than this sig; the sig commits it.
-                for nid in rc_globally_committed:
-                    rc_globally_committed[nid] = True
-
-    LOG.info(
-        "{} nodes had retired_committed observed throughout test",
-        len(rc_globally_committed),
-    )
+    assert not retiring_nodes, (retiring_nodes, retired_nodes)
+    LOG.info("{} nodes retired throughout test", len(retired_nodes))
 
     wait_for_reconfiguration_to_complete(network)
 
@@ -786,12 +755,7 @@ def test_add_node_with_read_only_ledger(network, args):
 
     new_node = network.create_node()
     network.join_node(
-        new_node,
-        args.package,
-        args,
-        from_snapshot=False,
-        copy_ledger=True,
-        fetch_recent_snapshot=False,
+        new_node, args.package, args, from_snapshot=False, copy_ledger=True
     )
     network.trust_node(new_node, args)
     return network
@@ -805,182 +769,8 @@ def test_ledger_invariants(network, args):
     for node in network.nodes:
         LOG.info(f"Examining ledger on node {node.local_node_id}")
         ledger_directories = node.remote.ledger_paths()
-        ledger = ccf.ledger.Ledger(ledger_directories, contiguous_suffix=True)
+        ledger = ccf.ledger.Ledger(ledger_directories)
         check_signatures(ledger)
-
-    return network
-
-
-@reqs.description("Join nodes with snapshot and ledger offsets")
-def test_joining_nodes_snapshot_ledger_offset(network, args):
-    primary, _ = network.find_primary()
-
-    network.consortium.force_ledger_chunk(primary)
-    network.get_latest_ledger_public_state()
-
-    network.txs.issue(network, number_txs=5, send_private=False, send_public=True)
-    network.txs.issue(network, number_txs=5, send_private=False, send_public=True)
-
-    snapshot_trigger_txid = primary.trigger_snapshot()
-    committed_snapshots_dir = network.get_committed_snapshots(
-        primary,
-        target_seqno=snapshot_trigger_txid.seqno,
-        wait_for_target_seqno=True,
-    )
-    committed_snapshots = sorted(
-        [
-            f
-            for f in os.listdir(committed_snapshots_dir)
-            if f.startswith("snapshot_") and ccf.ledger.is_snapshot_file_committed(f)
-        ],
-        key=lambda f: ccf.ledger.snapshot_index_from_filename(f)[0],
-    )
-    assert (
-        committed_snapshots
-    ), f"Expected committed snapshots in {committed_snapshots_dir}"
-    snapshot_file = committed_snapshots[-1]
-    snapshot_seqno, _ = ccf.ledger.snapshot_index_from_filename(snapshot_file)
-
-    snapshot_dir = os.path.join(
-        network.common_dir, "joining_nodes_snapshot_ledger_offset.snapshots"
-    )
-    rmtree(snapshot_dir, ignore_errors=True)
-    os.makedirs(snapshot_dir)
-    copy(os.path.join(committed_snapshots_dir, snapshot_file), snapshot_dir)
-
-    rest_txid = network.txs.issue(
-        network, number_txs=5, send_private=False, send_public=True
-    )
-
-    assert snapshot_trigger_txid.seqno < snapshot_seqno < rest_txid.seqno, (
-        snapshot_trigger_txid,
-        snapshot_seqno,
-        rest_txid,
-    )
-
-    # flush ledger to disk from commit index
-    network.get_latest_ledger_public_state()
-    # Only use the committed ledger files flushed from above
-    _, committed_ledger_dirs = primary.get_ledger()
-    ledger = ccf.ledger.Ledger(
-        committed_ledger_dirs,
-        committed_only=True,
-        contiguous_suffix=True,
-    )
-
-    snapshot_chunk_start = None
-    snapshot_chunk_entries = None
-    post_snapshot_entries = []
-    for chunk in ledger:
-        entries = [
-            (tx.get_public_domain().get_seqno(), tx.get_raw_tx()) for tx in chunk
-        ]
-        if not entries:
-            continue
-
-        chunk_start = entries[0][0]
-        chunk_end = entries[-1][0]
-        if chunk_start <= snapshot_seqno <= chunk_end:
-            snapshot_chunk_start = chunk_start
-            snapshot_chunk_entries = entries
-            assert (
-                chunk_end == snapshot_seqno
-            ), f"Expected snapshot seqno {snapshot_seqno} at chunk boundary, got chunk {chunk_start}-{chunk_end}"
-
-        post_snapshot_entries.extend(
-            (seqno, raw_tx)
-            for seqno, raw_tx in entries
-            if snapshot_seqno < seqno <= rest_txid.seqno
-        )
-
-    assert (
-        snapshot_chunk_start is not None
-    ), f"Could not find ledger chunk ending at snapshot seqno {snapshot_seqno}"
-    assert snapshot_chunk_entries is not None
-    if snapshot_chunk_start <= snapshot_trigger_txid.seqno < snapshot_seqno:
-        mid_chunk_seqno = snapshot_trigger_txid.seqno
-    else:
-        mid_chunk_seqno = next(
-            seqno
-            for seqno, _ in reversed(snapshot_chunk_entries)
-            if seqno < snapshot_seqno
-        )
-    assert (
-        post_snapshot_entries
-    ), f"Expected ledger entries after snapshot {snapshot_seqno}"
-    assert post_snapshot_entries[0][0] == snapshot_seqno + 1, post_snapshot_entries[0]
-
-    base_dir = os.path.join(network.common_dir, "joining_nodes_snapshot_ledger_offset")
-    rmtree(base_dir, ignore_errors=True)
-    os.makedirs(base_dir)
-
-    variants = [
-        (
-            "incomplete_mid_chunk",
-            [(snapshot_chunk_entries, mid_chunk_seqno, False)],
-        ),
-        ("complete_mid_chunk", [(snapshot_chunk_entries, mid_chunk_seqno, True)]),
-        ("incomplete_snapshot", [(snapshot_chunk_entries, snapshot_seqno, False)]),
-        ("complete_snapshot", [(snapshot_chunk_entries, snapshot_seqno, True)]),
-        (
-            "incomplete_rest",
-            [
-                (snapshot_chunk_entries, snapshot_seqno, True),
-                (post_snapshot_entries, rest_txid.seqno, False),
-            ],
-        ),
-    ]
-
-    for variant_name, chunks_to_write in variants:
-        variant_dir = os.path.join(base_dir, variant_name)
-        current_dir = os.path.join(variant_dir, "ledger.current")
-        prefix_dir = os.path.join(variant_dir, "ledger.committed")
-        os.makedirs(current_dir)
-        os.makedirs(prefix_dir)
-
-        for source_dir in committed_ledger_dirs:
-            for f in os.listdir(source_dir):
-                if not f.endswith(ccf.ledger.COMMITTED_FILE_SUFFIX):
-                    continue
-                _, range_end = ccf.ledger.range_from_filename(f)
-                if range_end is not None and range_end < snapshot_chunk_start:
-                    copy(os.path.join(source_dir, f), prefix_dir)
-
-        for entries, end_seqno, complete in chunks_to_write:
-            infra.utils.write_ledger_chunk(current_dir, entries, end_seqno, complete)
-
-        LOG.info(
-            "Joining node with {} ledger variant from snapshot {}",
-            variant_name,
-            snapshot_file,
-        )
-        new_node = network.create_node()
-        try:
-            network.join_node(
-                new_node,
-                args.package,
-                args,
-                target_node=primary,
-                ledger_dir=current_dir,
-                read_only_ledger_dirs=[prefix_dir],
-                from_snapshot=True,
-                snapshots_dir=snapshot_dir,
-                copy_ledger=False,
-                fetch_recent_snapshot=False,
-                timeout=10,
-            )
-
-            out_path, _ = new_node.get_logs()
-            with open(out_path, encoding="utf-8") as out:
-                assert f"snapshot_{snapshot_seqno}_" in out.read()
-
-            network.retire_node(primary, new_node)
-            new_node.stop()
-        finally:
-            if not new_node.is_stopped():
-                new_node.stop()
-            if new_node in network.nodes:
-                network.nodes.remove(new_node)
 
     return network
 
@@ -991,6 +781,7 @@ def run_all(args):
         args.nodes,
         args.binary_dir,
         args.debug_nodes,
+        args.perf_nodes,
         pdb=args.pdb,
         txs=txs,
     ) as network:
@@ -1003,10 +794,7 @@ def run_all(args):
 
         test_add_as_many_pending_nodes(network, args)
         test_add_node_invalid_service_cert(network, args)
-        test_add_node(network, args, copy_snapshot=False, fetch_recent_snapshot=False)
-        test_add_node(network, args, copy_snapshot=False, fetch_recent_snapshot=True)
-        test_add_node(network, args, copy_snapshot=True, fetch_recent_snapshot=False)
-        test_add_node(network, args, copy_snapshot=True, fetch_recent_snapshot=True)
+        test_add_node(network, args, from_snapshot=False)
         test_add_node_with_read_only_ledger(network, args)
         test_join_straddling_primary_replacement(network, args)
         test_node_replacement(network, args)
@@ -1014,15 +802,15 @@ def run_all(args):
         test_add_node_endorsements_endpoints(network, args)
         test_add_node_on_other_curve(network, args)
         test_retire_backup(network, args)
+        test_add_node(network, args)
         test_retire_primary(network, args)
 
         test_add_node_from_snapshot(network, args)
         test_add_node_from_snapshot(network, args, from_backup=True)
         test_add_node_from_snapshot(network, args, copy_ledger=False)
-        test_joining_nodes_snapshot_ledger_offset(network, args)
 
         test_node_filter(network, args)
-        test_retired_nodes_stop_signing_after_retired_committed(network, args)
+        test_retiring_nodes_emit_at_most_one_signature(network, args)
 
         test_node_certificates_validity_period(network, args)
         test_add_node_invalid_validity_period(network, args)
@@ -1030,7 +818,6 @@ def run_all(args):
         test_ledger_invariants(network, args)
 
     run_join_old_snapshot(args)
-    run_join_no_snapshot_against_original_primary(args)
 
 
 def run_join_old_snapshot(const_args):
@@ -1044,6 +831,7 @@ def run_join_old_snapshot(const_args):
             args.nodes,
             args.binary_dir,
             args.debug_nodes,
+            args.perf_nodes,
             pdb=args.pdb,
             txs=txs,
         ) as network:
@@ -1065,19 +853,16 @@ def run_join_old_snapshot(const_args):
 
             for _ in range(0, 2):
                 new_node = network.create_node()
-                snapshots_dir = network.get_committed_snapshots()
                 network.join_node(
                     new_node,
                     args.package,
                     args,
-                    snapshots_dir=snapshots_dir,
                     from_snapshot=True,
                 )
                 network.trust_node(new_node, args)
 
             # Kill primary and wait for a new one: new primary is
             # guaranteed to have started from the new snapshot
-            network.retire_node(remote_node=new_node, node_to_retire=primary)
             primary.stop()
             network.wait_for_new_primary(primary)
 
@@ -1089,8 +874,8 @@ def run_join_old_snapshot(const_args):
                     args.package,
                     args,
                     from_snapshot=True,
-                    snapshots_dir=tmp_dir,
                     fetch_recent_snapshot=False,
+                    snapshots_dir=tmp_dir,
                     timeout=3,
                 )
             except infra.network.StartupSeqnoIsOld as e:
@@ -1128,77 +913,25 @@ def run_join_old_snapshot(const_args):
                     f"Node {new_node.local_node_id} started without snapshot unexpectedly joined the service successfully"
                 )
 
-            # Find latest primary
-            primary, backups = network.find_nodes()
-            backup = backups[0]
-
-            # Remove backup's snapshots, so that they need to redirect during snapshot-discovery
-            snapshot_dir = os.path.join(
-                backup.remote.remote.root, backup.remote.snapshots_dir_name
-            )
-            rmtree(snapshot_dir)
-            pathlib.Path(snapshot_dir).mkdir(parents=True, exist_ok=True)
-
             # Start new node with no snapshot dir, but fetching recent snapshot on startup - this should only pass if snapshot fetch works correctly
             new_node = network.create_node()
             network.join_node(
                 new_node,
                 args.package,
                 args,
-                target_node=backup,
                 from_snapshot=False,
                 fetch_recent_snapshot=True,
                 timeout=3,
             )
 
 
-def run_join_no_snapshot_against_original_primary(const_args):
-    # Regression test.
-    # Previously a node which should fetch a snapshot, would not as the lower limit for this was the startup snapshot of the node.
-    # This test ensures that the startup seqno of a joining node is higher than the startup snapshot of the primary
-    txs = app.LoggingTxs("user0")
-    args = deepcopy(const_args)
-    args.nodes = infra.e2e_args.nodes(args, 1)
-    args.label += "_no_snapshot_against_original_primary"
+if __name__ == "__main__":
+    cr = ConcurrentRunner()
+    cr.add(
+        "reconfiguration",
+        run_all,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+    )
 
-    with infra.network.network(
-        args.nodes,
-        args.binary_dir,
-        args.debug_nodes,
-        pdb=args.pdb,
-        txs=txs,
-    ) as network:
-        network.start_and_open(args)
-        primary, _ = network.find_primary()
-
-        # The original primary started without a snapshot; sanity-check this.
-        with primary.client() as c:
-            body = c.get("/node/state").body.json()
-            assert (
-                body["startup_seqno"] == 0
-            ), f"Original primary should have startup_seqno == 0, got {body['startup_seqno']}"
-
-        # Issue enough transactions for the primary to generate and commit a
-        # snapshot. Wait until that snapshot is on disk.
-        txs.issue(network, number_txs=args.snapshot_tx_interval)
-        committed_snapshots_dir = network.get_committed_snapshots(primary)
-        assert os.listdir(
-            committed_snapshots_dir
-        ), f"Expected committed snapshot in {committed_snapshots_dir}"
-
-        # Assert that fetch_recent_snapshot fetches a snapshot and starts from it
-        new_node = network.create_node()
-        network.join_node(
-            new_node,
-            args.package,
-            args,
-            from_snapshot=False,
-            fetch_recent_snapshot=True,
-            timeout=10,
-        )
-        network.trust_node(new_node, args)
-        with new_node.client() as c:
-            body = c.get("/node/state").body.json()
-            assert (
-                body["startup_seqno"] > 0
-            ), f"Joiner should have started from a fetched snapshot, got startup_seqno={body['startup_seqno']}"
+    cr.run()

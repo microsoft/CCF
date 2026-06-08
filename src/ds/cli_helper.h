@@ -20,7 +20,7 @@ namespace cli
   static std::pair<std::string, std::string> validate_address(
     const ParsedAddress& addr, const std::string& default_port = "0")
   {
-    auto found = addr.find_last_of(':');
+    auto found = addr.find_last_of(":");
     auto hostname = addr.substr(0, found);
 
     const auto port =
@@ -34,12 +34,12 @@ namespace cli
     {
       throw std::logic_error(fmt::format("Port '{}' is not a number", port));
     }
-    if (ec == std::errc::result_out_of_range)
+    else if (ec == std::errc::result_out_of_range)
     {
       throw std::logic_error(
         fmt::format("Port '{}' is not in range 0-65535", port));
     }
-    if (ec != std::errc())
+    else if (ec != std::errc())
     {
       throw std::logic_error(fmt::format("Error parsing port '{}'", port));
     }

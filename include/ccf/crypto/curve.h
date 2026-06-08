@@ -14,7 +14,7 @@
 namespace ccf::crypto
 {
   // SNIPPET_START: supported_curves
-  enum class CurveID : uint8_t
+  enum class CurveID
   {
     /// No curve
     NONE = 0,
@@ -43,19 +43,13 @@ namespace ccf::crypto
   {
     switch (ec)
     {
-      case CurveID::NONE:
-      case CurveID::CURVE25519:
-      case CurveID::X25519:
-      {
-        throw std::logic_error(fmt::format("Invalid ECDSA curve: {}", ec));
-      }
       case CurveID::SECP384R1:
         return MDType::SHA384;
       case CurveID::SECP256R1:
         return MDType::SHA256;
       default:
       {
-        throw std::logic_error(fmt::format("Unhandled CurveId: {}", ec));
+        throw std::logic_error(fmt::format("Unhandled CurveID: {}", ec));
       }
     }
   }

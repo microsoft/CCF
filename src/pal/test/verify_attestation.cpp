@@ -7,13 +7,19 @@
 #include "ccf/pal/attestation_sev_snp.h"
 #include "ccf/pal/measurement.h"
 #include "ds/files.h"
+#include "ds/thread_messaging.h"
 #include "node/quote_endorsements_client.h"
 #include "pal/test/snp_attestation_validation_data.h"
-#include "tasks/task_system.h"
 
 #include <CLI11/CLI11.hpp>
 #include <curl/curl.h>
 #include <uv.h>
+
+namespace threading
+{
+  std::unique_ptr<::threading::ThreadMessaging> ThreadMessaging::singleton =
+    nullptr;
+}
 
 void fetch_endorsements(
   const std::vector<uint8_t>& attestation_raw, std::vector<uint8_t>& output)
@@ -39,18 +45,37 @@ void fetch_endorsements(
 
 void run_loop()
 {
+  struct RunLoopState
+  {
+    uv_loop_t* loop;
+    uint64_t last_tick_ms;
+  } state = {uv_default_loop(), 0};
+
+  uv_update_time(state.loop);
+  state.last_tick_ms = uv_now(state.loop);
+
   uv_idle_t idle;
-  uv_idle_init(uv_default_loop(), &idle);
-  uv_idle_start(&idle, [](uv_idle_t* /*handle*/) {
-    auto task = ccf::tasks::get_main_job_board().get_task();
-    if (task != nullptr)
+  uv_idle_init(state.loop, &idle);
+  idle.data = &state;
+  uv_idle_start(&idle, [](uv_idle_t* handle) {
+    auto& state = *reinterpret_cast<RunLoopState*>(handle->data);
+
+    uv_update_time(state.loop);
+    const auto now_ms = uv_now(state.loop);
+    if (now_ms > state.last_tick_ms)
     {
-      task->do_task();
+      threading::ThreadMessaging::instance().tick(
+        std::chrono::milliseconds(now_ms - state.last_tick_ms));
+      state.last_tick_ms = now_ms;
+    }
+
+    while (threading::ThreadMessaging::instance().run_one())
+    {
     }
   });
 
   // run the uv loop to completion
-  uv_run(uv_default_loop(), UV_RUN_DEFAULT);
+  uv_run(state.loop, UV_RUN_DEFAULT);
 }
 
 int main(int argc, char** argv)
@@ -101,6 +126,7 @@ int main(int argc, char** argv)
   ccf::logger::config::level() = log_level;
 
   curl_global_init(CURL_GLOBAL_DEFAULT);
+  threading::ThreadMessaging::init(1);
   auto curl_libuv_context =
     ccf::curl::CurlmLibuvContextSingleton(uv_default_loop());
 
@@ -110,7 +136,7 @@ int main(int argc, char** argv)
 
   fetch_endorsements(quote.quote, quote.endorsements);
   run_loop();
-  LOG_INFO_FMT("Successfully fetched endorsements from AMD");
+  CCF_APP_INFO("Successfully fetched endorsements from AMD");
 
   const auto* attestation_unverified =
     reinterpret_cast<const ccf::pal::snp::Attestation*>(quote.quote.data());
@@ -118,10 +144,13 @@ int main(int argc, char** argv)
   ccf::pal::PlatformAttestationReportData rd = {};
   ccf::pal::verify_quote(quote, m, rd);
 
-  LOG_INFO_FMT(
+  CCF_APP_INFO(
     "Successfully verified attestation against fetched endorsements");
-  LOG_INFO_FMT("Measurement: {}", ccf::ds::to_hex(m.data));
-  LOG_INFO_FMT("Report Data: {}", ccf::ds::to_hex(rd.data));
+  CCF_APP_INFO("Measurement: {}", ccf::ds::to_hex(m.data));
+  CCF_APP_INFO("Report Data: {}", ccf::ds::to_hex(rd.data));
+
+  threading::ThreadMessaging::shutdown();
+  curl_global_cleanup();
 
   return 0;
 }

@@ -19,8 +19,6 @@ namespace http
   class RequestProcessor
   {
   public:
-    virtual ~RequestProcessor() = default;
-
     virtual void handle_request(
       llhttp_method method,
       const std::string_view& url,
@@ -32,8 +30,6 @@ namespace http
   class ResponseProcessor
   {
   public:
-    virtual ~ResponseProcessor() = default;
-
     virtual void handle_response(
       ccf::http_status status,
       ccf::http::HeaderMap&& headers,

@@ -36,6 +36,7 @@ import infra.commit
 from infra.log_capture import flush_info
 import ccf.cose
 
+API_VERSION_CLASSIC = "classic"
 API_VERSION_PREVIEW_01 = "2023-06-01-preview"
 API_VERSION_01 = "2024-07-01"
 
@@ -137,6 +138,7 @@ CCF_TX_ID_HEADER = "x-ms-ccf-transaction-id"
 
 DEFAULT_CONNECTION_TIMEOUT_SEC = 3
 DEFAULT_REQUEST_TIMEOUT_SEC = 10
+DEFAULT_COMMIT_TIMEOUT_SEC = 3
 
 CONTENT_TYPE_TEXT = "text/plain"
 CONTENT_TYPE_JSON = "application/json"
@@ -485,10 +487,7 @@ class CurlClient:
         assert signing_auth is None, signing_auth
         self.cose_signing_auth = cose_signing_auth
         self.common_headers = common_headers or {}
-        if self.ca:
-            self.ca_curve = get_curve(self.ca)
-        else:
-            self.ca_curve = None
+        self.ca_curve = get_curve(self.ca)
         self.protocol = kwargs.get("protocol") if "protocol" in kwargs else "https"
         self.extra_args = []
         if kwargs.get("http2"):
@@ -581,8 +580,6 @@ class CurlClient:
             if self.session_auth:
                 cmd.extend(["--key", self.session_auth.key])
                 cmd.extend(["--cert", self.session_auth.cert])
-            if not self.ca and not self.session_auth:
-                cmd.extend(["-k"])  # Allow insecure connections
 
             for arg in self.extra_args:
                 cmd.append(arg)
@@ -604,15 +601,9 @@ class CurlClient:
 
             if rc.returncode != 0:
                 if rc.returncode in [
-                    # COULDNT_CONNECT,
-                    7,
-                    # PEER_FAILED_VERIFICATION,
                     35,
-                    # SEND_ERROR,
-                    55,
-                    # SSL_CONNECT_ERROR
                     60,
-                ]:
+                ]:  # PEER_FAILED_VERIFICATION, SSL_CONNECT_ERROR
                     raise CCFConnectionException
                 if rc.returncode == 28:  # OPERATION_TIMEDOUT
                     raise TimeoutError
@@ -620,9 +611,6 @@ class CurlClient:
                 raise RuntimeError(f"Curl failed with return code {rc.returncode}")
 
             return Response.from_raw(rc.stdout)
-
-    def repeat_last_request(self):
-        raise NotImplementedError()
 
     def close(self):
         pass
@@ -653,7 +641,6 @@ class HttpxClient:
     _auth_provider = HttpSig
     created_at_override = None
     _corrupt_signature = False
-    _last_request = None
 
     def __init__(
         self,
@@ -691,40 +678,6 @@ class HttpxClient:
                     .hex()
                 )
         self.cose_header_builder = cose_protected_headers_api_classic
-
-    def _request(
-        self,
-        request: Request,
-        request_body: bytes,
-        auth: Any,
-        extra_headers: Optional[dict],
-        timeout: int,
-    ):
-        self._last_request = (request, request_body, auth, extra_headers, timeout)
-        try:
-            response = self.session.request(
-                request.http_verb,
-                url=f"{self.protocol}://{self.hostname}{request.path}",
-                auth=auth,
-                headers=extra_headers,
-                timeout=timeout,
-                content=request_body,
-            )
-        except httpx.TimeoutException as exc:
-            raise TimeoutError from exc
-        except httpx.ConnectError as exc:
-            raise CCFConnectionException from exc
-        except (httpx.WriteError, httpx.ReadError, httpx.RemoteProtocolError) as exc:
-            raise CCFIOException from exc
-        except Exception as exc:
-            raise RuntimeError(
-                f"HttpxClient failed with unexpected error: {exc}"
-            ) from exc
-
-        return Response.from_requests_response(response)
-
-    def repeat_last_request(self):
-        return self._request(*self._last_request)
 
     def request(
         self,
@@ -812,13 +765,27 @@ class HttpxClient:
 
             extra_headers["content-type"] = CONTENT_TYPE_COSE
 
-        return self._request(
-            request=request,
-            request_body=request_body,
-            auth=auth,
-            extra_headers=extra_headers,
-            timeout=timeout,
-        )
+        try:
+            response = self.session.request(
+                request.http_verb,
+                url=f"{self.protocol}://{self.hostname}{request.path}",
+                auth=auth,
+                headers=extra_headers,
+                timeout=timeout,
+                content=request_body,
+            )
+        except httpx.TimeoutException as exc:
+            raise TimeoutError from exc
+        except httpx.ConnectError as exc:
+            raise CCFConnectionException from exc
+        except (httpx.WriteError, httpx.ReadError, httpx.RemoteProtocolError) as exc:
+            raise CCFIOException from exc
+        except Exception as exc:
+            raise RuntimeError(
+                f"HttpxClient failed with unexpected error: {exc}"
+            ) from exc
+
+        return Response.from_requests_response(response)
 
     def close(self):
         self.session.close()
@@ -1022,7 +989,6 @@ class CCFClient:
     :param Identity session_auth: Path to private key and certificate to be used as client authentication for the session (optional).
     :param Identity signing_auth: Path to private key and certificate to be used to sign requests for the session (optional).
     :param int connection_timeout: Maximum time to wait for successful connection establishment before giving up.
-    :param int election_timeout_ms: Election timeout (in milliseconds) of the network this client connects to. If set, used as the default timeout for :py:meth:`wait_for_commit`.
     :param str description: Message to print on each request emitted with this client.
     :param dict common_headers: Headers which should be added to every request.
     :param dict kwargs: Keyword args to be forwarded to the client implementation.
@@ -1054,14 +1020,12 @@ class CCFClient:
         signing_auth: Optional[Identity] = None,
         cose_signing_auth: Optional[Identity] = None,
         connection_timeout: int = DEFAULT_CONNECTION_TIMEOUT_SEC,
-        election_timeout_ms: Optional[int] = None,
         description: Optional[str] = None,
         impl_type: Union[CurlClient, HttpxClient, RawSocketClient] = default_impl_type,
         common_headers: Optional[dict] = None,
         **kwargs,
     ):
         self.connection_timeout = connection_timeout
-        self.election_timeout_ms = election_timeout_ms
         self.hostname = infra.interfaces.make_address(host, port)
         self.name = f"[{self.hostname}]"
         self.description = description or self.name
@@ -1301,7 +1265,9 @@ class CCFClient:
         kwargs["http_verb"] = "PATCH"
         return self.call(*args, **kwargs)
 
-    def wait_for_commit(self, response: Response, timeout: Optional[int] = None):
+    def wait_for_commit(
+        self, response: Response, timeout: int = DEFAULT_COMMIT_TIMEOUT_SEC
+    ):
         """
         Given a :py:class:`infra.clients.Response`, this functions waits
         for the associated sequence number and view to be committed by the CCF network.
@@ -1310,19 +1276,13 @@ class CCFClient:
 
         :param infra.clients.Response response: Response returned by :py:meth:`infra.clients.CCFClient.call`
         :param int timeout: Maximum time (secs) to wait for commit before giving up.
-            Defaults to the election timeout configured for this client.
 
         A ``TimeoutError`` exception is raised if the transaction is not committed within ``timeout`` seconds.
         """
         if response.seqno is None or response.view is None:
             raise ValueError(f"Response seqno and view should not be None: {response}")
 
-        if timeout is None and self.election_timeout_ms is not None:
-            timeout = self.election_timeout_ms // 1000
         infra.commit.wait_for_commit(self, response.seqno, response.view, timeout)
-
-    def repeat_last_request(self):
-        return self.client_impl.repeat_last_request()
 
     def close(self):
         self.client_impl.close()

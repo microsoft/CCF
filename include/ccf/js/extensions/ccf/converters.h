@@ -24,7 +24,7 @@ namespace ccf::js::extensions
   class ConvertersExtension : public ExtensionInterface
   {
   public:
-    ConvertersExtension() = default;
+    ConvertersExtension() {}
 
     void install(js::core::Context& ctx) override;
   };

@@ -825,7 +825,7 @@ public:
 
 private:
 
-    /// Internal copy of the original RapidJson iterator
+    /// Iternal copy of the original RapidJson iterator
     typename ValueType::ConstMemberIterator m_itr;
 };
 

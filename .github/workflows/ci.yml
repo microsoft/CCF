@@ -11,11 +11,47 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ !contains(github.ref, 'main')}}
 
-permissions: read-all
+permissions:
+  contents: read
+  actions: read
+  checks: write
 
 jobs:
-  vmss-virtual-a:
-    name: "VMSS Virtual A" # CI Checks, Clang Tidy, Python package tests, Doc build, Unit tests, e2e (bucket_a)
+  checks:
+    name: "Format and License Checks"
+    runs-on:
+      [
+        self-hosted,
+        1ES.Pool=gha-vmss-d16av5-ci,
+        "JobId=ci_checks-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
+      ]
+    container:
+      image: mcr.microsoft.com/azurelinux/base/core:3.0
+      options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
+
+    steps:
+      - name: "Checkout dependencies"
+        shell: bash
+        run: |
+          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
+          tdnf -y update
+          tdnf -y install ca-certificates git
+
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Run CI checks
+        run: |
+          set -ex
+          git config --global --add safe.directory /__w/CCF/CCF
+          tdnf -y install tar npm build-essential
+          ./scripts/setup-dev.sh
+          ./scripts/ci-checks.sh
+        shell: bash
+
+  build_with_tidy:
+    name: "Build with clang-tidy"
     runs-on:
       [
         self-hosted,
@@ -35,7 +71,7 @@ jobs:
           tdnf -y update
           tdnf -y install ca-certificates git
 
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -44,67 +80,20 @@ jobs:
         run: |
           set -ex
           ./scripts/setup-ci.sh
-          ./scripts/setup-dev.sh
 
-      - name: "Run Checks and Build Debug with clang-tidy"
+      - name: "Build Debug"
         run: |
           set -ex
           git config --global --add safe.directory /__w/CCF/CCF
-          ./scripts/ci-checks.sh
           mkdir build
           cd build
-          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DCLANG_TIDY=ON ..
+          cmake -GNinja -DCOMPILE_TARGET=virtual -DCMAKE_BUILD_TYPE=Debug -DCLANG_TIDY=ON ..
           ninja
         shell: bash
 
-      - name: "Run tests for Python package"
-        run: |
-          set -ex
-          python3 -m venv env
-          source env/bin/activate
-          pip install -U -q pip pytest
-          pip install -q -U -e python
-          cd python
-          pytest
-
-      - name: "Check doc builds with no warnings"
-        run: |
-          set -ex
-          python3 -m venv env
-          source env/bin/activate
-          pip install -U pip
-          pip install -U -e ./python
-          pip install -U -r doc/requirements.txt
-          pip install -U -r doc/historical_ccf_requirements.txt
-          sphinx-build --fail-on-warning -b html doc doc/html
-
-      - name: "Run Unit tests"
-        run: |
-          set -ex
-          cd build
-          ./tests.sh --output-on-failure -L unit -j$(nproc --all)
-
-      - name: "Run e2e tests (bucket_a)"
-        run: |
-          set -ex
-          cd build
-          ./tests.sh --timeout 360 --output-on-failure -L bucket_a
-
-      - name: "Upload logs for virtual A"
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: logs-azurelinux-virtual-a
-          path: |
-            build/workspace/*/*.config.json
-            build/workspace/*/out
-            build/workspace/*/err
-            build/workspace/*/*.ledger/*
-            build/workspace/*/stack_trace
-          if-no-files-found: ignore
-        if: success() || failure()
-
-  vmss-virtual-b:
-    name: "VMSS Virtual B" # End-to-end tests (bucket_b)
+  build_and_test_virtual:
+    name: "Virtual CI"
+    needs: checks
     runs-on:
       [
         self-hosted,
@@ -123,7 +112,7 @@ jobs:
           tdnf -y update
           tdnf -y install ca-certificates git
 
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -138,19 +127,13 @@ jobs:
           set -ex
           ./scripts/setup-ci.sh
 
-      - name: "Confirm running on Virtual"
-        run: |
-          set -ex
-          python3 tests/infra/platform_detection.py virtual
-        shell: bash
-
       - name: "Build Debug"
         run: |
           set -ex
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug ..
+          cmake -GNinja -DCOMPILE_TARGET=virtual -DCMAKE_BUILD_TYPE=Debug ..
           ninja
         shell: bash
 
@@ -160,104 +143,41 @@ jobs:
           cd build
           rm -rf /github/home/.cache
           mkdir -p /github/home/.cache
-
-          ./tests.sh --timeout 360 --output-on-failure -L bucket_b
-        shell: bash
-
-      - name: "Upload logs for virtual B"
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: logs-azurelinux-virtual-b
-          path: |
-            build/workspace/*/*.config.json
-            build/workspace/*/out
-            build/workspace/*/err
-            build/workspace/*/*.ledger/*
-            build/workspace/*/stack_trace
-          if-no-files-found: ignore
-        if: success() || failure()
-
-  vmss-virtual-c:
-    name: "VMSS Virtual C" # End-to-end tests (bucket_c)
-    runs-on:
-      [
-        self-hosted,
-        1ES.Pool=gha-vmss-d16av5-ci,
-        "JobId=ci_build_test_virtual_rest-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
-      ]
-    container:
-      image: mcr.microsoft.com/azurelinux/base/core:3.0
-      options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
-
-    steps:
-      - name: "Checkout dependencies"
-        shell: bash
-        run: |
-          set -ex
-          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
-          tdnf -y update
-          tdnf -y install ca-certificates git
-
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-        with:
-          fetch-depth: 0
-
-      - name: "Install dependencies"
-        shell: bash
-        run: |
-          set -ex
-          ./scripts/setup-ci.sh
-
-      - name: "Build Debug"
-        run: |
-          set -ex
-          git config --global --add safe.directory /__w/CCF/CCF
-          mkdir build
-          cd build
-          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug ..
-          ninja
-        shell: bash
-
-      - name: "Test virtual"
-        run: |
-          set -ex
-          cd build
-          rm -rf /github/home/.cache
-          mkdir -p /github/home/.cache
-
-          ./tests.sh --timeout 360 --output-on-failure -L bucket_c
-        shell: bash
-
-      - name: "Run partitions tests"
-        run: |
-          set -ex
-          cd build
+          # Unit tests
+          ./tests.sh --output-on-failure -L unit -j$(nproc --all)
+          # End to end tests
+          ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|suite|unit"
+          # Partitions tests
+          # Note that those are only run on the virtual CI, as they require enough
+          # privileges to configure iptables. ACI-based pools run unprivileged
+          # containers, and so cannot run these tests unfortunately.
           ./tests.sh --timeout 360 --output-on-failure -L partitions -C partitions
+        shell: bash
 
-      - name: "Upload logs for virtual C"
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      - name: "Upload logs for virtual"
+        uses: actions/upload-artifact@v7
         with:
-          name: logs-azurelinux-virtual-c
+          name: logs-azurelinux-virtual
           path: |
             build/workspace/*/*.config.json
             build/workspace/*/out
             build/workspace/*/err
             build/workspace/*/*.ledger/*
-            build/workspace/*/stack_trace
           if-no-files-found: ignore
         if: success() || failure()
 
-  aci_snp_milan:
-    name: "ACI SNP Milan"
+  build_and_test_caci:
+    name: "Confidential Container CI"
     runs-on:
       [
         self-hosted,
         1ES.Pool=gha-c-aci-ci,
-        "JobId=aci_snp_milan-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
+        "JobId=ci_caci_milan-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
       ]
+    needs: checks
 
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -266,7 +186,7 @@ jobs:
           set -ex
           # Dump environment variables, extract Fabric_NodeIPOrFQDN
           # and save it to a file for reconfiguration test using THIM.
-          { cat /proc/*/environ 2>/dev/null || true; } | tr '\000' '\n' | sort -u | grep Fabric_NodeIPOrFQDN > /Fabric_NodeIPOrFQDN
+          cat /proc/*/environ | tr '\000' '\n' | sort -u | grep Fabric_NodeIPOrFQDN > /Fabric_NodeIPOrFQDN
           echo "::group::Disk usage"
           df -kh
           echo "::endgroup::"
@@ -278,19 +198,13 @@ jobs:
           echo "::endgroup::"
         shell: bash
 
-      - name: "Confirm running on SEV-SNP Milan"
-        run: |
-          set -ex
-          python3 tests/infra/platform_detection.py snp milan
-        shell: bash
-
       - name: "Build Debug"
         run: |
           set -ex
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DWORKER_THREADS=1 ..
+          cmake -GNinja -DCOMPILE_TARGET=snp -DCMAKE_BUILD_TYPE=Debug ..
           ninja
         shell: bash
 
@@ -300,11 +214,11 @@ jobs:
           cd build
           rm -rf /github/home/.cache
           mkdir -p /github/home/.cache
-          ./tests.sh --timeout 360 --output-on-failure -C snp -L snp
-          ./tests.sh --timeout 360 --output-on-failure -R code_update
+          # Unit tests
+          ./tests.sh --output-on-failure -L unit -j$(nproc --all)
+          # End to end tests
+          ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|suite|unit"
         shell: bash
-        env:
-          ELECTION_TIMEOUT_MS: 10000
 
       - name: "Capture dmesg"
         run: |
@@ -317,39 +231,44 @@ jobs:
         if: success() || failure()
 
       - name: "Upload logs"
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@v7
         with:
-          name: logs-aci-snp-milan
+          name: logs-caci-snp
           path: |
             dmesg.log
             build/workspace/*/*.config.json
             build/workspace/*/out
             build/workspace/*/err
             build/workspace/*/*.ledger/*
-            build/workspace/*/stack_trace
           if-no-files-found: ignore
         if: success() || failure()
 
-  aci_snp_genoa:
-    name: "ACI SNP Genoa"
+  build_and_test_caci_genoa:
+    name: "Confidential Container CI on Genoa"
     runs-on:
       [
         self-hosted,
-        1ES.Pool=gha-aci-genoa,
-        "JobId=aci_snp_genoa-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
+        1ES.Pool=gha-c-caci-ci-south-central-us,
+        "JobId=ci_caci_genoa-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
       ]
+    needs: checks
 
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
+
+      - name: "Ensure running on Genoa hardware"
+        run: |
+          cat /proc/cpuinfo | grep "model.*: 17"
+        shell: bash
 
       - name: "Dump environment"
         run: |
           set -ex
           # Dump environment variables, extract Fabric_NodeIPOrFQDN
           # and save it to a file for reconfiguration test using THIM.
-          { cat /proc/*/environ 2>/dev/null || true; } | tr '\000' '\n' | sort -u | grep Fabric_NodeIPOrFQDN > /Fabric_NodeIPOrFQDN
+          cat /proc/*/environ | tr '\000' '\n' | sort -u | grep Fabric_NodeIPOrFQDN > /Fabric_NodeIPOrFQDN
           echo "::group::Disk usage"
           df -kh
           echo "::endgroup::"
@@ -361,19 +280,13 @@ jobs:
           echo "::endgroup::"
         shell: bash
 
-      - name: "Confirm running on SEV-SNP Genoa"
-        run: |
-          set -ex
-          python3 tests/infra/platform_detection.py snp genoa
-        shell: bash
-
       - name: "Build Debug"
         run: |
           set -ex
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DWORKER_THREADS=1 ..
+          cmake -GNinja -DCOMPILE_TARGET=snp -DCMAKE_BUILD_TYPE=Debug ..
           ninja
         shell: bash
 
@@ -383,11 +296,13 @@ jobs:
           cd build
           rm -rf /github/home/.cache
           mkdir -p /github/home/.cache
-          ./tests.sh --timeout 360 --output-on-failure -C snp -L snp
+          # Limited set of tests because Genoa pools have limited resources
+          # focusing on architecture-specific functionality.
+          # Unit test for sealing
+          ./tests.sh --output-on-failure -R snp_ioctl_test
+          # End to end tests for code update (attestation verification)
           ./tests.sh --timeout 360 --output-on-failure -R code_update
         shell: bash
-        env:
-          ELECTION_TIMEOUT_MS: 10000
 
       - name: "Capture dmesg"
         run: |
@@ -400,7 +315,7 @@ jobs:
         if: success() || failure()
 
       - name: "Upload logs"
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@v7
         with:
           name: logs-caci-snp-genoa
           path: |
@@ -409,6 +324,5 @@ jobs:
             build/workspace/*/out
             build/workspace/*/err
             build/workspace/*/*.ledger/*
-            build/workspace/*/stack_trace
           if-no-files-found: ignore
         if: success() || failure()

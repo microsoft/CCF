@@ -1,0 +1,3 @@
+workspace: "/tmp/"
+h2spec_version: 2.6.0
+h2spec_install_prefix: "/opt/h2spec"

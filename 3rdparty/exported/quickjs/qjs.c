@@ -1,6 +1,6 @@
 /*
  * QuickJS stand alone interpreter
- *
+ * 
  * Copyright (c) 2017-2021 Fabrice Bellard
  * Copyright (c) 2017-2021 Charlie Gordon
  *
@@ -34,10 +34,8 @@
 #include <time.h>
 #if defined(__APPLE__)
 #include <malloc/malloc.h>
-#elif defined(__linux__) || defined(__GLIBC__)
+#elif defined(__linux__)
 #include <malloc.h>
-#elif defined(__FreeBSD__)
-#include <malloc_np.h>
 #endif
 
 #include "cutils.h"
@@ -45,6 +43,11 @@
 
 extern const uint8_t qjsc_repl[];
 extern const uint32_t qjsc_repl_size;
+#ifdef CONFIG_BIGNUM
+extern const uint8_t qjsc_qjscalc[];
+extern const uint32_t qjsc_qjscalc_size;
+static int bignum_ext;
+#endif
 
 static int eval_buf(JSContext *ctx, const void *buf, int buf_len,
                     const char *filename, int eval_flags)
@@ -61,7 +64,6 @@ static int eval_buf(JSContext *ctx, const void *buf, int buf_len,
             js_module_set_import_meta(ctx, val, TRUE, TRUE);
             val = JS_EvalFunction(ctx, val);
         }
-        val = js_std_await(ctx, val);
     } else {
         val = JS_Eval(ctx, buf, buf_len, filename, eval_flags);
     }
@@ -80,7 +82,7 @@ static int eval_file(JSContext *ctx, const char *filename, int module)
     uint8_t *buf;
     int ret, eval_flags;
     size_t buf_len;
-
+    
     buf = js_load_file(ctx, &buf_len, filename);
     if (!buf) {
         perror(filename);
@@ -107,6 +109,14 @@ static JSContext *JS_NewCustomContext(JSRuntime *rt)
     ctx = JS_NewContext(rt);
     if (!ctx)
         return NULL;
+#ifdef CONFIG_BIGNUM
+    if (bignum_ext) {
+        JS_AddIntrinsicBigFloat(ctx);
+        JS_AddIntrinsicBigDecimal(ctx);
+        JS_AddIntrinsicOperators(ctx);
+        JS_EnableBignumExt(ctx, TRUE);
+    }
+#endif
     /* system modules */
     js_init_module_std(ctx, "std");
     js_init_module_os(ctx, "os");
@@ -138,7 +148,7 @@ static size_t js_trace_malloc_usable_size(const void *ptr)
     return _msize((void *)ptr);
 #elif defined(EMSCRIPTEN)
     return 0;
-#elif defined(__linux__) || defined(__GLIBC__)
+#elif defined(__linux__)
     return malloc_usable_size((void *)ptr);
 #else
     /* change this to `return 0;` if compilation fails */
@@ -257,32 +267,6 @@ static const JSMallocFunctions trace_mf = {
     js_trace_malloc_usable_size,
 };
 
-static size_t get_suffixed_size(const char *str)
-{
-    char *p;
-    size_t v;
-    v = (size_t)strtod(str, &p);
-    switch(*p) {
-    case 'G':
-        v <<= 30;
-        break;
-    case 'M':
-        v <<= 20;
-        break;
-    case 'k':
-    case 'K':
-        v <<= 10;
-        break;
-    default:
-        if (*p != '\0') {
-            fprintf(stderr, "qjs: invalid suffix: %s\n", p);
-            exit(1);
-        }
-        break;
-    }
-    return v;
-}
-
 #define PROG_NAME "qjs"
 
 void help(void)
@@ -296,13 +280,15 @@ void help(void)
            "    --script       load as ES6 script (default=autodetect)\n"
            "-I  --include file include an additional file\n"
            "    --std          make 'std' and 'os' available to the loaded script\n"
+#ifdef CONFIG_BIGNUM
+           "    --bignum       enable the bignum extensions (BigFloat, BigDecimal)\n"
+           "    --qjscalc      load the QJSCalc runtime (default if invoked as qjscalc)\n"
+#endif
            "-T  --trace        trace memory allocation\n"
            "-d  --dump         dump the memory usage stats\n"
-           "    --memory-limit n  limit the memory usage to 'n' bytes (SI suffixes allowed)\n"
-           "    --stack-size n    limit the stack size to 'n' bytes (SI suffixes allowed)\n"
-           "    --no-unhandled-rejection  ignore unhandled promise rejections\n"
-           "-s                    strip all the debug info\n"
-           "    --strip-source    strip the source code\n"
+           "    --memory-limit n       limit the memory usage to 'n' bytes\n"
+           "    --stack-size n         limit the stack size to 'n' bytes\n"
+           "    --unhandled-rejection  dump unhandled promise rejections\n"
            "-q  --quit         just instantiate the interpreter and quit\n");
     exit(1);
 }
@@ -320,13 +306,27 @@ int main(int argc, char **argv)
     int empty_run = 0;
     int module = -1;
     int load_std = 0;
-    int dump_unhandled_promise_rejection = 1;
+    int dump_unhandled_promise_rejection = 0;
     size_t memory_limit = 0;
     char *include_list[32];
     int i, include_count = 0;
-    int strip_flags = 0;
+#ifdef CONFIG_BIGNUM
+    int load_jscalc;
+#endif
     size_t stack_size = 0;
-
+    
+#ifdef CONFIG_BIGNUM
+    /* load jscalc runtime if invoked as 'qjscalc' */
+    {
+        const char *p, *exename;
+        exename = argv[0];
+        p = strrchr(exename, '/');
+        if (p)
+            exename = p + 1;
+        load_jscalc = !strcmp(exename, "qjscalc");
+    }
+#endif
+    
     /* cannot use getopt because we want to pass the command line to
        the script */
     optind = 1;
@@ -400,10 +400,20 @@ int main(int argc, char **argv)
                 load_std = 1;
                 continue;
             }
-            if (!strcmp(longopt, "no-unhandled-rejection")) {
-                dump_unhandled_promise_rejection = 0;
+            if (!strcmp(longopt, "unhandled-rejection")) {
+                dump_unhandled_promise_rejection = 1;
                 continue;
             }
+#ifdef CONFIG_BIGNUM
+            if (!strcmp(longopt, "bignum")) {
+                bignum_ext = 1;
+                continue;
+            }
+            if (!strcmp(longopt, "qjscalc")) {
+                load_jscalc = 1;
+                continue;
+            }
+#endif
             if (opt == 'q' || !strcmp(longopt, "quit")) {
                 empty_run++;
                 continue;
@@ -413,7 +423,7 @@ int main(int argc, char **argv)
                     fprintf(stderr, "expecting memory limit");
                     exit(1);
                 }
-                memory_limit = get_suffixed_size(argv[optind++]);
+                memory_limit = (size_t)strtod(argv[optind++], NULL);
                 continue;
             }
             if (!strcmp(longopt, "stack-size")) {
@@ -421,15 +431,7 @@ int main(int argc, char **argv)
                     fprintf(stderr, "expecting stack size");
                     exit(1);
                 }
-                stack_size = get_suffixed_size(argv[optind++]);
-                continue;
-            }
-            if (opt == 's') {
-                strip_flags = JS_STRIP_DEBUG;
-                continue;
-            }
-            if (!strcmp(longopt, "strip-source")) {
-                strip_flags = JS_STRIP_SOURCE;
+                stack_size = (size_t)strtod(argv[optind++], NULL);
                 continue;
             }
             if (opt) {
@@ -440,6 +442,11 @@ int main(int argc, char **argv)
             help();
         }
     }
+
+#ifdef CONFIG_BIGNUM
+    if (load_jscalc)
+        bignum_ext = 1;
+#endif
 
     if (trace_memory) {
         js_trace_malloc_init(&trace_data);
@@ -455,7 +462,6 @@ int main(int argc, char **argv)
         JS_SetMemoryLimit(rt, memory_limit);
     if (stack_size != 0)
         JS_SetMaxStackSize(rt, stack_size);
-    JS_SetStripInfo(rt, strip_flags);
     js_std_set_worker_new_context_func(JS_NewCustomContext);
     js_std_init_handlers(rt);
     ctx = JS_NewCustomContext(rt);
@@ -465,14 +471,19 @@ int main(int argc, char **argv)
     }
 
     /* loader for ES6 modules */
-    JS_SetModuleLoaderFunc2(rt, NULL, js_module_loader, js_module_check_attributes, NULL);
+    JS_SetModuleLoaderFunc(rt, NULL, js_module_loader, NULL);
 
     if (dump_unhandled_promise_rejection) {
         JS_SetHostPromiseRejectionTracker(rt, js_std_promise_rejection_tracker,
                                           NULL);
     }
-
+    
     if (!empty_run) {
+#ifdef CONFIG_BIGNUM
+        if (load_jscalc) {
+            js_std_eval_binary(ctx, qjsc_qjscalc, qjsc_qjscalc_size, 0);
+        }
+#endif
         js_std_add_helpers(ctx, argc - optind, argv + optind);
 
         /* make 'std' and 'os' visible to non module code */
@@ -503,12 +514,11 @@ int main(int argc, char **argv)
                 goto fail;
         }
         if (interactive) {
-            JS_SetHostPromiseRejectionTracker(rt, NULL, NULL);
             js_std_eval_binary(ctx, qjsc_repl, qjsc_repl_size, 0);
         }
         js_std_loop(ctx);
     }
-
+    
     if (dump_memory) {
         JSMemoryUsage stats;
         JS_ComputeMemoryUsage(rt, &stats);

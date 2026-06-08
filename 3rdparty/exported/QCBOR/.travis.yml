@@ -1,0 +1,20 @@
+os:
+  - linux
+
+language: c
+compiler:
+  - gcc
+
+env:
+sudo: false
+addons:
+  apt:
+    packages:
+      - make
+
+install:
+  - make
+
+script:
+  - ./qcbortest
+

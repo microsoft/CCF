@@ -16,12 +16,11 @@ namespace ccf::crypto
     EdDSAKeyPair_OpenSSL(const Pem& pem);
     EdDSAKeyPair_OpenSSL(const JsonWebKeyEdDSAPrivate& jwk);
 
-    [[nodiscard]] Pem private_key_pem() const override;
+    Pem private_key_pem() const override;
 
-    [[nodiscard]] Pem public_key_pem() const override;
+    Pem public_key_pem() const override;
 
-    [[nodiscard]] std::vector<uint8_t> sign(
-      std::span<const uint8_t> d) const override;
+    std::vector<uint8_t> sign(std::span<const uint8_t> d) const override;
 
     bool verify(
       const uint8_t* contents,
@@ -29,9 +28,9 @@ namespace ccf::crypto
       const uint8_t* signature,
       size_t signature_size) override;
 
-    [[nodiscard]] CurveID get_curve_id() const override;
+    virtual CurveID get_curve_id() const override;
 
-    [[nodiscard]] JsonWebKeyEdDSAPrivate private_key_jwk_eddsa(
+    virtual JsonWebKeyEdDSAPrivate private_key_jwk_eddsa(
       const std::optional<std::string>& kid = std::nullopt) const override;
   };
 }

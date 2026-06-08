@@ -4,6 +4,7 @@
 #include "ccf/ds/hex.h"
 #include "ccf/ds/logger.h"
 #include "ccf/ds/quote_info.h"
+#include "ccf/ds/unit_strings.h"
 #include "ccf/pal/attestation.h"
 #include "ccf/pal/attestation_sev_snp.h"
 #include "ccf/pal/attestation_sev_snp_endorsements.h"
@@ -424,8 +425,10 @@ TEST_CASE("Extracting metadata from endorsements")
 
 int main(int argc, char** argv)
 {
+  ccf::crypto::openssl_sha256_init();
   doctest::Context context;
   context.applyCommandLine(argc, argv);
   int res = context.run();
+  ccf::crypto::openssl_sha256_shutdown();
   return res;
 }

@@ -3,7 +3,7 @@
 #include "ccf/crypto/ecdsa.h"
 
 #include "ccf/crypto/openssl/openssl_wrappers.h"
-#include "crypto/openssl/ec_public_key.h"
+#include "crypto/openssl/public_key.h"
 
 #include <openssl/bn.h>
 #include <openssl/ecdsa.h>
@@ -37,10 +37,10 @@ namespace ccf::crypto
     (void)r_bn.release();
     (void)s_bn.release();
     auto der_size = i2d_ECDSA_SIG(sig, nullptr);
-    OpenSSL::CHECKPOSITIVE(der_size);
+    OpenSSL::CHECK0(der_size);
     std::vector<uint8_t> der_sig(der_size);
     auto* der_sig_buf = der_sig.data();
-    OpenSSL::CHECKPOSITIVE(i2d_ECDSA_SIG(sig, &der_sig_buf));
+    OpenSSL::CHECK0(i2d_ECDSA_SIG(sig, &der_sig_buf));
     return der_sig;
   }
 
@@ -62,7 +62,7 @@ namespace ccf::crypto
     // Unique_BIGNUM for them
     const BIGNUM* r = ECDSA_SIG_get0_r(ecdsa_sig);
     const BIGNUM* s = ECDSA_SIG_get0_s(ecdsa_sig);
-    const int nid = ECPublicKey_OpenSSL::get_openssl_group_id(curveId);
+    const int nid = PublicKey_OpenSSL::get_openssl_group_id(curveId);
     OpenSSL::Unique_EC_GROUP ec_group(nid);
     const int group_order_bits = EC_GROUP_order_bits(ec_group);
     OpenSSL::CHECKPOSITIVE(group_order_bits);

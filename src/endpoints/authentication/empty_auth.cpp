@@ -17,7 +17,9 @@ namespace ccf
   }
 
   void EmptyAuthnPolicy::set_unauthenticated_error(
-    std::shared_ptr<ccf::RpcContext> ctx, std::string&& error)
+    std::shared_ptr<ccf::RpcContext> ctx,
+    std::string&&
+      error) // NOLINT(cppcoreguidelines-rvalue-reference-param-not-moved)
   {
     (void)ctx;
     (void)error;

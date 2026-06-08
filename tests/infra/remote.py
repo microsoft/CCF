@@ -4,12 +4,10 @@ import os
 import time
 from enum import Enum, auto
 import subprocess
-import infra.interfaces
 import infra.path
 import signal
 import re
 import shutil
-import infra.platform_detection
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 import json
 import infra.snp as snp
@@ -28,14 +26,14 @@ FILE_TIMEOUT_S = 60
 
 
 class CmdMixin(object):
-    perfable = True
-
-    @property
-    def cmd(self):
-        if self.perfable and os.getenv("CCF_PERF"):
-            return ["perf", "record"] + self._cmd
-        else:
-            return self._cmd
+    def set_perf(self):
+        self.cmd = [
+            "perf",
+            "record",
+            "--freq=1000",
+            "--call-graph=dwarf",
+            "-s",
+        ] + self.cmd
 
     def _get_perf(self, lines):
         pattern = "=> (.*)tx/s"
@@ -61,9 +59,9 @@ class LocalRemote(CmdMixin):
         **kwargs,
     ):
         self.hostname = hostname
-        self.exe_files = set(exe_files)
+        self.exe_files = exe_files
         self.data_files = data_files
-        self._cmd = cmd
+        self.cmd = cmd
         self.root = os.path.join(workspace, name)
         self.common_dir = common_dir
         self.proc = None
@@ -73,7 +71,6 @@ class LocalRemote(CmdMixin):
         self.name = name
         self.out = os.path.join(self.root, "out")
         self.err = os.path.join(self.root, "err")
-        self.stack_trace = os.path.join(self.root, "stack_trace")
         self._shutdown_timeout = 10
 
     @property
@@ -176,17 +173,17 @@ class LocalRemote(CmdMixin):
     def get_logs(self):
         return self.out, self.err
 
-    def get_stack_trace(self, timeout=20):
+    def _print_stack_trace(self):
         if shutil.which("lldb") != "":
             # To avoid errors on decoding lldb output as utf-8.
             # We shoud find a way to force lldb to use utf-8.
             errors = "ignore"
+            lldb_timeout = 20
             try:
                 command = [
                     "lldb",
-                    "--batch",  # Ensure non-interactive
-                    "-p",
-                    f"{self.proc.pid}",
+                    "--one-line",
+                    f"process attach --pid {self.proc.pid}",
                     "--one-line",
                     "thread backtrace all",
                     "--one-line",
@@ -202,10 +199,10 @@ class LocalRemote(CmdMixin):
                     universal_newlines=True,
                     errors=errors,
                     text=True,
-                    timeout=timeout,
+                    timeout=lldb_timeout,
                     check=True,
                 )
-                return completed_lldb_process.stdout
+                LOG.info(f"stack trace: {completed_lldb_process.stdout}")
             except subprocess.TimeoutExpired:
                 LOG.info(
                     "Failed to get stack trace. lldb did not finish within {lldb_timeout} seconds."
@@ -214,15 +211,6 @@ class LocalRemote(CmdMixin):
                 LOG.info(f"Failed to get stack trace: {e}")
         else:
             LOG.info("Couldn't find lldb installed")
-
-    def log_stack_trace(self, timeout=20):
-        st = self.get_stack_trace(timeout=timeout)
-        if st:
-            with open(self.stack_trace, "w", encoding="utf-8") as f:
-                f.write(st)
-            LOG.error(
-                f"Stack trace of process {self.proc.pid} written to {self.stack_trace}"
-            )
 
     def sigterm(self):
         self.proc.terminate()
@@ -243,9 +231,7 @@ class LocalRemote(CmdMixin):
                 LOG.exception(
                     f"Process didn't finish within {self._shutdown_timeout} seconds. Trying to get stack trace..."
                 )
-                st = self.get_stack_trace()
-                if st:
-                    LOG.error(f"Stack trace of process {self.proc.pid}:\n{st}")
+                self._print_stack_trace()
                 raise
 
             exit_code = self.proc.returncode
@@ -283,7 +269,17 @@ class LocalRemote(CmdMixin):
             return self._get_perf(result)
 
 
+CCF_TO_OE_LOG_LEVEL = {
+    "trace": "VERBOSE",
+    "debug": "INFO",
+    "info": "WARNING",
+    "fail": "ERROR",
+    "fatal": "FATAL",
+}
+
+
 class CCFRemote(object):
+    BIN = "cchost"
     TEMPLATE_CONFIGURATION_FILE = "config.jinja"
     DEPS = []
 
@@ -291,9 +287,9 @@ class CCFRemote(object):
         self,
         start_type,
         enclave_file,
+        enclave_type,
         workspace,
         common_dir,
-        binary_name=None,
         label="",
         binary_dir=".",
         local_node_id=None,
@@ -306,7 +302,8 @@ class CCFRemote(object):
         constitution=None,
         curve_id=None,
         version=None,
-        log_level="Info",
+        host_log_level="Info",
+        enclave_log_level="Info",
         major_version=None,
         node_address=None,
         config_file=None,
@@ -320,6 +317,7 @@ class CCFRemote(object):
         service_data_json_file=None,
         snp_endorsements_servers=None,
         node_pid_file="node.pid",
+        enclave_platform="sgx",
         snp_uvm_security_context_dir=None,
         set_snp_uvm_security_context_dir_envvar=True,
         ignore_first_sigterm=False,
@@ -334,16 +332,8 @@ class CCFRemote(object):
         historical_cache_soft_limit=None,
         cose_signatures_issuer="service.example.com",
         cose_signatures_subject="ledger.signature",
-        sealing_recovery_location=None,
-        recovery_decision_protocol_expected_locations=None,
-        backup_snapshot_fetch_enabled=False,
-        backup_snapshot_fetch_max_attempts=None,
-        backup_snapshot_fetch_retry_interval=None,
-        backup_snapshot_fetch_target_rpc_interface=None,
-        backup_snapshot_fetch_max_size=None,
-        identity_history_fetch_max_attempts=None,
-        identity_history_fetch_retry_interval=None,
-        host_data_transparent_statement_path=None,
+        sealed_ledger_secret_location=None,
+        previous_sealed_ledger_secret_location=None,
         **kwargs,
     ):
         """
@@ -353,9 +343,19 @@ class CCFRemote(object):
         snp_security_context_directory_envvar = None
 
         env = kwargs.get("env", {})
-
-        if infra.platform_detection.is_snp():
+        if enclave_platform == "snp":
             env.update(snp.get_aci_env())
+
+        if enclave_platform == "virtual":
+            env["UBSAN_OPTIONS"] = "print_stacktrace=1"
+            ubsan_opts = kwargs.get("ubsan_options")
+            if ubsan_opts:
+                env["UBSAN_OPTIONS"] += ":" + ubsan_opts
+            env["TSAN_OPTIONS"] = os.environ.get("TSAN_OPTIONS", "")
+            env["ASAN_OPTIONS"] = os.environ.get("ASAN_OPTIONS", "")
+            env["ASAN_SYMBOLIZER_PATH"] = os.environ.get("ASAN_SYMBOLIZER_PATH", "")
+            env["TSAN_SYMBOLIZER_PATH"] = os.environ.get("TSAN_SYMBOLIZER_PATH", "")
+        elif enclave_platform == "snp":
             snp_security_context_directory_envvar = (
                 snp.ACI_SEV_SNP_ENVVAR_UVM_SECURITY_CONTEXT_DIR
                 if set_snp_uvm_security_context_dir_envvar
@@ -366,16 +366,10 @@ class CCFRemote(object):
                 env[snp_security_context_directory_envvar] = (
                     snp_uvm_security_context_dir
                 )
-        env["UBSAN_OPTIONS"] = "print_stacktrace=1"
-        ubsan_opts = kwargs.get("ubsan_options")
-        if ubsan_opts:
-            env["UBSAN_OPTIONS"] += ":" + ubsan_opts
-        env["TSAN_OPTIONS"] = os.environ.get("TSAN_OPTIONS", "")
-        env["ASAN_OPTIONS"] = os.environ.get("ASAN_OPTIONS", "")
-        env["ASAN_SYMBOLIZER_PATH"] = os.environ.get("ASAN_SYMBOLIZER_PATH", "")
-        env["TSAN_SYMBOLIZER_PATH"] = os.environ.get("TSAN_SYMBOLIZER_PATH", "")
-        if "LLVM_PROFILE_FILE" in os.environ:
-            env["LLVM_PROFILE_FILE"] = os.environ["LLVM_PROFILE_FILE"]
+
+        oe_log_level = CCF_TO_OE_LOG_LEVEL.get(kwargs.get("host_log_level"))
+        if oe_log_level:
+            env["OE_LOG_LEVEL"] = oe_log_level
 
         self.name = f"{label}_{local_node_id}"
         self.start_type = start_type
@@ -384,13 +378,12 @@ class CCFRemote(object):
         self.node_address_file = f"{local_node_id}.node_address"
         self.rpc_addresses_file = f"{local_node_id}.rpc_addresses"
 
-        # 7.x releases combined binaries and removed the separate cchost entry-point
-        if major_version is None or major_version >= 7:
-            self.BIN = enclave_file
-        else:
-            assert binary_name, "binary_name must be provided when major_version < 7"
-            self.BIN = infra.path.build_bin_path(binary_name, binary_dir=binary_dir)
-
+        # 1.x releases have a separate cchost.virtual binary for virtual enclaves
+        if enclave_type == "virtual" and (
+            major_version is not None and major_version <= 1
+        ):
+            self.BIN = "cchost.virtual"
+        self.BIN = infra.path.build_bin_path(self.BIN, binary_dir=binary_dir)
         self.common_dir = common_dir
         self.pub_host = host.get_primary_interface().public_host
         self.enclave_file = os.path.join(".", os.path.basename(enclave_file))
@@ -441,6 +434,12 @@ class CCFRemote(object):
         assert len(set(constitution)) == len(
             constitution
         ), f"Constitution contains files with duplicate names, which is not going to do what you want. Recommend renaming one of them, or improving this infra to copy them to unique names. {constitution=}"
+
+        # ACME
+        if "acme" in kwargs and host.acme_challenge_server_interface:
+            kwargs["acme"][
+                "challenge_server_interface"
+            ] = host.acme_challenge_server_interface
 
         # SNP endorsements servers
         snp_endorsements_servers = snp_endorsements_servers or []
@@ -499,9 +498,24 @@ class CCFRemote(object):
             loader = FileSystemLoader(binary_dir)
             t_env = Environment(loader=loader, autoescape=select_autoescape())
             t = t_env.get_template(self.TEMPLATE_CONFIGURATION_FILE)
-
+            auto_dr_args = {}
+            if sealed_ledger_secret_location is not None:
+                auto_dr_args["sealed_ledger_secret_location"] = (
+                    sealed_ledger_secret_location
+                )
+            if previous_sealed_ledger_secret_location is not None:
+                auto_dr_args["previous_sealed_ledger_secret_location"] = (
+                    previous_sealed_ledger_secret_location
+                )
             output = t.render(
                 start_type=start_type.name.title(),
+                enclave_file=self.enclave_file,  # Ignored by current jinja, but passed for LTS compat
+                enclave_type=enclave_type.title(),
+                enclave_platform=(
+                    enclave_platform.title()
+                    if enclave_platform == "virtual"
+                    else enclave_platform.upper()
+                ),
                 rpc_interfaces=infra.interfaces.HostSpec.to_json(
                     LocalRemote.make_host(host)
                 ),
@@ -514,7 +528,7 @@ class CCFRemote(object):
                 read_only_snapshots_dir=self.read_only_snapshots_dir_name,
                 constitution=constitution,
                 curve_id=curve_id.name.title(),
-                host_log_level=log_level.title(),
+                host_log_level=host_log_level.title(),
                 join_timer=f"{join_timer_s}s" if join_timer_s else None,
                 signature_interval_duration=f"{sig_ms_interval}ms",
                 jwt_key_refresh_interval=f"{jwt_key_refresh_interval_s}s",
@@ -538,17 +552,7 @@ class CCFRemote(object):
                 historical_cache_soft_limit=historical_cache_soft_limit,
                 cose_signatures_issuer=cose_signatures_issuer,
                 cose_signatures_subject=cose_signatures_subject,
-                sealing_recovery_location=sealing_recovery_location,
-                recovery_decision_protocol_expected_locations=recovery_decision_protocol_expected_locations,
-                backup_snapshot_fetch_enabled=backup_snapshot_fetch_enabled,
-                backup_snapshot_fetch_max_attempts=backup_snapshot_fetch_max_attempts,
-                backup_snapshot_fetch_retry_interval=backup_snapshot_fetch_retry_interval,
-                backup_snapshot_fetch_target_rpc_interface=backup_snapshot_fetch_target_rpc_interface
-                or infra.interfaces.FILE_SERVING_RPC_INTERFACE,
-                backup_snapshot_fetch_max_size=backup_snapshot_fetch_max_size,
-                identity_history_fetch_max_attempts=identity_history_fetch_max_attempts,
-                identity_history_fetch_retry_interval=identity_history_fetch_retry_interval,
-                host_data_transparent_statement_path=host_data_transparent_statement_path,
+                **auto_dr_args,
                 **kwargs,
             )
 
@@ -560,20 +564,6 @@ class CCFRemote(object):
                 # Parse and re-emit output to produce consistently formatted (indented) JSON.
                 # This will also ensure the render produced valid JSON
                 j = json.loads(output)
-
-                # Enclave config removed from 7.x onwards.
-                if major_version is not None and major_version < 7:
-                    enclave_platform = infra.platform_detection.get_platform()
-                    enclave_platform = (
-                        "Virtual"
-                        if enclave_platform.lower() == "virtual"
-                        else enclave_platform.upper()
-                    )
-                    j["enclave"] = {
-                        "type": "Release",
-                        "platform": enclave_platform,
-                    }
-
                 json.dump(j, f, indent=2)
 
         exe_files += [self.BIN, enclave_file] + self.DEPS
@@ -604,18 +594,15 @@ class CCFRemote(object):
             if version is not None
             else None
         )
-        if v is None or v >= Version("7.0.0.dev0"):
-            cmd += [
-                "--log-level",
-                log_level,
-            ]
-        elif v >= Version("4.0.5"):
-            cmd += [
-                "--enclave-log-level",
-                log_level,
-            ]
+        if v is None or v >= Version("4.0.5"):
+            # Avoid passing too-low level to debug SGX nodes
+            if not (enclave_type == "debug" and enclave_platform == "sgx"):
+                cmd += [
+                    "--enclave-log-level",
+                    enclave_log_level,
+                ]
 
-        if v is not None and v >= Version("4.0.11") and v <= Version("7.0.0-dev1"):
+        if v is None or v >= Version("4.0.11"):
             cmd += [
                 "--enclave-file",
                 self.enclave_file,
@@ -688,9 +675,6 @@ class CCFRemote(object):
     def sigkill(self):
         self.remote.sigkill()
 
-    def log_stack_trace(self, timeout=20):
-        self.remote.log_stack_trace(timeout=timeout)
-
     def stop(self):
         try:
             self.remote.stop()
@@ -699,6 +683,9 @@ class CCFRemote(object):
 
     def check_done(self):
         return self.remote.check_done()
+
+    def set_perf(self):
+        self.remote.set_perf()
 
     def _resilient_copy(
         self,
@@ -760,30 +747,14 @@ class CCFRemote(object):
     def log_path(self):
         return self.remote.out
 
-    def read_only_ledger_paths(self):
-        paths = []
+    def ledger_paths(self):
+        paths = [os.path.join(self.remote.root, self.ledger_dir_name)]
         for read_only_ledger_dir_name in self.read_only_ledger_dirs_names:
             paths += [os.path.join(self.remote.root, read_only_ledger_dir_name)]
-        return [path for path in paths if os.path.exists(path)]
-
-    def current_ledger_path(self):
-        return os.path.join(self.remote.root, self.ledger_dir_name)
-
-    def ledger_paths(self):
-        return [
-            path
-            for path in [self.current_ledger_path(), *self.read_only_ledger_paths()]
-            if os.path.exists(path)
-        ]
+        return paths
 
     def get_logs(self):
         return self.remote.get_logs()
-
-    def get_main_ledger_dir(self):
-        """
-        Get the main ledger directory
-        """
-        return os.path.join(self.remote.root, self.ledger_dir_name)
 
 
 class StartType(Enum):

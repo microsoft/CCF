@@ -9,7 +9,7 @@
 
 namespace ccf::js::core
 {
-  enum class RuntimeLimitsPolicy : uint8_t
+  enum class RuntimeLimitsPolicy
   {
     NONE,
     NO_LOWER_THAN_DEFAULTS
@@ -43,7 +43,7 @@ namespace ccf::js::core
       const std::optional<ccf::JSRuntimeOptions>& options_opt,
       RuntimeLimitsPolicy policy);
 
-    [[nodiscard]] std::chrono::milliseconds get_max_exec_time() const
+    std::chrono::milliseconds get_max_exec_time() const
     {
       return max_exec_time;
     }

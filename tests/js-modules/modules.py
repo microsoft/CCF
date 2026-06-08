@@ -167,7 +167,7 @@ def test_module_access(network, args):
 
 
 @reqs.description("Test module bytecode caching")
-@reqs.installed_package("js_generic")
+@reqs.installed_package("libjs_generic")
 def test_bytecode_cache(network, args):
     primary, _ = network.find_nodes()
 
@@ -475,7 +475,7 @@ def test_js_exception_output(network, args):
         assert body["error"]["details"][0]["message"] == "Error: test error: 42"
         assert (
             body["error"]["details"][0]["trace"]
-            == "    at nested (/endpoints/rpc.js:27:24)\n    at throwError (/endpoints/rpc.js:29:11)\n"
+            == "    at nested (/endpoints/rpc.js:27)\n    at throwError (/endpoints/rpc.js:29)\n"
         )
 
         network.consortium.set_js_runtime_options(
@@ -539,7 +539,7 @@ def test_user_cose_authentication(network, args):
 
 def run(args):
     with infra.network.network(
-        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
+        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
 

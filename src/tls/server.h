@@ -13,23 +13,19 @@ namespace tls
   };
 
   static int alpn_select_cb(
-    SSL* /*ssl*/,
+    SSL* ssl,
     const unsigned char** out,
     unsigned char* outlen,
     const unsigned char* in,
     unsigned int inlen,
     void* arg)
   {
-    auto* protos = static_cast<AlpnProtocols*>(arg);
+    auto protos = (AlpnProtocols*)arg;
 
     if (
       SSL_select_next_proto(
-        const_cast<unsigned char**>(out),
-        outlen,
-        protos->data,
-        protos->size,
-        in,
-        inlen) != OPENSSL_NPN_NEGOTIATED)
+        (unsigned char**)out, outlen, protos->data, protos->size, in, inlen) !=
+      OPENSSL_NPN_NEGOTIATED)
     {
       return SSL_TLSEXT_ERR_NOACK;
     }

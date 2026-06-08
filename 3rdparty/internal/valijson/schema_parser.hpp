@@ -1,8 +1,10 @@
 #pragma once
 
-#include <functional>
+#include <stdexcept>
 #include <iostream>
 #include <vector>
+#include <memory>
+#include <functional>
 
 #include <valijson/constraints/concrete_constraints.hpp>
 #include <valijson/internal/adapter.hpp>
@@ -12,7 +14,6 @@
 #include <valijson/internal/uri.hpp>
 #include <valijson/constraint_builder.hpp>
 #include <valijson/schema.hpp>
-#include <valijson/schema_cache.hpp>
 #include <valijson/exceptions.hpp>
 
 namespace valijson {
@@ -70,7 +71,7 @@ public:
     };
 
     /**
-     * @brief  Add a custom constraint to this SchemaParser
+     * @brief  Add a custom contraint to this SchemaParser
 
      * @param  key      name that will be used to identify relevant constraints
      *                  while parsing a schema document
@@ -108,8 +109,8 @@ public:
     void populateSchema(
         const AdapterType &node,
         Schema &schema,
-        typename FunctionPtrs<AdapterType>::FetchDoc fetchDoc = nullptr,
-        typename FunctionPtrs<AdapterType>::FreeDoc freeDoc = nullptr)
+        typename FunctionPtrs<AdapterType>::FetchDoc fetchDoc = nullptr ,
+        typename FunctionPtrs<AdapterType>::FreeDoc freeDoc = nullptr )
     {
         if ((fetchDoc == nullptr ) ^ (freeDoc == nullptr)) {
             throwRuntimeError("Remote document fetching can't be enabled without both fetch and free functions");
@@ -146,6 +147,8 @@ private:
 
         typedef std::map<std::string, const DocumentType*> Type;
     };
+
+    typedef std::map<std::string, const Subschema *> SchemaCache;
 
     /**
      * @brief  Free memory used by fetched documents
@@ -387,7 +390,7 @@ private:
             // visited before arriving at the current node
             updateSchemaCache(schemaCache, newCacheKeys, subschema);
 
-            // Schema cache did not contain a preexisting schema corresponding
+            // Schema cache did not contain a pre-existing schema corresponding
             // to the current node, so the schema that was returned will need
             // to be populated
             if (!cachedPtr) {
@@ -473,10 +476,6 @@ private:
                     currentScope, actualJsonPointer, fetchDoc, parentSubschema,
                     ownName, docCache, schemaCache, newCacheKeys);
 
-        }
-
-        if (std::find(newCacheKeys.begin(), newCacheKeys.end(), queryKey) != newCacheKeys.end()) {
-            throwRuntimeError("found cycle while resolving JSON reference");
         }
 
         // JSON References in nested schema will be resolved relative to the
@@ -1041,14 +1040,13 @@ private:
             resolveThenPopulateSchema(rootSchema, newRootNode, referencedAdapter, subschema, {}, actualJsonPointer,
                     fetchDoc, parentSchema, ownName, docCache, schemaCache);
 
-        } else if (!actualJsonPointer.empty()) {
+        } else {
             const AdapterType &referencedAdapter =
                     internal::json_pointer::resolveJsonPointer(rootNode, actualJsonPointer);
 
+            // TODO: Need to detect degenerate circular references
             resolveThenPopulateSchema(rootSchema, rootNode, referencedAdapter, subschema, {}, actualJsonPointer,
                     fetchDoc, parentSchema, ownName, docCache, schemaCache);
-        } else {
-            throwRuntimeError("Cannot resolve reference \"" + jsonRef + "\".");
         }
     }
 
@@ -1307,11 +1305,11 @@ private:
      * When parsing a Draft 3 schema, in addition to the formats above, the
      * following format can be used:
      *  - a string that names a single property that must be present if the
-     *    dependent property is present
+     *    dependent property is presnet
      *
      * Multiple methods can be used in the same dependency constraint.
      *
-     * If the format of any part of the dependency node does not match one
+     * If the format of any part of the the dependency node does not match one
      * of these formats, an exception will be thrown.
      *
      * @param   rootSchema    The Schema instance, and root subschema, through
@@ -1495,7 +1493,7 @@ private:
     {
         constraints::LinearItemsConstraint constraint;
 
-        // Construct a Schema object for the additionalItems constraint,
+        // Construct a Schema object for the the additionalItems constraint,
         // if the additionalItems property is present
         if (additionalItems) {
             if (additionalItems->maybeBool()) {
@@ -1674,7 +1672,7 @@ private:
      * @brief   Make a new MaxItemsConstraint object.
      *
      * @param   node  JSON node containing an integer value representing the
-     *                maximum number of items that may be contained by an array.
+     *                maximum number of items that may be contaned by an array.
      *
      * @return  pointer to a new MaxItemsConstraint that belongs to the caller.
      */

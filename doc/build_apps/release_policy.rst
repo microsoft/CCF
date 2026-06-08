@@ -38,8 +38,8 @@ Operator-facing API
 
 As defined under :ref:`operations/operator_rpc_api:Operator RPC API`.
 
-This is the API used to monitor the network topology, endpoint metrics etc. The intention is to keep this API compatible without explicit versioning, by making additive changes where possible (i.e. new fields, new arguments with default values that behave identically to the old call).
-Fields, input arguments, and endpoints are not expected to be modified or removed in normal releases. Any such change must be explicitly notified to users in advance through the deprecation/release notes process, and removals should only occur in a major release.
+This is the API used to monitor the network topology, memory usage, endpoint metrics etc. The intention is to keep this API compatible without explicit versioning, by making sure that all changes are strict additions (i.e. new fields, new arguments with default values that behave identically to the old call).
+Fields/input arguments will never be modified/deleted unless exceptionally and explicitly notified in advance to users.
 
 Member-facing API
 ~~~~~~~~~~~~~~~~~
@@ -100,13 +100,7 @@ Support calendar
      - November 24, 2023
    * - 4.0
      - May 2, 2023
-     - October 25, 2024
+     - Oct 25, 2024
    * - 5.0
-     - July 17, 2024
-     - September 28, 2025
-   * - 6.0
-     - March 28, 2025
-     - August 21, 2026
-   * - 7.0
-     - April 21, 2026
-     - TBD
+     - Jul 17, 2024
+     - \-

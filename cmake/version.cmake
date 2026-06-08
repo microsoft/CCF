@@ -5,7 +5,7 @@ unset(CCF_VERSION)
 unset(CCF_RELEASE_VERSION)
 unset(CCF_VERSION_SUFFIX)
 
-set(CCF_PROJECT "ccf")
+set(CCF_PROJECT "ccf_${COMPILE_TARGET}")
 
 # If possible, deduce project version from git environment
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git)
@@ -30,7 +30,7 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git)
   if(NOT FIRST STREQUAL "ccf")
     message(
       FATAL_ERROR
-      "Git repository does not appear to contain any tag starting with ccf- (the repository should be cloned with sufficient depth to access the latest \"ccf-*\" tag)"
+        "Git repository does not appear to contain any tag starting with ccf- (the repository should be cloned with sufficient depth to access the latest \"ccf-*\" tag)"
     )
   endif()
 else()
@@ -52,8 +52,7 @@ else()
   endif()
 
   message(
-    STATUS
-    "Extracting CCF version from sources directory: ${CCF_VERSION}"
+    STATUS "Extracting CCF version from sources directory: ${CCF_VERSION}"
   )
 endif()
 
@@ -74,22 +73,23 @@ endif()
 
 # Check that release version is semver
 execute_process(
-  COMMAND
-    "bash" "-c"
-    "[[ ${CCF_RELEASE_VERSION} =~ ^([[:digit:]])+(\.([[:digit:]])+)*$ ]]"
+  COMMAND "bash" "-c"
+          "[[ ${CCF_RELEASE_VERSION} =~ ^([[:digit:]])+(\.([[:digit:]])+)*$ ]]"
   RESULT_VARIABLE "VERSION_IS_SEMVER"
 )
 
 if(NOT ${VERSION_IS_SEMVER} STREQUAL "0")
   message(
     WARNING
-    "Release version \"${CCF_RELEASE_VERSION}\" does not follow semver. Defaulting to project version 0.0.0"
+      "Release version \"${CCF_RELEASE_VERSION}\" does not follow semver. Defaulting to project version 0.0.0"
   )
   set(CCF_RELEASE_VERSION "0.0.0")
 endif()
 
-file(WRITE ${CMAKE_BINARY_DIR}/VERSION "${CCF_RELEASE_VERSION}")
-install(FILES ${CMAKE_BINARY_DIR}/VERSION DESTINATION share)
+if(CCF_DEVEL)
+  file(WRITE ${CMAKE_BINARY_DIR}/VERSION "${CCF_RELEASE_VERSION}")
+  install(FILES ${CMAKE_BINARY_DIR}/VERSION DESTINATION share)
 
-file(WRITE ${CMAKE_BINARY_DIR}/VERSION_LONG "${CCF_VERSION}")
-install(FILES ${CMAKE_BINARY_DIR}/VERSION_LONG DESTINATION share)
+  file(WRITE ${CMAKE_BINARY_DIR}/VERSION_LONG "${CCF_VERSION}")
+  install(FILES ${CMAKE_BINARY_DIR}/VERSION_LONG DESTINATION share)
+endif()

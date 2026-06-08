@@ -1,8 +1,7 @@
 #pragma once
 
+#include <regex>
 #include <string>
-
-#include <valijson/internal/regex.hpp>
 
 namespace valijson {
 namespace internal {
@@ -26,10 +25,10 @@ inline bool isUriAbsolute(const std::string &documentUri)
  * This function validates that the URI matches the RFC 8141 spec
  */
 inline bool isUrn(const std::string &documentUri) {
-  static const internal::regex pattern(
+  static const std::regex pattern(
       "^((urn)|(URN)):(?!urn:)([a-zA-Z0-9][a-zA-Z0-9-]{1,31})(:[-a-zA-Z0-9\\\\._~%!$&'()\\/*+,;=]+)+(\\?[-a-zA-Z0-9\\\\._~%!$&'()\\/*+,;:=]+){0,1}(#[-a-zA-Z0-9\\\\._~%!$&'()\\/*+,;:=]+){0,1}$");
 
-  return internal::regex_match(documentUri, pattern);
+  return std::regex_match(documentUri, pattern);
 }
 
 /**

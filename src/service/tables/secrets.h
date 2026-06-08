@@ -16,18 +16,17 @@ namespace ccf
     std::optional<ccf::kv::Version> version;
 
     // Encrypted secret for each backup
-    std::vector<uint8_t> encrypted_secret;
+    std::vector<uint8_t> encrypted_secret = {};
 
     // Version at which the previous secret is stored at
     std::optional<ccf::kv::Version> previous_secret_stored_version =
       std::nullopt;
   };
 
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(EncryptedLedgerSecret);
-  DECLARE_JSON_REQUIRED_FIELDS(
-    EncryptedLedgerSecret, version, encrypted_secret);
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(EncryptedLedgerSecret)
+  DECLARE_JSON_REQUIRED_FIELDS(EncryptedLedgerSecret, version, encrypted_secret)
   DECLARE_JSON_OPTIONAL_FIELDS(
-    EncryptedLedgerSecret, previous_secret_stored_version);
+    EncryptedLedgerSecret, previous_secret_stored_version)
 
   using EncryptedLedgerSecrets = std::vector<EncryptedLedgerSecret>;
   using LedgerSecretsForNodes = std::map<NodeId, EncryptedLedgerSecrets>;

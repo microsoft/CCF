@@ -355,7 +355,7 @@ TEST_CASE("Backup catchup from many ledger secrets")
         ccf::kv::ApplyResult::PASS);
 
       auto tx_id = backup_store.current_txid();
-      tx_id.seqno--;
+      tx_id.version--;
       // While catching up, assume the backup rolls back (e.g. because of an
       // election)
       backup_store.rollback(tx_id, backup_store.commit_view());
@@ -449,9 +449,11 @@ TEST_CASE("Encryptor rollback")
 int main(int argc, char** argv)
 {
   ccf::logger::config::default_init();
+  ccf::crypto::openssl_sha256_init();
   doctest::Context context;
   context.applyCommandLine(argc, argv);
   int res = context.run();
+  ccf::crypto::openssl_sha256_shutdown();
   if (context.shouldExit())
     return res;
   return res;

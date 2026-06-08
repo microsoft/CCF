@@ -4,26 +4,20 @@
 // This app's includes
 #include "logging_schema.h"
 
-// Sample apps common
-#include "../common/default_on_commit.h"
-
 // CCF
 #include "ccf/app_interface.h"
 #include "ccf/common_auth_policies.h"
 #include "ccf/cose_signatures_config_interface.h"
 #include "ccf/crypto/cose.h"
-#include "ccf/crypto/sha256_hash.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/hash.h"
 #include "ccf/endpoints/authentication/all_of_auth.h"
 #include "ccf/historical_queries_adapter.h"
-#include "ccf/historical_queries_utils.h"
 #include "ccf/http_etag.h"
 #include "ccf/http_query.h"
 #include "ccf/indexing/strategies/seqnos_by_key_bucketed.h"
 #include "ccf/indexing/strategy.h"
 #include "ccf/json_handler.h"
-#include "ccf/network_identity_interface.h"
 #include "ccf/version.h"
 
 #include <charconv>
@@ -40,16 +34,6 @@ namespace loggingapp
   static constexpr auto PUBLIC_RECORDS = "public:records";
   static constexpr auto PRIVATE_RECORDS = "records";
 
-  using ScittTransparentStatementMap =
-    ccf::kv::RawCopySerialisedValue<std::vector<uint8_t>>;
-  static constexpr auto COSE_SIGNED_STATEMENTS =
-    "public:cose_transparent_statements";
-
-  // IANA COSE header labels
-  // https://www.iana.org/assignments/cose/cose.xhtml
-  static constexpr int64_t COSE_HEADER_PARAM_INCLUSION_PROOFS = -1;
-  static constexpr int64_t COSE_HEADER_PARAM_VDP = 396;
-
   // SNIPPET_START: indexing_strategy_definition
   using RecordsIndexingStrategy = ccf::indexing::LazyStrategy<
     ccf::indexing::strategies::SeqnosByKey_Bucketed<RecordsMap>>;
@@ -59,7 +43,7 @@ namespace loggingapp
   struct CustomIdentity : public ccf::AuthnIdentity
   {
     std::string name;
-    size_t age = 0;
+    size_t age;
   };
   // SNIPPET_END: custom_identity
 
@@ -73,12 +57,12 @@ namespace loggingapp
       if_none_match(rpc_ctx->get_request_header("if-none-match"))
     {}
 
-    [[nodiscard]] bool conflict() const
+    bool conflict() const
     {
       return if_match.has_value() && if_none_match.has_value();
     }
 
-    [[nodiscard]] bool empty() const
+    bool empty() const
     {
       return !if_match.has_value() && !if_none_match.has_value();
     }
@@ -89,7 +73,7 @@ namespace loggingapp
   {
   public:
     std::unique_ptr<ccf::AuthnIdentity> authenticate(
-      [[maybe_unused]] ccf::kv::ReadOnlyTx& ro_tx,
+      ccf::kv::ReadOnlyTx&,
       const std::shared_ptr<ccf::RpcContext>& ctx,
       std::string& error_reason) override
     {
@@ -132,7 +116,7 @@ namespace loggingapp
       }
 
       const auto& age_s = age_header_it->second;
-      size_t age = 0;
+      size_t age;
       const auto [p, ec] =
         std::from_chars(age_s.data(), age_s.data() + age_s.size(), age);
       if (ec != std::errc())
@@ -155,8 +139,8 @@ namespace loggingapp
       return ident;
     }
 
-    [[nodiscard]] std::optional<ccf::OpenAPISecuritySchema>
-    get_openapi_security_schema() const override
+    std::optional<ccf::OpenAPISecuritySchema> get_openapi_security_schema()
+      const override
     {
       // There is no OpenAPI-compliant way to describe this auth scheme, so we
       // return nullopt
@@ -187,11 +171,11 @@ namespace loggingapp
     {}
 
     void handle_committed_transaction(
-      const ccf::TxID& tx_id, const ccf::kv::ReadOnlyStorePtr& store) override
+      const ccf::TxID& tx_id, const ccf::kv::ReadOnlyStorePtr& store)
     {
       std::lock_guard<std::mutex> lock(txid_lock);
       auto tx_diff = store->create_tx_diff();
-      auto* m = tx_diff.template diff<RecordsMap>(map_name);
+      auto m = tx_diff.template diff<RecordsMap>(map_name);
       m->foreach([this](const size_t& k, std::optional<std::string> v) -> bool {
         if (v.has_value())
         {
@@ -208,7 +192,7 @@ namespace loggingapp
       current_txid = tx_id;
     }
 
-    std::optional<ccf::SeqNo> next_requested() override
+    std::optional<ccf::SeqNo> next_requested()
     {
       std::lock_guard<std::mutex> lock(txid_lock);
       return current_txid.seqno + 1;
@@ -235,56 +219,21 @@ namespace loggingapp
   class LoggerHandlers : public ccf::UserEndpointRegistry
   {
   private:
-    // NOLINTNEXTLINE(cppcoreguidelines-avoid-const-or-ref-data-members)
-    ccf::AbstractNodeContext& _context;
-    nlohmann::json record_public_params_schema;
-    nlohmann::json record_public_result_schema;
+    const nlohmann::json record_public_params_schema;
+    const nlohmann::json record_public_result_schema;
 
-    nlohmann::json get_public_params_schema;
-    nlohmann::json get_public_result_schema;
+    const nlohmann::json get_public_params_schema;
+    const nlohmann::json get_public_result_schema;
 
     std::shared_ptr<RecordsIndexingStrategy> index_per_public_key = nullptr;
     std::shared_ptr<CommittedRecords> committed_records = nullptr;
-
-    // Build a COSE receipt (signature + Merkle inclusion proof) from a
-    // historical receipt. Returns nullopt and sets an error on ctx if the
-    // receipt cannot be constructed.
-    static std::optional<std::vector<uint8_t>> build_cose_receipt(
-      ccf::endpoints::ReadOnlyEndpointContext& ctx,
-      const ccf::TxReceiptImplPtr& receipt)
-    {
-      auto signature = describe_cose_signature_v1(*receipt);
-      if (!signature.has_value())
-      {
-        ctx.rpc_ctx->set_error(
-          HTTP_STATUS_NOT_FOUND,
-          ccf::errors::ResourceNotFound,
-          "No COSE signature available for this transaction");
-        return std::nullopt;
-      }
-      auto proof = describe_merkle_proof_v1(*receipt);
-      if (!proof.has_value())
-      {
-        ctx.rpc_ctx->set_error(
-          HTTP_STATUS_NOT_FOUND,
-          ccf::errors::ResourceNotFound,
-          "No Merkle proof available for this transaction");
-        return std::nullopt;
-      }
-
-      auto inclusion_proof =
-        ccf::cose::edit::pos::AtKey{COSE_HEADER_PARAM_INCLUSION_PROOFS};
-      ccf::cose::edit::desc::Value desc{
-        inclusion_proof, COSE_HEADER_PARAM_VDP, *proof};
-      return ccf::cose::edit::set_unprotected_header(*signature, desc);
-    }
 
     std::string describe_identity(
       ccf::endpoints::EndpointContext& ctx,
       const std::unique_ptr<ccf::AuthnIdentity>& caller)
     {
       if (
-        const auto* user_cert_ident =
+        auto user_cert_ident =
           dynamic_cast<const ccf::UserCertAuthnIdentity*>(caller.get()))
       {
         auto response = std::string("User TLS cert");
@@ -311,9 +260,8 @@ namespace loggingapp
 
         return response;
       }
-
-      if (
-        const auto* member_cert_ident =
+      else if (
+        auto member_cert_ident =
           dynamic_cast<const ccf::MemberCertAuthnIdentity*>(caller.get()))
       {
         auto response = std::string("Member TLS cert");
@@ -342,9 +290,8 @@ namespace loggingapp
 
         return response;
       }
-
-      if (
-        const auto* any_cert_ident =
+      else if (
+        auto any_cert_ident =
           dynamic_cast<const ccf::AnyCertAuthnIdentity*>(caller.get()))
       {
         auto response = std::string("Any TLS cert");
@@ -354,9 +301,8 @@ namespace loggingapp
           fmt::format("\nThe caller's cert is:\n{}", caller_cert.str());
         return response;
       }
-
-      if (
-        const auto* jwt_ident =
+      else if (
+        auto jwt_ident =
           dynamic_cast<const ccf::JwtAuthnIdentity*>(caller.get()))
       {
         auto response = std::string("JWT");
@@ -370,9 +316,8 @@ namespace loggingapp
 
         return response;
       }
-
-      if (
-        const auto* cose_ident =
+      else if (
+        auto cose_ident =
           dynamic_cast<const ccf::UserCOSESign1AuthnIdentity*>(caller.get()))
       {
         auto response = std::string("User COSE Sign1");
@@ -386,16 +331,14 @@ namespace loggingapp
 
         return response;
       }
-
-      if (
-        const auto* no_ident =
+      else if (
+        auto no_ident =
           dynamic_cast<const ccf::EmptyAuthnIdentity*>(caller.get()))
       {
         return "Unauthenticated";
       }
-
-      if (
-        const auto* all_of_ident =
+      else if (
+        auto all_of_ident =
           dynamic_cast<const ccf::AllOfAuthnIdentity*>(caller.get()))
       {
         auto response = fmt::format(
@@ -409,19 +352,21 @@ namespace loggingapp
 
         return response;
       }
-
-      return "";
+      else
+      {
+        return "";
+      }
     }
 
     std::optional<ccf::TxStatus> get_tx_status(ccf::SeqNo seqno)
     {
-      ccf::ApiResult result = ccf::ApiResult::OK;
+      ccf::ApiResult result;
 
-      ccf::View view_of_seqno = 0;
+      ccf::View view_of_seqno;
       result = get_view_for_seqno_v1(seqno, view_of_seqno);
       if (result == ccf::ApiResult::OK)
       {
-        ccf::TxStatus status = {};
+        ccf::TxStatus status;
         result = get_status_for_txid_v1(view_of_seqno, seqno, status);
         if (result == ccf::ApiResult::OK)
         {
@@ -485,25 +430,36 @@ namespace loggingapp
         ap);
     }
 
-    ccf::endpoints::LocallyCommittedEndpointFunction
-    make_tracing_local_commit_handler(
+    // Wrap all endpoints with trace logging of their invocation
+    ccf::endpoints::Endpoint make_endpoint_with_local_commit_handler(
       const std::string& method,
       ccf::RESTVerb verb,
-      const ccf::endpoints::LocallyCommittedEndpointFunction& lcf)
+      const ccf::endpoints::EndpointFunction& f,
+      const ccf::endpoints::LocallyCommittedEndpointFunction& lcf,
+      const ccf::AuthnPolicies& ap) override
     {
-      return [method, verb, lcf](
-               ccf::endpoints::CommandEndpointContext& args,
-               const ccf::TxID& txid) {
-        CCF_APP_TRACE("BEGIN LOCAL COMMIT HANDLER {} {}", verb.c_str(), method);
-        lcf(args, txid);
-        CCF_APP_TRACE("END LOCAL COMMIT HANDLER   {} {}", verb.c_str(), method);
-      };
+      return ccf::UserEndpointRegistry::make_endpoint_with_local_commit_handler(
+        method,
+        verb,
+        [method, verb, f](ccf::endpoints::EndpointContext& args) {
+          CCF_APP_TRACE("BEGIN {} {}", verb.c_str(), method);
+          f(args);
+          CCF_APP_TRACE("END   {} {}", verb.c_str(), method);
+        },
+        [method, verb, lcf](
+          ccf::endpoints::CommandEndpointContext& args, const ccf::TxID& txid) {
+          CCF_APP_TRACE(
+            "BEGIN LOCAL COMMIT HANDLER {} {}", verb.c_str(), method);
+          lcf(args, txid);
+          CCF_APP_TRACE(
+            "END LOCAL COMMIT HANDLER   {} {}", verb.c_str(), method);
+        },
+        ap);
     }
 
   public:
     LoggerHandlers(ccf::AbstractNodeContext& context) :
       ccf::UserEndpointRegistry(context),
-      _context(context),
       record_public_params_schema(nlohmann::json::parse(j_record_public_in)),
       record_public_result_schema(nlohmann::json::parse(j_record_public_out)),
       get_public_params_schema(nlohmann::json::parse(j_get_public_in)),
@@ -515,18 +471,10 @@ namespace loggingapp
         "recording messages at client-specified IDs. It demonstrates most of "
         "the features available to CCF apps.";
 
-      openapi_info.document_version = "2.8.3";
-    };
-
-    void init_handlers() override
-    {
-      CommonEndpointRegistry::init_handlers();
-
-      constexpr size_t seqnos_per_bucket = 10000;
-      constexpr size_t buckets_per_key = 20;
+      openapi_info.document_version = "2.8.0";
 
       index_per_public_key = std::make_shared<RecordsIndexingStrategy>(
-        PUBLIC_RECORDS, context, seqnos_per_bucket, buckets_per_key);
+        PUBLIC_RECORDS, context, 10000, 20);
       context.get_indexing_strategies().install_strategy(index_per_public_key);
 
       const ccf::AuthnPolicies auth_policies = {
@@ -535,7 +483,7 @@ namespace loggingapp
         ccf::user_cose_sign1_auth_policy};
 
       // SNIPPET_START: record
-      auto record = [](auto& ctx, nlohmann::json&& params) {
+      auto record = [this](auto& ctx, nlohmann::json&& params) {
         // SNIPPET_START: macro_validation_record
         const auto in = params.get<LoggingRecord::In>();
         // SNIPPET_END: macro_validation_record
@@ -564,74 +512,12 @@ namespace loggingapp
         .install();
       // SNIPPET_END: install_record
 
-      // SNIPPET_START: blocking_record
-      auto blocking_record = [record](auto& ctx, nlohmann::json&& params) {
-        ctx.rpc_ctx->set_consensus_committed_function(
-          ccf::samples::default_respond_on_commit);
-        return record(ctx, std::move(params));
-      };
-      make_endpoint(
-        "/log/blocking/private",
-        HTTP_POST,
-        ccf::json_adapter(blocking_record),
-        auth_policies)
-        .set_auto_schema<LoggingRecord::In, bool>()
-        .install();
-      // SNIPPET_END: blocking_record
-
-      auto blocking_record_with_receipt =
-        [this, record](auto& ctx, nlohmann::json&& params) {
-          ctx.rpc_ctx->set_consensus_committed_function(
-            ccf::samples::make_respond_with_receipt_on_commit(context));
-          return record(ctx, std::move(params));
-        };
-      make_endpoint(
-        "/log/blocking/private/receipt",
-        HTTP_POST,
-        ccf::json_adapter(blocking_record_with_receipt),
-        auth_policies)
-        .install();
-
-      // Demonstrates per-request opt-in to blocking-until-committed via a
-      // query parameter. The same endpoint can return immediately or hold
-      // the response depending on the caller's choice.
-      // SNIPPET_START: optional_commit
-      auto optional_commit_record =
-        [record](auto& ctx, nlohmann::json&& params) {
-          const auto parsed_query =
-            ccf::http::parse_query(ctx.rpc_ctx->get_request_query());
-          std::string error_reason;
-          std::string wait_for_commit;
-          // Safe to ignore the return value of get_query_value here as we'll
-          // just treat any failure to parse the parameter as meaning "don't
-          // wait for commit"
-          ccf::http::get_query_value(
-            parsed_query, "wait_for_commit", wait_for_commit, error_reason);
-          if (wait_for_commit == "true")
-          {
-            ctx.rpc_ctx->set_consensus_committed_function(
-              ccf::samples::default_respond_on_commit);
-          }
-          return record(ctx, std::move(params));
-        };
-      make_endpoint(
-        "/log/private/optional_commit",
-        HTTP_POST,
-        ccf::json_adapter(optional_commit_record),
-        auth_policies)
-        .add_query_parameter<bool>(
-          "wait_for_commit",
-          ccf::endpoints::QueryParamPresence::OptionalParameter)
-        .set_auto_schema<LoggingRecord::In, bool>()
-        .install();
-      // SNIPPET_END: optional_commit
-
       auto add_txid_in_body_put = [](auto& ctx, const auto& tx_id) {
         static constexpr auto CCF_TX_ID = "x-ms-ccf-transaction-id";
         ctx.rpc_ctx->set_response_header(CCF_TX_ID, tx_id.to_str());
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
 
-        auto* out = static_cast<LoggingPut::Out*>(ctx.rpc_ctx->get_user_data());
+        auto out = static_cast<LoggingPut::Out*>(ctx.rpc_ctx->get_user_data());
 
         if (out == nullptr)
         {
@@ -643,7 +529,7 @@ namespace loggingapp
         ctx.rpc_ctx->set_response_body(nlohmann::json(*out).dump());
       };
 
-      auto record_v2 = [](auto& ctx, nlohmann::json&& params) {
+      auto record_v2 = [this](auto& ctx, nlohmann::json&& params) {
         const auto in = params.get<LoggingRecord::In>();
 
         if (in.msg.empty())
@@ -678,31 +564,29 @@ namespace loggingapp
         return ccf::make_success(nullptr);
       };
 
-      const auto* post_private_v2_url = "/log/private/anonymous/v2";
-      make_endpoint(
-        post_private_v2_url,
+      make_endpoint_with_local_commit_handler(
+        "/log/private/anonymous/v2",
         HTTP_POST,
         ccf::json_adapter(record_v2),
+        add_txid_in_body_put,
         ccf::no_auth_required)
         .set_auto_schema<LoggingRecord::In, LoggingPut::Out>()
-        .set_locally_committed_function(make_tracing_local_commit_handler(
-          post_private_v2_url, HTTP_POST, add_txid_in_body_put))
         .install();
 
       // SNIPPET_START: get
-      auto get = [](auto& ctx, nlohmann::json&&) {
+      auto get = [this](auto& ctx, nlohmann::json&&) {
         // Parse id from query
         const auto parsed_query =
           ccf::http::parse_query(ctx.rpc_ctx->get_request_query());
 
         std::string error_reason;
-        size_t id = 0;
+        size_t id;
         if (!ccf::http::get_query_value(parsed_query, "id", id, error_reason))
         {
           return ccf::make_error(
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::InvalidQueryParameterValue,
-            error_reason);
+            std::move(error_reason));
         }
 
         auto records_handle =
@@ -732,20 +616,6 @@ namespace loggingapp
         .install();
       // SNIPPET_END: install_get
 
-      auto blocking_get = [get](auto& ctx, nlohmann::json&& params) {
-        ctx.rpc_ctx->set_consensus_committed_function(
-          ccf::samples::default_respond_on_commit);
-        return get(ctx, std::move(params));
-      };
-      make_read_only_endpoint(
-        "/log/blocking/private",
-        HTTP_GET,
-        ccf::json_read_only_adapter(blocking_get),
-        auth_policies)
-        .set_auto_schema<void, LoggingGet::Out>()
-        .add_query_parameter<size_t>("id")
-        .install();
-
       make_read_only_endpoint(
         "/log/private/backup",
         HTTP_GET,
@@ -759,7 +629,7 @@ namespace loggingapp
       // install the committed index and tell the historical fetcher to keep
       // track of deleted keys too, so that the index can observe the deleted
       // keys.
-      auto install_committed_index = [this](auto& ctx) {
+      auto install_committed_index = [this, &context](auto& ctx) {
         if (committed_records != nullptr)
         {
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_PRECONDITION_FAILED);
@@ -767,8 +637,8 @@ namespace loggingapp
           return;
         }
 
-        ccf::View view = 0;
-        ccf::SeqNo seqno = 0;
+        ccf::View view;
+        ccf::SeqNo seqno;
         auto result = get_last_committed_txid_v1(view, seqno);
         if (result != ccf::ApiResult::OK)
         {
@@ -780,7 +650,7 @@ namespace loggingapp
 
         // tracking committed records also wants to track deletes so enable that
         // in the historical queries too
-        _context.get_historical_state().track_deletes_on_missing_keys(true);
+        context.get_historical_state().track_deletes_on_missing_keys(true);
 
         // Indexing from the start of time may be expensive. Since this is a
         // locally-targetted sample, we only index from the _currently_
@@ -788,7 +658,7 @@ namespace loggingapp
         committed_records = std::make_shared<CommittedRecords>(
           PRIVATE_RECORDS, ccf::TxID{view, seqno});
 
-        _context.get_indexing_strategies().install_strategy(committed_records);
+        context.get_indexing_strategies().install_strategy(committed_records);
       };
 
       make_command_endpoint(
@@ -799,7 +669,7 @@ namespace loggingapp
         .set_auto_schema<void, void>()
         .install();
 
-      auto uninstall_committed_index = [this](auto& ctx) {
+      auto uninstall_committed_index = [this, &context](auto& ctx) {
         if (committed_records == nullptr)
         {
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_PRECONDITION_FAILED);
@@ -807,8 +677,7 @@ namespace loggingapp
           return;
         }
 
-        _context.get_indexing_strategies().uninstall_strategy(
-          committed_records);
+        context.get_indexing_strategies().uninstall_strategy(committed_records);
         committed_records = nullptr;
       };
 
@@ -826,7 +695,7 @@ namespace loggingapp
           ccf::http::parse_query(ctx.rpc_ctx->get_request_query());
 
         std::string error_reason;
-        size_t id = 0;
+        size_t id;
         if (!ccf::http::get_query_value(parsed_query, "id", id, error_reason))
         {
           auto response = nlohmann::json{{
@@ -871,19 +740,19 @@ namespace loggingapp
         .add_query_parameter<size_t>("id")
         .install();
 
-      auto remove = [](auto& ctx, nlohmann::json&&) {
+      auto remove = [this](auto& ctx, nlohmann::json&&) {
         // Parse id from query
         const auto parsed_query =
           ccf::http::parse_query(ctx.rpc_ctx->get_request_query());
 
         std::string error_reason;
-        size_t id = 0;
+        size_t id;
         if (!ccf::http::get_query_value(parsed_query, "id", id, error_reason))
         {
           return ccf::make_error(
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::InvalidQueryParameterValue,
-            error_reason);
+            std::move(error_reason));
         }
 
         auto records_handle =
@@ -899,7 +768,7 @@ namespace loggingapp
         .add_query_parameter<size_t>("id")
         .install();
 
-      auto clear = [](auto& ctx, nlohmann::json&&) {
+      auto clear = [this](auto& ctx, nlohmann::json&&) {
         auto records_handle =
           ctx.tx.template rw<RecordsMap>(private_records(ctx));
         records_handle->clear();
@@ -913,7 +782,7 @@ namespace loggingapp
         .set_auto_schema<void, bool>()
         .install();
 
-      auto count = [](auto& ctx, nlohmann::json&&) {
+      auto count = [this](auto& ctx, nlohmann::json&&) {
         auto records_handle =
           ctx.tx.template ro<RecordsMap>(private_records(ctx));
         return ccf::make_success(records_handle->size());
@@ -924,7 +793,7 @@ namespace loggingapp
         .install();
 
       // SNIPPET_START: record_public
-      auto record_public = [](auto& ctx, nlohmann::json&& params) {
+      auto record_public = [this](auto& ctx, nlohmann::json&& params) {
         const auto in = params.get<LoggingRecord::In>();
 
         if (in.msg.empty())
@@ -966,45 +835,25 @@ namespace loggingapp
             // side-effect.
             if (match_headers.if_match.has_value())
             {
-              try
-              {
-                ccf::http::Matcher matcher(match_headers.if_match.value());
-                if (!matcher.matches(etag))
-                {
-                  return ccf::make_error(
-                    HTTP_STATUS_PRECONDITION_FAILED,
-                    ccf::errors::PreconditionFailed,
-                    "Resource has changed.");
-                }
-              }
-              catch (const ccf::http::MatcherError& e)
+              ccf::http::Matcher matcher(match_headers.if_match.value());
+              if (!matcher.matches(etag))
               {
                 return ccf::make_error(
-                  HTTP_STATUS_BAD_REQUEST,
-                  ccf::errors::InvalidHeaderValue,
-                  e.what());
+                  HTTP_STATUS_PRECONDITION_FAILED,
+                  ccf::errors::PreconditionFailed,
+                  "Resource has changed.");
               }
             }
 
             if (match_headers.if_none_match.has_value())
             {
-              try
-              {
-                ccf::http::Matcher matcher(match_headers.if_none_match.value());
-                if (matcher.matches(etag))
-                {
-                  return ccf::make_error(
-                    HTTP_STATUS_PRECONDITION_FAILED,
-                    ccf::errors::PreconditionFailed,
-                    "Resource has changed.");
-                }
-              }
-              catch (const ccf::http::MatcherError& e)
+              ccf::http::Matcher matcher(match_headers.if_none_match.value());
+              if (matcher.matches(etag))
               {
                 return ccf::make_error(
-                  HTTP_STATUS_BAD_REQUEST,
-                  ccf::errors::InvalidHeaderValue,
-                  e.what());
+                  HTTP_STATUS_PRECONDITION_FAILED,
+                  ccf::errors::PreconditionFailed,
+                  "Resource has changed.");
               }
             }
           }
@@ -1038,19 +887,19 @@ namespace loggingapp
         .install();
 
       // SNIPPET_START: get_public
-      auto get_public = [](auto& ctx, nlohmann::json&&) {
+      auto get_public = [this](auto& ctx, nlohmann::json&&) {
         // Parse id from query
         const auto parsed_query =
           ccf::http::parse_query(ctx.rpc_ctx->get_request_query());
 
         std::string error_reason;
-        size_t id = 0;
+        size_t id;
         if (!ccf::http::get_query_value(parsed_query, "id", id, error_reason))
         {
           return ccf::make_error(
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::InvalidQueryParameterValue,
-            error_reason);
+            std::move(error_reason));
         }
 
         auto public_records_handle =
@@ -1078,43 +927,23 @@ namespace loggingapp
 
           if (match_headers.if_match.has_value())
           {
-            try
-            {
-              ccf::http::Matcher matcher(match_headers.if_match.value());
-              if (!matcher.matches(etag))
-              {
-                return ccf::make_error(
-                  HTTP_STATUS_PRECONDITION_FAILED,
-                  ccf::errors::PreconditionFailed,
-                  "Resource has changed.");
-              }
-            }
-            catch (const ccf::http::MatcherError& e)
+            ccf::http::Matcher matcher(match_headers.if_match.value());
+            if (!matcher.matches(etag))
             {
               return ccf::make_error(
-                HTTP_STATUS_BAD_REQUEST,
-                ccf::errors::InvalidHeaderValue,
-                e.what());
+                HTTP_STATUS_PRECONDITION_FAILED,
+                ccf::errors::PreconditionFailed,
+                "Resource has changed.");
             }
           }
 
           // On a GET, If-None-Match passing returns 304 Not Modified
           if (match_headers.if_none_match.has_value())
           {
-            try
+            ccf::http::Matcher matcher(match_headers.if_none_match.value());
+            if (matcher.matches(etag))
             {
-              ccf::http::Matcher matcher(match_headers.if_none_match.value());
-              if (matcher.matches(etag))
-              {
-                return ccf::make_redirect(HTTP_STATUS_NOT_MODIFIED);
-              }
-            }
-            catch (const ccf::http::MatcherError& e)
-            {
-              return ccf::make_error(
-                HTTP_STATUS_BAD_REQUEST,
-                ccf::errors::InvalidHeaderValue,
-                e.what());
+              return ccf::make_redirect(HTTP_STATUS_NOT_MODIFIED);
             }
           }
 
@@ -1151,19 +980,19 @@ namespace loggingapp
         .add_query_parameter<size_t>("id")
         .install();
 
-      auto remove_public = [](auto& ctx, nlohmann::json&&) {
+      auto remove_public = [this](auto& ctx, nlohmann::json&&) {
         // Parse id from query
         const auto parsed_query =
           ccf::http::parse_query(ctx.rpc_ctx->get_request_query());
 
         std::string error_reason;
-        size_t id = 0;
+        size_t id;
         if (!ccf::http::get_query_value(parsed_query, "id", id, error_reason))
         {
           return ccf::make_error(
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::InvalidQueryParameterValue,
-            error_reason);
+            std::move(error_reason));
         }
 
         auto records_handle =
@@ -1193,42 +1022,22 @@ namespace loggingapp
 
             if (match_headers.if_match.has_value())
             {
-              try
-              {
-                ccf::http::Matcher matcher(match_headers.if_match.value());
-                if (!matcher.matches(etag))
-                {
-                  return ccf::make_error(
-                    HTTP_STATUS_PRECONDITION_FAILED,
-                    ccf::errors::PreconditionFailed,
-                    "Resource has changed.");
-                }
-              }
-              catch (const ccf::http::MatcherError& e)
+              ccf::http::Matcher matcher(match_headers.if_match.value());
+              if (!matcher.matches(etag))
               {
                 return ccf::make_error(
-                  HTTP_STATUS_BAD_REQUEST,
-                  ccf::errors::InvalidHeaderValue,
-                  e.what());
+                  HTTP_STATUS_PRECONDITION_FAILED,
+                  ccf::errors::PreconditionFailed,
+                  "Resource has changed.");
               }
             }
 
             if (match_headers.if_none_match.has_value())
             {
-              try
+              ccf::http::Matcher matcher(match_headers.if_none_match.value());
+              if (matcher.matches(etag))
               {
-                ccf::http::Matcher matcher(match_headers.if_none_match.value());
-                if (matcher.matches(etag))
-                {
-                  return ccf::make_redirect(HTTP_STATUS_NOT_MODIFIED);
-                }
-              }
-              catch (const ccf::http::MatcherError& e)
-              {
-                return ccf::make_error(
-                  HTTP_STATUS_BAD_REQUEST,
-                  ccf::errors::InvalidHeaderValue,
-                  e.what());
+                return ccf::make_redirect(HTTP_STATUS_NOT_MODIFIED);
               }
             }
           }
@@ -1248,7 +1057,7 @@ namespace loggingapp
         .add_query_parameter<size_t>("id")
         .install();
 
-      auto clear_public = [](auto& ctx, nlohmann::json&&) {
+      auto clear_public = [this](auto& ctx, nlohmann::json&&) {
         auto public_records_handle =
           ctx.tx.template rw<RecordsMap>(public_records(ctx));
         public_records_handle->clear();
@@ -1262,7 +1071,7 @@ namespace loggingapp
         .set_auto_schema<void, bool>()
         .install();
 
-      auto count_public = [](auto& ctx, nlohmann::json&&) {
+      auto count_public = [this](auto& ctx, nlohmann::json&&) {
         auto public_records_handle =
           ctx.tx.template ro<RecordsMap>(public_records(ctx));
         return ccf::make_success(public_records_handle->size());
@@ -1276,12 +1085,12 @@ namespace loggingapp
         .install();
 
       // SNIPPET_START: log_record_prefix_cert
-      auto log_record_prefix_cert = [](auto& ctx) {
+      auto log_record_prefix_cert = [this](auto& ctx) {
         const auto& caller_ident =
           ctx.template get_caller<ccf::UserCertAuthnIdentity>();
 
         const nlohmann::json body_j =
-          ccf::parse_json_safe(ctx.rpc_ctx->get_request_body());
+          nlohmann::json::parse(ctx.rpc_ctx->get_request_body());
 
         const auto in = body_j.get<LoggingRecord::In>();
         if (in.msg.empty())
@@ -1310,7 +1119,7 @@ namespace loggingapp
         .install();
       // SNIPPET_END: log_record_prefix_cert
 
-      auto log_record_anonymous = [](auto& ctx, nlohmann::json&& params) {
+      auto log_record_anonymous = [this](auto& ctx, nlohmann::json&& params) {
         const auto in = params.get<LoggingRecord::In>();
         if (in.msg.empty())
         {
@@ -1349,11 +1158,14 @@ namespace loggingapp
           ctx.rpc_ctx->set_response_body(std::move(response));
           return;
         }
-        ctx.rpc_ctx->set_error(
-          HTTP_STATUS_INTERNAL_SERVER_ERROR,
-          ccf::errors::InvalidInput,
-          "Unhandled auth type");
-        return;
+        else
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InvalidInput,
+            "Unhandled auth type");
+          return;
+        }
       };
       make_endpoint(
         "/multi_auth",
@@ -1394,8 +1206,8 @@ namespace loggingapp
       // SNIPPET_END: custom_auth_endpoint
 
       // SNIPPET_START: log_record_text
-      auto log_record_text = [](auto& ctx) {
-        const auto* const expected = ccf::http::headervalues::contenttype::TEXT;
+      auto log_record_text = [this](auto& ctx) {
+        const auto expected = ccf::http::headervalues::contenttype::TEXT;
         const auto actual =
           ctx.rpc_ctx->get_request_header(ccf::http::headers::CONTENT_TYPE)
             .value_or("");
@@ -1437,7 +1249,7 @@ namespace loggingapp
       // SNIPPET_END: log_record_text
 
       // SNIPPET_START: get_historical
-      auto get_historical = [](
+      auto get_historical = [this](
                               ccf::endpoints::ReadOnlyEndpointContext& ctx,
                               ccf::historical::StatePtr historical_state) {
         // Parse id from query
@@ -1445,7 +1257,7 @@ namespace loggingapp
           ccf::http::parse_query(ctx.rpc_ctx->get_request_query());
 
         std::string error_reason;
-        size_t id = 0;
+        size_t id;
         if (!ccf::http::get_query_value(parsed_query, "id", id, error_reason))
         {
           ctx.rpc_ctx->set_error(
@@ -1456,7 +1268,7 @@ namespace loggingapp
         }
 
         auto historical_tx = historical_state->store->create_read_only_tx();
-        auto* records_handle =
+        auto records_handle =
           historical_tx.template ro<RecordsMap>(private_records(ctx));
         const auto v = records_handle->get(id);
 
@@ -1490,100 +1302,9 @@ namespace loggingapp
         .install();
       // SNIPPET_END: get_historical
 
-      // SNIPPET_START: get_historical_with_handle
-      auto get_historical_with_handle =
-        [this](ccf::endpoints::ReadOnlyEndpointContext& ctx) {
-          using namespace ccf::historical;
-
-          const auto parsed_query =
-            ccf::http::parse_query(ctx.rpc_ctx->get_request_query());
-
-          std::string error_reason{};
-          size_t handle = 0;
-          if (!ccf::http::get_query_value(
-                parsed_query, "handle", handle, error_reason))
-          {
-            ctx.rpc_ctx->set_error(
-              HTTP_STATUS_BAD_REQUEST,
-              ccf::errors::InvalidQueryParameterValue,
-              std::move(error_reason));
-            return;
-          }
-
-          size_t seqno = 0;
-          error_reason.clear();
-          if (!ccf::http::get_query_value(
-                parsed_query, "seqno", seqno, error_reason))
-          {
-            ctx.rpc_ctx->set_error(
-              HTTP_STATUS_BAD_REQUEST,
-              ccf::errors::InvalidQueryParameterValue,
-              std::move(error_reason));
-            return;
-          }
-
-          error_reason.clear();
-          const auto tx_status = get_tx_status(seqno);
-          if (
-            !tx_status.has_value() ||
-            tx_status.value() != ccf::TxStatus::Committed)
-          {
-            ctx.rpc_ctx->set_error(
-              HTTP_STATUS_BAD_REQUEST,
-              ccf::errors::InvalidHeaderValue,
-              "Requested historical TxID is not committed");
-            return;
-          }
-
-          auto& state_cache = context.get_historical_state();
-          auto state = state_cache.get_state_at(handle, seqno);
-
-          if (!state)
-          {
-            default_error_handler(
-              HistoricalQueryErrorCode::TransactionPartiallyReady,
-              "Pending",
-              ctx);
-            return;
-          }
-          auto network_identity_subsystem =
-            context.get_subsystem<ccf::NetworkIdentitySubsystemInterface>();
-
-          if (!populate_service_endorsements(
-                ctx.tx, state, state_cache, network_identity_subsystem))
-          {
-            default_error_handler(
-              HistoricalQueryErrorCode::TransactionPartiallyReady,
-              "Pending",
-              ctx);
-            return;
-          }
-
-          if (state->receipt)
-          {
-            auto j = describe_receipt_v1(*state->receipt);
-            ccf::jsonhandler::set_response(std::move(j), ctx.rpc_ctx);
-          }
-          else
-          {
-            ctx.rpc_ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
-          }
-        };
-      make_read_only_endpoint(
-        "/log/private/historical/handle",
-        HTTP_GET,
-        get_historical_with_handle,
-        auth_policies)
-        .set_auto_schema<void, nlohmann::json>()
-        .add_query_parameter<size_t>("handle")
-        .add_query_parameter<size_t>("seqno")
-        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
-        .install();
-      // SNIPPET_END: get_historical_with_handle
-
       // SNIPPET_START: get_historical_with_receipt
       auto get_historical_with_receipt =
-        [](
+        [this](
           ccf::endpoints::ReadOnlyEndpointContext& ctx,
           ccf::historical::StatePtr historical_state) {
           // Parse id from query
@@ -1591,7 +1312,7 @@ namespace loggingapp
             ccf::http::parse_query(ctx.rpc_ctx->get_request_query());
 
           std::string error_reason;
-          size_t id = 0;
+          size_t id;
           if (!ccf::http::get_query_value(parsed_query, "id", id, error_reason))
           {
             ctx.rpc_ctx->set_error(
@@ -1602,7 +1323,7 @@ namespace loggingapp
           }
 
           auto historical_tx = historical_state->store->create_read_only_tx();
-          auto* records_handle =
+          auto records_handle =
             historical_tx.template ro<RecordsMap>(private_records(ctx));
           const auto v = records_handle->get(id);
 
@@ -1632,7 +1353,7 @@ namespace loggingapp
       // SNIPPET_END: get_historical_with_receipt
 
       auto get_historical_with_receipt_and_claims =
-        [](
+        [this](
           ccf::endpoints::ReadOnlyEndpointContext& ctx,
           ccf::historical::StatePtr historical_state) {
           // Parse id from query
@@ -1640,7 +1361,7 @@ namespace loggingapp
             ccf::http::parse_query(ctx.rpc_ctx->get_request_query());
 
           std::string error_reason;
-          size_t id = 0;
+          size_t id;
           if (!ccf::http::get_query_value(parsed_query, "id", id, error_reason))
           {
             ctx.rpc_ctx->set_error(
@@ -1651,7 +1372,7 @@ namespace loggingapp
           }
 
           auto historical_tx = historical_state->store->create_read_only_tx();
-          auto* records_handle =
+          auto records_handle =
             historical_tx.template ro<RecordsMap>(public_records(ctx));
           const auto v = records_handle->get(id);
 
@@ -1697,7 +1418,7 @@ namespace loggingapp
 
         std::string error_reason;
 
-        size_t id = 0;
+        size_t id;
         if (!ccf::http::get_query_value(parsed_query, "id", id, error_reason))
         {
           ctx.rpc_ctx->set_error(
@@ -1707,7 +1428,7 @@ namespace loggingapp
           return;
         }
 
-        size_t from_seqno = 0;
+        size_t from_seqno;
         if (!ccf::http::get_query_value(
               parsed_query, "from_seqno", from_seqno, error_reason))
         {
@@ -1716,13 +1437,13 @@ namespace loggingapp
           from_seqno = 1;
         }
 
-        size_t to_seqno = 0;
+        size_t to_seqno;
         if (!ccf::http::get_query_value(
               parsed_query, "to_seqno", to_seqno, error_reason))
         {
           // If no end point is specified, use the last time this ID was
           // written to
-          auto* records = ctx.tx.ro<RecordsMap>(public_records(ctx));
+          auto records = ctx.tx.ro<RecordsMap>(public_records(ctx));
           const auto last_written_version =
             records->get_version_of_previous_write(id);
           if (last_written_version.has_value())
@@ -1734,8 +1455,8 @@ namespace loggingapp
             // If there's no last written version, it may have never been
             // written but may simply be currently deleted. Use current commit
             // index as end point to ensure we include any deleted entries.
-            ccf::View view = 0;
-            ccf::SeqNo seqno = 0;
+            ccf::View view;
+            ccf::SeqNo seqno;
             const auto result = get_last_committed_txid_v1(view, seqno);
             if (result != ccf::ApiResult::OK)
             {
@@ -1769,7 +1490,7 @@ namespace loggingapp
           !tx_status.has_value() ||
           tx_status.value() != ccf::TxStatus::Committed)
         {
-          const auto* const tx_status_msg = tx_status.has_value() ?
+          const auto tx_status_msg = tx_status.has_value() ?
             tx_status_to_str(tx_status.value()) :
             "not found";
           ctx.rpc_ctx->set_error(
@@ -1787,7 +1508,7 @@ namespace loggingapp
         if (indexed_txid.seqno < to_seqno)
         {
           {
-            ccf::View view_of_to_seqno = 0;
+            ccf::View view_of_to_seqno;
             const auto result =
               get_view_for_seqno_v1(to_seqno, view_of_to_seqno);
             if (result == ccf::ApiResult::OK)
@@ -1813,7 +1534,7 @@ namespace loggingapp
         }
 
         // Set a maximum range, paginate larger requests
-        static constexpr size_t max_seqno_per_page = 5000;
+        static constexpr size_t max_seqno_per_page = 10000;
         const auto range_begin = from_seqno;
         const auto range_end =
           std::min(to_seqno, range_begin + max_seqno_per_page);
@@ -1844,7 +1565,7 @@ namespace loggingapp
           size_t raw[] = {begin, end, id};
           auto size = sizeof(raw);
           std::vector<uint8_t> v(size);
-          memcpy(v.data(), reinterpret_cast<const uint8_t*>(raw), size);
+          memcpy(v.data(), (const uint8_t*)raw, size);
           return std::hash<decltype(v)>()(v);
         };
 
@@ -1887,14 +1608,14 @@ namespace loggingapp
         for (auto& store : stores)
         {
           auto historical_tx = store->create_read_only_tx();
-          auto* records_handle =
+          auto records_handle =
             historical_tx.template ro<RecordsMap>(public_records(ctx));
           const auto v = records_handle->get(id);
 
           if (v.has_value())
           {
             LoggingGetHistoricalRange::Entry e;
-            e.seqno = store->current_txid().seqno;
+            e.seqno = store->get_txid().seqno;
             e.id = id;
             e.msg = v.value();
             response.entries.push_back(e);
@@ -1914,9 +1635,6 @@ namespace loggingapp
             std::min(to_seqno, next_page_start + max_seqno_per_page);
           const auto next_seqnos = index_per_public_key->get_write_txs_in_range(
             id, next_page_start, next_range_end);
-
-          // if we know the next page has some interesting seqnos, begin
-          // fetching them
           if (next_seqnos.has_value() && !next_seqnos->empty())
           {
             const auto next_page_end = next_seqnos->back();
@@ -1927,14 +1645,19 @@ namespace loggingapp
               next_page_handle, next_page_start, next_page_end);
           }
 
-          // NB: This path tells the caller to continue to ask until the end
-          // of the range, even if the next response is paginated
-          response.next_link = fmt::format(
-            "/app{}?from_seqno={}&to_seqno={}&id={}",
-            get_historical_range_path,
-            next_page_start,
-            to_seqno,
-            id);
+          // If we don't yet know the next seqnos, or know for sure there are
+          // some, then set a next_link
+          if (!next_seqnos.has_value() || !next_seqnos->empty())
+          {
+            // NB: This path tells the caller to continue to ask until the end
+            // of the range, even if the next response is paginated
+            response.next_link = fmt::format(
+              "/app{}?from_seqno={}&to_seqno={}&id={}",
+              get_historical_range_path,
+              next_page_start,
+              to_seqno,
+              id);
+          }
         }
 
         // Construct the HTTP response
@@ -1964,7 +1687,7 @@ namespace loggingapp
 
         std::string error_reason;
 
-        size_t id = 0;
+        size_t id;
         if (!ccf::http::get_query_value(parsed_query, "id", id, error_reason))
         {
           ctx.rpc_ctx->set_error(
@@ -1990,7 +1713,7 @@ namespace loggingapp
           const auto terms = ccf::nonstd::split(seqnos_s, ",");
           for (const auto& term : terms)
           {
-            size_t val = 0;
+            size_t val;
             const auto [p, ec] = std::from_chars(term.begin(), term.end(), val);
             if (ec != std::errc() || p != term.end())
             {
@@ -2034,7 +1757,18 @@ namespace loggingapp
 
         // NB: Currently ignoring pagination, as this endpoint is temporary
 
-        ccf::historical::RequestHandle handle = 0;
+        // Use hash of request as RequestHandle. WARNING: This means identical
+        // requests from different users will collide, and overwrite each
+        // other's progress!
+        auto make_handle = [](size_t begin, size_t end, size_t id) {
+          size_t raw[] = {begin, end, id};
+          auto size = sizeof(raw);
+          std::vector<uint8_t> v(size);
+          memcpy(v.data(), (const uint8_t*)raw, size);
+          return std::hash<decltype(v)>()(v);
+        };
+
+        ccf::historical::RequestHandle handle;
         {
           std::hash<size_t> h;
           handle = h(id);
@@ -2069,14 +1803,14 @@ namespace loggingapp
         for (const auto& store : stores)
         {
           auto historical_tx = store->create_read_only_tx();
-          auto* records_handle =
+          auto records_handle =
             historical_tx.template ro<RecordsMap>(private_records(ctx));
           const auto v = records_handle->get(id);
 
           if (v.has_value())
           {
             LoggingGetHistoricalRange::Entry e;
-            e.seqno = store->current_txid().seqno;
+            e.seqno = store->get_txid().seqno;
             e.id = id;
             e.msg = v.value();
             response.entries.push_back(e);
@@ -2145,7 +1879,7 @@ namespace loggingapp
             "Cannot record an empty log message.");
         }
 
-        auto* view = ctx.tx.template rw<RecordsMap>(private_records(ctx));
+        auto view = ctx.tx.template rw<RecordsMap>(private_records(ctx));
         view->put(in.id, in.msg);
         return ccf::make_success(true);
       };
@@ -2157,7 +1891,7 @@ namespace loggingapp
         .set_auto_schema<LoggingRecord::In, bool>()
         .install();
 
-      auto get_request_query = [](auto& ctx) {
+      auto get_request_query = [this](auto& ctx) {
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
         std::vector<uint8_t> rq(
           ctx.rpc_ctx->get_request_query().begin(),
@@ -2173,18 +1907,19 @@ namespace loggingapp
         .set_auto_schema<void, std::string>()
         .install();
 
-      auto post_cose_signed_content = [](ccf::endpoints::EndpointContext& ctx) {
-        const auto& caller_identity =
-          ctx.template get_caller<ccf::MemberCOSESign1AuthnIdentity>();
+      auto post_cose_signed_content =
+        [this](ccf::endpoints::EndpointContext& ctx) {
+          const auto& caller_identity =
+            ctx.template get_caller<ccf::MemberCOSESign1AuthnIdentity>();
 
-        ctx.rpc_ctx->set_response_header(
-          ccf::http::headers::CONTENT_TYPE,
-          ccf::http::headervalues::contenttype::TEXT);
-        std::vector<uint8_t> response_body(
-          caller_identity.content.begin(), caller_identity.content.end());
-        ctx.rpc_ctx->set_response_body(response_body);
-        ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-      };
+          ctx.rpc_ctx->set_response_header(
+            ccf::http::headers::CONTENT_TYPE,
+            ccf::http::headervalues::contenttype::TEXT);
+          std::vector<uint8_t> response_body(
+            caller_identity.content.begin(), caller_identity.content.end());
+          ctx.rpc_ctx->set_response_body(response_body);
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+        };
 
       make_endpoint(
         "/log/cose_signed_content",
@@ -2194,8 +1929,41 @@ namespace loggingapp
         .set_auto_schema<void, std::string>()
         .install();
 
+      auto get_cbor_merkle_proof =
+        [this](
+          ccf::endpoints::ReadOnlyEndpointContext& ctx,
+          ccf::historical::StatePtr historical_state) {
+          auto historical_tx = historical_state->store->create_read_only_tx();
+
+          assert(historical_state->receipt);
+          auto cbor_proof =
+            describe_merkle_proof_v1(*historical_state->receipt);
+          if (!cbor_proof.has_value())
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_NOT_FOUND,
+              ccf::errors::ResourceNotFound,
+              "No merkle proof available for this transaction");
+            return;
+          }
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+          ctx.rpc_ctx->set_response_body(std::move(cbor_proof.value()));
+          ctx.rpc_ctx->set_response_header(
+            ccf::http::headers::CONTENT_TYPE,
+            ccf::http::headervalues::contenttype::CBOR);
+        };
+      make_read_only_endpoint(
+        "/log/public/cbor_merkle_proof",
+        HTTP_GET,
+        ccf::historical::read_only_adapter_v4(
+          get_cbor_merkle_proof, context, is_tx_committed),
+        auth_policies)
+        .set_auto_schema<void, void>()
+        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
+        .install();
+
       auto get_cose_endorsements =
-        [](
+        [this](
           ccf::endpoints::ReadOnlyEndpointContext& ctx,
           ccf::historical::StatePtr historical_state) {
           auto historical_tx = historical_state->store->create_read_only_tx();
@@ -2230,42 +1998,7 @@ namespace loggingapp
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
         .install();
 
-      auto get_trusted_keys =
-        [&](ccf::endpoints::ReadOnlyEndpointContext& ctx) {
-          auto network_identity_subsystem =
-            context.get_subsystem<ccf::NetworkIdentitySubsystemInterface>();
-          if (network_identity_subsystem == nullptr)
-          {
-            ctx.rpc_ctx->set_error(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              ccf::errors::InternalError,
-              "Network identity subsystem not available");
-            return;
-          }
-
-          auto keys = network_identity_subsystem->get_trusted_keys();
-          nlohmann::json jwks = nlohmann::json::object();
-          auto keys_array = nlohmann::json::array();
-          for (const auto& [seqno, key_ptr] : keys)
-          {
-            const auto kid =
-              ccf::crypto::Sha256Hash(key_ptr->public_key_der()).hex_str();
-            keys_array.push_back(key_ptr->public_key_jwk(kid));
-          }
-          jwks["keys"] = keys_array;
-
-          ctx.rpc_ctx->set_response_json(jwks, HTTP_STATUS_OK);
-        };
-      make_read_only_endpoint(
-        "/log/public/trusted_keys",
-        HTTP_GET,
-        get_trusted_keys,
-        ccf::no_auth_required)
-        .set_auto_schema<void, void>()
-        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
-        .install();
-
-      auto get_cose_signature = [](
+      auto get_cose_signature = [this](
                                   ccf::endpoints::ReadOnlyEndpointContext& ctx,
                                   ccf::historical::StatePtr historical_state) {
         auto historical_tx = historical_state->store->create_read_only_tx();
@@ -2296,193 +2029,51 @@ namespace loggingapp
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
         .install();
 
-      auto get_cose_receipt = [](
+      auto get_cose_receipt = [this](
                                 ccf::endpoints::ReadOnlyEndpointContext& ctx,
                                 ccf::historical::StatePtr historical_state) {
-        assert(historical_state->receipt);
+        auto historical_tx = historical_state->store->create_read_only_tx();
 
-        auto cose_receipt =
-          describe_cose_receipt_v1(*historical_state->receipt);
-        if (!cose_receipt.has_value())
+        assert(historical_state->receipt);
+        auto signature = describe_cose_signature_v1(*historical_state->receipt);
+        if (!signature.has_value())
         {
           ctx.rpc_ctx->set_error(
             HTTP_STATUS_NOT_FOUND,
             ccf::errors::ResourceNotFound,
-            "No COSE receipt available for this transaction");
-
+            "No COSE signature available for this transaction");
           return;
         }
+        auto proof = describe_merkle_proof_v1(*historical_state->receipt);
+        if (!proof.has_value())
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_NOT_FOUND,
+            ccf::errors::ResourceNotFound,
+            "No merkle proof available for this transaction");
+          return;
+        }
+
+        int64_t vdp = 396;
+        auto inclusion_proof = ccf::cose::edit::pos::AtKey{-1};
+
+        ccf::cose::edit::desc::Value desc{inclusion_proof, vdp, *proof};
+
+        auto cose_receipt =
+          ccf::cose::edit::set_unprotected_header(*signature, desc);
 
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
         ctx.rpc_ctx->set_response_header(
           ccf::http::headers::CONTENT_TYPE,
           ccf::http::headervalues::contenttype::COSE);
-        ctx.rpc_ctx->set_response_body(*cose_receipt);
+        ctx.rpc_ctx->set_response_body(cose_receipt);
       };
       make_read_only_endpoint(
         "/log/public/cose_receipt",
         HTTP_GET,
         ccf::historical::read_only_adapter_v4(
           get_cose_receipt, context, is_tx_committed),
-        ccf::no_auth_required)
-        .set_auto_schema<void, void>()
-        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
-        .install();
-
-      auto verify_cose_receipt =
-        [&](ccf::endpoints::ReadOnlyEndpointContext& ctx) {
-          const auto* const expected =
-            ccf::http::headervalues::contenttype::COSE;
-          const auto actual =
-            ctx.rpc_ctx->get_request_header(ccf::http::headers::CONTENT_TYPE)
-              .value_or("");
-          if (expected != actual)
-          {
-            ctx.rpc_ctx->set_error(
-              HTTP_STATUS_UNSUPPORTED_MEDIA_TYPE,
-              ccf::errors::InvalidHeaderValue,
-              fmt::format(
-                "Expected content-type '{}'. Got '{}'.", expected, actual));
-            return;
-          }
-
-          const std::vector<uint8_t>& receipt = ctx.rpc_ctx->get_request_body();
-
-          auto network_identity_subsystem =
-            context.get_subsystem<ccf::NetworkIdentitySubsystemInterface>();
-          if (network_identity_subsystem == nullptr)
-          {
-            ctx.rpc_ctx->set_error(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              ccf::errors::InternalError,
-              "Network identity subsystem not available");
-            return;
-          }
-
-          try
-          {
-            ccf::historical::verify_self_issued_receipt(
-              receipt, network_identity_subsystem);
-          }
-          catch (const std::exception& e)
-          {
-            ctx.rpc_ctx->set_error(
-              HTTP_STATUS_BAD_REQUEST,
-              ccf::errors::InvalidInput,
-              fmt::format("COSE receipt verification failed: {}", e.what()));
-            return;
-          }
-
-          ctx.rpc_ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
-        };
-
-      make_read_only_endpoint(
-        "/log/public/verify_cose_receipt",
-        HTTP_GET,
-        verify_cose_receipt,
-        ccf::no_auth_required)
-        .set_auto_schema<void, void>()
-        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
-        .install();
-
-      // Endpoint to register a signed statement (raw COSE_Sign1),
-      // binding its digest as a claims_digest in the Merkle tree.
-      auto register_signed_statement =
-        [](ccf::endpoints::EndpointContext& ctx) {
-          const auto& body = ctx.rpc_ctx->get_request_body();
-          if (body.empty())
-          {
-            ctx.rpc_ctx->set_error(
-              HTTP_STATUS_BAD_REQUEST,
-              ccf::errors::InvalidInput,
-              "Body must not be empty");
-            return;
-          }
-
-          const auto signed_statement = ccf::cose::edit::set_unprotected_header(
-            body, ccf::cose::edit::desc::Empty{});
-
-          ctx.rpc_ctx->set_claims_digest(
-            ccf::ClaimsDigest::Digest(signed_statement));
-
-          auto* entry_table = ctx.tx.template rw<ScittTransparentStatementMap>(
-            COSE_SIGNED_STATEMENTS);
-          entry_table->put(signed_statement);
-
-          CCF_APP_INFO(
-            "Registered signed statement of size {} bytes", body.size());
-
-          ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-        };
-
-      make_endpoint(
-        "/log/signed_statement",
-        HTTP_POST,
-        register_signed_statement,
-        ccf::no_auth_required)
-        .set_auto_schema<void, void>()
-        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Always)
-        .set_locally_committed_function(
-          ccf::endpoints::default_locally_committed_func)
-        .install();
-
-      // Endpoint to retrieve a transparent statement: the stored signed
-      // statement with a COSE receipt (including Merkle proof) embedded in
-      // its unprotected header.
-      auto get_transparent_statement =
-        [](
-          ccf::endpoints::ReadOnlyEndpointContext& ctx,
-          ccf::historical::StatePtr historical_state) {
-          auto historical_tx = historical_state->store->create_read_only_tx();
-
-          auto* entries =
-            historical_tx.template ro<ScittTransparentStatementMap>(
-              COSE_SIGNED_STATEMENTS);
-          auto entry = entries->get();
-          if (!entry.has_value())
-          {
-            ctx.rpc_ctx->set_error(
-              HTTP_STATUS_NOT_FOUND,
-              ccf::errors::ResourceNotFound,
-              fmt::format(
-                "Transaction ID {} does not correspond to a COSE entry.",
-                historical_state->transaction_id.to_str()));
-            return;
-          }
-
-          assert(historical_state->receipt);
-          auto cose_receipt =
-            build_cose_receipt(ctx, historical_state->receipt);
-          if (!cose_receipt.has_value())
-          {
-            ctx.rpc_ctx->set_error(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              ccf::errors::InternalError,
-              "Failed to build COSE receipt for this transaction");
-            return;
-          }
-
-          // Build "transparent statement".
-          ccf::cose::edit::desc::Value receipts_desc{
-            ccf::cose::edit::pos::InArray{},
-            COSE_HEADER_PARAM_VDP,
-            *cose_receipt};
-          auto transparent_statement =
-            ccf::cose::edit::set_unprotected_header(*entry, receipts_desc);
-
-          ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-          ctx.rpc_ctx->set_response_header(
-            ccf::http::headers::CONTENT_TYPE,
-            ccf::http::headervalues::contenttype::COSE);
-          ctx.rpc_ctx->set_response_body(transparent_statement);
-        };
-
-      make_read_only_endpoint(
-        "/log/transparent_statement",
-        HTTP_GET,
-        ccf::historical::read_only_adapter_v4(
-          get_transparent_statement, context, is_tx_committed),
-        ccf::no_auth_required)
+        auth_policies)
         .set_auto_schema<void, void>()
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
         .install();

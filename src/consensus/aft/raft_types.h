@@ -19,21 +19,28 @@ namespace aft
   using Index = uint64_t;
   using Term = uint64_t;
   using Node2NodeMsg = uint64_t;
+  using Nonce = ccf::crypto::Sha256Hash;
+
+  using ReplyCallback = std::function<bool(
+    void* owner,
+    ccf::kv::TxHistory::RequestID caller_rid,
+    int status,
+    std::vector<uint8_t>&& data)>;
 
   static constexpr size_t starting_view_change = 2;
 
   class Store
   {
   public:
-    virtual ~Store() = default;
+    virtual ~Store() {}
     virtual void compact(Index v) = 0;
     virtual void rollback(
-      const ccf::TxID& tx_id, Term term_of_next_version) = 0;
+      const ccf::kv::TxID& tx_id, Term term_of_next_version) = 0;
     virtual void initialise_term(Term t) = 0;
     virtual std::unique_ptr<ccf::kv::AbstractExecutionWrapper> deserialize(
-      std::vector<uint8_t> data,
+      const std::vector<uint8_t> data,
       bool public_only = false,
-      const std::optional<ccf::TxID>& expected_txid = std::nullopt) = 0;
+      const std::optional<ccf::kv::TxID>& expected_txid = std::nullopt) = 0;
   };
 
   template <typename T>
@@ -54,7 +61,8 @@ namespace aft
       }
     }
 
-    void rollback(const ccf::TxID& tx_id, Term term_of_next_version) override
+    void rollback(
+      const ccf::kv::TxID& tx_id, Term term_of_next_version) override
     {
       auto p = x.lock();
       if (p)
@@ -75,7 +83,7 @@ namespace aft
     std::unique_ptr<ccf::kv::AbstractExecutionWrapper> deserialize(
       const std::vector<uint8_t> data,
       bool public_only = false,
-      const std::optional<ccf::TxID>& expected_txid = std::nullopt) override
+      const std::optional<ccf::kv::TxID>& expected_txid = std::nullopt) override
     {
       auto p = x.lock();
       if (p)
@@ -86,7 +94,6 @@ namespace aft
     }
   };
 
-  // NOLINTNEXTLINE(performance-enum-size)
   enum RaftMsgType : Node2NodeMsg
   {
     raft_append_entries = 0,
@@ -121,8 +128,8 @@ namespace aft
     RaftMsgType msg = M;
   };
 
-  DECLARE_JSON_TYPE(RaftHeader<raft_append_entries>);
-  DECLARE_JSON_REQUIRED_FIELDS(RaftHeader<raft_append_entries>, msg);
+  DECLARE_JSON_TYPE(RaftHeader<raft_append_entries>)
+  DECLARE_JSON_REQUIRED_FIELDS(RaftHeader<raft_append_entries>, msg)
   struct AppendEntries : RaftHeader<raft_append_entries>,
                          ::consensus::AppendEntriesIndex
   {
@@ -160,8 +167,8 @@ namespace aft
     {{AppendEntriesResponseType::OK, "OK"},
      {AppendEntriesResponseType::FAIL, "FAIL"}});
 
-  DECLARE_JSON_TYPE(RaftHeader<raft_append_entries_response>);
-  DECLARE_JSON_REQUIRED_FIELDS(RaftHeader<raft_append_entries_response>, msg);
+  DECLARE_JSON_TYPE(RaftHeader<raft_append_entries_response>)
+  DECLARE_JSON_REQUIRED_FIELDS(RaftHeader<raft_append_entries_response>, msg)
   struct AppendEntriesResponse : RaftHeader<raft_append_entries_response>
   {
     // This term and idx usually refer to the tail of the sender's log. The
@@ -181,7 +188,7 @@ namespace aft
   DECLARE_JSON_REQUIRED_FIELDS(
     AppendEntriesResponse, term, last_log_idx, success);
 
-  enum ElectionType : std::uint8_t
+  enum ElectionType
   {
     PreVote = 0,
     RegularVote = 1
@@ -191,8 +198,8 @@ namespace aft
     {{ElectionType::PreVote, "PreVote"},
      {ElectionType::RegularVote, "RegularVote"}});
 
-  DECLARE_JSON_TYPE(RaftHeader<raft_request_vote>);
-  DECLARE_JSON_REQUIRED_FIELDS(RaftHeader<raft_request_vote>, msg);
+  DECLARE_JSON_TYPE(RaftHeader<raft_request_vote>)
+  DECLARE_JSON_REQUIRED_FIELDS(RaftHeader<raft_request_vote>, msg)
   struct RequestVote : RaftHeader<raft_request_vote>
   {
     Term term;
@@ -216,8 +223,8 @@ namespace aft
   DECLARE_JSON_REQUIRED_FIELDS(
     RequestPreVote, term, last_committable_idx, term_of_last_committable_idx);
 
-  DECLARE_JSON_TYPE(RaftHeader<raft_request_vote_response>);
-  DECLARE_JSON_REQUIRED_FIELDS(RaftHeader<raft_request_vote_response>, msg);
+  DECLARE_JSON_TYPE(RaftHeader<raft_request_vote_response>)
+  DECLARE_JSON_REQUIRED_FIELDS(RaftHeader<raft_request_vote_response>, msg)
   struct RequestVoteResponse : RaftHeader<raft_request_vote_response>
   {
     Term term;
@@ -227,8 +234,8 @@ namespace aft
     RequestVoteResponse, RaftHeader<raft_request_vote_response>);
   DECLARE_JSON_REQUIRED_FIELDS(RequestVoteResponse, term, vote_granted);
 
-  DECLARE_JSON_TYPE(RaftHeader<raft_request_pre_vote_response>);
-  DECLARE_JSON_REQUIRED_FIELDS(RaftHeader<raft_request_pre_vote_response>, msg);
+  DECLARE_JSON_TYPE(RaftHeader<raft_request_pre_vote_response>)
+  DECLARE_JSON_REQUIRED_FIELDS(RaftHeader<raft_request_pre_vote_response>, msg)
   struct RequestPreVoteResponse : RaftHeader<raft_request_pre_vote_response>
   {
     Term term;
@@ -238,8 +245,8 @@ namespace aft
     RequestPreVoteResponse, RaftHeader<raft_request_pre_vote_response>);
   DECLARE_JSON_REQUIRED_FIELDS(RequestPreVoteResponse, term, vote_granted);
 
-  DECLARE_JSON_TYPE(RaftHeader<raft_propose_request_vote>);
-  DECLARE_JSON_REQUIRED_FIELDS(RaftHeader<raft_propose_request_vote>, msg);
+  DECLARE_JSON_TYPE(RaftHeader<raft_propose_request_vote>)
+  DECLARE_JSON_REQUIRED_FIELDS(RaftHeader<raft_propose_request_vote>, msg)
   struct ProposeRequestVote : RaftHeader<raft_propose_request_vote>
   {
     // A node sends this to nudge another node to begin an election, for

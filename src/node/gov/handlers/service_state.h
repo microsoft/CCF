@@ -3,12 +3,11 @@
 #pragma once
 
 #include "ccf/base_endpoint_registry.h"
-#include "ccf/ds/json.h"
 #include "node/gov/api_version.h"
 
 namespace ccf::gov::endpoints
 {
-  inline nlohmann::json produce_member_description(
+  nlohmann::json produce_member_description(
     const ccf::MemberId& member_id,
     const ccf::MemberDetails& member_details,
     ccf::MemberCerts::ReadOnlyHandle* member_certs_handle,
@@ -52,7 +51,7 @@ namespace ccf::gov::endpoints
     return member;
   }
 
-  inline nlohmann::json produce_user_description(
+  nlohmann::json produce_user_description(
     const ccf::UserId& user_id,
     const ccf::crypto::Pem& user_cert,
     ccf::UserInfo::ReadOnlyHandle* user_info_handle)
@@ -70,7 +69,7 @@ namespace ccf::gov::endpoints
     return user;
   }
 
-  inline nlohmann::json produce_node_description(
+  nlohmann::json produce_node_description(
     const ccf::NodeId& node_id,
     const ccf::NodeInfo& node_info,
     ccf::NodeEndorsedCertificates::ReadOnlyHandle* node_endorsed_certs_handle)
@@ -111,7 +110,8 @@ namespace ccf::gov::endpoints
         quote_info["rawQuote"] = node_info.quote_info.quote;
 
         {
-          const auto details = ccf::parse_json_safe(node_info.quote_info.quote);
+          const auto details =
+            nlohmann::json::parse(node_info.quote_info.quote);
           auto j_details = nlohmann::json::object();
           j_details["measurement"] = details["measurement"];
           j_details["reportData"] = details["report_data"];
@@ -161,7 +161,7 @@ namespace ccf::gov::endpoints
     return node;
   }
 
-  inline void init_service_state_handlers(ccf::BaseEndpointRegistry& registry)
+  void init_service_state_handlers(ccf::BaseEndpointRegistry& registry)
   {
     auto get_constitution = [&](auto& ctx, ApiVersion api_version) {
       switch (api_version)
@@ -245,7 +245,7 @@ namespace ccf::gov::endpoints
           {
             ccf::SeqNo seqno =
               service_info->previous_service_identity_version.value();
-            ccf::View view = 0;
+            ccf::View view;
             // Note: deliberately ignoring errors. Prefer to return single
             // invalid field than convert entire response to error.
             registry.get_view_for_seqno_v1(seqno, view);
@@ -362,7 +362,7 @@ namespace ccf::gov::endpoints
                   }
                   const auto& raw_value = raw_value_opt.value();
                   operation =
-                    ccf::parse_json_safe(raw_value.begin(), raw_value.end());
+                    nlohmann::json::parse(raw_value.begin(), raw_value.end());
                 }
                 else
                 {

@@ -22,7 +22,7 @@ namespace ccf::pal
       return N;
     }
 
-    [[nodiscard]] std::string hex_str() const
+    std::string hex_str() const
     {
       return ds::to_hex(measurement);
     }
@@ -80,8 +80,7 @@ namespace ccf::pal
 
   template <size_t N, typename Tag = void>
   inline void fill_json_schema(
-    nlohmann::json& schema,
-    [[maybe_unused]] const AttestationMeasurement<N, Tag>* measurement_type)
+    nlohmann::json& schema, const AttestationMeasurement<N, Tag>*)
   {
     schema["type"] = "string";
 
@@ -101,8 +100,7 @@ namespace ccf::pal
   using SgxAttestationMeasurement =
     AttestationMeasurement<sgx_attestation_measurement_size>;
 
-  inline std::string schema_name(
-    [[maybe_unused]] const SgxAttestationMeasurement* sgx_measurement_type)
+  inline std::string schema_name(const SgxAttestationMeasurement*)
   {
     return "SgxAttestationMeasurement";
   }
@@ -112,8 +110,7 @@ namespace ccf::pal
   using SnpAttestationMeasurement =
     AttestationMeasurement<snp_attestation_measurement_size>;
 
-  inline std::string schema_name(
-    [[maybe_unused]] const SnpAttestationMeasurement* snp_measurement_type)
+  inline std::string schema_name(const SnpAttestationMeasurement*)
   {
     return "SnpAttestationMeasurement";
   }
@@ -136,7 +133,7 @@ namespace ccf::pal
     PlatformAttestationMeasurement& operator=(
       const PlatformAttestationMeasurement&) = default;
 
-    [[nodiscard]] std::string hex_str() const
+    std::string hex_str() const
     {
       return ds::to_hex(data);
     }
@@ -165,7 +162,7 @@ namespace ccf::kv::serialisers
     static ccf::pal::AttestationMeasurement<N, Tag> from_serialised(
       const SerialisedEntry& data)
     {
-      ccf::pal::AttestationMeasurement<N, Tag> ret{};
+      ccf::pal::AttestationMeasurement<N, Tag> ret;
       ccf::ds::from_hex(std::string(data.data(), data.end()), ret.measurement);
       return ret;
     }

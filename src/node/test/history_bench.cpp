@@ -10,6 +10,14 @@
 #define PICOBENCH_IMPLEMENT
 #include <picobench/picobench.hpp>
 
+std::unique_ptr<threading::ThreadMessaging>
+  threading::ThreadMessaging::singleton = nullptr;
+
+namespace threading
+{
+  std::map<std::thread::id, uint16_t> thread_ids;
+}
+
 using namespace ccf;
 
 class DummyConsensus : public ccf::kv::test::StubConsensus
@@ -64,7 +72,7 @@ static void append(picobench::state& s)
   ::srand(42);
 
   ccf::kv::Store store;
-  auto node_kp = ccf::crypto::make_ec_key_pair();
+  auto node_kp = ccf::crypto::make_key_pair();
 
   std::shared_ptr<ccf::kv::Consensus> consensus =
     std::make_shared<DummyConsensus>();
@@ -103,7 +111,7 @@ static void append_compact(picobench::state& s)
   ::srand(42);
 
   ccf::kv::Store store;
-  auto node_kp = ccf::crypto::make_ec_key_pair();
+  auto node_kp = ccf::crypto::make_key_pair();
 
   std::shared_ptr<ccf::kv::Consensus> consensus =
     std::make_shared<DummyConsensus>();
@@ -141,26 +149,29 @@ static void append_compact(picobench::state& s)
 const std::vector<int> sizes = {1000, 10000};
 
 PICOBENCH_SUITE("hash_only");
-PICOBENCH(hash_only<10>).iterations(sizes).baseline();
-PICOBENCH(hash_only<100>).iterations(sizes);
-PICOBENCH(hash_only<1000>).iterations(sizes);
+PICOBENCH(hash_only<10>).iterations(sizes).samples(10).baseline();
+PICOBENCH(hash_only<100>).iterations(sizes).samples(10);
+PICOBENCH(hash_only<1000>).iterations(sizes).samples(10);
 
 PICOBENCH_SUITE("append");
-PICOBENCH(append<10>).iterations(sizes).baseline();
-PICOBENCH(append<100>).iterations(sizes);
-PICOBENCH(append<1000>).iterations(sizes);
+PICOBENCH(append<10>).iterations(sizes).samples(10).baseline();
+PICOBENCH(append<100>).iterations(sizes).samples(10);
+PICOBENCH(append<1000>).iterations(sizes).samples(10);
 
 PICOBENCH_SUITE("append_compact");
-PICOBENCH(append_compact<10>).iterations(sizes).baseline();
-PICOBENCH(append_compact<100>).iterations(sizes);
-PICOBENCH(append_compact<1000>).iterations(sizes);
+PICOBENCH(append_compact<10>).iterations(sizes).samples(10).baseline();
+PICOBENCH(append_compact<100>).iterations(sizes).samples(10);
+PICOBENCH(append_compact<1000>).iterations(sizes).samples(10);
 
 int main(int argc, char* argv[])
 {
   ccf::logger::config::level() = ccf::LoggerLevel::FATAL;
+  ::threading::ThreadMessaging::init(1);
+  ccf::crypto::openssl_sha256_init();
 
   picobench::runner runner;
   runner.parse_cmd_line(argc, argv);
   auto ret = runner.run();
+  ccf::crypto::openssl_sha256_init();
   return ret;
 }
