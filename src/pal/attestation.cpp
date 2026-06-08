@@ -12,6 +12,9 @@
 #include "ds/internal_logger.h"
 
 #include <cstdint>
+#include <map>
+#include <openssl/objects.h>
+#include <string_view>
 
 namespace ccf::pal
 {
@@ -19,6 +22,104 @@ namespace ccf::pal
     Unique_SSL_OBJECT<ASN1_OBJECT, ASN1_OBJECT_new, ASN1_OBJECT_free>;
   using Unique_ASN1_INTEGER = ccf::crypto::OpenSSL::
     Unique_SSL_OBJECT<ASN1_INTEGER, ASN1_INTEGER_new, ASN1_INTEGER_free>;
+
+  namespace
+  {
+    struct AmdRootSigningCertificateMetadata
+    {
+      std::string_view issuer;
+      int signature_algorithm_nid;
+    };
+
+    const std::map<snp::ProductName, AmdRootSigningCertificateMetadata>
+      amd_root_signing_certificate_metadata{
+        {snp::ProductName::Milan,
+         {"CN=ARK-Milan,O=Advanced Micro Devices,ST=CA,L=Santa Clara,C=US,"
+          "OU=Engineering",
+          NID_rsassaPss}},
+        {snp::ProductName::Genoa,
+         {"CN=ARK-Genoa,O=Advanced Micro Devices,ST=CA,L=Santa Clara,C=US,"
+          "OU=Engineering",
+          NID_rsassaPss}},
+        {snp::ProductName::Turin,
+         {"CN=ARK-Turin,O=Advanced Micro Devices,ST=CA,L=Santa Clara,C=US,"
+          "OU=Engineering",
+          NID_rsassaPss}},
+      };
+
+    std::string x509_name_to_rfc2253_string(X509_NAME* name)
+    {
+      ccf::crypto::OpenSSL::CHECKNULL(name);
+
+      ccf::crypto::OpenSSL::Unique_BIO mem;
+      const auto rc = X509_NAME_print_ex(mem, name, 0, XN_FLAG_RFC2253);
+      if (rc < 0)
+      {
+        const auto ec = ERR_get_error();
+        throw std::runtime_error(fmt::format(
+          "OpenSSL error (rc={}, ec={}): {}",
+          rc,
+          ec,
+          ccf::crypto::OpenSSL::error_string(ec)));
+      }
+
+      BUF_MEM* bptr = nullptr;
+      ccf::crypto::OpenSSL::CHECK1(BIO_get_mem_ptr(mem, &bptr));
+      ccf::crypto::OpenSSL::CHECKNULL(bptr);
+
+      return {bptr->data, bptr->length};
+    }
+
+    std::string signature_algorithm_name(int nid)
+    {
+      const auto* name = OBJ_nid2ln(nid);
+      if (name == nullptr)
+      {
+        return fmt::format("nid {}", nid);
+      }
+      return name;
+    }
+
+    void verify_ark_certificate_matches_pinned_metadata(
+      const crypto::Pem& ark_cert, snp::ProductName product_family)
+    {
+      const auto metadata =
+        amd_root_signing_certificate_metadata.find(product_family);
+      if (metadata == amd_root_signing_certificate_metadata.end())
+      {
+        throw std::logic_error(fmt::format(
+          "SEV-SNP: No known root certificate metadata for {}",
+          product_family));
+      }
+
+      ccf::crypto::OpenSSL::Unique_BIO mem_bio(ark_cert);
+      ccf::crypto::OpenSSL::Unique_X509 x509(
+        mem_bio, true, true /* check_null */);
+
+      const auto issuer =
+        x509_name_to_rfc2253_string(X509_get_issuer_name(x509));
+      if (issuer != metadata->second.issuer)
+      {
+        throw std::logic_error(fmt::format(
+          "SEV-SNP: The root of trust issuer for this attestation was not "
+          "the expected one for {}: {} != {}",
+          product_family,
+          issuer,
+          metadata->second.issuer));
+      }
+
+      const auto signature_algorithm_nid = X509_get_signature_nid(x509);
+      if (signature_algorithm_nid != metadata->second.signature_algorithm_nid)
+      {
+        throw std::logic_error(fmt::format(
+          "SEV-SNP: The root of trust signature algorithm for this "
+          "attestation was not the expected one for {}: {} != {}",
+          product_family,
+          signature_algorithm_name(signature_algorithm_nid),
+          signature_algorithm_name(metadata->second.signature_algorithm_nid)));
+      }
+    }
+  }
 
   void verify_virtual_attestation_report(
     const QuoteInfo& quote_info,
@@ -282,6 +383,8 @@ namespace ccf::pal
         ark_verifier->public_key_pem().str(),
         expected_ark));
     }
+
+    verify_ark_certificate_matches_pinned_metadata(ark_cert, product_family);
 
     if (!ark_verifier->verify_certificate({&ark_cert}))
     {
