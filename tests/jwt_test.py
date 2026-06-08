@@ -85,6 +85,33 @@ def test_jwt_issuer_and_jwks_validation(network, args):
         {"issuer": issuer.name, "jwks": {"keys": [{**valid_key, "use": "enc"}]}},
     )
 
+    # An RSA key (with n/e) tagged with an EC alg must be rejected even though
+    # ES256 is otherwise an accepted alg value.
+    assert_set_jwt_issuer_rejected(
+        network,
+        primary,
+        {"issuer": issuer.name, "jwks": {"keys": [{**valid_key, "alg": "ES256"}]}},
+    )
+
+    # EC keys must have alg matching crv per RFC 7518 section 3.4: ES256 binds
+    # to P-256, ES384 to P-384, ES512 to P-521. An ES256 alg on a P-256 key
+    # should pass; any other alg on a P-256 key should be rejected.
+    ec_issuer = infra.jwt_issuer.JwtIssuer(
+        "https://example.issuer",
+        alg=infra.jwt_issuer.JwtAlg.ES256,
+        auth_type=infra.jwt_issuer.JwtAuthType.KEY,
+    )
+    ec_key = ec_issuer.create_jwks("kid1")["keys"][0]
+    for wrong_alg in ("ES384", "ES512", "RS256"):
+        assert_set_jwt_issuer_rejected(
+            network,
+            primary,
+            {
+                "issuer": ec_issuer.name,
+                "jwks": {"keys": [{**ec_key, "alg": wrong_alg}]},
+            },
+        )
+
 
 @reqs.description("Refresh JWT issuer")
 def test_refresh_jwt_issuer(network, args):

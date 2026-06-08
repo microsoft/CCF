@@ -118,10 +118,17 @@ function splitX509CertBundle(value) {
 
 function checkX509CACertBundle(value, field) {
   checkX509CertBundle(value, field);
+  // isValidX509CertChain(target, trusted) is backed by verify_certificate(),
+  // which (a) rejects the call outright if any cert in `trusted` is not a CA
+  // (via X509_check_ca), and (b) enables X509_V_FLAG_PARTIAL_CHAIN so that
+  // intermediate CAs can act as trust anchors. By passing the whole bundle as
+  // `trusted`, we therefore enforce that every cert in the bundle is a CA
+  // certificate, while still accepting bundles containing intermediates as
+  // well as roots.
   for (const [i, cert] of splitX509CertBundle(value).entries()) {
-    if (!ccf.crypto.isValidX509CertChain(cert, cert)) {
+    if (!ccf.crypto.isValidX509CertChain(cert, value)) {
       throw new Error(
-        `${field}[${i}] must be a valid CA certificate with a currently valid chain to itself`,
+        `${field}[${i}] must be a CA certificate with a currently valid chain to a root within the bundle`,
       );
     }
   }
@@ -247,11 +254,25 @@ function checkJwks(value, field) {
     }
     if (jwk.alg !== undefined) {
       checkType(jwk.alg, "string", `${keyField}.alg`);
-      checkEnum(
-        jwk.alg,
-        jwk.kty === "RSA" ? ["RS256"] : ["ES256"],
-        `${keyField}.alg`,
-      );
+      let allowedAlg;
+      if (jwk.kty === "RSA") {
+        allowedAlg = ["RS256"];
+      } else {
+        // Per RFC 7518 section 3.4, EC alg is determined by the curve. When
+        // only x5c is supplied, crv may not be present on the JWK; in that
+        // case allow any of the supported ES* algorithms and rely on the cert
+        // to bind alg to curve.
+        const ecAlgByCrv = {
+          "P-256": "ES256",
+          "P-384": "ES384",
+          "P-521": "ES512",
+        };
+        allowedAlg =
+          jwk.crv && ecAlgByCrv[jwk.crv]
+            ? [ecAlgByCrv[jwk.crv]]
+            : Object.values(ecAlgByCrv);
+      }
+      checkEnum(jwk.alg, allowedAlg, `${keyField}.alg`);
     }
     if (jwk.x5c) {
       checkArrayLength(jwk.x5c, 1, null, `${field}.keys[${i}].x5c`);
