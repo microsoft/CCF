@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - JSON parsing can now reject inputs whose object/array nesting depth exceeds a certain value, defaulting to 64 levels and overridable per call site via `ccf::parse_json_safe`'s `max_depth` parameter (#7896).
+- `NetworkIdentitySubsystem` retries when walking the previous-identity endorsement chain are now bounded by a new optional `identity_history_fetch` node startup config (`max_attempts`, `retry_interval`). On exhaustion the subsystem transitions to a new terminal `FetchStatus::Partial`: the validated suffix of the chain is still served, but historical receipts for seqnos below it fail with an error. Both the chain-extension retries and the pre-bootstrap waits (for the node to join the network, for the service-create txid, and for the first endorsement entry) now poll at `retry_interval` (default `100ms`); the pre-bootstrap polling interval was previously hardcoded to `1s` (#7922).
 
 ### Deprecated
 
