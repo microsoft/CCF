@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - JSON parsing can now reject inputs whose object/array nesting depth exceeds a certain value, defaulting to 64 levels and overridable per call site via `ccf::parse_json_safe`'s `max_depth` parameter (#7896).
 - `NetworkIdentitySubsystem` retries when walking the previous-identity endorsement chain are now bounded by a new optional `identity_history_fetch` node startup config (`max_attempts`, `retry_interval`). On exhaustion the subsystem transitions to a new terminal `FetchStatus::Partial`: the validated suffix of the chain is still served, but historical receipts for seqnos below it fail with an error. Both the chain-extension retries and the pre-bootstrap waits (for the node to join the network, for the service-create txid, and for the first endorsement entry) now poll at `retry_interval` (default `100ms`); the pre-bootstrap polling interval was previously hardcoded to `1s` (#7922).
+- The default and minimal sample constitutions have stricter validators for JWT, CA, and member-key proposals (#7924). Operators upgrading should review their proposals: `set_jwt_issuer` now requires `issuer` to be an `https://` URL with no query or fragment (previously any string was accepted when `auto_refresh` was false); `set_ca_cert_bundle` rejects bundles containing non-CA certificates; `set_jwt_public_signing_keys` rejects JWKs whose `n`/`e`/`x`/`y` are not base64url-encoded, whose `kty` does not match the supplied key material, whose `kid` is duplicated within a key set, whose `use` is anything other than `"sig"`, or whose `alg` does not match the key type and curve per RFC 7518 section 3.4 (`RS256` for RSA, `ES256`/`ES384`/`ES512` bound to `P-256`/`P-384`/`P-521` respectively); RSA keys must be at least 2048 bits and EC coordinates must use the full zero-padded length for their curve as required by RFC 7518 section 6.2.1.2; `set_member` validates that `encryption_pub_key` is a well-formed RSA public key. P-521 is now accepted as an EC JWK curve.
 
 ### Deprecated
 
@@ -34,7 +35,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - `ccf.ledger` `MERKLE` verification level now also verifies COSE-only ledgers (previously a silent no-op) (#7904).
 - Nodes started in recovery or join mode from a snapshot more recent than the latest ledger file now correctly resume writing from the snapshot boundary (#7901).
-- Default and minimal sample constitution validation now rejects weak or malformed JWT, CA bundle, and member encryption key inputs, and supports P-521 EC JWK validation (#7924).
 
 ## [7.0.3]
 

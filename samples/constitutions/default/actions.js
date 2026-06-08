@@ -108,12 +108,16 @@ function base64UrlByteLength(value, field) {
 }
 
 function splitX509CertBundle(value) {
+  // Split on the END marker, drop the trailing post-marker remainder (empty
+  // for a well-formed bundle), and re-append the END marker to each cert.
+  // Note that intermediate certs may still carry a leading newline (or other
+  // separator whitespace) from the original concatenation; this is fine
+  // because the OpenSSL PEM parser is tolerant of leading whitespace.
   const sep = "-----END CERTIFICATE-----";
-  const items = value.split(sep);
-  if (items.length === 1) {
-    return [];
-  }
-  return items.slice(0, -1).map((p) => p + sep);
+  return value
+    .split(sep)
+    .slice(0, -1)
+    .map((p) => p + sep);
 }
 
 function checkX509CACertBundle(value, field) {
@@ -137,10 +141,16 @@ function checkX509CACertBundle(value, field) {
 function checkRsaPublicKey(jwk, field) {
   checkType(jwk.n, "string", `${field}.n`);
   checkType(jwk.e, "string", `${field}.e`);
+  checkBase64Url(jwk.e, `${field}.e`);
+  // RFC 7518 section 6.3.1.1 requires `n` to be the unsigned big-endian modulus with
+  // no leading zero octets. Under that encoding a 2048-bit modulus is exactly
+  // 256 octets, so anything shorter is conclusively below 2048 bits and the
+  // key is too weak. Encoded length is a sufficient (and cheap) proxy here;
+  // the precise bit length is not exposed to JS, but pubRsaJwkToPem below
+  // catches any structurally-invalid modulus.
   if (base64UrlByteLength(jwk.n, `${field}.n`) < 256) {
     throw new Error(`${field}.n must be at least 2048 bits`);
   }
-  base64UrlByteLength(jwk.e, `${field}.e`);
   try {
     ccf.crypto.pubRsaJwkToPem({
       kty: "RSA",
