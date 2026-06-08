@@ -1652,15 +1652,13 @@ checked. Note that the key for each logging message is unique (per table).
         snapshot_tx_interval=10000,
     )
 
-    # Temporarily disabled while investigating CI runner failures on the
-    # backport branch. Re-enable this regression test once CI is stable.
-    # cr.add(
-    #     "recovery_snapshot_ledger_offset",
-    #     run_recover_snapshot_ledger_offset,
-    #     package="samples/apps/logging/liblogging",
-    #     nodes=infra.e2e_args.min_nodes(cr.args, f=1),
-    #     ledger_chunk_bytes="50MB",
-    #     snapshot_tx_interval=50,
-    # )
+    cr.add(
+        "recovery_snapshot_ledger_offset",
+        run_recover_snapshot_ledger_offset,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+        ledger_chunk_bytes="50MB",
+        snapshot_tx_interval=50,
+    )
 
     cr.run()
