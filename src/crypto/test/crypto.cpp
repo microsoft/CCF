@@ -1006,8 +1006,7 @@ TEST_CASE("PEM to JWK and back")
 
   INFO("EC");
   {
-    auto curves = {
-      CurveID::SECP384R1, CurveID::SECP256R1, CurveID::SECP521R1};
+    auto curves = {CurveID::SECP384R1, CurveID::SECP256R1, CurveID::SECP521R1};
 
     for (auto const& curve : curves)
     {

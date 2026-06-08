@@ -34,9 +34,9 @@ namespace ccf::crypto
     {{CurveID::NONE, "None"},
      {CurveID::SECP384R1, "Secp384R1"},
      {CurveID::SECP256R1, "Secp256R1"},
-    {CurveID::CURVE25519, "Curve25519"},
-    {CurveID::X25519, "X25519"},
-    {CurveID::SECP521R1, "Secp521R1"}});
+     {CurveID::CURVE25519, "Curve25519"},
+     {CurveID::X25519, "X25519"},
+     {CurveID::SECP521R1, "Secp521R1"}});
 
   static constexpr CurveID service_identity_curve_choice = CurveID::SECP384R1;
   // SNIPPET_END: supported_curves

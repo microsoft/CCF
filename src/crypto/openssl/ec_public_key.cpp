@@ -316,7 +316,11 @@ namespace ccf::crypto
     x.reset(bn_x);
     CHECK1(EVP_PKEY_get_bn_param(key, OSSL_PKEY_PARAM_EC_PUB_Y, &bn_y));
     y.reset(bn_y);
-    int sz = EC_GROUP_get_degree(group) / CHAR_BIT;
+    // Use ceiling division so curves whose bit-size is not a multiple of 8
+    // (e.g. P-521 with 521 bits) get the full 66-byte coordinate buffer
+    // rather than a truncated 65-byte one, which would cause BN_bn2binpad to
+    // fail or silently drop a leading zero byte.
+    int sz = (EC_GROUP_get_degree(group) + CHAR_BIT - 1) / CHAR_BIT;
     r.x.resize(sz);
     r.y.resize(sz);
     BN_bn2binpad(x, r.x.data(), sz);
