@@ -141,7 +141,8 @@ def get_jwt_keys(args, node):
 
 def to_b64(number: int):
     as_bytes = number.to_bytes((number.bit_length() + 7) // 8, "big")
-    # JWK requires base64url without padding (RFC 7518).
+    # JWK numeric fields use unpadded base64url (RFC 7518 section 6 referencing
+    # RFC 4648 section 5).
     return base64.urlsafe_b64encode(as_bytes).rstrip(b"=").decode("ascii")
 
 
