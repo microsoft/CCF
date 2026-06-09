@@ -122,7 +122,7 @@ function splitX509CertBundle(value) {
   // Remove all matched certificates and ensure only whitespace remains.
   let remaining = value;
   for (const cert of certs) {
-    remaining = remaining.replace(cert, "");
+    remaining = remaining.replaceAll(cert, "");
   }
 
   if (remaining.trim() !== "") {
