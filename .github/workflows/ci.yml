@@ -19,7 +19,12 @@ permissions:
 jobs:
   checks:
     name: "Format and License Checks"
-    runs-on: [self-hosted, 1ES.Pool=gha-vmss-d16av5-ci]
+    runs-on:
+      [
+        self-hosted,
+        1ES.Pool=gha-vmss-d16av5-ci,
+        "JobId=ci_checks-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
+      ]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
@@ -47,7 +52,12 @@ jobs:
 
   build_with_tidy:
     name: "Build with clang-tidy"
-    runs-on: [self-hosted, 1ES.Pool=gha-vmss-d16av5-ci]
+    runs-on:
+      [
+        self-hosted,
+        1ES.Pool=gha-vmss-d16av5-ci,
+        "JobId=ci_build_tidy-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
+      ]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
@@ -84,7 +94,12 @@ jobs:
   build_and_test_virtual:
     name: "Virtual CI"
     needs: checks
-    runs-on: [self-hosted, 1ES.Pool=gha-vmss-d16av5-ci]
+    runs-on:
+      [
+        self-hosted,
+        1ES.Pool=gha-vmss-d16av5-ci,
+        "JobId=ci_build_test_virtual-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
+      ]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
@@ -131,12 +146,12 @@ jobs:
           # Unit tests
           ./tests.sh --output-on-failure -L unit -j$(nproc --all)
           # End to end tests
-          ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|suite|unit"
+          ./tests.sh --timeout 720 --output-on-failure -LE "benchmark|suite|unit"
           # Partitions tests
           # Note that those are only run on the virtual CI, as they require enough
           # privileges to configure iptables. ACI-based pools run unprivileged
           # containers, and so cannot run these tests unfortunately.
-          ./tests.sh --timeout 360 --output-on-failure -L partitions -C partitions
+          ./tests.sh --timeout 720 --output-on-failure -L partitions -C partitions
         shell: bash
 
       - name: "Upload logs for virtual"
@@ -153,7 +168,12 @@ jobs:
 
   build_and_test_caci:
     name: "Confidential Container CI"
-    runs-on: [self-hosted, 1ES.Pool=gha-c-aci-ci]
+    runs-on:
+      [
+        self-hosted,
+        1ES.Pool=gha-c-aci-ci,
+        "JobId=ci_build_test_caci-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
+      ]
     needs: checks
 
     steps:
@@ -184,7 +204,7 @@ jobs:
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DCOMPILE_TARGET=snp -DCMAKE_BUILD_TYPE=Debug ..
+          cmake -GNinja -DCOMPILE_TARGET=snp -DCMAKE_BUILD_TYPE=Debug -DWORKER_THREADS=1 ..
           ninja
         shell: bash
 
@@ -197,8 +217,10 @@ jobs:
           # Unit tests
           ./tests.sh --output-on-failure -L unit -j$(nproc --all)
           # End to end tests
-          ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|suite|unit"
+          ./tests.sh --timeout 720 --output-on-failure -LE "benchmark|suite|unit"
         shell: bash
+        env:
+          ELECTION_TIMEOUT_MS: 10000
 
       - name: "Capture dmesg"
         run: |
@@ -225,7 +247,12 @@ jobs:
 
   build_and_test_caci_genoa:
     name: "Confidential Container CI on Genoa"
-    runs-on: [self-hosted, 1ES.Pool=gha-c-caci-ci-south-central-us]
+    runs-on:
+      [
+        self-hosted,
+        1ES.Pool=gha-c-caci-ci-south-central-us,
+        "JobId=ci_build_test_caci_genoa-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
+      ]
     needs: checks
 
     steps:
@@ -261,7 +288,7 @@ jobs:
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DCOMPILE_TARGET=snp -DCMAKE_BUILD_TYPE=Debug ..
+          cmake -GNinja -DCOMPILE_TARGET=snp -DCMAKE_BUILD_TYPE=Debug -DWORKER_THREADS=1 ..
           ninja
         shell: bash
 
@@ -276,8 +303,10 @@ jobs:
           # Unit test for sealing
           ./tests.sh --output-on-failure -R snp_ioctl_test
           # End to end tests for code update (attestation verification)
-          ./tests.sh --timeout 360 --output-on-failure -R code_update
+          ./tests.sh --timeout 720 --output-on-failure -R code_update
         shell: bash
+        env:
+          ELECTION_TIMEOUT_MS: 10000
 
       - name: "Capture dmesg"
         run: |

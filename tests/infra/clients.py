@@ -138,7 +138,6 @@ CCF_TX_ID_HEADER = "x-ms-ccf-transaction-id"
 
 DEFAULT_CONNECTION_TIMEOUT_SEC = 3
 DEFAULT_REQUEST_TIMEOUT_SEC = 10
-DEFAULT_COMMIT_TIMEOUT_SEC = 3
 
 CONTENT_TYPE_TEXT = "text/plain"
 CONTENT_TYPE_JSON = "application/json"
@@ -989,6 +988,7 @@ class CCFClient:
     :param Identity session_auth: Path to private key and certificate to be used as client authentication for the session (optional).
     :param Identity signing_auth: Path to private key and certificate to be used to sign requests for the session (optional).
     :param int connection_timeout: Maximum time to wait for successful connection establishment before giving up.
+    :param int election_timeout_ms: Election timeout (in milliseconds) of the network this client connects to. If set, used as the default timeout for :py:meth:`wait_for_commit`.
     :param str description: Message to print on each request emitted with this client.
     :param dict common_headers: Headers which should be added to every request.
     :param dict kwargs: Keyword args to be forwarded to the client implementation.
@@ -1020,12 +1020,14 @@ class CCFClient:
         signing_auth: Optional[Identity] = None,
         cose_signing_auth: Optional[Identity] = None,
         connection_timeout: int = DEFAULT_CONNECTION_TIMEOUT_SEC,
+        election_timeout_ms: Optional[int] = None,
         description: Optional[str] = None,
         impl_type: Union[CurlClient, HttpxClient, RawSocketClient] = default_impl_type,
         common_headers: Optional[dict] = None,
         **kwargs,
     ):
         self.connection_timeout = connection_timeout
+        self.election_timeout_ms = election_timeout_ms
         self.hostname = infra.interfaces.make_address(host, port)
         self.name = f"[{self.hostname}]"
         self.description = description or self.name
@@ -1265,9 +1267,7 @@ class CCFClient:
         kwargs["http_verb"] = "PATCH"
         return self.call(*args, **kwargs)
 
-    def wait_for_commit(
-        self, response: Response, timeout: int = DEFAULT_COMMIT_TIMEOUT_SEC
-    ):
+    def wait_for_commit(self, response: Response, timeout: Optional[int] = None):
         """
         Given a :py:class:`infra.clients.Response`, this functions waits
         for the associated sequence number and view to be committed by the CCF network.
@@ -1276,12 +1276,15 @@ class CCFClient:
 
         :param infra.clients.Response response: Response returned by :py:meth:`infra.clients.CCFClient.call`
         :param int timeout: Maximum time (secs) to wait for commit before giving up.
+            Defaults to the election timeout configured for this client.
 
         A ``TimeoutError`` exception is raised if the transaction is not committed within ``timeout`` seconds.
         """
         if response.seqno is None or response.view is None:
             raise ValueError(f"Response seqno and view should not be None: {response}")
 
+        if timeout is None and self.election_timeout_ms is not None:
+            timeout = self.election_timeout_ms // 1000
         infra.commit.wait_for_commit(self, response.seqno, response.view, timeout)
 
     def close(self):

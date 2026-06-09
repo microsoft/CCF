@@ -37,8 +37,8 @@
  * @module
  */
 
-import { KvMap, KvSet, ccf } from "./global.js";
-import { DataConverter } from "./converters.js";
+import { type KvMap, type KvSet, ccf } from "./global.js";
+import { type DataConverter } from "./converters.js";
 
 export class TypedKvMap<K, V> {
   constructor(
@@ -182,4 +182,4 @@ export function typedKvSet<K, V>(
  */
 export const rawKv = ccf.kv;
 
-export { KvMap, KvSet, KvMaps } from "./global";
+export type { KvMap, KvSet, KvMaps } from "./global";

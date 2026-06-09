@@ -1,13 +1,13 @@
 import { assert } from "chai";
 import * as crypto from "crypto";
 import "../src/polyfill.js";
-import {
+import type {
   AesKwpParams,
-  ccf,
   DigestAlgorithm,
   RsaOaepAesKwpParams,
   RsaOaepParams,
 } from "../src/global.js";
+import { ccf } from "../src/global.js";
 import * as textcodec from "../src/textcodec.js";
 import { generateSelfSignedCert, generateCertChain } from "./crypto.js";
 import { toArrayBuffer } from "../src/utils.js";
@@ -606,14 +606,20 @@ describe("polyfill", function () {
           assert.equal(jwk.kty, "EC");
           assert.notExists(jwk.kid);
           const pem = ccf.crypto.jwkToPem(jwk);
-          assert.equal(pem, pair.privateKey);
+          assert.deepEqual(
+            crypto.createPrivateKey(pem).export({ format: "jwk" }),
+            crypto.createPrivateKey(pair.privateKey).export({ format: "jwk" }),
+          );
         }
         {
           const jwk = ccf.crypto.pemToJwk(pair.privateKey, my_kid);
           assert.equal(jwk.kty, "EC");
           assert.equal(jwk.kid, my_kid);
           const pem = ccf.crypto.jwkToPem(jwk);
-          assert.equal(pem, pair.privateKey);
+          assert.deepEqual(
+            crypto.createPrivateKey(pem).export({ format: "jwk" }),
+            crypto.createPrivateKey(pair.privateKey).export({ format: "jwk" }),
+          );
         }
       }
     });
