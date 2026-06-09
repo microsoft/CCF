@@ -48,4 +48,4 @@ export const dropCachedStates = ccf.historical.dropCachedStates.bind(
   ccf.historical,
 );
 
-export { HistoricalState, Receipt, Proof, ProofElement } from "./global";
+export type { HistoricalState, Receipt, Proof, ProofElement } from "./global";

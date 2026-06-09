@@ -11,7 +11,12 @@ on:
 jobs:
   benchmark_virtual:
     name: Benchmark Virtual
-    runs-on: [self-hosted, 1ES.Pool=gha-vmss-d16av5-ci]
+    runs-on:
+      [
+        self-hosted,
+        1ES.Pool=gha-vmss-d16av5-ci,
+        "JobId=benchmark_virtual-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
+      ]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root
@@ -63,7 +68,12 @@ jobs:
 
   benchmark_snp:
     name: Benchmark SNP
-    runs-on: [self-hosted, 1ES.Pool=gha-c-aci-ci]
+    runs-on:
+      [
+        self-hosted,
+        1ES.Pool=gha-c-aci-ci,
+        "JobId=benchmark_snp-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
+      ]
     steps:
       - uses: actions/checkout@v6
         with:
