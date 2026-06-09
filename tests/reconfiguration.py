@@ -225,14 +225,15 @@ def test_add_node_with_corrupted_ledger(network, args):
             continue
 
         for tx in chunk:
-            offset, tx_len = tx.get_offsets()
-            if tx_len <= minimum_truncated_tx_size:
+            offset, _ = tx.get_offsets()
+            tx_size = tx.get_len()
+            if tx_size <= minimum_truncated_tx_size:
                 continue
 
             chunk_filename = chunk.filename()
             corrupted_txid = tx.get_txid()
             truncate_offset = offset + max(
-                tx_len // 2,
+                tx_size // 2,
                 minimum_truncated_tx_size,
             )
             # Corrupting a single transaction in the selected chunk after the

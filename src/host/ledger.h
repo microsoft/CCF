@@ -90,10 +90,17 @@ namespace asynchost
         return std::nullopt;
       }
 
+      const auto current_pos = ftello(file);
+      if (current_pos == -1)
+      {
+        return std::nullopt;
+      }
+
       auto header_data =
         std::vector<uint8_t>(ccf::crypto::StandardGcmHeader::serialised_size());
       if (fread(header_data.data(), header_data.size(), 1, file) != 1)
       {
+        std::ignore = fseeko(file, current_pos, SEEK_SET);
         return std::nullopt;
       }
 
@@ -107,8 +114,12 @@ namespace asynchost
 
       auto tx_id = ccf::TxID{};
       tx_id.seqno = serialized::read<ccf::SeqNo>(iv_data, iv_size);
+      // The top bit of the IV's 32-bit term field is reserved to indicate
+      // snapshots, so mask it off when reconstructing the ledger txid view.
       tx_id.view =
         serialized::read<uint32_t>(iv_data, iv_size) & 0x7FFFFFFF;
+
+      std::ignore = fseeko(file, current_pos, SEEK_SET);
 
       return tx_id;
     }
