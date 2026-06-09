@@ -190,9 +190,7 @@ def test_add_node_with_corrupted_ledger(network, args):
         ],
         key=lambda f: ccf.ledger.range_from_filename(f)[0],
     )
-    assert (
-        ledger_files
-    ), "Expected to find uncommitted ledger files for corruption test"
+    assert ledger_files, "Expected to find uncommitted ledger files for corruption test"
     ledger_ranges = {
         ledger_file: ccf.ledger.range_from_filename(ledger_file)
         for ledger_file in ledger_files
@@ -258,9 +256,9 @@ def test_add_node_with_corrupted_ledger(network, args):
 
     with new_node.client() as c:
         r = c.get("/node/state")
-        assert r.body.json()["startup_seqno"] != 0, (
-            f"Node {new_node.local_node_id} should have started from snapshot"
-        )
+        assert (
+            r.body.json()["startup_seqno"] != 0
+        ), f"Node {new_node.local_node_id} should have started from snapshot"
 
     out_path, err_path = new_node.get_logs()
     assert out_path is not None and err_path is not None
