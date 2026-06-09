@@ -55,6 +55,38 @@ export function generateSelfSignedCACert(): string {
   return forge.pki.certificateToPem(cert);
 }
 
+/**
+ * Returns a PEM-encoded intermediate CA certificate (CA:TRUE, signed by a
+ * freshly-generated root CA). The certificate is NOT self-signed.
+ */
+export function generateIntermediateCACert(): string {
+  const rootKeys = crypto.generateKeyPairSync("rsa", {
+    modulusLength: 2048,
+    publicKeyEncoding: { type: "spki", format: "pem" },
+    privateKeyEncoding: { type: "pkcs8", format: "pem" },
+  });
+  const intermediateKeys = crypto.generateKeyPairSync("rsa", {
+    modulusLength: 2048,
+    publicKeyEncoding: { type: "spki", format: "pem" },
+    privateKeyEncoding: { type: "pkcs8", format: "pem" },
+  });
+  const cert = forge.pki.createCertificate();
+  cert.publicKey = forge.pki.publicKeyFromPem(intermediateKeys.publicKey);
+  cert.setExtensions([
+    {
+      name: "basicConstraints",
+      cA: true,
+      critical: true,
+    },
+  ]);
+  // Sign with the root key so the cert is NOT self-signed.
+  cert.sign(
+    forge.pki.privateKeyFromPem(rootKeys.privateKey),
+    forge.md.sha256.create(),
+  );
+  return forge.pki.certificateToPem(cert);
+}
+
 export function generateCertChain(len: number): string[] {
   const keyPairs = [];
   for (let i = 0; i < len; i++) {

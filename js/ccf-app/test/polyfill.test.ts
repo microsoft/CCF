@@ -12,6 +12,7 @@ import * as textcodec from "../src/textcodec.js";
 import {
   generateSelfSignedCert,
   generateSelfSignedCACert,
+  generateIntermediateCACert,
   generateCertChain,
 } from "./crypto.js";
 import { toArrayBuffer } from "../src/utils.js";
@@ -810,9 +811,9 @@ describe("polyfill", function () {
       if (!supported) {
         this.skip();
       }
-      // generateCertChain returns [leaf, intermediate, root]; [1] is intermediate.
-      const pems = generateCertChain(3);
-      assert.isFalse(ccf.crypto.isValidX509RootCACert(pems[0]));
+      // An intermediate CA has CA:TRUE but is signed by a different key (not self-signed).
+      const pem = generateIntermediateCACert();
+      assert.isFalse(ccf.crypto.isValidX509RootCACert(pem));
     });
     it("returns false for malformed input", function () {
       if (!supported) {
