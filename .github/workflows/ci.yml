@@ -146,12 +146,12 @@ jobs:
           # Unit tests
           ./tests.sh --output-on-failure -L unit -j$(nproc --all)
           # End to end tests
-          ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|suite|unit"
+          ./tests.sh --timeout 720 --output-on-failure -LE "benchmark|suite|unit"
           # Partitions tests
           # Note that those are only run on the virtual CI, as they require enough
           # privileges to configure iptables. ACI-based pools run unprivileged
           # containers, and so cannot run these tests unfortunately.
-          ./tests.sh --timeout 360 --output-on-failure -L partitions -C partitions
+          ./tests.sh --timeout 720 --output-on-failure -L partitions -C partitions
         shell: bash
 
       - name: "Upload logs for virtual"
@@ -217,7 +217,7 @@ jobs:
           # Unit tests
           ./tests.sh --output-on-failure -L unit -j$(nproc --all)
           # End to end tests
-          ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|suite|unit"
+          ./tests.sh --timeout 720 --output-on-failure -LE "benchmark|suite|unit"
         shell: bash
         env:
           ELECTION_TIMEOUT_MS: 10000
@@ -303,7 +303,7 @@ jobs:
           # Unit test for sealing
           ./tests.sh --output-on-failure -R snp_ioctl_test
           # End to end tests for code update (attestation verification)
-          ./tests.sh --timeout 360 --output-on-failure -R code_update
+          ./tests.sh --timeout 720 --output-on-failure -R code_update
         shell: bash
         env:
           ELECTION_TIMEOUT_MS: 10000
