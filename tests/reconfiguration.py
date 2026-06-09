@@ -215,23 +215,36 @@ def test_add_node_with_corrupted_ledger(network, args):
     # of a transaction.
     ledger = ccf.ledger.Ledger([ledger_dir], committed_only=False)
     chunk_filename = None
+    corrupted_txid = None
     truncate_offset = None
+    minimum_truncated_tx_size = (
+        ccf.ledger.TransactionHeader.get_size() + ccf.ledger.GcmHeader.size() + 1
+    )
     for chunk in ledger:
         if os.path.basename(chunk.filename()) != corrupted_ledger_file:
             continue
 
         for tx in chunk:
-            offset, next_offset = tx.get_offsets()
+            offset, tx_len = tx.get_offsets()
+            if tx_len <= minimum_truncated_tx_size:
+                continue
+
             chunk_filename = chunk.filename()
-            truncate_offset = offset + (next_offset - offset) // 2
-            # Corrupting a single transaction in the selected chunk is
-            # sufficient to make the file malformed.
+            corrupted_txid = tx.get_txid()
+            truncate_offset = offset + max(
+                tx_len // 2,
+                minimum_truncated_tx_size,
+            )
+            # Corrupting a single transaction in the selected chunk after the
+            # GCM header is sufficient to make the file malformed while keeping
+            # the txid observable in the node logs.
             break
 
         if truncate_offset is not None:
             break
 
     assert truncate_offset is not None, "Should always find a transaction to corrupt"
+    assert corrupted_txid is not None
 
     LOG.info(
         f"Corrupting ledger file {chunk_filename} by truncating at offset {truncate_offset}"
@@ -249,20 +262,24 @@ def test_add_node_with_corrupted_ledger(network, args):
         )
 
     out_path, err_path = new_node.get_logs()
-    if out_path is not None and err_path is not None:
-        with open(out_path, encoding="utf-8") as out:
-            out_logs = out.read()
-        with open(err_path, encoding="utf-8") as err:
-            err_logs = err.read()
-        # Depending on where recovery skips/truncates the stale chunk, this
-        # malformed-ledger line may or may not be emitted.
-        combined_logs = (out_logs + err_logs).lower()
-        if "malformed" in combined_logs and "ledger file" in combined_logs:
-            LOG.info("Observed malformed ledger handling while joining from snapshot")
-        else:
-            LOG.info(
-                "Did not observe malformed ledger log line; join success remains the test invariant"
-            )
+    assert out_path is not None and err_path is not None
+    with open(out_path, encoding="utf-8") as out:
+        out_logs = out.read()
+    with open(err_path, encoding="utf-8") as err:
+        err_logs = err.read()
+
+    combined_logs = out_logs + err_logs
+    matching_lines = [
+        line
+        for line in combined_logs.splitlines()
+        if "Malformed incomplete ledger file" in line
+        and os.path.basename(chunk_filename) in line
+        and f"at txid {corrupted_txid}" in line
+    ]
+    assert (
+        matching_lines
+    ), f"Expected malformed ledger log line for txid {corrupted_txid}\n{combined_logs}"
+    LOG.info(f"Observed malformed ledger handling: {matching_lines[0]}")
 
     primary, _ = network.find_primary()
     network.retire_node(primary, new_node)
