@@ -119,11 +119,9 @@ function splitX509CertBundle(value) {
   }
 
   // Verify the input contains only certificates and whitespace.
-  // Remove all matched certificates and ensure only whitespace remains.
-  let remaining = value;
-  for (const cert of certs) {
-    remaining = remaining.replaceAll(cert, "");
-  }
+  // Use a single-pass approach: replace all matched certificates with empty string
+  // using the global regex, then check if only whitespace remains.
+  const remaining = value.replace(pemPattern, "");
 
   if (remaining.trim() !== "") {
     throw new Error(
