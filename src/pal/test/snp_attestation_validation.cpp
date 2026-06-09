@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 
 #include "ccf/crypto/openssl/openssl_wrappers.h"
-#include "ccf/crypto/verifier.h"
 #include "ccf/ds/hex.h"
 #include "ccf/ds/logger.h"
 #include "ccf/ds/quote_info.h"
