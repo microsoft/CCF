@@ -23,7 +23,6 @@
 #include <map>
 #include <string>
 #include <sys/types.h>
-#include <unistd.h>
 #include <uv.h>
 #include <vector>
 
@@ -163,13 +162,12 @@ namespace asynchost
 
       auto file_path = dir / file_name;
 
-      // Use exclusive-create mode ("x") to atomically fail if the file
-      // already exists, avoiding a separate fs::exists() stat call.
+      // Use O_EXCL to atomically fail if the file already exists, and create
+      // with restrictive permissions (0600) rather than relying on umask.
       {
         TimeBoundLogger log_if_slow(
-          fmt::format("Creating ledger file - fopen({})", file_path));
-        // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
-        file = fopen(file_path.c_str(), "w+bx");
+          fmt::format("Creating ledger file - open({})", file_path));
+        file = files::open_file(file_path, O_RDWR | O_CREAT | O_EXCL, "w+b");
       }
       if (file == nullptr)
       {

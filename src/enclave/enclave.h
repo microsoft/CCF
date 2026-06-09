@@ -27,6 +27,7 @@
 #include "node/rpc/gov_effects.h"
 #include "node/rpc/ledger_subsystem.h"
 #include "node/rpc/member_frontend.h"
+#include "node/rpc/network_identity_accessors_impl.h"
 #include "node/rpc/network_identity_subsystem.h"
 #include "node/rpc/node_frontend.h"
 #include "node/rpc/node_operation.h"
@@ -132,7 +133,11 @@ namespace ccf
 
       context->install_subsystem(
         std::make_shared<ccf::NetworkIdentitySubsystem>(
-          *node, network.identity, historical_state_cache));
+          std::make_shared<ccf::NodeStateAccessor>(*node),
+          std::make_shared<ccf::HistoricalStateAccessor>(
+            historical_state_cache),
+          network.identity,
+          std::make_shared<ccf::TaskSchedulerImpl>()));
 
       context->install_subsystem(
         std::make_shared<ccf::NodeConfigurationSubsystem>(*node));
@@ -202,6 +207,26 @@ namespace ccf
 
       historical_state_cache->set_soft_cache_limit(
         ccf_config_.historical_cache_soft_limit);
+
+      auto network_identity_subsystem =
+        context->get_subsystem<ccf::NetworkIdentitySubsystem>();
+      if (network_identity_subsystem == nullptr)
+      {
+        LOG_FAIL_FMT(
+          "NetworkIdentitySubsystem is not installed; cannot start "
+          "network identity fetching");
+        return CreateNodeStatus::InternalError;
+      }
+      try
+      {
+        network_identity_subsystem->start_with_config(
+          ccf_config_.identity_history_fetch);
+      }
+      catch (const std::exception& e)
+      {
+        LOG_FAIL_FMT("Failed to start network identity fetching: {}", e.what());
+        return CreateNodeStatus::InternalError;
+      }
 
       // If we haven't heard from a node for multiple elections, then cleanup
       // their node-to-node channel

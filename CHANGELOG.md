@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [7.0.5]
+
+[7.0.5]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.5
+
+### Security
+
+- Host-created files (ledger chunks, snapshots, PID file, and node certificate/key files) are now created with restrictive permissions (`0600`) instead of relying on the process `umask`. Existing deployments will not see existing files affected; only newly created files will have these restricted permissions (#7916).
+
 ## [7.0.4]
 
 [7.0.4]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.4
@@ -16,6 +24,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - JSON parsing can now reject inputs whose object/array nesting depth exceeds a certain value, defaulting to 64 levels and overridable per call site via `ccf::parse_json_safe`'s `max_depth` parameter (#7896).
+- `NetworkIdentitySubsystem` retries when walking the previous-identity endorsement chain are now bounded by a new optional `identity_history_fetch` node startup config (`max_attempts`, `retry_interval`). On exhaustion the subsystem transitions to a new terminal `FetchStatus::Partial`: the validated suffix of the chain is still served, but historical receipts for seqnos below it fail with an error. Both the chain-extension retries and the pre-bootstrap waits (for the node to join the network, for the service-create txid, and for the first endorsement entry) now poll at `retry_interval` (default `100ms`); the pre-bootstrap polling interval was previously hardcoded to `1s` (#7922).
 
 ### Deprecated
 
