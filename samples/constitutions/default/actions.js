@@ -108,16 +108,30 @@ function base64UrlByteLength(value, field) {
 }
 
 function splitX509CertBundle(value) {
-  // Split on the END marker, drop the trailing post-marker remainder (empty
-  // for a well-formed bundle), and re-append the END marker to each cert.
-  // Note that intermediate certs may still carry a leading newline (or other
-  // separator whitespace) from the original concatenation; this is fine
-  // because the OpenSSL PEM parser is tolerant of leading whitespace.
-  const sep = "-----END CERTIFICATE-----";
-  return value
-    .split(sep)
-    .slice(0, -1)
-    .map((p) => p + sep);
+  // Match complete PEM certificates with both BEGIN and END markers.
+  // This ensures we only extract valid PEM blocks and reject malformed input.
+  const pemPattern =
+    /-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----/g;
+  const certs = value.match(pemPattern);
+
+  if (!certs || certs.length === 0) {
+    throw new Error("No valid PEM certificates found in bundle");
+  }
+
+  // Verify the input contains only certificates and whitespace.
+  // Remove all matched certificates and ensure only whitespace remains.
+  let remaining = value;
+  for (const cert of certs) {
+    remaining = remaining.replace(cert, "");
+  }
+
+  if (remaining.trim() !== "") {
+    throw new Error(
+      "Certificate bundle contains invalid content between certificates",
+    );
+  }
+
+  return certs;
 }
 
 function checkX509CACertBundle(value, field) {
