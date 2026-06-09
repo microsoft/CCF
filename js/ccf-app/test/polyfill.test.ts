@@ -9,7 +9,11 @@ import type {
 } from "../src/global.js";
 import { ccf } from "../src/global.js";
 import * as textcodec from "../src/textcodec.js";
-import { generateSelfSignedCert, generateCertChain } from "./crypto.js";
+import {
+  generateSelfSignedCert,
+  generateSelfSignedCACert,
+  generateCertChain,
+} from "./crypto.js";
 import { toArrayBuffer } from "../src/utils.js";
 
 beforeEach(function () {
@@ -784,6 +788,37 @@ describe("polyfill", function () {
       const chain = pems[0];
       const trusted = pems[2];
       assert.isFalse(ccf.crypto.isValidX509CertChain(chain, trusted));
+    });
+  });
+  describe("isValidX509RootCACert", function (this) {
+    const supported = "X509Certificate" in crypto;
+    it("returns true for a self-signed CA certificate", function () {
+      if (!supported) {
+        this.skip();
+      }
+      const pem = generateSelfSignedCACert();
+      assert.isTrue(ccf.crypto.isValidX509RootCACert(pem));
+    });
+    it("returns false for a non-CA self-signed certificate", function () {
+      if (!supported) {
+        this.skip();
+      }
+      const pem = generateSelfSignedCert().cert;
+      assert.isFalse(ccf.crypto.isValidX509RootCACert(pem));
+    });
+    it("returns false for an intermediate CA certificate", function () {
+      if (!supported) {
+        this.skip();
+      }
+      // generateCertChain returns [leaf, intermediate, root]; [1] is intermediate.
+      const pems = generateCertChain(3);
+      assert.isFalse(ccf.crypto.isValidX509RootCACert(pems[0]));
+    });
+    it("returns false for malformed input", function () {
+      if (!supported) {
+        this.skip();
+      }
+      assert.isFalse(ccf.crypto.isValidX509RootCACert("garbage"));
     });
   });
 });

@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - The default and minimal sample constitutions reject `set_jwt_issuer` proposals whose `issuer` is not an `https://` URL with no query or fragment. Previously, any string was accepted when `auto_refresh` was `false` (#7924).
-- The default and minimal sample constitutions reject `set_ca_cert_bundle` proposals containing non-CA certificates (#7924).
+- The default and minimal sample constitutions reject `set_ca_cert_bundle` proposals containing non-CA certificates or intermediate CA certificates; every certificate in the bundle must be a self-signed (root) CA (#7924).
 - The default and minimal sample constitutions validate every JWK in `set_jwt_issuer` and `set_jwt_public_signing_keys` proposals: `n`/`e`/`x`/`y` must be base64url-encoded, `kty` must match the supplied key material, `kid` must be unique within a key set, `use` (if present) must be `"sig"`, and `alg` (if present) must match the key type and curve per RFC 7518 section 3.4 (`RS256` for RSA; `ES256`/`ES384`/`ES512` bound to `P-256`/`P-384`/`P-521`). RSA keys must be at least 2048 bits, and EC coordinates must use the full zero-padded length for their curve (RFC 7518 section 6.2.1.2). P-521 is now an accepted EC curve (#7924).
 - The default and minimal sample constitutions validate that `set_member`'s `encryption_pub_key`, when present, is a well-formed RSA public key (#7924).
 

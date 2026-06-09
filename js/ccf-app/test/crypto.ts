@@ -27,6 +27,34 @@ export function generateSelfSignedCert() {
   };
 }
 
+export function generateSelfSignedCACert(): string {
+  const keys = crypto.generateKeyPairSync("rsa", {
+    modulusLength: 2048,
+    publicKeyEncoding: {
+      type: "spki",
+      format: "pem",
+    },
+    privateKeyEncoding: {
+      type: "pkcs8",
+      format: "pem",
+    },
+  });
+  const cert = forge.pki.createCertificate();
+  cert.publicKey = forge.pki.publicKeyFromPem(keys.publicKey);
+  cert.setExtensions([
+    {
+      name: "basicConstraints",
+      cA: true,
+      critical: true,
+    },
+  ]);
+  cert.sign(
+    forge.pki.privateKeyFromPem(keys.privateKey),
+    forge.md.sha256.create(),
+  );
+  return forge.pki.certificateToPem(cert);
+}
+
 export function generateCertChain(len: number): string[] {
   const keyPairs = [];
   for (let i = 0; i < len; i++) {

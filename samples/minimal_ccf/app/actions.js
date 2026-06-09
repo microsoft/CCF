@@ -122,17 +122,14 @@ function splitX509CertBundle(value) {
 
 function checkX509CACertBundle(value, field) {
   checkX509CertBundle(value, field);
-  // isValidX509CertChain(target, trusted) is backed by verify_certificate(),
-  // which (a) rejects the call outright if any cert in `trusted` is not a CA
-  // (via X509_check_ca), and (b) enables X509_V_FLAG_PARTIAL_CHAIN so that
-  // intermediate CAs can act as trust anchors. By passing the whole bundle as
-  // `trusted`, we therefore enforce that every cert in the bundle is a CA
-  // certificate, while still accepting bundles containing intermediates as
-  // well as roots.
+  // isValidX509RootCACert(pem) is backed by a C++ function that checks both
+  // X509_check_ca (CA:TRUE or self-signed x509v1) and EXFLAG_SS (self-signed).
+  // Every certificate in the bundle must be a root (self-signed) CA; intermediate
+  // CAs are rejected even when their signing root is also present in the bundle.
   for (const [i, cert] of splitX509CertBundle(value).entries()) {
-    if (!ccf.crypto.isValidX509CertChain(cert, value)) {
+    if (!ccf.crypto.isValidX509RootCACert(cert)) {
       throw new Error(
-        `${field}[${i}] must be a CA certificate with a currently valid chain to a root within the bundle`,
+        `${field}[${i}] must be a self-signed (root) CA certificate`,
       );
     }
   }

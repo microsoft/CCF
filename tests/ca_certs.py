@@ -60,7 +60,7 @@ def test_cert_store(network, args):
 
     LOG.info(
         "Member makes a ca cert update proposal with an intermediate CA "
-        "signed by a root CA also in the bundle"
+        "signed by a root CA also in the bundle -- must be rejected"
     )
     root_priv_pem, _ = infra.crypto.generate_rsa_keypair(2048)
     root_cert_pem = infra.crypto.generate_cert(root_priv_pem, cn="root", ca=True)
@@ -76,7 +76,12 @@ def test_cert_store(network, args):
         cert_pem_fp.write(intermediate_cert_pem)
         cert_pem_fp.write(root_cert_pem)
         cert_pem_fp.flush()
-        network.consortium.set_ca_cert_bundle(primary, cert_name, cert_pem_fp.name)
+        try:
+            network.consortium.set_ca_cert_bundle(primary, cert_name, cert_pem_fp.name)
+        except (infra.proposal.ProposalNotAccepted, infra.proposal.ProposalNotCreated):
+            pass
+        else:
+            assert False, "Proposal should not have accepted an intermediate CA certificate"
 
     LOG.info("Member makes a ca cert update proposal with valid certs")
     key_priv_pem, _ = infra.crypto.generate_rsa_keypair(2048)
