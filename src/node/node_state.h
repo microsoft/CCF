@@ -2263,10 +2263,10 @@ namespace ccf
       // Only process messages once part of network. This includes forwarded
       // commands, which must not be executed until the node is part of the
       // network, as some commands may otherwise exhibit undefined behaviour.
-      if (
-        !sm.check(NodeStartupState::partOfNetwork) &&
-        !sm.check(NodeStartupState::partOfPublicNetwork) &&
-        !sm.check(NodeStartupState::readingPrivateLedger))
+      if (!sm.check_one_of(
+            {NodeStartupState::partOfNetwork,
+             NodeStartupState::partOfPublicNetwork,
+             NodeStartupState::readingPrivateLedger}))
       {
         LOG_DEBUG_FMT(
           "Ignoring node msg received too early - current state is {}",

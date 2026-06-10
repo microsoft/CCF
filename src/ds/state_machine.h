@@ -5,6 +5,7 @@
 #include "ds/internal_logger.h"
 
 #include <atomic>
+#include <set>
 #include <string>
 #include <utility>
 
@@ -35,6 +36,11 @@ namespace ds
     [[nodiscard]] bool check(T state_) const
     {
       return state_ == state.load();
+    }
+
+    [[nodiscard]] bool check_one_of(const std::set<T>& states) const
+    {
+      return states.contains(state.load());
     }
 
     [[nodiscard]] T value() const

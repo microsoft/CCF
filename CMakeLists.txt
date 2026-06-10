@@ -592,6 +592,11 @@ if(BUILD_TESTS)
     )
 
     add_unit_test(
+      state_machine_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/state_machine.cpp
+    )
+
+    add_unit_test(
       logger_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/logger.cpp
     )
