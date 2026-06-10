@@ -438,7 +438,7 @@ namespace ccf::js::extensions
 
         // Confirm it is a CA by verifying it against itself; verify_certificate
         // runs X509_check_ca on each trusted cert and rejects non-CA certs.
-        const ccf::crypto::Pem* pem_ptr = &certs[0];
+        const ccf::crypto::Pem* pem_ptr = certs.data();
         std::vector<const ccf::crypto::Pem*> trusted = {pem_ptr};
         std::vector<const ccf::crypto::Pem*> chain = {};
         if (!verifier->verify_certificate(trusted, chain))
