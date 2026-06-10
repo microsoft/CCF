@@ -3,8 +3,7 @@
 # Licensed under the Apache 2.0 License.
 
 # Installs the dependencies required to run scripts/ci-checks.sh, limited to the
-# formatting and linting checks. Works on both Azure Linux 3.0 (tdnf) and
-# Ubuntu 24.04 (apt).
+# formatting and linting checks on Ubuntu/Debian hosts.
 #
 # Note: this deliberately does NOT install a C/C++ compiler, cmake or ninja, so
 # the test-buckets check (which configures a build tree) is out of scope. All
@@ -36,27 +35,6 @@ if [ "$(id -u)" -ne 0 ]; then
     exit 1
   fi
 fi
-
-install_packages_azurelinux() {
-  log "Installing packages with tdnf (Azure Linux)"
-  $SUDO tdnf -y install \
-    ca-certificates \
-    git \
-    tar \
-    curl \
-    which \
-    grep \
-    gawk \
-    sed \
-    diffutils \
-    coreutils \
-    findutils \
-    python3 \
-    python3-pip \
-    npm \
-    jq \
-    clang-tools-extra
-}
 
 install_packages_ubuntu() {
   log "Installing packages with apt (Ubuntu)"
@@ -99,14 +77,11 @@ install_uv() {
 }
 
 case "$PLATFORM_ID" in
-  azurelinux | mariner)
-    install_packages_azurelinux
-    ;;
   ubuntu | debian)
     install_packages_ubuntu
     ;;
   *)
-    echo "Unsupported platform: $PLATFORM_ID (expected azurelinux or ubuntu)" >&2
+    echo "Unsupported platform: $PLATFORM_ID (expected ubuntu or debian)" >&2
     exit 1
     ;;
 esac
