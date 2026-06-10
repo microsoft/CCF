@@ -46,10 +46,15 @@ install_packages_azurelinux() {
     curl \
     which \
     grep \
+    gawk \
+    sed \
+    diffutils \
+    coreutils \
     findutils \
     python3 \
     python3-pip \
     npm \
+    jq \
     clang-tools-extra
 }
 
@@ -64,10 +69,12 @@ install_packages_ubuntu() {
     tar \
     curl \
     grep \
+    gawk \
     findutils \
     python3 \
     python3-pip \
     npm \
+    jq \
     clang-format-18
   # check-format.sh prefers clang-format-18, but fall back to a generic
   # clang-format symlink if one is not already present.
