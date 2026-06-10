@@ -213,7 +213,7 @@ def test_add_node_with_corrupted_ledger(network, args):
     # of a transaction.
     ledger = ccf.ledger.Ledger([ledger_dir], committed_only=False)
     chunk_filename = None
-    target_txid = None
+    target_seqno = None
     truncate_offset = None
     minimum_truncated_tx_size = (
         ccf.ledger.TransactionHeader.get_size() + ccf.ledger.GcmHeader.size() + 1
@@ -229,21 +229,20 @@ def test_add_node_with_corrupted_ledger(network, args):
                 continue
 
             chunk_filename = chunk.filename()
-            target_txid = tx.get_txid()
+            target_seqno = tx.get_txid().seqno
             truncate_offset = offset + max(
                 tx_size // 2,
                 minimum_truncated_tx_size,
             )
-            # Corrupting a single transaction in the selected chunk after the
-            # GCM header is sufficient to make the file malformed while keeping
-            # the txid observable in the node logs.
+            # Corrupting a single transaction in the selected chunk is
+            # sufficient to make the file malformed at this seqno.
             break
 
         if truncate_offset is not None:
             break
 
     assert truncate_offset is not None, "Should always find a transaction to corrupt"
-    assert target_txid is not None
+    assert target_seqno is not None
 
     LOG.info(
         f"Corrupting ledger file {chunk_filename} by truncating at offset {truncate_offset}"
@@ -273,11 +272,11 @@ def test_add_node_with_corrupted_ledger(network, args):
         for line in combined_logs.splitlines()
         if "Malformed incomplete ledger file" in line
         and os.path.basename(chunk_filename) in line
-        and f"at txid {target_txid}" in line
+        and f"at seqno {target_seqno}" in line
     ]
     assert (
         matching_lines
-    ), f"Expected malformed ledger log line for txid {target_txid}\n{combined_logs}"
+    ), f"Expected malformed ledger log line for seqno {target_seqno}\n{combined_logs}"
     LOG.info(f"Observed malformed ledger handling: {matching_lines[0]}")
 
     primary, _ = network.find_primary()

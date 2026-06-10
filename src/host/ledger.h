@@ -5,7 +5,6 @@
 #include "ccf/crypto/symmetric_key.h"
 #include "ccf/ds/nonstd.h"
 #include "ccf/pal/locking.h"
-#include "ccf/tx_id.h"
 #include "consensus/ledger_enclave_types.h"
 #include "ds/files.h"
 #include "ds/internal_logger.h"
@@ -81,47 +80,6 @@ namespace asynchost
   private:
     using positions_offset_header_t = size_t;
     static constexpr auto file_name_prefix = "ledger";
-
-    static std::optional<ccf::TxID> get_entry_tx_id(FILE* file, size_t size)
-    {
-      if (size < ccf::crypto::StandardGcmHeader::serialised_size())
-      {
-        return std::nullopt;
-      }
-
-      const auto current_pos = ftello(file);
-      if (current_pos == -1)
-      {
-        return std::nullopt;
-      }
-
-      auto header_data =
-        std::vector<uint8_t>(ccf::crypto::StandardGcmHeader::serialised_size());
-      if (fread(header_data.data(), header_data.size(), 1, file) != 1)
-      {
-        std::ignore = fseeko(file, current_pos, SEEK_SET);
-        return std::nullopt;
-      }
-
-      const uint8_t* data = header_data.data();
-      size_t data_size = header_data.size();
-      ccf::crypto::StandardGcmHeader gcm_header;
-      gcm_header.deserialise(data, data_size);
-
-      auto iv_data = gcm_header.get_iv().data();
-      auto iv_size = gcm_header.get_iv().size();
-
-      auto tx_id = ccf::TxID{};
-      tx_id.seqno = serialized::read<ccf::SeqNo>(iv_data, iv_size);
-      // The top bit of the IV's 32-bit term field is reserved to indicate
-      // snapshots, so mask it off when reconstructing the ledger txid view.
-      tx_id.view =
-        serialized::read<uint32_t>(iv_data, iv_size) & 0x7FFFFFFF;
-
-      std::ignore = fseeko(file, current_pos, SEEK_SET);
-
-      return tx_id;
-    }
 
     const fs::path dir;
     fs::path file_name;
@@ -324,28 +282,13 @@ namespace asynchost
           const auto& entry_size = entry_header.size;
           if (len < entry_size)
           {
-            const auto tx_id = get_entry_tx_id(file, len);
-            if (tx_id.has_value())
-            {
-              LOG_FAIL_FMT(
-                "Malformed incomplete ledger file {} at txid {} (expecting "
-                "entry of size {}, remaining {})",
-                file_path,
-                tx_id->to_str(),
-                entry_size,
-                len);
-            }
-            else
-            {
-              LOG_FAIL_FMT(
-                "Malformed incomplete ledger file {} at seqno {} (expecting "
-                "entry of size {}, remaining {})",
-                file_path,
-                current_idx,
-                entry_size,
-                len);
-            }
-
+            LOG_FAIL_FMT(
+              "Malformed incomplete ledger file {} at seqno {} (expecting "
+              "entry of size {}, remaining {})",
+              file_path,
+              current_idx,
+              entry_size,
+              len);
             return;
           }
 
