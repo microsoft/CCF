@@ -30,10 +30,12 @@ namespace ccf
     const auto* payload_data = payload.data;
     auto payload_size = payload.size;
 
-    if (!sm.check_one_of(
-          {NodeStartupState::partOfNetwork,
-           NodeStartupState::partOfPublicNetwork,
-           NodeStartupState::readingPrivateLedger}))
+    static const std::set<NodeStartupState> active_states{
+      NodeStartupState::partOfNetwork,
+      NodeStartupState::partOfPublicNetwork,
+      NodeStartupState::readingPrivateLedger};
+
+    if (!sm.check_one_of(active_states))
     {
       LOG_DEBUG_FMT(
         "Ignoring node msg received too early - current state is {}",
