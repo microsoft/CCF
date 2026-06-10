@@ -81,7 +81,9 @@ def test_cert_store(network, args):
         except (infra.proposal.ProposalNotAccepted, infra.proposal.ProposalNotCreated):
             pass
         else:
-            assert False, "Proposal should not have accepted an intermediate CA certificate"
+            assert (
+                False
+            ), "Proposal should not have accepted an intermediate CA certificate"
 
     LOG.info("Member makes a ca cert update proposal with valid certs")
     key_priv_pem, _ = infra.crypto.generate_rsa_keypair(2048)
