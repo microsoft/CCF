@@ -858,7 +858,7 @@ namespace asynchost
             return idx >= f->get_start_idx();
           });
 
-        if (f != files.rend())
+        if (f != files.rend() && idx <= (*f)->get_last_idx())
         {
           return *f;
         }
@@ -1451,16 +1451,50 @@ namespace asynchost
       return last_idx;
     }
 
-    void truncate(size_t idx)
+    void truncate(size_t idx, bool recovery_mode = false)
     {
       TimeBoundLogger log_if_slow(fmt::format("Truncating ledger at {}", idx));
 
-      LOG_DEBUG_FMT("Ledger truncate: {}/{}", idx, last_idx);
+      LOG_DEBUG_FMT(
+        "Ledger truncate: {}/{} [recovery: {}]", idx, last_idx, recovery_mode);
 
-      // Conservative check to avoid truncating to future indices, or dropping
-      // committed entries. If the ledger is being initialised from a snapshot
-      // alone, the first truncation effectively sets the last index.
-      if (last_idx != 0 && (idx >= last_idx || idx < committed_idx))
+      // Conservative check to avoid dropping committed entries.
+      if (last_idx != 0 && idx < committed_idx)
+      {
+        LOG_DEBUG_FMT(
+          "Ignoring truncate to {} - last_idx: {}, committed_idx: {}",
+          idx,
+          last_idx,
+          committed_idx);
+        return;
+      }
+
+      // During recovery, a snapshot can be after the current end of the host
+      // ledger. Regular truncation requires that the truncation index is within
+      // the ledger and otherwise skips the truncation. This is a special case
+      // to handle the recovery forward truncation
+      if (recovery_mode && idx >= last_idx)
+      {
+        // Close any open files as the ledger should restart cleanly from a new
+        // chunk.
+        auto file = get_latest_file();
+        if (file != nullptr)
+        {
+          file->complete();
+        }
+        // Don't use any of the files on disk for writing
+        use_existing_files = false;
+        last_idx_on_init.reset();
+        // Set last_idx to the recovery idx, which may be past the current end
+        // of the ledger
+        last_idx = idx;
+        return;
+      }
+
+      // Conservative check to avoid truncating to future indices. If the
+      // ledger is being initialised from a snapshot alone, the first truncation
+      // effectively sets the last index.
+      if (last_idx != 0 && idx >= last_idx)
       {
         LOG_DEBUG_FMT(
           "Ignoring truncate to {} - last_idx: {}, committed_idx: {}",
@@ -1472,13 +1506,20 @@ namespace asynchost
 
       auto f_from = get_it_contains_idx(idx + 1);
       auto f_to = get_it_contains_idx(last_idx);
-      auto f_end = std::next(f_to);
+      // std::next(end()) is undefined behaviour, which libstdc++'s debug
+      // iterators correctly detect; use end() directly when f_to is end().
+      auto f_end = (f_to == files.end()) ? files.end() : std::next(f_to);
 
+      // Note: do not compare iterators against `f_from` inside the loop, as
+      // it may be invalidated by `files.erase(it)` below. Use a flag for the
+      // first iteration instead.
+      bool is_first = true;
       for (auto it = f_from; it != f_end;)
       {
         // Truncate the first file to the truncation index while the more
         // recent files are deleted entirely
-        auto truncate_idx = (it == f_from) ? idx : (*it)->get_start_idx() - 1;
+        auto truncate_idx = is_first ? idx : (*it)->get_start_idx() - 1;
+        is_first = false;
         if ((*it)->truncate(truncate_idx))
         {
           it = files.erase(it);
@@ -1507,7 +1548,9 @@ namespace asynchost
       auto f_from = (committed_idx == 0) ? get_it_contains_idx(1) :
                                            get_it_contains_idx(committed_idx);
       auto f_to = get_it_contains_idx(idx);
-      auto f_end = std::next(f_to);
+      // std::next(end()) is undefined behaviour, which libstdc++'s debug
+      // iterators correctly detect; use end() directly when f_to is end().
+      auto f_end = (f_to == files.end()) ? files.end() : std::next(f_to);
 
       for (auto it = f_from; it != f_end;)
       {
@@ -1626,7 +1669,7 @@ namespace asynchost
         [this](const uint8_t* data, size_t size) {
           auto idx = serialized::read<::consensus::Index>(data, size);
           auto recovery_mode = serialized::read<bool>(data, size);
-          truncate(idx);
+          truncate(idx, recovery_mode);
           if (recovery_mode)
           {
             set_recovery_start_idx(idx);
