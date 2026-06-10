@@ -90,8 +90,12 @@ install_uv() {
     log "uv already installed ($(uv --version))"
     return
   fi
-  log "Installing uv"
-  curl -fsSL https://astral.sh/uv/install.sh | $SUDO env UV_INSTALL_DIR=/usr/local/bin sh
+  log "Installing uv from PyPI"
+  # Ubuntu 24 may enforce externally-managed Python environments. Try with
+  # --break-system-packages first, then fall back for distros that don't need it.
+  if ! $SUDO python3 -m pip install --upgrade uv --break-system-packages; then
+    $SUDO python3 -m pip install --upgrade uv
+  fi
 }
 
 case "$PLATFORM_ID" in
