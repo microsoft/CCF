@@ -786,6 +786,11 @@ if(BUILD_TESTS)
     )
 
     add_unit_test(
+      node_inbound_message_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/node_inbound_message.cpp
+    )
+
+    add_unit_test(
       indexing_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/indexing/test/indexing.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/indexing/test/lfs.cpp
