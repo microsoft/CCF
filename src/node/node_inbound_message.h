@@ -20,9 +20,9 @@ namespace ccf
     const uint8_t* data,
     size_t size,
     ::ds::StateMachine<NodeStartupState>& sm,
-    TForwarder& cmd_forwarder,
-    TChannels& n2n_channels,
-    TConsensus& consensus)
+    TForwarder* cmd_forwarder,
+    TChannels* n2n_channels,
+    TConsensus* consensus)
   {
     auto [msg_type, from, payload] =
       ringbuffer::read_message<node_inbound>(data, size);
@@ -47,17 +47,17 @@ namespace ccf
     {
       case forwarded_msg:
       {
-        cmd_forwarder.recv_message(from, payload_data, payload_size);
+        cmd_forwarder->recv_message(from, payload_data, payload_size);
         return;
       }
       case channel_msg:
       {
-        n2n_channels.recv_channel_message(from, payload_data, payload_size);
+        n2n_channels->recv_channel_message(from, payload_data, payload_size);
         return;
       }
       case consensus_msg:
       {
-        consensus.recv_message(from, payload_data, payload_size);
+        consensus->recv_message(from, payload_data, payload_size);
         return;
       }
       default:

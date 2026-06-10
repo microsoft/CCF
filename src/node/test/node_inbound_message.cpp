@@ -88,9 +88,9 @@ TEST_CASE(
         serialised.data(),
         serialised.size(),
         sm,
-        forwarder,
-        channels,
-        consensus);
+        &forwarder,
+        &channels,
+        &consensus);
 
       REQUIRE(forwarder.call_count == 0);
       REQUIRE(channels.call_count == 0);
@@ -115,9 +115,9 @@ TEST_CASE(
         serialised.data(),
         serialised.size(),
         sm,
-        forwarder,
-        channels,
-        consensus);
+        &forwarder,
+        &channels,
+        &consensus);
 
       REQUIRE(forwarder.call_count == 1);
       REQUIRE(forwarder.last_from == from);
@@ -144,9 +144,9 @@ TEST_CASE(
         serialised.data(),
         serialised.size(),
         sm,
-        forwarder,
-        channels,
-        consensus);
+        &forwarder,
+        &channels,
+        &consensus);
 
       REQUIRE(channels.call_count == 0);
     }
@@ -163,9 +163,9 @@ TEST_CASE(
         serialised.data(),
         serialised.size(),
         sm,
-        forwarder,
-        channels,
-        consensus);
+        &forwarder,
+        &channels,
+        &consensus);
 
       REQUIRE(channels.call_count == 1);
       REQUIRE(channels.last_from == from);
@@ -192,9 +192,9 @@ TEST_CASE(
         serialised.data(),
         serialised.size(),
         sm,
-        forwarder,
-        channels,
-        consensus);
+        &forwarder,
+        &channels,
+        &consensus);
 
       REQUIRE(consensus.call_count == 0);
     }
@@ -211,9 +211,9 @@ TEST_CASE(
         serialised.data(),
         serialised.size(),
         sm,
-        forwarder,
-        channels,
-        consensus);
+        &forwarder,
+        &channels,
+        &consensus);
 
       REQUIRE(consensus.call_count == 1);
       REQUIRE(consensus.last_from == from);

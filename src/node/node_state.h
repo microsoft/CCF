@@ -2256,7 +2256,12 @@ namespace ccf
     void recv_node_inbound(const uint8_t* data, size_t size)
     {
       recv_node_inbound_message(
-        data, size, sm, *cmd_forwarder, *n2n_channels, *consensus);
+        data,
+        size,
+        sm,
+        cmd_forwarder.get(),
+        n2n_channels.get(),
+        consensus.get());
     }
 
     //
