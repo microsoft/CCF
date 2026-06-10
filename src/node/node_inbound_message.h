@@ -47,16 +47,36 @@ namespace ccf
     {
       case forwarded_msg:
       {
+        if (cmd_forwarder == nullptr)
+        {
+          LOG_FAIL_FMT(
+            "Ignoring forwarded node message: command forwarder not "
+            "initialised");
+          return;
+        }
         cmd_forwarder->recv_message(from, payload_data, payload_size);
         return;
       }
       case channel_msg:
       {
+        if (n2n_channels == nullptr)
+        {
+          LOG_FAIL_FMT(
+            "Ignoring channel node message: node-to-node channels not "
+            "initialised");
+          return;
+        }
         n2n_channels->recv_channel_message(from, payload_data, payload_size);
         return;
       }
       case consensus_msg:
       {
+        if (consensus == nullptr)
+        {
+          LOG_FAIL_FMT(
+            "Ignoring consensus node message: consensus not initialised");
+          return;
+        }
         consensus->recv_message(from, payload_data, payload_size);
         return;
       }
