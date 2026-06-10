@@ -141,7 +141,9 @@ def get_jwt_keys(args, node):
 
 def to_b64(number: int):
     as_bytes = number.to_bytes((number.bit_length() + 7) // 8, "big")
-    return base64.b64encode(as_bytes).decode("ascii")
+    # JWK numeric fields use unpadded base64url (RFC 7518 section 6 referencing
+    # RFC 4648 section 5).
+    return base64.urlsafe_b64encode(as_bytes).rstrip(b"=").decode("ascii")
 
 
 class JwtIssuer:
@@ -156,7 +158,7 @@ class JwtIssuer:
         else:
             raise ValueError(f"Unsupported algorithm: {self._alg}")
 
-        cert = infra.crypto.generate_cert(key_priv, cn=cn)
+        cert = infra.crypto.generate_cert(key_priv, cn=cn, ca=True)
         return (key_priv, key_pub), cert
 
     def __init__(
