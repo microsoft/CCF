@@ -447,7 +447,11 @@ def test_jwt_auth_raw_key(network, args):
     primary, _ = network.find_nodes()
 
     for alg in [JwtAlg.RS256, JwtAlg.ES256]:
-        issuer = JwtIssuer("noautorefresh://issuer", alg=alg, auth_type=JwtAuthType.KEY)
+        issuer = JwtIssuer(
+            "https://noautorefresh.example/issuer",
+            alg=alg,
+            auth_type=JwtAuthType.KEY,
+        )
         jwt_kid = "my_key_id"
         issuer.register(network, kid=jwt_kid)
 
