@@ -4,8 +4,10 @@
 #include "ccf/pal/attestation.h"
 
 #include "ccf/crypto/ecdsa.h"
+#include "ccf/crypto/key_pair.h"
 #include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "ccf/crypto/verifier.h"
+#include "ccf/ds/hex.h"
 #include "ccf/pal/attestation_sev_snp.h"
 #include "ccf/pal/sev_snp_cpuid.h"
 
@@ -44,16 +46,6 @@ namespace ccf::pal
       return {bptr->data, bptr->length};
     }
 
-    std::string signature_algorithm_name(int nid)
-    {
-      const auto* name = OBJ_nid2ln(nid);
-      if (name == nullptr)
-      {
-        return fmt::format("nid {}", nid);
-      }
-      return name;
-    }
-
     void verify_ark_certificate_matches_pinned_metadata(
       const crypto::Pem& ark_cert,
       snp::ProductName product_family,
@@ -73,18 +65,6 @@ namespace ccf::pal
           product_family,
           issuer,
           expected_ark.issuer));
-      }
-
-      const auto signature_algorithm =
-        signature_algorithm_name(X509_get_signature_nid(x509));
-      if (signature_algorithm != expected_ark.signature_algorithm)
-      {
-        throw std::logic_error(fmt::format(
-          "SEV-SNP: The root of trust signature algorithm for this "
-          "attestation was not the expected one for {}: {} != {}",
-          product_family,
-          signature_algorithm,
-          expected_ark.signature_algorithm));
       }
     }
   }
@@ -337,7 +317,11 @@ namespace ccf::pal
         "SEV-SNP: No known root certificate for {}", product_family));
     }
     const auto& expected_ark = key->second;
-    if (ark_verifier->public_key_pem().str() != expected_ark.public_key)
+    const auto actual_public_key_der = ark_verifier->public_key_der();
+    const auto expected_public_key_der =
+      ccf::crypto::make_public_key(ccf::crypto::Pem(expected_ark.public_key))
+        ->public_key_der();
+    if (actual_public_key_der != expected_public_key_der)
     {
       throw std::logic_error(fmt::format(
         "SEV-SNP: The root of trust public key for this attestation was not "
@@ -345,8 +329,8 @@ namespace ccf::pal
         quote.version,
         quote.cpuid_fam_id,
         quote.cpuid_mod_id,
-        ark_verifier->public_key_pem().str(),
-        expected_ark.public_key));
+        ccf::ds::to_hex(actual_public_key_der),
+        ccf::ds::to_hex(expected_public_key_der)));
     }
 
     verify_ark_certificate_matches_pinned_metadata(

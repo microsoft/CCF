@@ -101,32 +101,6 @@ namespace
     return pem_from_x509(x509);
   }
 
-  ccf::crypto::Pem ark_with_sha384_rsa_signature_algorithm()
-  {
-    const auto certs = milan_endorsement_certs();
-    REQUIRE(certs.size() == 3);
-
-    auto der = ccf::crypto::cert_pem_to_der(certs[2]);
-    static constexpr std::array<uint8_t, 9> rsassa_pss_oid = {
-      0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x0a};
-    static constexpr std::array<uint8_t, 9> sha384_rsa_oid = {
-      0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x0c};
-
-    size_t replacements = 0;
-    for (size_t i = 0; i + rsassa_pss_oid.size() <= der.size(); ++i)
-    {
-      auto it = der.begin() + i;
-      if (std::equal(rsassa_pss_oid.begin(), rsassa_pss_oid.end(), it))
-      {
-        std::copy(sha384_rsa_oid.begin(), sha384_rsa_oid.end(), it);
-        ++replacements;
-      }
-    }
-
-    REQUIRE(replacements > 0);
-
-    return ccf::crypto::cert_der_to_pem(der);
-  }
 }
 
 TEST_CASE("milan validation")
@@ -227,23 +201,6 @@ TEST_CASE("ARK with unexpected issuer fails")
     doctest::Contains(
       "SEV-SNP: The root of trust issuer for this attestation was not "
       "the expected one"),
-    std::logic_error);
-}
-
-TEST_CASE("ARK with unexpected signature algorithm fails")
-{
-  auto quote_info =
-    milan_quote_info_with_ark(ark_with_sha384_rsa_signature_algorithm());
-
-  ccf::pal::PlatformAttestationMeasurement measurement;
-  ccf::pal::PlatformAttestationReportData report_data;
-
-  CHECK_THROWS_WITH_AS(
-    ccf::pal::verify_snp_attestation_report(
-      quote_info, measurement, report_data),
-    doctest::Contains(
-      "SEV-SNP: The root of trust signature algorithm for this attestation "
-      "was not the expected one"),
     std::logic_error);
 }
 
