@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/symmetric_key.h"
 #include "ccf/ds/nonstd.h"
 #include "ccf/pal/locking.h"
 #include "consensus/ledger_enclave_types.h"
@@ -283,13 +284,11 @@ namespace asynchost
           {
             LOG_FAIL_FMT(
               "Malformed incomplete ledger file {} at seqno {} (expecting "
-              "entry of size "
-              "{}, remaining {})",
+              "entry of size {}, remaining {})",
               file_path,
               current_idx,
               entry_size,
               len);
-
             return;
           }
 

@@ -156,6 +156,135 @@ def test_add_node(network, args, copy_snapshot=False, fetch_recent_snapshot=True
     return network
 
 
+@reqs.description("Adding a node with corrupted ledger file")
+def test_add_node_with_corrupted_ledger(network, args):
+    # Reproduce issue #6612: when joining from a recent snapshot, an older
+    # corrupted/truncated uncommitted ledger file should not prevent startup.
+    primary, _ = network.find_primary()
+    snapshot_trigger_txid = primary.trigger_snapshot()
+    snapshots_dir = network.get_committed_snapshots(
+        primary,
+        target_seqno=snapshot_trigger_txid.seqno,
+        wait_for_target_seqno=True,
+    )
+
+    new_node = network.create_node()
+
+    # Set up the join node (copies ledger and snapshots) but do not start it yet
+    network.setup_join_node(
+        new_node,
+        args.package,
+        args,
+        from_snapshot=True,
+        snapshots_dir=snapshots_dir,
+        fetch_recent_snapshot=False,
+    )
+
+    # Find an uncommitted ledger file in the node's main ledger directory
+    ledger_dir = new_node.remote.get_main_ledger_dir()
+    ledger_files = sorted(
+        [
+            f
+            for f in os.listdir(ledger_dir)
+            if f.startswith("ledger_") and not f.endswith(".committed")
+        ],
+        key=lambda f: ccf.ledger.range_from_filename(f)[0],
+    )
+    assert ledger_files, "Expected to find uncommitted ledger files for corruption test"
+    ledger_ranges = {
+        ledger_file: ccf.ledger.range_from_filename(ledger_file)
+        for ledger_file in ledger_files
+    }
+
+    # Prefer a chunk whose range is older than the snapshot we are joining from.
+    corrupted_ledger_file = next(
+        (
+            f
+            for f in ledger_files
+            if (
+                ledger_ranges[f][1] is not None
+                and ledger_ranges[f][1] < snapshot_trigger_txid.seqno
+            )
+        ),
+        ledger_files[-1],
+    )
+
+    # Corrupt the chosen uncommitted ledger file by truncating it in the middle
+    # of a transaction.
+    ledger = ccf.ledger.Ledger([ledger_dir], committed_only=False)
+    chunk_filename = None
+    target_seqno = None
+    truncate_offset = None
+    minimum_truncated_tx_size = (
+        ccf.ledger.TransactionHeader.get_size() + ccf.ledger.GcmHeader.size() + 1
+    )
+    for chunk in ledger:
+        if os.path.basename(chunk.filename()) != corrupted_ledger_file:
+            continue
+
+        for tx in chunk:
+            offset, _ = tx.get_offsets()
+            tx_size = tx.get_len()
+            if tx_size <= minimum_truncated_tx_size:
+                continue
+
+            chunk_filename = chunk.filename()
+            target_seqno = tx.get_txid().seqno
+            truncate_offset = offset + max(
+                tx_size // 2,
+                minimum_truncated_tx_size,
+            )
+            # Corrupting a single transaction in the selected chunk is
+            # sufficient to make the file malformed at this seqno.
+            break
+
+        if truncate_offset is not None:
+            break
+
+    assert truncate_offset is not None, "Should always find a transaction to corrupt"
+    assert target_seqno is not None
+
+    LOG.info(
+        f"Corrupting ledger file {chunk_filename} by truncating at offset {truncate_offset}"
+    )
+    with open(chunk_filename, "rb+") as f:
+        f.truncate(truncate_offset)
+
+    network.run_join_node(new_node)
+    network.trust_node(new_node, args)
+
+    with new_node.client() as c:
+        r = c.get("/node/state")
+        assert (
+            r.body.json()["startup_seqno"] != 0
+        ), f"Node {new_node.local_node_id} should have started from snapshot"
+
+    out_path, err_path = new_node.get_logs()
+    assert out_path is not None and err_path is not None
+    with open(out_path, encoding="utf-8") as out:
+        out_logs = out.read()
+    with open(err_path, encoding="utf-8") as err:
+        err_logs = err.read()
+
+    combined_logs = out_logs + err_logs
+    matching_lines = [
+        line
+        for line in combined_logs.splitlines()
+        if "Malformed incomplete ledger file" in line
+        and os.path.basename(chunk_filename) in line
+        and f"at seqno {target_seqno}" in line
+    ]
+    assert (
+        matching_lines
+    ), f"Expected malformed ledger log line for seqno {target_seqno}\n{combined_logs}"
+    LOG.info(f"Observed malformed ledger handling: {matching_lines[0]}")
+
+    primary, _ = network.find_primary()
+    network.retire_node(primary, new_node)
+    new_node.stop()
+    return network
+
+
 @reqs.description("Test ignore_first_sigterm")
 def test_ignore_first_sigterm(network, args):
     # Note: host is supplied explicitly to avoid having differently
@@ -1008,6 +1137,7 @@ def run_all(args):
         test_add_node(network, args, copy_snapshot=True, fetch_recent_snapshot=False)
         test_add_node(network, args, copy_snapshot=True, fetch_recent_snapshot=True)
         test_add_node_with_read_only_ledger(network, args)
+        test_add_node_with_corrupted_ledger(network, args)
         test_join_straddling_primary_replacement(network, args)
         test_node_replacement(network, args)
         test_add_node_from_backup(network, args)
