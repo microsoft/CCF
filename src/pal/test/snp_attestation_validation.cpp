@@ -1,6 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
+#include "ccf/crypto/openssl/openssl_wrappers.h"
+#include "ccf/crypto/verifier.h"
 #include "ccf/ds/hex.h"
 #include "ccf/ds/logger.h"
 #include "ccf/ds/quote_info.h"
@@ -16,8 +18,90 @@
 #include "pal/test/attestation_sev_snp_endorsements.h"
 #include "pal/test/snp_attestation_validation_data.h"
 
+#include <algorithm>
+#include <array>
+#include <memory>
+
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>
+
+namespace
+{
+  std::vector<ccf::crypto::Pem> milan_endorsement_certs()
+  {
+    return ccf::crypto::split_x509_cert_bundle(
+      ccf::pal::snp::testing::milan_endorsements);
+  }
+
+  std::vector<uint8_t> endorsement_bundle_with_ark(
+    const ccf::crypto::Pem& ark_cert)
+  {
+    auto certs = milan_endorsement_certs();
+    REQUIRE(certs.size() == 3);
+
+    certs[2] = ark_cert;
+    std::string bundle;
+    for (const auto& cert : certs)
+    {
+      bundle += cert.str();
+    }
+
+    return {bundle.begin(), bundle.end()};
+  }
+
+  ccf::QuoteInfo milan_quote_info_with_ark(const ccf::crypto::Pem& ark_cert)
+  {
+    return {
+      .format = ccf::QuoteFormat::amd_sev_snp_v1,
+      .quote = ccf::pal::snp::testing::milan_attestation,
+      .endorsements = endorsement_bundle_with_ark(ark_cert),
+      .uvm_endorsements = std::nullopt,
+    };
+  }
+
+  ccf::crypto::Pem pem_from_x509(X509* x509)
+  {
+    ccf::crypto::OpenSSL::CHECKNULL(x509);
+
+    ccf::crypto::OpenSSL::Unique_BIO mem;
+    ccf::crypto::OpenSSL::CHECK1(PEM_write_bio_X509(mem, x509));
+
+    BUF_MEM* bptr = nullptr;
+    ccf::crypto::OpenSSL::CHECK1(BIO_get_mem_ptr(mem, &bptr));
+    ccf::crypto::OpenSSL::CHECKNULL(bptr);
+
+    return ccf::crypto::Pem(
+      reinterpret_cast<const uint8_t*>(bptr->data), bptr->length);
+  }
+
+  ccf::crypto::Pem ark_with_extra_issuer_entry()
+  {
+    const auto certs = milan_endorsement_certs();
+    REQUIRE(certs.size() == 3);
+
+    ccf::crypto::OpenSSL::Unique_BIO mem_bio(certs[2]);
+    ccf::crypto::OpenSSL::Unique_X509 x509(
+      mem_bio, true, true /* check_null */);
+
+    std::unique_ptr<X509_NAME, decltype(&X509_NAME_free)> issuer(
+      X509_NAME_dup(X509_get_issuer_name(x509)), X509_NAME_free);
+    ccf::crypto::OpenSSL::CHECKNULL(issuer.get());
+
+    static constexpr auto unexpected_ou = "Unexpected";
+    ccf::crypto::OpenSSL::CHECK1(X509_NAME_add_entry_by_txt(
+      issuer.get(),
+      "OU",
+      MBSTRING_ASC,
+      reinterpret_cast<const unsigned char*>(unexpected_ou),
+      -1,
+      -1,
+      0));
+    ccf::crypto::OpenSSL::CHECK1(X509_set_issuer_name(x509, issuer.get()));
+
+    return pem_from_x509(x509);
+  }
+
+}
 
 TEST_CASE("milan validation")
 {
@@ -101,6 +185,22 @@ TEST_CASE("Mismatched attestation and endorsements fail")
     doctest::Contains(
       "SEV-SNP: The root of trust public key for this attestation "
       "was not the expected one"),
+    std::logic_error);
+}
+
+TEST_CASE("ARK with unexpected issuer fails")
+{
+  auto quote_info = milan_quote_info_with_ark(ark_with_extra_issuer_entry());
+
+  ccf::pal::PlatformAttestationMeasurement measurement;
+  ccf::pal::PlatformAttestationReportData report_data;
+
+  CHECK_THROWS_WITH_AS(
+    ccf::pal::verify_snp_attestation_report(
+      quote_info, measurement, report_data),
+    doctest::Contains(
+      "SEV-SNP: The root of trust issuer for this attestation was not "
+      "the expected one"),
     std::logic_error);
 }
 
