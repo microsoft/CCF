@@ -41,6 +41,7 @@
 #include "node/ledger_secret.h"
 #include "node/ledger_secrets.h"
 #include "node/local_sealing.h"
+#include "node/node_inbound_message.h"
 #include "node/node_to_node_channel_manager.h"
 #include "node/recovery_decision_protocol.h"
 #include "node/signature_cache_subsystem.h"
@@ -2254,57 +2255,13 @@ namespace ccf
 
     void recv_node_inbound(const uint8_t* data, size_t size)
     {
-      auto [msg_type, from, payload] =
-        ringbuffer::read_message<node_inbound>(data, size);
-
-      const auto* payload_data = payload.data;
-      auto payload_size = payload.size;
-
-      if (msg_type == NodeMsgType::forwarded_msg)
-      {
-        cmd_forwarder->recv_message(from, payload_data, payload_size);
-      }
-      else
-      {
-        // Only process messages once part of network
-        if (
-          !sm.check(NodeStartupState::partOfNetwork) &&
-          !sm.check(NodeStartupState::partOfPublicNetwork) &&
-          !sm.check(NodeStartupState::readingPrivateLedger))
-        {
-          LOG_DEBUG_FMT(
-            "Ignoring node msg received too early - current state is {}",
-            sm.value());
-          return;
-        }
-
-        switch (msg_type)
-        {
-          case forwarded_msg:
-          {
-            LOG_FAIL_FMT("Unexpected forwarded_msg in recv_node_inbound");
-            return;
-          }
-          case channel_msg:
-          {
-            n2n_channels->recv_channel_message(
-              from, payload_data, payload_size);
-            return;
-          }
-
-          case consensus_msg:
-          {
-            consensus->recv_message(from, payload_data, payload_size);
-            return;
-          }
-          default:
-          {
-            throw std::logic_error(fmt::format(
-              "Unknown node message type: {}",
-              static_cast<uint32_t>(msg_type)));
-          }
-        }
-      }
+      recv_node_inbound_message(
+        data,
+        size,
+        sm,
+        cmd_forwarder.get(),
+        n2n_channels.get(),
+        consensus.get());
     }
 
     //
