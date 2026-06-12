@@ -28,6 +28,7 @@ import ccf.tx_id
 import tempfile
 import http
 import base64
+import hashlib
 import shutil
 from cryptography.x509 import load_pem_x509_certificate
 from cryptography.hazmat.backends import default_backend
@@ -1445,7 +1446,7 @@ def run_recovery_after_cose_upgrade(args):
     """Start Dual, upgrade to COSE-only via node replacement, then recover
     with allow-dual-joiners. Then live-upgrade the recovered network to strict
     COSE-only by replacing nodes again, and recover from ledger files.
-    Exercises the full upgrade path: Dual → COSE (allow dual) → COSE (strict),
+    Exercises the full upgrade path: Dual -> COSE (allow dual) -> COSE (strict),
     with recovery at each transition."""
     cose_only_package = args.package + "_cose_only_allow_join_dual"
 
@@ -1492,7 +1493,7 @@ def run_recovery_after_cose_upgrade(args):
         # Issue more TXs in COSE-only mode (new view after election)
         network.txs.issue(network, number_txs=5)
 
-        # Now stop and recover — the ledger has dual sigs then COSE-only sigs
+        # Now stop and recover - the ledger has dual sigs then COSE-only sigs
         network.save_service_identity(args)
         recover_primary, _ = network.find_primary()
         current_ledger_dir, committed_ledger_dirs = recover_primary.get_ledger()
@@ -2020,6 +2021,281 @@ def run_recover_snapshot_ledger_offset(args):
                 )
 
 
+def _find_endorsement_write_chunks(committed_ledger_dirs):
+    """Return [(seqno, chunk_path), ...] for every write to the previous
+    service identity endorsement table across the committed ledger
+    directories, sorted by seqno. Used by the partial-chain e2e test to
+    locate a chunk whose removal will break the chain walk."""
+    endorsement_table = "public:ccf.internal.previous_service_identity_endorsement"
+    writes = []
+    for ledger_dir in committed_ledger_dirs:
+        for filename in os.listdir(ledger_dir):
+            if not ccf.ledger.is_ledger_chunk_committed(filename):
+                continue
+            chunk_path = os.path.join(ledger_dir, filename)
+            chunk = ccf.ledger.LedgerChunk(chunk_path)
+            for transaction in chunk:
+                public_domain = transaction.get_public_domain()
+                tables = public_domain.get_tables()
+                if endorsement_table in tables:
+                    writes.append((public_domain.get_seqno(), chunk_path))
+    writes.sort(key=lambda w: w[0])
+    return writes
+
+
+@reqs.description(
+    "Network identity subsystem settles in Partial when a previous-identity "
+    "endorsement ledger chunk is missing"
+)
+def run_recovery_partial_when_ledger_gap(args):
+    """Builds a chain over 2 recoveries (S1 -> S2 -> S3), stops the
+    network, moves out the ledger chunk that contains the S2-era
+    endorsement write, and recovers once more (-> S4). With the
+    missing chunk the endorsement chain walk cannot complete; we
+    configure the subsystem with a small retry budget so it settles
+    in Partial quickly. We assert:
+
+      * the subsystem reaches Partial (not Done, not Failed);
+      * the validated suffix is available via the trusted_keys
+        endpoint.
+
+    No "restore the chunk and re-fetch" step: Partial is terminal."""
+    txs = app.LoggingTxs("user0")
+
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        pdb=args.pdb,
+        txs=txs,
+    ) as network:
+        network.start_and_open(args)
+
+        # S1 is live. Capture an S1-era txid (after the issue) so we
+        # can later prove a receipt for it cannot be served in
+        # Partial mode.
+        network.txs.issue(network, number_txs=2)
+        _, msg = network.txs.get_last_tx(priv=True)
+        s1_era_txid = ccf.tx_id.TxID(msg["view"], msg["seqno"])
+
+        # First recovery -> S2.
+        network = test_recover_service(network, args)
+        # S2 is live: capture its cert and an S2-era txid.
+        primary, _ = network.find_primary()
+        with primary.client() as cli:
+            s2_cert_pem = cli.get("/node/network").body.json()["service_certificate"]
+        network.txs.issue(network, number_txs=2)
+        _, msg = network.txs.get_last_tx(priv=True)
+        s2_era_txid = ccf.tx_id.TxID(msg["view"], msg["seqno"])
+
+        # Second recovery -> S3.
+        network = test_recover_service(network, args)
+        # S3 is live: capture its cert and an S3-era txid.
+        primary, _ = network.find_primary()
+        with primary.client() as cli:
+            s3_cert_pem = cli.get("/node/network").body.json()["service_certificate"]
+        network.txs.issue(network, number_txs=2)
+        _, msg = network.txs.get_last_tx(priv=True)
+        s3_era_txid = ccf.tx_id.TxID(msg["view"], msg["seqno"])
+
+        primary, _ = network.find_primary()
+
+        snapshots_dir = network.get_committed_snapshots(primary)
+        network.save_service_identity(args)
+        network.stop_all_nodes()
+        current_ledger_dir, committed_ledger_dirs = primary.get_ledger()
+
+        # The committed ledger captured before the final recovery
+        # contains 3 endorsement-table writes:
+        #   writes[0]: self-endorsement of S1 (written when S1 first
+        #              opened; no previous service to endorse).
+        #   writes[1]: e_S1 (written by S2's recovery, endorses S1).
+        #   writes[2]: e_S2 (written by S3's recovery, endorses S2).
+        # We move out the chunk containing writes[1] (e_S1's write)
+        # to break the chain walk for S4 at the S1 link: S4's
+        # recovery bootstraps from a snapshot taken later than the
+        # missing chunk and proceeds normally; the chain walk then
+        # successfully fetches e_S2 historically but fails to fetch
+        # e_S1 from the moved chunk and settles in Partial. The
+        # validated suffix is then exactly three trusted keys -- S2
+        # endorsed by e_S2, S3 endorsed by e_S3 (the fresh entry S4
+        # just wrote), and S4 itself -- and a historical receipt for
+        # any S1-era seqno must return an error from the historical
+        # adapter (seqno below the validated suffix).
+        writes = _find_endorsement_write_chunks(committed_ledger_dirs)
+        LOG.info(f"Endorsement-table writes across committed ledger: {writes}")
+        assert len(writes) == 3, (
+            "Expected exactly 3 endorsement writes (self-endorsement "
+            "of S1 + one per recovery across S2, S3) in the committed "
+            f"ledger, got: {writes}"
+        )
+        target_seqno, target_chunk = writes[1]
+        other_writes_in_target_chunk = [
+            seq
+            for seq, chunk in writes
+            if chunk == target_chunk and seq != target_seqno
+        ]
+        assert not other_writes_in_target_chunk, (
+            f"Chunk {target_chunk} contains additional endorsement writes "
+            f"at seqnos {other_writes_in_target_chunk}; the test cannot "
+            "deterministically isolate the chain link to break."
+        )
+
+        backup_dir = tempfile.mkdtemp(prefix="ccf_missing_chunk_")
+        try:
+            moved_chunk_path = os.path.join(backup_dir, os.path.basename(target_chunk))
+            LOG.info(
+                f"Moving chunk {target_chunk} (containing endorsement write at "
+                f"seqno {target_seqno}) to {moved_chunk_path}"
+            )
+            shutil.move(target_chunk, moved_chunk_path)
+
+            # Third recovery (S4) with the missing chunk. The
+            # identity-history retry budget is shrunk so the test does
+            # not have to wait long for the chain walk to exhaust.
+            recovered_network = infra.network.Network(
+                args.nodes,
+                args.binary_dir,
+                args.debug_nodes,
+                existing_network=network,
+                txs=txs,
+            )
+            with infra.network.close_on_error(recovered_network):
+                recovered_network.start_in_recovery(
+                    args,
+                    ledger_dir=current_ledger_dir,
+                    committed_ledger_dirs=committed_ledger_dirs,
+                    snapshots_dir=snapshots_dir,
+                    identity_history_fetch_max_attempts=5,
+                    identity_history_fetch_retry_interval="200ms",
+                )
+                recovered_network.recover(args)
+
+                primary, _ = recovered_network.find_primary()
+
+                # S4 is live. Capture its cert and an S4-era txid for
+                # the receipt assertions below.
+                with primary.client() as cli:
+                    s4_cert_pem = cli.get("/node/network").body.json()[
+                        "service_certificate"
+                    ]
+                recovered_network.txs.issue(recovered_network, number_txs=2)
+                _, msg = recovered_network.txs.get_last_tx(priv=True)
+                s4_era_txid = ccf.tx_id.TxID(msg["view"], msg["seqno"])
+
+                # Poll /log/public/trusted_keys. While the subsystem is in
+                # Retry the endpoint returns 5xx (the underlying
+                # get_trusted_keys() throws IdentityHistoryNotFetched).
+                # Once the bounded retries settle in Partial (a few seconds
+                # under the small test budget), the endpoint returns 200
+                # with whatever validated suffix was built.
+                LOG.info(
+                    "Polling /log/public/trusted_keys until subsystem settles "
+                    "out of Retry"
+                )
+                deadline = time.time() + 30
+                settled_response = None
+                while time.time() < deadline:
+                    with primary.client() as cli:
+                        r = cli.get("/log/public/trusted_keys")
+                    if r.status_code == http.HTTPStatus.OK:
+                        settled_response = r
+                        break
+                    time.sleep(0.5)
+
+                assert settled_response is not None, (
+                    "trusted_keys never returned 200 within 30s; subsystem "
+                    "stayed in Retry beyond the configured retry budget."
+                )
+
+                partial_keys = settled_response.body.json()["keys"]
+                LOG.info(f"trusted_keys count while in Partial: {len(partial_keys)}")
+
+                # Expected validated suffix: S2, S3, S4. S1's key is
+                # NOT reachable because e_S1's ledger chunk was moved
+                # out, so the chain walk fails on the S2 -> S1 hop
+                # and settles in Partial.
+                def kid_for_cert_pem(cert_pem):
+                    cert = load_pem_x509_certificate(
+                        (
+                            cert_pem.encode("ascii")
+                            if isinstance(cert_pem, str)
+                            else cert_pem
+                        ),
+                        default_backend(),
+                    )
+                    pk_der = cert.public_key().public_bytes(
+                        serialization.Encoding.DER,
+                        serialization.PublicFormat.SubjectPublicKeyInfo,
+                    )
+                    return hashlib.sha256(pk_der).hexdigest()
+
+                expected_kids = {
+                    kid_for_cert_pem(s2_cert_pem),
+                    kid_for_cert_pem(s3_cert_pem),
+                    kid_for_cert_pem(s4_cert_pem),
+                }
+                got_kids = {k["kid"] for k in partial_keys}
+                assert got_kids == expected_kids, (
+                    f"trusted_keys mismatch in Partial.\n"
+                    f"  expected (S2 + S3 + S4): "
+                    f"{sorted(expected_kids)}\n"
+                    f"  got: {sorted(got_kids)}"
+                )
+
+                # User-visible Partial-vs-Done discriminator. A
+                # receipt for an S2/S3/S4-era seqno must be served
+                # successfully (the chain reader returns a valid sub-
+                # chain or an empty chain for current-service
+                # seqnos), but a receipt for an S1-era seqno must
+                # fail because the historical adapter cannot
+                # determine the endorsement chain for any seqno below
+                # the validated suffix.
+                def poll_receipt(txid, timeout=10):
+                    deadline = time.time() + timeout
+                    rc = None
+                    while time.time() < deadline:
+                        with primary.client() as cli:
+                            rc = cli.get(f"/node/receipt/cose?transaction_id={txid}")
+                        if rc.status_code != http.HTTPStatus.ACCEPTED:
+                            return rc
+                        time.sleep(0.2)
+                    return rc
+
+                for label, txid in (
+                    ("S2", s2_era_txid),
+                    ("S3", s3_era_txid),
+                    ("S4", s4_era_txid),
+                ):
+                    rc = poll_receipt(txid)
+                    assert rc.status_code == http.HTTPStatus.OK, (
+                        f"Receipt fetch for {label}-era {txid} failed: "
+                        f"{rc.status_code} {rc.body!r}"
+                    )
+                    LOG.info(f"Receipt for {label}-era {txid} -> 200 OK")
+
+                rc_s1 = poll_receipt(s1_era_txid)
+                assert rc_s1.status_code != http.HTTPStatus.OK, (
+                    f"Receipt fetch for S1-era {s1_era_txid} unexpectedly "
+                    f"succeeded; subsystem appears to be in Done, not "
+                    f"Partial. Response: {rc_s1.status_code} {rc_s1.body!r}"
+                )
+                LOG.info(
+                    f"Receipt for S1-era {s1_era_txid} -> {rc_s1.status_code} "
+                    "as expected (seqno below validated suffix)"
+                )
+
+                LOG.success(
+                    "Subsystem settled in Partial with exactly three "
+                    "validated trusted keys (S2 + S3 + S4); receipts "
+                    "serve for S2/S3/S4 seqnos and fail for S1 seqnos; "
+                    "the missing ledger chunk did not block node "
+                    "startup."
+                )
+        finally:
+            shutil.rmtree(backup_dir, ignore_errors=True)
+
+
 if __name__ == "__main__":
 
     def add(parser):
@@ -2158,6 +2434,15 @@ checked. Note that the key for each logging message is unique (per table).
         nodes=infra.e2e_args.min_nodes(cr.args, f=1),
         ledger_chunk_bytes="50MB",
         snapshot_tx_interval=50,
+    )
+
+    cr.add(
+        "recovery_partial_when_ledger_gap",
+        run_recovery_partial_when_ledger_gap,
+        package="samples/apps/logging/logging",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+        ledger_chunk_bytes="50KB",
+        snapshot_tx_interval=30,
     )
 
     cr.run()

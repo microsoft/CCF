@@ -224,7 +224,7 @@ namespace ccf::kv::untyped
     }
 
     // CHAMP maps are unordered, so we cannot early-out when we encounter a
-    // key past the end of the range — there may still be in-range keys later
+    // key past the end of the range - there may still be in-range keys later
     // in the iteration. If the underlying state used an ordered collection,
     // this could be set to false to stop iteration once `to` is exceeded.
     bool continue_past_range_to = true;

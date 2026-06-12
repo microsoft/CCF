@@ -12,6 +12,7 @@
 #include "ds/internal_logger.h"
 
 #include <cstdint>
+#include <openssl/objects.h>
 
 namespace ccf::pal
 {
@@ -19,6 +20,76 @@ namespace ccf::pal
     Unique_SSL_OBJECT<ASN1_OBJECT, ASN1_OBJECT_new, ASN1_OBJECT_free>;
   using Unique_ASN1_INTEGER = ccf::crypto::OpenSSL::
     Unique_SSL_OBJECT<ASN1_INTEGER, ASN1_INTEGER_new, ASN1_INTEGER_free>;
+
+  namespace
+  {
+    std::string x509_name_to_rfc2253_string(X509_NAME* name)
+    {
+      ccf::crypto::OpenSSL::CHECKNULL(name);
+
+      ccf::crypto::OpenSSL::Unique_BIO mem;
+      const auto rc = X509_NAME_print_ex(mem, name, 0, XN_FLAG_RFC2253);
+      if (rc < 0)
+      {
+        const auto ec = ERR_get_error();
+        throw std::runtime_error(fmt::format(
+          "OpenSSL error (rc={}, ec={}): {}",
+          rc,
+          ec,
+          ccf::crypto::OpenSSL::error_string(ec)));
+      }
+
+      BUF_MEM* bptr = nullptr;
+      ccf::crypto::OpenSSL::CHECK1(BIO_get_mem_ptr(mem, &bptr));
+      ccf::crypto::OpenSSL::CHECKNULL(bptr);
+
+      return {bptr->data, bptr->length};
+    }
+
+    std::string signature_algorithm_name(int nid)
+    {
+      const auto* name = OBJ_nid2ln(nid);
+      if (name == nullptr)
+      {
+        return fmt::format("nid {}", nid);
+      }
+      return name;
+    }
+
+    void verify_ark_certificate_matches_pinned_metadata(
+      const crypto::Pem& ark_cert,
+      snp::ProductName product_family,
+      const snp::AmdRootSigningKey& expected_ark)
+    {
+      ccf::crypto::OpenSSL::Unique_BIO mem_bio(ark_cert);
+      ccf::crypto::OpenSSL::Unique_X509 x509(
+        mem_bio, true, true /* check_null */);
+
+      const auto issuer =
+        x509_name_to_rfc2253_string(X509_get_issuer_name(x509));
+      if (issuer != expected_ark.issuer)
+      {
+        throw std::logic_error(fmt::format(
+          "SEV-SNP: The root of trust issuer for this attestation was not "
+          "the expected one for {}: {} != {}",
+          product_family,
+          issuer,
+          expected_ark.issuer));
+      }
+
+      const auto signature_algorithm =
+        signature_algorithm_name(X509_get_signature_nid(x509));
+      if (signature_algorithm != expected_ark.signature_algorithm)
+      {
+        throw std::logic_error(fmt::format(
+          "SEV-SNP: The root of trust signature algorithm for this "
+          "attestation was not the expected one for {}: {} != {}",
+          product_family,
+          signature_algorithm,
+          expected_ark.signature_algorithm));
+      }
+    }
+  }
 
   void verify_virtual_attestation_report(
     const QuoteInfo& quote_info,
@@ -261,17 +332,14 @@ namespace ccf::pal
 
     auto ark_verifier = ccf::crypto::make_verifier(ark_cert);
 
-    std::string expected_ark;
+    auto key = snp::amd_root_signing_keys.find(product_family);
+    if (key == snp::amd_root_signing_keys.end())
     {
-      auto key = snp::amd_root_signing_keys.find(product_family);
-      if (key == snp::amd_root_signing_keys.end())
-      {
-        throw std::logic_error(fmt::format(
-          "SEV-SNP: No known root certificate for {}", product_family));
-      }
-      expected_ark = key->second;
+      throw std::logic_error(fmt::format(
+        "SEV-SNP: No known root certificate for {}", product_family));
     }
-    if (ark_verifier->public_key_pem().str() != expected_ark)
+    const auto& expected_ark = key->second;
+    if (ark_verifier->public_key_pem().str() != expected_ark.public_key)
     {
       throw std::logic_error(fmt::format(
         "SEV-SNP: The root of trust public key for this attestation was not "
@@ -280,8 +348,11 @@ namespace ccf::pal
         quote.cpuid_fam_id,
         quote.cpuid_mod_id,
         ark_verifier->public_key_pem().str(),
-        expected_ark));
+        expected_ark.public_key));
     }
+
+    verify_ark_certificate_matches_pinned_metadata(
+      ark_cert, product_family, expected_ark);
 
     if (!ark_verifier->verify_certificate({&ark_cert}))
     {
