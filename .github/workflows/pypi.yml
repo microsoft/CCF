@@ -32,4 +32,4 @@ jobs:
           python3 -m venv env
           source ./env/bin/activate
           pip install twine
-          twine upload -u __token__ -p ${{ secrets.PYPI_TOKEN }} *.whl
+          twine upload -u __token__ -p ${{ secrets.PYPI_TOKEN }} --skip-existing *.whl
