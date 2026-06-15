@@ -30,7 +30,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Dependencies
 
-- Updated didx509cpp to 0.99.0.
+- Updated didx509cpp to 0.99.0 (#7943).
 
 ## [7.0.4]
 
