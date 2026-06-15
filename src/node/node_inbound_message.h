@@ -8,18 +8,28 @@
 #include "ds/state_machine.h"
 #include "node/node_types.h"
 
+#include <set>
+
 namespace ccf
 {
+  inline bool can_process_node_inbound_message(
+    ::ds::StateMachine<NodeStartupState>& sm)
+  {
+    static const std::set<NodeStartupState> active_states{
+      NodeStartupState::partOfNetwork,
+      NodeStartupState::partOfPublicNetwork,
+      NodeStartupState::readingPrivateLedger};
+
+    return sm.check_one_of(active_states);
+  }
+
   // Reads a serialised node_inbound message and dispatches it to the
-  // appropriate handler, but only once the node is part of the network. This
-  // includes forwarded commands, which must not be executed until the node is
-  // part of the network, as some commands may otherwise exhibit undefined
-  // behaviour.
+  // appropriate handler. Callers must check can_process_node_inbound_message()
+  // before calling this.
   template <typename TForwarder, typename TChannels, typename TConsensus>
   void recv_node_inbound_message(
     const uint8_t* data,
     size_t size,
-    ::ds::StateMachine<NodeStartupState>& sm,
     TForwarder* cmd_forwarder,
     TChannels* n2n_channels,
     TConsensus* consensus)
@@ -29,19 +39,6 @@ namespace ccf
 
     const auto* payload_data = payload.data;
     auto payload_size = payload.size;
-
-    static const std::set<NodeStartupState> active_states{
-      NodeStartupState::partOfNetwork,
-      NodeStartupState::partOfPublicNetwork,
-      NodeStartupState::readingPrivateLedger};
-
-    if (!sm.check_one_of(active_states))
-    {
-      LOG_DEBUG_FMT(
-        "Ignoring node msg received too early - current state is {}",
-        sm.value());
-      return;
-    }
 
     switch (msg_type)
     {
