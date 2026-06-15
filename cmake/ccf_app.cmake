@@ -1,17 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-if(USE_LIBCXX)
-  list(APPEND COMPILE_LIBCXX -stdlib=libc++)
-  list(APPEND LINK_LIBCXX -lc++ -lc++abi -stdlib=libc++)
-
-  if("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
-    add_compile_options(-D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_DEBUG)
-  elseif("${CMAKE_BUILD_TYPE}" STREQUAL "Release")
-    add_compile_options(-D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_FAST)
-  endif()
-endif()
-
 # Enclave library wrapper
 function(add_ccf_app name)
   cmake_parse_arguments(
@@ -52,6 +41,7 @@ function(add_ccf_app name)
   set_property(TARGET ${name} PROPERTY POSITION_INDEPENDENT_CODE ON)
 
   add_san(${name})
+  add_hardening(${name})
   add_tidy(${name})
   enable_coverage(${name})
 
@@ -74,13 +64,12 @@ function(add_ccf_static_library name)
 
   add_library(${name} STATIC ${PARSED_ARGS_SRCS})
 
-  target_link_libraries(${name} PUBLIC ${PARSED_ARGS_LINK_LIBS} ${LINK_LIBCXX})
-
-  target_compile_options(${name} PUBLIC ${COMPILE_LIBCXX})
+  target_link_libraries(${name} PUBLIC ${PARSED_ARGS_LINK_LIBS})
 
   set_property(TARGET ${name} PROPERTY POSITION_INDEPENDENT_CODE ON)
 
   add_san(${name})
+  add_hardening(${name})
   add_tidy(${name})
   add_warning_checks(${name})
 

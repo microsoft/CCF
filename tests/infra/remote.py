@@ -284,7 +284,6 @@ class LocalRemote(CmdMixin):
 
 
 class CCFRemote(object):
-    BIN = "cchost"
     TEMPLATE_CONFIGURATION_FILE = "config.jinja"
     DEPS = []
 
@@ -294,6 +293,7 @@ class CCFRemote(object):
         enclave_file,
         workspace,
         common_dir,
+        binary_name=None,
         label="",
         binary_dir=".",
         local_node_id=None,
@@ -341,6 +341,8 @@ class CCFRemote(object):
         backup_snapshot_fetch_retry_interval=None,
         backup_snapshot_fetch_target_rpc_interface=None,
         backup_snapshot_fetch_max_size=None,
+        identity_history_fetch_max_attempts=None,
+        identity_history_fetch_retry_interval=None,
         host_data_transparent_statement_path=None,
         **kwargs,
     ):
@@ -382,10 +384,12 @@ class CCFRemote(object):
         self.node_address_file = f"{local_node_id}.node_address"
         self.rpc_addresses_file = f"{local_node_id}.rpc_addresses"
 
-        self.BIN = infra.path.build_bin_path(self.BIN, binary_dir=binary_dir)
         # 7.x releases combined binaries and removed the separate cchost entry-point
         if major_version is None or major_version >= 7:
             self.BIN = enclave_file
+        else:
+            assert binary_name, "binary_name must be provided when major_version < 7"
+            self.BIN = infra.path.build_bin_path(binary_name, binary_dir=binary_dir)
 
         self.common_dir = common_dir
         self.pub_host = host.get_primary_interface().public_host
@@ -542,6 +546,8 @@ class CCFRemote(object):
                 backup_snapshot_fetch_target_rpc_interface=backup_snapshot_fetch_target_rpc_interface
                 or infra.interfaces.FILE_SERVING_RPC_INTERFACE,
                 backup_snapshot_fetch_max_size=backup_snapshot_fetch_max_size,
+                identity_history_fetch_max_attempts=identity_history_fetch_max_attempts,
+                identity_history_fetch_retry_interval=identity_history_fetch_retry_interval,
                 host_data_transparent_statement_path=host_data_transparent_statement_path,
                 **kwargs,
             )
@@ -754,11 +760,21 @@ class CCFRemote(object):
     def log_path(self):
         return self.remote.out
 
-    def ledger_paths(self):
-        paths = [os.path.join(self.remote.root, self.ledger_dir_name)]
+    def read_only_ledger_paths(self):
+        paths = []
         for read_only_ledger_dir_name in self.read_only_ledger_dirs_names:
             paths += [os.path.join(self.remote.root, read_only_ledger_dir_name)]
         return [path for path in paths if os.path.exists(path)]
+
+    def current_ledger_path(self):
+        return os.path.join(self.remote.root, self.ledger_dir_name)
+
+    def ledger_paths(self):
+        return [
+            path
+            for path in [self.current_ledger_path(), *self.read_only_ledger_paths()]
+            if os.path.exists(path)
+        ]
 
     def get_logs(self):
         return self.remote.get_logs()

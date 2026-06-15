@@ -211,8 +211,8 @@ namespace ccf::kv::untyped
     // - The constructed range is loop over at the end to call lambda on.
     // Optimisation is possible to only loop over the state/writes once, in
     // order, and call the user lambda on each element in the range directly.
-    // This should include adding an iterator to underlying ordered state
-    // (i.e. rb::Map) to find the start/end of the range using
+    // This should include adding an iterator to the underlying ordered state
+    // to find the start/end of the range using
     // std::lower_bound()/std::upper_bound() and loop over it, interleaves
     // with the local writes.
 
@@ -223,14 +223,11 @@ namespace ccf::kv::untyped
       return;
     }
 
-    // Since entries are ordered in the RB Map, it is OK to early out once we
-    // have passed the end of the range. Otherwise (CHAMP), all entries should
-    // be considered.
-#ifndef KV_STATE_RB
+    // CHAMP maps are unordered, so we cannot early-out when we encounter a
+    // key past the end of the range - there may still be in-range keys later
+    // in the iteration. If the underlying state used an ordered collection,
+    // this could be set to false to stop iteration once `to` is exceeded.
     bool continue_past_range_to = true;
-#else
-    bool continue_past_range_to = false;
-#endif
 
     std::map<KeyType, ValueType> res;
     auto g = [&res, &from, &to, continue_past_range_to](

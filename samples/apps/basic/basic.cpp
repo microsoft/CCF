@@ -126,7 +126,7 @@ namespace basicapp
 
       auto post = [](ccf::endpoints::EndpointContext& ctx) {
         const nlohmann::json body =
-          nlohmann::json::parse(ctx.rpc_ctx->get_request_body());
+          ccf::parse_json_safe(ctx.rpc_ctx->get_request_body());
 
         const auto records = body.get<std::map<std::string, std::string>>();
 

@@ -5,6 +5,73 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [7.0.6]
+
+[7.0.6]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.6
+
+### Fixed
+
+- Forwarded commands are no longer processed until the node is part of the network, matching the existing behaviour for other node-to-node messages. Previously a forwarded command could be executed while the node was in an earlier startup state, which could lead to undefined behaviour for some commands (#7936).
+
+## [7.0.5]
+
+[7.0.5]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.5
+
+### Changed
+
+- The default and minimal sample constitutions reject `set_jwt_issuer` proposals whose `issuer` is not an `https://` URL with no query or fragment. Previously, any string was accepted when `auto_refresh` was `false` (#7924).
+- The default and minimal sample constitutions reject `set_ca_cert_bundle` proposals containing non-CA certificates or intermediate CA certificates; every certificate in the bundle must be a self-signed (root) CA (#7924).
+- The default and minimal sample constitutions validate every JWK in `set_jwt_issuer` and `set_jwt_public_signing_keys` proposals: `n`/`e`/`x`/`y` must be base64url-encoded, `kty` must match the supplied key material, `kid` must be unique within a key set, `use` (if present) must be `"sig"`, and `alg` (if present) must match the key type and curve per RFC 7518 section 3.4 (`RS256` for RSA; `ES256`/`ES384`/`ES512` bound to `P-256`/`P-384`/`P-521`). RSA keys must be at least 2048 bits, and EC coordinates must use the full zero-padded length for their curve (RFC 7518 section 6.2.1.2). P-521 is now an accepted EC curve (#7924).
+- The default and minimal sample constitutions validate that `set_member`'s `encryption_pub_key`, when present, is a well-formed RSA public key (#7924).
+
+### Security
+
+- Host-created files (ledger chunks, snapshots, PID file, and node certificate/key files) are now created with restrictive permissions (`0600`) instead of relying on the process `umask`. Existing deployments will not see existing files affected; only newly created files will have these restricted permissions (#7916).
+
+## [7.0.4]
+
+[7.0.4]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.4
+
+### Added
+
+- Added `verify_uvm_attestation_and_endorsements` as a release artifact alongside the logging sample app (#7920).
+
+### Changed
+
+- JSON parsing can now reject inputs whose object/array nesting depth exceeds a certain value, defaulting to 64 levels and overridable per call site via `ccf::parse_json_safe`'s `max_depth` parameter (#7896).
+- `NetworkIdentitySubsystem` retries when walking the previous-identity endorsement chain are now bounded by a new optional `identity_history_fetch` node startup config (`max_attempts`, `retry_interval`). On exhaustion the subsystem transitions to a new terminal `FetchStatus::Partial`: the validated suffix of the chain is still served, but historical receipts for seqnos below it fail with an error. Both the chain-extension retries and the pre-bootstrap waits (for the node to join the network, for the service-create txid, and for the first endorsement entry) now poll at `retry_interval` (default `100ms`); the pre-bootstrap polling interval was previously hardcoded to `1s` (#7922).
+
+### Deprecated
+
+- Accessing ledger-signature names (table names, exception classes) via `ccf.ledger` now emits a `DeprecationWarning`; import them from `ccf.signatures` instead (#7904).
+
+### Fixed
+
+- `ccf.ledger` `MERKLE` verification level now also verifies COSE-only ledgers (previously a silent no-op) (#7904).
+- Nodes started in recovery or join mode from a snapshot more recent than the latest ledger file now correctly resume writing from the snapshot boundary (#7901).
+
+## [7.0.3]
+
+[7.0.3]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.3
+
+### Added
+
+- Added a `GLIBCXX_DEBUG` CMake option to enable libstdc++ debug mode (`_GLIBCXX_DEBUG`) for CCF and its tests. When set, end-to-end tests run via `ConcurrentRunner` are throttled to fewer parallel suites to compensate for the slower runtime, and the `submit` binary (which links against Arrow) is disabled because Arrow is not built with `_GLIBCXX_DEBUG` (#7850).
+
+### Removed
+
+- The `USE_LIBCXX` CMake option and all associated libc++/libc++abi build and packaging support have been removed. CCF now builds exclusively with libstdc++ (#7850).
+
+### Changed
+
+- Upgraded QuickJS from 2024-01-13 to 2025-09-13 (#7849).
+- On a joiner's first attempt, the primary now requires the joiner's startup seqno to be at least as recent as the primary's latest committed snapshot on disk, preventing snapshot-less joiners from replaying the entire ledger (#7844).
+
+### Fixed
+
+- `ledger_viz` and `split_ledger` now recognise signature transactions in COSE-only signed ledgers (recorded in `public:ccf.internal.cose_signatures`) (#7868).
+- Fix early exit of /log/public/historical/range when there are empty pages (#7869).
+
 ## [7.0.2]
 
 [7.0.2]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.2

@@ -152,7 +152,7 @@ def test_redirects_with_static_name_config(network, args):
     original, _ = network.find_primary()
 
     new_node = network.create_node(host_spec)
-    network.join_node(new_node, args.package, args)
+    network.join_node(new_node, args.package, args, from_snapshot=False)
     network.trust_node(new_node, args)
 
     req = {"id": 42, "msg": msg}
@@ -172,7 +172,7 @@ def test_redirects_with_static_name_config(network, args):
     LOG.info("Add 2 more nodes with static address redirect config")
     for _ in range(2):
         other_node = network.create_node(host_spec)
-        network.join_node(other_node, args.package, args)
+        network.join_node(other_node, args.package, args, from_snapshot=False)
         network.trust_node(other_node, args)
 
     LOG.info(

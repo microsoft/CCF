@@ -24,7 +24,7 @@ function(add_e2e_test)
     PARSE_ARGV 0
     PARSED_ARGS
     ""
-    "NAME;PYTHON_SCRIPT;LABEL;CURL_CLIENT"
+    "NAME;PYTHON_SCRIPT;LABEL;CURL_CLIENT;BUCKET"
     "CONSTITUTION;ADDITIONAL_ARGS;CONFIGURATIONS"
   )
 endfunction()
@@ -65,6 +65,9 @@ function(add_warning_checks name)
 endfunction()
 
 function(add_san name)
+endfunction()
+
+function(add_hardening name)
 endfunction()
 
 function(add_tidy name)

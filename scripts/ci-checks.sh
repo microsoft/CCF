@@ -40,6 +40,7 @@ CHECKS=(
   "TODOs:todo-checks.sh"
   "Includes:includes-checks.sh"
   "Release notes:release-notes-checks.sh"
+  "Non-ASCII characters:ascii-checks.sh"
   "C/C++ format:cpp-format-checks.sh"
   "TypeScript, JavaScript, Markdown, TypeSpec, YAML and JSON format:prettier-checks.sh"
   "OpenAPI:openapi-checks.sh"
@@ -48,6 +49,7 @@ CHECKS=(
   "Python format:python-format-checks.sh"
   "Python lint:python-lint-checks.sh"
   "Python types:python-types-checks.sh"
+  "CI test buckets:test-buckets-checks.sh"
 )
 
 declare -A PID_TO_IDX

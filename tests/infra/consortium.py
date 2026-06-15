@@ -272,7 +272,7 @@ class Consortium:
         )
 
     def vote_using_majority(
-        self, remote_node, proposal, ballot, wait_for_commit=True, timeout=5
+        self, remote_node, proposal, ballot, wait_for_commit=True, timeout=10
     ):
         response = None
 
@@ -351,6 +351,25 @@ class Consortium:
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         self.vote_using_majority(remote_node, proposal, careful_vote)
         return pending
+
+    def retire_node_by_id(self, remote_node, node_id):
+        """
+        Submit a remove_node governance proposal for a node identified only
+        by its id. Used when we have no Node object -- e.g. a synthetic
+        identity introduced via Network.fake_join that has no managed
+        process and was never added to Network.nodes.
+
+        Skips the PENDING-status probe and the post-acceptance
+        removable_nodes / Network.nodes bookkeeping that retire_node does:
+        for a node that never started, those steps are unnecessary.
+        """
+        LOG.info(f"Retiring node by id {node_id}")
+        proposal_body, careful_vote = self.make_proposal(
+            "remove_node",
+            node_id=node_id,
+        )
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
+        self.vote_using_majority(remote_node, proposal, careful_vote)
 
     def trust_nodes(
         self,

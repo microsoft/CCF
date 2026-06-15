@@ -511,7 +511,10 @@ namespace ccf::crypto
 
     // As per https://www.openssl.org/docs/man1.0.2/man3/BN_num_bytes.html, size
     // should not be calculated with BN_num_bytes(d)!
-    size_t size = EVP_PKEY_bits(key) / CHAR_BIT;
+    // Use ceiling division so curves whose bit-size is not a multiple of 8
+    // (e.g. P-521 with 521 bits) get the full 66-byte buffer rather than a
+    // truncated 65-byte one.
+    size_t size = (EVP_PKEY_bits(key) + CHAR_BIT - 1) / CHAR_BIT;
     std::vector<uint8_t> bytes(size);
     Unique_BIGNUM d;
     BIGNUM* bn_d = nullptr;

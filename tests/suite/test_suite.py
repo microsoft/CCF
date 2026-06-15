@@ -61,6 +61,7 @@ suite_reconfiguration = [
     reconfiguration.test_retire_primary,
     e2e_logging.test_rekey,
     reconfiguration.test_add_node,
+    reconfiguration.test_add_node_with_corrupted_ledger,
     nodes.test_kill_primary,
     nodes.test_commit_view_history,
     reconfiguration.test_add_node,

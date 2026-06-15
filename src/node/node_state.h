@@ -41,6 +41,7 @@
 #include "node/ledger_secret.h"
 #include "node/ledger_secrets.h"
 #include "node/local_sealing.h"
+#include "node/node_inbound_message.h"
 #include "node/node_to_node_channel_manager.h"
 #include "node/recovery_decision_protocol.h"
 #include "node/signature_cache_subsystem.h"
@@ -476,6 +477,9 @@ namespace ccf
     ccf::tasks::Task snapshot_fetch_task;
     ccf::tasks::Task backup_snapshot_fetch_task;
 
+    // Number of times we have fetched the latest snapshot from the primary
+    size_t join_fetch_count = 0;
+
     std::shared_ptr<ccf::kv::AbstractTxEncryptor> make_encryptor()
     {
 #ifdef USE_NULL_ENCRYPTOR
@@ -569,6 +573,13 @@ namespace ccf
       startup_seqno = startup_snapshot_info->seqno;
       last_recovered_idx = startup_seqno;
       last_recovered_signed_idx = last_recovered_idx;
+
+      if (start_type == StartType::Join)
+      {
+        // after fetching a snapshot, subsequent requests should use the
+        // required bound instead of the preferred bound
+        join_fetch_count += 1;
+      }
 
       if (start_type == StartType::Recover)
       {
@@ -827,7 +838,7 @@ namespace ccf
               const auto raw_data = ccf::crypto::raw_from_b64(
                 config.attestation.environment.snp_endorsements.value());
 
-              const auto j = nlohmann::json::parse(raw_data);
+              const auto j = ccf::parse_json_safe(raw_data);
               const auto aci_endorsements =
                 j.get<ccf::pal::snp::ACIReportEndorsements>();
 
@@ -1077,8 +1088,16 @@ namespace ccf
 
             try
             {
-              auto j = nlohmann::json::parse(data);
+              auto j = ccf::parse_json_safe(data);
               error_response = j.get<ccf::ODataErrorResponse>();
+            }
+            catch (const ccf::JsonParseError& e)
+            {
+              LOG_FAIL_FMT(
+                "Join request returned {}, body exceeds permitted JSON nesting "
+                "depth: {}",
+                status,
+                e.what());
             }
             catch (const nlohmann::json::exception& e)
             {
@@ -1162,7 +1181,7 @@ namespace ccf
           JoinNetworkNodeToNode::Out resp;
           try
           {
-            auto j = nlohmann::json::parse(data);
+            auto j = ccf::parse_json_safe(data);
             resp = j.get<JoinNetworkNodeToNode::Out>();
           }
           catch (const std::exception& e)
@@ -1317,6 +1336,14 @@ namespace ccf
       join_params.public_encryption_key = node_encrypt_kp->public_key_pem();
       join_params.quote_info = quote_info;
       join_params.startup_seqno = startup_seqno;
+      if (config.join.fetch_recent_snapshot)
+      {
+        join_params.join_fetch_count = join_fetch_count;
+      }
+      else
+      {
+        join_params.join_fetch_count = 1;
+      }
       join_params.certificate_signing_request = node_sign_kp->create_csr(
         config.node_certificate.subject_name, subject_alt_names);
       join_params.node_data = config.node_data;
@@ -2228,57 +2255,13 @@ namespace ccf
 
     void recv_node_inbound(const uint8_t* data, size_t size)
     {
-      auto [msg_type, from, payload] =
-        ringbuffer::read_message<node_inbound>(data, size);
-
-      const auto* payload_data = payload.data;
-      auto payload_size = payload.size;
-
-      if (msg_type == NodeMsgType::forwarded_msg)
-      {
-        cmd_forwarder->recv_message(from, payload_data, payload_size);
-      }
-      else
-      {
-        // Only process messages once part of network
-        if (
-          !sm.check(NodeStartupState::partOfNetwork) &&
-          !sm.check(NodeStartupState::partOfPublicNetwork) &&
-          !sm.check(NodeStartupState::readingPrivateLedger))
-        {
-          LOG_DEBUG_FMT(
-            "Ignoring node msg received too early - current state is {}",
-            sm.value());
-          return;
-        }
-
-        switch (msg_type)
-        {
-          case forwarded_msg:
-          {
-            LOG_FAIL_FMT("Unexpected forwarded_msg in recv_node_inbound");
-            return;
-          }
-          case channel_msg:
-          {
-            n2n_channels->recv_channel_message(
-              from, payload_data, payload_size);
-            return;
-          }
-
-          case consensus_msg:
-          {
-            consensus->recv_message(from, payload_data, payload_size);
-            return;
-          }
-          default:
-          {
-            throw std::logic_error(fmt::format(
-              "Unknown node message type: {}",
-              static_cast<uint32_t>(msg_type)));
-          }
-        }
-      }
+      recv_node_inbound_message(
+        data,
+        size,
+        sm,
+        cmd_forwarder.get(),
+        n2n_channels.get(),
+        consensus.get());
     }
 
     //
@@ -2611,7 +2594,7 @@ namespace ccf
         return false;
       }
 
-      const auto body = nlohmann::json::parse(raw_body);
+      const auto body = ccf::parse_json_safe(raw_body);
       if (!body.is_boolean())
       {
         LOG_FAIL_FMT("Expected boolean body in create response");

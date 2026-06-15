@@ -266,7 +266,13 @@ def test_new_joiner_helps_liveness(network, args):
     with contextlib.ExitStack() as stack:
         # Add a new node, but partition them before trusting them
         new_node = network.create_node()
-        network.join_node(new_node, args.package, args, from_snapshot=False)
+        network.join_node(
+            new_node,
+            args.package,
+            args,
+            from_snapshot=False,
+            fetch_recent_snapshot=True,
+        )
         new_joiner_partition = [new_node]
         new_joiner_rules = stack.enter_context(
             network.partitioner.partition([primary, *backups], new_joiner_partition)
@@ -1099,7 +1105,7 @@ def run_ledger_chunk_bytes_check(const_args):
             c.wait_for_commit(r)
 
         # This explicitly checks that ledger chunks match on each node, which is the critical property
-        network.stop_all_nodes(accept_ledger_diff=False)
+        network.stop_all_nodes(check_file_invariants=True)
 
         # Confirm that at least one ledger chunk of each expected size was produced
         current, committeds = primary.get_ledger()

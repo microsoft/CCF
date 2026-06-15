@@ -25,7 +25,7 @@ def test_forward_larger_than_default_requests(network, args):
             }
         )
     )
-    network.join_node(new_node, args.package, args)
+    network.join_node(new_node, args.package, args, from_snapshot=False)
     network.trust_node(new_node, args)
 
     primary, _ = network.find_primary()

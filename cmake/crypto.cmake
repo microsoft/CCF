@@ -35,9 +35,8 @@ find_library(TLS_LIBRARY ssl)
 
 add_library(ccfcrypto STATIC ${CCFCRYPTO_SRC})
 add_san(ccfcrypto)
+add_hardening(ccfcrypto)
 add_tidy(ccfcrypto)
-target_compile_options(ccfcrypto PUBLIC ${COMPILE_LIBCXX})
-target_link_options(ccfcrypto PUBLIC ${LINK_LIBCXX})
 
 target_link_libraries(ccfcrypto PUBLIC crypto ssl evercbor)
 target_link_libraries(

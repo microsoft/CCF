@@ -12,6 +12,7 @@
 #include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/crypto/sha256.h"
 #include "ccf/crypto/verifier.h"
+#include "ccf/ds/json.h"
 #include "ccf/js/core/context.h"
 #include "ds/internal_logger.h"
 #include "js/checks.h"
@@ -153,10 +154,15 @@ namespace ccf::js::extensions
       {
         cid = ccf::crypto::CurveID::SECP384R1;
       }
+      else if (curve == "secp521r1")
+      {
+        cid = ccf::crypto::CurveID::SECP521R1;
+      }
       else
       {
         return JS_ThrowRangeError(
-          ctx, "Unsupported curve id, supported: secp256r1, secp384r1");
+          ctx,
+          "Unsupported curve id, supported: secp256r1, secp384r1, secp521r1");
       }
 
       try
@@ -391,6 +397,69 @@ namespace ccf::js::extensions
       return ccf::js::core::constants::True;
     }
 
+    JSValue js_is_valid_x509_root_ca_cert(
+      JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+    {
+      // Returns true iff the argument is a single, self-signed CA certificate.
+      // Unlike isValidX509CertChain, this rejects intermediate CAs: a cert must
+      // be self-signed (EXFLAG_SS) as well as passing X509_check_ca.
+      if (argc != 1)
+      {
+        return JS_ThrowTypeError(
+          ctx, "Passed %d arguments, but expected 1", argc);
+      }
+
+      js::core::Context& jsctx =
+        *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
+
+      auto pem_str = jsctx.to_str(argv[0]);
+      if (!pem_str)
+      {
+        return ccf::js::core::constants::Exception;
+      }
+
+      try
+      {
+        auto certs = ccf::crypto::split_x509_cert_bundle(*pem_str);
+        if (certs.size() != 1)
+        {
+          throw std::runtime_error(
+            "expected exactly one certificate, got " +
+            std::to_string(certs.size()));
+        }
+
+        auto verifier = ccf::crypto::make_unique_verifier(certs[0]);
+
+        // Reject intermediate CAs: the cert must be self-signed.
+        if (!verifier->is_self_signed())
+        {
+          return ccf::js::core::constants::False;
+        }
+
+        // Confirm it is a CA by verifying it against itself; verify_certificate
+        // runs X509_check_ca on each trusted cert and rejects non-CA certs.
+        const ccf::crypto::Pem* pem_ptr = certs.data();
+        std::vector<const ccf::crypto::Pem*> trusted = {pem_ptr};
+        std::vector<const ccf::crypto::Pem*> chain = {};
+        if (!verifier->verify_certificate(trusted, chain))
+        {
+          return ccf::js::core::constants::False;
+        }
+      }
+      catch (const std::runtime_error& e)
+      {
+        LOG_DEBUG_FMT("isValidX509RootCACert: {}", e.what());
+        return ccf::js::core::constants::False;
+      }
+      catch (const std::logic_error& e)
+      {
+        return JS_ThrowInternalError(
+          ctx, "isValidX509RootCACert failed: %s", e.what());
+      }
+
+      return ccf::js::core::constants::True;
+    }
+
     template <typename T>
     JSValue js_pem_to_jwk(
       JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
@@ -502,7 +571,7 @@ namespace ccf::js::extensions
 
       try
       {
-        T jwk = nlohmann::json::parse(jwk_str.value());
+        T jwk = ccf::parse_json_safe(jwk_str.value());
 
         if constexpr (std::is_same_v<T, ccf::crypto::JsonWebKeyECPublic>)
         {
@@ -1213,6 +1282,10 @@ namespace ccf::js::extensions
       "isValidX509CertChain",
       ctx.new_c_function(
         js_is_valid_x509_cert_chain, "isValidX509CertChain", 2)));
+    JS_CHECK_OR_THROW(crypto.set(
+      "isValidX509RootCACert",
+      ctx.new_c_function(
+        js_is_valid_x509_root_ca_cert, "isValidX509RootCACert", 1)));
 
     auto ccf = ctx.get_or_create_global_property("ccf", ctx.new_obj());
     JS_CHECK_OR_THROW(ccf.set("crypto", std::move(crypto)));
