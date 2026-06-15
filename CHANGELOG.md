@@ -28,6 +28,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Host-created files (ledger chunks, snapshots, PID file, and node certificate/key files) are now created with restrictive permissions (`0600`) instead of relying on the process `umask`. Existing deployments will not see existing files affected; only newly created files will have these restricted permissions (#7916).
 
+### Dependencies
+
+- Updated didx509cpp to 0.99.0.
+
 ## [7.0.4]
 
 [7.0.4]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.4
