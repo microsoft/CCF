@@ -58,10 +58,6 @@ namespace ccf
       ccf::crypto::Sha256Hash snapshot_digest;
       std::vector<uint8_t> serialised_snapshot;
 
-      // Prevents the receipt from being passed to the host (on commit) in case
-      // host has not yet allocated memory for the snapshot.
-      bool is_stored = false;
-
       std::optional<::consensus::Index> evidence_idx = std::nullopt;
 
       std::optional<std::vector<uint8_t>> cose_sig = std::nullopt;
@@ -147,15 +143,19 @@ namespace ccf
 
     void commit_snapshot(
       ::consensus::Index snapshot_idx,
+      ::consensus::Index evidence_idx,
+      const std::vector<uint8_t>& serialised_snapshot,
       const std::vector<uint8_t>& serialised_receipt)
     {
-      // The snapshot_idx is used to retrieve the correct snapshot file
-      // previously generated.
+      // The snapshot bytes and receipt are passed to the host together, to be
+      // written out to a single snapshot file.
       auto to_host = writer_factory.create_writer_to_outside();
       RINGBUFFER_WRITE_MESSAGE(
         ::consensus::snapshot_commit,
         to_host,
         snapshot_idx,
+        evidence_idx,
+        serialised_snapshot,
         serialised_receipt);
     }
 
@@ -266,17 +266,8 @@ namespace ccf
           std::move(serialised_snapshot);
       }
 
-      auto to_host = writer_factory.create_writer_to_outside();
-      RINGBUFFER_WRITE_MESSAGE(
-        ::consensus::snapshot_allocate,
-        to_host,
-        snapshot_version,
-        evidence_version,
-        serialised_snapshot_size,
-        generation_count);
-
       LOG_DEBUG_FMT(
-        "Request to allocate snapshot [{} bytes] for seqno {}, with evidence "
+        "Generated snapshot [{} bytes] for seqno {}, with evidence "
         "seqno {}: {}, ws digest: {}",
         serialised_snapshot_size,
         snapshot_version,
@@ -317,7 +308,7 @@ namespace ccf
         auto& snapshot_info = it->second;
 
         if (
-          snapshot_info.is_stored && snapshot_info.evidence_idx.has_value() &&
+          snapshot_info.evidence_idx.has_value() &&
           idx > snapshot_info.evidence_idx.value() &&
           snapshot_info.cose_sig.has_value() && snapshot_info.tree.has_value())
         {
@@ -329,7 +320,11 @@ namespace ccf
             snapshot_info.commit_evidence,
             std::move(snapshot_info.snapshot_digest));
 
-          commit_snapshot(snapshot_info.version, serialised_receipt);
+          commit_snapshot(
+            snapshot_info.version,
+            snapshot_info.evidence_idx.value(),
+            snapshot_info.serialised_snapshot,
+            serialised_receipt);
           it = pending_snapshots.erase(it);
         }
         else
@@ -383,50 +378,6 @@ namespace ccf
 
       next_snapshot_indices.clear();
       next_snapshot_indices.push_back({last_snapshot_idx, false, true});
-    }
-
-    bool write_snapshot(
-      std::span<uint8_t> snapshot_buf, uint32_t generation_count)
-    {
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
-
-      auto search = pending_snapshots.find(generation_count);
-      if (search == pending_snapshots.end())
-      {
-        LOG_FAIL_FMT(
-          "Could not find pending snapshot to write for generation count {}",
-          generation_count);
-        return false;
-      }
-
-      auto& pending_snapshot = search->second;
-      if (snapshot_buf.size() != pending_snapshot.serialised_snapshot.size())
-      {
-        // Unreliable host: allocated snapshot buffer is not of expected
-        // size. The pending snapshot is discarded to reduce enclave memory
-        // usage.
-        LOG_FAIL_FMT(
-          "Host allocated snapshot buffer [{} bytes] is not of expected "
-          "size [{} bytes]. Discarding snapshot for seqno {}",
-          snapshot_buf.size(),
-          pending_snapshot.serialised_snapshot.size(),
-          pending_snapshot.version);
-        pending_snapshots.erase(search);
-        return false;
-      }
-
-      std::copy(
-        pending_snapshot.serialised_snapshot.begin(),
-        pending_snapshot.serialised_snapshot.end(),
-        snapshot_buf.begin());
-      pending_snapshot.is_stored = true;
-
-      LOG_DEBUG_FMT(
-        "Successfully copied snapshot at seqno {} to host memory [{} "
-        "bytes]",
-        pending_snapshot.version,
-        pending_snapshot.serialised_snapshot.size());
-      return true;
     }
 
     bool should_schedule_snapshot_unsafe(::consensus::Index threshold_idx)

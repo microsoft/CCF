@@ -37,7 +37,6 @@ auto read_ringbuffer_out(ringbuffer::Circuit& circuit)
     -1, [&idx](ringbuffer::Message m, const uint8_t* data, size_t size) {
       switch (m)
       {
-        case ::consensus::snapshot_allocate:
         case ::consensus::snapshot_commit:
         {
           auto idx_ = serialized::read<::consensus::Index>(data, size);
@@ -54,29 +53,24 @@ auto read_ringbuffer_out(ringbuffer::Circuit& circuit)
   return idx;
 }
 
-auto read_snapshot_allocate_out(ringbuffer::Circuit& circuit)
+auto read_snapshot_commit_out(ringbuffer::Circuit& circuit)
 {
-  std::optional<std::tuple<::consensus::Index, size_t, uint32_t>>
-    snapshot_allocate_out = std::nullopt;
+  std::optional<std::tuple<
+    ::consensus::Index,
+    ::consensus::Index,
+    std::vector<uint8_t>,
+    std::vector<uint8_t>>>
+    snapshot_commit_out = std::nullopt;
   circuit.read_from_inside().read(
     -1,
-    [&snapshot_allocate_out](
+    [&snapshot_commit_out](
       ringbuffer::Message m, const uint8_t* data, size_t size) {
       switch (m)
       {
-        case ::consensus::snapshot_allocate:
-        {
-          auto idx = serialized::read<::consensus::Index>(data, size);
-          serialized::read<::consensus::Index>(data, size);
-          auto requested_size = serialized::read<size_t>(data, size);
-          auto generation_count = serialized::read<uint32_t>(data, size);
-
-          snapshot_allocate_out = {idx, requested_size, generation_count};
-          break;
-        }
         case ::consensus::snapshot_commit:
         {
-          REQUIRE(false);
+          snapshot_commit_out =
+            ringbuffer::read_message<::consensus::snapshot_commit>(data, size);
           break;
         }
         default:
@@ -86,7 +80,7 @@ auto read_snapshot_allocate_out(ringbuffer::Circuit& circuit)
       }
     });
 
-  return snapshot_allocate_out;
+  return snapshot_commit_out;
 }
 
 void issue_transactions(ccf::NetworkState& network, size_t tx_count)
@@ -185,42 +179,6 @@ TEST_CASE("Regular snapshotting")
     REQUIRE(read_ringbuffer_out(eio) == std::nullopt);
   }
 
-  INFO("Malicious host");
-  {
-    REQUIRE(record_signature(history, snapshotter, snapshot_idx));
-
-    // Note: even if commit_idx > snapshot_tx_interval, the snapshot is
-    // generated at snapshot_idx
-    commit_idx = snapshot_idx + 1;
-    snapshotter->commit(commit_idx, true);
-
-    run_one_task();
-    REQUIRE(read_latest_snapshot_evidence(network.tables) == snapshot_idx);
-    auto snapshot_allocate_msg = read_snapshot_allocate_out(eio);
-    REQUIRE(snapshot_allocate_msg.has_value());
-    auto [snapshot_idx, snapshot_size, snapshot_count] =
-      snapshot_allocate_msg.value();
-
-    // Incorrect generation count
-    {
-      auto snapshot = std::vector<uint8_t>(snapshot_size);
-      REQUIRE_FALSE(snapshotter->write_snapshot(snapshot, snapshot_count + 1));
-    }
-
-    // Incorrect size
-    {
-      auto snapshot = std::vector<uint8_t>(snapshot_size + 1);
-      REQUIRE_FALSE(snapshotter->write_snapshot(snapshot, snapshot_count));
-    }
-
-    // Even if snapshot is now valid, pending snapshot was previously
-    // discarded because of incorrect size
-    {
-      auto snapshot = std::vector<uint8_t>(snapshot_size);
-      REQUIRE_FALSE(snapshotter->write_snapshot(snapshot, snapshot_count));
-    }
-  }
-
   INFO("Generate first snapshot");
   {
     issue_transactions(network, snapshot_tx_interval);
@@ -233,29 +191,18 @@ TEST_CASE("Regular snapshotting")
     snapshotter->commit(commit_idx, true);
 
     run_one_task();
+    // Snapshot evidence is committed to the KV, but the snapshot is not
+    // released to the host until its evidence is globally committed
     REQUIRE(read_latest_snapshot_evidence(network.tables) == snapshot_idx);
-    auto snapshot_allocate_msg = read_snapshot_allocate_out(eio);
-    REQUIRE(snapshot_allocate_msg.has_value());
-    auto [snapshot_idx, snapshot_size, snapshot_count] =
-      snapshot_allocate_msg.value();
-
-    // Commit before snapshot is stored has no effect
-    issue_transactions(network, 1);
-    record_snapshot_evidence(snapshotter, snapshot_idx, snapshot_evidence_idx);
-    commit_idx = snapshot_idx + 2;
-    REQUIRE_FALSE(record_signature(history, snapshotter, commit_idx));
-    snapshotter->commit(commit_idx, true);
     REQUIRE(read_ringbuffer_out(eio) == std::nullopt);
-
-    // Correct size
-    auto snapshot = std::vector<uint8_t>(snapshot_size, 0x00);
-    REQUIRE(snapshotter->write_snapshot(snapshot, snapshot_count));
-    // Snapshot is successfully populated
-    REQUIRE(snapshot != std::vector<uint8_t>(snapshot_size, 0x00));
   }
 
   INFO("Commit first snapshot");
   {
+    issue_transactions(network, 1);
+    record_snapshot_evidence(snapshotter, snapshot_idx, snapshot_evidence_idx);
+    commit_idx = snapshot_idx + 2;
+    REQUIRE_FALSE(record_signature(history, snapshotter, commit_idx));
     snapshotter->commit(commit_idx, true);
     REQUIRE(
       read_ringbuffer_out(eio) ==
@@ -283,12 +230,7 @@ TEST_CASE("Regular snapshotting")
 
     run_one_task();
     REQUIRE(read_latest_snapshot_evidence(network.tables) == snapshot_idx);
-    auto snapshot_allocate_msg = read_snapshot_allocate_out(eio);
-    REQUIRE(snapshot_allocate_msg.has_value());
-    auto [snapshot_idx, snapshot_size, snapshot_count] =
-      snapshot_allocate_msg.value();
-    auto snapshot = std::vector<uint8_t>(snapshot_size);
-    REQUIRE(snapshotter->write_snapshot(snapshot, snapshot_count));
+    REQUIRE(read_ringbuffer_out(eio) == std::nullopt);
   }
 
   INFO("Commit second snapshot");
@@ -342,13 +284,7 @@ TEST_CASE("Rollback before snapshot is committed")
 
     run_one_task();
     REQUIRE(read_latest_snapshot_evidence(network.tables) == snapshot_idx);
-
-    auto snapshot_allocate_msg = read_snapshot_allocate_out(eio);
-    REQUIRE(snapshot_allocate_msg.has_value());
-    auto [snapshot_idx, snapshot_size, snapshot_count] =
-      snapshot_allocate_msg.value();
-    auto snapshot = std::vector<uint8_t>(snapshot_size);
-    REQUIRE(snapshotter->write_snapshot(snapshot, snapshot_count));
+    REQUIRE(read_ringbuffer_out(eio) == std::nullopt);
   }
 
   INFO("Rollback evidence and commit past it");
@@ -377,13 +313,7 @@ TEST_CASE("Rollback before snapshot is committed")
 
     run_one_task();
     REQUIRE(read_latest_snapshot_evidence(network.tables) == snapshot_idx);
-    auto snapshot_allocate_msg = read_snapshot_allocate_out(eio);
-    REQUIRE(snapshot_allocate_msg.has_value());
-    auto [snapshot_idx_, snapshot_size, snapshot_count] =
-      snapshot_allocate_msg.value();
-    REQUIRE(snapshot_idx == snapshot_idx_);
-    auto snapshot = std::vector<uint8_t>(snapshot_size);
-    REQUIRE(snapshotter->write_snapshot(snapshot, snapshot_count));
+    REQUIRE(read_ringbuffer_out(eio) == std::nullopt);
 
     // Commit evidence
     issue_transactions(network, 1);
@@ -408,13 +338,7 @@ TEST_CASE("Rollback before snapshot is committed")
 
     run_one_task();
     REQUIRE(read_latest_snapshot_evidence(network.tables) == snapshot_idx);
-    auto snapshot_allocate_msg = read_snapshot_allocate_out(eio);
-    REQUIRE(snapshot_allocate_msg.has_value());
-    auto [snapshot_idx_, snapshot_size, snapshot_count] =
-      snapshot_allocate_msg.value();
-    REQUIRE(snapshot_idx == snapshot_idx_);
-    auto snapshot = std::vector<uint8_t>(snapshot_size);
-    REQUIRE(snapshotter->write_snapshot(snapshot, snapshot_count));
+    REQUIRE(read_ringbuffer_out(eio) == std::nullopt);
 
     REQUIRE(!network.tables->flag_enabled(
       ccf::kv::AbstractStore::StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE));
@@ -492,10 +416,10 @@ TEST_CASE("Snapshot status updates preserve future queued snapshot")
   snapshotter->commit(2 * snapshot_tx_interval, true);
   run_one_task();
 
-  auto snapshot_allocate_msg = read_snapshot_allocate_out(eio);
-  REQUIRE(snapshot_allocate_msg.has_value());
-  const auto snapshot_idx = std::get<0>(snapshot_allocate_msg.value());
-  REQUIRE(snapshot_idx == 2 * snapshot_tx_interval);
+  // The snapshot was generated at the expected idx, as confirmed by the
+  // snapshot evidence recorded in the KV store.
+  REQUIRE(
+    read_latest_snapshot_evidence(network.tables) == 2 * snapshot_tx_interval);
 }
 
 TEST_CASE("Snapshot status restore uses persisted timestamp baseline")
@@ -601,13 +525,20 @@ TEST_CASE("Rekey ledger while snapshot is in progress")
   {
     run_one_task();
     REQUIRE(read_latest_snapshot_evidence(network.tables) == snapshot_idx);
-    auto snapshot_allocate_msg = read_snapshot_allocate_out(eio);
-    REQUIRE(snapshot_allocate_msg.has_value());
-    auto [snapshot_idx_, snapshot_size, snapshot_count] =
-      snapshot_allocate_msg.value();
-    REQUIRE(snapshot_idx == snapshot_idx_);
-    auto snapshot = std::vector<uint8_t>(snapshot_size);
-    REQUIRE(snapshotter->write_snapshot(snapshot, snapshot_count));
+
+    // Globally commit the snapshot evidence so that the snapshot is released
+    // to the host, carrying the serialised snapshot bytes.
+    issue_transactions(network, 1);
+    record_snapshot_evidence(snapshotter, snapshot_idx, snapshot_idx + 1);
+    auto commit_idx = snapshot_idx + 2;
+    REQUIRE_FALSE(record_signature(history, snapshotter, commit_idx));
+    snapshotter->commit(commit_idx, true);
+
+    auto snapshot_commit_msg = read_snapshot_commit_out(eio);
+    REQUIRE(snapshot_commit_msg.has_value());
+    const auto& [committed_idx, evidence_idx, snapshot, receipt] =
+      snapshot_commit_msg.value();
+    REQUIRE(committed_idx == snapshot_idx);
 
     // Snapshot can be deserialised to backup store
     ccf::NetworkState backup_network;

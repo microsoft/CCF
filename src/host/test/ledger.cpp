@@ -1612,13 +1612,6 @@ TEST_CASE("Generate and commit snapshots" * doctest::test_suite("snapshot"))
 
   INFO("Generate snapshots");
   {
-    for (size_t i = 1; i < snapshot_interval * snapshot_count;
-         i += snapshot_interval)
-    {
-      // Note: Evidence is assumed to be at snapshot idx + 1
-      snapshots.add_pending_snapshot(i, i + 1, dummy_snapshot.size());
-    }
-
     REQUIRE_FALSE(snapshots.find_latest_committed_snapshot().has_value());
   }
 
@@ -1628,7 +1621,13 @@ TEST_CASE("Generate and commit snapshots" * doctest::test_suite("snapshot"))
          i += snapshot_interval)
     {
       // Note: Evidence is assumed to be at snapshot idx + 1
-      snapshots.commit_snapshot(i, dummy_receipt.data(), dummy_receipt.size());
+      snapshots.commit_snapshot(
+        i,
+        i + 1,
+        dummy_snapshot.data(),
+        dummy_snapshot.size(),
+        dummy_receipt.data(),
+        dummy_receipt.size());
 
       auto latest_committed_snapshot =
         snapshots.find_latest_committed_snapshot();
@@ -1661,10 +1660,13 @@ TEST_CASE("Generate and commit snapshots" * doctest::test_suite("snapshot"))
   INFO("Commit and retrieve new snapshot");
   {
     size_t new_snapshot_idx = last_snapshot_idx + 1;
-    snapshots.add_pending_snapshot(
-      new_snapshot_idx, new_snapshot_idx + 1, dummy_snapshot.size());
     snapshots.commit_snapshot(
-      new_snapshot_idx, dummy_receipt.data(), dummy_receipt.size());
+      new_snapshot_idx,
+      new_snapshot_idx + 1,
+      dummy_snapshot.data(),
+      dummy_snapshot.size(),
+      dummy_receipt.data(),
+      dummy_receipt.size());
 
     auto latest_committed_snapshot = snapshots.find_latest_committed_snapshot();
     REQUIRE(latest_committed_snapshot.has_value());
