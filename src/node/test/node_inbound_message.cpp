@@ -54,7 +54,7 @@ namespace
 }
 
 TEST_CASE(
-  "recv_node_inbound_message gating" *
+  "node inbound message gate and dispatch" *
   doctest::test_suite("node_inbound_message"))
 {
   const ccf::NodeId from("0123456789abcdef");
@@ -71,155 +71,80 @@ TEST_CASE(
     ccf::NodeStartupState::partOfPublicNetwork,
     ccf::NodeStartupState::readingPrivateLedger};
 
-  SUBCASE("Forwarded commands are not processed before part of network")
+  SUBCASE("Caller gate rejects early states")
   {
-    const auto serialised =
-      serialise_node_inbound(ccf::forwarded_msg, from, payload);
-
     for (const auto state : early_states)
     {
       INFO("Early state: ", state);
       ds::StateMachine<ccf::NodeStartupState> sm("test", state);
-      StubHandler forwarder;
-      StubHandler channels;
-      StubHandler consensus;
-
-      ccf::recv_node_inbound_message(
-        serialised.data(),
-        serialised.size(),
-        sm,
-        &forwarder,
-        &channels,
-        &consensus);
-
-      REQUIRE(forwarder.call_count == 0);
-      REQUIRE(channels.call_count == 0);
-      REQUIRE(consensus.call_count == 0);
+      REQUIRE(!ccf::can_process_node_inbound_message(sm));
     }
   }
 
-  SUBCASE("Forwarded commands are processed once part of network")
+  SUBCASE("Caller gate accepts active states")
   {
-    const auto serialised =
-      serialise_node_inbound(ccf::forwarded_msg, from, payload);
-
     for (const auto state : active_states)
     {
       INFO("Active state: ", state);
       ds::StateMachine<ccf::NodeStartupState> sm("test", state);
-      StubHandler forwarder;
-      StubHandler channels;
-      StubHandler consensus;
-
-      ccf::recv_node_inbound_message(
-        serialised.data(),
-        serialised.size(),
-        sm,
-        &forwarder,
-        &channels,
-        &consensus);
-
-      REQUIRE(forwarder.call_count == 1);
-      REQUIRE(forwarder.last_from == from);
-      REQUIRE(forwarder.last_payload == payload);
-      REQUIRE(channels.call_count == 0);
-      REQUIRE(consensus.call_count == 0);
+      REQUIRE(ccf::can_process_node_inbound_message(sm));
     }
   }
 
-  SUBCASE("Channel messages are gated and dispatched identically")
+  SUBCASE("Forwarded commands dispatch to command forwarder")
+  {
+    const auto serialised =
+      serialise_node_inbound(ccf::forwarded_msg, from, payload);
+
+    StubHandler forwarder;
+    StubHandler channels;
+    StubHandler consensus;
+
+    ccf::recv_node_inbound_message(
+      serialised.data(), serialised.size(), &forwarder, &channels, &consensus);
+
+    REQUIRE(forwarder.call_count == 1);
+    REQUIRE(forwarder.last_from == from);
+    REQUIRE(forwarder.last_payload == payload);
+    REQUIRE(channels.call_count == 0);
+    REQUIRE(consensus.call_count == 0);
+  }
+
+  SUBCASE("Channel messages dispatch to node-to-node channels")
   {
     const auto serialised =
       serialise_node_inbound(ccf::channel_msg, from, payload);
 
-    {
-      INFO("Dropped before part of network");
-      ds::StateMachine<ccf::NodeStartupState> sm(
-        "test", ccf::NodeStartupState::pending);
-      StubHandler forwarder;
-      StubHandler channels;
-      StubHandler consensus;
+    StubHandler forwarder;
+    StubHandler channels;
+    StubHandler consensus;
 
-      ccf::recv_node_inbound_message(
-        serialised.data(),
-        serialised.size(),
-        sm,
-        &forwarder,
-        &channels,
-        &consensus);
+    ccf::recv_node_inbound_message(
+      serialised.data(), serialised.size(), &forwarder, &channels, &consensus);
 
-      REQUIRE(channels.call_count == 0);
-    }
-
-    {
-      INFO("Dispatched once part of network");
-      ds::StateMachine<ccf::NodeStartupState> sm(
-        "test", ccf::NodeStartupState::partOfNetwork);
-      StubHandler forwarder;
-      StubHandler channels;
-      StubHandler consensus;
-
-      ccf::recv_node_inbound_message(
-        serialised.data(),
-        serialised.size(),
-        sm,
-        &forwarder,
-        &channels,
-        &consensus);
-
-      REQUIRE(channels.call_count == 1);
-      REQUIRE(channels.last_from == from);
-      REQUIRE(channels.last_payload == payload);
-      REQUIRE(forwarder.call_count == 0);
-      REQUIRE(consensus.call_count == 0);
-    }
+    REQUIRE(channels.call_count == 1);
+    REQUIRE(channels.last_from == from);
+    REQUIRE(channels.last_payload == payload);
+    REQUIRE(forwarder.call_count == 0);
+    REQUIRE(consensus.call_count == 0);
   }
 
-  SUBCASE("Consensus messages are gated and dispatched identically")
+  SUBCASE("Consensus messages dispatch to consensus")
   {
     const auto serialised =
       serialise_node_inbound(ccf::consensus_msg, from, payload);
 
-    {
-      INFO("Dropped before part of network");
-      ds::StateMachine<ccf::NodeStartupState> sm(
-        "test", ccf::NodeStartupState::initialized);
-      StubHandler forwarder;
-      StubHandler channels;
-      StubHandler consensus;
+    StubHandler forwarder;
+    StubHandler channels;
+    StubHandler consensus;
 
-      ccf::recv_node_inbound_message(
-        serialised.data(),
-        serialised.size(),
-        sm,
-        &forwarder,
-        &channels,
-        &consensus);
+    ccf::recv_node_inbound_message(
+      serialised.data(), serialised.size(), &forwarder, &channels, &consensus);
 
-      REQUIRE(consensus.call_count == 0);
-    }
-
-    {
-      INFO("Dispatched once part of network");
-      ds::StateMachine<ccf::NodeStartupState> sm(
-        "test", ccf::NodeStartupState::readingPrivateLedger);
-      StubHandler forwarder;
-      StubHandler channels;
-      StubHandler consensus;
-
-      ccf::recv_node_inbound_message(
-        serialised.data(),
-        serialised.size(),
-        sm,
-        &forwarder,
-        &channels,
-        &consensus);
-
-      REQUIRE(consensus.call_count == 1);
-      REQUIRE(consensus.last_from == from);
-      REQUIRE(consensus.last_payload == payload);
-      REQUIRE(forwarder.call_count == 0);
-      REQUIRE(channels.call_count == 0);
-    }
+    REQUIRE(consensus.call_count == 1);
+    REQUIRE(consensus.last_from == from);
+    REQUIRE(consensus.last_payload == payload);
+    REQUIRE(forwarder.call_count == 0);
+    REQUIRE(channels.call_count == 0);
   }
 }

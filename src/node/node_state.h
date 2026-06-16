@@ -2255,13 +2255,16 @@ namespace ccf
 
     void recv_node_inbound(const uint8_t* data, size_t size)
     {
+      if (!can_process_node_inbound_message(sm))
+      {
+        LOG_DEBUG_FMT(
+          "Ignoring node msg received too early - current state is {}",
+          sm.value());
+        return;
+      }
+
       recv_node_inbound_message(
-        data,
-        size,
-        sm,
-        cmd_forwarder.get(),
-        n2n_channels.get(),
-        consensus.get());
+        data, size, cmd_forwarder.get(), n2n_channels.get(), consensus.get());
     }
 
     //
