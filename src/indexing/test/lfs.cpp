@@ -33,6 +33,19 @@ void write_file_corrupted_at(
   f.close();
 }
 
+// Synchronously execute any LFS disk I/O actions (store/fetch) that have been
+// queued on the given job board, returning the number of actions executed.
+size_t flush_lfs(ccf::tasks::JobBoard& board)
+{
+  size_t count = 0;
+  while (auto task = board.get_task())
+  {
+    task->do_task();
+    ++count;
+  }
+  return count;
+}
+
 static std::vector<ActionDesc> create_actions(
   ExpectedSeqNos& seqnos_hello,
   ExpectedSeqNos& seqnos_saluton,
@@ -96,16 +109,6 @@ TEST_CASE("Basic cache" * doctest::test_suite("lfs"))
 
   ccf::indexing::EnclaveLFSAccess enclave_lfs(board);
 
-  auto flush_lfs = [&board]() {
-    size_t count = 0;
-    while (auto task = board.get_task())
-    {
-      task->do_task();
-      ++count;
-    }
-    return count;
-  };
-
   ccf::indexing::LFSKey key_a("Blob A");
   ccf::indexing::LFSContents blob_a{0, 1, 2, 3, 4, 5, 6, 7};
 
@@ -115,7 +118,7 @@ TEST_CASE("Basic cache" * doctest::test_suite("lfs"))
   enclave_lfs.store(key_a, ccf::indexing::LFSContents(blob_a));
   enclave_lfs.store(key_b, ccf::indexing::LFSContents(blob_b));
 
-  REQUIRE(flush_lfs() > 0);
+  REQUIRE(flush_lfs(board) > 0);
 
   {
     INFO("Load entries");
@@ -130,7 +133,7 @@ TEST_CASE("Basic cache" * doctest::test_suite("lfs"))
       result_b->fetch_result ==
       ccf::indexing::FetchResult::FetchResultType::Fetching);
 
-    flush_lfs();
+    flush_lfs(board);
 
     REQUIRE(
       result_a->fetch_result ==
@@ -152,7 +155,7 @@ TEST_CASE("Basic cache" * doctest::test_suite("lfs"))
 
     auto result = enclave_lfs.fetch(key_a);
 
-    flush_lfs();
+    flush_lfs(board);
 
     REQUIRE(
       result->fetch_result ==
@@ -173,7 +176,7 @@ TEST_CASE("Basic cache" * doctest::test_suite("lfs"))
 
       auto result = enclave_lfs.fetch(key_b);
 
-      flush_lfs();
+      flush_lfs(board);
 
       REQUIRE(
         result->fetch_result ==
@@ -204,16 +207,6 @@ TEST_CASE("Integrated cache" * doctest::test_suite("lfs"))
 
   ccf::AbstractNodeContext node_context;
   node_context.install_subsystem(enclave_lfs);
-
-  auto flush_ringbuffers = [&board]() {
-    size_t count = 0;
-    while (auto task = board.get_task())
-    {
-      task->do_task();
-      ++count;
-    }
-    return count;
-  };
 
   using StratA =
     ccf::indexing::strategies::SeqnosByKey_Bucketed<decltype(map_a)>;
@@ -254,12 +247,12 @@ TEST_CASE("Integrated cache" * doctest::test_suite("lfs"))
       }
       fetcher->requested.clear();
 
-      flush_ringbuffers();
+      flush_lfs(board);
     }
   };
 
   tick_until_caught_up();
-  REQUIRE(flush_ringbuffers() == 0);
+  REQUIRE(flush_lfs(board) == 0);
 
   auto current_seqno = kv_store.current_version();
   const auto max_requestable = index_a->max_requestable_range();
@@ -275,7 +268,7 @@ TEST_CASE("Integrated cache" * doctest::test_suite("lfs"))
     REQUIRE_THROWS(index_a->get_write_txs_in_range(
       "hello", current_seqno - (max_requestable + 1), current_seqno));
 
-    REQUIRE(flush_ringbuffers() == 0);
+    REQUIRE(flush_lfs(board) == 0);
   }
 
   auto fetch_all = [&](
@@ -295,7 +288,7 @@ TEST_CASE("Integrated cache" * doctest::test_suite("lfs"))
       if (!results.has_value())
       {
         // This required an async load from disk
-        REQUIRE(flush_ringbuffers() > 0);
+        REQUIRE(flush_lfs(board) > 0);
 
         results = strat->get_write_txs_in_range(key, range_start, range_end);
 
@@ -344,7 +337,7 @@ TEST_CASE("Integrated cache" * doctest::test_suite("lfs"))
       if (!results.has_value())
       {
         // This required an async load from disk
-        REQUIRE(flush_ringbuffers() > 0);
+        REQUIRE(flush_lfs(board) > 0);
 
         results = strat->get_write_txs_in_range(range_start, range_end);
 
@@ -517,16 +510,6 @@ void run_sparse_index_test(size_t bucket_size, size_t num_buckets)
   ccf::AbstractNodeContext node_context;
   node_context.install_subsystem(enclave_lfs);
 
-  auto flush_ringbuffers = [&board]() {
-    size_t count = 0;
-    while (auto task = board.get_task())
-    {
-      task->do_task();
-      ++count;
-    }
-    return count;
-  };
-
   using Strat =
     ccf::indexing::strategies::SeqnosByKey_Bucketed<decltype(map_b)>;
   const auto many_buckets = bucket_size * (num_buckets + 1);
@@ -606,12 +589,12 @@ void run_sparse_index_test(size_t bucket_size, size_t num_buckets)
       }
       fetcher->requested.clear();
 
-      flush_ringbuffers();
+      flush_lfs(board);
     }
   };
 
   tick_until_caught_up();
-  REQUIRE(flush_ringbuffers() == 0);
+  REQUIRE(flush_lfs(board) == 0);
 
   auto fetch_write_seqnos = [&](size_t key) {
     const auto max_range = index->max_requestable_range();
@@ -636,7 +619,7 @@ void run_sparse_index_test(size_t bucket_size, size_t num_buckets)
       if (!results.has_value())
       {
         // This required an async load from disk
-        REQUIRE(flush_ringbuffers() > 0);
+        REQUIRE(flush_lfs(board) > 0);
 
         results = index->get_write_txs_in_range(key, range_start, range_end);
         REQUIRE(results.has_value());
