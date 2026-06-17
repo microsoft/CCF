@@ -22,11 +22,7 @@ namespace snapshots
 {
   namespace fs = std::filesystem;
 
-  // Writes committed snapshot files to disk. This used to be the host-side
-  // SnapshotManager, reached over the ringbuffer. Snapshot persistence is now
-  // driven directly by the Snapshotter on a task thread, so the file IO
-  // (including the previously deferred fsync and rename) happens inline here
-  // rather than on the host's libuv worker pool.
+  // Writes committed snapshot files to disk.
   class SnapshotWriter
   {
   private:
