@@ -13,8 +13,6 @@ namespace consensus
   class LedgerEnclave
   {
   public:
-    static constexpr size_t FRAME_SIZE = sizeof(uint32_t);
-
     /**
      * Retrieve a single entry, advancing offset to the next entry.
      *

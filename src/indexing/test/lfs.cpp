@@ -245,8 +245,6 @@ TEST_CASE("Integrated cache" * doctest::test_suite("lfs"))
     std::make_shared<StratValue>(value_a, node_context, 100, 4);
   REQUIRE(indexer.install_strategy(index_value));
 
-  static constexpr auto num_transactions =
-    ccf::indexing::Indexer::MAX_REQUESTABLE * 3;
   ExpectedSeqNos seqnos_hello, seqnos_saluton, seqnos_1, seqnos_2, seqnos_set,
     seqnos_value;
   auto actions = create_actions(
