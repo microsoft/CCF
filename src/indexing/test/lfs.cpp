@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 
 #include "ccf/indexing/strategies/seqnos_by_key_bucketed.h"
-#include "host/lfs_file_handler.h"
 #include "indexing/enclave_lfs_access.h"
 #include "indexing/test/common.h"
+#include "tasks/job_board.h"
 
 #include <doctest/doctest.h>
 
@@ -91,22 +91,20 @@ static std::vector<ActionDesc> create_actions(
 
 TEST_CASE("Basic cache" * doctest::test_suite("lfs"))
 {
-  messaging::BufferProcessor host_bp("lfs_host");
-  messaging::BufferProcessor enclave_bp("lfs_enclave");
+  ccf::tasks::JobBoard board;
+  const std::filesystem::path index_dir{".index"};
 
-  constexpr size_t buf_size = 1 << 10;
-  auto inbound_buffer = std::make_unique<ringbuffer::TestBuffer>(buf_size);
-  ringbuffer::Reader inbound_reader(inbound_buffer->bd);
-  auto outbound_buffer = std::make_unique<ringbuffer::TestBuffer>(buf_size);
-  ringbuffer::Reader outbound_reader(outbound_buffer->bd);
+  ccf::indexing::EnclaveLFSAccess enclave_lfs(board);
 
-  asynchost::LFSFileHandler host_files(
-    std::make_shared<ringbuffer::Writer>(inbound_reader));
-  host_files.register_message_handlers(host_bp.get_dispatcher());
-
-  ccf::indexing::EnclaveLFSAccess enclave_lfs(
-    std::make_shared<ringbuffer::Writer>(outbound_reader));
-  enclave_lfs.register_message_handlers(enclave_bp.get_dispatcher());
+  auto flush_lfs = [&board]() {
+    size_t count = 0;
+    while (auto task = board.get_task())
+    {
+      task->do_task();
+      ++count;
+    }
+    return count;
+  };
 
   ccf::indexing::LFSKey key_a("Blob A");
   ccf::indexing::LFSContents blob_a{0, 1, 2, 3, 4, 5, 6, 7};
@@ -117,7 +115,7 @@ TEST_CASE("Basic cache" * doctest::test_suite("lfs"))
   enclave_lfs.store(key_a, ccf::indexing::LFSContents(blob_a));
   enclave_lfs.store(key_b, ccf::indexing::LFSContents(blob_b));
 
-  REQUIRE(2 == host_bp.read_all(outbound_reader));
+  REQUIRE(flush_lfs() > 0);
 
   {
     INFO("Load entries");
@@ -132,8 +130,7 @@ TEST_CASE("Basic cache" * doctest::test_suite("lfs"))
       result_b->fetch_result ==
       ccf::indexing::FetchResult::FetchResultType::Fetching);
 
-    host_bp.read_all(outbound_reader);
-    enclave_bp.read_all(inbound_reader);
+    flush_lfs();
 
     REQUIRE(
       result_a->fetch_result ==
@@ -147,18 +144,15 @@ TEST_CASE("Basic cache" * doctest::test_suite("lfs"))
   }
 
   {
-    INFO("Host cache provides wrong file");
+    INFO("Cache provides wrong file");
     REQUIRE(std::filesystem::copy_file(
-      host_files.root_dir /
-        ccf::indexing::EnclaveLFSAccess::obfuscate_key(key_b),
-      host_files.root_dir /
-        ccf::indexing::EnclaveLFSAccess::obfuscate_key(key_a),
+      index_dir / ccf::indexing::EnclaveLFSAccess::obfuscate_key(key_b),
+      index_dir / ccf::indexing::EnclaveLFSAccess::obfuscate_key(key_a),
       std::filesystem::copy_options::overwrite_existing));
 
     auto result = enclave_lfs.fetch(key_a);
 
-    host_bp.read_all(outbound_reader);
-    enclave_bp.read_all(inbound_reader);
+    flush_lfs();
 
     REQUIRE(
       result->fetch_result ==
@@ -168,9 +162,9 @@ TEST_CASE("Basic cache" * doctest::test_suite("lfs"))
 
 #ifndef PLAINTEXT_CACHE
   {
-    INFO("Host cache provides corrupt file");
-    const auto b_path = host_files.root_dir /
-      ccf::indexing::EnclaveLFSAccess::obfuscate_key(key_b);
+    INFO("Cache provides corrupt file");
+    const auto b_path =
+      index_dir / ccf::indexing::EnclaveLFSAccess::obfuscate_key(key_b);
     const auto original_b_contents = read_file(b_path);
 
     for (auto i = 0; i < original_b_contents.size(); ++i)
@@ -179,8 +173,7 @@ TEST_CASE("Basic cache" * doctest::test_suite("lfs"))
 
       auto result = enclave_lfs.fetch(key_b);
 
-      host_bp.read_all(outbound_reader);
-      enclave_bp.read_all(inbound_reader);
+      flush_lfs();
 
       REQUIRE(
         result->fetch_result ==
@@ -204,29 +197,22 @@ TEST_CASE("Integrated cache" * doctest::test_suite("lfs"))
   auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
   kv_store.set_encryptor(encryptor);
 
-  messaging::BufferProcessor host_bp("lfs_host");
-  messaging::BufferProcessor enclave_bp("lfs_enclave");
+  ccf::tasks::JobBoard board;
+  const std::filesystem::path index_dir{".index"};
 
-  constexpr size_t buf_size = 1 << 16;
-  auto inbound_buffer = std::make_unique<ringbuffer::TestBuffer>(buf_size);
-  ringbuffer::Reader inbound_reader(inbound_buffer->bd);
-  auto outbound_buffer = std::make_unique<ringbuffer::TestBuffer>(buf_size);
-
-  ringbuffer::Reader outbound_reader(outbound_buffer->bd);
-  asynchost::LFSFileHandler host_files(
-    std::make_shared<ringbuffer::Writer>(inbound_reader));
-  host_files.register_message_handlers(host_bp.get_dispatcher());
-
-  auto enclave_lfs = std::make_shared<ccf::indexing::EnclaveLFSAccess>(
-    std::make_shared<ringbuffer::Writer>(outbound_reader));
-  enclave_lfs->register_message_handlers(enclave_bp.get_dispatcher());
+  auto enclave_lfs = std::make_shared<ccf::indexing::EnclaveLFSAccess>(board);
 
   ccf::AbstractNodeContext node_context;
   node_context.install_subsystem(enclave_lfs);
 
-  auto flush_ringbuffers = [&]() {
-    return host_bp.read_all(outbound_reader) +
-      enclave_bp.read_all(inbound_reader);
+  auto flush_ringbuffers = [&board]() {
+    size_t count = 0;
+    while (auto task = board.get_task())
+    {
+      task->do_task();
+      ++count;
+    }
+    return count;
   };
 
   using StratA =
@@ -477,8 +463,7 @@ TEST_CASE("Integrated cache" * doctest::test_suite("lfs"))
 
     {
       INFO("Deleted files");
-      for (auto const& f :
-           std::filesystem::directory_iterator(host_files.root_dir))
+      for (auto const& f : std::filesystem::directory_iterator(index_dir))
       {
         std::filesystem::remove(f);
       }
@@ -488,8 +473,7 @@ TEST_CASE("Integrated cache" * doctest::test_suite("lfs"))
 
     {
       INFO("Corrupted files");
-      for (auto const& f :
-           std::filesystem::directory_iterator(host_files.root_dir))
+      for (auto const& f : std::filesystem::directory_iterator(index_dir))
       {
         auto original = read_file(f);
 
@@ -526,29 +510,21 @@ void run_sparse_index_test(size_t bucket_size, size_t num_buckets)
   auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
   kv_store.set_encryptor(encryptor);
 
-  messaging::BufferProcessor host_bp("lfs_host");
-  messaging::BufferProcessor enclave_bp("lfs_enclave");
+  ccf::tasks::JobBoard board;
 
-  constexpr size_t buf_size = 1 << 16;
-  auto inbound_buffer = std::make_unique<ringbuffer::TestBuffer>(buf_size);
-  ringbuffer::Reader inbound_reader(inbound_buffer->bd);
-  auto outbound_buffer = std::make_unique<ringbuffer::TestBuffer>(buf_size);
-
-  ringbuffer::Reader outbound_reader(outbound_buffer->bd);
-  asynchost::LFSFileHandler host_files(
-    std::make_shared<ringbuffer::Writer>(inbound_reader));
-  host_files.register_message_handlers(host_bp.get_dispatcher());
-
-  auto enclave_lfs = std::make_shared<ccf::indexing::EnclaveLFSAccess>(
-    std::make_shared<ringbuffer::Writer>(outbound_reader));
-  enclave_lfs->register_message_handlers(enclave_bp.get_dispatcher());
+  auto enclave_lfs = std::make_shared<ccf::indexing::EnclaveLFSAccess>(board);
 
   ccf::AbstractNodeContext node_context;
   node_context.install_subsystem(enclave_lfs);
 
-  auto flush_ringbuffers = [&]() {
-    return host_bp.read_all(outbound_reader) +
-      enclave_bp.read_all(inbound_reader);
+  auto flush_ringbuffers = [&board]() {
+    size_t count = 0;
+    while (auto task = board.get_task())
+    {
+      task->do_task();
+      ++count;
+    }
+    return count;
   };
 
   using Strat =

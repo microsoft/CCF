@@ -8,7 +8,6 @@
 #include "consensus/aft/test/logging_stub.h"
 #include "crypto/openssl/hash.h"
 #include "ds/test/stub_writer.h"
-#include "host/lfs_file_handler.h"
 #include "indexing/enclave_lfs_access.h"
 #include "indexing/historical_transaction_fetcher.h"
 #include "indexing/test/common.h"
@@ -741,22 +740,9 @@ TEST_CASE(
   auto indexer_p = std::make_shared<ccf::indexing::Indexer>(fetcher);
   auto& indexer = *indexer_p;
 
-  messaging::BufferProcessor host_bp("lfs_host");
-  messaging::BufferProcessor enclave_bp("lfs_enclave");
+  ccf::tasks::JobBoard board;
 
-  constexpr size_t buf_size = 1 << 16;
-  auto inbound_buffer = std::make_unique<ringbuffer::TestBuffer>(buf_size);
-  ringbuffer::Reader inbound_reader(inbound_buffer->bd);
-  auto outbound_buffer = std::make_unique<ringbuffer::TestBuffer>(buf_size);
-
-  ringbuffer::Reader outbound_reader(outbound_buffer->bd);
-  asynchost::LFSFileHandler host_files(
-    std::make_shared<ringbuffer::Writer>(inbound_reader));
-  host_files.register_message_handlers(host_bp.get_dispatcher());
-
-  auto enclave_lfs = std::make_shared<ccf::indexing::EnclaveLFSAccess>(
-    std::make_shared<ringbuffer::Writer>(outbound_reader));
-  enclave_lfs->register_message_handlers(enclave_bp.get_dispatcher());
+  auto enclave_lfs = std::make_shared<ccf::indexing::EnclaveLFSAccess>(board);
 
   ccf::AbstractNodeContext node_context;
   node_context.install_subsystem(enclave_lfs);
@@ -919,11 +905,13 @@ TEST_CASE(
 
   std::atomic<bool> work_done = false;
 
-  std::thread ringbuffer_flusher([&]() {
+  std::thread lfs_flusher([&]() {
     while (!work_done)
     {
-      host_bp.read_all(outbound_reader);
-      enclave_bp.read_all(inbound_reader);
+      while (auto task = board.get_task())
+      {
+        task->do_task();
+      }
       std::this_thread::yield();
     }
   });
@@ -956,7 +944,7 @@ TEST_CASE(
   }
 
   work_done = true;
-  ringbuffer_flusher.join();
+  lfs_flusher.join();
   index_ticker.join();
   watchdog.join();
 }
