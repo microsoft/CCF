@@ -131,15 +131,20 @@ namespace ccf::crypto
     for (const auto& pem : chain)
     {
       Unique_BIO certbio(*pem);
-      Unique_X509 cert(certbio, true);
-      if (cert == nullptr)
+      Unique_X509 chain_cert(certbio, true);
+      if (chain_cert == nullptr)
       {
         LOG_DEBUG_FMT("Failed to load certificate from PEM: {}", pem->str());
         return false;
       }
 
-      CHECKPOSITIVE(sk_X509_push(chain_stack, cert));
-      CHECK1(X509_up_ref(cert));
+      auto* chain_cert_ptr = chain_cert.release();
+      const auto rc = sk_X509_push(chain_stack, chain_cert_ptr);
+      if (rc <= 0)
+      {
+        X509_free(chain_cert_ptr);
+        CHECKPOSITIVE(rc);
+      }
     }
 
     // Allow to use intermediate CAs as trust anchors
