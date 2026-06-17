@@ -140,7 +140,7 @@ namespace asynchost
         throw std::logic_error(fmt::format(
           "Unable to open ledger file {}: {}",
           file_path,
-          std::strerror(errno))); // NOLINT(concurrency-mt-unsafe)
+          ccf::nonstd::strerror(errno)));
       }
 
       // Header reserved for the offset to the position table
@@ -176,7 +176,7 @@ namespace asynchost
         throw std::logic_error(fmt::format(
           "Unable to open ledger file {}: {}",
           file_path,
-          std::strerror(errno))); // NOLINT(concurrency-mt-unsafe)
+          ccf::nonstd::strerror(errno)));
       }
 
       // First, get full size of file
@@ -406,7 +406,7 @@ namespace asynchost
           {
             throw std::logic_error(fmt::format(
               "Failed to flush entry to ledger: {}",
-              std::strerror(errno))); // NOLINT(concurrency-mt-unsafe)
+              ccf::nonstd::strerror(errno)));
           }
         }
       }
@@ -571,7 +571,7 @@ namespace asynchost
         {
           throw std::logic_error(fmt::format(
             "Failed to flush ledger file: {}",
-            std::strerror(errno))); // NOLINT(concurrency-mt-unsafe)
+            ccf::nonstd::strerror(errno)));
         }
       }
 
@@ -582,7 +582,7 @@ namespace asynchost
         {
           throw std::logic_error(fmt::format(
             "Failed to truncate ledger: {}",
-            std::strerror(errno))); // NOLINT(concurrency-mt-unsafe)
+            ccf::nonstd::strerror(errno)));
         }
       }
 
@@ -652,7 +652,7 @@ namespace asynchost
         {
           throw std::logic_error(fmt::format(
             "Failed to flush ledger file: {}",
-            std::strerror(errno))); // NOLINT(concurrency-mt-unsafe)
+            ccf::nonstd::strerror(errno)));
         }
       }
 
@@ -711,7 +711,7 @@ namespace asynchost
         {
           throw std::logic_error(fmt::format(
             "Failed to flush ledger file: {}",
-            std::strerror(errno))); // NOLINT(concurrency-mt-unsafe)
+            ccf::nonstd::strerror(errno)));
         }
       }
 

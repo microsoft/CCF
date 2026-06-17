@@ -5,6 +5,7 @@
 #include <array>
 #include <cctype>
 #include <chrono>
+#include <cstring>
 #include <ctime>
 #include <regex>
 #include <string>
@@ -217,6 +218,58 @@ namespace ccf::nonstd
   static inline CloseFdGuard make_close_fd_guard(int* fd)
   {
     return {fd, close_fd};
+  }
+
+#if !defined(__STDC_LIB_EXT1__)
+  namespace detail
+  {
+    // POSIX specifies two incompatible variants of strerror_r, distinguished
+    // only by their return type. Overload on that return type so that the
+    // correct variant is selected at compile time.
+
+    // XSI-compliant variant: int strerror_r(int, char*, size_t). Returns 0 on
+    // success and writes the message into the supplied buffer.
+    static inline std::string strerror_r_result(int rc, const char* buf)
+    {
+      if (rc != 0)
+      {
+        return "Unknown error";
+      }
+      return buf;
+    }
+
+    // GNU variant: char* strerror_r(int, char*, size_t). Returns a pointer to
+    // the message, which may point to a static string rather than the supplied
+    // buffer.
+    static inline std::string strerror_r_result(
+      const char* msg, const char* /* buf */)
+    {
+      return msg;
+    }
+  }
+#endif
+
+  /** A thread-safe replacement for std::strerror.
+   *
+   * The C strerror (and std::strerror) may return a pointer to a statically
+   * allocated buffer which can be overwritten by a concurrent call from another
+   * thread, so clang-tidy flags it as concurrency-mt-unsafe. This wrapper uses
+   * the platform's safe equivalent - the C11 Annex K strerror_s/strerrorlen_s
+   * where available, or POSIX strerror_r otherwise - and returns an owning
+   * std::string.
+   */
+  static inline std::string strerror(int errnum)
+  {
+#if defined(__STDC_LIB_EXT1__)
+    const size_t len = ::strerrorlen_s(errnum);
+    std::string result(len, '\0');
+    ::strerror_s(result.data(), result.size() + 1, errnum);
+    return result;
+#else
+    std::array<char, 256> buf{};
+    return detail::strerror_r_result(
+      ::strerror_r(errnum, buf.data(), buf.size()), buf.data());
+#endif
   }
 
   // A custom clock type for handling certificate validity periods, which are
