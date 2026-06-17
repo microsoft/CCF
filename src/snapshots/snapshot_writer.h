@@ -91,13 +91,27 @@ namespace snapshots
           return;
         }
 
+        auto remove_incomplete_file = [&]() {
+          close_fd(snapshot_fd, file_name);
+          snapshot_fd = -1;
+
+          std::error_code ec;
+          fs::remove(full_snapshot_path, ec);
+          if (ec)
+          {
+            LOG_FAIL_FMT(
+              "Failed to remove incomplete snapshot file {}: {}",
+              file_name,
+              ec.message());
+          }
+        };
+
         if (
           !write_all(
             snapshot_fd, file_name, snapshot.data(), snapshot.size()) ||
           !write_all(snapshot_fd, file_name, receipt.data(), receipt.size()))
         {
-          close_fd(snapshot_fd, file_name);
-          snapshot_fd = -1;
+          remove_incomplete_file();
           return;
         }
 
@@ -116,8 +130,7 @@ namespace snapshots
               "Error ({}) syncing snapshot {}", // NOLINT(concurrency-mt-unsafe)
               strerror(errno),
               file_name);
-            close_fd(snapshot_fd, file_name);
-            snapshot_fd = -1;
+            remove_incomplete_file();
             return;
           }
         }
@@ -166,6 +179,11 @@ namespace snapshots
         auto rc = write(fd, data + offset, size - offset);
         if (rc == -1)
         {
+          if (errno == EINTR)
+          {
+            continue;
+          }
+
           LOG_FAIL_FMT(
             "Error ({}) writing snapshot {}", // NOLINT(concurrency-mt-unsafe)
             strerror(errno),

@@ -380,8 +380,8 @@ namespace ccf
               shared_from_this(),
               snapshot_info.version,
               snapshot_info.evidence_idx.value(),
-              snapshot_info.cose_sig.value(),
-              snapshot_info.tree.value(),
+              std::move(snapshot_info.cose_sig.value()),
+              std::move(snapshot_info.tree.value()),
               snapshot_info.serialised));
 
           // The OrderedTasks remains alive on the job board until it has run
