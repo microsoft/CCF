@@ -2412,7 +2412,7 @@ namespace ccf
     {
       if (hostname.find(':') != std::string_view::npos)
       {
-        in6_addr addr;
+        in6_addr addr{};
         if (inet_pton(AF_INET6, std::string(hostname).c_str(), &addr) == 1)
         {
           return true;
