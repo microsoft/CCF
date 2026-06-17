@@ -32,9 +32,6 @@ namespace consensus
     DEFINE_RINGBUFFER_MSG_TYPE(ledger_commit),
     DEFINE_RINGBUFFER_MSG_TYPE(ledger_init),
     DEFINE_RINGBUFFER_MSG_TYPE(ledger_open),
-
-    /// Commit a snapshot to the host. Enclave -> Host
-    DEFINE_RINGBUFFER_MSG_TYPE(snapshot_commit),
   };
 }
 
@@ -66,9 +63,3 @@ DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   ::consensus::ledger_commit, ::consensus::Index);
 DECLARE_RINGBUFFER_MESSAGE_NO_PAYLOAD(::consensus::ledger_open);
-DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
-  ::consensus::snapshot_commit,
-  ::consensus::Index /* snapshot idx */,
-  ::consensus::Index /* evidence idx */,
-  std::vector<uint8_t> /* serialised snapshot */,
-  std::vector<uint8_t> /* serialised receipt */);

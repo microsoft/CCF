@@ -12,6 +12,8 @@
 #include "node/snapshot_serdes.h"
 #include "service/tables/snapshot_evidence.h"
 #include "service/tables/snapshot_status.h"
+#include "snapshots/snapshot_writer.h"
+#include "tasks/ordered_tasks.h"
 #include "tasks/task_system.h"
 
 #include <chrono>
@@ -31,7 +33,8 @@ namespace ccf
     // snapshots are flushed on commit.
     static constexpr auto max_pending_snapshots_count = 5;
 
-    ringbuffer::AbstractWriterFactory& writer_factory;
+    // Writes committed snapshot files to disk, in-process, on a task thread.
+    snapshots::SnapshotWriter snapshot_writer;
 
     ccf::pal::Mutex lock;
 
@@ -50,18 +53,34 @@ namespace ccf
     using Clock = std::chrono::system_clock;
     using TimePoint = Clock::time_point;
 
-    struct SnapshotInfo
+    // Serialise-produced outputs for a single snapshot. Populated by the
+    // serialise action and read by the persist action. Ordering within the
+    // per-generation OrderedTasks guarantees the serialise action completes
+    // before the persist action reads these.
+    struct SnapshotSerialisation
     {
-      ccf::kv::Version version = 0;
+      std::vector<uint8_t> serialised_snapshot;
       ccf::crypto::Sha256Hash write_set_digest;
       std::string commit_evidence;
       ccf::crypto::Sha256Hash snapshot_digest;
-      std::vector<uint8_t> serialised_snapshot;
+    };
+
+    struct SnapshotInfo
+    {
+      ccf::kv::Version version = 0;
 
       std::optional<::consensus::Index> evidence_idx = std::nullopt;
 
       std::optional<std::vector<uint8_t>> cose_sig = std::nullopt;
       std::optional<std::vector<uint8_t>> tree = std::nullopt;
+
+      // Outputs of the serialise action, handed to the persist action.
+      std::shared_ptr<SnapshotSerialisation> serialised;
+
+      // Per-generation ordered task collection. The serialise action is added
+      // at schedule time, and the persist action once commit evidence is
+      // durable. OrderedTasks ensures the persist runs after the serialise.
+      std::shared_ptr<ccf::tasks::OrderedTasks> tasks;
 
       SnapshotInfo() = default;
     };
@@ -147,43 +166,46 @@ namespace ccf
       const std::vector<uint8_t>& serialised_snapshot,
       const std::vector<uint8_t>& serialised_receipt)
     {
-      // The snapshot bytes and receipt are passed to the host together, to be
-      // written out to a single snapshot file.
-      auto to_host = writer_factory.create_writer_to_outside();
-      RINGBUFFER_WRITE_MESSAGE(
-        ::consensus::snapshot_commit,
-        to_host,
+      // The snapshot bytes and receipt are written out to a single snapshot
+      // file. This runs on a task thread (see PersistSnapshotAction).
+      snapshot_writer.persist_snapshot(
         snapshot_idx,
         evidence_idx,
         serialised_snapshot,
         serialised_receipt);
     }
 
-    struct SnapshotTask : public ccf::tasks::BaseTask
+    struct SerialiseSnapshotAction : public ccf::tasks::ITaskAction
     {
       std::shared_ptr<Snapshotter> self;
       std::unique_ptr<ccf::kv::AbstractStore::AbstractSnapshot> snapshot;
       uint32_t generation_count;
       TimePoint timestamp;
+      std::shared_ptr<SnapshotSerialisation> serialised;
 
       const std::string name;
 
-      SnapshotTask(
+      SerialiseSnapshotAction(
         std::shared_ptr<Snapshotter> _self,
         std::unique_ptr<ccf::kv::AbstractStore::AbstractSnapshot>&& _snapshot,
         uint32_t _generation_count,
-        TimePoint _timestamp) :
+        TimePoint _timestamp,
+        std::shared_ptr<SnapshotSerialisation> _serialised) :
         self(std::move(_self)),
         snapshot(std::move(_snapshot)),
         generation_count(_generation_count),
         timestamp(_timestamp),
+        serialised(std::move(_serialised)),
         name(fmt::format(
-          "snapshot@{}[{}]", snapshot->get_version(), generation_count))
+          "serialise-snapshot@{}[{}]",
+          snapshot->get_version(),
+          generation_count))
       {}
 
-      void do_task_implementation() override
+      void do_action() override
       {
-        self->snapshot_(std::move(snapshot), generation_count, timestamp);
+        self->serialise_snapshot_(
+          std::move(snapshot), generation_count, timestamp, serialised);
       }
 
       [[nodiscard]] const std::string& get_name() const override
@@ -192,31 +214,58 @@ namespace ccf
       }
     };
 
-    void snapshot_(
+    struct PersistSnapshotAction : public ccf::tasks::ITaskAction
+    {
+      std::shared_ptr<Snapshotter> self;
+      ccf::kv::Version version;
+      ::consensus::Index evidence_idx;
+      std::vector<uint8_t> cose_sig;
+      std::vector<uint8_t> tree;
+      std::shared_ptr<SnapshotSerialisation> serialised;
+
+      const std::string name;
+
+      PersistSnapshotAction(
+        std::shared_ptr<Snapshotter> _self,
+        ccf::kv::Version _version,
+        ::consensus::Index _evidence_idx,
+        std::vector<uint8_t> _cose_sig,
+        std::vector<uint8_t> _tree,
+        std::shared_ptr<SnapshotSerialisation> _serialised) :
+        self(std::move(_self)),
+        version(_version),
+        evidence_idx(_evidence_idx),
+        cose_sig(std::move(_cose_sig)),
+        tree(std::move(_tree)),
+        serialised(std::move(_serialised)),
+        name(fmt::format("persist-snapshot@{}", version))
+      {}
+
+      void do_action() override
+      {
+        self->persist_snapshot_(
+          version, evidence_idx, cose_sig, tree, serialised);
+      }
+
+      [[nodiscard]] const std::string& get_name() const override
+      {
+        return name;
+      }
+    };
+
+    void serialise_snapshot_(
       std::unique_ptr<ccf::kv::AbstractStore::AbstractSnapshot> snapshot,
       uint32_t generation_count,
-      TimePoint timestamp)
+      TimePoint timestamp,
+      const std::shared_ptr<SnapshotSerialisation>& serialised)
     {
       auto snapshot_version = snapshot->get_version();
 
-      {
-        std::unique_lock<ccf::pal::Mutex> guard(lock);
-        if (pending_snapshots.size() >= max_pending_snapshots_count)
-        {
-          LOG_FAIL_FMT(
-            "Skipping new snapshot generation as {} snapshots are already "
-            "pending",
-            pending_snapshots.size());
-          return;
-        }
-
-        // It is possible that the signature following the snapshot evidence is
-        // scheduled by another thread while the below snapshot evidence
-        // transaction is committed. To allow for such scenario, the evidence
-        // seqno is recorded via `record_snapshot_evidence_idx()` on a hook
-        // rather than here.
-        pending_snapshots[generation_count].version = snapshot_version;
-      }
+      // The pending_snapshots entry (with its version) is created at schedule
+      // time, before this action runs. The evidence seqno is recorded via
+      // `record_snapshot_evidence_idx()` on a hook rather than here, to allow
+      // for the signature following the snapshot evidence being scheduled by
+      // another thread while the below snapshot evidence transaction commits.
 
       auto serialised_snapshot = store->serialise_snapshot(std::move(snapshot));
       auto serialised_snapshot_size = serialised_snapshot.size();
@@ -257,14 +306,13 @@ namespace ccf
 
       auto evidence_version = tx.commit_version();
 
-      {
-        std::unique_lock<ccf::pal::Mutex> guard(lock);
-        pending_snapshots[generation_count].commit_evidence = commit_evidence;
-        pending_snapshots[generation_count].write_set_digest = ws_digest;
-        pending_snapshots[generation_count].snapshot_digest = cd.value();
-        pending_snapshots[generation_count].serialised_snapshot =
-          std::move(serialised_snapshot);
-      }
+      // Hand the serialise outputs to the (later) persist action. No lock is
+      // required: the per-generation OrderedTasks guarantees this action
+      // completes before the persist action reads these.
+      serialised->commit_evidence = commit_evidence;
+      serialised->write_set_digest = ws_digest;
+      serialised->snapshot_digest = cd.value();
+      serialised->serialised_snapshot = std::move(serialised_snapshot);
 
       LOG_DEBUG_FMT(
         "Generated snapshot [{} bytes] for seqno {}, with evidence "
@@ -274,6 +322,28 @@ namespace ccf
         evidence_version,
         cd.value(),
         ws_digest);
+    }
+
+    void persist_snapshot_(
+      ccf::kv::Version version,
+      ::consensus::Index evidence_idx,
+      const std::vector<uint8_t>& cose_sig,
+      const std::vector<uint8_t>& tree,
+      const std::shared_ptr<SnapshotSerialisation>& serialised)
+    {
+      auto serialised_receipt = build_and_serialise_receipt(
+        cose_sig,
+        tree,
+        evidence_idx,
+        serialised->write_set_digest,
+        serialised->commit_evidence,
+        std::move(serialised->snapshot_digest));
+
+      commit_snapshot(
+        version,
+        evidence_idx,
+        serialised->serialised_snapshot,
+        serialised_receipt);
     }
 
     void update_indices(::consensus::Index idx)
@@ -312,19 +382,23 @@ namespace ccf
           idx > snapshot_info.evidence_idx.value() &&
           snapshot_info.cose_sig.has_value() && snapshot_info.tree.has_value())
         {
-          auto serialised_receipt = build_and_serialise_receipt(
-            snapshot_info.cose_sig.value(),
-            snapshot_info.tree.value(),
-            snapshot_info.evidence_idx.value(),
-            snapshot_info.write_set_digest,
-            snapshot_info.commit_evidence,
-            std::move(snapshot_info.snapshot_digest));
+          // Commit evidence is durable. Enqueue the persist action on this
+          // generation's ordered task collection. OrderedTasks guarantees it
+          // runs after the serialise action (which produces the snapshot bytes
+          // and digests), so the persist action can safely read them. This
+          // takes the receipt construction and the snapshot_commit write off
+          // the consensus thread.
+          snapshot_info.tasks->add_action(
+            std::make_shared<PersistSnapshotAction>(
+              shared_from_this(),
+              snapshot_info.version,
+              snapshot_info.evidence_idx.value(),
+              snapshot_info.cose_sig.value(),
+              snapshot_info.tree.value(),
+              snapshot_info.serialised));
 
-          commit_snapshot(
-            snapshot_info.version,
-            snapshot_info.evidence_idx.value(),
-            snapshot_info.serialised_snapshot,
-            serialised_receipt);
+          // The OrderedTasks remains alive on the job board until it has run
+          // the persist action, so it is safe to drop our handle here.
           it = pending_snapshots.erase(it);
         }
         else
@@ -336,13 +410,13 @@ namespace ccf
 
   public:
     Snapshotter(
-      ringbuffer::AbstractWriterFactory& writer_factory_,
+      const std::string& snapshot_dir,
       std::shared_ptr<ccf::kv::Store>& store_,
       size_t snapshot_tx_interval_,
       size_t min_snapshot_tx_interval_ = 0,
       std::chrono::microseconds snapshot_time_interval_ =
         std::chrono::microseconds(0)) :
-      writer_factory(writer_factory_),
+      snapshot_writer(snapshot_dir),
       store(store_),
       snapshot_tx_interval(snapshot_tx_interval_),
       min_snapshot_tx_interval(min_snapshot_tx_interval_),
@@ -541,15 +615,33 @@ namespace ccf
 
     void schedule_snapshot(::consensus::Index idx, TimePoint timestamp)
     {
+      // Called with lock held (from commit()).
       static uint32_t generation_count = 0;
 
-      auto task = std::make_shared<SnapshotTask>(
+      if (pending_snapshots.size() >= max_pending_snapshots_count)
+      {
+        LOG_FAIL_FMT(
+          "Skipping new snapshot generation as {} snapshots are already "
+          "pending",
+          pending_snapshots.size());
+        return;
+      }
+
+      const auto generation = generation_count++;
+
+      auto& info = pending_snapshots[generation];
+      info.version = idx;
+      info.serialised = std::make_shared<SnapshotSerialisation>();
+      info.tasks = ccf::tasks::OrderedTasks::create(
+        ccf::tasks::get_main_job_board(),
+        fmt::format("snapshot@{}[{}]", idx, generation));
+
+      info.tasks->add_action(std::make_shared<SerialiseSnapshotAction>(
         shared_from_this(),
         store->snapshot_unsafe_maps(idx),
-        generation_count++,
-        timestamp);
-
-      ccf::tasks::add_task(task);
+        generation,
+        timestamp,
+        info.serialised));
     }
 
     void commit(::consensus::Index idx, bool generate_snapshot) override

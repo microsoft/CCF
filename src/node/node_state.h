@@ -3233,7 +3233,7 @@ namespace ccf
       }
 
       snapshotter = std::make_shared<Snapshotter>(
-        writer_factory,
+        config.snapshots.directory,
         network.tables,
         config.snapshots.tx_count,
         config.snapshots.min_tx_count,
