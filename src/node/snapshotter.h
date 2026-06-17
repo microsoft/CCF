@@ -190,7 +190,7 @@ namespace ccf
       void do_action() override
       {
         self->serialise_snapshot_(
-          std::move(snapshot), generation_count, timestamp, serialised);
+          std::move(snapshot), timestamp, serialised);
       }
 
       [[nodiscard]] const std::string& get_name() const override
@@ -240,7 +240,6 @@ namespace ccf
 
     void serialise_snapshot_(
       std::unique_ptr<ccf::kv::AbstractStore::AbstractSnapshot> snapshot,
-      uint32_t generation_count,
       TimePoint timestamp,
       const std::shared_ptr<SnapshotSerialisation>& serialised)
     {
