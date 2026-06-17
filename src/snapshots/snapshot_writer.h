@@ -11,12 +11,12 @@
 #include <cerrno>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <fcntl.h>
 #include <filesystem>
-#include <cstring>
-#include <vector>
 #include <stdexcept>
 #include <unistd.h>
+#include <vector>
 
 namespace snapshots
 {
@@ -39,8 +39,8 @@ namespace snapshots
       }
       else if (!fs::create_directory(snapshot_dir))
       {
-        throw std::logic_error(fmt::format(
-          "Could not create snapshot directory: {}", snapshot_dir));
+        throw std::logic_error(
+          fmt::format("Could not create snapshot directory: {}", snapshot_dir));
       }
     }
 
@@ -92,7 +92,8 @@ namespace snapshots
         }
 
         if (
-          !write_all(snapshot_fd, file_name, snapshot.data(), snapshot.size()) ||
+          !write_all(
+            snapshot_fd, file_name, snapshot.data(), snapshot.size()) ||
           !write_all(snapshot_fd, file_name, receipt.data(), receipt.size()))
         {
           close_fd(snapshot_fd, file_name);
@@ -153,10 +154,7 @@ namespace snapshots
 
   private:
     static bool write_all(
-      int fd,
-      const std::string& file_name,
-      const uint8_t* data,
-      size_t size)
+      int fd, const std::string& file_name, const uint8_t* data, size_t size)
     {
       asynchost::TimeBoundLogger log_if_slow(fmt::format(
         "Writing snapshot data ({} bytes) - write({})", size, file_name));
@@ -177,7 +175,8 @@ namespace snapshots
 
         if (rc == 0)
         {
-          LOG_FAIL_FMT("Unexpected short write while writing snapshot {}", file_name);
+          LOG_FAIL_FMT(
+            "Unexpected short write while writing snapshot {}", file_name);
           return false;
         }
 

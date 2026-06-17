@@ -13,8 +13,8 @@
 #include "snapshots/filenames.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT
-#include <doctest/doctest.h>
 #include <chrono>
+#include <doctest/doctest.h>
 #include <filesystem>
 #include <string>
 #include <unistd.h>
@@ -566,8 +566,7 @@ TEST_CASE("Rekey ledger while snapshot is in progress")
         snapshot_segments.header_and_body.data(),
         snapshot_segments.header_and_body.size(),
         hooks,
-        &view_history) ==
-      ccf::kv::ApplyResult::PASS);
+        &view_history) == ccf::kv::ApplyResult::PASS);
   }
 }
 
