@@ -2590,6 +2590,10 @@ def run_parsing_errors(args):
 if __name__ == "__main__":
     cr = ConcurrentRunner()
 
+    app_space_js_election_timeout_ms = cr.args.election_timeout_ms
+    if os.getenv("CCF_GLIBCXX_DEBUG") or os.getenv("ASAN_SYMBOLIZER_PATH"):
+        app_space_js_election_timeout_ms = max(app_space_js_election_timeout_ms, 10000)
+
     cr.add(
         "js",
         run,
@@ -2606,6 +2610,7 @@ if __name__ == "__main__":
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
         initial_user_count=4,
         initial_member_count=2,
+        election_timeout_ms=app_space_js_election_timeout_ms,
     )
 
     cr.add(
