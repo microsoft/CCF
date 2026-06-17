@@ -132,7 +132,7 @@ namespace ccf
 
     private:
       std::weak_ptr<RpcContextImpl> rpc_ctx;
-      mutable std::mutex lock;
+      mutable std::mutex completion_lock;
       CompletionFn completion_fn;
       bool completed = false;
 
@@ -155,7 +155,7 @@ namespace ccf
       {
         CompletionFn fn;
         {
-          std::lock_guard<std::mutex> guard(lock);
+          std::lock_guard<std::mutex> guard(completion_lock);
           if (completed)
           {
             return false;
@@ -194,7 +194,7 @@ namespace ccf
       {
         CompletionFn fn;
         {
-          std::lock_guard<std::mutex> guard(lock);
+          std::lock_guard<std::mutex> guard(completion_lock);
           if (completed)
           {
             return false;
@@ -222,7 +222,7 @@ namespace ccf
 
       [[nodiscard]] bool is_complete() const override
       {
-        std::lock_guard<std::mutex> guard(lock);
+        std::lock_guard<std::mutex> guard(completion_lock);
         return completed;
       }
 
@@ -231,7 +231,7 @@ namespace ccf
         bool already_completed = false;
         CompletionFn fn_to_dispatch;
         {
-          std::lock_guard<std::mutex> guard(lock);
+          std::lock_guard<std::mutex> guard(completion_lock);
           if (completion_fn != nullptr)
           {
             throw std::logic_error("Pending response has already been armed");

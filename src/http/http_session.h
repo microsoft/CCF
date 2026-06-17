@@ -177,6 +177,8 @@ namespace http
             ccf::tasks::Resumable paused_task =
               ccf::tasks::pause_current_task();
             std::shared_ptr<ccf::ThreadedSession> self = shared_from_this();
+            // Keep the session alive while exposing only the responder
+            // interface to the deferred completion path.
             auto responder = std::shared_ptr<ccf::http::HTTPResponder>(
               self, static_cast<ccf::http::HTTPResponder*>(this));
 
