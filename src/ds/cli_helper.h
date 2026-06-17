@@ -34,13 +34,20 @@ namespace cli
           fmt::format("Address '{}' has an unmatched '['", addr));
       }
       hostname = addr.substr(1, close - 1);
-      if (close + 1 < addr.size() && addr[close + 1] == ':')
+      if (close + 1 == addr.size())
       {
+        // "[host]" with no port
+        port = default_port;
+      }
+      else if (addr[close + 1] == ':')
+      {
+        // "[host]:port"
         port = addr.substr(close + 2);
       }
       else
       {
-        port = default_port;
+        throw std::logic_error(fmt::format(
+          "Address '{}' has unexpected characters after ']'", addr));
       }
     }
     else

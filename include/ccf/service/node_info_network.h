@@ -198,13 +198,18 @@ namespace ccf
   {
     if (addr.starts_with('['))
     {
-      // Bracketed IPv6 literal: "[host]:port" or "[host]"
+      // Only treat as a bracketed IPv6 literal if it is well-formed, i.e.
+      // exactly "[host]" or "[host]:port". Anything else (e.g.
+      // "[::1]foo:8000") falls through to the generic parsing below rather
+      // than being silently mis-parsed.
       const auto close = addr.find(']');
-      if (close != std::string::npos)
+      if (
+        close != std::string::npos &&
+        (close + 1 == addr.size() || addr[close + 1] == ':'))
       {
         std::string host = addr.substr(1, close - 1);
         std::string port;
-        if (close + 1 < addr.size() && addr[close + 1] == ':')
+        if (close + 1 < addr.size())
         {
           port = addr.substr(close + 2);
         }

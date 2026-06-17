@@ -2453,12 +2453,8 @@ namespace ccf
       std::vector<ccf::crypto::SubjectAltName> sans;
       for (const auto& [_, interface] : config.network.rpc_interfaces)
       {
-        auto host = split_net_address(interface.published_address).first;
-        // Strip brackets from IPv6 addresses (e.g. "[::1]" -> "::1")
-        if (host.size() >= 2 && host.front() == '[' && host.back() == ']')
-        {
-          host = host.substr(1, host.size() - 2);
-        }
+        // split_net_address already strips brackets from IPv6 literals.
+        const auto host = split_net_address(interface.published_address).first;
         sans.push_back({host, is_ip(host)});
       }
       return sans;

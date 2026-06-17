@@ -162,6 +162,15 @@ TEST_CASE("split_net_address and make_net_address")
   }
 
   {
+    INFO("Malformed bracketed input falls through, not silently mis-parsed");
+    // Junk after the closing ']' must not be accepted as a clean IPv6 host
+    // with an empty port; it falls through to the generic rsplit parsing.
+    REQUIRE(
+      split_net_address("[::1]foo:8000") ==
+      std::make_pair(std::string("[::1]foo"), std::string("8000")));
+  }
+
+  {
     INFO("Round-trip through split and make");
     for (const auto& [host, port] :
          std::vector<std::pair<std::string, std::string>>{
@@ -225,6 +234,9 @@ TEST_CASE("cli::validate_address")
     REQUIRE_THROWS_AS(
       cli::validate_address("1.2.3.4:notaport"), std::logic_error);
     REQUIRE_THROWS_AS(cli::validate_address("1.2.3.4:99999"), std::logic_error);
+    // Junk after the closing ']' is rejected rather than silently ignored
+    REQUIRE_THROWS_AS(cli::validate_address("[::1]foo"), std::logic_error);
+    REQUIRE_THROWS_AS(cli::validate_address("[::1]foo:8000"), std::logic_error);
   }
 
   {
