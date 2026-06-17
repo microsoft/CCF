@@ -160,21 +160,6 @@ namespace ccf
       return latest_time;
     }
 
-    void commit_snapshot(
-      ::consensus::Index snapshot_idx,
-      ::consensus::Index evidence_idx,
-      const std::vector<uint8_t>& serialised_snapshot,
-      const std::vector<uint8_t>& serialised_receipt)
-    {
-      // The snapshot bytes and receipt are written out to a single snapshot
-      // file. This runs on a task thread (see PersistSnapshotAction).
-      snapshot_writer.persist_snapshot(
-        snapshot_idx,
-        evidence_idx,
-        serialised_snapshot,
-        serialised_receipt);
-    }
-
     struct SerialiseSnapshotAction : public ccf::tasks::ITaskAction
     {
       std::shared_ptr<Snapshotter> self;
@@ -339,7 +324,9 @@ namespace ccf
         serialised->commit_evidence,
         std::move(serialised->snapshot_digest));
 
-      commit_snapshot(
+      // The snapshot bytes and receipt are written out to a single snapshot
+      // file. This runs on a task thread (see PersistSnapshotAction).
+      snapshot_writer.persist_snapshot(
         version,
         evidence_idx,
         serialised->serialised_snapshot,
