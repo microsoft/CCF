@@ -268,6 +268,11 @@ function(add_picobench name)
   )
 
   add_san(${name})
+  add_warning_checks(${name})
+  target_compile_options(
+    ${name}
+    PRIVATE $<$<COMPILE_LANG_AND_ID:CXX,Clang>:-Wno-vla-cxx-extension>
+  )
 
   # -Wall -Werror catches a number of warnings in picobench
   target_include_directories(${name} SYSTEM PRIVATE 3rdparty/test)
