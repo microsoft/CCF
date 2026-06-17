@@ -262,8 +262,13 @@ namespace ccf::nonstd
   {
 #if defined(__STDC_LIB_EXT1__)
     const size_t len = ::strerrorlen_s(errnum);
-    std::string result(len, '\0');
-    ::strerror_s(result.data(), result.size() + 1, errnum);
+    std::string result(len + 1, '\0');
+    const errno_t rc = ::strerror_s(result.data(), result.size(), errnum);
+    if (rc != 0)
+    {
+      return "Unknown error";
+    }
+    result.resize(std::strlen(result.c_str()));
     return result;
 #else
     std::array<char, 256> buf{};
