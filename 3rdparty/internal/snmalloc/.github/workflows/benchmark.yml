@@ -23,7 +23,7 @@ on:
 
 jobs:
   benchmark:
-    runs-on: [self-hosted, 1ES.Pool=snmalloc-perf]
+    runs-on: [self-hosted, 1ES.Pool=snmalloc-perf, "UseScaleSet=true"]
 
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it

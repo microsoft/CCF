@@ -69,12 +69,7 @@ jobs:
 
   image_digest:
     name: Snapshot Build Image Digest and SOURCE_DATE_EPOCH
-    runs-on:
-      [
-        self-hosted,
-        1ES.Pool=gha-vmss-d16av5-ci,
-        "JobId=release_image_digest-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
-      ]
+    runs-on: [self-hosted, 1ES.Pool=gha-vmss-d16av5-ci, "UseScaleSet=true"]
     outputs:
       image_digest: ${{ steps.digest.outputs.digest }}
       SOURCE_DATE_EPOCH: ${{ steps.set_epoch.outputs.SOURCE_DATE_EPOCH }}
@@ -96,12 +91,7 @@ jobs:
   build_release:
     name: Build Release
     needs: image_digest
-    runs-on:
-      [
-        self-hosted,
-        1ES.Pool=gha-vmss-d16av5-ci,
-        "JobId=release_build_release-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
-      ]
+    runs-on: [self-hosted, 1ES.Pool=gha-vmss-d16av5-ci, "UseScaleSet=true"]
     container:
       image: ${{ needs.image_digest.outputs.image_digest }}
       options: "--user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE"
@@ -320,12 +310,7 @@ jobs:
   test_rpm_against_app:
     name: "Test building against CCF package"
     needs: build_release
-    runs-on:
-      [
-        self-hosted,
-        1ES.Pool=gha-vmss-d16av5-ci,
-        "JobId=release_test_rpm_against_app-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
-      ]
+    runs-on: [self-hosted, 1ES.Pool=gha-vmss-d16av5-ci, "UseScaleSet=true"]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
@@ -370,12 +355,7 @@ jobs:
     needs:
       - build_release
       - image_digest
-    runs-on:
-      [
-        self-hosted,
-        1ES.Pool=gha-vmss-d16av5-ci,
-        "JobId=release_reproduce_rpm-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
-      ]
+    runs-on: [self-hosted, 1ES.Pool=gha-vmss-d16av5-ci, "UseScaleSet=true"]
     env:
       REPRO_DIR: /tmp/reproduced
     container:

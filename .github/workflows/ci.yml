@@ -16,12 +16,7 @@ permissions: read-all
 jobs:
   vmss-virtual-a:
     name: "VMSS Virtual A" # CI Checks, Clang Tidy, Python package tests, Doc build, Unit tests, e2e (bucket_a)
-    runs-on:
-      [
-        self-hosted,
-        1ES.Pool=gha-vmss-d16av5-ci,
-        "JobId=ci_build_tidy-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
-      ]
+    runs-on: [self-hosted, 1ES.Pool=gha-vmss-d16av5-ci, "UseScaleSet=true"]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
@@ -105,12 +100,7 @@ jobs:
 
   vmss-virtual-b:
     name: "VMSS Virtual B" # End-to-end tests (bucket_b)
-    runs-on:
-      [
-        self-hosted,
-        1ES.Pool=gha-vmss-d16av5-ci,
-        "JobId=ci_build_test_virtual-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
-      ]
+    runs-on: [self-hosted, 1ES.Pool=gha-vmss-d16av5-ci, "UseScaleSet=true"]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
@@ -179,12 +169,7 @@ jobs:
 
   vmss-virtual-c:
     name: "VMSS Virtual C" # End-to-end tests (bucket_c)
-    runs-on:
-      [
-        self-hosted,
-        1ES.Pool=gha-vmss-d16av5-ci,
-        "JobId=ci_build_test_virtual_rest-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
-      ]
+    runs-on: [self-hosted, 1ES.Pool=gha-vmss-d16av5-ci, "UseScaleSet=true"]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
@@ -249,12 +234,7 @@ jobs:
 
   aci_snp_milan:
     name: "ACI SNP Milan"
-    runs-on:
-      [
-        self-hosted,
-        1ES.Pool=gha-c-aci-ci,
-        "JobId=aci_snp_milan-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
-      ]
+    runs-on: [self-hosted, 1ES.Pool=gha-c-aci-ci, "UseScaleSet=true"]
 
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -332,12 +312,7 @@ jobs:
 
   aci_snp_genoa:
     name: "ACI SNP Genoa"
-    runs-on:
-      [
-        self-hosted,
-        1ES.Pool=gha-aci-genoa,
-        "JobId=aci_snp_genoa-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
-      ]
+    runs-on: [self-hosted, 1ES.Pool=gha-aci-genoa, "UseScaleSet=true"]
 
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6

@@ -13,12 +13,7 @@ permissions: read-all
 jobs:
   coverage_virtual:
     name: "Coverage Virtual"
-    runs-on:
-      [
-        self-hosted,
-        1ES.Pool=gha-vmss-d16av5-ci,
-        "JobId=ci_coverage-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
-      ]
+    runs-on: [self-hosted, 1ES.Pool=gha-vmss-d16av5-ci, "UseScaleSet=true"]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
