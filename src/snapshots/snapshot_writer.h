@@ -127,8 +127,8 @@ namespace snapshots
           if (fsync(snapshot_fd) == -1)
           {
             LOG_FAIL_FMT(
-              "Error ({}) syncing snapshot {}", // NOLINT(concurrency-mt-unsafe)
-              strerror(errno),
+              "Error ({}) syncing snapshot {}",
+              strerror(errno), // NOLINT(concurrency-mt-unsafe)
               file_name);
             remove_incomplete_file();
             return;
@@ -185,8 +185,8 @@ namespace snapshots
           }
 
           LOG_FAIL_FMT(
-            "Error ({}) writing snapshot {}", // NOLINT(concurrency-mt-unsafe)
-            strerror(errno),
+            "Error ({}) writing snapshot {}",
+            strerror(errno), // NOLINT(concurrency-mt-unsafe)
             file_name);
           return false;
         }
@@ -210,8 +210,8 @@ namespace snapshots
       if (close(fd) == -1)
       {
         LOG_FAIL_FMT(
-          "Error ({}) closing snapshot {}", // NOLINT(concurrency-mt-unsafe)
-          strerror(errno),
+          "Error ({}) closing snapshot {}",
+          strerror(errno), // NOLINT(concurrency-mt-unsafe)
           file_name);
       }
     }
