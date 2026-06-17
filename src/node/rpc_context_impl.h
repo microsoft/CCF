@@ -123,6 +123,7 @@ namespace ccf
 
     bool response_is_pending = false;
     bool terminate_session = false;
+    bool deferred_response_allowed = false;
 
     class PendingResponse : public ccf::DeferredResponse
     {
@@ -250,8 +251,20 @@ namespace ccf
 
     std::shared_ptr<PendingResponse> pending_response = nullptr;
 
+    void set_deferred_response_allowed(bool allowed)
+    {
+      deferred_response_allowed = allowed;
+    }
+
     DeferredResponsePtr defer_response() override
     {
+      if (!deferred_response_allowed)
+      {
+        throw std::logic_error(
+          "Deferred responses are only supported by command and read-only "
+          "endpoints");
+      }
+
       if (respond_on_commit.has_value() || consensus_committed_func != nullptr)
       {
         throw std::logic_error(
@@ -282,7 +295,8 @@ namespace ccf
     [[nodiscard]] virtual bool should_apply_writes() const = 0;
     virtual void reset_response() = 0;
     [[nodiscard]] virtual ccf::http::HeaderMap get_response_headers() const = 0;
-    [[nodiscard]] virtual ccf::http::HeaderMap get_response_trailers() const = 0;
+    [[nodiscard]] virtual ccf::http::HeaderMap get_response_trailers()
+      const = 0;
     [[nodiscard]] virtual std::vector<uint8_t> serialise_response() const = 0;
     virtual const std::vector<uint8_t>& get_serialised_request() = 0;
   };

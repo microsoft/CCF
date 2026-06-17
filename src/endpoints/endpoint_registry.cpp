@@ -18,6 +18,29 @@ namespace ccf::endpoints
 {
   namespace
   {
+    struct DeferredResponseGuard
+    {
+      std::shared_ptr<ccf::RpcContextImpl> rpc_ctx_impl;
+
+      DeferredResponseGuard(
+        const std::shared_ptr<ccf::RpcContext>& rpc_ctx, bool allowed)
+      {
+        rpc_ctx_impl = std::dynamic_pointer_cast<ccf::RpcContextImpl>(rpc_ctx);
+        if (rpc_ctx_impl != nullptr)
+        {
+          rpc_ctx_impl->set_deferred_response_allowed(allowed);
+        }
+      }
+
+      ~DeferredResponseGuard()
+      {
+        if (rpc_ctx_impl != nullptr)
+        {
+          rpc_ctx_impl->set_deferred_response_allowed(false);
+        }
+      }
+    };
+
     void add_endpoint_to_api_document(
       nlohmann::json& document, const EndpointPtr& endpoint)
     {
@@ -320,6 +343,7 @@ namespace ccf::endpoints
              method,
              verb,
              [f](EndpointContext& ctx) {
+               DeferredResponseGuard deferred_response_guard(ctx.rpc_ctx, true);
                ReadOnlyEndpointContext ro_ctx(ctx.rpc_ctx, ctx.tx);
                ro_ctx.caller = std::move(ctx.caller);
                f(ro_ctx);
@@ -336,7 +360,13 @@ namespace ccf::endpoints
     const AuthnPolicies& ap)
   {
     return make_endpoint(
-             method, verb, [f](EndpointContext& ctx) { f(ctx); }, ap)
+             method,
+             verb,
+             [f](EndpointContext& ctx) {
+               DeferredResponseGuard deferred_response_guard(ctx.rpc_ctx, true);
+               f(ctx);
+             },
+             ap)
       .set_forwarding_required(ForwardingRequired::Sometimes)
       .set_redirection_strategy(RedirectionStrategy::None);
   }
@@ -561,6 +591,7 @@ namespace ccf::endpoints
         "derived implementation to handle derived endpoint instances");
     }
 
+    DeferredResponseGuard deferred_response_guard(ctx.rpc_ctx, false);
     endpoint->func(ctx);
   }
 

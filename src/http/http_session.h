@@ -2,11 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "deferred_response.h"
 #include "ds/internal_logger.h"
 #include "enclave/client_session.h"
 #include "enclave/rpc_handler.h"
 #include "enclave/rpc_map.h"
-#include "deferred_response.h"
 #include "error_reporter.h"
 #include "http_parser.h"
 #include "http_responder.h"

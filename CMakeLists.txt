@@ -868,6 +868,12 @@ if(BUILD_TESTS)
     )
 
     add_unit_test(
+      deferred_response_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/http/test/deferred_response_test.cpp
+    )
+    target_link_libraries(deferred_response_test PRIVATE http_parser ccf_tasks)
+
+    add_unit_test(
       frontend_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/frontend_test.cpp
       ${CCF_DIR}/src/node/quote.cpp

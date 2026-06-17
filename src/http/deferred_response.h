@@ -10,6 +10,9 @@ namespace http
   inline bool send_rpc_response(
     ccf::http::HTTPResponder& responder, ccf::RpcContextImpl& rpc_ctx)
   {
+    rpc_ctx.response_is_pending = false;
+    rpc_ctx.pending_response = nullptr;
+
     return responder.send_response(
       (ccf::http_status)rpc_ctx.get_response_status(),
       rpc_ctx.get_response_headers(),
