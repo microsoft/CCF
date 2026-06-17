@@ -4,6 +4,9 @@
 #include "ccf/service/node_info_network.h"
 #include "ds/internal_logger.h"
 
+#include <utility>
+#include <vector>
+
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
 
@@ -113,6 +116,64 @@ TEST_CASE("Multiple versions of NodeInfoNetwork")
       const auto it = j.find(k);
       REQUIRE(it != j.end());
       REQUIRE(it.value() == v_);
+    }
+  }
+}
+
+TEST_CASE("split_net_address and make_net_address")
+{
+  using namespace ccf;
+
+  {
+    INFO("IPv4 and DNS hosts are unchanged");
+    REQUIRE(
+      split_net_address("1.2.3.4:8000") ==
+      std::make_pair(std::string("1.2.3.4"), std::string("8000")));
+    REQUIRE(make_net_address("1.2.3.4", "8000") == "1.2.3.4:8000");
+    REQUIRE(
+      split_net_address("example.com:443") ==
+      std::make_pair(std::string("example.com"), std::string("443")));
+    REQUIRE(make_net_address("example.com", "443") == "example.com:443");
+  }
+
+  {
+    INFO("IPv6 literals are bracketed by make and stripped by split");
+    REQUIRE(make_net_address("::1", "8000") == "[::1]:8000");
+    REQUIRE(make_net_address("2001:db8::1", "443") == "[2001:db8::1]:443");
+    REQUIRE(
+      split_net_address("[::1]:8000") ==
+      std::make_pair(std::string("::1"), std::string("8000")));
+    REQUIRE(
+      split_net_address("[2001:db8::1]:443") ==
+      std::make_pair(std::string("2001:db8::1"), std::string("443")));
+  }
+
+  {
+    INFO("make_net_address is idempotent for already-bracketed hosts");
+    REQUIRE(make_net_address("[::1]", "8000") == "[::1]:8000");
+  }
+
+  {
+    INFO("Bracketed IPv6 without a port");
+    REQUIRE(
+      split_net_address("[::1]") ==
+      std::make_pair(std::string("::1"), std::string("")));
+  }
+
+  {
+    INFO("Round-trip through split and make");
+    for (const auto& [host, port] :
+         std::vector<std::pair<std::string, std::string>>{
+           {"1.2.3.4", "8000"},
+           {"example.com", "443"},
+           {"::1", "8000"},
+           {"2001:db8::1", "443"},
+           {"fe80::1", "0"}})
+    {
+      const auto addr = make_net_address(host, port);
+      const auto [h, p] = split_net_address(addr);
+      REQUIRE(h == host);
+      REQUIRE(p == port);
     }
   }
 }

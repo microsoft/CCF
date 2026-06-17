@@ -66,6 +66,12 @@ namespace asynchost
     addrinfo* addr_base = nullptr;
     addrinfo* addr_current = nullptr;
 
+    // Address family (AF_INET / AF_INET6) of the client socket currently owned
+    // by uv_handle, or AF_UNSPEC if no socket has been created yet. Used to
+    // detect when a resolved address requires a different family, since a
+    // uv_tcp_t cannot switch family without being closed and re-initialised.
+    int current_socket_family = AF_UNSPEC;
+
     [[nodiscard]] bool port_assigned() const
     {
       return port != "0";
@@ -421,6 +427,7 @@ namespace asynchost
 
       // Client socket creation is deferred to connect_resolved(), where
       // the resolved address family (AF_INET or AF_INET6) is known.
+      current_socket_family = AF_UNSPEC;
 
       if ((rc = uv_tcp_keepalive(&uv_handle, 1, 30)) < 0)
       {
@@ -527,7 +534,6 @@ namespace asynchost
       // if client_bind() hasn't already created one via uv_tcp_bind().
       if (is_client && !client_host.has_value() && addr_current != nullptr)
       {
-        int rc = 0;
         uv_os_fd_t existing_fd = {};
         const auto uv_fileno_rc = uv_fileno(
           reinterpret_cast<const uv_handle_t*>(&uv_handle), &existing_fd);
@@ -540,8 +546,22 @@ namespace asynchost
           return false;
         }
 
-        if (uv_fileno_rc == UV_EBADF)
+        const bool has_socket = (uv_fileno_rc != UV_EBADF);
+
+        // If a socket from a previous attempt is open but for a different
+        // address family than the one we now need, it cannot be reused: libuv
+        // will not switch a uv_tcp_t between AF_INET and AF_INET6, and passing
+        // a mismatched sockaddr to uv_tcp_connect would reliably fail and
+        // prevent fallback. Reset the handle so a fresh socket of the correct
+        // family is created.
+        if (has_socket && current_socket_family != addr_current->ai_family)
         {
+          return reset_handle_for_family_change();
+        }
+
+        if (!has_socket)
+        {
+          int rc = 0;
           const int family = addr_current->ai_family;
           uv_os_sock_t sock = 0;
           if ((sock = socket(family, SOCK_STREAM, IPPROTO_TCP)) == -1)
@@ -564,6 +584,8 @@ namespace asynchost
             close_socket_before_uv_ownership(sock);
             return false;
           }
+
+          current_socket_family = family;
         }
       }
 
@@ -572,6 +594,17 @@ namespace asynchost
 
       while (addr_current != nullptr)
       {
+        // If the next resolved address needs a different family than our
+        // current socket, reset the handle to recreate the socket rather than
+        // passing a mismatched sockaddr to uv_tcp_connect.
+        if (
+          is_client && !client_host.has_value() &&
+          current_socket_family != addr_current->ai_family)
+        {
+          delete req; // NOLINT(cppcoreguidelines-owning-memory)
+          return reset_handle_for_family_change();
+        }
+
         if (
           (rc = uv_tcp_connect(
              req, &uv_handle, addr_current->ai_addr, on_connect)) < 0)
@@ -594,6 +627,46 @@ namespace asynchost
 
       behaviour->on_connect_failed();
       return false;
+    }
+
+    // Close and re-initialise uv_handle so that the next connect_resolved()
+    // creates a fresh socket for the current address family. Used to support
+    // fallback across mixed-family (IPv4/IPv6) resolved address lists.
+    bool reset_handle_for_family_change()
+    {
+      if (uv_is_closing(reinterpret_cast<uv_handle_t*>(&uv_handle)) != 0)
+      {
+        return false;
+      }
+
+      LOG_DEBUG_FMT(
+        "Resolved address family changed; resetting TCP handle to recreate "
+        "the client socket");
+      assert_status(CONNECTING_RESOLVING, RECONNECTING);
+      uv_close(reinterpret_cast<uv_handle_t*>(&uv_handle), on_family_reset);
+      return true;
+    }
+
+    static void on_family_reset(uv_handle_t* handle)
+    {
+      static_cast<TCPImpl*>(handle->data)->on_family_reset();
+    }
+
+    void on_family_reset()
+    {
+      assert_status(RECONNECTING, FRESH);
+
+      if (!init())
+      {
+        assert_status(FRESH, CONNECTING_FAILED);
+        behaviour->on_connect_failed();
+        return;
+      }
+
+      // init() leaves the handle without a socket; the next connect_resolved()
+      // creates one for the (new) current address family.
+      assert_status(FRESH, CONNECTING_RESOLVING);
+      connect_resolved();
     }
 
     bool set_connection_timeout(uv_os_sock_t sock)

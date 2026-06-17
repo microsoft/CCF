@@ -49,7 +49,7 @@ def test_primary(network, args):
                 primary_interface = primary_interfaces[interface_name]
                 assert (
                     r.headers["location"]
-                    == f"https://{primary_interface.public_host}:{primary_interface.public_port}/node/primary"
+                    == f"https://{infra.interfaces.make_address(primary_interface.public_host, primary_interface.public_port)}/node/primary"
                 )
                 LOG.info(
                     f'Successfully redirected to {r.headers["location"]} on primary {primary.local_node_id}'
@@ -119,7 +119,7 @@ def test_network_node_info(network, args):
                     assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value
                     assert (
                         r.headers["location"]
-                        == f"https://{primary_interface.public_host}:{primary_interface.public_port}/node/primary"
+                        == f"https://{infra.interfaces.make_address(primary_interface.public_host, primary_interface.public_port)}/node/primary"
                     ), r.headers["location"]
                     r = c.head("/node/primary", allow_redirects=True)
                 assert r.status_code == http.HTTPStatus.OK.value

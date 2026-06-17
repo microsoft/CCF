@@ -20,11 +20,35 @@ namespace cli
   static std::pair<std::string, std::string> validate_address(
     const ParsedAddress& addr, const std::string& default_port = "0")
   {
-    auto found = addr.find_last_of(':');
-    auto hostname = addr.substr(0, found);
+    std::string hostname;
+    std::string port;
 
-    const auto port =
-      found == std::string::npos ? default_port : addr.substr(found + 1);
+    if (!addr.empty() && addr.front() == '[')
+    {
+      // Bracketed IPv6 literal: "[host]:port" or "[host]". The brackets are
+      // stripped from the returned host.
+      const auto close = addr.find(']');
+      if (close == std::string::npos)
+      {
+        throw std::logic_error(
+          fmt::format("Address '{}' has an unmatched '['", addr));
+      }
+      hostname = addr.substr(1, close - 1);
+      if (close + 1 < addr.size() && addr[close + 1] == ':')
+      {
+        port = addr.substr(close + 2);
+      }
+      else
+      {
+        port = default_port;
+      }
+    }
+    else
+    {
+      auto found = addr.find_last_of(':');
+      hostname = addr.substr(0, found);
+      port = found == std::string::npos ? default_port : addr.substr(found + 1);
+    }
 
     // Check if port is in valid range
     uint16_t port_n = 0;

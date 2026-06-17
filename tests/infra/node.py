@@ -174,15 +174,22 @@ class Node:
             raise ValueError("Translate host to HostSpec before you get here")
 
         for interface_name, rpc_interface in self.host.rpc_interfaces.items():
+            # Expand "localhost" to a concrete address first, so the IPv6
+            # detection below sees the effective host (e.g. when CCF_IPV6 is
+            # set, expand_localhost() returns an IPv4-mapped "::ffff:" address).
+            if rpc_interface.host == "localhost":
+                rpc_interface.host = infra.net.expand_localhost()
+
             # Main RPC interface determines remote implementation
             if interface_name == infra.interfaces.PRIMARY_RPC_INTERFACE:
                 if rpc_interface.protocol == "local":
                     if not self.major_version or self.major_version > 1:
                         if ":" in rpc_interface.host:
-                            # Pure IPv6 addresses (e.g. ::1) are not
-                            # compatible with the IPv4-based client
-                            # interface used for partition simulation.
-                            # Skip client interface binding for IPv6.
+                            # IPv6 addresses (e.g. ::1, or IPv4-mapped
+                            # ::ffff:... from expand_localhost()) are not
+                            # compatible with the IPv4-based client interface
+                            # used for partition simulation. Skip client
+                            # interface binding for IPv6.
                             self.node_client_host = None
                         else:
                             self.node_client_host = str(
@@ -191,9 +198,6 @@ class Node:
                             )
                 else:
                     assert False, f"{rpc_interface.protocol} is not 'local://'"
-
-            if rpc_interface.host == "localhost":
-                rpc_interface.host = infra.net.expand_localhost()
 
             if rpc_interface.public_host is None:
                 rpc_interface.public_host = rpc_interface.host
