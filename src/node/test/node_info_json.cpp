@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 
 #include "ccf/service/node_info_network.h"
+#include "ds/cli_helper.h"
 #include "ds/internal_logger.h"
 
 #include <utility>
@@ -174,6 +175,69 @@ TEST_CASE("split_net_address and make_net_address")
       const auto [h, p] = split_net_address(addr);
       REQUIRE(h == host);
       REQUIRE(p == port);
+    }
+  }
+}
+
+TEST_CASE("cli::validate_address")
+{
+  using namespace std::string_literals;
+
+  {
+    INFO("IPv4 and DNS hosts with explicit ports");
+    REQUIRE(
+      cli::validate_address("1.2.3.4:8000") ==
+      std::make_pair("1.2.3.4"s, "8000"s));
+    REQUIRE(
+      cli::validate_address("example.com:443") ==
+      std::make_pair("example.com"s, "443"s));
+  }
+
+  {
+    INFO("Missing port falls back to the default");
+    REQUIRE(
+      cli::validate_address("1.2.3.4") == std::make_pair("1.2.3.4"s, "0"s));
+    REQUIRE(
+      cli::validate_address("1.2.3.4", "443") ==
+      std::make_pair("1.2.3.4"s, "443"s));
+  }
+
+  {
+    INFO("Bracketed IPv6 literals, with brackets stripped from the host");
+    REQUIRE(
+      cli::validate_address("[::1]:8000") == std::make_pair("::1"s, "8000"s));
+    REQUIRE(
+      cli::validate_address("[2001:db8::1]:443") ==
+      std::make_pair("2001:db8::1"s, "443"s));
+  }
+
+  {
+    INFO("Bracketed IPv6 without a port falls back to the default");
+    REQUIRE(cli::validate_address("[::1]") == std::make_pair("::1"s, "0"s));
+    REQUIRE(
+      cli::validate_address("[fe80::1]", "443") ==
+      std::make_pair("fe80::1"s, "443"s));
+  }
+
+  {
+    INFO("Invalid inputs throw");
+    REQUIRE_THROWS_AS(cli::validate_address("[::1"), std::logic_error);
+    REQUIRE_THROWS_AS(
+      cli::validate_address("1.2.3.4:notaport"), std::logic_error);
+    REQUIRE_THROWS_AS(cli::validate_address("1.2.3.4:99999"), std::logic_error);
+  }
+
+  {
+    INFO("validate_address output round-trips through make_net_address");
+    for (const auto& addr : {
+           "1.2.3.4:8000"s,
+           "example.com:443"s,
+           "[::1]:8000"s,
+           "[2001:db8::1]:443"s,
+         })
+    {
+      const auto [host, port] = cli::validate_address(addr);
+      REQUIRE(ccf::make_net_address(host, port) == addr);
     }
   }
 }
