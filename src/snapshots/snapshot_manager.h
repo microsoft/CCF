@@ -95,10 +95,10 @@ namespace snapshots
     auto rc = x; \
     if (rc == -1) \
     { \
-      throw std::runtime_error( \
-        fmt::format("Error ({}) writing snapshot {} in " #x, \
-                    ccf::nonstd::strerror(errno), \
-                    name)); \
+      throw std::runtime_error(fmt::format( \
+        "Error ({}) writing snapshot {} in " #x, \
+        ccf::nonstd::strerror(errno), \
+        name)); \
     } \
   } while (0)
 

@@ -570,8 +570,7 @@ namespace asynchost
         if (fflush(file) != 0)
         {
           throw std::logic_error(fmt::format(
-            "Failed to flush ledger file: {}",
-            ccf::nonstd::strerror(errno)));
+            "Failed to flush ledger file: {}", ccf::nonstd::strerror(errno)));
         }
       }
 
@@ -581,8 +580,7 @@ namespace asynchost
         if (ftruncate(fileno(file), total_len) != 0)
         {
           throw std::logic_error(fmt::format(
-            "Failed to truncate ledger: {}",
-            ccf::nonstd::strerror(errno)));
+            "Failed to truncate ledger: {}", ccf::nonstd::strerror(errno)));
         }
       }
 
@@ -651,8 +649,7 @@ namespace asynchost
         if (fflush(file) != 0)
         {
           throw std::logic_error(fmt::format(
-            "Failed to flush ledger file: {}",
-            ccf::nonstd::strerror(errno)));
+            "Failed to flush ledger file: {}", ccf::nonstd::strerror(errno)));
         }
       }
 
@@ -710,8 +707,7 @@ namespace asynchost
         if (fsync(fileno(file)) != 0)
         {
           throw std::logic_error(fmt::format(
-            "Failed to flush ledger file: {}",
-            ccf::nonstd::strerror(errno)));
+            "Failed to flush ledger file: {}", ccf::nonstd::strerror(errno)));
         }
       }
 

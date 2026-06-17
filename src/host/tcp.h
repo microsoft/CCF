@@ -418,8 +418,7 @@ namespace asynchost
         if ((sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1)
         {
           LOG_FAIL_FMT(
-            "socket creation failed: {}",
-            ccf::nonstd::strerror(errno));
+            "socket creation failed: {}", ccf::nonstd::strerror(errno));
           return false;
         }
 

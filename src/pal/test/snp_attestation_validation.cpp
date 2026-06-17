@@ -366,6 +366,7 @@ TEST_CASE("Quote endorsements url generation")
             {
               {"api-version", "2020-10-15-preview"},
             },
+          .headers = {},
           .max_retries_count = max_retries_count,
           .max_client_response_size = ccf::ds::SizeString("100mb"),
         }}}}},
@@ -390,6 +391,7 @@ TEST_CASE("Quote endorsements url generation")
                    {"snpSPL", "24"},
                    {"ucodeSPL", "219"}},
                 .response_is_der = true, // DER response
+                .headers = {},
                 .max_retries_count = max_retries_count,
                 .max_client_response_size = ccf::ds::SizeString("100mb"),
               },
@@ -399,6 +401,7 @@ TEST_CASE("Quote endorsements url generation")
                 .uri = "/vcek/v1/Milan/cert_chain",
                 .params = {},
                 .response_is_der = false, // Not DER response
+                .headers = {},
                 .max_retries_count = max_retries_count,
                 .max_client_response_size = ccf::ds::SizeString("100mb"),
               }}}}}},
@@ -424,6 +427,7 @@ TEST_CASE("Quote endorsements url generation")
                      {"ucodeSPL", "81"},
                    },
                  .response_is_der = true, // DER response
+                 .headers = {},
                  .max_retries_count = max_retries_count,
                  .max_client_response_size = ccf::ds::SizeString("100mb"),
                },
@@ -433,6 +437,7 @@ TEST_CASE("Quote endorsements url generation")
                  .uri = "/vcek/v1/Turin/cert_chain",
                  .params = {},
                  .response_is_der = false, // Not DER response
+                 .headers = {},
                  .max_retries_count = max_retries_count,
                  .max_client_response_size = ccf::ds::SizeString("100mb"),
                }}}}},
@@ -460,6 +465,7 @@ TEST_CASE("Quote endorsements url generation")
                     {"snpSPL", "23"},
                     {"ucodeSPL", "84"}},
                  .response_is_der = true, // DER response
+                 .headers = {},
                  .max_retries_count = max_retries_count,
                  .max_client_response_size = ccf::ds::SizeString("100mb"),
                },
@@ -469,6 +475,7 @@ TEST_CASE("Quote endorsements url generation")
                  .uri = "/vcek/v1/Genoa/cert_chain",
                  .params = {},
                  .response_is_der = false, // Not DER response
+                 .headers = {},
                  .max_retries_count = max_retries_count,
                  .max_client_response_size = ccf::ds::SizeString("100mb"),
                }}}}},

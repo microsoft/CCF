@@ -173,7 +173,7 @@ TEST_CASE("Basic cache" * doctest::test_suite("lfs"))
       ccf::indexing::EnclaveLFSAccess::obfuscate_key(key_b);
     const auto original_b_contents = read_file(b_path);
 
-    for (auto i = 0; i < original_b_contents.size(); ++i)
+    for (size_t i = 0; i < original_b_contents.size(); ++i)
     {
       write_file_corrupted_at(b_path, i, original_b_contents);
 
@@ -245,8 +245,6 @@ TEST_CASE("Integrated cache" * doctest::test_suite("lfs"))
     std::make_shared<StratValue>(value_a, node_context, 100, 4);
   REQUIRE(indexer.install_strategy(index_value));
 
-  static constexpr auto num_transactions =
-    ccf::indexing::Indexer::MAX_REQUESTABLE * 3;
   ExpectedSeqNos seqnos_hello, seqnos_saluton, seqnos_1, seqnos_2, seqnos_set,
     seqnos_value;
   auto actions = create_actions(

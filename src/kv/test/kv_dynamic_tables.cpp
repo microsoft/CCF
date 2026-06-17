@@ -201,7 +201,7 @@ TEST_CASE(
   REQUIRE(!handle2->get("foo").has_value());
 
   // tx3 takes a read dependency at an early version, before the map is visible
-  auto handle3_static = tx3.rw<MapTypes::StringString>(other_map);
+  tx3.rw<MapTypes::StringString>(other_map);
 
   REQUIRE(tx1.commit() == ccf::kv::CommitResult::SUCCESS);
 
