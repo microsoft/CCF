@@ -53,6 +53,37 @@ namespace ccf
 
   using PathParams = std::map<std::string, std::string, std::less<>>;
 
+  class DeferredResponse
+  {
+  public:
+    virtual ~DeferredResponse() = default;
+
+    virtual bool complete(
+      http_status status,
+      std::vector<uint8_t>&& body,
+      http::HeaderMap&& headers = {},
+      http::HeaderMap&& trailers = {}) = 0;
+
+    bool complete(
+      http_status status,
+      std::string&& body,
+      http::HeaderMap&& headers = {},
+      http::HeaderMap&& trailers = {})
+    {
+      return complete(
+        status,
+        std::vector<uint8_t>(body.begin(), body.end()),
+        std::move(headers),
+        std::move(trailers));
+    }
+
+    virtual bool cancel(ErrorDetails&& error) = 0;
+
+    [[nodiscard]] virtual bool is_complete() const = 0;
+  };
+
+  using DeferredResponsePtr = std::shared_ptr<DeferredResponse>;
+
   /// Describes the currently executing RPC.
   class RpcContext
   {
@@ -198,6 +229,13 @@ namespace ccf
     /// commit.
     virtual void set_consensus_committed_function(
       ccf::endpoints::ConsensusCommittedEndpointFunction func) = 0;
+
+    /// Defers sending the response until the returned completion handle is
+    /// completed or cancelled. This is currently intended for command and
+    /// read-only endpoints only. EndpointContext, ReadOnlyEndpointContext, Tx,
+    /// and caller references remain scoped to the original handler invocation
+    /// and must not be retained for use from the completion callback.
+    virtual DeferredResponsePtr defer_response() = 0;
     ///@}
   };
 }

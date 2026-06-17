@@ -6,6 +6,7 @@
 #include "enclave/client_session.h"
 #include "enclave/rpc_handler.h"
 #include "enclave/rpc_map.h"
+#include "deferred_response.h"
 #include "error_reporter.h"
 #include "http_parser.h"
 #include "http_responder.h"
@@ -171,6 +172,37 @@ namespace http
 
         if (rpc_ctx->response_is_pending)
         {
+          if (rpc_ctx->pending_response != nullptr)
+          {
+            ccf::tasks::Resumable paused_task =
+              ccf::tasks::pause_current_task();
+            std::shared_ptr<ccf::ThreadedSession> self = shared_from_this();
+            auto responder = std::shared_ptr<ccf::http::HTTPResponder>(
+              self, static_cast<ccf::http::HTTPResponder*>(this));
+
+            rpc_ctx->pending_response->arm(
+              [responder, rpc_ctx, paused_task, self]() {
+                try
+                {
+                  send_rpc_response(*responder, *rpc_ctx);
+                }
+                catch (const std::exception& e)
+                {
+                  LOG_FAIL_FMT(
+                    "Exception while completing deferred response: {}",
+                    e.what());
+                  rpc_ctx->terminate_session = true;
+                }
+
+                if (rpc_ctx->terminate_session)
+                {
+                  self->close_session();
+                }
+
+                ccf::tasks::resume_task(paused_task);
+              });
+          }
+
           // If the RPC is pending, hold the connection.
           LOG_TRACE_FMT("Pending");
           return;
@@ -234,11 +266,7 @@ namespace http
         }
         else
         {
-          send_response(
-            rpc_ctx->get_response_http_status(),
-            rpc_ctx->get_response_headers(),
-            rpc_ctx->get_response_trailers(),
-            std::move(rpc_ctx->take_response_body()));
+          send_rpc_response(*this, *rpc_ctx);
 
           if (rpc_ctx->terminate_session)
           {

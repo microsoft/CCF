@@ -6,7 +6,10 @@
 #include "ccf/rest_verb.h"
 #include "ds/internal_logger.h"
 #include "host/proxy.h"
+#include "tasks/basic_task.h"
+#include "tasks/task_system.h"
 
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <curl/curl.h>
@@ -1058,4 +1061,84 @@ namespace ccf::curl
     CurlmLibuvContextSingleton& operator=(CurlmLibuvContextSingleton&&) =
       default;
   };
+
+  struct EndpointCurlOptions
+  {
+    std::chrono::milliseconds timeout = std::chrono::seconds(5);
+    std::chrono::milliseconds connect_timeout = std::chrono::seconds(5);
+    size_t max_response_size = 1024 * 1024;
+    bool verify_tls = true;
+    bool follow_redirects = false;
+  };
+
+  struct EndpointCurlResult
+  {
+    CURLcode curl_response_code = CURLE_OK;
+    long status_code = 0;
+    std::vector<uint8_t> body;
+    ResponseHeaders::HeaderMap headers;
+  };
+
+  using EndpointCurlCallback = std::function<void(EndpointCurlResult&&)>;
+
+  inline void submit_endpoint_request(
+    RESTVerb method,
+    std::string url,
+    UniqueSlist&& headers,
+    std::unique_ptr<RequestBody>&& request_body,
+    EndpointCurlOptions options,
+    EndpointCurlCallback callback)
+  {
+    if (callback == nullptr)
+    {
+      throw std::invalid_argument("Endpoint curl callback cannot be null");
+    }
+
+    auto curl_handle = UniqueCURL();
+    CHECK_CURL_EASY_SETOPT(
+      curl_handle, CURLOPT_TIMEOUT_MS, options.timeout.count());
+    CHECK_CURL_EASY_SETOPT(
+      curl_handle,
+      CURLOPT_CONNECTTIMEOUT_MS,
+      options.connect_timeout.count());
+    CHECK_CURL_EASY_SETOPT(
+      curl_handle, CURLOPT_SSL_VERIFYPEER, options.verify_tls ? 1L : 0L);
+    CHECK_CURL_EASY_SETOPT(
+      curl_handle, CURLOPT_SSL_VERIFYHOST, options.verify_tls ? 2L : 0L);
+    CHECK_CURL_EASY_SETOPT(
+      curl_handle, CURLOPT_FOLLOWLOCATION, options.follow_redirects ? 1L : 0L);
+
+    auto response_callback =
+      [callback = std::move(callback)](
+        std::unique_ptr<CurlRequest>&& request,
+        CURLcode curl_response_code,
+        long status_code) mutable {
+        EndpointCurlResult result;
+        result.curl_response_code = curl_response_code;
+        result.status_code = status_code;
+        if (auto* response_body = request->get_response_body();
+            response_body != nullptr)
+        {
+          result.body = std::move(response_body->buffer);
+        }
+        result.headers = request->get_response_headers();
+
+        ccf::tasks::add_task(ccf::tasks::make_basic_task(
+          [callback = std::move(callback), result = std::move(result)]()
+            mutable { callback(std::move(result)); },
+          "EndpointCurlResponse"));
+      };
+
+    auto request = std::make_unique<CurlRequest>(
+      std::move(curl_handle),
+      method,
+      std::move(url),
+      std::move(headers),
+      std::move(request_body),
+      std::make_unique<ResponseBody>(options.max_response_size),
+      std::move(response_callback));
+
+    CurlmLibuvContextSingleton::get_instance()->attach_request(
+      std::move(request));
+  }
 } // namespace ccf::curl

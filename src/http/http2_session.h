@@ -5,6 +5,7 @@
 #include "ds/internal_logger.h"
 #include "enclave/client_session.h"
 #include "enclave/rpc_map.h"
+#include "http/deferred_response.h"
 #include "error_reporter.h"
 #include "http/http2_types.h"
 #include "http2_parser.h"
@@ -369,16 +370,29 @@ namespace http
 
         if (rpc_ctx->response_is_pending)
         {
+          if (rpc_ctx->pending_response != nullptr)
+          {
+            rpc_ctx->pending_response->arm([responder, rpc_ctx]() {
+              try
+              {
+                send_rpc_response(*responder, *rpc_ctx);
+              }
+              catch (const std::exception& e)
+              {
+                LOG_FAIL_FMT(
+                  "Exception while completing deferred response on HTTP/2 "
+                  "stream: {}",
+                  e.what());
+              }
+            });
+          }
+
           // If the RPC is pending, hold the connection.
           LOG_TRACE_FMT("Pending");
           return;
         }
 
-        responder->send_response(
-          rpc_ctx->get_response_http_status(),
-          rpc_ctx->get_response_headers(),
-          rpc_ctx->get_response_trailers(),
-          std::move(rpc_ctx->take_response_body()));
+        send_rpc_response(*responder, *rpc_ctx);
       }
       catch (const std::exception& e)
       {

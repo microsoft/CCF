@@ -5,6 +5,10 @@
 #include "ccf/claims_digest.h"
 #include "ccf/endpoint_context.h"
 #include "ccf/rpc_context.h"
+#include "tasks/basic_task.h"
+#include "tasks/task_system.h"
+
+#include <mutex>
 
 namespace ccf
 {
@@ -18,7 +22,8 @@ namespace ccf
   // to apps). Serves 2 purposes:
   // - Default implementation of simple methods accessing member fields
   // - Adding methods like `serialise_response()`, required by frontends
-  class RpcContextImpl : public RpcContext
+  class RpcContextImpl : public RpcContext,
+                         public std::enable_shared_from_this<RpcContextImpl>
   {
   protected:
     std::shared_ptr<SessionContext> session;
@@ -119,6 +124,151 @@ namespace ccf
     bool response_is_pending = false;
     bool terminate_session = false;
 
+    class PendingResponse : public ccf::DeferredResponse
+    {
+    public:
+      using CompletionFn = std::function<void()>;
+
+    private:
+      std::weak_ptr<RpcContextImpl> rpc_ctx;
+      mutable std::mutex lock;
+      CompletionFn completion_fn;
+      bool completed = false;
+
+      void dispatch_completion(CompletionFn fn)
+      {
+        ccf::tasks::add_task(ccf::tasks::make_basic_task(
+          [fn = std::move(fn)]() { fn(); }, "PendingResponseCompletion"));
+      }
+
+    public:
+      PendingResponse(const std::shared_ptr<RpcContextImpl>& rpc_ctx_) :
+        rpc_ctx(rpc_ctx_)
+      {}
+
+      bool complete(
+        http_status status,
+        std::vector<uint8_t>&& body,
+        http::HeaderMap&& headers = {},
+        http::HeaderMap&& trailers = {}) override
+      {
+        CompletionFn fn;
+        {
+          std::lock_guard<std::mutex> guard(lock);
+          if (completed)
+          {
+            return false;
+          }
+
+          auto ctx = rpc_ctx.lock();
+          if (ctx == nullptr)
+          {
+            completed = true;
+            return false;
+          }
+
+          ctx->reset_response();
+          ctx->set_response_status(status);
+          for (const auto& [k, v] : headers)
+          {
+            ctx->set_response_header(k, v);
+          }
+          for (const auto& [k, v] : trailers)
+          {
+            ctx->set_response_trailer(k, v);
+          }
+          ctx->set_response_body(std::move(body));
+          completed = true;
+          fn = completion_fn;
+        }
+
+        if (fn != nullptr)
+        {
+          dispatch_completion(std::move(fn));
+        }
+        return true;
+      }
+
+      bool cancel(ErrorDetails&& error) override
+      {
+        CompletionFn fn;
+        {
+          std::lock_guard<std::mutex> guard(lock);
+          if (completed)
+          {
+            return false;
+          }
+
+          auto ctx = rpc_ctx.lock();
+          if (ctx == nullptr)
+          {
+            completed = true;
+            return false;
+          }
+
+          ctx->reset_response();
+          ctx->set_error(std::move(error));
+          completed = true;
+          fn = completion_fn;
+        }
+
+        if (fn != nullptr)
+        {
+          dispatch_completion(std::move(fn));
+        }
+        return true;
+      }
+
+      [[nodiscard]] bool is_complete() const override
+      {
+        std::lock_guard<std::mutex> guard(lock);
+        return completed;
+      }
+
+      void arm(CompletionFn fn)
+      {
+        bool already_completed = false;
+        CompletionFn fn_to_dispatch;
+        {
+          std::lock_guard<std::mutex> guard(lock);
+          if (completion_fn != nullptr)
+          {
+            throw std::logic_error("Pending response has already been armed");
+          }
+
+          completion_fn = std::move(fn);
+          fn_to_dispatch = completion_fn;
+          already_completed = completed;
+        }
+
+        if (already_completed)
+        {
+          dispatch_completion(std::move(fn_to_dispatch));
+        }
+      }
+    };
+
+    std::shared_ptr<PendingResponse> pending_response = nullptr;
+
+    DeferredResponsePtr defer_response() override
+    {
+      if (respond_on_commit.has_value() || consensus_committed_func != nullptr)
+      {
+        throw std::logic_error(
+          "Cannot defer a response that also responds on commit");
+      }
+
+      if (response_is_pending)
+      {
+        throw std::logic_error("Response is already pending");
+      }
+
+      auto self = shared_from_this();
+      pending_response = std::make_shared<PendingResponse>(self);
+      response_is_pending = true;
+      return pending_response;
+    }
+
     struct RespondOnCommitInfo
     {
       ccf::TxID tx_id;
@@ -131,6 +281,8 @@ namespace ccf
 
     [[nodiscard]] virtual bool should_apply_writes() const = 0;
     virtual void reset_response() = 0;
+    [[nodiscard]] virtual ccf::http::HeaderMap get_response_headers() const = 0;
+    [[nodiscard]] virtual ccf::http::HeaderMap get_response_trailers() const = 0;
     [[nodiscard]] virtual std::vector<uint8_t> serialise_response() const = 0;
     virtual const std::vector<uint8_t>& get_serialised_request() = 0;
   };

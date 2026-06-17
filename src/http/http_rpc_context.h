@@ -118,12 +118,12 @@ namespace http
       // NOLINTEND(cppcoreguidelines-prefer-member-initializer)
     }
 
-    [[nodiscard]] ccf::http::HeaderMap get_response_headers() const
+    [[nodiscard]] ccf::http::HeaderMap get_response_headers() const override
     {
       return response_headers;
     }
 
-    [[nodiscard]] ccf::http::HeaderMap get_response_trailers() const
+    [[nodiscard]] ccf::http::HeaderMap get_response_trailers() const override
     {
       return response_trailers;
     }
@@ -285,6 +285,7 @@ namespace http
     void reset_response() override
     {
       response_headers.clear();
+      response_trailers.clear();
       response_body.clear();
       response_status = HTTP_STATUS_OK;
       explicit_apply_writes.reset();
