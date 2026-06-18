@@ -16,7 +16,7 @@ def split_netloc(netloc, default_port=0):
 
 
 def make_address(host, port=0):
-    if ":" in host:
+    if ":" in host and not host.startswith("["):
         return f"[{host}]:{port}"
     else:
         return f"{host}:{port}"
@@ -346,6 +346,11 @@ class HostSpec:
 
 
 if __name__ == "__main__":
+    assert make_address("::1", 8000) == "[::1]:8000"
+    assert make_address("[::1]", 8000) == "[::1]:8000"
+    assert make_address("1.2.3.4", 8000) == "1.2.3.4:8000"
+    assert make_address("example.com", 443) == "example.com:443"
+
     # Test some roundtrip conversions
     def test_roundtrip(before):
         j = before.to_json(before)
