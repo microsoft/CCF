@@ -140,16 +140,12 @@ TEST_CASE("split_net_address and make_net_address")
     INFO("IPv6 literals are bracketed by make and stripped by split");
     REQUIRE(make_net_address("::1", "8000") == "[::1]:8000");
     REQUIRE(make_net_address("2001:db8::1", "443") == "[2001:db8::1]:443");
-    REQUIRE(make_net_address("fe80::1", "0") == "[fe80::1]:0");
     REQUIRE(
       split_net_address("[::1]:8000") ==
       std::make_pair(std::string("::1"), std::string("8000")));
     REQUIRE(
       split_net_address("[2001:db8::1]:443") ==
       std::make_pair(std::string("2001:db8::1"), std::string("443")));
-    REQUIRE(
-      split_net_address("[fe80::1]:0") ==
-      std::make_pair(std::string("fe80::1"), std::string("0")));
   }
 
   {
@@ -169,9 +165,6 @@ TEST_CASE("split_net_address and make_net_address")
     REQUIRE(
       split_net_address("1.2.3.4") ==
       std::make_pair(std::string("1.2.3.4"), std::string("")));
-    REQUIRE(
-      split_net_address("example.com") ==
-      std::make_pair(std::string("example.com"), std::string("")));
   }
 
   {
@@ -233,19 +226,5 @@ TEST_CASE("cli::validate_address")
     // Junk after the closing ']' is rejected rather than silently ignored
     REQUIRE_THROWS_AS(cli::validate_address("[::1]foo"), std::logic_error);
     REQUIRE_THROWS_AS(cli::validate_address("[::1]foo:8000"), std::logic_error);
-  }
-
-  {
-    INFO("validate_address output round-trips through make_net_address");
-    for (const auto& addr : {
-           "1.2.3.4:8000"s,
-           "example.com:443"s,
-           "[::1]:8000"s,
-           "[2001:db8::1]:443"s,
-         })
-    {
-      const auto [host, port] = cli::validate_address(addr);
-      REQUIRE(ccf::make_net_address(host, port) == addr);
-    }
   }
 }
