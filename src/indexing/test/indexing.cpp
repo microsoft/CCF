@@ -184,8 +184,6 @@ TEST_CASE("basic indexing" * doctest::test_suite("indexing"))
   REQUIRE(indexer.install_strategy(index_a));
   REQUIRE_FALSE(indexer.install_strategy(index_a));
 
-  static constexpr auto num_transactions =
-    ccf::indexing::Indexer::MAX_REQUESTABLE * 3;
   ExpectedSeqNos seqnos_hello, seqnos_saluton, seqnos_1, seqnos_2;
   REQUIRE(create_transactions(
     kv_store,

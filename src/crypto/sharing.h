@@ -20,7 +20,6 @@ namespace ccf::crypto::sharing
   // entropy of derived key material, with 80 bits of safety margin,
   // ((256+80)/31) = 10 limbs.
   static constexpr size_t LIMBS = 10;
-  static constexpr const char* key_label = "CCF Wrapping Key v1";
 
   struct Share
   {
