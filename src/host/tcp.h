@@ -3,6 +3,7 @@
 #pragma once
 
 #include "before_io.h"
+#include "ccf/ds/nonstd.h"
 #include "ccf/pal/locking.h"
 #include "dns.h"
 #include "ds/internal_logger.h"
@@ -417,8 +418,7 @@ namespace asynchost
         if ((sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1)
         {
           LOG_FAIL_FMT(
-            "socket creation failed: {}",
-            std::strerror(errno)); // NOLINT(concurrency-mt-unsafe)
+            "socket creation failed: {}", ccf::nonstd::strerror(errno));
           return false;
         }
 
@@ -431,7 +431,7 @@ namespace asynchost
           {
             LOG_FAIL_FMT(
               "Failed to set socket option (TCP_USER_TIMEOUT): {}",
-              std::strerror(errno)); // NOLINT(concurrency-mt-unsafe)
+              ccf::nonstd::strerror(errno));
             return false;
           }
         }
