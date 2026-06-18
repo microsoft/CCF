@@ -4,7 +4,6 @@ import re
 import socket
 from random import randrange as rr
 from subprocess import check_output
-from os import getenv
 
 
 def ephemeral_range():
@@ -79,12 +78,11 @@ def two_different(finder, *args, **kwargs):
     return (one, two)
 
 
-def expand_localhost():
-    ipv4 = ".".join((str(b) for b in (127, rr(1, 255), rr(1, 255), rr(2, 255))))
-    if getenv("CCF_IPV6"):
-        return f"::ffff:{ipv4}"
+def expand_localhost(ipv6=False):
+    if ipv6:
+        return "::1"
     else:
-        return ipv4
+        return ".".join((str(b) for b in (127, rr(1, 255), rr(1, 255), rr(2, 255))))
 
 
 def ipv6_loopback_available():

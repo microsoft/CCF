@@ -22,14 +22,6 @@ def make_address(host, port=0):
         return f"{host}:{port}"
 
 
-def force_ipv6(host_spec, addr="::1"):
-    """Set every RPC interface of a HostSpec to the given IPv6 address, so the
-    node binds and connects over IPv6. Used to exercise IPv6 end to end."""
-    for interface in host_spec.rpc_interfaces.values():
-        interface.host = addr
-    return host_spec
-
-
 DEFAULT_TRANSPORT_PROTOCOL = "tcp"
 DEFAULT_MAX_OPEN_SESSIONS_SOFT = 1000
 DEFAULT_MAX_OPEN_SESSIONS_HARD = DEFAULT_MAX_OPEN_SESSIONS_SOFT + 10

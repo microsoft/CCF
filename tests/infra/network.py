@@ -243,7 +243,7 @@ class Network:
         node_data_json_file=None,
         next_node_id=0,
         skip_verify_chunking=False,
-        force_ipv6=False,
+        ipv6=False,
     ):
         # Map of node id to dict of node arg to override value
         # for example, to set the election timeout to 2s for node 3:
@@ -284,7 +284,7 @@ class Network:
         self.status = ServiceStatus.CLOSED
         self.binary_dir = binary_dir
         self.library_dir = library_dir
-        self.force_ipv6 = force_ipv6
+        self.ipv6 = ipv6
         self.election_duration = None
         self.observed_election_duration = None
         self.key_generator = os.path.join(binary_dir, self.KEY_GEN)
@@ -333,15 +333,13 @@ class Network:
         elif host is None:
             host = infra.interfaces.HostSpec()
 
-        if self.force_ipv6:
-            infra.interfaces.force_ipv6(host)
-
         node = infra.node.Node(
             node_id,
             host,
             binary_dir or self.binary_dir,
             library_dir or self.library_dir,
             debug,
+            ipv6=self.ipv6,
             **kwargs,
         )
         self.nodes.append(node)
