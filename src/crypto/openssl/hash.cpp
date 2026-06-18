@@ -66,9 +66,6 @@ namespace
         basectx = nullptr;
         throw std::logic_error("EVP_DigestInit_ex failed");
       }
-
-      EVP_MD_CTX* mdctx{nullptr};
-      EVP_MD_CTX* basectx{nullptr};
     }
 
     void openssl_sha256_shutdown()

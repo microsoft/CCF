@@ -552,25 +552,4 @@ namespace aft
     }
   };
 
-  class StubSnapshotter
-  {
-  public:
-    void update(Index, bool) {}
-
-    void set_last_snapshot_idx(Index idx) {}
-
-    void commit(Index, bool) {}
-
-    void rollback(Index) {}
-
-    void record_serialised_tree(Index version, const std::vector<uint8_t>& tree)
-    {}
-
-    void record_signature(
-      Index,
-      const std::vector<uint8_t>&,
-      const ccf::NodeId&,
-      const ccf::crypto::Pem&)
-    {}
-  };
 }

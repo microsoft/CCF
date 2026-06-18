@@ -19,10 +19,6 @@
 
 using namespace asynchost;
 
-// Used throughout
-using frame_header_type = uint32_t;
-[[maybe_unused]] static constexpr size_t frame_header_size =
-  sizeof(frame_header_type);
 static constexpr auto ledger_dir = "ledger_dir";
 static constexpr auto ledger_dir_read_only = "ledger_dir_ro";
 static constexpr auto snapshot_dir = "snapshot_dir";
