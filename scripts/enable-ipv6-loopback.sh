@@ -10,9 +10,9 @@
 # using the container's NET_ADMIN capability (granted in .github/workflows/ci.yml).
 #
 # It is deliberately tolerant: if the host kernel itself has IPv6 disabled there
-# is nothing a container can do about it, so we only warn here. The tests assert
-# on IPv6 availability and will report a clear failure in that case, rather than
-# this setup step taking down the whole job.
+# is nothing a container can do about it, so we only warn here. The IPv6 e2e
+# tests check for ::1 availability themselves and skip gracefully when it is
+# missing, so this setup step never takes down the whole job.
 
 set -uo pipefail
 
@@ -27,5 +27,5 @@ fi
 if python3 -c "import socket; s = socket.socket(socket.AF_INET6, socket.SOCK_STREAM); s.bind(('::1', 0)); s.close()"; then
     echo "IPv6 loopback ::1 is available"
 else
-    echo "WARNING: IPv6 loopback ::1 is not available; IPv6 e2e tests will fail their availability assert"
+    echo "WARNING: IPv6 loopback ::1 is not available; IPv6 e2e tests will be skipped"
 fi

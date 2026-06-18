@@ -325,9 +325,9 @@ def run(args):
 
 
 def run_ipv6(args):
-    assert (
-        infra.net.ipv6_loopback_available()
-    ), "IPv6 loopback (::1) is not available, skipping IPv6 test"
+    if not infra.net.ipv6_loopback_available():
+        LOG.warning("IPv6 loopback (::1) is not available, skipping IPv6 test")
+        return
 
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb, ipv6=True
