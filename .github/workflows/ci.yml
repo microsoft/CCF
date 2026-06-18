@@ -154,6 +154,10 @@ jobs:
           ninja
         shell: bash
 
+      - name: "Enable IPv6 loopback"
+        run: ./scripts/enable-ipv6-loopback.sh
+        shell: bash
+
       - name: "Test virtual"
         run: |
           set -ex
@@ -216,6 +220,10 @@ jobs:
           cd build
           cmake -GNinja -DCMAKE_BUILD_TYPE=Debug ..
           ninja
+        shell: bash
+
+      - name: "Enable IPv6 loopback"
+        run: ./scripts/enable-ipv6-loopback.sh
         shell: bash
 
       - name: "Test virtual"

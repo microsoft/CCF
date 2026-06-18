@@ -147,6 +147,10 @@ jobs:
           cmake -GNinja -DCLIENT_PROTOCOLS_TEST=ON -DCMAKE_BUILD_TYPE=Release ..
           ninja -v | tee build.log
 
+      - name: "Enable IPv6 loopback"
+        run: ./scripts/enable-ipv6-loopback.sh
+        shell: bash
+
       - name: "Test"
         run: |
           set -ex
