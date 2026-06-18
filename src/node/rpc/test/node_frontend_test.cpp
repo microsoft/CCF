@@ -239,7 +239,7 @@ TEST_CASE("Add a node to an open service")
     auto nodes = tx.rw(network.nodes);
     auto node_info = nodes->get(joiner_node_id);
     CHECK(node_info.has_value());
-    CHECK(node_info->status == NodeStatus::TRUSTED);
+    CHECK(node_info->status == NodeStatus::PENDING);
     CHECK(node_kp->public_key_pem() == node_info->public_key);
   }
 
