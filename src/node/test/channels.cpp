@@ -131,10 +131,10 @@ struct NodeOutboundMsg
   {
     auto r = data();
     static_assert(sizeof(ChannelMsg) == 8);
-    size_t hdr_size = sizeof(ChannelMsg);
-    serialized::read<ChannelMsg>(r.data(), hdr_size);
-    auto data = std::vector<uint8_t>(r.begin() + sizeof(ChannelMsg), r.end());
-    return data;
+    auto d = r.data();
+    auto s = r.size();
+    serialized::skip(d, s, sizeof(ChannelMsg));
+    return std::vector<uint8_t>(d, s);
   }
 };
 
