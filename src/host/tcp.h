@@ -529,6 +529,18 @@ namespace asynchost
       behaviour->on_listen_failed();
     }
 
+    // Report a terminal failure from connect_resolved(): move to
+    // CONNECTING_FAILED and notify the behaviour. connect_resolved()'s callers
+    // ignore its bool return, so without this an early error path would leave
+    // the attempt stuck in CONNECTING_RESOLVING with no on_connect_failed()
+    // callback and pending writes queued indefinitely.
+    bool fail_connect_resolved()
+    {
+      assert_status(CONNECTING_RESOLVING, CONNECTING_FAILED);
+      behaviour->on_connect_failed();
+      return false;
+    }
+
     bool connect_resolved()
     {
       // Create the client socket with the correct address family, but only
@@ -544,7 +556,7 @@ namespace asynchost
             "uv_fileno returned unexpected error while checking TCP handle "
             "state: {}",
             uv_strerror(uv_fileno_rc));
-          return false;
+          return fail_connect_resolved();
         }
 
         const bool has_socket = (uv_fileno_rc != UV_EBADF);
@@ -569,20 +581,20 @@ namespace asynchost
           {
             LOG_FAIL_FMT(
               "socket creation failed: {}", ccf::nonstd::strerror(errno));
-            return false;
+            return fail_connect_resolved();
           }
 
           if (!set_connection_timeout(sock))
           {
             close_socket_before_uv_ownership(sock);
-            return false;
+            return fail_connect_resolved();
           }
 
           if ((rc = uv_tcp_open(&uv_handle, sock)) < 0)
           {
             LOG_FAIL_FMT("uv_tcp_open failed: {}", uv_strerror(rc));
             close_socket_before_uv_ownership(sock);
-            return false;
+            return fail_connect_resolved();
           }
 
           current_socket_family = family;
