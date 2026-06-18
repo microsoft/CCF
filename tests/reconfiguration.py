@@ -25,8 +25,50 @@ from infra.snp import SNP_SUPPORT
 import http
 import random
 import pathlib
+import re
 
 from loguru import logger as LOG
+
+# Matches an IPv4 dotted-quad with each octet in 0-255. Used to assert that an
+# IPv6-only network never wrote an IPv4 literal into any node configuration.
+IPV4_ADDRESS_RE = re.compile(
+    r"\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}"
+    r"(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b"
+)
+
+
+def _find_ipv4_values(obj, path="$"):
+    # Recursively yield (json_path, value) for every string leaf that contains an
+    # IPv4 literal anywhere in the given JSON-like object. Catches IPv4-mapped
+    # IPv6 forms (e.g. ::ffff:127.0.0.1) too, which are not pure IPv6.
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            yield from _find_ipv4_values(v, f"{path}.{k}")
+    elif isinstance(obj, list):
+        for i, v in enumerate(obj):
+            yield from _find_ipv4_values(v, f"{path}[{i}]")
+    elif isinstance(obj, str) and IPV4_ADDRESS_RE.search(obj):
+        yield path, obj
+
+
+def assert_no_ipv4_in_node_configs(network):
+    # Post-shutdown sanity check for IPv6-only runs: every node configuration
+    # written during the test (all of them are kept in the network common dir)
+    # must be free of IPv4 literals, confirming no code path fell back to IPv4.
+    config_files = sorted(pathlib.Path(network.common_dir).glob("*.config.json"))
+    assert config_files, f"No node config files found in {network.common_dir}"
+    offending = {}
+    for config_file in config_files:
+        with open(config_file, encoding="utf-8") as f:
+            config = json.load(f)
+        hits = list(_find_ipv4_values(config))
+        if hits:
+            offending[config_file.name] = hits
+    assert not offending, f"IPv4 addresses found in IPv6-only node configs: {offending}"
+    LOG.info(
+        f"Confirmed {len(config_files)} node config(s) in {network.common_dir} "
+        "contain no IPv4 addresses"
+    )
 
 
 def node_configs(network):
@@ -1167,6 +1209,9 @@ def run_all(args, force_ipv6=False):
         test_add_node_invalid_validity_period(network, args)
 
         test_ledger_invariants(network, args)
+
+    if force_ipv6:
+        assert_no_ipv4_in_node_configs(network)
 
     run_join_old_snapshot(args, force_ipv6=force_ipv6)
     run_join_no_snapshot_against_original_primary(args, force_ipv6=force_ipv6)
