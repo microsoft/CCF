@@ -17,6 +17,19 @@ namespace cli
 {
   using ParsedAddress = ccf::NodeInfoNetwork::NetAddress;
 
+  // Parses and validates a "host:port" (or bracketed "[host]:port") address
+  // from untrusted CLI input. Deliberately does NOT reuse
+  // ccf::split_net_address, despite the apparent overlap, because the two have
+  // different contracts:
+  //  - Missing port: for a bare host like "1.2.3.4" this substitutes
+  //    default_port, returning ("1.2.3.4", default_port); split_net_address
+  //    leaves the port empty, returning ("1.2.3.4", "").
+  //  - Validation: this checks the port is numeric and in 0-65535, and throws
+  //    on malformed input (unmatched '[', junk after ']'); split_net_address
+  //    does no validation and deliberately falls through to lenient parsing.
+  // That leniency is a safety property of split_net_address, which is on the
+  // consensus deserialization path and must not throw on already-persisted
+  // addresses. Validation belongs here, at the input boundary; keep them apart.
   static std::pair<std::string, std::string> validate_address(
     const ParsedAddress& addr, const std::string& default_port = "0")
   {

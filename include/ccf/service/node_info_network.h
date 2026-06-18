@@ -191,7 +191,8 @@ namespace ccf
   // Splits a NetAddress ("host:port") into its host and port components. IPv6
   // literals are expected in bracketed form ("[host]:port"), and the brackets
   // are stripped from the returned host so that it can be used directly for
-  // resolution, certificate SANs and comparison. The inverse of
+  // resolution, certificate SANs and comparison. A port-less address ("host"
+  // or "[host]") returns the host with an empty port. The inverse of
   // make_net_address.
   inline static std::pair<std::string, std::string> split_net_address(
     const NodeInfoNetwork::NetAddress& addr)
@@ -215,6 +216,14 @@ namespace ccf
         }
         return std::make_pair(std::move(host), std::move(port));
       }
+    }
+
+    // rsplit_1 splits on the last ':'. When the address has no port it returns
+    // ("", addr), which would wrongly put the host in the port slot; handle the
+    // port-less case explicitly so the host stays in the first position.
+    if (addr.find(':') == std::string::npos)
+    {
+      return std::make_pair(addr, std::string());
     }
 
     auto [host, port] = ccf::nonstd::rsplit_1(addr, ":");

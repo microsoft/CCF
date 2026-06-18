@@ -165,6 +165,16 @@ TEST_CASE("split_net_address and make_net_address")
   }
 
   {
+    INFO("Host without a port keeps the host in the first position");
+    REQUIRE(
+      split_net_address("1.2.3.4") ==
+      std::make_pair(std::string("1.2.3.4"), std::string("")));
+    REQUIRE(
+      split_net_address("example.com") ==
+      std::make_pair(std::string("example.com"), std::string("")));
+  }
+
+  {
     INFO("Malformed bracketed input falls through, not silently mis-parsed");
     // Junk after the closing ']' must not be accepted as a clean IPv6 host
     // with an empty port; it falls through to the generic rsplit parsing.
