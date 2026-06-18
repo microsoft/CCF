@@ -14,6 +14,7 @@
 #include <openssl/asn1.h>
 #include <openssl/bio.h>
 #include <openssl/bn.h>
+#include <openssl/crypto.h>
 #include <openssl/err.h>
 #include <openssl/evp.h>
 #include <openssl/obj_mac.h>
@@ -24,7 +25,6 @@
 #include <openssl/x509.h>
 #include <openssl/x509_vfy.h>
 #include <openssl/x509v3.h>
-#include <regex>
 #include <stdexcept>
 #include <string>
 #include <unordered_set>
@@ -96,6 +96,13 @@ namespace didx509
 
     inline std::string to_base64(const std::vector<uint8_t>& bytes)
     {
+      // EVP_EncodeBlock produces nothing for empty input; return early so the
+      // padding-trim loop below does not call back() on an empty string (UB).
+      if (bytes.empty())
+      {
+        return {};
+      }
+
       const int r_sz = 4 * ((bytes.size() + 2) / 3);
       std::string r(r_sz, 0);
       auto out_sz =
@@ -104,7 +111,7 @@ namespace didx509
       {
         throw std::runtime_error("base64 conversion failed");
       }
-      while (r.back() == '=')
+      while (!r.empty() && r.back() == '=')
       {
         r.pop_back();
       }
@@ -278,9 +285,17 @@ namespace didx509
 
       operator std::string() const
       {
-        UqBIO bio;
-        ASN1_STRING_print(bio, *this);
-        return bio.to_string();
+        // Return the raw value bytes verbatim, using the explicit length.
+        // Unlike ASN1_STRING_print, this preserves embedded NUL bytes and does
+        // not lossily replace non-printable bytes with '.', which matters when
+        // the value is compared for equality (e.g. the fulcio-issuer policy).
+        const int len = ASN1_STRING_length(*this);
+        const unsigned char* data = ASN1_STRING_get0_data(*this);
+        if (data == nullptr || len < 0)
+        {
+          return {};
+        }
+        return {data, data + static_cast<size_t>(len)};
       }
     };
 
@@ -453,10 +468,6 @@ namespace didx509
         return !(*this == other);
       }
 
-      [[nodiscard]] bool verify_signature(
-        const std::vector<uint8_t>& message,
-        const std::vector<uint8_t>& signature) const;
-
 #if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
       UqBIGNUM get_bn_param(const char* key_name) const
       {
@@ -612,17 +623,53 @@ namespace didx509
           else
           {
             const int sz = OBJ_obj2txt(nullptr, 0, oid, 1);
-            key.resize(sz + 1, 0);
-            OBJ_obj2txt((char*)key.data(), key.size(), oid, 1);
+            if (sz < 0)
+            {
+              throw std::runtime_error("could not convert OID to a string");
+            }
+            // OBJ_obj2txt writes sz characters plus a NUL terminator, so the
+            // buffer needs room for sz + 1. Shrink back to sz afterwards so the
+            // map key does not carry a trailing NUL, which would otherwise stop
+            // a user-supplied OID key (without the NUL) from ever matching.
+            key.resize(static_cast<size_t>(sz) + 1, 0);
+            const int sz2 = OBJ_obj2txt(key.data(), key.size(), oid, 1);
+            if (sz2 < 0 || sz2 > sz)
+            {
+              throw std::runtime_error("could not convert OID to a string");
+            }
+            key.resize(static_cast<size_t>(sz2));
           }
 
           ASN1_STRING* val_asn1 = X509_NAME_ENTRY_get_data(entry);
           CHECKNULL(val_asn1);
-          UqBIO value_bio;
-          ASN1_STRING_print(value_bio, val_asn1);
-          auto value = value_bio.to_string();
+          // The did:x509 spec requires subject attribute values to be compared
+          // as UTF-8. ASN1_STRING_to_UTF8 decodes the various X.509 string
+          // encodings (PrintableString, UTF8String, BMPString, ...) into UTF-8
+          // and, unlike ASN1_STRING_print, does not lossily replace non-ASCII
+          // or non-printable bytes with '.'.
+          unsigned char* utf8_raw = nullptr;
+          const int utf8_len = ASN1_STRING_to_UTF8(&utf8_raw, val_asn1);
+          if (utf8_len < 0)
+          {
+            throw std::runtime_error(
+              "could not convert subject attribute value to UTF-8");
+          }
+          const auto utf8_deleter = [](unsigned char* p) { OPENSSL_free(p); };
+          const std::unique_ptr<unsigned char, decltype(utf8_deleter)> utf8(
+            utf8_raw, utf8_deleter);
 
-          r[key].push_back(value);
+          std::string value;
+          if (utf8_len > 0)
+          {
+            if (!utf8)
+            {
+              throw std::runtime_error(
+                "could not convert subject attribute value to UTF-8");
+            }
+            value.assign(utf8.get(), utf8.get() + utf8_len);
+          }
+
+          r[key].push_back(std::move(value));
         }
 
         return r;
@@ -640,8 +687,14 @@ namespace didx509
         {
           throw std::runtime_error(
             "certificate does not contain a subject key id");
-          }
-        const std::unique_ptr<char, decltype(&free)> c(i2s_ASN1_OCTET_STRING(nullptr, key_id), free);
+        }
+        // i2s_ASN1_OCTET_STRING allocates with OPENSSL_malloc, so the result
+        // must be released with OPENSSL_free (not the CRT free, which can
+        // corrupt the heap when OpenSSL uses a different allocator).
+        const auto deleter = [](char* p) { OPENSSL_free(p); };
+        const std::unique_ptr<char, decltype(deleter)> c(
+          i2s_ASN1_OCTET_STRING(nullptr, key_id), deleter);
+        CHECKNULL(c.get());
         return {c.get()};
       }
 
@@ -658,62 +711,94 @@ namespace didx509
           throw std::runtime_error(
             "certificate does not contain an authority key id");
         }
-        const std::unique_ptr<char, decltype(&free)> c(i2s_ASN1_OCTET_STRING(nullptr, key_id), free);
+        // i2s_ASN1_OCTET_STRING allocates with OPENSSL_malloc, so the result
+        // must be released with OPENSSL_free (not the CRT free, which can
+        // corrupt the heap when OpenSSL uses a different allocator).
+        const auto deleter = [](char* p) { OPENSSL_free(p); };
+        const std::unique_ptr<char, decltype(deleter)> c(
+          i2s_ASN1_OCTET_STRING(nullptr, key_id), deleter);
+        CHECKNULL(c.get());
         return {c.get()};
       }
 
-      bool has_san(const std::string& san_type, const std::string& value)
+      [[nodiscard]] bool has_san(
+        const std::string& san_type, const std::string& value) const
       {
+        // The did:x509 spec requires the [san_type, san_value] pair to be one
+        // of the items in chain[0].extensions.san, i.e. an exact, literal match
+        // against a SAN entry of the corresponding type. We therefore compare
+        // directly against the SAN extension values and deliberately do NOT use
+        // X509_check_host / X509_check_email, which additionally perform
+        // wildcard matching and fall back to the subject DN (CN / emailAddress)
+        // when no SAN of the requested type is present.
+        int target_type = 0;
         if (san_type == "dns")
         {
-          if (X509_check_host(*this, value.c_str(), value.size(), 0, nullptr) == 1)
-          {
-            return true;
-          }
+          target_type = GEN_DNS;
         }
         else if (san_type == "email")
         {
-          if (X509_check_email(*this, value.c_str(), value.size(), 0) == 1)
-          {
-            return true;
-          }
-        }
-        else if (san_type == "ipaddress")
-        {
-          if (
-            X509_check_ip(
-              *this, (unsigned char*)value.c_str(), value.size(), 0) == 1)
-          {
-            return true;
-          }
+          target_type = GEN_EMAIL;
         }
         else if (san_type == "uri")
         {
-          auto san_exts = subject_alternative_name();
-          for (const auto& ext : san_exts)
-          {
-            for (size_t i = 0; i < ext.size(); i++)
-            {
-              const auto& san_i = ext.at(i);
-              switch (san_i->type)
-              {
-                case GEN_URI: {
-                  ASN1_STRING* x = san_i->d.uniformResourceIdentifier;
-                  const std::string gen_uri = (const char*)ASN1_STRING_get0_data(x);
-                  if (gen_uri == value)
-                  {
-                    return true;
-                  }
-                }
-                default:;
-              }
-            }
-          }
+          target_type = GEN_URI;
         }
         else
         {
           throw std::runtime_error(
             std::string("unknown SAN type: ") + san_type);
+        }
+
+        auto san_exts = subject_alternative_name();
+        for (const auto& ext : san_exts)
+        {
+          for (size_t i = 0; i < ext.size(); i++)
+          {
+            const auto& san_i = ext.at(i);
+            if (san_i->type != target_type)
+            {
+              continue;
+            }
+
+            // All three supported SAN types (dNSName, rfc822Name,
+            // uniformResourceIdentifier) are stored as IA5Strings.
+            const ASN1_IA5STRING* ia5 = nullptr;
+            switch (target_type)
+            {
+              case GEN_DNS:
+                ia5 = san_i->d.dNSName;
+                break;
+              case GEN_EMAIL:
+                ia5 = san_i->d.rfc822Name;
+                break;
+              case GEN_URI:
+                ia5 = san_i->d.uniformResourceIdentifier;
+                break;
+              default:
+                break;
+            }
+            if (ia5 == nullptr)
+            {
+              continue;
+            }
+
+            // Compare using the explicit length so that an embedded NUL byte
+            // does not truncate the value (which could otherwise be used to
+            // spoof a prefix of a pinned value).
+            const int len = ASN1_STRING_length(ia5);
+            const unsigned char* data = ASN1_STRING_get0_data(ia5);
+            if (data == nullptr || len < 0)
+            {
+              continue;
+            }
+            const std::string san_value{
+              data, data + static_cast<size_t>(len)};
+            if (san_value == value)
+            {
+              return true;
+            }
+          }
         }
 
         return false;
@@ -763,11 +848,14 @@ namespace didx509
           case EVP_PKEY_EC: {
             r += R"("kty":"EC",)";
             r += R"("crv":")";
+            // Field-element size in octets for the selected curve (RFC 7518).
+            int coord_size = 0;
 #if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
-            BIGNUM *x = nullptr;
-            BIGNUM *y = nullptr;
-            EVP_PKEY_get_bn_param(pk, OSSL_PKEY_PARAM_EC_PUB_X, &x);
-            EVP_PKEY_get_bn_param(pk, OSSL_PKEY_PARAM_EC_PUB_Y, &y);
+            // RAII-owned so the coordinates are freed on every exit path,
+            // including the throws below. get_bn_param also checks the result,
+            // which the raw EVP_PKEY_get_bn_param calls here did not.
+            UqBIGNUM x = pk.get_bn_param(OSSL_PKEY_PARAM_EC_PUB_X);
+            UqBIGNUM y = pk.get_bn_param(OSSL_PKEY_PARAM_EC_PUB_Y);
             size_t gname_len = 0;
             CHECK1(EVP_PKEY_get_group_name(pk, nullptr, 0, &gname_len));
             std::string gname(gname_len + 1, 0);
@@ -777,14 +865,17 @@ namespace didx509
             if (gname == SN_X9_62_prime256v1)
             {
               r += "P-256";
+              coord_size = 32;
             }
             else if (gname == SN_secp384r1)
             {
               r += "P-384";
+              coord_size = 48;
             }
             else if (gname == SN_secp521r1)
             {
               r += "P-521";
+              coord_size = 66;
             }
             else
             {
@@ -795,19 +886,25 @@ namespace didx509
             const EC_GROUP* grp = EC_KEY_get0_group(ec_key);
             int curve_nid = EC_GROUP_get_curve_name(grp);
             const EC_POINT* pnt = EC_KEY_get0_public_key(ec_key);
-            BIGNUM *x = BN_new(), *y = BN_new();
+            // RAII-owned so the coordinates are freed on every exit path,
+            // including the throws below.
+            UqBIGNUM x;
+            UqBIGNUM y;
             CHECK1(EC_POINT_get_affine_coordinates(grp, pnt, x, y, nullptr));
             if (curve_nid == NID_X9_62_prime256v1)
             {
               r += "P-256";
+              coord_size = 32;
             }
             else if (curve_nid == NID_secp384r1)
             {
               r += "P-384";
+              coord_size = 48;
             }
             else if (curve_nid == NID_secp521r1)
             {
               r += "P-521";
+              coord_size = 66;
             }
             else
             {
@@ -815,16 +912,23 @@ namespace didx509
             }
 #endif
             r += R"(",)";
-            auto x_len = BN_num_bytes(x);
-            auto y_len = BN_num_bytes(y);
-            std::vector<uint8_t> xv(x_len);
-            std::vector<uint8_t> yv(y_len);
-            BN_bn2bin(x, xv.data());
-            BN_bn2bin(y, yv.data());
+            // RFC 7518 (JWA) section 6.2.1.2/6.2.1.3 requires the "x" and "y"
+            // octet strings to be the full coordinate size for the curve (e.g.
+            // 32 octets for P-256), left-padded with zeros. BN_bn2bin emits the
+            // minimal big-endian integer, dropping leading zero bytes, which
+            // would produce a short, non-conformant encoding.
+            std::vector<uint8_t> xv(coord_size);
+            std::vector<uint8_t> yv(coord_size);
+            if (BN_bn2binpad(x, xv.data(), coord_size) != coord_size)
+            {
+              throw std::runtime_error("EC coordinate encoding failed");
+            }
+            if (BN_bn2binpad(y, yv.data(), coord_size) != coord_size)
+            {
+              throw std::runtime_error("EC coordinate encoding failed");
+            }
             r += R"("x":")" + to_base64url(xv) + R"(",)";
             r += R"("y":")" + to_base64url(yv) + R"(")";
-            BN_free(x);
-            BN_free(y);
             break;
           }
           default:
@@ -845,33 +949,43 @@ namespace didx509
       EVP_PKEY_up_ref((EVP_PKEY*)key);
     }
 
-    struct UqX509_NAME
-      : public UqSSLOBJECT<X509_NAME, X509_NAME_new, X509_NAME_free>
-    {
-      UqX509_NAME(const UqX509& x509) :
-        UqSSLOBJECT(X509_get_subject_name(x509), X509_NAME_free, true)
-      {}
-    };
-
-    struct UqX509_NAME_ENTRY : public UqSSLOBJECT<
-                                 X509_NAME_ENTRY,
-                                 X509_NAME_ENTRY_new,
-                                 X509_NAME_ENTRY_free>
-    {
-      UqX509_NAME_ENTRY(const UqX509_NAME& name, int i) :
-        UqSSLOBJECT(X509_NAME_get_entry(name, i), X509_NAME_ENTRY_free, true)
-      {}
-    };
-
     inline bool UqX509::has_common_name(const std::string& expected_name) const
     {
-      UqX509_NAME subject_name(*this);
+      // X509_get_subject_name and X509_NAME_get_entry return internal pointers
+      // that must NOT be freed; use raw pointers (as subject() does).
+      X509_NAME* subject_name = X509_get_subject_name(*this);
+      CHECKNULL(subject_name);
       int cn_i = X509_NAME_get_index_by_NID(subject_name, NID_commonName, -1);
       while (cn_i != -1)
       {
-        UqX509_NAME_ENTRY entry(subject_name, cn_i);
+        X509_NAME_ENTRY* entry = X509_NAME_get_entry(subject_name, cn_i);
+        CHECKNULL(entry);
         ASN1_STRING* entry_string = X509_NAME_ENTRY_get_data(entry);
-        const std::string common_name = (char*)ASN1_STRING_get0_data(entry_string);
+        CHECKNULL(entry_string);
+        // Decode to UTF-8 and compare using the explicit length, rather than
+        // treating the value as a NUL-terminated C string. An embedded NUL
+        // byte must not truncate the value (which could otherwise be used to
+        // spoof a prefix of the expected name), and non-ASCII values must not
+        // be rendered lossily. This mirrors subject().
+        unsigned char* utf8_raw = nullptr;
+        const int utf8_len = ASN1_STRING_to_UTF8(&utf8_raw, entry_string);
+        if (utf8_len < 0)
+        {
+          throw std::runtime_error("could not convert common name to UTF-8");
+        }
+        const auto utf8_deleter = [](unsigned char* p) { OPENSSL_free(p); };
+        const std::unique_ptr<unsigned char, decltype(utf8_deleter)> utf8(
+          utf8_raw, utf8_deleter);
+
+        std::string common_name;
+        if (utf8_len > 0)
+        {
+          if (!utf8)
+          {
+            throw std::runtime_error("could not convert common name to UTF-8");
+          }
+          common_name.assign(utf8.get(), utf8.get() + utf8_len);
+        }
         if (common_name == expected_name)
         {
           return true;
@@ -1073,37 +1187,6 @@ namespace didx509
         return (*this).at(size() - 1);
       }
 
-      [[nodiscard]] std::pair<struct tm, struct tm> get_validity_range() const
-      {
-        if (size() == 0)
-        {
-          throw std::runtime_error(
-            "no certificate change to compute validity ranges for");
-        }
-
-        const ASN1_TIME *latest_from = nullptr;
-        const ASN1_TIME *earliest_to = nullptr;
-        for (size_t i = 0; i < size(); i++)
-        {
-          const auto& c = at(i);
-          const ASN1_TIME* not_before = X509_get0_notBefore(c);
-          if (latest_from == nullptr || ASN1_TIME_compare(latest_from, not_before) == -1)
-          {
-            latest_from = not_before;
-          }
-          const ASN1_TIME* not_after = X509_get0_notAfter(c);
-          if (earliest_to == nullptr || ASN1_TIME_compare(earliest_to, not_after) == 1)
-          {
-            earliest_to = not_after;
-          }
-        }
-
-        std::pair<struct tm, struct tm> r;
-        ASN1_TIME_to_tm(latest_from, &r.first);
-        ASN1_TIME_to_tm(earliest_to, &r.second);
-        return r;
-      }
-
       [[nodiscard]] UqSTACK_OF_X509 verify(
         const std::vector<UqX509>& roots,
         bool ignore_time = false,
@@ -1118,7 +1201,7 @@ namespace didx509
 
         for (const auto& c : roots)
         {
-          CHECK1(X509_STORE_add_cert(store, back()));
+          CHECK1(X509_STORE_add_cert(store, c));
         }
 
         auto target = at(0);
@@ -1126,9 +1209,17 @@ namespace didx509
         UqX509_STORE_CTX store_ctx;
         CHECK1(X509_STORE_CTX_init(store_ctx, store, target, *this));
 
-        X509_VERIFY_PARAM* param = X509_VERIFY_PARAM_new();
+        // Own the param with a unique_ptr so it is freed if any of the calls
+        // below throw, before ownership is transferred to the store context.
+        std::unique_ptr<X509_VERIFY_PARAM, decltype(&X509_VERIFY_PARAM_free)>
+          param_holder(X509_VERIFY_PARAM_new(), X509_VERIFY_PARAM_free);
+        CHECKNULL(param_holder.get());
+        X509_VERIFY_PARAM* param = param_holder.get();
         X509_VERIFY_PARAM_set_depth(param, std::numeric_limits<int>::max());
-        X509_VERIFY_PARAM_set_auth_level(param, 0);
+        // Require at least 112-bit-equivalent security (OpenSSL level 2):
+        // RSA/DSA/DH keys >= 2048 bits, ECC keys >= 224 bits, no RC4 or MD5.
+        // See https://docs.openssl.org/master/man3/SSL_CTX_set_security_level/
+        X509_VERIFY_PARAM_set_auth_level(param, 2);
 
         CHECK1(X509_VERIFY_PARAM_set_flags(param, X509_V_FLAG_X509_STRICT));
         CHECK1(
@@ -1140,7 +1231,8 @@ namespace didx509
           CHECK1(X509_VERIFY_PARAM_set_flags(param, X509_V_FLAG_NO_CHECK_TIME));
         }
 
-        X509_STORE_CTX_set0_param(store_ctx, param);
+        // set0 takes ownership of param, so release it from the unique_ptr.
+        X509_STORE_CTX_set0_param(store_ctx, param_holder.release());
 
 #if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
         if (no_auth_key_id_ok)
@@ -1172,7 +1264,6 @@ namespace didx509
           throw std::runtime_error(
             std::string("certificate chain verification failed: ") + err_str +
             " (depth: " + std::to_string(depth) + ")");
-          throw std::runtime_error("no chain or signature invalid");
         }
 
         auto msg = std::string(ERR_error_string(ERR_get_error(), nullptr));
@@ -1209,8 +1300,6 @@ namespace didx509
       const std::string& fingerprint_alg,
       const std::string& fingerprint)
     {
-      const std::unordered_set<std::string> valid_fingerprints;
-
       for (size_t i = 1; i < chain.size(); i++)
       {
         const auto& cert = chain.at(i).der();
@@ -1404,7 +1493,11 @@ namespace didx509
             bool found = false;
             for (const auto& fv : sit->second)
             {
-              if (fv.find(v) != std::string::npos)
+              // The did:x509 spec defines subject matching via object.subset,
+              // i.e. exact equality of the attribute value. A substring match
+              // would incorrectly let e.g. "CN:Microsoft" match a certificate
+              // whose CN is "Microsoft Corporation".
+              if (fv == v)
               {
                 found = true;
                 break;
@@ -1511,44 +1604,98 @@ namespace didx509
       return {include_assertion_method, include_key_agreement};
     }
 
+    // Escape a string so it can be safely embedded inside a JSON string
+    // literal. The did is attacker-influenced input; without escaping, a did
+    // containing '"', '\\' or control characters could break out of the JSON
+    // string and corrupt or inject structure into the resulting document.
+    inline std::string json_escape_string(const std::string& s)
+    {
+      static const char* const hex = "0123456789abcdef";
+      std::string r;
+      r.reserve(s.size() + 2);
+      for (const char ch : s)
+      {
+        const auto c = static_cast<unsigned char>(ch);
+        switch (c)
+        {
+          case '"':
+            r += "\\\"";
+            break;
+          case '\\':
+            r += "\\\\";
+            break;
+          case '\b':
+            r += "\\b";
+            break;
+          case '\f':
+            r += "\\f";
+            break;
+          case '\n':
+            r += "\\n";
+            break;
+          case '\r':
+            r += "\\r";
+            break;
+          case '\t':
+            r += "\\t";
+            break;
+          default:
+            if (c < 0x20)
+            {
+              r += "\\u00";
+              r += hex[(c >> 4) & 0xF];
+              r += hex[c & 0xF];
+            }
+            else
+            {
+              r += static_cast<char>(c);
+            }
+        }
+      }
+      return r;
+    }
+
     inline std::string create_did_document(
       const std::string& did, const UqSTACK_OF_X509& chain)
     {
-      const std::string format = R"({
-    "@context": "https://www.w3.org/ns/did/v1",
-    "id": "_DID_",
-    "verificationMethod": [{
-        "id": "_DID_#key-1",
-        "type": "JsonWebKey2020",
-        "controller": "_DID_",
-        "publicKeyJwk": _LEAF_JWK_
-    }]
-    _ASSERTION_METHOD_
-    _KEY_AGREEMENT_
-})";
-
       const auto& leaf = chain.front();
-      const auto& [include_assertion_method, include_key_agreement] = is_agreed_signature_key(leaf);
+      const auto& [include_assertion_method, include_key_agreement] =
+        is_agreed_signature_key(leaf);
 
-      std::string am;
-      std::string ka;
+      // The did is escaped before being embedded in the JSON document. The
+      // leaf JWK is produced internally from base64url-encoded values and a
+      // fixed set of keys, so it is inserted verbatim as a JSON object.
+      const std::string did_json = json_escape_string(did);
+      const auto& leaf_jwk = leaf.public_jwk();
+
+      std::string r = R"({
+    "@context": [
+        "https://www.w3.org/ns/did/v1",
+        "https://w3id.org/security/suites/jws-2020/v1"
+    ],
+    "id": ")" + did_json +
+        R"(",
+    "verificationMethod": [{
+        "id": ")" + did_json +
+        R"(#0",
+        "type": "JsonWebKey2020",
+        "controller": ")" + did_json +
+        R"(",
+        "publicKeyJwk": )" + leaf_jwk +
+        R"(
+    }])";
+
       if (include_assertion_method)
       {
-        am = R"(,"assertionMethod": ")" + did + R"(#key-1")";
+        r += R"(,"assertionMethod": [")" + did_json + R"(#0"])";
       }
       if (include_key_agreement)
       {
-        ka = R"(,"keyAgreement": ")" + did + R"(#key-1")";
+        r += R"(,"keyAgreement": [")" + did_json + R"(#0"])";
       }
 
-      const auto& leaf_jwk = leaf.public_jwk();
-
-      auto t = std::regex_replace(format, std::regex("_DID_"), did);
-      t = std::regex_replace(t, std::regex("_ASSERTION_METHOD_"), am);
-      t = std::regex_replace(t, std::regex("_KEY_AGREEMENT_"), ka);
-      t = std::regex_replace(t, std::regex("_LEAF_JWK_"), leaf_jwk);
-
-      return t;
+      r += "\n}";
+      return r;
     }
   }
 

@@ -139,8 +139,8 @@ def get_jwt_keys(args, node):
         return body["keys"]
 
 
-def to_b64(number: int):
-    as_bytes = number.to_bytes((number.bit_length() + 7) // 8, "big")
+def to_b64(number: int, size=None):
+    as_bytes = number.to_bytes(size or (number.bit_length() + 7) // 8, "big")
     # JWK numeric fields use unpadded base64url (RFC 7518 section 6 referencing
     # RFC 4648 section 5).
     return base64.urlsafe_b64encode(as_bytes).rstrip(b"=").decode("ascii")
@@ -222,8 +222,8 @@ class JwtIssuer:
             e = to_b64(pubkey.public_numbers().e)
             return {"kty": "RSA", "kid": kid, "n": n, "e": e, "issuer": self.name[::]}
         elif self._alg == JwtAlg.ES256:
-            x = to_b64(pubkey.public_numbers().x)
-            y = to_b64(pubkey.public_numbers().y)
+            x = to_b64(pubkey.public_numbers().x, 32)
+            y = to_b64(pubkey.public_numbers().y, 32)
             return {
                 "kty": "EC",
                 "kid": kid,
