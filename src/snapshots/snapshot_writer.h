@@ -128,7 +128,7 @@ namespace snapshots
           {
             LOG_FAIL_FMT(
               "Error ({}) syncing snapshot {}",
-              strerror(errno), // NOLINT(concurrency-mt-unsafe)
+              ccf::nonstd::strerror(errno),
               file_name);
             remove_incomplete_file();
             return;
@@ -186,7 +186,7 @@ namespace snapshots
 
           LOG_FAIL_FMT(
             "Error ({}) writing snapshot {}",
-            strerror(errno), // NOLINT(concurrency-mt-unsafe)
+            ccf::nonstd::strerror(errno),
             file_name);
           return false;
         }
@@ -211,7 +211,7 @@ namespace snapshots
       {
         LOG_FAIL_FMT(
           "Error ({}) closing snapshot {}",
-          strerror(errno), // NOLINT(concurrency-mt-unsafe)
+          ccf::nonstd::strerror(errno),
           file_name);
       }
     }
