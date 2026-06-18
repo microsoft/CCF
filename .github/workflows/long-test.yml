@@ -21,7 +21,7 @@ jobs:
   long-asan:
     if: &check_trigger_conditions ${{ (github.event.action == 'labeled' && github.event.label.name == 'run-long-test') || (github.event.action != 'labeled' && contains(github.event.pull_request.labels.*.name, 'run-long-test')) || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' }}
     name: "ASAN"
-    runs-on: [self-hosted, 1ES.Pool=gha-vmss-d16av5-ci, "UseScaleSet=true"]
+    runs-on: [gha-vmss-d16av5-ci]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
@@ -76,7 +76,7 @@ jobs:
   long-tsan:
     if: *check_trigger_conditions
     name: "TSAN"
-    runs-on: [self-hosted, 1ES.Pool=gha-vmss-d16av5-ci, "UseScaleSet=true"]
+    runs-on: [gha-vmss-d16av5-ci]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root --publish-all --privileged
@@ -134,7 +134,7 @@ jobs:
   long-e2e-debug:
     if: *check_trigger_conditions
     name: Long e2e - Debug
-    runs-on: [self-hosted, 1ES.Pool=gha-vmss-d16av5-ci, "UseScaleSet=true"]
+    runs-on: [gha-vmss-d16av5-ci]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
@@ -201,7 +201,7 @@ jobs:
   long-e2e-release:
     if: *check_trigger_conditions
     name: Long e2e - Release
-    runs-on: [self-hosted, 1ES.Pool=gha-vmss-d16av5-ci, "UseScaleSet=true"]
+    runs-on: [gha-vmss-d16av5-ci]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
@@ -260,7 +260,7 @@ jobs:
   e2e-long-combined:
     if: *check_trigger_conditions
     name: Long Shuffled/LTS/Snmalloc
-    runs-on: [self-hosted, 1ES.Pool=gha-vmss-d16av5-ci, "UseScaleSet=true"]
+    runs-on: [gha-vmss-d16av5-ci]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
