@@ -325,12 +325,9 @@ def run(args):
 
 
 def run_ipv6(args):
-    # Bind every node to the IPv6 loopback (::1) via the network's ipv6 option,
-    # so all connections (client RPC, node-to-node, redirects) use IPv6.
-    # Skipped when IPv6 loopback is unavailable (e.g. CI runners without IPv6).
-    if not infra.net.ipv6_loopback_available():
-        LOG.warning("IPv6 loopback (::1) is not available, skipping IPv6 test")
-        return
+    assert (
+        infra.net.ipv6_loopback_available()
+    ), "IPv6 loopback (::1) is not available, skipping IPv6 test"
 
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb, ipv6=True
