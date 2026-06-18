@@ -801,7 +801,7 @@ TEST_CASE(
   auto tx_advancer = [&]() {
     size_t i = 0;
     constexpr auto tx_count =
-#if NDEBUG
+#ifndef NDEBUG
       1'000;
 #else
       100;
