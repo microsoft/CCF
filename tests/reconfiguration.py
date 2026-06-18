@@ -763,7 +763,7 @@ def test_node_replacement(network, args):
 
     LOG.info("Adding one node on same address as retired node")
     replacement_node = network.create_node(
-        f"local://{node_to_replace.get_public_rpc_host()}:{node_to_replace.get_public_rpc_port()}",
+        f"local://{node_to_replace.get_public_rpc_address()}",
         node_port=node_to_replace.n2n_interface.port,
     )
     network.join_node(replacement_node, args.package, args, from_snapshot=False)
@@ -1114,7 +1114,7 @@ def test_joining_nodes_snapshot_ledger_offset(network, args):
     return network
 
 
-def run_all(args):
+def run_all(args, force_ipv6=False):
     txs = app.LoggingTxs("user0")
     with infra.network.network(
         args.nodes,
@@ -1122,8 +1122,17 @@ def run_all(args):
         args.debug_nodes,
         pdb=args.pdb,
         txs=txs,
+        force_ipv6=force_ipv6,
     ) as network:
         network.start_and_open(args)
+
+        if force_ipv6:
+            primary, _ = network.find_primary()
+            primary_host = primary.get_public_rpc_host()
+            assert (
+                ":" in primary_host
+            ), f"Expected IPv6 primary host, got {primary_host}"
+            LOG.info(f"Confirmed reconfiguration network is using IPv6: {primary_host}")
 
         test_version(network, args)
         test_issue_fake_join(network, args)
@@ -1159,11 +1168,11 @@ def run_all(args):
 
         test_ledger_invariants(network, args)
 
-    run_join_old_snapshot(args)
-    run_join_no_snapshot_against_original_primary(args)
+    run_join_old_snapshot(args, force_ipv6=force_ipv6)
+    run_join_no_snapshot_against_original_primary(args, force_ipv6=force_ipv6)
 
 
-def run_join_old_snapshot(const_args):
+def run_join_old_snapshot(const_args, force_ipv6=False):
     txs = app.LoggingTxs("user0")
     args = deepcopy(const_args)
     args.nodes = infra.e2e_args.nodes(args, 1)
@@ -1176,6 +1185,7 @@ def run_join_old_snapshot(const_args):
             args.debug_nodes,
             pdb=args.pdb,
             txs=txs,
+            force_ipv6=force_ipv6,
         ) as network:
             network.start_and_open(args)
             primary, _ = network.find_primary()
@@ -1282,7 +1292,7 @@ def run_join_old_snapshot(const_args):
             )
 
 
-def run_join_no_snapshot_against_original_primary(const_args):
+def run_join_no_snapshot_against_original_primary(const_args, force_ipv6=False):
     # Regression test.
     # Previously a node which should fetch a snapshot, would not as the lower limit for this was the startup snapshot of the node.
     # This test ensures that the startup seqno of a joining node is higher than the startup snapshot of the primary
@@ -1297,6 +1307,7 @@ def run_join_no_snapshot_against_original_primary(const_args):
         args.debug_nodes,
         pdb=args.pdb,
         txs=txs,
+        force_ipv6=force_ipv6,
     ) as network:
         network.start_and_open(args)
         primary, _ = network.find_primary()
@@ -1332,3 +1343,17 @@ def run_join_no_snapshot_against_original_primary(const_args):
             assert (
                 body["startup_seqno"] > 0
             ), f"Joiner should have started from a fetched snapshot, got startup_seqno={body['startup_seqno']}"
+
+
+def run_ipv6(args):
+    # Run the full reconfiguration scenario with every node bound to the IPv6
+    # loopback (::1), so all connections (client RPC, node-to-node consensus,
+    # joins and redirects) use IPv6. Skipped when IPv6 loopback is unavailable
+    # (e.g. CI runners without IPv6).
+    if not infra.net.ipv6_loopback_available():
+        LOG.warning(
+            "IPv6 loopback (::1) is not available, skipping IPv6 reconfiguration test"
+        )
+        return
+
+    run_all(args, force_ipv6=True)

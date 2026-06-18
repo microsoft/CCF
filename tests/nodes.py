@@ -302,4 +302,11 @@ if __name__ == "__main__":
         nodes=infra.e2e_args.min_nodes(cr.args, f=1),
     )
 
+    cr.add(
+        "reconfiguration_ipv6",
+        reconfiguration.run_ipv6,
+        package="samples/apps/logging/logging",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+    )
+
     cr.run()

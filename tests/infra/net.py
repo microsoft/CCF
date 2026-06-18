@@ -85,3 +85,14 @@ def expand_localhost():
         return f"::ffff:{ipv4}"
     else:
         return ipv4
+
+
+def ipv6_loopback_available():
+    """Returns True if the IPv6 loopback address (::1) can be bound, i.e. IPv6
+    is available on this host. Some CI environments disable IPv6."""
+    try:
+        with socket.socket(socket.AF_INET6, socket.SOCK_STREAM) as s:
+            s.bind(("::1", 0))
+        return True
+    except OSError:
+        return False
