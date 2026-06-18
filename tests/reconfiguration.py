@@ -1391,14 +1391,8 @@ def run_join_no_snapshot_against_original_primary(const_args, ipv6=False):
 
 
 def run_ipv6(args):
-    # Run the full reconfiguration scenario with every node bound to the IPv6
-    # loopback (::1), so all connections (client RPC, node-to-node consensus,
-    # joins and redirects) use IPv6. Skipped when IPv6 loopback is unavailable
-    # (e.g. CI runners without IPv6).
-    if not infra.net.ipv6_loopback_available():
-        LOG.warning(
-            "IPv6 loopback (::1) is not available, skipping IPv6 reconfiguration test"
-        )
-        return
+    assert (
+        infra.net.ipv6_loopback_available()
+    ), "IPv6 loopback (::1) is not available, skipping IPv6 reconfiguration test"
 
     run_all(args, ipv6=True)
