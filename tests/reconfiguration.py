@@ -1391,10 +1391,9 @@ def run_join_no_snapshot_against_original_primary(const_args, ipv6=False):
 
 
 def run_ipv6(args):
-    if not infra.net.ipv6_loopback_available():
-        LOG.warning(
-            "IPv6 loopback (::1) is not available, skipping IPv6 reconfiguration test"
-        )
-        return
+    assert infra.net.ipv6_loopback_available(), (
+        "IPv6 loopback (::1) is not available; CI must enable IPv6 "
+        "(see scripts/enable-ipv6-loopback.sh)"
+    )
 
     run_all(args, ipv6=True)
