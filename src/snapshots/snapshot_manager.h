@@ -95,11 +95,10 @@ namespace snapshots
     auto rc = x; \
     if (rc == -1) \
     { \
-      throw std::runtime_error( \
-        fmt::format(/* NOLINTNEXTLINE(concurrency-mt-unsafe) */ \
-                    "Error ({}) writing snapshot {} in " #x, \
-                    strerror(errno), \
-                    name)); \
+      throw std::runtime_error(fmt::format( \
+        "Error ({}) writing snapshot {} in " #x, \
+        ccf::nonstd::strerror(errno), \
+        name)); \
     } \
   } while (0)
 
