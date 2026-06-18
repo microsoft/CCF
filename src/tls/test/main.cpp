@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #include "ccf/crypto/ec_key_pair.h"
 #include "ccf/crypto/verifier.h"
-#include "ccf/ds/nonstd.h"
 #include "crypto/certs.h"
 #include "ds/internal_logger.h"
 #include "tcp/msg_types.h"
@@ -41,7 +40,7 @@ public:
     if (socketpair(PF_LOCAL, SOCK_STREAM, 0, pfd) == -1)
     {
       throw runtime_error(
-        "Failed to create socketpair: " + string(ccf::nonstd::strerror(errno)));
+        "Failed to create socketpair: " + string(strerror(errno)));
     }
   }
   ~TestPipe()
@@ -54,7 +53,7 @@ public:
   {
     int rc = write(pfd[id], buf, len);
     if (rc == -1)
-      LOG_FAIL_FMT("Error while reading: {}", ccf::nonstd::strerror(errno));
+      LOG_FAIL_FMT("Error while reading: {}", std::strerror(errno));
     return rc;
   }
 
@@ -62,7 +61,7 @@ public:
   {
     int rc = read(pfd[id], buf, len);
     if (rc == -1)
-      LOG_FAIL_FMT("Error while reading: {}", ccf::nonstd::strerror(errno));
+      LOG_FAIL_FMT("Error while reading: {}", std::strerror(errno));
     return rc;
   }
 };

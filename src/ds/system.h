@@ -22,7 +22,7 @@ namespace ccf::ds::system
     FILE* pipe = popen(cmd.c_str(), "r");
     if (!pipe)
     {
-      LOG_FAIL_FMT("Error opening pipe: {}", ccf::nonstd::strerror(errno));
+      LOG_FAIL_FMT("Error opening pipe: {}", strerror(errno));
       return std::nullopt;
     }
 

@@ -2,8 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/ds/nonstd.h"
-
 #include <cerrno>
 #include <cstddef>
 #include <cstdio>
@@ -172,7 +170,7 @@ namespace files
       throw std::logic_error(fmt::format(
         "Failed to open file {} for writing: {}",
         file.string(),
-        ccf::nonstd::strerror(errno)));
+        std::strerror(errno))); // NOLINT(concurrency-mt-unsafe)
     }
 
     errno = 0;
@@ -196,7 +194,7 @@ namespace files
       throw std::logic_error(fmt::format(
         "Failed to write to file {}: {}",
         file.string(),
-        ccf::nonstd::strerror(errno)));
+        std::strerror(errno))); // NOLINT(concurrency-mt-unsafe)
     }
   }
 

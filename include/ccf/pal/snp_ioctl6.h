@@ -244,7 +244,7 @@ namespace ccf::pal::snp::ioctl6
         const auto msg = fmt::format(
           "Failed to issue ioctl SEV_SNP_GUEST_MSG_REPORT: {} fw_error: {} "
           "vmm_error: {}",
-          nonstd::strerror(errno),
+          strerror(errno), // NOLINT(concurrency-mt-unsafe)
           payload.exit_info.errors.fw,
           payload.exit_info.errors.vmm);
         throw std::logic_error(msg);
@@ -303,7 +303,7 @@ namespace ccf::pal::snp::ioctl6
         const auto msg = fmt::format(
           "Failed to issue ioctl SEV_SNP_GUEST_MSG_DERIVED_KEY: {} fw_error: "
           "{} vmm_error: {}",
-          nonstd::strerror(errno),
+          strerror(errno), // NOLINT(concurrency-mt-unsafe)
           payload.exit_info.errors.fw,
           payload.exit_info.errors.vmm);
         throw std::logic_error(msg);
