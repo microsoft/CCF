@@ -166,9 +166,9 @@ std::vector<std::unique_ptr<Op<M>>> gen_ops(size_t n)
       case 3: // remove
       {
         std::uniform_int_distribution<> gen_idx(0, keys.size() - 1);
-        auto i = gen_idx(gen);
-        auto k = keys[i];
-        keys.erase(keys.begin() + i);
+        auto idx = gen_idx(gen);
+        auto k = keys[idx];
+        keys.erase(keys.begin() + idx);
         op = std::make_unique<Remove<M>>(k);
         break;
       }

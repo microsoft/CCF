@@ -1114,8 +1114,6 @@ TEST_CASE("get_version_of_previous_write")
     REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
   }
 
-  const auto first_version = kv_store.current_version();
-
   {
     auto tx = kv_store.create_tx();
     auto handle = tx.rw(map);
@@ -1133,8 +1131,8 @@ TEST_CASE("get_version_of_previous_write")
 
     {
       auto tx_other = kv_store.create_tx();
-      auto handle = tx_other.rw(map);
-      handle->put(k2, v3);
+      auto handle_other = tx_other.rw(map);
+      handle_other->put(k2, v3);
       tx_other.commit();
     }
 
@@ -1272,11 +1270,11 @@ TEST_CASE("size")
     {
       INFO("size() is only affected by current transaction");
       auto tx2 = kv_store.create_tx();
-      auto handle = tx2.rw(map);
+      auto handle2 = tx2.rw(map);
 
-      REQUIRE(handle->size() == 2);
-      handle->remove(k2);
-      REQUIRE(handle->size() == 1);
+      REQUIRE(handle2->size() == 2);
+      handle2->remove(k2);
+      REQUIRE(handle2->size() == 1);
     }
 
     REQUIRE(handle->size() == 0);
@@ -1836,7 +1834,7 @@ TEST_CASE("Modifications during foreach iteration")
 
     // Check map contains only new keys, and the same count
     keys_seen = 0;
-    handle->foreach([&handle, &keys, &keys_seen](const auto& k, const auto& v) {
+    handle->foreach([&keys, &keys_seen](const auto& k, const auto& v) {
       ++keys_seen;
 
       REQUIRE(keys.find(k) == keys.end());
@@ -2283,10 +2281,12 @@ TEST_CASE("Deserialise return status")
     auto [success_, data_, claims_digest, commit_evidence_digest, hooks] =
       tx.commit_reserved();
     auto& success = success_;
-    auto& data = data_;
+    auto& serialised_data = data_;
     REQUIRE(success == ccf::kv::CommitResult::SUCCESS);
 
-    REQUIRE(store.deserialize(data)->apply() == ccf::kv::ApplyResult::PASS);
+    REQUIRE(
+      store.deserialize(serialised_data)->apply() ==
+      ccf::kv::ApplyResult::PASS);
   }
 
   {
@@ -2299,11 +2299,12 @@ TEST_CASE("Deserialise return status")
     auto [success_, data_, claims_digest, commit_evidence_digest, hooks] =
       tx.commit_reserved();
     auto& success = success_;
-    auto& data = data_;
+    auto& serialised_data = data_;
     REQUIRE(success == ccf::kv::CommitResult::SUCCESS);
 
     REQUIRE(
-      store.deserialize(data)->apply() == ccf::kv::ApplyResult::PASS_SIGNATURE);
+      store.deserialize(serialised_data)->apply() ==
+      ccf::kv::ApplyResult::PASS_SIGNATURE);
   }
 
   INFO("Signature transactions with additional contents should fail");
@@ -2317,10 +2318,12 @@ TEST_CASE("Deserialise return status")
     auto [success_, data_, claims_digest, commit_evidence_digest, hooks] =
       tx.commit_reserved();
     auto& success = success_;
-    auto& data = data_;
+    auto& serialised_data = data_;
     REQUIRE(success == ccf::kv::CommitResult::SUCCESS);
 
-    REQUIRE(store.deserialize(data)->apply() == ccf::kv::ApplyResult::FAIL);
+    REQUIRE(
+      store.deserialize(serialised_data)->apply() ==
+      ccf::kv::ApplyResult::FAIL);
   }
 }
 
@@ -2694,6 +2697,7 @@ TEST_CASE("Conflict resolution - removals")
         handle_1->put("unrelated", "saluton");
         break;
       }
+      case Cases::MAX:
       default:
       {
         throw std::logic_error("Unhandled");
@@ -2936,7 +2940,7 @@ TEST_CASE("Store clear")
   INFO("Apply transactions and compact store");
   {
     size_t tx_count = 10;
-    for (int i = 0; i < tx_count; i++)
+    for (size_t i = 0; i < tx_count; i++)
     {
       auto tx = kv_store.create_tx();
       auto handle_a = tx.rw(map_a);
@@ -3031,7 +3035,7 @@ TEST_CASE("Reported TxID after commit")
     // member. Here, we want to specifically test generic Txs that are created
     // by the CCF frontend, but do not write to the key-value store.
     auto tx = kv_store.create_tx();
-    auto handle = tx.ro(map); // Remember: opacity tx_id is acquired here
+    tx.ro(map); // Remember: opacity tx_id is acquired here
 
     // No need to read a key, acquiring a map handle is sufficient to acquire a
     // valid TxID
@@ -3051,7 +3055,7 @@ TEST_CASE("Reported TxID after commit")
     auto tx = kv_store.create_tx();
 
     // Still a trivial case since the opacity TxID is acquired here
-    auto handle = tx.ro(map);
+    tx.ro(map);
 
     // Rollback at the current TxID, in the next term
     kv_store.rollback(kv_store.current_txid(), ++store_commit_term);
@@ -3073,7 +3077,7 @@ TEST_CASE("Reported TxID after commit")
     kv_store.rollback(kv_store.current_txid(), ++store_commit_term);
 
     auto tx = kv_store.create_tx();
-    auto handle = tx.ro(map);
+    tx.ro(map);
     REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
 
     auto tx_id = tx.get_txid();
@@ -3090,7 +3094,7 @@ TEST_CASE("Reported TxID after commit")
     kv_store.rollback(kv_store.current_txid(), ++store_commit_term);
 
     auto tx = kv_store.create_tx();
-    auto handle = tx.ro(map);
+    tx.ro(map);
     REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
 
     auto tx_id = tx.get_txid();
@@ -3121,7 +3125,7 @@ TEST_CASE("Reported TxID after commit")
     {
       // Read-only tx should report the new term
       auto tx = kv_store.create_tx();
-      auto handle = tx.ro(map);
+      tx.ro(map);
       REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
 
       auto tx_id = tx.get_txid();
@@ -3135,7 +3139,7 @@ TEST_CASE("Reported TxID after commit")
       kv_store.rollback(kv_store.current_txid(), ++store_commit_term);
 
       auto tx = kv_store.create_tx();
-      auto handle = tx.ro(map);
+      tx.ro(map);
       REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
 
       auto tx_id = tx.get_txid();
@@ -3154,7 +3158,7 @@ TEST_CASE("Reported TxID after commit")
     store_read_term = initial_term;
 
     auto tx = kv_store.create_tx();
-    auto handle = tx.ro(map);
+    tx.ro(map);
     REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
 
     auto tx_id = tx.get_txid();
@@ -3242,7 +3246,7 @@ TEST_CASE("Range")
     auto tx = kv_store.create_tx();
     auto h = tx.rw<KVMap>(map_name);
 
-    for (int i = 0; i < size; i++)
+    for (size_t i = 0; i < size; i++)
     {
       auto key = distrib(gen);
       auto serialised_key = Serialiser::to_serialised(key);
@@ -3449,16 +3453,16 @@ TEST_CASE("Ledger entry chunk request")
       auto [success_, data_, claims_digest, commit_evidence_digest, hooks] =
         tx.commit_reserved();
       auto& success = success_;
-      auto& data = data_;
+      auto& serialised_data = data_;
       REQUIRE(success == ccf::kv::CommitResult::SUCCESS);
 
       REQUIRE(
-        store.deserialize(data)->apply() ==
+        store.deserialize(serialised_data)->apply() ==
         ccf::kv::ApplyResult::PASS_SIGNATURE);
 
       // Header flag is set in the last entry
-      const uint8_t* entry_data = data.data();
-      size_t entry_data_size = data.size();
+      const uint8_t* entry_data = serialised_data.data();
+      size_t entry_data_size = serialised_data.size();
       auto header = serialized::peek<ccf::kv::SerialisedEntryHeader>(
         entry_data, entry_data_size);
       REQUIRE(
@@ -3492,10 +3496,10 @@ TEST_CASE("Ledger entry chunk request")
     {
       auto data_ = consensus->get_latest_data();
       REQUIRE(data_.has_value());
-      auto& data = data_.value();
+      auto& serialised_data = data_.value();
 
-      const uint8_t* entry_data = data.data();
-      size_t entry_data_size = data.size();
+      const uint8_t* entry_data = serialised_data.data();
+      size_t entry_data_size = serialised_data.size();
       auto header = serialized::peek<ccf::kv::SerialisedEntryHeader>(
         entry_data, entry_data_size);
       REQUIRE(
@@ -3525,16 +3529,16 @@ TEST_CASE("Ledger entry chunk request")
       auto [success_, data_, claims_digest, commit_evidence_digest, hooks] =
         tx.commit_reserved();
       auto& success = success_;
-      auto& data = data_;
+      auto& serialised_data = data_;
       REQUIRE(success == ccf::kv::CommitResult::SUCCESS);
 
       REQUIRE(
-        store.deserialize(data)->apply() ==
+        store.deserialize(serialised_data)->apply() ==
         ccf::kv::ApplyResult::PASS_SIGNATURE);
 
       // Check that the ledger chunk header flag is set in the last entry
-      const uint8_t* entry_data = data.data();
-      size_t entry_data_size = data.size();
+      const uint8_t* entry_data = serialised_data.data();
+      size_t entry_data_size = serialised_data.size();
       auto header = serialized::peek<ccf::kv::SerialisedEntryHeader>(
         entry_data, entry_data_size);
       REQUIRE(

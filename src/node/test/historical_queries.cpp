@@ -331,7 +331,6 @@ TEST_CASE("StateCache point queries")
   static const ccf::historical::RequestHandle default_handle = 0;
   static const ccf::historical::RequestHandle low_handle = 1;
   static const ccf::historical::RequestHandle high_handle = 2;
-  static const ccf::historical::RequestHandle retry_handle = 3;
 
   {
     INFO(
@@ -513,9 +512,9 @@ TEST_CASE("StateCache point queries")
     {
       INFO("Dropping a handle deletes it, and it can no longer be retrieved");
       cache.drop_cached_states(default_handle);
-      const auto state =
+      const auto dropped_state =
         cache.get_state_at(default_handle, high_signature_transaction);
-      REQUIRE(state == nullptr);
+      REQUIRE(dropped_state == nullptr);
       cache.drop_cached_states(default_handle);
     }
 
@@ -723,10 +722,10 @@ TEST_CASE("StateCache get store vs get state")
       REQUIRE(provide_ledger_entry_range(seqno_b + 1, signature_transaction));
       auto states = cache.get_state_range(default_handle, seqno_a, seqno_b);
       REQUIRE_FALSE(states.empty());
-      for (auto& state : states)
+      for (auto& range_state : states)
       {
-        REQUIRE(state != nullptr);
-        REQUIRE(state->receipt != nullptr);
+        REQUIRE(range_state != nullptr);
+        REQUIRE(range_state->receipt != nullptr);
       }
       cache.drop_cached_states(default_handle);
     }
@@ -736,10 +735,10 @@ TEST_CASE("StateCache get store vs get state")
       REQUIRE(provide_ledger_entry_range(seqno_a, signature_transaction));
       auto states = cache.get_state_range(default_handle, seqno_a, seqno_b);
       REQUIRE_FALSE(states.empty());
-      for (auto& state : states)
+      for (auto& range_state : states)
       {
-        REQUIRE(state != nullptr);
-        REQUIRE(state->receipt != nullptr);
+        REQUIRE(range_state != nullptr);
+        REQUIRE(range_state->receipt != nullptr);
       }
 
       REQUIRE_FALSE(
@@ -747,10 +746,10 @@ TEST_CASE("StateCache get store vs get state")
 
       states = cache.get_state_range(default_handle, seqno_a, seqno_b);
       REQUIRE_FALSE(states.empty());
-      for (auto& state : states)
+      for (auto& range_state : states)
       {
-        REQUIRE(state != nullptr);
-        REQUIRE(state->receipt != nullptr);
+        REQUIRE(range_state != nullptr);
+        REQUIRE(range_state->receipt != nullptr);
       }
       cache.drop_cached_states(default_handle);
     }
@@ -767,10 +766,10 @@ TEST_CASE("StateCache get store vs get state")
       auto states =
         cache.get_state_range(default_handle, seqno_a, signature_transaction);
       REQUIRE_FALSE(states.empty());
-      for (auto& state : states)
+      for (auto& range_state : states)
       {
-        REQUIRE(state != nullptr);
-        REQUIRE(state->receipt != nullptr);
+        REQUIRE(range_state != nullptr);
+        REQUIRE(range_state->receipt != nullptr);
       }
       cache.drop_cached_states(default_handle);
     }
@@ -812,21 +811,6 @@ TEST_CASE("StateCache range queries")
   auto provide_ledger_entry = [&](size_t i) {
     bool accepted = cache.handle_ledger_entry(i, ledger.at(i));
     return accepted;
-  };
-
-  auto signing_version = [&signature_versions](ccf::kv::Version seqno) {
-    const auto begin = signature_versions.begin();
-    const auto end = signature_versions.end();
-
-    const auto exact_it = std::find(begin, end, seqno);
-    if (exact_it != end)
-    {
-      return seqno;
-    }
-
-    const auto next_sig_it = std::upper_bound(begin, end, seqno);
-    REQUIRE(next_sig_it != end);
-    return *next_sig_it;
   };
 
   std::random_device rd;
@@ -1170,21 +1154,6 @@ TEST_CASE("StateCache sparse queries")
     return accepted;
   };
 
-  auto signing_version = [&signature_versions](ccf::kv::Version seqno) {
-    const auto begin = signature_versions.begin();
-    const auto end = signature_versions.end();
-
-    const auto exact_it = std::find(begin, end, seqno);
-    if (exact_it != end)
-    {
-      return seqno;
-    }
-
-    const auto next_sig_it = std::upper_bound(begin, end, seqno);
-    REQUIRE(next_sig_it != end);
-    return *next_sig_it;
-  };
-
   std::random_device rd;
   std::mt19937 g(rd());
   auto fetch_and_validate_sparse_set = [&](const ccf::SeqNoCollection& seqnos) {
@@ -1277,7 +1246,6 @@ TEST_CASE("StateCache concurrent access")
 {
   auto state = create_and_init_state();
   auto& kv_store = *state.kv_store;
-  const auto default_handle = 0;
 
   std::vector<ccf::kv::Version> signature_versions;
 
@@ -1451,18 +1419,6 @@ TEST_CASE("StateCache concurrent access")
       validate_all_stores({store});
     };
 
-  auto query_random_point_state =
-    [&](ccf::SeqNo target_seqno, size_t handle, const auto& error_printer) {
-      ccf::historical::StatePtr state;
-      auto fetch_result = [&]() {
-        state = cache.get_state_at(handle, target_seqno);
-      };
-      auto check_result = [&]() { return state != nullptr; };
-      REQUIRE(fetch_until_timeout(fetch_result, check_result, error_printer));
-      REQUIRE(state != nullptr);
-      validate_all_states({state});
-    };
-
   auto query_random_range_stores = [&](
                                      ccf::SeqNo range_start,
                                      ccf::SeqNo range_end,
@@ -1584,11 +1540,12 @@ TEST_CASE("StateCache concurrent access")
           }
           ccf::SeqNoCollection seqnos;
           seqnos.insert(range_start);
-          for (auto i = range_start; i != range_end; ++i)
+          for (auto range_seqno = range_start; range_seqno != range_end;
+               ++range_seqno)
           {
-            if (i % 3 != 0)
+            if (range_seqno % 3 != 0)
             {
-              seqnos.insert(i);
+              seqnos.insert(range_seqno);
             }
           }
           seqnos.insert(range_end);
