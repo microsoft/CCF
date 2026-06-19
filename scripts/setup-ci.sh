@@ -64,28 +64,29 @@ install_build_dependencies() {
         libarrow-devel  \
         parquet-libs-devel  \
         doxygen  \
-        clang-tools-extra-devel
+        clang-tools-extra-devel  \
+        rust
 }
 
 install_test_dependencies() {
-    {
+    local packages=(
         # To run standard tests
-        tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install  \
-            lldb  \
-            expect  \
-            npm  \
-            jq &&
+        lldb
+        expect
+        npm
+        jq
         # Extra-dependency for CDDL schema checker
-        tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install rubygems &&
-        gem install cddl &&
+        rubygems
         # Release (extended) tests
-        tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install procps &&
+        procps
         # protocoltest
-        tdnf --snapshottime=$SOURCE_DATE_EPOCH install -y bind-utils &&
+        bind-utils
         # partitions test
-        tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install iptables &&
-        tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install strace
-    }
+        iptables
+        strace
+    )
+    tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install "${packages[@]}" &&
+    gem install cddl
 }
 
 install_h2spec() {
@@ -101,17 +102,14 @@ install_h2spec() {
 }
 
 install_packaging_and_python() {
-    # For packaging
-    tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install rpm-build &&
-
-    # For end to end tests and scripts
-    tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install python3-pip &&
-    pip install uv==0.10.8
-}
-
-install_rust() {
-    # Rust
-    tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install rust
+    local packages=(
+        # For packaging
+        rpm-build
+        # For end to end tests and scripts
+        python3-pip
+    )
+    tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install "${packages[@]}" &&
+    pip install uv==0.11.19
 }
 
 retry "Source control dependencies" install_source_control
@@ -119,4 +117,3 @@ retry "Build dependencies" install_build_dependencies
 retry "Test dependencies" install_test_dependencies
 retry "h2spec installation" install_h2spec
 retry "Packaging and Python dependencies" install_packaging_and_python
-retry "Rust dependencies" install_rust
