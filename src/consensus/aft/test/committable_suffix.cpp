@@ -646,7 +646,7 @@ DOCTEST_TEST_CASE_TEMPLATE("Multi-term divergence", T, WorstCase, RandomCase)
     channels_primary->messages.clear();
   };
 
-  const auto num_terms = rand() % 30 + 5;
+  const size_t num_terms = rand() % 30 + 5;
   if constexpr (is_worst_case)
   {
     std::cout << fmt::format("Worst case construction with {} terms", num_terms)

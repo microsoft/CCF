@@ -257,7 +257,7 @@ namespace ccf::ds
         auto next_it = std::next(it);
         if (next_it != ranges.end())
         {
-          if (it->first + it->second + 1 == next_it->first)
+          if (it->first + static_cast<T>(it->second) + 1 == next_it->first)
           {
             it->second = it->second + 1 + next_it->second;
             ranges.erase(next_it);
@@ -463,7 +463,7 @@ namespace ccf::ds
     {
       for (auto n = from; n <= from + additional; ++n)
       {
-        const auto b = insert(n);
+        insert(n);
       }
     }
 

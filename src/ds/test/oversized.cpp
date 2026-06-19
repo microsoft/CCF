@@ -382,7 +382,7 @@ TEST_CASE("Writing" * doctest::test_suite("oversized"))
     constexpr auto small_fragment_limit =
       sizeof(oversized::InitialFragmentHeader) + 1;
     constexpr auto large_message_size = buf_size;
-    oversized::Writer writer(
+    oversized::Writer low_limit_writer(
       std::make_unique<ringbuffer::Writer>(rr),
       small_fragment_limit,
       large_message_size);
@@ -398,11 +398,11 @@ TEST_CASE("Writing" * doctest::test_suite("oversized"))
 
     const auto ascending_prior = ascending_reads;
 
-    REQUIRE_NOTHROW(writer.write(
+    REQUIRE_NOTHROW(low_limit_writer.write(
       ascending,
       serializer::ByteRange{large_ascending.data(), large_message_size}));
 
-    REQUIRE_NOTHROW(writer.write(finish));
+    REQUIRE_NOTHROW(low_limit_writer.write(finish));
 
     reader_thread.join();
 

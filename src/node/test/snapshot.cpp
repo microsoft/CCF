@@ -91,8 +91,8 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
   INFO("Snapshot at signature");
   {
     ccf::kv::Store target_store;
-    auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
-    target_store.set_encryptor(encryptor);
+    auto target_encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
+    target_store.set_encryptor(target_encryptor);
     INFO("Setup target store");
     {
       auto target_node_kp = ccf::crypto::make_ec_key_pair();

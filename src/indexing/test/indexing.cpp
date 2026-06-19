@@ -273,7 +273,6 @@ aft::LedgerStubProxy* add_raft_consensus(
 {
   using TRaft = aft::Aft<aft::LedgerStubProxy>;
   using AllCommittableRaftConsensus = AllCommittableWrapper<TRaft>;
-  using ms = std::chrono::milliseconds;
   const std::string node_id = "Node 0";
   const ccf::consensus::Configuration settings{{"20ms"}, {"100ms"}};
   auto consensus = std::make_shared<AllCommittableRaftConsensus>(
@@ -802,7 +801,7 @@ TEST_CASE(
   auto tx_advancer = [&]() {
     size_t i = 0;
     constexpr auto tx_count =
-#if NDEBUG
+#ifndef NDEBUG
       1'000;
 #else
       100;
