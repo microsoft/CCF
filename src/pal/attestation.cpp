@@ -45,16 +45,6 @@ namespace ccf::pal
 
       return {bptr->data, bptr->length};
     }
-
-    std::string signature_algorithm_name(int nid)
-    {
-      const auto* name = OBJ_nid2ln(nid);
-      if (name == nullptr)
-      {
-        return fmt::format("nid {}", nid);
-      }
-      return name;
-    }
   }
 
   void verify_virtual_attestation_report(
