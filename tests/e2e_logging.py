@@ -4,6 +4,7 @@ import infra.network
 import suite.test_requirements as reqs
 import infra.logging_app as app
 import infra.e2e_args
+import infra.net
 from infra.tx_status import TxStatus
 import infra.checker
 import infra.jwt_issuer
@@ -1984,15 +1985,20 @@ def test_udp_echo(network, args):
     port = udp_interface.public_port
     LOG.info(f"Testing UDP echo server at {host}:{port}")
 
-    server_address = (host, port)
     buffer_size = 1024
     test_string = b"Some random text"
     attempts = 10
     attempt = 1
 
+    # Resolve the address so the socket family (AF_INET/AF_INET6) matches the
+    # interface host, supporting both IPv4 and IPv6 (e.g. ::1) UDP interfaces.
+    family, socktype, proto, _, server_address = socket.getaddrinfo(
+        host, port, type=socket.SOCK_DGRAM
+    )[0]
+
     while attempt <= attempts:
         LOG.info(f"Testing UDP echo server sending '{test_string}'")
-        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+        with socket.socket(family, socktype, proto) as s:
             s.settimeout(3)
             s.sendto(test_string, server_address)
             recv = s.recvfrom(buffer_size)
@@ -2293,7 +2299,7 @@ def test_etags(network, args):
     return network
 
 
-def run_udp_tests(args):
+def run_udp_tests(args, ipv6=False):
     # Register secondary interface as an UDP socket on all nodes
     udp_interface = infra.interfaces.make_secondary_interface("udp", "udp_interface")
     udp_interface["udp_interface"].app_protocol = "QUIC"
@@ -2307,10 +2313,26 @@ def run_udp_tests(args):
         args.debug_nodes,
         pdb=args.pdb,
         txs=txs,
+        ipv6=ipv6,
     ) as network:
         network.start(args)
 
+        if ipv6:
+            primary, _ = network.find_primary()
+            udp_host = primary.host.rpc_interfaces["udp_interface"].host
+            assert ":" in udp_host, f"Expected IPv6 UDP host, got {udp_host}"
+            LOG.info(f"Confirmed UDP interface is using IPv6: {udp_host}")
+
         test_udp_echo(network, args)
+
+
+def run_udp_tests_ipv6(args):
+    assert infra.net.ipv6_loopback_available(), (
+        "IPv6 loopback (::1) is not available; CI enables IPv6 via the "
+        "container --sysctl net.ipv6.conf.*.disable_ipv6=0 (see .github/workflows)"
+    )
+
+    run_udp_tests(args, ipv6=True)
 
 
 def run(args):
@@ -2666,6 +2688,13 @@ if __name__ == "__main__":
     cr.add(
         "udp",
         run_udp_tests,
+        package="samples/apps/logging/logging",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    )
+
+    cr.add(
+        "udp_ipv6",
+        run_udp_tests_ipv6,
         package="samples/apps/logging/logging",
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
     )
