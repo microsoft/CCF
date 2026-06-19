@@ -55,6 +55,7 @@ namespace ccf::pal
       }
       return name;
     }
+  }
 
   void verify_virtual_attestation_report(
     const QuoteInfo& quote_info,
