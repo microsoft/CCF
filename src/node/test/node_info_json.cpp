@@ -26,11 +26,31 @@ TEST_CASE("Multiple versions of NodeInfoNetwork")
   current.rpc_interfaces.emplace(
     first_rpc_name,
     ccf::NodeInfoNetwork::NetInterface{
-      rpc_a, rpc_a_pub, "tcp", "HTTP1", 100, 200});
+      rpc_a,
+      rpc_a_pub,
+      "tcp",
+      "HTTP1",
+      100,
+      200,
+      std::nullopt,
+      std::nullopt,
+      std::nullopt,
+      std::nullopt,
+      {}});
   current.rpc_interfaces.emplace(
     second_rpc_name,
     ccf::NodeInfoNetwork::NetInterface{
-      rpc_b, rpc_b_pub, "udp", "HTTP2", 300, 400});
+      rpc_b,
+      rpc_b_pub,
+      "udp",
+      "HTTP2",
+      300,
+      400,
+      std::nullopt,
+      std::nullopt,
+      std::nullopt,
+      std::nullopt,
+      {}});
 
   ccf::NodeInfoNetwork_v1 v1;
   std::tie(v1.nodehost, v1.nodeport) = ccf::split_net_address(node);

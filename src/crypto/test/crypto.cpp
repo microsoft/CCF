@@ -213,20 +213,20 @@ TEST_CASE("Sign, verify, with ECKeyPair")
   {
     INFO("With curve: " << labels[static_cast<size_t>(curve) - 1]);
     auto kp = make_ec_key_pair(curve);
-    vector<uint8_t> contents(contents_.begin(), contents_.end());
-    const vector<uint8_t> signature = kp->sign(contents);
-    CHECK(kp->verify(contents, signature));
+    vector<uint8_t> payload(contents_.begin(), contents_.end());
+    const vector<uint8_t> signature = kp->sign(payload);
+    CHECK(kp->verify(payload, signature));
 
     auto kp2 = make_ec_key_pair(kp->private_key_pem());
-    CHECK(kp2->verify(contents, signature));
+    CHECK(kp2->verify(payload, signature));
 
     // Signatures won't necessarily be identical due to entropy, but should be
     // mutually verifiable
     for (auto i = 0; i < 10; ++i)
     {
-      const auto new_sig = kp2->sign(contents);
-      CHECK(kp->verify(contents, new_sig));
-      CHECK(kp2->verify(contents, new_sig));
+      const auto new_sig = kp2->sign(payload);
+      CHECK(kp->verify(payload, new_sig));
+      CHECK(kp2->verify(payload, new_sig));
     }
   }
 }
@@ -237,12 +237,12 @@ TEST_CASE("Sign, verify, with ECPublicKey")
   {
     INFO("With curve: " << labels[static_cast<size_t>(curve) - 1]);
     auto kp = make_ec_key_pair(curve);
-    vector<uint8_t> contents(contents_.begin(), contents_.end());
-    const vector<uint8_t> signature = kp->sign(contents);
+    vector<uint8_t> payload(contents_.begin(), contents_.end());
+    const vector<uint8_t> signature = kp->sign(payload);
 
     const auto public_key = kp->public_key_pem();
     auto pubk = make_ec_public_key(public_key);
-    CHECK(pubk->verify(contents, signature));
+    CHECK(pubk->verify(payload, signature));
   }
 }
 
@@ -252,13 +252,13 @@ TEST_CASE("Sign, fail to verify with bad signature")
   {
     INFO("With curve: " << labels[static_cast<size_t>(curve) - 1]);
     auto kp = make_ec_key_pair(curve);
-    vector<uint8_t> contents(contents_.begin(), contents_.end());
-    vector<uint8_t> signature = kp->sign(contents);
+    vector<uint8_t> payload(contents_.begin(), contents_.end());
+    vector<uint8_t> signature = kp->sign(payload);
 
     const auto public_key = kp->public_key_pem();
     auto pubk = make_ec_public_key(public_key);
     corrupt(signature);
-    CHECK_FALSE(pubk->verify(contents, signature));
+    CHECK_FALSE(pubk->verify(payload, signature));
   }
 }
 
@@ -268,13 +268,13 @@ TEST_CASE("Sign, fail to verify with bad contents")
   {
     INFO("With curve: " << labels[static_cast<size_t>(curve) - 1]);
     auto kp = make_ec_key_pair(curve);
-    vector<uint8_t> contents(contents_.begin(), contents_.end());
-    vector<uint8_t> signature = kp->sign(contents);
+    vector<uint8_t> payload(contents_.begin(), contents_.end());
+    vector<uint8_t> signature = kp->sign(payload);
 
     const auto public_key = kp->public_key_pem();
     auto pubk = make_ec_public_key(public_key);
-    corrupt(contents);
-    CHECK_FALSE(pubk->verify(contents, signature));
+    corrupt(payload);
+    CHECK_FALSE(pubk->verify(payload, signature));
   }
 }
 
@@ -284,13 +284,13 @@ TEST_CASE("Sign, fail to verify with wrong key on correct curve")
   {
     INFO("With curve: " << labels[static_cast<size_t>(curve) - 1]);
     auto kp = make_ec_key_pair(curve);
-    vector<uint8_t> contents(contents_.begin(), contents_.end());
-    vector<uint8_t> signature = kp->sign(contents);
+    vector<uint8_t> payload(contents_.begin(), contents_.end());
+    vector<uint8_t> signature = kp->sign(payload);
 
     auto kp2 = make_ec_key_pair(curve);
     const auto public_key = kp2->public_key_pem();
     auto pubk = make_ec_public_key(public_key);
-    CHECK_FALSE(pubk->verify(contents, signature));
+    CHECK_FALSE(pubk->verify(payload, signature));
   }
 }
 
@@ -298,19 +298,19 @@ TEST_CASE("Sign, fail to verify with wrong key on wrong curve")
 {
   constexpr size_t num_supported_curves =
     static_cast<size_t>(sizeof(supported_curves) / sizeof(CurveID));
-  for (auto i = 0; i < num_supported_curves; ++i)
+  for (size_t i = 0; i < num_supported_curves; ++i)
   {
     const auto curve = supported_curves[i];
     INFO("With curve: " << labels[static_cast<size_t>(curve) - 1]);
     auto kp = make_ec_key_pair(curve);
-    vector<uint8_t> contents(contents_.begin(), contents_.end());
-    vector<uint8_t> signature = kp->sign(contents);
+    vector<uint8_t> payload(contents_.begin(), contents_.end());
+    vector<uint8_t> signature = kp->sign(payload);
 
     const auto wrong_curve = supported_curves[(i + 1) % num_supported_curves];
     auto kp2 = make_ec_key_pair(wrong_curve);
     const auto public_key = kp2->public_key_pem();
     auto pubk = make_ec_public_key(public_key);
-    CHECK_FALSE(pubk->verify(contents, signature));
+    CHECK_FALSE(pubk->verify(payload, signature));
   }
 }
 
@@ -318,11 +318,11 @@ template <typename T, typename S, CurveID CID>
 void run_alt()
 {
   T kp1(CID);
-  vector<uint8_t> contents(contents_.begin(), contents_.end());
-  vector<uint8_t> signature = kp1.sign(contents);
+  vector<uint8_t> payload(contents_.begin(), contents_.end());
+  vector<uint8_t> signature = kp1.sign(payload);
 
   S kp2(kp1.public_key_pem());
-  CHECK(kp2.verify(contents, signature));
+  CHECK(kp2.verify(payload, signature));
 }
 
 TEST_CASE("Sign, verify with certificate")
@@ -331,12 +331,12 @@ TEST_CASE("Sign, verify with certificate")
   {
     INFO("With curve: " << labels[static_cast<size_t>(curve) - 1]);
     auto kp = make_ec_key_pair(curve);
-    vector<uint8_t> contents(contents_.begin(), contents_.end());
-    const vector<uint8_t> signature = kp->sign(contents);
+    vector<uint8_t> payload(contents_.begin(), contents_.end());
+    const vector<uint8_t> signature = kp->sign(payload);
 
     auto cert = generate_self_signed_cert(kp, "CN=name");
     auto verifier = make_verifier(cert);
-    CHECK(verifier->verify(contents, signature));
+    CHECK(verifier->verify(payload, signature));
   }
 }
 
@@ -346,14 +346,14 @@ TEST_CASE("Sign, verify. Fail to verify with bad contents")
   {
     INFO("With curve: " << labels[static_cast<size_t>(curve) - 1]);
     auto kp = make_ec_key_pair(curve);
-    vector<uint8_t> contents(contents_.begin(), contents_.end());
-    const vector<uint8_t> signature = kp->sign(contents);
+    vector<uint8_t> payload(contents_.begin(), contents_.end());
+    const vector<uint8_t> signature = kp->sign(payload);
 
     auto cert = generate_self_signed_cert(kp, "CN=name");
     auto verifier = make_verifier(cert);
-    CHECK(verifier->verify(contents, signature));
-    corrupt(contents);
-    CHECK_FALSE(verifier->verify(contents, signature));
+    CHECK(verifier->verify(payload, signature));
+    corrupt(payload);
+    CHECK_FALSE(verifier->verify(payload, signature));
   }
 }
 
@@ -378,8 +378,8 @@ TEST_CASE("Manually hash, sign, verify, with ECPublicKey")
   {
     INFO("With curve: " << labels[static_cast<size_t>(curve) - 1]);
     auto kp = make_ec_key_pair(curve);
-    vector<uint8_t> contents(contents_.begin(), contents_.end());
-    ccf::crypto::HashBytes hash = bad_manual_hash(contents);
+    vector<uint8_t> payload(contents_.begin(), contents_.end());
+    ccf::crypto::HashBytes hash = bad_manual_hash(payload);
     const vector<uint8_t> signature = kp->sign_hash(hash.data(), hash.size());
 
     const auto public_key = kp->public_key_pem();
@@ -396,8 +396,8 @@ TEST_CASE("Manually hash, sign, verify, with certificate")
   {
     INFO("With curve: " << labels[static_cast<size_t>(curve) - 1]);
     auto kp = make_ec_key_pair(curve);
-    vector<uint8_t> contents(contents_.begin(), contents_.end());
-    ccf::crypto::HashBytes hash = bad_manual_hash(contents);
+    vector<uint8_t> payload(contents_.begin(), contents_.end());
+    ccf::crypto::HashBytes hash = bad_manual_hash(payload);
     const vector<uint8_t> signature = kp->sign_hash(hash.data(), hash.size());
 
     auto cert = generate_self_signed_cert(kp, "CN=name");
@@ -414,9 +414,9 @@ TEST_CASE("Sign, verify, with ECKeyPair of EdDSA")
   constexpr auto curve_id = CurveID::CURVE25519;
   INFO("With curve: " << curve);
   auto kp = make_eddsa_key_pair(curve_id);
-  vector<uint8_t> contents(contents_.begin(), contents_.end());
-  const vector<uint8_t> signature = kp->sign(contents);
-  CHECK(kp->verify(contents, signature));
+  vector<uint8_t> payload(contents_.begin(), contents_.end());
+  const vector<uint8_t> signature = kp->sign(payload);
+  CHECK(kp->verify(payload, signature));
 }
 
 TEST_CASE("Sign, verify, with ECPublicKey of EdDSA")
@@ -425,12 +425,12 @@ TEST_CASE("Sign, verify, with ECPublicKey of EdDSA")
   constexpr auto curve_id = CurveID::CURVE25519;
   INFO("With curve: " << curve);
   auto kp = make_eddsa_key_pair(curve_id);
-  vector<uint8_t> contents(contents_.begin(), contents_.end());
-  const vector<uint8_t> signature = kp->sign(contents);
+  vector<uint8_t> payload(contents_.begin(), contents_.end());
+  const vector<uint8_t> signature = kp->sign(payload);
 
   const auto public_key = kp->public_key_pem();
   auto pubk = make_eddsa_public_key(public_key);
-  CHECK(pubk->verify(contents, signature));
+  CHECK(pubk->verify(payload, signature));
 }
 
 TEST_CASE("Sign, fail to verify with bad signature (EdDSA)")
@@ -439,13 +439,13 @@ TEST_CASE("Sign, fail to verify with bad signature (EdDSA)")
   constexpr auto curve_id = CurveID::CURVE25519;
   INFO("With curve: " << curve);
   auto kp = make_eddsa_key_pair(curve_id);
-  vector<uint8_t> contents(contents_.begin(), contents_.end());
-  vector<uint8_t> signature = kp->sign(contents);
+  vector<uint8_t> payload(contents_.begin(), contents_.end());
+  vector<uint8_t> signature = kp->sign(payload);
 
   const auto public_key = kp->public_key_pem();
   auto pubk = make_eddsa_public_key(public_key);
   corrupt(signature);
-  CHECK_FALSE(pubk->verify(contents, signature));
+  CHECK_FALSE(pubk->verify(payload, signature));
 }
 
 TEST_CASE("Sign, fail to verify with bad contents (EdDSA)")
@@ -454,13 +454,13 @@ TEST_CASE("Sign, fail to verify with bad contents (EdDSA)")
   constexpr auto curve_id = CurveID::CURVE25519;
   INFO("With curve: " << curve);
   auto kp = make_eddsa_key_pair(curve_id);
-  vector<uint8_t> contents(contents_.begin(), contents_.end());
-  vector<uint8_t> signature = kp->sign(contents);
+  vector<uint8_t> payload(contents_.begin(), contents_.end());
+  vector<uint8_t> signature = kp->sign(payload);
 
   const auto public_key = kp->public_key_pem();
   auto pubk = make_eddsa_public_key(public_key);
-  corrupt(contents);
-  CHECK_FALSE(pubk->verify(contents, signature));
+  corrupt(payload);
+  CHECK_FALSE(pubk->verify(payload, signature));
 }
 
 TEST_CASE("Sign, fail to verify with wrong key on correct curve (EdDSA)")
@@ -469,13 +469,13 @@ TEST_CASE("Sign, fail to verify with wrong key on correct curve (EdDSA)")
   constexpr auto curve_id = CurveID::CURVE25519;
   INFO("With curve: " << curve);
   auto kp = make_eddsa_key_pair(curve_id);
-  vector<uint8_t> contents(contents_.begin(), contents_.end());
-  vector<uint8_t> signature = kp->sign(contents);
+  vector<uint8_t> payload(contents_.begin(), contents_.end());
+  vector<uint8_t> signature = kp->sign(payload);
 
   auto kp2 = make_eddsa_key_pair(curve_id);
   const auto public_key = kp2->public_key_pem();
   auto pubk = make_eddsa_public_key(public_key);
-  CHECK_FALSE(pubk->verify(contents, signature));
+  CHECK_FALSE(pubk->verify(payload, signature));
 }
 
 TEST_CASE("base64")
@@ -745,7 +745,7 @@ TEST_CASE("Timepoint bounds")
     REQUIRE(conv == "99991231235959Z");
 
     INFO("sscanf variants of near-min value");
-    for (auto time_str : {
+    for (auto near_min_time_str : {
            "0001-02-03 04:05:06",
            "0001-02-03 04:05:06.700000 +0:00",
            "0001-02-03 12:14:06.700000 +8:09",
@@ -767,7 +767,7 @@ TEST_CASE("Timepoint bounds")
            "0001-02-03 04:05:06.700000",
          })
     {
-      tp = ccf::ds::time_point_from_string(time_str);
+      tp = ccf::ds::time_point_from_string(near_min_time_str);
       conv = ccf::ds::to_x509_time_string(tp);
       CHECK(conv == "00010203040506Z");
     }
@@ -1159,14 +1159,14 @@ TEST_CASE("Sign and verify with RSA key")
   const auto kp = ccf::crypto::make_rsa_key_pair();
   const auto pub = ccf::crypto::make_rsa_public_key(kp->public_key_pem());
   const auto mdtype = ccf::crypto::MDType::SHA256;
-  vector<uint8_t> contents(contents_.begin(), contents_.end());
+  vector<uint8_t> payload(contents_.begin(), contents_.end());
 
   {
     constexpr size_t salt_length = 0;
-    const auto sig = kp->sign(contents, mdtype, salt_length);
+    const auto sig = kp->sign(payload, mdtype, salt_length);
     REQUIRE(pub->verify(
-      contents.data(),
-      contents.size(),
+      payload.data(),
+      payload.size(),
       sig.data(),
       sig.size(),
       mdtype,
@@ -1176,10 +1176,10 @@ TEST_CASE("Sign and verify with RSA key")
 
   {
     constexpr size_t sign_salt_length = 0, verify_salt_legth = 32;
-    const auto sig = kp->sign(contents, mdtype, sign_salt_length);
+    const auto sig = kp->sign(payload, mdtype, sign_salt_length);
     REQUIRE(!pub->verify(
-      contents.data(),
-      contents.size(),
+      payload.data(),
+      payload.size(),
       sig.data(),
       sig.size(),
       mdtype,
@@ -1189,10 +1189,10 @@ TEST_CASE("Sign and verify with RSA key")
 
   {
     constexpr size_t sign_salt_length = 32, verify_salt_legth = 32;
-    const auto sig = kp->sign(contents, mdtype, sign_salt_length);
+    const auto sig = kp->sign(payload, mdtype, sign_salt_length);
     REQUIRE(pub->verify(
-      contents.data(),
-      contents.size(),
+      payload.data(),
+      payload.size(),
       sig.data(),
       sig.size(),
       mdtype,
