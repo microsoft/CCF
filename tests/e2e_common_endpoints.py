@@ -326,8 +326,8 @@ def run(args):
 
 def run_ipv6(args):
     assert infra.net.ipv6_loopback_available(), (
-        "IPv6 loopback (::1) is not available; CI must enable IPv6 "
-        "(see scripts/enable-ipv6-loopback.sh)"
+        "IPv6 loopback (::1) is not available; CI enables IPv6 via the "
+        "container --sysctl net.ipv6.conf.*.disable_ipv6=0 (see .github/workflows)"
     )
 
     with infra.network.network(

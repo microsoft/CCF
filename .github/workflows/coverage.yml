@@ -59,10 +59,6 @@ jobs:
           ./tests.sh --output-on-failure -L unit -j$(nproc --all)
         shell: bash
 
-      - name: "Enable IPv6 loopback"
-        run: ./scripts/enable-ipv6-loopback.sh
-        shell: bash
-
       - name: "End to end tests except partition"
         run: |
           set -ex

@@ -59,10 +59,6 @@ jobs:
           cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DLONG_TESTS=ON -DSAN=ON -DUSE_SNMALLOC=OFF ..
           ninja
 
-      - name: "Enable IPv6 loopback"
-        run: ./scripts/enable-ipv6-loopback.sh
-        shell: bash
-
       - name: "Test"
         run: |
           set +x
@@ -93,7 +89,7 @@ jobs:
       ]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
-      options: --user root --publish-all --privileged
+      options: --user root --publish-all --privileged --sysctl net.ipv6.conf.all.disable_ipv6=0 --sysctl net.ipv6.conf.default.disable_ipv6=0 --sysctl net.ipv6.conf.lo.disable_ipv6=0
 
     steps:
       - name: "Checkout dependencies"
@@ -122,10 +118,6 @@ jobs:
           cd build
           cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DLONG_TESTS=OFF -DTSAN=ON -DUSE_SNMALLOC=OFF -DWORKER_THREADS=2 ..
           ninja
-
-      - name: "Enable IPv6 loopback"
-        run: ./scripts/enable-ipv6-loopback.sh
-        shell: bash
 
       - name: "Test"
         run: |
@@ -188,10 +180,6 @@ jobs:
           cd build
           cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DGLIBCXX_DEBUG=ON -DLONG_TESTS=ON ..
           ninja
-
-      - name: "Enable IPv6 loopback"
-        run: ./scripts/enable-ipv6-loopback.sh
-        shell: bash
 
       - name: "Test"
         run: |
@@ -264,10 +252,6 @@ jobs:
           cd build
           cmake -GNinja -DCMAKE_BUILD_TYPE=Release -DCLIENT_PROTOCOLS_TEST=ON -DLONG_TESTS=ON ..
           ninja
-
-      - name: "Enable IPv6 loopback"
-        run: ./scripts/enable-ipv6-loopback.sh
-        shell: bash
 
       - name: "Test"
         run: |
