@@ -284,7 +284,10 @@ class Network:
         self.status = ServiceStatus.CLOSED
         self.binary_dir = binary_dir
         self.library_dir = library_dir
-        self.ipv6 = ipv6
+        # Inherit IPv6 mode from the existing network (e.g. across recovery,
+        # where recovered networks are constructed with existing_network set),
+        # so the flag does not need to be threaded through every call site.
+        self.ipv6 = existing_network.ipv6 if existing_network is not None else ipv6
         self.election_duration = None
         self.observed_election_duration = None
         self.key_generator = os.path.join(binary_dir, self.KEY_GEN)
