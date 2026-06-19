@@ -63,7 +63,7 @@ install_python_tools() {
 install_node() {
     local node_dist="node-${NODE_VERSION}-linux-x64"
     local archive="${node_dist}.tar.gz"
-    if ! curl -L --output "$archive" "https://nodejs.org/dist/${NODE_VERSION}/${archive}"; then
+    if ! curl -fL --output "$archive" "https://nodejs.org/dist/${NODE_VERSION}/${archive}"; then
         echo "Failed to download Node.js"
         return 1
     fi
