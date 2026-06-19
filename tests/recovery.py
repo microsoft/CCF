@@ -43,6 +43,7 @@ import infra.utils
 import infra.platform_detection
 from loguru import logger as LOG
 
+
 def shifted_tx(tx, view_diff, seq_dif):
     return ccf.tx_id.TxID(tx.view + view_diff, tx.seqno + seq_dif)
 
