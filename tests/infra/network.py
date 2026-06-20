@@ -393,6 +393,9 @@ class Network:
                 "Joining without snapshot: complete transaction history will be replayed"
             )
 
+        join_kwargs = kwargs.copy()
+        join_kwargs.pop("service_data_json_file", None)
+
         if not committed_ledger_dirs and copy_ledger:
             LOG.info(f"Copying ledger from target node {target_node.local_node_id}")
             current_ledger_dir, committed_ledger_dirs = target_node.get_ledger()
@@ -417,7 +420,7 @@ class Network:
             read_only_snapshots_dir=read_only_snapshots_dir,
             ledger_dir=current_ledger_dir,
             read_only_ledger_dirs=committed_ledger_dirs,
-            **kwargs,
+            **join_kwargs,
         )
 
     def _add_node(
