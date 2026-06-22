@@ -41,9 +41,9 @@ install_dev_dependencies() {
     tdnf -y install  \
         clang-tools-extra  \
         python-pip \
+        curl \
         jq \
         tar \
-        npm \
         build-essential
 }
 

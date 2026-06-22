@@ -73,7 +73,6 @@ install_test_dependencies() {
         # To run standard tests
         lldb
         expect
-        npm
         jq
         # Extra-dependency for CDDL schema checker
         rubygems
@@ -101,6 +100,16 @@ install_h2spec() {
     rm h2spec_linux_amd64.tar.gz
 }
 
+install_node() {
+    # Node.js 24 and npm from the Azure Linux package repositories. The ">= 24"
+    # constraint pins the major version (failing rather than silently selecting
+    # an older nodejs); `nodejs-npm` provides npm and depends on that same
+    # `nodejs`, so it follows the selected version.
+    tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install  \
+        "nodejs >= 24"  \
+        nodejs-npm
+}
+
 install_packaging_and_python() {
     local packages=(
         # For packaging
@@ -115,5 +124,6 @@ install_packaging_and_python() {
 retry "Source control dependencies" install_source_control
 retry "Build dependencies" install_build_dependencies
 retry "Test dependencies" install_test_dependencies
+retry "Node.js installation" install_node
 retry "h2spec installation" install_h2spec
 retry "Packaging and Python dependencies" install_packaging_and_python
