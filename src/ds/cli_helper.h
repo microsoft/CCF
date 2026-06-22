@@ -65,6 +65,15 @@ namespace cli
     }
     else
     {
+      // Unbracketed IPv6 literals are ambiguous with the host:port separator.
+      // Require bracketed "[host]:port" form for any address containing more
+      // than one ':' (e.g. "::1").
+      if (addr.find(':') != std::string::npos && addr.find(':') != addr.find_last_of(':'))
+      {
+        throw std::logic_error(fmt::format(
+          "IPv6 address '{}' must be bracketed as '[host]:port'", addr));
+      }
+
       auto found = addr.find_last_of(':');
       hostname = addr.substr(0, found);
       port = found == std::string::npos ? default_port : addr.substr(found + 1);
