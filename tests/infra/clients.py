@@ -902,11 +902,10 @@ class RawSocketClient:
                         keyfile=session_auth.key,
                     )
 
-                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock = socket.create_connection((hostname, port))
                 ssl_socket = context.wrap_socket(
                     sock, server_side=False, server_hostname=hostname
                 )
-                ssl_socket.connect((hostname, port))
                 return ssl_socket
             except (ssl.SSLEOFError, ConnectionResetError) as exc:
                 if time.time() > end_time:

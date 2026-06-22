@@ -25,8 +25,50 @@ from infra.snp import SNP_SUPPORT
 import http
 import random
 import pathlib
+import re
 
 from loguru import logger as LOG
+
+# Matches an IPv4 dotted-quad with each octet in 0-255. Used to assert that an
+# IPv6-only network never wrote an IPv4 literal into any node configuration.
+IPV4_ADDRESS_RE = re.compile(
+    r"\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}"
+    r"(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b"
+)
+
+
+def _find_ipv4_values(obj, path="$"):
+    # Recursively yield (json_path, value) for every string leaf that contains an
+    # IPv4 literal anywhere in the given JSON-like object. Catches IPv4-mapped
+    # IPv6 forms (e.g. ::ffff:127.0.0.1) too, which are not pure IPv6.
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            yield from _find_ipv4_values(v, f"{path}.{k}")
+    elif isinstance(obj, list):
+        for i, v in enumerate(obj):
+            yield from _find_ipv4_values(v, f"{path}[{i}]")
+    elif isinstance(obj, str) and IPV4_ADDRESS_RE.search(obj):
+        yield path, obj
+
+
+def assert_no_ipv4_in_node_configs(network):
+    # Post-shutdown sanity check for IPv6-only runs: every node configuration
+    # written during the test (all of them are kept in the network common dir)
+    # must be free of IPv4 literals, confirming no code path fell back to IPv4.
+    config_files = sorted(pathlib.Path(network.common_dir).glob("*.config.json"))
+    assert config_files, f"No node config files found in {network.common_dir}"
+    offending = {}
+    for config_file in config_files:
+        with open(config_file, encoding="utf-8") as f:
+            config = json.load(f)
+        hits = list(_find_ipv4_values(config))
+        if hits:
+            offending[config_file.name] = hits
+    assert not offending, f"IPv4 addresses found in IPv6-only node configs: {offending}"
+    LOG.info(
+        f"Confirmed {len(config_files)} node config(s) in {network.common_dir} "
+        "contain no IPv4 addresses"
+    )
 
 
 def node_configs(network):
@@ -763,7 +805,7 @@ def test_node_replacement(network, args):
 
     LOG.info("Adding one node on same address as retired node")
     replacement_node = network.create_node(
-        f"local://{node_to_replace.get_public_rpc_host()}:{node_to_replace.get_public_rpc_port()}",
+        f"local://{node_to_replace.get_public_rpc_address()}",
         node_port=node_to_replace.n2n_interface.port,
     )
     network.join_node(replacement_node, args.package, args, from_snapshot=False)
@@ -1114,7 +1156,7 @@ def test_joining_nodes_snapshot_ledger_offset(network, args):
     return network
 
 
-def run_all(args):
+def run_all(args, ipv6=False):
     txs = app.LoggingTxs("user0")
     with infra.network.network(
         args.nodes,
@@ -1122,8 +1164,17 @@ def run_all(args):
         args.debug_nodes,
         pdb=args.pdb,
         txs=txs,
+        ipv6=ipv6,
     ) as network:
         network.start_and_open(args)
+
+        if ipv6:
+            primary, _ = network.find_primary()
+            primary_host = primary.get_public_rpc_host()
+            assert (
+                ":" in primary_host
+            ), f"Expected IPv6 primary host, got {primary_host}"
+            LOG.info(f"Confirmed reconfiguration network is using IPv6: {primary_host}")
 
         test_version(network, args)
         test_issue_fake_join(network, args)
@@ -1159,11 +1210,14 @@ def run_all(args):
 
         test_ledger_invariants(network, args)
 
-    run_join_old_snapshot(args)
-    run_join_no_snapshot_against_original_primary(args)
+    if ipv6:
+        assert_no_ipv4_in_node_configs(network)
+
+    run_join_old_snapshot(args, ipv6=ipv6)
+    run_join_no_snapshot_against_original_primary(args, ipv6=ipv6)
 
 
-def run_join_old_snapshot(const_args):
+def run_join_old_snapshot(const_args, ipv6=False):
     txs = app.LoggingTxs("user0")
     args = deepcopy(const_args)
     args.nodes = infra.e2e_args.nodes(args, 1)
@@ -1176,6 +1230,7 @@ def run_join_old_snapshot(const_args):
             args.debug_nodes,
             pdb=args.pdb,
             txs=txs,
+            ipv6=ipv6,
         ) as network:
             network.start_and_open(args)
             primary, _ = network.find_primary()
@@ -1282,7 +1337,7 @@ def run_join_old_snapshot(const_args):
             )
 
 
-def run_join_no_snapshot_against_original_primary(const_args):
+def run_join_no_snapshot_against_original_primary(const_args, ipv6=False):
     # Regression test.
     # Previously a node which should fetch a snapshot, would not as the lower limit for this was the startup snapshot of the node.
     # This test ensures that the startup seqno of a joining node is higher than the startup snapshot of the primary
@@ -1297,6 +1352,7 @@ def run_join_no_snapshot_against_original_primary(const_args):
         args.debug_nodes,
         pdb=args.pdb,
         txs=txs,
+        ipv6=ipv6,
     ) as network:
         network.start_and_open(args)
         primary, _ = network.find_primary()
@@ -1332,3 +1388,12 @@ def run_join_no_snapshot_against_original_primary(const_args):
             assert (
                 body["startup_seqno"] > 0
             ), f"Joiner should have started from a fetched snapshot, got startup_seqno={body['startup_seqno']}"
+
+
+def run_ipv6(args):
+    assert infra.net.ipv6_loopback_available(), (
+        "IPv6 loopback (::1) is not available; CI enables IPv6 via the "
+        "container --sysctl net.ipv6.conf.*.disable_ipv6=0 (see .github/workflows)"
+    )
+
+    run_all(args, ipv6=True)

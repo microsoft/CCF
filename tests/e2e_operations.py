@@ -311,7 +311,7 @@ def test_snapshot_access(network, args):
             assert r.status_code == http.HTTPStatus.NOT_FOUND, r
 
     interface = primary.host.rpc_interfaces[infra.interfaces.FILE_SERVING_RPC_INTERFACE]
-    loc = f"https://{interface.public_host}:{interface.public_port}"
+    loc = f"https://{infra.interfaces.make_address(interface.public_host, interface.public_port)}"
 
     with primary.client(
         interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
@@ -1407,7 +1407,7 @@ def test_ledger_chunk_redirect_recent(network, args):
         expected_port = primary.get_public_rpc_port(
             interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
         )
-        expected_location = f"https://{expected_host}:{expected_port}/node/ledger_chunk?since={start_of_last_chunk}"
+        expected_location = f"https://{infra.interfaces.make_address(expected_host, expected_port)}/node/ledger_chunk?since={start_of_last_chunk}"
         assert r.headers["Location"] == expected_location, r
         r = c.get(
             f"/node/ledger_chunk?since={start_of_last_chunk}", allow_redirects=True
