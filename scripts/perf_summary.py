@@ -6,12 +6,12 @@ import sys
 import json
 import argparse
 from datetime import datetime, timezone
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
-# Benchmark metric to chart over time. Start with a single series for now; this
-# can be extended to cover more benchmarks or metrics later.
-CHART_BENCHMARK = "Basic"
+# Metric to chart over time, with its unit, and how many recent runs to include.
+# A chart is produced for every benchmark that reports this metric.
 CHART_METRIC = "throughput"
+CHART_METRIC_UNIT = "tx/s"
 CHART_MAX_POINTS = 10
 
 
@@ -73,49 +73,79 @@ def run_label(name: str) -> str:
     return parts[1] if len(parts) >= 2 else stem
 
 
-def extract_metric_series(
-    directory: str, files: List[str], benchmark: str, metric: str
-) -> List[Tuple[str, float]]:
-    """Extract (label, value) points for a benchmark metric from the given files."""
-    series: List[Tuple[str, float]] = []
+def load_perf_data(directory: str, files: List[str]) -> List[Tuple[str, dict]]:
+    """Load (label, data) for each readable JSON perf file, preserving order."""
+    loaded: List[Tuple[str, dict]] = []
     for name in files:
         try:
             with open(os.path.join(directory, name), "r") as f:
                 data = json.load(f)
         except (OSError, json.JSONDecodeError):
             continue
-        if not isinstance(data, dict):
-            continue
-        value = data.get(benchmark, {}).get(metric, {}).get("value")
-        if isinstance(value, (int, float)):
-            series.append((run_label(name), value))
-    return series
+        if isinstance(data, dict):
+            loaded.append((run_label(name), data))
+    return loaded
+
+
+def metric_value(data: dict, benchmark: str, metric: str) -> Optional[float]:
+    """Return the numeric value of a benchmark metric, or None if absent."""
+    metrics = data.get(benchmark)
+    if not isinstance(metrics, dict):
+        return None
+    entry = metrics.get(metric)
+    if not isinstance(entry, dict):
+        return None
+    value = entry.get("value")
+    return value if isinstance(value, (int, float)) else None
+
+
+def benchmarks_with_metric(loaded: List[Tuple[str, dict]], metric: str) -> List[str]:
+    """Sorted names of benchmarks that report the given metric in any run."""
+    names = set()
+    for _, data in loaded:
+        for benchmark in data:
+            if metric_value(data, benchmark, metric) is not None:
+                names.add(benchmark)
+    return sorted(names)
 
 
 def render_mermaid_xychart(
-    series: List[Tuple[str, float]], benchmark: str, metric: str
+    series: List[Tuple[str, float]], benchmark: str, metric: str, unit: str
 ) -> str:
-    """Render a Mermaid xychart-beta line chart of a metric over time."""
-    if not series:
-        return (
-            f"## `{benchmark}` {metric}\n\n"
-            f"_No `{metric}` data found for benchmark `{benchmark}`._\n"
-        )
-
+    """Render a Mermaid xychart-beta line chart for a single benchmark metric."""
     labels = ", ".join(f'"{label}"' for label, _ in series)
     values = ", ".join(f"{value}" for _, value in series)
     lines = [
-        f"## `{benchmark}` {metric} over the last {len(series)} run(s)",
+        f"### {benchmark}",
         "",
         "```mermaid",
         "xychart-beta",
         f'    title "{benchmark} {metric}"',
         f'    x-axis "run" [{labels}]',
-        f'    y-axis "{metric}"',
+        f'    y-axis "{metric} ({unit})"',
         f"    line [{values}]",
         "```",
         "",
     ]
+    return "\n".join(lines)
+
+
+def render_metric_charts(loaded: List[Tuple[str, dict]], metric: str, unit: str) -> str:
+    """Render one chart per benchmark that reports the given metric."""
+    benchmarks = benchmarks_with_metric(loaded, metric)
+    lines = [f"## {metric.capitalize()} per benchmark ({unit})", ""]
+    if not benchmarks:
+        lines.append(f"_No benchmarks with a `{metric}` metric found._")
+        lines.append("")
+        return "\n".join(lines)
+
+    for benchmark in benchmarks:
+        series = [
+            (label, value)
+            for label, data in loaded
+            if (value := metric_value(data, benchmark, metric)) is not None
+        ]
+        lines.append(render_mermaid_xychart(series, benchmark, metric, unit))
     return "\n".join(lines)
 
 
@@ -135,10 +165,8 @@ def main() -> None:
     print(render_markdown_table(args.directory, files))
 
     recent = files[-CHART_MAX_POINTS:]
-    series = extract_metric_series(
-        args.directory, recent, CHART_BENCHMARK, CHART_METRIC
-    )
-    print(render_mermaid_xychart(series, CHART_BENCHMARK, CHART_METRIC))
+    loaded = load_perf_data(args.directory, recent)
+    print(render_metric_charts(loaded, CHART_METRIC, CHART_METRIC_UNIT))
 
 
 if __name__ == "__main__":
