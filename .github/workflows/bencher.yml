@@ -93,7 +93,7 @@ jobs:
           if-no-files-found: ignore
         if: success() || failure()
 
-      - uses: bencherdev/bencher@50fb1e138651a46d2fb704fab1adab38c181552e # v0.6.6
+      - uses: bencherdev/bencher@ec56bb69a7f34096002ca3384d10e2f6676b063e # v0.6.7
       - name: Track base branch benchmarks with Bencher
         run: &bencher_run |
           bencher run \
@@ -158,6 +158,6 @@ jobs:
           if-no-files-found: ignore
         if: success() || failure()
 
-      - uses: bencherdev/bencher@50fb1e138651a46d2fb704fab1adab38c181552e # v0.6.6
+      - uses: bencherdev/bencher@ec56bb69a7f34096002ca3384d10e2f6676b063e # v0.6.7
       - name: Track base branch benchmarks with Bencher
         run: *bencher_run
