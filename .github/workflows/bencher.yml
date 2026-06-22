@@ -80,14 +80,12 @@ jobs:
             --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | last | .workflow_run.id // empty')
           if [ -n "$run_id" ]; then
             gh run download "$run_id" --name "$name" --dir prev_artifact
-            if [ -d prev_artifact/perf ]; then
-              cp -r prev_artifact/perf/. perf/
-            fi
+            find prev_artifact -name '*.json' -exec cp {} perf/ \;
           fi
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          ARTIFACT_PREFIX: logs-bench-virtual
+          ARTIFACT_PREFIX: perf-bench-virtual
 
       - name: Build and run virtual perf tests
         run: |
@@ -119,12 +117,19 @@ jobs:
         with:
           name: logs-bench-virtual-${{ env.BRANCH_SLUG }}
           path: |
-            perf
             build/workspace/*/*.config.json
             build/workspace/*/out
             build/workspace/*/err
             build/workspace/*/*.ledger/*
             build/workspace/*/stack_trace
+          if-no-files-found: ignore
+        if: success() || failure()
+
+      - name: "Upload perf data"
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: perf-bench-virtual-${{ env.BRANCH_SLUG }}
+          path: perf
           if-no-files-found: ignore
         if: success() || failure()
 
@@ -172,7 +177,7 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          ARTIFACT_PREFIX: logs-bench-snp
+          ARTIFACT_PREFIX: perf-bench-snp
 
       - name: Build and run SNP perf tests
         run: |
@@ -204,13 +209,20 @@ jobs:
         with:
           name: logs-bench-snp-${{ env.BRANCH_SLUG }}
           path: |
-            perf
             dmesg.log
             build/workspace/*/*.config.json
             build/workspace/*/out
             build/workspace/*/err
             build/workspace/*/*.ledger/*
             build/workspace/*/stack_trace
+          if-no-files-found: ignore
+        if: success() || failure()
+
+      - name: "Upload perf data"
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: perf-bench-snp-${{ env.BRANCH_SLUG }}
+          path: perf
           if-no-files-found: ignore
         if: success() || failure()
 
