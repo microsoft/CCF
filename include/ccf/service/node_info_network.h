@@ -194,6 +194,7 @@ namespace ccf
   // resolution, certificate SANs and comparison. A port-less address ("host"
   // or "[host]") returns the host with an empty port. The inverse of
   // make_net_address.
+  // See https://www.rfc-editor.org/info/rfc3986/#section-3.2.3
   inline static std::pair<std::string, std::string> split_net_address(
     const NodeInfoNetwork::NetAddress& addr)
   {
