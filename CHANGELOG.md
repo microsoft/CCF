@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [7.0.6]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.6
 
+### Added
+
+- Experimental support for IPv6. Node RPC and node-to-node interface hosts may now be specified as IPv6 literals in bracketed form (e.g. `[::1]:8000`), and addresses are consistently parsed, bound, connected (with fallback across mixed IPv4/IPv6 resolved addresses), serialised, and embedded in redirect URLs for IPv6 (#7671).
+
 ### Fixed
 
 - Forwarded commands are no longer processed until the node is part of the network, matching the existing behaviour for other node-to-node messages. Previously a forwarded command could be executed while the node was in an earlier startup state, which could lead to undefined behaviour for some commands (#7936).
