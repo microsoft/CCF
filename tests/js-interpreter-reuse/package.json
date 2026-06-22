@@ -5,7 +5,7 @@
   },
   "type": "module",
   "engines": {
-    "node": ">=20"
+    "node": ">=24"
   },
   "dependencies": {
     "@microsoft/ccf-app": "file:../../js/ccf-app",
