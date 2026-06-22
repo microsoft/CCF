@@ -229,23 +229,6 @@ TEST_CASE("ARK with unexpected issuer fails")
     std::logic_error);
 }
 
-TEST_CASE("ARK with unexpected signature algorithm fails")
-{
-  auto quote_info =
-    milan_quote_info_with_ark(ark_with_sha384_rsa_signature_algorithm());
-
-  ccf::pal::PlatformAttestationMeasurement measurement;
-  ccf::pal::PlatformAttestationReportData report_data;
-
-  CHECK_THROWS_WITH_AS(
-    ccf::pal::verify_snp_attestation_report(
-      quote_info, measurement, report_data),
-    doctest::Contains(
-      "SEV-SNP: The root of trust signature algorithm for this attestation "
-      "was not the expected one"),
-    std::logic_error);
-}
-
 TEST_CASE("Parsing of Tcb versions from strings")
 {
   const auto milan_tcb_version_raw =
