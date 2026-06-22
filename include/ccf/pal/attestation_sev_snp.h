@@ -87,8 +87,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
     {ProductName::Milan,
      {amd_milan_root_signing_public_key,
       "CN=ARK-Milan,O=Advanced Micro Devices,ST=CA,L=Santa Clara,C=US,"
-      "OU=Engineering"
-      }},
+      "OU=Engineering"}},
     {ProductName::Genoa,
      {amd_genoa_root_signing_public_key,
       "CN=ARK-Genoa,O=Advanced Micro Devices,ST=CA,L=Santa Clara,C=US,"
