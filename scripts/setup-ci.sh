@@ -5,10 +5,6 @@
 set -exo pipefail
 
 H2SPEC_VERSION="v2.6.0"
-NODE_VERSION="v24.17.0"
-# SHA256 checksum of node-${NODE_VERSION}-linux-x64.tar.gz from
-# https://nodejs.org/dist/${NODE_VERSION}/SHASUMS256.txt
-NODE_SHA256="e0472427aa791ad80bdc426ff7cc73cdd28ed0f616d1ff9689a23a7f47f1265f"
 
 export SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH:-$(date +%s)}
 echo "Using SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH}"
@@ -105,26 +101,13 @@ install_h2spec() {
 }
 
 install_node() {
-    local node_dist="node-${NODE_VERSION}-linux-x64"
-    local archive="${node_dist}.tar.gz"
-    if ! curl -fL --output "$archive" "https://nodejs.org/dist/${NODE_VERSION}/${archive}"; then
-        echo "Failed to download Node.js"
-        return 1
-    fi
-
-    if ! echo "${NODE_SHA256}  ${archive}" | sha256sum --check --status; then
-        echo "Node.js checksum verification failed"
-        rm -f "$archive"
-        return 1
-    fi
-
-    rm -rf /opt/node &&
-    mkdir -p /opt/node &&
-    tar -xzf "$archive" -C /opt/node --strip-components=1 &&
-    ln -sf /opt/node/bin/node /usr/local/bin/node &&
-    ln -sf /opt/node/bin/npm /usr/local/bin/npm &&
-    ln -sf /opt/node/bin/npx /usr/local/bin/npx &&
-    rm -f "$archive"
+    # Node.js 24 and npm from the Azure Linux package repositories. The ">= 24"
+    # constraint pins the major version (failing rather than silently selecting
+    # an older nodejs); `nodejs-npm` provides npm and depends on that same
+    # `nodejs`, so it follows the selected version.
+    tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install  \
+        "nodejs >= 24"  \
+        nodejs-npm
 }
 
 install_packaging_and_python() {
