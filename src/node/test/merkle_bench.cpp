@@ -29,7 +29,7 @@ static void append_retract(picobench::state& s)
   vector<ccf::crypto::Sha256Hash> hashes;
   std::random_device r;
 
-  for (size_t i = 0; i < s.iterations(); ++i)
+  for (int i = 0; i < s.iterations(); ++i)
   {
     ccf::crypto::Sha256Hash h;
     for (size_t j = 0; j < ccf::crypto::Sha256Hash::SIZE; j++)
@@ -62,7 +62,7 @@ static void append_flush(picobench::state& s)
   vector<ccf::crypto::Sha256Hash> hashes;
   std::random_device r;
 
-  for (size_t i = 0; i < s.iterations(); ++i)
+  for (int i = 0; i < s.iterations(); ++i)
   {
     ccf::crypto::Sha256Hash h;
     for (size_t j = 0; j < ccf::crypto::Sha256Hash::SIZE; j++)
@@ -92,7 +92,7 @@ static void append_get_proof_verify(picobench::state& s)
   vector<ccf::crypto::Sha256Hash> hashes;
   std::random_device r;
 
-  for (size_t i = 0; i < s.iterations(); ++i)
+  for (int i = 0; i < s.iterations(); ++i)
   {
     ccf::crypto::Sha256Hash h;
     for (size_t j = 0; j < ccf::crypto::Sha256Hash::SIZE; j++)
@@ -124,7 +124,7 @@ static void append_get_proof_verify_v(picobench::state& s)
   vector<ccf::crypto::Sha256Hash> hashes;
   std::random_device r;
 
-  for (size_t i = 0; i < s.iterations(); ++i)
+  for (int i = 0; i < s.iterations(); ++i)
   {
     ccf::crypto::Sha256Hash h;
     for (size_t j = 0; j < ccf::crypto::Sha256Hash::SIZE; j++)
@@ -156,7 +156,7 @@ static void serialise_deserialise(picobench::state& s)
   ccf::MerkleTreeHistory t;
   std::random_device r;
 
-  for (size_t i = 0; i < s.iterations(); ++i)
+  for (int i = 0; i < s.iterations(); ++i)
   {
     ccf::crypto::Sha256Hash h;
     for (size_t j = 0; j < ccf::crypto::Sha256Hash::SIZE; j++)
@@ -175,7 +175,7 @@ static void serialised_size(picobench::state& s)
   ccf::MerkleTreeHistory t;
   std::random_device r;
 
-  for (size_t i = 0; i < s.iterations(); ++i)
+  for (int i = 0; i < s.iterations(); ++i)
   {
     ccf::crypto::Sha256Hash h;
     for (size_t j = 0; j < ccf::crypto::Sha256Hash::SIZE; j++)

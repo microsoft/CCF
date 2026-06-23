@@ -14,6 +14,7 @@
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
 
 #ifdef CCF_RAFT_TRACING
 #  define RAFT_DRIVER_PRINT(...) \
@@ -567,6 +568,11 @@ public:
         log_msg_details(node_id, tgt_node_id, aer, dropped);
         break;
       }
+      case (aft::RaftMsgType::raft_append_entries_signed_response):
+      {
+        throw std::runtime_error(
+          "raft_append_entries_signed_response is not handled by the driver");
+      }
       case (aft::RaftMsgType::raft_propose_request_vote):
       {
         auto prv = *(aft::ProposeRequestVote*)data;
@@ -625,7 +631,7 @@ public:
   std::string get_ledger_summary(TRaft& r)
   {
     std::vector<std::string> entries;
-    for (auto i = 1; i <= r.get_last_idx(); ++i)
+    for (ccf::kv::Version i = 1; i <= r.get_last_idx(); ++i)
     {
       const auto t = r.get_view(i);
       auto s = fmt::format("{}.{}", t, i);
@@ -688,9 +694,21 @@ public:
           aer.term,
           aer.last_log_idx);
       }
+      case (aft::RaftMsgType::raft_append_entries_signed_response):
+      {
+        return "AESR";
+      }
       case (aft::RaftMsgType::raft_propose_request_vote):
       {
         return "PRV";
+      }
+      case (aft::RaftMsgType::raft_request_pre_vote):
+      {
+        return "RPV";
+      }
+      case (aft::RaftMsgType::raft_request_pre_vote_response):
+      {
+        return "RPVR";
       }
       default:
       {
@@ -945,7 +963,7 @@ public:
     }
     else
     {
-      const auto desired_term = atoi(term_s.c_str());
+      const auto desired_term = static_cast<aft::Term>(std::stoull(term_s));
       for (const auto& pair : primaries)
       {
         if (pair.first == desired_term)
@@ -1098,7 +1116,7 @@ public:
       else
       {
         // Check that the every ledger entry matches
-        for (auto idx = 1; idx <= target_last_idx; ++idx)
+        for (aft::Index idx = 1; idx <= target_last_idx; ++idx)
         {
           const auto target_entry = target_raft->ledger->get_entry_by_idx(idx);
           if (!target_entry.has_value())
@@ -1250,7 +1268,7 @@ public:
     auto get_ledger_prefix = [this](ccf::NodeId id, ccf::SeqNo seqno) {
       std::vector<std::vector<uint8_t>> prefix;
       auto& ledger = _nodes.at(id).raft->ledger;
-      for (auto i = 1; i <= seqno; ++i)
+      for (ccf::SeqNo i = 1; i <= seqno; ++i)
       {
         auto entry = ledger->get_entry_by_idx(i);
         if (!entry.has_value())
@@ -1265,10 +1283,10 @@ public:
     const auto committed_prefix = get_ledger_prefix(node_id, committed_seqno);
 
     std::map<ccf::NodeId, bool> present_on;
-    for (const auto& [node_id, _] : _nodes)
+    for (const auto& [present_node_id, _] : _nodes)
     {
-      present_on[node_id] =
-        get_ledger_prefix(node_id, committed_seqno) == committed_prefix;
+      present_on[present_node_id] =
+        get_ledger_prefix(present_node_id, committed_seqno) == committed_prefix;
     }
 
     const auto details = raft->get_details();
@@ -1284,7 +1302,7 @@ public:
           });
 
         const auto quorum = (nodes.size() / 2) + 1;
-        if (present_count < quorum)
+        if (std::cmp_less(present_count, quorum))
         {
           RAFT_DRIVER_PRINT(
             "Note over {}: Node has advanced commit to {},  yet this entry is "
@@ -1325,7 +1343,7 @@ public:
   void assert_commit_idx(
     ccf::NodeId node_id, const std::string& idx_s, const size_t lineno)
   {
-    auto idx = std::stol(idx_s);
+    auto idx = static_cast<aft::Index>(std::stoull(idx_s));
     if (_nodes.at(node_id).raft->get_committed_seqno() != idx)
     {
       RAFT_DRIVER_PRINT(
@@ -1395,7 +1413,7 @@ public:
     const std::string& config_idx_s,
     const std::vector<std::string>& node_ids)
   {
-    auto config_idx = std::stol(config_idx_s);
+    auto config_idx = static_cast<aft::Index>(std::stoull(config_idx_s));
     auto details = _nodes.at(node_id).raft->get_details();
     for (const auto& config : details.configs)
     {
@@ -1430,7 +1448,7 @@ public:
   void assert_absent_config(
     const std::string& node_id, const std::string& config_idx_s)
   {
-    auto config_idx = std::stol(config_idx_s);
+    auto config_idx = static_cast<aft::Index>(std::stoull(config_idx_s));
     auto details = _nodes.at(node_id).raft->get_details();
     for (const auto& config : details.configs)
     {
