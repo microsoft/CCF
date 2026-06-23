@@ -191,8 +191,6 @@ namespace client
       }
       else if (http::status_success(resp.status))
       {
-        const auto& content_type =
-          resp.headers.find(ccf::http::headers::CONTENT_TYPE);
         return nlohmann::json::parse(resp.body);
       }
       else
