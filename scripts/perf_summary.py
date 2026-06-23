@@ -134,10 +134,7 @@ def render_mermaid_xychart(
     """Render a Mermaid xychart-beta line chart for a single benchmark metric."""
     labels = ", ".join(f'"{label}"' for label, _, _, _ in series)
     values = ", ".join(f"{value}" for _, _, _, value in series)
-    links = ", ".join(
-        f"[{label}]({commit or run})" if commit or run else label
-        for label, run, commit, _ in series
-    )
+    links = ", ".join(run_links(label, run, commit) for label, run, commit, _ in series)
     lines = [
         f"### {benchmark}",
         "",
@@ -153,6 +150,17 @@ def render_mermaid_xychart(
         "",
     ]
     return "\n".join(lines)
+
+
+def run_links(label: str, run: Optional[str], commit: Optional[str]) -> str:
+    """Markdown links for a chart point's Actions run and commit."""
+    if run and commit:
+        return f"[{label}]({run}) ([commit]({commit}))"
+    if run:
+        return f"[{label}]({run})"
+    if commit:
+        return f"{label} ([commit]({commit}))"
+    return label
 
 
 def render_metric_charts(loaded: List[PerfRun], metric: str, unit: str) -> str:

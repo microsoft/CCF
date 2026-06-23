@@ -143,18 +143,6 @@ jobs:
           if-no-files-found: ignore
         if: success() || failure()
 
-      - uses: bencherdev/bencher@50fb1e138651a46d2fb704fab1adab38c181552e # v0.6.6
-      - name: Track base branch benchmarks with Bencher
-        run: &bencher_run |
-          bencher run \
-          --project ccf \
-          --token '${{ secrets.BENCHER_API_TOKEN }}' \
-          --branch main \
-          --testbed "${CCF_PLATFORM_SLUG}-${CCF_CPUID}-${CCF_CORES}cores-${CCF_MEM_GB}g" \
-          --adapter json \
-          --err \
-          --file build/bencher.json
-
   benchmark_snp:
     name: Benchmark SNP
     runs-on:
@@ -241,6 +229,3 @@ jobs:
           if-no-files-found: ignore
         if: success() || failure()
 
-      - uses: bencherdev/bencher@50fb1e138651a46d2fb704fab1adab38c181552e # v0.6.6
-      - name: Track base branch benchmarks with Bencher
-        run: *bencher_run
