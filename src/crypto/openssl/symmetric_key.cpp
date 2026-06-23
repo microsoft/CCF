@@ -134,7 +134,7 @@ namespace ccf::crypto
         ctx, plaintext.data(), &plain_outl, cipher.data(), cipher.size()));
 
       // As we use no padding, we expect the input and output lengths to match.
-      assert(plain_outl == cipher.size());
+      assert(static_cast<size_t>(plain_outl) == cipher.size());
     }
 
     void* tag_ptr = const_cast<void*>(static_cast<const void*>(tag));
