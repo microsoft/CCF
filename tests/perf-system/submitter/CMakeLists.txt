@@ -8,6 +8,7 @@ add_executable(
   ${CCF_DIR}/src/enclave/thread_local.cpp
 )
 
+add_warning_checks(submit)
 target_link_libraries(submit PRIVATE http_parser ccfcrypto arrow parquet)
 
 install(TARGETS submit DESTINATION bin)
