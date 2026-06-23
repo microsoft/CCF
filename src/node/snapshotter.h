@@ -189,8 +189,7 @@ namespace ccf
 
       void do_action() override
       {
-        self->serialise_snapshot_(
-          std::move(snapshot), timestamp, serialised);
+        self->serialise_snapshot_(std::move(snapshot), timestamp, serialised);
       }
 
       [[nodiscard]] const std::string& get_name() const override
