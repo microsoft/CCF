@@ -77,12 +77,14 @@ jobs:
           name="${ARTIFACT_PREFIX}-${slug}"
           mkdir -p perf
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          run_id=$(gh api "repos/${{ github.repository }}/actions/artifacts?name=${name}&per_page=100" \
-            --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | last | .workflow_run.id // empty')
-          if [ -n "$run_id" ]; then
-            gh run download "$run_id" --name "$name" --dir prev_artifact
-            find prev_artifact -name '*.json' -exec cp {} perf/ \;
-          fi
+          run_ids=$(gh api "repos/${{ github.repository }}/actions/artifacts?name=${name}&per_page=100" \
+            --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0:20] | .[].workflow_run.id')
+          for run_id in $run_ids; do
+            if gh run download "$run_id" --name "$name" --dir prev_artifact; then
+              find prev_artifact -name '*.json' -exec cp {} perf/ \;
+              break
+            fi
+          done
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
