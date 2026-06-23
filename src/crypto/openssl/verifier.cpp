@@ -138,13 +138,8 @@ namespace ccf::crypto
         return false;
       }
 
-      auto* chain_cert_ptr = chain_cert.release();
-      const auto rc = sk_X509_push(chain_stack, chain_cert_ptr);
-      if (rc <= 0)
-      {
-        X509_free(chain_cert_ptr);
-        CHECKPOSITIVE(rc);
-      }
+      CHECKPOSITIVE(sk_X509_push(chain_stack, chain_cert));
+      (void)chain_cert.release();
     }
 
     // Allow to use intermediate CAs as trust anchors
