@@ -13,8 +13,9 @@ CHART_METRIC = "throughput"
 CHART_METRIC_UNIT = "tx/s"
 CHART_MAX_POINTS = 10
 DEFAULT_REPOSITORY = "microsoft/CCF"
+METADATA_KEY = "__metadata"
 
-PerfRun = Tuple[str, Optional[str], dict]
+PerfRun = Tuple[str, Optional[str], Optional[str], dict]
 
 
 def jobid_sort_key(name: str) -> Tuple[int, object]:
@@ -64,8 +65,25 @@ def run_url(name: str) -> Optional[str]:
     return f"{server_url}/{repository}/actions/runs/{parts[0]}"
 
 
+def commit_url(metadata: dict) -> Optional[str]:
+    """GitHub commit URL from perf metadata, when available."""
+    commit = metadata.get("commit")
+    if not isinstance(commit, str) or not commit:
+        return None
+
+    server_url = metadata.get("server_url") or os.environ.get(
+        "GITHUB_SERVER_URL", "https://github.com"
+    )
+    repository = metadata.get("repository") or os.environ.get(
+        "GITHUB_REPOSITORY", DEFAULT_REPOSITORY
+    )
+    if not isinstance(server_url, str) or not isinstance(repository, str):
+        return None
+    return f"{server_url.rstrip('/')}/{repository}/commit/{commit}"
+
+
 def load_perf_data(directory: str, files: List[str]) -> List[PerfRun]:
-    """Load (label, run_url, data) for each readable JSON perf file."""
+    """Load (label, run_url, commit_url, data) for each readable perf file."""
     loaded: List[PerfRun] = []
     for name in files:
         try:
@@ -74,7 +92,12 @@ def load_perf_data(directory: str, files: List[str]) -> List[PerfRun]:
         except (OSError, json.JSONDecodeError):
             continue
         if isinstance(data, dict):
-            loaded.append((run_label(name), run_url(name), data))
+            metadata = data.get(METADATA_KEY, {})
+            if not isinstance(metadata, dict):
+                metadata = {}
+            loaded.append(
+                (run_label(name), run_url(name), commit_url(metadata), data)
+            )
     return loaded
 
 
@@ -93,24 +116,27 @@ def metric_value(data: dict, benchmark: str, metric: str) -> Optional[float]:
 def benchmarks_with_metric(loaded: List[PerfRun], metric: str) -> List[str]:
     """Sorted names of benchmarks that report the given metric in any run."""
     names = set()
-    for _, _, data in loaded:
+    for _, _, _, data in loaded:
         for benchmark in data:
+            if benchmark == METADATA_KEY:
+                continue
             if metric_value(data, benchmark, metric) is not None:
                 names.add(benchmark)
     return sorted(names)
 
 
 def render_mermaid_xychart(
-    series: List[Tuple[str, Optional[str], float]],
+    series: List[Tuple[str, Optional[str], Optional[str], float]],
     benchmark: str,
     metric: str,
     unit: str,
 ) -> str:
     """Render a Mermaid xychart-beta line chart for a single benchmark metric."""
-    labels = ", ".join(f'"{label}"' for label, _, _ in series)
-    values = ", ".join(f"{value}" for _, _, value in series)
+    labels = ", ".join(f'"{label}"' for label, _, _, _ in series)
+    values = ", ".join(f"{value}" for _, _, _, value in series)
     links = ", ".join(
-        f"[{label}]({url})" if url else label for label, url, _ in series
+        f"[{label}]({commit or run})" if commit or run else label
+        for label, run, commit, _ in series
     )
     lines = [
         f"### {benchmark}",
@@ -140,8 +166,8 @@ def render_metric_charts(loaded: List[PerfRun], metric: str, unit: str) -> str:
 
     for benchmark in benchmarks:
         series = [
-            (label, url, value)
-            for label, url, data in loaded
+            (label, run, commit, value)
+            for label, run, commit, data in loaded
             if (value := metric_value(data, benchmark, metric)) is not None
         ]
         lines.append(render_mermaid_xychart(series, benchmark, metric, unit))
