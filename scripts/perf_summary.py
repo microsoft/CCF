@@ -5,7 +5,6 @@ import os
 import sys
 import json
 import argparse
-from datetime import datetime, timezone
 from typing import List, Optional, Tuple
 
 # Metric to chart over time, with its unit, and how many recent runs to include.
@@ -13,6 +12,9 @@ from typing import List, Optional, Tuple
 CHART_METRIC = "throughput"
 CHART_METRIC_UNIT = "tx/s"
 CHART_MAX_POINTS = 10
+DEFAULT_REPOSITORY = "microsoft/CCF"
+
+PerfRun = Tuple[str, Optional[str], dict]
 
 
 def jobid_sort_key(name: str) -> Tuple[int, object]:
@@ -41,31 +43,6 @@ def list_perf_files(directory: str) -> List[str]:
     return sorted(files, key=jobid_sort_key)
 
 
-def render_markdown_table(directory: str, files: List[str]) -> str:
-    """Render a markdown table listing the files available in the directory."""
-    lines = [f"## Perf data files in `{directory}`", ""]
-
-    if not files:
-        lines.append("_No perf data files found._")
-        lines.append("")
-        return "\n".join(lines)
-
-    lines.append("| File | Size (bytes) | Modified (UTC) |")
-    lines.append("| --- | --- | --- |")
-    for name in files:
-        path = os.path.join(directory, name)
-        size = os.path.getsize(path)
-        modified = datetime.fromtimestamp(
-            os.path.getmtime(path), tz=timezone.utc
-        ).strftime("%Y-%m-%d %H:%M:%S")
-        lines.append(f"| {name} | {size} | {modified} |")
-
-    lines.append("")
-    lines.append(f"Total: {len(files)} file(s)")
-    lines.append("")
-    return "\n".join(lines)
-
-
 def run_label(name: str) -> str:
     """Short x-axis label for a perf file: the run number when available."""
     stem = name[:-5] if name.endswith(".json") else name
@@ -73,9 +50,23 @@ def run_label(name: str) -> str:
     return parts[1] if len(parts) >= 2 else stem
 
 
-def load_perf_data(directory: str, files: List[str]) -> List[Tuple[str, dict]]:
-    """Load (label, data) for each readable JSON perf file, preserving order."""
-    loaded: List[Tuple[str, dict]] = []
+def run_url(name: str) -> Optional[str]:
+    """GitHub Actions URL for a perf file, when the run id can be parsed."""
+    stem = name[:-5] if name.endswith(".json") else name
+    parts = stem.split("-")
+    if not parts or not parts[0].isdigit():
+        return None
+
+    server_url = os.environ.get("GITHUB_SERVER_URL", "https://github.com").rstrip(
+        "/"
+    )
+    repository = os.environ.get("GITHUB_REPOSITORY", DEFAULT_REPOSITORY)
+    return f"{server_url}/{repository}/actions/runs/{parts[0]}"
+
+
+def load_perf_data(directory: str, files: List[str]) -> List[PerfRun]:
+    """Load (label, run_url, data) for each readable JSON perf file."""
+    loaded: List[PerfRun] = []
     for name in files:
         try:
             with open(os.path.join(directory, name), "r") as f:
@@ -83,7 +74,7 @@ def load_perf_data(directory: str, files: List[str]) -> List[Tuple[str, dict]]:
         except (OSError, json.JSONDecodeError):
             continue
         if isinstance(data, dict):
-            loaded.append((run_label(name), data))
+            loaded.append((run_label(name), run_url(name), data))
     return loaded
 
 
@@ -99,10 +90,10 @@ def metric_value(data: dict, benchmark: str, metric: str) -> Optional[float]:
     return value if isinstance(value, (int, float)) else None
 
 
-def benchmarks_with_metric(loaded: List[Tuple[str, dict]], metric: str) -> List[str]:
+def benchmarks_with_metric(loaded: List[PerfRun], metric: str) -> List[str]:
     """Sorted names of benchmarks that report the given metric in any run."""
     names = set()
-    for _, data in loaded:
+    for _, _, data in loaded:
         for benchmark in data:
             if metric_value(data, benchmark, metric) is not None:
                 names.add(benchmark)
@@ -110,11 +101,17 @@ def benchmarks_with_metric(loaded: List[Tuple[str, dict]], metric: str) -> List[
 
 
 def render_mermaid_xychart(
-    series: List[Tuple[str, float]], benchmark: str, metric: str, unit: str
+    series: List[Tuple[str, Optional[str], float]],
+    benchmark: str,
+    metric: str,
+    unit: str,
 ) -> str:
     """Render a Mermaid xychart-beta line chart for a single benchmark metric."""
-    labels = ", ".join(f'"{label}"' for label, _ in series)
-    values = ", ".join(f"{value}" for _, value in series)
+    labels = ", ".join(f'"{label}"' for label, _, _ in series)
+    values = ", ".join(f"{value}" for _, _, value in series)
+    links = ", ".join(
+        f"[{label}]({url})" if url else label for label, url, _ in series
+    )
     lines = [
         f"### {benchmark}",
         "",
@@ -126,11 +123,13 @@ def render_mermaid_xychart(
         f"    line [{values}]",
         "```",
         "",
+        f"Runs: {links}",
+        "",
     ]
     return "\n".join(lines)
 
 
-def render_metric_charts(loaded: List[Tuple[str, dict]], metric: str, unit: str) -> str:
+def render_metric_charts(loaded: List[PerfRun], metric: str, unit: str) -> str:
     """Render one chart per benchmark that reports the given metric."""
     benchmarks = benchmarks_with_metric(loaded, metric)
     lines = [f"## {metric.capitalize()} per benchmark ({unit})", ""]
@@ -141,8 +140,8 @@ def render_metric_charts(loaded: List[Tuple[str, dict]], metric: str, unit: str)
 
     for benchmark in benchmarks:
         series = [
-            (label, value)
-            for label, data in loaded
+            (label, url, value)
+            for label, url, data in loaded
             if (value := metric_value(data, benchmark, metric)) is not None
         ]
         lines.append(render_mermaid_xychart(series, benchmark, metric, unit))
@@ -162,7 +161,6 @@ def main() -> None:
     args = parser.parse_args()
 
     files = list_perf_files(args.directory)
-    print(render_markdown_table(args.directory, files))
 
     recent = files[-CHART_MAX_POINTS:]
     loaded = load_perf_data(args.directory, recent)
