@@ -23,8 +23,8 @@ static void hash(picobench::state& s)
   for (size_t i = 0; i < 1000; ++i)
   {
     volatile auto n = hasher(v);
-    s.stop_timer();
   }
+  s.stop_timer();
 }
 
 const std::vector<int> hash_sizes = {1, 8, 64, 1024, 16536};
