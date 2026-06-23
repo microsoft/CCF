@@ -948,6 +948,7 @@ if(BUILD_TESTS)
       src/node/test/merkle_mem.cpp
       ${CCF_DIR}/src/enclave/thread_local.cpp
     )
+    add_warning_checks(merkle_mem)
     target_link_libraries(
       merkle_mem
       PRIVATE ${CMAKE_THREAD_LIBS_INIT} ccfcrypto
@@ -959,6 +960,7 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/driver.cpp
       src/enclave/thread_local.cpp
     )
+    add_warning_checks(raft_driver)
     target_link_libraries(raft_driver PRIVATE ccfcrypto ccf_tasks)
     target_include_directories(raft_driver PRIVATE src/aft)
 
