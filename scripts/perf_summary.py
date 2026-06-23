@@ -12,7 +12,7 @@ from typing import List, Optional, Tuple
 # A chart is produced for every benchmark that reports this metric.
 CHART_METRIC = "throughput"
 CHART_METRIC_UNIT = "tx/s"
-CHART_MAX_POINTS = 10
+CHART_MAX_POINTS = 30
 
 
 def jobid_sort_key(name: str) -> Tuple[int, object]:
