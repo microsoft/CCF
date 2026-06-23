@@ -42,7 +42,7 @@ void sleep_with_many_workers(
 {
   std::atomic<bool> stop_signal{false};
 
-  for (auto i = 0; i < num_sleeps; ++i)
+  for (size_t i = 0; i < num_sleeps; ++i)
   {
     ccf::tasks::add_task(ccf::tasks::make_basic_task(
       []() { SleepImpl::sleep_for(std::chrono::milliseconds(1)); }));
