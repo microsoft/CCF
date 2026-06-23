@@ -327,7 +327,7 @@ TEST_CASE("Rollback before snapshot is committed")
     snapshotter->commit(new_snapshot_idx, true);
 
     run_one_task();
-    REQUIRE(read_latest_snapshot_evidence(network.tables) == snapshot_idx);
+    REQUIRE(read_latest_snapshot_evidence(network.tables) == new_snapshot_idx);
     REQUIRE_FALSE(latest_committed_snapshot_idx(snapshot_dir.path).has_value());
 
     // Commit evidence
@@ -338,8 +338,8 @@ TEST_CASE("Rollback before snapshot is committed")
     REQUIRE_FALSE(record_signature(history, snapshotter, commit_idx));
     snapshotter->commit(commit_idx, true);
     run_one_task();
-    REQUIRE(latest_committed_snapshot_idx(snapshot_dir.path) == snapshot_idx);
-    last_committed_snapshot_idx = snapshot_idx;
+    REQUIRE(latest_committed_snapshot_idx(snapshot_dir.path) == new_snapshot_idx);
+    last_committed_snapshot_idx = new_snapshot_idx;
   }
 
   INFO("Force a snapshot");
@@ -353,7 +353,7 @@ TEST_CASE("Rollback before snapshot is committed")
     snapshotter->commit(new_snapshot_idx, true);
 
     run_one_task();
-    REQUIRE(read_latest_snapshot_evidence(network.tables) == snapshot_idx);
+    REQUIRE(read_latest_snapshot_evidence(network.tables) == new_snapshot_idx);
     REQUIRE(
       latest_committed_snapshot_idx(snapshot_dir.path) ==
       last_committed_snapshot_idx);
@@ -369,7 +369,7 @@ TEST_CASE("Rollback before snapshot is committed")
     REQUIRE_FALSE(record_signature(history, snapshotter, commit_idx));
     snapshotter->commit(commit_idx, true);
     run_one_task();
-    REQUIRE(latest_committed_snapshot_idx(snapshot_dir.path) == snapshot_idx);
+    REQUIRE(latest_committed_snapshot_idx(snapshot_dir.path) == new_snapshot_idx);
   }
 
   INFO("Rollback after forced snapshot uses released forced baseline");
