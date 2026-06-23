@@ -22,7 +22,7 @@ static void hash(picobench::state& s)
   s.start_timer();
   for (size_t i = 0; i < 1000; ++i)
   {
-    volatile auto n = hasher(v);
+    [[maybe_unused]] volatile auto n = hasher(v);
     s.stop_timer();
   }
 }

@@ -34,6 +34,11 @@ find_library(CRYPTO_LIBRARY crypto)
 find_library(TLS_LIBRARY ssl)
 
 add_library(ccfcrypto STATIC ${CCFCRYPTO_SRC})
+add_warning_checks(ccfcrypto)
+target_compile_options(
+  ccfcrypto
+  PRIVATE $<$<COMPILE_LANG_AND_ID:CXX,Clang>:-Wno-vla-cxx-extension>
+)
 add_san(ccfcrypto)
 add_hardening(ccfcrypto)
 add_tidy(ccfcrypto)
