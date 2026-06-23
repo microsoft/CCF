@@ -324,7 +324,7 @@ void run_test_case(
   unique_ptr<::tls::Cert> server_cert,
   unique_ptr<::tls::Cert> client_cert)
 {
-  uint8_t buf[max(message_length, response_length) + 1];
+  std::vector<uint8_t> buf(max(message_length, response_length) + 1);
 
   // Create a pair of client/server
   tls::Server server(std::move(server_cert));
@@ -401,12 +401,15 @@ void run_test_case(
   REQUIRE(written == message_length);
 
   // Receive the first message
-  int read = read_helper(server, buf, message_length);
+  int read = read_helper(server, buf.data(), message_length);
   REQUIRE(read == message_length);
   buf[message_length] = '\0';
   LOG_INFO_FMT(
-    "Server message received [{}]", truncate_message(buf, message_length));
-  REQUIRE(strncmp((const char*)buf, (const char*)message, message_length) == 0);
+    "Server message received [{}]",
+    truncate_message(buf.data(), message_length));
+  REQUIRE(
+    strncmp((const char*)buf.data(), (const char*)message, message_length) ==
+    0);
 
   // Send the response
   LOG_INFO_FMT(
@@ -415,13 +418,15 @@ void run_test_case(
   REQUIRE(written == response_length);
 
   // Receive the response
-  read = read_helper(client, buf, response_length);
+  read = read_helper(client, buf.data(), response_length);
   REQUIRE(read == response_length);
   buf[response_length] = '\0';
   LOG_INFO_FMT(
-    "Client message received [{}]", truncate_message(buf, message_length));
+    "Client message received [{}]",
+    truncate_message(buf.data(), message_length));
   REQUIRE(
-    strncmp((const char*)buf, (const char*)response, response_length) == 0);
+    strncmp((const char*)buf.data(), (const char*)response, response_length) ==
+    0);
 
   LOG_INFO_FMT("Closing connection");
   client.close();
@@ -621,8 +626,8 @@ TEST_CASE("large message")
 {
   // Uninitialised on purpose, we don't care what's in here
   size_t len = 8192;
-  uint8_t buf[len];
-  auto message = ccf::crypto::b64_from_raw(buf, len);
+  std::vector<uint8_t> buf(len);
+  auto message = ccf::crypto::b64_from_raw(buf.data(), len);
 
   // Create a CA
   auto ca = get_ca();
@@ -647,8 +652,8 @@ TEST_CASE("very large message")
 {
   // Uninitialised on purpose, we don't care what's in here
   size_t len = 16 * 1024; // 16k, base64 will be more
-  uint8_t buf[len];
-  auto message = ccf::crypto::b64_from_raw(buf, len);
+  std::vector<uint8_t> buf(len);
+  auto message = ccf::crypto::b64_from_raw(buf.data(), len);
 
   // Create a CA
   auto ca = get_ca();

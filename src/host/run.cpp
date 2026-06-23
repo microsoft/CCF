@@ -221,7 +221,7 @@ namespace ccf
         rpc_host,
         rpc_port);
 
-      resolved_rpc_addresses[name] = fmt::format("{}:{}", rpc_host, rpc_port);
+      resolved_rpc_addresses[name] = ccf::make_net_address(rpc_host, rpc_port);
       interface.bind_address = ccf::make_net_address(rpc_host, rpc_port);
 
       // If public RPC address is not set, default to local RPC address

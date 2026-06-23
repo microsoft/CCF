@@ -1,6 +1,8 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import infra.network
+import infra.interfaces
+import infra.net
 from ccf.ledger import NodeStatus
 import http
 import random
@@ -47,7 +49,7 @@ def test_primary(network, args):
                 primary_interface = primary_interfaces[interface_name]
                 assert (
                     r.headers["location"]
-                    == f"https://{primary_interface.public_host}:{primary_interface.public_port}/node/primary"
+                    == f"https://{infra.interfaces.make_address(primary_interface.public_host, primary_interface.public_port)}/node/primary"
                 )
                 LOG.info(
                     f'Successfully redirected to {r.headers["location"]} on primary {primary.local_node_id}'
@@ -117,7 +119,7 @@ def test_network_node_info(network, args):
                     assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value
                     assert (
                         r.headers["location"]
-                        == f"https://{primary_interface.public_host}:{primary_interface.public_port}/node/primary"
+                        == f"https://{infra.interfaces.make_address(primary_interface.public_host, primary_interface.public_port)}/node/primary"
                     ), r.headers["location"]
                     r = c.head("/node/primary", allow_redirects=True)
                 assert r.status_code == http.HTTPStatus.OK.value
@@ -320,3 +322,31 @@ def run(args):
         test_node_ids(network, args)
         test_large_messages(network, args)
         test_readiness(network, args)
+
+
+def run_ipv6(args):
+    assert infra.net.ipv6_loopback_available(), (
+        "IPv6 loopback (::1) is not available; CI enables IPv6 via the "
+        "container --sysctl net.ipv6.conf.*.disable_ipv6=0 (see .github/workflows)"
+    )
+
+    with infra.network.network(
+        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb, ipv6=True
+    ) as network:
+        network.start_and_open(args)
+
+        primary, _ = network.find_primary()
+        primary_interface = primary.host.rpc_interfaces[
+            infra.interfaces.PRIMARY_RPC_INTERFACE
+        ]
+        assert (
+            ":" in primary_interface.host
+        ), f"Expected IPv6 address, got {primary_interface.host}"
+        LOG.info(f"Confirmed primary is using IPv6 address: {primary_interface.host}")
+
+        _, backups = network.find_nodes()
+        with backups[0].client() as c:
+            r = c.head("/node/primary", allow_redirects=True)
+            assert r.status_code == http.HTTPStatus.OK.value
+
+        test_primary(network, args)

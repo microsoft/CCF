@@ -88,7 +88,7 @@ size_t run_jobs(size_t n_senders, size_t n_receivers)
 
   std::atomic<size_t> workless_wakes = 0;
 
-  for (auto i = 0; i < n_senders; ++i)
+  for (size_t i = 0; i < n_senders; ++i)
   {
     senders.push_back(std::thread(
       [&](size_t sender_idx) {
@@ -110,7 +110,7 @@ size_t run_jobs(size_t n_senders, size_t n_receivers)
         {
           quota += n_receivers % n_senders;
         }
-        for (auto j = 0; j < quota; ++j)
+        for (size_t j = 0; j < quota; ++j)
         {
           work_queue.add_work([&]() { return true; });
           beacon.notify_work_available();
@@ -119,7 +119,7 @@ size_t run_jobs(size_t n_senders, size_t n_receivers)
       i));
   }
 
-  for (auto i = 0; i < n_receivers; ++i)
+  for (size_t i = 0; i < n_receivers; ++i)
   {
     receivers.push_back(std::thread([&]() {
       while (true)

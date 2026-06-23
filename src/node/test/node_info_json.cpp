@@ -2,7 +2,10 @@
 // Licensed under the Apache 2.0 License.
 
 #include "ccf/service/node_info_network.h"
+#include "ds/cli_helper.h"
 #include "ds/internal_logger.h"
+
+#include <utility>
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
@@ -23,11 +26,31 @@ TEST_CASE("Multiple versions of NodeInfoNetwork")
   current.rpc_interfaces.emplace(
     first_rpc_name,
     ccf::NodeInfoNetwork::NetInterface{
-      rpc_a, rpc_a_pub, "tcp", "HTTP1", 100, 200});
+      rpc_a,
+      rpc_a_pub,
+      "tcp",
+      "HTTP1",
+      100,
+      200,
+      std::nullopt,
+      std::nullopt,
+      std::nullopt,
+      std::nullopt,
+      {}});
   current.rpc_interfaces.emplace(
     second_rpc_name,
     ccf::NodeInfoNetwork::NetInterface{
-      rpc_b, rpc_b_pub, "udp", "HTTP2", 300, 400});
+      rpc_b,
+      rpc_b_pub,
+      "udp",
+      "HTTP2",
+      300,
+      400,
+      std::nullopt,
+      std::nullopt,
+      std::nullopt,
+      std::nullopt,
+      {}});
 
   ccf::NodeInfoNetwork_v1 v1;
   std::tie(v1.nodehost, v1.nodeport) = ccf::split_net_address(node);
@@ -114,5 +137,114 @@ TEST_CASE("Multiple versions of NodeInfoNetwork")
       REQUIRE(it != j.end());
       REQUIRE(it.value() == v_);
     }
+  }
+}
+
+TEST_CASE("split_net_address and make_net_address")
+{
+  using namespace ccf;
+
+  {
+    INFO("IPv4 and DNS hosts are unchanged");
+    REQUIRE(
+      split_net_address("1.2.3.4:8000") ==
+      std::make_pair(std::string("1.2.3.4"), std::string("8000")));
+    REQUIRE(make_net_address("1.2.3.4", "8000") == "1.2.3.4:8000");
+    REQUIRE(
+      split_net_address("example.com:443") ==
+      std::make_pair(std::string("example.com"), std::string("443")));
+    REQUIRE(make_net_address("example.com", "443") == "example.com:443");
+  }
+
+  {
+    INFO("IPv6 literals are bracketed by make and stripped by split");
+    REQUIRE(make_net_address("::1", "8000") == "[::1]:8000");
+    REQUIRE(make_net_address("2001:db8::1", "443") == "[2001:db8::1]:443");
+    REQUIRE(
+      split_net_address("[::1]:8000") ==
+      std::make_pair(std::string("::1"), std::string("8000")));
+    REQUIRE(
+      split_net_address("[2001:db8::1]:443") ==
+      std::make_pair(std::string("2001:db8::1"), std::string("443")));
+  }
+
+  {
+    INFO("make_net_address is idempotent for already-bracketed hosts");
+    REQUIRE(make_net_address("[::1]", "8000") == "[::1]:8000");
+  }
+
+  {
+    INFO("Bracketed IPv6 without a port");
+    REQUIRE(
+      split_net_address("[::1]") ==
+      std::make_pair(std::string("::1"), std::string("")));
+  }
+
+  {
+    INFO("Host without a port keeps the host in the first position");
+    REQUIRE(
+      split_net_address("1.2.3.4") ==
+      std::make_pair(std::string("1.2.3.4"), std::string("")));
+  }
+
+  {
+    INFO("Malformed bracketed input falls through, not silently mis-parsed");
+    // Junk after the closing ']' must not be accepted as a clean IPv6 host
+    // with an empty port; it falls through to the generic rsplit parsing.
+    REQUIRE(
+      split_net_address("[::1]foo:8000") ==
+      std::make_pair(std::string("[::1]foo"), std::string("8000")));
+  }
+}
+
+TEST_CASE("cli::validate_address")
+{
+  using namespace std::string_literals;
+
+  {
+    INFO("IPv4 and DNS hosts with explicit ports");
+    REQUIRE(
+      cli::validate_address("1.2.3.4:8000") ==
+      std::make_pair("1.2.3.4"s, "8000"s));
+    REQUIRE(
+      cli::validate_address("example.com:443") ==
+      std::make_pair("example.com"s, "443"s));
+  }
+
+  {
+    INFO("Missing port falls back to the default");
+    REQUIRE(
+      cli::validate_address("1.2.3.4") == std::make_pair("1.2.3.4"s, "0"s));
+    REQUIRE(
+      cli::validate_address("1.2.3.4", "443") ==
+      std::make_pair("1.2.3.4"s, "443"s));
+  }
+
+  {
+    INFO("Bracketed IPv6 literals, with brackets stripped from the host");
+    REQUIRE(
+      cli::validate_address("[::1]:8000") == std::make_pair("::1"s, "8000"s));
+    REQUIRE(
+      cli::validate_address("[2001:db8::1]:443") ==
+      std::make_pair("2001:db8::1"s, "443"s));
+  }
+
+  {
+    INFO("Bracketed IPv6 without a port falls back to the default");
+    REQUIRE(cli::validate_address("[::1]") == std::make_pair("::1"s, "0"s));
+    REQUIRE(
+      cli::validate_address("[fe80::1]", "443") ==
+      std::make_pair("fe80::1"s, "443"s));
+  }
+
+  {
+    INFO("Invalid inputs throw");
+    REQUIRE_THROWS_AS(cli::validate_address("[::1"), std::logic_error);
+    REQUIRE_THROWS_AS(
+      cli::validate_address("1.2.3.4:notaport"), std::logic_error);
+    REQUIRE_THROWS_AS(cli::validate_address("1.2.3.4:99999"), std::logic_error);
+    // Junk after the closing ']' is rejected rather than silently ignored
+    REQUIRE_THROWS_AS(cli::validate_address("[::1]foo"), std::logic_error);
+    REQUIRE_THROWS_AS(cli::validate_address("[::1]foo:8000"), std::logic_error);
   }
 }

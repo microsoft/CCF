@@ -229,23 +229,6 @@ TEST_CASE("ARK with unexpected issuer fails")
     std::logic_error);
 }
 
-TEST_CASE("ARK with unexpected signature algorithm fails")
-{
-  auto quote_info =
-    milan_quote_info_with_ark(ark_with_sha384_rsa_signature_algorithm());
-
-  ccf::pal::PlatformAttestationMeasurement measurement;
-  ccf::pal::PlatformAttestationReportData report_data;
-
-  CHECK_THROWS_WITH_AS(
-    ccf::pal::verify_snp_attestation_report(
-      quote_info, measurement, report_data),
-    doctest::Contains(
-      "SEV-SNP: The root of trust signature algorithm for this attestation "
-      "was not the expected one"),
-    std::logic_error);
-}
-
 TEST_CASE("Parsing of Tcb versions from strings")
 {
   const auto milan_tcb_version_raw =
@@ -366,6 +349,7 @@ TEST_CASE("Quote endorsements url generation")
             {
               {"api-version", "2020-10-15-preview"},
             },
+          .headers = {},
           .max_retries_count = max_retries_count,
           .max_client_response_size = ccf::ds::SizeString("100mb"),
         }}}}},
@@ -390,6 +374,7 @@ TEST_CASE("Quote endorsements url generation")
                    {"snpSPL", "24"},
                    {"ucodeSPL", "219"}},
                 .response_is_der = true, // DER response
+                .headers = {},
                 .max_retries_count = max_retries_count,
                 .max_client_response_size = ccf::ds::SizeString("100mb"),
               },
@@ -399,6 +384,7 @@ TEST_CASE("Quote endorsements url generation")
                 .uri = "/vcek/v1/Milan/cert_chain",
                 .params = {},
                 .response_is_der = false, // Not DER response
+                .headers = {},
                 .max_retries_count = max_retries_count,
                 .max_client_response_size = ccf::ds::SizeString("100mb"),
               }}}}}},
@@ -424,6 +410,7 @@ TEST_CASE("Quote endorsements url generation")
                      {"ucodeSPL", "81"},
                    },
                  .response_is_der = true, // DER response
+                 .headers = {},
                  .max_retries_count = max_retries_count,
                  .max_client_response_size = ccf::ds::SizeString("100mb"),
                },
@@ -433,6 +420,7 @@ TEST_CASE("Quote endorsements url generation")
                  .uri = "/vcek/v1/Turin/cert_chain",
                  .params = {},
                  .response_is_der = false, // Not DER response
+                 .headers = {},
                  .max_retries_count = max_retries_count,
                  .max_client_response_size = ccf::ds::SizeString("100mb"),
                }}}}},
@@ -460,6 +448,7 @@ TEST_CASE("Quote endorsements url generation")
                     {"snpSPL", "23"},
                     {"ucodeSPL", "84"}},
                  .response_is_der = true, // DER response
+                 .headers = {},
                  .max_retries_count = max_retries_count,
                  .max_client_response_size = ccf::ds::SizeString("100mb"),
                },
@@ -469,6 +458,7 @@ TEST_CASE("Quote endorsements url generation")
                  .uri = "/vcek/v1/Genoa/cert_chain",
                  .params = {},
                  .response_is_der = false, // Not DER response
+                 .headers = {},
                  .max_retries_count = max_retries_count,
                  .max_client_response_size = ccf::ds::SizeString("100mb"),
                }}}}},

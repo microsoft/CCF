@@ -60,6 +60,7 @@
 #include "snapshots/filenames.h"
 #include "uvm_endorsements.h"
 
+#include <arpa/inet.h>
 #include <optional>
 
 #ifdef USE_NULL_ENCRYPTOR
@@ -2409,12 +2410,20 @@ namespace ccf
   private:
     bool is_ip(const std::string_view& hostname)
     {
+      if (hostname.find(':') != std::string_view::npos)
+      {
+        in6_addr addr{};
+        if (inet_pton(AF_INET6, std::string(hostname).c_str(), &addr) == 1)
+        {
+          return true;
+        }
+      }
+
       // IP address components are purely numeric. DNS names may be largely
       // numeric, but at least the final component (TLD) must not be
       // all-numeric. So this distinguishes "1.2.3.4" (an IP address) from
       // "1.2.3.c4m" (a DNS name). "1.2.3." is invalid for either, and will
-      // throw. Attempts to handle IPv6 by also splitting on ':', but this is
-      // untested.
+      // throw. Handles IPv6 by splitting on ':' after splitting on '.'.
       const auto final_component =
         ccf::nonstd::split(ccf::nonstd::split(hostname, ".").back(), ":")
           .back();
@@ -2444,7 +2453,8 @@ namespace ccf
       std::vector<ccf::crypto::SubjectAltName> sans;
       for (const auto& [_, interface] : config.network.rpc_interfaces)
       {
-        auto host = split_net_address(interface.published_address).first;
+        // split_net_address already strips brackets from IPv6 literals.
+        const auto host = split_net_address(interface.published_address).first;
         sans.push_back({host, is_ip(host)});
       }
       return sans;

@@ -173,7 +173,7 @@ TEST_CASE("Basic cache" * doctest::test_suite("lfs"))
       ccf::indexing::EnclaveLFSAccess::obfuscate_key(key_b);
     const auto original_b_contents = read_file(b_path);
 
-    for (auto i = 0; i < original_b_contents.size(); ++i)
+    for (size_t i = 0; i < original_b_contents.size(); ++i)
     {
       write_file_corrupted_at(b_path, i, original_b_contents);
 

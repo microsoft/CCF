@@ -390,7 +390,7 @@ TEST_CASE("KV integrity verification")
   std::string pub_value = "pubv1";
   public_map->put("pubk1", pub_value);
   private_map->put("privk1", "privv1");
-  auto rc = tx.commit();
+  REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
 
   // Tamper with serialised public data
   auto latest_data = consensus->get_latest_data();

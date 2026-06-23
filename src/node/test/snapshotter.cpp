@@ -142,7 +142,7 @@ void record_snapshot_evidence(
   size_t evidence_idx)
 {
   snapshotter->record_snapshot_evidence_idx(
-    evidence_idx, ccf::SnapshotHash{.version = snapshot_idx});
+    evidence_idx, ccf::SnapshotHash{.hash = {}, .version = snapshot_idx});
 }
 
 TEST_CASE("Regular snapshotting")
@@ -321,10 +321,10 @@ TEST_CASE("Rollback before snapshot is committed")
   INFO("Snapshot again and commit evidence");
   {
     issue_transactions(network, snapshot_tx_interval);
-    size_t snapshot_idx = network.tables->current_version();
+    size_t new_snapshot_idx = network.tables->current_version();
 
-    REQUIRE(record_signature(history, snapshotter, snapshot_idx));
-    snapshotter->commit(snapshot_idx, true);
+    REQUIRE(record_signature(history, snapshotter, new_snapshot_idx));
+    snapshotter->commit(new_snapshot_idx, true);
 
     run_one_task();
     REQUIRE(read_latest_snapshot_evidence(network.tables) == snapshot_idx);
@@ -332,8 +332,9 @@ TEST_CASE("Rollback before snapshot is committed")
 
     // Commit evidence
     issue_transactions(network, 1);
-    commit_idx = snapshot_idx + 2;
-    record_snapshot_evidence(snapshotter, snapshot_idx, snapshot_idx + 1);
+    commit_idx = new_snapshot_idx + 2;
+    record_snapshot_evidence(
+      snapshotter, new_snapshot_idx, new_snapshot_idx + 1);
     REQUIRE_FALSE(record_signature(history, snapshotter, commit_idx));
     snapshotter->commit(commit_idx, true);
     run_one_task();
@@ -343,13 +344,13 @@ TEST_CASE("Rollback before snapshot is committed")
 
   INFO("Force a snapshot");
   {
-    size_t snapshot_idx = network.tables->current_version();
+    size_t new_snapshot_idx = network.tables->current_version();
 
     network.tables->set_flag(
       ccf::kv::AbstractStore::StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
 
-    REQUIRE(record_signature(history, snapshotter, snapshot_idx));
-    snapshotter->commit(snapshot_idx, true);
+    REQUIRE(record_signature(history, snapshotter, new_snapshot_idx));
+    snapshotter->commit(new_snapshot_idx, true);
 
     run_one_task();
     REQUIRE(read_latest_snapshot_evidence(network.tables) == snapshot_idx);
@@ -362,8 +363,9 @@ TEST_CASE("Rollback before snapshot is committed")
 
     // Commit evidence
     issue_transactions(network, 1);
-    commit_idx = snapshot_idx + 2;
-    record_snapshot_evidence(snapshotter, snapshot_idx, snapshot_idx + 1);
+    commit_idx = new_snapshot_idx + 2;
+    record_snapshot_evidence(
+      snapshotter, new_snapshot_idx, new_snapshot_idx + 1);
     REQUIRE_FALSE(record_signature(history, snapshotter, commit_idx));
     snapshotter->commit(commit_idx, true);
     run_one_task();
