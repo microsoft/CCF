@@ -1228,6 +1228,8 @@ def run(args):
             # in one of these values
             test_add_node_with_different_package(network, args)
             test_update_all_nodes(network, args)
+            # Run the atomic variant on the same network, upgrading back to the
+            # original package, to cover consecutive full-network upgrades.
             test_update_all_nodes_atomically(network, args)
 
         # Run again at the end to confirm current nodes are acceptable

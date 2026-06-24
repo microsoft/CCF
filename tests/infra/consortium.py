@@ -404,6 +404,9 @@ class Consortium:
         validity_period_days=None,
         **kwargs,
     ):
+        """
+        Single-node convenience wrapper around replace_nodes.
+        """
         self.replace_nodes(
             remote_node,
             [node_to_retire],
