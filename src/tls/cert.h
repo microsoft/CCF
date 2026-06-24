@@ -73,7 +73,7 @@ namespace tls
 
     ~Cert() = default;
 
-    void use(SSL_CTX* ssl_ctx)
+    void configure_context(SSL_CTX* ssl_ctx)
     {
       if (peer_ca)
       {
@@ -108,7 +108,7 @@ namespace tls
       }
     }
 
-    void use(SSL* ssl)
+    void configure_connection(SSL* ssl)
     {
       if (peer_hostname.has_value())
       {

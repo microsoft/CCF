@@ -23,7 +23,6 @@ namespace ccf::tls
     void create_ssl()
     {
       ssl = std::make_unique<ccf::crypto::OpenSSL::Unique_SSL>(cfg);
-      CHECKNULL(get_ssl());
 
       // Initialise connection
       if (client)
@@ -38,6 +37,8 @@ namespace ccf::tls
 
     SSL* get_ssl()
     {
+      // Context construction is split from SSL creation, so catch accidental
+      // use before create_ssl().
       CHECKNULL(ssl.get());
       CHECKNULL(*ssl);
       return *ssl;
