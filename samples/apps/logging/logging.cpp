@@ -24,6 +24,7 @@
 #include "ccf/indexing/strategy.h"
 #include "ccf/json_handler.h"
 #include "ccf/network_identity_interface.h"
+#include "ccf/node/node_configuration_interface.h"
 #include "ccf/version.h"
 
 #include <charconv>
@@ -243,8 +244,58 @@ namespace loggingapp
     nlohmann::json get_public_params_schema;
     nlohmann::json get_public_result_schema;
 
+    size_t seqnos_per_indexing_bucket = 10000;
+    size_t indexing_buckets_per_key = 20;
+    size_t max_historical_range_seqnos_per_page = 5000;
+
     std::shared_ptr<RecordsIndexingStrategy> index_per_public_key = nullptr;
     std::shared_ptr<CommittedRecords> committed_records = nullptr;
+
+    static void read_size_config(
+      const nlohmann::json& config, const char* key, size_t& value)
+    {
+      const auto it = config.find(key);
+      if (it != config.end())
+      {
+        value = it->get<size_t>();
+        if (value == 0)
+        {
+          throw std::logic_error(
+            fmt::format("Logging app configuration '{}' must be non-zero", key));
+        }
+      }
+    }
+
+    void configure_from_node_data()
+    {
+      auto node_config =
+        context.get_subsystem<ccf::NodeConfigurationInterface>();
+      if (node_config == nullptr)
+      {
+        return;
+      }
+
+      const auto& node_data = node_config->get().node_config.node_data;
+      if (!node_data.is_object())
+      {
+        return;
+      }
+
+      const auto app_config = node_data.find("logging");
+      if (app_config == node_data.end() || !app_config->is_object())
+      {
+        return;
+      }
+
+      read_size_config(
+        *app_config, "seqnos_per_indexing_bucket", seqnos_per_indexing_bucket);
+      read_size_config(
+        *app_config, "indexing_buckets_per_key", indexing_buckets_per_key);
+      read_size_config(
+        *app_config,
+        "max_historical_range_seqnos_per_page",
+        max_historical_range_seqnos_per_page);
+    }
 
     // Build a COSE receipt (signature + Merkle inclusion proof) from a
     // historical receipt. Returns nullopt and sets an error on ctx if the
@@ -522,11 +573,13 @@ namespace loggingapp
     {
       CommonEndpointRegistry::init_handlers();
 
-      constexpr size_t seqnos_per_bucket = 10000;
-      constexpr size_t buckets_per_key = 20;
+      configure_from_node_data();
 
       index_per_public_key = std::make_shared<RecordsIndexingStrategy>(
-        PUBLIC_RECORDS, context, seqnos_per_bucket, buckets_per_key);
+        PUBLIC_RECORDS,
+        context,
+        seqnos_per_indexing_bucket,
+        indexing_buckets_per_key);
       context.get_indexing_strategies().install_strategy(index_per_public_key);
 
       const ccf::AuthnPolicies auth_policies = {
@@ -1813,10 +1866,10 @@ namespace loggingapp
         }
 
         // Set a maximum range, paginate larger requests
-        static constexpr size_t max_seqno_per_page = 5000;
         const auto range_begin = from_seqno;
         const auto range_end =
-          std::min(to_seqno, range_begin + max_seqno_per_page);
+          std::min(
+            to_seqno, range_begin + max_historical_range_seqnos_per_page);
 
         // SNIPPET_START: indexing_strategy_use
         const auto interesting_seqnos =
@@ -1910,8 +1963,9 @@ namespace loggingapp
         if (range_end != to_seqno)
         {
           const auto next_page_start = range_end + 1;
-          const auto next_range_end =
-            std::min(to_seqno, next_page_start + max_seqno_per_page);
+          const auto next_range_end = std::min(
+            to_seqno,
+            next_page_start + max_historical_range_seqnos_per_page);
           const auto next_seqnos = index_per_public_key->get_write_txs_in_range(
             id, next_page_start, next_range_end);
 
