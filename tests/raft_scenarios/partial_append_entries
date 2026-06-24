@@ -1,6 +1,8 @@
 # Reproduce a trace-validation case where a leader sends AppendEntries rooted
 # inside the follower's existing prefix, with matching entries in the overlap
 # and new entries after the follower's current end.
+# In replicate and emit_signature commands, the numeric argument is the Raft
+# term, not a node ID.
 start_node,0
 assert_detail,0,leadership_state,Leader
 emit_signature,2
@@ -68,7 +70,6 @@ assert_detail,1,leadership_state,Candidate
 dispatch_one,1
 dispatch_one,2
 
-# The numeric argument here is the Raft term, not a node ID.
 replicate,3,ConfirmCommit
 emit_signature,3
 
