@@ -1312,8 +1312,8 @@ def test_historical_query_range(network, args):
 @reqs.supports_methods("/app/log/public", "/app/log/public/historical/range")
 @reqs.at_least_n_nodes(1)
 def test_historical_query_range_pagination(network, args):
-    target_id = 1542
-    other_id = 1543
+    target_entry_id = 1542
+    filler_entry_id = 1543
 
     expected_entries = []
     first_seqno = None
@@ -1323,9 +1323,13 @@ def test_historical_query_range_pagination(network, args):
     primary, _ = network.find_primary()
     with primary.client("user0") as c:
         n_entries = 50
-        target_write_indices = {0, n_entries - 1}
+        target_write_positions = {0, n_entries - 1}
         for i in range(n_entries):
-            idx = target_id if i in target_write_indices else other_id
+            idx = (
+                target_entry_id
+                if i in target_write_positions
+                else filler_entry_id
+            )
             msg = f"Multi-bucket indexing message {i}"
             r = c.post(
                 "/app/log/public",
@@ -1340,7 +1344,7 @@ def test_historical_query_range_pagination(network, args):
             if first_seqno is None:
                 first_seqno = r.seqno
 
-            if idx == target_id:
+            if idx == target_entry_id:
                 expected_entries.append(
                     {
                         "id": idx,
@@ -1354,10 +1358,13 @@ def test_historical_query_range_pagination(network, args):
 
         infra.commit.wait_for_commit(c, seqno=last_seqno, view=view, timeout=3)
 
-        path = f"/app/log/public/historical/range?from_seqno={first_seqno}&to_seqno={last_seqno}&id={target_id}"
+        path = (
+            f"/app/log/public/historical/range?from_seqno={first_seqno}"
+            f"&to_seqno={last_seqno}&id={target_entry_id}"
+        )
         entries = []
         page_count = 0
-        next_link_count = 0
+        pages_with_next_link = 0
         empty_page_count = 0
         timeout = 30
         end_time = time.time() + timeout
@@ -1374,7 +1381,7 @@ def test_historical_query_range_pagination(network, args):
 
                 next_link = body.get("@nextLink")
                 if next_link:
-                    next_link_count += 1
+                    pages_with_next_link += 1
                     path = next_link
                     continue
 
@@ -1389,7 +1396,7 @@ def test_historical_query_range_pagination(network, args):
 
     assert entries == expected_entries
     assert page_count > 2
-    assert next_link_count == page_count - 1
+    assert pages_with_next_link == page_count - 1
     assert empty_page_count > 0
 
     return network
