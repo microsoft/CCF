@@ -12,7 +12,7 @@
 
 namespace http
 {
-  using HTTPSession = ccf::EncryptedSession;
+  using HTTPSession = ccf::PlaintextSession;
 
   class HTTPServerSession : public HTTPSession,
                             public http::RequestProcessor,
@@ -33,12 +33,12 @@ namespace http
       std::shared_ptr<ccf::RPCMap> rpc_map_,
       ::tcp::ConnID session_id_,
       ccf::ListenInterfaceID interface_id_,
-      ringbuffer::AbstractWriterFactory& writer_factory,
-      std::unique_ptr<ccf::tls::Context> ctx,
+      ccf::SessionWriter& writer,
+      std::vector<uint8_t> peer_cert,
       const ccf::http::ParserConfiguration& configuration,
       const std::shared_ptr<ErrorReporter>& error_reporter_,
       const std::shared_ptr<ccf::CommitCallbackSubsystem>& commit_callbacks_) :
-      HTTPSession(session_id_, writer_factory, std::move(ctx)),
+      HTTPSession(session_id_, writer, std::move(peer_cert)),
       request_parser(*this, configuration),
       rpc_map(std::move(rpc_map_)),
       error_reporter(error_reporter_),
@@ -139,7 +139,7 @@ namespace http
         if (session_ctx == nullptr)
         {
           session_ctx = std::make_shared<ccf::SessionContext>(
-            session_id, tls_io->peer_cert(), interface_id);
+            session_id, peer_cert(), interface_id);
         }
 
         std::shared_ptr<http::HttpRpcContext> rpc_ctx = nullptr;
@@ -300,6 +300,132 @@ namespace http
         std::move(headers),
         std::move(trailers),
         std::move(body));
+    }
+  };
+
+  class HTTPClientSession : public HTTPSession,
+                            public ccf::ClientSession,
+                            public ::http::ResponseProcessor
+  {
+  private:
+    ::http::ResponseParser response_parser;
+
+  public:
+    HTTPClientSession(
+      ::tcp::ConnID session_id_,
+      ccf::SessionWriter& writer,
+      ccf::ClientSession::ConnectCallback connect_cb) :
+      HTTPSession(session_id_, writer),
+      ClientSession(session_id_, std::move(connect_cb)),
+      response_parser(*this)
+    {}
+
+    bool parse(std::span<const uint8_t> data) override
+    {
+      // Catch response parsing errors and log them
+      try
+      {
+        response_parser.execute(data.data(), data.size());
+
+        return true;
+      }
+      catch (const std::exception& e)
+      {
+        LOG_FAIL_FMT("Error parsing HTTP response on session {}", session_id);
+        LOG_DEBUG_FMT("Error parsing HTTP response: {}", e.what());
+        LOG_DEBUG_FMT(
+          "Error occurred while parsing fragment {} byte fragment:\n{}",
+          data.size(),
+          std::string_view(
+            reinterpret_cast<char const*>(data.data()), data.size()));
+
+        close_session();
+      }
+      return false;
+    }
+
+    void send_request(http::Request&& request) override
+    {
+      auto data = request.build_request();
+      send_data(std::move(data));
+    }
+
+    void handle_response(
+      ccf::http_status status,
+      ccf::http::HeaderMap&& headers,
+      std::vector<uint8_t>&& body) override
+    {
+      handle_data_cb(status, std::move(headers), std::move(body));
+
+      LOG_TRACE_FMT("Closing connection, message handled");
+      close_session();
+    }
+  };
+
+  using UnencryptedHTTPSession = ccf::PlaintextSession;
+
+  class UnencryptedHTTPClientSession : public UnencryptedHTTPSession,
+                                       public ccf::ClientSession,
+                                       public ::http::ResponseProcessor
+  {
+  private:
+    ::http::ResponseParser response_parser;
+
+  public:
+    UnencryptedHTTPClientSession(
+      ::tcp::ConnID session_id_,
+      ccf::SessionWriter& writer,
+      ccf::ClientSession::ConnectCallback connect_cb) :
+      UnencryptedHTTPSession(session_id_, writer),
+      ClientSession(session_id_, std::move(connect_cb)),
+      response_parser(*this)
+    {}
+
+    bool parse(std::span<const uint8_t> data) override
+    {
+      try
+      {
+        response_parser.execute(data.data(), data.size());
+        return true;
+      }
+      catch (const std::exception& e)
+      {
+        LOG_FAIL_FMT("Error parsing HTTP response on session {}", session_id);
+        LOG_DEBUG_FMT("Error parsing HTTP response: {}", e.what());
+        LOG_DEBUG_FMT(
+          "Error occurred while parsing fragment {} byte fragment:\n{}",
+          data.size(),
+          std::string_view(
+            reinterpret_cast<char const*>(data.data()), data.size()));
+
+        close_session();
+      }
+      return false;
+    }
+
+    void send_request(http::Request&& request) override
+    {
+      auto data = request.build_request();
+      send_data(std::move(data));
+    }
+
+    void connect(
+      const std::string& hostname,
+      const std::string& service,
+      const HandleDataCallback f,
+      const HandleErrorCallback e) override
+    {
+      ccf::ClientSession::connect(hostname, service, f, e);
+    }
+
+    void handle_response(
+      ccf::http_status status,
+      ccf::http::HeaderMap&& headers,
+      std::vector<uint8_t>&& body) override
+    {
+      handle_data_cb(status, std::move(headers), std::move(body));
+      LOG_TRACE_FMT("Closing connection, message handled");
+      close_session();
     }
   };
 }

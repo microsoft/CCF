@@ -279,7 +279,7 @@ TEST_CASE("Session bridge: round-trip via ccf::Session + SessionWriter")
     key,
     "127.0.0.1",
     static_cast<uint16_t>(0),
-    [](::tcp::ConnID id, ccf::SessionWriter& w) {
+    [](::tcp::ConnID id, ccf::SessionWriter& w, std::vector<uint8_t>) {
       return std::make_shared<EchoSession>(id, w);
     });
   mgr.start();
@@ -299,7 +299,7 @@ TEST_CASE("Session bridge: large transfer through the seam")
     key,
     "127.0.0.1",
     static_cast<uint16_t>(0),
-    [](::tcp::ConnID id, ccf::SessionWriter& w) {
+    [](::tcp::ConnID id, ccf::SessionWriter& w, std::vector<uint8_t>) {
       return std::make_shared<EchoSession>(id, w);
     });
   mgr.start();

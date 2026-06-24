@@ -2,757 +2,528 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-// NOTE: This is a fresh, standalone rewrite that merges the responsibilities
-// previously split across:
-//   - src/enclave/rpc_sessions.h    (RPCSessions: ccf::Session lifecycle,
-//                                     listening-interface limits, certs)
-//   - src/host/rpc_connections.h    (RPCConnectionsImpl: libuv sockets, ConnID
-//                                     allocation, socket <-> ringbuffer bridge)
+// Host-side, OpenSSL-native RPC connection manager.
 //
-// The host/enclave ringbuffer split was technical debt from SGX. With that gone
-// we own both the libuv sockets and the ccf::Session objects in one place, and
-// data flows directly:
-//   inbound:  socket on_read --------------------> session.handle_incoming_data
-//   outbound: session -> SessionWriter sink -> LoopExecutor -> socket.write
+// Replaces the SGX-era split of RPCSessions (enclave) + RPCConnectionsImpl
+// (host) bridged over a ringbuffer. It owns one OpenSSL transport per listening
+// interface (TLS terminated in the connection, see host/tls/openssl_server.h),
+// creates the protocol session for each connection, applies per-interface
+// session caps and certificates, and exposes outbound client creation. It
+// implements ccf::AbstractRPCSessions so the node (NodeState/frontends) reaches
+// it without depending on the transport backend.
 //
-// This file is intentionally NOT yet added to the build. It is meant to be
-// reviewed standalone and then plugged in (potentially behind a compile-time
-// switch) once complete. It targets the *post-swap* session interfaces:
-//   * Sessions are constructed with a `ccf::SessionWriter&` instead of a
-//     `ringbuffer::AbstractWriterFactory&`.
-//   * Session::handle_incoming_data receives raw socket bytes (no serialised
-//     tcp_inbound / udp_inbound framing) plus the source address (used by
-//     datagram transports, ignored by stream transports).
-// Those session-side changes are deliberately left for the wiring step.
-//
-// Socket I/O is factored per transport into RPCSocketSet<TCP>/<UDP> (see
-// rpc_socket_set.h); this manager owns one of each and holds all the shared
-// session/interface/cert state. That composition is purely an in-process
-// organisation detail - there is no ringbuffer or arms-length boundary.
+// Cert-deferred listening: interfaces bind at startup even before their
+// certificate exists (a joining node receives the service cert later). A TLS
+// interface with no cert yet refuses connections until set_cert() supplies one;
+// UNSECURED interfaces listen in plaintext.
 
-#include "ccf/pal/locking.h"
+#include "ccf/crypto/pem.h"
 #include "ccf/service/node_info_network.h"
 #include "ds/internal_logger.h"
+#include "enclave/abstract_rpc_sessions.h"
 #include "enclave/no_more_sessions.h"
-#include "enclave/session.h"
-#include "enclave/session_writer.h"
-#include "forwarder_types.h"
-#include "host/loop_executor.h"
-#include "host/rpc_socket_set.h"
+#include "enclave/rpc_map.h"
+#include "host/tls/openssl_session_manager.h"
+#include "http/error_reporter.h"
 #include "http/http2_session.h"
 #include "http/http_session.h"
-#include "node/rpc/custom_protocol_subsystem.h"
 #include "node/session_metrics.h"
-#include "quic/quic_session.h"
-#include "rpc_handler.h"
-#include "tls/cert.h"
-#include "tls/client.h"
-#include "tls/context.h"
-#include "tls/plaintext_server.h"
-#include "tls/server.h"
 
 #include <atomic>
 #include <map>
 #include <memory>
-#include <unordered_map>
+#include <mutex>
+#include <stdexcept>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace ccf
 {
-  using QUICSessionImpl = quic::QUICEchoSession;
-
-  static constexpr size_t cm_max_open_sessions_soft_default = 1000;
-  static constexpr size_t cm_max_open_sessions_hard_default = 1010;
-  static const ccf::Endorsement cm_endorsement_default = {
+  static constexpr size_t ocm_max_open_sessions_soft_default = 1000;
+  static constexpr size_t ocm_max_open_sessions_hard_default = 1010;
+  static const ccf::Endorsement ocm_endorsement_default = {
     ccf::Authority::SERVICE};
 
-  // Single owner of libuv sockets and ccf::Session objects for RPC traffic.
-  //
-  // Threading model:
-  //   * The `sockets` map is only ever touched on the libuv loop thread
-  //     (listen/connect/accept/on_read/write/close). It therefore needs no
-  //     lock.
-  //   * The `sessions`/`listening_interfaces`/`certs` maps are touched both on
-  //     the loop thread (accept/close) and on session worker threads
-  //     (reply_async/find_session). They are guarded by `lock`.
-  //   * Sessions run their work on OrderedTasks worker threads and call back
-  //     into write_outbound()/close_socket() from those threads. Those methods
-  //     only enqueue onto the LoopExecutor, which is thread-safe, and the real
-  //     socket operation runs later on the loop thread.
   class RPCConnectionManager
     : public std::enable_shared_from_this<RPCConnectionManager>,
-      public ccf::SessionWriter,
-      public ccf::SocketSetHost,
-      public ccf::AbstractRPCResponder,
+      public ccf::AbstractRPCSessions,
       public ::http::ErrorReporter
   {
-  public:
-    using ConnID = ::tcp::ConnID;
-
   private:
     struct ListenInterface
     {
-      size_t open_sessions = 0;
-      size_t peak_sessions = 0;
-      size_t max_open_sessions_soft = 0;
-      size_t max_open_sessions_hard = 0;
-      ccf::Endorsement endorsement{};
+      std::string name;
+      size_t max_open_sessions_soft = ocm_max_open_sessions_soft_default;
+      size_t max_open_sessions_hard = ocm_max_open_sessions_hard_default;
+      ccf::Endorsement endorsement = ocm_endorsement_default;
       http::ParserConfiguration http_configuration;
-      ccf::SessionMetrics::Errors errors{};
-      ccf::ApplicationProtocol app_protocol;
+      ccf::ApplicationProtocol app_protocol = "HTTP1";
+
+      std::atomic<size_t> open_sessions{0};
+      std::atomic<size_t> peak_sessions{0};
+      std::atomic<size_t> err_parsing{0};
+      std::atomic<size_t> err_payload_too_large{0};
+      std::atomic<size_t> err_header_too_large{0};
+
+      // The transport for this interface (created on listen()).
+      std::unique_ptr<asynchost::OpenSSLSessionManager> bridge;
     };
 
     std::shared_ptr<RPCMap> rpc_map;
-    std::shared_ptr<asynchost::LoopExecutorImpl> loop_executor;
+    std::shared_ptr<CustomProtocolSubsystem> custom_protocol_subsystem;
+    std::shared_ptr<CommitCallbackSubsystem> commit_callbacks_subsystem;
 
-    std::shared_ptr<CustomProtocolSubsystem> custom_protocol_subsystem =
-      nullptr;
-    std::shared_ptr<CommitCallbackSubsystem> commit_callbacks_subsystem =
-      nullptr;
+    std::mutex interfaces_mutex;
+    std::map<std::string, std::unique_ptr<ListenInterface>> interfaces;
+    // cert/key PEM per endorsement authority (for cert-deferred listening).
+    std::map<ccf::Authority, std::pair<std::string, std::string>> certs;
 
-    // Loop-thread-only socket ownership, split by transport.
-    RPCSocketSet<asynchost::TCP> tcp_sockets;
-    RPCSocketSet<asynchost::UDP> udp_sockets;
+    // Global connection-id source shared by all interface transports, so the
+    // session registry / reply routing have a single id space.
+    std::atomic<uint64_t> shared_conn_id{1};
+    // Outbound client sessions use the negative range, matching the historical
+    // convention relied upon by forwarding.
+    std::atomic<int64_t> next_client_id{-1};
 
-    ccf::pal::Mutex lock;
-    std::map<ListenInterfaceID, ListenInterface> listening_interfaces;
-    std::unordered_map<ListenInterfaceID, std::shared_ptr<::tls::Cert>> certs;
-    std::unordered_map<
-      ConnID,
-      std::pair<ListenInterfaceID, std::shared_ptr<ccf::Session>>>
-      sessions;
-    size_t sessions_peak = 0;
+    std::shared_ptr<::http::ErrorReporter> error_reporter()
+    {
+      return shared_from_this();
+    }
 
-    // Positive IDs: sockets accepted/listened on the host side.
-    std::atomic<ConnID> next_server_id = 1;
-    // Negative IDs: outbound client sessions created locally (was create_client
-    // inside the enclave). Kept in a separate range to preserve the historical
-    // convention relied upon elsewhere (e.g. forwarding).
-    std::atomic<ConnID> next_client_id = -1;
+    // Build the protocol session for a connection on `li`, applying caps.
+    // Returns nullptr to refuse (hard cap). Runs on the interface's loop thread.
+    std::shared_ptr<ccf::Session> make_session(
+      ListenInterface* li,
+      ::tcp::ConnID conn_id,
+      ccf::SessionWriter& writer,
+      std::vector<uint8_t> peer_cert)
+    {
+      const size_t open = li->open_sessions.load();
+      if (open >= li->max_open_sessions_hard)
+      {
+        LOG_INFO_FMT(
+          "Refusing session {} on interface {} - {} open, hard limit {}",
+          conn_id,
+          li->name,
+          open,
+          li->max_open_sessions_hard);
+        return nullptr;
+      }
 
-    // ----- session construction ---------------------------------------------
+      const size_t now_open = ++li->open_sessions;
+      size_t prev_peak = li->peak_sessions.load();
+      while (now_open > prev_peak &&
+             !li->peak_sessions.compare_exchange_weak(prev_peak, now_open))
+      {
+      }
+
+      if (open >= li->max_open_sessions_soft)
+      {
+        LOG_INFO_FMT(
+          "Soft-refusing session {} (503) on interface {} - {} open, soft "
+          "limit {}",
+          conn_id,
+          li->name,
+          open,
+          li->max_open_sessions_soft);
+        return make_capped_session(li, conn_id, writer, std::move(peer_cert));
+      }
+
+      return make_server_session(li, conn_id, writer, std::move(peer_cert));
+    }
 
     std::shared_ptr<ccf::Session> make_server_session(
-      const std::string& app_protocol,
-      ConnID id,
-      const ListenInterfaceID& listen_interface_id,
-      std::unique_ptr<tls::Context>&& ctx,
-      const http::ParserConfiguration& parser_configuration)
+      ListenInterface* li,
+      ::tcp::ConnID conn_id,
+      ccf::SessionWriter& writer,
+      std::vector<uint8_t> peer_cert)
     {
-      // NOTE: post-swap, these session constructors take `*this` (a
-      // ccf::SessionWriter&) where they previously took a
-      // ringbuffer::AbstractWriterFactory&.
-      if (app_protocol == "HTTP2")
+      if (li->app_protocol == "HTTP2")
       {
         return std::make_shared<::http::HTTP2ServerSession>(
           rpc_map,
-          id,
-          listen_interface_id,
-          *this,
-          std::move(ctx),
-          parser_configuration,
-          shared_from_this());
+          conn_id,
+          li->name,
+          writer,
+          std::move(peer_cert),
+          li->http_configuration,
+          error_reporter());
       }
-      if (app_protocol == "HTTP1")
+      if (li->app_protocol == "HTTP1")
       {
         return std::make_shared<::http::HTTPServerSession>(
           rpc_map,
-          id,
-          listen_interface_id,
-          *this,
-          std::move(ctx),
-          parser_configuration,
-          shared_from_this(),
+          conn_id,
+          li->name,
+          writer,
+          std::move(peer_cert),
+          li->http_configuration,
+          error_reporter(),
           commit_callbacks_subsystem);
       }
-      if (custom_protocol_subsystem)
-      {
-        return custom_protocol_subsystem->create_session(
-          app_protocol, id, std::move(ctx));
-      }
-
       throw std::runtime_error(fmt::format(
-        "unknown protocol '{}' and custom protocol subsystem missing",
-        app_protocol));
+        "Unsupported application protocol '{}' (custom protocols are not "
+        "supported on the OpenSSL RPC path)",
+        li->app_protocol));
     }
 
     std::shared_ptr<ccf::Session> make_capped_session(
-      const ListenInterface& li,
-      ConnID id,
-      const ListenInterfaceID& listen_interface_id)
+      ListenInterface* li,
+      ::tcp::ConnID conn_id,
+      ccf::SessionWriter& writer,
+      std::vector<uint8_t> peer_cert)
     {
-      // NOTE: post-swap, these session constructors take `*this` (a
-      // ccf::SessionWriter&) where they previously took a
-      // ringbuffer::AbstractWriterFactory&.
-      auto ctx = std::make_unique<::tls::Server>(certs[listen_interface_id]);
-      if (li.app_protocol == "HTTP2")
+      if (li->app_protocol == "HTTP2")
       {
         return std::make_shared<NoMoreSessionsImpl<::http::HTTP2ServerSession>>(
           rpc_map,
-          id,
-          listen_interface_id,
-          *this,
-          std::move(ctx),
-          li.http_configuration,
-          shared_from_this());
+          conn_id,
+          li->name,
+          writer,
+          std::move(peer_cert),
+          li->http_configuration,
+          error_reporter());
       }
       return std::make_shared<NoMoreSessionsImpl<::http::HTTPServerSession>>(
         rpc_map,
-        id,
-        listen_interface_id,
-        *this,
-        std::move(ctx),
-        li.http_configuration,
-        shared_from_this(),
+        conn_id,
+        li->name,
+        writer,
+        std::move(peer_cert),
+        li->http_configuration,
+        error_reporter(),
         commit_callbacks_subsystem);
     }
 
-    ListenInterface& get_interface_from_interface_id(
-      const ListenInterfaceID& id)
+    asynchost::OpenSSLSessionManager* primary_bridge()
     {
-      auto it = listening_interfaces.find(id);
-      if (it != listening_interfaces.end())
+      for (auto& [name, li] : interfaces)
       {
-        return it->second;
-      }
-      throw std::logic_error(
-        fmt::format("No RPC interface for interface ID {}", id));
-    }
-
-    ConnID get_next_client_id()
-    {
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
-      auto id = next_client_id--;
-      const auto initial = id;
-
-      if (next_client_id > 0)
-      {
-        next_client_id = -1;
-      }
-
-      while (sessions.find(id) != sessions.end())
-      {
-        id--;
-        if (id > 0)
+        if (li->bridge != nullptr)
         {
-          id = -1;
-        }
-        if (id == initial)
-        {
-          throw std::runtime_error("Exhausted all IDs for client sessions");
+          return li->bridge.get();
         }
       }
-      return id;
-    }
-
-    // ----- outbound (loop thread, invoked via LoopExecutor) -----------------
-
-    void write_on_loop(ConnID id, std::vector<uint8_t> data, sockaddr addr)
-    {
-      if (
-        tcp_sockets.write(id, data, addr) || udp_sockets.write(id, data, addr))
-      {
-        return;
-      }
-      LOG_DEBUG_FMT(
-        "Dropping {} outbound bytes for unknown socket {}", data.size(), id);
-    }
-
-    void close_on_loop(ConnID id)
-    {
-      tcp_sockets.stop(id);
-      tcp_sockets.close(id);
-      udp_sockets.stop(id);
-      udp_sockets.close(id);
-      remove_session(id);
+      return nullptr;
     }
 
   public:
-    RPCConnectionManager(
-      std::shared_ptr<RPCMap> rpc_map_,
-      std::shared_ptr<asynchost::LoopExecutorImpl> loop_executor_) :
-      rpc_map(std::move(rpc_map_)),
-      loop_executor(std::move(loop_executor_)),
-      tcp_sockets(*this),
-      udp_sockets(*this)
+    explicit RPCConnectionManager(std::shared_ptr<RPCMap> rpc_map_) :
+      rpc_map(std::move(rpc_map_))
     {}
 
-    void set_custom_protocol_subsystem(
-      std::shared_ptr<CustomProtocolSubsystem> cpss)
+    ~RPCConnectionManager() override
     {
-      custom_protocol_subsystem = std::move(cpss);
+      stop();
     }
 
-    void set_commit_callbacks_subsystem(
-      std::shared_ptr<CommitCallbackSubsystem> fcss)
+    void stop()
     {
-      commit_callbacks_subsystem = std::move(fcss);
-    }
-
-    // ----- SocketSetHost (loop thread) --------------------------------------
-
-    ConnID get_next_server_id() override
-    {
-      return next_server_id++;
-    }
-
-    void on_socket_start(
-      ConnID id, const ListenInterfaceID& interface_id, bool udp) override
-    {
-      accept(id, interface_id, udp);
-    }
-
-    void on_socket_inbound(
-      ConnID id, const uint8_t* data, size_t len, sockaddr addr) override
-    {
-      auto session = find_session_for_inbound(id);
-      if (session == nullptr)
+      std::lock_guard<std::mutex> guard(interfaces_mutex);
+      for (auto& [name, li] : interfaces)
       {
-        LOG_DEBUG_FMT("Ignoring inbound for unknown session {}", id);
-        return;
+        if (li->bridge != nullptr)
+        {
+          li->bridge->stop();
+        }
       }
-      // Post-swap: handle_incoming_data takes raw bytes (no tcp_inbound /
-      // udp_inbound frame) plus the source address. `addr` is meaningful for
-      // datagram transports and ignored by stream sessions.
-      session->handle_incoming_data({data, len}, addr);
     }
 
-    void on_socket_gone(ConnID id) override
+    // Bind and start listening on `name` (which must have been configured via
+    // update_listening_interface_options). Returns the bound port (supports
+    // ephemeral port 0), or 0 on failure.
+    uint16_t listen(
+      const std::string& name,
+      const std::string& host,
+      const std::string& port)
     {
-      remove_session(id);
-      // Defer the socket erase so we are not destroying the behaviour that is
-      // currently executing this callback.
-      loop_executor->enqueue([self = shared_from_this(), id]() {
-        self->tcp_sockets.close(id);
-        self->udp_sockets.close(id);
-      });
+      std::lock_guard<std::mutex> guard(interfaces_mutex);
+      auto it = interfaces.find(name);
+      if (it == interfaces.end())
+      {
+        throw std::logic_error(fmt::format(
+          "Cannot listen on unconfigured interface '{}'", name));
+      }
+      auto* li = it->second.get();
+
+      const bool plaintext =
+        li->endorsement.authority == ccf::Authority::UNSECURED;
+      const std::string alpn =
+        plaintext ? "" : (li->app_protocol == "HTTP2" ? "h2" : "http/1.1");
+
+      std::string cert_pem;
+      std::string key_pem;
+      if (!plaintext)
+      {
+        auto c = certs.find(li->endorsement.authority);
+        if (c != certs.end())
+        {
+          cert_pem = c->second.first;
+          key_pem = c->second.second;
+        }
+      }
+
+      auto factory =
+        [this, li](
+          ::tcp::ConnID cid,
+          ccf::SessionWriter& w,
+          std::vector<uint8_t> pc) {
+          return make_session(li, cid, w, std::move(pc));
+        };
+      auto on_closed = [li](::tcp::ConnID) {
+        size_t expected = li->open_sessions.load();
+        while (expected > 0 &&
+               !li->open_sessions.compare_exchange_weak(expected, expected - 1))
+        {
+        }
+      };
+
+      const uint16_t port_num = static_cast<uint16_t>(std::stoi(port));
+      li->bridge = std::make_unique<asynchost::OpenSSLSessionManager>(
+        cert_pem,
+        key_pem,
+        host,
+        port_num,
+        factory,
+        alpn,
+        plaintext,
+        false,
+        &shared_conn_id,
+        on_closed);
+      li->bridge->start();
+      return li->bridge->port();
     }
 
-    // ----- SessionWriter (called from session worker threads) ---------------
+    // ----- AbstractRPCSessions / AbstractRPCResponder -----------------------
 
-    void write_outbound(
-      ConnID id, std::span<const uint8_t> data, sockaddr addr = {}) override
+    std::shared_ptr<ClientSession> create_client(
+      const std::shared_ptr<::tls::Cert>& /*cert*/,
+      const std::string& app_protocol = "HTTP1") override
     {
-      std::vector<uint8_t> copy(data.begin(), data.end());
-      loop_executor->enqueue(
-        [self = shared_from_this(),
-         id,
-         copy = std::move(copy),
-         addr]() mutable {
-          self->write_on_loop(id, std::move(copy), addr);
-        });
-    }
+      // TODO: wire outbound client certificate + CA verification (see
+      // OpenSSLServer client context). Currently the outbound connection is
+      // unverified and presents no client certificate.
+      const int64_t id = next_client_id.fetch_sub(1);
 
-    void close_socket(ConnID id) override
-    {
-      loop_executor->enqueue(
-        [self = shared_from_this(), id]() { self->close_on_loop(id); });
-    }
+      asynchost::OpenSSLSessionManager* bridge = nullptr;
+      {
+        std::lock_guard<std::mutex> guard(interfaces_mutex);
+        bridge = primary_bridge();
+      }
+      if (bridge == nullptr)
+      {
+        throw std::runtime_error(
+          "Cannot create outbound client: no listening interface");
+      }
 
-    // ----- AbstractRPCResponder ---------------------------------------------
+      auto connect_cb =
+        [bridge](int64_t cid, const std::string& h, const std::string& s) {
+          bridge->connect(static_cast<::tcp::ConnID>(cid), h, s);
+        };
+
+      std::shared_ptr<ClientSession> session;
+      std::shared_ptr<ccf::Session> as_session;
+      if (app_protocol == "HTTP2")
+      {
+        auto s = std::make_shared<::http::HTTP2ClientSession>(
+          id, *bridge, connect_cb);
+        session = s;
+        as_session = s;
+      }
+      else
+      {
+        auto s = std::make_shared<::http::HTTPClientSession>(
+          id, *bridge, connect_cb);
+        session = s;
+        as_session = s;
+      }
+
+      bridge->register_session(static_cast<::tcp::ConnID>(id), as_session);
+      return session;
+    }
 
     bool reply_async(
-      ConnID id, bool terminate_after_send, std::vector<uint8_t>&& data)
+      int64_t id, bool terminate_after_reply, std::vector<uint8_t>&& data)
       override
     {
-      auto session = find_session(id);
-      if (session == nullptr)
+      std::vector<asynchost::OpenSSLSessionManager*> bridges;
       {
-        LOG_DEBUG_FMT("Refusing to reply to unknown session {}", id);
-        return false;
+        std::lock_guard<std::mutex> guard(interfaces_mutex);
+        for (auto& [name, li] : interfaces)
+        {
+          if (li->bridge != nullptr)
+          {
+            bridges.push_back(li->bridge.get());
+          }
+        }
       }
 
-      LOG_DEBUG_FMT("Replying to session {}", id);
-      session->send_data(std::move(data));
-
-      if (terminate_after_send)
+      for (auto* bridge : bridges)
       {
-        session->close_session();
+        auto session = bridge->get_session(id);
+        if (session != nullptr)
+        {
+          session->send_data(std::move(data));
+          if (terminate_after_reply)
+          {
+            session->close_session();
+          }
+          return true;
+        }
       }
-      return true;
+      LOG_DEBUG_FMT("Refusing to reply to unknown session {}", id);
+      return false;
     }
 
-    // ----- ErrorReporter ----------------------------------------------------
-
-    void report_parsing_error(const ListenInterfaceID& id) override
+    ccf::ApplicationProtocol get_app_protocol_main_interface() const override
     {
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
-      get_interface_from_interface_id(id).errors.parsing++;
+      // NB: const_cast to lock - the mutex is logically mutable here.
+      auto& self = const_cast<RPCConnectionManager&>(*this);
+      std::lock_guard<std::mutex> guard(self.interfaces_mutex);
+      if (self.interfaces.empty())
+      {
+        throw std::logic_error("No listening interface for this node");
+      }
+      return self.interfaces.begin()->second->app_protocol;
     }
 
-    void report_request_payload_too_large_error(
-      const ListenInterfaceID& id) override
+    ccf::SessionMetrics get_session_metrics() override
     {
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
-      get_interface_from_interface_id(id).errors.request_payload_too_large++;
+      ccf::SessionMetrics sm;
+      std::lock_guard<std::mutex> guard(interfaces_mutex);
+      size_t active = 0;
+      size_t peak = 0;
+      for (auto& [name, li] : interfaces)
+      {
+        ccf::SessionMetrics::Errors errs;
+        errs.parsing = li->err_parsing.load();
+        errs.request_payload_too_large = li->err_payload_too_large.load();
+        errs.request_header_too_large = li->err_header_too_large.load();
+
+        sm.interfaces[name] = {
+          li->open_sessions.load(),
+          li->peak_sessions.load(),
+          li->max_open_sessions_soft,
+          li->max_open_sessions_hard,
+          errs};
+
+        active += li->open_sessions.load();
+        peak += li->peak_sessions.load();
+      }
+      sm.active = active;
+      sm.peak = peak;
+      return sm;
     }
 
-    void report_request_header_too_large_error(
-      const ListenInterfaceID& id) override
+    void set_node_cert(
+      const ccf::crypto::Pem& cert, const ccf::crypto::Pem& pk) override
     {
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
-      get_interface_from_interface_id(id).errors.request_header_too_large++;
+      set_cert(ccf::Authority::NODE, cert, pk);
     }
 
-    // ----- interface configuration / certs ----------------------------------
+    void set_network_cert(
+      const ccf::crypto::Pem& cert, const ccf::crypto::Pem& pk) override
+    {
+      set_cert(ccf::Authority::SERVICE, cert, pk);
+    }
+
+    void set_cert(
+      ccf::Authority authority,
+      const ccf::crypto::Pem& cert,
+      const ccf::crypto::Pem& pk)
+    {
+      std::lock_guard<std::mutex> guard(interfaces_mutex);
+      certs[authority] = {cert.str(), pk.str()};
+      for (auto& [name, li] : interfaces)
+      {
+        if (li->endorsement.authority == authority && li->bridge != nullptr)
+        {
+          li->bridge->set_server_cert(cert.str(), pk.str());
+        }
+      }
+    }
 
     void update_listening_interface_options(
-      const ccf::NodeInfoNetwork& node_info)
+      const ccf::NodeInfoNetwork& node_info) override
     {
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
-
+      std::lock_guard<std::mutex> guard(interfaces_mutex);
       for (const auto& [name, interface] : node_info.rpc_interfaces)
       {
-        auto& li = listening_interfaces[name];
+        auto it = interfaces.find(name);
+        if (it == interfaces.end())
+        {
+          it = interfaces.emplace(name, std::make_unique<ListenInterface>())
+                 .first;
+          it->second->name = name;
+        }
+        auto* li = it->second.get();
 
-        li.max_open_sessions_soft = interface.max_open_sessions_soft.value_or(
-          cm_max_open_sessions_soft_default);
-        li.max_open_sessions_hard = interface.max_open_sessions_hard.value_or(
-          cm_max_open_sessions_hard_default);
-        li.endorsement = interface.endorsement.value_or(cm_endorsement_default);
-        li.http_configuration =
+        li->max_open_sessions_soft = interface.max_open_sessions_soft.value_or(
+          ocm_max_open_sessions_soft_default);
+        li->max_open_sessions_hard = interface.max_open_sessions_hard.value_or(
+          ocm_max_open_sessions_hard_default);
+        li->endorsement =
+          interface.endorsement.value_or(ocm_endorsement_default);
+        li->http_configuration =
           interface.http_configuration.value_or(http::ParserConfiguration{});
-        li.app_protocol = interface.app_protocol.value_or("HTTP1");
+        li->app_protocol = interface.app_protocol.value_or("HTTP1");
 
         LOG_INFO_FMT(
           "Setting max open sessions on interface \"{}\" ({}) to [{}, {}] and "
           "endorsement authority to {}",
           name,
           interface.bind_address,
-          li.max_open_sessions_soft,
-          li.max_open_sessions_hard,
-          li.endorsement.authority);
+          li->max_open_sessions_soft,
+          li->max_open_sessions_hard,
+          li->endorsement.authority);
       }
     }
 
-    void set_node_cert(const ccf::crypto::Pem& cert_, const ccf::crypto::Pem& pk)
+    void set_custom_protocol_subsystem(
+      std::shared_ptr<CustomProtocolSubsystem> cpss) override
     {
-      set_cert(ccf::Authority::NODE, cert_, pk);
+      custom_protocol_subsystem = std::move(cpss);
     }
 
-    void set_network_cert(
-      const ccf::crypto::Pem& cert_, const ccf::crypto::Pem& pk)
+    void set_commit_callbacks_subsystem(
+      std::shared_ptr<CommitCallbackSubsystem> fcss) override
     {
-      set_cert(ccf::Authority::SERVICE, cert_, pk);
+      commit_callbacks_subsystem = std::move(fcss);
     }
 
-    void set_cert(
-      ccf::Authority authority,
-      const ccf::crypto::Pem& cert_,
-      const ccf::crypto::Pem& pk)
-    {
-      // Caller authentication is done by each frontend by looking up the
-      // caller's certificate in the relevant store table; verification is not
-      // required here.
-      auto cert = std::make_shared<::tls::Cert>(
-        nullptr, cert_, pk, std::nullopt, /*auth_required ==*/false);
+    // ----- ErrorReporter ----------------------------------------------------
 
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
-      for (auto& [listen_interface_id, interface] : listening_interfaces)
+    void report_parsing_error(const ccf::ListenInterfaceID& id) override
+    {
+      std::lock_guard<std::mutex> guard(interfaces_mutex);
+      auto it = interfaces.find(id);
+      if (it != interfaces.end())
       {
-        if (interface.endorsement.authority == authority)
-        {
-          certs.insert_or_assign(listen_interface_id, cert);
-        }
+        it->second->err_parsing++;
       }
     }
 
-    ccf::SessionMetrics get_session_metrics()
+    void report_request_payload_too_large_error(
+      const ccf::ListenInterfaceID& id) override
     {
-      ccf::SessionMetrics sm;
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
-
-      sm.active = sessions.size();
-      sm.peak = sessions_peak;
-      for (const auto& [name, interface] : listening_interfaces)
+      std::lock_guard<std::mutex> guard(interfaces_mutex);
+      auto it = interfaces.find(id);
+      if (it != interfaces.end())
       {
-        sm.interfaces[name] = {
-          interface.open_sessions,
-          interface.peak_sessions,
-          interface.max_open_sessions_soft,
-          interface.max_open_sessions_hard,
-          interface.errors};
-      }
-      return sm;
-    }
-
-    ccf::ApplicationProtocol get_app_protocol_main_interface() const
-    {
-      if (listening_interfaces.empty())
-      {
-        throw std::logic_error("No listening interface for this node");
-      }
-      return listening_interfaces.begin()->second.app_protocol;
-    }
-
-    // ----- listen / connect (loop thread) -----------------------------------
-
-    bool listen(
-      const std::string& host,
-      const std::string& port,
-      const ListenInterfaceID& name,
-      bool udp = false)
-    {
-      const auto id = next_server_id++;
-      if (udp)
-      {
-        return udp_sockets.listen(id, host, port, name);
-      }
-      return tcp_sockets.listen(id, host, port, name);
-    }
-
-    // ----- session lifecycle ------------------------------------------------
-
-    std::shared_ptr<ccf::Session> find_session(ConnID id)
-    {
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
-      auto search = sessions.find(id);
-      if (search == sessions.end())
-      {
-        return nullptr;
-      }
-      return search->second.second;
-    }
-
-    // Create a session for a newly started connection, applying per-interface
-    // session caps. Runs on the loop thread (from on_socket_start).
-    void accept(
-      ConnID id, const ListenInterfaceID& listen_interface_id, bool udp)
-    {
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
-
-      if (sessions.find(id) != sessions.end())
-      {
-        throw std::logic_error(
-          fmt::format("Duplicate conn ID received: {}", id));
-      }
-
-      auto it = listening_interfaces.find(listen_interface_id);
-      if (it == listening_interfaces.end())
-      {
-        throw std::logic_error(fmt::format(
-          "Can't accept RPC session {} from unknown interface {}",
-          id,
-          listen_interface_id));
-      }
-      auto& li = it->second;
-
-      if (udp)
-      {
-        accept_udp(id, listen_interface_id, li);
-        return;
-      }
-
-      const bool needs_cert = li.endorsement.authority != Authority::UNSECURED;
-      if (needs_cert && certs.find(listen_interface_id) == certs.end())
-      {
-        LOG_DEBUG_FMT(
-          "Refusing TLS session {} - interface {} has no certificate yet",
-          id,
-          listen_interface_id);
-        close_socket(id);
-        return;
-      }
-
-      if (li.open_sessions >= li.max_open_sessions_hard)
-      {
-        LOG_INFO_FMT(
-          "Refusing session {} - {} sessions on interface {}, hard limit {}",
-          id,
-          li.open_sessions,
-          listen_interface_id,
-          li.max_open_sessions_hard);
-        close_socket(id);
-        return;
-      }
-
-      std::shared_ptr<ccf::Session> session;
-      if (li.open_sessions >= li.max_open_sessions_soft)
-      {
-        LOG_INFO_FMT(
-          "Soft-refusing session {} (503) - {} sessions on interface {}, soft "
-          "limit {}",
-          id,
-          li.open_sessions,
-          listen_interface_id,
-          li.max_open_sessions_soft);
-        session = make_capped_session(li, id, listen_interface_id);
-      }
-      else
-      {
-        LOG_DEBUG_FMT(
-          "Accepting session {} on interface \"{}\"", id, listen_interface_id);
-
-        std::unique_ptr<tls::Context> ctx;
-        if (li.endorsement.authority == Authority::UNSECURED)
-        {
-          ctx = std::make_unique<nontls::PlaintextServer>();
-        }
-        else
-        {
-          ctx = std::make_unique<::tls::Server>(
-            certs[listen_interface_id], li.app_protocol == "HTTP2");
-        }
-
-        session = make_server_session(
-          li.app_protocol,
-          id,
-          listen_interface_id,
-          std::move(ctx),
-          li.http_configuration);
-      }
-
-      sessions.emplace(
-        id, std::make_pair(listen_interface_id, std::move(session)));
-      li.open_sessions++;
-      li.peak_sessions = std::max(li.peak_sessions, li.open_sessions);
-      sessions_peak = std::max(sessions_peak, sessions.size());
-    }
-
-    void remove_session(ConnID id)
-    {
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
-      LOG_DEBUG_FMT("Closing session {}", id);
-      const auto search = sessions.find(id);
-      if (search != sessions.end())
-      {
-        auto it = listening_interfaces.find(search->second.first);
-        if (it != listening_interfaces.end())
-        {
-          it->second.open_sessions--;
-        }
-        sessions.erase(search);
+        it->second->err_payload_too_large++;
       }
     }
 
-    std::shared_ptr<ClientSession> create_client(
-      const std::shared_ptr<::tls::Cert>& cert,
-      const std::string& app_protocol = "HTTP1")
+    void report_request_header_too_large_error(
+      const ccf::ListenInterfaceID& id) override
     {
-      auto id = get_next_client_id();
-      auto ctx = std::make_unique<::tls::Client>(cert);
-
-      LOG_DEBUG_FMT("Creating client session {}", id);
-
-      std::shared_ptr<ClientSession> session;
-      if (app_protocol == "HTTP2")
+      std::lock_guard<std::mutex> guard(interfaces_mutex);
+      auto it = interfaces.find(id);
+      if (it != interfaces.end())
       {
-        session = std::make_shared<::http::HTTP2ClientSession>(
-          id, *this, std::move(ctx));
+        it->second->err_header_too_large++;
       }
-      else if (app_protocol == "HTTP1")
-      {
-        session = std::make_shared<::http::HTTPClientSession>(
-          id, *this, std::move(ctx));
-      }
-      else
-      {
-        throw std::runtime_error("unsupported client application protocol");
-      }
-
-      {
-        std::lock_guard<ccf::pal::Mutex> guard(lock);
-        sessions.emplace(id, std::make_pair("", session));
-        sessions_peak = std::max(sessions_peak, sessions.size());
-      }
-      return session;
-    }
-
-    // Open the outbound socket for a client session created via create_client.
-    // Marshalled onto the loop thread.
-    void connect(ConnID id, const std::string& host, const std::string& port)
-    {
-      loop_executor->enqueue([self = shared_from_this(), id, host, port]() {
-        if (!self->tcp_sockets.connect(id, host, port))
-        {
-          self->on_socket_gone(id);
-        }
-      });
-    }
-
-  private:
-    // ----- UDP / datagram helpers (loop thread) -----------------------------
-
-    void accept_udp(
-      ConnID id,
-      const ListenInterfaceID& listen_interface_id,
-      ListenInterface& li)
-    {
-      // Caller holds `lock`.
-      LOG_DEBUG_FMT("New UDP endpoint {}", id);
-
-      std::shared_ptr<ccf::Session> session;
-      if (li.app_protocol == "QUIC")
-      {
-        session = std::make_shared<QUICSessionImpl>(
-          rpc_map, id, listen_interface_id, *this);
-      }
-      else if (custom_protocol_subsystem)
-      {
-        // Custom protocol session is created lazily on the first inbound
-        // datagram (the creation function may not be registered yet). Store a
-        // nullptr placeholder so the interface mapping and caps are tracked.
-        session = nullptr;
-      }
-      else
-      {
-        throw std::runtime_error(
-          "unknown UDP protocol and custom protocol subsystem missing");
-      }
-
-      sessions.emplace(
-        id, std::make_pair(listen_interface_id, std::move(session)));
-      li.open_sessions++;
-      li.peak_sessions = std::max(li.peak_sessions, li.open_sessions);
-      sessions_peak = std::max(sessions_peak, sessions.size());
-    }
-
-    // Returns the session for `id`, lazily creating a custom-protocol datagram
-    // session on first inbound if one was deferred at accept time. Works for
-    // stream sessions too (which are always present, never deferred).
-    std::shared_ptr<ccf::Session> find_session_for_inbound(ConnID id)
-    {
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
-
-      auto search = sessions.find(id);
-      if (search == sessions.end())
-      {
-        return nullptr;
-      }
-
-      if (search->second.second != nullptr || !custom_protocol_subsystem)
-      {
-        return search->second.second;
-      }
-
-      // Deferred custom-protocol datagram session: create it now.
-      const auto& interface_id = search->second.first;
-      auto iit = listening_interfaces.find(interface_id);
-      if (iit == listening_interfaces.end())
-      {
-        LOG_DEBUG_FMT(
-          "Cannot create custom protocol session for {}: unknown interface {}",
-          id,
-          interface_id);
-        return nullptr;
-      }
-
-      try
-      {
-        search->second.second = custom_protocol_subsystem->create_session(
-          iit->second.app_protocol, id, nullptr);
-      }
-      catch (const std::exception& ex)
-      {
-        LOG_DEBUG_FMT(
-          "Failure to create custom protocol session {}: {}", id, ex.what());
-        return nullptr;
-      }
-
-      if (search->second.second == nullptr)
-      {
-        LOG_DEBUG_FMT("Failure to create custom protocol session {}", id);
-      }
-      return search->second.second;
     }
   };
 }

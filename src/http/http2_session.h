@@ -12,7 +12,7 @@
 
 namespace http
 {
-  using HTTP2Session = ccf::EncryptedSession;
+  using HTTP2Session = ccf::PlaintextSession;
 
   struct HTTP2SessionContext : public ccf::SessionContext
   {
@@ -200,7 +200,7 @@ namespace http
           it,
           stream_id,
           std::make_shared<HTTP2SessionContext>(
-            session_id, tls_io->peer_cert(), interface_id, stream_id));
+            session_id, peer_cert(), interface_id, stream_id));
       }
 
       return it->second;
@@ -241,11 +241,11 @@ namespace http
       std::shared_ptr<ccf::RPCMap> rpc_map_,
       int64_t session_id_,
       ccf::ListenInterfaceID interface_id_,
-      ringbuffer::AbstractWriterFactory& writer_factory,
-      std::unique_ptr<ccf::tls::Context> ctx,
+      ccf::SessionWriter& writer,
+      std::vector<uint8_t> peer_cert,
       const ccf::http::ParserConfiguration& configuration,
       const std::shared_ptr<ErrorReporter>& error_reporter_) :
-      HTTP2Session(session_id_, writer_factory, std::move(ctx)),
+      HTTP2Session(session_id_, writer, std::move(peer_cert)),
       server_parser(
         std::make_shared<http2::ServerParser>(*this, configuration)),
       rpc_map(std::move(rpc_map_)),
@@ -431,6 +431,74 @@ namespace http
     {
       return get_stream_responder(http2::DEFAULT_STREAM_ID)
         ->set_on_stream_close_callback(cb);
+    }
+  };
+
+  class HTTP2ClientSession : public HTTP2Session,
+                             public ccf::ClientSession,
+                             public ::http::ResponseProcessor
+  {
+  private:
+    http2::ClientParser client_parser;
+
+  public:
+    HTTP2ClientSession(
+      int64_t session_id_,
+      ccf::SessionWriter& writer,
+      ccf::ClientSession::ConnectCallback connect_cb) :
+      HTTP2Session(session_id_, writer),
+      ccf::ClientSession(session_id_, std::move(connect_cb)),
+      client_parser(*this)
+    {
+      client_parser.set_outgoing_data_handler(
+        [this](std::span<const uint8_t> data) {
+          send_data(std::vector<uint8_t>(data.begin(), data.end()));
+        });
+    }
+
+    bool parse(std::span<const uint8_t> data) override
+    {
+      // Catch response parsing errors and log them
+      try
+      {
+        client_parser.execute(data.data(), data.size());
+
+        return true;
+      }
+      catch (const std::exception& e)
+      {
+        LOG_FAIL_FMT("Error parsing HTTP2 response on session {}", session_id);
+        LOG_DEBUG_FMT("Error parsing HTTP2 response: {}", e.what());
+        LOG_DEBUG_FMT(
+          "Error occurred while parsing fragment {} byte fragment:\n{}",
+          data.size(),
+          std::string_view(
+            reinterpret_cast<char const*>(data.data()), data.size()));
+
+        close_session();
+      }
+      return false;
+    }
+
+    void send_request(http::Request&& request) override
+    {
+      client_parser.send_structured_request(
+        request.get_method(),
+        request.get_path(),
+        request.get_headers(),
+        {request.get_content_data(),
+         request.get_content_data() + request.get_content_length()});
+    }
+
+    void handle_response(
+      ccf::http_status status,
+      ccf::http::HeaderMap&& headers,
+      std::vector<uint8_t>&& body) override
+    {
+      handle_data_cb(status, std::move(headers), std::move(body));
+
+      LOG_TRACE_FMT("Closing connection, message handled");
+      close_session();
     }
   };
 }
