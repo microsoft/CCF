@@ -28,6 +28,7 @@
 #include "http/http2_session.h"
 #include "http/http_session.h"
 #include "node/session_metrics.h"
+#include "tls/cert.h"
 
 #include <atomic>
 #include <map>
@@ -298,12 +299,9 @@ namespace ccf
     // ----- AbstractRPCSessions / AbstractRPCResponder -----------------------
 
     std::shared_ptr<ClientSession> create_client(
-      const std::shared_ptr<::tls::Cert>& /*cert*/,
+      const std::shared_ptr<::tls::Cert>& cert,
       const std::string& app_protocol = "HTTP1") override
     {
-      // TODO: wire outbound client certificate + CA verification (see
-      // OpenSSLServer client context). Currently the outbound connection is
-      // unverified and presents no client certificate.
       const int64_t id = next_client_id.fetch_sub(1);
 
       asynchost::OpenSSLSessionManager* bridge = nullptr;
@@ -317,9 +315,18 @@ namespace ccf
           "Cannot create outbound client: no listening interface");
       }
 
+      // The tls::Cert carries the peer CA (for server verification) and,
+      // optionally, this node's client certificate to present. It configures
+      // the outbound SSL when the connection is opened.
       auto connect_cb =
-        [bridge](int64_t cid, const std::string& h, const std::string& s) {
-          bridge->connect(static_cast<::tcp::ConnID>(cid), h, s);
+        [bridge, cert](int64_t cid, const std::string& h, const std::string& s) {
+          bridge->connect(
+            static_cast<::tcp::ConnID>(cid), h, s, [cert](SSL* ssl, SSL_CTX* ctx) {
+              if (cert != nullptr)
+              {
+                cert->use(ssl, ctx);
+              }
+            });
         };
 
       std::shared_ptr<ClientSession> session;

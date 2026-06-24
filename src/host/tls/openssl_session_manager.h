@@ -161,10 +161,16 @@ namespace asynchost
     }
 
     // Open an outbound client connection bound to `id` (thread-safe).
+    // `configure` sets up TLS verification / client certificate on the
+    // connection.
     void connect(
-      ::tcp::ConnID id, const std::string& host, const std::string& service)
+      ::tcp::ConnID id,
+      const std::string& host,
+      const std::string& service,
+      OpenSSLServer::ConfigureClientSSL configure = {})
     {
-      server->connect(static_cast<int64_t>(id), host, service);
+      server->connect(
+        static_cast<int64_t>(id), host, service, std::move(configure));
     }
 
     void start()

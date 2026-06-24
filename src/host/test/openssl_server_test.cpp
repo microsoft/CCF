@@ -22,7 +22,9 @@
 #include <doctest/doctest.h>
 #include <mutex>
 #include <netinet/in.h>
+#include <openssl/pem.h>
 #include <openssl/ssl.h>
+#include <openssl/x509.h>
 #include <random>
 #include <string>
 #include <sys/socket.h>
@@ -49,7 +51,11 @@ namespace
   // Blocking TLS client: connects, sends `req` in full, reads exactly
   // `expected_resp` bytes. Verification is disabled (self-signed slice cert).
   std::vector<uint8_t> tls_client_exchange(
-    uint16_t port, const std::vector<uint8_t>& req, size_t expected_resp)
+    uint16_t port,
+    const std::vector<uint8_t>& req,
+    size_t expected_resp,
+    const std::string& client_cert = {},
+    const std::string& client_key = {})
   {
     const int fd = ::socket(AF_INET, SOCK_STREAM, 0);
     REQUIRE(fd >= 0);
@@ -63,6 +69,23 @@ namespace
 
     SSL_CTX* cctx = SSL_CTX_new(TLS_client_method());
     REQUIRE(cctx != nullptr);
+    if (!client_cert.empty())
+    {
+      BIO* cb =
+        BIO_new_mem_buf(client_cert.data(), static_cast<int>(client_cert.size()));
+      X509* xc = PEM_read_bio_X509(cb, nullptr, nullptr, nullptr);
+      BIO_free(cb);
+      REQUIRE(xc != nullptr);
+      REQUIRE(SSL_CTX_use_certificate(cctx, xc) == 1);
+      X509_free(xc);
+      BIO* kb =
+        BIO_new_mem_buf(client_key.data(), static_cast<int>(client_key.size()));
+      EVP_PKEY* pk = PEM_read_bio_PrivateKey(kb, nullptr, nullptr, nullptr);
+      BIO_free(kb);
+      REQUIRE(pk != nullptr);
+      REQUIRE(SSL_CTX_use_PrivateKey(cctx, pk) == 1);
+      EVP_PKEY_free(pk);
+    }
     SSL* ssl = SSL_new(cctx);
     REQUIRE(ssl != nullptr);
     REQUIRE(SSL_set_fd(ssl, fd) == 1);
@@ -307,6 +330,45 @@ TEST_CASE("Session bridge: large transfer through the seam")
   const auto payload = random_bytes(2 * 1024 * 1024);
   const auto resp = tls_client_exchange(mgr.port(), payload, payload.size());
   REQUIRE(resp == payload);
+
+  mgr.stop();
+}
+
+// The server must request the client certificate during the handshake so it is
+// available for application-level caller authentication (user/member cert
+// auth). Verifies the cert presented by the client reaches the session factory.
+TEST_CASE("Peer certificate is captured for inbound connections")
+{
+  auto [cert, key] = make_server_cert();
+  auto [client_cert, client_key] = make_server_cert();
+
+  std::mutex m;
+  std::vector<uint8_t> captured;
+  std::atomic<bool> got{false};
+
+  OpenSSLSessionManager mgr(
+    cert,
+    key,
+    "127.0.0.1",
+    static_cast<uint16_t>(0),
+    [&](::tcp::ConnID id, ccf::SessionWriter& w, std::vector<uint8_t> pc) {
+      {
+        std::lock_guard<std::mutex> l(m);
+        captured = std::move(pc);
+      }
+      got.store(true);
+      return std::make_shared<EchoSession>(id, w);
+    });
+  mgr.start();
+
+  const std::vector<uint8_t> msg = {'m', 't', 'l', 's'};
+  REQUIRE(
+    tls_client_exchange(mgr.port(), msg, msg.size(), client_cert, client_key) ==
+    msg);
+
+  REQUIRE(got.load());
+  std::lock_guard<std::mutex> l(m);
+  REQUIRE(!captured.empty());
 
   mgr.stop();
 }

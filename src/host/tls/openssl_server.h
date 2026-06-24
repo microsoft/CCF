@@ -66,6 +66,11 @@ namespace asynchost
     // connection state.
     using OnClose = std::function<void(uint64_t conn_id)>;
 
+    // Configures an outbound client SSL/SSL_CTX (peer CA verification, the
+    // client certificate to present, SNI). Supplied per-connect so each client
+    // session can use its own certificate. Invoked on the loop thread.
+    using ConfigureClientSSL = std::function<void(SSL*, SSL_CTX*)>;
+
   private:
     static constexpr size_t read_chunk = 16384;
 
@@ -90,8 +95,6 @@ namespace asynchost
     };
 
     SSL_CTX* ctx = nullptr;
-    // Lazily created client context for outbound connections.
-    SSL_CTX* client_ctx = nullptr;
     // Plaintext (UNSECURED) interface: no TLS, raw socket I/O.
     bool plaintext = false;
     // ALPN protocol advertised by the server (wire format, length-prefixed),
@@ -131,6 +134,7 @@ namespace asynchost
       int64_t id = 0;
       std::string host;
       std::string port;
+      ConfigureClientSSL configure;
     };
     std::vector<ConnectReq> pending_connects;
 
@@ -221,6 +225,12 @@ namespace asynchost
         return nullptr;
       }
       SSL_CTX_set_min_proto_version(c, TLS1_2_VERSION);
+      // Request the client certificate during the handshake so it can be used
+      // for application-level caller authentication (user/member cert auth).
+      // Verification is not enforced here - the application decides - mirroring
+      // the old Cert(auth_required = false) server behaviour.
+      SSL_CTX_set_verify(
+        c, SSL_VERIFY_PEER, [](int, X509_STORE_CTX*) { return 1; });
       if (!alpn_wire.empty())
       {
         SSL_CTX_set_alpn_select_cb(c, alpn_select_cb, this);
@@ -626,7 +636,7 @@ namespace asynchost
 
       for (auto& req : connects)
       {
-        do_connect(req.id, req.host, req.port);
+        do_connect(req.id, req.host, req.port, req.configure);
       }
 
       for (auto& item : items)
@@ -660,25 +670,18 @@ namespace asynchost
 
     // Open an outbound client connection for `id` (loop thread). TLS client
     // handshake is driven by the normal epoll state machine (is_client).
-    void do_connect(int64_t id, const std::string& host, const std::string& port)
+    void do_connect(
+      int64_t id,
+      const std::string& host,
+      const std::string& port,
+      const ConfigureClientSSL& configure)
     {
-      if (client_ctx == nullptr)
-      {
-        client_ctx = SSL_CTX_new(TLS_client_method());
-        if (client_ctx == nullptr)
+      auto fail = [&]() {
+        if (on_close)
         {
-          logf("client SSL_CTX_new failed");
-          if (on_close)
-          {
-            on_close(static_cast<uint64_t>(id));
-          }
-          return;
+          on_close(static_cast<uint64_t>(id));
         }
-        SSL_CTX_set_min_proto_version(client_ctx, TLS1_2_VERSION);
-        // TODO: wire CA verification for outbound (create_client cert) before
-        // production; currently the peer is not verified here.
-        SSL_CTX_set_verify(client_ctx, SSL_VERIFY_NONE, nullptr);
-      }
+      };
 
       addrinfo hints{};
       hints.ai_family = AF_UNSPEC;
@@ -687,10 +690,7 @@ namespace asynchost
       if (getaddrinfo(host.c_str(), port.c_str(), &hints, &res) != 0)
       {
         logf("getaddrinfo(%s:%s) failed", host.c_str(), port.c_str());
-        if (on_close)
-        {
-          on_close(static_cast<uint64_t>(id));
-        }
+        fail();
         return;
       }
 
@@ -699,10 +699,7 @@ namespace asynchost
       if (cfd < 0)
       {
         freeaddrinfo(res);
-        if (on_close)
-        {
-          on_close(static_cast<uint64_t>(id));
-        }
+        fail();
         return;
       }
       const int rc = ::connect(cfd, res->ai_addr, res->ai_addrlen);
@@ -710,37 +707,66 @@ namespace asynchost
       if (rc != 0 && errno != EINPROGRESS)
       {
         ::close(cfd);
-        if (on_close)
-        {
-          on_close(static_cast<uint64_t>(id));
-        }
+        fail();
         return;
       }
 
-      SSL* ssl = SSL_new(client_ctx);
-      if (ssl == nullptr)
+      // Per-connection client context so each client session can present its
+      // own certificate and trust its own CA.
+      SSL_CTX* cctx = SSL_CTX_new(TLS_client_method());
+      if (cctx == nullptr)
       {
         ::close(cfd);
-        if (on_close)
-        {
-          on_close(static_cast<uint64_t>(id));
-        }
+        fail();
+        return;
+      }
+      SSL_CTX_set_min_proto_version(cctx, TLS1_2_VERSION);
+
+      SSL* ssl = SSL_new(cctx);
+      if (ssl == nullptr)
+      {
+        SSL_CTX_free(cctx);
+        ::close(cfd);
+        fail();
         return;
       }
       SSL_set_mode(
         ssl,
         SSL_MODE_ENABLE_PARTIAL_WRITE | SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER);
       SSL_set_connect_state(ssl);
+
+      if (configure)
+      {
+        try
+        {
+          configure(ssl, cctx);
+        }
+        catch (const std::exception& e)
+        {
+          logf("client TLS configuration failed: %s", e.what());
+          SSL_free(ssl);
+          SSL_CTX_free(cctx);
+          ::close(cfd);
+          fail();
+          return;
+        }
+      }
+      else
+      {
+        SSL_CTX_set_verify(cctx, SSL_VERIFY_NONE, nullptr);
+      }
+
       if (SSL_set_fd(ssl, cfd) != 1)
       {
         SSL_free(ssl);
+        SSL_CTX_free(cctx);
         ::close(cfd);
-        if (on_close)
-        {
-          on_close(static_cast<uint64_t>(id));
-        }
+        fail();
         return;
       }
+      // The SSL holds a reference to the context, so releasing our handle now
+      // is safe; the context is freed when the SSL is.
+      SSL_CTX_free(cctx);
 
       auto c = std::make_unique<Conn>();
       c->fd = cfd;
@@ -755,10 +781,7 @@ namespace asynchost
       {
         SSL_free(ssl);
         ::close(cfd);
-        if (on_close)
-        {
-          on_close(static_cast<uint64_t>(id));
-        }
+        fail();
         return;
       }
       conns.emplace(cfd, std::move(c));
@@ -990,12 +1013,17 @@ namespace asynchost
     }
 
     // Thread-safe. Open an outbound client (TLS) connection bound to `id`.
+    // `configure` sets up peer verification / client certificate on the new
+    // connection (see ConfigureClientSSL).
     void connect(
-      int64_t id, const std::string& host, const std::string& port)
+      int64_t id,
+      const std::string& host,
+      const std::string& port,
+      ConfigureClientSSL configure = {})
     {
       {
         std::lock_guard<std::mutex> g(out_mutex);
-        pending_connects.push_back({id, host, port});
+        pending_connects.push_back({id, host, port, std::move(configure)});
       }
       wake();
     }
@@ -1071,11 +1099,6 @@ namespace asynchost
       {
         SSL_CTX_free(ctx);
         ctx = nullptr;
-      }
-      if (client_ctx != nullptr)
-      {
-        SSL_CTX_free(client_ctx);
-        client_ctx = nullptr;
       }
     }
   };
