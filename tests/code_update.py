@@ -921,6 +921,11 @@ def _test_update_all_nodes(network, args, atomic_reconfiguration=False):
     By default, fresh nodes are trusted first and old nodes are retired one by
     one. When atomic_reconfiguration is true, all fresh nodes are trusted and
     all old nodes are retired in a single governance proposal.
+
+    :param network: Network to update.
+    :param args: Test arguments, including current package and timeouts.
+    :param atomic_reconfiguration: Whether to use one reconfiguration proposal.
+    :return: The updated network.
     """
     replacement_package = get_replacement_package(args)
 
@@ -1063,16 +1068,7 @@ def _test_update_all_nodes(network, args, atomic_reconfiguration=False):
         )
         # The accepted proposal retires every old node, so only the new nodes
         # can elect the next primary.
-        timeout_multiplier = infra.network.DEFAULT_TIMEOUT_MULTIPLIER
-        if network.observed_election_duration:
-            timeout_multiplier = max(
-                timeout_multiplier,
-                args.ledger_recovery_timeout / network.observed_election_duration,
-            )
-        new_primary, _ = network.wait_for_new_primary_in(
-            new_nodes,
-            timeout_multiplier=timeout_multiplier,
-        )
+        new_primary, _ = network.wait_for_new_primary_in(new_nodes)
         primary = new_primary
         for new_node in new_nodes:
             new_node.wait_for_node_to_join(timeout=args.ledger_recovery_timeout)
