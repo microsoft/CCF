@@ -251,9 +251,12 @@ namespace loggingapp
     std::shared_ptr<RecordsIndexingStrategy> index_per_public_key = nullptr;
     std::shared_ptr<CommittedRecords> committed_records = nullptr;
 
-    // Reads an optional size_t from config[key] into value.
-    // Throws if the configured value is 0, because these values are used as
-    // divisors and bounds.
+    /// Reads an optional size_t from config[key] into value.
+    /// @param config Logging app configuration object.
+    /// @param key Field name to read from config.
+    /// @param value Output value, left unchanged if key is absent.
+    /// @throws std::logic_error if the configured value is 0, because these
+    /// values are used as divisors and bounds.
     static void read_size_config(
       const nlohmann::json& config, const char* key, size_t& value)
     {
@@ -270,8 +273,9 @@ namespace loggingapp
       }
     }
 
-    // Reads logging-specific node_data configuration, allowing tests to reduce
-    // indexing bucket sizes and historical range page sizes.
+    /// Reads logging-specific node_data configuration during init_handlers.
+    /// Missing or non-object node_data leaves the default indexing bucket sizes
+    /// and historical range page sizes unchanged.
     void configure_from_node_data()
     {
       auto node_config =

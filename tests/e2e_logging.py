@@ -1312,8 +1312,10 @@ def test_historical_query_range(network, args):
 @reqs.supports_methods("/app/log/public", "/app/log/public/historical/range")
 @reqs.at_least_n_nodes(1)
 def test_historical_query_range_pagination(network, args):
-    sparse_entry_id = 1542
-    filler_entry_id = 1543
+    # Arbitrary distinct log IDs used to create sparse writes for one ID, with
+    # filler writes to extend the ledger between them.
+    SPARSE_ENTRY_ID = 1542
+    FILLER_ENTRY_ID = 1543
 
     expected_entries = []
     first_seqno = None
@@ -1322,13 +1324,15 @@ def test_historical_query_range_pagination(network, args):
 
     primary, _ = network.find_primary()
     with primary.client("user0") as c:
-        n_entries = 50
-        target_write_positions = {0, n_entries - 1}
-        for i in range(n_entries):
+        # With the test app config's page and bucket sizes of 5, 50 writes
+        # reliably span multiple pages and indexing buckets.
+        ENTRY_COUNT = 50
+        target_write_positions = {0, ENTRY_COUNT - 1}
+        for i in range(ENTRY_COUNT):
             idx = (
-                sparse_entry_id
+                SPARSE_ENTRY_ID
                 if i in target_write_positions
-                else filler_entry_id
+                else FILLER_ENTRY_ID
             )
             msg = f"Multi-bucket indexing message {i}"
             r = c.post(
@@ -1344,7 +1348,7 @@ def test_historical_query_range_pagination(network, args):
             if first_seqno is None:
                 first_seqno = r.seqno
 
-            if idx == sparse_entry_id:
+            if idx == SPARSE_ENTRY_ID:
                 expected_entries.append(
                     {
                         "id": idx,
@@ -1360,7 +1364,7 @@ def test_historical_query_range_pagination(network, args):
 
         path = (
             f"/app/log/public/historical/range?from_seqno={first_seqno}"
-            f"&to_seqno={last_seqno}&id={sparse_entry_id}"
+            f"&to_seqno={last_seqno}&id={SPARSE_ENTRY_ID}"
         )
         entries = []
         page_count = 0
