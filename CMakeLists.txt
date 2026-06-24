@@ -432,7 +432,6 @@ endif()
 set(
   CCF_IMPL_SOURCE
   ${CCF_DIR}/src/enclave/main.cpp
-  ${CCF_DIR}/src/enclave/thread_local.cpp
   ${CCF_DIR}/src/node/quote.cpp
   ${CCF_DIR}/src/node/uvm_endorsements.cpp
   ${CCF_DIR}/src/node/recovery_decision_protocol.cpp
@@ -946,7 +945,6 @@ if(BUILD_TESTS)
     add_executable(
       merkle_mem
       src/node/test/merkle_mem.cpp
-      ${CCF_DIR}/src/enclave/thread_local.cpp
     )
     add_warning_checks(merkle_mem)
     target_link_libraries(
@@ -958,7 +956,6 @@ if(BUILD_TESTS)
     add_executable(
       raft_driver
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/driver.cpp
-      src/enclave/thread_local.cpp
     )
     add_warning_checks(raft_driver)
     target_link_libraries(raft_driver PRIVATE ccfcrypto ccf_tasks)
@@ -1002,13 +999,13 @@ if(BUILD_TESTS)
     add_picobench(cose_bench SRCS src/crypto/test/cose_bench.cpp LINK_LIBS)
     add_picobench(
       history_bench
-      SRCS src/node/test/history_bench.cpp src/enclave/thread_local.cpp
+      SRCS src/node/test/history_bench.cpp
       LINK_LIBS ccf_kv ccf_tasks
     )
 
     add_picobench(
       kv_bench
-      SRCS src/kv/test/kv_bench.cpp src/enclave/thread_local.cpp
+      SRCS src/kv/test/kv_bench.cpp
       LINK_LIBS ccf_kv
     )
     add_picobench(merkle_bench SRCS src/node/test/merkle_bench.cpp)

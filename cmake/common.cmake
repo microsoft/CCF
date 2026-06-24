@@ -28,7 +28,7 @@ endfunction()
 
 # Unit test wrapper
 function(add_unit_test name)
-  add_executable(${name} ${CCF_DIR}/src/enclave/thread_local.cpp ${ARGN})
+  add_executable(${name} ${ARGN})
   target_include_directories(
     ${name}
     PRIVATE src ${CCFCRYPTO_INC} ${CCF_DIR}/3rdparty/test
@@ -54,7 +54,7 @@ endfunction()
 
 # Fuzz test wrapper (requires -DFUZZING=ON)
 function(add_fuzz_test name)
-  add_executable(${name} ${CCF_DIR}/src/enclave/thread_local.cpp ${ARGN})
+  add_executable(${name} ${ARGN})
   target_compile_options(${name} PRIVATE -fsanitize=fuzzer)
   target_link_options(${name} PRIVATE -fsanitize=fuzzer)
   target_include_directories(${name} PRIVATE src ${CCFCRYPTO_INC})
@@ -82,7 +82,7 @@ endfunction()
 
 # Test binary wrapper
 function(add_test_bin name)
-  add_executable(${name} ${CCF_DIR}/src/enclave/thread_local.cpp ${ARGN})
+  add_executable(${name} ${ARGN})
   target_include_directories(
     ${name}
     PRIVATE src ${CCFCRYPTO_INC} ${CCF_DIR}/3rdparty/test
@@ -259,7 +259,6 @@ function(add_picobench name)
   add_executable(
     ${name}
     ${PARSED_ARGS_SRCS}
-    ${CCF_DIR}/src/enclave/thread_local.cpp
   )
 
   target_include_directories(${name} PRIVATE src ${PARSED_ARGS_INCLUDE_DIRS})
