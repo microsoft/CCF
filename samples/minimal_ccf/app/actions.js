@@ -254,6 +254,43 @@ function getActiveRecoveryMembersCount() {
   return activeRecoveryMembersCount;
 }
 
+function getServiceStatus() {
+  const rawService =
+    ccf.kv["public:ccf.gov.service.info"].get(getSingletonKvKey());
+  if (rawService === undefined) {
+    throw new Error("Service information could not be found");
+  }
+
+  return ccf.bufToJsonCompatible(rawService).status;
+}
+
+function isServiceRecovering() {
+  const serviceStatus = getServiceStatus();
+  return (
+    serviceStatus === "Recovering" ||
+    serviceStatus === "WaitingForRecoveryShares"
+  );
+}
+
+function checkRecoveryMemberChange(memberId, hasInputEncryptionKey) {
+  if (!isServiceRecovering()) {
+    return;
+  }
+
+  if (
+    hasInputEncryptionKey ||
+    ccf.kv["public:ccf.gov.members.encryption_public_keys"].has(memberId)
+  ) {
+    throw new Error("Cannot change recovery members during recovery");
+  }
+}
+
+function checkRecoverySharesChange() {
+  if (isServiceRecovering()) {
+    throw new Error("Cannot change recovery shares during recovery");
+  }
+}
+
 function checkJwks(value, field) {
   checkType(value, "object", field);
   checkType(value.keys, "array", `${field}.keys`);
@@ -459,19 +496,16 @@ function checkRecoveryThreshold(config, new_config) {
     return;
   }
 
-  const service_info = "public:ccf.gov.service.info";
-  const rawService = ccf.kv[service_info].get(getSingletonKvKey());
-  if (rawService === undefined) {
-    throw new Error("Service information could not be found");
-  }
+  const serviceStatus = getServiceStatus();
 
-  const service = ccf.bufToJsonCompatible(rawService);
-
-  if (service.status === "WaitingForRecoveryShares") {
+  if (
+    serviceStatus === "Recovering" ||
+    serviceStatus === "WaitingForRecoveryShares"
+  ) {
     throw new Error(
-      `Cannot set recovery threshold if service is ${service.status}`,
+      `Cannot set recovery threshold if service is ${serviceStatus}`,
     );
-  } else if (service.status === "Open") {
+  } else if (serviceStatus === "Open") {
     let activeRecoveryMembersCount = getActiveRecoveryMembersCount();
     if (new_config.recovery_threshold > activeRecoveryMembersCount) {
       throw new Error(
@@ -590,11 +624,22 @@ const actions = new Map([
             "encryption_pub_key",
           );
         }
+
+        checkRecoveryMemberChange(
+          ccf.strToBuf(ccf.pemToId(args.cert)),
+          args.encryption_pub_key !== null &&
+            args.encryption_pub_key !== undefined,
+        );
       },
 
       function (args) {
         const memberId = ccf.pemToId(args.cert);
         const rawMemberId = ccf.strToBuf(memberId);
+        checkRecoveryMemberChange(
+          rawMemberId,
+          args.encryption_pub_key !== null &&
+            args.encryption_pub_key !== undefined,
+        );
 
         ccf.kv["public:ccf.gov.members.certs"].set(
           rawMemberId,
@@ -642,9 +687,11 @@ const actions = new Map([
     new Action(
       function (args) {
         checkEntityId(args.member_id, "member_id");
+        checkRecoveryMemberChange(ccf.strToBuf(args.member_id), false);
       },
       function (args) {
         const rawMemberId = ccf.strToBuf(args.member_id);
+        checkRecoveryMemberChange(rawMemberId, false);
         const rawMemberInfo =
           ccf.kv["public:ccf.gov.members.info"].get(rawMemberId);
         if (rawMemberInfo === undefined) {
@@ -789,8 +836,10 @@ const actions = new Map([
       function (args) {
         checkType(args.recovery_threshold, "integer", "threshold");
         checkBounds(args.recovery_threshold, 1, 254, "threshold");
+        checkRecoverySharesChange();
       },
       function (args) {
+        checkRecoverySharesChange();
         updateServiceConfig(args);
       },
     ),
@@ -800,8 +849,10 @@ const actions = new Map([
     new Action(
       function (args) {
         checkNone(args);
+        checkRecoverySharesChange();
       },
       function (args) {
+        checkRecoverySharesChange();
         ccf.node.triggerRecoverySharesRefresh();
       },
     ),
@@ -811,9 +862,11 @@ const actions = new Map([
     new Action(
       function (args) {
         checkNone(args);
+        checkRecoverySharesChange();
       },
 
       function (args) {
+        checkRecoverySharesChange();
         ccf.node.triggerLedgerRekey();
       },
     ),

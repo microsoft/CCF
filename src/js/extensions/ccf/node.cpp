@@ -4,6 +4,7 @@
 #include "js/extensions/ccf/node.h"
 
 #include "ccf/js/core/context.h"
+#include "ccf/service/tables/service.h"
 #include "js/checks.h"
 #include "node/rpc/gov_logging.h"
 
@@ -44,6 +45,16 @@ namespace ccf::js::extensions
       if (tx_ptr == nullptr)
       {
         return JS_ThrowInternalError(ctx, "Failed to get tx object");
+      }
+
+      const auto service = tx_ptr->ro<ccf::Service>(Tables::SERVICE)->get();
+      if (
+        service.has_value() &&
+        (service->status == ServiceStatus::RECOVERING ||
+         service->status == ServiceStatus::WAITING_FOR_RECOVERY_SHARES))
+      {
+        return JS_ThrowInternalError(
+          ctx, "Cannot refresh recovery shares while the service is recovering");
       }
 
       try
@@ -179,6 +190,16 @@ namespace ccf::js::extensions
       if (tx_ptr == nullptr)
       {
         return JS_ThrowInternalError(ctx, "Failed to get tx object");
+      }
+
+      const auto service = tx_ptr->ro<ccf::Service>(Tables::SERVICE)->get();
+      if (
+        service.has_value() &&
+        (service->status == ServiceStatus::RECOVERING ||
+         service->status == ServiceStatus::WAITING_FOR_RECOVERY_SHARES))
+      {
+        return JS_ThrowInternalError(
+          ctx, "Cannot refresh recovery shares while the service is recovering");
       }
 
       try

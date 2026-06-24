@@ -752,6 +752,14 @@ namespace ccf
       return active_service->status;
     }
 
+    static bool is_service_recovering(ccf::kv::ReadOnlyTx& tx)
+    {
+      const auto service_status = get_service_status(tx);
+      return service_status.has_value() &&
+        (service_status.value() == ServiceStatus::RECOVERING ||
+         service_status.value() == ServiceStatus::WAITING_FOR_RECOVERY_SHARES);
+    }
+
     static void trust_node(
       ccf::kv::Tx& tx,
       const NodeId& node_id,
@@ -984,14 +992,13 @@ namespace ccf
         return false;
       }
 
-      if (service_status.value() == ServiceStatus::WAITING_FOR_RECOVERY_SHARES)
+      if (is_service_recovering(tx))
       {
-        // While waiting for recovery shares, the recovery threshold cannot be
-        // modified. Otherwise, the threshold could be passed without triggering
-        // the end of recovery procedure
+        // During recovery, the recovery threshold cannot be modified.
+        // Otherwise, the threshold could be passed without triggering the end
+        // of recovery procedure.
         LOG_FAIL_FMT(
-          "Cannot set recovery threshold: service is currently waiting for "
-          "recovery shares");
+          "Cannot set recovery threshold: service is currently recovering");
         return false;
       }
       if (service_status.value() == ServiceStatus::OPEN)
