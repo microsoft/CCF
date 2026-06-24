@@ -404,16 +404,36 @@ class Consortium:
         validity_period_days=None,
         **kwargs,
     ):
+        self.replace_nodes(
+            remote_node,
+            [node_to_retire],
+            [node_to_add],
+            valid_from,
+            validity_period_days,
+            **kwargs,
+        )
+
+    def replace_nodes(
+        self,
+        remote_node,
+        nodes_to_retire,
+        nodes_to_add,
+        valid_from,
+        validity_period_days=None,
+        **kwargs,
+    ):
         proposal_body = {"actions": []}
-        trust_args = {"node_id": node_to_add.node_id, "valid_from": str(valid_from)}
-        if validity_period_days is not None:
-            trust_args["validity_period_days"] = validity_period_days
-        proposal_body["actions"].append(
-            {"name": "transition_node_to_trusted", "args": trust_args}
-        )
-        proposal_body["actions"].append(
-            {"name": "remove_node", "args": {"node_id": node_to_retire.node_id}}
-        )
+        for node_to_add in nodes_to_add:
+            trust_args = {"node_id": node_to_add.node_id, "valid_from": str(valid_from)}
+            if validity_period_days is not None:
+                trust_args["validity_period_days"] = validity_period_days
+            proposal_body["actions"].append(
+                {"name": "transition_node_to_trusted", "args": trust_args}
+            )
+        for node_to_retire in nodes_to_retire:
+            proposal_body["actions"].append(
+                {"name": "remove_node", "args": {"node_id": node_to_retire.node_id}}
+            )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         self.vote_using_majority(
             remote_node,

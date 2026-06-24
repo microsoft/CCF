@@ -35,7 +35,7 @@ Procedure
 1. First, operators/members should register the new code version corresponding to the new enclave measurement using platform specific proposal actions (see :ref:`governance/common_member_operations:Updating Code Version`).
 
 
-2. The set of new nodes running the enclave registered in the previous step should be added to the service (see :ref:`operations/start_network:Adding a New Node to the Network`) and trusted by members (see :ref:`governance/common_member_operations:Trusting a New Node`). Typically, the same number of nodes than were originally present should be added to the service. In this example, the service is now made of 6 nodes (``f = 2``).
+2. The set of new nodes running the enclave registered in the previous step should be added to the service (see :ref:`operations/start_network:Adding a New Node to the Network`) and trusted by members (see :ref:`governance/common_member_operations:Trusting a New Node`). Typically, the same number of nodes than were originally present should be added to the service. If using the atomic reconfiguration proposal described in the next step, the new nodes should be left pending until that proposal is submitted. In this example, the service is now made of 6 nodes (``f = 2``).
 
 .. mermaid::
 
@@ -63,6 +63,8 @@ Procedure
 
 
 3. The original nodes (``Node 0``, ``Node 1`` and ``Node 2``) can then safely be retired.
+
+   Alternatively, once all the new nodes have joined and are listed as pending, members can submit a single proposal containing the ``transition_node_to_trusted`` actions for every new node and the ``remove_node`` actions for every original node. This atomically reconfigures the service from the old nodes to the new, non-overlapping set. After the proposal is accepted, wait for a new primary to be elected from the new nodes before removing the retired original nodes from the state.
 
 - ``Node 0`` is retired, 5 nodes remaining, ``f = 2``:
 
