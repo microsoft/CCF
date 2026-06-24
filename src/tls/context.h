@@ -85,19 +85,19 @@ namespace ccf::tls
       void* cb_obj, BIO_callback_fn_ex send, BIO_callback_fn_ex recv)
     {
       // Read/Write BIOs will be used by TLS
-      ccf::crypto::OpenSSL::Unique_BIO rbio;
+      BIO* rbio = BIO_new(BIO_s_mem());
       CHECKNULL(rbio);
       BIO_set_mem_eof_return(rbio, -1);
       BIO_set_callback_arg(rbio, static_cast<char*>(cb_obj));
       BIO_set_callback_ex(rbio, recv);
-      SSL_set0_rbio(get_ssl(), rbio.release());
+      SSL_set0_rbio(get_ssl(), rbio);
 
-      ccf::crypto::OpenSSL::Unique_BIO wbio;
+      BIO* wbio = BIO_new(BIO_s_mem());
       CHECKNULL(wbio);
       BIO_set_mem_eof_return(wbio, -1);
       BIO_set_callback_arg(wbio, static_cast<char*>(cb_obj));
       BIO_set_callback_ex(wbio, send);
-      SSL_set0_wbio(get_ssl(), wbio.release());
+      SSL_set0_wbio(get_ssl(), wbio);
     }
 
     virtual int handshake()

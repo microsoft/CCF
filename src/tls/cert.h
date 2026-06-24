@@ -113,7 +113,7 @@ namespace tls
       if (peer_hostname.has_value())
       {
         // Peer hostname for SNI
-        CHECKPOSITIVE(SSL_set_tlsext_host_name(ssl, peer_hostname->c_str()));
+        CHECK1(SSL_set_tlsext_host_name(ssl, peer_hostname->c_str()));
       }
 
       return true;
