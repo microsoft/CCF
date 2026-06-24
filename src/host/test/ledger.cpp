@@ -134,7 +134,7 @@ size_t number_of_recovery_files_in_ledger_dir()
   return recovery_file_count;
 }
 
-fs::path get_only_ledger_file_path()
+fs::path get_single_ledger_file_path()
 {
   fs::path ledger_file;
   size_t file_count = 0;
@@ -928,7 +928,7 @@ TEST_CASE("Truncation defers physical file shrink")
     entry_submitter.write(true);
   }
 
-  const auto ledger_file_path = get_only_ledger_file_path();
+  const auto ledger_file_path = get_single_ledger_file_path();
   const auto original_file_size = fs::file_size(ledger_file_path);
 
   entry_submitter.truncate(2);
@@ -944,7 +944,7 @@ TEST_CASE("Truncation defers physical file shrink")
   post_truncation_submitter.write(true, ccf::kv::FORCE_LEDGER_CHUNK_AFTER);
   ledger.commit(3);
 
-  REQUIRE(fs::file_size(get_only_ledger_file_path()) < original_file_size);
+  REQUIRE(fs::file_size(get_single_ledger_file_path()) < original_file_size);
 }
 
 TEST_CASE("Commit")

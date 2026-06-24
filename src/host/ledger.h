@@ -137,9 +137,18 @@ namespace asynchost
         return;
       }
 
+      const auto fd = fileno(file);
+      if (fd == -1)
+      {
+        throw std::logic_error(fmt::format(
+          "Failed to get file descriptor for ledger file {}: {}",
+          file_name,
+          ccf::nonstd::strerror(errno)));
+      }
+
       TimeBoundLogger log_if_slow(
         fmt::format("Truncating ledger file - ftruncate({})", file_name));
-      if (ftruncate(fileno(file), size) != 0)
+      if (ftruncate(fd, size) != 0)
       {
         throw std::logic_error(fmt::format(
           "Failed to truncate ledger: {}", ccf::nonstd::strerror(errno)));
