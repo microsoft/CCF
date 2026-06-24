@@ -134,6 +134,20 @@ size_t number_of_recovery_files_in_ledger_dir()
   return recovery_file_count;
 }
 
+fs::path get_only_ledger_file_path()
+{
+  fs::path ledger_file;
+  size_t file_count = 0;
+  for (auto const& f : fs::directory_iterator(ledger_dir))
+  {
+    ledger_file = f.path();
+    file_count++;
+  }
+
+  REQUIRE(file_count == 1);
+  return ledger_file;
+}
+
 void verify_framed_entries_range(
   const asynchost::LedgerReadResult& read_result, size_t from, size_t to)
 {
@@ -897,6 +911,37 @@ TEST_CASE("Truncation")
     REQUIRE(number_of_files_in_ledger_dir() == 0);
     entry_submitter.write(true);
   }
+}
+
+TEST_CASE("Truncation defers physical file shrink")
+{
+  auto dir = AutoDeleteFolder(ledger_dir);
+
+  Ledger ledger(ledger_dir, wf);
+  TestEntrySubmitter entry_submitter(ledger, 1024);
+
+  for (size_t i = 0; i < 5; ++i)
+  {
+    entry_submitter.write(true);
+  }
+
+  const auto ledger_file_path = get_only_ledger_file_path();
+  const auto original_file_size = fs::file_size(ledger_file_path);
+
+  entry_submitter.truncate(2);
+  REQUIRE(fs::file_size(ledger_file_path) == original_file_size);
+
+  {
+    Ledger restored_ledger(ledger_dir, wf);
+    read_entries_range_from_ledger(restored_ledger, 1, 2);
+    REQUIRE(restored_ledger.get_last_idx() == 2);
+  }
+
+  TestEntrySubmitter truncation_submitter(ledger, 1024, 2);
+  truncation_submitter.write(true, ccf::kv::FORCE_LEDGER_CHUNK_AFTER);
+  ledger.commit(3);
+
+  REQUIRE(fs::file_size(get_only_ledger_file_path()) < original_file_size);
 }
 
 TEST_CASE("Commit")

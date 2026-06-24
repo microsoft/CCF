@@ -104,6 +104,75 @@ namespace asynchost
     // checked against the existing ones, until a divergence is found.
     bool from_existing_file = false;
 
+    [[nodiscard]] size_t get_physical_file_size()
+    {
+      if (fseeko(file, 0, SEEK_END) != 0)
+      {
+        throw std::logic_error(fmt::format(
+          "Failed to seek to end of ledger file {}: {}",
+          file_name,
+          ccf::nonstd::strerror(errno)));
+      }
+
+      const auto physical_size = ftello(file);
+      if (physical_size < 0)
+      {
+        throw std::logic_error(fmt::format(
+          "Failed to read size of ledger file {}: {}",
+          file_name,
+          ccf::nonstd::strerror(errno)));
+      }
+
+      return static_cast<size_t>(physical_size);
+    }
+
+    void truncate_physical_file(size_t size)
+    {
+      const auto physical_size = get_physical_file_size();
+      if (physical_size == size)
+      {
+        return;
+      }
+
+      TimeBoundLogger log_if_slow(
+        fmt::format("Truncating ledger file - ftruncate({})", file_name));
+      if (ftruncate(fileno(file), size) != 0)
+      {
+        throw std::logic_error(fmt::format(
+          "Failed to truncate ledger: {}", ccf::nonstd::strerror(errno)));
+      }
+    }
+
+    void write_truncation_marker(size_t physical_size)
+    {
+      if (physical_size < total_len + ccf::kv::serialised_entry_header_size)
+      {
+        return;
+      }
+
+      if (fseeko(file, total_len, SEEK_SET) != 0)
+      {
+        throw std::logic_error(fmt::format(
+          "Failed to seek to truncation marker in ledger file {}: {}",
+          file_name,
+          ccf::nonstd::strerror(errno)));
+      }
+
+      ccf::kv::SerialisedEntryHeader marker;
+      marker.set_size(
+        (1ULL << ccf::kv::SerialisedEntryHeader::BITS_FOR_SIZE) - 1);
+
+      TimeBoundLogger log_if_slow(fmt::format(
+        "Writing ledger truncation marker - fwrite({})", file_name));
+      if (fwrite(&marker, sizeof(marker), 1, file) != 1)
+      {
+        throw std::logic_error(fmt::format(
+          "Failed to write truncation marker to ledger file {}: {}",
+          file_name,
+          ccf::nonstd::strerror(errno)));
+      }
+    }
+
   public:
     // Used when creating a new (empty) ledger file
     LedgerFile(const fs::path& dir, size_t start_idx, bool recovery = false) :
@@ -564,6 +633,9 @@ namespace asynchost
         positions.resize(idx - start_idx + 1);
       }
 
+      const auto physical_size = get_physical_file_size();
+      write_truncation_marker(physical_size);
+
       {
         TimeBoundLogger log_if_slow(
           fmt::format("Flushing truncated ledger - fflush({})", file_name));
@@ -571,16 +643,6 @@ namespace asynchost
         {
           throw std::logic_error(fmt::format(
             "Failed to flush ledger file: {}", ccf::nonstd::strerror(errno)));
-        }
-      }
-
-      {
-        TimeBoundLogger log_if_slow(
-          fmt::format("Truncating ledger file - ftruncate({})", file_name));
-        if (ftruncate(fileno(file), total_len) != 0)
-        {
-          throw std::logic_error(fmt::format(
-            "Failed to truncate ledger: {}", ccf::nonstd::strerror(errno)));
         }
       }
 
@@ -595,21 +657,10 @@ namespace asynchost
       {
         return;
       }
-      // It may happen (e.g. during recovery) that the incomplete ledger gets
-      // truncated on the primary, so we have to make sure that whenever we
-      // complete the file it doesn't contain anything past the last_idx, which
-      // can happen on the follower unless explicitly truncated before
-      // completion. This is only necessary when the file was recovered from an
-      // existing file on disk (from_existing_file is true). For fresh files,
-      // total_len always matches the physical file size, so avoid a potentially
-      // expensive truncate.
-      if (from_existing_file)
-      {
-        truncate(get_last_idx(), /* remove_file_if_empty = */ false);
-      }
-
       fseeko(file, total_len, SEEK_SET);
       size_t table_offset = ftello(file);
+      const auto completed_file_size =
+        table_offset + positions.size() * sizeof(positions.at(0));
 
       {
         TimeBoundLogger log_if_slow(fmt::format(
@@ -652,6 +703,8 @@ namespace asynchost
             "Failed to flush ledger file: {}", ccf::nonstd::strerror(errno)));
         }
       }
+
+      truncate_physical_file(completed_file_size);
 
       LOG_TRACE_FMT("Completed ledger file {}", file_name);
 
