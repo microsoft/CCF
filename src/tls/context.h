@@ -86,12 +86,14 @@ namespace ccf::tls
     {
       // Read/Write BIOs will be used by TLS
       ccf::crypto::OpenSSL::Unique_BIO rbio;
+      CHECKNULL(rbio);
       BIO_set_mem_eof_return(rbio, -1);
       BIO_set_callback_arg(rbio, static_cast<char*>(cb_obj));
       BIO_set_callback_ex(rbio, recv);
       SSL_set0_rbio(get_ssl(), rbio.release());
 
       ccf::crypto::OpenSSL::Unique_BIO wbio;
+      CHECKNULL(wbio);
       BIO_set_mem_eof_return(wbio, -1);
       BIO_set_callback_arg(wbio, static_cast<char*>(cb_obj));
       BIO_set_callback_ex(wbio, send);

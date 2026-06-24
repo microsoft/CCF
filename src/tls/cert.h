@@ -108,13 +108,15 @@ namespace tls
       }
     }
 
-    void use(SSL* ssl)
+    bool use(SSL* ssl)
     {
       if (peer_hostname.has_value())
       {
         // Peer hostname for SNI
         CHECKPOSITIVE(SSL_set_tlsext_host_name(ssl, peer_hostname->c_str()));
       }
+
+      return true;
     }
   };
 }

@@ -16,7 +16,7 @@ namespace tls
     {
       cert->use(cfg);
       create_ssl();
-      cert->use(get_ssl());
+      CHECK1(cert->use(get_ssl()));
     }
   };
 }
