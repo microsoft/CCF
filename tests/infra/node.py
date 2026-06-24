@@ -142,12 +142,14 @@ class Node:
         node_port=0,
         version=None,
         node_data_json_file=None,
+        ipv6=False,
     ):
         self.local_node_id = local_node_id
         self.binary_dir = binary_dir
         self.library_dir = library_dir
         self.debug = debug
         self.perf = perf
+        self.ipv6 = ipv6
         self.remote = None
         self.network_state = NodeNetworkState.stopped
         self.common_dir = None
@@ -174,19 +176,30 @@ class Node:
             raise ValueError("Translate host to HostSpec before you get here")
 
         for interface_name, rpc_interface in self.host.rpc_interfaces.items():
+            # Expand "localhost" to a concrete address first, so the IPv6
+            # detection below sees the effective host (when this node is
+            # running in IPv6 mode, expand_localhost() returns the "::1"
+            # loopback address).
+            if rpc_interface.host == "localhost":
+                rpc_interface.host = infra.net.expand_localhost(ipv6=self.ipv6)
+
             # Main RPC interface determines remote implementation
             if interface_name == infra.interfaces.PRIMARY_RPC_INTERFACE:
                 if rpc_interface.protocol == "local":
                     if not self.major_version or self.major_version > 1:
-                        self.node_client_host = str(
-                            ipaddress.ip_address(BASE_NODE_CLIENT_HOST)
-                            + self.local_node_id
-                        )
+                        if ":" in rpc_interface.host:
+                            # IPv6 addresses (e.g. ::1 from expand_localhost())
+                            # are not compatible with the IPv4-based client
+                            # interface used for partition simulation. Skip
+                            # client interface binding for IPv6.
+                            self.node_client_host = None
+                        else:
+                            self.node_client_host = str(
+                                ipaddress.ip_address(BASE_NODE_CLIENT_HOST)
+                                + self.local_node_id
+                            )
                 else:
                     assert False, f"{rpc_interface.protocol} is not 'local://'"
-
-            if rpc_interface.host == "localhost":
-                rpc_interface.host = infra.net.expand_localhost()
 
             if rpc_interface.public_host is None:
                 rpc_interface.public_host = rpc_interface.host
