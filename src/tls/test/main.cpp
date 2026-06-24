@@ -433,6 +433,33 @@ void run_test_case(
   server.close();
 }
 
+class InspectableClient : public tls::Client
+{
+public:
+  using tls::Client::Client;
+
+  int verify_mode()
+  {
+    return SSL_get_verify_mode(get_ssl());
+  }
+};
+
+TEST_CASE("connection inherits verification mode from context")
+{
+  auto ca = get_ca();
+
+  InspectableClient verified_client(get_dummy_cert(ca, "verified"));
+  REQUIRE(
+    (verified_client.verify_mode() &
+     (SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT)) ==
+    (SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT));
+
+  InspectableClient unverified_client(get_dummy_cert(ca, "unverified", false));
+  REQUIRE((unverified_client.verify_mode() & SSL_VERIFY_PEER) != 0);
+  REQUIRE(
+    (unverified_client.verify_mode() & SSL_VERIFY_FAIL_IF_NO_PEER_CERT) == 0);
+}
+
 TEST_CASE("unverified handshake")
 {
   // Create a CA

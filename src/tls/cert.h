@@ -73,14 +73,8 @@ namespace tls
 
     ~Cert() = default;
 
-    void use(SSL* ssl, SSL_CTX* ssl_ctx)
+    void use(SSL_CTX* ssl_ctx)
     {
-      if (peer_hostname.has_value())
-      {
-        // Peer hostname for SNI
-        SSL_set_tlsext_host_name(ssl, peer_hostname->c_str());
-      }
-
       if (peer_ca)
       {
         peer_ca->use(ssl_ctx);
@@ -94,7 +88,6 @@ namespace tls
           return ok;
         };
         SSL_CTX_set_verify(ssl_ctx, opts, cb);
-        SSL_set_verify(ssl, opts, cb);
       }
       else
       {
@@ -106,14 +99,21 @@ namespace tls
         // to verify it here, just request it.
         auto cb = [](int, x509_store_ctx_st*) { return 1; };
         SSL_CTX_set_verify(ssl_ctx, SSL_VERIFY_PEER, cb);
-        SSL_set_verify(ssl, SSL_VERIFY_PEER, cb);
       }
 
       if (has_own_cert)
       {
         CHECK1(
           SSL_CTX_use_cert_and_key(ssl_ctx, own_cert, *own_pkey, chain, 1));
-        CHECK1(SSL_use_cert_and_key(ssl, own_cert, *own_pkey, chain, 1));
+      }
+    }
+
+    void use(SSL* ssl)
+    {
+      if (peer_hostname.has_value())
+      {
+        // Peer hostname for SNI
+        CHECK1(SSL_set_tlsext_host_name(ssl, peer_hostname->c_str()));
       }
     }
   };
