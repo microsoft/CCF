@@ -1227,10 +1227,10 @@ def run(args):
             # testing that (without artifically removing/corrupting those values) a replacement package differs
             # in one of these values
             test_add_node_with_different_package(network, args)
-            test_update_all_nodes(network, args)
-            # Run the atomic variant on the same network, upgrading back to the
-            # original package, to cover consecutive full-network upgrades.
             test_update_all_nodes_atomically(network, args)
+            # Upgrade back to the original package to keep sequential coverage
+            # and exercise consecutive full-network upgrades.
+            test_update_all_nodes(network, args)
 
         # Run again at the end to confirm current nodes are acceptable
         test_verify_quotes(network, args)
