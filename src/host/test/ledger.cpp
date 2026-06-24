@@ -145,6 +145,10 @@ fs::path require_single_ledger_file_path()
       ledger_file = f.path();
     }
     file_count++;
+    if (file_count > 1)
+    {
+      break;
+    }
   }
 
   REQUIRE(file_count == 1);

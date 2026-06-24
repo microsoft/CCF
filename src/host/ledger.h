@@ -167,7 +167,9 @@ namespace asynchost
       if (fseeko(file, total_len, SEEK_SET) != 0)
       {
         throw std::logic_error(fmt::format(
-          "Failed to seek to truncation marker in ledger file {}: {}",
+          "Failed to seek to truncation marker at logical end {} in ledger "
+          "file {}: {}",
+          total_len,
           file_name,
           ccf::nonstd::strerror(errno)));
       }
@@ -183,7 +185,8 @@ namespace asynchost
       if (fwrite(&marker, sizeof(marker), 1, file) != 1)
       {
         throw std::logic_error(fmt::format(
-          "Failed to write truncation marker to ledger file {}: {}",
+          "Failed to write {}-byte truncation marker to ledger file {}: {}",
+          sizeof(marker),
           file_name,
           ccf::nonstd::strerror(errno)));
       }
@@ -686,15 +689,15 @@ namespace asynchost
           file_name,
           ccf::nonstd::strerror(errno)));
       }
-      const auto table_offset_ = ftello(file);
-      if (table_offset_ < 0)
+      const auto raw_table_offset = ftello(file);
+      if (raw_table_offset < 0)
       {
         throw std::logic_error(fmt::format(
           "Failed to read positions table offset in ledger file {}: {}",
           file_name,
           ccf::nonstd::strerror(errno)));
       }
-      const auto table_offset = static_cast<size_t>(table_offset_);
+      const auto table_offset = static_cast<size_t>(raw_table_offset);
       const auto completed_file_size =
         table_offset + positions.size() * sizeof(positions.at(0));
 
