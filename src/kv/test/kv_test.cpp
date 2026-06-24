@@ -3512,6 +3512,24 @@ TEST_CASE("Ledger entry chunk request")
     store.set_flag(
       ccf::kv::AbstractStore::StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
 
+    INFO("Roll back a transaction without clearing the snapshot flag");
+    {
+      MapTypes::StringString map("public:map");
+      auto tx = store.create_tx();
+
+      auto h1 = tx.rw(map);
+      h1->put("key", "value");
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+
+      store.rollback(
+        {store.commit_view(), store.current_version() - 1},
+        store.commit_view());
+
+      REQUIRE(store.flag_enabled(
+        ccf::kv::AbstractStore::StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE));
+      REQUIRE(store.should_create_ledger_chunk(store.current_version()));
+    }
+
     INFO("Add a signature that triggers a snapshot");
     {
       auto txid = store.next_txid();
