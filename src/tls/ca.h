@@ -60,9 +60,9 @@ namespace tls
 
     ~CA() = default;
 
-    void use(SSL_CTX* ssl_ctx)
+    void configure_trusted_cert_store(SSL_CTX* ssl_ctx) const
     {
-      X509_STORE* store = X509_STORE_new();
+      Unique_X509_STORE store;
       if (partial_ok)
       {
         CHECK1(X509_STORE_set_flags(store, X509_V_FLAG_PARTIAL_CHAIN));
@@ -71,7 +71,7 @@ namespace tls
       {
         CHECK1(X509_STORE_add_cert(store, ca));
       }
-      SSL_CTX_set_cert_store(ssl_ctx, store);
+      SSL_CTX_set_cert_store(ssl_ctx, store.release());
     }
   };
 }
