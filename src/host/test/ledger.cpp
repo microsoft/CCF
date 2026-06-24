@@ -140,7 +140,10 @@ fs::path get_only_ledger_file_path()
   size_t file_count = 0;
   for (auto const& f : fs::directory_iterator(ledger_dir))
   {
-    ledger_file = f.path();
+    if (file_count == 0)
+    {
+      ledger_file = f.path();
+    }
     file_count++;
   }
 
@@ -937,8 +940,8 @@ TEST_CASE("Truncation defers physical file shrink")
     REQUIRE(restored_ledger.get_last_idx() == 2);
   }
 
-  TestEntrySubmitter truncation_submitter(ledger, 1024, 2);
-  truncation_submitter.write(true, ccf::kv::FORCE_LEDGER_CHUNK_AFTER);
+  TestEntrySubmitter post_truncation_submitter(ledger, 1024, 2);
+  post_truncation_submitter.write(true, ccf::kv::FORCE_LEDGER_CHUNK_AFTER);
   ledger.commit(3);
 
   REQUIRE(fs::file_size(get_only_ledger_file_path()) < original_file_size);

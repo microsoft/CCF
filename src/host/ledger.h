@@ -89,6 +89,9 @@ namespace asynchost
     FILE* file = nullptr;
     ccf::pal::Mutex file_lock;
 
+    static constexpr uint64_t truncation_marker_size =
+      (1ULL << ccf::kv::SerialisedEntryHeader::BITS_FOR_SIZE) - 1;
+
     size_t start_idx = 1;
     size_t total_len = 0; // Points to end of last written entry
     std::vector<uint32_t> positions;
@@ -145,6 +148,8 @@ namespace asynchost
 
     void write_truncation_marker(size_t physical_size)
     {
+      // If there is no complete entry header beyond the logical end, recovery
+      // will already stop at total_len.
       if (physical_size < total_len + ccf::kv::serialised_entry_header_size)
       {
         return;
@@ -159,8 +164,7 @@ namespace asynchost
       }
 
       ccf::kv::SerialisedEntryHeader marker;
-      marker.set_size(
-        (1ULL << ccf::kv::SerialisedEntryHeader::BITS_FOR_SIZE) - 1);
+      marker.set_size(truncation_marker_size);
 
       TimeBoundLogger log_if_slow(fmt::format(
         "Writing ledger truncation marker - fwrite({})", file_name));
