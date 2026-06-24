@@ -22,6 +22,11 @@ namespace ccf::threading
 
   namespace detail
   {
+    // These local statics keep thread ID state header-only, so users of logger
+    // do not need to link libccf for a separate implementation object.
+    // Resetting the generator only affects threads that initialise their
+    // thread-local ID after the reset; callers can use set_current_thread_id()
+    // for the current thread.
     inline std::atomic<ThreadID>& next_thread_id()
     {
       static std::atomic<ThreadID> next = MAIN_THREAD_ID;
