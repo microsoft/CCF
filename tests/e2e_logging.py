@@ -1312,7 +1312,7 @@ def test_historical_query_range(network, args):
 @reqs.supports_methods("/app/log/public", "/app/log/public/historical/range")
 @reqs.at_least_n_nodes(1)
 def test_historical_query_range_pagination(network, args):
-    target_entry_id = 1542
+    sparse_entry_id = 1542
     filler_entry_id = 1543
 
     expected_entries = []
@@ -1326,7 +1326,7 @@ def test_historical_query_range_pagination(network, args):
         target_write_positions = {0, n_entries - 1}
         for i in range(n_entries):
             idx = (
-                target_entry_id
+                sparse_entry_id
                 if i in target_write_positions
                 else filler_entry_id
             )
@@ -1344,7 +1344,7 @@ def test_historical_query_range_pagination(network, args):
             if first_seqno is None:
                 first_seqno = r.seqno
 
-            if idx == target_entry_id:
+            if idx == sparse_entry_id:
                 expected_entries.append(
                     {
                         "id": idx,
@@ -1360,7 +1360,7 @@ def test_historical_query_range_pagination(network, args):
 
         path = (
             f"/app/log/public/historical/range?from_seqno={first_seqno}"
-            f"&to_seqno={last_seqno}&id={target_entry_id}"
+            f"&to_seqno={last_seqno}&id={sparse_entry_id}"
         )
         entries = []
         page_count = 0

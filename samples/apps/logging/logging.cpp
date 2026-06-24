@@ -264,7 +264,8 @@ namespace loggingapp
         if (value == 0)
         {
           throw std::logic_error(
-            fmt::format("Logging app configuration '{}' must be non-zero", key));
+            fmt::format(
+              "node_data.logging configuration '{}' must be non-zero", key));
         }
       }
     }
