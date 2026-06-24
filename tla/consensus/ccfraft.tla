@@ -1173,15 +1173,16 @@ PartialAppendEntriesRequest(i, j, m) ==
     /\ m.entries /= << >>
     /\ Len(log[i]) > m.prevLogIndex
     /\ Len(log[i]) < m.prevLogIndex + Len(m.entries)
-    /\ LET existing_entries == Len(log[i]) - m.prevLogIndex
-       IN /\ \A idx \in 1..existing_entries :
+    /\ LET overlap_length == Len(log[i]) - m.prevLogIndex
+       IN /\ \A idx \in 1..overlap_length :
                  log[i][m.prevLogIndex + idx].term = m.entries[idx].term
           /\ log' = [log EXCEPT ![i] =
-                @ \o SubSeq(m.entries, existing_entries + 1, Len(m.entries))]
+                @ \o SubSeq(m.entries, overlap_length + 1, Len(m.entries))]
     \* If new txs include reconfigurations, add them to configurations
     \* Also, if the commitIndex is updated, we may pop some old configs at the same time
     /\ LET
         new_commit_index == max(min(MaxCommittableIndex(log'[i]), m.commitIndex), commitIndex[i])
+        \* indexes after the follower's current end, up to the end of m
         new_indexes == Len(log[i]) + 1 .. m.prevLogIndex + Len(m.entries)
         \* log entries to be added to the log
         new_log_entries ==
