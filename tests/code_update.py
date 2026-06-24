@@ -1035,6 +1035,7 @@ def _test_update_all_nodes(network, args, atomic_reconfiguration=False):
             ), f"{actual_host_datas} != {expected_host_datas}"
 
     old_nodes = network.nodes.copy()
+    assert old_nodes, "Expected at least one node to replace"
     new_nodes = []
 
     LOG.info("Start fresh nodes running new code")
@@ -1210,6 +1211,7 @@ def run(args):
             # testing that (without artifically removing/corrupting those values) a replacement package differs
             # in one of these values
             test_add_node_with_different_package(network, args)
+            test_update_all_nodes(network, args)
             test_update_all_nodes_atomically(network, args)
 
         # Run again at the end to confirm current nodes are acceptable
