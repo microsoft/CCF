@@ -874,23 +874,29 @@ def get_replacement_package(args):
 
 def remove_retired_node(network, primary, node, timeout):
     end_time = time.time() + timeout
-    r = None
+    removable_nodes = None
+    node_status = None
     while time.time() < end_time:
         try:
             with primary.client(connection_timeout=timeout) as c:
-                r = c.get("/node/network/removable_nodes").body.json()
-                if node.node_id in {n["node_id"] for n in r["nodes"]}:
+                removable_nodes = c.get("/node/network/removable_nodes").body.json()
+                if node.node_id in {n["node_id"] for n in removable_nodes["nodes"]}:
                     check_commit = Checker(c)
                     r = c.delete(f"/node/network/nodes/{node.node_id}")
                     check_commit(r)
                     break
                 else:
-                    r = c.get(f"/node/network/nodes/{node.node_id}").body.json()
+                    node_status = c.get(
+                        f"/node/network/nodes/{node.node_id}"
+                    ).body.json()
         except ConnectionRefusedError:
             pass
         time.sleep(0.1)
     else:
-        raise TimeoutError(f"Timed out waiting for node to become removed: {r}")
+        raise TimeoutError(
+            "Timed out waiting for node to become removed: "
+            f"removable_nodes={removable_nodes}, node_status={node_status}"
+        )
 
     node.stop()
     network.nodes.remove(node)
@@ -1036,7 +1042,7 @@ def _test_update_all_nodes(network, args, atomic_reconfiguration=False):
             valid_from=valid_from,
             timeout=args.ledger_recovery_timeout,
         )
-        new_primary, _ = network.wait_for_new_primary_in(new_nodes, nodes=new_nodes)
+        new_primary, _ = network.wait_for_new_primary_in(new_nodes)
         for new_node in new_nodes:
             new_node.wait_for_node_to_join(timeout=args.ledger_recovery_timeout)
             new_node.set_certificate_validity_period(
