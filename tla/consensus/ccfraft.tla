@@ -1166,6 +1166,57 @@ NoConflictAppendEntriesRequest(i, j, m) ==
               m)
     /\ UNCHANGED <<preVoteStatus, currentTerm, votedFor, isNewFollower, candidateVars, leaderVars, hasJoined>>
 
+\* Follower i receives an AppendEntries request m which starts within its
+\* current log and extends beyond it, with no conflicting entries. The entries
+\* already held by the follower are skipped, and the new suffix is appended.
+PartialAppendEntriesRequest(i, j, m) ==
+    /\ m.entries /= << >>
+    /\ Len(log[i]) > m.prevLogIndex
+    /\ Len(log[i]) < m.prevLogIndex + Len(m.entries)
+    /\ LET existing_entries == Len(log[i]) - m.prevLogIndex
+       IN /\ \A idx \in 1..existing_entries :
+                 log[i][m.prevLogIndex + idx].term = m.entries[idx].term
+          /\ log' = [log EXCEPT ![i] =
+                @ \o SubSeq(m.entries, existing_entries + 1, Len(m.entries))]
+    \* If new txs include reconfigurations, add them to configurations
+    \* Also, if the commitIndex is updated, we may pop some old configs at the same time
+    /\ LET
+        new_commit_index == max(min(MaxCommittableIndex(log'[i]), m.commitIndex), commitIndex[i])
+        new_indexes == Len(log[i]) + 1 .. m.prevLogIndex + Len(m.entries)
+        \* log entries to be added to the log
+        new_log_entries ==
+            [idx \in new_indexes |-> m.entries[idx - m.prevLogIndex]]
+        \* filter for reconfigurations
+        reconfig_indexes ==
+            {idx \in DOMAIN new_log_entries : HasTypeReconfiguration(new_log_entries[idx])}
+        \* extended configurations with any new configurations
+        new_configs ==
+            configurations[i] @@ [idx \in reconfig_indexes |-> new_log_entries[idx].configuration]
+        new_committed_configs == {c \in DOMAIN new_configs : c <= new_commit_index}
+        new_conf_index == IF new_committed_configs = {} THEN 0 ELSE
+            Max(new_committed_configs)
+        new_retirement_index == RetirementIndexLog(log'[i],i)
+        IN
+        /\ commitIndex' = [commitIndex EXCEPT ![i] = new_commit_index]
+        /\ configurations' =
+                [configurations EXCEPT ![i] = RestrictDomain(new_configs, LAMBDA c : c >= new_conf_index)]
+        /\ retirementCompleted' = [retirementCompleted EXCEPT ![i] = NextRetirementCompleted(retirementCompleted[i], configurations[i], log'[i], commitIndex'[i], i)]
+        \* If we added a new configuration that we are in and were pending, we are now follower
+        /\ IF /\ leadershipState[i] = None
+              /\ \E conf_index \in DOMAIN(new_configs) : i \in new_configs[conf_index]
+           THEN leadershipState' = [leadershipState EXCEPT ![i] = Follower ]
+           ELSE UNCHANGED leadershipState
+          \* Recalculate membership state based on log' and commitIndex'
+        /\ membershipState' = [membershipState EXCEPT ![i] = CalcMembershipState(log'[i], commitIndex'[i], i)]
+    /\ Reply([type           |-> AppendEntriesResponse,
+              term           |-> currentTerm[i],
+              success        |-> TRUE,
+              lastLogIndex   |-> Len(log'[i]),
+              source         |-> i,
+              dest           |-> j],
+              m)
+    /\ UNCHANGED <<preVoteStatus, currentTerm, votedFor, isNewFollower, candidateVars, leaderVars, hasJoined>>
+
 AcceptAppendEntriesRequest(i, j, logOk, m) ==
     /\ m.term = currentTerm[i]
     /\ leadershipState[i] \in {Follower, None}
@@ -1175,6 +1226,7 @@ AcceptAppendEntriesRequest(i, j, logOk, m) ==
     /\ LET index == m.prevLogIndex + 1
        IN \/ AppendEntriesAlreadyDone(i, j, index, m)
           \/ NoConflictAppendEntriesRequest(i, j, m)
+          \/ PartialAppendEntriesRequest(i, j, m)
           \/ ConflictAppendEntriesRequest(i, index, m) \cdot AppendEntriesAlreadyDone(i, j, index, m)
           \/ ConflictAppendEntriesRequest(i, index, m) \cdot NoConflictAppendEntriesRequest(i, j, m)
           
