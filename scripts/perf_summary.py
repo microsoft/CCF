@@ -5,13 +5,19 @@ import os
 import sys
 import json
 import argparse
+import html
 from typing import List, Optional, Tuple
 
-# Metric to chart over time, with its unit, and how many recent runs to include.
-# A chart is produced for every benchmark that reports this metric.
-CHART_METRIC = "throughput"
-CHART_METRIC_UNIT = "tx/s"
-CHART_MAX_POINTS = 10
+# Metric groups to chart over time. A chart is produced for every benchmark that
+# reports each metric.
+METRIC_GROUPS = [
+    ("throughput", "Throughput", "tx/s"),
+    ("latency", "Latency", "ms"),
+    ("memory", "Memory", "bytes"),
+    ("rate", "Rate", "ops/s"),
+]
+CHART_MAX_POINTS = 30
+CHART_COLUMNS = 3
 DEFAULT_REPOSITORY = "microsoft/CCF"
 METADATA_KEY = "__metadata"
 
@@ -134,36 +140,64 @@ def render_mermaid_xychart(
     """Render a Mermaid xychart line chart for a single benchmark metric."""
     ordered_series = list(reversed(series))
     labels = ", ".join(f'"{label}"' for label, _, _, _ in ordered_series)
-    values = ", ".join(f"{value}" for _, _, _, value in ordered_series)
-    links = ", ".join(
-        run_links(label, run, commit) for label, run, commit, _ in ordered_series
-    )
+    raw_values = [value for _, _, _, value in ordered_series]
+    values = ", ".join(f"{value:.2f}" for value in raw_values)
     lines = [
-        f"### {benchmark}",
+        f"<h4>{html.escape(benchmark)}</h4>",
         "",
         "```mermaid",
         "---",
         "config:",
         "    xyChart:",
-        "        showDataLabel: true",
-        "        titleFontSize: 14",
+        "        width: 300",
+        "        height: 320",
+        "        showTitle: false",
         "        xAxis:",
         "            labelFontSize: 10",
         "            titleFontSize: 12",
         "        yAxis:",
-        "            labelFontSize: 10",
+        "            labelFontSize: 8",
         "            titleFontSize: 12",
+        "            showTitle: false",
+        "    themeVariables:",
+        "        xyChart:",
+        "            plotColorPalette: \"#107C10\"",
         "---",
         "xychart horizontal",
-        f'    title "{benchmark} {metric}"',
-        f'    x-axis "run" [{labels}]',
+        f"    x-axis [{labels}]",
         f'    y-axis "{metric} ({unit})"',
         f"    line [{values}]",
         "```",
         "",
-        f"Runs: {links}",
-        "",
     ]
+    return "\n".join(lines)
+
+
+def render_chart_table(
+    loaded: List[PerfRun], benchmarks: List[str], metric: str, unit: str
+) -> str:
+    """Render benchmark charts in a three-column table."""
+    lines = ['<table width="100%">']
+    for index, benchmark in enumerate(benchmarks):
+        if index % CHART_COLUMNS == 0:
+            lines.append("<tr>")
+        lines.append('<td valign="top" width="33%">')
+        series = [
+            (label, run, commit, value)
+            for label, run, commit, data in loaded
+            if (value := metric_value(data, benchmark, metric)) is not None
+        ]
+        lines.append(render_mermaid_xychart(series, benchmark, metric, unit))
+        lines.append("</td>")
+        if index % CHART_COLUMNS == CHART_COLUMNS - 1:
+            lines.append("</tr>")
+    remaining = len(benchmarks) % CHART_COLUMNS
+    if remaining:
+        for _ in range(CHART_COLUMNS - remaining):
+            lines.append('<td valign="top" width="33%"></td>')
+        lines.append("</tr>")
+    lines.append("</table>")
+    lines.append("")
     return "\n".join(lines)
 
 
@@ -178,22 +212,40 @@ def run_links(label: str, run: Optional[str], commit: Optional[str]) -> str:
     return label
 
 
-def render_metric_charts(loaded: List[PerfRun], metric: str, unit: str) -> str:
+def render_runs_table(loaded: List[PerfRun]) -> str:
+    """Render a compact table of run labels, Actions runs, and commits."""
+    lines = ["### Runs", "", "| Run | Actions | Commit |", "| --- | --- | --- |"]
+    for label, run, commit, data in reversed(loaded):
+        metadata = data.get(METADATA_KEY, {})
+        commit_sha = metadata.get("commit") if isinstance(metadata, dict) else None
+        short_commit = commit_sha[:8] if isinstance(commit_sha, str) else ""
+        run_link = f"[run]({run})" if run else ""
+        commit_link = f"[{short_commit}]({commit})" if commit and short_commit else ""
+        lines.append(f"| {label} | {run_link} | {commit_link} |")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def render_metric_group(
+    loaded: List[PerfRun], metric: str, title: str, unit: str
+) -> str:
     """Render one chart per benchmark that reports the given metric."""
     benchmarks = benchmarks_with_metric(loaded, metric)
-    lines = [f"## {metric.capitalize()} per benchmark ({unit})", ""]
+    lines = [f"## {title} ({unit})", ""]
     if not benchmarks:
         lines.append(f"_No benchmarks with a `{metric}` metric found._")
         lines.append("")
         return "\n".join(lines)
 
-    for benchmark in benchmarks:
-        series = [
-            (label, run, commit, value)
-            for label, run, commit, data in loaded
-            if (value := metric_value(data, benchmark, metric)) is not None
-        ]
-        lines.append(render_mermaid_xychart(series, benchmark, metric, unit))
+    lines.append(render_chart_table(loaded, benchmarks, metric, unit))
+    return "\n".join(lines)
+
+
+def render_perf_summary(loaded: List[PerfRun]) -> str:
+    """Render all perf metric groups as markdown."""
+    lines = ["# Performance summary", "", render_runs_table(loaded)]
+    for metric, title, unit in METRIC_GROUPS:
+        lines.append(render_metric_group(loaded, metric, title, unit))
     return "\n".join(lines)
 
 
@@ -213,7 +265,7 @@ def main() -> None:
 
     recent = files[-CHART_MAX_POINTS:]
     loaded = load_perf_data(args.directory, recent)
-    print(render_metric_charts(loaded, CHART_METRIC, CHART_METRIC_UNIT))
+    print(render_perf_summary(loaded))
 
 
 if __name__ == "__main__":
