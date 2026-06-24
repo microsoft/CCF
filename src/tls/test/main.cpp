@@ -440,7 +440,9 @@ public:
 
   int verify_mode()
   {
-    return SSL_get_verify_mode(get_ssl());
+    auto* ssl = get_ssl();
+    REQUIRE(ssl != nullptr);
+    return SSL_get_verify_mode(ssl);
   }
 };
 
