@@ -6,6 +6,7 @@
 #include "ccf/service/node_info_network.h"
 #include "ds/internal_logger.h"
 #include "ds/serialized.h"
+#include "enclave/abstract_rpc_sessions.h"
 #include "enclave/session.h"
 #include "forwarder_types.h"
 #include "http/http2_session.h"
@@ -38,7 +39,7 @@ namespace ccf
   static const ccf::Endorsement endorsement_default = {ccf::Authority::SERVICE};
 
   class RPCSessions : public std::enable_shared_from_this<RPCSessions>,
-                      public AbstractRPCResponder,
+                      public AbstractRPCSessions,
                       public ::http::ErrorReporter
   {
   private:
@@ -162,13 +163,13 @@ namespace ccf
     }
 
     void set_custom_protocol_subsystem(
-      std::shared_ptr<CustomProtocolSubsystem> cpss)
+      std::shared_ptr<CustomProtocolSubsystem> cpss) override
     {
       custom_protocol_subsystem = cpss;
     }
 
     void set_commit_callbacks_subsystem(
-      std::shared_ptr<CommitCallbackSubsystem> fcss)
+      std::shared_ptr<CommitCallbackSubsystem> fcss) override
     {
       commit_callbacks_subsystem = fcss;
     }
@@ -194,7 +195,7 @@ namespace ccf
     }
 
     void update_listening_interface_options(
-      const ccf::NodeInfoNetwork& node_info)
+      const ccf::NodeInfoNetwork& node_info) override
     {
       std::lock_guard<ccf::pal::Mutex> guard(lock);
 
@@ -226,7 +227,7 @@ namespace ccf
       }
     }
 
-    ccf::SessionMetrics get_session_metrics()
+    ccf::SessionMetrics get_session_metrics() override
     {
       ccf::SessionMetrics sm;
       std::lock_guard<ccf::pal::Mutex> guard(lock);
@@ -247,7 +248,7 @@ namespace ccf
       return sm;
     }
 
-    ccf::ApplicationProtocol get_app_protocol_main_interface() const
+    ccf::ApplicationProtocol get_app_protocol_main_interface() const override
     {
       // Note: this is a temporary function to conveniently find out which
       // protocol to use when creating client endpoints (e.g. for join
@@ -262,13 +263,13 @@ namespace ccf
     }
 
     void set_node_cert(
-      const ccf::crypto::Pem& cert_, const ccf::crypto::Pem& pk)
+      const ccf::crypto::Pem& cert_, const ccf::crypto::Pem& pk) override
     {
       set_cert(ccf::Authority::NODE, cert_, pk);
     }
 
     void set_network_cert(
-      const ccf::crypto::Pem& cert_, const ccf::crypto::Pem& pk)
+      const ccf::crypto::Pem& cert_, const ccf::crypto::Pem& pk) override
     {
       set_cert(ccf::Authority::SERVICE, cert_, pk);
     }
@@ -535,7 +536,8 @@ namespace ccf
 
       DISPATCHER_SET_MESSAGE_HANDLER(
         disp, ::tcp::tcp_inbound, [this](const uint8_t* data, size_t size) {
-          auto id = serialized::peek<ccf::tls::ConnID>(data, size);
+          auto [id, body] =
+            ringbuffer::read_message<::tcp::tcp_inbound>(data, size);
 
           auto session = find_session(id);
           if (session == nullptr)
@@ -545,7 +547,7 @@ namespace ccf
             return;
           }
 
-          session->handle_incoming_data({data, size});
+          session->handle_incoming_data(body);
         });
 
       DISPATCHER_SET_MESSAGE_HANDLER(
@@ -625,7 +627,10 @@ namespace ccf
             session = search->second.second;
           }
 
-          session->handle_incoming_data({data, size});
+          auto [_, addr_family, addr_data, body] =
+            ringbuffer::read_message<udp::udp_inbound>(data, size);
+          session->handle_incoming_data(
+            body, udp::sockaddr_decode(addr_family, addr_data));
         });
     }
   };
