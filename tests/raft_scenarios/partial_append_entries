@@ -85,8 +85,8 @@ periodic_all,10
 dispatch_one,1
 
 # Node 0 rejoins with a prefix that overlaps node 1's AppendEntries. One of the
-# following receives has prev_idx inside node 0's log, idx beyond node 0's log,
-# and matching terms in the overlap.
+# following receive operations has prev_idx inside node 0's log, idx beyond node
+# 0's log, and matching terms in the overlap.
 connect,0,1
 connect,0,2
 

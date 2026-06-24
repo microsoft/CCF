@@ -1181,6 +1181,7 @@ PartialAppendEntriesRequest(i, j, m) ==
     \* If new txs include reconfigurations, add them to configurations
     \* Also, if the commitIndex is updated, we may pop some old configs at the same time
     /\ LET
+        \* Keep the current commit index as a lower bound, as in NoConflictAppendEntriesRequest
         new_commit_index == max(min(MaxCommittableIndex(log'[i]), m.commitIndex), commitIndex[i])
         \* indexes after the follower's current end, up to the end of m
         new_indexes == Len(log[i]) + 1 .. m.prevLogIndex + Len(m.entries)
