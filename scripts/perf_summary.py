@@ -6,6 +6,7 @@ import sys
 import json
 import argparse
 import html
+import statistics
 from typing import List, Optional, Tuple
 
 # Metric groups to chart over time. A chart is produced for every benchmark that
@@ -18,6 +19,7 @@ METRIC_GROUPS = [
 ]
 CHART_MAX_POINTS = 30
 CHART_COLUMNS = 3
+EWMA_ALPHA = 0.3
 DEFAULT_REPOSITORY = "microsoft/CCF"
 METADATA_KEY = "__metadata"
 
@@ -131,6 +133,19 @@ def benchmarks_with_metric(loaded: List[PerfRun], metric: str) -> List[str]:
     return sorted(names)
 
 
+def ewma(values: List[float], alpha: float = EWMA_ALPHA) -> float:
+    """Return the exponentially weighted moving average of the values."""
+    average = values[0]
+    for value in values[1:]:
+        average = alpha * value + (1 - alpha) * average
+    return average
+
+
+def repeated_values(value: float, count: int) -> str:
+    """Render a constant series for every chart category."""
+    return ", ".join(f"{value:.2f}" for _ in range(count))
+
+
 def render_mermaid_xychart(
     series: List[Tuple[str, Optional[str], Optional[str], float]],
     benchmark: str,
@@ -142,6 +157,9 @@ def render_mermaid_xychart(
     labels = ", ".join(f'"{label}"' for label, _, _, _ in ordered_series)
     raw_values = [value for _, _, _, value in ordered_series]
     values = ", ".join(f"{value:.2f}" for value in raw_values)
+    chronological_values = [value for _, _, _, value in series]
+    baseline = ewma(chronological_values)
+    sigma = statistics.pstdev(chronological_values) if len(chronological_values) > 1 else 0
     lines = [
         f"<h4>{html.escape(benchmark)}</h4>",
         "",
@@ -161,12 +179,15 @@ def render_mermaid_xychart(
         "            showTitle: false",
         "    themeVariables:",
         "        xyChart:",
-        "            plotColorPalette: \"#107C10\"",
+        "            plotColorPalette: \"#003E7E, #62B5E5, #C7E9FB, #C7E9FB\"",
         "---",
         "xychart horizontal",
         f"    x-axis [{labels}]",
         f'    y-axis "{metric} ({unit})"',
         f"    line [{values}]",
+        f"    line [{repeated_values(baseline, len(raw_values))}]",
+        f"    line [{repeated_values(baseline - sigma, len(raw_values))}]",
+        f"    line [{repeated_values(baseline + sigma, len(raw_values))}]",
         "```",
         "",
     ]
@@ -243,7 +264,13 @@ def render_metric_group(
 
 def render_perf_summary(loaded: List[PerfRun]) -> str:
     """Render all perf metric groups as markdown."""
-    lines = ["# Performance summary", "", render_runs_table(loaded)]
+    lines = [
+        "# Performance summary",
+        "",
+        "_Each chart shows run values, an EWMA baseline, and +/-1 sigma reference lines._",
+        "",
+        render_runs_table(loaded),
+    ]
     for metric, title, unit in METRIC_GROUPS:
         lines.append(render_metric_group(loaded, metric, title, unit))
     return "\n".join(lines)
