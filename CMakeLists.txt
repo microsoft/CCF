@@ -676,6 +676,11 @@ if(BUILD_TESTS)
     )
 
     add_unit_test(
+      openssl_server_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/host/test/openssl_server_test.cpp
+    )
+
+    add_unit_test(
       raft_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/main.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/view_history.cpp

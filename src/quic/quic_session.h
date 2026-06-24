@@ -241,15 +241,11 @@ namespace quic
         const_cast<uint8_t*>(data.data()), data.size(), addr);
     }
 
-    void handle_incoming_data(std::span<const uint8_t> data) override
+    void handle_incoming_data(
+      std::span<const uint8_t> data, sockaddr addr) override
     {
-      auto [_, addr_family, addr_data, body] =
-        ringbuffer::read_message<udp::udp_inbound>(data);
-
-      task_scheduler->add_action(std::make_shared<RecvDataTask>(
-        shared_from_this(),
-        body,
-        udp::sockaddr_decode(addr_family, addr_data)));
+      task_scheduler->add_action(
+        std::make_shared<RecvDataTask>(shared_from_this(), data, addr));
     }
 
     virtual void recv(const uint8_t* data_, size_t size_, sockaddr addr_) = 0;

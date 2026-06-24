@@ -1,0 +1,312 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the Apache 2.0 License.
+
+// Vertical slice for the OpenSSL-native RPC transport: drives the epoll +
+// SSL_set_fd server (src/host/tls/openssl_server.h) with a real TLS client and
+// exercises handshake, plaintext round-trip, large transfers (backpressure
+// path) and concurrent connections.
+
+#include "host/tls/openssl_server.h"
+
+#include "ccf/crypto/ec_key_pair.h"
+#include "ccf/ds/x509_time_fmt.h"
+#include "crypto/certs.h"
+#include "host/tls/openssl_session_manager.h"
+
+#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+#include <arpa/inet.h>
+#include <atomic>
+#include <chrono>
+#include <condition_variable>
+#include <deque>
+#include <doctest/doctest.h>
+#include <mutex>
+#include <netinet/in.h>
+#include <openssl/ssl.h>
+#include <random>
+#include <string>
+#include <sys/socket.h>
+#include <thread>
+#include <unistd.h>
+#include <utility>
+#include <vector>
+
+using namespace asynchost;
+
+namespace
+{
+  std::pair<std::string, std::string> make_server_cert()
+  {
+    using namespace std::literals;
+    auto kp = ccf::crypto::make_ec_key_pair();
+    const auto valid_from =
+      ccf::ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
+    auto cert = ccf::crypto::create_self_signed_cert(
+      kp, "CN=localhost", {}, valid_from, /*validity_days*/ 365);
+    return {cert.str(), kp->private_key_pem().str()};
+  }
+
+  // Blocking TLS client: connects, sends `req` in full, reads exactly
+  // `expected_resp` bytes. Verification is disabled (self-signed slice cert).
+  std::vector<uint8_t> tls_client_exchange(
+    uint16_t port, const std::vector<uint8_t>& req, size_t expected_resp)
+  {
+    const int fd = ::socket(AF_INET, SOCK_STREAM, 0);
+    REQUIRE(fd >= 0);
+
+    sockaddr_in addr{};
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(port);
+    REQUIRE(inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr) == 1);
+    REQUIRE(
+      ::connect(fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) == 0);
+
+    SSL_CTX* cctx = SSL_CTX_new(TLS_client_method());
+    REQUIRE(cctx != nullptr);
+    SSL* ssl = SSL_new(cctx);
+    REQUIRE(ssl != nullptr);
+    REQUIRE(SSL_set_fd(ssl, fd) == 1);
+    SSL_set_connect_state(ssl);
+    REQUIRE(SSL_connect(ssl) == 1);
+
+    size_t off = 0;
+    while (off < req.size())
+    {
+      const int n =
+        SSL_write(ssl, req.data() + off, static_cast<int>(req.size() - off));
+      REQUIRE(n > 0);
+      off += static_cast<size_t>(n);
+    }
+
+    std::vector<uint8_t> resp;
+    resp.reserve(expected_resp);
+    while (resp.size() < expected_resp)
+    {
+      uint8_t buf[16384];
+      const int n = SSL_read(ssl, buf, static_cast<int>(sizeof(buf)));
+      if (n <= 0)
+      {
+        break;
+      }
+      resp.insert(resp.end(), buf, buf + static_cast<size_t>(n));
+    }
+
+    SSL_shutdown(ssl);
+    SSL_free(ssl);
+    SSL_CTX_free(cctx);
+    ::close(fd);
+    return resp;
+  }
+
+  std::vector<uint8_t> random_bytes(size_t n)
+  {
+    std::vector<uint8_t> v(n);
+    std::mt19937 rng(12345);
+    for (auto& b : v)
+    {
+      b = static_cast<uint8_t>(rng());
+    }
+    return v;
+  }
+
+  // Echoes received plaintext back to the same connection via send().
+  struct EchoServer
+  {
+    std::unique_ptr<OpenSSLServer> server;
+
+    EchoServer(const std::string& cert, const std::string& key)
+    {
+      server = std::make_unique<OpenSSLServer>(
+        cert,
+        key,
+        "127.0.0.1",
+        static_cast<uint16_t>(0),
+        [this](uint64_t id, std::vector<uint8_t> d) {
+          server->send(id, d.data(), d.size());
+        });
+      server->start();
+    }
+
+    ~EchoServer()
+    {
+      server->stop();
+    }
+
+    uint16_t port() const
+    {
+      return server->port();
+    }
+  };
+
+  // A minimal ccf::Session that echoes received bytes back through its writer,
+  // exercising the real Session / SessionWriter seam over TLS.
+  struct EchoSession : public ccf::Session
+  {
+    ::tcp::ConnID id;
+    ccf::SessionWriter& writer;
+
+    EchoSession(::tcp::ConnID id_, ccf::SessionWriter& w) : id(id_), writer(w)
+    {}
+
+    void handle_incoming_data(
+      std::span<const uint8_t> data, sockaddr /*addr*/ = {}) override
+    {
+      writer.write_outbound(id, data);
+    }
+
+    void send_data(std::vector<uint8_t>&& /*data*/) override {}
+
+    void close_session() override
+    {
+      writer.close_socket(id);
+    }
+  };
+}
+
+TEST_CASE("TLS handshake and small round-trip")
+{
+  auto [cert, key] = make_server_cert();
+  EchoServer s(cert, key);
+  REQUIRE(s.port() != 0);
+
+  const std::vector<uint8_t> msg = {'h', 'e', 'l', 'l', 'o'};
+  REQUIRE(tls_client_exchange(s.port(), msg, msg.size()) == msg);
+}
+
+TEST_CASE("Large transfer exercises the backpressure path")
+{
+  auto [cert, key] = make_server_cert();
+  EchoServer s(cert, key);
+
+  // 4 MiB forces the socket send buffer to fill, so SSL_write returns
+  // WANT_WRITE and the server must buffer + re-arm EPOLLOUT.
+  const auto payload = random_bytes(4 * 1024 * 1024);
+  const auto resp = tls_client_exchange(s.port(), payload, payload.size());
+
+  REQUIRE(resp.size() == payload.size());
+  REQUIRE(resp == payload);
+}
+
+TEST_CASE("Concurrent connections")
+{
+  auto [cert, key] = make_server_cert();
+  EchoServer s(cert, key);
+  const uint16_t port = s.port();
+
+  constexpr int num_clients = 16;
+  std::vector<std::thread> clients;
+  std::atomic<int> ok{0};
+  clients.reserve(num_clients);
+  for (int i = 0; i < num_clients; ++i)
+  {
+    clients.emplace_back([port, i, &ok]() {
+      const std::vector<uint8_t> msg(
+        64, static_cast<uint8_t>('A' + (i % 26)));
+      const auto resp = tls_client_exchange(port, msg, msg.size());
+      if (resp == msg)
+      {
+        ok.fetch_add(1);
+      }
+    });
+  }
+  for (auto& t : clients)
+  {
+    t.join();
+  }
+
+  REQUIRE(ok.load() == num_clients);
+}
+
+// Models the production dispatch path: the epoll thread hands the request to a
+// worker thread, which replies via send() - exercising cross-thread send +
+// eventfd loop wakeup.
+TEST_CASE("Reply from a worker thread")
+{
+  auto [cert, key] = make_server_cert();
+
+  OpenSSLServer* sp = nullptr;
+  std::mutex m;
+  std::condition_variable cv;
+  std::deque<std::pair<uint64_t, std::vector<uint8_t>>> q;
+  std::atomic<bool> stop{false};
+
+  std::thread worker([&]() {
+    for (;;)
+    {
+      std::unique_lock<std::mutex> l(m);
+      cv.wait(l, [&]() { return stop.load() || !q.empty(); });
+      if (stop.load() && q.empty())
+      {
+        return;
+      }
+      auto item = std::move(q.front());
+      q.pop_front();
+      l.unlock();
+      sp->send(item.first, item.second.data(), item.second.size());
+    }
+  });
+
+  OpenSSLServer server(
+    cert, key, "127.0.0.1", static_cast<uint16_t>(0), [&](
+                                                        uint64_t id,
+                                                        std::vector<uint8_t> d) {
+      {
+        std::lock_guard<std::mutex> l(m);
+        q.emplace_back(id, std::move(d));
+      }
+      cv.notify_one();
+    });
+  sp = &server;
+  server.start();
+
+  const std::vector<uint8_t> msg = {'w', 'o', 'r', 'k', 'e', 'r'};
+  REQUIRE(tls_client_exchange(server.port(), msg, msg.size()) == msg);
+
+  server.stop();
+  {
+    std::lock_guard<std::mutex> l(m);
+    stop.store(true);
+  }
+  cv.notify_one();
+  worker.join();
+}
+
+TEST_CASE("Session bridge: round-trip via ccf::Session + SessionWriter")
+{
+  auto [cert, key] = make_server_cert();
+  OpenSSLSessionManager mgr(
+    cert,
+    key,
+    "127.0.0.1",
+    static_cast<uint16_t>(0),
+    [](::tcp::ConnID id, ccf::SessionWriter& w) {
+      return std::make_shared<EchoSession>(id, w);
+    });
+  mgr.start();
+  REQUIRE(mgr.port() != 0);
+
+  const std::vector<uint8_t> msg = {'b', 'r', 'i', 'd', 'g', 'e'};
+  REQUIRE(tls_client_exchange(mgr.port(), msg, msg.size()) == msg);
+
+  mgr.stop();
+}
+
+TEST_CASE("Session bridge: large transfer through the seam")
+{
+  auto [cert, key] = make_server_cert();
+  OpenSSLSessionManager mgr(
+    cert,
+    key,
+    "127.0.0.1",
+    static_cast<uint16_t>(0),
+    [](::tcp::ConnID id, ccf::SessionWriter& w) {
+      return std::make_shared<EchoSession>(id, w);
+    });
+  mgr.start();
+
+  const auto payload = random_bytes(2 * 1024 * 1024);
+  const auto resp = tls_client_exchange(mgr.port(), payload, payload.size());
+  REQUIRE(resp == payload);
+
+  mgr.stop();
+}
