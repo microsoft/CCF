@@ -188,7 +188,9 @@ namespace ccf::crypto
   JsonWebKeyRSAPrivate RSAKeyPair_OpenSSL::private_key_jwk(
     const std::optional<std::string>& kid) const
   {
-    JsonWebKeyRSAPrivate jwk = {RSAPublicKey_OpenSSL::public_key_jwk(kid)};
+    JsonWebKeyRSAPrivate jwk;
+    static_cast<JsonWebKeyRSAPublic&>(jwk) =
+      RSAPublicKey_OpenSSL::public_key_jwk(kid);
 
     Unique_BIGNUM d;
     Unique_BIGNUM p;

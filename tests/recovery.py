@@ -3,6 +3,7 @@
 import infra.e2e_args
 import infra.member
 import infra.network
+import infra.net
 import infra.node
 import infra.logging_app as app
 import infra.checker
@@ -23,6 +24,7 @@ from e2e_logging import (
     get_service_key,
     fetch_and_verify_cose_receipt,
 )
+from reconfiguration import assert_no_ipv4_in_node_configs
 import infra.service_load
 import ccf.tx_id
 import tempfile
@@ -1125,7 +1127,7 @@ def check_snapshots(args, network):
             )
 
 
-def run(args):
+def run(args, ipv6=False):
     recoveries_count = 3
 
     txs = app.LoggingTxs("user0")
@@ -1135,9 +1137,17 @@ def run(args):
         args.debug_nodes,
         pdb=args.pdb,
         txs=txs,
+        ipv6=ipv6,
     ) as network:
         network.start_and_open(args)
         primary, _ = network.find_primary()
+
+        if ipv6:
+            primary_host = primary.get_public_rpc_host()
+            assert (
+                ":" in primary_host
+            ), f"Expected IPv6 primary host, got {primary_host}"
+            LOG.info(f"Confirmed recovery network is using IPv6: {primary_host}")
 
         LOG.info("Check for well-known genesis service TxID")
         with primary.client() as c:
@@ -1225,6 +1235,18 @@ def run(args):
                     assert (
                         chunk_start_seqno == seqno
                     ), f"{service_status} service at seqno {seqno} did not start a new ledger chunk (started at {chunk_start_seqno})"
+
+    if ipv6:
+        assert_no_ipv4_in_node_configs(network)
+
+
+def run_ipv6(args):
+    assert infra.net.ipv6_loopback_available(), (
+        "IPv6 loopback (::1) is not available; CI enables IPv6 via the "
+        "container --sysctl net.ipv6.conf.*.disable_ipv6=0 (see .github/workflows)"
+    )
+
+    run(args, ipv6=True)
 
 
 def run_recovery_from_files(args):
@@ -2336,6 +2358,15 @@ checked. Note that the key for each logging message is unique (per table).
     cr.add(
         "recovery",
         run,
+        package="samples/apps/logging/logging",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+        ledger_chunk_bytes="50KB",
+        snapshot_tx_interval=30,
+    )
+
+    cr.add(
+        "recovery_ipv6",
+        run_ipv6,
         package="samples/apps/logging/logging",
         nodes=infra.e2e_args.min_nodes(cr.args, f=1),
         ledger_chunk_bytes="50KB",

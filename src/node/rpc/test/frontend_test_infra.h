@@ -117,12 +117,12 @@ auto get_cert(uint64_t member_id, ccf::crypto::ECKeyPairPtr& kp_mem)
 std::unique_ptr<ccf::NetworkIdentity> make_test_network_ident()
 {
   using namespace std::literals;
-  const auto valid_from =
+  const auto ident_valid_from =
     ccf::ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
   return std::make_unique<ccf::NetworkIdentity>(
     "CN=CCF test network",
     ccf::crypto::service_identity_curve_choice,
-    valid_from,
+    ident_valid_from,
     2);
 }
 

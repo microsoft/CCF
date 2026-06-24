@@ -32,29 +32,25 @@
     ("{} | {} | {} | " s, \
      state->node_id, \
      state->leadership_state, \
-     state->membership_state, \
-     ##__VA_ARGS__)
+     state->membership_state __VA_OPT__(, ) __VA_ARGS__)
 #  define RAFT_DEBUG_FMT(s, ...) \
     CCF_LOG_FMT(DEBUG, "raft") \
     ("{} | {} | {} | " s, \
      state->node_id, \
      state->leadership_state, \
-     state->membership_state, \
-     ##__VA_ARGS__)
+     state->membership_state __VA_OPT__(, ) __VA_ARGS__)
 #  define RAFT_INFO_FMT(s, ...) \
     CCF_LOG_FMT(INFO, "raft") \
     ("{} | {} | {} | " s, \
      state->node_id, \
      state->leadership_state, \
-     state->membership_state, \
-     ##__VA_ARGS__)
+     state->membership_state __VA_OPT__(, ) __VA_ARGS__)
 #  define RAFT_FAIL_FMT(s, ...) \
     CCF_LOG_FMT(FAIL, "raft") \
     ("{} | {} | {} | " s, \
      state->node_id, \
      state->leadership_state, \
-     state->membership_state, \
-     ##__VA_ARGS__)
+     state->membership_state __VA_OPT__(, ) __VA_ARGS__)
 #else
 #  define RAFT_TRACE_FMT LOG_TRACE_FMT
 #  define RAFT_DEBUG_FMT LOG_DEBUG_FMT

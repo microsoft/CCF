@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #include "ccf/crypto/ec_key_pair.h"
 #include "ccf/crypto/verifier.h"
+#include "ccf/ds/nonstd.h"
 #include "crypto/certs.h"
 #include "ds/internal_logger.h"
 #include "tcp/msg_types.h"
@@ -40,7 +41,7 @@ public:
     if (socketpair(PF_LOCAL, SOCK_STREAM, 0, pfd) == -1)
     {
       throw runtime_error(
-        "Failed to create socketpair: " + string(strerror(errno)));
+        "Failed to create socketpair: " + string(ccf::nonstd::strerror(errno)));
     }
   }
   ~TestPipe()
@@ -53,7 +54,7 @@ public:
   {
     int rc = write(pfd[id], buf, len);
     if (rc == -1)
-      LOG_FAIL_FMT("Error while reading: {}", std::strerror(errno));
+      LOG_FAIL_FMT("Error while reading: {}", ccf::nonstd::strerror(errno));
     return rc;
   }
 
@@ -61,7 +62,7 @@ public:
   {
     int rc = read(pfd[id], buf, len);
     if (rc == -1)
-      LOG_FAIL_FMT("Error while reading: {}", std::strerror(errno));
+      LOG_FAIL_FMT("Error while reading: {}", ccf::nonstd::strerror(errno));
     return rc;
   }
 };
@@ -323,7 +324,7 @@ void run_test_case(
   unique_ptr<::tls::Cert> server_cert,
   unique_ptr<::tls::Cert> client_cert)
 {
-  uint8_t buf[max(message_length, response_length) + 1];
+  std::vector<uint8_t> buf(max(message_length, response_length) + 1);
 
   // Create a pair of client/server
   tls::Server server(std::move(server_cert));
@@ -400,12 +401,15 @@ void run_test_case(
   REQUIRE(written == message_length);
 
   // Receive the first message
-  int read = read_helper(server, buf, message_length);
+  int read = read_helper(server, buf.data(), message_length);
   REQUIRE(read == message_length);
   buf[message_length] = '\0';
   LOG_INFO_FMT(
-    "Server message received [{}]", truncate_message(buf, message_length));
-  REQUIRE(strncmp((const char*)buf, (const char*)message, message_length) == 0);
+    "Server message received [{}]",
+    truncate_message(buf.data(), message_length));
+  REQUIRE(
+    strncmp((const char*)buf.data(), (const char*)message, message_length) ==
+    0);
 
   // Send the response
   LOG_INFO_FMT(
@@ -414,13 +418,15 @@ void run_test_case(
   REQUIRE(written == response_length);
 
   // Receive the response
-  read = read_helper(client, buf, response_length);
+  read = read_helper(client, buf.data(), response_length);
   REQUIRE(read == response_length);
   buf[response_length] = '\0';
   LOG_INFO_FMT(
-    "Client message received [{}]", truncate_message(buf, message_length));
+    "Client message received [{}]",
+    truncate_message(buf.data(), message_length));
   REQUIRE(
-    strncmp((const char*)buf, (const char*)response, response_length) == 0);
+    strncmp((const char*)buf.data(), (const char*)response, response_length) ==
+    0);
 
   LOG_INFO_FMT("Closing connection");
   client.close();
@@ -620,8 +626,8 @@ TEST_CASE("large message")
 {
   // Uninitialised on purpose, we don't care what's in here
   size_t len = 8192;
-  uint8_t buf[len];
-  auto message = ccf::crypto::b64_from_raw(buf, len);
+  std::vector<uint8_t> buf(len);
+  auto message = ccf::crypto::b64_from_raw(buf.data(), len);
 
   // Create a CA
   auto ca = get_ca();
@@ -646,8 +652,8 @@ TEST_CASE("very large message")
 {
   // Uninitialised on purpose, we don't care what's in here
   size_t len = 16 * 1024; // 16k, base64 will be more
-  uint8_t buf[len];
-  auto message = ccf::crypto::b64_from_raw(buf, len);
+  std::vector<uint8_t> buf(len);
+  auto message = ccf::crypto::b64_from_raw(buf.data(), len);
 
   // Create a CA
   auto ca = get_ca();

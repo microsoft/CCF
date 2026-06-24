@@ -144,8 +144,6 @@ TEST_CASE("Scheduling" * doctest::test_suite("basic_tasks"))
   };
 
   WaitPoint a_started;
-  WaitPoint b_started;
-  WaitPoint task_0_started;
   WaitPoint task_1_started;
   WaitPoint task_2_started;
   WaitPoint task_3_started;

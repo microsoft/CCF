@@ -21,7 +21,7 @@ jobs:
     name: SBOM Generation
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 1
       - name: "Install SBOM tool"
@@ -48,7 +48,7 @@ jobs:
     if: ${{ !inputs.dry_run }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 1
       - name: "Check Release Notes"
@@ -104,7 +104,7 @@ jobs:
       ]
     container:
       image: ${{ needs.image_digest.outputs.image_digest }}
-      options: "--user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE"
+      options: "--user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE --sysctl net.ipv6.conf.all.disable_ipv6=0 --sysctl net.ipv6.conf.default.disable_ipv6=0 --sysctl net.ipv6.conf.lo.disable_ipv6=0"
 
     steps:
       - name: "Set SOURCE_DATE_EPOCH"
@@ -122,7 +122,7 @@ jobs:
           tdnf --snapshottime=$SOURCE_DATE_EPOCH -y update
           tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install ca-certificates git
 
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
 
@@ -339,7 +339,7 @@ jobs:
           tdnf -y update
           tdnf -y install ca-certificates git
 
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
 
@@ -389,7 +389,7 @@ jobs:
           gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
           tdnf --snapshottime=${{ needs.image_digest.outputs.SOURCE_DATE_EPOCH }} -y update
           tdnf --snapshottime=${{ needs.image_digest.outputs.SOURCE_DATE_EPOCH }} -y install ca-certificates git
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
       - name: Download Prebuilt Packages
@@ -448,7 +448,7 @@ jobs:
     name: Create Release
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 1
       - name: Download Packages
