@@ -68,6 +68,7 @@ assert_detail,1,leadership_state,Candidate
 dispatch_one,1
 dispatch_one,2
 
+# The numeric argument here is the Raft term, not a node ID.
 replicate,3,ConfirmCommit
 emit_signature,3
 
