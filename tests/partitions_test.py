@@ -507,6 +507,9 @@ def test_join_rollback_on_primary_isolation(network, args):
             from_snapshot=False,
         )
         pending_node.complete_join()
+        # This deliberately checks the isolated primary's local state: the
+        # pending join has been accepted there, but cannot be committed and must
+        # be rolled back once the backups elect a new primary.
         network.wait_for_node_in_store(
             primary, pending_node.node_id, ccf.ledger.NodeStatus.PENDING
         )
@@ -566,6 +569,9 @@ def test_join_rollback_on_primary_isolation(network, args):
             interface_name=infra.interfaces.SECONDARY_RPC_INTERFACE,
             timeout=args.ledger_recovery_timeout,
         )
+        # This deliberately checks the isolated primary's local state: the
+        # trusted transition has been observed by the joiner, but cannot be
+        # committed and must be rolled back once the backups elect a new primary.
         network.wait_for_node_in_store(
             primary, trusted_node.node_id, ccf.ledger.NodeStatus.TRUSTED
         )
