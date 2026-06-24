@@ -131,15 +131,30 @@ def render_mermaid_xychart(
     metric: str,
     unit: str,
 ) -> str:
-    """Render a Mermaid xychart-beta line chart for a single benchmark metric."""
-    labels = ", ".join(f'"{label}"' for label, _, _, _ in series)
-    values = ", ".join(f"{value}" for _, _, _, value in series)
-    links = ", ".join(run_links(label, run, commit) for label, run, commit, _ in series)
+    """Render a Mermaid xychart line chart for a single benchmark metric."""
+    ordered_series = list(reversed(series))
+    labels = ", ".join(f'"{label}"' for label, _, _, _ in ordered_series)
+    values = ", ".join(f"{value}" for _, _, _, value in ordered_series)
+    links = ", ".join(
+        run_links(label, run, commit) for label, run, commit, _ in ordered_series
+    )
     lines = [
         f"### {benchmark}",
         "",
         "```mermaid",
-        "xychart-beta",
+        "---",
+        "config:",
+        "    xyChart:",
+        "        showDataLabel: true",
+        "        titleFontSize: 14",
+        "        xAxis:",
+        "            labelFontSize: 10",
+        "            titleFontSize: 12",
+        "        yAxis:",
+        "            labelFontSize: 10",
+        "            titleFontSize: 12",
+        "---",
+        "xychart horizontal",
         f'    title "{benchmark} {metric}"',
         f'    x-axis "run" [{labels}]',
         f'    y-axis "{metric} ({unit})"',
