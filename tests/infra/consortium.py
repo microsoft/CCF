@@ -425,6 +425,13 @@ class Consortium:
         """
         Atomically trust pending replacement nodes and retire existing nodes in
         a single governance proposal.
+
+        :param remote_node: Node used to submit and vote on the proposal.
+        :param nodes_to_retire: Existing trusted nodes to retire.
+        :param nodes_to_add: Pending replacement nodes to trust.
+        :param valid_from: Certificate validity start time for replacement nodes.
+        :param validity_period_days: Optional certificate validity period.
+        :param kwargs: Additional arguments forwarded to vote_using_majority.
         """
         proposal_body = {"actions": []}
         for node_to_add in nodes_to_add:

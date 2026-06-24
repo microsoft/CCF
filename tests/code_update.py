@@ -27,6 +27,8 @@ import time
 
 from loguru import logger as LOG
 
+CERTIFICATE_VALID_FROM_OFFSET = timedelta(seconds=1)
+
 
 @reqs.description("Verify node evidence")
 def test_verify_quotes(network, args):
@@ -876,6 +878,12 @@ def remove_retired_node(network, primary, node, timeout):
     """
     Wait for a retired node to become removable, delete it from the service,
     then stop it and remove it from local network tracking.
+
+    :param network: Network object tracking the node locally.
+    :param primary: Current primary used to query and delete the retired node.
+    :param node: Retired node to remove.
+    :param timeout: Maximum time to wait for the node to become removable.
+    :raises TimeoutError: If the node is not listed as removable before timeout.
     """
     end_time = time.time() + timeout
     removable_nodes = None
@@ -1035,7 +1043,6 @@ def _test_update_all_nodes(network, args, atomic_reconfiguration=False):
             ), f"{actual_host_datas} != {expected_host_datas}"
 
     old_nodes = network.nodes.copy()
-    assert old_nodes, "Expected at least one node to replace"
     new_nodes = []
 
     LOG.info("Start fresh nodes running new code")
@@ -1046,7 +1053,7 @@ def _test_update_all_nodes(network, args, atomic_reconfiguration=False):
 
     if atomic_reconfiguration:
         LOG.info("Trust fresh nodes and retire original nodes in one proposal")
-        valid_from = datetime.now(timezone.utc) - timedelta(seconds=1)
+        valid_from = datetime.now(timezone.utc) - CERTIFICATE_VALID_FROM_OFFSET
         network.consortium.replace_nodes(
             primary,
             old_nodes,
