@@ -18,12 +18,14 @@ METRIC_GROUPS = [
     ("rate", "Rate", "ops/s"),
 ]
 CHART_MAX_POINTS = 30
-CHART_COLUMNS = 3
+CHART_COLUMNS = 4
+CHART_CELL_WIDTH = f"{100 // CHART_COLUMNS}%"
 EWMA_ALPHA = 0.3
 DEFAULT_REPOSITORY = "microsoft/CCF"
 METADATA_KEY = "__metadata"
 
 PerfRun = Tuple[str, Optional[str], Optional[str], dict]
+ChartSeries = List[Tuple[str, float]]
 
 
 def jobid_sort_key(name: str) -> Tuple[int, object]:
@@ -147,19 +149,23 @@ def repeated_values(value: float, count: int) -> str:
 
 
 def render_mermaid_xychart(
-    series: List[Tuple[str, Optional[str], Optional[str], float]],
+    series: ChartSeries,
     benchmark: str,
     metric: str,
     unit: str,
 ) -> str:
     """Render a Mermaid xychart line chart for a single benchmark metric."""
     ordered_series = list(reversed(series))
-    labels = ", ".join(f'"{label}"' for label, _, _, _ in ordered_series)
-    raw_values = [value for _, _, _, value in ordered_series]
+    labels = ", ".join(f'"{label}"' for label, _ in ordered_series)
+    raw_values = [value for _, value in ordered_series]
     values = ", ".join(f"{value:.2f}" for value in raw_values)
-    chronological_values = [value for _, _, _, value in series]
+    chronological_values = [value for _, value in series]
     baseline = ewma(chronological_values)
-    sigma = statistics.pstdev(chronological_values) if len(chronological_values) > 1 else 0
+    sigma = (
+        statistics.pstdev(chronological_values)
+        if len(chronological_values) > 1
+        else 0
+    )
     lines = [
         f"<h4>{html.escape(benchmark)}</h4>",
         "",
@@ -167,7 +173,7 @@ def render_mermaid_xychart(
         "---",
         "config:",
         "    xyChart:",
-        "        width: 300",
+        "        width: 220",
         "        height: 320",
         "        showTitle: false",
         "        xAxis:",
@@ -202,10 +208,10 @@ def render_chart_table(
     for index, benchmark in enumerate(benchmarks):
         if index % CHART_COLUMNS == 0:
             lines.append("<tr>")
-        lines.append('<td valign="top" width="33%">')
+        lines.append(f'<td valign="top" width="{CHART_CELL_WIDTH}">')
         series = [
-            (label, run, commit, value)
-            for label, run, commit, data in loaded
+            (label, value)
+            for label, _, _, data in loaded
             if (value := metric_value(data, benchmark, metric)) is not None
         ]
         lines.append(render_mermaid_xychart(series, benchmark, metric, unit))
@@ -215,22 +221,11 @@ def render_chart_table(
     remaining = len(benchmarks) % CHART_COLUMNS
     if remaining:
         for _ in range(CHART_COLUMNS - remaining):
-            lines.append('<td valign="top" width="33%"></td>')
+            lines.append(f'<td valign="top" width="{CHART_CELL_WIDTH}"></td>')
         lines.append("</tr>")
     lines.append("</table>")
     lines.append("")
     return "\n".join(lines)
-
-
-def run_links(label: str, run: Optional[str], commit: Optional[str]) -> str:
-    """Markdown links for a chart point's Actions run and commit."""
-    if run and commit:
-        return f"[{label}]({run}) ([commit]({commit}))"
-    if run:
-        return f"[{label}]({run})"
-    if commit:
-        return f"{label} ([commit]({commit}))"
-    return label
 
 
 def render_runs_table(loaded: List[PerfRun]) -> str:
