@@ -64,7 +64,7 @@ Procedure
 
 3. The original nodes (``Node 0``, ``Node 1`` and ``Node 2``) can then safely be retired.
 
-   Alternatively, once all the new nodes have joined and are listed as pending, members can submit a single proposal containing the ``transition_node_to_trusted`` actions for every new node and the ``remove_node`` actions for every original node. This atomically reconfigures the service from the old nodes to the new, non-overlapping set. After the proposal is accepted, wait for a new primary to be elected from the new nodes before removing the retired original nodes from the state.
+   Alternatively, once all the new nodes have joined and are listed as pending, members can submit a single atomic reconfiguration proposal. This proposal should contain the ``transition_node_to_trusted`` actions for every new node and the ``remove_node`` actions for every original node. This reconfigures the service from the old nodes to the new, non-overlapping set. After the proposal is accepted, wait for a new primary to be elected from the new nodes before removing the retired original nodes from the state.
 
 - ``Node 0`` is retired, 5 nodes remaining, ``f = 2``:
 

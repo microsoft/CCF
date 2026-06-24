@@ -873,6 +873,10 @@ def get_replacement_package(args):
 
 
 def remove_retired_node(network, primary, node, timeout):
+    """
+    Wait for a retired node to become removable, delete it from the service,
+    then stop it and remove it from local network tracking.
+    """
     end_time = time.time() + timeout
     removable_nodes = None
     node_status = None
@@ -903,6 +907,13 @@ def remove_retired_node(network, primary, node, timeout):
 
 
 def _test_update_all_nodes(network, args, atomic_reconfiguration=False):
+    """
+    Update every node to the replacement package.
+
+    By default, fresh nodes are trusted first and old nodes are retired one by
+    one. When atomic_reconfiguration is true, all fresh nodes are trusted and
+    all old nodes are retired in a single governance proposal.
+    """
     replacement_package = get_replacement_package(args)
 
     primary, _ = network.find_nodes()
