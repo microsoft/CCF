@@ -454,10 +454,13 @@ TEST_CASE("connection inherits verification mode from context")
      (SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT)) ==
     (SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT));
 
-  InspectableClient unverified_client(get_dummy_cert(ca, "unverified", false));
-  REQUIRE((unverified_client.verify_mode() & SSL_VERIFY_PEER) != 0);
+  InspectableClient request_only_client(
+    get_dummy_cert(ca, "request_only", false));
+  // auth_required=false still requests a peer certificate, but does not fail
+  // the handshake if the peer certificate is missing.
+  REQUIRE((request_only_client.verify_mode() & SSL_VERIFY_PEER) != 0);
   REQUIRE(
-    (unverified_client.verify_mode() & SSL_VERIFY_FAIL_IF_NO_PEER_CERT) == 0);
+    (request_only_client.verify_mode() & SSL_VERIFY_FAIL_IF_NO_PEER_CERT) == 0);
 }
 
 TEST_CASE("unverified handshake")
