@@ -422,6 +422,10 @@ class Consortium:
         validity_period_days=None,
         **kwargs,
     ):
+        """
+        Atomically trust pending replacement nodes and retire existing nodes in
+        a single governance proposal.
+        """
         proposal_body = {"actions": []}
         for node_to_add in nodes_to_add:
             trust_args = {"node_id": node_to_add.node_id, "valid_from": str(valid_from)}

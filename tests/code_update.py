@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 from base64 import b64encode, b64decode
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import infra.e2e_args
 import infra.network
 import infra.path
@@ -1046,7 +1046,7 @@ def _test_update_all_nodes(network, args, atomic_reconfiguration=False):
 
     if atomic_reconfiguration:
         LOG.info("Trust fresh nodes and retire original nodes in one proposal")
-        valid_from = datetime.now(timezone.utc)
+        valid_from = datetime.now(timezone.utc) - timedelta(seconds=1)
         network.consortium.replace_nodes(
             primary,
             old_nodes,
@@ -1056,7 +1056,16 @@ def _test_update_all_nodes(network, args, atomic_reconfiguration=False):
         )
         # The accepted proposal retires every old node, so only the new nodes
         # can elect the next primary.
-        new_primary, _ = network.wait_for_new_primary_in(new_nodes)
+        timeout_multiplier = infra.network.DEFAULT_TIMEOUT_MULTIPLIER
+        if network.observed_election_duration:
+            timeout_multiplier = max(
+                timeout_multiplier,
+                args.ledger_recovery_timeout / network.observed_election_duration,
+            )
+        new_primary, _ = network.wait_for_new_primary_in(
+            new_nodes,
+            timeout_multiplier=timeout_multiplier,
+        )
         primary = new_primary
         for new_node in new_nodes:
             new_node.wait_for_node_to_join(timeout=args.ledger_recovery_timeout)
@@ -1090,6 +1099,7 @@ def _test_update_all_nodes(network, args, atomic_reconfiguration=False):
     args.package = replacement_package
 
     LOG.info("Check the network is still functional")
+    primary, _ = network.find_primary()
     check_can_progress(primary)
     return network
 
