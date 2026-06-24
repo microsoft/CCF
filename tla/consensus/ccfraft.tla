@@ -1181,7 +1181,8 @@ PartialAppendEntriesRequest(i, j, m) ==
     \* If new txs include reconfigurations, add them to configurations
     \* Also, if the commitIndex is updated, we may pop some old configs at the same time
     /\ LET
-        \* Keep the current commit index as a lower bound, as in NoConflictAppendEntriesRequest
+        \* Keep the current commit index as a lower bound. This only advances
+        \* when the leader's commit index and the follower's log allow it.
         new_commit_index == max(min(MaxCommittableIndex(log'[i]), m.commitIndex), commitIndex[i])
         \* indexes after the follower's current end, up to the end of m
         new_indexes == Len(log[i]) + 1 .. m.prevLogIndex + Len(m.entries)
@@ -1229,6 +1230,8 @@ AcceptAppendEntriesRequest(i, j, logOk, m) ==
        IN \/ AppendEntriesAlreadyDone(i, j, index, m)
           \/ NoConflictAppendEntriesRequest(i, j, m)
           \/ PartialAppendEntriesRequest(i, j, m)
+          \* ConflictAppendEntriesRequest truncates to prevLogIndex, so the same message
+          \* is no longer partial-overlap when it is then processed.
           \/ ConflictAppendEntriesRequest(i, index, m) \cdot AppendEntriesAlreadyDone(i, j, index, m)
           \/ ConflictAppendEntriesRequest(i, index, m) \cdot NoConflictAppendEntriesRequest(i, j, m)
           
