@@ -1310,6 +1310,7 @@ def test_historical_query_range(network, args):
 
 @reqs.description("Read paginated range of historical state across index buckets")
 @reqs.supports_methods("/app/log/public", "/app/log/public/historical/range")
+@reqs.at_least_n_nodes(1)
 def test_historical_query_range_pagination(network, args):
     target_id = 1542
     other_id = 1543
@@ -1322,9 +1323,9 @@ def test_historical_query_range_pagination(network, args):
     primary, _ = network.find_primary()
     with primary.client("user0") as c:
         n_entries = 50
-        target_writes = {0, n_entries - 1}
+        target_write_indices = {0, n_entries - 1}
         for i in range(n_entries):
-            idx = target_id if i in target_writes else other_id
+            idx = target_id if i in target_write_indices else other_id
             msg = f"Multi-bucket indexing message {i}"
             r = c.post(
                 "/app/log/public",

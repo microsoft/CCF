@@ -251,6 +251,8 @@ namespace loggingapp
     std::shared_ptr<RecordsIndexingStrategy> index_per_public_key = nullptr;
     std::shared_ptr<CommittedRecords> committed_records = nullptr;
 
+    // Read a size_t configuration value, rejecting 0 because these values are
+    // used as divisors and bounds.
     static void read_size_config(
       const nlohmann::json& config, const char* key, size_t& value)
     {
@@ -266,6 +268,8 @@ namespace loggingapp
       }
     }
 
+    // Allow tests to reduce indexing/page limits for this sample app via
+    // node_data.logging.
     void configure_from_node_data()
     {
       auto node_config =
