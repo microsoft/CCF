@@ -173,6 +173,9 @@ namespace asynchost
       }
 
       ccf::kv::SerialisedEntryHeader marker;
+      // Use the largest encodable entry size so recovery sees a complete
+      // header whose payload cannot fit in the remaining file tail, and stops
+      // before recovering stale entries.
       marker.set_size(truncation_marker_size);
 
       TimeBoundLogger log_if_slow(fmt::format(
@@ -659,7 +662,13 @@ namespace asynchost
         }
       }
 
-      fseeko(file, total_len, SEEK_SET);
+      if (fseeko(file, total_len, SEEK_SET) != 0)
+      {
+        throw std::logic_error(fmt::format(
+          "Failed to seek to logical end of ledger file {}: {}",
+          file_name,
+          ccf::nonstd::strerror(errno)));
+      }
       LOG_TRACE_FMT("Truncated ledger file {} at seqno {}", file_name, idx);
       return false;
     }
@@ -670,8 +679,22 @@ namespace asynchost
       {
         return;
       }
-      fseeko(file, total_len, SEEK_SET);
-      size_t table_offset = ftello(file);
+      if (fseeko(file, total_len, SEEK_SET) != 0)
+      {
+        throw std::logic_error(fmt::format(
+          "Failed to seek to positions table offset in ledger file {}: {}",
+          file_name,
+          ccf::nonstd::strerror(errno)));
+      }
+      const auto table_offset_ = ftello(file);
+      if (table_offset_ < 0)
+      {
+        throw std::logic_error(fmt::format(
+          "Failed to read positions table offset in ledger file {}: {}",
+          file_name,
+          ccf::nonstd::strerror(errno)));
+      }
+      const auto table_offset = static_cast<size_t>(table_offset_);
       const auto completed_file_size =
         table_offset + positions.size() * sizeof(positions.at(0));
 
