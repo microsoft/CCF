@@ -15,6 +15,7 @@ namespace ccf
     const ccf::StartupConfig& ccf_config,
     std::vector<uint8_t>& node_cert,
     std::vector<uint8_t>& service_cert,
+    std::vector<uint8_t>& rpc_addresses,
     StartType start_type,
     ccf::LoggerLevel log_level,
     size_t num_worker_thread,
