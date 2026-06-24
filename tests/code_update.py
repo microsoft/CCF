@@ -898,7 +898,7 @@ def remove_retired_node(network, primary, node, timeout):
         time.sleep(0.1)
     else:
         raise TimeoutError(
-            "Timed out waiting for node to become removed: "
+            "Timed out waiting for node to become removable: "
             f"removable_nodes={removable_nodes}, node_status={node_status}"
         )
 
@@ -1054,7 +1054,10 @@ def _test_update_all_nodes(network, args, atomic_reconfiguration=False):
             valid_from=valid_from,
             timeout=args.ledger_recovery_timeout,
         )
+        # The accepted proposal retires every old node, so only the new nodes
+        # can elect the next primary.
         new_primary, _ = network.wait_for_new_primary_in(new_nodes)
+        primary = new_primary
         for new_node in new_nodes:
             new_node.wait_for_node_to_join(timeout=args.ledger_recovery_timeout)
             new_node.set_certificate_validity_period(
@@ -1087,7 +1090,7 @@ def _test_update_all_nodes(network, args, atomic_reconfiguration=False):
     args.package = replacement_package
 
     LOG.info("Check the network is still functional")
-    check_can_progress(new_nodes[-1])
+    check_can_progress(primary)
     return network
 
 
