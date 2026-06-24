@@ -227,4 +227,3 @@ jobs:
           path: perf
           if-no-files-found: ignore
         if: success() || failure()
-

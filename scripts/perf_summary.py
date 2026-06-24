@@ -68,9 +68,7 @@ def run_url(name: str) -> Optional[str]:
     if not parts or not parts[0].isdigit():
         return None
 
-    server_url = os.environ.get("GITHUB_SERVER_URL", "https://github.com").rstrip(
-        "/"
-    )
+    server_url = os.environ.get("GITHUB_SERVER_URL", "https://github.com").rstrip("/")
     repository = os.environ.get("GITHUB_REPOSITORY", DEFAULT_REPOSITORY)
     return f"{server_url}/{repository}/actions/runs/{parts[0]}"
 
@@ -105,9 +103,7 @@ def load_perf_data(directory: str, files: List[str]) -> List[PerfRun]:
             metadata = data.get(METADATA_KEY, {})
             if not isinstance(metadata, dict):
                 metadata = {}
-            loaded.append(
-                (run_label(name), run_url(name), commit_url(metadata), data)
-            )
+            loaded.append((run_label(name), run_url(name), commit_url(metadata), data))
     return loaded
 
 
@@ -162,9 +158,7 @@ def render_mermaid_xychart(
     chronological_values = [value for _, value in series]
     baseline = ewma(chronological_values)
     sigma = (
-        statistics.pstdev(chronological_values)
-        if len(chronological_values) > 1
-        else 0
+        statistics.pstdev(chronological_values) if len(chronological_values) > 1 else 0
     )
     lines = [
         f"<h4>{html.escape(benchmark)}</h4>",
@@ -185,7 +179,7 @@ def render_mermaid_xychart(
         "            showTitle: false",
         "    themeVariables:",
         "        xyChart:",
-        "            plotColorPalette: \"#003E7E, #62B5E5, #C7E9FB, #C7E9FB\"",
+        '            plotColorPalette: "#003E7E, #62B5E5, #C7E9FB, #C7E9FB"',
         "---",
         "xychart horizontal",
         f"    x-axis [{labels}]",
