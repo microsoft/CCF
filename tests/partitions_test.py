@@ -540,13 +540,9 @@ def test_join_rollback_on_primary_isolation(network, args):
 
     LOG.info("Trust a pending node on an isolated primary")
     primary, backups = network.find_nodes()
-    rpc_interfaces = {
-        infra.interfaces.PRIMARY_RPC_INTERFACE: infra.interfaces.RPCInterface(
-            host="localhost"
-        )
-    }
-    rpc_interfaces.update(infra.interfaces.make_secondary_interface())
-    trusted_node = network.create_node(infra.interfaces.HostSpec(rpc_interfaces))
+    host_spec = infra.interfaces.HostSpec()
+    host_spec.rpc_interfaces.update(infra.interfaces.make_secondary_interface())
+    trusted_node = network.create_node(host_spec)
     network.join_node(
         trusted_node,
         args.package,
