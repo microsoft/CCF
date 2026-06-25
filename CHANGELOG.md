@@ -7,7 +7,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [7.0.7]
 
-
 [7.0.7]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.7
 
 ### Fixed
