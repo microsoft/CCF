@@ -478,7 +478,7 @@ namespace asynchost
     {
       for (;;)
       {
-        sockaddr_in peer{};
+        sockaddr_storage peer{};
         socklen_t plen = sizeof(peer);
         const int cfd = accept4(
           listen_fd,
@@ -871,32 +871,47 @@ namespace asynchost
         }
       }
 
-      listen_fd = socket(AF_INET, SOCK_STREAM, 0);
-      if (listen_fd < 0)
+      // Resolve and bind the listening address. Using getaddrinfo (rather than
+      // inet_pton) supports hostnames (e.g. "localhost") and IPv6 (e.g. "::1"),
+      // not just IPv4 literals.
+      addrinfo hints{};
+      hints.ai_family = AF_UNSPEC;
+      hints.ai_socktype = SOCK_STREAM;
+      hints.ai_flags = AI_PASSIVE;
+      addrinfo* res = nullptr;
+      const std::string port_str = std::to_string(port);
+      if (getaddrinfo(host.c_str(), port_str.c_str(), &hints, &res) != 0)
       {
         cleanup();
-        throw std::runtime_error("socket() failed");
+        throw std::runtime_error("getaddrinfo failed for " + host);
       }
-      const int one = 1;
-      setsockopt(listen_fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
-      // SO_REUSEPORT is the idiom that will let each worker run its own
-      // listening socket + epoll loop in the production design.
-      setsockopt(listen_fd, SOL_SOCKET, SO_REUSEPORT, &one, sizeof(one));
 
-      sockaddr_in addr{};
-      addr.sin_family = AF_INET;
-      addr.sin_port = htons(port);
-      if (inet_pton(AF_INET, host.c_str(), &addr.sin_addr) != 1)
+      const int one = 1;
+      bool bound_ok = false;
+      for (addrinfo* ai = res; ai != nullptr; ai = ai->ai_next)
       {
-        cleanup();
-        throw std::runtime_error("inet_pton failed");
+        listen_fd = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
+        if (listen_fd < 0)
+        {
+          continue;
+        }
+        setsockopt(listen_fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
+        // SO_REUSEPORT is the idiom that will let each worker run its own
+        // listening socket + epoll loop in the production design.
+        setsockopt(listen_fd, SOL_SOCKET, SO_REUSEPORT, &one, sizeof(one));
+        if (bind(listen_fd, ai->ai_addr, ai->ai_addrlen) == 0)
+        {
+          bound_ok = true;
+          break;
+        }
+        ::close(listen_fd);
+        listen_fd = -1;
       }
-      if (
-        bind(
-          listen_fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) != 0)
+      freeaddrinfo(res);
+      if (!bound_ok)
       {
         cleanup();
-        throw std::runtime_error("bind() failed");
+        throw std::runtime_error("bind() failed for " + host);
       }
       if (listen(listen_fd, SOMAXCONN) != 0)
       {
@@ -909,14 +924,22 @@ namespace asynchost
         throw std::runtime_error("set_nonblocking(listen) failed");
       }
 
-      // Read back the actual bound port (supports ephemeral port 0).
-      sockaddr_in bound{};
+      // Read back the actual bound port (supports ephemeral port 0, v4 and v6).
+      sockaddr_storage bound{};
       socklen_t blen = sizeof(bound);
       if (
-        getsockname(
-          listen_fd, reinterpret_cast<sockaddr*>(&bound), &blen) == 0)
+        getsockname(listen_fd, reinterpret_cast<sockaddr*>(&bound), &blen) ==
+        0)
       {
-        bound_port = ntohs(bound.sin_port);
+        if (bound.ss_family == AF_INET6)
+        {
+          bound_port =
+            ntohs(reinterpret_cast<sockaddr_in6*>(&bound)->sin6_port);
+        }
+        else
+        {
+          bound_port = ntohs(reinterpret_cast<sockaddr_in*>(&bound)->sin_port);
+        }
       }
 
       epoll_fd = epoll_create1(0);

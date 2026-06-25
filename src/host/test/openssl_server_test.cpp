@@ -20,6 +20,7 @@
 #include <condition_variable>
 #include <deque>
 #include <doctest/doctest.h>
+#include <netdb.h>
 #include <mutex>
 #include <netinet/in.h>
 #include <openssl/pem.h>
@@ -137,12 +138,15 @@ namespace
   {
     std::unique_ptr<OpenSSLServer> server;
 
-    EchoServer(const std::string& cert, const std::string& key)
+    EchoServer(
+      const std::string& cert,
+      const std::string& key,
+      const std::string& host = "127.0.0.1")
     {
       server = std::make_unique<OpenSSLServer>(
         cert,
         key,
-        "127.0.0.1",
+        host,
         static_cast<uint16_t>(0),
         [this](uint64_t id, std::vector<uint8_t> d) {
           server->send(id, d.data(), d.size());
@@ -371,4 +375,99 @@ TEST_CASE("Peer certificate is captured for inbound connections")
   REQUIRE(!captured.empty());
 
   mgr.stop();
+}
+
+namespace
+{
+  // Connect to host:port (resolved via getaddrinfo, any family), TLS round-trip.
+  std::vector<uint8_t> tls_echo_roundtrip(
+    const std::string& host, uint16_t port, const std::vector<uint8_t>& msg)
+  {
+    addrinfo hints{};
+    hints.ai_socktype = SOCK_STREAM;
+    addrinfo* res = nullptr;
+    REQUIRE(
+      getaddrinfo(host.c_str(), std::to_string(port).c_str(), &hints, &res) ==
+      0);
+    int fd = -1;
+    for (addrinfo* ai = res; ai != nullptr; ai = ai->ai_next)
+    {
+      fd = ::socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
+      if (fd < 0)
+      {
+        continue;
+      }
+      if (::connect(fd, ai->ai_addr, ai->ai_addrlen) == 0)
+      {
+        break;
+      }
+      ::close(fd);
+      fd = -1;
+    }
+    freeaddrinfo(res);
+    REQUIRE(fd >= 0);
+
+    SSL_CTX* cctx = SSL_CTX_new(TLS_client_method());
+    REQUIRE(cctx != nullptr);
+    SSL* ssl = SSL_new(cctx);
+    REQUIRE(SSL_set_fd(ssl, fd) == 1);
+    SSL_set_connect_state(ssl);
+    REQUIRE(SSL_connect(ssl) == 1);
+
+    size_t off = 0;
+    while (off < msg.size())
+    {
+      const int n =
+        SSL_write(ssl, msg.data() + off, static_cast<int>(msg.size() - off));
+      REQUIRE(n > 0);
+      off += static_cast<size_t>(n);
+    }
+
+    std::vector<uint8_t> resp(msg.size());
+    size_t roff = 0;
+    while (roff < resp.size())
+    {
+      const int n = SSL_read(
+        ssl, resp.data() + roff, static_cast<int>(resp.size() - roff));
+      if (n <= 0)
+      {
+        break;
+      }
+      roff += static_cast<size_t>(n);
+    }
+
+    SSL_shutdown(ssl);
+    SSL_free(ssl);
+    SSL_CTX_free(cctx);
+    ::close(fd);
+    return resp;
+  }
+}
+
+TEST_CASE("Listener binds a hostname (localhost)")
+{
+  auto [cert, key] = make_server_cert();
+  EchoServer s(cert, key, "localhost");
+  REQUIRE(s.port() != 0);
+
+  const std::vector<uint8_t> msg = {'l', 'o', 'c', 'a', 'l'};
+  REQUIRE(tls_echo_roundtrip("localhost", s.port(), msg) == msg);
+}
+
+TEST_CASE("Listener binds IPv6 loopback when available")
+{
+  auto [cert, key] = make_server_cert();
+  std::unique_ptr<EchoServer> s;
+  try
+  {
+    s = std::make_unique<EchoServer>(cert, key, "::1");
+  }
+  catch (const std::exception&)
+  {
+    MESSAGE("IPv6 loopback unavailable in this environment - skipping");
+    return;
+  }
+
+  const std::vector<uint8_t> msg = {'v', '6'};
+  REQUIRE(tls_echo_roundtrip("::1", s->port(), msg) == msg);
 }
