@@ -194,10 +194,13 @@ namespace ccf::js::extensions
       }
 
       const auto service = tx_ptr->ro<ccf::Service>(Tables::SERVICE)->get();
+      if (!service.has_value())
+      {
+        return JS_ThrowInternalError(ctx, "Failed to get active service");
+      }
       if (
-        service.has_value() &&
-        (service->status == ServiceStatus::RECOVERING ||
-         service->status == ServiceStatus::WAITING_FOR_RECOVERY_SHARES))
+        service->status == ServiceStatus::RECOVERING ||
+        service->status == ServiceStatus::WAITING_FOR_RECOVERY_SHARES)
       {
         return JS_ThrowInternalError(
           ctx,
