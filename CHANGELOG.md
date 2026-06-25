@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [7.0.7]
+
+### Fixed
+
+- Changing recovery members or the recovery threshold, refreshing recovery shares, or rekeying the ledger while the service is recovering now correctly returns an error instead of appearing to succeed. These operations were always potentially unsafe because at-recovery ledger secrets cannot be rekeyed; services with custom constitutions should update their `set_member`, `remove_member`, `set_recovery_threshold`, `trigger_recovery_shares_refresh`, and `trigger_ledger_rekey` actions to reject them while recovering (#7980).
+
 ## [7.0.6]
 
 [7.0.6]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.6
@@ -16,7 +22,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - Forwarded commands are no longer processed until the node is part of the network, matching the existing behaviour for other node-to-node messages. Previously a forwarded command could be executed while the node was in an earlier startup state, which could lead to undefined behaviour for some commands (#7936).
-- Changing recovery members or the recovery threshold, refreshing recovery shares, or rekeying the ledger while the service is recovering now correctly returns an error instead of appearing to succeed. These operations were always potentially unsafe because at-recovery ledger secrets cannot be rekeyed; services with custom constitutions should update their `set_member`, `remove_member`, `set_recovery_threshold`, `trigger_recovery_shares_refresh`, and `trigger_ledger_rekey` actions to reject them while recovering (#7980).
 
 ## [7.0.5]
 
