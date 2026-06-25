@@ -77,7 +77,7 @@ namespace tls
     {
       if (peer_ca)
       {
-        peer_ca->use(ssl_ctx);
+        peer_ca->configure_trusted_cert_store(ssl_ctx);
       }
 
       if (auth_required)
