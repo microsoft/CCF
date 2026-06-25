@@ -10,6 +10,10 @@ on:
 
 permissions: read-all
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   benchmark_virtual:
     name: Benchmark Virtual
@@ -28,7 +32,7 @@ jobs:
         run: |
           gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
           tdnf -y update
-          tdnf -y install ca-certificates git
+          tdnf -y install ca-certificates git gh
 
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -64,6 +68,27 @@ jobs:
           python3 tests/infra/platform_detection.py virtual
         shell: bash
 
+      - name: "Restore previous perf results"
+        run: &restore_perf |
+          set -ex
+          slug="${GITHUB_REF_NAME//\//-}"
+          echo "BRANCH_SLUG=${slug}" >> "$GITHUB_ENV"
+          name="${ARTIFACT_PREFIX}-${slug}"
+          mkdir -p perf
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          run_ids=$(gh api "repos/${{ github.repository }}/actions/artifacts?name=${name}&per_page=100" \
+            --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0:20] | .[].workflow_run.id')
+          for run_id in $run_ids; do
+            if gh run download "$run_id" --name "$name" --dir prev_artifact; then
+              find prev_artifact -name '*.json' -exec cp {} perf/ \;
+              break
+            fi
+          done
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_PREFIX: perf-bench-virtual
+
       - name: Build and run virtual perf tests
         run: |
           git config --global --add safe.directory /__w/CCF/CCF
@@ -80,10 +105,26 @@ jobs:
           PYTHONPATH=../tests python convert_pico_to_bencher.py
         shell: bash
 
+      - name: "Collect perf results"
+        run: |
+          set -ex
+          jobid="${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}"
+          mkdir -p perf
+          cp build/bencher.json "perf/${jobid}.json"
+        shell: bash
+        if: success() || failure()
+
+      - name: "Summarise perf data files"
+        run: &perf_summary |
+          set -ex
+          python3 scripts/perf_summary.py perf >> "$GITHUB_STEP_SUMMARY"
+        shell: bash
+        if: success() || failure()
+
       - name: "Upload logs"
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: logs-bench-virtual
+          name: logs-bench-virtual-${{ env.BRANCH_SLUG }}
           path: |
             build/workspace/*/*.config.json
             build/workspace/*/out
@@ -93,17 +134,13 @@ jobs:
           if-no-files-found: ignore
         if: success() || failure()
 
-      - uses: bencherdev/bencher@ec56bb69a7f34096002ca3384d10e2f6676b063e # v0.6.7
-      - name: Track base branch benchmarks with Bencher
-        run: &bencher_run |
-          bencher run \
-          --project ccf \
-          --token '${{ secrets.BENCHER_API_TOKEN }}' \
-          --branch main \
-          --testbed "${CCF_PLATFORM_SLUG}-${CCF_CPUID}-${CCF_CORES}cores-${CCF_MEM_GB}g" \
-          --adapter json \
-          --err \
-          --file build/bencher.json
+      - name: "Upload perf data"
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: perf-bench-virtual-${{ env.BRANCH_SLUG }}
+          path: perf
+          if-no-files-found: ignore
+        if: success() || failure()
 
   benchmark_snp:
     name: Benchmark SNP
@@ -114,7 +151,11 @@ jobs:
         "JobId=bench_snp-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
       ]
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: "Install gh"
+        shell: bash
+        run: tdnf -y install gh
+
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           fetch-depth: 0
 
@@ -127,6 +168,13 @@ jobs:
           set -ex
           python3 tests/infra/platform_detection.py snp
         shell: bash
+
+      - name: "Restore previous perf results"
+        run: *restore_perf
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_PREFIX: perf-bench-snp
 
       - name: Build and run SNP perf tests
         run: |
@@ -144,10 +192,24 @@ jobs:
           PYTHONPATH=../tests python convert_pico_to_bencher.py
         shell: bash
 
+      - name: "Collect perf results"
+        run: |
+          set -ex
+          jobid="${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}"
+          mkdir -p perf
+          cp build/bencher.json "perf/${jobid}.json"
+        shell: bash
+        if: success() || failure()
+
+      - name: "Summarise perf data files"
+        run: *perf_summary
+        shell: bash
+        if: success() || failure()
+
       - name: "Upload logs"
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: logs-bench-snp
+          name: logs-bench-snp-${{ env.BRANCH_SLUG }}
           path: |
             dmesg.log
             build/workspace/*/*.config.json
@@ -158,6 +220,10 @@ jobs:
           if-no-files-found: ignore
         if: success() || failure()
 
-      - uses: bencherdev/bencher@ec56bb69a7f34096002ca3384d10e2f6676b063e # v0.6.7
-      - name: Track base branch benchmarks with Bencher
-        run: *bencher_run
+      - name: "Upload perf data"
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: perf-bench-snp-${{ env.BRANCH_SLUG }}
+          path: perf
+          if-no-files-found: ignore
+        if: success() || failure()
