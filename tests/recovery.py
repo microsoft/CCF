@@ -340,8 +340,12 @@ def test_recover_service(
 
 @reqs.description("Recover a service using a different code ID")
 @reqs.not_snp("Cannot produce package-specific code IDs on SNP")
-@reqs.recover(number_txs=2)
 def test_recover_service_with_different_code_id(network, args):
+    network.txs.issue(
+        network=network,
+        number_txs=vars(args).get("msgs_per_recovery", 2),
+    )
+
     recovery_package = getattr(args, "recovery_package", get_replacement_package(args))
     platform = infra.platform_detection.get_platform()
     initial_host_data, _ = infra.utils.get_host_data_and_security_policy(
@@ -395,8 +399,12 @@ def test_recover_service_with_different_code_id(network, args):
         )
         recovered_network.consortium.set_js_app_from_dir(new_primary, js_logging_app)
 
-    args.package = recovery_package
+    recovered_network.txs = app.LoggingTxs("user0")
     recovered_network.txs.issue(recovered_network, number_txs=1)
+    recovered_network.txs.verify(
+        network=recovered_network,
+        timeout=vars(args).get("ledger_recovery_timeout"),
+    )
     return recovered_network
 
 
