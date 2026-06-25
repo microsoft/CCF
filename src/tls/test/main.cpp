@@ -284,6 +284,39 @@ unique_ptr<::tls::Cert> get_dummy_cert(
   return make_unique<Cert>(std::move(ca), crt, pk, std::nullopt, auth_required);
 }
 
+TEST_CASE("CA configures trusted certificate store")
+{
+  auto ca = get_ca();
+  ::tls::CA trusted_ca(ca.cert.str(), true);
+  ccf::crypto::OpenSSL::Unique_SSL_CTX ctx(TLS_method());
+
+  trusted_ca.configure_trusted_cert_store(ctx);
+
+  auto* store = SSL_CTX_get_cert_store(ctx);
+  REQUIRE(store != nullptr);
+  auto* params = X509_STORE_get0_param(store);
+  REQUIRE(params != nullptr);
+  REQUIRE(
+    (X509_VERIFY_PARAM_get_flags(params) & X509_V_FLAG_PARTIAL_CHAIN) != 0);
+}
+
+TEST_CASE("Cert configures TLS verification and own certificate")
+{
+  auto ca = get_ca();
+  auto cert = get_dummy_cert(ca, "server");
+  ccf::crypto::OpenSSL::Unique_SSL_CTX ctx(TLS_method());
+  ccf::crypto::OpenSSL::Unique_SSL ssl(ctx);
+
+  cert->configure_ssl(ssl, ctx);
+
+  constexpr auto expected_verify_mode =
+    SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT;
+  REQUIRE(SSL_CTX_get_verify_mode(ctx) == expected_verify_mode);
+  REQUIRE(SSL_get_verify_mode(ssl) == expected_verify_mode);
+  REQUIRE(SSL_CTX_get0_certificate(ctx) != nullptr);
+  REQUIRE(SSL_get_certificate(ssl) != nullptr);
+}
+
 /// Helper to write past the maximum buffer (16k)
 int write_helper(ccf::tls::Context& handler, const uint8_t* buf, size_t len)
 {
