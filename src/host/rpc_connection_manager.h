@@ -23,6 +23,7 @@
 #include "enclave/abstract_rpc_sessions.h"
 #include "enclave/no_more_sessions.h"
 #include "enclave/rpc_map.h"
+#include "host/datagram_server.h"
 #include "host/tls/openssl_session_manager.h"
 #include "http/error_reporter.h"
 #include "http/http2_session.h"
@@ -77,6 +78,11 @@ namespace ccf
 
     std::mutex interfaces_mutex;
     std::map<std::string, std::unique_ptr<ListenInterface>> interfaces;
+    // Plaintext UDP echo servers, keyed by interface name. The pre-cutover UDP
+    // "QUIC" interface was a plaintext echo stub; this preserves that until
+    // OpenSSL-native QUIC is available (see host/datagram_server.h).
+    std::map<std::string, std::unique_ptr<asynchost::DatagramServer>>
+      udp_servers;
     // cert/key PEM per endorsement authority (for cert-deferred listening).
     std::map<ccf::Authority, std::pair<std::string, std::string>> certs;
 
@@ -229,6 +235,10 @@ namespace ccf
           li->bridge->stop();
         }
       }
+      for (auto& [name, server] : udp_servers)
+      {
+        server->stop();
+      }
     }
 
     // Bind and start listening on `name` (which must have been configured via
@@ -294,6 +304,35 @@ namespace ccf
         on_closed);
       li->bridge->start();
       return li->bridge->port();
+    }
+
+    // Bind and start a plaintext UDP echo server for `name`. This preserves the
+    // pre-cutover UDP echo stub (interfaces with protocol "udp").
+    //
+    // === QUIC EXTENSION POINT ===
+    // A real QUIC interface would, instead of echoing, hand each datagram to an
+    // OpenSSL QUIC listener (OpenSSL >= 3.5). The DatagramServer below is the
+    // shared substrate for that (see host/datagram_server.h).
+    uint16_t listen_udp(
+      const std::string& name,
+      const std::string& host,
+      const std::string& port)
+    {
+      std::lock_guard<std::mutex> guard(interfaces_mutex);
+      auto server = std::make_unique<asynchost::DatagramServer>(
+        host,
+        static_cast<uint16_t>(std::stoi(port)),
+        [](
+          const uint8_t* data,
+          size_t len,
+          const asynchost::DatagramServer::Reply& reply) {
+          // Echo the datagram back to its sender.
+          reply(data, len);
+        });
+      server->start();
+      const uint16_t bound = server->port();
+      udp_servers.emplace(name, std::move(server));
+      return bound;
     }
 
     // ----- AbstractRPCSessions / AbstractRPCResponder -----------------------
@@ -457,6 +496,12 @@ namespace ccf
       std::lock_guard<std::mutex> guard(interfaces_mutex);
       for (const auto& [name, interface] : node_info.rpc_interfaces)
       {
+        // UDP interfaces use the datagram echo path (listen_udp), not the TCP
+        // session machinery.
+        if (interface.protocol == "udp")
+        {
+          continue;
+        }
         auto it = interfaces.find(name);
         if (it == interfaces.end())
         {

@@ -216,7 +216,11 @@ namespace ccf
         {
           const auto [host, port] =
             ccf::split_net_address(interface.bind_address);
-          const uint16_t bound = rpcsessions->listen(name, host, port);
+          // UDP interfaces use the datagram (echo) path; TCP interfaces the
+          // OpenSSL stream path.
+          const uint16_t bound = (interface.protocol == "udp") ?
+            rpcsessions->listen_udp(name, host, port) :
+            rpcsessions->listen(name, host, port);
           interface.bind_address =
             ccf::make_net_address(host, std::to_string(bound));
 
