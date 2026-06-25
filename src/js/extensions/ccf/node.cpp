@@ -54,7 +54,8 @@ namespace ccf::js::extensions
          service->status == ServiceStatus::WAITING_FOR_RECOVERY_SHARES))
       {
         return JS_ThrowInternalError(
-          ctx, "Cannot refresh recovery shares while the service is recovering");
+          ctx,
+          "Cannot refresh recovery shares while the service is recovering");
       }
 
       try
@@ -199,7 +200,8 @@ namespace ccf::js::extensions
          service->status == ServiceStatus::WAITING_FOR_RECOVERY_SHARES))
       {
         return JS_ThrowInternalError(
-          ctx, "Cannot refresh recovery shares while the service is recovering");
+          ctx,
+          "Cannot refresh recovery shares while the service is recovering");
       }
 
       try
