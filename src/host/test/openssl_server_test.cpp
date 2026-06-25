@@ -188,6 +188,30 @@ namespace
       writer.close_socket(id);
     }
   };
+
+  // Writes a (large) response then immediately closes - reproduces the close-
+  // truncation bug: without graceful close, the buffered response is discarded.
+  struct LargeThenCloseSession : public ccf::Session
+  {
+    ::tcp::ConnID id;
+    ccf::SessionWriter& writer;
+    std::vector<uint8_t> payload;
+
+    LargeThenCloseSession(
+      ::tcp::ConnID id_, ccf::SessionWriter& w, std::vector<uint8_t> p) :
+      id(id_), writer(w), payload(std::move(p))
+    {}
+
+    void handle_incoming_data(
+      std::span<const uint8_t> /*data*/, sockaddr /*addr*/ = {}) override
+    {
+      writer.write_outbound(id, payload);
+      writer.close_socket(id);
+    }
+
+    void send_data(std::vector<uint8_t>&& /*data*/) override {}
+    void close_session() override {}
+  };
 }
 
 TEST_CASE("TLS handshake and small round-trip")
@@ -470,4 +494,27 @@ TEST_CASE("Listener binds IPv6 loopback when available")
 
   const std::vector<uint8_t> msg = {'v', '6'};
   REQUIRE(tls_echo_roundtrip("::1", s->port(), msg) == msg);
+}
+
+TEST_CASE("Graceful close flushes buffered response without truncation")
+{
+  auto [cert, key] = make_server_cert();
+  const auto payload = random_bytes(4 * 1024 * 1024);
+
+  OpenSSLSessionManager mgr(
+    cert,
+    key,
+    "127.0.0.1",
+    static_cast<uint16_t>(0),
+    [&payload](::tcp::ConnID id, ccf::SessionWriter& w, std::vector<uint8_t>) {
+      return std::make_shared<LargeThenCloseSession>(id, w, payload);
+    });
+  mgr.start();
+
+  const std::vector<uint8_t> req = {'g', 'o'};
+  const auto resp = tls_client_exchange(mgr.port(), req, payload.size());
+  REQUIRE(resp.size() == payload.size());
+  REQUIRE(resp == payload);
+
+  mgr.stop();
 }
