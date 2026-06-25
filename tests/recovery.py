@@ -389,6 +389,12 @@ def test_recover_service_with_different_code_id(network, args):
         recovered_host_data = r.body.json()[platform]["hostData"]
         assert recovery_host_data in recovered_host_data, recovered_host_data
 
+    if recovery_package == "js_generic":
+        js_logging_app = os.path.join(
+            os.path.dirname(__file__), "..", "samples", "apps", "logging", "js"
+        )
+        recovered_network.consortium.set_js_app_from_dir(new_primary, js_logging_app)
+
     args.package = recovery_package
     recovered_network.txs.issue(recovered_network, number_txs=1)
     return recovered_network
