@@ -936,9 +936,9 @@ def test_recovery_elections(orig_network, args):
             backup.stop()
         except Exception as e:
             LOG.warning(f"Failed to stop backup node: {e}")
-    assert backup.remote.check_done(), (
-        f"Backup node {backup} did not terminate after recovery/election period"
-    )
+    assert (
+        backup.remote.check_done()
+    ), f"Backup node {backup} did not terminate after recovery/election period"
 
     network.ignore_errors_on_shutdown()
     network.stop_all_nodes(skip_verification=True)
