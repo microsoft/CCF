@@ -518,3 +518,53 @@ TEST_CASE("Graceful close flushes buffered response without truncation")
 
   mgr.stop();
 }
+
+// Multiple sequential requests on a single kept-alive TLS connection - the node
+// must not drop the connection between requests (regression for the e2e
+// "Server disconnected" after a few requests on an idle keep-alive connection).
+TEST_CASE("Persistent connection survives many sequential round-trips")
+{
+  auto [cert, key] = make_server_cert();
+  EchoServer s(cert, key);
+  REQUIRE(s.port() != 0);
+
+  const int fd = ::socket(AF_INET, SOCK_STREAM, 0);
+  REQUIRE(fd >= 0);
+  sockaddr_in addr{};
+  addr.sin_family = AF_INET;
+  addr.sin_port = htons(s.port());
+  REQUIRE(inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr) == 1);
+  REQUIRE(::connect(fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) == 0);
+
+  SSL_CTX* cctx = SSL_CTX_new(TLS_client_method());
+  SSL* ssl = SSL_new(cctx);
+  REQUIRE(SSL_set_fd(ssl, fd) == 1);
+  SSL_set_connect_state(ssl);
+  REQUIRE(SSL_connect(ssl) == 1);
+
+  for (int i = 0; i < 10; ++i)
+  {
+    const std::vector<uint8_t> msg = {
+      'r', static_cast<uint8_t>('0' + (i % 10))};
+    REQUIRE(SSL_write(ssl, msg.data(), static_cast<int>(msg.size())) == 2);
+
+    std::vector<uint8_t> resp(msg.size());
+    size_t off = 0;
+    while (off < resp.size())
+    {
+      const int n =
+        SSL_read(ssl, resp.data() + off, static_cast<int>(resp.size() - off));
+      REQUIRE(n > 0);
+      off += static_cast<size_t>(n);
+    }
+    REQUIRE(resp == msg);
+
+    // Idle a moment between requests, as the e2e client does (sleep(0.5)).
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+  }
+
+  SSL_shutdown(ssl);
+  SSL_free(ssl);
+  SSL_CTX_free(cctx);
+  ::close(fd);
+}
