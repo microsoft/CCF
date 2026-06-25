@@ -1075,7 +1075,6 @@ def _test_update_all_nodes(network, args, atomic_reconfiguration=False):
             new_node.set_certificate_validity_period(
                 valid_from, args.maximum_node_certificate_validity_days
             )
-        # See https://github.com/microsoft/CCF/issues/1713
         check_can_progress(new_primary)
         for node in old_nodes:
             remove_retired_node(
@@ -1095,7 +1094,6 @@ def _test_update_all_nodes(network, args, atomic_reconfiguration=False):
             if node.node_id == primary.node_id:
                 new_primary, _ = network.wait_for_new_primary(primary)
                 primary = new_primary
-                # See https://github.com/microsoft/CCF/issues/1713
                 check_can_progress(new_primary)
             node.stop()
 
