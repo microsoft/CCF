@@ -4,22 +4,26 @@
 
 #include "ccf/ds/json.h"
 #include "ccf/service/tables/jwt.h"
+#include "http/curl.h"
 #include "http/http_builder.h"
 #include "http/http_rpc_context.h"
 #include "node/rpc/node_frontend.h"
+#include "tasks/basic_task.h"
+#include "tasks/task_system.h"
 
 #define FMT_HEADER_ONLY
+#include <curl/curl.h>
 #include <fmt/format.h>
 
 namespace ccf
 {
   class JwtKeyAutoRefresh
+    : public std::enable_shared_from_this<JwtKeyAutoRefresh>
   {
   private:
     size_t refresh_interval_s;
     NetworkState& network;
     std::shared_ptr<ccf::kv::Consensus> consensus;
-    std::shared_ptr<ccf::RPCSessions> rpcsessions;
     std::shared_ptr<ccf::RPCMap> rpc_map;
     ccf::crypto::ECKeyPairPtr node_sign_kp;
     ccf::crypto::Pem node_cert;
@@ -27,19 +31,49 @@ namespace ccf
 
     ccf::tasks::Task periodic_refresh_task;
 
+    // Maximum response body size for JWK/metadata responses (1 MB)
+    static constexpr size_t max_response_size = 1024 * 1024;
+
+    void send_curl_get(
+      const std::string& url,
+      const std::string& ca_bundle_pem,
+      ccf::curl::CurlRequest::ResponseCallback callback)
+    {
+      ccf::curl::UniqueCURL curl_handle;
+      curl_handle.set_opt(CURLOPT_HTTPGET, 1L);
+      curl_handle.set_opt(CURLOPT_SSL_VERIFYPEER, 1L);
+      curl_handle.set_opt(CURLOPT_SSL_VERIFYHOST, 2L);
+      curl_handle.set_blob_opt(
+        CURLOPT_CAINFO_BLOB,
+        reinterpret_cast<const uint8_t*>(ca_bundle_pem.data()),
+        ca_bundle_pem.size());
+
+      ccf::curl::UniqueSlist headers;
+
+      auto request = std::make_unique<ccf::curl::CurlRequest>(
+        std::move(curl_handle),
+        HTTP_GET,
+        url,
+        std::move(headers),
+        nullptr,
+        std::make_unique<ccf::curl::ResponseBody>(max_response_size),
+        std::move(callback));
+
+      ccf::curl::CurlmLibuvContextSingleton::get_instance()->attach_request(
+        std::move(request));
+    }
+
   public:
     JwtKeyAutoRefresh(
       size_t refresh_interval_s,
       NetworkState& network,
       const std::shared_ptr<ccf::kv::Consensus>& consensus,
-      const std::shared_ptr<ccf::RPCSessions>& rpcsessions,
       const std::shared_ptr<ccf::RPCMap>& rpc_map,
       ccf::crypto::ECKeyPairPtr node_sign_kp,
       ccf::crypto::Pem node_cert) :
       refresh_interval_s(refresh_interval_s),
       network(network),
       consensus(consensus),
-      rpcsessions(rpcsessions),
       rpc_map(rpc_map),
       node_sign_kp(std::move(node_sign_kp)),
       node_cert(std::move(node_cert)),
@@ -187,7 +221,7 @@ namespace ccf
 
     void handle_jwt_metadata_response(
       const std::string& issuer,
-      std::shared_ptr<::tls::CA> ca,
+      std::string ca_bundle_pem,
       ccf::http_status status,
       std::vector<uint8_t>&& data)
     {
@@ -226,12 +260,11 @@ namespace ccf
         send_refresh_jwt_keys_error();
         return;
       }
-      ::http::URL jwks_url;
       try
       {
-        jwks_url = ::http::parse_url_full(jwks_url_str);
+        ::http::parse_url_full(jwks_url_str);
       }
-      catch (const std::invalid_argument& e)
+      catch (const std::invalid_argument&)
       {
         LOG_FAIL_FMT(
           "JWT key auto-refresh: Cannot parse jwks_uri for issuer '{}': {}",
@@ -240,10 +273,6 @@ namespace ccf
         send_refresh_jwt_keys_error();
         return;
       }
-      auto jwks_url_port = !jwks_url.port.empty() ? jwks_url.port : "443";
-
-      auto ca_cert = std::make_shared<::tls::Cert>(
-        ca, std::nullopt, std::nullopt, jwks_url.host);
 
       std::optional<std::string> issuer_constraint{std::nullopt};
       const auto constraint = metadata.find("issuer");
@@ -253,27 +282,39 @@ namespace ccf
       }
 
       LOG_DEBUG_FMT(
-        "JWT key auto-refresh: Requesting JWKS at https://{}:{}{}",
-        jwks_url.host,
-        jwks_url_port,
-        jwks_url.path);
-      auto http_client = rpcsessions->create_client(ca_cert);
-      // Note: Connection errors are not signalled and hence not tracked in
-      // endpoint metrics currently.
-      http_client->connect(
-        std::string(jwks_url.host),
-        std::string(jwks_url_port),
-        [this, issuer, issuer_constraint](
-          ccf::http_status status,
-          http::HeaderMap&&,
-          std::vector<uint8_t>&& data) {
-          handle_jwt_jwks_response(
-            issuer, issuer_constraint, status, std::move(data));
-          return true;
-        });
-      ::http::Request r(jwks_url.path, HTTP_GET);
-      r.set_header(ccf::http::headers::HOST, std::string(jwks_url.host));
-      http_client->send_request(std::move(r));
+        "JWT key auto-refresh: Requesting JWKS at {}", jwks_url_str);
+
+      auto response_callback =
+        [self = shared_from_this(), issuer, issuer_constraint](
+          std::unique_ptr<ccf::curl::CurlRequest>&& request,
+          CURLcode curl_response,
+          long status_code) {
+          auto response_body_sp = std::make_shared<std::vector<uint8_t>>(
+            request->get_response_body() != nullptr ?
+              std::move(request->get_response_body()->buffer) :
+              std::vector<uint8_t>{});
+          ccf::tasks::add_task(ccf::tasks::make_basic_task(
+            [self, issuer, issuer_constraint, curl_response, status_code, response_body_sp]() {
+              if (curl_response != CURLE_OK)
+              {
+                LOG_FAIL_FMT(
+                  "JWT key auto-refresh: Failed to fetch JWKS for issuer '{}': "
+                  "{} ({})",
+                  issuer,
+                  curl_easy_strerror(curl_response),
+                  curl_response);
+                self->send_refresh_jwt_keys_error();
+                return;
+              }
+              self->handle_jwt_jwks_response(
+                issuer,
+                issuer_constraint,
+                static_cast<ccf::http_status>(status_code),
+                std::move(*response_body_sp));
+            }));
+        };
+
+      send_curl_get(jwks_url_str, ca_bundle_pem, std::move(response_callback));
     }
 
     void refresh_jwt_keys()
@@ -312,38 +353,50 @@ namespace ccf
           return true;
         }
 
-        auto metadata_url_str = issuer + "/.well-known/openid-configuration";
-        auto metadata_url = ::http::parse_url_full(metadata_url_str);
-        auto metadata_url_port =
-          !metadata_url.port.empty() ? metadata_url.port : "443";
-
-        auto ca_pems =
-          crypto::split_x509_cert_bundle(ca_cert_bundle_pem.value());
-        auto ca = std::make_shared<::tls::CA>(ca_pems);
-        auto ca_cert = std::make_shared<::tls::Cert>(
-          ca, std::nullopt, std::nullopt, metadata_url.host);
+        auto metadata_url = issuer + "/.well-known/openid-configuration";
 
         LOG_DEBUG_FMT(
-          "JWT key auto-refresh: Requesting OpenID metadata at https://{}:{}{}",
-          metadata_url.host,
-          metadata_url_port,
-          metadata_url.path);
-        auto http_client = rpcsessions->create_client(ca_cert);
-        // Note: Connection errors are not signalled and hence not tracked in
-        // endpoint metrics currently.
-        http_client->connect(
-          std::string(metadata_url.host),
-          std::string(metadata_url_port),
-          [this, issuer, ca](
-            ccf::http_status status,
-            ccf::http::HeaderMap&&,
-            std::vector<uint8_t>&& data) {
-            handle_jwt_metadata_response(issuer, ca, status, std::move(data));
-            return true;
-          });
-        ::http::Request r(metadata_url.path, HTTP_GET);
-        r.set_header(ccf::http::headers::HOST, std::string(metadata_url.host));
-        http_client->send_request(std::move(r));
+          "JWT key auto-refresh: Requesting OpenID metadata at {}",
+          metadata_url);
+
+        auto ca_bundle_pem = ca_cert_bundle_pem.value();
+
+        auto response_callback =
+          [self = shared_from_this(), issuer, ca_bundle_pem](
+            std::unique_ptr<ccf::curl::CurlRequest>&& request,
+            CURLcode curl_response,
+            long status_code) {
+            auto response_body_sp = std::make_shared<std::vector<uint8_t>>(
+              request->get_response_body() != nullptr ?
+                std::move(request->get_response_body()->buffer) :
+                std::vector<uint8_t>{});
+            ccf::tasks::add_task(ccf::tasks::make_basic_task(
+              [self,
+               issuer,
+               ca_bundle_pem,
+               curl_response,
+               status_code,
+               response_body_sp]() {
+                if (curl_response != CURLE_OK)
+                {
+                  LOG_FAIL_FMT(
+                    "JWT key auto-refresh: Failed to fetch OpenID metadata for "
+                    "issuer '{}': {} ({})",
+                    issuer,
+                    curl_easy_strerror(curl_response),
+                    curl_response);
+                  self->send_refresh_jwt_keys_error();
+                  return;
+                }
+                self->handle_jwt_metadata_response(
+                  issuer,
+                  ca_bundle_pem,
+                  static_cast<ccf::http_status>(status_code),
+                  std::move(*response_body_sp));
+              }));
+          };
+
+        send_curl_get(metadata_url, ca_bundle_pem, std::move(response_callback));
         return true;
       });
     }

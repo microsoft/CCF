@@ -1419,7 +1419,6 @@ namespace ccf
         config.jwt.key_refresh_interval.count_s(),
         network,
         consensus,
-        rpcsessions,
         rpc_map,
         node_sign_kp,
         self_signed_node_cert);
