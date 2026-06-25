@@ -92,6 +92,9 @@ namespace asynchost
       // True when progress needs the socket to become writable (handshake
       // wants write, or there is buffered outbound data).
       bool want_write = false;
+      // A close was requested but is deferred until the buffered output has been
+      // fully written, so a response queued just before close is not truncated.
+      bool close_after_flush = false;
     };
 
     SSL_CTX* ctx = nullptr;
@@ -249,6 +252,21 @@ namespace asynchost
       ev.data.fd = c.fd;
       ev.events = EPOLLIN | (c.want_write ? EPOLLOUT : 0);
       epoll_ctl(epoll_fd, EPOLL_CTL_MOD, c.fd, &ev);
+    }
+
+    // After writing, tear the connection down if a graceful close was requested
+    // and all buffered output has been flushed; otherwise update epoll
+    // interest (re-arming EPOLLOUT while output remains).
+    void finish_or_close(int fd, Conn& c)
+    {
+      if (c.close_after_flush && c.out_off >= c.outbuf.size())
+      {
+        close_conn(fd);
+      }
+      else
+      {
+        update_interest(c);
+      }
     }
 
     static int alpn_select_cb(
@@ -587,7 +605,7 @@ namespace asynchost
         close_conn(fd);
         return;
       }
-      update_interest(c);
+      finish_or_close(fd, c);
     }
 
     void wake() const
@@ -649,7 +667,22 @@ namespace asynchost
         const int fd = fit->second;
         if (item.close)
         {
-          close_conn(fd);
+          auto cit = conns.find(fd);
+          if (cit == conns.end())
+          {
+            continue;
+          }
+          Conn& c = *cit->second;
+          // Graceful close: flush any buffered response before tearing the
+          // connection down, so a large response queued just before
+          // close_socket() is not truncated.
+          c.close_after_flush = true;
+          if (!do_write(c))
+          {
+            close_conn(fd);
+            continue;
+          }
+          finish_or_close(fd, c);
           continue;
         }
         auto cit = conns.find(fd);
@@ -664,7 +697,7 @@ namespace asynchost
           close_conn(fd);
           continue;
         }
-        update_interest(c);
+        finish_or_close(fd, c);
       }
     }
 
