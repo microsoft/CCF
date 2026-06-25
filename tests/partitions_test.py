@@ -914,8 +914,31 @@ def test_recovery_elections(orig_network, args):
     time.sleep(election_s)
     # The result of all of that is that this node, which had become primary while it
     # completed its private recovery, crashed at the end of recovery (rather than)
-    # producing an invalid ledger)
-    assert backup.remote.check_done()
+    # producing an invalid ledger).
+    # Poll for up to 15s to tolerate CI timing variance around process exit.
+    done_timeout_s = 15
+    done_deadline = time.time() + done_timeout_s
+    while time.time() < done_deadline and not backup.remote.check_done():
+        time.sleep(0.2)
+    if not backup.remote.check_done():
+        LOG.error(
+            f"Backup node {backup} did not terminate within {done_timeout_s}s after recovery/election"
+        )
+        try:
+            LOG.error(f"Backup node output path: {backup.remote.out}")
+        except Exception as e:
+            LOG.warning(f"Could not retrieve backup output path: {e}")
+        try:
+            network.log_stack_traces()
+        except Exception as e:
+            LOG.warning(f"Failed to log stack traces: {e}")
+        try:
+            backup.stop()
+        except Exception as e:
+            LOG.warning(f"Failed to stop backup node: {e}")
+    assert backup.remote.check_done(), (
+        f"Backup node {backup} did not terminate after recovery/election period"
+    )
 
     network.ignore_errors_on_shutdown()
     network.stop_all_nodes(skip_verification=True)
