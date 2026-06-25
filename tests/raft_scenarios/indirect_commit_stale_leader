@@ -1,0 +1,83 @@
+pre_vote_enabled,false
+# Reproduce a stale-leader shape where an entry from an old term is only
+# committed indirectly by a later leader's signature.
+#
+# Node 0 appends e2/s2 locally in term 2. Node 1 then wins term 3 with node 2,
+# and appends a conflicting e3/s3 at the same indexes, but does not replicate it.
+# Node 0 wins term 4 with node 2, keeps its committable e2/s2 suffix, appends
+# e4/s4, and commits through the term-4 signature.
+
+start_node,0
+assert_detail,0,leadership_state,Leader
+emit_signature,2
+
+assert_detail,0,leadership_state,Leader
+assert_commit_idx,0,2
+
+trust_nodes,2,1,2
+emit_signature,2
+
+dispatch_all
+periodic_all,10
+dispatch_all
+periodic_all,10
+dispatch_all
+assert_commit_idx,0,4
+assert_state_sync
+
+# Node 0 locally appends and signs a term-2 client entry at indexes 5 and 6,
+# but does not replicate it.
+replicate,2,e2
+emit_signature,2
+assert_last_txid,0,2.6
+
+# Node 1 times out and wins term 3 with node 2. Node 0 observes the newer-term
+# vote request and steps down, but Node 1 only needs node 2's vote to win.
+periodic_one,1,110
+dispatch_single,1,0
+dispatch_single,1,2
+dispatch_single,0,1
+dispatch_single,2,1
+assert_detail,0,leadership_state,Follower
+assert_detail,1,leadership_state,Leader
+
+# Node 1 appends and signs a conflicting term-3 entry at indexes 5 and 6, but
+# keeps it local. Node 2 still has only the shared prefix committed to index 4.
+replicate,3,e3
+emit_signature,3
+assert_last_txid,1,3.6
+assert_commit_idx,1,4
+assert_commit_idx,2,4
+
+# Isolate stale leader Node 1. Node 0 can now win term 4 with Node 2 because
+# Node 0's committable suffix is at least as up-to-date as Node 2's prefix.
+disconnect_node,1
+periodic_one,0,110
+dispatch_single,0,2
+dispatch_single,2,0
+assert_detail,0,leadership_state,Leader
+assert_last_txid,0,2.6
+
+# Node 0 appends and signs in term 4, then brings Node 2 up to index 8. Committing
+# s4 at index 8 indirectly commits the earlier term-2 e2/s2 suffix at 5 and 6,
+# while stale leader Node 1 still has the conflicting e3/s3 suffix.
+replicate,4,e4
+emit_signature,4
+
+periodic_one,0,10
+dispatch_all
+periodic_one,0,10
+dispatch_all
+periodic_one,0,10
+dispatch_all
+periodic_one,0,10
+dispatch_all
+
+assert_commit_idx,0,8
+assert_commit_safety,0
+assert_last_txid,2,4.8
+assert_detail,1,leadership_state,Leader
+assert_last_txid,1,3.6
+
+summarise_logs_all
+state_all
