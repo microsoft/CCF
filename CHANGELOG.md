@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [7.0.7]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.7
 
+[7.0.7]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.7
+
 ### Fixed
 
 - Changing recovery members or the recovery threshold, refreshing recovery shares, or rekeying the ledger while the service is recovering now correctly returns an error instead of appearing to succeed. These operations were always potentially unsafe because at-recovery ledger secrets cannot be rekeyed; services with custom constitutions should update their `set_member`, `remove_member`, `set_recovery_threshold`, `trigger_recovery_shares_refresh`, and `trigger_ledger_rekey` actions to reject them while recovering (#7980).
