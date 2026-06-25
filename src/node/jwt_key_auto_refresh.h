@@ -260,6 +260,8 @@ namespace ccf
         send_refresh_jwt_keys_error();
         return;
       }
+      // Validate jwks_uri before handing it to libcurl; the parsed result is
+      // not used directly since the full URL string is passed to curl.
       try
       {
         ::http::parse_url_full(jwks_url_str);
