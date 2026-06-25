@@ -129,6 +129,12 @@ def restart_network(old_network, args, current_ledger_dir, committed_ledger_dirs
     return network
 
 
+def get_replacement_package(args):
+    return (
+        "samples/apps/logging/logging" if args.package == "js_generic" else "js_generic"
+    )
+
+
 def recover_with_primary_dying(args, recovered_network):
     # Minimal copy-paste from network.recover() with primary shut down.
     recovered_network.consortium.activate(recovered_network.find_random_node())
@@ -329,6 +335,62 @@ def test_recover_service(
 
         assert r.status_code == http.HTTPStatus.NO_CONTENT.value, r
 
+    return recovered_network
+
+
+@reqs.description("Recover a service using a different code ID")
+@reqs.not_snp("Cannot produce package-specific code IDs on SNP")
+@reqs.recover(number_txs=2)
+def test_recover_service_with_different_code_id(network, args):
+    recovery_package = getattr(args, "recovery_package", get_replacement_package(args))
+    platform = infra.platform_detection.get_platform()
+    initial_host_data, _ = infra.utils.get_host_data_and_security_policy(
+        platform, args.package
+    )
+    recovery_host_data, _ = infra.utils.get_host_data_and_security_policy(
+        platform, recovery_package
+    )
+    assert (
+        initial_host_data != recovery_host_data
+    ), "Initial and recovery packages should produce different code IDs"
+
+    old_primary, _ = network.find_primary()
+    with old_primary.api_versioned_client(api_version=args.gov_api_version) as c:
+        r = c.get("/gov/service/join-policy")
+        assert r.status_code == http.HTTPStatus.OK, r
+        old_host_data = r.body.json()[platform]["hostData"]
+        assert initial_host_data in old_host_data, old_host_data
+        assert recovery_host_data not in old_host_data, old_host_data
+
+    network.save_service_identity(args)
+    network.stop_all_nodes()
+    current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
+
+    recovery_args = copy.copy(args)
+    recovery_args.package = recovery_package
+
+    recovered_network = infra.network.Network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        existing_network=network,
+    )
+    recovered_network.start_in_recovery(
+        recovery_args,
+        ledger_dir=current_ledger_dir,
+        committed_ledger_dirs=committed_ledger_dirs,
+    )
+    recovered_network.recover(recovery_args)
+
+    new_primary, _ = recovered_network.find_primary()
+    with new_primary.api_versioned_client(api_version=args.gov_api_version) as c:
+        r = c.get("/gov/service/join-policy")
+        assert r.status_code == http.HTTPStatus.OK, r
+        recovered_host_data = r.body.json()[platform]["hostData"]
+        assert recovery_host_data in recovered_host_data, recovered_host_data
+
+    args.package = recovery_package
+    recovered_network.txs.issue(recovered_network, number_txs=1)
     return recovered_network
 
 
@@ -1238,6 +1300,20 @@ def run(args, ipv6=False):
 
     if ipv6:
         assert_no_ipv4_in_node_configs(network)
+
+
+def run_recover_service_with_different_code_id(args):
+    txs = app.LoggingTxs("user0")
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        pdb=args.pdb,
+        txs=txs,
+    ) as network:
+        network.start_and_open(args)
+        network = test_recover_service_with_different_code_id(network, args)
+        network.stop_all_nodes()
 
 
 def run_ipv6(args):
@@ -2369,6 +2445,16 @@ checked. Note that the key for each logging message is unique (per table).
         run_ipv6,
         package="samples/apps/logging/logging",
         nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+        ledger_chunk_bytes="50KB",
+        snapshot_tx_interval=30,
+    )
+
+    cr.add(
+        "recovery_with_new_code_id",
+        run_recover_service_with_different_code_id,
+        package="samples/apps/logging/logging",
+        recovery_package="js_generic",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=0),  # 1 node suffices for recovery
         ledger_chunk_bytes="50KB",
         snapshot_tx_interval=30,
     )
