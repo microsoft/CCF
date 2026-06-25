@@ -302,6 +302,11 @@ namespace asynchost
     // Returns false if the connection should be closed.
     bool do_handshake(Conn& c)
     {
+      // The error queue is thread-local and shared across every connection
+      // serviced by this loop, and SSL_get_error() consults it. Clear it before
+      // each SSL operation so a stale error from another connection cannot be
+      // misattributed (which would spuriously close healthy connections).
+      ERR_clear_error();
       const int r = c.is_client ? SSL_connect(c.ssl) : SSL_accept(c.ssl);
       if (r == 1)
       {
@@ -400,6 +405,7 @@ namespace asynchost
       for (;;)
       {
         uint8_t buf[read_chunk];
+        ERR_clear_error();
         const int n = SSL_read(c.ssl, buf, static_cast<int>(sizeof(buf)));
         if (n > 0)
         {
@@ -421,8 +427,8 @@ namespace asynchost
           c.want_write = true;
           return true;
         }
-        // SSL_ERROR_ZERO_RETURN (clean close) or a fatal error.
-        logf("conn %llu: read closed/err %d", (unsigned long long)c.id, e);
+        // SSL_ERROR_ZERO_RETURN (clean close), an unclean EOF from the peer
+        // (no close_notify), or a fatal error - in all cases close.
         return false;
       }
     }
@@ -437,6 +443,7 @@ namespace asynchost
       }
       while (c.out_off < c.outbuf.size())
       {
+        ERR_clear_error();
         const int n = SSL_write(
           c.ssl,
           c.outbuf.data() + c.out_off,
@@ -582,7 +589,6 @@ namespace asynchost
         return;
       }
       Conn& c = *it->second;
-
       bool alive = true;
       if (c.state == Conn::Handshaking)
       {
