@@ -109,6 +109,42 @@ def parse_error_message(r):
     return r.body.json()["error"]["details"][0]["message"]
 
 
+class FixedPublicKey:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+
+    def public_numbers(self):
+        return self
+
+
+class FixedPublicKeyIssuer(JwtIssuer):
+    @property
+    def public_key(self):
+        return self._public_key
+
+
+def assert_es256_raw_jwk_coordinates_are_fixed_width():
+    x_bytes = b"\x00" + bytes(range(1, 32))
+    y_bytes = b"\x00" + bytes(range(32, 63))
+
+    # Use fixed public numbers rather than generated keys.
+    issuer = object.__new__(FixedPublicKeyIssuer)
+    issuer.name = "https://noautorefresh.example/issuer"
+    issuer._auth_type = JwtAuthType.KEY
+    issuer._alg = JwtAlg.ES256
+    issuer._public_key = FixedPublicKey(
+        int.from_bytes(x_bytes, "big"), int.from_bytes(y_bytes, "big")
+    )
+    jwk = issuer.create_jwks("my_key_id")["keys"][0]
+
+    assert jwk["crv"] == "P-256"
+
+    # Expected unpadded base64url, preserving the leading zero byte.
+    assert jwk["x"] == "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8"
+    assert jwk["y"] == "ACAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4"
+
+
 def try_auth(primary, issuer, kid, iss, tid):
     with primary.client("user0") as c:
         LOG.info(f"Creating JWT with kid={kid} iss={iss} tenant={tid}")
@@ -444,10 +480,15 @@ def test_jwt_auth(network, args):
 
 @reqs.description("JWT authentication as by OpenID spec with raw public key")
 def test_jwt_auth_raw_key(network, args):
+    assert_es256_raw_jwk_coordinates_are_fixed_width()
     primary, _ = network.find_nodes()
 
     for alg in [JwtAlg.RS256, JwtAlg.ES256]:
-        issuer = JwtIssuer("noautorefresh://issuer", alg=alg, auth_type=JwtAuthType.KEY)
+        issuer = JwtIssuer(
+            "https://noautorefresh.example/issuer",
+            alg=alg,
+            auth_type=JwtAuthType.KEY,
+        )
         jwt_kid = "my_key_id"
         issuer.register(network, kid=jwt_kid)
 

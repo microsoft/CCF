@@ -41,6 +41,7 @@
 #include "node/ledger_secret.h"
 #include "node/ledger_secrets.h"
 #include "node/local_sealing.h"
+#include "node/node_inbound_message.h"
 #include "node/node_to_node_channel_manager.h"
 #include "node/recovery_decision_protocol.h"
 #include "node/signature_cache_subsystem.h"
@@ -59,6 +60,7 @@
 #include "snapshots/filenames.h"
 #include "uvm_endorsements.h"
 
+#include <arpa/inet.h>
 #include <optional>
 
 #ifdef USE_NULL_ENCRYPTOR
@@ -2254,57 +2256,16 @@ namespace ccf
 
     void recv_node_inbound(const uint8_t* data, size_t size)
     {
-      auto [msg_type, from, payload] =
-        ringbuffer::read_message<node_inbound>(data, size);
-
-      const auto* payload_data = payload.data;
-      auto payload_size = payload.size;
-
-      if (msg_type == NodeMsgType::forwarded_msg)
+      if (!can_process_node_inbound_message(sm))
       {
-        cmd_forwarder->recv_message(from, payload_data, payload_size);
+        LOG_DEBUG_FMT(
+          "Ignoring node msg received too early - current state is {}",
+          sm.value());
+        return;
       }
-      else
-      {
-        // Only process messages once part of network
-        if (
-          !sm.check(NodeStartupState::partOfNetwork) &&
-          !sm.check(NodeStartupState::partOfPublicNetwork) &&
-          !sm.check(NodeStartupState::readingPrivateLedger))
-        {
-          LOG_DEBUG_FMT(
-            "Ignoring node msg received too early - current state is {}",
-            sm.value());
-          return;
-        }
 
-        switch (msg_type)
-        {
-          case forwarded_msg:
-          {
-            LOG_FAIL_FMT("Unexpected forwarded_msg in recv_node_inbound");
-            return;
-          }
-          case channel_msg:
-          {
-            n2n_channels->recv_channel_message(
-              from, payload_data, payload_size);
-            return;
-          }
-
-          case consensus_msg:
-          {
-            consensus->recv_message(from, payload_data, payload_size);
-            return;
-          }
-          default:
-          {
-            throw std::logic_error(fmt::format(
-              "Unknown node message type: {}",
-              static_cast<uint32_t>(msg_type)));
-          }
-        }
-      }
+      recv_node_inbound_message(
+        data, size, cmd_forwarder.get(), n2n_channels.get(), consensus.get());
     }
 
     //
@@ -2449,12 +2410,20 @@ namespace ccf
   private:
     bool is_ip(const std::string_view& hostname)
     {
+      if (hostname.find(':') != std::string_view::npos)
+      {
+        in6_addr addr{};
+        if (inet_pton(AF_INET6, std::string(hostname).c_str(), &addr) == 1)
+        {
+          return true;
+        }
+      }
+
       // IP address components are purely numeric. DNS names may be largely
       // numeric, but at least the final component (TLD) must not be
       // all-numeric. So this distinguishes "1.2.3.4" (an IP address) from
       // "1.2.3.c4m" (a DNS name). "1.2.3." is invalid for either, and will
-      // throw. Attempts to handle IPv6 by also splitting on ':', but this is
-      // untested.
+      // throw. Handles IPv6 by splitting on ':' after splitting on '.'.
       const auto final_component =
         ccf::nonstd::split(ccf::nonstd::split(hostname, ".").back(), ":")
           .back();
@@ -2484,7 +2453,8 @@ namespace ccf
       std::vector<ccf::crypto::SubjectAltName> sans;
       for (const auto& [_, interface] : config.network.rpc_interfaces)
       {
-        auto host = split_net_address(interface.published_address).first;
+        // split_net_address already strips brackets from IPv6 literals.
+        const auto host = split_net_address(interface.published_address).first;
         sans.push_back({host, is_ip(host)});
       }
       return sans;

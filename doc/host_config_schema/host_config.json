@@ -20,7 +20,7 @@
               "description": "The published node address advertised to other nodes. This must be different on each node"
             }
           },
-          "description": "Addresses (host:port) to listen on for incoming node-to-node connections (e.g. internal consensus messages)",
+          "description": "Addresses (host:port) to listen on for incoming node-to-node connections (e.g. internal consensus messages). IPv6 literals must be bracketed, e.g. ``[::1]:8081``",
           "required": ["bind_address"],
           "additionalProperties": false
         },
@@ -293,7 +293,7 @@
                 "properties": {
                   "target_rpc_address": {
                     "type": "string",
-                    "description": "Address (host:port) of a node of the existing service to join"
+                    "description": "Address (host:port) of a node of the existing service to join. IPv6 literals must be bracketed, e.g. ``[2001:db8::1]:8080``"
                   },
                   "retry_timeout": {
                     "type": "string",
@@ -567,6 +567,24 @@
         }
       },
       "description": "This section includes configuration for periodic cleanup of old files (snapshots, ledger chunks)",
+      "additionalProperties": false
+    },
+    "identity_history_fetch": {
+      "type": "object",
+      "properties": {
+        "max_attempts": {
+          "type": "integer",
+          "default": 100,
+          "description": "Maximum number of fetch attempts before giving up",
+          "minimum": 1
+        },
+        "retry_interval": {
+          "type": "string",
+          "default": "100ms",
+          "description": "Delay between retry attempts"
+        }
+      },
+      "description": "Configuration for the network identity endorsement chain fetch",
       "additionalProperties": false
     },
     "logging": {

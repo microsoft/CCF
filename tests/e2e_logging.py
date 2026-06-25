@@ -1829,7 +1829,7 @@ def test_random_receipts(
 ):
     cose_only = args.package.endswith("_cose_only")
 
-    # Extract claims digest from a COSE receipt leaf — needed because
+    # Extract claims digest from a COSE receipt leaf - needed because
     # randomly sampled seqnos may hit any TX and we don't know its claims.
     def claims_digest_from_receipt(receipt_bytes):
         receipt = cbor2.loads(receipt_bytes)
@@ -1897,7 +1897,7 @@ def test_random_receipts(
                         )
                         break
                     elif rc.status_code == http.HTTPStatus.NOT_FOUND:
-                        # Signature TX — no COSE receipt available, skip
+                        # Signature TX - no COSE receipt available, skip
                         LOG.warning(
                             f"Skipping signature TX at {view}.{s} (no COSE receipt)"
                         )
@@ -2501,7 +2501,7 @@ def test_blocking_calls(network, args):
     #   with negligible overhead.
     #
     # Our actual test has far more variation (small sample, timing noise),
-    # so we can only make much broader claims — each blocking mean is
+    # so we can only make much broader claims - each blocking mean is
     # smaller than the non-blocking mean.
     assert (
         mean_commit_deltas["/log/blocking/private"] < mean_commit_deltas["/log/private"]
@@ -2590,6 +2590,10 @@ def run_parsing_errors(args):
 if __name__ == "__main__":
     cr = ConcurrentRunner()
 
+    app_space_js_election_timeout_ms = cr.args.election_timeout_ms
+    if os.getenv("CCF_GLIBCXX_DEBUG") or os.getenv("ASAN_SYMBOLIZER_PATH"):
+        app_space_js_election_timeout_ms = max(app_space_js_election_timeout_ms, 10000)
+
     cr.add(
         "js",
         run,
@@ -2606,6 +2610,7 @@ if __name__ == "__main__":
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
         initial_user_count=4,
         initial_member_count=2,
+        election_timeout_ms=app_space_js_election_timeout_ms,
     )
 
     cr.add(
@@ -2631,6 +2636,13 @@ if __name__ == "__main__":
     cr.add(
         "common",
         e2e_common_endpoints.run,
+        package="samples/apps/logging/logging",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    )
+
+    cr.add(
+        "common_ipv6",
+        e2e_common_endpoints.run_ipv6,
         package="samples/apps/logging/logging",
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
     )

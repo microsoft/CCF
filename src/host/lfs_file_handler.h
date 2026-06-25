@@ -2,12 +2,12 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ds/files.h"
 #include "ds/messaging.h"
 #include "indexing/lfs_ringbuffer_types.h"
 #include "time_bound_logger.h"
 
 #include <filesystem>
-#include <fstream>
 
 namespace asynchost
 {
@@ -50,16 +50,12 @@ namespace asynchost
           const auto target_path = root_dir / key;
           {
             TimeBoundLogger log_if_slow(fmt::format(
-              "Writing LFS file ({} bytes) - ofstream({})",
+              "Writing LFS file ({} bytes) - {}",
               encrypted.size(),
               target_path));
-            std::ofstream f(target_path, std::ios::trunc | std::ios::binary);
             LOG_TRACE_FMT(
               "Writing {} byte file to {}", encrypted.size(), target_path);
-            f.write(
-              reinterpret_cast<char const*>(encrypted.data()),
-              encrypted.size());
-            f.close();
+            files::dump(encrypted, target_path);
           }
         });
 

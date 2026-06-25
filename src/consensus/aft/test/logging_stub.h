@@ -28,6 +28,8 @@ namespace aft
 
     LedgerStubProxy(const ccf::NodeId& id) : _id(id) {}
 
+    virtual ~LedgerStubProxy() = default;
+
     virtual void init(Index, Index) {}
 
     virtual void put_entry(
@@ -45,7 +47,7 @@ namespace aft
       // (to mirror the deserialisation in LoggingStubStore::ExecutionWrapper).
       // We also size-prefix, so in a buffer of multiple of these messages we
       // can extract each with get_entry
-      const size_t idx = ledger.size() + 1;
+      [[maybe_unused]] const size_t idx = ledger.size() + 1;
       assert(idx == index);
       auto additional_size =
         sizeof(size_t) /* size-prefix */ + ADDITIONAL_METADATA_SIZE;
@@ -341,6 +343,8 @@ namespace aft
   public:
     LoggingStubStore(ccf::NodeId id) : _id(id) {}
 
+    virtual ~LoggingStubStore() = default;
+
     virtual void set_set_retired_committed_hook(
       RCHook set_retired_committed_hook_)
     {
@@ -523,7 +527,7 @@ namespace aft
       // Read wrapping term and version
       auto data_ = data.data();
       auto size = data.size();
-      const auto committable = serialized::read<bool>(data_, size);
+      serialized::read<bool>(data_, size);
       serialized::read<aft::Term>(data_, size);
       auto version = serialized::read<ccf::kv::Version>(data_, size);
       ReplicatedData r = nlohmann::json::parse(std::span{data_, size});
@@ -548,25 +552,4 @@ namespace aft
     }
   };
 
-  class StubSnapshotter
-  {
-  public:
-    void update(Index, bool) {}
-
-    void set_last_snapshot_idx(Index idx) {}
-
-    void commit(Index, bool) {}
-
-    void rollback(Index) {}
-
-    void record_serialised_tree(Index version, const std::vector<uint8_t>& tree)
-    {}
-
-    void record_signature(
-      Index,
-      const std::vector<uint8_t>&,
-      const ccf::NodeId&,
-      const ccf::crypto::Pem&)
-    {}
-  };
 }

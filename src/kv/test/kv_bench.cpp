@@ -142,7 +142,7 @@ static void commit_latency(picobench::state& s)
     auto tx = kv_store.create_tx();
     auto tx0 = tx.rw<MapType>(map0);
     auto tx1 = tx.rw<MapType>(map1);
-    for (int iTx = 0; iTx < S; iTx++)
+    for (size_t iTx = 0; iTx < S; iTx++)
     {
       const auto key = gen_key(i, std::to_string(iTx));
       const auto value = gen_value(i);
@@ -176,7 +176,7 @@ static void ser_snap(picobench::state& s)
   for (int i = 0; i < s.iterations(); i++)
   {
     auto handle = tx.rw<MapType>(fmt::format("map{}", i));
-    for (int j = 0; j < KEY_COUNT; j++)
+    for (size_t j = 0; j < KEY_COUNT; j++)
     {
       const auto key = gen_key(j);
       const auto value = gen_value(j);
@@ -216,7 +216,7 @@ static void des_snap(picobench::state& s)
   for (int i = 0; i < s.iterations(); i++)
   {
     auto handle = tx.rw<MapType>(fmt::format("map{}", i));
-    for (int j = 0; j < KEY_COUNT; j++)
+    for (size_t j = 0; j < KEY_COUNT; j++)
     {
       const auto key = gen_key(j);
       const auto value = gen_value(j);

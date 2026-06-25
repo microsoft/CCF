@@ -3,6 +3,7 @@
 #pragma once
 
 #include "before_io.h"
+#include "ccf/ds/nonstd.h"
 #include "ccf/pal/locking.h"
 #include "dns.h"
 #include "ds/internal_logger.h"
@@ -12,6 +13,7 @@
 
 #include <netinet/in.h>
 #include <optional>
+#include <unistd.h>
 
 namespace asynchost
 {
@@ -64,6 +66,12 @@ namespace asynchost
     addrinfo* client_addr_base = nullptr;
     addrinfo* addr_base = nullptr;
     addrinfo* addr_current = nullptr;
+
+    // Address family (AF_INET / AF_INET6) of the client socket currently owned
+    // by uv_handle, or AF_UNSPEC if no socket has been created yet. Used to
+    // detect when a resolved address requires a different family, since a
+    // uv_tcp_t cannot switch family without being closed and re-initialised.
+    int current_socket_family = AF_UNSPEC;
 
     [[nodiscard]] bool port_assigned() const
     {
@@ -192,6 +200,13 @@ namespace asynchost
       }
       else
       {
+        if (!set_connection_timeout_on_uv_handle())
+        {
+          assert_status(BINDING, BINDING_FAILED);
+          behaviour->on_bind_failed();
+          return;
+        }
+
         assert_status(BINDING, CONNECTING_RESOLVING);
         if (addr_current != nullptr)
         {
@@ -411,37 +426,9 @@ namespace asynchost
         return false;
       }
 
-      if (is_client)
-      {
-        uv_os_sock_t sock = 0;
-        if ((sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1)
-        {
-          LOG_FAIL_FMT(
-            "socket creation failed: {}",
-            std::strerror(errno)); // NOLINT(concurrency-mt-unsafe)
-          return false;
-        }
-
-        if (connection_timeout.has_value())
-        {
-          const unsigned int ms = connection_timeout->count();
-          const auto ret =
-            setsockopt(sock, IPPROTO_TCP, TCP_USER_TIMEOUT, &ms, sizeof(ms));
-          if (ret != 0)
-          {
-            LOG_FAIL_FMT(
-              "Failed to set socket option (TCP_USER_TIMEOUT): {}",
-              std::strerror(errno)); // NOLINT(concurrency-mt-unsafe)
-            return false;
-          }
-        }
-
-        if ((rc = uv_tcp_open(&uv_handle, sock)) < 0)
-        {
-          LOG_FAIL_FMT("uv_tcp_open failed: {}", uv_strerror(rc));
-          return false;
-        }
-      }
+      // Client socket creation is deferred to connect_resolved(), where
+      // the resolved address family (AF_INET or AF_INET6) is known.
+      current_socket_family = AF_UNSPEC;
 
       if ((rc = uv_tcp_keepalive(&uv_handle, 1, 30)) < 0)
       {
@@ -542,13 +529,94 @@ namespace asynchost
       behaviour->on_listen_failed();
     }
 
+    // Report a terminal failure from connect_resolved(): move to
+    // CONNECTING_FAILED and notify the behaviour. connect_resolved()'s callers
+    // ignore its bool return, so without this an early error path would leave
+    // the attempt stuck in CONNECTING_RESOLVING with no on_connect_failed()
+    // callback and pending writes queued indefinitely.
+    bool fail_connect_resolved()
+    {
+      assert_status(CONNECTING_RESOLVING, CONNECTING_FAILED);
+      behaviour->on_connect_failed();
+      return false;
+    }
+
     bool connect_resolved()
     {
+      // Create the client socket with the correct address family, but only
+      // if client_bind() hasn't already created one via uv_tcp_bind().
+      if (is_client && !client_host.has_value() && addr_current != nullptr)
+      {
+        uv_os_fd_t existing_fd = {};
+        const auto uv_fileno_rc = uv_fileno(
+          reinterpret_cast<const uv_handle_t*>(&uv_handle), &existing_fd);
+        if (uv_fileno_rc < 0 && uv_fileno_rc != UV_EBADF)
+        {
+          LOG_FAIL_FMT(
+            "uv_fileno returned unexpected error while checking TCP handle "
+            "state: {}",
+            uv_strerror(uv_fileno_rc));
+          return fail_connect_resolved();
+        }
+
+        const bool has_socket = (uv_fileno_rc != UV_EBADF);
+
+        // If a socket from a previous attempt is open but for a different
+        // address family than the one we now need, it cannot be reused: libuv
+        // will not switch a uv_tcp_t between AF_INET and AF_INET6, and passing
+        // a mismatched sockaddr to uv_tcp_connect would reliably fail and
+        // prevent fallback. Reset the handle so a fresh socket of the correct
+        // family is created.
+        if (has_socket && current_socket_family != addr_current->ai_family)
+        {
+          return reset_handle_for_family_change();
+        }
+
+        if (!has_socket)
+        {
+          int rc = 0;
+          const int family = addr_current->ai_family;
+          uv_os_sock_t sock = 0;
+          if ((sock = socket(family, SOCK_STREAM, IPPROTO_TCP)) == -1)
+          {
+            LOG_FAIL_FMT(
+              "socket creation failed: {}", ccf::nonstd::strerror(errno));
+            return fail_connect_resolved();
+          }
+
+          if (!set_connection_timeout(sock))
+          {
+            close_socket_before_uv_ownership(sock);
+            return fail_connect_resolved();
+          }
+
+          if ((rc = uv_tcp_open(&uv_handle, sock)) < 0)
+          {
+            LOG_FAIL_FMT("uv_tcp_open failed: {}", uv_strerror(rc));
+            close_socket_before_uv_ownership(sock);
+            return fail_connect_resolved();
+          }
+
+          current_socket_family = family;
+        }
+      }
+
       auto* req = new uv_connect_t; // NOLINT(cppcoreguidelines-owning-memory)
       int rc = 0;
 
       while (addr_current != nullptr)
       {
+        // If the next resolved address needs a different family than our
+        // current socket, reset the handle to recreate the socket rather than
+        // passing a mismatched sockaddr to uv_tcp_connect.
+        if (
+          is_client && !client_host.has_value() &&
+          current_socket_family != addr_current->ai_family)
+        {
+          delete req; // NOLINT(cppcoreguidelines-owning-memory)
+          return reset_handle_for_family_change();
+        }
+
         if (
           (rc = uv_tcp_connect(
              req, &uv_handle, addr_current->ai_addr, on_connect)) < 0)
@@ -571,6 +639,105 @@ namespace asynchost
 
       behaviour->on_connect_failed();
       return false;
+    }
+
+    // Close and re-initialise uv_handle so that the next connect_resolved()
+    // creates a fresh socket for the current address family. Used to support
+    // fallback across mixed-family (IPv4/IPv6) resolved address lists.
+    bool reset_handle_for_family_change()
+    {
+      if (uv_is_closing(reinterpret_cast<uv_handle_t*>(&uv_handle)) != 0)
+      {
+        return false;
+      }
+
+      LOG_DEBUG_FMT(
+        "Resolved address family changed; resetting TCP handle to recreate "
+        "the client socket");
+      assert_status(CONNECTING_RESOLVING, RECONNECTING);
+      uv_close(reinterpret_cast<uv_handle_t*>(&uv_handle), on_family_reset);
+      return true;
+    }
+
+    static void on_family_reset(uv_handle_t* handle)
+    {
+      static_cast<TCPImpl*>(handle->data)->on_family_reset();
+    }
+
+    void on_family_reset()
+    {
+      assert_status(RECONNECTING, FRESH);
+
+      if (!init())
+      {
+        assert_status(FRESH, CONNECTING_FAILED);
+        behaviour->on_connect_failed();
+        return;
+      }
+
+      // init() leaves the handle without a socket; the next connect_resolved()
+      // creates one for the (new) current address family.
+      assert_status(FRESH, CONNECTING_RESOLVING);
+      connect_resolved();
+    }
+
+    bool set_connection_timeout(uv_os_sock_t sock)
+    {
+      if (!connection_timeout.has_value())
+      {
+        return true;
+      }
+
+      const unsigned int ms = connection_timeout->count();
+      const auto ret =
+        setsockopt(sock, IPPROTO_TCP, TCP_USER_TIMEOUT, &ms, sizeof(ms));
+      if (ret != 0)
+      {
+        const auto err = errno;
+        LOG_FAIL_FMT(
+          "Failed to set socket option (TCP_USER_TIMEOUT): {}",
+          ccf::nonstd::strerror(err));
+        return false;
+      }
+
+      return true;
+    }
+
+    static void close_socket_before_uv_ownership(uv_os_sock_t sock)
+    {
+      // Socket ownership is transferred to libuv only if uv_tcp_open succeeds.
+      // Before that, this socket must be closed by the caller.
+      // This is best-effort cleanup on an existing failure path: we only log
+      // close() errors (including EINTR). We intentionally do not retry
+      // close(), since retrying may close a reused fd.
+      const auto rc = ::close(sock);
+      if (rc != 0)
+      {
+        const auto err = errno;
+        LOG_FAIL_FMT(
+          "Failed to close socket {}: {}", sock, ccf::nonstd::strerror(err));
+      }
+    }
+
+    bool set_connection_timeout_on_uv_handle()
+    {
+      if (!connection_timeout.has_value())
+      {
+        return true;
+      }
+
+      uv_os_fd_t existing_fd = {};
+      const auto rc = uv_fileno(
+        reinterpret_cast<const uv_handle_t*>(&uv_handle), &existing_fd);
+      if (rc < 0)
+      {
+        LOG_FAIL_FMT(
+          "uv_fileno failed while applying TCP_USER_TIMEOUT: {}",
+          uv_strerror(rc));
+        return false;
+      }
+
+      return set_connection_timeout(existing_fd);
     }
 
     void assert_status(Status from, Status to)

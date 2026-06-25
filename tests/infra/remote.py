@@ -341,6 +341,8 @@ class CCFRemote(object):
         backup_snapshot_fetch_retry_interval=None,
         backup_snapshot_fetch_target_rpc_interface=None,
         backup_snapshot_fetch_max_size=None,
+        identity_history_fetch_max_attempts=None,
+        identity_history_fetch_retry_interval=None,
         host_data_transparent_statement_path=None,
         **kwargs,
     ):
@@ -544,6 +546,8 @@ class CCFRemote(object):
                 backup_snapshot_fetch_target_rpc_interface=backup_snapshot_fetch_target_rpc_interface
                 or infra.interfaces.FILE_SERVING_RPC_INTERFACE,
                 backup_snapshot_fetch_max_size=backup_snapshot_fetch_max_size,
+                identity_history_fetch_max_attempts=identity_history_fetch_max_attempts,
+                identity_history_fetch_retry_interval=identity_history_fetch_retry_interval,
                 host_data_transparent_statement_path=host_data_transparent_statement_path,
                 **kwargs,
             )

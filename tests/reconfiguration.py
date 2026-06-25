@@ -5,6 +5,7 @@ import infra.network
 import infra.proc
 import infra.platform_detection
 import infra.net
+import infra.utils
 import infra.logging_app as app
 from infra.tx_status import TxStatus
 import suite.test_requirements as reqs
@@ -24,8 +25,50 @@ from infra.snp import SNP_SUPPORT
 import http
 import random
 import pathlib
+import re
 
 from loguru import logger as LOG
+
+# Matches an IPv4 dotted-quad with each octet in 0-255. Used to assert that an
+# IPv6-only network never wrote an IPv4 literal into any node configuration.
+IPV4_ADDRESS_RE = re.compile(
+    r"\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}"
+    r"(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b"
+)
+
+
+def _find_ipv4_values(obj, path="$"):
+    # Recursively yield (json_path, value) for every string leaf that contains an
+    # IPv4 literal anywhere in the given JSON-like object. Catches IPv4-mapped
+    # IPv6 forms (e.g. ::ffff:127.0.0.1) too, which are not pure IPv6.
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            yield from _find_ipv4_values(v, f"{path}.{k}")
+    elif isinstance(obj, list):
+        for i, v in enumerate(obj):
+            yield from _find_ipv4_values(v, f"{path}[{i}]")
+    elif isinstance(obj, str) and IPV4_ADDRESS_RE.search(obj):
+        yield path, obj
+
+
+def assert_no_ipv4_in_node_configs(network):
+    # Post-shutdown sanity check for IPv6-only runs: every node configuration
+    # written during the test (all of them are kept in the network common dir)
+    # must be free of IPv4 literals, confirming no code path fell back to IPv4.
+    config_files = sorted(pathlib.Path(network.common_dir).glob("*.config.json"))
+    assert config_files, f"No node config files found in {network.common_dir}"
+    offending = {}
+    for config_file in config_files:
+        with open(config_file, encoding="utf-8") as f:
+            config = json.load(f)
+        hits = list(_find_ipv4_values(config))
+        if hits:
+            offending[config_file.name] = hits
+    assert not offending, f"IPv4 addresses found in IPv6-only node configs: {offending}"
+    LOG.info(
+        f"Confirmed {len(config_files)} node config(s) in {network.common_dir} "
+        "contain no IPv4 addresses"
+    )
 
 
 def node_configs(network):
@@ -152,6 +195,135 @@ def test_add_node(network, args, copy_snapshot=False, fetch_recent_snapshot=True
     # Now that the node is trusted, verify endorsed certificate validity period
     new_node.verify_certificate_validity_period()
 
+    return network
+
+
+@reqs.description("Adding a node with corrupted ledger file")
+def test_add_node_with_corrupted_ledger(network, args):
+    # Reproduce issue #6612: when joining from a recent snapshot, an older
+    # corrupted/truncated uncommitted ledger file should not prevent startup.
+    primary, _ = network.find_primary()
+    snapshot_trigger_txid = primary.trigger_snapshot()
+    snapshots_dir = network.get_committed_snapshots(
+        primary,
+        target_seqno=snapshot_trigger_txid.seqno,
+        wait_for_target_seqno=True,
+    )
+
+    new_node = network.create_node()
+
+    # Set up the join node (copies ledger and snapshots) but do not start it yet
+    network.setup_join_node(
+        new_node,
+        args.package,
+        args,
+        from_snapshot=True,
+        snapshots_dir=snapshots_dir,
+        fetch_recent_snapshot=False,
+    )
+
+    # Find an uncommitted ledger file in the node's main ledger directory
+    ledger_dir = new_node.remote.get_main_ledger_dir()
+    ledger_files = sorted(
+        [
+            f
+            for f in os.listdir(ledger_dir)
+            if f.startswith("ledger_") and not f.endswith(".committed")
+        ],
+        key=lambda f: ccf.ledger.range_from_filename(f)[0],
+    )
+    assert ledger_files, "Expected to find uncommitted ledger files for corruption test"
+    ledger_ranges = {
+        ledger_file: ccf.ledger.range_from_filename(ledger_file)
+        for ledger_file in ledger_files
+    }
+
+    # Prefer a chunk whose range is older than the snapshot we are joining from.
+    corrupted_ledger_file = next(
+        (
+            f
+            for f in ledger_files
+            if (
+                ledger_ranges[f][1] is not None
+                and ledger_ranges[f][1] < snapshot_trigger_txid.seqno
+            )
+        ),
+        ledger_files[-1],
+    )
+
+    # Corrupt the chosen uncommitted ledger file by truncating it in the middle
+    # of a transaction.
+    ledger = ccf.ledger.Ledger([ledger_dir], committed_only=False)
+    chunk_filename = None
+    target_seqno = None
+    truncate_offset = None
+    minimum_truncated_tx_size = (
+        ccf.ledger.TransactionHeader.get_size() + ccf.ledger.GcmHeader.size() + 1
+    )
+    for chunk in ledger:
+        if os.path.basename(chunk.filename()) != corrupted_ledger_file:
+            continue
+
+        for tx in chunk:
+            offset, _ = tx.get_offsets()
+            tx_size = tx.get_len()
+            if tx_size <= minimum_truncated_tx_size:
+                continue
+
+            chunk_filename = chunk.filename()
+            target_seqno = tx.get_txid().seqno
+            truncate_offset = offset + max(
+                tx_size // 2,
+                minimum_truncated_tx_size,
+            )
+            # Corrupting a single transaction in the selected chunk is
+            # sufficient to make the file malformed at this seqno.
+            break
+
+        if truncate_offset is not None:
+            break
+
+    assert truncate_offset is not None, "Should always find a transaction to corrupt"
+    assert target_seqno is not None
+
+    LOG.info(
+        f"Corrupting ledger file {chunk_filename} by truncating at offset {truncate_offset}"
+    )
+    with open(chunk_filename, "rb+") as f:
+        f.truncate(truncate_offset)
+
+    network.run_join_node(new_node)
+    network.trust_node(new_node, args)
+
+    with new_node.client() as c:
+        r = c.get("/node/state")
+        assert (
+            r.body.json()["startup_seqno"] != 0
+        ), f"Node {new_node.local_node_id} should have started from snapshot"
+
+    out_path, err_path = new_node.get_logs()
+    assert out_path is not None and err_path is not None
+    with open(out_path, encoding="utf-8") as out:
+        out_logs = out.read()
+    with open(err_path, encoding="utf-8") as err:
+        err_logs = err.read()
+
+    combined_logs = out_logs + err_logs
+    matching_lines = [
+        line
+        for line in combined_logs.splitlines()
+        if "Malformed incomplete ledger file" in line
+        and os.path.basename(chunk_filename) in line
+        and f"at seqno {target_seqno}" in line
+    ]
+    assert (
+        matching_lines
+    ), f"Expected malformed ledger log line for seqno {target_seqno}\n{combined_logs}"
+    LOG.info(f"Observed malformed ledger handling: {matching_lines[0]}")
+
+    primary, _ = network.find_primary()
+    network.retire_node(primary, new_node)
+    new_node.stop()
     return network
 
 
@@ -633,7 +805,7 @@ def test_node_replacement(network, args):
 
     LOG.info("Adding one node on same address as retired node")
     replacement_node = network.create_node(
-        f"local://{node_to_replace.get_public_rpc_host()}:{node_to_replace.get_public_rpc_port()}",
+        f"local://{node_to_replace.get_public_rpc_address()}",
         node_port=node_to_replace.n2n_interface.port,
     )
     network.join_node(replacement_node, args.package, args, from_snapshot=False)
@@ -810,7 +982,181 @@ def test_ledger_invariants(network, args):
     return network
 
 
-def run_all(args):
+@reqs.description("Join nodes with snapshot and ledger offsets")
+def test_joining_nodes_snapshot_ledger_offset(network, args):
+    primary, _ = network.find_primary()
+
+    network.consortium.force_ledger_chunk(primary)
+    network.get_latest_ledger_public_state()
+
+    network.txs.issue(network, number_txs=5, send_private=False, send_public=True)
+    network.txs.issue(network, number_txs=5, send_private=False, send_public=True)
+
+    snapshot_trigger_txid = primary.trigger_snapshot()
+    committed_snapshots_dir = network.get_committed_snapshots(
+        primary,
+        target_seqno=snapshot_trigger_txid.seqno,
+        wait_for_target_seqno=True,
+    )
+    committed_snapshots = sorted(
+        [
+            f
+            for f in os.listdir(committed_snapshots_dir)
+            if f.startswith("snapshot_") and ccf.ledger.is_snapshot_file_committed(f)
+        ],
+        key=lambda f: ccf.ledger.snapshot_index_from_filename(f)[0],
+    )
+    assert (
+        committed_snapshots
+    ), f"Expected committed snapshots in {committed_snapshots_dir}"
+    snapshot_file = committed_snapshots[-1]
+    snapshot_seqno, _ = ccf.ledger.snapshot_index_from_filename(snapshot_file)
+
+    snapshot_dir = os.path.join(
+        network.common_dir, "joining_nodes_snapshot_ledger_offset.snapshots"
+    )
+    rmtree(snapshot_dir, ignore_errors=True)
+    os.makedirs(snapshot_dir)
+    copy(os.path.join(committed_snapshots_dir, snapshot_file), snapshot_dir)
+
+    rest_txid = network.txs.issue(
+        network, number_txs=5, send_private=False, send_public=True
+    )
+
+    assert snapshot_trigger_txid.seqno < snapshot_seqno < rest_txid.seqno, (
+        snapshot_trigger_txid,
+        snapshot_seqno,
+        rest_txid,
+    )
+
+    # flush ledger to disk from commit index
+    network.get_latest_ledger_public_state()
+    # Only use the committed ledger files flushed from above
+    _, committed_ledger_dirs = primary.get_ledger()
+    ledger = ccf.ledger.Ledger(
+        committed_ledger_dirs,
+        committed_only=True,
+        contiguous_suffix=True,
+    )
+
+    snapshot_chunk_start = None
+    snapshot_chunk_entries = None
+    post_snapshot_entries = []
+    for chunk in ledger:
+        entries = [
+            (tx.get_public_domain().get_seqno(), tx.get_raw_tx()) for tx in chunk
+        ]
+        if not entries:
+            continue
+
+        chunk_start = entries[0][0]
+        chunk_end = entries[-1][0]
+        if chunk_start <= snapshot_seqno <= chunk_end:
+            snapshot_chunk_start = chunk_start
+            snapshot_chunk_entries = entries
+            assert (
+                chunk_end == snapshot_seqno
+            ), f"Expected snapshot seqno {snapshot_seqno} at chunk boundary, got chunk {chunk_start}-{chunk_end}"
+
+        post_snapshot_entries.extend(
+            (seqno, raw_tx)
+            for seqno, raw_tx in entries
+            if snapshot_seqno < seqno <= rest_txid.seqno
+        )
+
+    assert (
+        snapshot_chunk_start is not None
+    ), f"Could not find ledger chunk ending at snapshot seqno {snapshot_seqno}"
+    assert snapshot_chunk_entries is not None
+    if snapshot_chunk_start <= snapshot_trigger_txid.seqno < snapshot_seqno:
+        mid_chunk_seqno = snapshot_trigger_txid.seqno
+    else:
+        mid_chunk_seqno = next(
+            seqno
+            for seqno, _ in reversed(snapshot_chunk_entries)
+            if seqno < snapshot_seqno
+        )
+    assert (
+        post_snapshot_entries
+    ), f"Expected ledger entries after snapshot {snapshot_seqno}"
+    assert post_snapshot_entries[0][0] == snapshot_seqno + 1, post_snapshot_entries[0]
+
+    base_dir = os.path.join(network.common_dir, "joining_nodes_snapshot_ledger_offset")
+    rmtree(base_dir, ignore_errors=True)
+    os.makedirs(base_dir)
+
+    variants = [
+        (
+            "incomplete_mid_chunk",
+            [(snapshot_chunk_entries, mid_chunk_seqno, False)],
+        ),
+        ("complete_mid_chunk", [(snapshot_chunk_entries, mid_chunk_seqno, True)]),
+        ("incomplete_snapshot", [(snapshot_chunk_entries, snapshot_seqno, False)]),
+        ("complete_snapshot", [(snapshot_chunk_entries, snapshot_seqno, True)]),
+        (
+            "incomplete_rest",
+            [
+                (snapshot_chunk_entries, snapshot_seqno, True),
+                (post_snapshot_entries, rest_txid.seqno, False),
+            ],
+        ),
+    ]
+
+    for variant_name, chunks_to_write in variants:
+        variant_dir = os.path.join(base_dir, variant_name)
+        current_dir = os.path.join(variant_dir, "ledger.current")
+        prefix_dir = os.path.join(variant_dir, "ledger.committed")
+        os.makedirs(current_dir)
+        os.makedirs(prefix_dir)
+
+        for source_dir in committed_ledger_dirs:
+            for f in os.listdir(source_dir):
+                if not f.endswith(ccf.ledger.COMMITTED_FILE_SUFFIX):
+                    continue
+                _, range_end = ccf.ledger.range_from_filename(f)
+                if range_end is not None and range_end < snapshot_chunk_start:
+                    copy(os.path.join(source_dir, f), prefix_dir)
+
+        for entries, end_seqno, complete in chunks_to_write:
+            infra.utils.write_ledger_chunk(current_dir, entries, end_seqno, complete)
+
+        LOG.info(
+            "Joining node with {} ledger variant from snapshot {}",
+            variant_name,
+            snapshot_file,
+        )
+        new_node = network.create_node()
+        try:
+            network.join_node(
+                new_node,
+                args.package,
+                args,
+                target_node=primary,
+                ledger_dir=current_dir,
+                read_only_ledger_dirs=[prefix_dir],
+                from_snapshot=True,
+                snapshots_dir=snapshot_dir,
+                copy_ledger=False,
+                fetch_recent_snapshot=False,
+                timeout=10,
+            )
+
+            out_path, _ = new_node.get_logs()
+            with open(out_path, encoding="utf-8") as out:
+                assert f"snapshot_{snapshot_seqno}_" in out.read()
+
+            network.retire_node(primary, new_node)
+            new_node.stop()
+        finally:
+            if not new_node.is_stopped():
+                new_node.stop()
+            if new_node in network.nodes:
+                network.nodes.remove(new_node)
+
+    return network
+
+
+def run_all(args, ipv6=False):
     txs = app.LoggingTxs("user0")
     with infra.network.network(
         args.nodes,
@@ -818,8 +1164,17 @@ def run_all(args):
         args.debug_nodes,
         pdb=args.pdb,
         txs=txs,
+        ipv6=ipv6,
     ) as network:
         network.start_and_open(args)
+
+        if ipv6:
+            primary, _ = network.find_primary()
+            primary_host = primary.get_public_rpc_host()
+            assert (
+                ":" in primary_host
+            ), f"Expected IPv6 primary host, got {primary_host}"
+            LOG.info(f"Confirmed reconfiguration network is using IPv6: {primary_host}")
 
         test_version(network, args)
         test_issue_fake_join(network, args)
@@ -833,6 +1188,7 @@ def run_all(args):
         test_add_node(network, args, copy_snapshot=True, fetch_recent_snapshot=False)
         test_add_node(network, args, copy_snapshot=True, fetch_recent_snapshot=True)
         test_add_node_with_read_only_ledger(network, args)
+        test_add_node_with_corrupted_ledger(network, args)
         test_join_straddling_primary_replacement(network, args)
         test_node_replacement(network, args)
         test_add_node_from_backup(network, args)
@@ -844,6 +1200,7 @@ def run_all(args):
         test_add_node_from_snapshot(network, args)
         test_add_node_from_snapshot(network, args, from_backup=True)
         test_add_node_from_snapshot(network, args, copy_ledger=False)
+        test_joining_nodes_snapshot_ledger_offset(network, args)
 
         test_node_filter(network, args)
         test_retired_nodes_stop_signing_after_retired_committed(network, args)
@@ -853,11 +1210,14 @@ def run_all(args):
 
         test_ledger_invariants(network, args)
 
-    run_join_old_snapshot(args)
-    run_join_no_snapshot_against_original_primary(args)
+    if ipv6:
+        assert_no_ipv4_in_node_configs(network)
+
+    run_join_old_snapshot(args, ipv6=ipv6)
+    run_join_no_snapshot_against_original_primary(args, ipv6=ipv6)
 
 
-def run_join_old_snapshot(const_args):
+def run_join_old_snapshot(const_args, ipv6=False):
     txs = app.LoggingTxs("user0")
     args = deepcopy(const_args)
     args.nodes = infra.e2e_args.nodes(args, 1)
@@ -870,6 +1230,7 @@ def run_join_old_snapshot(const_args):
             args.debug_nodes,
             pdb=args.pdb,
             txs=txs,
+            ipv6=ipv6,
         ) as network:
             network.start_and_open(args)
             primary, _ = network.find_primary()
@@ -976,7 +1337,7 @@ def run_join_old_snapshot(const_args):
             )
 
 
-def run_join_no_snapshot_against_original_primary(const_args):
+def run_join_no_snapshot_against_original_primary(const_args, ipv6=False):
     # Regression test.
     # Previously a node which should fetch a snapshot, would not as the lower limit for this was the startup snapshot of the node.
     # This test ensures that the startup seqno of a joining node is higher than the startup snapshot of the primary
@@ -991,6 +1352,7 @@ def run_join_no_snapshot_against_original_primary(const_args):
         args.debug_nodes,
         pdb=args.pdb,
         txs=txs,
+        ipv6=ipv6,
     ) as network:
         network.start_and_open(args)
         primary, _ = network.find_primary()
@@ -1026,3 +1388,12 @@ def run_join_no_snapshot_against_original_primary(const_args):
             assert (
                 body["startup_seqno"] > 0
             ), f"Joiner should have started from a fetched snapshot, got startup_seqno={body['startup_seqno']}"
+
+
+def run_ipv6(args):
+    assert infra.net.ipv6_loopback_available(), (
+        "IPv6 loopback (::1) is not available; CI enables IPv6 via the "
+        "container --sysctl net.ipv6.conf.*.disable_ipv6=0 (see .github/workflows)"
+    )
+
+    run_all(args, ipv6=True)

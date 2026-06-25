@@ -43,7 +43,6 @@ install_dev_dependencies() {
         python-pip \
         jq \
         tar \
-        npm \
         build-essential
 }
 
@@ -56,21 +55,6 @@ install_python_tools() {
     pip install gersemi
 }
 
-install_shellcheck() {
-    # For shellcheck
-    if ! curl -L https://github.com/koalaman/shellcheck/releases/download/stable/shellcheck-stable.linux.x86_64.tar.xz  \
-        --output shellcheck.tar.gz; then
-        echo "Failed to download shellcheck"
-        return 1
-    fi
-
-    mkdir -p shellcheck-dir &&
-    tar -xvf shellcheck.tar.gz -C shellcheck-dir &&
-    mv shellcheck-dir/shellcheck-stable/shellcheck /usr/local/bin/shellcheck &&
-    rm -rf shellcheck-dir shellcheck.tar.gz
-}
-
 retry "Development dependencies" install_dev_dependencies
 retry "LTS test dependencies" install_lts_test_dependencies
 retry "Python tools" install_python_tools
-retry "shellcheck installation" install_shellcheck

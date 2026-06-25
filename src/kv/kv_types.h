@@ -77,13 +77,13 @@ namespace ccf::kv
 
   inline void to_json(nlohmann::json& j, const Configuration::NodeInfo& ni)
   {
-    j["address"] = fmt::format("{}:{}", ni.hostname, ni.port);
+    j["address"] = ccf::make_net_address(ni.hostname, ni.port);
   }
 
   inline void from_json(const nlohmann::json& j, Configuration::NodeInfo& ni)
   {
     const std::string addr(j["address"]);
-    const auto& [h, p] = ccf::nonstd::split_1(addr, ":");
+    const auto& [h, p] = ccf::split_net_address(addr);
     ni.hostname = h;
     ni.port = p;
   }

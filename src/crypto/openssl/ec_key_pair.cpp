@@ -433,14 +433,14 @@ namespace ccf::crypto
     int extension_count = sk_X509_EXTENSION_num(exts);
     if (extension_count > 0)
     {
-      for (size_t i = 0; i < extension_count; i++)
+      for (int i = 0; i < extension_count; i++)
       {
-        X509_EXTENSION* ext = sk_X509_EXTENSION_value(exts, i);
-        ASN1_OBJECT* obj = X509_EXTENSION_get_object(ext);
+        X509_EXTENSION* csr_ext = sk_X509_EXTENSION_value(exts, i);
+        ASN1_OBJECT* obj = X509_EXTENSION_get_object(csr_ext);
         auto nid = OBJ_obj2nid(obj);
         if (nid == NID_subject_alt_name)
         {
-          OpenSSL::CHECK1(X509_add_ext(crt, ext, -1));
+          OpenSSL::CHECK1(X509_add_ext(crt, csr_ext, -1));
         }
       }
     }
@@ -507,11 +507,16 @@ namespace ccf::crypto
   JsonWebKeyECPrivate ECKeyPair_OpenSSL::private_key_jwk(
     const std::optional<std::string>& kid) const
   {
-    JsonWebKeyECPrivate jwk = {ECPublicKey_OpenSSL::public_key_jwk(kid)};
+    JsonWebKeyECPrivate jwk;
+    static_cast<JsonWebKeyECPublic&>(jwk) =
+      ECPublicKey_OpenSSL::public_key_jwk(kid);
 
     // As per https://www.openssl.org/docs/man1.0.2/man3/BN_num_bytes.html, size
     // should not be calculated with BN_num_bytes(d)!
-    size_t size = EVP_PKEY_bits(key) / CHAR_BIT;
+    // Use ceiling division so curves whose bit-size is not a multiple of 8
+    // (e.g. P-521 with 521 bits) get the full 66-byte buffer rather than a
+    // truncated 65-byte one.
+    int size = (EVP_PKEY_bits(key) + CHAR_BIT - 1) / CHAR_BIT;
     std::vector<uint8_t> bytes(size);
     Unique_BIGNUM d;
     BIGNUM* bn_d = nullptr;

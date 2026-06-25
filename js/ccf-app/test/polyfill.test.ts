@@ -9,7 +9,12 @@ import type {
 } from "../src/global.js";
 import { ccf } from "../src/global.js";
 import * as textcodec from "../src/textcodec.js";
-import { generateSelfSignedCert, generateCertChain } from "./crypto.js";
+import {
+  generateSelfSignedCert,
+  generateSelfSignedCACert,
+  generateIntermediateCACert,
+  generateCertChain,
+} from "./crypto.js";
 import { toArrayBuffer } from "../src/utils.js";
 
 beforeEach(function () {
@@ -93,6 +98,13 @@ describe("polyfill", function () {
   describe("generateEcdsaKeyPair/secp384r1", function () {
     it("generates a random ECDSA P384R1 key pair", function () {
       const pair = ccf.crypto.generateEcdsaKeyPair("secp384r1");
+      assert.isTrue(pair.publicKey.startsWith("-----BEGIN PUBLIC KEY-----"));
+      assert.isTrue(pair.privateKey.startsWith("-----BEGIN PRIVATE KEY-----"));
+    });
+  });
+  describe("generateEcdsaKeyPair/secp521r1", function () {
+    it("generates a random ECDSA P521R1 key pair", function () {
+      const pair = ccf.crypto.generateEcdsaKeyPair("secp521r1");
       assert.isTrue(pair.publicKey.startsWith("-----BEGIN PUBLIC KEY-----"));
       assert.isTrue(pair.privateKey.startsWith("-----BEGIN PRIVATE KEY-----"));
     });
@@ -584,7 +596,7 @@ describe("polyfill", function () {
   describe("pemToJwk and jwkToPem", function () {
     it("EC", function () {
       const my_kid = "my_kid";
-      const curves = ["secp256r1", "secp384r1"];
+      const curves = ["secp256r1", "secp384r1", "secp521r1"];
       for (const curve of curves) {
         const pair = ccf.crypto.generateEcdsaKeyPair(curve);
         {
@@ -606,14 +618,20 @@ describe("polyfill", function () {
           assert.equal(jwk.kty, "EC");
           assert.notExists(jwk.kid);
           const pem = ccf.crypto.jwkToPem(jwk);
-          assert.equal(pem, pair.privateKey);
+          assert.deepEqual(
+            crypto.createPrivateKey(pem).export({ format: "jwk" }),
+            crypto.createPrivateKey(pair.privateKey).export({ format: "jwk" }),
+          );
         }
         {
           const jwk = ccf.crypto.pemToJwk(pair.privateKey, my_kid);
           assert.equal(jwk.kty, "EC");
           assert.equal(jwk.kid, my_kid);
           const pem = ccf.crypto.jwkToPem(jwk);
-          assert.equal(pem, pair.privateKey);
+          assert.deepEqual(
+            crypto.createPrivateKey(pem).export({ format: "jwk" }),
+            crypto.createPrivateKey(pair.privateKey).export({ format: "jwk" }),
+          );
         }
       }
     });
@@ -771,6 +789,37 @@ describe("polyfill", function () {
       const chain = pems[0];
       const trusted = pems[2];
       assert.isFalse(ccf.crypto.isValidX509CertChain(chain, trusted));
+    });
+  });
+  describe("isValidX509RootCACert", function (this) {
+    const supported = "X509Certificate" in crypto;
+    it("returns true for a self-signed CA certificate", function () {
+      if (!supported) {
+        this.skip();
+      }
+      const pem = generateSelfSignedCACert();
+      assert.isTrue(ccf.crypto.isValidX509RootCACert(pem));
+    });
+    it("returns false for a non-CA self-signed certificate", function () {
+      if (!supported) {
+        this.skip();
+      }
+      const pem = generateSelfSignedCert().cert;
+      assert.isFalse(ccf.crypto.isValidX509RootCACert(pem));
+    });
+    it("returns false for an intermediate CA certificate", function () {
+      if (!supported) {
+        this.skip();
+      }
+      // An intermediate CA has CA:TRUE but is signed by a different key (not self-signed).
+      const pem = generateIntermediateCACert();
+      assert.isFalse(ccf.crypto.isValidX509RootCACert(pem));
+    });
+    it("returns false for malformed input", function () {
+      if (!supported) {
+        this.skip();
+      }
+      assert.isFalse(ccf.crypto.isValidX509RootCACert("garbage"));
     });
   });
 });

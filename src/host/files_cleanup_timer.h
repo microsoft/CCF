@@ -383,7 +383,7 @@ namespace asynchost
           check_digest_against_read_only_dirs(path, read_only_dirs);
         if (digest_result == DigestCheckResult::file_gone)
         {
-          // File was concurrently deleted — nothing to do.
+          // File was concurrently deleted - nothing to do.
           continue;
         }
         if (digest_result == DigestCheckResult::no_match)

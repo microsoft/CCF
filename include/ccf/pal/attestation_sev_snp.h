@@ -77,10 +77,25 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
 -----END PUBLIC KEY-----
 )";
 
-  inline const std::map<ProductName, const char*> amd_root_signing_keys{
-    {ProductName::Milan, amd_milan_root_signing_public_key},
-    {ProductName::Genoa, amd_genoa_root_signing_public_key},
-    {ProductName::Turin, amd_turin_root_signing_public_key},
+  struct AmdRootSigningKey
+  {
+    const char* public_key;
+    const char* issuer;
+  };
+
+  inline const std::map<ProductName, AmdRootSigningKey> amd_root_signing_keys{
+    {ProductName::Milan,
+     {amd_milan_root_signing_public_key,
+      "CN=ARK-Milan,O=Advanced Micro Devices,ST=CA,L=Santa Clara,C=US,"
+      "OU=Engineering"}},
+    {ProductName::Genoa,
+     {amd_genoa_root_signing_public_key,
+      "CN=ARK-Genoa,O=Advanced Micro Devices,ST=CA,L=Santa Clara,C=US,"
+      "OU=Engineering"}},
+    {ProductName::Turin,
+     {amd_turin_root_signing_public_key,
+      "CN=ARK-Turin,O=Advanced Micro Devices,ST=CA,L=Santa Clara,C=US,"
+      "OU=Engineering"}},
   };
 
 #pragma pack(push, 1)

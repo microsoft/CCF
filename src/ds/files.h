@@ -2,14 +2,25 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/nonstd.h"
+
+#include <cerrno>
+#include <cstddef>
+#include <cstdio>
 #include <cstring>
+#include <fcntl.h>
+#include <filesystem>
 #include <fstream>
 #include <glob.h>
 #include <iostream>
 #include <nlohmann/json.hpp>
 #include <optional>
+#include <span>
 #include <sstream>
 #include <string>
+#include <string_view>
+#include <sys/stat.h>
+#include <unistd.h>
 #include <vector>
 
 #define FMT_HEADER_ONLY
@@ -19,6 +30,45 @@
 namespace files
 {
   namespace fs = std::filesystem;
+  static constexpr mode_t private_file_permissions = S_IRUSR | S_IWUSR;
+
+  static int open_fd(
+    const fs::path& file,
+    int flags,
+    mode_t permissions = private_file_permissions)
+  {
+    return ::open(file.c_str(), flags, permissions);
+  }
+
+  static FILE* open_file(
+    const fs::path& file,
+    int flags,
+    const char* mode,
+    mode_t permissions = private_file_permissions)
+  {
+    const auto fd = open_fd(file, flags, permissions);
+    if (fd == -1)
+    {
+      return nullptr;
+    }
+
+    errno = 0;
+    // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+    auto* f = fdopen(fd, mode);
+    if (f == nullptr)
+    {
+      auto fdopen_errno = errno;
+      // Preserve the original fdopen() failure when it set errno, and only
+      // fall back to close()'s errno if fdopen() did not.
+      if (close(fd) != 0 && fdopen_errno == 0)
+      {
+        fdopen_errno = errno;
+      }
+      errno = fdopen_errno != 0 ? fdopen_errno : EIO;
+    }
+
+    return f;
+  }
 
   /**
    * @brief Checks if a path exists
@@ -114,32 +164,62 @@ namespace files
     return nlohmann::json::parse(v.begin(), v.end());
   }
 
-  /**
-   * @brief Writes the content of a vector to a file
-   *
-   * @param data vector to write
-   * @param file the path
-   */
-  static void dump(const std::vector<uint8_t>& data, const std::string& file)
+  static void dump(std::span<const std::byte> data, const fs::path& file)
   {
-    using namespace std;
-    ofstream f(file, ios::binary | ios::trunc);
-    f.write(reinterpret_cast<const char*>(data.data()), data.size());
-    if (!f)
+    auto* f = open_file(file, O_WRONLY | O_CREAT | O_TRUNC, "wb");
+    if (f == nullptr)
     {
-      throw logic_error("Failed to write to file: " + file);
+      throw std::logic_error(fmt::format(
+        "Failed to open file {} for writing: {}",
+        file.string(),
+        ccf::nonstd::strerror(errno)));
+    }
+
+    errno = 0;
+    const auto bytes_written =
+      fwrite(data.data(), sizeof(std::byte), data.size(), f);
+    const auto write_errno = errno;
+    errno = 0;
+    // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+    const auto close_rc = fclose(f);
+    const auto close_errno = errno;
+    if (bytes_written != data.size() || close_rc != 0)
+    {
+      if (bytes_written != data.size())
+      {
+        errno = write_errno != 0 ? write_errno : EIO;
+      }
+      else
+      {
+        errno = close_errno != 0 ? close_errno : EIO;
+      }
+      throw std::logic_error(fmt::format(
+        "Failed to write to file {}: {}",
+        file.string(),
+        ccf::nonstd::strerror(errno)));
     }
   }
 
   /**
-   * @brief Writes the content of a string to a file
+   * @brief Writes the content of a byte span to a file
    *
-   * @param data string to write
+   * @param data bytes to write
    * @param file the path
    */
-  static void dump(const std::string& data, const std::string& file)
+  static void dump(std::span<const uint8_t> data, const fs::path& file)
   {
-    dump(std::vector<uint8_t>(data.begin(), data.end()), file);
+    dump(std::as_bytes(data), file);
+  }
+
+  /**
+   * @brief Writes the content of a string view to a file
+   *
+   * @param data string view to write
+   * @param file the path
+   */
+  static void dump(std::string_view data, const fs::path& file)
+  {
+    dump(std::as_bytes(std::span(data)), file);
   }
 
   static void rename(const fs::path& src, const fs::path& dst)
