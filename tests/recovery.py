@@ -1317,13 +1317,12 @@ def run(args, ipv6=False):
 
 
 def run_recover_service_with_different_code_id(args):
-    txs = app.LoggingTxs("user0")
     with infra.network.network(
         args.nodes,
         args.binary_dir,
         args.debug_nodes,
         pdb=args.pdb,
-        txs=txs,
+        txs=app.LoggingTxs("user0"),
     ) as network:
         network.start_and_open(args)
         network = test_recover_service_with_different_code_id(network, args)
@@ -2468,7 +2467,9 @@ checked. Note that the key for each logging message is unique (per table).
         run_recover_service_with_different_code_id,
         package="samples/apps/logging/logging",
         recovery_package="js_generic",
-        nodes=infra.e2e_args.min_nodes(cr.args, f=0),  # 1 node suffices for recovery
+        # Single-node recovery is sufficient here because the test focuses on
+        # code ID switching rather than multi-node consensus behaviour.
+        nodes=infra.e2e_args.min_nodes(cr.args, f=0),
         ledger_chunk_bytes="50KB",
         snapshot_tx_interval=30,
     )
