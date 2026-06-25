@@ -264,12 +264,13 @@ namespace ccf
       {
         ::http::parse_url_full(jwks_url_str);
       }
-      catch (const std::invalid_argument&)
+      catch (const std::invalid_argument& e)
       {
         LOG_FAIL_FMT(
-          "JWT key auto-refresh: Cannot parse jwks_uri for issuer '{}': {}",
+          "JWT key auto-refresh: Cannot parse jwks_uri for issuer '{}': {} ({})",
           issuer,
-          jwks_url_str);
+          jwks_url_str,
+          e.what());
         send_refresh_jwt_keys_error();
         return;
       }
@@ -289,12 +290,13 @@ namespace ccf
           std::unique_ptr<ccf::curl::CurlRequest>&& request,
           CURLcode curl_response,
           long status_code) {
+          auto http_status = static_cast<ccf::http_status>(status_code);
           auto response_body_sp = std::make_shared<std::vector<uint8_t>>(
             request->get_response_body() != nullptr ?
               std::move(request->get_response_body()->buffer) :
               std::vector<uint8_t>{});
           ccf::tasks::add_task(ccf::tasks::make_basic_task(
-            [self, issuer, issuer_constraint, curl_response, status_code, response_body_sp]() {
+            [self, issuer, issuer_constraint, curl_response, http_status, response_body_sp]() {
               if (curl_response != CURLE_OK)
               {
                 LOG_FAIL_FMT(
@@ -309,7 +311,7 @@ namespace ccf
               self->handle_jwt_jwks_response(
                 issuer,
                 issuer_constraint,
-                static_cast<ccf::http_status>(status_code),
+                http_status,
                 std::move(*response_body_sp));
             }));
         };
@@ -366,17 +368,13 @@ namespace ccf
             std::unique_ptr<ccf::curl::CurlRequest>&& request,
             CURLcode curl_response,
             long status_code) {
+            auto http_status = static_cast<ccf::http_status>(status_code);
             auto response_body_sp = std::make_shared<std::vector<uint8_t>>(
               request->get_response_body() != nullptr ?
                 std::move(request->get_response_body()->buffer) :
                 std::vector<uint8_t>{});
             ccf::tasks::add_task(ccf::tasks::make_basic_task(
-              [self,
-               issuer,
-               ca_bundle_pem,
-               curl_response,
-               status_code,
-               response_body_sp]() {
+              [self, issuer, ca_bundle_pem, curl_response, http_status, response_body_sp]() {
                 if (curl_response != CURLE_OK)
                 {
                   LOG_FAIL_FMT(
@@ -391,7 +389,7 @@ namespace ccf
                 self->handle_jwt_metadata_response(
                   issuer,
                   ca_bundle_pem,
-                  static_cast<ccf::http_status>(status_code),
+                  http_status,
                   std::move(*response_body_sp));
               }));
           };
