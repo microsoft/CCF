@@ -47,7 +47,7 @@ namespace tls
       Context(false),
       cert(cert_)
     {
-      cert->use(ssl, cfg);
+      cert->configure_ssl(ssl, cfg);
 
       // Configure protocols negotiated by ALPN
       // See https://nghttp2.org/documentation/tutorial-server.html and use of
