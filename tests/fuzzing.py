@@ -71,7 +71,7 @@ class CCFFuzzLogger(boofuzz.IFuzzLogger):
 
 def ccf_node_post_send(node):
     def post_send_callback(fuzz_data_logger=None, *args, **kwargs):
-        done = node.remote.check_done()
+        done = node.remote.check_done(timeout=0)
         if done:
             fuzz_data_logger.log_error("Node has exited")
         return done
