@@ -398,7 +398,9 @@ def test_recover_service_with_different_code_id(network, args):
             js_logging_app = os.path.join(
                 os.path.dirname(__file__), "..", "samples", "apps", "logging", "js"
             )
-            recovered_network.consortium.set_js_app_from_dir(new_primary, js_logging_app)
+            recovered_network.consortium.set_js_app_from_dir(
+                new_primary, js_logging_app
+            )
 
         recovered_network.txs = app.LoggingTxs("user0")
         recovered_network.txs.issue(recovered_network, number_txs=1)
