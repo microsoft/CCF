@@ -379,33 +379,34 @@ def test_recover_service_with_different_code_id(network, args):
         args.debug_nodes,
         existing_network=network,
     )
-    recovered_network.start_in_recovery(
-        recovery_args,
-        ledger_dir=current_ledger_dir,
-        committed_ledger_dirs=committed_ledger_dirs,
-    )
-    recovered_network.recover(recovery_args)
-
-    new_primary, _ = recovered_network.find_primary()
-    with new_primary.api_versioned_client(api_version=args.gov_api_version) as c:
-        r = c.get("/gov/service/join-policy")
-        assert r.status_code == http.HTTPStatus.OK, r
-        recovered_host_data = r.body.json()[platform]["hostData"]
-        assert recovery_host_data in recovered_host_data, recovered_host_data
-
-    if recovery_package == "js_generic":
-        js_logging_app = os.path.join(
-            os.path.dirname(__file__), "..", "samples", "apps", "logging", "js"
+    with infra.network.close_on_error(recovered_network):
+        recovered_network.start_in_recovery(
+            recovery_args,
+            ledger_dir=current_ledger_dir,
+            committed_ledger_dirs=committed_ledger_dirs,
         )
-        recovered_network.consortium.set_js_app_from_dir(new_primary, js_logging_app)
+        recovered_network.recover(recovery_args)
 
-    recovered_network.txs = app.LoggingTxs("user0")
-    recovered_network.txs.issue(recovered_network, number_txs=1)
-    recovered_network.txs.verify(
-        network=recovered_network,
-        timeout=vars(args).get("ledger_recovery_timeout"),
-    )
-    return recovered_network
+        new_primary, _ = recovered_network.find_primary()
+        with new_primary.api_versioned_client(api_version=args.gov_api_version) as c:
+            r = c.get("/gov/service/join-policy")
+            assert r.status_code == http.HTTPStatus.OK, r
+            recovered_host_data = r.body.json()[platform]["hostData"]
+            assert recovery_host_data in recovered_host_data, recovered_host_data
+
+        if recovery_package == "js_generic":
+            js_logging_app = os.path.join(
+                os.path.dirname(__file__), "..", "samples", "apps", "logging", "js"
+            )
+            recovered_network.consortium.set_js_app_from_dir(new_primary, js_logging_app)
+
+        recovered_network.txs = app.LoggingTxs("user0")
+        recovered_network.txs.issue(recovered_network, number_txs=1)
+        recovered_network.txs.verify(
+            network=recovered_network,
+            timeout=vars(args).get("ledger_recovery_timeout"),
+        )
+        return recovered_network
 
 
 @reqs.description("Recover a service with wrong service identity")
