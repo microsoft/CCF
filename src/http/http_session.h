@@ -9,6 +9,7 @@
 #include "http_parser.h"
 #include "http_responder.h"
 #include "http_rpc_context.h"
+#include "node/commit_callback_subsystem.h"
 
 namespace http
 {

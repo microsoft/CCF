@@ -231,8 +231,7 @@ namespace asynchost
       SSL_CTX_set_min_proto_version(c, TLS1_2_VERSION);
       // Request the client certificate during the handshake so it can be used
       // for application-level caller authentication (user/member cert auth).
-      // Verification is not enforced here - the application decides - mirroring
-      // the old Cert(auth_required = false) server behaviour.
+      // Verification is not enforced here - the application decides.
       SSL_CTX_set_verify(
         c, SSL_VERIFY_PEER, [](int, X509_STORE_CTX*) { return 1; });
       if (!alpn_wire.empty())
@@ -537,8 +536,8 @@ namespace asynchost
         {
           if (ctx == nullptr)
           {
-            // No server certificate yet - refuse (mirrors the old "Session
-            // refused until cert present" behaviour).
+            // No server certificate yet - refuse the connection until one is
+            // supplied (see set_server_cert).
             ::close(cfd);
             continue;
           }
