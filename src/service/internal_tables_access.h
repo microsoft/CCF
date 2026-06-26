@@ -992,7 +992,9 @@ namespace ccf
         return false;
       }
 
-      if (is_service_recovering(tx))
+      if (
+        service_status.value() == ServiceStatus::RECOVERING ||
+        service_status.value() == ServiceStatus::WAITING_FOR_RECOVERY_SHARES)
       {
         // During recovery, the recovery threshold cannot be modified.
         // Otherwise, the threshold could be passed without triggering the end
