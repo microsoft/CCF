@@ -33,7 +33,8 @@ namespace ccf
     ccf::tasks::Task periodic_refresh_task;
 
     // Maximum response body size for JWK/metadata responses (1 MB)
-    static constexpr size_t max_response_size = static_cast<size_t>(1024) * 1024;
+    static constexpr size_t max_response_size =
+      static_cast<size_t>(1024) * 1024;
     static constexpr long request_connection_timeout_s = 5;
     static constexpr long request_response_timeout_s = 5;
 
