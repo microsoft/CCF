@@ -398,12 +398,12 @@ class Node:
         # Detect whether node started up successfully
         for _ in range(NODE_STARTUP_RETRY_COUNT):
             try:
-                if self.remote.check_done():
+                if self.remote.check_done(timeout=0):
                     raise RuntimeError("Node crashed at startup")
                 self.remote.get_startup_files(self.common_dir)
                 break
             except Exception as e:
-                if self.remote.check_done():
+                if self.remote.check_done(timeout=0):
                     raise RuntimeError(
                         f"Error starting node {self.local_node_id}"
                     ) from e
