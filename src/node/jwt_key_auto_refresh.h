@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/ds/json.h"
+#include "ccf/ds/nonstd.h"
 #include "ccf/service/tables/jwt.h"
 #include "http/curl.h"
 #include "http/http_builder.h"
@@ -288,6 +289,7 @@ namespace ccf
         return;
       }
 
+      ccf::nonstd::to_lower(jwks_url.scheme);
       if (jwks_url.scheme != "https")
       {
         LOG_FAIL_FMT(
