@@ -266,9 +266,8 @@ namespace loggingapp
         value = it->get<size_t>();
         if (value == 0)
         {
-          throw std::logic_error(
-            fmt::format(
-              "node_data.logging configuration '{}' must be non-zero", key));
+          throw std::logic_error(fmt::format(
+            "node_data.logging configuration '{}' must be non-zero", key));
         }
       }
     }
@@ -1877,9 +1876,8 @@ namespace loggingapp
 
         // Set a maximum range, paginate larger requests
         const auto range_begin = from_seqno;
-        const auto range_end =
-          std::min(
-            to_seqno, range_begin + max_historical_range_seqnos_per_page);
+        const auto range_end = std::min(
+          to_seqno, range_begin + max_historical_range_seqnos_per_page);
 
         // SNIPPET_START: indexing_strategy_use
         const auto interesting_seqnos =
@@ -1974,8 +1972,7 @@ namespace loggingapp
         {
           const auto next_page_start = range_end + 1;
           const auto next_range_end = std::min(
-            to_seqno,
-            next_page_start + max_historical_range_seqnos_per_page);
+            to_seqno, next_page_start + max_historical_range_seqnos_per_page);
           const auto next_seqnos = index_per_public_key->get_write_txs_in_range(
             id, next_page_start, next_range_end);
 

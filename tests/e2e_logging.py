@@ -1329,11 +1329,7 @@ def test_historical_query_range_pagination(network, args):
         ENTRY_COUNT = 50
         target_write_positions = {0, ENTRY_COUNT - 1}
         for i in range(ENTRY_COUNT):
-            idx = (
-                SPARSE_ENTRY_ID
-                if i in target_write_positions
-                else FILLER_ENTRY_ID
-            )
+            idx = SPARSE_ENTRY_ID if i in target_write_positions else FILLER_ENTRY_ID
             msg = f"Multi-bucket indexing message {i}"
             r = c.post(
                 "/app/log/public",
