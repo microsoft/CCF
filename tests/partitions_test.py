@@ -490,6 +490,115 @@ def test_election_reconfiguration(network, args):
     return network
 
 
+@reqs.description("Join rollback after primary isolation")
+@reqs.exactly_n_nodes(3)
+def test_join_rollback_on_primary_isolation(network, args):
+    primary, backups = network.find_nodes()
+    network.wait_for_all_nodes_to_commit(primary=primary)
+
+    LOG.info("Join a pending node on an isolated primary")
+    with network.partitioner.partition([primary], name="isolate primary during join"):
+        pending_node = network.create_node()
+        network.setup_join_node(
+            pending_node,
+            args.package,
+            args,
+            target_node=primary,
+            from_snapshot=False,
+        )
+        pending_node.complete_join()
+        # This deliberately checks the isolated primary's local state: the
+        # pending join has been accepted there, but cannot be committed and must
+        # be rolled back once the backups elect a new primary.
+        network.wait_for_node_in_store(
+            primary, pending_node.node_id, ccf.ledger.NodeStatus.PENDING
+        )
+
+        network.wait_for_new_primary(primary, nodes=backups)
+
+    LOG.info("Check the pending join is retried after rollback")
+    primary = network.wait_for_primary_unanimity(nodes=backups)
+    network.wait_for_node_in_store(
+        primary,
+        pending_node.node_id,
+        ccf.ledger.NodeStatus.PENDING,
+        timeout=args.ledger_recovery_timeout,
+    )
+    valid_from = datetime.utcnow()
+    network.consortium.trust_node(
+        primary,
+        pending_node.node_id,
+        valid_from=valid_from,
+        timeout=args.ledger_recovery_timeout,
+    )
+    pending_node.wait_for_node_to_join(timeout=args.ledger_recovery_timeout)
+    pending_node.set_certificate_validity_period(
+        valid_from, args.maximum_node_certificate_validity_days
+    )
+    network.wait_for_all_nodes_to_commit(primary=primary)
+    check_can_progress(primary)
+
+    LOG.info("Trust a pending node on an isolated primary")
+    primary, backups = network.find_nodes()
+    host_spec = infra.interfaces.HostSpec()
+    host_spec.rpc_interfaces.update(infra.interfaces.make_secondary_interface())
+    trusted_node = network.create_node(host_spec)
+    network.join_node(
+        trusted_node,
+        args.package,
+        args,
+        target_node=primary,
+        from_snapshot=False,
+    )
+    network.wait_for_all_nodes_to_commit(primary=primary)
+
+    with network.partitioner.partition(
+        [primary, trusted_node], name="isolate primary and joiner during trust"
+    ):
+        network.consortium.trust_node(
+            primary,
+            trusted_node.node_id,
+            valid_from=datetime.utcnow(),
+            wait_for_commit=False,
+        )
+        trusted_node.wait_for_node_to_join(
+            interface_name=infra.interfaces.SECONDARY_RPC_INTERFACE,
+            timeout=args.ledger_recovery_timeout,
+        )
+        # This deliberately checks the isolated primary's local state: the
+        # trusted transition has been observed by the joiner, but cannot be
+        # committed and must be rolled back once the backups elect a new primary.
+        network.wait_for_node_in_store(
+            primary, trusted_node.node_id, ccf.ledger.NodeStatus.TRUSTED
+        )
+
+        network.wait_for_new_primary(primary, nodes=backups)
+
+    LOG.info("Check the trusted transition is rolled back and can be retried")
+    primary = network.wait_for_primary_unanimity(nodes=backups)
+    network.wait_for_node_in_store(
+        primary,
+        trusted_node.node_id,
+        ccf.ledger.NodeStatus.PENDING,
+        timeout=args.ledger_recovery_timeout,
+    )
+    valid_from = datetime.utcnow()
+    network.consortium.trust_node(
+        primary,
+        trusted_node.node_id,
+        valid_from=valid_from,
+        timeout=args.ledger_recovery_timeout,
+    )
+    trusted_node.wait_for_node_to_join(timeout=args.ledger_recovery_timeout)
+    trusted_node.set_certificate_validity_period(
+        valid_from, args.maximum_node_certificate_validity_days
+    )
+    network.wait_for_all_nodes_to_commit(primary=primary)
+    check_can_progress(primary)
+
+    return network
+
+
 @reqs.description("Forwarding across a partition may trigger a timeout")
 @reqs.at_least_n_nodes(3)
 def test_forwarding_timeout(network, args):
@@ -1194,6 +1303,7 @@ def run(args):
         test_expired_certs(network, args)
         for n in range(5):
             test_isolate_and_reconnect_primary(network, args, iteration=n)
+        test_join_rollback_on_primary_isolation(network, args)
         test_election_reconfiguration(network, args)
         test_forwarding_timeout(network, args)
         test_invalidated_blocking_calls(network, args)
