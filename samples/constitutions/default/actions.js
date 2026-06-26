@@ -307,7 +307,9 @@ function checkRecoveryMemberChange(memberId, hasInputEncryptionKey) {
 
 function checkRecoverySharesChange() {
   if (isServiceRecovering()) {
-    throw new Error("Cannot change recovery shares during recovery");
+    throw new Error(
+      "Cannot change the recovery threshold, refresh recovery shares, or rekey the ledger during recovery",
+    );
   }
 }
 
