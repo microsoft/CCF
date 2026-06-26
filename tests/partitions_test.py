@@ -858,7 +858,7 @@ def test_recovery_elections(orig_network, args):
     # the original primary node.
     backup = new_backups[0]
     LOG.info(f"Using strace to inject delays in file IO of {backup}")
-    assert not backup.remote.check_done()
+    assert not backup.remote.check_done(timeout=0)
 
     strace_command = [
         "strace",
@@ -915,12 +915,9 @@ def test_recovery_elections(orig_network, args):
     # The result of all of that is that this node, which had become primary while it
     # completed its private recovery, crashed at the end of recovery (rather than)
     # producing an invalid ledger).
-    # Poll for up to 15s to tolerate CI timing variance around process exit.
     done_timeout_s = 15
-    done_deadline = time.time() + done_timeout_s
-    while time.time() < done_deadline and not backup.remote.check_done():
-        time.sleep(0.2)
-    if not backup.remote.check_done():
+    done = backup.remote.check_done(timeout=done_timeout_s)
+    if not done:
         LOG.error(
             f"Backup node {backup} did not terminate within {done_timeout_s}s after recovery/election"
         )
@@ -936,8 +933,8 @@ def test_recovery_elections(orig_network, args):
             backup.stop()
         except Exception as e:
             LOG.warning(f"Failed to stop backup node: {e}")
-    assert (
-        backup.remote.check_done()
+    assert backup.remote.check_done(
+        timeout=0
     ), f"Backup node {backup} did not terminate after recovery/election period"
 
     network.ignore_errors_on_shutdown()
