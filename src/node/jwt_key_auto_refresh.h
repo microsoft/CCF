@@ -29,6 +29,7 @@ namespace ccf
     ccf::crypto::ECKeyPairPtr node_sign_kp;
     ccf::crypto::Pem node_cert;
     std::atomic_size_t attempts;
+    std::atomic_bool stopped;
 
     ccf::tasks::Task periodic_refresh_task;
 
@@ -88,7 +89,8 @@ namespace ccf
       rpc_map(rpc_map),
       node_sign_kp(std::move(node_sign_kp)),
       node_cert(std::move(node_cert)),
-      attempts(0)
+      attempts(0),
+      stopped(false)
     {}
 
     ~JwtKeyAutoRefresh()
@@ -98,19 +100,28 @@ namespace ccf
 
     void start()
     {
+      stopped.store(false);
       LOG_DEBUG_FMT("JWT key initial auto-refresh");
-      periodic_refresh_task = ccf::tasks::make_basic_task([this]() {
-        if (!this->consensus->can_replicate())
+      const auto self = weak_from_this();
+      periodic_refresh_task = ccf::tasks::make_basic_task([self]() {
+        const auto self_sp = self.lock();
+        if (self_sp == nullptr || self_sp->stopped.load())
+        {
+          return;
+        }
+
+        if (!self_sp->consensus->can_replicate())
         {
           LOG_DEBUG_FMT("JWT key auto-refresh: Node is not primary, skipping");
         }
         else
         {
-          this->refresh_jwt_keys();
+          self_sp->refresh_jwt_keys();
         }
 
         LOG_DEBUG_FMT(
-          "JWT key auto-refresh: Scheduling in {}s", this->refresh_interval_s);
+          "JWT key auto-refresh: Scheduling in {}s",
+          self_sp->refresh_interval_s);
       });
 
       const std::chrono::seconds period(refresh_interval_s);
@@ -119,6 +130,7 @@ namespace ccf
 
     void stop()
     {
+      stopped.store(true);
       if (periodic_refresh_task != nullptr)
       {
         periodic_refresh_task->cancel_task();
@@ -128,15 +140,22 @@ namespace ccf
     void schedule_once()
     {
       LOG_DEBUG_FMT("JWT key one-off refresh: Scheduling without delay");
-      ccf::tasks::add_task(ccf::tasks::make_basic_task([this]() {
-        if (!this->consensus->can_replicate())
+      const auto self = weak_from_this();
+      ccf::tasks::add_task(ccf::tasks::make_basic_task([self]() {
+        const auto self_sp = self.lock();
+        if (self_sp == nullptr || self_sp->stopped.load())
+        {
+          return;
+        }
+
+        if (!self_sp->consensus->can_replicate())
         {
           LOG_DEBUG_FMT(
             "JWT key one-off refresh: Node is not primary, skipping");
         }
         else
         {
-          this->refresh_jwt_keys();
+          self_sp->refresh_jwt_keys();
         }
       }));
     }
@@ -211,9 +230,6 @@ namespace ccf
         return;
       }
 
-      // call internal endpoint to update keys
-      auto msg = SetJwtPublicSigningKeys{issuer, jwks};
-
       // For each key we leave the specified issuer constraint or set a common
       // one otherwise (if present).
       if (issuer_constraint.has_value())
@@ -226,6 +242,9 @@ namespace ccf
           }
         }
       }
+
+      // call internal endpoint to update keys
+      auto msg = SetJwtPublicSigningKeys{issuer, jwks};
 
       send_refresh_jwt_keys(msg);
     }
@@ -311,8 +330,9 @@ namespace ccf
       LOG_DEBUG_FMT(
         "JWT key auto-refresh: Requesting JWKS at {}", jwks_url_str);
 
+      const auto self = weak_from_this();
       auto response_callback =
-        [self = shared_from_this(), issuer, issuer_constraint](
+        [self, issuer, issuer_constraint](
           std::unique_ptr<ccf::curl::CurlRequest>&& request,
           CURLcode curl_response,
           long status_code) {
@@ -328,6 +348,12 @@ namespace ccf
                                          curl_response,
                                          http_status,
                                          response_body_sp]() {
+              const auto self_sp = self.lock();
+              if (self_sp == nullptr || self_sp->stopped.load())
+              {
+                return;
+              }
+
               if (curl_response != CURLE_OK)
               {
                 LOG_FAIL_FMT(
@@ -336,10 +362,10 @@ namespace ccf
                   issuer,
                   curl_easy_strerror(curl_response),
                   curl_response);
-                self->send_refresh_jwt_keys_error();
+                self_sp->send_refresh_jwt_keys_error();
                 return;
               }
-              self->handle_jwt_jwks_response(
+              self_sp->handle_jwt_jwks_response(
                 issuer,
                 issuer_constraint,
                 http_status,
@@ -352,12 +378,22 @@ namespace ccf
 
     void refresh_jwt_keys()
     {
+      if (stopped.load())
+      {
+        return;
+      }
+
       auto tx = network.tables->create_read_only_tx();
       auto* jwt_issuers = tx.ro(network.jwt_issuers);
       auto* ca_cert_bundles = tx.ro(network.ca_cert_bundles);
       jwt_issuers->foreach([this, &ca_cert_bundles](
                              const JwtIssuer& issuer,
                              const JwtIssuerMetadata& metadata) {
+        if (stopped.load())
+        {
+          return false;
+        }
+
         if (!metadata.auto_refresh)
         {
           LOG_DEBUG_FMT(
@@ -394,8 +430,9 @@ namespace ccf
 
         auto ca_bundle_pem = ca_cert_bundle_pem.value();
 
+        const auto self = weak_from_this();
         auto response_callback =
-          [self = shared_from_this(), issuer, ca_bundle_pem](
+          [self, issuer, ca_bundle_pem](
             std::unique_ptr<ccf::curl::CurlRequest>&& request,
             CURLcode curl_response,
             long status_code) {
@@ -411,6 +448,12 @@ namespace ccf
                                            curl_response,
                                            http_status,
                                            response_body_sp]() {
+                const auto self_sp = self.lock();
+                if (self_sp == nullptr || self_sp->stopped.load())
+                {
+                  return;
+                }
+
                 if (curl_response != CURLE_OK)
                 {
                   LOG_FAIL_FMT(
@@ -419,10 +462,10 @@ namespace ccf
                     issuer,
                     curl_easy_strerror(curl_response),
                     curl_response);
-                  self->send_refresh_jwt_keys_error();
+                  self_sp->send_refresh_jwt_keys_error();
                   return;
                 }
-                self->handle_jwt_metadata_response(
+                self_sp->handle_jwt_metadata_response(
                   issuer,
                   ca_bundle_pem,
                   http_status,

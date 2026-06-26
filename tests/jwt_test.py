@@ -372,6 +372,15 @@ def check_kv_jwt_key_matches(args, network, kid, key_pem):
         assert stored_key == key_pem, "input cert is not equal to stored cert"
 
 
+def check_kv_jwt_key_constraint(args, network, kid, expected_constraint):
+    primary, _ = network.find_nodes()
+    latest_jwt_signing_keys = get_jwt_keys(args, primary)
+
+    assert kid in latest_jwt_signing_keys
+    stored_constraint = latest_jwt_signing_keys[kid][0]["constraint"]
+    assert stored_constraint == expected_constraint
+
+
 def check_kv_jwt_keys_not_empty(args, network, issuer):
     primary, _ = network.find_nodes()
     latest_jwt_signing_keys = get_jwt_keys(args, primary)
@@ -557,6 +566,7 @@ def test_jwt_key_auto_refresh(network, args):
                 ),
                 timeout=5,
             )
+            check_kv_jwt_key_constraint(args, network, kid, issuer.name)
 
         LOG.info("Check that JWT refresh has attempts and successes")
         m = get_jwt_refresh_endpoint_metrics(primary)
