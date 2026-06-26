@@ -415,6 +415,11 @@ def test_jwt_key_auto_refresh(network, args):
         )
 
     LOG.info("Start OpenID endpoint server")
+    # Capture baseline metrics before the server starts: any connection failures
+    # from a prior test run (e.g. after a primary failover when the server was
+    # briefly unavailable) will already be reflected here and must not be counted
+    # as failures introduced by this test.
+    baseline_m = get_jwt_refresh_endpoint_metrics(primary)
     with issuer.start_openid_server(issuer_port, kid) as server:
         # Send oversized headers with the payload that will cause the CCF client to
         # fail parsing and log an error.
@@ -454,9 +459,9 @@ def test_jwt_key_auto_refresh(network, args):
 
         LOG.info("Check that JWT refresh has attempts and successes and no failures")
         m = get_jwt_refresh_endpoint_metrics(primary)
-        assert m["attempts"] > 0, m
-        assert m["successes"] > 0, m
-        assert m["failures"] == 0, m
+        assert m["attempts"] > baseline_m["attempts"], m
+        assert m["successes"] > baseline_m["successes"], m
+        assert m["failures"] == baseline_m["failures"], m
 
         LOG.info("Serve invalid JWKS")
         server.jwks = {"foo": "bar"}
@@ -465,7 +470,7 @@ def test_jwt_key_auto_refresh(network, args):
 
         def check_has_failures():
             m = get_jwt_refresh_endpoint_metrics(primary)
-            assert m["failures"] > 0, m
+            assert m["failures"] > baseline_m["failures"], m
 
         with_timeout(check_has_failures, timeout=5)
 

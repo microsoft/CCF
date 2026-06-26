@@ -5,12 +5,6 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
-
-### Changed
-
-- JWT/JWK auto-refresh outbound HTTP fetches (OpenID metadata and JWKS) now use the curl multi singleton client introduced in #7102, replacing the previous `RPCSessions::create_client()` path. Connection and TLS failures are now counted in refresh failure metrics via `send_refresh_jwt_keys_error()`, improving observability of network-level refresh errors (#7989).
-
 ## [7.0.6]
 
 [7.0.6]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.6
@@ -18,6 +12,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - Experimental support for IPv6. Node RPC and node-to-node interface hosts may now be specified as IPv6 literals in bracketed form (e.g. `[::1]:8000`), and addresses are consistently parsed, bound, connected (with fallback across mixed IPv4/IPv6 resolved addresses), serialised, and embedded in redirect URLs for IPv6 (#7671).
+
+### Changed
+
+- JWT/JWK auto-refresh outbound HTTP fetches (OpenID metadata and JWKS) now use the curl multi singleton client introduced in #7102, replacing the previous `RPCSessions::create_client()` path. Connection and TLS failures are now counted in refresh failure metrics via `send_refresh_jwt_keys_error()`, improving observability of network-level refresh errors (#7989).
 
 ### Fixed
 

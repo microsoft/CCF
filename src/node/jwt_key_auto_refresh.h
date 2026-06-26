@@ -269,7 +269,8 @@ namespace ccf
       catch (const std::invalid_argument& e)
       {
         LOG_FAIL_FMT(
-          "JWT key auto-refresh: Cannot parse jwks_uri for issuer '{}': {} ({})",
+          "JWT key auto-refresh: Cannot parse jwks_uri for issuer '{}': {} "
+          "({})",
           issuer,
           jwks_url_str,
           e.what());
@@ -297,8 +298,13 @@ namespace ccf
             request->get_response_body() != nullptr ?
               std::move(request->get_response_body()->buffer) :
               std::vector<uint8_t>{});
-          ccf::tasks::add_task(ccf::tasks::make_basic_task(
-            [self, issuer, issuer_constraint, curl_response, http_status, response_body_sp]() {
+          ccf::tasks::add_task(
+            ccf::tasks::make_basic_task([self,
+                                         issuer,
+                                         issuer_constraint,
+                                         curl_response,
+                                         http_status,
+                                         response_body_sp]() {
               if (curl_response != CURLE_OK)
               {
                 LOG_FAIL_FMT(
@@ -375,8 +381,13 @@ namespace ccf
               request->get_response_body() != nullptr ?
                 std::move(request->get_response_body()->buffer) :
                 std::vector<uint8_t>{});
-            ccf::tasks::add_task(ccf::tasks::make_basic_task(
-              [self, issuer, ca_bundle_pem, curl_response, http_status, response_body_sp]() {
+            ccf::tasks::add_task(
+              ccf::tasks::make_basic_task([self,
+                                           issuer,
+                                           ca_bundle_pem,
+                                           curl_response,
+                                           http_status,
+                                           response_body_sp]() {
                 if (curl_response != CURLE_OK)
                 {
                   LOG_FAIL_FMT(
@@ -396,7 +407,8 @@ namespace ccf
               }));
           };
 
-        send_curl_get(metadata_url, ca_bundle_pem, std::move(response_callback));
+        send_curl_get(
+          metadata_url, ca_bundle_pem, std::move(response_callback));
         return true;
       });
     }
