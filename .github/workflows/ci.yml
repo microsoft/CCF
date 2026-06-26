@@ -19,7 +19,7 @@ jobs:
     runs-on:
       [
         self-hosted,
-        1ES.Pool=gha-vmss-d16av5-ci,
+        1ES.Pool=gha-vmss-d16av6-ci,
         "JobId=ci_build_tidy-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
       ]
     container:
@@ -108,7 +108,7 @@ jobs:
     runs-on:
       [
         self-hosted,
-        1ES.Pool=gha-vmss-d16av5-ci,
+        1ES.Pool=gha-vmss-d16av6-ci,
         "JobId=ci_build_test_virtual-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
       ]
     container:
@@ -182,7 +182,7 @@ jobs:
     runs-on:
       [
         self-hosted,
-        1ES.Pool=gha-vmss-d16av5-ci,
+        1ES.Pool=gha-vmss-d16av6-ci,
         "JobId=ci_build_test_virtual_rest-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
       ]
     container:
