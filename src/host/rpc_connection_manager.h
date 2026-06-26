@@ -99,7 +99,8 @@ namespace ccf
     }
 
     // Build the protocol session for a connection on `li`, applying caps.
-    // Returns nullptr to refuse (hard cap). Runs on the interface's loop thread.
+    // Returns nullptr to refuse (hard cap). Runs on the interface's loop
+    // thread.
     std::shared_ptr<ccf::Session> make_session(
       ListenInterface* li,
       ::tcp::ConnID conn_id,
@@ -245,16 +246,14 @@ namespace ccf
     // update_listening_interface_options). Returns the bound port (supports
     // ephemeral port 0), or 0 on failure.
     uint16_t listen(
-      const std::string& name,
-      const std::string& host,
-      const std::string& port)
+      const std::string& name, const std::string& host, const std::string& port)
     {
       std::lock_guard<std::mutex> guard(interfaces_mutex);
       auto it = interfaces.find(name);
       if (it == interfaces.end())
       {
-        throw std::logic_error(fmt::format(
-          "Cannot listen on unconfigured interface '{}'", name));
+        throw std::logic_error(
+          fmt::format("Cannot listen on unconfigured interface '{}'", name));
       }
       auto* li = it->second.get();
 
@@ -277,9 +276,7 @@ namespace ccf
 
       auto factory =
         [this, li](
-          ::tcp::ConnID cid,
-          ccf::SessionWriter& w,
-          std::vector<uint8_t> pc) {
+          ::tcp::ConnID cid, ccf::SessionWriter& w, std::vector<uint8_t> pc) {
           return make_session(li, cid, w, std::move(pc));
         };
       auto on_closed = [li](::tcp::ConnID) {
@@ -314,9 +311,7 @@ namespace ccf
     // OpenSSL QUIC listener (OpenSSL >= 3.5). The DatagramServer below is the
     // shared substrate for that (see host/datagram_server.h).
     uint16_t listen_udp(
-      const std::string& name,
-      const std::string& host,
-      const std::string& port)
+      const std::string& name, const std::string& host, const std::string& port)
     {
       std::lock_guard<std::mutex> guard(interfaces_mutex);
       auto server = std::make_unique<asynchost::DatagramServer>(
@@ -358,9 +353,13 @@ namespace ccf
       // optionally, this node's client certificate to present. It configures
       // the outbound SSL when the connection is opened.
       auto connect_cb =
-        [bridge, cert](int64_t cid, const std::string& h, const std::string& s) {
+        [bridge,
+         cert](int64_t cid, const std::string& h, const std::string& s) {
           bridge->connect(
-            static_cast<::tcp::ConnID>(cid), h, s, [cert](SSL* ssl, SSL_CTX* ctx) {
+            static_cast<::tcp::ConnID>(cid),
+            h,
+            s,
+            [cert](SSL* ssl, SSL_CTX* ctx) {
               if (cert != nullptr)
               {
                 cert->use(ssl, ctx);
@@ -372,15 +371,15 @@ namespace ccf
       std::shared_ptr<ccf::Session> as_session;
       if (app_protocol == "HTTP2")
       {
-        auto s = std::make_shared<::http::HTTP2ClientSession>(
-          id, *bridge, connect_cb);
+        auto s =
+          std::make_shared<::http::HTTP2ClientSession>(id, *bridge, connect_cb);
         session = s;
         as_session = s;
       }
       else
       {
-        auto s = std::make_shared<::http::HTTPClientSession>(
-          id, *bridge, connect_cb);
+        auto s =
+          std::make_shared<::http::HTTPClientSession>(id, *bridge, connect_cb);
         session = s;
         as_session = s;
       }
@@ -390,8 +389,9 @@ namespace ccf
     }
 
     bool reply_async(
-      int64_t id, bool terminate_after_reply, std::vector<uint8_t>&& data)
-      override
+      int64_t id,
+      bool terminate_after_reply,
+      std::vector<uint8_t>&& data) override
     {
       std::vector<asynchost::OpenSSLSessionManager*> bridges;
       {
@@ -505,8 +505,8 @@ namespace ccf
         auto it = interfaces.find(name);
         if (it == interfaces.end())
         {
-          it = interfaces.emplace(name, std::make_unique<ListenInterface>())
-                 .first;
+          it =
+            interfaces.emplace(name, std::make_unique<ListenInterface>()).first;
           it->second->name = name;
         }
         auto* li = it->second.get();

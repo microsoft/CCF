@@ -24,8 +24,8 @@ namespace ccf
   // The slice of RPC session management that the node (NodeState, frontends,
   // Enclave, jwt refresh) depends on, independent of how connections are
   // actually serviced. Both the legacy RPCSessions (ringbuffer/host-split) and
-  // the new host-side RPCConnectionManager implement this, so node-side code can
-  // hold a reference without depending on the concrete networking backend.
+  // the new host-side RPCConnectionManager implement this, so node-side code
+  // can hold a reference without depending on the concrete networking backend.
   class AbstractRPCSessions : public AbstractRPCResponder
   {
   public:

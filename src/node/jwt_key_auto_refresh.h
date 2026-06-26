@@ -5,11 +5,11 @@
 #include "ccf/ds/json.h"
 #include "ccf/service/tables/jwt.h"
 #include "enclave/abstract_rpc_sessions.h"
-#include "tls/ca.h"
-#include "tls/cert.h"
 #include "http/http_builder.h"
 #include "http/http_rpc_context.h"
 #include "node/rpc/node_frontend.h"
+#include "tls/ca.h"
+#include "tls/cert.h"
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>

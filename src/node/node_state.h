@@ -28,8 +28,6 @@
 #include "ds/internal_logger.h"
 #include "ds/state_machine.h"
 #include "enclave/abstract_rpc_sessions.h"
-#include "tls/ca.h"
-#include "tls/cert.h"
 #include "encryptor.h"
 #include "history.h"
 #include "http/http_parser.h"
@@ -60,6 +58,8 @@
 #include "share_manager.h"
 #include "snapshots/fetch.h"
 #include "snapshots/filenames.h"
+#include "tls/ca.h"
+#include "tls/cert.h"
 #include "uvm_endorsements.h"
 
 #include <arpa/inet.h>
