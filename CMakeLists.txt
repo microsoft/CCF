@@ -320,6 +320,7 @@ add_ccf_static_library(
     ${CCF_DIR}/src/tasks/fan_in_tasks.cpp
     ${CCF_DIR}/src/tasks/thread_manager.cpp
     ${CCF_DIR}/src/tasks/worker.cpp
+  LINK_LIBS ccfcrypto
 )
 target_link_libraries(ccf_tasks PRIVATE ${CMAKE_DL_LIBS})
 
