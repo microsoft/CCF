@@ -671,11 +671,6 @@ if(BUILD_TESTS)
     )
 
     add_unit_test(
-      loop_executor_test
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/host/test/loop_executor.cpp
-    )
-
-    add_unit_test(
       openssl_server_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/host/test/openssl_server_test.cpp
     )

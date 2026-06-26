@@ -41,7 +41,6 @@
 #include "tcp.h"
 #include "ticker.h"
 #include "time_bound_logger.h"
-#include "udp.h"
 
 #include <CLI11/CLI11.hpp>
 #include <atomic>
@@ -77,9 +76,6 @@ using ResolvedAddresses = std::
 size_t asynchost::TCPImpl::remaining_read_quota =
   asynchost::TCPImpl::max_read_quota;
 bool asynchost::TCPImpl::alloc_quota_logged = false;
-
-size_t asynchost::UDPImpl::remaining_read_quota =
-  asynchost::UDPImpl::max_read_quota;
 
 void print_version(int64_t ignored)
 {
@@ -540,9 +536,6 @@ namespace ccf
 
     // reset the inbound-TCP processing quota each iteration
     const asynchost::ResetTCPReadQuota reset_tcp_quota;
-
-    // reset the inbound-UDP processing quota each iteration
-    const asynchost::ResetUDPReadQuota reset_udp_quota;
 
     // handle outbound logging and admin messages from the enclave
     const asynchost::HandleRingbuffer handle_ringbuffer(

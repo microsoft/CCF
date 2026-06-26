@@ -12,8 +12,6 @@ namespace ccf
   // closes the connection. It is templated on the concrete server session type
   // (HTTPServerSession / HTTP2ServerSession) so it reuses that session's
   // response machinery.
-  //
-  // Previously nested inside RPCSessions; pulled out so it can be shared.
   template <typename Base>
   class NoMoreSessionsImpl : public Base
   {

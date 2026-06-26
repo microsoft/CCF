@@ -4,13 +4,12 @@
 
 // Host-side, OpenSSL-native RPC connection manager.
 //
-// Replaces the SGX-era split of RPCSessions (enclave) + RPCConnectionsImpl
-// (host) bridged over a ringbuffer. It owns one OpenSSL transport per listening
-// interface (TLS terminated in the connection, see host/tls/openssl_server.h),
-// creates the protocol session for each connection, applies per-interface
-// session caps and certificates, and exposes outbound client creation. It
-// implements ccf::AbstractRPCSessions so the node (NodeState/frontends) reaches
-// it without depending on the transport backend.
+// Owns one OpenSSL transport per listening interface (TLS terminated in the
+// connection, see host/tls/openssl_server.h), creates the protocol session for
+// each connection, applies per-interface session caps and certificates, and
+// exposes outbound client creation. It implements ccf::AbstractRPCSessions so
+// the node (NodeState/frontends) reaches it without depending on the transport
+// backend.
 //
 // Cert-deferred listening: interfaces bind at startup even before their
 // certificate exists (a joining node receives the service cert later). A TLS
@@ -78,9 +77,9 @@ namespace ccf
 
     std::mutex interfaces_mutex;
     std::map<std::string, std::unique_ptr<ListenInterface>> interfaces;
-    // Plaintext UDP echo servers, keyed by interface name. The pre-cutover UDP
-    // "QUIC" interface was a plaintext echo stub; this preserves that until
-    // OpenSSL-native QUIC is available (see host/datagram_server.h).
+    // Plaintext UDP echo servers, keyed by interface name. UDP "QUIC"
+    // interfaces are served as a plaintext echo until OpenSSL-native QUIC is
+    // available (see host/datagram_server.h).
     std::map<std::string, std::unique_ptr<asynchost::DatagramServer>>
       udp_servers;
     // cert/key PEM per endorsement authority (for cert-deferred listening).
@@ -303,8 +302,8 @@ namespace ccf
       return li->bridge->port();
     }
 
-    // Bind and start a plaintext UDP echo server for `name`. This preserves the
-    // pre-cutover UDP echo stub (interfaces with protocol "udp").
+    // Bind and start a plaintext UDP echo server for `name` (interfaces with
+    // protocol "udp").
     //
     // === QUIC EXTENSION POINT ===
     // A real QUIC interface would, instead of echoing, hand each datagram to an
@@ -362,7 +361,7 @@ namespace ccf
             [cert](SSL* ssl, SSL_CTX* ctx) {
               if (cert != nullptr)
               {
-                cert->use(ssl, ctx);
+                cert->configure_ssl(ssl, ctx);
               }
             });
         };

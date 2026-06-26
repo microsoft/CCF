@@ -4,8 +4,8 @@
 
 // A minimal UDP datagram server: it owns a SOCK_DGRAM socket in its own epoll
 // loop and delivers each received datagram to a handler, which may reply to the
-// sender. This restores the pre-cutover plaintext "UDP echo" stub (the only
-// goal here is behavioural compatibility, i.e. the existing udp echo test).
+// sender. It backs the plaintext "UDP echo" interface (the only goal here is
+// behavioural compatibility, i.e. the existing udp echo test).
 //
 // ===========================================================================
 // QUIC EXTENSION POINT
