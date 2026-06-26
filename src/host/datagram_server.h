@@ -122,12 +122,7 @@ namespace asynchost
           // address that SSL_set1_initial_peer_addr() consumes.
           Reply reply = [this, &peer, peerlen](const uint8_t* d, size_t l) {
             ::sendto(
-              sock,
-              d,
-              l,
-              0,
-              reinterpret_cast<const sockaddr*>(&peer),
-              peerlen);
+              sock, d, l, 0, reinterpret_cast<const sockaddr*>(&peer), peerlen);
           };
           on_datagram(buf, static_cast<size_t>(n), reply);
         }

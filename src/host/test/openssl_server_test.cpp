@@ -6,11 +6,10 @@
 // exercises handshake, plaintext round-trip, large transfers (backpressure
 // path) and concurrent connections.
 
-#include "host/tls/openssl_server.h"
-
 #include "ccf/crypto/ec_key_pair.h"
 #include "ccf/ds/x509_time_fmt.h"
 #include "crypto/certs.h"
+#include "host/tls/openssl_server.h"
 #include "host/tls/openssl_session_manager.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
@@ -20,8 +19,8 @@
 #include <condition_variable>
 #include <deque>
 #include <doctest/doctest.h>
-#include <netdb.h>
 #include <mutex>
+#include <netdb.h>
 #include <netinet/in.h>
 #include <openssl/pem.h>
 #include <openssl/ssl.h>
@@ -72,8 +71,8 @@ namespace
     REQUIRE(cctx != nullptr);
     if (!client_cert.empty())
     {
-      BIO* cb =
-        BIO_new_mem_buf(client_cert.data(), static_cast<int>(client_cert.size()));
+      BIO* cb = BIO_new_mem_buf(
+        client_cert.data(), static_cast<int>(client_cert.size()));
       X509* xc = PEM_read_bio_X509(cb, nullptr, nullptr, nullptr);
       BIO_free(cb);
       REQUIRE(xc != nullptr);
@@ -199,7 +198,9 @@ namespace
 
     LargeThenCloseSession(
       ::tcp::ConnID id_, ccf::SessionWriter& w, std::vector<uint8_t> p) :
-      id(id_), writer(w), payload(std::move(p))
+      id(id_),
+      writer(w),
+      payload(std::move(p))
     {}
 
     void handle_incoming_data(
@@ -251,8 +252,7 @@ TEST_CASE("Concurrent connections")
   for (int i = 0; i < num_clients; ++i)
   {
     clients.emplace_back([port, i, &ok]() {
-      const std::vector<uint8_t> msg(
-        64, static_cast<uint8_t>('A' + (i % 26)));
+      const std::vector<uint8_t> msg(64, static_cast<uint8_t>('A' + (i % 26)));
       const auto resp = tls_client_exchange(port, msg, msg.size());
       if (resp == msg)
       {
@@ -298,9 +298,11 @@ TEST_CASE("Reply from a worker thread")
   });
 
   OpenSSLServer server(
-    cert, key, "127.0.0.1", static_cast<uint16_t>(0), [&](
-                                                        uint64_t id,
-                                                        std::vector<uint8_t> d) {
+    cert,
+    key,
+    "127.0.0.1",
+    static_cast<uint16_t>(0),
+    [&](uint64_t id, std::vector<uint8_t> d) {
       {
         std::lock_guard<std::mutex> l(m);
         q.emplace_back(id, std::move(d));
@@ -403,7 +405,8 @@ TEST_CASE("Peer certificate is captured for inbound connections")
 
 namespace
 {
-  // Connect to host:port (resolved via getaddrinfo, any family), TLS round-trip.
+  // Connect to host:port (resolved via getaddrinfo, any family), TLS
+  // round-trip.
   std::vector<uint8_t> tls_echo_roundtrip(
     const std::string& host, uint16_t port, const std::vector<uint8_t>& msg)
   {
@@ -451,8 +454,8 @@ namespace
     size_t roff = 0;
     while (roff < resp.size())
     {
-      const int n = SSL_read(
-        ssl, resp.data() + roff, static_cast<int>(resp.size() - roff));
+      const int n =
+        SSL_read(ssl, resp.data() + roff, static_cast<int>(resp.size() - roff));
       if (n <= 0)
       {
         break;

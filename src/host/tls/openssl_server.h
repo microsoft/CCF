@@ -19,7 +19,8 @@
 //     from another thread and wake the loop).
 //   * Level-triggered epoll, for simplicity/correctness over raw throughput.
 //   * No session caps / certs-per-interface / protocol handling - that policy
-//     is harvested separately. This proves transport + threading + backpressure.
+//     is harvested separately. This proves transport + threading +
+//     backpressure.
 
 #include <arpa/inet.h>
 #include <atomic>
@@ -84,7 +85,8 @@ namespace asynchost
         Handshaking,
         Ready
       } state = Handshaking;
-      // Outbound (client) connection: drives SSL_connect rather than SSL_accept.
+      // Outbound (client) connection: drives SSL_connect rather than
+      // SSL_accept.
       bool is_client = false;
       // Pending plaintext to be encrypted/written; out_off bytes already sent.
       std::vector<uint8_t> outbuf;
@@ -92,8 +94,9 @@ namespace asynchost
       // True when progress needs the socket to become writable (handshake
       // wants write, or there is buffered outbound data).
       bool want_write = false;
-      // A close was requested but is deferred until the buffered output has been
-      // fully written, so a response queued just before close is not truncated.
+      // A close was requested but is deferred until the buffered output has
+      // been fully written, so a response queued just before close is not
+      // truncated.
       bool close_after_flush = false;
     };
 
@@ -115,9 +118,9 @@ namespace asynchost
     std::unordered_map<int, std::unique_ptr<Conn>> conns;
     std::unordered_map<uint64_t, int> id_to_fd;
     uint64_t next_id = 1;
-    // Optional shared id source so multiple servers (one per interface) allocate
-    // connection ids from a single global space - required for a global session
-    // registry and reply routing.
+    // Optional shared id source so multiple servers (one per interface)
+    // allocate connection ids from a single global space - required for a
+    // global session registry and reply routing.
     std::atomic<uint64_t>* shared_next_id = nullptr;
 
     // Cross-thread outbound queue: send()/close_connection() append here from
@@ -172,9 +175,7 @@ namespace asynchost
     }
 
     static bool load_cert_key(
-      SSL_CTX* ctx,
-      const std::string& cert_pem,
-      const std::string& key_pem)
+      SSL_CTX* ctx, const std::string& cert_pem, const std::string& key_pem)
     {
       BIO* cbio =
         BIO_new_mem_buf(cert_pem.data(), static_cast<int>(cert_pem.size()));
@@ -433,8 +434,9 @@ namespace asynchost
       }
     }
 
-    // Returns false if the connection should be closed. Implements backpressure:
-    // a WANT_WRITE leaves the remaining plaintext buffered and arms EPOLLOUT.
+    // Returns false if the connection should be closed. Implements
+    // backpressure: a WANT_WRITE leaves the remaining plaintext buffered and
+    // arms EPOLLOUT.
     bool do_write(Conn& c)
     {
       if (c.ssl == nullptr)
@@ -506,10 +508,7 @@ namespace asynchost
         sockaddr_storage peer{};
         socklen_t plen = sizeof(peer);
         const int cfd = accept4(
-          listen_fd,
-          reinterpret_cast<sockaddr*>(&peer),
-          &plen,
-          SOCK_NONBLOCK);
+          listen_fd, reinterpret_cast<sockaddr*>(&peer), &plen, SOCK_NONBLOCK);
         if (cfd < 0)
         {
           if (errno == EAGAIN || errno == EWOULDBLOCK)
@@ -526,8 +525,8 @@ namespace asynchost
 
         auto c = std::make_unique<Conn>();
         c->fd = cfd;
-        c->id =
-          (shared_next_id != nullptr) ? shared_next_id->fetch_add(1) : next_id++;
+        c->id = (shared_next_id != nullptr) ? shared_next_id->fetch_add(1) :
+                                              next_id++;
 
         if (plaintext)
         {
@@ -551,7 +550,8 @@ namespace asynchost
           }
           SSL_set_mode(
             ssl,
-            SSL_MODE_ENABLE_PARTIAL_WRITE | SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER);
+            SSL_MODE_ENABLE_PARTIAL_WRITE |
+              SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER);
           if (SSL_set_fd(ssl, cfd) != 1)
           {
             SSL_free(ssl);
@@ -967,8 +967,7 @@ namespace asynchost
       sockaddr_storage bound{};
       socklen_t blen = sizeof(bound);
       if (
-        getsockname(listen_fd, reinterpret_cast<sockaddr*>(&bound), &blen) ==
-        0)
+        getsockname(listen_fd, reinterpret_cast<sockaddr*>(&bound), &blen) == 0)
       {
         if (bound.ss_family == AF_INET6)
         {

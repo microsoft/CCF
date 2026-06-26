@@ -7,7 +7,8 @@
 // This is the seam the real HTTP/HTTP2 sessions plug into once TLS lives in the
 // connection layer:
 //   * inbound plaintext from a connection -> ccf::Session::handle_incoming_data
-//   * ccf::Session output (via ccf::SessionWriter) -> OpenSSLServer::send, which
+//   * ccf::Session output (via ccf::SessionWriter) -> OpenSSLServer::send,
+//   which
 //     encrypts + writes with backpressure
 //   * connection teardown -> the owning session is dropped
 //
@@ -50,8 +51,8 @@ namespace asynchost
   private:
     std::unique_ptr<OpenSSLServer> server;
     SessionFactory factory;
-    // Invoked (on the loop thread) when a connection's session is dropped, so an
-    // owner can update per-interface counters/metrics.
+    // Invoked (on the loop thread) when a connection's session is dropped, so
+    // an owner can update per-interface counters/metrics.
     std::function<void(::tcp::ConnID)> on_session_closed;
 
     std::mutex sessions_mutex;
@@ -195,8 +196,7 @@ namespace asynchost
       std::span<const uint8_t> data,
       sockaddr /*addr*/ = {}) override
     {
-      server->send(
-        static_cast<uint64_t>(id), data.data(), data.size());
+      server->send(static_cast<uint64_t>(id), data.data(), data.size());
     }
 
     void close_socket(::tcp::ConnID id) override

@@ -11,6 +11,7 @@
 #include "ds/oversized.h"
 #include "ds/work_beacon.h"
 #include "host/ledger.h"
+#include "host/rpc_connection_manager.h"
 #include "indexing/enclave_lfs_access.h"
 #include "indexing/historical_transaction_fetcher.h"
 #include "interface.h"
@@ -33,7 +34,6 @@
 #include "node/rpc/node_operation.h"
 #include "node/rpc/user_frontend.h"
 #include "node/signature_cache_subsystem.h"
-#include "host/rpc_connection_manager.h"
 #include "rpc_map.h"
 #include "tasks/worker.h"
 
