@@ -1,182 +1,84 @@
 # JWK refresh migration to curl multi singleton
 
-This note captures the implementation plan for migrating JWT/JWK auto-refresh in CCF away from the current `RPCSessions::create_client()` outbound HTTP client and onto the curl multi singleton infrastructure introduced in microsoft/CCF#7102.
+Status note for migrating JWT/JWK auto-refresh away from the enclave/host
+`RPCSessions::create_client()` outbound HTTP client and onto the curl multi
+singleton infrastructure introduced in microsoft/CCF#7102.
 
-## Reference PR
+Last reviewed: 2026-06-26.
 
-PR microsoft/CCF#7102 introduced:
+## Current status
 
-- `ccf::curl::UniqueCURL`
-- `ccf::curl::UniqueSlist`
-- `ccf::curl::RequestBody`
-- `ccf::curl::ResponseBody`
-- `ccf::curl::ResponseHeaders`
-- `ccf::curl::CurlRequest`
-- `ccf::curl::CurlmLibuvContextSingleton`
+Implementation is complete on this branch pending validation.
 
-It migrated `src/node/quote_endorsements_client.h` from the enclave/host RPC client path to asynchronous curl requests attached to the singleton curl multi/libuv context.
+- `src/node/jwt_key_auto_refresh.h` uses `ccf::curl::CurlRequest` with
+  `CurlmLibuvContextSingleton::get_instance()->attach_request(...)` for both
+  external OpenID metadata and JWKS fetches.
+- `JwtKeyAutoRefresh` no longer stores an `RPCSessions` pointer, and
+  `src/node/node_state.h` constructs it without passing `rpcsessions`.
+- The internal `/node/jwt_keys/refresh` update path still goes through
+  `send_refresh_jwt_keys(...)` and is intentionally unchanged.
+- Curl requests now set peer and host verification, use the configured
+  in-memory CA bundle, restrict protocols to HTTPS only, and bound both connect
+  and total transfer timeouts.
+- OpenID metadata is still fetched from the configured issuer URL. The JWKS URL
+  from metadata is parsed and must use the `https` scheme before it is handed to
+  curl.
+- Response bodies are bounded to 1 MB.
+- Curl connection and TLS failures now call `send_refresh_jwt_keys_error()` and
+  are counted in refresh failure metrics. `CHANGELOG.md` documents this
+  observability change.
+- `tests/jwt_test.py` includes focused connection-failure and TLS-trust-failure
+  coverage and wires these into `run_manual()`.
+- The new failure tests remove existing JWT issuers before recording the
+  baseline failure count, so their metric-delta checks are isolated from other
+  auto-refresh issuers.
+- `src/http/test/curl_test.cpp` already covers generic curl singleton behavior;
+  JWT behavior is covered by the Python end-to-end tests.
 
-## Current JWK refresh flow
+Unrelated local changes exist in `.github/workflows/README.md`,
+`perf_artifacts/`, and `perf_data/`; leave them untouched.
 
-The current JWK refresh implementation is in:
+## Remaining validation
 
-- `src/node/jwt_key_auto_refresh.h`
+Run these before considering the migration complete:
 
-It uses `rpcsessions->create_client(...)` in two places:
+1. Build affected C++ targets, at minimum the node target and `curl_test`.
+2. Run `curl_test` to catch curl multi singleton regressions.
+3. Run JWT manual suite coverage containing:
+   - `test_jwt_key_initial_refresh`
+   - `test_jwt_key_auto_refresh_connection_failure`
+   - `test_jwt_key_auto_refresh_tls_failure`
+4. Run broader JWT auto-refresh coverage containing:
+   - `test_jwt_key_auto_refresh`
+   - backup-primary variant of `test_jwt_key_auto_refresh`
+   - `test_jwt_key_auto_refresh_entries`
+5. Confirm shutdown has no libuv handle leaks or async lifetime issues.
+6. Optional follow-up: add a direct invalid OpenID metadata auto-refresh test if
+   the test harness can serve malformed metadata without duplicating large parts
+   of `infra.jwt_issuer`. Current coverage exercises invalid JWKS and curl-level
+   connection/TLS failures, but not malformed metadata from a reachable issuer.
 
-1. OpenID metadata fetch:
-   - GET `issuer + "/.well-known/openid-configuration"`
-   - parse `jwks_uri`
-2. JWKS fetch:
-   - GET the parsed `jwks_uri`
-   - parse `JsonWebKeySet`
-   - call the internal `/node/jwt_keys/refresh` endpoint via `send_refresh_jwt_keys(...)`
+## Risks to keep watching
 
-The internal update path should remain unchanged.
-
-## Implementation goals
-
-- Replace both external HTTP fetches with `ccf::curl::CurlRequest`.
-- Enqueue asynchronous requests with `ccf::curl::CurlmLibuvContextSingleton::get_instance()->attach_request(...)`.
-- Preserve the existing refresh, parsing, issuer constraint, and metrics behaviour.
-- Improve observability where possible: curl connection/TLS failures should call `send_refresh_jwt_keys_error()` so they are reflected in refresh failure metrics.
-- Keep changes bite-sized and testable.
-
-## Bite-sized implementation steps
-
-### 1. Add curl dependency to JWK refresh
-
-- Include `http/curl.h` from `src/node/jwt_key_auto_refresh.h`.
-- Keep the existing implementation compiling unchanged.
-
-Verification:
-
-- Build affected targets.
-
-### 2. Add request-building helpers
-
-Add private helpers to `JwtKeyAutoRefresh` for:
-
-- defaulting URL ports to `443` for HTTPS
-- building a full request URL from `http::URL`
-- setting common curl options
-- attaching CA bundle material to curl
-- creating a bounded `ccf::curl::ResponseBody`
-
-Verification:
-
-- Unit-level compile checks.
-- Existing JWT tests still pass before call sites are migrated.
-
-### 3. Implement CA bundle handling for curl
-
-The existing code reads a PEM CA bundle from KV and constructs `tls::CA`/`tls::Cert` for the old client.
-
-For curl, prefer in-memory CA bundle support if available:
-
-- `CURLOPT_CAINFO_BLOB` via `UniqueCURL::set_blob_opt(...)`
-
-If unsupported by the project's supported libcurl version, introduce a request-owned fallback that keeps temporary CA material alive for the async request lifetime.
-
-Verification:
-
-- Valid issuer cert signed by configured CA bundle succeeds.
-- Wrong CA bundle fails and is counted as a refresh failure.
-
-### 4. Migrate OpenID metadata fetch first
-
-In `refresh_jwt_keys()`:
-
-- Preserve issuer iteration, `auto_refresh` checks, attempts accounting, and missing CA bundle handling.
-- Replace `rpcsessions->create_client(...)`, `connect(...)`, and `send_request(...)` with a curl GET request.
-- Callback should:
-  - call `send_refresh_jwt_keys_error()` on `curl_response != CURLE_OK`
-  - otherwise pass status code and response body to `handle_jwt_metadata_response(...)`
-
-Expected signature change:
-
-```cpp
-void handle_jwt_metadata_response(
-  const std::string& issuer,
-  std::string ca_cert_bundle_pem,
-  ccf::http_status status,
-  std::vector<uint8_t>&& data);
-```
-
-Verification:
-
-- Metadata happy path still reaches JWKS fetch.
-- Invalid metadata still increments failure metrics.
-- Metadata connection failure increments failure metrics.
-
-### 5. Migrate JWKS fetch
-
-In `handle_jwt_metadata_response(...)`:
-
-- Preserve HTTP status handling, metadata parsing, `jwks_uri` parsing, and issuer constraint extraction.
-- Replace the old client with a curl GET request using the same CA bundle material.
-- Callback should:
-  - call `send_refresh_jwt_keys_error()` on `curl_response != CURLE_OK`
-  - otherwise pass status code and body to `handle_jwt_jwks_response(...)`
-
-Verification:
-
-- Existing JWT auto-refresh happy path passes.
-- Invalid JWKS response increments failure metrics.
-- HTTP non-200 response still triggers existing error handling.
-
-### 6. Clean up dependencies
-
-Once both external fetches use curl:
-
-- Remove the `rpcsessions` member from `JwtKeyAutoRefresh` if unused.
-- Remove the constructor parameter if unused.
-- Update all construction sites.
-- Remove stale includes and comments about connection errors not being tracked.
-
-Verification:
-
-- Full build catches all construction-site updates.
-- No `rpcsessions->create_client` usage remains in `jwt_key_auto_refresh.h`.
-
-### 7. Tests
-
-Add or update focused tests around:
-
-- successful JWT key auto-refresh
-- initial one-off refresh after adding an issuer
-- invalid OpenID metadata
-- invalid JWKS
-- unavailable issuer endpoint / connection failure
-- TLS trust failure with an incorrect CA bundle
-
-Existing tests to keep passing include:
-
-- `test_jwt_key_auto_refresh`
-- `test_jwt_key_initial_refresh`
-- `test_jwt_key_auto_refresh_entries`
-
-### 8. Validation order
-
-1. Build affected C++ targets.
-2. Run curl tests introduced by microsoft/CCF#7102 where available.
-3. Run JWT auto-refresh tests.
-4. Run broader JWT test file.
-5. Check shutdown for libuv handle leaks or async lifetime issues.
-
-## Risks and things to watch
-
-- Async callback captures must own all data they use.
-- CA bundle material must outlive async curl requests.
-- Hostname/SNI verification should use the actual target host, especially for `jwks_uri`.
-- Response bodies should be bounded rather than using `SIZE_MAX` where possible.
-- Curl connection failures will now be counted as refresh failures; this is an intentional observability improvement but should be noted in the PR.
-- The internal `/node/jwt_keys/refresh` update path should remain unchanged.
+- `JwtKeyAutoRefresh` now inherits `enable_shared_from_this`; callers must keep
+  constructing it as a shared pointer before any refresh is scheduled.
+- Async callback captures must own all data they use. Current callbacks capture
+  `self`, issuer strings, CA bundle strings, and response bodies by value/shared
+  ownership.
+- CA bundle material must remain valid until libcurl has consumed it. Current
+  code passes the CA bundle into `set_blob_opt(...)`; verify this remains copied
+  or otherwise owned by the curl wrapper.
+- The 1 MB response limit and 5 second connect/transfer timeouts are intentional
+  bounds, but can reject very large or slow metadata/JWKS responses.
+- The HTTPS-only checks are intentional hardening. Any future support for other
+  schemes should be explicit and tested.
 
 ## Definition of done
 
-- `src/node/jwt_key_auto_refresh.h` no longer uses `rpcsessions->create_client(...)` for OpenID/JWKS external fetches.
-- Metadata and JWKS requests use `ccf::curl::CurlRequest` and `CurlmLibuvContextSingleton`.
-- Existing JWT auto-refresh behaviour remains intact.
-- New failure-mode tests cover connection and TLS failures.
-- The PR description explains the relationship to microsoft/CCF#7102 and calls out the metrics-observability improvement.
+- Both external fetches use curl multi singleton requests.
+- No JWT auto-refresh external fetch uses `RPCSessions::create_client(...)`.
+- JWKS URIs must be HTTPS, and curl is restricted to HTTPS protocols.
+- Curl requests have bounded connect and total transfer timeouts.
+- Existing auto-refresh behavior remains intact.
+- New connection and TLS failure tests pass with isolated metric baselines.
+- Remaining validation above has been run and recorded in the PR or commit notes.

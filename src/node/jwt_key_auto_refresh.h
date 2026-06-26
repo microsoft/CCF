@@ -32,7 +32,9 @@ namespace ccf
     ccf::tasks::Task periodic_refresh_task;
 
     // Maximum response body size for JWK/metadata responses (1 MB)
-    static constexpr size_t max_response_size = 1024 * 1024;
+    static constexpr size_t max_response_size = static_cast<size_t>(1024) * 1024;
+    static constexpr long request_connection_timeout_s = 5;
+    static constexpr long request_response_timeout_s = 5;
 
     void send_curl_get(
       const std::string& url,
@@ -41,8 +43,15 @@ namespace ccf
     {
       ccf::curl::UniqueCURL curl_handle;
       curl_handle.set_opt(CURLOPT_HTTPGET, 1L);
+      curl_handle.set_opt(CURLOPT_CONNECTTIMEOUT, request_connection_timeout_s);
+      curl_handle.set_opt(CURLOPT_TIMEOUT, request_response_timeout_s);
       curl_handle.set_opt(CURLOPT_SSL_VERIFYPEER, 1L);
       curl_handle.set_opt(CURLOPT_SSL_VERIFYHOST, 2L);
+#if LIBCURL_VERSION_NUM >= 0x075500
+      curl_handle.set_opt(CURLOPT_PROTOCOLS_STR, "https");
+#else
+      curl_handle.set_opt(CURLOPT_PROTOCOLS, CURLPROTO_HTTPS);
+#endif
       curl_handle.set_blob_opt(
         CURLOPT_CAINFO_BLOB,
         reinterpret_cast<const uint8_t*>(ca_bundle_pem.data()),
@@ -262,9 +271,10 @@ namespace ccf
       }
       // Validate jwks_uri before handing it to libcurl; the parsed result is
       // not used directly since the full URL string is passed to curl.
+      ::http::URL jwks_url;
       try
       {
-        ::http::parse_url_full(jwks_url_str);
+        jwks_url = ::http::parse_url_full(jwks_url_str);
       }
       catch (const std::invalid_argument& e)
       {
@@ -274,6 +284,16 @@ namespace ccf
           issuer,
           jwks_url_str,
           e.what());
+        send_refresh_jwt_keys_error();
+        return;
+      }
+
+      if (jwks_url.scheme != "https")
+      {
+        LOG_FAIL_FMT(
+          "JWT key auto-refresh: jwks_uri for issuer '{}' must use https: {}",
+          issuer,
+          jwks_url_str);
         send_refresh_jwt_keys_error();
         return;
       }
