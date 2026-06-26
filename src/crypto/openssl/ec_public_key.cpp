@@ -173,7 +173,8 @@ namespace ccf::crypto
         return NID_X9_62_prime256v1;
       case CurveID::SECP521R1:
         return NID_secp521r1;
-      default:
+      case CurveID::CURVE25519:
+      case CurveID::X25519:
         throw std::logic_error(
           fmt::format("unsupported OpenSSL CurveID {}", gid));
     }
