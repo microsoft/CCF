@@ -59,6 +59,7 @@ namespace ccf
         CURLOPT_CAINFO_BLOB,
         reinterpret_cast<const uint8_t*>(ca_bundle_pem.data()),
         ca_bundle_pem.size());
+      curl_handle.set_opt(CURLOPT_CAPATH, nullptr);
 
       ccf::curl::UniqueSlist headers;
 
@@ -275,10 +276,16 @@ namespace ccf
 
       std::string jwks_url_str;
       nlohmann::json metadata;
+      std::optional<std::string> issuer_constraint{std::nullopt};
       try
       {
         metadata = ccf::parse_json_safe(data);
         jwks_url_str = metadata.at("jwks_uri").get<std::string>();
+        const auto constraint = metadata.find("issuer");
+        if (constraint != metadata.end())
+        {
+          issuer_constraint = constraint->get<std::string>();
+        }
       }
       catch (const std::exception& e)
       {
@@ -292,9 +299,11 @@ namespace ccf
       }
       // Validate jwks_uri before handing it to libcurl; the parsed result is
       // not used directly since the full URL string is passed to curl.
+      ::http::URL issuer_url;
       ::http::URL jwks_url;
       try
       {
+        issuer_url = ::http::parse_url_full(issuer);
         jwks_url = ::http::parse_url_full(jwks_url_str);
       }
       catch (const std::invalid_argument& e)
@@ -309,7 +318,10 @@ namespace ccf
         return;
       }
 
+      ccf::nonstd::to_lower(issuer_url.scheme);
+      ccf::nonstd::to_lower(issuer_url.host);
       ccf::nonstd::to_lower(jwks_url.scheme);
+      ccf::nonstd::to_lower(jwks_url.host);
       if (jwks_url.scheme != "https")
       {
         LOG_FAIL_FMT(
@@ -320,11 +332,18 @@ namespace ccf
         return;
       }
 
-      std::optional<std::string> issuer_constraint{std::nullopt};
-      const auto constraint = metadata.find("issuer");
-      if (constraint != metadata.end())
+      const auto issuer_port =
+        issuer_url.port.empty() ? "443" : issuer_url.port;
+      const auto jwks_port = jwks_url.port.empty() ? "443" : jwks_url.port;
+      if (jwks_url.host != issuer_url.host || jwks_port != issuer_port)
       {
-        issuer_constraint = *constraint;
+        LOG_FAIL_FMT(
+          "JWT key auto-refresh: jwks_uri for issuer '{}' must use the issuer "
+          "authority: {}",
+          issuer,
+          jwks_url_str);
+        send_refresh_jwt_keys_error();
+        return;
       }
 
       LOG_DEBUG_FMT(

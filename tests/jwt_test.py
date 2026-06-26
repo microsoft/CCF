@@ -503,6 +503,90 @@ def test_jwt_key_auto_refresh_tls_failure(network, args):
             network.consortium.remove_jwt_issuer(primary, issuer_name)
 
 
+def test_jwt_key_auto_refresh_invalid_metadata_issuer(network, args):
+    primary, _ = network.find_nodes()
+    remove_all_jwt_issuers(network, args, primary)
+    failures_before = get_jwt_refresh_endpoint_metrics(primary)["failures"]
+    issuer = infra.jwt_issuer.JwtIssuer("https://localhost", cn="localhost")
+    ca_cert_bundle_name = "jwt_invalid_metadata_issuer"
+
+    LOG.info("Add CA cert for JWT issuer")
+    with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as ca_cert_bundle_fp:
+        ca_cert_bundle_fp.write(issuer.tls_cert)
+        ca_cert_bundle_fp.flush()
+        network.consortium.set_ca_cert_bundle(
+            primary, ca_cert_bundle_name, ca_cert_bundle_fp.name
+        )
+
+    LOG.info("Start OpenID endpoint server with a non-string issuer metadata field")
+    with issuer.start_openid_server(0) as server:
+        issuer_name = f"https://localhost:{server.bind_port}"
+        server.metadata["issuer"] = {"unexpected": "object"}
+
+        with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
+            json.dump(
+                {
+                    "issuer": issuer_name,
+                    "auto_refresh": True,
+                    "ca_cert_bundle_name": ca_cert_bundle_name,
+                },
+                metadata_fp,
+            )
+            metadata_fp.flush()
+            network.consortium.set_jwt_issuer(primary, metadata_fp.name)
+
+        try:
+            with_timeout(
+                lambda: check_refresh_failures_increased(primary, failures_before),
+                timeout=5,
+            )
+        finally:
+            network.consortium.remove_jwt_issuer(primary, issuer_name)
+
+
+def test_jwt_key_auto_refresh_cross_authority_jwks_uri(network, args):
+    primary, _ = network.find_nodes()
+    remove_all_jwt_issuers(network, args, primary)
+    failures_before = get_jwt_refresh_endpoint_metrics(primary)["failures"]
+    issuer = infra.jwt_issuer.JwtIssuer("https://localhost", cn="localhost")
+    ca_cert_bundle_name = "jwt_cross_authority_jwks_uri"
+
+    LOG.info("Add CA cert for JWT issuer")
+    with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as ca_cert_bundle_fp:
+        ca_cert_bundle_fp.write(issuer.tls_cert)
+        ca_cert_bundle_fp.flush()
+        network.consortium.set_ca_cert_bundle(
+            primary, ca_cert_bundle_name, ca_cert_bundle_fp.name
+        )
+
+    LOG.info("Start OpenID endpoint server with cross-authority JWKS URI")
+    with issuer.start_openid_server(0) as server:
+        issuer_name = f"https://localhost:{server.bind_port}"
+        server.metadata["jwks_uri"] = (
+            f"https://localhost:{get_unused_local_port()}/keys"
+        )
+
+        with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
+            json.dump(
+                {
+                    "issuer": issuer_name,
+                    "auto_refresh": True,
+                    "ca_cert_bundle_name": ca_cert_bundle_name,
+                },
+                metadata_fp,
+            )
+            metadata_fp.flush()
+            network.consortium.set_jwt_issuer(primary, metadata_fp.name)
+
+        try:
+            with_timeout(
+                lambda: check_refresh_failures_increased(primary, failures_before),
+                timeout=5,
+            )
+        finally:
+            network.consortium.remove_jwt_issuer(primary, issuer_name)
+
+
 @reqs.description("JWT with auto_refresh enabled")
 def test_jwt_key_auto_refresh(network, args):
     primary, _ = network.find_nodes()
@@ -930,6 +1014,8 @@ def run_manual(args):
         test_jwt_key_initial_refresh(network, args)
         test_jwt_key_auto_refresh_connection_failure(network, args)
         test_jwt_key_auto_refresh_tls_failure(network, args)
+        test_jwt_key_auto_refresh_invalid_metadata_issuer(network, args)
+        test_jwt_key_auto_refresh_cross_authority_jwks_uri(network, args)
 
 
 def run_ca_cert(args):
