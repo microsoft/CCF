@@ -170,9 +170,9 @@ namespace ccf
 
     VersionedLedgerSecret get_latest(ccf::kv::ReadOnlyTx& tx)
     {
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
-
       take_dependency_on_secrets(tx);
+
+      std::lock_guard<ccf::pal::Mutex> guard(lock);
 
       if (ledger_secrets.empty())
       {
@@ -186,9 +186,9 @@ namespace ccf
     std::pair<VersionedLedgerSecret, std::optional<VersionedLedgerSecret>>
     get_latest_and_penultimate(ccf::kv::ReadOnlyTx& tx)
     {
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
-
       take_dependency_on_secrets(tx);
+
+      std::lock_guard<ccf::pal::Mutex> guard(lock);
 
       if (ledger_secrets.empty())
       {
@@ -209,9 +209,9 @@ namespace ccf
       ccf::kv::ReadOnlyTx& tx,
       std::optional<ccf::kv::Version> up_to = std::nullopt)
     {
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
-
       take_dependency_on_secrets(tx);
+
+      std::lock_guard<ccf::pal::Mutex> guard(lock);
 
       if (!up_to.has_value())
       {

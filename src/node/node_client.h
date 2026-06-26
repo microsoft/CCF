@@ -14,19 +14,19 @@ namespace ccf
   protected:
     std::shared_ptr<ccf::RPCMap> rpc_map;
     ccf::crypto::ECKeyPairPtr node_sign_kp;
-    const ccf::crypto::Pem& self_signed_node_cert;
-    const std::optional<ccf::crypto::Pem>& endorsed_node_cert = std::nullopt;
+    ccf::crypto::Pem self_signed_node_cert;
+    std::optional<ccf::crypto::Pem> endorsed_node_cert;
 
   public:
     NodeClient(
       std::shared_ptr<ccf::RPCMap> rpc_map_,
       ccf::crypto::ECKeyPairPtr node_sign_kp_,
-      const ccf::crypto::Pem& self_signed_node_cert_,
-      const std::optional<ccf::crypto::Pem>& endorsed_node_cert_) :
+      ccf::crypto::Pem self_signed_node_cert_,
+      std::optional<ccf::crypto::Pem> endorsed_node_cert_) :
       rpc_map(std::move(rpc_map_)),
       node_sign_kp(std::move(node_sign_kp_)),
-      self_signed_node_cert(self_signed_node_cert_),
-      endorsed_node_cert(endorsed_node_cert_)
+      self_signed_node_cert(std::move(self_signed_node_cert_)),
+      endorsed_node_cert(std::move(endorsed_node_cert_))
     {}
 
     virtual ~NodeClient() = default;
