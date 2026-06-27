@@ -1787,7 +1787,7 @@ def run_pid_file_check(args):
         start = time.time()
         LOG.info("Wait for node to shut down")
         while time.time() - start < timeout:
-            if node.remote.check_done():
+            if node.remote.check_done(timeout=0):
                 break
             time.sleep(0.1)
         out, _ = node.remote.get_logs()
