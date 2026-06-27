@@ -1043,6 +1043,7 @@ namespace ccf
     // funcs in state "pending"
     //
 
+    // NOLINTNEXTLINE(readability-function-cognitive-complexity)
     void initiate_join_unsafe()
     {
       sm.expect(NodeStartupState::pending);
