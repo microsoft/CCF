@@ -23,20 +23,29 @@ import committable
 def wait_for_committed_tx_in_current_view(node, timeout=5):
     with node.client() as c:
         end_time = time.time() + timeout
+        commit_view = None
+        current_view = None
         while time.time() < end_time:
-            commit_view = int(
-                c.get("/app/commit").body.json()["transaction_id"].split(".")[0]
-            )
-            current_view = c.get("/node/consensus").body.json()["details"][
-                "current_view"
-            ]
+            commit_res = c.get("/app/commit")
+            assert (
+                commit_res.status_code == http.HTTPStatus.OK
+            ), f"/app/commit returned HTTP status {commit_res.status_code}"
+            commit_view = int(commit_res.body.json()["transaction_id"].split(".")[0])
+
+            consensus_res = c.get("/node/consensus")
+            assert (
+                consensus_res.status_code == http.HTTPStatus.OK
+            ), f"/node/consensus returned HTTP status {consensus_res.status_code}"
+            current_view = consensus_res.body.json()["details"]["current_view"]
+
             if commit_view == current_view:
                 return
             time.sleep(0.1)
 
-        assert (
-            commit_view == current_view
-        ), f"Primary has not committed latest transaction after {timeout} seconds"
+        assert commit_view == current_view, (
+            f"Primary has not committed a transaction in its current view after {timeout} seconds "
+            f"(commit_view={commit_view}, current_view={current_view})"
+        )
 
 
 def run_rotations(args):
