@@ -8,6 +8,8 @@
 #include "kv/kv_types.h"
 #include "kv/serialised_entry_format.h"
 
+#include <fmt/format.h>
+
 namespace consensus
 {
   class LedgerEnclave
@@ -21,11 +23,31 @@ namespace consensus
      *
      * @return Raw entry as a vector
      */
-    static std::vector<uint8_t> get_entry(const uint8_t*& data, size_t& size)
+    static std::vector<uint8_t> get_entry(
+      const uint8_t*& data,
+      size_t& size,
+      size_t max_transaction_size =
+        ccf::kv::SerialisedEntryHeader::max_serialised_entry_body_size)
     {
       auto header =
         serialized::peek<ccf::kv::SerialisedEntryHeader>(data, size);
-      size_t entry_size = ccf::kv::serialised_entry_header_size + header.size;
+      const size_t body_size = header.size;
+      if (body_size > max_transaction_size)
+      {
+        throw std::logic_error(ccf::kv::describe_serialized_entry_size_error(
+          body_size, max_transaction_size, "extract from ledger"));
+      }
+      if (body_size + ccf::kv::serialised_entry_header_size > size)
+      {
+        throw std::logic_error(fmt::format(
+          "Cannot read transaction with serialised body size {} bytes from "
+          "buffer containing {} bytes after the fixed {}-byte ledger entry "
+          "header",
+          body_size,
+          size - ccf::kv::serialised_entry_header_size,
+          ccf::kv::serialised_entry_header_size));
+      }
+      size_t entry_size = ccf::kv::serialised_entry_header_size + body_size;
       std::vector<uint8_t> entry(data, data + entry_size);
       serialized::skip(data, size, entry_size);
       return entry;

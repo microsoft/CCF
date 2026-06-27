@@ -28,6 +28,7 @@
 #include <list>
 #include <memory>
 #include <set>
+#include <stdexcept>
 #include <string>
 #include <unordered_set>
 #include <vector>
@@ -326,6 +327,13 @@ namespace ccf::kv
     {
       return msg.c_str();
     }
+  };
+
+  class MaxTransactionSizeExceeded : public std::logic_error
+  {
+  public:
+    MaxTransactionSizeExceeded(const std::string& msg) : std::logic_error(msg)
+    {}
   };
 
   class TxHistory
@@ -637,7 +645,8 @@ namespace ccf::kv
       virtual ~AbstractSnapshot() = default;
       [[nodiscard]] virtual Version get_version() const = 0;
       virtual std::vector<uint8_t> serialise(
-        const std::shared_ptr<AbstractTxEncryptor>& encryptor) = 0;
+        const std::shared_ptr<AbstractTxEncryptor>& encryptor,
+        size_t max_transaction_size) = 0;
     };
 
     virtual ~AbstractStore() = default;
@@ -667,6 +676,7 @@ namespace ccf::kv
     virtual std::shared_ptr<TxHistory> get_history() = 0;
     virtual std::shared_ptr<ILedgerChunker> get_chunker() = 0;
     virtual EncryptorPtr get_encryptor() = 0;
+    virtual size_t get_max_transaction_size() const = 0;
     virtual std::unique_ptr<AbstractExecutionWrapper> deserialize(
       const std::vector<uint8_t>& data,
       bool public_only = false,

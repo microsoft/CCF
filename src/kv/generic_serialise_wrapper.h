@@ -26,6 +26,7 @@ namespace ccf::kv
     TxID tx_id;
     EntryType entry_type;
     SerialisedEntryFlags header_flags;
+    size_t max_transaction_size;
 
     std::shared_ptr<AbstractTxEncryptor> crypto_util;
 
@@ -70,10 +71,13 @@ namespace ccf::kv
       // in regular transactions, but absent in snapshots.
       const ccf::crypto::Sha256Hash& commit_evidence_digest_ = {},
       const ccf::ClaimsDigest& claims_digest_ = ccf::no_claims(),
-      bool historical_hint_ = false) :
+      bool historical_hint_ = false,
+      size_t max_transaction_size_ =
+        SerialisedEntryHeader::max_serialised_entry_body_size) :
       tx_id(tx_id_),
       entry_type(entry_type_),
       header_flags(header_flags_),
+      max_transaction_size(max_transaction_size_),
       crypto_util(std::move(e)),
       historical_hint(historical_hint_)
     {
@@ -174,6 +178,11 @@ namespace ccf::kv
       {
         size_ += crypto_util->get_header_length() + sizeof(size_t) +
           serialised_private_domain.size();
+      }
+      if (size_ > max_transaction_size)
+      {
+        throw MaxTransactionSizeExceeded(describe_serialized_entry_size_error(
+          size_, max_transaction_size, "serialise"));
       }
       entry_header.set_size(size_);
 
@@ -304,7 +313,9 @@ namespace ccf::kv
       size_t size,
       ccf::kv::Term& term,
       EntryFlags& flags,
-      bool historical_hint = false)
+      bool historical_hint = false,
+      size_t max_transaction_size =
+        SerialisedEntryHeader::max_serialised_entry_body_size)
     {
       current_reader = &public_reader;
       const auto* data_ = data;
@@ -312,6 +323,12 @@ namespace ccf::kv
 
       const auto tx_header =
         serialized::read<SerialisedEntryHeader>(data_, size_);
+
+      if (tx_header.size > max_transaction_size)
+      {
+        throw MaxTransactionSizeExceeded(describe_serialized_entry_size_error(
+          tx_header.size, max_transaction_size, "deserialise"));
+      }
 
       flags = static_cast<EntryFlags>(tx_header.flags);
 
@@ -322,7 +339,6 @@ namespace ccf::kv
           tx_header.size,
           size_));
       }
-
       const auto* gcm_hdr_data = data_;
 
       switch (tx_header.version)
