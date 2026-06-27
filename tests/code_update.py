@@ -1068,7 +1068,7 @@ def _test_update_all_nodes(network, args, atomic_reconfiguration=False):
         )
         # The accepted proposal retires every old node, so only the new nodes
         # can elect the next primary.
-        new_primary, _ = network.wait_for_new_primary_in(new_nodes)
+        new_primary, _ = network.wait_for_new_primary_in(new_nodes, nodes=new_nodes)
         primary = new_primary
         for new_node in new_nodes:
             new_node.wait_for_node_to_join(timeout=args.ledger_recovery_timeout)
