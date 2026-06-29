@@ -164,7 +164,13 @@ namespace ccf::curl
 
     void append(const char* str)
     {
-      p.reset(curl_slist_append(p.release(), str));
+      auto* updated = curl_slist_append(p.get(), str);
+      if (updated == nullptr)
+      {
+        throw std::runtime_error("Error calling curl_slist_append");
+      }
+      p.release();
+      p.reset(updated);
     }
 
     void append(const std::string& key, const std::string& value)
