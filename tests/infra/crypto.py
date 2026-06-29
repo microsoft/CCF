@@ -133,6 +133,7 @@ def generate_cert(
     ca=False,
     valid_from=None,
     validity_days=10,
+    san: Optional[str] = None,
 ) -> str:
     cn = cn or "dummy"
     if issuer_priv_key_pem is None:
@@ -174,6 +175,11 @@ def generate_cert(
         builder = builder.add_extension(
             x509.BasicConstraints(ca=True, path_length=None),
             critical=True,
+        )
+    if san is not None:
+        builder = builder.add_extension(
+            x509.SubjectAlternativeName([x509.DNSName(san)]),
+            critical=False,
         )
 
     cert = builder.sign(issuer_priv, hashes.SHA256(), default_backend())

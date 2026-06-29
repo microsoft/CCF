@@ -164,7 +164,18 @@ namespace ccf::curl
 
     void append(const char* str)
     {
-      p.reset(curl_slist_append(p.release(), str));
+      auto* current = p.get();
+      auto* updated = curl_slist_append(current, str);
+      if (updated == nullptr)
+      {
+        throw std::runtime_error("Error calling curl_slist_append");
+      }
+      if (updated != current)
+      {
+        auto* released = p.release();
+        (void)released;
+        p.reset(updated);
+      }
     }
 
     void append(const std::string& key, const std::string& value)
@@ -586,10 +597,18 @@ namespace ccf::curl
 
           // retrieve the request data and attach a lifetime to it
           ccf::curl::CurlRequest* request = nullptr;
-          curl_easy_getinfo(easy, CURLINFO_PRIVATE, &request);
+          try
+          {
+            CHECK_CURL_EASY_GETINFO(easy, CURLINFO_PRIVATE, &request);
+          }
+          catch (const std::runtime_error&)
+          {
+            CHECK_CURL_MULTI(curl_multi_remove_handle, p.get(), easy);
+            throw;
+          }
           if (request == nullptr)
           {
-            curl_multi_remove_handle(p.get(), easy);
+            CHECK_CURL_MULTI(curl_multi_remove_handle, p.get(), easy);
             throw std::runtime_error(
               "CURLMSG_DONE received with no associated request data");
           }
@@ -597,7 +616,7 @@ namespace ccf::curl
 
           // detach the easy handle such that it can be cleaned up with the
           // destructor of CurlRequest
-          curl_multi_remove_handle(p.get(), easy);
+          CHECK_CURL_MULTI(curl_multi_remove_handle, p.get(), easy);
 
           // handle response inline. Note that if this is expensive, it should
           // defer its work to a task
@@ -664,7 +683,7 @@ namespace ccf::curl
 
       if (self->is_stopping)
       {
-        LOG_FAIL_FMT("async_requests_callback called while stopping");
+        LOG_DEBUG_FMT("async_requests_callback called while stopping");
         return;
       }
 
@@ -694,7 +713,7 @@ namespace ccf::curl
 
       if (self->is_stopping)
       {
-        LOG_FAIL_FMT("libuv_timeout_callback called while stopping");
+        LOG_DEBUG_FMT("libuv_timeout_callback called while stopping");
         return;
       }
 
@@ -722,7 +741,7 @@ namespace ccf::curl
 
       if (self->is_stopping)
       {
-        LOG_FAIL_FMT("curl_timeout_callback called while stopping");
+        LOG_DEBUG_FMT("curl_timeout_callback called while stopping");
         return 0;
       }
 
@@ -763,7 +782,7 @@ namespace ccf::curl
 
       if (self->is_stopping)
       {
-        LOG_FAIL_FMT(
+        LOG_DEBUG_FMT(
           "libuv_socket_poll_callback called on {} while stopped",
           socket_context->socket);
         return;
@@ -957,27 +976,56 @@ namespace ccf::curl
       is_stopping = true;
 
       // remove, stop and cleanup all curl easy handles
-      std::unique_ptr<CURL*, void (*)(CURL**)> easy_handles(
-        curl_multi_get_handles(curl_request_curlm),
-        // NOLINTNEXTLINE(bugprone-multi-level-implicit-pointer-conversion)
-        [](CURL** handles) { curl_free(static_cast<void*>(handles)); });
-      // curl_multi_get_handles returns the handles as a null-terminated array
-      for (size_t i = 0; easy_handles.get()[i] != nullptr; ++i)
+      auto* easy_handles_raw = curl_multi_get_handles(curl_request_curlm);
+      if (easy_handles_raw == nullptr)
       {
-        auto* easy = easy_handles.get()[i];
-        curl_multi_remove_handle(curl_request_curlm, easy);
-        if (easy != nullptr)
+        LOG_FAIL_FMT("Error calling curl_multi_get_handles while closing");
+      }
+      else
+      {
+        std::unique_ptr<CURL*, void (*)(CURL**)> easy_handles(
+          easy_handles_raw,
+          // NOLINTNEXTLINE(bugprone-multi-level-implicit-pointer-conversion)
+          [](CURL** handles) { curl_free(static_cast<void*>(handles)); });
+        // curl_multi_get_handles returns the handles as a null-terminated array
+        for (size_t i = 0; easy_handles.get()[i] != nullptr; ++i)
         {
-          // attach a lifetime to the request
-          ccf::curl::CurlRequest* request = nullptr;
-          curl_easy_getinfo(easy, CURLINFO_PRIVATE, &request);
-          if (request == nullptr)
+          auto* easy = easy_handles.get()[i];
+          const auto remove_res =
+            curl_multi_remove_handle(curl_request_curlm, easy);
+          if (remove_res != CURLM_OK)
           {
             LOG_FAIL_FMT(
-              "CURLMSG_DONE received with no associated request data");
+              "Error calling curl_multi_remove_handle while closing: {} ({})",
+              remove_res,
+              curl_multi_strerror(remove_res));
           }
-          std::unique_ptr<ccf::curl::CurlRequest> request_data_ptr(request);
-          curl_easy_cleanup(easy);
+          if (easy != nullptr)
+          {
+            // attach a lifetime to the request
+            ccf::curl::CurlRequest* request = nullptr;
+            const auto getinfo_res =
+              curl_easy_getinfo(easy, CURLINFO_PRIVATE, &request);
+            if (getinfo_res != CURLE_OK)
+            {
+              LOG_FAIL_FMT(
+                "Error calling curl_easy_getinfo while closing: {} ({})",
+                getinfo_res,
+                curl_easy_strerror(getinfo_res));
+              curl_easy_cleanup(easy);
+              continue;
+            }
+            if (request == nullptr)
+            {
+              LOG_FAIL_FMT(
+                "CURL easy handle had no associated request data while "
+                "closing");
+              curl_easy_cleanup(easy);
+              continue;
+            }
+            std::unique_ptr<ccf::curl::CurlRequest> request_data_ptr(request);
+            curl_easy_cleanup(easy);
+          }
         }
       }
       // Drain the deque rather than letting it destruct
