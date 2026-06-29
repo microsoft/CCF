@@ -2,13 +2,11 @@
 # Licensed under the Apache 2.0 License.
 
 import importlib.util
-import io
 import json
 from pathlib import Path
 import sys
-import tempfile
-import unittest
-from contextlib import redirect_stdout
+
+import pytest
 
 MODULE_PATH = Path(__file__).resolve().parents[2] / "scripts" / "compare_bencher_ab.py"
 SCRIPTS_DIR = str(MODULE_PATH.parent)
@@ -21,91 +19,72 @@ if SPEC.loader is None:
 SPEC.loader.exec_module(compare_bencher_ab)
 
 
-class CompareBencherABTests(unittest.TestCase):
-    def test_create_side_by_side_plot_renders_summary(self):
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            tmp_path = Path(tmp_dir)
-            main_file = tmp_path / "main.json"
-            pr_file = tmp_path / "pr.json"
+def test_create_side_by_side_plot_renders_summary(tmp_path, capsys):
+    main_file = tmp_path / "main.json"
+    pr_file = tmp_path / "pr.json"
 
-            main_file.write_text(
-                json.dumps(
-                    {
-                        "benchmark_a": {
-                            "latency": {"value": 10.0},
-                            "throughput": {"value": 100.0},
-                        }
-                    }
-                ),
-                encoding="utf-8",
-            )
-            pr_file.write_text(
-                json.dumps(
-                    {
-                        "benchmark_a": {
-                            "latency": {"value": 8.0},
-                            "throughput": {"value": 110.0},
-                        }
-                    }
-                ),
-                encoding="utf-8",
-            )
+    main_file.write_text(
+        json.dumps(
+            {
+                "benchmark_a": {
+                    "latency": {"value": 10.0},
+                    "throughput": {"value": 100.0},
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    pr_file.write_text(
+        json.dumps(
+            {
+                "benchmark_a": {
+                    "latency": {"value": 8.0},
+                    "throughput": {"value": 110.0},
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
 
-            stdout = io.StringIO()
-            with redirect_stdout(stdout):
-                compare_bencher_ab.create_side_by_side_plot(
-                    str(main_file), str(pr_file), "main", "PR"
-                )
+    compare_bencher_ab.create_side_by_side_plot(str(main_file), str(pr_file), "main", "PR")
 
-        output = stdout.getvalue()
-        self.assertIn("BENCHMARK COMPARISON: main vs PR", output)
-        self.assertIn("Summary:", output)
-        self.assertIn("Improvements: 2", output)
-        self.assertIn("Regressions: 0", output)
-
-    def test_directory_input_renders_history_comparison(self):
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            tmp_path = Path(tmp_dir)
-            perf_dir = tmp_path / "perf"
-            perf_dir.mkdir()
-            (perf_dir / "100-1-1.json").write_text(
-                json.dumps({"benchmark_a": {"throughput": {"value": 100.0}}}),
-                encoding="utf-8",
-            )
-            pr_file = tmp_path / "pr.json"
-            pr_file.write_text(
-                json.dumps({"benchmark_a": {"throughput": {"value": 110.0}}}),
-                encoding="utf-8",
-            )
-
-            stdout = io.StringIO()
-            with redirect_stdout(stdout):
-                compare_bencher_ab.create_side_by_side_plot(
-                    str(perf_dir), str(pr_file), label2="PR"
-                )
-
-        output = stdout.getvalue()
-        self.assertIn("# Performance summary", output)
-        self.assertIn("### Runs", output)
-        self.assertIn("| PR |  |  |", output)
-        self.assertIn("## Throughput (tx/s)", output)
-
-    def test_load_bencher_file_reports_directory_input(self):
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            nested_dir = Path(tmp_dir) / "nested"
-            nested_dir.mkdir()
-
-            stdout = io.StringIO()
-            with self.assertRaises(SystemExit) as exc:
-                with redirect_stdout(stdout):
-                    compare_bencher_ab.load_bencher_file(str(nested_dir))
-
-        self.assertEqual(exc.exception.code, 1)
-        self.assertEqual(
-            stdout.getvalue().strip(),
-            f"Error: {nested_dir} is a directory, expected a bencher.json file",
-        )
+    output = capsys.readouterr().out
+    assert "BENCHMARK COMPARISON: main vs PR" in output
+    assert "Summary:" in output
+    assert "Improvements: 2" in output
+    assert "Regressions: 0" in output
 
 
-if __name__ == "__main__":
-    unittest.main()
+def test_directory_input_renders_history_comparison(tmp_path, capsys):
+    perf_dir = tmp_path / "perf"
+    perf_dir.mkdir()
+    (perf_dir / "100-1-1.json").write_text(
+        json.dumps({"benchmark_a": {"throughput": {"value": 100.0}}}),
+        encoding="utf-8",
+    )
+    pr_file = tmp_path / "pr.json"
+    pr_file.write_text(
+        json.dumps({"benchmark_a": {"throughput": {"value": 110.0}}}),
+        encoding="utf-8",
+    )
+
+    compare_bencher_ab.create_side_by_side_plot(str(perf_dir), str(pr_file), label2="PR")
+
+    output = capsys.readouterr().out
+    assert "# Performance summary" in output
+    assert "### Runs" in output
+    assert "| PR |  |  |" in output
+    assert "## Throughput (tx/s)" in output
+
+
+def test_load_bencher_file_reports_directory_input(tmp_path, capsys):
+    nested_dir = tmp_path / "nested"
+    nested_dir.mkdir()
+
+    with pytest.raises(SystemExit) as exc:
+        compare_bencher_ab.load_bencher_file(str(nested_dir))
+
+    assert exc.value.code == 1
+    assert capsys.readouterr().out.strip() == (
+        f"Error: {nested_dir} is a directory, expected a bencher.json file"
+    )
