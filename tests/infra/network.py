@@ -1410,7 +1410,7 @@ class Network:
                 )
             except TimeoutError as e:
                 LOG.error(f"New pending node {node.node_id} failed to join the network")
-                has_stopped = node.remote.check_done()
+                has_stopped = node.remote.check_done(timeout=0)
                 if stop_on_error:
                     assert has_stopped, "Node should have stopped"
                 node.stop()
