@@ -20,13 +20,21 @@ namespace nontls
     {
       // Plaintext passthrough: the read/write BIOs hold the unencrypted bytes
       // exchanged with the peer directly.
-      BIO_set_mem_eof_return(read_bio, -1);
-      BIO_set_mem_eof_return(write_bio, -1);
+      CHECK1(BIO_set_mem_eof_return(read_bio, -1));
+      CHECK1(BIO_set_mem_eof_return(write_bio, -1));
     }
 
     void recv(const uint8_t* buf, size_t len) override
     {
-      BIO_write(read_bio, buf, len);
+      if (len == 0)
+      {
+        return;
+      }
+      int rc = BIO_write(read_bio, buf, len);
+      if (rc < 0 || static_cast<size_t>(rc) != len)
+      {
+        LOG_FAIL_FMT("Failed to buffer {} received bytes (rc={})", len, rc);
+      }
     }
 
     size_t pending_write() override
@@ -52,8 +60,8 @@ namespace nontls
       {
         return 0;
       }
-      int rc = BIO_read_ex(read_bio, buf, len, &readbytes);
-      if (rc > 0)
+      int success = BIO_read_ex(read_bio, buf, len, &readbytes);
+      if (success > 0)
       {
         return 0;
       }
@@ -67,8 +75,8 @@ namespace nontls
       {
         return 0;
       }
-      int rc = BIO_write_ex(write_bio, buf, len, &written);
-      if (rc > 0)
+      int success = BIO_write_ex(write_bio, buf, len, &written);
+      if (success > 0)
       {
         return 0;
       }

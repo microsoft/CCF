@@ -11,7 +11,7 @@ Enclave Connections
 
 CCF handles RPC requests by managing a collection of HTTPS sessions on each node. The HTTP session receives raw TCP bytes from the :term:`ring buffer` and passes it to the TLS implementation that tries to decrypt on read (after a successful handshake).
 
-If there isn't enough information to decrypt on read, the TLS layer responds with a 'WANTS_READ' status, meaning more packets are needed to complete the message, so the endpoint tries to get more data from the ring buffer.
+If there isn't enough information to decrypt on read, the TLS layer responds with a 'WANT_READ' status, meaning more packets are needed to complete the message, so the endpoint tries to get more data from the ring buffer.
 
 Once all incoming data is decrypted, the HTTP session parses the plain text data and passes the parsed request to the application, which processes it and produces a plain text response. The session then serialises this response, encrypts it through the TLS layer, and writes the encrypted data to the :term:`ring buffer` to be sent to the original caller.
 

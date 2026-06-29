@@ -89,19 +89,29 @@ namespace ccf::tls
       // drains bytes to be sent out of the write BIO (send).
       BIO* rbio = BIO_new(BIO_s_mem());
       ccf::crypto::OpenSSL::CHECKNULL(rbio);
-      BIO_set_mem_eof_return(rbio, -1);
+      ccf::crypto::OpenSSL::CHECK1(BIO_set_mem_eof_return(rbio, -1));
       SSL_set0_rbio(ssl, rbio);
 
       BIO* wbio = BIO_new(BIO_s_mem());
       ccf::crypto::OpenSSL::CHECKNULL(wbio);
-      BIO_set_mem_eof_return(wbio, -1);
+      ccf::crypto::OpenSSL::CHECK1(BIO_set_mem_eof_return(wbio, -1));
       SSL_set0_wbio(ssl, wbio);
     }
 
     // Feed encrypted bytes received from the peer into the read BIO.
     virtual void recv(const uint8_t* buf, size_t len)
     {
-      BIO_write(SSL_get_rbio(ssl), buf, len);
+      if (len == 0)
+      {
+        return;
+      }
+      // Writing to an in-memory BIO only fails on allocation failure, and is
+      // otherwise all-or-nothing.
+      int rc = BIO_write(SSL_get_rbio(ssl), buf, len);
+      if (rc < 0 || static_cast<size_t>(rc) != len)
+      {
+        LOG_FAIL_FMT("Failed to buffer {} received bytes (rc={})", len, rc);
+      }
     }
 
     // Number of encrypted bytes waiting in the write BIO to be sent to the
