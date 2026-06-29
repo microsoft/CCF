@@ -146,7 +146,7 @@ jobs:
         run: |
           main_results="benchmark-main-${{ github.run_id }}/bencher.json"
           pr_results="benchmark-pr-${{ github.run_id }}/bencher.json"
-          [ -f "$main_results" ] || {
+          [ -f "$main_results" ] || [ -d "$main_results" ] || {
             echo "Expected main benchmark results at $main_results" >&2
             exit 1
           }
@@ -161,11 +161,18 @@ jobs:
           echo "**Base Commit:** \`${{ github.event.pull_request.base.sha }}\`" >> report.md
           echo "**Run ID:** [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> report.md
           echo "" >> report.md
-          echo '```' >> report.md
-          python3 scripts/compare_bencher_ab.py \
-            "$main_results" \
-            "$pr_results" \
-            --label1 "main" --label2 "PR" >> report.md
-          echo '```' >> report.md
+          if [ -d "$main_results" ]; then
+            python3 scripts/compare_bencher_ab.py \
+              "$main_results" \
+              "$pr_results" \
+              --label1 "main" --label2 "PR" >> report.md
+          else
+            echo '```' >> report.md
+            python3 scripts/compare_bencher_ab.py \
+              "$main_results" \
+              "$pr_results" \
+              --label1 "main" --label2 "PR" >> report.md
+            echo '```' >> report.md
+          fi
 
           cat report.md >> $GITHUB_STEP_SUMMARY
