@@ -505,12 +505,10 @@ function checkReconfigurationType(config, new_config) {
   const from = config.reconfiguration_type;
   const to = new_config.reconfiguration_type;
   if (from !== to && to !== undefined) {
-    if (
-      !(
-        (from === undefined || from === "OneTransaction") &&
-        to === "TwoTransaction"
-      )
-    ) {
+    if (!(
+      (from === undefined || from === "OneTransaction") &&
+      to === "TwoTransaction"
+    )) {
       throw new Error(
         `Cannot change reconfiguration type from ${from} to ${to}.`,
       );
