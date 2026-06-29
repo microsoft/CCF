@@ -299,12 +299,12 @@ namespace ccf
         return;
       }
       // Validate jwks_uri before handing it to libcurl; the parsed result is
-      // not used directly since the full URL string is passed to curl.
-      ::http::URL issuer_url;
+      // not used directly since the full URL string is passed to curl. The
+      // JWKS host/port may differ from the issuer authority; OIDC Discovery
+      // requires HTTPS here, but does not require matching authorities.
       ::http::URL jwks_url;
       try
       {
-        issuer_url = ::http::parse_url_full(issuer);
         jwks_url = ::http::parse_url_full(jwks_url_str);
       }
       catch (const std::invalid_argument& e)
@@ -319,28 +319,11 @@ namespace ccf
         return;
       }
 
-      ccf::nonstd::to_lower(issuer_url.scheme);
-      ccf::nonstd::to_lower(issuer_url.host);
       ccf::nonstd::to_lower(jwks_url.scheme);
-      ccf::nonstd::to_lower(jwks_url.host);
       if (jwks_url.scheme != "https")
       {
         LOG_FAIL_FMT(
           "JWT key auto-refresh: jwks_uri for issuer '{}' must use https: {}",
-          issuer,
-          jwks_url_str);
-        send_refresh_jwt_keys_error();
-        return;
-      }
-
-      const auto issuer_port =
-        issuer_url.port.empty() ? "443" : issuer_url.port;
-      const auto jwks_port = jwks_url.port.empty() ? "443" : jwks_url.port;
-      if (jwks_url.host != issuer_url.host || jwks_port != issuer_port)
-      {
-        LOG_FAIL_FMT(
-          "JWT key auto-refresh: jwks_uri for issuer '{}' must use the issuer "
-          "authority: {}",
           issuer,
           jwks_url_str);
         send_refresh_jwt_keys_error();

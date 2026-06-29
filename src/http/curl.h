@@ -164,13 +164,18 @@ namespace ccf::curl
 
     void append(const char* str)
     {
-      auto* updated = curl_slist_append(p.get(), str);
+      auto* current = p.get();
+      auto* updated = curl_slist_append(current, str);
       if (updated == nullptr)
       {
         throw std::runtime_error("Error calling curl_slist_append");
       }
-      p.release();
-      p.reset(updated);
+      if (updated != current)
+      {
+        auto* released = p.release();
+        (void)released;
+        p.reset(updated);
+      }
     }
 
     void append(const std::string& key, const std::string& value)
@@ -986,8 +991,8 @@ namespace ccf::curl
         for (size_t i = 0; easy_handles.get()[i] != nullptr; ++i)
         {
           auto* easy = easy_handles.get()[i];
-          const auto remove_res = curl_multi_remove_handle(
-            curl_request_curlm, easy);
+          const auto remove_res =
+            curl_multi_remove_handle(curl_request_curlm, easy);
           if (remove_res != CURLM_OK)
           {
             LOG_FAIL_FMT(
@@ -999,8 +1004,8 @@ namespace ccf::curl
           {
             // attach a lifetime to the request
             ccf::curl::CurlRequest* request = nullptr;
-            const auto getinfo_res = curl_easy_getinfo(
-              easy, CURLINFO_PRIVATE, &request);
+            const auto getinfo_res =
+              curl_easy_getinfo(easy, CURLINFO_PRIVATE, &request);
             if (getinfo_res != CURLE_OK)
             {
               LOG_FAIL_FMT(
@@ -1013,7 +1018,8 @@ namespace ccf::curl
             if (request == nullptr)
             {
               LOG_FAIL_FMT(
-                "CURL easy handle had no associated request data while closing");
+                "CURL easy handle had no associated request data while "
+                "closing");
               curl_easy_cleanup(easy);
               continue;
             }

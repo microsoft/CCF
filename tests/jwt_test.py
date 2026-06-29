@@ -6,6 +6,7 @@ import time
 import base64
 import socket
 import infra.network
+import infra.jwt_issuer
 import infra.path
 import infra.proc
 import infra.net
@@ -13,7 +14,11 @@ import infra.crypto
 import infra.e2e_args
 import infra.proposal
 import suite.test_requirements as reqs
-from infra.jwt_issuer import get_jwt_issuers, get_jwt_keys
+from infra.jwt_issuer import (
+    OpenIDProviderServer,
+    get_jwt_issuers,
+    get_jwt_keys,
+)
 import ca_certs
 import ccf.ledger
 from ccf.tx_id import TxID
@@ -547,9 +552,14 @@ def test_jwt_key_auto_refresh_invalid_metadata_issuer(network, args):
 def test_jwt_key_auto_refresh_cross_authority_jwks_uri(network, args):
     primary, _ = network.find_nodes()
     remove_all_jwt_issuers(network, args, primary)
-    failures_before = get_jwt_refresh_endpoint_metrics(primary)["failures"]
-    issuer = infra.jwt_issuer.JwtIssuer("https://localhost", cn="localhost")
+    issuer_host = "localhost"
+    issuer_port = get_unused_local_port()
+    jwks_port = get_unused_local_port()
+    issuer = infra.jwt_issuer.JwtIssuer(
+        f"https://{issuer_host}:{issuer_port}", cn=issuer_host
+    )
     ca_cert_bundle_name = "jwt_cross_authority_jwks_uri"
+    kid = "cross_authority_jwks_uri"
 
     LOG.info("Add CA cert for JWT issuer")
     with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as ca_cert_bundle_fp:
@@ -560,11 +570,13 @@ def test_jwt_key_auto_refresh_cross_authority_jwks_uri(network, args):
         )
 
     LOG.info("Start OpenID endpoint server with cross-authority JWKS URI")
-    with issuer.start_openid_server(0) as server:
-        issuer_name = f"https://localhost:{server.bind_port}"
-        server.metadata["jwks_uri"] = (
-            f"https://localhost:{get_unused_local_port()}/keys"
-        )
+    with issuer.start_openid_server(issuer_port, kid) as server, OpenIDProviderServer(
+        jwks_port, issuer.tls_priv, issuer.tls_cert, issuer.create_jwks(kid)
+    ) as jwks_server:
+        issuer_name = issuer.name
+        # Exercise OIDC-compatible metadata where JWKS are served from a
+        # different authority than the issuer metadata.
+        server.metadata["jwks_uri"] = f"https://localhost:{jwks_server.bind_port}/keys"
 
         with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
             json.dump(
@@ -580,7 +592,9 @@ def test_jwt_key_auto_refresh_cross_authority_jwks_uri(network, args):
 
         try:
             with_timeout(
-                lambda: check_refresh_failures_increased(primary, failures_before),
+                lambda: check_kv_jwt_key_matches(
+                    args, network, kid, issuer.key_pub_pem
+                ),
                 timeout=5,
             )
         finally:
