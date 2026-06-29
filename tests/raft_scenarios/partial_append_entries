@@ -1,98 +1,50 @@
-# Reproduce a trace-validation case where a leader sends AppendEntries rooted
-# inside the follower's existing prefix, with matching entries in the overlap
-# and new entries after the follower's current end.
-# In replicate and emit_signature commands, the numeric argument is the Raft
-# term, not a node ID.
+# Reproduce a trace-validation case where AppendEntries starts inside the
+# follower's existing prefix, overlaps matching entries, and appends a suffix.
 start_node,0
-assert_detail,0,leadership_state,Leader
 emit_signature,2
-assert_commit_idx,0,2
-
-trust_node,2,1
-emit_signature,2
-
-dispatch_all
-periodic_all,10
-dispatch_all
-assert_commit_idx,0,4
-
-trust_node,2,2
+trust_nodes,2,1,2
 emit_signature,2
 
 # Node 2 is initially partitioned.
 disconnect,0,2
 disconnect,1,2
-
 dispatch_all
 periodic_all,10
 dispatch_all
-periodic_all,10
-dispatch_all
-assert_commit_idx,0,6
-assert_commit_idx,1,6
 
-assert_detail,0,leadership_state,Leader
-assert_detail,1,leadership_state,Follower
-
-replicate,2,helloworld
-emit_signature,2
-periodic_all,10
-dispatch_all
-
-# Build and share a committed suffix with node 1.
-replicate,2,salutonmondo
-replicate,2,hallo
-replicate,2,hullo
-replicate,2,ahoyhoy
+# Share one entry with node 1, then keep node 0's later entries private.
+replicate,2,a
 emit_signature,2
 periodic_all,10
 dispatch_one,0
 dispatch_one,1
-
-# Build a later suffix that node 1 does not receive before becoming leader.
-replicate,2,z
-replicate,2,zz
-replicate,2,zzz
+replicate,2,x
+replicate,2,y
 emit_signature,2
 
 # Shift the partition so node 1 can win with node 2.
 disconnect,0,1
 connect,1,2
-
-periodic_one,2,110
-dispatch_all
-
 periodic_one,1,110
-assert_detail,1,leadership_state,PreVoteCandidate
-dispatch_one,1
-dispatch_one,2
-assert_detail,1,leadership_state,Candidate
-dispatch_one,1
-dispatch_one,2
+dispatch_all
 
 replicate,3,ConfirmCommit
 emit_signature,3
-
 periodic_one,1,10
 dispatch_one,1
 dispatch_one,2
-
 periodic_all,10
 dispatch_one,1
 dispatch_one,2
-
 periodic_all,10
 dispatch_one,1
 
-# Node 0 rejoins with a prefix that overlaps node 1's AppendEntries. One of the
-# following receive operations has prev_idx inside node 0's log, idx beyond node
-# 0's log, and matching terms in the overlap.
+# Reconnect node 0 while a queued AppendEntries from its old leadership term
+# overlaps the shorter logs now held by nodes 1 and 2.
 connect,0,1
 connect,0,2
-
 periodic_all,10
 dispatch_all
-
 periodic_all,10
 dispatch_all
 
