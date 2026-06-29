@@ -664,7 +664,7 @@ namespace ccf::curl
 
       if (self->is_stopping)
       {
-        LOG_FAIL_FMT("async_requests_callback called while stopping");
+        LOG_DEBUG_FMT("async_requests_callback called while stopping");
         return;
       }
 
@@ -694,7 +694,7 @@ namespace ccf::curl
 
       if (self->is_stopping)
       {
-        LOG_FAIL_FMT("libuv_timeout_callback called while stopping");
+        LOG_DEBUG_FMT("libuv_timeout_callback called while stopping");
         return;
       }
 
@@ -722,7 +722,7 @@ namespace ccf::curl
 
       if (self->is_stopping)
       {
-        LOG_FAIL_FMT("curl_timeout_callback called while stopping");
+        LOG_DEBUG_FMT("curl_timeout_callback called while stopping");
         return 0;
       }
 
@@ -763,7 +763,7 @@ namespace ccf::curl
 
       if (self->is_stopping)
       {
-        LOG_FAIL_FMT(
+        LOG_DEBUG_FMT(
           "libuv_socket_poll_callback called on {} while stopped",
           socket_context->socket);
         return;
