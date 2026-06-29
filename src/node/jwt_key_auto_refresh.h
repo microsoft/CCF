@@ -46,7 +46,12 @@ namespace ccf
       curl_handle.set_opt(CURLOPT_HTTPGET, 1L);
       curl_handle.set_opt(CURLOPT_CONNECTTIMEOUT, request_connection_timeout_s);
       curl_handle.set_opt(CURLOPT_TIMEOUT, request_response_timeout_s);
+      // 1L enables peer certificate verification. See libcurl docs:
+      // https://curl.se/libcurl/c/CURLOPT_SSL_VERIFYPEER.html
       curl_handle.set_opt(CURLOPT_SSL_VERIFYPEER, 1L);
+      // 2L requires the certificate name to match the requested host.
+      // See libcurl docs:
+      // https://curl.se/libcurl/c/CURLOPT_SSL_VERIFYHOST.html
       curl_handle.set_opt(CURLOPT_SSL_VERIFYHOST, 2L);
       curl_handle.set_opt(CURLOPT_PROTOCOLS_STR, "https");
       curl_handle.set_blob_opt(
