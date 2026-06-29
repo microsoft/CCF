@@ -30,12 +30,10 @@ namespace ccf
     ccf::crypto::Pem node_cert;
     std::atomic_size_t attempts;
     std::atomic_bool stopped;
+    size_t max_response_size;
 
     ccf::tasks::Task periodic_refresh_task;
 
-    // Maximum response body size for JWK/metadata responses (1 MB)
-    static constexpr size_t max_response_size =
-      static_cast<size_t>(1024) * 1024;
     static constexpr long request_connection_timeout_s = 5;
     static constexpr long request_response_timeout_s = 5;
 
@@ -83,7 +81,8 @@ namespace ccf
       const std::shared_ptr<ccf::kv::Consensus>& consensus,
       const std::shared_ptr<ccf::RPCMap>& rpc_map,
       ccf::crypto::ECKeyPairPtr node_sign_kp,
-      ccf::crypto::Pem node_cert) :
+      ccf::crypto::Pem node_cert,
+      size_t max_response_size) :
       refresh_interval_s(refresh_interval_s),
       network(network),
       consensus(consensus),
@@ -91,7 +90,8 @@ namespace ccf
       node_sign_kp(std::move(node_sign_kp)),
       node_cert(std::move(node_cert)),
       attempts(0),
-      stopped(false)
+      stopped(false),
+      max_response_size(max_response_size)
     {}
 
     ~JwtKeyAutoRefresh()

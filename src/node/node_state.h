@@ -1421,7 +1421,8 @@ namespace ccf
         consensus,
         rpc_map,
         node_sign_kp,
-        self_signed_node_cert);
+        self_signed_node_cert,
+        config.jwt.key_refresh_max_response_size);
       jwt_key_auto_refresh->start();
 
       network.tables->set_map_hook(

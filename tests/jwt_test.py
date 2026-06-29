@@ -587,6 +587,41 @@ def test_jwt_key_auto_refresh_cross_authority_jwks_uri(network, args):
             network.consortium.remove_jwt_issuer(primary, issuer_name)
 
 
+def test_jwt_key_auto_refresh_response_size_limit(network, args):
+    primary, _ = network.find_nodes()
+    remove_all_jwt_issuers(network, args, primary)
+    failures_before = get_jwt_refresh_endpoint_metrics(primary)["failures"]
+    issuer = infra.jwt_issuer.JwtIssuer("https://localhost", cn="localhost")
+    ca_cert_bundle_name = "jwt_response_size_limit"
+    kid = "response_size_limit"
+
+    LOG.info("Start OpenID endpoint server with oversized metadata")
+    with issuer.start_openid_server(0, kid) as server:
+        issuer.name = f"https://localhost:{server.bind_port}"
+        server.metadata["oversized_response"] = "x" * 4096
+        add_auto_refresh_jwt_issuer(network, primary, issuer, ca_cert_bundle_name)
+
+        try:
+            with_timeout(
+                lambda: check_refresh_failures_increased(primary, failures_before),
+                timeout=5,
+            )
+
+            LOG.info("Restore OpenID metadata and re-add JWT issuer")
+            del server.metadata["oversized_response"]
+            network.consortium.remove_jwt_issuer(primary, issuer.name)
+            add_auto_refresh_jwt_issuer(network, primary, issuer, ca_cert_bundle_name)
+
+            with_timeout(
+                lambda: check_kv_jwt_key_matches(
+                    args, network, kid, issuer.key_pub_pem
+                ),
+                timeout=5,
+            )
+        finally:
+            network.consortium.remove_jwt_issuer(primary, issuer.name)
+
+
 @reqs.description("JWT with auto_refresh enabled")
 def test_jwt_key_auto_refresh(network, args):
     primary, _ = network.find_nodes()
@@ -1016,6 +1051,7 @@ def run_manual(args):
         test_jwt_key_auto_refresh_tls_failure(network, args)
         test_jwt_key_auto_refresh_invalid_metadata_issuer(network, args)
         test_jwt_key_auto_refresh_cross_authority_jwks_uri(network, args)
+        test_jwt_key_auto_refresh_response_size_limit(network, args)
 
 
 def run_ca_cert(args):
