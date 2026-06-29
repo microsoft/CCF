@@ -1,16 +1,4 @@
-# Repro: a follower accepting a MATCHING partial AppendEntries is not modelled by the spec.
-#
-# A "matching partial" is an AppendEntries with prev_idx < last_idx < idx where the
-# overlapping entries (prev_idx+1 .. last_idx) the follower already holds are in the SAME
-# term the leader is sending, so the follower SKIPS them (no rollback) and only appends the
-# new suffix (last_idx+1 .. idx). raft.h does this in its recv_append_entries merge loop.
-#
-# upstream/main tla/consensus/ccfraft.tla AcceptAppendEntriesRequest models only:
-#   - AppendEntriesAlreadyDone     (needs Len(log) >= idx)
-#   - NoConflictAppendEntriesRequest (needs Len(log) = prev_idx)
-#   - Conflict . {AlreadyDone|NoConflict} (needs a term MISMATCH in the overlap)
-# A matching prev_idx < last_idx < idx fits none of these, so trace validation
-# (Traceccfraft.tla) FAILS on the step where node 2 accepts the partial below.
+# Repro: partially matching append-entries #7999
 #
 # Construction (no reconfiguration):
 #   common prefix [1..4]@t2 ; node 2 holds a divergent suffix [5,6]@t3 ; node 1 leads t4
