@@ -10,6 +10,8 @@
 #include "tls/tls.h"
 
 #include <exception>
+#include <openssl/err.h>
+#include <openssl/ssl.h>
 
 namespace ccf
 {
@@ -34,7 +36,9 @@ namespace ccf
 
   private:
     std::vector<uint8_t> pending_write;
-    std::vector<uint8_t> pending_read;
+    // Encrypted bytes produced by the TLS layer that are waiting to be written
+    // to the ring buffer (e.g. when the ring buffer was previously full).
+    std::vector<uint8_t> pending_out;
     // Decrypted data
     std::vector<uint8_t> read_buffer;
 
@@ -64,7 +68,7 @@ namespace ccf
       session_id(session_id_),
       ctx(std::move(ctx_))
     {
-      ctx->set_bio(this, send_callback_openssl, recv_callback_openssl);
+      ctx->set_bio();
     }
 
     virtual ~TLSSession()
@@ -157,16 +161,21 @@ namespace ccf
         // NB: If we continue past here, read_buffer is empty
       }
 
-      auto r = ctx->read(data + offset, size - offset);
-      LOG_TRACE_FMT("ctx->read returned: {}", r);
+      size_t readbytes = 0;
+      auto rc = ctx->read(data + offset, size - offset, readbytes);
+      LOG_TRACE_FMT("ctx->read returned: {} ({} bytes)", rc, readbytes);
 
-      switch (r)
+      switch (rc)
       {
         case 0:
-        case TLS_ERR_CONN_CLOSE_NOTIFY:
         {
-          LOG_TRACE_FMT(
-            "TLS {} close on read: {}", session_id, ::tls::error_string(r));
+          // Success, fall through to handle the bytes read below.
+          break;
+        }
+
+        case SSL_ERROR_ZERO_RETURN:
+        {
+          LOG_TRACE_FMT("TLS {} close on read", session_id);
 
           stop(closed);
 
@@ -180,8 +189,8 @@ namespace ccf
           return 0;
         }
 
-        case TLS_ERR_WANT_READ:
-        case TLS_ERR_WANT_WRITE:
+        case SSL_ERROR_WANT_READ:
+        case SSL_ERROR_WANT_WRITE:
         {
           if (!exact)
           {
@@ -196,21 +205,19 @@ namespace ccf
 
         default:
         {
+          LOG_TRACE_FMT(
+            "TLS {} error on read: {}",
+            session_id,
+            ::tls::error_string(ERR_get_error()));
+          stop(error);
+          return 0;
         }
       }
 
-      if (r < 0)
-      {
-        LOG_TRACE_FMT(
-          "TLS {} error on read: {}", session_id, ::tls::error_string(r));
-        stop(error);
-        return 0;
-      }
-
-      auto total = r + offset;
+      auto total = readbytes + offset;
 
       // We read _some_ data but not enough, and didn't get
-      // TLS_ERR_WANT_READ. Probably hit an internal size limit - try
+      // SSL_ERROR_WANT_READ. Probably hit an internal size limit - try
       // again
       if (exact && (total < size))
       {
@@ -227,7 +234,7 @@ namespace ccf
     {
       if (can_recv())
       {
-        pending_read.insert(pending_read.end(), data, data + size);
+        ctx->recv(data, size);
       }
 
       do_handshake();
@@ -249,19 +256,20 @@ namespace ccf
         case ready:
         case closing:
         {
-          int r = ctx->close();
+          int rc = ctx->close();
+          flush_outbound();
 
-          switch (r)
+          switch (rc)
           {
-            case TLS_ERR_WANT_READ:
-            case TLS_ERR_WANT_WRITE:
+            case SSL_ERROR_WANT_READ:
+            case SSL_ERROR_WANT_WRITE:
             {
-              LOG_TRACE_FMT("TLS {} has pending data ({})", session_id, r);
+              LOG_TRACE_FMT("TLS {} has pending data ({})", session_id, rc);
               // FALLTHROUGH
             }
             case 0:
             {
-              LOG_TRACE_FMT("TLS {} closed ({})", session_id, r);
+              LOG_TRACE_FMT("TLS {} closed ({})", session_id, rc);
               stop(closed);
               break;
             }
@@ -271,7 +279,7 @@ namespace ccf
               LOG_TRACE_FMT(
                 "TLS {} error on_close: {}",
                 session_id,
-                ::tls::error_string(r));
+                ::tls::error_string(ERR_get_error()));
               stop(error);
               break;
             }
@@ -317,6 +325,41 @@ namespace ccf
       pending_write.insert(pending_write.end(), data.begin(), data.end());
     }
 
+    // Drains the encrypted bytes produced by the TLS layer and writes them to
+    // the ring buffer. Returns false if there are bytes left to send because
+    // the ring buffer was full (in which case they are retained and retried on
+    // the next call).
+    bool flush_outbound()
+    {
+      size_t pending = ctx->pending_write();
+      if (pending > 0)
+      {
+        size_t cur = pending_out.size();
+        pending_out.resize(cur + pending);
+        size_t got = ctx->send(pending_out.data() + cur, pending);
+        pending_out.resize(cur + got);
+      }
+
+      if (pending_out.empty())
+      {
+        return true;
+      }
+
+      auto wrote = RINGBUFFER_TRY_WRITE_MESSAGE(
+        ::tcp::tcp_outbound,
+        to_host,
+        session_id,
+        serializer::ByteRange{pending_out.data(), pending_out.size()});
+
+      if (wrote)
+      {
+        pending_out.clear();
+        return true;
+      }
+
+      return false;
+    }
+
     void flush()
     {
       do_handshake();
@@ -326,23 +369,48 @@ namespace ccf
         return;
       }
 
+      // Retry any encrypted bytes that couldn't be sent previously.
+      if (!flush_outbound())
+      {
+        return;
+      }
+
       while (!pending_write.empty())
       {
-        auto r = write_some(pending_write);
+        size_t written = 0;
+        auto rc =
+          ctx->write(pending_write.data(), pending_write.size(), written);
 
-        if (r > 0)
+        if (written > 0)
         {
-          pending_write.erase(pending_write.begin(), pending_write.begin() + r);
+          pending_write.erase(
+            pending_write.begin(), pending_write.begin() + written);
         }
-        else if (r == 0)
+
+        bool flushed = flush_outbound();
+
+        switch (rc)
         {
-          break;
+          case 0:
+            break;
+
+          case SSL_ERROR_WANT_READ:
+          case SSL_ERROR_WANT_WRITE:
+            return;
+
+          default:
+            LOG_TRACE_FMT(
+              "TLS session {} error on flush: {}",
+              session_id,
+              ::tls::error_string(ERR_get_error()));
+            stop(error);
+            return;
         }
-        else
+
+        if (!flushed)
         {
-          LOG_TRACE_FMT("TLS session {} error on flush: {}", session_id, -r);
-          stop(error);
-          break;
+          // Ring buffer is full - retry later.
+          return;
         }
       }
     }
@@ -358,6 +426,11 @@ namespace ccf
 
       auto rc = ctx->handshake();
 
+      // Push out any handshake records the TLS layer produced, regardless of
+      // the result (e.g. a ClientHello while waiting for more data, or an alert
+      // on failure).
+      flush_outbound();
+
       switch (rc)
       {
         case 0:
@@ -366,26 +439,21 @@ namespace ccf
           break;
         }
 
-        case TLS_ERR_WANT_READ:
-        case TLS_ERR_WANT_WRITE:
+        case SSL_ERROR_WANT_READ:
+        case SSL_ERROR_WANT_WRITE:
           break;
 
-        case TLS_ERR_NEED_CERT:
+        case SSL_ERROR_WANT_X509_LOOKUP:
         {
-          on_handshake_error(fmt::format(
-            "TLS {} verify error on handshake: {}",
-            session_id,
-            ::tls::error_string(rc)));
+          on_handshake_error(
+            fmt::format("TLS {} verify error on handshake", session_id));
           stop(authfail);
           break;
         }
 
-        case TLS_ERR_CONN_CLOSE_NOTIFY:
+        case SSL_ERROR_ZERO_RETURN:
         {
-          LOG_TRACE_FMT(
-            "TLS {} closed on handshake: {}",
-            session_id,
-            ::tls::error_string(rc));
+          LOG_TRACE_FMT("TLS {} closed on handshake", session_id);
           stop(closed);
           break;
         }
@@ -394,10 +462,7 @@ namespace ccf
         {
           auto err = ctx->get_verify_error();
           on_handshake_error(fmt::format(
-            "TLS {} invalid cert on handshake: {} [{}]",
-            session_id,
-            err,
-            ::tls::error_string(rc)));
+            "TLS {} invalid cert on handshake: {}", session_id, err));
           stop(authfail);
           return;
         }
@@ -407,25 +472,10 @@ namespace ccf
           on_handshake_error(fmt::format(
             "TLS {} error on handshake: {}",
             session_id,
-            ::tls::error_string(rc)));
+            ::tls::error_string(ERR_get_error())));
           stop(error);
           break;
         }
-      }
-    }
-
-    int write_some(const std::vector<uint8_t>& data)
-    {
-      auto r = ctx->write(data.data(), data.size());
-
-      switch (r)
-      {
-        case TLS_ERR_WANT_READ:
-        case TLS_ERR_WANT_WRITE:
-          return 0;
-
-        default:
-          return r;
       }
     }
 
@@ -485,187 +535,6 @@ namespace ccf
           throw std::logic_error(
             fmt::format("TLS {} unknown status: {}", session_id, status));
       }
-    }
-
-    int handle_send(const uint8_t* buf, size_t len)
-    {
-      // Either write all of the data or none of it.
-      auto wrote = RINGBUFFER_TRY_WRITE_MESSAGE(
-        ::tcp::tcp_outbound,
-        to_host,
-        session_id,
-        serializer::ByteRange{buf, len});
-
-      if (!wrote)
-      {
-        return TLS_WRITING;
-      }
-
-      return static_cast<int>(len);
-    }
-
-    int handle_recv(uint8_t* buf, size_t len)
-    {
-      if (!pending_read.empty())
-      {
-        // Use the pending data vector. This is populated when the host
-        // writes a chunk larger than the size requested by the enclave.
-        size_t rd = std::min(len, pending_read.size());
-        ::memcpy(buf, pending_read.data(), rd);
-
-        if (rd >= pending_read.size())
-        {
-          pending_read.clear();
-        }
-        else
-        {
-          pending_read.erase(pending_read.begin(), pending_read.begin() + rd);
-        }
-
-        return (int)rd;
-      }
-
-      return TLS_READING;
-    }
-
-    static int send_callback(void* ctx, const unsigned char* buf, size_t len)
-    {
-      return reinterpret_cast<TLSSession*>(ctx)->handle_send(buf, len);
-    }
-
-    static int recv_callback(void* ctx, unsigned char* buf, size_t len)
-    {
-      return reinterpret_cast<TLSSession*>(ctx)->handle_recv(buf, len);
-    }
-
-    // These callbacks below are complex, using the callbacks above and
-    // manipulating OpenSSL's BIO objects accordingly. This is just so we can
-    // emulate what MbedTLS used to do.
-    // Now that we have removed it from the code, we can move the callbacks
-    // above to handle BIOs directly and hopefully remove the complexity below.
-    // This work will be carried out in #3429.
-    static long send_callback_openssl(
-      BIO* b,
-      int oper,
-      const char* argp,
-      size_t len,
-      int argi,
-      long argl,
-      int ret,
-      size_t* processed)
-    {
-      // Unused arguments
-      (void)argi;
-      (void)argl;
-      (void)argp;
-
-      if (ret != 0 && len > 0 && oper == (BIO_CB_WRITE | BIO_CB_RETURN))
-      {
-        // Flush BIO so the "pipe doesn't clog", but we don't use the
-        // data here, because 'argp' already has it.
-        BIO_flush(b);
-        size_t pending = BIO_pending(b);
-        if (pending != 0)
-        {
-          BIO_reset(b);
-        }
-
-        // Pipe object
-        void* ctx = BIO_get_callback_arg(b);
-        int put =
-          send_callback(ctx, reinterpret_cast<const uint8_t*>(argp), len);
-
-        // WANTS_WRITE
-        if (put == TLS_WRITING)
-        {
-          BIO_set_retry_write(b);
-          LOG_TRACE_FMT("TLS Session::send_cb() : WANTS_WRITE");
-          *processed = 0;
-          return -1;
-        }
-
-        LOG_TRACE_FMT("TLS Session::send_cb() : Put {} bytes", put);
-
-        // Update the number of bytes to external users
-        *processed = put;
-      }
-
-      // Unless we detected an error, the return value is always the same as the
-      // original operation.
-      return ret;
-    }
-
-    static long recv_callback_openssl(
-      BIO* b,
-      int oper,
-      const char* argp,
-      size_t len,
-      int argi,
-      long argl,
-      int ret,
-      size_t* processed)
-    {
-      // Unused arguments
-      (void)argi;
-      (void)argl;
-
-      if (ret == 1 && oper == (BIO_CB_CTRL | BIO_CB_RETURN))
-      {
-        // This callback may be fired at the end of large batches of TLS frames
-        // on OpenSSL 3.x. Note that processed == nullptr in this case, hence
-        // the early exit.
-        return 0;
-      }
-
-      if (ret != 0 && (oper == (BIO_CB_READ | BIO_CB_RETURN)))
-      {
-        // Pipe object
-        void* ctx = BIO_get_callback_arg(b);
-        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
-        int got = recv_callback(
-          ctx, reinterpret_cast<uint8_t*>(const_cast<char*>(argp)), len);
-
-        // WANTS_READ
-        if (got == TLS_READING)
-        {
-          BIO_set_retry_read(b);
-          LOG_TRACE_FMT("TLS Session::recv_cb() : WANTS_READ");
-          *processed = 0;
-          return -1;
-        }
-
-        LOG_TRACE_FMT("TLS Session::recv_cb() : Got {} bytes of {}", got, len);
-
-        // If got less than requested, return WANT_READ
-        if ((size_t)got < len)
-        {
-          *processed = got;
-          return 1;
-        }
-
-        // Write to the actual BIO so SSL can use it
-        BIO_write_ex(b, argp, got, processed);
-
-        // The buffer should be enough, we can't return WANT_WRITE here
-        if ((size_t)got != *processed)
-        {
-          LOG_TRACE_FMT("TLS Session::recv_cb() : BIO error");
-          *processed = got;
-          return -1;
-        }
-
-        // If original return was -1 because it didn't find anything to read,
-        // return 1 to say we actually read something. This is common when the
-        // buffer is empty and needs an external read, so let's not log this.
-        if (got > 0 && ret < 0)
-        {
-          return 1;
-        }
-      }
-
-      // Unless we detected an error, the return value is always the same as the
-      // original operation.
-      return ret;
     }
   };
 }
