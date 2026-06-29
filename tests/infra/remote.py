@@ -273,8 +273,23 @@ class LocalRemote(CmdMixin):
         cmd = " ".join(self.cmd)
         return f"cd {self.root} && {DBG} -- {cmd}"
 
-    def check_done(self):
-        return self.proc is not None and self.proc.poll() is not None
+    def check_done(self, timeout=5, interval=0.2):
+        if self.proc is None:
+            return False
+
+        if self.proc.poll() is not None:
+            return True
+
+        if timeout <= 0:
+            return False
+
+        done_deadline = time.monotonic() + timeout
+        while time.monotonic() < done_deadline:
+            time.sleep(interval)
+            if self.proc.poll() is not None:
+                return True
+
+        return self.proc.poll() is not None
 
     def get_result(self, line_count):
         with open(self.out, "rb") as out:
@@ -699,8 +714,8 @@ class CCFRemote(object):
         except Exception:
             LOG.exception("Failed to shut down {} cleanly".format(self.local_node_id))
 
-    def check_done(self):
-        return self.remote.check_done()
+    def check_done(self, timeout=5, interval=0.2):
+        return self.remote.check_done(timeout=timeout, interval=interval)
 
     def _resilient_copy(
         self,

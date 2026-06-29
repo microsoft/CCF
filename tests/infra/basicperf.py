@@ -380,7 +380,7 @@ def run(args):
                     running = []
                     done_list = []
                     for i, remote_client in enumerate(clients):
-                        done = remote_client.check_done()
+                        done = remote_client.check_done(timeout=0)
                         if done:
                             done_list.append(i)
                         else:

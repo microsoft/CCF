@@ -1991,10 +1991,13 @@ namespace ccf
       recovery_store->set_history(recovery_history);
       recovery_store->set_encryptor(recovery_encryptor);
 
-      // Record real store version and root
-      recovery_v = network.tables->current_version();
+      // Record a consistent public store version and root. The store's current
+      // version can advance before its Merkle history is updated during commit,
+      // so these must be captured together from the history.
       auto* h = dynamic_cast<MerkleTxHistory*>(history.get());
-      recovery_root = h->get_replicated_state_root();
+      const auto& [txid, root, _] = h->get_replicated_state_txid_and_root();
+      recovery_v = txid.seqno;
+      recovery_root = root;
 
       if (startup_snapshot_info)
       {

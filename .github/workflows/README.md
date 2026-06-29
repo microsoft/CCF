@@ -4,30 +4,40 @@ Documents the various GitHub Actions workflows, the role they fulfill and 3rd pa
 
 ## Bencher
 
-Builds and runs CCF performance tests, both end to end and micro-benchmarks. Results are posted to bencher.dev, and [plotted to make regressions obvious](https://bencher.dev/console/projects/ccf/plots).
-Triggered on every commit on `main`, but not on PR builds because the setup required to build from forks is complex and fragile in terms of security, and the increase in pool usage would be substantial.
+Builds and runs CCF performance tests, both end to end and micro-benchmarks. Results are stored as artifacts and summarized in the workflow run.
+Triggered on every commit on `main`, twice daily on week days, and manually, but not on PR builds because the setup required to build from forks is complex and fragile in terms of security, and the increase in pool usage would be substantial.
 
-Tests are run and published on two different testbeds for comparison: gha-vmss-d16av5-ci (d16av5 VMs) and gha-c-aci-ci (C-ACI with 16 cores and 32Gb RAM), and are labeled accordingly in the bencher UI.
+Tests are run on two different testbeds for comparison: gha-vmss-d16av6-ci (d16av6 VMs) and gha-c-aci-ci (C-ACI with 16 cores and 32Gb RAM).
 
 File: `bencher.yml`
-3rd party dependencies:
-
-- `bencherdev/bencher@main`
+3rd party dependencies: None
 
 ## Bencher A/B
 
-Builds and runs CCF performance tests, and perform a comparison to main. Triggered on PRs that have the label `bench-ab`.
+Builds and runs CCF performance tests, and performs a comparison to main. Triggered on PRs that have the label `bench-ab`.
 
 File: `bencher-ab.yml`
-3rd party dependencies:
+3rd party dependencies: None
 
-- `bencherdev/bencher@main`
+## Copilot Setup Steps
+
+Sets up dependencies for the Copilot coding agent. Triggered when the workflow or setup script changes, and manually.
+
+File: `copilot-setup-steps.yml`
+3rd party dependencies: None
 
 # Continuous Integration
 
-Main continuous integration job. Builds CCF for all target platforms, runs unit, end to end and partition tests. Run on every commit, including PRs from forks, gates merging. Also runs once a week, regardless of commits.
+Main continuous integration job. Builds CCF for all target platforms, runs unit, end to end and partition tests. Runs on PRs, merge queue runs, manually, and once a week, regardless of commits.
 
 File: `ci.yml`
+3rd party dependencies: None
+
+# Coverage
+
+Builds CCF with coverage enabled, runs unit and end to end tests, and uploads HTML coverage reports. Triggered on every commit on `main`, twice daily on week days, and manually.
+
+File: `coverage.yml`
 3rd party dependencies: None
 
 # Long Tests
@@ -42,17 +52,17 @@ File: `long-test.yml`
 
 # CodeQL analysis
 
-Builds CCF with CodeQL, and runs the security-extended checks. Triggered on PRs that affect ".github/workflows/codeql-analysis.yml", on pushes to main, and once a week on schedule.
+Builds CCF with CodeQL, and runs the security-extended checks. Triggered on PRs that affect ".github/workflows/codeql-analysis.yml", on pushes to main, once a week on schedule, and manually.
 
 File: `codeql-analysis.yml`
 3rd party dependencies:
 
-- `github/codeql-action/init@v3`
-- `github/codeql-action/analyze@v3`
+- `github/codeql-action/init@v4`
+- `github/codeql-action/analyze@v4`
 
 # Continuous Verification
 
-Runs quick verification jobs: trace validation, simulation and short model checking configurations. Triggered on PRs that affect tla/ or src/consensus and weekly on main.
+Runs quick verification jobs: trace validation, simulation and short model checking configurations. Triggered on PRs that affect tla/, src/consensus, tests/raft_scenarios, or the workflow itself, weekly, and manually.
 
 File: `ci-verification.yml`
 3rd party dependencies: None
@@ -69,14 +79,14 @@ File: `long-verification.yml`
 
 # Release
 
-Produces CCF reference release artefacts from 5.0.0-rc0 onwards, for all languages and platforms. Triggered on tags matching `ccf-[56].\*`. The output of the job is a draft release, which needs to be published manually. Publishing triggers the downstream jobs listed below.
+Produces CCF reference release artifacts for all languages and platforms. Triggered on tags matching `ccf-[67].*`, and manually with an optional dry run. The output of a non-dry-run job is a draft release, which needs to be published manually. Publishing triggers the downstream jobs listed below.
 
 File: `release.yml`
 3rd party dependencies: None
 
 # Release Attestation
 
-Generate signed build provenance attestations for release artifacts. Triggered by release creation.
+Generate signed build provenance attestations for release artifacts. Triggered on release publishing.
 
 File: `release-attestation.yml`
 3rd party dependencies: None
@@ -93,7 +103,9 @@ File: `npm.yml`
 Publishes ccf Python package from a GitHub release to PyPI. Triggered on release publishing.
 
 File: `pypi.yml`
-3rd party dependencies: None
+3rd party dependencies:
+
+- `pypa/gh-action-pypi-publish@v1.14.0`
 
 # Documentation
 
