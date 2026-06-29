@@ -229,16 +229,16 @@ If the ``PreVoteCandidate`` receives a quorum of positive pre-vote responses, it
         Note over Node 0: Leader for view 2
 
         Note over Node 1: PreVoteCandidate in view 2
-        Node 1 ->> Node 2: RequestVote(ElectionType::PreVote, term=2)
+        Node 1 ->> Node 2: RequestVote(ElectionType::PreVote, view=2)
 
         Note right of Node 2: No changes to Node 2's state
-        Node 2 ->> Node 1: RequestVoteResponse(ElectionType::PreVote, term=2, granted=true)
+        Node 2 ->> Node 1: RequestVoteResponse(ElectionType::PreVote, view=2, granted=true)
 
         Note over Node 1: Candidate in view 3
-        Node 1 ->> Node 2: RequestVote(ElectionType::RegularVote, term=3)
+        Node 1 ->> Node 2: RequestVote(ElectionType::RegularVote, view=3)
 
         Note right of Node 2: Updates view to 3 and votes for Node 1
-        Node 2 ->> Node 1: RequestVoteResponse(ElectionType::RegularVote, term=3, granted=true)
+        Node 2 ->> Node 1: RequestVoteResponse(ElectionType::RegularVote, view=3, granted=true)
 
         Note over Node 1: Leader for view 3
 
@@ -258,16 +258,16 @@ This can be viewed as piggybacking the view information from that previous Candi
         Note over Node 2: Lagging Follower in view 1
 
         Note over Node 1: PreVoteCandidate in view 2
-        Node 1 ->> Node 2: RequestVote(ElectionType::PreVote, term=2)
+        Node 1 ->> Node 2: RequestVote(ElectionType::PreVote, view=2)
 
         Note right of Node 2: Updates view to 2
-        Node 2 ->> Node 1: RequestVoteResponse(ElectionType::PreVote, term=2, granted=true)
+        Node 2 ->> Node 1: RequestVoteResponse(ElectionType::PreVote, view=2, granted=true)
 
         Note over Node 1: Candidate in view 3
-        Node 1 ->> Node 2: RequestVote(ElectionType::RegularVote, term=3)
+        Node 1 ->> Node 2: RequestVote(ElectionType::RegularVote, view=3)
 
         Note right of Node 2: Updates to view 3 and votes for Node 1
-        Node 2 ->> Node 1: RequestVoteResponse(ElectionType::RegularVote, term=3, granted=true)
+        Node 2 ->> Node 1: RequestVoteResponse(ElectionType::RegularVote, view=3, granted=true)
 
         Note over Node 1: Leader for view 3
 
