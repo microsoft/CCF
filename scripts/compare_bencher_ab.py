@@ -2,9 +2,14 @@
 # Licensed under the Apache 2.0 License.
 
 import json
+import os
 import sys
 import argparse
 from typing import Dict
+
+from perf_summary import CHART_MAX_POINTS, METRIC_GROUPS
+from perf_summary import benchmarks_with_metric, list_perf_files, load_perf_data
+from perf_summary import render_metric_group, render_runs_table
 
 METADATA_KEY = "__metadata"
 
@@ -12,13 +17,19 @@ METADATA_KEY = "__metadata"
 def load_bencher_file(filepath: str) -> Dict:
     """Load a bencher.json file"""
     try:
-        with open(filepath, "r") as f:
+        with open(filepath, "r", encoding="utf-8") as f:
             return json.load(f)
     except FileNotFoundError:
         print(f"Error: File {filepath} not found")
         sys.exit(1)
+    except IsADirectoryError:
+        print(f"Error: {filepath} is a directory, expected a bencher.json file")
+        sys.exit(1)
     except json.JSONDecodeError:
         print(f"Error: Invalid JSON in {filepath}")
+        sys.exit(1)
+    except OSError as exc:
+        print(f"Error: Could not read {filepath}: {exc}")
         sys.exit(1)
 
 
@@ -116,6 +127,28 @@ def calculate_percentage_change(val1: float, val2: float) -> str:
     return f"{sign}{change:.1f}%"
 
 
+def render_history_comparison(main_perf_dir: str, pr_file: str, pr_label: str) -> str:
+    """Render recent main perf history and append the PR result."""
+    main_files = list_perf_files(main_perf_dir)[-CHART_MAX_POINTS:]
+    main_runs = load_perf_data(main_perf_dir, main_files)
+    pr_data = load_bencher_file(pr_file)
+    loaded = [*main_runs, (pr_label, None, None, pr_data)]
+
+    lines = [
+        "# Performance summary",
+        "",
+        "_Recent main runs followed by the PR result._",
+        "",
+        render_runs_table(loaded),
+    ]
+
+    for metric, title, unit in METRIC_GROUPS:
+        if benchmarks_with_metric(loaded, metric):
+            lines.append(render_metric_group(loaded, metric, title, unit))
+
+    return "\n".join(lines)
+
+
 def create_side_by_side_plot(
     file1: str, file2: str, label1: str = None, label2: str = None
 ):
@@ -126,6 +159,10 @@ def create_side_by_side_plot(
         label1 = file1.replace(".json", "")
     if not label2:
         label2 = file2.replace(".json", "")
+
+    if os.path.isdir(file1):
+        print(render_history_comparison(file1, file2, label2))
+        return
 
     # Load data
     data1 = load_bencher_file(file1)

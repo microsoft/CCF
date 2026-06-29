@@ -144,6 +144,17 @@ jobs:
 
       - name: Generate comparison
         run: |
+          main_results="benchmark-main-${{ github.run_id }}/bencher.json"
+          pr_results="benchmark-pr-${{ github.run_id }}/bencher.json"
+          [ -f "$main_results" ] || {
+            echo "Expected main benchmark results at $main_results" >&2
+            exit 1
+          }
+          [ -f "$pr_results" ] || {
+            echo "Expected PR benchmark results at $pr_results" >&2
+            exit 1
+          }
+
           echo "# Benchmark Comparison: main vs PR" > report.md
           echo "" >> report.md
           echo "**PR Commit:** \`${{ github.event.pull_request.head.sha }}\`" >> report.md
@@ -152,8 +163,8 @@ jobs:
           echo "" >> report.md
           echo '```' >> report.md
           python3 scripts/compare_bencher_ab.py \
-            benchmark-main-${{ github.run_id }}/bencher.json \
-            benchmark-pr-${{ github.run_id }}/bencher.json \
+            "$main_results" \
+            "$pr_results" \
             --label1 "main" --label2 "PR" >> report.md
           echo '```' >> report.md
 
