@@ -16,7 +16,8 @@ if SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, SCRIPTS_DIR)
 SPEC = importlib.util.spec_from_file_location("compare_bencher_ab", MODULE_PATH)
 compare_bencher_ab = importlib.util.module_from_spec(SPEC)
-assert SPEC.loader is not None
+if SPEC.loader is None:
+    raise RuntimeError(f"Could not load module from {MODULE_PATH}")
 SPEC.loader.exec_module(compare_bencher_ab)
 
 
