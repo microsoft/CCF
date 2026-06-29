@@ -1,0 +1,91 @@
+# Repro: a follower accepting a MATCHING partial AppendEntries is not modelled by the spec.
+#
+# A "matching partial" is an AppendEntries with prev_idx < last_idx < idx where the
+# overlapping entries (prev_idx+1 .. last_idx) the follower already holds are in the SAME
+# term the leader is sending, so the follower SKIPS them (no rollback) and only appends the
+# new suffix (last_idx+1 .. idx). raft.h does this in its recv_append_entries merge loop.
+#
+# upstream/main tla/consensus/ccfraft.tla AcceptAppendEntriesRequest models only:
+#   - AppendEntriesAlreadyDone     (needs Len(log) >= idx)
+#   - NoConflictAppendEntriesRequest (needs Len(log) = prev_idx)
+#   - Conflict . {AlreadyDone|NoConflict} (needs a term MISMATCH in the overlap)
+# A matching prev_idx < last_idx < idx fits none of these, so trace validation
+# (Traceccfraft.tla) FAILS on the step where node 2 accepts the partial below.
+#
+# Construction (no reconfiguration):
+#   common prefix [1..4]@t2 ; node 2 holds a divergent suffix [5,6]@t3 ; node 1 leads t4
+#   with its own block [5,6,7]@t4. Because node 1's t4 block starts at index 5, a t3 NACK
+#   from node 2 backs node 1's sentIndex off to the term boundary (index 4). We:
+#     1. make node 2 emit two t3 NACKs while still divergent (and retain them),
+#     2. let node 2 ADOPT node 1's [5,6]@t4 (a modelled conflict+append),
+#     3. deliver a retained t3 NACK to reset node 1's sentIndex to 4 again, keeping
+#        node 1's match_idx for node 2 <= 4 by never delivering node 2's ACK,
+#     4. let node 1 re-send prev=4 idx=7 covering [5,6,7]@t4 -> node 2 skips the matching
+#        [5,6]@t4 and appends 7 == matching partial (prev=4 < last=6 < idx=7).
+
+start_node,0
+assert_detail,0,leadership_state,Leader
+emit_signature,2
+trust_nodes,2,1,2
+emit_signature,2
+dispatch_all
+periodic_all,10
+dispatch_all
+periodic_all,10
+dispatch_all
+assert_state_sync
+
+# Node 2 wins a term-3 election and creates a divergent suffix [5,6]@t3 it never shares.
+periodic_one,2,100
+dispatch_all
+assert_detail,2,leadership_state,Leader
+replicate,3,divergent 5
+emit_signature,3
+drop_pending,2
+assert_last_txid,2,3.6
+
+# Node 1 wins a term-4 election (node 0 gives the majority; node 2's longer log abstains).
+periodic_one,1,100
+dispatch_all
+assert_detail,1,leadership_state,Leader
+assert_detail,1,current_view,4
+
+# Node 1 builds its own block [5,6]@t4.
+drop_pending,1
+replicate,4,block 5
+emit_signature,4
+
+# Optimistically advance node 1's sentIndex for node 2 to 6, then DROP that AppendEntries
+# so node 2 does not adopt yet and stays on its divergent [5,6]@t3.
+periodic_one,1,10
+drop_pending_to,1,2
+
+# Two prev=6 heartbeats -> node 2 (still divergent) emits two t3 NACKs into its outbox.
+drop_pending,2
+periodic_one,1,10
+periodic_one,1,10
+dispatch_single,1,2
+dispatch_single,1,2
+
+# Deliver NACK #1: node 1 backs sentIndex off to the t4 block boundary (index 4).
+dispatch_single,2,1
+
+# Node 1 sends prev=4 idx=6 [5,6]@t4; node 2 rolls back its t3 [5,6] and ADOPTS t4 [5,6]
+# (this conflict+append IS modelled). Node 2's ACK is left undelivered so match stays <= 4.
+periodic_one,1,10
+dispatch_single,1,2
+assert_last_txid,2,4.6
+
+# Node 1 extends its block with [7]@t4.
+emit_signature,4
+
+# Deliver the RETAINED NACK #2: node 1 again backs sentIndex off to 4 (match still <= 4).
+dispatch_single,2,1
+
+# Node 1 now sends prev=4 idx=7 covering [5,6,7]@t4. Node 2 already holds matching [5,6]@t4,
+# so it SKIPS them and only appends 7 -> MATCHING PARTIAL (prev=4 < last=6 < idx=7).
+# upstream/main ccfraft.tla cannot model this step, so trace validation FAILS here.
+periodic_one,1,10
+dispatch_single,1,2
+assert_last_txid,2,4.7
+state_all
