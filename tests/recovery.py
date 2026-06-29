@@ -303,7 +303,7 @@ def test_recovery_member_changes_rejected_during_recovery(network, args):
     state_digest = pending_recovery_member.update_ack_state_digest(primary).body.json()
     with primary.api_versioned_client(
         *pending_recovery_member.auth(write=True),
-        api_version=pending_recovery_member.gov_api_impl.API_VERSION,
+        api_version=pending_recovery_member.gov_api_impl_inst.API_VERSION,
     ) as mc:
         r = mc.post(
             f"/gov/members/state-digests/{pending_recovery_member.service_id}:ack",
