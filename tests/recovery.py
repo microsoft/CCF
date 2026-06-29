@@ -131,7 +131,9 @@ def restart_network(old_network, args, current_ledger_dir, committed_ledger_dirs
 
 def get_replacement_package(args):
     return (
-        "samples/apps/logging/logging" if args.package == "js_generic" else "js_generic"
+        "samples/apps/logging/logging"
+        if os.path.basename(args.package) == "js_generic"
+        else "js_generic"
     )
 
 
@@ -394,9 +396,13 @@ def test_recover_service_with_different_code_id(network, args):
             recovered_host_data = r.body.json()[platform]["hostData"]
             assert recovery_host_data in recovered_host_data, recovered_host_data
 
-        if recovery_package == "js_generic":
-            js_logging_app = os.path.join(
-                os.path.dirname(__file__), "..", "samples", "apps", "logging", "js"
+        if os.path.basename(recovery_package) == "js_generic":
+            js_logging_app = getattr(
+                args,
+                "recovery_js_app_bundle",
+                os.path.join(
+                    os.path.dirname(__file__), "..", "samples", "apps", "logging", "js"
+                ),
             )
             recovered_network.consortium.set_js_app_from_dir(
                 new_primary, js_logging_app
@@ -2470,6 +2476,9 @@ checked. Note that the key for each logging message is unique (per table).
         run_recover_service_with_different_code_id,
         package="samples/apps/logging/logging",
         recovery_package="js_generic",
+        recovery_js_app_bundle=os.path.join(
+            os.path.dirname(__file__), "..", "samples", "apps", "logging", "js"
+        ),
         # Single-node recovery is sufficient here because the test focuses on
         # code ID switching rather than multi-node consensus behaviour.
         nodes=infra.e2e_args.min_nodes(cr.args, f=0),
