@@ -10,13 +10,19 @@ import pytest
 
 MODULE_PATH = Path(__file__).resolve().parents[2] / "scripts" / "compare_bencher_ab.py"
 SCRIPTS_DIR = str(MODULE_PATH.parent)
+SPEC = importlib.util.spec_from_file_location("compare_bencher_ab", MODULE_PATH)
+if SPEC is None or SPEC.loader is None:
+    raise RuntimeError(f"Could not load module from {MODULE_PATH}")
+compare_bencher_ab = importlib.util.module_from_spec(SPEC)
+_inserted = False
 if SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, SCRIPTS_DIR)
-SPEC = importlib.util.spec_from_file_location("compare_bencher_ab", MODULE_PATH)
-compare_bencher_ab = importlib.util.module_from_spec(SPEC)
-if SPEC.loader is None:
-    raise RuntimeError(f"Could not load module from {MODULE_PATH}")
-SPEC.loader.exec_module(compare_bencher_ab)
+    _inserted = True
+try:
+    SPEC.loader.exec_module(compare_bencher_ab)
+finally:
+    if _inserted:
+        sys.path.remove(SCRIPTS_DIR)
 
 
 def test_create_side_by_side_plot_renders_summary(tmp_path, capsys):
