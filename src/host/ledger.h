@@ -15,11 +15,14 @@
 #include "ledger_filenames.h"
 #include "time_bound_logger.h"
 
+#include <condition_variable>
 #include <cstdint>
 #include <cstdio>
 #include <filesystem>
 #include <list>
 #include <map>
+#include <memory>
+#include <mutex>
 #include <string>
 #include <sys/types.h>
 #include <uv.h>
@@ -779,6 +782,31 @@ namespace asynchost
     // complete
     std::optional<size_t> recovery_start_idx = std::nullopt;
 
+    // Shared state used to coordinate the shutdown of in-flight asynchronous
+    // ledger reads. A single instance is shared (via shared_ptr) between this
+    // Ledger and every outstanding AsyncLedgerGet. Because it is reference
+    // counted it outlives the Ledger, so the worker and completion callbacks
+    // can run safely even if the Ledger has already been destroyed.
+    struct AsyncReadState
+    {
+      std::mutex lock;
+      std::condition_variable all_workers_done;
+
+      // Number of worker callbacks currently accessing the Ledger
+      size_t active_workers = 0;
+
+      // Set to false when the owning Ledger is being destroyed, after which
+      // workers must not access it
+      bool ledger_alive = true;
+    };
+
+    // Shared state used to coordinate the shutdown of in-flight asynchronous
+    // ledger reads (see on_ledger_get_async and ~Ledger). It is held by a
+    // shared_ptr so that it outlives this Ledger, allowing worker and
+    // completion callbacks to run safely even after the Ledger is destroyed.
+    std::shared_ptr<AsyncReadState> async_read_state =
+      std::make_shared<AsyncReadState>();
+
     [[nodiscard]] auto get_it_contains_idx(size_t idx) const
     {
       if (idx == 0)
@@ -1255,6 +1283,21 @@ namespace asynchost
 
     Ledger(const Ledger& that) = delete;
 
+    ~Ledger()
+    {
+      // Ensure that no asynchronous ledger read accesses this Ledger after it
+      // has been destroyed. Mark the Ledger as no longer available, then wait
+      // for any in-flight worker callbacks (which may be running on a libuv
+      // threadpool thread) to finish accessing it. Workers that have not yet
+      // started will observe ledger_alive == false and skip accessing the
+      // Ledger entirely. The shared async_read_state outlives this Ledger, so
+      // any remaining completion callbacks remain safe to run afterwards.
+      std::unique_lock<std::mutex> guard(async_read_state->lock);
+      async_read_state->ledger_alive = false;
+      async_read_state->all_workers_done.wait(
+        guard, [this]() { return async_read_state->active_workers == 0; });
+    }
+
     void init(size_t idx, size_t recovery_start_idx_ = 0)
     {
       TimeBoundLogger log_if_slow(
@@ -1677,6 +1720,10 @@ namespace asynchost
       size_t to_idx{};
       size_t max_size{};
 
+      // Shared with the owning Ledger to coordinate safe shutdown, so that the
+      // worker callback never accesses a destroyed Ledger
+      std::shared_ptr<AsyncReadState> async_state;
+
       // First argument is ledger entries (or nullopt if not found)
       // Second argument is uv status code, which may indicate a cancellation
       using ResultCallback =
@@ -1691,8 +1738,30 @@ namespace asynchost
     {
       auto* data = static_cast<AsyncLedgerGet*>(req->data);
 
-      data->read_result = data->ledger->read_entries_range(
-        data->from_idx, data->to_idx, true, data->max_size);
+      Ledger* ledger = nullptr;
+      {
+        std::unique_lock<std::mutex> guard(data->async_state->lock);
+        if (!data->async_state->ledger_alive)
+        {
+          // The Ledger has been (or is being) destroyed, so it must not be
+          // accessed. Leave read_result empty.
+          return;
+        }
+
+        // Register as an active worker so that ~Ledger waits for this callback
+        // to finish before the Ledger is destroyed.
+        ++data->async_state->active_workers;
+        ledger = data->ledger;
+      }
+
+      data->read_result =
+        ledger->read_entries_range(data->from_idx, data->to_idx, true, data->max_size);
+
+      {
+        std::unique_lock<std::mutex> guard(data->async_state->lock);
+        --data->async_state->active_workers;
+        data->async_state->all_workers_done.notify_all();
+      }
     }
 
     static void on_ledger_get_async_complete(uv_work_t* req, int status)
@@ -1817,6 +1886,7 @@ namespace asynchost
               job->from_idx = from_idx;
               job->to_idx = to_idx;
               job->max_size = max_entries_size;
+              job->async_state = async_read_state;
               job->result_cb = [to_enclave_ = to_enclave,
                                 from_idx_ = from_idx,
                                 to_idx_ = to_idx,
