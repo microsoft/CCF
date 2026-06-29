@@ -85,6 +85,6 @@ def test_load_bencher_file_reports_directory_input(tmp_path, capsys):
         compare_bencher_ab.load_bencher_file(str(nested_dir))
 
     assert exc.value.code == 1
-    assert capsys.readouterr().out.strip() == (
+    assert capsys.readouterr().err.strip() == (
         f"Error: {nested_dir} is a directory, expected a bencher.json file"
     )

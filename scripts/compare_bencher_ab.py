@@ -20,16 +20,19 @@ def load_bencher_file(filepath: str) -> Dict:
         with open(filepath, "r", encoding="utf-8") as f:
             return json.load(f)
     except FileNotFoundError:
-        print(f"Error: File {filepath} not found")
+        print(f"Error: File {filepath} not found", file=sys.stderr)
         sys.exit(1)
     except IsADirectoryError:
-        print(f"Error: {filepath} is a directory, expected a bencher.json file")
+        print(
+            f"Error: {filepath} is a directory, expected a bencher.json file",
+            file=sys.stderr,
+        )
         sys.exit(1)
     except json.JSONDecodeError:
-        print(f"Error: Invalid JSON in {filepath}")
+        print(f"Error: Invalid JSON in {filepath}", file=sys.stderr)
         sys.exit(1)
     except OSError as exc:
-        print(f"Error: Could not read {filepath}: {exc}")
+        print(f"Error: Could not read {filepath}: {exc}", file=sys.stderr)
         sys.exit(1)
 
 
