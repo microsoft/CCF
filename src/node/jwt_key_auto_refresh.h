@@ -48,11 +48,7 @@ namespace ccf
       curl_handle.set_opt(CURLOPT_TIMEOUT, request_response_timeout_s);
       curl_handle.set_opt(CURLOPT_SSL_VERIFYPEER, 1L);
       curl_handle.set_opt(CURLOPT_SSL_VERIFYHOST, 2L);
-#if LIBCURL_VERSION_NUM >= 0x075500
       curl_handle.set_opt(CURLOPT_PROTOCOLS_STR, "https");
-#else
-      curl_handle.set_opt(CURLOPT_PROTOCOLS, CURLPROTO_HTTPS);
-#endif
       curl_handle.set_blob_opt(
         CURLOPT_CAINFO_BLOB,
         reinterpret_cast<const uint8_t*>(ca_bundle_pem.data()),
