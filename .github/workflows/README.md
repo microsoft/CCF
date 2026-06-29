@@ -79,7 +79,7 @@ File: `long-verification.yml`
 
 # Release
 
-Produces CCF reference release artifacts from 5.0.0-rc0 onwards, for all languages and platforms. Triggered on tags matching `ccf-[567].\*`, and manually with an optional dry run. The output of a non-dry-run job is a draft release, which needs to be published manually. Publishing triggers the downstream jobs listed below.
+Produces CCF reference release artifacts for all languages and platforms. Triggered on tags matching `ccf-[67].*`, and manually with an optional dry run. The output of a non-dry-run job is a draft release, which needs to be published manually. Publishing triggers the downstream jobs listed below.
 
 File: `release.yml`
 3rd party dependencies: None
