@@ -124,6 +124,8 @@ namespace ccf::tls
     // Drain encrypted bytes to be sent to the peer out of the write BIO.
     virtual size_t send(uint8_t* buf, size_t len)
     {
+      // A negative return means no bytes were available to drain (the BIO is
+      // configured to retry rather than signal EOF), which we report as 0.
       int rc = BIO_read(SSL_get_wbio(ssl), buf, len);
       return rc < 0 ? 0 : static_cast<size_t>(rc);
     }

@@ -336,6 +336,8 @@ namespace ccf
       {
         size_t cur = pending_out.size();
         pending_out.resize(cur + pending);
+        // If fewer than pending bytes are drained, the remainder stays in the
+        // BIO and is picked up by the next pending_write()/send() below.
         size_t got = ctx->send(pending_out.data() + cur, pending);
         pending_out.resize(cur + got);
       }

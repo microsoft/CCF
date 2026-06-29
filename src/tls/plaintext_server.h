@@ -44,6 +44,8 @@ namespace nontls
 
     size_t send(uint8_t* buf, size_t len) override
     {
+      // A negative return means no bytes were available to drain, reported as
+      // 0.
       int rc = BIO_read(write_bio, buf, len);
       return rc < 0 ? 0 : static_cast<size_t>(rc);
     }
