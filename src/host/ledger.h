@@ -1745,17 +1745,27 @@ namespace asynchost
         {
           // The Ledger has been (or is being) destroyed, so it must not be
           // accessed. Leave read_result empty.
+          LOG_DEBUG_FMT(
+            "Skipping async ledger read {} to {} because Ledger is shutting "
+            "down",
+            data->from_idx,
+            data->to_idx);
           return;
         }
 
         // Register as an active worker so that ~Ledger waits for this callback
-        // to finish before the Ledger is destroyed.
+        // to finish before the Ledger is destroyed. Because we observed
+        // ledger_alive == true while holding the lock and incremented
+        // active_workers, ~Ledger cannot complete (and therefore cannot start
+        // destroying the Ledger's members) until we have decremented it below.
+        // This makes it safe to dereference the raw ledger pointer outside the
+        // lock.
         ++data->async_state->active_workers;
         ledger = data->ledger;
       }
 
-      data->read_result =
-        ledger->read_entries_range(data->from_idx, data->to_idx, true, data->max_size);
+      data->read_result = ledger->read_entries_range(
+        data->from_idx, data->to_idx, true, data->max_size);
 
       {
         std::unique_lock<std::mutex> guard(data->async_state->lock);
