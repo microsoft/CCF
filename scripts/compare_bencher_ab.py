@@ -152,7 +152,7 @@ def render_history_comparison(main_perf_dir: str, pr_file: str, pr_label: str) -
 def create_side_by_side_plot(
     file1: str, file2: str, label1: str = None, label2: str = None
 ):
-    """Render either an ASCII file comparison or a markdown history summary."""
+    """Render an ASCII file comparison, or a markdown history summary if file1 is a directory."""
 
     # Default labels
     if not label1:
