@@ -322,6 +322,9 @@ def test_recovery_member_changes_rejected_during_recovery(network, args):
     recovered_network.consortium.check_for_service(
         primary, infra.network.ServiceStatus.OPEN
     )
+    r = pending_recovery_member.ack(primary)
+    with primary.client() as nc:
+        nc.wait_for_commit(r)
 
     return recovered_network
 
