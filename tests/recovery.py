@@ -253,7 +253,7 @@ def test_recovery_member_changes_rejected_during_recovery(network, args):
         previous_service_identity=slurp_file(args.previous_service_identity_file),
     )
     recovered_network.consortium.check_for_service(
-        primary, infra.network.ServiceStatus.WAITING_FOR_RECOVERY_SHARES
+        primary, infra.network.ServiceStatus.RECOVERING
     )
 
     def assert_proposal_not_created(fn):
