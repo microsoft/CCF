@@ -981,7 +981,9 @@ class Consortium:
         Check the certificate associated with current CCF service signing key has been recorded in
         the KV store with the appropriate status.
         """
-        expected_statuses = status if isinstance(status, (list, tuple, set)) else [status]
+        expected_statuses = (
+            status if isinstance(status, (list, tuple, set)) else [status]
+        )
         with remote_node.client() as c:
             r = c.get("/node/network").body.json()
             current_status = r["service_status"]
