@@ -1024,15 +1024,40 @@ namespace ccf::curl
               continue;
             }
             std::unique_ptr<ccf::curl::CurlRequest> request_data_ptr(request);
-            curl_easy_cleanup(easy);
+            long status_code = 0;
+            const auto status_res =
+              curl_easy_getinfo(easy, CURLINFO_RESPONSE_CODE, &status_code);
+            if (status_res != CURLE_OK)
+            {
+              LOG_FAIL_FMT(
+                "Error calling curl_easy_getinfo for response code while "
+                "closing: {} ({})",
+                status_res,
+                curl_easy_strerror(status_res));
+            }
+            CurlRequest::handle_response(
+              std::move(request_data_ptr),
+              status_code == 0 ? CURLE_ABORTED_BY_CALLBACK : CURLE_OK);
           }
         }
       }
-      // Drain the deque rather than letting it destruct
-      std::deque<std::unique_ptr<CurlRequest>> requests_to_cleanup;
+      std::deque<std::unique_ptr<CurlRequest>> pending_requests_to_complete;
       {
         std::lock_guard<std::mutex> requests_lock(requests_mutex);
-        requests_to_cleanup.swap(pending_requests);
+        pending_requests_to_complete.swap(pending_requests);
+      }
+      for (auto& request : pending_requests_to_complete)
+      {
+        try
+        {
+          CurlRequest::synchronous_perform(std::move(request));
+        }
+        catch (const std::exception& e)
+        {
+          LOG_FAIL_FMT(
+            "Error completing pending curl request while closing: {}",
+            e.what());
+        }
       }
       // Dispatch uv_close to asynchronously close the timer handle
       uv_close(

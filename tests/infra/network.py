@@ -57,6 +57,7 @@ class ServiceStatus(Enum):
     OPENING = "Opening"
     OPEN = "Open"
     RECOVERING = "Recovering"
+    WAITING_FOR_RECOVERY_SHARES = "WaitingForRecoveryShares"
     CLOSED = "Closed"
 
 

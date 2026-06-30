@@ -5,6 +5,7 @@ import json
 import time
 import base64
 import socket
+from contextlib import contextmanager
 import infra.network
 import infra.jwt_issuer
 import infra.path
@@ -408,10 +409,11 @@ def get_jwt_refresh_endpoint_metrics(primary) -> dict:
         return r.body.json()
 
 
-def get_unused_local_port():
+@contextmanager
+def reserve_unlistened_local_port():
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind(("localhost", 0))
-        return s.getsockname()[1]
+        yield s.getsockname()[1]
 
 
 def add_auto_refresh_jwt_issuer(network, primary, issuer, ca_cert_bundle_name):
@@ -450,20 +452,20 @@ def test_jwt_key_auto_refresh_connection_failure(network, args):
     remove_all_jwt_issuers(network, args, primary)
     failures_before = get_jwt_refresh_endpoint_metrics(primary)["failures"]
     issuer_host = "localhost"
-    issuer_port = get_unused_local_port()
-    issuer = infra.jwt_issuer.JwtIssuer(
-        f"https://{issuer_host}:{issuer_port}", cn=issuer_host
-    )
 
     LOG.info("Add JWT issuer with auto-refresh pointing at an unavailable endpoint")
-    add_auto_refresh_jwt_issuer(network, primary, issuer, "jwt_connection_failure")
-    try:
-        with_timeout(
-            lambda: check_refresh_failures_increased(primary, failures_before),
-            timeout=5,
+    with reserve_unlistened_local_port() as issuer_port:
+        issuer = infra.jwt_issuer.JwtIssuer(
+            f"https://{issuer_host}:{issuer_port}", cn=issuer_host
         )
-    finally:
-        network.consortium.remove_jwt_issuer(primary, issuer.name)
+        add_auto_refresh_jwt_issuer(network, primary, issuer, "jwt_connection_failure")
+        try:
+            with_timeout(
+                lambda: check_refresh_failures_increased(primary, failures_before),
+                timeout=5,
+            )
+        finally:
+            network.consortium.remove_jwt_issuer(primary, issuer.name)
 
 
 def test_jwt_key_auto_refresh_tls_failure(network, args):
@@ -553,11 +555,7 @@ def test_jwt_key_auto_refresh_cross_authority_jwks_uri(network, args):
     primary, _ = network.find_nodes()
     remove_all_jwt_issuers(network, args, primary)
     issuer_host = "localhost"
-    issuer_port = get_unused_local_port()
-    jwks_port = get_unused_local_port()
-    issuer = infra.jwt_issuer.JwtIssuer(
-        f"https://{issuer_host}:{issuer_port}", cn=issuer_host
-    )
+    issuer = infra.jwt_issuer.JwtIssuer(f"https://{issuer_host}", cn=issuer_host)
     ca_cert_bundle_name = "jwt_cross_authority_jwks_uri"
     kid = "cross_authority_jwks_uri"
 
@@ -570,9 +568,10 @@ def test_jwt_key_auto_refresh_cross_authority_jwks_uri(network, args):
         )
 
     LOG.info("Start OpenID endpoint server with cross-authority JWKS URI")
-    with issuer.start_openid_server(issuer_port, kid) as server, OpenIDProviderServer(
-        jwks_port, issuer.tls_priv, issuer.tls_cert, issuer.create_jwks(kid)
+    with issuer.start_openid_server(0, kid) as server, OpenIDProviderServer(
+        0, issuer.tls_priv, issuer.tls_cert, issuer.create_jwks(kid)
     ) as jwks_server:
+        issuer.name = f"https://{issuer_host}:{server.bind_port}"
         issuer_name = issuer.name
         # Exercise OIDC-compatible metadata where JWKS are served from a
         # different authority than the issuer metadata.
