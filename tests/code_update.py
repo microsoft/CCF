@@ -874,44 +874,47 @@ def get_replacement_package(args):
     )
 
 
-def remove_retired_node(network, primary, node, timeout):
+def remove_retired_nodes(network, primary, nodes, timeout):
     """
-    Wait for a retired node to become removable, delete it from the service,
-    then stop it and remove it from local network tracking.
+    Wait for retired nodes to become removable, delete them from the service,
+    then stop them and remove them from local network tracking.
 
     :param network: Network object tracking the node locally.
-    :param primary: Current primary used to query and delete the retired node.
-    :param node: Retired node to remove.
-    :param timeout: Maximum time to wait for the node to become removable.
-    :raises TimeoutError: If the node is not listed as removable before timeout.
+    :param primary: Current primary used to query and delete the retired nodes.
+    :param nodes: Retired nodes to remove.
+    :param timeout: Maximum time to wait for the nodes to become removable.
+    :raises TimeoutError: If any node is not listed as removable before timeout.
     """
+    pending_nodes = {node.node_id: node for node in nodes}
     end_time = time.time() + timeout
     removable_nodes = None
-    node_status = None
-    while time.time() < end_time:
+    node_statuses = {}
+    while pending_nodes and time.time() < end_time:
         try:
             with primary.client(connection_timeout=timeout) as c:
                 removable_nodes = c.get("/node/network/removable_nodes").body.json()
-                if node.node_id in {n["node_id"] for n in removable_nodes["nodes"]}:
-                    check_commit = Checker(c)
-                    r = c.delete(f"/node/network/nodes/{node.node_id}")
-                    check_commit(r)
-                    break
-                else:
-                    node_status = c.get(
-                        f"/node/network/nodes/{node.node_id}"
-                    ).body.json()
+                removable_node_ids = {n["node_id"] for n in removable_nodes["nodes"]}
+                check_commit = Checker(c)
+                for node_id, node in list(pending_nodes.items()):
+                    if node_id in removable_node_ids:
+                        r = c.delete(f"/node/network/nodes/{node_id}")
+                        check_commit(r)
+                        node.stop()
+                        network.nodes.remove(node)
+                        del pending_nodes[node_id]
+                    else:
+                        node_statuses[node_id] = c.get(
+                            f"/node/network/nodes/{node_id}"
+                        ).body.json()
         except ConnectionRefusedError:
             pass
         time.sleep(0.1)
-    else:
+    if pending_nodes:
         raise TimeoutError(
-            "Timed out waiting for node to become removable: "
-            f"removable_nodes={removable_nodes}, node_status={node_status}"
+            "Timed out waiting for nodes to become removable: "
+            f"pending_nodes={list(pending_nodes)}, "
+            f"removable_nodes={removable_nodes}, node_statuses={node_statuses}"
         )
-
-    node.stop()
-    network.nodes.remove(node)
 
 
 def _test_update_all_nodes(network, args, atomic_reconfiguration=False):
@@ -1076,10 +1079,9 @@ def _test_update_all_nodes(network, args, atomic_reconfiguration=False):
                 valid_from, args.maximum_node_certificate_validity_days
             )
         check_can_progress(new_primary)
-        for node in old_nodes:
-            remove_retired_node(
-                network, new_primary, node, args.ledger_recovery_timeout
-            )
+        remove_retired_nodes(
+            network, new_primary, old_nodes, args.ledger_recovery_timeout
+        )
     else:
         LOG.info("Trust fresh nodes")
         for new_node in new_nodes:
