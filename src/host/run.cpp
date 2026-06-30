@@ -185,8 +185,6 @@ namespace ccf
     {}
   };
 
-  void setup_rpc_interfaces_REMOVED() {}
-
   void configure_snp_attestation(ccf::StartupConfig& startup_config)
   {
     if (ccf::pal::platform != ccf::pal::Platform::SNP)
