@@ -1108,11 +1108,16 @@ ConflictAppendEntriesRequest(i, index, m) ==
     /\ isNewFollower' = [isNewFollower EXCEPT ![i] = FALSE]
     /\ UNCHANGED <<preVoteStatus, currentTerm, leadershipState, votedFor, commitIndex, messages, candidateVars, leaderVars, hasJoined, retirementCompleted>>
 
-\* Follower i receives an AppendEntries request m from leader j for log entries which directly follow its log
+\* Follower i receives an AppendEntries request m from leader j which extends its log,
+\* possibly overlapping the end of its log with matching (same-term) entries.
 NoConflictAppendEntriesRequest(i, j, m) ==
     /\ m.entries /= << >>
-    /\ Len(log[i]) = m.prevLogIndex
-    /\ log' = [log EXCEPT ![i] = @ \o m.entries]
+    /\ m.prevLogIndex <= Len(log[i])
+    /\ Len(log[i]) < m.prevLogIndex + Len(m.entries)
+    \* Full entry equality (not just term) ensures any overlap is safe
+    /\ \A k \in 1 .. (Len(log[i]) - m.prevLogIndex) :
+            log[i][m.prevLogIndex + k] = m.entries[k]
+    /\ log' = [log EXCEPT ![i] = SubSeq(@, 1, m.prevLogIndex) \o m.entries]
     \* If new txs include reconfigurations, add them to configurations
     \* Also, if the commitIndex is updated, we may pop some old configs at the same time
     /\ LET
