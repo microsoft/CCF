@@ -26,9 +26,8 @@
     const auto res = fn(__VA_ARGS__); \
     if (res != CURLE_OK) \
     { \
-      throw std::runtime_error( \
-        fmt::format( \
-          "Error calling " #fn ": {} ({})", res, curl_easy_strerror(res))); \
+      throw std::runtime_error(fmt::format( \
+        "Error calling " #fn ": {} ({})", res, curl_easy_strerror(res))); \
     } \
   } while (0)
 
@@ -43,9 +42,8 @@
     const auto res = fn(__VA_ARGS__); \
     if (res != CURLM_OK) \
     { \
-      throw std::runtime_error( \
-        fmt::format( \
-          "Error calling " #fn ": {} ({})", res, curl_multi_strerror(res))); \
+      throw std::runtime_error(fmt::format( \
+        "Error calling " #fn ": {} ({})", res, curl_multi_strerror(res))); \
     } \
   } while (0)
 
@@ -109,9 +107,9 @@ namespace ccf::curl
         throw std::logic_error("Cannot set option on a null CURL handle");
       }
 
-      struct curl_blob blob{
-        .data = const_cast<uint8_t*>(data),
-        .len = length,
+      struct curl_blob blob
+      {
+        .data = const_cast<uint8_t*>(data), .len = length,
         .flags = CURL_BLOB_COPY,
       };
 
@@ -734,6 +732,18 @@ namespace ccf::curl
     std::mutex requests_mutex;
     std::deque<std::unique_ptr<CurlRequest>> pending_requests;
 
+    static bool log_uv_error(const char* function_name, int rc)
+    {
+      if (rc < 0)
+      {
+        LOG_FAIL_FMT(
+          "Error calling {}: {} ({})", function_name, rc, uv_strerror(rc));
+        return true;
+      }
+
+      return false;
+    }
+
     static void async_requests_callback(uv_async_t* handle)
     {
       auto* self = static_cast<CurlmLibuvContextImpl*>(handle->data);
@@ -812,19 +822,17 @@ namespace ccf::curl
       if (timeout_ms < 0)
       {
         // No timeout set, stop the timer
-        CHECK_UV(uv_timer_stop, &self->uv_handle);
+        log_uv_error("uv_timer_stop", uv_timer_stop(&self->uv_handle));
       }
       else
       {
         // If timeout is zero, this will trigger immediately, possibly within a
         // callback so clamp it to at least 1ms
         timeout_ms = std::max(timeout_ms, 1L);
-        CHECK_UV(
-          uv_timer_start,
-          &self->uv_handle,
-          libuv_timeout_callback,
-          timeout_ms,
-          0);
+        log_uv_error(
+          "uv_timer_start",
+          uv_timer_start(
+            &self->uv_handle, libuv_timeout_callback, timeout_ms, 0));
       }
       return 0;
     }
@@ -943,11 +951,13 @@ namespace ccf::curl
             auto socket_context_ptr = std::make_unique<SocketContextImpl>();
             socket_context_ptr->context = self;
             socket_context_ptr->socket = s;
-            CHECK_UV(
-              uv_poll_init_socket,
-              self->loop,
-              &socket_context_ptr->uv_handle,
-              s);
+            if (log_uv_error(
+                  "uv_poll_init_socket",
+                  uv_poll_init_socket(
+                    self->loop, &socket_context_ptr->uv_handle, s)))
+            {
+              return 0;
+            }
             socket_context_ptr->uv_handle.data =
               socket_context_ptr.get(); // Attach the context
             // attach the lifetime to the socket handle
@@ -960,11 +970,26 @@ namespace ccf::curl
           events |= (action != CURL_POLL_IN) ? UV_WRITABLE : 0;
           events |= (action != CURL_POLL_OUT) ? UV_READABLE : 0;
 
-          CHECK_UV(
-            uv_poll_start,
-            &socket_context->uv_handle,
-            events,
-            libuv_socket_poll_callback);
+          if (log_uv_error(
+                "uv_poll_start",
+                uv_poll_start(
+                  &socket_context->uv_handle,
+                  events,
+                  libuv_socket_poll_callback)))
+          {
+            const auto assign_res =
+              curl_multi_assign(self->curl_request_curlm, s, nullptr);
+            if (assign_res != CURLM_OK)
+            {
+              LOG_FAIL_FMT(
+                "Error calling curl_multi_assign while handling "
+                "uv_poll_start failure: {} ({})",
+                assign_res,
+                curl_multi_strerror(assign_res));
+            }
+            SocketContext socket_context_ptr(socket_context);
+            return 0;
+          }
           break;
         }
         case CURL_POLL_REMOVE:
@@ -974,7 +999,8 @@ namespace ccf::curl
               "CurlmLibuv: curl socket callback: remove socket {}",
               static_cast<int>(s));
             SocketContext socket_context_ptr(socket_context);
-            CHECK_UV(uv_poll_stop, &socket_context->uv_handle);
+            log_uv_error(
+              "uv_poll_stop", uv_poll_stop(&socket_context->uv_handle));
             CHECK_CURL_MULTI(
               curl_multi_assign, self->curl_request_curlm, s, nullptr);
           }
@@ -993,10 +1019,9 @@ namespace ccf::curl
       CHECK_UV(
         uv_async_init, loop, &async_requests_handle, async_requests_callback);
       async_requests_handle.data = this;
-      uv_unref(
-        reinterpret_cast<uv_handle_t*>(
-          &async_requests_handle)); // allow the loop to exit if this is the
-                                    // only active handle
+      uv_unref(reinterpret_cast<uv_handle_t*>(
+        &async_requests_handle)); // allow the loop to exit if this is the
+                                  // only active handle
 
       // attach timeouts
       CHECK_CURL_MULTI(
@@ -1025,9 +1050,22 @@ namespace ccf::curl
         return;
       }
       LOG_DEBUG_FMT("Adding request to {} to queue", request->get_url());
-      std::lock_guard<std::mutex> requests_lock(requests_mutex);
-      pending_requests.push_back(std::move(request));
-      CHECK_UV(uv_async_send, &async_requests_handle);
+      std::unique_ptr<CurlRequest> request_to_abort = nullptr;
+      {
+        std::lock_guard<std::mutex> requests_lock(requests_mutex);
+        pending_requests.push_back(std::move(request));
+        const auto rc = uv_async_send(&async_requests_handle);
+        if (log_uv_error("uv_async_send", rc))
+        {
+          request_to_abort = std::move(pending_requests.back());
+          pending_requests.pop_back();
+        }
+      }
+
+      if (request_to_abort != nullptr)
+      {
+        CurlRequest::abort(std::move(request_to_abort));
+      }
     }
 
   private:
