@@ -277,6 +277,7 @@ namespace programmabilityapp
     }
 
   public:
+    // NOLINTNEXTLINE(readability-function-cognitive-complexity)
     ProgrammabilityHandlers(ccf::AbstractNodeContext& context) :
       ccf::js::DynamicJSEndpointRegistry(
         context,

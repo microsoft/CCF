@@ -1043,6 +1043,7 @@ namespace ccf
     // funcs in state "pending"
     //
 
+    // NOLINTNEXTLINE(readability-function-cognitive-complexity)
     void initiate_join_unsafe()
     {
       sm.expect(NodeStartupState::pending);
@@ -2684,6 +2685,7 @@ namespace ccf
         last_recovered_idx + 1, last_recovered_idx + recovery_batch_size);
     }
 
+    // NOLINTNEXTLINE(readability-function-cognitive-complexity)
     void setup_basic_hooks()
     {
       network.tables->set_map_hook(
