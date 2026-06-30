@@ -688,6 +688,13 @@ def test_jwt_key_auto_refresh(network, args):
                 ), "No request was served with oversized headers"
 
             with_timeout(assert_request_count_increased, timeout=1)
+
+            with_timeout(
+                lambda: check_refresh_failures_increased(
+                    primary, baseline_m["failures"]
+                ),
+                timeout=5,
+            )
             server.inject_oversized_header = False
 
             LOG.info("Check that keys got refreshed")

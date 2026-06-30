@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/ds/nonstd.h"
+#include "ccf/http_configuration.h"
 #include "ccf/rest_verb.h"
 #include "ds/internal_logger.h"
 #include "host/proxy.h"
@@ -25,8 +26,9 @@
     const auto res = fn(__VA_ARGS__); \
     if (res != CURLE_OK) \
     { \
-      throw std::runtime_error(fmt::format( \
-        "Error calling " #fn ": {} ({})", res, curl_easy_strerror(res))); \
+      throw std::runtime_error( \
+        fmt::format( \
+          "Error calling " #fn ": {} ({})", res, curl_easy_strerror(res))); \
     } \
   } while (0)
 
@@ -41,8 +43,9 @@
     const auto res = fn(__VA_ARGS__); \
     if (res != CURLM_OK) \
     { \
-      throw std::runtime_error(fmt::format( \
-        "Error calling " #fn ": {} ({})", res, curl_multi_strerror(res))); \
+      throw std::runtime_error( \
+        fmt::format( \
+          "Error calling " #fn ": {} ({})", res, curl_multi_strerror(res))); \
     } \
   } while (0)
 
@@ -106,9 +109,9 @@ namespace ccf::curl
         throw std::logic_error("Cannot set option on a null CURL handle");
       }
 
-      struct curl_blob blob
-      {
-        .data = const_cast<uint8_t*>(data), .len = length,
+      struct curl_blob blob{
+        .data = const_cast<uint8_t*>(data),
+        .len = length,
         .flags = CURL_BLOB_COPY,
       };
 
@@ -319,6 +322,7 @@ namespace ccf::curl
   public:
     using HeaderMap = std::unordered_map<std::string, std::string>;
     bool is_first_header = true;
+    size_t header_count = 0;
     HeaderMap data;
 
     static size_t recv_header_line(
@@ -331,6 +335,8 @@ namespace ccf::curl
       }
       auto bytes_to_read = size * nitems;
       std::string_view header(buffer, bytes_to_read);
+      const auto max_header_size =
+        ccf::http::default_max_header_size.count_bytes();
 
       // strip \r\n etc
       header = ccf::nonstd::trim(header);
@@ -341,6 +347,14 @@ namespace ccf::curl
       if (response->is_first_header)
       {
         response->is_first_header = false;
+        if (header.size() > max_header_size)
+        {
+          LOG_INFO_FMT(
+            "Response status line is too large: {} bytes, maximum is {} bytes",
+            header.size(),
+            max_header_size);
+          return 0;
+        }
         if (!std::regex_match(std::string(header), http_status_line_regex))
         {
           LOG_FAIL_FMT(
@@ -353,7 +367,36 @@ namespace ccf::curl
         // ignore empty headers
         if (!header.empty())
         {
+          if (response->header_count >= ccf::http::default_max_headers_count)
+          {
+            LOG_INFO_FMT(
+              "Too many response headers: maximum is {}",
+              ccf::http::default_max_headers_count);
+            return 0;
+          }
+          response->header_count++;
+
           const auto [field, value] = ccf::nonstd::split_1(header, ": ");
+          if (field.size() > max_header_size)
+          {
+            LOG_INFO_FMT(
+              "Response header key for '{}' is too large: {} bytes, maximum "
+              "is {} bytes",
+              field,
+              field.size(),
+              max_header_size);
+            return 0;
+          }
+          if (value.size() > max_header_size)
+          {
+            LOG_INFO_FMT(
+              "Response header value for '{}' is too large: {} bytes, "
+              "maximum is {} bytes",
+              field,
+              value.size(),
+              max_header_size);
+            return 0;
+          }
           if (!value.empty())
           {
             std::string field_str(field);
@@ -524,6 +567,16 @@ namespace ccf::curl
       handle_response(
         std::move(request),
         curl_code); // handle the response callback if set
+    }
+
+    static void abort(std::unique_ptr<CurlRequest>&& request)
+    {
+      if (request == nullptr)
+      {
+        throw std::logic_error("Cannot abort a null CurlRequest");
+      }
+
+      handle_response(std::move(request), CURLE_ABORTED_BY_CALLBACK);
     }
 
     [[nodiscard]] CURL* get_easy_handle() const
@@ -940,9 +993,10 @@ namespace ccf::curl
       CHECK_UV(
         uv_async_init, loop, &async_requests_handle, async_requests_callback);
       async_requests_handle.data = this;
-      uv_unref(reinterpret_cast<uv_handle_t*>(
-        &async_requests_handle)); // allow the loop to exit if this is the only
-                                  // active handle
+      uv_unref(
+        reinterpret_cast<uv_handle_t*>(
+          &async_requests_handle)); // allow the loop to exit if this is the
+                                    // only active handle
 
       // attach timeouts
       CHECK_CURL_MULTI(
@@ -1070,7 +1124,7 @@ namespace ccf::curl
       {
         try
         {
-          CurlRequest::synchronous_perform(std::move(request));
+          CurlRequest::abort(std::move(request));
         }
         catch (const std::exception& e)
         {
