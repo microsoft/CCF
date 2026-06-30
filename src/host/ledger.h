@@ -785,8 +785,8 @@ namespace asynchost
     // Shared state used to coordinate the shutdown of in-flight asynchronous
     // ledger reads. A single instance is shared (via shared_ptr) between this
     // Ledger and every outstanding AsyncLedgerGet. Because it is reference
-    // counted it outlives the Ledger, so the worker and completion callbacks
-    // can run safely even if the Ledger has already been destroyed.
+    // counted it outlives the Ledger, so worker callbacks can safely decide
+    // whether they may access the Ledger even during shutdown.
     struct AsyncReadState
     {
       std::mutex lock;
@@ -802,8 +802,8 @@ namespace asynchost
 
     // Shared state used to coordinate the shutdown of in-flight asynchronous
     // ledger reads (see on_ledger_get_async and ~Ledger). It is held by a
-    // shared_ptr so that it outlives this Ledger, allowing worker and
-    // completion callbacks to run safely even after the Ledger is destroyed.
+    // shared_ptr so that worker callbacks can still consult it after this
+    // Ledger starts being destroyed.
     std::shared_ptr<AsyncReadState> async_read_state =
       std::make_shared<AsyncReadState>();
 
@@ -1291,7 +1291,8 @@ namespace asynchost
       // threadpool thread) to finish accessing it. Workers that have not yet
       // started will observe ledger_alive == false and skip accessing the
       // Ledger entirely. The shared async_read_state outlives this Ledger, so
-      // any remaining completion callbacks remain safe to run afterwards.
+      // any remaining completion callbacks remain safe to run afterwards
+      // because they do not dereference this Ledger.
       std::unique_lock<std::mutex> guard(async_read_state->lock);
       async_read_state->ledger_alive = false;
       async_read_state->all_workers_done.wait(
@@ -1738,10 +1739,37 @@ namespace asynchost
     {
       auto* data = static_cast<AsyncLedgerGet*>(req->data);
 
+      struct ActiveWorkerGuard
+      {
+        std::shared_ptr<AsyncReadState> async_state;
+        bool active = false;
+
+        ActiveWorkerGuard(std::shared_ptr<AsyncReadState> async_state_) :
+          async_state(std::move(async_state_))
+        {}
+
+        void activate()
+        {
+          active = true;
+        }
+
+        ~ActiveWorkerGuard()
+        {
+          if (active)
+          {
+            std::unique_lock<std::mutex> guard(async_state->lock);
+            --async_state->active_workers;
+            async_state->all_workers_done.notify_all();
+          }
+        }
+      };
+
+      auto async_state = data->async_state;
+      ActiveWorkerGuard active_worker(async_state);
       Ledger* ledger = nullptr;
       {
-        std::unique_lock<std::mutex> guard(data->async_state->lock);
-        if (!data->async_state->ledger_alive)
+        std::unique_lock<std::mutex> guard(async_state->lock);
+        if (!async_state->ledger_alive)
         {
           // The Ledger has been (or is being) destroyed, so it must not be
           // accessed. Leave read_result empty.
@@ -1757,21 +1785,17 @@ namespace asynchost
         // to finish before the Ledger is destroyed. Because we observed
         // ledger_alive == true while holding the lock and incremented
         // active_workers, ~Ledger cannot complete (and therefore cannot start
-        // destroying the Ledger's members) until we have decremented it below.
+        // destroying the Ledger's members) until active_worker has decremented
+        // it.
         // This makes it safe to dereference the raw ledger pointer outside the
         // lock.
-        ++data->async_state->active_workers;
+        ++async_state->active_workers;
+        active_worker.activate();
         ledger = data->ledger;
       }
 
       data->read_result = ledger->read_entries_range(
         data->from_idx, data->to_idx, true, data->max_size);
-
-      {
-        std::unique_lock<std::mutex> guard(data->async_state->lock);
-        --data->async_state->active_workers;
-        data->async_state->all_workers_done.notify_all();
-      }
     }
 
     static void on_ledger_get_async_complete(uv_work_t* req, int status)
