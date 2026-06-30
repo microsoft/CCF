@@ -646,6 +646,7 @@ namespace ccf
       }
     }
 
+    // NOLINTNEXTLINE(readability-function-cognitive-complexity)
     void process_command_inner(
       std::shared_ptr<ccf::RpcContextImpl> ctx,
       endpoints::EndpointDefinitionPtr& endpoint,
