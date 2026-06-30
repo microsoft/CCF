@@ -1015,6 +1015,9 @@ class Consortium:
         Check the certificate associated with current CCF service signing key has been recorded in
         the KV store with the appropriate status.
         """
+        expected_statuses = (
+            status if isinstance(status, (list, tuple, set)) else [status]
+        )
         with remote_node.client() as c:
             r = c.get("/node/network").body.json()
             current_status = r["service_status"]
@@ -1035,9 +1038,11 @@ class Consortium:
             assert (
                 current_cert == expected_cert
             ), "Current service certificate did not match with service_cert.pem"
-            assert (
-                current_status == status.value
-            ), f"Service status {current_status} (expected {status.value})"
+            expected_status_values = [status.value for status in expected_statuses]
+            assert current_status in expected_status_values, (
+                f"Service status {current_status} "
+                f"(expected one of {expected_status_values})"
+            )
             if CCFVersion(remote_node.version) > CCFVersion("ccf-2.0.3"):
                 assert (
                     recovery_count is None or current_recovery_count == recovery_count
