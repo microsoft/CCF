@@ -31,9 +31,11 @@
 #include "tls/cert.h"
 
 #include <atomic>
+#include <chrono>
 #include <map>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -91,6 +93,10 @@ namespace ccf
     // Outbound client sessions use the negative range, matching the historical
     // convention relied upon by forwarding.
     std::atomic<int64_t> next_client_id{-1};
+
+    // How long an idle connection is kept before being closed (nullopt =
+    // never). Applied to each interface transport at listen() time.
+    std::optional<std::chrono::milliseconds> idle_connection_timeout;
 
     std::shared_ptr<::http::ErrorReporter> error_reporter()
     {
@@ -297,7 +303,8 @@ namespace ccf
         plaintext,
         false,
         &shared_conn_id,
-        on_closed);
+        on_closed,
+        idle_connection_timeout);
       li->bridge->start();
       return li->bridge->port();
     }
@@ -487,6 +494,15 @@ namespace ccf
           li->bridge->set_server_cert(cert.str(), pk.str());
         }
       }
+    }
+
+    // Set the idle-connection timeout applied to interfaces bound after this
+    // call (nullopt disables idle closure). Call before listen().
+    void set_idle_connection_timeout(
+      std::optional<std::chrono::milliseconds> timeout)
+    {
+      std::lock_guard<std::mutex> guard(interfaces_mutex);
+      idle_connection_timeout = timeout;
     }
 
     void update_listening_interface_options(

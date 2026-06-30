@@ -27,10 +27,12 @@
 #include "host/tls/openssl_server.h"
 
 #include <atomic>
+#include <chrono>
 #include <cstdint>
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <unordered_map>
 
@@ -118,7 +120,8 @@ namespace asynchost
       bool plaintext = false,
       bool verbose = false,
       std::atomic<uint64_t>* shared_next_id = nullptr,
-      std::function<void(::tcp::ConnID)> on_session_closed_ = {}) :
+      std::function<void(::tcp::ConnID)> on_session_closed_ = {},
+      std::optional<std::chrono::milliseconds> idle_timeout = std::nullopt) :
       factory(std::move(factory_)),
       on_session_closed(std::move(on_session_closed_))
     {
@@ -134,7 +137,8 @@ namespace asynchost
         alpn,
         plaintext,
         verbose,
-        shared_next_id);
+        shared_next_id,
+        idle_timeout);
     }
 
     // The session for `id`, or nullptr. Thread-safe.

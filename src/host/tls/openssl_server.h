@@ -25,6 +25,7 @@
 #include <arpa/inet.h>
 #include <atomic>
 #include <cerrno>
+#include <chrono>
 #include <cstdarg>
 #include <cstdint>
 #include <cstdio>
@@ -39,6 +40,7 @@
 #include <openssl/pem.h>
 #include <openssl/ssl.h>
 #include <openssl/x509.h>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <sys/epoll.h>
@@ -98,6 +100,9 @@ namespace asynchost
       // been fully written, so a response queued just before close is not
       // truncated.
       bool close_after_flush = false;
+      // Last time any I/O happened on this connection; used for idle timeout.
+      std::chrono::steady_clock::time_point last_active =
+        std::chrono::steady_clock::now();
     };
 
     SSL_CTX* ctx = nullptr;
@@ -122,6 +127,13 @@ namespace asynchost
     // allocate connection ids from a single global space - required for a
     // global session registry and reply routing.
     std::atomic<uint64_t>* shared_next_id = nullptr;
+
+    // Close a connection after this much inactivity (no I/O); nullopt disables
+    // idle closure. The loop wakes every idle_sweep_interval_ms to check.
+    static constexpr int idle_sweep_interval_ms = 1000;
+    std::optional<std::chrono::milliseconds> idle_timeout;
+    std::chrono::steady_clock::time_point last_idle_sweep =
+      std::chrono::steady_clock::now();
 
     // Cross-thread outbound queue: send()/close_connection() append here from
     // any thread and wake the loop, which drains it on the epoll thread.
@@ -588,6 +600,7 @@ namespace asynchost
         return;
       }
       Conn& c = *it->second;
+      c.last_active = std::chrono::steady_clock::now();
       bool alive = true;
       if (c.state == Conn::Handshaking)
       {
@@ -697,6 +710,7 @@ namespace asynchost
         }
         Conn& c = *cit->second;
         c.outbuf.insert(c.outbuf.end(), item.data.begin(), item.data.end());
+        c.last_active = std::chrono::steady_clock::now();
         if (!do_write(c))
         {
           close_conn(fd);
@@ -826,14 +840,40 @@ namespace asynchost
       id_to_fd.emplace(id, cfd);
     }
 
+    // Close connections idle longer than idle_timeout (loop thread).
+    void sweep_idle()
+    {
+      if (!idle_timeout.has_value())
+      {
+        return;
+      }
+      const auto now = std::chrono::steady_clock::now();
+      std::vector<int> to_close;
+      for (const auto& [fd, c] : conns)
+      {
+        if (now - c->last_active > *idle_timeout)
+        {
+          to_close.push_back(fd);
+        }
+      }
+      for (const int fd : to_close)
+      {
+        logf("closing idle connection on fd %d", fd);
+        close_conn(fd);
+      }
+    }
+
     void run()
     {
       constexpr int max_events = 64;
+      // With an idle timeout configured, wake periodically to sweep idle
+      // connections; otherwise block until there is work.
+      const int wait_ms =
+        idle_timeout.has_value() ? idle_sweep_interval_ms : -1;
       std::vector<epoll_event> events(max_events);
       while (running.load())
       {
-        const int n =
-          epoll_wait(epoll_fd, events.data(), max_events, /*timeout*/ -1);
+        const int n = epoll_wait(epoll_fd, events.data(), max_events, wait_ms);
         if (n < 0)
         {
           if (errno == EINTR)
@@ -864,6 +904,18 @@ namespace asynchost
           }
           on_conn_event(fd, events[i].events);
         }
+
+        if (idle_timeout.has_value())
+        {
+          const auto now = std::chrono::steady_clock::now();
+          if (
+            now - last_idle_sweep >=
+            std::chrono::milliseconds(idle_sweep_interval_ms))
+          {
+            last_idle_sweep = now;
+            sweep_idle();
+          }
+        }
       }
 
       // Tear down all live connections on the loop thread.
@@ -884,12 +936,14 @@ namespace asynchost
       const std::string& alpn = "",
       bool plaintext_ = false,
       bool verbose_ = false,
-      std::atomic<uint64_t>* shared_next_id_ = nullptr) :
+      std::atomic<uint64_t>* shared_next_id_ = nullptr,
+      std::optional<std::chrono::milliseconds> idle_timeout_ = std::nullopt) :
       plaintext(plaintext_),
       on_data(std::move(on_data_)),
       on_close(std::move(on_close_)),
       verbose(verbose_),
-      shared_next_id(shared_next_id_)
+      shared_next_id(shared_next_id_),
+      idle_timeout(idle_timeout_)
     {
       if (!alpn.empty())
       {
