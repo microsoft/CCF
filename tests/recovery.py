@@ -5,6 +5,7 @@ import infra.member
 import infra.network
 import infra.net
 import infra.node
+import infra.proposal
 import infra.logging_app as app
 import infra.checker
 import infra.crypto
@@ -129,6 +130,14 @@ def restart_network(old_network, args, current_ledger_dir, committed_ledger_dirs
     return network
 
 
+def get_replacement_package(args):
+    return (
+        "samples/apps/logging/logging"
+        if os.path.basename(args.package) == "js_generic"
+        else "js_generic"
+    )
+
+
 def recover_with_primary_dying(args, recovered_network):
     # Minimal copy-paste from network.recover() with primary shut down.
     recovered_network.consortium.activate(recovered_network.find_random_node())
@@ -189,6 +198,135 @@ def recover_with_primary_dying(args, recovered_network):
             infra.node.State.PART_OF_NETWORK.value,
             timeout=args.ledger_recovery_timeout,
         )
+
+
+@reqs.description("Recovery members cannot be changed during recovery")
+@reqs.recover(number_txs=2)
+def test_recovery_member_changes_rejected_during_recovery(network, args):
+    network.save_service_identity(args)
+    old_primary, _ = network.find_primary()
+
+    pending_recovery_member = network.consortium.generate_and_add_new_member(
+        old_primary, args.participants_curve
+    )
+
+    set_member_proposal, _, set_member_vote = (
+        network.consortium.generate_and_propose_new_member(
+            old_primary, args.participants_curve
+        )
+    )
+
+    member_to_remove = network.consortium.get_any_active_member(
+        infra.member.RecoveryRole.Participant
+    )
+    remove_member_body, remove_member_vote = network.consortium.make_proposal(
+        "remove_member", member_id=member_to_remove.service_id
+    )
+    remove_member_proposal = network.consortium.get_any_active_member().propose(
+        old_primary, remove_member_body
+    )
+    recovery_threshold = 1
+    if recovery_threshold == network.consortium.recovery_threshold:
+        recovery_threshold = 2
+    set_threshold_body, set_threshold_vote = network.consortium.make_proposal(
+        "set_recovery_threshold", recovery_threshold=recovery_threshold
+    )
+    set_threshold_proposal = network.consortium.get_any_active_member().propose(
+        old_primary, set_threshold_body
+    )
+
+    network.stop_all_nodes()
+    current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
+
+    recovered_network = infra.network.Network(
+        args.nodes, args.binary_dir, args.debug_nodes, existing_network=network
+    )
+    recovered_network.start_in_recovery(
+        args,
+        ledger_dir=current_ledger_dir,
+        committed_ledger_dirs=committed_ledger_dirs,
+    )
+
+    primary, _ = recovered_network.find_primary()
+    recovered_network.consortium.transition_service_to_open(
+        primary,
+        previous_service_identity=slurp_file(args.previous_service_identity_file),
+    )
+    recovered_network.consortium.check_for_service(
+        primary,
+        [
+            infra.network.ServiceStatus.RECOVERING,
+            infra.network.ServiceStatus.WAITING_FOR_RECOVERY_SHARES,
+        ],
+    )
+
+    def assert_proposal_not_created(fn):
+        try:
+            fn()
+            assert False, "Proposal should not be created during recovery"
+        except infra.proposal.ProposalNotCreated as e:
+            assert e.response.status_code == http.HTTPStatus.BAD_REQUEST, e.response
+
+    assert_proposal_not_created(
+        lambda: recovered_network.consortium.generate_and_propose_new_member(
+            primary, args.participants_curve
+        )
+    )
+    assert_proposal_not_created(
+        lambda: recovered_network.consortium.get_any_active_member().propose(
+            primary, remove_member_body
+        )
+    )
+    assert_proposal_not_created(
+        lambda: recovered_network.consortium.set_recovery_threshold(
+            primary, recovered_network.consortium.recovery_threshold
+        )
+    )
+    assert_proposal_not_created(
+        lambda: recovered_network.consortium.trigger_recovery_shares_refresh(primary)
+    )
+    assert_proposal_not_created(
+        lambda: recovered_network.consortium.trigger_ledger_rekey(primary)
+    )
+
+    for proposal, ballot in (
+        (set_member_proposal, set_member_vote),
+        (remove_member_proposal, remove_member_vote),
+        (set_threshold_proposal, set_threshold_vote),
+    ):
+        try:
+            recovered_network.consortium.vote_using_majority(primary, proposal, ballot)
+            assert False, "Proposal should not be accepted during recovery"
+        except infra.proposal.ProposalNotAccepted:
+            pass
+
+    state_digest = pending_recovery_member.update_ack_state_digest(primary).body.json()
+    with primary.api_versioned_client(
+        *pending_recovery_member.auth(write=True),
+        api_version=pending_recovery_member.gov_api_impl_inst.API_VERSION,
+    ) as mc:
+        r = mc.post(
+            f"/gov/members/state-digests/{pending_recovery_member.service_id}:ack",
+            body=state_digest,
+        )
+        assert r.status_code == http.HTTPStatus.BAD_REQUEST, r
+
+    recovered_network.consortium.recover_with_shares(primary)
+    for node in recovered_network.get_joined_nodes():
+        recovered_network.wait_for_state(
+            node,
+            infra.node.State.PART_OF_NETWORK.value,
+            timeout=args.ledger_recovery_timeout,
+        )
+    recovered_network.recovery_count += 1
+    recovered_network.consortium.check_for_service(
+        primary, infra.network.ServiceStatus.OPEN
+    )
+    r = pending_recovery_member.ack(primary)
+    with primary.client() as nc:
+        nc.wait_for_commit(r)
+
+    return recovered_network
 
 
 @reqs.description("Recover a service")
@@ -330,6 +468,83 @@ def test_recover_service(
         assert r.status_code == http.HTTPStatus.NO_CONTENT.value, r
 
     return recovered_network
+
+
+@reqs.description("Recover a service using a different code ID")
+@reqs.not_snp("Cannot produce package-specific code IDs on SNP")
+def test_recover_service_with_different_code_id(network, args):
+    network.txs.issue(
+        network=network,
+        number_txs=vars(args).get("msgs_per_recovery", 2),
+    )
+
+    recovery_package = getattr(args, "recovery_package", get_replacement_package(args))
+    platform = infra.platform_detection.get_platform()
+    initial_host_data, _ = infra.utils.get_host_data_and_security_policy(
+        platform, args.package
+    )
+    recovery_host_data, _ = infra.utils.get_host_data_and_security_policy(
+        platform, recovery_package
+    )
+    assert (
+        initial_host_data != recovery_host_data
+    ), "Initial and recovery packages should produce different code IDs"
+
+    old_primary, _ = network.find_primary()
+    with old_primary.api_versioned_client(api_version=args.gov_api_version) as c:
+        r = c.get("/gov/service/join-policy")
+        assert r.status_code == http.HTTPStatus.OK, r
+        old_host_data = r.body.json()[platform]["hostData"]
+        assert initial_host_data in old_host_data, old_host_data
+        assert recovery_host_data not in old_host_data, old_host_data
+
+    network.save_service_identity(args)
+    network.stop_all_nodes()
+    current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
+
+    recovery_args = copy.copy(args)
+    recovery_args.package = recovery_package
+
+    recovered_network = infra.network.Network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        existing_network=network,
+    )
+    with infra.network.close_on_error(recovered_network):
+        recovered_network.start_in_recovery(
+            recovery_args,
+            ledger_dir=current_ledger_dir,
+            committed_ledger_dirs=committed_ledger_dirs,
+        )
+        recovered_network.recover(recovery_args)
+
+        new_primary, _ = recovered_network.find_primary()
+        with new_primary.api_versioned_client(api_version=args.gov_api_version) as c:
+            r = c.get("/gov/service/join-policy")
+            assert r.status_code == http.HTTPStatus.OK, r
+            recovered_host_data = r.body.json()[platform]["hostData"]
+            assert recovery_host_data in recovered_host_data, recovered_host_data
+
+        if os.path.basename(recovery_package) == "js_generic":
+            js_logging_app = getattr(
+                args,
+                "recovery_js_app_bundle",
+                os.path.join(
+                    os.path.dirname(__file__), "..", "samples", "apps", "logging", "js"
+                ),
+            )
+            recovered_network.consortium.set_js_app_from_dir(
+                new_primary, js_logging_app
+            )
+
+        recovered_network.txs = app.LoggingTxs("user0")
+        recovered_network.txs.issue(recovered_network, number_txs=1)
+        recovered_network.txs.verify(
+            network=recovered_network,
+            timeout=vars(args).get("ledger_recovery_timeout"),
+        )
+        return recovered_network
 
 
 @reqs.description("Recover a service with wrong service identity")
@@ -1238,6 +1453,19 @@ def run(args, ipv6=False):
 
     if ipv6:
         assert_no_ipv4_in_node_configs(network)
+
+
+def run_recover_service_with_different_code_id(args):
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        pdb=args.pdb,
+        txs=app.LoggingTxs("user0"),
+    ) as network:
+        network.start_and_open(args)
+        network = test_recover_service_with_different_code_id(network, args)
+        network.stop_all_nodes()
 
 
 def run_ipv6(args):
@@ -2369,6 +2597,21 @@ checked. Note that the key for each logging message is unique (per table).
         run_ipv6,
         package="samples/apps/logging/logging",
         nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+        ledger_chunk_bytes="50KB",
+        snapshot_tx_interval=30,
+    )
+
+    cr.add(
+        "recovery_with_new_code_id",
+        run_recover_service_with_different_code_id,
+        package="samples/apps/logging/logging",
+        recovery_package="js_generic",
+        recovery_js_app_bundle=os.path.join(
+            os.path.dirname(__file__), "..", "samples", "apps", "logging", "js"
+        ),
+        # Single-node recovery is sufficient here because the test focuses on
+        # code ID switching rather than multi-node consensus behaviour.
+        nodes=infra.e2e_args.min_nodes(cr.args, f=0),
         ledger_chunk_bytes="50KB",
         snapshot_tx_interval=30,
     )

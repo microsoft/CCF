@@ -1045,6 +1045,7 @@ namespace ccf
     // funcs in state "pending"
     //
 
+    // NOLINTNEXTLINE(readability-function-cognitive-complexity)
     void initiate_join_unsafe()
     {
       sm.expect(NodeStartupState::pending);
@@ -1993,10 +1994,13 @@ namespace ccf
       recovery_store->set_history(recovery_history);
       recovery_store->set_encryptor(recovery_encryptor);
 
-      // Record real store version and root
-      recovery_v = network.tables->current_version();
+      // Record a consistent public store version and root. The store's current
+      // version can advance before its Merkle history is updated during commit,
+      // so these must be captured together from the history.
       auto* h = dynamic_cast<MerkleTxHistory*>(history.get());
-      recovery_root = h->get_replicated_state_root();
+      const auto& [txid, root, _] = h->get_replicated_state_txid_and_root();
+      recovery_v = txid.seqno;
+      recovery_root = root;
 
       if (startup_snapshot_info)
       {
@@ -2019,6 +2023,12 @@ namespace ccf
 
     void trigger_recovery_shares_refresh(ccf::kv::Tx& tx) override
     {
+      if (InternalTablesAccess::is_service_recovering(tx))
+      {
+        throw std::logic_error(
+          "Cannot refresh recovery shares while the service is recovering");
+      }
+
       share_manager.shuffle_recovery_shares(tx);
     }
 
@@ -2677,6 +2687,7 @@ namespace ccf
         last_recovered_idx + 1, last_recovered_idx + recovery_batch_size);
     }
 
+    // NOLINTNEXTLINE(readability-function-cognitive-complexity)
     void setup_basic_hooks()
     {
       network.tables->set_map_hook(

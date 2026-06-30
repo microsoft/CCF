@@ -198,6 +198,7 @@ def render_chart_table(
     loaded: List[PerfRun], benchmarks: List[str], metric: str, unit: str
 ) -> str:
     """Render benchmark charts in a four-column table."""
+    lines = ['<table width="100%">']
     for index, benchmark in enumerate(benchmarks):
         if index % CHART_COLUMNS == 0:
             lines.append("<tr>")

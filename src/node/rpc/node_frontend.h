@@ -447,6 +447,7 @@ namespace ccf
       openapi_info.document_version = "5.0.5";
     }
 
+    // NOLINTNEXTLINE(readability-function-cognitive-complexity)
     void init_handlers() override
     {
       CommonEndpointRegistry::init_handlers();
