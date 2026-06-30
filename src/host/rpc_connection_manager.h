@@ -22,16 +22,21 @@
 #include "enclave/abstract_rpc_sessions.h"
 #include "enclave/no_more_sessions.h"
 #include "enclave/rpc_map.h"
+#include "host/datagram_echo_session.h"
 #include "host/datagram_server.h"
 #include "host/tls/openssl_session_manager.h"
 #include "http/error_reporter.h"
 #include "http/http2_session.h"
 #include "http/http_session.h"
+#include "node/rpc/custom_protocol_subsystem.h"
 #include "node/session_metrics.h"
 #include "tls/cert.h"
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <cstring>
+#include <functional>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -73,17 +78,52 @@ namespace ccf
       std::unique_ptr<asynchost::OpenSSLSessionManager> bridge;
     };
 
+    class DatagramSessionWriter : public ccf::SessionWriter
+    {
+    private:
+      std::function<void(::tcp::ConnID, std::span<const uint8_t>)> write;
+      std::function<void(::tcp::ConnID)> close;
+
+    public:
+      DatagramSessionWriter(
+        std::function<void(::tcp::ConnID, std::span<const uint8_t>)> write_,
+        std::function<void(::tcp::ConnID)> close_) :
+        write(std::move(write_)),
+        close(std::move(close_))
+      {}
+
+      void write_outbound(
+        ::tcp::ConnID id,
+        std::span<const uint8_t> data,
+        sockaddr /*addr*/ = {}) override
+      {
+        write(id, data);
+      }
+
+      void close_socket(::tcp::ConnID id) override
+      {
+        close(id);
+      }
+    };
+
+    struct DatagramInterface
+    {
+      std::unique_ptr<asynchost::DatagramServer> server;
+      std::unique_ptr<DatagramSessionWriter> writer;
+      std::map<std::string, std::shared_ptr<ccf::Session>> sessions_by_peer;
+      std::map<::tcp::ConnID, std::string> peer_by_id;
+    };
+
     std::shared_ptr<RPCMap> rpc_map;
     std::shared_ptr<CustomProtocolSubsystem> custom_protocol_subsystem;
     std::shared_ptr<CommitCallbackSubsystem> commit_callbacks_subsystem;
 
     std::mutex interfaces_mutex;
     std::map<std::string, std::unique_ptr<ListenInterface>> interfaces;
-    // Plaintext UDP echo servers, keyed by interface name. UDP "QUIC"
-    // interfaces are served as a plaintext echo until OpenSSL-native QUIC is
-    // available (see host/datagram_server.h).
-    std::map<std::string, std::unique_ptr<asynchost::DatagramServer>>
-      udp_servers;
+    // UDP interface state, keyed by interface name. UDP "QUIC" interfaces use
+    // a built-in datagram echo session until OpenSSL-native QUIC is available;
+    // other UDP protocols are routed to custom sessions, one session per peer.
+    std::map<std::string, std::unique_ptr<DatagramInterface>> udp_interfaces;
     // cert/key PEM per endorsement authority (for cert-deferred listening).
     std::map<ccf::Authority, std::pair<std::string, std::string>> certs;
 
@@ -101,6 +141,14 @@ namespace ccf
     std::shared_ptr<::http::ErrorReporter> error_reporter()
     {
       return shared_from_this();
+    }
+
+    static std::string peer_key(
+      const sockaddr_storage& peer, socklen_t peerlen)
+    {
+      return std::string(
+        reinterpret_cast<const char*>(&peer),
+        std::min<size_t>(peerlen, sizeof(peer)));
     }
 
     // Build the protocol session for a connection on `li`, applying caps.
@@ -175,9 +223,14 @@ namespace ccf
           error_reporter(),
           commit_callbacks_subsystem);
       }
+      if (custom_protocol_subsystem != nullptr)
+      {
+        return custom_protocol_subsystem->create_session(
+          li->app_protocol, conn_id, writer);
+      }
       throw std::runtime_error(fmt::format(
-        "Unsupported application protocol '{}' (custom protocols are not "
-        "supported on the OpenSSL RPC path)",
+        "Unknown application protocol '{}' and custom protocol subsystem "
+        "missing",
         li->app_protocol));
     }
 
@@ -221,6 +274,119 @@ namespace ccf
       return nullptr;
     }
 
+    void send_udp_reply(
+      const std::string& name,
+      ::tcp::ConnID id,
+      std::span<const uint8_t> data)
+    {
+      std::lock_guard<std::mutex> guard(interfaces_mutex);
+      auto it = udp_interfaces.find(name);
+      if (it == udp_interfaces.end())
+      {
+        return;
+      }
+
+      auto kit = it->second->peer_by_id.find(id);
+      if (kit == it->second->peer_by_id.end())
+      {
+        return;
+      }
+
+      const auto& key = kit->second;
+      const auto peerlen = static_cast<socklen_t>(key.size());
+      sockaddr_storage peer{};
+      std::memcpy(&peer, key.data(), std::min(key.size(), sizeof(peer)));
+
+      it->second->server->send_to(peer, peerlen, data.data(), data.size());
+    }
+
+    void close_udp_session(
+      const std::string& name, ListenInterface* li, ::tcp::ConnID id)
+    {
+      std::lock_guard<std::mutex> guard(interfaces_mutex);
+      auto it = udp_interfaces.find(name);
+      if (it == udp_interfaces.end())
+      {
+        return;
+      }
+
+      auto kit = it->second->peer_by_id.find(id);
+      if (kit == it->second->peer_by_id.end())
+      {
+        return;
+      }
+
+      it->second->sessions_by_peer.erase(kit->second);
+      it->second->peer_by_id.erase(kit);
+      size_t expected = li->open_sessions.load();
+      while (expected > 0 &&
+             !li->open_sessions.compare_exchange_weak(expected, expected - 1))
+      {}
+    }
+
+    std::shared_ptr<ccf::Session> get_or_create_udp_session(
+      ListenInterface* li,
+      DatagramInterface* udp,
+      ccf::SessionWriter& writer,
+      const sockaddr_storage& peer,
+      socklen_t peerlen)
+    {
+      std::lock_guard<std::mutex> guard(interfaces_mutex);
+      const auto key = peer_key(peer, peerlen);
+      auto sit = udp->sessions_by_peer.find(key);
+      if (sit != udp->sessions_by_peer.end())
+      {
+        return sit->second;
+      }
+
+      if (li->app_protocol != "QUIC" && custom_protocol_subsystem == nullptr)
+      {
+        LOG_DEBUG_FMT(
+          "Unknown UDP protocol '{}' and custom protocol subsystem missing",
+          li->app_protocol);
+        return nullptr;
+      }
+
+      const size_t open = li->open_sessions.load();
+      if (open >= li->max_open_sessions_hard)
+      {
+        LOG_INFO_FMT(
+          "Refusing UDP session on interface {} - {} open, hard limit {}",
+          li->name,
+          open,
+          li->max_open_sessions_hard);
+        return nullptr;
+      }
+
+      const auto conn_id =
+        static_cast<::tcp::ConnID>(shared_conn_id.fetch_add(1));
+      std::shared_ptr<ccf::Session> session;
+      if (li->app_protocol == "QUIC")
+      {
+        session = std::make_shared<ccf::DatagramEchoSession>(conn_id, writer);
+      }
+      else
+      {
+        session = custom_protocol_subsystem->create_session(
+          li->app_protocol, conn_id, writer);
+      }
+
+      if (session == nullptr)
+      {
+        return nullptr;
+      }
+
+      const size_t now_open = ++li->open_sessions;
+      size_t prev_peak = li->peak_sessions.load();
+      while (now_open > prev_peak &&
+             !li->peak_sessions.compare_exchange_weak(prev_peak, now_open))
+      {}
+
+      udp->peer_by_id.emplace(conn_id, key);
+      udp->sessions_by_peer.emplace(key, session);
+      return session;
+    }
+
   public:
     explicit RPCConnectionManager(std::shared_ptr<RPCMap> rpc_map_) :
       rpc_map(std::move(rpc_map_))
@@ -241,9 +407,9 @@ namespace ccf
           li->bridge->stop();
         }
       }
-      for (auto& [name, server] : udp_servers)
+      for (auto& [name, interface] : udp_interfaces)
       {
-        server->stop();
+        interface->server->stop();
       }
     }
 
@@ -309,8 +475,8 @@ namespace ccf
       return li->bridge->port();
     }
 
-    // Bind and start a plaintext UDP echo server for `name` (interfaces with
-    // protocol "udp").
+    // Bind and start a UDP listener for `name` (interfaces with protocol
+    // "udp"). Incoming datagrams are routed to a per-peer session.
     //
     // === QUIC EXTENSION POINT ===
     // A real QUIC interface would, instead of echoing, hand each datagram to an
@@ -320,19 +486,45 @@ namespace ccf
       const std::string& name, const std::string& host, const std::string& port)
     {
       std::lock_guard<std::mutex> guard(interfaces_mutex);
-      auto server = std::make_unique<asynchost::DatagramServer>(
+      auto li_it = interfaces.find(name);
+      if (li_it == interfaces.end())
+      {
+        throw std::logic_error(fmt::format(
+          "Cannot listen on unconfigured UDP interface '{}'", name));
+      }
+      auto* li = li_it->second.get();
+
+      auto udp = std::make_unique<DatagramInterface>();
+      auto* udp_ptr = udp.get();
+      udp->writer = std::make_unique<DatagramSessionWriter>(
+        [this, name](::tcp::ConnID id, std::span<const uint8_t> data) {
+          send_udp_reply(name, id, data);
+        },
+        [this, name, li](::tcp::ConnID id) {
+          close_udp_session(name, li, id);
+        });
+      auto* writer = udp->writer.get();
+
+      udp->server = std::make_unique<asynchost::DatagramServer>(
         host,
         static_cast<uint16_t>(std::stoi(port)),
-        [](
+        [this, li, udp_ptr, writer](
           const uint8_t* data,
           size_t len,
-          const asynchost::DatagramServer::Reply& reply) {
-          // Echo the datagram back to its sender.
-          reply(data, len);
+          const sockaddr_storage& peer,
+          socklen_t peerlen) {
+          auto session =
+            get_or_create_udp_session(li, udp_ptr, *writer, peer, peerlen);
+          if (session == nullptr)
+          {
+            return;
+          }
+          session->handle_incoming_data(
+            {data, len}, *reinterpret_cast<const sockaddr*>(&peer));
         });
-      server->start();
-      const uint16_t bound = server->port();
-      udp_servers.emplace(name, std::move(server));
+      udp->server->start();
+      const uint16_t bound = udp->server->port();
+      udp_interfaces.emplace(name, std::move(udp));
       return bound;
     }
 
@@ -511,12 +703,6 @@ namespace ccf
       std::lock_guard<std::mutex> guard(interfaces_mutex);
       for (const auto& [name, interface] : node_info.rpc_interfaces)
       {
-        // UDP interfaces use the datagram echo path (listen_udp), not the TCP
-        // session machinery.
-        if (interface.protocol == "udp")
-        {
-          continue;
-        }
         auto it = interfaces.find(name);
         if (it == interfaces.end())
         {

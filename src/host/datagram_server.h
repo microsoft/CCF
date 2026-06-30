@@ -3,9 +3,8 @@
 #pragma once
 
 // A minimal UDP datagram server: it owns a SOCK_DGRAM socket in its own epoll
-// loop and delivers each received datagram to a handler, which may reply to the
-// sender. It backs the plaintext "UDP echo" interface (the only goal here is
-// behavioural compatibility, i.e. the existing udp echo test).
+// loop and delivers each received datagram to a handler. It backs UDP
+// interfaces, leaving protocol behaviour to its handler.
 //
 // ===========================================================================
 // QUIC EXTENSION POINT
@@ -56,12 +55,12 @@ namespace asynchost
   class DatagramServer
   {
   public:
-    // Reply to the sender of the datagram currently being handled.
-    using Reply = std::function<void(const uint8_t*, size_t)>;
-
     // Invoked on the loop thread for each received datagram.
-    using OnDatagram =
-      std::function<void(const uint8_t* data, size_t len, const Reply& reply)>;
+    using OnDatagram = std::function<void(
+      const uint8_t* data,
+      size_t len,
+      const sockaddr_storage& peer,
+      socklen_t peerlen)>;
 
   private:
     // Max UDP payload (theoretical IPv4 limit); datagrams are read whole.
@@ -116,15 +115,10 @@ namespace asynchost
         if (on_datagram)
         {
           // === QUIC EXTENSION POINT ===
-          // A QUIC server would not reply with a raw sendto; it would feed the
-          // received bytes to OpenSSL (SSL_handle_events) and write responses
-          // with SSL_write_ex() on accepted streams. `peer` is the source
-          // address that SSL_set1_initial_peer_addr() consumes.
-          Reply reply = [this, &peer, peerlen](const uint8_t* d, size_t l) {
-            ::sendto(
-              sock, d, l, 0, reinterpret_cast<const sockaddr*>(&peer), peerlen);
-          };
-          on_datagram(buf, static_cast<size_t>(n), reply);
+          // A QUIC server would feed the received bytes to OpenSSL
+          // (SSL_handle_events). `peer` is the source address that
+          // SSL_set1_initial_peer_addr() consumes.
+          on_datagram(buf, static_cast<size_t>(n), peer, peerlen);
         }
       }
     }
@@ -283,6 +277,21 @@ namespace asynchost
     uint16_t port() const
     {
       return bound_port;
+    }
+
+    void send_to(
+      const sockaddr_storage& peer,
+      socklen_t peerlen,
+      const uint8_t* data,
+      size_t len)
+    {
+      ::sendto(
+        sock,
+        data,
+        len,
+        0,
+        reinterpret_cast<const sockaddr*>(&peer),
+        peerlen);
     }
 
   private:

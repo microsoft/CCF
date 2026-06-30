@@ -13,11 +13,11 @@ namespace ccf
 {
   // Abstract output sink injected into Sessions: a Session hands its outbound
   // bytes (and connection-teardown requests) to a SessionWriter, which is
-  // implemented by the host-side RPCConnectionManager.
+  // implemented by the RPC transport.
   //
-  // IMPORTANT: Sessions invoke these methods from worker threads (see
-  // ccf::ThreadedSession / OrderedTasks), so implementations MUST be
-  // thread-safe and must marshal any socket operations onto their I/O thread.
+  // IMPORTANT: Sessions may invoke these methods from worker threads, so
+  // implementations MUST be thread-safe and must marshal any socket operations
+  // onto their I/O thread if required.
   class SessionWriter
   {
   public:
@@ -35,7 +35,9 @@ namespace ccf
     // (tracking per-connection queued bytes) and return a writable/would-block
     // status here.
     virtual void write_outbound(
-      ::tcp::ConnID id, std::span<const uint8_t> data, sockaddr addr = {}) = 0;
+      ::tcp::ConnID id,
+      std::span<const uint8_t> data,
+      sockaddr addr = {}) = 0;
 
     // Tear down the connection: stop the underlying socket and drop the
     // session.
