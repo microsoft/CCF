@@ -836,16 +836,19 @@ namespace ccf::curl
 
       for (auto& req : requests_to_add)
       {
+        auto request_to_add = std::move(req);
         try
         {
-          self->curl_request_curlm.attach_curl_request(std::move(req));
+          self->curl_request_curlm.attach_curl_request(
+            std::move(request_to_add));
         }
         catch (const std::exception& e)
         {
           LOG_FAIL_FMT("Error attaching curl request: {}", e.what());
-          if (req != nullptr)
+          if (request_to_add != nullptr)
           {
-            safe_abort_request(std::move(req), "async_requests_callback");
+            safe_abort_request(
+              std::move(request_to_add), "async_requests_callback");
           }
         }
       }
