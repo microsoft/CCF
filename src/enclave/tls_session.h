@@ -165,6 +165,13 @@ namespace ccf
       auto rc = ctx->read(data + offset, size - offset, readbytes);
       LOG_TRACE_FMT("ctx->read returned: {} ({} bytes)", rc, readbytes);
 
+      // A read can cause the TLS layer to produce outbound bytes which must be
+      // sent to the peer for it to make progress (e.g. TLS 1.3 session tickets
+      // or key updates emitted after the handshake, or a SSL_ERROR_WANT_WRITE
+      // where the peer is waiting on data we have buffered). Drain them now,
+      // otherwise they are stranded in the write BIO and the connection stalls.
+      flush_outbound();
+
       switch (rc)
       {
         case 0:
