@@ -6,7 +6,6 @@ import sys
 import json
 import argparse
 import math
-import statistics
 from typing import List, Optional, Tuple
 
 # Metric groups to chart over time. A radar chart is produced for every metric,
@@ -153,9 +152,7 @@ def render_mermaid_radar_chart(
     latest_label, _, _, latest_data = loaded[-1]
     axes = []
     latest_values = []
-    baseline_values = []
-    low_values = []
-    high_values = []
+    ewma_values = []
 
     for index, benchmark in enumerate(benchmarks):
         latest_value = metric_value(latest_data, benchmark, metric)
@@ -174,21 +171,14 @@ def render_mermaid_radar_chart(
         if baseline <= 0:
             continue
 
-        sigma = (
-            statistics.pstdev(chronological_values)
-            if len(chronological_values) > 1
-            else 0
-        )
         axes.append(f"b{index}[{mermaid_label(benchmark)}]")
         latest_values.append(normalized_percent(latest_value, baseline))
-        baseline_values.append(100.0)
-        low_values.append(max(0.0, normalized_percent(baseline - sigma, baseline)))
-        high_values.append(normalized_percent(baseline + sigma, baseline))
+        ewma_values.append(100.0)
 
     if not axes:
         return f"_No latest-run benchmarks with a `{metric}` metric found._\n"
 
-    chart_max = max(latest_values + baseline_values + low_values + high_values)
+    chart_max = max(latest_values + ewma_values)
     chart_max = max(100, math.ceil(chart_max * 1.1 / 10) * 10)
 
     lines = [
@@ -205,8 +195,6 @@ def render_mermaid_radar_chart(
         "  themeVariables:",
         '    cScale0: "#0057B8"',
         '    cScale1: "#D83B01"',
-        '    cScale2: "#107C10"',
-        '    cScale3: "#C50F1F"',
         "    radar:",
         "      curveOpacity: 0",
         "      curveStrokeWidth: 2.5",
@@ -217,9 +205,7 @@ def render_mermaid_radar_chart(
     lines.extend(
         [
             render_radar_curve("latest", latest_label, latest_values),
-            render_radar_curve("baseline", "EWMA baseline", baseline_values),
-            render_radar_curve("low", "EWMA - 1 std dev", low_values),
-            render_radar_curve("high", "EWMA + 1 std dev", high_values),
+            render_radar_curve("ewma", "EWMA so far", ewma_values),
             "  graticule polygon",
             f"  max {chart_max}",
             "  min 0",
@@ -268,7 +254,7 @@ def render_metric_group(
         return "\n".join(lines)
 
     lines.append(
-        "_Values are normalized per benchmark: 100 is the EWMA baseline. "
+        "_Values are normalized per benchmark: 100 is the EWMA so far. "
         "For throughput and rate, higher is better; for latency and memory, lower is better._"
     )
     lines.append("")
@@ -281,7 +267,7 @@ def render_perf_summary(loaded: List[PerfRun]) -> str:
     lines = [
         "# Performance summary",
         "",
-        "_Each chart shows run values, an EWMA baseline, and +/-1 sigma reference lines._",
+        "_Each chart compares the latest run with the EWMA so far._",
         "",
         render_runs_table(loaded),
     ]
