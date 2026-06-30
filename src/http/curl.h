@@ -350,7 +350,7 @@ namespace ccf::curl
             if (response->data.contains(field_str))
             {
               auto current = response->data[field_str];
-              LOG_FAIL_FMT(
+              LOG_DEBUG_FMT(
                 "Duplicate header for '{}', current = '{}', new = '{}'",
                 field_str,
                 current,

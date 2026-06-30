@@ -203,7 +203,7 @@ namespace ccf
     {
       if (status != HTTP_STATUS_OK)
       {
-        LOG_FAIL_FMT(
+        LOG_INFO_FMT(
           "JWT key auto-refresh: Error while requesting JWKS: {} {}{}",
           status,
           ccf::http_status_str(status),
@@ -224,7 +224,7 @@ namespace ccf
       }
       catch (const std::exception& e)
       {
-        LOG_FAIL_FMT(
+        LOG_INFO_FMT(
           "JWT key auto-refresh: Cannot parse JWKS for issuer '{}': {}",
           issuer,
           e.what());
@@ -259,7 +259,7 @@ namespace ccf
     {
       if (status != HTTP_STATUS_OK)
       {
-        LOG_FAIL_FMT(
+        LOG_INFO_FMT(
           "JWT key auto-refresh: Error while requesting OpenID metadata: {} "
           "{}{}",
           status,
@@ -290,7 +290,7 @@ namespace ccf
       }
       catch (const std::exception& e)
       {
-        LOG_FAIL_FMT(
+        LOG_INFO_FMT(
           "JWT key auto-refresh: Cannot parse OpenID metadata for issuer '{}': "
           "{}",
           issuer,
@@ -309,7 +309,7 @@ namespace ccf
       }
       catch (const std::invalid_argument& e)
       {
-        LOG_FAIL_FMT(
+        LOG_INFO_FMT(
           "JWT key auto-refresh: Cannot parse jwks_uri for issuer '{}': {} "
           "({})",
           issuer,
@@ -322,7 +322,7 @@ namespace ccf
       ccf::nonstd::to_lower(jwks_url.scheme);
       if (jwks_url.scheme != "https")
       {
-        LOG_FAIL_FMT(
+        LOG_INFO_FMT(
           "JWT key auto-refresh: jwks_uri for issuer '{}' must use https: {}",
           issuer,
           jwks_url_str);
@@ -359,7 +359,7 @@ namespace ccf
 
               if (curl_response != CURLE_OK)
               {
-                LOG_FAIL_FMT(
+                LOG_INFO_FMT(
                   "JWT key auto-refresh: Failed to fetch JWKS for issuer '{}': "
                   "{} ({})",
                   issuer,
@@ -415,7 +415,7 @@ namespace ccf
         auto ca_cert_bundle_pem = ca_cert_bundles->get(ca_cert_bundle_name);
         if (!ca_cert_bundle_pem.has_value())
         {
-          LOG_FAIL_FMT(
+          LOG_INFO_FMT(
             "JWT key auto-refresh: CA cert bundle with name '{}' for issuer "
             "'{}' not "
             "found",
@@ -459,7 +459,7 @@ namespace ccf
 
                 if (curl_response != CURLE_OK)
                 {
-                  LOG_FAIL_FMT(
+                  LOG_INFO_FMT(
                     "JWT key auto-refresh: Failed to fetch OpenID metadata for "
                     "issuer '{}': {} ({})",
                     issuer,
