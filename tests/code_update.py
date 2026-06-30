@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 from base64 import b64encode, b64decode
+from datetime import datetime, timedelta, timezone
 import infra.e2e_args
 import infra.network
 import infra.path
@@ -12,7 +13,7 @@ import infra.clients
 import infra.commit
 import suite.test_requirements as reqs
 import os
-from infra.checker import check_can_progress
+from infra.checker import Checker, check_can_progress
 from infra.crypto import create_signed_statement
 import infra.snp as snp
 import tempfile
@@ -25,6 +26,8 @@ import time
 
 
 from loguru import logger as LOG
+
+CERTIFICATE_VALID_FROM_OFFSET = timedelta(seconds=1)
 
 
 @reqs.description("Verify node evidence")
@@ -871,11 +874,61 @@ def get_replacement_package(args):
     )
 
 
-@reqs.description("Update all nodes code")
-@reqs.not_snp(
-    "Not yet supported as all nodes run the same measurement AND security policy in SNP CI"
-)
-def test_update_all_nodes(network, args):
+def remove_retired_nodes(network, primary, nodes, timeout):
+    """
+    Wait for retired nodes to become removable, delete them from the service,
+    then stop them and remove them from local network tracking.
+
+    :param network: Network object tracking the node locally.
+    :param primary: Current primary used to query and delete the retired nodes.
+    :param nodes: Retired nodes to remove.
+    :param timeout: Maximum time to wait for the nodes to become removable.
+    :raises TimeoutError: If any node is not listed as removable before timeout.
+    """
+    pending_nodes = {node.node_id: node for node in nodes}
+    end_time = time.time() + timeout
+    removable_nodes = None
+    node_statuses = {}
+    while pending_nodes and time.time() < end_time:
+        try:
+            with primary.client(connection_timeout=timeout) as c:
+                removable_nodes = c.get("/node/network/removable_nodes").body.json()
+                removable_node_ids = {n["node_id"] for n in removable_nodes["nodes"]}
+                check_commit = Checker(c)
+                for node_id, node in list(pending_nodes.items()):
+                    if node_id in removable_node_ids:
+                        r = c.delete(f"/node/network/nodes/{node_id}")
+                        check_commit(r)
+                        node.stop()
+                        del pending_nodes[node_id]
+                    else:
+                        node_statuses[node_id] = c.get(
+                            f"/node/network/nodes/{node_id}"
+                        ).body.json()
+        except ConnectionRefusedError:
+            pass
+        time.sleep(0.1)
+    if pending_nodes:
+        raise TimeoutError(
+            "Timed out waiting for nodes to become removable: "
+            f"pending_nodes={list(pending_nodes)}, "
+            f"removable_nodes={removable_nodes}, node_statuses={node_statuses}"
+        )
+
+
+def _test_update_all_nodes(network, args, atomic_reconfiguration=False):
+    """
+    Update every node to the replacement package.
+
+    By default, fresh nodes are trusted first and old nodes are retired one by
+    one. When atomic_reconfiguration is true, all fresh nodes are trusted and
+    all old nodes are retired in a single governance proposal.
+
+    :param network: Network to update.
+    :param args: Test arguments, including current package and timeouts.
+    :param atomic_reconfiguration: Whether to use one reconfiguration proposal.
+    :return: The updated network.
+    """
     replacement_package = get_replacement_package(args)
 
     primary, _ = network.find_nodes()
@@ -996,32 +1049,76 @@ def test_update_all_nodes(network, args):
                 actual_host_datas == expected_host_datas
             ), f"{actual_host_datas} != {expected_host_datas}"
 
-    old_nodes = network.nodes.copy()
+    old_nodes = network.get_joined_nodes().copy()
+    new_nodes = []
 
     LOG.info("Start fresh nodes running new code")
     for _ in range(0, len(old_nodes)):
         new_node = network.create_node()
         network.join_node(new_node, replacement_package, args, from_snapshot=False)
-        network.trust_node(new_node, args)
+        new_nodes.append(new_node)
 
-    LOG.info("Retire original nodes running old code")
-    for node in old_nodes:
-        primary, _ = network.find_nodes()
-        network.retire_node(primary, node)
-        # Elections take (much) longer than a backup removal which is just
-        # a commit, so we need to adjust our timeout accordingly, hence this branch
-        if node.node_id == primary.node_id:
-            new_primary, _ = network.wait_for_new_primary(primary)
-            primary = new_primary
-            #  See https://github.com/microsoft/CCF/issues/1713
-            check_can_progress(new_primary)
-        node.stop()
+    if atomic_reconfiguration:
+        LOG.info("Trust fresh nodes and retire original nodes in one proposal")
+        valid_from = datetime.now(timezone.utc) - CERTIFICATE_VALID_FROM_OFFSET
+        network.consortium.replace_nodes(
+            primary,
+            old_nodes,
+            new_nodes,
+            valid_from=valid_from,
+            timeout=args.ledger_recovery_timeout,
+        )
+        # The accepted proposal retires every old node, so only the new nodes
+        # can elect the next primary.
+        new_primary, _ = network.wait_for_new_primary_in(new_nodes, nodes=new_nodes)
+        primary = new_primary
+        for new_node in new_nodes:
+            new_node.wait_for_node_to_join(timeout=args.ledger_recovery_timeout)
+            new_node.set_certificate_validity_period(
+                valid_from, args.maximum_node_certificate_validity_days
+            )
+        check_can_progress(new_primary)
+        remove_retired_nodes(
+            network, new_primary, old_nodes, args.ledger_recovery_timeout
+        )
+    else:
+        LOG.info("Trust fresh nodes")
+        for new_node in new_nodes:
+            network.trust_node(new_node, args)
+
+        LOG.info("Retire original nodes running old code")
+        for node in old_nodes:
+            primary, _ = network.find_nodes()
+            network.retire_node(primary, node)
+            # Elections take (much) longer than a backup removal which is just
+            # a commit, so we need to adjust our timeout accordingly, hence this branch
+            if node.node_id == primary.node_id:
+                new_primary, _ = network.wait_for_new_primary(primary)
+                primary = new_primary
+                check_can_progress(new_primary)
+            node.stop()
 
     args.package = replacement_package
 
     LOG.info("Check the network is still functional")
     check_can_progress(new_node)
     return network
+
+
+@reqs.description("Update all nodes code")
+@reqs.not_snp(
+    "Not yet supported as all nodes run the same measurement AND security policy in SNP CI"
+)
+def test_update_all_nodes(network, args):
+    return _test_update_all_nodes(network, args)
+
+
+@reqs.description("Update all nodes code with atomic reconfiguration")
+@reqs.not_snp(
+    "Not yet supported as all nodes run the same measurement AND security policy in SNP CI"
+)
+def test_update_all_nodes_atomically(network, args):
+    return _test_update_all_nodes(network, args, atomic_reconfiguration=True)
 
 
 @reqs.description("Adding a new measurement invalidates open proposals")
@@ -1128,6 +1225,9 @@ def run(args):
             # testing that (without artifically removing/corrupting those values) a replacement package differs
             # in one of these values
             test_add_node_with_different_package(network, args)
+            test_update_all_nodes_atomically(network, args)
+            # Upgrade back to the original package to keep sequential coverage
+            # and exercise consecutive full-network upgrades.
             test_update_all_nodes(network, args)
 
         # Run again at the end to confirm current nodes are acceptable
