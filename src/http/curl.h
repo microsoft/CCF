@@ -1033,8 +1033,7 @@ namespace ccf::curl
                 curl_easy_strerror(status_res));
             }
             CurlRequest::handle_response(
-              std::move(request_data_ptr),
-              status_code == 0 ? CURLE_ABORTED_BY_CALLBACK : CURLE_OK);
+              std::move(request_data_ptr), CURLE_ABORTED_BY_CALLBACK);
           }
         }
       }

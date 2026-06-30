@@ -412,7 +412,7 @@ def get_jwt_refresh_endpoint_metrics(primary) -> dict:
 @contextmanager
 def reserve_unlistened_local_port():
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(("localhost", 0))
+        s.bind(("127.0.0.1", 0))
         yield s.getsockname()[1]
 
 
@@ -451,7 +451,7 @@ def test_jwt_key_auto_refresh_connection_failure(network, args):
     primary, _ = network.find_nodes()
     remove_all_jwt_issuers(network, args, primary)
     failures_before = get_jwt_refresh_endpoint_metrics(primary)["failures"]
-    issuer_host = "localhost"
+    issuer_host = "127.0.0.1"
 
     LOG.info("Add JWT issuer with auto-refresh pointing at an unavailable endpoint")
     with reserve_unlistened_local_port() as issuer_port:
