@@ -172,8 +172,7 @@ namespace ccf::curl
       }
       if (updated != current)
       {
-        auto* released = p.release();
-        (void)released;
+        p.reset();
         p.reset(updated);
       }
     }
