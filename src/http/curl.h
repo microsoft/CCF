@@ -961,8 +961,7 @@ namespace ccf::curl
     friend class ::asynchost::close_ptr;
     size_t closed_uv_handle_count = 0;
 
-    // called by the close_ptr within the destructor of the proxy_ptr
-    void close()
+    void close_impl()
     {
       LOG_TRACE_FMT("Closing CurlmLibuvContext");
 
@@ -1063,6 +1062,23 @@ namespace ccf::curl
       uv_close(
         reinterpret_cast<uv_handle_t*>(&async_requests_handle), on_close);
       uv_close(reinterpret_cast<uv_handle_t*>(&uv_handle), on_close);
+    }
+
+    // called by the close_ptr within the destructor of the proxy_ptr
+    void close() noexcept
+    {
+      try
+      {
+        close_impl();
+      }
+      catch (const std::exception& e)
+      {
+        LOG_FAIL_FMT("Error closing CurlmLibuvContext: {}", e.what());
+      }
+      catch (...)
+      {
+        LOG_FAIL_FMT("Unknown error closing CurlmLibuvContext");
+      }
     }
     static void on_close(uv_handle_t* handle)
     {
