@@ -35,7 +35,7 @@ static void hash_only(picobench::state& s)
   ::srand(42);
 
   std::vector<std::vector<uint8_t>> txs;
-  for (size_t i = 0; i < s.iterations(); i++)
+  for (int i = 0; i < s.iterations(); i++)
   {
     std::vector<uint8_t> tx;
     for (size_t j = 0; j < S; j++)
@@ -76,7 +76,7 @@ static void append(picobench::state& s)
   store.set_history(history);
 
   std::vector<std::vector<uint8_t>> txs;
-  for (size_t i = 0; i < s.iterations(); i++)
+  for (int i = 0; i < s.iterations(); i++)
   {
     std::vector<uint8_t> tx;
     for (size_t j = 0; j < S; j++)
@@ -115,7 +115,7 @@ static void append_compact(picobench::state& s)
   store.set_history(history);
 
   std::vector<std::vector<uint8_t>> txs;
-  for (size_t i = 0; i < s.iterations(); i++)
+  for (int i = 0; i < s.iterations(); i++)
   {
     std::vector<uint8_t> tx;
     for (size_t j = 0; j < S; j++)

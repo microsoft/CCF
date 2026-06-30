@@ -494,20 +494,6 @@ Committable(i) ==
     THEN << >>
     ELSE SubSeq(log[i],1,MaxCommittableIndex(log[i]))
 
-\* The prefix of the log of server i that has been committed up to term x
-CommittedTermPrefix(i, x) ==
-    \* Only if log of i is non-empty, and if there exists an entry up to the term x
-    IF Len(log[i]) /= 0 /\ \E y \in DOMAIN log[i] : log[i][y].term <= x
-    THEN
-      \* then, we use the subsequence up to the maximum committed term of the leader
-      LET maxTermIndex ==
-          CHOOSE y \in DOMAIN log[i] :
-            /\ log[i][y].term <= x
-            /\ \A z \in DOMAIN log[i] : log[i][z].term <= x  => y >= z
-      IN SubSeq(log[i], 1, min(maxTermIndex, commitIndex[i]))
-    \* Otherwise the prefix is the empty tuple
-    ELSE << >>
-
 \* RetirementIndexLog is the index at which node i is first removed from node_log, 0 otherwise
 RetirementIndexLog(node_log, i) ==
     LET 
@@ -1122,11 +1108,16 @@ ConflictAppendEntriesRequest(i, index, m) ==
     /\ isNewFollower' = [isNewFollower EXCEPT ![i] = FALSE]
     /\ UNCHANGED <<preVoteStatus, currentTerm, leadershipState, votedFor, commitIndex, messages, candidateVars, leaderVars, hasJoined, retirementCompleted>>
 
-\* Follower i receives an AppendEntries request m from leader j for log entries which directly follow its log
+\* Follower i receives an AppendEntries request m from leader j which extends its log,
+\* possibly overlapping the end of its log with matching (same-term) entries.
 NoConflictAppendEntriesRequest(i, j, m) ==
     /\ m.entries /= << >>
-    /\ Len(log[i]) = m.prevLogIndex
-    /\ log' = [log EXCEPT ![i] = @ \o m.entries]
+    /\ m.prevLogIndex <= Len(log[i])
+    /\ Len(log[i]) < m.prevLogIndex + Len(m.entries)
+    \* Full entry equality (not just term) ensures any overlap is safe
+    /\ \A k \in 1 .. (Len(log[i]) - m.prevLogIndex) :
+            log[i][m.prevLogIndex + k] = m.entries[k]
+    /\ log' = [log EXCEPT ![i] = SubSeq(@, 1, m.prevLogIndex) \o m.entries]
     \* If new txs include reconfigurations, add them to configurations
     \* Also, if the commitIndex is updated, we may pop some old configs at the same time
     /\ LET
@@ -1486,14 +1477,13 @@ DebugMoreUpToDateCorrectInv ==
             /\ UpToDateCheck(i, j)
             => IsPrefix(Committed(j), log[i])
 
-\* The committed entries in every log are a prefix of the
-\* leader's log up to the leader's term (since a next Leader may already be
-\* elected without the old leader stepping down yet)
+\* The entries locally known to be committed by any server are a prefix of
+\* every leader's log in higher-numbered terms.
 LeaderCompletenessInv ==
     \A i \in Servers :
         leadershipState[i] = Leader =>
         \A j \in Servers : i /= j =>
-            IsPrefix(CommittedTermPrefix(j, currentTerm[i]),log[i])
+            (currentTerm[i] > currentTerm[j] => IsPrefix(Committed(j), log[i]))
 
 \* In CCF, only signature messages should ever be committed
 SignatureInv ==
