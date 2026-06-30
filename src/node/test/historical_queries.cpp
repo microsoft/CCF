@@ -1242,6 +1242,7 @@ TEST_CASE("StateCache sparse queries")
   }
 }
 
+// NOLINTNEXTLINE(readability-function-cognitive-complexity)
 TEST_CASE("StateCache concurrent access")
 {
   auto state = create_and_init_state();
