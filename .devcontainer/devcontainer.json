@@ -18,17 +18,17 @@
         "ms-python.python",
         "ms-vscode.cpptools",
         "github.copilot"
-      ]
-    },
-    "settings": {
-      "python.defaultInterpreterPath": "python3",
-      "[python]": {
-        "editor.defaultFormatter": "ms-python.black-formatter"
-      },
-      "python.formatting.provider": "none",
-      "editor.formatOnSave": true,
-      "editor.codeActionsOnSave": {
-        "source.fixAll": true
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "python3",
+        "[python]": {
+          "editor.defaultFormatter": "ms-python.black-formatter"
+        },
+        "python.formatting.provider": "none",
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+          "source.fixAll": true
+        }
       }
     }
   },
