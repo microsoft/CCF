@@ -937,7 +937,8 @@ namespace ccf::curl
       CHECK_UV(uv_timer_init, loop, &uv_handle);
       uv_handle.data = this; // Attach this instance to the timer
 
-      CHECK_UV(uv_async_init, loop, &async_requests_handle, async_requests_callback);
+      CHECK_UV(
+        uv_async_init, loop, &async_requests_handle, async_requests_callback);
       async_requests_handle.data = this;
       uv_unref(reinterpret_cast<uv_handle_t*>(
         &async_requests_handle)); // allow the loop to exit if this is the only
