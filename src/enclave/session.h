@@ -132,29 +132,21 @@ namespace ccf
     ::tcp::ConnID session_id;
     ccf::SessionWriter& session_writer;
     std::vector<uint8_t> peer_cert_;
-    std::string sni_;
 
     PlaintextSession(
       ::tcp::ConnID session_id_,
       ccf::SessionWriter& writer,
-      std::vector<uint8_t> peer_cert = {},
-      std::string sni = {}) :
+      std::vector<uint8_t> peer_cert = {}) :
       ThreadedSession(session_id_),
       session_id(session_id_),
       session_writer(writer),
-      peer_cert_(std::move(peer_cert)),
-      sni_(std::move(sni))
+      peer_cert_(std::move(peer_cert))
     {}
 
   public:
     const std::vector<uint8_t>& peer_cert() const
     {
       return peer_cert_;
-    }
-
-    const std::string& hostname() const
-    {
-      return sni_;
     }
 
     void send_data_thread(std::vector<uint8_t>&& data) override
