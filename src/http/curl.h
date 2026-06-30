@@ -46,6 +46,17 @@
     } \
   } while (0)
 
+#define CHECK_UV(fn, ...) \
+  do \
+  { \
+    const auto rc = fn(__VA_ARGS__); \
+    if (rc < 0) \
+    { \
+      throw std::runtime_error( \
+        fmt::format("Error calling " #fn ": {} ({})", rc, uv_strerror(rc))); \
+    } \
+  } while (0)
+
 namespace ccf::curl
 {
 
@@ -748,14 +759,19 @@ namespace ccf::curl
       if (timeout_ms < 0)
       {
         // No timeout set, stop the timer
-        uv_timer_stop(&self->uv_handle);
+        CHECK_UV(uv_timer_stop, &self->uv_handle);
       }
       else
       {
         // If timeout is zero, this will trigger immediately, possibly within a
         // callback so clamp it to at least 1ms
         timeout_ms = std::max(timeout_ms, 1L);
-        uv_timer_start(&self->uv_handle, libuv_timeout_callback, timeout_ms, 0);
+        CHECK_UV(
+          uv_timer_start,
+          &self->uv_handle,
+          libuv_timeout_callback,
+          timeout_ms,
+          0);
       }
       return 0;
     }
@@ -874,7 +890,11 @@ namespace ccf::curl
             auto socket_context_ptr = std::make_unique<SocketContextImpl>();
             socket_context_ptr->context = self;
             socket_context_ptr->socket = s;
-            uv_poll_init_socket(self->loop, &socket_context_ptr->uv_handle, s);
+            CHECK_UV(
+              uv_poll_init_socket,
+              self->loop,
+              &socket_context_ptr->uv_handle,
+              s);
             socket_context_ptr->uv_handle.data =
               socket_context_ptr.get(); // Attach the context
             // attach the lifetime to the socket handle
@@ -887,8 +907,11 @@ namespace ccf::curl
           events |= (action != CURL_POLL_IN) ? UV_WRITABLE : 0;
           events |= (action != CURL_POLL_OUT) ? UV_READABLE : 0;
 
-          uv_poll_start(
-            &socket_context->uv_handle, events, libuv_socket_poll_callback);
+          CHECK_UV(
+            uv_poll_start,
+            &socket_context->uv_handle,
+            events,
+            libuv_socket_poll_callback);
           break;
         }
         case CURL_POLL_REMOVE:
@@ -898,7 +921,7 @@ namespace ccf::curl
               "CurlmLibuv: curl socket callback: remove socket {}",
               static_cast<int>(s));
             SocketContext socket_context_ptr(socket_context);
-            uv_poll_stop(&socket_context->uv_handle);
+            CHECK_UV(uv_poll_stop, &socket_context->uv_handle);
             CHECK_CURL_MULTI(
               curl_multi_assign, self->curl_request_curlm, s, nullptr);
           }
@@ -911,10 +934,10 @@ namespace ccf::curl
 
     CurlmLibuvContextImpl(uv_loop_t* loop) : loop(loop)
     {
-      uv_timer_init(loop, &uv_handle);
+      CHECK_UV(uv_timer_init, loop, &uv_handle);
       uv_handle.data = this; // Attach this instance to the timer
 
-      uv_async_init(loop, &async_requests_handle, async_requests_callback);
+      CHECK_UV(uv_async_init, loop, &async_requests_handle, async_requests_callback);
       async_requests_handle.data = this;
       uv_unref(reinterpret_cast<uv_handle_t*>(
         &async_requests_handle)); // allow the loop to exit if this is the only
@@ -949,7 +972,7 @@ namespace ccf::curl
       LOG_DEBUG_FMT("Adding request to {} to queue", request->get_url());
       std::lock_guard<std::mutex> requests_lock(requests_mutex);
       pending_requests.push_back(std::move(request));
-      uv_async_send(&async_requests_handle);
+      CHECK_UV(uv_async_send, &async_requests_handle);
     }
 
   private:
