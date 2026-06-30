@@ -143,8 +143,7 @@ namespace ccf
       return shared_from_this();
     }
 
-    static std::string peer_key(
-      const sockaddr_storage& peer, socklen_t peerlen)
+    static std::string peer_key(const sockaddr_storage& peer, socklen_t peerlen)
     {
       return std::string(
         reinterpret_cast<const char*>(&peer),
@@ -275,9 +274,7 @@ namespace ccf
     }
 
     void send_udp_reply(
-      const std::string& name,
-      ::tcp::ConnID id,
-      std::span<const uint8_t> data)
+      const std::string& name, ::tcp::ConnID id, std::span<const uint8_t> data)
     {
       std::lock_guard<std::mutex> guard(interfaces_mutex);
       auto it = udp_interfaces.find(name);
@@ -321,7 +318,8 @@ namespace ccf
       size_t expected = li->open_sessions.load();
       while (expected > 0 &&
              !li->open_sessions.compare_exchange_weak(expected, expected - 1))
-      {}
+      {
+      }
     }
 
     std::shared_ptr<ccf::Session> get_or_create_udp_session(
@@ -380,7 +378,8 @@ namespace ccf
       size_t prev_peak = li->peak_sessions.load();
       while (now_open > prev_peak &&
              !li->peak_sessions.compare_exchange_weak(prev_peak, now_open))
-      {}
+      {
+      }
 
       udp->peer_by_id.emplace(conn_id, key);
       udp->sessions_by_peer.emplace(key, session);
