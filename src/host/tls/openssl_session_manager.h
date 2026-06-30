@@ -205,9 +205,14 @@ namespace asynchost
 
     void close_socket(::tcp::ConnID id) override
     {
+      bool had_session = false;
       {
         std::lock_guard<std::mutex> guard(sessions_mutex);
-        sessions.erase(id);
+        had_session = sessions.erase(id) > 0;
+      }
+      if (had_session && on_session_closed)
+      {
+        on_session_closed(id);
       }
       server->close_connection(static_cast<uint64_t>(id));
     }

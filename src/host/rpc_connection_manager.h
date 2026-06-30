@@ -130,6 +130,8 @@ namespace ccf
     // Global connection-id source shared by all interface transports, so the
     // session registry / reply routing have a single id space.
     std::atomic<uint64_t> shared_conn_id{1};
+    std::atomic<size_t> active_sessions{0};
+    std::atomic<size_t> peak_sessions{0};
     // Outbound client sessions use the negative range, matching the historical
     // convention relied upon by forwarding.
     std::atomic<int64_t> next_client_id{-1};
@@ -148,6 +150,23 @@ namespace ccf
       return std::string(
         reinterpret_cast<const char*>(&peer),
         std::min<size_t>(peerlen, sizeof(peer)));
+    }
+
+    void increment_active_sessions()
+    {
+      const size_t now_active = ++active_sessions;
+      size_t prev_peak = peak_sessions.load();
+      while (now_active > prev_peak &&
+             !peak_sessions.compare_exchange_weak(prev_peak, now_active))
+      {}
+    }
+
+    void decrement_active_sessions()
+    {
+      size_t expected = active_sessions.load();
+      while (expected > 0 &&
+             !active_sessions.compare_exchange_weak(expected, expected - 1))
+      {}
     }
 
     // Build the protocol session for a connection on `li`, applying caps.
@@ -177,6 +196,7 @@ namespace ccf
              !li->peak_sessions.compare_exchange_weak(prev_peak, now_open))
       {
       }
+          increment_active_sessions();
 
       if (open >= li->max_open_sessions_soft)
       {
@@ -320,6 +340,7 @@ namespace ccf
              !li->open_sessions.compare_exchange_weak(expected, expected - 1))
       {
       }
+          decrement_active_sessions();
     }
 
     std::shared_ptr<ccf::Session> get_or_create_udp_session(
@@ -380,6 +401,7 @@ namespace ccf
              !li->peak_sessions.compare_exchange_weak(prev_peak, now_open))
       {
       }
+          increment_active_sessions();
 
       udp->peer_by_id.emplace(conn_id, key);
       udp->sessions_by_peer.emplace(key, session);
@@ -449,7 +471,8 @@ namespace ccf
           ::tcp::ConnID cid, ccf::SessionWriter& w, std::vector<uint8_t> pc) {
           return make_session(li, cid, w, std::move(pc));
         };
-      auto on_closed = [li](::tcp::ConnID) {
+      auto on_closed = [this, li](::tcp::ConnID) {
+        decrement_active_sessions();
         size_t expected = li->open_sessions.load();
         while (expected > 0 &&
                !li->open_sessions.compare_exchange_weak(expected, expected - 1))
@@ -635,8 +658,6 @@ namespace ccf
     {
       ccf::SessionMetrics sm;
       std::lock_guard<std::mutex> guard(interfaces_mutex);
-      size_t active = 0;
-      size_t peak = 0;
       for (auto& [name, li] : interfaces)
       {
         ccf::SessionMetrics::Errors errs;
@@ -650,12 +671,9 @@ namespace ccf
           li->max_open_sessions_soft,
           li->max_open_sessions_hard,
           errs};
-
-        active += li->open_sessions.load();
-        peak += li->peak_sessions.load();
       }
-      sm.active = active;
-      sm.peak = peak;
+      sm.active = active_sessions.load();
+      sm.peak = peak_sessions.load();
       return sm;
     }
 
