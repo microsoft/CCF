@@ -262,7 +262,7 @@ namespace ccf::curl
       auto bytes_to_copy = size * nmemb;
       if (response->buffer.size() + bytes_to_copy > response->maximum_size)
       {
-        LOG_FAIL_FMT(
+        LOG_INFO_FMT(
           "Response size limit exceeded: {} bytes, maximum is {} bytes",
           response->buffer.size() + bytes_to_copy,
           response->maximum_size);
