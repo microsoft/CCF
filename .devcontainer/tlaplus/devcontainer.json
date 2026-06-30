@@ -1,11 +1,5 @@
 {
   "name": "TLA+ CCF",
-  "extensions": [
-    "tlaplus.vscode-ide",
-    "joaompinto.vscode-graphviz",
-    "EFanZh.graphviz-preview",
-    "cssho.vscode-svgviewer"
-  ],
   "settings": {
     "tlaplus.tlc.statisticsSharing": "share",
     "tlaplus.java.options": "-XX:+UseParallelGC -Dtlc2.tool.impl.Tool.cdot=true",
