@@ -1050,7 +1050,7 @@ def _test_update_all_nodes(network, args, atomic_reconfiguration=False):
                 actual_host_datas == expected_host_datas
             ), f"{actual_host_datas} != {expected_host_datas}"
 
-    old_nodes = network.nodes.copy()
+    old_nodes = network.get_joined_nodes().copy()
     new_nodes = []
 
     LOG.info("Start fresh nodes running new code")
