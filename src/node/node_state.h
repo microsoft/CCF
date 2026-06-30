@@ -2021,6 +2021,12 @@ namespace ccf
 
     void trigger_recovery_shares_refresh(ccf::kv::Tx& tx) override
     {
+      if (InternalTablesAccess::is_service_recovering(tx))
+      {
+        throw std::logic_error(
+          "Cannot refresh recovery shares while the service is recovering");
+      }
+
       share_manager.shuffle_recovery_shares(tx);
     }
 

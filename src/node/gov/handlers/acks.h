@@ -241,6 +241,27 @@ namespace ccf::gov::endpoints
             return;
           }
 
+          if (
+            InternalTablesAccess::is_service_recovering(ctx.tx) &&
+            InternalTablesAccess::is_recovery_participant_or_owner(
+              ctx.tx, member_id))
+          {
+            auto member_info =
+              ctx.tx.template ro<ccf::MemberInfo>(Tables::MEMBER_INFO)
+                ->get(member_id);
+            if (
+              member_info.has_value() &&
+              member_info->status != ccf::MemberStatus::ACTIVE)
+            {
+              detail::set_gov_error(
+                ctx.rpc_ctx,
+                HTTP_STATUS_BAD_REQUEST,
+                ccf::errors::InvalidInput,
+                "Recovery members cannot be activated during recovery.");
+              return;
+            }
+          }
+
           // Ensure old HTTP signed req is nulled
           ack->signed_req = std::nullopt;
 
