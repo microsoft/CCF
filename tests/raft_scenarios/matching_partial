@@ -32,7 +32,7 @@ emit_signature,3
 drop_pending,2
 assert_last_txid,2,3.6
 
-# Node 1 wins a term-4 election (node 0 gives the majority; node 2's longer log abstains).
+# Node 1 wins a term-4 election (node 0 gives the majority; node 2 rejects due to its longer log).
 periodic_one,1,100
 dispatch_all
 assert_detail,1,leadership_state,Leader
