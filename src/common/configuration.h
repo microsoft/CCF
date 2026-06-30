@@ -142,7 +142,8 @@ namespace ccf
     files_cleanup,
     node_to_node_message_limit,
     historical_cache_soft_limit,
-    identity_history_fetch);
+    identity_history_fetch,
+    idle_connection_timeout);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(RecoveryDecisionProtocolConfig);
   DECLARE_JSON_REQUIRED_FIELDS(

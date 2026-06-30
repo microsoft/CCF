@@ -204,6 +204,15 @@ namespace ccf
 
       rpcsessions->update_listening_interface_options(ccf_config_.network);
 
+      // Idle RPC connections are closed after this period (nullopt = never).
+      std::optional<std::chrono::milliseconds> rpc_idle_timeout;
+      if (ccf_config_.idle_connection_timeout.has_value())
+      {
+        rpc_idle_timeout = std::chrono::milliseconds(
+          ccf_config_.idle_connection_timeout->count_ms());
+      }
+      rpcsessions->set_idle_connection_timeout(rpc_idle_timeout);
+
       // Bind and start listening on each configured RPC interface. TLS is now
       // terminated in the connection: an interface whose certificate is not yet
       // available refuses connections until set_*_cert provides one (a joining
