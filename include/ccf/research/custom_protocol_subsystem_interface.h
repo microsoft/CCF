@@ -14,9 +14,10 @@
 
 namespace ccf
 {
+  class SessionWriter;
+
   namespace tls
   {
-    class Context;
     using ConnID = int64_t;
   }
 
@@ -24,7 +25,7 @@ namespace ccf
   {
   public:
     using CreateSessionFn = std::function<std::shared_ptr<Session>(
-      ccf::tls::ConnID, const std::unique_ptr<tls::Context>&&)>;
+      ccf::tls::ConnID, ccf::SessionWriter&)>;
 
     ~CustomProtocolSubsystemInterface() override = default;
 
@@ -41,7 +42,7 @@ namespace ccf
     virtual std::shared_ptr<Session> create_session(
       const std::string& protocol_name,
       ccf::tls::ConnID conn_id,
-      const std::unique_ptr<tls::Context>&& ctx) = 0;
+      ccf::SessionWriter& writer) = 0;
 
     struct Essentials
     {
