@@ -900,7 +900,6 @@ def remove_retired_nodes(network, primary, nodes, timeout):
                         r = c.delete(f"/node/network/nodes/{node_id}")
                         check_commit(r)
                         node.stop()
-                        network.nodes.remove(node)
                         del pending_nodes[node_id]
                     else:
                         node_statuses[node_id] = c.get(
