@@ -35,9 +35,7 @@ namespace ccf
     // (tracking per-connection queued bytes) and return a writable/would-block
     // status here.
     virtual void write_outbound(
-      ::tcp::ConnID id,
-      std::span<const uint8_t> data,
-      sockaddr addr = {}) = 0;
+      ::tcp::ConnID id, std::span<const uint8_t> data, sockaddr addr = {}) = 0;
 
     // Tear down the connection: stop the underlying socket and drop the
     // session.

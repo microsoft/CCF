@@ -286,12 +286,7 @@ namespace asynchost
       size_t len)
     {
       ::sendto(
-        sock,
-        data,
-        len,
-        0,
-        reinterpret_cast<const sockaddr*>(&peer),
-        peerlen);
+        sock, data, len, 0, reinterpret_cast<const sockaddr*>(&peer), peerlen);
     }
 
   private:

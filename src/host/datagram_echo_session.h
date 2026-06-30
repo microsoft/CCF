@@ -17,7 +17,8 @@ namespace ccf
     ccf::SessionWriter& writer;
 
   public:
-    DatagramEchoSession(::tcp::ConnID session_id_, ccf::SessionWriter& writer_) :
+    DatagramEchoSession(
+      ::tcp::ConnID session_id_, ccf::SessionWriter& writer_) :
       session_id(session_id_),
       writer(writer_)
     {}
