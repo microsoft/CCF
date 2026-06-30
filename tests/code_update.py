@@ -1102,7 +1102,16 @@ def _test_update_all_nodes(network, args, atomic_reconfiguration=False):
 
     LOG.info("Check the network is still functional")
     primary, _ = network.find_primary()
-    check_can_progress(primary)
+    # Ensure we can make progress from a non-primary node when available.
+    node_to_check = next(
+        (
+            node
+            for node in network.get_joined_nodes()
+            if node.node_id != primary.node_id
+        ),
+        primary,
+    )
+    check_can_progress(node_to_check)
     return network
 
 
