@@ -1,10 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-// Vertical slice for the OpenSSL-native RPC transport: drives the epoll +
-// SSL_set_fd server (src/host/tls/openssl_server.h) with a real TLS client and
-// exercises handshake, plaintext round-trip, large transfers (backpressure
-// path) and concurrent connections.
+// Unit tests for the OpenSSL-native RPC transport and SessionWriter bridge.
 
 #include "ccf/crypto/ec_key_pair.h"
 #include "ccf/ds/x509_time_fmt.h"
@@ -49,7 +46,8 @@ namespace
   }
 
   // Blocking TLS client: connects, sends `req` in full, reads exactly
-  // `expected_resp` bytes. Verification is disabled (self-signed slice cert).
+  // `expected_resp` bytes. Verification is disabled for the self-signed test
+  // certificate.
   std::vector<uint8_t> tls_client_exchange(
     uint16_t port,
     const std::vector<uint8_t>& req,

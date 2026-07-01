@@ -2,25 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-// Vertical-slice OpenSSL-native TLS server, validating the model for the RPC
-// stack rewrite:
-//   * OpenSSL owns the socket fd directly (SSL_set_fd on a non-blocking fd) -
-//     no memory-BIO indirection, no libuv.
-//   * Our own epoll loop drives readiness; the handshake and I/O run as a
-//     non-blocking state machine.
-//   * Real TCP backpressure falls out: a non-blocking SSL_write that returns
-//     WANT_WRITE leaves the unsent plaintext buffered and arms EPOLLOUT.
-//
-// Scope/limits of this slice (deliberately minimal):
-//   * Single epoll thread; the on_data callback is invoked synchronously on
-//     that thread and replies by appending to the connection's outbound buffer.
-//     The production target is SO_REUSEPORT + one epoll per worker, with
-//     callbacks dispatched to the OrderedTasks pool (so replies would arrive
-//     from another thread and wake the loop).
-//   * Level-triggered epoll, for simplicity/correctness over raw throughput.
-//   * No session caps / certs-per-interface / protocol handling - that policy
-//     is harvested separately. This proves transport + threading +
-//     backpressure.
+// OpenSSL-native TLS/plaintext TCP server for RPC interfaces. OpenSSL owns the
+// socket fd directly, while a local epoll loop drives non-blocking handshake,
+// reads, writes, graceful close, outbound connects, and idle connection cleanup.
 
 #include "tcp/msg_types.h"
 
@@ -1019,8 +1003,7 @@ namespace asynchost
           listen_fd = -1;
           continue;
         }
-        // SO_REUSEPORT is the idiom that will let each worker run its own
-        // listening socket + epoll loop in the production design.
+        // Allow multiple listeners to bind the same address.
         if (
           setsockopt(listen_fd, SOL_SOCKET, SO_REUSEPORT, &one, sizeof(one)) !=
           0)
