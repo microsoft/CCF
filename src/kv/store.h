@@ -647,7 +647,6 @@ namespace ccf::kv
         // In practice rollback is only called at signature seqnos, so
         // clamping here restores the latest committable entry
         last_committable = std::min(last_committable, tx_id.seqno);
-        unset_flag_unsafe(StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
         rollback_count++;
         pending_txs.clear();
         auto e = get_encryptor();
