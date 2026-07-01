@@ -158,7 +158,8 @@ namespace ccf
       size_t prev_peak = peak_sessions.load();
       while (now_active > prev_peak &&
              !peak_sessions.compare_exchange_weak(prev_peak, now_active))
-      {}
+      {
+      }
     }
 
     void decrement_active_sessions()
@@ -166,7 +167,8 @@ namespace ccf
       size_t expected = active_sessions.load();
       while (expected > 0 &&
              !active_sessions.compare_exchange_weak(expected, expected - 1))
-      {}
+      {
+      }
     }
 
     void increment_interface_peak(ListenInterface* li, size_t now_open)
@@ -174,7 +176,8 @@ namespace ccf
       size_t prev_peak = li->peak_sessions.load();
       while (now_open > prev_peak &&
              !li->peak_sessions.compare_exchange_weak(prev_peak, now_open))
-      {}
+      {
+      }
     }
 
     void decrement_interface_sessions(ListenInterface* li)
@@ -182,7 +185,8 @@ namespace ccf
       size_t expected = li->open_sessions.load();
       while (expected > 0 &&
              !li->open_sessions.compare_exchange_weak(expected, expected - 1))
-      {}
+      {
+      }
     }
 
     // Build the protocol session for a connection on `li`, applying caps.

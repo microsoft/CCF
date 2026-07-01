@@ -22,6 +22,8 @@
 //     is harvested separately. This proves transport + threading +
 //     backpressure.
 
+#include "tcp/msg_types.h"
+
 #include <arpa/inet.h>
 #include <atomic>
 #include <cerrno>
@@ -43,11 +45,10 @@
 #include <optional>
 #include <stdexcept>
 #include <string>
-#include <system_error>
 #include <sys/epoll.h>
 #include <sys/eventfd.h>
 #include <sys/socket.h>
-#include "tcp/msg_types.h"
+#include <system_error>
 #include <thread>
 #include <unistd.h>
 #include <unordered_map>
@@ -544,8 +545,7 @@ namespace asynchost
           }
           const auto err = errno;
           logf(
-            "accept error: %s",
-            std::generic_category().message(err).c_str());
+            "accept error: %s", std::generic_category().message(err).c_str());
           break;
         }
 
