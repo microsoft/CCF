@@ -2,17 +2,19 @@
 // Licensed under the Apache 2.0 License.
 #include "ccf/threading/thread_ids.h"
 
+#include <atomic>
+
 namespace ccf::threading
 {
   namespace
   {
     std::atomic<ThreadID> next_thread_id = MAIN_THREAD_ID;
-  }
 
-  uint16_t& current_thread_id()
-  {
-    thread_local ThreadID this_thread_id = next_thread_id.fetch_add(1);
-    return this_thread_id;
+    ThreadID& current_thread_id()
+    {
+      thread_local ThreadID this_thread_id = next_thread_id.fetch_add(1);
+      return this_thread_id;
+    }
   }
 
   uint16_t get_current_thread_id()
