@@ -4,7 +4,8 @@
 
 // OpenSSL-native TLS/plaintext TCP server for RPC interfaces. OpenSSL owns the
 // socket fd directly, while a local epoll loop drives non-blocking handshake,
-// reads, writes, graceful close, outbound connects, and idle connection cleanup.
+// reads, writes, graceful close, outbound connects, and idle connection
+// cleanup.
 
 #include "tcp/msg_types.h"
 
