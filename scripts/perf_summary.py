@@ -6,6 +6,7 @@ import sys
 import json
 import argparse
 import math
+import re
 import statistics
 from typing import List, Optional, Tuple
 
@@ -21,6 +22,41 @@ CHART_MAX_POINTS = 30
 EWMA_ALPHA = 0.3
 DEFAULT_REPOSITORY = "microsoft/CCF"
 METADATA_KEY = "__metadata"
+MAX_AXIS_LABEL_LENGTH = 32
+SIG_MS_INTERVAL_RE = re.compile(r"\s*\(sig_ms_interval=([^)]+)\)")
+RADAR_CONFIG = {
+    "width": 620,
+    "height": 620,
+    "marginTop": 90,
+    "marginRight": 220,
+    "marginBottom": 120,
+    "marginLeft": 220,
+    "axisLabelFactor": 1.12,
+    "axisScaleFactor": 1.0,
+    "axisLabelFontSize": 13,
+    "legendFontSize": 13,
+    "curveTension": 0.08,
+}
+RADAR_THEME_CSS = (
+    ".radarCurve-0 { fill: #F59E0B !important; fill-opacity: 0.22 !important; "
+    "stroke: #F59E0B !important; stroke-opacity: 0.30 !important; stroke-width: 1px !important; }",
+    ".radarLegendBox-0 { fill: #F59E0B !important; fill-opacity: 0.22 !important; stroke: #F59E0B !important; }",
+    ".radarCurve-1 { fill: #FFFFFF !important; fill-opacity: 0.86 !important; "
+    "stroke: #FFFFFF !important; stroke-opacity: 0 !important; stroke-width: 0 !important; }",
+    ".radarLegendBox-1 { fill: #FFFFFF !important; fill-opacity: 0.86 !important; stroke: #FFFFFF !important; }",
+    ".radarCurve-2 { fill-opacity: 0 !important; stroke: #6B7280 !important; "
+    "stroke-width: 2px !important; stroke-dasharray: 6 5; }",
+    ".radarLegendBox-2 { fill-opacity: 0 !important; stroke: #6B7280 !important; }",
+    ".radarCurve-3 { fill-opacity: 0 !important; stroke: #2563EB !important; stroke-width: 3px !important; }",
+    ".radarLegendBox-3 { fill-opacity: 0 !important; stroke: #2563EB !important; }",
+    ".radarAxisLine { stroke: #9CA3AF !important; stroke-width: 1px !important; }",
+    ".radarGraticule { fill: #F9FAFB !important; fill-opacity: 0.65 !important; "
+    "stroke: #E5E7EB !important; stroke-width: 1px !important; }",
+    ".radarAxisLabel, .radarLegendText { fill: #374151 !important; color: #374151 !important; "
+    "font-family: Arial, sans-serif !important; font-size: 13px !important; }",
+    ".radarTitle { fill: #111827 !important; color: #111827 !important; "
+    "font-family: Arial, sans-serif !important; font-weight: 600; }",
+)
 
 PerfRun = Tuple[str, Optional[str], Optional[str], dict]
 
@@ -141,6 +177,14 @@ def mermaid_label(label: str) -> str:
     return json.dumps(label)
 
 
+def axis_label(benchmark: str) -> str:
+    """Shorten benchmark labels so Mermaid axes do not overlap or clip."""
+    label = SIG_MS_INTERVAL_RE.sub(r" \1", benchmark)
+    if len(label) <= MAX_AXIS_LABEL_LENGTH:
+        return label
+    return f"{label[:MAX_AXIS_LABEL_LENGTH - 3]}..."
+
+
 def normalized_percent(value: float, baseline: float) -> float:
     """Return value as a percentage of the baseline."""
     return (value / baseline) * 100
@@ -179,7 +223,7 @@ def render_mermaid_radar_chart(
             if len(chronological_values) > 1
             else 0
         )
-        axes.append(f"b{index}[{mermaid_label(benchmark)}]")
+        axes.append(f"b{index}[{mermaid_label(axis_label(benchmark))}]")
         latest_values.append(normalized_percent(latest_value, baseline))
         ewma_values.append(100.0)
         low_values.append(max(0.0, normalized_percent(baseline - sigma, baseline)))
@@ -197,33 +241,37 @@ def render_mermaid_radar_chart(
         f"title: {mermaid_label(f'{title} ({unit})')}",
         "config:",
         "  radar:",
-        "    width: 700",
-        "    height: 700",
-        "    axisLabelFactor: 1.18",
-        "    curveTension: 0.1",
+        *[f"    {key}: {value}" for key, value in RADAR_CONFIG.items()],
         "  theme: base",
+        "  themeCSS: |",
+        *[f"    {line}" for line in RADAR_THEME_CSS],
         "  themeVariables:",
-        '    cScale0: "#0057B8"',
-        '    cScale1: "#107C10"',
-        '    cScale2: "#D83B01"',
-        '    cScale3: "#D83B01"',
+        '    cScale0: "#F59E0B"',
+        '    cScale1: "#FFFFFF"',
+        '    cScale2: "#6B7280"',
+        '    cScale3: "#2563EB"',
         "    radar:",
+        '      axisColor: "#9CA3AF"',
+        '      graticuleColor: "#E5E7EB"',
+        "      graticuleOpacity: 0.65",
+        "      axisStrokeWidth: 1",
         "      curveOpacity: 0",
-        "      curveStrokeWidth: 1.5",
+        "      curveStrokeWidth: 2",
         "---",
         "radar-beta",
     ]
     lines.extend(f"  axis {axis}" for axis in axes)
     lines.extend(
         [
-            render_radar_curve("latest", latest_label, latest_values),
+            render_radar_curve("stddev_high", "EWMA + 1 std dev", high_values),
+            render_radar_curve("stddev_low", "EWMA - 1 std dev", low_values),
             render_radar_curve("ewma", "EWMA so far", ewma_values),
-            render_radar_curve("low", "EWMA - 1 std dev", low_values),
-            render_radar_curve("high", "EWMA + 1 std dev", high_values),
+            render_radar_curve("latest", latest_label, latest_values),
             "  graticule polygon",
             f"  max {chart_max}",
             "  min 0",
             "  ticks 0",
+            "  showLegend false",
             "```",
             "",
         ]
@@ -269,9 +317,20 @@ def render_metric_group(
 
     lines.append(
         "_Values are normalized per benchmark: 100 is the EWMA so far. "
-        "For throughput and rate, higher is better; for latency and memory, lower is better._"
+        "For throughput and rate, higher is better; for latency and memory, lower is better. "
+        "The amber band shows the EWMA +/- 1 std dev range._"
     )
     lines.append("")
+    latest_label = loaded[-1][0]
+    lines.extend(
+        [
+            (
+                f"Legend: latest run `{latest_label}` is blue, "
+                "EWMA so far is dashed gray, and EWMA +/- 1 std dev is the amber band."
+            ),
+            "",
+        ]
+    )
     lines.append(render_mermaid_radar_chart(loaded, benchmarks, metric, title, unit))
     return "\n".join(lines)
 
@@ -281,7 +340,7 @@ def render_perf_summary(loaded: List[PerfRun]) -> str:
     lines = [
         "# Performance summary",
         "",
-        "_Each chart compares the latest run with the EWMA so far and +/-1 std dev reference lines._",
+        "_Each chart compares the latest run with the EWMA so far and a shaded +/-1 std dev range._",
         "",
         render_runs_table(loaded),
     ]
