@@ -9,6 +9,7 @@
 
 #include "tcp/msg_types.h"
 
+#include <algorithm>
 #include <arpa/inet.h>
 #include <atomic>
 #include <cerrno>
@@ -746,19 +747,41 @@ namespace asynchost
         return;
       }
 
-      const int cfd =
-        socket(res->ai_family, SOCK_STREAM | SOCK_NONBLOCK, res->ai_protocol);
+      std::vector<addrinfo*> addresses;
+      for (auto* ai = res; ai != nullptr; ai = ai->ai_next)
+      {
+        addresses.push_back(ai);
+      }
+      // Prefer IPv4 when both IPv4 and IPv6 addresses are available. Some
+      // local test servers bind only IPv4 while localhost resolves to ::1
+      // first, and this async connect path cannot fall through after EINPROGRESS.
+      std::stable_sort(
+        addresses.begin(), addresses.end(), [](auto* a, auto* b) {
+          return a->ai_family == AF_INET && b->ai_family != AF_INET;
+        });
+
+      int cfd = -1;
+      for (auto* ai : addresses)
+      {
+        cfd = socket(
+          ai->ai_family, SOCK_STREAM | SOCK_NONBLOCK, ai->ai_protocol);
+        if (cfd < 0)
+        {
+          continue;
+        }
+
+        const int rc = ::connect(cfd, ai->ai_addr, ai->ai_addrlen);
+        if (rc == 0 || errno == EINPROGRESS)
+        {
+          break;
+        }
+
+        ::close(cfd);
+        cfd = -1;
+      }
+      freeaddrinfo(res);
       if (cfd < 0)
       {
-        freeaddrinfo(res);
-        fail();
-        return;
-      }
-      const int rc = ::connect(cfd, res->ai_addr, res->ai_addrlen);
-      freeaddrinfo(res);
-      if (rc != 0 && errno != EINPROGRESS)
-      {
-        ::close(cfd);
         fail();
         return;
       }
