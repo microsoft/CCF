@@ -45,74 +45,22 @@ jobs:
       - name: Build and run benchmarks
         run: |
           git config --global --add safe.directory /__w/CCF/CCF
-          mkdir build
-          cd build
-          cmake -GNinja -DWORKER_THREADS=2 ..
-          ninja
-          # Microbenchmarks
-          ./tests.sh -VV -L benchmark
-          # End to end performance tests
-          ./tests.sh -VV -L perf -C perf
-          # Convert microbenchmark output to bencher json
-          source env/bin/activate
-          PYTHONPATH=../tests python convert_pico_to_bencher.py
+          ./scripts/bench-ab.sh run --results-dir build/bench-ab
+
+      - name: Upload benchmark logs
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: benchmark-pr-logs-${{ github.run_id }}
+          path: build/bench-ab/logs/*.log
+          if-no-files-found: ignore
+          retention-days: 7
+        if: success() || failure()
 
       - name: Upload PR results
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: benchmark-pr-${{ github.run_id }}
-          path: build/bencher.json
-          retention-days: 7
-
-  benchmark_main:
-    name: Benchmark Main
-    runs-on:
-      [
-        self-hosted,
-        1ES.Pool=gha-vmss-d16av6-ci,
-        "JobId=bab_benchmark_main-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
-      ]
-    if: *check_trigger_conditions
-    container:
-      image: mcr.microsoft.com/azurelinux/base/core:3.0
-      options: --user root
-    steps:
-      - name: Setup container dependencies
-        run: |
-          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
-          tdnf -y update && tdnf -y install ca-certificates git
-
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          ref: main
-          fetch-depth: 0
-
-      - name: Install dependencies
-        run: ./scripts/setup-ci.sh
-
-      - name: Confirm platform
-        run: python3 tests/infra/platform_detection.py virtual
-
-      - name: Build and run benchmarks
-        run: |
-          git config --global --add safe.directory /__w/CCF/CCF
-          mkdir build
-          cd build
-          cmake -GNinja -DWORKER_THREADS=2 ..
-          ninja
-          # Microbenchmarks
-          ./tests.sh -VV -L benchmark
-          # End to end performance tests
-          ./tests.sh -VV -L perf -C perf
-          # Convert microbenchmark output to bencher json
-          source env/bin/activate
-          PYTHONPATH=../tests python convert_pico_to_bencher.py
-
-      - name: Upload main results
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: benchmark-main-${{ github.run_id }}
-          path: build/bencher.json
+          path: build/bench-ab/bencher-pr-*.json
           retention-days: 7
 
   compare:
@@ -126,35 +74,54 @@ jobs:
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root
-    needs: [benchmark_pr, benchmark_main]
+    needs: [benchmark_pr]
     if: *check_trigger_conditions
     steps:
       - name: Setup container dependencies
         run: |
           gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
-          tdnf -y update && tdnf -y install ca-certificates git
+          tdnf -y update && tdnf -y install ca-certificates git gh
 
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Download artifacts
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
-          pattern: benchmark-*-${{ github.run_id }}
-          merge-multiple: false
+          pattern: benchmark-pr-${{ github.run_id }}
+          path: benchmark-pr-${{ github.run_id }}
+          merge-multiple: true
+
+      - name: Restore main perf results
+        run: |
+          set -euo pipefail
+          mkdir -p perf
+          rm -f perf/*.json
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          run_ids=$(gh api "repos/${{ github.repository }}/actions/artifacts?name=perf-bench-virtual-main&per_page=100" \
+            --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0:10] | .[].workflow_run.id')
+          restored=false
+          for run_id in $run_ids; do
+            download_dir="prev_artifact/$run_id"
+            mkdir -p "$download_dir"
+            if gh run download "$run_id" --name "perf-bench-virtual-main" --dir "$download_dir"; then
+              if [[ -n "$(find "$download_dir" -name '*.json' -print -quit)" ]]; then
+                restored=true
+              fi
+            fi
+          done
+          if [[ "$restored" != "true" ]]; then
+            echo "No main perf artifacts restored"
+            exit 1
+          fi
+          find prev_artifact -name '*.json' -exec cp {} perf/ \;
+        env:
+          GH_TOKEN: ${{ github.token }}
 
       - name: Generate comparison
         run: |
-          echo "# Benchmark Comparison: main vs PR" > report.md
-          echo "" >> report.md
-          echo "**PR Commit:** \`${{ github.event.pull_request.head.sha }}\`" >> report.md
-          echo "**Base Commit:** \`${{ github.event.pull_request.base.sha }}\`" >> report.md
-          echo "**Run ID:** [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> report.md
-          echo "" >> report.md
-          echo '```' >> report.md
-          python3 scripts/compare_bencher_ab.py \
-            benchmark-main-${{ github.run_id }}/bencher.json \
-            benchmark-pr-${{ github.run_id }}/bencher.json \
-            --label1 "main" --label2 "PR" >> report.md
-          echo '```' >> report.md
-
-          cat report.md >> $GITHUB_STEP_SUMMARY
+          ./scripts/bench-ab.sh report \
+            --main-perf-dir perf \
+            --results-dir benchmark-pr-${{ github.run_id }} \
+            --label PR \
+            --output report.md \
+            --summary
