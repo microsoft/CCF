@@ -43,9 +43,11 @@
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <system_error>
 #include <sys/epoll.h>
 #include <sys/eventfd.h>
 #include <sys/socket.h>
+#include "tcp/msg_types.h"
 #include <thread>
 #include <unistd.h>
 #include <unordered_map>
@@ -62,12 +64,12 @@ namespace asynchost
     // (e.g. OrderedTasks) and later calls send()/close_connection() from that
     // thread - both are thread-safe and wake the loop.
     using OnData =
-      std::function<void(uint64_t conn_id, std::vector<uint8_t> data)>;
+      std::function<void(::tcp::ConnID conn_id, std::vector<uint8_t> data)>;
 
     // Invoked on the epoll thread when a connection is torn down (peer
     // disconnect, error, or close_connection()). Lets an owner drop per-
     // connection state.
-    using OnClose = std::function<void(uint64_t conn_id)>;
+    using OnClose = std::function<void(::tcp::ConnID conn_id)>;
 
     // Configures an outbound client SSL/SSL_CTX (peer CA verification, the
     // client certificate to present, SNI). Supplied per-connect so each client
@@ -81,7 +83,7 @@ namespace asynchost
     {
       int fd = -1;
       SSL* ssl = nullptr;
-      uint64_t id = 0;
+      ::tcp::ConnID id = 0;
       enum State : uint8_t
       {
         Handshaking,
@@ -121,12 +123,12 @@ namespace asynchost
     bool verbose = false;
 
     std::unordered_map<int, std::unique_ptr<Conn>> conns;
-    std::unordered_map<uint64_t, int> id_to_fd;
-    uint64_t next_id = 1;
+    std::unordered_map<::tcp::ConnID, int> id_to_fd;
+    ::tcp::ConnID next_id = 1;
     // Optional shared id source so multiple servers (one per interface)
     // allocate connection ids from a single global space - required for a
     // global session registry and reply routing.
-    std::atomic<uint64_t>* shared_next_id = nullptr;
+    std::atomic<::tcp::ConnID>* shared_next_id = nullptr;
 
     // Close a connection after this much inactivity (no I/O); nullopt disables
     // idle closure. The loop wakes every idle_sweep_interval_ms to check.
@@ -139,7 +141,7 @@ namespace asynchost
     // any thread and wake the loop, which drains it on the epoll thread.
     struct OutItem
     {
-      uint64_t id = 0;
+      ::tcp::ConnID id = 0;
       std::vector<uint8_t> data;
       bool close = false;
     };
@@ -149,7 +151,7 @@ namespace asynchost
     // Cross-thread outbound connect requests (for client sessions).
     struct ConnectReq
     {
-      int64_t id = 0;
+      ::tcp::ConnID id = 0;
       std::string host;
       std::string port;
       ConfigureClientSSL configure;
@@ -171,8 +173,8 @@ namespace asynchost
       }
       va_list args; // NOLINT
       va_start(args, fmt);
-      std::vfprintf(stderr, fmt, args);
-      std::fputc('\n', stderr);
+      (void)std::vfprintf(stderr, fmt, args);
+      (void)std::fputc('\n', stderr);
       va_end(args);
     }
 
@@ -240,7 +242,11 @@ namespace asynchost
       {
         return nullptr;
       }
-      SSL_CTX_set_min_proto_version(c, TLS1_2_VERSION);
+      if (SSL_CTX_set_min_proto_version(c, TLS1_2_VERSION) != 1)
+      {
+        SSL_CTX_free(c);
+        return nullptr;
+      }
       // Request the client certificate during the handshake so it can be used
       // for application-level caller authentication (user/member cert auth).
       // Verification is not enforced here - the application decides.
@@ -263,7 +269,13 @@ namespace asynchost
       epoll_event ev{};
       ev.data.fd = c.fd;
       ev.events = EPOLLIN | (c.want_write ? EPOLLOUT : 0);
-      epoll_ctl(epoll_fd, EPOLL_CTL_MOD, c.fd, &ev);
+      if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, c.fd, &ev) != 0)
+      {
+        const auto err = errno;
+        logf(
+          "epoll_ctl MOD error: %s",
+          std::generic_category().message(err).c_str());
+      }
     }
 
     // After writing, tear the connection down if a graceful close was requested
@@ -530,7 +542,10 @@ namespace asynchost
           {
             continue;
           }
-          logf("accept error: %s", std::strerror(errno));
+          const auto err = errno;
+          logf(
+            "accept error: %s",
+            std::generic_category().message(err).c_str());
           break;
         }
 
@@ -585,7 +600,7 @@ namespace asynchost
           ::close(cfd);
           continue;
         }
-        const uint64_t cid = c->id;
+        const auto cid = c->id;
         conns.emplace(cfd, std::move(c));
         id_to_fd.emplace(cid, cfd);
         logf("accepted conn on fd %d", cfd);
@@ -723,7 +738,7 @@ namespace asynchost
     // Open an outbound client connection for `id` (loop thread). TLS client
     // handshake is driven by the normal epoll state machine (is_client).
     void do_connect(
-      int64_t id,
+      ::tcp::ConnID id,
       const std::string& host,
       const std::string& port,
       const ConfigureClientSSL& configure)
@@ -731,7 +746,7 @@ namespace asynchost
       auto fail = [&]() {
         if (on_close)
         {
-          on_close(static_cast<uint64_t>(id));
+          on_close(id);
         }
       };
 
@@ -772,7 +787,13 @@ namespace asynchost
         fail();
         return;
       }
-      SSL_CTX_set_min_proto_version(cctx, TLS1_2_VERSION);
+      if (SSL_CTX_set_min_proto_version(cctx, TLS1_2_VERSION) != 1)
+      {
+        SSL_CTX_free(cctx);
+        ::close(cfd);
+        fail();
+        return;
+      }
 
       SSL* ssl = SSL_new(cctx);
       if (ssl == nullptr)
@@ -823,7 +844,7 @@ namespace asynchost
       auto c = std::make_unique<Conn>();
       c->fd = cfd;
       c->ssl = ssl;
-      c->id = static_cast<uint64_t>(id);
+      c->id = id;
       c->is_client = true;
 
       epoll_event ev{};
@@ -880,7 +901,10 @@ namespace asynchost
           {
             continue;
           }
-          logf("epoll_wait error: %s", std::strerror(errno));
+          const auto err = errno;
+          logf(
+            "epoll_wait error: %s",
+            std::generic_category().message(err).c_str());
           break;
         }
 
@@ -936,7 +960,7 @@ namespace asynchost
       const std::string& alpn = "",
       bool plaintext_ = false,
       bool verbose_ = false,
-      std::atomic<uint64_t>* shared_next_id_ = nullptr,
+      std::atomic<::tcp::ConnID>* shared_next_id_ = nullptr,
       std::optional<std::chrono::milliseconds> idle_timeout_ = std::nullopt) :
       plaintext(plaintext_),
       on_data(std::move(on_data_)),
@@ -987,10 +1011,24 @@ namespace asynchost
         {
           continue;
         }
-        setsockopt(listen_fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
+        if (
+          setsockopt(listen_fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one)) !=
+          0)
+        {
+          ::close(listen_fd);
+          listen_fd = -1;
+          continue;
+        }
         // SO_REUSEPORT is the idiom that will let each worker run its own
         // listening socket + epoll loop in the production design.
-        setsockopt(listen_fd, SOL_SOCKET, SO_REUSEPORT, &one, sizeof(one));
+        if (
+          setsockopt(listen_fd, SOL_SOCKET, SO_REUSEPORT, &one, sizeof(one)) !=
+          0)
+        {
+          ::close(listen_fd);
+          listen_fd = -1;
+          continue;
+        }
         if (bind(listen_fd, ai->ai_addr, ai->ai_addrlen) == 0)
         {
           bound_ok = true;
@@ -1055,11 +1093,23 @@ namespace asynchost
       epoll_event ev{};
       ev.data.fd = listen_fd;
       ev.events = EPOLLIN;
-      epoll_ctl(epoll_fd, EPOLL_CTL_ADD, listen_fd, &ev);
+      if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, listen_fd, &ev) != 0)
+      {
+        cleanup();
+        throw std::runtime_error("epoll_ctl(listen) failed");
+      }
       ev.data.fd = stop_fd;
-      epoll_ctl(epoll_fd, EPOLL_CTL_ADD, stop_fd, &ev);
+      if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, stop_fd, &ev) != 0)
+      {
+        cleanup();
+        throw std::runtime_error("epoll_ctl(stop) failed");
+      }
       ev.data.fd = wake_fd;
-      epoll_ctl(epoll_fd, EPOLL_CTL_ADD, wake_fd, &ev);
+      if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, wake_fd, &ev) != 0)
+      {
+        cleanup();
+        throw std::runtime_error("epoll_ctl(wake) failed");
+      }
     }
 
     OpenSSLServer(const OpenSSLServer&) = delete;
@@ -1106,7 +1156,7 @@ namespace asynchost
     }
 
     // Thread-safe. Queue plaintext to be encrypted and written to `conn_id`.
-    void send(uint64_t conn_id, const uint8_t* data, size_t len)
+    void send(::tcp::ConnID conn_id, const uint8_t* data, size_t len)
     {
       {
         std::lock_guard<std::mutex> g(out_mutex);
@@ -1117,7 +1167,7 @@ namespace asynchost
     }
 
     // Thread-safe. Request that `conn_id` be torn down.
-    void close_connection(uint64_t conn_id)
+    void close_connection(::tcp::ConnID conn_id)
     {
       {
         std::lock_guard<std::mutex> g(out_mutex);
@@ -1130,7 +1180,7 @@ namespace asynchost
     // `configure` sets up peer verification / client certificate on the new
     // connection (see ConfigureClientSSL).
     void connect(
-      int64_t id,
+      ::tcp::ConnID id,
       const std::string& host,
       const std::string& port,
       ConfigureClientSSL configure = {})
@@ -1157,7 +1207,7 @@ namespace asynchost
 
     // Peer certificate (DER) for `conn_id`, or empty. MUST be called on the
     // loop thread (e.g. synchronously from within the OnData callback).
-    std::vector<uint8_t> get_peer_cert(uint64_t conn_id)
+    std::vector<uint8_t> get_peer_cert(::tcp::ConnID conn_id)
     {
       auto fit = id_to_fd.find(conn_id);
       if (fit == id_to_fd.end())
