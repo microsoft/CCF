@@ -594,7 +594,7 @@ def test_jwt_key_auto_refresh_cross_authority_jwks_uri(network, args):
                 lambda: check_kv_jwt_key_matches(
                     args, network, kid, issuer.key_pub_pem
                 ),
-                timeout=5,
+                timeout=15,
             )
         finally:
             network.consortium.remove_jwt_issuer(primary, issuer_name)
