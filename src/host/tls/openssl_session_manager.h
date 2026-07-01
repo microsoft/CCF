@@ -60,9 +60,8 @@ namespace asynchost
     std::mutex sessions_mutex;
     std::unordered_map<::tcp::ConnID, std::shared_ptr<ccf::Session>> sessions;
 
-    void on_data(uint64_t id, std::vector<uint8_t> data)
+    void on_data(::tcp::ConnID conn_id, std::vector<uint8_t> data)
     {
-      const auto conn_id = static_cast<::tcp::ConnID>(id);
       std::shared_ptr<ccf::Session> session;
       {
         std::lock_guard<std::mutex> guard(sessions_mutex);
@@ -72,13 +71,13 @@ namespace asynchost
           // Lazily create the session for a newly accepted connection. The
           // peer certificate is fetched here (on the loop thread) from the
           // handshaken connection.
-          auto peer_cert = server->get_peer_cert(id);
+          auto peer_cert = server->get_peer_cert(conn_id);
           session = factory(conn_id, *this, std::move(peer_cert));
           if (session == nullptr)
           {
             // Factory refused (e.g. hard session cap) - tear the connection
             // down.
-            server->close_connection(id);
+            server->close_connection(conn_id);
             return;
           }
           sessions.emplace(conn_id, session);
@@ -95,9 +94,8 @@ namespace asynchost
       }
     }
 
-    void on_close(uint64_t id)
+    void on_close(::tcp::ConnID conn_id)
     {
-      const auto conn_id = static_cast<::tcp::ConnID>(id);
       bool had_session = false;
       {
         std::lock_guard<std::mutex> guard(sessions_mutex);
@@ -119,7 +117,7 @@ namespace asynchost
       const std::string& alpn = "",
       bool plaintext = false,
       bool verbose = false,
-      std::atomic<uint64_t>* shared_next_id = nullptr,
+      std::atomic<::tcp::ConnID>* shared_next_id = nullptr,
       std::function<void(::tcp::ConnID)> on_session_closed_ = {},
       std::optional<std::chrono::milliseconds> idle_timeout = std::nullopt) :
       factory(std::move(factory_)),
@@ -130,10 +128,10 @@ namespace asynchost
         key_pem,
         host,
         port,
-        [this](uint64_t id, std::vector<uint8_t> data) {
+        [this](::tcp::ConnID id, std::vector<uint8_t> data) {
           on_data(id, std::move(data));
         },
-        [this](uint64_t id) { on_close(id); },
+        [this](::tcp::ConnID id) { on_close(id); },
         alpn,
         plaintext,
         verbose,
@@ -174,8 +172,7 @@ namespace asynchost
       const std::string& service,
       OpenSSLServer::ConfigureClientSSL configure = {})
     {
-      server->connect(
-        static_cast<int64_t>(id), host, service, std::move(configure));
+      server->connect(id, host, service, std::move(configure));
     }
 
     void start()
@@ -200,7 +197,7 @@ namespace asynchost
       std::span<const uint8_t> data,
       sockaddr /*addr*/ = {}) override
     {
-      server->send(static_cast<uint64_t>(id), data.data(), data.size());
+      server->send(id, data.data(), data.size());
     }
 
     void close_socket(::tcp::ConnID id) override
@@ -214,7 +211,7 @@ namespace asynchost
       {
         on_session_closed(id);
       }
-      server->close_connection(static_cast<uint64_t>(id));
+      server->close_connection(id);
     }
   };
 }

@@ -129,7 +129,7 @@ namespace ccf
 
     // Global connection-id source shared by all interface transports, so the
     // session registry / reply routing have a single id space.
-    std::atomic<uint64_t> shared_conn_id{1};
+    std::atomic<::tcp::ConnID> shared_conn_id{1};
     std::atomic<size_t> active_sessions{0};
     std::atomic<size_t> peak_sessions{0};
     // Outbound client sessions use the negative range, matching the historical
@@ -147,9 +147,9 @@ namespace ccf
 
     static std::string peer_key(const sockaddr_storage& peer, socklen_t peerlen)
     {
-      return std::string(
+      return {
         reinterpret_cast<const char*>(&peer),
-        std::min<size_t>(peerlen, sizeof(peer)));
+        std::min<size_t>(peerlen, sizeof(peer))};
     }
 
     void increment_active_sessions()
@@ -169,6 +169,22 @@ namespace ccf
       {}
     }
 
+    void increment_interface_peak(ListenInterface* li, size_t now_open)
+    {
+      size_t prev_peak = li->peak_sessions.load();
+      while (now_open > prev_peak &&
+             !li->peak_sessions.compare_exchange_weak(prev_peak, now_open))
+      {}
+    }
+
+    void decrement_interface_sessions(ListenInterface* li)
+    {
+      size_t expected = li->open_sessions.load();
+      while (expected > 0 &&
+             !li->open_sessions.compare_exchange_weak(expected, expected - 1))
+      {}
+    }
+
     // Build the protocol session for a connection on `li`, applying caps.
     // Returns nullptr to refuse (hard cap). Runs on the interface's loop
     // thread.
@@ -178,9 +194,10 @@ namespace ccf
       ccf::SessionWriter& writer,
       std::vector<uint8_t> peer_cert)
     {
-      const size_t open = li->open_sessions.load();
+      const size_t open = li->open_sessions.fetch_add(1);
       if (open >= li->max_open_sessions_hard)
       {
+        decrement_interface_sessions(li);
         LOG_INFO_FMT(
           "Refusing session {} on interface {} - {} open, hard limit {}",
           conn_id,
@@ -190,13 +207,9 @@ namespace ccf
         return nullptr;
       }
 
-      const size_t now_open = ++li->open_sessions;
-      size_t prev_peak = li->peak_sessions.load();
-      while (now_open > prev_peak &&
-             !li->peak_sessions.compare_exchange_weak(prev_peak, now_open))
-      {
-      }
-          increment_active_sessions();
+      const size_t now_open = open + 1;
+      increment_interface_peak(li, now_open);
+      increment_active_sessions();
 
       if (open >= li->max_open_sessions_soft)
       {
@@ -210,7 +223,16 @@ namespace ccf
         return make_capped_session(li, conn_id, writer, std::move(peer_cert));
       }
 
-      return make_server_session(li, conn_id, writer, std::move(peer_cert));
+      try
+      {
+        return make_server_session(li, conn_id, writer, std::move(peer_cert));
+      }
+      catch (...)
+      {
+        decrement_interface_sessions(li);
+        decrement_active_sessions();
+        throw;
+      }
     }
 
     std::shared_ptr<ccf::Session> make_server_session(
@@ -314,7 +336,10 @@ namespace ccf
       sockaddr_storage peer{};
       std::memcpy(&peer, key.data(), std::min(key.size(), sizeof(peer)));
 
-      it->second->server->send_to(peer, peerlen, data.data(), data.size());
+      if (!it->second->server->send_to(peer, peerlen, data.data(), data.size()))
+      {
+        LOG_DEBUG_FMT("Failed to send UDP reply on interface {}", name);
+      }
     }
 
     void close_udp_session(
@@ -335,12 +360,8 @@ namespace ccf
 
       it->second->sessions_by_peer.erase(kit->second);
       it->second->peer_by_id.erase(kit);
-      size_t expected = li->open_sessions.load();
-      while (expected > 0 &&
-             !li->open_sessions.compare_exchange_weak(expected, expected - 1))
-      {
-      }
-          decrement_active_sessions();
+      decrement_interface_sessions(li);
+      decrement_active_sessions();
     }
 
     std::shared_ptr<ccf::Session> get_or_create_udp_session(
@@ -366,9 +387,10 @@ namespace ccf
         return nullptr;
       }
 
-      const size_t open = li->open_sessions.load();
+      const size_t open = li->open_sessions.fetch_add(1);
       if (open >= li->max_open_sessions_hard)
       {
+        decrement_interface_sessions(li);
         LOG_INFO_FMT(
           "Refusing UDP session on interface {} - {} open, hard limit {}",
           li->name,
@@ -376,6 +398,9 @@ namespace ccf
           li->max_open_sessions_hard);
         return nullptr;
       }
+      const size_t now_open = open + 1;
+      increment_interface_peak(li, now_open);
+      increment_active_sessions();
 
       const auto conn_id =
         static_cast<::tcp::ConnID>(shared_conn_id.fetch_add(1));
@@ -386,22 +411,25 @@ namespace ccf
       }
       else
       {
-        session = custom_protocol_subsystem->create_session(
-          li->app_protocol, conn_id, writer);
+        try
+        {
+          session = custom_protocol_subsystem->create_session(
+            li->app_protocol, conn_id, writer);
+        }
+        catch (...)
+        {
+          decrement_interface_sessions(li);
+          decrement_active_sessions();
+          throw;
+        }
       }
 
       if (session == nullptr)
       {
+        decrement_interface_sessions(li);
+        decrement_active_sessions();
         return nullptr;
       }
-
-      const size_t now_open = ++li->open_sessions;
-      size_t prev_peak = li->peak_sessions.load();
-      while (now_open > prev_peak &&
-             !li->peak_sessions.compare_exchange_weak(prev_peak, now_open))
-      {
-      }
-          increment_active_sessions();
 
       udp->peer_by_id.emplace(conn_id, key);
       udp->sessions_by_peer.emplace(key, session);
@@ -473,14 +501,10 @@ namespace ccf
         };
       auto on_closed = [this, li](::tcp::ConnID) {
         decrement_active_sessions();
-        size_t expected = li->open_sessions.load();
-        while (expected > 0 &&
-               !li->open_sessions.compare_exchange_weak(expected, expected - 1))
-        {
-        }
+        decrement_interface_sessions(li);
       };
 
-      const uint16_t port_num = static_cast<uint16_t>(std::stoi(port));
+      const auto port_num = static_cast<uint16_t>(std::stoi(port));
       li->bridge = std::make_unique<asynchost::OpenSSLSessionManager>(
         cert_pem,
         key_pem,
@@ -660,7 +684,7 @@ namespace ccf
       std::lock_guard<std::mutex> guard(interfaces_mutex);
       for (auto& [name, li] : interfaces)
       {
-        ccf::SessionMetrics::Errors errs;
+        ccf::SessionMetrics::Errors errs{};
         errs.parsing = li->err_parsing.load();
         errs.request_payload_too_large = li->err_payload_too_large.load();
         errs.request_header_too_large = li->err_header_too_large.load();

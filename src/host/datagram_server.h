@@ -183,8 +183,18 @@ namespace asynchost
         {
           continue;
         }
-        setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
-        setsockopt(sock, SOL_SOCKET, SO_REUSEPORT, &one, sizeof(one));
+        if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one)) != 0)
+        {
+          ::close(sock);
+          sock = -1;
+          continue;
+        }
+        if (setsockopt(sock, SOL_SOCKET, SO_REUSEPORT, &one, sizeof(one)) != 0)
+        {
+          ::close(sock);
+          sock = -1;
+          continue;
+        }
         if (::bind(sock, ai->ai_addr, ai->ai_addrlen) == 0)
         {
           bound = true;
@@ -231,9 +241,17 @@ namespace asynchost
       epoll_event ev{};
       ev.events = EPOLLIN;
       ev.data.fd = sock;
-      epoll_ctl(epoll_fd, EPOLL_CTL_ADD, sock, &ev);
+      if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, sock, &ev) != 0)
+      {
+        cleanup();
+        throw std::runtime_error("epoll_ctl(sock udp) failed");
+      }
       ev.data.fd = stop_fd;
-      epoll_ctl(epoll_fd, EPOLL_CTL_ADD, stop_fd, &ev);
+      if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, stop_fd, &ev) != 0)
+      {
+        cleanup();
+        throw std::runtime_error("epoll_ctl(stop udp) failed");
+      }
     }
 
     DatagramServer(const DatagramServer&) = delete;
@@ -274,19 +292,20 @@ namespace asynchost
       }
     }
 
-    uint16_t port() const
+    [[nodiscard]] uint16_t port() const
     {
       return bound_port;
     }
 
-    void send_to(
+    [[nodiscard]] bool send_to(
       const sockaddr_storage& peer,
       socklen_t peerlen,
       const uint8_t* data,
-      size_t len)
+      size_t len) const
     {
-      ::sendto(
+      const auto rc = ::sendto(
         sock, data, len, 0, reinterpret_cast<const sockaddr*>(&peer), peerlen);
+      return rc >= 0;
     }
 
   private:
