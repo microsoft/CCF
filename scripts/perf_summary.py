@@ -32,8 +32,6 @@ RADAR_CONFIG = {
     "marginBottom": 120,
     "marginLeft": 220,
     "axisLabelFactor": 1.12,
-    "axisScaleFactor": 1.0,
-    "axisLabelFontSize": 13,
     "curveTension": 0.08,
 }
 RADAR_THEME_CSS = (
@@ -238,7 +236,6 @@ def render_mermaid_radar_chart(
         "      graticuleOpacity: 0.65",
         "      axisStrokeWidth: 1",
         "      curveOpacity: 0",
-        "      curveStrokeWidth: 2",
         "---",
         "radar-beta",
     ]
@@ -250,7 +247,6 @@ def render_mermaid_radar_chart(
             render_radar_curve("latest", latest_label, latest_values),
             "  graticule polygon",
             f"  max {chart_max}",
-            "  min 0",
             "  ticks 0",
             "  showLegend false",
             "```",
