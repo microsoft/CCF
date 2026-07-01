@@ -1,4 +1,6 @@
 # Repro: partially matching append-entries #7999
+# The aim is to deliver an AppendEntries which is rooted in a backup's prefix, but which 
+# otherwise match no-conflict.
 #
 # Construction (no reconfiguration):
 #   common prefix [1..4]@t2 ; node 2 holds a divergent suffix [5,6]@t3 ; node 1 leads t4
