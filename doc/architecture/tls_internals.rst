@@ -4,18 +4,16 @@ TLS Internals
 Overview
 ~~~~~~~~
 
-In CCF, the :term:`TLS` layer is implemented using OpenSSL 3.3. However, the original implementation was using OE's MbedTLS library, which the current implementation replaced. During the transition period, the OpenSSL implementation had to emulate the previous MbedTLS one and the remaining code isn't particularly suited to OpenSSL.
-
-This document is an attempt to describe how that works, to faciliate further changes.
+In CCF, the :term:`TLS` layer is implemented using OpenSSL 3.3.
 
 Enclave Connections
 ~~~~~~~~~~~~~~~~~~~
 
 CCF handles RPC requests by managing a collection of HTTPS sessions on each node. The HTTP session receives raw TCP bytes from the :term:`ring buffer` and passes it to the TLS implementation that tries to decrypt on read (after a successful handshake).
 
-If there isn't enough information to decrypt on read, the TLS layer responds with a 'WANTS_READ' message, meaning more packets are needed to complete the message, so the endpoint tried to get more data from the ring buffer.
+If there isn't enough information to decrypt on read, the TLS layer responds with a 'WANT_READ' status, meaning more packets are needed to complete the message, so the endpoint tries to get more data from the ring buffer.
 
-Once all incoming data is decrypted, the HTTP session parses the plain text data and passes the parsed request to the application, which process it and produces a plain text response. The session then serialises this response, encrypts it through the TLS layer, and writes the encrypted data to the :term:`ring buffer` to be sent to the original caller.
+Once all incoming data is decrypted, the HTTP session parses the plain text data and passes the parsed request to the application, which processes it and produces a plain text response. The session then serialises this response, encrypts it through the TLS layer, and writes the encrypted data to the :term:`ring buffer` to be sent to the original caller.
 
 TLS Implementation
 ~~~~~~~~~~~~~~~~~~
@@ -28,31 +26,42 @@ The TLS implementation in 'src/tls' has three main components:
 
 Both CA and Cert have internal logic to validate their certificates and private keys, and the Context has logic to complete a TLS handshake, read and write using encryption and to query the peer's certificate.
 
-The next layer up is the 'TLSSession' (of which 'HTTPSession' owns an instance) that holds the ring buffer, the pending read and write buffers, and the call backs for sending and receiving data.
+The next layer up is the 'TLSSession' (of which 'HTTPSession' owns an instance) that holds the ring buffer, the pending read and write buffers, and drives the I/O between the ring buffer and the Context.
+
+BIOs
+~~~~
+
+The 'Context' uses a pair of in-memory ``BIO`` objects to exchange encrypted bytes with the peer. The TLS layer reads ciphertext from the 'read' BIO and writes ciphertext to the 'write' BIO.
+
+The 'TLSSession' drives this I/O directly, without callbacks:
+
+- On receive, it writes the bytes that arrived from the ring buffer into the read BIO (``Context::recv``) before asking the TLS layer to decrypt them.
+- After every TLS operation, it drains any ciphertext the TLS layer produced from the write BIO (``Context::send``) and forwards it to the ring buffer (via ``RINGBUFFER_TRY_WRITE_MESSAGE(tcp_outbound, ...)``). If the ring buffer is full, the bytes are retained and retried on the next operation.
 
 Receiving Messages
 ~~~~~~~~~~~~~~~~~~
 
-When a REST node message is received through the ring buffer, the 'HTTPSession' ``recv_()`` method is called (as it was registered as a callback). That calls ``TLSSession::read()`` which in turn calls ``tls::Context::read()``.
+When a node message is received through the ring buffer, the 'HTTPSession' ``recv_()`` method is called (as it was registered as a callback). That hands the bytes to ``TLSSession::recv_buffered()``, which writes them into the Context's read BIO, and then to ``TLSSession::read()`` which calls ``ccf::tls::Context::read()``.
 
-However, when creating the TLS 'Context', the 'TLSSession' had to register some callbacks of its own, too. This is one of the parts that was specific to MbedTLS and that was (unnaturally) replicated to OpenSSL.
+``Context::read()`` calls ``SSL_read_ex``, which reads the (still encrypted) bytes from the read BIO and tries to decrypt them. On success it returns the plain text and a status of ``0``. If there isn't enough data, it returns ``SSL_ERROR_WANT_READ`` so the endpoint can try to extract more information from the ring buffer.
 
-Those callbacks are implemented in 'TLSSession' because they need access to the ``pending_read`` buffers to read from and the 'ring buffer' to write to.  But the TLS context ('SSL' and 'SSL_CTX' objects) need to encrypt/decrypt data, and they can only do that from 'BIO's in OpenSSL, so the callback has a mix of ring buffer and BIO handling that tricks both sides to take the appropriate steps at the right time in this complex dance.
-
-In the 'read' case, the message has arrived into the ``pending_read`` buffer via a (previously triggered) ring buffer callback, and that data is written to TLS's 'read' BIO (via ``BIO_write_ex``) `before` TLS itself reads it.  That data is still encrypted, so when the TLS reads it with ``SSL_read_ex``, it tries to decrypt and on success, returns a plain text buffer. On error, it emits the error or a 'WANTS_READ' status, so the endpoint can try to extract more information from the ``pending_read`` buffer again.
-
-Upon success, the read BIO is flushed and new data can be read again. The plain text result is returned all the way back to ``HTTPSession::recv_()`` that then sends it to the application to process.
+The plain text result is returned all the way back to ``HTTPSession::recv_()`` that then sends it to the application to process.
 
 Sending Messages
 ~~~~~~~~~~~~~~~~
 
-When the application finishes, it returns a plain text response. That message is sent back to the client via the ``send()`` call. This in turn calls ``TLSSession::send_raw()`` that via a series of asynchronous dispatches ends up filling the ``pending_write`` buffer and calling ``write_some()`` which itself calls ``tls::Context::write()``.
+When the application finishes, it returns a plain text response. That message is sent back to the client via the ``send()`` call, which ends up filling the ``pending_write`` buffer and calling ``flush()`` which itself calls ``ccf::tls::Context::write()``.
 
-This is the same process as for reads: a callback in 'TLSSession' was registered for the 'write' BIO, with access to the ``pending_write`` and the ring buffer. But in this case, the callback is only executed `after` the TLS layer has encrypted the data and written to the 'write' BIO.
+``Context::write()`` calls ``SSL_write_ex`` which encrypts the data into the write BIO. The 'TLSSession' then drains the write BIO and sends the encrypted bytes through the ring buffer.
 
-Now, we take that (encrypted) data, flush the BIO ourselves (to avoid clogging the pipes with the next message) and send it through the ring buffer with the ``RINGBUFFER_TRY_WRITE_MESSAGE(tls_outbound,...)`` macro.
+Different errors are treated at different levels (TLS status codes in Context, ring buffer errors in TLSSession and HTTP errors in HTTPSession).
 
-This is what actually sends the message back to the client, so when this callback returns, the remaining stack just returns the status of that write.  Different errors are treated at different levels (TLS errors in Context, ring buffer errors in TLSSession and HTTP errors in HTTPSession).
+Reads and Writes
+~~~~~~~~~~~~~~~~
+
+``Context::handshake``, ``Context::read`` and ``Context::write`` return ``0`` on success and an OpenSSL ``SSL_ERROR_*`` status code otherwise (obtained from ``SSL_get_error``). The number of bytes read or written is returned separately through an output parameter, so the return value is never overloaded to mean both a byte count and an error.
+
+The caller (``TLSSession``) inspects the status code to decide whether to wait for more data (``SSL_ERROR_WANT_READ`` / ``SSL_ERROR_WANT_WRITE``), close the connection (``SSL_ERROR_ZERO_RETURN``), or treat it as an error. A certificate verification failure during the handshake is surfaced as a distinct status so it can be treated as an authentication failure.
 
 Why OpenSSL?
 ~~~~~~~~~~~~
@@ -62,48 +71,3 @@ The main reasons why we moved to OpenSSL are:
 - We already use OpenSSL for our crypto library ('src/crypto').
 - We wanted TLS 1.3 support and MbedTLS doesn't have it.
 - We wanted to support QUIC, which doesn't work with MbedTLS.
-
-By now we have removed any traces of MbedTLS, but we are still using a version of OpenSSL which doesn't have QUIC support.
-
-MbedTLS vs OpenSSL
-~~~~~~~~~~~~~~~~~~
-
-As stated above, the current OpenSSL implementation is `emulating` the previous MbedTLS one, so some oddities are observed.
-
-First, MbedTLS returns errors as negative values and amount of data handled as positive values. OpenSSL concurs on positive values but returns 0 (or -1 in previous versions) for all errors, using ``SSL_get_error`` to then classify which error and what to do. The error values are also positive.
-
-To simulate this, we implement the error handling at each invocation and, on error, we negate the value of the error so that we can retain the old behavior of checking for negative values.
-
-Second, MbedTLS keeps all its context (configuration, connection info, read and write buffers) in a single large structure, while OpenSSL has separate structures for each and uses 'BIO' objects for buffers. Reads and writes in MbedTLS is done exclusively via callbacks.
-
-OpenSSL callbacks, however, are very different from MbedTLS ones. They are called twice for each action, one before the actual action and another after.
-
-To simulate this we had to implement a read callback `before` the BIO read (so we could fill it up with the contents of the ring buffer) and the write callback `after` the BIO write (so we could pick up its contents and send it into the ring buffer).
-
-There is a complex dance of return values in OpenSSL's callbacks. If any returns errors the action is canceled immediately. On reads, because the BIO was empty, the initial return value is an error, so we must make sure that, if there is anything in the ``pending_read`` buffer, we have to change the status to the amount of bytes read, so it can continue.
-
-Third, the handshake in MbedTLS had various types of errors, which we had to emulate by making the appropriate ``SSL_*`` calls, check the peer certificate, etc. to get the same types of responses for the same situations.
-
-Finally, in MbedTLS, the configuration and session objects were setup at the same time, while in OpenSSL they're separate. We ended up duplicating every single configuration, but this is unnecessary, because once the config object is correct, any session object created from it has the same properties.
-
-But the TLS Context doesn't handle more than one session per configuration, so we could set either of them once and ignore the other. The simplest thing would be to setup just the session, but if we end up having more than one session later, we'd have to refactor that.
-
-Pure OpenSSL Implementation
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-With MbedTLS gone from the code base, we can now think of a pure OpenSSL implementation.
-
-The considerations are:
-
-- We don't need to handle errors inside the calls to read/write, but can leave for each caller to handle IFF there is an error by calling ``SSL_get_error``.  This also means we don't need to negate error values, as they're in different domains.
-- We can simplify the SSL configuration on startup, handshake handling and peer certificate handling.
-
-However, getting rid of the callbacks and using BIOs directly is going to be hard.
-
-First, the current callback is in 'TLSSession' because it has access to both pending buffers and the ring buffer. The TLS Context does not have access to it nor it would be wise to pass references to it, as that'd make the Context exclusive to the TLSSession.
-
-Second, both endpoint and TLS have a need to read and write asynchronously. Data arrives from the ring buffer at any time and the TLS implementation can request reads and writes (for example, during handshake) that the endpoint didn't request itself.
-
-So if ``SSL_handshake``, ``SSL_read_ex`` and ``SSL_write_ex`` don't have direct access to read and write from the ring buffers without direct requests from the endpoints, it won't be able to conclude the asynchronous handshake and start the connection.
-
-One possible way out of it is to create a `BIO pair <https://www.openssl.org/docs/man1.1.1/man3/BIO_s_bio.html>`_ for each read/write action between the 'TLSSession' and the TLS 'Context', driven by two asynchronous tasks in 'TLSSession' that just poll the BIOs and buffers and pass data across. This removes a callback, but introduces polling, which is not an actual improvement.

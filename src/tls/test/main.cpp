@@ -13,203 +13,73 @@
 #include <chrono>
 #include <exception>
 #include <openssl/err.h>
+#include <openssl/ssl.h>
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
 #include <iostream>
 #include <memory>
 #include <string>
-#include <sys/socket.h>
-#include <thread>
 
 using namespace std;
 using namespace ccf::crypto;
 using namespace tls;
 
-/// Server uses one pipe while client uses the other.
-/// Writes always to one side, reads always from the other.
-/// Use the send/recv template wrappers below as callbacks.
-class TestPipe
+/// Moves all the encrypted bytes that 'from' wants to send into 'to', as if
+/// they had traversed the network. Returns the number of bytes transferred.
+size_t transfer(ccf::tls::Context& from, ccf::tls::Context& to)
 {
-  int pfd[2];
-
-public:
-  static const int SERVER = 0;
-  static const int CLIENT = 1;
-
-  TestPipe()
+  size_t total = 0;
+  std::vector<uint8_t> buf(16384);
+  size_t got = 0;
+  while ((got = from.send(buf.data(), buf.size())) > 0)
   {
-    if (socketpair(PF_LOCAL, SOCK_STREAM, 0, pfd) == -1)
+    to.recv(buf.data(), got);
+    total += got;
+  }
+  return total;
+}
+
+/// Returns true if the handshake status code indicates a genuine error, as
+/// opposed to success or a request for more data.
+bool is_handshake_error(int rc)
+{
+  return rc != 0 && rc != SSL_ERROR_WANT_READ && rc != SSL_ERROR_WANT_WRITE;
+}
+
+/// Drives the handshake between a client and a server connected via in-memory
+/// BIOs, pumping bytes across after each step.
+/// Returns 0 on success, 1 on client error, 2 on server error.
+int handshake(ccf::tls::Context& client, ccf::tls::Context& server)
+{
+  constexpr int max_iterations = 50;
+  for (int i = 0; i < max_iterations; ++i)
+  {
+    int cs = client.handshake();
+    transfer(client, server);
+    int ss = server.handshake();
+    transfer(server, client);
+
+    if (is_handshake_error(cs))
     {
-      throw runtime_error(
-        "Failed to create socketpair: " + string(ccf::nonstd::strerror(errno)));
-    }
-  }
-  ~TestPipe()
-  {
-    close(pfd[0]);
-    close(pfd[1]);
-  }
-
-  size_t send(int id, const uint8_t* buf, size_t len)
-  {
-    int rc = write(pfd[id], buf, len);
-    if (rc == -1)
-      LOG_FAIL_FMT("Error while reading: {}", ccf::nonstd::strerror(errno));
-    return rc;
-  }
-
-  size_t recv(int id, uint8_t* buf, size_t len)
-  {
-    int rc = read(pfd[id], buf, len);
-    if (rc == -1)
-      LOG_FAIL_FMT("Error while reading: {}", ccf::nonstd::strerror(errno));
-    return rc;
-  }
-};
-
-/// Callback wrapper around TestPipe->send().
-template <int end>
-int send(void* ctx, const uint8_t* buf, size_t len)
-{
-  auto pipe = reinterpret_cast<TestPipe*>(ctx);
-  int rc = pipe->send(end, buf, len);
-  REQUIRE(rc == len);
-  return rc;
-}
-
-/// Callback wrapper around TestPipe->recv().
-template <int end>
-int recv(void* ctx, uint8_t* buf, size_t len)
-{
-  auto pipe = reinterpret_cast<TestPipe*>(ctx);
-  int rc = pipe->recv(end, buf, len);
-  REQUIRE(rc == len);
-  return rc;
-}
-
-// OpenSSL callbacks that call onto the pipe's ones
-template <int end>
-long send(
-  BIO* b,
-  int oper,
-  const char* argp,
-  size_t len,
-  int argi,
-  long argl,
-  int ret,
-  size_t* processed)
-{
-  // Unused arguments
-  (void)argi;
-  (void)argl;
-  (void)processed;
-
-  if (ret && oper == (BIO_CB_WRITE | BIO_CB_RETURN))
-  {
-    // Flush the BIO so the "pipe doesn't clog", but we don't use the
-    // data here, because 'argp' already has it.
-    BIO_flush(b);
-    size_t pending = BIO_pending(b);
-    if (pending)
-      BIO_reset(b);
-
-    // Pipe object
-    auto pipe = reinterpret_cast<TestPipe*>(BIO_get_callback_arg(b));
-    size_t put = send<end>(pipe, (const uint8_t*)argp, len);
-    REQUIRE(put == len);
-  }
-
-  // Unless we detected an error, the return value is always the same as the
-  // original operation.
-  return ret;
-}
-
-template <int end>
-long recv(
-  BIO* b,
-  int oper,
-  const char* argp,
-  size_t len,
-  int argi,
-  long argl,
-  int ret,
-  size_t* processed)
-{
-  // Unused arguments
-  (void)argi;
-  (void)argl;
-
-  if (ret && oper == (BIO_CB_READ | BIO_CB_RETURN))
-  {
-    // Pipe object
-    auto pipe = reinterpret_cast<TestPipe*>(BIO_get_callback_arg(b));
-    size_t got = recv<end>(pipe, (uint8_t*)argp, len);
-
-    // Got nothing, return "WANTS READ"
-    if (got <= 0)
-      return ret;
-
-    // Write to the actual BIO so SSL can use it
-    BIO_write_ex(b, argp, got, processed);
-
-    // If original return was -1 because it didn't find anything to read, return
-    // 1 to say we actually read something
-    if (got > 0 && ret < 0)
+      LOG_FAIL_FMT(
+        "Client handshake error: {}", ::tls::error_string(ERR_get_error()));
       return 1;
-  }
-
-  // Unless we detected an error, the return value is always the same as the
-  // original operation.
-  return ret;
-}
-
-/// Performs a TLS handshake, looping until there's nothing more to read/write.
-/// Returns 0 on success, throws a runtime error with SSL error str on failure.
-int handshake(ccf::tls::Context* ctx, std::atomic<bool>& keep_going)
-{
-  while (keep_going)
-  {
-    int rc = ctx->handshake();
-
-    switch (rc)
+    }
+    if (is_handshake_error(ss))
     {
-      case 0:
-        return 0;
+      LOG_FAIL_FMT(
+        "Server handshake error: {}", ::tls::error_string(ERR_get_error()));
+      return 2;
+    }
 
-      case TLS_ERR_WANT_READ:
-      case TLS_ERR_WANT_WRITE:
-        // Continue calling handshake until finished
-        LOG_DEBUG_FMT("Handshake wants data");
-        break;
-
-      case TLS_ERR_NEED_CERT:
-      {
-        LOG_FAIL_FMT("Handshake error: {}", ::tls::error_string(rc));
-        return 1;
-      }
-
-      case TLS_ERR_CONN_CLOSE_NOTIFY:
-      {
-        LOG_FAIL_FMT("Handshake error: {}", ::tls::error_string(rc));
-        return 1;
-      }
-
-      case TLS_ERR_X509_VERIFY:
-      {
-        auto err = ctx->get_verify_error();
-        LOG_FAIL_FMT("Handshake error: {} [{}]", err, ::tls::error_string(rc));
-        return 1;
-      }
-
-      default:
-      {
-        LOG_FAIL_FMT("Handshake error: {}", ::tls::error_string(rc));
-        return 1;
-      }
+    if (cs == 0 && ss == 0)
+    {
+      return 0;
     }
   }
 
-  return 0;
+  LOG_FAIL_FMT("Handshake did not complete in {} iterations", max_iterations);
+  return 1;
 }
 
 struct NetworkCA
@@ -317,24 +187,47 @@ TEST_CASE("Cert configures TLS verification and own certificate")
   REQUIRE(SSL_get_certificate(ssl) != nullptr);
 }
 
-/// Helper to write past the maximum buffer (16k)
-int write_helper(ccf::tls::Context& handler, const uint8_t* buf, size_t len)
+/// Helper to write a full message, transferring the encrypted bytes to the
+/// peer as they are produced. Returns the number of plaintext bytes written.
+size_t write_helper(
+  ccf::tls::Context& handler,
+  ccf::tls::Context& peer,
+  const uint8_t* buf,
+  size_t len)
 {
   LOG_DEBUG_FMT("WRITE {} bytes", len);
-  int rc = handler.write(buf, len);
-  if (rc <= 0 || (size_t)rc == len)
-    return rc;
-  return rc + write_helper(handler, buf + rc, len - rc);
+  size_t total = 0;
+  while (total < len)
+  {
+    size_t written = 0;
+    int rc = handler.write(buf + total, len - total, written);
+    total += written;
+    transfer(handler, peer);
+    if (rc != 0)
+    {
+      break;
+    }
+  }
+  return total;
 }
 
-/// Helper to read past the maximum buffer (16k)
-int read_helper(ccf::tls::Context& handler, uint8_t* buf, size_t len)
+/// Helper to read a full message from already-received encrypted bytes.
+/// Returns the number of plaintext bytes read.
+size_t read_helper(ccf::tls::Context& handler, uint8_t* buf, size_t len)
 {
   LOG_DEBUG_FMT("READ {} bytes", len);
-  int rc = handler.read(buf, len);
-  if (rc <= 0 || (size_t)rc == len)
-    return rc;
-  return rc + read_helper(handler, buf + rc, len - rc);
+  size_t total = 0;
+  while (total < len)
+  {
+    size_t readbytes = 0;
+    int rc = handler.read(buf + total, len - total, readbytes);
+    total += readbytes;
+    if (rc != 0)
+    {
+      break;
+    }
+  }
+  return total;
 }
 
 /// Helper to truncate long messages to make logs more readable
@@ -363,61 +256,24 @@ void run_test_case(
   tls::Server server(std::move(server_cert));
   tls::Client client(std::move(client_cert));
 
-  // Connect BIOs together
-  TestPipe pipe;
-  server.set_bio(&pipe, send<TestPipe::SERVER>, recv<TestPipe::SERVER>);
-  client.set_bio(&pipe, send<TestPipe::CLIENT>, recv<TestPipe::CLIENT>);
+  // Set up the in-memory BIOs used to exchange encrypted bytes
+  server.set_bio();
+  client.set_bio();
 
-  std::atomic<bool> keep_going = true;
-  std::optional<std::runtime_error> client_exception, server_exception;
-
-  // Create a thread for the client handshake
-  thread client_thread([&client, &keep_going, &client_exception]() {
-    LOG_INFO_FMT("Client handshake");
-    try
-    {
-      if (handshake(&client, keep_going))
-        throw runtime_error("Client handshake error");
-    }
-    catch (std::runtime_error& ex)
-    {
-      keep_going = false;
-      client_exception = ex;
-    }
-  });
-
-  // Create a thread for the server handshake
-  thread server_thread([&server, &keep_going, &server_exception]() {
-    LOG_INFO_FMT("Server handshake");
-    try
-    {
-      if (handshake(&server, keep_going))
-        throw runtime_error("Server handshake error");
-    }
-    catch (std::runtime_error& ex)
-    {
-      keep_going = false;
-      server_exception = ex;
-    }
-  });
-
-  // Join threads
-  client_thread.join();
-  server_thread.join();
+  LOG_INFO_FMT("Handshake");
+  switch (handshake(client, server))
+  {
+    case 0:
+      break;
+    case 1:
+      throw runtime_error("Client handshake error");
+    default:
+      throw runtime_error("Server handshake error");
+  }
   LOG_INFO_FMT("Handshake completed");
 
-  if (client_exception)
-  {
-    throw *client_exception;
-  }
-  if (server_exception)
-  {
-    throw *server_exception;
-  }
-
   // The rest of the communication is deterministic and easy to simulate
-  // so we take them out of the thread, to guarantee there will be bytes
-  // to read at the right time.
+  // so we drive it directly, transferring bytes between the peers as needed.
   if (message_length == 0)
   {
     LOG_INFO_FMT("Empty message. Ignoring communication test");
@@ -430,11 +286,11 @@ void run_test_case(
   // Send the first message
   LOG_INFO_FMT(
     "Client sending message [{}]", truncate_message(message, message_length));
-  int written = write_helper(client, message, message_length);
+  size_t written = write_helper(client, server, message, message_length);
   REQUIRE(written == message_length);
 
   // Receive the first message
-  int read = read_helper(server, buf.data(), message_length);
+  size_t read = read_helper(server, buf.data(), message_length);
   REQUIRE(read == message_length);
   buf[message_length] = '\0';
   LOG_INFO_FMT(
@@ -447,7 +303,7 @@ void run_test_case(
   // Send the response
   LOG_INFO_FMT(
     "Server sending message [{}]", truncate_message(response, message_length));
-  written = write_helper(server, response, response_length);
+  written = write_helper(server, client, response, response_length);
   REQUIRE(written == response_length);
 
   // Receive the response
