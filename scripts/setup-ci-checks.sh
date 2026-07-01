@@ -3,7 +3,7 @@
 # Licensed under the Apache 2.0 License.
 
 # Installs the dependencies required to run scripts/ci-checks.sh, limited to the
-# formatting and linting checks on Azure Linux 3 and Ubuntu/Debian hosts.
+# formatting and linting checks on Ubuntu/Debian hosts.
 #
 # Note: this deliberately does NOT install a C/C++ compiler, cmake or ninja, so
 # the test-buckets check (which configures a build tree) is out of scope. All
@@ -25,23 +25,6 @@ if [ "$(id -u)" -ne 0 ]; then
     exit 1
   fi
 fi
-
-install_packages_azure_linux_3() {
-  log "Installing packages with tdnf (Azure Linux 3)"
-  $SUDO tdnf -y install \
-    ca-certificates \
-    git \
-    tar \
-    curl \
-    grep \
-    gawk \
-    findutils \
-    python3 \
-    python3-pip \
-    nodejs-npm \
-    jq \
-    clang-tools-extra
-}
 
 install_packages_ubuntu() {
   log "Installing packages with apt (Ubuntu)"
@@ -83,14 +66,7 @@ install_uv() {
   fi
 }
 
-if command -v tdnf >/dev/null 2>&1; then
-  install_packages_azure_linux_3
-elif command -v apt-get >/dev/null 2>&1; then
-  install_packages_ubuntu
-else
-  echo "Unsupported platform: expected Azure Linux 3 or Ubuntu" >&2
-  exit 1
-fi
+install_packages_ubuntu
 install_uv
 
 log "All ci-checks formatting/lint dependencies installed"
