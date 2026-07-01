@@ -223,7 +223,7 @@ def render_mermaid_radar_chart(
             "  graticule polygon",
             f"  max {chart_max}",
             "  min 0",
-            "  ticks 5",
+            "  ticks 0",
             "```",
             "",
         ]
