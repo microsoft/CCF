@@ -35,10 +35,10 @@ RADAR_CONFIG = {
     "curveTension": 0.08,
 }
 RADAR_THEME_CSS = (
-    ".radarCurve-0{fill-opacity:.22!important;stroke-opacity:.3!important;stroke-width:1px!important}",
-    ".radarCurve-1{fill:#fff!important;fill-opacity:.86!important;stroke-opacity:0!important}",
+    ".radarCurve-0{fill-opacity:.28!important;stroke-opacity:.7!important;stroke-width:1px!important}",
+    ".radarCurve-1{fill:var(--color-canvas-default,var(--bgColor-default,#fff))!important;fill-opacity:1!important;stroke-opacity:0!important}",
     ".radarCurve-2{stroke-width:3px!important}",
-    ".radarAxisLabel,.radarTitle{fill:#111827!important;color:#111827!important}",
+    ".radarAxisLabel,.radarTitle{fill:var(--color-fg-default,var(--fgColor-default,#111827))!important;color:var(--color-fg-default,var(--fgColor-default,#111827))!important}",
 )
 
 PerfRun = Tuple[str, Optional[str], Optional[str], dict]
@@ -160,12 +160,14 @@ def mermaid_label(label: str) -> str:
     return json.dumps(label)
 
 
-def axis_label(benchmark: str) -> str:
-    """Shorten benchmark labels so Mermaid axes do not overlap or clip."""
+def axis_label(benchmark: str, latest_percent: float) -> str:
+    """Shorten benchmark labels and include the latest normalized value."""
     label = SIG_MS_INTERVAL_RE.sub(r" \1", benchmark)
-    if len(label) <= MAX_AXIS_LABEL_LENGTH:
-        return label
-    return f"{label[:MAX_AXIS_LABEL_LENGTH - 3]}..."
+    value = f" {latest_percent:.0f}%"
+    max_label_length = MAX_AXIS_LABEL_LENGTH - len(value)
+    if len(label) <= max_label_length:
+        return f"{label}{value}"
+    return f"{label[:max_label_length - 3]}...{value}"
 
 
 def normalized_percent(value: float, baseline: float) -> float:
@@ -205,8 +207,9 @@ def render_mermaid_radar_chart(
             if len(chronological_values) > 1
             else 0
         )
-        axes.append(f"b{index}[{mermaid_label(axis_label(benchmark))}]")
-        latest_values.append(normalized_percent(latest_value, baseline))
+        latest_percent = normalized_percent(latest_value, baseline)
+        axes.append(f"b{index}[{mermaid_label(axis_label(benchmark, latest_percent))}]")
+        latest_values.append(latest_percent)
         low_values.append(max(0.0, normalized_percent(baseline - sigma, baseline)))
         high_values.append(normalized_percent(baseline + sigma, baseline))
 
@@ -227,13 +230,12 @@ def render_mermaid_radar_chart(
         "  themeCSS: |",
         *[f"    {line}" for line in RADAR_THEME_CSS],
         "  themeVariables:",
-        '    cScale0: "#D55E00"',
-        '    cScale1: "#FFFFFF"',
+        '    cScale0: "#62B5E5"',
         '    cScale2: "#008FD3"',
         "    radar:",
         '      axisColor: "#9CA3AF"',
         '      graticuleColor: "#E5E7EB"',
-        "      graticuleOpacity: 0.65",
+        "      graticuleOpacity: 0",
         "      axisStrokeWidth: 1",
         "      curveOpacity: 0",
         "---",
@@ -295,7 +297,8 @@ def render_metric_group(
     lines.append(
         "_Values are normalized per benchmark: 100 is the EWMA so far. "
         "For throughput and rate, higher is better; for latency and memory, lower is better. "
-        "The orange band shows the EWMA +/- 1 std dev range._"
+        "The light blue band shows the EWMA +/- 1 std dev range. "
+        "Axis labels include the latest run as a percentage of EWMA._"
     )
     lines.append("")
     latest_label = loaded[-1][0]
@@ -303,7 +306,7 @@ def render_metric_group(
         [
             (
                 f"Legend: latest run `{latest_label}` is blue, "
-                "and EWMA +/- 1 std dev is the orange band."
+                "and EWMA +/- 1 std dev is the light blue band."
             ),
             "",
         ]
