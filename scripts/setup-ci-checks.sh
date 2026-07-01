@@ -88,7 +88,7 @@ if command -v tdnf >/dev/null 2>&1; then
 elif command -v apt-get >/dev/null 2>&1; then
   install_packages_ubuntu
 else
-  echo "Unsupported platform: expected Azure Linux 3 or Ubuntu/Debian" >&2
+  echo "Unsupported platform: expected Azure Linux 3 or Ubuntu" >&2
   exit 1
 fi
 install_uv
