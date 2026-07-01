@@ -3,7 +3,7 @@
 # Licensed under the Apache 2.0 License.
 
 # Installs the dependencies required to run scripts/ci-checks.sh, limited to the
-# formatting and linting checks on Azure Linux 3 hosts.
+# formatting and linting checks on Azure Linux 3 and Ubuntu/Debian hosts.
 #
 # Note: this deliberately does NOT install a C/C++ compiler, cmake or ninja, so
 # the test-buckets check (which configures a build tree) is out of scope. All
@@ -26,7 +26,7 @@ if [ "$(id -u)" -ne 0 ]; then
   fi
 fi
 
-install_packages() {
+install_packages_tdnf() {
   log "Installing packages with tdnf"
   $SUDO tdnf -y install \
     ca-certificates \
@@ -43,6 +43,31 @@ install_packages() {
     clang-tools-extra
 }
 
+install_packages_apt() {
+  log "Installing packages with apt"
+  export DEBIAN_FRONTEND=noninteractive
+  $SUDO apt-get update
+  # clang-format-18 matches the version pinned by scripts/check-format.sh.
+  $SUDO apt-get install -y --no-install-recommends \
+    ca-certificates \
+    git \
+    tar \
+    curl \
+    grep \
+    gawk \
+    findutils \
+    python3 \
+    python3-pip \
+    npm \
+    jq \
+    clang-format-18
+  # check-format.sh prefers clang-format-18, but fall back to a generic
+  # clang-format symlink if one is not already present.
+  if ! command -v clang-format >/dev/null 2>&1; then
+    $SUDO ln -sf "$(command -v clang-format-18)" /usr/local/bin/clang-format
+  fi
+}
+
 # uv provides the isolated Python tool runtime (uvx) used by black, ruff, mypy,
 # gersemi and openapi-spec-validator.
 install_uv() {
@@ -51,10 +76,21 @@ install_uv() {
     return
   fi
   log "Installing uv from PyPI"
-  $SUDO python3 -m pip install --upgrade uv
+  # Ubuntu 24 may enforce externally-managed Python environments. Try with
+  # --break-system-packages first, then fall back for distros that don't need it.
+  if ! $SUDO python3 -m pip install --upgrade uv --break-system-packages; then
+    $SUDO python3 -m pip install --upgrade uv
+  fi
 }
 
-install_packages
+if command -v tdnf >/dev/null 2>&1; then
+  install_packages_tdnf
+elif command -v apt-get >/dev/null 2>&1; then
+  install_packages_apt
+else
+  echo "Unsupported platform: expected tdnf or apt-get" >&2
+  exit 1
+fi
 install_uv
 
 log "All ci-checks formatting/lint dependencies installed"
