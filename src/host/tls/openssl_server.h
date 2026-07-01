@@ -754,7 +754,8 @@ namespace asynchost
       }
       // Prefer IPv4 when both IPv4 and IPv6 addresses are available. Some
       // local test servers bind only IPv4 while localhost resolves to ::1
-      // first, and this async connect path cannot fall through after EINPROGRESS.
+      // first, and this async connect path cannot fall through after
+      // EINPROGRESS.
       std::stable_sort(
         addresses.begin(), addresses.end(), [](auto* a, auto* b) {
           return a->ai_family == AF_INET && b->ai_family != AF_INET;
@@ -763,8 +764,8 @@ namespace asynchost
       int cfd = -1;
       for (auto* ai : addresses)
       {
-        cfd = socket(
-          ai->ai_family, SOCK_STREAM | SOCK_NONBLOCK, ai->ai_protocol);
+        cfd =
+          socket(ai->ai_family, SOCK_STREAM | SOCK_NONBLOCK, ai->ai_protocol);
         if (cfd < 0)
         {
           continue;
