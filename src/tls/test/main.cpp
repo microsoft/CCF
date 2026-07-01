@@ -305,9 +305,10 @@ TEST_CASE("Cert configures TLS verification and own certificate")
   auto ca = get_ca();
   auto cert = get_dummy_cert(ca, "server");
   ccf::crypto::OpenSSL::Unique_SSL_CTX ctx(TLS_method());
-  ccf::crypto::OpenSSL::Unique_SSL ssl(ctx);
 
-  cert->configure_ssl(ssl, ctx);
+  cert->configure_context(ctx);
+  ccf::crypto::OpenSSL::Unique_SSL ssl(ctx);
+  cert->configure_connection(ssl);
 
   constexpr auto expected_verify_mode =
     SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT;
@@ -464,6 +465,38 @@ void run_test_case(
   LOG_INFO_FMT("Closing connection");
   client.close();
   server.close();
+}
+
+class InspectableClient : public tls::Client
+{
+public:
+  using tls::Client::Client;
+
+  int verify_mode()
+  {
+    auto* ssl = get_ssl();
+    REQUIRE(ssl != nullptr);
+    return SSL_get_verify_mode(ssl);
+  }
+};
+
+TEST_CASE("connection inherits verification mode from context")
+{
+  auto ca = get_ca();
+
+  InspectableClient verified_client(get_dummy_cert(ca, "verified"));
+  REQUIRE(
+    (verified_client.verify_mode() &
+     (SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT)) ==
+    (SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT));
+
+  InspectableClient request_only_client(
+    get_dummy_cert(ca, "request_only", false));
+  // auth_required=false still requests a peer certificate, but does not fail
+  // the handshake if the peer certificate is missing.
+  REQUIRE((request_only_client.verify_mode() & SSL_VERIFY_PEER) != 0);
+  REQUIRE(
+    (request_only_client.verify_mode() & SSL_VERIFY_FAIL_IF_NO_PEER_CERT) == 0);
 }
 
 TEST_CASE("unverified handshake")
