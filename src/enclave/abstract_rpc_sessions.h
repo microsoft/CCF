@@ -35,8 +35,8 @@ namespace ccf
       const std::shared_ptr<::tls::Cert>& cert,
       const std::string& app_protocol = "HTTP1") = 0;
 
-    [[nodiscard]] virtual ccf::ApplicationProtocol get_app_protocol_main_interface()
-      const = 0;
+    [[nodiscard]] virtual ccf::ApplicationProtocol
+    get_app_protocol_main_interface() const = 0;
 
     virtual ccf::SessionMetrics get_session_metrics() = 0;
 
