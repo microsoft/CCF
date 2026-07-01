@@ -3,7 +3,7 @@
 # Licensed under the Apache 2.0 License.
 
 # Installs the dependencies required to run scripts/ci-checks.sh, limited to the
-# formatting and linting checks on Ubuntu/Debian hosts.
+# formatting and linting checks on Azure Linux 3 hosts.
 #
 # Note: this deliberately does NOT install a C/C++ compiler, cmake or ninja, so
 # the test-buckets check (which configures a build tree) is out of scope. All
@@ -16,16 +16,6 @@ log() {
   echo "-=[ $* ]=-"
 }
 
-# Detect the platform via /etc/os-release.
-if [ -r /etc/os-release ]; then
-  # shellcheck disable=SC1091
-  . /etc/os-release
-  PLATFORM_ID="${ID:-unknown}"
-else
-  echo "Cannot read /etc/os-release; unsupported platform" >&2
-  exit 1
-fi
-
 SUDO=""
 if [ "$(id -u)" -ne 0 ]; then
   if command -v sudo >/dev/null 2>&1; then
@@ -36,12 +26,9 @@ if [ "$(id -u)" -ne 0 ]; then
   fi
 fi
 
-install_packages_ubuntu() {
-  log "Installing packages with apt (Ubuntu)"
-  export DEBIAN_FRONTEND=noninteractive
-  $SUDO apt-get update
-  # clang-format-18 matches the version pinned by scripts/check-format.sh.
-  $SUDO apt-get install -y --no-install-recommends \
+install_packages() {
+  log "Installing packages with tdnf"
+  $SUDO tdnf -y install \
     ca-certificates \
     git \
     tar \
@@ -51,14 +38,9 @@ install_packages_ubuntu() {
     findutils \
     python3 \
     python3-pip \
-    npm \
+    nodejs-npm \
     jq \
-    clang-format-18
-  # check-format.sh prefers clang-format-18, but fall back to a generic
-  # clang-format symlink if one is not already present.
-  if ! command -v clang-format >/dev/null 2>&1; then
-    $SUDO ln -sf "$(command -v clang-format-18)" /usr/local/bin/clang-format
-  fi
+    clang-tools-extra
 }
 
 # uv provides the isolated Python tool runtime (uvx) used by black, ruff, mypy,
@@ -69,23 +51,10 @@ install_uv() {
     return
   fi
   log "Installing uv from PyPI"
-  # Ubuntu 24 may enforce externally-managed Python environments. Try with
-  # --break-system-packages first, then fall back for distros that don't need it.
-  if ! $SUDO python3 -m pip install --upgrade uv --break-system-packages; then
-    $SUDO python3 -m pip install --upgrade uv
-  fi
+  $SUDO python3 -m pip install --upgrade uv
 }
 
-case "$PLATFORM_ID" in
-  ubuntu | debian)
-    install_packages_ubuntu
-    ;;
-  *)
-    echo "Unsupported platform: $PLATFORM_ID (expected ubuntu or debian)" >&2
-    exit 1
-    ;;
-esac
-
+install_packages
 install_uv
 
 log "All ci-checks formatting/lint dependencies installed"

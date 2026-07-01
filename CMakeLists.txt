@@ -1252,26 +1252,11 @@ if(BUILD_TESTS)
     CONFIGURATIONS partitions
   )
 
-  execute_process(
-    COMMAND "cat" "/etc/os-release"
-    COMMAND "grep" "^NAME="
-    COMMAND "cut" "-d" "=" "-f" "2"
-    COMMAND "tr" "-d" "\""
-    OUTPUT_VARIABLE "OS_RELEASE"
-    RESULT_VARIABLE RETURN_CODE
-    OUTPUT_STRIP_TRAILING_WHITESPACE
+  set_property(
+    TEST partitions
+    APPEND
+    PROPERTY ENVIRONMENT "XTABLES_LIBDIR=/usr/lib/iptables"
   )
-  if(NOT RETURN_CODE STREQUAL "0")
-    message(FATAL_ERROR "Error calling cat /etc/os-release")
-  endif()
-  message(STATUS "OS_RELEASE = ${OS_RELEASE}")
-  if(OS_RELEASE STREQUAL "Microsoft Azure Linux")
-    set_property(
-      TEST partitions
-      APPEND
-      PROPERTY ENVIRONMENT "XTABLES_LIBDIR=/usr/lib/iptables"
-    )
-  endif()
 
   add_e2e_test(
     NAME tls_stress_test
