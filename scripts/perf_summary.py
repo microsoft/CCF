@@ -34,28 +34,13 @@ RADAR_CONFIG = {
     "axisLabelFactor": 1.12,
     "axisScaleFactor": 1.0,
     "axisLabelFontSize": 13,
-    "legendFontSize": 13,
     "curveTension": 0.08,
 }
 RADAR_THEME_CSS = (
-    ".radarCurve-0 { fill: #F59E0B !important; fill-opacity: 0.22 !important; "
-    "stroke: #F59E0B !important; stroke-opacity: 0.30 !important; stroke-width: 1px !important; }",
-    ".radarLegendBox-0 { fill: #F59E0B !important; fill-opacity: 0.22 !important; stroke: #F59E0B !important; }",
-    ".radarCurve-1 { fill: #FFFFFF !important; fill-opacity: 0.86 !important; "
-    "stroke: #FFFFFF !important; stroke-opacity: 0 !important; stroke-width: 0 !important; }",
-    ".radarLegendBox-1 { fill: #FFFFFF !important; fill-opacity: 0.86 !important; stroke: #FFFFFF !important; }",
-    ".radarCurve-2 { fill-opacity: 0 !important; stroke: #6B7280 !important; "
-    "stroke-width: 2px !important; stroke-dasharray: 6 5; }",
-    ".radarLegendBox-2 { fill-opacity: 0 !important; stroke: #6B7280 !important; }",
-    ".radarCurve-3 { fill-opacity: 0 !important; stroke: #2563EB !important; stroke-width: 3px !important; }",
-    ".radarLegendBox-3 { fill-opacity: 0 !important; stroke: #2563EB !important; }",
-    ".radarAxisLine { stroke: #9CA3AF !important; stroke-width: 1px !important; }",
-    ".radarGraticule { fill: #F9FAFB !important; fill-opacity: 0.65 !important; "
-    "stroke: #E5E7EB !important; stroke-width: 1px !important; }",
-    ".radarAxisLabel, .radarLegendText { fill: #374151 !important; color: #374151 !important; "
-    "font-family: Arial, sans-serif !important; font-size: 13px !important; }",
-    ".radarTitle { fill: #111827 !important; color: #111827 !important; "
-    "font-family: Arial, sans-serif !important; font-weight: 600; }",
+    ".radarCurve-0{fill-opacity:.22!important;stroke-opacity:.3!important;stroke-width:1px!important}",
+    ".radarCurve-1{fill:#fff!important;fill-opacity:.86!important;stroke-opacity:0!important}",
+    ".radarCurve-2{stroke-width:3px!important}",
+    ".radarAxisLabel,.radarTitle{fill:#111827!important;color:#111827!important}",
 )
 
 PerfRun = Tuple[str, Optional[str], Optional[str], dict]
@@ -197,7 +182,6 @@ def render_mermaid_radar_chart(
     latest_label, _, _, latest_data = loaded[-1]
     axes = []
     latest_values = []
-    ewma_values = []
     low_values = []
     high_values = []
 
@@ -225,14 +209,13 @@ def render_mermaid_radar_chart(
         )
         axes.append(f"b{index}[{mermaid_label(axis_label(benchmark))}]")
         latest_values.append(normalized_percent(latest_value, baseline))
-        ewma_values.append(100.0)
         low_values.append(max(0.0, normalized_percent(baseline - sigma, baseline)))
         high_values.append(normalized_percent(baseline + sigma, baseline))
 
     if not axes:
         return f"_No latest-run benchmarks with a `{metric}` metric found._\n"
 
-    chart_max = max(latest_values + ewma_values + low_values + high_values)
+    chart_max = max(latest_values + low_values + high_values + [100.0])
     chart_max = max(100, math.ceil(chart_max * 1.1 / 10) * 10)
 
     lines = [
@@ -246,10 +229,9 @@ def render_mermaid_radar_chart(
         "  themeCSS: |",
         *[f"    {line}" for line in RADAR_THEME_CSS],
         "  themeVariables:",
-        '    cScale0: "#F59E0B"',
+        '    cScale0: "#D55E00"',
         '    cScale1: "#FFFFFF"',
-        '    cScale2: "#6B7280"',
-        '    cScale3: "#2563EB"',
+        '    cScale2: "#008FD3"',
         "    radar:",
         '      axisColor: "#9CA3AF"',
         '      graticuleColor: "#E5E7EB"',
@@ -265,7 +247,6 @@ def render_mermaid_radar_chart(
         [
             render_radar_curve("stddev_high", "EWMA + 1 std dev", high_values),
             render_radar_curve("stddev_low", "EWMA - 1 std dev", low_values),
-            render_radar_curve("ewma", "EWMA so far", ewma_values),
             render_radar_curve("latest", latest_label, latest_values),
             "  graticule polygon",
             f"  max {chart_max}",
@@ -318,7 +299,7 @@ def render_metric_group(
     lines.append(
         "_Values are normalized per benchmark: 100 is the EWMA so far. "
         "For throughput and rate, higher is better; for latency and memory, lower is better. "
-        "The amber band shows the EWMA +/- 1 std dev range._"
+        "The orange band shows the EWMA +/- 1 std dev range._"
     )
     lines.append("")
     latest_label = loaded[-1][0]
@@ -326,7 +307,7 @@ def render_metric_group(
         [
             (
                 f"Legend: latest run `{latest_label}` is blue, "
-                "EWMA so far is dashed gray, and EWMA +/- 1 std dev is the amber band."
+                "and EWMA +/- 1 std dev is the orange band."
             ),
             "",
         ]
@@ -340,7 +321,7 @@ def render_perf_summary(loaded: List[PerfRun]) -> str:
     lines = [
         "# Performance summary",
         "",
-        "_Each chart compares the latest run with the EWMA so far and a shaded +/-1 std dev range._",
+        "_Each chart compares the latest run with a shaded +/-1 std dev range._",
         "",
         render_runs_table(loaded),
     ]
