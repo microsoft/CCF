@@ -26,8 +26,8 @@ if [ "$(id -u)" -ne 0 ]; then
   fi
 fi
 
-install_packages_tdnf() {
-  log "Installing packages with tdnf"
+install_packages_azure_linux_3() {
+  log "Installing packages with tdnf (Azure Linux 3)"
   $SUDO tdnf -y install \
     ca-certificates \
     git \
@@ -43,8 +43,8 @@ install_packages_tdnf() {
     clang-tools-extra
 }
 
-install_packages_apt() {
-  log "Installing packages with apt"
+install_packages_ubuntu() {
+  log "Installing packages with apt (Ubuntu)"
   export DEBIAN_FRONTEND=noninteractive
   $SUDO apt-get update
   # clang-format-18 matches the version pinned by scripts/check-format.sh.
@@ -84,11 +84,11 @@ install_uv() {
 }
 
 if command -v tdnf >/dev/null 2>&1; then
-  install_packages_tdnf
+  install_packages_azure_linux_3
 elif command -v apt-get >/dev/null 2>&1; then
-  install_packages_apt
+  install_packages_ubuntu
 else
-  echo "Unsupported platform: expected tdnf or apt-get" >&2
+  echo "Unsupported platform: expected Azure Linux 3 or Ubuntu/Debian" >&2
   exit 1
 fi
 install_uv
