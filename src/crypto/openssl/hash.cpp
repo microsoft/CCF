@@ -109,8 +109,10 @@ namespace ccf::crypto
       {
         throw std::logic_error("Salt size is too large");
       }
+      const uint8_t empty_salt = 0;
+      const auto* salt_data = salt.empty() ? &empty_salt : salt.data();
       int salt_size = static_cast<int>(salt.size());
-      CHECKPOSITIVE(EVP_PKEY_CTX_set1_hkdf_salt(pctx, salt.data(), salt_size));
+      CHECKPOSITIVE(EVP_PKEY_CTX_set1_hkdf_salt(pctx, salt_data, salt_size));
       if (ikm.size() > std::numeric_limits<int>::max())
       {
         throw std::logic_error("IKM size is too large");

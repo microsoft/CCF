@@ -387,9 +387,7 @@ namespace loggingapp
         return response;
       }
 
-      if (
-        const auto* no_ident =
-          dynamic_cast<const ccf::EmptyAuthnIdentity*>(caller.get()))
+      if (dynamic_cast<const ccf::EmptyAuthnIdentity*>(caller.get()) != nullptr)
       {
         return "Unauthenticated";
       }
