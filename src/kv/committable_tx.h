@@ -91,7 +91,9 @@ namespace ccf::kv
         entry_type,
         entry_flags,
         tx_commit_evidence_digest,
-        claims_digest_);
+        claims_digest_,
+        false /* historical_hint */,
+        pimpl->store->get_max_transaction_size());
 
       // Process in security domain order
       for (auto domain : {SecurityDomain::PUBLIC, SecurityDomain::PRIVATE})
@@ -161,6 +163,11 @@ namespace ccf::kv
       ccf::kv::ConsensusHookPtrs hooks;
 
       std::optional<Version> new_maps_conflict_version = std::nullopt;
+      // If serialisation later rejects this transaction because it exceeds the
+      // configured size limit, roll the store back to the state from before
+      // apply_changes mutates maps and advances the version.
+      const auto [rollback_txid, rollback_term] =
+        pimpl->store->current_txid_and_commit_term();
 
       bool track_deletes_on_missing_keys = false;
       auto c = apply_changes(
@@ -245,6 +252,12 @@ namespace ccf::kv
             std::move(commit_evidence_digest),
             std::move(hooks)),
           false);
+      }
+      catch (const MaxTransactionSizeExceeded&)
+      {
+        pimpl->store->rollback(rollback_txid, rollback_term);
+        committed = false;
+        throw;
       }
       catch (const std::exception& e)
       {

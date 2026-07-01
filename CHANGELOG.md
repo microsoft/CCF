@@ -1286,6 +1286,7 @@ For more information, see [our documentation](https://microsoft.github.io/CCF/ma
 #### Configuration
 
 - The `cchost` configuration file now includes an `idle_connection_timeout` option. This controls how long the node will keep idle connections (for user TLS sessions) before automatically closing them. This may be set to `null` to restore the previous behaviour, where idle connections are never closed. By default connections will be closed after 60s of idle time.
+- The `ledger.max_transaction_size` configuration option now limits the serialized transaction body size stored in each ledger entry. The limit excludes the fixed 8-byte ledger entry header and includes the ledger encryption header, public domain size field, public domain and encrypted private domain. The default value is `100MB`. (#7488)
 - A soft size limit can now be set for the historical store cache in the node configuration: [`historical_cache_soft_limit`](https://microsoft.github.io/CCF/main/operations/generated_config.html#historical-cache-soft-limit). The default value is `512Mb`.
 - Path to the enclave file should now be passed as `--enclave-file` CLI argument to `cchost`, rather than `enclave.file` entry within configuration file.
 - SNP collateral must now be provided through the `snp_security_policy_file`, `snp_uvm_endorsements_file` and `snp_endorsements_servers` configuration values. See [documentation](https://microsoft.github.io/CCF/main/operations/platforms/snp.html) for details and platform-specific configuration samples.

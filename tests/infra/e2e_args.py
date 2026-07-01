@@ -253,6 +253,12 @@ def cli_args(
         default=ledger_chunk_bytes_override or "20KB",
     )
     parser.add_argument(
+        "--ledger-max-transaction-bytes",
+        help="Maximum serialised transaction body size (bytes)",
+        type=str,
+        default="100MB",
+    )
+    parser.add_argument(
         "--snapshot-tx-interval",
         help="Number of transactions between two snapshots",
         type=int,

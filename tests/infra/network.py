@@ -193,6 +193,7 @@ class Network:
         "join_timer_s",
         "worker_threads",
         "ledger_chunk_bytes",
+        "ledger_max_transaction_bytes",
         "subject_alt_names",
         "snapshot_tx_interval",
         "snapshot_min_tx_interval",
