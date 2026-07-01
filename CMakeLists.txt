@@ -332,22 +332,46 @@ set(
 )
 
 set(
-  CCF_NETWORK_TEST_DEFAULT_CONSTITUTION
-  --constitution
+  CCF_NETWORK_TEST_DEFAULT_CONSTITUTION_FILES
   ${CCF_DIR}/samples/constitutions/default/actions.js
-  --constitution
   ${CCF_DIR}/samples/constitutions/default/validate.js
-  --constitution
   ${CCF_DIR}/samples/constitutions/default/resolve.js
-  --constitution
   ${CCF_DIR}/samples/constitutions/default/apply.js
 )
+set(CCF_NETWORK_TEST_DEFAULT_CONSTITUTION "")
+foreach(CONSTITUTION_FILE IN LISTS CCF_NETWORK_TEST_DEFAULT_CONSTITUTION_FILES)
+  list(
+    APPEND CCF_NETWORK_TEST_DEFAULT_CONSTITUTION --constitution
+    ${CONSTITUTION_FILE}
+  )
+endforeach()
 set(
   CCF_NETWORK_TEST_ARGS
   --log-level
   ${TEST_LOGGING_LEVEL}
   --worker-threads
   ${WORKER_THREADS}
+)
+
+# For fast e2e runs, tick node faster than default value (except for
+# instrumented builds which may process ticks slower).
+if(SAN)
+  set(NODE_TICK_MS 10)
+else()
+  set(NODE_TICK_MS 1)
+endif()
+
+list(
+  TRANSFORM CCF_NETWORK_TEST_DEFAULT_CONSTITUTION_FILES
+  REPLACE "(.+)" "\"\\1\""
+  OUTPUT_VARIABLE QUOTED_DEFAULT_CONSTITUTION_FILES
+)
+list(JOIN QUOTED_DEFAULT_CONSTITUTION_FILES ", " DEFAULT_CONSTITUTION_JSON)
+set(DEFAULT_CONSTITUTION_JSON "[${DEFAULT_CONSTITUTION_JSON}]")
+configure_file(
+  ${CCF_DIR}/cmake/test_config.json.in
+  ${CMAKE_BINARY_DIR}/test_config.json
+  @ONLY
 )
 
 # SNIPPET_START: JS generic application
@@ -1305,6 +1329,27 @@ if(BUILD_TESTS)
       ${CMAKE_SOURCE_DIR}/tests/testdata
   )
   set_tests_properties(schema_test PROPERTIES TIMEOUT 900)
+
+  if(BUILD_END_TO_END_TESTS)
+    add_test(
+      NAME e2e_unittests
+      COMMAND ${PYTHON} -m unittest discover -s ${CMAKE_SOURCE_DIR}/tests -v
+    )
+    set_property(
+      TEST e2e_unittests
+      APPEND
+      PROPERTY ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH}"
+    )
+    set_property(
+      TEST e2e_unittests
+      APPEND
+      PROPERTY ENVIRONMENT "CCF_TEST_CONFIG=${CMAKE_BINARY_DIR}/test_config.json"
+    )
+    set_property(TEST e2e_unittests APPEND PROPERTY LABELS e2e)
+    set_property(TEST e2e_unittests APPEND PROPERTY LABELS e2e_unittest)
+    set_property(TEST e2e_unittests APPEND PROPERTY LABELS bucket_a)
+    add_san_test_properties(e2e_unittests)
+  endif()
 
   add_e2e_test(
     NAME snp_platform_tests
