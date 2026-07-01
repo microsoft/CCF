@@ -18,6 +18,7 @@
 #include <regex>
 #include <span>
 #include <stdexcept>
+#include <tuple>
 #include <uv.h>
 
 #define CHECK_CURL_EASY(fn, ...) \
@@ -631,8 +632,7 @@ namespace ccf::curl
       CURL* curl_handle = request->get_easy_handle();
       CHECK_CURL_EASY_SETOPT(curl_handle, CURLOPT_PRIVATE, request.get());
       CHECK_CURL_MULTI(curl_multi_add_handle, p.get(), curl_handle);
-      auto* released_request = request.release();
-      (void)released_request;
+      std::ignore = request.release();
     }
 
     int perform()
