@@ -22,7 +22,7 @@ CHART_MAX_POINTS = 30
 EWMA_ALPHA = 0.3
 DEFAULT_REPOSITORY = "microsoft/CCF"
 METADATA_KEY = "__metadata"
-MAX_AXIS_LABEL_LENGTH = 32
+MAX_AXIS_LABEL_LENGTH = 44
 SIG_MS_INTERVAL_RE = re.compile(r"\s*\(sig_ms_interval=([^)]+)\)")
 RADAR_CONFIG = {
     "width": 620,
@@ -35,8 +35,8 @@ RADAR_CONFIG = {
     "curveTension": 0.08,
 }
 RADAR_THEME_CSS = (
-    ".radarCurve-0{fill-opacity:.28!important;stroke-opacity:.7!important;stroke-width:1px!important}",
-    ".radarCurve-1{fill:var(--color-canvas-default,var(--bgColor-default,#fff))!important;fill-opacity:1!important;stroke-opacity:0!important}",
+    ".radarCurve-0{fill-opacity:.28!important;stroke:#62B5E5!important;stroke-opacity:.7!important;stroke-width:1px!important}",
+    ".radarCurve-1{fill:var(--color-canvas-default,var(--bgColor-default,#fff))!important;fill-opacity:1!important;stroke:#62B5E5!important;stroke-opacity:.7!important;stroke-width:1px!important}",
     ".radarCurve-2{stroke-width:3px!important}",
     ".radarAxisLabel,.radarTitle{fill:var(--color-fg-default,var(--fgColor-default,#111827))!important;color:var(--color-fg-default,var(--fgColor-default,#111827))!important}",
 )
@@ -160,10 +160,52 @@ def mermaid_label(label: str) -> str:
     return json.dumps(label)
 
 
-def axis_label(benchmark: str, latest_percent: float) -> str:
-    """Shorten benchmark labels and include the latest normalized value."""
+def compact_number(value: float) -> str:
+    """Format a number compactly for chart labels."""
+    if not math.isfinite(value):
+        return str(value)
+
+    abs_value = abs(value)
+    if abs_value == 0:
+        return "0"
+    if abs_value >= 1000:
+        return f"{value:,.0f}"
+    if abs_value >= 100:
+        return f"{value:.0f}"
+    if abs_value >= 10:
+        return f"{value:.1f}".rstrip("0").rstrip(".")
+    if abs_value >= 1:
+        return f"{value:.2f}".rstrip("0").rstrip(".")
+    return f"{value:.3g}"
+
+
+def compact_bytes(value: float) -> str:
+    """Format bytes with binary units for chart labels."""
+    if not math.isfinite(value):
+        return str(value)
+
+    units = ["B", "KiB", "MiB", "GiB", "TiB"]
+    scaled = value
+    unit_index = 0
+    while abs(scaled) >= 1024 and unit_index < len(units) - 1:
+        scaled /= 1024
+        unit_index += 1
+    return f"{compact_number(scaled)} {units[unit_index]}"
+
+
+def metric_label_value(value: float, unit: str) -> str:
+    """Format a metric value with its real unit for chart labels."""
+    if unit == "bytes":
+        return compact_bytes(value)
+    return f"{compact_number(value)} {unit}"
+
+
+def axis_label(
+    benchmark: str, latest_value: float, latest_percent: float, unit: str
+) -> str:
+    """Shorten benchmark labels and include latest real and normalized values."""
     label = SIG_MS_INTERVAL_RE.sub(r" \1", benchmark)
-    value = f" {latest_percent:.0f}%"
+    value = f" {metric_label_value(latest_value, unit)} ({latest_percent:.0f}%)"
     max_label_length = MAX_AXIS_LABEL_LENGTH - len(value)
     if len(label) <= max_label_length:
         return f"{label}{value}"
@@ -208,7 +250,9 @@ def render_mermaid_radar_chart(
             else 0
         )
         latest_percent = normalized_percent(latest_value, baseline)
-        axes.append(f"b{index}[{mermaid_label(axis_label(benchmark, latest_percent))}]")
+        axes.append(
+            f"b{index}[{mermaid_label(axis_label(benchmark, latest_value, latest_percent, unit))}]"
+        )
         latest_values.append(latest_percent)
         low_values.append(max(0.0, normalized_percent(baseline - sigma, baseline)))
         high_values.append(normalized_percent(baseline + sigma, baseline))
@@ -231,6 +275,7 @@ def render_mermaid_radar_chart(
         *[f"    {line}" for line in RADAR_THEME_CSS],
         "  themeVariables:",
         '    cScale0: "#62B5E5"',
+        '    cScale1: "#62B5E5"',
         '    cScale2: "#008FD3"',
         "    radar:",
         '      axisColor: "#9CA3AF"',
@@ -298,7 +343,7 @@ def render_metric_group(
         "_Values are normalized per benchmark: 100 is the EWMA so far. "
         "For throughput and rate, higher is better; for latency and memory, lower is better. "
         "The light blue band shows the EWMA +/- 1 std dev range. "
-        "Axis labels include the latest run as a percentage of EWMA._"
+        "Axis labels include the latest run as a real value and percentage of EWMA._"
     )
     lines.append("")
     latest_label = loaded[-1][0]
