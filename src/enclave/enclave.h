@@ -492,6 +492,9 @@ namespace ccf
           }
         }
 
+        LOG_INFO_FMT("Stopping RPC transports");
+        rpcsessions->stop();
+
         LOG_INFO_FMT("Enclave stopped successfully. Stopping host...");
         RINGBUFFER_WRITE_MESSAGE(AdminMessage::stopped, to_host);
 
