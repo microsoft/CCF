@@ -49,6 +49,22 @@ TEST_CASE("ResponseHeaders rejects oversized headers")
       header.data(), 1, header.size(), &headers) == 0);
 }
 
+TEST_CASE("ResponseHeaders rejects oversized header fields")
+{
+  ccf::curl::ResponseHeaders headers;
+  std::string status = "HTTP/1.1 200 OK\r\n";
+  REQUIRE(
+    ccf::curl::ResponseHeaders::recv_header_line(
+      status.data(), 1, status.size(), &headers) == status.size());
+
+  std::string oversized_field(
+    ccf::http::default_max_header_size.count_bytes() + 1, 'x');
+  std::string header = fmt::format("{}: value\r\n", oversized_field);
+  REQUIRE(
+    ccf::curl::ResponseHeaders::recv_header_line(
+      header.data(), 1, header.size(), &headers) == 0);
+}
+
 TEST_CASE("ResponseHeaders rejects too many headers")
 {
   ccf::curl::ResponseHeaders headers;

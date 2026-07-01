@@ -379,9 +379,8 @@ namespace ccf::curl
           if (field.size() > max_header_size)
           {
             LOG_INFO_FMT(
-              "Response header key for '{}' is too large: {} bytes, maximum "
-              "is {} bytes",
-              field,
+              "Response header field is too large: {} bytes, maximum is {} "
+              "bytes",
               field.size(),
               max_header_size);
             return 0;
