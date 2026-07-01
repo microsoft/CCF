@@ -38,7 +38,6 @@
 #include "pal/quote_generation.h"
 #include "rpc_connections.h"
 #include "sig_term.h"
-#include "snapshots/snapshot_manager.h"
 #include "tcp.h"
 #include "ticker.h"
 #include "time_bound_logger.h"
@@ -617,11 +616,6 @@ namespace ccf
         "snapshots.read_only_directory is deprecated and will be removed in a "
         "future release");
     }
-    snapshots::SnapshotManager snapshots(
-      config.snapshots.directory,
-      writer_factory,
-      config.snapshots.read_only_directory);
-    snapshots.register_message_handlers(buffer_processor.get_dispatcher());
 
     std::optional<asynchost::FilesCleanupTimer> files_cleanup;
     if (
