@@ -72,10 +72,7 @@ include(GNUInstallDirs)
 # Use fixed name instead of absolute path for reproducible builds
 add_compile_options("-ffile-prefix-map=${CCF_DIR}=CCF")
 
-# In Debug builds, export symbols to the dynamic symbol table so that
-# backtrace_symbols can resolve function names in stacktraces, and preserve
-# frame pointers so that backtrace() can walk the full call stack.
-add_link_options($<$<CONFIG:Debug>:-rdynamic>)
+# In Debug builds preserve frame pointers so that backtrace() can walk the full call stack.
 add_compile_options($<$<CONFIG:Debug>:-fno-omit-frame-pointer>)
 
 set(CMAKE_MODULE_PATH "${CCF_DIR}/cmake;${CMAKE_MODULE_PATH}")
@@ -321,7 +318,20 @@ add_ccf_static_library(
     ${CCF_DIR}/src/tasks/thread_manager.cpp
     ${CCF_DIR}/src/tasks/worker.cpp
 )
-target_link_libraries(ccf_tasks PRIVATE ${CMAKE_DL_LIBS})
+
+find_library(BACKTRACE_LIBRARY backtrace)
+if(NOT BACKTRACE_LIBRARY)
+  message(
+    FATAL_ERROR
+    "libbacktrace (library 'backtrace') is required to build the CCF task "
+    "system (target ccf_tasks). Please install libbacktrace and retry "
+    "configuration."
+  )
+endif()
+
+# libbacktrace reads DWARF debug info directly, providing file/line/function
+# resolution in stack traces.
+target_link_libraries(ccf_tasks PRIVATE ${CMAKE_DL_LIBS} ${BACKTRACE_LIBRARY})
 
 # Common test args for Python scripts starting up CCF networks
 set(

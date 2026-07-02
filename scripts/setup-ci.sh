@@ -65,7 +65,8 @@ install_build_dependencies() {
         parquet-libs-devel  \
         doxygen  \
         clang-tools-extra-devel  \
-        rust
+        rust  \
+        libbacktrace-static
 }
 
 install_test_dependencies() {

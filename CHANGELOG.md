@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - JWT/JWK auto-refresh outbound HTTP fetches (OpenID metadata and JWKS) now use the curl multi singleton client introduced in #7102, replacing the previous `RPCSessions::create_client()` path. Connection and TLS failures are now counted in refresh failure metrics via `send_refresh_jwt_keys_error()`, improving observability of network-level refresh errors (#7989).
 - JWT/JWK auto-refresh now supports configuring the maximum response body size for fetched OpenID metadata and JWKS via the `jwt.key_refresh_max_response_size` node startup config setting (#7989).
+- Fatal task worker stack traces now use libbacktrace for improved function and source-location resolution. Building CCF now requires the libbacktrace development package, and the RPM development package depends on `libbacktrace-static` (#7721).
 
 ### Fixed
 

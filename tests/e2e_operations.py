@@ -3604,6 +3604,7 @@ def run_propose_request_vote(const_args):
     args = copy.deepcopy(const_args)
     args.label += "_propose_vote"
     args.nodes = infra.e2e_args.nodes(args, 3)
+    args.snapshot_tx_interval = 100000  # High to avoid tx-count-triggered snapshots
     # use a high timeout to hedge against flaky nodes which pause for seconds
     # In most cases this should not matter as the propose_request_vote will cause the election quickly
     args.election_timeout_ms = 20000
@@ -3615,6 +3616,7 @@ def run_propose_request_vote(const_args):
     ) as network:
         LOG.info("Start a network")
         network.start_and_open(args, ignore_first_sigterm=True)
+        network.wait_for_node_commit_sync(timeout=16)
         try:
             original_primary, original_term = network.find_primary()
 
