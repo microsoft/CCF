@@ -1,0 +1,226 @@
+name: Continuous Integration AL4
+
+on:
+  schedule:
+    - cron: "0 0 * * 1-5"
+  pull_request:
+    types:
+      - labeled
+      - synchronize
+      - opened
+      - reopened
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ !contains(github.ref, 'main')}}
+
+permissions: read-all
+
+jobs:
+  vmss-virtual-a:
+    if: &check_trigger_conditions ${{ (github.event.action == 'labeled' && github.event.label.name == 'azure-linux-4') || (github.event.action != 'labeled' && contains(github.event.pull_request.labels.*.name, 'azure-linux-4')) || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' }}
+    name: "AL4 VMSS Virtual A" # Debug build, unit tests, e2e (bucket_a)
+    runs-on:
+      [
+        self-hosted,
+        1ES.Pool=gha-vmss-d16av5-ci,
+        "JobId=ci_al4_build_test_virtual_a-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
+      ]
+    container:
+      image: azlpubstagingacroxz2o4gw.azurecr.io/azurelinux/base/core:4.0
+      options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
+
+    steps:
+      - name: "Checkout dependencies"
+        shell: bash
+        run: |
+          set -ex
+          tdnf -y update
+          tdnf -y install ca-certificates git
+
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+
+      - name: "Install dependencies"
+        shell: bash
+        run: |
+          set -ex
+          ./scripts/setup-ci-al4.sh
+
+      - name: "Build Debug"
+        run: |
+          set -ex
+          git config --global --add safe.directory /__w/CCF/CCF
+          mkdir build
+          cd build
+          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug "-DCMAKE_CXX_FLAGS=-Wno-error=deprecated-declarations -Wno-error=#warnings" ..
+          ninja
+        shell: bash
+
+      - name: "Run Unit tests"
+        run: |
+          set -ex
+          cd build
+          ./tests.sh --output-on-failure -L unit -j$(nproc --all)
+        shell: bash
+
+      - name: "Run e2e tests (bucket_a)"
+        run: |
+          set -ex
+          cd build
+          ./tests.sh --timeout 360 --output-on-failure -L bucket_a -LE lts_compatibility
+        shell: bash
+
+      - name: "Upload logs for AL4 virtual A"
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: logs-al4-virtual-a
+          path: |
+            build/workspace/*/*.config.json
+            build/workspace/*/out
+            build/workspace/*/err
+            build/workspace/*/*.ledger/*
+            build/workspace/*/stack_trace
+          if-no-files-found: ignore
+        if: success() || failure()
+
+  vmss-virtual-b:
+    if: *check_trigger_conditions
+    name: "AL4 VMSS Virtual B" # End-to-end tests (bucket_b)
+    runs-on:
+      [
+        self-hosted,
+        1ES.Pool=gha-vmss-d16av5-ci,
+        "JobId=ci_al4_build_test_virtual_b-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
+      ]
+    container:
+      image: azlpubstagingacroxz2o4gw.azurecr.io/azurelinux/base/core:4.0
+      options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE --sysctl net.ipv6.conf.all.disable_ipv6=0 --sysctl net.ipv6.conf.default.disable_ipv6=0 --sysctl net.ipv6.conf.lo.disable_ipv6=0
+
+    steps:
+      - name: "Checkout dependencies"
+        shell: bash
+        run: |
+          set -ex
+          tdnf -y update
+          tdnf -y install ca-certificates git
+
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+
+      - name: "cpuinfo"
+        run: |
+          cat /proc/cpuinfo
+        shell: bash
+
+      - name: "Install dependencies"
+        shell: bash
+        run: |
+          set -ex
+          ./scripts/setup-ci-al4.sh
+
+      - name: "Confirm running on Virtual"
+        run: |
+          set -ex
+          python3 tests/infra/platform_detection.py virtual
+        shell: bash
+
+      - name: "Build Debug"
+        run: |
+          set -ex
+          git config --global --add safe.directory /__w/CCF/CCF
+          mkdir build
+          cd build
+          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug "-DCMAKE_CXX_FLAGS=-Wno-error=deprecated-declarations -Wno-error=#warnings" ..
+          ninja
+        shell: bash
+
+      - name: "Run e2e tests (bucket_b)"
+        run: |
+          set -ex
+          cd build
+          rm -rf /github/home/.cache
+          mkdir -p /github/home/.cache
+
+          ./tests.sh --timeout 360 --output-on-failure -L bucket_b
+        shell: bash
+
+      - name: "Upload logs for AL4 virtual B"
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: logs-al4-virtual-b
+          path: |
+            build/workspace/*/*.config.json
+            build/workspace/*/out
+            build/workspace/*/err
+            build/workspace/*/*.ledger/*
+            build/workspace/*/stack_trace
+          if-no-files-found: ignore
+        if: success() || failure()
+
+  vmss-virtual-c:
+    if: *check_trigger_conditions
+    name: "AL4 VMSS Virtual C" # End-to-end tests (bucket_c)
+    runs-on:
+      [
+        self-hosted,
+        1ES.Pool=gha-vmss-d16av5-ci,
+        "JobId=ci_al4_build_test_virtual_c-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
+      ]
+    container:
+      image: azlpubstagingacroxz2o4gw.azurecr.io/azurelinux/base/core:4.0
+      options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE --sysctl net.ipv6.conf.all.disable_ipv6=0 --sysctl net.ipv6.conf.default.disable_ipv6=0 --sysctl net.ipv6.conf.lo.disable_ipv6=0
+
+    steps:
+      - name: "Checkout dependencies"
+        shell: bash
+        run: |
+          set -ex
+          tdnf -y update
+          tdnf -y install ca-certificates git
+
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+
+      - name: "Install dependencies"
+        shell: bash
+        run: |
+          set -ex
+          ./scripts/setup-ci-al4.sh
+
+      - name: "Build Debug"
+        run: |
+          set -ex
+          git config --global --add safe.directory /__w/CCF/CCF
+          mkdir build
+          cd build
+          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug "-DCMAKE_CXX_FLAGS=-Wno-error=deprecated-declarations -Wno-error=#warnings" ..
+          ninja
+        shell: bash
+
+      - name: "Run e2e tests (bucket_c)"
+        run: |
+          set -ex
+          cd build
+          rm -rf /github/home/.cache
+          mkdir -p /github/home/.cache
+
+          ./tests.sh --timeout 360 --output-on-failure -L bucket_c
+        shell: bash
+
+      - name: "Upload logs for AL4 virtual C"
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: logs-al4-virtual-c
+          path: |
+            build/workspace/*/*.config.json
+            build/workspace/*/out
+            build/workspace/*/err
+            build/workspace/*/*.ledger/*
+            build/workspace/*/stack_trace
+          if-no-files-found: ignore
+        if: success() || failure()
