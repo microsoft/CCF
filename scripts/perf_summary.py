@@ -5,12 +5,13 @@ import os
 import sys
 import json
 import argparse
-import html
+import math
+import re
 import statistics
 from typing import List, Optional, Tuple
 
-# Metric groups to chart over time. A chart is produced for every benchmark that
-# reports each metric.
+# Metric groups to chart over time. A radar chart is produced for every metric,
+# with each benchmark as a radar axis.
 METRIC_GROUPS = [
     ("throughput", "Throughput", "tx/s"),
     ("latency", "Latency", "ms"),
@@ -18,14 +19,29 @@ METRIC_GROUPS = [
     ("rate", "Rate", "ops/s"),
 ]
 CHART_MAX_POINTS = 30
-CHART_COLUMNS = 4
-CHART_CELL_WIDTH = f"{100 // CHART_COLUMNS}%"
 EWMA_ALPHA = 0.3
 DEFAULT_REPOSITORY = "microsoft/CCF"
 METADATA_KEY = "__metadata"
+MAX_AXIS_LABEL_LENGTH = 44
+SIG_MS_INTERVAL_RE = re.compile(r"\s*\(sig_ms_interval=([^)]+)\)")
+RADAR_CONFIG = {
+    "width": 620,
+    "height": 620,
+    "marginTop": 90,
+    "marginRight": 220,
+    "marginBottom": 120,
+    "marginLeft": 220,
+    "axisLabelFactor": 1.12,
+    "curveTension": 0.08,
+}
+RADAR_THEME_CSS = (
+    ".radarCurve-0{fill-opacity:.28!important;stroke:#62B5E5!important;stroke-opacity:.7!important;stroke-width:1px!important}",
+    ".radarCurve-1{fill:var(--color-canvas-default,var(--bgColor-default,#fff))!important;fill-opacity:1!important;stroke:#62B5E5!important;stroke-opacity:.7!important;stroke-width:1px!important}",
+    ".radarCurve-2{stroke-width:3px!important}",
+    ".radarAxisLabel,.radarTitle{fill:var(--color-fg-default,var(--fgColor-default,#111827))!important;color:var(--color-fg-default,var(--fgColor-default,#111827))!important}",
+)
 
 PerfRun = Tuple[str, Optional[str], Optional[str], dict]
-ChartSeries = List[Tuple[str, float]]
 
 
 def jobid_sort_key(name: str) -> Tuple[int, object]:
@@ -139,87 +155,163 @@ def ewma(values: List[float], alpha: float = EWMA_ALPHA) -> float:
     return average
 
 
-def repeated_values(value: float, count: int) -> str:
-    """Render a constant series for every chart category."""
-    return ", ".join(f"{value:.2f}" for _ in range(count))
+def mermaid_label(label: str) -> str:
+    """Return a Mermaid label literal."""
+    return json.dumps(label)
 
 
-def render_mermaid_xychart(
-    series: ChartSeries,
-    benchmark: str,
-    metric: str,
-    unit: str,
+def compact_number(value: float) -> str:
+    """Format a number compactly for chart labels."""
+    if not math.isfinite(value):
+        return str(value)
+
+    abs_value = abs(value)
+    if abs_value == 0:
+        return "0"
+    if abs_value >= 1000:
+        return f"{value:,.0f}"
+    if abs_value >= 100:
+        return f"{value:.0f}"
+    if abs_value >= 10:
+        return f"{value:.1f}".rstrip("0").rstrip(".")
+    if abs_value >= 1:
+        return f"{value:.2f}".rstrip("0").rstrip(".")
+    return f"{value:.3g}"
+
+
+def compact_bytes(value: float) -> str:
+    """Format bytes with binary units for chart labels."""
+    if not math.isfinite(value):
+        return str(value)
+
+    units = ["B", "KiB", "MiB", "GiB", "TiB"]
+    scaled = value
+    unit_index = 0
+    while abs(scaled) >= 1024 and unit_index < len(units) - 1:
+        scaled /= 1024
+        unit_index += 1
+    return f"{compact_number(scaled)} {units[unit_index]}"
+
+
+def metric_label_value(value: float, unit: str) -> str:
+    """Format a metric value with its real unit for chart labels."""
+    if unit == "bytes":
+        return compact_bytes(value)
+    return f"{compact_number(value)} {unit}"
+
+
+def axis_label(
+    benchmark: str, latest_value: float, latest_percent: float, unit: str
 ) -> str:
-    """Render a Mermaid xychart line chart for a single benchmark metric."""
-    ordered_series = list(reversed(series))
-    labels = ", ".join(f'"{label}"' for label, _ in ordered_series)
-    raw_values = [value for _, value in ordered_series]
-    values = ", ".join(f"{value:.2f}" for value in raw_values)
-    chronological_values = [value for _, value in series]
-    baseline = ewma(chronological_values)
-    sigma = (
-        statistics.pstdev(chronological_values) if len(chronological_values) > 1 else 0
-    )
-    lines = [
-        f"<h4>{html.escape(benchmark)}</h4>",
-        "",
-        "```mermaid",
-        "---",
-        "config:",
-        "    xyChart:",
-        "        width: 220",
-        "        height: 320",
-        "        showTitle: false",
-        "        xAxis:",
-        "            labelFontSize: 10",
-        "            titleFontSize: 12",
-        "        yAxis:",
-        "            labelFontSize: 8",
-        "            titleFontSize: 12",
-        "            showTitle: false",
-        "    themeVariables:",
-        "        xyChart:",
-        '            plotColorPalette: "#003E7E, #62B5E5, #C7E9FB, #C7E9FB"',
-        "---",
-        "xychart horizontal",
-        f"    x-axis [{labels}]",
-        f'    y-axis "{metric} ({unit})"',
-        f"    line [{values}]",
-        f"    line [{repeated_values(baseline, len(raw_values))}]",
-        f"    line [{repeated_values(baseline - sigma, len(raw_values))}]",
-        f"    line [{repeated_values(baseline + sigma, len(raw_values))}]",
-        "```",
-        "",
-    ]
-    return "\n".join(lines)
+    """Shorten benchmark labels and include latest real and normalized values."""
+    label = SIG_MS_INTERVAL_RE.sub(r" \1", benchmark)
+    value = f" {metric_label_value(latest_value, unit)} ({latest_percent:.0f}%)"
+    max_label_length = MAX_AXIS_LABEL_LENGTH - len(value)
+    if len(label) <= max_label_length:
+        return f"{label}{value}"
+    return f"{label[:max_label_length - 3]}...{value}"
 
 
-def render_chart_table(
-    loaded: List[PerfRun], benchmarks: List[str], metric: str, unit: str
+def normalized_percent(value: float, baseline: float) -> float:
+    """Return value as a percentage of the baseline."""
+    return (value / baseline) * 100
+
+
+def render_mermaid_radar_chart(
+    loaded: List[PerfRun], benchmarks: List[str], metric: str, title: str, unit: str
 ) -> str:
-    """Render benchmark charts in a four-column table."""
-    lines = ['<table width="100%">']
+    """Render one Mermaid radar chart for a metric across benchmarks."""
+    latest_label, _, _, latest_data = loaded[-1]
+    axes = []
+    latest_values = []
+    low_values = []
+    high_values = []
+
     for index, benchmark in enumerate(benchmarks):
-        if index % CHART_COLUMNS == 0:
-            lines.append("<tr>")
-        lines.append(f'<td valign="top" width="{CHART_CELL_WIDTH}">')
-        series = [
-            (label, value)
-            for label, _, _, data in loaded
+        latest_value = metric_value(latest_data, benchmark, metric)
+        if latest_value is None:
+            continue
+
+        chronological_values = [
+            value
+            for _, _, _, data in loaded
             if (value := metric_value(data, benchmark, metric)) is not None
         ]
-        lines.append(render_mermaid_xychart(series, benchmark, metric, unit))
-        lines.append("</td>")
-        if index % CHART_COLUMNS == CHART_COLUMNS - 1:
-            lines.append("</tr>")
-    remaining = len(benchmarks) % CHART_COLUMNS
-    if remaining:
-        for _ in range(CHART_COLUMNS - remaining):
-            lines.append(f'<td valign="top" width="{CHART_CELL_WIDTH}"></td>')
-        lines.append("</tr>")
-    lines.append("</table>")
-    lines.append("")
+        if not chronological_values:
+            continue
+
+        baseline = ewma(chronological_values)
+        if baseline <= 0:
+            continue
+
+        sigma = (
+            statistics.pstdev(chronological_values)
+            if len(chronological_values) > 1
+            else 0
+        )
+        latest_percent = normalized_percent(latest_value, baseline)
+        axes.append(
+            f"b{index}[{mermaid_label(axis_label(benchmark, latest_value, latest_percent, unit))}]"
+        )
+        latest_values.append(latest_percent)
+        low_values.append(max(0.0, normalized_percent(baseline - sigma, baseline)))
+        high_values.append(normalized_percent(baseline + sigma, baseline))
+
+    if not axes:
+        return f"_No latest-run benchmarks with a `{metric}` metric found._\n"
+
+    chart_max = max(latest_values + low_values + high_values + [100.0])
+    chart_max = max(100, math.ceil(chart_max * 1.1 / 10) * 10)
+
+    lines = [
+        "```mermaid",
+        "---",
+        f"title: {mermaid_label(f'{title} ({unit})')}",
+        "config:",
+        "  radar:",
+        *[f"    {key}: {value}" for key, value in RADAR_CONFIG.items()],
+        "  theme: base",
+        "  themeCSS: |",
+        *[f"    {line}" for line in RADAR_THEME_CSS],
+        "  themeVariables:",
+        '    cScale0: "#62B5E5"',
+        '    cScale1: "#62B5E5"',
+        '    cScale2: "#008FD3"',
+        "    radar:",
+        '      axisColor: "#9CA3AF"',
+        '      graticuleColor: "#E5E7EB"',
+        "      graticuleOpacity: 0",
+        "      axisStrokeWidth: 1",
+        "      curveOpacity: 0",
+        "---",
+        "radar-beta",
+    ]
+    lines.extend(f"  axis {axis}" for axis in axes)
+    lines.extend(
+        [
+            render_radar_curve("stddev_high", "EWMA + 1 std dev", high_values),
+            render_radar_curve("stddev_low", "EWMA - 1 std dev", low_values),
+            render_radar_curve("latest", latest_label, latest_values),
+            "  graticule polygon",
+            f"  max {chart_max}",
+            "  ticks 0",
+            "  showLegend false",
+            "```",
+            "",
+        ]
+    )
     return "\n".join(lines)
+
+
+def repeated_values_for_radar(values: List[float]) -> str:
+    """Render radar curve values."""
+    return ", ".join(f"{value:.2f}" for value in values)
+
+
+def render_radar_curve(curve_id: str, label: str, values: List[float]) -> str:
+    """Render a Mermaid radar curve line."""
+    rendered_values = repeated_values_for_radar(values)
+    return f"  curve {curve_id}[{mermaid_label(label)}]{{{rendered_values}}}"
 
 
 def render_runs_table(loaded: List[PerfRun]) -> str:
@@ -239,7 +331,7 @@ def render_runs_table(loaded: List[PerfRun]) -> str:
 def render_metric_group(
     loaded: List[PerfRun], metric: str, title: str, unit: str
 ) -> str:
-    """Render one chart per benchmark that reports the given metric."""
+    """Render a radar chart for benchmarks that report the given metric."""
     benchmarks = benchmarks_with_metric(loaded, metric)
     lines = [f"## {title} ({unit})", ""]
     if not benchmarks:
@@ -247,7 +339,24 @@ def render_metric_group(
         lines.append("")
         return "\n".join(lines)
 
-    lines.append(render_chart_table(loaded, benchmarks, metric, unit))
+    lines.append(
+        "_Values are normalized per benchmark: 100 is the EWMA so far. "
+        "For throughput and rate, higher is better; for latency and memory, lower is better. "
+        "The light blue band shows the EWMA +/- 1 std dev range. "
+        "Axis labels include the latest run as a real value and percentage of EWMA._"
+    )
+    lines.append("")
+    latest_label = loaded[-1][0]
+    lines.extend(
+        [
+            (
+                f"Legend: latest run `{latest_label}` is blue, "
+                "and EWMA +/- 1 std dev is the light blue band."
+            ),
+            "",
+        ]
+    )
+    lines.append(render_mermaid_radar_chart(loaded, benchmarks, metric, title, unit))
     return "\n".join(lines)
 
 
@@ -256,7 +365,7 @@ def render_perf_summary(loaded: List[PerfRun]) -> str:
     lines = [
         "# Performance summary",
         "",
-        "_Each chart shows run values, an EWMA baseline, and +/-1 sigma reference lines._",
+        "_Each chart compares the latest run with a shaded +/-1 std dev range._",
         "",
         render_runs_table(loaded),
     ]
