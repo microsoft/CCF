@@ -1,4 +1,4 @@
-import { assert } from "chai";
+import assert from "node:assert/strict";
 import "../src/polyfill.js";
 import * as conv from "../src/converters.js";
 
