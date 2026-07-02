@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { describe, it } from "node:test";
 import * as util from "../src/utils.js";
 
 function uint8ArrayBufferEquality(a: Uint8Array, b: Uint8Array): boolean {

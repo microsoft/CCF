@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import * as crypto from "crypto";
+import { before, beforeEach, describe, it } from "node:test";
 import "../src/polyfill.js";
 import type {
   AesKwpParams,
@@ -354,7 +355,7 @@ describe("polyfill", function () {
         ),
       );
     });
-    it("performs HMAC sign correctly", function () {
+    describe("performs HMAC sign correctly", function () {
       [
         { ccfHash: "SHA-256", nodeHash: "sha256" },
         { ccfHash: "SHA-384", nodeHash: "sha384" },
@@ -386,7 +387,6 @@ describe("polyfill", function () {
             );
             assert.deepEqual(signature, node_hmac);
           }
-          assert.deepEqual(5, 6);
 
           {
             // Check for mismatch
@@ -575,24 +575,22 @@ describe("polyfill", function () {
       assert.equal(actual, expected);
     });
   });
-  describe("isValidX509CertBundle", function (this) {
-    const supported = "X509Certificate" in crypto;
-    it("returns true for valid certs", function () {
-      if (!supported) {
-        this.skip();
-      }
-      const pem1 = generateSelfSignedCert().cert;
-      const pem2 = generateSelfSignedCert().cert;
-      assert.ok(ccf.crypto.isValidX509CertBundle(pem1));
-      assert.ok(ccf.crypto.isValidX509CertBundle(pem1 + "\n" + pem2));
-    });
-    it("returns false for invalid certs", function () {
-      if (!supported) {
-        this.skip();
-      }
-      assert.ok(!ccf.crypto.isValidX509CertBundle("garbage"));
-    });
-  });
+  describe(
+    "isValidX509CertBundle",
+    { skip: !("X509Certificate" in crypto) },
+    function () {
+      const supported = "X509Certificate" in crypto;
+      it("returns true for valid certs", function () {
+        const pem1 = generateSelfSignedCert().cert;
+        const pem2 = generateSelfSignedCert().cert;
+        assert.ok(ccf.crypto.isValidX509CertBundle(pem1));
+        assert.ok(ccf.crypto.isValidX509CertBundle(pem1 + "\n" + pem2));
+      });
+      it("returns false for invalid certs", function () {
+        assert.ok(!ccf.crypto.isValidX509CertBundle("garbage"));
+      });
+    },
+  );
   describe("pemToJwk and jwkToPem", function () {
     it("EC", function () {
       const my_kid = "my_kid";
@@ -765,61 +763,48 @@ describe("polyfill", function () {
     });
   });
   // This test case should be the last until https://github.com/nodejs/node/pull/45377 is addressed.
-  describe("isValidX509CertChain", function (this) {
-    const supported = "X509Certificate" in crypto;
-    let pems: string[];
-    before(function () {
-      if (!supported) {
-        this.skip();
-      }
-      pems = generateCertChain(3);
-    });
-    it("returns true for valid cert chains", function () {
-      if (!supported) {
-        this.skip();
-      }
-      const chain = [pems[0], pems[1]].join("\n");
-      const trusted = pems[2];
-      assert.ok(ccf.crypto.isValidX509CertChain(chain, trusted));
-    });
-    it("returns false for invalid cert chains", function () {
-      if (!supported) {
-        this.skip();
-      }
-      const chain = pems[0];
-      const trusted = pems[2];
-      assert.ok(!ccf.crypto.isValidX509CertChain(chain, trusted));
-    });
-  });
-  describe("isValidX509RootCACert", function (this) {
-    const supported = "X509Certificate" in crypto;
-    it("returns true for a self-signed CA certificate", function () {
-      if (!supported) {
-        this.skip();
-      }
-      const pem = generateSelfSignedCACert();
-      assert.ok(ccf.crypto.isValidX509RootCACert(pem));
-    });
-    it("returns false for a non-CA self-signed certificate", function () {
-      if (!supported) {
-        this.skip();
-      }
-      const pem = generateSelfSignedCert().cert;
-      assert.ok(!ccf.crypto.isValidX509RootCACert(pem));
-    });
-    it("returns false for an intermediate CA certificate", function () {
-      if (!supported) {
-        this.skip();
-      }
-      // An intermediate CA has CA:TRUE but is signed by a different key (not self-signed).
-      const pem = generateIntermediateCACert();
-      assert.ok(!ccf.crypto.isValidX509RootCACert(pem));
-    });
-    it("returns false for malformed input", function () {
-      if (!supported) {
-        this.skip();
-      }
-      assert.ok(!ccf.crypto.isValidX509RootCACert("garbage"));
-    });
-  });
+  describe(
+    "isValidX509CertChain",
+    { skip: !("X509Certificate" in crypto) },
+    function () {
+      const supported = "X509Certificate" in crypto;
+      let pems: string[];
+      before(function () {
+        pems = generateCertChain(3);
+      });
+      it("returns true for valid cert chains", function () {
+        const chain = [pems[0], pems[1]].join("\n");
+        const trusted = pems[2];
+        assert.ok(ccf.crypto.isValidX509CertChain(chain, trusted));
+      });
+      it("returns false for invalid cert chains", function () {
+        const chain = pems[0];
+        const trusted = pems[2];
+        assert.ok(!ccf.crypto.isValidX509CertChain(chain, trusted));
+      });
+    },
+  );
+  describe(
+    "isValidX509RootCACert",
+    { skip: !("X509Certificate" in crypto) },
+    function () {
+      const supported = "X509Certificate" in crypto;
+      it("returns true for a self-signed CA certificate", function () {
+        const pem = generateSelfSignedCACert();
+        assert.ok(ccf.crypto.isValidX509RootCACert(pem));
+      });
+      it("returns false for a non-CA self-signed certificate", function () {
+        const pem = generateSelfSignedCert().cert;
+        assert.ok(!ccf.crypto.isValidX509RootCACert(pem));
+      });
+      it("returns false for an intermediate CA certificate", function () {
+        // An intermediate CA has CA:TRUE but is signed by a different key (not self-signed).
+        const pem = generateIntermediateCACert();
+        assert.ok(!ccf.crypto.isValidX509RootCACert(pem));
+      });
+      it("returns false for malformed input", function () {
+        assert.ok(!ccf.crypto.isValidX509RootCACert("garbage"));
+      });
+    },
+  );
 });

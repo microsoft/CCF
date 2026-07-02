@@ -16,7 +16,7 @@
     "prepare": "npm run build",
     "build": "tsc",
     "pretest": "node -e \"require('node:fs').rmSync('.test', { recursive: true, force: true })\"",
-    "test": "tsc -p test/tsconfig.json && mocha .test/test/**/*.test.js",
+    "test": "tsc -p test/tsconfig.json && node --test .test/test/*.test.js",
     "posttest": "node -e \"require('node:fs').rmSync('.test', { recursive: true, force: true })\"",
     "docs": "typedoc",
     "docs:watch": "rm -rf html && typedoc --watch --preserveWatchOutput"
@@ -24,10 +24,8 @@
   "author": "Microsoft",
   "license": "Apache-2.0",
   "devDependencies": {
-    "@types/mocha": "^10.0.0",
     "@types/node": "^26.0.1",
     "@types/node-forge": "^1.0.0",
-    "mocha": "^11.7.5",
     "node-forge": "^1.2.0",
     "typedoc": "^0.28.18",
     "typescript": "^6.0.2"
