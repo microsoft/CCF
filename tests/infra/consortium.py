@@ -404,16 +404,50 @@ class Consortium:
         validity_period_days=None,
         **kwargs,
     ):
+        """
+        Single-node convenience wrapper around replace_nodes.
+        """
+        self.replace_nodes(
+            remote_node,
+            [node_to_retire],
+            [node_to_add],
+            valid_from,
+            validity_period_days,
+            **kwargs,
+        )
+
+    def replace_nodes(
+        self,
+        remote_node,
+        nodes_to_retire,
+        nodes_to_add,
+        valid_from,
+        validity_period_days=None,
+        **kwargs,
+    ):
+        """
+        Atomically trust pending replacement nodes and retire existing nodes in
+        a single governance proposal.
+
+        :param remote_node: Node used to submit and vote on the proposal.
+        :param nodes_to_retire: Existing trusted nodes to retire.
+        :param nodes_to_add: Pending replacement nodes to trust.
+        :param valid_from: Certificate validity start time for replacement nodes.
+        :param validity_period_days: Optional certificate validity period.
+        :param kwargs: Additional arguments forwarded to vote_using_majority.
+        """
         proposal_body = {"actions": []}
-        trust_args = {"node_id": node_to_add.node_id, "valid_from": str(valid_from)}
-        if validity_period_days is not None:
-            trust_args["validity_period_days"] = validity_period_days
-        proposal_body["actions"].append(
-            {"name": "transition_node_to_trusted", "args": trust_args}
-        )
-        proposal_body["actions"].append(
-            {"name": "remove_node", "args": {"node_id": node_to_retire.node_id}}
-        )
+        for node_to_add in nodes_to_add:
+            trust_args = {"node_id": node_to_add.node_id, "valid_from": str(valid_from)}
+            if validity_period_days is not None:
+                trust_args["validity_period_days"] = validity_period_days
+            proposal_body["actions"].append(
+                {"name": "transition_node_to_trusted", "args": trust_args}
+            )
+        for node_to_retire in nodes_to_retire:
+            proposal_body["actions"].append(
+                {"name": "remove_node", "args": {"node_id": node_to_retire.node_id}}
+            )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         self.vote_using_majority(
             remote_node,
@@ -981,6 +1015,9 @@ class Consortium:
         Check the certificate associated with current CCF service signing key has been recorded in
         the KV store with the appropriate status.
         """
+        expected_statuses = (
+            status if isinstance(status, (list, tuple, set)) else [status]
+        )
         with remote_node.client() as c:
             r = c.get("/node/network").body.json()
             current_status = r["service_status"]
@@ -1001,9 +1038,11 @@ class Consortium:
             assert (
                 current_cert == expected_cert
             ), "Current service certificate did not match with service_cert.pem"
-            assert (
-                current_status == status.value
-            ), f"Service status {current_status} (expected {status.value})"
+            expected_status_values = [status.value for status in expected_statuses]
+            assert current_status in expected_status_values, (
+                f"Service status {current_status} "
+                f"(expected one of {expected_status_values})"
+            )
             if CCFVersion(remote_node.version) > CCFVersion("ccf-2.0.3"):
                 assert (
                     recovery_count is None or current_recovery_count == recovery_count

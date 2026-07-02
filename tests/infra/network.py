@@ -57,6 +57,7 @@ class ServiceStatus(Enum):
     OPENING = "Opening"
     OPEN = "Open"
     RECOVERING = "Recovering"
+    WAITING_FOR_RECOVERY_SHARES = "WaitingForRecoveryShares"
     CLOSED = "Closed"
 
 
@@ -1257,7 +1258,11 @@ class Network:
         for node in self.nodes:
             if node.remote is None:
                 continue
-            ledger_paths = node.remote.ledger_paths()
+            # Only check the node's own (writable) ledger, not read-only historical
+            # directories from other nodes. Read-only ledger dirs are bootstrapping
+            # data from retired/stopped nodes and may be non-contiguous.
+            current_path = node.remote.current_ledger_path()
+            ledger_paths = [current_path] if os.path.exists(current_path) else []
             for path in ledger_paths:
                 ledger = ccf.ledger.Ledger([path])
                 chunks = list(ledger)

@@ -135,6 +135,14 @@ The number of member shares required to restore the private ledger (``recovery_t
 
 .. note:: The new recovery threshold has to be in the range between 1 and the current number of active recovery members.
 
+Recovery FAQ
+------------
+
+Can recovery members be changed during recovery?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+No. While a service is recovering, members that have share encryption keys cannot be added, removed, or activated, and the recovery threshold cannot be changed. The at-recovery ledger secrets cannot be rekeyed, so changing the set of recovery members at this point would not have the effect operators usually expect. Complete the recovery first, then change recovery membership or threshold as needed.
+
 Renewing Node Certificate
 -------------------------
 
