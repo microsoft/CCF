@@ -495,6 +495,7 @@ namespace http
       ccf::http::HeaderMap&& headers,
       std::vector<uint8_t>&& body) override
     {
+      mark_completed();
       handle_data_cb(status, std::move(headers), std::move(body));
 
       LOG_TRACE_FMT("Closing connection, message handled");

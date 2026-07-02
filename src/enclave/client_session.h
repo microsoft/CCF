@@ -5,6 +5,7 @@
 #include "http/http_builder.h"
 #include "tcp/msg_types.h"
 
+#include <atomic>
 #include <functional>
 
 namespace ccf
@@ -30,6 +31,7 @@ namespace ccf
   protected:
     HandleDataCallback handle_data_cb;
     HandleErrorCallback handle_error_cb;
+    std::atomic<bool> completed = false;
 
   private:
     int64_t client_session_id;
@@ -49,12 +51,26 @@ namespace ccf
       const HandleDataCallback f,
       const HandleErrorCallback e = nullptr)
     {
+      handle_data_cb = f;
+      handle_error_cb = e;
+      completed.store(false);
       if (connect_cb)
       {
         connect_cb(client_session_id, hostname, service);
       }
-      handle_data_cb = f;
-      handle_error_cb = e;
+    }
+
+    void mark_completed()
+    {
+      completed.store(true);
+    }
+
+    virtual void handle_error(const std::string& error_msg)
+    {
+      if (!completed.exchange(true) && handle_error_cb)
+      {
+        handle_error_cb(error_msg);
+      }
     }
   };
 }

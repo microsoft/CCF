@@ -23,8 +23,11 @@
 // thread. The sessions map is guarded by a mutex.
 
 #include "ccf/node/session.h"
+#include "enclave/client_session.h"
 #include "enclave/session_writer.h"
 #include "host/tls/openssl_server.h"
+#include "tasks/basic_task.h"
+#include "tasks/task_system.h"
 
 #include <atomic>
 #include <chrono>
@@ -96,12 +99,34 @@ namespace asynchost
 
     void on_close(::tcp::ConnID conn_id)
     {
-      bool had_session = false;
+      std::shared_ptr<ccf::Session> session;
       {
         std::lock_guard<std::mutex> guard(sessions_mutex);
-        had_session = sessions.erase(conn_id) > 0;
+        auto it = sessions.find(conn_id);
+        if (it != sessions.end())
+        {
+          session = it->second;
+          sessions.erase(it);
+        }
       }
-      if (had_session && on_session_closed)
+
+      if (session == nullptr)
+      {
+        return;
+      }
+
+      if (conn_id < 0)
+      {
+        auto client_session =
+          std::dynamic_pointer_cast<ccf::ClientSession>(session);
+        if (client_session != nullptr)
+        {
+          ccf::tasks::add_task(ccf::tasks::make_basic_task([client_session]() {
+            client_session->handle_error("Connection closed before response");
+          }));
+        }
+      }
+      else if (on_session_closed)
       {
         on_session_closed(conn_id);
       }
@@ -207,7 +232,7 @@ namespace asynchost
         std::lock_guard<std::mutex> guard(sessions_mutex);
         had_session = sessions.erase(id) > 0;
       }
-      if (had_session && on_session_closed)
+      if (had_session && id >= 0 && on_session_closed)
       {
         on_session_closed(id);
       }

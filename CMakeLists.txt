@@ -718,6 +718,7 @@ if(BUILD_TESTS)
       openssl_server_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/host/test/openssl_server_test.cpp
     )
+    target_link_libraries(openssl_server_test PRIVATE ccf_tasks)
 
     add_unit_test(
       raft_test
