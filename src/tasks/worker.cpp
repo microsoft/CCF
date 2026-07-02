@@ -120,8 +120,8 @@ namespace ccf::tasks
       }
     }
 
-    // Silently ignore libbacktrace errors in individual frame resolution —
-    // we fall back to printing the raw PC address.
+    // Silently ignore libbacktrace errors in individual frame resolution.
+    // We fall back to printing the raw PC address.
     void error_callback(void* /*data*/, const char* /*msg*/, int /*errnum*/) {}
 
     // Format a stack trace using libbacktrace for DWARF-aware symbol,
