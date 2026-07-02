@@ -16,16 +16,6 @@ log() {
   echo "-=[ $* ]=-"
 }
 
-# Detect the platform via /etc/os-release.
-if [ -r /etc/os-release ]; then
-  # shellcheck disable=SC1091
-  . /etc/os-release
-  PLATFORM_ID="${ID:-unknown}"
-else
-  echo "Cannot read /etc/os-release; unsupported platform" >&2
-  exit 1
-fi
-
 SUDO=""
 if [ "$(id -u)" -ne 0 ]; then
   if command -v sudo >/dev/null 2>&1; then
@@ -76,16 +66,7 @@ install_uv() {
   fi
 }
 
-case "$PLATFORM_ID" in
-  ubuntu | debian)
-    install_packages_ubuntu
-    ;;
-  *)
-    echo "Unsupported platform: $PLATFORM_ID (expected ubuntu or debian)" >&2
-    exit 1
-    ;;
-esac
-
+install_packages_ubuntu
 install_uv
 
 log "All ci-checks formatting/lint dependencies installed"
