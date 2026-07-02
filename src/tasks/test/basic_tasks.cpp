@@ -388,7 +388,6 @@ TEST_CASE("Exception handling" * doctest::test_suite("basic_tasks"))
     logger_ptr->contains("ThrowsUnknown task failed with unknown exception"));
 
   // Verify demangled function names appear in the stack traces
-#ifndef NDEBUG
   // ThrowsException call chain
   REQUIRE(logger_ptr->contains("level_3_throws_runtime_error"));
   REQUIRE(logger_ptr->contains("level_2_calls_level_3"));
@@ -397,7 +396,6 @@ TEST_CASE("Exception handling" * doctest::test_suite("basic_tasks"))
   // ThrowsUnknown call chain
   REQUIRE(logger_ptr->contains("level_2_calls_level_3_int"));
   REQUIRE(logger_ptr->contains("level_1_calls_level_2_int"));
-#endif
 
   // Clean up: remove the capturing logger
   auto& loggers = ccf::logger::config::loggers();

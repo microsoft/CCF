@@ -7,6 +7,8 @@
 #include <cstdlib>
 #include <cxxabi.h>
 #include <dlfcn.h>
+#include <execinfo.h>
+#include <limits>
 #include <memory>
 #include <sstream>
 
@@ -45,6 +47,11 @@ namespace ccf::tasks
         nullptr, // ignore errors during init
         nullptr);
       return state;
+    }
+
+    bool is_sentinel_pc(uintptr_t pc)
+    {
+      return pc == 0 || pc == std::numeric_limits<uintptr_t>::max();
     }
 
     // Demangle a C++ mangled symbol name. Returns the original string
@@ -86,7 +93,7 @@ namespace ccf::tasks
       const char* function)
     {
       auto* result = static_cast<PcinfoResult*>(data);
-      if (function != nullptr)
+      if (function != nullptr || filename != nullptr || lineno != 0)
       {
         result->resolved = true;
         result->function = demangle(function);
@@ -128,6 +135,11 @@ namespace ccf::tasks
       for (int i = 0; i < num_frames; ++i)
       {
         auto pc = reinterpret_cast<uintptr_t>(frames[i]);
+        if (is_sentinel_pc(pc))
+        {
+          continue;
+        }
+
         PcinfoResult result;
 
         if (state != nullptr)
@@ -207,15 +219,43 @@ extern "C"
         bt_state,
         0, // skip = 0, capture from here
         [](void* data, uintptr_t pc) -> int {
-          auto* t = static_cast<ccf::tasks::ThrowTrace*>(data);
-          if (t->num_frames < ccf::tasks::throw_trace_max_frames)
+          auto* trace = static_cast<ccf::tasks::ThrowTrace*>(data);
+          if (ccf::tasks::is_sentinel_pc(pc))
           {
-            t->frames[t->num_frames++] = reinterpret_cast<void*>(pc); // NOLINT
+            return 1;
           }
+
+          if (trace->num_frames == ccf::tasks::throw_trace_max_frames)
+          {
+            return 1;
+          }
+
+          // NOLINTNEXTLINE(performance-no-int-to-ptr)
+          trace->frames[trace->num_frames++] = reinterpret_cast<void*>(pc);
           return 0;
         },
-        nullptr, // ignore errors
+        ccf::tasks::error_callback,
         &trace);
+    }
+    else
+    {
+      auto num_frames =
+        backtrace(trace.frames, ccf::tasks::throw_trace_max_frames);
+      if (num_frames > 0)
+      {
+        trace.num_frames = static_cast<size_t>(num_frames);
+        while (trace.num_frames > 0)
+        {
+          const auto pc =
+            reinterpret_cast<uintptr_t>(trace.frames[trace.num_frames - 1]);
+          if (!ccf::tasks::is_sentinel_pc(pc))
+          {
+            break;
+          }
+
+          --trace.num_frames;
+        }
+      }
     }
 
     // Forward to the real __cxa_throw
