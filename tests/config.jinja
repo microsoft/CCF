@@ -98,7 +98,8 @@
   },
   "jwt":
   {
-    "key_refresh_interval": "{{ jwt_key_refresh_interval }}"
+    "key_refresh_interval": "{{ jwt_key_refresh_interval }}",
+    "key_refresh_max_response_size": "{{ jwt_key_refresh_max_response_size }}"
   },
   "output_files": {
     "node_certificate_file": "{{ node_certificate_file or "node.pem" }}",

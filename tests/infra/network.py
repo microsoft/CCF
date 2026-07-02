@@ -204,6 +204,7 @@ class Network:
         "max_open_sessions_hard",
         "forwarding_timeout_ms",
         "jwt_key_refresh_interval_s",
+        "jwt_key_refresh_max_response_size",
         "common_read_only_ledger_dir",
         "curve_id",
         "initial_node_cert_validity_days",

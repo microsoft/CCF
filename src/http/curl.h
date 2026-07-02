@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/ds/nonstd.h"
+#include "ccf/http_configuration.h"
 #include "ccf/rest_verb.h"
 #include "ds/internal_logger.h"
 #include "host/proxy.h"
@@ -17,6 +18,7 @@
 #include <regex>
 #include <span>
 #include <stdexcept>
+#include <tuple>
 #include <uv.h>
 
 #define CHECK_CURL_EASY(fn, ...) \
@@ -43,6 +45,17 @@
     { \
       throw std::runtime_error(fmt::format( \
         "Error calling " #fn ": {} ({})", res, curl_multi_strerror(res))); \
+    } \
+  } while (0)
+
+#define CHECK_UV(fn, ...) \
+  do \
+  { \
+    const auto rc = fn(__VA_ARGS__); \
+    if (rc < 0) \
+    { \
+      throw std::runtime_error( \
+        fmt::format("Error calling " #fn ": {} ({})", rc, uv_strerror(rc))); \
     } \
   } while (0)
 
@@ -164,7 +177,16 @@ namespace ccf::curl
 
     void append(const char* str)
     {
-      p.reset(curl_slist_append(p.release(), str));
+      auto* current = p.get();
+      auto* updated = curl_slist_append(current, str);
+      if (updated == nullptr)
+      {
+        throw std::runtime_error("Error calling curl_slist_append");
+      }
+      if (updated != current)
+      {
+        p.reset(updated);
+      }
     }
 
     void append(const std::string& key, const std::string& value)
@@ -253,7 +275,7 @@ namespace ccf::curl
       auto bytes_to_copy = size * nmemb;
       if (response->buffer.size() + bytes_to_copy > response->maximum_size)
       {
-        LOG_FAIL_FMT(
+        LOG_INFO_FMT(
           "Response size limit exceeded: {} bytes, maximum is {} bytes",
           response->buffer.size() + bytes_to_copy,
           response->maximum_size);
@@ -299,6 +321,7 @@ namespace ccf::curl
   public:
     using HeaderMap = std::unordered_map<std::string, std::string>;
     bool is_first_header = true;
+    size_t header_count = 0;
     HeaderMap data;
 
     static size_t recv_header_line(
@@ -311,6 +334,8 @@ namespace ccf::curl
       }
       auto bytes_to_read = size * nitems;
       std::string_view header(buffer, bytes_to_read);
+      const auto max_header_size =
+        ccf::http::default_max_header_size.count_bytes();
 
       // strip \r\n etc
       header = ccf::nonstd::trim(header);
@@ -321,6 +346,14 @@ namespace ccf::curl
       if (response->is_first_header)
       {
         response->is_first_header = false;
+        if (header.size() > max_header_size)
+        {
+          LOG_INFO_FMT(
+            "Response status line is too large: {} bytes, maximum is {} bytes",
+            header.size(),
+            max_header_size);
+          return 0;
+        }
         if (!std::regex_match(std::string(header), http_status_line_regex))
         {
           LOG_FAIL_FMT(
@@ -333,7 +366,35 @@ namespace ccf::curl
         // ignore empty headers
         if (!header.empty())
         {
+          if (response->header_count >= ccf::http::default_max_headers_count)
+          {
+            LOG_INFO_FMT(
+              "Too many response headers: maximum is {}",
+              ccf::http::default_max_headers_count);
+            return 0;
+          }
+          response->header_count++;
+
           const auto [field, value] = ccf::nonstd::split_1(header, ": ");
+          if (field.size() > max_header_size)
+          {
+            LOG_INFO_FMT(
+              "Response header field is too large: {} bytes, maximum is {} "
+              "bytes",
+              field.size(),
+              max_header_size);
+            return 0;
+          }
+          if (value.size() > max_header_size)
+          {
+            LOG_INFO_FMT(
+              "Response header value for '{}' is too large: {} bytes, "
+              "maximum is {} bytes",
+              field,
+              value.size(),
+              max_header_size);
+            return 0;
+          }
           if (!value.empty())
           {
             std::string field_str(field);
@@ -341,7 +402,7 @@ namespace ccf::curl
             if (response->data.contains(field_str))
             {
               auto current = response->data[field_str];
-              LOG_FAIL_FMT(
+              LOG_DEBUG_FMT(
                 "Duplicate header for '{}', current = '{}', new = '{}'",
                 field_str,
                 current,
@@ -506,6 +567,16 @@ namespace ccf::curl
         curl_code); // handle the response callback if set
     }
 
+    static void abort(std::unique_ptr<CurlRequest>&& request)
+    {
+      if (request == nullptr)
+      {
+        throw std::logic_error("Cannot abort a null CurlRequest");
+      }
+
+      handle_response(std::move(request), CURLE_ABORTED_BY_CALLBACK);
+    }
+
     [[nodiscard]] CURL* get_easy_handle() const
     {
       return curl_handle;
@@ -558,8 +629,9 @@ namespace ccf::curl
       }
       LOG_DEBUG_FMT("Attaching CurlRequest to {} to Curlm", request->get_url());
       CURL* curl_handle = request->get_easy_handle();
-      CHECK_CURL_EASY_SETOPT(curl_handle, CURLOPT_PRIVATE, request.release());
+      CHECK_CURL_EASY_SETOPT(curl_handle, CURLOPT_PRIVATE, request.get());
       CHECK_CURL_MULTI(curl_multi_add_handle, p.get(), curl_handle);
+      std::ignore = request.release();
     }
 
     int perform()
@@ -586,10 +658,18 @@ namespace ccf::curl
 
           // retrieve the request data and attach a lifetime to it
           ccf::curl::CurlRequest* request = nullptr;
-          curl_easy_getinfo(easy, CURLINFO_PRIVATE, &request);
+          try
+          {
+            CHECK_CURL_EASY_GETINFO(easy, CURLINFO_PRIVATE, &request);
+          }
+          catch (const std::runtime_error&)
+          {
+            CHECK_CURL_MULTI(curl_multi_remove_handle, p.get(), easy);
+            throw;
+          }
           if (request == nullptr)
           {
-            curl_multi_remove_handle(p.get(), easy);
+            CHECK_CURL_MULTI(curl_multi_remove_handle, p.get(), easy);
             throw std::runtime_error(
               "CURLMSG_DONE received with no associated request data");
           }
@@ -597,7 +677,7 @@ namespace ccf::curl
 
           // detach the easy handle such that it can be cleaned up with the
           // destructor of CurlRequest
-          curl_multi_remove_handle(p.get(), easy);
+          CHECK_CURL_MULTI(curl_multi_remove_handle, p.get(), easy);
 
           // handle response inline. Note that if this is expensive, it should
           // defer its work to a task
@@ -653,32 +733,123 @@ namespace ccf::curl
     std::mutex requests_mutex;
     std::deque<std::unique_ptr<CurlRequest>> pending_requests;
 
+    static bool log_uv_error(const char* function_name, int rc)
+    {
+      if (rc < 0)
+      {
+        LOG_FAIL_FMT(
+          "Error calling {}: {} ({})", function_name, rc, uv_strerror(rc));
+        return true;
+      }
+
+      return false;
+    }
+
+    static bool log_curl_multi_error(const char* function_name, CURLMcode rc)
+    {
+      if (rc != CURLM_OK)
+      {
+        LOG_FAIL_FMT(
+          "Error calling {}: {} ({})",
+          function_name,
+          rc,
+          curl_multi_strerror(rc));
+        return true;
+      }
+
+      return false;
+    }
+
+    static void safe_perform(CurlmLibuvContextImpl* self, const char* caller)
+    {
+      try
+      {
+        self->curl_request_curlm.perform();
+      }
+      catch (const std::exception& e)
+      {
+        LOG_FAIL_FMT(
+          "{} failed to process curl completions: {}", caller, e.what());
+      }
+      catch (...)
+      {
+        LOG_FAIL_FMT("{} failed to process curl completions", caller);
+      }
+    }
+
+    static void safe_abort_request(
+      std::unique_ptr<CurlRequest>&& request, const char* caller)
+    {
+      try
+      {
+        CurlRequest::abort(std::move(request));
+      }
+      catch (const std::exception& e)
+      {
+        LOG_FAIL_FMT("{} failed to abort curl request: {}", caller, e.what());
+      }
+      catch (...)
+      {
+        LOG_FAIL_FMT("{} failed to abort curl request", caller);
+      }
+    }
+
     static void async_requests_callback(uv_async_t* handle)
     {
       auto* self = static_cast<CurlmLibuvContextImpl*>(handle->data);
       if (self == nullptr)
       {
-        throw std::logic_error(
-          "async_requests_callback called with null self pointer");
+        LOG_FAIL_FMT("async_requests_callback called with null self pointer");
+        return;
+      }
+
+      std::deque<std::unique_ptr<CurlRequest>> requests_to_abort;
+      std::deque<std::unique_ptr<CurlRequest>> requests_to_add;
+      {
+        std::lock_guard<std::mutex> requests_lock(self->requests_mutex);
+        if (self->is_stopping)
+        {
+          LOG_DEBUG_FMT("async_requests_callback called while stopping");
+          requests_to_abort.swap(self->pending_requests);
+        }
+        else
+        {
+          LOG_DEBUG_FMT("Libuv: processing pending curl requests");
+          requests_to_add.swap(self->pending_requests);
+        }
+      }
+
+      for (auto& req : requests_to_abort)
+      {
+        safe_abort_request(std::move(req), "async_requests_callback");
       }
 
       if (self->is_stopping)
       {
-        LOG_FAIL_FMT("async_requests_callback called while stopping");
+        for (auto& req : requests_to_add)
+        {
+          safe_abort_request(std::move(req), "async_requests_callback");
+        }
         return;
-      }
-
-      LOG_DEBUG_FMT("Libuv: processing pending curl requests");
-
-      std::deque<std::unique_ptr<CurlRequest>> requests_to_add;
-      {
-        std::lock_guard<std::mutex> requests_lock(self->requests_mutex);
-        requests_to_add.swap(self->pending_requests);
       }
 
       for (auto& req : requests_to_add)
       {
-        self->curl_request_curlm.attach_curl_request(std::move(req));
+        auto request_to_add = std::move(req);
+        try
+        {
+          self->curl_request_curlm.attach_curl_request(
+            std::move(request_to_add));
+        }
+        catch (const std::exception& e)
+        {
+          LOG_FAIL_FMT("Error attaching curl request: {}", e.what());
+          if (request_to_add != nullptr)
+          {
+            safe_abort_request(
+              std::move(request_to_add), "async_requests_callback");
+          }
+        }
       }
     }
 
@@ -688,26 +859,30 @@ namespace ccf::curl
       auto* self = static_cast<CurlmLibuvContextImpl*>(handle->data);
       if (self == nullptr)
       {
-        throw std::logic_error(
-          "libuv_timeout_callback called with null self pointer");
+        LOG_FAIL_FMT("libuv_timeout_callback called with null self pointer");
+        return;
       }
 
       if (self->is_stopping)
       {
-        LOG_FAIL_FMT("libuv_timeout_callback called while stopping");
+        LOG_DEBUG_FMT("libuv_timeout_callback called while stopping");
         return;
       }
 
       LOG_DEBUG_FMT("Libuv timeout");
 
       int running_handles = 0;
-      CHECK_CURL_MULTI(
-        curl_multi_socket_action,
-        self->curl_request_curlm,
-        CURL_SOCKET_TIMEOUT,
-        0,
-        &running_handles);
-      self->curl_request_curlm.perform();
+      if (log_curl_multi_error(
+            "curl_multi_socket_action",
+            curl_multi_socket_action(
+              self->curl_request_curlm,
+              CURL_SOCKET_TIMEOUT,
+              0,
+              &running_handles)))
+      {
+        return;
+      }
+      safe_perform(self, "libuv_timeout_callback");
     }
 
     static int curl_timeout_callback(
@@ -716,13 +891,13 @@ namespace ccf::curl
       (void)multi;
       if (self == nullptr)
       {
-        throw std::logic_error(
-          "libuv_timeout_callback called with null self pointer");
+        LOG_FAIL_FMT("curl_timeout_callback called with null self pointer");
+        return 0;
       }
 
       if (self->is_stopping)
       {
-        LOG_FAIL_FMT("curl_timeout_callback called while stopping");
+        LOG_DEBUG_FMT("curl_timeout_callback called while stopping");
         return 0;
       }
 
@@ -731,14 +906,17 @@ namespace ccf::curl
       if (timeout_ms < 0)
       {
         // No timeout set, stop the timer
-        uv_timer_stop(&self->uv_handle);
+        log_uv_error("uv_timer_stop", uv_timer_stop(&self->uv_handle));
       }
       else
       {
         // If timeout is zero, this will trigger immediately, possibly within a
         // callback so clamp it to at least 1ms
         timeout_ms = std::max(timeout_ms, 1L);
-        uv_timer_start(&self->uv_handle, libuv_timeout_callback, timeout_ms, 0);
+        log_uv_error(
+          "uv_timer_start",
+          uv_timer_start(
+            &self->uv_handle, libuv_timeout_callback, timeout_ms, 0));
       }
       return 0;
     }
@@ -750,20 +928,22 @@ namespace ccf::curl
       auto* socket_context = static_cast<SocketContextImpl*>(req->data);
       if (socket_context == nullptr)
       {
-        throw std::logic_error(
+        LOG_FAIL_FMT(
           "libuv_socket_poll_callback called with null request context");
+        return;
       }
 
       auto* self = socket_context->context;
       if (self == nullptr)
       {
-        throw std::logic_error(
+        LOG_FAIL_FMT(
           "libuv_socket_poll_callback called with null self pointer");
+        return;
       }
 
       if (self->is_stopping)
       {
-        LOG_FAIL_FMT(
+        LOG_DEBUG_FMT(
           "libuv_socket_poll_callback called on {} while stopped",
           socket_context->socket);
         return;
@@ -792,13 +972,17 @@ namespace ccf::curl
 
         // Notify curl of the error
         int running_handles = 0;
-        CHECK_CURL_MULTI(
-          curl_multi_socket_action,
-          self->curl_request_curlm,
-          socket_context->socket,
-          CURL_CSELECT_ERR,
-          &running_handles);
-        self->curl_request_curlm.perform();
+        if (log_curl_multi_error(
+              "curl_multi_socket_action",
+              curl_multi_socket_action(
+                self->curl_request_curlm,
+                socket_context->socket,
+                CURL_CSELECT_ERR,
+                &running_handles)))
+        {
+          return;
+        }
+        safe_perform(self, "libuv_socket_poll_callback");
         return;
       }
 
@@ -811,13 +995,17 @@ namespace ccf::curl
       action |= ((events & UV_READABLE) != 0) ? CURL_CSELECT_IN : 0;
       action |= ((events & UV_WRITABLE) != 0) ? CURL_CSELECT_OUT : 0;
       int running_handles = 0;
-      CHECK_CURL_MULTI(
-        curl_multi_socket_action,
-        self->curl_request_curlm,
-        socket_context->socket,
-        action,
-        &running_handles);
-      self->curl_request_curlm.perform();
+      if (log_curl_multi_error(
+            "curl_multi_socket_action",
+            curl_multi_socket_action(
+              self->curl_request_curlm,
+              socket_context->socket,
+              action,
+              &running_handles)))
+      {
+        return;
+      }
+      safe_perform(self, "libuv_socket_poll_callback");
     }
 
     // Called when the status of a socket changes (creation/deletion)
@@ -830,8 +1018,8 @@ namespace ccf::curl
     {
       if (self == nullptr)
       {
-        throw std::logic_error(
-          "curl_socket_callback called with null self pointer");
+        LOG_FAIL_FMT("curl_socket_callback called with null self pointer");
+        return 0;
       }
       (void)easy;
 
@@ -857,21 +1045,50 @@ namespace ccf::curl
             auto socket_context_ptr = std::make_unique<SocketContextImpl>();
             socket_context_ptr->context = self;
             socket_context_ptr->socket = s;
-            uv_poll_init_socket(self->loop, &socket_context_ptr->uv_handle, s);
+            if (log_uv_error(
+                  "uv_poll_init_socket",
+                  uv_poll_init_socket(
+                    self->loop, &socket_context_ptr->uv_handle, s)))
+            {
+              return 0;
+            }
             socket_context_ptr->uv_handle.data =
               socket_context_ptr.get(); // Attach the context
             // attach the lifetime to the socket handle
+            if (log_curl_multi_error(
+                  "curl_multi_assign",
+                  curl_multi_assign(
+                    self->curl_request_curlm, s, socket_context_ptr.get())))
+            {
+              return 0;
+            }
             socket_context = socket_context_ptr.release();
-            CHECK_CURL_MULTI(
-              curl_multi_assign, self->curl_request_curlm, s, socket_context);
           }
 
           int events = 0;
           events |= (action != CURL_POLL_IN) ? UV_WRITABLE : 0;
           events |= (action != CURL_POLL_OUT) ? UV_READABLE : 0;
 
-          uv_poll_start(
-            &socket_context->uv_handle, events, libuv_socket_poll_callback);
+          if (log_uv_error(
+                "uv_poll_start",
+                uv_poll_start(
+                  &socket_context->uv_handle,
+                  events,
+                  libuv_socket_poll_callback)))
+          {
+            const auto assign_res =
+              curl_multi_assign(self->curl_request_curlm, s, nullptr);
+            if (assign_res != CURLM_OK)
+            {
+              LOG_FAIL_FMT(
+                "Error calling curl_multi_assign while handling "
+                "uv_poll_start failure: {} ({})",
+                assign_res,
+                curl_multi_strerror(assign_res));
+            }
+            SocketContext socket_context_ptr(socket_context);
+            return 0;
+          }
           break;
         }
         case CURL_POLL_REMOVE:
@@ -881,27 +1098,31 @@ namespace ccf::curl
               "CurlmLibuv: curl socket callback: remove socket {}",
               static_cast<int>(s));
             SocketContext socket_context_ptr(socket_context);
-            uv_poll_stop(&socket_context->uv_handle);
-            CHECK_CURL_MULTI(
-              curl_multi_assign, self->curl_request_curlm, s, nullptr);
+            log_uv_error(
+              "uv_poll_stop", uv_poll_stop(&socket_context->uv_handle));
+            log_curl_multi_error(
+              "curl_multi_assign",
+              curl_multi_assign(self->curl_request_curlm, s, nullptr));
           }
           break;
         default:
-          throw std::runtime_error("Unknown action in curl_socket_callback");
+          LOG_FAIL_FMT("Unknown action in curl_socket_callback: {}", action);
+          return 0;
       }
       return 0;
     }
 
     CurlmLibuvContextImpl(uv_loop_t* loop) : loop(loop)
     {
-      uv_timer_init(loop, &uv_handle);
+      CHECK_UV(uv_timer_init, loop, &uv_handle);
       uv_handle.data = this; // Attach this instance to the timer
 
-      uv_async_init(loop, &async_requests_handle, async_requests_callback);
+      CHECK_UV(
+        uv_async_init, loop, &async_requests_handle, async_requests_callback);
       async_requests_handle.data = this;
       uv_unref(reinterpret_cast<uv_handle_t*>(
-        &async_requests_handle)); // allow the loop to exit if this is the only
-                                  // active handle
+        &async_requests_handle)); // allow the loop to exit if this is the
+                                  // only active handle
 
       // attach timeouts
       CHECK_CURL_MULTI(
@@ -924,15 +1145,32 @@ namespace ccf::curl
 
     void attach_request(std::unique_ptr<CurlRequest>&& request)
     {
-      if (is_stopping)
-      {
-        LOG_FAIL_FMT("CurlmLibuvContext already closed, cannot attach request");
-        return;
-      }
       LOG_DEBUG_FMT("Adding request to {} to queue", request->get_url());
-      std::lock_guard<std::mutex> requests_lock(requests_mutex);
-      pending_requests.push_back(std::move(request));
-      uv_async_send(&async_requests_handle);
+      std::unique_ptr<CurlRequest> request_to_abort = nullptr;
+      {
+        std::lock_guard<std::mutex> requests_lock(requests_mutex);
+        if (is_stopping)
+        {
+          LOG_FAIL_FMT(
+            "CurlmLibuvContext already closed, cannot attach request");
+          request_to_abort = std::move(request);
+        }
+        else
+        {
+          pending_requests.push_back(std::move(request));
+          const auto rc = uv_async_send(&async_requests_handle);
+          if (log_uv_error("uv_async_send", rc))
+          {
+            request_to_abort = std::move(pending_requests.back());
+            pending_requests.pop_back();
+          }
+        }
+      }
+
+      if (request_to_abort != nullptr)
+      {
+        safe_abort_request(std::move(request_to_abort), "attach_request");
+      }
     }
 
   private:
@@ -942,54 +1180,123 @@ namespace ccf::curl
     friend class ::asynchost::close_ptr;
     size_t closed_uv_handle_count = 0;
 
-    // called by the close_ptr within the destructor of the proxy_ptr
-    void close()
+    void close_impl()
     {
       LOG_TRACE_FMT("Closing CurlmLibuvContext");
 
       // Prevent multiple close calls
-      if (is_stopping)
-      {
-        LOG_INFO_FMT(
-          "CurlmLibuvContext already closed, nothing to stop or remove");
-        return;
-      }
-      is_stopping = true;
-
-      // remove, stop and cleanup all curl easy handles
-      std::unique_ptr<CURL*, void (*)(CURL**)> easy_handles(
-        curl_multi_get_handles(curl_request_curlm),
-        // NOLINTNEXTLINE(bugprone-multi-level-implicit-pointer-conversion)
-        [](CURL** handles) { curl_free(static_cast<void*>(handles)); });
-      // curl_multi_get_handles returns the handles as a null-terminated array
-      for (size_t i = 0; easy_handles.get()[i] != nullptr; ++i)
-      {
-        auto* easy = easy_handles.get()[i];
-        curl_multi_remove_handle(curl_request_curlm, easy);
-        if (easy != nullptr)
-        {
-          // attach a lifetime to the request
-          ccf::curl::CurlRequest* request = nullptr;
-          curl_easy_getinfo(easy, CURLINFO_PRIVATE, &request);
-          if (request == nullptr)
-          {
-            LOG_FAIL_FMT(
-              "CURLMSG_DONE received with no associated request data");
-          }
-          std::unique_ptr<ccf::curl::CurlRequest> request_data_ptr(request);
-          curl_easy_cleanup(easy);
-        }
-      }
-      // Drain the deque rather than letting it destruct
-      std::deque<std::unique_ptr<CurlRequest>> requests_to_cleanup;
+      std::deque<std::unique_ptr<CurlRequest>> pending_requests_to_complete;
       {
         std::lock_guard<std::mutex> requests_lock(requests_mutex);
-        requests_to_cleanup.swap(pending_requests);
+        if (is_stopping)
+        {
+          LOG_INFO_FMT(
+            "CurlmLibuvContext already closed, nothing to stop or remove");
+          return;
+        }
+        is_stopping = true;
+        pending_requests_to_complete.swap(pending_requests);
+      }
+
+      // remove, stop and cleanup all curl easy handles
+      auto* easy_handles_raw = curl_multi_get_handles(curl_request_curlm);
+      if (easy_handles_raw == nullptr)
+      {
+        LOG_FAIL_FMT("Error calling curl_multi_get_handles while closing");
+      }
+      else
+      {
+        std::unique_ptr<CURL*, void (*)(CURL**)> easy_handles(
+          easy_handles_raw,
+          // NOLINTNEXTLINE(bugprone-multi-level-implicit-pointer-conversion)
+          [](CURL** handles) { curl_free(static_cast<void*>(handles)); });
+        // curl_multi_get_handles returns the handles as a null-terminated array
+        for (size_t i = 0; easy_handles.get()[i] != nullptr; ++i)
+        {
+          auto* easy = easy_handles.get()[i];
+          const auto remove_res =
+            curl_multi_remove_handle(curl_request_curlm, easy);
+          if (remove_res != CURLM_OK)
+          {
+            LOG_FAIL_FMT(
+              "Error calling curl_multi_remove_handle while closing: {} ({})",
+              remove_res,
+              curl_multi_strerror(remove_res));
+          }
+          if (easy != nullptr)
+          {
+            // attach a lifetime to the request
+            ccf::curl::CurlRequest* request = nullptr;
+            const auto getinfo_res =
+              curl_easy_getinfo(easy, CURLINFO_PRIVATE, &request);
+            if (getinfo_res != CURLE_OK)
+            {
+              LOG_FAIL_FMT(
+                "Error calling curl_easy_getinfo while closing: {} ({})",
+                getinfo_res,
+                curl_easy_strerror(getinfo_res));
+              curl_easy_cleanup(easy);
+              continue;
+            }
+            if (request == nullptr)
+            {
+              LOG_FAIL_FMT(
+                "CURL easy handle had no associated request data while "
+                "closing");
+              curl_easy_cleanup(easy);
+              continue;
+            }
+            std::unique_ptr<ccf::curl::CurlRequest> request_data_ptr(request);
+            long status_code = 0;
+            const auto status_res =
+              curl_easy_getinfo(easy, CURLINFO_RESPONSE_CODE, &status_code);
+            if (status_res != CURLE_OK)
+            {
+              LOG_FAIL_FMT(
+                "Error calling curl_easy_getinfo for response code while "
+                "closing: {} ({})",
+                status_res,
+                curl_easy_strerror(status_res));
+            }
+            CurlRequest::handle_response(
+              std::move(request_data_ptr), CURLE_ABORTED_BY_CALLBACK);
+          }
+        }
+      }
+      for (auto& request : pending_requests_to_complete)
+      {
+        try
+        {
+          CurlRequest::abort(std::move(request));
+        }
+        catch (const std::exception& e)
+        {
+          LOG_FAIL_FMT(
+            "Error completing pending curl request while closing: {}",
+            e.what());
+        }
       }
       // Dispatch uv_close to asynchronously close the timer handle
       uv_close(
         reinterpret_cast<uv_handle_t*>(&async_requests_handle), on_close);
       uv_close(reinterpret_cast<uv_handle_t*>(&uv_handle), on_close);
+    }
+
+    // called by the close_ptr within the destructor of the proxy_ptr
+    void close() noexcept
+    {
+      try
+      {
+        close_impl();
+      }
+      catch (const std::exception& e)
+      {
+        LOG_FAIL_FMT("Error closing CurlmLibuvContext: {}", e.what());
+      }
+      catch (...)
+      {
+        LOG_FAIL_FMT("Unknown error closing CurlmLibuvContext");
+      }
     }
     static void on_close(uv_handle_t* handle)
     {
