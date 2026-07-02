@@ -463,6 +463,34 @@ class CCFPolyfill implements CCF {
         return false;
       }
     },
+    isValidX509RootCACert(pem: string): boolean {
+      if (!("X509Certificate" in jscrypto)) {
+        throw new Error(
+          "X509 validation unsupported, Node.js version too old (< 15.6.0)",
+        );
+      }
+      try {
+        const sep = "-----END CERTIFICATE-----";
+        const items = pem.split(sep);
+        // Expect exactly one certificate.
+        if (items.length !== 2 || items[0].trim() === "") {
+          return false;
+        }
+        const cert = new (<any>jscrypto).X509Certificate(items[0] + sep);
+        // Must be a CA certificate.
+        if (!cert.ca) {
+          return false;
+        }
+        // Must be self-signed: the certificate's public key must verify its own signature.
+        if (!cert.verify(cert.publicKey)) {
+          return false;
+        }
+        return true;
+      } catch (e: any) {
+        console.error(`isValidX509RootCACert validation failed: ${e.message}`);
+        return false;
+      }
+    },
     pubPemToJwk(pem: string, kid?: string): JsonWebKeyECPublic {
       const key = jscrypto.createPublicKey({
         key: pem,
@@ -663,6 +691,10 @@ class CCFPolyfill implements CCF {
 
   isValidX509CertChain(chain: string, trusted: string): boolean {
     return this.crypto.isValidX509CertChain(chain, trusted);
+  }
+
+  isValidX509RootCACert(pem: string): boolean {
+    return this.crypto.isValidX509RootCACert(pem);
   }
 
   enableUntrustedDateTime(enable: boolean): boolean {

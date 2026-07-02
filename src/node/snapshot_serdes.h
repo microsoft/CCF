@@ -4,6 +4,8 @@
 
 #include "ccf/crypto/cose.h"
 #include "ccf/crypto/cose_verifier.h"
+#include "ccf/crypto/pem.h"
+#include "ccf/ds/json.h"
 #include "ccf/historical_queries_adapter.h"
 #include "ccf/service/tables/nodes.h"
 #include "crypto/cose.h"
@@ -51,6 +53,15 @@ namespace ccf
       throw std::logic_error("Snapshot transaction size should not be zero");
     }
 
+    if (store_snapshot_size > size)
+    {
+      throw std::invalid_argument(fmt::format(
+        "Snapshot transaction header claims size {} which exceeds available "
+        "buffer size {}",
+        store_snapshot_size,
+        size));
+    }
+
     const auto* receipt_data = data + store_snapshot_size;
     auto receipt_size = size - store_snapshot_size;
 
@@ -90,8 +101,8 @@ namespace ccf
 
     if (prev_service_identity)
     {
-      auto verifier =
-        ccf::crypto::make_cose_verifier_from_cert(*prev_service_identity);
+      auto verifier = ccf::crypto::make_cose_verifier_from_pem_cert(
+        ccf::crypto::Pem(*prev_service_identity));
       if (!verifier->verify_detached(segments.receipt, receipt.merkle_root))
       {
         throw std::logic_error(
@@ -107,7 +118,7 @@ namespace ccf
     const std::optional<std::vector<uint8_t>>& prev_service_identity)
   {
     auto j =
-      nlohmann::json::parse(segments.receipt.begin(), segments.receipt.end());
+      ccf::parse_json_safe(segments.receipt.begin(), segments.receipt.end());
     auto receipt_p = j.get<ReceiptPtr>();
     auto receipt = std::dynamic_pointer_cast<ccf::ProofReceipt>(receipt_p);
     if (receipt == nullptr)

@@ -12,6 +12,7 @@ import infra.path
 import infra.interfaces
 import infra.clients
 import ccf.ledger
+from ccf.tx_id import TxID
 import os
 import socket
 import re
@@ -141,12 +142,14 @@ class Node:
         node_port=0,
         version=None,
         node_data_json_file=None,
+        ipv6=False,
     ):
         self.local_node_id = local_node_id
         self.binary_dir = binary_dir
         self.library_dir = library_dir
         self.debug = debug
         self.perf = perf
+        self.ipv6 = ipv6
         self.remote = None
         self.network_state = NodeNetworkState.stopped
         self.common_dir = None
@@ -173,19 +176,30 @@ class Node:
             raise ValueError("Translate host to HostSpec before you get here")
 
         for interface_name, rpc_interface in self.host.rpc_interfaces.items():
+            # Expand "localhost" to a concrete address first, so the IPv6
+            # detection below sees the effective host (when this node is
+            # running in IPv6 mode, expand_localhost() returns the "::1"
+            # loopback address).
+            if rpc_interface.host == "localhost":
+                rpc_interface.host = infra.net.expand_localhost(ipv6=self.ipv6)
+
             # Main RPC interface determines remote implementation
             if interface_name == infra.interfaces.PRIMARY_RPC_INTERFACE:
                 if rpc_interface.protocol == "local":
                     if not self.major_version or self.major_version > 1:
-                        self.node_client_host = str(
-                            ipaddress.ip_address(BASE_NODE_CLIENT_HOST)
-                            + self.local_node_id
-                        )
+                        if ":" in rpc_interface.host:
+                            # IPv6 addresses (e.g. ::1 from expand_localhost())
+                            # are not compatible with the IPv4-based client
+                            # interface used for partition simulation. Skip
+                            # client interface binding for IPv6.
+                            self.node_client_host = None
+                        else:
+                            self.node_client_host = str(
+                                ipaddress.ip_address(BASE_NODE_CLIENT_HOST)
+                                + self.local_node_id
+                            )
                 else:
                     assert False, f"{rpc_interface.protocol} is not 'local://'"
-
-            if rpc_interface.host == "localhost":
-                rpc_interface.host = infra.net.expand_localhost()
 
             if rpc_interface.public_host is None:
                 rpc_interface.public_host = rpc_interface.host
@@ -202,7 +216,18 @@ class Node:
                 strip_version(self.version)
             ) <= Version("7.0.0-dev6"):
                 if rpc_interface.enabled_operator_features:
-                    rpc_interface.enabled_operator_features.remove("LedgerChunkRead")
+                    if "LedgerChunkRead" in rpc_interface.enabled_operator_features:
+                        rpc_interface.enabled_operator_features.remove(
+                            "LedgerChunkRead"
+                        )
+
+            # SnapshotCreate operator feature is only supported from 7.0.0-dev14 onwards
+            if self.version is not None and Version(
+                strip_version(self.version)
+            ) <= Version("7.0.0-dev13"):
+                if rpc_interface.enabled_operator_features:
+                    if "SnapshotCreate" in rpc_interface.enabled_operator_features:
+                        rpc_interface.enabled_operator_features.remove("SnapshotCreate")
 
     def __hash__(self):
         return self.local_node_id
@@ -312,11 +337,17 @@ class Node:
 
         self.host_data_transparent_statement_path = host_data_transparent_statement_path
         self.certificate_validity_days = kwargs.get("initial_node_cert_validity_days")
+        self.election_timeout_ms = kwargs.get("election_timeout_ms")
         self.remote = infra.remote.CCFRemote(
             start_type,
             lib_path,
             workspace,
             common_dir,
+            binary_name=(
+                "cchost"
+                if self.major_version is not None and self.major_version < 7
+                else None
+            ),
             binary_dir=self.binary_dir,
             label=label,
             local_node_id=self.local_node_id,
@@ -367,12 +398,12 @@ class Node:
         # Detect whether node started up successfully
         for _ in range(NODE_STARTUP_RETRY_COUNT):
             try:
-                if self.remote.check_done():
+                if self.remote.check_done(timeout=0):
                     raise RuntimeError("Node crashed at startup")
                 self.remote.get_startup_files(self.common_dir)
                 break
             except Exception as e:
-                if self.remote.check_done():
+                if self.remote.check_done(timeout=0):
                     raise RuntimeError(
                         f"Error starting node {self.local_node_id}"
                     ) from e
@@ -716,6 +747,8 @@ class Node:
         if description_suffix is not None:
             description += f"|{description_suffix}"
         akwargs["description"] = f"[{description}]"
+        if self.election_timeout_ms is not None:
+            akwargs.setdefault("election_timeout_ms", self.election_timeout_ms)
         akwargs.update(kwargs)
 
         if hasattr(self, "client_impl"):
@@ -884,6 +917,15 @@ class Node:
         except Exception as e:
             LOG.debug(f"Failed to connect {e}")
             self.network_state = NodeNetworkState.stopped
+
+    def trigger_snapshot(self) -> TxID:
+        LOG.info(f"Triggering snapshot on {self.local_node_id}")
+        with self.client(
+            interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
+        ) as c:
+            r = c.post("/node/snapshot:create")
+            assert r.status_code == http.HTTPStatus.NO_CONTENT, r
+        return TxID(r.view, r.seqno)
 
     def log_stack_trace(self, timeout=20):
         if self.remote and self.network_state is not NodeNetworkState.stopped:

@@ -17,14 +17,69 @@ namespace cli
 {
   using ParsedAddress = ccf::NodeInfoNetwork::NetAddress;
 
+  // Parses and validates a "host:port" (or bracketed "[host]:port") address
+  // from untrusted CLI input. Deliberately does NOT reuse
+  // ccf::split_net_address, despite the apparent overlap, because the two have
+  // different contracts:
+  //  - Missing port: for a bare host like "1.2.3.4" this substitutes
+  //    default_port, returning ("1.2.3.4", default_port); split_net_address
+  //    leaves the port empty, returning ("1.2.3.4", "").
+  //  - Validation: this checks the port is numeric and in 0-65535, and throws
+  //    on malformed input (unmatched '[', junk after ']'); split_net_address
+  //    does no validation and deliberately falls through to lenient parsing.
+  // That leniency is a safety property of split_net_address, which is on the
+  // consensus deserialization path and must not throw on already-persisted
+  // addresses. Validation belongs here, at the input boundary; keep them apart.
   static std::pair<std::string, std::string> validate_address(
     const ParsedAddress& addr, const std::string& default_port = "0")
   {
-    auto found = addr.find_last_of(':');
-    auto hostname = addr.substr(0, found);
+    std::string hostname;
+    std::string port;
 
-    const auto port =
-      found == std::string::npos ? default_port : addr.substr(found + 1);
+    if (!addr.empty() && addr.front() == '[')
+    {
+      // Bracketed IPv6 literal: "[host]:port" or "[host]". The brackets are
+      // stripped from the returned host.
+      const auto close = addr.find(']');
+      if (close == std::string::npos)
+      {
+        throw std::logic_error(
+          fmt::format("Address '{}' has an unmatched '['", addr));
+      }
+      hostname = addr.substr(1, close - 1);
+      if (close + 1 == addr.size())
+      {
+        // "[host]" with no port
+        port = default_port;
+      }
+      else if (addr[close + 1] == ':')
+      {
+        // "[host]:port"
+        port = addr.substr(close + 2);
+      }
+      else
+      {
+        throw std::logic_error(fmt::format(
+          "Address '{}' has unexpected characters after ']'", addr));
+      }
+    }
+    else
+    {
+      // Unbracketed IPv6 literals are ambiguous with the host:port separator.
+      // Require bracketed "[host]:port" form for any address containing more
+      // than one ':' (e.g. "::1").
+      if (
+        addr.find(':') != std::string::npos &&
+        addr.find(':') != addr.find_last_of(':'))
+      {
+        throw std::logic_error(fmt::format(
+          "IPv6 address '{}' must be bracketed as '[host]:port'", addr));
+      }
+
+      auto found = addr.find_last_of(':');
+      hostname = addr.substr(0, found);
+      port = found == std::string::npos ? default_port : addr.substr(found + 1);
+    }
 
     // Check if port is in valid range
     uint16_t port_n = 0;

@@ -98,8 +98,8 @@ class CCFRemoteClient(object):
                     ) as r:
                         csvfd.write(r.read())
 
-    def check_done(self):
-        return self.remote.check_done()
+    def check_done(self, timeout=5, interval=0.2):
+        return self.remote.check_done(timeout=timeout, interval=interval)
 
     def get_result(self):
         return self.remote.get_result(self.LINES_RESULT_FROM_END)
@@ -152,8 +152,8 @@ class CCFRemoteCmd(object):
     def stop(self):
         self.remote.stop()
 
-    def check_done(self):
-        return self.remote.check_done()
+    def check_done(self, timeout=5, interval=0.2):
+        return self.remote.check_done(timeout=timeout, interval=interval)
 
     def get_result(self):
         return self.remote.get_result(self.LINES_RESULT_FROM_END)

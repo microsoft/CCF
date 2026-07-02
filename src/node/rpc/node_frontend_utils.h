@@ -5,6 +5,8 @@
 #include "ccf/http_status.h"
 #include "ccf/node/quote.h"
 
+#include <stdexcept>
+
 namespace ccf
 {
   static std::pair<http_status, std::string> quote_verification_error(
@@ -12,6 +14,9 @@ namespace ccf
   {
     switch (result)
     {
+      case QuoteVerificationResult::Verified:
+        throw std::invalid_argument(
+          "quote_verification_error should not be called with Verified result");
       case QuoteVerificationResult::Failed:
         return std::make_pair(
           HTTP_STATUS_UNAUTHORIZED, "Quote could not be verified");
@@ -40,9 +45,9 @@ namespace ccf
         return std::make_pair(
           HTTP_STATUS_UNAUTHORIZED, "Quote TCB version is too low");
       default:
-        return std::make_pair(
-          HTTP_STATUS_INTERNAL_SERVER_ERROR,
-          "Unknown quote verification error");
+        throw std::logic_error(fmt::format(
+          "Unknown QuoteVerificationResult: {}",
+          static_cast<uint32_t>(result)));
     }
   }
 }

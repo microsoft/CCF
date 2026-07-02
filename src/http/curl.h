@@ -418,7 +418,7 @@ namespace ccf::curl
           fmt::format("Unsupported HTTP method: {}", method.c_str()));
       }
 
-      switch (http_method.value())
+      switch (static_cast<int>(http_method.value()))
       {
         case HTTP_GET:
           CHECK_CURL_EASY_SETOPT(curl_handle, CURLOPT_HTTPGET, 1L);

@@ -143,18 +143,15 @@ namespace ringbuffer
       auto* src = bd.data + index;
       auto* src_64 = reinterpret_cast<uint64_t*>(src);
 
-#ifdef __cpp_lib_atomic_ref
       if (Const::is_aligned(src, 8))
       {
         auto& ref = *src_64;
         std::atomic_ref<uint64_t> slot(ref);
         return slot.load(std::memory_order_acquire);
       }
-#endif
 
-      // __atomic_load is used instead of std::atomic_ref when std::atomic_ref
-      // is unavailable, or the src pointer is not aligned
-      // https://en.cppreference.com/w/Template:cpp/compiler_support/20
+      // __atomic_load is used when the src pointer is not aligned, since
+      // std::atomic_ref requires proper alignment.
       uint64_t r = 0;
       __atomic_load(src_64, &r, __ATOMIC_ACQUIRE);
       return r;
@@ -425,17 +422,9 @@ namespace ringbuffer
     virtual void write64(size_t index, uint64_t value)
     {
       bd.check_access(index, sizeof(value));
-#ifdef __cpp_lib_atomic_ref
       auto& ref = *(reinterpret_cast<uint64_t*>(bd.data + index));
       std::atomic_ref<uint64_t> slot(ref);
       slot.store(value, std::memory_order_release);
-#else
-      // __atomic_store is used instead of std::atomic_ref since it's not
-      // supported by libc++ yet.
-      // https://en.cppreference.com/w/Template:cpp/compiler_support/20
-      __atomic_store(
-        reinterpret_cast<uint64_t*>(bd.data + index), &value, __ATOMIC_RELEASE);
-#endif
     }
 
     std::optional<Reservation> reserve(size_t size)

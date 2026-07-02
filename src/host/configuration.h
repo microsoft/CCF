@@ -38,7 +38,7 @@ namespace host
     data_json_file,
     recovery_role);
 
-  struct CCHostConfig : public ccf::CCFConfig
+  struct HostConfig : public ccf::CCFConfig
   {
     ccf::ds::TimeString tick_interval = {"10ms"};
     ccf::ds::TimeString slow_io_logging_threshold = {"10ms"};
@@ -127,38 +127,38 @@ namespace host
     Command command = {};
   };
 
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::OutputFiles);
-  DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::OutputFiles);
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(HostConfig::OutputFiles);
+  DECLARE_JSON_REQUIRED_FIELDS(HostConfig::OutputFiles);
   DECLARE_JSON_OPTIONAL_FIELDS(
-    CCHostConfig::OutputFiles,
+    HostConfig::OutputFiles,
     node_certificate_file,
     pid_file,
     node_to_node_address_file,
     rpc_addresses_file);
 
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Logging);
-  DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Logging);
-  DECLARE_JSON_OPTIONAL_FIELDS(CCHostConfig::Logging, format);
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(HostConfig::Logging);
+  DECLARE_JSON_REQUIRED_FIELDS(HostConfig::Logging);
+  DECLARE_JSON_OPTIONAL_FIELDS(HostConfig::Logging, format);
 
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Memory);
-  DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Memory);
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(HostConfig::Memory);
+  DECLARE_JSON_REQUIRED_FIELDS(HostConfig::Memory);
   DECLARE_JSON_OPTIONAL_FIELDS(
-    CCHostConfig::Memory, circuit_size, max_msg_size, max_fragment_size);
+    HostConfig::Memory, circuit_size, max_msg_size, max_fragment_size);
 
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Command::Start);
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(HostConfig::Command::Start);
   DECLARE_JSON_REQUIRED_FIELDS(
-    CCHostConfig::Command::Start, members, constitution_files);
+    HostConfig::Command::Start, members, constitution_files);
   DECLARE_JSON_OPTIONAL_FIELDS(
-    CCHostConfig::Command::Start,
+    HostConfig::Command::Start,
     service_configuration,
     initial_service_certificate_validity_days,
     service_subject_name,
     cose_signatures);
 
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Command::Join);
-  DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Command::Join, target_rpc_address);
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(HostConfig::Command::Join);
+  DECLARE_JSON_REQUIRED_FIELDS(HostConfig::Command::Join, target_rpc_address);
   DECLARE_JSON_OPTIONAL_FIELDS(
-    CCHostConfig::Command::Join,
+    HostConfig::Command::Join,
     retry_timeout,
     follow_redirect,
     fetch_recent_snapshot,
@@ -167,22 +167,22 @@ namespace host
     fetch_snapshot_max_size,
     host_data_transparent_statement_path);
 
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Command::Recover);
-  DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Command::Recover);
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(HostConfig::Command::Recover);
+  DECLARE_JSON_REQUIRED_FIELDS(HostConfig::Command::Recover);
   DECLARE_JSON_OPTIONAL_FIELDS(
-    CCHostConfig::Command::Recover,
+    HostConfig::Command::Recover,
     initial_service_certificate_validity_days,
     previous_service_identity_file);
 
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Command);
-  DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Command, type);
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(HostConfig::Command);
+  DECLARE_JSON_REQUIRED_FIELDS(HostConfig::Command, type);
   DECLARE_JSON_OPTIONAL_FIELDS(
-    CCHostConfig::Command, service_certificate_file, start, join, recover);
+    HostConfig::Command, service_certificate_file, start, join, recover);
 
-  DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(CCHostConfig, ccf::CCFConfig);
-  DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig, command);
+  DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(HostConfig, ccf::CCFConfig);
+  DECLARE_JSON_REQUIRED_FIELDS(HostConfig, command);
   DECLARE_JSON_OPTIONAL_FIELDS(
-    CCHostConfig,
+    HostConfig,
     tick_interval,
     slow_io_logging_threshold,
     node_client_interface,

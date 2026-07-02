@@ -127,6 +127,8 @@ namespace ccf::crypto
         return CurveID::SECP384R1;
       case NID_X9_62_prime256v1:
         return CurveID::SECP256R1;
+      case NID_secp521r1:
+        return CurveID::SECP521R1;
       default:
         throw std::runtime_error(fmt::format("Unknown OpenSSL curve {}", nid));
     }
@@ -151,6 +153,11 @@ namespace ccf::crypto
       return NID_X9_62_prime256v1;
     }
 
+    if (gname == SN_secp521r1)
+    {
+      return NID_secp521r1;
+    }
+
     throw std::runtime_error(fmt::format("Unknown OpenSSL group {}", gname));
   }
 
@@ -164,7 +171,10 @@ namespace ccf::crypto
         return NID_secp384r1;
       case CurveID::SECP256R1:
         return NID_X9_62_prime256v1;
-      default:
+      case CurveID::SECP521R1:
+        return NID_secp521r1;
+      case CurveID::CURVE25519:
+      case CurveID::X25519:
         throw std::logic_error(
           fmt::format("unsupported OpenSSL CurveID {}", gid));
     }
@@ -307,7 +317,11 @@ namespace ccf::crypto
     x.reset(bn_x);
     CHECK1(EVP_PKEY_get_bn_param(key, OSSL_PKEY_PARAM_EC_PUB_Y, &bn_y));
     y.reset(bn_y);
-    int sz = EC_GROUP_get_degree(group) / CHAR_BIT;
+    // Use ceiling division so curves whose bit-size is not a multiple of 8
+    // (e.g. P-521 with 521 bits) get the full 66-byte coordinate buffer
+    // rather than a truncated 65-byte one, which would cause BN_bn2binpad to
+    // fail or silently drop a leading zero byte.
+    int sz = (EC_GROUP_get_degree(group) + CHAR_BIT - 1) / CHAR_BIT;
     r.x.resize(sz);
     r.y.resize(sz);
     BN_bn2binpad(x, r.x.data(), sz);

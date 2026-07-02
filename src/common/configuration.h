@@ -109,8 +109,23 @@ namespace ccf
     CCFConfig::Snapshots,
     directory,
     tx_count,
+    min_tx_count,
+    time_interval,
     read_only_directory,
     backup_fetch);
+
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::FilesCleanup);
+  DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::FilesCleanup);
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    CCFConfig::FilesCleanup,
+    max_snapshots,
+    max_committed_ledger_chunks,
+    interval);
+
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::IdentityHistoryFetch);
+  DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::IdentityHistoryFetch);
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    CCFConfig::IdentityHistoryFetch, max_attempts, retry_interval);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig);
   DECLARE_JSON_REQUIRED_FIELDS(CCFConfig, network);
@@ -124,8 +139,10 @@ namespace ccf
     jwt,
     attestation,
     snapshots,
+    files_cleanup,
     node_to_node_message_limit,
-    historical_cache_soft_limit);
+    historical_cache_soft_limit,
+    identity_history_fetch);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(RecoveryDecisionProtocolConfig);
   DECLARE_JSON_REQUIRED_FIELDS(

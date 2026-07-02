@@ -95,7 +95,10 @@ namespace ccf::crypto
         return EVP_PKEY_ED25519;
       case CurveID::X25519:
         return EVP_PKEY_X25519;
-      default:
+      case CurveID::NONE:
+      case CurveID::SECP384R1:
+      case CurveID::SECP256R1:
+      case CurveID::SECP521R1:
         throw std::logic_error(
           fmt::format("unsupported OpenSSL CurveID {}", gid));
     }

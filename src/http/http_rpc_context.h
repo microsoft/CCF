@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/http_responder.h"
 #include "ccf/odata_error.h"
 #include "ccf/rpc_context.h"
 #include "ds/actors.h"
@@ -48,8 +47,6 @@ namespace http
     ccf::http::HeaderMap request_headers;
 
     std::vector<uint8_t> request_body;
-
-    std::shared_ptr<ccf::http::HTTPResponder> responder = nullptr;
 
     std::vector<uint8_t> serialised_request;
 
@@ -99,14 +96,12 @@ namespace http
       const std::string_view& url_,
       ccf::http::HeaderMap headers_,
       const std::vector<uint8_t>& body_,
-      const std::shared_ptr<ccf::http::HTTPResponder>& responder_ = nullptr,
       const std::vector<uint8_t>& raw_request_ = {}) :
       RpcContextImpl(s, http_version),
       verb(verb_),
       url(url_),
       request_headers(std::move(headers_)),
       request_body(body_),
-      responder(responder_),
       serialised_request(raw_request_)
     {
       const auto [path_, query_, fragment_] = split_url_path(url);
@@ -202,12 +197,6 @@ namespace http
       return url;
     }
 
-    [[nodiscard]] std::shared_ptr<ccf::http::HTTPResponder> get_responder()
-      const override
-    {
-      return responder;
-    }
-
     template <typename T>
     void _set_response_body(T&& body)
     {
@@ -299,6 +288,7 @@ namespace http
       response_body.clear();
       response_status = HTTP_STATUS_OK;
       explicit_apply_writes.reset();
+      consensus_committed_func = nullptr;
     }
 
     [[nodiscard]] std::vector<uint8_t> serialise_response() const override
@@ -395,7 +385,6 @@ namespace ccf
       msg.url,
       msg.headers,
       msg.body,
-      nullptr,
       packed);
   }
 

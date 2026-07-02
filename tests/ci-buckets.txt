@@ -1,0 +1,40 @@
+bucket_a:
+  lts_compatibility
+
+bucket_b:
+  recovery_test
+  schema_test
+  nodes_test
+
+bucket_c:
+  raft_scenario_test
+  versionifier_test
+  github_version_lts_test
+  js_batched_stress_test
+  modules_test
+  auth
+  governance_test
+  code_update_test
+  e2e_logging
+  programmability_and_jwt
+  e2e_limits
+  e2e_redirects
+  e2e_logging_http2
+  tls_stress_test
+
+no_bucket:
+  map_bench
+  logger_bench
+  json_bench
+  ring_buffer_bench
+  crypto_bench
+  cose_bench
+  history_bench
+  kv_bench
+  merkle_bench
+  hash_bench
+  task_bench
+  recovery_test_suite
+  reconfiguration_test_suite
+  full_test_suite
+

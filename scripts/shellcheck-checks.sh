@@ -11,4 +11,4 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 ROOT_DIR=$( dirname "$SCRIPT_DIR" )
 cd "$ROOT_DIR" || exit 1
 
-git ls-files | grep -e '\.sh$' | grep -E -v "^3rdparty" | xargs shellcheck -S warning -s bash
+git ls-files | grep -e '\.sh$' | grep -E -v "^3rdparty" | xargs uvx --from shellcheck-py shellcheck -S warning -s bash

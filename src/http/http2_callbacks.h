@@ -203,8 +203,10 @@ namespace http2
     {
       throw http::RequestHeaderTooLargeException(
         fmt::format(
-          "Header value for '{}' is too large (max size allowed: {})",
-          v,
+          "Header value for key '{}' is too large (size: {}, max size allowed: "
+          "{})",
+          k,
+          valuelen,
           max_header_size),
         stream_id);
     }

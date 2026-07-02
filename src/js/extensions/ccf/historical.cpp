@@ -25,7 +25,7 @@ namespace ccf::js::extensions
     };
     std::unordered_map<ccf::SeqNo, HistoricalHandle> historical_handles;
 
-    Impl(ccf::historical::AbstractStateCache* hs) : historical_state(hs) {};
+    Impl(ccf::historical::AbstractStateCache* hs) : historical_state(hs) {}
   };
 
   namespace
@@ -465,7 +465,11 @@ namespace ccf::js
     .define_own_property = {},
     .has_property = {},
     .get_property = {},
-    .set_property = {}};
+    .set_property = {},
+    .get_prototype = {},
+    .set_prototype = {},
+    .is_extensible = {},
+    .prevent_extensions = {}};
   JSClassDef kv_historical_class_def = {
     .class_name = "Read-only Historical KV Tables",
     .finalizer = {},

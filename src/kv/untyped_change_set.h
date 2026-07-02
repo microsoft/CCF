@@ -5,14 +5,9 @@
 #include "ccf/byte_vector.h"
 #include "ccf/kv/hooks.h"
 #include "ccf/kv/untyped.h"
+#include "ds/champ_map.h"
 #include "kv/kv_types.h"
 #include "kv/version_v.h"
-
-#ifndef KV_STATE_RB
-#  include "ds/champ_map.h"
-#else
-#  include "ds/rb_map.h"
-#endif
 
 namespace ccf::kv::untyped
 {
@@ -25,11 +20,7 @@ namespace ccf::kv::untyped
 
   using VersionV = ccf::kv::VersionV<V>;
 
-#ifndef KV_STATE_RB
   using State = champ::Map<K, VersionV, H>;
-#else
-  using State = rb::Map<K, VersionV>;
-#endif
 
   // This is a map of keys and with a tuple of the key's write version and
   // the version of last transaction which read the key and committed

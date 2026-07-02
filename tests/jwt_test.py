@@ -36,6 +36,83 @@ def set_issuer_with_keys(network, primary, issuer, kids):
         )
 
 
+def assert_set_jwt_issuer_rejected(network, primary, metadata):
+    with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
+        json.dump(metadata, metadata_fp)
+        metadata_fp.flush()
+        try:
+            network.consortium.set_jwt_issuer(primary, metadata_fp.name)
+        except infra.proposal.ProposalNotCreated as e:
+            assert e.response.status_code == 400, e.response.body.text()
+            assert (
+                e.response.body.json()["error"]["code"] == "ProposalFailedToValidate"
+            ), e.response.body.text()
+        else:
+            assert False, "set_jwt_issuer should have failed to validate"
+
+
+@reqs.description("JWT issuer and JWKS validation")
+def test_jwt_issuer_and_jwks_validation(network, args):
+    primary, _ = network.find_nodes()
+    issuer = infra.jwt_issuer.JwtIssuer("https://example.issuer")
+    valid_key = issuer.create_jwks("kid1")["keys"][0]
+
+    assert_set_jwt_issuer_rejected(network, primary, {"issuer": "example.issuer"})
+    assert_set_jwt_issuer_rejected(
+        network, primary, {"issuer": "https://example.issuer?foo=bar"}
+    )
+    assert_set_jwt_issuer_rejected(
+        network, primary, {"issuer": "https://example.issuer#fragment"}
+    )
+    assert_set_jwt_issuer_rejected(
+        network,
+        primary,
+        {"issuer": issuer.name, "jwks": {"keys": [valid_key, valid_key]}},
+    )
+    assert_set_jwt_issuer_rejected(
+        network,
+        primary,
+        {"issuer": issuer.name, "jwks": {"keys": [{**valid_key, "kty": "oct"}]}},
+    )
+    assert_set_jwt_issuer_rejected(
+        network,
+        primary,
+        {"issuer": issuer.name, "jwks": {"keys": [{**valid_key, "alg": "HS256"}]}},
+    )
+    assert_set_jwt_issuer_rejected(
+        network,
+        primary,
+        {"issuer": issuer.name, "jwks": {"keys": [{**valid_key, "use": "enc"}]}},
+    )
+
+    # An RSA key (with n/e) tagged with an EC alg must be rejected even though
+    # ES256 is otherwise an accepted alg value.
+    assert_set_jwt_issuer_rejected(
+        network,
+        primary,
+        {"issuer": issuer.name, "jwks": {"keys": [{**valid_key, "alg": "ES256"}]}},
+    )
+
+    # EC keys must have alg matching crv per RFC 7518 section 3.4: ES256 binds
+    # to P-256, ES384 to P-384, ES512 to P-521. An ES256 alg on a P-256 key
+    # should pass; any other alg on a P-256 key should be rejected.
+    ec_issuer = infra.jwt_issuer.JwtIssuer(
+        "https://example.issuer",
+        alg=infra.jwt_issuer.JwtAlg.ES256,
+        auth_type=infra.jwt_issuer.JwtAuthType.KEY,
+    )
+    ec_key = ec_issuer.create_jwks("kid1")["keys"][0]
+    for wrong_alg in ("ES384", "ES512", "RS256"):
+        assert_set_jwt_issuer_rejected(
+            network,
+            primary,
+            {
+                "issuer": ec_issuer.name,
+                "jwks": {"keys": [{**ec_key, "alg": wrong_alg}]},
+            },
+        )
+
+
 @reqs.description("Refresh JWT issuer")
 def test_refresh_jwt_issuer(network, args):
     assert network.jwt_issuer.server, "JWT server is not started"
@@ -473,7 +550,7 @@ def test_jwt_key_auto_refresh_entries(network, args):
         # Check that despite refreshing JWTs multiple times, only a single
         # transaction was created for this kid.
         ledger_directories = primary.remote.ledger_paths()
-        ledger = ccf.ledger.Ledger(ledger_directories)
+        ledger = ccf.ledger.Ledger(ledger_directories, contiguous_suffix=True)
 
         last_key_refresh = None
         for chunk in ledger:
@@ -701,6 +778,7 @@ def run_auto(args):
         args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
+        test_jwt_issuer_and_jwks_validation(network, args)
         test_jwt_mulitple_issuers_same_kids_different_pem(network, args)
         test_jwt_mulitple_issuers_same_kids_same_pem(network, args)
         test_jwt_same_issuer_constraint_overwritten(network, args)

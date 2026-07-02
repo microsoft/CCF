@@ -172,7 +172,7 @@ TEST_CASE("DelayedCompletions" * doctest::test_suite("fan_in_tasks"))
   auto completions = ccf::tasks::FanInTasks::create(job_board);
   std::atomic<size_t> counter;
 
-  for (auto i = 0; i < num_tasks; ++i)
+  for (size_t i = 0; i < num_tasks; ++i)
   {
     job_board.add_task(ccf::tasks::make_basic_task([&, i]() {
       const std::chrono::milliseconds sleep_time(rand() % 100);

@@ -21,6 +21,48 @@ The configuration for each CCF node must be contained in a single JSON configura
 .. include:: generated_config.rst
 
 
+IPv6 Addresses
+--------------
+
+.. note:: IPv6 support is currently **experimental**.
+
+Every address field accepts an IPv4 address, an IPv6 address, or a fully qualified domain name. IPv6 literals must be written in bracketed form, ``[host]:port``, so that the colons in the address are not mistaken for the host/port separator. This applies to all address fields, including:
+
+- ``network.node_to_node_interface.bind_address`` and ``published_address``
+- ``network.rpc_interfaces.[name].bind_address`` and ``published_address``
+- ``command.join.target_rpc_address``
+
+For example, to bind a node's interfaces to the IPv6 loopback address ``::1`` and publish an address on a different IPv6 host:
+
+.. code-block:: json
+
+    {
+      "network": {
+        "node_to_node_interface": { "bind_address": "[::1]:8081" },
+        "rpc_interfaces": {
+          "primary_rpc_interface": {
+            "bind_address": "[::1]:8080",
+            "published_address": "[2001:db8::1]:12345"
+          }
+        }
+      }
+    }
+
+A node joining over IPv6 sets ``command.join.target_rpc_address`` to the bracketed address of an existing node:
+
+.. code-block:: json
+
+    {
+      "command": {
+        "join": { "target_rpc_address": "[2001:db8::1]:12345" }
+      }
+    }
+
+When a node is identified by an IPv6 literal, the matching ``node_certificate.subject_alt_names`` entry uses the ``iPAddress:`` prefix with the **unbracketed** address, for example ``"iPAddress:2001:db8::1"``.
+
+.. note:: ``published_address`` defaults to ``bind_address`` when omitted, and is the address embedded in redirect URLs returned to clients. Brackets are added automatically where required, so a published IPv6 address appears in a redirect as ``https://[2001:db8::1]:12345/...``.
+
+
 Operator Features
 -----------------
 
@@ -29,7 +71,8 @@ The `enabled_operator_features` configuration field allows enabling or disabling
 Currently supported features are:
 
 1. 'SnapshotRead': gates access to endpoints used to fetch snapshots directly from nodes (:http:GET:`/node/snapshot`, :http:HEAD:`/node/snapshot`, :http:GET:`/node/snapshot/{snapshot_name}` and :http:HEAD:`/node/snapshot/{snapshot_name}`).
-2. 'LedgerChunkRead': gates access to endpoints used to retrieve ledger chunks, to be added in a future release.
+2. 'LedgerChunkRead': gates access to endpoints used to retrieve ledger chunks (:http:GET:`/node/ledger_chunk`, :http:HEAD:`/node/ledger_chunk`, :http:GET:`/node/ledger_chunk/{chunk_name}` and :http:HEAD:`/node/ledger_chunk/{chunk_name}`).
+3. 'SnapshotCreate': gates access to the operator endpoint used to create a snapshot on the next signature transaction (:http:POST:`/node/snapshot:create`).
 
 Since these operations may require disk IO and produce large responses, these features should not be enabled on interfaces with public access, and instead restricted to interfaces with local connectivity for node-to-node and operator access.
 
@@ -39,3 +82,22 @@ Since these operations may require disk IO and produce large responses, these fe
     - Size strings are expressed as the value suffixed with the size in bytes (``B``, ``KB``, ``MB``, ``GB``, ``TB``, as factors of 1024), e.g. ``"20MB"``, ``"100KB"`` or ``"2048"`` (bytes).
 
     - Time strings are expressed as the value suffixed with the duration (``us``, ``ms``, ``s``, ``min``, ``h``), e.g. ``"1000ms"``, ``"10s"`` or ``"30min"``.
+
+
+Upgrading to COSE-Only Ledger Signatures
+-----------------------------------------
+
+By default, CCF nodes emit **dual** ledger signatures: a traditional node signature and a COSE Sign1 signature. Applications control this via the ``ccf::get_ledger_sign_mode()`` weak-symbol callback declared in ``ccf/node/ledger_sign_mode.h``, which returns one of three modes:
+
+- ``Dual`` (default) — emit both signature types, accept all joiners.
+- ``CoseAllowDualJoin`` — emit only COSE signatures, but still accept join requests from ``Dual``-mode nodes. Use during rolling upgrades.
+- ``CoseOnly`` — emit only COSE signatures, reject ``Dual``-mode joiners. Final state after upgrade.
+
+The mode is set at link time by providing a strong definition in the application binary. Joining nodes advertise their signing mode in the join request.
+
+A rolling upgrade from ``Dual`` to ``CoseOnly`` is a two-step process:
+
+1. **CoseAllowDualJoin.** Deploy a binary that returns ``CoseAllowDualJoin``. Replace nodes one at a time. During this phase, new nodes running the old ``Dual`` binary can still join as replacements.
+
+2. **CoseOnly.** Once all nodes are upgraded, deploy a binary that returns ``CoseOnly``. Replace nodes again. After this, ``Dual`` joiners are rejected.
+

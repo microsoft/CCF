@@ -185,8 +185,6 @@ TEST_CASE("basic indexing" * doctest::test_suite("indexing"))
   REQUIRE(indexer.install_strategy(index_a));
   REQUIRE_FALSE(indexer.install_strategy(index_a));
 
-  static constexpr auto num_transactions =
-    ccf::indexing::Indexer::MAX_REQUESTABLE * 3;
   ExpectedSeqNos seqnos_hello, seqnos_saluton, seqnos_1, seqnos_2;
   REQUIRE(create_transactions(
     kv_store,
@@ -275,7 +273,6 @@ aft::LedgerStubProxy* add_raft_consensus(
 {
   using TRaft = aft::Aft<aft::LedgerStubProxy>;
   using AllCommittableRaftConsensus = AllCommittableWrapper<TRaft>;
-  using ms = std::chrono::milliseconds;
   const std::string node_id = "Node 0";
   const ccf::consensus::Configuration settings{{"20ms"}, {"100ms"}};
   auto consensus = std::make_shared<AllCommittableRaftConsensus>(
@@ -446,9 +443,21 @@ TEST_CASE_TEMPLATE(
 }
 
 using namespace std::chrono_literals;
-const auto max_multithread_run_time = 500s;
+// Generous bound: under Debug + _GLIBCXX_DEBUG this test can be ~10x slower
+// than Release. The watchdog only exists to catch true deadlocks.
+const auto max_multithread_run_time = 1500s;
+
+// _GLIBCXX_DEBUG makes container ops on the indexing/cache pipeline so slow
+// that the indexer cannot catch up to the writer in a reasonable time. The
+// test exercises the same code paths with fewer iterations.
+#ifdef _GLIBCXX_DEBUG
+constexpr size_t multithread_tx_count = 100;
+#else
+constexpr size_t multithread_tx_count = 1'000;
+#endif
 
 // Uses the real classes, and access + update them concurrently
+// NOLINTNEXTLINE(readability-function-cognitive-complexity)
 TEST_CASE(
   "multi-threaded indexing - in memory" * doctest::test_suite("indexing"))
 {
@@ -506,7 +515,7 @@ TEST_CASE(
 
   auto tx_advancer = [&]() {
     size_t i = 0;
-    while (i < 1'000)
+    while (i < multithread_tx_count)
     {
       auto tx = kv_store.create_tx();
       tx.wo(map_a)->put(fmt::format("hello"), fmt::format("Value {}", i));
@@ -793,7 +802,7 @@ TEST_CASE(
   auto tx_advancer = [&]() {
     size_t i = 0;
     constexpr auto tx_count =
-#if NDEBUG
+#ifndef NDEBUG
       1'000;
 #else
       100;

@@ -182,8 +182,6 @@ def test_historical_query_range(network, args):
         entries[id_b], duration_b = get_all_entries(c, id_b, timeout=timeout)
         entries[id_c], duration_c = get_all_entries(c, id_c, timeout=timeout)
 
-        c.get("/node/memory")
-
     id_a_fetch_rate = len(entries[id_a]) / duration_a
     id_b_fetch_rate = len(entries[id_b]) / duration_b
     id_c_fetch_rate = len(entries[id_c]) / duration_c
@@ -221,5 +219,5 @@ if __name__ == "__main__":
     args.package = "samples/apps/logging/logging"
     args.nodes = infra.e2e_args.max_nodes(args, f=0)
     args.initial_member_count = 1
-    args.sig_ms_interval = 1000  # Set to cchost default value
+    args.sig_ms_interval = 1000  # Set to node default value
     run(args)

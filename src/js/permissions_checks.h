@@ -79,7 +79,7 @@ namespace ccf::js
               {
                 return KVAccessPermissions::WRITE_ONLY;
               }
-              default:
+              case (TxAccess::GOV_RO):
               {
                 return KVAccessPermissions::ILLEGAL;
               }

@@ -6,6 +6,7 @@
 
 #include "ccf/js/extensions/ccf/gov_effects.h"
 
+#include "ccf/ds/json.h"
 #include "ccf/js/core/context.h"
 #include "ccf/version.h"
 #include "js/checks.h"
@@ -161,8 +162,8 @@ namespace ccf::js::extensions
       try
       {
         auto metadata =
-          nlohmann::json::parse(*metadata_json).get<ccf::JwtIssuerMetadata>();
-        auto jwks = nlohmann::json::parse(*jwks_json).get<ccf::JsonWebKeySet>();
+          ccf::parse_json_safe(*metadata_json).get<ccf::JwtIssuerMetadata>();
+        auto jwks = ccf::parse_json_safe(*jwks_json).get<ccf::JsonWebKeySet>();
         auto success =
           ccf::set_jwt_public_signing_keys(tx, "<js>", *issuer, metadata, jwks);
         if (!success)

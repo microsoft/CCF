@@ -44,7 +44,7 @@ def generate_and_verify_jwk(client):
     assert r.status_code != http.HTTPStatus.OK
 
     # Elliptic curve
-    curves = [ec.SECP256R1, ec.SECP384R1]
+    curves = [ec.SECP256R1, ec.SECP384R1, ec.SECP521R1]
     for curve in curves:
         priv_pem, pub_pem = infra.crypto.generate_ec_keypair(curve)
         # Private

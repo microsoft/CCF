@@ -38,3 +38,5 @@ Version Live Compatibility
 When upgrading CCF services from one major version to the next, our usual recommendation is to upgrade from ``N.latest`` to ``N+1.0.0``. Interoperation between other versions is not guaranteed.
 
 .. note:: For upgrades from 6.x to 7.0 specifically, a minimum version of 6.0.21 is required before upgrading. While upgrading from the latest 6.x release is recommended for the best experience, 6.0.21 is the minimum supported version that ensures proper snapshot compatibility and consistent chunk sizes in 7.0.
+
+Update from the latest `6.x` straight to `7.0.1` intead of `7.0.0` is highly recommended due to (#7838). Compatibility is preserved.

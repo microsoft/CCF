@@ -38,7 +38,7 @@ TEST_CASE("Synchronous")
   Data data = {.foo = "alpha", .bar = "beta"};
   size_t response_count = 0;
   constexpr size_t sync_number_requests = 10;
-  for (int i = 0; i < sync_number_requests; ++i)
+  for (size_t i = 0; i < sync_number_requests; ++i)
   {
     data.iter = i;
     std::string url = fmt::format("http://{}/{}", server_address, i);
@@ -91,7 +91,7 @@ TEST_CASE("CurlmLibuvContext")
     thread_local std::uniform_int_distribution<> uniform_dist(1, max_delay_ms);
     auto* response_count_ptr = reinterpret_cast<size_t*>(req->data);
     Data data = {.foo = "alpha", .bar = "beta"};
-    for (int i = 0; i < number_requests; ++i)
+    for (size_t i = 0; i < number_requests; ++i)
     {
       auto delay = uniform_dist(gen);
       std::this_thread::sleep_for(std::chrono::milliseconds(delay));
@@ -156,7 +156,7 @@ TEST_CASE("CurlmLibuvContext slow")
     auto* response_count_ptr = reinterpret_cast<size_t*>(req->data);
     (void)req;
     Data data = {.foo = "alpha", .bar = "beta"};
-    for (int i = 0; i < slow_number_requests; ++i)
+    for (size_t i = 0; i < slow_number_requests; ++i)
     {
       auto delay = uniform_dist(gen);
       std::this_thread::sleep_for(std::chrono::milliseconds(delay));
@@ -223,7 +223,7 @@ TEST_CASE("CurlmLibuvContext timeouts")
     (void)req;
 
     Data data = {.foo = "alpha", .bar = "beta"};
-    for (int i = 0; i < number_requests; ++i)
+    for (size_t i = 0; i < number_requests; ++i)
     {
       auto delay = uniform_dist(gen);
       std::this_thread::sleep_for(std::chrono::milliseconds(delay));
@@ -298,7 +298,7 @@ TEST_CASE("CurlmLibuvContext multiple init")
     (void)req;
 
     Data data = {.foo = "alpha", .bar = "beta"};
-    for (int i = 0; i < number_requests; ++i)
+    for (size_t i = 0; i < number_requests; ++i)
     {
       auto delay = uniform_dist(gen);
       std::this_thread::sleep_for(std::chrono::milliseconds(delay));
@@ -350,7 +350,7 @@ TEST_CASE("CurlmLibuvContext multiple init")
     }
   };
 
-  for (int i = 0; i < number_iterations; ++i)
+  for (size_t i = 0; i < number_iterations; ++i)
   {
     ccf::curl::CurlmLibuvContextSingleton singleton(uv_default_loop());
 

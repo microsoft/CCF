@@ -1,6 +1,8 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import infra.network
+import infra.interfaces
+import infra.net
 from ccf.ledger import NodeStatus
 import http
 import random
@@ -33,7 +35,7 @@ def test_primary(network, args):
     host_spec.with_args(args)
 
     new_backup = network.create_node(host_spec)
-    network.join_node(new_backup, args.package, args)
+    network.join_node(new_backup, args.package, args, from_snapshot=False)
     network.trust_node(new_backup, args)
 
     primary_interfaces = primary.host.rpc_interfaces
@@ -47,7 +49,7 @@ def test_primary(network, args):
                 primary_interface = primary_interfaces[interface_name]
                 assert (
                     r.headers["location"]
-                    == f"https://{primary_interface.public_host}:{primary_interface.public_port}/node/primary"
+                    == f"https://{infra.interfaces.make_address(primary_interface.public_host, primary_interface.public_port)}/node/primary"
                 )
                 LOG.info(
                     f'Successfully redirected to {r.headers["location"]} on primary {primary.local_node_id}'
@@ -117,7 +119,7 @@ def test_network_node_info(network, args):
                     assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value
                     assert (
                         r.headers["location"]
-                        == f"https://{primary_interface.public_host}:{primary_interface.public_port}/node/primary"
+                        == f"https://{infra.interfaces.make_address(primary_interface.public_host, primary_interface.public_port)}/node/primary"
                     ), r.headers["location"]
                     r = c.head("/node/primary", allow_redirects=True)
                 assert r.status_code == http.HTTPStatus.OK.value
@@ -149,7 +151,7 @@ def test_network_node_info(network, args):
     host_spec.with_args(args)
 
     new_node = network.create_node(host_spec)
-    network.join_node(new_node, args.package, args)
+    network.join_node(new_node, args.package, args, from_snapshot=False)
 
     with new_node.client(interface_name=operator_rpc_interface) as c:
         r = c.get("/node/network/nodes/self", allow_redirects=False)
@@ -182,23 +184,6 @@ def test_node_ids(network, args):
                 assert info[0]["node_id"] == node.node_id
                 assert info[0]["status"] == NodeStatus.TRUSTED.value
                 assert len(info[0]["rpc_interfaces"]) == len(node.host.rpc_interfaces)
-    return network
-
-
-@reqs.description("Memory usage")
-def test_memory(network, args):
-    primary, _ = network.find_primary()
-    with primary.client() as c:
-        r = c.get("/node/memory")
-        assert r.status_code == http.HTTPStatus.OK.value
-        assert (
-            r.body.json()["peak_allocated_heap_size"]
-            <= r.body.json()["max_total_heap_size"]
-        )
-        assert (
-            r.body.json()["current_allocated_heap_size"]
-            <= r.body.json()["peak_allocated_heap_size"]
-        )
     return network
 
 
@@ -335,6 +320,33 @@ def run(args):
         test_primary(network, args)
         test_network_node_info(network, args)
         test_node_ids(network, args)
-        test_memory(network, args)
         test_large_messages(network, args)
         test_readiness(network, args)
+
+
+def run_ipv6(args):
+    assert infra.net.ipv6_loopback_available(), (
+        "IPv6 loopback (::1) is not available; CI enables IPv6 via the "
+        "container --sysctl net.ipv6.conf.*.disable_ipv6=0 (see .github/workflows)"
+    )
+
+    with infra.network.network(
+        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb, ipv6=True
+    ) as network:
+        network.start_and_open(args)
+
+        primary, _ = network.find_primary()
+        primary_interface = primary.host.rpc_interfaces[
+            infra.interfaces.PRIMARY_RPC_INTERFACE
+        ]
+        assert (
+            ":" in primary_interface.host
+        ), f"Expected IPv6 address, got {primary_interface.host}"
+        LOG.info(f"Confirmed primary is using IPv6 address: {primary_interface.host}")
+
+        _, backups = network.find_nodes()
+        with backups[0].client() as c:
+            r = c.head("/node/primary", allow_redirects=True)
+            assert r.status_code == http.HTTPStatus.OK.value
+
+        test_primary(network, args)

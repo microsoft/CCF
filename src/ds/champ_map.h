@@ -15,7 +15,7 @@
 
 namespace champ
 {
-  // A persistent hash map based on the Compressed Hash-Array Mapped Preﬁx-tree
+  // A persistent hash map based on the Compressed Hash-Array Mapped Prefix-tree
   // from 'Fast and Lean Immutable Multi-Maps on the JVM based on Heterogeneous
   // Hash-Array Mapped Tries' by Michael J. Steindorfer and Jurgen J. Vinju
   // (https://arxiv.org/pdf/1608.01036.pdf).

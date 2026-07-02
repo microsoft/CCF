@@ -268,7 +268,8 @@ namespace programmabilityapp
             "Failed to check if action is original");
           return true;
         }
-        default:
+        case ccf::ApiResult::Uninitialised:
+        case ccf::ApiResult::NotFound:
         {
           return true;
         }
@@ -276,6 +277,7 @@ namespace programmabilityapp
     }
 
   public:
+    // NOLINTNEXTLINE(readability-function-cognitive-complexity)
     ProgrammabilityHandlers(ccf::AbstractNodeContext& context) :
       ccf::js::DynamicJSEndpointRegistry(
         context,
@@ -350,7 +352,7 @@ namespace programmabilityapp
 
       auto post = [](ccf::endpoints::EndpointContext& ctx) {
         const nlohmann::json body =
-          nlohmann::json::parse(ctx.rpc_ctx->get_request_body());
+          ccf::parse_json_safe(ctx.rpc_ctx->get_request_body());
 
         const auto records = body.get<std::map<std::string, std::string>>();
 
@@ -438,7 +440,7 @@ namespace programmabilityapp
 
         const auto [format, content, created_at] = get_action_content(ctx);
         const auto parsed_content =
-          nlohmann::json::parse(content.begin(), content.end());
+          ccf::parse_json_safe(content.begin(), content.end());
         const auto parsed_bundle = parsed_content.get<ccf::js::Bundle>();
 
         // Make operation auditable
@@ -626,7 +628,7 @@ namespace programmabilityapp
           const auto [format, content, created_at] = get_action_content(ctx);
           // - Parse content as JSON options
           const auto arg_content =
-            nlohmann::json::parse(content.begin(), content.end());
+            ccf::parse_json_safe(content.begin(), content.end());
 
           // - Merge, to overwrite current options with anything from body. Note
           // that nulls mean deletions, which results in resetting to a default

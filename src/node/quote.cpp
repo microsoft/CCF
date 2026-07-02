@@ -4,6 +4,7 @@
 #include "ccf/node/quote.h"
 
 #include "ccf/crypto/cose.h"
+#include "ccf/ds/json.h"
 #include "ccf/historical_queries_utils.h"
 #include "ccf/pal/attestation.h"
 #include "ccf/pal/attestation_sev_snp.h"
@@ -179,7 +180,7 @@ namespace ccf
     {
       case QuoteFormat::insecure_virtual:
       {
-        auto j = nlohmann::json::parse(quote_info.quote);
+        auto j = ccf::parse_json_safe(quote_info.quote);
 
         auto it = j.find("host_data");
         if (it != j.end())
@@ -217,8 +218,7 @@ namespace ccf
 
         return HostData::from_representation(rep);
       }
-
-      default:
+      case QuoteFormat::oe_sgx_v1:
       {
         return std::nullopt;
       }
@@ -329,8 +329,8 @@ namespace ccf
         pem_chain.emplace_back(ccf::crypto::cert_der_to_pem(c).str());
       }
 
-      auto jwk = nlohmann::json::parse(
-        didx509::resolve_jwk(pem_chain, issuer_did, true));
+      auto jwk =
+        ccf::parse_json_safe(didx509::resolve_jwk(pem_chain, issuer_did, true));
       auto generic_jwk = jwk.get<ccf::crypto::JsonWebKey>();
 
       if (generic_jwk.kty != ccf::crypto::JsonWebKeyType::EC)
@@ -346,9 +346,7 @@ namespace ccf
     // Verify the COSE_Sign1 signature and that the payload matches the
     // expected host_data.  Returns the decoded protected header on success.
     cose::Sign1ProtectedHeader verify_ts_signature_and_payload(
-      const std::vector<uint8_t>& ts_raw,
-      const ccf::cbor::Value& cose_array,
-      const HostData& host_data)
+      const ccf::cbor::Value& cose_array, const HostData& host_data)
     {
       const auto& phdr_raw = ccf::cbor::rethrow_with_msg(
         [&]() -> const ccf::cbor::Value& { return cose_array->array_at(0); },
@@ -371,8 +369,16 @@ namespace ccf
 
       auto pubk = resolve_pubkey_from_x5chain_and_issuer(h.x5chain, h.cwt.iss);
       auto verifier = ccf::crypto::make_cose_verifier_from_key(pubk);
-      std::span<uint8_t> payload;
-      if (!verifier->verify(ts_raw, payload))
+
+      auto payload = ccf::cbor::rethrow_with_msg(
+        [&]() { return cose_array->array_at(2)->as_bytes(); },
+        "COSE_Sign1 payload");
+      auto sig_bytes = ccf::cbor::rethrow_with_msg(
+        [&]() { return cose_array->array_at(3)->as_bytes(); },
+        "COSE_Sign1 signature");
+
+      if (!verifier->verify_decomposed(
+            phdr_raw->as_bytes(), payload, sig_bytes, h.alg))
       {
         throw std::logic_error(
           "Transparent statement signature verification failed");
@@ -561,8 +567,7 @@ namespace ccf
         },
         "COSE_Sign1 tag");
 
-      auto phdr =
-        verify_ts_signature_and_payload(ts_raw, cose_array, host_data);
+      auto phdr = verify_ts_signature_and_payload(cose_array, host_data);
 
       auto receipt_inputs =
         verify_ts_receipts(ts_raw, cose_array, network_identity_subsystem);

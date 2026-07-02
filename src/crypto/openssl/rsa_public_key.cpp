@@ -5,6 +5,7 @@
 #include "crypto/openssl/hash.h"
 #include "crypto/openssl/rsa_key_pair.h"
 
+#include <climits>
 #include <openssl/core_names.h>
 #include <openssl/encoder.h>
 
@@ -123,9 +124,9 @@ namespace ccf::crypto
   {
     Unique_EVP_PKEY_CTX ctx(key);
     OpenSSL::CHECK1(EVP_PKEY_encrypt_init(ctx));
-    EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_PKCS1_OAEP_PADDING);
-    EVP_PKEY_CTX_set_rsa_oaep_md(ctx, EVP_sha256());
-    EVP_PKEY_CTX_set_rsa_mgf1_md(ctx, EVP_sha256());
+    CHECKPOSITIVE(EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_PKCS1_OAEP_PADDING));
+    CHECKPOSITIVE(EVP_PKEY_CTX_set_rsa_oaep_md(ctx, EVP_sha256()));
+    CHECKPOSITIVE(EVP_PKEY_CTX_set_rsa_mgf1_md(ctx, EVP_sha256()));
 
     if (label != nullptr && label_size > 0)
     {
@@ -228,12 +229,17 @@ namespace ccf::crypto
 
     Unique_EVP_PKEY_CTX pctx(key);
     CHECK1(EVP_PKEY_verify_init(pctx));
-    CHECK1(EVP_PKEY_CTX_set_rsa_padding(pctx, ossl_padding->second));
+    CHECKPOSITIVE(EVP_PKEY_CTX_set_rsa_padding(pctx, ossl_padding->second));
     if (ossl_padding->first == RSAPadding::PKCS_PSS)
     {
-      CHECK1(EVP_PKEY_CTX_set_rsa_pss_saltlen(pctx, salt_length));
+      if (salt_length > INT_MAX)
+      {
+        throw std::invalid_argument(fmt::format(
+          "salt_length {} exceeds maximum ({})", salt_length, INT_MAX));
+      }
+      CHECKPOSITIVE(EVP_PKEY_CTX_set_rsa_pss_saltlen(pctx, salt_length));
     }
-    CHECK1(EVP_PKEY_CTX_set_signature_md(pctx, get_md_type(md_type)));
+    CHECKPOSITIVE(EVP_PKEY_CTX_set_signature_md(pctx, get_md_type(md_type)));
     return EVP_PKEY_verify(pctx, signature, signature_size, hash, hash_size) ==
       1;
   }

@@ -547,6 +547,30 @@ Evidence inserted in the ledger by a primary producing a snapshot to establish p
    :project: CCF
    :members:
 
+``snapshot_status``
+~~~~~~~~~~~~~~~~~~~
+
+Status information recorded when a primary produces a snapshot.
+
+**Key** Sentinel value 0, represented as a little-endian 64-bit unsigned integer.
+
+**Value**
+
+.. doxygenstruct:: ccf::SnapshotStatus
+   :project: CCF
+   :members:
+
+``snapshot_create``
+~~~~~~~~~~~~~~~~~~~
+
+Durability marker written when a snapshot is explicitly requested via the operator endpoint.
+This ensures the request is recorded as a real transaction even when it would otherwise
+carry only a transaction flag.
+
+**Key** Sentinel value 0, represented as a little-endian 64-bit unsigned integer.
+
+**Value** Sentinel value 0, represented as a little-endian 64-bit unsigned integer.
+
 ``encrypted_submitted_shares``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

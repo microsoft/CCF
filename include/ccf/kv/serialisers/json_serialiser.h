@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/json.h"
 #include "ccf/kv/serialisers/serialised_entry.h"
 
 #include <nlohmann/json.hpp>
@@ -29,7 +30,7 @@ namespace ccf::kv::serialisers
 
     static T from_serialised(const SerialisedEntry& rep)
     {
-      const auto j = nlohmann::json::parse(rep.begin(), rep.end());
+      const auto j = ccf::parse_json_safe(rep.begin(), rep.end());
       return j.get<T>();
     }
   };

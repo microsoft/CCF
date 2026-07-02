@@ -130,23 +130,24 @@ namespace ccf::kv
       }
       auto success = ApplyResult::PASS;
 
-      auto search = changes.find(ccf::Tables::SIGNATURES);
-      if (search != changes.end())
+      const bool signature_in =
+        (changes.find(ccf::Tables::SIGNATURES) != changes.end());
+      const bool cose_signature_in =
+        (changes.find(ccf::Tables::COSE_SIGNATURES) != changes.end());
+
+      if (signature_in || cose_signature_in)
       {
+        const bool merkle_tree_in =
+          changes.find(ccf::Tables::SERIALISED_MERKLE_TREE) != changes.end();
         switch (changes.size())
         {
           case 2:
-            if (
-              changes.find(ccf::Tables::SERIALISED_MERKLE_TREE) !=
-              changes.end())
+            if (merkle_tree_in && (cose_signature_in != signature_in))
             {
               break;
             }
           case 3:
-            if (
-              changes.find(ccf::Tables::SERIALISED_MERKLE_TREE) !=
-                changes.end() &&
-              changes.find(ccf::Tables::COSE_SIGNATURES) != changes.end())
+            if (merkle_tree_in && cose_signature_in && signature_in)
             {
               break;
             }
@@ -169,7 +170,7 @@ namespace ccf::kv
         success = ApplyResult::PASS_SIGNATURE;
       }
 
-      search = changes.find(ccf::Tables::ENCRYPTED_PAST_LEDGER_SECRET);
+      auto search = changes.find(ccf::Tables::ENCRYPTED_PAST_LEDGER_SECRET);
       if (search != changes.end())
       {
         success = ApplyResult::PASS_ENCRYPTED_PAST_LEDGER_SECRET;

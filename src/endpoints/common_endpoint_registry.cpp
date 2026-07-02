@@ -10,6 +10,7 @@
 #include "ccf/http_query.h"
 #include "ccf/json_handler.h"
 #include "ccf/node_context.h"
+#include "ccf/receipt.h"
 #include "ccf/service/tables/code_id.h"
 #include "ccf/service/tables/host_data.h"
 #include "ccf/service/tables/snp_measurements.h"
@@ -284,6 +285,47 @@ namespace ccf
       .set_openapi_description(
         "A signed statement from the service over a transaction entry in the "
         "ledger")
+      .install();
+
+    auto get_cose_receipt =
+      [](
+        auto& ctx,
+        ccf::historical::StatePtr
+          historical_state) { // NOLINT(performance-unnecessary-value-param)
+        assert(historical_state->receipt);
+        auto cose_receipt =
+          ccf::describe_cose_receipt_v1(*historical_state->receipt);
+        if (!cose_receipt.has_value())
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_NOT_FOUND,
+            ccf::errors::ResourceNotFound,
+            "No COSE receipt available for this transaction.");
+          return;
+        }
+
+        ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+        ctx.rpc_ctx->set_response_header(
+          ccf::http::headers::CONTENT_TYPE,
+          ccf::http::headervalues::contenttype::COSE);
+        ctx.rpc_ctx->set_response_body(*cose_receipt);
+      };
+
+    make_read_only_endpoint(
+      "/receipt/cose",
+      HTTP_GET,
+      ccf::historical::read_only_adapter_v4(
+        get_cose_receipt, context, is_tx_committed, txid_from_query_string),
+      no_auth_required)
+      .set_auto_schema<void, ds::openapi::Cose>()
+      .add_query_parameter<ccf::TxID>(tx_id_param_key)
+      .set_openapi_summary("COSE receipt for a transaction")
+      .set_openapi_description(
+        "A COSE Sign1 envelope containing a signed statement from the "
+        "service over a transaction entry in the ledger, with a Merkle "
+        "proof in the unprotected header. See "
+        "https://datatracker.ietf.org/doc/draft-ietf-scitt-receipts-ccf-"
+        "profile/ for a complete description.")
       .install();
   }
 

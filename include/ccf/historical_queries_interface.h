@@ -196,5 +196,9 @@ namespace ccf::historical
      * more aggressively than waiting for the states to expire.
      */
     virtual bool drop_cached_states(RequestHandle handle) = 0;
+
+    /** Get the estimated size in bytes of all cached stores.
+     */
+    virtual size_t get_estimated_store_cache_size() = 0;
   };
 }

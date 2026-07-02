@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #include "ccf/json_handler.h"
 
+#include "ccf/ds/json.h"
 #include "ccf/http_accept.h"
 #include "ccf/http_consts.h"
 #include "ccf/odata_error.h"
@@ -24,7 +25,7 @@ namespace ccf
         // Body of GET is ignored
         && ctx->get_request_verb() != HTTP_GET)
       {
-        params = nlohmann::json::parse(ctx->get_request_body());
+        params = ccf::parse_json_safe(ctx->get_request_body());
       }
       else
       {

@@ -25,10 +25,10 @@ void enqueue_many(picobench::state& s, size_t thread_count, size_t task_count)
 {
   s.start_timer();
   std::vector<std::thread> threads;
-  for (auto i = 0; i < thread_count; ++i)
+  for (size_t i = 0; i < thread_count; ++i)
   {
     threads.emplace_back([task_count]() {
-      for (auto j = 0; j < task_count; ++j)
+      for (size_t j = 0; j < task_count; ++j)
       {
         ccf::tasks::add_task(std::make_shared<NopTask>());
         std::this_thread::yield();
@@ -70,7 +70,7 @@ struct IncTask : public ccf::tasks::BaseTask
 void dequeue_many(picobench::state& s, size_t thread_count, size_t task_count)
 {
   std::atomic<size_t> tasks_done = 0;
-  for (auto j = 0; j < task_count; ++j)
+  for (size_t j = 0; j < task_count; ++j)
   {
     ccf::tasks::add_task(std::make_shared<IncTask>(tasks_done));
     std::this_thread::yield();
@@ -78,7 +78,7 @@ void dequeue_many(picobench::state& s, size_t thread_count, size_t task_count)
 
   s.start_timer();
   std::vector<std::thread> threads;
-  for (auto i = 0; i < thread_count; ++i)
+  for (size_t i = 0; i < thread_count; ++i)
   {
     threads.emplace_back([task_count, &tasks_done]() {
       while (tasks_done.load() < task_count)

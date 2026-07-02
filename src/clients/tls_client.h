@@ -98,9 +98,9 @@ namespace client
       BIO_set_nbio(bio, 1);
 
       if (cert)
-        cert->use(ssl, ctx);
+        cert->configure_ssl(ssl, ctx);
       if (node_ca)
-        node_ca->use(ctx);
+        node_ca->configure_trusted_cert_store(ctx);
 
       do
       {

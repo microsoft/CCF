@@ -64,9 +64,8 @@ ul.no-bullet {list-style: none}
     <li><a name="toc-qjs-interpreter" href="#qjs-interpreter">2.3.1 <code>qjs</code> interpreter</a></li>
     <li><a name="toc-qjsc-compiler" href="#qjsc-compiler">2.3.2 <code>qjsc</code> compiler</a></li>
   </ul></li>
-  <li><a name="toc-qjscalc-application" href="#qjscalc-application">2.4 <code>qjscalc</code> application</a></li>
-  <li><a name="toc-Built_002din-tests" href="#Built_002din-tests">2.5 Built-in tests</a></li>
-  <li><a name="toc-Test262-_0028ECMAScript-Test-Suite_0029" href="#Test262-_0028ECMAScript-Test-Suite_0029">2.6 Test262 (ECMAScript Test Suite)</a></li>
+  <li><a name="toc-Built_002din-tests" href="#Built_002din-tests">2.4 Built-in tests</a></li>
+  <li><a name="toc-Test262-_0028ECMAScript-Test-Suite_0029" href="#Test262-_0028ECMAScript-Test-Suite_0029">2.5 Test262 (ECMAScript Test Suite)</a></li>
 </ul></li>
 <li><a name="toc-Specifications" href="#Specifications">3 Specifications</a>
 <ul class="no-bullet">
@@ -74,8 +73,6 @@ ul.no-bullet {list-style: none}
   <ul class="no-bullet">
     <li><a name="toc-ES2023-support" href="#ES2023-support">3.1.1 ES2023 support</a></li>
     <li><a name="toc-ECMA402" href="#ECMA402">3.1.2 ECMA402</a></li>
-    <li><a name="toc-Extensions" href="#Extensions">3.1.3 Extensions</a></li>
-    <li><a name="toc-Mathematical-extensions" href="#Mathematical-extensions">3.1.4 Mathematical extensions</a></li>
   </ul></li>
   <li><a name="toc-Modules" href="#Modules">3.2 Modules</a></li>
   <li><a name="toc-Standard-library" href="#Standard-library">3.3 Standard library</a>
@@ -117,7 +114,7 @@ ul.no-bullet {list-style: none}
   </ul></li>
   <li><a name="toc-RegExp" href="#RegExp">4.4 RegExp</a></li>
   <li><a name="toc-Unicode" href="#Unicode">4.5 Unicode</a></li>
-  <li><a name="toc-BigInt_002c-BigFloat_002c-BigDecimal" href="#BigInt_002c-BigFloat_002c-BigDecimal">4.6 BigInt, BigFloat, BigDecimal</a></li>
+  <li><a name="toc-BigInt" href="#BigInt">4.6 BigInt</a></li>
 </ul></li>
 <li><a name="toc-License" href="#License">5 License</a></li>
 
@@ -128,14 +125,10 @@ ul.no-bullet {list-style: none}
 <a name="Introduction"></a>
 <h2 class="chapter">1 Introduction</h2>
 
-<p>QuickJS is a small and embeddable Javascript engine. It supports most of the
-ES2023 specification
-<a name="DOCF1" href="#FOOT1"><sup>1</sup></a>
-including modules, asynchronous generators, proxies and BigInt.
-</p>
-<p>It supports mathematical extensions such as big decimal float float
-numbers (BigDecimal), big binary floating point numbers (BigFloat),
-and operator overloading.
+<p>QuickJS (version 2025-09-13) is a small and embeddable Javascript
+engine. It supports most of the ES2023 specification
+<a name="DOCF1" href="#FOOT1"><sup>1</sup></a> including modules,
+asynchronous generators, proxies and BigInt.
 </p>
 <a name="Main-Features"></a>
 <h3 class="section">1.1 Main Features</h3>
@@ -155,8 +148,6 @@ features from the upcoming ES2024 specification
 </li><li> Compile Javascript sources to executables with no external dependency.
 
 </li><li> Garbage collection using reference counting (to reduce memory usage and have deterministic behavior) with cycle removal.
-
-</li><li> Mathematical extensions: BigDecimal, BigFloat, operator overloading, bigint mode, math mode.
 
 </li><li> Command line interpreter with contextual colorization and completion implemented in Javascript.
 
@@ -240,11 +231,6 @@ source is <code>import</code>.
 <dd><p>Load as ES6 script (default=autodetect).
 </p>
 </dd>
-<dt><code>--bignum</code></dt>
-<dd><p>Enable the bignum extensions: BigDecimal object, BigFloat object and
-the <code>&quot;use math&quot;</code> directive.
-</p>
-</dd>
 <dt><code>-I file</code></dt>
 <dt><code>--include file</code></dt>
 <dd><p>Include an additional file.
@@ -324,31 +310,16 @@ when the <code>-fno-x</code> options are used.
 <dd><p>Disable selected language features to produce a smaller executable file.
 </p>
 </dd>
-<dt><code>-fbignum</code></dt>
-<dd><p>Enable the bignum extensions: BigDecimal object, BigFloat object and
-the <code>&quot;use math&quot;</code> directive.
-</p>
-</dd>
 </dl>
 
-<a name="qjscalc-application"></a>
-<h3 class="section">2.4 <code>qjscalc</code> application</h3>
-
-<p>The <code>qjscalc</code> application is a superset of the <code>qjs</code>
-command line interpreter implementing a Javascript calculator with
-arbitrarily large integer and floating point numbers, fractions,
-complex numbers, polynomials and matrices. The source code is in
-<samp>qjscalc.js</samp>. More documentation and a web version are available at
-<a href="http://numcalc.com">http://numcalc.com</a>.
-</p>
 <a name="Built_002din-tests"></a>
-<h3 class="section">2.5 Built-in tests</h3>
+<h3 class="section">2.4 Built-in tests</h3>
 
 <p>Run <code>make test</code> to run the few built-in tests included in the
 QuickJS archive.
 </p>
 <a name="Test262-_0028ECMAScript-Test-Suite_0029"></a>
-<h3 class="section">2.6 Test262 (ECMAScript Test Suite)</h3>
+<h3 class="section">2.5 Test262 (ECMAScript Test Suite)</h3>
 
 <p>A test262 runner is included in the QuickJS archive. The test262 tests
 can be installed in the QuickJS source directory with:
@@ -416,10 +387,6 @@ B (legacy web compatibility) and the Unicode related features.
 <ul>
 <li> Tail calls<a name="DOCF6" href="#FOOT6"><sup>6</sup></a>
 
-</li><li> WeakRef and FinalizationRegistry objects
-
-</li><li> Symbols as WeakMap keys
-
 </li></ul>
 
 <a name="ECMA402"></a>
@@ -427,35 +394,6 @@ B (legacy web compatibility) and the Unicode related features.
 
 <p>ECMA402 (Internationalization API) is not supported.
 </p>
-<a name="Extensions"></a>
-<h4 class="subsection">3.1.3 Extensions</h4>
-
-<ul>
-<li> The directive <code>&quot;use strip&quot;</code> indicates that the debug information (including the source code of the functions) should not be retained to save memory. As <code>&quot;use strict&quot;</code>, the directive can be global to a script or local to a function.
-
-</li><li> The first line of a script beginning with <code>#!</code> is ignored.
-
-</li></ul>
-
-<a name="Mathematical-extensions"></a>
-<h4 class="subsection">3.1.4 Mathematical extensions</h4>
-
-<p>The mathematical extensions are fully backward compatible with
-standard Javascript. See <code>jsbignum.pdf</code> for more information.
-</p>
-<ul>
-<li> <code>BigDecimal</code> support: arbitrary large floating point numbers in base 10.
-
-</li><li> <code>BigFloat</code> support: arbitrary large floating point numbers in base 2.
-
-</li><li> Operator overloading.
-
-</li><li> The directive <code>&quot;use bigint&quot;</code> enables the bigint mode where integers are <code>BigInt</code> by default.
-
-</li><li> The directive <code>&quot;use math&quot;</code> enables the math mode where the division and power operators on integers produce fractions. Floating point literals are <code>BigFloat</code> by default and integers are <code>BigInt</code> by default.
-
-</li></ul>
-
 <a name="Modules"></a>
 <h3 class="section">3.2 Modules</h3>
 
@@ -522,7 +460,9 @@ optional properties:
   </p></dd>
 <dt><code>async</code></dt>
 <dd><p>Boolean (default = false). If true, <code>await</code> is accepted in the
-  script and a promise is returned.
+  script and a promise is returned. The promise is resolved with an
+  object whose <code>value</code> property holds the value returned by the
+  script.
   </p></dd>
 </dl>
 
@@ -651,7 +591,7 @@ optional properties:
 </p>
 </dd>
 <dt><code>full</code></dt>
-<dd>  
+<dd>
 <p>Boolean (default = false). If true, return the an object contains
   the properties <code>response</code> (response content),
   <code>responseHeaders</code> (headers separated by CRLF), <code>status</code>
@@ -666,17 +606,20 @@ optional properties:
 </dd>
 <dt><code>parseExtJSON(str)</code></dt>
 <dd>
-<p>Parse <code>str</code> using a superset of <code>JSON.parse</code>. The
-  following extensions are accepted:
+<p>Parse <code>str</code> using a superset of <code>JSON.parse</code>. The superset
+  is very close to the JSON5 specification. The following extensions
+  are accepted:
 </p>
 <ul>
 <li> Single line and multiline comments
   </li><li> unquoted properties (ASCII-only Javascript identifiers)
   </li><li> trailing comma in array and object definitions
   </li><li> single quoted strings
+  </li><li> <code>\v</code> escape and multi-line strings with trailing <code>\</code>
   </li><li> <code>\f</code> and <code>\v</code> are accepted as space characters
-  </li><li> leading plus in numbers
-  </li><li> octal (<code>0o</code> prefix) and hexadecimal (<code>0x</code> prefix) numbers
+  </li><li> leading plus or decimal point in numbers
+  </li><li> hexadecimal (<code>0x</code> prefix), octal (<code>0o</code> prefix) and binary (<code>0b</code> prefix) integers
+  </li><li> <code>NaN</code> and <code>Infinity</code> are accepted as numbers
   </li></ul>
 </dd>
 </dl>
@@ -944,7 +887,7 @@ object containing optional parameters:
   terminated. In this case, <code>exec</code> return the exit code if positive
   or the negated signal number if the process was interrupted by a
   signal. If false, do not block and return the process id of the child.
-</p>  
+</p>
 </dd>
 <dt><code>usePath</code></dt>
 <dd><p>Boolean (default = true). If true, the file is searched in the
@@ -1061,7 +1004,7 @@ example is available in <samp>tests/test_worker.js</samp>.
 </p>
 <dl compact="compact">
 <dt><code>postMessage(msg)</code></dt>
-<dd>  
+<dd>
 <p>Send a message to the corresponding worker. <code>msg</code> is cloned in
   the destination worker using an algorithm similar to the <code>HTML</code>
   structured clone algorithm. <code>SharedArrayBuffer</code> are shared
@@ -1219,7 +1162,7 @@ callback can be used to implement an execution timeout.
 representation such as a parse tree, hence it is very fast. Several
 optimizations passes are done over the generated bytecode.
 </p>
-<p>A stack-based bytecode was chosen because it is simple and generates 
+<p>A stack-based bytecode was chosen because it is simple and generates
 compact code.
 </p>
 <p>For each function, the maximum stack size is computed at compile time so that
@@ -1365,13 +1308,12 @@ binary properties.
 </p>
 <p>The full Unicode library weights about 45 KiB (x86 code).
 </p>
-<a name="BigInt_002c-BigFloat_002c-BigDecimal"></a>
-<h3 class="section">4.6 BigInt, BigFloat, BigDecimal</h3>
+<a name="BigInt"></a>
+<h3 class="section">4.6 BigInt</h3>
 
-<p>BigInt, BigFloat and BigDecimal are implemented with the <code>libbf</code>
-library<a name="DOCF7" href="#FOOT7"><sup>7</sup></a>. It weights about 90
-KiB (x86 code) and provides arbitrary precision IEEE 754 floating
-point operations and transcendental functions with exact rounding.
+<p>BigInts are represented using binary two&rsquo;s complement notation. An
+additional short bigint value is used to optimize the performance on
+small BigInt values.
 </p>
 <a name="License"></a>
 <h2 class="chapter">5 License</h2>
@@ -1399,8 +1341,6 @@ ES5.1 tests can be extracted with <code>git clone --single-branch
 <p><a href="https://github.com/bterlson/test262-harness">https://github.com/bterlson/test262-harness</a></p>
 <h3><a name="FOOT6" href="#DOCF6">(6)</a></h3>
 <p>We believe the current specification of tails calls is too complicated and presents limited practical interests.</p>
-<h3><a name="FOOT7" href="#DOCF7">(7)</a></h3>
-<p><a href="https://bellard.org/libbf">https://bellard.org/libbf</a></p>
 </div>
 <hr>
 

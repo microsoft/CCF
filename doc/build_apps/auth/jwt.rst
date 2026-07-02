@@ -20,7 +20,7 @@ Before adding public token signing keys to a running CCF network, the IdP has to
         {
           "name": "set_jwt_issuer",
           "args": {
-            "issuer": "my_issuer",
+            "issuer": "https://my.issuer",
             "auto_refresh": false
           }
         }
@@ -38,7 +38,7 @@ After this proposal is accepted, signing keys for an issuer can be updated with 
         {
           "name": "set_jwt_public_signing_keys",
           "args": {
-            "issuer": "my_issuer",
+            "issuer": "https://my.issuer",
             "jwks": {
               "keys": [
                 {

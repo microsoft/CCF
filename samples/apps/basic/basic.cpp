@@ -1,6 +1,9 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
+// Sample apps common
+#include "../common/default_on_commit.h"
+
 // CCF
 #include "ccf/app_interface.h"
 #include "ccf/common_auth_policies.h"
@@ -59,6 +62,19 @@ namespace basicapp
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
         .install();
 
+      auto blocking_put = [put](ccf::endpoints::EndpointContext& ctx) {
+        ctx.rpc_ctx->set_consensus_committed_function(
+          ccf::samples::default_respond_on_commit);
+        put(ctx);
+      };
+      make_endpoint(
+        "/records/blocking/{key}",
+        HTTP_PUT,
+        blocking_put,
+        {ccf::user_cert_auth_policy})
+        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
+        .install();
+
       auto get = [this](ccf::endpoints::ReadOnlyEndpointContext& ctx) {
         std::string key;
         std::string error;
@@ -95,9 +111,22 @@ namespace basicapp
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
         .install();
 
+      auto blocking_get = [get](ccf::endpoints::ReadOnlyEndpointContext& ctx) {
+        ctx.rpc_ctx->set_consensus_committed_function(
+          ccf::samples::default_respond_on_commit);
+        get(ctx);
+      };
+      make_read_only_endpoint(
+        "/records/blocking/{key}",
+        HTTP_GET,
+        blocking_get,
+        {ccf::user_cert_auth_policy})
+        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
+        .install();
+
       auto post = [](ccf::endpoints::EndpointContext& ctx) {
         const nlohmann::json body =
-          nlohmann::json::parse(ctx.rpc_ctx->get_request_body());
+          ccf::parse_json_safe(ctx.rpc_ctx->get_request_body());
 
         const auto records = body.get<std::map<std::string, std::string>>();
 

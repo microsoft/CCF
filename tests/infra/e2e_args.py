@@ -65,7 +65,7 @@ def cli_args(
     parser.add_argument(
         "-b",
         "--binary-dir",
-        help="Path to CCF binaries (cchost, scurl, keygenerator)",
+        help="Path to CCF binaries (node executable, scurl, keygenerator)",
         default=".",
     )
     parser.add_argument(
@@ -242,7 +242,9 @@ def cli_args(
         "--ledger-recovery-timeout",
         help="On recovery, maximum timeout (s) while reading the ledger",
         type=int,
-        default=30,
+        # _GLIBCXX_DEBUG significantly slows down ledger replay, so allow
+        # more time when running tests against a debug build.
+        default=120 if os.getenv("CCF_GLIBCXX_DEBUG") else 30,
     )
     parser.add_argument(
         "--ledger-chunk-bytes",
@@ -255,6 +257,18 @@ def cli_args(
         help="Number of transactions between two snapshots",
         type=int,
         default=10,
+    )
+    parser.add_argument(
+        "--snapshot-min-tx-interval",
+        help="Minimum number of transactions before a time-based snapshot can trigger",
+        type=int,
+        default=2,
+    )
+    parser.add_argument(
+        "--snapshot-time-interval",
+        help="Time interval after which a snapshot should be triggered (e.g. 30s, 5min)",
+        type=str,
+        default="0s",
     )
     parser.add_argument(
         "--max-open-sessions",

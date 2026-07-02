@@ -6,6 +6,8 @@ import sys
 import argparse
 from typing import Dict
 
+METADATA_KEY = "__metadata"
+
 
 def load_bencher_file(filepath: str) -> Dict:
     """Load a bencher.json file"""
@@ -24,6 +26,8 @@ def extract_metrics(data: Dict) -> Dict[str, float]:
     """Extract metrics from bencher data into a flat dictionary"""
     metrics = {}
     for test_name, test_data in data.items():
+        if test_name == METADATA_KEY:
+            continue
         for metric_type, metric_data in test_data.items():
             key = f"{test_name} - {metric_type}"
             if isinstance(metric_data, dict) and "value" in metric_data:

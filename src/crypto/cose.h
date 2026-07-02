@@ -32,8 +32,6 @@ namespace ccf
         static constexpr std::string_view TX_ID = "txid";
         static constexpr std::string_view TX_RANGE_BEGIN = "epoch.start.txid";
         static constexpr std::string_view TX_RANGE_END = "epoch.end.txid";
-        static constexpr std::string_view EPOCH_LAST_MERKLE_ROOT =
-          "epoch.end.merkle.root";
       }
     }
     namespace value

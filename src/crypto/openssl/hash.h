@@ -33,7 +33,6 @@ namespace ccf::crypto
         default:
           throw std::runtime_error("Unsupported hash algorithm");
       }
-      return nullptr;
     }
 
     std::vector<uint8_t> hkdf(

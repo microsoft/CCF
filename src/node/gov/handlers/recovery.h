@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/base_endpoint_registry.h"
+#include "ccf/ds/json.h"
 #include "node/gov/api_version.h"
 #include "node/gov/handlers/helpers.h"
 #include "node/share_manager.h"
@@ -111,7 +112,7 @@ namespace ccf::gov::endpoints
           const auto& cose_ident =
             ctx.template get_caller<ccf::MemberCOSESign1AuthnIdentity>();
 
-          auto params = nlohmann::json::parse(cose_ident.content);
+          auto params = ccf::parse_json_safe(cose_ident.content);
           if (cose_ident.member_id != member_id)
           {
             detail::set_gov_error(

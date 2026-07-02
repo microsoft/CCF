@@ -6,6 +6,7 @@
 #include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "crypto/openssl/hash.h"
 
+#include <climits>
 #include <openssl/core_names.h>
 
 namespace ccf::crypto
@@ -134,9 +135,9 @@ namespace ccf::crypto
 
     Unique_EVP_PKEY_CTX ctx(key);
     CHECK1(EVP_PKEY_decrypt_init(ctx));
-    EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_PKCS1_OAEP_PADDING);
-    EVP_PKEY_CTX_set_rsa_oaep_md(ctx, EVP_sha256());
-    EVP_PKEY_CTX_set_rsa_mgf1_md(ctx, EVP_sha256());
+    CHECKPOSITIVE(EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_PKCS1_OAEP_PADDING));
+    CHECKPOSITIVE(EVP_PKEY_CTX_set_rsa_oaep_md(ctx, EVP_sha256()));
+    CHECKPOSITIVE(EVP_PKEY_CTX_set_rsa_mgf1_md(ctx, EVP_sha256()));
 
     if (label_ != nullptr)
     {
@@ -187,7 +188,9 @@ namespace ccf::crypto
   JsonWebKeyRSAPrivate RSAKeyPair_OpenSSL::private_key_jwk(
     const std::optional<std::string>& kid) const
   {
-    JsonWebKeyRSAPrivate jwk = {RSAPublicKey_OpenSSL::public_key_jwk(kid)};
+    JsonWebKeyRSAPrivate jwk;
+    static_cast<JsonWebKeyRSAPublic&>(jwk) =
+      RSAPublicKey_OpenSSL::public_key_jwk(kid);
 
     Unique_BIGNUM d;
     Unique_BIGNUM p;
@@ -222,9 +225,14 @@ namespace ccf::crypto
     auto hash = OpenSSLHashProvider().hash(d.data(), d.size(), md_type);
     Unique_EVP_PKEY_CTX pctx(key);
     CHECK1(EVP_PKEY_sign_init(pctx));
-    CHECK1(EVP_PKEY_CTX_set_rsa_padding(pctx, RSA_PKCS1_PSS_PADDING));
-    CHECK1(EVP_PKEY_CTX_set_rsa_pss_saltlen(pctx, salt_length));
-    CHECK1(EVP_PKEY_CTX_set_signature_md(pctx, get_md_type(md_type)));
+    CHECKPOSITIVE(EVP_PKEY_CTX_set_rsa_padding(pctx, RSA_PKCS1_PSS_PADDING));
+    if (salt_length > INT_MAX)
+    {
+      throw std::invalid_argument(fmt::format(
+        "salt_length {} exceeds maximum ({})", salt_length, INT_MAX));
+    }
+    CHECKPOSITIVE(EVP_PKEY_CTX_set_rsa_pss_saltlen(pctx, salt_length));
+    CHECKPOSITIVE(EVP_PKEY_CTX_set_signature_md(pctx, get_md_type(md_type)));
     size_t olen = r.size();
     CHECK1(EVP_PKEY_sign(pctx, r.data(), &olen, hash.data(), hash.size()));
     r.resize(olen);

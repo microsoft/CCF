@@ -244,14 +244,13 @@ std::map<ccf::SeqNo, std::vector<uint8_t>> construct_host_ledger(
 size_t get_cache_limit_for_entries(
   const std::vector<std::vector<uint8_t>>& entries)
 {
-  return ccf::historical::soft_to_raw_ratio *
-    std::accumulate(
-           entries.begin(),
-           entries.end(),
-           0ll,
-           [&](size_t prev, const std::vector<uint8_t>& entry) {
-             return prev + entry.size();
-           });
+  return std::accumulate(
+    entries.begin(),
+    entries.end(),
+    0ll,
+    [&](size_t prev, const std::vector<uint8_t>& entry) {
+      return prev + entry.size();
+    });
 }
 
 struct MerkleProofData
@@ -332,7 +331,6 @@ TEST_CASE("StateCache point queries")
   static const ccf::historical::RequestHandle default_handle = 0;
   static const ccf::historical::RequestHandle low_handle = 1;
   static const ccf::historical::RequestHandle high_handle = 2;
-  static const ccf::historical::RequestHandle retry_handle = 3;
 
   {
     INFO(
@@ -514,9 +512,9 @@ TEST_CASE("StateCache point queries")
     {
       INFO("Dropping a handle deletes it, and it can no longer be retrieved");
       cache.drop_cached_states(default_handle);
-      const auto state =
+      const auto dropped_state =
         cache.get_state_at(default_handle, high_signature_transaction);
-      REQUIRE(state == nullptr);
+      REQUIRE(dropped_state == nullptr);
       cache.drop_cached_states(default_handle);
     }
 
@@ -724,10 +722,10 @@ TEST_CASE("StateCache get store vs get state")
       REQUIRE(provide_ledger_entry_range(seqno_b + 1, signature_transaction));
       auto states = cache.get_state_range(default_handle, seqno_a, seqno_b);
       REQUIRE_FALSE(states.empty());
-      for (auto& state : states)
+      for (auto& range_state : states)
       {
-        REQUIRE(state != nullptr);
-        REQUIRE(state->receipt != nullptr);
+        REQUIRE(range_state != nullptr);
+        REQUIRE(range_state->receipt != nullptr);
       }
       cache.drop_cached_states(default_handle);
     }
@@ -737,10 +735,10 @@ TEST_CASE("StateCache get store vs get state")
       REQUIRE(provide_ledger_entry_range(seqno_a, signature_transaction));
       auto states = cache.get_state_range(default_handle, seqno_a, seqno_b);
       REQUIRE_FALSE(states.empty());
-      for (auto& state : states)
+      for (auto& range_state : states)
       {
-        REQUIRE(state != nullptr);
-        REQUIRE(state->receipt != nullptr);
+        REQUIRE(range_state != nullptr);
+        REQUIRE(range_state->receipt != nullptr);
       }
 
       REQUIRE_FALSE(
@@ -748,10 +746,10 @@ TEST_CASE("StateCache get store vs get state")
 
       states = cache.get_state_range(default_handle, seqno_a, seqno_b);
       REQUIRE_FALSE(states.empty());
-      for (auto& state : states)
+      for (auto& range_state : states)
       {
-        REQUIRE(state != nullptr);
-        REQUIRE(state->receipt != nullptr);
+        REQUIRE(range_state != nullptr);
+        REQUIRE(range_state->receipt != nullptr);
       }
       cache.drop_cached_states(default_handle);
     }
@@ -768,10 +766,10 @@ TEST_CASE("StateCache get store vs get state")
       auto states =
         cache.get_state_range(default_handle, seqno_a, signature_transaction);
       REQUIRE_FALSE(states.empty());
-      for (auto& state : states)
+      for (auto& range_state : states)
       {
-        REQUIRE(state != nullptr);
-        REQUIRE(state->receipt != nullptr);
+        REQUIRE(range_state != nullptr);
+        REQUIRE(range_state->receipt != nullptr);
       }
       cache.drop_cached_states(default_handle);
     }
@@ -813,21 +811,6 @@ TEST_CASE("StateCache range queries")
   auto provide_ledger_entry = [&](size_t i) {
     bool accepted = cache.handle_ledger_entry(i, ledger.at(i));
     return accepted;
-  };
-
-  auto signing_version = [&signature_versions](ccf::kv::Version seqno) {
-    const auto begin = signature_versions.begin();
-    const auto end = signature_versions.end();
-
-    const auto exact_it = std::find(begin, end, seqno);
-    if (exact_it != end)
-    {
-      return seqno;
-    }
-
-    const auto next_sig_it = std::upper_bound(begin, end, seqno);
-    REQUIRE(next_sig_it != end);
-    return *next_sig_it;
   };
 
   std::random_device rd;
@@ -1171,21 +1154,6 @@ TEST_CASE("StateCache sparse queries")
     return accepted;
   };
 
-  auto signing_version = [&signature_versions](ccf::kv::Version seqno) {
-    const auto begin = signature_versions.begin();
-    const auto end = signature_versions.end();
-
-    const auto exact_it = std::find(begin, end, seqno);
-    if (exact_it != end)
-    {
-      return seqno;
-    }
-
-    const auto next_sig_it = std::upper_bound(begin, end, seqno);
-    REQUIRE(next_sig_it != end);
-    return *next_sig_it;
-  };
-
   std::random_device rd;
   std::mt19937 g(rd());
   auto fetch_and_validate_sparse_set = [&](const ccf::SeqNoCollection& seqnos) {
@@ -1274,11 +1242,11 @@ TEST_CASE("StateCache sparse queries")
   }
 }
 
+// NOLINTNEXTLINE(readability-function-cognitive-complexity)
 TEST_CASE("StateCache concurrent access")
 {
   auto state = create_and_init_state();
   auto& kv_store = *state.kv_store;
-  const auto default_handle = 0;
 
   std::vector<ccf::kv::Version> signature_versions;
 
@@ -1452,18 +1420,6 @@ TEST_CASE("StateCache concurrent access")
       validate_all_stores({store});
     };
 
-  auto query_random_point_state =
-    [&](ccf::SeqNo target_seqno, size_t handle, const auto& error_printer) {
-      ccf::historical::StatePtr state;
-      auto fetch_result = [&]() {
-        state = cache.get_state_at(handle, target_seqno);
-      };
-      auto check_result = [&]() { return state != nullptr; };
-      REQUIRE(fetch_until_timeout(fetch_result, check_result, error_printer));
-      REQUIRE(state != nullptr);
-      validate_all_states({state});
-    };
-
   auto query_random_range_stores = [&](
                                      ccf::SeqNo range_start,
                                      ccf::SeqNo range_end,
@@ -1585,11 +1541,12 @@ TEST_CASE("StateCache concurrent access")
           }
           ccf::SeqNoCollection seqnos;
           seqnos.insert(range_start);
-          for (auto i = range_start; i != range_end; ++i)
+          for (auto range_seqno = range_start; range_seqno != range_end;
+               ++range_seqno)
           {
-            if (i % 3 != 0)
+            if (range_seqno % 3 != 0)
             {
-              seqnos.insert(i);
+              seqnos.insert(range_seqno);
             }
           }
           seqnos.insert(range_end);
@@ -1989,6 +1946,114 @@ TEST_CASE("Cache size estimation")
   cache.tick(std::chrono::milliseconds(1000));
 
   REQUIRE(cache.get_estimated_store_cache_size() == 0);
+}
+
+TEST_CASE("Cache size with populate_receipts")
+{
+  // Verifies that when a non-signature transaction is requested with receipts,
+  // the supporting stores created by populate_receipts (to find the next
+  // signature) are properly eliminated from the cache.
+
+  auto state = create_and_init_state();
+  auto& kv_store = *state.kv_store;
+
+  // Write 3 data transactions followed by a signature
+  // After create_and_init_state, current version is 2
+  // write_transactions(3) creates seqnos 3, 4, 5
+  // emit_signature creates seqno 6
+  const auto sig_seqno = write_transactions_and_signature(kv_store, 3);
+  REQUIRE(sig_seqno == 6);
+
+  auto ledger = construct_host_ledger(state.kv_store->get_consensus());
+  REQUIRE(ledger.size() == sig_seqno);
+
+  auto stub_writer = std::make_shared<StubWriter>();
+  ccf::historical::StateCacheImpl cache(
+    kv_store, state.ledger_secrets, stub_writer);
+
+  constexpr ccf::SeqNo target_seqno = 3;
+
+  ccf::historical::CompoundHandle handle = {
+    ccf::historical::RequestNamespace::Application, 1};
+
+  {
+    INFO("Request a non-signature transaction with receipts");
+    ccf::ds::ContiguousSet<ccf::SeqNo> seqnos;
+    seqnos.insert(target_seqno);
+    auto states =
+      cache.get_states_for(handle, seqnos, std::chrono::seconds(30));
+    REQUIRE(states.empty());
+  }
+
+  size_t expected_cache_size = 0;
+  REQUIRE(cache.get_estimated_store_cache_size() == expected_cache_size);
+
+  // Tick to trigger fetch of seqno 3
+  cache.tick(std::chrono::milliseconds(100));
+
+  {
+    INFO(
+      "Feed entries one at a time. Each non-signature entry triggers "
+      "populate_receipts which discovers the next gap and creates a "
+      "supporting store for it.");
+
+    // Feed seqno 3 - populate_receipts(3) adds supporting store for seqno 4
+    cache.handle_ledger_entry(target_seqno, ledger.at(target_seqno));
+    expected_cache_size += ledger.at(target_seqno).size();
+    REQUIRE(cache.get_estimated_store_cache_size() == expected_cache_size);
+
+    // Tick to fetch the supporting store at seqno 4
+    cache.tick(std::chrono::milliseconds(100));
+
+    // Feed seqno 4 - populate_receipts(4) adds supporting store for seqno 5
+    cache.handle_ledger_entry(4, ledger.at(4));
+    expected_cache_size += ledger.at(4).size();
+    REQUIRE(cache.get_estimated_store_cache_size() == expected_cache_size);
+
+    cache.tick(std::chrono::milliseconds(100));
+
+    // Feed seqno 5 - populate_receipts(5) adds supporting store for seqno 6
+    cache.handle_ledger_entry(5, ledger.at(5));
+    expected_cache_size += ledger.at(5).size();
+    REQUIRE(cache.get_estimated_store_cache_size() == expected_cache_size);
+
+    cache.tick(std::chrono::milliseconds(100));
+
+    // Feed seqno 6 (the signature) - receipt is produced for seqno 3
+    cache.handle_ledger_entry(sig_seqno, ledger.at(sig_seqno));
+    expected_cache_size += ledger.at(sig_seqno).size();
+    REQUIRE(cache.get_estimated_store_cache_size() == expected_cache_size);
+  }
+
+  // Clear all outgoing writes to the RB, to be able to detect any unexpected
+  // ones in the next steps
+  stub_writer->writes.clear();
+
+  for (size_t i = 0; i < 5; ++i)
+  {
+    INFO("Verify the state is now available with a receipt");
+    ccf::ds::ContiguousSet<ccf::SeqNo> seqnos;
+    seqnos.insert(target_seqno);
+    auto states =
+      cache.get_states_for(handle, seqnos, std::chrono::seconds(30));
+    REQUIRE(states.size() == 1);
+    REQUIRE(states[0]->receipt != nullptr);
+    // No more requests for additional entries, such as 4 (supporting
+    // signature!)
+    REQUIRE(stub_writer->writes.empty());
+
+    REQUIRE(cache.get_estimated_store_cache_size() <= expected_cache_size);
+    expected_cache_size = cache.get_estimated_store_cache_size();
+  }
+
+  // Cache still contains something
+  REQUIRE(cache.get_estimated_store_cache_size() > 0);
+
+  {
+    INFO("Drop the request and verify all store sizes are properly cleaned up");
+    cache.drop_cached_states(handle);
+    REQUIRE(cache.get_estimated_store_cache_size() == 0);
+  }
 }
 
 TEST_CASE("adjust_ranges")

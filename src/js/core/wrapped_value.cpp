@@ -36,7 +36,7 @@ namespace ccf::js::core
 
   JSWrappedValue::~JSWrappedValue()
   {
-    if ((ctx != nullptr) && (JS_VALUE_GET_TAG(val) != JS_TAG_MODULE))
+    if (ctx != nullptr)
     {
       JS_FreeValue(ctx, val);
     }
@@ -46,6 +46,10 @@ namespace ccf::js::core
   {
     if (this != &other)
     {
+      if (ctx != nullptr)
+      {
+        JS_FreeValue(ctx, val);
+      }
       ctx = other.ctx;
       val = JS_DupValue(ctx, other.val);
     }

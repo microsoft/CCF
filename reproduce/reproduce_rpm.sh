@@ -5,7 +5,7 @@
 # This script is intended to be called from start_container_and_reproduce_rpm.sh script.
 # builds the RPM using timestamps from the JSON and outputs the package.
 
-set -exu
+set -exuo pipefail
 
 usage() {
   echo "Usage: $0 <reproduce_platform.json>"
@@ -26,10 +26,10 @@ build_pkg() {
   mkdir -p /tmp/reproduced
   mkdir -p build && cd build
   echo "Reproducing CCF package..."
-  cmake -G Ninja -DCLIENT_PROTOCOLS_TEST=ON -DCMAKE_BUILD_TYPE=Release ..
+  cmake -G Ninja -DCLIENT_PROTOCOLS_TEST=ON -DCCF_ENABLE_RELEASE_HARDENING=ON -DCMAKE_BUILD_TYPE=Release ..
   ninja -v
   rm CMakeCache.txt
-  cmake -G Ninja -DCMAKE_BUILD_TYPE=Release ..
+  cmake -G Ninja -DCCF_ENABLE_RELEASE_HARDENING=ON -DCMAKE_BUILD_TYPE=Release ..
   cmake -L .. 2>/dev/null | grep CMAKE_INSTALL_PREFIX: | cut -d = -f 2 > /tmp/install_prefix
   cpack -V -G RPM
   D_INITIAL_PKG=`ls *.rpm`
@@ -46,4 +46,3 @@ REPRO_JSON="$1"
 setup_env
 install_deps
 build_pkg
-

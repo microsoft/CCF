@@ -245,31 +245,6 @@ namespace http
     return r.build_request(false);
   }
 
-  // HTTP_DELETE
-  static std::vector<uint8_t> build_delete_header(
-    const std::vector<uint8_t>& body)
-  {
-    return build_header(HTTP_DELETE, body);
-  }
-
-  static std::vector<uint8_t> build_delete_request(
-    const std::vector<uint8_t>& body)
-  {
-    return build_request(HTTP_DELETE, body);
-  }
-
-  // HTTP_GET
-  static std::vector<uint8_t> build_get_header(const std::vector<uint8_t>& body)
-  {
-    return build_header(HTTP_GET, body);
-  }
-
-  static std::vector<uint8_t> build_get_request(
-    const std::vector<uint8_t>& body)
-  {
-    return build_request(HTTP_GET, body);
-  }
-
   // HTTP_POST
   static std::vector<uint8_t> build_post_header(
     const std::vector<uint8_t>& body)
@@ -283,16 +258,5 @@ namespace http
     return build_request(HTTP_POST, body);
   }
 
-  // HTTP_PUT
-  static std::vector<uint8_t> build_put_header(const std::vector<uint8_t>& body)
-  {
-    return build_header(HTTP_PUT, body);
-  }
-
-  static std::vector<uint8_t> build_put_request(
-    const std::vector<uint8_t>& body)
-  {
-    return build_request(HTTP_PUT, body);
-  }
 #pragma clang diagnostic pop
 }

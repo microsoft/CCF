@@ -6,10 +6,5 @@ if(USE_SNMALLOC)
   set(SNMALLOC_STATIC_LIBRARY_PREFIX "")
   add_subdirectory(3rdparty/internal/snmalloc EXCLUDE_FROM_ALL)
 
-  install(
-    TARGETS snmallocshim-static
-    EXPORT ccf
-    DESTINATION lib
-  )
-
+  install(TARGETS snmallocshim-static EXPORT ccf DESTINATION lib)
 endif()

@@ -50,25 +50,14 @@ namespace ccf::crypto::OpenSSL
     return "unknown error";
   }
 
-  /// Throws if rc is not 1 and has error
+  /// Throws if rc is not 1
   inline void CHECK1(int rc)
   {
-    unsigned long ec = ERR_get_error();
-    if (rc != 1 && ec != 0)
+    if (rc != 1)
     {
-      throw std::runtime_error(
-        fmt::format("OpenSSL error: {}", error_string(ec)));
-    }
-  }
-
-  /// Throws if rc is 0 and has error
-  inline void CHECK0(int rc)
-  {
-    unsigned long ec = ERR_get_error();
-    if (rc == 0 && ec != 0)
-    {
-      throw std::runtime_error(
-        fmt::format("OpenSSL error: {}", error_string(ec)));
+      unsigned long ec = ERR_get_error();
+      throw std::runtime_error(fmt::format(
+        "OpenSSL error (rc={}, ec={}): {}", rc, ec, error_string(ec)));
     }
   }
 
@@ -87,8 +76,8 @@ namespace ccf::crypto::OpenSSL
     if (expect != actual)
     {
       unsigned long ec = ERR_get_error();
-      throw std::runtime_error(
-        fmt::format("OpenSSL error: {}", error_string(ec)));
+      throw std::runtime_error(fmt::format(
+        "OpenSSL error (rc={}, ec={}): {}", actual, ec, error_string(ec)));
     }
   }
 
@@ -97,7 +86,9 @@ namespace ccf::crypto::OpenSSL
   {
     if (val <= 0)
     {
-      throw std::runtime_error("OpenSSL error: expected positive value");
+      unsigned long ec = ERR_get_error();
+      throw std::runtime_error(fmt::format(
+        "OpenSSL error (rc={}, ec={}): {}", val, ec, error_string(ec)));
     }
   }
 

@@ -3,6 +3,8 @@
 *.png binary
 *.jpg binary
 
+src/crypto/test/cbor_fuzz_corpus/* binary
+
 *.h linguist-language=C++
 *.cpp linguist-language=C++
 

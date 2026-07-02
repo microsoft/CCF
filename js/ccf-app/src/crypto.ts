@@ -73,6 +73,11 @@ export const isValidX509CertBundle = ccf.crypto.isValidX509CertBundle;
 export const isValidX509CertChain = ccf.crypto.isValidX509CertChain;
 
 /**
+ * @inheritDoc global!CCFCrypto.isValidX509RootCACert
+ */
+export const isValidX509RootCACert = ccf.crypto.isValidX509RootCACert;
+
+/**
  * @inheritDoc global!CCFCrypto.pubPemToJwk
  */
 export const pubPemToJwk = ccf.crypto.pubPemToJwk;

@@ -6,11 +6,13 @@
 #include "ccf/crypto/ecdsa.h"
 #include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "ccf/crypto/verifier.h"
+#include "ccf/ds/json.h"
 #include "ccf/pal/attestation_sev_snp.h"
 #include "ccf/pal/sev_snp_cpuid.h"
 #include "ds/internal_logger.h"
 
 #include <cstdint>
+#include <openssl/objects.h>
 
 namespace ccf::pal
 {
@@ -19,12 +21,38 @@ namespace ccf::pal
   using Unique_ASN1_INTEGER = ccf::crypto::OpenSSL::
     Unique_SSL_OBJECT<ASN1_INTEGER, ASN1_INTEGER_new, ASN1_INTEGER_free>;
 
+  namespace
+  {
+    std::string x509_name_to_rfc2253_string(X509_NAME* name)
+    {
+      ccf::crypto::OpenSSL::CHECKNULL(name);
+
+      ccf::crypto::OpenSSL::Unique_BIO mem;
+      const auto rc = X509_NAME_print_ex(mem, name, 0, XN_FLAG_RFC2253);
+      if (rc < 0)
+      {
+        const auto ec = ERR_get_error();
+        throw std::runtime_error(fmt::format(
+          "OpenSSL error (rc={}, ec={}): {}",
+          rc,
+          ec,
+          ccf::crypto::OpenSSL::error_string(ec)));
+      }
+
+      BUF_MEM* bptr = nullptr;
+      ccf::crypto::OpenSSL::CHECK1(BIO_get_mem_ptr(mem, &bptr));
+      ccf::crypto::OpenSSL::CHECKNULL(bptr);
+
+      return {bptr->data, bptr->length};
+    }
+  }
+
   void verify_virtual_attestation_report(
     const QuoteInfo& quote_info,
     PlatformAttestationMeasurement& measurement,
     PlatformAttestationReportData& report_data)
   {
-    auto j = nlohmann::json::parse(quote_info.quote);
+    auto j = ccf::parse_json_safe(quote_info.quote);
 
     const auto s_measurement = j["measurement"].get<std::string>();
     measurement.data =
@@ -260,17 +288,14 @@ namespace ccf::pal
 
     auto ark_verifier = ccf::crypto::make_verifier(ark_cert);
 
-    std::string expected_ark;
+    auto key = snp::amd_root_signing_keys.find(product_family);
+    if (key == snp::amd_root_signing_keys.end())
     {
-      auto key = snp::amd_root_signing_keys.find(product_family);
-      if (key == snp::amd_root_signing_keys.end())
-      {
-        throw std::logic_error(fmt::format(
-          "SEV-SNP: No known root certificate for {}", product_family));
-      }
-      expected_ark = key->second;
+      throw std::logic_error(fmt::format(
+        "SEV-SNP: No known root certificate for {}", product_family));
     }
-    if (ark_verifier->public_key_pem().str() != expected_ark)
+    const auto& expected_ark = key->second;
+    if (ark_verifier->public_key_pem().str() != expected_ark.public_key)
     {
       throw std::logic_error(fmt::format(
         "SEV-SNP: The root of trust public key for this attestation was not "
@@ -279,7 +304,21 @@ namespace ccf::pal
         quote.cpuid_fam_id,
         quote.cpuid_mod_id,
         ark_verifier->public_key_pem().str(),
-        expected_ark));
+        expected_ark.public_key));
+    }
+
+    ccf::crypto::OpenSSL::Unique_BIO mem_bio(ark_cert);
+    ccf::crypto::OpenSSL::Unique_X509 x509(
+      mem_bio, true, true /* check_null */);
+    const auto issuer = x509_name_to_rfc2253_string(X509_get_issuer_name(x509));
+    if (issuer != expected_ark.issuer)
+    {
+      throw std::logic_error(fmt::format(
+        "SEV-SNP: The root of trust issuer for this attestation was not "
+        "the expected one for {}: {} != {}",
+        product_family,
+        issuer,
+        expected_ark.issuer));
     }
 
     if (!ark_verifier->verify_certificate({&ark_cert}))

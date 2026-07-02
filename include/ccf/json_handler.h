@@ -19,7 +19,7 @@ namespace ccf
    *   nlohmann::json params;
    *   if (<content-type is JSON>)
    *   {
-   *     params = nlohmann::json::parse(ctx.rpc_ctx->get_request_body());
+   *     params = ccf::parse_json_safe(ctx.rpc_ctx->get_request_body());
    *   }
    *   else
    *   {

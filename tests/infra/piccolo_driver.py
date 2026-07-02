@@ -10,12 +10,12 @@ from random import seed
 import getpass
 from loguru import logger as LOG
 import time
-import http
 import hashlib
 import json
 from piccolo import generator
 from piccolo import analyzer
 import infra.bencher
+import infra.proc
 
 
 def get_command_args(args, network, get_command):
@@ -81,7 +81,7 @@ def run(get_command, args):
 
     args.initial_user_count = 3
     args.sig_ms_interval = 100
-    args.ledger_chunk_bytes = "5MB"  # Set to cchost default value
+    args.ledger_chunk_bytes = "5MB"  # Set to node default value
 
     LOG.info("Starting nodes on {}".format(hosts))
 
@@ -176,7 +176,7 @@ def run(get_command, args):
                 while True:
                     stop_waiting = True
                     for i, remote_client in enumerate(clients):
-                        done = remote_client.check_done()
+                        done = remote_client.check_done(timeout=0)
                         # all the clients need to be done
                         LOG.info(
                             f"Client {i} has {'completed' if done else 'not completed'} running ({time.time() - start_time:>{format_width}.2f}s / {hard_stop_timeout}s)"
@@ -217,18 +217,10 @@ def run(get_command, args):
                     )
 
                 primary, _ = network.find_primary()
-                with primary.client() as nc:
-                    r = nc.get("/node/memory")
-                    assert r.status_code == http.HTTPStatus.OK.value
-                    results = r.body.json()
-                    current_value = results["current_allocated_heap_size"]
-                    peak_value = results["peak_allocated_heap_size"]
-
+                mem = infra.proc.get_proc_memory_stats(primary.remote.remote.proc.pid)
+                if mem is not None:
                     bf = infra.bencher.Bencher()
-                    bf.set(
-                        perf_label,
-                        infra.bencher.Memory(current_value, high_value=peak_value),
-                    )
+                    bf.set_memory(perf_label, mem)
 
                 for remote_client in clients:
                     remote_client.stop()

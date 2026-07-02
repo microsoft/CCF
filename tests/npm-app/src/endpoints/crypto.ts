@@ -97,9 +97,7 @@ interface RsaOaepAesKwpParams {
 }
 
 type WrapAlgoParams =
-  | RsaOaepParams
-  | RsaOaepAesKwpParams
-  | ccfcrypto.AesKwpParams;
+  RsaOaepParams | RsaOaepAesKwpParams | ccfcrypto.AesKwpParams;
 
 interface WrapKeyRequest {
   key: Base64; // typically an AES key

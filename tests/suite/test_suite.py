@@ -51,6 +51,7 @@ suite_membership_recovery = [
     recovery.test_recover_service,
     membership.test_update_recovery_shares,
     recovery.test_recover_service,
+    recovery.test_recovery_member_changes_rejected_during_recovery,
 ]
 suites["membership_recovery"] = suite_membership_recovery
 
@@ -61,6 +62,7 @@ suite_reconfiguration = [
     reconfiguration.test_retire_primary,
     e2e_logging.test_rekey,
     reconfiguration.test_add_node,
+    reconfiguration.test_add_node_with_corrupted_ledger,
     nodes.test_kill_primary,
     nodes.test_commit_view_history,
     reconfiguration.test_add_node,

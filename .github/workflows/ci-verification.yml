@@ -7,6 +7,7 @@ on:
     paths:
       - "tla/**"
       - "src/consensus/**"
+      - "tests/raft_scenarios/**"
       - ".github/workflows/ci-verification.yml"
   workflow_dispatch:
 
@@ -22,7 +23,7 @@ jobs:
     runs-on:
       [
         self-hosted,
-        1ES.Pool=gha-vmss-d16av5-ci,
+        1ES.Pool=gha-vmss-d16av6-ci,
         "JobId=civ_mc_consistency-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
       ]
     container:
@@ -37,7 +38,7 @@ jobs:
           tdnf -y update
           tdnf -y install ca-certificates git
 
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - name: Install TLC dependencies
         run: |
           tdnf install -y jre wget
@@ -50,7 +51,7 @@ jobs:
       - run: cd tla && ./tlc.py mc consistency/MCMultiNodeReadsAlt.tla
 
       - name: Upload TLC traces
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: ${{ failure() }}
         with:
           name: tlc-model-checking-consistency
@@ -66,7 +67,7 @@ jobs:
         working-directory: tla
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - name: Install TLC dependencies
         run: |
           sudo apt update
@@ -86,7 +87,7 @@ jobs:
         working-directory: tla
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - name: Install TLC dependencies
         run: |
           sudo apt update
@@ -96,7 +97,7 @@ jobs:
       - run: ./tlc.py sim --num 500 --depth 50 consistency/MultiNodeReads.tla
 
       - name: Upload TLC traces
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: ${{ failure() }}
         with:
           name: tlc-simulation-consistency
@@ -109,7 +110,7 @@ jobs:
     runs-on:
       [
         self-hosted,
-        1ES.Pool=gha-vmss-d16av5-ci,
+        1ES.Pool=gha-vmss-d16av6-ci,
         "JobId=civ_mc_consensus-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
       ]
     container:
@@ -124,7 +125,7 @@ jobs:
           tdnf -y update
           tdnf -y install ca-certificates git
 
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - name: Install TLC dependencies
         run: |
           tdnf install -y jre wget
@@ -135,7 +136,7 @@ jobs:
       - run: cd tla && ./tlc.py --trace-name 1C3N mc --term-count 0 --request-count 3 --raft-configs 1C3N consensus/MCccfraft.tla
 
       - name: Upload TLC traces
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: ${{ failure() }}
         with:
           name: tlc-model-checking-consensus
@@ -151,7 +152,7 @@ jobs:
         working-directory: tla
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - name: Install TLC dependencies
         run: |
           sudo apt update
@@ -161,7 +162,7 @@ jobs:
       - run: ./tlc.py sim consensus/SIMccfraft.tla
 
       - name: Upload TLC traces
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: ${{ failure() }}
         with:
           name: tlc-simulation-consensus
@@ -174,7 +175,7 @@ jobs:
     runs-on:
       [
         self-hosted,
-        1ES.Pool=gha-vmss-d16av5-ci,
+        1ES.Pool=gha-vmss-d16av6-ci,
         "JobId=civ_tv_consensus-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
       ]
     container:
@@ -189,7 +190,7 @@ jobs:
           tdnf -y update
           tdnf -y install ca-certificates git
 
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
 
@@ -233,7 +234,7 @@ jobs:
         shell: bash
 
       - name: Upload artifacts.
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: always()
         with:
           name: tlc-trace-validation-consensus
@@ -242,7 +243,7 @@ jobs:
 
   model-checking-self-healing-open:
     name: Model Checking - Self-Healing Open
-    runs-on: [self-hosted, 1ES.Pool=gha-vmss-d16av5-ci]
+    runs-on: [self-hosted, 1ES.Pool=gha-vmss-d16av6-ci]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
@@ -255,7 +256,7 @@ jobs:
           tdnf -y update
           tdnf -y install ca-certificates git
 
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - name: Install Stateright dependencies
         run: |
           tdnf install -y cargo

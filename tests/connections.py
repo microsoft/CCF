@@ -384,8 +384,8 @@ def run_node_socket_robustness_tests(args):
                     f"Sending raw TCP bytes to {primary.local_node_id}'s node-to-node port: {msg_bytes}"
                 )
                 sock.send(msg_bytes)
-                assert (
-                    not primary.remote.check_done()
+                assert not primary.remote.check_done(
+                    timeout=0
                 ), f"Crashed node with N2N message: {msg_bytes}"
                 LOG.success(f"Node {primary.local_node_id} tolerated this message")
 

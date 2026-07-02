@@ -16,6 +16,7 @@
 #include "interface.h"
 #include "js/interpreter_cache.h"
 #include "kv/ledger_chunker.h"
+#include "node/commit_callback_subsystem.h"
 #include "node/historical_queries.h"
 #include "node/network_state.h"
 #include "node/node_state.h"
@@ -26,10 +27,12 @@
 #include "node/rpc/gov_effects.h"
 #include "node/rpc/ledger_subsystem.h"
 #include "node/rpc/member_frontend.h"
+#include "node/rpc/network_identity_accessors_impl.h"
 #include "node/rpc/network_identity_subsystem.h"
 #include "node/rpc/node_frontend.h"
 #include "node/rpc/node_operation.h"
 #include "node/rpc/user_frontend.h"
+#include "node/signature_cache_subsystem.h"
 #include "rpc_map.h"
 #include "rpc_sessions.h"
 #include "tasks/worker.h"
@@ -130,7 +133,11 @@ namespace ccf
 
       context->install_subsystem(
         std::make_shared<ccf::NetworkIdentitySubsystem>(
-          *node, network.identity, historical_state_cache));
+          std::make_shared<ccf::NodeStateAccessor>(*node),
+          std::make_shared<ccf::HistoricalStateAccessor>(
+            historical_state_cache),
+          network.identity,
+          std::make_shared<ccf::TaskSchedulerImpl>()));
 
       context->install_subsystem(
         std::make_shared<ccf::NodeConfigurationSubsystem>(*node));
@@ -151,6 +158,13 @@ namespace ccf
       context->install_subsystem(
         std::make_shared<ccf::AbstractCOSESignaturesConfigSubsystem>(*node));
 
+      auto commit_callbacks = std::make_shared<ccf::CommitCallbackSubsystem>();
+      context->install_subsystem(commit_callbacks);
+      rpcsessions->set_commit_callbacks_subsystem(commit_callbacks);
+
+      auto signature_cache = std::make_shared<ccf::SignatureCacheSubsystem>();
+      context->install_subsystem(signature_cache);
+
       LOG_TRACE_FMT("Creating RPC actors / ffi");
       rpc_map->register_frontend<ccf::ActorsType::members>(
         std::make_unique<ccf::MemberRpcFrontend>(network, *context));
@@ -168,6 +182,8 @@ namespace ccf
         rpc_map,
         rpcsessions,
         indexer,
+        commit_callbacks,
+        signature_cache,
         sig_tx_interval,
         sig_ms_interval);
     }
@@ -191,6 +207,26 @@ namespace ccf
 
       historical_state_cache->set_soft_cache_limit(
         ccf_config_.historical_cache_soft_limit);
+
+      auto network_identity_subsystem =
+        context->get_subsystem<ccf::NetworkIdentitySubsystem>();
+      if (network_identity_subsystem == nullptr)
+      {
+        LOG_FAIL_FMT(
+          "NetworkIdentitySubsystem is not installed; cannot start "
+          "network identity fetching");
+        return CreateNodeStatus::InternalError;
+      }
+      try
+      {
+        network_identity_subsystem->start_with_config(
+          ccf_config_.identity_history_fetch);
+      }
+      catch (const std::exception& e)
+      {
+        LOG_FAIL_FMT("Failed to start network identity fetching: {}", e.what());
+        return CreateNodeStatus::InternalError;
+      }
 
       // If we haven't heard from a node for multiple elections, then cleanup
       // their node-to-node channel

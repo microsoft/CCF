@@ -12,7 +12,11 @@ from infra.log_capture import flush_info
 
 
 def wait_for_commit(
-    client, seqno: int, view: int, timeout: int = 5, log_capture: Optional[list] = None
+    client,
+    seqno: int,
+    view: int,
+    timeout: Optional[int] = None,
+    log_capture: Optional[list] = None,
 ) -> None:
     """
     Waits for a specific seqno/view pair to be committed by the network,
@@ -22,10 +26,17 @@ def wait_for_commit(
     :param int seqno: Transaction sequence number.
     :param int view: Consensus view.
     :param str timeout: Maximum time to wait for this seqno/view pair to be committed before giving up.
+        Defaults to the election timeout configured on the client.
     :param list log_capture: Rather than emit to default handler, capture log lines to list (optional).
 
     A TimeoutError exception is raised if the commit index is not committed within the given timeout.
     """
+    if timeout is None:
+        timeout = (
+            client.election_timeout_ms // 1000
+            if client.election_timeout_ms is not None
+            else 5
+        )
     if view is None or seqno is None:
         raise ValueError(f"{view}.{seqno} is not a valid transaction ID")
 
