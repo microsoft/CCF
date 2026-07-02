@@ -793,12 +793,15 @@ def test_jwt_key_auto_refresh_entries(network, args):
         assert attempts > 0, attempts
         assert successes > 0, successes
 
-        # Wait long enough for at least one refresh to take place
-        time.sleep(args.jwt_key_refresh_interval_s)
+        def check_refresh_progressed():
+            m = get_jwt_refresh_endpoint_metrics(primary)
+            assert m["attempts"] > attempts, m["attempts"]
+            assert m["successes"] > successes, m["successes"]
 
-        m = get_jwt_refresh_endpoint_metrics(primary)
-        assert m["attempts"] > attempts, m["attempts"]
-        assert m["successes"] > successes, m["successes"]
+        with_timeout(
+            check_refresh_progressed,
+            timeout=max(5, args.jwt_key_refresh_interval_s * 5),
+        )
 
         # Force chunking
         network.get_latest_ledger_public_state()
