@@ -3616,7 +3616,7 @@ def run_propose_request_vote(const_args):
     ) as network:
         LOG.info("Start a network")
         network.start_and_open(args, ignore_first_sigterm=True)
-        network.wait_for_node_commit_sync()
+        network.wait_for_node_commit_sync(timeout=16)
         try:
             original_primary, original_term = network.find_primary()
 
