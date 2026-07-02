@@ -237,8 +237,11 @@ extern "C"
         ccf::tasks::error_callback,
         &trace);
     }
-    else
+
+    if (trace.num_frames == 0)
     {
+      // libbacktrace was unavailable or backtrace_simple() failed; fall back
+      // to the glibc backtrace() so the throw-point trace is not lost.
       auto num_frames =
         backtrace(trace.frames, ccf::tasks::throw_trace_max_frames);
       if (num_frames > 0)
