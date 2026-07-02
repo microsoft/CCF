@@ -4,9 +4,12 @@
 
 #include "ccf/ds/json.h"
 #include "ccf/service/tables/jwt.h"
+#include "enclave/abstract_rpc_sessions.h"
 #include "http/http_builder.h"
 #include "http/http_rpc_context.h"
 #include "node/rpc/node_frontend.h"
+#include "tls/ca.h"
+#include "tls/cert.h"
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
@@ -19,7 +22,7 @@ namespace ccf
     size_t refresh_interval_s;
     NetworkState& network;
     std::shared_ptr<ccf::kv::Consensus> consensus;
-    std::shared_ptr<ccf::RPCSessions> rpcsessions;
+    std::shared_ptr<ccf::AbstractRPCSessions> rpcsessions;
     std::shared_ptr<ccf::RPCMap> rpc_map;
     ccf::crypto::ECKeyPairPtr node_sign_kp;
     ccf::crypto::Pem node_cert;
@@ -32,7 +35,7 @@ namespace ccf
       size_t refresh_interval_s,
       NetworkState& network,
       const std::shared_ptr<ccf::kv::Consensus>& consensus,
-      const std::shared_ptr<ccf::RPCSessions>& rpcsessions,
+      const std::shared_ptr<ccf::AbstractRPCSessions>& rpcsessions,
       const std::shared_ptr<ccf::RPCMap>& rpc_map,
       ccf::crypto::ECKeyPairPtr node_sign_kp,
       ccf::crypto::Pem node_cert) :

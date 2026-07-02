@@ -29,6 +29,12 @@ namespace ccf
 
     ccf::ds::SizeString historical_cache_soft_limit = {"512MB"};
 
+    // How long an idle RPC (client TLS) connection is kept before it is closed.
+    // std::nullopt disables idle closure (connections are never closed for
+    // being idle).
+    std::optional<ccf::ds::TimeString> idle_connection_timeout =
+      ccf::ds::TimeString("60s");
+
     ccf::consensus::Configuration consensus = {};
     ccf::NodeInfoNetwork network;
 

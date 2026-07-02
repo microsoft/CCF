@@ -27,7 +27,7 @@
 #include "ds/files.h"
 #include "ds/internal_logger.h"
 #include "ds/state_machine.h"
-#include "enclave/rpc_sessions.h"
+#include "enclave/abstract_rpc_sessions.h"
 #include "encryptor.h"
 #include "history.h"
 #include "http/http_parser.h"
@@ -58,6 +58,8 @@
 #include "share_manager.h"
 #include "snapshots/fetch.h"
 #include "snapshots/filenames.h"
+#include "tls/ca.h"
+#include "tls/cert.h"
 #include "uvm_endorsements.h"
 
 #include <arpa/inet.h>
@@ -440,7 +442,7 @@ namespace ccf
     std::shared_ptr<Forwarder<NodeToNode>> cmd_forwarder;
     std::shared_ptr<ccf::CommitCallbackSubsystem> commit_callbacks = nullptr;
     std::shared_ptr<ccf::SignatureCacheSubsystem> signature_cache = nullptr;
-    std::shared_ptr<RPCSessions> rpcsessions;
+    std::shared_ptr<AbstractRPCSessions> rpcsessions;
 
     std::shared_ptr<ccf::kv::TxHistory> history;
     std::shared_ptr<ccf::kv::AbstractTxEncryptor> encryptor;
@@ -612,7 +614,7 @@ namespace ccf
     NodeState(
       ringbuffer::AbstractWriterFactory& writer_factory,
       NetworkState& network,
-      std::shared_ptr<RPCSessions> rpcsessions,
+      std::shared_ptr<AbstractRPCSessions> rpcsessions,
       ccf::crypto::CurveID curve_id_) :
       sm("NodeState", NodeStartupState::uninitialized),
       curve_id(curve_id_),

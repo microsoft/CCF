@@ -36,13 +36,11 @@
 #include "lfs_file_handler.h"
 #include "node_connections.h"
 #include "pal/quote_generation.h"
-#include "rpc_connections.h"
 #include "sig_term.h"
 #include "snapshots/snapshot_manager.h"
 #include "tcp.h"
 #include "ticker.h"
 #include "time_bound_logger.h"
-#include "udp.h"
 
 #include <CLI11/CLI11.hpp>
 #include <atomic>
@@ -78,9 +76,6 @@ using ResolvedAddresses = std::
 size_t asynchost::TCPImpl::remaining_read_quota =
   asynchost::TCPImpl::max_read_quota;
 bool asynchost::TCPImpl::alloc_quota_logged = false;
-
-size_t asynchost::UDPImpl::remaining_read_quota =
-  asynchost::UDPImpl::max_read_quota;
 
 void print_version(int64_t ignored)
 {
@@ -189,64 +184,6 @@ namespace ccf
       writer_factory(non_blocking_factory, config)
     {}
   };
-
-  void setup_rpc_interfaces(
-    host::HostConfig& config,
-    asynchost::RPCConnections<asynchost::TCP>& rpc,
-    asynchost::RPCConnections<asynchost::UDP>& rpc_udp)
-  {
-    ResolvedAddresses resolved_rpc_addresses;
-    for (auto& [name, interface] : config.network.rpc_interfaces)
-    {
-      auto [rpc_host, rpc_port] = cli::validate_address(interface.bind_address);
-      LOG_INFO_FMT(
-        "Registering RPC interface {}, on {} {}:{}",
-        name,
-        interface.protocol,
-        rpc_host,
-        rpc_port);
-
-      if (interface.protocol == "udp")
-      {
-        rpc_udp->behaviour.listen(0, rpc_host, rpc_port, name);
-      }
-      else
-      {
-        rpc->behaviour.listen(0, rpc_host, rpc_port, name);
-      }
-
-      LOG_INFO_FMT(
-        "Registered RPC interface {}, on {} {}:{}",
-        name,
-        interface.protocol,
-        rpc_host,
-        rpc_port);
-
-      resolved_rpc_addresses[name] = ccf::make_net_address(rpc_host, rpc_port);
-      interface.bind_address = ccf::make_net_address(rpc_host, rpc_port);
-
-      // If public RPC address is not set, default to local RPC address
-      if (interface.published_address.empty())
-      {
-        interface.published_address = interface.bind_address;
-      }
-
-      auto [pub_host, pub_port] =
-        cli::validate_address(interface.published_address);
-      if (pub_port == "0")
-      {
-        pub_port = rpc_port;
-        interface.published_address = ccf::make_net_address(pub_host, pub_port);
-      }
-    }
-
-    if (!config.output_files.rpc_addresses_file.empty())
-    {
-      files::dump(
-        nlohmann::json(resolved_rpc_addresses).dump(),
-        config.output_files.rpc_addresses_file);
-    }
-  }
 
   void configure_snp_attestation(ccf::StartupConfig& startup_config)
   {
@@ -453,6 +390,7 @@ namespace ccf
     ccf::StartupConfig& startup_config,
     std::vector<uint8_t>& node_cert,
     std::vector<uint8_t>& service_cert,
+    std::vector<uint8_t>& rpc_addresses,
     ccf::LoggerLevel log_level,
     ringbuffer::NotifyingWriterFactory& notifying_factory,
     asynchost::Ledger& ledger)
@@ -474,6 +412,7 @@ namespace ccf
       startup_config,
       node_cert,
       service_cert,
+      rpc_addresses,
       config.command.type,
       log_level,
       config.worker_threads,
@@ -504,6 +443,13 @@ namespace ccf
     }
 
     LOG_INFO_FMT("Created new node");
+
+    // The enclave resolves and binds the RPC interfaces (including ephemeral
+    // ports), and reports the resolved addresses back here to be written out.
+    if (!config.output_files.rpc_addresses_file.empty())
+    {
+      files::dump(rpc_addresses, config.output_files.rpc_addresses_file);
+    }
     return std::nullopt;
   }
 
@@ -589,9 +535,6 @@ namespace ccf
     // reset the inbound-TCP processing quota each iteration
     const asynchost::ResetTCPReadQuota reset_tcp_quota;
 
-    // reset the inbound-UDP processing quota each iteration
-    const asynchost::ResetUDPReadQuota reset_udp_quota;
-
     // handle outbound logging and admin messages from the enclave
     const asynchost::HandleRingbuffer handle_ringbuffer(
       1ms,
@@ -673,37 +616,16 @@ namespace ccf
         config.output_files.node_to_node_address_file);
     }
 
-    asynchost::ConnIDGenerator id_gen;
-
-    asynchost::RPCConnections<asynchost::TCP> rpc(
-      1s, // Tick once-per-second to track idle connections,
-      writer_factory,
-      id_gen,
-      config.client_connection_timeout,
-      config.idle_connection_timeout);
-    rpc->behaviour.register_message_handlers(buffer_processor.get_dispatcher());
-
-    asynchost::RPCConnections<asynchost::UDP> rpc_udp(
-      1s,
-      writer_factory,
-      id_gen,
-      config.client_connection_timeout,
-      config.idle_connection_timeout);
-    rpc_udp->behaviour.register_udp_message_handlers(
-      buffer_processor.get_dispatcher());
-
     // Initialise the curlm singleton
     curl_global_init(CURL_GLOBAL_DEFAULT);
     auto curl_libuv_context =
       curl::CurlmLibuvContextSingleton(uv_default_loop());
 
-    // Setup RPC interfaces
-    setup_rpc_interfaces(config, rpc, rpc_udp);
-
     // Prepare startup configuration
     const size_t certificate_size = 4096;
     std::vector<uint8_t> node_cert(certificate_size);
     std::vector<uint8_t> service_cert(certificate_size);
+    std::vector<uint8_t> rpc_addresses;
 
     ccf::StartupConfig startup_config(config);
 
@@ -809,6 +731,7 @@ namespace ccf
       startup_config,
       node_cert,
       service_cert,
+      rpc_addresses,
       log_level,
       factories.notifying_factory,
       ledger);
