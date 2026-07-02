@@ -7,11 +7,11 @@ on:
   push:
     paths:
       - .github/workflows/copilot-setup-steps.yml
-      - scripts/setup-ci-checks.sh
+      - scripts/setup-ubuntu-ci-checks.sh
   pull_request:
     paths:
       - .github/workflows/copilot-setup-steps.yml
-      - scripts/setup-ci-checks.sh
+      - scripts/setup-ubuntu-ci-checks.sh
 
 permissions: {}
 
@@ -33,4 +33,4 @@ jobs:
         shell: bash
         run: |
           set -ex
-          ./scripts/setup-ci-checks.sh
+          ./scripts/setup-ubuntu-ci-checks.sh
