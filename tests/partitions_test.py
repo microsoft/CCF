@@ -28,6 +28,7 @@ import threading
 from loguru import logger as LOG
 
 UNCOMMITTABLE_RECORD_ID_START = 420000
+COMMITTED_RECORD_ID = UNCOMMITTABLE_RECORD_ID_START - 1
 UNCOMMITTABLE_MESSAGE_REPEAT = 1024
 UNCOMMITTABLE_TEST_LEDGER_CHUNK_BYTES = "16KB"
 
@@ -1167,6 +1168,15 @@ def _assert_ledger_files_contain_payload(ledger_dir, ledger_files, payload):
 def test_in_place_restart_with_uncommittable_ledger(network, args):
     old_primary, backups = network.find_nodes()
 
+    committed_msg = "Committed before primary isolation"
+    with old_primary.client("user0") as c:
+        r = c.post(
+            "/app/log/public",
+            {"id": COMMITTED_RECORD_ID, "msg": committed_msg},
+        )
+        assert r.status_code == http.HTTPStatus.OK, r
+        c.wait_for_commit(r)
+
     network.consortium.force_ledger_chunk(old_primary)
     network.wait_for_all_nodes_to_commit(primary=old_primary)
     previous_uncommitted_files = _uncommitted_ledger_files(old_primary)
@@ -1228,6 +1238,10 @@ def test_in_place_restart_with_uncommittable_ledger(network, args):
 
     new_primary, _ = network.find_primary()
     with new_primary.client("user0") as c:
+        r = c.get(f"/app/log/public?id={COMMITTED_RECORD_ID}")
+        assert r.status_code == http.HTTPStatus.OK, r
+        assert r.body.json() == {"msg": committed_msg}, r
+
         for record_id in uncommitted_records:
             r = c.get(f"/app/log/public?id={record_id}")
             assert r.status_code == http.HTTPStatus.NOT_FOUND, r
@@ -1238,7 +1252,7 @@ def test_in_place_restart_with_uncommittable_ledger(network, args):
     return network
 
 
-def run_in_place_restart_uncommitted_ledger_check(const_args):
+def run_in_place_restart_uncommittable_ledger_check(const_args):
     LOG.info(
         "Confirm that in-place restart ignores uncommitted and uncommittable ledger files"
     )
@@ -1460,7 +1474,7 @@ def run(args):
         network = test_recovery_elections(network, args)
         test_ledger_invariants(network, args)
     run_ledger_chunk_bytes_check(args)
-    run_in_place_restart_uncommitted_ledger_check(args)
+    run_in_place_restart_uncommittable_ledger_check(args)
 
 
 if __name__ == "__main__":
