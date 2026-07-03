@@ -9,13 +9,19 @@ set -e
 set -u
 set -o pipefail
 
-if [ "${1:-}" == "-f" ]; then
+FIX=0
+if [ "${1:-}" = "-f" ]; then
+  FIX=1
   shift
 fi
 
 if [ "$#" -ne 0 ]; then
   echo "Usage: $0 [-f]"
   exit 1
+fi
+
+if [ "$FIX" -ne 0 ]; then
+  echo "include-what-you-use checks do not support auto-fix; running checks only"
 fi
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"

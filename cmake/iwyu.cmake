@@ -29,12 +29,12 @@ set(
   "/usr/local/share/include-what-you-use"
   "/usr/share/include-what-you-use"
 )
-foreach(IWYU_MAPPING_BASE ${IWYU_MAPPING_DIRS})
-  if(EXISTS "${IWYU_MAPPING_BASE}/libcxx.imp")
+foreach(IWYU_MAPPING_CANDIDATE_DIR ${IWYU_MAPPING_DIRS})
+  if(EXISTS "${IWYU_MAPPING_CANDIDATE_DIR}/libcxx.imp")
     list(
       APPEND IWYU_COMMAND
       "-Xiwyu"
-      "--mapping_file=${IWYU_MAPPING_BASE}/libcxx.imp"
+      "--mapping_file=${IWYU_MAPPING_CANDIDATE_DIR}/libcxx.imp"
     )
     break()
   endif()
