@@ -1,9 +1,9 @@
 import * as rs from "jsrsasign";
-import { Base64 } from "js-base64";
 
 import * as ccfapp from "@microsoft/ccf-app";
 import * as ccfcrypto from "@microsoft/ccf-app/crypto";
 import { toArrayBuffer } from "@microsoft/ccf-app/utils";
+import { base64ToUint8Array } from "./base64";
 
 interface CryptoResponse {
   available: boolean;
@@ -341,7 +341,7 @@ export function eddsaJwkToPem(
 }
 
 function b64ToBuf(b64: string): ArrayBuffer {
-  return toArrayBuffer(Base64.toUint8Array(b64).buffer);
+  return toArrayBuffer(base64ToUint8Array(b64));
 }
 
 function hex(buf: ArrayBuffer) {

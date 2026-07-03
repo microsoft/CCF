@@ -36,6 +36,12 @@ namespace ccf::tasks
       }
     };
 
+    // Silently ignore libbacktrace errors. For individual frame resolution
+    // failures we fall back to printing the raw PC address; for
+    // backtrace_create_state failures the returned state will be nullptr and
+    // we fall back to glibc backtrace().
+    void error_callback(void* /*data*/, const char* /*msg*/, int /*errnum*/) {}
+
     // Lazily initialise and return the process-wide backtrace_state.
     // backtrace_create_state allocates resources that cannot be freed, so
     // we call it at most once and cache the result.
@@ -44,7 +50,7 @@ namespace ccf::tasks
       static backtrace_state* state = backtrace_create_state(
         nullptr, // let libbacktrace find the executable
         1, // threaded = true
-        nullptr, // ignore errors during init
+        error_callback,
         nullptr);
       return state;
     }
@@ -119,10 +125,6 @@ namespace ccf::tasks
         result->function = demangle(symname);
       }
     }
-
-    // Silently ignore libbacktrace errors in individual frame resolution.
-    // We fall back to printing the raw PC address.
-    void error_callback(void* /*data*/, const char* /*msg*/, int /*errnum*/) {}
 
     // Format a stack trace using libbacktrace for DWARF-aware symbol,
     // file and line resolution. This works in all build configurations
@@ -213,9 +215,13 @@ extern "C"
     auto& trace = ccf::tasks::current_throw_trace;
     trace.num_frames = 0;
     auto* bt_state = ccf::tasks::get_backtrace_state();
+    // Initialise to -1 so that bt_ret < 0 means "backtrace_simple() was not
+    // called" (bt_state was nullptr). backtrace_simple() itself only returns
+    // 0 (all frames visited) or a positive value (callback stopped early).
+    int bt_ret = -1;
     if (bt_state != nullptr)
     {
-      backtrace_simple(
+      bt_ret = backtrace_simple(
         bt_state,
         0, // skip = 0, capture from here
         [](void* data, uintptr_t pc) -> int {
@@ -237,8 +243,12 @@ extern "C"
         ccf::tasks::error_callback,
         &trace);
     }
-    else
+
+    if (trace.num_frames == 0 || bt_ret < 0)
     {
+      // libbacktrace was unavailable (bt_ret < 0) or captured no frames;
+      // fall back to the glibc backtrace() so the throw-point trace is not
+      // lost.
       auto num_frames =
         backtrace(trace.frames, ccf::tasks::throw_trace_max_frames);
       if (num_frames > 0)

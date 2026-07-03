@@ -1,4 +1,4 @@
-import { Container, interfaces } from "inversify";
+import { Container } from "inversify";
 import { SlowConstructorService } from "./SlowConstructorService";
 
 const container = new Container();
