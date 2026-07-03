@@ -113,6 +113,11 @@ def cli_args(
         default=[],
     )
     parser.add_argument(
+        "--jwt-key-refresh-max-response-size",
+        help="Maximum response body size accepted when fetching JWT issuer OpenID metadata and JWKS",
+        default="1MB",
+    )
+    parser.add_argument(
         "-o",
         "--network-only",
         help="Only start the network, do not run the client, and wait.",
