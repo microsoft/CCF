@@ -1646,7 +1646,7 @@ TEST_CASE("CBOR: tagged array Tag(20000, [{'x': 1}, {'y': 2}])")
   REQUIRE(result == expected_repr);
 }
 
-TEST_CASE("CBOR: helper function make_signed")
+TEST_CASE("CBOR: helper function make_signed with positive and negative values")
 {
   SUBCASE("positive value")
   {

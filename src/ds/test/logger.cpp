@@ -5,8 +5,10 @@
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
+#include <filesystem>
 #include <fstream>
 #include <nlohmann/json.hpp>
+#include <thread>
 
 template <typename Base>
 class TestLogger : public Base
@@ -184,7 +186,12 @@ TEST_CASE("Custom logging macros")
 
 TEST_CASE("Test custom log format")
 {
-  std::string test_log_file = "./test_json_logger.txt";
+  auto test_log_file =
+    (std::filesystem::temp_directory_path() /
+     ("test_json_logger_" +
+      std::to_string(std::hash<std::thread::id>{}(std::this_thread::get_id())) +
+      ".txt"))
+      .string();
   remove(test_log_file.c_str());
   ccf::logger::config::add_json_console_logger();
   ccf::logger::config::level() = ccf::LoggerLevel::DEBUG;
@@ -221,5 +228,8 @@ TEST_CASE("Test custom log format")
     REQUIRE(line_number != j.end());
     REQUIRE(j["level"] == "debug");
   }
+  f.close();
+  std::error_code ec;
+  std::filesystem::remove(test_log_file, ec);
   REQUIRE(line_count == 3);
 }
