@@ -27,15 +27,23 @@ namespace ccf::http
     for (size_t i = 0; i < s.size(); ++i)
     {
       char const c = s[i];
-      if (
-        c == '%' && i + 2 < s.size() &&
-        std::isxdigit(static_cast<unsigned char>(s[i + 1])) &&
-        std::isxdigit(static_cast<unsigned char>(s[i + 2])))
+      if (c == '%' && i + 2 < s.size())
       {
-        const auto a = ccf::ds::hex_char_to_int(s[i + 1]);
-        const auto b = ccf::ds::hex_char_to_int(s[i + 2]);
-        decoded.push_back((a << 4) | b);
-        i += 2;
+        const auto hi = s[i + 1];
+        const auto lo = s[i + 2];
+        if (
+          std::isxdigit(static_cast<unsigned char>(hi)) &&
+          std::isxdigit(static_cast<unsigned char>(lo)))
+        {
+          const auto a = ccf::ds::hex_char_to_int(hi);
+          const auto b = ccf::ds::hex_char_to_int(lo);
+          decoded.push_back((a << 4) | b);
+          i += 2;
+        }
+        else
+        {
+          decoded.push_back(c);
+        }
       }
       else if (c == '+')
       {
@@ -110,6 +118,7 @@ namespace ccf::http
     }
     else if constexpr (std::is_integral_v<T>)
     {
+      // std::from_chars requires contiguous character pointers.
       const auto* const end = param_val.data() + param_val.size();
       const auto [p, ec] = std::from_chars(param_val.data(), end, val);
       if (ec != std::errc() || p != end)
