@@ -19,7 +19,8 @@ if(NOT IWYU_EXE)
 endif()
 
 # -w suppresses compiler warnings so CI logs focus on IWYU findings.
-# --error=1 makes any IWYU suggestion fail the build and enforce direct includes.
+# --error=1 selects IWYU's standard non-zero failure code, so any suggestion
+# fails the build and enforces direct includes.
 set(IWYU_COMMAND "${IWYU_EXE}" "-w" "-Xiwyu" "--error=1")
 get_filename_component(IWYU_BIN_DIR "${IWYU_EXE}" DIRECTORY)
 set(

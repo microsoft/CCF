@@ -11,6 +11,8 @@ set -o pipefail
 
 FIX=0
 if [ "${1:-}" = "-f" ]; then
+  # ci-checks.sh passes -f to every check; IWYU has no safe auto-fix mode, so
+  # this script treats it as a request to run the check normally.
   FIX=1
   shift
 fi
