@@ -245,7 +245,7 @@ namespace ccf::kv
       max_transaction_size = max_transaction_size_;
     }
 
-    size_t get_max_transaction_size() const override
+    [[nodiscard]] size_t get_max_transaction_size() const override
     {
       return max_transaction_size;
     }

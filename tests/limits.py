@@ -56,7 +56,7 @@ def test_transaction_size_limit(network, args):
         r = c.post("/app/log/private", {"id": 1, "msg": "small"})
         assert r.status_code == http.HTTPStatus.OK.value, r
 
-        msg = "A" * 64 * 1024
+        msg = "A" * 1024 * 1024
         r = c.post("/app/log/private", {"id": 2, "msg": msg})
         assert r.status_code == http.HTTPStatus.REQUEST_ENTITY_TOO_LARGE.value, r
 
@@ -83,7 +83,10 @@ def run_parser_limits_checks(args):
 
 def run_transaction_size_limit_checks(args):
     new_args = copy.copy(args)
-    new_args.ledger_max_transaction_bytes = "20KB"
+    # Deliberately larger than the constitution scripts written to the KV
+    # store as part of service creation, but well under the oversized
+    # request used below, so only the latter is rejected.
+    new_args.ledger_max_transaction_bytes = "512KB"
     with infra.network.network(
         new_args.nodes,
         new_args.binary_dir,

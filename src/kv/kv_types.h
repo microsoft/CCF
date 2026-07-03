@@ -676,7 +676,7 @@ namespace ccf::kv
     virtual std::shared_ptr<TxHistory> get_history() = 0;
     virtual std::shared_ptr<ILedgerChunker> get_chunker() = 0;
     virtual EncryptorPtr get_encryptor() = 0;
-    virtual size_t get_max_transaction_size() const = 0;
+    [[nodiscard]] virtual size_t get_max_transaction_size() const = 0;
     virtual std::unique_ptr<AbstractExecutionWrapper> deserialize(
       const std::vector<uint8_t>& data,
       bool public_only = false,
