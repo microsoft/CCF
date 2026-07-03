@@ -36,6 +36,12 @@ namespace ccf::tasks
       }
     };
 
+    // Silently ignore libbacktrace errors. For individual frame resolution
+    // failures we fall back to printing the raw PC address; for
+    // backtrace_create_state failures the returned state will be nullptr and
+    // we fall back to glibc backtrace().
+    void error_callback(void* /*data*/, const char* /*msg*/, int /*errnum*/) {}
+
     // Lazily initialise and return the process-wide backtrace_state.
     // backtrace_create_state allocates resources that cannot be freed, so
     // we call it at most once and cache the result.
@@ -44,7 +50,7 @@ namespace ccf::tasks
       static backtrace_state* state = backtrace_create_state(
         nullptr, // let libbacktrace find the executable
         1, // threaded = true
-        nullptr, // ignore errors during init
+        error_callback,
         nullptr);
       return state;
     }
@@ -119,10 +125,6 @@ namespace ccf::tasks
         result->function = demangle(symname);
       }
     }
-
-    // Silently ignore libbacktrace errors in individual frame resolution.
-    // We fall back to printing the raw PC address.
-    void error_callback(void* /*data*/, const char* /*msg*/, int /*errnum*/) {}
 
     // Format a stack trace using libbacktrace for DWARF-aware symbol,
     // file and line resolution. This works in all build configurations
