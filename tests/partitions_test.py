@@ -27,6 +27,8 @@ import threading
 
 from loguru import logger as LOG
 
+UNCOMMITTABLE_RECORD_ID_START = 420000
+
 
 @reqs.description("Invalid partitions are not allowed")
 def test_invalid_partitions(network, args):
@@ -1135,9 +1137,7 @@ def _wait_for_new_uncommitted_ledger_file(node, previous_files, timeout=10):
         new_uncommitted_files = uncommitted_files - previous_files
         if new_uncommitted_files:
             LOG.info(
-                "Found new uncommitted ledger file(s) on {}: {}",
-                node.local_node_id,
-                sorted(new_uncommitted_files),
+                f"Found new uncommitted ledger file(s) on {node.local_node_id}: {sorted(new_uncommitted_files)}"
             )
             return new_uncommitted_files
         time.sleep(0.1)
@@ -1158,7 +1158,7 @@ def test_in_place_restart_with_uncommittable_ledger(network, args):
     network.wait_for_all_nodes_to_commit(primary=old_primary)
     previous_uncommitted_files = _uncommitted_ledger_files(old_primary)
 
-    uncommitted_records = [420000 + i for i in range(3)]
+    uncommitted_records = [UNCOMMITTABLE_RECORD_ID_START + i for i in range(3)]
     uncommitted_msg = "Uncommittable while primary is isolated"
 
     with network.partitioner.partition([old_primary]):
