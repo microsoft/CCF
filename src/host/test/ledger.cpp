@@ -2178,6 +2178,40 @@ TEST_CASE("Async ledger read blocks Ledger destruction until complete")
   std::promise<void> worker_active;
   std::promise<void> release_worker;
   auto release_future = release_worker.get_future();
+  std::promise<void> destroyed;
+  std::thread destroyer;
+  bool worker_released = false;
+
+  // RAII cleanup that runs on every exit path, including a failed REQUIRE
+  // (doctest throws on assertion failure). It releases the in-flight worker so
+  // ~Ledger can finish, joins the destroyer thread (a joinable std::thread must
+  // never be destroyed), drains the completion callback, and clears the global
+  // hook so it cannot retain dangling references to this stack frame. Declared
+  // before the hook and thread are set up so it is destroyed first, while
+  // everything it references is still alive.
+  struct HookAndThreadCleanup
+  {
+    std::promise<void>& release_worker_promise;
+    bool& worker_was_released;
+    std::thread& destroyer_thread;
+
+    ~HookAndThreadCleanup()
+    {
+      if (!worker_was_released)
+      {
+        release_worker_promise.set_value();
+      }
+      if (destroyer_thread.joinable())
+      {
+        destroyer_thread.join();
+      }
+      // Drain the completion callback so the AsyncLedgerGet/uv_work_t are
+      // freed.
+      uv_run(uv_default_loop(), UV_RUN_DEFAULT);
+      asynchost::ledger_async_worker_active_hook() = nullptr;
+    }
+  } cleanup{release_worker, worker_released, destroyer};
+
   asynchost::ledger_async_worker_active_hook() = [&]() {
     worker_active.set_value();
     release_future.wait();
@@ -2191,8 +2225,7 @@ TEST_CASE("Async ledger read blocks Ledger destruction until complete")
 
   // Destroy the Ledger on another thread. ~Ledger must block until the
   // in-flight worker finishes, so this must not complete yet.
-  std::promise<void> destroyed;
-  std::thread destroyer([&]() {
+  destroyer = std::thread([&]() {
     ledger.reset();
     destroyed.set_value();
   });
@@ -2203,17 +2236,13 @@ TEST_CASE("Async ledger read blocks Ledger destruction until complete")
     std::future_status::timeout);
 
   // Release the worker; the read completes on a live Ledger and ~Ledger can
-  // now finish.
+  // now finish. The cleanup guard above joins the destroyer, drains the loop,
+  // and clears the hook.
   release_worker.set_value();
+  worker_released = true;
   REQUIRE(
     destroyed_future.wait_for(std::chrono::seconds(5)) ==
     std::future_status::ready);
-  destroyer.join();
-
-  // Drain the completion callback so the AsyncLedgerGet/uv_work_t are freed.
-  uv_run(uv_default_loop(), UV_RUN_DEFAULT);
-
-  asynchost::ledger_async_worker_active_hook() = nullptr;
 }
 
 int main(int argc, char** argv)
