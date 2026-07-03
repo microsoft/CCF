@@ -1149,6 +1149,17 @@ def _wait_for_new_uncommitted_ledger_files(node, previous_files, timeout=10):
     )
 
 
+def _assert_ledger_files_contain_payload(ledger_dir, ledger_files, payload):
+    for ledger_file in ledger_files:
+        with open(os.path.join(ledger_dir, ledger_file), "rb") as f:
+            if payload in f.read():
+                return
+
+    raise AssertionError(
+        f"Expected to find payload in {sorted(ledger_files)} under {ledger_dir}"
+    )
+
+
 @reqs.description(
     "Restart a retired primary in place with uncommitted and uncommittable ledger files"
 )
@@ -1162,6 +1173,7 @@ def test_in_place_restart_with_uncommittable_ledger(network, args):
 
     uncommitted_records = [UNCOMMITTABLE_RECORD_ID_START + i for i in range(3)]
     uncommitted_msg = "Uncommittable while primary is isolated"
+    uncommitted_payload = (uncommitted_msg * UNCOMMITTABLE_MESSAGE_REPEAT).encode()
 
     with network.partitioner.partition([old_primary]):
         with old_primary.client("user0") as c:
@@ -1170,12 +1182,19 @@ def test_in_place_restart_with_uncommittable_ledger(network, args):
                     "/app/log/public",
                     {
                         "id": record_id,
-                        "msg": uncommitted_msg * UNCOMMITTABLE_MESSAGE_REPEAT,
+                        "msg": uncommitted_payload.decode(),
                     },
                 )
                 assert r.status_code == http.HTTPStatus.OK, r
 
-        _wait_for_new_uncommitted_ledger_files(old_primary, previous_uncommitted_files)
+        new_uncommitted_files = _wait_for_new_uncommitted_ledger_files(
+            old_primary, previous_uncommitted_files
+        )
+        _assert_ledger_files_contain_payload(
+            old_primary.remote.current_ledger_path(),
+            new_uncommitted_files,
+            uncommitted_payload,
+        )
 
         new_primary, _ = network.wait_for_new_primary(old_primary, nodes=backups)
         network.retire_node(new_primary, old_primary)
@@ -1186,6 +1205,11 @@ def test_in_place_restart_with_uncommittable_ledger(network, args):
     assert _uncommitted_ledger_files(old_primary), (
         "Expected the stopped primary's persisted ledger to contain "
         "uncommitted files before restart"
+    )
+    _assert_ledger_files_contain_payload(
+        current_ledger_dir,
+        new_uncommitted_files,
+        uncommitted_payload,
     )
 
     network.join_node(
@@ -1230,6 +1254,7 @@ def run_in_place_restart_uncommitted_ledger_check(const_args):
         txs=app.LoggingTxs("user0"),
         init_partitioner=True,
     ) as network:
+        # Keep chunks small so isolated writes quickly create uncommitted files.
         for i in range(3):
             network.per_node_args_override[i] = {
                 "ledger_chunk_bytes": UNCOMMITTABLE_TEST_LEDGER_CHUNK_BYTES
