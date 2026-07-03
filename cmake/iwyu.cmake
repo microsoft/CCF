@@ -29,6 +29,7 @@ set(
   "/usr/local/share/include-what-you-use"
   "/usr/share/include-what-you-use"
 )
+set(IWYU_LIBCXX_MAPPING_FOUND OFF)
 foreach(IWYU_MAPPING_CANDIDATE_DIR ${IWYU_MAPPING_DIRS})
   if(EXISTS "${IWYU_MAPPING_CANDIDATE_DIR}/libcxx.imp")
     list(
@@ -36,9 +37,13 @@ foreach(IWYU_MAPPING_CANDIDATE_DIR ${IWYU_MAPPING_DIRS})
       "-Xiwyu"
       "--mapping_file=${IWYU_MAPPING_CANDIDATE_DIR}/libcxx.imp"
     )
+    set(IWYU_LIBCXX_MAPPING_FOUND ON)
     break()
   endif()
 endforeach()
+if(NOT IWYU_LIBCXX_MAPPING_FOUND)
+  message(WARNING "include-what-you-use libcxx.imp mapping file not found")
+endif()
 
 set(CMAKE_CXX_INCLUDE_WHAT_YOU_USE ${IWYU_COMMAND})
 message(STATUS "Using include-what-you-use from: ${IWYU_EXE}")
