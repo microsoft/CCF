@@ -1117,6 +1117,121 @@ def force_become_primary(network, args, target_node):
         )
 
 
+def _uncommitted_ledger_files(node):
+    ledger_dir = node.remote.current_ledger_path()
+    return {
+        f
+        for f in os.listdir(ledger_dir)
+        if f.startswith("ledger_")
+        and not f.endswith(ccf.ledger.COMMITTED_FILE_SUFFIX)
+        and not f.endswith(ccf.ledger.IGNORED_FILE_SUFFIX)
+    }
+
+
+def _wait_for_new_uncommitted_ledger_file(node, previous_files, timeout=10):
+    end_time = time.time() + timeout
+    while time.time() < end_time:
+        uncommitted_files = _uncommitted_ledger_files(node)
+        new_uncommitted_files = uncommitted_files - previous_files
+        if new_uncommitted_files:
+            LOG.info(
+                "Found new uncommitted ledger file(s) on {}: {}",
+                node.local_node_id,
+                sorted(new_uncommitted_files),
+            )
+            return new_uncommitted_files
+        time.sleep(0.1)
+
+    raise TimeoutError(
+        f"Node {node.local_node_id} did not write a new uncommitted ledger file"
+    )
+
+
+@reqs.description(
+    "Restart a retired primary in place with uncommitted and uncommittable ledger files"
+)
+@reqs.exactly_n_nodes(3)
+def test_in_place_restart_with_uncommittable_ledger(network, args):
+    old_primary, backups = network.find_nodes()
+
+    network.consortium.force_ledger_chunk(old_primary)
+    network.wait_for_all_nodes_to_commit(primary=old_primary)
+    previous_uncommitted_files = _uncommitted_ledger_files(old_primary)
+
+    uncommitted_records = [420000 + i for i in range(3)]
+    uncommitted_msg = "Uncommittable while primary is isolated"
+
+    with network.partitioner.partition([old_primary]):
+        with old_primary.client("user0") as c:
+            for record_id in uncommitted_records:
+                r = c.post(
+                    "/app/log/public",
+                    {"id": record_id, "msg": uncommitted_msg * 1024},
+                )
+                assert r.status_code == http.HTTPStatus.OK, r
+
+        _wait_for_new_uncommitted_ledger_file(old_primary, previous_uncommitted_files)
+
+        new_primary, _ = network.wait_for_new_primary(old_primary, nodes=backups)
+        network.retire_node(new_primary, old_primary)
+        old_node_id = old_primary.node_id
+        old_primary.stop()
+
+    current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
+    assert _uncommitted_ledger_files(old_primary), (
+        "Expected the stopped primary's persisted ledger to contain "
+        "uncommitted files before restart"
+    )
+
+    network.join_node(
+        old_primary,
+        args.package,
+        args,
+        target_node=new_primary,
+        ledger_dir=current_ledger_dir,
+        read_only_ledger_dirs=committed_ledger_dirs,
+        copy_ledger=False,
+        from_snapshot=False,
+        timeout=args.ledger_recovery_timeout,
+    )
+    assert old_primary.node_id != old_node_id
+    network.trust_node(old_primary, args)
+
+    new_primary, _ = network.find_primary()
+    with new_primary.client("user0") as c:
+        for record_id in uncommitted_records:
+            r = c.get(f"/app/log/public?id={record_id}")
+            assert r.status_code == http.HTTPStatus.NOT_FOUND, r
+
+    check_can_progress(new_primary)
+    network.stop_all_nodes(check_file_invariants=True)
+
+    return network
+
+
+def run_in_place_restart_uncommitted_ledger_check(const_args):
+    LOG.info(
+        "Confirm that in-place restart ignores uncommitted and uncommittable ledger files"
+    )
+    args = copy.deepcopy(const_args)
+    args.label += "_in_place_restart_uncommitted"
+    args.nodes = infra.e2e_args.nodes(args, 3)
+
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        pdb=args.pdb,
+        txs=app.LoggingTxs("user0"),
+        init_partitioner=True,
+    ) as network:
+        for i in range(3):
+            network.per_node_args_override[i] = {"ledger_chunk_bytes": "16KB"}
+
+        network.start_and_open(args)
+        test_in_place_restart_with_uncommittable_ledger(network, args)
+
+
 def run_ledger_chunk_bytes_check(const_args):
     LOG.info("Confirm that ledger chunks are determined by the primary")
     args = copy.deepcopy(const_args)
@@ -1313,6 +1428,7 @@ def run(args):
         network = test_recovery_elections(network, args)
         test_ledger_invariants(network, args)
     run_ledger_chunk_bytes_check(args)
+    run_in_place_restart_uncommitted_ledger_check(args)
 
 
 if __name__ == "__main__":
