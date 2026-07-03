@@ -28,7 +28,7 @@ namespace ccf::http
     {
       char const c = s[i];
       if (
-        c == '%' && s.size() - i >= 3 &&
+        c == '%' && i + 2 < s.size() &&
         std::isxdigit(static_cast<unsigned char>(s[i + 1])) &&
         std::isxdigit(static_cast<unsigned char>(s[i + 2])))
       {
