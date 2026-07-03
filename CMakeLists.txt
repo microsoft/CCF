@@ -72,7 +72,7 @@ include(GNUInstallDirs)
 # Use fixed name instead of absolute path for reproducible builds
 add_compile_options("-ffile-prefix-map=${CCF_DIR}=CCF")
 
-# In Debug builds, preserve frame pointers so that backtrace() can walk the full call stack.
+# In Debug builds preserve frame pointers so that backtrace() can walk the full call stack.
 add_compile_options($<$<CONFIG:Debug>:-fno-omit-frame-pointer>)
 
 set(CMAKE_MODULE_PATH "${CCF_DIR}/cmake;${CMAKE_MODULE_PATH}")
