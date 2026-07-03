@@ -871,9 +871,13 @@ def test_jwt_key_initial_refresh(network, args):
         LOG.info("Check that keys got refreshed")
         # Auto-refresh interval has been set to a large value so that it doesn't happen within the timeout.
         # This is testing the one-off refresh after adding a new issuer.
+        # The timeout is generous because this check also runs straight after a
+        # primary failover, where the newly-elected primary must restart the
+        # refresh and re-fetch the keys, which can take several seconds under CI
+        # load.
         with_timeout(
             lambda: check_kv_jwt_key_matches(args, network, kid, issuer.key_pub_pem),
-            timeout=5,
+            timeout=15,
         )
 
         LOG.info("Check that JWT refresh endpoint has no failures")
