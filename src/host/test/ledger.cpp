@@ -1,5 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+
+// Enables the test-only async read hook and trigger in host/ledger.h
+#define TEST_MODE_LEDGER_ASYNC_HOOK
 #include "host/ledger.h"
 
 #include "ccf/crypto/sha256_hash.h"
@@ -13,9 +16,12 @@
 #include "snapshots/snapshot_manager.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT
+#include <chrono>
 #include <doctest/doctest.h>
+#include <future>
 #include <random>
 #include <string>
+#include <thread>
 
 using namespace asynchost;
 
@@ -2146,6 +2152,68 @@ TEST_CASE("Ledger init with existing files")
     ledger.write_entry(e.data(), e.size(), true);
     ledger.write_entry(e.data(), e.size(), true);
   }
+}
+
+TEST_CASE("Async ledger read blocks Ledger destruction until complete")
+{
+  auto dir = AutoDeleteFolder(ledger_dir);
+
+  const size_t chunk_threshold = 30;
+  const size_t entries_per_chunk = get_entries_per_chunk(chunk_threshold);
+
+  // Heap-allocate so the Ledger can be destroyed from a separate thread while
+  // the main thread observes whether the destructor blocks.
+  auto ledger = std::make_unique<Ledger>(ledger_dir, wf);
+  TestEntrySubmitter entry_submitter(*ledger, chunk_threshold);
+
+  // Create several chunks and commit the first one, so that a read of that
+  // range takes the asynchronous (committed-file) path.
+  const size_t end_of_first_chunk_idx =
+    initialise_ledger(entry_submitter, entries_per_chunk, 3);
+  ledger->commit(end_of_first_chunk_idx);
+  REQUIRE(ledger->is_in_committed_file(end_of_first_chunk_idx));
+
+  // The worker signals when it has registered as active (so ~Ledger must wait
+  // for it), then blocks until the test releases it.
+  std::promise<void> worker_active;
+  std::promise<void> release_worker;
+  auto release_future = release_worker.get_future();
+  asynchost::ledger_async_worker_active_hook() = [&]() {
+    worker_active.set_value();
+    release_future.wait();
+  };
+
+  // Queue the asynchronous read. The worker runs on a libuv threadpool thread.
+  ledger->test_queue_async_read(1, end_of_first_chunk_idx);
+
+  // Wait until the worker is in-flight and holding the Ledger alive.
+  worker_active.get_future().wait();
+
+  // Destroy the Ledger on another thread. ~Ledger must block until the
+  // in-flight worker finishes, so this must not complete yet.
+  std::promise<void> destroyed;
+  std::thread destroyer([&]() {
+    ledger.reset();
+    destroyed.set_value();
+  });
+  auto destroyed_future = destroyed.get_future();
+
+  REQUIRE(
+    destroyed_future.wait_for(std::chrono::milliseconds(500)) ==
+    std::future_status::timeout);
+
+  // Release the worker; the read completes on a live Ledger and ~Ledger can
+  // now finish.
+  release_worker.set_value();
+  REQUIRE(
+    destroyed_future.wait_for(std::chrono::seconds(5)) ==
+    std::future_status::ready);
+  destroyer.join();
+
+  // Drain the completion callback so the AsyncLedgerGet/uv_work_t are freed.
+  uv_run(uv_default_loop(), UV_RUN_DEFAULT);
+
+  asynchost::ledger_async_worker_active_hook() = nullptr;
 }
 
 int main(int argc, char** argv)

@@ -674,6 +674,7 @@ if(BUILD_TESTS)
       ledger_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/host/test/ledger.cpp
     )
+    target_link_libraries(ledger_test PRIVATE uv)
 
     add_unit_test(
       files_cleanup_test

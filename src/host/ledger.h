@@ -741,6 +741,19 @@ namespace asynchost
     }
   };
 
+#ifdef TEST_MODE_LEDGER_ASYNC_HOOK
+  // Test-only hook (see src/host/test/ledger.cpp). Invoked by an async ledger
+  // read worker once it has registered as an active worker (so that ~Ledger
+  // must wait for it) and immediately before it dereferences the Ledger. Lets
+  // tests deterministically hold a worker in-flight while the owning Ledger is
+  // destroyed, exercising the shutdown coordination in ~Ledger.
+  inline std::function<void()>& ledger_async_worker_active_hook()
+  {
+    static std::function<void()> hook;
+    return hook;
+  }
+#endif
+
   class Ledger
   {
   private:
@@ -800,10 +813,7 @@ namespace asynchost
       bool ledger_alive = true;
     };
 
-    // Shared state used to coordinate the shutdown of in-flight asynchronous
-    // ledger reads (see on_ledger_get_async and ~Ledger). It is held by a
-    // shared_ptr so that worker callbacks can still consult it after this
-    // Ledger starts being destroyed.
+    // See AsyncReadState, on_ledger_get_async and ~Ledger.
     std::shared_ptr<AsyncReadState> async_read_state =
       std::make_shared<AsyncReadState>();
 
@@ -1794,6 +1804,13 @@ namespace asynchost
         ledger = data->ledger;
       }
 
+#ifdef TEST_MODE_LEDGER_ASYNC_HOOK
+      if (ledger_async_worker_active_hook())
+      {
+        ledger_async_worker_active_hook()();
+      }
+#endif
+
       data->read_result = ledger->read_entries_range(
         data->from_idx, data->to_idx, true, data->max_size);
     }
@@ -1807,6 +1824,34 @@ namespace asynchost
       delete data; // NOLINT(cppcoreguidelines-owning-memory)
       delete req; // NOLINT(cppcoreguidelines-owning-memory)
     }
+
+#ifdef TEST_MODE_LEDGER_ASYNC_HOOK
+    // Test-only: queue an asynchronous committed-range read using the same
+    // worker and completion callbacks as the ledger_get_range handler, without
+    // requiring the ringbuffer message plumbing. Used to exercise the shutdown
+    // coordination between in-flight async reads and ~Ledger.
+    void test_queue_async_read(size_t from_idx, size_t to_idx)
+    {
+      // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+      auto* work_handle = new uv_work_t;
+      {
+        // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+        auto* job = new AsyncLedgerGet;
+        job->ledger = this;
+        job->from_idx = from_idx;
+        job->to_idx = to_idx;
+        job->max_size = SIZE_MAX;
+        job->async_state = async_read_state;
+        job->result_cb = [](std::optional<LedgerReadResult>&&, int) {};
+        work_handle->data = job;
+      }
+      uv_queue_work(
+        uv_default_loop(),
+        work_handle,
+        &on_ledger_get_async,
+        &on_ledger_get_async_complete);
+    }
+#endif
 
     static void write_ledger_get_range_response(
       const ringbuffer::WriterPtr& to_enclave_,

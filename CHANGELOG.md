@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Curl multi client shutdown now aborts queued async requests without performing network I/O, and curl response header capture now enforces default header size and count limits (#8005).
 - Changing recovery members or the recovery threshold, refreshing recovery shares, or rekeying the ledger while the service is recovering now correctly returns an error instead of appearing to succeed. These operations were always potentially unsafe because at-recovery ledger secrets cannot be rekeyed; services with custom constitutions should update their `set_member`, `remove_member`, `set_recovery_threshold`, `trigger_recovery_shares_refresh`, and `trigger_ledger_rekey` actions to reject them while recovering (#7980).
+- Asynchronous ledger reads (used to serve committed entry ranges to the enclave) no longer access the host `Ledger` object after it has been destroyed during shutdown. The `Ledger` now waits for any in-flight read workers to finish, and workers that have not yet started skip accessing it, fixing a potential use-after-free on shutdown (#8003).
 
 ## [7.0.6]
 
@@ -31,7 +32,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - Forwarded commands are no longer processed until the node is part of the network, matching the existing behaviour for other node-to-node messages. Previously a forwarded command could be executed while the node was in an earlier startup state, which could lead to undefined behaviour for some commands (#7936).
-- Asynchronous ledger reads (used to serve committed entry ranges to the enclave) no longer access the host `Ledger` object after it has been destroyed during shutdown. The `Ledger` now waits for any in-flight read workers to finish, and workers that have not yet started skip accessing it, fixing a potential use-after-free on shutdown (#8003).
 
 ## [7.0.5]
 
