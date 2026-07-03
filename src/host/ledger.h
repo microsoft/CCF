@@ -1336,7 +1336,8 @@ namespace asynchost
           if (!last_idx_file.has_value())
           {
             throw std::logic_error(fmt::format(
-              "Committed ledger file {} does not include last idx in file name",
+              "Committed ledger file {} does not include last idx in file "
+              "name",
               file_name));
           }
 
@@ -1829,8 +1830,14 @@ namespace asynchost
     // Test-only: queue an asynchronous committed-range read using the same
     // worker and completion callbacks as the ledger_get_range handler, without
     // requiring the ringbuffer message plumbing. Used to exercise the shutdown
-    // coordination between in-flight async reads and ~Ledger.
-    void test_queue_async_read(size_t from_idx, size_t to_idx)
+    // coordination between in-flight async reads and ~Ledger. The optional
+    // result callback lets a test observe the read outcome (e.g. to confirm a
+    // read was skipped rather than served).
+    void test_queue_async_read(
+      size_t from_idx,
+      size_t to_idx,
+      AsyncLedgerGet::ResultCallback result_cb =
+        [](std::optional<LedgerReadResult>&&, int) {})
     {
       // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
       auto* work_handle = new uv_work_t;
@@ -1842,7 +1849,7 @@ namespace asynchost
       job->to_idx = to_idx;
       job->max_size = SIZE_MAX;
       job->async_state = async_read_state;
-      job->result_cb = [](std::optional<LedgerReadResult>&&, int) {};
+      job->result_cb = std::move(result_cb);
       work_handle->data = job;
 
       int rc = uv_queue_work(
