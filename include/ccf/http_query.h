@@ -20,34 +20,34 @@ namespace ccf::http
   // Handling of duplicates (or ignoring them entirely) is left to the caller.
   using ParsedQuery = std::multimap<std::string, std::string>;
 
-  static std::string url_decode_query_component(const std::string_view& s_)
+  static std::string url_decode_query_component(const std::string_view& s)
   {
-    std::string s;
-    s.reserve(s_.size());
-    for (size_t i = 0; i < s_.size(); ++i)
+    std::string decoded;
+    decoded.reserve(s.size());
+    for (size_t i = 0; i < s.size(); ++i)
     {
-      char const c = s_[i];
+      char const c = s[i];
       if (
-        c == '%' && i + 2 < s_.size() &&
-        (std::isxdigit(static_cast<unsigned char>(s_[i + 1])) != 0) &&
-        (std::isxdigit(static_cast<unsigned char>(s_[i + 2])) != 0))
+        c == '%' && i + 2 < s.size() &&
+        std::isxdigit(static_cast<unsigned char>(s[i + 1])) &&
+        std::isxdigit(static_cast<unsigned char>(s[i + 2])))
       {
-        const auto a = ccf::ds::hex_char_to_int(s_[i + 1]);
-        const auto b = ccf::ds::hex_char_to_int(s_[i + 2]);
-        s.push_back((a << 4) | b);
+        const auto a = ccf::ds::hex_char_to_int(s[i + 1]);
+        const auto b = ccf::ds::hex_char_to_int(s[i + 2]);
+        decoded.push_back((a << 4) | b);
         i += 2;
       }
       else if (c == '+')
       {
-        s.push_back(' ');
+        decoded.push_back(' ');
       }
       else
       {
-        s.push_back(c);
+        decoded.push_back(c);
       }
     }
 
-    return s;
+    return decoded;
   }
 
   static ParsedQuery parse_query(const std::string_view& query)
