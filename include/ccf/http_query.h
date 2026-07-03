@@ -20,13 +20,13 @@ namespace ccf::http
   // Handling of duplicates (or ignoring them entirely) is left to the caller.
   using ParsedQuery = std::multimap<std::string, std::string, std::less<>>;
 
-  static std::string url_decode_query_component(const std::string_view& s)
+  static std::string decode_query_component(const std::string_view& s)
   {
     std::string decoded;
     decoded.reserve(s.size());
     for (size_t i = 0; i < s.size(); ++i)
     {
-      char const c = s[i];
+      const char c = s[i];
       if (c == '%' && i + 2 < s.size())
       {
         const auto hi = s[i + 1];
@@ -68,7 +68,7 @@ namespace ccf::http
       // `{"foo": ""}` in the map
       const auto& [key, value] = ccf::nonstd::split_1(param, "=");
       parsed.emplace(
-        url_decode_query_component(key), url_decode_query_component(value));
+        decode_query_component(key), decode_query_component(value));
     }
 
     return parsed;
@@ -118,7 +118,8 @@ namespace ccf::http
     }
     else if constexpr (std::is_integral_v<T>)
     {
-      // std::from_chars requires contiguous character pointers.
+      // Parsed query values are strings, so use data() because std::from_chars
+      // requires contiguous character pointers rather than iterators.
       const auto* const end = param_val.data() + param_val.size();
       const auto [p, ec] = std::from_chars(param_val.data(), end, val);
       if (ec != std::errc() || p != end)
