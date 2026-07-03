@@ -1834,22 +1834,29 @@ namespace asynchost
     {
       // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
       auto* work_handle = new uv_work_t;
-      {
-        // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
-        auto* job = new AsyncLedgerGet;
-        job->ledger = this;
-        job->from_idx = from_idx;
-        job->to_idx = to_idx;
-        job->max_size = SIZE_MAX;
-        job->async_state = async_read_state;
-        job->result_cb = [](std::optional<LedgerReadResult>&&, int) {};
-        work_handle->data = job;
-      }
-      uv_queue_work(
+
+      // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+      auto* job = new AsyncLedgerGet;
+      job->ledger = this;
+      job->from_idx = from_idx;
+      job->to_idx = to_idx;
+      job->max_size = SIZE_MAX;
+      job->async_state = async_read_state;
+      job->result_cb = [](std::optional<LedgerReadResult>&&, int) {};
+      work_handle->data = job;
+
+      int rc = uv_queue_work(
         uv_default_loop(),
         work_handle,
         &on_ledger_get_async,
         &on_ledger_get_async_complete);
+      if (rc < 0)
+      {
+        delete job; // NOLINT(cppcoreguidelines-owning-memory)
+        delete work_handle; // NOLINT(cppcoreguidelines-owning-memory)
+        throw std::logic_error(fmt::format(
+          "Failed to queue test async ledger read: {}", uv_strerror(rc)));
+      }
     }
 #endif
 
