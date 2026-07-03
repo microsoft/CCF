@@ -1648,24 +1648,27 @@ TEST_CASE("CBOR: tagged array Tag(20000, [{'x': 1}, {'y': 2}])")
 
 TEST_CASE("CBOR: helper function make_signed")
 {
-  auto value = make_signed(42);
-  REQUIRE(value != nullptr);
-  REQUIRE(value->as_signed() == 42);
+  SUBCASE("positive value")
+  {
+    auto value = make_signed(42);
+    REQUIRE(value != nullptr);
+    REQUIRE(value->as_signed() == 42);
 
-  const std::string expected_repr = "Signed: 42";
-  const std::string result = to_string(value);
-  REQUIRE(result == expected_repr);
-}
+    const std::string expected_repr = "Signed: 42";
+    const std::string result = to_string(value);
+    REQUIRE(result == expected_repr);
+  }
 
-TEST_CASE("CBOR: helper function make_signed")
-{
-  auto value = make_signed(-42);
-  REQUIRE(value != nullptr);
-  REQUIRE(value->as_signed() == -42);
+  SUBCASE("negative value")
+  {
+    auto value = make_signed(-42);
+    REQUIRE(value != nullptr);
+    REQUIRE(value->as_signed() == -42);
 
-  const std::string expected_repr = "Signed: -42";
-  const std::string result = to_string(value);
-  REQUIRE(result == expected_repr);
+    const std::string expected_repr = "Signed: -42";
+    const std::string result = to_string(value);
+    REQUIRE(result == expected_repr);
+  }
 }
 
 TEST_CASE("CBOR: helper function make_string")
