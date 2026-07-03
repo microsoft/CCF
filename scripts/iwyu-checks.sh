@@ -5,7 +5,18 @@
 # Checks C/C++ include hygiene with include-what-you-use.
 # Pass -f for interface consistency, but no auto-fix is available.
 
-set -euo pipefail
+set -e
+set -u
+set -o pipefail
+
+if [ "${1:-}" == "-f" ]; then
+  shift
+fi
+
+if [ "$#" -ne 0 ]; then
+  echo "Usage: $0 [-f]"
+  exit 1
+fi
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 ROOT_DIR=$( dirname "$SCRIPT_DIR" )

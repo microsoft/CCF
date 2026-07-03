@@ -115,13 +115,6 @@ option(USE_SNMALLOC "Link against snmalloc" ON)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/snmalloc.cmake)
 
 option(CLANG_TIDY "Run clang-tidy on the codebase" OFF)
-option(INCLUDE_WHAT_YOU_USE "Run include-what-you-use on the codebase" OFF)
-set(
-  IWYU_MAPPING_DIR
-  ""
-  CACHE PATH
-  "Directory containing include-what-you-use mapping files"
-)
 
 option(
   GLIBCXX_DEBUG
@@ -140,38 +133,7 @@ if(CLANG_TIDY)
   )
   message(STATUS "Using clang-tidy from: ${CLANG_TIDY_EXE}")
 endif()
-
-if(INCLUDE_WHAT_YOU_USE)
-  find_program(IWYU_EXE NAMES "include-what-you-use" "iwyu")
-  if(NOT IWYU_EXE)
-    message(FATAL_ERROR "include-what-you-use requested but not found")
-  endif()
-
-  # -w suppresses compiler warnings so CI logs focus on IWYU findings.
-  # --error=1 makes any IWYU suggestion fail the build and enforce direct includes.
-  set(IWYU_COMMAND "${IWYU_EXE}" "-w" "-Xiwyu" "--error=1")
-  get_filename_component(IWYU_BIN_DIR "${IWYU_EXE}" DIRECTORY)
-  set(
-    IWYU_MAPPING_DIRS
-    "${IWYU_MAPPING_DIR}"
-    "${IWYU_BIN_DIR}/../share/include-what-you-use"
-    "/usr/local/share/include-what-you-use"
-    "/usr/share/include-what-you-use"
-  )
-  foreach(IWYU_MAPPING_BASE ${IWYU_MAPPING_DIRS})
-    if(EXISTS "${IWYU_MAPPING_BASE}/libcxx.imp")
-      list(
-        APPEND IWYU_COMMAND
-        "-Xiwyu"
-        "--mapping_file=${IWYU_MAPPING_BASE}/libcxx.imp"
-      )
-      break()
-    endif()
-  endforeach()
-
-  set(CMAKE_CXX_INCLUDE_WHAT_YOU_USE ${IWYU_COMMAND})
-  message(STATUS "Using include-what-you-use from: ${IWYU_EXE}")
-endif()
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/iwyu.cmake)
 
 if(SAN OR TSAN)
   find_program(LLVM_SYMBOLIZER NAMES "llvm-symbolizer")
