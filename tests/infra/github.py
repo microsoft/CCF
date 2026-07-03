@@ -436,11 +436,7 @@ class Repository:
         if not latest_tag:
             return (None, None)
 
-        ccf_version = get_version_from_tag_name(latest_tag)
-        os_release = subprocess.check_output(
-            "cat /etc/os-release", universal_newlines=True, shell=True
-        ).lower()
-        if "ubuntu" not in os_release and ccf_version.major < 6:
+        if get_version_from_tag_name(latest_tag).major < 6:
             # Target Azure Linux, which is only supported from 6.x onwards by forcing level-up to 6.0.0.
             LOG.info(
                 f"Bump up the tag to 6.x: this_release_branch_only={this_release_branch_only}, branch={branch}, latest_tag={latest_tag}"
