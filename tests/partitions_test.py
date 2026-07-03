@@ -28,6 +28,8 @@ import threading
 from loguru import logger as LOG
 
 UNCOMMITTABLE_RECORD_ID_START = 420000
+UNCOMMITTABLE_MESSAGE_REPEAT = 1024
+UNCOMMITTABLE_TEST_LEDGER_CHUNK_BYTES = "16KB"
 
 
 @reqs.description("Invalid partitions are not allowed")
@@ -1130,7 +1132,7 @@ def _uncommitted_ledger_files(node):
     }
 
 
-def _wait_for_new_uncommitted_ledger_file(node, previous_files, timeout=10):
+def _wait_for_new_uncommitted_ledger_files(node, previous_files, timeout=10):
     end_time = time.time() + timeout
     while time.time() < end_time:
         uncommitted_files = _uncommitted_ledger_files(node)
@@ -1166,11 +1168,14 @@ def test_in_place_restart_with_uncommittable_ledger(network, args):
             for record_id in uncommitted_records:
                 r = c.post(
                     "/app/log/public",
-                    {"id": record_id, "msg": uncommitted_msg * 1024},
+                    {
+                        "id": record_id,
+                        "msg": uncommitted_msg * UNCOMMITTABLE_MESSAGE_REPEAT,
+                    },
                 )
                 assert r.status_code == http.HTTPStatus.OK, r
 
-        _wait_for_new_uncommitted_ledger_file(old_primary, previous_uncommitted_files)
+        _wait_for_new_uncommitted_ledger_files(old_primary, previous_uncommitted_files)
 
         new_primary, _ = network.wait_for_new_primary(old_primary, nodes=backups)
         network.retire_node(new_primary, old_primary)
@@ -1226,7 +1231,9 @@ def run_in_place_restart_uncommitted_ledger_check(const_args):
         init_partitioner=True,
     ) as network:
         for i in range(3):
-            network.per_node_args_override[i] = {"ledger_chunk_bytes": "16KB"}
+            network.per_node_args_override[i] = {
+                "ledger_chunk_bytes": UNCOMMITTABLE_TEST_LEDGER_CHUNK_BYTES
+            }
 
         network.start_and_open(args)
         test_in_place_restart_with_uncommittable_ledger(network, args)
