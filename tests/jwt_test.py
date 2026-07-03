@@ -4,7 +4,10 @@ import tempfile
 import json
 import time
 import base64
+import socket
+from contextlib import contextmanager
 import infra.network
+import infra.jwt_issuer
 import infra.path
 import infra.proc
 import infra.net
@@ -12,7 +15,11 @@ import infra.crypto
 import infra.e2e_args
 import infra.proposal
 import suite.test_requirements as reqs
-from infra.jwt_issuer import get_jwt_issuers, get_jwt_keys
+from infra.jwt_issuer import (
+    OpenIDProviderServer,
+    get_jwt_issuers,
+    get_jwt_keys,
+)
 import ca_certs
 import ccf.ledger
 from ccf.tx_id import TxID
@@ -371,6 +378,15 @@ def check_kv_jwt_key_matches(args, network, kid, key_pem):
         assert stored_key == key_pem, "input cert is not equal to stored cert"
 
 
+def check_kv_jwt_key_constraint(args, network, kid, expected_constraint):
+    primary, _ = network.find_nodes()
+    latest_jwt_signing_keys = get_jwt_keys(args, primary)
+
+    assert kid in latest_jwt_signing_keys
+    stored_constraint = latest_jwt_signing_keys[kid][0]["constraint"]
+    assert stored_constraint == expected_constraint
+
+
 def check_kv_jwt_keys_not_empty(args, network, issuer):
     primary, _ = network.find_nodes()
     latest_jwt_signing_keys = get_jwt_keys(args, primary)
@@ -391,6 +407,232 @@ def get_jwt_refresh_endpoint_metrics(primary) -> dict:
         r = c.get("/node/jwt_keys/refresh/metrics")
         assert r.status_code == 200, r
         return r.body.json()
+
+
+@contextmanager
+def reserve_unlistened_local_port():
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", 0))
+        yield s.getsockname()[1]
+
+
+def add_auto_refresh_jwt_issuer(network, primary, issuer, ca_cert_bundle_name):
+    with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as ca_cert_bundle_fp:
+        ca_cert_bundle_fp.write(issuer.tls_cert)
+        ca_cert_bundle_fp.flush()
+        network.consortium.set_ca_cert_bundle(
+            primary, ca_cert_bundle_name, ca_cert_bundle_fp.name
+        )
+
+    with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
+        json.dump(
+            {
+                "issuer": issuer.name,
+                "auto_refresh": True,
+                "ca_cert_bundle_name": ca_cert_bundle_name,
+            },
+            metadata_fp,
+        )
+        metadata_fp.flush()
+        network.consortium.set_jwt_issuer(primary, metadata_fp.name)
+
+
+def remove_all_jwt_issuers(network, args, primary):
+    for issuer in list(get_jwt_issuers(args, primary)):
+        network.consortium.remove_jwt_issuer(primary, issuer)
+
+
+def check_refresh_failures_increased(primary, failures_before):
+    m = get_jwt_refresh_endpoint_metrics(primary)
+    assert m["failures"] > failures_before, m
+
+
+def test_jwt_key_auto_refresh_connection_failure(network, args):
+    primary, _ = network.find_nodes()
+    remove_all_jwt_issuers(network, args, primary)
+    failures_before = get_jwt_refresh_endpoint_metrics(primary)["failures"]
+    issuer_host = "127.0.0.1"
+
+    LOG.info("Add JWT issuer with auto-refresh pointing at an unavailable endpoint")
+    with reserve_unlistened_local_port() as issuer_port:
+        issuer = infra.jwt_issuer.JwtIssuer(
+            f"https://{issuer_host}:{issuer_port}", cn=issuer_host
+        )
+        add_auto_refresh_jwt_issuer(network, primary, issuer, "jwt_connection_failure")
+        try:
+            with_timeout(
+                lambda: check_refresh_failures_increased(primary, failures_before),
+                timeout=5,
+            )
+        finally:
+            network.consortium.remove_jwt_issuer(primary, issuer.name)
+
+
+def test_jwt_key_auto_refresh_tls_failure(network, args):
+    primary, _ = network.find_nodes()
+    remove_all_jwt_issuers(network, args, primary)
+    failures_before = get_jwt_refresh_endpoint_metrics(primary)["failures"]
+    issuer = infra.jwt_issuer.JwtIssuer("https://localhost", cn="localhost")
+    wrong_ca_issuer = infra.jwt_issuer.JwtIssuer(
+        "https://localhost-wrong-ca", cn="localhost"
+    )
+    ca_cert_bundle_name = "jwt_tls_failure"
+
+    LOG.info("Add wrong CA cert for JWT issuer")
+    with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as ca_cert_bundle_fp:
+        ca_cert_bundle_fp.write(wrong_ca_issuer.tls_cert)
+        ca_cert_bundle_fp.flush()
+        network.consortium.set_ca_cert_bundle(
+            primary, ca_cert_bundle_name, ca_cert_bundle_fp.name
+        )
+
+    LOG.info("Start OpenID endpoint server with a certificate signed by another CA")
+    with issuer.start_openid_server(0) as server:
+        issuer_name = f"https://localhost:{server.bind_port}"
+        with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
+            json.dump(
+                {
+                    "issuer": issuer_name,
+                    "auto_refresh": True,
+                    "ca_cert_bundle_name": ca_cert_bundle_name,
+                },
+                metadata_fp,
+            )
+            metadata_fp.flush()
+            network.consortium.set_jwt_issuer(primary, metadata_fp.name)
+
+        try:
+            with_timeout(
+                lambda: check_refresh_failures_increased(primary, failures_before),
+                timeout=5,
+            )
+        finally:
+            network.consortium.remove_jwt_issuer(primary, issuer_name)
+
+
+def test_jwt_key_auto_refresh_invalid_metadata_issuer(network, args):
+    primary, _ = network.find_nodes()
+    remove_all_jwt_issuers(network, args, primary)
+    failures_before = get_jwt_refresh_endpoint_metrics(primary)["failures"]
+    issuer = infra.jwt_issuer.JwtIssuer("https://localhost", cn="localhost")
+    ca_cert_bundle_name = "jwt_invalid_metadata_issuer"
+
+    LOG.info("Add CA cert for JWT issuer")
+    with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as ca_cert_bundle_fp:
+        ca_cert_bundle_fp.write(issuer.tls_cert)
+        ca_cert_bundle_fp.flush()
+        network.consortium.set_ca_cert_bundle(
+            primary, ca_cert_bundle_name, ca_cert_bundle_fp.name
+        )
+
+    LOG.info("Start OpenID endpoint server with a non-string issuer metadata field")
+    with issuer.start_openid_server(0) as server:
+        issuer_name = f"https://localhost:{server.bind_port}"
+        server.metadata["issuer"] = {"unexpected": "object"}
+
+        with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
+            json.dump(
+                {
+                    "issuer": issuer_name,
+                    "auto_refresh": True,
+                    "ca_cert_bundle_name": ca_cert_bundle_name,
+                },
+                metadata_fp,
+            )
+            metadata_fp.flush()
+            network.consortium.set_jwt_issuer(primary, metadata_fp.name)
+
+        try:
+            with_timeout(
+                lambda: check_refresh_failures_increased(primary, failures_before),
+                timeout=5,
+            )
+        finally:
+            network.consortium.remove_jwt_issuer(primary, issuer_name)
+
+
+def test_jwt_key_auto_refresh_cross_authority_jwks_uri(network, args):
+    primary, _ = network.find_nodes()
+    remove_all_jwt_issuers(network, args, primary)
+    issuer_host = "localhost"
+    issuer = infra.jwt_issuer.JwtIssuer(f"https://{issuer_host}", cn=issuer_host)
+    ca_cert_bundle_name = "jwt_cross_authority_jwks_uri"
+    kid = "cross_authority_jwks_uri"
+
+    LOG.info("Add CA cert for JWT issuer")
+    with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as ca_cert_bundle_fp:
+        ca_cert_bundle_fp.write(issuer.tls_cert)
+        ca_cert_bundle_fp.flush()
+        network.consortium.set_ca_cert_bundle(
+            primary, ca_cert_bundle_name, ca_cert_bundle_fp.name
+        )
+
+    LOG.info("Start OpenID endpoint server with cross-authority JWKS URI")
+    with issuer.start_openid_server(0, kid) as server, OpenIDProviderServer(
+        0, issuer.tls_priv, issuer.tls_cert, issuer.create_jwks(kid)
+    ) as jwks_server:
+        issuer.name = f"https://{issuer_host}:{server.bind_port}"
+        issuer_name = issuer.name
+        # Exercise OIDC-compatible metadata where JWKS are served from a
+        # different authority than the issuer metadata.
+        server.metadata["jwks_uri"] = f"https://localhost:{jwks_server.bind_port}/keys"
+
+        with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
+            json.dump(
+                {
+                    "issuer": issuer_name,
+                    "auto_refresh": True,
+                    "ca_cert_bundle_name": ca_cert_bundle_name,
+                },
+                metadata_fp,
+            )
+            metadata_fp.flush()
+            network.consortium.set_jwt_issuer(primary, metadata_fp.name)
+
+        try:
+            with_timeout(
+                lambda: check_kv_jwt_key_matches(
+                    args, network, kid, issuer.key_pub_pem
+                ),
+                timeout=15,
+            )
+        finally:
+            network.consortium.remove_jwt_issuer(primary, issuer_name)
+
+
+def test_jwt_key_auto_refresh_response_size_limit(network, args):
+    primary, _ = network.find_nodes()
+    remove_all_jwt_issuers(network, args, primary)
+    failures_before = get_jwt_refresh_endpoint_metrics(primary)["failures"]
+    issuer = infra.jwt_issuer.JwtIssuer("https://localhost", cn="localhost")
+    ca_cert_bundle_name = "jwt_response_size_limit"
+    kid = "response_size_limit"
+
+    LOG.info("Start OpenID endpoint server with oversized metadata")
+    with issuer.start_openid_server(0, kid) as server:
+        issuer.name = f"https://localhost:{server.bind_port}"
+        server.metadata["oversized_response"] = "x" * 4096
+        add_auto_refresh_jwt_issuer(network, primary, issuer, ca_cert_bundle_name)
+
+        try:
+            with_timeout(
+                lambda: check_refresh_failures_increased(primary, failures_before),
+                timeout=5,
+            )
+
+            LOG.info("Restore OpenID metadata and re-add JWT issuer")
+            del server.metadata["oversized_response"]
+            network.consortium.remove_jwt_issuer(primary, issuer.name)
+            add_auto_refresh_jwt_issuer(network, primary, issuer, ca_cert_bundle_name)
+
+            with_timeout(
+                lambda: check_kv_jwt_key_matches(
+                    args, network, kid, issuer.key_pub_pem
+                ),
+                timeout=5,
+            )
+        finally:
+            network.consortium.remove_jwt_issuer(primary, issuer.name)
 
 
 @reqs.description("JWT with auto_refresh enabled")
@@ -415,6 +657,11 @@ def test_jwt_key_auto_refresh(network, args):
         )
 
     LOG.info("Start OpenID endpoint server")
+    # Capture baseline metrics before the server starts: any connection failures
+    # from a prior test run (e.g. after a primary failover when the server was
+    # briefly unavailable) will already be reflected here and must not be counted
+    # as failures introduced by this test.
+    baseline_m = get_jwt_refresh_endpoint_metrics(primary)
     with issuer.start_openid_server(issuer_port, kid) as server:
         # Send oversized headers with the payload that will cause the CCF client to
         # fail parsing and log an error.
@@ -441,6 +688,13 @@ def test_jwt_key_auto_refresh(network, args):
                 ), "No request was served with oversized headers"
 
             with_timeout(assert_request_count_increased, timeout=1)
+
+            with_timeout(
+                lambda: check_refresh_failures_increased(
+                    primary, baseline_m["failures"]
+                ),
+                timeout=5,
+            )
             server.inject_oversized_header = False
 
             LOG.info("Check that keys got refreshed")
@@ -451,21 +705,22 @@ def test_jwt_key_auto_refresh(network, args):
                 ),
                 timeout=5,
             )
+            check_kv_jwt_key_constraint(args, network, kid, issuer.name)
 
-        LOG.info("Check that JWT refresh has attempts and successes and no failures")
+        LOG.info("Check that JWT refresh has attempts and successes")
         m = get_jwt_refresh_endpoint_metrics(primary)
-        assert m["attempts"] > 0, m
-        assert m["successes"] > 0, m
-        assert m["failures"] == 0, m
+        assert m["attempts"] > baseline_m["attempts"], m
+        assert m["successes"] > baseline_m["successes"], m
+        failures = m["failures"]
 
         LOG.info("Serve invalid JWKS")
         server.jwks = {"foo": "bar"}
 
-        LOG.info("Check that JWT refresh endpoint has some failures")
+        LOG.info("Check that JWT refresh endpoint has more failures")
 
         def check_has_failures():
             m = get_jwt_refresh_endpoint_metrics(primary)
-            assert m["failures"] > 0, m
+            assert m["failures"] > failures, m
 
         with_timeout(check_has_failures, timeout=5)
 
@@ -538,12 +793,15 @@ def test_jwt_key_auto_refresh_entries(network, args):
         assert attempts > 0, attempts
         assert successes > 0, successes
 
-        # Wait long enough for at least one refresh to take place
-        time.sleep(args.jwt_key_refresh_interval_s)
+        def check_refresh_progressed():
+            m = get_jwt_refresh_endpoint_metrics(primary)
+            assert m["attempts"] > attempts, m["attempts"]
+            assert m["successes"] > successes, m["successes"]
 
-        m = get_jwt_refresh_endpoint_metrics(primary)
-        assert m["attempts"] > attempts, m["attempts"]
-        assert m["successes"] > successes, m["successes"]
+        with_timeout(
+            check_refresh_progressed,
+            timeout=max(5, args.jwt_key_refresh_interval_s * 5),
+        )
 
         # Force chunking
         network.get_latest_ledger_public_state()
@@ -812,6 +1070,11 @@ def run_manual(args):
         primary.stop()
         network.wait_for_new_primary(primary)
         test_jwt_key_initial_refresh(network, args)
+        test_jwt_key_auto_refresh_connection_failure(network, args)
+        test_jwt_key_auto_refresh_tls_failure(network, args)
+        test_jwt_key_auto_refresh_invalid_metadata_issuer(network, args)
+        test_jwt_key_auto_refresh_cross_authority_jwks_uri(network, args)
+        test_jwt_key_auto_refresh_response_size_limit(network, args)
 
 
 def run_ca_cert(args):
