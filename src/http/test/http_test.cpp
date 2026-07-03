@@ -481,6 +481,9 @@ DOCTEST_TEST_CASE("Query parser")
     // Parses certain things as empty-string values
     "&empty&also_empty="
 
+    // Splits before URL-decoding each key and value
+    "&bar%26baz=tom%26jerry&encoded%3Dkey=encoded%3Dvalue"
+
     // Will even produce empty-string keys, since it splits at every ampersand
     "&"
 
@@ -518,6 +521,8 @@ DOCTEST_TEST_CASE("Query parser")
   REQUIRE_PARSED_SINGLE_QUERY_PARAM("awkward!key?\"", "fine");
   REQUIRE_PARSED_EMPTY_QUERY_PARAM("empty");
   REQUIRE_PARSED_EMPTY_QUERY_PARAM("also_empty");
+  REQUIRE_PARSED_SINGLE_QUERY_PARAM("bar&baz", "tom&jerry");
+  REQUIRE_PARSED_SINGLE_QUERY_PARAM("encoded=key", "encoded=value");
   REQUIRE_PARSED_EMPTY_QUERY_PARAM("");
 
 #undef REQUIRE_PARSED_SINGLE_QUERY_PARAM

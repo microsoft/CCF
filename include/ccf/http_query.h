@@ -2,22 +2,55 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/hex.h"
 #include "ccf/ds/nonstd.h"
 
 #define FMT_HEADER_ONLY
 #include <charconv>
+#include <cctype>
 #include <fmt/format.h>
 #include <map>
 #include <optional>
+#include <string>
 #include <string_view>
 
 namespace ccf::http
 {
   // Query is parsed into a multimap, so that duplicate keys are retained.
   // Handling of duplicates (or ignoring them entirely) is left to the caller.
-  // Keys and values are both string_views, pointing at subranges of original
-  // query string.
-  using ParsedQuery = std::multimap<std::string_view, std::string_view>;
+  using ParsedQuery = std::multimap<std::string, std::string>;
+
+  static std::string url_decode_query_component(const std::string_view& s_)
+  {
+    std::string s(s_);
+    char const* src = s.c_str();
+    char const* end = s.c_str() + s.size();
+    char* dst = s.data();
+
+    while (src < end)
+    {
+      char const c = *src++;
+      if (
+        c == '%' && (src + 1) < end && (std::isxdigit(src[0]) != 0) &&
+        (std::isxdigit(src[1]) != 0))
+      {
+        const auto a = ccf::ds::hex_char_to_int(*src++);
+        const auto b = ccf::ds::hex_char_to_int(*src++);
+        *dst++ = (a << 4) | b;
+      }
+      else if (c == '+')
+      {
+        *dst++ = ' ';
+      }
+      else
+      {
+        *dst++ = c;
+      }
+    }
+
+    s.resize(dst - s.data());
+    return s;
+  }
 
   static ParsedQuery parse_query(const std::string_view& query)
   {
@@ -28,7 +61,8 @@ namespace ccf::http
       // NB: This means both `foo=` and `foo` will be accepted and result in a
       // `{"foo": ""}` in the map
       const auto& [key, value] = ccf::nonstd::split_1(param, "=");
-      parsed.emplace(key, value);
+      parsed.emplace(
+        url_decode_query_component(key), url_decode_query_component(value));
     }
 
     return parsed;
@@ -41,7 +75,7 @@ namespace ccf::http
     T& val,
     std::string& error_reason)
   {
-    const auto it = pq.find(param_key);
+    const auto it = pq.find(std::string(param_key));
 
     if (it == pq.end())
     {
@@ -78,9 +112,9 @@ namespace ccf::http
     }
     else if constexpr (std::is_integral_v<T>)
     {
-      const auto [p, ec] =
-        std::from_chars(param_val.begin(), param_val.end(), val);
-      if (ec != std::errc() || p != param_val.end())
+      const auto* const end = param_val.data() + param_val.size();
+      const auto [p, ec] = std::from_chars(param_val.data(), end, val);
+      if (ec != std::errc() || p != end)
       {
         error_reason = fmt::format(
           "Unable to parse value '{}' in parameter '{}'", param_val, param_key);

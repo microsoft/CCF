@@ -108,7 +108,7 @@ namespace http
       // NOLINTBEGIN(cppcoreguidelines-prefer-member-initializer)
       path = path_;
       whole_path = path_;
-      query = url_decode(query_);
+      query = query_;
       fragment = url_decode(fragment_);
 
       if (!serialised_request.empty())
