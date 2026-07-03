@@ -215,9 +215,13 @@ extern "C"
     auto& trace = ccf::tasks::current_throw_trace;
     trace.num_frames = 0;
     auto* bt_state = ccf::tasks::get_backtrace_state();
+    // Initialise to -1 so that bt_ret < 0 means "backtrace_simple() was not
+    // called" (bt_state was nullptr). backtrace_simple() itself only returns
+    // 0 (all frames visited) or a positive value (callback stopped early).
+    int bt_ret = -1;
     if (bt_state != nullptr)
     {
-      backtrace_simple(
+      bt_ret = backtrace_simple(
         bt_state,
         0, // skip = 0, capture from here
         [](void* data, uintptr_t pc) -> int {
@@ -239,8 +243,12 @@ extern "C"
         ccf::tasks::error_callback,
         &trace);
     }
-    else
+
+    if (trace.num_frames == 0 || bt_ret < 0)
     {
+      // libbacktrace was unavailable (bt_ret < 0) or captured no frames;
+      // fall back to the glibc backtrace() so the throw-point trace is not
+      // lost.
       auto num_frames =
         backtrace(trace.frames, ccf::tasks::throw_trace_max_frames);
       if (num_frames > 0)
