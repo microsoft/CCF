@@ -22,33 +22,31 @@ namespace ccf::http
 
   static std::string url_decode_query_component(const std::string_view& s_)
   {
-    std::string s(s_);
-    char const* src = s.c_str();
-    char const* end = s.c_str() + s.size();
-    char* dst = s.data();
-
-    while (src < end)
+    std::string s;
+    s.reserve(s_.size());
+    for (size_t i = 0; i < s_.size(); ++i)
     {
-      char const c = *src++;
+      char const c = s_[i];
       if (
-        c == '%' && (src + 1) < end && (std::isxdigit(src[0]) != 0) &&
-        (std::isxdigit(src[1]) != 0))
+        c == '%' && i + 2 < s_.size() &&
+        (std::isxdigit(static_cast<unsigned char>(s_[i + 1])) != 0) &&
+        (std::isxdigit(static_cast<unsigned char>(s_[i + 2])) != 0))
       {
-        const auto a = ccf::ds::hex_char_to_int(*src++);
-        const auto b = ccf::ds::hex_char_to_int(*src++);
-        *dst++ = (a << 4) | b;
+        const auto a = ccf::ds::hex_char_to_int(s_[i + 1]);
+        const auto b = ccf::ds::hex_char_to_int(s_[i + 2]);
+        s.push_back((a << 4) | b);
+        i += 2;
       }
       else if (c == '+')
       {
-        *dst++ = ' ';
+        s.push_back(' ');
       }
       else
       {
-        *dst++ = c;
+        s.push_back(c);
       }
     }
 
-    s.resize(dst - s.data());
     return s;
   }
 
