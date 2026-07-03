@@ -457,6 +457,7 @@ constexpr size_t multithread_tx_count = 1'000;
 #endif
 
 // Uses the real classes, and access + update them concurrently
+// NOLINTNEXTLINE(readability-function-cognitive-complexity)
 TEST_CASE(
   "multi-threaded indexing - in memory" * doctest::test_suite("indexing"))
 {

@@ -1,7 +1,5 @@
-import { injectable } from "inversify";
 import { fibonacci } from "./bad_fib";
 
-@injectable()
 export class SlowConstructorService {
   static ServiceId = "SlowConstructorService";
 

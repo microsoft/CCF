@@ -161,6 +161,7 @@ namespace ccf::gov::endpoints
     return node;
   }
 
+  // NOLINTNEXTLINE(readability-function-cognitive-complexity)
   inline void init_service_state_handlers(ccf::BaseEndpointRegistry& registry)
   {
     auto get_constitution = [&](auto& ctx, ApiVersion api_version) {
