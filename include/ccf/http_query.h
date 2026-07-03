@@ -18,7 +18,7 @@ namespace ccf::http
 {
   // Query is parsed into a multimap, so that duplicate keys are retained.
   // Handling of duplicates (or ignoring them entirely) is left to the caller.
-  using ParsedQuery = std::multimap<std::string, std::string>;
+  using ParsedQuery = std::multimap<std::string, std::string, std::less<>>;
 
   static std::string url_decode_query_component(const std::string_view& s)
   {
@@ -28,7 +28,7 @@ namespace ccf::http
     {
       char const c = s[i];
       if (
-        c == '%' && i + 2 < s.size() &&
+        c == '%' && s.size() - i >= 3 &&
         std::isxdigit(static_cast<unsigned char>(s[i + 1])) &&
         std::isxdigit(static_cast<unsigned char>(s[i + 2])))
       {
@@ -73,7 +73,7 @@ namespace ccf::http
     T& val,
     std::string& error_reason)
   {
-    const auto it = pq.find(std::string(param_key));
+    const auto it = pq.find(param_key);
 
     if (it == pq.end())
     {
