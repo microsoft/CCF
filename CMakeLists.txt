@@ -147,6 +147,7 @@ if(INCLUDE_WHAT_YOU_USE)
     message(FATAL_ERROR "include-what-you-use requested but not found")
   endif()
 
+  # Keep CI output focused on IWYU findings, and fail on any suggested change.
   set(IWYU_COMMAND "${IWYU_EXE}" "-w" "-Xiwyu" "--error=1")
   get_filename_component(IWYU_BIN_DIR "${IWYU_EXE}" DIRECTORY)
   set(

@@ -5,7 +5,7 @@
 # Checks C/C++ include hygiene with include-what-you-use.
 # Pass -f for interface consistency, but no auto-fix is available.
 
-set -uo pipefail
+set -euo pipefail
 
 if [ "${1:-}" == "-f" ]; then
   echo "include-what-you-use checks do not support auto-fix"
@@ -26,3 +26,4 @@ cmake \
   -DINCLUDE_WHAT_YOU_USE=ON
 
 cmake --build "$BUILD_DIR" --parallel "$NPROC"
+echo "include-what-you-use checks passed"
