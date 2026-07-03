@@ -7,10 +7,6 @@
 
 set -euo pipefail
 
-if [ "${1:-}" == "-f" ]; then
-  echo "include-what-you-use checks do not support auto-fix"
-fi
-
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 ROOT_DIR=$( dirname "$SCRIPT_DIR" )
 BUILD_DIR=${CCF_IWYU_BUILD_DIR:-"$ROOT_DIR/build-iwyu"}
