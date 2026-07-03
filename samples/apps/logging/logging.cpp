@@ -1889,8 +1889,10 @@ namespace loggingapp
 
         // Set a maximum range, paginate larger requests
         const auto range_begin = from_seqno;
-        const auto range_end = std::min(
-          to_seqno, range_begin + max_historical_range_seqnos_per_page);
+        const auto max_page = max_historical_range_seqnos_per_page;
+        const auto range_end = (to_seqno - range_begin > max_page) ?
+          (range_begin + max_page) :
+          to_seqno;
 
         // SNIPPET_START: indexing_strategy_use
         const auto interesting_seqnos =
@@ -1984,7 +1986,6 @@ namespace loggingapp
         if (range_end != to_seqno)
         {
           const auto next_page_start = range_end + 1;
-          const auto max_page = max_historical_range_seqnos_per_page;
           const auto next_range_end = (to_seqno - next_page_start > max_page) ?
             (next_page_start + max_page) :
             to_seqno;
