@@ -3,17 +3,6 @@ import * as ccfcrypto from "@microsoft/ccf-app/crypto";
 import { toArrayBuffer } from "@microsoft/ccf-app/utils";
 import { base64ToUint8Array } from "./base64";
 
-interface CryptoResponse {
-  available: boolean;
-}
-
-export function crypto(
-  request: ccfapp.Request,
-): ccfapp.Response<CryptoResponse> {
-  const available = ccfcrypto.generateAesKey !== undefined;
-  return { body: { available: available } };
-}
-
 interface GenerateAesKeyRequest {
   size: number;
 }
