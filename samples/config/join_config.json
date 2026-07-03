@@ -45,7 +45,8 @@
     "delay": "1s"
   },
   "jwt": {
-    "key_refresh_interval": "30min"
+    "key_refresh_interval": "30min",
+    "key_refresh_max_response_size": "1MB"
   },
   "output_files": {
     "node_certificate_file": "node.pem",
