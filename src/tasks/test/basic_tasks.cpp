@@ -388,7 +388,6 @@ TEST_CASE("Exception handling" * doctest::test_suite("basic_tasks"))
     logger_ptr->contains("ThrowsUnknown task failed with unknown exception"));
 
   // Verify demangled function names appear in the stack traces
-
   // ThrowsException call chain
   REQUIRE(logger_ptr->contains("level_3_throws_runtime_error"));
   REQUIRE(logger_ptr->contains("level_2_calls_level_3"));
