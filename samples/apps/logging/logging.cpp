@@ -263,12 +263,24 @@ namespace loggingapp
       const auto it = config.find(key);
       if (it != config.end())
       {
-        value = it->get<size_t>();
-        if (value == 0)
+        if (!(it->is_number_integer() || it->is_number_unsigned()))
         {
           throw std::logic_error(fmt::format(
-            "node_data.logging configuration '{}' must be non-zero", key));
+            "node_data.logging configuration '{}' must be a positive integer",
+            key));
         }
+
+        const auto v = it->is_number_unsigned() ?
+          static_cast<int64_t>(it->get<uint64_t>()) :
+          it->get<int64_t>();
+        if (v <= 0)
+        {
+          throw std::logic_error(fmt::format(
+            "node_data.logging configuration '{}' must be a positive integer",
+            key));
+        }
+
+        value = static_cast<size_t>(v);
       }
     }
 
@@ -1972,8 +1984,10 @@ namespace loggingapp
         if (range_end != to_seqno)
         {
           const auto next_page_start = range_end + 1;
-          const auto next_range_end = std::min(
-            to_seqno, next_page_start + max_historical_range_seqnos_per_page);
+          const auto max_page = max_historical_range_seqnos_per_page;
+          const auto next_range_end = (to_seqno - next_page_start > max_page) ?
+            (next_page_start + max_page) :
+            to_seqno;
           const auto next_seqnos = index_per_public_key->get_write_txs_in_range(
             id, next_page_start, next_range_end);
 
