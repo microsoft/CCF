@@ -54,6 +54,7 @@ install_build_dependencies() {
     tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install  \
         build-essential  \
         clang  \
+        include-what-you-use \
         cmake  \
         ninja-build  \
         which  \

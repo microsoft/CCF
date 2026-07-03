@@ -39,6 +39,7 @@ CHECKS=(
   "Shell scripts:shellcheck-checks.sh"
   "TODOs:todo-checks.sh"
   "Includes:includes-checks.sh"
+  "Include what you use:iwyu-checks.sh"
   "Release notes:release-notes-checks.sh"
   "Non-ASCII characters:ascii-checks.sh"
   "C/C++ format:cpp-format-checks.sh"

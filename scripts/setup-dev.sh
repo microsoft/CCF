@@ -40,6 +40,7 @@ retry() {
 install_dev_dependencies() {
     tdnf -y install  \
         clang-tools-extra  \
+        include-what-you-use \
         python-pip \
         jq \
         tar \
