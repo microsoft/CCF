@@ -272,7 +272,7 @@ function expectReadable(map, key) {
   const v = map.get(key);
   if (!valuesEqual(v, vals[key])) {
     throw Error(
-      `Failed roundtrip. Expected ${JSON.stringify(vals[key])}}, read ${JSON.stringify(v)}`,
+      `Failed roundtrip. Expected ${JSON.stringify(vals[key])}, read ${JSON.stringify(v)}`,
     );
   }
 }
