@@ -1777,43 +1777,25 @@ def test_tx_statuses(network, args):
     return network
 
 
-@reqs.description("Running transactions against logging app")
-@reqs.supports_methods("/app/receipt", "/app/log/private")
-@reqs.at_least_n_nodes(2)
 @app.scoped_txs()
-def test_receipts(network, args):
+def issue_txs_for_receipt_check(network, args):
+    """
+    Issue a batch of fresh private-only transactions, and record their
+    seqnos (and expected, empty claims digest) so that test_random_receipts
+    can validate that their receipts become available promptly after commit,
+    alongside its regular random sampling of already-committed seqnos.
+    """
     cose_only = args.package.endswith("_cose_only")
-    primary, _ = network.find_primary_and_any_backup()
     msg = "Hello world"
 
     LOG.info("Write/Read on primary")
-    if cose_only:
-        service_key = get_service_key(network)
-        with primary.client("user0") as c:
-            for j in range(10):
-                idx = j + 10000
-                r = network.txs.issue(network, 1, idx=idx, send_public=False, msg=msg)
-                fetch_and_verify_cose_receipt(
-                    c, r.view, r.seqno, service_key, b"\0" * 32
-                )
-    else:
-        with primary.client("user0") as c:
-            for j in range(10):
-                idx = j + 10000
-                r = network.txs.issue(network, 1, idx=idx, send_public=False, msg=msg)
-                start_time = time.time()
-                while time.time() < (start_time + 3.0):
-                    rc = c.get(f"/app/receipt?transaction_id={r.view}.{r.seqno}")
-                    if rc.status_code == http.HTTPStatus.OK:
-                        receipt = rc.body.json()
-                        verify_receipt(receipt, network.cert)
-                        break
-                    elif rc.status_code == http.HTTPStatus.ACCEPTED:
-                        time.sleep(0.5)
-                    else:
-                        assert False, rc
+    additional_seqnos = {}
+    for j in range(10):
+        idx = j + 10000
+        r = network.txs.issue(network, 1, idx=idx, send_public=False, msg=msg)
+        additional_seqnos[r.seqno] = b"\0" * 32 if cose_only else None
 
-    return network
+    return additional_seqnos
 
 
 @reqs.description("Validate random receipts")
@@ -2557,9 +2539,11 @@ def do_main_tests(network, args):
     test_liveness(network, args)
     test_rekey(network, args)
     test_liveness(network, args)
-    test_random_receipts(network, args, False)
+    additional_seqnos = {}
     if args.package.startswith("samples/apps/logging/logging"):
-        test_receipts(network, args)
+        additional_seqnos = issue_txs_for_receipt_check(network, args)
+    test_random_receipts(network, args, False, additional_seqnos=additional_seqnos)
+    if args.package.startswith("samples/apps/logging/logging"):
         test_historical_query_sparse(network, args)
     test_historical_receipts(network, args)
     test_historical_receipts_with_claims(network, args)
