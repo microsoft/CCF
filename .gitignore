@@ -19,7 +19,6 @@ obj/
 *.retry
 tests/env/
 tests/**/*pb2*.py
-test_json_logger.txt
 sphinx/env/
 html/
 latex/
