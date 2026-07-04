@@ -6,7 +6,7 @@ a client connects to once and then receives a continuous stream of committed
 entries matching a predefined query, starting from a client-specified `TxID`.
 
 Scope decisions already fixed for this first iteration (see
-[Section 12](#12-open-questions-and-decisions) for what is still open):
+[Section 13](#13-open-questions-and-decisions) for what is still open):
 
 - **C++ only.** No JavaScript/TypeScript support in phase 1.
 - **HTTP/1.1 only.** HTTP/2 is explicitly out of scope for this plan.
@@ -14,8 +14,10 @@ Scope decisions already fixed for this first iteration (see
   NDJSON, not a binary framing.
 - **Client-specified starting `TxID`.** The stream begins at a seqno the client
   chooses (not the beginning of time, and not only "from now").
-- **Authorization is checked once, at subscribe time.** No periodic
-  re-authorization; that is out of scope.
+- **Authorization is checked once, at subscribe time,** with the stream's
+  lifetime capped to the credential's expiry in a method-aware way. Detecting
+  revocation *during* a stream is out of scope. See
+  [Section 10](#10-authentication-and-credential-expiry).
 
 This work is split into **two independent tasks** (see
 [Section 3](#3-two-independent-tasks)):
@@ -49,7 +51,8 @@ Hard constraints:
   match predicate, and event projection in C++.
 
 Non-goals for phase 1: HTTP/2, JavaScript apps, bidirectional streaming,
-server-side durable subscriptions, periodic re-authorization.
+server-side durable subscriptions, revocation-aware re-authentication during a
+stream (see [Section 10](#10-authentication-and-credential-expiry)).
 
 ---
 
@@ -245,7 +248,7 @@ only), or that accept the cost of scanning, can omit it entirely.
 - **Live tail** always uses the per-transaction `match` predicate against the
   freshly committed store.
 
-> Decision D2 in [Section 12](#12-open-questions-and-decisions) is about how
+> Decision D2 in [Section 13](#13-open-questions-and-decisions) is about how
 > expressive a query may be in v1 (exact key vs prefix/range vs arbitrary
 > predicate), which determines whether an index can back it.
 
@@ -499,7 +502,81 @@ state and nothing delivered is ever rolled back.
 
 ---
 
-## 10. Threading and concurrency
+## 10. Authentication and credential expiry
+
+A subscription can hold a connection open far longer than the credential that
+authorized it stays valid. Because SSE is server-to-client only, the client
+cannot present a fresh credential on the open stream - so "re-authentication" in
+practice means "reconnect". The natural expiry horizon differs sharply by auth
+method, so the framework treats expiry per method rather than with a single
+blanket timeout.
+
+### Expiry characteristics by method
+
+- **User / member certificate** (`ccf::user_cert_auth_policy` /
+  `member_cert_auth_policy`,
+  [cert_auth.cpp](../../src/endpoints/authentication/cert_auth.cpp)): the
+  credential is the mutual-TLS client certificate. Authentication checks both the
+  X.509 validity period (`notBefore`/`notAfter`) and that the cert hash is present
+  in the `USER_CERTS`/`MEMBER_CERTS` KV table. Horizon: the cert `notAfter` (often
+  long, e.g. a year), but the user/member can be **revoked by governance at any
+  time** via removal from that table. The cert is bound to the TLS session, so it
+  cannot be silently swapped mid-stream.
+- **JWT bearer token** (`ccf::jwt_auth_policy`,
+  [jwt_auth.cpp](../../src/endpoints/authentication/jwt_auth.cpp)): authentication
+  checks `exp` (required) and `nbf` (optional) against the current time, and the
+  signature against JWKS keys stored in the KV. Horizon: the `exp` claim, which is
+  typically **short** (minutes to about an hour) - so a JWT-authorized stream will
+  routinely outlive its token unless bounded. The signing key may also be rotated
+  or removed by governance.
+- **COSE Sign1** (`ccf::cose_auth_policy`,
+  [cose_auth.cpp](../../src/endpoints/authentication/cose_auth.cpp)): carries a
+  `ccf.gov.msg.created_at` timestamp and is bounded by the signer certificate's
+  validity. Primarily a governance / one-shot method and unlikely for streaming,
+  but if used the signer cert validity is the horizon.
+- **Empty / no auth** (`ccf::empty_auth_policy`): no credential, no expiry.
+
+### Proposed handling (phase 1): cap stream lifetime to credential expiry
+
+At subscribe time the adapter already holds the authenticated identity, from
+which it can derive a **credential expiry instant**:
+
+- JWT: the `exp` claim (honouring `nbf` at admission).
+- Cert: the certificate `notAfter`.
+- COSE: the signer certificate `notAfter`.
+- Empty: none (unbounded, subject only to the resource limits in
+  [Section 8](#8-resumption-and-back-pressure)).
+
+The `SubscriptionManager` records this expiry per subscriber and, when it is
+reached, **closes the stream** with a terminal `event: auth_expired` carrying the
+last delivered `id`. The client then reconnects with a fresh credential and
+resumes from `Last-Event-ID` - reusing the resumption flow that already exists for
+dropped connections ([Section 8](#8-resumption-and-back-pressure)). This respects
+short token lifetimes without any bidirectional re-auth and needs no new protocol.
+
+### Explicitly out of scope for phase 1
+
+- **Revocation-aware re-checking.** Detecting that a user was removed from
+  `USER_CERTS`, or a JWKS key rotated, *during* a stream would require
+  periodically re-running the auth policy against a fresh read-only `Tx`. That
+  catches revocation (not just clock expiry) but adds cost and complexity, so it
+  is deferred. The lifetime cap above still bounds worst-case exposure to the
+  credential's original validity.
+- **Re-auth on the same connection.** Not possible with unidirectional SSE;
+  reconnect is the mechanism.
+
+### Consequence to decide
+
+Short JWT `exp` values mean a JWT-authorized subscription may be forced to
+reconnect every few minutes. Options: accept frequent reconnects (cheap, given
+resumption); recommend or require longer-lived tokens (or a dedicated
+subscription audience) for these endpoints; or make the cap configurable per
+endpoint. See decision D9 in
+[Section 13](#13-open-questions-and-decisions).
+
+---
+
+## 11. Threading and concurrency
 
 - The commit-advance observer fires from the same context that runs consensus
   commit updates and the indexer ([node_state.h](../../src/node/node_state.h)),
@@ -518,7 +595,7 @@ state and nothing delivered is ever rolled back.
 
 ---
 
-## 11. New / changed files (phase 1)
+## 12. New / changed files (phase 1)
 
 Task T (transport):
 
@@ -539,19 +616,20 @@ Task S (subscriptions):
 | `src/node/rpc/subscription_adapter.cpp` | new | Adapter implementation |
 | `src/node/subscription_manager.h` / `.cpp` | new | Registry, pump, matching, limits, cleanup |
 | `samples/apps/logging/logging.cpp` | changed | Example subscription endpoint |
-| `tests/...` | new | e2e + unit tests (see [Section 13](#13-testing-plan)) |
+| `tests/...` | new | e2e + unit tests (see [Section 14](#14-testing-plan)) |
 | `doc/build_apps/...`, `CHANGELOG.md` | changed | Docs + changelog entry |
 
 Explicitly **not** touched in phase 1: `src/http/http2_*` and `src/js/*`.
 
 ---
 
-## 12. Open questions and decisions
+## 13. Open questions and decisions
 
-Settled: transport = HTTP/1.1 only; framing = SSE; language = C++ only; auth =
-once at subscribe; start = client-specified `TxID`; a subscription is not an
-indexer strategy; an index is an optional catch-up accelerator, not a hard
-dependency.
+Settled: transport = HTTP/1.1 only; framing = SSE; language = C++ only; auth
+checked once at subscribe with the stream lifetime capped to the credential's
+expiry (method-aware, [Section 10](#10-authentication-and-credential-expiry));
+start = client-specified `TxID`; a subscription is not an indexer strategy; an
+index is an optional catch-up accelerator, not a hard dependency.
 
 Still open:
 
@@ -577,10 +655,16 @@ Still open:
 - **D7 - Heartbeat interval / idle timeout** defaults and configurability.
 - **D8 - Observability.** Which metrics (active subscribers, bytes streamed,
   catch-up lag, evictions) and where.
+- **D9 - Credential-expiry cap for short-lived tokens.** Given the lifetime cap
+  in [Section 10](#10-authentication-and-credential-expiry), how should very short
+  JWT `exp` values be handled: accept frequent reconnects, recommend/require
+  longer-lived (or dedicated-audience) tokens for subscription endpoints, or make
+  the cap configurable per endpoint? *(Recommend: accept reconnects by default;
+  allow a per-endpoint minimum-lifetime hint.)*
 
 ---
 
-## 13. Testing plan
+## 14. Testing plan
 
 - **Task T unit (C++):** chunked writer round-trip - feed produced bytes through
   llhttp and assert a well-formed chunked response with trailers (extend
@@ -603,7 +687,7 @@ Still open:
 
 ---
 
-## 14. Suggested phased roadmap
+## 15. Suggested phased roadmap
 
 **Task T (transport), independently mergeable:**
 
@@ -623,7 +707,7 @@ Later phases (out of scope now): HTTP/2 backend; JavaScript support.
 
 ---
 
-## 15. Summary
+## 16. Summary
 
 A subscription is a historical range query that never ends: the client names a
 starting `TxID`, catch-up replays `[from .. commit]`, and live tail streams every
@@ -637,5 +721,7 @@ large past range), *data fetch* (the historical state cache, per subscriber), an
 *notification* (a commit-advance observer added to the commit-callback subsystem).
 A subscription is deliberately **not** an indexer strategy, because the indexer's
 single forward-only cursor cannot replay arbitrary client-specified start points.
+Credential expiry is handled method-awarely by capping each stream's lifetime to
+its credential's validity ([Section 10](#10-authentication-and-credential-expiry)).
 Please review the open decisions in
-[Section 12](#12-open-questions-and-decisions) before implementation.
+[Section 13](#13-open-questions-and-decisions) before implementation.
