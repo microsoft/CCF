@@ -20,6 +20,7 @@ namespace consensus
      *
      * @param data Serialised entries
      * @param size Size of overall serialised entries
+     * @param max_transaction_size Maximum allowed serialised entry body size
      *
      * @return Raw entry as a vector
      */
