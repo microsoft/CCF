@@ -83,40 +83,40 @@ So one subscription proceeds in two phases that share the same delivery format:
 ```mermaid
 sequenceDiagram
     participant C as Client
-    participant A as Subscription adapter (endpoint)
+    participant A as Subscription adapter
     participant M as SubscriptionManager
-    participant I as Index (ccf::indexing, catch-up only)
+    participant I as Catch-up index
     participant H as Historical state cache
     participant K as CommitCallback subsystem
 
-    C->>A: GET /app/sub/{query}?from=<txid> (Accept: text/event-stream)
-    A->>A: authenticate + authorize ONCE, validate query & from
-    A->>M: register subscriber(query, cursor=from, stream)
+    C->>A: GET subscribe, from=txid, Accept text/event-stream
+    A->>A: authenticate and authorize ONCE, validate query and from
+    A->>M: register subscriber (query, cursor=from, stream)
     Note over A: response_is_pending = true (hold HTTP/1.1 connection)
-    A-->>C: 200 OK, Transfer-Encoding: chunked, SSE headers
+    A-->>C: 200 OK, Transfer-Encoding chunked, SSE headers
 
     rect rgb(235,245,255)
-    Note over M,H: Catch-up: [from .. commit] as a historical range query
+    Note over M,H: Catch-up over from..commit as a historical range query
     M->>I: get_write_txs_in_range(query, cursor, commit)
     I-->>M: matching seqnos (or scan if no index)
     M->>H: get_stores_for(handle, matching seqnos)
-    H-->>M: read-only stores (async; retry until ready)
-    M->>A: project + write SSE event per matching entry
-    A-->>C: event: entry ... (id: view.seqno)
+    H-->>M: read-only stores (async, retry until ready)
+    M->>A: project and write SSE event per matching entry
+    A-->>C: event entry, id view.seqno
     end
 
     rect rgb(235,255,235)
-    Note over K,M: Live tail: woken by commit advance
+    Note over K,M: Live tail, woken by commit advance
     K->>M: on_commit_advance(new committed TxID)
-    M->>H: get_stores_for(handle, new seqnos in (prev, new])
-    H-->>M: read-only store(s)
-    M->>M: inspect store directly -> matches query?
-    M->>A: project + write SSE event
-    A-->>C: event: entry ...
+    M->>H: get_stores_for(handle, new seqnos in prev+1..commit)
+    H-->>M: read-only stores
+    M->>M: inspect store directly, does it match query
+    M->>A: project and write SSE event
+    A-->>C: event entry
     end
 
     C--xA: disconnect
-    A->>M: unregister subscriber, free handle + stream
+    A->>M: unregister subscriber, free handle and stream
 ```
 
 ---
