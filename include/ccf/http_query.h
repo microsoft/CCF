@@ -6,8 +6,8 @@
 #include "ccf/ds/nonstd.h"
 
 #define FMT_HEADER_ONLY
-#include <charconv>
 #include <cctype>
+#include <charconv>
 #include <fmt/format.h>
 #include <map>
 #include <optional>
