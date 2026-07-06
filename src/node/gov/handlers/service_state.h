@@ -677,6 +677,8 @@ namespace ccf::gov::endpoints
             response_body["issuers"] = issuers;
           }
 
+          response_body["caCertBundles"] = nlohmann::json::object();
+
           // Populate keys field
           {
             auto keys = nlohmann::json::object();

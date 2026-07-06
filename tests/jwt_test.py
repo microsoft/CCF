@@ -858,6 +858,7 @@ def test_jwt_key_refresh_aad(network, args):
     LOG.info("Check that keys got refreshed")
     with_timeout(lambda: check_kv_jwt_keys_not_empty(args, network, issuer), timeout=5)
 
+
 def test_malformed_tokens(network, args):
     primary, _ = network.find_nodes()
 
