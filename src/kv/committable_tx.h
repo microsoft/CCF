@@ -85,7 +85,7 @@ namespace ccf::kv
         entry_flags |= EntryFlags::FORCE_LEDGER_CHUNK_BEFORE;
       }
 
-      KvStoreSerialiser replicated_serialiser(
+      RawKvStoreSerialiser replicated_serialiser(
         e,
         {pimpl->commit_view, version},
         entry_type,
