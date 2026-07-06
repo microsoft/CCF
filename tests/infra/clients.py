@@ -506,7 +506,7 @@ class CurlClient:
 
             url = f"{self.protocol}://{self.hostname}{request.path}"
 
-            cmd += [url, "-X", request.http_verb, "-i", f"-m {timeout}"]
+            cmd += [url, "-X", request.http_verb, "-i", "-m", str(timeout)]
 
             headers = {}
             if self.common_headers is not None:
@@ -564,7 +564,7 @@ class CurlClient:
 
             url = f"{self.protocol}://{self.hostname}{request.path}"
 
-            cmd += [url, "-X", request.http_verb, "-i", f"-m {timeout}"]
+            cmd += [url, "-X", request.http_verb, "-i", "-m", str(timeout)]
 
             if self.cose_signing_auth:
                 cmd.extend(["--data-binary", "@-"])
