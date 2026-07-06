@@ -420,12 +420,8 @@ namespace ccf
               request->get_response_body() != nullptr ?
                 std::move(request->get_response_body()->buffer) :
                 std::vector<uint8_t>{});
-            ccf::tasks::add_task(
-              ccf::tasks::make_basic_task([self,
-                                           issuer,
-                                           curl_response,
-                                           http_status,
-                                           response_body_sp]() {
+            ccf::tasks::add_task(ccf::tasks::make_basic_task(
+              [self, issuer, curl_response, http_status, response_body_sp]() {
                 const auto self_sp = self.lock();
                 if (self_sp == nullptr || self_sp->stopped.load())
                 {
@@ -444,9 +440,7 @@ namespace ccf
                   return;
                 }
                 self_sp->handle_jwt_metadata_response(
-                  issuer,
-                  http_status,
-                  std::move(*response_body_sp));
+                  issuer, http_status, std::move(*response_body_sp));
               }));
           };
 
