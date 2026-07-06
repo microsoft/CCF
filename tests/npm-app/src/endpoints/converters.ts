@@ -1,7 +1,5 @@
 import * as ccfapp from "@microsoft/ccf-app";
 
-import { isEqual } from "lodash-es";
-
 class MyStruct {
   x: number;
   y: string;
@@ -79,6 +77,57 @@ const to_map_checked = ccfapp.typedKv(
   ccfapp.string,
   ccfapp.checkedJson<MapStruct>(),
 );
+
+function valuesEqual(lhs: any, rhs: any): boolean {
+  if (lhs === rhs) {
+    return true;
+  }
+
+  if (lhs instanceof Map || rhs instanceof Map) {
+    if (!(lhs instanceof Map) || !(rhs instanceof Map)) {
+      return false;
+    }
+
+    if (lhs.size !== rhs.size) {
+      return false;
+    }
+
+    for (const [key, lhsValue] of lhs) {
+      if (!rhs.has(key) || !valuesEqual(lhsValue, rhs.get(key))) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  if (Array.isArray(lhs) && Array.isArray(rhs)) {
+    return (
+      lhs.length === rhs.length &&
+      lhs.every((lhsValue, index) => valuesEqual(lhsValue, rhs[index]))
+    );
+  }
+
+  if (
+    lhs !== null &&
+    rhs !== null &&
+    typeof lhs === "object" &&
+    typeof rhs === "object"
+  ) {
+    const lhsKeys = Object.keys(lhs);
+    const rhsKeys = Object.keys(rhs);
+    return (
+      lhsKeys.length === rhsKeys.length &&
+      lhsKeys.every(
+        (key) =>
+          Object.prototype.hasOwnProperty.call(rhs, key) &&
+          valuesEqual(lhs[key], rhs[key]),
+      )
+    );
+  }
+
+  return false;
+}
 
 function expectError(fn, errType) {
   var threw = false;
@@ -221,9 +270,9 @@ export function testConvertersSet() {
 
 function expectReadable(map, key) {
   const v = map.get(key);
-  if (!isEqual(v, vals[key])) {
+  if (!valuesEqual(v, vals[key])) {
     throw Error(
-      `Failed roundtrip. Expected ${JSON.stringify(vals[key])}}, read ${JSON.stringify(v)}`,
+      `Failed roundtrip. Expected ${JSON.stringify(vals[key])}, read ${JSON.stringify(v)}`,
     );
   }
 }

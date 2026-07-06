@@ -1,4 +1,5 @@
-import { assert } from "chai";
+import assert from "node:assert/strict";
+import { beforeEach, describe, it } from "node:test";
 import "../src/polyfill.js";
 import * as kv from "../src/kv.js";
 import * as conv from "../src/converters.js";
@@ -17,34 +18,34 @@ describe("typedKv", function () {
   const val = 65535;
 
   it("basic", function () {
-    assert.isFalse(foo.has(key));
-    assert.isFalse(foo.has(key2));
+    assert.ok(!foo.has(key));
+    assert.ok(!foo.has(key2));
     assert.equal(foo.get(key), undefined);
     foo.set(key, val);
     assert.equal(foo.get(key), val);
-    assert.isTrue(foo.has(key));
-    assert.isFalse(foo.has(key2));
+    assert.ok(foo.has(key));
+    assert.ok(!foo.has(key2));
     let found = false;
     foo.forEach((v, k) => {
       if (k == key && v == val) {
         found = true;
       }
     });
-    assert.isTrue(found);
+    assert.ok(found);
     foo.delete(key);
-    assert.isFalse(foo.has(key));
-    assert.isFalse(foo.has(key2));
+    assert.ok(!foo.has(key));
+    assert.ok(!foo.has(key2));
     assert.equal(foo.get(key), undefined);
   });
 
   it("clear", function () {
     foo.set(key, val);
     foo.set(key2, val);
-    assert.isTrue(foo.has(key));
-    assert.isTrue(foo.has(key2));
+    assert.ok(foo.has(key));
+    assert.ok(foo.has(key2));
     foo.clear();
-    assert.isNotTrue(foo.has(key));
-    assert.isNotTrue(foo.has(key2));
+    assert.ok(!foo.has(key));
+    assert.ok(!foo.has(key2));
   });
 
   it("size", function () {
@@ -70,31 +71,31 @@ describe("typedKvSet", function () {
   const key2 = "baz";
 
   it("basic", function () {
-    assert.isFalse(foo.has(key));
-    assert.isFalse(foo.has(key2));
+    assert.ok(!foo.has(key));
+    assert.ok(!foo.has(key2));
     foo.add(key);
-    assert.isTrue(foo.has(key));
-    assert.isFalse(foo.has(key2));
+    assert.ok(foo.has(key));
+    assert.ok(!foo.has(key2));
     let found = false;
     foo.forEach((k) => {
       if (k == key) {
         found = true;
       }
     });
-    assert.isTrue(found);
+    assert.ok(found);
     foo.delete(key);
-    assert.isFalse(foo.has(key));
-    assert.isFalse(foo.has(key2));
+    assert.ok(!foo.has(key));
+    assert.ok(!foo.has(key2));
   });
 
   it("clear", function () {
     foo.add(key);
     foo.add(key2);
-    assert.isTrue(foo.has(key));
-    assert.isTrue(foo.has(key2));
+    assert.ok(foo.has(key));
+    assert.ok(foo.has(key2));
     foo.clear();
-    assert.isNotTrue(foo.has(key));
-    assert.isNotTrue(foo.has(key2));
+    assert.ok(!foo.has(key));
+    assert.ok(!foo.has(key2));
   });
 
   it("size", function () {

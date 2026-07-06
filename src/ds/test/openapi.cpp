@@ -127,6 +127,18 @@ DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(Baz, Bar);
 DECLARE_JSON_REQUIRED_FIELDS(Baz, n, v);
 DECLARE_JSON_OPTIONAL_FIELDS(Baz, x, y);
 
+namespace std
+{
+  template <>
+  struct hash<Baz>
+  {
+    size_t operator()(const Baz& b) const
+    {
+      return std::hash<uint16_t>()(b.n);
+    }
+  };
+}
+
 struct Buzz : public Baz
 {
   Foo required_and_only_in_c;

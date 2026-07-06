@@ -39,7 +39,7 @@ set(
 # + runtime dependencies
 set(
   CCF_RPM_DEPENDENCIES
-  "${CCF_RPM_DEPENDENCIES}, libuv-devel >= ${LIBUV_MINIMAL_VERSION}, curl-devel >= ${CURL_MINIMAL_VERSION}"
+  "${CCF_RPM_DEPENDENCIES}, libuv-devel >= ${LIBUV_MINIMAL_VERSION}, curl-devel >= ${CURL_MINIMAL_VERSION}, libbacktrace-static >= ${LIBBACKTRACE_MINIMAL_VERSION}"
 )
 # + alter name
 set(CPACK_PACKAGE_NAME "${CPACK_PACKAGE_NAME}_devel")
