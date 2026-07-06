@@ -32,8 +32,8 @@ namespace ccf::http
         const auto hi = s[i + 1];
         const auto lo = s[i + 2];
         if (
-          std::isxdigit(static_cast<unsigned char>(hi)) &&
-          std::isxdigit(static_cast<unsigned char>(lo)))
+          std::isxdigit(static_cast<unsigned char>(hi)) != 0 &&
+          std::isxdigit(static_cast<unsigned char>(lo)) != 0)
         {
           const auto a = ccf::ds::hex_char_to_int(hi);
           const auto b = ccf::ds::hex_char_to_int(lo);
