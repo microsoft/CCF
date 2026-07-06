@@ -629,7 +629,7 @@ def test_jwt_key_auto_refresh_response_size_limit(network, args):
                 lambda: check_kv_jwt_key_matches(
                     args, network, kid, issuer.key_pub_pem
                 ),
-                timeout=15,
+                timeout=5,
             )
         finally:
             network.consortium.remove_jwt_issuer(primary, issuer.name)
