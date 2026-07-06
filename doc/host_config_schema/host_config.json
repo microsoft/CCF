@@ -653,6 +653,11 @@
           "type": "string",
           "default": "30min",
           "description": "Interval at which JWT keys for issuers registered with auto-refresh are automatically refreshed"
+        },
+        "key_refresh_max_response_size": {
+          "type": "string",
+          "default": "1MB",
+          "description": "Maximum response body size accepted when fetching OpenID metadata and JWKS for JWT issuer auto-refresh"
         }
       },
       "description": "This section includes configuration for JWT issuers automatic refresh",

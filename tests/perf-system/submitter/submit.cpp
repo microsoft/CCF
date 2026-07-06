@@ -17,6 +17,7 @@
 #include <arrow/filesystem/localfs.h>
 #include <arrow/io/file.h>
 #include <arrow/table.h>
+#include <arrow/util/config.h>
 #include <parquet/arrow/reader.h>
 #include <parquet/arrow/writer.h>
 #include <signal.h>
@@ -40,6 +41,22 @@ void read_parquet_file(string generator_filepath, ParquetData& data_handler)
     file_system.OpenInputFile(generator_filepath).ValueOrDie();
 
   // Open Parquet file reader
+#if ARROW_VERSION_MAJOR >= 19
+  auto arrow_reader_result = parquet::arrow::OpenFile(input, pool);
+  if (!arrow_reader_result.ok())
+  {
+    LOG_FAIL_FMT(
+      "Couldn't find generator file ({}): {}",
+      generator_filepath,
+      arrow_reader_result.status().ToString());
+    exit(1);
+  }
+  else
+  {
+    LOG_INFO_FMT("Found generator file");
+  }
+  auto arrow_reader = std::move(arrow_reader_result).ValueOrDie();
+#else
   std::unique_ptr<parquet::arrow::FileReader> arrow_reader;
   st = parquet::arrow::OpenFile(input, pool, &arrow_reader);
   if (!st.ok())
@@ -54,6 +71,7 @@ void read_parquet_file(string generator_filepath, ParquetData& data_handler)
   {
     LOG_INFO_FMT("Found generator file");
   }
+#endif
 
   // Read entire file as a single Arrow table
   std::shared_ptr<arrow::Table> table = nullptr;

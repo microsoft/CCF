@@ -6,9 +6,6 @@ set -exo pipefail
 
 H2SPEC_VERSION="v2.6.0"
 
-export SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH:-$(date +%s)}
-echo "Using SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH}"
-
 retry() {
     local description=$1
     shift
@@ -43,30 +40,43 @@ retry() {
 }
 
 install_source_control() {
-    # Source control
-    tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install  \
+    # Source control and tools used by this script.
+    dnf -y install  \
         git  \
-        ca-certificates
+        ca-certificates  \
+        curl  \
+        tar  \
+        gzip
 }
 
 install_build_dependencies() {
-    # To build CCF
-    tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install  \
-        build-essential  \
+    # To build CCF. Azure Linux 4 uses more explicit package names than Azure
+    # Linux 3: build-essential is not present, and the curl/nghttp2 development
+    # packages are named libcurl-devel and libnghttp2-devel.
+    dnf -y install  \
+        gcc  \
+        gcc-c++  \
+        make  \
+        binutils  \
         clang  \
         cmake  \
         ninja-build  \
         which  \
+        openssl  \
         openssl-devel  \
         libuv-devel  \
-        nghttp2-devel  \
-        curl-devel  \
+        libnghttp2-devel  \
+        libcurl-devel  \
         libarrow-devel  \
         parquet-libs-devel  \
         doxygen  \
         clang-tools-extra-devel  \
         rust  \
-        libbacktrace-static
+        cargo  \
+        libstdc++-devel
+    # Azure Linux 4 beta does not publish libbacktrace-static yet; the Azure
+    # Linux 3.0 RPM contains only backtrace.h and libbacktrace.a and works here.
+    dnf install -y https://packages.microsoft.com/azurelinux/3.0/prod/base/x86_64/Packages/l/libbacktrace-static-13.2.0-7.azl3.x86_64.rpm
 }
 
 install_test_dependencies() {
@@ -78,14 +88,12 @@ install_test_dependencies() {
         # Extra-dependency for CDDL schema checker
         rubygems
         # Release (extended) tests
-        procps
+        procps-ng
         # protocoltest
         bind-utils
-        # partitions test
-        iptables
         strace
     )
-    tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install "${packages[@]}" &&
+    dnf -y install "${packages[@]}" &&
     gem install cddl
 }
 
@@ -102,13 +110,18 @@ install_h2spec() {
 }
 
 install_node() {
-    # Node.js 24 and npm from the Azure Linux package repositories. The ">= 24"
-    # constraint pins the major version (failing rather than silently selecting
-    # an older nodejs); `nodejs-npm` provides npm and depends on that same
-    # `nodejs`, so it follows the selected version.
-    tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install  \
-        "nodejs >= 24"  \
+    # The Azure Linux 4 package repositories currently provide Node.js 22. The
+    # JS packages in this repository require Node.js >= 20.
+    dnf -y install  \
+        nodejs  \
         nodejs-npm
+
+    local node_major
+    node_major="$(node --version | sed -E 's/^v([0-9]+).*/\1/')"
+    if (( node_major < 20 )); then
+        echo "Unsupported Node.js version $(node --version); expected >= 20" >&2
+        return 1
+    fi
 }
 
 install_packaging_and_python() {
@@ -117,9 +130,13 @@ install_packaging_and_python() {
         rpm-build
         # For end to end tests and scripts
         python3-pip
+        python3-devel
     )
-    tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install "${packages[@]}" &&
-    pip install uv==0.11.19
+    dnf -y install "${packages[@]}"
+
+    if ! python3 -m pip install uv==0.11.19 --break-system-packages; then
+        python3 -m pip install uv==0.11.19
+    fi
 }
 
 retry "Source control dependencies" install_source_control
