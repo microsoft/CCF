@@ -7,7 +7,6 @@
 #include "ccf/service/map.h"
 
 #include <map>
-#include <optional>
 #include <string>
 
 namespace ccf
@@ -21,16 +20,13 @@ namespace ccf
 
   struct JwtIssuerMetadata
   {
-    /// Optional CA bundle name used for authentication when auto-refreshing
-    std::optional<std::string> ca_cert_bundle_name;
     /// Whether to auto-refresh keys from the issuer
     bool auto_refresh = false;
   };
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(JwtIssuerMetadata);
   DECLARE_JSON_REQUIRED_FIELDS(JwtIssuerMetadata);
-  DECLARE_JSON_OPTIONAL_FIELDS(
-    JwtIssuerMetadata, ca_cert_bundle_name, auto_refresh);
+  DECLARE_JSON_OPTIONAL_FIELDS(JwtIssuerMetadata, auto_refresh);
 
   using JwtIssuer = std::string;
   using JwtKeyId = std::string;

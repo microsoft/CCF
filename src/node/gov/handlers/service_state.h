@@ -670,12 +670,6 @@ namespace ccf::gov::endpoints
 
                 jwt_issuer["autoRefresh"] = metadata.auto_refresh;
 
-                if (metadata.ca_cert_bundle_name.has_value())
-                {
-                  jwt_issuer["caCertBundleName"] =
-                    metadata.ca_cert_bundle_name.value();
-                }
-
                 issuers[issuer_id] = jwt_issuer;
                 return true;
               });
@@ -715,23 +709,6 @@ namespace ccf::gov::endpoints
               });
 
             response_body["keys"] = keys;
-          }
-
-          // Populate caCertBundles field
-          {
-            auto cert_bundles = nlohmann::json::object();
-
-            auto cert_bundles_handle =
-              ctx.tx.template ro<ccf::CACertBundlePEMs>(
-                ccf::Tables::CA_CERT_BUNDLE_PEMS);
-            cert_bundles_handle->foreach([&cert_bundles](
-                                           const std::string& bundle_name,
-                                           const std::string& bundle_value) {
-              cert_bundles[bundle_name] = bundle_value;
-              return true;
-            });
-
-            response_body["caCertBundles"] = cert_bundles;
           }
 
           ctx.rpc_ctx->set_response_json(response_body, HTTP_STATUS_OK);

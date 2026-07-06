@@ -148,7 +148,6 @@ def to_b64(number: int, size=None):
 
 class JwtIssuer:
     TEST_JWT_ISSUER_NAME = "https://example.issuer"
-    TEST_CA_BUNDLE_NAME = "test_ca_bundle_name"
 
     def _generate_auth_data(self, cn=None):
         if self._alg == JwtAlg.RS256:
@@ -254,24 +253,12 @@ class JwtIssuer:
             jwks["keys"].append(self._create_jwks(kid))
         return jwks
 
-    def register(self, network, kid=None, ca_bundle_name=TEST_CA_BUNDLE_NAME):
+    def register(self, network, kid=None):
         kid_ = kid or self.default_kid
         primary, _ = network.find_primary()
 
-        if self.auto_refresh:
-            with tempfile.NamedTemporaryFile(
-                prefix="ccf", mode="w+"
-            ) as ca_cert_bundle_fp:
-                ca_cert_bundle_fp.write(self.tls_cert)
-                ca_cert_bundle_fp.flush()
-                network.consortium.set_ca_cert_bundle(
-                    primary, ca_bundle_name, ca_cert_bundle_fp.name
-                )
-
         with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
             issuer = {"issuer": self.issuer_url, "auto_refresh": self.auto_refresh}
-            if self.auto_refresh:
-                issuer.update({"ca_cert_bundle_name": ca_bundle_name})
             json.dump(issuer, metadata_fp)
             metadata_fp.flush()
             network.consortium.set_jwt_issuer(primary, metadata_fp.name)

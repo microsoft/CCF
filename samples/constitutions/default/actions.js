@@ -107,46 +107,6 @@ function base64UrlByteLength(value, field) {
   return Math.floor(value.length / 4) * 3 + [0, 0, 1, 2][value.length % 4];
 }
 
-function splitX509CertBundle(value) {
-  // Match complete PEM certificates with both BEGIN and END markers.
-  // This ensures we only extract valid PEM blocks and reject malformed input.
-  const pemPattern =
-    /-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----/g;
-  const certs = value.match(pemPattern);
-
-  if (!certs || certs.length === 0) {
-    throw new Error("No valid PEM certificates found in bundle");
-  }
-
-  // Verify the input contains only certificates and whitespace.
-  // Use a single-pass approach: replace all matched certificates with empty string
-  // using the global regex, then check if only whitespace remains.
-  const remaining = value.replace(pemPattern, "");
-
-  if (remaining.trim() !== "") {
-    throw new Error(
-      "Certificate bundle contains invalid content between certificates",
-    );
-  }
-
-  return certs;
-}
-
-function checkX509CACertBundle(value, field) {
-  checkX509CertBundle(value, field);
-  // isValidX509RootCACert(pem) is backed by a C++ function that checks both
-  // X509_check_ca (CA:TRUE or self-signed x509v1) and EXFLAG_SS (self-signed).
-  // Every certificate in the bundle must be a root (self-signed) CA; intermediate
-  // CAs are rejected even when their signing root is also present in the bundle.
-  for (const [i, cert] of splitX509CertBundle(value).entries()) {
-    if (!ccf.crypto.isValidX509RootCACert(cert)) {
-      throw new Error(
-        `${field}[${i}] must be a self-signed (root) CA certificate`,
-      );
-    }
-  }
-}
-
 function checkRsaPublicKey(jwk, field) {
   checkType(jwk.n, "string", `${field}.n`);
   checkType(jwk.e, "string", `${field}.e`);
@@ -1150,41 +1110,11 @@ const actions = new Map([
     ),
   ],
   [
-    "set_ca_cert_bundle",
-    new Action(
-      function (args) {
-        checkType(args.name, "string", "name");
-        checkX509CACertBundle(args.cert_bundle, "cert_bundle");
-      },
-      function (args) {
-        const name = args.name;
-        const bundle = args.cert_bundle;
-        const nameBuf = ccf.strToBuf(name);
-        const bundleBuf = ccf.jsonCompatibleToBuf(bundle);
-        ccf.kv["public:ccf.gov.tls.ca_cert_bundles"].set(nameBuf, bundleBuf);
-      },
-    ),
-  ],
-  [
-    "remove_ca_cert_bundle",
-    new Action(
-      function (args) {
-        checkType(args.name, "string", "name");
-      },
-      function (args) {
-        const name = args.name;
-        const nameBuf = ccf.strToBuf(name);
-        ccf.kv["public:ccf.gov.tls.ca_cert_bundles"].delete(nameBuf);
-      },
-    ),
-  ],
-  [
     "set_jwt_issuer",
     new Action(
       function (args) {
         checkType(args.issuer, "string", "issuer");
         checkType(args.auto_refresh, "boolean?", "auto_refresh");
-        checkType(args.ca_cert_bundle_name, "string?", "ca_cert_bundle_name");
         checkType(args.jwks, "object?", "jwks");
         if (args.jwks) {
           checkJwks(args.jwks, "jwks");
@@ -1201,28 +1131,8 @@ const actions = new Map([
         if (url.query || url.fragment) {
           throw new Error("issuer must be a URL without query/fragment");
         }
-        if (args.auto_refresh) {
-          if (!args.ca_cert_bundle_name) {
-            throw new Error(
-              "ca_cert_bundle_name is missing but required if auto_refresh is true",
-            );
-          }
-        }
       },
       function (args) {
-        if (args.auto_refresh) {
-          const caCertBundleName = args.ca_cert_bundle_name;
-          const caCertBundleNameBuf = ccf.strToBuf(args.ca_cert_bundle_name);
-          if (
-            !ccf.kv["public:ccf.gov.tls.ca_cert_bundles"].has(
-              caCertBundleNameBuf,
-            )
-          ) {
-            throw new Error(
-              `No CA cert bundle found with name '${caCertBundleName}'`,
-            );
-          }
-        }
         const issuer = args.issuer;
         const jwks = args.jwks;
         delete args.jwks;

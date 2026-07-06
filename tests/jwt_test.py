@@ -20,7 +20,6 @@ from infra.jwt_issuer import (
     get_jwt_issuers,
     get_jwt_keys,
 )
-import ca_certs
 import ccf.ledger
 from ccf.tx_id import TxID
 import infra.clients
@@ -416,20 +415,21 @@ def reserve_unlistened_local_port():
         yield s.getsockname()[1]
 
 
-def add_auto_refresh_jwt_issuer(network, primary, issuer, ca_cert_bundle_name):
-    with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as ca_cert_bundle_fp:
-        ca_cert_bundle_fp.write(issuer.tls_cert)
-        ca_cert_bundle_fp.flush()
-        network.consortium.set_ca_cert_bundle(
-            primary, ca_cert_bundle_name, ca_cert_bundle_fp.name
-        )
+def trust_jwt_issuer(args, issuer):
+    trust_store = getattr(args, "jwt_test_trust_store", None)
+    if trust_store:
+        with open(trust_store, "a", encoding="utf-8") as f:
+            f.write(issuer.tls_cert)
+            f.write("\n")
 
+
+def add_auto_refresh_jwt_issuer(network, args, primary, issuer):
+    trust_jwt_issuer(args, issuer)
     with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
         json.dump(
             {
                 "issuer": issuer.name,
                 "auto_refresh": True,
-                "ca_cert_bundle_name": ca_cert_bundle_name,
             },
             metadata_fp,
         )
@@ -458,7 +458,7 @@ def test_jwt_key_auto_refresh_connection_failure(network, args):
         issuer = infra.jwt_issuer.JwtIssuer(
             f"https://{issuer_host}:{issuer_port}", cn=issuer_host
         )
-        add_auto_refresh_jwt_issuer(network, primary, issuer, "jwt_connection_failure")
+        add_auto_refresh_jwt_issuer(network, args, primary, issuer)
         try:
             with_timeout(
                 lambda: check_refresh_failures_increased(primary, failures_before),
@@ -473,20 +473,8 @@ def test_jwt_key_auto_refresh_tls_failure(network, args):
     remove_all_jwt_issuers(network, args, primary)
     failures_before = get_jwt_refresh_endpoint_metrics(primary)["failures"]
     issuer = infra.jwt_issuer.JwtIssuer("https://localhost", cn="localhost")
-    wrong_ca_issuer = infra.jwt_issuer.JwtIssuer(
-        "https://localhost-wrong-ca", cn="localhost"
-    )
-    ca_cert_bundle_name = "jwt_tls_failure"
 
-    LOG.info("Add wrong CA cert for JWT issuer")
-    with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as ca_cert_bundle_fp:
-        ca_cert_bundle_fp.write(wrong_ca_issuer.tls_cert)
-        ca_cert_bundle_fp.flush()
-        network.consortium.set_ca_cert_bundle(
-            primary, ca_cert_bundle_name, ca_cert_bundle_fp.name
-        )
-
-    LOG.info("Start OpenID endpoint server with a certificate signed by another CA")
+    LOG.info("Start OpenID endpoint server with a certificate not in the system store")
     with issuer.start_openid_server(0) as server:
         issuer_name = f"https://localhost:{server.bind_port}"
         with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
@@ -494,7 +482,6 @@ def test_jwt_key_auto_refresh_tls_failure(network, args):
                 {
                     "issuer": issuer_name,
                     "auto_refresh": True,
-                    "ca_cert_bundle_name": ca_cert_bundle_name,
                 },
                 metadata_fp,
             )
@@ -515,15 +502,7 @@ def test_jwt_key_auto_refresh_invalid_metadata_issuer(network, args):
     remove_all_jwt_issuers(network, args, primary)
     failures_before = get_jwt_refresh_endpoint_metrics(primary)["failures"]
     issuer = infra.jwt_issuer.JwtIssuer("https://localhost", cn="localhost")
-    ca_cert_bundle_name = "jwt_invalid_metadata_issuer"
-
-    LOG.info("Add CA cert for JWT issuer")
-    with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as ca_cert_bundle_fp:
-        ca_cert_bundle_fp.write(issuer.tls_cert)
-        ca_cert_bundle_fp.flush()
-        network.consortium.set_ca_cert_bundle(
-            primary, ca_cert_bundle_name, ca_cert_bundle_fp.name
-        )
+    trust_jwt_issuer(args, issuer)
 
     LOG.info("Start OpenID endpoint server with a non-string issuer metadata field")
     with issuer.start_openid_server(0) as server:
@@ -535,7 +514,6 @@ def test_jwt_key_auto_refresh_invalid_metadata_issuer(network, args):
                 {
                     "issuer": issuer_name,
                     "auto_refresh": True,
-                    "ca_cert_bundle_name": ca_cert_bundle_name,
                 },
                 metadata_fp,
             )
@@ -556,16 +534,8 @@ def test_jwt_key_auto_refresh_cross_authority_jwks_uri(network, args):
     remove_all_jwt_issuers(network, args, primary)
     issuer_host = "localhost"
     issuer = infra.jwt_issuer.JwtIssuer(f"https://{issuer_host}", cn=issuer_host)
-    ca_cert_bundle_name = "jwt_cross_authority_jwks_uri"
+    trust_jwt_issuer(args, issuer)
     kid = "cross_authority_jwks_uri"
-
-    LOG.info("Add CA cert for JWT issuer")
-    with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as ca_cert_bundle_fp:
-        ca_cert_bundle_fp.write(issuer.tls_cert)
-        ca_cert_bundle_fp.flush()
-        network.consortium.set_ca_cert_bundle(
-            primary, ca_cert_bundle_name, ca_cert_bundle_fp.name
-        )
 
     LOG.info("Start OpenID endpoint server with cross-authority JWKS URI")
     with issuer.start_openid_server(0, kid) as server, OpenIDProviderServer(
@@ -582,7 +552,6 @@ def test_jwt_key_auto_refresh_cross_authority_jwks_uri(network, args):
                 {
                     "issuer": issuer_name,
                     "auto_refresh": True,
-                    "ca_cert_bundle_name": ca_cert_bundle_name,
                 },
                 metadata_fp,
             )
@@ -605,14 +574,13 @@ def test_jwt_key_auto_refresh_response_size_limit(network, args):
     remove_all_jwt_issuers(network, args, primary)
     failures_before = get_jwt_refresh_endpoint_metrics(primary)["failures"]
     issuer = infra.jwt_issuer.JwtIssuer("https://localhost", cn="localhost")
-    ca_cert_bundle_name = "jwt_response_size_limit"
     kid = "response_size_limit"
 
     LOG.info("Start OpenID endpoint server with oversized metadata")
     with issuer.start_openid_server(0, kid) as server:
         issuer.name = f"https://localhost:{server.bind_port}"
         server.metadata["oversized_response"] = "x" * 4096
-        add_auto_refresh_jwt_issuer(network, primary, issuer, ca_cert_bundle_name)
+        add_auto_refresh_jwt_issuer(network, args, primary, issuer)
 
         try:
             with_timeout(
@@ -623,7 +591,7 @@ def test_jwt_key_auto_refresh_response_size_limit(network, args):
             LOG.info("Restore OpenID metadata and re-add JWT issuer")
             del server.metadata["oversized_response"]
             network.consortium.remove_jwt_issuer(primary, issuer.name)
-            add_auto_refresh_jwt_issuer(network, primary, issuer, ca_cert_bundle_name)
+            add_auto_refresh_jwt_issuer(network, args, primary, issuer)
 
             with_timeout(
                 lambda: check_kv_jwt_key_matches(
@@ -639,7 +607,6 @@ def test_jwt_key_auto_refresh_response_size_limit(network, args):
 def test_jwt_key_auto_refresh(network, args):
     primary, _ = network.find_nodes()
 
-    ca_cert_bundle_name = "jwt"
     kid = "the_kid"
     issuer_host = "localhost"
     issuer_port = args.issuer_port
@@ -648,13 +615,7 @@ def test_jwt_key_auto_refresh(network, args):
         f"https://{issuer_host}:{issuer_port}", cn=issuer_host
     )
 
-    LOG.info("Add CA cert for JWT issuer")
-    with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as ca_cert_bundle_fp:
-        ca_cert_bundle_fp.write(issuer.tls_cert)
-        ca_cert_bundle_fp.flush()
-        network.consortium.set_ca_cert_bundle(
-            primary, ca_cert_bundle_name, ca_cert_bundle_fp.name
-        )
+    trust_jwt_issuer(args, issuer)
 
     LOG.info("Start OpenID endpoint server")
     # Capture baseline metrics before the server starts: any connection failures
@@ -673,7 +634,6 @@ def test_jwt_key_auto_refresh(network, args):
                 {
                     "issuer": issuer.name,
                     "auto_refresh": True,
-                    "ca_cert_bundle_name": ca_cert_bundle_name,
                 },
                 metadata_fp,
             )
@@ -745,7 +705,6 @@ def test_jwt_key_auto_refresh(network, args):
 def test_jwt_key_auto_refresh_entries(network, args):
     primary, _ = network.find_nodes()
 
-    ca_cert_bundle_name = "jwt"
     kid = "the_kid_no_duplicates"
     issuer_host = "localhost"
     issuer_port = args.issuer_port
@@ -754,13 +713,7 @@ def test_jwt_key_auto_refresh_entries(network, args):
         f"https://{issuer_host}:{issuer_port}", cn=issuer_host
     )
 
-    LOG.info("Add CA cert for JWT issuer")
-    with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as ca_cert_bundle_fp:
-        ca_cert_bundle_fp.write(issuer.tls_cert)
-        ca_cert_bundle_fp.flush()
-        network.consortium.set_ca_cert_bundle(
-            primary, ca_cert_bundle_name, ca_cert_bundle_fp.name
-        )
+    trust_jwt_issuer(args, issuer)
 
     LOG.info("Start OpenID endpoint server")
     with issuer.start_openid_server(issuer_port, kid):
@@ -770,7 +723,6 @@ def test_jwt_key_auto_refresh_entries(network, args):
                 {
                     "issuer": issuer.name,
                     "auto_refresh": True,
-                    "ca_cert_bundle_name": ca_cert_bundle_name,
                 },
                 metadata_fp,
             )
@@ -836,7 +788,6 @@ def test_jwt_key_auto_refresh_entries(network, args):
 def test_jwt_key_initial_refresh(network, args, timeout_s=15):
     primary, _ = network.find_nodes()
 
-    ca_cert_bundle_name = "jwt"
     kid = f"my_kid_autorefresh_{primary.local_node_id}"
     issuer_host = "localhost"
     issuer_port = args.issuer_port
@@ -845,13 +796,7 @@ def test_jwt_key_initial_refresh(network, args, timeout_s=15):
         f"https://{issuer_host}:{issuer_port}", cn=issuer_host
     )
 
-    LOG.info("Add CA cert for JWT issuer")
-    with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as ca_cert_bundle_fp:
-        ca_cert_bundle_fp.write(issuer.tls_cert)
-        ca_cert_bundle_fp.flush()
-        network.consortium.set_ca_cert_bundle(
-            primary, ca_cert_bundle_name, ca_cert_bundle_fp.name
-        )
+    trust_jwt_issuer(args, issuer)
 
     LOG.info("Start OpenID endpoint server")
     with issuer.start_openid_server(issuer_port, kid):
@@ -861,7 +806,6 @@ def test_jwt_key_initial_refresh(network, args, timeout_s=15):
                 {
                     "issuer": issuer.name,
                     "auto_refresh": True,
-                    "ca_cert_bundle_name": ca_cert_bundle_name,
                 },
                 metadata_fp,
             )
@@ -888,71 +832,8 @@ def test_jwt_key_initial_refresh(network, args, timeout_s=15):
     return network
 
 
-# Root CA for login.microsoftonline.com:443
-# Used as root of trust by CCF (after being set via set_ca_cert_bundle)
-# for the purpose of fetching JWK list and JWKs
-DIGICERT_GLOBAL_ROOT_CA = """-----BEGIN CERTIFICATE-----
-MIIDrzCCApegAwIBAgIQCDvgVpBCRrGhdWrJWZHHSjANBgkqhkiG9w0BAQUFADBh
-MQswCQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNlcnQgSW5jMRkwFwYDVQQLExB3
-d3cuZGlnaWNlcnQuY29tMSAwHgYDVQQDExdEaWdpQ2VydCBHbG9iYWwgUm9vdCBD
-QTAeFw0wNjExMTAwMDAwMDBaFw0zMTExMTAwMDAwMDBaMGExCzAJBgNVBAYTAlVT
-MRUwEwYDVQQKEwxEaWdpQ2VydCBJbmMxGTAXBgNVBAsTEHd3dy5kaWdpY2VydC5j
-b20xIDAeBgNVBAMTF0RpZ2lDZXJ0IEdsb2JhbCBSb290IENBMIIBIjANBgkqhkiG
-9w0BAQEFAAOCAQ8AMIIBCgKCAQEA4jvhEXLeqKTTo1eqUKKPC3eQyaKl7hLOllsB
-CSDMAZOnTjC3U/dDxGkAV53ijSLdhwZAAIEJzs4bg7/fzTtxRuLWZscFs3YnFo97
-nh6Vfe63SKMI2tavegw5BmV/Sl0fvBf4q77uKNd0f3p4mVmFaG5cIzJLv07A6Fpt
-43C/dxC//AH2hdmoRBBYMql1GNXRor5H4idq9Joz+EkIYIvUX7Q6hL+hqkpMfT7P
-T19sdl6gSzeRntwi5m3OFBqOasv+zbMUZBfHWymeMr/y7vrTC0LUq7dBMtoM1O/4
-gdW7jVg/tRvoSSiicNoxBN33shbyTApOB6jtSj1etX+jkMOvJwIDAQABo2MwYTAO
-BgNVHQ8BAf8EBAMCAYYwDwYDVR0TAQH/BAUwAwEB/zAdBgNVHQ4EFgQUA95QNVbR
-TLtm8KPiGxvDl7I90VUwHwYDVR0jBBgwFoAUA95QNVbRTLtm8KPiGxvDl7I90VUw
-DQYJKoZIhvcNAQEFBQADggEBAMucN6pIExIK+t1EnE9SsPTfrgT1eXkIoyQY/Esr
-hMAtudXH/vTBH1jLuG2cenTnmCmrEbXjcKChzUyImZOMkXDiqw8cvpOp/2PV5Adg
-06O/nVsJ8dWO41P0jmP6P6fbtGbfYmbW0W5BjfIttep3Sp+dWOIrWcBAI+0tKIJF
-PnlUkiaY4IBIqDfv8NZ5YBberOgOzW6sRBc4L0na4UU+Krk2U886UAb3LujEV0ls
-YSEY1QSteDwsOoBrp+uvFRTp2InBuThs4pFsiv9kuXclVzDAGySj4dzp30d8tbQk
-CAUw7C29C79Fv1C5qfPrmAESrciIxpg0X40KPMbp1ZWVbd4=
------END CERTIFICATE-----"""
-
-DIGICERT_GLOBAL_ROOT_G2_CA = """-----BEGIN CERTIFICATE-----
-MIIDjjCCAnagAwIBAgIQAzrx5qcRqaC7KGSxHQn65TANBgkqhkiG9w0BAQsFADBh
-MQswCQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNlcnQgSW5jMRkwFwYDVQQLExB3
-d3cuZGlnaWNlcnQuY29tMSAwHgYDVQQDExdEaWdpQ2VydCBHbG9iYWwgUm9vdCBH
-MjAeFw0xMzA4MDExMjAwMDBaFw0zODAxMTUxMjAwMDBaMGExCzAJBgNVBAYTAlVT
-MRUwEwYDVQQKEwxEaWdpQ2VydCBJbmMxGTAXBgNVBAsTEHd3dy5kaWdpY2VydC5j
-b20xIDAeBgNVBAMTF0RpZ2lDZXJ0IEdsb2JhbCBSb290IEcyMIIBIjANBgkqhkiG
-9w0BAQEFAAOCAQ8AMIIBCgKCAQEAuzfNNNx7a8myaJCtSnX/RrohCgiN9RlUyfuI
-2/Ou8jqJkTx65qsGGmvPrC3oXgkkRLpimn7Wo6h+4FR1IAWsULecYxpsMNzaHxmx
-1x7e/dfgy5SDN67sH0NO3Xss0r0upS/kqbitOtSZpLYl6ZtrAGCSYP9PIUkY92eQ
-q2EGnI/yuum06ZIya7XzV+hdG82MHauVBJVJ8zUtluNJbd134/tJS7SsVQepj5Wz
-tCO7TG1F8PapspUwtP1MVYwnSlcUfIKdzXOS0xZKBgyMUNGPHgm+F6HmIcr9g+UQ
-vIOlCsRnKPZzFBQ9RnbDhxSJITRNrw9FDKZJobq7nMWxM4MphQIDAQABo0IwQDAP
-BgNVHRMBAf8EBTADAQH/MA4GA1UdDwEB/wQEAwIBhjAdBgNVHQ4EFgQUTiJUIBiV
-5uNu5g/6+rkS7QYXjzkwDQYJKoZIhvcNAQELBQADggEBAGBnKJRvDkhj6zHd6mcY
-1Yl9PMWLSn/pvtsrF9+wX3N3KjITOYFnQoQj8kVnNeyIv/iPsGEMNKSuIEyExtv4
-NeF22d+mQrvHRAiGfzZ0JFrabA0UWTW98kndth/Jsw1HKj2ZL7tcu7XUIOGZX1NG
-Fdtom/DzMNU+MeKNhJ7jitralj41E6Vf8PlwUHBHQRFXGU7Aj64GxJUTFy8bJZ91
-8rGOmaFvE7FBcf6IKshPECBV1/MUReXgRPTqh5Uykw7+U0b6LJ3/iyK5S9kJRaTe
-pLiaWN0bfVKfjllDiIGknibVb63dDcY3fe0Dkhvld1927jyNxF1WW6LZZm6zNTfl
-MrY=
------END CERTIFICATE-----"""
-
-
-def test_jwt_key_refresh_aad(network, args, ascending=True):
+def test_jwt_key_refresh_aad(network, args):
     primary, _ = network.find_nodes()
-
-    LOG.info("Add CA cert for Entra JWT issuer")
-    with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as ca_cert_bundle_fp:
-        if ascending:
-            ca_cert_bundle_fp.write(DIGICERT_GLOBAL_ROOT_CA)
-            ca_cert_bundle_fp.write("\n")
-            ca_cert_bundle_fp.write(DIGICERT_GLOBAL_ROOT_G2_CA)
-        else:
-            ca_cert_bundle_fp.write(DIGICERT_GLOBAL_ROOT_G2_CA)
-            ca_cert_bundle_fp.write("\n")
-            ca_cert_bundle_fp.write(DIGICERT_GLOBAL_ROOT_CA)
-        ca_cert_bundle_fp.flush()
-        network.consortium.set_ca_cert_bundle(primary, "aad", ca_cert_bundle_fp.name)
 
     issuer = "https://login.microsoftonline.com/common/v2.0/"
     with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
@@ -960,7 +841,6 @@ def test_jwt_key_refresh_aad(network, args, ascending=True):
             {
                 "issuer": issuer,
                 "auto_refresh": True,
-                "ca_cert_bundle_name": "aad",
             },
             metadata_fp,
         )
@@ -969,7 +849,6 @@ def test_jwt_key_refresh_aad(network, args, ascending=True):
 
     LOG.info("Check that keys got refreshed")
     with_timeout(lambda: check_kv_jwt_keys_not_empty(args, network, issuer), timeout=5)
-
 
 def test_malformed_tokens(network, args):
     primary, _ = network.find_nodes()
@@ -1036,54 +915,49 @@ def with_timeout(fn, timeout):
 
 
 def run_auto(args):
-    with infra.network.network(
-        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
-    ) as network:
-        network.start_and_open(args)
-        test_jwt_issuer_and_jwks_validation(network, args)
-        test_jwt_mulitple_issuers_same_kids_different_pem(network, args)
-        test_jwt_mulitple_issuers_same_kids_same_pem(network, args)
-        test_jwt_same_issuer_constraint_overwritten(network, args)
-        test_jwt_issuer_domain_match(network, args)
-        test_jwt_endpoint(network, args)
-        test_jwt_without_key_policy(network, args)
-        test_jwt_key_auto_refresh(network, args)
+    with tempfile.NamedTemporaryFile(prefix="ccf_jwt_trust_", mode="w+") as trust_store:
+        args.jwt_test_trust_store = trust_store.name
+        with infra.network.network(
+            args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
+        ) as network:
+            network.start_and_open(args, env={"SSL_CERT_FILE": trust_store.name})
+            test_jwt_issuer_and_jwks_validation(network, args)
+            test_jwt_mulitple_issuers_same_kids_different_pem(network, args)
+            test_jwt_mulitple_issuers_same_kids_same_pem(network, args)
+            test_jwt_same_issuer_constraint_overwritten(network, args)
+            test_jwt_issuer_domain_match(network, args)
+            test_jwt_endpoint(network, args)
+            test_jwt_without_key_policy(network, args)
+            test_jwt_key_auto_refresh(network, args)
 
-        # Check that auto refresh also works on backups
-        primary, _ = network.find_primary()
-        primary.stop()
-        network.wait_for_new_primary(primary)
-        test_jwt_key_auto_refresh(network, args)
-        # Check that we can refresh keys for Entra endpoint
-        test_jwt_key_refresh_aad(network, args, ascending=True)
-        test_jwt_key_refresh_aad(network, args, ascending=False)
-        test_jwt_key_auto_refresh_entries(network, args)
+            # Check that auto refresh also works on backups
+            primary, _ = network.find_primary()
+            primary.stop()
+            network.wait_for_new_primary(primary)
+            test_jwt_key_auto_refresh(network, args)
+            # Check that we can refresh keys for Entra endpoint
+            test_jwt_key_refresh_aad(network, args)
+            test_jwt_key_auto_refresh_entries(network, args)
 
-        test_malformed_tokens(network, args)
+            test_malformed_tokens(network, args)
 
 
 def run_manual(args):
-    with infra.network.network(
-        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
-    ) as network:
-        network.start_and_open(args)
-        test_jwt_key_initial_refresh(network, args)
+    with tempfile.NamedTemporaryFile(prefix="ccf_jwt_trust_", mode="w+") as trust_store:
+        args.jwt_test_trust_store = trust_store.name
+        with infra.network.network(
+            args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
+        ) as network:
+            network.start_and_open(args, env={"SSL_CERT_FILE": trust_store.name})
+            test_jwt_key_initial_refresh(network, args)
 
-        # Check that initial refresh also works on backups
-        primary, _ = network.find_primary()
-        primary.stop()
-        network.wait_for_new_primary(primary)
-        test_jwt_key_initial_refresh(network, args, timeout_s=30)
-        test_jwt_key_auto_refresh_connection_failure(network, args)
-        test_jwt_key_auto_refresh_tls_failure(network, args)
-        test_jwt_key_auto_refresh_invalid_metadata_issuer(network, args)
-        test_jwt_key_auto_refresh_cross_authority_jwks_uri(network, args)
-        test_jwt_key_auto_refresh_response_size_limit(network, args)
-
-
-def run_ca_cert(args):
-    with infra.network.network(
-        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
-    ) as network:
-        network.start_and_open(args)
-        ca_certs.test_cert_store(network, args)
+            # Check that initial refresh also works on backups
+            primary, _ = network.find_primary()
+            primary.stop()
+            network.wait_for_new_primary(primary)
+            test_jwt_key_initial_refresh(network, args, timeout_s=30)
+            test_jwt_key_auto_refresh_connection_failure(network, args)
+            test_jwt_key_auto_refresh_tls_failure(network, args)
+            test_jwt_key_auto_refresh_invalid_metadata_issuer(network, args)
+            test_jwt_key_auto_refresh_cross_authority_jwks_uri(network, args)
+            test_jwt_key_auto_refresh_response_size_limit(network, args)
