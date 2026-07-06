@@ -3625,7 +3625,7 @@ def run_propose_request_vote(const_args):
                 force_txs=False,
                 wait_for_target_seqno=True,
             )
-            network.wait_for_node_commit_sync()
+            network.wait_for_node_commit_sync(timeout=16)
 
             original_primary.remote.remote.proc.send_signal(signal.SIGTERM)
             # Find any primary which wasn't the original one
