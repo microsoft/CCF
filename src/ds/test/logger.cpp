@@ -198,21 +198,26 @@ TEST_CASE("Test custom log format")
   std::string log_msg_dbg = "log_msg_dbg";
   std::string log_msg_trace = "log_msg_trace";
 
-  std::ofstream out(test_log_file.c_str());
-  std::streambuf* coutbuf = std::cout.rdbuf();
-  std::cout.rdbuf(out.rdbuf());
+  struct CoutRdbufGuard
+  {
+    std::streambuf* old = nullptr;
+    explicit CoutRdbufGuard(std::streambuf* new_buf) : old(std::cout.rdbuf(new_buf)) {}
+    ~CoutRdbufGuard() { std::cout.rdbuf(old); }
+  };
 
-  LOG_DEBUG_FMT("{}", log_msg_dbg);
-  LOG_TRACE_FMT("{}", log_msg_trace);
-  LOG_DEBUG_FMT("{}", log_msg_dbg);
-  LOG_TRACE_FMT("{}", log_msg_trace);
-  LOG_DEBUG_FMT("{}", log_msg_dbg);
+  {
+    std::ofstream out(test_log_file);
+    REQUIRE(out.is_open());
+    CoutRdbufGuard cout_guard(out.rdbuf());
 
-  out.flush();
-  out.close();
+    LOG_DEBUG_FMT("{}", log_msg_dbg);
+    LOG_TRACE_FMT("{}", log_msg_trace);
+    LOG_DEBUG_FMT("{}", log_msg_dbg);
+    LOG_TRACE_FMT("{}", log_msg_trace);
+    LOG_DEBUG_FMT("{}", log_msg_dbg);
 
-  std::cout.rdbuf(coutbuf);
-
+    std::cout.flush();
+  }
   std::ifstream f(test_log_file);
   std::string line;
   size_t line_count = 0;
