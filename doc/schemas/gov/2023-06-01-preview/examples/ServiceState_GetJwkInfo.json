@@ -13,10 +13,12 @@
           }
         },
         "keys": {
-          "idprovider_kida": {
-            "certificate": "-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----\n",
-            "issuer": "idprovider.myservice.example.com"
-          }
+          "my-key-id": [
+            {
+              "certificate": "-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----\n",
+              "issuer": "idprovider.myservice.example.com"
+            }
+          ]
         }
       }
     }

@@ -12,7 +12,14 @@
             "autoRefresh": true
           }
         },
-        "keys": {}
+        "keys": {
+          "my-key-id": [
+            {
+              "certificate": "-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----\n",
+              "issuer": "idprovider.myservice.example.com"
+            }
+          ]
+        }
       }
     }
   }

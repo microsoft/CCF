@@ -837,6 +837,7 @@ def test_jwt_key_initial_refresh(network, args, timeout_s=15):
 def test_jwt_key_refresh_aad(network, args):
     primary, _ = network.find_nodes()
 
+    LOG.info("Check JWT auto-refresh against Entra using the system trust store")
     issuer = "https://login.microsoftonline.com/common/v2.0/"
     with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
         json.dump(
