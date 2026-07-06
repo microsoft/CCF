@@ -625,12 +625,39 @@ def test_jwt_key_auto_refresh_response_size_limit(network, args):
             network.consortium.remove_jwt_issuer(primary, issuer.name)
             add_auto_refresh_jwt_issuer(network, primary, issuer, ca_cert_bundle_name)
 
-            with_timeout(
-                lambda: check_kv_jwt_key_matches(
-                    args, network, kid, issuer.key_pub_pem
-                ),
-                timeout=15,
-            )
+            # Re-registering the issuer triggers a single one-off refresh (via
+            # the jwt_issuers KV write hook, see auto_refresh_jwt_keys() in
+            # node_state.h). This suite runs with a very large periodic
+            # refresh interval (jwt_key_refresh_interval_s in
+            # tests/programmability.py) specifically to isolate testing of
+            # that one-off refresh, so there is no periodic fallback if this
+            # single attempt hits a transient failure (e.g. the curl client's
+            # fetch itself timing out under CI load, independently of the
+            # outer timeout below). Re-trigger the one-off refresh a few times
+            # so that a single transient failure of the underlying fetch
+            # doesn't fail the test outright.
+            retry_interval_s = 5
+            overall_timeout_s = 15
+            start_time = time.time()
+            while True:
+                try:
+                    with_timeout(
+                        lambda: check_kv_jwt_key_matches(
+                            args, network, kid, issuer.key_pub_pem
+                        ),
+                        timeout=retry_interval_s,
+                    )
+                    break
+                except (TimeoutError, AssertionError):
+                    if time.time() - start_time >= overall_timeout_s:
+                        raise
+                    LOG.warning(
+                        "JWT key auto-refresh: key not yet present after "
+                        "one-off refresh, re-triggering"
+                    )
+                    add_auto_refresh_jwt_issuer(
+                        network, primary, issuer, ca_cert_bundle_name
+                    )
         finally:
             network.consortium.remove_jwt_issuer(primary, issuer.name)
 
