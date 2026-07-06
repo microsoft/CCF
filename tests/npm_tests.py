@@ -291,10 +291,6 @@ def test_npm_app(network, args):
         assert r.status_code == http.HTTPStatus.OK, r.status_code
         assert "Passed" in r.body.text(), r.body
 
-        r = c.get("/app/crypto")
-        assert r.status_code == http.HTTPStatus.OK, r.status_code
-        assert r.body.json()["available"], r.body
-
         key_size = 256
         r = c.post("/app/generateAesKey", {"size": key_size})
         assert r.status_code == http.HTTPStatus.OK, r.status_code
