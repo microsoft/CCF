@@ -157,8 +157,7 @@ namespace ccf::kv
 
     std::vector<uint8_t> serialise_domains(
       const std::vector<uint8_t>& serialised_public_domain,
-      const std::vector<uint8_t>& serialised_private_domain =
-        std::vector<uint8_t>()) override
+      const std::vector<uint8_t>& serialised_private_domain) override
     {
       size_t size_ = serialised_public_domain.size();
 
@@ -303,7 +302,7 @@ namespace ccf::kv
       size_t size,
       ccf::kv::Term& term,
       EntryFlags& flags,
-      bool historical_hint = false) override
+      bool historical_hint) override
     {
       current_reader = &public_reader;
       const auto* data_ = data;
