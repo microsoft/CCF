@@ -474,6 +474,8 @@ def test_jwt_key_auto_refresh_tls_failure(network, args):
     failures_before = get_jwt_refresh_endpoint_metrics(primary)["failures"]
     issuer = infra.jwt_issuer.JwtIssuer("https://localhost", cn="localhost")
 
+    # Do not add this issuer to args.jwt_test_trust_store. This verifies that
+    # nodes use the configured SSL_CERT_FILE trust store for JWT auto-refresh.
     LOG.info("Start OpenID endpoint server with a certificate not in the system store")
     with issuer.start_openid_server(0) as server:
         issuer_name = f"https://localhost:{server.bind_port}"

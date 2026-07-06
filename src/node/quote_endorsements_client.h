@@ -182,6 +182,13 @@ namespace ccf
           curl_easy_strerror(curl_response),
           curl_response,
           status_code);
+        if (curl_response == CURLE_PEER_FAILED_VERIFICATION)
+        {
+          LOG_INFO_FMT(
+            "TLS verification failed while fetching endorsements. Check that "
+            "the endorsement server certificate is trusted by the system trust "
+            "store.");
+        }
 
         if (
           self->server_retries_count >=
