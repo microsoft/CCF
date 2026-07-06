@@ -9,13 +9,10 @@
       "body": {
         "issuers": {
           "idprovider.myservice.example.com": {
-            "autoRefresh": true,
-            "caCertBundleName": "MyIdProviderCa"
+            "autoRefresh": true
           }
         },
-        "caCertBundles": {
-          "MyIdProviderCa": "-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----\n"
-        }
+        "keys": {}
       }
     }
   }

@@ -1897,13 +1897,6 @@
             "$ref": "#/definitions/ServiceState.JwtIssuer"
           }
         },
-        "caCertBundles": {
-          "type": "object",
-          "description": "Collection of CAs used to authenticate connections with issuers. Keyed by governance-controlled bundle names.",
-          "additionalProperties": {
-            "$ref": "#/definitions/ServiceState.caCertBundle"
-          }
-        },
         "keys": {
           "type": "object",
           "description": "Collection of retrieved JWKs. Keyed by kid.",
@@ -1914,7 +1907,6 @@
       },
       "required": [
         "issuers",
-        "caCertBundles",
         "keys"
       ]
     },
@@ -1932,10 +1924,6 @@
         "autoRefresh": {
           "type": "boolean",
           "description": "Whether this issuer's keys are periodically refreshed with a fetch from the current primary. If false, these will only be updated by governance."
-        },
-        "caCertBundleName": {
-          "type": "string",
-          "description": "Name of bundle used to authenticate issuer when auto-refreshing."
         }
       },
       "required": [
@@ -2345,10 +2333,6 @@
       "additionalProperties": {
         "$ref": "#/definitions/ServiceState.TcbVersion"
       }
-    },
-    "ServiceState.caCertBundle": {
-      "type": "string",
-      "description": "Chain of endorsed certificates (PEM format) leading to a CA."
     },
     "ServiceState.pem": {
       "type": "string",
