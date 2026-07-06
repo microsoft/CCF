@@ -11,14 +11,12 @@
   },
   "dependencies": {
     "@microsoft/ccf-app": "file:../../js/ccf-app",
-    "jsrsasign": "^11.1.0",
     "protobufjs": "^7.3.1"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^26.0.1",
     "@rollup/plugin-node-resolve": "^15.2.3",
     "@rollup/plugin-typescript": "^11.1.6",
-    "@types/jsrsasign": "^10.5.14",
     "rollup": "^4.18.0",
     "tslib": "^2.6.3",
     "typescript": "^5.9.2"
