@@ -1211,13 +1211,15 @@ def test_in_place_restart_with_uncommittable_ledger(network, args):
         old_node_id = old_primary.node_id
         old_primary.stop()
 
-    current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
+    ledger_dir, read_only_ledger_dirs = old_primary.remote.get_ledger(
+        f"{old_primary.local_node_id}.ledger_in_place"
+    )
     assert _uncommitted_ledger_files(old_primary), (
         "Expected the stopped primary's persisted ledger to contain "
         "uncommitted files before restart"
     )
     _assert_ledger_files_contain_payload(
-        current_ledger_dir,
+        ledger_dir,
         new_uncommitted_files,
         uncommitted_payload,
     )
@@ -1227,8 +1229,8 @@ def test_in_place_restart_with_uncommittable_ledger(network, args):
         args.package,
         args,
         target_node=new_primary,
-        ledger_dir=current_ledger_dir,
-        read_only_ledger_dirs=committed_ledger_dirs,
+        ledger_dir=ledger_dir,
+        read_only_ledger_dirs=read_only_ledger_dirs,
         copy_ledger=False,
         from_snapshot=False,
         timeout=args.ledger_recovery_timeout,
