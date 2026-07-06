@@ -27,9 +27,16 @@ import threading
 
 from loguru import logger as LOG
 
+# Arbitrary high record id, chosen to avoid clashing with ids used by other
+# tests sharing the same network/ledger.
 UNCOMMITTABLE_RECORD_ID_START = 420000
 COMMITTED_RECORD_ID = UNCOMMITTABLE_RECORD_ID_START - 1
+# Each uncommittable record repeats the test message this many times, so that
+# a handful of records comfortably exceed the small chunk size below and
+# reliably force a new ledger chunk to be written to disk while isolated.
 UNCOMMITTABLE_MESSAGE_REPEAT = 1024
+# Small chunk size so that the writes made while the primary is isolated are
+# guaranteed to roll over into new (uncommitted) ledger chunks quickly.
 UNCOMMITTABLE_TEST_LEDGER_CHUNK_BYTES = "16KB"
 
 
