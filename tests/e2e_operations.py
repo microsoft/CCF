@@ -671,7 +671,7 @@ def test_empty_snapshot(network, args):
     with tempfile.TemporaryDirectory() as snapshots_dir:
         LOG.debug(f"Using {snapshots_dir} as snapshots directory")
 
-        snapshot_name = "snapshot_10_15.committed"
+        snapshot_name = "snapshot_500_510.committed"
 
         with open(
             os.path.join(snapshots_dir, snapshot_name), "wb+"
@@ -711,7 +711,7 @@ def test_nulled_snapshot(network, args):
     with tempfile.TemporaryDirectory() as snapshots_dir:
         LOG.debug(f"Using {snapshots_dir} as snapshots directory")
 
-        snapshot_name = "snapshot_10_15.committed"
+        snapshot_name = "snapshot_500_510.committed"
 
         with open(
             os.path.join(snapshots_dir, snapshot_name), "wb+"
@@ -767,8 +767,8 @@ def test_corrupt_snapshot_handling(network, args):
 
     # Use a higher seqno for the writable dir so it is tried first (snapshots
     # are iterated in descending seqno order).
-    writable_snapshot_name = "snapshot_20_25.committed"
-    read_only_snapshot_name = "snapshot_10_15.committed"
+    writable_snapshot_name = "snapshot_600_610.committed"
+    read_only_snapshot_name = "snapshot_500_510.committed"
 
     # ---- Part 1: writable dir (rename succeeds) + read-only config dir ----
     LOG.info("Part 1: corrupt snapshots in both writable and read-only directories")
