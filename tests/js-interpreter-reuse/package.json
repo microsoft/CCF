@@ -1,21 +1,19 @@
 {
   "private": true,
   "scripts": {
-    "build": "del-cli -f dist/ && rollup --config && cp app.json dist/"
+    "build": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\" && rollup --config && cp app.json dist/"
   },
   "type": "module",
   "engines": {
     "node": ">=20"
   },
   "dependencies": {
-    "@microsoft/ccf-app": "file:../../js/ccf-app",
-    "inversify": "^6.1.5"
+    "@microsoft/ccf-app": "file:../../js/ccf-app"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^17.1.0",
     "@rollup/plugin-node-resolve": "^11.2.0",
     "@rollup/plugin-typescript": "^8.2.0",
-    "del-cli": "^5.0.0",
     "tslib": "^2.0.1",
     "typescript": "^5.9.2"
   }
