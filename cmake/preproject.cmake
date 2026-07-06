@@ -70,6 +70,7 @@ function(add_warning_checks name)
       -Wall
       -Wextra
       -Werror
+      ${CCF_WARNING_ERROR_EXCEPTIONS}
       -Wundef
       -Wpedantic
       -Wno-unused-parameter
