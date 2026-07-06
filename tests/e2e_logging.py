@@ -29,6 +29,7 @@ import urllib.parse
 import random
 import re
 import infra.crypto
+import infra.commit
 from infra.runner import ConcurrentRunner
 from hashlib import sha256
 from infra.member import AckException
@@ -1784,16 +1785,27 @@ def issue_txs_for_receipt_check(network, args):
     seqnos (and expected, empty claims digest) so that test_random_receipts
     can validate that their receipts become available promptly after commit,
     alongside its regular random sampling of already-committed seqnos.
+    Waits for all transactions to be committed before returning.
     """
     cose_only = args.package.endswith("_cose_only")
     msg = "Hello world"
 
     LOG.info("Write/Read on primary")
     additional_seqnos = {}
+    last_view = None
+    last_seqno = None
     for j in range(10):
         idx = j + 10000
         r = network.txs.issue(network, 1, idx=idx, send_public=False, msg=msg)
         additional_seqnos[r.seqno] = b"\0" * 32 if cose_only else None
+        last_view = r.view
+        last_seqno = r.seqno
+
+    # Wait for the last transaction to be committed (which guarantees all
+    # earlier transactions are also committed, since they commit in order)
+    primary, _ = network.find_primary()
+    with primary.client("user0") as c:
+        infra.commit.wait_for_commit(c, seqno=last_seqno, view=last_view, timeout=3)
 
     return additional_seqnos
 

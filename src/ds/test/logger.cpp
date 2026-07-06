@@ -193,6 +193,18 @@ TEST_CASE("Test custom log format")
       ".txt"))
       .string();
   remove(test_log_file.c_str());
+
+  struct LoggerConfigGuard
+  {
+    ccf::LoggerLevel old_level = ccf::logger::config::level();
+    ~LoggerConfigGuard()
+    {
+      ccf::logger::config::loggers().clear();
+      ccf::logger::config::level() = old_level;
+    }
+  };
+  LoggerConfigGuard logger_config_guard;
+
   ccf::logger::config::add_json_console_logger();
   ccf::logger::config::level() = ccf::LoggerLevel::DEBUG;
   std::string log_msg_dbg = "log_msg_dbg";
@@ -201,8 +213,13 @@ TEST_CASE("Test custom log format")
   struct CoutRdbufGuard
   {
     std::streambuf* old = nullptr;
-    explicit CoutRdbufGuard(std::streambuf* new_buf) : old(std::cout.rdbuf(new_buf)) {}
-    ~CoutRdbufGuard() { std::cout.rdbuf(old); }
+    explicit CoutRdbufGuard(std::streambuf* new_buf) :
+      old(std::cout.rdbuf(new_buf))
+    {}
+    ~CoutRdbufGuard()
+    {
+      std::cout.rdbuf(old);
+    }
   };
 
   {
