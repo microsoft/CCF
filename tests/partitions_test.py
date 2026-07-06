@@ -1243,6 +1243,21 @@ def test_in_place_restart_with_uncommittable_ledger(network, args):
         timeout=args.ledger_recovery_timeout,
     )
     assert old_primary.node_id != old_node_id
+
+    # Confirm that the infra has not deleted (or otherwise lost) the
+    # uncommitted ledger files that were present before the in-place restart.
+    restarted_uncommitted_files = _uncommitted_ledger_files(old_primary)
+    missing_uncommitted_files = new_uncommitted_files - restarted_uncommitted_files
+    assert not missing_uncommitted_files, (
+        "Uncommitted ledger files were unexpectedly missing after the "
+        f"in-place restart: {sorted(missing_uncommitted_files)}"
+    )
+    _assert_ledger_files_contain_payload(
+        old_primary.remote.current_ledger_path(),
+        new_uncommitted_files,
+        uncommitted_payload,
+    )
+
     network.trust_node(old_primary, args)
 
     new_primary, _ = network.find_primary()
