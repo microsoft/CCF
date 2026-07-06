@@ -639,15 +639,15 @@ def test_jwt_key_auto_refresh_response_size_limit(network, args):
             retry_interval_s = 5
             overall_timeout_s = 15
             start_time = time.time()
+
+            def get_stored_key():
+                latest_jwt_signing_keys = get_jwt_keys(args, primary)
+                assert kid in latest_jwt_signing_keys
+                return latest_jwt_signing_keys[kid][0]["publicKey"]
+
             while True:
                 try:
-                    with_timeout(
-                        lambda: check_kv_jwt_key_matches(
-                            args, network, kid, issuer.key_pub_pem
-                        ),
-                        timeout=retry_interval_s,
-                    )
-                    break
+                    stored_key = with_timeout(get_stored_key, timeout=retry_interval_s)
                 except (TimeoutError, AssertionError):
                     if time.time() - start_time >= overall_timeout_s:
                         raise
@@ -658,6 +658,12 @@ def test_jwt_key_auto_refresh_response_size_limit(network, args):
                     add_auto_refresh_jwt_issuer(
                         network, primary, issuer, ca_cert_bundle_name
                     )
+                    continue
+
+                assert (
+                    stored_key == issuer.key_pub_pem
+                ), "input cert is not equal to stored cert"
+                break
         finally:
             network.consortium.remove_jwt_issuer(primary, issuer.name)
 
