@@ -15,30 +15,22 @@
   "scripts": {
     "prepare": "npm run build",
     "build": "tsc",
-    "test": "cross-env TS_NODE_PROJECT=test/tsconfig.json mocha --loader=ts-node/esm test/**/*.test.ts",
+    "pretest": "node -e \"require('node:fs').rmSync('.test', { recursive: true, force: true })\"",
+    "test": "tsc -p test/tsconfig.json && node --test .test/test/*.test.js",
+    "posttest": "node -e \"require('node:fs').rmSync('.test', { recursive: true, force: true })\"",
     "docs": "typedoc",
     "docs:watch": "rm -rf html && typedoc --watch --preserveWatchOutput"
   },
   "author": "Microsoft",
   "license": "Apache-2.0",
   "devDependencies": {
-    "@types/chai": "^5.0.0",
-    "@types/mocha": "^10.0.0",
     "@types/node": "^26.0.1",
     "@types/node-forge": "^1.0.0",
-    "chai": "^6.0.1",
-    "cross-env": "^10.0.0",
-    "get-func-name": "3.0.0",
-    "mocha": "^11.7.5",
     "node-forge": "^1.2.0",
-    "ts-node": "^10.9.2",
     "typedoc": "^0.28.18",
     "typescript": "^6.0.2"
   },
   "bin": {
     "ccf-build-bundle": "scripts/build_bundle.js"
-  },
-  "dependencies": {
-    "colors": "1.4.0"
   }
 }

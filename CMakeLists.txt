@@ -19,6 +19,26 @@ message(STATUS "CCF version = ${CCF_VERSION}")
 message(STATUS "CCF release version = ${CCF_RELEASE_VERSION}")
 message(STATUS "CCF version suffix = ${CCF_VERSION_SUFFIX}")
 
+string(
+  REGEX MATCH "^[0-9]+"
+  CCF_CXX_COMPILER_MAJOR_VERSION
+  "${CMAKE_CXX_COMPILER_VERSION}"
+)
+if(
+  CMAKE_CXX_COMPILER_ID STREQUAL "Clang"
+  AND CCF_CXX_COMPILER_MAJOR_VERSION STREQUAL "21"
+)
+  set(
+    CCF_WARNING_ERROR_EXCEPTIONS
+    "$<$<COMPILE_LANGUAGE:CXX>:-Wno-error=deprecated-declarations>"
+    "$<$<COMPILE_LANGUAGE:CXX>:-Wno-error=#warnings>"
+  )
+  message(
+    STATUS
+    "Disabling -Werror for deprecated-declarations and #warnings with Clang ${CMAKE_CXX_COMPILER_VERSION}"
+  )
+endif()
+
 set(CCF_ENABLE_RELEASE_HARDENING_DEFAULT ON)
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
   set(CCF_ENABLE_RELEASE_HARDENING_DEFAULT OFF)
