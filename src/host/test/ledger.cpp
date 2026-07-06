@@ -1,8 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-// Enables the test-only async read hook and trigger in host/ledger.h
-#define TEST_MODE_LEDGER_ASYNC_HOOK
 #include "host/ledger.h"
 
 #include "ccf/crypto/sha256_hash.h"
@@ -2154,14 +2152,69 @@ TEST_CASE("Ledger init with existing files")
   }
 }
 
+namespace asynchost
+{
+  // Test-only accessor, befriended by Ledger (see host/ledger.h), granting
+  // access to the internals needed to exercise the async read shutdown
+  // coordination path directly - without requiring any test-only members on
+  // Ledger's public API.
+  struct LedgerAsyncTestAccess
+  {
+    // Sets the per-instance hook invoked by an async read worker once it has
+    // registered as active (see AsyncReadState::test_worker_active_hook).
+    static void set_worker_active_hook(
+      Ledger& ledger, std::function<void()> hook)
+    {
+      ledger.async_read_state->test_worker_active_hook = std::move(hook);
+    }
+
+    // Queue an asynchronous committed-range read using the same worker and
+    // completion callbacks as the ledger_get_range handler, without
+    // requiring the ringbuffer message plumbing. The optional result
+    // callback lets a test observe the read outcome (e.g. to confirm a read
+    // was skipped rather than served).
+    static void queue_async_read(
+      Ledger& ledger,
+      size_t from_idx,
+      size_t to_idx,
+      Ledger::AsyncLedgerGet::ResultCallback result_cb =
+        [](std::optional<LedgerReadResult>&&, int) {})
+    {
+      // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+      auto* work_handle = new uv_work_t;
+
+      // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+      auto* job = new Ledger::AsyncLedgerGet;
+      job->ledger = &ledger;
+      job->from_idx = from_idx;
+      job->to_idx = to_idx;
+      job->max_size = SIZE_MAX;
+      job->async_state = ledger.async_read_state;
+      job->result_cb = std::move(result_cb);
+      work_handle->data = job;
+
+      int rc = uv_queue_work(
+        uv_default_loop(),
+        work_handle,
+        &Ledger::on_ledger_get_async,
+        &Ledger::on_ledger_get_async_complete);
+      if (rc < 0)
+      {
+        delete job; // NOLINT(cppcoreguidelines-owning-memory)
+        delete work_handle; // NOLINT(cppcoreguidelines-owning-memory)
+        throw std::logic_error(fmt::format(
+          "Failed to queue test async ledger read: {}", uv_strerror(rc)));
+      }
+    }
+  };
+}
+
 // Test helper: on destruction - which happens on every exit path, including a
 // failed REQUIRE that doctest throws - releases a held in-flight async read
 // worker so ~Ledger can finish, joins the thread that destroys the Ledger (a
-// joinable std::thread must never be destroyed), drains the libuv completion
-// callbacks, and clears the global worker hook so it cannot retain dangling
-// references to the test's stack frame. Declare it before the hook and thread
-// are set up so it is destroyed first, while everything it references is still
-// alive.
+// joinable std::thread must never be destroyed), and drains the libuv
+// completion callbacks. Declare it before the hook and thread are set up so
+// it is destroyed first, while everything it references is still alive.
 struct AsyncShutdownTestCleanup
 {
   std::promise<void>& release_worker;
@@ -2179,7 +2232,6 @@ struct AsyncShutdownTestCleanup
       destroyer.join();
     }
     uv_run(uv_default_loop(), UV_RUN_DEFAULT);
-    asynchost::ledger_async_worker_active_hook() = nullptr;
   }
 };
 
@@ -2213,13 +2265,13 @@ TEST_CASE("Async ledger read blocks Ledger destruction until complete")
 
   AsyncShutdownTestCleanup cleanup{release_worker, worker_released, destroyer};
 
-  asynchost::ledger_async_worker_active_hook() = [&]() {
+  LedgerAsyncTestAccess::set_worker_active_hook(*ledger, [&]() {
     worker_active.set_value();
     release_future.wait();
-  };
+  });
 
   // Queue the asynchronous read. The worker runs on a libuv threadpool thread.
-  ledger->test_queue_async_read(1, end_of_first_chunk_idx);
+  LedgerAsyncTestAccess::queue_async_read(*ledger, 1, end_of_first_chunk_idx);
 
   // Wait until the worker is in-flight and holding the Ledger alive.
   worker_active.get_future().wait();
@@ -2237,8 +2289,8 @@ TEST_CASE("Async ledger read blocks Ledger destruction until complete")
     std::future_status::timeout);
 
   // Release the worker; the read completes on a live Ledger and ~Ledger can
-  // now finish. The cleanup guard above joins the destroyer, drains the loop,
-  // and clears the hook.
+  // now finish. The cleanup guard above joins the destroyer and drains the
+  // loop.
   release_worker.set_value();
   worker_released = true;
   REQUIRE(
@@ -2277,12 +2329,13 @@ TEST_CASE("Async ledger read started after shutdown begins is skipped")
 
   AsyncShutdownTestCleanup cleanup{release_worker, worker_released, destroyer};
 
-  asynchost::ledger_async_worker_active_hook() = [&]() {
+  LedgerAsyncTestAccess::set_worker_active_hook(*raw_ledger, [&]() {
     worker_active.set_value();
     release_future.wait();
-  };
+  });
 
-  raw_ledger->test_queue_async_read(1, end_of_first_chunk_idx);
+  LedgerAsyncTestAccess::queue_async_read(
+    *raw_ledger, 1, end_of_first_chunk_idx);
   worker_active.get_future().wait();
 
   destroyer = std::thread([&]() {
@@ -2301,7 +2354,8 @@ TEST_CASE("Async ledger read started after shutdown begins is skipped")
   // reports no value; an alive read of this valid committed range would report
   // one.
   std::promise<bool> second_read_served;
-  raw_ledger->test_queue_async_read(
+  LedgerAsyncTestAccess::queue_async_read(
+    *raw_ledger,
     1,
     end_of_first_chunk_idx,
     [&](std::optional<LedgerReadResult>&& result, int) {

@@ -741,22 +741,16 @@ namespace asynchost
     }
   };
 
-#ifdef TEST_MODE_LEDGER_ASYNC_HOOK
-  // Test-only hook (see src/host/test/ledger.cpp). Invoked by an async ledger
-  // read worker once it has registered as an active worker (so that ~Ledger
-  // must wait for it) and immediately before it dereferences the Ledger. Lets
-  // tests deterministically hold a worker in-flight while the owning Ledger is
-  // destroyed, exercising the shutdown coordination in ~Ledger.
-  inline std::function<void()>& ledger_async_worker_active_hook()
-  {
-    static std::function<void()> hook;
-    return hook;
-  }
-#endif
+  // Test-only accessor (see src/host/test/ledger.cpp), befriended below so
+  // that tests can exercise the async read shutdown-coordination path
+  // directly, without adding any test-only members to Ledger's public API.
+  struct LedgerAsyncTestAccess;
 
   class Ledger
   {
   private:
+    friend struct LedgerAsyncTestAccess;
+
     ringbuffer::WriterPtr to_enclave;
 
     // Main ledger directory (write and read)
@@ -811,6 +805,16 @@ namespace asynchost
       // Set to false when the owning Ledger is being destroyed, after which
       // workers must not access it
       bool ledger_alive = true;
+
+      // Test-only hook (see LedgerAsyncTestAccess in src/host/test/ledger.cpp).
+      // Invoked by an async ledger read worker once it has registered as an
+      // active worker (so that ~Ledger must wait for it) and immediately
+      // before it dereferences the Ledger. Lets tests deterministically hold a
+      // worker in-flight while the owning Ledger is destroyed, exercising the
+      // shutdown coordination in ~Ledger. Always present (so
+      // on_ledger_get_async contains no test-only #ifdef), but a no-op unless
+      // set by a test.
+      std::function<void()> test_worker_active_hook;
     };
 
     // See AsyncReadState, on_ledger_get_async and ~Ledger.
@@ -1805,12 +1809,10 @@ namespace asynchost
         ledger = data->ledger;
       }
 
-#ifdef TEST_MODE_LEDGER_ASYNC_HOOK
-      if (ledger_async_worker_active_hook())
+      if (async_state->test_worker_active_hook)
       {
-        ledger_async_worker_active_hook()();
+        async_state->test_worker_active_hook();
       }
-#endif
 
       data->read_result = ledger->read_entries_range(
         data->from_idx, data->to_idx, true, data->max_size);
@@ -1825,47 +1827,6 @@ namespace asynchost
       delete data; // NOLINT(cppcoreguidelines-owning-memory)
       delete req; // NOLINT(cppcoreguidelines-owning-memory)
     }
-
-#ifdef TEST_MODE_LEDGER_ASYNC_HOOK
-    // Test-only: queue an asynchronous committed-range read using the same
-    // worker and completion callbacks as the ledger_get_range handler, without
-    // requiring the ringbuffer message plumbing. Used to exercise the shutdown
-    // coordination between in-flight async reads and ~Ledger. The optional
-    // result callback lets a test observe the read outcome (e.g. to confirm a
-    // read was skipped rather than served).
-    void test_queue_async_read(
-      size_t from_idx,
-      size_t to_idx,
-      AsyncLedgerGet::ResultCallback result_cb =
-        [](std::optional<LedgerReadResult>&&, int) {})
-    {
-      // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
-      auto* work_handle = new uv_work_t;
-
-      // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
-      auto* job = new AsyncLedgerGet;
-      job->ledger = this;
-      job->from_idx = from_idx;
-      job->to_idx = to_idx;
-      job->max_size = SIZE_MAX;
-      job->async_state = async_read_state;
-      job->result_cb = std::move(result_cb);
-      work_handle->data = job;
-
-      int rc = uv_queue_work(
-        uv_default_loop(),
-        work_handle,
-        &on_ledger_get_async,
-        &on_ledger_get_async_complete);
-      if (rc < 0)
-      {
-        delete job; // NOLINT(cppcoreguidelines-owning-memory)
-        delete work_handle; // NOLINT(cppcoreguidelines-owning-memory)
-        throw std::logic_error(fmt::format(
-          "Failed to queue test async ledger read: {}", uv_strerror(rc)));
-      }
-    }
-#endif
 
     static void write_ledger_get_range_response(
       const ringbuffer::WriterPtr& to_enclave_,
