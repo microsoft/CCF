@@ -1,23 +1,7 @@
-import * as rs from "jsrsasign";
-
 import * as ccfapp from "@microsoft/ccf-app";
 import * as ccfcrypto from "@microsoft/ccf-app/crypto";
 import { toArrayBuffer } from "@microsoft/ccf-app/utils";
 import { base64ToUint8Array } from "./base64";
-
-interface CryptoResponse {
-  available: boolean;
-}
-
-export function crypto(
-  request: ccfapp.Request,
-): ccfapp.Response<CryptoResponse> {
-  // Most functionality of jsrsasign requires keys.
-  // Generating a key here is too slow, so we'll just check if the
-  // JS API got exported correctly.
-  let available = rs.KEYUTIL.generateKeypair ? true : false;
-  return { body: { available: available } };
-}
 
 interface GenerateAesKeyRequest {
   size: number;

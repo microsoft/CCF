@@ -14,7 +14,6 @@
 #include <openssl/asn1.h>
 #include <openssl/bn.h>
 #include <openssl/ec.h>
-#include <openssl/engine.h>
 #include <openssl/err.h>
 #include <openssl/evp.h>
 #include <openssl/pem.h>
