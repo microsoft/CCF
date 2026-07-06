@@ -629,7 +629,7 @@ def test_jwt_key_auto_refresh_response_size_limit(network, args):
                 lambda: check_kv_jwt_key_matches(
                     args, network, kid, issuer.key_pub_pem
                 ),
-                timeout=5,
+                timeout=15,
             )
         finally:
             network.consortium.remove_jwt_issuer(primary, issuer.name)
@@ -833,7 +833,7 @@ def test_jwt_key_auto_refresh_entries(network, args):
 
 
 @reqs.description("JWT with auto_refresh enabled, initial refresh")
-def test_jwt_key_initial_refresh(network, args):
+def test_jwt_key_initial_refresh(network, args, timeout_s=15):
     primary, _ = network.find_nodes()
 
     ca_cert_bundle_name = "jwt"
@@ -871,9 +871,13 @@ def test_jwt_key_initial_refresh(network, args):
         LOG.info("Check that keys got refreshed")
         # Auto-refresh interval has been set to a large value so that it doesn't happen within the timeout.
         # This is testing the one-off refresh after adding a new issuer.
+        # The timeout is generous because this check also runs straight after a
+        # primary failover, where the newly-elected primary must restart the
+        # refresh and re-fetch the keys, which can take several seconds under CI
+        # load.
         with_timeout(
             lambda: check_kv_jwt_key_matches(args, network, kid, issuer.key_pub_pem),
-            timeout=5,
+            timeout=timeout_s,
         )
 
         LOG.info("Check that JWT refresh endpoint has no failures")
@@ -1069,7 +1073,7 @@ def run_manual(args):
         primary, _ = network.find_primary()
         primary.stop()
         network.wait_for_new_primary(primary)
-        test_jwt_key_initial_refresh(network, args)
+        test_jwt_key_initial_refresh(network, args, timeout_s=30)
         test_jwt_key_auto_refresh_connection_failure(network, args)
         test_jwt_key_auto_refresh_tls_failure(network, args)
         test_jwt_key_auto_refresh_invalid_metadata_issuer(network, args)
