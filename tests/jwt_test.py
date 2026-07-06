@@ -2,6 +2,8 @@
 # Licensed under the Apache 2.0 License.
 import tempfile
 import json
+import os
+import threading
 import time
 import base64
 import socket
@@ -25,6 +27,8 @@ from ccf.tx_id import TxID
 import infra.clients
 
 from loguru import logger as LOG
+
+TRUST_STORE_LOCK = threading.Lock()
 
 
 def set_issuer_with_keys(network, primary, issuer, kids):
@@ -418,9 +422,10 @@ def reserve_unlistened_local_port():
 def trust_jwt_issuer(args, issuer):
     trust_store = getattr(args, "jwt_test_trust_store", None)
     if trust_store:
-        with open(trust_store, "a", encoding="utf-8") as f:
-            f.write(issuer.tls_cert)
-            f.write("\n")
+        with TRUST_STORE_LOCK:
+            with open(trust_store, "a", encoding="utf-8") as f:
+                f.write(issuer.tls_cert)
+                f.write("\n")
 
 
 def add_auto_refresh_jwt_issuer(network, args, primary, issuer):
@@ -923,7 +928,9 @@ def run_auto(args):
         with infra.network.network(
             args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
         ) as network:
-            network.start_and_open(args, env={"SSL_CERT_FILE": trust_store.name})
+            network.start_and_open(
+                args, env=os.environ | {"SSL_CERT_FILE": trust_store.name}
+            )
             test_jwt_issuer_and_jwks_validation(network, args)
             test_jwt_mulitple_issuers_same_kids_different_pem(network, args)
             test_jwt_mulitple_issuers_same_kids_same_pem(network, args)
@@ -951,7 +958,9 @@ def run_manual(args):
         with infra.network.network(
             args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
         ) as network:
-            network.start_and_open(args, env={"SSL_CERT_FILE": trust_store.name})
+            network.start_and_open(
+                args, env=os.environ | {"SSL_CERT_FILE": trust_store.name}
+            )
             test_jwt_key_initial_refresh(network, args)
 
             # Check that initial refresh also works on backups

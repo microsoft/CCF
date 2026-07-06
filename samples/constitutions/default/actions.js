@@ -1136,6 +1136,7 @@ const actions = new Map([
         const issuer = args.issuer;
         const jwks = args.jwks;
         delete args.jwks;
+        delete args.ca_cert_bundle_name;
         const metadata = args;
         if (jwks) {
           ccf.setJwtPublicSigningKeys(issuer, metadata, jwks);

@@ -7,6 +7,7 @@
 #include "ccf/service/map.h"
 
 #include <map>
+#include <optional>
 #include <string>
 
 namespace ccf
@@ -20,13 +21,17 @@ namespace ccf
 
   struct JwtIssuerMetadata
   {
+    /// Legacy field accepted when reading existing issuer metadata, but ignored
+    /// for new outbound TLS verification.
+    std::optional<std::string> ca_cert_bundle_name;
     /// Whether to auto-refresh keys from the issuer
     bool auto_refresh = false;
   };
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(JwtIssuerMetadata);
   DECLARE_JSON_REQUIRED_FIELDS(JwtIssuerMetadata);
-  DECLARE_JSON_OPTIONAL_FIELDS(JwtIssuerMetadata, auto_refresh);
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    JwtIssuerMetadata, ca_cert_bundle_name, auto_refresh);
 
   using JwtIssuer = std::string;
   using JwtKeyId = std::string;

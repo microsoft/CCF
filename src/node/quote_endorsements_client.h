@@ -187,7 +187,7 @@ namespace ccf
           LOG_INFO_FMT(
             "TLS verification failed while fetching endorsements. Check that "
             "the endorsement server certificate is trusted by the system trust "
-            "store.");
+            "store, or by the trust store pointed to by SSL_CERT_FILE.");
         }
 
         if (
