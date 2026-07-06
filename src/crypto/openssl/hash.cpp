@@ -109,13 +109,12 @@ namespace ccf::crypto
       {
         throw std::logic_error("Salt size is too large");
       }
-      // Empty salt is represented as a zero-length octet string. Its data
-      // pointer is deliberately non-null because OpenSSL 3.5 rejects null
-      // OSSL_PARAM octet-string data pointers, even with length 0. OpenSSL 3.3
-      // and 3.5 both pass the pointer and salt_size through to HKDF, so no salt
-      // bytes are read and the derived key is unchanged.
+      // Null salt data is represented as a zero-length octet string. Its data
+      // pointer must be non-null because OpenSSL 3.5 rejects null OSSL_PARAM
+      // octet-string data pointers, even with length 0.
       const uint8_t empty_salt = 0;
-      const auto* salt_data = salt.empty() ? &empty_salt : salt.data();
+      const auto* salt_data =
+        salt.data() == nullptr ? &empty_salt : salt.data();
       int salt_size = static_cast<int>(salt.size());
       CHECKPOSITIVE(EVP_PKEY_CTX_set1_hkdf_salt(pctx, salt_data, salt_size));
       if (ikm.size() > std::numeric_limits<int>::max())
