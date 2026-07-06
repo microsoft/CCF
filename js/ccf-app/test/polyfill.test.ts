@@ -1,5 +1,6 @@
-import { assert } from "chai";
+import assert from "node:assert/strict";
 import * as crypto from "crypto";
+import { before, beforeEach, describe, it } from "node:test";
 import "../src/polyfill.js";
 import type {
   AesKwpParams,
@@ -84,43 +85,43 @@ describe("polyfill", function () {
   describe("generateRsaKeyPair", function () {
     it("generates a random RSA key pair", function () {
       const pair = ccf.crypto.generateRsaKeyPair(2048);
-      assert.isTrue(pair.publicKey.startsWith("-----BEGIN PUBLIC KEY-----"));
-      assert.isTrue(pair.privateKey.startsWith("-----BEGIN PRIVATE KEY-----"));
+      assert.ok(pair.publicKey.startsWith("-----BEGIN PUBLIC KEY-----"));
+      assert.ok(pair.privateKey.startsWith("-----BEGIN PRIVATE KEY-----"));
     });
   });
   describe("generateEcdsaKeyPair/secp256r1", function () {
     it("generates a random ECDSA P256R1 key pair", function () {
       const pair = ccf.crypto.generateEcdsaKeyPair("secp256r1");
-      assert.isTrue(pair.publicKey.startsWith("-----BEGIN PUBLIC KEY-----"));
-      assert.isTrue(pair.privateKey.startsWith("-----BEGIN PRIVATE KEY-----"));
+      assert.ok(pair.publicKey.startsWith("-----BEGIN PUBLIC KEY-----"));
+      assert.ok(pair.privateKey.startsWith("-----BEGIN PRIVATE KEY-----"));
     });
   });
   describe("generateEcdsaKeyPair/secp384r1", function () {
     it("generates a random ECDSA P384R1 key pair", function () {
       const pair = ccf.crypto.generateEcdsaKeyPair("secp384r1");
-      assert.isTrue(pair.publicKey.startsWith("-----BEGIN PUBLIC KEY-----"));
-      assert.isTrue(pair.privateKey.startsWith("-----BEGIN PRIVATE KEY-----"));
+      assert.ok(pair.publicKey.startsWith("-----BEGIN PUBLIC KEY-----"));
+      assert.ok(pair.privateKey.startsWith("-----BEGIN PRIVATE KEY-----"));
     });
   });
   describe("generateEcdsaKeyPair/secp521r1", function () {
     it("generates a random ECDSA P521R1 key pair", function () {
       const pair = ccf.crypto.generateEcdsaKeyPair("secp521r1");
-      assert.isTrue(pair.publicKey.startsWith("-----BEGIN PUBLIC KEY-----"));
-      assert.isTrue(pair.privateKey.startsWith("-----BEGIN PRIVATE KEY-----"));
+      assert.ok(pair.publicKey.startsWith("-----BEGIN PUBLIC KEY-----"));
+      assert.ok(pair.privateKey.startsWith("-----BEGIN PRIVATE KEY-----"));
     });
   });
   describe("generateEddsaKeyPair/Curve25519", function () {
     it("generates a random EdDSA Curve25519 key pair", function () {
       const pair = ccf.crypto.generateEddsaKeyPair("curve25519");
-      assert.isTrue(pair.publicKey.startsWith("-----BEGIN PUBLIC KEY-----"));
-      assert.isTrue(pair.privateKey.startsWith("-----BEGIN PRIVATE KEY-----"));
+      assert.ok(pair.publicKey.startsWith("-----BEGIN PUBLIC KEY-----"));
+      assert.ok(pair.privateKey.startsWith("-----BEGIN PRIVATE KEY-----"));
     });
   });
   describe("generateEddsaKeyPair/X25519", function () {
     it("generates a random EdDSA X25519 key pair", function () {
       const pair = ccf.crypto.generateEddsaKeyPair("x25519");
-      assert.isTrue(pair.publicKey.startsWith("-----BEGIN PUBLIC KEY-----"));
-      assert.isTrue(pair.privateKey.startsWith("-----BEGIN PRIVATE KEY-----"));
+      assert.ok(pair.publicKey.startsWith("-----BEGIN PUBLIC KEY-----"));
+      assert.ok(pair.privateKey.startsWith("-----BEGIN PRIVATE KEY-----"));
     });
   });
   describe("wrapKey", function () {
@@ -199,7 +200,7 @@ describe("polyfill", function () {
         const verifier = crypto.createVerify("SHA256");
         verifier.update(new Uint8Array(data));
         verifier.end();
-        assert.isTrue(
+        assert.ok(
           verifier.verify(
             {
               key: publicKey,
@@ -212,7 +213,7 @@ describe("polyfill", function () {
       }
 
       // Also `signature` should be verified successfully with the JS API
-      assert.isTrue(
+      assert.ok(
         ccf.crypto.verifySignature(
           {
             name: "RSA-PSS",
@@ -228,8 +229,8 @@ describe("polyfill", function () {
         const verifier = crypto.createVerify("SHA256");
         verifier.update("bar");
         verifier.end();
-        assert.isFalse(
-          verifier.verify(
+        assert.ok(
+          !verifier.verify(
             {
               key: publicKey,
               dsaEncoding: "ieee-p1363",
@@ -265,7 +266,7 @@ describe("polyfill", function () {
         const verifier = crypto.createVerify("SHA256");
         verifier.update(new Uint8Array(data));
         verifier.end();
-        assert.isTrue(
+        assert.ok(
           verifier.verify(
             {
               key: publicKey,
@@ -277,7 +278,7 @@ describe("polyfill", function () {
       }
 
       // Also `signature` should be verified successfully with the JS API
-      assert.isTrue(
+      assert.ok(
         ccf.crypto.verifySignature(
           {
             name: "ECDSA",
@@ -293,8 +294,8 @@ describe("polyfill", function () {
         const verifier = crypto.createVerify("SHA256");
         verifier.update("bar");
         verifier.end();
-        assert.isFalse(
-          verifier.verify(
+        assert.ok(
+          !verifier.verify(
             {
               key: publicKey,
               dsaEncoding: "ieee-p1363",
@@ -324,7 +325,7 @@ describe("polyfill", function () {
         data,
       );
 
-      assert.isTrue(
+      assert.ok(
         crypto.verify(
           null,
           new Uint8Array(data),
@@ -334,7 +335,7 @@ describe("polyfill", function () {
       );
 
       // Also `signature` should be verified successfully with the JS API
-      assert.isTrue(
+      assert.ok(
         ccf.crypto.verifySignature(
           {
             name: "EdDSA",
@@ -345,8 +346,8 @@ describe("polyfill", function () {
         ),
       );
 
-      assert.isFalse(
-        crypto.verify(
+      assert.ok(
+        !crypto.verify(
           null,
           new Uint8Array(ccf.strToBuf("bar")),
           publicKey,
@@ -354,7 +355,7 @@ describe("polyfill", function () {
         ),
       );
     });
-    it("performs HMAC sign correctly", function () {
+    describe("performs HMAC sign correctly", function () {
       [
         { ccfHash: "SHA-256", nodeHash: "sha256" },
         { ccfHash: "SHA-384", nodeHash: "sha384" },
@@ -386,7 +387,6 @@ describe("polyfill", function () {
             );
             assert.deepEqual(signature, node_hmac);
           }
-          assert.deepEqual(5, 6);
 
           {
             // Check for mismatch
@@ -414,7 +414,7 @@ describe("polyfill", function () {
         padding: crypto.constants.RSA_PKCS1_PSS_PADDING,
         saltLength: 0,
       });
-      assert.isTrue(
+      assert.ok(
         ccf.crypto.verifySignature(
           {
             name: "RSA-PSS",
@@ -425,7 +425,7 @@ describe("polyfill", function () {
           data,
         ),
       );
-      assert.isTrue(
+      assert.ok(
         ccf.crypto.verifySignature(
           {
             name: "RSA-PSS",
@@ -436,8 +436,8 @@ describe("polyfill", function () {
           data,
         ),
       );
-      assert.isNotTrue(
-        ccf.crypto.verifySignature(
+      assert.ok(
+        !ccf.crypto.verifySignature(
           {
             name: "RSA-PSS",
             hash: "SHA-256",
@@ -481,7 +481,7 @@ describe("polyfill", function () {
         key: crypto.createPrivateKey(privateKey),
         dsaEncoding: "ieee-p1363",
       });
-      assert.isTrue(
+      assert.ok(
         ccf.crypto.verifySignature(
           {
             name: "ECDSA",
@@ -492,8 +492,8 @@ describe("polyfill", function () {
           data,
         ),
       );
-      assert.isNotTrue(
-        ccf.crypto.verifySignature(
+      assert.ok(
+        !ccf.crypto.verifySignature(
           {
             name: "ECDSA",
             hash: "SHA-256",
@@ -532,7 +532,7 @@ describe("polyfill", function () {
         new Uint8Array(data),
         crypto.createPrivateKey(privateKey),
       );
-      assert.isTrue(
+      assert.ok(
         ccf.crypto.verifySignature(
           {
             name: "EdDSA",
@@ -542,8 +542,8 @@ describe("polyfill", function () {
           data,
         ),
       );
-      assert.isNotTrue(
-        ccf.crypto.verifySignature(
+      assert.ok(
+        !ccf.crypto.verifySignature(
           {
             name: "EdDSA",
           },
@@ -575,24 +575,22 @@ describe("polyfill", function () {
       assert.equal(actual, expected);
     });
   });
-  describe("isValidX509CertBundle", function (this) {
-    const supported = "X509Certificate" in crypto;
-    it("returns true for valid certs", function () {
-      if (!supported) {
-        this.skip();
-      }
-      const pem1 = generateSelfSignedCert().cert;
-      const pem2 = generateSelfSignedCert().cert;
-      assert.isTrue(ccf.crypto.isValidX509CertBundle(pem1));
-      assert.isTrue(ccf.crypto.isValidX509CertBundle(pem1 + "\n" + pem2));
-    });
-    it("returns false for invalid certs", function () {
-      if (!supported) {
-        this.skip();
-      }
-      assert.isFalse(ccf.crypto.isValidX509CertBundle("garbage"));
-    });
-  });
+  describe(
+    "isValidX509CertBundle",
+    { skip: !("X509Certificate" in crypto) },
+    function () {
+      const supported = "X509Certificate" in crypto;
+      it("returns true for valid certs", function () {
+        const pem1 = generateSelfSignedCert().cert;
+        const pem2 = generateSelfSignedCert().cert;
+        assert.ok(ccf.crypto.isValidX509CertBundle(pem1));
+        assert.ok(ccf.crypto.isValidX509CertBundle(pem1 + "\n" + pem2));
+      });
+      it("returns false for invalid certs", function () {
+        assert.ok(!ccf.crypto.isValidX509CertBundle("garbage"));
+      });
+    },
+  );
   describe("pemToJwk and jwkToPem", function () {
     it("EC", function () {
       const my_kid = "my_kid";
@@ -616,7 +614,7 @@ describe("polyfill", function () {
         {
           const jwk = ccf.crypto.pemToJwk(pair.privateKey);
           assert.equal(jwk.kty, "EC");
-          assert.notExists(jwk.kid);
+          assert.equal(jwk.kid, undefined);
           const pem = ccf.crypto.jwkToPem(jwk);
           assert.deepEqual(
             crypto.createPrivateKey(pem).export({ format: "jwk" }),
@@ -745,11 +743,11 @@ describe("polyfill", function () {
 
       foo.set(key_buf, val_buf);
       assert.deepEqual(foo.get(key_buf), val_buf);
-      assert.isTrue(foo.has(key_buf));
+      assert.ok(foo.has(key_buf));
 
       const foo2 = ccf.kv["foo"];
       assert.deepEqual(foo2.get(key_buf), val_buf);
-      assert.isTrue(foo2.has(key_buf));
+      assert.ok(foo2.has(key_buf));
 
       let found = false;
       foo.forEach((v, k) => {
@@ -757,69 +755,56 @@ describe("polyfill", function () {
           found = true;
         }
       });
-      assert.isTrue(found);
+      assert.ok(found);
 
       foo.delete(key_buf);
-      assert.isNotTrue(foo.has(key_buf));
+      assert.ok(!foo.has(key_buf));
       assert.equal(foo.get(key_buf), undefined);
     });
   });
   // This test case should be the last until https://github.com/nodejs/node/pull/45377 is addressed.
-  describe("isValidX509CertChain", function (this) {
-    const supported = "X509Certificate" in crypto;
-    let pems: string[];
-    before(function () {
-      if (!supported) {
-        this.skip();
-      }
-      pems = generateCertChain(3);
-    });
-    it("returns true for valid cert chains", function () {
-      if (!supported) {
-        this.skip();
-      }
-      const chain = [pems[0], pems[1]].join("\n");
-      const trusted = pems[2];
-      assert.isTrue(ccf.crypto.isValidX509CertChain(chain, trusted));
-    });
-    it("returns false for invalid cert chains", function () {
-      if (!supported) {
-        this.skip();
-      }
-      const chain = pems[0];
-      const trusted = pems[2];
-      assert.isFalse(ccf.crypto.isValidX509CertChain(chain, trusted));
-    });
-  });
-  describe("isValidX509RootCACert", function (this) {
-    const supported = "X509Certificate" in crypto;
-    it("returns true for a self-signed CA certificate", function () {
-      if (!supported) {
-        this.skip();
-      }
-      const pem = generateSelfSignedCACert();
-      assert.isTrue(ccf.crypto.isValidX509RootCACert(pem));
-    });
-    it("returns false for a non-CA self-signed certificate", function () {
-      if (!supported) {
-        this.skip();
-      }
-      const pem = generateSelfSignedCert().cert;
-      assert.isFalse(ccf.crypto.isValidX509RootCACert(pem));
-    });
-    it("returns false for an intermediate CA certificate", function () {
-      if (!supported) {
-        this.skip();
-      }
-      // An intermediate CA has CA:TRUE but is signed by a different key (not self-signed).
-      const pem = generateIntermediateCACert();
-      assert.isFalse(ccf.crypto.isValidX509RootCACert(pem));
-    });
-    it("returns false for malformed input", function () {
-      if (!supported) {
-        this.skip();
-      }
-      assert.isFalse(ccf.crypto.isValidX509RootCACert("garbage"));
-    });
-  });
+  describe(
+    "isValidX509CertChain",
+    { skip: !("X509Certificate" in crypto) },
+    function () {
+      const supported = "X509Certificate" in crypto;
+      let pems: string[];
+      before(function () {
+        pems = generateCertChain(3);
+      });
+      it("returns true for valid cert chains", function () {
+        const chain = [pems[0], pems[1]].join("\n");
+        const trusted = pems[2];
+        assert.ok(ccf.crypto.isValidX509CertChain(chain, trusted));
+      });
+      it("returns false for invalid cert chains", function () {
+        const chain = pems[0];
+        const trusted = pems[2];
+        assert.ok(!ccf.crypto.isValidX509CertChain(chain, trusted));
+      });
+    },
+  );
+  describe(
+    "isValidX509RootCACert",
+    { skip: !("X509Certificate" in crypto) },
+    function () {
+      const supported = "X509Certificate" in crypto;
+      it("returns true for a self-signed CA certificate", function () {
+        const pem = generateSelfSignedCACert();
+        assert.ok(ccf.crypto.isValidX509RootCACert(pem));
+      });
+      it("returns false for a non-CA self-signed certificate", function () {
+        const pem = generateSelfSignedCert().cert;
+        assert.ok(!ccf.crypto.isValidX509RootCACert(pem));
+      });
+      it("returns false for an intermediate CA certificate", function () {
+        // An intermediate CA has CA:TRUE but is signed by a different key (not self-signed).
+        const pem = generateIntermediateCACert();
+        assert.ok(!ccf.crypto.isValidX509RootCACert(pem));
+      });
+      it("returns false for malformed input", function () {
+        assert.ok(!ccf.crypto.isValidX509RootCACert("garbage"));
+      });
+    },
+  );
 });

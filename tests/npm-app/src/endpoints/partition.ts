@@ -1,5 +1,3 @@
-import * as _ from "lodash-es";
-
 import * as ccfapp from "@microsoft/ccf-app";
 
 type PartitionRequest = any[];
@@ -10,5 +8,16 @@ export function partition(
 ): ccfapp.Response<PartitionResponse> {
   // Example from https://lodash.com.
   let arr = request.body.json();
-  return { body: _.partition(arr, (n) => n % 2) };
+  const matching = [];
+  const nonMatching = [];
+
+  for (const n of arr) {
+    if (n % 2) {
+      matching.push(n);
+    } else {
+      nonMatching.push(n);
+    }
+  }
+
+  return { body: [matching, nonMatching] };
 }

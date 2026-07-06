@@ -65,6 +65,7 @@ namespace ccf
     struct JWT
     {
       ccf::ds::TimeString key_refresh_interval = {"30min"};
+      ccf::ds::SizeString key_refresh_max_response_size = {"1MB"};
 
       bool operator==(const JWT&) const = default;
     };
