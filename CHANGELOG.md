@@ -11,14 +11,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
-- The node join protocol client now uses the curl multi singleton client (introduced in #7102) instead of the legacy enclave `RPCSessions::create_client()` HTTP client, matching the JWT refresh and snapshot-fetch clients. The service certificate remains the sole trust anchor for the join connection (the host certificate store is never consulted). TLS certificate hostname verification is now enforced on the join connection: operators must ensure the target node's certificate subject alternative names cover the address configured in `join.target_rpc_address` (#XXXX).
+- The node join protocol client now uses the curl multi singleton client (introduced in #7102) instead of the legacy enclave `RPCSessions::create_client()` HTTP client, matching the JWT refresh and snapshot-fetch clients. The service certificate remains the sole trust anchor for the join connection (the host certificate store is never consulted). TLS certificate hostname verification is now enforced on the join connection: operators must ensure the target node's certificate subject alternative names cover the address configured in `join.target_rpc_address` (#8040).
 - JWT/JWK auto-refresh outbound HTTP fetches (OpenID metadata and JWKS) now use the curl multi singleton client introduced in #7102, replacing the previous `RPCSessions::create_client()` path. Connection and TLS failures are now counted in refresh failure metrics via `send_refresh_jwt_keys_error()`, improving observability of network-level refresh errors (#7989).
 - JWT/JWK auto-refresh now supports configuring the maximum response body size for fetched OpenID metadata and JWKS via the `jwt.key_refresh_max_response_size` node startup config setting (#7989).
 - Fatal task worker stack traces now use libbacktrace for improved function and source-location resolution. Building CCF now requires the libbacktrace development package, and the RPM development package depends on `libbacktrace-static` (#7721).
 
 ### Removed
 
-- The unused enclave-side HTTP client infrastructure (`RPCSessions::create_client`, `HTTPClientSession`, `HTTP2ClientSession`, `UnencryptedHTTPClientSession`, and the `ClientSession` base) has been removed following the migration of the node join client to curl, completing the legacy HTTP client removal tracked in #7262 (#XXXX).
+- The unused enclave-side HTTP client infrastructure (`RPCSessions::create_client`, `HTTPClientSession`, `HTTP2ClientSession`, `UnencryptedHTTPClientSession`, and the `ClientSession` base) has been removed following the migration of the node join client to curl, completing the legacy HTTP client removal tracked in #7262 (#8040).
 
 ### Fixed
 
