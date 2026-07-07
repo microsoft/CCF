@@ -38,9 +38,7 @@ namespace ccf
     static constexpr long request_response_timeout_s = 5;
 
     void send_curl_get(
-      const std::string& url,
-      const std::string& ca_bundle_pem,
-      ccf::curl::CurlRequest::ResponseCallback callback)
+      const std::string& url, ccf::curl::CurlRequest::ResponseCallback callback)
     {
       ccf::curl::UniqueCURL curl_handle;
       curl_handle.set_opt(CURLOPT_HTTPGET, 1L);
@@ -54,11 +52,6 @@ namespace ccf
       // https://curl.se/libcurl/c/CURLOPT_SSL_VERIFYHOST.html
       curl_handle.set_opt(CURLOPT_SSL_VERIFYHOST, 2L);
       curl_handle.set_opt(CURLOPT_PROTOCOLS_STR, "https");
-      curl_handle.set_blob_opt(
-        CURLOPT_CAINFO_BLOB,
-        reinterpret_cast<const uint8_t*>(ca_bundle_pem.data()),
-        ca_bundle_pem.size());
-      curl_handle.set_opt(CURLOPT_CAPATH, nullptr);
 
       ccf::curl::UniqueSlist headers;
 
@@ -253,7 +246,6 @@ namespace ccf
 
     void handle_jwt_metadata_response(
       const std::string& issuer,
-      std::string ca_bundle_pem,
       ccf::http_status status,
       std::vector<uint8_t>&& data)
     {
@@ -376,7 +368,7 @@ namespace ccf
             }));
         };
 
-      send_curl_get(jwks_url_str, ca_bundle_pem, std::move(response_callback));
+      send_curl_get(jwks_url_str, std::move(response_callback));
     }
 
     void refresh_jwt_keys()
@@ -388,8 +380,7 @@ namespace ccf
 
       auto tx = network.tables->create_read_only_tx();
       auto* jwt_issuers = tx.ro(network.jwt_issuers);
-      auto* ca_cert_bundles = tx.ro(network.ca_cert_bundles);
-      jwt_issuers->foreach([this, &ca_cert_bundles](
+      jwt_issuers->foreach([this](
                              const JwtIssuer& issuer,
                              const JwtIssuerMetadata& metadata) {
         if (stopped.load())
@@ -411,19 +402,6 @@ namespace ccf
 
         LOG_DEBUG_FMT(
           "JWT key auto-refresh: Refreshing keys for issuer '{}'", issuer);
-        const auto& ca_cert_bundle_name = metadata.ca_cert_bundle_name.value();
-        auto ca_cert_bundle_pem = ca_cert_bundles->get(ca_cert_bundle_name);
-        if (!ca_cert_bundle_pem.has_value())
-        {
-          LOG_INFO_FMT(
-            "JWT key auto-refresh: CA cert bundle with name '{}' for issuer "
-            "'{}' not "
-            "found",
-            ca_cert_bundle_name,
-            issuer);
-          send_refresh_jwt_keys_error();
-          return true;
-        }
 
         auto metadata_url = issuer + "/.well-known/openid-configuration";
 
@@ -431,11 +409,9 @@ namespace ccf
           "JWT key auto-refresh: Requesting OpenID metadata at {}",
           metadata_url);
 
-        auto ca_bundle_pem = ca_cert_bundle_pem.value();
-
         const auto self = weak_from_this();
         auto response_callback =
-          [self, issuer, ca_bundle_pem](
+          [self, issuer](
             std::unique_ptr<ccf::curl::CurlRequest>&& request,
             CURLcode curl_response,
             long status_code) {
@@ -444,13 +420,8 @@ namespace ccf
               request->get_response_body() != nullptr ?
                 std::move(request->get_response_body()->buffer) :
                 std::vector<uint8_t>{});
-            ccf::tasks::add_task(
-              ccf::tasks::make_basic_task([self,
-                                           issuer,
-                                           ca_bundle_pem,
-                                           curl_response,
-                                           http_status,
-                                           response_body_sp]() {
+            ccf::tasks::add_task(ccf::tasks::make_basic_task(
+              [self, issuer, curl_response, http_status, response_body_sp]() {
                 const auto self_sp = self.lock();
                 if (self_sp == nullptr || self_sp->stopped.load())
                 {
@@ -469,15 +440,11 @@ namespace ccf
                   return;
                 }
                 self_sp->handle_jwt_metadata_response(
-                  issuer,
-                  ca_bundle_pem,
-                  http_status,
-                  std::move(*response_body_sp));
+                  issuer, http_status, std::move(*response_body_sp));
               }));
           };
 
-        send_curl_get(
-          metadata_url, ca_bundle_pem, std::move(response_callback));
+        send_curl_get(metadata_url, std::move(response_callback));
         return true;
       });
     }

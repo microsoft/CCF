@@ -657,12 +657,4 @@ if __name__ == "__main__":
         forwarding_timeout_ms=jwt_forwarding_timeout_ms,
     )
 
-    cr.add(
-        "ca_cert",
-        jwt_test.run_ca_cert,
-        package="samples/apps/logging/logging",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-        forwarding_timeout_ms=jwt_forwarding_timeout_ms,
-    )
-
     cr.run()

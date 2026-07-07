@@ -66,29 +66,9 @@ In such cases, token issuers in CCF can be configured to automatically refresh t
 The following extra conditions must be true compared to setting up an issuer with manual key refresh:
 
 - The ``issuer`` must be an OpenID Connect issuer URL, for example ``https://login.microsoftonline.com/common/v2.0``. During auto-refresh, the keys are fetched from that URL by appending ``/.well-known/openid-configuration``.
-- A CA certificate for the issuer URL must be stored so that the TLS connection to the IdP can be validated during key refresh.
+- The certificate presented by the issuer URL must be trusted by the node host's system trust store so that the TLS connection to the IdP can be validated during key refresh.
 
-The CA certificate is stored with a ``set_ca_cert_bundle`` proposal:
-
-.. code-block:: json
-
-    {
-      "actions": [
-        {
-          "name": "set_ca_cert_bundle",
-          "args": {
-            "name": "jwt_ms",
-            "cert_bundle": "-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----\n-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----\n"
-          }
-        }
-      ]
-    }
-
-.. note::
-
-    The ``cert_bundle`` in the example proposal above is a placeholder. The actual value should contain PEM-encoded certificates of all the root CAs for the given issuer, separated by newlines. For Microsoft Entra, the list of root CAs is `here <https://learn.microsoft.com/en-us/azure/security/fundamentals/azure-CA-details>`_.
-
-Now the issuer can be created with auto-refresh enabled:
+The issuer can be created with auto-refresh enabled:
 
 .. code-block:: json
 
@@ -98,7 +78,6 @@ Now the issuer can be created with auto-refresh enabled:
           "name": "set_jwt_issuer",
           "args": {
             "issuer": "https://login.microsoftonline.com/common/v2.0",
-            "ca_cert_bundle_name": "jwt_ms",
             "auto_refresh": true
           }
         }
@@ -107,7 +86,11 @@ Now the issuer can be created with auto-refresh enabled:
 
 .. note::
 
-    The key refresh interval is set via the ``jwt.key_refresh_interval`` configuration entry, where the default is 30 min (1800 seconds). The maximum response body size accepted when fetching OpenID metadata and JWKS is set via ``jwt.key_refresh_max_response_size``, where the default is 1 MB.
+    The key refresh interval is set via the ``jwt.key_refresh_interval`` configuration entry, where the default is 30 min (1800 seconds).
+    The maximum response body size accepted when fetching OpenID metadata and JWKS is set via ``jwt.key_refresh_max_response_size``, where the default is 1 MB.
+    If auto-refresh fails with a TLS certificate verification error, make sure the IdP's issuing root CA is installed in the trust store of the host or container image running the CCF node.
+    Alternatively, point the node process at a PEM bundle with ``SSL_CERT_FILE``.
+    Then restart or redeploy the node so outbound fetches can use the updated trust store.
 
 Removing a token issuer
 -----------------------

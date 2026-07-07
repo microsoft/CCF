@@ -19,9 +19,6 @@ import glob
 import datetime
 import infra.clients
 
-from cryptography import x509
-import cryptography.hazmat.backends as crypto_backends
-
 from loguru import logger as LOG
 
 
@@ -663,7 +660,6 @@ class Consortium:
             # lts_compatibility tests.
             "key_filter": "all",
             "issuer": obj["issuer"],
-            "ca_cert_bundle_name": obj.get("ca_cert_bundle_name"),
             "auto_refresh": obj.get("auto_refresh", False),
             "jwks": obj.get("jwks"),
         }
@@ -682,38 +678,6 @@ class Consortium:
         obj = slurp_json(jwks_path)
         proposal_body, careful_vote = self.make_proposal(
             "set_jwt_public_signing_keys", issuer=issuer, jwks=obj
-        )
-        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
-        return self.vote_using_majority(remote_node, proposal, careful_vote)
-
-    def set_ca_cert_bundle(
-        self, remote_node, cert_name, cert_bundle_path, skip_checks=False
-    ):
-        if not skip_checks:
-            cert_bundle_pem = slurp_file(cert_bundle_path)
-            delim = "-----END CERTIFICATE-----"
-            for cert_pem in cert_bundle_pem.split(delim):
-                if not cert_pem.strip():
-                    continue
-                cert_pem += delim
-                try:
-                    x509.load_pem_x509_certificate(
-                        cert_pem.encode(), crypto_backends.default_backend()
-                    )
-                except Exception as exc:
-                    raise ValueError("Cannot parse PEM certificate") from exc
-
-        proposal_body, careful_vote = self.make_proposal(
-            "set_ca_cert_bundle",
-            name=cert_name,
-            cert_bundle=slurp_file(cert_bundle_path),
-        )
-        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
-        return self.vote_using_majority(remote_node, proposal, careful_vote)
-
-    def remove_ca_cert_bundle(self, remote_node, cert_name):
-        proposal_body, careful_vote = self.make_proposal(
-            "remove_ca_cert_bundle", name=cert_name
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)

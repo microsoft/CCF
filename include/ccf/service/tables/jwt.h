@@ -21,7 +21,8 @@ namespace ccf
 
   struct JwtIssuerMetadata
   {
-    /// Optional CA bundle name used for authentication when auto-refreshing
+    /// Legacy field accepted when reading existing issuer metadata, but ignored
+    /// for new outbound TLS verification.
     std::optional<std::string> ca_cert_bundle_name;
     /// Whether to auto-refresh keys from the issuer
     bool auto_refresh = false;

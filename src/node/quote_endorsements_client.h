@@ -182,6 +182,13 @@ namespace ccf
           curl_easy_strerror(curl_response),
           curl_response,
           status_code);
+        if (curl_response == CURLE_PEER_FAILED_VERIFICATION)
+        {
+          LOG_INFO_FMT(
+            "TLS verification failed while fetching endorsements. Check that "
+            "the endorsement server certificate is trusted by the system trust "
+            "store, or by the trust store pointed to by SSL_CERT_FILE.");
+        }
 
         if (
           self->server_retries_count >=
@@ -288,17 +295,6 @@ namespace ccf
         endpoint.port,
         endpoint.uri,
         get_formatted_query(endpoint.params));
-
-      if (endpoint.tls)
-      {
-        // Note: server CA is not checked here as this client is not sending
-        // private data. If the server was malicious and the certificate chain
-        // was bogus, the verification of the endorsement of the quote would
-        // fail anyway.
-        curl_handle.set_opt(CURLOPT_SSL_VERIFYHOST, 0L);
-        curl_handle.set_opt(CURLOPT_SSL_VERIFYPEER, 0L);
-        curl_handle.set_opt(CURLOPT_SSL_VERIFYSTATUS, 0L);
-      }
 
       auto headers = ccf::curl::UniqueSlist();
       for (auto const& [k, v] : endpoint.headers)
