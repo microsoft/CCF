@@ -254,7 +254,6 @@ def render_mermaid_radar_chart(
     branch_data: dict,
     benchmarks: List[str],
     metric: str,
-    title: str,
     unit: str,
     branch_label: str,
 ) -> str:
@@ -324,7 +323,6 @@ def render_mermaid_radar_chart(
     lines = [
         "```mermaid",
         "---",
-        f"title: {mermaid_label(f'{title} ({unit})')}",
         "config:",
         "  radar:",
         *[f"    {key}: {value}" for key, value in RADAR_CONFIG.items()],
@@ -384,28 +382,8 @@ def render_metric_group(
         return "\n".join(lines)
 
     lines.append(
-        "_Values are normalized per benchmark: 100 is the median of recent main runs. "
-        "For throughput and rate, higher is better; for latency and memory, lower is better. "
-        "The darker blue band shows the main median +/- 1 std dev, and the lighter blue "
-        "band around it shows +/- 2 std dev. "
-        "Axis labels show this branch's value and its difference from the main median, "
-        "where 0% is on the median. Labels are green when this branch improves on the "
-        "median, red when it regresses, and grey when unchanged._"
-    )
-    lines.append("")
-    lines.extend(
-        [
-            (
-                f"Legend: this branch `{branch_label}` is the blue line, "
-                "the darker blue band is the main median +/- 1 std dev, and the "
-                "lighter blue band is +/- 2 std dev."
-            ),
-            "",
-        ]
-    )
-    lines.append(
         render_mermaid_radar_chart(
-            trend, branch_data, benchmarks, metric, title, unit, branch_label
+            trend, branch_data, benchmarks, metric, unit, branch_label
         )
     )
     return "\n".join(lines)
@@ -417,13 +395,23 @@ def render_comparison(trend: List[dict], branch_data: dict, branch_label: str) -
         "# Benchmark A/B",
         "",
         (
-            f"_Comparing this branch (`{branch_label}`) against the trend of the "
+            f"_Comparing this branch ({branch_label}) against the trend of the "
             f"last {len(trend)} `main` runs._"
         ),
         "",
         (
-            "_Each chart shades the median +/- 1 and +/- 2 std dev on `main` and "
-            "highlights this branch's latest run._"
+            "_Each chart plots every benchmark as an axis, with values normalized so "
+            "100 is the median of recent `main` runs. The blue line is this branch's "
+            "latest run; the darker blue band is the main median +/- 1 std dev and the "
+            "lighter blue band around it is +/- 2 std dev._"
+        ),
+        "",
+        (
+            "_Axis labels show this branch's value and its difference from the main "
+            "median, where 0% is on the median. They are coloured green where this "
+            "branch improves on the median, red where it regresses, and grey where "
+            "unchanged. Higher is better for throughput and rate, lower for latency "
+            "and memory._"
         ),
         "",
     ]

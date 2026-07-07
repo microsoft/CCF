@@ -78,5 +78,5 @@ jobs:
         run: |
           set -ex
           python3 scripts/perf_compare_radar.py main_perf build/bencher.json \
-            --branch-label "PR #${{ github.event.pull_request.number }}" \
+            --branch-label "#${{ github.event.pull_request.number }}" \
             >> "$GITHUB_STEP_SUMMARY"
