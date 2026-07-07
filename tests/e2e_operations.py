@@ -3620,6 +3620,15 @@ def run_propose_request_vote(const_args):
         try:
             original_primary, original_term = network.find_primary()
 
+            LOG.info("Waiting for initial snapshot")
+            network.get_committed_snapshots(
+                original_primary,
+                target_seqno=1,
+                force_txs=False,
+                wait_for_target_seqno=True,
+            )
+            network.wait_for_node_commit_sync(timeout=16)
+
             original_primary.remote.remote.proc.send_signal(signal.SIGTERM)
             # Find any primary which wasn't the original one
             # If propose_request_vote worked, the new primary will be elected rapidly

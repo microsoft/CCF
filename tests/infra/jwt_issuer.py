@@ -66,8 +66,20 @@ class MyHTTPRequestHandler(BaseHTTPRequestHandler):
 
 
 class OpenIDProviderServer(AbstractContextManager):
-    def __init__(self, port: int, tls_key_pem: str, tls_cert_pem: str, jwks: dict):
-        self.host = "localhost"
+    def __init__(
+        self,
+        port: int,
+        tls_key_pem: str,
+        tls_cert_pem: str,
+        jwks: dict,
+        host: str = "127.0.0.1",
+    ):
+        # Default to a concrete IPv4 loopback address rather than "localhost".
+        # "localhost" resolves to both 127.0.0.1 and ::1, but this server binds
+        # a single address; the mismatch makes libcurl clients (e.g. CCF's JWT
+        # key auto-refresh) pay a ~200ms Happy Eyeballs fallback per connection
+        # when they try the unused address family first.
+        self.host = host
         self.port = port
         self.jwks = jwks
         self.tls_key_pem = tls_key_pem
@@ -179,6 +191,11 @@ class JwtIssuer:
         stripped_host = self.name[len("https://") :] if self.auto_refresh else None
         self._auth_type = auth_type
         self._alg = alg
+        # The effective host this issuer's TLS cert is valid for. The OpenID
+        # provider server (see start_openid_server) binds and advertises this
+        # same host so that the address CCF's curl client connects to matches
+        # both the cert SAN and a single, concrete loopback address.
+        self.host = cn or stripped_host or name
         (self.tls_priv, _), self.tls_cert = self._generate_auth_data(
             cn or stripped_host or name
         )
@@ -286,7 +303,7 @@ class JwtIssuer:
     def start_openid_server(self, port=0, kid=None):
         kid_ = kid or self.default_kid
         self.server = OpenIDProviderServer(
-            port, self.tls_priv, self.tls_cert, self.create_jwks(kid_)
+            port, self.tls_priv, self.tls_cert, self.create_jwks(kid_), host=self.host
         )
         return self.server
 
