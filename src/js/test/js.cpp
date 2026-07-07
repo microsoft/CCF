@@ -624,6 +624,7 @@ TEST_CASE("Context::to_str preserves embedded NUL bytes")
     REQUIRE(len == input.size());
     REQUIRE(*result == input);
   }
+
   {
     INFO("to_str(const JSAtom&)");
     JSAtom atom = JS_NewAtomLen(ctx, input.data(), input.size());
