@@ -1171,16 +1171,7 @@ namespace ccf
               // handshake failures (e.g. an untrusted service certificate) as
               // fatal. Preserve both behaviours: transient transport errors
               // are retried, everything else is fatal.
-              const bool transient_transport_error =
-                curl_response == CURLE_COULDNT_RESOLVE_PROXY ||
-                curl_response == CURLE_COULDNT_RESOLVE_HOST ||
-                curl_response == CURLE_COULDNT_CONNECT ||
-                curl_response == CURLE_OPERATION_TIMEDOUT ||
-                curl_response == CURLE_GOT_NOTHING ||
-                curl_response == CURLE_RECV_ERROR ||
-                curl_response == CURLE_SEND_ERROR ||
-                curl_response == CURLE_PARTIAL_FILE;
-              if (transient_transport_error)
+              if (ccf::curl::is_transient_transport_error(curl_response))
               {
                 LOG_INFO_FMT(
                   "Transient error contacting {} to join: {} ({}). The join "

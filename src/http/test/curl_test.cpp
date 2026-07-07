@@ -33,6 +33,52 @@ struct Data
 DECLARE_JSON_TYPE(Data);
 DECLARE_JSON_REQUIRED_FIELDS(Data, foo, bar, iter);
 
+TEST_CASE("is_transient_transport_error classifies curl errors")
+{
+  // Transport/protocol-layer failures that a retry loop (e.g. the node join
+  // client) should retry rather than treat as fatal.
+  const std::vector<CURLcode> transient = {
+    CURLE_COULDNT_RESOLVE_PROXY,
+    CURLE_COULDNT_RESOLVE_HOST,
+    CURLE_COULDNT_CONNECT,
+    CURLE_OPERATION_TIMEDOUT,
+    CURLE_GOT_NOTHING,
+    CURLE_RECV_ERROR,
+    CURLE_SEND_ERROR,
+    CURLE_PARTIAL_FILE,
+    CURLE_WEIRD_SERVER_REPLY,
+    CURLE_HTTP2,
+    CURLE_HTTP2_STREAM,
+  };
+  for (const auto code : transient)
+  {
+    INFO("code = " << static_cast<int>(code));
+    CHECK(ccf::curl::is_transient_transport_error(code));
+  }
+
+  // Errors that must be treated as fatal (never retried): TLS/certificate
+  // failures, application-level errors, and our own response size-cap
+  // rejection (CURLE_WRITE_ERROR). CURLE_OK and CURLE_ABORTED_BY_CALLBACK are
+  // not transport errors either.
+  const std::vector<CURLcode> fatal = {
+    CURLE_OK,
+    CURLE_PEER_FAILED_VERIFICATION,
+    CURLE_SSL_CACERT_BADFILE,
+    CURLE_SSL_CONNECT_ERROR,
+    CURLE_SSL_CERTPROBLEM,
+    CURLE_USE_SSL_FAILED,
+    CURLE_WRITE_ERROR,
+    CURLE_TOO_MANY_REDIRECTS,
+    CURLE_UNSUPPORTED_PROTOCOL,
+    CURLE_ABORTED_BY_CALLBACK,
+  };
+  for (const auto code : fatal)
+  {
+    INFO("code = " << static_cast<int>(code));
+    CHECK_FALSE(ccf::curl::is_transient_transport_error(code));
+  }
+}
+
 TEST_CASE("ResponseHeaders rejects oversized headers")
 {
   ccf::curl::ResponseHeaders headers;
