@@ -525,8 +525,9 @@ namespace ccf::js::core
     const auto* val = JS_ToCStringLen(ctx, &len, x.val);
     if (val == nullptr)
     {
-      // JS_ToCStringLen returns nullptr when a JS exception is already set (eg OOM,
-      // or an exception during coercion). Preserve that exception for callers.
+      // JS_ToCStringLen returns nullptr when a JS exception is already set (eg
+      // OOM, or an exception during coercion). Preserve that exception for
+      // callers.
       return std::nullopt;
     }
     // Construct with explicit length rather than relying on the returned
@@ -543,8 +544,9 @@ namespace ccf::js::core
     const auto* val = JS_ToCStringLen(ctx, &len, x);
     if (val == nullptr)
     {
-      // JS_ToCStringLen returns nullptr when a JS exception is already set (eg OOM,
-      // or an exception during coercion). Preserve that exception for callers.
+      // JS_ToCStringLen returns nullptr when a JS exception is already set (eg
+      // OOM, or an exception during coercion). Preserve that exception for
+      // callers.
       return std::nullopt;
     }
     // See comment in to_str(const JSWrappedValue&) above.
@@ -559,8 +561,9 @@ namespace ccf::js::core
     const auto* val = JS_ToCStringLen(ctx, &len, x);
     if (val == nullptr)
     {
-      // JS_ToCStringLen returns nullptr when a JS exception is already set (eg OOM,
-      // or an exception during coercion). Preserve that exception for caller
+      // JS_ToCStringLen returns nullptr when a JS exception is already set (eg
+      // OOM, or an exception during coercion). Preserve that exception for
+      // caller
       return std::nullopt;
     }
     // See comment in to_str(const JSWrappedValue&) above.
@@ -575,8 +578,8 @@ namespace ccf::js::core
     const auto* val = JS_AtomToCStringLen(ctx, &len, atom);
     if (val == nullptr)
     {
-      // JS_AtomToCStringLen returns nullptr when a JS exception is already set (eg OOM).
-      // Preserve that exception for callers.
+      // JS_AtomToCStringLen returns nullptr when a JS exception is already set
+      // (eg OOM). Preserve that exception for callers.
       return std::nullopt;
     }
     // See comment in to_str(const JSWrappedValue&) above.
