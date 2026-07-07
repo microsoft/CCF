@@ -330,7 +330,6 @@ def test_recovery_member_changes_rejected_during_recovery(network, args):
 
 
 @reqs.description("Reconfigure a recovered service before submitting recovery shares")
-@reqs.recover(number_txs=2)
 def run_reconfiguration_before_recovery_shares(args):
     txs = app.LoggingTxs("user0")
     with infra.network.network(
@@ -396,6 +395,11 @@ def run_reconfiguration_before_recovery_shares(args):
             recovered_network.recovery_count += 1
             recovered_network.consortium.check_for_service(
                 primary, infra.network.ServiceStatus.OPEN
+            )
+
+            recovered_network.txs.verify(
+                network=recovered_network,
+                timeout=args.ledger_recovery_timeout,
             )
 
             with new_node.client() as c:
