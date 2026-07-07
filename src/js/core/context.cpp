@@ -559,7 +559,8 @@ namespace ccf::js::core
     const auto* val = JS_ToCStringLen(ctx, &len, x);
     if (val == nullptr)
     {
-      new_type_error("value is not a string");
+      // JS_ToCStringLen returns nullptr when a JS exception is already set (eg OOM,
+      // or an exception during coercion). Preserve that exception for caller
       return std::nullopt;
     }
     // See comment in to_str(const JSWrappedValue&) above.
