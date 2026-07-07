@@ -577,52 +577,25 @@ def test_jwt_key_auto_refresh_cross_authority_jwks_uri(network, args):
         # different authority than the issuer metadata.
         server.metadata["jwks_uri"] = f"https://127.0.0.1:{jwks_server.bind_port}/keys"
 
-        def set_jwt_issuer_for_cross_authority():
-            with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
-                json.dump(
-                    {
-                        "issuer": issuer_name,
-                        "auto_refresh": True,
-                        "ca_cert_bundle_name": ca_cert_bundle_name,
-                    },
-                    metadata_fp,
-                )
-                metadata_fp.flush()
-                network.consortium.set_jwt_issuer(primary, metadata_fp.name)
-
-        set_jwt_issuer_for_cross_authority()
+        with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
+            json.dump(
+                {
+                    "issuer": issuer_name,
+                    "auto_refresh": True,
+                    "ca_cert_bundle_name": ca_cert_bundle_name,
+                },
+                metadata_fp,
+            )
+            metadata_fp.flush()
+            network.consortium.set_jwt_issuer(primary, metadata_fp.name)
 
         try:
-            # Setting the issuer triggers a single one-off refresh (via the
-            # jwt_issuers KV write hook). This suite runs with a very large
-            # periodic refresh interval (jwt_key_refresh_interval_s=100000
-            # in tests/programmability.py) so there is no periodic fallback
-            # if this single attempt hits a transient failure (e.g. the
-            # node's 5s CURLOPT_TIMEOUT firing under CI load). Re-trigger
-            # the one-off refresh every retry_interval_s so that a single
-            # transient curl timeout doesn't fail the test outright.
-            retry_interval_s = 5
-            overall_timeout_s = 15
-            start_time = time.time()
-
-            while True:
-                try:
-                    with_timeout(
-                        lambda: check_kv_jwt_key_matches(
-                            args, network, kid, issuer.key_pub_pem
-                        ),
-                        timeout=retry_interval_s,
-                    )
-                except (TimeoutError, AssertionError):
-                    if time.time() - start_time >= overall_timeout_s:
-                        raise
-                    LOG.warning(
-                        "JWT cross-authority refresh: key not yet present, "
-                        "re-triggering one-off refresh"
-                    )
-                    set_jwt_issuer_for_cross_authority()
-                    continue
-                break
+            with_timeout(
+                lambda: check_kv_jwt_key_matches(
+                    args, network, kid, issuer.key_pub_pem
+                ),
+                timeout=15,
+            )
         finally:
             network.consortium.remove_jwt_issuer(primary, issuer_name)
 
@@ -652,45 +625,12 @@ def test_jwt_key_auto_refresh_response_size_limit(network, args):
             network.consortium.remove_jwt_issuer(primary, issuer.name)
             add_auto_refresh_jwt_issuer(network, primary, issuer, ca_cert_bundle_name)
 
-            # Re-registering the issuer triggers a single one-off refresh (via
-            # the jwt_issuers KV write hook, see auto_refresh_jwt_keys() in
-            # node_state.h). This suite runs with a very large periodic
-            # refresh interval (jwt_key_refresh_interval_s in
-            # tests/programmability.py) specifically to isolate testing of
-            # that one-off refresh, so there is no periodic fallback if this
-            # single attempt hits a transient failure (e.g. the curl client's
-            # fetch itself timing out under CI load, independently of the
-            # outer timeout below). Re-trigger the one-off refresh a few times
-            # so that a single transient failure of the underlying fetch
-            # doesn't fail the test outright.
-            retry_interval_s = 5
-            overall_timeout_s = 15
-            start_time = time.time()
-
-            def get_stored_key():
-                latest_jwt_signing_keys = get_jwt_keys(args, primary)
-                assert kid in latest_jwt_signing_keys
-                return latest_jwt_signing_keys[kid][0]["publicKey"]
-
-            while True:
-                try:
-                    stored_key = with_timeout(get_stored_key, timeout=retry_interval_s)
-                except (TimeoutError, AssertionError):
-                    if time.time() - start_time >= overall_timeout_s:
-                        raise
-                    LOG.warning(
-                        "JWT key auto-refresh: key not yet present after "
-                        "one-off refresh, re-triggering"
-                    )
-                    add_auto_refresh_jwt_issuer(
-                        network, primary, issuer, ca_cert_bundle_name
-                    )
-                    continue
-
-                assert (
-                    stored_key == issuer.key_pub_pem
-                ), "input cert is not equal to stored cert"
-                break
+            with_timeout(
+                lambda: check_kv_jwt_key_matches(
+                    args, network, kid, issuer.key_pub_pem
+                ),
+                timeout=15,
+            )
         finally:
             network.consortium.remove_jwt_issuer(primary, issuer.name)
 
