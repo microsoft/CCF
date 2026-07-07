@@ -525,7 +525,8 @@ namespace ccf::js::core
     const auto* val = JS_ToCStringLen(ctx, &len, x.val);
     if (val == nullptr)
     {
-      new_type_error("value is not a string");
+      // JS_ToCStringLen returns nullptr when a JS exception is already set (eg OOM,
+      // or an exception during coercion). Preserve that exception for callers.
       return std::nullopt;
     }
     // Construct with explicit length rather than relying on the returned
@@ -542,7 +543,8 @@ namespace ccf::js::core
     const auto* val = JS_ToCStringLen(ctx, &len, x);
     if (val == nullptr)
     {
-      new_type_error("value is not a string");
+      // JS_ToCStringLen returns nullptr when a JS exception is already set (eg OOM,
+      // or an exception during coercion). Preserve that exception for callers.
       return std::nullopt;
     }
     // See comment in to_str(const JSWrappedValue&) above.
@@ -572,7 +574,8 @@ namespace ccf::js::core
     const auto* val = JS_AtomToCStringLen(ctx, &len, atom);
     if (val == nullptr)
     {
-      new_type_error("atom is not a string");
+      // JS_AtomToCStringLen returns nullptr when a JS exception is already set (eg OOM).
+      // Preserve that exception for callers.
       return std::nullopt;
     }
     // See comment in to_str(const JSWrappedValue&) above.
