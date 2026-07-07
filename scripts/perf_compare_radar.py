@@ -4,10 +4,10 @@
 """Render Mermaid radar charts comparing a branch's benchmark run against the
 recent trend on ``main``.
 
-For each metric, benchmarks form the radar axes. The shaded band is the median
-+/- 1 standard deviation of the most recent ``main`` runs, and the highlighted
-curve is the branch's latest run. Values are normalized per benchmark so that
-100 is the ``main`` median.
+For each metric, benchmarks form the radar axes. Two nested shaded bands show the
+median +/- 1 and +/- 2 standard deviations of the most recent ``main`` runs, and
+the highlighted curve is the branch's latest run. Values are normalized per
+benchmark so that 100 is the ``main`` median.
 """
 
 import os

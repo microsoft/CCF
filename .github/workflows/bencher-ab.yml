@@ -59,7 +59,7 @@ jobs:
 
       - name: Restore recent main perf results
         run: |
-          set -ex
+          set -exo pipefail
           name="perf-bench-virtual-main"
           mkdir -p main_perf
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
@@ -71,6 +71,10 @@ jobs:
               break
             fi
           done
+          # Keep only the most recent points that perf_compare_radar.py uses; the
+          # main artifact accumulates history and older files would just add copy
+          # overhead without affecting the comparison.
+          (cd main_perf && ls -1 | sort -t- -k1,1n -k2,2n -k3,3n | head -n -15 | xargs -r rm -f)
         env:
           GH_TOKEN: ${{ github.token }}
 
