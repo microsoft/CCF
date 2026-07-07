@@ -30,6 +30,7 @@
 #include "enclave/rpc_sessions.h"
 #include "encryptor.h"
 #include "history.h"
+#include "http/curl.h"
 #include "http/http_parser.h"
 #include "indexing/indexer.h"
 #include "js/global_class_ids.h"
@@ -1048,292 +1049,8 @@ namespace ccf
     {
       sm.expect(NodeStartupState::pending);
 
-      auto network_ca = std::make_shared<::tls::CA>(std::string(
-        config.join.service_cert.begin(), config.join.service_cert.end()));
-
-      auto [target_host, target_port] =
-        split_net_address(config.join.target_rpc_address);
-
-      auto join_client_cert = std::make_unique<::tls::Cert>(
-        network_ca,
-        self_signed_node_cert,
-        node_sign_kp->private_key_pem(),
-        target_host);
-
-      // Create RPC client and connect to remote node
-      // Note: For now, assume that target node accepts same application
-      // protocol as this node's main RPC interface
-      auto join_client = rpcsessions->create_client(
-        std::move(join_client_cert),
-        rpcsessions->get_app_protocol_main_interface());
-
-      join_client->connect(
-        target_host,
-        target_port,
-        // Capture target_address by value, and use them when
-        // logging about this response. Do not use config target address, which
-        // may have updated in the interim.
-        [this, target_address = config.join.target_rpc_address](
-          ccf::http_status status,
-          http::HeaderMap&& headers,
-          std::vector<uint8_t>&& data) {
-          std::lock_guard<pal::Mutex> guard(lock);
-          if (!sm.check(NodeStartupState::pending))
-          {
-            return;
-          }
-
-          if (is_http_status_client_error(status))
-          {
-            std::optional<ccf::ODataErrorResponse> error_response =
-              std::nullopt;
-
-            try
-            {
-              auto j = ccf::parse_json_safe(data);
-              error_response = j.get<ccf::ODataErrorResponse>();
-            }
-            catch (const ccf::JsonParseError& e)
-            {
-              LOG_FAIL_FMT(
-                "Join request returned {}, body exceeds permitted JSON nesting "
-                "depth: {}",
-                status,
-                e.what());
-            }
-            catch (const nlohmann::json::exception& e)
-            {
-              // Leave error_response == nullopt
-              LOG_FAIL_FMT(
-                "Join request returned {}, body is not ODataErrorResponse: {}",
-                status,
-                std::string(data.begin(), data.end()));
-            }
-
-            if (
-              error_response.has_value() &&
-              error_response->error.code == ccf::errors::StartupSeqnoIsOld &&
-              config.join.fetch_recent_snapshot)
-            {
-              LOG_INFO_FMT(
-                "Join request to {} returned {} error. Attempting to fetch "
-                "fresher snapshot",
-                target_address,
-                ccf::errors::StartupSeqnoIsOld);
-
-              // If we've followed a redirect, it will have been updated in
-              // config.join. Note that this is fire-and-forget, it is assumed
-              // that it proceeds in the background, updating state when it
-              // completes, and the join timer separately re-attempts join after
-              // this succeeds
-              if (
-                snapshot_fetch_task != nullptr &&
-                !snapshot_fetch_task->is_cancelled())
-              {
-                LOG_INFO_FMT("Snapshot fetch already in progress, skipping");
-              }
-              else
-              {
-                snapshot_fetch_task = std::make_shared<FetchSnapshot>(
-                  config.join, config.snapshots, this);
-                ccf::tasks::add_task(snapshot_fetch_task);
-              }
-              return;
-            }
-
-            auto error_msg = fmt::format(
-              "Join request to {} returned {} Bad Request: {}. Shutting "
-              "down node gracefully.",
-              target_address,
-              status,
-              std::string(data.begin(), data.end()));
-            LOG_FAIL_FMT("{}", error_msg);
-            RINGBUFFER_WRITE_MESSAGE(
-              AdminMessage::fatal_error_msg, to_host, error_msg);
-            return;
-          }
-
-          if (status != HTTP_STATUS_OK)
-          {
-            const auto& location = headers.find(http::headers::LOCATION);
-            if (
-              config.join.follow_redirect &&
-              (status == HTTP_STATUS_PERMANENT_REDIRECT ||
-               status == HTTP_STATUS_TEMPORARY_REDIRECT) &&
-              location != headers.end())
-            {
-              const auto& url = ::http::parse_url_full(location->second);
-              config.join.target_rpc_address =
-                make_net_address(url.host, url.port);
-              LOG_INFO_FMT("Target node redirected to {}", location->second);
-            }
-            else
-            {
-              LOG_FAIL_FMT(
-                "An error occurred while joining the network: {} {}{}",
-                status,
-                ccf::http_status_str(status),
-                data.empty() ?
-                  "" :
-                  fmt::format("  '{}'", std::string(data.begin(), data.end())));
-            }
-            return;
-          }
-
-          JoinNetworkNodeToNode::Out resp;
-          try
-          {
-            auto j = ccf::parse_json_safe(data);
-            resp = j.get<JoinNetworkNodeToNode::Out>();
-          }
-          catch (const std::exception& e)
-          {
-            LOG_FAIL_FMT(
-              "An error occurred while parsing the join network response");
-
-            LOG_DEBUG_FMT("Join network response error: {}", e.what());
-            LOG_DEBUG_FMT(
-              "Join network response body: {}",
-              std::string(data.begin(), data.end()));
-
-            return;
-          }
-
-          // Set network secrets, node id and become part of network.
-          if (resp.node_status == NodeStatus::TRUSTED)
-          {
-            if (!resp.network_info.has_value())
-            {
-              throw std::logic_error("Expected network info in join response");
-            }
-
-            network.identity = std::make_unique<ccf::NetworkIdentity>(
-              resp.network_info->identity);
-            network.ledger_secrets->init_from_map(
-              std::move(resp.network_info->ledger_secrets));
-
-            history->set_service_signing_identity(
-              network.identity->get_key_pair(),
-              resp.network_info->cose_signatures_config.value_or(
-                ccf::COSESignaturesConfig{}));
-
-            ccf::crypto::Pem n2n_channels_cert;
-            if (!resp.network_info->endorsed_certificate.has_value())
-            {
-              // Endorsed certificate was added to join response in 2.x
-              throw std::logic_error(
-                "Expected endorsed certificate in join response");
-            }
-            n2n_channels_cert = resp.network_info->endorsed_certificate.value();
-
-            setup_consensus(resp.network_info->public_only, n2n_channels_cert);
-            auto_refresh_jwt_keys();
-
-            if (resp.network_info->public_only)
-            {
-              last_recovered_signed_idx =
-                resp.network_info->last_recovered_signed_idx;
-              setup_recovery_hook();
-              snapshotter->set_snapshot_generation(false);
-            }
-
-            View view = VIEW_UNKNOWN;
-            std::vector<ccf::kv::Version> view_history_ = {};
-            if (startup_snapshot_info)
-            {
-              // It is only possible to deserialise the entire snapshot now,
-              // once the ledger secrets have been passed in by the network
-              ccf::kv::ConsensusHookPtrs hooks;
-              deserialise_snapshot(
-                network.tables,
-                startup_snapshot_info->raw,
-                hooks,
-                &view_history_,
-                resp.network_info->public_only);
-
-              for (auto& hook : hooks)
-              {
-                hook->call(consensus.get());
-              }
-
-              auto tx = network.tables->create_read_only_tx();
-              view = resolve_latest_sig_view(tx);
-
-              if (!resp.network_info->public_only)
-              {
-                // Only clear snapshot if not recovering. When joining the
-                // public network the snapshot is used later to initialise the
-                // recovery store
-                startup_snapshot_info.reset();
-              }
-
-              LOG_INFO_FMT(
-                "Joiner successfully resumed from snapshot at seqno {} and "
-                "view {}",
-                network.tables->current_version(),
-                view);
-            }
-
-            consensus->init_as_backup(
-              network.tables->current_version(),
-              view,
-              view_history_,
-              last_recovered_signed_idx);
-
-            {
-              auto snap_tx = network.tables->create_read_only_tx();
-              auto snapshot_status =
-                snap_tx.ro<SnapshotStatusValue>(Tables::SNAPSHOT_STATUS)->get();
-              if (snapshot_status.has_value())
-              {
-                snapshotter->init_from_snapshot_status(snapshot_status.value());
-              }
-            }
-            history->start_signature_emit_timer();
-
-            if (resp.network_info->public_only)
-            {
-              sm.advance(NodeStartupState::partOfPublicNetwork);
-            }
-            else
-            {
-              reset_data(quote_info.quote);
-              reset_data(quote_info.endorsements);
-              sm.advance(NodeStartupState::partOfNetwork);
-            }
-
-            if (join_periodic_task != nullptr)
-            {
-              join_periodic_task->cancel_task();
-              join_periodic_task = nullptr;
-            }
-
-            LOG_INFO_FMT(
-              "Node has now joined the network as node {}: {}",
-              self,
-              (resp.network_info->public_only ? "public only" : "all domains"));
-          }
-          else if (resp.node_status == NodeStatus::PENDING)
-          {
-            LOG_INFO_FMT(
-              "Node {} is waiting for votes of members to be trusted", self);
-          }
-        },
-        [this](const std::string& error_msg) {
-          std::lock_guard<pal::Mutex> guard(lock);
-          auto long_error_msg = fmt::format(
-            "Early error when joining existing network at {}: {}. Shutting "
-            "down node gracefully...",
-            config.join.target_rpc_address,
-            error_msg);
-          LOG_FAIL_FMT("{}", long_error_msg);
-          RINGBUFFER_WRITE_MESSAGE(
-            AdminMessage::fatal_error_msg, to_host, long_error_msg);
-        });
-
-      // Send RPC request to remote node to join the network.
+      // Assemble the join request body.
       JoinNetworkNodeToNode::In join_params;
-
       join_params.node_info_network = config.network;
       join_params.public_encryption_key = node_encrypt_kp->public_key_pem();
       join_params.quote_info = quote_info;
@@ -1356,7 +1073,6 @@ namespace ccf
           sealing::get_snp_sealed_recovery_key(snp_tcb_version.value()),
           config.sealing_recovery->location.name);
       }
-
       if (config.join.host_data_transparent_statement_path.has_value())
       {
         LOG_INFO_FMT(
@@ -1369,18 +1085,369 @@ namespace ccf
 
       LOG_DEBUG_FMT(
         "Sending join request to {}", config.join.target_rpc_address);
-
       const auto body = nlohmann::json(join_params).dump();
-
       LOG_DEBUG_FMT("Sending join request body: {}", body);
 
-      ::http::Request r(
-        fmt::format("/{}/{}", get_actor_prefix(ActorsType::nodes), "join"));
-      r.set_header(
-        http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
-      r.set_body(body);
+      // The service certificate is the sole trust anchor for the join
+      // connection. CURLOPT_CAINFO_BLOB installs it and CURLOPT_CAPATH=nullptr
+      // prevents any fallback to the system CA store, so the set of accepted
+      // certificate authorities is identical to the legacy tls::CA path. The
+      // joining node presents its self-signed node certificate for mutual TLS
+      // (it is not yet endorsed at join time). CURLOPT_SSL_VERIFYHOST=2
+      // additionally checks that the target certificate matches the address we
+      // connected to.
+      ccf::curl::UniqueCURL curl_handle;
+      curl_handle.set_opt(CURLOPT_SSL_VERIFYPEER, 1L);
+      curl_handle.set_opt(CURLOPT_SSL_VERIFYHOST, 2L);
+      curl_handle.set_opt(CURLOPT_PROTOCOLS_STR, "https");
+      curl_handle.set_blob_opt(
+        CURLOPT_CAINFO_BLOB,
+        config.join.service_cert.data(),
+        config.join.service_cert.size());
+      curl_handle.set_opt(CURLOPT_CAPATH, nullptr);
 
-      join_client->send_request(std::move(r));
+      const auto client_key_pem = node_sign_kp->private_key_pem();
+      curl_handle.set_blob_opt(
+        CURLOPT_SSLCERT_BLOB,
+        self_signed_node_cert.data(),
+        self_signed_node_cert.size());
+      curl_handle.set_opt(CURLOPT_SSLCERTTYPE, "PEM");
+      curl_handle.set_blob_opt(
+        CURLOPT_SSLKEY_BLOB, client_key_pem.data(), client_key_pem.size());
+      curl_handle.set_opt(CURLOPT_SSLKEYTYPE, "PEM");
+
+      ccf::curl::UniqueSlist request_headers;
+      request_headers.append(
+        http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+
+      const auto url = fmt::format(
+        "https://{}/{}/{}",
+        config.join.target_rpc_address,
+        get_actor_prefix(ActorsType::nodes),
+        "join");
+
+      auto request_body = std::make_unique<ccf::curl::RequestBody>(
+        std::vector<uint8_t>(body.begin(), body.end()));
+
+      // Generous cap on the join response body (service identity, endorsed
+      // node certificate, and full ledger-secret history). Bounds memory use
+      // without risking rejection of a legitimate response.
+      static constexpr size_t max_join_response_size = 100UL * 1024 * 1024;
+
+      // Capture target_address by value, and use it when logging about this
+      // response. Do not use the config target address, which may have been
+      // updated by a redirect in the interim.
+      ccf::curl::CurlRequest::ResponseCallback response_callback =
+        [this, target_address = config.join.target_rpc_address](
+          std::unique_ptr<ccf::curl::CurlRequest>&& request,
+          CURLcode curl_response,
+          long status_code) {
+          std::lock_guard<pal::Mutex> guard(lock);
+          if (!sm.check(NodeStartupState::pending))
+          {
+            return;
+          }
+
+          try
+          {
+            if (curl_response == CURLE_ABORTED_BY_CALLBACK)
+            {
+              // The request was aborted, e.g. during node shutdown.
+              return;
+            }
+
+            if (curl_response != CURLE_OK)
+            {
+              // Transport or TLS-layer failure. A wrong or expired service
+              // certificate surfaces here as a peer verification failure,
+              // which we flag distinctly so it can be told apart from generic
+              // connectivity errors.
+              const bool invalid_service_certificate =
+                curl_response == CURLE_PEER_FAILED_VERIFICATION ||
+                curl_response == CURLE_SSL_CACERT_BADFILE;
+              auto error_msg = fmt::format(
+                "Early error when joining existing network at {}: {}{} ({}). "
+                "Shutting down node gracefully...",
+                target_address,
+                invalid_service_certificate ? "invalid service certificate: " :
+                                              "",
+                curl_easy_strerror(curl_response),
+                static_cast<int>(curl_response));
+              LOG_FAIL_FMT("{}", error_msg);
+              RINGBUFFER_WRITE_MESSAGE(
+                AdminMessage::fatal_error_msg, to_host, error_msg);
+              return;
+            }
+
+            const auto status = static_cast<ccf::http_status>(status_code);
+            const auto& headers = request->get_response_headers();
+            const auto& data = request->get_response_body()->buffer;
+
+            if (is_http_status_client_error(status))
+            {
+              std::optional<ccf::ODataErrorResponse> error_response =
+                std::nullopt;
+
+              try
+              {
+                auto j = ccf::parse_json_safe(data);
+                error_response = j.get<ccf::ODataErrorResponse>();
+              }
+              catch (const ccf::JsonParseError& e)
+              {
+                LOG_FAIL_FMT(
+                  "Join request returned {}, body exceeds permitted JSON "
+                  "nesting "
+                  "depth: {}",
+                  status,
+                  e.what());
+              }
+              catch (const nlohmann::json::exception& e)
+              {
+                // Leave error_response == nullopt
+                LOG_FAIL_FMT(
+                  "Join request returned {}, body is not ODataErrorResponse: "
+                  "{}",
+                  status,
+                  std::string(data.begin(), data.end()));
+              }
+
+              if (
+                error_response.has_value() &&
+                error_response->error.code == ccf::errors::StartupSeqnoIsOld &&
+                config.join.fetch_recent_snapshot)
+              {
+                LOG_INFO_FMT(
+                  "Join request to {} returned {} error. Attempting to fetch "
+                  "fresher snapshot",
+                  target_address,
+                  ccf::errors::StartupSeqnoIsOld);
+
+                // If we've followed a redirect, it will have been updated in
+                // config.join. Note that this is fire-and-forget, it is assumed
+                // that it proceeds in the background, updating state when it
+                // completes, and the join timer separately re-attempts join
+                // after this succeeds
+                if (
+                  snapshot_fetch_task != nullptr &&
+                  !snapshot_fetch_task->is_cancelled())
+                {
+                  LOG_INFO_FMT("Snapshot fetch already in progress, skipping");
+                }
+                else
+                {
+                  snapshot_fetch_task = std::make_shared<FetchSnapshot>(
+                    config.join, config.snapshots, this);
+                  ccf::tasks::add_task(snapshot_fetch_task);
+                }
+                return;
+              }
+
+              auto error_msg = fmt::format(
+                "Join request to {} returned {} Bad Request: {}. Shutting "
+                "down node gracefully.",
+                target_address,
+                status,
+                std::string(data.begin(), data.end()));
+              LOG_FAIL_FMT("{}", error_msg);
+              RINGBUFFER_WRITE_MESSAGE(
+                AdminMessage::fatal_error_msg, to_host, error_msg);
+              return;
+            }
+
+            if (status != HTTP_STATUS_OK)
+            {
+              const auto& location = headers.find(http::headers::LOCATION);
+              if (
+                config.join.follow_redirect &&
+                (status == HTTP_STATUS_PERMANENT_REDIRECT ||
+                 status == HTTP_STATUS_TEMPORARY_REDIRECT) &&
+                location != headers.end())
+              {
+                const auto& url = ::http::parse_url_full(location->second);
+                config.join.target_rpc_address =
+                  make_net_address(url.host, url.port);
+                LOG_INFO_FMT("Target node redirected to {}", location->second);
+              }
+              else
+              {
+                LOG_FAIL_FMT(
+                  "An error occurred while joining the network: {} {}{}",
+                  status,
+                  ccf::http_status_str(status),
+                  data.empty() ?
+                    "" :
+                    fmt::format(
+                      "  '{}'", std::string(data.begin(), data.end())));
+              }
+              return;
+            }
+
+            JoinNetworkNodeToNode::Out resp;
+            try
+            {
+              auto j = ccf::parse_json_safe(data);
+              resp = j.get<JoinNetworkNodeToNode::Out>();
+            }
+            catch (const std::exception& e)
+            {
+              LOG_FAIL_FMT(
+                "An error occurred while parsing the join network response");
+
+              LOG_DEBUG_FMT("Join network response error: {}", e.what());
+              LOG_DEBUG_FMT(
+                "Join network response body: {}",
+                std::string(data.begin(), data.end()));
+
+              return;
+            }
+
+            // Set network secrets, node id and become part of network.
+            if (resp.node_status == NodeStatus::TRUSTED)
+            {
+              if (!resp.network_info.has_value())
+              {
+                throw std::logic_error(
+                  "Expected network info in join response");
+              }
+
+              network.identity = std::make_unique<ccf::NetworkIdentity>(
+                resp.network_info->identity);
+              network.ledger_secrets->init_from_map(
+                std::move(resp.network_info->ledger_secrets));
+
+              history->set_service_signing_identity(
+                network.identity->get_key_pair(),
+                resp.network_info->cose_signatures_config.value_or(
+                  ccf::COSESignaturesConfig{}));
+
+              ccf::crypto::Pem n2n_channels_cert;
+              if (!resp.network_info->endorsed_certificate.has_value())
+              {
+                // Endorsed certificate was added to join response in 2.x
+                throw std::logic_error(
+                  "Expected endorsed certificate in join response");
+              }
+              n2n_channels_cert =
+                resp.network_info->endorsed_certificate.value();
+
+              setup_consensus(
+                resp.network_info->public_only, n2n_channels_cert);
+              auto_refresh_jwt_keys();
+
+              if (resp.network_info->public_only)
+              {
+                last_recovered_signed_idx =
+                  resp.network_info->last_recovered_signed_idx;
+                setup_recovery_hook();
+                snapshotter->set_snapshot_generation(false);
+              }
+
+              View view = VIEW_UNKNOWN;
+              std::vector<ccf::kv::Version> view_history_ = {};
+              if (startup_snapshot_info)
+              {
+                // It is only possible to deserialise the entire snapshot now,
+                // once the ledger secrets have been passed in by the network
+                ccf::kv::ConsensusHookPtrs hooks;
+                deserialise_snapshot(
+                  network.tables,
+                  startup_snapshot_info->raw,
+                  hooks,
+                  &view_history_,
+                  resp.network_info->public_only);
+
+                for (auto& hook : hooks)
+                {
+                  hook->call(consensus.get());
+                }
+
+                auto tx = network.tables->create_read_only_tx();
+                view = resolve_latest_sig_view(tx);
+
+                if (!resp.network_info->public_only)
+                {
+                  // Only clear snapshot if not recovering. When joining the
+                  // public network the snapshot is used later to initialise the
+                  // recovery store
+                  startup_snapshot_info.reset();
+                }
+
+                LOG_INFO_FMT(
+                  "Joiner successfully resumed from snapshot at seqno {} and "
+                  "view {}",
+                  network.tables->current_version(),
+                  view);
+              }
+
+              consensus->init_as_backup(
+                network.tables->current_version(),
+                view,
+                view_history_,
+                last_recovered_signed_idx);
+
+              {
+                auto snap_tx = network.tables->create_read_only_tx();
+                auto snapshot_status =
+                  snap_tx.ro<SnapshotStatusValue>(Tables::SNAPSHOT_STATUS)
+                    ->get();
+                if (snapshot_status.has_value())
+                {
+                  snapshotter->init_from_snapshot_status(
+                    snapshot_status.value());
+                }
+              }
+              history->start_signature_emit_timer();
+
+              if (resp.network_info->public_only)
+              {
+                sm.advance(NodeStartupState::partOfPublicNetwork);
+              }
+              else
+              {
+                reset_data(quote_info.quote);
+                reset_data(quote_info.endorsements);
+                sm.advance(NodeStartupState::partOfNetwork);
+              }
+
+              if (join_periodic_task != nullptr)
+              {
+                join_periodic_task->cancel_task();
+                join_periodic_task = nullptr;
+              }
+
+              LOG_INFO_FMT(
+                "Node has now joined the network as node {}: {}",
+                self,
+                (resp.network_info->public_only ? "public only" :
+                                                  "all domains"));
+            }
+            else if (resp.node_status == NodeStatus::PENDING)
+            {
+              LOG_INFO_FMT(
+                "Node {} is waiting for votes of members to be trusted", self);
+            }
+          }
+          catch (const std::exception& e)
+          {
+            LOG_FAIL_FMT(
+              "Unhandled error while processing join response from {}: {}",
+              target_address,
+              e.what());
+          }
+        };
+
+      auto join_request = std::make_unique<ccf::curl::CurlRequest>(
+        std::move(curl_handle),
+        HTTP_POST,
+        url,
+        std::move(request_headers),
+        std::move(request_body),
+        std::make_unique<ccf::curl::ResponseBody>(max_join_response_size),
+        std::move(response_callback));
+
+      ccf::curl::CurlmLibuvContextSingleton::get_instance()->attach_request(
+        std::move(join_request));
     }
 
     void initiate_join()
