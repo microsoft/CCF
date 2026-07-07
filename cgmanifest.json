@@ -114,8 +114,8 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/project-everest/everparse",
-          "commitHash": "3eedec7ccde1762aefee10db4a1d505142bda12f",
-          "tag": "v2025.12.10"
+          "commitHash": "950bc93838ac2faae51126d8acd0637cf8c8a569",
+          "tag": "v2026.07.02"
         }
       }
     },
