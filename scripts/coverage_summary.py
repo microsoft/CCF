@@ -149,7 +149,7 @@ def current_point(report_path: str) -> Optional[CoveragePoint]:
         return None
     if coverage is None:
         return None
-    run_id = int(os.environ.get("GITHUB_RUN_ID", "0") or "0")
+    run_id = int(os.environ.get("GITHUB_RUN_ID") or 0)
     label = os.environ.get("GITHUB_RUN_NUMBER") or str(run_id)
     return CoveragePoint(run_id, label, coverage)
 
