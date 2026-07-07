@@ -1101,7 +1101,11 @@ class Network:
                 r"Found latest local snapshot file: (.*snapshot_(\d+)_\d+\.committed) "
                 r"\(size: \d+\)"
             )
-            local_snapshot_error_re = re.compile(r"Error while verifying (.*):")
+            local_snapshot_verification_error_re = re.compile(
+                r"Error while verifying (.*):"
+            )
+            local_snapshot_size_error = "Snapshot transaction size should not be zero"
+            local_snapshot_receipt_error = "Invalid snapshot receipt:"
 
             with open(out_path, "r", encoding="utf-8", errors="replace") as lines:
                 for line in lines:
@@ -1117,10 +1121,16 @@ class Network:
                         startup_seqno = int(local_snapshot.group(2))
                         continue
 
-                    local_snapshot_error = local_snapshot_error_re.search(line)
+                    local_snapshot_error = local_snapshot_verification_error_re.search(
+                        line
+                    )
                     if (
-                        local_snapshot_error is not None
-                        and local_snapshot_error.group(1) == local_snapshot_path
+                        (
+                            local_snapshot_error is not None
+                            and local_snapshot_error.group(1) == local_snapshot_path
+                        )
+                        or local_snapshot_size_error in line
+                        or local_snapshot_receipt_error in line
                     ):
                         local_snapshot_path = None
                         startup_seqno = 0
