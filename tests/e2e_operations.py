@@ -197,9 +197,7 @@ def find_latest_committed_snapshot_name(network):
     primary, _ = network.find_primary()
     snapshots_dir = network.get_committed_snapshots(primary)
     snapshot_names = [
-        f
-        for f in os.listdir(snapshots_dir)
-        if ccf.ledger.is_snapshot_file_committed(f)
+        f for f in os.listdir(snapshots_dir) if ccf.ledger.is_snapshot_file_committed(f)
     ]
     assert snapshot_names, f"Expected committed snapshots in {snapshots_dir}"
     snapshot_names.sort(key=ccf.ledger.snapshot_index_from_filename)
