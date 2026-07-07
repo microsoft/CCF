@@ -1,9 +1,27 @@
+function decode_query_component(s) {
+  // '+' is decoded to a space, matching decode_query_component in
+  // include/ccf/http_query.h
+  const withSpaces = s.replace(/\+/g, " ");
+  try {
+    return decodeURIComponent(withSpaces);
+  } catch (e) {
+    // Malformed or truncated percent-escapes are kept literally, rather than
+    // throwing, again matching decode_query_component in http_query.h
+    return withSpaces;
+  }
+}
+
 function parse_request_query(request) {
+  // request.query is the raw, still-escaped query string - each key and
+  // value must be decoded individually, after splitting, so that escaped
+  // '&' and '=' characters within a key or value are not mistaken for
+  // separators
   const elements = request.query.split("&");
   const obj = {};
   for (const kv of elements) {
     const [k, v] = kv.split("=");
-    obj[k] = v;
+    obj[decode_query_component(k)] =
+      v === undefined ? v : decode_query_component(v);
   }
   return obj;
 }

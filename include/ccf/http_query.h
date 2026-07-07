@@ -89,7 +89,7 @@ namespace ccf::http
       return false;
     }
 
-    const std::string_view& param_val = it->second;
+    const std::string& param_val = it->second;
 
     if constexpr (std::is_same_v<T, std::string>)
     {
