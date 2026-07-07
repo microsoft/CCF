@@ -3399,42 +3399,6 @@ namespace ccf
       return network.identity->cert;
     }
 
-    // Stop-gap until it becomes easier to use other HTTP clients
-    void make_http_request(
-      const ::http::URL& url,
-      ::http::Request&& req,
-      std::function<bool(
-        ccf::http_status status, http::HeaderMap&&, std::vector<uint8_t>&&)>
-        callback,
-      const std::vector<std::string>& ca_certs = {},
-      const std::string& app_protocol = "HTTP1",
-      bool authenticate_as_node_client_certificate = false) override
-    {
-      std::optional<ccf::crypto::Pem> client_cert = std::nullopt;
-      std::optional<ccf::crypto::Pem> client_cert_key = std::nullopt;
-      if (authenticate_as_node_client_certificate)
-      {
-        client_cert =
-          endorsed_node_cert ? *endorsed_node_cert : self_signed_node_cert;
-        client_cert_key = node_sign_kp->private_key_pem();
-      }
-
-      auto ca = std::make_shared<::tls::CA>(ca_certs, true);
-      std::shared_ptr<::tls::Cert> ca_cert =
-        std::make_shared<::tls::Cert>(ca, client_cert, client_cert_key);
-      auto client = rpcsessions->create_client(ca_cert, app_protocol);
-      client->connect(
-        url.host,
-        url.port,
-        [callback](
-          ccf::http_status status,
-          http::HeaderMap&& headers,
-          std::vector<uint8_t>&& data) {
-          return callback(status, std::move(headers), std::move(data));
-        });
-      client->send_request(std::move(req));
-    }
-
     std::shared_ptr<ccf::kv::Store> get_store() override
     {
       return network.tables;
