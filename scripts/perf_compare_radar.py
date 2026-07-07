@@ -53,14 +53,14 @@ RADAR_CONFIG = {
 # line, drawn on top of both bands.
 _CANVAS = "var(--color-canvas-default,var(--bgColor-default,#fff))"
 _BLUE = "#62B5E5"
-_BAND_1SIGMA = f"color-mix(in srgb, {_BLUE} 28%, {_CANVAS})"
+_BAND_1SIGMA = f"color-mix(in srgb, {_BLUE} 40%, {_CANVAS})"
 _BAND_2SIGMA = f"color-mix(in srgb, {_BLUE} 13%, {_CANVAS})"
 RADAR_THEME_CSS = (
-    f".radarCurve-0{{fill:{_BAND_2SIGMA}!important;fill-opacity:1!important;stroke:{_BLUE}!important;stroke-opacity:.45!important;stroke-width:1px!important}}",
-    f".radarCurve-1{{fill:{_BAND_1SIGMA}!important;fill-opacity:1!important;stroke:{_BLUE}!important;stroke-opacity:.7!important;stroke-width:1px!important}}",
-    f".radarCurve-2{{fill:{_BAND_2SIGMA}!important;fill-opacity:1!important;stroke:{_BLUE}!important;stroke-opacity:.7!important;stroke-width:1px!important}}",
-    f".radarCurve-3{{fill:{_CANVAS}!important;fill-opacity:1!important;stroke:{_BLUE}!important;stroke-opacity:.45!important;stroke-width:1px!important}}",
-    ".radarCurve-4{stroke-width:3px!important}",
+    f".radarCurve-0{{fill:{_BAND_2SIGMA}!important;fill-opacity:1!important;stroke:none!important;stroke-width:0!important}}",
+    f".radarCurve-1{{fill:{_BAND_1SIGMA}!important;fill-opacity:1!important;stroke:none!important;stroke-width:0!important}}",
+    f".radarCurve-2{{fill:{_BAND_2SIGMA}!important;fill-opacity:1!important;stroke:none!important;stroke-width:0!important}}",
+    f".radarCurve-3{{fill:{_CANVAS}!important;fill-opacity:1!important;stroke:none!important;stroke-width:0!important}}",
+    ".radarCurve-4{stroke-width:2px!important}",
     ".radarAxisLabel,.radarTitle{fill:var(--color-fg-default,var(--fgColor-default,#111827))!important;color:var(--color-fg-default,var(--fgColor-default,#111827))!important}",
 )
 
@@ -139,7 +139,7 @@ def benchmarks_with_metric(runs: List[dict], metric: str) -> List[str]:
 
 def mermaid_label(label: str) -> str:
     """Return a Mermaid label literal."""
-    return json.dumps(label)
+    return json.dumps(label, ensure_ascii=False)
 
 
 def compact_number(value: float) -> str:
@@ -182,10 +182,27 @@ def metric_label_value(value: float, unit: str) -> str:
     return f"{compact_number(value)} {unit}"
 
 
+# Solid triangles used as very visible up/down indicators in axis labels. Written
+# as escapes so the source stays ASCII while the rendered label shows the glyph.
+UP_TRIANGLE = "\u25b2"  # U+25B2 BLACK UP-POINTING TRIANGLE
+DOWN_TRIANGLE = "\u25bc"  # U+25BC BLACK DOWN-POINTING TRIANGLE
+FLAT_BAR = "\u25ac"  # U+25AC BLACK RECTANGLE
+
+
+def format_delta_percent(percent: float) -> str:
+    """Format the branch value as a signed difference from the main median (100%)."""
+    delta = round(percent - 100)
+    if delta > 0:
+        return f"{UP_TRIANGLE} {delta}%"
+    if delta < 0:
+        return f"{DOWN_TRIANGLE} {abs(delta)}%"
+    return f"{FLAT_BAR} 0%"
+
+
 def axis_label(benchmark: str, value: float, percent: float, unit: str) -> str:
-    """Shorten benchmark labels and include the branch real and normalized values."""
+    """Shorten benchmark labels and include the branch real value and delta."""
     label = SIG_MS_INTERVAL_RE.sub(r" \1", benchmark)
-    suffix = f" {metric_label_value(value, unit)} ({percent:.0f}%)"
+    suffix = f": {metric_label_value(value, unit)} {format_delta_percent(percent)}"
     max_label_length = MAX_AXIS_LABEL_LENGTH - len(suffix)
     if len(label) <= max_label_length:
         return f"{label}{suffix}"
@@ -329,7 +346,8 @@ def render_metric_group(
         "For throughput and rate, higher is better; for latency and memory, lower is better. "
         "The darker blue band shows the main median +/- 1 std dev, and the lighter blue "
         "band around it shows +/- 2 std dev. "
-        "Axis labels show this branch's value as a real number and percentage of the main median._"
+        "Axis labels show this branch's value and its difference from the main median, "
+        "where 0% is on the median._"
     )
     lines.append("")
     lines.extend(
