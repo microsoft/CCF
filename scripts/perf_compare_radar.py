@@ -30,6 +30,11 @@ METRIC_GROUPS = [
 # Metrics for which a higher value is an improvement. The rest (latency, memory)
 # are better when lower, which flips the meaning of an increase.
 HIGHER_IS_BETTER = {"throughput", "rate"}
+# Margin left inside and outside the plotted ring when zooming the radial scale
+# to the data: a fraction of the data spread, but at least a few percent so a
+# very flat chart still shows a visible ring rather than collapsing to a point.
+ZOOM_PAD_FACTOR = 0.35
+ZOOM_MIN_PAD = 4.0
 TREND_MAX_POINTS = 20
 # Preferred number of main runs for a stable band. Fewer than this still works,
 # but the median and std dev are noted as based on limited data.
@@ -298,10 +303,15 @@ def render_mermaid_radar_chart(
             "run and the recent main runs._\n"
         )
 
-    chart_max = max(
-        branch_values + low_values + high_values + low2_values + high2_values + [100.0]
-    )
-    chart_max = max(100, math.ceil(chart_max * 1.1 / 10) * 10)
+    # Zoom the radial scale to the data instead of starting at 0, so the rings
+    # fill the chart rather than hugging the outer edge. The margin keeps the
+    # innermost ring off the centre and the outermost ring inside the frame.
+    data_values = branch_values + low_values + high_values + low2_values + high2_values
+    data_low = min(data_values)
+    data_high = max(data_values)
+    pad = max((data_high - data_low) * ZOOM_PAD_FACTOR, ZOOM_MIN_PAD)
+    chart_min = max(0, math.floor(data_low - pad))
+    chart_max = math.ceil(data_high + pad)
 
     # Colour each axis label by improvement or regression. Mermaid renders axis
     # labels as sibling <text> elements in axis order, so nth-of-type targets
@@ -347,6 +357,7 @@ def render_mermaid_radar_chart(
             render_radar_curve("branch", branch_label, branch_values),
             "  graticule polygon",
             f"  max {chart_max}",
+            *([f"  min {chart_min}"] if chart_min > 0 else []),
             "  ticks 0",
             "  showLegend false",
             "```",
