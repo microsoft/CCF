@@ -44,10 +44,23 @@ RADAR_CONFIG = {
     "axisLabelFactor": 1.12,
     "curveTension": 0.08,
 }
+# The band is drawn as nested opaque rings using overlaid polygons, from the
+# outermost edge inwards: +2 std dev, +1 std dev, -1 std dev, -2 std dev. Each
+# fill is the blue tint mixed over the canvas colour, so it stays theme-adaptive
+# while remaining opaque. Opaque fills let the darker 1 std dev ring paint
+# cleanly on top of the lighter 2 std dev ring, and a final canvas-coloured
+# polygon punches out the centre below -2 std dev. The last curve is the branch
+# line, drawn on top of both bands.
+_CANVAS = "var(--color-canvas-default,var(--bgColor-default,#fff))"
+_BLUE = "#62B5E5"
+_BAND_1SIGMA = f"color-mix(in srgb, {_BLUE} 28%, {_CANVAS})"
+_BAND_2SIGMA = f"color-mix(in srgb, {_BLUE} 13%, {_CANVAS})"
 RADAR_THEME_CSS = (
-    ".radarCurve-0{fill-opacity:.28!important;stroke:#62B5E5!important;stroke-opacity:.7!important;stroke-width:1px!important}",
-    ".radarCurve-1{fill:var(--color-canvas-default,var(--bgColor-default,#fff))!important;fill-opacity:1!important;stroke:#62B5E5!important;stroke-opacity:.7!important;stroke-width:1px!important}",
-    ".radarCurve-2{stroke-width:3px!important}",
+    f".radarCurve-0{{fill:{_BAND_2SIGMA}!important;fill-opacity:1!important;stroke:{_BLUE}!important;stroke-opacity:.45!important;stroke-width:1px!important}}",
+    f".radarCurve-1{{fill:{_BAND_1SIGMA}!important;fill-opacity:1!important;stroke:{_BLUE}!important;stroke-opacity:.7!important;stroke-width:1px!important}}",
+    f".radarCurve-2{{fill:{_BAND_2SIGMA}!important;fill-opacity:1!important;stroke:{_BLUE}!important;stroke-opacity:.7!important;stroke-width:1px!important}}",
+    f".radarCurve-3{{fill:{_CANVAS}!important;fill-opacity:1!important;stroke:{_BLUE}!important;stroke-opacity:.45!important;stroke-width:1px!important}}",
+    ".radarCurve-4{stroke-width:3px!important}",
     ".radarAxisLabel,.radarTitle{fill:var(--color-fg-default,var(--fgColor-default,#111827))!important;color:var(--color-fg-default,var(--fgColor-default,#111827))!important}",
 )
 
@@ -209,6 +222,8 @@ def render_mermaid_radar_chart(
     branch_values = []
     low_values = []
     high_values = []
+    low2_values = []
+    high2_values = []
 
     for index, benchmark in enumerate(benchmarks):
         branch_value = metric_value(branch_data, benchmark, metric)
@@ -235,6 +250,8 @@ def render_mermaid_radar_chart(
         branch_values.append(branch_percent)
         low_values.append(max(0.0, normalized_percent(baseline - sigma, baseline)))
         high_values.append(normalized_percent(baseline + sigma, baseline))
+        low2_values.append(max(0.0, normalized_percent(baseline - 2 * sigma, baseline)))
+        high2_values.append(normalized_percent(baseline + 2 * sigma, baseline))
 
     if not axes:
         return (
@@ -242,7 +259,9 @@ def render_mermaid_radar_chart(
             "run and the recent main runs._\n"
         )
 
-    chart_max = max(branch_values + low_values + high_values + [100.0])
+    chart_max = max(
+        branch_values + low_values + high_values + low2_values + high2_values + [100.0]
+    )
     chart_max = max(100, math.ceil(chart_max * 1.1 / 10) * 10)
 
     lines = [
@@ -258,7 +277,9 @@ def render_mermaid_radar_chart(
         "  themeVariables:",
         '    cScale0: "#62B5E5"',
         '    cScale1: "#62B5E5"',
-        '    cScale2: "#008FD3"',
+        '    cScale2: "#62B5E5"',
+        '    cScale3: "#62B5E5"',
+        '    cScale4: "#008FD3"',
         "    radar:",
         '      axisColor: "#9CA3AF"',
         '      graticuleColor: "#E5E7EB"',
@@ -271,8 +292,10 @@ def render_mermaid_radar_chart(
     lines.extend(f"  axis {axis}" for axis in axes)
     lines.extend(
         [
-            render_radar_curve("stddev_high", "main median + 1 std dev", high_values),
-            render_radar_curve("stddev_low", "main median - 1 std dev", low_values),
+            render_radar_curve("stddev2_high", "main median + 2 std dev", high2_values),
+            render_radar_curve("stddev1_high", "main median + 1 std dev", high_values),
+            render_radar_curve("stddev1_low", "main median - 1 std dev", low_values),
+            render_radar_curve("stddev2_low", "main median - 2 std dev", low2_values),
             render_radar_curve("branch", branch_label, branch_values),
             "  graticule polygon",
             f"  max {chart_max}",
@@ -304,7 +327,8 @@ def render_metric_group(
     lines.append(
         "_Values are normalized per benchmark: 100 is the median of recent main runs. "
         "For throughput and rate, higher is better; for latency and memory, lower is better. "
-        "The light blue band shows the main median +/- 1 std dev range. "
+        "The darker blue band shows the main median +/- 1 std dev, and the lighter blue "
+        "band around it shows +/- 2 std dev. "
         "Axis labels show this branch's value as a real number and percentage of the main median._"
     )
     lines.append("")
@@ -312,7 +336,8 @@ def render_metric_group(
         [
             (
                 f"Legend: this branch `{branch_label}` is the blue line, "
-                "and the main median +/- 1 std dev is the light blue band."
+                "the darker blue band is the main median +/- 1 std dev, and the "
+                "lighter blue band is +/- 2 std dev."
             ),
             "",
         ]
@@ -336,8 +361,8 @@ def render_comparison(trend: List[dict], branch_data: dict, branch_label: str) -
         ),
         "",
         (
-            "_Each chart shades the median +/- 1 std dev on `main` and highlights "
-            "this branch's latest run._"
+            "_Each chart shades the median +/- 1 and +/- 2 std dev on `main` and "
+            "highlights this branch's latest run._"
         ),
         "",
     ]
