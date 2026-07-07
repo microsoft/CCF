@@ -1442,7 +1442,16 @@ class Network:
                             ) from e
                         if "StartupSeqnoIsOld" in error:
                             raise StartupSeqnoIsOld(node, has_stopped, error) from e
-                        if "invalid cert on handshake" in error:
+                        # The joining node now connects to the target via the
+                        # curl client, which reports a rejected service
+                        # certificate as "invalid service certificate". The
+                        # legacy TLS-session wording ("invalid cert on
+                        # handshake") is retained for compatibility with logs
+                        # from older nodes during mixed-version tests.
+                        if (
+                            "invalid service certificate" in error
+                            or "invalid cert on handshake" in error
+                        ):
                             raise ServiceCertificateInvalid(
                                 node, has_stopped, error
                             ) from e
