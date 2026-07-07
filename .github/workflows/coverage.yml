@@ -6,6 +6,7 @@ on:
   push:
     branches:
       - main
+      - copilot/enrich-coverage-workflow
   workflow_dispatch:
 
 permissions: read-all
