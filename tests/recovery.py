@@ -329,6 +329,82 @@ def test_recovery_member_changes_rejected_during_recovery(network, args):
     return recovered_network
 
 
+@reqs.description("Reconfigure a recovered service before submitting recovery shares")
+@reqs.recover(number_txs=2)
+def run_reconfiguration_before_recovery_shares(args):
+    txs = app.LoggingTxs("user0")
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        pdb=args.pdb,
+        txs=txs,
+    ) as network:
+        network.start_and_open(args)
+        network.txs.issue(network, number_txs=2)
+        network.save_service_identity(args)
+        old_primary, _ = network.find_primary()
+        network.stop_all_nodes()
+        current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
+
+        recovered_network = infra.network.Network(
+            args.nodes,
+            args.binary_dir,
+            args.debug_nodes,
+            existing_network=network,
+            txs=txs,
+        )
+        with infra.network.close_on_error(recovered_network):
+            recovered_network.start_in_recovery(
+                args,
+                ledger_dir=current_ledger_dir,
+                committed_ledger_dirs=committed_ledger_dirs,
+            )
+
+            primary, _ = recovered_network.find_primary()
+            recovered_network.consortium.transition_service_to_open(
+                primary,
+                previous_service_identity=slurp_file(
+                    args.previous_service_identity_file
+                ),
+            )
+            recovered_network.consortium.check_for_service(
+                primary, infra.network.ServiceStatus.WAITING_FOR_RECOVERY_SHARES
+            )
+
+            new_node = recovered_network.create_node()
+            recovered_network.join_node(new_node, args.package, args)
+            recovered_network.wait_for_node_in_store(
+                primary,
+                new_node.node_id,
+                node_status=ccf.ledger.NodeStatus.TRUSTED,
+                timeout=args.ledger_recovery_timeout,
+            )
+            recovered_network.consortium.check_for_service(
+                primary, infra.network.ServiceStatus.WAITING_FOR_RECOVERY_SHARES
+            )
+
+            recovered_network.consortium.recover_with_shares(primary)
+            for node in recovered_network.get_joined_nodes():
+                recovered_network.wait_for_state(
+                    node,
+                    infra.node.State.PART_OF_NETWORK.value,
+                    timeout=args.ledger_recovery_timeout,
+                )
+                recovered_network._wait_for_app_open(node)
+
+            recovered_network.recovery_count += 1
+            recovered_network.consortium.check_for_service(
+                primary, infra.network.ServiceStatus.OPEN
+            )
+
+            with new_node.client() as c:
+                r = c.get("/app/commit")
+                assert r.status_code == http.HTTPStatus.OK, r
+
+            recovered_network.stop_all_nodes()
+
+
 @reqs.description("Recover a service")
 @reqs.recover(number_txs=2)
 def test_recover_service(
@@ -2612,6 +2688,15 @@ checked. Note that the key for each logging message is unique (per table).
         # Single-node recovery is sufficient here because the test focuses on
         # code ID switching rather than multi-node consensus behaviour.
         nodes=infra.e2e_args.min_nodes(cr.args, f=0),
+        ledger_chunk_bytes="50KB",
+        snapshot_tx_interval=30,
+    )
+
+    cr.add(
+        "recovery_reconfiguration_before_shares",
+        run_reconfiguration_before_recovery_shares,
+        package="samples/apps/logging/logging",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
         ledger_chunk_bytes="50KB",
         snapshot_tx_interval=30,
     )
