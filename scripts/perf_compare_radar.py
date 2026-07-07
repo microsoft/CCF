@@ -11,13 +11,14 @@ curve is the branch's latest run. Values are normalized per benchmark so that
 """
 
 import os
-import sys
 import json
 import argparse
 import math
 import re
 import statistics
-from typing import List, Optional, Tuple
+from typing import Any
+
+PerfData = dict[str, Any]
 
 # Metric groups to chart. A radar chart is produced for every metric, with each
 # benchmark as a radar axis.
@@ -35,7 +36,7 @@ HIGHER_IS_BETTER = {"throughput", "rate"}
 # very flat chart still shows a visible ring rather than collapsing to a point.
 ZOOM_PAD_FACTOR = 0.35
 ZOOM_MIN_PAD = 4.0
-TREND_MAX_POINTS = 20
+TREND_MAX_POINTS = 15
 # Preferred number of main runs for a stable band. Fewer than this still works,
 # but the median and std dev are noted as based on limited data.
 MIN_TREND_POINTS = 10
@@ -73,7 +74,7 @@ RADAR_THEME_CSS = (
 )
 
 
-def jobid_sort_key(name: str) -> Tuple[int, object]:
+def jobid_sort_key(name: str) -> tuple[int, object]:
     """Order perf files chronologically by their numeric job id.
 
     File names have the form ``<run_id>-<run_number>-<run_attempt>.json`` where
@@ -87,7 +88,7 @@ def jobid_sort_key(name: str) -> Tuple[int, object]:
         return (1, name)
 
 
-def list_trend_files(directory: str) -> List[str]:
+def list_trend_files(directory: str) -> list[str]:
     """Return perf files in the directory, ordered chronologically (oldest first)."""
     if not os.path.isdir(directory):
         return []
@@ -99,7 +100,7 @@ def list_trend_files(directory: str) -> List[str]:
     return sorted(files, key=jobid_sort_key)
 
 
-def load_json(path: str) -> Optional[dict]:
+def load_json(path: str) -> PerfData | None:
     """Load a JSON object from a file, or None if it cannot be read."""
     try:
         with open(path, "r") as f:
@@ -109,11 +110,11 @@ def load_json(path: str) -> Optional[dict]:
     return data if isinstance(data, dict) else None
 
 
-def load_trend(directory: str, max_points: int) -> List[dict]:
+def load_trend(directory: str, max_points: int) -> list[PerfData]:
     """Load the most recent ``max_points`` main runs (oldest first)."""
     files = list_trend_files(directory)
     files = files[-max_points:] if max_points > 0 else []
-    trend: List[dict] = []
+    trend: list[PerfData] = []
     for name in files:
         data = load_json(os.path.join(directory, name))
         if data is not None:
@@ -121,7 +122,7 @@ def load_trend(directory: str, max_points: int) -> List[dict]:
     return trend
 
 
-def metric_value(data: dict, benchmark: str, metric: str) -> Optional[float]:
+def metric_value(data: PerfData, benchmark: str, metric: str) -> float | None:
     """Return the numeric value of a benchmark metric, or None if absent."""
     metrics = data.get(benchmark)
     if not isinstance(metrics, dict):
@@ -133,9 +134,9 @@ def metric_value(data: dict, benchmark: str, metric: str) -> Optional[float]:
     return value if isinstance(value, (int, float)) else None
 
 
-def benchmarks_with_metric(runs: List[dict], metric: str) -> List[str]:
+def benchmarks_with_metric(runs: list[PerfData], metric: str) -> list[str]:
     """Sorted names of benchmarks that report the given metric in any run."""
-    names = set()
+    names: set[str] = set()
     for data in runs:
         for benchmark in data:
             if benchmark == METADATA_KEY:
@@ -238,34 +239,29 @@ def normalized_percent(value: float, baseline: float) -> float:
     return (value / baseline) * 100
 
 
-def repeated_values_for_radar(values: List[float]) -> str:
-    """Render radar curve values."""
-    return ", ".join(f"{value:.2f}" for value in values)
-
-
-def render_radar_curve(curve_id: str, label: str, values: List[float]) -> str:
+def render_radar_curve(curve_id: str, label: str, values: list[float]) -> str:
     """Render a Mermaid radar curve line."""
-    rendered_values = repeated_values_for_radar(values)
+    rendered_values = ", ".join(f"{value:.2f}" for value in values)
     return f"  curve {curve_id}[{mermaid_label(label)}]{{{rendered_values}}}"
 
 
 def render_mermaid_radar_chart(
-    trend: List[dict],
-    branch_data: dict,
-    benchmarks: List[str],
+    trend: list[PerfData],
+    branch_data: PerfData,
+    benchmarks: list[str],
     metric: str,
     unit: str,
     branch_label: str,
 ) -> str:
     """Render one Mermaid radar chart comparing the branch run with the main trend."""
     higher_better = metric in HIGHER_IS_BETTER
-    axes = []
-    axis_colors = []
-    branch_values = []
-    low_values = []
-    high_values = []
-    low2_values = []
-    high2_values = []
+    axes: list[str] = []
+    axis_colors: list[str] = []
+    branch_values: list[float] = []
+    low_values: list[float] = []
+    high_values: list[float] = []
+    low2_values: list[float] = []
+    high2_values: list[float] = []
 
     for index, benchmark in enumerate(benchmarks):
         branch_value = metric_value(branch_data, benchmark, metric)
@@ -284,7 +280,7 @@ def render_mermaid_radar_chart(
         if baseline <= 0:
             continue
 
-        sigma = statistics.pstdev(main_values) if len(main_values) > 1 else 0
+        sigma = statistics.pstdev(main_values) if len(main_values) > 1 else 0.0
         branch_percent = normalized_percent(branch_value, baseline)
         axes.append(
             f"b{index}[{mermaid_label(axis_label(benchmark, branch_value, branch_percent, unit))}]"
@@ -366,8 +362,8 @@ def render_mermaid_radar_chart(
 
 
 def render_metric_group(
-    trend: List[dict],
-    branch_data: dict,
+    trend: list[PerfData],
+    branch_data: PerfData,
     branch_label: str,
     metric: str,
     title: str,
@@ -389,7 +385,9 @@ def render_metric_group(
     return "\n".join(lines)
 
 
-def render_comparison(trend: List[dict], branch_data: dict, branch_label: str) -> str:
+def render_comparison(
+    trend: list[PerfData], branch_data: PerfData, branch_label: str
+) -> str:
     """Render all metric groups comparing the branch run with the main trend."""
     lines = [
         "# Benchmark A/B",
@@ -470,4 +468,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()
