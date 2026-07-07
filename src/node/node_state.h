@@ -1106,6 +1106,12 @@ namespace ccf
         config.join.service_cert.size());
       curl_handle.set_opt(CURLOPT_CAPATH, nullptr);
 
+      // Bound each attempt so a stalled connection is abandoned and the
+      // periodic join timer can retry, rather than accumulating in-flight
+      // requests. A timeout surfaces as a transient error and is retried.
+      curl_handle.set_opt(CURLOPT_CONNECTTIMEOUT, 5L);
+      curl_handle.set_opt(CURLOPT_TIMEOUT, 60L);
+
       const auto client_key_pem = node_sign_kp->private_key_pem();
       curl_handle.set_blob_opt(
         CURLOPT_SSLCERT_BLOB,
@@ -1137,6 +1143,7 @@ namespace ccf
       // Capture target_address by value, and use it when logging about this
       // response. Do not use the config target address, which may have been
       // updated by a redirect in the interim.
+      // NOLINTBEGIN(readability-function-cognitive-complexity)
       ccf::curl::CurlRequest::ResponseCallback response_callback =
         [this, target_address = config.join.target_rpc_address](
           std::unique_ptr<ccf::curl::CurlRequest>&& request,
@@ -1158,10 +1165,36 @@ namespace ccf
 
             if (curl_response != CURLE_OK)
             {
-              // Transport or TLS-layer failure. A wrong or expired service
+              // The legacy httpclient path silently dropped a failed
+              // connection and relied on the periodic join timer to retry
+              // when the target could not yet be reached, while treating TLS
+              // handshake failures (e.g. an untrusted service certificate) as
+              // fatal. Preserve both behaviours: transient transport errors
+              // are retried, everything else is fatal.
+              const bool transient_transport_error =
+                curl_response == CURLE_COULDNT_RESOLVE_PROXY ||
+                curl_response == CURLE_COULDNT_RESOLVE_HOST ||
+                curl_response == CURLE_COULDNT_CONNECT ||
+                curl_response == CURLE_OPERATION_TIMEDOUT ||
+                curl_response == CURLE_GOT_NOTHING ||
+                curl_response == CURLE_RECV_ERROR ||
+                curl_response == CURLE_SEND_ERROR ||
+                curl_response == CURLE_PARTIAL_FILE;
+              if (transient_transport_error)
+              {
+                LOG_INFO_FMT(
+                  "Transient error contacting {} to join: {} ({}). The join "
+                  "timer will retry.",
+                  target_address,
+                  curl_easy_strerror(curl_response),
+                  static_cast<int>(curl_response));
+                return;
+              }
+
+              // Fatal TLS/protocol-layer failure. A wrong or expired service
               // certificate surfaces here as a peer verification failure,
-              // which we flag distinctly so it can be told apart from generic
-              // connectivity errors.
+              // which we flag distinctly so it can be told apart from other
+              // fatal errors.
               const bool invalid_service_certificate =
                 curl_response == CURLE_PEER_FAILED_VERIFICATION ||
                 curl_response == CURLE_SSL_CACERT_BADFILE;
@@ -1436,6 +1469,7 @@ namespace ccf
               e.what());
           }
         };
+      // NOLINTEND(readability-function-cognitive-complexity)
 
       auto join_request = std::make_unique<ccf::curl::CurlRequest>(
         std::move(curl_handle),
