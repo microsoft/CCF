@@ -96,18 +96,18 @@ for the client-certificate (mTLS) options.
 
 curl easy-handle options for the join request:
 
-| Option | Value | Rationale |
-| --- | --- | --- |
-| `CURLOPT_CAINFO_BLOB` | `config.join.service_cert` | Trust anchor = service cert only (matches baseline). |
-| `CURLOPT_CAPATH` | `nullptr` | Do **not** fall back to the system CA bundle. Critical: keeps the accepted-CA set identical to the baseline. |
-| `CURLOPT_SSL_VERIFYPEER` | `1L` | Verify the peer chain (matches baseline). |
-| `CURLOPT_SSL_VERIFYHOST` | `2L` | Verify the peer certificate name (hardening; see below). |
-| `CURLOPT_PROTOCOLS_STR` | `"https"` | Restrict to HTTPS (matches JWT refresh). |
-| `CURLOPT_SSLCERT_BLOB` | self-signed node cert | Client cert for mTLS (matches baseline). |
-| `CURLOPT_SSLCERTTYPE` | `"PEM"` | |
-| `CURLOPT_SSLKEY_BLOB` | node signing key | Client key for mTLS (matches baseline). |
-| `CURLOPT_SSLKEYTYPE` | `"PEM"` | |
-| `CURLOPT_CONNECTTIMEOUT` / `CURLOPT_TIMEOUT` | small fixed values | Bound transport time (matches JWT refresh). |
+| Option                                       | Value                      | Rationale                                                                                                    |
+| -------------------------------------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `CURLOPT_CAINFO_BLOB`                        | `config.join.service_cert` | Trust anchor = service cert only (matches baseline).                                                         |
+| `CURLOPT_CAPATH`                             | `nullptr`                  | Do **not** fall back to the system CA bundle. Critical: keeps the accepted-CA set identical to the baseline. |
+| `CURLOPT_SSL_VERIFYPEER`                     | `1L`                       | Verify the peer chain (matches baseline).                                                                    |
+| `CURLOPT_SSL_VERIFYHOST`                     | `2L`                       | Verify the peer certificate name (hardening; see below).                                                     |
+| `CURLOPT_PROTOCOLS_STR`                      | `"https"`                  | Restrict to HTTPS (matches JWT refresh).                                                                     |
+| `CURLOPT_SSLCERT_BLOB`                       | self-signed node cert      | Client cert for mTLS (matches baseline).                                                                     |
+| `CURLOPT_SSLCERTTYPE`                        | `"PEM"`                    |                                                                                                              |
+| `CURLOPT_SSLKEY_BLOB`                        | node signing key           | Client key for mTLS (matches baseline).                                                                      |
+| `CURLOPT_SSLKEYTYPE`                         | `"PEM"`                    |                                                                                                              |
+| `CURLOPT_CONNECTTIMEOUT` / `CURLOPT_TIMEOUT` | small fixed values         | Bound transport time (matches JWT refresh).                                                                  |
 
 - **Method/body**: POST `https://{target_rpc_address}/node/join` with the JSON
   `JoinNetworkNodeToNode::In` body and `Content-Type: application/json`.
@@ -138,14 +138,14 @@ and cover it in `src/http/test/curl_test.cpp`.
 
 ## Security analysis: which root CAs are accepted
 
-| Property | Baseline (legacy client) | Migrated (curl) | Verdict |
-| --- | --- | --- | --- |
-| Accepted trust anchors | service cert only (`::tls::CA` store) | `CAINFO_BLOB` = service cert, `CAPATH` = `nullptr` | Identical |
-| System CA fallback | never | disabled via `CAPATH=nullptr` | Identical |
-| Chain building | full chain, `partial_ok=false` | curl default (no partial chain) | Identical (service identity is a self-signed root; snapshot fetch already proves this against the same peer) |
-| Peer chain verification | `SSL_VERIFY_PEER` | `SSL_VERIFYPEER=1` | Identical |
-| Certificate name check | none (SNI only) | `SSL_VERIFYHOST=2` | **Strengthened** |
-| Client auth (mTLS) | self-signed node cert | `SSLCERT_BLOB` self-signed node cert | Identical |
+| Property                | Baseline (legacy client)              | Migrated (curl)                                    | Verdict                                                                                                      |
+| ----------------------- | ------------------------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Accepted trust anchors  | service cert only (`::tls::CA` store) | `CAINFO_BLOB` = service cert, `CAPATH` = `nullptr` | Identical                                                                                                    |
+| System CA fallback      | never                                 | disabled via `CAPATH=nullptr`                      | Identical                                                                                                    |
+| Chain building          | full chain, `partial_ok=false`        | curl default (no partial chain)                    | Identical (service identity is a self-signed root; snapshot fetch already proves this against the same peer) |
+| Peer chain verification | `SSL_VERIFY_PEER`                     | `SSL_VERIFYPEER=1`                                 | Identical                                                                                                    |
+| Certificate name check  | none (SNI only)                       | `SSL_VERIFYHOST=2`                                 | **Strengthened**                                                                                             |
+| Client auth (mTLS)      | self-signed node cert                 | `SSLCERT_BLOB` self-signed node cert               | Identical                                                                                                    |
 
 **Hostname verification hardening.** Enabling `VERIFYHOST=2` means a join fails if
 the host in `join.target_rpc_address` is not present in the target node's
@@ -154,8 +154,8 @@ certificate SANs. CCF derives node-cert SANs from
 interface's `published_address` (`get_subject_alternative_names()`), with IPs
 emitted as `iPAddress` SANs and names as `dNSName`. Redirect targets are built
 from those same published addresses. The snapshot fetch inside the join flow
-already uses curl with the default `VERIFYHOST=2` against the *same*
-`target_rpc_address` and *same* `service_cert`, so standard deployments and the
+already uses curl with the default `VERIFYHOST=2` against the _same_
+`target_rpc_address` and _same_ `service_cert`, so standard deployments and the
 test suite already satisfy this constraint. The residual risk is a deployment that
 connects to an address deliberately absent from the target SANs; this is a
 behavioural change and must be documented in `CHANGELOG.md`.
