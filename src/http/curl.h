@@ -238,6 +238,11 @@ namespace ccf::curl
       return bytes_to_copy;
     }
 
+    [[nodiscard]] size_t size() const
+    {
+      return unsent.size();
+    }
+
     void attach_to_curl(CURL* curl)
     {
       if (curl == nullptr)
@@ -500,10 +505,25 @@ namespace ccf::curl
         }
         break;
         case HTTP_POST:
-          // libcurl sets the post verb when CURLOPT_POSTFIELDS is set, so we
-          // skip doing so here, and we assume that the user has already set
-          // these fields
-          break;
+        {
+          CHECK_CURL_EASY_SETOPT(curl_handle, CURLOPT_POST, 1L);
+          if (request_body == nullptr)
+          {
+            // If no request body is provided, curl will try reading from
+            // stdin, which causes a blockage
+            request_body =
+              std::make_unique<RequestBody>(std::vector<uint8_t>());
+          }
+          // With CURLOPT_POST set and no CURLOPT_POSTFIELDS, libcurl obtains
+          // the request body from the read callback attached below. Declare
+          // the size so a Content-Length is sent rather than switching to
+          // chunked transfer encoding.
+          CHECK_CURL_EASY_SETOPT(
+            curl_handle,
+            CURLOPT_POSTFIELDSIZE_LARGE,
+            static_cast<curl_off_t>(request_body->size()));
+        }
+        break;
         default:
           throw std::logic_error(
             fmt::format("Unsupported HTTP method: {}", method.c_str()));

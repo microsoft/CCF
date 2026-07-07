@@ -174,6 +174,55 @@ TEST_CASE("Synchronous")
   REQUIRE(response_count == sync_number_requests);
 }
 
+TEST_CASE("Synchronous POST echoes body")
+{
+  // Exercises POST-with-body support in the curl wrapper: the echo server
+  // reflects the request method and body, so we can assert that both were
+  // transmitted correctly.
+  const std::string sent_body = R"({"message":"join","iter":42})";
+  std::vector<uint8_t> body_bytes(sent_body.begin(), sent_body.end());
+  auto body = std::make_unique<ccf::curl::RequestBody>(std::move(body_bytes));
+
+  auto headers = ccf::curl::UniqueSlist();
+  headers.append("Content-Type", "application/json");
+
+  auto curl_handle = ccf::curl::UniqueCURL();
+  std::string url = fmt::format("http://{}/join", server_address);
+
+  CURLcode curl_code = CURLE_FAILED_INIT;
+  long status_code = 0;
+  std::string response_body;
+
+  auto response = [&curl_code, &status_code, &response_body](
+                    std::unique_ptr<ccf::curl::CurlRequest>&& request,
+                    CURLcode curl_response,
+                    long status) {
+    curl_code = curl_response;
+    status_code = status;
+    auto* rb = request->get_response_body();
+    response_body = std::string(rb->buffer.begin(), rb->buffer.end());
+  };
+
+  auto request = std::make_unique<ccf::curl::CurlRequest>(
+    std::move(curl_handle),
+    HTTP_POST,
+    std::move(url),
+    std::move(headers),
+    std::move(body),
+    std::make_unique<ccf::curl::ResponseBody>(SIZE_MAX),
+    response);
+
+  ccf::curl::CurlRequest::synchronous_perform(std::move(request));
+
+  constexpr long HTTP_SUCCESS = 200;
+  REQUIRE(curl_code == CURLE_OK);
+  REQUIRE(status_code == HTTP_SUCCESS);
+
+  const auto parsed = nlohmann::json::parse(response_body);
+  REQUIRE(parsed.at("metadata").at("method") == "POST");
+  REQUIRE(parsed.at("body") == sent_body);
+}
+
 TEST_CASE("CurlmLibuvContext")
 {
   size_t response_count = 0;
