@@ -48,7 +48,7 @@ jobs:
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DCOVERAGE=ON ..
+          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DCOVERAGE=ON -DLONG_TESTS=ON ..
           ninja
         shell: bash
 
