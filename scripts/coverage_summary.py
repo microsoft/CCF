@@ -16,7 +16,7 @@ import math
 import os
 import re
 import sys
-from typing import List, NamedTuple, Optional
+from typing import List, NamedTuple, Optional, Tuple
 
 # Number of previous runs to include in the trend, in addition to the current
 # run.
@@ -44,23 +44,23 @@ class CoveragePoint(NamedTuple):
 def extract_line_coverage(text: str) -> Optional[float]:
     """Return the overall line coverage percentage from an llvm-cov report."""
     for line in text.splitlines():
-        stripped = _ANSI_RE.sub("", line)
+        stripped: str = _ANSI_RE.sub("", line)
         stripped = _TIMESTAMP_RE.sub("", stripped).strip()
         if not stripped.startswith("TOTAL"):
             continue
-        percentages = _PERCENT_RE.findall(stripped)
+        percentages: List[str] = _PERCENT_RE.findall(stripped)
         if len(percentages) > _LINE_COVERAGE_INDEX:
             return float(percentages[_LINE_COVERAGE_INDEX])
     return None
 
 
-def _parse_history_name(name: str) -> Optional[tuple]:
+def _parse_history_name(name: str) -> Optional[Tuple[int, str]]:
     """Return (run_id, label) parsed from a ``<run_id>-<run_number>.log`` name."""
-    stem = name[:-4] if name.endswith(".log") else name
+    stem: str = name[:-4] if name.endswith(".log") else name
     run_id, _, run_number = stem.partition("-")
     if not run_id.isdigit():
         return None
-    label = run_number if run_number else run_id
+    label: str = run_number if run_number else run_id
     return int(run_id), label
 
 
@@ -70,16 +70,16 @@ def load_history(directory: str) -> List[CoveragePoint]:
     if not os.path.isdir(directory):
         return points
     for name in os.listdir(directory):
-        path = os.path.join(directory, name)
+        path: str = os.path.join(directory, name)
         if not os.path.isfile(path):
             continue
-        parsed = _parse_history_name(name)
+        parsed: Optional[Tuple[int, str]] = _parse_history_name(name)
         if parsed is None:
             continue
         run_id, label = parsed
         try:
             with open(path, "r", encoding="utf-8", errors="replace") as f:
-                coverage = extract_line_coverage(f.read())
+                coverage: Optional[float] = extract_line_coverage(f.read())
         except OSError:
             continue
         if coverage is not None:
@@ -88,25 +88,27 @@ def load_history(directory: str) -> List[CoveragePoint]:
 
 
 def run_url(run_id: int) -> str:
-    server_url = os.environ.get("GITHUB_SERVER_URL", "https://github.com").rstrip("/")
-    repository = os.environ.get("GITHUB_REPOSITORY", DEFAULT_REPOSITORY)
+    server_url: str = os.environ.get("GITHUB_SERVER_URL", "https://github.com").rstrip(
+        "/"
+    )
+    repository: str = os.environ.get("GITHUB_REPOSITORY", DEFAULT_REPOSITORY)
     return f"{server_url}/{repository}/actions/runs/{run_id}"
 
 
 def render_trend(points: List[CoveragePoint]) -> str:
     """Render the line coverage trend as a Mermaid xychart and a runs table."""
-    labels = ", ".join(f'"{point.label}"' for point in points)
-    values = ", ".join(f"{point.coverage:.2f}" for point in points)
+    labels: str = ", ".join(f'"{point.label}"' for point in points)
+    values: str = ", ".join(f"{point.coverage:.2f}" for point in points)
 
-    coverages = [point.coverage for point in points]
-    lowest = min(coverages)
-    highest = max(coverages)
-    axis_min = max(0.0, math.floor(lowest - 1))
-    axis_max = min(100.0, math.ceil(highest + 1))
+    coverages: List[float] = [point.coverage for point in points]
+    lowest: float = min(coverages)
+    highest: float = max(coverages)
+    axis_min: float = max(0.0, math.floor(lowest - 1))
+    axis_max: float = min(100.0, math.ceil(highest + 1))
     if axis_min >= axis_max:
         axis_min = max(0.0, axis_max - 1)
 
-    lines = [
+    lines: List[str] = [
         "## Line coverage trend",
         "",
         "```mermaid",
@@ -132,7 +134,7 @@ def build_points(
     history: List[CoveragePoint], current: Optional[CoveragePoint]
 ) -> List[CoveragePoint]:
     """Order history chronologically, keep the most recent, append current."""
-    ordered = sorted(history, key=lambda point: point.run_id)
+    ordered: List[CoveragePoint] = sorted(history, key=lambda point: point.run_id)
     if current is not None:
         ordered = [point for point in ordered if point.run_id != current.run_id]
     ordered = ordered[-HISTORY_POINTS:]
@@ -144,18 +146,18 @@ def build_points(
 def current_point(report_path: str) -> Optional[CoveragePoint]:
     try:
         with open(report_path, "r", encoding="utf-8", errors="replace") as f:
-            coverage = extract_line_coverage(f.read())
+            coverage: Optional[float] = extract_line_coverage(f.read())
     except OSError:
         return None
     if coverage is None:
         return None
-    run_id = int(os.environ.get("GITHUB_RUN_ID") or 0)
-    label = os.environ.get("GITHUB_RUN_NUMBER") or str(run_id)
+    run_id: int = int(os.environ.get("GITHUB_RUN_ID") or 0)
+    label: str = os.environ.get("GITHUB_RUN_NUMBER") or str(run_id)
     return CoveragePoint(run_id, label, coverage)
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(
+    parser: argparse.ArgumentParser = argparse.ArgumentParser(
         description="Render a line coverage trend chart for the job summary."
     )
     parser.add_argument(
@@ -168,11 +170,11 @@ def main() -> int:
         default="coverage_history",
         help="Directory of previous-run log files (default: coverage_history).",
     )
-    args = parser.parse_args()
+    args: argparse.Namespace = parser.parse_args()
 
-    current = current_point(args.report)
-    history = load_history(args.history)
-    points = build_points(history, current)
+    current: Optional[CoveragePoint] = current_point(args.report)
+    history: List[CoveragePoint] = load_history(args.history)
+    points: List[CoveragePoint] = build_points(history, current)
 
     if not points:
         return 0
