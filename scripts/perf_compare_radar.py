@@ -27,6 +27,9 @@ METRIC_GROUPS = [
     ("memory", "Memory", "bytes"),
     ("rate", "Rate", "ops/s"),
 ]
+# Metrics for which a higher value is an improvement. The rest (latency, memory)
+# are better when lower, which flips the meaning of an increase.
+HIGHER_IS_BETTER = {"throughput", "rate"}
 TREND_MAX_POINTS = 20
 # Preferred number of main runs for a stable band. Fewer than this still works,
 # but the median and std dev are noted as based on limited data.
@@ -199,6 +202,22 @@ def format_delta_percent(percent: float) -> str:
     return f"{FLAT_BAR} 0%"
 
 
+# Axis label colours by whether the branch improved on, regressed against, or
+# matched the main median. Chosen to stay legible on both light and dark themes.
+LABEL_GOOD = "#2DA44E"  # green: improvement
+LABEL_BAD = "#E5484D"  # red: regression
+LABEL_FLAT = "#808A94"  # grey: no change
+
+
+def axis_label_color(percent: float, higher_is_better: bool) -> str:
+    """Colour an axis label by whether the branch improved on the main median."""
+    delta = round(percent - 100)
+    if delta == 0:
+        return LABEL_FLAT
+    improved = (delta > 0) == higher_is_better
+    return LABEL_GOOD if improved else LABEL_BAD
+
+
 def axis_label(benchmark: str, value: float, percent: float, unit: str) -> str:
     """Shorten benchmark labels and include the branch real value and delta."""
     label = SIG_MS_INTERVAL_RE.sub(r" \1", benchmark)
@@ -235,7 +254,9 @@ def render_mermaid_radar_chart(
     branch_label: str,
 ) -> str:
     """Render one Mermaid radar chart comparing the branch run with the main trend."""
+    higher_better = metric in HIGHER_IS_BETTER
     axes = []
+    axis_colors = []
     branch_values = []
     low_values = []
     high_values = []
@@ -265,6 +286,7 @@ def render_mermaid_radar_chart(
             f"b{index}[{mermaid_label(axis_label(benchmark, branch_value, branch_percent, unit))}]"
         )
         branch_values.append(branch_percent)
+        axis_colors.append(axis_label_color(branch_percent, higher_better))
         low_values.append(max(0.0, normalized_percent(baseline - sigma, baseline)))
         high_values.append(normalized_percent(baseline + sigma, baseline))
         low2_values.append(max(0.0, normalized_percent(baseline - 2 * sigma, baseline)))
@@ -281,6 +303,14 @@ def render_mermaid_radar_chart(
     )
     chart_max = max(100, math.ceil(chart_max * 1.1 / 10) * 10)
 
+    # Colour each axis label by improvement or regression. Mermaid renders axis
+    # labels as sibling <text> elements in axis order, so nth-of-type targets
+    # each one individually.
+    label_color_css = [
+        f".radarAxisLabel:nth-of-type({position}){{fill:{color}!important}}"
+        for position, color in enumerate(axis_colors, start=1)
+    ]
+
     lines = [
         "```mermaid",
         "---",
@@ -291,6 +321,7 @@ def render_mermaid_radar_chart(
         "  theme: base",
         "  themeCSS: |",
         *[f"    {line}" for line in RADAR_THEME_CSS],
+        *[f"    {line}" for line in label_color_css],
         "  themeVariables:",
         '    cScale0: "#62B5E5"',
         '    cScale1: "#62B5E5"',
@@ -347,7 +378,8 @@ def render_metric_group(
         "The darker blue band shows the main median +/- 1 std dev, and the lighter blue "
         "band around it shows +/- 2 std dev. "
         "Axis labels show this branch's value and its difference from the main median, "
-        "where 0% is on the median._"
+        "where 0% is on the median. Labels are green when this branch improves on the "
+        "median, red when it regresses, and grey when unchanged._"
     )
     lines.append("")
     lines.extend(
