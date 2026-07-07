@@ -697,13 +697,23 @@ def test_empty_snapshot(network, args):
             )
             new_node.stop()
 
-            # Check that the empty snapshot is correctly skipped
+            # Check that the empty snapshot is correctly skipped, then remove
+            # the staged copy so shutdown snapshot invariants do not interpret
+            # this deliberately empty test file as a real committed snapshot.
             if not new_node.check_log_for_error_message(
                 f"Ignoring empty snapshot file {snapshot_name}"
             ):
                 raise AssertionError(
                     f"Expected empty snapshot file {snapshot_name} to be skipped in node logs"
                 )
+
+            node_snapshots_dir = os.path.join(
+                new_node.remote.remote.root,
+                new_node.remote.snapshots_dir_name,
+            )
+            staged_snapshot_path = os.path.join(node_snapshots_dir, snapshot_name)
+            assert os.path.exists(staged_snapshot_path), staged_snapshot_path
+            os.remove(staged_snapshot_path)
 
 
 def test_nulled_snapshot(network, args):
@@ -769,6 +779,7 @@ def test_corrupt_snapshot_handling(network, args):
     # are iterated in descending seqno order).
     writable_snapshot_name = "snapshot_600_610.committed"
     read_only_snapshot_name = "snapshot_500_510.committed"
+    unrenamable_snapshot_name = "snapshot_700_710.committed"
 
     # ---- Part 1: writable dir (rename succeeds) + read-only config dir ----
     LOG.info("Part 1: corrupt snapshots in both writable and read-only directories")
@@ -868,8 +879,6 @@ def test_corrupt_snapshot_handling(network, args):
 
     # ---- Part 2: writable dir with restricted permissions (rename fails) ----
     LOG.info("Part 2: corrupt snapshot in writable dir that cannot be renamed")
-
-    unrenamable_snapshot_name = "snapshot_3000_3500.committed"
 
     with tempfile.TemporaryDirectory() as restricted_dir:
         snapshot_path = os.path.join(restricted_dir, unrenamable_snapshot_name)
