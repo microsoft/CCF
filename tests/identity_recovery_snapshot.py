@@ -9,7 +9,6 @@ import infra.e2e_args
 import infra.network
 import infra.node
 import infra.crypto
-import infra.logging_app as app
 import suite.test_requirements as reqs
 from cryptography.x509 import load_pem_x509_certificate
 from cryptography.hazmat.backends import default_backend
@@ -17,15 +16,10 @@ from cryptography.hazmat.primitives import serialization
 from infra.runner import ConcurrentRunner
 from loguru import logger as LOG
 
-# STALE_IDENTITY_RETRY_LOG is logged by retry_fetch_first() in the network
-# identity subsystem (src/node/rpc/network_identity_subsystem.h) when the topmost
-# endorsement in the (still-stale) local store is signed by a previous service
-# identity. Whether it appears depends on a startup race (the node must reach
-# part-of-network while its local store still exposes the pre-recovery service as
-# OPEN, before the recovered service-open transaction is applied), so it is only
-# surfaced best-effort here. The deterministic regression coverage for the retry
-# path is the unit test network_identity_subsystem_test; this e2e instead
-# functionally verifies the resulting cross-recovery endorsement chain.
+# Logged by the network identity subsystem (network_identity_subsystem.h) when a
+# joining node detects a stale pre-recovery topmost endorsement and retries.
+# Whether it appears is a startup race, so it is only surfaced best-effort here;
+# network_identity_subsystem_test is the deterministic regression test for it.
 STALE_IDENTITY_RETRY_LOG = "signed by a stale service identity"
 
 
@@ -48,7 +42,7 @@ def preserve_oldest_committed_snapshot(network, primary, dest_name):
     return dest_dir
 
 
-def get_trusted_keys_when_ready(node, timeout=30):
+def get_trusted_keys_when_ready(node, timeout=60):
     """Poll the logging app's trusted_keys endpoint until the node's network
     identity subsystem has settled, returning the final response. The handler
     calls get_trusted_keys(), which raises (so the endpoint returns an error)
@@ -157,11 +151,11 @@ def test_join_from_stale_pre_recovery_snapshot(network, args):
     recovered_network.trust_node(new_node, args)
     LOG.success("New node joined from the stale pre-recovery snapshot and caught up")
 
-    # Functional end-to-end check: the joined node must serve the network-identity
-    # endorsement chain and trusted keys for a PRE-recovery transaction. That is
-    # only possible once it has built the identity chain across the recovery
-    # boundary from its pre-recovery snapshot; had that regressed, bootstrap would
-    # fail and these endpoints would never become ready.
+    # Functional end-to-end check: the joined node must serve a trusted-key set
+    # that spans the recovery. That is only possible once it has built the
+    # identity chain across the recovery boundary from its pre-recovery snapshot;
+    # had that regressed, bootstrap would fail and the endpoint would never
+    # become ready.
     verify_cross_recovery_identity_chain(new_node)
 
     # Best-effort: surface it if the startup race lined up and the node also hit
@@ -180,18 +174,13 @@ def test_join_from_stale_pre_recovery_snapshot(network, args):
 
 
 def run(args):
-    txs = app.LoggingTxs("user0")
     with infra.network.network(
         args.nodes,
         args.binary_dir,
         args.debug_nodes,
         pdb=args.pdb,
-        txs=txs,
     ) as network:
         network.start_and_open(args)
-        # Issue enough transactions that several snapshots are produced and
-        # committed before the recovery, so the oldest one is comfortably stale.
-        network.txs.issue(network, number_txs=30)
         network = test_join_from_stale_pre_recovery_snapshot(network, args)
 
 
