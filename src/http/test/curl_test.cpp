@@ -8,6 +8,7 @@
 
 #include <cstdlib>
 #include <curl/header.h>
+#include <fstream>
 #include <iostream>
 #include <llhttp/llhttp.h>
 #include <memory>
@@ -267,6 +268,114 @@ TEST_CASE("Synchronous POST echoes body")
   const auto parsed = nlohmann::json::parse(response_body);
   REQUIRE(parsed.at("metadata").at("method") == "POST");
   REQUIRE(parsed.at("body") == sent_body);
+}
+
+TEST_CASE("VERIFYHOST rejects a certificate SAN mismatch")
+{
+  // Guards the TLS hostname-verification hardening the node join client relies
+  // on: with the same pinned CA and the same connection,
+  // CURLOPT_SSL_VERIFYHOST == 2 must reject a certificate whose SAN does not
+  // cover the dialed host, and accept one that does. Requires the HTTPS test
+  // server started by e2e_curl.py (self-signed cert with a single dNSName SAN,
+  // served on the loopback IP).
+  const char* tls_addr_env = std::getenv("TLS_SERVER_ADDR");
+  const char* tls_san_env = std::getenv("TLS_SERVER_SAN");
+  const char* tls_ca_env = std::getenv("TLS_SERVER_CA");
+  if (
+    tls_addr_env == nullptr || tls_san_env == nullptr || tls_ca_env == nullptr)
+  {
+    MESSAGE("Skipping: TLS_SERVER_* env not set (run via e2e_curl.py)");
+    return;
+  }
+
+  const std::string tls_addr = tls_addr_env;
+  const std::string tls_san = tls_san_env;
+
+  std::string ca_pem;
+  {
+    std::ifstream ca_file(tls_ca_env, std::ios::binary);
+    REQUIRE(ca_file.good());
+    ca_pem.assign(
+      std::istreambuf_iterator<char>(ca_file),
+      std::istreambuf_iterator<char>());
+  }
+  REQUIRE(!ca_pem.empty());
+
+  // TLS_SERVER_ADDR is "<host>:<port>".
+  const auto colon = tls_addr.rfind(':');
+  REQUIRE(colon != std::string::npos);
+  const std::string tls_host = tls_addr.substr(0, colon);
+  const std::string tls_port = tls_addr.substr(colon + 1);
+
+  auto perform_get = [&](
+                       const std::string& url,
+                       long verifyhost,
+                       const std::optional<std::string>& resolve_entry) {
+    auto curl_handle = ccf::curl::UniqueCURL();
+    curl_handle.set_opt(CURLOPT_SSL_VERIFYPEER, 1L);
+    curl_handle.set_opt(CURLOPT_SSL_VERIFYHOST, verifyhost);
+    curl_handle.set_opt(CURLOPT_PROTOCOLS_STR, "https");
+    curl_handle.set_blob_opt(
+      CURLOPT_CAINFO_BLOB,
+      reinterpret_cast<const uint8_t*>(ca_pem.data()),
+      ca_pem.size());
+    curl_handle.set_opt(CURLOPT_CAPATH, nullptr);
+    curl_handle.set_opt(CURLOPT_CONNECTTIMEOUT, 5L);
+    curl_handle.set_opt(CURLOPT_TIMEOUT, 10L);
+
+    auto resolve = ccf::curl::UniqueSlist();
+    if (resolve_entry.has_value())
+    {
+      resolve.append(resolve_entry->c_str());
+      curl_handle.set_opt(CURLOPT_RESOLVE, resolve.get());
+    }
+
+    CURLcode result = CURLE_FAILED_INIT;
+    auto callback = [&result](
+                      std::unique_ptr<ccf::curl::CurlRequest>&& /*request*/,
+                      CURLcode curl_response,
+                      long /*status*/) { result = curl_response; };
+
+    ccf::curl::CurlRequest::synchronous_perform(
+      std::make_unique<ccf::curl::CurlRequest>(
+        std::move(curl_handle),
+        HTTP_GET,
+        url,
+        ccf::curl::UniqueSlist(),
+        nullptr,
+        std::make_unique<ccf::curl::ResponseBody>(SIZE_MAX),
+        callback));
+    return result;
+  };
+
+  SUBCASE("VERIFYHOST=2 rejects a host absent from the certificate SAN")
+  {
+    // The certificate's only SAN is a dNSName, so dialing the loopback IP
+    // directly must fail hostname verification.
+    const auto result =
+      perform_get(fmt::format("https://{}/", tls_addr), 2L, std::nullopt);
+    REQUIRE(result == CURLE_PEER_FAILED_VERIFICATION);
+  }
+
+  SUBCASE("VERIFYHOST=2 accepts the certificate SAN host")
+  {
+    // Dial the SAN name, resolved to the server's loopback address.
+    const auto result = perform_get(
+      fmt::format("https://{}:{}/", tls_san, tls_port),
+      2L,
+      fmt::format("{}:{}:{}", tls_san, tls_port, tls_host));
+    REQUIRE(result == CURLE_OK);
+  }
+
+  SUBCASE("VERIFYHOST=0 accepts the mismatched host (control)")
+  {
+    // With hostname verification disabled the same mismatched connection
+    // succeeds, proving the CA/cert/connection are otherwise valid and that
+    // the hostname check is the sole discriminator.
+    const auto result =
+      perform_get(fmt::format("https://{}/", tls_addr), 0L, std::nullopt);
+    REQUIRE(result == CURLE_OK);
+  }
 }
 
 TEST_CASE("CurlmLibuvContext")
