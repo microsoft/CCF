@@ -479,6 +479,16 @@ namespace ccf
     ccf::tasks::Task snapshot_fetch_task;
     ccf::tasks::Task backup_snapshot_fetch_task;
 
+    // Set while a join request is in flight so the periodic join timer does
+    // not issue overlapping requests. The shared CurlmLibuvContextSingleton is
+    // also used by other clients (JWT refresh, endorsements, snapshot fetch);
+    // because config.join.retry_timeout (default 1s) is far shorter than the
+    // per-attempt timeout (CONNECTTIMEOUT 5s / TIMEOUT 60s), unguarded retries
+    // could accumulate in-flight requests and starve those other users. Reset
+    // atomically from the response callback, which runs on the libuv thread
+    // and so must not take NodeState::lock.
+    std::atomic<bool> join_request_in_flight = false;
+
     // Number of times we have fetched the latest snapshot from the primary
     size_t join_fetch_count = 0;
 
@@ -1049,6 +1059,21 @@ namespace ccf
     {
       sm.expect(NodeStartupState::pending);
 
+      // Only allow a single join request to be in flight at a time. The
+      // periodic join timer fires every config.join.retry_timeout (default
+      // 1s), but a single attempt can remain in flight for much longer (up to
+      // CONNECTTIMEOUT/TIMEOUT). Without this gate, a slow or unresponsive
+      // target would cause join requests to pile up on the shared curl
+      // singleton, starving its other users. The flag is cleared when the
+      // request completes (see the response callback below).
+      if (join_request_in_flight.load())
+      {
+        LOG_DEBUG_FMT(
+          "A join request to {} is already in flight; skipping this retry",
+          config.join.target_rpc_address);
+        return;
+      }
+
       // Assemble the join request body.
       JoinNetworkNodeToNode::In join_params;
       join_params.node_info_network = config.network;
@@ -1106,9 +1131,10 @@ namespace ccf
         config.join.service_cert.size());
       curl_handle.set_opt(CURLOPT_CAPATH, nullptr);
 
-      // Bound each attempt so a stalled connection is abandoned and the
-      // periodic join timer can retry, rather than accumulating in-flight
-      // requests. A timeout surfaces as a transient error and is retried.
+      // Bound each attempt so a stalled connection is eventually abandoned,
+      // releasing the single-in-flight gate above so the periodic join timer
+      // can issue a fresh attempt. A timeout surfaces as a transient error and
+      // is retried.
       curl_handle.set_opt(CURLOPT_CONNECTTIMEOUT, 5L);
       curl_handle.set_opt(CURLOPT_TIMEOUT, 60L);
 
@@ -1149,6 +1175,13 @@ namespace ccf
           std::unique_ptr<ccf::curl::CurlRequest>&& request,
           CURLcode curl_response,
           long status_code) {
+          // The request has completed (with a response, a transport error, or
+          // an abort during shutdown), so it is no longer in flight. Clear the
+          // gate here, before any early return, so the periodic join timer can
+          // issue the next attempt. This runs on the libuv thread and so must
+          // not take NodeState::lock; an atomic store is used instead.
+          join_request_in_flight.store(false);
+
           if (curl_response == CURLE_ABORTED_BY_CALLBACK)
           {
             // Aborted, e.g. during node shutdown. Nothing to process, and
@@ -1502,6 +1535,11 @@ namespace ccf
         std::make_unique<ccf::curl::ResponseBody>(max_join_response_size),
         std::move(response_callback));
 
+      // Mark a request as in flight before handing it to the shared curl
+      // singleton. If attach_request aborts synchronously (e.g. the singleton
+      // is shutting down) the response callback runs inline and clears this
+      // again.
+      join_request_in_flight.store(true);
       ccf::curl::CurlmLibuvContextSingleton::get_instance()->attach_request(
         std::move(join_request));
     }
