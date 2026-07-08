@@ -317,12 +317,7 @@ namespace ccf
     {
       const auto& current_pkey =
         network_identity->get_key_pair()->public_key_der();
-      return endorsement.endorsing_key.size() == current_pkey.size() &&
-        std::equal(
-               endorsement.endorsing_key.begin(),
-               endorsement.endorsing_key.end(),
-               current_pkey.begin(),
-               current_pkey.end());
+      return endorsement.endorsing_key == current_pkey;
     }
 
     void reset_chain_state()
