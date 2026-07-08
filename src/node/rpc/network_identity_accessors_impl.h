@@ -52,7 +52,12 @@ namespace ccf
         // pre-open window. A stale join snapshot may still report OPEN for the
         // previous service identity though; fetch_first() separately detects
         // that case by checking the topmost endorsement against the current
-        // network identity key.
+        // It can happen that node advances its internal state machine to
+        // part-of-network, but the service opening tx has not been
+        // replicated yet. This will cause the first fetched endorsement
+        // to be obsolete, but waiting for ServiceStatus::OPEN is
+        // sufficient, as it's supposed to arrive in the same TX that
+        // the previous identity endorsement.
         return std::nullopt;
       }
       return service_info->current_service_create_txid;
