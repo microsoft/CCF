@@ -198,9 +198,27 @@ DOWN_TRIANGLE = "\u25bc"  # U+25BC BLACK DOWN-POINTING TRIANGLE
 FLAT_BAR = "\u25ac"  # U+25AC BLACK RECTANGLE
 
 
-def format_delta_percent(percent: float) -> str:
-    """Format the branch value as a signed difference from the main median (100%)."""
+def within_noise_band(percent: float, sigma_percent: float) -> bool:
+    """Whether the branch value is within one std dev of the main median.
+
+    ``sigma_percent`` is the main run standard deviation expressed as a
+    percentage of the median. A value that rounds to the median (100%) is also
+    treated as within noise, so a tiny difference is never flagged as a change
+    even when the band is very narrow.
+    """
+    delta = percent - 100
+    return abs(delta) <= sigma_percent or round(delta) == 0
+
+
+def format_delta_percent(percent: float, within_noise: bool) -> str:
+    """Format the branch value as a signed difference from the main median (100%).
+
+    A result within one standard deviation of the median is treated as noise and
+    marked with a flat bar rather than an up or down triangle.
+    """
     delta = round(percent - 100)
+    if within_noise:
+        return f"{FLAT_BAR} {delta:+d}%" if delta else f"{FLAT_BAR} 0%"
     if delta > 0:
         return f"{UP_TRIANGLE} {delta}%"
     if delta < 0:
@@ -215,19 +233,27 @@ LABEL_BAD = "#E5484D"  # red: regression
 LABEL_FLAT = "#808A94"  # grey: no change
 
 
-def axis_label_color(percent: float, higher_is_better: bool) -> str:
-    """Colour an axis label by whether the branch improved on the main median."""
-    delta = round(percent - 100)
-    if delta == 0:
+def axis_label_color(percent: float, higher_is_better: bool, within_noise: bool) -> str:
+    """Colour an axis label by whether the branch improved on the main median.
+
+    Differences within one standard deviation of the median are within noise and
+    are coloured as unchanged.
+    """
+    if within_noise:
         return LABEL_FLAT
-    improved = (delta > 0) == higher_is_better
+    improved = (percent > 100) == higher_is_better
     return LABEL_GOOD if improved else LABEL_BAD
 
 
-def axis_label(benchmark: str, value: float, percent: float, unit: str) -> str:
+def axis_label(
+    benchmark: str, value: float, percent: float, unit: str, within_noise: bool
+) -> str:
     """Shorten benchmark labels and include the branch real value and delta."""
     label = SIG_MS_INTERVAL_RE.sub(r" \1", benchmark)
-    suffix = f": {metric_label_value(value, unit)} {format_delta_percent(percent)}"
+    suffix = (
+        f": {metric_label_value(value, unit)} "
+        f"{format_delta_percent(percent, within_noise)}"
+    )
     max_label_length = MAX_AXIS_LABEL_LENGTH - len(suffix)
     if len(label) <= max_label_length:
         return f"{label}{suffix}"
@@ -282,11 +308,15 @@ def render_mermaid_radar_chart(
 
         sigma = statistics.pstdev(main_values) if len(main_values) > 1 else 0.0
         branch_percent = normalized_percent(branch_value, baseline)
+        sigma_percent = normalized_percent(sigma, baseline)
+        within_noise = within_noise_band(branch_percent, sigma_percent)
         axes.append(
-            f"b{index}[{mermaid_label(axis_label(benchmark, branch_value, branch_percent, unit))}]"
+            f"b{index}[{mermaid_label(axis_label(benchmark, branch_value, branch_percent, unit, within_noise))}]"
         )
         branch_values.append(branch_percent)
-        axis_colors.append(axis_label_color(branch_percent, higher_better))
+        axis_colors.append(
+            axis_label_color(branch_percent, higher_better, within_noise)
+        )
         low_values.append(max(0.0, normalized_percent(baseline - sigma, baseline)))
         high_values.append(normalized_percent(baseline + sigma, baseline))
         low2_values.append(max(0.0, normalized_percent(baseline - 2 * sigma, baseline)))
@@ -408,8 +438,8 @@ def render_comparison(
             "_Axis labels show this branch's value and its difference from the main "
             "median, where 0% is on the median. They are coloured green where this "
             "branch improves on the median, red where it regresses, and grey where "
-            "unchanged. Higher is better for throughput and rate, lower for latency "
-            "and memory._"
+            "the difference is within one std dev of the median (within noise). "
+            "Higher is better for throughput and rate, lower for latency and memory._"
         ),
         "",
     ]
