@@ -19,6 +19,26 @@ message(STATUS "CCF version = ${CCF_VERSION}")
 message(STATUS "CCF release version = ${CCF_RELEASE_VERSION}")
 message(STATUS "CCF version suffix = ${CCF_VERSION_SUFFIX}")
 
+string(
+  REGEX MATCH "^[0-9]+"
+  CCF_CXX_COMPILER_MAJOR_VERSION
+  "${CMAKE_CXX_COMPILER_VERSION}"
+)
+if(
+  CMAKE_CXX_COMPILER_ID STREQUAL "Clang"
+  AND CCF_CXX_COMPILER_MAJOR_VERSION STREQUAL "21"
+)
+  set(
+    CCF_WARNING_ERROR_EXCEPTIONS
+    "$<$<COMPILE_LANGUAGE:CXX>:-Wno-error=deprecated-declarations>"
+    "$<$<COMPILE_LANGUAGE:CXX>:-Wno-error=#warnings>"
+  )
+  message(
+    STATUS
+    "Disabling -Werror for deprecated-declarations and #warnings with Clang ${CMAKE_CXX_COMPILER_VERSION}"
+  )
+endif()
+
 set(CCF_ENABLE_RELEASE_HARDENING_DEFAULT ON)
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
   set(CCF_ENABLE_RELEASE_HARDENING_DEFAULT OFF)
@@ -971,6 +991,7 @@ if(BUILD_TESTS)
       src/enclave/thread_local.cpp
     )
     add_warning_checks(raft_driver)
+    enable_coverage(raft_driver)
     target_link_libraries(raft_driver PRIVATE ccfcrypto ccf_tasks)
     target_include_directories(raft_driver PRIVATE src/aft)
 
@@ -982,6 +1003,18 @@ if(BUILD_TESTS)
     )
     set_property(TEST raft_scenario_test PROPERTY LABELS raft_scenario)
     set_property(TEST raft_scenario_test APPEND PROPERTY LABELS bucket_c)
+
+    if(COVERAGE)
+      # The scenario runner spawns raft_driver once per scenario file; give
+      # each process a uniquely-named .profraw (by PID) in the build directory
+      # so scripts/coverage.sh discovers them and the scenarios contribute to
+      # the aggregated coverage report.
+      set_property(
+        TEST raft_scenario_test
+        APPEND
+        PROPERTY ENVIRONMENT "LLVM_PROFILE_FILE=raft_scenario-%p.profraw"
+      )
+    endif()
 
     add_test(
       NAME csr_test

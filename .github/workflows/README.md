@@ -14,7 +14,7 @@ File: `bencher.yml`
 
 ## Bencher A/B
 
-Builds and runs CCF performance tests, and performs a comparison to main. Triggered on PRs that have the label `bench-ab`.
+Builds and runs CCF performance tests on the PR branch, then renders radar charts comparing the branch's latest run against the recent trend on `main`. Two nested shaded bands show the median +/- 1 and +/- 2 standard deviations of the last few `main` runs (restored from their perf artifacts), and the highlighted line is the branch. Triggered on PRs that have the label `bench-ab`.
 
 File: `bencher-ab.yml`
 3rd party dependencies: None
