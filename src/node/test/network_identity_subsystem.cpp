@@ -653,7 +653,13 @@ TEST_CASE(
 {
   SubsystemFixture f;
   ChainBuilder cb;
-  cb.add_self({2, 1}).add_next({2, 1}, {4, 200}).add_next({6, 201}, {6, 400});
+  const ccf::TxID initial_identity_begin{2, 1};
+  const ccf::TxID snapshot_identity_end{4, 200};
+  const ccf::TxID current_identity_begin{6, 201};
+  const ccf::TxID current_identity_end{6, 400};
+  cb.add_self(initial_identity_begin)
+    .add_next(initial_identity_begin, snapshot_identity_end)
+    .add_next(current_identity_begin, current_identity_end);
   f.use_identity_key(cb.current_key_pair());
 
   // Model a joiner which received the current identity from the join response,
