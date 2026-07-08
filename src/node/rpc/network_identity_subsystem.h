@@ -315,9 +315,10 @@ namespace ccf
     [[nodiscard]] bool topmost_endorsement_matches_current_identity(
       const CoseEndorsement& endorsement) const
     {
-      // The topmost endorsement should be signed by the current network
-      // identity. During join from a stale snapshot, the live KV can briefly
-      // expose an older endorsement until ledger replay catches up.
+      // The topmost endorsement's endorsing key should match the current
+      // network identity public key. During join from a stale snapshot, the
+      // live KV can briefly expose an older endorsement until ledger replay
+      // catches up.
       const auto& current_pkey =
         network_identity->get_key_pair()->public_key_der();
       return endorsement.endorsing_key == current_pkey;
@@ -339,9 +340,9 @@ namespace ccf
     {
       // Bootstrap retries are unbounded; the reason is logged for diagnosis
       // while the delayed retry waits for the local store to catch up. This
-      // matches the other pre-bootstrap waits above, which are not constrained
-      // by the historical-read retry budget because ledger replay can
-      // legitimately take arbitrary time during node startup.
+      // matches the other pre-bootstrap waits in fetch_first(), which are not
+      // constrained by the historical-read retry budget because ledger replay
+      // can legitimately take arbitrary time during node startup.
       LOG_INFO_FMT("Retrying fetching network identity: {}", reason);
       reset_chain_state();
       scheduler->add_delayed_task(
