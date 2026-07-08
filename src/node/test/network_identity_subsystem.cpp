@@ -373,6 +373,7 @@ namespace
     // Historical access contains only its predecessors, matching production
     // where the topmost endorsement is read from live KV.
     REQUIRE(topmost_index < cb.entries.size());
+    REQUIRE(cb.write_versions.size() == cb.entries.size());
     const auto& topmost = cb.entries.at(topmost_index);
     REQUIRE(topmost.endorsement_epoch_end.has_value());
 
