@@ -193,22 +193,25 @@ def find_snapshot_after_seqno(snapshots_dir, seqno):
     )
 
 
-def find_latest_committed_snapshot_name(network):
+def find_latest_committed_snapshot_name(network, count=1):
+    assert count > 0, f"Expected positive snapshot count, got {count}"
     primary, _ = network.find_primary()
     snapshots_dir = network.get_committed_snapshots(primary)
     snapshot_names = [
-        f for f in os.listdir(snapshots_dir) if ccf.ledger.is_snapshot_file_committed(f)
+        f
+        for f in os.listdir(snapshots_dir)
+        if ccf.ledger.is_snapshot_file_committed(f)
     ]
     assert snapshot_names, f"Expected committed snapshots in {snapshots_dir}"
     snapshot_names.sort(key=ccf.ledger.snapshot_index_from_filename)
-    return snapshot_names[-1]
-
-
-def make_committed_snapshot_name_after(snapshot_name, offset):
-    snapshot_seqno, evidence_seqno = ccf.ledger.snapshot_index_from_filename(
-        snapshot_name
+    assert len(snapshot_names) >= count, (
+        f"Expected at least {count} committed snapshots in {snapshots_dir}, "
+        f"found {snapshot_names}"
     )
-    return f"snapshot_{snapshot_seqno + offset}_{evidence_seqno + offset}.committed"
+    latest_snapshot_names = snapshot_names[-count:]
+    if count == 1:
+        return latest_snapshot_names[-1]
+    return latest_snapshot_names
 
 
 @reqs.description("Forced snapshot")
@@ -793,15 +796,12 @@ def test_corrupt_snapshot_handling(network, args):
     receipt = b"this is not valid json!!"
     corrupt_data = header + body + receipt
 
-    # Use a higher seqno for the writable dir so it is tried first (snapshots
-    # are iterated in descending seqno order).
-    read_only_snapshot_name = find_latest_committed_snapshot_name(network)
-    writable_snapshot_name = make_committed_snapshot_name_after(
-        read_only_snapshot_name, 2
+    # Use the newest snapshot for the writable dir so it is tried first
+    # (snapshots are iterated in descending seqno order).
+    read_only_snapshot_name, writable_snapshot_name = find_latest_committed_snapshot_name(
+        network, count=2
     )
-    unrenamable_snapshot_name = make_committed_snapshot_name_after(
-        read_only_snapshot_name, 4
-    )
+    unrenamable_snapshot_name = writable_snapshot_name
 
     # ---- Part 1: writable dir (rename succeeds) + read-only config dir ----
     LOG.info("Part 1: corrupt snapshots in both writable and read-only directories")
