@@ -21,6 +21,48 @@ The configuration for each CCF node must be contained in a single JSON configura
 .. include:: generated_config.rst
 
 
+IPv6 Addresses
+--------------
+
+.. note:: IPv6 support is currently **experimental**.
+
+Every address field accepts an IPv4 address, an IPv6 address, or a fully qualified domain name. IPv6 literals must be written in bracketed form, ``[host]:port``, so that the colons in the address are not mistaken for the host/port separator. This applies to all address fields, including:
+
+- ``network.node_to_node_interface.bind_address`` and ``published_address``
+- ``network.rpc_interfaces.[name].bind_address`` and ``published_address``
+- ``command.join.target_rpc_address``
+
+For example, to bind a node's interfaces to the IPv6 loopback address ``::1`` and publish an address on a different IPv6 host:
+
+.. code-block:: json
+
+    {
+      "network": {
+        "node_to_node_interface": { "bind_address": "[::1]:8081" },
+        "rpc_interfaces": {
+          "primary_rpc_interface": {
+            "bind_address": "[::1]:8080",
+            "published_address": "[2001:db8::1]:12345"
+          }
+        }
+      }
+    }
+
+A node joining over IPv6 sets ``command.join.target_rpc_address`` to the bracketed address of an existing node:
+
+.. code-block:: json
+
+    {
+      "command": {
+        "join": { "target_rpc_address": "[2001:db8::1]:12345" }
+      }
+    }
+
+When a node is identified by an IPv6 literal, the matching ``node_certificate.subject_alt_names`` entry uses the ``iPAddress:`` prefix with the **unbracketed** address, for example ``"iPAddress:2001:db8::1"``.
+
+.. note:: ``published_address`` defaults to ``bind_address`` when omitted, and is the address embedded in redirect URLs returned to clients. Brackets are added automatically where required, so a published IPv6 address appears in a redirect as ``https://[2001:db8::1]:12345/...``.
+
+
 Operator Features
 -----------------
 

@@ -10,9 +10,6 @@ using namespace ccf;
 
 TEST_CASE("normal flow")
 {
-  constexpr auto target_view = 3;
-  constexpr auto target_seqno = 10;
-
   // A tx id is unknown locally
   CHECK(evaluate_tx_status(3, 10, 0, 1, 0) == TxStatus::Unknown);
 

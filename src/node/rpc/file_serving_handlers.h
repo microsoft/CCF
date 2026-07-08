@@ -169,6 +169,7 @@ namespace ccf::node
   // with any other metadata headers) _before_ calling this function, and
   // generally avoid modifying the response further _after_ calling this
   // function.
+  // NOLINTNEXTLINE(readability-function-cognitive-complexity)
   static void fill_range_response_from_file(
     ccf::endpoints::CommandEndpointContext& ctx, std::ifstream& f)
   {
@@ -514,6 +515,7 @@ namespace ccf::node
     }
   }
 
+  // NOLINTNEXTLINE(readability-function-cognitive-complexity)
   static void init_file_serving_handlers(
     ccf::BaseEndpointRegistry& registry, ccf::AbstractNodeContext& node_context)
   {

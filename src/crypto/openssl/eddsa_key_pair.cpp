@@ -109,8 +109,9 @@ namespace ccf::crypto
   JsonWebKeyEdDSAPrivate EdDSAKeyPair_OpenSSL::private_key_jwk_eddsa(
     const std::optional<std::string>& kid) const
   {
-    JsonWebKeyEdDSAPrivate jwk = {
-      EdDSAPublicKey_OpenSSL::public_key_jwk_eddsa(kid)};
+    JsonWebKeyEdDSAPrivate jwk;
+    static_cast<JsonWebKeyEdDSAPublic&>(jwk) =
+      EdDSAPublicKey_OpenSSL::public_key_jwk_eddsa(kid);
 
     std::vector<uint8_t> raw_priv(EVP_PKEY_size(key));
     size_t raw_priv_len = raw_priv.size();

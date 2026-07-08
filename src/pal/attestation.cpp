@@ -45,50 +45,6 @@ namespace ccf::pal
 
       return {bptr->data, bptr->length};
     }
-
-    std::string signature_algorithm_name(int nid)
-    {
-      const auto* name = OBJ_nid2ln(nid);
-      if (name == nullptr)
-      {
-        return fmt::format("nid {}", nid);
-      }
-      return name;
-    }
-
-    void verify_ark_certificate_matches_pinned_metadata(
-      const crypto::Pem& ark_cert,
-      snp::ProductName product_family,
-      const snp::AmdRootSigningKey& expected_ark)
-    {
-      ccf::crypto::OpenSSL::Unique_BIO mem_bio(ark_cert);
-      ccf::crypto::OpenSSL::Unique_X509 x509(
-        mem_bio, true, true /* check_null */);
-
-      const auto issuer =
-        x509_name_to_rfc2253_string(X509_get_issuer_name(x509));
-      if (issuer != expected_ark.issuer)
-      {
-        throw std::logic_error(fmt::format(
-          "SEV-SNP: The root of trust issuer for this attestation was not "
-          "the expected one for {}: {} != {}",
-          product_family,
-          issuer,
-          expected_ark.issuer));
-      }
-
-      const auto signature_algorithm =
-        signature_algorithm_name(X509_get_signature_nid(x509));
-      if (signature_algorithm != expected_ark.signature_algorithm)
-      {
-        throw std::logic_error(fmt::format(
-          "SEV-SNP: The root of trust signature algorithm for this "
-          "attestation was not the expected one for {}: {} != {}",
-          product_family,
-          signature_algorithm,
-          expected_ark.signature_algorithm));
-      }
-    }
   }
 
   void verify_virtual_attestation_report(
@@ -351,8 +307,19 @@ namespace ccf::pal
         expected_ark.public_key));
     }
 
-    verify_ark_certificate_matches_pinned_metadata(
-      ark_cert, product_family, expected_ark);
+    ccf::crypto::OpenSSL::Unique_BIO mem_bio(ark_cert);
+    ccf::crypto::OpenSSL::Unique_X509 x509(
+      mem_bio, true, true /* check_null */);
+    const auto issuer = x509_name_to_rfc2253_string(X509_get_issuer_name(x509));
+    if (issuer != expected_ark.issuer)
+    {
+      throw std::logic_error(fmt::format(
+        "SEV-SNP: The root of trust issuer for this attestation was not "
+        "the expected one for {}: {} != {}",
+        product_family,
+        issuer,
+        expected_ark.issuer));
+    }
 
     if (!ark_verifier->verify_certificate({&ark_cert}))
     {

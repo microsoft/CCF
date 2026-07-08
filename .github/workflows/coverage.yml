@@ -10,18 +10,24 @@ on:
 
 permissions: read-all
 
+# Number of previous successful runs to include in the coverage trend charts.
+# Consumed both when downloading previous-run logs below and by
+# scripts/coverage_summary.py, so that the two stay in sync from a single place.
+env:
+  COVERAGE_HISTORY_POINTS: "9"
+
 jobs:
   coverage_virtual:
     name: "Coverage Virtual"
     runs-on:
       [
         self-hosted,
-        1ES.Pool=gha-vmss-d16av5-ci,
+        1ES.Pool=gha-vmss-d16av6-ci,
         "JobId=ci_coverage-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
       ]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
-      options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
+      options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE --sysctl net.ipv6.conf.all.disable_ipv6=0 --sysctl net.ipv6.conf.default.disable_ipv6=0 --sysctl net.ipv6.conf.lo.disable_ipv6=0
 
     steps:
       - name: "Checkout dependencies"
@@ -30,9 +36,9 @@ jobs:
           set -ex
           gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
           tdnf -y update
-          tdnf -y install ca-certificates git
+          tdnf -y install ca-certificates git gh
 
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
 
@@ -48,7 +54,7 @@ jobs:
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DCOVERAGE=ON ..
+          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DCOVERAGE=ON -DLONG_TESTS=ON ..
           ninja
         shell: bash
 
@@ -77,12 +83,41 @@ jobs:
           ../scripts/coverage.sh --html coverage_html | tee coverage_report.txt
         shell: bash
 
+      - name: "Download previous coverage summaries"
+        if: always()
+        run: |
+          set -eo pipefail
+          cd build
+          mkdir -p coverage_history
+          # GitHub does not expose an API to download a job summary, so the
+          # previous line and branch coverage values are recovered from the logs
+          # of the last successful Coverage runs on this branch, which contain
+          # the same llvm-cov report (see the "tee" above). The number of runs
+          # kept here is COVERAGE_HISTORY_POINTS, which coverage_summary.py also
+          # uses when plotting the trend.
+          runs=$(gh api \
+            "repos/${GITHUB_REPOSITORY}/actions/workflows/coverage.yml/runs?branch=${GITHUB_REF_NAME}&per_page=30" \
+            --jq "[.workflow_runs[] | select(.conclusion == \"success\") | select((.id | tostring) != \"${GITHUB_RUN_ID}\")] | .[0:${COVERAGE_HISTORY_POINTS}] | .[] | \"\(.id) \(.run_number)\"" || true)
+          while read -r run_id run_number; do
+            [[ -z "$run_id" ]] && continue
+            job_id=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/jobs" \
+              --jq '.jobs[0].id' || true)
+            [[ -z "$job_id" ]] && continue
+            gh api "repos/${GITHUB_REPOSITORY}/actions/jobs/${job_id}/logs" \
+              > "coverage_history/${run_id}-${run_number}.log" || true
+          done <<< "$runs"
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+
       - name: "Write coverage summary"
         if: always()
         run: |
           set -ex
           cd build
           if [[ -f coverage_report.txt ]]; then
+            python3 ../scripts/coverage_summary.py coverage_report.txt coverage_history \
+              >> "$GITHUB_STEP_SUMMARY" || true
             {
               echo '## Code Coverage'
               echo ''

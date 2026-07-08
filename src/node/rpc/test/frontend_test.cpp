@@ -70,7 +70,7 @@ public:
   {
     open();
 
-    auto empty_function = [this](auto& ctx) {
+    auto empty_function = [](auto& ctx) {
       ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     make_endpoint(
@@ -78,7 +78,7 @@ public:
       .set_forwarding_required(ccf::endpoints::ForwardingRequired::Sometimes)
       .install();
 
-    auto empty_function_no_auth = [this](auto& ctx) {
+    auto empty_function_no_auth = [](auto& ctx) {
       ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     make_endpoint(
@@ -99,12 +99,12 @@ public:
   {
     open();
 
-    auto echo_function = [this](auto& ctx, nlohmann::json&& params) {
+    auto echo_function = [](auto& ctx, nlohmann::json&& params) {
       return make_success(std::move(params));
     };
     make_endpoint("/echo", HTTP_POST, json_adapter(echo_function)).install();
 
-    auto echo_query_function = [this](auto& ctx, nlohmann::json&&) {
+    auto echo_query_function = [](auto& ctx, nlohmann::json&&) {
       const auto parsed_query =
         ccf::http::parse_query(ctx.rpc_ctx->get_request_query());
       return make_success(std::move(parsed_query));
@@ -113,7 +113,7 @@ public:
       "/echo_parsed_query", HTTP_POST, json_adapter(echo_query_function))
       .install();
 
-    auto get_caller_function = [this](auto& ctx, nlohmann::json&&) {
+    auto get_caller_function = [](auto& ctx, nlohmann::json&&) {
       const auto& ident = ctx.template get_caller<UserCertAuthnIdentity>();
       return make_success(ident.user_id);
     };
@@ -124,7 +124,7 @@ public:
       {user_cert_auth_policy})
       .install();
 
-    auto failable_function = [this](auto& ctx, nlohmann::json&& params) {
+    auto failable_function = [](auto& ctx, nlohmann::json&& params) {
       const auto it = params.find("error");
       if (it != params.end())
       {
@@ -148,17 +148,17 @@ public:
   {
     open();
 
-    auto get_only = [this](auto& ctx) {
+    auto get_only = [](auto& ctx) {
       ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     make_endpoint("/get_only", HTTP_GET, get_only).install();
 
-    auto post_only = [this](auto& ctx) {
+    auto post_only = [](auto& ctx) {
       ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     make_endpoint("/post_only", HTTP_POST, post_only).install();
 
-    auto put_or_delete = [this](auto& ctx) {
+    auto put_or_delete = [](auto& ctx) {
       ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     make_endpoint("/put_or_delete", HTTP_PUT, put_or_delete).install();
@@ -206,14 +206,14 @@ public:
   {
     open();
 
-    auto command = [this](auto& ctx) {
+    auto command = [](auto& ctx) {
       ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     endpoints
       .make_command_endpoint("/command", HTTP_POST, command, no_auth_required)
       .install();
 
-    auto read_only = [this](auto& ctx) {
+    auto read_only = [](auto& ctx) {
       ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     endpoints
@@ -234,7 +234,7 @@ public:
   {
     open();
 
-    auto endpoint = [this](auto& ctx) {
+    auto endpoint = [](auto& ctx) {
       nlohmann::json response_body = ctx.rpc_ctx->get_request_path_params();
       ctx.rpc_ctx->set_response_body(response_body.dump(2));
       ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
@@ -250,7 +250,7 @@ public:
   {
     open();
 
-    auto endpoint = [this](auto& ctx) {
+    auto endpoint = [](auto& ctx) {
       nlohmann::json response_body =
         ctx.rpc_ctx->get_decoded_request_path_params();
       ctx.rpc_ctx->set_response_body(response_body.dump(2));
@@ -269,7 +269,7 @@ public:
   {
     open();
 
-    auto empty_function = [this](auto& ctx) {
+    auto empty_function = [](auto& ctx) {
       ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     member_endpoints
@@ -292,7 +292,7 @@ public:
   {
     open();
 
-    auto empty_function = [this](auto& ctx) {
+    auto empty_function = [](auto& ctx) {
       ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     endpoints
@@ -1362,8 +1362,8 @@ public:
         // Warning: Never do this in a real application!
         // Create another transaction that conflicts with the frontend one
         auto tx = this->tables.create_tx();
-        auto conflict_map = tx.template rw<Values>("test_values_conflict");
-        conflict_map->put(0, 42);
+        auto conflicting_map = tx.template rw<Values>("test_values_conflict");
+        conflicting_map->put(0, 42);
         REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
 
         // Indicate that the execution conflicted
@@ -1590,8 +1590,8 @@ TEST_CASE("Manual conflicts")
   auto update_value =
     [&](size_t n, const std::string& table = TF::SRC, size_t key = TF::KEY) {
       auto tx = network.tables->create_tx();
-      using TF = TestManualConflictsFrontend;
-      auto handle = tx.wo<TF::MyVals>(table);
+      using LocalTF = TestManualConflictsFrontend;
+      auto handle = tx.wo<LocalTF::MyVals>(table);
       handle->put(key, n);
       REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     };
@@ -1708,9 +1708,9 @@ TEST_CASE("Manual conflicts")
     const auto metrics_before = get_metrics();
     run_test([&]() {
       auto tx = network.tables->create_tx();
-      using TF = TestManualConflictsFrontend;
-      auto handle = tx.wo<TF::MyVals>(TF::SRC);
-      handle->remove(TF::KEY);
+      using LocalTF = TestManualConflictsFrontend;
+      auto handle = tx.wo<LocalTF::MyVals>(LocalTF::SRC);
+      handle->remove(LocalTF::KEY);
       REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     });
     const auto metrics_after = get_metrics();
@@ -1731,8 +1731,8 @@ TEST_CASE("Manual conflicts")
     const auto metrics_before = get_metrics();
     run_test([&]() {
       auto tx = network.tables->create_tx();
-      using TF = TestManualConflictsFrontend;
-      auto handle = tx.wo<TF::MyVals>(TF::SRC);
+      using LocalTF = TestManualConflictsFrontend;
+      auto handle = tx.wo<LocalTF::MyVals>(LocalTF::SRC);
       handle->clear();
       REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     });

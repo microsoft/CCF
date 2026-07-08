@@ -37,7 +37,6 @@
 #include "pal/quote_generation.h"
 #include "rpc_connections.h"
 #include "sig_term.h"
-#include "snapshots/snapshot_manager.h"
 #include "tcp.h"
 #include "ticker.h"
 #include "time_bound_logger.h"
@@ -221,7 +220,7 @@ namespace ccf
         rpc_host,
         rpc_port);
 
-      resolved_rpc_addresses[name] = fmt::format("{}:{}", rpc_host, rpc_port);
+      resolved_rpc_addresses[name] = ccf::make_net_address(rpc_host, rpc_port);
       interface.bind_address = ccf::make_net_address(rpc_host, rpc_port);
 
       // If public RPC address is not set, default to local RPC address
@@ -616,11 +615,6 @@ namespace ccf
         "snapshots.read_only_directory is deprecated and will be removed in a "
         "future release");
     }
-    snapshots::SnapshotManager snapshots(
-      config.snapshots.directory,
-      writer_factory,
-      config.snapshots.read_only_directory);
-    snapshots.register_message_handlers(buffer_processor.get_dispatcher());
 
     std::optional<asynchost::FilesCleanupTimer> files_cleanup;
     if (

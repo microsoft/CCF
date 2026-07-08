@@ -132,7 +132,7 @@ TEST_CASE("schema generation")
   {
     auto j_max = nlohmann::json::object();
     auto j_min = nlohmann::json::object();
-    for (const std::string& required : *required_it)
+    for (const std::string required : *required_it)
     {
       const auto property_it = properties_it->find(required);
       REQUIRE(property_it != properties_it->end());

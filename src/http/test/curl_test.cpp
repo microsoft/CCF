@@ -33,12 +33,106 @@ struct Data
 DECLARE_JSON_TYPE(Data);
 DECLARE_JSON_REQUIRED_FIELDS(Data, foo, bar, iter);
 
+TEST_CASE("ResponseHeaders rejects oversized headers")
+{
+  ccf::curl::ResponseHeaders headers;
+  std::string status = "HTTP/1.1 200 OK\r\n";
+  REQUIRE(
+    ccf::curl::ResponseHeaders::recv_header_line(
+      status.data(), 1, status.size(), &headers) == status.size());
+
+  std::string oversized_value(
+    ccf::http::default_max_header_size.count_bytes() + 1, 'x');
+  std::string header = fmt::format("X-Large: {}\r\n", oversized_value);
+  REQUIRE(
+    ccf::curl::ResponseHeaders::recv_header_line(
+      header.data(), 1, header.size(), &headers) == 0);
+}
+
+TEST_CASE("ResponseHeaders rejects oversized header fields")
+{
+  ccf::curl::ResponseHeaders headers;
+  std::string status = "HTTP/1.1 200 OK\r\n";
+  REQUIRE(
+    ccf::curl::ResponseHeaders::recv_header_line(
+      status.data(), 1, status.size(), &headers) == status.size());
+
+  std::string oversized_field(
+    ccf::http::default_max_header_size.count_bytes() + 1, 'x');
+  std::string header = fmt::format("{}: value\r\n", oversized_field);
+  REQUIRE(
+    ccf::curl::ResponseHeaders::recv_header_line(
+      header.data(), 1, header.size(), &headers) == 0);
+}
+
+TEST_CASE("ResponseHeaders rejects too many headers")
+{
+  ccf::curl::ResponseHeaders headers;
+  std::string status = "HTTP/1.1 200 OK\r\n";
+  REQUIRE(
+    ccf::curl::ResponseHeaders::recv_header_line(
+      status.data(), 1, status.size(), &headers) == status.size());
+
+  for (size_t i = 0; i < ccf::http::default_max_headers_count; ++i)
+  {
+    std::string header = fmt::format("X-Test-{}: value\r\n", i);
+    REQUIRE(
+      ccf::curl::ResponseHeaders::recv_header_line(
+        header.data(), 1, header.size(), &headers) == header.size());
+  }
+
+  std::string header = "X-Too-Many: value\r\n";
+  REQUIRE(
+    ccf::curl::ResponseHeaders::recv_header_line(
+      header.data(), 1, header.size(), &headers) == 0);
+}
+
+TEST_CASE("CurlmLibuvContext aborts queued requests on close")
+{
+  size_t response_count = 0;
+  CURLcode observed_curl_response = CURLE_OK;
+  long observed_status_code = -1;
+
+  {
+    ccf::curl::CurlmLibuvContextSingleton singleton(uv_default_loop());
+
+    auto response_callback =
+      [&response_count, &observed_curl_response, &observed_status_code](
+        std::unique_ptr<ccf::curl::CurlRequest>&& request,
+        CURLcode curl_response,
+        long status_code) {
+        REQUIRE(request != nullptr);
+        response_count++;
+        observed_curl_response = curl_response;
+        observed_status_code = status_code;
+      };
+
+    auto request = std::make_unique<ccf::curl::CurlRequest>(
+      ccf::curl::UniqueCURL(),
+      HTTP_GET,
+      "http://127.0.0.1:1/pending",
+      ccf::curl::UniqueSlist(),
+      nullptr,
+      std::make_unique<ccf::curl::ResponseBody>(SIZE_MAX),
+      std::move(response_callback));
+
+    ccf::curl::CurlmLibuvContextSingleton::get_instance()->attach_request(
+      std::move(request));
+  }
+
+  uv_run(uv_default_loop(), UV_RUN_DEFAULT);
+
+  REQUIRE(response_count == 1);
+  REQUIRE(observed_curl_response == CURLE_ABORTED_BY_CALLBACK);
+  REQUIRE(observed_status_code == 0);
+}
+
 TEST_CASE("Synchronous")
 {
   Data data = {.foo = "alpha", .bar = "beta"};
   size_t response_count = 0;
   constexpr size_t sync_number_requests = 10;
-  for (int i = 0; i < sync_number_requests; ++i)
+  for (size_t i = 0; i < sync_number_requests; ++i)
   {
     data.iter = i;
     std::string url = fmt::format("http://{}/{}", server_address, i);
@@ -91,7 +185,7 @@ TEST_CASE("CurlmLibuvContext")
     thread_local std::uniform_int_distribution<> uniform_dist(1, max_delay_ms);
     auto* response_count_ptr = reinterpret_cast<size_t*>(req->data);
     Data data = {.foo = "alpha", .bar = "beta"};
-    for (int i = 0; i < number_requests; ++i)
+    for (size_t i = 0; i < number_requests; ++i)
     {
       auto delay = uniform_dist(gen);
       std::this_thread::sleep_for(std::chrono::milliseconds(delay));
@@ -156,7 +250,7 @@ TEST_CASE("CurlmLibuvContext slow")
     auto* response_count_ptr = reinterpret_cast<size_t*>(req->data);
     (void)req;
     Data data = {.foo = "alpha", .bar = "beta"};
-    for (int i = 0; i < slow_number_requests; ++i)
+    for (size_t i = 0; i < slow_number_requests; ++i)
     {
       auto delay = uniform_dist(gen);
       std::this_thread::sleep_for(std::chrono::milliseconds(delay));
@@ -223,7 +317,7 @@ TEST_CASE("CurlmLibuvContext timeouts")
     (void)req;
 
     Data data = {.foo = "alpha", .bar = "beta"};
-    for (int i = 0; i < number_requests; ++i)
+    for (size_t i = 0; i < number_requests; ++i)
     {
       auto delay = uniform_dist(gen);
       std::this_thread::sleep_for(std::chrono::milliseconds(delay));
@@ -298,7 +392,7 @@ TEST_CASE("CurlmLibuvContext multiple init")
     (void)req;
 
     Data data = {.foo = "alpha", .bar = "beta"};
-    for (int i = 0; i < number_requests; ++i)
+    for (size_t i = 0; i < number_requests; ++i)
     {
       auto delay = uniform_dist(gen);
       std::this_thread::sleep_for(std::chrono::milliseconds(delay));
@@ -350,7 +444,7 @@ TEST_CASE("CurlmLibuvContext multiple init")
     }
   };
 
-  for (int i = 0; i < number_iterations; ++i)
+  for (size_t i = 0; i < number_iterations; ++i)
   {
     ccf::curl::CurlmLibuvContextSingleton singleton(uv_default_loop());
 

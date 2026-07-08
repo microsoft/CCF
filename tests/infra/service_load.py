@@ -9,6 +9,7 @@ import pandas as pd
 from shutil import copyfileobj
 from enum import Enum, auto
 import infra.concurrency
+import infra.interfaces
 import random
 from contextlib import contextmanager
 
@@ -50,7 +51,9 @@ class LoadStrategy(Enum):
 
 
 def make_target_host(target_node):
-    return f"https://{target_node.get_public_rpc_host()}:{target_node.get_public_rpc_port()}"
+    return "https://" + infra.interfaces.make_address(
+        target_node.get_public_rpc_host(), target_node.get_public_rpc_port()
+    )
 
 
 class LoadClient:

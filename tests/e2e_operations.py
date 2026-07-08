@@ -311,7 +311,7 @@ def test_snapshot_access(network, args):
             assert r.status_code == http.HTTPStatus.NOT_FOUND, r
 
     interface = primary.host.rpc_interfaces[infra.interfaces.FILE_SERVING_RPC_INTERFACE]
-    loc = f"https://{interface.public_host}:{interface.public_port}"
+    loc = f"https://{infra.interfaces.make_address(interface.public_host, interface.public_port)}"
 
     with primary.client(
         interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
@@ -1407,7 +1407,7 @@ def test_ledger_chunk_redirect_recent(network, args):
         expected_port = primary.get_public_rpc_port(
             interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
         )
-        expected_location = f"https://{expected_host}:{expected_port}/node/ledger_chunk?since={start_of_last_chunk}"
+        expected_location = f"https://{infra.interfaces.make_address(expected_host, expected_port)}/node/ledger_chunk?since={start_of_last_chunk}"
         assert r.headers["Location"] == expected_location, r
         r = c.get(
             f"/node/ledger_chunk?since={start_of_last_chunk}", allow_redirects=True
@@ -1787,7 +1787,7 @@ def run_pid_file_check(args):
         start = time.time()
         LOG.info("Wait for node to shut down")
         while time.time() - start < timeout:
-            if node.remote.check_done():
+            if node.remote.check_done(timeout=0):
                 break
             time.sleep(0.1)
         out, _ = node.remote.get_logs()
@@ -3604,6 +3604,7 @@ def run_propose_request_vote(const_args):
     args = copy.deepcopy(const_args)
     args.label += "_propose_vote"
     args.nodes = infra.e2e_args.nodes(args, 3)
+    args.snapshot_tx_interval = 100000  # High to avoid tx-count-triggered snapshots
     # use a high timeout to hedge against flaky nodes which pause for seconds
     # In most cases this should not matter as the propose_request_vote will cause the election quickly
     args.election_timeout_ms = 20000
@@ -3615,8 +3616,18 @@ def run_propose_request_vote(const_args):
     ) as network:
         LOG.info("Start a network")
         network.start_and_open(args, ignore_first_sigterm=True)
+        network.wait_for_node_commit_sync(timeout=16)
         try:
             original_primary, original_term = network.find_primary()
+
+            LOG.info("Waiting for initial snapshot")
+            network.get_committed_snapshots(
+                original_primary,
+                target_seqno=1,
+                force_txs=False,
+                wait_for_target_seqno=True,
+            )
+            network.wait_for_node_commit_sync(timeout=16)
 
             original_primary.remote.remote.proc.send_signal(signal.SIGTERM)
             # Find any primary which wasn't the original one

@@ -4,11 +4,13 @@
 import os
 import json
 import dataclasses
+import subprocess
 from typing import Optional, Union
 
 from loguru import logger as LOG
 
 BENCHER_FILE = "bencher.json"
+METADATA_KEY = "__metadata"
 
 # See https://bencher.dev/docs/reference/bencher-metric-format/
 
@@ -72,11 +74,49 @@ class Rate:
         self.rate = Value(value, high_value, low_value)
 
 
+def get_commit() -> Optional[str]:
+    commit = os.environ.get("GITHUB_SHA")
+    if commit:
+        return commit
+
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        return None
+
+    return result.stdout.strip() or None
+
+
+def get_metadata() -> dict:
+    metadata = {
+        "commit": get_commit(),
+        "repository": os.environ.get("GITHUB_REPOSITORY"),
+        "server_url": os.environ.get("GITHUB_SERVER_URL"),
+        "run_id": os.environ.get("GITHUB_RUN_ID"),
+        "run_number": os.environ.get("GITHUB_RUN_NUMBER"),
+        "run_attempt": os.environ.get("GITHUB_RUN_ATTEMPT"),
+    }
+    return {key: value for key, value in metadata.items() if value}
+
+
 class Bencher:
     def __init__(self):
         if not os.path.isfile(BENCHER_FILE):
             with open(BENCHER_FILE, "w+") as bf:
                 json.dump({}, bf)
+
+        metadata = get_metadata()
+        if metadata:
+            with open(BENCHER_FILE, "r") as bf:
+                data = json.load(bf)
+            data[METADATA_KEY] = metadata
+            with open(BENCHER_FILE, "w") as bf:
+                json.dump(data, bf, indent=4)
 
     def set_memory(self, key: str, proc_stats: dict):
         LOG.info(

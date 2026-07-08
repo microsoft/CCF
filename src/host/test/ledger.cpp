@@ -9,8 +9,7 @@
 #include "ds/serialized.h"
 #include "kv/ledger_chunker.h"
 #include "kv/serialised_entry_format.h"
-#define TEST_MODE_EXECUTE_SYNC_INLINE
-#include "snapshots/snapshot_manager.h"
+#include "snapshots/snapshot_writer.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>
@@ -95,7 +94,7 @@ using TestLedgerEntry = LedgerEntry<uint32_t>;
 size_t number_of_files_in_ledger_dir()
 {
   size_t file_count = 0;
-  for (auto const& f : fs::directory_iterator(ledger_dir))
+  for ([[maybe_unused]] auto const& f : fs::directory_iterator(ledger_dir))
   {
     file_count++;
   }
@@ -319,10 +318,9 @@ size_t initialise_ledger(
   size_t entries_per_chunk,
   size_t chunk_count)
 {
-  size_t end_of_first_chunk_idx = 0;
   bool is_committable = true;
 
-  for (int i = 0; i < entries_per_chunk * chunk_count; i++)
+  for (size_t i = 0; i < entries_per_chunk * chunk_count; i++)
   {
     entry_submitter.write(is_committable);
   }
@@ -617,7 +615,7 @@ TEST_CASE("Regular chunking")
   INFO("Not quite enough entries before chunk threshold");
   {
     is_committable = true;
-    for (int i = 0; i < entries_per_chunk - 1; i++)
+    for (size_t i = 0; i < entries_per_chunk - 1; i++)
     {
       entry_submitter.write(is_committable);
     }
@@ -653,7 +651,7 @@ TEST_CASE("Regular chunking")
   {
     size_t chunk_count = 10;
     size_t number_of_files_before = number_of_files_in_ledger_dir();
-    for (int i = 0; i < entries_per_chunk * chunk_count; i++)
+    for (size_t i = 0; i < entries_per_chunk * chunk_count; i++)
     {
       entry_submitter.write(is_committable);
     }
@@ -1133,7 +1131,7 @@ TEST_CASE("Restore existing ledger")
 size_t number_open_fd()
 {
   size_t fd_count = 0;
-  for (auto const& f : fs::directory_iterator("/proc/self/fd"))
+  for ([[maybe_unused]] auto const& f : fs::directory_iterator("/proc/self/fd"))
   {
     fd_count++;
   }
@@ -1403,7 +1401,6 @@ TEST_CASE("Recovery resilience")
   auto dir = AutoDeleteFolder(ledger_dir);
   fs::remove_all(ledger_dir);
 
-  size_t max_read_cache_size = 2;
   size_t chunk_threshold = 50;
   size_t entries_per_chunk = get_entries_per_chunk(chunk_threshold);
   size_t chunk_count = 1;
@@ -1430,10 +1427,11 @@ TEST_CASE("Recovery resilience")
 
     // Corrupted ledger file is ignored
     Ledger new_ledger(ledger_dir, wf);
-    const auto last_idx = new_ledger.get_last_idx();
-    TestEntrySubmitter entry_submitter(new_ledger, chunk_threshold, last_idx);
-    entry_submitter.write(true);
-    REQUIRE(entry_submitter.get_last_idx() == last_idx + 1);
+    const auto new_last_idx = new_ledger.get_last_idx();
+    TestEntrySubmitter new_entry_submitter(
+      new_ledger, chunk_threshold, new_last_idx);
+    new_entry_submitter.write(true);
+    REQUIRE(new_entry_submitter.get_last_idx() == new_last_idx + 1);
   }
 
   SUBCASE("Corrupt first entry header in uncommitted chunk")
@@ -1453,9 +1451,9 @@ TEST_CASE("Recovery resilience")
     // Uncommitted ledger file with no valid entry is deleted
     Ledger new_ledger(ledger_dir, wf);
     REQUIRE(number_of_files_in_ledger_dir() == 1);
-    TestEntrySubmitter entry_submitter(
+    TestEntrySubmitter new_entry_submitter(
       new_ledger, chunk_threshold, new_ledger.get_last_idx());
-    entry_submitter.write(true);
+    new_entry_submitter.write(true);
   }
 
   SUBCASE("Corrupt last entry")
@@ -1463,7 +1461,7 @@ TEST_CASE("Recovery resilience")
     // Create new uncommitted ledger chunk with two entries
     entry_submitter.write(true);
     entry_submitter.write(true);
-    size_t last_idx = entry_submitter.get_last_idx();
+    size_t new_last_idx = entry_submitter.get_last_idx();
 
     REQUIRE(number_of_files_in_ledger_dir() == 2);
 
@@ -1479,12 +1477,12 @@ TEST_CASE("Recovery resilience")
     // Uncommitted ledger file with no valid entry is deleted
     Ledger new_ledger(ledger_dir, wf);
     // Corrupted entry has been discarded
-    REQUIRE(new_ledger.get_last_idx() == last_idx - 1);
+    REQUIRE(new_ledger.get_last_idx() == new_last_idx - 1);
     REQUIRE(number_of_files_in_ledger_dir() == 2);
 
-    TestEntrySubmitter entry_submitter(
+    TestEntrySubmitter new_entry_submitter(
       new_ledger, chunk_threshold, new_ledger.get_last_idx());
-    entry_submitter.write(true);
+    new_entry_submitter.write(true);
   }
 }
 
@@ -1601,7 +1599,9 @@ TEST_CASE("Generate and commit snapshots" * doctest::test_suite("snapshot"))
   fs::create_directory(snapshot_dir_read_only);
 
   using namespace snapshots;
-  SnapshotManager snapshots(snapshot_dir, wf, snapshot_dir_read_only);
+  SnapshotWriter snapshots(snapshot_dir);
+
+  const std::vector<fs::path> find_dirs{snapshot_dir, snapshot_dir_read_only};
 
   size_t snapshot_interval = 5;
   size_t snapshot_count = 5;
@@ -1609,14 +1609,8 @@ TEST_CASE("Generate and commit snapshots" * doctest::test_suite("snapshot"))
 
   INFO("Generate snapshots");
   {
-    for (size_t i = 1; i < snapshot_interval * snapshot_count;
-         i += snapshot_interval)
-    {
-      // Note: Evidence is assumed to be at snapshot idx + 1
-      snapshots.add_pending_snapshot(i, i + 1, dummy_snapshot.size());
-    }
-
-    REQUIRE_FALSE(snapshots.find_latest_committed_snapshot().has_value());
+    REQUIRE_FALSE(
+      find_latest_committed_snapshot_in_directories(find_dirs).has_value());
   }
 
   INFO("Commit snapshots");
@@ -1625,10 +1619,10 @@ TEST_CASE("Generate and commit snapshots" * doctest::test_suite("snapshot"))
          i += snapshot_interval)
     {
       // Note: Evidence is assumed to be at snapshot idx + 1
-      snapshots.commit_snapshot(i, dummy_receipt.data(), dummy_receipt.size());
+      snapshots.persist_snapshot(i, i + 1, dummy_snapshot, dummy_receipt);
 
       auto latest_committed_snapshot =
-        snapshots.find_latest_committed_snapshot();
+        find_latest_committed_snapshot_in_directories(find_dirs);
       REQUIRE(latest_committed_snapshot.has_value());
       REQUIRE(latest_committed_snapshot->parent_path() == snapshot_dir);
       const auto& snapshot = latest_committed_snapshot->filename();
@@ -1648,7 +1642,8 @@ TEST_CASE("Generate and commit snapshots" * doctest::test_suite("snapshot"))
       fs::remove(f.path());
     }
 
-    auto latest_committed_snapshot = snapshots.find_latest_committed_snapshot();
+    auto latest_committed_snapshot =
+      find_latest_committed_snapshot_in_directories(find_dirs);
     REQUIRE(latest_committed_snapshot.has_value());
     REQUIRE(latest_committed_snapshot->parent_path() == snapshot_dir_read_only);
     const auto& snapshot = latest_committed_snapshot->filename();
@@ -1658,12 +1653,11 @@ TEST_CASE("Generate and commit snapshots" * doctest::test_suite("snapshot"))
   INFO("Commit and retrieve new snapshot");
   {
     size_t new_snapshot_idx = last_snapshot_idx + 1;
-    snapshots.add_pending_snapshot(
-      new_snapshot_idx, new_snapshot_idx + 1, dummy_snapshot.size());
-    snapshots.commit_snapshot(
-      new_snapshot_idx, dummy_receipt.data(), dummy_receipt.size());
+    snapshots.persist_snapshot(
+      new_snapshot_idx, new_snapshot_idx + 1, dummy_snapshot, dummy_receipt);
 
-    auto latest_committed_snapshot = snapshots.find_latest_committed_snapshot();
+    auto latest_committed_snapshot =
+      find_latest_committed_snapshot_in_directories(find_dirs);
     REQUIRE(latest_committed_snapshot.has_value());
     REQUIRE(latest_committed_snapshot->parent_path() == snapshot_dir);
     const auto& snapshot = latest_committed_snapshot->filename();
@@ -1684,7 +1678,7 @@ TEST_CASE("Chunking according to entry header flag")
 
   INFO("Add a few entries");
   {
-    for (int i = 0; i < entries_per_chunk / 2; i++)
+    for (size_t i = 0; i < entries_per_chunk / 2; i++)
     {
       entry_submitter.write(is_committable);
     }
@@ -1707,7 +1701,7 @@ TEST_CASE("Chunking according to entry header flag")
 
   INFO("Add more entries to trigger normal chunking");
   {
-    for (int i = 0; i < entries_per_chunk; i++)
+    for (size_t i = 0; i < entries_per_chunk; i++)
     {
       entry_submitter.write(is_committable);
     }
@@ -2029,7 +2023,7 @@ TEST_CASE("Recover both ledger dirs")
     Ledger ledger(ledger_dir, wf, 0, {ledger_dir_read_only});
     TestEntrySubmitter entry_submitter(ledger, chunk_threshold, last_idx);
 
-    for (int i = 0; i < entries_per_chunk * chunk_count; i++)
+    for (size_t i = 0; i < entries_per_chunk * chunk_count; i++)
     {
       entry_submitter.write(true);
     }

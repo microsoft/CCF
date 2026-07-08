@@ -2249,7 +2249,7 @@
           {
             "name": "Invalid",
             "value": "Invalid",
-            "description": "This transaction ID will never commit in the current service, because it contains a different term than a known transaction with the same sequence number. This can occur for a transaction ID returned from the service (ie - which was previously Unknown or Pending), if that transaction is lost during a consensus election. This should be rare. Invalid is a terminal state of this state machine."
+            "description": "This transaction ID will never commit in the current service, because it contains a different view than a known transaction with the same sequence number. This can occur for a transaction ID returned from the service (ie - which was previously Unknown or Pending), if that transaction is lost during a consensus election. This should be rare. Invalid is a terminal state of this state machine."
           }
         ]
       }
@@ -2287,7 +2287,7 @@
     },
     "transactionId": {
       "type": "string",
-      "description": "Uniquely identifies an atomic transaction within a CCF service. Composed of a term number and sequence number. Sequence numbers increase monotonically, apart from during elections where the service may reuse an existing sequence number. Each election will result in a new, higher term number being used for the conflicting and future sequence numbers.",
+      "description": "Uniquely identifies an atomic transaction within a CCF service. Composed of a view number and sequence number. Sequence numbers increase monotonically, apart from during elections where the service may reuse an existing sequence number. Each election will result in a new, higher view number being used for the conflicting and future sequence numbers.",
       "pattern": "^[0-9]+\\.[0-9]+$"
     },
     "userId": {

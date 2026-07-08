@@ -166,7 +166,7 @@ static void benchmark_foreach(picobench::state& s)
     }
     else
     {
-      for (auto const& e : map)
+      for ([[maybe_unused]] auto const& e : map)
       {
         count++;
       }

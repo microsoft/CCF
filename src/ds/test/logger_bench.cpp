@@ -55,7 +55,7 @@ static void log_accepted(picobench::state& s)
   {
     picobench::scope scope(s);
 
-    for (size_t i = 0; i < s.iterations(); ++i)
+    for (int i = 0; i < s.iterations(); ++i)
     {
       CCF_LOG_OUT(DEBUG, "") << "test " << i << std::endl;
     }
@@ -73,7 +73,7 @@ static void log_accepted_fmt(picobench::state& s)
   {
     picobench::scope scope(s);
 
-    for (size_t i = 0; i < s.iterations(); ++i)
+    for (int i = 0; i < s.iterations(); ++i)
     {
       LOG_DEBUG_FMT("test {}", i);
     }
@@ -91,7 +91,7 @@ static void log_rejected(picobench::state& s)
   {
     picobench::scope scope(s);
 
-    for (size_t i = 0; i < s.iterations(); ++i)
+    for (int i = 0; i < s.iterations(); ++i)
     {
       CCF_LOG_OUT(DEBUG, "") << "test " << i << std::endl;
     }
@@ -109,7 +109,7 @@ static void log_rejected_fmt(picobench::state& s)
   {
     picobench::scope scope(s);
 
-    for (size_t i = 0; i < s.iterations(); ++i)
+    for (int i = 0; i < s.iterations(); ++i)
     {
       LOG_DEBUG_FMT("test {}", i);
     }

@@ -506,7 +506,7 @@ class CurlClient:
 
             url = f"{self.protocol}://{self.hostname}{request.path}"
 
-            cmd += [url, "-X", request.http_verb, "-i", f"-m {timeout}"]
+            cmd += [url, "-X", request.http_verb, "-i", "-m", str(timeout)]
 
             headers = {}
             if self.common_headers is not None:
@@ -564,7 +564,7 @@ class CurlClient:
 
             url = f"{self.protocol}://{self.hostname}{request.path}"
 
-            cmd += [url, "-X", request.http_verb, "-i", f"-m {timeout}"]
+            cmd += [url, "-X", request.http_verb, "-i", "-m", str(timeout)]
 
             if self.cose_signing_auth:
                 cmd.extend(["--data-binary", "@-"])
@@ -902,11 +902,10 @@ class RawSocketClient:
                         keyfile=session_auth.key,
                     )
 
-                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock = socket.create_connection((hostname, port))
                 ssl_socket = context.wrap_socket(
                     sock, server_side=False, server_hostname=hostname
                 )
-                ssl_socket.connect((hostname, port))
                 return ssl_socket
             except (ssl.SSLEOFError, ConnectionResetError) as exc:
                 if time.time() > end_time:

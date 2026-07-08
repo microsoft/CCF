@@ -60,6 +60,7 @@
 #include "snapshots/filenames.h"
 #include "uvm_endorsements.h"
 
+#include <arpa/inet.h>
 #include <optional>
 
 #ifdef USE_NULL_ENCRYPTOR
@@ -1042,6 +1043,7 @@ namespace ccf
     // funcs in state "pending"
     //
 
+    // NOLINTNEXTLINE(readability-function-cognitive-complexity)
     void initiate_join_unsafe()
     {
       sm.expect(NodeStartupState::pending);
@@ -1418,10 +1420,10 @@ namespace ccf
         config.jwt.key_refresh_interval.count_s(),
         network,
         consensus,
-        rpcsessions,
         rpc_map,
         node_sign_kp,
-        self_signed_node_cert);
+        self_signed_node_cert,
+        config.jwt.key_refresh_max_response_size);
       jwt_key_auto_refresh->start();
 
       network.tables->set_map_hook(
@@ -1990,10 +1992,13 @@ namespace ccf
       recovery_store->set_history(recovery_history);
       recovery_store->set_encryptor(recovery_encryptor);
 
-      // Record real store version and root
-      recovery_v = network.tables->current_version();
+      // Record a consistent public store version and root. The store's current
+      // version can advance before its Merkle history is updated during commit,
+      // so these must be captured together from the history.
       auto* h = dynamic_cast<MerkleTxHistory*>(history.get());
-      recovery_root = h->get_replicated_state_root();
+      const auto& [txid, root, _] = h->get_replicated_state_txid_and_root();
+      recovery_v = txid.seqno;
+      recovery_root = root;
 
       if (startup_snapshot_info)
       {
@@ -2016,6 +2021,12 @@ namespace ccf
 
     void trigger_recovery_shares_refresh(ccf::kv::Tx& tx) override
     {
+      if (InternalTablesAccess::is_service_recovering(tx))
+      {
+        throw std::logic_error(
+          "Cannot refresh recovery shares while the service is recovering");
+      }
+
       share_manager.shuffle_recovery_shares(tx);
     }
 
@@ -2409,12 +2420,20 @@ namespace ccf
   private:
     bool is_ip(const std::string_view& hostname)
     {
+      if (hostname.find(':') != std::string_view::npos)
+      {
+        in6_addr addr{};
+        if (inet_pton(AF_INET6, std::string(hostname).c_str(), &addr) == 1)
+        {
+          return true;
+        }
+      }
+
       // IP address components are purely numeric. DNS names may be largely
       // numeric, but at least the final component (TLD) must not be
       // all-numeric. So this distinguishes "1.2.3.4" (an IP address) from
       // "1.2.3.c4m" (a DNS name). "1.2.3." is invalid for either, and will
-      // throw. Attempts to handle IPv6 by also splitting on ':', but this is
-      // untested.
+      // throw. Handles IPv6 by splitting on ':' after splitting on '.'.
       const auto final_component =
         ccf::nonstd::split(ccf::nonstd::split(hostname, ".").back(), ":")
           .back();
@@ -2444,7 +2463,8 @@ namespace ccf
       std::vector<ccf::crypto::SubjectAltName> sans;
       for (const auto& [_, interface] : config.network.rpc_interfaces)
       {
-        auto host = split_net_address(interface.published_address).first;
+        // split_net_address already strips brackets from IPv6 literals.
+        const auto host = split_net_address(interface.published_address).first;
         sans.push_back({host, is_ip(host)});
       }
       return sans;
@@ -2665,6 +2685,7 @@ namespace ccf
         last_recovered_idx + 1, last_recovered_idx + recovery_batch_size);
     }
 
+    // NOLINTNEXTLINE(readability-function-cognitive-complexity)
     void setup_basic_hooks()
     {
       network.tables->set_map_hook(
@@ -3233,7 +3254,7 @@ namespace ccf
       }
 
       snapshotter = std::make_shared<Snapshotter>(
-        writer_factory,
+        config.snapshots.directory,
         network.tables,
         config.snapshots.tx_count,
         config.snapshots.min_tx_count,
@@ -3311,11 +3332,6 @@ namespace ccf
           return callback(status, std::move(headers), std::move(data));
         });
       client->send_request(std::move(req));
-    }
-
-    void write_snapshot(std::span<uint8_t> snapshot_buf, size_t request_id)
-    {
-      snapshotter->write_snapshot(snapshot_buf, request_id);
     }
 
     std::shared_ptr<ccf::kv::Store> get_store() override

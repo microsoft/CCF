@@ -5,6 +5,7 @@
 #include "tasks/task_system.h"
 
 #include <span>
+#include <utility>
 
 struct MergeSortTask : public ccf::tasks::BaseTask,
                        public std::enable_shared_from_this<MergeSortTask>
@@ -28,8 +29,8 @@ struct MergeSortTask : public ccf::tasks::BaseTask,
     std::shared_ptr<MergeSortTask> p = nullptr) :
     begin(b),
     end(e),
-    parent(p),
-    stop_signal(ss)
+    stop_signal(ss),
+    parent(p)
   {}
 
   void merge()
@@ -52,7 +53,7 @@ struct MergeSortTask : public ccf::tasks::BaseTask,
   void do_task_implementation() override
   {
     const auto dist = std::distance(begin, end);
-    if (dist >= sort_threshold)
+    if (std::cmp_greater_equal(dist, sort_threshold))
     {
       sub_tasks.store(2);
 

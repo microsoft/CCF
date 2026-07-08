@@ -19,6 +19,26 @@ message(STATUS "CCF version = ${CCF_VERSION}")
 message(STATUS "CCF release version = ${CCF_RELEASE_VERSION}")
 message(STATUS "CCF version suffix = ${CCF_VERSION_SUFFIX}")
 
+string(
+  REGEX MATCH "^[0-9]+"
+  CCF_CXX_COMPILER_MAJOR_VERSION
+  "${CMAKE_CXX_COMPILER_VERSION}"
+)
+if(
+  CMAKE_CXX_COMPILER_ID STREQUAL "Clang"
+  AND CCF_CXX_COMPILER_MAJOR_VERSION STREQUAL "21"
+)
+  set(
+    CCF_WARNING_ERROR_EXCEPTIONS
+    "$<$<COMPILE_LANGUAGE:CXX>:-Wno-error=deprecated-declarations>"
+    "$<$<COMPILE_LANGUAGE:CXX>:-Wno-error=#warnings>"
+  )
+  message(
+    STATUS
+    "Disabling -Werror for deprecated-declarations and #warnings with Clang ${CMAKE_CXX_COMPILER_VERSION}"
+  )
+endif()
+
 set(CCF_ENABLE_RELEASE_HARDENING_DEFAULT ON)
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
   set(CCF_ENABLE_RELEASE_HARDENING_DEFAULT OFF)
@@ -72,10 +92,7 @@ include(GNUInstallDirs)
 # Use fixed name instead of absolute path for reproducible builds
 add_compile_options("-ffile-prefix-map=${CCF_DIR}=CCF")
 
-# In Debug builds, export symbols to the dynamic symbol table so that
-# backtrace_symbols can resolve function names in stacktraces, and preserve
-# frame pointers so that backtrace() can walk the full call stack.
-add_link_options($<$<CONFIG:Debug>:-rdynamic>)
+# In Debug builds preserve frame pointers so that backtrace() can walk the full call stack.
 add_compile_options($<$<CONFIG:Debug>:-fno-omit-frame-pointer>)
 
 set(CMAKE_MODULE_PATH "${CCF_DIR}/cmake;${CMAKE_MODULE_PATH}")
@@ -321,7 +338,20 @@ add_ccf_static_library(
     ${CCF_DIR}/src/tasks/thread_manager.cpp
     ${CCF_DIR}/src/tasks/worker.cpp
 )
-target_link_libraries(ccf_tasks PRIVATE ${CMAKE_DL_LIBS})
+
+find_library(BACKTRACE_LIBRARY backtrace)
+if(NOT BACKTRACE_LIBRARY)
+  message(
+    FATAL_ERROR
+    "libbacktrace (library 'backtrace') is required to build the CCF task "
+    "system (target ccf_tasks). Please install libbacktrace and retry "
+    "configuration."
+  )
+endif()
+
+# libbacktrace reads DWARF debug info directly, providing file/line/function
+# resolution in stack traces.
+target_link_libraries(ccf_tasks PRIVATE ${CMAKE_DL_LIBS} ${BACKTRACE_LIBRARY})
 
 # Common test args for Python scripts starting up CCF networks
 set(
@@ -948,6 +978,7 @@ if(BUILD_TESTS)
       src/node/test/merkle_mem.cpp
       ${CCF_DIR}/src/enclave/thread_local.cpp
     )
+    add_warning_checks(merkle_mem)
     target_link_libraries(
       merkle_mem
       PRIVATE ${CMAKE_THREAD_LIBS_INIT} ccfcrypto
@@ -959,6 +990,8 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/driver.cpp
       src/enclave/thread_local.cpp
     )
+    add_warning_checks(raft_driver)
+    enable_coverage(raft_driver)
     target_link_libraries(raft_driver PRIVATE ccfcrypto ccf_tasks)
     target_include_directories(raft_driver PRIVATE src/aft)
 
@@ -970,6 +1003,18 @@ if(BUILD_TESTS)
     )
     set_property(TEST raft_scenario_test PROPERTY LABELS raft_scenario)
     set_property(TEST raft_scenario_test APPEND PROPERTY LABELS bucket_c)
+
+    if(COVERAGE)
+      # The scenario runner spawns raft_driver once per scenario file; give
+      # each process a uniquely-named .profraw (by PID) in the build directory
+      # so scripts/coverage.sh discovers them and the scenarios contribute to
+      # the aggregated coverage report.
+      set_property(
+        TEST raft_scenario_test
+        APPEND
+        PROPERTY ENVIRONMENT "LLVM_PROFILE_FILE=raft_scenario-%p.profraw"
+      )
+    endif()
 
     add_test(
       NAME csr_test
@@ -1250,26 +1295,11 @@ if(BUILD_TESTS)
     CONFIGURATIONS partitions
   )
 
-  execute_process(
-    COMMAND "cat" "/etc/os-release"
-    COMMAND "grep" "^NAME="
-    COMMAND "cut" "-d" "=" "-f" "2"
-    COMMAND "tr" "-d" "\""
-    OUTPUT_VARIABLE "OS_RELEASE"
-    RESULT_VARIABLE RETURN_CODE
-    OUTPUT_STRIP_TRAILING_WHITESPACE
+  set_property(
+    TEST partitions
+    APPEND
+    PROPERTY ENVIRONMENT "XTABLES_LIBDIR=/usr/lib/iptables"
   )
-  if(NOT RETURN_CODE STREQUAL "0")
-    message(FATAL_ERROR "Error calling cat /etc/os-release")
-  endif()
-  message(STATUS "OS_RELEASE = ${OS_RELEASE}")
-  if(OS_RELEASE STREQUAL "Microsoft Azure Linux")
-    set_property(
-      TEST partitions
-      APPEND
-      PROPERTY ENVIRONMENT "XTABLES_LIBDIR=/usr/lib/iptables"
-    )
-  endif()
 
   add_e2e_test(
     NAME tls_stress_test

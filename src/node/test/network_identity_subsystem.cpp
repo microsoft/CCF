@@ -479,7 +479,8 @@ TEST_CASE(
 
   REQUIRE(sub->endorsements_fetching_status() == ccf::FetchStatus::Retry);
   REQUIRE(f.scheduler->pending_delayed_count() == 0);
-  REQUIRE_THROWS_AS(sub->get_trusted_keys(), ccf::IdentityHistoryNotFetched);
+  REQUIRE_THROWS_AS(
+    (void)sub->get_trusted_keys(), ccf::IdentityHistoryNotFetched);
 
   // Calling start_with_config bootstraps the subsystem.
   sub->start_with_config();
@@ -574,14 +575,16 @@ TEST_CASE("Readers throw IdentityHistoryNotFetched while subsystem is in Retry")
   REQUIRE(sub->endorsements_fetching_status() == ccf::FetchStatus::Retry);
 
   REQUIRE_THROWS_AS(
-    sub->get_cose_endorsements_chain(0), ccf::IdentityHistoryNotFetched);
+    (void)sub->get_cose_endorsements_chain(0), ccf::IdentityHistoryNotFetched);
   REQUIRE_THROWS_AS(
-    sub->get_cose_endorsements_chain(123), ccf::IdentityHistoryNotFetched);
+    (void)sub->get_cose_endorsements_chain(123),
+    ccf::IdentityHistoryNotFetched);
   REQUIRE_THROWS_AS(
-    sub->get_trusted_identity_for(0), ccf::IdentityHistoryNotFetched);
+    (void)sub->get_trusted_identity_for(0), ccf::IdentityHistoryNotFetched);
   REQUIRE_THROWS_AS(
-    sub->get_trusted_identity_for(999), ccf::IdentityHistoryNotFetched);
-  REQUIRE_THROWS_AS(sub->get_trusted_keys(), ccf::IdentityHistoryNotFetched);
+    (void)sub->get_trusted_identity_for(999), ccf::IdentityHistoryNotFetched);
+  REQUIRE_THROWS_AS(
+    (void)sub->get_trusted_keys(), ccf::IdentityHistoryNotFetched);
 }
 
 TEST_CASE("Bootstrap waits for current_service_from then proceeds")

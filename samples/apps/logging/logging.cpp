@@ -387,9 +387,7 @@ namespace loggingapp
         return response;
       }
 
-      if (
-        const auto* no_ident =
-          dynamic_cast<const ccf::EmptyAuthnIdentity*>(caller.get()))
+      if (dynamic_cast<const ccf::EmptyAuthnIdentity*>(caller.get()) != nullptr)
       {
         return "Unauthenticated";
       }
@@ -518,6 +516,7 @@ namespace loggingapp
       openapi_info.document_version = "2.8.3";
     };
 
+    // NOLINTNEXTLINE(readability-function-cognitive-complexity)
     void init_handlers() override
     {
       CommonEndpointRegistry::init_handlers();

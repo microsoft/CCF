@@ -57,6 +57,7 @@ class ServiceStatus(Enum):
     OPENING = "Opening"
     OPEN = "Open"
     RECOVERING = "Recovering"
+    WAITING_FOR_RECOVERY_SHARES = "WaitingForRecoveryShares"
     CLOSED = "Closed"
 
 
@@ -203,6 +204,7 @@ class Network:
         "max_open_sessions_hard",
         "forwarding_timeout_ms",
         "jwt_key_refresh_interval_s",
+        "jwt_key_refresh_max_response_size",
         "common_read_only_ledger_dir",
         "curve_id",
         "initial_node_cert_validity_days",
@@ -243,6 +245,7 @@ class Network:
         node_data_json_file=None,
         next_node_id=0,
         skip_verify_chunking=False,
+        ipv6=False,
     ):
         # Map of node id to dict of node arg to override value
         # for example, to set the election timeout to 2s for node 3:
@@ -283,6 +286,10 @@ class Network:
         self.status = ServiceStatus.CLOSED
         self.binary_dir = binary_dir
         self.library_dir = library_dir
+        # Inherit IPv6 mode from the existing network (e.g. across recovery,
+        # where recovered networks are constructed with existing_network set),
+        # so the flag does not need to be threaded through every call site.
+        self.ipv6 = existing_network.ipv6 if existing_network is not None else ipv6
         self.election_duration = None
         self.observed_election_duration = None
         self.key_generator = os.path.join(binary_dir, self.KEY_GEN)
@@ -337,6 +344,7 @@ class Network:
             binary_dir or self.binary_dir,
             library_dir or self.library_dir,
             debug,
+            ipv6=self.ipv6,
             **kwargs,
         )
         self.nodes.append(node)
@@ -387,6 +395,9 @@ class Network:
                 "Joining without snapshot: complete transaction history will be replayed"
             )
 
+        join_kwargs = kwargs.copy()
+        join_kwargs.pop("service_data_json_file", None)
+
         if not committed_ledger_dirs and copy_ledger:
             LOG.info(f"Copying ledger from target node {target_node.local_node_id}")
             current_ledger_dir, committed_ledger_dirs = target_node.get_ledger()
@@ -411,7 +422,7 @@ class Network:
             read_only_snapshots_dir=read_only_snapshots_dir,
             ledger_dir=current_ledger_dir,
             read_only_ledger_dirs=committed_ledger_dirs,
-            **kwargs,
+            **join_kwargs,
         )
 
     def _add_node(
@@ -1248,7 +1259,11 @@ class Network:
         for node in self.nodes:
             if node.remote is None:
                 continue
-            ledger_paths = node.remote.ledger_paths()
+            # Only check the node's own (writable) ledger, not read-only historical
+            # directories from other nodes. Read-only ledger dirs are bootstrapping
+            # data from retired/stopped nodes and may be non-contiguous.
+            current_path = node.remote.current_ledger_path()
+            ledger_paths = [current_path] if os.path.exists(current_path) else []
             for path in ledger_paths:
                 ledger = ccf.ledger.Ledger([path])
                 chunks = list(ledger)
@@ -1401,7 +1416,7 @@ class Network:
                 )
             except TimeoutError as e:
                 LOG.error(f"New pending node {node.node_id} failed to join the network")
-                has_stopped = node.remote.check_done()
+                has_stopped = node.remote.check_done(timeout=0)
                 if stop_on_error:
                     assert has_stopped, "Node should have stopped"
                 node.stop()

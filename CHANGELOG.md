@@ -5,9 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [7.0.7]
+
+[7.0.7]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.7
+
+### Changed
+
+- JWT/JWK auto-refresh outbound HTTP fetches (OpenID metadata and JWKS) now use the curl multi singleton client introduced in #7102, replacing the previous `RPCSessions::create_client()` path. Connection and TLS failures are now counted in refresh failure metrics via `send_refresh_jwt_keys_error()`, improving observability of network-level refresh errors (#7989).
+- JWT/JWK auto-refresh now supports configuring the maximum response body size for fetched OpenID metadata and JWKS via the `jwt.key_refresh_max_response_size` node startup config setting (#7989).
+- Fatal task worker stack traces now use libbacktrace for improved function and source-location resolution. Building CCF now requires the libbacktrace development package, and the RPM development package depends on `libbacktrace-static` (#7721).
+
+### Fixed
+
+- JS endpoint string values (e.g. response bodies, KV keys/values) containing embedded NUL bytes are no longer silently truncated at the first NUL when converted to their C++ representation (#8033).
+- Curl multi client shutdown now aborts queued async requests without performing network I/O, and curl response header capture now enforces default header size and count limits (#8005).
+- Changing recovery members or the recovery threshold, refreshing recovery shares, or rekeying the ledger while the service is recovering now correctly returns an error instead of appearing to succeed. These operations were always potentially unsafe because at-recovery ledger secrets cannot be rekeyed; services with custom constitutions should update their `set_member`, `remove_member`, `set_recovery_threshold`, `trigger_recovery_shares_refresh`, and `trigger_ledger_rekey` actions to reject them while recovering (#7980).
+
 ## [7.0.6]
 
 [7.0.6]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.6
+
+### Added
+
+- Experimental support for IPv6. Node RPC and node-to-node interface hosts may now be specified as IPv6 literals in bracketed form (e.g. `[::1]:8000`), and addresses are consistently parsed, bound, connected (with fallback across mixed IPv4/IPv6 resolved addresses), serialised, and embedded in redirect URLs for IPv6 (#7671).
 
 ### Fixed
 

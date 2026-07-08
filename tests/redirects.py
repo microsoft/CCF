@@ -20,7 +20,7 @@ def test_redirects_with_node_role_config(network, args):
         interface = redirect_to.host.rpc_interfaces[
             infra.interfaces.PRIMARY_RPC_INTERFACE
         ]
-        loc = f"https://{interface.public_host}:{interface.public_port}"
+        loc = f"https://{infra.interfaces.make_address(interface.public_host, interface.public_port)}"
 
         with talk_to.client("user0") as c:
             for path in paths:
@@ -55,7 +55,7 @@ def test_redirects_with_node_role_config(network, args):
             interface = backup.host.rpc_interfaces[
                 infra.interfaces.PRIMARY_RPC_INTERFACE
             ]
-            b_loc = f"https://{interface.public_host}:{interface.public_port}"
+            b_loc = f"https://{infra.interfaces.make_address(interface.public_host, interface.public_port)}"
             if loc.startswith(b_loc):
                 break
         else:

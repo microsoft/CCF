@@ -17,10 +17,12 @@
 #include <arrow/filesystem/localfs.h>
 #include <arrow/io/file.h>
 #include <arrow/table.h>
+#include <arrow/util/config.h>
 #include <parquet/arrow/reader.h>
 #include <parquet/arrow/writer.h>
 #include <signal.h>
 #include <time.h>
+#include <utility>
 
 
 using namespace std;
@@ -39,6 +41,22 @@ void read_parquet_file(string generator_filepath, ParquetData& data_handler)
     file_system.OpenInputFile(generator_filepath).ValueOrDie();
 
   // Open Parquet file reader
+#if ARROW_VERSION_MAJOR >= 19
+  auto arrow_reader_result = parquet::arrow::OpenFile(input, pool);
+  if (!arrow_reader_result.ok())
+  {
+    LOG_FAIL_FMT(
+      "Couldn't find generator file ({}): {}",
+      generator_filepath,
+      arrow_reader_result.status().ToString());
+    exit(1);
+  }
+  else
+  {
+    LOG_INFO_FMT("Found generator file");
+  }
+  auto arrow_reader = std::move(arrow_reader_result).ValueOrDie();
+#else
   std::unique_ptr<parquet::arrow::FileReader> arrow_reader;
   st = parquet::arrow::OpenFile(input, pool, &arrow_reader);
   if (!st.ok())
@@ -53,6 +71,7 @@ void read_parquet_file(string generator_filepath, ParquetData& data_handler)
   {
     LOG_INFO_FMT("Found generator file");
   }
+#endif
 
   // Read entire file as a single Arrow table
   std::shared_ptr<arrow::Table> table = nullptr;
@@ -320,7 +339,9 @@ int main(int argc, char** argv)
         connection->write({request.data(), request.size()});
         if (
           connection->bytes_available() or
-          ridx - read_reqs >= args.max_inflight_requests)
+          (args.max_inflight_requests >= 0 &&
+           ridx - read_reqs >=
+             static_cast<size_t>(args.max_inflight_requests)))
         {
           responses[read_reqs] = connection->read_response();
           clock_gettime(CLOCK_REALTIME, &end[read_reqs]);

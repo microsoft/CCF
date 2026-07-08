@@ -2,6 +2,7 @@
 
 - This document provides guidance for AI coding and review agents working in the CCF (Confidential Consortium Framework) repository
 - **CCF** is an open-source framework for building secure, highly available, and performant applications focused on multi-party compute and data. It's designed for confidential, distributed systems running on secure hardware.
+- When prompted to work from a GitHub Issue, make sure the resulting PR description links to that Issue so reviewers can see the context. Use `Closes #123` (with the real Issue number) so that the Issue is automatically closed when the PR is merged.
 
 ## Architecture
 

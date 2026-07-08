@@ -36,6 +36,7 @@ function(add_unit_test name)
   enable_coverage(${name})
   target_link_libraries(${name} PRIVATE ccfcrypto -pthread)
   add_san(${name})
+  add_warning_checks(${name})
 
   add_test(NAME ${name} COMMAND ${name})
   set_property(TEST ${name} APPEND PROPERTY LABELS unit)
@@ -58,6 +59,7 @@ function(add_fuzz_test name)
   target_link_options(${name} PRIVATE -fsanitize=fuzzer)
   target_include_directories(${name} PRIVATE src ${CCFCRYPTO_INC})
   target_link_libraries(${name} PRIVATE -pthread)
+  add_warning_checks(${name})
   add_san(${name})
   # UBSan's vptr check fires inside libstdc++'s
   # std::_Sp_counted_ptr_inplace<T,A,_Lp>::_Sp_counted_ptr_inplace ctor
@@ -87,6 +89,7 @@ function(add_test_bin name)
   )
   enable_coverage(${name})
   target_link_libraries(${name} PRIVATE ccfcrypto)
+  add_warning_checks(${name})
   add_san(${name})
 endfunction()
 
@@ -267,6 +270,11 @@ function(add_picobench name)
   )
 
   add_san(${name})
+  add_warning_checks(${name})
+  target_compile_options(
+    ${name}
+    PRIVATE $<$<COMPILE_LANG_AND_ID:CXX,Clang>:-Wno-vla-cxx-extension>
+  )
 
   # -Wall -Werror catches a number of warnings in picobench
   target_include_directories(${name} SYSTEM PRIVATE 3rdparty/test)

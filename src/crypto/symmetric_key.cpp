@@ -13,9 +13,9 @@
 namespace ccf::crypto
 {
   /// GcmHeader implementation
-  GcmHeader::GcmHeader(size_t iv_size)
+  GcmHeader::GcmHeader(size_t iv_size_)
   {
-    iv.resize(iv_size);
+    iv.resize(iv_size_);
   }
 
   void GcmHeader::set_iv(const uint8_t* data, size_t size)

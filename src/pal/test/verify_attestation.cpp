@@ -112,8 +112,6 @@ int main(int argc, char** argv)
   run_loop();
   LOG_INFO_FMT("Successfully fetched endorsements from AMD");
 
-  const auto* attestation_unverified =
-    reinterpret_cast<const ccf::pal::snp::Attestation*>(quote.quote.data());
   ccf::pal::PlatformAttestationMeasurement m = {};
   ccf::pal::PlatformAttestationReportData rd = {};
   ccf::pal::verify_quote(quote, m, rd);

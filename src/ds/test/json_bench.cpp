@@ -192,7 +192,7 @@ static void conv(picobench::state& s)
   clobber_memory();
   picobench::scope scope(s);
 
-  for (size_t i = 0; i < s.iterations(); ++i)
+  for (int i = 0; i < s.iterations(); ++i)
   {
     nlohmann::json j = entries[i];
     const auto b = j.get<T>();
@@ -209,7 +209,7 @@ void valmacro(picobench::state& s)
   clobber_memory();
   picobench::scope scope(s);
 
-  for (size_t i = 0; i < s.iterations(); ++i)
+  for (int i = 0; i < s.iterations(); ++i)
   {
     const auto b = entries[i].get<T>();
     do_not_optimize(b);

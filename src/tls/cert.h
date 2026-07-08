@@ -73,17 +73,17 @@ namespace tls
 
     ~Cert() = default;
 
-    void use(SSL* ssl, SSL_CTX* ssl_ctx)
+    void configure_ssl(SSL* ssl, SSL_CTX* ssl_ctx) const
     {
       if (peer_hostname.has_value())
       {
         // Peer hostname for SNI
-        SSL_set_tlsext_host_name(ssl, peer_hostname->c_str());
+        CHECK1(SSL_set_tlsext_host_name(ssl, peer_hostname->c_str()));
       }
 
       if (peer_ca)
       {
-        peer_ca->use(ssl_ctx);
+        peer_ca->configure_trusted_cert_store(ssl_ctx);
       }
 
       if (auth_required)

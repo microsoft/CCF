@@ -133,7 +133,7 @@ def run(get_command, args):
                 while True:
                     stop_waiting = True
                     for i, remote_client in enumerate(clients):
-                        done = remote_client.check_done()
+                        done = remote_client.check_done(timeout=0)
                         # all the clients need to be done
                         LOG.info(
                             f"Client {i} has {'completed' if done else 'not completed'} running ({time.time() - start_time:>{format_width}.2f}s / {hard_stop_timeout}s)"

@@ -43,7 +43,6 @@ install_dev_dependencies() {
         python-pip \
         jq \
         tar \
-        npm \
         build-essential
 }
 

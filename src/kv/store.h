@@ -398,7 +398,7 @@ namespace ccf::kv
       bool public_only = false) override
     {
       auto e = get_encryptor();
-      auto d = KvStoreDeserialiser(
+      auto d = RawKvStoreDeserialiser(
         e,
         public_only ? ccf::kv::SecurityDomain::PUBLIC :
                       std::optional<ccf::kv::SecurityDomain>());
@@ -727,7 +727,7 @@ namespace ccf::kv
       // deserialisation will then fail.
       auto e = get_encryptor();
 
-      auto d = KvStoreDeserialiser(
+      auto d = RawKvStoreDeserialiser(
         e,
         public_only ? ccf::kv::SecurityDomain::PUBLIC :
                       std::optional<ccf::kv::SecurityDomain>());
