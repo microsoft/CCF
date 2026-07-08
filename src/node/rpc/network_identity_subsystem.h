@@ -338,7 +338,10 @@ namespace ccf
     void retry_fetch_first(const std::string& reason)
     {
       // Bootstrap retries are unbounded; the reason is logged for diagnosis
-      // while the delayed retry waits for the local store to catch up.
+      // while the delayed retry waits for the local store to catch up. This
+      // matches the other pre-bootstrap waits above, which are not constrained
+      // by the historical-read retry budget because ledger replay can
+      // legitimately take arbitrary time during node startup.
       LOG_INFO_FMT("Retrying fetching network identity: {}", reason);
       reset_chain_state();
       scheduler->add_delayed_task(
@@ -363,6 +366,9 @@ namespace ccf
         return;
       }
 
+      // Reread this on every bootstrap pass: while joining from a snapshot, the
+      // KV can advance from the snapshot-era service identity to the latest
+      // identity as the committed ledger suffix is replayed.
       auto cs = node_state_accessor->get_current_service_txid();
       if (!cs.has_value())
       {
