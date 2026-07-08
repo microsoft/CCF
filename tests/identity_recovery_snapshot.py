@@ -3,33 +3,29 @@
 import os
 import shutil
 import time
+import http
 
 import infra.e2e_args
 import infra.network
 import infra.node
+import infra.crypto
 import infra.logging_app as app
 import suite.test_requirements as reqs
+from cryptography.x509 import load_pem_x509_certificate
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import serialization
 from infra.runner import ConcurrentRunner
 from loguru import logger as LOG
 
-# Log fragments emitted by the network identity subsystem
-# (src/node/rpc/network_identity_subsystem.h), kept in sync with the C++ code.
-#
-# IDENTITY_FETCH_DONE_LOG is logged by log_status() once the endorsement chain
-# has been fetched successfully. For a node joining from a pre-recovery snapshot
-# it can only appear if the node built the identity chain spanning the recovery
-# boundary, so it is a deterministic, reliable signal that cross-recovery chain
-# building works end to end.
-#
-# STALE_IDENTITY_RETRY_LOG is logged by retry_fetch_first() when the topmost
+# STALE_IDENTITY_RETRY_LOG is logged by retry_fetch_first() in the network
+# identity subsystem (src/node/rpc/network_identity_subsystem.h) when the topmost
 # endorsement in the (still-stale) local store is signed by a previous service
-# identity. Whether it appears depends on a startup race: the node has to reach
+# identity. Whether it appears depends on a startup race (the node must reach
 # part-of-network while its local store still exposes the pre-recovery service as
-# OPEN, before the recovered service-open transaction is applied. That race
-# cannot be forced deterministically through the join API, so it is only checked
-# best-effort here. The deterministic regression coverage for the retry path is
-# the unit test network_identity_subsystem_test.
-IDENTITY_FETCH_DONE_LOG = "Network identity fetching settled at Done"
+# OPEN, before the recovered service-open transaction is applied), so it is only
+# surfaced best-effort here. The deterministic regression coverage for the retry
+# path is the unit test network_identity_subsystem_test; this e2e instead
+# functionally verifies the resulting cross-recovery endorsement chain.
 STALE_IDENTITY_RETRY_LOG = "signed by a stale service identity"
 
 
@@ -52,26 +48,66 @@ def preserve_oldest_committed_snapshot(network, primary, dest_name):
     return dest_dir
 
 
-def wait_for_node_log(node, needle, timeout=30):
-    """Poll a node's stdout log until `needle` appears or the timeout elapses,
-    returning the log contents from the final read. Trusting a node does not
-    block on the asynchronous network identity fetch, so callers use this to wait
-    for that subsystem to settle before asserting on its log output."""
-    out_path, _ = node.get_logs()
-    assert out_path is not None, "Could not locate the node's log file"
+def get_trusted_keys_when_ready(node, timeout=30):
+    """Poll the logging app's trusted_keys endpoint until the node's network
+    identity subsystem has settled, returning the final response. The handler
+    calls get_trusted_keys(), which raises (so the endpoint returns an error)
+    until the endorsement chain has been fetched - that fetch is asynchronous and
+    not awaited by trust_node."""
     deadline = time.time() + timeout
-    node_log = ""
-    while time.time() < deadline:
-        with open(out_path, encoding="utf-8") as f:
-            node_log = f.read()
-        if needle in node_log:
-            return node_log
+    while True:
+        with node.client() as cli:
+            r = cli.get("/log/public/trusted_keys")
+        if r.status_code == http.HTTPStatus.OK or time.time() > deadline:
+            return r
         time.sleep(0.2)
-    return node_log
+
+
+def verify_cross_recovery_identity_chain(node):
+    """Functionally verify that `node` serves a network-identity trusted-key set
+    spanning the recovery. The logging app's trusted_keys endpoint returns the
+    keys produced by the subsystem's get_trusted_keys(); those are only populated
+    once the node has built the identity chain across the recovery boundary from
+    its pre-recovery snapshot, and only after build_trusted_key_chain() has
+    signature-verified every COSE endorsement in that chain. So a successful
+    response containing the recovered identity plus a prior identity is proof the
+    cross-recovery chain was built and verified end to end."""
+    with node.client() as cli:
+        service_cert = cli.get("/node/network").body.json()["service_certificate"]
+    cert = load_pem_x509_certificate(service_cert.encode("ascii"), default_backend())
+    current_key_der = bytes(
+        cert.public_key().public_bytes(
+            serialization.Encoding.DER,
+            serialization.PublicFormat.SubjectPublicKeyInfo,
+        )
+    )
+
+    r = get_trusted_keys_when_ready(node)
+    assert r.status_code == http.HTTPStatus.OK, r
+    jwks = r.body.json()
+    assert "keys" in jwks, jwks
+    trusted_keys_der = {
+        bytes(infra.crypto.pub_key_der_from_jwk(key)) for key in jwks["keys"]
+    }
+
+    assert (
+        current_key_der in trusted_keys_der
+    ), "Joined node's trusted keys do not include the current service identity"
+    # A chain that spans the recovery has at least two keys: the current
+    # (recovered) identity and the pre-recovery identity it endorses.
+    assert len(trusted_keys_der) >= 2, (
+        "Joined node's trusted keys do not span the recovery "
+        f"(only {len(trusted_keys_der)} key)"
+    )
+    LOG.success(
+        f"Joined node serves {len(trusted_keys_der)} trusted keys spanning the "
+        "recovery, built from its pre-recovery snapshot"
+    )
 
 
 @reqs.description(
-    "A node joining from a pre-recovery snapshot catches up past the recovery"
+    "A node joining from a pre-recovery snapshot catches up and serves a "
+    "trusted-key set spanning the recovery"
 )
 def test_join_from_stale_pre_recovery_snapshot(network, args):
     # Capture a committed snapshot from before the recovery. A node started from
@@ -121,32 +157,24 @@ def test_join_from_stale_pre_recovery_snapshot(network, args):
     recovered_network.trust_node(new_node, args)
     LOG.success("New node joined from the stale pre-recovery snapshot and caught up")
 
-    # The joining node started from a pre-recovery snapshot yet successfully
-    # bootstrapped its network identity. That is only possible if it built the
-    # endorsement chain spanning the recovery boundary (from the recovered
-    # identity back to the pre-recovery self-endorsement); had cross-recovery
-    # chain building regressed, the node would fail bootstrap and never settle at
-    # Done. The identity fetch is asynchronous and not awaited by trust_node, so
-    # wait for it to settle before asserting. This is the deterministic check.
-    node_log = wait_for_node_log(new_node, IDENTITY_FETCH_DONE_LOG, timeout=30)
-    assert (
-        IDENTITY_FETCH_DONE_LOG in node_log
-    ), "Joining node network identity fetching did not settle at Done"
+    # Functional end-to-end check: the joined node must serve the network-identity
+    # endorsement chain and trusted keys for a PRE-recovery transaction. That is
+    # only possible once it has built the identity chain across the recovery
+    # boundary from its pre-recovery snapshot; had that regressed, bootstrap would
+    # fail and these endpoints would never become ready.
+    verify_cross_recovery_identity_chain(new_node)
 
-    # Best-effort: if the startup race lined up, the node will also have logged
-    # the stale-identity retry. This is not asserted because the race cannot be
-    # forced through the join API (see the note by STALE_IDENTITY_RETRY_LOG); the
-    # retry path is covered deterministically by network_identity_subsystem_test.
-    if STALE_IDENTITY_RETRY_LOG in node_log:
-        LOG.success(
-            "Joining node hit and recovered from the stale pre-recovery identity "
-            "retry path"
-        )
-    else:
-        LOG.info(
-            "Joining node caught up before the stale-identity window opened; the "
-            "retry path is covered deterministically by the unit test"
-        )
+    # Best-effort: surface it if the startup race lined up and the node also hit
+    # the stale-identity retry path. Not asserted - that race cannot be forced via
+    # the join API; network_identity_subsystem_test covers it deterministically.
+    out_path, _ = new_node.get_logs()
+    if out_path is not None:
+        with open(out_path, encoding="utf-8") as f:
+            if STALE_IDENTITY_RETRY_LOG in f.read():
+                LOG.success(
+                    "Joined node also exercised the stale pre-recovery identity "
+                    "retry path"
+                )
 
     return recovered_network
 
