@@ -337,20 +337,6 @@ namespace ccf
       fetch_attempts = 0;
     }
 
-    void retry_fetch_first(std::string_view reason)
-    {
-      // Bootstrap retries are unbounded; the reason is logged for diagnosis
-      // while the delayed retry waits for the local store to catch up. This
-      // matches the other pre-bootstrap waits in fetch_first(), which are not
-      // constrained by the historical-read retry budget because ledger replay
-      // can legitimately take arbitrary time during node startup.
-      LOG_INFO_FMT("Retrying fetching network identity: {}", reason);
-      reset_chain_state();
-      scheduler->add_delayed_task(
-        [this]() { this->fetch_first(); },
-        std::chrono::milliseconds(retry_interval_ms));
-    }
-
     void fetch_first()
     {
       // Pre-bootstrap waits are unbounded: KV reads can legitimately
@@ -398,12 +384,22 @@ namespace ccf
 
       if (!topmost_endorsement_matches_current_identity(endorsement.value()))
       {
-        retry_fetch_first(fmt::format(
+        // Bootstrap retries are unbounded; the reason is logged for diagnosis
+        // while the delayed retry waits for the local store to catch up. This
+        // matches the other pre-bootstrap waits in fetch_first(), which are not
+        // constrained by the historical-read retry budget because ledger replay
+        // can legitimately take arbitrary time during node startup.
+        LOG_INFO_FMT(
+          "Retrying fetching network identity: "
           "topmost endorsement at {} is signed by a stale service identity, "
           "waiting for the local store to reach the current service identity "
           "at {}",
           endorsement->endorsement_epoch_begin.to_str(),
-          current_service_from->to_str()));
+          current_service_from->to_str());
+        reset_chain_state();
+        scheduler->add_delayed_task(
+          [this]() { this->fetch_first(); },
+          std::chrono::milliseconds(retry_interval_ms));
         return;
       }
 
