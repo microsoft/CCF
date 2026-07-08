@@ -55,7 +55,6 @@ EXTENSIONS=(
 # state labels). These are excluded from the check.
 ALLOWLIST=(
   "python/src/ccf/ledger_viz.py"      # overline glyph in rendered ledger output
-  "scripts/compare_bencher_ab.py"     # infinity/plus-minus/arrow display labels
   "tests/infra/basicperf.py"          # box-drawing/block glyphs for terminal charts
   "js/ccf-app/doc/theme/partials/analytics.hbs"  # decorative arrow in doc link
   "tla/consensus/MCAliases.tla"       # symbolic state glyphs used as model values
