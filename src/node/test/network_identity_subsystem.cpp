@@ -366,12 +366,13 @@ namespace
     f.historical->entries = cb.historical_entries();
   }
 
+  // Populate the mocks from a partially replayed chain. The live KV exposes
+  // entries[topmost_index] as the topmost endorsement, while historical access
+  // contains only its predecessors. Use this when modelling a joiner whose
+  // local KV is behind the latest network identity received from join.
   void wire_replayed_chain_with_topmost(
     SubsystemFixture& f, const ChainBuilder& cb, size_t topmost_index)
   {
-    // Model a local KV store whose live endorsement is entries[topmost_index].
-    // Historical access contains only its predecessors, matching production
-    // where the topmost endorsement is read from live KV.
     REQUIRE(topmost_index < cb.entries.size());
     REQUIRE(cb.write_versions.size() == cb.entries.size());
     const auto& topmost = cb.entries.at(topmost_index);

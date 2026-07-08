@@ -13,6 +13,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <string_view>
 
 namespace ccf
 {
@@ -326,8 +327,8 @@ namespace ccf
 
     void reset_chain_state()
     {
-      // Drop any state accumulated from the stale bootstrap attempt so the next
-      // fetch_first pass rereads both the service create txid and endorsement.
+      // Drop all state accumulated from the stale bootstrap attempt so the next
+      // fetch_first pass starts from fresh KV reads and an empty chain.
       endorsements.clear();
       trusted_keys.clear();
       current_service_from.reset();
@@ -336,7 +337,7 @@ namespace ccf
       fetch_attempts = 0;
     }
 
-    void retry_fetch_first(const std::string& reason)
+    void retry_fetch_first(std::string_view reason)
     {
       // Bootstrap retries are unbounded; the reason is logged for diagnosis
       // while the delayed retry waits for the local store to catch up. This
