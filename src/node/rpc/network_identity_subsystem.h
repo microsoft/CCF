@@ -312,6 +312,38 @@ namespace ccf
         "Network identity fetching settled at {}", ccf::to_string(status));
     }
 
+    [[nodiscard]] bool endorsing_key_matches_current_identity(
+      const CoseEndorsement& endorsement) const
+    {
+      const auto& current_pkey =
+        network_identity->get_key_pair()->public_key_der();
+      return endorsement.endorsing_key.size() == current_pkey.size() &&
+        std::equal(
+               endorsement.endorsing_key.begin(),
+               endorsement.endorsing_key.end(),
+               current_pkey.begin(),
+               current_pkey.end());
+    }
+
+    void reset_chain_state()
+    {
+      endorsements.clear();
+      trusted_keys.clear();
+      current_service_from.reset();
+      earliest_endorsed_seq = 0;
+      has_predecessors = false;
+      fetch_attempts = 0;
+    }
+
+    void retry_fetch_first(const std::string& reason)
+    {
+      LOG_INFO_FMT("Retrying fetching network identity: {}", reason);
+      reset_chain_state();
+      scheduler->add_delayed_task(
+        [this]() { this->fetch_first(); },
+        std::chrono::milliseconds(retry_interval_ms));
+    }
+
     void fetch_first()
     {
       // Pre-bootstrap waits are unbounded: KV reads can legitimately
@@ -329,21 +361,18 @@ namespace ccf
         return;
       }
 
-      if (!current_service_from.has_value())
+      auto cs = node_state_accessor->get_current_service_txid();
+      if (!cs.has_value())
       {
-        auto cs = node_state_accessor->get_current_service_txid();
-        if (!cs.has_value())
-        {
-          LOG_INFO_FMT(
-            "Retrying fetching network identity as current service create "
-            "txid is not yet available or service is not yet open");
-          scheduler->add_delayed_task(
-            [this]() { this->fetch_first(); },
-            std::chrono::milliseconds(retry_interval_ms));
-          return;
-        }
-        current_service_from = cs;
+        LOG_INFO_FMT(
+          "Retrying fetching network identity as current service create "
+          "txid is not yet available or service is not yet open");
+        scheduler->add_delayed_task(
+          [this]() { this->fetch_first(); },
+          std::chrono::milliseconds(retry_interval_ms));
+        return;
       }
+      current_service_from = cs;
 
       auto endorsement = node_state_accessor->get_current_endorsement();
       if (!endorsement.has_value())
@@ -354,6 +383,15 @@ namespace ccf
         scheduler->add_delayed_task(
           [this]() { this->fetch_first(); },
           std::chrono::milliseconds(retry_interval_ms));
+        return;
+      }
+
+      if (!endorsing_key_matches_current_identity(endorsement.value()))
+      {
+        retry_fetch_first(fmt::format(
+          "current previous-service endorsement at {} is signed by a service "
+          "identity which does not match the current network identity",
+          endorsement->endorsement_epoch_begin.to_str()));
         return;
       }
 
