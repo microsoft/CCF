@@ -44,14 +44,6 @@ namespace ccf
       }
       if (service_info->status != ServiceStatus::OPEN)
       {
-        // A joiner can reach part-of-network as soon as it has installed a
-        // trusted snapshot and initialized consensus, before the committed
-        // suffix after that snapshot has been replayed locally. During
-        // recovery, the service-opening tx is also the tx that writes the
-        // previous-identity endorsement, so waiting for OPEN rules out the
-        // pre-open window. A stale join snapshot may still report OPEN for the
-        // previous service identity though; fetch_first() separately detects
-        // that case by checking the topmost endorsement against the current
         // It can happen that node advances its internal state machine to
         // part-of-network, but the service opening tx has not been
         // replicated yet. This will cause the first fetched endorsement
