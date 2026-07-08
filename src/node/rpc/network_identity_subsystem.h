@@ -312,7 +312,7 @@ namespace ccf
         "Network identity fetching settled at {}", ccf::to_string(status));
     }
 
-    [[nodiscard]] bool endorsing_key_matches_current_identity(
+    [[nodiscard]] bool topmost_endorsement_matches_current_identity(
       const CoseEndorsement& endorsement) const
     {
       // The topmost endorsement should be signed by the current network
@@ -394,11 +394,10 @@ namespace ccf
         return;
       }
 
-      if (!endorsing_key_matches_current_identity(endorsement.value()))
+      if (!topmost_endorsement_matches_current_identity(endorsement.value()))
       {
         retry_fetch_first(fmt::format(
-          "current previous-service endorsement at {} is signed by a service "
-          "identity which does not match the current network identity",
+          "topmost endorsement at {} is signed by a stale service identity",
           endorsement->endorsement_epoch_begin.to_str()));
         return;
       }

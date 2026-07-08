@@ -366,12 +366,12 @@ namespace
     f.historical->entries = cb.historical_entries();
   }
 
-  void wire_chain_up_to(
+  void wire_replayed_chain_with_topmost(
     SubsystemFixture& f, const ChainBuilder& cb, size_t topmost_index)
   {
-    // Model a local KV store which has replayed only the prefix ending at
-    // topmost_index. This is useful for join-from-snapshot tests where the
-    // network identity from the join response is newer than the replayed KV.
+    // Model a local KV store whose live endorsement is entries[topmost_index].
+    // Historical access contains only its predecessors, matching production
+    // where the topmost endorsement is read from live KV.
     REQUIRE(topmost_index < cb.entries.size());
     const auto& topmost = cb.entries.at(topmost_index);
     REQUIRE(topmost.endorsement_epoch_end.has_value());
@@ -658,7 +658,7 @@ TEST_CASE(
   // Model a joiner which received the current identity from the join response,
   // but whose KV is still at the snapshot-era service identity while the
   // committed ledger suffix is being replayed.
-  wire_chain_up_to(f, cb, 1);
+  wire_replayed_chain_with_topmost(f, cb, 1);
 
   auto sub = f.make_subsystem();
   REQUIRE(sub->endorsements_fetching_status() == ccf::FetchStatus::Retry);
