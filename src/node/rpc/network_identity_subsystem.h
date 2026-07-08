@@ -399,8 +399,11 @@ namespace ccf
       if (!topmost_endorsement_matches_current_identity(endorsement.value()))
       {
         retry_fetch_first(fmt::format(
-          "topmost endorsement at {} is signed by a stale service identity",
-          endorsement->endorsement_epoch_begin.to_str()));
+          "topmost endorsement at {} is signed by a stale service identity, "
+          "waiting for the local store to reach the current service identity "
+          "at {}",
+          endorsement->endorsement_epoch_begin.to_str(),
+          current_service_from->to_str()));
         return;
       }
 
