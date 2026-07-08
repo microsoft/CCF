@@ -45,7 +45,7 @@ namespace ccf
       if (service_info->status != ServiceStatus::OPEN)
       {
         // A joiner can reach part-of-network as soon as it has installed a
-        // trusted snapshot and initialised consensus, before the committed
+        // trusted snapshot and initialized consensus, before the committed
         // suffix after that snapshot has been replayed locally. During
         // recovery, the service-opening tx is also the tx that writes the
         // previous-identity endorsement, so waiting for OPEN rules out the
