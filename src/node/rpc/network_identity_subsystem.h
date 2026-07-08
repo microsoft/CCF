@@ -318,7 +318,7 @@ namespace ccf
     {
       // The topmost endorsement's endorsing key should match the current
       // network identity public key. During join from a stale snapshot, the
-      // live KV can briefly expose an older endorsement until ledger replay
+      // live KV may initially expose an older endorsement until ledger replay
       // catches up.
       const auto& current_pkey =
         network_identity->get_key_pair()->public_key_der();
