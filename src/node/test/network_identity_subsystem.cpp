@@ -369,6 +369,9 @@ namespace
   void wire_chain_up_to(
     SubsystemFixture& f, const ChainBuilder& cb, size_t topmost_index)
   {
+    // Model a local KV store which has replayed only the prefix ending at
+    // topmost_index. This is useful for join-from-snapshot tests where the
+    // network identity from the join response is newer than the replayed KV.
     REQUIRE(topmost_index < cb.entries.size());
     const auto& topmost = cb.entries.at(topmost_index);
     REQUIRE(topmost.endorsement_epoch_end.has_value());

@@ -315,6 +315,9 @@ namespace ccf
     [[nodiscard]] bool endorsing_key_matches_current_identity(
       const CoseEndorsement& endorsement) const
     {
+      // The topmost endorsement should be signed by the current network
+      // identity. During join from a stale snapshot, the live KV can briefly
+      // expose an older endorsement until ledger replay catches up.
       const auto& current_pkey =
         network_identity->get_key_pair()->public_key_der();
       return endorsement.endorsing_key == current_pkey;
@@ -322,6 +325,8 @@ namespace ccf
 
     void reset_chain_state()
     {
+      // Drop any state accumulated from the stale bootstrap attempt so the next
+      // fetch_first pass rereads both the service create txid and endorsement.
       endorsements.clear();
       trusted_keys.clear();
       current_service_from.reset();
@@ -332,6 +337,8 @@ namespace ccf
 
     void retry_fetch_first(const std::string& reason)
     {
+      // Bootstrap retries are unbounded; the reason is logged for diagnosis
+      // while the delayed retry waits for the local store to catch up.
       LOG_INFO_FMT("Retrying fetching network identity: {}", reason);
       reset_chain_state();
       scheduler->add_delayed_task(
