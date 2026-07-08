@@ -44,12 +44,15 @@ namespace ccf
       }
       if (service_info->status != ServiceStatus::OPEN)
       {
-        // It can happen that node advances its internal state machine to
-        // part-of-network, but the service opening tx has not been
-        // replicated yet. This will cause the first fetched endorsement
-        // to be obsolete, but waiting for ServiceStatus::OPEN is
-        // sufficient, as it's supposed to arrive in the same TX that
-        // the previous identity endorsement.
+        // A joiner can reach part-of-network as soon as it has installed a
+        // trusted snapshot and initialised consensus, before the committed
+        // suffix after that snapshot has been replayed locally. During
+        // recovery, the service-opening tx is also the tx that writes the
+        // previous-identity endorsement, so waiting for OPEN rules out the
+        // pre-open window. A stale join snapshot may still report OPEN for the
+        // previous service identity though; fetch_first() separately detects
+        // that case by checking the topmost endorsement against the current
+        // network identity key.
         return std::nullopt;
       }
       return service_info->current_service_create_txid;
