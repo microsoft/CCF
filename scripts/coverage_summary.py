@@ -19,8 +19,9 @@ import sys
 from typing import List, NamedTuple, Optional, Tuple
 
 # Number of previous runs to include in the trend, in addition to the current
-# run.
-HISTORY_POINTS = 9
+# run. Overridable via the environment so the coverage workflow can keep this in
+# sync with the number of previous-run logs it downloads.
+HISTORY_POINTS: int = int(os.environ.get("COVERAGE_HISTORY_POINTS") or 9)
 DEFAULT_REPOSITORY = "microsoft/CCF"
 
 # The llvm-cov ``report`` TOTAL line lists, for each of Regions, Functions,
