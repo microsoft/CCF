@@ -1179,7 +1179,9 @@ namespace ccf
           // an abort during shutdown), so it is no longer in flight. Clear the
           // gate here, before any early return, so the periodic join timer can
           // issue the next attempt. This runs on the libuv thread and so must
-          // not take NodeState::lock; an atomic store is used instead.
+          // not take NodeState::lock; an atomic store is used instead. Join
+          // liveness depends on the curl singleton invoking this callback
+          // exactly once per attached request.
           join_request_in_flight.store(false);
 
           if (curl_response == CURLE_ABORTED_BY_CALLBACK)
@@ -1538,10 +1540,20 @@ namespace ccf
       // Mark a request as in flight before handing it to the shared curl
       // singleton. If attach_request aborts synchronously (e.g. the singleton
       // is shutting down) the response callback runs inline and clears this
-      // again.
+      // again. If attach_request instead throws (e.g. bad_alloc) the callback
+      // never runs, so reset the flag here to avoid gating out every future
+      // retry and stranding the node in pending.
       join_request_in_flight.store(true);
-      ccf::curl::CurlmLibuvContextSingleton::get_instance()->attach_request(
-        std::move(join_request));
+      try
+      {
+        ccf::curl::CurlmLibuvContextSingleton::get_instance()->attach_request(
+          std::move(join_request));
+      }
+      catch (...)
+      {
+        join_request_in_flight.store(false);
+        throw;
+      }
     }
 
     void initiate_join()
@@ -1552,6 +1564,9 @@ namespace ccf
 
     void start_join_timer()
     {
+      // The initial attempt runs under NodeState::lock held by the caller
+      // (launch_node, via create), satisfying the initiate_join_unsafe
+      // precondition; the periodic task below re-acquires the lock per retry.
       initiate_join_unsafe();
 
       join_periodic_task = ccf::tasks::make_basic_task([this]() {
