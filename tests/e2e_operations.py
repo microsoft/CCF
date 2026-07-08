@@ -198,9 +198,7 @@ def find_latest_committed_snapshot_name(network, count=1):
     primary, _ = network.find_primary()
     snapshots_dir = network.get_committed_snapshots(primary)
     snapshot_names = [
-        f
-        for f in os.listdir(snapshots_dir)
-        if ccf.ledger.is_snapshot_file_committed(f)
+        f for f in os.listdir(snapshots_dir) if ccf.ledger.is_snapshot_file_committed(f)
     ]
     assert snapshot_names, f"Expected committed snapshots in {snapshots_dir}"
     snapshot_names.sort(key=ccf.ledger.snapshot_index_from_filename)
@@ -798,8 +796,8 @@ def test_corrupt_snapshot_handling(network, args):
 
     # Use the newest snapshot for the writable dir so it is tried first
     # (snapshots are iterated in descending seqno order).
-    read_only_snapshot_name, writable_snapshot_name = find_latest_committed_snapshot_name(
-        network, count=2
+    read_only_snapshot_name, writable_snapshot_name = (
+        find_latest_committed_snapshot_name(network, count=2)
     )
     unrenamable_snapshot_name = writable_snapshot_name
 
