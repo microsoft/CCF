@@ -1308,6 +1308,100 @@ def test_historical_query_range(network, args):
     return network
 
 
+@reqs.description("Read paginated range of historical state across index buckets")
+@reqs.supports_methods("/app/log/public", "/app/log/public/historical/range")
+@reqs.at_least_n_nodes(1)
+def test_historical_query_range_pagination(network, args):
+    # Arbitrary distinct log IDs used to create sparse writes for one ID, with
+    # filler writes to extend the ledger between them.
+    SPARSE_ENTRY_ID = 1542
+    FILLER_ENTRY_ID = 1543
+
+    expected_entries = []
+    first_seqno = None
+    last_seqno = None
+    view = None
+
+    primary, _ = network.find_primary()
+    with primary.client("user0") as c:
+        # With the test app config's page and bucket sizes of 5, 50 writes
+        # reliably span multiple pages and indexing buckets.
+        ENTRY_COUNT = 50
+        target_write_positions = {0, ENTRY_COUNT - 1}
+        for i in range(ENTRY_COUNT):
+            idx = SPARSE_ENTRY_ID if i in target_write_positions else FILLER_ENTRY_ID
+            msg = f"Multi-bucket indexing message {i}"
+            r = c.post(
+                "/app/log/public",
+                {
+                    "id": idx,
+                    "msg": msg,
+                },
+                log_capture=[],
+            )
+            assert r.status_code == http.HTTPStatus.OK
+
+            if first_seqno is None:
+                first_seqno = r.seqno
+
+            if idx == SPARSE_ENTRY_ID:
+                expected_entries.append(
+                    {
+                        "id": idx,
+                        "msg": msg,
+                        "seqno": r.seqno,
+                    }
+                )
+
+            last_seqno = r.seqno
+            view = r.view
+
+        infra.commit.wait_for_commit(c, seqno=last_seqno, view=view, timeout=3)
+
+        path = (
+            f"/app/log/public/historical/range?from_seqno={first_seqno}"
+            f"&to_seqno={last_seqno}&id={SPARSE_ENTRY_ID}"
+        )
+        entries = []
+        page_count = 0
+        pages_with_next_link = 0
+        empty_page_count = 0
+        timeout = 30
+        end_time = time.time() + timeout
+        while time.time() < end_time:
+            r = c.get(path, log_capture=[])
+            if r.status_code == http.HTTPStatus.OK:
+                body = r.body.json()
+                page_count += 1
+
+                page_entries = body["entries"]
+                entries += page_entries
+                if not page_entries:
+                    empty_page_count += 1
+
+                next_link = body.get("@nextLink")
+                if next_link:
+                    pages_with_next_link += 1
+                    path = next_link
+                    continue
+
+                break
+            elif r.status_code == http.HTTPStatus.ACCEPTED:
+                time.sleep(0.1)
+                continue
+            else:
+                assert False, r
+        else:
+            assert False, f"Historical range did not complete within {timeout}s"
+
+    assert entries == expected_entries
+    assert page_count > 2
+    assert pages_with_next_link == page_count - 1
+    assert empty_page_count > 0
+
+    return network
+
+
 @reqs.description("Read state at multiple distinct historical points")
 @reqs.supports_methods("/app/log/private", "/app/log/private/historical/sparse")
 def test_historical_query_sparse(network, args):
@@ -2341,6 +2435,35 @@ def run(args):
         do_main_tests(network, args)
 
 
+def run_multi_bucket_indexing(args):
+    os.makedirs(args.workspace, exist_ok=True)
+    node_data_json_file = os.path.join(
+        args.workspace, f"{args.label}_logging_node_data.json"
+    )
+    with open(node_data_json_file, "w", encoding="utf-8") as f:
+        json.dump(
+            {
+                "logging": {
+                    "seqnos_per_indexing_bucket": 5,
+                    "indexing_buckets_per_key": 3,
+                    "max_historical_range_seqnos_per_page": 5,
+                }
+            },
+            f,
+        )
+
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        pdb=args.pdb,
+        node_data_json_file=node_data_json_file,
+    ) as network:
+        network.start_and_open(args)
+
+        test_historical_query_range_pagination(network, args)
+
+
 def run_app_space_js(args):
     txs = app.LoggingTxs("user0")
     with infra.network.network(
@@ -2621,6 +2744,18 @@ if __name__ == "__main__":
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
         initial_user_count=4,
         initial_member_count=2,
+    )
+
+    cr.add(
+        "cpp_multi_bucket_indexing",
+        run_multi_bucket_indexing,
+        package="samples/apps/logging/logging",
+        js_app_bundle=None,
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+        initial_user_count=1,
+        initial_member_count=1,
+        sig_tx_interval=5,
+        sig_ms_interval=100,
     )
 
     cr.add(
