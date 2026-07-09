@@ -1664,13 +1664,13 @@ TEST_CASE("CBOR: tagged array Tag(20000, [{'x': 1}, {'y': 2}])")
 
 TEST_CASE("CBOR: helper function make_signed with positive and negative values")
 {
-  std::vector<std::pair<int64_t, std::string>> test_data{
+  std::vector<std::pair<int64_t, std::string>> signed_cases{
     {42, "Signed: 42"}, {-42, "Signed: -42"}};
 
-  std::pair<int64_t, std::string> data;
-  DOCTEST_VALUE_PARAMETERIZED_DATA(data, test_data);
+  std::pair<int64_t, std::string> test_case;
+  DOCTEST_VALUE_PARAMETERIZED_DATA(test_case, signed_cases);
 
-  const auto& [input_value, expected_repr] = data;
+  const auto& [input_value, expected_repr] = test_case;
 
   auto value = make_signed(input_value);
   REQUIRE(value != nullptr);

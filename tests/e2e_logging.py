@@ -1785,12 +1785,13 @@ def issue_txs_for_receipt_check(network, args):
     seqnos (and expected, empty claims digest) so that test_random_receipts
     can validate that their receipts become available promptly after commit,
     alongside its regular random sampling of already-committed seqnos.
-    Waits for all transactions to be committed before returning.
+    Waits for all transactions to be committed before returning, and returns a
+    mapping of seqno -> expected claims digest (None outside the COSE case).
     """
     cose_only = args.package.endswith("_cose_only")
     msg = "Hello world"
 
-    LOG.info("Write/Read on primary")
+    LOG.info("Write on primary")
     additional_seqnos = {}
     last_view = None
     last_seqno = None
@@ -1820,6 +1821,7 @@ def test_random_receipts(
     additional_seqnos=MappingProxyType({}),
     node=None,
     log_capture=None,
+    require_additional_receipts=False,
 ):
     cose_only = args.package.endswith("_cose_only")
 
@@ -1860,6 +1862,11 @@ def test_random_receipts(
         interesting_prefix = [genesis_seqno, likely_first_sig_seqno]
         seqnos = range(len(interesting_prefix) + 1, max_seqno)
         random_sample_count = 20 if lts else 50
+        # Track which of the known, already-committed additional_seqnos we
+        # successfully fetched and verified a receipt for, so that a receipt
+        # which never becomes available fails loudly rather than being
+        # silently skipped when the per-seqno poll loop times out.
+        verified_additional_seqnos = set()
         for s in (
             interesting_prefix
             + sorted(
@@ -1886,6 +1893,7 @@ def test_random_receipts(
                             assert (
                                 claim_digest == additional_seqnos[s]
                             ), f"Claim digest mismatch for seqno {s}"
+                            verified_additional_seqnos.add(s)
                         ccf.cose.verify_receipt(
                             receipt_bytes, service_key, claim_digest
                         )
@@ -1927,6 +1935,8 @@ def test_random_receipts(
                                 generic=True,
                                 skip_cert_chain_checks=lts,
                             )
+                            if s in additional_seqnos:
+                                verified_additional_seqnos.add(s)
                         break
                     elif rc.status_code == http.HTTPStatus.ACCEPTED:
                         time.sleep(0.1)
@@ -1934,6 +1944,13 @@ def test_random_receipts(
                         view += 1
                         if view > max_view:
                             assert False, rc
+
+        if require_additional_receipts:
+            missing = set(additional_seqnos) - verified_additional_seqnos
+            assert not missing, (
+                "Receipts for known-committed seqnos were never verified: "
+                f"{sorted(missing)}"
+            )
 
     return network
 
@@ -2554,7 +2571,13 @@ def do_main_tests(network, args):
     additional_seqnos = {}
     if args.package.startswith("samples/apps/logging/logging"):
         additional_seqnos = issue_txs_for_receipt_check(network, args)
-    test_random_receipts(network, args, False, additional_seqnos=additional_seqnos)
+    test_random_receipts(
+        network,
+        args,
+        False,
+        additional_seqnos=additional_seqnos,
+        require_additional_receipts=True,
+    )
     if args.package.startswith("samples/apps/logging/logging"):
         test_historical_query_sparse(network, args)
     test_historical_receipts(network, args)
