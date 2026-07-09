@@ -1421,13 +1421,16 @@ class Network:
                         if "StartupSeqnoIsOld" in error:
                             raise StartupSeqnoIsOld(node, has_stopped, error) from e
                         # The joining node now connects to the target via the
-                        # curl client, which reports a rejected service
-                        # certificate as "invalid service certificate". The
-                        # legacy TLS-session wording ("invalid cert on
-                        # handshake") is retained for compatibility with logs
-                        # from older nodes during mixed-version tests.
+                        # curl client, which reports any TLS peer certificate
+                        # verification failure as "TLS certificate verification
+                        # failed": a rejected or untrusted service certificate,
+                        # but also a hostname/SAN mismatch (VERIFYHOST=2) or any
+                        # other peer verification failure. The legacy
+                        # TLS-session wording ("invalid cert on handshake") is
+                        # retained for compatibility with logs from older nodes
+                        # during mixed-version tests.
                         if (
-                            "invalid service certificate" in error
+                            "TLS certificate verification failed" in error
                             or "invalid cert on handshake" in error
                         ):
                             raise ServiceCertificateInvalid(

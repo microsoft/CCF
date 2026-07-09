@@ -1244,19 +1244,21 @@ namespace ccf
                   return;
                 }
 
-                // Fatal TLS/protocol-layer failure. A wrong or expired service
-                // certificate surfaces here as a peer verification failure,
-                // which we flag distinctly so it can be told apart from other
-                // fatal errors.
-                const bool invalid_service_certificate =
+                // Fatal TLS/protocol-layer failure. Certificate verification
+                // failures surface here: an untrusted or expired service
+                // certificate, but equally a hostname/SAN mismatch
+                // (VERIFYHOST=2) or any other peer verification failure. Flag
+                // them with a stable marker so they can be told apart from
+                // other fatal errors in logs and tests.
+                const bool tls_certificate_verification_failed =
                   curl_response == CURLE_PEER_FAILED_VERIFICATION ||
                   curl_response == CURLE_SSL_CACERT_BADFILE;
                 auto error_msg = fmt::format(
                   "Early error when joining existing network at {}: {}{} ({}). "
                   "Shutting down node gracefully...",
                   target_address,
-                  invalid_service_certificate ?
-                    "invalid service certificate: " :
+                  tls_certificate_verification_failed ?
+                    "TLS certificate verification failed: " :
                     "",
                   curl_easy_strerror(curl_response),
                   static_cast<int>(curl_response));
