@@ -1,10 +1,11 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-# Azure Linux 4.0 is currently in beta and only published to the staging ACR
-# used by CI (see .github/workflows/ci-al4.yml). Override BASE_IMAGE with
-# mcr.microsoft.com/azurelinux/base/core:4.0 once 4.0 is generally available.
-ARG BASE_IMAGE=azlpubstagingacroxz2o4gw.azurecr.io/azurelinux/base/core:4.0
+# Azure Linux 4.0 is still in beta, published under the public azurelinux-beta
+# MCR repository. Switch BASE_IMAGE to mcr.microsoft.com/azurelinux/base/core:4.0
+# once 4.0 is generally available (mirroring the 3.0 image the default dev
+# container uses).
+ARG BASE_IMAGE=mcr.microsoft.com/azurelinux-beta/base/core:4.0
 FROM ${BASE_IMAGE}
 
 # Azure Linux 4 uses dnf (not tdnf) and already trusts the Microsoft signing
