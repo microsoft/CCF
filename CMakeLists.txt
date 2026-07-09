@@ -991,6 +991,7 @@ if(BUILD_TESTS)
       src/enclave/thread_local.cpp
     )
     add_warning_checks(raft_driver)
+    enable_coverage(raft_driver)
     target_link_libraries(raft_driver PRIVATE ccfcrypto ccf_tasks)
     target_include_directories(raft_driver PRIVATE src/aft)
 
@@ -1002,6 +1003,18 @@ if(BUILD_TESTS)
     )
     set_property(TEST raft_scenario_test PROPERTY LABELS raft_scenario)
     set_property(TEST raft_scenario_test APPEND PROPERTY LABELS bucket_c)
+
+    if(COVERAGE)
+      # The scenario runner spawns raft_driver once per scenario file; give
+      # each process a uniquely-named .profraw (by PID) in the build directory
+      # so scripts/coverage.sh discovers them and the scenarios contribute to
+      # the aggregated coverage report.
+      set_property(
+        TEST raft_scenario_test
+        APPEND
+        PROPERTY ENVIRONMENT "LLVM_PROFILE_FILE=raft_scenario-%p.profraw"
+      )
+    endif()
 
     add_test(
       NAME csr_test

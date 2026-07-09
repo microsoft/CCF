@@ -587,6 +587,54 @@ TEST_CASE("JSWrappedValue copy assignment frees old value")
   JS_FreeRuntime(rt);
 }
 
+TEST_CASE("Context::to_str preserves embedded NUL bytes")
+{
+  ccf::js::core::Context ctx(TxAccess::APP_RW);
+
+  // JS strings are not NUL-terminated internally, and may contain arbitrary
+  // embedded NUL bytes. Constructing a std::string from the NUL-terminated
+  // buffer returned by JS_ToCString (rather than from the buffer and its
+  // real length, as returned by JS_ToCStringLen) would silently truncate at
+  // the first embedded NUL. Regression test for that.
+  const std::string input("abc\0def", 7);
+  REQUIRE(input.size() == 7);
+
+  auto js_str = ctx.new_string_len(input.data(), input.size());
+  REQUIRE(js_str.is_str());
+
+  {
+    INFO("to_str(const JSWrappedValue&)");
+    auto result = ctx.to_str(js_str);
+    REQUIRE(result.has_value());
+    REQUIRE(*result == input);
+  }
+
+  {
+    INFO("to_str(const JSValue&)");
+    auto result = ctx.to_str(js_str.val);
+    REQUIRE(result.has_value());
+    REQUIRE(*result == input);
+  }
+
+  {
+    INFO("to_str(const JSValue&, size_t&)");
+    size_t len = 0;
+    auto result = ctx.to_str(js_str.val, len);
+    REQUIRE(result.has_value());
+    REQUIRE(len == input.size());
+    REQUIRE(*result == input);
+  }
+
+  {
+    INFO("to_str(const JSAtom&)");
+    JSAtom atom = JS_NewAtomLen(ctx, input.data(), input.size());
+    auto result = ctx.to_str(atom);
+    JS_FreeAtom(ctx, atom);
+    REQUIRE(result.has_value());
+    REQUIRE(*result == input);
+  }
+}
+
 int main(int argc, char** argv)
 {
   ccf::js::register_class_ids();

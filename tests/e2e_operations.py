@@ -193,6 +193,25 @@ def find_snapshot_after_seqno(snapshots_dir, seqno):
     )
 
 
+def find_latest_committed_snapshot_name(network, count=1):
+    assert count > 0, f"Expected positive snapshot count, got {count}"
+    primary, _ = network.find_primary()
+    snapshots_dir = network.get_committed_snapshots(primary)
+    snapshot_names = [
+        f for f in os.listdir(snapshots_dir) if ccf.ledger.is_snapshot_file_committed(f)
+    ]
+    assert snapshot_names, f"Expected committed snapshots in {snapshots_dir}"
+    snapshot_names.sort(key=ccf.ledger.snapshot_index_from_filename)
+    assert len(snapshot_names) >= count, (
+        f"Expected at least {count} committed snapshots in {snapshots_dir}, "
+        f"found {snapshot_names}"
+    )
+    latest_snapshot_names = snapshot_names[-count:]
+    if count == 1:
+        return latest_snapshot_names[-1]
+    return latest_snapshot_names
+
+
 @reqs.description("Forced snapshot")
 @app.scoped_txs()
 def test_forced_snapshot(network, args):
@@ -671,7 +690,7 @@ def test_empty_snapshot(network, args):
     with tempfile.TemporaryDirectory() as snapshots_dir:
         LOG.debug(f"Using {snapshots_dir} as snapshots directory")
 
-        snapshot_name = "snapshot_1000_1500.committed"
+        snapshot_name = find_latest_committed_snapshot_name(network)
 
         with open(
             os.path.join(snapshots_dir, snapshot_name), "wb+"
@@ -697,7 +716,9 @@ def test_empty_snapshot(network, args):
             )
             new_node.stop()
 
-            # Check that the empty snapshot is correctly skipped
+            # Check that the empty snapshot is correctly skipped, then remove
+            # the staged copy so shutdown snapshot invariants do not interpret
+            # this deliberately empty test file as a real committed snapshot.
             if not new_node.check_log_for_error_message(
                 f"Ignoring empty snapshot file {snapshot_name}"
             ):
@@ -705,13 +726,21 @@ def test_empty_snapshot(network, args):
                     f"Expected empty snapshot file {snapshot_name} to be skipped in node logs"
                 )
 
+            node_snapshots_dir = os.path.join(
+                new_node.remote.remote.root,
+                new_node.remote.snapshots_dir_name,
+            )
+            staged_snapshot_path = os.path.join(node_snapshots_dir, snapshot_name)
+            assert os.path.exists(staged_snapshot_path), staged_snapshot_path
+            os.remove(staged_snapshot_path)
+
 
 def test_nulled_snapshot(network, args):
 
     with tempfile.TemporaryDirectory() as snapshots_dir:
         LOG.debug(f"Using {snapshots_dir} as snapshots directory")
 
-        snapshot_name = "snapshot_1000_1500.committed"
+        snapshot_name = find_latest_committed_snapshot_name(network)
 
         with open(
             os.path.join(snapshots_dir, snapshot_name), "wb+"
@@ -765,10 +794,12 @@ def test_corrupt_snapshot_handling(network, args):
     receipt = b"this is not valid json!!"
     corrupt_data = header + body + receipt
 
-    # Use a higher seqno for the writable dir so it is tried first (snapshots
-    # are iterated in descending seqno order).
-    writable_snapshot_name = "snapshot_2000_2500.committed"
-    read_only_snapshot_name = "snapshot_1000_1500.committed"
+    # Use the newest snapshot for the writable dir so it is tried first
+    # (snapshots are iterated in descending seqno order).
+    read_only_snapshot_name, writable_snapshot_name = (
+        find_latest_committed_snapshot_name(network, count=2)
+    )
+    unrenamable_snapshot_name = writable_snapshot_name
 
     # ---- Part 1: writable dir (rename succeeds) + read-only config dir ----
     LOG.info("Part 1: corrupt snapshots in both writable and read-only directories")
@@ -868,8 +899,6 @@ def test_corrupt_snapshot_handling(network, args):
 
     # ---- Part 2: writable dir with restricted permissions (rename fails) ----
     LOG.info("Part 2: corrupt snapshot in writable dir that cannot be renamed")
-
-    unrenamable_snapshot_name = "snapshot_3000_3500.committed"
 
     with tempfile.TemporaryDirectory() as restricted_dir:
         snapshot_path = os.path.join(restricted_dir, unrenamable_snapshot_name)
@@ -2307,7 +2336,7 @@ def run_empty_ledger_dir_check(args):
             network.stop_all_nodes()
 
             # Now write a file in the directory
-            with open(os.path.join(tmp_dir, "ledger_1000_1500.committed"), "wb") as f:
+            with open(os.path.join(tmp_dir, "ledger_10_15.committed"), "wb") as f:
                 f.write(b"bar")
             network.skip_verify_chunking = True
 
