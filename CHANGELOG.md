@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [7.0.8]
+
+[7.0.8]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.8
+
+### Changed
+
+- The node join protocol client now uses the curl multi singleton client (introduced in #7102) instead of the legacy enclave `RPCSessions::create_client()` HTTP client, matching the JWT refresh and snapshot-fetch clients. The service certificate remains the sole trust anchor for the join connection (the host certificate store is never consulted) (#8040).
+- **Node joins now check the target RPC address against the target node's certificate SANs.** TLS certificate hostname verification (`CURLOPT_SSL_VERIFYHOST`) is now enforced on the join connection: the host in `join.target_rpc_address` must be covered by one of the target node's certificate Subject Alternative Names (SANs), and a join to an address absent from the target's SANs is now rejected (the previous join client did not check the target certificate name at all). CCF derives node-certificate SANs from `node_certificate.subject_alt_names`, or by default from each RPC interface's `published_address`, so standard deployments are unaffected; operators that configure a bespoke `join.target_rpc_address` must ensure it is present in the target node's certificate SANs (#8040).
+
+### Removed
+
+- The unused enclave-side HTTP client infrastructure (`RPCSessions::create_client`, `HTTPClientSession`, `HTTP2ClientSession`, `UnencryptedHTTPClientSession`, and the `ClientSession` base) has been removed following the migration of the node join client to curl, completing the legacy HTTP client removal tracked in #7262 (#8040).
+
 ## [7.0.7]
 
 [7.0.7]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.7
