@@ -66,17 +66,6 @@ namespace ccf
     virtual bool is_user_frontend_open() = 0;
     [[nodiscard]] virtual bool is_accessible_to_members() const = 0;
 
-    virtual void make_http_request(
-      const ::http::URL& url,
-      ::http::Request&& req,
-      std::function<bool(
-        ccf::http_status status,
-        ccf::http::HeaderMap&&,
-        std::vector<uint8_t>&&)> callback,
-      const std::vector<std::string>& ca_certs = {},
-      const std::string& app_protocol = "HTTP1",
-      bool use_node_client_certificate = false) = 0;
-
     virtual std::shared_ptr<ccf::kv::Store> get_store() = 0;
     virtual ringbuffer::AbstractWriterFactory& get_writer_factory() = 0;
   };
