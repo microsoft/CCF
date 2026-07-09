@@ -1244,6 +1244,23 @@ namespace ccf
                   return;
                 }
 
+                // CURLE_WRITE_ERROR here means our own write callback rejected
+                // the response body, which for the join can only be the body
+                // exceeding max_join_response_size. Surface a clear, actionable
+                // message rather than curl's generic "write error".
+                if (curl_response == CURLE_WRITE_ERROR)
+                {
+                  auto error_msg = fmt::format(
+                    "Join response from {} exceeded the maximum permitted size "
+                    "of {} bytes. Shutting down node gracefully...",
+                    target_address,
+                    max_join_response_size);
+                  LOG_FAIL_FMT("{}", error_msg);
+                  RINGBUFFER_WRITE_MESSAGE(
+                    AdminMessage::fatal_error_msg, to_host, error_msg);
+                  return;
+                }
+
                 // Fatal TLS/protocol-layer failure. Certificate trust could
                 // not be established: either the peer certificate failed
                 // verification (an untrusted or expired service certificate,

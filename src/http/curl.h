@@ -272,7 +272,9 @@ namespace ccf::curl
       }
       CHECK_CURL_EASY_SETOPT(curl, CURLOPT_READDATA, this);
       CHECK_CURL_EASY_SETOPT(curl, CURLOPT_READFUNCTION, send_data);
-      CHECK_CURL_EASY_SETOPT(curl, CURLOPT_INFILESIZE, unsent.size());
+      // The body size is declared by the caller in a method-specific way
+      // (CURLOPT_POSTFIELDSIZE_LARGE for POST, CURLOPT_INFILESIZE_LARGE for a
+      // PUT upload), so it is intentionally not set here.
     }
   };
 
@@ -522,6 +524,14 @@ namespace ccf::curl
             request_body =
               std::make_unique<RequestBody>(std::vector<uint8_t>());
           }
+          // For an upload (PUT), declare the body size via
+          // CURLOPT_INFILESIZE_LARGE so a Content-Length is sent rather than
+          // switching to chunked transfer encoding. (POST declares its size
+          // via CURLOPT_POSTFIELDSIZE_LARGE below.)
+          CHECK_CURL_EASY_SETOPT(
+            curl_handle,
+            CURLOPT_INFILESIZE_LARGE,
+            static_cast<curl_off_t>(request_body->size()));
         }
         break;
         case HTTP_POST:
