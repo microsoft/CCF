@@ -9,12 +9,30 @@ import infra.e2e_args
 import infra.network
 import infra.node
 import infra.crypto
+import infra.logging_app as app
 import suite.test_requirements as reqs
 from cryptography.x509 import load_pem_x509_certificate
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
 from infra.runner import ConcurrentRunner
 from loguru import logger as LOG
+
+# Emitted by a joining node when it observes a topmost endorsement signed by a key
+# that differs from its current (recovered) network identity - i.e. it read the
+# service as OPEN with the stale pre-recovery endorsement before the recovery
+# re-endorsement replicated.
+STALE_IDENTITY_RETRY_LOG = (
+    "differs from the expected current network identity public key"
+)
+
+# To make the joiner deterministically pass through the stale-identity window, the
+# pre-recovery ledger is lengthened with these throwaway txns. The joiner starts
+# from a snapshot taken before the service opened, so its byte-bound catch-up must
+# replay this whole suffix; that keeps it in the [service-open, recovery-endorsement]
+# window for several fetch_first poll intervals. They are issued repeatedly against
+# a single key so the KV (and therefore snapshots) stay small and cheap.
+PRE_RECOVERY_TXS = 250
+PRE_RECOVERY_TX_MSG = "x" * (14 * 1024)
 
 
 def preserve_oldest_committed_snapshot(network, primary, dest_name):
@@ -100,6 +118,21 @@ def test_join_from_stale_pre_recovery_snapshot(network, args):
     # this snapshot sees the OLD (pre-recovery) service identity as current until
     # it replays the committed ledger suffix that includes the recovery.
     primary, _ = network.find_primary()
+
+    # Lengthen the pre-recovery ledger so a node joining from an early snapshot has
+    # a long suffix to replay, and therefore spends several fetch_first poll
+    # intervals catching up through the stale-identity window (see below). Issued
+    # against a single key so the KV and snapshots stay small.
+    LOG.info(f"Issuing {PRE_RECOVERY_TXS} txs to lengthen the pre-recovery ledger")
+    app.LoggingTxs("user0").issue(
+        network,
+        number_txs=PRE_RECOVERY_TXS,
+        msg=PRE_RECOVERY_TX_MSG,
+        repeat=True,
+        idx=1,
+        wait_for_sync=True,
+    )
+
     stale_snapshots_dir = preserve_oldest_committed_snapshot(
         network, primary, "stale_pre_recovery_snapshot"
     )
@@ -126,11 +159,12 @@ def test_join_from_stale_pre_recovery_snapshot(network, args):
     recovered_network.recover(args)
     LOG.success("Service recovered under a new network identity")
 
-    # Add a new node that joins the recovered service from the STALE snapshot,
-    # replaying the ledger suffix from the primary. copy_ledger=False keeps the
-    # joining node's local store at the snapshot state initially (the realistic
-    # production join path), so its bootstrap has to walk the identity chain
-    # across the recovery boundary before it can settle.
+    # Add a new node that joins the recovered service from the STALE (pre-recovery)
+    # snapshot and replicates the ledger suffix from the primary (copy_ledger=False,
+    # the realistic production path: no ledger files are pre-copied). Because the
+    # snapshot predates the recovery, the joiner initially sees the OLD service
+    # identity as current and its network-identity bootstrap must walk the
+    # endorsement chain across the recovery boundary before it can settle.
     new_node = recovered_network.create_node()
     recovered_network.join_node(
         new_node,
@@ -149,6 +183,22 @@ def test_join_from_stale_pre_recovery_snapshot(network, args):
     # had that regressed, bootstrap would fail and the endpoint would never
     # become ready.
     verify_cross_recovery_identity_chain(new_node)
+
+    # Assert the joiner exercised the stale-identity retry path: with the
+    # lengthened ledger above it observes the service OPEN with the stale
+    # pre-recovery endorsement (whose endorsing key differs from its recovered
+    # identity) while replicating the suffix, and retries until the recovery
+    # re-endorsement arrives.
+    out_path, _ = new_node.get_logs()
+    assert out_path is not None, "joiner produced no output log"
+    with open(out_path, encoding="utf-8") as f:
+        hits = f.read().count(STALE_IDENTITY_RETRY_LOG)
+    assert (
+        hits > 0
+    ), "joiner did not exercise the stale pre-recovery identity retry path"
+    LOG.success(
+        f"Joined node exercised the stale pre-recovery identity retry path ({hits} hits)"
+    )
 
     return recovered_network
 
@@ -184,8 +234,12 @@ if __name__ == "__main__":
         run,
         package="samples/apps/logging/logging",
         nodes=infra.e2e_args.min_nodes(cr.args, f=1),
-        ledger_chunk_bytes="50KB",
+        # Small chunks slow the joiner's catch-up, and signing every tx inflates
+        # the entry count cheaply; together they widen the stale-identity window
+        # the joiner must pass through (see PRE_RECOVERY_TXS).
+        ledger_chunk_bytes="12KB",
         snapshot_tx_interval=10,
+        sig_tx_interval=1,
     )
 
     cr.run()
