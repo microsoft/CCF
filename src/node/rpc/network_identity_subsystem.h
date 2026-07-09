@@ -13,7 +13,6 @@
 
 #include <atomic>
 #include <chrono>
-#include <string_view>
 
 namespace ccf
 {

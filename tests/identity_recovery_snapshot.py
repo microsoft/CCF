@@ -182,6 +182,10 @@ def run(args):
     ) as network:
         network.start_and_open(args)
         network = test_join_from_stale_pre_recovery_snapshot(network, args)
+        # test_join_from_stale_pre_recovery_snapshot returns a fresh recovered
+        # Network; stop it explicitly here since the context manager only stops
+        # the original Network instance it created.
+        network.stop_all_nodes()
 
 
 if __name__ == "__main__":
