@@ -205,8 +205,8 @@ def remove_prefix(s, prefix):
 @reqs.description("Check tables are documented")
 def test_tables_doc(network, args):
     primary, _ = network.find_primary()
-    ledger_directories = primary.remote.ledger_paths()
-    ledger = ccf.ledger.Ledger(ledger_directories, contiguous_suffix=True)
+    network.create_and_wait_for_chunk(primary)
+    ledger = primary.get_committed_ledger()
     table_names_in_ledger = ledger.get_latest_public_state()[0].keys()
     check_all_tables_are_documented(
         table_names_in_ledger, "../doc/audit/builtin_maps.rst"
@@ -218,9 +218,11 @@ def test_tables_doc(network, args):
 def test_ledger_is_readable(network, args):
     primary, backups = network.find_nodes()
     for node in (primary, *backups):
-        ledger_dirs = node.remote.ledger_paths()
+        ledger_dirs = node.get_committed_ledger_dirs()
         LOG.info(f"Reading ledger from {ledger_dirs}")
-        ledger = ccf.ledger.Ledger(ledger_dirs, contiguous_suffix=True)
+        ledger = ccf.ledger.Ledger(
+            ledger_dirs, committed_only=True, contiguous_suffix=True
+        )
         for chunk in ledger:
             for _ in chunk:
                 pass
@@ -235,11 +237,11 @@ def test_read_ledger_utility(network, args):
     format_rule = [(".*records.*", {"key": fmt_str, "value": fmt_str})]
 
     network.txs.issue(network, number_txs=args.snapshot_tx_interval)
-    network.get_latest_ledger_public_state()
+    network.create_and_wait_for_chunk()
 
     primary, backups = network.find_nodes()
     for node in (primary, *backups):
-        ledger_dirs = node.remote.ledger_paths()
+        ledger_dirs = node.get_committed_ledger_dirs()
         assert ccf.read_ledger.run(
             paths=ledger_dirs,
             print_mode=ccf.read_ledger.PrintMode.Contents,
@@ -273,7 +275,6 @@ def run(args):
 
         network.consortium.set_authenticate_session(args.authenticate_session)
 
-        ledger_directories = primary.remote.ledger_paths()
         LOG.info("Add new member proposal (implicit vote)")
         (
             new_member_proposal,
@@ -322,10 +323,9 @@ def run(args):
             (new_member_proposal.proposal_id, member.service_id, "withdraw")
         )
 
-        # Force ledger flush of all transactions so far
-        network.get_latest_ledger_public_state()
+        network.create_and_wait_for_chunk(primary)
 
-        ledger = ccf.ledger.Ledger(ledger_directories, contiguous_suffix=True)
+        ledger = primary.get_committed_ledger()
         check_operations(ledger, governance_operations)
         check_signatures(ledger)
 

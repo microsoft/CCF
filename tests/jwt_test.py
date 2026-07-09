@@ -803,12 +803,10 @@ def test_jwt_key_auto_refresh_entries(network, args):
             timeout=max(5, args.jwt_key_refresh_interval_s * 5),
         )
 
-        # Force chunking
-        network.get_latest_ledger_public_state()
+        network.create_and_wait_for_chunk(primary)
         # Check that despite refreshing JWTs multiple times, only a single
         # transaction was created for this kid.
-        ledger_directories = primary.remote.ledger_paths()
-        ledger = ccf.ledger.Ledger(ledger_directories, contiguous_suffix=True)
+        ledger = primary.get_committed_ledger()
 
         last_key_refresh = None
         for chunk in ledger:

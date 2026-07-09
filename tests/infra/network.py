@@ -2174,23 +2174,54 @@ class Network:
 
         return node.get_committed_snapshots(wait_for_snapshots_to_be_committed)
 
-    def _get_ledger_public_view_at(self, node, call, seqno, timeout):
+    def create_and_wait_for_chunk(self, node=None, seqno=None, timeout=5):
+        if node is None:
+            node, _ = self.find_primary()
+
+        proposal = self.consortium.force_ledger_chunk(node)
+        target_seqno = seqno if seqno is not None else proposal.completed_seqno
         end_time = time.time() + timeout
-        self.consortium.force_ledger_chunk(node)
+        last_error = None
         while time.time() < end_time:
+            chunk = node.find_committed_ledger_chunk_covering(target_seqno)
+            if chunk is not None:
+                LOG.info(
+                    "Found committed ledger chunk {}-{} covering seqno {} at {}",
+                    chunk[0],
+                    chunk[1],
+                    target_seqno,
+                    chunk[2],
+                )
+                return proposal, chunk
+
             try:
-                return call(seqno)
+                member = self.consortium.get_any_active_member()
+                r = member.update_ack_state_digest(node)
+                with node.client() as c:
+                    c.wait_for_commit(r)
             except Exception as ex:
-                LOG.info(f"Exception: {ex}")
-                time.sleep(0.1)
+                last_error = ex
+                LOG.info(f"Exception while waiting for committed chunk: {ex}")
+            time.sleep(0.1)
+
         raise TimeoutError(
-            f"Could not read transaction at seqno {seqno} from ledger {node.remote.ledger_paths()} after {timeout}s"
+            f"Could not find committed chunk covering seqno {target_seqno} "
+            f"on node {node.local_node_id} after {timeout}s: {last_error}"
         )
+
+    def _get_ledger_public_view_at(self, node, call, seqno, timeout):
+        self.create_and_wait_for_chunk(node=node, seqno=seqno, timeout=timeout)
+        return call(node.get_committed_ledger(), seqno)
 
     def get_ledger_public_state_at(self, seqno, timeout=5):
         primary, _ = self.find_primary()
         return self._get_ledger_public_view_at(
-            primary, primary.get_ledger_public_tables_at, seqno, timeout
+            primary,
+            lambda ledger, s: ledger.get_transaction(s)
+            .get_public_domain()
+            .get_tables(),
+            seqno,
+            timeout,
         )
 
     def get_latest_ledger_public_state(self, timeout=5):
@@ -2200,7 +2231,10 @@ class Network:
             body = resp.body.json()
             tx_id = TxID.from_str(body["transaction_id"])
         return self._get_ledger_public_view_at(
-            primary, primary.get_ledger_public_state_at, tx_id.seqno, timeout
+            primary,
+            lambda ledger, _: ledger.get_latest_public_state(),
+            tx_id.seqno,
+            timeout,
         )
 
     @functools.cached_property
