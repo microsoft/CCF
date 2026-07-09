@@ -203,8 +203,13 @@ def recover_with_primary_dying(args, recovered_network):
     assert new_view > initial_view, (new_view, initial_view)
     LOG.info(f"New primary {primary.node_id} elected mid-recovery in view {new_view}")
 
-    # SIGKILL the old primary (it ignored the SIGTERM) and drop it.
+    # SIGKILL the old primary (it ignored the SIGTERM) and confirm it is gone
+    # before dropping it: SIGKILL is asynchronous, and once removed nothing else
+    # will reap it.
     retired_primary.sigkill()
+    assert (
+        retired_primary.remote.check_done()
+    ), f"Old primary {retired_id} did not terminate after SIGKILL"
     recovered_network.nodes.remove(retired_primary)
 
     # Recovery must still complete: the new primary finishes reading the private
@@ -1633,9 +1638,13 @@ def run_recovery_with_election(args):
         recovered_network = test_recover_service(network, args, force_election=True)
         # Recovered nodes are a separate Network (not torn down by the context
         # manager) and run with ignore_first_sigterm=True; SIGKILL them so they
-        # don't linger as orphans that ignore the first teardown SIGTERM.
+        # don't linger as orphans that ignore the first teardown SIGTERM. SIGKILL
+        # is asynchronous, so confirm each one is gone (which also reaps it).
         for node in recovered_network.get_joined_nodes():
             node.sigkill()
+            assert (
+                node.remote.check_done()
+            ), f"Recovered node {node.node_id} did not terminate after SIGKILL"
         return network
 
 
