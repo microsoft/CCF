@@ -167,6 +167,56 @@ DOCTEST_TEST_CASE("Partial body")
   DOCTEST_CHECK(m.body == r0);
 }
 
+DOCTEST_TEST_CASE("Body too large")
+{
+  ccf::http::ParserConfiguration config;
+  config.max_body_size = ccf::ds::SizeString("8B");
+
+  // A body exceeding max_body_size is rejected. With a Content-Length header
+  // the parser exits early, at the point where headers are complete, before
+  // any body chunk has been appended.
+  {
+    http::SimpleRequestProcessor sp;
+    http::RequestParser p(sp, config);
+
+    const std::vector<uint8_t> body(16, 'a');
+    auto req = http::build_post_request(body);
+
+    DOCTEST_CHECK_THROWS_AS(
+      p.execute(req.data(), req.size()), http::RequestPayloadTooLargeException);
+    DOCTEST_CHECK(sp.received.empty());
+  }
+
+  // The early exit happens before any body bytes are received. Send only the
+  // headers (advertising a large Content-Length) with no body at all, and the
+  // request is still rejected.
+  {
+    http::SimpleRequestProcessor sp;
+    http::RequestParser p(sp, config);
+
+    const std::vector<uint8_t> body(16, 'a');
+    auto header = http::build_post_header(body);
+
+    DOCTEST_CHECK_THROWS_AS(
+      p.execute(header.data(), header.size()),
+      http::RequestPayloadTooLargeException);
+    DOCTEST_CHECK(sp.received.empty());
+  }
+
+  // A body within max_body_size is accepted.
+  {
+    http::SimpleRequestProcessor sp;
+    http::RequestParser p(sp, config);
+
+    const std::vector<uint8_t> body(4, 'a');
+    auto req = http::build_post_request(body);
+
+    p.execute(req.data(), req.size());
+    DOCTEST_CHECK(!sp.received.empty());
+    DOCTEST_CHECK(sp.received.front().body == body);
+  }
+}
+
 DOCTEST_TEST_CASE("Multiple requests")
 {
   http::SimpleRequestProcessor sp;

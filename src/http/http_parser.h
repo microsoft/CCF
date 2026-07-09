@@ -356,6 +356,22 @@ namespace http
     void headers_complete()
     {
       complete_header();
+
+      // If the Content-Length header advertises a body larger than the
+      // configured maximum, reject the request immediately rather than
+      // waiting until enough body chunks have been appended to exceed the
+      // limit (see append_body). For chunked bodies content_length is not
+      // known here and the check in append_body still applies.
+      auto const& max_body_size =
+        configuration.max_body_size.value_or(ccf::http::default_max_body_size);
+      if (parser.content_length > max_body_size)
+      {
+        throw RequestPayloadTooLargeException(fmt::format(
+          "HTTP request body is too large (Content-Length: {}, max size "
+          "allowed: {})",
+          parser.content_length,
+          max_body_size));
+      }
     }
   };
 

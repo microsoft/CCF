@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [7.0.8]
+
+[7.0.8]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.8
+
+### Changed
+
+- HTTP requests whose `Content-Length` header advertises a body larger than the configured maximum body size are now rejected as soon as the headers have been parsed, rather than after enough body chunks have been received to exceed the limit (#8045).
+
 ## [7.0.7]
 
 [7.0.7]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.7
