@@ -139,7 +139,16 @@ def get_replacement_package(args):
 
 
 def recover_with_primary_dying(args, recovered_network):
-    # Minimal copy-paste from network.recover() with primary shut down.
+    # Force an election mid private-ledger recovery and check recovery still
+    # completes: the primary must die before it finishes reading the private
+    # ledger (so it never opens the service), and a survivor must be elected
+    # while still reading and go on to finish recovery.
+    #
+    # Nodes run with ignore_first_sigterm=True, so SIGTERM'ing the primary makes
+    # it nominate a successor and an election happens immediately, with no
+    # election-timeout wait. That is deterministic and independent of ledger
+    # size, so a small ledger suffices; the older approach relied on a timeout
+    # election racing a large slow ledger, which was flaky.
     recovered_network.consortium.activate(recovered_network.find_random_node())
     recovered_network.consortium.check_for_service(
         recovered_network.find_random_node(),
@@ -162,6 +171,9 @@ def recover_with_primary_dying(args, recovered_network):
     recovered_network.consortium.recover_with_shares(
         recovered_network.find_random_node()
     )
+
+    # Wait until every node is reading the private ledger; this read phase lasts
+    # long enough to force and observe the election below.
     for node in recovered_network.get_joined_nodes():
         recovered_network.wait_for_state(
             node,
@@ -172,26 +184,31 @@ def recover_with_primary_dying(args, recovered_network):
     retired_primary, _ = recovered_network.find_primary()
     retired_id = retired_primary.node_id
 
-    LOG.info(f"Force-kill primary {retired_id}")
+    # SIGTERM (not SIGKILL) the primary: thanks to ignore_first_sigterm it stays
+    # up, treats this as a stop notice and immediately nominates a successor.
+    LOG.info(f"SIGTERM primary {retired_id} to nominate a successor mid-recovery")
+    retired_primary.sigterm()
+
+    # The nominated successor is elected rapidly (no election-timeout wait).
+    primary, _ = recovered_network.wait_for_new_primary(retired_primary)
+    LOG.info(f"New primary {primary.node_id} elected mid-recovery")
+
+    # SIGKILL the old primary (it ignored the SIGTERM) and drop it.
     retired_primary.sigkill()
     recovered_network.nodes.remove(retired_primary)
 
-    primary, _ = recovered_network.find_primary()
-    while not primary or primary.node_id == retired_id:
-        LOG.info("Keep looking for new primary")
-        time.sleep(0.1)
-        primary, _ = recovered_network.find_primary()
-
-    # Ensure new primary has been elected while all nodes are still reading private entries.
+    # The election must have completed while the survivors are still reading
+    # private entries (the property under test).
     for node in recovered_network.get_joined_nodes():
         LOG.info(f"Check state for node id {node.node_id}")
         with node.client(connection_timeout=1) as c:
             assert (
                 infra.node.State.READING_PRIVATE_LEDGER.value
                 == c.get("/node/state").body.json()["state"]
-            )
+            ), f"Node {node.node_id} left ReadingPrivateLedger before the election completed"
 
-    # Wait for recovery to complete.
+    # Recovery now completes: the new primary finishes reading the private
+    # ledger and opens the service.
     for node in recovered_network.get_joined_nodes():
         recovered_network.wait_for_state(
             node,
@@ -355,11 +372,12 @@ def test_recover_service(
         snapshots_dir = network.get_committed_snapshots(old_primary)
 
     if force_election:
-        # Necessary to make recovering private entries taking long enough time
-        # to allow election to happen if primary gets killed. These later get verified post-recovery (logging app verify_tx() thing).
+        # A non-trivial private ledger, so nodes stay in private recovery long
+        # enough to force an election. The volume isn't critical (the election is
+        # triggered deterministically, not via a timeout). Verified post-recovery.
         network.txs.issue(
             network,
-            number_txs=10000,
+            number_txs=2000,
             send_public=False,
             msg=str(bytes(random.getrandbits(8) for _ in range(512))),
         )
@@ -402,6 +420,9 @@ def test_recover_service(
                 committed_ledger_dirs=committed_ledger_dirs,
                 snapshots_dir=snapshots_dir,
                 service_data_json_file=ntf.name,
+                # Lets recover_with_primary_dying SIGTERM the primary to nominate
+                # a successor mid-recovery rather than killing it outright.
+                ignore_first_sigterm=force_election,
             )
             LOG.info("Check that service data has been set")
             primary, _ = recovered_network.find_primary()
@@ -1609,7 +1630,12 @@ def run_recovery_with_election(args):
         txs=txs,
     ) as network:
         network.start_and_open(args)
-        test_recover_service(network, args, force_election=True)
+        recovered_network = test_recover_service(network, args, force_election=True)
+        # Recovered nodes are a separate Network (not torn down by the context
+        # manager) and run with ignore_first_sigterm=True; SIGKILL them so they
+        # don't linger as orphans that ignore the first teardown SIGTERM.
+        for node in recovered_network.get_joined_nodes():
+            node.sigkill()
         return network
 
 
@@ -2681,6 +2707,15 @@ checked. Note that the key for each logging message is unique (per table).
         run_recover_via_added_recovery_owner,
         package="samples/apps/logging/logging",
         nodes=infra.e2e_args.min_nodes(cr.args, f=0),  # 1 node suffices for recovery
+    )
+
+    cr.add(
+        "recovery_with_election",
+        run_recovery_with_election,
+        package="samples/apps/logging/logging",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+        ledger_chunk_bytes="50KB",
+        snapshot_tx_interval=30,
     )
 
     cr.add(
