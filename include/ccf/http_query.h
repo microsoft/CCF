@@ -18,8 +18,19 @@ namespace ccf::http
 {
   // Query is parsed into a multimap, so that duplicate keys are retained.
   // Handling of duplicates (or ignoring them entirely) is left to the caller.
+  // The map owns its decoded keys and values: they cannot be string_views into
+  // the source query, since percent-decoding produces bytes not present there.
+  // std::less<> is a transparent comparator, so the map can still be looked up
+  // with a std::string_view key without constructing a temporary std::string.
   using ParsedQuery = std::multimap<std::string, std::string, std::less<>>;
 
+  // Percent-decodes a single query-string component (a key or a value that has
+  // already been split out of the raw query): '%XX' escapes are decoded to the
+  // corresponding byte, '+' is decoded to a space, and malformed or truncated
+  // escapes ('%', '%2', '%zz') are passed through literally rather than
+  // throwing. This is the same percent-decoding used by http::url_decode for
+  // path fragments; query components must be decoded individually, after
+  // splitting on '&' and '=', so that escaped separators are preserved.
   static std::string decode_query_component(const std::string_view& s)
   {
     std::string decoded;
@@ -58,6 +69,13 @@ namespace ccf::http
     return decoded;
   }
 
+  // Parses a raw (still percent-encoded) query string into a ParsedQuery. The
+  // query is split on '&' into parameters, then each parameter on its first
+  // '=' into a key and value; every key and value is then percent-decoded
+  // individually (see decode_query_component). Splitting before decoding means
+  // escaped separators are preserved: "a%26b=c%3Dd" yields key "a&b", value
+  // "c=d". Both "foo" and "foo=" yield an empty value, and duplicate keys are
+  // all retained in order.
   static ParsedQuery parse_query(const std::string_view& query)
   {
     ParsedQuery parsed;

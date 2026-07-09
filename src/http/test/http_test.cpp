@@ -499,6 +499,23 @@ DOCTEST_TEST_CASE("Query component decoding")
   // the original encoded code point
   DOCTEST_REQUIRE(ccf::http::decode_query_component("%C3%A9") == "\xC3\xA9");
 
+  // '+' and %20 both decode to a space, while %2B is a literal '+'
+  DOCTEST_REQUIRE(ccf::http::decode_query_component("a+b%20c") == "a b c");
+  DOCTEST_REQUIRE(ccf::http::decode_query_component("a%2Bb%20c") == "a+b c");
+  DOCTEST_REQUIRE(ccf::http::decode_query_component("%2B") == "+");
+
+  // A literal '%' is kept when it does not begin a valid escape, including
+  // immediately before an otherwise-valid escape
+  DOCTEST_REQUIRE(ccf::http::decode_query_component("%%41") == "%A");
+  DOCTEST_REQUIRE(ccf::http::decode_query_component("%41%") == "A%");
+  DOCTEST_REQUIRE(ccf::http::decode_query_component("%41%%42") == "A%B");
+
+  // NUL bytes are decoded and preserved (std::string can hold them)
+  DOCTEST_REQUIRE(
+    ccf::http::decode_query_component("%00") == std::string(1, '\0'));
+  DOCTEST_REQUIRE(
+    ccf::http::decode_query_component("a%00b") == std::string("a\0b", 3));
+
   {
     DOCTEST_INFO(
       "Every possible byte value round-trips through percent-encoding and "
@@ -627,6 +644,34 @@ DOCTEST_TEST_CASE("Query parser")
     const auto k = it->first;
     const auto found = std::find(checked_keys.begin(), checked_keys.end(), k);
     DOCTEST_REQUIRE(found != checked_keys.end());
+  }
+}
+
+DOCTEST_TEST_CASE("Query parser edge cases")
+{
+  {
+    // A leading '=' produces an empty key with a (decoded) value
+    const auto parsed = ccf::http::parse_query("=value");
+    const auto it = parsed.find("");
+    DOCTEST_REQUIRE(it != parsed.end());
+    DOCTEST_REQUIRE(it->second == "value");
+  }
+
+  {
+    // A trailing '=' produces an empty value
+    const auto parsed = ccf::http::parse_query("key=");
+    const auto it = parsed.find("key");
+    DOCTEST_REQUIRE(it != parsed.end());
+    DOCTEST_REQUIRE(it->second.empty());
+  }
+
+  {
+    // Splitting happens on the first raw '=' only; a '=' escaped as %3D and an
+    // '&' escaped as %26 inside the value are preserved
+    const auto parsed = ccf::http::parse_query("k=a=b%26c");
+    const auto it = parsed.find("k");
+    DOCTEST_REQUIRE(it != parsed.end());
+    DOCTEST_REQUIRE(it->second == "a=b&c");
   }
 }
 

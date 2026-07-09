@@ -4,6 +4,17 @@ function decode_query_component(s) {
   // whole string, malformed or truncated percent-escapes are passed through
   // literally instead of causing earlier, valid escapes to be left undecoded
   // (e.g. "%41%zz" decodes to "A%zz").
+  //
+  // Note: valid '%XX' escapes are collected into maximal runs and decoded
+  // together with decodeURIComponent, rather than one byte at a time. This is
+  // deliberate and should NOT be "simplified" to decoding each %XX on its own
+  // with String.fromCharCode: JS strings are UTF-16, so a multi-byte UTF-8
+  // sequence such as "%C3%A9" must be decoded as a unit to produce a single
+  // code point (U+00E9). Decoding it byte-by-byte would instead produce two
+  // code points (U+00C3 U+00A9), which re-encode via ccf.strToBuf to the wrong
+  // bytes. The byte-wise fallback below only runs when a syntactically-valid
+  // run is not valid UTF-8 (e.g. a lone continuation byte), so decoding still
+  // makes progress instead of throwing.
   let decoded = "";
   let i = 0;
   const isValidEscape = (j) =>
