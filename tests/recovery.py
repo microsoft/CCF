@@ -1692,6 +1692,90 @@ def run_recover_via_added_recovery_owner(args):
         return network
 
 
+@reqs.description("Recover a service by seeding from the whole previous network")
+def test_recover_service_from_network(network, args):
+    """
+    Seed the recovered network from the whole previous network - each node from its
+    own disk, selected round-robin - rather than from a single ledger and snapshot
+    set, then recover node 0 and have the other nodes join it. This mirrors a
+    production disaster recovery where every node has its own persistent disk.
+
+    Nodes are stopped one by one, so the first-stopped node (which round-robin maps to
+    the recovery node, node 0) has the least fresh state while the later-stopped nodes
+    keep committing and end up ahead. With such divergent per-node snapshots, recovery
+    currently fails to start: a joining node seeded from a fresher node holds a
+    snapshot ahead of the recovery node's recovery point (or a snapshot with no
+    counterpart in the recovered service), and cannot join. The exact failure mode
+    varies with the divergence, so this test only asserts that recovery fails to
+    start; it must be updated once that divergence is handled.
+    """
+    network.save_service_identity(args)
+    old_primary, _ = network.find_primary()
+
+    # Issue transactions and force a committed snapshot so at least one node is seeded
+    # with a snapshot, then stop nodes one by one so their committed ledgers and
+    # snapshots diverge.
+    network.txs.issue(network, number_txs=10)
+    network.get_committed_snapshots(old_primary)
+
+    for node in network.get_joined_nodes():
+        time.sleep(args.election_timeout_ms / 1000)
+        node.stop()
+
+    recovered_network = infra.network.Network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        existing_network=network,
+    )
+
+    # Recovery from the diverged network is currently expected to fail to start, as a
+    # joining node cannot start from a snapshot that diverges from the recovery node's
+    # recovery point.
+    exception = None
+    try:
+        recovered_network.start_in_recovery(args, from_network=network)
+    except TimeoutError as ex:
+        exception = ex
+
+    recovered_network.ignoring_shutdown_errors = True
+    # The nodes are deliberately seeded from divergent disks, so skip the
+    # cross-node ledger/snapshot consistency invariants on shutdown.
+    recovered_network.stop_all_nodes(
+        skip_verification=True,
+        check_file_invariants=False,
+        skip_verify_chunking=True,
+    )
+
+    if exception is None:
+        raise ValueError(
+            "Recovery from a diverged network was expected to fail to start "
+            "(a joining node should fail to join)"
+        )
+
+    return network
+
+
+def run_recover_service_from_network(args):
+    """
+    Recover a service by seeding the recovered network from the whole previous
+    network (each node from its own disk) rather than from a single ledger and
+    snapshot set, more closely matching a production disaster recovery where every
+    node has its own persistent disk.
+    """
+    txs = app.LoggingTxs("user0")
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        pdb=args.pdb,
+        txs=txs,
+    ) as network:
+        network.start_and_open(args)
+        network = test_recover_service_from_network(network, args)
+        return network
+
+
 def run_recovery_after_cose_upgrade(args):
     """Start Dual, upgrade to COSE-only via node replacement, then recover
     with allow-dual-joiners. Then live-upgrade the recovered network to strict
@@ -2681,6 +2765,15 @@ checked. Note that the key for each logging message is unique (per table).
         run_recover_via_added_recovery_owner,
         package="samples/apps/logging/logging",
         nodes=infra.e2e_args.min_nodes(cr.args, f=0),  # 1 node suffices for recovery
+    )
+
+    cr.add(
+        "recovery_from_network",
+        run_recover_service_from_network,
+        package="samples/apps/logging/logging",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+        ledger_chunk_bytes="50KB",
+        snapshot_tx_interval=30,
     )
 
     cr.add(

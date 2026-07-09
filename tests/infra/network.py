@@ -471,6 +471,7 @@ class Network:
         ledger_dir=None,
         read_only_ledger_dirs=None,
         snapshots_dir=None,
+        per_node_recovery_dirs=None,
         **kwargs,
     ):
         self.args = args
@@ -492,6 +493,26 @@ class Network:
         for i, node in enumerate(self.nodes):
             forwarded_args_with_overrides = forwarded_args.copy()
             forwarded_args_with_overrides.update(self.per_node_args_override.get(i, {}))
+            # When recovering from a whole network, each node is seeded from its own
+            # source node's disk (see start_in_recovery's from_network path); otherwise
+            # every node shares the single passed-in ledger/snapshot set.
+            if per_node_recovery_dirs is not None:
+                # per-node seeding (from_network) and the single passed-in
+                # ledger/snapshot set are mutually exclusive.
+                assert (
+                    ledger_dir is None
+                    and not read_only_ledger_dirs
+                    and snapshots_dir is None
+                ), "per_node_recovery_dirs cannot be combined with ledger_dir/read_only_ledger_dirs/snapshots_dir"
+                node_ledger_dir = per_node_recovery_dirs[i]["ledger_dir"]
+                node_read_only_ledger_dirs = per_node_recovery_dirs[i][
+                    "read_only_ledger_dirs"
+                ]
+                node_snapshots_dir = per_node_recovery_dirs[i]["snapshots_dir"]
+            else:
+                node_ledger_dir = ledger_dir
+                node_read_only_ledger_dirs = read_only_ledger_dirs
+                node_snapshots_dir = snapshots_dir
             try:
                 if i == 0:
                     if not recovery:
@@ -500,7 +521,7 @@ class Network:
                             workspace=args.workspace,
                             label=args.label,
                             common_dir=self.common_dir,
-                            ledger_dir=ledger_dir,
+                            ledger_dir=node_ledger_dir,
                             members_info=self.consortium.get_members_info(),
                             **forwarded_args_with_overrides,
                             **kwargs,
@@ -511,9 +532,9 @@ class Network:
                             "workspace": args.workspace,
                             "label": args.label,
                             "common_dir": self.common_dir,
-                            "ledger_dir": ledger_dir,
-                            "read_only_ledger_dirs": read_only_ledger_dirs,
-                            "snapshots_dir": snapshots_dir,
+                            "ledger_dir": node_ledger_dir,
+                            "read_only_ledger_dirs": node_read_only_ledger_dirs,
+                            "snapshots_dir": node_snapshots_dir,
                         }
                         # If a kwarg is passed in override automatically set variants
                         node_kwargs = (
@@ -532,10 +553,10 @@ class Network:
                         args.package,
                         args,
                         recovery=recovery,
-                        ledger_dir=ledger_dir,
-                        from_snapshot=snapshots_dir is not None,
-                        read_only_ledger_dirs=read_only_ledger_dirs,
-                        snapshots_dir=snapshots_dir,
+                        ledger_dir=node_ledger_dir,
+                        from_snapshot=node_snapshots_dir is not None,
+                        read_only_ledger_dirs=node_read_only_ledger_dirs,
+                        snapshots_dir=node_snapshots_dir,
                         **forwarded_args_with_overrides,
                         **kwargs,
                     )
@@ -702,6 +723,43 @@ class Network:
         self.start(args, **kwargs)
         self.open(args)
 
+    def _recovery_dirs_from_network(self, from_network):
+        """
+        Build per-node recovery seed directories from a previous Network.
+
+        Mirrors the per-node seeding of start_in_recovery_decision_protocol: each new
+        node is seeded from one of the previous network's nodes, selected round-robin
+        (new node i <- from_network.nodes[i % len]). Depending on the relative node
+        counts, some source ledgers are reused across several new nodes and some are
+        dropped entirely. Seeding from a node that is behind the others is a supported
+        case (e.g. when a fresher node's disk is not yet available for recovery), so no
+        "freshest node" selection is attempted here.
+        """
+        source_nodes = from_network.nodes
+        if not source_nodes:
+            raise ValueError("from_network has no nodes to recover from")
+
+        # Gather each distinct source node's ledger and committed snapshots once. Both
+        # getters are filesystem copies that work whether or not the source node is
+        # still running, so this is safe after the previous network has been stopped.
+        seeds = {}
+        per_node_recovery_dirs = {}
+        for i in range(len(self.nodes)):
+            source = source_nodes[i % len(source_nodes)]
+            if source not in seeds:
+                ledger_dir, committed_ledger_dirs = source.get_ledger()
+                snapshots_dir = source.get_committed_snapshots()
+                if not os.listdir(snapshots_dir):
+                    snapshots_dir = None
+                seeds[source] = (ledger_dir, committed_ledger_dirs, snapshots_dir)
+            ledger_dir, committed_ledger_dirs, snapshots_dir = seeds[source]
+            per_node_recovery_dirs[i] = {
+                "ledger_dir": ledger_dir,
+                "read_only_ledger_dirs": committed_ledger_dirs,
+                "snapshots_dir": snapshots_dir,
+            }
+        return per_node_recovery_dirs
+
     def start_in_recovery(
         self,
         args,
@@ -710,6 +768,7 @@ class Network:
         snapshots_dir=None,
         common_dir=None,
         set_authenticate_session=None,
+        from_network=None,
         **kwargs,
     ):
         """
@@ -718,6 +777,10 @@ class Network:
         :param ledger_dir: ledger directory to recover from.
         :param snapshots_dir: snapshot directory to recover from.
         :param common_dir: common directory containing member and user keys and certs.
+        :param from_network: recover from a whole previous Network rather than a single
+            ledger/snapshot set. Each new node is seeded from one of the previous
+            network's nodes (round-robin), node 0 is recovered and the others join it.
+            Mutually exclusive with ledger_dir/committed_ledger_dirs/snapshots_dir.
         """
         self.common_dir = (
             common_dir
@@ -726,12 +789,22 @@ class Network:
         )
         committed_ledger_dirs = committed_ledger_dirs or []
 
+        per_node_recovery_dirs = None
+        if from_network is not None:
+            if ledger_dir is not None or committed_ledger_dirs or snapshots_dir:
+                raise ValueError(
+                    "from_network is mutually exclusive with "
+                    "ledger_dir/committed_ledger_dirs/snapshots_dir"
+                )
+            per_node_recovery_dirs = self._recovery_dirs_from_network(from_network)
+
         primary = self._start_all_nodes(
             args,
             recovery=True,
             ledger_dir=ledger_dir,
             read_only_ledger_dirs=committed_ledger_dirs,
             snapshots_dir=snapshots_dir,
+            per_node_recovery_dirs=per_node_recovery_dirs,
             **kwargs,
         )
 
