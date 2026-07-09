@@ -21,7 +21,6 @@ from infra.jwt_issuer import (
     get_jwt_keys,
 )
 import ca_certs
-import ccf.ledger
 from ccf.tx_id import TxID
 import infra.clients
 

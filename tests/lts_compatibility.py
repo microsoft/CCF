@@ -12,8 +12,6 @@ import infra.node
 import infra.platform_detection
 import suite.test_requirements as reqs
 import ccf.ledger
-from ccf.tx_id import TxID
-import time
 import os
 import json
 import datetime
