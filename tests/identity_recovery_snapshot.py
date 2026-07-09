@@ -25,9 +25,7 @@ STALE_IDENTITY_RETRY_LOG = "signed by a stale service identity"
 
 def preserve_oldest_committed_snapshot(network, primary, dest_name):
     """Copy the oldest committed snapshot into a dedicated directory and return
-    that directory. Because this snapshot predates the recovery, a node that
-    later joins from it momentarily observes the pre-recovery service identity in
-    its local store until it replays the committed ledger suffix."""
+    that directory."""
     committed_snapshots_dir = network.get_committed_snapshots(primary)
     snapshots = sorted(
         os.listdir(committed_snapshots_dir),
