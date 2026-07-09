@@ -105,7 +105,11 @@ class CollateralFetchTimeout(NodeJoinException):
 
 
 class ServiceCertificateInvalid(NodeJoinException):
-    pass
+    """Raised when a joining node cannot establish TLS certificate trust with
+    the target service. This covers any join-time certificate trust failure
+    (an untrusted or wrong service certificate, a hostname/SAN mismatch under
+    VERIFYHOST, or a service certificate that cannot be loaded), not only a
+    literally invalid certificate."""
 
 
 class NetworkShutdownError(Exception):
@@ -1420,7 +1424,20 @@ class Network:
                             ) from e
                         if "StartupSeqnoIsOld" in error:
                             raise StartupSeqnoIsOld(node, has_stopped, error) from e
-                        if "invalid cert on handshake" in error:
+                        # The joining node now connects to the target via the
+                        # curl client, which reports any failure to establish
+                        # certificate trust as "TLS certificate trust check
+                        # failed": a rejected or untrusted service certificate,
+                        # a hostname/SAN mismatch (VERIFYHOST=2) or any other
+                        # peer verification failure, or a configured service
+                        # certificate that could not be loaded. The legacy
+                        # TLS-session wording ("invalid cert on handshake") is
+                        # retained for compatibility with logs from older nodes
+                        # during mixed-version tests.
+                        if (
+                            "TLS certificate trust check failed" in error
+                            or "invalid cert on handshake" in error
+                        ):
                             raise ServiceCertificateInvalid(
                                 node, has_stopped, error
                             ) from e
