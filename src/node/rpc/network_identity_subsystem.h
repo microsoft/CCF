@@ -375,7 +375,7 @@ namespace ccf
       }
       current_service_from = current.create_txid;
 
-      auto& endorsement = current.endorsement;
+      const auto& endorsement = current.endorsement;
       if (!endorsement.has_value())
       {
         LOG_INFO_FMT(
