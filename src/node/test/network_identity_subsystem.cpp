@@ -62,13 +62,9 @@ namespace
     {
       return part_of_network;
     }
-    std::optional<ccf::TxID> get_current_service_txid() override
+    ccf::CurrentServiceIdentity get_current_service_identity() override
     {
-      return current_service_from;
-    }
-    std::optional<ccf::CoseEndorsement> get_current_endorsement() override
-    {
-      return topmost;
+      return {current_service_from, topmost};
     }
   };
 
@@ -370,7 +366,7 @@ namespace
   // entries[topmost_index] as the topmost endorsement, while historical access
   // contains only its predecessors. Use this when modelling a joiner whose
   // local KV is behind the latest network identity received from join.
-  void wire_replayed_chain_with_topmost(
+  void wire_partially_replayed_chain(
     SubsystemFixture& f, const ChainBuilder& cb, size_t topmost_index)
   {
     REQUIRE(topmost_index < cb.entries.size());
@@ -666,7 +662,7 @@ TEST_CASE(
   // Model a joiner which received the current identity from the join response,
   // but whose KV is still at the snapshot-era service identity while the
   // committed ledger suffix is being replayed.
-  wire_replayed_chain_with_topmost(f, cb, 1);
+  wire_partially_replayed_chain(f, cb, 1);
 
   auto sub = f.make_subsystem();
   REQUIRE(sub->endorsements_fetching_status() == ccf::FetchStatus::Retry);

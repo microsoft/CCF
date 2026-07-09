@@ -312,7 +312,7 @@ namespace ccf
         "Network identity fetching settled at {}", ccf::to_string(status));
     }
 
-    [[nodiscard]] bool topmost_endorsement_matches_current_identity(
+    [[nodiscard]] bool topmost_endorsement_signed_by_current_identity(
       const CoseEndorsement& endorsement) const
     {
       // The topmost endorsement's endorsing key should match the current
@@ -324,10 +324,12 @@ namespace ccf
       return endorsement.endorsing_key == current_pkey;
     }
 
-    void reset_chain_state()
+    void reset_bootstrap_state()
     {
-      // Drop all state accumulated from the stale bootstrap attempt so the next
-      // fetch_first pass starts from fresh KV reads and an empty chain.
+      // Clear any per-attempt bootstrap state (accumulated chain, service
+      // anchor, and retry budget) so the next fetch_first pass starts fresh.
+      // On the stale-topmost path this is defensive: it runs before any chain
+      // state has been built.
       endorsements.clear();
       trusted_keys.clear();
       current_service_from.reset();
@@ -353,11 +355,15 @@ namespace ccf
         return;
       }
 
-      // Reread this on every bootstrap pass: while joining from a snapshot, the
-      // KV can advance from the snapshot-era service identity to the latest
-      // identity as the committed ledger suffix is replayed.
-      auto cs = node_state_accessor->get_current_service_txid();
-      if (!cs.has_value())
+      // Read the current service create-txid and the topmost endorsement from a
+      // single consistent KV snapshot: reading them separately could observe a
+      // create-txid and endorsement from different ledger versions if a
+      // recovery commits in between, letting a stale create-txid pass the
+      // identity check below and then fail chain validation. Re-read every
+      // pass: while joining from a snapshot, the KV advances from the
+      // snapshot-era identity to the latest as the ledger suffix is replayed.
+      auto current = node_state_accessor->get_current_service_identity();
+      if (!current.create_txid.has_value())
       {
         LOG_INFO_FMT(
           "Retrying fetching network identity as current service create "
@@ -367,9 +373,9 @@ namespace ccf
           std::chrono::milliseconds(retry_interval_ms));
         return;
       }
-      current_service_from = cs;
+      current_service_from = current.create_txid;
 
-      auto endorsement = node_state_accessor->get_current_endorsement();
+      auto& endorsement = current.endorsement;
       if (!endorsement.has_value())
       {
         LOG_INFO_FMT(
@@ -381,13 +387,10 @@ namespace ccf
         return;
       }
 
-      if (!topmost_endorsement_matches_current_identity(endorsement.value()))
+      if (!topmost_endorsement_signed_by_current_identity(endorsement.value()))
       {
-        // Bootstrap retries are unbounded; the reason is logged for diagnosis
-        // while the delayed retry waits for the local store to catch up. This
-        // matches the other pre-bootstrap waits in fetch_first(), which are not
-        // constrained by the historical-read retry budget because ledger replay
-        // can legitimately take arbitrary time during node startup.
+        // Unbounded retry (like the other pre-bootstrap waits above), logging
+        // the target identity for diagnosis while the local store catches up.
         LOG_INFO_FMT(
           "Retrying fetching network identity: "
           "topmost endorsement at {} is signed by a stale service identity, "
@@ -395,7 +398,7 @@ namespace ccf
           "at {}",
           endorsement->endorsement_epoch_begin.to_str(),
           current_service_from->to_str());
-        reset_chain_state();
+        reset_bootstrap_state();
         scheduler->add_delayed_task(
           [this]() { this->fetch_first(); },
           std::chrono::milliseconds(retry_interval_ms));
