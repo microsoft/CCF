@@ -13,4 +13,7 @@ RUN dnf -y update
 
 # Basic dev deps, helps smoothly install VSCode server. Azure Linux 4 has no
 # build-essential meta-package, so install the equivalent toolchain explicitly.
-RUN dnf -y install gcc gcc-c++ make binutils tar gzip ca-certificates git
+# gawk provides awk, which the VSCode server's check-requirements.sh needs; the
+# minimal Azure Linux 4 base image ships without it (unlike Azure Linux 3, where
+# build-essential pulled it in transitively).
+RUN dnf -y install gcc gcc-c++ make binutils gawk tar gzip ca-certificates git
