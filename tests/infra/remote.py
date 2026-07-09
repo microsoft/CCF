@@ -273,8 +273,23 @@ class LocalRemote(CmdMixin):
         cmd = " ".join(self.cmd)
         return f"cd {self.root} && {DBG} -- {cmd}"
 
-    def check_done(self):
-        return self.proc is not None and self.proc.poll() is not None
+    def check_done(self, timeout=5, interval=0.2):
+        if self.proc is None:
+            return False
+
+        if self.proc.poll() is not None:
+            return True
+
+        if timeout <= 0:
+            return False
+
+        done_deadline = time.monotonic() + timeout
+        while time.monotonic() < done_deadline:
+            time.sleep(interval)
+            if self.proc.poll() is not None:
+                return True
+
+        return self.proc.poll() is not None
 
     def get_result(self, line_count):
         with open(self.out, "rb") as out:
@@ -313,6 +328,7 @@ class CCFRemote(object):
         join_timer_s=None,
         sig_ms_interval=None,
         jwt_key_refresh_interval_s=None,
+        jwt_key_refresh_max_response_size="1MB",
         election_timeout_ms=None,
         consensus_update_timeout_ms=None,
         node_data_json_file=None,
@@ -518,6 +534,7 @@ class CCFRemote(object):
                 join_timer=f"{join_timer_s}s" if join_timer_s else None,
                 signature_interval_duration=f"{sig_ms_interval}ms",
                 jwt_key_refresh_interval=f"{jwt_key_refresh_interval_s}s",
+                jwt_key_refresh_max_response_size=jwt_key_refresh_max_response_size,
                 election_timeout=f"{election_timeout_ms}ms",
                 message_timeout=f"{consensus_update_timeout_ms}ms",
                 node_data_json_file=node_data_json_file,
@@ -697,8 +714,8 @@ class CCFRemote(object):
         except Exception:
             LOG.exception("Failed to shut down {} cleanly".format(self.local_node_id))
 
-    def check_done(self):
-        return self.remote.check_done()
+    def check_done(self, timeout=5, interval=0.2):
+        return self.remote.check_done(timeout=timeout, interval=interval)
 
     def _resilient_copy(
         self,

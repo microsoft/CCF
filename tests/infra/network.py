@@ -57,6 +57,7 @@ class ServiceStatus(Enum):
     OPENING = "Opening"
     OPEN = "Open"
     RECOVERING = "Recovering"
+    WAITING_FOR_RECOVERY_SHARES = "WaitingForRecoveryShares"
     CLOSED = "Closed"
 
 
@@ -203,6 +204,7 @@ class Network:
         "max_open_sessions_hard",
         "forwarding_timeout_ms",
         "jwt_key_refresh_interval_s",
+        "jwt_key_refresh_max_response_size",
         "common_read_only_ledger_dir",
         "curve_id",
         "initial_node_cert_validity_days",
@@ -1091,37 +1093,15 @@ class Network:
                 return 0
 
             startup_seqno = 0
-            local_snapshot_path = None
-            resumed_snapshot_re = re.compile(
-                r"Joiner successfully resumed from snapshot at seqno (\d+) and view \d+"
-            )
-            local_snapshot_re = re.compile(
-                r"Found latest local snapshot file: (.*snapshot_(\d+)_\d+\.committed) "
-                r"\(size: \d+\)"
-            )
-            local_snapshot_error_re = re.compile(r"Error while verifying (.*):")
+
+            setting_seqno_re = re.compile(r"Setting startup snapshot seqno to (\d+)")
 
             with open(out_path, "r", encoding="utf-8", errors="replace") as lines:
                 for line in lines:
-                    resumed_snapshot = resumed_snapshot_re.search(line)
-                    if resumed_snapshot is not None:
-                        startup_seqno = int(resumed_snapshot.group(1))
-                        local_snapshot_path = None
-                        continue
-
-                    local_snapshot = local_snapshot_re.search(line)
-                    if local_snapshot is not None:
-                        local_snapshot_path = local_snapshot.group(1)
-                        startup_seqno = int(local_snapshot.group(2))
-                        continue
-
-                    local_snapshot_error = local_snapshot_error_re.search(line)
-                    if (
-                        local_snapshot_error is not None
-                        and local_snapshot_error.group(1) == local_snapshot_path
-                    ):
-                        local_snapshot_path = None
-                        startup_seqno = 0
+                    setting_seqno = setting_seqno_re.search(line)
+                    if setting_seqno is not None:
+                        startup_seqno = int(setting_seqno.group(1))
+                        break
 
             return startup_seqno
 
@@ -1257,7 +1237,11 @@ class Network:
         for node in self.nodes:
             if node.remote is None:
                 continue
-            ledger_paths = node.remote.ledger_paths()
+            # Only check the node's own (writable) ledger, not read-only historical
+            # directories from other nodes. Read-only ledger dirs are bootstrapping
+            # data from retired/stopped nodes and may be non-contiguous.
+            current_path = node.remote.current_ledger_path()
+            ledger_paths = [current_path] if os.path.exists(current_path) else []
             for path in ledger_paths:
                 ledger = ccf.ledger.Ledger([path])
                 chunks = list(ledger)
@@ -1410,7 +1394,7 @@ class Network:
                 )
             except TimeoutError as e:
                 LOG.error(f"New pending node {node.node_id} failed to join the network")
-                has_stopped = node.remote.check_done()
+                has_stopped = node.remote.check_done(timeout=0)
                 if stop_on_error:
                     assert has_stopped, "Node should have stopped"
                 node.stop()

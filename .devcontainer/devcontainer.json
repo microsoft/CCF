@@ -4,7 +4,12 @@
     "dockerfile": "Dockerfile",
     "context": "."
   },
-  "runArgs": ["--cap-add=SYS_PTRACE", "--security-opt", "seccomp=unconfined"],
+  "runArgs": [
+    "--cap-add=SYS_PTRACE",
+    "--cap-add=NET_ADMIN",
+    "--security-opt",
+    "seccomp=unconfined"
+  ],
   "hostRequirements": {
     "cpus": 16,
     "memory": "64gb",
@@ -13,26 +18,22 @@
   "customizations": {
     "vscode": {
       "extensions": [
-        "eamodio.gitlens",
-        "waderyan.gitblame",
-        "esbenp.prettier-vscode",
         "github.vscode-github-actions",
         "ms-python.black-formatter",
         "ms-python.python",
         "ms-vscode.cpptools",
         "github.copilot"
-      ]
-    },
-    "settings": {
-      "python.defaultInterpreterPath": "python3",
-      "[python]": {
-        "editor.defaultFormatter": "ms-python.black-formatter"
-      },
-      "python.formatting.provider": "none",
-      "editor.defaultFormatter": "esbenp.prettier-vscode",
-      "editor.formatOnSave": true,
-      "editor.codeActionsOnSave": {
-        "source.fixAll": true
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "python3",
+        "[python]": {
+          "editor.defaultFormatter": "ms-python.black-formatter"
+        },
+        "python.formatting.provider": "none",
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+          "source.fixAll": true
+        }
       }
     }
   },

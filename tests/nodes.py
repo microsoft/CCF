@@ -20,6 +20,34 @@ import reconfiguration
 import committable
 
 
+def wait_for_committed_tx_in_current_view(node, timeout=5):
+    with node.client() as c:
+        end_time = time.time() + timeout
+        commit_view = None
+        current_view = None
+        while time.time() < end_time:
+            commit_res = c.get("/app/commit")
+            assert (
+                commit_res.status_code == http.HTTPStatus.OK
+            ), f"/app/commit returned HTTP status {commit_res.status_code}"
+            commit_view = int(commit_res.body.json()["transaction_id"].split(".")[0])
+
+            consensus_res = c.get("/node/consensus")
+            assert (
+                consensus_res.status_code == http.HTTPStatus.OK
+            ), f"/node/consensus returned HTTP status {consensus_res.status_code}"
+            current_view = consensus_res.body.json()["details"]["current_view"]
+
+            if commit_view == current_view:
+                return
+            time.sleep(0.1)
+
+        assert commit_view == current_view, (
+            f"Primary has not committed a transaction in its current view after {timeout} seconds "
+            f"(commit_view={commit_view}, current_view={current_view})"
+        )
+
+
 def run_rotations(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
@@ -70,6 +98,11 @@ def test_kill_primary_no_reqs(network, args):
         assert len(new_view_history) >= len(old_view_history)
         assert old_view_history == new_view_history[: len(old_view_history)]
 
+    # Wait for the new primary to commit a transaction in the new term before
+    # checking per-node TxIDs. Immediately after an election, nodes may still
+    # report a previous-term TxID which is subsequently invalidated.
+    wait_for_committed_tx_in_current_view(new_primary)
+
     # Verify that the TxID reported just after an election is valid
     # Note that the first TxID read after an election may be of a signature
     # Tx (time-based signature generation) in the new term rather than the
@@ -105,26 +138,12 @@ def test_kill_primary(network, args):
 def test_commit_view_history(network, args):
     remote_node, _ = network.find_primary()
 
-    with remote_node.client() as c:
-        # Wait for new primary to have committed a first transaction in their new term,
-        # to account for the fact that later assertions assume the view history
-        # does not change
-        timeout = 2
-        end_time = time.time() + timeout
-        while time.time() < end_time:
-            commit_view = int(
-                c.get("/app/commit").body.json()["transaction_id"].split(".")[0]
-            )
-            current_view = c.get("/node/consensus").body.json()["details"][
-                "current_view"
-            ]
-            if commit_view == current_view:
-                break
-            time.sleep(0.1)
-        assert (
-            commit_view == current_view
-        ), f"Primary has not committed latest transaction after {timeout} seconds"
+    # Wait for new primary to have committed a first transaction in their new
+    # term, to account for the fact that later assertions assume the view
+    # history does not change.
+    wait_for_committed_tx_in_current_view(remote_node, timeout=2)
 
+    with remote_node.client() as c:
         # Endpoint works with no query parameter
         res = c.get("/app/commit")
         assert res.status_code == http.HTTPStatus.OK
