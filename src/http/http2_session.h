@@ -3,7 +3,6 @@
 #pragma once
 
 #include "ds/internal_logger.h"
-#include "enclave/client_session.h"
 #include "enclave/rpc_map.h"
 #include "error_reporter.h"
 #include "http/http2_types.h"
@@ -432,74 +431,6 @@ namespace http
     {
       return get_stream_responder(http2::DEFAULT_STREAM_ID)
         ->set_on_stream_close_callback(cb);
-    }
-  };
-
-  class HTTP2ClientSession : public HTTP2Session,
-                             public ccf::ClientSession,
-                             public ::http::ResponseProcessor
-  {
-  private:
-    http2::ClientParser client_parser;
-
-  public:
-    HTTP2ClientSession(
-      int64_t session_id_,
-      ringbuffer::AbstractWriterFactory& writer_factory,
-      std::unique_ptr<ccf::tls::Context> ctx) :
-      HTTP2Session(session_id_, writer_factory, std::move(ctx)),
-      ccf::ClientSession(session_id_, writer_factory),
-      client_parser(*this)
-    {
-      client_parser.set_outgoing_data_handler(
-        [this](std::span<const uint8_t> data) {
-          send_data(std::vector<uint8_t>(data.begin(), data.end()));
-        });
-    }
-
-    bool parse(std::span<const uint8_t> data) override
-    {
-      // Catch response parsing errors and log them
-      try
-      {
-        client_parser.execute(data.data(), data.size());
-
-        return true;
-      }
-      catch (const std::exception& e)
-      {
-        LOG_FAIL_FMT("Error parsing HTTP2 response on session {}", session_id);
-        LOG_DEBUG_FMT("Error parsing HTTP2 response: {}", e.what());
-        LOG_DEBUG_FMT(
-          "Error occurred while parsing fragment {} byte fragment:\n{}",
-          data.size(),
-          std::string_view(
-            reinterpret_cast<char const*>(data.data()), data.size()));
-
-        close_session();
-      }
-      return false;
-    }
-
-    void send_request(http::Request&& request) override
-    {
-      client_parser.send_structured_request(
-        request.get_method(),
-        request.get_path(),
-        request.get_headers(),
-        {request.get_content_data(),
-         request.get_content_data() + request.get_content_length()});
-    }
-
-    void handle_response(
-      ccf::http_status status,
-      ccf::http::HeaderMap&& headers,
-      std::vector<uint8_t>&& body) override
-    {
-      handle_data_cb(status, std::move(headers), std::move(body));
-
-      LOG_TRACE_FMT("Closing connection, message handled");
-      close_session();
     }
   };
 }
