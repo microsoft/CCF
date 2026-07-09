@@ -2042,7 +2042,7 @@ def run_cose_only_mode_upgrade(args):
 
         network.txs.issue(network, number_txs=3)
 
-        # Verify a Dual joiner can still join (allow_dual_signing_joinee=true)
+        # Verify a Dual joiner can still join (allow_dual_signing_joiner=true)
         LOG.info("Verifying Dual joiner can still join COSE-only (allow dual) network")
         dual_joiner = network.create_node()
         network.join_node(dual_joiner, nargs.package, nargs, from_snapshot=False)
