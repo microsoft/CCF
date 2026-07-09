@@ -22,7 +22,7 @@ jobs:
         1ES.Pool=gha-vmss-d16av6-ci,
         "JobId=bab_benchmark_pr-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
       ]
-    if: &check_trigger_conditions ${{ (github.event.action == 'labeled' && github.event.label.name == 'bench-ab') || (github.event.action != 'labeled' && contains(github.event.pull_request.labels.*.name, 'bench-ab')) || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'}}
+    if: ${{ (github.event.action == 'labeled' && github.event.label.name == 'bench-ab') || (github.event.action != 'labeled' && contains(github.event.pull_request.labels.*.name, 'bench-ab')) }}
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root
@@ -30,7 +30,7 @@ jobs:
       - name: Setup container dependencies
         run: |
           gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
-          tdnf -y update && tdnf -y install ca-certificates git
+          tdnf -y update && tdnf -y install ca-certificates git gh
 
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -57,104 +57,30 @@ jobs:
           source env/bin/activate
           PYTHONPATH=../tests python convert_pico_to_bencher.py
 
-      - name: Upload PR results
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: benchmark-pr-${{ github.run_id }}
-          path: build/bencher.json
-          retention-days: 7
-
-  benchmark_main:
-    name: Benchmark Main
-    runs-on:
-      [
-        self-hosted,
-        1ES.Pool=gha-vmss-d16av6-ci,
-        "JobId=bab_benchmark_main-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
-      ]
-    if: *check_trigger_conditions
-    container:
-      image: mcr.microsoft.com/azurelinux/base/core:3.0
-      options: --user root
-    steps:
-      - name: Setup container dependencies
+      - name: Restore recent main perf results
         run: |
-          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
-          tdnf -y update && tdnf -y install ca-certificates git
+          set -exo pipefail
+          name="perf-bench-virtual-main"
+          mkdir -p main_perf
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          run_ids=$(gh api "repos/${{ github.repository }}/actions/artifacts?name=${name}&per_page=100" \
+            --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0:20] | .[].workflow_run.id')
+          for run_id in $run_ids; do
+            if gh run download "$run_id" --name "$name" --dir main_artifact; then
+              find main_artifact -name '*.json' -exec cp {} main_perf/ \;
+              break
+            fi
+          done
+          # Keep only the most recent points that perf_compare_radar.py uses; the
+          # main artifact accumulates history and older files would just add copy
+          # overhead without affecting the comparison.
+          (cd main_perf && ls -1 | sort -t- -k1,1n -k2,2n -k3,3n | head -n -15 | xargs -r rm -f)
+        env:
+          GH_TOKEN: ${{ github.token }}
 
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          ref: main
-          fetch-depth: 0
-
-      - name: Install dependencies
-        run: ./scripts/setup-ci.sh
-
-      - name: Confirm platform
-        run: python3 tests/infra/platform_detection.py virtual
-
-      - name: Build and run benchmarks
+      - name: Summarise A/B comparison against main
         run: |
-          git config --global --add safe.directory /__w/CCF/CCF
-          mkdir build
-          cd build
-          cmake -GNinja -DWORKER_THREADS=2 ..
-          ninja
-          # Microbenchmarks
-          ./tests.sh -VV -L benchmark
-          # End to end performance tests
-          ./tests.sh -VV -L perf -C perf
-          # Convert microbenchmark output to bencher json
-          source env/bin/activate
-          PYTHONPATH=../tests python convert_pico_to_bencher.py
-
-      - name: Upload main results
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: benchmark-main-${{ github.run_id }}
-          path: build/bencher.json
-          retention-days: 7
-
-  compare:
-    name: Compare Results
-    runs-on:
-      [
-        self-hosted,
-        1ES.Pool=gha-vmss-d16av6-ci,
-        "JobId=bab_compare-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
-      ]
-    container:
-      image: mcr.microsoft.com/azurelinux/base/core:3.0
-      options: --user root
-    needs: [benchmark_pr, benchmark_main]
-    if: *check_trigger_conditions
-    steps:
-      - name: Setup container dependencies
-        run: |
-          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
-          tdnf -y update && tdnf -y install ca-certificates git
-
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-
-      - name: Download artifacts
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
-        with:
-          pattern: benchmark-*-${{ github.run_id }}
-          merge-multiple: false
-
-      - name: Generate comparison
-        run: |
-          echo "# Benchmark Comparison: main vs PR" > report.md
-          echo "" >> report.md
-          echo "**PR Commit:** \`${{ github.event.pull_request.head.sha }}\`" >> report.md
-          echo "**Base Commit:** \`${{ github.event.pull_request.base.sha }}\`" >> report.md
-          echo "**Run ID:** [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> report.md
-          echo "" >> report.md
-          echo '```' >> report.md
-          python3 scripts/compare_bencher_ab.py \
-            benchmark-main-${{ github.run_id }}/bencher.json \
-            benchmark-pr-${{ github.run_id }}/bencher.json \
-            --label1 "main" --label2 "PR" >> report.md
-          echo '```' >> report.md
-
-          cat report.md >> $GITHUB_STEP_SUMMARY
+          set -ex
+          python3 scripts/perf_compare_radar.py main_perf build/bencher.json \
+            --branch-label "#${{ github.event.pull_request.number }}" \
+            >> "$GITHUB_STEP_SUMMARY"

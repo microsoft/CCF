@@ -1093,37 +1093,15 @@ class Network:
                 return 0
 
             startup_seqno = 0
-            local_snapshot_path = None
-            resumed_snapshot_re = re.compile(
-                r"Joiner successfully resumed from snapshot at seqno (\d+) and view \d+"
-            )
-            local_snapshot_re = re.compile(
-                r"Found latest local snapshot file: (.*snapshot_(\d+)_\d+\.committed) "
-                r"\(size: \d+\)"
-            )
-            local_snapshot_error_re = re.compile(r"Error while verifying (.*):")
+
+            setting_seqno_re = re.compile(r"Setting startup snapshot seqno to (\d+)")
 
             with open(out_path, "r", encoding="utf-8", errors="replace") as lines:
                 for line in lines:
-                    resumed_snapshot = resumed_snapshot_re.search(line)
-                    if resumed_snapshot is not None:
-                        startup_seqno = int(resumed_snapshot.group(1))
-                        local_snapshot_path = None
-                        continue
-
-                    local_snapshot = local_snapshot_re.search(line)
-                    if local_snapshot is not None:
-                        local_snapshot_path = local_snapshot.group(1)
-                        startup_seqno = int(local_snapshot.group(2))
-                        continue
-
-                    local_snapshot_error = local_snapshot_error_re.search(line)
-                    if (
-                        local_snapshot_error is not None
-                        and local_snapshot_error.group(1) == local_snapshot_path
-                    ):
-                        local_snapshot_path = None
-                        startup_seqno = 0
+                    setting_seqno = setting_seqno_re.search(line)
+                    if setting_seqno is not None:
+                        startup_seqno = int(setting_seqno.group(1))
+                        break
 
             return startup_seqno
 

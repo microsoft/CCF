@@ -571,6 +571,8 @@ namespace ccf
       startup_snapshot_info = std::make_unique<StartupSnapshotInfo>(
         snapshot_seqno, std::move(snapshot_data));
 
+      LOG_INFO_FMT("Setting startup snapshot seqno to {}", snapshot_seqno);
+
       startup_seqno = startup_snapshot_info->seqno;
       last_recovered_idx = startup_seqno;
       last_recovered_signed_idx = last_recovered_idx;
@@ -3254,7 +3256,7 @@ namespace ccf
       }
 
       snapshotter = std::make_shared<Snapshotter>(
-        writer_factory,
+        config.snapshots.directory,
         network.tables,
         config.snapshots.tx_count,
         config.snapshots.min_tx_count,
@@ -3332,11 +3334,6 @@ namespace ccf
           return callback(status, std::move(headers), std::move(data));
         });
       client->send_request(std::move(req));
-    }
-
-    void write_snapshot(std::span<uint8_t> snapshot_buf, size_t request_id)
-    {
-      snapshotter->write_snapshot(snapshot_buf, request_id);
     }
 
     std::shared_ptr<ccf::kv::Store> get_store() override
