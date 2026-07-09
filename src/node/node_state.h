@@ -571,6 +571,8 @@ namespace ccf
       startup_snapshot_info = std::make_unique<StartupSnapshotInfo>(
         snapshot_seqno, std::move(snapshot_data));
 
+      LOG_INFO_FMT("Setting startup snapshot seqno to {}", snapshot_seqno);
+
       startup_seqno = startup_snapshot_info->seqno;
       last_recovered_idx = startup_seqno;
       last_recovered_signed_idx = last_recovered_idx;
