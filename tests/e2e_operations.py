@@ -1666,6 +1666,72 @@ def run_tls_san_checks(const_args):
         ), f"Expected SANs do not match: {ip_sans} vs {dummy_public_rpc_hosts}"
 
 
+def run_tls_san_join_mismatch(const_args):
+    # Since the join client was migrated to libcurl, a joining node verifies
+    # (CURLOPT_SSL_VERIFYHOST=2) that the target node's certificate covers the
+    # address it dialled. Check that a join is rejected when the dialled address
+    # is absent from the target node's certificate SANs, even though the service
+    # certificate itself is trusted. This exercises the hostname/SAN check
+    # specifically, as opposed to the untrusted-service-certificate path already
+    # covered by reconfiguration.test_add_node_invalid_service_cert.
+    args = copy.deepcopy(const_args)
+    args.label += "_tls_san_join_mismatch"
+
+    # Bind the target node's primary and file-serving interfaces to distinct
+    # loopback addresses, and restrict the node certificate SANs to the primary
+    # address only. The test harness reaches the node through the primary
+    # interface (in the SAN, so trusted), while a joining node dials the
+    # file-serving interface (not in the SAN, so rejected).
+    primary_host = "127.0.0.1"
+    file_serving_host = "127.0.0.2"
+
+    args.nodes = infra.e2e_args.nodes(args, 1)
+    target_spec = args.nodes[0]
+    target_spec.get_primary_interface().host = primary_host
+    target_spec.get_file_serving_interface().host = file_serving_host
+    args.subject_alt_names = [f"iPAddress:{primary_host}"]
+
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        pdb=args.pdb,
+    ) as network:
+        network.start_and_open(args)
+
+        LOG.info(
+            "A join is rejected when the target address is not covered by the "
+            "target node's certificate SANs"
+        )
+        new_node = network.create_node()
+        try:
+            network.join_node(
+                new_node,
+                args.package,
+                args,
+                timeout=3,
+                stop_on_error=True,
+                from_snapshot=False,
+                # Skip the proactive snapshot fetch so the node goes straight to
+                # the join request. The snapshot fetch treats a certificate
+                # verification failure as a retryable (non-fatal) error, whereas
+                # the join request itself treats it as fatal, which is the
+                # behaviour under test.
+                fetch_recent_snapshot=False,
+            )
+        except infra.network.ServiceCertificateInvalid:
+            LOG.info(
+                f"Node {new_node.local_node_id} correctly rejected the target, "
+                "whose certificate SANs do not cover the dialled file-serving "
+                "address (VERIFYHOST)"
+            )
+        else:
+            assert False, (
+                f"Node {new_node.local_node_id} unexpectedly joined despite a "
+                "target certificate SAN mismatch"
+            )
+
+
 def run_config_timeout_check(const_args):
     args = copy.deepcopy(const_args)
     args.nodes = infra.e2e_args.nodes(args, 1)
@@ -4649,6 +4715,7 @@ def run(args):
     run_ledger_cleanup_no_read_only_dir_check(args)
     run_ledger_chunk_cleanup_tests(args)
     run_tls_san_checks(args)
+    run_tls_san_join_mismatch(args)
     run_config_timeout_check(args)
     run_configuration_file_checks(args)
     run_pid_file_check(args)
