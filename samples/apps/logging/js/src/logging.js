@@ -1,14 +1,43 @@
 function decode_query_component(s) {
-  // '+' is decoded to a space, matching decode_query_component in
-  // include/ccf/http_query.h
-  const withSpaces = s.replace(/\+/g, " ");
-  try {
-    return decodeURIComponent(withSpaces);
-  } catch (e) {
-    // Malformed or truncated percent-escapes are kept literally, rather than
-    // throwing, again matching decode_query_component in http_query.h
-    return withSpaces;
+  // Decodes '%XX' escapes and '+' (to a space), matching decode_query_component
+  // in include/ccf/http_query.h. Unlike a single decodeURIComponent() over the
+  // whole string, malformed or truncated percent-escapes are passed through
+  // literally instead of causing earlier, valid escapes to be left undecoded
+  // (e.g. "%41%zz" decodes to "A%zz").
+  let decoded = "";
+  let i = 0;
+  const isValidEscape = (j) =>
+    s[j] === "%" &&
+    j + 2 < s.length &&
+    /^[0-9A-Fa-f]{2}$/.test(s.substr(j + 1, 2));
+  while (i < s.length) {
+    if (isValidEscape(i)) {
+      // Consume a maximal run of valid '%XX' escapes and decode them together,
+      // so that multi-byte UTF-8 sequences are reassembled correctly.
+      let run = "";
+      while (isValidEscape(i)) {
+        run += s.substr(i, 3);
+        i += 3;
+      }
+      try {
+        decoded += decodeURIComponent(run);
+      } catch (e) {
+        // A run of syntactically-valid '%XX' escapes can still be invalid UTF-8
+        // (e.g. a lone continuation byte). Fall back to decoding byte-by-byte so
+        // we still make progress rather than throwing.
+        for (let j = 0; j < run.length; j += 3) {
+          decoded += String.fromCharCode(parseInt(run.substr(j + 1, 2), 16));
+        }
+      }
+    } else if (s[i] === "+") {
+      decoded += " ";
+      i += 1;
+    } else {
+      decoded += s[i];
+      i += 1;
+    }
   }
+  return decoded;
 }
 
 function parse_request_query(request) {
@@ -19,7 +48,11 @@ function parse_request_query(request) {
   const elements = request.query.split("&");
   const obj = {};
   for (const kv of elements) {
-    const [k, v] = kv.split("=");
+    // Split on the first '=' only: any further '=' characters are part of the
+    // value, matching split_1(param, "=") in include/ccf/http_query.h.
+    const eq = kv.indexOf("=");
+    const k = eq === -1 ? kv : kv.slice(0, eq);
+    const v = eq === -1 ? undefined : kv.slice(eq + 1);
     obj[decode_query_component(k)] =
       v === undefined ? v : decode_query_component(v);
   }
