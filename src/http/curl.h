@@ -526,6 +526,9 @@ namespace ccf::curl
         break;
         case HTTP_POST:
         {
+          // CURLOPT_POST takes a long: a non-zero value (1L) selects a
+          // regular HTTP POST request.
+          // See https://curl.se/libcurl/c/CURLOPT_POST.html
           CHECK_CURL_EASY_SETOPT(curl_handle, CURLOPT_POST, 1L);
           if (request_body == nullptr)
           {
