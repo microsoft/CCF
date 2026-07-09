@@ -955,6 +955,10 @@ def test_recovery_elections(orig_network, args):
         args.debug_nodes,
         existing_network=orig_network,
     )
+    # Make the backup which is not stalled below an unlikely election winner.
+    network.per_node_args_override[2] = {
+        "election_timeout_ms": args.election_timeout_ms * 10
+    }
     network.start_in_recovery(
         args,
         ledger_dir=current_ledger_dir,
