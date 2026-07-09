@@ -35,7 +35,7 @@ namespace consensus
       const size_t body_size = header.size;
       if (body_size > max_transaction_size)
       {
-        throw std::logic_error(ccf::kv::describe_serialized_entry_size_error(
+        throw std::logic_error(ccf::kv::describe_serialised_entry_size_error(
           body_size, max_transaction_size, "extract from ledger"));
       }
       if (body_size + ccf::kv::serialised_entry_header_size > size)

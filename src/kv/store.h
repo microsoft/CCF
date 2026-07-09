@@ -414,7 +414,11 @@ namespace ccf::kv
       std::unique_ptr<AbstractSnapshot> snapshot) override
     {
       auto e = get_encryptor();
-      return snapshot->serialise(e, max_transaction_size);
+      // Snapshots capture the entire committed state and are legitimately much
+      // larger than any single transaction, so the configured
+      // max_transaction_size (a per-transaction write limit) is deliberately
+      // not applied here.
+      return snapshot->serialise(e);
     }
 
     ApplyResult deserialise_snapshot(
@@ -432,8 +436,10 @@ namespace ccf::kv
 
       ccf::kv::Term term = 0;
       ccf::kv::EntryFlags entry_flags = {};
-      auto v_ = d.init(
-        data, size, term, entry_flags, is_historical, max_transaction_size);
+      // Snapshots are not subject to the per-transaction max_transaction_size
+      // limit (see serialise_snapshot), so it is not applied when reading one
+      // back either.
+      auto v_ = d.init(data, size, term, entry_flags, is_historical);
       if (!v_.has_value())
       {
         LOG_FAIL_FMT("Initialisation of deserialise object failed");

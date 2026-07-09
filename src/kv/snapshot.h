@@ -41,8 +41,7 @@ namespace ccf::kv
     }
 
     std::vector<uint8_t> serialise(
-      const std::shared_ptr<AbstractTxEncryptor>& encryptor,
-      size_t max_transaction_size) override
+      const std::shared_ptr<AbstractTxEncryptor>& encryptor) override
     {
       // Set the execution dependency for the snapshot to be the version
       // previous to said snapshot to ensure that the correct snapshot is
@@ -60,8 +59,7 @@ namespace ccf::kv
         0,
         {},
         ccf::no_claims(),
-        true /* historical_hint */,
-        max_transaction_size);
+        true /* historical_hint */);
 
       if (hash_at_snapshot.has_value())
       {

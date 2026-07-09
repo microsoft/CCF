@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
+- The `ledger.max_transaction_size` configuration option now limits the serialised transaction body size stored in each ledger entry. The limit excludes the fixed 8-byte ledger entry header and includes the ledger encryption header, public domain size field, public domain and encrypted private domain. The default value is `100MB`. (#7992)
 - JWT/JWK auto-refresh outbound HTTP fetches (OpenID metadata and JWKS) now use the curl multi singleton client introduced in #7102, replacing the previous `RPCSessions::create_client()` path. Connection and TLS failures are now counted in refresh failure metrics via `send_refresh_jwt_keys_error()`, improving observability of network-level refresh errors (#7989).
 - JWT/JWK auto-refresh now supports configuring the maximum response body size for fetched OpenID metadata and JWKS via the `jwt.key_refresh_max_response_size` node startup config setting (#7989).
 - Fatal task worker stack traces now use libbacktrace for improved function and source-location resolution. Building CCF now requires the libbacktrace development package, and the RPM development package depends on `libbacktrace-static` (#7721).
@@ -1294,7 +1295,6 @@ For more information, see [our documentation](https://microsoft.github.io/CCF/ma
 #### Configuration
 
 - The `cchost` configuration file now includes an `idle_connection_timeout` option. This controls how long the node will keep idle connections (for user TLS sessions) before automatically closing them. This may be set to `null` to restore the previous behaviour, where idle connections are never closed. By default connections will be closed after 60s of idle time.
-- The `ledger.max_transaction_size` configuration option now limits the serialized transaction body size stored in each ledger entry. The limit excludes the fixed 8-byte ledger entry header and includes the ledger encryption header, public domain size field, public domain and encrypted private domain. The default value is `100MB`. (#7488)
 - A soft size limit can now be set for the historical store cache in the node configuration: [`historical_cache_soft_limit`](https://microsoft.github.io/CCF/main/operations/generated_config.html#historical-cache-soft-limit). The default value is `512Mb`.
 - Path to the enclave file should now be passed as `--enclave-file` CLI argument to `cchost`, rather than `enclave.file` entry within configuration file.
 - SNP collateral must now be provided through the `snp_security_policy_file`, `snp_uvm_endorsements_file` and `snp_endorsements_servers` configuration values. See [documentation](https://microsoft.github.io/CCF/main/operations/platforms/snp.html) for details and platform-specific configuration samples.

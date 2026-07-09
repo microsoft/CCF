@@ -178,7 +178,7 @@ namespace ccf::kv
       }
       if (size_ > max_transaction_size)
       {
-        throw MaxTransactionSizeExceeded(describe_serialized_entry_size_error(
+        throw MaxTransactionSizeExceeded(describe_serialised_entry_size_error(
           size_, max_transaction_size, "serialise"));
       }
       entry_header.set_size(size_);
@@ -324,7 +324,7 @@ namespace ccf::kv
 
       if (tx_header.size > max_transaction_size)
       {
-        throw MaxTransactionSizeExceeded(describe_serialized_entry_size_error(
+        throw MaxTransactionSizeExceeded(describe_serialised_entry_size_error(
           tx_header.size, max_transaction_size, "deserialise"));
       }
 

@@ -8,6 +8,7 @@
 
 #include <doctest/doctest.h>
 #undef FAIL
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -236,6 +237,24 @@ TEST_CASE(
   REQUIRE_THROWS_AS(
     kv_store_target.deserialize(latest_data.value())->apply(),
     ccf::kv::MaxTransactionSizeExceeded);
+}
+
+TEST_CASE(
+  "Reject configuring a maximum transaction size beyond the serialisable "
+  "limit" *
+  doctest::test_suite("serialisation"))
+{
+  ccf::kv::Store kv_store;
+
+  // The largest size the ledger entry header can represent is accepted.
+  REQUIRE_NOTHROW(kv_store.set_max_transaction_size(
+    ccf::kv::SerialisedEntryHeader::max_serialised_entry_body_size));
+
+  // A value larger than can ever be serialised is rejected at configuration
+  // time, rather than being deferred to a later serialisation failure.
+  REQUIRE_THROWS_AS(
+    kv_store.set_max_transaction_size(std::numeric_limits<size_t>::max()),
+    std::logic_error);
 }
 
 TEST_CASE(

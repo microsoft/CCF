@@ -47,7 +47,7 @@ namespace ccf::kv
   static constexpr size_t serialised_entry_header_size =
     sizeof(SerialisedEntryHeader);
 
-  static inline std::string describe_serialized_entry_size_error(
+  static inline std::string describe_serialised_entry_size_error(
     size_t body_size, size_t max_body_size, const char* operation)
   {
     return fmt::format(
