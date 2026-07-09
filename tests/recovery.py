@@ -146,9 +146,7 @@ def recover_with_primary_dying(args, recovered_network):
     #
     # Nodes run with ignore_first_sigterm=True, so SIGTERM'ing the primary makes
     # it nominate a successor and an election happens immediately, with no
-    # election-timeout wait. That is deterministic and independent of ledger
-    # size, so a small ledger suffices; the older approach relied on a timeout
-    # election racing a large slow ledger, which was flaky.
+    # election-timeout wait.
     recovered_network.consortium.activate(recovered_network.find_random_node())
     recovered_network.consortium.check_for_service(
         recovered_network.find_random_node(),
@@ -172,8 +170,8 @@ def recover_with_primary_dying(args, recovered_network):
         recovered_network.find_random_node()
     )
 
-    # Wait until every node is reading the private ledger; this read phase lasts
-    # long enough to force and observe the election below.
+    # Wait until every node is reading the private ledger, so the primary can be
+    # prodded mid-read below.
     for node in recovered_network.get_joined_nodes():
         recovered_network.wait_for_state(
             node,
@@ -181,33 +179,35 @@ def recover_with_primary_dying(args, recovered_network):
             timeout=args.ledger_recovery_timeout,
         )
 
-    retired_primary, _ = recovered_network.find_primary()
+    retired_primary, initial_view = recovered_network.find_primary()
     retired_id = retired_primary.node_id
+
+    # Confirm the primary is still mid-read right before we prod it: this is the
+    # scenario under test (the primary must die before it can open the service).
+    # Checking here, rather than re-checking every node after the election,
+    # avoids racing the fast private-ledger read.
+    with retired_primary.client(connection_timeout=1) as c:
+        assert (
+            infra.node.State.READING_PRIVATE_LEDGER.value
+            == c.get("/node/state").body.json()["state"]
+        ), f"Primary {retired_id} finished reading before it could be prodded"
 
     # SIGTERM (not SIGKILL) the primary: thanks to ignore_first_sigterm it stays
     # up, treats this as a stop notice and immediately nominates a successor.
     LOG.info(f"SIGTERM primary {retired_id} to nominate a successor mid-recovery")
     retired_primary.sigterm()
 
-    # The nominated successor is elected rapidly (no election-timeout wait).
-    primary, _ = recovered_network.wait_for_new_primary(retired_primary)
-    LOG.info(f"New primary {primary.node_id} elected mid-recovery")
+    # The nominated successor is elected rapidly (no election-timeout wait). A new
+    # view confirms the election ran while recovery was still in progress.
+    primary, new_view = recovered_network.wait_for_new_primary(retired_primary)
+    assert new_view > initial_view, (new_view, initial_view)
+    LOG.info(f"New primary {primary.node_id} elected mid-recovery in view {new_view}")
 
     # SIGKILL the old primary (it ignored the SIGTERM) and drop it.
     retired_primary.sigkill()
     recovered_network.nodes.remove(retired_primary)
 
-    # The election must have completed while the survivors are still reading
-    # private entries (the property under test).
-    for node in recovered_network.get_joined_nodes():
-        LOG.info(f"Check state for node id {node.node_id}")
-        with node.client(connection_timeout=1) as c:
-            assert (
-                infra.node.State.READING_PRIVATE_LEDGER.value
-                == c.get("/node/state").body.json()["state"]
-            ), f"Node {node.node_id} left ReadingPrivateLedger before the election completed"
-
-    # Recovery now completes: the new primary finishes reading the private
+    # Recovery must still complete: the new primary finishes reading the private
     # ledger and opens the service.
     for node in recovered_network.get_joined_nodes():
         recovered_network.wait_for_state(
@@ -372,9 +372,9 @@ def test_recover_service(
         snapshots_dir = network.get_committed_snapshots(old_primary)
 
     if force_election:
-        # A non-trivial private ledger, so nodes stay in private recovery long
-        # enough to force an election. The volume isn't critical (the election is
-        # triggered deterministically, not via a timeout). Verified post-recovery.
+        # Populate the private ledger so the primary is still reading it when
+        # prodded below: the read must outlast the wait for all nodes to start
+        # reading. The exact volume isn't critical, just large enough for that.
         network.txs.issue(
             network,
             number_txs=2000,
