@@ -16,12 +16,6 @@ from cryptography.hazmat.primitives import serialization
 from infra.runner import ConcurrentRunner
 from loguru import logger as LOG
 
-# Logged by the network identity subsystem (network_identity_subsystem.h) when a
-# joining node detects a stale pre-recovery topmost endorsement and retries.
-# Whether it appears is a startup race, so it is only surfaced best-effort here;
-# network_identity_subsystem_test is the deterministic regression test for it.
-STALE_IDENTITY_RETRY_LOG = "signed by a stale service identity"
-
 
 def preserve_oldest_committed_snapshot(network, primary, dest_name):
     """Copy the oldest committed snapshot into a dedicated directory and return
@@ -155,18 +149,6 @@ def test_join_from_stale_pre_recovery_snapshot(network, args):
     # had that regressed, bootstrap would fail and the endpoint would never
     # become ready.
     verify_cross_recovery_identity_chain(new_node)
-
-    # Best-effort: surface it if the startup race lined up and the node also hit
-    # the stale-identity retry path. Not asserted - that race cannot be forced via
-    # the join API; network_identity_subsystem_test covers it deterministically.
-    out_path, _ = new_node.get_logs()
-    if out_path is not None:
-        with open(out_path, encoding="utf-8") as f:
-            if STALE_IDENTITY_RETRY_LOG in f.read():
-                LOG.success(
-                    "Joined node also exercised the stale pre-recovery identity "
-                    "retry path"
-                )
 
     return recovered_network
 
