@@ -312,18 +312,6 @@ namespace ccf
         "Network identity fetching settled at {}", ccf::to_string(status));
     }
 
-    [[nodiscard]] bool topmost_endorsement_signed_by_current_identity(
-      const CoseEndorsement& endorsement) const
-    {
-      // The topmost endorsement's endorsing key should match the current
-      // network identity public key. During join from a stale snapshot, the
-      // live KV may initially expose an older endorsement until ledger replay
-      // catches up.
-      const auto& current_pkey =
-        network_identity->get_key_pair()->public_key_der();
-      return endorsement.endorsing_key == current_pkey;
-    }
-
     void fetch_first()
     {
       // Pre-bootstrap waits are unbounded: KV reads can legitimately
@@ -365,17 +353,23 @@ namespace ccf
         return;
       }
 
-      if (!topmost_endorsement_signed_by_current_identity(endorsement.value()))
+      // The topmost endorsement's endorsing key should match the current
+      // network identity public key. During join from a stale snapshot, the
+      // live KV may initially expose an older endorsement until ledger replay
+      // catches up.
+      const auto& current_pkey =
+        network_identity->get_key_pair()->public_key_der();
+      if (endorsement->endorsing_key != current_pkey)
       {
         // Unbounded retry (like the other pre-bootstrap waits above), logging
-        // the target identity for diagnosis while the local store catches up.
+        // the mismatching keys for diagnosis while the local store catches up.
         LOG_INFO_FMT(
-          "Retrying fetching network identity: "
-          "topmost endorsement at {} is signed by a stale service identity, "
-          "waiting for the local store to reach the current service identity "
-          "at {}",
+          "Retrying fetching network identity: topmost endorsement at {} is "
+          "signed by public key {}, which differs from the expected current "
+          "network identity public key {}",
           endorsement->endorsement_epoch_begin.to_str(),
-          current.create_txid->to_str());
+          ccf::ds::to_hex(endorsement->endorsing_key),
+          ccf::ds::to_hex(current_pkey));
         scheduler->add_delayed_task(
           [this]() { this->fetch_first(); },
           std::chrono::milliseconds(retry_interval_ms));
