@@ -33,9 +33,10 @@ namespace ccf
     CurrentServiceIdentity get_current_service_identity() override
     {
       // Read the service record and the previous-identity endorsement from the
-      // SAME read-only transaction (one KV snapshot). Reading them in separate
-      // transactions could observe a create-txid and endorsement from
-      // different ledger versions if a recovery commits in between.
+      // SAME read-only transaction (one KV snapshot), and only report them when
+      // the service is OPEN. The endorsement is written in the same transaction
+      // that opens the service, so this guarantees they belong to the same
+      // service.
       auto store = node_state.get_store();
       auto tx = store->create_read_only_tx();
 

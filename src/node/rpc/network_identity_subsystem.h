@@ -324,20 +324,6 @@ namespace ccf
       return endorsement.endorsing_key == current_pkey;
     }
 
-    void reset_bootstrap_state()
-    {
-      // Clear any per-attempt bootstrap state (accumulated chain, service
-      // anchor, and retry budget) so the next fetch_first pass starts fresh.
-      // On the stale-topmost path this is defensive: it runs before any chain
-      // state has been built.
-      endorsements.clear();
-      trusted_keys.clear();
-      current_service_from.reset();
-      earliest_endorsed_seq = 0;
-      has_predecessors = false;
-      fetch_attempts = 0;
-    }
-
     void fetch_first()
     {
       // Pre-bootstrap waits are unbounded: KV reads can legitimately
@@ -355,13 +341,6 @@ namespace ccf
         return;
       }
 
-      // Read the current service create-txid and the topmost endorsement from a
-      // single consistent KV snapshot: reading them separately could observe a
-      // create-txid and endorsement from different ledger versions if a
-      // recovery commits in between, letting a stale create-txid pass the
-      // identity check below and then fail chain validation. Re-read every
-      // pass: while joining from a snapshot, the KV advances from the
-      // snapshot-era identity to the latest as the ledger suffix is replayed.
       auto current = node_state_accessor->get_current_service_identity();
       if (!current.create_txid.has_value())
       {
@@ -373,7 +352,6 @@ namespace ccf
           std::chrono::milliseconds(retry_interval_ms));
         return;
       }
-      current_service_from = current.create_txid;
 
       const auto& endorsement = current.endorsement;
       if (!endorsement.has_value())
@@ -397,13 +375,14 @@ namespace ccf
           "waiting for the local store to reach the current service identity "
           "at {}",
           endorsement->endorsement_epoch_begin.to_str(),
-          current_service_from->to_str());
-        reset_bootstrap_state();
+          current.create_txid->to_str());
         scheduler->add_delayed_task(
           [this]() { this->fetch_first(); },
           std::chrono::milliseconds(retry_interval_ms));
         return;
       }
+
+      current_service_from = current.create_txid;
 
       if (is_self_endorsement(endorsement.value()))
       {

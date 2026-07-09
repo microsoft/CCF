@@ -11,17 +11,12 @@
 
 namespace ccf
 {
-  // A consistent snapshot of the current service's identity, read from a
-  // single KV version so the create-txid and endorsement are never drawn from
-  // different ledger versions.
+  // The current service's identity, with the create-txid and endorsement read
+  // together from the same KV transaction.
   struct CurrentServiceIdentity
   {
-    // Current service's create-txid, or nullopt if not yet available
-    // (service missing, no create-txid, or status != OPEN).
     std::optional<TxID> create_txid;
 
-    // Current previous-identity endorsement entry in the live KV, or
-    // nullopt if none has been written yet.
     std::optional<CoseEndorsement> endorsement;
   };
 
@@ -31,10 +26,10 @@ namespace ccf
 
     [[nodiscard]] virtual bool is_part_of_network() const = 0;
 
-    // Read the current service create-txid and the current previous-identity
-    // endorsement from a single consistent KV snapshot, so a caller never
-    // observes a create-txid and endorsement drawn from different ledger
-    // versions (e.g. if a recovery commits between two separate reads).
+    // Read the current service create-txid and previous-identity endorsement
+    // together, only when the service status is OPEN. This guarantees they
+    // belong to the same service, because the endorsement is written in the
+    // same transaction that opens the service.
     virtual CurrentServiceIdentity get_current_service_identity() = 0;
   };
 
