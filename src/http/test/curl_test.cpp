@@ -85,7 +85,6 @@ TEST_CASE("RequestBody supports replay")
   const std::vector<uint8_t> expected = {1, 2, 3, 4};
   const auto data = expected;
   ccf::curl::RequestBody body(data);
-  REQUIRE(body.sent_size() == 0);
 
   std::vector<char> partial(2);
   REQUIRE(
@@ -93,25 +92,18 @@ TEST_CASE("RequestBody supports replay")
       partial.data(), 1, partial.size(), &body) == partial.size());
   REQUIRE(static_cast<uint8_t>(partial[0]) == expected[0]);
   REQUIRE(static_cast<uint8_t>(partial[1]) == expected[1]);
-  REQUIRE(body.sent_size() == partial.size());
 
-  REQUIRE(
-    ccf::curl::RequestBody::seek_data(&body, -1, SEEK_CUR) == CURL_SEEKFUNC_OK);
-  REQUIRE(body.sent_size() == 1);
+  REQUIRE(body.seek(-1, SEEK_CUR));
   char current = 0;
   REQUIRE(ccf::curl::RequestBody::send_data(&current, 1, 1, &body) == 1);
   REQUIRE(static_cast<uint8_t>(current) == expected[1]);
 
-  REQUIRE(
-    ccf::curl::RequestBody::seek_data(&body, -1, SEEK_END) == CURL_SEEKFUNC_OK);
-  REQUIRE(body.sent_size() == expected.size() - 1);
+  REQUIRE(body.seek(-1, SEEK_END));
   char last = 0;
   REQUIRE(ccf::curl::RequestBody::send_data(&last, 1, 1, &body) == 1);
   REQUIRE(static_cast<uint8_t>(last) == expected.back());
 
-  REQUIRE(
-    ccf::curl::RequestBody::seek_data(&body, 0, SEEK_SET) == CURL_SEEKFUNC_OK);
-  REQUIRE(body.sent_size() == 0);
+  REQUIRE(body.seek(0, SEEK_SET));
 
   std::vector<char> replayed(expected.size());
   REQUIRE(
@@ -122,16 +114,10 @@ TEST_CASE("RequestBody supports replay")
       return static_cast<uint8_t>(lhs) == rhs;
     }));
 
-  REQUIRE(
-    ccf::curl::RequestBody::seek_data(&body, expected.size() + 1, SEEK_SET) ==
-    CURL_SEEKFUNC_CANTSEEK);
-  REQUIRE(
-    ccf::curl::RequestBody::seek_data(&body, 1, SEEK_CUR) ==
-    CURL_SEEKFUNC_CANTSEEK);
-  REQUIRE(
-    ccf::curl::RequestBody::seek_data(
-      &body, -static_cast<curl_off_t>(expected.size()) - 1, SEEK_END) ==
-    CURL_SEEKFUNC_CANTSEEK);
+  REQUIRE_FALSE(body.seek(expected.size() + 1, SEEK_SET));
+  REQUIRE_FALSE(body.seek(1, SEEK_CUR));
+  REQUIRE_FALSE(
+    body.seek(-static_cast<curl_off_t>(expected.size()) - 1, SEEK_END));
 }
 
 TEST_CASE("ResponseHeaders rejects oversized headers")

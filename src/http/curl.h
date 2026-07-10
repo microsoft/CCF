@@ -266,6 +266,48 @@ namespace ccf::curl
       return bytes_to_copy;
     }
 
+    bool seek(curl_off_t offset, int origin)
+    {
+      const auto end = static_cast<curl_off_t>(buffer.size());
+      if (end < 0 || static_cast<size_t>(end) != buffer.size())
+      {
+        return false;
+      }
+
+      const auto current =
+        static_cast<curl_off_t>(buffer.size() - unsent.size());
+      curl_off_t position = 0;
+      switch (origin)
+      {
+        case SEEK_SET:
+          if (offset < 0 || offset > end)
+          {
+            return false;
+          }
+          position = offset;
+          break;
+        case SEEK_CUR:
+          if (offset < -current || offset > end - current)
+          {
+            return false;
+          }
+          position = current + offset;
+          break;
+        case SEEK_END:
+          if (offset < -end || offset > 0)
+          {
+            return false;
+          }
+          position = end + offset;
+          break;
+        default:
+          return false;
+      }
+
+      rewind(static_cast<size_t>(position));
+      return true;
+    }
+
     static int seek_data(RequestBody* data, curl_off_t offset, int origin)
     {
       if (data == nullptr)
@@ -274,48 +316,8 @@ namespace ccf::curl
         return CURL_SEEKFUNC_FAIL;
       }
 
-      const auto end = static_cast<curl_off_t>(data->buffer.size());
-      if (end < 0 || static_cast<size_t>(end) != data->buffer.size())
-      {
-        return CURL_SEEKFUNC_FAIL;
-      }
-
-      const auto current = static_cast<curl_off_t>(data->sent_size());
-      curl_off_t position = 0;
-      switch (origin)
-      {
-        case SEEK_SET:
-          if (offset < 0 || offset > end)
-          {
-            return CURL_SEEKFUNC_CANTSEEK;
-          }
-          position = offset;
-          break;
-        case SEEK_CUR:
-          if (offset < -current || offset > end - current)
-          {
-            return CURL_SEEKFUNC_CANTSEEK;
-          }
-          position = current + offset;
-          break;
-        case SEEK_END:
-          if (offset < -end || offset > 0)
-          {
-            return CURL_SEEKFUNC_CANTSEEK;
-          }
-          position = end + offset;
-          break;
-        default:
-          return CURL_SEEKFUNC_CANTSEEK;
-      }
-
-      data->rewind(static_cast<size_t>(position));
-      return CURL_SEEKFUNC_OK;
-    }
-
-    [[nodiscard]] size_t sent_size() const
-    {
-      return buffer.size() - unsent.size();
+      return data->seek(offset, origin) ? CURL_SEEKFUNC_OK :
+                                          CURL_SEEKFUNC_CANTSEEK;
     }
 
     [[nodiscard]] size_t size() const
