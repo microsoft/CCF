@@ -223,18 +223,30 @@ namespace ccf::curl
   class RequestBody
   {
     std::vector<uint8_t> buffer;
-    size_t read_offset = 0;
+    std::span<const uint8_t> unsent;
+
+    void rewind(size_t offset = 0)
+    {
+      unsent = std::span<const uint8_t>(buffer).subspan(offset);
+    }
 
   public:
-    RequestBody(const std::vector<uint8_t>& buffer_) : buffer(buffer_) {}
+    RequestBody(const std::vector<uint8_t>& buffer_) :
+      buffer(buffer_),
+      unsent(buffer)
+    {}
 
-    RequestBody(std::vector<uint8_t>&& buffer_) : buffer(std::move(buffer_)) {}
+    RequestBody(std::vector<uint8_t>&& buffer_) :
+      buffer(std::move(buffer_)),
+      unsent(buffer)
+    {}
 
     RequestBody(nlohmann::json json)
     {
       auto json_str = json.dump();
       buffer = std::vector<uint8_t>(
         json_str.begin(), json_str.end()); // Convert to vector of bytes
+      rewind();
     }
 
     static size_t send_data(
@@ -245,13 +257,12 @@ namespace ccf::curl
         LOG_FAIL_FMT("send_data called with null userdata");
         return 0;
       }
-      const auto bytes_to_copy =
-        std::min(data->buffer.size() - data->read_offset, size * nitems);
+      const auto bytes_to_copy = std::min(data->unsent.size(), size * nitems);
       if (bytes_to_copy > 0)
       {
-        memcpy(ptr, data->buffer.data() + data->read_offset, bytes_to_copy);
+        memcpy(ptr, data->unsent.data(), bytes_to_copy);
       }
-      data->read_offset += bytes_to_copy;
+      data->unsent = data->unsent.subspan(bytes_to_copy);
       return bytes_to_copy;
     }
 
@@ -263,39 +274,26 @@ namespace ccf::curl
         return CURL_SEEKFUNC_FAIL;
       }
 
-      const auto end = static_cast<curl_off_t>(data->buffer.size());
-      if (end < 0 || static_cast<size_t>(end) != data->buffer.size())
-      {
-        return CURL_SEEKFUNC_FAIL;
-      }
-
-      curl_off_t base = 0;
-      switch (origin)
-      {
-        case SEEK_SET:
-          break;
-        case SEEK_CUR:
-          base = static_cast<curl_off_t>(data->read_offset);
-          break;
-        case SEEK_END:
-          base = end;
-          break;
-        default:
-          return CURL_SEEKFUNC_CANTSEEK;
-      }
-
-      if ((offset < 0 && offset < -base) || (offset > 0 && offset > end - base))
+      if (origin != SEEK_SET || offset < 0)
       {
         return CURL_SEEKFUNC_CANTSEEK;
       }
 
-      data->read_offset = static_cast<size_t>(base + offset);
+      const auto position = static_cast<size_t>(offset);
+      if (
+        static_cast<curl_off_t>(position) != offset ||
+        position > data->buffer.size())
+      {
+        return CURL_SEEKFUNC_CANTSEEK;
+      }
+
+      data->rewind(position);
       return CURL_SEEKFUNC_OK;
     }
 
     [[nodiscard]] size_t size() const
     {
-      return buffer.size();
+      return unsent.size();
     }
 
     void attach_to_curl(CURL* curl)

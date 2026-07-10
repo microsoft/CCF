@@ -106,7 +106,10 @@ TEST_CASE("RequestBody supports replay")
     }));
 
   REQUIRE(
-    ccf::curl::RequestBody::seek_data(&body, 1, SEEK_END) ==
+    ccf::curl::RequestBody::seek_data(&body, expected.size() + 1, SEEK_SET) ==
+    CURL_SEEKFUNC_CANTSEEK);
+  REQUIRE(
+    ccf::curl::RequestBody::seek_data(&body, 0, SEEK_CUR) ==
     CURL_SEEKFUNC_CANTSEEK);
 }
 
