@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [7.0.8]
+
+[7.0.8]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.8
+
+### Changed
+
+- **The framework logger no longer depends on `libccf`.** The thread-identifier helpers used by `ccf/ds/logger.h` (`ccf::threading::get_current_thread_id`, `set_current_thread_id`, and `reset_thread_id_generator`) have moved out of `libccf` into a new standalone `ccf_threading` static library, which `find_package(ccf)` exports automatically. This removes a long-standing implicit circular dependency in which low-level libraries such as `ccfcrypto` — themselves dependencies of `ccf` — required a symbol that was only defined in `ccf`, and the per-application linker workaround that force-resolved `get_current_thread_id` from `ccf` has been removed (#7977).
+- **Build-graph change for consumers that link CCF component libraries directly.** `ccfcrypto` now links the new `ccf_threading` library, and `ccf_tasks` and `ccf_kv` link `ccf_threading` directly instead of `ccfcrypto`. Downstream targets that linked `ccf_tasks` or `ccf_kv` directly and relied on them transitively supplying CCF cryptography must now link `ccfcrypto` explicitly. Applications built with `add_ccf_app` (which link `ccf` and `ccf_launcher`) are unaffected (#7977).
+
 ## [7.0.7]
 
 [7.0.7]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.7

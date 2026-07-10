@@ -28,7 +28,6 @@ set(
   ${CCF_DIR}/src/crypto/openssl/cose_verifier.cpp
   ${CCF_DIR}/src/crypto/sharing.cpp
   ${CCF_DIR}/src/crypto/cbor.cpp
-  ${CCF_DIR}/src/threading/thread_ids.cpp
 )
 
 find_library(CRYPTO_LIBRARY crypto)
@@ -44,7 +43,7 @@ add_san(ccfcrypto)
 add_hardening(ccfcrypto)
 add_tidy(ccfcrypto)
 
-target_link_libraries(ccfcrypto PUBLIC crypto ssl evercbor)
+target_link_libraries(ccfcrypto PUBLIC crypto ssl evercbor ccf_threading)
 target_link_libraries(
   ccfcrypto
   PUBLIC

@@ -227,6 +227,7 @@ set(
 )
 
 include(${CCF_DIR}/cmake/cose_openssl.cmake)
+include(${CCF_DIR}/cmake/threading.cmake)
 include(${CCF_DIR}/cmake/crypto.cmake)
 include(${CCF_DIR}/cmake/quickjs.cmake)
 include(${CCF_DIR}/cmake/evercbor.cmake)
@@ -299,6 +300,7 @@ add_ccf_static_library(
     ${CCF_DIR}/src/kv/tx.cpp
     ${CCF_DIR}/src/kv/untyped_map_handle.cpp
     ${CCF_DIR}/src/kv/untyped_map_diff.cpp
+  LINK_LIBS ccf_threading
 )
 
 # CCF endpoints lib
@@ -337,7 +339,7 @@ add_ccf_static_library(
     ${CCF_DIR}/src/tasks/fan_in_tasks.cpp
     ${CCF_DIR}/src/tasks/thread_manager.cpp
     ${CCF_DIR}/src/tasks/worker.cpp
-  LINK_LIBS ccfcrypto
+  LINK_LIBS ccf_threading
 )
 
 find_library(BACKTRACE_LIBRARY backtrace)
@@ -973,10 +975,7 @@ if(BUILD_TESTS)
     )
 
     # Merkle Tree memory test
-    add_executable(
-      merkle_mem
-      src/node/test/merkle_mem.cpp
-    )
+    add_executable(merkle_mem src/node/test/merkle_mem.cpp)
     add_warning_checks(merkle_mem)
     target_link_libraries(
       merkle_mem
@@ -1047,11 +1046,7 @@ if(BUILD_TESTS)
       LINK_LIBS ccf_kv ccf_tasks
     )
 
-    add_picobench(
-      kv_bench
-      SRCS src/kv/test/kv_bench.cpp
-      LINK_LIBS ccf_kv
-    )
+    add_picobench(kv_bench SRCS src/kv/test/kv_bench.cpp LINK_LIBS ccf_kv)
     add_picobench(merkle_bench SRCS src/node/test/merkle_bench.cpp)
     add_picobench(hash_bench SRCS src/ds/test/hash_bench.cpp)
 
