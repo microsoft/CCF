@@ -343,6 +343,25 @@ TEST_CASE("unverified handshake")
     std::move(client_cert));
 }
 
+TEST_CASE("TLS I/O clears stale OpenSSL errors")
+{
+  auto ca = get_ca();
+  tls::Server server(get_dummy_cert(ca, "server", false));
+  tls::Client client(get_dummy_cert(ca, "client", false));
+
+  server.set_bio();
+  client.set_bio();
+  REQUIRE(handshake(client, server) == 0);
+
+  ERR_raise(ERR_LIB_ASN1, 1);
+  REQUIRE(ERR_peek_error() != 0);
+
+  uint8_t buf = 0;
+  size_t read = 0;
+  REQUIRE(server.read(&buf, sizeof(buf), read) == SSL_ERROR_WANT_READ);
+  REQUIRE(read == 0);
+}
+
 TEST_CASE("unverified communication")
 {
   const uint8_t message[] = "Hello World!";

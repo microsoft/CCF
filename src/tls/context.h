@@ -9,6 +9,7 @@
 
 #include <memory>
 #include <openssl/bio.h>
+#include <openssl/err.h>
 #include <openssl/ssl.h>
 
 namespace ccf::tls
@@ -137,6 +138,7 @@ namespace ccf::tls
         return 0;
       }
 
+      ERR_clear_error();
       int rc = SSL_do_handshake(ssl);
       if (rc > 0)
       {
@@ -165,6 +167,7 @@ namespace ccf::tls
       {
         return 0;
       }
+      ERR_clear_error();
       int rc = SSL_read_ex(ssl, buf, len, &readbytes);
       if (rc > 0)
       {
@@ -182,6 +185,7 @@ namespace ccf::tls
       {
         return 0;
       }
+      ERR_clear_error();
       int rc = SSL_write_ex(ssl, buf, len, &written);
       if (rc > 0)
       {
@@ -195,6 +199,7 @@ namespace ccf::tls
     virtual int close()
     {
       LOG_TRACE_FMT("Context::close() : Shutdown");
+      ERR_clear_error();
       int rc = SSL_shutdown(ssl);
       if (rc >= 0)
       {
