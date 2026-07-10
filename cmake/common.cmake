@@ -256,10 +256,7 @@ function(add_picobench name)
     "SRCS;INCLUDE_DIRS;LINK_LIBS"
   )
 
-  add_executable(
-    ${name}
-    ${PARSED_ARGS_SRCS}
-  )
+  add_executable(${name} ${PARSED_ARGS_SRCS})
 
   target_include_directories(${name} PRIVATE src ${PARSED_ARGS_INCLUDE_DIRS})
 
