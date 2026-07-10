@@ -3,6 +3,8 @@ bucket_a:
 
 bucket_b:
   recovery_test
+  recovery_stale_snapshot_join_test
+  recovery_intermediate_snapshot_join_test
   schema_test
   nodes_test
 
