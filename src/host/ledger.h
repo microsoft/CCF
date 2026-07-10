@@ -92,6 +92,13 @@ namespace asynchost
     static constexpr uint64_t truncation_marker_size =
       (1ULL << ccf::kv::SerialisedEntryHeader::BITS_FOR_SIZE) - 1;
 
+    [[nodiscard]] static bool is_truncation_marker(
+      const ccf::kv::SerialisedEntryHeader& header)
+    {
+      return header.version == ccf::kv::entry_format_v1 && header.flags == 0 &&
+        header.size == truncation_marker_size;
+    }
+
     size_t start_idx = 1;
     size_t total_len = 0; // Points to end of last written entry
     std::vector<uint32_t> positions;
@@ -100,6 +107,10 @@ namespace asynchost
     bool committed = false;
 
     bool recovery = false;
+
+    // Physical EOF retained after a logical rollback. While this is set,
+    // writes must keep a marker between the logical ledger and the stale tail.
+    std::optional<size_t> deferred_truncation_file_size = std::nullopt;
 
     // This flag is set when an existing ledger is recovered and started (init)
     // from an old idx. In this case, further ledger files (i.e. those which
@@ -155,21 +166,32 @@ namespace asynchost
       }
     }
 
-    void write_truncation_marker(size_t physical_size)
+    bool write_truncation_marker(size_t logical_end)
     {
-      // If there is no complete entry header beyond the logical end, recovery
-      // will already stop at total_len.
-      if (physical_size < total_len + ccf::kv::serialised_entry_header_size)
+      if (!deferred_truncation_file_size.has_value())
       {
-        return;
+        return false;
       }
 
-      if (fseeko(file, total_len, SEEK_SET) != 0)
+      const auto physical_size = deferred_truncation_file_size.value();
+      if (physical_size <= logical_end)
+      {
+        return false;
+      }
+
+      // If there is no complete entry header beyond the logical end, recovery
+      // will already stop there.
+      if (physical_size - logical_end < ccf::kv::serialised_entry_header_size)
+      {
+        return false;
+      }
+
+      if (fseeko(file, logical_end, SEEK_SET) != 0)
       {
         throw std::logic_error(fmt::format(
           "Failed to seek to truncation marker at logical end {} in ledger "
           "file {}: {}",
-          total_len,
+          logical_end,
           file_name,
           ccf::nonstd::strerror(errno)));
       }
@@ -190,6 +212,8 @@ namespace asynchost
           file_name,
           ccf::nonstd::strerror(errno)));
       }
+
+      return true;
     }
 
   public:
@@ -367,6 +391,16 @@ namespace asynchost
 
           len -= ccf::kv::serialised_entry_header_size;
 
+          if (is_truncation_marker(entry_header))
+          {
+            deferred_truncation_file_size = total_file_size;
+            LOG_DEBUG_FMT(
+              "Reached truncation marker in ledger file {} at seqno {}",
+              file_path,
+              current_idx);
+            return;
+          }
+
           const auto& entry_size = entry_header.size;
           if (len < entry_size)
           {
@@ -476,6 +510,32 @@ namespace asynchost
 
       if (should_write)
       {
+        const auto entry_start = total_len;
+        const auto marker_written = write_truncation_marker(entry_start + size);
+        if (marker_written)
+        {
+          {
+            TimeBoundLogger log_if_slow(fmt::format(
+              "Flushing ledger truncation marker - fflush({})", file_name));
+            if (fflush(file) != 0)
+            {
+              throw std::logic_error(fmt::format(
+                "Failed to flush ledger truncation marker: {}",
+                ccf::nonstd::strerror(errno)));
+            }
+          }
+
+          if (fseeko(file, entry_start, SEEK_SET) != 0)
+          {
+            throw std::logic_error(fmt::format(
+              "Failed to seek to ledger entry at logical end {} in file {}: "
+              "{}",
+              entry_start,
+              file_name,
+              ccf::nonstd::strerror(errno)));
+          }
+        }
+
         {
           TimeBoundLogger log_if_slow(fmt::format(
             "Writing ledger entry ({} bytes) - fwrite({})", size, file_name));
@@ -484,23 +544,30 @@ namespace asynchost
             throw std::logic_error("Failed to write entry to ledger");
           }
         }
-
-        // Committable entries get flushed straight away
-        if (committable)
-        {
-          TimeBoundLogger log_if_slow(
-            fmt::format("Flushing ledger entry - fflush({})", file_name));
-          if (fflush(file) != 0)
-          {
-            throw std::logic_error(fmt::format(
-              "Failed to flush entry to ledger: {}",
-              ccf::nonstd::strerror(errno)));
-          }
-        }
       }
 
       positions.push_back(total_len);
       total_len += size;
+
+      if (
+        deferred_truncation_file_size.has_value() &&
+        deferred_truncation_file_size.value() <= total_len)
+      {
+        deferred_truncation_file_size.reset();
+      }
+
+      // Committable entries get flushed straight away
+      if (should_write && committable)
+      {
+        TimeBoundLogger log_if_slow(
+          fmt::format("Flushing ledger entry - fflush({})", file_name));
+        if (fflush(file) != 0)
+        {
+          throw std::logic_error(fmt::format(
+            "Failed to flush entry to ledger: {}",
+            ccf::nonstd::strerror(errno)));
+        }
+      }
 
       return std::make_pair(get_last_idx(), has_truncated);
     }
@@ -653,7 +720,15 @@ namespace asynchost
       }
 
       const auto physical_size = get_physical_file_size();
-      write_truncation_marker(physical_size);
+      if (physical_size > total_len)
+      {
+        deferred_truncation_file_size = physical_size;
+      }
+      else
+      {
+        deferred_truncation_file_size.reset();
+      }
+      write_truncation_marker(total_len);
 
       {
         TimeBoundLogger log_if_slow(
@@ -682,6 +757,18 @@ namespace asynchost
       {
         return;
       }
+
+      if (from_existing_file)
+      {
+        truncate(get_last_idx(), false /* remove_file_if_empty */);
+      }
+
+      // Remove any stale tail before publishing a positions table offset. If
+      // the process stops after that offset is written, recovery must not
+      // interpret stale bytes as additional positions.
+      truncate_physical_file(total_len);
+      deferred_truncation_file_size.reset();
+
       if (fseeko(file, total_len, SEEK_SET) != 0)
       {
         throw std::logic_error(fmt::format(
@@ -698,8 +785,6 @@ namespace asynchost
           ccf::nonstd::strerror(errno)));
       }
       const auto table_offset = static_cast<size_t>(raw_table_offset);
-      const auto completed_file_size =
-        table_offset + positions.size() * sizeof(positions.at(0));
 
       {
         TimeBoundLogger log_if_slow(fmt::format(
@@ -742,8 +827,6 @@ namespace asynchost
             "Failed to flush ledger file: {}", ccf::nonstd::strerror(errno)));
         }
       }
-
-      truncate_physical_file(completed_file_size);
 
       LOG_TRACE_FMT("Completed ledger file {}", file_name);
 
