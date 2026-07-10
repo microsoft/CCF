@@ -215,6 +215,64 @@ DOCTEST_TEST_CASE("Body too large")
     DOCTEST_CHECK(!sp.received.empty());
     DOCTEST_CHECK(sp.received.front().body == body);
   }
+
+  // A body exactly at max_body_size is accepted: the check is strictly
+  // greater-than, so the boundary value is allowed.
+  {
+    http::SimpleRequestProcessor sp;
+    http::RequestParser p(sp, config);
+
+    const std::vector<uint8_t> body(8, 'a');
+    auto req = http::build_post_request(body);
+
+    p.execute(req.data(), req.size());
+    DOCTEST_CHECK(!sp.received.empty());
+    DOCTEST_CHECK(sp.received.front().body == body);
+  }
+
+  // A chunked body has no Content-Length, so content_length is 0 when the
+  // headers are complete and the early check does not fire. The append_body
+  // accumulation check is the fallback that rejects the request once the
+  // chunks received exceed max_body_size.
+  auto build_chunked_post = [](size_t body_size) {
+    const std::string chunk(body_size, 'a');
+    const std::string req = fmt::format(
+      "POST / HTTP/1.1\r\n"
+      "transfer-encoding: chunked\r\n"
+      "\r\n"
+      "{:x}\r\n"
+      "{}\r\n"
+      "0\r\n"
+      "\r\n",
+      body_size,
+      chunk);
+    return std::vector<uint8_t>(req.begin(), req.end());
+  };
+
+  // An oversized chunked body is rejected by append_body as the chunks
+  // accumulate, even though no Content-Length was advertised.
+  {
+    http::SimpleRequestProcessor sp;
+    http::RequestParser p(sp, config);
+
+    auto req = build_chunked_post(16);
+
+    DOCTEST_CHECK_THROWS_AS(
+      p.execute(req.data(), req.size()), http::RequestPayloadTooLargeException);
+    DOCTEST_CHECK(sp.received.empty());
+  }
+
+  // A chunked body within max_body_size is accepted.
+  {
+    http::SimpleRequestProcessor sp;
+    http::RequestParser p(sp, config);
+
+    auto req = build_chunked_post(4);
+
+    p.execute(req.data(), req.size());
+    DOCTEST_CHECK(!sp.received.empty());
+    DOCTEST_CHECK(sp.received.front().body.size() == 4);
+  }
 }
 
 DOCTEST_TEST_CASE("Multiple requests")

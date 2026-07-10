@@ -61,11 +61,11 @@ static void parse_request(picobench::state& s)
   }
 }
 
-const std::vector<int> sizes = {100, 1000};
+const std::vector<int> iteration_counts = {100, 1000};
 
 PICOBENCH_SUITE("parse_request");
-PICOBENCH(parse_request<0>).iterations(sizes).baseline();
-PICOBENCH(parse_request<64>).iterations(sizes);
-PICOBENCH(parse_request<1024>).iterations(sizes);
-PICOBENCH(parse_request<16384>).iterations(sizes);
-PICOBENCH(parse_request<65536>).iterations(sizes);
+PICOBENCH(parse_request<0>).iterations(iteration_counts).baseline();
+PICOBENCH(parse_request<64>).iterations(iteration_counts);
+PICOBENCH(parse_request<1024>).iterations(iteration_counts);
+PICOBENCH(parse_request<16384>).iterations(iteration_counts);
+PICOBENCH(parse_request<65536>).iterations(iteration_counts);
