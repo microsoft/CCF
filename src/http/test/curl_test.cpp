@@ -83,7 +83,7 @@ TEST_CASE("is_transient_transport_error classifies curl errors")
 TEST_CASE("RequestBody supports replay")
 {
   const std::vector<uint8_t> expected = {1, 2, 3, 4};
-  auto data = expected;
+  const auto data = expected;
   ccf::curl::RequestBody body(data);
 
   std::vector<char> partial(2);

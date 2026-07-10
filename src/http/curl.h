@@ -226,7 +226,7 @@ namespace ccf::curl
     size_t read_offset = 0;
 
   public:
-    RequestBody(std::vector<uint8_t>& buffer) : buffer(buffer) {}
+    RequestBody(const std::vector<uint8_t>& buffer_) : buffer(buffer_) {}
 
     RequestBody(std::vector<uint8_t>&& buffer_) : buffer(std::move(buffer_)) {}
 
