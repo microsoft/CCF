@@ -208,12 +208,13 @@ TEST_CASE(
 }
 
 TEST_CASE(
-  "Reject deserialised transactions exceeding configured serialised size" *
+  "Deserialisation is not subject to the transaction size limit" *
   doctest::test_suite("serialisation"))
 {
   auto consensus = std::make_shared<ccf::kv::test::StubConsensus>();
   auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
 
+  // Serialise a transaction under a permissive (default) limit.
   ccf::kv::Store kv_store;
   kv_store.set_consensus(consensus);
   kv_store.set_encryptor(encryptor);
@@ -223,20 +224,22 @@ TEST_CASE(
   {
     auto tx = kv_store.create_tx();
     auto handle = tx.rw(map);
-    handle->put("small", "ok");
+    handle->put("large", std::string(2048, 'A'));
     REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
   }
 
   const auto latest_data = consensus->get_latest_data();
   REQUIRE(latest_data.has_value());
 
+  // The cap applies only to serialisation. A tiny limit on the target store
+  // must not prevent it from deserialising an already-serialised transaction.
   ccf::kv::Store kv_store_target;
   kv_store_target.set_encryptor(encryptor);
   kv_store_target.set_max_transaction_size(1);
 
-  REQUIRE_THROWS_AS(
-    kv_store_target.deserialize(latest_data.value())->apply(),
-    ccf::kv::MaxTransactionSizeExceeded);
+  REQUIRE(
+    kv_store_target.deserialize(latest_data.value())->apply() ==
+    ccf::kv::ApplyResult::PASS);
 }
 
 TEST_CASE(

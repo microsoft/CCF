@@ -176,14 +176,17 @@ namespace ccf::kv
         size_ += crypto_util->get_header_length() + sizeof(size_t) +
           serialised_private_domain.size();
       }
-      if (size_ > max_transaction_size)
-      {
-        throw MaxTransactionSizeExceeded(describe_serialised_entry_size_error(
-          size_, max_transaction_size, "serialise"));
-      }
       entry_header.set_size(size_);
 
+      // The configured limit applies to the whole serialised ledger entry,
+      // including the fixed-size entry header.
       size_ += sizeof(SerialisedEntryHeader);
+
+      if (size_ > max_transaction_size)
+      {
+        throw MaxTransactionSizeExceeded(
+          describe_serialised_entry_size_error(size_, max_transaction_size));
+      }
 
       std::vector<uint8_t> entry(size_);
       auto* data_ = entry.data();
@@ -311,9 +314,7 @@ namespace ccf::kv
       size_t size,
       ccf::kv::Term& term,
       EntryFlags& flags,
-      bool historical_hint = false,
-      size_t max_transaction_size =
-        SerialisedEntryHeader::max_serialised_entry_body_size) override
+      bool historical_hint = false) override
     {
       current_reader = &public_reader;
       const auto* data_ = data;
@@ -321,12 +322,6 @@ namespace ccf::kv
 
       const auto tx_header =
         serialized::read<SerialisedEntryHeader>(data_, size_);
-
-      if (tx_header.size > max_transaction_size)
-      {
-        throw MaxTransactionSizeExceeded(describe_serialised_entry_size_error(
-          tx_header.size, max_transaction_size, "deserialise"));
-      }
 
       flags = static_cast<EntryFlags>(tx_header.flags);
 

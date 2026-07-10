@@ -343,9 +343,7 @@ namespace ccf::kv
       size_t size,
       ccf::kv::Term& term,
       EntryFlags& flags,
-      bool historical_hint = false,
-      size_t max_transaction_size =
-        SerialisedEntryHeader::max_serialised_entry_body_size) = 0;
+      bool historical_hint = false) = 0;
     virtual std::optional<std::string> start_map() = 0;
     virtual Version deserialise_entry_version() = 0;
     virtual uint64_t deserialise_read_header() = 0;

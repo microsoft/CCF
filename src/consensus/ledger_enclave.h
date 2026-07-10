@@ -20,24 +20,18 @@ namespace consensus
      *
      * @param data Serialised entries
      * @param size Size of overall serialised entries
-     * @param max_transaction_size Maximum allowed serialised entry body size
      *
      * @return Raw entry as a vector
      */
-    static std::vector<uint8_t> get_entry(
-      const uint8_t*& data,
-      size_t& size,
-      size_t max_transaction_size =
-        ccf::kv::SerialisedEntryHeader::max_serialised_entry_body_size)
+    static std::vector<uint8_t> get_entry(const uint8_t*& data, size_t& size)
     {
       auto header =
         serialized::peek<ccf::kv::SerialisedEntryHeader>(data, size);
       const size_t body_size = header.size;
-      if (body_size > max_transaction_size)
-      {
-        throw std::logic_error(ccf::kv::describe_serialised_entry_size_error(
-          body_size, max_transaction_size, "extract from ledger"));
-      }
+      // This is a buffer-bounds safety check, not the configurable transaction
+      // size limit: that limit applies only when serialising new transactions.
+      // Deserialisation (including recovery replay) is exempt, so entries
+      // written under a larger or unset limit can always be read back.
       if (body_size + ccf::kv::serialised_entry_header_size > size)
       {
         throw std::logic_error(fmt::format(

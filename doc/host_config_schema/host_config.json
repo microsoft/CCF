@@ -21,7 +21,9 @@
             }
           },
           "description": "Addresses (host:port) to listen on for incoming node-to-node connections (e.g. internal consensus messages). IPv6 literals must be bracketed, e.g. ``[::1]:8081``",
-          "required": ["bind_address"],
+          "required": [
+            "bind_address"
+          ],
           "additionalProperties": false
         },
         "rpc_interfaces": {
@@ -100,12 +102,19 @@
                 "properties": {
                   "authority": {
                     "type": "string",
-                    "enum": ["Node", "Service", "ACME", "Unsecured"],
+                    "enum": [
+                      "Node",
+                      "Service",
+                      "ACME",
+                      "Unsecured"
+                    ],
                     "default": "Service",
                     "description": "The type of endorsement for the TLS certificate used in client sessions. If the endorsement is not available, client sessions will be terminated, before the TLS handshake is complete. 'Node' means self-signed, 'Service' means service-endorsed, 'ACME' is deprecated, 'Unsecured' means unencrypted traffic and no endorsement authority"
                   }
                 },
-                "required": ["authority"],
+                "required": [
+                  "authority"
+                ],
                 "additionalProperties": false
               },
               "accepted_endpoints": {
@@ -138,19 +147,28 @@
               "enabled_operator_features": {
                 "type": "array",
                 "items": {
-                  "enum": ["SnapshotRead", "LedgerChunkRead", "SnapshotCreate"],
+                  "enum": [
+                    "SnapshotRead",
+                    "LedgerChunkRead",
+                    "SnapshotCreate"
+                  ],
                   "type": "string"
                 },
                 "description": "An array of features which should be enabled on this interface, providing access to endpoints with specific security or performance constraints."
               }
             },
-            "required": ["bind_address"]
+            "required": [
+              "bind_address"
+            ]
           },
           "description": "Interfaces to listen on for incoming client TLS connections, as a dictionary from unique interface name to RPC interface information"
         }
       },
       "description": "This section includes configuration for the interfaces a node listens on (for both client and node-to-node communications)",
-      "required": ["node_to_node_interface", "rpc_interfaces"],
+      "required": [
+        "node_to_node_interface",
+        "rpc_interfaces"
+      ],
       "additionalProperties": false
     },
     "command": {
@@ -158,7 +176,11 @@
       "properties": {
         "type": {
           "type": "string",
-          "enum": ["Start", "Join", "Recover"],
+          "enum": [
+            "Start",
+            "Join",
+            "Recover"
+          ],
           "description": "Type of CCF node"
         },
         "service_certificate_file": {
@@ -222,20 +244,32 @@
                           "description": "Path to member x509 identity certificate (PEM)"
                         },
                         "encryption_public_key_file": {
-                          "type": ["string", "null"],
+                          "type": [
+                            "string",
+                            "null"
+                          ],
                           "description": "Path to member encryption public key (PEM)"
                         },
                         "data_json_file": {
-                          "type": ["string", "null"],
+                          "type": [
+                            "string",
+                            "null"
+                          ],
                           "description": "Path to member data file (JSON)"
                         },
                         "recovery_role": {
                           "type": "string",
-                          "enum": ["NonParticipant", "Participant", "Owner"],
+                          "enum": [
+                            "NonParticipant",
+                            "Participant",
+                            "Owner"
+                          ],
                           "description": "Whether the member acts as a recovery participant and gets assigned a share that can contribute towards a recovery threshold or as an owner and gets assigned a full recovery key"
                         }
                       },
-                      "required": ["certificate_file"],
+                      "required": [
+                        "certificate_file"
+                      ],
                       "additionalProperties": false
                     },
                     "description": "List of initial consortium members files, including identity certificates, public encryption keys and member data files"
@@ -267,15 +301,22 @@
                         "minimum": 1
                       }
                     },
-                    "required": ["recovery_threshold"],
+                    "required": [
+                      "recovery_threshold"
+                    ],
                     "additionalProperties": false
                   }
                 },
-                "required": ["constitution_files", "members"],
+                "required": [
+                  "constitution_files",
+                  "members"
+                ],
                 "additionalProperties": false
               }
             },
-            "required": ["start"]
+            "required": [
+              "start"
+            ]
           }
         },
         {
@@ -327,16 +368,23 @@
                     "description": "Maximum size of snapshot this node is willing to fetch"
                   },
                   "host_data_transparent_statement_path": {
-                    "type": ["string", "null"],
+                    "type": [
+                      "string",
+                      "null"
+                    ],
                     "default": null,
                     "description": "Path to a SCITT Transparent Statement over the attested host_data of the node"
                   }
                 },
-                "required": ["target_rpc_address"],
+                "required": [
+                  "target_rpc_address"
+                ],
                 "additionalProperties": false
               }
             },
-            "required": ["join"]
+            "required": [
+              "join"
+            ]
           }
         },
         {
@@ -363,7 +411,9 @@
                     "description": "Path to the previous service certificate (PEM) file"
                   }
                 },
-                "required": ["previous_service_identity_file"],
+                "required": [
+                  "previous_service_identity_file"
+                ],
                 "additionalProperties": false
               }
             }
@@ -371,7 +421,9 @@
         }
       ],
       "description": "This section includes configuration of how the node should start (either start, join or recover) and associated information",
-      "required": ["type"]
+      "required": [
+        "type"
+      ]
     },
     "node_certificate": {
       "type": "object",
@@ -390,7 +442,10 @@
         },
         "curve_id": {
           "type": "string",
-          "enum": ["Secp384R1", "Secp256R1"],
+          "enum": [
+            "Secp384R1",
+            "Secp256R1"
+          ],
           "default": "Secp384R1",
           "description": "Elliptic curve to use for node identity key"
         },
@@ -405,22 +460,34 @@
       "additionalProperties": false
     },
     "node_data_json_file": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "description": "Path to file (JSON) containing initial node data. It is intended to store correlation IDs describing the node's deployment, such as a VM name or Pod identifier"
     },
     "attestation": {
       "type": "object",
       "properties": {
         "snp_security_policy_file": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "description": "Path to file containing the security policy (SEV-SNP only), can contain environment variables, such as $UVM_SECURITY_CONTEXT_DIR"
         },
         "snp_uvm_endorsements_file": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "description": "Path to file containing UVM endorsements as a base64-encoded COSE Sign1 (SEV-SNP only). Can contain environment variables, such as $UVM_SECURITY_CONTEXT_DIR"
         },
         "snp_endorsements_file": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "description": "Path to file containing AMD VCEK hardware endorsements (a PEM certificate chain), base-64 encoded. Can contain environment variables, such as $UVM_SECURITY_CONTEXT_DIR. Will be used in preference to snp_endorsements_servers if the tcbm in this file matches that of the attestation"
         },
         "snp_endorsements_servers": {
@@ -430,7 +497,11 @@
             "properties": {
               "type": {
                 "type": "string",
-                "enum": ["Azure", "AMD", "THIM"],
+                "enum": [
+                  "Azure",
+                  "AMD",
+                  "THIM"
+                ],
                 "default": "Azure",
                 "description": "Type of server used to retrieve attestation report endorsement certificates (SEV-SNP only)"
               },
@@ -444,7 +515,9 @@
                 "description": "Maximum number of retries to fetch endorsements from the server"
               }
             },
-            "required": ["url"],
+            "required": [
+              "url"
+            ],
             "additionalProperties": false
           },
           "description": "List of servers used to retrieve attestation report endorsement certificates (SEV-SNP only). The first server in the list is always used and other servers are only specified as fallback. If set, attestation endorsements from ``--snp-security-context-dir-var`` are ignored, but uvm endorsements from that directory are still used."
@@ -454,7 +527,10 @@
       "additionalProperties": false
     },
     "service_data_json_file": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "description": "Path to file (JSON) containing initial service data. It is used when the node starts in 'Start' or 'Recover' mode and is intended to store arbitrary information about the service"
     },
     "ledger": {
@@ -480,7 +556,7 @@
         "max_transaction_size": {
           "type": "string",
           "default": "100MB",
-          "description": "Maximum serialised transaction body size (size string). This is compared with the size stored in the ledger entry header, so it excludes the fixed 8-byte ledger entry header and includes the ledger encryption header, public domain size field, public domain and encrypted private domain."
+          "description": "Maximum total serialised size of a transaction (size string). This covers the whole ledger entry: the fixed 8-byte ledger entry header, the ledger encryption header, public domain size field, public domain and encrypted private domain."
         }
       },
       "description": "This section includes configuration for the ledger directories and files",
@@ -511,7 +587,10 @@
           "description": "Time interval after which a snapshot should be triggered, provided more than min_tx_count transactions have elapsed since the last snapshot. Set this to 0s to disable time-based snapshotting."
         },
         "read_only_directory": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "description": "Path to read-only snapshots directory. Deprecated: this option is deprecated and will be removed in a future release. Use join.fetch_recent_snapshot and snapshots.backup_fetch to have joining and/or backup nodes automatically fetch snapshots from the primary node instead."
         },
         "backup_fetch": {
@@ -555,13 +634,19 @@
       "type": "object",
       "properties": {
         "max_snapshots": {
-          "type": ["integer", "null"],
+          "type": [
+            "integer",
+            "null"
+          ],
           "default": null,
           "description": "Maximum number of committed snapshot files to retain. When the number of committed snapshots exceeds this value, the oldest snapshots are deleted. Must be at least 1 if set. If null or unset, no automated snapshot garbage collection is performed.",
           "minimum": 1
         },
         "max_committed_ledger_chunks": {
-          "type": ["integer", "null"],
+          "type": [
+            "integer",
+            "null"
+          ],
           "default": null,
           "description": "Maximum number of committed ledger chunk files to retain in the main ledger directory. When the number of committed chunks exceeds this value, the oldest chunks are deleted, but only after verifying that an identical copy (by SHA-256 digest) exists in at least one read-only ledger directory. Chunks whose entries extend to or beyond the sequence number of the newest committed snapshot are never deleted, ensuring a complete ledger history from that snapshot for disaster recovery. Requires at least one ledger.read_only_directories entry; the node will refuse to start otherwise. If null or unset, no automated ledger chunk garbage collection is performed."
         },
@@ -597,13 +682,22 @@
       "properties": {
         "host_level": {
           "type": "string",
-          "enum": ["Trace", "Debug", "Info", "Fail", "Fatal"],
+          "enum": [
+            "Trace",
+            "Debug",
+            "Info",
+            "Fail",
+            "Fatal"
+          ],
           "default": "Info",
           "description": "Logging level for the untrusted host. DEPRECATED, use the --log-level CLI switch instead."
         },
         "format": {
           "type": "string",
-          "enum": ["Text", "Json"],
+          "enum": [
+            "Text",
+            "Json"
+          ],
           "default": "Text",
           "description": "If 'json', node logs will be formatted as JSON"
         }
@@ -704,7 +798,10 @@
       "description": "Maximum duration of I/O operations (ledger and snapshots) after which slow operations will be logged to node log"
     },
     "node_client_interface": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "description": "Address to bind to for node-to-node client connections. If unspecified, this is automatically assigned by the OS. This option is particularly useful for testing purposes (e.g. establishing network partitions between nodes)"
     },
     "client_connection_timeout": {
@@ -713,7 +810,10 @@
       "description": "Maximum duration after which unestablished client connections will be marked as timed out and either re-established or discarded"
     },
     "idle_connection_timeout": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "default": "60s",
       "description": "Timeout for idle connections. Null is a valid option, and means idle connections are retained indefinitely"
     },
@@ -774,7 +874,10 @@
               "type": "string"
             }
           },
-          "required": ["name", "address"],
+          "required": [
+            "name",
+            "address"
+          ],
           "additionalProperties": false
         },
         "recovery_decision_protocol": {
@@ -793,7 +896,10 @@
                     "type": "string"
                   }
                 },
-                "required": ["name", "address"],
+                "required": [
+                  "name",
+                  "address"
+                ],
                 "additionalProperties": false
               }
             },
@@ -807,26 +913,38 @@
               "description": "Timeout duration before failover forcibly advances the recovery_decision_protocol, allowing recovery to proceed even in the presence of unresponsive nodes. Set to 0 to disable failover."
             }
           },
-          "required": ["expected_locations"],
+          "required": [
+            "expected_locations"
+          ],
           "additionalProperties": false
         }
       },
-      "required": ["location"],
+      "required": [
+        "location"
+      ],
       "additionalProperties": false
     }
   },
-  "required": ["network", "command"],
+  "required": [
+    "network",
+    "command"
+  ],
   "additionalProperties": false,
   "$defs": {
     "RedirectionResolver": {
       "type": "object",
       "properties": {
         "kind": {
-          "enum": ["NodeByRole", "StaticAddress"]
+          "enum": [
+            "NodeByRole",
+            "StaticAddress"
+          ]
         },
         "target": {}
       },
-      "required": ["kind"],
+      "required": [
+        "kind"
+      ],
       "allOf": [
         {
           "if": {
@@ -842,7 +960,10 @@
                 "type": "object",
                 "properties": {
                   "role": {
-                    "enum": ["primary", "backup"],
+                    "enum": [
+                      "primary",
+                      "backup"
+                    ],
                     "default": "primary"
                   }
                 },
@@ -868,11 +989,15 @@
                     "type": "string"
                   }
                 },
-                "required": ["address"],
+                "required": [
+                  "address"
+                ],
                 "additionalProperties": false
               }
             },
-            "required": ["target"]
+            "required": [
+              "target"
+            ]
           }
         }
       ],

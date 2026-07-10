@@ -1477,8 +1477,7 @@ namespace ccf
 
       while (size > 0)
       {
-        auto entry = ::consensus::LedgerEnclave::get_entry(
-          data, size, network.tables->get_max_transaction_size());
+        auto entry = ::consensus::LedgerEnclave::get_entry(data, size);
 
         LOG_INFO_FMT(
           "Deserialising public ledger entry #{} [{} bytes]",
@@ -1767,8 +1766,7 @@ namespace ccf
 
       while (size > 0)
       {
-        auto entry = ::consensus::LedgerEnclave::get_entry(
-          data, size, network.tables->get_max_transaction_size());
+        auto entry = ::consensus::LedgerEnclave::get_entry(data, size);
 
         LOG_INFO_FMT(
           "Deserialising private ledger entry {} [{}]",
@@ -1983,8 +1981,6 @@ namespace ccf
       recovery_store = std::make_shared<ccf::kv::Store>(
         true /* Check transactions in order */,
         true /* Make use of historical secrets */);
-      recovery_store->set_max_transaction_size(
-        network.tables->get_max_transaction_size());
       auto recovery_history = std::make_shared<MerkleTxHistory>(
         *recovery_store,
         self,

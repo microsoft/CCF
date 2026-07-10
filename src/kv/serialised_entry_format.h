@@ -48,18 +48,16 @@ namespace ccf::kv
     sizeof(SerialisedEntryHeader);
 
   static inline std::string describe_serialised_entry_size_error(
-    size_t body_size, size_t max_body_size, const char* operation)
+    size_t entry_size, size_t max_entry_size)
   {
     return fmt::format(
-      "Cannot {} transaction with serialised body size {} bytes. The "
-      "configured maximum is {} bytes. The transaction size compared to this "
-      "limit is the size stored in the ledger entry header: the serialised "
-      "transaction body after the fixed {}-byte ledger entry header, "
-      "including any ledger encryption header, public domain size field, "
-      "public domain and encrypted private domain.",
-      operation,
-      body_size,
-      max_body_size,
+      "Cannot serialise transaction with total serialised size {} bytes. The "
+      "configured maximum is {} bytes. The size compared to this limit is the "
+      "whole ledger entry: the fixed {}-byte ledger entry header plus the "
+      "serialised transaction body (any ledger encryption header, public "
+      "domain size field, public domain and encrypted private domain).",
+      entry_size,
+      max_entry_size,
       serialised_entry_header_size);
   }
 }

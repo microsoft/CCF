@@ -766,13 +766,8 @@ namespace ccf::kv
         public_only ? ccf::kv::SecurityDomain::PUBLIC :
                       std::optional<ccf::kv::SecurityDomain>());
 
-      auto v_ = d.init(
-        data.data(),
-        data.size(),
-        view,
-        entry_flags,
-        is_historical,
-        max_transaction_size);
+      auto v_ =
+        d.init(data.data(), data.size(), view, entry_flags, is_historical);
       if (!v_.has_value())
       {
         LOG_FAIL_FMT("Initialisation of deserialise object failed");
