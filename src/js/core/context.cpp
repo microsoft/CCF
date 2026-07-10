@@ -521,26 +521,36 @@ namespace ccf::js::core
 
   std::optional<std::string> Context::to_str(const JSWrappedValue& x) const
   {
-    const auto* val = JS_ToCString(ctx, x.val);
+    size_t len = 0;
+    const auto* val = JS_ToCStringLen(ctx, &len, x.val);
     if (val == nullptr)
     {
-      new_type_error("value is not a string");
+      // JS_ToCStringLen returns nullptr when a JS exception is already set (eg
+      // OOM, or an exception during coercion). Preserve that exception for
+      // callers.
       return std::nullopt;
     }
-    std::string r(val);
+    // Construct with explicit length rather than relying on the returned
+    // buffer's NUL terminator, since the JS string may itself contain
+    // embedded NUL characters which would otherwise silently truncate it.
+    std::string r(val, len);
     JS_FreeCString(ctx, val);
     return r;
   }
 
   std::optional<std::string> Context::to_str(const JSValue& x) const
   {
-    const auto* val = JS_ToCString(ctx, x);
+    size_t len = 0;
+    const auto* val = JS_ToCStringLen(ctx, &len, x);
     if (val == nullptr)
     {
-      new_type_error("value is not a string");
+      // JS_ToCStringLen returns nullptr when a JS exception is already set (eg
+      // OOM, or an exception during coercion). Preserve that exception for
+      // callers.
       return std::nullopt;
     }
-    std::string r(val);
+    // See comment in to_str(const JSWrappedValue&) above.
+    std::string r(val, len);
     JS_FreeCString(ctx, val);
     return r;
   }
@@ -551,23 +561,29 @@ namespace ccf::js::core
     const auto* val = JS_ToCStringLen(ctx, &len, x);
     if (val == nullptr)
     {
-      new_type_error("value is not a string");
+      // JS_ToCStringLen returns nullptr when a JS exception is already set (eg
+      // OOM, or an exception during coercion). Preserve that exception for
+      // caller
       return std::nullopt;
     }
-    std::string r(val);
+    // See comment in to_str(const JSWrappedValue&) above.
+    std::string r(val, len);
     JS_FreeCString(ctx, val);
     return r;
   }
 
   std::optional<std::string> Context::to_str(const JSAtom& atom) const
   {
-    const auto* val = JS_AtomToCString(ctx, atom);
+    size_t len = 0;
+    const auto* val = JS_AtomToCStringLen(ctx, &len, atom);
     if (val == nullptr)
     {
-      new_type_error("atom is not a string");
+      // JS_AtomToCStringLen returns nullptr when a JS exception is already set
+      // (eg OOM). Preserve that exception for callers.
       return std::nullopt;
     }
-    std::string r(val);
+    // See comment in to_str(const JSWrappedValue&) above.
+    std::string r(val, len);
     JS_FreeCString(ctx, val);
     return r;
   }
