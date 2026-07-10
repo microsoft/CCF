@@ -41,6 +41,10 @@ async def echo_handler(request):
     return web.json_response(response_data)
 
 
+async def redirect_handler(_request):
+    raise web.HTTPTemporaryRedirect("/redirected")
+
+
 def make_self_signed_cert(san_dns):
     key = ec.generate_private_key(ec.SECP256R1())
     name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, san_dns)])
@@ -70,6 +74,7 @@ def make_self_signed_cert(san_dns):
 
 async def main():
     app = web.Application()
+    app.router.add_route("*", "/redirect", redirect_handler)
     app.router.add_route("*", "/{path:.*}", echo_handler)
 
     runner = web.AppRunner(app)
