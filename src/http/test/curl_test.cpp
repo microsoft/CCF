@@ -10,6 +10,7 @@
 #include <curl/header.h>
 #include <fstream>
 #include <iostream>
+#include <limits>
 #include <llhttp/llhttp.h>
 #include <memory>
 #include <nlohmann/json.hpp>
@@ -118,6 +119,7 @@ TEST_CASE("RequestBody supports replay")
   REQUIRE_FALSE(body.seek(1, SEEK_CUR));
   REQUIRE_FALSE(
     body.seek(-static_cast<curl_off_t>(expected.size()) - 1, SEEK_END));
+  REQUIRE_FALSE(body.seek(std::numeric_limits<curl_off_t>::max(), SEEK_CUR));
 }
 
 TEST_CASE("ResponseHeaders rejects oversized headers")
