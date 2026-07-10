@@ -94,6 +94,18 @@ TEST_CASE("RequestBody supports replay")
   REQUIRE(static_cast<uint8_t>(partial[1]) == expected[1]);
 
   REQUIRE(
+    ccf::curl::RequestBody::seek_data(&body, -1, SEEK_CUR) == CURL_SEEKFUNC_OK);
+  char current = 0;
+  REQUIRE(ccf::curl::RequestBody::send_data(&current, 1, 1, &body) == 1);
+  REQUIRE(static_cast<uint8_t>(current) == expected[1]);
+
+  REQUIRE(
+    ccf::curl::RequestBody::seek_data(&body, -1, SEEK_END) == CURL_SEEKFUNC_OK);
+  char last = 0;
+  REQUIRE(ccf::curl::RequestBody::send_data(&last, 1, 1, &body) == 1);
+  REQUIRE(static_cast<uint8_t>(last) == expected.back());
+
+  REQUIRE(
     ccf::curl::RequestBody::seek_data(&body, 0, SEEK_SET) == CURL_SEEKFUNC_OK);
 
   std::vector<char> replayed(expected.size());
@@ -109,7 +121,11 @@ TEST_CASE("RequestBody supports replay")
     ccf::curl::RequestBody::seek_data(&body, expected.size() + 1, SEEK_SET) ==
     CURL_SEEKFUNC_CANTSEEK);
   REQUIRE(
-    ccf::curl::RequestBody::seek_data(&body, 0, SEEK_CUR) ==
+    ccf::curl::RequestBody::seek_data(&body, 1, SEEK_CUR) ==
+    CURL_SEEKFUNC_CANTSEEK);
+  REQUIRE(
+    ccf::curl::RequestBody::seek_data(
+      &body, -static_cast<curl_off_t>(expected.size()) - 1, SEEK_END) ==
     CURL_SEEKFUNC_CANTSEEK);
 }
 

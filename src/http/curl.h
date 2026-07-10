@@ -274,17 +274,40 @@ namespace ccf::curl
         return CURL_SEEKFUNC_FAIL;
       }
 
-      if (origin != SEEK_SET || offset < 0)
+      size_t base = 0;
+      switch (origin)
       {
-        return CURL_SEEKFUNC_CANTSEEK;
+        case SEEK_SET:
+          break;
+        case SEEK_CUR:
+          base = data->buffer.size() - data->unsent.size();
+          break;
+        case SEEK_END:
+          base = data->buffer.size();
+          break;
+        default:
+          return CURL_SEEKFUNC_CANTSEEK;
       }
 
-      const auto position = static_cast<size_t>(offset);
-      if (
-        static_cast<curl_off_t>(position) != offset ||
-        position > data->buffer.size())
+      size_t position = 0;
+      if (offset < 0)
       {
-        return CURL_SEEKFUNC_CANTSEEK;
+        const auto distance = static_cast<std::uintmax_t>(-(offset + 1)) + 1;
+        if (distance > base)
+        {
+          return CURL_SEEKFUNC_CANTSEEK;
+        }
+        position = base - static_cast<size_t>(distance);
+      }
+      else
+      {
+        const auto distance = static_cast<std::uintmax_t>(offset);
+        const auto remaining = data->buffer.size() - base;
+        if (distance > remaining)
+        {
+          return CURL_SEEKFUNC_CANTSEEK;
+        }
+        position = base + static_cast<size_t>(distance);
       }
 
       data->rewind(position);
