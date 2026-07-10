@@ -329,23 +329,19 @@ namespace ccf
         return;
       }
 
-      if (!current_service_from.has_value())
+      auto current = node_state_accessor->get_current_service_identity();
+      if (!current.create_txid.has_value())
       {
-        auto cs = node_state_accessor->get_current_service_txid();
-        if (!cs.has_value())
-        {
-          LOG_INFO_FMT(
-            "Retrying fetching network identity as current service create "
-            "txid is not yet available or service is not yet open");
-          scheduler->add_delayed_task(
-            [this]() { this->fetch_first(); },
-            std::chrono::milliseconds(retry_interval_ms));
-          return;
-        }
-        current_service_from = cs;
+        LOG_INFO_FMT(
+          "Retrying fetching network identity as current service create "
+          "txid is not yet available or service is not yet open");
+        scheduler->add_delayed_task(
+          [this]() { this->fetch_first(); },
+          std::chrono::milliseconds(retry_interval_ms));
+        return;
       }
 
-      auto endorsement = node_state_accessor->get_current_endorsement();
+      const auto& endorsement = current.endorsement;
       if (!endorsement.has_value())
       {
         LOG_INFO_FMT(
@@ -356,6 +352,31 @@ namespace ccf
           std::chrono::milliseconds(retry_interval_ms));
         return;
       }
+
+      // The topmost endorsement's endorsing key should match the current
+      // network identity public key. During join from a stale snapshot, the
+      // live KV may initially expose an older endorsement until ledger replay
+      // catches up.
+      const auto& current_pkey =
+        network_identity->get_key_pair()->public_key_der();
+      if (endorsement->endorsing_key != current_pkey)
+      {
+        // Unbounded retry (like the other pre-bootstrap waits above), logging
+        // the mismatching keys for diagnosis while the local store catches up.
+        LOG_INFO_FMT(
+          "Retrying fetching network identity: topmost endorsement at {} is "
+          "signed by public key {}, which differs from the expected current "
+          "network identity public key {}",
+          endorsement->endorsement_epoch_begin.to_str(),
+          ccf::ds::to_hex(endorsement->endorsing_key),
+          ccf::ds::to_hex(current_pkey));
+        scheduler->add_delayed_task(
+          [this]() { this->fetch_first(); },
+          std::chrono::milliseconds(retry_interval_ms));
+        return;
+      }
+
+      current_service_from = current.create_txid;
 
       if (is_self_endorsement(endorsement.value()))
       {

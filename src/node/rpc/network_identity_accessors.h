@@ -11,18 +11,26 @@
 
 namespace ccf
 {
+  // The current service's identity, with the create-txid and endorsement read
+  // together from the same KV transaction.
+  struct CurrentServiceIdentity
+  {
+    std::optional<TxID> create_txid;
+
+    std::optional<CoseEndorsement> endorsement;
+  };
+
   struct INodeStateAccessor
   {
     virtual ~INodeStateAccessor() = default;
 
     [[nodiscard]] virtual bool is_part_of_network() const = 0;
 
-    // Current service's create-txid, or nullopt if not yet available.
-    virtual std::optional<TxID> get_current_service_txid() = 0;
-
-    // Current previous-identity endorsement entry in the live KV, or
-    // nullopt if none has been written yet.
-    virtual std::optional<CoseEndorsement> get_current_endorsement() = 0;
+    // Read the current service create-txid and previous-identity endorsement
+    // together, only when the service status is OPEN. This guarantees they
+    // belong to the same service, because the endorsement is written in the
+    // same transaction that opens the service.
+    virtual CurrentServiceIdentity get_current_service_identity() = 0;
   };
 
   struct IHistoricalStateAccessor
