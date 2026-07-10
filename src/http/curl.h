@@ -274,44 +274,48 @@ namespace ccf::curl
         return CURL_SEEKFUNC_FAIL;
       }
 
-      size_t base = 0;
+      const auto end = static_cast<curl_off_t>(data->buffer.size());
+      if (end < 0 || static_cast<size_t>(end) != data->buffer.size())
+      {
+        return CURL_SEEKFUNC_FAIL;
+      }
+
+      const auto current = static_cast<curl_off_t>(data->sent_size());
+      curl_off_t position = 0;
       switch (origin)
       {
         case SEEK_SET:
+          if (offset < 0 || offset > end)
+          {
+            return CURL_SEEKFUNC_CANTSEEK;
+          }
+          position = offset;
           break;
         case SEEK_CUR:
-          base = data->buffer.size() - data->unsent.size();
+          if (offset < -current || offset > end - current)
+          {
+            return CURL_SEEKFUNC_CANTSEEK;
+          }
+          position = current + offset;
           break;
         case SEEK_END:
-          base = data->buffer.size();
+          if (offset < -end || offset > 0)
+          {
+            return CURL_SEEKFUNC_CANTSEEK;
+          }
+          position = end + offset;
           break;
         default:
           return CURL_SEEKFUNC_CANTSEEK;
       }
 
-      size_t position = 0;
-      if (offset < 0)
-      {
-        const auto distance = static_cast<std::uintmax_t>(-(offset + 1)) + 1;
-        if (distance > base)
-        {
-          return CURL_SEEKFUNC_CANTSEEK;
-        }
-        position = base - static_cast<size_t>(distance);
-      }
-      else
-      {
-        const auto distance = static_cast<std::uintmax_t>(offset);
-        const auto remaining = data->buffer.size() - base;
-        if (distance > remaining)
-        {
-          return CURL_SEEKFUNC_CANTSEEK;
-        }
-        position = base + static_cast<size_t>(distance);
-      }
-
-      data->rewind(position);
+      data->rewind(static_cast<size_t>(position));
       return CURL_SEEKFUNC_OK;
+    }
+
+    [[nodiscard]] size_t sent_size() const
+    {
+      return buffer.size() - unsent.size();
     }
 
     [[nodiscard]] size_t size() const
