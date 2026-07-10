@@ -179,8 +179,8 @@ DOCTEST_TEST_CASE("Body too large")
     ::http::ResponseParser p(sp);
 
     const auto too_big = ccf::http::default_max_body_size.count_bytes() + 1;
-    const auto res = fmt::format(
-      "HTTP/1.1 200 OK\r\ncontent-length: {}\r\n\r\n", too_big);
+    const auto res =
+      fmt::format("HTTP/1.1 200 OK\r\ncontent-length: {}\r\n\r\n", too_big);
     const auto bytes = std::vector<uint8_t>(res.begin(), res.end());
 
     DOCTEST_CHECK_THROWS_AS(
