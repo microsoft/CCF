@@ -1088,13 +1088,14 @@ if(BUILD_TESTS)
     NAME recovery_stale_snapshot_join_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/identity_recovery_snapshot.py
     BUCKET bucket_b
+    ADDITIONAL_ARGS --regex ^recovery_stale_snapshot_join$
   )
 
   add_e2e_test(
     NAME recovery_intermediate_snapshot_join_test
-    PYTHON_SCRIPT
-      ${CMAKE_SOURCE_DIR}/tests/identity_recovery_intermediate_snapshot.py
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/identity_recovery_snapshot.py
     BUCKET bucket_b
+    ADDITIONAL_ARGS --regex ^recovery_intermediate_snapshot_join$
   )
 
   add_e2e_test(

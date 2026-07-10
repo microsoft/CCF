@@ -35,9 +35,32 @@ PRE_RECOVERY_TXS = 250
 PRE_RECOVERY_TX_MSG = "x" * (14 * 1024)
 
 
-def preserve_oldest_committed_snapshot(network, primary, dest_name):
+def recover(network, args):
+    """Recover a service and return its new network and the old committed ledger."""
+    network.save_service_identity(args)
+    primary, _ = network.find_primary()
+    current_ledger_dir, committed_ledger_dirs = primary.get_ledger()
+    network.stop_all_nodes()
+
+    recovered_network = infra.network.Network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        existing_network=network,
+    )
+    recovered_network.start_in_recovery(
+        args,
+        ledger_dir=current_ledger_dir,
+        committed_ledger_dirs=committed_ledger_dirs,
+    )
+    recovered_network.recover(args)
+    return recovered_network, committed_ledger_dirs
+
+
+def preserve_oldest_committed_snapshot(network, dest_name):
     """Copy the oldest committed snapshot into a dedicated directory and return
     that directory."""
+    primary, _ = network.find_primary()
     committed_snapshots_dir = network.get_committed_snapshots(primary)
     snapshots = sorted(
         os.listdir(committed_snapshots_dir),
@@ -67,15 +90,31 @@ def get_trusted_keys_when_ready(node, timeout=60):
         time.sleep(0.2)
 
 
-def verify_cross_recovery_identity_chain(node):
+def join_from_snapshot(network, args, snapshots_dir, read_only_ledger_dirs=None):
+    """Join and trust a node from a specific snapshot and optional ledger prefix."""
+    new_node = network.create_node()
+    network.join_node(
+        new_node,
+        args.package,
+        args,
+        from_snapshot=True,
+        snapshots_dir=snapshots_dir,
+        read_only_ledger_dirs=read_only_ledger_dirs,
+        copy_ledger=False,
+    )
+    network.trust_node(new_node, args)
+    return new_node
+
+
+def verify_cross_recovery_identity_chain(node, minimum_key_count, description):
     """Functionally verify that `node` serves a network-identity trusted-key set
-    spanning the recovery. The logging app's trusted_keys endpoint returns the
+    spanning the expected recoveries. The logging app's trusted_keys endpoint returns the
     keys produced by the subsystem's get_trusted_keys(); those are only populated
-    once the node has built the identity chain across the recovery boundary from
-    its pre-recovery snapshot, and only after build_trusted_key_chain() has
+    once the node has built the identity chain across each recovery boundary from
+    its snapshot, and only after build_trusted_key_chain() has
     signature-verified every COSE endorsement in that chain. So a successful
-    response containing the recovered identity plus a prior identity is proof the
-    cross-recovery chain was built and verified end to end."""
+    response containing the recovered identities is proof the cross-recovery chain
+    was built and verified end to end."""
     with node.client() as cli:
         service_cert = cli.get("/node/network").body.json()["service_certificate"]
     cert = load_pem_x509_certificate(service_cert.encode("ascii"), default_backend())
@@ -97,15 +136,13 @@ def verify_cross_recovery_identity_chain(node):
     assert (
         current_key_der in trusted_keys_der
     ), "Joined node's trusted keys do not include the current service identity"
-    # A chain that spans the recovery has at least two keys: the current
-    # (recovered) identity and the pre-recovery identity it endorses.
-    assert len(trusted_keys_der) >= 2, (
-        "Joined node's trusted keys do not span the recovery "
+    assert len(trusted_keys_der) >= minimum_key_count, (
+        f"Joined node's trusted keys do not span {description} "
         f"(only {len(trusted_keys_der)} key)"
     )
     LOG.success(
-        f"Joined node serves {len(trusted_keys_der)} trusted keys spanning the "
-        "recovery, built from its pre-recovery snapshot"
+        f"Joined node serves {len(trusted_keys_der)} trusted keys spanning "
+        f"{description}"
     )
 
 
@@ -117,8 +154,6 @@ def test_join_from_stale_pre_recovery_snapshot(network, args):
     # Capture a committed snapshot from before the recovery. A node started from
     # this snapshot sees the OLD (pre-recovery) service identity as current until
     # it replays the committed ledger suffix that includes the recovery.
-    primary, _ = network.find_primary()
-
     # Lengthen the pre-recovery ledger so a node joining from an early snapshot has
     # a long suffix to replay, and therefore spends several fetch_first poll
     # intervals catching up through the stale-identity window (see below). Issued
@@ -134,29 +169,13 @@ def test_join_from_stale_pre_recovery_snapshot(network, args):
     )
 
     stale_snapshots_dir = preserve_oldest_committed_snapshot(
-        network, primary, "stale_pre_recovery_snapshot"
+        network, "stale_pre_recovery_snapshot"
     )
 
     # Disaster-recover the service. Recovery mints a new network identity which
     # endorses the previous one, extending the identity endorsement chain and
     # changing the service identity that new nodes are handed when they join.
-    network.save_service_identity(args)
-    primary, _ = network.find_primary()
-    current_ledger_dir, committed_ledger_dirs = primary.get_ledger()
-    network.stop_all_nodes()
-
-    recovered_network = infra.network.Network(
-        args.nodes,
-        args.binary_dir,
-        args.debug_nodes,
-        existing_network=network,
-    )
-    recovered_network.start_in_recovery(
-        args,
-        ledger_dir=current_ledger_dir,
-        committed_ledger_dirs=committed_ledger_dirs,
-    )
-    recovered_network.recover(args)
+    recovered_network, _ = recover(network, args)
     LOG.success("Service recovered under a new network identity")
 
     # Add a new node that joins the recovered service from the STALE (pre-recovery)
@@ -165,16 +184,7 @@ def test_join_from_stale_pre_recovery_snapshot(network, args):
     # snapshot predates the recovery, the joiner initially sees the OLD service
     # identity as current and its network-identity bootstrap must walk the
     # endorsement chain across the recovery boundary before it can settle.
-    new_node = recovered_network.create_node()
-    recovered_network.join_node(
-        new_node,
-        args.package,
-        args,
-        from_snapshot=True,
-        snapshots_dir=stale_snapshots_dir,
-        copy_ledger=False,
-    )
-    recovered_network.trust_node(new_node, args)
+    new_node = join_from_snapshot(recovered_network, args, stale_snapshots_dir)
     LOG.success("New node joined from the stale pre-recovery snapshot and caught up")
 
     # Functional end-to-end check: the joined node must serve a trusted-key set
@@ -182,7 +192,11 @@ def test_join_from_stale_pre_recovery_snapshot(network, args):
     # identity chain across the recovery boundary from its pre-recovery snapshot;
     # had that regressed, bootstrap would fail and the endpoint would never
     # become ready.
-    verify_cross_recovery_identity_chain(new_node)
+    verify_cross_recovery_identity_chain(
+        new_node,
+        minimum_key_count=2,
+        description="the recovery from its pre-recovery snapshot",
+    )
 
     # Assert the joiner exercised the stale-identity retry path: with the
     # lengthened ledger above it observes the service OPEN with the stale
@@ -203,7 +217,50 @@ def test_join_from_stale_pre_recovery_snapshot(network, args):
     return recovered_network
 
 
-def run(args):
+@reqs.description(
+    "A node joining a twice-recovered service from an intermediate (first "
+    "recovery) snapshot catches up and serves a trusted-key set spanning both "
+    "recoveries"
+)
+def test_join_from_intermediate_recovery_snapshot(network, args):
+    # Recovery 1 (I0 -> I1) writes a non-self endorsement for I0 signed by I1.
+    intermediate_network, _ = recover(network, args)
+    LOG.success("First recovery complete (I0 -> I1)")
+
+    # Preserve a snapshot from the I1 epoch before the second recovery.
+    intermediate_snapshot_dir = preserve_oldest_committed_snapshot(
+        intermediate_network, "intermediate_i1_snapshot"
+    )
+
+    # Recovery 2 (I1 -> I2) returns the committed genesis..I1 ledger. Supplying
+    # that ledger to the joiner pins its initial local view to I1 while still
+    # allowing historical reads back to the genesis self-endorsement.
+    final_network, intermediate_committed_ledger_dirs = recover(
+        intermediate_network, args
+    )
+    LOG.success("Second recovery complete (I1 -> I2)")
+
+    new_node = join_from_snapshot(
+        final_network,
+        args,
+        intermediate_snapshot_dir,
+        read_only_ledger_dirs=intermediate_committed_ledger_dirs,
+    )
+    LOG.success("New node joined from the intermediate snapshot and caught up")
+
+    # I0 -> I1 -> I2 must produce all three trusted service identities. Without
+    # the fix, the joiner instead aborts while its stale I1 chain is anchored to
+    # the current I2 identity.
+    verify_cross_recovery_identity_chain(
+        new_node,
+        minimum_key_count=3,
+        description="both recoveries from its intermediate snapshot",
+    )
+
+    return final_network
+
+
+def run_test(args, test):
     with infra.network.network(
         args.nodes,
         args.binary_dir,
@@ -211,35 +268,47 @@ def run(args):
         pdb=args.pdb,
     ) as network:
         network.start_and_open(args)
-        network = test_join_from_stale_pre_recovery_snapshot(network, args)
-        # test_join_from_stale_pre_recovery_snapshot returns a fresh recovered
-        # Network; stop it explicitly here since the context manager only stops
-        # the original Network instance it created.
+        network = test(network, args)
+        # Each test returns a recovered Network; stop it explicitly since the
+        # context manager only stops the original Network instance it created.
         network.stop_all_nodes()
+
+
+def run_stale_pre_recovery(args):
+    run_test(args, test_join_from_stale_pre_recovery_snapshot)
+
+
+def run_intermediate_recovery(args):
+    run_test(args, test_join_from_intermediate_recovery_snapshot)
 
 
 if __name__ == "__main__":
 
     def add(parser):
         parser.description = (
-            "Reproduce a node joining a recovered service from a snapshot taken "
-            "before the recovery, and verify it catches up once the recovery is "
-            "replayed."
+            "Verify nodes joining recovered services from stale snapshots catch "
+            "up and build the complete network-identity chain."
         )
 
     cr = ConcurrentRunner(add)
 
+    runner_args = {
+        "package": "samples/apps/logging/logging",
+        "nodes": infra.e2e_args.min_nodes(cr.args, f=1),
+        "ledger_chunk_bytes": "12KB",
+        "snapshot_tx_interval": 10,
+        "sig_tx_interval": 1,
+    }
+
     cr.add(
         "recovery_stale_snapshot_join",
-        run,
-        package="samples/apps/logging/logging",
-        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
-        # Small chunks slow the joiner's catch-up, and signing every tx inflates
-        # the entry count cheaply; together they widen the stale-identity window
-        # the joiner must pass through (see PRE_RECOVERY_TXS).
-        ledger_chunk_bytes="12KB",
-        snapshot_tx_interval=10,
-        sig_tx_interval=1,
+        run_stale_pre_recovery,
+        **runner_args,
+    )
+    cr.add(
+        "recovery_intermediate_snapshot_join",
+        run_intermediate_recovery,
+        **runner_args,
     )
 
     cr.run()
