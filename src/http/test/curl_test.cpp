@@ -115,12 +115,32 @@ TEST_CASE("RequestBody supports replay")
       return static_cast<uint8_t>(lhs) == rhs;
     }));
 
+  REQUIRE(body.seek(2, SEEK_SET));
+  REQUIRE_FALSE(body.seek(std::numeric_limits<curl_off_t>::max(), SEEK_CUR));
+  char after_failed_seek = 0;
+  REQUIRE(
+    ccf::curl::RequestBody::send_data(&after_failed_seek, 1, 1, &body) == 1);
+  REQUIRE(static_cast<uint8_t>(after_failed_seek) == expected[2]);
+
   REQUIRE_FALSE(body.seek(-1, SEEK_SET));
   REQUIRE_FALSE(body.seek(expected.size() + 1, SEEK_SET));
+  REQUIRE(body.seek(0, SEEK_END));
   REQUIRE_FALSE(body.seek(1, SEEK_CUR));
   REQUIRE_FALSE(
     body.seek(-static_cast<curl_off_t>(expected.size()) - 1, SEEK_END));
-  REQUIRE_FALSE(body.seek(std::numeric_limits<curl_off_t>::max(), SEEK_CUR));
+}
+
+TEST_CASE("RequestBody supports empty bodies")
+{
+  ccf::curl::RequestBody body(std::vector<uint8_t>{});
+
+  REQUIRE(body.size() == 0);
+  REQUIRE(body.seek(0, SEEK_SET));
+  REQUIRE(body.seek(0, SEEK_CUR));
+  REQUIRE(body.seek(0, SEEK_END));
+
+  char unused = 0;
+  REQUIRE(ccf::curl::RequestBody::send_data(&unused, 1, 1, &body) == 0);
 }
 
 TEST_CASE("ResponseHeaders rejects oversized headers")
