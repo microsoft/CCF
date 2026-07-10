@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [7.0.10]
+
+[7.0.10]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.10
+
+### Changed
+
+- `ccf::http::ParsedQuery` (in `include/ccf/http_query.h`), returned by `ccf::http::parse_query()`, is now a `std::multimap<std::string, std::string, std::less<>>` that owns its decoded keys and values, rather than a `std::multimap<std::string_view, std::string_view>` pointing into the source query string. Owned storage is required because each key and value is now URL-decoded individually after splitting, which produces bytes not present in the original query. Application code that consumed the previous `std::string_view` keys/values may need to be updated (#8024).
+- `ccf::RpcContext::get_request_query()` (C++) and `request.query` (JavaScript apps) now return the raw, still percent-encoded query string, instead of a whole-string URL-decoded copy. This is what allows escaped separators to be preserved. Callers must decode each parameter after splitting: use `ccf::http::parse_query()`/`ccf::http::get_query_value()` (C++) or `parse_request_query()` (JS), or `ccf::http::decode_query_component()` to decode a whole query string (#8024).
+
+### Fixed
+
+- HTTP query parameters are now split before URL-decoding, so escaped ampersands in query parameter names and values are preserved correctly (#8024).
+
 ## [7.0.9]
 
 [7.0.9]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.9
@@ -17,7 +30,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [7.0.8]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.8
 
-### Changed
+### Fixed
 
 - The node join protocol client now uses the curl multi singleton client (introduced in #7102) instead of the legacy enclave `RPCSessions::create_client()` HTTP client, matching the JWT refresh and snapshot-fetch clients. The service certificate remains the sole trust anchor for the join connection (the host certificate store is never consulted) (#8040).
 - **Node joins now check the target RPC address against the target node's certificate SANs.** TLS certificate hostname verification (`CURLOPT_SSL_VERIFYHOST`) is now enforced on the join connection: the host in `join.target_rpc_address` must be covered by one of the target node's certificate Subject Alternative Names (SANs), and a join to an address absent from the target's SANs is now rejected (the previous join client did not check the target certificate name at all). CCF derives node-certificate SANs from `node_certificate.subject_alt_names`, or by default from each RPC interface's `published_address`, so standard deployments are unaffected; operators that configure a bespoke `join.target_rpc_address` must ensure it is present in the target node's certificate SANs (#8040).
