@@ -225,23 +225,28 @@ namespace ccf::curl
     std::vector<uint8_t> buffer;
     std::span<const uint8_t> unsent;
 
-  public:
-    RequestBody(std::vector<uint8_t>& buffer) : buffer(buffer)
+    void rewind(size_t offset = 0)
     {
-      unsent = std::span<const uint8_t>(buffer.data(), buffer.size());
+      unsent = std::span<const uint8_t>(buffer).subspan(offset);
     }
 
-    RequestBody(std::vector<uint8_t>&& buffer_) : buffer(std::move(buffer_))
-    {
-      unsent = std::span<const uint8_t>(buffer.data(), buffer.size());
-    }
+  public:
+    RequestBody(const std::vector<uint8_t>& buffer_) :
+      buffer(buffer_),
+      unsent(buffer)
+    {}
+
+    RequestBody(std::vector<uint8_t>&& buffer_) :
+      buffer(std::move(buffer_)),
+      unsent(buffer)
+    {}
 
     RequestBody(nlohmann::json json)
     {
       auto json_str = json.dump();
       buffer = std::vector<uint8_t>(
         json_str.begin(), json_str.end()); // Convert to vector of bytes
-      unsent = std::span<const uint8_t>(buffer.data(), buffer.size());
+      rewind();
     }
 
     static size_t send_data(
@@ -252,10 +257,55 @@ namespace ccf::curl
         LOG_FAIL_FMT("send_data called with null userdata");
         return 0;
       }
-      auto bytes_to_copy = std::min(data->unsent.size(), size * nitems);
-      memcpy(ptr, data->unsent.data(), bytes_to_copy);
+      const auto bytes_to_copy = std::min(data->unsent.size(), size * nitems);
+      if (bytes_to_copy > 0)
+      {
+        memcpy(ptr, data->unsent.data(), bytes_to_copy);
+      }
       data->unsent = data->unsent.subspan(bytes_to_copy);
       return bytes_to_copy;
+    }
+
+    bool seek(curl_off_t offset, int origin)
+    {
+      size_t base = 0;
+      switch (origin)
+      {
+        case SEEK_SET:
+          break;
+        case SEEK_CUR:
+          base = buffer.size() - unsent.size();
+          break;
+        case SEEK_END:
+          base = buffer.size();
+          break;
+        default:
+          return false;
+      }
+
+      size_t position = 0;
+      if (
+        __builtin_add_overflow(base, offset, &position) ||
+        position > buffer.size())
+      {
+        return false;
+      }
+
+      rewind(position);
+      return true;
+    }
+
+    static int seek_data(void* userdata, curl_off_t offset, int origin)
+    {
+      if (userdata == nullptr)
+      {
+        LOG_FAIL_FMT("seek_data called with null userdata");
+        return CURL_SEEKFUNC_FAIL;
+      }
+
+      auto* data = static_cast<RequestBody*>(userdata);
+      return data->seek(offset, origin) ? CURL_SEEKFUNC_OK :
+                                          CURL_SEEKFUNC_CANTSEEK;
     }
 
     [[nodiscard]] size_t size() const
@@ -272,6 +322,8 @@ namespace ccf::curl
       }
       CHECK_CURL_EASY_SETOPT(curl, CURLOPT_READDATA, this);
       CHECK_CURL_EASY_SETOPT(curl, CURLOPT_READFUNCTION, send_data);
+      CHECK_CURL_EASY_SETOPT(curl, CURLOPT_SEEKDATA, this);
+      CHECK_CURL_EASY_SETOPT(curl, CURLOPT_SEEKFUNCTION, seek_data);
       // The body size is declared by the caller in a method-specific way
       // (CURLOPT_POSTFIELDSIZE_LARGE for POST, CURLOPT_INFILESIZE_LARGE for a
       // PUT upload), so it is intentionally not set here.

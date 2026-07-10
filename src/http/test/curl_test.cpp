@@ -10,6 +10,7 @@
 #include <curl/header.h>
 #include <fstream>
 #include <iostream>
+#include <limits>
 #include <llhttp/llhttp.h>
 #include <memory>
 #include <nlohmann/json.hpp>
@@ -78,6 +79,77 @@ TEST_CASE("is_transient_transport_error classifies curl errors")
     INFO("code = " << static_cast<int>(code));
     CHECK_FALSE(ccf::curl::is_transient_transport_error(code));
   }
+}
+
+TEST_CASE("RequestBody supports replay")
+{
+  const std::vector<uint8_t> expected = {1, 2, 3, 4};
+  const auto data = expected;
+  ccf::curl::RequestBody body(data);
+
+  std::vector<char> partial(2);
+  REQUIRE(
+    ccf::curl::RequestBody::send_data(
+      partial.data(), 1, partial.size(), &body) == partial.size());
+  REQUIRE(static_cast<uint8_t>(partial[0]) == expected[0]);
+  REQUIRE(static_cast<uint8_t>(partial[1]) == expected[1]);
+
+  REQUIRE(body.seek(-1, SEEK_CUR));
+  char current = 0;
+  REQUIRE(ccf::curl::RequestBody::send_data(&current, 1, 1, &body) == 1);
+  REQUIRE(static_cast<uint8_t>(current) == expected[1]);
+
+  REQUIRE(body.seek(-1, SEEK_END));
+  char last = 0;
+  REQUIRE(ccf::curl::RequestBody::send_data(&last, 1, 1, &body) == 1);
+  REQUIRE(static_cast<uint8_t>(last) == expected.back());
+
+  REQUIRE(body.seek(0, SEEK_SET));
+
+  std::vector<char> replayed(expected.size());
+  REQUIRE(
+    ccf::curl::RequestBody::send_data(
+      replayed.data(), 1, replayed.size(), &body) == replayed.size());
+  REQUIRE(std::equal(
+    replayed.begin(), replayed.end(), expected.begin(), [](char lhs, auto rhs) {
+      return static_cast<uint8_t>(lhs) == rhs;
+    }));
+
+  REQUIRE(body.seek(2, SEEK_SET));
+  REQUIRE_FALSE(body.seek(std::numeric_limits<curl_off_t>::max(), SEEK_CUR));
+  char after_failed_seek = 0;
+  REQUIRE(
+    ccf::curl::RequestBody::send_data(&after_failed_seek, 1, 1, &body) == 1);
+  REQUIRE(static_cast<uint8_t>(after_failed_seek) == expected[2]);
+
+  REQUIRE_FALSE(body.seek(-1, SEEK_SET));
+  REQUIRE_FALSE(body.seek(expected.size() + 1, SEEK_SET));
+  REQUIRE(body.seek(0, SEEK_END));
+  REQUIRE_FALSE(body.seek(1, SEEK_CUR));
+  REQUIRE_FALSE(
+    body.seek(-static_cast<curl_off_t>(expected.size()) - 1, SEEK_END));
+
+  REQUIRE(
+    ccf::curl::RequestBody::seek_data(&body, 0, SEEK_SET) == CURL_SEEKFUNC_OK);
+  REQUIRE(
+    ccf::curl::RequestBody::seek_data(&body, expected.size() + 1, SEEK_SET) ==
+    CURL_SEEKFUNC_CANTSEEK);
+  REQUIRE(
+    ccf::curl::RequestBody::seek_data(nullptr, 0, SEEK_SET) ==
+    CURL_SEEKFUNC_FAIL);
+}
+
+TEST_CASE("RequestBody supports empty bodies")
+{
+  ccf::curl::RequestBody body(std::vector<uint8_t>{});
+
+  REQUIRE(body.size() == 0);
+  REQUIRE(body.seek(0, SEEK_SET));
+  REQUIRE(body.seek(0, SEEK_CUR));
+  REQUIRE(body.seek(0, SEEK_END));
+
+  char unused = 0;
+  REQUIRE(ccf::curl::RequestBody::send_data(&unused, 1, 1, &body) == 0);
 }
 
 TEST_CASE("ResponseHeaders rejects oversized headers")
@@ -267,6 +339,54 @@ TEST_CASE("Synchronous POST echoes body")
 
   const auto parsed = nlohmann::json::parse(response_body);
   REQUIRE(parsed.at("metadata").at("method") == "POST");
+  REQUIRE(parsed.at("body") == sent_body);
+}
+
+TEST_CASE("Synchronous POST replays body after redirect")
+{
+  const std::string sent_body = R"({"message":"replay"})";
+  std::vector<uint8_t> body_bytes(sent_body.begin(), sent_body.end());
+  auto body = std::make_unique<ccf::curl::RequestBody>(std::move(body_bytes));
+
+  auto headers = ccf::curl::UniqueSlist();
+  headers.append("Content-Type", "application/json");
+
+  auto curl_handle = ccf::curl::UniqueCURL();
+  curl_handle.set_opt(CURLOPT_FOLLOWLOCATION, 1L);
+  std::string url = fmt::format("http://{}/redirect", server_address);
+
+  CURLcode curl_code = CURLE_FAILED_INIT;
+  long status_code = 0;
+  std::string response_body;
+
+  auto response = [&curl_code, &status_code, &response_body](
+                    std::unique_ptr<ccf::curl::CurlRequest>&& request,
+                    CURLcode curl_response,
+                    long status) {
+    curl_code = curl_response;
+    status_code = status;
+    auto* rb = request->get_response_body();
+    response_body = std::string(rb->buffer.begin(), rb->buffer.end());
+  };
+
+  auto request = std::make_unique<ccf::curl::CurlRequest>(
+    std::move(curl_handle),
+    HTTP_POST,
+    std::move(url),
+    std::move(headers),
+    std::move(body),
+    std::make_unique<ccf::curl::ResponseBody>(SIZE_MAX),
+    response);
+
+  ccf::curl::CurlRequest::synchronous_perform(std::move(request));
+
+  constexpr long HTTP_SUCCESS = 200;
+  REQUIRE(curl_code == CURLE_OK);
+  REQUIRE(status_code == HTTP_SUCCESS);
+
+  const auto parsed = nlohmann::json::parse(response_body);
+  REQUIRE(parsed.at("metadata").at("method") == "POST");
+  REQUIRE(parsed.at("metadata").at("path") == "/redirected");
   REQUIRE(parsed.at("body") == sent_body);
 }
 
