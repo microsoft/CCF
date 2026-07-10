@@ -15,7 +15,6 @@
 #include "node/session_metrics.h"
 #include "rpc_handler.h"
 #include "tls/cert.h"
-#include "tls/client.h"
 #include "tls/context.h"
 #include "tls/plaintext_server.h"
 #include "tls/server.h"
@@ -72,10 +71,6 @@ namespace ccf
       sessions;
     size_t sessions_peak = 0;
 
-    // Negative sessions are reserved for those originating from
-    // the enclave via create_client().
-    std::atomic<ccf::tls::ConnID> next_client_session_id = -1;
-
     template <typename Base>
     class NoMoreSessionsImpl : public Base
     {
@@ -101,35 +96,6 @@ namespace ccf
         }
       }
     };
-
-    ccf::tls::ConnID get_next_client_id()
-    {
-      auto id = next_client_session_id--;
-      const auto initial = id;
-
-      if (next_client_session_id > 0)
-      {
-        next_client_session_id = -1;
-      }
-
-      while (sessions.find(id) != sessions.end())
-      {
-        id--;
-
-        if (id > 0)
-        {
-          id = -1;
-        }
-
-        if (id == initial)
-        {
-          throw std::runtime_error(
-            "Exhausted all IDs for enclave client sessions");
-        }
-      }
-
-      return id;
-    }
 
     ListenInterface& get_interface_from_interface_id(
       const ccf::ListenInterfaceID& id)
@@ -555,50 +521,6 @@ namespace ccf
         // Continue with the normal closure flow
         RINGBUFFER_WRITE_MESSAGE(::tcp::tcp_closed, to_host, id);
       }
-    }
-
-    std::shared_ptr<ClientSession> create_client(
-      const std::shared_ptr<::tls::Cert>& cert,
-      const std::string& app_protocol = "HTTP1")
-    {
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
-      auto ctx = std::make_unique<::tls::Client>(cert);
-      auto id = get_next_client_id();
-
-      LOG_DEBUG_FMT("Creating a new client session inside the enclave: {}", id);
-
-      // There are no limits on outbound client sessions (we do not check any
-      // session caps here). We expect this type of session to be rare and
-      // want it to succeed even when we are busy.
-      if (app_protocol == "HTTP2")
-      {
-        auto session = std::make_shared<::http::HTTP2ClientSession>(
-          id, writer_factory, std::move(ctx));
-        sessions.insert(std::make_pair(id, std::make_pair("", session)));
-        sessions_peak = std::max(sessions_peak, sessions.size());
-        return session;
-      }
-      if (app_protocol == "HTTP1")
-      {
-        auto session = std::make_shared<::http::HTTPClientSession>(
-          id, writer_factory, std::move(ctx));
-        sessions.insert(std::make_pair(id, std::make_pair("", session)));
-        sessions_peak = std::max(sessions_peak, sessions.size());
-        return session;
-      }
-
-      throw std::runtime_error("unsupported client application protocol");
-    }
-
-    std::shared_ptr<ClientSession> create_unencrypted_client()
-    {
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
-      auto id = get_next_client_id();
-      auto session = std::make_shared<::http::UnencryptedHTTPClientSession>(
-        id, writer_factory);
-      sessions.insert(std::make_pair(id, std::make_pair("", session)));
-      sessions_peak = std::max(sessions_peak, sessions.size());
-      return session;
     }
 
     void register_message_handlers(
