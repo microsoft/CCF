@@ -991,6 +991,7 @@ if(BUILD_TESTS)
       src/enclave/thread_local.cpp
     )
     add_warning_checks(raft_driver)
+    enable_coverage(raft_driver)
     target_link_libraries(raft_driver PRIVATE ccfcrypto ccf_tasks)
     target_include_directories(raft_driver PRIVATE src/aft)
 
@@ -1002,6 +1003,18 @@ if(BUILD_TESTS)
     )
     set_property(TEST raft_scenario_test PROPERTY LABELS raft_scenario)
     set_property(TEST raft_scenario_test APPEND PROPERTY LABELS bucket_c)
+
+    if(COVERAGE)
+      # The scenario runner spawns raft_driver once per scenario file; give
+      # each process a uniquely-named .profraw (by PID) in the build directory
+      # so scripts/coverage.sh discovers them and the scenarios contribute to
+      # the aggregated coverage report.
+      set_property(
+        TEST raft_scenario_test
+        APPEND
+        PROPERTY ENVIRONMENT "LLVM_PROFILE_FILE=raft_scenario-%p.profraw"
+      )
+    endif()
 
     add_test(
       NAME csr_test
@@ -1069,6 +1082,20 @@ if(BUILD_TESTS)
       ${ADDITIONAL_RECOVERY_ARGS}
       --constitution
       ${CMAKE_SOURCE_DIR}/samples/constitutions/virtual/virtual_attestation_actions.js
+  )
+
+  add_e2e_test(
+    NAME recovery_stale_snapshot_join_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/identity_recovery_snapshot.py
+    BUCKET bucket_b
+    ADDITIONAL_ARGS --regex ^recovery_stale_snapshot_join$
+  )
+
+  add_e2e_test(
+    NAME recovery_intermediate_snapshot_join_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/identity_recovery_snapshot.py
+    BUCKET bucket_b
+    ADDITIONAL_ARGS --regex ^recovery_intermediate_snapshot_join$
   )
 
   add_e2e_test(

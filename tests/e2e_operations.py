@@ -193,6 +193,25 @@ def find_snapshot_after_seqno(snapshots_dir, seqno):
     )
 
 
+def find_latest_committed_snapshot_name(network, count=1):
+    assert count > 0, f"Expected positive snapshot count, got {count}"
+    primary, _ = network.find_primary()
+    snapshots_dir = network.get_committed_snapshots(primary)
+    snapshot_names = [
+        f for f in os.listdir(snapshots_dir) if ccf.ledger.is_snapshot_file_committed(f)
+    ]
+    assert snapshot_names, f"Expected committed snapshots in {snapshots_dir}"
+    snapshot_names.sort(key=ccf.ledger.snapshot_index_from_filename)
+    assert len(snapshot_names) >= count, (
+        f"Expected at least {count} committed snapshots in {snapshots_dir}, "
+        f"found {snapshot_names}"
+    )
+    latest_snapshot_names = snapshot_names[-count:]
+    if count == 1:
+        return latest_snapshot_names[-1]
+    return latest_snapshot_names
+
+
 @reqs.description("Forced snapshot")
 @app.scoped_txs()
 def test_forced_snapshot(network, args):
@@ -671,7 +690,7 @@ def test_empty_snapshot(network, args):
     with tempfile.TemporaryDirectory() as snapshots_dir:
         LOG.debug(f"Using {snapshots_dir} as snapshots directory")
 
-        snapshot_name = "snapshot_1000_1500.committed"
+        snapshot_name = find_latest_committed_snapshot_name(network)
 
         with open(
             os.path.join(snapshots_dir, snapshot_name), "wb+"
@@ -697,7 +716,9 @@ def test_empty_snapshot(network, args):
             )
             new_node.stop()
 
-            # Check that the empty snapshot is correctly skipped
+            # Check that the empty snapshot is correctly skipped, then remove
+            # the staged copy so shutdown snapshot invariants do not interpret
+            # this deliberately empty test file as a real committed snapshot.
             if not new_node.check_log_for_error_message(
                 f"Ignoring empty snapshot file {snapshot_name}"
             ):
@@ -705,13 +726,21 @@ def test_empty_snapshot(network, args):
                     f"Expected empty snapshot file {snapshot_name} to be skipped in node logs"
                 )
 
+            node_snapshots_dir = os.path.join(
+                new_node.remote.remote.root,
+                new_node.remote.snapshots_dir_name,
+            )
+            staged_snapshot_path = os.path.join(node_snapshots_dir, snapshot_name)
+            assert os.path.exists(staged_snapshot_path), staged_snapshot_path
+            os.remove(staged_snapshot_path)
+
 
 def test_nulled_snapshot(network, args):
 
     with tempfile.TemporaryDirectory() as snapshots_dir:
         LOG.debug(f"Using {snapshots_dir} as snapshots directory")
 
-        snapshot_name = "snapshot_1000_1500.committed"
+        snapshot_name = find_latest_committed_snapshot_name(network)
 
         with open(
             os.path.join(snapshots_dir, snapshot_name), "wb+"
@@ -765,10 +794,12 @@ def test_corrupt_snapshot_handling(network, args):
     receipt = b"this is not valid json!!"
     corrupt_data = header + body + receipt
 
-    # Use a higher seqno for the writable dir so it is tried first (snapshots
-    # are iterated in descending seqno order).
-    writable_snapshot_name = "snapshot_2000_2500.committed"
-    read_only_snapshot_name = "snapshot_1000_1500.committed"
+    # Use the newest snapshot for the writable dir so it is tried first
+    # (snapshots are iterated in descending seqno order).
+    read_only_snapshot_name, writable_snapshot_name = (
+        find_latest_committed_snapshot_name(network, count=2)
+    )
+    unrenamable_snapshot_name = writable_snapshot_name
 
     # ---- Part 1: writable dir (rename succeeds) + read-only config dir ----
     LOG.info("Part 1: corrupt snapshots in both writable and read-only directories")
@@ -868,8 +899,6 @@ def test_corrupt_snapshot_handling(network, args):
 
     # ---- Part 2: writable dir with restricted permissions (rename fails) ----
     LOG.info("Part 2: corrupt snapshot in writable dir that cannot be renamed")
-
-    unrenamable_snapshot_name = "snapshot_3000_3500.committed"
 
     with tempfile.TemporaryDirectory() as restricted_dir:
         snapshot_path = os.path.join(restricted_dir, unrenamable_snapshot_name)
@@ -1637,6 +1666,72 @@ def run_tls_san_checks(const_args):
         ), f"Expected SANs do not match: {ip_sans} vs {dummy_public_rpc_hosts}"
 
 
+def run_tls_san_join_mismatch(const_args):
+    # Since the join client was migrated to libcurl, a joining node verifies
+    # (CURLOPT_SSL_VERIFYHOST=2) that the target node's certificate covers the
+    # address it dialled. Check that a join is rejected when the dialled address
+    # is absent from the target node's certificate SANs, even though the service
+    # certificate itself is trusted. This exercises the hostname/SAN check
+    # specifically, as opposed to the untrusted-service-certificate path already
+    # covered by reconfiguration.test_add_node_invalid_service_cert.
+    args = copy.deepcopy(const_args)
+    args.label += "_tls_san_join_mismatch"
+
+    # Bind the target node's primary and file-serving interfaces to distinct
+    # loopback addresses, and restrict the node certificate SANs to the primary
+    # address only. The test harness reaches the node through the primary
+    # interface (in the SAN, so trusted), while a joining node dials the
+    # file-serving interface (not in the SAN, so rejected).
+    primary_host = "127.0.0.1"
+    file_serving_host = "127.0.0.2"
+
+    args.nodes = infra.e2e_args.nodes(args, 1)
+    target_spec = args.nodes[0]
+    target_spec.get_primary_interface().host = primary_host
+    target_spec.get_file_serving_interface().host = file_serving_host
+    args.subject_alt_names = [f"iPAddress:{primary_host}"]
+
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        pdb=args.pdb,
+    ) as network:
+        network.start_and_open(args)
+
+        LOG.info(
+            "A join is rejected when the target address is not covered by the "
+            "target node's certificate SANs"
+        )
+        new_node = network.create_node()
+        try:
+            network.join_node(
+                new_node,
+                args.package,
+                args,
+                timeout=3,
+                stop_on_error=True,
+                from_snapshot=False,
+                # Skip the proactive snapshot fetch so the node goes straight to
+                # the join request. The snapshot fetch treats a certificate
+                # verification failure as a retryable (non-fatal) error, whereas
+                # the join request itself treats it as fatal, which is the
+                # behaviour under test.
+                fetch_recent_snapshot=False,
+            )
+        except infra.network.ServiceCertificateInvalid:
+            LOG.info(
+                f"Node {new_node.local_node_id} correctly rejected the target, "
+                "whose certificate SANs do not cover the dialled file-serving "
+                "address (VERIFYHOST)"
+            )
+        else:
+            assert False, (
+                f"Node {new_node.local_node_id} unexpectedly joined despite a "
+                "target certificate SAN mismatch"
+            )
+
+
 def run_config_timeout_check(const_args):
     args = copy.deepcopy(const_args)
     args.nodes = infra.e2e_args.nodes(args, 1)
@@ -2013,7 +2108,7 @@ def run_cose_only_mode_upgrade(args):
 
         network.txs.issue(network, number_txs=3)
 
-        # Verify a Dual joiner can still join (allow_dual_signing_joinee=true)
+        # Verify a Dual joiner can still join (allow_dual_signing_joiner=true)
         LOG.info("Verifying Dual joiner can still join COSE-only (allow dual) network")
         dual_joiner = network.create_node()
         network.join_node(dual_joiner, nargs.package, nargs, from_snapshot=False)
@@ -2307,7 +2402,7 @@ def run_empty_ledger_dir_check(args):
             network.stop_all_nodes()
 
             # Now write a file in the directory
-            with open(os.path.join(tmp_dir, "ledger_1000_1500.committed"), "wb") as f:
+            with open(os.path.join(tmp_dir, "ledger_10_15.committed"), "wb") as f:
                 f.write(b"bar")
             network.skip_verify_chunking = True
 
@@ -4620,6 +4715,7 @@ def run(args):
     run_ledger_cleanup_no_read_only_dir_check(args)
     run_ledger_chunk_cleanup_tests(args)
     run_tls_san_checks(args)
+    run_tls_san_join_mismatch(args)
     run_config_timeout_check(args)
     run_configuration_file_checks(args)
     run_pid_file_check(args)
