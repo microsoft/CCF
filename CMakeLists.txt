@@ -1091,6 +1091,13 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
+    NAME recovery_intermediate_snapshot_join_test
+    PYTHON_SCRIPT
+      ${CMAKE_SOURCE_DIR}/tests/identity_recovery_intermediate_snapshot.py
+    BUCKET bucket_b
+  )
+
+  add_e2e_test(
     NAME recovery_test_suite
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
     LABEL suite
