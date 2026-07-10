@@ -39,6 +39,7 @@ from cryptography.hazmat.primitives import serialization
 from ccf.cose import verify_cose_sign1_with_key  # type: ignore
 import random
 import copy
+from datetime import datetime, timezone
 import infra.commit
 import infra.utils
 import infra.platform_detection
@@ -372,7 +373,31 @@ def run_reconfiguration_before_recovery_shares(args):
             )
 
             new_node = recovered_network.create_node()
-            recovered_network.join_node(new_node, args.package, args)
+            recovered_network.join_node(
+                new_node,
+                args.package,
+                args,
+                wait_for_node_in_store=False,
+            )
+            recovered_network.wait_for_node_in_store(
+                primary,
+                new_node.node_id,
+                node_status=ccf.ledger.NodeStatus.PENDING,
+                timeout=args.ledger_recovery_timeout,
+            )
+
+            valid_from = datetime.now(timezone.utc)
+            recovered_network.consortium.trust_node(
+                primary,
+                new_node.node_id,
+                valid_from=valid_from,
+                timeout=args.ledger_recovery_timeout,
+            )
+            new_node.wait_for_node_to_join(timeout=args.ledger_recovery_timeout)
+            new_node.set_certificate_validity_period(
+                valid_from, args.maximum_node_certificate_validity_days
+            )
+            recovered_network.wait_for_all_nodes_to_commit(primary=primary)
             recovered_network.wait_for_node_in_store(
                 primary,
                 new_node.node_id,
