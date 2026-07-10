@@ -292,14 +292,15 @@ namespace ccf::curl
       return true;
     }
 
-    static int seek_data(RequestBody* data, curl_off_t offset, int origin)
+    static int seek_data(void* userdata, curl_off_t offset, int origin)
     {
-      if (data == nullptr)
+      if (userdata == nullptr)
       {
         LOG_FAIL_FMT("seek_data called with null userdata");
         return CURL_SEEKFUNC_FAIL;
       }
 
+      auto* data = static_cast<RequestBody*>(userdata);
       return data->seek(offset, origin) ? CURL_SEEKFUNC_OK :
                                           CURL_SEEKFUNC_CANTSEEK;
     }

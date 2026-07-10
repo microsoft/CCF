@@ -128,6 +128,15 @@ TEST_CASE("RequestBody supports replay")
   REQUIRE_FALSE(body.seek(1, SEEK_CUR));
   REQUIRE_FALSE(
     body.seek(-static_cast<curl_off_t>(expected.size()) - 1, SEEK_END));
+
+  REQUIRE(
+    ccf::curl::RequestBody::seek_data(&body, 0, SEEK_SET) == CURL_SEEKFUNC_OK);
+  REQUIRE(
+    ccf::curl::RequestBody::seek_data(&body, expected.size() + 1, SEEK_SET) ==
+    CURL_SEEKFUNC_CANTSEEK);
+  REQUIRE(
+    ccf::curl::RequestBody::seek_data(nullptr, 0, SEEK_SET) ==
+    CURL_SEEKFUNC_FAIL);
 }
 
 TEST_CASE("RequestBody supports empty bodies")
