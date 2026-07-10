@@ -20,6 +20,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - The unused enclave-side HTTP client infrastructure (`RPCSessions::create_client`, `HTTPClientSession`, `HTTP2ClientSession`, `UnencryptedHTTPClientSession`, and the `ClientSession` base) has been removed following the migration of the node join client to curl, completing the legacy HTTP client removal tracked in #7262 (#8040).
 
+### Fixed
+
+- A node joining or recovering from a stale snapshot no longer fails to bootstrap its network identity history when the local key-value store briefly exposes a previous service identity. The network identity subsystem now detects that the topmost endorsement is signed by a stale service identity and retries (unbounded, matching the other pre-bootstrap waits) until the committed ledger suffix is replayed and the local store reaches the current service identity. Each retry logs the topmost endorsement's txid and the mismatching public keys (the endorsement's signer and the expected current network identity), so an operator can diagnose a node that stays in this state (#8042).
+
 ## [7.0.7]
 
 [7.0.7]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.7

@@ -30,39 +30,38 @@ namespace ccf
       return node_state.is_part_of_network();
     }
 
-    std::optional<TxID> get_current_service_txid() override
+    CurrentServiceIdentity get_current_service_identity() override
     {
+      // Read the service record and the previous-identity endorsement from the
+      // SAME read-only transaction (one KV snapshot), and only report them when
+      // the service is OPEN. The endorsement is written in the same transaction
+      // that opens the service, so this guarantees they belong to the same
+      // service.
       auto store = node_state.get_store();
       auto tx = store->create_read_only_tx();
+
+      CurrentServiceIdentity result;
+
       auto* service_info_handle =
         tx.template ro<ccf::Service>(ccf::Tables::SERVICE);
       auto service_info = service_info_handle->get();
+      // A node can advance to part-of-network before the service-opening tx has
+      // been replicated. Until the service is OPEN, its create-txid (and the
+      // endorsement written in the same tx) may be stale, so leave create_txid
+      // unset and let the caller retry.
       if (
-        !service_info || !service_info->current_service_create_txid.has_value())
+        service_info && service_info->current_service_create_txid.has_value() &&
+        service_info->status == ServiceStatus::OPEN)
       {
-        return std::nullopt;
+        result.create_txid = service_info->current_service_create_txid;
       }
-      if (service_info->status != ServiceStatus::OPEN)
-      {
-        // It can happen that node advances its internal state machine to
-        // part-of-network, but the service opening tx has not been
-        // replicated yet. This will cause the first fetched endorsement
-        // to be obsolete, but waiting for ServiceStatus::OPEN is
-        // sufficient, as it's supposed to arrive in the same TX that
-        // the previous identity endorsement.
-        return std::nullopt;
-      }
-      return service_info->current_service_create_txid;
-    }
 
-    std::optional<CoseEndorsement> get_current_endorsement() override
-    {
-      auto store = node_state.get_store();
-      auto tx = store->create_read_only_tx();
-      return tx
-        .template ro<ccf::PreviousServiceIdentityEndorsement>(
-          ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT)
-        ->get();
+      result.endorsement =
+        tx.template ro<ccf::PreviousServiceIdentityEndorsement>(
+            ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT)
+          ->get();
+
+      return result;
     }
   };
 
