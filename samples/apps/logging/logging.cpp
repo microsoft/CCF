@@ -2234,9 +2234,13 @@ namespace loggingapp
 
       auto get_request_query = [](auto& ctx) {
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-        std::vector<uint8_t> rq(
-          ctx.rpc_ctx->get_request_query().begin(),
-          ctx.rpc_ctx->get_request_query().end());
+        // get_request_query() now returns the raw, still-escaped query
+        // string (escaping is only removed per-component, after splitting,
+        // by parse_query). This endpoint echoes the whole query back as a
+        // single value, so it must decode it here instead.
+        const auto decoded_query =
+          ccf::http::decode_query_component(ctx.rpc_ctx->get_request_query());
+        std::vector<uint8_t> rq(decoded_query.begin(), decoded_query.end());
         ctx.rpc_ctx->set_response_body(rq);
       };
 
