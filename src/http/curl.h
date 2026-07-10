@@ -225,18 +225,6 @@ namespace ccf::curl
     std::vector<uint8_t> buffer;
     std::span<const uint8_t> unsent;
 
-    [[nodiscard]] bool is_offset_in_bounds(curl_off_t offset) const
-    {
-      if (offset < 0)
-      {
-        return false;
-      }
-
-      const auto position = static_cast<size_t>(offset);
-      return static_cast<curl_off_t>(position) == offset &&
-        position <= buffer.size();
-    }
-
     void rewind(size_t offset = 0)
     {
       unsent = std::span<const uint8_t>(buffer).subspan(offset);
@@ -280,42 +268,30 @@ namespace ccf::curl
 
     bool seek(curl_off_t offset, int origin)
     {
-      const auto end = static_cast<curl_off_t>(buffer.size());
-      if (end < 0 || static_cast<size_t>(end) != buffer.size())
-      {
-        return false;
-      }
-
-      const auto current =
-        static_cast<curl_off_t>(buffer.size() - unsent.size());
-      curl_off_t position = 0;
+      size_t base = 0;
       switch (origin)
       {
         case SEEK_SET:
-          position = offset;
           break;
         case SEEK_CUR:
-          if (__builtin_add_overflow(current, offset, &position))
-          {
-            return false;
-          }
+          base = buffer.size() - unsent.size();
           break;
         case SEEK_END:
-          if (__builtin_add_overflow(end, offset, &position))
-          {
-            return false;
-          }
+          base = buffer.size();
           break;
         default:
           return false;
       }
 
-      if (!is_offset_in_bounds(position))
+      size_t position = 0;
+      if (
+        __builtin_add_overflow(base, offset, &position) ||
+        position > buffer.size())
       {
         return false;
       }
 
-      rewind(static_cast<size_t>(position));
+      rewind(position);
       return true;
     }
 

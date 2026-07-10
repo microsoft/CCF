@@ -115,6 +115,7 @@ TEST_CASE("RequestBody supports replay")
       return static_cast<uint8_t>(lhs) == rhs;
     }));
 
+  REQUIRE_FALSE(body.seek(-1, SEEK_SET));
   REQUIRE_FALSE(body.seek(expected.size() + 1, SEEK_SET));
   REQUIRE_FALSE(body.seek(1, SEEK_CUR));
   REQUIRE_FALSE(
