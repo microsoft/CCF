@@ -172,6 +172,23 @@ DOCTEST_TEST_CASE("Body too large")
   ccf::http::ParserConfiguration config;
   config.max_body_size = ccf::ds::SizeString("8B");
 
+  // Response parsing uses the same base Parser, so an oversized Content-Length
+  // should also be rejected at headers-complete time.
+  {
+    ::http::SimpleResponseProcessor sp;
+    ::http::ResponseParser p(sp);
+
+    const auto too_big = ccf::http::default_max_body_size.count_bytes() + 1;
+    const auto res = fmt::format(
+      "HTTP/1.1 200 OK\r\ncontent-length: {}\r\n\r\n", too_big);
+    const auto bytes = std::vector<uint8_t>(res.begin(), res.end());
+
+    DOCTEST_CHECK_THROWS_AS(
+      p.execute(bytes.data(), bytes.size()),
+      http::RequestPayloadTooLargeException);
+    DOCTEST_CHECK(sp.received.empty());
+  }
+
   // A body exceeding max_body_size is rejected. With a Content-Length header
   // the parser exits early, at the point where headers are complete, before
   // any body chunk has been appended.

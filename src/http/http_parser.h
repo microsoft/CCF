@@ -367,7 +367,7 @@ namespace http
       if (parser.content_length > max_body_size)
       {
         throw RequestPayloadTooLargeException(fmt::format(
-          "HTTP request body is too large (Content-Length: {}, max size "
+          "HTTP message body is too large (Content-Length: {}, max size "
           "allowed: {})",
           parser.content_length,
           max_body_size));
