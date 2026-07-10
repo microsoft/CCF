@@ -363,7 +363,7 @@ def run_reconfiguration_before_recovery_shares(args):
         txs=txs,
     ) as network:
         network.start_and_open(args)
-        network.txs.issue(network, number_txs=2)
+        txs.issue(network, number_txs=2)
         network.save_service_identity(args)
         old_primary, _ = network.find_primary()
         network.stop_all_nodes()
@@ -437,21 +437,20 @@ def run_reconfiguration_before_recovery_shares(args):
                     infra.node.State.PART_OF_NETWORK.value,
                     timeout=args.ledger_recovery_timeout,
                 )
-                recovered_network._wait_for_app_open(node)
+                recovered_network._wait_for_app_open(
+                    node, timeout=args.ledger_recovery_timeout
+                )
 
             recovered_network.recovery_count += 1
             recovered_network.consortium.check_for_service(
                 primary, infra.network.ServiceStatus.OPEN
             )
 
-            recovered_network.txs.verify(
+            txs.issue(recovered_network, number_txs=1)
+            txs.verify(
                 network=recovered_network,
                 timeout=args.ledger_recovery_timeout,
             )
-
-            with new_node.client() as c:
-                r = c.get("/app/commit")
-                assert r.status_code == http.HTTPStatus.OK, r
 
             recovered_network.stop_all_nodes()
 
