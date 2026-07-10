@@ -258,7 +258,10 @@ namespace ccf::curl
         return 0;
       }
       const auto bytes_to_copy = std::min(data->unsent.size(), size * nitems);
-      memcpy(ptr, data->unsent.data(), bytes_to_copy);
+      if (bytes_to_copy > 0)
+      {
+        memcpy(ptr, data->unsent.data(), bytes_to_copy);
+      }
       data->unsent = data->unsent.subspan(bytes_to_copy);
       return bytes_to_copy;
     }
