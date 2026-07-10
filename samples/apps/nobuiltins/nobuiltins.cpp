@@ -4,6 +4,7 @@
 #include "ccf/base_endpoint_registry.h"
 #include "ccf/common_auth_policies.h"
 #include "ccf/ds/json.h"
+#include "ccf/http_query.h"
 #include "ccf/json_handler.h"
 #include "ccf/node_context.h"
 
@@ -220,13 +221,19 @@ namespace nobuiltins
         const auto query_params = ccf::nonstd::split(query_string, "&");
         for (const auto& query_param : query_params)
         {
-          const auto& [query_key, query_value] =
+          const auto& [raw_key, raw_value] =
             ccf::nonstd::split_1(query_param, "=");
+          // get_request_query() now returns the raw, still-escaped query, so
+          // each component must be decoded after splitting, matching
+          // ccf::http::parse_query.
+          const auto query_key = ccf::http::decode_query_component(raw_key);
           if (query_key == "seqno")
           {
+            const auto query_value =
+              ccf::http::decode_query_component(raw_value);
             ccf::SeqNo seqno = {};
-            const auto qv_begin = query_value.data();
-            const auto qv_end = qv_begin + query_value.size();
+            const auto* qv_begin = query_value.data();
+            const auto* qv_end = qv_begin + query_value.size();
             const auto [p, ec] = std::from_chars(qv_begin, qv_end, seqno);
             if (ec != std::errc() || p != qv_end)
             {

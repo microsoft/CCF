@@ -7,6 +7,7 @@ from enum import IntEnum
 import secrets
 import datetime
 import hashlib
+import ipaddress
 from pyasn1.type.useful import UTCTime
 
 
@@ -133,6 +134,7 @@ def generate_cert(
     ca=False,
     valid_from=None,
     validity_days=10,
+    san: Optional[str] = None,
 ) -> str:
     cn = cn or "dummy"
     if issuer_priv_key_pem is None:
@@ -174,6 +176,19 @@ def generate_cert(
         builder = builder.add_extension(
             x509.BasicConstraints(ca=True, path_length=None),
             critical=True,
+        )
+    if san is not None:
+        # Emit an iPAddress SAN entry when the value is an IP literal (e.g.
+        # "127.0.0.1"), and a dNSName otherwise. TLS verification against an IP
+        # literal (as libcurl does with CURLOPT_SSL_VERIFYHOST=2) only matches
+        # iPAddress entries, not dNSName entries that happen to hold an IP.
+        try:
+            san_entry: x509.GeneralName = x509.IPAddress(ipaddress.ip_address(san))
+        except ValueError:
+            san_entry = x509.DNSName(san)
+        builder = builder.add_extension(
+            x509.SubjectAlternativeName([san_entry]),
+            critical=False,
         )
 
     cert = builder.sign(issuer_priv, hashes.SHA256(), default_backend())

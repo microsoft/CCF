@@ -5,12 +5,58 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [7.0.10]
+
+[7.0.10]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.10
+
+### Changed
+
+- `ccf::http::ParsedQuery` (in `include/ccf/http_query.h`), returned by `ccf::http::parse_query()`, is now a `std::multimap<std::string, std::string, std::less<>>` that owns its decoded keys and values, rather than a `std::multimap<std::string_view, std::string_view>` pointing into the source query string. Owned storage is required because each key and value is now URL-decoded individually after splitting, which produces bytes not present in the original query. Application code that consumed the previous `std::string_view` keys/values may need to be updated (#8024).
+- `ccf::RpcContext::get_request_query()` (C++) and `request.query` (JavaScript apps) now return the raw, still percent-encoded query string, instead of a whole-string URL-decoded copy. This is what allows escaped separators to be preserved. Callers must decode each parameter after splitting: use `ccf::http::parse_query()`/`ccf::http::get_query_value()` (C++) or `parse_request_query()` (JS), or `ccf::http::decode_query_component()` to decode a whole query string (#8024).
+
+### Fixed
+
+- HTTP query parameters are now split before URL-decoding, so escaped ampersands in query parameter names and values are preserved correctly (#8024).
+
+## [7.0.9]
+
+[7.0.9]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.9
+
+### Fixed
+
+- Curl request bodies can now be replayed when following redirects or retrying authentication (#8052).
+
+## [7.0.8]
+
+[7.0.8]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.8
+
+### Fixed
+
+- The node join protocol client now uses the curl multi singleton client (introduced in #7102) instead of the legacy enclave `RPCSessions::create_client()` HTTP client, matching the JWT refresh and snapshot-fetch clients. The service certificate remains the sole trust anchor for the join connection (the host certificate store is never consulted) (#8040).
+- **Node joins now check the target RPC address against the target node's certificate SANs.** TLS certificate hostname verification (`CURLOPT_SSL_VERIFYHOST`) is now enforced on the join connection: the host in `join.target_rpc_address` must be covered by one of the target node's certificate Subject Alternative Names (SANs), and a join to an address absent from the target's SANs is now rejected (the previous join client did not check the target certificate name at all). CCF derives node-certificate SANs from `node_certificate.subject_alt_names`, or by default from each RPC interface's `published_address`, so standard deployments are unaffected; operators that configure a bespoke `join.target_rpc_address` must ensure it is present in the target node's certificate SANs (#8040).
+
+### Removed
+
+- The unused enclave-side HTTP client infrastructure (`RPCSessions::create_client`, `HTTPClientSession`, `HTTP2ClientSession`, `UnencryptedHTTPClientSession`, and the `ClientSession` base) has been removed following the migration of the node join client to curl, completing the legacy HTTP client removal tracked in #7262 (#8040).
+
+### Fixed
+
+- A node joining or recovering from a stale snapshot no longer fails to bootstrap its network identity history when the local key-value store briefly exposes a previous service identity. The network identity subsystem now detects that the topmost endorsement is signed by a stale service identity and retries (unbounded, matching the other pre-bootstrap waits) until the committed ledger suffix is replayed and the local store reaches the current service identity. Each retry logs the topmost endorsement's txid and the mismatching public keys (the endorsement's signer and the expected current network identity), so an operator can diagnose a node that stays in this state (#8042).
+
 ## [7.0.7]
 
 [7.0.7]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.7
 
+### Changed
+
+- JWT/JWK auto-refresh outbound HTTP fetches (OpenID metadata and JWKS) now use the curl multi singleton client introduced in #7102, replacing the previous `RPCSessions::create_client()` path. Connection and TLS failures are now counted in refresh failure metrics via `send_refresh_jwt_keys_error()`, improving observability of network-level refresh errors (#7989).
+- JWT/JWK auto-refresh now supports configuring the maximum response body size for fetched OpenID metadata and JWKS via the `jwt.key_refresh_max_response_size` node startup config setting (#7989).
+- Fatal task worker stack traces now use libbacktrace for improved function and source-location resolution. Building CCF now requires the libbacktrace development package, and the RPM development package depends on `libbacktrace-static` (#7721).
+
 ### Fixed
 
+- JS endpoint string values (e.g. response bodies, KV keys/values) containing embedded NUL bytes are no longer silently truncated at the first NUL when converted to their C++ representation (#8033).
+- Curl multi client shutdown now aborts queued async requests without performing network I/O, and curl response header capture now enforces default header size and count limits (#8005).
 - Changing recovery members or the recovery threshold, refreshing recovery shares, or rekeying the ledger while the service is recovering now correctly returns an error instead of appearing to succeed. These operations were always potentially unsafe because at-recovery ledger secrets cannot be rekeyed; services with custom constitutions should update their `set_member`, `remove_member`, `set_recovery_threshold`, `trigger_recovery_shares_refresh`, and `trigger_ledger_rekey` actions to reject them while recovering (#7980).
 
 ## [7.0.6]

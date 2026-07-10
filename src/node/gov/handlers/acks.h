@@ -12,6 +12,7 @@
 
 namespace ccf::gov::endpoints
 {
+  // NOLINTNEXTLINE(readability-function-cognitive-complexity)
   inline void init_ack_handlers(
     ccf::BaseEndpointRegistry& registry,
     NetworkState& /*network*/,

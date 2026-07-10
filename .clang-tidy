@@ -51,12 +51,17 @@ Checks: >
   -performance-no-int-to-ptr,
   portability-*,
   readability-*,
-  -readability-function-cognitive-complexity,
   -readability-identifier-length,
   -readability-avoid-nested-conditional-operator,
   -readability-convert-member-functions-to-static,
   -readability-uppercase-literal-suffix,
   -readability-magic-numbers,
+
+CheckOptions:
+  - key: readability-function-cognitive-complexity.IgnoreMacros
+    value: 'true'
+  - key: readability-function-cognitive-complexity.Threshold
+    value: '50'
 
 WarningsAsErrors: '*'
 HeaderFilterRegex: '(include\/ccf|src)\/.*'

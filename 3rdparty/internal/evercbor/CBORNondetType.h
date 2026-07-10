@@ -3,6 +3,10 @@
 #ifndef CBORNondetType_H
 #define CBORNondetType_H
 
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
 #include "krmllib.h"
 
 typedef struct CBOR_Spec_Raw_Base_raw_uint64_s
@@ -12,16 +16,16 @@ typedef struct CBOR_Spec_Raw_Base_raw_uint64_s
 }
 CBOR_Spec_Raw_Base_raw_uint64;
 
-typedef struct Pulse_Lib_Slice_slice__uint8_t_s
+typedef struct CBOR_Pulse_Raw_Slice_byte_slice_s
 {
   uint8_t *elt;
   size_t len;
 }
-Pulse_Lib_Slice_slice__uint8_t;
+CBOR_Pulse_Raw_Slice_byte_slice;
 
 typedef struct CBOR_Pulse_Raw_Iterator_Base_cbor_raw_serialized_iterator_s
 {
-  Pulse_Lib_Slice_slice__uint8_t s;
+  CBOR_Pulse_Raw_Slice_byte_slice s;
   uint64_t len;
 }
 CBOR_Pulse_Raw_Iterator_Base_cbor_raw_serialized_iterator;
@@ -29,7 +33,7 @@ CBOR_Pulse_Raw_Iterator_Base_cbor_raw_serialized_iterator;
 typedef struct cbor_serialized_s
 {
   CBOR_Spec_Raw_Base_raw_uint64 cbor_serialized_header;
-  Pulse_Lib_Slice_slice__uint8_t cbor_serialized_payload;
+  CBOR_Pulse_Raw_Slice_byte_slice cbor_serialized_payload;
 }
 cbor_serialized;
 
@@ -45,11 +49,9 @@ typedef struct cbor_string_s
 {
   uint8_t cbor_string_type;
   uint8_t cbor_string_size;
-  Pulse_Lib_Slice_slice__uint8_t cbor_string_ptr;
+  CBOR_Pulse_Raw_Slice_byte_slice cbor_string_ptr;
 }
 cbor_string;
-
-typedef struct cbor_raw_s cbor_raw;
 
 typedef struct cbor_raw_s cbor_raw;
 
@@ -59,8 +61,6 @@ typedef struct cbor_tagged_s
   cbor_raw *cbor_tagged_ptr;
 }
 cbor_tagged;
-
-typedef struct cbor_raw_s cbor_raw;
 
 typedef struct Pulse_Lib_Slice_slice__CBOR_Pulse_Raw_Type_cbor_raw_s
 {
@@ -164,6 +164,9 @@ typedef cbor_map_iterator cbor_nondet_map_iterator_t;
 
 typedef cbor_map_entry cbor_nondet_map_entry_t;
 
+#if defined(__cplusplus)
+}
+#endif
 
 #define CBORNondetType_H_DEFINED
 #endif /* CBORNondetType_H */

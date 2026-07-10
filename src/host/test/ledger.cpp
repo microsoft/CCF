@@ -9,8 +9,7 @@
 #include "ds/serialized.h"
 #include "kv/ledger_chunker.h"
 #include "kv/serialised_entry_format.h"
-#define TEST_MODE_EXECUTE_SYNC_INLINE
-#include "snapshots/snapshot_manager.h"
+#include "snapshots/snapshot_writer.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>
@@ -1653,7 +1652,9 @@ TEST_CASE("Generate and commit snapshots" * doctest::test_suite("snapshot"))
   fs::create_directory(snapshot_dir_read_only);
 
   using namespace snapshots;
-  SnapshotManager snapshots(snapshot_dir, wf, snapshot_dir_read_only);
+  SnapshotWriter snapshots(snapshot_dir);
+
+  const std::vector<fs::path> find_dirs{snapshot_dir, snapshot_dir_read_only};
 
   size_t snapshot_interval = 5;
   size_t snapshot_count = 5;
@@ -1661,14 +1662,8 @@ TEST_CASE("Generate and commit snapshots" * doctest::test_suite("snapshot"))
 
   INFO("Generate snapshots");
   {
-    for (size_t i = 1; i < snapshot_interval * snapshot_count;
-         i += snapshot_interval)
-    {
-      // Note: Evidence is assumed to be at snapshot idx + 1
-      snapshots.add_pending_snapshot(i, i + 1, dummy_snapshot.size());
-    }
-
-    REQUIRE_FALSE(snapshots.find_latest_committed_snapshot().has_value());
+    REQUIRE_FALSE(
+      find_latest_committed_snapshot_in_directories(find_dirs).has_value());
   }
 
   INFO("Commit snapshots");
@@ -1677,10 +1672,10 @@ TEST_CASE("Generate and commit snapshots" * doctest::test_suite("snapshot"))
          i += snapshot_interval)
     {
       // Note: Evidence is assumed to be at snapshot idx + 1
-      snapshots.commit_snapshot(i, dummy_receipt.data(), dummy_receipt.size());
+      snapshots.persist_snapshot(i, i + 1, dummy_snapshot, dummy_receipt);
 
       auto latest_committed_snapshot =
-        snapshots.find_latest_committed_snapshot();
+        find_latest_committed_snapshot_in_directories(find_dirs);
       REQUIRE(latest_committed_snapshot.has_value());
       REQUIRE(latest_committed_snapshot->parent_path() == snapshot_dir);
       const auto& snapshot = latest_committed_snapshot->filename();
@@ -1700,7 +1695,8 @@ TEST_CASE("Generate and commit snapshots" * doctest::test_suite("snapshot"))
       fs::remove(f.path());
     }
 
-    auto latest_committed_snapshot = snapshots.find_latest_committed_snapshot();
+    auto latest_committed_snapshot =
+      find_latest_committed_snapshot_in_directories(find_dirs);
     REQUIRE(latest_committed_snapshot.has_value());
     REQUIRE(latest_committed_snapshot->parent_path() == snapshot_dir_read_only);
     const auto& snapshot = latest_committed_snapshot->filename();
@@ -1710,12 +1706,11 @@ TEST_CASE("Generate and commit snapshots" * doctest::test_suite("snapshot"))
   INFO("Commit and retrieve new snapshot");
   {
     size_t new_snapshot_idx = last_snapshot_idx + 1;
-    snapshots.add_pending_snapshot(
-      new_snapshot_idx, new_snapshot_idx + 1, dummy_snapshot.size());
-    snapshots.commit_snapshot(
-      new_snapshot_idx, dummy_receipt.data(), dummy_receipt.size());
+    snapshots.persist_snapshot(
+      new_snapshot_idx, new_snapshot_idx + 1, dummy_snapshot, dummy_receipt);
 
-    auto latest_committed_snapshot = snapshots.find_latest_committed_snapshot();
+    auto latest_committed_snapshot =
+      find_latest_committed_snapshot_in_directories(find_dirs);
     REQUIRE(latest_committed_snapshot.has_value());
     REQUIRE(latest_committed_snapshot->parent_path() == snapshot_dir);
     const auto& snapshot = latest_committed_snapshot->filename();

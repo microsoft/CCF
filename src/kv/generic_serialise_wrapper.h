@@ -13,11 +13,8 @@
 
 namespace ccf::kv
 {
-  using SerialisedKey = ccf::kv::serialisers::SerialisedEntry;
-  using SerialisedValue = ccf::kv::serialisers::SerialisedEntry;
-
   template <typename W>
-  class GenericSerialiseWrapper
+  class GenericSerialiseWrapper : public KvStoreSerialiser
   {
   private:
     W public_writer;
@@ -92,7 +89,7 @@ namespace ccf::kv
       serialise_internal((Version)0u);
     }
 
-    void start_map(const std::string& name, SecurityDomain domain)
+    void start_map(const std::string& name, SecurityDomain domain) override
     {
       if (domain == SecurityDomain::PRIVATE && !crypto_util)
       {
@@ -108,45 +105,46 @@ namespace ccf::kv
       serialise_internal(name);
     }
 
-    void serialise_raw(const std::vector<uint8_t>& raw)
+    void serialise_raw(const std::vector<uint8_t>& raw) override
     {
       serialise_internal(raw);
     }
 
-    void serialise_view_history(const std::vector<Version>& view_history)
+    void serialise_view_history(
+      const std::vector<Version>& view_history) override
     {
       serialise_internal(view_history);
     }
 
-    template <class Version>
-    void serialise_entry_version(const Version& version)
+    void serialise_entry_version(const Version& version) override
     {
       serialise_internal(version);
     }
 
-    void serialise_count_header(uint64_t ctr)
+    void serialise_count_header(uint64_t ctr) override
     {
       serialise_internal(ctr);
     }
 
-    void serialise_read(const SerialisedKey& k, const Version& version)
+    void serialise_read(const SerialisedKey& k, const Version& version) override
     {
       serialise_internal(k);
       serialise_internal(version);
     }
 
-    void serialise_write(const SerialisedKey& k, const SerialisedValue& v)
+    void serialise_write(
+      const SerialisedKey& k, const SerialisedValue& v) override
     {
       serialise_internal(k);
       serialise_internal(v);
     }
 
-    void serialise_remove(const SerialisedKey& k)
+    void serialise_remove(const SerialisedKey& k) override
     {
       serialise_internal(k);
     }
 
-    std::vector<uint8_t> get_raw_data()
+    std::vector<uint8_t> get_raw_data() override
     {
       // make sure the private buffer is empty when we return
       auto writer_guard_func = [](W* writer) { writer->clear(); };
@@ -159,8 +157,7 @@ namespace ccf::kv
 
     std::vector<uint8_t> serialise_domains(
       const std::vector<uint8_t>& serialised_public_domain,
-      const std::vector<uint8_t>& serialised_private_domain =
-        std::vector<uint8_t>())
+      const std::vector<uint8_t>& serialised_private_domain) override
     {
       size_t size_ = serialised_public_domain.size();
 
@@ -238,7 +235,7 @@ namespace ccf::kv
   };
 
   template <typename R>
-  class GenericDeserialiseWrapper
+  class GenericDeserialiseWrapper : public KvStoreDeserialiser
   {
   private:
     R public_reader;
@@ -289,12 +286,13 @@ namespace ccf::kv
       domain_restriction(domain_restriction)
     {}
 
-    ccf::ClaimsDigest&& consume_claims_digest()
+    ccf::ClaimsDigest&& consume_claims_digest() override
     {
       return std::move(claims_digest);
     }
 
     std::optional<ccf::crypto::Sha256Hash>&& consume_commit_evidence_digest()
+      override
     {
       return std::move(commit_evidence_digest);
     }
@@ -304,7 +302,7 @@ namespace ccf::kv
       size_t size,
       ccf::kv::Term& term,
       EntryFlags& flags,
-      bool historical_hint = false)
+      bool historical_hint) override
     {
       current_reader = &public_reader;
       const auto* data_ = data;
@@ -389,7 +387,7 @@ namespace ccf::kv
       return version;
     }
 
-    std::optional<std::string> start_map()
+    std::optional<std::string> start_map() override
     {
       if (current_reader->is_eos())
       {
@@ -406,56 +404,56 @@ namespace ccf::kv
       return current_reader->template read_next<std::string>();
     }
 
-    Version deserialise_entry_version()
+    Version deserialise_entry_version() override
     {
       return current_reader->template read_next<Version>();
     }
 
-    uint64_t deserialise_read_header()
+    uint64_t deserialise_read_header() override
     {
       return current_reader->template read_next<uint64_t>();
     }
 
-    std::tuple<SerialisedKey, Version> deserialise_read()
+    std::tuple<SerialisedKey, Version> deserialise_read() override
     {
       return {
         current_reader->template read_next<SerialisedKey>(),
         current_reader->template read_next<Version>()};
     }
 
-    uint64_t deserialise_write_header()
+    uint64_t deserialise_write_header() override
     {
       return current_reader->template read_next<uint64_t>();
     }
 
-    std::tuple<SerialisedKey, SerialisedValue> deserialise_write()
+    std::tuple<SerialisedKey, SerialisedValue> deserialise_write() override
     {
       return {
         current_reader->template read_next<SerialisedKey>(),
         current_reader->template read_next<SerialisedValue>()};
     }
 
-    std::vector<uint8_t> deserialise_raw()
+    std::vector<uint8_t> deserialise_raw() override
     {
       return current_reader->template read_next<std::vector<uint8_t>>();
     }
 
-    std::vector<Version> deserialise_view_history()
+    std::vector<Version> deserialise_view_history() override
     {
       return current_reader->template read_next<std::vector<Version>>();
     }
 
-    uint64_t deserialise_remove_header()
+    uint64_t deserialise_remove_header() override
     {
       return current_reader->template read_next<uint64_t>();
     }
 
-    SerialisedKey deserialise_remove()
+    SerialisedKey deserialise_remove() override
     {
       return current_reader->template read_next<SerialisedKey>();
     }
 
-    bool end()
+    bool end() override
     {
       return current_reader->is_eos() && public_reader.is_eos();
     }

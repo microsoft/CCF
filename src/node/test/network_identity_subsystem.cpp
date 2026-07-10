@@ -62,13 +62,9 @@ namespace
     {
       return part_of_network;
     }
-    std::optional<ccf::TxID> get_current_service_txid() override
+    ccf::CurrentServiceIdentity get_current_service_identity() override
     {
-      return current_service_from;
-    }
-    std::optional<ccf::CoseEndorsement> get_current_endorsement() override
-    {
-      return topmost;
+      return {current_service_from, topmost};
     }
   };
 
@@ -365,6 +361,29 @@ namespace
     f.node_state->topmost = cb.topmost_entry();
     f.historical->entries = cb.historical_entries();
   }
+
+  // Populate the mocks from a partially replayed chain. The live KV exposes
+  // entries[topmost_index] as the topmost endorsement, while historical access
+  // contains only its predecessors. Use this when modelling a joiner whose
+  // local KV is behind the latest network identity received from join.
+  void wire_partially_replayed_chain(
+    SubsystemFixture& f, const ChainBuilder& cb, size_t topmost_index)
+  {
+    REQUIRE(topmost_index < cb.entries.size());
+    REQUIRE(cb.write_versions.size() == cb.entries.size());
+    const auto& topmost = cb.entries.at(topmost_index);
+    REQUIRE(topmost.endorsement_epoch_end.has_value());
+
+    f.node_state->current_service_from = ccf::TxID{
+      topmost.endorsement_epoch_end->view + aft::starting_view_change,
+      topmost.endorsement_epoch_end->seqno + 1};
+    f.node_state->topmost = topmost;
+    f.historical->entries.clear();
+    for (size_t i = 0; i < topmost_index; ++i)
+    {
+      f.historical->entries.emplace(cb.write_versions.at(i), cb.entries.at(i));
+    }
+  }
 }
 
 TEST_CASE("is_self_endorsement detects absence of previous_version")
@@ -623,6 +642,40 @@ TEST_CASE("Bootstrap waits for topmost endorsement entry then proceeds")
   f.scheduler->fire_delayed_once();
   f.scheduler->run_to_completion();
   REQUIRE(sub->endorsements_fetching_status() == ccf::FetchStatus::Done);
+}
+
+TEST_CASE(
+  "Bootstrap retries when snapshot-era topmost identity lags latest network "
+  "identity")
+{
+  SubsystemFixture f;
+  ChainBuilder cb;
+  const ccf::TxID initial_identity_begin{2, 1};
+  const ccf::TxID snapshot_identity_end{4, 200};
+  const ccf::TxID current_identity_begin{6, 201};
+  const ccf::TxID current_identity_end{6, 400};
+  cb.add_self(initial_identity_begin)
+    .add_next(initial_identity_begin, snapshot_identity_end)
+    .add_next(current_identity_begin, current_identity_end);
+  f.use_identity_key(cb.current_key_pair());
+
+  // Model a joiner which received the current identity from the join response,
+  // but whose KV is still at the snapshot-era service identity while the
+  // committed ledger suffix is being replayed.
+  wire_partially_replayed_chain(f, cb, 1);
+
+  auto sub = f.make_subsystem();
+  REQUIRE(sub->endorsements_fetching_status() == ccf::FetchStatus::Retry);
+  REQUIRE(f.scheduler->pending_delayed_count() == 1);
+
+  // Once ledger replay advances the live KV to the latest service identity, the
+  // next retry can build the complete chain.
+  wire_chain(f, cb);
+  f.scheduler->fire_delayed_once();
+  f.scheduler->run_to_completion();
+
+  REQUIRE(sub->endorsements_fetching_status() == ccf::FetchStatus::Done);
+  REQUIRE(sub->get_trusted_keys().size() == 3);
 }
 
 TEST_CASE("Failed: bad signature on topmost detected during bootstrap")

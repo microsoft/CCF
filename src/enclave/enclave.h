@@ -37,8 +37,6 @@
 #include "rpc_sessions.h"
 #include "tasks/worker.h"
 
-#include <openssl/engine.h>
-
 namespace ccf
 {
   class Enclave
@@ -392,17 +390,6 @@ namespace ccf
                 LOG_FAIL_FMT("Unhandled purpose: {}", purpose);
               }
             }
-          });
-
-        DISPATCHER_SET_MESSAGE_HANDLER(
-          bp,
-          ::consensus::snapshot_allocated,
-          [this](const uint8_t* data, size_t size) {
-            const auto [snapshot_span, generation_count] =
-              ringbuffer::read_message<::consensus::snapshot_allocated>(
-                data, size);
-
-            node->write_snapshot(snapshot_span, generation_count);
           });
 
         rpcsessions->register_message_handlers(bp.get_dispatcher());

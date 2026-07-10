@@ -1,9 +1,71 @@
+function decode_query_component(s) {
+  // Decodes '%XX' escapes and '+' (to a space), matching decode_query_component
+  // in include/ccf/http_query.h. Unlike a single decodeURIComponent() over the
+  // whole string, malformed or truncated percent-escapes are passed through
+  // literally instead of causing earlier, valid escapes to be left undecoded
+  // (e.g. "%41%zz" decodes to "A%zz").
+  //
+  // Note: valid '%XX' escapes are collected into maximal runs and decoded
+  // together with decodeURIComponent, rather than one byte at a time. This is
+  // deliberate and should NOT be "simplified" to decoding each %XX on its own
+  // with String.fromCharCode: JS strings are UTF-16, so a multi-byte UTF-8
+  // sequence such as "%C3%A9" must be decoded as a unit to produce a single
+  // code point (U+00E9). Decoding it byte-by-byte would instead produce two
+  // code points (U+00C3 U+00A9), which re-encode via ccf.strToBuf to the wrong
+  // bytes. The byte-wise fallback below only runs when a syntactically-valid
+  // run is not valid UTF-8 (e.g. a lone continuation byte), so decoding still
+  // makes progress instead of throwing.
+  let decoded = "";
+  let i = 0;
+  const isValidEscape = (j) =>
+    s[j] === "%" &&
+    j + 2 < s.length &&
+    /^[0-9A-Fa-f]{2}$/.test(s.substr(j + 1, 2));
+  while (i < s.length) {
+    if (isValidEscape(i)) {
+      // Consume a maximal run of valid '%XX' escapes and decode them together,
+      // so that multi-byte UTF-8 sequences are reassembled correctly.
+      let run = "";
+      while (isValidEscape(i)) {
+        run += s.substr(i, 3);
+        i += 3;
+      }
+      try {
+        decoded += decodeURIComponent(run);
+      } catch (e) {
+        // A run of syntactically-valid '%XX' escapes can still be invalid UTF-8
+        // (e.g. a lone continuation byte). Fall back to decoding byte-by-byte so
+        // we still make progress rather than throwing.
+        for (let j = 0; j < run.length; j += 3) {
+          decoded += String.fromCharCode(parseInt(run.substr(j + 1, 2), 16));
+        }
+      }
+    } else if (s[i] === "+") {
+      decoded += " ";
+      i += 1;
+    } else {
+      decoded += s[i];
+      i += 1;
+    }
+  }
+  return decoded;
+}
+
 function parse_request_query(request) {
+  // request.query is the raw, still-escaped query string - each key and
+  // value must be decoded individually, after splitting, so that escaped
+  // '&' and '=' characters within a key or value are not mistaken for
+  // separators
   const elements = request.query.split("&");
   const obj = {};
   for (const kv of elements) {
-    const [k, v] = kv.split("=");
-    obj[k] = v;
+    // Split on the first '=' only: any further '=' characters are part of the
+    // value, matching split_1(param, "=") in include/ccf/http_query.h.
+    const eq = kv.indexOf("=");
+    const k = eq === -1 ? kv : kv.slice(0, eq);
+    const v = eq === -1 ? undefined : kv.slice(eq + 1);
+    obj[decode_query_component(k)] =
+      v === undefined ? v : decode_query_component(v);
   }
   return obj;
 }
