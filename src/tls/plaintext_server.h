@@ -30,10 +30,15 @@ namespace nontls
       {
         return;
       }
-      int rc = BIO_write(read_bio, buf, len);
-      if (rc < 0 || static_cast<size_t>(rc) != len)
+      size_t written = 0;
+      int success = BIO_write_ex(read_bio, buf, len, &written);
+      if (success <= 0 || written != len)
       {
-        LOG_FAIL_FMT("Failed to buffer {} received bytes (rc={})", len, rc);
+        LOG_FAIL_FMT(
+          "Failed to buffer {} received bytes (success={}, written={})",
+          len,
+          success,
+          written);
       }
     }
 
@@ -44,10 +49,9 @@ namespace nontls
 
     size_t send(uint8_t* buf, size_t len) override
     {
-      // A negative return means no bytes were available to drain, reported as
-      // 0.
-      int rc = BIO_read(write_bio, buf, len);
-      return rc < 0 ? 0 : static_cast<size_t>(rc);
+      size_t readbytes = 0;
+      int success = BIO_read_ex(write_bio, buf, len, &readbytes);
+      return success > 0 ? readbytes : 0;
     }
 
     int handshake() override

@@ -213,8 +213,9 @@ namespace ccf
         default:
         {
           LOG_TRACE_FMT(
-            "TLS {} error on read: {}",
+            "TLS {} error on read (status={}): {}",
             session_id,
+            rc,
             ::tls::error_string(ERR_get_error()));
           stop(error);
           return 0;
@@ -409,8 +410,9 @@ namespace ccf
 
           default:
             LOG_TRACE_FMT(
-              "TLS session {} error on flush: {}",
+              "TLS session {} error on flush (status={}): {}",
               session_id,
+              rc,
               ::tls::error_string(ERR_get_error()));
             stop(error);
             return;
@@ -479,8 +481,9 @@ namespace ccf
         default:
         {
           on_handshake_error(fmt::format(
-            "TLS {} error on handshake: {}",
+            "TLS {} error on handshake (status={}): {}",
             session_id,
+            rc,
             ::tls::error_string(ERR_get_error())));
           stop(error);
           break;

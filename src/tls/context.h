@@ -108,10 +108,15 @@ namespace ccf::tls
       }
       // Writing to an in-memory BIO only fails on allocation failure, and is
       // otherwise all-or-nothing.
-      int rc = BIO_write(SSL_get_rbio(ssl), buf, len);
-      if (rc < 0 || static_cast<size_t>(rc) != len)
+      size_t written = 0;
+      int success = BIO_write_ex(SSL_get_rbio(ssl), buf, len, &written);
+      if (success <= 0 || written != len)
       {
-        LOG_FAIL_FMT("Failed to buffer {} received bytes (rc={})", len, rc);
+        LOG_FAIL_FMT(
+          "Failed to buffer {} received bytes (success={}, written={})",
+          len,
+          success,
+          written);
       }
     }
 
@@ -125,10 +130,9 @@ namespace ccf::tls
     // Drain encrypted bytes to be sent to the peer out of the write BIO.
     virtual size_t send(uint8_t* buf, size_t len)
     {
-      // A negative return means no bytes were available to drain (the BIO is
-      // configured to retry rather than signal EOF), which we report as 0.
-      int rc = BIO_read(SSL_get_wbio(ssl), buf, len);
-      return rc < 0 ? 0 : static_cast<size_t>(rc);
+      size_t readbytes = 0;
+      int success = BIO_read_ex(SSL_get_wbio(ssl), buf, len, &readbytes);
+      return success > 0 ? readbytes : 0;
     }
 
     virtual int handshake()
