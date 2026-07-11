@@ -157,12 +157,13 @@ namespace asynchost
           ccf::nonstd::strerror(errno)));
       }
 
-      TimeBoundLogger log_if_slow(
-        fmt::format("Truncating ledger file - ftruncate({})", file_name));
       if (ftruncate(fd, size) != 0)
       {
         throw std::logic_error(fmt::format(
-          "Failed to truncate ledger: {}", ccf::nonstd::strerror(errno)));
+          "Failed to truncate ledger file {} to {}: {}",
+          file_name,
+          size,
+          ccf::nonstd::strerror(errno)));
       }
     }
 
