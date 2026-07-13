@@ -46,11 +46,12 @@ static void parse_request(picobench::state& s)
   // exercise the full parsing path rather than the early-exit path.
   config.max_body_size = ccf::ds::SizeString("1GB");
 
+  http::RequestParser parser(proc, config);
+
   s.start_timer();
   for (auto _ : s)
   {
     (void)_;
-    http::RequestParser parser(proc, config);
     parser.execute(req.data(), req.size());
   }
   s.stop_timer();

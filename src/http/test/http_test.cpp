@@ -31,6 +31,30 @@ std::string to_lowercase(std::string s)
   return s;
 }
 
+// Production parsing rejects conflicting Content-Length and Transfer-Encoding
+// headers. These test-only parsers exercise llhttp's chunked precedence path.
+class LenientChunkedLengthRequestParser : public http::RequestParser
+{
+public:
+  LenientChunkedLengthRequestParser(
+    http::RequestProcessor& proc,
+    const ccf::http::ParserConfiguration& config) :
+    http::RequestParser(proc, config)
+  {
+    llhttp_set_lenient_chunked_length(&parser, 1);
+  }
+};
+
+class LenientChunkedLengthResponseParser : public http::ResponseParser
+{
+public:
+  explicit LenientChunkedLengthResponseParser(http::ResponseProcessor& proc) :
+    http::ResponseParser(proc)
+  {
+    llhttp_set_lenient_chunked_length(&parser, 1);
+  }
+};
+
 DOCTEST_TEST_CASE("Complete request")
 {
   for (const auto method : {HTTP_POST, HTTP_GET, HTTP_DELETE})
@@ -247,23 +271,27 @@ DOCTEST_TEST_CASE("Body too large")
     DOCTEST_CHECK(sp.received.front().body == body);
   }
 
-  // A chunked body has no Content-Length, so content_length is 0 when the
-  // headers are complete and the early check does not fire. The append_body
-  // accumulation check is the fallback that rejects the request once the
-  // chunks received exceed max_body_size.
-  auto build_chunked_post = [](size_t body_size) {
+  // The append_body accumulation check is the fallback that rejects chunked
+  // messages once the chunks received exceed max_body_size.
+  auto build_chunked_message = [](
+                                 std::string_view start_line,
+                                 size_t body_size,
+                                 std::string_view additional_headers = {}) {
     const std::string chunk(body_size, 'a');
-    const std::string req = fmt::format(
-      "POST / HTTP/1.1\r\n"
+    const std::string message = fmt::format(
+      "{}\r\n"
       "transfer-encoding: chunked\r\n"
+      "{}"
       "\r\n"
       "{:x}\r\n"
       "{}\r\n"
       "0\r\n"
       "\r\n",
+      start_line,
+      additional_headers,
       body_size,
       chunk);
-    return std::vector<uint8_t>(req.begin(), req.end());
+    return std::vector<uint8_t>(message.begin(), message.end());
   };
 
   // An oversized chunked body is rejected by append_body as the chunks
@@ -272,7 +300,7 @@ DOCTEST_TEST_CASE("Body too large")
     http::SimpleRequestProcessor sp;
     http::RequestParser p(sp, config);
 
-    auto req = build_chunked_post(16);
+    auto req = build_chunked_message("POST / HTTP/1.1", 16);
 
     DOCTEST_CHECK_THROWS_AS(
       p.execute(req.data(), req.size()), http::RequestPayloadTooLargeException);
@@ -284,9 +312,51 @@ DOCTEST_TEST_CASE("Body too large")
     http::SimpleRequestProcessor sp;
     http::RequestParser p(sp, config);
 
-    auto req = build_chunked_post(4);
+    auto req = build_chunked_message("POST / HTTP/1.1", 4);
 
     p.execute(req.data(), req.size());
+    DOCTEST_CHECK(!sp.received.empty());
+    DOCTEST_CHECK(sp.received.front().body.size() == 4);
+  }
+
+  // When llhttp accepts both headers, Transfer-Encoding takes precedence and
+  // the ignored Content-Length must not trigger the early size check.
+  {
+    http::SimpleRequestProcessor sp;
+    LenientChunkedLengthRequestParser p(sp, config);
+
+    auto req =
+      build_chunked_message("POST / HTTP/1.1", 4, "content-length: 16\r\n");
+
+    p.execute(req.data(), req.size());
+    DOCTEST_CHECK(!sp.received.empty());
+    DOCTEST_CHECK(sp.received.front().body.size() == 4);
+  }
+
+  // Ignoring Content-Length for a chunked message does not bypass the limit:
+  // append_body still rejects the actual accumulated body size.
+  {
+    http::SimpleRequestProcessor sp;
+    LenientChunkedLengthRequestParser p(sp, config);
+
+    auto req =
+      build_chunked_message("POST / HTTP/1.1", 16, "content-length: 4\r\n");
+
+    DOCTEST_CHECK_THROWS_AS(
+      p.execute(req.data(), req.size()), http::RequestPayloadTooLargeException);
+    DOCTEST_CHECK(sp.received.empty());
+  }
+
+  // The same chunked precedence applies to responses in the shared Parser.
+  {
+    ::http::SimpleResponseProcessor sp;
+    LenientChunkedLengthResponseParser p(sp);
+
+    const auto too_big = ccf::http::default_max_body_size.count_bytes() + 1;
+    const auto content_length = fmt::format("content-length: {}\r\n", too_big);
+    auto response = build_chunked_message("HTTP/1.1 200 OK", 4, content_length);
+
+    p.execute(response.data(), response.size());
     DOCTEST_CHECK(!sp.received.empty());
     DOCTEST_CHECK(sp.received.front().body.size() == 4);
   }
