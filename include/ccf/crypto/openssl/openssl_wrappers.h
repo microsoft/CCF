@@ -38,10 +38,7 @@ namespace ccf::crypto::OpenSSL
     {
       constexpr size_t max_error_size = 256;
       std::string err(max_error_size, '\0');
-      ERR_load_crypto_strings();
-      SSL_load_error_strings();
       ERR_error_string_n(ec, err.data(), err.size());
-      ERR_free_strings();
       // Remove any trailing NULs before returning
       err.resize(std::strlen(err.c_str()));
       return err;

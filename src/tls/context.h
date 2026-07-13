@@ -231,10 +231,9 @@ namespace ccf::tls
     {
       // CodeQL complains that we don't verify the peer certificate. We don't
       // need to do that because it's been verified before and we use
-      // SSL_get_peer_certificate just to extract it from the context.
+      // SSL_get0_peer_certificate just to extract it from the context.
 
-      ccf::crypto::OpenSSL::Unique_X509 cert(
-        SSL_get_peer_certificate(ssl), /*check_null=*/false);
+      auto* cert = SSL_get0_peer_certificate(ssl);
       if (cert == nullptr)
       {
         LOG_TRACE_FMT("Empty peer cert");

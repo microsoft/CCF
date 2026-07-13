@@ -134,7 +134,10 @@ NetworkCA get_ca()
 
 /// Creates a ::tls::Cert with a new CA using a new self-signed Pem certificate.
 unique_ptr<::tls::Cert> get_dummy_cert(
-  NetworkCA& net_ca, string name, bool auth_required = true)
+  NetworkCA& net_ca,
+  string name,
+  bool auth_required = true,
+  ccf::crypto::Pem* generated_cert = nullptr)
 {
   // Create a CA with a self-signed certificate
   auto ca = make_unique<::tls::CA>(net_ca.cert.str());
@@ -143,6 +146,10 @@ unique_ptr<::tls::Cert> get_dummy_cert(
   auto kp = ccf::crypto::make_ec_key_pair();
   auto crt = generate_endorsed_cert(kp, "CN=" + name, net_ca.kp, net_ca.cert);
   LOG_DEBUG_FMT("New CA-signed certificate:\n{}", crt.str());
+  if (generated_cert != nullptr)
+  {
+    *generated_cert = crt;
+  }
 
   // Verify node certificate with the CA's certificate
   auto v = ccf::crypto::make_verifier(crt);
@@ -185,6 +192,22 @@ TEST_CASE("Cert configures TLS verification and own certificate")
   REQUIRE(SSL_get_verify_mode(ssl) == expected_verify_mode);
   REQUIRE(SSL_CTX_get0_certificate(ctx) != nullptr);
   REQUIRE(SSL_get_certificate(ssl) != nullptr);
+}
+
+TEST_CASE("peer certificates remain available after handshake")
+{
+  auto ca = get_ca();
+  ccf::crypto::Pem server_cert_pem;
+  ccf::crypto::Pem client_cert_pem;
+  tls::Server server(get_dummy_cert(ca, "server", true, &server_cert_pem));
+  tls::Client client(get_dummy_cert(ca, "client", true, &client_cert_pem));
+
+  server.set_bio();
+  client.set_bio();
+
+  REQUIRE(handshake(client, server) == 0);
+  REQUIRE(server.peer_cert() == ccf::crypto::cert_pem_to_der(client_cert_pem));
+  REQUIRE(client.peer_cert() == ccf::crypto::cert_pem_to_der(server_cert_pem));
 }
 
 /// Helper to write a full message, transferring the encrypted bytes to the

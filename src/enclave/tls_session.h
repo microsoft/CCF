@@ -454,14 +454,6 @@ namespace ccf
         case SSL_ERROR_WANT_WRITE:
           break;
 
-        case SSL_ERROR_WANT_X509_LOOKUP:
-        {
-          on_handshake_error(
-            fmt::format("TLS {} verify error on handshake", session_id));
-          stop(authfail);
-          break;
-        }
-
         case SSL_ERROR_ZERO_RETURN:
         {
           LOG_TRACE_FMT("TLS {} closed on handshake", session_id);
