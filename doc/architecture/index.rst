@@ -24,6 +24,13 @@ Architecture
 
     ---
 
+    :fa:`tasks` :doc:`kv_readiness`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Lifecycle gate for KV-backed RPC dispatch during node startup.
+
+    ---
+
     :fa:`random` :doc:`threading`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -99,6 +106,7 @@ Architecture
     consensus/index
     cryptography
     request_flow
+    kv_readiness
     threading
     merkle_tree
     ledger
