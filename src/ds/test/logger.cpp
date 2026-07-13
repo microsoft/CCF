@@ -5,6 +5,10 @@
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
+#include <filesystem>
+#include <fstream>
+#include <nlohmann/json.hpp>
+#include <unistd.h>
 
 template <typename Base>
 class TestLogger : public Base
@@ -178,4 +182,77 @@ TEST_CASE("Custom logging macros")
   }
 
   ccf::logger::config::loggers().clear();
+}
+
+TEST_CASE("Test custom log format")
+{
+  auto test_log_file =
+    (std::filesystem::temp_directory_path() /
+     ("test_json_logger_" + std::to_string(::getpid()) + ".txt"))
+      .string();
+  std::error_code ec;
+  std::filesystem::remove(test_log_file, ec);
+
+  struct LoggerConfigGuard
+  {
+    ccf::LoggerLevel old_level = ccf::logger::config::level();
+    ~LoggerConfigGuard()
+    {
+      ccf::logger::config::loggers().clear();
+      ccf::logger::config::level() = old_level;
+    }
+  };
+  LoggerConfigGuard logger_config_guard;
+
+  // Start from a clean logger set so this test does not depend on loggers
+  // registered by earlier test cases sharing this binary.
+  ccf::logger::config::loggers().clear();
+  ccf::logger::config::add_json_console_logger();
+  ccf::logger::config::level() = ccf::LoggerLevel::DEBUG;
+  std::string log_msg_debug = "log_msg_debug";
+  std::string log_msg_trace = "log_msg_trace";
+
+  struct CoutRdbufGuard
+  {
+    std::streambuf* old_buf = nullptr;
+    explicit CoutRdbufGuard(std::streambuf* new_buf) :
+      old_buf(std::cout.rdbuf(new_buf))
+    {}
+    ~CoutRdbufGuard()
+    {
+      std::cout.rdbuf(old_buf);
+    }
+  };
+
+  {
+    std::ofstream out(test_log_file);
+    REQUIRE(out.is_open());
+    CoutRdbufGuard cout_guard(out.rdbuf());
+
+    LOG_DEBUG_FMT("{}", log_msg_debug);
+    LOG_TRACE_FMT("{}", log_msg_trace);
+    LOG_DEBUG_FMT("{}", log_msg_debug);
+    LOG_TRACE_FMT("{}", log_msg_trace);
+    LOG_DEBUG_FMT("{}", log_msg_debug);
+
+    std::cout.flush();
+  }
+  std::ifstream f(test_log_file);
+  std::string line;
+  size_t line_count = 0;
+  while (std::getline(f, line))
+  {
+    line_count++;
+    auto j = nlohmann::json::parse(line);
+    auto host_ts = j.find("h_ts");
+    REQUIRE(host_ts != j.end());
+    REQUIRE(j["msg"] == log_msg_debug);
+    REQUIRE(j["file"] == __FILE__);
+    auto line_number = j.find("number");
+    REQUIRE(line_number != j.end());
+    REQUIRE(j["level"] == "debug");
+  }
+  f.close();
+  std::filesystem::remove(test_log_file, ec);
+  REQUIRE(line_count == 3);
 }

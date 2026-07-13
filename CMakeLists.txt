@@ -638,11 +638,6 @@ if(BUILD_TESTS)
     target_link_libraries(openapi_test PRIVATE http_parser)
 
     add_unit_test(
-      logger_json_test
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/logger_json_test.cpp
-    )
-
-    add_unit_test(
       kv_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_test.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_contention.cpp

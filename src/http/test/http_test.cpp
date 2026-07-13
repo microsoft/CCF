@@ -894,136 +894,68 @@ DOCTEST_TEST_CASE("Query parser getters")
   }
 }
 
-DOCTEST_TEST_CASE("parse_want_repr_digest - single supported algorithm")
+DOCTEST_TEST_CASE("parse_want_repr_digest")
 {
+  auto check = [](
+                 const std::string& header,
+                 const std::string& expected_algo,
+                 ccf::crypto::MDType expected_md) {
+    auto [algo, md] = ccf::http::parse_want_repr_digest(header);
+    DOCTEST_CHECK(algo == expected_algo);
+    DOCTEST_CHECK(md == expected_md);
+  };
+
+  DOCTEST_SUBCASE("single supported algorithm")
   {
-    auto [algo, md] = ccf::http::parse_want_repr_digest("sha-256=1");
-    DOCTEST_CHECK(algo == "sha-256");
-    DOCTEST_CHECK(md == ccf::crypto::MDType::SHA256);
+    check("sha-256=1", "sha-256", ccf::crypto::MDType::SHA256);
+    check("sha-384=5", "sha-384", ccf::crypto::MDType::SHA384);
+    check("sha-512=10", "sha-512", ccf::crypto::MDType::SHA512);
   }
 
+  DOCTEST_SUBCASE("multiple algorithms with priorities")
   {
-    auto [algo, md] = ccf::http::parse_want_repr_digest("sha-384=5");
-    DOCTEST_CHECK(algo == "sha-384");
-    DOCTEST_CHECK(md == ccf::crypto::MDType::SHA384);
-  }
-
-  {
-    auto [algo, md] = ccf::http::parse_want_repr_digest("sha-512=10");
-    DOCTEST_CHECK(algo == "sha-512");
-    DOCTEST_CHECK(md == ccf::crypto::MDType::SHA512);
-  }
-}
-
-DOCTEST_TEST_CASE(
-  "parse_want_repr_digest - multiple algorithms with priorities")
-{
-  {
-    auto [algo, md] =
-      ccf::http::parse_want_repr_digest("sha-256=1, sha-512=10");
-    DOCTEST_CHECK(algo == "sha-512");
-    DOCTEST_CHECK(md == ccf::crypto::MDType::SHA512);
-  }
-
-  {
-    auto [algo, md] =
-      ccf::http::parse_want_repr_digest("sha-512=3, sha-256=7, sha-384=5");
-    DOCTEST_CHECK(algo == "sha-256");
-    DOCTEST_CHECK(md == ccf::crypto::MDType::SHA256);
-  }
-
-  {
-    auto [algo, md] =
-      ccf::http::parse_want_repr_digest("sha-384=10, sha-256=10");
+    check("sha-256=1, sha-512=10", "sha-512", ccf::crypto::MDType::SHA512);
+    check(
+      "sha-512=3, sha-256=7, sha-384=5",
+      "sha-256",
+      ccf::crypto::MDType::SHA256);
     // Equal preference - first one wins
-    DOCTEST_CHECK(algo == "sha-384");
-    DOCTEST_CHECK(md == ccf::crypto::MDType::SHA384);
+    check("sha-384=10, sha-256=10", "sha-384", ccf::crypto::MDType::SHA384);
   }
-}
 
-DOCTEST_TEST_CASE("parse_want_repr_digest - unknown algorithms are ignored")
-{
+  DOCTEST_SUBCASE("unknown algorithms are ignored")
   {
-    auto [algo, md] = ccf::http::parse_want_repr_digest("md5=10, sha-256=1");
-    DOCTEST_CHECK(algo == "sha-256");
-    DOCTEST_CHECK(md == ccf::crypto::MDType::SHA256);
+    check("md5=10, sha-256=1", "sha-256", ccf::crypto::MDType::SHA256);
+    check(
+      "crc32=5, sha-384=3, unknown=10", "sha-384", ccf::crypto::MDType::SHA384);
   }
 
+  DOCTEST_SUBCASE("defaults to sha-256 when no match")
   {
-    auto [algo, md] =
-      ccf::http::parse_want_repr_digest("crc32=5, sha-384=3, unknown=10");
-    DOCTEST_CHECK(algo == "sha-384");
-    DOCTEST_CHECK(md == ccf::crypto::MDType::SHA384);
-  }
-}
-
-DOCTEST_TEST_CASE("parse_want_repr_digest - defaults to sha-256 when no match")
-{
-  {
-    auto [algo, md] = ccf::http::parse_want_repr_digest("md5=10");
-    DOCTEST_CHECK(algo == "sha-256");
-    DOCTEST_CHECK(md == ccf::crypto::MDType::SHA256);
+    check("md5=10", "sha-256", ccf::crypto::MDType::SHA256);
+    check("unknown=5", "sha-256", ccf::crypto::MDType::SHA256);
+    check("", "sha-256", ccf::crypto::MDType::SHA256);
   }
 
-  {
-    auto [algo, md] = ccf::http::parse_want_repr_digest("unknown=5");
-    DOCTEST_CHECK(algo == "sha-256");
-    DOCTEST_CHECK(md == ccf::crypto::MDType::SHA256);
-  }
-
-  {
-    auto [algo, md] = ccf::http::parse_want_repr_digest("");
-    DOCTEST_CHECK(algo == "sha-256");
-    DOCTEST_CHECK(md == ccf::crypto::MDType::SHA256);
-  }
-}
-
-DOCTEST_TEST_CASE("parse_want_repr_digest - malformed entries are skipped")
-{
+  DOCTEST_SUBCASE("malformed entries are skipped")
   {
     // Preference of 0 is invalid (must be >= 1)
-    auto [algo, md] = ccf::http::parse_want_repr_digest("sha-256=0");
-    DOCTEST_CHECK(algo == "sha-256");
-    DOCTEST_CHECK(md == ccf::crypto::MDType::SHA256);
-  }
-
-  {
+    check("sha-256=0", "sha-256", ccf::crypto::MDType::SHA256);
     // Negative preference is invalid
-    auto [algo, md] = ccf::http::parse_want_repr_digest("sha-512=-1");
-    DOCTEST_CHECK(algo == "sha-256");
-    DOCTEST_CHECK(md == ccf::crypto::MDType::SHA256);
-  }
-
-  {
+    check("sha-512=-1", "sha-256", ccf::crypto::MDType::SHA256);
     // Non-numeric preference is skipped, but valid entry is used
-    auto [algo, md] =
-      ccf::http::parse_want_repr_digest("sha-256=abc, sha-384=5");
-    DOCTEST_CHECK(algo == "sha-384");
-    DOCTEST_CHECK(md == ccf::crypto::MDType::SHA384);
+    check("sha-256=abc, sha-384=5", "sha-384", ccf::crypto::MDType::SHA384);
   }
-}
 
-DOCTEST_TEST_CASE("parse_want_repr_digest - whitespace handling")
-{
+  DOCTEST_SUBCASE("whitespace handling")
   {
-    auto [algo, md] = ccf::http::parse_want_repr_digest("  sha-256 = 1  ");
-    DOCTEST_CHECK(algo == "sha-256");
-    DOCTEST_CHECK(md == ccf::crypto::MDType::SHA256);
+    check("  sha-256 = 1  ", "sha-256", ccf::crypto::MDType::SHA256);
+    check("sha-256=1 , sha-512=10", "sha-512", ccf::crypto::MDType::SHA512);
   }
 
+  DOCTEST_SUBCASE("algorithm without explicit preference")
   {
-    auto [algo, md] =
-      ccf::http::parse_want_repr_digest("sha-256=1 , sha-512=10");
-    DOCTEST_CHECK(algo == "sha-512");
-    DOCTEST_CHECK(md == ccf::crypto::MDType::SHA512);
+    // No "=" means preference defaults to 1
+    check("sha-512", "sha-512", ccf::crypto::MDType::SHA512);
   }
-}
-
-DOCTEST_TEST_CASE(
-  "parse_want_repr_digest - algorithm without explicit preference")
-{
-  // No "=" means preference defaults to 1
-  auto [algo, md] = ccf::http::parse_want_repr_digest("sha-512");
-  DOCTEST_CHECK(algo == "sha-512");
-  DOCTEST_CHECK(md == ccf::crypto::MDType::SHA512);
 }

@@ -5,6 +5,7 @@
 
 #include "ccf/ds/hex.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <doctest/doctest.h>
 #include <iostream>
@@ -1646,27 +1647,40 @@ TEST_CASE("CBOR: tagged array Tag(20000, [{'x': 1}, {'y': 2}])")
   REQUIRE(result == expected_repr);
 }
 
-TEST_CASE("CBOR: helper function make_signed")
-{
-  auto value = make_signed(42);
-  REQUIRE(value != nullptr);
-  REQUIRE(value->as_signed() == 42);
+// See
+// https://github.com/doctest/doctest/blob/master/doc/markdown/parameterized-tests.md
+#define DOCTEST_VALUE_PARAMETERIZED_DATA(data, data_container) \
+  static size_t _doctest_subcase_idx = 0; \
+  std::for_each( \
+    data_container.begin(), data_container.end(), [&](const auto& in) { \
+      DOCTEST_SUBCASE((std::string(#data_container "[") + \
+                       std::to_string(_doctest_subcase_idx++) + "]") \
+                        .c_str()) \
+      { \
+        data = in; \
+      } \
+    }); \
+  _doctest_subcase_idx = 0
 
-  const std::string expected_repr = "Signed: 42";
+TEST_CASE("CBOR: helper function make_signed with positive and negative values")
+{
+  std::vector<std::pair<int64_t, std::string>> signed_cases{
+    {42, "Signed: 42"}, {-42, "Signed: -42"}};
+
+  std::pair<int64_t, std::string> test_case;
+  DOCTEST_VALUE_PARAMETERIZED_DATA(test_case, signed_cases);
+
+  const auto& [input_value, expected_repr] = test_case;
+
+  auto value = make_signed(input_value);
+  REQUIRE(value != nullptr);
+  REQUIRE(value->as_signed() == input_value);
+
   const std::string result = to_string(value);
   REQUIRE(result == expected_repr);
 }
 
-TEST_CASE("CBOR: helper function make_signed")
-{
-  auto value = make_signed(-42);
-  REQUIRE(value != nullptr);
-  REQUIRE(value->as_signed() == -42);
-
-  const std::string expected_repr = "Signed: -42";
-  const std::string result = to_string(value);
-  REQUIRE(result == expected_repr);
-}
+#undef DOCTEST_VALUE_PARAMETERIZED_DATA
 
 TEST_CASE("CBOR: helper function make_string")
 {
