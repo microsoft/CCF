@@ -729,6 +729,11 @@ namespace ccf
           return;
         }
 
+        // Readiness is published after consensus setup. Refresh only after the
+        // acquire above so this request cannot proceed with pre-publication
+        // cached state.
+        update_consensus();
+
         if (consensus != nullptr)
         {
           if (
