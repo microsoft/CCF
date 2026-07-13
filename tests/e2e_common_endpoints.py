@@ -139,8 +139,8 @@ def test_network_node_info(network, args):
                     body = r.body.json()
                     assert body == node_infos[target_node.node_id]
 
-    # Create a PENDING node and check that /node/network/nodes/self
-    # returns the correct information from configuration
+    # A PENDING node serves transactionless commands, but does not admit
+    # KV-backed requests before its startup state is coherent.
     operator_rpc_interface = "operator_rpc_interface"
 
     extra_interface = infra.interfaces.RPCInterface()
@@ -154,15 +154,12 @@ def test_network_node_info(network, args):
     network.join_node(new_node, args.package, args, from_snapshot=False)
 
     with new_node.client(interface_name=operator_rpc_interface) as c:
-        r = c.get("/node/network/nodes/self", allow_redirects=False)
+        r = c.get("/node/version", allow_redirects=False)
         assert r.status_code == http.HTTPStatus.OK.value
-        body = r.body.json()
-        assert body["node_id"] == new_node.node_id
-        assert (
-            infra.interfaces.HostSpec.to_json(new_node.host) == body["rpc_interfaces"]
-        )
-        assert body["status"] == NodeStatus.PENDING.value
-        assert body["primary"] is False
+
+        r = c.get("/node/network/nodes/self", allow_redirects=False)
+        assert r.status_code == http.HTTPStatus.SERVICE_UNAVAILABLE.value
+        assert r.body.json()["error"]["code"] == "FrontendNotOpen"
     new_node.stop()
 
     return network
