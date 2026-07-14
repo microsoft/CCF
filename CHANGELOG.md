@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - HTTP query parameters are now split before URL-decoding, so escaped ampersands in query parameter names and values are preserved correctly (#8024).
+- The thread-identifier helpers used by `ccf/ds/logger.h` (`ccf::threading::get_current_thread_id`, `set_current_thread_id`, and `reset_thread_id_generator`) have moved out of `libccf` into a new standalone `ccf_threading` static library, which `find_package(ccf)` exports automatically. This removes a long-standing implicit circular dependency (#7977).
+- **Build-graph change for consumers that link CCF component libraries directly.** `ccfcrypto` now links the new `ccf_threading` library, and `ccf_tasks` and `ccf_kv` link `ccf_threading` directly instead of `ccfcrypto`. Downstream targets that linked `ccf_tasks` or `ccf_kv` directly and relied on them transitively supplying CCF cryptography must now link `ccfcrypto` explicitly. Applications built with `add_ccf_app` (which link `ccf` and `ccf_launcher`) are unaffected (#7977).
 
 ## [7.0.9]
 
