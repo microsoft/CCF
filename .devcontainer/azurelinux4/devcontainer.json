@@ -37,5 +37,7 @@
       }
     }
   },
-  "postCreateCommand": "./.devcontainer/azurelinux4/post_create_setup.sh"
+  "postCreateCommand": "./.devcontainer/azurelinux4/post_create_setup.sh",
+  "postStartCommand": "./.devcontainer/start_sshd.sh",
+  "waitFor": "postStartCommand"
 }

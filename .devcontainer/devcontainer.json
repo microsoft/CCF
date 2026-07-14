@@ -37,5 +37,7 @@
       }
     }
   },
-  "postCreateCommand": "./.devcontainer/post_create_setup.sh"
+  "postCreateCommand": "./.devcontainer/post_create_setup.sh",
+  "postStartCommand": "./.devcontainer/start_sshd.sh",
+  "waitFor": "postStartCommand"
 }
