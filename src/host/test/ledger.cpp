@@ -2154,67 +2154,78 @@ TEST_CASE("Ledger init with existing files")
 
 namespace asynchost
 {
-  // Test-only accessor, befriended by Ledger (see host/ledger.h), granting
-  // access to the internals needed to exercise the async read shutdown
-  // coordination path directly - without requiring any test-only members on
-  // Ledger's public API.
+  // Access private async-read internals without adding a test API to Ledger.
   struct LedgerAsyncTestAccess
   {
-    // Sets the per-instance hook invoked by an async read worker once it has
-    // registered as active (see AsyncReadState::test_worker_active_hook).
     static void set_worker_active_hook(
       Ledger& ledger, std::function<void()> hook)
     {
       ledger.async_read_state->test_worker_active_hook = std::move(hook);
     }
 
-    // Queue an asynchronous committed-range read using the same worker and
-    // completion callbacks as the ledger_get_range handler, without
-    // requiring the ringbuffer message plumbing. The optional result
-    // callback lets a test observe the read outcome (e.g. to confirm a read
-    // was skipped rather than served).
-    static void queue_async_read(
-      Ledger& ledger,
-      size_t from_idx,
-      size_t to_idx,
-      Ledger::AsyncLedgerGet::ResultCallback result_cb =
-        [](std::optional<LedgerReadResult>&&, int) {})
+    static auto make_async_read_queuer(Ledger& ledger)
     {
-      // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
-      auto* work_handle = new uv_work_t;
+      auto* ledger_ptr = &ledger;
+      auto async_state = ledger.async_read_state;
+      return [ledger_ptr, async_state = std::move(async_state)](
+               size_t from_idx,
+               size_t to_idx,
+               Ledger::AsyncLedgerGet::ResultCallback result_cb =
+                 [](std::optional<LedgerReadResult>&&, int) {}) {
+        // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+        auto* work_handle = new uv_work_t;
 
-      // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
-      auto* job = new Ledger::AsyncLedgerGet;
-      job->ledger = &ledger;
-      job->from_idx = from_idx;
-      job->to_idx = to_idx;
-      job->max_size = SIZE_MAX;
-      job->async_state = ledger.async_read_state;
-      job->result_cb = std::move(result_cb);
-      work_handle->data = job;
+        // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+        auto* job = new Ledger::AsyncLedgerGet;
+        job->ledger = ledger_ptr;
+        job->from_idx = from_idx;
+        job->to_idx = to_idx;
+        job->max_size = SIZE_MAX;
+        job->async_state = async_state;
+        job->result_cb = std::move(result_cb);
+        work_handle->data = job;
 
-      int rc = uv_queue_work(
-        uv_default_loop(),
-        work_handle,
-        &Ledger::on_ledger_get_async,
-        &Ledger::on_ledger_get_async_complete);
-      if (rc < 0)
-      {
-        delete job; // NOLINT(cppcoreguidelines-owning-memory)
-        delete work_handle; // NOLINT(cppcoreguidelines-owning-memory)
-        throw std::logic_error(fmt::format(
-          "Failed to queue test async ledger read: {}", uv_strerror(rc)));
-      }
+        int rc = uv_queue_work(
+          uv_default_loop(),
+          work_handle,
+          &Ledger::on_ledger_get_async,
+          &Ledger::on_ledger_get_async_complete);
+        if (rc < 0)
+        {
+          delete job; // NOLINT(cppcoreguidelines-owning-memory)
+          delete work_handle; // NOLINT(cppcoreguidelines-owning-memory)
+          throw std::logic_error(fmt::format(
+            "Failed to queue test async ledger read: {}", uv_strerror(rc)));
+        }
+      };
+    }
+
+    static auto make_shutdown_waiter(Ledger& ledger)
+    {
+      auto async_state = ledger.async_read_state;
+      return [async_state =
+                std::move(async_state)](std::chrono::milliseconds timeout) {
+        const auto deadline = std::chrono::steady_clock::now() + timeout;
+        while (std::chrono::steady_clock::now() < deadline)
+        {
+          {
+            std::unique_lock<std::mutex> guard(async_state->lock);
+            if (!async_state->ledger_alive)
+            {
+              return true;
+            }
+          }
+          std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+
+        std::unique_lock<std::mutex> guard(async_state->lock);
+        return !async_state->ledger_alive;
+      };
     }
   };
 }
 
-// Test helper: on destruction - which happens on every exit path, including a
-// failed REQUIRE that doctest throws - releases a held in-flight async read
-// worker so ~Ledger can finish, joins the thread that destroys the Ledger (a
-// joinable std::thread must never be destroyed), and drains the libuv
-// completion callbacks. Declare it before the hook and thread are set up so
-// it is destroyed first, while everything it references is still alive.
+// Prevent failed assertions from leaving a blocked worker or joinable thread.
 struct AsyncShutdownTestCleanup
 {
   std::promise<void>& release_worker;
@@ -2242,20 +2253,17 @@ TEST_CASE("Async ledger read blocks Ledger destruction until complete")
   const size_t chunk_threshold = 30;
   const size_t entries_per_chunk = get_entries_per_chunk(chunk_threshold);
 
-  // Heap-allocate so the Ledger can be destroyed from a separate thread while
-  // the main thread observes whether the destructor blocks.
   auto ledger = std::make_unique<Ledger>(ledger_dir, wf);
   TestEntrySubmitter entry_submitter(*ledger, chunk_threshold);
+  auto queue_async_read =
+    LedgerAsyncTestAccess::make_async_read_queuer(*ledger);
 
-  // Create several chunks and commit the first one, so that a read of that
-  // range takes the asynchronous (committed-file) path.
+  // Commit a range that can be read asynchronously.
   const size_t end_of_first_chunk_idx =
     initialise_ledger(entry_submitter, entries_per_chunk, 3);
   ledger->commit(end_of_first_chunk_idx);
   REQUIRE(ledger->is_in_committed_file(end_of_first_chunk_idx));
 
-  // The worker signals when it has registered as active (so ~Ledger must wait
-  // for it), then blocks until the test releases it.
   std::promise<void> worker_active;
   std::promise<void> release_worker;
   auto release_future = release_worker.get_future();
@@ -2270,14 +2278,10 @@ TEST_CASE("Async ledger read blocks Ledger destruction until complete")
     release_future.wait();
   });
 
-  // Queue the asynchronous read. The worker runs on a libuv threadpool thread.
-  LedgerAsyncTestAccess::queue_async_read(*ledger, 1, end_of_first_chunk_idx);
-
-  // Wait until the worker is in-flight and holding the Ledger alive.
+  queue_async_read(1, end_of_first_chunk_idx);
   worker_active.get_future().wait();
 
-  // Destroy the Ledger on another thread. ~Ledger must block until the
-  // in-flight worker finishes, so this must not complete yet.
+  // Destruction must wait for the paused worker.
   destroyer = std::thread([&]() {
     ledger.reset();
     destroyed.set_value();
@@ -2288,9 +2292,7 @@ TEST_CASE("Async ledger read blocks Ledger destruction until complete")
     destroyed_future.wait_for(std::chrono::milliseconds(500)) ==
     std::future_status::timeout);
 
-  // Release the worker; the read completes on a live Ledger and ~Ledger can
-  // now finish. The cleanup guard above joins the destroyer and drains the
-  // loop.
+  // Destruction can finish once the worker resumes.
   release_worker.set_value();
   worker_released = true;
   REQUIRE(
@@ -2307,35 +2309,29 @@ TEST_CASE("Async ledger read started after shutdown begins is skipped")
 
   auto ledger = std::make_unique<Ledger>(ledger_dir, wf);
   TestEntrySubmitter entry_submitter(*ledger, chunk_threshold);
+  auto queue_async_read =
+    LedgerAsyncTestAccess::make_async_read_queuer(*ledger);
+  auto wait_for_shutdown = LedgerAsyncTestAccess::make_shutdown_waiter(*ledger);
 
   const size_t end_of_first_chunk_idx =
     initialise_ledger(entry_submitter, entries_per_chunk, 3);
   ledger->commit(end_of_first_chunk_idx);
   REQUIRE(ledger->is_in_committed_file(end_of_first_chunk_idx));
 
-  // Raw pointer so a second read can be queued while ~Ledger is running: the
-  // destructor blocks before destroying any members, so the object is still
-  // usable, but the owning unique_ptr is already null once reset() is entered.
-  Ledger* raw_ledger = ledger.get();
-
-  // Worker #1 is pinned active so that ~Ledger sets ledger_alive = false and
-  // then blocks, giving us a window in which ledger_alive == false.
   std::promise<void> worker_active;
   std::promise<void> release_worker;
   auto release_future = release_worker.get_future();
   std::promise<void> destroyed;
   std::thread destroyer;
   bool worker_released = false;
-
   AsyncShutdownTestCleanup cleanup{release_worker, worker_released, destroyer};
 
-  LedgerAsyncTestAccess::set_worker_active_hook(*raw_ledger, [&]() {
+  LedgerAsyncTestAccess::set_worker_active_hook(*ledger, [&]() {
     worker_active.set_value();
     release_future.wait();
   });
 
-  LedgerAsyncTestAccess::queue_async_read(
-    *raw_ledger, 1, end_of_first_chunk_idx);
+  queue_async_read(1, end_of_first_chunk_idx);
   worker_active.get_future().wait();
 
   destroyer = std::thread([&]() {
@@ -2344,32 +2340,27 @@ TEST_CASE("Async ledger read started after shutdown begins is skipped")
   });
   auto destroyed_future = destroyed.get_future();
 
-  // Confirm ~Ledger is blocked: at this point ledger_alive is already false.
+  REQUIRE(wait_for_shutdown(std::chrono::seconds(5)));
   REQUIRE(
-    destroyed_future.wait_for(std::chrono::milliseconds(500)) ==
+    destroyed_future.wait_for(std::chrono::milliseconds(0)) ==
     std::future_status::timeout);
 
-  // Queue a second read now, while ledger_alive == false. It must take the
-  // skip branch rather than accessing the shutting-down Ledger. A skipped read
-  // reports no value; an alive read of this valid committed range would report
-  // one.
+  // A read queued after shutdown starts must be skipped.
   std::promise<bool> second_read_served;
-  LedgerAsyncTestAccess::queue_async_read(
-    *raw_ledger,
+  queue_async_read(
     1,
     end_of_first_chunk_idx,
     [&](std::optional<LedgerReadResult>&& result, int) {
       second_read_served.set_value(result.has_value());
     });
 
-  // Release worker #1 so ~Ledger can complete.
   release_worker.set_value();
   worker_released = true;
   REQUIRE(
     destroyed_future.wait_for(std::chrono::seconds(5)) ==
     std::future_status::ready);
 
-  // Drain both completion callbacks (worker #1 served, worker #2 skipped).
+  // Run both completion callbacks.
   uv_run(uv_default_loop(), UV_RUN_DEFAULT);
 
   auto served = second_read_served.get_future();

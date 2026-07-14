@@ -741,9 +741,6 @@ namespace asynchost
     }
   };
 
-  // Test-only accessor (see src/host/test/ledger.cpp), befriended below so
-  // that tests can exercise the async read shutdown-coordination path
-  // directly, without adding any test-only members to Ledger's public API.
   struct LedgerAsyncTestAccess;
 
   class Ledger
@@ -789,35 +786,23 @@ namespace asynchost
     // complete
     std::optional<size_t> recovery_start_idx = std::nullopt;
 
-    // Shared state used to coordinate the shutdown of in-flight asynchronous
-    // ledger reads. A single instance is shared (via shared_ptr) between this
-    // Ledger and every outstanding AsyncLedgerGet. Because it is reference
-    // counted it outlives the Ledger, so worker callbacks can safely decide
-    // whether they may access the Ledger even during shutdown.
     struct AsyncReadState
     {
+      // Protects ledger_alive and active_workers. Workers register before
+      // accessing Ledger and unregister afterwards. Destruction rejects new
+      // registrations and waits for registered workers to finish. Jobs share
+      // this state so queued callbacks can inspect it without accessing a
+      // destroyed Ledger.
       std::mutex lock;
       std::condition_variable all_workers_done;
 
-      // Number of worker callbacks currently accessing the Ledger
       size_t active_workers = 0;
-
-      // Set to false when the owning Ledger is being destroyed, after which
-      // workers must not access it
       bool ledger_alive = true;
 
-      // Test-only hook (see LedgerAsyncTestAccess in src/host/test/ledger.cpp).
-      // Invoked by an async ledger read worker once it has registered as an
-      // active worker (so that ~Ledger must wait for it) and immediately
-      // before it dereferences the Ledger. Lets tests deterministically hold a
-      // worker in-flight while the owning Ledger is destroyed, exercising the
-      // shutdown coordination in ~Ledger. Always present (so
-      // on_ledger_get_async contains no test-only #ifdef), but a no-op unless
-      // set by a test.
+      // Allows tests to pause a registered worker before it accesses Ledger.
       std::function<void()> test_worker_active_hook;
     };
 
-    // See AsyncReadState, on_ledger_get_async and ~Ledger.
     std::shared_ptr<AsyncReadState> async_read_state =
       std::make_shared<AsyncReadState>();
 
@@ -1299,14 +1284,7 @@ namespace asynchost
 
     ~Ledger()
     {
-      // Ensure that no asynchronous ledger read accesses this Ledger after it
-      // has been destroyed. Mark the Ledger as no longer available, then wait
-      // for any in-flight worker callbacks (which may be running on a libuv
-      // threadpool thread) to finish accessing it. Workers that have not yet
-      // started will observe ledger_alive == false and skip accessing the
-      // Ledger entirely. The shared async_read_state outlives this Ledger, so
-      // any remaining completion callbacks remain safe to run afterwards
-      // because they do not dereference this Ledger.
+      // Reject queued workers and wait for workers already using this Ledger.
       std::unique_lock<std::mutex> guard(async_read_state->lock);
       async_read_state->ledger_alive = false;
       async_read_state->all_workers_done.wait(
@@ -1340,8 +1318,7 @@ namespace asynchost
           if (!last_idx_file.has_value())
           {
             throw std::logic_error(fmt::format(
-              "Committed ledger file {} does not include last idx in file "
-              "name",
+              "Committed ledger file {} does not include last idx in file name",
               file_name));
           }
 
@@ -1736,8 +1713,6 @@ namespace asynchost
       size_t to_idx{};
       size_t max_size{};
 
-      // Shared with the owning Ledger to coordinate safe shutdown, so that the
-      // worker callback never accesses a destroyed Ledger
       std::shared_ptr<AsyncReadState> async_state;
 
       // First argument is ledger entries (or nullopt if not found)
@@ -1786,8 +1761,6 @@ namespace asynchost
         std::unique_lock<std::mutex> guard(async_state->lock);
         if (!async_state->ledger_alive)
         {
-          // The Ledger has been (or is being) destroyed, so it must not be
-          // accessed. Leave read_result empty.
           LOG_DEBUG_FMT(
             "Skipping async ledger read {} to {} because Ledger is shutting "
             "down",
@@ -1796,14 +1769,7 @@ namespace asynchost
           return;
         }
 
-        // Register as an active worker so that ~Ledger waits for this callback
-        // to finish before the Ledger is destroyed. Because we observed
-        // ledger_alive == true while holding the lock and incremented
-        // active_workers, ~Ledger cannot complete (and therefore cannot start
-        // destroying the Ledger's members) until active_worker has decremented
-        // it.
-        // This makes it safe to dereference the raw ledger pointer outside the
-        // lock.
+        // Register before dereferencing data->ledger outside this lock.
         ++async_state->active_workers;
         active_worker.activate();
         ledger = data->ledger;
