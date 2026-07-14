@@ -1,0 +1,3 @@
+[workspace]
+members = ["caci", "attestation", "cose", "crypto", "ffi"]
+resolver = "2"
