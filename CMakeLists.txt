@@ -1049,6 +1049,11 @@ if(BUILD_TESTS)
     add_picobench(kv_bench SRCS src/kv/test/kv_bench.cpp LINK_LIBS ccf_kv)
     add_picobench(merkle_bench SRCS src/node/test/merkle_bench.cpp)
     add_picobench(hash_bench SRCS src/ds/test/hash_bench.cpp)
+    add_picobench(
+      http_bench
+      SRCS src/http/test/http_bench.cpp
+      LINK_LIBS http_parser
+    )
 
     add_picobench(
       task_bench
