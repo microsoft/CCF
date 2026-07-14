@@ -939,8 +939,16 @@ namespace ccf
 
             if (loaded_endorsements)
             {
-              launch_node();
-              return;
+              try
+              {
+                launch_node();
+                return;
+              }
+              catch (const std::exception& e)
+              {
+                LOG_FAIL_FMT("Failed to launch node: {}", e.what());
+                throw;
+              }
             }
           }
 
