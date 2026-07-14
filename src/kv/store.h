@@ -121,6 +121,12 @@ namespace ccf::kv
       ccf::kv::ConsensusHookPtrs& hooks,
       bool track_deletes_on_missing_keys) override
     {
+      std::unique_lock<ccf::pal::Mutex> maps_guard(maps_lock, std::defer_lock);
+      if (!new_maps.empty())
+      {
+        maps_guard.lock();
+      }
+
       auto c = apply_changes(
         changes,
         [v](bool) { return std::make_tuple(v, v - 1); },
