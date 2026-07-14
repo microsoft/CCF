@@ -5,7 +5,7 @@
 set -euo pipefail
 
 readonly SSHD=/usr/sbin/sshd
-readonly PID_FILE=/run/sshd-codespaces.pid
+readonly PID_FILE=/run/sshd.pid
 readonly LOG_FILE=/tmp/sshd-codespaces.log
 readonly CONFIG_DIR=/etc/ssh/sshd_config.d
 readonly CONFIG_FILE=${CONFIG_DIR}/00-codespaces.conf
