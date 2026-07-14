@@ -1,0 +1,12 @@
+{
+  "name": "@microsoft/ccf-app-docs",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "docs": "typedoc --options ../typedoc.json --tsconfig ../tsconfig.json --out ../html"
+  },
+  "devDependencies": {
+    "typedoc": "0.28.20",
+    "typescript": "6.0.2"
+  }
+}
