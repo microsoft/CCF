@@ -145,6 +145,7 @@ def test_network_node_info(network, args):
 
     extra_interface = infra.interfaces.RPCInterface()
     extra_interface.endorsement.authority = infra.interfaces.EndorsementAuthority.Node
+    extra_interface.accepted_endpoints = ["/node/version"]
 
     host_spec = infra.interfaces.HostSpec()
     host_spec.rpc_interfaces[operator_rpc_interface] = extra_interface
@@ -156,6 +157,9 @@ def test_network_node_info(network, args):
     with new_node.client(interface_name=operator_rpc_interface) as c:
         r = c.get("/node/version", allow_redirects=False)
         assert r.status_code == http.HTTPStatus.OK.value
+
+        r = c.get("/node/metrics", allow_redirects=False)
+        assert r.status_code == http.HTTPStatus.SERVICE_UNAVAILABLE.value
 
         r = c.get("/node/network/nodes/self", allow_redirects=False)
         assert r.status_code == http.HTTPStatus.SERVICE_UNAVAILABLE.value

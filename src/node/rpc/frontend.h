@@ -125,7 +125,7 @@ namespace ccf
       const endpoints::EndpointDefinitionPtr& endpoint)
     {
       auto interface_id = ctx->get_session_context()->interface_id;
-      if ((consensus != nullptr) && interface_id)
+      if (interface_id)
       {
         if (!node_configuration_subsystem)
         {
@@ -213,8 +213,8 @@ namespace ccf
       }
       else
       {
-        // internal or forwarded: OK because they have been checked by the
-        // forwarder (forward() happens further down).
+        // Internal or forwarded requests have no interface ID. Forwarded
+        // requests have already been checked by the forwarder.
       }
 
       return true;
