@@ -199,7 +199,8 @@ namespace ccf
     {
       start_type = start_type_;
 
-      rpcsessions->update_listening_interface_options(ccf_config_.network);
+      rpcsessions->update_listening_interface_options(
+        ccf_config_.network, ccf_config_.tls.groups);
 
       node->set_n2n_message_limit(ccf_config_.node_to_node_message_limit);
 

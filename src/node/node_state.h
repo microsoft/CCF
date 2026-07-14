@@ -59,6 +59,7 @@
 #include "share_manager.h"
 #include "snapshots/fetch.h"
 #include "snapshots/filenames.h"
+#include "tls/context.h"
 #include "uvm_endorsements.h"
 
 #include <arpa/inet.h>
@@ -1132,6 +1133,8 @@ namespace ccf
         config.join.service_cert.data(),
         config.join.service_cert.size());
       curl_handle.set_opt(CURLOPT_CAPATH, nullptr);
+      const auto tls_group_list = ccf::tls::groups_to_list(config.tls.groups);
+      curl_handle.set_opt(CURLOPT_SSL_EC_CURVES, tls_group_list.c_str());
 
       // Bound each attempt so a stalled connection is eventually abandoned,
       // releasing the single-in-flight gate above so the periodic join timer

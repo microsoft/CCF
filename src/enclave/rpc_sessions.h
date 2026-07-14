@@ -63,6 +63,7 @@ namespace ccf
       nullptr;
     std::shared_ptr<CommitCallbackSubsystem> commit_callbacks_subsystem =
       nullptr;
+    std::vector<std::string> tls_groups = {"P-521", "P-384", "P-256"};
 
     ccf::pal::Mutex lock;
     std::unordered_map<
@@ -194,9 +195,12 @@ namespace ccf
     }
 
     void update_listening_interface_options(
-      const ccf::NodeInfoNetwork& node_info)
+      const ccf::NodeInfoNetwork& node_info,
+      const std::vector<std::string>& configured_tls_groups)
     {
       std::lock_guard<ccf::pal::Mutex> guard(lock);
+
+      tls_groups = configured_tls_groups;
 
       for (const auto& [name, interface] : node_info.rpc_interfaces)
       {
@@ -361,7 +365,8 @@ namespace ccf
           listen_interface_id,
           per_listen_interface.max_open_sessions_soft);
 
-        auto ctx = std::make_unique<::tls::Server>(certs[listen_interface_id]);
+        auto ctx = std::make_unique<::tls::Server>(
+          certs[listen_interface_id], false, tls_groups);
         std::shared_ptr<Session> capped_session;
         if (per_listen_interface.app_protocol == "HTTP2")
         {
@@ -442,7 +447,8 @@ namespace ccf
           {
             ctx = std::make_unique<::tls::Server>(
               certs[listen_interface_id],
-              per_listen_interface.app_protocol == "HTTP2");
+              per_listen_interface.app_protocol == "HTTP2",
+              tls_groups);
           }
 
           auto session = make_server_session(

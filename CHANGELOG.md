@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [7.0.10]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.10
 
+### Added
+
+- TLS groups offered by node RPC interfaces can now be configured with the optional `tls.groups` node setting. Successful TLS handshakes report the negotiated group at debug level. The default group list remains `P-521`, `P-384`, and `P-256`.
+
 ### Changed
 
 - `ccf::http::ParsedQuery` (in `include/ccf/http_query.h`), returned by `ccf::http::parse_query()`, is now a `std::multimap<std::string, std::string, std::less<>>` that owns its decoded keys and values, rather than a `std::multimap<std::string_view, std::string_view>` pointing into the source query string. Owned storage is required because each key and value is now URL-decoded individually after splitting, which produces bytes not present in the original query. Application code that consumed the previous `std::string_view` keys/values may need to be updated (#8024).

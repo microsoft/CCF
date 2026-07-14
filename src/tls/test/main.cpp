@@ -317,6 +317,18 @@ TEST_CASE("Cert configures TLS verification and own certificate")
   REQUIRE(SSL_get_certificate(ssl) != nullptr);
 }
 
+TEST_CASE("Invalid TLS group configuration is rejected")
+{
+  REQUIRE_THROWS_AS(
+    ccf::tls::Context(true, std::vector<std::string>{}), std::invalid_argument);
+  REQUIRE_THROWS_AS(
+    ccf::tls::Context(true, {"not-a-real-group"}), std::invalid_argument);
+  REQUIRE_THROWS_AS(
+    ccf::tls::Context(true, {"P-256:P-384"}), std::invalid_argument);
+  REQUIRE_THROWS_AS(
+    ccf::tls::Context(true, {"P-256\nforged-log-line"}), std::invalid_argument);
+}
+
 /// Helper to write past the maximum buffer (16k)
 int write_helper(ccf::tls::Context& handler, const uint8_t* buf, size_t len)
 {
@@ -355,13 +367,15 @@ void run_test_case(
   const uint8_t* response,
   size_t response_length,
   unique_ptr<::tls::Cert> server_cert,
-  unique_ptr<::tls::Cert> client_cert)
+  unique_ptr<::tls::Cert> client_cert,
+  const std::vector<std::string>& groups = {"P-521", "P-384", "P-256"},
+  const std::optional<std::string>& expected_group = std::nullopt)
 {
   std::vector<uint8_t> buf(max(message_length, response_length) + 1);
 
   // Create a pair of client/server
-  tls::Server server(std::move(server_cert));
-  tls::Client client(std::move(client_cert));
+  tls::Server server(std::move(server_cert), false, groups);
+  tls::Client client(std::move(client_cert), groups);
 
   // Connect BIOs together
   TestPipe pipe;
@@ -415,6 +429,17 @@ void run_test_case(
     throw *server_exception;
   }
 
+  const auto client_group = client.get_negotiated_group();
+  const auto server_group = server.get_negotiated_group();
+  REQUIRE(client_group.has_value());
+  REQUIRE(server_group.has_value());
+  INFO("Negotiated TLS group: ", client_group.value());
+  REQUIRE(client_group == server_group);
+  if (expected_group.has_value())
+  {
+    REQUIRE(client_group == expected_group);
+  }
+
   // The rest of the communication is deterministic and easy to simulate
   // so we take them out of the thread, to guarantee there will be bytes
   // to read at the right time.
@@ -464,6 +489,23 @@ void run_test_case(
   LOG_INFO_FMT("Closing connection");
   client.close();
   server.close();
+}
+
+TEST_CASE("configured TLS group")
+{
+  auto ca = get_ca();
+  auto server_cert = get_dummy_cert(ca, "server", false);
+  auto client_cert = get_dummy_cert(ca, "client", false);
+
+  run_test_case(
+    (const uint8_t*)"",
+    0,
+    (const uint8_t*)"",
+    0,
+    std::move(server_cert),
+    std::move(client_cert),
+    {"P-256"},
+    "secp256r1");
 }
 
 TEST_CASE("unverified handshake")

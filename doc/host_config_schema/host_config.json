@@ -373,6 +373,32 @@
       "description": "This section includes configuration of how the node should start (either start, join or recover) and associated information",
       "required": ["type"]
     },
+    "tls": {
+      "type": "object",
+      "properties": {
+        "groups": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "P-521",
+              "P-384",
+              "P-256",
+              "X25519",
+              "X448",
+              "X25519MLKEM768",
+              "SecP256r1MLKEM768",
+              "SecP384r1MLKEM1024"
+            ]
+          },
+          "minItems": 1,
+          "default": ["P-521", "P-384", "P-256"],
+          "description": "Ordered list of OpenSSL TLS group names offered by this node. The first mutually supported group is preferred"
+        }
+      },
+      "description": "Transport Layer Security configuration for RPC interfaces",
+      "additionalProperties": false
+    },
     "node_certificate": {
       "type": "object",
       "properties": {

@@ -41,6 +41,7 @@
 #include "tcp.h"
 #include "ticker.h"
 #include "time_bound_logger.h"
+#include "tls/context.h"
 #include "udp.h"
 
 #include <CLI11/CLI11.hpp>
@@ -974,6 +975,7 @@ namespace ccf
     }
 
     host::HostConfig config = config_json;
+    ccf::tls::validate_groups(config.tls.groups);
 
     if (config.logging.format == host::LogFormat::JSON)
     {

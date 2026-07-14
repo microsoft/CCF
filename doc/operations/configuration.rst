@@ -20,6 +20,18 @@ The configuration for each CCF node must be contained in a single JSON configura
 
 .. include:: generated_config.rst
 
+TLS groups
+----------
+
+The optional ``tls.groups`` setting contains an ordered list of OpenSSL TLS
+group names offered by the node's RPC interfaces. The default remains
+``["P-521", "P-384", "P-256"]``. A node fails to start if the list is empty or
+contains a group that its OpenSSL providers do not support. Operators can use
+this setting to deploy new groups without rebuilding CCF, while retaining
+explicit control over compatibility and fallback order. CCF also rejects group
+names outside its approved set, even if the active OpenSSL providers support
+them.
+
 
 IPv6 Addresses
 --------------

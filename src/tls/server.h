@@ -43,8 +43,11 @@ namespace tls
     std::shared_ptr<Cert> cert;
 
   public:
-    Server(const std::shared_ptr<Cert>& cert_, bool http2 = false) :
-      Context(false),
+    Server(
+      const std::shared_ptr<Cert>& cert_,
+      bool http2 = false,
+      const std::vector<std::string>& groups = {"P-521", "P-384", "P-256"}) :
+      Context(false, groups),
       cert(cert_)
     {
       cert->configure_ssl(ssl, cfg);

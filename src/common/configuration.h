@@ -53,6 +53,10 @@ namespace ccf
      {LoggerLevel::FAIL, "Fail"},
      {LoggerLevel::FATAL, "Fatal"}});
 
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::TLS);
+  DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::TLS);
+  DECLARE_JSON_OPTIONAL_FIELDS(CCFConfig::TLS, groups);
+
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::NodeCertificateInfo);
   DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::NodeCertificateInfo);
   DECLARE_JSON_OPTIONAL_FIELDS(
@@ -133,6 +137,7 @@ namespace ccf
   DECLARE_JSON_OPTIONAL_FIELDS(
     CCFConfig,
     worker_threads,
+    tls,
     node_certificate,
     consensus,
     ledger,

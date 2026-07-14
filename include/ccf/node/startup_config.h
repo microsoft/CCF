@@ -32,6 +32,14 @@ namespace ccf
     ccf::consensus::Configuration consensus = {};
     ccf::NodeInfoNetwork network;
 
+    struct TLS
+    {
+      std::vector<std::string> groups = {"P-521", "P-384", "P-256"};
+
+      bool operator==(const TLS&) const = default;
+    };
+    TLS tls = {};
+
     struct NodeCertificateInfo
     {
       std::string subject_name = "CN=CCF Node";

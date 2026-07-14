@@ -7,12 +7,81 @@
 #include "ds/internal_logger.h"
 #include "tls/tls.h"
 
+#include <algorithm>
+#include <array>
+#include <cctype>
 #include <memory>
 #include <openssl/bio.h>
 #include <openssl/ssl.h>
+#include <optional>
+#include <stdexcept>
+#include <string>
+#include <string_view>
+#include <vector>
 
 namespace ccf::tls
 {
+  inline constexpr std::array<std::string_view, 8> approved_groups = {
+    "P-521",
+    "P-384",
+    "P-256",
+    "X25519",
+    "X448",
+    "X25519MLKEM768",
+    "SecP256r1MLKEM768",
+    "SecP384r1MLKEM1024"};
+
+  inline std::string groups_to_list(const std::vector<std::string>& groups)
+  {
+    if (groups.empty())
+    {
+      throw std::invalid_argument("TLS groups must not be empty");
+    }
+
+    std::string group_list;
+    for (const auto& group : groups)
+    {
+      constexpr size_t max_group_name_size = 64;
+      const auto valid_character = [](const unsigned char c) {
+        return std::isalnum(c) != 0 || c == '-' || c == '_' || c == '.';
+      };
+      if (
+        group.empty() || group.size() > max_group_name_size ||
+        !std::all_of(group.begin(), group.end(), valid_character))
+      {
+        throw std::invalid_argument(
+          "Invalid TLS group '" + group +
+          "': expected 1-64 alphanumeric, '-', '_' or '.' characters");
+      }
+      if (std::find(approved_groups.begin(), approved_groups.end(), group) ==
+          approved_groups.end())
+      {
+        throw std::invalid_argument("TLS group '" + group + "' is not approved");
+      }
+
+      if (!group_list.empty())
+      {
+        group_list += ':';
+      }
+      group_list += group;
+    }
+    return group_list;
+  }
+
+  inline void validate_groups(const std::vector<std::string>& groups)
+  {
+    const auto group_list = groups_to_list(groups);
+    ccf::crypto::OpenSSL::Unique_SSL_CTX context(TLS_method());
+    const auto rc = SSL_CTX_set1_groups_list(context, group_list.c_str());
+    if (rc != 1)
+    {
+      const auto error_code = ERR_get_error();
+      throw std::runtime_error(
+        "OpenSSL rejected TLS groups '" + group_list + "': " +
+        ccf::crypto::OpenSSL::error_string(error_code));
+    }
+  }
+
   class Context
   {
   protected:
@@ -20,7 +89,9 @@ namespace ccf::tls
     ccf::crypto::OpenSSL::Unique_SSL ssl;
 
   public:
-    Context(bool client) :
+    Context(
+      bool client,
+      const std::vector<std::string>& groups = {"P-521", "P-384", "P-256"}) :
       cfg(client ? TLS_client_method() : TLS_server_method()),
       ssl(cfg)
     {
@@ -56,9 +127,13 @@ namespace ccf::tls
       SSL_CTX_set_ciphersuites(cfg, ciphersuites);
       SSL_set_ciphersuites(ssl, ciphersuites);
 
-      // Restrict the curves to approved ones
-      SSL_CTX_set1_curves_list(cfg, "P-521:P-384:P-256");
-      SSL_set1_curves_list(ssl, "P-521:P-384:P-256");
+      // Restrict the supported groups to those configured by the operator.
+      const auto group_list = groups_to_list(groups);
+      validate_groups(groups);
+      ccf::crypto::OpenSSL::CHECK1(
+        SSL_CTX_set1_groups_list(cfg, group_list.c_str()));
+      ccf::crypto::OpenSSL::CHECK1(
+        SSL_set1_groups_list(ssl, group_list.c_str()));
 
       // Allow buffer to be relocated between WANT_WRITE retries, and do partial
       // writes if possible
@@ -81,6 +156,23 @@ namespace ccf::tls
     }
 
     virtual ~Context() = default;
+
+    [[nodiscard]] std::optional<std::string> get_negotiated_group() const
+    {
+      const auto group_id = SSL_get_negotiated_group(ssl);
+      if (group_id == 0)
+      {
+        return std::nullopt;
+      }
+
+      const auto* group_name = SSL_group_to_name(ssl, group_id);
+      if (group_name == nullptr)
+      {
+        return std::nullopt;
+      }
+
+      return group_name;
+    }
 
     virtual void set_bio(
       void* cb_obj, BIO_callback_fn_ex send, BIO_callback_fn_ex recv)
@@ -110,7 +202,10 @@ namespace ccf::tls
       // Success in OpenSSL is 1, MBed is 0
       if (rc > 0)
       {
-        LOG_TRACE_FMT("Context::handshake() : Success");
+        const auto group = get_negotiated_group();
+        LOG_DEBUG_FMT(
+          "Context::handshake() : Success, negotiated TLS group {}",
+          group.value_or("<unknown>"));
         return 0;
       }
 
