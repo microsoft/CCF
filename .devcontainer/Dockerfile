@@ -8,5 +8,5 @@ FROM ${BASE_IMAGE}
 RUN gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY  \
     && tdnf -y update
 
-# Basic dev deps, helps smoothly install VSCode server.
-RUN tdnf -y install build-essential
+# Basic dev deps, helps smoothly install VSCode server and enables Codespaces SSH.
+RUN tdnf -y install build-essential openssh-server
