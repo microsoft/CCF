@@ -12,14 +12,9 @@ FROM ${BASE_IMAGE}
 # keys, so a plain refresh is enough.
 RUN dnf -y update
 
-# Basic dev deps, helps smoothly install VSCode server and enables Codespaces SSH.
-# Azure Linux 4 has no build-essential meta-package, so install the equivalent
-# toolchain explicitly.
+# Basic dev deps, helps smoothly install VSCode server. Azure Linux 4 has no
+# build-essential meta-package, so install the equivalent toolchain explicitly.
 # gawk provides awk, which the VSCode server's check-requirements.sh needs; the
 # minimal Azure Linux 4 base image ships without it (unlike Azure Linux 3, where
 # build-essential pulled it in transitively).
-RUN dnf -y install \
-    gcc gcc-c++ make binutils gawk tar gzip ca-certificates git openssh-server
-
-COPY start_sshd.sh /usr/local/share/start_sshd.sh
-ENTRYPOINT ["/usr/local/share/start_sshd.sh"]
+RUN dnf -y install gcc gcc-c++ make binutils gawk tar gzip ca-certificates git

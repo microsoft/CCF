@@ -2,9 +2,8 @@
   "name": "CCF Development Environment (Azure Linux 4)",
   "build": {
     "dockerfile": "Dockerfile",
-    "context": ".."
+    "context": "."
   },
-  "overrideCommand": false,
   "runArgs": [
     "--cap-add=SYS_PTRACE",
     "--cap-add=NET_ADMIN",
