@@ -28,7 +28,7 @@
     "@types/node-forge": "^1.0.0",
     "node-forge": "^1.2.0",
     "typedoc": "^0.28.18",
-    "typescript": "^6.0.2"
+    "typescript": "^7.0.2"
   },
   "bin": {
     "ccf-build-bundle": "scripts/build_bundle.js"
