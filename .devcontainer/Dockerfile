@@ -10,3 +10,6 @@ RUN gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY  \
 
 # Basic dev deps, helps smoothly install VSCode server and enables Codespaces SSH.
 RUN tdnf -y install build-essential openssh-server
+
+COPY start_sshd.sh /usr/local/share/start_sshd.sh
+ENTRYPOINT ["/usr/local/share/start_sshd.sh"]

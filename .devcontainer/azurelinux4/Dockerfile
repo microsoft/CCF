@@ -20,3 +20,6 @@ RUN dnf -y update
 # build-essential pulled it in transitively).
 RUN dnf -y install \
     gcc gcc-c++ make binutils gawk tar gzip ca-certificates git openssh-server
+
+COPY start_sshd.sh /usr/local/share/start_sshd.sh
+ENTRYPOINT ["/usr/local/share/start_sshd.sh"]
