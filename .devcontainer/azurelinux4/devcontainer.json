@@ -4,6 +4,7 @@
     "dockerfile": "Dockerfile",
     "context": ".."
   },
+  "overrideCommand": false,
   "runArgs": [
     "--cap-add=SYS_PTRACE",
     "--cap-add=NET_ADMIN",
