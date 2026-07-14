@@ -16,12 +16,12 @@
 #include "ccf/pal/snp_ioctl.h"
 #include "ccf/service/node_info_network.h"
 #include "ccf/version.h"
+#include "common/cli_helper.h"
 #include "common/configuration.h"
 #include "common/enclave_interface_types.h"
 #include "config_schema.h"
 #include "configuration.h"
 #include "crypto/openssl/hash.h"
-#include "ds/cli_helper.h"
 #include "ds/files.h"
 #include "ds/internal_logger.h"
 #include "ds/non_blocking.h"
@@ -38,7 +38,6 @@
 #include "pal/quote_generation.h"
 #include "rpc_connections.h"
 #include "sig_term.h"
-#include "snapshots/snapshot_manager.h"
 #include "tcp.h"
 #include "ticker.h"
 #include "time_bound_logger.h"
@@ -196,8 +195,33 @@ namespace ccf
     asynchost::RPCConnections<asynchost::UDP>& rpc_udp)
   {
     ResolvedAddresses resolved_rpc_addresses;
-    for (auto& [name, interface] : config.network.rpc_interfaces)
+
+    // Bind interfaces with an explicit (non-zero) port before those requesting
+    // an ephemeral port (port 0). Multiple interfaces on a node can share a
+    // single host address (for example the sole ::1 IPv6 loopback), and if an
+    // ephemeral interface is bound first the OS may assign it the exact port
+    // that another interface is configured to bind, making that later bind fail
+    // with "address already in use".
+    std::vector<std::string> ordered_interface_names;
+    ordered_interface_names.reserve(config.network.rpc_interfaces.size());
+    for (const auto& [name, interface] : config.network.rpc_interfaces)
     {
+      if (cli::validate_address(interface.bind_address).second != "0")
+      {
+        ordered_interface_names.push_back(name);
+      }
+    }
+    for (const auto& [name, interface] : config.network.rpc_interfaces)
+    {
+      if (cli::validate_address(interface.bind_address).second == "0")
+      {
+        ordered_interface_names.push_back(name);
+      }
+    }
+
+    for (const auto& name : ordered_interface_names)
+    {
+      auto& interface = config.network.rpc_interfaces.at(name);
       auto [rpc_host, rpc_port] = cli::validate_address(interface.bind_address);
       LOG_INFO_FMT(
         "Registering RPC interface {}, on {} {}:{}",
@@ -617,11 +641,6 @@ namespace ccf
         "snapshots.read_only_directory is deprecated and will be removed in a "
         "future release");
     }
-    snapshots::SnapshotManager snapshots(
-      config.snapshots.directory,
-      writer_factory,
-      config.snapshots.read_only_directory);
-    snapshots.register_message_handlers(buffer_processor.get_dispatcher());
 
     std::optional<asynchost::FilesCleanupTimer> files_cleanup;
     if (

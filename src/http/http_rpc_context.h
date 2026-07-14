@@ -108,7 +108,11 @@ namespace http
       // NOLINTBEGIN(cppcoreguidelines-prefer-member-initializer)
       path = path_;
       whole_path = path_;
-      query = url_decode(query_);
+      // The query is stored raw (still percent-encoded): it must be decoded
+      // per-component after splitting on '&'/'=' (see ccf::http::parse_query),
+      // so that escaped separators are preserved. The fragment has no such
+      // sub-structure and is decoded as a whole.
+      query = query_;
       fragment = url_decode(fragment_);
 
       if (!serialised_request.empty())

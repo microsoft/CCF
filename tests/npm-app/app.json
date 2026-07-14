@@ -517,32 +517,6 @@
         }
       }
     },
-    "/proto": {
-      "post": {
-        "js_module": "endpoints/proto.js",
-        "js_function": "proto",
-        "forwarding_required": "sometimes",
-        "redirection_strategy": "none",
-        "authn_policies": ["user_cert"],
-        "mode": "readonly",
-        "openapi": {
-          "requestBody": {
-            "required": true,
-            "content": {
-              "text/plain": {}
-            }
-          },
-          "responses": {
-            "200": {
-              "description": "Protobuf encoded data",
-              "content": {
-                "application/x-protobuf": {}
-              }
-            }
-          }
-        }
-      }
-    },
     "/verifySnpAttestation": {
       "post": {
         "js_module": "endpoints/snp_attestation.js",

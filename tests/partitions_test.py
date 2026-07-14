@@ -21,11 +21,24 @@ import subprocess
 import copy
 from collections import defaultdict
 from ccf.tx_id import TxID
+from e2e_logging import verify_receipt
 import os
 from reconfiguration import test_ledger_invariants
 import threading
 
 from loguru import logger as LOG
+
+# Arbitrary high record id, chosen to avoid clashing with ids used by other
+# tests sharing the same network/ledger.
+UNCOMMITTABLE_RECORD_ID_START = 420000
+COMMITTED_RECORD_ID = UNCOMMITTABLE_RECORD_ID_START - 1
+# Each uncommittable record repeats the test message this many times, so that
+# a handful of records comfortably exceed the small chunk size below and
+# reliably force a new ledger chunk to be written to disk while isolated.
+UNCOMMITTABLE_MESSAGE_REPEAT = 1024
+# Small chunk size so that the writes made while the primary is isolated are
+# guaranteed to roll over into new (uncommitted) ledger chunks quickly.
+UNCOMMITTABLE_TEST_LEDGER_CHUNK_BYTES = "16KB"
 
 
 @reqs.description("Invalid partitions are not allowed")
@@ -395,6 +408,82 @@ def test_expired_certs(network, args):
     # Can now speak to these again
     primary.verify_ca_by_default = True
     backup_a.verify_ca_by_default = True
+
+    return network
+
+
+@reqs.description("A node can use a rolled-back certificate renewal")
+@reqs.exactly_n_nodes(3)
+def test_rolled_back_node_certificate(network, args):
+    renewed_node, backups = network.find_nodes()
+    network.wait_for_all_nodes_to_commit(primary=renewed_node)
+
+    def get_stored_certificate(remote_node):
+        with remote_node.api_versioned_client(api_version=args.gov_api_version) as c:
+            r = c.get(f"/gov/service/nodes/{renewed_node.node_id}")
+            assert r.status_code == http.HTTPStatus.OK, r
+            return r.body.json()["certificate"]
+
+    original_cert = get_stored_certificate(renewed_node)
+
+    LOG.info("Renew the primary's certificate while it is isolated")
+    with network.partitioner.partition(
+        [renewed_node], name="isolate primary during certificate renewal"
+    ):
+        renewal = network.consortium.set_node_certificate_validity(
+            renewed_node,
+            renewed_node,
+            valid_from=str(
+                infra.crypto.datetime_to_X509time(datetime.utcnow() - timedelta(days=1))
+            ),
+            validity_period_days=args.maximum_node_certificate_validity_days - 1,
+            wait_for_commit=False,
+        )
+
+        uncommitted_cert = get_stored_certificate(renewed_node)
+        assert uncommitted_cert != original_cert
+        assert (
+            infra.crypto.compute_public_key_der_hash_hex_from_pem(uncommitted_cert)
+            == renewed_node.node_id
+        )
+
+        new_primary, _ = network.wait_for_new_primary(renewed_node, nodes=backups)
+        rollback_tx = check_can_progress(new_primary)
+
+    LOG.info("Confirm the certificate renewal was rolled back")
+    new_primary = network.wait_for_primary_unanimity(nodes=backups)
+    with renewed_node.client() as c:
+        c.wait_for_commit(
+            rollback_tx,
+            timeout=network.election_duration * 4,
+        )
+    network.wait_for_node_commit_sync()
+    assert get_stored_certificate(renewed_node) == original_cert
+
+    with new_primary.client() as c:
+        r = c.get(
+            f"/node/tx?transaction_id="
+            f"{renewal.completed_view}.{renewal.completed_seqno}"
+        )
+        assert TxStatus(r.body.json()["status"]) == TxStatus.Invalid, r
+
+    LOG.info("Confirm the re-elected node can use the rolled-back certificate")
+    force_become_primary(network, args, renewed_node)
+    with renewed_node.client("user0") as c:
+        r = c.post(
+            "/app/log/public",
+            {"id": 7059, "msg": "Signed after certificate renewal rollback"},
+        )
+        assert r.status_code == http.HTTPStatus.OK, r
+        c.wait_for_commit(r)
+
+    receipt = renewed_node.get_receipt(
+        view=r.view,
+        seqno=r.seqno,
+    ).json()
+    assert receipt["node_id"] == renewed_node.node_id
+    assert receipt["cert"] == uncommitted_cert
+    verify_receipt(receipt, network.cert)
 
     return network
 
@@ -943,6 +1032,10 @@ def test_recovery_elections(orig_network, args):
         args.debug_nodes,
         existing_network=orig_network,
     )
+    # Make the backup which is not stalled below an unlikely election winner.
+    network.per_node_args_override[2] = {
+        "election_timeout_ms": args.election_timeout_ms * 10
+    }
     network.start_in_recovery(
         args,
         ledger_dir=current_ledger_dir,
@@ -1115,6 +1208,179 @@ def force_become_primary(network, args, target_node):
         raise TimeoutError(
             f"Node {target_node.node_id} did not produce signature (and receipt) in current term after {timeout}s"
         )
+
+
+def _uncommitted_ledger_files(node):
+    ledger_dir = node.remote.current_ledger_path()
+    return {
+        f
+        for f in os.listdir(ledger_dir)
+        if f.startswith("ledger_")
+        and not f.endswith(ccf.ledger.COMMITTED_FILE_SUFFIX)
+        and not f.endswith(ccf.ledger.IGNORED_FILE_SUFFIX)
+    }
+
+
+def _wait_for_new_uncommitted_ledger_files(node, previous_files, timeout=10):
+    end_time = time.time() + timeout
+    while time.time() < end_time:
+        uncommitted_files = _uncommitted_ledger_files(node)
+        new_uncommitted_files = uncommitted_files - previous_files
+        if new_uncommitted_files:
+            LOG.info(
+                f"Found new uncommitted ledger file(s) on {node.local_node_id}: {sorted(new_uncommitted_files)}"
+            )
+            return new_uncommitted_files
+        time.sleep(0.1)
+
+    raise TimeoutError(
+        f"Node {node.local_node_id} did not write a new uncommitted ledger file"
+    )
+
+
+def _assert_ledger_files_contain_payload(ledger_dir, ledger_files, payload):
+    for ledger_file in ledger_files:
+        with open(os.path.join(ledger_dir, ledger_file), "rb") as f:
+            if payload in f.read():
+                return
+
+    raise AssertionError(
+        f"Expected to find payload in {sorted(ledger_files)} under {ledger_dir}"
+    )
+
+
+@reqs.description(
+    "Restart a retired primary in place with uncommitted and uncommittable ledger files"
+)
+@reqs.exactly_n_nodes(3)
+def test_in_place_restart_with_uncommittable_ledger(network, args):
+    old_primary, backups = network.find_nodes()
+
+    committed_msg = "Committed before primary isolation"
+    with old_primary.client("user0") as c:
+        r = c.post(
+            "/app/log/public",
+            {"id": COMMITTED_RECORD_ID, "msg": committed_msg},
+        )
+        assert r.status_code == http.HTTPStatus.OK, r
+        c.wait_for_commit(r)
+
+    network.consortium.force_ledger_chunk(old_primary)
+    network.wait_for_all_nodes_to_commit(primary=old_primary)
+    previous_uncommitted_files = _uncommitted_ledger_files(old_primary)
+
+    uncommitted_records = [UNCOMMITTABLE_RECORD_ID_START + i for i in range(3)]
+    uncommitted_msg = "Uncommittable while primary is isolated"
+    uncommitted_payload = (uncommitted_msg * UNCOMMITTABLE_MESSAGE_REPEAT).encode()
+
+    with network.partitioner.partition([old_primary]):
+        with old_primary.client("user0") as c:
+            for record_id in uncommitted_records:
+                r = c.post(
+                    "/app/log/public",
+                    {
+                        "id": record_id,
+                        "msg": uncommitted_payload.decode(),
+                    },
+                )
+                assert r.status_code == http.HTTPStatus.OK, r
+
+        new_uncommitted_files = _wait_for_new_uncommitted_ledger_files(
+            old_primary, previous_uncommitted_files
+        )
+        _assert_ledger_files_contain_payload(
+            old_primary.remote.current_ledger_path(),
+            new_uncommitted_files,
+            uncommitted_payload,
+        )
+
+        new_primary, _ = network.wait_for_new_primary(old_primary, nodes=backups)
+        network.retire_node(new_primary, old_primary)
+        old_node_id = old_primary.node_id
+        old_primary.stop()
+
+    ledger_dir, read_only_ledger_dirs = old_primary.remote.get_ledger(
+        f"{old_primary.local_node_id}.ledger_in_place"
+    )
+    assert _uncommitted_ledger_files(old_primary), (
+        "Expected the stopped primary's persisted ledger to contain "
+        "uncommitted files before restart"
+    )
+    _assert_ledger_files_contain_payload(
+        ledger_dir,
+        new_uncommitted_files,
+        uncommitted_payload,
+    )
+
+    network.join_node(
+        old_primary,
+        args.package,
+        args,
+        target_node=new_primary,
+        ledger_dir=ledger_dir,
+        read_only_ledger_dirs=read_only_ledger_dirs,
+        copy_ledger=False,
+        from_snapshot=False,
+        timeout=args.ledger_recovery_timeout,
+    )
+    assert old_primary.node_id != old_node_id
+
+    # Confirm that the infra has not deleted (or otherwise lost) the
+    # uncommitted ledger files that were present before the in-place restart.
+    restarted_uncommitted_files = _uncommitted_ledger_files(old_primary)
+    missing_uncommitted_files = new_uncommitted_files - restarted_uncommitted_files
+    assert not missing_uncommitted_files, (
+        "Uncommitted ledger files were unexpectedly missing after the "
+        f"in-place restart: {sorted(missing_uncommitted_files)}"
+    )
+    _assert_ledger_files_contain_payload(
+        old_primary.remote.current_ledger_path(),
+        new_uncommitted_files,
+        uncommitted_payload,
+    )
+
+    network.trust_node(old_primary, args)
+
+    new_primary, _ = network.find_primary()
+    with new_primary.client("user0") as c:
+        r = c.get(f"/app/log/public?id={COMMITTED_RECORD_ID}")
+        assert r.status_code == http.HTTPStatus.OK, r
+        assert r.body.json() == {"msg": committed_msg}, r
+
+        for record_id in uncommitted_records:
+            r = c.get(f"/app/log/public?id={record_id}")
+            assert r.status_code == http.HTTPStatus.NOT_FOUND, r
+
+    check_can_progress(new_primary)
+    network.stop_all_nodes(check_file_invariants=True)
+
+    return network
+
+
+def run_in_place_restart_uncommittable_ledger_check(const_args):
+    LOG.info(
+        "Confirm that in-place restart ignores uncommitted and uncommittable ledger files"
+    )
+    args = copy.deepcopy(const_args)
+    args.label += "_in_place_restart_uncommitted"
+    args.nodes = infra.e2e_args.nodes(args, 3)
+
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        pdb=args.pdb,
+        txs=app.LoggingTxs("user0"),
+        init_partitioner=True,
+    ) as network:
+        # Keep chunks small so isolated writes quickly create uncommitted files.
+        for i in range(3):
+            network.per_node_args_override[i] = {
+                "ledger_chunk_bytes": UNCOMMITTABLE_TEST_LEDGER_CHUNK_BYTES
+            }
+
+        network.start_and_open(args)
+        test_in_place_restart_with_uncommittable_ledger(network, args)
 
 
 def run_ledger_chunk_bytes_check(const_args):
@@ -1301,6 +1567,7 @@ def run(args):
         test_isolate_primary_from_one_backup(network, args)
         test_new_joiner_helps_liveness(network, args)
         test_expired_certs(network, args)
+        test_rolled_back_node_certificate(network, args)
         for n in range(5):
             test_isolate_and_reconnect_primary(network, args, iteration=n)
         test_join_rollback_on_primary_isolation(network, args)
@@ -1313,6 +1580,7 @@ def run(args):
         network = test_recovery_elections(network, args)
         test_ledger_invariants(network, args)
     run_ledger_chunk_bytes_check(args)
+    run_in_place_restart_uncommittable_ledger_check(args)
 
 
 if __name__ == "__main__":

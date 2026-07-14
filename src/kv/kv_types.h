@@ -10,6 +10,7 @@
 #include "ccf/entity_id.h"
 #include "ccf/kv/get_name.h"
 #include "ccf/kv/hooks.h"
+#include "ccf/kv/serialisers/serialised_entry.h"
 #include "ccf/kv/version.h"
 #include "ccf/node/cose_signatures_config.h"
 #include "ccf/node/startup_config.h"
@@ -19,7 +20,7 @@
 #include "ccf/tx_status.h"
 #include "crypto/openssl/ec_key_pair.h"
 #include "kv/ledger_chunker_interface.h"
-#include "serialiser_declare.h"
+#include "serialised_entry_format.h"
 
 #include <array>
 #include <chrono>
@@ -27,8 +28,10 @@
 #include <limits>
 #include <list>
 #include <memory>
+#include <optional>
 #include <set>
 #include <string>
+#include <tuple>
 #include <unordered_set>
 #include <vector>
 
@@ -300,6 +303,58 @@ namespace ccf::kv
 
     return {security_domain, access_category};
   }
+
+  using SerialisedKey = ccf::kv::serialisers::SerialisedEntry;
+  using SerialisedValue = ccf::kv::serialisers::SerialisedEntry;
+
+  class KvStoreSerialiser
+  {
+  public:
+    virtual ~KvStoreSerialiser() = default;
+
+    virtual void start_map(const std::string& name, SecurityDomain domain) = 0;
+    virtual void serialise_raw(const std::vector<uint8_t>& raw) = 0;
+    virtual void serialise_view_history(
+      const std::vector<Version>& view_history) = 0;
+    virtual void serialise_entry_version(const Version& version) = 0;
+    virtual void serialise_count_header(uint64_t ctr) = 0;
+    virtual void serialise_read(
+      const SerialisedKey& k, const Version& version) = 0;
+    virtual void serialise_write(
+      const SerialisedKey& k, const SerialisedValue& v) = 0;
+    virtual void serialise_remove(const SerialisedKey& k) = 0;
+    virtual std::vector<uint8_t> get_raw_data() = 0;
+    virtual std::vector<uint8_t> serialise_domains(
+      const std::vector<uint8_t>& serialised_public_domain,
+      const std::vector<uint8_t>& serialised_private_domain = {}) = 0;
+  };
+
+  class KvStoreDeserialiser
+  {
+  public:
+    virtual ~KvStoreDeserialiser() = default;
+
+    virtual ccf::ClaimsDigest&& consume_claims_digest() = 0;
+    virtual std::optional<ccf::crypto::Sha256Hash>&&
+    consume_commit_evidence_digest() = 0;
+    virtual std::optional<Version> init(
+      const uint8_t* data,
+      size_t size,
+      ccf::kv::Term& term,
+      EntryFlags& flags,
+      bool historical_hint = false) = 0;
+    virtual std::optional<std::string> start_map() = 0;
+    virtual Version deserialise_entry_version() = 0;
+    virtual uint64_t deserialise_read_header() = 0;
+    virtual std::tuple<SerialisedKey, Version> deserialise_read() = 0;
+    virtual uint64_t deserialise_write_header() = 0;
+    virtual std::tuple<SerialisedKey, SerialisedValue> deserialise_write() = 0;
+    virtual std::vector<uint8_t> deserialise_raw() = 0;
+    virtual std::vector<Version> deserialise_view_history() = 0;
+    virtual uint64_t deserialise_remove_header() = 0;
+    virtual SerialisedKey deserialise_remove() = 0;
+    virtual bool end() = 0;
+  };
 
   enum ApplyResult : uint8_t
   {

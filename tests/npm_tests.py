@@ -275,13 +275,6 @@ def test_npm_app(network, args):
         assert r.status_code == http.HTTPStatus.OK, r.status_code
         assert r.body.json() == [[1, 3], [2, 4]], r.body
 
-        r = c.post("/app/proto", body)
-        assert r.status_code == http.HTTPStatus.OK, r.status_code
-        assert r.headers["content-type"] == "application/x-protobuf"
-        # We could now decode the protobuf message but given all the machinery
-        # involved to make it happen (code generation with protoc) we'll leave it at that.
-        assert len(r.body) == 14, len(r.body)
-
         # Test KV converter APIs
         r = c.post("/app/converters/set")
         assert r.status_code == http.HTTPStatus.OK, r.status_code

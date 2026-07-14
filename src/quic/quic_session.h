@@ -415,7 +415,6 @@ namespace quic
     std::shared_ptr<ccf::RPCMap> rpc_map;
     std::shared_ptr<ccf::RpcHandler> handler;
     std::shared_ptr<ccf::SessionContext> session_ctx;
-    int64_t session_id;
     ccf::ListenInterfaceID interface_id;
     sockaddr addr;
 
@@ -434,7 +433,6 @@ namespace quic
       ringbuffer::AbstractWriterFactory& writer_factory) :
       QUICSession(session_id_, writer_factory),
       rpc_map(std::move(rpc_map_)),
-      session_id(session_id_),
       interface_id(std::move(interface_id_)),
       addr{}
     {}
