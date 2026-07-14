@@ -13,3 +13,4 @@ RUN tdnf -y install build-essential openssh-server
 
 COPY start_sshd.sh /usr/local/share/start_sshd.sh
 ENTRYPOINT ["/usr/local/share/start_sshd.sh"]
+CMD ["/bin/sh", "-c", "echo Container started\ntrap \"exit 0\" 15\nexec \"$@\"\nwhile sleep 1 & wait $!; do :; done", "-"]
