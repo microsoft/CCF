@@ -8,8 +8,6 @@ install -d -m 0755 /run/sshd
 ssh-keygen -A
 /usr/sbin/sshd \
   -o PidFile=/run/sshd.pid \
-  -o PermitRootLogin=prohibit-password \
-  -o PasswordAuthentication=no \
   -E /tmp/sshd-codespaces.log
 
 exec "$@"
