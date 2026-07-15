@@ -3,6 +3,10 @@
 #ifndef CBORNondet_H
 #define CBORNondet_H
 
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
 #include "krmllib.h"
 
 #include "CBORNondetType.h"
@@ -122,6 +126,9 @@ cbor_nondet_map_get_multiple(
   size_t len
 );
 
+#if defined(__cplusplus)
+}
+#endif
 
 #define CBORNondet_H_DEFINED
 #endif /* CBORNondet_H */

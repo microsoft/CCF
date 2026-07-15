@@ -5,6 +5,29 @@
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
+#include <thread>
+
+TEST_CASE("Thread IDs are provided by the logger headers")
+{
+  ccf::threading::reset_thread_id_generator();
+  ccf::threading::set_current_thread_id(ccf::threading::MAIN_THREAD_ID);
+
+  REQUIRE(
+    ccf::threading::get_current_thread_id() == ccf::threading::MAIN_THREAD_ID);
+
+  ccf::threading::set_current_thread_id(42);
+  REQUIRE(ccf::threading::get_current_thread_id() == 42);
+
+  ccf::threading::reset_thread_id_generator(7);
+  ccf::threading::ThreadID thread_id = ccf::threading::invalid_thread_id;
+  std::thread t(
+    [&thread_id] { thread_id = ccf::threading::get_current_thread_id(); });
+  t.join();
+  REQUIRE(thread_id == 7);
+
+  ccf::threading::reset_thread_id_generator();
+  ccf::threading::set_current_thread_id(ccf::threading::MAIN_THREAD_ID);
+}
 
 template <typename Base>
 class TestLogger : public Base

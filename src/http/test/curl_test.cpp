@@ -8,7 +8,9 @@
 
 #include <cstdlib>
 #include <curl/header.h>
+#include <fstream>
 #include <iostream>
+#include <limits>
 #include <llhttp/llhttp.h>
 #include <memory>
 #include <nlohmann/json.hpp>
@@ -32,6 +34,217 @@ struct Data
 
 DECLARE_JSON_TYPE(Data);
 DECLARE_JSON_REQUIRED_FIELDS(Data, foo, bar, iter);
+
+TEST_CASE("is_transient_transport_error classifies curl errors")
+{
+  // Transport/protocol-layer failures that a retry loop (e.g. the node join
+  // client) should retry rather than treat as fatal.
+  const std::vector<CURLcode> transient = {
+    CURLE_COULDNT_RESOLVE_PROXY,
+    CURLE_COULDNT_RESOLVE_HOST,
+    CURLE_COULDNT_CONNECT,
+    CURLE_OPERATION_TIMEDOUT,
+    CURLE_GOT_NOTHING,
+    CURLE_RECV_ERROR,
+    CURLE_SEND_ERROR,
+    CURLE_PARTIAL_FILE,
+    CURLE_WEIRD_SERVER_REPLY,
+    CURLE_HTTP2,
+    CURLE_HTTP2_STREAM,
+  };
+  for (const auto code : transient)
+  {
+    INFO("code = " << static_cast<int>(code));
+    CHECK(ccf::curl::is_transient_transport_error(code));
+  }
+
+  // Errors that must be treated as fatal (never retried): TLS/certificate
+  // failures, application-level errors, and our own response size-cap
+  // rejection (CURLE_WRITE_ERROR). CURLE_OK and CURLE_ABORTED_BY_CALLBACK are
+  // not transport errors either.
+  const std::vector<CURLcode> fatal = {
+    CURLE_OK,
+    CURLE_PEER_FAILED_VERIFICATION,
+    CURLE_SSL_CACERT_BADFILE,
+    CURLE_SSL_CONNECT_ERROR,
+    CURLE_SSL_CERTPROBLEM,
+    CURLE_USE_SSL_FAILED,
+    CURLE_WRITE_ERROR,
+    CURLE_TOO_MANY_REDIRECTS,
+    CURLE_UNSUPPORTED_PROTOCOL,
+    CURLE_ABORTED_BY_CALLBACK,
+  };
+  for (const auto code : fatal)
+  {
+    INFO("code = " << static_cast<int>(code));
+    CHECK_FALSE(ccf::curl::is_transient_transport_error(code));
+  }
+}
+
+TEST_CASE("RequestBody supports replay")
+{
+  const std::vector<uint8_t> expected = {1, 2, 3, 4};
+  const auto data = expected;
+  ccf::curl::RequestBody body(data);
+
+  std::vector<char> partial(2);
+  REQUIRE(
+    ccf::curl::RequestBody::send_data(
+      partial.data(), 1, partial.size(), &body) == partial.size());
+  REQUIRE(static_cast<uint8_t>(partial[0]) == expected[0]);
+  REQUIRE(static_cast<uint8_t>(partial[1]) == expected[1]);
+
+  REQUIRE(body.seek(-1, SEEK_CUR));
+  char current = 0;
+  REQUIRE(ccf::curl::RequestBody::send_data(&current, 1, 1, &body) == 1);
+  REQUIRE(static_cast<uint8_t>(current) == expected[1]);
+
+  REQUIRE(body.seek(-1, SEEK_END));
+  char last = 0;
+  REQUIRE(ccf::curl::RequestBody::send_data(&last, 1, 1, &body) == 1);
+  REQUIRE(static_cast<uint8_t>(last) == expected.back());
+
+  REQUIRE(body.seek(0, SEEK_SET));
+
+  std::vector<char> replayed(expected.size());
+  REQUIRE(
+    ccf::curl::RequestBody::send_data(
+      replayed.data(), 1, replayed.size(), &body) == replayed.size());
+  REQUIRE(std::equal(
+    replayed.begin(), replayed.end(), expected.begin(), [](char lhs, auto rhs) {
+      return static_cast<uint8_t>(lhs) == rhs;
+    }));
+
+  REQUIRE(body.seek(2, SEEK_SET));
+  REQUIRE_FALSE(body.seek(std::numeric_limits<curl_off_t>::max(), SEEK_CUR));
+  char after_failed_seek = 0;
+  REQUIRE(
+    ccf::curl::RequestBody::send_data(&after_failed_seek, 1, 1, &body) == 1);
+  REQUIRE(static_cast<uint8_t>(after_failed_seek) == expected[2]);
+
+  REQUIRE_FALSE(body.seek(-1, SEEK_SET));
+  REQUIRE_FALSE(body.seek(expected.size() + 1, SEEK_SET));
+  REQUIRE(body.seek(0, SEEK_END));
+  REQUIRE_FALSE(body.seek(1, SEEK_CUR));
+  REQUIRE_FALSE(
+    body.seek(-static_cast<curl_off_t>(expected.size()) - 1, SEEK_END));
+
+  REQUIRE(
+    ccf::curl::RequestBody::seek_data(&body, 0, SEEK_SET) == CURL_SEEKFUNC_OK);
+  REQUIRE(
+    ccf::curl::RequestBody::seek_data(&body, expected.size() + 1, SEEK_SET) ==
+    CURL_SEEKFUNC_CANTSEEK);
+  REQUIRE(
+    ccf::curl::RequestBody::seek_data(nullptr, 0, SEEK_SET) ==
+    CURL_SEEKFUNC_FAIL);
+}
+
+TEST_CASE("RequestBody supports empty bodies")
+{
+  ccf::curl::RequestBody body(std::vector<uint8_t>{});
+
+  REQUIRE(body.size() == 0);
+  REQUIRE(body.seek(0, SEEK_SET));
+  REQUIRE(body.seek(0, SEEK_CUR));
+  REQUIRE(body.seek(0, SEEK_END));
+
+  char unused = 0;
+  REQUIRE(ccf::curl::RequestBody::send_data(&unused, 1, 1, &body) == 0);
+}
+
+TEST_CASE("ResponseHeaders rejects oversized headers")
+{
+  ccf::curl::ResponseHeaders headers;
+  std::string status = "HTTP/1.1 200 OK\r\n";
+  REQUIRE(
+    ccf::curl::ResponseHeaders::recv_header_line(
+      status.data(), 1, status.size(), &headers) == status.size());
+
+  std::string oversized_value(
+    ccf::http::default_max_header_size.count_bytes() + 1, 'x');
+  std::string header = fmt::format("X-Large: {}\r\n", oversized_value);
+  REQUIRE(
+    ccf::curl::ResponseHeaders::recv_header_line(
+      header.data(), 1, header.size(), &headers) == 0);
+}
+
+TEST_CASE("ResponseHeaders rejects oversized header fields")
+{
+  ccf::curl::ResponseHeaders headers;
+  std::string status = "HTTP/1.1 200 OK\r\n";
+  REQUIRE(
+    ccf::curl::ResponseHeaders::recv_header_line(
+      status.data(), 1, status.size(), &headers) == status.size());
+
+  std::string oversized_field(
+    ccf::http::default_max_header_size.count_bytes() + 1, 'x');
+  std::string header = fmt::format("{}: value\r\n", oversized_field);
+  REQUIRE(
+    ccf::curl::ResponseHeaders::recv_header_line(
+      header.data(), 1, header.size(), &headers) == 0);
+}
+
+TEST_CASE("ResponseHeaders rejects too many headers")
+{
+  ccf::curl::ResponseHeaders headers;
+  std::string status = "HTTP/1.1 200 OK\r\n";
+  REQUIRE(
+    ccf::curl::ResponseHeaders::recv_header_line(
+      status.data(), 1, status.size(), &headers) == status.size());
+
+  for (size_t i = 0; i < ccf::http::default_max_headers_count; ++i)
+  {
+    std::string header = fmt::format("X-Test-{}: value\r\n", i);
+    REQUIRE(
+      ccf::curl::ResponseHeaders::recv_header_line(
+        header.data(), 1, header.size(), &headers) == header.size());
+  }
+
+  std::string header = "X-Too-Many: value\r\n";
+  REQUIRE(
+    ccf::curl::ResponseHeaders::recv_header_line(
+      header.data(), 1, header.size(), &headers) == 0);
+}
+
+TEST_CASE("CurlmLibuvContext aborts queued requests on close")
+{
+  size_t response_count = 0;
+  CURLcode observed_curl_response = CURLE_OK;
+  long observed_status_code = -1;
+
+  {
+    ccf::curl::CurlmLibuvContextSingleton singleton(uv_default_loop());
+
+    auto response_callback =
+      [&response_count, &observed_curl_response, &observed_status_code](
+        std::unique_ptr<ccf::curl::CurlRequest>&& request,
+        CURLcode curl_response,
+        long status_code) {
+        REQUIRE(request != nullptr);
+        response_count++;
+        observed_curl_response = curl_response;
+        observed_status_code = status_code;
+      };
+
+    auto request = std::make_unique<ccf::curl::CurlRequest>(
+      ccf::curl::UniqueCURL(),
+      HTTP_GET,
+      "http://127.0.0.1:1/pending",
+      ccf::curl::UniqueSlist(),
+      nullptr,
+      std::make_unique<ccf::curl::ResponseBody>(SIZE_MAX),
+      std::move(response_callback));
+
+    ccf::curl::CurlmLibuvContextSingleton::get_instance()->attach_request(
+      std::move(request));
+  }
+
+  uv_run(uv_default_loop(), UV_RUN_DEFAULT);
+
+  REQUIRE(response_count == 1);
+  REQUIRE(observed_curl_response == CURLE_ABORTED_BY_CALLBACK);
+  REQUIRE(observed_status_code == 0);
+}
 
 TEST_CASE("Synchronous")
 {
@@ -78,6 +291,211 @@ TEST_CASE("Synchronous")
     }
   }
   REQUIRE(response_count == sync_number_requests);
+}
+
+TEST_CASE("Synchronous POST echoes body")
+{
+  // Exercises POST-with-body support in the curl wrapper: the echo server
+  // reflects the request method and body, so we can assert that both were
+  // transmitted correctly.
+  const std::string sent_body = R"({"message":"join","iter":42})";
+  std::vector<uint8_t> body_bytes(sent_body.begin(), sent_body.end());
+  auto body = std::make_unique<ccf::curl::RequestBody>(std::move(body_bytes));
+
+  auto headers = ccf::curl::UniqueSlist();
+  headers.append("Content-Type", "application/json");
+
+  auto curl_handle = ccf::curl::UniqueCURL();
+  std::string url = fmt::format("http://{}/join", server_address);
+
+  CURLcode curl_code = CURLE_FAILED_INIT;
+  long status_code = 0;
+  std::string response_body;
+
+  auto response = [&curl_code, &status_code, &response_body](
+                    std::unique_ptr<ccf::curl::CurlRequest>&& request,
+                    CURLcode curl_response,
+                    long status) {
+    curl_code = curl_response;
+    status_code = status;
+    auto* rb = request->get_response_body();
+    response_body = std::string(rb->buffer.begin(), rb->buffer.end());
+  };
+
+  auto request = std::make_unique<ccf::curl::CurlRequest>(
+    std::move(curl_handle),
+    HTTP_POST,
+    std::move(url),
+    std::move(headers),
+    std::move(body),
+    std::make_unique<ccf::curl::ResponseBody>(SIZE_MAX),
+    response);
+
+  ccf::curl::CurlRequest::synchronous_perform(std::move(request));
+
+  constexpr long HTTP_SUCCESS = 200;
+  REQUIRE(curl_code == CURLE_OK);
+  REQUIRE(status_code == HTTP_SUCCESS);
+
+  const auto parsed = nlohmann::json::parse(response_body);
+  REQUIRE(parsed.at("metadata").at("method") == "POST");
+  REQUIRE(parsed.at("body") == sent_body);
+}
+
+TEST_CASE("Synchronous POST replays body after redirect")
+{
+  const std::string sent_body = R"({"message":"replay"})";
+  std::vector<uint8_t> body_bytes(sent_body.begin(), sent_body.end());
+  auto body = std::make_unique<ccf::curl::RequestBody>(std::move(body_bytes));
+
+  auto headers = ccf::curl::UniqueSlist();
+  headers.append("Content-Type", "application/json");
+
+  auto curl_handle = ccf::curl::UniqueCURL();
+  curl_handle.set_opt(CURLOPT_FOLLOWLOCATION, 1L);
+  std::string url = fmt::format("http://{}/redirect", server_address);
+
+  CURLcode curl_code = CURLE_FAILED_INIT;
+  long status_code = 0;
+  std::string response_body;
+
+  auto response = [&curl_code, &status_code, &response_body](
+                    std::unique_ptr<ccf::curl::CurlRequest>&& request,
+                    CURLcode curl_response,
+                    long status) {
+    curl_code = curl_response;
+    status_code = status;
+    auto* rb = request->get_response_body();
+    response_body = std::string(rb->buffer.begin(), rb->buffer.end());
+  };
+
+  auto request = std::make_unique<ccf::curl::CurlRequest>(
+    std::move(curl_handle),
+    HTTP_POST,
+    std::move(url),
+    std::move(headers),
+    std::move(body),
+    std::make_unique<ccf::curl::ResponseBody>(SIZE_MAX),
+    response);
+
+  ccf::curl::CurlRequest::synchronous_perform(std::move(request));
+
+  constexpr long HTTP_SUCCESS = 200;
+  REQUIRE(curl_code == CURLE_OK);
+  REQUIRE(status_code == HTTP_SUCCESS);
+
+  const auto parsed = nlohmann::json::parse(response_body);
+  REQUIRE(parsed.at("metadata").at("method") == "POST");
+  REQUIRE(parsed.at("metadata").at("path") == "/redirected");
+  REQUIRE(parsed.at("body") == sent_body);
+}
+
+TEST_CASE("VERIFYHOST rejects a certificate SAN mismatch")
+{
+  // Guards the TLS hostname-verification hardening the node join client relies
+  // on: with the same pinned CA and the same connection,
+  // CURLOPT_SSL_VERIFYHOST == 2 must reject a certificate whose SAN does not
+  // cover the dialed host, and accept one that does. Requires the HTTPS test
+  // server started by e2e_curl.py (self-signed cert with a single dNSName SAN,
+  // served on the loopback IP).
+  const char* tls_addr_env = std::getenv("TLS_SERVER_ADDR");
+  const char* tls_san_env = std::getenv("TLS_SERVER_SAN");
+  const char* tls_ca_env = std::getenv("TLS_SERVER_CA");
+  if (
+    tls_addr_env == nullptr || tls_san_env == nullptr || tls_ca_env == nullptr)
+  {
+    MESSAGE("Skipping: TLS_SERVER_* env not set (run via e2e_curl.py)");
+    return;
+  }
+
+  const std::string tls_addr = tls_addr_env;
+  const std::string tls_san = tls_san_env;
+
+  std::string ca_pem;
+  {
+    std::ifstream ca_file(tls_ca_env, std::ios::binary);
+    REQUIRE(ca_file.good());
+    ca_pem.assign(
+      std::istreambuf_iterator<char>(ca_file),
+      std::istreambuf_iterator<char>());
+  }
+  REQUIRE(!ca_pem.empty());
+
+  // TLS_SERVER_ADDR is "<host>:<port>".
+  const auto colon = tls_addr.rfind(':');
+  REQUIRE(colon != std::string::npos);
+  const std::string tls_host = tls_addr.substr(0, colon);
+  const std::string tls_port = tls_addr.substr(colon + 1);
+
+  auto perform_get = [&](
+                       const std::string& url,
+                       long verifyhost,
+                       const std::optional<std::string>& resolve_entry) {
+    auto curl_handle = ccf::curl::UniqueCURL();
+    curl_handle.set_opt(CURLOPT_SSL_VERIFYPEER, 1L);
+    curl_handle.set_opt(CURLOPT_SSL_VERIFYHOST, verifyhost);
+    curl_handle.set_opt(CURLOPT_PROTOCOLS_STR, "https");
+    curl_handle.set_blob_opt(
+      CURLOPT_CAINFO_BLOB,
+      reinterpret_cast<const uint8_t*>(ca_pem.data()),
+      ca_pem.size());
+    curl_handle.set_opt(CURLOPT_CAPATH, nullptr);
+    curl_handle.set_opt(CURLOPT_CONNECTTIMEOUT, 5L);
+    curl_handle.set_opt(CURLOPT_TIMEOUT, 10L);
+
+    auto resolve = ccf::curl::UniqueSlist();
+    if (resolve_entry.has_value())
+    {
+      resolve.append(resolve_entry->c_str());
+      curl_handle.set_opt(CURLOPT_RESOLVE, resolve.get());
+    }
+
+    CURLcode result = CURLE_FAILED_INIT;
+    auto callback = [&result](
+                      std::unique_ptr<ccf::curl::CurlRequest>&& /*request*/,
+                      CURLcode curl_response,
+                      long /*status*/) { result = curl_response; };
+
+    ccf::curl::CurlRequest::synchronous_perform(
+      std::make_unique<ccf::curl::CurlRequest>(
+        std::move(curl_handle),
+        HTTP_GET,
+        url,
+        ccf::curl::UniqueSlist(),
+        nullptr,
+        std::make_unique<ccf::curl::ResponseBody>(SIZE_MAX),
+        callback));
+    return result;
+  };
+
+  SUBCASE("VERIFYHOST=2 rejects a host absent from the certificate SAN")
+  {
+    // The certificate's only SAN is a dNSName, so dialing the loopback IP
+    // directly must fail hostname verification.
+    const auto result =
+      perform_get(fmt::format("https://{}/", tls_addr), 2L, std::nullopt);
+    REQUIRE(result == CURLE_PEER_FAILED_VERIFICATION);
+  }
+
+  SUBCASE("VERIFYHOST=2 accepts the certificate SAN host")
+  {
+    // Dial the SAN name, resolved to the server's loopback address.
+    const auto result = perform_get(
+      fmt::format("https://{}:{}/", tls_san, tls_port),
+      2L,
+      fmt::format("{}:{}:{}", tls_san, tls_port, tls_host));
+    REQUIRE(result == CURLE_OK);
+  }
+
+  SUBCASE("VERIFYHOST=0 accepts the mismatched host (control)")
+  {
+    // With hostname verification disabled the same mismatched connection
+    // succeeds, proving the CA/cert/connection are otherwise valid and that
+    // the hostname check is the sole discriminator.
+    const auto result =
+      perform_get(fmt::format("https://{}/", tls_addr), 0L, std::nullopt);
+    REQUIRE(result == CURLE_OK);
+  }
 }
 
 TEST_CASE("CurlmLibuvContext")

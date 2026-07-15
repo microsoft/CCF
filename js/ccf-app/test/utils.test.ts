@@ -1,4 +1,5 @@
-import { assert } from "chai";
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
 import * as util from "../src/utils.js";
 
 function uint8ArrayBufferEquality(a: Uint8Array, b: Uint8Array): boolean {
@@ -18,7 +19,7 @@ describe("utils", function () {
     const buffer = new Uint8Array([1, 2, 3]).buffer;
     const uint8Array = new Uint8Array(buffer);
     const result = util.toUint8ArrayBuffer(uint8Array);
-    assert.instanceOf(result, Uint8Array);
+    assert.ok(result instanceof Uint8Array);
     assert.strictEqual(result.buffer, buffer);
   });
   it("toUint8ArrayBuffer(Uint8Array<SharedArrayBuffer>)", function () {
@@ -27,15 +28,15 @@ describe("utils", function () {
     view.set([1, 2, 3]);
     const uint8Array = new Uint8Array(sharedBuffer);
     const result = util.toUint8ArrayBuffer(uint8Array);
-    assert.instanceOf(result, Uint8Array);
+    assert.ok(result instanceof Uint8Array);
     assert.notStrictEqual(result.buffer as any, sharedBuffer as any);
-    assert.isTrue(uint8ArrayBufferEquality(result, new Uint8Array([1, 2, 3])));
+    assert.ok(uint8ArrayBufferEquality(result, new Uint8Array([1, 2, 3])));
   });
 
   it("toArrayBuffer(ArrayBuffer)", function () {
     const buffer = new Uint8Array([1, 2, 3]).buffer;
     const result = util.toArrayBuffer(buffer);
-    assert.instanceOf(result, ArrayBuffer);
+    assert.ok(result instanceof ArrayBuffer);
     assert.strictEqual(result, buffer);
   });
   it("toArrayBuffer(SharedArrayBuffer)", function () {
@@ -43,9 +44,9 @@ describe("utils", function () {
     const view = new Uint8Array(buffer);
     view.set([1, 2, 3]);
     const result = util.toArrayBuffer(buffer);
-    assert.instanceOf(result, ArrayBuffer);
+    assert.ok(result instanceof ArrayBuffer);
     assert.notStrictEqual(result as any, buffer as any);
-    assert.isTrue(
+    assert.ok(
       uint8ArrayBufferEquality(
         new Uint8Array(result),
         new Uint8Array([1, 2, 3]),
@@ -55,7 +56,7 @@ describe("utils", function () {
   it("toArrayBuffer(Uint8Array<ArrayBuffer>)", function () {
     const buffer = new Uint8Array([1, 2, 3]);
     const result = util.toArrayBuffer(buffer);
-    assert.instanceOf(result, ArrayBuffer);
+    assert.ok(result instanceof ArrayBuffer);
     assert.deepEqual(new Uint8Array(result), buffer);
   });
   it("toArrayBuffer(Uint8Array<SharedArrayBuffer>)", function () {
@@ -64,9 +65,9 @@ describe("utils", function () {
     view.set([1, 2, 3]);
     const buffer = new Uint8Array(sharedBuffer);
     const result = util.toArrayBuffer(buffer);
-    assert.instanceOf(result, ArrayBuffer);
+    assert.ok(result instanceof ArrayBuffer);
     assert.notStrictEqual(result as any, sharedBuffer as any);
-    assert.isTrue(
+    assert.ok(
       uint8ArrayBufferEquality(
         new Uint8Array(result),
         new Uint8Array([1, 2, 3]),
@@ -76,8 +77,8 @@ describe("utils", function () {
   it("toArrayBuffer(Buffer)", function () {
     const buffer = Buffer.from([1, 2, 3]);
     const result = util.toArrayBuffer(buffer);
-    assert.instanceOf(result, ArrayBuffer);
-    assert.isTrue(
+    assert.ok(result instanceof ArrayBuffer);
+    assert.ok(
       uint8ArrayBufferEquality(
         new Uint8Array(result),
         new Uint8Array([1, 2, 3]),

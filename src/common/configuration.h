@@ -73,7 +73,8 @@ namespace ccf
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::JWT);
   DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::JWT);
-  DECLARE_JSON_OPTIONAL_FIELDS(CCFConfig::JWT, key_refresh_interval);
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    CCFConfig::JWT, key_refresh_interval, key_refresh_max_response_size);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::Attestation::Environment);
   DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::Attestation::Environment);

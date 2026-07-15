@@ -3,6 +3,8 @@ bucket_a:
 
 bucket_b:
   recovery_test
+  recovery_stale_snapshot_join_test
+  recovery_intermediate_snapshot_join_test
   schema_test
   nodes_test
 
@@ -33,6 +35,7 @@ no_bucket:
   kv_bench
   merkle_bench
   hash_bench
+  http_bench
   task_bench
   recovery_test_suite
   reconfiguration_test_suite

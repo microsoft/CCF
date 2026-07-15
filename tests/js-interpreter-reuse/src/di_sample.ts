@@ -1,23 +1,24 @@
 import * as ccfapp from "@microsoft/ccf-app";
-import { container } from "./inversify.config";
 import { SlowConstructorService } from "./SlowConstructorService";
+import { getSingleton } from "./singleton_service_registry";
 
-// Demonstrates impact of interpreter reuse on dependency injection patterns,
-// such as inversify.
-// With fresh interpreters, the DI container must also be freshly constructed
-// each time, leading to repeated unnecessary construction costs. By reusing
-// existing interpreters, where this container's static state has been stashed
-// on the global object, we can see a significant perf speedup.
+// Demonstrates impact of interpreter reuse on application-level singleton
+// service patterns. With fresh interpreters, module-level state is rebuilt each
+// time, leading to repeated unnecessary construction costs. By reusing existing
+// interpreters, where this module state is retained, we can see a significant
+// perf speedup.
 export function slowCall(request: ccfapp.Request): ccfapp.Response {
   console.log("Requesting service");
-  const slowConstructed = container.get<SlowConstructorService>(
+  const slowConstructed = getSingleton(
     SlowConstructorService.ServiceId,
+    () => new SlowConstructorService(),
   );
   console.log("Requested service");
 
   console.log("Requesting service again");
-  const slowConstructed2 = container.get<SlowConstructorService>(
+  const slowConstructed2 = getSingleton(
     SlowConstructorService.ServiceId,
+    () => new SlowConstructorService(),
   );
   console.log("Requested service again");
 

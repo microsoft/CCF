@@ -51,6 +51,7 @@ suite_membership_recovery = [
     recovery.test_recover_service,
     membership.test_update_recovery_shares,
     recovery.test_recover_service,
+    recovery.test_recovery_member_changes_rejected_during_recovery,
 ]
 suites["membership_recovery"] = suite_membership_recovery
 

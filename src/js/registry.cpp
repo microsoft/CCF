@@ -53,6 +53,7 @@ namespace ccf::js
     return std::string(sv);
   }
 
+  // NOLINTNEXTLINE(readability-function-cognitive-complexity)
   void BaseDynamicJSEndpointRegistry::do_execute_request(
     const CustomJSEndpoint* endpoint,
     ccf::endpoints::EndpointContext& endpoint_ctx,
