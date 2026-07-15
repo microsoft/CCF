@@ -335,6 +335,25 @@ namespace http
     void headers_complete()
     {
       complete_header();
+
+      // If the Content-Length header advertises a body larger than the
+      // configured maximum, reject the message immediately rather than
+      // waiting until enough body chunks have been appended to exceed the
+      // limit (see append_body). For chunked bodies, Content-Length is ignored
+      // by llhttp and the accumulation check in append_body still applies.
+      auto const& max_body_size =
+        configuration.max_body_size.value_or(ccf::http::default_max_body_size);
+      if (
+        (parser.flags & F_CHUNKED) == 0 &&
+        (parser.flags & F_CONTENT_LENGTH) != 0 &&
+        parser.content_length > max_body_size)
+      {
+        throw RequestPayloadTooLargeException(fmt::format(
+          "HTTP message body is too large (Content-Length: {}, max size "
+          "allowed: {})",
+          parser.content_length,
+          max_body_size));
+      }
     }
   };
 
