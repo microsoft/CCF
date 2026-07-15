@@ -4,6 +4,7 @@
 
 #include "ccf/ds/hex.h"
 #include "ccf/http_configuration.h"
+#include "ccf/http_query.h"
 #include "enclave/tls_session.h"
 #include "http/http_exceptions.h"
 #include "http_builder.h"
@@ -38,36 +39,14 @@ namespace http
       url.substr(fragment_start));
   }
 
+  // Percent-decodes an entire string, used for URL path fragments. Query
+  // strings must instead be decoded per-component, after splitting on '&' and
+  // '=' (see ccf::http::parse_query), so that escaped separators are preserved.
+  // The decoding rules (lenient '%XX', '+' -> space) are shared with, and
+  // implemented by, ccf::http::decode_query_component.
   static std::string url_decode(const std::string_view& s_)
   {
-    std::string s(s_);
-    char const* src = s.c_str();
-    char const* end = s.c_str() + s.size();
-    char* dst = s.data();
-
-    while (src < end)
-    {
-      char const c = *src++;
-      if (
-        c == '%' && (src + 1) < end && (isxdigit(src[0]) != 0) &&
-        (isxdigit(src[1]) != 0))
-      {
-        const auto a = ccf::ds::hex_char_to_int(*src++);
-        const auto b = ccf::ds::hex_char_to_int(*src++);
-        *dst++ = (a << 4) | b;
-      }
-      else if (c == '+')
-      {
-        *dst++ = ' ';
-      }
-      else
-      {
-        *dst++ = c;
-      }
-    }
-
-    s.resize(dst - s.data());
-    return s;
+    return ccf::http::decode_query_component(s_);
   }
 
   inline bool status_success(ccf::http_status status)
@@ -356,6 +335,25 @@ namespace http
     void headers_complete()
     {
       complete_header();
+
+      // If the Content-Length header advertises a body larger than the
+      // configured maximum, reject the message immediately rather than
+      // waiting until enough body chunks have been appended to exceed the
+      // limit (see append_body). For chunked bodies, Content-Length is ignored
+      // by llhttp and the accumulation check in append_body still applies.
+      auto const& max_body_size =
+        configuration.max_body_size.value_or(ccf::http::default_max_body_size);
+      if (
+        (parser.flags & F_CHUNKED) == 0 &&
+        (parser.flags & F_CONTENT_LENGTH) != 0 &&
+        parser.content_length > max_body_size)
+      {
+        throw RequestPayloadTooLargeException(fmt::format(
+          "HTTP message body is too large (Content-Length: {}, max size "
+          "allowed: {})",
+          parser.content_length,
+          max_body_size));
+      }
     }
   };
 

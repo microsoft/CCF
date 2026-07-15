@@ -43,7 +43,7 @@ add_san(ccfcrypto)
 add_hardening(ccfcrypto)
 add_tidy(ccfcrypto)
 
-target_link_libraries(ccfcrypto PUBLIC crypto ssl evercbor)
+target_link_libraries(ccfcrypto PUBLIC crypto ssl evercbor ccf_threading)
 target_link_libraries(
   ccfcrypto
   PUBLIC

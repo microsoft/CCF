@@ -30,6 +30,12 @@ def test_forward_larger_than_default_requests(network, args):
 
     primary, _ = network.find_primary()
 
+    def get_request_payload_too_large_errors():
+        with primary.client() as c:
+            return c.get("/node/metrics").body.json()["sessions"]["interfaces"][
+                infra.interfaces.PRIMARY_RPC_INTERFACE
+            ]["errors"]["request_payload_too_large"]
+
     # Big request, but under the cap
     with primary.client("user0") as c:
         msg = "A" * 512 * 1024
@@ -37,9 +43,16 @@ def test_forward_larger_than_default_requests(network, args):
         assert r.status_code == http.HTTPStatus.OK.value, r
 
     # Big request, over the cap for the primary
-    with primary.client("user0") as c:
-        msg = "A" * 2 * 1024 * 1024
-        r = c.post("/app/log/private", {"id": 42, "msg": msg})
+    msg = "A" * 2 * 1024 * 1024
+    before_errors_count = get_request_payload_too_large_errors()
+    try:
+        with primary.client("user0") as c:
+            r = c.post("/app/log/private", {"id": 42, "msg": msg})
+    except infra.clients.CCFIOException:
+        # The server may close before the client finishes writing the rejected
+        # body, so confirm the rejection through the interface error metric.
+        assert get_request_payload_too_large_errors() == before_errors_count + 1
+    else:
         assert r.status_code == http.HTTPStatus.REQUEST_ENTITY_TOO_LARGE.value, r
 
     # Big request, over the cap for the primary, but under the cap for the new node

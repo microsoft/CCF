@@ -35,6 +35,7 @@ no_bucket:
   kv_bench
   merkle_bench
   hash_bench
+  http_bench
   task_bench
   recovery_test_suite
   reconfiguration_test_suite
