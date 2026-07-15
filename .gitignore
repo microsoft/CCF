@@ -1,5 +1,5 @@
 build*/
-/src/rust/target/
+**/target/
 *_build/
 !ccf_build/
 !doc/build_apps/
