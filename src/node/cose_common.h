@@ -127,7 +127,10 @@ namespace ccf::cose
     }
     catch (const CBORDecodeError& err)
     {
-      std::ignore = err; // optional field
+      if (err.error_code() != Error::KEY_NOT_FOUND)
+      {
+        throw;
+      }
     }
   }
 
