@@ -188,6 +188,30 @@ TEST_CASE("turin validation")
     turin_quote_info, measurement, report_data);
 }
 
+TEST_CASE("Invalid attestation signature fails TAV verification")
+{
+  using namespace ccf;
+
+  auto invalid_attestation = pal::snp::testing::milan_attestation;
+  invalid_attestation[offsetof(pal::snp::Attestation, signature)] ^= 1;
+  auto quote_info = QuoteInfo{
+    .format = QuoteFormat::amd_sev_snp_v1,
+    .quote = std::move(invalid_attestation),
+    .endorsements = std::vector<uint8_t>(
+      pal::snp::testing::milan_endorsements.begin(),
+      pal::snp::testing::milan_endorsements.end()),
+    .uvm_endorsements = std::nullopt,
+  };
+
+  pal::PlatformAttestationMeasurement measurement;
+  pal::PlatformAttestationReportData report_data;
+
+  CHECK_THROWS_WITH_AS(
+    pal::verify_snp_attestation_report(quote_info, measurement, report_data),
+    doctest::Contains("SEV-SNP: TAV verification failed (104):"),
+    std::logic_error);
+}
+
 TEST_CASE("Mismatched attestation and endorsements fail")
 {
   using namespace ccf;
@@ -207,9 +231,7 @@ TEST_CASE("Mismatched attestation and endorsements fail")
   CHECK_THROWS_WITH_AS(
     pal::verify_snp_attestation_report(
       mismatched_quote, measurement, report_data),
-    doctest::Contains(
-      "SEV-SNP: The root of trust public key for this attestation "
-      "was not the expected one"),
+    doctest::Contains("SEV-SNP: TAV verification failed (102):"),
     std::logic_error);
 }
 
@@ -223,9 +245,7 @@ TEST_CASE("ARK with unexpected issuer fails")
   CHECK_THROWS_WITH_AS(
     ccf::pal::verify_snp_attestation_report(
       quote_info, measurement, report_data),
-    doctest::Contains(
-      "SEV-SNP: The root of trust issuer for this attestation was not "
-      "the expected one"),
+    doctest::Contains("SEV-SNP: TAV verification failed (102):"),
     std::logic_error);
 }
 

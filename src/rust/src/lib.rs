@@ -2,3 +2,4 @@
 // Licensed under the Apache 2.0 License.
 
 pub use cose_rs;
+pub use tav;

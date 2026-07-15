@@ -270,7 +270,11 @@ install(TARGETS http_parser EXPORT ccf DESTINATION lib)
 add_ccf_static_library(
   ccf_pal
   SRCS ${CCF_DIR}/src/pal/attestation.cpp
-  LINK_LIBS ccfcrypto
+  LINK_LIBS ccfcrypto ${CMAKE_THREAD_LIBS_INIT} ${CMAKE_DL_LIBS} m
+)
+target_include_directories(
+  ccf_pal
+  PRIVATE ${CCF_DIR}/3rdparty/internal/tee-attestation-verification/ffi/include
 )
 
 # CCF js lib
