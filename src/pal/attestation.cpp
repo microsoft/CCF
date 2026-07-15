@@ -3,15 +3,15 @@
 
 #include "ccf/pal/attestation.h"
 
-#include "ccf/crypto/ecdsa.h"
 #include "ccf/crypto/openssl/openssl_wrappers.h"
-#include "ccf/crypto/verifier.h"
 #include "ccf/ds/json.h"
 #include "ccf/pal/attestation_sev_snp.h"
 #include "ccf/pal/sev_snp_cpuid.h"
 #include "ds/internal_logger.h"
+#include "tav/snp.h"
 
 #include <cstdint>
+#include <memory>
 #include <openssl/objects.h>
 
 namespace ccf::pal
@@ -20,32 +20,6 @@ namespace ccf::pal
     Unique_SSL_OBJECT<ASN1_OBJECT, ASN1_OBJECT_new, ASN1_OBJECT_free>;
   using Unique_ASN1_INTEGER = ccf::crypto::OpenSSL::
     Unique_SSL_OBJECT<ASN1_INTEGER, ASN1_INTEGER_new, ASN1_INTEGER_free>;
-
-  namespace
-  {
-    std::string x509_name_to_rfc2253_string(X509_NAME* name)
-    {
-      ccf::crypto::OpenSSL::CHECKNULL(name);
-
-      ccf::crypto::OpenSSL::Unique_BIO mem;
-      const auto rc = X509_NAME_print_ex(mem, name, 0, XN_FLAG_RFC2253);
-      if (rc < 0)
-      {
-        const auto ec = ERR_get_error();
-        throw std::runtime_error(fmt::format(
-          "OpenSSL error (rc={}, ec={}): {}",
-          rc,
-          ec,
-          ccf::crypto::OpenSSL::error_string(ec)));
-      }
-
-      BUF_MEM* bptr = nullptr;
-      ccf::crypto::OpenSSL::CHECK1(BIO_get_mem_ptr(mem, &bptr));
-      ccf::crypto::OpenSSL::CHECKNULL(bptr);
-
-      return {bptr->data, bptr->length};
-    }
-  }
 
   void verify_virtual_attestation_report(
     const QuoteInfo& quote_info,
@@ -286,84 +260,39 @@ namespace ccf::pal
     auto ask_cert = certificates[1];
     auto ark_cert = certificates[2];
 
-    auto ark_verifier = ccf::crypto::make_verifier(ark_cert);
-
-    auto key = snp::amd_root_signing_keys.find(product_family);
-    if (key == snp::amd_root_signing_keys.end())
+    TavSnpAttestationReport* verified_report_raw = nullptr;
+    using TavErrorPtr = std::unique_ptr<TavError, decltype(&tav_error_free)>;
+    TavErrorPtr verification_error(
+      tav_verify_snp_attestation(
+        quote_info.quote.data(),
+        quote_info.quote.size(),
+        ark_cert.data(),
+        ark_cert.size(),
+        ask_cert.data(),
+        ask_cert.size(),
+        vcek_cert.data(),
+        vcek_cert.size(),
+        &verified_report_raw),
+      tav_error_free);
+    if (verification_error != nullptr)
     {
+      const auto error_code = tav_error_code(verification_error.get());
+      const auto* error_message = tav_error_message(verification_error.get());
       throw std::logic_error(fmt::format(
-        "SEV-SNP: No known root certificate for {}", product_family));
-    }
-    const auto& expected_ark = key->second;
-    if (ark_verifier->public_key_pem().str() != expected_ark.public_key)
-    {
-      throw std::logic_error(fmt::format(
-        "SEV-SNP: The root of trust public key for this attestation was not "
-        "the expected one for v{} {} {}:  {} != {}",
-        quote.version,
-        quote.cpuid_fam_id,
-        quote.cpuid_mod_id,
-        ark_verifier->public_key_pem().str(),
-        expected_ark.public_key));
-    }
-
-    ccf::crypto::OpenSSL::Unique_BIO mem_bio(ark_cert);
-    ccf::crypto::OpenSSL::Unique_X509 x509(
-      mem_bio, true, true /* check_null */);
-    const auto issuer = x509_name_to_rfc2253_string(X509_get_issuer_name(x509));
-    if (issuer != expected_ark.issuer)
-    {
-      throw std::logic_error(fmt::format(
-        "SEV-SNP: The root of trust issuer for this attestation was not "
-        "the expected one for {}: {} != {}",
-        product_family,
-        issuer,
-        expected_ark.issuer));
+        "SEV-SNP: TAV verification failed ({}): {}",
+        static_cast<uint32_t>(error_code),
+        error_message == nullptr ? "Unknown TAV error" : error_message));
     }
 
-    if (!ark_verifier->verify_certificate({&ark_cert}))
+    using TavReportPtr = std::unique_ptr<
+      TavSnpAttestationReport,
+      decltype(&tav_snp_attestation_report_free)>;
+    TavReportPtr verified_report(
+      verified_report_raw, tav_snp_attestation_report_free);
+    if (verified_report == nullptr)
     {
       throw std::logic_error(
-        "SEV-SNP: The root of trust public key for this attestation was not "
-        "self signed as expected");
-    }
-
-    auto vcek_verifier = ccf::crypto::make_verifier(/* leaf */ vcek_cert);
-    if (!vcek_verifier->verify_certificate(
-          /* root */ {&ark_cert}, /* chain */ {&ask_cert}))
-    {
-      throw std::logic_error(
-        "SEV-SNP: The chain of signatures from the root of trust to this "
-        "attestation is broken");
-    }
-
-    // ---- Verify attestation report signature ----
-
-    // According to Table 134 (2025-06-12) only ecdsa_p384_sha384 is supported
-    if (quote.signature_algo != snp::SignatureAlgorithm::ecdsa_p384_sha384)
-    {
-      throw std::logic_error(fmt::format(
-        "SEV-SNP: Unsupported signature algorithm: {} (supported: {})",
-        quote.signature_algo,
-        snp::SignatureAlgorithm::ecdsa_p384_sha384));
-    }
-
-    // Make ASN1 DER signature
-    auto quote_signature = ccf::crypto::ecdsa_sig_from_r_s(
-      quote.signature.r,
-      sizeof(quote.signature.r),
-      quote.signature.s,
-      sizeof(quote.signature.s),
-      false /* little endian */
-    );
-
-    std::span quote_without_signature{
-      quote_info.quote.data(),
-      quote_info.quote.size() - sizeof(quote.signature)};
-    if (!vcek_verifier->verify(quote_without_signature, quote_signature))
-    {
-      throw std::logic_error(
-        "SEV-SNP: Chip certificate (VCEK) did not sign this attestation");
+        "SEV-SNP: TAV verification succeeded without returning a report");
     }
 
     // ---- Verify attestation report contents ----

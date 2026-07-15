@@ -8,6 +8,7 @@ crate-type = ["staticlib"]
 
 [dependencies]
 cose-rs = { path = "../cose/cose_rs" }
+tav = { package = "tee-attestation-verification-ffi", path = "../../3rdparty/internal/tee-attestation-verification/ffi", default-features = false, features = ["crypto_openssl"] }
 
 [profile.release]
 lto = true
