@@ -328,7 +328,7 @@ def run_idle_timeout_tests(args):
 
                         try:
                             r = c.get("/node/commit")
-                        except http.client.RemoteDisconnected:
+                        except (http.client.RemoteDisconnected, BrokenPipeError):
                             pass
                         else:
                             assert (

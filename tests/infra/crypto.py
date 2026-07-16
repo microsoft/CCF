@@ -7,6 +7,7 @@ from enum import IntEnum
 import secrets
 import datetime
 import hashlib
+import ipaddress
 from pyasn1.type.useful import UTCTime
 
 
@@ -177,8 +178,16 @@ def generate_cert(
             critical=True,
         )
     if san is not None:
+        # Emit an iPAddress SAN entry when the value is an IP literal (e.g.
+        # "127.0.0.1"), and a dNSName otherwise. TLS verification against an IP
+        # literal (as libcurl does with CURLOPT_SSL_VERIFYHOST=2) only matches
+        # iPAddress entries, not dNSName entries that happen to hold an IP.
+        try:
+            san_entry: x509.GeneralName = x509.IPAddress(ipaddress.ip_address(san))
+        except ValueError:
+            san_entry = x509.DNSName(san)
         builder = builder.add_extension(
-            x509.SubjectAlternativeName([x509.DNSName(san)]),
+            x509.SubjectAlternativeName([san_entry]),
             critical=False,
         )
 
@@ -388,7 +397,12 @@ def datetime_to_X509time(datetime: datetime):
 
 
 def create_signed_statement(
-    payload: bytes, sub: str, svn: int, eku: str, ca_identity=None
+    payload: bytes,
+    sub: str,
+    svn: int,
+    eku: str,
+    ca_identity=None,
+    iat: int | None = None,
 ) -> tuple:
     """
     Create a COSE_Sign1 signed statement with x5chain and CWT claims.
@@ -504,11 +518,15 @@ def create_signed_statement(
 
     # Build COSE_Sign1 protected headers
 
+    cwt_claims = {1: issuer, 2: sub, "svn": svn}
+    if iat is not None:
+        cwt_claims[6] = iat
+
     phdr = {
         1: -7,  # alg: ES256
         3: "application/octet-stream",  # content_type
         33: [leaf_der, ca_der],  # x5chain
-        15: {1: issuer, 2: sub, "svn": svn},  # CWT claims
+        15: cwt_claims,
     }
 
     leaf_key_pem = leaf_key.private_bytes(

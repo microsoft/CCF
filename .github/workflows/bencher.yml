@@ -106,11 +106,12 @@ jobs:
         shell: bash
 
       - name: "Collect perf results"
-        run: |
-          set -ex
+        run: &collect_perf |
+          set -exo pipefail
           jobid="${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}"
           mkdir -p perf
           cp build/bencher.json "perf/${jobid}.json"
+          (cd perf && ls -1 | sort -t- -k1,1n -k2,2n -k3,3n | head -n -180 | xargs -r rm -f)
         shell: bash
         if: success() || failure()
 
@@ -193,11 +194,7 @@ jobs:
         shell: bash
 
       - name: "Collect perf results"
-        run: |
-          set -ex
-          jobid="${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}"
-          mkdir -p perf
-          cp build/bencher.json "perf/${jobid}.json"
+        run: *collect_perf
         shell: bash
         if: success() || failure()
 

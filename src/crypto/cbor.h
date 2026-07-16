@@ -18,6 +18,9 @@ namespace ccf::cbor
 {
   namespace tag
   {
+    // https://www.rfc-editor.org/rfc/rfc8949.html#section-3.4.2
+    static constexpr int64_t EPOCH_DATE_TIME = 1;
+
     // https://www.rfc-editor.org/rfc/rfc8152.html#section-2
     static constexpr int64_t COSE_SIGN_1 = 18;
   }

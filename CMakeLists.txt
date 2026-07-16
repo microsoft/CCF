@@ -19,6 +19,26 @@ message(STATUS "CCF version = ${CCF_VERSION}")
 message(STATUS "CCF release version = ${CCF_RELEASE_VERSION}")
 message(STATUS "CCF version suffix = ${CCF_VERSION_SUFFIX}")
 
+string(
+  REGEX MATCH "^[0-9]+"
+  CCF_CXX_COMPILER_MAJOR_VERSION
+  "${CMAKE_CXX_COMPILER_VERSION}"
+)
+if(
+  CMAKE_CXX_COMPILER_ID STREQUAL "Clang"
+  AND CCF_CXX_COMPILER_MAJOR_VERSION STREQUAL "21"
+)
+  set(
+    CCF_WARNING_ERROR_EXCEPTIONS
+    "$<$<COMPILE_LANGUAGE:CXX>:-Wno-error=deprecated-declarations>"
+    "$<$<COMPILE_LANGUAGE:CXX>:-Wno-error=#warnings>"
+  )
+  message(
+    STATUS
+    "Disabling -Werror for deprecated-declarations and #warnings with Clang ${CMAKE_CXX_COMPILER_VERSION}"
+  )
+endif()
+
 set(CCF_ENABLE_RELEASE_HARDENING_DEFAULT ON)
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
   set(CCF_ENABLE_RELEASE_HARDENING_DEFAULT OFF)
@@ -208,6 +228,7 @@ set(
 )
 
 include(${CCF_DIR}/cmake/cose_openssl.cmake)
+include(${CCF_DIR}/cmake/threading.cmake)
 include(${CCF_DIR}/cmake/crypto.cmake)
 include(${CCF_DIR}/cmake/quickjs.cmake)
 include(${CCF_DIR}/cmake/evercbor.cmake)
@@ -280,6 +301,7 @@ add_ccf_static_library(
     ${CCF_DIR}/src/kv/tx.cpp
     ${CCF_DIR}/src/kv/untyped_map_handle.cpp
     ${CCF_DIR}/src/kv/untyped_map_diff.cpp
+  LINK_LIBS ccf_threading
 )
 
 # CCF endpoints lib
@@ -318,6 +340,7 @@ add_ccf_static_library(
     ${CCF_DIR}/src/tasks/fan_in_tasks.cpp
     ${CCF_DIR}/src/tasks/thread_manager.cpp
     ${CCF_DIR}/src/tasks/worker.cpp
+  LINK_LIBS ccf_threading
 )
 
 find_library(BACKTRACE_LIBRARY backtrace)
@@ -443,7 +466,6 @@ endif()
 set(
   CCF_IMPL_SOURCE
   ${CCF_DIR}/src/enclave/main.cpp
-  ${CCF_DIR}/src/enclave/thread_local.cpp
   ${CCF_DIR}/src/node/quote.cpp
   ${CCF_DIR}/src/node/uvm_endorsements.cpp
   ${CCF_DIR}/src/node/recovery_decision_protocol.cpp
@@ -954,11 +976,7 @@ if(BUILD_TESTS)
     )
 
     # Merkle Tree memory test
-    add_executable(
-      merkle_mem
-      src/node/test/merkle_mem.cpp
-      ${CCF_DIR}/src/enclave/thread_local.cpp
-    )
+    add_executable(merkle_mem src/node/test/merkle_mem.cpp)
     add_warning_checks(merkle_mem)
     target_link_libraries(
       merkle_mem
@@ -969,9 +987,9 @@ if(BUILD_TESTS)
     add_executable(
       raft_driver
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/driver.cpp
-      src/enclave/thread_local.cpp
     )
     add_warning_checks(raft_driver)
+    enable_coverage(raft_driver)
     target_link_libraries(raft_driver PRIVATE ccfcrypto ccf_tasks)
     target_include_directories(raft_driver PRIVATE src/aft)
 
@@ -983,6 +1001,18 @@ if(BUILD_TESTS)
     )
     set_property(TEST raft_scenario_test PROPERTY LABELS raft_scenario)
     set_property(TEST raft_scenario_test APPEND PROPERTY LABELS bucket_c)
+
+    if(COVERAGE)
+      # The scenario runner spawns raft_driver once per scenario file; give
+      # each process a uniquely-named .profraw (by PID) in the build directory
+      # so scripts/coverage.sh discovers them and the scenarios contribute to
+      # the aggregated coverage report.
+      set_property(
+        TEST raft_scenario_test
+        APPEND
+        PROPERTY ENVIRONMENT "LLVM_PROFILE_FILE=raft_scenario-%p.profraw"
+      )
+    endif()
 
     add_test(
       NAME csr_test
@@ -1009,21 +1039,23 @@ if(BUILD_TESTS)
     add_picobench(logger_bench SRCS src/ds/test/logger_bench.cpp)
     add_picobench(json_bench SRCS src/ds/test/json_bench.cpp)
     add_picobench(ring_buffer_bench SRCS src/ds/test/ring_buffer_bench.cpp)
+    add_picobench(ledger_bench SRCS src/host/test/ledger_bench.cpp)
     add_picobench(crypto_bench SRCS src/crypto/test/bench.cpp LINK_LIBS)
     add_picobench(cose_bench SRCS src/crypto/test/cose_bench.cpp LINK_LIBS)
     add_picobench(
       history_bench
-      SRCS src/node/test/history_bench.cpp src/enclave/thread_local.cpp
+      SRCS src/node/test/history_bench.cpp
       LINK_LIBS ccf_kv ccf_tasks
     )
 
-    add_picobench(
-      kv_bench
-      SRCS src/kv/test/kv_bench.cpp src/enclave/thread_local.cpp
-      LINK_LIBS ccf_kv
-    )
+    add_picobench(kv_bench SRCS src/kv/test/kv_bench.cpp LINK_LIBS ccf_kv)
     add_picobench(merkle_bench SRCS src/node/test/merkle_bench.cpp)
     add_picobench(hash_bench SRCS src/ds/test/hash_bench.cpp)
+    add_picobench(
+      http_bench
+      SRCS src/http/test/http_bench.cpp
+      LINK_LIBS http_parser
+    )
 
     add_picobench(
       task_bench
@@ -1050,6 +1082,20 @@ if(BUILD_TESTS)
       ${ADDITIONAL_RECOVERY_ARGS}
       --constitution
       ${CMAKE_SOURCE_DIR}/samples/constitutions/virtual/virtual_attestation_actions.js
+  )
+
+  add_e2e_test(
+    NAME recovery_stale_snapshot_join_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/identity_recovery_snapshot.py
+    BUCKET bucket_b
+    ADDITIONAL_ARGS --regex ^recovery_stale_snapshot_join$
+  )
+
+  add_e2e_test(
+    NAME recovery_intermediate_snapshot_join_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/identity_recovery_snapshot.py
+    BUCKET bucket_b
+    ADDITIONAL_ARGS --regex ^recovery_intermediate_snapshot_join$
   )
 
   add_e2e_test(
