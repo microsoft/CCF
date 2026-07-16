@@ -720,8 +720,8 @@ namespace asynchost
       {
         int open_errno = 0;
         {
-          TimeBoundLogger log_if_slow(fmt::format(
-            "Reopening recovery ledger file - fopen({})", new_file_path));
+          TimeBoundLogger log_if_slow(
+            fmt::format("Reopening ledger file - fopen({})", new_file_path));
           errno = 0;
           // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
           file = fopen(new_file_path.c_str(), "r+b");
@@ -730,7 +730,7 @@ namespace asynchost
         if (file == nullptr)
         {
           throw std::logic_error(fmt::format(
-            "Failed to reopen recovery ledger file {}: {}",
+            "Failed to reopen ledger file {}: {}",
             new_file_path,
             ccf::nonstd::strerror(open_errno != 0 ? open_errno : EIO)));
         }
