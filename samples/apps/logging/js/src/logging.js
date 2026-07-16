@@ -212,9 +212,11 @@ function get_historical_range_impl(request, isPrivate, nextLinkPrefix) {
     };
   }
 
-  const max_seqno_per_page = 2000;
+  // Historical range setup is synchronous, so keep pages small enough to
+  // avoid delaying consensus processing.
+  const max_seqnos_per_page = 500;
   const range_begin = from_seqno;
-  const range_end = Math.min(to_seqno, range_begin + max_seqno_per_page);
+  const range_end = Math.min(to_seqno, range_begin + max_seqnos_per_page - 1);
 
   // Compute a deterministic handle for the range request.
   // Note: Instead of ccf.digest, an equivalent of std::hash should be used.
@@ -272,7 +274,7 @@ function get_historical_range_impl(request, isPrivate, nextLinkPrefix) {
     const next_page_start = range_end + 1;
     const next_page_end = Math.min(
       to_seqno,
-      next_page_start + max_seqno_per_page,
+      next_page_start + max_seqnos_per_page - 1,
     );
     const next_page_handle = makeHandle(
       next_page_start,
@@ -283,6 +285,7 @@ function get_historical_range_impl(request, isPrivate, nextLinkPrefix) {
       next_page_handle,
       next_page_start,
       next_page_end,
+      expiry_seconds,
     );
 
     // NB: This path tells the caller to continue to ask until the end of

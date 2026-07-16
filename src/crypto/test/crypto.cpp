@@ -976,6 +976,50 @@ TEST_CASE("x509 time")
   }
 }
 
+TEST_CASE("X509 chain common validity period")
+{
+  const auto make_certificate =
+    [](const std::string& not_before, const std::string& not_after) {
+      auto key_pair =
+        ccf::crypto::make_ec_key_pair(ccf::crypto::CurveID::SECP384R1);
+      return ccf::crypto::cert_pem_to_der(
+        key_pair->self_sign("CN=test", not_before, not_after));
+    };
+
+  const auto first = make_certificate("20240101000000Z", "20241231235959Z");
+  const auto second = make_certificate("20240601000000Z", "20250601235959Z");
+
+  const auto common_validity_period =
+    ccf::crypto::OpenSSL::get_x509_chain_common_validity_period(
+      {first, second});
+  REQUIRE(common_validity_period.has_value());
+  REQUIRE(
+    ccf::ds::to_x509_time_string(common_validity_period->not_before) ==
+    "20240601000000Z");
+  REQUIRE(
+    ccf::ds::to_x509_time_string(common_validity_period->not_after) ==
+    "20241231235959Z");
+
+  const auto touching = make_certificate("20241231235959Z", "20260101000000Z");
+  const auto touching_common_validity_period =
+    ccf::crypto::OpenSSL::get_x509_chain_common_validity_period(
+      {first, touching});
+  REQUIRE(touching_common_validity_period.has_value());
+  REQUIRE(
+    touching_common_validity_period->not_before ==
+    touching_common_validity_period->not_after);
+  REQUIRE(
+    ccf::ds::to_x509_time_string(touching_common_validity_period->not_before) ==
+    "20241231235959Z");
+
+  const auto disjoint = make_certificate("20250101000000Z", "20260101000000Z");
+  REQUIRE_FALSE(ccf::crypto::OpenSSL::get_x509_chain_common_validity_period(
+                  {first, disjoint})
+                  .has_value());
+  REQUIRE_FALSE(ccf::crypto::OpenSSL::get_x509_chain_common_validity_period({})
+                  .has_value());
+}
+
 TEST_CASE("hmac")
 {
   std::vector<uint8_t> key(32, 0);
