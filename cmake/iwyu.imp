@@ -3,8 +3,10 @@
 
 # Additional mappings for headers not covered by IWYU's GCC defaults.
 [
+  { include: ["<__stdarg_va_arg.h>", "private", "<cstdarg>", "public"] },
   { include: ["<bits/chrono.h>", "private", "<chrono>", "public"] },
   { include: ["<bits/chrono_io.h>", "private", "<chrono>", "public"] },
+  { symbol: ["__gnu_cxx::__promote_2", "private", "<cmath>", "public"] },
   {
     include: [
       "<bits/types/struct_rusage.h>",
