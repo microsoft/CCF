@@ -36,7 +36,6 @@ HIGHER_IS_BETTER = {"throughput", "rate"}
 # very flat chart still shows a visible ring rather than collapsing to a point.
 ZOOM_PAD_FACTOR = 0.35
 ZOOM_MIN_PAD = 4.0
-TREND_MAX_POINTS = 15
 # Preferred number of main runs for a stable band. Fewer than this still works,
 # but the median and std dev are noted as based on limited data.
 MIN_TREND_POINTS = 10
@@ -110,10 +109,9 @@ def load_json(path: str) -> PerfData | None:
     return data if isinstance(data, dict) else None
 
 
-def load_trend(directory: str, max_points: int) -> list[PerfData]:
-    """Load the most recent ``max_points`` main runs (oldest first)."""
+def load_trend(directory: str) -> list[PerfData]:
+    """Load all main runs in chronological order (oldest first)."""
     files = list_trend_files(directory)
-    files = files[-max_points:] if max_points > 0 else []
     trend: list[PerfData] = []
     for name in files:
         data = load_json(os.path.join(directory, name))
@@ -480,12 +478,6 @@ def main() -> None:
         default="branch",
         help="Label for the branch curve (default: branch).",
     )
-    parser.add_argument(
-        "--max-points",
-        type=int,
-        default=TREND_MAX_POINTS,
-        help=f"Number of recent main runs to include (default: {TREND_MAX_POINTS}).",
-    )
     args = parser.parse_args()
 
     branch_data = load_json(args.branch_file)
@@ -493,7 +485,7 @@ def main() -> None:
         print(f"_No benchmark data found for the branch at `{args.branch_file}`._")
         return
 
-    trend = load_trend(args.main_directory, args.max_points)
+    trend = load_trend(args.main_directory)
     print(render_comparison(trend, branch_data, args.branch_label))
 
 
