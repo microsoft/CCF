@@ -5,9 +5,9 @@
 recent trend on ``main``.
 
 For each metric, benchmarks form the radar axes. Two nested shaded bands show the
-median +/- 1 and +/- 2 standard deviations of the most recent ``main`` runs, and
-the highlighted curve is the branch's latest run. Values are normalized per
-benchmark so that 100 is the ``main`` median.
+EWMA baseline +/- 1 and +/- 2 standard deviations of the most recent ``main``
+runs, and the highlighted curve is the branch's latest run. Values are normalized
+per benchmark so that 100 is the ``main`` EWMA baseline.
 """
 
 import os
@@ -17,6 +17,8 @@ import math
 import re
 import statistics
 from typing import Any
+
+from perf_stats import EWMA_HALF_LIFE, ewma
 
 PerfData = dict[str, Any]
 
@@ -37,7 +39,7 @@ HIGHER_IS_BETTER = {"throughput", "rate"}
 ZOOM_PAD_FACTOR = 0.35
 ZOOM_MIN_PAD = 4.0
 # Preferred number of main runs for a stable band. Fewer than this still works,
-# but the median and std dev are noted as based on limited data.
+# but the EWMA baseline and std dev are noted as based on limited data.
 MIN_TREND_POINTS = 10
 METADATA_KEY = "__metadata"
 MAX_AXIS_LABEL_LENGTH = 44
@@ -197,10 +199,10 @@ FLAT_BAR = "\u25ac"  # U+25AC BLACK RECTANGLE
 
 
 def within_noise_band(percent: float, sigma_percent: float) -> bool:
-    """Whether the branch value is within one std dev of the main median.
+    """Whether the branch value is within one std dev of the main baseline.
 
     ``sigma_percent`` is the main run standard deviation expressed as a
-    percentage of the median. A value that rounds to the median (100%) is also
+    percentage of the baseline. A value that rounds to the baseline (100%) is also
     treated as within noise, so a tiny difference is never flagged as a change
     even when the band is very narrow.
     """
@@ -209,9 +211,9 @@ def within_noise_band(percent: float, sigma_percent: float) -> bool:
 
 
 def format_delta_percent(percent: float, within_noise: bool) -> str:
-    """Format the branch value as a signed difference from the main median (100%).
+    """Format the branch value as a signed difference from the main baseline (100%).
 
-    A result within one standard deviation of the median is treated as noise and
+    A result within one standard deviation of the baseline is treated as noise and
     marked with a flat bar rather than an up or down triangle.
     """
     delta = round(percent - 100)
@@ -225,16 +227,16 @@ def format_delta_percent(percent: float, within_noise: bool) -> str:
 
 
 # Axis label colours by whether the branch improved on, regressed against, or
-# matched the main median. Chosen to stay legible on both light and dark themes.
+# matched the main baseline. Chosen to stay legible on both light and dark themes.
 LABEL_GOOD = "#2DA44E"  # green: improvement
 LABEL_BAD = "#E5484D"  # red: regression
 LABEL_FLAT = "#808A94"  # grey: no change
 
 
 def axis_label_color(percent: float, higher_is_better: bool, within_noise: bool) -> str:
-    """Colour an axis label by whether the branch improved on the main median.
+    """Colour an axis label by whether the branch improved on the main baseline.
 
-    Differences within one standard deviation of the median are within noise and
+    Differences within one standard deviation of the baseline are within noise and
     are coloured as unchanged.
     """
     if within_noise:
@@ -300,7 +302,7 @@ def render_mermaid_radar_chart(
         if not main_values:
             continue
 
-        baseline = statistics.median(main_values)
+        baseline = ewma(main_values)
         if baseline <= 0:
             continue
 
@@ -372,10 +374,10 @@ def render_mermaid_radar_chart(
     lines.extend(f"  axis {axis}" for axis in axes)
     lines.extend(
         [
-            render_radar_curve("stddev2_high", "main median + 2 std dev", high2_values),
-            render_radar_curve("stddev1_high", "main median + 1 std dev", high_values),
-            render_radar_curve("stddev1_low", "main median - 1 std dev", low_values),
-            render_radar_curve("stddev2_low", "main median - 2 std dev", low2_values),
+            render_radar_curve("stddev2_high", "main EWMA + 2 std dev", high2_values),
+            render_radar_curve("stddev1_high", "main EWMA + 1 std dev", high_values),
+            render_radar_curve("stddev1_low", "main EWMA - 1 std dev", low_values),
+            render_radar_curve("stddev2_low", "main EWMA - 2 std dev", low2_values),
             render_radar_curve("branch", branch_label, branch_values),
             "  graticule polygon",
             f"  max {chart_max}",
@@ -427,16 +429,18 @@ def render_comparison(
         "",
         (
             "_Each chart plots every benchmark as an axis, with values normalized so "
-            "100 is the median of recent `main` runs. The blue line is this branch's "
-            "latest run; the darker blue band is the main median +/- 1 std dev and the "
+            f"100 is the EWMA baseline of recent `main` runs, using a "
+            f"{EWMA_HALF_LIFE}-run half-life. The blue line is this branch's latest "
+            "run; the darker blue band is the main baseline +/- 1 std dev and the "
             "lighter blue band around it is +/- 2 std dev._"
         ),
         "",
         (
             "_Axis labels show this branch's value and its difference from the main "
-            "median, where 0% is on the median. They are coloured green where this "
-            "branch improves on the median, red where it regresses, and grey where "
-            "the difference is within one std dev of the median (within noise). "
+            "EWMA baseline, where 0% is on the baseline. They are coloured green "
+            "where this branch improves on the baseline, red where it regresses, "
+            "and grey where the difference is within one std dev of the baseline "
+            "(within noise). "
             "Higher is better for throughput and rate, lower for latency and memory._"
         ),
         "",
@@ -447,8 +451,8 @@ def render_comparison(
     elif len(trend) < MIN_TREND_POINTS:
         lines.append(
             f"_Only {len(trend)} `main` run(s) were available (fewer than the "
-            f"{MIN_TREND_POINTS} preferred for a stable band), so the median and "
-            "std dev may not be representative._"
+            f"{MIN_TREND_POINTS} preferred for a stable band), so the EWMA baseline "
+            "and std dev may not be representative._"
         )
         lines.append("")
     for metric, title, unit in METRIC_GROUPS:
