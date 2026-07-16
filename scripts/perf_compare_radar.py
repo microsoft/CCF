@@ -49,7 +49,7 @@ RADAR_CONFIG = {
     "height": 620,
     "marginTop": 90,
     "marginRight": 220,
-    "marginBottom": 120,
+    "marginBottom": 60,
     "marginLeft": 220,
     "axisLabelFactor": 1.12,
     "curveTension": 0.08,
