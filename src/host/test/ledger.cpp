@@ -133,6 +133,27 @@ size_t number_of_recovery_files_in_ledger_dir()
   return recovery_file_count;
 }
 
+fs::path require_single_ledger_file_path()
+{
+  fs::path ledger_file;
+  size_t file_count = 0;
+  for (auto const& f : fs::directory_iterator(ledger_dir))
+  {
+    if (file_count == 0)
+    {
+      ledger_file = f.path();
+    }
+    file_count++;
+    if (file_count > 1)
+    {
+      break;
+    }
+  }
+
+  REQUIRE(file_count == 1);
+  return ledger_file;
+}
+
 void verify_framed_entries_range(
   const asynchost::LedgerReadResult& read_result, size_t from, size_t to)
 {
@@ -192,10 +213,10 @@ size_t read_entries_range_from_ledger(
 
 using LedgerDirCapture =
   std::vector<std::tuple<std::string, size_t, ccf::crypto::Sha256Hash>>;
-LedgerDirCapture capture_ledger_dir()
+LedgerDirCapture capture_ledger_dir(const fs::path& directory = ledger_dir)
 {
   LedgerDirCapture capture = {};
-  for (auto const& f : fs::directory_iterator(ledger_dir))
+  for (auto const& f : fs::directory_iterator(directory))
   {
     capture.emplace_back(
       f.path().filename(),
@@ -896,6 +917,81 @@ TEST_CASE("Truncation")
     REQUIRE(number_of_files_in_ledger_dir() == 0);
     entry_submitter.write(true);
   }
+}
+
+TEST_CASE("Truncation defers physical file shrink")
+{
+  auto dir = AutoDeleteFolder(ledger_dir);
+  const std::string canonical_ledger_dir = "canonical_ledger_dir";
+  auto canonical_dir = AutoDeleteFolder(canonical_ledger_dir);
+  const std::string crash_ledger_dir = "crash_ledger_dir";
+  auto crash_dir = AutoDeleteFolder(crash_ledger_dir);
+
+  size_t original_file_size = 0;
+  {
+    Ledger ledger(ledger_dir, wf);
+    TestEntrySubmitter entry_submitter(ledger, 1024);
+
+    for (size_t i = 0; i < 6; ++i)
+    {
+      entry_submitter.write(true);
+    }
+
+    const auto ledger_file_path = require_single_ledger_file_path();
+    original_file_size = fs::file_size(ledger_file_path);
+
+    entry_submitter.truncate(2);
+    REQUIRE(fs::file_size(ledger_file_path) == original_file_size);
+  }
+
+  {
+    Ledger restored_ledger(ledger_dir, wf);
+    read_entries_range_from_ledger(restored_ledger, 1, 2);
+    REQUIRE(restored_ledger.get_last_idx() == 2);
+
+    TestEntrySubmitter restored_submitter(restored_ledger, 1024, 2);
+    restored_submitter.write(false);
+
+    fs::create_directory(crash_ledger_dir);
+    move_all_from_to(
+      ledger_dir, crash_ledger_dir, std::nullopt, false /* move */);
+
+    Ledger crash_recovered_ledger(crash_ledger_dir, wf);
+    REQUIRE(crash_recovered_ledger.get_last_idx() >= 2);
+    REQUIRE(crash_recovered_ledger.get_last_idx() <= 3);
+  }
+
+  REQUIRE(
+    fs::file_size(require_single_ledger_file_path()) == original_file_size);
+
+  {
+    Ledger restored_ledger(ledger_dir, wf);
+    read_entries_range_from_ledger(restored_ledger, 1, 3);
+    REQUIRE(restored_ledger.get_last_idx() == 3);
+
+    TestEntrySubmitter restored_submitter(restored_ledger, 1024, 3);
+    restored_submitter.write(true, ccf::kv::FORCE_LEDGER_CHUNK_AFTER);
+    restored_ledger.commit(4);
+  }
+
+  REQUIRE(
+    fs::file_size(require_single_ledger_file_path()) < original_file_size);
+
+  {
+    Ledger canonical_ledger(canonical_ledger_dir, wf);
+    TestEntrySubmitter canonical_submitter(canonical_ledger, 1024);
+    canonical_submitter.write(true);
+    canonical_submitter.write(true);
+    canonical_submitter.write(true);
+    canonical_submitter.write(true, ccf::kv::FORCE_LEDGER_CHUNK_AFTER);
+    canonical_ledger.commit(4);
+  }
+
+  const auto restored_capture = capture_ledger_dir();
+  const auto canonical_capture = capture_ledger_dir(canonical_ledger_dir);
+  CAPTURE(to_string(restored_capture));
+  CAPTURE(to_string(canonical_capture));
+  REQUIRE(restored_capture == canonical_capture);
 }
 
 TEST_CASE("Commit")
