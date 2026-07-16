@@ -7,7 +7,7 @@ import json
 import argparse
 import html
 import statistics
-from typing import List, Optional, Tuple
+from typing import List, NamedTuple, Optional, Tuple
 
 from perf_stats import EWMA_HALF_LIFE, ewma
 
@@ -20,13 +20,21 @@ METRIC_GROUPS = [
     ("rate", "Rate", "ops/s"),
 ]
 CHART_MAX_POINTS = 30
-CHART_COLUMNS = 4
-CHART_CELL_WIDTH = f"{100 // CHART_COLUMNS}%"
 DEFAULT_REPOSITORY = "microsoft/CCF"
 METADATA_KEY = "__metadata"
 
 PerfRun = Tuple[str, Optional[str], Optional[str], dict]
 ChartSeries = List[Tuple[str, float]]
+
+
+class MetricSummary(NamedTuple):
+    benchmark: str
+    metric: str
+    unit: str
+    latest: float
+    baseline: float
+    delta_percent: float
+    sigma_percent: float
 
 
 def jobid_sort_key(name: str) -> Tuple[int, object]:
@@ -120,16 +128,78 @@ def metric_value(data: dict, benchmark: str, metric: str) -> Optional[float]:
     return value if isinstance(value, (int, float)) else None
 
 
-def benchmarks_with_metric(loaded: List[PerfRun], metric: str) -> List[str]:
-    """Sorted names of benchmarks that report the given metric in any run."""
-    names = set()
-    for _, _, _, data in loaded:
-        for benchmark in data:
-            if benchmark == METADATA_KEY:
-                continue
-            if metric_value(data, benchmark, metric) is not None:
-                names.add(benchmark)
-    return sorted(names)
+def compact_number(value: float) -> str:
+    """Format a number compactly for summary tables."""
+    abs_value = abs(value)
+    if abs_value == 0:
+        return "0"
+    if abs_value >= 1000:
+        return f"{value:,.0f}"
+    if abs_value >= 100:
+        return f"{value:.0f}"
+    if abs_value >= 10:
+        return f"{value:.1f}".rstrip("0").rstrip(".")
+    if abs_value >= 1:
+        return f"{value:.2f}".rstrip("0").rstrip(".")
+    return f"{value:.3g}"
+
+
+def metric_label_value(value: float, unit: str) -> str:
+    """Format a metric value with its display unit."""
+    if unit != "bytes":
+        return f"{compact_number(value)} {unit}"
+
+    units = ["B", "KiB", "MiB", "GiB", "TiB"]
+    scaled = value
+    unit_index = 0
+    while abs(scaled) >= 1024 and unit_index < len(units) - 1:
+        scaled /= 1024
+        unit_index += 1
+    return f"{compact_number(scaled)} {units[unit_index]}"
+
+
+def metric_summaries(
+    loaded: List[PerfRun], metric: str, unit: str
+) -> List[MetricSummary]:
+    """Summarise one metric in the latest run against its historical baselines."""
+    if not loaded:
+        return []
+
+    latest_data = loaded[-1][3]
+    summaries: List[MetricSummary] = []
+    for benchmark in sorted(latest_data):
+        if benchmark == METADATA_KEY:
+            continue
+        latest = metric_value(latest_data, benchmark, metric)
+        if latest is None:
+            continue
+
+        values = [
+            value
+            for _, _, _, data in loaded
+            if (value := metric_value(data, benchmark, metric)) is not None
+        ]
+        baseline = ewma(values)
+        if baseline <= 0:
+            continue
+
+        sigma = statistics.pstdev(values) if len(values) > 1 else 0.0
+        summaries.append(
+            MetricSummary(
+                benchmark,
+                metric,
+                unit,
+                latest,
+                baseline,
+                ((latest / baseline) - 1) * 100,
+                (sigma / baseline) * 100,
+            )
+        )
+
+    return sorted(
+        summaries,
+        key=lambda summary: summary.benchmark,
+    )
 
 
 def repeated_values(value: float, count: int) -> str:
@@ -137,15 +207,10 @@ def repeated_values(value: float, count: int) -> str:
     return ", ".join(f"{value:.2f}" for _ in range(count))
 
 
-def render_mermaid_xychart(
-    series: ChartSeries,
-    benchmark: str,
-    metric: str,
-    unit: str,
-) -> str:
+def render_mermaid_xychart(series: ChartSeries, metric: str, unit: str) -> str:
     """Render a Mermaid xychart line chart for a single benchmark metric."""
     ordered_series = list(reversed(series))
-    labels = ", ".join(f'"{label}"' for label, _ in ordered_series)
+    labels = ", ".join(json.dumps(label) for label, _ in ordered_series)
     raw_values = [value for _, value in ordered_series]
     values = ", ".join(f"{value:.2f}" for value in raw_values)
     chronological_values = [value for _, value in series]
@@ -154,17 +219,16 @@ def render_mermaid_xychart(
         statistics.pstdev(chronological_values) if len(chronological_values) > 1 else 0
     )
     lines = [
-        f"<h4>{html.escape(benchmark)}</h4>",
-        "",
         "```mermaid",
         "---",
         "config:",
         "    xyChart:",
-        "        width: 220",
-        "        height: 320",
+        "        width: 700",
+        "        height: 400",
         "        showTitle: false",
         "        xAxis:",
         "            labelFontSize: 10",
+        "            labelRotation: -45",
         "            titleFontSize: 12",
         "        yAxis:",
         "            labelFontSize: 8",
@@ -174,7 +238,7 @@ def render_mermaid_xychart(
         "        xyChart:",
         '            plotColorPalette: "#003E7E, #62B5E5, #C7E9FB, #C7E9FB"',
         "---",
-        "xychart horizontal",
+        "xychart",
         f"    x-axis [{labels}]",
         f'    y-axis "{metric} ({unit})"',
         f"    line [{values}]",
@@ -187,60 +251,106 @@ def render_mermaid_xychart(
     return "\n".join(lines)
 
 
-def render_chart_table(
-    loaded: List[PerfRun], benchmarks: List[str], metric: str, unit: str
-) -> str:
-    """Render benchmark charts in a four-column table."""
-    lines = ['<table width="100%">']
-    for index, benchmark in enumerate(benchmarks):
-        if index % CHART_COLUMNS == 0:
-            lines.append("<tr>")
-        lines.append(f'<td valign="top" width="{CHART_CELL_WIDTH}">')
+def render_metric_table(loaded: List[PerfRun], summaries: List[MetricSummary]) -> str:
+    """Render metric values with each historical chart in a spanning row."""
+    lines = [
+        '<table width="100%">',
+        "<thead>",
+        "<tr>",
+        "<th>Benchmark</th>",
+        "<th>Metric</th>",
+        '<th align="right">Latest</th>',
+        '<th align="right">EWMA</th>',
+        '<th align="right">Change</th>',
+        '<th align="right">1 sigma</th>',
+        "</tr>",
+        "</thead>",
+        "<tbody>",
+    ]
+    for summary in summaries:
+        benchmark = html.escape(summary.benchmark)
         series = [
             (label, value)
             for label, _, _, data in loaded
-            if (value := metric_value(data, benchmark, metric)) is not None
+            if (value := metric_value(data, summary.benchmark, summary.metric))
+            is not None
         ]
-        lines.append(render_mermaid_xychart(series, benchmark, metric, unit))
-        lines.append("</td>")
-        if index % CHART_COLUMNS == CHART_COLUMNS - 1:
-            lines.append("</tr>")
-    remaining = len(benchmarks) % CHART_COLUMNS
-    if remaining:
-        for _ in range(CHART_COLUMNS - remaining):
-            lines.append(f'<td valign="top" width="{CHART_CELL_WIDTH}"></td>')
-        lines.append("</tr>")
-    lines.append("</table>")
-    lines.append("")
+        lines.extend(
+            [
+                "<tr>",
+                f"<td>{benchmark}</td>",
+                f"<td>{summary.metric.title()}</td>",
+                f'<td align="right">{metric_label_value(summary.latest, summary.unit)}</td>',
+                f'<td align="right">{metric_label_value(summary.baseline, summary.unit)}</td>',
+                f'<td align="right">{summary.delta_percent:+.1f}%</td>',
+                f'<td align="right">{summary.sigma_percent:.1f}%</td>',
+                "</tr>",
+                "<tr>",
+                '<td colspan="6">',
+                "<details>",
+                "<summary>History</summary>",
+                "",
+                render_mermaid_xychart(series, summary.metric, summary.unit),
+                "</details>",
+                "</td>",
+                "</tr>",
+                "",
+            ]
+        )
+    lines.extend(["</tbody>", "</table>", ""])
     return "\n".join(lines)
 
 
 def render_runs_table(loaded: List[PerfRun]) -> str:
     """Render a compact table of run labels, Actions runs, and commits."""
-    lines = ["### Runs", "", "| Run | Actions | Commit |", "| --- | --- | --- |"]
+    lines = [
+        "### Runs",
+        "",
+        '<table width="100%">',
+        "<thead>",
+        "<tr>",
+        "<th>Run</th>",
+        "<th>Actions</th>",
+        "<th>Commit</th>",
+        "</tr>",
+        "</thead>",
+        "<tbody>",
+    ]
     for label, run, commit, data in reversed(loaded):
         metadata = data.get(METADATA_KEY, {})
         commit_sha = metadata.get("commit") if isinstance(metadata, dict) else None
         short_commit = commit_sha[:8] if isinstance(commit_sha, str) else ""
-        run_link = f"[run]({run})" if run else ""
-        commit_link = f"[{short_commit}]({commit})" if commit and short_commit else ""
-        lines.append(f"| {label} | {run_link} | {commit_link} |")
-    lines.append("")
+        run_link = f'<a href="{html.escape(run, quote=True)}">run</a>' if run else ""
+        commit_link = (
+            f'<a href="{html.escape(commit, quote=True)}">{short_commit}</a>'
+            if commit and short_commit
+            else ""
+        )
+        lines.extend(
+            [
+                "<tr>",
+                f"<td>{html.escape(label)}</td>",
+                f"<td>{run_link}</td>",
+                f"<td>{commit_link}</td>",
+                "</tr>",
+            ]
+        )
+    lines.extend(["</tbody>", "</table>", ""])
     return "\n".join(lines)
 
 
 def render_metric_group(
     loaded: List[PerfRun], metric: str, title: str, unit: str
 ) -> str:
-    """Render one chart per benchmark that reports the given metric."""
-    benchmarks = benchmarks_with_metric(loaded, metric)
+    """Render the summary and charts for benchmarks that report one metric."""
+    summaries = metric_summaries(loaded, metric, unit)
     lines = [f"## {title} ({unit})", ""]
-    if not benchmarks:
+    if not summaries:
         lines.append(f"_No benchmarks with a `{metric}` metric found._")
         lines.append("")
         return "\n".join(lines)
 
-    lines.append(render_chart_table(loaded, benchmarks, metric, unit))
+    lines.append(render_metric_table(loaded, summaries))
     return "\n".join(lines)
 
 
@@ -250,14 +360,16 @@ def render_perf_summary(loaded: List[PerfRun]) -> str:
         "# Performance summary",
         "",
         (
-            "_Each chart shows run values, an EWMA baseline with a "
-            f"{EWMA_HALF_LIFE}-run half-life, and +/-1 sigma reference lines._"
+            "_Each section compares its latest values with an EWMA baseline using a "
+            f"{EWMA_HALF_LIFE}-run half-life, followed by historical charts with "
+            "+/-1 sigma reference lines. One sigma is the population standard "
+            "deviation across the displayed runs._"
         ),
         "",
-        render_runs_table(loaded),
     ]
     for metric, title, unit in METRIC_GROUPS:
         lines.append(render_metric_group(loaded, metric, title, unit))
+    lines.append(render_runs_table(loaded))
     return "\n".join(lines)
 
 

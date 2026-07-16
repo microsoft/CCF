@@ -79,7 +79,55 @@ jobs:
 
       - name: Summarise A/B comparison against main
         run: |
-          set -ex
+          set -exo pipefail
           python3 scripts/perf_compare_radar.py main_perf build/bencher.json \
             --branch-label "#${{ github.event.pull_request.number }}" \
-            >> "$GITHUB_STEP_SUMMARY"
+            | tee benchmark-ab-summary.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload A/B comparison summary
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: benchmark-ab-summary
+          path: benchmark-ab-summary.md
+          if-no-files-found: error
+          retention-days: 1
+
+  post_summary:
+    name: Post performance summary
+    needs: benchmark_pr
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Download A/B comparison summary
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: benchmark-ab-summary
+
+      - name: Create or update PR comment
+        shell: bash
+        run: |
+          set -euo pipefail
+          marker="<!-- benchmark-ab-summary -->"
+          {
+            printf '%s\n\n' "$marker"
+            cat benchmark-ab-summary.md
+          } > benchmark-ab-comment.md
+          comment_ids=$(gh api --paginate \
+            "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
+            --jq ".[] | select(.user.login == \"github-actions[bot]\" and (.body | contains(\"${marker}\"))) | .id")
+          comment_id=${comment_ids%%$'\n'*}
+
+          if [[ -n "$comment_id" ]]; then
+            gh api --method PATCH \
+              "repos/${GITHUB_REPOSITORY}/issues/comments/${comment_id}" \
+              -F body=@benchmark-ab-comment.md > /dev/null
+          else
+            gh api --method POST \
+              "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
+              -F body=@benchmark-ab-comment.md > /dev/null
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}

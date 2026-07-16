@@ -49,7 +49,7 @@ RADAR_CONFIG = {
     "height": 620,
     "marginTop": 90,
     "marginRight": 220,
-    "marginBottom": 120,
+    "marginBottom": 60,
     "marginLeft": 220,
     "axisLabelFactor": 1.12,
     "curveTension": 0.08,
@@ -420,7 +420,8 @@ def render_comparison(
 ) -> str:
     """Render all metric groups comparing the branch run with the main trend."""
     lines = [
-        "# Benchmark A/B",
+        "<details>",
+        "<summary>Description</summary>",
         "",
         (
             f"_Comparing this branch ({branch_label}) against the trend of the "
@@ -443,6 +444,8 @@ def render_comparison(
             "(within noise). "
             "Higher is better for throughput and rate, lower for latency and memory._"
         ),
+        "",
+        "</details>",
         "",
     ]
     if not trend:
