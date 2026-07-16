@@ -9,6 +9,8 @@ import html
 import statistics
 from typing import List, Optional, Tuple
 
+from perf_stats import EWMA_HALF_LIFE, ewma
+
 # Metric groups to chart over time. A chart is produced for every benchmark that
 # reports each metric.
 METRIC_GROUPS = [
@@ -20,7 +22,6 @@ METRIC_GROUPS = [
 CHART_MAX_POINTS = 30
 CHART_COLUMNS = 4
 CHART_CELL_WIDTH = f"{100 // CHART_COLUMNS}%"
-EWMA_ALPHA = 0.3
 DEFAULT_REPOSITORY = "microsoft/CCF"
 METADATA_KEY = "__metadata"
 
@@ -129,14 +130,6 @@ def benchmarks_with_metric(loaded: List[PerfRun], metric: str) -> List[str]:
             if metric_value(data, benchmark, metric) is not None:
                 names.add(benchmark)
     return sorted(names)
-
-
-def ewma(values: List[float], alpha: float = EWMA_ALPHA) -> float:
-    """Return the exponentially weighted moving average of the values."""
-    average = values[0]
-    for value in values[1:]:
-        average = alpha * value + (1 - alpha) * average
-    return average
 
 
 def repeated_values(value: float, count: int) -> str:
@@ -256,7 +249,10 @@ def render_perf_summary(loaded: List[PerfRun]) -> str:
     lines = [
         "# Performance summary",
         "",
-        "_Each chart shows run values, an EWMA baseline, and +/-1 sigma reference lines._",
+        (
+            "_Each chart shows run values, an EWMA baseline with a "
+            f"{EWMA_HALF_LIFE}-run half-life, and +/-1 sigma reference lines._"
+        ),
         "",
         render_runs_table(loaded),
     ]
