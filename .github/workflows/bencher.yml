@@ -6,7 +6,6 @@ on:
   push:
     branches:
       - main
-      - copilot/perf-summary-report
   workflow_dispatch:
 
 permissions: read-all
