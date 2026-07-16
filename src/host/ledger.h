@@ -104,6 +104,31 @@ namespace asynchost
     // checked against the existing ones, until a divergence is found.
     bool from_existing_file = false;
 
+    void close(bool throw_on_error = true)
+    {
+      if (file == nullptr)
+      {
+        return;
+      }
+
+      const auto file_path = dir / file_name;
+      TimeBoundLogger log_if_slow(
+        fmt::format("Closing ledger file - fclose({})", file_name));
+      errno = 0;
+      auto* file_to_close = file;
+      file = nullptr;
+      // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+      const auto close_rc = fclose(file_to_close);
+      const auto close_errno = errno;
+      if (throw_on_error && close_rc != 0)
+      {
+        throw std::logic_error(fmt::format(
+          "Failed to close ledger file {}: {}",
+          file_path,
+          ccf::nonstd::strerror(close_errno != 0 ? close_errno : EIO)));
+      }
+    }
+
   public:
     // Used when creating a new (empty) ledger file
     LedgerFile(const fs::path& dir, size_t start_idx, bool recovery = false) :
@@ -310,13 +335,7 @@ namespace asynchost
 
     ~LedgerFile()
     {
-      if (file != nullptr)
-      {
-        TimeBoundLogger log_if_slow(
-          fmt::format("Closing ledger file - fclose({})", file_name));
-        std::ignore =
-          fclose(file); // NOLINT(cppcoreguidelines-owning-memory,cert-err33-c)
-      }
+      close(false);
     }
 
     [[nodiscard]] size_t get_start_idx() const
@@ -658,10 +677,23 @@ namespace asynchost
       completed = true;
     }
 
-    bool rename(const std::string& new_file_name)
+    bool rename(const std::string& new_file_name, bool close_and_reopen = false)
     {
       auto file_path = dir / file_name;
       auto new_file_path = dir / new_file_name;
+      const auto should_close_and_reopen = close_and_reopen && !committed;
+
+      if (should_close_and_reopen)
+      {
+        // Uncommitted files may be truncated and written again after recovery.
+        // Work around a Linux CIFS client bug on Confidential Azure Container
+        // Instances where renaming a file with an open write handle drops its
+        // SMB write-caching lease, making subsequent writes synchronous. Close
+        // before the rename and reopen afterwards to acquire a fresh lease.
+        // Remove this workaround once the platform kernel includes upstream
+        // fix 2c7d399e551c.
+        close();
+      }
 
       try
       {
@@ -673,18 +705,44 @@ namespace asynchost
       }
       catch (const std::exception& e)
       {
+        if (close_and_reopen)
+        {
+          throw;
+        }
+
         // If the file cannot be renamed (e.g. file was removed), report an
         // error and continue
         LOG_FAIL_FMT("Error renaming ledger file: {}", e.what());
       }
       file_name = new_file_name;
+
+      if (should_close_and_reopen)
+      {
+        int open_errno = 0;
+        {
+          TimeBoundLogger log_if_slow(fmt::format(
+            "Reopening recovery ledger file - fopen({})", new_file_path));
+          errno = 0;
+          // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+          file = fopen(new_file_path.c_str(), "r+b");
+          open_errno = errno;
+        }
+        if (file == nullptr)
+        {
+          throw std::logic_error(fmt::format(
+            "Failed to reopen recovery ledger file {}: {}",
+            new_file_path,
+            ccf::nonstd::strerror(open_errno != 0 ? open_errno : EIO)));
+        }
+      }
+
       return true;
     }
 
     void open()
     {
       auto new_file_name = remove_recovery_suffix(file_name.c_str());
-      rename(new_file_name);
+      rename(new_file_name, true /* close_and_reopen */);
       recovery = false;
       LOG_DEBUG_FMT("Open recovery ledger file {}", new_file_name);
     }
