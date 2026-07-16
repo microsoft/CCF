@@ -83,3 +83,37 @@ jobs:
           python3 scripts/perf_compare_radar.py main_perf build/bencher.json \
             --branch-label "#${{ github.event.pull_request.number }}" \
             >> "$GITHUB_STEP_SUMMARY"
+
+  post_summary_link:
+    name: Post performance summary link
+    needs: benchmark_pr
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Create or update PR comment
+        shell: bash
+        run: |
+          set -euo pipefail
+          marker="<!-- benchmark-ab-summary -->"
+          summary_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          body=$(printf '%s\n\n## Benchmark A/B results\n\n[View the performance summary for run #%s, attempt %s](%s)\n' \
+            "$marker" "$GITHUB_RUN_NUMBER" "$GITHUB_RUN_ATTEMPT" "$summary_url")
+          comment_ids=$(gh api --paginate \
+            "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
+            --jq ".[] | select(.user.login == \"github-actions[bot]\" and (.body | contains(\"${marker}\"))) | .id")
+          comment_id=${comment_ids%%$'\n'*}
+
+          if [[ -n "$comment_id" ]]; then
+            gh api --method PATCH \
+              "repos/${GITHUB_REPOSITORY}/issues/comments/${comment_id}" \
+              -f body="$body" > /dev/null
+          else
+            gh api --method POST \
+              "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
+              -f body="$body" > /dev/null
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
