@@ -71,10 +71,9 @@ jobs:
               break
             fi
           done
-          # Keep only the most recent points that perf_compare_radar.py uses; the
-          # main artifact accumulates history and older files would just add copy
-          # overhead without affecting the comparison.
-          (cd main_perf && ls -1 | sort -t- -k1,1n -k2,2n -k3,3n | head -n -15 | xargs -r rm -f)
+          # Select the comparison window here; perf_compare_radar.py uses every
+          # retained point.
+          (cd main_perf && ls -1 | sort -t- -k1,1n -k2,2n -k3,3n | head -n -30 | xargs -r rm -f)
         env:
           GH_TOKEN: ${{ github.token }}
 

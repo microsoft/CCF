@@ -81,7 +81,7 @@ def query_endorsements_chain(node, txid):
     return response
 
 
-def verify_endorsements_chain(primary, endorsements, pubkey):
+def verify_endorsements_chain(primary, endorsements, pubkey, *, temp_dir):
     for endorsement in endorsements:
         phdr, _, payload = verify_cose_sign1_with_key(pubkey, endorsement)
 
@@ -98,18 +98,23 @@ def verify_endorsements_chain(primary, endorsements, pubkey):
         last_five_minutes = 5 * 60
         assert time.time() - phdr[CWT_KEY][IAT_CWT_LABEL] < last_five_minutes, phdr
 
-        endorsement_filename = "prev_service_identity_endorsement.cose"
-        with open(endorsement_filename, "wb") as f:
-            f.write(endorsement)
-        subprocess.run(
-            [
-                "cddl",
-                "../cddl/ccf-cose-endorsement-service-identity.cddl",
-                "v",
-                endorsement_filename,
-            ],
-            check=True,
-        )
+        with tempfile.NamedTemporaryFile(
+            mode="wb",
+            dir=temp_dir,
+            prefix="prev_service_identity_endorsement_",
+            suffix=".cose",
+        ) as endorsement_file:
+            endorsement_file.write(endorsement)
+            endorsement_file.flush()
+            subprocess.run(
+                [
+                    "cddl",
+                    "../cddl/ccf-cose-endorsement-service-identity.cddl",
+                    "v",
+                    endorsement_file.name,
+                ],
+                check=True,
+            )
 
         next_key_bytes = payload
         pubkey = infra.crypto.pub_key_der_to_pem(next_key_bytes).encode("ascii")
@@ -863,6 +868,7 @@ def test_recover_service_with_wrong_identity(network, args):
                     serialization.Encoding.PEM,
                     serialization.PublicFormat.SubjectPublicKeyInfo,
                 ),
+                temp_dir=recovered_network.common_dir,
             )
 
         for tx in txids[1:4]:
@@ -879,6 +885,7 @@ def test_recover_service_with_wrong_identity(network, args):
                     serialization.Encoding.PEM,
                     serialization.PublicFormat.SubjectPublicKeyInfo,
                 ),
+                temp_dir=recovered_network.common_dir,
             )
 
         for tx in txids[4:]:
