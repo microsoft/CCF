@@ -1840,6 +1840,68 @@ TEST_CASE("Recovery")
     read_entry_from_ledger(ledger, recovery_idx + 1);
   }
 
+  SUBCASE("Reopen active file when completing recovery")
+  {
+    Ledger ledger(ledger_dir, wf);
+    TestEntrySubmitter entry_submitter(ledger, chunk_threshold);
+
+    initialise_ledger(entry_submitter, entries_per_chunk, 1);
+    ledger.commit(entry_submitter.get_last_idx());
+
+    ledger.set_recovery_start_idx(entry_submitter.get_last_idx());
+    entry_submitter.write(true);
+    REQUIRE(number_of_recovery_files_in_ledger_dir() == 1);
+
+    const auto file_count = number_of_files_in_ledger_dir();
+    const auto fd_count = number_open_fd();
+    ledger.complete_recovery();
+
+    REQUIRE(number_of_recovery_files_in_ledger_dir() == 0);
+    REQUIRE(number_of_files_in_ledger_dir() == file_count);
+    REQUIRE(number_open_fd() == fd_count);
+
+    entry_submitter.write(true);
+    const auto post_recovery_idx = entry_submitter.get_last_idx();
+    REQUIRE(number_of_files_in_ledger_dir() == file_count);
+    read_entry_from_ledger(ledger, post_recovery_idx);
+
+    entry_submitter.write(true, ccf::kv::EntryFlags::FORCE_LEDGER_CHUNK_AFTER);
+    ledger.commit(entry_submitter.get_last_idx());
+    read_entries_range_from_ledger(ledger, 1, entry_submitter.get_last_idx());
+  }
+
+  SUBCASE("Reopen uncommitted completed file when completing recovery")
+  {
+    Ledger ledger(ledger_dir, wf);
+    TestEntrySubmitter entry_submitter(ledger, chunk_threshold);
+
+    initialise_ledger(entry_submitter, entries_per_chunk, 1);
+    ledger.commit(entry_submitter.get_last_idx());
+
+    ledger.set_recovery_start_idx(entry_submitter.get_last_idx());
+    entry_submitter.write(true);
+    const auto first_recovery_idx = entry_submitter.get_last_idx();
+    entry_submitter.write(true, ccf::kv::EntryFlags::FORCE_LEDGER_CHUNK_AFTER);
+    REQUIRE(number_of_recovery_files_in_ledger_dir() == 1);
+
+    const auto file_count = number_of_files_in_ledger_dir();
+    const auto fd_count = number_open_fd();
+    ledger.complete_recovery();
+
+    REQUIRE(number_of_recovery_files_in_ledger_dir() == 0);
+    REQUIRE(number_of_files_in_ledger_dir() == file_count);
+    REQUIRE(number_open_fd() == fd_count);
+
+    entry_submitter.truncate(first_recovery_idx);
+    entry_submitter.write(true);
+    REQUIRE(number_of_files_in_ledger_dir() == file_count);
+    read_entry_from_ledger(ledger, entry_submitter.get_last_idx());
+
+    entry_submitter.write(true, ccf::kv::EntryFlags::FORCE_LEDGER_CHUNK_AFTER);
+    ledger.commit(entry_submitter.get_last_idx());
+    read_entries_range_from_ledger(ledger, 1, entry_submitter.get_last_idx());
+  }
+
   SUBCASE("Enable and complete recovery")
   {
     Ledger ledger(ledger_dir, wf);
