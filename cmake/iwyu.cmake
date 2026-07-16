@@ -2,12 +2,6 @@
 # Licensed under the Apache 2.0 License.
 
 option(INCLUDE_WHAT_YOU_USE "Run include-what-you-use on the codebase" OFF)
-set(
-  IWYU_MAPPING_DIR
-  ""
-  CACHE PATH
-  "Directory containing include-what-you-use mapping files"
-)
 
 if(NOT INCLUDE_WHAT_YOU_USE)
   return()
@@ -22,29 +16,11 @@ endif()
 # --error=1 selects IWYU's standard non-zero failure code, so any suggestion
 # fails the build and enforces direct includes.
 set(IWYU_COMMAND "${IWYU_EXE}" "-w" "-Xiwyu" "--error=1")
-get_filename_component(IWYU_BIN_DIR "${IWYU_EXE}" DIRECTORY)
-set(
-  IWYU_MAPPING_DIRS
-  "${IWYU_MAPPING_DIR}"
-  "${IWYU_BIN_DIR}/../share/include-what-you-use"
-  "/usr/local/share/include-what-you-use"
-  "/usr/share/include-what-you-use"
+list(
+  APPEND IWYU_COMMAND
+  "-Xiwyu"
+  "--mapping_file=${CMAKE_CURRENT_LIST_DIR}/iwyu.imp"
 )
-set(IWYU_LIBCXX_MAPPING_FOUND OFF)
-foreach(IWYU_MAPPING_CANDIDATE_DIR ${IWYU_MAPPING_DIRS})
-  if(EXISTS "${IWYU_MAPPING_CANDIDATE_DIR}/libcxx.imp")
-    list(
-      APPEND IWYU_COMMAND
-      "-Xiwyu"
-      "--mapping_file=${IWYU_MAPPING_CANDIDATE_DIR}/libcxx.imp"
-    )
-    set(IWYU_LIBCXX_MAPPING_FOUND ON)
-    break()
-  endif()
-endforeach()
-if(NOT IWYU_LIBCXX_MAPPING_FOUND)
-  message(WARNING "include-what-you-use libcxx.imp mapping file not found")
-endif()
 
 set(CMAKE_CXX_INCLUDE_WHAT_YOU_USE ${IWYU_COMMAND})
 message(STATUS "Using include-what-you-use from: ${IWYU_EXE}")
