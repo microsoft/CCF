@@ -684,17 +684,11 @@ namespace asynchost
     void open()
     {
       auto new_file_name = remove_recovery_suffix(file_name.c_str());
+      auto file_path = dir / file_name;
+      auto new_file_path = dir / new_file_name;
 
-      if (committed)
+      if (!committed)
       {
-        rename(new_file_name);
-        recovery = false;
-      }
-      else
-      {
-        auto file_path = dir / file_name;
-        auto new_file_path = dir / new_file_name;
-
         // Uncommitted files may be truncated and written again after recovery.
         // Close before the rename and reopen afterwards so affected CIFS
         // clients acquire a fresh write lease.
@@ -714,17 +708,20 @@ namespace asynchost
               ccf::nonstd::strerror(close_errno != 0 ? close_errno : EIO)));
           }
         }
+      }
 
-        {
-          TimeBoundLogger log_if_slow(fmt::format(
-            "Renaming ledger file {} to {} - rename()",
-            file_name,
-            new_file_name));
-          files::rename(file_path, new_file_path);
-        }
-        file_name = new_file_name;
-        recovery = false;
+      {
+        TimeBoundLogger log_if_slow(fmt::format(
+          "Renaming ledger file {} to {} - rename()",
+          file_name,
+          new_file_name));
+        files::rename(file_path, new_file_path);
+      }
+      file_name = new_file_name;
+      recovery = false;
 
+      if (!committed)
+      {
         int open_errno = 0;
         {
           TimeBoundLogger log_if_slow(fmt::format(
