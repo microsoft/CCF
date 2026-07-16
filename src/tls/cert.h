@@ -74,6 +74,7 @@ namespace tls
     ~Cert() = default;
 
     void configure_context(SSL_CTX* ssl_ctx) const
+    {
       if (peer_ca)
       {
         peer_ca->configure_trusted_cert_store(ssl_ctx);
@@ -108,6 +109,7 @@ namespace tls
     }
 
     void configure_connection(SSL* ssl) const
+    {
       if (peer_hostname.has_value())
       {
         // Peer hostname for SNI
