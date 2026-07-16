@@ -22,6 +22,7 @@
 #include <map>
 #include <string>
 #include <sys/types.h>
+#include <tuple>
 #include <uv.h>
 #include <vector>
 
@@ -104,14 +105,13 @@ namespace asynchost
     // checked against the existing ones, until a divergence is found.
     bool from_existing_file = false;
 
-    void close(bool throw_on_error = true)
+    int close()
     {
       if (file == nullptr)
       {
-        return;
+        return 0;
       }
 
-      const auto file_path = dir / file_name;
       TimeBoundLogger log_if_slow(
         fmt::format("Closing ledger file - fclose({})", file_name));
       errno = 0;
@@ -120,13 +120,7 @@ namespace asynchost
       // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
       const auto close_rc = fclose(file_to_close);
       const auto close_errno = errno;
-      if (throw_on_error && close_rc != 0)
-      {
-        throw std::logic_error(fmt::format(
-          "Failed to close ledger file {}: {}",
-          file_path,
-          ccf::nonstd::strerror(close_errno != 0 ? close_errno : EIO)));
-      }
+      return close_rc == 0 ? 0 : (close_errno != 0 ? close_errno : EIO);
     }
 
   public:
@@ -335,7 +329,7 @@ namespace asynchost
 
     ~LedgerFile()
     {
-      close(false);
+      std::ignore = close();
     }
 
     [[nodiscard]] size_t get_start_idx() const
@@ -692,7 +686,14 @@ namespace asynchost
         // before the rename and reopen afterwards to acquire a fresh lease.
         // Remove this workaround once the platform kernel includes upstream
         // fix 2c7d399e551c.
-        close();
+        const auto close_error = close();
+        if (close_error != 0)
+        {
+          throw std::logic_error(fmt::format(
+            "Failed to close ledger file {}: {}",
+            file_path,
+            ccf::nonstd::strerror(close_error)));
+        }
       }
 
       try
