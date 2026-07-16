@@ -56,12 +56,10 @@ namespace
   void prepare_sized_file(LedgerFile& file)
   {
     static_assert(
-      FileSize >
-      sizeof(size_t) + sizeof(uint32_t) +
+      FileSize > sizeof(size_t) + sizeof(uint32_t) +
         ccf::kv::serialised_entry_header_size);
     const auto entry_size = FileSize - sizeof(size_t) - sizeof(uint32_t);
-    const auto body_size =
-      entry_size - ccf::kv::serialised_entry_header_size;
+    const auto body_size = entry_size - ccf::kv::serialised_entry_header_size;
     const auto entry = make_entry(body_size);
     file.write_entry(entry.data(), entry.size(), false);
     file.complete();
@@ -73,8 +71,8 @@ namespace
     const std::string& fixture_name,
     void (*prepare)(LedgerFile&))
   {
-    const auto directory = fs::path(fmt::format(
-      "ledger_rename_bench_{}_{}", fixture_name, CloseAndReopen));
+    const auto directory = fs::path(
+      fmt::format("ledger_rename_bench_{}_{}", fixture_name, CloseAndReopen));
     fs::remove_all(directory);
     fs::create_directory(directory);
     RemoveDirectory remove_directory{directory};
@@ -87,8 +85,7 @@ namespace
       state.start_timer();
       for ([[maybe_unused]] auto iteration : state)
       {
-        file.rename(
-          renamed ? "ledger_1" : "ledger_1.renamed", CloseAndReopen);
+        file.rename(renamed ? "ledger_1" : "ledger_1.renamed", CloseAndReopen);
         renamed = !renamed;
       }
       state.stop_timer();
@@ -127,14 +124,12 @@ namespace
 
   static void rename_10_mib(picobench::state& state)
   {
-    benchmark_rename<false>(
-      state, "10_mib", prepare_sized_file<10 * mebibyte>);
+    benchmark_rename<false>(state, "10_mib", prepare_sized_file<10 * mebibyte>);
   }
 
   static void rename_10_mib_close_and_reopen(picobench::state& state)
   {
-    benchmark_rename<true>(
-      state, "10_mib", prepare_sized_file<10 * mebibyte>);
+    benchmark_rename<true>(state, "10_mib", prepare_sized_file<10 * mebibyte>);
   }
 
   static void rename_100_mib(picobench::state& state)
@@ -158,8 +153,7 @@ PICOBENCH(rename_empty_close_and_reopen).iterations(rename_iterations);
 
 PICOBENCH_SUITE("rename ledger file with 10000 entries");
 PICOBENCH(rename_10000_entries).iterations(rename_iterations).baseline();
-PICOBENCH(rename_10000_entries_close_and_reopen)
-  .iterations(rename_iterations);
+PICOBENCH(rename_10000_entries_close_and_reopen).iterations(rename_iterations);
 
 PICOBENCH_SUITE("rename 1 MiB ledger file");
 PICOBENCH(rename_1_mib).iterations(rename_iterations).baseline();
