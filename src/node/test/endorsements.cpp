@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 
 #include "ccf/pal/measurement.h"
+#include "crypto/cbor.h"
 #include "crypto/openssl/hash.h"
 #include "ds/files.h"
 #include "node/uvm_endorsements.h"
@@ -177,6 +178,30 @@ TEST_CASE("Check Test endorsement for UVM 0.2.10")
   REQUIRE(endorsements.did == ccf::default_uvm_roots_of_trust[0].did);
   REQUIRE(endorsements.feed == ccf::default_uvm_roots_of_trust[0].feed);
   REQUIRE(endorsements.svn == "104");
+
+  auto parsed = ccf::cbor::parse(endorsement);
+  const auto& cose_sign1 = parsed->tag_at(ccf::cbor::tag::COSE_SIGN_1);
+  const auto& protected_header_raw = cose_sign1->array_at(0);
+  auto protected_header = ccf::cbor::parse(protected_header_raw->as_bytes());
+  const auto& cwt_claims = protected_header->map_at(
+    ccf::cbor::make_signed(ccf::cose::header::iana::CWT_CLAIMS));
+  const auto& iat =
+    cwt_claims->map_at(ccf::cbor::make_signed(ccf::cwt::header::iana::IAT));
+  iat->value = ccf::cbor::Tagged{
+    ccf::cbor::tag::EPOCH_DATE_TIME, ccf::cbor::make_signed(0)};
+
+  auto protected_header_bytes = ccf::cbor::serialize(protected_header);
+  protected_header_raw->value = ccf::cbor::Bytes{protected_header_bytes};
+  auto invalid_iat_endorsement = ccf::cbor::serialize(parsed);
+
+  REQUIRE_THROWS_WITH_AS(
+    ccf::verify_uvm_endorsements_against_roots_of_trust(
+      invalid_iat_endorsement,
+      uvm_measurement,
+      ccf::default_uvm_roots_of_trust),
+    "CWT iat 0 in UVM endorsements is outside x5chain common validity period "
+    "[20250515185703Z, 20260515185703Z]",
+    ccf::cose::COSEDecodeError);
 }
 
 TEST_CASE("Check UVM roots of trust matching")

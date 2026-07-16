@@ -1,0 +1,42 @@
+{
+  "name": "CCF Development Environment (SSH)",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": "."
+  },
+  "overrideCommand": false,
+  "runArgs": [
+    "--cap-add=SYS_PTRACE",
+    "--cap-add=NET_ADMIN",
+    "--security-opt",
+    "seccomp=unconfined"
+  ],
+  "hostRequirements": {
+    "cpus": 16,
+    "memory": "64gb",
+    "storage": "128gb"
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "github.vscode-github-actions",
+        "ms-python.black-formatter",
+        "ms-python.python",
+        "ms-vscode.cpptools",
+        "github.copilot"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "python3",
+        "[python]": {
+          "editor.defaultFormatter": "ms-python.black-formatter"
+        },
+        "python.formatting.provider": "none",
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+          "source.fixAll": true
+        }
+      }
+    }
+  },
+  "postCreateCommand": "./.devcontainer/post_create_setup.sh"
+}
