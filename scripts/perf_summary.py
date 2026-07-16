@@ -303,15 +303,39 @@ def render_metric_table(loaded: List[PerfRun], summaries: List[MetricSummary]) -
 
 def render_runs_table(loaded: List[PerfRun]) -> str:
     """Render a compact table of run labels, Actions runs, and commits."""
-    lines = ["### Runs", "", "| Run | Actions | Commit |", "| --- | --- | --- |"]
+    lines = [
+        "### Runs",
+        "",
+        '<table width="100%">',
+        "<thead>",
+        "<tr>",
+        "<th>Run</th>",
+        "<th>Actions</th>",
+        "<th>Commit</th>",
+        "</tr>",
+        "</thead>",
+        "<tbody>",
+    ]
     for label, run, commit, data in reversed(loaded):
         metadata = data.get(METADATA_KEY, {})
         commit_sha = metadata.get("commit") if isinstance(metadata, dict) else None
         short_commit = commit_sha[:8] if isinstance(commit_sha, str) else ""
-        run_link = f"[run]({run})" if run else ""
-        commit_link = f"[{short_commit}]({commit})" if commit and short_commit else ""
-        lines.append(f"| {label} | {run_link} | {commit_link} |")
-    lines.append("")
+        run_link = f'<a href="{html.escape(run, quote=True)}">run</a>' if run else ""
+        commit_link = (
+            f'<a href="{html.escape(commit, quote=True)}">{short_commit}</a>'
+            if commit and short_commit
+            else ""
+        )
+        lines.extend(
+            [
+                "<tr>",
+                f"<td>{html.escape(label)}</td>",
+                f"<td>{run_link}</td>",
+                f"<td>{commit_link}</td>",
+                "</tr>",
+            ]
+        )
+    lines.extend(["</tbody>", "</table>", ""])
     return "\n".join(lines)
 
 
