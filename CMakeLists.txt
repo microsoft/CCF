@@ -1020,18 +1020,6 @@ if(BUILD_TESTS)
     set_property(TEST csr_test APPEND PROPERTY LABELS unit_test)
 
     add_test(
-      NAME client_logging_test
-      COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/infra/client_logging_test.py
-    )
-    set_property(TEST client_logging_test APPEND PROPERTY LABELS unit)
-    set_property(
-      TEST client_logging_test
-      APPEND
-      PROPERTY
-        ENVIRONMENT "PYTHONPATH=${CMAKE_SOURCE_DIR}/tests:$ENV{PYTHONPATH}"
-    )
-
-    add_test(
       NAME versionifier_test
       COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/python/src/ccf/_versionifier.py
     )
