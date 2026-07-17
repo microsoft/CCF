@@ -25,9 +25,15 @@ The sample app has the following folder layout:
     ├── src
     │   └── endpoints
     │       ├── all.ts
+    │       ├── auth.ts
+    │       ├── base64.ts
+    │       ├── converters.ts
     │       ├── crypto.ts
+    │       ├── log.ts
     │       ├── partition.ts
-    │       └── proto.ts
+    │       ├── rpc.ts
+    │       ├── snp_attestation.ts
+    │       └── spin.ts
     ├── app.json
     ├── package.json
     ├── rollup.config.js
@@ -60,7 +66,7 @@ To test against a published version you should adjust the version number accordi
 
 .. code-block:: js
 
-    "@microsoft/ccf-app": "~1.0.0",
+    "@microsoft/ccf-app": "~7.0.0",
 
 Now you can continue with installing all dependencies:
 
@@ -110,7 +116,6 @@ As an example, the ``/partition`` endpoint of the sample app is implemented as:
 
 Here, the request body is a JSON array with elements of arbitrary type,
 and the response body is an even/odd partitioning of those elements as nested JSON array.
-The example also shows how an external library, here ``lodash``, is imported and used.
 
 .. warning::
     Even though request body schemas can be defined as part of the OpenAPI :ref:`metadata <build_apps/js_app_ts:Metadata>`,
@@ -138,7 +143,7 @@ Preparing the app for deployment means converting it to CCF's native JavaScript 
 This involves the following steps:
 
 - transform TypeScript into JavaScript,
-- transform bare imports (``lodash``) into relative imports (``./node_modules/lodash/lodash.js``),
+- transform bare imports into relative imports,
 - transform old-style CommonJS modules into native JavaScript modules, and
 - store all files according to the app bundle folder structure.
 

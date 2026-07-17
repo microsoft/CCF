@@ -115,7 +115,7 @@ Note that since a receipt is a committment by a service to a transaction, a veri
 Application Claims
 ------------------
 
-CCF allows application code to attach arbitrary claims to a transaction, via the :cpp:func:`enclave::RpcContext::set_claims_digest` API, as illustrated in :ref:`build_apps/example_cpp:User-Defined Claims in Receipts`.
+CCF allows application code to attach arbitrary claims to a transaction, via the :cpp:func:`ccf::RpcContext::set_claims_digest` API, as illustrated in :ref:`build_apps/example_cpp:User-Defined Claims in Receipts`.
 
 This is useful to allow the reveal and verification of application-related claims offline, ie. without access to the CCF network.
 For example, a logging application may choose to set the digest of the payload being logged as ``claims_digest``.

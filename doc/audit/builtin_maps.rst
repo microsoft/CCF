@@ -200,9 +200,9 @@ For Confidential Azure Container Instance (ACI) deployments, trusted endorsement
 ``nodes.snp.tcb_versions``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The minimum trusted TCB version for new nodes allowed to join the network (:doc`SNP <../operations/platforms/snp>` only).
+The minimum trusted TCB version for new nodes allowed to join the network (:doc:`SNP <../operations/platforms/snp>` only).
 
-.. note:: For improved serviceability on confidential ACI deployments, see :ref:`audit/builtin_maps:``nodes.snp.tcb_versions``` map.
+.. note:: For improved serviceability on confidential ACI deployments, see :ref:`audit/builtin_maps:``nodes.snp.uvm_endorsements``` map.
 
 **Key** AMD CPUID, represented as a lowercase hex string without an '0x' prefix.
 
@@ -584,7 +584,13 @@ While the contents themselves are encrypted, the table is public so as to be acc
 
 **Key** Sentinel value 0, represented as a little-endian 64-bit unsigned integer.
 
-**Value** Raw COSE Sign1 message as byte string (DER-encoded). Implements the following :ccf_repo:`CDDL schema </cddl/ccf-cose-endorsement-service-identity.cddl>`.
+**Value**
+
+.. doxygenstruct:: ccf::CoseEndorsement
+    :project: CCF
+    :members:
+
+The ``endorsement`` field contains the raw COSE Sign1 message implementing the following :ccf_repo:`CDDL schema </cddl/ccf-cose-endorsement-service-identity.cddl>`.
 
 
 ``previous_service_last_signed_root``

@@ -148,7 +148,7 @@ Submitting recovery share:
    * - Operation
      - ``POST /gov/recovery/members/{memberId}:recover``
    * - Protected headers
-     - | ``ccf.gov.msg.type = encrypted_recovery_share``
+     - | ``ccf.gov.msg.type = recovery_share``
        | ``ccf.gov.msg.created_at = <creation timestamp>``
    * - Content
      - { "share": "<base64-encoded decrypted share>" }

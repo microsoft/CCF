@@ -61,8 +61,8 @@ Operations compatibility
 
     The ``compatibility_report.json`` file, available `for every release <https://github.com/microsoft/CCF/releases>`_ indicates which other release(s) this release is compatible with.
 
-    - The ``live_compatibility`` section indicates which version this release can be upgraded from/upgrade to (see :doc:`/operations/code_upgrade`).
-    - The ``data_compatibility`` section indicates which version this release can recover from (using the ledger and snapshots) (see :doc:`/operations/recovery`).
+    - The ``live compatibility`` section indicates which version this release can be upgraded from/upgrade to (see :doc:`/operations/code_upgrade`).
+    - The ``data compatibility`` section indicates which version this release can recover from (using the ledger and snapshots) (see :doc:`/operations/recovery`).
 
     Note that if a version is not listed in the report, it does not necessarily mean that it is not compatible with the release. The report simply indicates that a suite of tests were run with a specific version to guarantee compatibility with this one.
 

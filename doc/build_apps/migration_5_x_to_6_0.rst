@@ -24,7 +24,7 @@ Old networks which are migrating to 6.0 will need to populate this table manuall
 If they are not populated then new nodes may fail to join the network.
 
 .. note:: 
-  In 6.0.9 we introduced ``set_minimum_tcb_version_hex``, a more ergonomic governance action to set the minimum TCB version.
+  In 6.0.9 we introduced ``set_snp_minimum_tcb_version_hex``, a more ergonomic governance action to set the minimum TCB version.
   This action takes a CPUID and the hex-string format of a TCB version, as you would find it in an attestation, and stores the parsed fields of the TCB version in the ``nodes.snp.tcb_versions`` table, alongside the original hex-string.
   We strongly recommend using this action as we can transparently add support for new CPU models which change the TCB version format, such as Turin.
 
@@ -78,7 +78,7 @@ For example to set the minimum TCB version on Milan CPUs the following proposal 
 CCF release distribution
 ------------------------
 
-Binary releases now target Azure Linux 3.0, and are provided as RPM packages, `ccf_devel` for application development, and `ccf` for the runtime. Containers and Debian packages are no longer published.
+Binary releases now target Azure Linux 3.0, and are provided as RPM packages, ``ccf_<platform>_devel`` for application development, and ``ccf_<platform>`` for the runtime. Containers and Debian packages are no longer published.
 
 Version live compatibility
 --------------------------
