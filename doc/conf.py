@@ -31,7 +31,7 @@ import generate_config_rst
 # -- Project information -----------------------------------------------------
 
 project = "CCF"
-copyright = "2024, Microsoft"
+copyright = "Microsoft"
 author = "Microsoft"
 
 # The short X.Y version
@@ -194,7 +194,7 @@ texinfo_documents = [
         "CCF Documentation",
         author,
         "CCF",
-        "One line description of project.",
+        "Confidential Consortium Framework documentation.",
         "Miscellaneous",
     )
 ]
@@ -421,21 +421,6 @@ def config_inited(app, config):
         if app.config.smv_metadata_path:
             os.environ["SMV_METADATA_PATH"] = app.config.smv_metadata_path
             os.environ["SMV_CURRENT_VERSION"] = app.config.smv_current_version
-        subprocess.run(
-            ["sed", "-i", r"s/\^4.2.3/4.2.4/g", "package.json"],
-            cwd=js_pkg_dir,
-            check=True,
-        )
-        subprocess.run(
-            ["sed", "-i", r's/"\^14\.14\.35"/"14\.17\.27"/g', "package.json"],
-            cwd=js_pkg_dir,
-            check=True,
-        )
-        subprocess.run(
-            ["npm", "install", "--save-exact", "colors@1.4.0"],
-            cwd=js_pkg_dir,
-            check=True,
-        )
         subprocess.run(
             ["npm", "install", "--no-package-lock", "--no-audit", "--no-fund"],
             cwd=js_pkg_dir,
