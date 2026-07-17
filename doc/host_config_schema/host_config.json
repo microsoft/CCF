@@ -199,6 +199,7 @@
                   },
                   "cose_signatures": {
                     "type": "object",
+                    "description": "If specified, both ``issuer`` and ``subject`` are required",
                     "properties": {
                       "issuer": {
                         "type": "string",
@@ -208,8 +209,7 @@
                         "type": "string",
                         "description": "Subject, set in CWT_Claims of COSE ledger signatures. Can only be set once on service start."
                       }
-                    },
-                    "required": ["issuer", "subject"]
+                    }
                   },
                   "members": {
                     "type": "array",
@@ -350,6 +350,7 @@
             "properties": {
               "recover": {
                 "type": "object",
+                "description": "Required when ``command.type`` is ``Recover``",
                 "properties": {
                   "initial_service_certificate_validity_days": {
                     "type": "integer",
@@ -365,8 +366,7 @@
                 "required": ["previous_service_identity_file"],
                 "additionalProperties": false
               }
-            },
-            "required": ["recover"]
+            }
           }
         }
       ],
@@ -442,13 +442,9 @@
                 "type": "integer",
                 "default": 10,
                 "description": "Maximum number of retries to fetch endorsements from the server"
-              },
-              "max_client_response_size": {
-                "type": "string",
-                "default": "100MB",
-                "description": "Maximum response body size accepted when fetching endorsements from the server"
               }
             },
+            "required": ["url"],
             "additionalProperties": false
           },
           "description": "List of servers used to retrieve attestation report endorsement certificates (SEV-SNP only). The first server in the list is always used and other servers are only specified as fallback."

@@ -7,12 +7,7 @@
   "responses": {
     "200": {
       "body": {
-        "issuers": {
-          "idprovider.myservice.example.com": {
-            "autoRefresh": true,
-            "caCertBundleName": "MyIdProviderCa"
-          }
-        },
+        "issuers": {},
         "caCertBundles": {
           "MyIdProviderCa": "-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----\n"
         },
