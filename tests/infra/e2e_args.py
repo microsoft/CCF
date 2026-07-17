@@ -32,9 +32,10 @@ def format_log_record(record, include_thread=False):
     marker = _LOG_MESSAGE_MARKERS.get(level_name, "")
     time_format = "YYYY-MM-DD HH:mm:ss.SSS" if include_thread else "HH:mm:ss.SSS"
     thread = "{{{thread.name}}} " if include_thread else ""
+    exception = "\n{exception}" if record["exception"] else ""
     return (
         f"{{time:{time_format}}} | {display_level} | {thread}"
-        f"{{name}}:{{function}}:{{line}} - {marker}{{message}}\n{{exception}}"
+        f"{{name}}:{{function}}:{{line}} - {marker}{{message}}{exception}"
     )
 
 
