@@ -48,7 +48,7 @@ AMD VCEK endorsements must be fetched, preferably from the THIM service, but con
 Non-Azure Deployment
 ~~~~~~~~~~~~~~~~~~~~
 
-For non-Azure deployments, the certificate chain for VCEK can be retrieved either from file, if already cached, or from an endorsement server, as specified in the :ref:`operations/configuration:``attestation.snp_endorsements_servers``` configuration section. For example, for the `well-known AMD endorsement server <https://www.amd.com/content/dam/amd/en/documents/epyc-technical-docs/specifications/57230.pdf>`_, the value should be set to:
+For non-Azure deployments, the certificate chain for VCEK can be retrieved either from file, if already cached, or from an endorsement server, as specified in the :ref:`operations/configuration:``attestation.snp_endorsements_servers``` configuration section. For example, for the `well-known AMD endorsement server <https://docs.amd.com/v/u/en-US/57230>`_, the value should be set to:
 
 .. code-block:: json
 
@@ -287,5 +287,5 @@ On C-ACI these files are available in the security context directory.
 
 .. rubric:: Footnotes
 
-.. [#security_policy] A `REGO <https://www.openpolicyagent.org/docs/latest/policy-language/>`_ policy checked by the utility VM (UVM) against the container. 
+.. [#security_policy] A `REGO <https://www.openpolicyagent.org/docs/policy-language>`_ policy checked by the utility VM (UVM) against the container.
 .. [#measurement] Digest of the initial memory pages for the SEV-SNP VM. 

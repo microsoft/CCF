@@ -106,4 +106,4 @@ Second, both endpoint and TLS have a need to read and write asynchronously. Data
 
 So if ``SSL_handshake``, ``SSL_read_ex`` and ``SSL_write_ex`` don't have direct access to read and write from the ring buffers without direct requests from the endpoints, it won't be able to conclude the asynchronous handshake and start the connection.
 
-One possible way out of it is to create a `BIO pair <https://www.openssl.org/docs/man1.1.1/man3/BIO_s_bio.html>`_ for each read/write action between the 'TLSSession' and the TLS 'Context', driven by two asynchronous tasks in 'TLSSession' that just poll the BIOs and buffers and pass data across. This removes a callback, but introduces polling, which is not an actual improvement.
+One possible way out of it is to create a `BIO pair <https://docs.openssl.org/1.1.1/man3/BIO_s_bio/>`_ for each read/write action between the 'TLSSession' and the TLS 'Context', driven by two asynchronous tasks in 'TLSSession' that just poll the BIOs and buffers and pass data across. This removes a callback, but introduces polling, which is not an actual improvement.

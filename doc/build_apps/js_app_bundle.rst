@@ -8,8 +8,8 @@ This page documents the components of a bundle and the JavaScript API available 
 
 .. note::
     Modern JavaScript app development typically makes use of
-    `Node.js <https://nodejs.org/>`_,
-    `npm <https://www.npmjs.com/>`_, and
+    `Node.js <https://nodejs.org/en>`_,
+    `npm <https://docs.npmjs.com/downloading-and-installing-node-js-and-npm/>`_, and
     `TypeScript <https://www.typescriptlang.org/>`_.
     CCF provides an example app built with these tools.
     They involve a `build` step that generates an app bundle suitable for CCF.

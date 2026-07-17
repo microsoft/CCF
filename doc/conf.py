@@ -359,9 +359,9 @@ def typedoc_role(
         typedoc_path += f"/{kind_name}/{element_path}.html{url_hash}"
 
     # construct final url relative to current page
-    source = inliner.document.attributes["source"]
-    rel_source = source.split("/doc/", 1)[1]
-    levels = rel_source.count("/")
+    source = pathlib.Path(inliner.document.attributes["source"]).resolve()
+    rel_source = source.relative_to(pathlib.Path(__file__).parent.resolve())
+    levels = len(rel_source.parent.parts)
     refuri = "../" * levels + typedoc_path
 
     # build docutils node

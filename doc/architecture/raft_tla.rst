@@ -8,12 +8,12 @@ The CCF repository includes two formal specifications in TLA+ of CCF:
 
 CCF implements various modifications to Raft as it was originally proposed by Ongaro and Ousterhout. Specifically, CCF constrains that only appended entries that were *signed* by the primary can be committed. Any other entry that has *not* been signed is rolled back. The TLA+ consensus specification models the intended behavior of Raft as it is modified for CCF. 
 
-You can find the full specifications in the :ccf_repo:`tla/` directory and more information on TLA+ `here <http://lamport.azurewebsites.net/tla/tla.html>`_. Several good resources exist online, one good example is Lamport's `Specifying Systems <https://lamport.azurewebsites.net/tla/book.html>`_.
+You can find the full specifications in the :ccf_repo:`tla/` directory and more information on TLA+ `here <https://lamport.azurewebsites.net/tla/tla.html>`_. Several good resources exist online, one good example is Lamport's `Specifying Systems <https://lamport.azurewebsites.net/tla/book.html>`_.
 
 Running the model checker
 -------------------------
 
-The specifications in this repository are implemented for and were checked with the `TLC <http://lamport.azurewebsites.net/tla/tools.html>`_ model checker, specifically with the nightly build of TLC. The model checking files are additionally meant to be run via the VSCode plug-in or the CLI and not through the toolbox. The best way to get started is to use the VSCode plugin. Otherwise, the scripts in this folder allow you to run TLC using the CLI easily.
+The specifications in this repository are implemented for and were checked with the `TLC <https://lamport.azurewebsites.net/tla/tools.html>`_ model checker, specifically with the nightly build of TLC. The model checking files are additionally meant to be run via the VSCode plug-in or the CLI and not through the toolbox. The best way to get started is to use the VSCode plugin. Otherwise, the scripts in this folder allow you to run TLC using the CLI easily.
 
 To download and then run TLC, simply execute:
 
@@ -31,7 +31,7 @@ You can also check the consensus specification including reconfiguration as foll
 
     $ ./tlc.py mc --term-count 2 --request-count 0 --raft-configs 3C2N --disable-check-quorum consensus/MCccfraft.tla
 
-Using TLC to exhaustively check our models can take any time between minutes (for small configurations) and days (especially for the full consensus model with reconfiguration) on a 128 core VM (specifically, we used an `Azure HBv3 instance <https://docs.microsoft.com/en-us/azure/virtual-machines/hbv3-series>`_).
+Using TLC to exhaustively check our models can take any time between minutes (for small configurations) and days (especially for the full consensus model with reconfiguration) on a 128 core VM (specifically, we used an `Azure HBv3 instance <https://learn.microsoft.com/en-us/azure/virtual-machines/hbv3-series>`_).
 
 .. tip:: During development and testing, it helps to use simulation mode, which performs random walks over the state space instead of exhaustive search. Run ``./tlc.py sim --depth 100 <spec>`` to select a maximum trace depth. Simulation is not exhaustive, but can find errors in minutes instead of hours.
 

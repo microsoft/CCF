@@ -21,12 +21,12 @@ Once this is complete, you can proceed to :doc:`/build_apps/build_app`.
 Visual Studio Code Setup
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-If you use `Visual Studio Code`_ you can install the `Remote Container`_ extension and use the sample :ccf_repo:`devcontainer.json <.devcontainer/devcontainer.json>` config.
-`More details on that process <https://code.visualstudio.com/docs/remote/containers#_quick-start-open-a-git-repository-or-github-pr-in-an-isolated-container-volume>`_.
+If you use `Visual Studio Code`_ you can install the `Dev Containers`_ extension and use the sample :ccf_repo:`devcontainer.json <.devcontainer/devcontainer.json>` config.
+`More details on that process <https://code.visualstudio.com/docs/devcontainers/containers#_quick-start-open-a-git-repository-or-github-pr-in-an-isolated-container-volume>`_.
 
 
 .. _`Visual Studio Code`: https://code.visualstudio.com/
-.. _`Remote Container`: https://code.visualstudio.com/docs/remote/containers
+.. _`Dev Containers`: https://code.visualstudio.com/docs/devcontainers/containers
 
 Developing for Azure Linux OS
 -----------------------------

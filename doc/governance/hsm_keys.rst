@@ -1,11 +1,11 @@
 Using Member Keys Stored in HSM
 ===============================
 
-This page explains how members' identity certificates and encryption keys stored in an `HSM <https://en.wikipedia.org/wiki/Hardware_security_module>`_ can be used with CCF. The following guide describes the usage of `Azure Key Vault <https://azure.microsoft.com/en-gb/services/key-vault>`_
+This page explains how members' identity certificates and encryption keys stored in an `HSM <https://en.wikipedia.org/wiki/Hardware_security_module>`_ can be used with CCF. The following guide describes the usage of `Azure Key Vault <https://azure.microsoft.com/en-gb/products/key-vault/>`_
 
 .. note::
 
-    It is assumed that CCF members already have access to an existing Premium-tier Azure Key Vault, which is required for HSM-protected keys. See `these instructions <https://docs.microsoft.com/en-us/azure/key-vault/general/quick-create-portal#create-a-vault>`_ for more details on how to create one. Using the `Azure CLI <https://docs.microsoft.com/en-us/cli/azure/install-azure-cli>`_, it is possible to check the list of available Key Vault instances:
+    It is assumed that CCF members already have access to an existing Premium-tier Azure Key Vault, which is required for HSM-protected keys. See `these instructions <https://learn.microsoft.com/en-us/azure/key-vault/general/quick-create-portal#create-a-vault>`_ for more details on how to create one. Using the `Azure CLI <https://learn.microsoft.com/en-us/cli/azure/install-azure-cli?view=azure-cli-latest>`_, it is possible to check the list of available Key Vault instances:
 
     .. code-block:: bash
 
@@ -16,7 +16,7 @@ This page explains how members' identity certificates and encryption keys stored
 Certificate and Key Generation
 ------------------------------
 
-Members' identity certificates should be generated on the `secp384r1` elliptic curve, using the `az keyvault certificate create <https://docs.microsoft.com/en-us/cli/azure/keyvault/certificate?view=azure-cli-latest#az-keyvault-certificate-create>`_ command, with the following ``akv_identity_cert_policy.json`` policy:
+Members' identity certificates should be generated on the `secp384r1` elliptic curve, using the `az keyvault certificate create <https://learn.microsoft.com/en-us/cli/azure/keyvault/certificate?view=azure-cli-latest#az-keyvault-certificate-create>`_ command, with the following ``akv_identity_cert_policy.json`` policy:
 
 .. include:: akv_identity_cert_policy.json
     :literal:
@@ -31,7 +31,7 @@ Members' identity certificates should be generated on the `secp384r1` elliptic c
     $ az keyvault key show --vault-name $VAULT_NAME --name $IDENTITY_CERT_NAME
     # Outputs key information, including kid url
 
-Members' encryption keys should be RSA 2048 keys, generated with the `az keyvault key create <https://docs.microsoft.com/en-us/cli/azure/keyvault/key?view=azure-cli-latest#az-keyvault-key-create>`_ command:
+Members' encryption keys should be RSA 2048 keys, generated with the `az keyvault key create <https://learn.microsoft.com/en-us/cli/azure/keyvault/key?view=azure-cli-latest#az-keyvault-key-create>`_ command:
 
 .. code-block:: bash
 
@@ -52,7 +52,7 @@ The identity certificate and public encryption key can be downloaded to a PEM fi
 Signing Governance Requests
 ---------------------------
 
-The following example uses the `Key Vault REST API <https://docs.microsoft.com/en-us/rest/api/keyvault/keys/sign/sign>`_ to sign. To do so, it is necessary to create a service principal that will be used for authentication:
+The following example uses the `Key Vault REST API <https://learn.microsoft.com/en-us/rest/api/keyvault/keys/sign/sign>`_ to sign. To do so, it is necessary to create a service principal that will be used for authentication:
 
 .. code-block:: bash
 

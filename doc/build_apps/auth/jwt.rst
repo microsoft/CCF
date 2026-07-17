@@ -1,9 +1,9 @@
 JWT Authentication
 ==================
 
-JWT (`JSON Web Token <https://tools.ietf.org/html/rfc7519>`_) bearer authentication allows to use an external identity provider (IdP) such as the `Microsoft Identity Platform <https://aka.ms/IdentityPlatform>`_ for user authentication in CCF.
+JWT (`JSON Web Token <https://datatracker.ietf.org/doc/html/rfc7519>`_) bearer authentication allows to use an external identity provider (IdP) such as the `Microsoft Identity Platform <https://aka.ms/IdentityPlatform>`_ for user authentication in CCF.
 
-Once the user has acquired a token from an IdP supported by the app, they can include it in HTTP requests in the ``Authorization`` header as `bearer token <https://tools.ietf.org/html/rfc6750>`_.
+Once the user has acquired a token from an IdP supported by the app, they can include it in HTTP requests in the ``Authorization`` header as `bearer token <https://datatracker.ietf.org/doc/html/rfc6750>`_.
 The CCF app validates the token and can then use the user identity and other claims embedded in the token. Tokens must contain a valid Expiration Time (exp) claim and may contain a Not Before (nbf) claim. If ``exp`` is missing, or the current time (set on the executing node by the untrusted host) is outside the range expressed by the time claims that are present, then CCF will return an error and not allow this token to be used for authentication.
 
 CCF provides support for managing public token signing keys and using those to validate tokens.
@@ -55,7 +55,7 @@ After this proposal is accepted, signing keys for an issuer can be updated with 
       ]
     }
 
-The ``"jwks"`` field contains the signing keys as a JWKS (`JSON Web Key Set <https://tools.ietf.org/html/rfc7517>`_) document.
+The ``"jwks"`` field contains the signing keys as a JWKS (`JSON Web Key Set <https://datatracker.ietf.org/doc/html/rfc7517>`_) document.
 
 Setting up a token issuer with automatic key refresh
 ----------------------------------------------------

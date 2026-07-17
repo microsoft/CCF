@@ -17,15 +17,14 @@ Below are descriptions of CLI commands and how they are useful for diagnosing CC
 
     curl https://example-ccf-domain.com/node/network/nodes/self -i
 
-This identifies which node is handling queries. The response body contains the node ID and other information about that node:
+This identifies which node is handling queries. Selected fields from the response body include:
 
 .. code-block:: json
 
     {
       "node_id": "<Node ID>",
       "primary": true,
-      "status": "Trusted",
-      ...
+      "status": "Trusted"
     }
 
 **"What CCF version is running?"**

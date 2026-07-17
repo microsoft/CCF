@@ -95,6 +95,7 @@ def dump_property(
     required: bool = False,
     path: list | None = None,
     conditions: list | None = None,
+    section_qualifier: str | None = None,
 ):
     if path is None:
         path = []
@@ -137,10 +138,12 @@ def dump_property(
 
     if has_subobjs(obj) or len(path) == 0:
         section_title = f"``{prefix}{property_name}``"
+        if section_qualifier:
+            section_title += f" ({section_qualifier})"
 
         output.start_section(section_title)
         for condition in conditions:
-            output.add_line(condition)
+            output.add_line(f"(Only applies if {condition})")
 
         desc = obj.get("description", None)
         if desc:
@@ -239,16 +242,25 @@ def dump_object(
                 assert "const" in cond, "Only 'const' conditions supported"
                 goal_s = monospace_literal(cond["const"])
                 extra_conditions.append(
-                    f"(Only applies if {''.join(path)}{k} is {goal_s})"
+                    f"{''.join(path)}{k} is {goal_s}"
                 )
 
             gather_properties(obj["then"], conditions=conditions + extra_conditions)
 
     gather_properties(obj)
 
+    property_counts = {}
     for p in props:
+        name = p["property_name"]
+        property_counts[name] = property_counts.get(name, 0) + 1
+
+    for p in props:
+        section_qualifier = None
+        if property_counts[p["property_name"]] > 1 and p["conditions"]:
+            section_qualifier = " and ".join(p["conditions"])
         dump_property(
             output=output,
+            section_qualifier=section_qualifier,
             **p,
         )
 

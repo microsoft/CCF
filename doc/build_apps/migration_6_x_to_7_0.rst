@@ -1,9 +1,9 @@
 6.x to 7.0 Migration Guide
 ==========================
 
-This page outlines the major changes introduced in 7.0 and how developers and operators should update their applications and deployments when migrating from 6.x to 7.0.
+This page documents the snapshot requirement for upgrading a service from 6.x to 7.0.
 
-A full feature list is available in the `7.0 release notes <https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-rc0>`_.
+For the complete set of changes, see the `7.0 release notes <https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0>`_.
 
 
 Snapshot Requirements for Upgrades
