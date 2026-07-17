@@ -238,7 +238,9 @@ class ConcurrentRunner:
             "handlers": [
                 {
                     "sink": sys.stdout,
-                    "format": "{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {{{thread.name}}} {name}:{function}:{line} - {message}",
+                    "format": lambda record: infra.e2e_args.format_log_record(
+                        record, include_thread=True
+                    ),
                 }
             ]
         }
