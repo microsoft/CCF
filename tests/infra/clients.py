@@ -119,11 +119,21 @@ class HttpSig(httpx.Auth):
         yield request
 
 
-loguru_tag_regex = re.compile(r"\\?</?((?:[fb]g\s)?[^<>\s]*)>")
+loguru_tag_regex = re.compile(r"(\\*)(</?(?:[fb]g\s)?[^<>\s]*>)")
 
 
 def escape_loguru_tags(s):
-    return loguru_tag_regex.sub(lambda match: f"\\{match[0]}", s)
+    # Loguru consumes pairs of backslashes and escapes markup after an odd count.
+    return loguru_tag_regex.sub(
+        lambda match: f"{match.group(1) * 2}\\{match.group(2)}", s
+    )
+
+
+def _escape_loguru_markup_text(s):
+    escaped = escape_loguru_tags(s)
+    # Generated closing tags must follow an even number of backslashes.
+    trailing_backslashes = len(escaped) - len(escaped.rstrip("\\"))
+    return escaped + ("\\" * trailing_backslashes)
 
 
 def truncate(string: str, max_len: int = 256):
@@ -156,9 +166,14 @@ class Request:
     headers: dict
 
     def __str__(self):
-        string = f"<cyan>{self.http_verb}</> <green>{self.path}</>"
+        http_verb = _escape_loguru_markup_text(self.http_verb)
+        path = _escape_loguru_markup_text(self.path)
+        string = f"<cyan>{http_verb}</> <green>{path}</>"
         if self.headers:
-            string += f" <blue>{truncate(str(self.headers), max_len=25)}</>"
+            headers = _escape_loguru_markup_text(
+                truncate(str(self.headers), max_len=25)
+            )
+            string += f" <blue>{headers}</>"
         if self.body is not None:
             if (
                 "content-type" in self.headers
@@ -278,16 +293,14 @@ class Response:
         ):
             body_s = f"<binary: {len(self.body)} bytes>"
         else:
-            body_s = escape_loguru_tags(truncate(str(self.body)))
-
-        # Body can't end with a \, or it will escape the loguru closing tag
-        if len(body_s) > 0 and body_s[-1] == "\\":
-            body_s += " "
+            body_s = truncate(str(self.body))
+        body_s = _escape_loguru_markup_text(body_s)
 
         return (
             f"<{status_color}>{self.status_code}</> "
             + (
-                f"<yellow>[Redirect to -> {self.headers.get('location')}]</> "
+                "<yellow>[Redirect to -> "
+                f"{_escape_loguru_markup_text(str(self.headers.get('location')))}]</> "
                 if redirect
                 else ""
             )
@@ -1098,7 +1111,7 @@ class CCFClient:
             headers = {}
 
         r = Request(path, body, http_verb, headers)
-        flush_info([f"{self.description} {r}"], log_capture, 3)
+        flush_info([f"{escape_loguru_tags(self.description)} {r}"], log_capture, 3)
 
         response = self.client_impl.request(r, timeout, cose_header_parameters_override)
         flush_info([str(response)], log_capture, 3)
