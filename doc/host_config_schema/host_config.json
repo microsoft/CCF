@@ -436,7 +436,7 @@
               },
               "url": {
                 "type": "string",
-                "description": "Server URL used to retrieve attestation report endorsement certificates. If omitted, the default endpoint for the selected server type is used"
+                "description": "Server URL used to retrieve attestation report endorsement certificates"
               },
               "max_retries_count": {
                 "type": "integer",
