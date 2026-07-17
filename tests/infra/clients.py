@@ -1111,7 +1111,7 @@ class CCFClient:
             headers = {}
 
         r = Request(path, body, http_verb, headers)
-        flush_info([f"{escape_loguru_tags(self.description)} {r}"], log_capture, 3)
+        flush_info([f"{escape_loguru_tags(str(self.description))} {r}"], log_capture, 3)
 
         response = self.client_impl.request(r, timeout, cose_header_parameters_override)
         flush_info([str(response)], log_capture, 3)

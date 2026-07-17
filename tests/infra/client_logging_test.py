@@ -112,15 +112,19 @@ class ClientLoggingTest(unittest.TestCase):
     def test_escapes_client_description(self):
         response = self.response()
         client = CCFClient.__new__(CCFClient)
-        client.description = r"client \<invalid>"
         client.client_impl = StubClient(response)
 
-        rendered = self.capture(lambda: client._call("/endpoint", http_verb="GET"))
+        for description in (r"client \<invalid>", "client\\", 42):
+            with self.subTest(description=description):
+                client.description = description
+                rendered = self.capture(
+                    lambda: client._call("/endpoint", http_verb="GET")
+                )
 
-        self.assertEqual(
-            rendered,
-            "client \\<invalid> GET /endpoint\n200 body",
-        )
+                self.assertEqual(
+                    rendered,
+                    f"{description} GET /endpoint\n200 body",
+                )
 
 
 if __name__ == "__main__":
