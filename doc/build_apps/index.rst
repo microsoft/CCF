@@ -105,13 +105,6 @@ These endpoints can read or mutate the state of a unique :ref:`build_apps/kv/ind
 
     ---
     
-    :fa:`arrow-right` :doc:`migration_5_x_to_6_0`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    Migrate from CCF 5.x to 6.0.
-
-    ---
-
     :fa:`arrow-right` :doc:`migration_6_x_to_7_0`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -137,5 +130,4 @@ These endpoints can read or mutate the state of a unique :ref:`build_apps/kv/ind
     crypto
     release_policy
     fwd_to_redirect
-    migration_5_x_to_6_0
     migration_6_x_to_7_0
