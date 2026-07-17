@@ -78,7 +78,7 @@ For example to set the minimum TCB version on Milan CPUs the following proposal 
 CCF release distribution
 ------------------------
 
-Binary releases now target Azure Linux 3.0, and are provided as RPM packages, ``ccf_<platform>_devel`` for application development, and ``ccf_<platform>`` for the runtime. Containers and Debian packages are no longer published.
+Binary releases now target Azure Linux 3.0, and are provided as a single RPM package ``ccf_devel`` for application development. There is no separate runtime package, and packages are no longer split by platform. Containers and Debian packages are no longer published.
 
 Version live compatibility
 --------------------------
