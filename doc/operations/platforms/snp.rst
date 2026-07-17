@@ -11,7 +11,7 @@ CCF will use the SEV-SNP platform features automatically on the supported hardwa
 Attestation
 -----------
 
-SNP attestation provide several fields needed to establish trust. Several deployment scenarios are possible.
+SNP attestation provides several fields needed to establish trust. Several deployment scenarios are possible.
 
 Confidential Azure Container Instance (ACI)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

@@ -5,8 +5,8 @@
   },
   "keyProperties": {
     "curve": "P-384",
-    "exportable": true,
-    "keyType": "EC",
+    "exportable": false,
+    "keyType": "EC-HSM",
     "reuseKey": true
   },
   "lifetimeActions": [
