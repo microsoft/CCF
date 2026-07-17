@@ -703,6 +703,12 @@ if(BUILD_TESTS)
     )
 
     add_unit_test(
+      rpc_connections_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/host/test/rpc_connections.cpp
+    )
+    target_link_libraries(rpc_connections_test PRIVATE uv)
+
+    add_unit_test(
       raft_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/main.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/view_history.cpp
