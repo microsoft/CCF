@@ -55,7 +55,7 @@ def cli_args(
     LOG.remove()
     LOG.add(
         sys.stdout,
-        format="<green>{time:HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
+        format="{time:HH:mm:ss.SSS} | {level: <8} | {name}:{function}:{line} - {message}",
     )
 
     if parser is None:
