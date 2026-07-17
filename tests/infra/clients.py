@@ -157,7 +157,7 @@ class Request:
                 "content-type" in self.headers
                 and self.headers["content-type"] == "application/octet-stream"
             ):
-                string += f"<binary: {len(self.body)} bytes>"
+                string += f" <binary: {len(self.body)} bytes>"
             else:
                 string += f" {truncate(str(self.body))}"
 
