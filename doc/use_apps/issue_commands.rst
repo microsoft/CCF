@@ -30,7 +30,7 @@ The response body (the JSON value ``true``) indicates that the request was execu
 Signing
 -------
 
-In some situations CCF requires signed requests, for example for member votes. Only one signing scheme is supported as of 4.x:
+In some situations CCF requires signed requests, for example for member votes. CCF supports one signing scheme:
 
 COSE Sign1
 ~~~~~~~~~~
@@ -53,8 +53,6 @@ To make governance commands idempotent, and to prevent potential replay attacks 
 A fixed-sized window of proposal request digests is kept by CCF, and newly submitted proposal requests must not collide with existing entries nor be older than the median proposal request in the window. The size of the window is defined in :ref:`audit/builtin_maps:``service.config```.
 
 The timestamp must be submitted as a integer number of seconds since Unix epoch (Thursday 1 January 1970 00:00:00 UT).
-
-.. warning:: HTTP request signing could be used in previous versions of CCF, but has been removed as of 4.0, in favour of COSE Sign1.
 
 COSE Schemas
 ^^^^^^^^^^^^

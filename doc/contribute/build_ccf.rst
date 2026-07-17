@@ -53,13 +53,6 @@ Tests can be started through the ``tests.sh`` wrapper for ``ctest``.
 
 Although CCF's unit tests can be run through ``ctest`` directly, the end-to-end tests that start a network require some Python infrastructure. :ccf_repo:`tests.sh </tests/tests.sh>` will set up a virtual environment with these dependencies and activate it before running ``ctest``. Add ``-VV`` for verbose test output. Further runs will re-use that virtual environment.
 
-Build Older Versions of CCF
----------------------------
-
-Building older versions of CCF may require a different toolchain than the one used to build the current ``main`` branch.
-To build a 5.x version of CCF locally without having to install another toolchain that may conflict with the current one, use the ``ghcr.io/microsoft/ccf/ci/default`` or ``ghcr.io/microsoft/ccf/ci/sgx`` image.
-The image tag used to build that version is recorded in ``.github/workflows/ci.yml`` on the corresponding release branch or tag.
-
 Update the Documentation
 ------------------------
 

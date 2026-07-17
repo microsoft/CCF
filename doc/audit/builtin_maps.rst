@@ -401,37 +401,10 @@ JWT issuers.
    :project: CCF
    :members:
 
-``jwt.public_signing_keys``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-JWT signing keys, used until 5.0.
-
-**Key** JWT Key ID, represented as a string.
-
-**Value** JWT public key or certificate, represented as a DER-encoded string.
-
-``jwt.public_signing_key_issuer``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-JWT signing key to Issuer mapping, used until 5.0.
-
-**Key** JWT Key ID, represented as a string.
-
-**Value** JWT issuer URL, represented as a string.
-
-``jwt.public_signing_keys_metadata``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-JWT signing keys, used until 6.0.
-
-**Key** JWT Key ID, represented as a string.
-
-**Value** List of (DER-encoded certificate, issuer, constraint), represented as JSON.
-
 ``jwt.public_signing_keys_metadata_v2``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-JWT signing keys, from 6.0.0 onwards.
+JWT signing keys.
 
 **Key** JWT Key ID, represented as a string.
 

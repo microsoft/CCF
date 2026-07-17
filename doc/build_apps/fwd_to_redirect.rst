@@ -2,7 +2,7 @@ Migrating from forwarding to redirection
 ========================================
 
 .. note::
-    Forwarding was deprecated in CCF 5.0 and remains available for compatibility.
+    Forwarding is deprecated and remains available for compatibility.
 
 Redirections
 ------------

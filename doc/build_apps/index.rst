@@ -103,15 +103,6 @@ These endpoints can read or mutate the state of a unique :ref:`build_apps/kv/ind
 
     Migrate from forwarding (deprecated) to redirect (recommended) endpoints.
 
-    ---
-    
-    :fa:`arrow-right` :doc:`migration_6_x_to_7_0`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    Migrate from CCF 6.x to 7.0.
-
-    ---
-
 
 .. toctree::
     :hidden:
@@ -130,4 +121,3 @@ These endpoints can read or mutate the state of a unique :ref:`build_apps/kv/ind
     crypto
     release_policy
     fwd_to_redirect
-    migration_6_x_to_7_0

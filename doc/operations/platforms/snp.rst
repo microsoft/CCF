@@ -77,7 +77,6 @@ The following governance proposals can be issued to add/remove these trusted val
 - ``add_snp_uvm_endorsement``/``remove_snp_uvm_endorsement``: To add/remove a trusted UVM endorsement (Azure deployment only).
 - ``add_snp_measurement``/``remove_snp_measurement``: To add/remove a trusted measurement.
 - ``set_snp_minimum_tcb_version_hex``/``remove_snp_minimum_tcb_version``: To add/remove a minimum trusted TCB version.
-  - ``set_snp_minimum_tcb_version`` was deprecated in CCF 6.0.9 and replaced by ``set_snp_minimum_tcb_version_hex``.
 
 Code update
 ~~~~~~~~~~~
@@ -176,7 +175,7 @@ Examples:
 Setting the minimum TCB Version using ``set_snp_minimum_tcb_version_hex``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The `set_snp_minimum_tcb_version_hex` governance action was introduced in CCF 6.0.9 to simplify the process of setting the minimum TCB version for a specific CPU model. This action allows you to specify the CPUID and the TCB version as hex-strings, which are then parsed and stored in the :ref:`audit/builtin_maps:``nodes.snp.tcb_versions``` table.
+The `set_snp_minimum_tcb_version_hex` governance action sets the minimum TCB version for a specific CPU model. This action allows you to specify the CPUID and the TCB version as hex-strings, which are then parsed and stored in the :ref:`audit/builtin_maps:``nodes.snp.tcb_versions``` table.
 To set the minimum TCB version for a specific CPU model, you can use the following governance action:
 
 .. code-block:: json

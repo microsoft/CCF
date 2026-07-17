@@ -1,7 +1,7 @@
 CCF Development Setup
 =====================
 
-From version 6.0.0, CCF is primarily built for and tested on Azure Linux 3. We recommend starting from the latest `azure-linux-3` image in your container or VM.
+CCF is primarily built for and tested on Azure Linux 3. We recommend starting from the latest `azure-linux-3` image in your container or VM.
 
 Environment Setup
 -----------------
