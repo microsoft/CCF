@@ -155,7 +155,7 @@ class Request:
             string += f" {truncate(str(self.headers), max_len=25)}"
         if self.body is not None:
             if self.headers.get("content-type") in BINARY_CONTENT_TYPES:
-                string += f" <binary: {len(self.body)} bytes>"
+                string += f"<binary: {len(self.body)} bytes>"
             else:
                 string += f" {truncate(str(self.body))}"
 
