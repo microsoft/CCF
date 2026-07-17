@@ -49,14 +49,12 @@
               "max_open_sessions_soft": {
                 "type": "integer",
                 "default": 1000,
-                "description": "The maximum number of active client sessions on that interface after which clients will receive an HTTP 503 error",
-                "minimum": 0
+                "description": "The maximum number of active client sessions on that interface after which clients will receive an HTTP 503 error"
               },
               "max_open_sessions_hard": {
                 "type": "integer",
                 "default": 1010,
-                "description": "The maximum number of active client sessions on that interface after which clients sessions will be terminated, before the TLS handshake is complete. Note that its value must be greater than the value of ``max_open_sessions_soft``",
-                "minimum": 0
+                "description": "The maximum number of active client sessions on that interface after which clients sessions will be terminated, before the TLS handshake is complete. Note that its value must be greater than the value of ``max_open_sessions_soft``"
               },
               "http_configuration": {
                 "type": "object",
@@ -74,8 +72,7 @@
                   "max_headers_count": {
                     "type": "integer",
                     "default": 256,
-                    "description": "Maximum number of headers in a single HTTP request. Submitting a request with more headers than this value will result in the session being automatically closed",
-                    "minimum": 0
+                    "description": "Maximum number of headers in a single HTTP request. Submitting a request with more headers than this value will result in the session being automatically closed"
                   },
                   "max_concurrent_streams_count": {
                     "type": "integer",
@@ -119,8 +116,7 @@
               "forwarding_timeout_ms": {
                 "type": "integer",
                 "default": 3000,
-                "description": "Timeout for forwarded RPC calls (in milliseconds)",
-                "minimum": 0
+                "description": "Timeout for forwarded RPC calls (in milliseconds)"
               },
               "redirections": {
                 "type": "object",
@@ -146,8 +142,7 @@
                 "description": "An array of features which should be enabled on this interface, providing access to endpoints with specific security or performance constraints."
               }
             },
-            "required": ["bind_address"],
-            "additionalProperties": false
+            "required": ["bind_address"]
           },
           "description": "Interfaces to listen on for incoming client TLS connections, as a dictionary from unique interface name to RPC interface information"
         }
@@ -214,8 +209,7 @@
                         "description": "Subject, set in CWT_Claims of COSE ledger signatures. Can only be set once on service start."
                       }
                     },
-                    "required": ["issuer", "subject"],
-                    "additionalProperties": false
+                    "required": ["issuer", "subject"]
                   },
                   "members": {
                     "type": "array",
@@ -447,8 +441,7 @@
               "max_retries_count": {
                 "type": "integer",
                 "default": 10,
-                "description": "Maximum number of retries to fetch endorsements from the server",
-                "minimum": 0
+                "description": "Maximum number of retries to fetch endorsements from the server"
               },
               "max_client_response_size": {
                 "type": "string",
@@ -509,8 +502,7 @@
         "min_tx_count": {
           "type": "integer",
           "default": 2,
-          "description": "Minimum number of transactions that must have elapsed since the last snapshot before a time-based snapshot can be triggered. Has no effect if time_interval is not set. If lower than 2 while time_interval is enabled, snapshots will be triggered indefinitely.",
-          "minimum": 0
+          "description": "Minimum number of transactions that must have elapsed since the last snapshot before a time-based snapshot can be triggered. Has no effect if time_interval is not set. If lower than 2 while time_interval is enabled, snapshots will be triggered indefinitely."
         },
         "time_interval": {
           "type": "string",
@@ -570,8 +562,7 @@
         "max_committed_ledger_chunks": {
           "type": ["integer", "null"],
           "default": null,
-          "description": "Maximum number of committed ledger chunk files to retain in the main ledger directory. When the number of committed chunks exceeds this value, the oldest chunks are deleted, but only after verifying that an identical copy (by SHA-256 digest) exists in at least one read-only ledger directory. Chunks whose entries extend to or beyond the sequence number of the newest committed snapshot are never deleted, ensuring a complete ledger history from that snapshot for disaster recovery. Requires at least one ledger.read_only_directories entry; the node will refuse to start otherwise. If null or unset, no automated ledger chunk garbage collection is performed.",
-          "minimum": 0
+          "description": "Maximum number of committed ledger chunk files to retain in the main ledger directory. When the number of committed chunks exceeds this value, the oldest chunks are deleted, but only after verifying that an identical copy (by SHA-256 digest) exists in at least one read-only ledger directory. Chunks whose entries extend to or beyond the sequence number of the newest committed snapshot are never deleted, ensuring a complete ledger history from that snapshot for disaster recovery. Requires at least one ledger.read_only_directories entry; the node will refuse to start otherwise. If null or unset, no automated ledger chunk garbage collection is performed."
         },
         "interval": {
           "type": "string",
@@ -603,6 +594,11 @@
     "logging": {
       "type": "object",
       "properties": {
+        "host_level": {
+          "type": "string",
+          "enum": ["Trace", "Debug", "Info", "Fail", "Fatal"],
+          "description": "Deprecated. Accepted for compatibility but ignored. Use the ``--log-level`` command-line option instead"
+        },
         "format": {
           "type": "string",
           "enum": ["Text", "Json"],
@@ -629,8 +625,7 @@
         "max_uncommitted_tx_count": {
           "type": "integer",
           "default": 10000,
-          "description": "Maximum number of uncommitted transactions allowed before the primary refuses new transactions. Unlimited if set to 0.",
-          "minimum": 0
+          "description": "Maximum number of uncommitted transactions allowed before the primary refuses new transactions. Unlimited if set to 0."
         }
       },
       "description": "This section includes configuration for the consensus protocol (note: should be the same for all other nodes in the service)",
