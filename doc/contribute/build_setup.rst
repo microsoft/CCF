@@ -14,7 +14,7 @@ Then, to set up the dependencies necessary to build CCF itself and its tests, ru
 
     cd <ccf_path>/scripts
     ./setup-ci.sh
-    ./scripts/setup-dev.sh
+    ./setup-dev.sh
     
 Once this is complete, you can proceed to :doc:`/build_apps/build_app`.
 

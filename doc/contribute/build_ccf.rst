@@ -19,7 +19,7 @@ To build CCF from source, run the following:
     $ cmake -GNinja .. 
     $ ninja
 
-.. note:::
+.. note::
 
     CCF defaults to building in the `RelWithDebInfo <https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html>`_ configuration.
 
@@ -57,8 +57,8 @@ Build Older Versions of CCF
 ---------------------------
 
 Building older versions of CCF may require a different toolchain than the one used to build the current ``main`` branch.
-To build a 5.x version of CCF locally without having to install another toolchain that may conflict with the current one, it is possible to use the ``ghcr.io/microsoft/ccf/ci/(default|sgx)`` images.
-The version tag of the ``ccf/ci`` image used to build the old version can be found in the :ccf_repo:`.github/workflows/ci.yml` YAML file.
+To build a 5.x version of CCF locally without having to install another toolchain that may conflict with the current one, use the ``ghcr.io/microsoft/ccf/ci/default`` or ``ghcr.io/microsoft/ccf/ci/sgx`` image.
+The image tag used to build that version is recorded in ``.github/workflows/ci.yml`` on the corresponding release branch or tag.
 
 Update the Documentation
 ------------------------

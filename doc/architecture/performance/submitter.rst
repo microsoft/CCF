@@ -32,11 +32,13 @@ the following arguments
     -c,--cert TEXT:FILE Use the provided certificate file when working with a SSL-based protocol.
     -k,--key TEXT:FILE Specify the path to the file containing the private key.
     --cacert TEXT:FILE Use the specified file for certificate verification.
-    -a,--server-address TEXT=127.0.0.1:8000 Specify the address to submit requests.
+    -a,--server-address TEXT REQUIRED Specify the address to submit requests.
+    --failover-server-address TEXT Specify a failover address if the connection to the main server is lost.
     -s,--send-filepath TEXT REQUIRED Path to parquet file to store the submitted requests.
     -r,--response-filepath TEXT REQUIRED Path to parquet file to store the responses from the submitted requests.
     -g,--generator-filepath TEXT REQUIRED Path to parquet file with the generated requests to be submitted.
     -m,--max-writes-ahead INT=0 Specifies the number of outstanding requests sent to the server while waiting for response. When this options is set to 0 there will be no pipelining. Any other value will enable pipelining. A positive value will specify a window of outstanding requests on the server while waiting for a response. -1 or a negative value will set the window of outstanding requests to maximum i.e. submit requests without waiting for a response
+    --pid-file-path TEXT=submit.pid Path to the file where the submitter PID will be stored.
 
 Once the component finishes submitting and receiving responses for all the requests it 
 will then store the results into two ``.parquet`` files. Hence, the path to file with the 

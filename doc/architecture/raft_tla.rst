@@ -1,7 +1,7 @@
 TLA+ Specifications
 ===================
 
-The CCF repository includes two formal specification in TLA+ of CCF:
+The CCF repository includes two formal specifications in TLA+ of CCF:
 
 * :ccf_repo:`tla/consistency` which models CCF at a high level of abstraction to test the consistency model exposed to the clients, and 
 * :ccf_repo:`tla/consensus` which models in detail the custom distributed consensus protocol implemented in CCF.
@@ -21,19 +21,19 @@ To download and then run TLC, simply execute:
 
     $ cd tla
     $ python install_deps.py
-    $ ./tlc.py consensus/MCccfraft.tla
+    $ ./tlc.py mc consensus/MCccfraft.tla
 
-.. tip::  TLC works best if it can utilize all system resources. Use the ``-workers auto`` option to use all cores. 
+.. tip:: TLC works best if it can utilize all system resources. The wrapper uses all cores by default; this can also be selected explicitly with ``--workers auto``.
 
 You can also check the consensus specification including reconfiguration as follows:
 
 .. code-block:: bash
 
-    $ ./tlc.py --term-count 2 --request-count 0 --raft-configs 3C2N --disable-check-quorum consensus/MCccfraft.tla
+    $ ./tlc.py mc --term-count 2 --request-count 0 --raft-configs 3C2N --disable-check-quorum consensus/MCccfraft.tla
 
-Using TLC to exhaustively check our models can take any time between minutes (for small configurations) and days (especially for the full consensus model with reconfiguration) on a 128 core VM (specifically, we used an `Azure HBv3 instance <https://docs.microsoft.com/en-us/azure/virtual-machines/hbv3-series>`_.
+Using TLC to exhaustively check our models can take any time between minutes (for small configurations) and days (especially for the full consensus model with reconfiguration) on a 128 core VM (specifically, we used an `Azure HBv3 instance <https://docs.microsoft.com/en-us/azure/virtual-machines/hbv3-series>`_).
 
-.. tip::  During development and testing, it helps to use simulation mode which performs random walks over the state space (instead of the default exhaustive search that can be quite slow). Turn on the simulation mode with ``-simulate -depth 100`` (using a large number as a maximum depth). Note that this is not exhaustive and never completes (but can find errors in minutes instead of hours).
+.. tip:: During development and testing, it helps to use simulation mode, which performs random walks over the state space instead of exhaustive search. Run ``./tlc.py sim --depth 100 <spec>`` to select a maximum trace depth. Simulation is not exhaustive, but can find errors in minutes instead of hours.
 
 .. tip:: You can open a `GitHub Codespace <https://github.com/codespaces/new?hide_repo_select=true&ref=main&repo=180112558&machine=xLargePremiumLinux&devcontainer_path=.devcontainer%2Ftlaplus%2Fdevcontainer.json&location=WestEurope>`_ to run the model checking and validation.
 
@@ -42,7 +42,7 @@ Trace validation
 
 It is possible to produce fresh traces quickly from the driver by running the ``make_traces.sh`` script from the ``tla`` directory.
 
-Calling the trace validation on, for example, the ``append`` scenario can then be done with ``./tlc.py --driver-trace ../build/append.ndjson consensus/Traceccfraft.tla``.
+Calling the trace validation on, for example, the ``append`` scenario can then be done with ``./tlc.py tv --ccf-raft-trace ../build/append.ndjson consensus/Traceccfraft.tla``.
 
 Generating a trace of a scenario and validating it in one go can be done with ``./tlc.py --workers 1 tv --scenario ../tests/raft_scenarios/append consensus/Traceccfraft.tla``.
 This runs the raft_driver on the scenario, cleans the trace and then validates it against the TLA+ specification.
