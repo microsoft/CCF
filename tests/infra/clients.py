@@ -135,6 +135,7 @@ CONTENT_TYPE_TEXT = "text/plain"
 CONTENT_TYPE_JSON = "application/json"
 CONTENT_TYPE_BINARY = "application/octet-stream"
 CONTENT_TYPE_COSE = "application/cose"
+BINARY_CONTENT_TYPES = (CONTENT_TYPE_BINARY, CONTENT_TYPE_COSE)
 
 
 @dataclass
@@ -153,10 +154,7 @@ class Request:
         if self.headers:
             string += f" {truncate(str(self.headers), max_len=25)}"
         if self.body is not None:
-            if (
-                "content-type" in self.headers
-                and self.headers["content-type"] == "application/octet-stream"
-            ):
+            if self.headers.get("content-type") in BINARY_CONTENT_TYPES:
                 string += f" <binary: {len(self.body)} bytes>"
             else:
                 string += f" {truncate(str(self.body))}"
@@ -262,10 +260,7 @@ class Response:
         status_category = self.status_code // 100
         redirect = status_category == 3
 
-        if (
-            "content-type" in self.headers
-            and self.headers["content-type"] == "application/octet-stream"
-        ):
+        if self.headers.get("content-type") in BINARY_CONTENT_TYPES:
             body_s = f"<binary: {len(self.body)} bytes>"
         else:
             body_s = truncate(str(self.body))
