@@ -142,6 +142,7 @@ CONTENT_TYPE_TEXT = "text/plain"
 CONTENT_TYPE_JSON = "application/json"
 CONTENT_TYPE_BINARY = "application/octet-stream"
 CONTENT_TYPE_COSE = "application/cose"
+BINARY_CONTENT_TYPES = (CONTENT_TYPE_BINARY, CONTENT_TYPE_COSE)
 
 
 @dataclass
@@ -160,10 +161,7 @@ class Request:
         if self.headers:
             string += f" <blue>{truncate(str(self.headers), max_len=25)}</>"
         if self.body is not None:
-            if (
-                "content-type" in self.headers
-                and self.headers["content-type"] == "application/octet-stream"
-            ):
+            if self.headers.get("content-type") in BINARY_CONTENT_TYPES:
                 string += f"<binary: {len(self.body)} bytes>"
             else:
                 string += escape_loguru_tags(f' {truncate(f"{self.body}")}')
@@ -272,10 +270,7 @@ class Response:
             "red" if status_category in (4, 5) else "yellow" if redirect else "green"
         )
 
-        if (
-            "content-type" in self.headers
-            and self.headers["content-type"] == "application/octet-stream"
-        ):
+        if self.headers.get("content-type") in BINARY_CONTENT_TYPES:
             body_s = f"<binary: {len(self.body)} bytes>"
         else:
             body_s = escape_loguru_tags(truncate(str(self.body)))
