@@ -367,6 +367,9 @@ namespace ccf
         throw std::logic_error("No CWT issuer in transparent statement");
       }
 
+      cose::validate_cwt_iat_against_x5chain(
+        h.cwt, h.x5chain, "code transparent statement");
+
       auto pubk = resolve_pubkey_from_x5chain_and_issuer(h.x5chain, h.cwt.iss);
       auto verifier = ccf::crypto::make_cose_verifier_from_key(pubk);
 

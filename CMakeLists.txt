@@ -227,6 +227,7 @@ set(
 )
 
 include(${CCF_DIR}/cmake/cose_openssl.cmake)
+include(${CCF_DIR}/cmake/threading.cmake)
 include(${CCF_DIR}/cmake/crypto.cmake)
 include(${CCF_DIR}/cmake/quickjs.cmake)
 include(${CCF_DIR}/cmake/evercbor.cmake)
@@ -299,6 +300,7 @@ add_ccf_static_library(
     ${CCF_DIR}/src/kv/tx.cpp
     ${CCF_DIR}/src/kv/untyped_map_handle.cpp
     ${CCF_DIR}/src/kv/untyped_map_diff.cpp
+  LINK_LIBS ccf_threading
 )
 
 # CCF endpoints lib
@@ -337,6 +339,7 @@ add_ccf_static_library(
     ${CCF_DIR}/src/tasks/fan_in_tasks.cpp
     ${CCF_DIR}/src/tasks/thread_manager.cpp
     ${CCF_DIR}/src/tasks/worker.cpp
+  LINK_LIBS ccf_threading
 )
 
 find_library(BACKTRACE_LIBRARY backtrace)
@@ -462,7 +465,6 @@ endif()
 set(
   CCF_IMPL_SOURCE
   ${CCF_DIR}/src/enclave/main.cpp
-  ${CCF_DIR}/src/enclave/thread_local.cpp
   ${CCF_DIR}/src/node/quote.cpp
   ${CCF_DIR}/src/node/uvm_endorsements.cpp
   ${CCF_DIR}/src/node/recovery_decision_protocol.cpp
@@ -973,11 +975,7 @@ if(BUILD_TESTS)
     )
 
     # Merkle Tree memory test
-    add_executable(
-      merkle_mem
-      src/node/test/merkle_mem.cpp
-      ${CCF_DIR}/src/enclave/thread_local.cpp
-    )
+    add_executable(merkle_mem src/node/test/merkle_mem.cpp)
     add_warning_checks(merkle_mem)
     target_link_libraries(
       merkle_mem
@@ -988,7 +986,6 @@ if(BUILD_TESTS)
     add_executable(
       raft_driver
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/driver.cpp
-      src/enclave/thread_local.cpp
     )
     add_warning_checks(raft_driver)
     enable_coverage(raft_driver)
@@ -1041,21 +1038,23 @@ if(BUILD_TESTS)
     add_picobench(logger_bench SRCS src/ds/test/logger_bench.cpp)
     add_picobench(json_bench SRCS src/ds/test/json_bench.cpp)
     add_picobench(ring_buffer_bench SRCS src/ds/test/ring_buffer_bench.cpp)
+    add_picobench(ledger_bench SRCS src/host/test/ledger_bench.cpp)
     add_picobench(crypto_bench SRCS src/crypto/test/bench.cpp LINK_LIBS)
     add_picobench(cose_bench SRCS src/crypto/test/cose_bench.cpp LINK_LIBS)
     add_picobench(
       history_bench
-      SRCS src/node/test/history_bench.cpp src/enclave/thread_local.cpp
+      SRCS src/node/test/history_bench.cpp
       LINK_LIBS ccf_kv ccf_tasks
     )
 
-    add_picobench(
-      kv_bench
-      SRCS src/kv/test/kv_bench.cpp src/enclave/thread_local.cpp
-      LINK_LIBS ccf_kv
-    )
+    add_picobench(kv_bench SRCS src/kv/test/kv_bench.cpp LINK_LIBS ccf_kv)
     add_picobench(merkle_bench SRCS src/node/test/merkle_bench.cpp)
     add_picobench(hash_bench SRCS src/ds/test/hash_bench.cpp)
+    add_picobench(
+      http_bench
+      SRCS src/http/test/http_bench.cpp
+      LINK_LIBS http_parser
+    )
 
     add_picobench(
       task_bench
@@ -1082,6 +1081,20 @@ if(BUILD_TESTS)
       ${ADDITIONAL_RECOVERY_ARGS}
       --constitution
       ${CMAKE_SOURCE_DIR}/samples/constitutions/virtual/virtual_attestation_actions.js
+  )
+
+  add_e2e_test(
+    NAME recovery_stale_snapshot_join_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/identity_recovery_snapshot.py
+    BUCKET bucket_b
+    ADDITIONAL_ARGS --regex ^recovery_stale_snapshot_join$
+  )
+
+  add_e2e_test(
+    NAME recovery_intermediate_snapshot_join_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/identity_recovery_snapshot.py
+    BUCKET bucket_b
+    ADDITIONAL_ARGS --regex ^recovery_intermediate_snapshot_join$
   )
 
   add_e2e_test(

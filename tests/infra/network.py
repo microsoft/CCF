@@ -105,7 +105,11 @@ class CollateralFetchTimeout(NodeJoinException):
 
 
 class ServiceCertificateInvalid(NodeJoinException):
-    pass
+    """Raised when a joining node cannot establish TLS certificate trust with
+    the target service. This covers any join-time certificate trust failure
+    (an untrusted or wrong service certificate, a hostname/SAN mismatch under
+    VERIFYHOST, or a service certificate that cannot be loaded), not only a
+    literally invalid certificate."""
 
 
 class NetworkShutdownError(Exception):
@@ -1093,37 +1097,15 @@ class Network:
                 return 0
 
             startup_seqno = 0
-            local_snapshot_path = None
-            resumed_snapshot_re = re.compile(
-                r"Joiner successfully resumed from snapshot at seqno (\d+) and view \d+"
-            )
-            local_snapshot_re = re.compile(
-                r"Found latest local snapshot file: (.*snapshot_(\d+)_\d+\.committed) "
-                r"\(size: \d+\)"
-            )
-            local_snapshot_error_re = re.compile(r"Error while verifying (.*):")
+
+            setting_seqno_re = re.compile(r"Setting startup snapshot seqno to (\d+)")
 
             with open(out_path, "r", encoding="utf-8", errors="replace") as lines:
                 for line in lines:
-                    resumed_snapshot = resumed_snapshot_re.search(line)
-                    if resumed_snapshot is not None:
-                        startup_seqno = int(resumed_snapshot.group(1))
-                        local_snapshot_path = None
-                        continue
-
-                    local_snapshot = local_snapshot_re.search(line)
-                    if local_snapshot is not None:
-                        local_snapshot_path = local_snapshot.group(1)
-                        startup_seqno = int(local_snapshot.group(2))
-                        continue
-
-                    local_snapshot_error = local_snapshot_error_re.search(line)
-                    if (
-                        local_snapshot_error is not None
-                        and local_snapshot_error.group(1) == local_snapshot_path
-                    ):
-                        local_snapshot_path = None
-                        startup_seqno = 0
+                    setting_seqno = setting_seqno_re.search(line)
+                    if setting_seqno is not None:
+                        startup_seqno = int(setting_seqno.group(1))
+                        break
 
             return startup_seqno
 
@@ -1442,7 +1424,20 @@ class Network:
                             ) from e
                         if "StartupSeqnoIsOld" in error:
                             raise StartupSeqnoIsOld(node, has_stopped, error) from e
-                        if "invalid cert on handshake" in error:
+                        # The joining node now connects to the target via the
+                        # curl client, which reports any failure to establish
+                        # certificate trust as "TLS certificate trust check
+                        # failed": a rejected or untrusted service certificate,
+                        # a hostname/SAN mismatch (VERIFYHOST=2) or any other
+                        # peer verification failure, or a configured service
+                        # certificate that could not be loaded. The legacy
+                        # TLS-session wording ("invalid cert on handshake") is
+                        # retained for compatibility with logs from older nodes
+                        # during mixed-version tests.
+                        if (
+                            "TLS certificate trust check failed" in error
+                            or "invalid cert on handshake" in error
+                        ):
                             raise ServiceCertificateInvalid(
                                 node, has_stopped, error
                             ) from e

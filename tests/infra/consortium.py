@@ -962,7 +962,12 @@ class Consortium:
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
     def set_node_certificate_validity(
-        self, remote_node, node_to_renew, valid_from, validity_period_days
+        self,
+        remote_node,
+        node_to_renew,
+        valid_from,
+        validity_period_days,
+        **kwargs,
     ):
         proposal_body, careful_vote = self.make_proposal(
             "set_node_certificate_validity",
@@ -971,7 +976,7 @@ class Consortium:
             validity_period_days=validity_period_days,
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
-        return self.vote_using_majority(remote_node, proposal, careful_vote)
+        return self.vote_using_majority(remote_node, proposal, careful_vote, **kwargs)
 
     def set_all_nodes_certificate_validity(
         self, remote_node, valid_from, validity_period_days
