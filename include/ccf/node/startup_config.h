@@ -48,6 +48,7 @@ namespace ccf
       std::string directory = "ledger";
       std::vector<std::string> read_only_directories;
       ccf::ds::SizeString chunk_size = {"5MB"};
+      ccf::ds::SizeString max_transaction_size = {"100MB"};
 
       bool operator==(const Ledger&) const = default;
     };

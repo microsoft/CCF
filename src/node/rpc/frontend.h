@@ -950,6 +950,16 @@ namespace ccf
 
           return;
         }
+        catch (const ccf::kv::MaxTransactionSizeExceeded& e)
+        {
+          ctx->clear_response_headers();
+          ctx->set_error(
+            HTTP_STATUS_PAYLOAD_TOO_LARGE,
+            ccf::errors::RequestBodyTooLarge,
+            e.what());
+
+          return;
+        }
         catch (const ccf::kv::KvSerialiserException& e)
         {
           // If serialising the committed transaction fails, there is no way

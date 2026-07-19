@@ -8,6 +8,8 @@
 #include "kv/kv_types.h"
 #include "kv/serialised_entry_format.h"
 
+#include <fmt/format.h>
+
 namespace consensus
 {
   class LedgerEnclave
@@ -25,7 +27,22 @@ namespace consensus
     {
       auto header =
         serialized::peek<ccf::kv::SerialisedEntryHeader>(data, size);
-      size_t entry_size = ccf::kv::serialised_entry_header_size + header.size;
+      const size_t body_size = header.size;
+      // This is a buffer-bounds safety check, not the configurable transaction
+      // size limit: that limit applies only when serialising new transactions.
+      // Deserialisation (including recovery replay) is exempt, so entries
+      // written under a larger or unset limit can always be read back.
+      if (body_size + ccf::kv::serialised_entry_header_size > size)
+      {
+        throw std::logic_error(fmt::format(
+          "Cannot read transaction with serialised body size {} bytes from "
+          "buffer containing {} bytes after the fixed {}-byte ledger entry "
+          "header",
+          body_size,
+          size - ccf::kv::serialised_entry_header_size,
+          ccf::kv::serialised_entry_header_size));
+      }
+      size_t entry_size = ccf::kv::serialised_entry_header_size + body_size;
       std::vector<uint8_t> entry(data, data + entry_size);
       serialized::skip(data, size, entry_size);
       return entry;

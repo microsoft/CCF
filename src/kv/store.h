@@ -15,6 +15,7 @@
 #include "kv_types.h"
 
 #define FMT_HEADER_ONLY
+#include <algorithm>
 #include <atomic>
 #include <fmt/format.h>
 #include <memory>
@@ -97,6 +98,8 @@ namespace ccf::kv
     std::shared_ptr<ILedgerChunker> chunker = nullptr;
     EncryptorPtr encryptor = nullptr;
     SnapshotterPtr snapshotter = nullptr;
+    size_t max_transaction_size =
+      SerialisedEntryHeader::max_serialised_entry_body_size;
 
     // Generally we will only accept deserialised views if they are contiguous -
     // at Version N we reject everything but N+1. The exception is when a Store
@@ -221,6 +224,30 @@ namespace ccf::kv
     EncryptorPtr get_encryptor() override
     {
       return encryptor;
+    }
+
+    void set_max_transaction_size(size_t max_transaction_size_)
+    {
+      static const auto max_allocatable_body =
+        std::vector<uint8_t>().max_size() - serialised_entry_header_size;
+      const auto effective_max = std::min(
+        static_cast<size_t>(
+          SerialisedEntryHeader::max_serialised_entry_body_size),
+        max_allocatable_body);
+      if (max_transaction_size_ > effective_max)
+      {
+        throw std::logic_error(fmt::format(
+          "Configured maximum transaction size {} exceeds the largest "
+          "supported serialised transaction body size {}",
+          max_transaction_size_,
+          effective_max));
+      }
+      max_transaction_size = max_transaction_size_;
+    }
+
+    [[nodiscard]] size_t get_max_transaction_size() const override
+    {
+      return max_transaction_size;
     }
 
     void set_snapshotter(const SnapshotterPtr& snapshotter_)
@@ -387,6 +414,10 @@ namespace ccf::kv
       std::unique_ptr<AbstractSnapshot> snapshot) override
     {
       auto e = get_encryptor();
+      // Snapshots capture the entire committed state and are legitimately much
+      // larger than any single transaction, so the configured
+      // max_transaction_size (a per-transaction write limit) is deliberately
+      // not applied here.
       return snapshot->serialise(e);
     }
 
@@ -405,6 +436,9 @@ namespace ccf::kv
 
       ccf::kv::Term term = 0;
       ccf::kv::EntryFlags entry_flags = {};
+      // Snapshots are not subject to the per-transaction max_transaction_size
+      // limit (see serialise_snapshot), so it is not applied when reading one
+      // back either.
       auto v_ = d.init(data, size, term, entry_flags, is_historical);
       if (!v_.has_value())
       {
