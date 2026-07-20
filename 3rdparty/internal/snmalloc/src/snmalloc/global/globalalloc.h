@@ -17,19 +17,19 @@ namespace snmalloc
     // Handling the message queue for each stack is non-atomic.
     auto* first = AllocPool<Config_>::extract();
     auto* alloc = first;
-    decltype(alloc) last;
 
-    if (alloc != nullptr)
+    if (alloc == nullptr)
+      return;
+
+    decltype(alloc) last = alloc;
+    while (alloc != nullptr)
     {
-      while (alloc != nullptr)
-      {
-        alloc->flush();
-        last = alloc;
-        alloc = AllocPool<Config_>::extract(alloc);
-      }
-
-      AllocPool<Config_>::restore(first, last);
+      alloc->flush();
+      last = alloc;
+      alloc = AllocPool<Config_>::extract(alloc);
     }
+
+    AllocPool<Config_>::restore(first, last);
   }
 
   /**
@@ -138,9 +138,13 @@ namespace snmalloc
   size_t SNMALLOC_FAST_PATH_INLINE remaining_bytes(address_t p)
   {
     const auto& entry = Config_::Backend::template get_metaentry<true>(p);
+    return snmalloc::remaining_bytes(entry.get_offset_and_sizeclass(), p);
+  }
 
-    auto sizeclass = entry.get_sizeclass();
-    return snmalloc::remaining_bytes(sizeclass, p);
+  template<SNMALLOC_CONCEPT(IsConfig) Config_ = Config>
+  size_t SNMALLOC_FAST_PATH_INLINE remaining_bytes(const void* p)
+  {
+    return remaining_bytes(address_cast(p));
   }
 
   /**
@@ -153,9 +157,7 @@ namespace snmalloc
   static inline size_t index_in_object(address_t p)
   {
     const auto& entry = Config_::Backend::template get_metaentry<true>(p);
-
-    auto sizeclass = entry.get_sizeclass();
-    return snmalloc::index_in_object(sizeclass, p);
+    return snmalloc::index_in_object(entry.get_offset_and_sizeclass(), p);
   }
 
   enum Boundary
@@ -224,7 +226,8 @@ namespace snmalloc
   {
     const auto& entry = Config_::Backend::get_metaentry(address_cast(p));
 
-    size_t index = slab_index(entry.get_sizeclass(), address_cast(p));
+    size_t index =
+      slab_index(entry.get_offset_and_sizeclass(), address_cast(p));
 
     auto* meta_slab = entry.get_slab_metadata();
 
@@ -253,7 +256,8 @@ namespace snmalloc
     const auto& entry =
       Config_::Backend::template get_metaentry<true>(address_cast(p));
 
-    size_t index = slab_index(entry.get_sizeclass(), address_cast(p));
+    size_t index =
+      slab_index(entry.get_offset_and_sizeclass(), address_cast(p));
 
     auto* meta_slab = entry.get_slab_metadata();
 
@@ -281,6 +285,19 @@ namespace snmalloc
       if (!entry.is_owned())
         return;
       size = size == 0 ? 1 : size;
+      // Any size beyond what the sizeclass encoding can represent is
+      // necessarily a mismatch with the pagemap's recorded sizeclass; report
+      // it directly rather than feeding the unrepresentable size into
+      // `size_to_sizeclass_full`.
+      if (size > MAX_LARGE_SIZECLASS_SIZE)
+      {
+        snmalloc_check_client(
+          mitigations(sanity_checks),
+          p == nullptr,
+          "Dealloc size exceeds encodable range: {}",
+          size);
+        return;
+      }
       auto sc = size_to_sizeclass_full(size);
       auto pm_sc = entry.get_sizeclass();
       auto rsize = sizeclass_full_to_size(sc);
@@ -324,8 +341,18 @@ namespace snmalloc
   template<size_t size, typename Conts = Uninit, size_t align = 1>
   SNMALLOC_FAST_PATH_INLINE void* alloc()
   {
-    return ThreadAlloc::get().alloc<Conts, ThreadAlloc::CheckInit>(
-      aligned_size(align, size));
+    constexpr size_t sz = aligned_size(align, size);
+    if constexpr (is_small_sizeclass(sz))
+    {
+      constexpr auto sc = size_to_sizeclass_const(sz);
+      return ThreadAlloc::get().template alloc<Conts, ThreadAlloc::CheckInit>(
+        sc);
+    }
+    else
+    {
+      return ThreadAlloc::get().template alloc<Conts, ThreadAlloc::CheckInit>(
+        sz);
+    }
   }
 
   template<typename Conts = Uninit, size_t align = 1>
@@ -335,6 +362,17 @@ namespace snmalloc
       aligned_size(align, size));
   }
 
+  /**
+   * Allocate a block for a known small sizeclass.
+   * The sizeclass can be computed at compile time with size_to_sizeclass_const.
+   */
+  template<typename Conts = Uninit>
+  SNMALLOC_FAST_PATH_INLINE void* alloc(smallsizeclass_t sizeclass)
+  {
+    return ThreadAlloc::get().template alloc<Conts, ThreadAlloc::CheckInit>(
+      sizeclass);
+  }
+
   template<typename Conts = Uninit>
   SNMALLOC_FAST_PATH_INLINE void* alloc_aligned(size_t align, size_t size)
   {
@@ -342,32 +380,39 @@ namespace snmalloc
       aligned_size(align, size));
   }
 
-  SNMALLOC_FAST_PATH_INLINE void dealloc(void* p)
+  SNMALLOC_API void dealloc(void* p)
   {
     ThreadAlloc::get().dealloc<ThreadAlloc::CheckInit>(p);
   }
 
-  SNMALLOC_FAST_PATH_INLINE void dealloc(void* p, size_t size)
-  {
-    check_size(p, size);
-    ThreadAlloc::get().dealloc<ThreadAlloc::CheckInit>(p);
-  }
-
-  template<size_t size>
-  SNMALLOC_FAST_PATH_INLINE void dealloc(void* p)
+  SNMALLOC_API void dealloc(void* p, size_t size)
   {
     check_size(p, size);
     ThreadAlloc::get().dealloc<ThreadAlloc::CheckInit>(p);
   }
 
-  SNMALLOC_FAST_PATH_INLINE void dealloc(void* p, size_t size, size_t align)
+  /**
+   * Compile-time sized dealloc. The optional `align` parameter mirrors
+   * the `align` parameter on `alloc<size, Conts, align>` so the
+   * sized-dealloc sanity check sees the size that was actually
+   * reserved (post `aligned_size`), not the raw requested `size`.
+   */
+  template<size_t size, size_t align = 1>
+  SNMALLOC_FAST_PATH_INLINE void dealloc(void* p)
+  {
+    constexpr size_t sz = aligned_size(align, size);
+    check_size(p, sz);
+    ThreadAlloc::get().dealloc<ThreadAlloc::CheckInit>(p);
+  }
+
+  SNMALLOC_API void dealloc(void* p, size_t size, size_t align)
   {
     auto rsize = aligned_size(align, size);
     check_size(p, rsize);
     ThreadAlloc::get().dealloc<ThreadAlloc::CheckInit>(p);
   }
 
-  SNMALLOC_FAST_PATH_INLINE void debug_teardown()
+  SNMALLOC_API void debug_teardown()
   {
     return ThreadAlloc::teardown();
   }

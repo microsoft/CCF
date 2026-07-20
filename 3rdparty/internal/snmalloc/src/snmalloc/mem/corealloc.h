@@ -1,12 +1,11 @@
 #pragma once
 
 #include "../ds/ds.h"
+#include "../ds/pool.h"
 #include "check_init.h"
 #include "freelist.h"
 #include "metadata.h"
-#include "pool.h"
 #include "remotecache.h"
-#include "sizeclasstable.h"
 #include "snmalloc/stl/new.h"
 #include "ticker.h"
 
@@ -534,7 +533,7 @@ namespace snmalloc
 
       snmalloc_check_client(
         mitigations(sanity_checks),
-        is_start_of_object(entry.get_sizeclass(), address_cast(msg)),
+        is_start_of_object(entry.get_offset_and_sizeclass(), address_cast(msg)),
         "Not deallocating start of an object");
 
       size_t objsize = sizeclass_full_to_size(entry.get_sizeclass());
@@ -607,23 +606,36 @@ namespace snmalloc
     {
       // Perform the - 1 on size, so that zero wraps around and ends up on
       // slow path.
-      if (SNMALLOC_LIKELY(
-            (size - 1) <= (sizeclass_to_size(NUM_SMALL_SIZECLASSES - 1) - 1)))
+      if (SNMALLOC_LIKELY(is_small_sizeclass(size)))
       {
         // Small allocations are more likely. Improve
         // branch prediction by placing this case first.
-        return small_alloc<Conts, CheckInit>(size);
+        return small_alloc<Conts, CheckInit>(size_to_sizeclass(size), size);
       }
 
       return alloc_not_small<Conts, CheckInit>(size, this);
     }
 
     /**
-     * Fast allocation for small objects.
+     * Allocates a block of memory for a known small sizeclass.
+     * Callers can pre-compute the sizeclass (e.g. at compile time with
+     * size_to_sizeclass_const) and avoid the dynamic sizeclass lookup.
+     */
+    template<typename Conts = Uninit, typename CheckInit = CheckInitNoOp>
+    SNMALLOC_FAST_PATH ALLOCATOR void*
+    alloc(smallsizeclass_t sizeclass) noexcept(noexcept(Conts::failure(0)))
+    {
+      return small_alloc<Conts, CheckInit>(
+        sizeclass, sizeclass_to_size(sizeclass));
+    }
+
+    /**
+     * Fast allocation for small objects, with pre-computed sizeclass.
      */
     template<typename Conts, typename CheckInit>
-    SNMALLOC_FAST_PATH void*
-    small_alloc(size_t size) noexcept(noexcept(Conts::failure(0)))
+    SNMALLOC_FAST_PATH void* small_alloc(
+      smallsizeclass_t sizeclass,
+      size_t size) noexcept(noexcept(Conts::failure(0)))
     {
       auto domesticate =
         [this](freelist::QueuePtr p) SNMALLOC_FAST_PATH_LAMBDA {
@@ -631,7 +643,6 @@ namespace snmalloc
         };
 
       auto& key = freelist::Object::key_root;
-      smallsizeclass_t sizeclass = size_to_sizeclass(size);
       auto* fl = &small_fast_free_lists[sizeclass];
       if (SNMALLOC_LIKELY(!fl->empty()))
       {
@@ -645,12 +656,24 @@ namespace snmalloc
           smallsizeclass_t sizeclass,
           freelist::Iter<>* fl,
           size_t size) SNMALLOC_FAST_PATH_LAMBDA {
-          return alloc->small_refill<Conts, CheckInit>(sizeclass, *fl, size);
+          return alloc->template small_refill<Conts, CheckInit>(
+            sizeclass, *fl, size);
         },
         this,
         sizeclass,
         fl,
         size);
+    }
+
+    /**
+     * Fast allocation for small objects from a byte size.
+     * Computes the sizeclass and delegates to the two-arg version.
+     */
+    template<typename Conts, typename CheckInit>
+    SNMALLOC_FAST_PATH void*
+    small_alloc(size_t size) noexcept(noexcept(Conts::failure(0)))
+    {
+      return small_alloc<Conts, CheckInit>(size_to_sizeclass(size), size);
     }
 
     /**
@@ -671,17 +694,18 @@ namespace snmalloc
         // Deal with alloc zero of with a small object here.
         // Alternative semantics giving nullptr is also allowed by the
         // standard.
-        return self->small_alloc<Conts, CheckInit>(1);
+        return self->template small_alloc<Conts, CheckInit>(1);
       }
 
       return self->template handle_message_queue<noexcept(Conts::failure(0))>(
         [](Allocator* self, size_t size) SNMALLOC_FAST_PATH_LAMBDA {
           return CheckInit::check_init(
             [self, size]() SNMALLOC_FAST_PATH_LAMBDA {
-              if (size > bits::one_at_bit(bits::BITS - 1))
+              if (size > MAX_LARGE_SIZECLASS_SIZE)
               {
-                // Cannot allocate something that is more that half the size of
-                // the address space
+                // Cannot allocate something the sizeclass encoding cannot
+                // represent (equals `2 ^ ENCODED_ADDRESS_BITS` in
+                // `sizeclasstable.h` — well above any plausible request).
                 return Conts::failure(size);
               }
 
@@ -697,12 +721,13 @@ namespace snmalloc
 
               // Grab slab of correct size
               // Set remote as large allocator remote.
+              const auto sc = size_to_sizeclass_full(size);
+              const size_t chunk_size = sizeclass_full_to_size(sc);
               auto [chunk, meta] = Config::Backend::alloc_chunk(
                 self->get_backend_local_state(),
-                large_size_to_chunk_size(size),
-                PagemapEntry::encode(
-                  self->public_state(), size_to_sizeclass_full(size)),
-                size_to_sizeclass_full(size));
+                chunk_size,
+                PagemapEntry::encode(self->public_state(), sc),
+                sc);
 
 #ifdef SNMALLOC_TRACING
               message<1024>(
@@ -869,7 +894,7 @@ namespace snmalloc
           return ticker.check_tick(r);
         },
         [](Allocator* a, size_t size) SNMALLOC_FAST_PATH_LAMBDA {
-          return a->small_alloc<Conts, CheckInitNoOp>(size);
+          return a->template small_alloc<Conts, CheckInitNoOp>(size);
         },
         size);
     }
@@ -1057,7 +1082,7 @@ namespace snmalloc
 
       snmalloc_check_client(
         mitigations(sanity_checks),
-        is_start_of_object(entry.get_sizeclass(), address_cast(p)),
+        is_start_of_object(entry.get_offset_and_sizeclass(), address_cast(p)),
         "Not deallocating start of an object");
 
       auto cp = p.as_static<freelist::Object::T<>>();
@@ -1095,8 +1120,7 @@ namespace snmalloc
         // XXX: because large objects have unique metadata associated with them,
         // the ring size here is one.  We should probably assert that.
 
-        size_t entry_sizeclass = entry.get_sizeclass().as_large();
-        size_t size = bits::one_at_bit(entry_sizeclass);
+        size_t size = sizeclass_full_to_size(entry.get_sizeclass());
 
 #ifdef SNMALLOC_TRACING
         message<1024>("Large deallocation: {}", size);
@@ -1169,6 +1193,10 @@ namespace snmalloc
     template<bool check_slabs = false>
     SNMALLOC_SLOW_PATH void dealloc_local_slabs(smallsizeclass_t sizeclass)
     {
+      if constexpr (!check_slabs)
+        if (alloc_classes[sizeclass].unused == 0)
+          return;
+
       // Return unused slabs of sizeclass_t back to global allocator
       alloc_classes[sizeclass].available.iterate([this, sizeclass](auto* meta) {
         auto domesticate =
@@ -1396,7 +1424,7 @@ namespace snmalloc
 
       auto& key = freelist::Object::key_root;
 
-      for (size_t i = 0; i < NUM_SMALL_SIZECLASSES; i++)
+      for (smallsizeclass_t i{}; i < NUM_SMALL_SIZECLASSES; i++)
       {
         if (small_fast_free_lists[i].empty())
           continue;
@@ -1417,21 +1445,23 @@ namespace snmalloc
         local_state, get_trunc_id());
 
       // We may now have unused slabs, return to the global allocator.
-      for (smallsizeclass_t sizeclass = 0; sizeclass < NUM_SMALL_SIZECLASSES;
+      for (smallsizeclass_t sizeclass(0); sizeclass < NUM_SMALL_SIZECLASSES;
            sizeclass++)
       {
-        dealloc_local_slabs<true>(sizeclass);
+        dealloc_local_slabs<mitigations(freelist_teardown_validate)>(sizeclass);
       }
 
-      laden.iterate(
-        [domesticate](BackendSlabMetadata* meta) SNMALLOC_FAST_PATH_LAMBDA {
-          if (!meta->is_large())
-          {
-            meta->free_queue.validate(
-              freelist::Object::key_root, meta->as_key_tweak(), domesticate);
-          }
-        });
-
+      if constexpr (mitigations(freelist_teardown_validate))
+      {
+        laden.iterate(
+          [domesticate](BackendSlabMetadata* meta) SNMALLOC_FAST_PATH_LAMBDA {
+            if (!meta->is_large())
+            {
+              meta->free_queue.validate(
+                freelist::Object::key_root, meta->as_key_tweak(), domesticate);
+            }
+          });
+      }
       // Set the remote_dealloc_cache to immediately slow path.
       remote_dealloc_cache.capacity = 0;
 

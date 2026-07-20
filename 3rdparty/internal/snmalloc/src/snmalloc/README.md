@@ -10,6 +10,9 @@ These are arranged in a hierarchy such that each of the directories may include 
    This layer provides abstractions over CPU-specific intrinsics and defines things such as the virtual address-space size.
    There is a single AAL for an snmalloc instantiation.
  - `ds_aal/` provides data structures that depend on the AAL.
+ - `mitigations/` provides compile-time configuration for security mitigations.
+   This includes the `mitigations()` function (controlled by `SNMALLOC_CHECK_CLIENT`), mitigation-dependent allocator constants, and CHERI capability checks.
+   Layers below this (`ds_core/`, `aal/`, `ds_aal/`) are mitigation-independent, which allows code that only includes those layers to be compiled once regardless of mitigation settings.
  - `pal/` provides the platform abstraction layer (PAL).
    This exposes OS- or environment-specific abstractions into the rest of the code.
    An snmalloc instantiation may use more than one PAL, including ones provided by the user.
@@ -17,7 +20,7 @@ These are arranged in a hierarchy such that each of the directories may include 
  - `mem/` provides the core allocator abstractions.
    The code here is templated over a back-end, which defines a particular embedding of snmalloc.
  - `backend_helpers/` provides helper classes for use in defining a back end.
-   This includes data structures such as pagemap implementations (efficient maps from a chunk address to associated metadata) and buddy allocators for managing address-space ranges.
+   This includes data structures such as pagemap implementations (efficient maps from a chunk address to associated metadata) and range allocators for managing address-space ranges.
  - `backend/` provides some example implementations for snmalloc embeddings that provide a global memory allocator for an address space.
    Users may ignore this entirely and use the types in `mem/` with a custom back end to expose an snmalloc instance with specific behaviour.
    Layers above this can be used with a custom configuration by defining `SNMALLOC_PROVIDE_OWN_CONFIG` and exporting a type as `snmalloc::Config` that defines the configuration.

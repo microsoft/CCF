@@ -1,6 +1,4 @@
 #include <iostream>
-#include <snmalloc/snmalloc.h>
-
 #ifndef SNMALLOC_PTHREAD_ATFORK_WORKS
 int main()
 {
@@ -9,8 +7,12 @@ int main()
 }
 #else
 
+#  define SNMALLOC_PTHREAD_FORK_PROTECTION
 #  include <pthread.h>
+#  include <snmalloc/ds_aal/prevent_fork.h>
+#  include <snmalloc/ds_core/helpers.h>
 #  include <thread>
+#  include <unistd.h>
 
 void simulate_allocation()
 {

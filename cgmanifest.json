@@ -65,8 +65,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/microsoft/snmalloc",
-          "commitHash": "92ca9184886f983bb1cf9f4614c9569db442d097",
-          "tag": "0.7.3"
+          "commitHash": "431834831cb3f100e663a7f15cfbed213a466f63"
         }
       }
     },
