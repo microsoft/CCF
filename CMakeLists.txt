@@ -1038,6 +1038,7 @@ if(BUILD_TESTS)
     add_picobench(logger_bench SRCS src/ds/test/logger_bench.cpp)
     add_picobench(json_bench SRCS src/ds/test/json_bench.cpp)
     add_picobench(ring_buffer_bench SRCS src/ds/test/ring_buffer_bench.cpp)
+    add_picobench(ledger_bench SRCS src/host/test/ledger_bench.cpp)
     add_picobench(crypto_bench SRCS src/crypto/test/bench.cpp LINK_LIBS)
     add_picobench(cose_bench SRCS src/crypto/test/cose_bench.cpp LINK_LIBS)
     add_picobench(

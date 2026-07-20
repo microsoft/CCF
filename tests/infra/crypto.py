@@ -397,7 +397,12 @@ def datetime_to_X509time(datetime: datetime):
 
 
 def create_signed_statement(
-    payload: bytes, sub: str, svn: int, eku: str, ca_identity=None
+    payload: bytes,
+    sub: str,
+    svn: int,
+    eku: str,
+    ca_identity=None,
+    iat: int | None = None,
 ) -> tuple:
     """
     Create a COSE_Sign1 signed statement with x5chain and CWT claims.
@@ -513,11 +518,15 @@ def create_signed_statement(
 
     # Build COSE_Sign1 protected headers
 
+    cwt_claims = {1: issuer, 2: sub, "svn": svn}
+    if iat is not None:
+        cwt_claims[6] = iat
+
     phdr = {
         1: -7,  # alg: ES256
         3: "application/octet-stream",  # content_type
         33: [leaf_der, ca_der],  # x5chain
-        15: {1: issuer, 2: sub, "svn": svn},  # CWT claims
+        15: cwt_claims,
     }
 
     leaf_key_pem = leaf_key.private_bytes(

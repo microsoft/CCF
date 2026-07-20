@@ -668,6 +668,32 @@ def test_add_node_via_code_policy(network, args):
         payload=bytes.fromhex(host_data), sub="Some feed", svn=500, eku="2.999"
     )
     transparent_statement = register_signed_statement(primary, signed_statement)
+
+    # --- Statement IAT is outside the signing certificate validity period ---
+    invalid_iat_statement, invalid_iat_issuer = create_signed_statement(
+        payload=bytes.fromhex(host_data),
+        sub="Some feed",
+        svn=500,
+        eku="2.999",
+        iat=1,
+    )
+    invalid_iat_transparent_statement = register_signed_statement(
+        primary, invalid_iat_statement
+    )
+    invalid_iat_joiner_args = prepare_joiner_with_statement(
+        args, network, invalid_iat_transparent_statement
+    )
+    network.consortium.set_node_join_policy(
+        primary,
+        make_node_join_policy(
+            invalid_iat_issuer,
+            min_svn=500,
+            receipt_issuer=receipt_issuer,
+            receipt_subject=receipt_subject,
+        ),
+    )
+    assert_node_join_fails(network, invalid_iat_joiner_args)
+
     joiner_args = prepare_joiner_with_statement(args, network, transparent_statement)
 
     # --- Policy 1: SVN too low (requires >= 501, statement has 500) ---
