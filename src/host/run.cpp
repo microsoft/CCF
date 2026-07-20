@@ -52,6 +52,7 @@
 #include <filesystem>
 #include <iostream>
 #include <map>
+#include <memory>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -685,7 +686,7 @@ namespace ccf
         config.output_files.node_to_node_address_file);
     }
 
-    asynchost::ConnIDGenerator id_gen;
+    const auto id_gen = std::make_shared<asynchost::ConnIDGenerator>();
 
     asynchost::RPCConnections<asynchost::TCP> rpc(
       1s, // Tick once-per-second to track idle connections,
