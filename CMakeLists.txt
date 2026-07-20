@@ -226,7 +226,7 @@ set(
   ${CCF_3RD_PARTY_EXPORTED_DIR}/llhttp/llhttp.c
 )
 
-include(${CCF_DIR}/cmake/cose_openssl.cmake)
+include(${CCF_DIR}/cmake/ccf_rs.cmake)
 include(${CCF_DIR}/cmake/threading.cmake)
 include(${CCF_DIR}/cmake/crypto.cmake)
 include(${CCF_DIR}/cmake/quickjs.cmake)
