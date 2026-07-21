@@ -65,6 +65,7 @@ RADAR_CONFIG = {
 _CANVAS = "var(--color-canvas-default,var(--bgColor-default,#fff))"
 _BLUE = "#62B5E5"
 _BRANCH_ORANGE = "#F97316"
+_OLDEST_BRANCH_OPACITY = 0.3
 _BAND_1SIGMA = f"color-mix(in srgb, {_BLUE} 40%, {_CANVAS})"
 _BAND_2SIGMA = f"color-mix(in srgb, {_BLUE} 13%, {_CANVAS})"
 RADAR_THEME_CSS = (
@@ -278,7 +279,8 @@ def branch_curve_css(curve_count: int) -> list[str]:
     for index in range(curve_count):
         is_latest = index == curve_count - 1
         width = "1.75" if is_latest else "1.5"
-        opacity = 1.0 if curve_count == 1 else 0.5 + (0.5 * index / (curve_count - 1))
+        age_fraction = (curve_count - index - 1) / max(curve_count - 1, 1)
+        opacity = _OLDEST_BRANCH_OPACITY**age_fraction
         css.append(
             f".radarCurve-{index + 4}{{stroke-width:{width}px!important;"
             f"stroke-opacity:{opacity:.2f}!important}}"
