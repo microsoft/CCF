@@ -64,6 +64,7 @@ RADAR_CONFIG = {
 # of both bands.
 _CANVAS = "var(--color-canvas-default,var(--bgColor-default,#fff))"
 _BLUE = "#62B5E5"
+_BRANCH_ORANGE = "#F97316"
 _BAND_1SIGMA = f"color-mix(in srgb, {_BLUE} 40%, {_CANVAS})"
 _BAND_2SIGMA = f"color-mix(in srgb, {_BLUE} 13%, {_CANVAS})"
 RADAR_THEME_CSS = (
@@ -277,12 +278,10 @@ def branch_curve_css(curve_count: int) -> list[str]:
     for index in range(curve_count):
         is_latest = index == curve_count - 1
         width = "2.5" if is_latest else "1.25"
-        opacity = (
-            "1" if is_latest else f"{0.2 + (0.5 * index / max(curve_count - 1, 1)):.2f}"
-        )
+        opacity = 1.0 if curve_count == 1 else 0.2 + (0.8 * index / (curve_count - 1))
         css.append(
             f".radarCurve-{index + 4}{{stroke-width:{width}px!important;"
-            f"stroke-opacity:{opacity}!important}}"
+            f"stroke-opacity:{opacity:.2f}!important}}"
         )
     return css
 
@@ -396,7 +395,7 @@ def render_mermaid_radar_chart(
         "  themeVariables:",
         *[f'    cScale{index}: "#62B5E5"' for index in range(4)],
         *[
-            f'    cScale{index}: "#008FD3"'
+            f'    cScale{index}: "{_BRANCH_ORANGE}"'
             for index in range(4, 4 + len(rendered_branch_curves))
         ],
         "    radar:",
@@ -471,10 +470,10 @@ def render_comparison(
 ) -> str:
     """Render all metric groups comparing the branch runs with the main trend."""
     branch_curve_description = (
-        "The blue line is this branch's latest run"
+        "The orange line is this branch's latest run"
         if len(branch_runs) == 1
         else (
-            f"The {len(branch_runs)} blue branch lines run from the oldest "
+            f"The {len(branch_runs)} orange branch lines run from the oldest "
             "(faintest) to the latest (darkest and thickest)"
         )
     )
