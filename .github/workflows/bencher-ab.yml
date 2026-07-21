@@ -13,6 +13,10 @@ on:
 
 permissions: read-all
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
 jobs:
   benchmark_pr:
     name: Benchmark PR
@@ -23,6 +27,8 @@ jobs:
         "JobId=bab_benchmark_pr-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
       ]
     if: ${{ (github.event.action == 'labeled' && github.event.label.name == 'bench-ab') || (github.event.action != 'labeled' && contains(github.event.pull_request.labels.*.name, 'bench-ab')) }}
+    env:
+      BRANCH_PERF_ARTIFACT: perf-bench-virtual-pr-${{ github.event.pull_request.number }}
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root
@@ -77,10 +83,40 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
 
+      - name: Restore recent branch perf results
+        run: |
+          set -exo pipefail
+          mkdir -p branch_perf
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          run_ids=$(gh api "repos/${{ github.repository }}/actions/artifacts?name=${BRANCH_PERF_ARTIFACT}&per_page=100" \
+            --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0:20] | .[].workflow_run.id')
+          for run_id in $run_ids; do
+            if gh run download "$run_id" --name "$BRANCH_PERF_ARTIFACT" --dir branch_artifact; then
+              find branch_artifact -name '*.json' -exec cp {} branch_perf/ \;
+              break
+            fi
+          done
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Collect branch perf results
+        run: |
+          set -exo pipefail
+          jobid="${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}"
+          cp build/bencher.json "branch_perf/${jobid}.json"
+          (cd branch_perf && ls -1 | sort -t- -k1,1n -k2,2n -k3,3n | head -n -5 | xargs -r rm -f)
+
+      - name: Upload branch perf results
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: ${{ env.BRANCH_PERF_ARTIFACT }}
+          path: branch_perf
+          if-no-files-found: error
+
       - name: Summarise A/B comparison against main
         run: |
           set -exo pipefail
-          python3 scripts/perf_compare_radar.py main_perf build/bencher.json \
+          python3 scripts/perf_compare_radar.py main_perf branch_perf \
             --branch-label "#${{ github.event.pull_request.number }}" \
             | tee benchmark-ab-summary.md >> "$GITHUB_STEP_SUMMARY"
 
