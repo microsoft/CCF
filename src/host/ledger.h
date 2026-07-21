@@ -10,12 +10,12 @@
 #include "ds/internal_logger.h"
 #include "ds/messaging.h"
 #include "ds/serialized.h"
+#include "ds/worker_shutdown_gate.h"
 #include "kv/kv_types.h"
 #include "kv/serialised_entry_format.h"
 #include "ledger_filenames.h"
 #include "time_bound_logger.h"
 
-#include <condition_variable>
 #include <cstdint>
 #include <cstdio>
 #include <filesystem>
@@ -741,13 +741,9 @@ namespace asynchost
     }
   };
 
-  struct LedgerAsyncTestAccess;
-
   class Ledger
   {
   private:
-    friend struct LedgerAsyncTestAccess;
-
     ringbuffer::WriterPtr to_enclave;
 
     // Main ledger directory (write and read)
@@ -786,25 +782,8 @@ namespace asynchost
     // complete
     std::optional<size_t> recovery_start_idx = std::nullopt;
 
-    struct AsyncReadState
-    {
-      // Protects ledger_alive and active_workers. Workers register before
-      // accessing Ledger and unregister afterwards. Destruction rejects new
-      // registrations and waits for registered workers to finish. Jobs share
-      // this state so queued callbacks can inspect it without accessing a
-      // destroyed Ledger.
-      std::mutex lock;
-      std::condition_variable all_workers_done;
-
-      size_t active_workers = 0;
-      bool ledger_alive = true;
-
-      // Allows tests to pause a registered worker before it accesses Ledger.
-      std::function<void()> test_worker_active_hook;
-    };
-
-    std::shared_ptr<AsyncReadState> async_read_state =
-      std::make_shared<AsyncReadState>();
+    std::shared_ptr<ccf::ds::WorkerShutdownGate> shutdown_gate =
+      std::make_shared<ccf::ds::WorkerShutdownGate>();
 
     [[nodiscard]] auto get_it_contains_idx(size_t idx) const
     {
@@ -1285,10 +1264,7 @@ namespace asynchost
     ~Ledger()
     {
       // Reject queued workers and wait for workers already using this Ledger.
-      std::unique_lock<std::mutex> guard(async_read_state->lock);
-      async_read_state->ledger_alive = false;
-      async_read_state->all_workers_done.wait(
-        guard, [this]() { return async_read_state->active_workers == 0; });
+      shutdown_gate->shutdown_and_wait();
     }
 
     void init(size_t idx, size_t recovery_start_idx_ = 0)
@@ -1713,7 +1689,7 @@ namespace asynchost
       size_t to_idx{};
       size_t max_size{};
 
-      std::shared_ptr<AsyncReadState> async_state;
+      std::shared_ptr<ccf::ds::WorkerShutdownGate> gate;
 
       // First argument is ledger entries (or nullopt if not found)
       // Second argument is uv status code, which may indicate a cancellation
@@ -1729,58 +1705,27 @@ namespace asynchost
     {
       auto* data = static_cast<AsyncLedgerGet*>(req->data);
 
-      struct ActiveWorkerGuard
+      auto gate = data->gate;
+      if (!gate->try_register())
       {
-        std::shared_ptr<AsyncReadState> async_state;
-        bool active = false;
-
-        ActiveWorkerGuard(std::shared_ptr<AsyncReadState> async_state_) :
-          async_state(std::move(async_state_))
-        {}
-
-        void activate()
-        {
-          active = true;
-        }
-
-        ~ActiveWorkerGuard()
-        {
-          if (active)
-          {
-            std::unique_lock<std::mutex> guard(async_state->lock);
-            --async_state->active_workers;
-            async_state->all_workers_done.notify_all();
-          }
-        }
-      };
-
-      auto async_state = data->async_state;
-      ActiveWorkerGuard active_worker(async_state);
-      Ledger* ledger = nullptr;
-      {
-        std::unique_lock<std::mutex> guard(async_state->lock);
-        if (!async_state->ledger_alive)
-        {
-          LOG_DEBUG_FMT(
-            "Skipping async ledger read {} to {} because Ledger is shutting "
-            "down",
-            data->from_idx,
-            data->to_idx);
-          return;
-        }
-
-        // Register before dereferencing data->ledger outside this lock.
-        ++async_state->active_workers;
-        active_worker.activate();
-        ledger = data->ledger;
+        LOG_DEBUG_FMT(
+          "Skipping async ledger read {} to {} because Ledger is shutting "
+          "down",
+          data->from_idx,
+          data->to_idx);
+        return;
       }
 
-      if (async_state->test_worker_active_hook)
+      struct UnregisterGuard
       {
-        async_state->test_worker_active_hook();
-      }
+        std::shared_ptr<ccf::ds::WorkerShutdownGate> g;
+        ~UnregisterGuard()
+        {
+          g->unregister();
+        }
+      } guard{gate};
 
-      data->read_result = ledger->read_entries_range(
+      data->read_result = data->ledger->read_entries_range(
         data->from_idx, data->to_idx, true, data->max_size);
     }
 
@@ -1906,7 +1851,7 @@ namespace asynchost
               job->from_idx = from_idx;
               job->to_idx = to_idx;
               job->max_size = max_entries_size;
-              job->async_state = async_read_state;
+              job->gate = shutdown_gate;
               job->result_cb = [to_enclave_ = to_enclave,
                                 from_idx_ = from_idx,
                                 to_idx_ = to_idx,
