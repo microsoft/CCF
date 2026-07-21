@@ -1728,10 +1728,12 @@ class Network:
         while time.time() < end_time:
             try:
                 with node.client(connection_timeout=timeout) as c:
-                    r = c.get("/node/state").body.json()
-                    if r["state"] in states:
-                        final_state = r["state"]
-                        break
+                    response = c.get("/node/state")
+                    if response.status_code == http.HTTPStatus.OK.value:
+                        body = response.body.json()
+                        if body["state"] in states:
+                            final_state = body["state"]
+                            break
             except ConnectionRefusedError:
                 pass
             except CCFConnectionException:
@@ -1752,9 +1754,11 @@ class Network:
         while time.time() < end_time:
             try:
                 with node.client(connection_timeout=timeout, verify_ca=verify_ca) as c:
-                    r = c.get("/node/network").body.json()
-                    if r["service_status"] in statuses:
-                        break
+                    response = c.get("/node/network")
+                    if response.status_code == http.HTTPStatus.OK.value:
+                        body = response.body.json()
+                        if body["service_status"] in statuses:
+                            break
             except ConnectionRefusedError:
                 pass
             except CCFConnectionException:

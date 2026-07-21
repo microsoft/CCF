@@ -226,7 +226,7 @@ set(
   ${CCF_3RD_PARTY_EXPORTED_DIR}/llhttp/llhttp.c
 )
 
-include(${CCF_DIR}/cmake/cose_openssl.cmake)
+include(${CCF_DIR}/cmake/ccf_rs.cmake)
 include(${CCF_DIR}/cmake/threading.cmake)
 include(${CCF_DIR}/cmake/crypto.cmake)
 include(${CCF_DIR}/cmake/quickjs.cmake)
@@ -709,6 +709,12 @@ if(BUILD_TESTS)
     )
 
     add_unit_test(
+      rpc_connections_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/host/test/rpc_connections.cpp
+    )
+    target_link_libraries(rpc_connections_test PRIVATE uv)
+
+    add_unit_test(
       raft_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/main.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/view_history.cpp
@@ -1044,6 +1050,7 @@ if(BUILD_TESTS)
     add_picobench(logger_bench SRCS src/ds/test/logger_bench.cpp)
     add_picobench(json_bench SRCS src/ds/test/json_bench.cpp)
     add_picobench(ring_buffer_bench SRCS src/ds/test/ring_buffer_bench.cpp)
+    add_picobench(ledger_bench SRCS src/host/test/ledger_bench.cpp)
     add_picobench(crypto_bench SRCS src/crypto/test/bench.cpp LINK_LIBS)
     add_picobench(cose_bench SRCS src/crypto/test/cose_bench.cpp LINK_LIBS)
     add_picobench(

@@ -140,7 +140,8 @@ def test_no_quote(network, args):
         )
     ) as uc:
         r = uc.get("/node/quotes/self")
-        assert r.status_code == http.HTTPStatus.NOT_FOUND
+        assert r.status_code == http.HTTPStatus.SERVICE_UNAVAILABLE, r
+        assert r.body.json()["error"]["code"] == "FrontendNotOpen"
     return network
 
 

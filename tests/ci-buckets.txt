@@ -29,6 +29,7 @@ no_bucket:
   logger_bench
   json_bench
   ring_buffer_bench
+  ledger_bench
   crypto_bench
   cose_bench
   history_bench
