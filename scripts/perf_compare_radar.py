@@ -66,6 +66,7 @@ _CANVAS = "var(--color-canvas-default,var(--bgColor-default,#fff))"
 _BLUE = "#62B5E5"
 _BRANCH_ORANGE = "#F97316"
 _BRANCH_OPACITY_BY_AGE = (1.0, 0.5, 0.4, 0.3, 0.2)
+MAX_BRANCH_RUNS = len(_BRANCH_OPACITY_BY_AGE)
 _BAND_1SIGMA = f"color-mix(in srgb, {_BLUE} 40%, {_CANVAS})"
 _BAND_2SIGMA = f"color-mix(in srgb, {_BLUE} 13%, {_CANVAS})"
 RADAR_THEME_CSS = (
@@ -548,7 +549,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    branch_runs = load_runs(args.branch_directory)
+    branch_runs = load_runs(args.branch_directory)[-MAX_BRANCH_RUNS:]
     if not branch_runs:
         print(
             f"_No benchmark data found for the branch in "
