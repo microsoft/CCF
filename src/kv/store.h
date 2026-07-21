@@ -131,7 +131,6 @@ namespace ccf::kv
       ccf::kv::ConsensusHookPtrs& hooks,
       bool track_deletes_on_missing_keys) override
     {
-      // Publishing newly deserialised maps must exclude concurrent map lookups.
       std::unique_lock<ccf::pal::Mutex> maps_guard(maps_lock, std::defer_lock);
       if (!new_maps.empty())
       {
