@@ -277,8 +277,8 @@ def branch_curve_css(curve_count: int) -> list[str]:
     css: list[str] = []
     for index in range(curve_count):
         is_latest = index == curve_count - 1
-        width = "2.5" if is_latest else "1.25"
-        opacity = 1.0 if curve_count == 1 else 0.2 + (0.8 * index / (curve_count - 1))
+        width = "1.75" if is_latest else "1.5"
+        opacity = 1.0 if curve_count == 1 else 0.5 + (0.5 * index / (curve_count - 1))
         css.append(
             f".radarCurve-{index + 4}{{stroke-width:{width}px!important;"
             f"stroke-opacity:{opacity:.2f}!important}}"
