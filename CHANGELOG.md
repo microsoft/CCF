@@ -21,6 +21,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [7.0.10]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.10
 
+### Added
+
+- Recovery can now use a COSE snapshot signed by an earlier service identity after one or more disaster recoveries. Before deserialising the snapshot, the node derives and validates the previous-service-identity endorsement chain from the public ledger suffix and caches it in an adjacent `.endorsements` sidecar. Invalid or incomplete chains fall back to full-ledger replay, and Python tooling can verify a snapshot plus sidecar against the latest trusted service certificate (#8092).
+
 ### Changed
 
 - `ccf::http::ParsedQuery` (in `include/ccf/http_query.h`), returned by `ccf::http::parse_query()`, is now a `std::multimap<std::string, std::string, std::less<>>` that owns its decoded keys and values, rather than a `std::multimap<std::string_view, std::string_view>` pointing into the source query string. Owned storage is required because each key and value is now URL-decoded individually after splitting, which produces bytes not present in the original query. Application code that consumed the previous `std::string_view` keys/values may need to be updated (#8024).
