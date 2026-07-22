@@ -69,7 +69,7 @@ def run(args):
         LOG.remove()
         LOG.add(
             sys.stdout,
-            format="<green>[{time:HH:mm:ss.SSS}]</green> {message}",
+            format="[{time:HH:mm:ss.SSS}] {message}",
         )
         LOG.disable("infra")
         LOG.disable("ccf")
