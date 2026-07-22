@@ -14,7 +14,7 @@ File: `bencher.yml`
 
 ## Bencher A/B
 
-Builds and runs CCF performance tests on the PR branch, then renders radar charts comparing the branch's latest run against the recent trend on `main`. Two nested shaded bands show the shared seven-run-half-life EWMA baseline +/- 1 and +/- 2 standard deviations of the latest `main` runs (restored from their perf artifacts), and the highlighted line is the branch. Triggered on PRs that have the label `bench-ab`.
+Builds and runs CCF performance tests on the PR branch, then renders radar charts comparing up to five recent branch runs against the recent trend on `main`. Two nested shaded blue bands show the shared seven-run-half-life EWMA baseline +/- 1 and +/- 2 standard deviations of the latest `main` runs. Both branch and `main` histories are restored from cumulative perf artifacts, and the orange branch lines progress from the faintest oldest run to the strongest latest run. Triggered on PRs that have the label `bench-ab`.
 
 File: `bencher-ab.yml`
 3rd party dependencies: None
