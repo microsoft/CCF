@@ -117,6 +117,12 @@ namespace ccf::endpoints
     Historical
   };
 
+  enum class EndpointExecutionMode : uint8_t
+  {
+    KV,
+    Command
+  };
+
   enum QueryParamPresence : uint8_t
   {
     RequiredParameter,
@@ -209,6 +215,8 @@ namespace ccf::endpoints
 
     EndpointProperties properties;
 
+    EndpointExecutionMode execution_mode = EndpointExecutionMode::KV;
+
     /** List of authentication policies which will be checked before executing
      * this endpoint.
      *
@@ -259,6 +267,9 @@ namespace ccf::endpoints
   {
     // Functor which is invoked to process requests for this Endpoint
     EndpointFunction func;
+
+    // Functor which is invoked without constructing a KV transaction
+    CommandEndpointFunction command_func;
 
     // Functor which is invoked to modify the response after it is locally
     // committed (ie - assigned a transaction ID)

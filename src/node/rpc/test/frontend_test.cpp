@@ -211,6 +211,7 @@ public:
     };
     endpoints
       .make_command_endpoint("/command", HTTP_POST, command, no_auth_required)
+      .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
       .install();
 
     auto read_only = [](auto& ctx) {
@@ -966,6 +967,43 @@ TEST_CASE("Alternative endpoints")
     auto response = parse_response(rpc_ctx->serialise_response());
     CHECK(response.status == HTTP_STATUS_OK);
   }
+}
+
+TEST_CASE("KV readiness gate")
+{
+  NetworkState network;
+  prepare_callers(network);
+  TestAlternativeHandlerTypes frontend(*network.tables);
+
+  const auto call = [&frontend](const std::string& path, llhttp_method verb) {
+    ::http::Request request(path, verb);
+    auto rpc_ctx = ccf::make_rpc_context(user_session, request.build_request());
+    frontend.process(rpc_ctx);
+    return parse_response(rpc_ctx->serialise_response());
+  };
+
+  for (const auto readiness :
+       {ccf::kv::StoreReadiness::Unavailable,
+        ccf::kv::StoreReadiness::InstallingSnapshot,
+        ccf::kv::StoreReadiness::Failed})
+  {
+    network.tables->set_readiness(readiness);
+
+    INFO("Transactionless commands remain available");
+    CHECK(call("/command", HTTP_POST).status == HTTP_STATUS_OK);
+
+    INFO("KV-backed endpoints are unavailable");
+    const auto response = call("/read_only", HTTP_GET);
+    CHECK(response.status == HTTP_STATUS_SERVICE_UNAVAILABLE);
+    CHECK(
+      nlohmann::json::parse(response.body)["error"]["code"] ==
+      ccf::errors::FrontendNotOpen);
+  }
+
+  network.tables->set_readiness(ccf::kv::StoreReadiness::Ready);
+
+  INFO("KV-backed dispatch resumes when the Store is ready");
+  CHECK(call("/read_only", HTTP_GET).status == HTTP_STATUS_OK);
 }
 
 TEST_CASE("Templated paths")

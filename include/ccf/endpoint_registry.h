@@ -249,8 +249,13 @@ namespace ccf::endpoints
 
     virtual void init_handlers();
 
+    EndpointDefinitionPtr find_endpoint_without_kv(ccf::RpcContext& rpc_ctx);
+
     virtual EndpointDefinitionPtr find_endpoint(
       [[maybe_unused]] ccf::kv::Tx& tx, ccf::RpcContext& rpc_ctx);
+
+    void execute_command_endpoint(
+      EndpointDefinitionPtr e, CommandEndpointContext& ctx);
 
     virtual void execute_endpoint(
       EndpointDefinitionPtr e, EndpointContext& ctx);
