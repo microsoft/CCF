@@ -119,13 +119,6 @@ class HttpSig(httpx.Auth):
         yield request
 
 
-loguru_tag_regex = re.compile(r"\\?</?((?:[fb]g\s)?[^<>\s]*)>")
-
-
-def escape_loguru_tags(s):
-    return loguru_tag_regex.sub(lambda match: f"\\{match[0]}", s)
-
-
 def truncate(string: str, max_len: int = 256):
     if len(string) > max_len:
         return f"{string[: max_len]} + {len(string) - max_len} chars"
@@ -157,14 +150,14 @@ class Request:
     headers: dict
 
     def __str__(self):
-        string = f"<cyan>{self.http_verb}</> <green>{self.path}</>"
+        string = f"{self.http_verb} {self.path}"
         if self.headers:
-            string += f" <blue>{truncate(str(self.headers), max_len=25)}</>"
+            string += f" {truncate(str(self.headers), max_len=25)}"
         if self.body is not None:
             if self.headers.get("content-type") in BINARY_CONTENT_TYPES:
                 string += f"<binary: {len(self.body)} bytes>"
             else:
-                string += escape_loguru_tags(f' {truncate(f"{self.body}")}')
+                string += f" {truncate(str(self.body))}"
 
         return string
 
@@ -266,28 +259,17 @@ class Response:
         versioned = (self.view, self.seqno) != (None, None)
         status_category = self.status_code // 100
         redirect = status_category == 3
-        status_color = (
-            "red" if status_category in (4, 5) else "yellow" if redirect else "green"
-        )
 
         if self.headers.get("content-type") in BINARY_CONTENT_TYPES:
             body_s = f"<binary: {len(self.body)} bytes>"
         else:
-            body_s = escape_loguru_tags(truncate(str(self.body)))
-
-        # Body can't end with a \, or it will escape the loguru closing tag
-        if len(body_s) > 0 and body_s[-1] == "\\":
-            body_s += " "
+            body_s = truncate(str(self.body))
 
         return (
-            f"<{status_color}>{self.status_code}</> "
-            + (
-                f"<yellow>[Redirect to -> {self.headers.get('location')}]</> "
-                if redirect
-                else ""
-            )
-            + (f"@<magenta>{self.view}.{self.seqno}</> " if versioned else "")
-            + f"<yellow>{body_s}</>"
+            f"{self.status_code} "
+            + (f"[Redirect to -> {self.headers.get('location')}] " if redirect else "")
+            + (f"@{self.view}.{self.seqno} " if versioned else "")
+            + body_s
         )
 
     @staticmethod
