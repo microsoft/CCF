@@ -1,0 +1,36 @@
+.vscode/
+target/
+dist/
+pkg/
+
+# Python bytecode cache
+__pycache__/
+*.pyc
+
+# COSE C FFI demo CMake/Ninja build outputs
+demos/cose-c-ffi/build/
+demos/cose-c-ffi/build-static/
+demos/cose-c-ffi/CMakeFiles/
+demos/cose-c-ffi/CMakeCache.txt
+demos/cose-c-ffi/cmake_install.cmake
+demos/cose-c-ffi/build.ninja
+demos/cose-c-ffi/.ninja_deps
+demos/cose-c-ffi/.ninja_log
+
+# C FFI demo CMake/Ninja build outputs
+demos/c-ffi/build/
+demos/c-ffi/build-static/
+demos/c-ffi/CMakeFiles/
+demos/c-ffi/CMakeCache.txt
+demos/c-ffi/cmake_install.cmake
+demos/c-ffi/build.ninja
+demos/c-ffi/.ninja_deps
+demos/c-ffi/.ninja_log
+demos/caci-c-ffi/build/
+demos/caci-c-ffi/build-static/
+demos/caci-c-ffi/CMakeFiles/
+demos/caci-c-ffi/CMakeCache.txt
+demos/caci-c-ffi/cmake_install.cmake
+demos/caci-c-ffi/build.ninja
+demos/caci-c-ffi/.ninja_deps
+demos/caci-c-ffi/.ninja_log

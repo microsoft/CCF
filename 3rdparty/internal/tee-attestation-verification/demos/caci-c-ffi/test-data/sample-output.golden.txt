@@ -1,0 +1,34 @@
+Confidential CACI attestation verified.
+verified_report_data
+  deadbeef000000000000000000000000
+  00000000000000000000000000000000
+  00000000000000000000000000000000
+  00000000000000000000000000000000
+verified_snp_attestation
+  host_data
+    4f4448c67f3c8dfc8de8a5e37125d807
+    dadcc41f06cf23f615dbd52eec777d10
+  report_data
+    deadbeef000000000000000000000000
+    00000000000000000000000000000000
+    00000000000000000000000000000000
+    00000000000000000000000000000000
+  measurement
+    6d6c354511d6f7c6d7504668903dc5bd
+    c066a048b651840d8d03fb85299ebfa1
+    42fccf1d1b0baca496841bdf243619d4
+  reported_tcb
+    04000000000018db
+verified_uvm_endorsement
+  content_type: application/json
+  feed: ContainerPlat-AMD-UVM
+policy_digest_count
+  1
+minimum_tcb
+  cpuid: 0x00a00f11
+  tcb
+    04000000000018db
+uvm_feed
+  ContainerPlat-AMD-UVM
+minimum_svn
+  104
