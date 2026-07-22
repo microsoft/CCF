@@ -1,0 +1,87 @@
+# Reproduce https://github.com/microsoft/CCF/issues/5891.
+#
+# Node 1 first votes for itself in term 3. Node 2 wins the same term with votes
+# from nodes 0 and 4, then sends node 1 an AppendEntries that node 1 cannot
+# match. Node 1 steps down but does not learn the leader because it rejects the
+# AppendEntries. A delayed vote request from node 3 then causes node 1 to vote
+# a second time in term 3.
+pre_vote_enabled,false
+
+start_node,0
+emit_signature,2
+
+trust_nodes,2,1,2,3,4
+emit_signature,2
+
+# Bring every node to the same committed prefix.
+periodic_all,10
+dispatch_all
+periodic_all,10
+dispatch_all
+periodic_all,10
+dispatch_all
+assert_state_sync
+assert_commit_idx,0,4
+
+# Give future leader node 2 a longer, uncommitted signature suffix. It retains
+# this committable entry when elected, so its first heartbeat will refer to
+# index 5, which node 1 does not have.
+emit_signature,2
+periodic_one,0,10
+dispatch_single,0,2
+assert_last_txid,1,2.4
+assert_last_txid,2,2.5
+
+# Remove the other replication messages and node 2's response so that the
+# election message ordering below is explicit.
+drop_pending,0
+drop_pending,2
+
+# Nodes 1, 2, and 3 all become candidates in term 3 and vote for themselves.
+periodic_one,1,100
+periodic_one,2,100
+periodic_one,3,100
+assert_detail,1,leadership_state,Candidate
+assert_detail,2,leadership_state,Candidate
+assert_detail,3,leadership_state,Candidate
+assert_detail,1,current_view,3
+assert_detail,2,current_view,3
+assert_detail,3,current_view,3
+
+# Retain only the vote requests needed for this reproduction.
+drop_pending_to,1,0
+drop_pending_to,1,2
+drop_pending_to,1,4
+drop_pending_to,2,3
+drop_pending_to,3,0
+drop_pending_to,3,2
+drop_pending_to,3,4
+
+# Nodes 0 and 4 elect node 2 as leader of term 3.
+dispatch_single,2,0
+dispatch_single,0,2
+dispatch_single,2,4
+dispatch_single,4,2
+assert_detail,2,leadership_state,Leader
+assert_detail,2,current_view,3
+
+# Retain only node 2's request and unmatched AppendEntries to node 1.
+drop_pending_to,2,0
+drop_pending_to,2,3
+drop_pending_to,2,4
+
+# Node 1 first rejects node 2's queued vote request because it already voted
+# for itself. It then receives node 2's unmatched AppendEntries and steps down.
+dispatch_single,2,1
+assert_detail,1,leadership_state,Candidate
+dispatch_single,2,1
+assert_detail,1,leadership_state,Follower
+assert_detail,1,current_view,3
+assert_last_txid,1,2.4
+
+# Node 1 now grants node 3's delayed vote request in the same term. Deliver the
+# older request from node 1 first, followed by this second granted vote.
+dispatch_single,3,1
+drop_pending_to,1,2
+dispatch_single,1,3
+dispatch_single,1,3
