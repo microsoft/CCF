@@ -1,0 +1,14 @@
+[package]
+name = "ccf-rs"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["staticlib"]
+
+[dependencies]
+cose-rs = { path = "../cose/cose_rs" }
+
+[profile.release]
+lto = true
+codegen-units = 1

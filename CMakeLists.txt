@@ -226,7 +226,7 @@ set(
   ${CCF_3RD_PARTY_EXPORTED_DIR}/llhttp/llhttp.c
 )
 
-include(${CCF_DIR}/cmake/cose_openssl.cmake)
+include(${CCF_DIR}/cmake/ccf_rs.cmake)
 include(${CCF_DIR}/cmake/threading.cmake)
 include(${CCF_DIR}/cmake/crypto.cmake)
 include(${CCF_DIR}/cmake/quickjs.cmake)
@@ -701,6 +701,12 @@ if(BUILD_TESTS)
       files_cleanup_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/host/test/files_cleanup_test.cpp
     )
+
+    add_unit_test(
+      rpc_connections_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/host/test/rpc_connections.cpp
+    )
+    target_link_libraries(rpc_connections_test PRIVATE uv)
 
     add_unit_test(
       raft_test
