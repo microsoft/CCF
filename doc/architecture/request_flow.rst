@@ -28,8 +28,9 @@ This is the simple, usual flow, where the request is submitted to a primary node
       NetStack->>NetStack: TLS decrypt request
       NetStack->>NetStack: HTTP parse request
       NetStack->>+Frontend: Frontend Dispatch
+      Frontend->>Frontend: is_open()
+      Frontend->>Frontend: Store is Ready
       note left of Frontend: Tx is created here
-      Frontend->>Frontend: is_open(tx)
       Frontend->>App: find_endpoint(tx, ctx)
       App->>App: h = find_handler_for(tx, ctx)
       App-->>Frontend: return h
@@ -82,8 +83,9 @@ When follower A receives the forwarded response, it writes this to the TLS sessi
       NetStackA->>NetStackA: TLS decrypt request
       NetStackA->>NetStackA: HTTP parse request
       NetStackA->>+FrontendA: Frontend Dispatch
+      FrontendA->>FrontendA: is_open()
+      FrontendA->>FrontendA: Store is Ready
       note left of FrontendA: Tx is created here
-      FrontendA->>FrontendA: is_open(tx)
       FrontendA->>FrontendA: find_endpoint(tx, ctx)
       FrontendA->>FrontendA: get_authenticated_identity(tx, ctx)
       FrontendA->>-FrontendA: forward?
@@ -101,8 +103,9 @@ When follower A receives the forwarded response, it writes this to the TLS sessi
       note over N2NB,KV: Inside CCF node B
       N2NB->>N2NB: N2N parse
       N2NB->>+FrontendB: Frontend Dispatch
+      FrontendB->>FrontendB: is_open()
+      FrontendB->>FrontendB: Store is Ready
       note left of FrontendB: Tx is created here
-      FrontendB->>FrontendB: is_open(tx)
       FrontendB->>App: find_endpoint(tx, ctx)
       App->>App: h = find_handler_for(tx, ctx)
       App-->>FrontendB: return h
@@ -216,8 +219,9 @@ The result is that the user's interaction is unchanged - they send a HTTPS reque
       NetStack->>NetStack: HTTP parse request
       NetStack->>Frontend: Frontend Dispatch
       activate Frontend
+      Frontend->>Frontend: is_open()
+      Frontend->>Frontend: Store is Ready
       note left of Frontend: tx1 is created here
-      Frontend->>Frontend: is_open(tx1)
       Frontend->>App: find_endpoint(tx1, ctx)
       App->>App: e = find_executor_for(ctx)
       App-->>Frontend: return e
@@ -240,7 +244,9 @@ The result is that the user's interaction is unchanged - they send a HTTPS reque
       NetStack->>NetStack: HTTP parse request
       NetStack->>Frontend: Frontend Dispatch
       activate Frontend
-      Frontend->>Frontend: is_open(tx2)
+      Frontend->>Frontend: is_open()
+      Frontend->>Frontend: Store is Ready
+      note left of Frontend: tx2 is created here
       Frontend->>App: find_endpoint(tx2, ctx)
       App->>App: h = find_handler_for(tx2, ctx)
       App-->>Frontend: return h

@@ -140,7 +140,8 @@ def test_no_quote(network, args):
         )
     ) as uc:
         r = uc.get("/node/quotes/self")
-        assert r.status_code == http.HTTPStatus.NOT_FOUND
+        assert r.status_code == http.HTTPStatus.SERVICE_UNAVAILABLE, r
+        assert r.body.json()["error"]["code"] == "FrontendNotOpen"
     return network
 
 
@@ -572,7 +573,7 @@ def gov(args):
 # requirements, so are run in a standalone network
 def single_node(args):
     def test_desc(s):
-        LOG.opt(colors=True).info(f"<magenta>Test: {s}</>")
+        LOG.info(f"Test: {s}")
 
     test_desc("Node data on start node")
     with tempfile.NamedTemporaryFile(mode="w+") as ntf:

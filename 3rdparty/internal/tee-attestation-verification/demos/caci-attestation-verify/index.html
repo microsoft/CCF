@@ -1,0 +1,84 @@
+<!--
+  Copyright (c) Microsoft Corporation.
+  Licensed under the MIT License.
+
+  Minimal browser demo for the WASM build of tee-attestation-verification-ffi.
+-->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Confidential CACI verify (WASM demo)</title>
+  <style>
+    body { font-family: sans-serif; margin: 2em; max-width: 960px; }
+    fieldset { margin-bottom: 1em; }
+    legend { font-weight: bold; }
+    label { display: block; margin: 0.3em 0; }
+    textarea { width: 100%; box-sizing: border-box; font-family: monospace; }
+    input[type=file] { margin-right: 0.5em; }
+    input[type=text], input[type=number] { font-family: monospace; }
+    button { font-size: 1em; padding: 0.4em 1em; }
+    #status { margin: 1em 0; font-family: monospace; white-space: pre-wrap; }
+    #status.ok { color: #060; }
+    #status.err { color: #a00; }
+    pre#output {
+      font-family: ui-monospace, Menlo, Consolas, monospace;
+      background: #f5f5f5;
+      padding: 1em;
+      overflow-x: auto;
+      white-space: pre;
+    }
+  </style>
+</head>
+<body>
+  <h1>Confidential CACI execution policy verification (WASM demo)</h1>
+  <p>
+    Loads an attestation report, host AMD certificate bundle, UVM endorsement,
+    and relying-party policy, then calls the staged CACI WASM bindings. On
+    success, the verified <code>REPORT_DATA</code> is returned.
+  </p>
+  <p>
+    <button type="button" id="load-example">Load good example from manifest</button>
+  </p>
+
+  <form id="caci-form">
+    <fieldset>
+      <legend>Attestation report (binary, 1184 bytes)</legend>
+      <input type="file" id="report-file" accept=".bin,application/octet-stream" />
+      <label>Hex (populated from file, or paste directly; whitespace ignored):</label>
+      <textarea id="report-hex" rows="4" placeholder="e.g. 03000000..."></textarea>
+    </fieldset>
+
+    <fieldset>
+      <legend>AMD certificate bundle (host-amd-cert-base64)</legend>
+      <input type="file" id="amd-bundle-file" accept=".base64,.txt,text/plain" />
+      <textarea id="amd-bundle-text" rows="6" placeholder="base64-encoded host AMD cert JSON"></textarea>
+    </fieldset>
+
+    <fieldset>
+      <legend>UVM endorsement COSE (base64)</legend>
+      <input type="file" id="uvm-file" accept=".base64,.cose,.txt,text/plain" />
+      <textarea id="uvm-text" rows="6" placeholder="base64-encoded UVM endorsement COSE"></textarea>
+    </fieldset>
+
+    <fieldset>
+      <legend>Relying-party policy</legend>
+      <label>Trusted security policy SHA-256 / HOST_DATA values (hex, one 32-byte digest per line):</label>
+      <textarea id="policy-hex" rows="3" placeholder="64 hex characters per line"></textarea>
+      <label>Minimum TCB JSON (optional, CPUID hex -> TCB hex):</label>
+      <textarea id="minimum-tcb-json" rows="3" placeholder='{"00a00f11":"04000000000018db"}'></textarea>
+      <label>UVM feed:</label>
+      <input id="feed" type="text" size="40" value="ContainerPlat-AMD-UVM" />
+      <label>Minimum UVM SVN:</label>
+      <input id="minimum-svn" type="number" min="0" value="104" />
+    </fieldset>
+
+    <button type="submit">Verify CACI execution policy</button>
+  </form>
+
+  <div id="status"></div>
+  <pre id="output"></pre>
+
+  <script type="module" src="./demo.js"></script>
+</body>
+</html>

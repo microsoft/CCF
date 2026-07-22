@@ -1,0 +1,205 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "tav-*"
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prepare_release:
+    name: Prepare release
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.prepare.outputs.tag }}
+      version: ${{ steps.prepare.outputs.version }}
+      commit_sha: ${{ steps.prepare.outputs.commit_sha }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+
+      - name: Validate tag and version
+        id: prepare
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          candidate_tag="${GITHUB_REF_NAME}"
+
+          if [[ ! "${candidate_tag}" =~ ^tav-.+$ ]]; then
+            echo "Release tags must use the tav-<version> format, got: ${candidate_tag}" >&2
+            exit 1
+          fi
+
+          commit_sha=$(git rev-parse "refs/tags/${candidate_tag}^{commit}")
+          normalized_version="${candidate_tag#tav-}"
+
+          for manifest in attestation/Cargo.toml caci/Cargo.toml cose/Cargo.toml crypto/Cargo.toml ffi/Cargo.toml; do
+            manifest_version=$(git show "${commit_sha}:${manifest}" | python3 -c 'import sys, tomllib; print(tomllib.load(sys.stdin.buffer)["package"]["version"])')
+
+            if [[ "${manifest_version}" != "${normalized_version}" ]]; then
+              echo "Tag ${candidate_tag} does not match ${manifest} version ${manifest_version}" >&2
+              exit 1
+            fi
+          done
+
+          echo "tag=${candidate_tag}" >> "${GITHUB_OUTPUT}"
+          echo "version=${normalized_version}" >> "${GITHUB_OUTPUT}"
+          echo "commit_sha=${commit_sha}" >> "${GITHUB_OUTPUT}"
+
+  ci:
+    name: Workspace CI
+    needs: prepare_release
+    uses: ./.github/workflows/ci.yml
+
+  ci-attestation:
+    name: Attestation CI
+    needs: prepare_release
+    uses: ./.github/workflows/ci-attestation.yml
+
+  ci-caci:
+    name: CACI attestation verification CI
+    needs: prepare_release
+    uses: ./.github/workflows/ci-caci.yml
+
+  ci-cose:
+    name: COSE CI
+    needs: prepare_release
+    uses: ./.github/workflows/ci-cose.yml
+
+  ci-crypto:
+    name: Crypto CI
+    needs: prepare_release
+    uses: ./.github/workflows/ci-crypto.yml
+
+  ci-demo:
+    name: Demo CI
+    needs: prepare_release
+    uses: ./.github/workflows/ci-demo.yml
+
+  ci-ffi:
+    name: FFI CI
+    needs: prepare_release
+    uses: ./.github/workflows/ci-ffi.yml
+
+  package_wasm:
+    name: Package WASM artifacts
+    runs-on: ubuntu-latest
+    needs: prepare_release
+    env:
+      VERSION: ${{ needs.prepare_release.outputs.version }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ needs.prepare_release.outputs.commit_sha }}
+
+      - name: Install rust
+        shell: bash
+        run: |
+          rustup update stable
+          rustup default stable
+
+      - name: Setup WASM tooling
+        shell: bash
+        run: |
+          rustup target add wasm32-unknown-unknown
+          cargo install wasm-pack --version 0.13.1 --locked
+
+      - name: Build tav-wasm bundle with WebCrypto crypto
+        shell: bash
+        working-directory: ffi
+        run: |
+          set -euo pipefail
+
+          mkdir -p ../dist/tav-wasm ../release-artifacts
+
+          wasm-pack build \
+            --target web \
+            --release \
+            --out-dir ../dist/tav-wasm \
+            --no-default-features \
+            --features "crypto_webcrypto"
+
+          tar -C ../dist -czf "../release-artifacts/tav-wasm-${VERSION}.tar.gz" tav-wasm
+
+      - name: Capture build toolchain info
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p release-artifacts
+          {
+            echo "# Build toolchain used for TAV WASM release artifacts"
+            echo "version: ${VERSION}"
+            echo "commit: ${{ needs.prepare_release.outputs.commit_sha }}"
+            echo
+            echo "## rustc"
+            rustc --version --verbose
+            echo
+            echo "## cargo"
+            cargo --version --verbose
+            echo
+            echo "## wasm-pack"
+            wasm-pack --version
+          } > release-artifacts/BUILD-INFO.txt
+
+          cat release-artifacts/BUILD-INFO.txt
+
+      - name: Generate release artifact checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          (
+            cd release-artifacts
+            sha256sum "tav-wasm-${VERSION}.tar.gz" BUILD-INFO.txt > SHA256SUMS
+          )
+
+      - name: Upload WASM release artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-artifacts
+          path: release-artifacts/*
+
+  create_release:
+    name: Create release
+    runs-on: ubuntu-latest
+    needs:
+      - prepare_release
+      - ci
+      - ci-attestation
+      - ci-caci
+      - ci-cose
+      - ci-crypto
+      - ci-demo
+      - ci-ffi
+      - package_wasm
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ needs.prepare_release.outputs.commit_sha }}
+
+      - name: Download release artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-artifacts
+          path: dist
+
+      - name: Create draft GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.prepare_release.outputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create --verify-tag --draft --generate-notes "${RELEASE_TAG}" dist/*

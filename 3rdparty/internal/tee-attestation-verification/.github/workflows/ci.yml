@@ -1,0 +1,67 @@
+name: "Workspace CI"
+
+on:
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  version-sync:
+    name: Version sync
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Check Cargo versions match changelog
+        run: python3 scripts/check-version-sync.py --root-path "${{ github.workspace }}"
+
+  license-headers:
+    name: License headers
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Check license headers
+        run: scripts/check-license-headers.sh "${{ github.workspace }}"
+
+  format:
+    name: Format check
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Install rust
+        run: |
+          rustup update stable && rustup default stable
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+  docs-build:
+    name: Docs build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Install rust
+        run: |
+          rustup update stable && rustup default stable
+
+      - name: Setup WASM tooling
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Native build docs
+        run: cargo doc -p tee-attestation-verification-lib
+
+      - name: WASM build docs
+        run: cargo doc -p tee-attestation-verification-lib --target wasm32-unknown-unknown

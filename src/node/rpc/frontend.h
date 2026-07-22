@@ -125,7 +125,7 @@ namespace ccf
       const endpoints::EndpointDefinitionPtr& endpoint)
     {
       auto interface_id = ctx->get_session_context()->interface_id;
-      if ((consensus != nullptr) && interface_id)
+      if (interface_id)
       {
         if (!node_configuration_subsystem)
         {
@@ -213,8 +213,8 @@ namespace ccf
       }
       else
       {
-        // internal or forwarded: OK because they have been checked by the
-        // forwarder (forward() happens further down).
+        // Internal or forwarded requests have no interface ID. Forwarded
+        // requests have already been checked by the forwarder.
       }
 
       return true;
@@ -646,6 +646,65 @@ namespace ccf
       }
     }
 
+    void process_command_without_kv(
+      std::shared_ptr<ccf::RpcContextImpl> ctx,
+      endpoints::EndpointDefinitionPtr& endpoint,
+      size_t& attempts)
+    {
+      try
+      {
+        endpoint = endpoints.find_endpoint_without_kv(*ctx);
+        if (
+          endpoint == nullptr ||
+          endpoint->execution_mode !=
+            endpoints::EndpointExecutionMode::Command ||
+          !endpoint->authn_policies.empty() ||
+          endpoint->properties.forwarding_required !=
+            endpoints::ForwardingRequired::Never)
+        {
+          ctx->set_error(
+            HTTP_STATUS_SERVICE_UNAVAILABLE,
+            ccf::errors::FrontendNotOpen,
+            "KV store is not ready.");
+          return;
+        }
+
+        if (!check_uri_allowed(ctx, endpoint))
+        {
+          return;
+        }
+
+        ++attempts;
+        endpoints::CommandEndpointContext args(ctx);
+        endpoints.execute_command_endpoint(endpoint, args);
+      }
+      catch (RpcException& e)
+      {
+        ctx->clear_response_headers();
+        ctx->set_error(std::move(e.error));
+      }
+      catch (const ccf::JsonParseError& e)
+      {
+        ctx->clear_response_headers();
+        ctx->set_error(
+          HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidInput, e.describe());
+      }
+      catch (const nlohmann::json::exception& e)
+      {
+        ctx->clear_response_headers();
+        ctx->set_error(
+          HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidInput, e.what());
+      }
+      catch (const std::exception& e)
+      {
+        ctx->clear_response_headers();
+        ctx->set_error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::InternalError,
+          e.what());
+      }
+    }
+
     // NOLINTNEXTLINE(readability-function-cognitive-complexity)
     void process_command_inner(
       std::shared_ptr<ccf::RpcContextImpl> ctx,
@@ -655,6 +714,26 @@ namespace ccf
       constexpr auto max_attempts = 30;
       while (attempts < max_attempts)
       {
+        if (!is_open())
+        {
+          ctx->set_error(
+            HTTP_STATUS_NOT_FOUND,
+            ccf::errors::FrontendNotOpen,
+            "Frontend is not open.");
+          return;
+        }
+
+        if (!tables.is_ready())
+        {
+          process_command_without_kv(ctx, endpoint, attempts);
+          return;
+        }
+
+        // Readiness is published after consensus setup. Refresh only after the
+        // acquire above so this request cannot proceed with pre-publication
+        // cached state.
+        update_consensus();
+
         if (consensus != nullptr)
         {
           if (
@@ -677,15 +756,6 @@ namespace ccf
           // If the endpoint has already been executed, the effects of its
           // execution should be dropped
           ctx->reset_response();
-        }
-
-        if (!is_open())
-        {
-          ctx->set_error(
-            HTTP_STATUS_NOT_FOUND,
-            ccf::errors::FrontendNotOpen,
-            "Frontend is not open.");
-          return;
         }
 
         ++attempts;

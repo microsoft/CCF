@@ -23,7 +23,7 @@ SMALL_FIGURE_SIZE = (4, 2)
 LOG.remove()
 LOG.add(
     sys.stdout,
-    format="<green>[{time:HH:mm:ss.SSS}]</green> {message}",
+    format="[{time:HH:mm:ss.SSS}] {message}",
 )
 
 
@@ -339,7 +339,7 @@ class Analyze:
             LOG.remove()
             LOG.add(
                 sys.stdout,
-                format="<red>[ERROR]:</red> {message}",
+                format="[ERROR]: {message}",
             )
 
             LOG.error(

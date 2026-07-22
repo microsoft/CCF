@@ -1,0 +1,31 @@
+name: "COSE CI"
+
+on:
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+
+concurrency:
+  group: ci-cose-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  native:
+    name: Native build and test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Install rust
+        run: |
+          rustup update stable && rustup default stable
+
+      - name: Build native with pure-Rust backend
+        run: cargo build --manifest-path cose/Cargo.toml --no-default-features --features "crypto_pure_rust"
+
+      - name: Test native with pure-Rust backend
+        run: cargo test --manifest-path cose/Cargo.toml --no-default-features --features "crypto_pure_rust" -- --nocapture

@@ -1,0 +1,55 @@
+version                               3
+guest_svn                             2
+policy                                0x000000000003001f
+  policy_abi_minor                    31
+  policy_abi_major                    0
+  policy_smt                          true
+  policy_migrate_ma                   false
+  policy_debug                        false
+  policy_single_socket                false
+  policy_cxl_allow                    false
+  policy_mem_aes_256_xts              false
+  policy_rapl_dis                     false
+  policy_ciphertext_hiding_dram       false
+  policy_page_swap_disable            false
+vmpl                                  0
+signature_algo                        1
+platform_info                         0x0000000000000025
+flags                                 0x00000000
+  flags_author_key_en                 false
+  flags_mask_chip_key                 false
+  flags_signing_key                   0
+cpuid_fam_id                          25
+cpuid_mod_id                          1
+cpuid_step                            1
+current_build                         29
+current_minor                         55
+current_major                         1
+committed_build                       29
+committed_minor                       55
+committed_major                       1
+family_id                             01000000000000000000000000000000
+image_id                              02000000000000000000000000000000
+platform_version                      04000000000018db
+report_data                           00000000000000000000000000000000  00000000000000000000000000000000
+                                      00000000000000000000000000000000  00000000000000000000000000000000
+measurement                           5feee30d6d7e1a29f403d70a4198237d  dfb13051a2d6976439487c609388ed7f
+                                      98189887920ab2fa0096903a0c23fca1
+host_data                             4f4448c67f3c8dfc8de8a5e37125d807  dadcc41f06cf23f615dbd52eec777d10
+id_key_digest                         0ad79ceb0b648b0e6a90d8aa9f6ea24c  33a968b6632085353145e8b19a4741a2
+                                      dab9ba342e13be4fc0d225e889cc1a58
+author_key_digest                     00000000000000000000000000000000  00000000000000000000000000000000
+                                      00000000000000000000000000000000
+report_id                             5e01036273418d910bdca3f5cb9c7d84  9e88e2141483eb6cc9afd794ffbbbcbc
+report_id_ma                          ffffffffffffffffffffffffffffffff  ffffffffffffffffffffffffffffffff
+reported_tcb                          04000000000018db
+chip_id                               4ffb5cb4fd594f3fee6528fc3fb10370  bb38abe89dcd5ba2cf0ab6a11df2ca28
+                                      2add516bef45a890a8c9f9732bdca68f  9f3f16c42e846030a800295dbeb19ba5
+committed_tcb                         04000000000018db
+launch_tcb                            04000000000018db
+signature_r                           c4c97ce68cfa7fe769a569fc55cee5ad  38b238a4e1db928436a006b76e9a5885
+                                      851d13c88892e5ffd93f3e1cf853f3b7  00000000000000000000000000000000
+                                      0000000000000000
+signature_s                           1e739e881fffadfeab34e3fb205ff0a5  d8992496d0fb390a18baa725de048253
+                                      e664e519b8f38309061b4af2a3e69f53  00000000000000000000000000000000
+                                      0000000000000000

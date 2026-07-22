@@ -42,10 +42,10 @@ class CCFFuzzLogger(boofuzz.IFuzzLogger):
         self._store_line(f" Test step: {description}")
 
     def log_send(self, data):
-        self._store_line(infra.clients.escape_loguru_tags(f"  Sent: {data}"))
+        self._store_line(f"  Sent: {data}")
 
     def log_recv(self, data):
-        self._store_line(infra.clients.escape_loguru_tags(f"  Received: {data}"))
+        self._store_line(f"  Received: {data}")
 
     def log_check(self, description):
         self._store_line(f"  Checking: {description}")

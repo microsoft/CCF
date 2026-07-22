@@ -579,6 +579,12 @@ namespace ccf
     void set_startup_snapshot(
       ccf::kv::Version snapshot_seqno, std::vector<uint8_t>&& snapshot_data)
     {
+      if (network.tables->get_readiness() == ccf::kv::StoreReadiness::Failed)
+      {
+        throw std::logic_error(
+          "Cannot install a startup snapshot after Store failure");
+      }
+
       startup_snapshot_info = std::make_unique<StartupSnapshotInfo>(
         snapshot_seqno, std::move(snapshot_data));
 
@@ -600,21 +606,31 @@ namespace ccf
         const auto segments = separate_segments(startup_snapshot_info->raw);
 
         ccf::kv::ConsensusHookPtrs hooks;
-        deserialise_snapshot(
-          network.tables,
-          segments,
-          hooks,
-          &view_history,
-          true /* public_only */);
-
+        network.tables->set_readiness(
+          ccf::kv::StoreReadiness::InstallingSnapshot);
+        try
         {
-          auto tx = network.tables->create_read_only_tx();
-          auto status =
-            tx.ro<SnapshotStatusValue>(Tables::SNAPSHOT_STATUS)->get();
-          if (status.has_value())
+          deserialise_snapshot(
+            network.tables,
+            segments,
+            hooks,
+            &view_history,
+            true /* public_only */);
+
           {
-            snapshotter->init_from_snapshot_status(status.value());
+            auto tx = network.tables->create_read_only_tx();
+            auto status =
+              tx.ro<SnapshotStatusValue>(Tables::SNAPSHOT_STATUS)->get();
+            if (status.has_value())
+            {
+              snapshotter->init_from_snapshot_status(status.value());
+            }
           }
+        }
+        catch (...)
+        {
+          network.tables->set_readiness(ccf::kv::StoreReadiness::Failed);
+          throw;
         }
       }
     }
@@ -638,7 +654,9 @@ namespace ccf
       rpcsessions(std::move(rpcsessions)),
       share_manager(network.ledger_secrets),
       recovery_decision_protocol(this)
-    {}
+    {
+      network.tables->set_readiness(ccf::kv::StoreReadiness::Unavailable);
+    }
 
     QuoteVerificationResult verify_quote(
       ccf::kv::ReadOnlyTx& tx,
@@ -703,6 +721,11 @@ namespace ccf
     //
     void launch_node()
     {
+      if (network.tables->get_readiness() == ccf::kv::StoreReadiness::Failed)
+      {
+        throw std::logic_error("Cannot relaunch node after Store failure");
+      }
+
       auto measurement = AttestationProvider::get_measurement(quote_info);
       if (measurement.has_value())
       {
@@ -847,6 +870,7 @@ namespace ccf
           // Use endorsements retrieved from file, if available
           if (config.attestation.environment.snp_endorsements.has_value())
           {
+            bool loaded_endorsements = false;
             try
             {
               const auto raw_data = ccf::crypto::raw_from_b64(
@@ -879,7 +903,10 @@ namespace ccf
                   "Using SNP endorsements loaded from file, endorsing TCB {}",
                   tcb_as_hex);
 
-                auto& endorsements_pem = quote_info.endorsements;
+                std::vector<uint8_t> endorsements_pem;
+                endorsements_pem.reserve(
+                  aci_endorsements.vcek_cert.size() +
+                  aci_endorsements.certificate_chain.size());
                 endorsements_pem.insert(
                   endorsements_pem.end(),
                   aci_endorsements.vcek_cert.begin(),
@@ -888,17 +915,8 @@ namespace ccf
                   endorsements_pem.end(),
                   aci_endorsements.certificate_chain.begin(),
                   aci_endorsements.certificate_chain.end());
-
-                try
-                {
-                  launch_node();
-                  return;
-                }
-                catch (const std::exception& e)
-                {
-                  LOG_FAIL_FMT("Failed to launch node: {}", e.what());
-                  throw;
-                }
+                quote_info.endorsements = std::move(endorsements_pem);
+                loaded_endorsements = true;
               }
               else
               {
@@ -917,6 +935,20 @@ namespace ccf
               LOG_FAIL_FMT(
                 "Error attempting to use SNP endorsements from file: {}",
                 e.what());
+            }
+
+            if (loaded_endorsements)
+            {
+              try
+              {
+                launch_node();
+                return;
+              }
+              catch (const std::exception& e)
+              {
+                LOG_FAIL_FMT("Failed to launch node: {}", e.what());
+                throw;
+              }
             }
           }
 
@@ -985,7 +1017,6 @@ namespace ccf
         config.node_certificate.initial_validity_days);
 
       accept_node_tls_connections();
-      open_frontend(ActorsType::nodes);
 
       // Signatures are only emitted on a timer once the public ledger has been
       // recovered
@@ -993,7 +1024,7 @@ namespace ccf
       setup_snapshotter();
       setup_encryptor();
 
-      initiate_quote_generation();
+      open_frontend(ActorsType::nodes);
 
       switch (start_type)
       {
@@ -1015,11 +1046,17 @@ namespace ccf
           // Become the primary and force replication
           consensus->force_become_primary();
 
+          network.tables->set_readiness(ccf::kv::StoreReadiness::Ready);
+
+          initiate_quote_generation();
+
           LOG_INFO_FMT("Created new node {}", self);
           return {self_signed_node_cert, network.identity->cert};
         }
         case StartType::Join:
         {
+          initiate_quote_generation();
+
           LOG_INFO_FMT("Created join node {}", self);
           return {self_signed_node_cert, {}};
         }
@@ -1041,6 +1078,8 @@ namespace ccf
             config.startup_host_time,
             config.initial_service_certificate_validity_days);
 
+          initiate_quote_generation();
+
           LOG_INFO_FMT("Created recovery node {}", self);
           return {self_signed_node_cert, network.identity->cert};
         }
@@ -1060,6 +1099,12 @@ namespace ccf
     void initiate_join_unsafe()
     {
       sm.expect(NodeStartupState::pending);
+
+      if (network.tables->get_readiness() == ccf::kv::StoreReadiness::Failed)
+      {
+        LOG_FAIL_FMT("Not retrying join after startup Store failure");
+        return;
+      }
 
       // Only allow a single join request to be in flight at a time. The
       // periodic join timer fires every config.join.retry_timeout (default
@@ -1218,7 +1263,10 @@ namespace ccf
                                                             response_headers,
                                                             response_body]() {
             std::lock_guard<pal::Mutex> guard(lock);
-            if (!sm.check(NodeStartupState::pending))
+            if (
+              !sm.check(NodeStartupState::pending) ||
+              network.tables->get_readiness() ==
+                ccf::kv::StoreReadiness::Failed)
             {
               return;
             }
@@ -1461,34 +1509,58 @@ namespace ccf
                   // It is only possible to deserialise the entire snapshot now,
                   // once the ledger secrets have been passed in by the network
                   ccf::kv::ConsensusHookPtrs hooks;
-                  deserialise_snapshot(
-                    network.tables,
-                    startup_snapshot_info->raw,
-                    hooks,
-                    &view_history_,
-                    resp.network_info->public_only);
-
-                  for (auto& hook : hooks)
+                  network.tables->set_readiness(
+                    ccf::kv::StoreReadiness::InstallingSnapshot);
+                  try
                   {
-                    hook->call(consensus.get());
+                    deserialise_snapshot(
+                      network.tables,
+                      startup_snapshot_info->raw,
+                      hooks,
+                      &view_history_,
+                      resp.network_info->public_only);
+
+                    for (auto& hook : hooks)
+                    {
+                      hook->call(consensus.get());
+                    }
+
+                    auto tx = network.tables->create_read_only_tx();
+                    view = resolve_latest_sig_view(tx);
+
+                    if (!resp.network_info->public_only)
+                    {
+                      // Only clear snapshot if not recovering. When joining the
+                      // public network the snapshot is used later to initialise
+                      // the recovery store
+                      startup_snapshot_info.reset();
+                    }
+
+                    LOG_INFO_FMT(
+                      "Joiner successfully resumed from snapshot at seqno {} "
+                      "and view {}",
+                      network.tables->current_version(),
+                      view);
                   }
-
-                  auto tx = network.tables->create_read_only_tx();
-                  view = resolve_latest_sig_view(tx);
-
-                  if (!resp.network_info->public_only)
+                  catch (const std::exception& e)
                   {
-                    // Only clear snapshot if not recovering. When joining the
-                    // public network the snapshot is used later to initialise
-                    // the recovery store
-                    startup_snapshot_info.reset();
-                  }
+                    network.tables->set_readiness(
+                      ccf::kv::StoreReadiness::Failed);
+                    if (join_periodic_task != nullptr)
+                    {
+                      join_periodic_task->cancel_task();
+                      join_periodic_task = nullptr;
+                    }
 
-                  LOG_INFO_FMT(
-                    "Joiner successfully resumed from snapshot at seqno {} and "
-                    "view {}",
-                    network.tables->current_version(),
-                    view);
+                    auto error_msg = fmt::format(
+                      "Failed to install startup snapshot: {}. Shutting down "
+                      "node gracefully...",
+                      e.what());
+                    LOG_FAIL_FMT("{}", error_msg);
+                    RINGBUFFER_WRITE_MESSAGE(
+                      AdminMessage::fatal_error_msg, to_host, error_msg);
+                    return;
+                  }
                 }
 
                 consensus->init_as_backup(
@@ -1509,6 +1581,7 @@ namespace ccf
                   }
                 }
                 history->start_signature_emit_timer();
+                network.tables->set_readiness(ccf::kv::StoreReadiness::Ready);
 
                 if (resp.network_info->public_only)
                 {
@@ -1934,6 +2007,8 @@ namespace ccf
       LOG_DEBUG_FMT("Restarting consensus at view: {} seqno: {}", view, index);
 
       consensus->force_become_primary(index, view, view_history, index);
+
+      network.tables->set_readiness(ccf::kv::StoreReadiness::Ready);
 
       create_and_send_boot_request(
         new_term, false /* Restore consortium from ledger */);

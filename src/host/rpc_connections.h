@@ -4,10 +4,15 @@
 
 #include "../tcp/msg_types.h"
 #include "../udp/msg_types.h"
+#include "ds/messaging.h"
 #include "tcp.h"
+#include "timer.h"
 #include "udp.h"
 
+#include <memory>
+#include <stdexcept>
 #include <unordered_map>
+#include <utility>
 
 namespace // NOLINT(cert-dcl59-cpp)
 {
@@ -232,7 +237,8 @@ namespace asynchost
     };
 
     std::unordered_map<ConnID, ConnType> sockets;
-    ConnIDGenerator& idGen;
+    // The timer close callback deletes this object asynchronously.
+    std::shared_ptr<ConnIDGenerator> id_gen;
 
     // Measured in seconds
     std::unordered_map<ConnID, size_t> idle_times;
@@ -247,16 +253,22 @@ namespace asynchost
   public:
     RPCConnectionsImpl(
       ringbuffer::AbstractWriterFactory& writer_factory,
-      ConnIDGenerator& idGen,
+      std::shared_ptr<ConnIDGenerator> id_gen_,
       std::optional<std::chrono::milliseconds> client_connection_timeout_ =
         std::nullopt,
       std::optional<std::chrono::seconds> idle_connection_timeout_ =
         std::nullopt) :
-      idGen(idGen),
+      id_gen(std::move(id_gen_)),
       client_connection_timeout(client_connection_timeout_),
       idle_connection_timeout(idle_connection_timeout_),
       to_enclave(writer_factory.create_writer_to_inside())
-    {}
+    {
+      if (id_gen == nullptr)
+      {
+        throw std::invalid_argument(
+          "RPC connections require a connection ID generator");
+      }
+    }
 
     bool listen(
       ConnID id, std::string& host, std::string& port, const std::string& name)
@@ -478,7 +490,7 @@ namespace asynchost
   private:
     ConnID get_next_id()
     {
-      return idGen.get_next_id(sockets);
+      return id_gen->get_next_id(sockets);
     }
 
     bool check_enclave_side_id(ConnID id)

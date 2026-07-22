@@ -1,0 +1,40 @@
+name: "CACI attestation verification CI"
+
+on:
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+
+concurrency:
+  group: ci-caci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  native:
+    name: Native ${{ matrix.backend.name }} backend
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        backend:
+          - name: OpenSSL
+            features: crypto_openssl
+          - name: pure-Rust
+            features: crypto_pure_rust
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Install rust
+        run: |
+          rustup update stable && rustup default stable
+
+      - name: Build with ${{ matrix.backend.name }} backend
+        run: cargo build --manifest-path caci/Cargo.toml --no-default-features --features "${{ matrix.backend.features }}"
+
+      - name: Test with ${{ matrix.backend.name }} backend
+        run: cargo test --manifest-path caci/Cargo.toml --no-default-features --features "${{ matrix.backend.features }}" -- --nocapture
