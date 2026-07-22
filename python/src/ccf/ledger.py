@@ -10,7 +10,7 @@ from enum import Enum, Flag, IntEnum, auto
 from hashlib import sha256
 
 from cryptography.hazmat.backends import default_backend
-from cryptography.x509 import load_pem_x509_certificate
+from cryptography.x509 import Certificate, load_pem_x509_certificate
 
 import ccf.cose
 import ccf.receipt
@@ -61,6 +61,7 @@ SERVICE_INFO_TABLE_NAME = "public:ccf.gov.service.info"
 COMMITTED_FILE_SUFFIX = ".committed"
 RECOVERY_FILE_SUFFIX = ".recovery"
 IGNORED_FILE_SUFFIX = ".ignored"
+SNAPSHOT_ENDORSEMENTS_SUFFIX = ".endorsements"
 
 SHA256_DIGEST_SIZE = sha256().digest_size
 ENCODED_COSE_SIGN1_TAG = 0xD2
@@ -132,6 +133,17 @@ def is_ledger_chunk_committed(file_name):
 
 def is_snapshot_file_committed(file_name):
     return file_name.endswith(COMMITTED_FILE_SUFFIX)
+
+
+def snapshot_endorsements_path(snapshot_path: str) -> str:
+    if not is_snapshot_file_committed(snapshot_path):
+        raise ValueError(f"Snapshot file {snapshot_path} is not committed")
+    return snapshot_path + SNAPSHOT_ENDORSEMENTS_SUFFIX
+
+
+def read_snapshot_endorsements(path: str) -> list[bytes]:
+    with open(path, "rb") as endorsements_file:
+        return ccf.cose.deserialize_cose_endorsements(endorsements_file.read())
 
 
 def digest(data):
@@ -993,6 +1005,8 @@ class Snapshot(Entry):
         super().__init__(SimpleBuffer.from_file(filename))
         self._filename = filename
         self._file_size = os.path.getsize(filename)
+        self._receipt_bytes: bytes | None = None
+        self._snapshot_digest: bytes | None = None
 
         if self._file_size == 0:
             raise InvalidSnapshotException(f"{filename} is currently empty")
@@ -1004,6 +1018,8 @@ class Snapshot(Entry):
             receipt_pos = entry_start_pos + self._header.size
             receipt_bytes = _peek_all(self._file, pos=receipt_pos)
             snapshot_digest = sha256(_peek(self._file, receipt_pos, pos=0)).digest()
+            self._receipt_bytes = receipt_bytes
+            self._snapshot_digest = snapshot_digest
             self._verify_snapshot_receipt(receipt_bytes, receipt_pos, snapshot_digest)
 
     def is_committed(self):
@@ -1062,6 +1078,41 @@ class Snapshot(Entry):
     ):
         ccf.cose.verify_receipt(
             receipt_bytes, self._service_public_key(), snapshot_digest
+        )
+
+    def verify_cose_receipt(
+        self,
+        target_service_certificate: Certificate | str | bytes,
+        endorsements: list[bytes] | None = None,
+    ):
+        if self._receipt_bytes is None or self._snapshot_digest is None:
+            raise InvalidSnapshotException(
+                "Snapshot does not contain a current-format receipt"
+            )
+        if self._receipt_bytes[0] != ENCODED_COSE_SIGN1_TAG:
+            raise InvalidSnapshotException(
+                "Only COSE snapshot receipts support endorsement sidecars"
+            )
+
+        if isinstance(target_service_certificate, Certificate):
+            certificate = target_service_certificate
+        else:
+            certificate_bytes = (
+                target_service_certificate.encode("ascii")
+                if isinstance(target_service_certificate, str)
+                else target_service_certificate
+            )
+            certificate = load_pem_x509_certificate(
+                certificate_bytes, default_backend()
+            )
+
+        snapshot_seqno, _ = snapshot_index_from_filename(self._filename)
+        return ccf.cose.verify_receipt_with_endorsements(
+            self._receipt_bytes,
+            certificate.public_key(),
+            self._snapshot_digest,
+            endorsements or [],
+            snapshot_seqno,
         )
 
     def _verify_json_snapshot_receipt(

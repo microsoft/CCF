@@ -7,6 +7,7 @@
 #include "crypto/openssl/ec_key_pair.h"
 #include "node/rpc/network_identity_accessors.h"
 #include "node/rpc/network_identity_chain_helpers.h"
+#include "node/snapshot_serdes.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <chrono>
@@ -473,6 +474,71 @@ TEST_CASE(
   ccf::TxID after{2 + aft::starting_view_change, 21};
   REQUIRE_THROWS_AS(
     ccf::validate_chain_front_connection(bad, after), std::logic_error);
+}
+
+TEST_CASE("Recovery snapshot endorsements are validated newest-to-oldest")
+{
+  ChainBuilder cb;
+  cb.add_self({2, 1}).add_next({2, 1}, {4, 100}).add_next({6, 101}, {8, 200});
+
+  std::vector<ccf::CollectedCoseEndorsement> collected{
+    {cb.write_versions[1], cb.entries[1]},
+    {cb.write_versions[2], cb.entries[2]}};
+  const auto target_key = cb.current_pkey_der();
+  const auto target_from = cb.synthesised_current_service_from();
+
+  const auto serialised = ccf::validate_and_serialise_collected_endorsements(
+    collected, target_key, 1, target_from);
+  REQUIRE(serialised.size() == 2);
+  REQUIRE(serialised[0] == cb.entries[2].endorsement);
+  REQUIRE(serialised[1] == cb.entries[1].endorsement);
+
+  const auto snapshot_signer = ccf::verify_serialised_cose_endorsements(
+    serialised, target_key, 1, target_from);
+  REQUIRE(snapshot_signer == cb.service_keys.front()->public_key_der());
+
+  const auto sidecar = ccf::serialise_cose_endorsements(serialised);
+  REQUIRE(ccf::deserialise_cose_endorsements(sidecar) == serialised);
+}
+
+TEST_CASE("Recovery snapshot endorsements fail closed")
+{
+  ChainBuilder cb;
+  cb.add_self({2, 1}).add_next({2, 1}, {4, 100}).add_next({6, 101}, {8, 200});
+
+  std::vector<ccf::CollectedCoseEndorsement> collected{
+    {cb.write_versions[1], cb.entries[1]},
+    {cb.write_versions[2], cb.entries[2]}};
+  const auto target_key = cb.current_pkey_der();
+  const auto target_from = cb.synthesised_current_service_from();
+  const auto serialised = ccf::validate_and_serialise_collected_endorsements(
+    collected, target_key, 1, target_from);
+
+  auto out_of_order = serialised;
+  std::reverse(out_of_order.begin(), out_of_order.end());
+  REQUIRE_THROWS_AS(
+    ccf::verify_serialised_cose_endorsements(
+      out_of_order, target_key, 1, target_from),
+    std::logic_error);
+
+  auto tampered = serialised;
+  tampered.front().back() ^= 0xff;
+  REQUIRE_THROWS_AS(
+    ccf::verify_serialised_cose_endorsements(
+      tampered, target_key, 1, target_from),
+    std::logic_error);
+
+  REQUIRE_THROWS_AS(
+    ccf::verify_serialised_cose_endorsements(
+      serialised, target_key, 1000, target_from),
+    std::logic_error);
+
+  auto broken_back_pointer = collected;
+  broken_back_pointer.back().endorsement.previous_version = 999;
+  REQUIRE_THROWS_AS(
+    ccf::validate_and_serialise_collected_endorsements(
+      broken_back_pointer, target_key, 1, target_from),
+    std::logic_error);
 }
 
 // ------------------------------------------------------------------------

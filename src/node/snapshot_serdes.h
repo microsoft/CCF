@@ -5,18 +5,25 @@
 #include "ccf/crypto/cose.h"
 #include "ccf/crypto/cose_verifier.h"
 #include "ccf/crypto/pem.h"
+#include "ccf/crypto/verifier.h"
 #include "ccf/ds/json.h"
 #include "ccf/historical_queries_adapter.h"
+#include "ccf/receipt.h"
 #include "ccf/service/tables/nodes.h"
+#include "crypto/cbor.h"
 #include "crypto/cose.h"
+#include "ds/files.h"
 #include "ds/internal_logger.h"
 #include "ds/serialized.h"
 #include "kv/kv_types.h"
 #include "kv/serialised_entry_format.h"
 #include "node/cose_common.h"
 #include "node/history.h"
+#include "node/rpc/network_identity_chain_helpers.h"
 #include "node/tx_receipt_impl.h"
+#include "snapshots/filenames.h"
 
+#include <fstream>
 #include <nlohmann/json.hpp>
 
 namespace ccf
@@ -37,6 +44,8 @@ namespace ccf
     std::span<const uint8_t> header_and_body;
     std::span<const uint8_t> receipt;
   };
+
+  static constexpr size_t MAX_SNAPSHOT_ENDORSEMENTS_SIZE = 16 * 1024 * 1024;
 
   static SnapshotSegments separate_segments(
     const std::vector<uint8_t>& snapshot)
@@ -76,9 +85,334 @@ namespace ccf
     return SnapshotSegments{header_and_body, receipt};
   }
 
-  static void verify_cose_snapshot_receipt(
-    const SnapshotSegments& segments,
-    const std::optional<std::vector<uint8_t>>& prev_service_identity)
+  static std::vector<uint8_t> serialise_cose_endorsements(
+    const ccf::SerialisedCoseEndorsements& endorsements)
+  {
+    std::vector<ccf::cbor::Value> items;
+    items.reserve(endorsements.size());
+    for (const auto& endorsement : endorsements)
+    {
+      items.emplace_back(ccf::cbor::make_bytes(endorsement));
+    }
+
+    return ccf::cbor::serialize(ccf::cbor::make_array(std::move(items)));
+  }
+
+  static ccf::SerialisedCoseEndorsements deserialise_cose_endorsements(
+    std::span<const uint8_t> serialised)
+  {
+    const auto parsed = ccf::cbor::rethrow_with_msg(
+      [&]() { return ccf::cbor::parse(serialised); },
+      "Parse snapshot endorsements sidecar");
+    if (!std::holds_alternative<ccf::cbor::Array>(parsed->value))
+    {
+      throw std::logic_error(
+        "Snapshot endorsements sidecar must contain a CBOR array");
+    }
+
+    ccf::SerialisedCoseEndorsements endorsements;
+    endorsements.reserve(parsed->size());
+    for (size_t i = 0; i < parsed->size(); ++i)
+    {
+      const auto bytes = ccf::cbor::rethrow_with_msg(
+        [&]() { return parsed->array_at(i)->as_bytes(); },
+        fmt::format("Parse snapshot endorsement at index {}", i));
+      endorsements.emplace_back(bytes.begin(), bytes.end());
+    }
+    return endorsements;
+  }
+
+  static ccf::SerialisedCoseEndorsements read_cose_endorsements_sidecar(
+    const std::filesystem::path& path)
+  {
+    std::error_code ec;
+    const auto file_size = std::filesystem::file_size(path, ec);
+    if (ec)
+    {
+      throw std::logic_error(fmt::format(
+        "Unable to read snapshot endorsements sidecar size {}: {}",
+        path.string(),
+        ec.message()));
+    }
+    if (file_size > MAX_SNAPSHOT_ENDORSEMENTS_SIZE)
+    {
+      throw std::logic_error(fmt::format(
+        "Snapshot endorsements sidecar {} is too large ({} bytes, maximum "
+        "{} bytes)",
+        path.string(),
+        file_size,
+        MAX_SNAPSHOT_ENDORSEMENTS_SIZE));
+    }
+
+    std::ifstream file(path, std::ios::binary);
+    if (!file)
+    {
+      throw std::logic_error(fmt::format(
+        "Unable to open snapshot endorsements sidecar {}", path.string()));
+    }
+
+    std::vector<uint8_t> serialised(static_cast<size_t>(file_size));
+    if (!serialised.empty())
+    {
+      file.read(
+        reinterpret_cast<char*>(serialised.data()),
+        static_cast<std::streamsize>(serialised.size()));
+      if (
+        !file ||
+        file.gcount() != static_cast<std::streamsize>(serialised.size()))
+      {
+        throw std::logic_error(fmt::format(
+          "Unable to read complete snapshot endorsements sidecar {}",
+          path.string()));
+      }
+    }
+
+    return deserialise_cose_endorsements(serialised);
+  }
+
+  static void write_cose_endorsements_sidecar(
+    const std::filesystem::path& path,
+    const ccf::SerialisedCoseEndorsements& endorsements)
+  {
+    if (std::filesystem::exists(path))
+    {
+      throw std::logic_error(fmt::format(
+        "Refusing to overwrite existing snapshot endorsements sidecar {}",
+        path.string()));
+    }
+
+    const auto serialised = serialise_cose_endorsements(endorsements);
+    if (serialised.size() > MAX_SNAPSHOT_ENDORSEMENTS_SIZE)
+    {
+      throw std::logic_error(fmt::format(
+        "Snapshot endorsements sidecar is too large ({} bytes, maximum {} "
+        "bytes)",
+        serialised.size(),
+        MAX_SNAPSHOT_ENDORSEMENTS_SIZE));
+    }
+    auto temporary_path = std::filesystem::path(path.string() + ".tmp");
+    std::error_code ec;
+    std::filesystem::remove(temporary_path, ec);
+
+    try
+    {
+      files::dump(serialised, temporary_path);
+      files::rename(temporary_path, path);
+    }
+    catch (const std::exception&)
+    {
+      std::filesystem::remove(temporary_path, ec);
+      throw;
+    }
+  }
+
+  static ccf::CoseEndorsement parse_serialised_cose_endorsement(
+    const ccf::SerialisedCoseEndorsement& serialised)
+  {
+    const auto [from, to] =
+      ccf::crypto::extract_cose_endorsement_validity(serialised);
+    const auto from_txid = ccf::TxID::from_str(from);
+    const auto to_txid = ccf::TxID::from_str(to);
+    if (!from_txid.has_value() || !to_txid.has_value())
+    {
+      throw std::logic_error(
+        fmt::format("Invalid COSE endorsement epoch range {} - {}", from, to));
+    }
+
+    return ccf::CoseEndorsement{
+      .endorsement = serialised,
+      .endorsing_key = {},
+      .endorsement_epoch_begin = *from_txid,
+      .endorsement_epoch_end = *to_txid,
+      .previous_version = ccf::kv::Version{0}};
+  }
+
+  static std::vector<uint8_t> verify_serialised_cose_endorsements(
+    const ccf::SerialisedCoseEndorsements& endorsements,
+    std::span<const uint8_t> target_key,
+    ccf::kv::Version snapshot_seqno,
+    std::optional<ccf::TxID> target_service_from = std::nullopt)
+  {
+    if (target_key.empty())
+    {
+      throw std::logic_error(
+        "Cannot verify snapshot endorsements with an empty target key");
+    }
+    if (endorsements.empty())
+    {
+      return {target_key.begin(), target_key.end()};
+    }
+
+    std::vector<uint8_t> current_key(target_key.begin(), target_key.end());
+    std::vector<ccf::CoseEndorsement> parsed;
+    parsed.reserve(endorsements.size());
+
+    for (const auto& endorsement : endorsements)
+    {
+      auto parsed_endorsement = parse_serialised_cose_endorsement(endorsement);
+      if (has_ill_formed_epoch_range(parsed_endorsement))
+      {
+        throw std::logic_error(fmt::format(
+          "COSE endorsement has an ill-formed epoch range {} - {}",
+          parsed_endorsement.endorsement_epoch_begin.to_str(),
+          format_epoch(parsed_endorsement.endorsement_epoch_end)));
+      }
+
+      current_key = verify_cose_endorsement_signature(endorsement, current_key);
+      parsed.emplace_back(std::move(parsed_endorsement));
+    }
+
+    for (size_t i = 0; i + 1 < parsed.size(); ++i)
+    {
+      verify_endorsements_connected(parsed[i], parsed[i + 1]);
+    }
+
+    if (target_service_from.has_value())
+    {
+      validate_chain_front_connection(parsed.front(), *target_service_from);
+    }
+
+    const auto& oldest = parsed.back();
+    if (
+      !oldest.endorsement_epoch_end.has_value() ||
+      oldest.endorsement_epoch_begin.seqno > snapshot_seqno ||
+      oldest.endorsement_epoch_end->seqno < snapshot_seqno)
+    {
+      throw std::logic_error(fmt::format(
+        "Oldest COSE endorsement range {} - {} does not cover snapshot seqno "
+        "{}",
+        oldest.endorsement_epoch_begin.to_str(),
+        format_epoch(oldest.endorsement_epoch_end),
+        snapshot_seqno));
+    }
+
+    return current_key;
+  }
+
+  static ccf::SerialisedCoseEndorsements
+  validate_and_serialise_collected_endorsements(
+    const std::vector<CollectedCoseEndorsement>& collected,
+    std::span<const uint8_t> target_key,
+    ccf::kv::Version snapshot_seqno,
+    const ccf::TxID& target_service_from)
+  {
+    if (collected.empty())
+    {
+      throw std::logic_error(
+        "No previous service identity endorsements were found after the "
+        "snapshot");
+    }
+
+    std::vector<uint8_t> previous_endorsing_key;
+    for (size_t i = 0; i < collected.size(); ++i)
+    {
+      const auto& [write_version, endorsement] = collected[i];
+      if (write_version <= snapshot_seqno)
+      {
+        throw std::logic_error(fmt::format(
+          "Collected endorsement write at {} is not after snapshot seqno {}",
+          write_version,
+          snapshot_seqno));
+      }
+      if (is_self_endorsement(endorsement))
+      {
+        throw std::logic_error(fmt::format(
+          "Unexpected self-endorsement after snapshot at {}",
+          endorsement.endorsement_epoch_begin.to_str()));
+      }
+      if (has_ill_formed_epoch_range(endorsement))
+      {
+        throw std::logic_error(fmt::format(
+          "Collected endorsement has an ill-formed epoch range {} - {}",
+          endorsement.endorsement_epoch_begin.to_str(),
+          format_epoch(endorsement.endorsement_epoch_end)));
+      }
+
+      validate_fetched_endorsement(endorsement);
+
+      if (i == 0)
+      {
+        if (
+          !endorsement.previous_version.has_value() ||
+          endorsement.previous_version.value() > snapshot_seqno)
+        {
+          throw std::logic_error(fmt::format(
+            "Oldest collected endorsement at {} does not point to an "
+            "endorsement at or before snapshot seqno {}",
+            write_version,
+            snapshot_seqno));
+        }
+      }
+      else
+      {
+        const auto& previous = collected[i - 1];
+        if (
+          !endorsement.previous_version.has_value() ||
+          endorsement.previous_version.value() != previous.write_version)
+        {
+          throw std::logic_error(fmt::format(
+            "Collected endorsement at {} does not point to the previous "
+            "collected endorsement at {}",
+            write_version,
+            previous.write_version));
+        }
+        verify_endorsements_connected(endorsement, previous.endorsement);
+      }
+
+      const auto endorsed_key = verify_cose_endorsement_signature(
+        endorsement.endorsement, endorsement.endorsing_key);
+      if (
+        !previous_endorsing_key.empty() &&
+        endorsed_key != previous_endorsing_key)
+      {
+        throw std::logic_error(fmt::format(
+          "Collected endorsement at {} does not endorse the preceding "
+          "service identity",
+          write_version));
+      }
+      previous_endorsing_key = endorsement.endorsing_key;
+    }
+
+    if (
+      previous_endorsing_key.size() != target_key.size() ||
+      !std::equal(
+        previous_endorsing_key.begin(),
+        previous_endorsing_key.end(),
+        target_key.begin()))
+    {
+      throw std::logic_error(
+        "Newest collected endorsement is not signed by the configured "
+        "previous service identity");
+    }
+
+    validate_chain_front_connection(
+      collected.back().endorsement, target_service_from);
+
+    const auto& oldest = collected.front().endorsement;
+    if (
+      !oldest.endorsement_epoch_end.has_value() ||
+      oldest.endorsement_epoch_begin.seqno > snapshot_seqno ||
+      oldest.endorsement_epoch_end->seqno < snapshot_seqno)
+    {
+      throw std::logic_error(fmt::format(
+        "Oldest collected endorsement range {} - {} does not cover snapshot "
+        "seqno {}",
+        oldest.endorsement_epoch_begin.to_str(),
+        format_epoch(oldest.endorsement_epoch_end),
+        snapshot_seqno));
+    }
+
+    ccf::SerialisedCoseEndorsements serialised;
+    serialised.reserve(collected.size());
+    for (auto it = collected.rbegin(); it != collected.rend(); ++it)
+    {
+      serialised.emplace_back(it->endorsement.endorsement);
+    }
+    return serialised;
+  }
+
+  static auto decode_and_verify_cose_snapshot_receipt(
+    const SnapshotSegments& segments)
   {
     auto receipt = ccf::cose::decode_ccf_receipt(
       {segments.receipt.begin(), segments.receipt.end()},
@@ -98,6 +432,15 @@ namespace ccf
         snapshot_digest,
         ds::to_hex(receipt.claims_digest)));
     }
+
+    return receipt;
+  }
+
+  static void verify_cose_snapshot_receipt(
+    const SnapshotSegments& segments,
+    const std::optional<std::vector<uint8_t>>& prev_service_identity)
+  {
+    const auto receipt = decode_and_verify_cose_snapshot_receipt(segments);
 
     if (prev_service_identity)
     {
@@ -210,8 +553,42 @@ namespace ccf
     else
     {
       throw std::logic_error(fmt::format(
-        "Invalid snapshot receipt: unrecognised format (first byte: 0x{:02X})",
+        "Invalid snapshot receipt: unrecognised format (first byte: "
+        "0x{:02X})",
         first_byte));
+    }
+  }
+
+  static void verify_recovery_snapshot(
+    const SnapshotSegments& segments,
+    const ccf::crypto::Pem& target_identity,
+    const ccf::SerialisedCoseEndorsements& endorsements,
+    ccf::kv::Version snapshot_seqno,
+    std::optional<ccf::TxID> target_service_from = std::nullopt)
+  {
+    if (endorsements.empty())
+    {
+      verify_snapshot(segments, target_identity.raw());
+      return;
+    }
+    if (segments.receipt.empty() || segments.receipt[0] != 0xD2)
+    {
+      throw std::logic_error(
+        "Only snapshots with COSE receipts can use endorsement sidecars");
+    }
+
+    const auto target_key = ccf::crypto::public_key_der_from_cert(
+      ccf::crypto::cert_pem_to_der(target_identity));
+    const auto snapshot_signer_key = verify_serialised_cose_endorsements(
+      endorsements, target_key, snapshot_seqno, target_service_from);
+    const auto receipt = decode_and_verify_cose_snapshot_receipt(segments);
+    const auto verifier =
+      ccf::crypto::make_cose_verifier_from_key(snapshot_signer_key);
+    if (!verifier->verify_detached(segments.receipt, receipt.merkle_root))
+    {
+      throw std::logic_error(
+        "Snapshot receipt signature verification failed under the endorsed "
+        "snapshot service identity");
     }
   }
 

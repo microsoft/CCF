@@ -4,6 +4,7 @@
 import argparse
 import base64
 import hashlib
+import io
 import json
 import sys
 from datetime import datetime
@@ -12,6 +13,7 @@ from typing import Any
 import cbor2
 import cwt
 import cwt.const
+import cwt.exceptions
 import cwt.enums
 import cwt.utils
 from cryptography.hazmat.primitives import hashes
@@ -25,9 +27,11 @@ from cryptography.hazmat.primitives.serialization import (
     PublicFormat,
     load_pem_private_key,
     load_pem_public_key,
+    load_der_public_key,
 )
 from cryptography.x509 import load_pem_x509_certificate
 from cryptography.x509.base import CertificatePublicKeyTypes
+from ccf.tx_id import TxID
 
 Pem = str
 
@@ -52,6 +56,11 @@ COSE_RECEIPT_INCLUSION_PROOF_LABEL = -1
 
 CCF_PROOF_LEAF_LABEL = 1
 CCF_PROOF_PATH_LABEL = 2
+
+CCF_V1_LABEL = "ccf.v1"
+CCF_ENDORSEMENT_RANGE_BEGIN = "epoch.start.txid"
+CCF_ENDORSEMENT_RANGE_END = "epoch.end.txid"
+RECOVERY_VIEW_CHANGE = 2
 
 
 def default_algorithm_for_key(key) -> int:
@@ -187,6 +196,120 @@ def verify_cose_sign1_with_key(key, cose_sign1, payload=None):
     key_pem = key.decode()
     cose_key = cwt.COSEKey.from_pem(key_pem, kid=key_fingerprint_from_key(key_pem))
     return cose_ctx.decode_with_headers(cose_sign1, cose_key, detached_payload=payload)
+
+
+def serialize_cose_endorsements(endorsements: list[bytes]) -> bytes:
+    if not all(isinstance(endorsement, bytes) for endorsement in endorsements):
+        raise TypeError("COSE endorsements must be bytes")
+    return cbor2.dumps(endorsements)
+
+
+def deserialize_cose_endorsements(serialized: bytes) -> list[bytes]:
+    stream = io.BytesIO(serialized)
+    decoder = cbor2.CBORDecoder(stream)
+    try:
+        endorsements = decoder.decode()
+    except (cbor2.CBORDecodeError, EOFError) as e:
+        raise ValueError("Invalid snapshot endorsements CBOR") from e
+    try:
+        decoder.decode()
+    except cbor2.CBORDecodeEOF:
+        pass
+    else:
+        raise ValueError("Trailing data after snapshot endorsements CBOR array")
+    if not isinstance(endorsements, list) or not all(
+        isinstance(endorsement, bytes) for endorsement in endorsements
+    ):
+        raise ValueError("Snapshot endorsements must be a CBOR array of byte strings")
+    return endorsements
+
+
+def verify_cose_endorsements(
+    endorsements: list[bytes],
+    target_key: CertificatePublicKeyTypes,
+    snapshot_seqno: int,
+) -> CertificatePublicKeyTypes:
+    current_key = target_key
+    ranges: list[tuple[TxID, TxID]] = []
+
+    for index, endorsement in enumerate(endorsements):
+        current_key_pem = current_key.public_bytes(
+            Encoding.PEM, PublicFormat.SubjectPublicKeyInfo
+        )
+        try:
+            protected, _, endorsed_key_der = verify_cose_sign1_with_key(
+                current_key_pem, endorsement
+            )
+        except cwt.exceptions.CWTError as e:
+            raise ValueError(
+                f"COSE endorsement at index {index} failed signature verification"
+            ) from e
+
+        ccf_headers = protected.get(CCF_V1_LABEL)
+        if not isinstance(ccf_headers, dict):
+            raise ValueError(
+                f"COSE endorsement at index {index} has no {CCF_V1_LABEL} headers"
+            )
+        begin_header = ccf_headers.get(CCF_ENDORSEMENT_RANGE_BEGIN)
+        end_header = ccf_headers.get(CCF_ENDORSEMENT_RANGE_END)
+        if not isinstance(begin_header, str) or not isinstance(end_header, str):
+            raise ValueError(
+                f"COSE endorsement at index {index} has invalid epoch headers"
+            )
+        begin = TxID.from_str(begin_header)
+        end = TxID.from_str(end_header)
+        if not begin.valid() or not end.valid() or end.seqno < begin.seqno:
+            raise ValueError(
+                f"COSE endorsement at index {index} has an invalid epoch range"
+            )
+        if not isinstance(endorsed_key_der, bytes) or not endorsed_key_der:
+            raise ValueError(
+                f"COSE endorsement at index {index} contains no endorsed key"
+            )
+
+        ranges.append((begin, end))
+        try:
+            endorsed_key = load_der_public_key(endorsed_key_der)
+        except ValueError as e:
+            raise ValueError(
+                f"COSE endorsement at index {index} contains an invalid public key"
+            ) from e
+        if not isinstance(endorsed_key, EllipticCurvePublicKey):
+            raise ValueError(
+                f"COSE endorsement at index {index} contains a non-EC public key"
+            )
+        current_key = endorsed_key
+
+    for (newer_begin, _), (_, older_end) in zip(ranges, ranges[1:]):
+        if (
+            newer_begin.view - RECOVERY_VIEW_CHANGE != older_end.view
+            or newer_begin.seqno - 1 != older_end.seqno
+        ):
+            raise ValueError(
+                "COSE endorsement epoch ranges are not contiguous newest-to-oldest"
+            )
+
+    if ranges:
+        oldest_begin, oldest_end = ranges[-1]
+        if not oldest_begin.seqno <= snapshot_seqno <= oldest_end.seqno:
+            raise ValueError(
+                f"Oldest COSE endorsement range does not cover snapshot seqno {snapshot_seqno}"
+            )
+
+    return current_key
+
+
+def verify_receipt_with_endorsements(
+    receipt_bytes: bytes,
+    target_key: CertificatePublicKeyTypes,
+    claim_digest: bytes,
+    endorsements: list[bytes],
+    snapshot_seqno: int,
+):
+    snapshot_signer_key = verify_cose_endorsements(
+        endorsements, target_key, snapshot_seqno
+    )
+    return verify_receipt(receipt_bytes, snapshot_signer_key, claim_digest)
 
 
 def verify_receipt(

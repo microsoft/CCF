@@ -155,6 +155,8 @@ def run(
     uncommitted=False,
     read_recovery_files=False,
     tables_format_rules=None,
+    snapshot_service_cert=None,
+    snapshot_endorsements=None,
     # Deprecated parameter, kept for backward compatibility
     insecure_skip_verification=None,
 ):
@@ -181,6 +183,19 @@ def run(
     if is_snapshot:
         snapshot_file = paths[0]
         with ccf.ledger.Snapshot(snapshot_file) as snapshot:
+            if snapshot_service_cert is not None:
+                with open(snapshot_service_cert, "rb") as cert_file:
+                    service_cert = cert_file.read()
+                endorsements = (
+                    ccf.ledger.read_snapshot_endorsements(snapshot_endorsements)
+                    if snapshot_endorsements is not None
+                    else []
+                )
+                snapshot.verify_cose_receipt(service_cert, endorsements)
+                print(
+                    "Verified snapshot receipt against target service identity "
+                    f"with {len(endorsements)} endorsement(s)"
+                )
             print(
                 f"Reading snapshot from {snapshot_file} ({'' if snapshot.is_committed() else 'un'}committed)"
             )
@@ -265,6 +280,14 @@ def main():
         action="store_true",
     )
     parser.add_argument(
+        "--snapshot-service-cert",
+        help="PEM service certificate to trust when verifying a COSE snapshot",
+    )
+    parser.add_argument(
+        "--snapshot-endorsements",
+        help="CBOR endorsements sidecar used with --snapshot-service-cert",
+    )
+    parser.add_argument(
         "--uncommitted",
         help="Also parse uncommitted ledger files. Note that if these are in a live node directory, they may be being modified.",
         action="store_true",
@@ -320,6 +343,11 @@ def main():
 
     args = parser.parse_args()
 
+    if args.snapshot_endorsements and not args.snapshot_service_cert:
+        parser.error("--snapshot-endorsements requires --snapshot-service-cert")
+    if (args.snapshot_service_cert or args.snapshot_endorsements) and not args.snapshot:
+        parser.error("snapshot verification options require --snapshot")
+
     # Parse verification level
     verification_level = None
     if args.verification_level:
@@ -345,6 +373,8 @@ def main():
         insecure_skip_verification=insecure_skip_verification,
         uncommitted=args.uncommitted,
         read_recovery_files=args.recovery,
+        snapshot_service_cert=args.snapshot_service_cert,
+        snapshot_endorsements=args.snapshot_endorsements,
     ):
         sys.exit(1)
 

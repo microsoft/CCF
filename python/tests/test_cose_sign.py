@@ -16,6 +16,9 @@ from cryptography.hazmat.primitives.serialization import (
     PrivateFormat,
     PublicFormat,
 )
+import cwt
+import cwt.enums
+import cwt.utils
 
 
 def make_private_key(curve: ec.EllipticCurve):
@@ -124,3 +127,73 @@ def test_create_cose_sign1_prepare_and_finish(curve):
     ccf.cose.verify_cose_sign1_with_cert(
         cert.encode(), finished_cose_sign1, use_key=False
     )
+
+
+def make_cose_endorsement(signer, payload_key, begin: str, end: str) -> bytes:
+    signer_priv_pem, signer_pub_pem = make_pem_pair(signer)
+    kid = ccf.cose.key_fingerprint_from_key(signer_pub_pem)
+    cose_key = cwt.COSEKey.from_pem(signer_priv_pem, kid=kid)
+    protected = cwt.utils.ResolvedHeader(
+        {
+            int(cwt.COSEHeaders.KID): kid.encode("utf-8"),
+            ccf.cose.CCF_V1_LABEL: {
+                ccf.cose.CCF_ENDORSEMENT_RANGE_BEGIN: begin,
+                ccf.cose.CCF_ENDORSEMENT_RANGE_END: end,
+            },
+        }
+    )
+    payload = payload_key.public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)
+    return cwt.COSE.new(
+        alg_auto_inclusion=True, deterministic_header=True
+    ).encode_and_sign(payload, cose_key, protected=protected)
+
+
+def test_cose_endorsement_sidecar_chain():
+    identities = [make_private_key(ec.SECP384R1()) for _ in range(3)]
+    oldest = make_cose_endorsement(
+        identities[1], identities[0].public_key(), "2.1", "4.100"
+    )
+    newest = make_cose_endorsement(
+        identities[2], identities[1].public_key(), "6.101", "8.200"
+    )
+    endorsements = [newest, oldest]
+
+    serialized = ccf.cose.serialize_cose_endorsements(endorsements)
+    assert ccf.cose.deserialize_cose_endorsements(serialized) == endorsements
+
+    snapshot_key = ccf.cose.verify_cose_endorsements(
+        endorsements, identities[2].public_key(), snapshot_seqno=50
+    )
+    assert snapshot_key.public_bytes(
+        Encoding.DER, PublicFormat.SubjectPublicKeyInfo
+    ) == identities[0].public_key().public_bytes(
+        Encoding.DER, PublicFormat.SubjectPublicKeyInfo
+    )
+
+    with pytest.raises(ValueError):
+        ccf.cose.verify_cose_endorsements(
+            list(reversed(endorsements)),
+            identities[2].public_key(),
+            snapshot_seqno=50,
+        )
+
+    tampered = [bytearray(newest), oldest]
+    tampered[0][-1] ^= 0xFF
+    with pytest.raises(ValueError):
+        ccf.cose.verify_cose_endorsements(
+            [bytes(tampered[0]), tampered[1]],
+            identities[2].public_key(),
+            snapshot_seqno=50,
+        )
+
+    with pytest.raises(ValueError, match="does not cover"):
+        ccf.cose.verify_cose_endorsements(
+            endorsements, identities[2].public_key(), snapshot_seqno=1000
+        )
+
+
+def test_cose_endorsement_sidecar_encoding_is_strict():
+    with pytest.raises(ValueError, match="CBOR array"):
+        ccf.cose.deserialize_cose_endorsements(cbor2.dumps({"not": "an array"}))
+    with pytest.raises(ValueError, match="Trailing data"):
+        ccf.cose.deserialize_cose_endorsements(cbor2.dumps([]) + b"\x00")
