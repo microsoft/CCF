@@ -1,0 +1,55 @@
+[package]
+name = "tee-attestation-verification-crypto"
+version = "1.0.3"
+edition = "2021"
+rust-version = "1.77"
+repository = "https://github.com/microsoft/TEE-Attestation-Verification"
+keywords = ["confidentiality", "sev-snp", "tpm"]
+description = "Cryptographic backends for TEE attestation verification"
+authors = ["Cameron Baird", "Chris Jensen"]
+license = "MIT"
+links = "tav_crypto"
+
+[features]
+default = ["crypto_openssl", "crypto_webcrypto"]
+crypto_openssl = ["dep:foreign-types", "dep:openssl", "dep:openssl-sys"]
+crypto_pure_rust = [
+    "dep:ecdsa",
+    "dep:getrandom",
+    "dep:p256",
+    "dep:p384",
+    "dep:p521",
+    "dep:pkcs1",
+    "dep:rsa",
+    "dep:sha2",
+    "dep:x509-cert",
+    "getrandom/js",
+]
+crypto_webcrypto = ["dep:pkcs1", "dep:x509-cert"]
+
+[dependencies]
+foreign-types = { version = "0.3", optional = true }
+ecdsa = { version = "0.16", features = ["der", "verifying"], optional = true }
+p256 = { version = "0.13", features = ["ecdsa", "pkcs8"], optional = true }
+p384 = { version = "0.13", features = ["ecdsa", "pkcs8"], optional = true }
+p521 = { version = "0.13", features = ["ecdsa", "pkcs8"], optional = true }
+pkcs1 = { version = "0.7", optional = true }
+rsa = { version = "0.9", optional = true }
+sha2 = { version = "0.10", features = ["oid"], optional = true }
+x509-cert = { version = "0.2", optional = true }
+
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+openssl = { version = "0.10", optional = true }
+openssl-sys = { version = "0.9", optional = true }
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+getrandom = { version = "0.2", optional = true }
+js-sys = "0.3"
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3"
+
+[target.'cfg(not(target_family = "wasm"))'.dev-dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }

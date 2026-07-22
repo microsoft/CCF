@@ -1,0 +1,65 @@
+[package]
+name = "tee-attestation-verification-lib"
+version = "1.0.3"
+edition = "2021"
+rust-version = "1.77"
+repository = "https://github.com/microsoft/TEE-Attestation-Verification"
+keywords = ["confidentiality", "sev-snp", "tpm"]
+description = "WASM-compatible library for SEV-SNP verification and related types"
+authors = ["Cameron Baird", "Chris Jensen"]
+license = "MIT"
+
+[package.metadata.docs.rs]
+features = ["crypto_openssl", "crypto_webcrypto", "kds"]
+targets = ["x86_64-unknown-linux-gnu", "wasm32-unknown-unknown"]
+
+[lib]
+path = "src/lib.rs"
+
+[features]
+default = ["crypto/default"]
+crypto_openssl = ["crypto/crypto_openssl"]
+crypto_pure_rust = ["crypto/crypto_pure_rust"]
+crypto_webcrypto = ["crypto/crypto_webcrypto"]
+kds = [
+    "dep:console_error_panic_hook",
+    "dep:curl",
+    "dep:js-sys",
+    "dep:tokio",
+    "dep:wasm-bindgen",
+    "dep:wasm-bindgen-futures",
+    "dep:wasm-logger",
+]
+
+
+[[bin]]
+name = "verify-attestation"
+path = "src/bin/verify_cli.rs"
+required-features = ["kds"]
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3"
+env_logger = "0.11"
+
+[target.'cfg(not(target_family = "wasm"))'.dev-dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+
+[dependencies]
+crypto = { package = "tee-attestation-verification-crypto", version = "1.0.3", path = "../crypto", default-features = false }
+zerocopy = {version = "0.8.31", features = ["derive"]}
+
+# KDS (online certificate fetching) dependencies
+log = { version = "0.4" }
+
+# Native deps
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros"], optional = true}
+curl = { version = "0.4", optional = true }
+
+# WASM deps
+[target.'cfg(target_family = "wasm")'.dependencies]
+console_error_panic_hook = { version = "0.1", optional = true }
+js-sys = { version = "0.3", optional = true }
+wasm-bindgen = { version = "0.2", optional = true }
+wasm-bindgen-futures = { version = "0.4", optional = true }
+wasm-logger = { version = "0.2", optional = true }

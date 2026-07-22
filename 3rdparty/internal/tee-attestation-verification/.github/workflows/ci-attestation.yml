@@ -1,0 +1,55 @@
+name: "Attestation CI"
+
+on:
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+
+concurrency:
+  group: ci-attestation-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  wasm:
+    name: WASM build and test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Install rust
+        run: |
+          rustup update stable && rustup default stable
+
+      - name: Setup WASM tooling
+        run: |
+          rustup target add wasm32-unknown-unknown
+          cargo install wasm-pack --version 0.13.1 --locked
+
+      - name: Build WASM with KDS
+        run: cargo build --manifest-path attestation/Cargo.toml --target wasm32-unknown-unknown --no-default-features --features "crypto_pure_rust,kds"
+
+  native:
+    name: Native build and test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Install rust
+        run: |
+          rustup update stable && rustup default stable
+
+      - name: Build native
+        run: cargo build --manifest-path attestation/Cargo.toml --no-default-features --features "crypto_pure_rust"
+
+      - name: Test native
+        run: cargo test --manifest-path attestation/Cargo.toml --no-default-features --features "crypto_pure_rust" -- --nocapture
+
+      - name: Build native with KDS
+        run: cargo build --manifest-path attestation/Cargo.toml --no-default-features --features "crypto_pure_rust,kds"
+
+      - name: Test native with KDS
+        run: cargo test --manifest-path attestation/Cargo.toml --no-default-features --features "crypto_pure_rust,kds" -- --nocapture

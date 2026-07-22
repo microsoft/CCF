@@ -1,0 +1,86 @@
+<!--
+  Copyright (c) Microsoft Corporation.
+  Licensed under the MIT License.
+
+  Minimal browser demo for the WASM build of tee-attestation-verification-lib.
+  See README.md in this directory for build and run instructions.
+-->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>SNP attestation verify (WASM demo)</title>
+  <style>
+    body { font-family: sans-serif; margin: 2em; max-width: 960px; }
+    fieldset { margin-bottom: 1em; }
+    legend { font-weight: bold; }
+    label { display: block; margin: 0.3em 0; }
+    textarea { width: 100%; box-sizing: border-box; font-family: monospace; }
+    input[type=file] { margin-right: 0.5em; }
+    button { font-size: 1em; padding: 0.4em 1em; }
+    #status { margin: 1em 0; font-family: monospace; white-space: pre-wrap; }
+    #status.ok { color: #060; }
+    #status.err { color: #a00; }
+    pre#output {
+      font-family: ui-monospace, Menlo, Consolas, monospace;
+      background: #f5f5f5;
+      padding: 1em;
+      overflow-x: auto;
+      white-space: pre;
+    }
+  </style>
+</head>
+<body>
+  <h1>SEV-SNP attestation verification (WASM demo)</h1>
+  <p>
+    Loads four inputs (a binary attestation report plus the ARK, ASK, and VCEK
+    certificates in PEM form), calls
+    <code>verify_attestation_async</code> from the WASM bindings, and renders
+    the verified report fields. The optional bundle splitter calls
+    <code>split_certificate_bundle</code> to populate ASK and ARK from a PEM
+    bundle.
+  </p>
+
+  <form id="form">
+    <fieldset>
+      <legend>Attestation report (binary, 1184 bytes)</legend>
+      <input type="file" id="report-file" accept=".bin,application/octet-stream" />
+      <label>Hex (populated from file, or paste directly; whitespace ignored):</label>
+      <textarea id="report-hex" rows="4" placeholder="e.g. 03000000..."></textarea>
+    </fieldset>
+
+    <fieldset>
+      <legend>VCEK (PEM)</legend>
+      <input type="file" id="vcek-file" accept=".pem,.crt,.cert,text/plain" />
+      <textarea id="vcek-text" rows="4" placeholder="-----BEGIN CERTIFICATE-----"></textarea>
+    </fieldset>
+
+    <fieldset>
+      <legend>Optional ASK/ARK bundle splitter (PEM)</legend>
+      <p>Paste or upload a PEM bundle containing the ASK certificate followed by the ARK certificate.</p>
+      <input type="file" id="bundle-file" accept=".pem,.crt,.cert,text/plain" />
+      <textarea id="bundle-text" rows="8" placeholder="-----BEGIN CERTIFICATE-----"></textarea>
+      <button type="button" id="split-bundle">Split into ASK and ARK</button>
+    </fieldset>
+
+    <fieldset>
+      <legend>ASK (PEM)</legend>
+      <input type="file" id="ask-file" accept=".pem,.crt,.cert,text/plain" />
+      <textarea id="ask-text" rows="4" placeholder="-----BEGIN CERTIFICATE-----"></textarea>
+    </fieldset>
+
+    <fieldset>
+      <legend>ARK (PEM)</legend>
+      <input type="file" id="ark-file" accept=".pem,.crt,.cert,text/plain" />
+      <textarea id="ark-text" rows="4" placeholder="-----BEGIN CERTIFICATE-----"></textarea>
+    </fieldset>
+
+    <button type="submit">Verify</button>
+  </form>
+
+  <div id="status"></div>
+  <pre id="output"></pre>
+
+  <script type="module" src="./demo.js"></script>
+</body>
+</html>
