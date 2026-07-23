@@ -16,7 +16,7 @@ namespace ccf
 {
   struct CollectedCoseEndorsement
   {
-    ccf::kv::Version write_version;
+    ccf::kv::Version write_version = ccf::kv::NoVersion;
     ccf::CoseEndorsement endorsement;
   };
 

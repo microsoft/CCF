@@ -47,7 +47,7 @@ namespace snapshots
         snapshot_path.string()));
     }
 
-    return fs::path(snapshot_path.string() + snapshot_endorsements_suffix);
+    return {snapshot_path.string() + snapshot_endorsements_suffix};
   }
 
   static void ignore_snapshot_file(
