@@ -747,7 +747,7 @@ namespace ccf
       start_public_ledger_recovery_unsafe();
     }
 
-    bool recovery_snapshot_directory_is_writable_unsafe() const
+    [[nodiscard]] bool recovery_snapshot_directory_is_writable_unsafe() const
     {
       if (!startup_snapshot_path.has_value())
       {

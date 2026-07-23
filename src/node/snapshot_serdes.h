@@ -25,6 +25,8 @@
 
 #include <fstream>
 #include <nlohmann/json.hpp>
+#include <ranges>
+#include <utility>
 
 namespace ccf
 {
@@ -45,13 +47,14 @@ namespace ccf
     std::span<const uint8_t> receipt;
   };
 
-  static constexpr size_t MAX_SNAPSHOT_ENDORSEMENTS_SIZE = 16 * 1024 * 1024;
+  static constexpr size_t MAX_SNAPSHOT_ENDORSEMENTS_SIZE =
+    size_t{16} * 1024 * 1024;
   static constexpr size_t MAX_SNAPSHOT_ENDORSEMENTS_COUNT = 64;
-  static constexpr size_t MAX_SNAPSHOT_ENDORSEMENT_SIZE = 1024 * 1024;
+  static constexpr size_t MAX_SNAPSHOT_ENDORSEMENT_SIZE = size_t{1024} * 1024;
   static constexpr size_t MAX_SNAPSHOT_ENDORSEMENT_RECORD_SIZE =
     2 * MAX_SNAPSHOT_ENDORSEMENT_SIZE;
   static constexpr size_t MAX_SNAPSHOT_ENDORSEMENTS_PAYLOAD_SIZE =
-    4 * 1024 * 1024;
+    size_t{4} * 1024 * 1024;
 
   template <typename Endorsements>
   static void validate_cose_endorsement_resource_limits(
@@ -188,14 +191,14 @@ namespace ccf
   {
     try
     {
-      prepare();
+      std::forward<Prepare>(prepare)();
     }
     catch (const std::exception& e)
     {
       return e.what();
     }
 
-    install();
+    std::forward<Install>(install)();
     return std::nullopt;
   }
 
@@ -300,7 +303,7 @@ namespace ccf
       .endorsement = serialised,
       .endorsing_key = {},
       .endorsement_epoch_begin = *from_txid,
-      .endorsement_epoch_end = *to_txid,
+      .endorsement_epoch_end = to_txid,
       .previous_version = ccf::kv::Version{0}};
   }
 
@@ -481,9 +484,10 @@ namespace ccf
 
     ccf::SerialisedCoseEndorsements serialised;
     serialised.reserve(collected.size());
-    for (auto it = collected.rbegin(); it != collected.rend(); ++it)
+    for (const auto& collected_endorsement :
+         std::ranges::reverse_view(collected))
     {
-      serialised.emplace_back(it->endorsement.endorsement);
+      serialised.emplace_back(collected_endorsement.endorsement.endorsement);
     }
     return serialised;
   }

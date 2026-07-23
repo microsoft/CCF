@@ -146,85 +146,39 @@ namespace ccf
     return result;
   }
 
-  namespace
+  struct RecoverySnapshotLedgerFile
   {
-    struct RecoverySnapshotLedgerFile
-    {
-      std::filesystem::path path;
-      size_t start_idx;
-      std::optional<size_t> end_idx;
-      bool committed;
-    };
+    std::filesystem::path path;
+    size_t start_idx;
+    std::optional<size_t> end_idx;
+    bool committed;
+  };
 
-    static std::vector<RecoverySnapshotLedgerFile>
-    find_recovery_snapshot_ledger_files(const ccf::CCFConfig::Ledger& config)
-    {
-      std::vector<RecoverySnapshotLedgerFile> files;
+  static std::vector<RecoverySnapshotLedgerFile>
+  find_recovery_snapshot_ledger_files(const ccf::CCFConfig::Ledger& config)
+  {
+    std::vector<RecoverySnapshotLedgerFile> files;
 
-      auto add_directory =
-        [&](const std::filesystem::path& directory, bool read_only) {
-          std::error_code ec;
-          const auto exists = std::filesystem::exists(directory, ec);
-          if (ec)
-          {
-            throw std::logic_error(fmt::format(
-              "Unable to inspect ledger directory {}: {}",
-              directory.string(),
-              ec.message()));
-          }
-          if (!exists)
-          {
-            return;
-          }
+    auto add_directory =
+      [&](const std::filesystem::path& directory, bool read_only) {
+        std::error_code ec;
+        const auto exists = std::filesystem::exists(directory, ec);
+        if (ec)
+        {
+          throw std::logic_error(fmt::format(
+            "Unable to inspect ledger directory {}: {}",
+            directory.string(),
+            ec.message()));
+        }
+        if (!exists)
+        {
+          return;
+        }
 
-          for (std::filesystem::directory_iterator it(directory, ec), end;
-               it != end;
-               it.increment(ec))
-          {
-            if (ec)
-            {
-              throw std::logic_error(fmt::format(
-                "Unable to iterate ledger directory {}: {}",
-                directory.string(),
-                ec.message()));
-            }
-            if (!it->is_regular_file())
-            {
-              continue;
-            }
-
-            const auto name = it->path().filename().string();
-            if (
-              !name.starts_with("ledger_") ||
-              asynchost::is_ledger_file_ignored(name))
-            {
-              continue;
-            }
-
-            const auto committed =
-              asynchost::is_ledger_file_name_committed(name);
-            if (read_only && !committed)
-            {
-              continue;
-            }
-
-            try
-            {
-              files.push_back(
-                {it->path(),
-                 asynchost::get_start_idx_from_file_name(name),
-                 asynchost::get_last_idx_from_file_name(name),
-                 committed});
-            }
-            catch (const std::exception& e)
-            {
-              LOG_INFO_FMT(
-                "Ignoring invalid ledger file name {} while scanning recovery "
-                "snapshot endorsements: {}",
-                it->path().string(),
-                e.what());
-            }
-          }
+        for (std::filesystem::directory_iterator it(directory, ec), end;
+             it != end;
+             it.increment(ec))
+        {
           if (ec)
           {
             throw std::logic_error(fmt::format(
@@ -232,26 +186,68 @@ namespace ccf
               directory.string(),
               ec.message()));
           }
-        };
-
-      add_directory(config.directory, false);
-      for (const auto& directory : config.read_only_directories)
-      {
-        add_directory(directory, true);
-      }
-
-      std::sort(
-        files.begin(), files.end(), [](const auto& lhs, const auto& rhs) {
-          if (lhs.start_idx != rhs.start_idx)
+          if (!it->is_regular_file())
           {
-            return lhs.start_idx < rhs.start_idx;
+            continue;
           }
-          return lhs.end_idx.has_value() && !rhs.end_idx.has_value();
-        });
-      return files;
+
+          const auto name = it->path().filename().string();
+          if (
+            !name.starts_with("ledger_") ||
+            asynchost::is_ledger_file_ignored(name))
+          {
+            continue;
+          }
+
+          const auto committed = asynchost::is_ledger_file_name_committed(name);
+          if (read_only && !committed)
+          {
+            continue;
+          }
+
+          try
+          {
+            files.push_back(
+              {it->path(),
+               asynchost::get_start_idx_from_file_name(name),
+               asynchost::get_last_idx_from_file_name(name),
+               committed});
+          }
+          catch (const std::exception& e)
+          {
+            LOG_INFO_FMT(
+              "Ignoring invalid ledger file name {} while scanning recovery "
+              "snapshot endorsements: {}",
+              it->path().string(),
+              e.what());
+          }
+        }
+        if (ec)
+        {
+          throw std::logic_error(fmt::format(
+            "Unable to iterate ledger directory {}: {}",
+            directory.string(),
+            ec.message()));
+        }
+      };
+
+    add_directory(config.directory, false);
+    for (const auto& directory : config.read_only_directories)
+    {
+      add_directory(directory, true);
     }
+
+    std::sort(files.begin(), files.end(), [](const auto& lhs, const auto& rhs) {
+      if (lhs.start_idx != rhs.start_idx)
+      {
+        return lhs.start_idx < rhs.start_idx;
+      }
+      return lhs.end_idx.has_value() && !rhs.end_idx.has_value();
+    });
+    return files;
   }
 
+  // NOLINTNEXTLINE(readability-function-cognitive-complexity)
   static RecoverySnapshotLedgerScan scan_recovery_snapshot_ledger_files(
     const ccf::CCFConfig::Ledger& ledger_config,
     const std::shared_ptr<ccf::kv::AbstractTxEncryptor>& encryptor,
@@ -382,17 +378,19 @@ namespace ccf
         {
           first_file_version = parsed.version;
         }
-        if (
-          previous_file_version.has_value() &&
-          (previous_file_version.value() ==
-             std::numeric_limits<ccf::kv::Version>::max() ||
-           parsed.version != previous_file_version.value() + 1))
+        if (previous_file_version.has_value())
         {
-          throw std::logic_error(fmt::format(
-            "Ledger file {} contains non-contiguous versions {} and {}",
-            ledger_file.path.string(),
-            previous_file_version.value(),
-            parsed.version));
+          const auto previous_version = previous_file_version.value();
+          if (
+            previous_version == std::numeric_limits<ccf::kv::Version>::max() ||
+            parsed.version != previous_version + 1)
+          {
+            throw std::logic_error(fmt::format(
+              "Ledger file {} contains non-contiguous versions {} and {}",
+              ledger_file.path.string(),
+              previous_version,
+              parsed.version));
+          }
         }
         previous_file_version = parsed.version;
 
@@ -488,26 +486,31 @@ namespace ccf
         ++expected_seqno;
       }
 
-      if (
-        first_file_version.has_value() &&
-        first_file_version.value() !=
-          static_cast<ccf::kv::Version>(ledger_file.start_idx))
+      if (first_file_version.has_value())
       {
-        throw std::logic_error(fmt::format(
-          "Ledger file {} does not start at its declared seqno {}",
-          ledger_file.path.string(),
-          ledger_file.start_idx));
+        const auto first_version = first_file_version.value();
+        if (
+          first_version != static_cast<ccf::kv::Version>(ledger_file.start_idx))
+        {
+          throw std::logic_error(fmt::format(
+            "Ledger file {} does not start at its declared seqno {}",
+            ledger_file.path.string(),
+            ledger_file.start_idx));
+        }
       }
-      if (
-        ledger_file.end_idx.has_value() &&
-        (!previous_file_version.has_value() ||
-         previous_file_version.value() !=
-           static_cast<ccf::kv::Version>(ledger_file.end_idx.value())))
+      if (ledger_file.end_idx.has_value())
       {
-        throw std::logic_error(fmt::format(
-          "Ledger file {} does not end at its declared seqno {}",
-          ledger_file.path.string(),
-          ledger_file.end_idx.value()));
+        const auto declared_end_idx =
+          static_cast<ccf::kv::Version>(ledger_file.end_idx.value());
+        if (
+          !previous_file_version.has_value() ||
+          previous_file_version.value() != declared_end_idx)
+        {
+          throw std::logic_error(fmt::format(
+            "Ledger file {} does not end at its declared seqno {}",
+            ledger_file.path.string(),
+            declared_end_idx));
+        }
       }
     }
 
