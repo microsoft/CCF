@@ -197,6 +197,14 @@ TEST_CASE("Recovery snapshot endorsement scan reads ledger files directly")
   REQUIRE_THROWS(ccf::validate_recovery_snapshot_merkle_tree_encoding(
     truncated_tree, signature.version));
 
+  auto impossible_flushed_count = *signature.serialised_tree;
+  std::fill_n(
+    impossible_flushed_count.begin() + sizeof(uint64_t),
+    sizeof(uint64_t),
+    0xff);
+  REQUIRE_THROWS(ccf::validate_recovery_snapshot_merkle_tree_encoding(
+    impossible_flushed_count, signature.version));
+
   write_current_ledger_file(ledger_dir.path / "ledger_1", entries);
 
   ccf::CCFConfig::Ledger ledger_config;
@@ -216,8 +224,15 @@ TEST_CASE("Recovery snapshot endorsement scan reads ledger files directly")
   write_current_ledger_file(
     tampered_ledger_dir.path / "ledger_1", tampered_entries);
   ledger_config.directory = tampered_ledger_dir.path.string();
-  REQUIRE_THROWS(
-    ccf::scan_recovery_snapshot_ledger_files(ledger_config, encryptor, 1));
+  bool install_called = false;
+  const auto verification_error = ccf::try_verify_and_install_recovery_snapshot(
+    [&]() {
+      std::ignore =
+        ccf::scan_recovery_snapshot_ledger_files(ledger_config, encryptor, 1);
+    },
+    [&]() { install_called = true; });
+  REQUIRE(verification_error.has_value());
+  REQUIRE_FALSE(install_called);
 }
 
 TEST_CASE("Recovery snapshot endorsement scan bounds pending endorsements")
