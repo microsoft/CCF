@@ -48,3 +48,24 @@ Generating a trace of a scenario and validating it in one go can be done with ``
 This runs the raft_driver on the scenario, cleans the trace and then validates it against the TLA+ specification.
 
 CCF also provides a command line trace visualizer to aid debugging, for example, the ``append`` scenario can be visualized with ``python ../tests/trace_viz.py ../build/append.ndjson``. 
+
+Seeded simulation
+-----------------
+
+Scenario authors can mark an interesting trace-validation state with ``mark_seed,<name>`` after the scenario step whose resulting state should seed later simulation. The marker is a no-op for Raft state, but the driver emits a trace-validation event carrying the current node state and marker name.
+
+Seed extraction runs as part of trace validation. Pass ``--seed-output-dir`` to ``tlc.py tv`` to write the generated seed corpus:
+
+.. code-block:: bash
+
+    $ ./tlc.py --workers 1 tv --disable-dfs --ccf-raft-trace traces/consensus/marked_startup.ndjson --seed-output-dir generated-seeds consensus/Traceccfraft.tla
+
+The generated ``RaftSeeds.tla`` module is checked in as ``tla/consensus/RaftSeeds.tla``. CI regenerates it from ``marked_startup`` and fails if the generated module differs from the checked-in copy.
+
+Seeded simulation starts from ``RaftSeeds!SeedInit`` and then runs the ordinary simulation actions:
+
+.. code-block:: bash
+
+    $ ./tlc.py sim --depth 500 consensus/SeededSIMccfraft.tla
+
+The ``seedId`` variable is immutable after initialization, so every TLC state in a violation trace identifies the scenario marker that produced the seed. Seeded simulation is an additional long-verification search strategy, not a replacement for exhaustive model checking or ordinary simulation.

@@ -110,6 +110,7 @@ jobs:
           python3 install_deps.py
 
       - run: ./tlc.py sim --max-seconds 3000 --depth 500 consensus/SIMccfraft.tla
+      - run: ./tlc.py sim --max-seconds 3000 --depth 500 consensus/SeededSIMccfraft.tla
 
       - name: Upload TLC traces
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7

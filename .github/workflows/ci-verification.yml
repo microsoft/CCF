@@ -233,6 +233,15 @@ jobs:
           parallel './tlc.py --workers 1 --dot --trace-name {} tv --ccf-raft-trace {} consensus/Traceccfraft.tla' ::: $(ls traces/consensus/*.ndjson)
         shell: bash
 
+      - name: Check seeded simulation seeds are fresh
+        run: |
+          set -x
+          cd tla/
+          rm -rf generated-seeds
+          ./tlc.py --workers 1 tv --disable-dfs --ccf-raft-trace traces/consensus/marked_startup.ndjson --seed-output-dir generated-seeds consensus/Traceccfraft.tla
+          diff -u consensus/RaftSeeds.tla generated-seeds/RaftSeeds.tla
+        shell: bash
+
       - name: Upload artifacts.
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: always()
