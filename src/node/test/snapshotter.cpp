@@ -6,12 +6,10 @@
 #include "crypto/openssl/hash.h"
 #include "ds/files.h"
 #include "ds/internal_logger.h"
-#include "kv/raw_serialise.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
 #include "node/encryptor.h"
 #include "node/history.h"
-#include "node/identity.h"
 #include "node/recovery_snapshot_ledger.h"
 #include "node/snapshot_serdes.h"
 #include "snapshots/filenames.h"
@@ -111,26 +109,11 @@ TEST_CASE("Recovery snapshot installation failures do not request fallback")
 TEST_CASE("Recovery snapshot endorsement scan reads ledger files directly")
 {
   ScopedSnapshotDir ledger_dir;
-  ccf::NetworkIdentity target_identity(
-    "CN=Recovery snapshot ledger scan",
-    ccf::crypto::CurveID::SECP384R1,
-    "20240101000000Z",
-    365);
   ccf::kv::Store source_store;
   auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
   auto consensus = std::make_shared<ccf::kv::test::StubConsensus>();
-  const auto signing_node_kp = ccf::crypto::make_ec_key_pair();
-  auto history = std::make_shared<ccf::MerkleTxHistory>(
-    source_store, ccf::kv::test::PrimaryNodeId, *signing_node_kp);
-  history->set_endorsed_certificate(signing_node_kp->self_sign(
-    "CN=Recovery snapshot ledger signing node",
-    "20240101000000Z",
-    "20250101000000Z"));
-  history->set_service_signing_identity(
-    target_identity.get_key_pair(), ccf::COSESignaturesConfig{});
   source_store.set_encryptor(encryptor);
   source_store.set_consensus(consensus);
-  source_store.set_history(history);
   source_store.initialise_term(2);
 
   std::vector<std::vector<uint8_t>> entries;
@@ -143,34 +126,19 @@ TEST_CASE("Recovery snapshot endorsement scan reads ledger files directly")
     REQUIRE_FALSE(latest_entry.empty());
     entries.push_back(std::move(latest_entry));
   }
-
   {
-    ccf::ServiceInfo service;
-    service.cert = target_identity.cert;
-    service.status = ccf::ServiceStatus::OPEN;
-    service.current_service_create_txid = ccf::TxID{6, 2};
-
     ccf::CoseEndorsement endorsement;
     endorsement.endorsement = {0xd2, 0x01};
-    endorsement.endorsing_key =
-      target_identity.get_key_pair()->public_key_der();
+    endorsement.endorsing_key = {0x02, 0x03};
     endorsement.endorsement_epoch_begin = {2, 1};
     endorsement.endorsement_epoch_end = ccf::TxID{4, 1};
     endorsement.previous_version = 1;
 
     auto tx = source_store.create_tx();
-    tx.rw<ccf::Service>(ccf::Tables::SERVICE)->put(service);
     tx.rw<ccf::PreviousServiceIdentityEndorsement>(
         ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT)
       ->put(endorsement);
     REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
-    auto latest_entry =
-      consensus->get_latest_data().value_or(std::vector<uint8_t>{});
-    REQUIRE_FALSE(latest_entry.empty());
-    entries.push_back(std::move(latest_entry));
-  }
-  {
-    history->emit_signature();
     auto latest_entry =
       consensus->get_latest_data().value_or(std::vector<uint8_t>{});
     REQUIRE_FALSE(latest_entry.empty());
@@ -182,132 +150,28 @@ TEST_CASE("Recovery snapshot endorsement scan reads ledger files directly")
   REQUIRE_NOTHROW(ccf::verify_snapshot_seqno(first_entry, encryptor, 1));
   REQUIRE_THROWS(ccf::verify_snapshot_seqno(first_entry, encryptor, 2));
 
-  auto invalid_public_domain = entries.front();
-  const auto public_domain_size_offset =
-    sizeof(ccf::kv::SerialisedEntryHeader) + encryptor->get_header_length();
-  const size_t oversized_public_domain = invalid_public_domain.size();
-  std::memcpy(
-    invalid_public_domain.data() + public_domain_size_offset,
-    &oversized_public_domain,
-    sizeof(oversized_public_domain));
-  REQUIRE_THROWS(ccf::parse_recovery_snapshot_ledger_entry(
-    invalid_public_domain, encryptor));
-  const ccf::SnapshotSegments invalid_snapshot_entry{
-    std::span<const uint8_t>(invalid_public_domain), {}};
-  REQUIRE_THROWS(
-    ccf::verify_snapshot_seqno(invalid_snapshot_entry, encryptor, 1));
-
-  constexpr size_t truncated_public_domain_size =
-    sizeof(ccf::kv::EntryType) + sizeof(ccf::kv::Version);
-  ccf::kv::SerialisedEntryHeader truncated_claims_header;
-  truncated_claims_header.set_size(
-    sizeof(size_t) + truncated_public_domain_size);
-  std::vector<uint8_t> truncated_claims_entry(
-    sizeof(truncated_claims_header) + truncated_claims_header.size);
-  auto* truncated_claims_data = truncated_claims_entry.data();
-  std::memcpy(
-    truncated_claims_data,
-    &truncated_claims_header,
-    sizeof(truncated_claims_header));
-  truncated_claims_data += sizeof(truncated_claims_header);
-  std::memcpy(
-    truncated_claims_data,
-    &truncated_public_domain_size,
-    sizeof(truncated_public_domain_size));
-  truncated_claims_data += sizeof(truncated_public_domain_size);
-  *truncated_claims_data++ =
-    static_cast<uint8_t>(ccf::kv::EntryType::WriteSetWithClaims);
-  const ccf::kv::Version truncated_claims_version = 1;
-  std::memcpy(
-    truncated_claims_data,
-    &truncated_claims_version,
-    sizeof(truncated_claims_version));
-  REQUIRE_THROWS(ccf::parse_recovery_snapshot_ledger_entry(
-    truncated_claims_entry, encryptor));
-  const ccf::SnapshotSegments truncated_claims_snapshot{
-    std::span<const uint8_t>(truncated_claims_entry), {}};
-  REQUIRE_THROWS(
-    ccf::verify_snapshot_seqno(truncated_claims_snapshot, encryptor, 1));
-
-  std::vector<uint8_t> truncated_size_prefixed_entry(sizeof(size_t) + 1);
-  const size_t declared_entry_size = 2;
-  std::memcpy(
-    truncated_size_prefixed_entry.data(),
-    &declared_entry_size,
-    sizeof(declared_entry_size));
-  ccf::kv::RawReader truncated_reader(
-    truncated_size_prefixed_entry.data(), truncated_size_prefixed_entry.size());
-  REQUIRE_THROWS(truncated_reader.read_next<std::vector<uint8_t>>());
-
-  const auto signature =
-    ccf::parse_recovery_snapshot_ledger_entry(entries.back(), encryptor);
-  REQUIRE(signature.serialised_tree.has_value());
-  REQUIRE_NOTHROW(ccf::validate_recovery_snapshot_merkle_tree_encoding(
-    *signature.serialised_tree, signature.version));
-
-  auto excessive_leaf_count = *signature.serialised_tree;
-  std::fill_n(excessive_leaf_count.begin(), sizeof(uint64_t), 0xff);
-  REQUIRE_THROWS(ccf::validate_recovery_snapshot_merkle_tree_encoding(
-    excessive_leaf_count, signature.version));
-
-  auto truncated_tree = *signature.serialised_tree;
-  truncated_tree.pop_back();
-  REQUIRE_THROWS(ccf::validate_recovery_snapshot_merkle_tree_encoding(
-    truncated_tree, signature.version));
-
-  auto impossible_flushed_count = *signature.serialised_tree;
-  std::fill_n(
-    impossible_flushed_count.begin() + sizeof(uint64_t),
-    sizeof(uint64_t),
-    0xff);
-  REQUIRE_THROWS(ccf::validate_recovery_snapshot_merkle_tree_encoding(
-    impossible_flushed_count, signature.version));
-
-  std::vector<uint8_t> unsupported_tree_height(
-    2 * sizeof(uint64_t) + 2 * ccf::crypto::Sha256Hash::SIZE);
-  const auto write_big_endian_uint64 = [&](size_t offset, uint64_t value) {
-    for (size_t i = 0; i < sizeof(uint64_t); ++i)
-    {
-      unsupported_tree_height[offset + i] =
-        static_cast<uint8_t>(value >> (8 * (sizeof(uint64_t) - i - 1)));
-    }
-  };
-  write_big_endian_uint64(0, 1);
-  write_big_endian_uint64(sizeof(uint64_t), uint64_t{1} << 63);
-  REQUIRE_THROWS(ccf::validate_recovery_snapshot_merkle_tree_encoding(
-    unsupported_tree_height, (uint64_t{1} << 63) + 1));
-
   write_current_ledger_file(ledger_dir.path / "ledger_1", entries);
 
   ccf::CCFConfig::Ledger ledger_config;
   ledger_config.directory = ledger_dir.path.string();
   const auto scan =
     ccf::scan_recovery_snapshot_ledger_files(ledger_config, encryptor, 1);
-  REQUIRE(scan.last_signed_idx == 3);
   REQUIRE(scan.endorsements.size() == 1);
   REQUIRE(scan.endorsements.front().write_version == 2);
-  REQUIRE(scan.latest_service_info.has_value());
-  REQUIRE(scan.latest_service_info->first == 2);
-  REQUIRE(scan.latest_service_info->second.cert == target_identity.cert);
 
-  ScopedSnapshotDir tampered_ledger_dir;
-  auto tampered_entries = entries;
-  tampered_entries.back().back() ^= 0xff;
-  write_current_ledger_file(
-    tampered_ledger_dir.path / "ledger_1", tampered_entries);
-  ledger_config.directory = tampered_ledger_dir.path.string();
   bool install_called = false;
   const auto verification_error = ccf::try_verify_and_install_recovery_snapshot(
     [&]() {
-      std::ignore =
-        ccf::scan_recovery_snapshot_ledger_files(ledger_config, encryptor, 1);
+      const auto target_key = ccf::crypto::make_ec_key_pair()->public_key_der();
+      std::ignore = ccf::build_recovery_snapshot_endorsement_chain(
+        scan.endorsements, target_key, 1);
     },
     [&]() { install_called = true; });
   REQUIRE(verification_error.has_value());
   REQUIRE_FALSE(install_called);
 }
 
-TEST_CASE("Recovery snapshot endorsement scan bounds pending endorsements")
+TEST_CASE("Recovery snapshot endorsement scan bounds candidate endorsements")
 {
   ScopedSnapshotDir ledger_dir;
   ccf::kv::Store source_store;

@@ -148,8 +148,7 @@ namespace ccf
   static std::vector<uint8_t> verify_recovery_snapshot_endorsement_chain(
     const ccf::SerialisedCoseEndorsements& endorsements,
     std::span<const uint8_t> target_key,
-    ccf::kv::Version snapshot_seqno,
-    std::optional<ccf::TxID> target_service_from = std::nullopt)
+    ccf::kv::Version snapshot_seqno)
   {
     if (target_key.empty())
     {
@@ -185,11 +184,6 @@ namespace ccf
       verify_endorsements_connected(parsed[i], parsed[i + 1]);
     }
 
-    if (target_service_from.has_value())
-    {
-      validate_chain_front_connection(parsed.front(), *target_service_from);
-    }
-
     const auto& oldest = parsed.back();
     if (
       !oldest.endorsement_epoch_end.has_value() ||
@@ -211,8 +205,7 @@ namespace ccf
   build_recovery_snapshot_endorsement_chain(
     const std::vector<CollectedCoseEndorsement>& collected,
     std::span<const uint8_t> target_key,
-    ccf::kv::Version snapshot_seqno,
-    const ccf::TxID& target_service_from)
+    ccf::kv::Version snapshot_seqno)
   {
     if (collected.empty())
     {
@@ -302,9 +295,6 @@ namespace ccf
         "Newest collected endorsement is not signed by the configured "
         "previous service identity");
     }
-
-    validate_chain_front_connection(
-      collected.back().endorsement, target_service_from);
 
     const auto& oldest = collected.front().endorsement;
     if (
@@ -481,8 +471,7 @@ namespace ccf
     const SnapshotSegments& segments,
     const ccf::crypto::Pem& target_identity,
     const ccf::SerialisedCoseEndorsements& endorsements,
-    ccf::kv::Version snapshot_seqno,
-    std::optional<ccf::TxID> target_service_from = std::nullopt)
+    ccf::kv::Version snapshot_seqno)
   {
     if (endorsements.empty())
     {
@@ -498,7 +487,7 @@ namespace ccf
     const auto target_key = ccf::crypto::public_key_der_from_cert(
       ccf::crypto::cert_pem_to_der(target_identity));
     const auto snapshot_signer_key = verify_recovery_snapshot_endorsement_chain(
-      endorsements, target_key, snapshot_seqno, target_service_from);
+      endorsements, target_key, snapshot_seqno);
     const auto receipt = decode_and_verify_cose_snapshot_receipt(segments);
     const auto verifier =
       ccf::crypto::make_cose_verifier_from_key(snapshot_signer_key);

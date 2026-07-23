@@ -485,16 +485,15 @@ TEST_CASE("Recovery snapshot endorsements are validated newest-to-oldest")
     {cb.write_versions[1], cb.entries[1]},
     {cb.write_versions[2], cb.entries[2]}};
   const auto target_key = cb.current_pkey_der();
-  const auto target_from = cb.synthesised_current_service_from();
 
-  const auto chain = ccf::build_recovery_snapshot_endorsement_chain(
-    collected, target_key, 1, target_from);
+  const auto chain =
+    ccf::build_recovery_snapshot_endorsement_chain(collected, target_key, 1);
   REQUIRE(chain.size() == 2);
   REQUIRE(chain[0] == cb.entries[2].endorsement);
   REQUIRE(chain[1] == cb.entries[1].endorsement);
 
-  const auto snapshot_signer = ccf::verify_recovery_snapshot_endorsement_chain(
-    chain, target_key, 1, target_from);
+  const auto snapshot_signer =
+    ccf::verify_recovery_snapshot_endorsement_chain(chain, target_key, 1);
   REQUIRE(snapshot_signer == cb.service_keys.front()->public_key_der());
 }
 
@@ -507,55 +506,69 @@ TEST_CASE("Recovery snapshot endorsements fail closed")
     {cb.write_versions[1], cb.entries[1]},
     {cb.write_versions[2], cb.entries[2]}};
   const auto target_key = cb.current_pkey_der();
-  const auto target_from = cb.synthesised_current_service_from();
-  const auto chain = ccf::build_recovery_snapshot_endorsement_chain(
-    collected, target_key, 1, target_from);
+  const auto chain =
+    ccf::build_recovery_snapshot_endorsement_chain(collected, target_key, 1);
 
   auto out_of_order = chain;
   std::reverse(out_of_order.begin(), out_of_order.end());
   REQUIRE_THROWS_AS(
     ccf::verify_recovery_snapshot_endorsement_chain(
-      out_of_order, target_key, 1, target_from),
+      out_of_order, target_key, 1),
     std::logic_error);
 
   auto tampered = chain;
   tampered.front().back() ^= 0xff;
   REQUIRE_THROWS_AS(
-    ccf::verify_recovery_snapshot_endorsement_chain(
-      tampered, target_key, 1, target_from),
+    ccf::verify_recovery_snapshot_endorsement_chain(tampered, target_key, 1),
     std::logic_error);
 
   REQUIRE_THROWS_AS(
-    ccf::verify_recovery_snapshot_endorsement_chain(
-      chain, target_key, 1000, target_from),
+    ccf::verify_recovery_snapshot_endorsement_chain(chain, target_key, 1000),
     std::logic_error);
 
   auto missing_newest = chain;
   missing_newest.erase(missing_newest.begin());
   REQUIRE_THROWS_AS(
     ccf::verify_recovery_snapshot_endorsement_chain(
-      missing_newest, target_key, 1, target_from),
+      missing_newest, target_key, 1),
     std::logic_error);
 
   auto missing_oldest = chain;
   missing_oldest.pop_back();
   REQUIRE_THROWS_AS(
     ccf::verify_recovery_snapshot_endorsement_chain(
-      missing_oldest, target_key, 1, target_from),
+      missing_oldest, target_key, 1),
     std::logic_error);
 
   const auto wrong_target_key =
     ccf::crypto::make_ec_key_pair()->public_key_der();
   REQUIRE_THROWS_AS(
     ccf::build_recovery_snapshot_endorsement_chain(
-      collected, wrong_target_key, 1, target_from),
+      collected, wrong_target_key, 1),
     std::logic_error);
 
   auto broken_back_pointer = collected;
   broken_back_pointer.back().endorsement.previous_version = 999;
   REQUIRE_THROWS_AS(
     ccf::build_recovery_snapshot_endorsement_chain(
-      broken_back_pointer, target_key, 1, target_from),
+      broken_back_pointer, target_key, 1),
+    std::logic_error);
+
+  auto epoch_mismatch = collected;
+  epoch_mismatch.front().endorsement.endorsement_epoch_end->seqno -= 1;
+  REQUIRE_THROWS_AS(
+    ccf::build_recovery_snapshot_endorsement_chain(
+      epoch_mismatch, target_key, 1),
+    std::logic_error);
+
+  auto injected = collected;
+  auto injected_endorsement = collected.back();
+  ++injected_endorsement.write_version;
+  injected_endorsement.endorsement.previous_version =
+    collected.back().write_version;
+  injected.emplace_back(std::move(injected_endorsement));
+  REQUIRE_THROWS_AS(
+    ccf::build_recovery_snapshot_endorsement_chain(injected, target_key, 1),
     std::logic_error);
 }
 

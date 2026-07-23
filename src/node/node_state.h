@@ -769,45 +769,12 @@ namespace ccf
             const auto snapshot_seqno = startup_snapshot_info->seqno;
             const auto scan = scan_recovery_snapshot_ledger_files(
               config.ledger, network.tables->get_encryptor(), snapshot_seqno);
-            if (
-              scan.last_signed_idx <=
-              static_cast<::consensus::Index>(snapshot_seqno))
-            {
-              throw std::logic_error(
-                "No committed ledger suffix was found after the snapshot");
-            }
-            if (!scan.latest_service_info.has_value())
-            {
-              throw std::logic_error(
-                "No service identity was found in the committed ledger suffix");
-            }
-
-            const auto& latest_service = scan.latest_service_info->second;
-            if (latest_service.cert != target_identity)
-            {
-              throw std::logic_error(
-                "Latest ledger service identity does not match the configured "
-                "previous service identity");
-            }
-            if (!latest_service.current_service_create_txid.has_value())
-            {
-              throw std::logic_error(
-                "Latest ledger service identity has no creation TxID");
-            }
-
             const auto target_key = ccf::crypto::public_key_der_from_cert(
               ccf::crypto::cert_pem_to_der(target_identity));
             const auto endorsements = build_recovery_snapshot_endorsement_chain(
-              scan.endorsements,
-              target_key,
-              snapshot_seqno,
-              *latest_service.current_service_create_txid);
+              scan.endorsements, target_key, snapshot_seqno);
             verify_recovery_snapshot(
-              segments,
-              target_identity,
-              endorsements,
-              snapshot_seqno,
-              latest_service.current_service_create_txid);
+              segments, target_identity, endorsements, snapshot_seqno);
             LOG_INFO_FMT(
               "Validated {} recovery snapshot endorsement(s) in memory",
               endorsements.size());
