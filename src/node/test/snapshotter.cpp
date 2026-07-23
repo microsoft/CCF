@@ -197,6 +197,38 @@ TEST_CASE("Recovery snapshot endorsement scan reads ledger files directly")
   REQUIRE_THROWS(
     ccf::verify_snapshot_seqno(invalid_snapshot_entry, encryptor, 1));
 
+  constexpr size_t truncated_public_domain_size =
+    sizeof(ccf::kv::EntryType) + sizeof(ccf::kv::Version);
+  ccf::kv::SerialisedEntryHeader truncated_claims_header;
+  truncated_claims_header.set_size(
+    sizeof(size_t) + truncated_public_domain_size);
+  std::vector<uint8_t> truncated_claims_entry(
+    sizeof(truncated_claims_header) + truncated_claims_header.size);
+  auto* truncated_claims_data = truncated_claims_entry.data();
+  std::memcpy(
+    truncated_claims_data,
+    &truncated_claims_header,
+    sizeof(truncated_claims_header));
+  truncated_claims_data += sizeof(truncated_claims_header);
+  std::memcpy(
+    truncated_claims_data,
+    &truncated_public_domain_size,
+    sizeof(truncated_public_domain_size));
+  truncated_claims_data += sizeof(truncated_public_domain_size);
+  *truncated_claims_data++ =
+    static_cast<uint8_t>(ccf::kv::EntryType::WriteSetWithClaims);
+  const ccf::kv::Version truncated_claims_version = 1;
+  std::memcpy(
+    truncated_claims_data,
+    &truncated_claims_version,
+    sizeof(truncated_claims_version));
+  REQUIRE_THROWS(ccf::parse_recovery_snapshot_ledger_entry(
+    truncated_claims_entry, encryptor));
+  const ccf::SnapshotSegments truncated_claims_snapshot{
+    std::span<const uint8_t>(truncated_claims_entry), {}};
+  REQUIRE_THROWS(
+    ccf::verify_snapshot_seqno(truncated_claims_snapshot, encryptor, 1));
+
   std::vector<uint8_t> truncated_size_prefixed_entry(sizeof(size_t) + 1);
   const size_t declared_entry_size = 2;
   std::memcpy(
