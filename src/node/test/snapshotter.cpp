@@ -6,6 +6,7 @@
 #include "crypto/openssl/hash.h"
 #include "ds/files.h"
 #include "ds/internal_logger.h"
+#include "kv/raw_serialise.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
 #include "node/encryptor.h"
@@ -180,6 +181,31 @@ TEST_CASE("Recovery snapshot endorsement scan reads ledger files directly")
     std::span<const uint8_t>(entries.front()), {}};
   REQUIRE_NOTHROW(ccf::verify_snapshot_seqno(first_entry, encryptor, 1));
   REQUIRE_THROWS(ccf::verify_snapshot_seqno(first_entry, encryptor, 2));
+
+  auto invalid_public_domain = entries.front();
+  const auto public_domain_size_offset =
+    sizeof(ccf::kv::SerialisedEntryHeader) + encryptor->get_header_length();
+  const size_t oversized_public_domain = invalid_public_domain.size();
+  std::memcpy(
+    invalid_public_domain.data() + public_domain_size_offset,
+    &oversized_public_domain,
+    sizeof(oversized_public_domain));
+  REQUIRE_THROWS(ccf::parse_recovery_snapshot_ledger_entry(
+    invalid_public_domain, encryptor));
+  const ccf::SnapshotSegments invalid_snapshot_entry{
+    std::span<const uint8_t>(invalid_public_domain), {}};
+  REQUIRE_THROWS(
+    ccf::verify_snapshot_seqno(invalid_snapshot_entry, encryptor, 1));
+
+  std::vector<uint8_t> truncated_size_prefixed_entry(sizeof(size_t) + 1);
+  const size_t declared_entry_size = 2;
+  std::memcpy(
+    truncated_size_prefixed_entry.data(),
+    &declared_entry_size,
+    sizeof(declared_entry_size));
+  ccf::kv::RawReader truncated_reader(
+    truncated_size_prefixed_entry.data(), truncated_size_prefixed_entry.size());
+  REQUIRE_THROWS(truncated_reader.read_next<std::vector<uint8_t>>());
 
   const auto signature =
     ccf::parse_recovery_snapshot_ledger_entry(entries.back(), encryptor);
