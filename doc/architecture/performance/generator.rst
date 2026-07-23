@@ -21,27 +21,31 @@ a sample for an application for more complex scenarios.
 Command-Line Tool
 #################
 
-For the command line option you need to run the following:
+For a full description of all options, run:
 
 .. code-block:: bash
 
-    $ python3 generate_packages.py
+    $ python3 generate_packages.py --help
 
-After executing this command there will be a ``.parquet`` file produced in the same directory
-containing the data with the requests. You can configure the generated requests using the 
-following arguments:
+Some example invocations:
 
-:: 
+.. code-block:: bash
 
-    -h, --help show this help message and exit
-    -hs HOST, --host HOST The host to submit the request. (default: 127.0.0.1:8000)
-    -p PATH, --path PATH  The relative path to submit the request. (default: /app/log/private)
-    -vr VERB, --verb VERB The request action. (default: POST)
-    -r ROWS, --rows ROWS  The number of requests to send. (default: 16)
-    -rt REQUEST_TYPE, --request_type REQUEST_TYPE The transfer protocol for the request. (default: HTTP/1.1)
-    -pf PATH_TO_PARQUET, --path_to_parquet PATH_TO_PARQUET Path to the parquet file to store the generated requests (default: ./requests.parquet)
-    -ct CONTENT_TYPE, --content_type CONTENT_TYPE The Content-Type representation header is used to indicate the original media type of the resource. (default: application-json)
-    -d DATA, --data DATA  A string with the data to be sent with a request (default: {"id": 1, "msg": "Send message with id 1"})
+    # Generate 1000 POST requests to /app/log/private against a local node
+    $ python3 generate_packages.py \
+        --rows 1000 \
+        --path /app/log/private \
+        --verb POST
+
+    # Generate requests and save to a custom parquet file
+    $ python3 generate_packages.py \
+        --rows 500 \
+        --path /app/log/private \
+        --verb POST \
+        --path_to_parquet my_requests.parquet
+
+After executing this command there will be a ``.parquet`` file produced containing
+the generated requests, ready to be passed to the :doc:`submitter`.
 
 Scripting Requests
 ##################
