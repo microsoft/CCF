@@ -3,6 +3,12 @@
 
 import base64
 import datetime
+import hashlib
+import os
+import subprocess
+import sys
+from pathlib import Path
+from typing import Tuple
 
 import cbor2
 import ccf.cose
@@ -147,6 +153,161 @@ def make_cose_endorsement(signer, payload_key, begin: str, end: str) -> bytes:
     return cwt.COSE.new(
         alg_auto_inclusion=True, deterministic_header=True
     ).encode_and_sign(payload, cose_key, protected=protected)
+
+
+def make_cose_receipt(
+    signer: ec.EllipticCurvePrivateKey,
+    claim_digest: bytes,
+    path: list[list[bool | bytes]],
+) -> bytes:
+    signer_priv_pem, signer_pub_pem = make_pem_pair(signer)
+    kid = ccf.cose.key_fingerprint_from_key(signer_pub_pem)
+    cose_key = cwt.COSEKey.from_pem(signer_priv_pem, kid=kid)
+    protected = cwt.utils.ResolvedHeader(
+        {
+            int(cwt.COSEHeaders.ALG): ccf.cose.default_algorithm_for_key(
+                signer.public_key()
+            ),
+            int(cwt.COSEHeaders.KID): kid.encode("utf-8"),
+            ccf.cose.COSE_PHDR_VDS_LABEL: (ccf.cose.COSE_PHDR_VDS_CCF_LEDGER_SHA256),
+        }
+    )
+
+    write_set_digest = hashlib.sha256(b"write set").digest()
+    commit_evidence = "ce:2.1"
+    proof = cbor2.dumps(
+        {
+            ccf.cose.CCF_PROOF_LEAF_LABEL: [
+                write_set_digest,
+                commit_evidence,
+                claim_digest,
+            ],
+            ccf.cose.CCF_PROOF_PATH_LABEL: path,
+        }
+    )
+    unprotected = {
+        ccf.cose.COSE_PHDR_VDP_LABEL: {
+            ccf.cose.COSE_RECEIPT_INCLUSION_PROOF_LABEL: [proof]
+        }
+    }
+    root = hashlib.sha256(
+        write_set_digest
+        + hashlib.sha256(commit_evidence.encode()).digest()
+        + claim_digest
+    ).digest()
+
+    embedded = cwt.COSE.new(
+        alg_auto_inclusion=True, deterministic_header=True
+    ).encode_and_sign(
+        root,
+        cose_key,
+        protected=protected,
+        unprotected=unprotected,
+    )
+    detached = cbor2.loads(embedded)
+    detached.value[2] = None
+    return cbor2.dumps(detached)
+
+
+def test_verify_cose_receipt_with_empty_merkle_path():
+    signer = make_private_key(ec.SECP384R1())
+    claim_digest = hashlib.sha256(b"snapshot").digest()
+    receipt = make_cose_receipt(signer, claim_digest, path=[])
+
+    protected = ccf.cose.verify_receipt(receipt, signer.public_key(), claim_digest)
+    assert (
+        protected[ccf.cose.COSE_PHDR_VDS_LABEL]
+        == ccf.cose.COSE_PHDR_VDS_CCF_LEDGER_SHA256
+    )
+
+    endorsed_protected = ccf.cose.verify_receipt_with_endorsements(
+        receipt,
+        signer.public_key(),
+        claim_digest,
+        endorsements=[],
+        snapshot_seqno=1,
+    )
+    assert endorsed_protected == protected
+
+
+def test_cose_receipt_rejects_invalid_signature():
+    signer = make_private_key(ec.SECP384R1())
+    claim_digest = hashlib.sha256(b"snapshot").digest()
+    receipt = bytearray(make_cose_receipt(signer, claim_digest, path=[]))
+    receipt[-1] ^= 0xFF
+
+    with pytest.raises(ValueError, match="signature verification failed"):
+        ccf.cose.verify_receipt(bytes(receipt), signer.public_key(), claim_digest)
+
+
+def test_receipt_verification_rejects_empty_proofs_under_optimization():
+    python_src = str(Path(__file__).parents[1] / "src")
+    env = os.environ.copy()
+    env["PYTHONPATH"] = os.pathsep.join(
+        path for path in (python_src, env.get("PYTHONPATH")) if path
+    )
+    script = """
+import cbor2
+import cwt
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+import ccf.cose
+
+key = ec.generate_private_key(ec.SECP384R1())
+public_pem = key.public_key().public_bytes(
+    Encoding.PEM, PublicFormat.SubjectPublicKeyInfo
+).decode("ascii")
+kid = ccf.cose.key_fingerprint_from_key(public_pem).encode("utf-8")
+protected = cbor2.dumps(
+    {
+        int(cwt.COSEHeaders.ALG): ccf.cose.default_algorithm_for_key(
+            key.public_key()
+        ),
+        int(cwt.COSEHeaders.KID): kid,
+        ccf.cose.COSE_PHDR_VDS_LABEL:
+            ccf.cose.COSE_PHDR_VDS_CCF_LEDGER_SHA256,
+    }
+)
+fabricated = cbor2.dumps(
+    cbor2.CBORTag(
+        cwt.const.COSE_TYPE_TO_TAG[cwt.const.COSETypes.SIGN1],
+        [
+            protected,
+            {
+                ccf.cose.COSE_PHDR_VDP_LABEL: {
+                    ccf.cose.COSE_RECEIPT_INCLUSION_PROOF_LABEL: []
+                }
+            },
+            None,
+            b"\\x00" * 96,
+        ],
+    )
+)
+
+try:
+    ccf.cose.verify_receipt_with_endorsements(
+        fabricated,
+        key.public_key(),
+        b"\\x00" * 32,
+        endorsements=[],
+        snapshot_seqno=1,
+    )
+except ValueError as error:
+    if str(error) != "At least one inclusion proof is required":
+        raise
+    print("rejected")
+else:
+    raise SystemExit("fabricated unsigned receipt was accepted")
+"""
+    result = subprocess.run(
+        [sys.executable, "-O", "-c", script],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "rejected"
 
 
 def test_cose_endorsement_sidecar_chain():

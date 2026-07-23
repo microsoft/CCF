@@ -4,6 +4,7 @@
 import argparse
 import base64
 import hashlib
+import io
 import json
 import sys
 from datetime import datetime
@@ -421,6 +422,24 @@ def verify_receipt_with_endorsements(
     return verify_receipt(receipt_bytes, snapshot_signer_key, claim_digest)
 
 
+def _decode_single_cbor(data: bytes, description: str):
+    if not isinstance(data, bytes):
+        raise TypeError(f"{description} CBOR must be bytes")
+
+    stream = io.BytesIO(data)
+    decoder = cbor2.CBORDecoder(stream)
+    try:
+        value = decoder.decode()
+    except (cbor2.CBORDecodeError, EOFError) as e:
+        raise ValueError(f"Invalid {description} CBOR") from e
+
+    try:
+        decoder.decode()
+    except cbor2.CBORDecodeEOF:
+        return value
+    raise ValueError(f"Trailing data after {description} CBOR")
+
+
 def verify_receipt(
     receipt_bytes: bytes, key: CertificatePublicKeyTypes, claim_digest: bytes
 ):
@@ -429,6 +448,11 @@ def verify_receipt(
     using the CCF tree algorithm defined in https://datatracker.ietf.org/doc/draft-birkholz-cose-receipts-ccf-profile/
 
     """
+    if not isinstance(claim_digest, bytes):
+        raise TypeError("Claim digest must be bytes")
+    if len(claim_digest) != hashlib.sha256().digest_size:
+        raise ValueError(f"Claim digest must be {hashlib.sha256().digest_size} bytes")
+
     key_pem = key.public_bytes(Encoding.PEM, PublicFormat.SubjectPublicKeyInfo).decode(
         "ascii"
     )
@@ -436,46 +460,119 @@ def verify_receipt(
     cose_key = cwt.COSEKey.from_pem(key_pem, kid=expected_kid)
     cose_ctx = cwt.COSE.new()
 
-    receipt = cbor2.loads(receipt_bytes)
-    assert receipt.tag == cwt.const.COSE_TYPE_TO_TAG[cwt.const.COSETypes.SIGN1]
-    phdr, uhdr, _payload, _sig = receipt.value
-    phdr = cbor2.loads(phdr)
+    receipt = _decode_single_cbor(receipt_bytes, "COSE receipt")
+    expected_tag = cwt.const.COSE_TYPE_TO_TAG[cwt.const.COSETypes.SIGN1]
+    if not isinstance(receipt, cbor2.CBORTag) or receipt.tag != expected_tag:
+        raise ValueError(f"COSE receipt must use tag {expected_tag}")
+    if not isinstance(receipt.value, (list, tuple)) or len(receipt.value) != 4:
+        raise ValueError("COSE receipt must contain a four-element Sign1 array")
 
-    assert phdr[4] == expected_kid.encode("utf-8")
+    protected_raw, unprotected, payload, signature = receipt.value
+    if not isinstance(protected_raw, bytes):
+        raise ValueError("COSE receipt protected header must be a byte string")
+    if not isinstance(unprotected, dict):
+        raise ValueError("COSE receipt unprotected header must be a map")
+    if payload is not None:
+        raise ValueError("COSE receipt payload must be detached")
+    if not isinstance(signature, bytes) or not signature:
+        raise ValueError("COSE receipt signature must be a non-empty byte string")
 
-    assert COSE_PHDR_VDS_LABEL in phdr, "Verifiable data structure type is required"
-    assert (
-        phdr[COSE_PHDR_VDS_LABEL] == COSE_PHDR_VDS_CCF_LEDGER_SHA256
-    ), "vds(395) protected header must be CCF_LEDGER_SHA256(2)"
+    protected = _decode_single_cbor(protected_raw, "COSE protected header")
+    if not isinstance(protected, dict):
+        raise ValueError("COSE receipt protected header must encode a map")
 
-    assert COSE_PHDR_VDP_LABEL in uhdr, "Verifiable data proof is required"
-    proof = uhdr[COSE_PHDR_VDP_LABEL]
-    assert COSE_RECEIPT_INCLUSION_PROOF_LABEL in proof, "Inclusion proof is required"
-    inclusion_proofs = proof[COSE_RECEIPT_INCLUSION_PROOF_LABEL]
-    assert inclusion_proofs, "At least one inclusion proof is required"
+    algorithm_label = int(cwt.COSEHeaders.ALG)
+    if algorithm_label not in protected or not isinstance(
+        protected[algorithm_label], int
+    ):
+        raise ValueError("COSE receipt signing algorithm is required")
+    kid_label = int(cwt.COSEHeaders.KID)
+    if protected.get(kid_label) != expected_kid.encode("utf-8"):
+        raise ValueError("COSE receipt key ID does not match the verification key")
+    if COSE_PHDR_VDS_LABEL not in protected:
+        raise ValueError("Verifiable data structure type is required")
+    if protected[COSE_PHDR_VDS_LABEL] != COSE_PHDR_VDS_CCF_LEDGER_SHA256:
+        raise ValueError("vds(395) protected header must be CCF_LEDGER_SHA256(2)")
 
-    ic_phdr = None
-    for inclusion_proof in inclusion_proofs:
-        assert isinstance(inclusion_proof, bytes), "Inclusion proof must be bstr"
-        proof = cbor2.loads(inclusion_proof)
-        assert CCF_PROOF_LEAF_LABEL in proof, "Leaf must be present"
-        leaf = proof[CCF_PROOF_LEAF_LABEL]
-        if claim_digest != leaf[2]:
-            raise ValueError(f"Claim digest mismatch: {leaf[2]!r} != {claim_digest!r}")
+    verifiable_data_proof = unprotected.get(COSE_PHDR_VDP_LABEL)
+    if not isinstance(verifiable_data_proof, dict):
+        raise ValueError("Verifiable data proof must be a map")
+    inclusion_proofs = verifiable_data_proof.get(COSE_RECEIPT_INCLUSION_PROOF_LABEL)
+    if not isinstance(inclusion_proofs, (list, tuple)):
+        raise ValueError("Inclusion proofs must be an array")
+    if not inclusion_proofs:
+        raise ValueError("At least one inclusion proof is required")
+
+    verified_protected_header = None
+    for proof_index, inclusion_proof in enumerate(inclusion_proofs):
+        if not isinstance(inclusion_proof, bytes) or not inclusion_proof:
+            raise ValueError(
+                f"Inclusion proof at index {proof_index} must be a non-empty "
+                "byte string"
+            )
+        proof = _decode_single_cbor(inclusion_proof, "inclusion proof")
+        if not isinstance(proof, dict):
+            raise ValueError("Inclusion proof must encode a map")
+
+        leaf = proof.get(CCF_PROOF_LEAF_LABEL)
+        if not isinstance(leaf, (list, tuple)) or len(leaf) != 3:
+            raise ValueError("Inclusion proof leaf must contain three elements")
+        write_set_digest, commit_evidence, proof_claim_digest = leaf
+        if (
+            not isinstance(write_set_digest, bytes)
+            or len(write_set_digest) != hashlib.sha256().digest_size
+        ):
+            raise ValueError("Write set digest must be a 32-byte byte string")
+        if not isinstance(commit_evidence, str) or not commit_evidence:
+            raise ValueError("Commit evidence must be a non-empty string")
+        if (
+            not isinstance(proof_claim_digest, bytes)
+            or len(proof_claim_digest) != hashlib.sha256().digest_size
+        ):
+            raise ValueError("Proof claim digest must be a 32-byte byte string")
+        if claim_digest != proof_claim_digest:
+            raise ValueError(
+                f"Claim digest mismatch: {proof_claim_digest!r} != {claim_digest!r}"
+            )
         accumulator = hashlib.sha256(
-            leaf[0] + hashlib.sha256(leaf[1].encode()).digest() + leaf[2]
+            write_set_digest
+            + hashlib.sha256(commit_evidence.encode()).digest()
+            + proof_claim_digest
         ).digest()
-        assert CCF_PROOF_PATH_LABEL in proof, "Path must be present"
-        path = proof[CCF_PROOF_PATH_LABEL]
-        for left, digest in path:
+
+        path = proof.get(CCF_PROOF_PATH_LABEL)
+        if not isinstance(path, (list, tuple)):
+            raise ValueError("Inclusion proof path must be an array")
+        for path_index, path_entry in enumerate(path):
+            if not isinstance(path_entry, (list, tuple)) or len(path_entry) != 2:
+                raise ValueError(
+                    f"Inclusion proof path entry {path_index} must contain "
+                    "direction and digest"
+                )
+            left, digest = path_entry
+            if not isinstance(left, bool):
+                raise ValueError(
+                    f"Inclusion proof path direction {path_index} must be boolean"
+                )
+            if (
+                not isinstance(digest, bytes)
+                or len(digest) != hashlib.sha256().digest_size
+            ):
+                raise ValueError(
+                    f"Inclusion proof path digest {path_index} must be 32 bytes"
+                )
             if left:
                 accumulator = hashlib.sha256(digest + accumulator).digest()
             else:
                 accumulator = hashlib.sha256(accumulator + digest).digest()
-        ic_phdr, _, _ = cose_ctx.decode_with_headers(
-            receipt_bytes, cose_key, detached_payload=accumulator
-        )
-    return ic_phdr
+        try:
+            verified_protected_header, _, _ = cose_ctx.decode_with_headers(
+                receipt_bytes, cose_key, detached_payload=accumulator
+            )
+        except cwt.exceptions.CWTError as e:
+            raise ValueError("COSE receipt signature verification failed") from e
+
+    return verified_protected_header
 
 
 _SIGN_DESCRIPTION = """Create and sign a COSE Sign1 message for CCF governance
