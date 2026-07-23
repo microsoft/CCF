@@ -1775,14 +1775,7 @@ namespace asynchost
         return;
       }
 
-      struct UnregisterGuard
-      {
-        std::shared_ptr<ccf::ds::WorkerShutdownGate> g;
-        ~UnregisterGuard()
-        {
-          g->unregister();
-        }
-      } guard{gate};
+      ccf::ds::WorkerShutdownGate::UnregisterGuard guard{gate};
 
       data->read_result = data->ledger->read_entries_range(
         data->from_idx, data->to_idx, true, data->max_size);

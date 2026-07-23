@@ -3,6 +3,7 @@
 #pragma once
 
 #include <condition_variable>
+#include <memory>
 #include <mutex>
 
 namespace ccf::ds
@@ -80,5 +81,19 @@ namespace ccf::ds
       std::unique_lock<std::mutex> guard(self->lock);
       return !alive;
     }
+
+    /**
+     * RAII guard that calls unregister() on destruction. Intended to be used
+     * after a successful try_register() to ensure unregister() is called on
+     * every exit path.
+     */
+    struct UnregisterGuard
+    {
+      std::shared_ptr<WorkerShutdownGate> gate;
+      ~UnregisterGuard()
+      {
+        gate->unregister();
+      }
+    };
   };
 }
