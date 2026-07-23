@@ -797,62 +797,67 @@ namespace ccf
 
       if (sidecar_exists)
       {
-        try
+        const auto preparation_error =
+          try_prepare_and_install_recovery_snapshot(
+            [&]() {
+              const auto endorsements =
+                read_cose_endorsements_sidecar(sidecar_path);
+              verify_recovery_snapshot(
+                segments,
+                target_identity,
+                endorsements,
+                startup_snapshot_info->seqno);
+              LOG_INFO_FMT(
+                "Reusing verified snapshot endorsements sidecar {}",
+                sidecar_path.string());
+            },
+            [&]() { install_recovery_snapshot_and_start_unsafe(); });
+        if (!preparation_error.has_value())
         {
-          const auto endorsements =
-            read_cose_endorsements_sidecar(sidecar_path);
-          verify_recovery_snapshot(
-            segments,
-            target_identity,
-            endorsements,
-            startup_snapshot_info->seqno);
-          LOG_INFO_FMT(
-            "Reusing verified snapshot endorsements sidecar {}",
-            sidecar_path.string());
-          install_recovery_snapshot_and_start_unsafe();
           return;
         }
-        catch (const std::exception& e)
+
+        LOG_FAIL_FMT(
+          "Snapshot endorsements sidecar {} is invalid: {}",
+          sidecar_path.string(),
+          *preparation_error);
+        if (!drop_recovery_snapshot_sidecar_unsafe(sidecar_path))
         {
-          LOG_FAIL_FMT(
-            "Snapshot endorsements sidecar {} is invalid: {}",
-            sidecar_path.string(),
-            e.what());
-          if (!drop_recovery_snapshot_sidecar_unsafe(sidecar_path))
-          {
-            fallback_from_recovery_snapshot_unsafe(
-              "invalid sidecar could not be removed");
-            return;
-          }
+          fallback_from_recovery_snapshot_unsafe(
+            "invalid sidecar could not be removed");
+          return;
         }
       }
 
-      try
+      const auto preparation_error =
+        try_prepare_and_install_recovery_snapshot(
+          [&]() {
+            verify_recovery_snapshot(
+              segments, target_identity, {}, startup_snapshot_info->seqno);
+            LOG_INFO_FMT(
+              "Recovery snapshot {} is directly signed by the configured "
+              "previous service identity",
+              startup_snapshot_path->string());
+          },
+          [&]() { install_recovery_snapshot_and_start_unsafe(); });
+      if (!preparation_error.has_value())
       {
-        verify_recovery_snapshot(
-          segments, target_identity, {}, startup_snapshot_info->seqno);
-        LOG_INFO_FMT(
-          "Recovery snapshot {} is directly signed by the configured previous "
-          "service identity",
-          startup_snapshot_path->string());
-        install_recovery_snapshot_and_start_unsafe();
         return;
       }
-      catch (const std::exception& e)
-      {
-        if (segments.receipt.empty() || segments.receipt[0] != 0xD2)
-        {
-          fallback_from_recovery_snapshot_unsafe(fmt::format(
-            "old-style snapshot receipt cannot be augmented: {}", e.what()));
-          return;
-        }
 
-        LOG_INFO_FMT(
-          "Recovery snapshot {} is not directly signed by the configured "
-          "previous service identity; scanning the public ledger suffix for "
-          "COSE endorsements",
-          startup_snapshot_path->string());
+      if (segments.receipt.empty() || segments.receipt[0] != 0xD2)
+      {
+        fallback_from_recovery_snapshot_unsafe(fmt::format(
+          "old-style snapshot receipt cannot be augmented: {}",
+          *preparation_error));
+        return;
       }
+
+      LOG_INFO_FMT(
+        "Recovery snapshot {} is not directly signed by the configured "
+        "previous service identity; scanning the public ledger suffix for "
+        "COSE endorsements",
+        startup_snapshot_path->string());
 
       if (!recovery_snapshot_directory_is_writable_unsafe())
       {

@@ -58,6 +58,35 @@ struct ScopedSnapshotDir
   }
 };
 
+TEST_CASE("Recovery snapshot installation failures do not request fallback")
+{
+  bool install_started = false;
+  bool fallback_requested = false;
+
+  REQUIRE_THROWS_AS(
+    [&]() {
+      const auto preparation_error =
+        ccf::try_prepare_and_install_recovery_snapshot(
+          []() {},
+          [&]() {
+            install_started = true;
+            throw std::logic_error("snapshot installation failed");
+          });
+      fallback_requested = preparation_error.has_value();
+    }(),
+    std::logic_error);
+  REQUIRE(install_started);
+  REQUIRE_FALSE(fallback_requested);
+
+  bool install_called = false;
+  const auto preparation_error =
+    ccf::try_prepare_and_install_recovery_snapshot(
+      []() { throw std::logic_error("snapshot verification failed"); },
+      [&]() { install_called = true; });
+  REQUIRE(preparation_error.has_value());
+  REQUIRE_FALSE(install_called);
+}
+
 TEST_CASE("Snapshot endorsement sidecar file lifecycle")
 {
   ScopedSnapshotDir snapshot_dir;
@@ -89,6 +118,31 @@ TEST_CASE("Snapshot endorsement sidecar file lifecycle")
   files::dump(tampered, sidecar_path);
   REQUIRE_THROWS(ccf::read_cose_endorsements_sidecar(sidecar_path));
   REQUIRE(files::slurp(snapshot_path) == snapshot_data);
+}
+
+TEST_CASE("Snapshot endorsement sidecar resource limits")
+{
+  std::vector<uint8_t> too_many{0x98, 0x41};
+  too_many.insert(
+    too_many.end(), ccf::MAX_SNAPSHOT_ENDORSEMENTS_COUNT + 1, 0x40);
+  REQUIRE_THROWS(ccf::deserialise_cose_endorsements(too_many));
+
+  std::vector<uint8_t> oversized_endorsement{
+    0x81, 0x5a, 0x00, 0x10, 0x00, 0x01};
+  oversized_endorsement.resize(
+    oversized_endorsement.size() +
+    ccf::MAX_SNAPSHOT_ENDORSEMENT_SIZE + 1);
+  REQUIRE_THROWS(ccf::deserialise_cose_endorsements(oversized_endorsement));
+
+  std::vector<uint8_t> oversized_payload{0x85};
+  for (size_t i = 0; i < 5; ++i)
+  {
+    oversized_payload.insert(
+      oversized_payload.end(), {0x5a, 0x00, 0x10, 0x00, 0x00});
+    oversized_payload.resize(
+      oversized_payload.size() + ccf::MAX_SNAPSHOT_ENDORSEMENT_SIZE);
+  }
+  REQUIRE_THROWS(ccf::deserialise_cose_endorsements(oversized_payload));
 }
 
 TEST_CASE("Recovery snapshot endorsement scan reads ledger files directly")

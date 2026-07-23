@@ -5,6 +5,7 @@
 
 #include <cstdint>
 #include <exception>
+#include <limits>
 #include <memory>
 #include <span>
 #include <string>
@@ -116,7 +117,10 @@ namespace ccf::cbor
   Value make_array(std::vector<Value>&& data);
   Value make_map(std::vector<MapItem>&& data);
 
-  Value parse(std::span<const uint8_t> raw, size_t max_depth = 16);
+  Value parse(
+    std::span<const uint8_t> raw,
+    size_t max_depth = 16,
+    size_t max_array_size = std::numeric_limits<size_t>::max());
   std::vector<uint8_t> serialize(const Value& value, size_t max_depth = 16);
 
   std::string to_string(const Value& value);
