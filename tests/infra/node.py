@@ -548,13 +548,61 @@ class Node:
 
         raise TimeoutError(f"Node {self.local_node_id} failed to join the network")
 
+    def committed_ledger_chunks(self):
+        chunks = []
+        for ledger_dir in self.remote.ledger_paths():
+            if not os.path.isdir(ledger_dir):
+                continue
+
+            for file_name in os.listdir(ledger_dir):
+                if not ccf.ledger.is_ledger_chunk_committed(file_name):
+                    continue
+                try:
+                    start_seqno, end_seqno = ccf.ledger.range_from_filename(file_name)
+                except ValueError:
+                    continue
+                chunks.append(
+                    (start_seqno, end_seqno, os.path.join(ledger_dir, file_name))
+                )
+
+        return sorted(chunks, key=lambda chunk: chunk[0])
+
+    def find_committed_ledger_chunk_covering(self, seqno):
+        for start_seqno, end_seqno, path in self.committed_ledger_chunks():
+            if end_seqno is not None and start_seqno <= seqno <= end_seqno:
+                return start_seqno, end_seqno, path
+        return None
+
+    def wait_for_committed_ledger_chunk_covering(self, seqno, timeout=5):
+        end_time = time.time() + timeout
+        while time.time() < end_time:
+            chunk = self.find_committed_ledger_chunk_covering(seqno)
+            if chunk is not None:
+                return chunk
+            time.sleep(0.1)
+
+        raise TimeoutError(
+            f"Could not find committed ledger chunk covering seqno {seqno} "
+            f"on node {self.local_node_id} after {timeout}s"
+        )
+
     def get_ledger_public_tables_at(self, seqno):
+        if not self.is_stopped():
+            LOG.warning(
+                "Parsing ledger files from live node {}.",
+                self.local_node_id,
+            )
         ledger = ccf.ledger.Ledger(self.remote.ledger_paths())
         assert ledger.last_committed_chunk_range[1] >= seqno
         tx = ledger.get_transaction(seqno)
         return tx.get_public_domain().get_tables()
 
     def get_ledger_public_state_at(self, seqno):
+        if not self.is_stopped():
+            LOG.warning(
+                "Parsing ledger files from live node {}.",
+                self.local_node_id,
+            )
         ledger = ccf.ledger.Ledger(self.remote.ledger_paths())
         assert ledger.last_committed_chunk_range[1] >= seqno
         return ledger.get_latest_public_state()
@@ -595,6 +643,20 @@ class Node:
                     infra.path.copy_dir(os.path.join(ro_dir, f), committed_ledger_dir)
 
         return current_ledger_dir, [committed_ledger_dir]
+
+    def get_committed_ledger_dirs(self):
+        if not self.is_stopped():
+            LOG.warning(
+                "Copying committed ledger files from live node {}.",
+                self.local_node_id,
+            )
+        _, committed_ledger_dirs = self.get_ledger()
+        return committed_ledger_dirs
+
+    def get_committed_ledger(self, **kwargs):
+        kwargs.setdefault("committed_only", True)
+        kwargs.setdefault("contiguous_suffix", True)
+        return ccf.ledger.Ledger(self.get_committed_ledger_dirs(), **kwargs)
 
     def get_committed_snapshots(self, pre_condition_func=lambda src_dir, _: True):
         (

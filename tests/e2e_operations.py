@@ -156,16 +156,14 @@ def test_forced_ledger_chunk(network, args):
     network.txs.issue(network, number_txs=3)
 
     # Submit a proposal to force a ledger chunk at the following signature
-    proposal = network.consortium.force_ledger_chunk(primary)
+    proposal, _ = network.create_and_wait_for_chunk(primary)
 
     # Issue some more transactions
     network.txs.issue(network, number_txs=5)
 
-    ledger_dirs = primary.remote.ledger_paths()
-
     # Check that there is indeed a ledger chunk that ends at the
     # first signature after proposal.completed_seqno
-    ledger = ccf.ledger.Ledger(ledger_dirs, contiguous_suffix=True)
+    ledger = primary.get_committed_ledger()
     chunk, _, last, next_signature = find_ledger_chunk_for_seqno(
         ledger, proposal.completed_seqno
     )

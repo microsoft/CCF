@@ -886,9 +886,8 @@ def test_join_straddling_primary_replacement(network, args):
 def test_retired_nodes_stop_signing_after_retired_committed(network, args):
     primary, _ = network.find_primary()
 
-    # Force ledger flush of all transactions so far
-    network.get_latest_ledger_public_state()
-    ledger = ccf.ledger.Ledger(primary.remote.ledger_paths(), contiguous_suffix=True)
+    network.create_and_wait_for_chunk(primary)
+    ledger = primary.get_committed_ledger()
 
     # True once a subsequent signature has committed the retired_committed tx
     # itself: rc is then globally committed and the node's retired_committed
@@ -970,13 +969,13 @@ def test_add_node_with_read_only_ledger(network, args):
 
 @reqs.description("Confirm ledger contains expected entries")
 def test_ledger_invariants(network, args):
-    # Force ledger flush of all transactions so far
-    network.get_latest_ledger_public_state()
+    proposal, _ = network.create_and_wait_for_chunk()
 
     for node in network.nodes:
         LOG.info(f"Examining ledger on node {node.local_node_id}")
-        ledger_directories = node.remote.ledger_paths()
-        ledger = ccf.ledger.Ledger(ledger_directories, contiguous_suffix=True)
+        if not node.is_stopped():
+            node.wait_for_committed_ledger_chunk_covering(proposal.completed_seqno)
+        ledger = node.get_committed_ledger()
         check_signatures(ledger)
 
     return network
@@ -986,8 +985,7 @@ def test_ledger_invariants(network, args):
 def test_joining_nodes_snapshot_ledger_offset(network, args):
     primary, _ = network.find_primary()
 
-    network.consortium.force_ledger_chunk(primary)
-    network.get_latest_ledger_public_state()
+    network.create_and_wait_for_chunk(primary)
 
     network.txs.issue(network, number_txs=5, send_private=False, send_public=True)
     network.txs.issue(network, number_txs=5, send_private=False, send_public=True)
@@ -1029,14 +1027,10 @@ def test_joining_nodes_snapshot_ledger_offset(network, args):
         rest_txid,
     )
 
-    # flush ledger to disk from commit index
-    network.get_latest_ledger_public_state()
-    # Only use the committed ledger files flushed from above
-    _, committed_ledger_dirs = primary.get_ledger()
+    network.create_and_wait_for_chunk(primary, seqno=rest_txid.seqno)
+    committed_ledger_dirs = primary.get_committed_ledger_dirs()
     ledger = ccf.ledger.Ledger(
-        committed_ledger_dirs,
-        committed_only=True,
-        contiguous_suffix=True,
+        committed_ledger_dirs, committed_only=True, contiguous_suffix=True
     )
 
     snapshot_chunk_start = None
