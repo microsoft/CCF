@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [7.0.11]
+
+[7.0.11]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.11
+
+### Fixed
+
+- Asynchronous ledger reads (used to serve committed entry ranges to the enclave) no longer access the host `Ledger` object after it has been destroyed during shutdown. The `Ledger` now waits for any in-flight read workers to finish, and workers that have not yet started skip accessing it, fixing a potential use-after-free on shutdown (#8003).
+
 ## [7.0.10]
 
 [7.0.10]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.10
