@@ -648,6 +648,8 @@ def run_forced_snapshot_while_opening(const_args):
         args.debug_nodes,
         pdb=args.pdb,
     ) as network:
+        # Note: start() rather than start_and_open() intentionally leaves
+        # the service in the Opening state for test_forced_snapshot_while_opening
         network.start(args)
         test_forced_snapshot_while_opening(network, args)
 
