@@ -160,11 +160,20 @@ SeedId ==
     SeedPrefix \o "_" \o logline.msg.name
 
 SeedFilename ==
-    SeedOutputDir \o "/RaftSeed_" \o SeedId \o ".tla"
+    SeedOutputDir \o "/RaftSeeds.tla"
 
 SeedModule ==
-    "---- MODULE RaftSeed_" \o SeedId \o " ----\n" \o
+    "---- MODULE RaftSeeds ----\n" \o
     "EXTENDS ccfraft\n\n" \o
+    "CONSTANTS\n" \o
+    "    PV_PreVoteDisabled, PV_PreVoteCapable, PV_PreVoteEnabled,\n" \o
+    "    L_Follower, L_PreVoteCandidate, L_Candidate, L_Leader, L_None,\n" \o
+    "    R_Active, R_RetirementOrdered, R_RetirementSigned, R_RetirementCompleted, R_RetiredCommitted,\n" \o
+    "    M_RequestVoteRequest, M_RequestVoteResponse, M_AppendEntriesRequest, M_AppendEntriesResponse, M_ProposeVoteRequest,\n" \o
+    "    N_OrderedNoDup, N_Ordered, N_ReorderedNoDup, N_Reordered,\n" \o
+    "    T_Entry, T_Signature, T_Reconfiguration, T_Retired\n\n" \o
+    "VARIABLE seedId\n\n" \o
+    "SeedServers == " \o ToString(DOMAIN currentTerm) \o "\n\n" \o
     "SeedInit ==\n" \o
     "    /\\ seedId = " \o ToString(SeedId) \o "\n" \o
     "    /\\ preVoteStatus = " \o ToString(preVoteStatus) \o "\n" \o

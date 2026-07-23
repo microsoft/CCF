@@ -33,19 +33,22 @@ def main():
         str(seed_export_dir),
     )
 
-    seed_src = seed_export_dir / "seeds" / "RaftSeed_marked_startup_after_signature.tla"
+    tla_dir = args.tla_dir.resolve()
+    seed_src = seed_export_dir / "seeds" / "RaftSeeds.tla"
     seed_dst = args.tla_dir / "consensus" / "RaftSeeds.tla"
     shutil.copyfile(seed_src, seed_dst)
     try:
         run(
-            str(args.tla_dir / "tlc.py"),
+            str(tla_dir / "tlc.py"),
             "sim",
+            "--num",
+            "1",
             "--depth",
             "5",
             "--max-seconds",
             "10",
             "consensus/SeededSIMccfraft.tla",
-            cwd=args.tla_dir,
+            cwd=tla_dir,
         )
     finally:
         seed_dst.unlink(missing_ok=True)

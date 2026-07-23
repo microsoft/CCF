@@ -62,9 +62,9 @@ def main():
         cwd=tla_dir,
     )
 
-    seed_module = seed_dir / "RaftSeed_marked_startup_after_signature.tla"
+    seed_module = seed_dir / "RaftSeeds.tla"
     text = seed_module.read_text(encoding="utf-8")
-    assert "MODULE RaftSeed_marked_startup_after_signature" in text
+    assert "MODULE RaftSeeds" in text
     assert '/\\ seedId = "marked_startup_after_signature"' in text
     assert "/\\ currentTerm =" in text
     assert "/\\ log =" in text
