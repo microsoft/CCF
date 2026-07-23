@@ -8,6 +8,7 @@ The high-integrity guarantees of CCF are enforced by a single :term:`Merkle Tree
 The following diagram demonstrates how the integrity of the ledger can be verified: a signature transaction (at ``seqno`` 6) signs the root of the Merkle Tree so far (after the transaction at ``seqno`` 5 has been recorded).
 
 .. image:: ../img/merkle_single_signature.svg
+  :alt: Merkle tree with a signature transaction at sequence number 6
   :width: 1000
   :align: center
 
@@ -18,6 +19,7 @@ Auditors of the CCF ledger can reconstruct the Merkle Tree by walking through th
 To reduce the memory footprint of the Merkle Tree as more transactions are recorded in the ledger, the Merkle Tree is regularly compacted, deleting all historical leaves and intermediate nodes that are no longer required. For example, assuming that the tree is compacted on the next consensus commit, at ``seqno`` 6:
 
 .. image:: ../img/merkle_compact.svg
+  :alt: Merkle tree compacted after sequence number 6
   :width: 1000
   :align: center
 
@@ -26,6 +28,7 @@ To reduce the memory footprint of the Merkle Tree as more transactions are recor
 The compacted Merkle Tree (containing leaves and intermediate nodes to issue receipts for transactions from ``seqno`` 6) is included in the next signature transaction (at ``seqno`` 11):
 
 .. image:: ../img/merkle_two_signatures.svg
+  :alt: Compacted Merkle tree included in a second signature transaction
   :width: 1000
   :align: center
 

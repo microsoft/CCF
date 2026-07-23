@@ -15,7 +15,8 @@
         },
         "caCertBundles": {
           "MyIdProviderCa": "-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----\n"
-        }
+        },
+        "keys": {}
       }
     }
   }

@@ -13,6 +13,10 @@
             "proposerId": "f8ac7c60c164f7f13c04ba41645b18eabcc55a8f799c83a90d001f4e89907970",
             "proposalState": "Open",
             "ballotCount": 2,
+            "ballotSubmitters": [
+              "b9626e3856b3ef3b433e612d59fbb9edd71cfa2efc772bcfbb50aaa9b6e033f7",
+              "f8ac7c60c164f7f13c04ba41645b18eabcc55a8f799c83a90d001f4e89907970"
+            ],
             "finalVotes": {
               "f8ac7c60c164f7f13c04ba41645b18eabcc55a8f799c83a90d001f4e89907970": true,
               "b9626e3856b3ef3b433e612d59fbb9edd71cfa2efc772bcfbb50aaa9b6e033f7": false
