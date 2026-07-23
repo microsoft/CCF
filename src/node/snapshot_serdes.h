@@ -79,6 +79,34 @@ namespace ccf
     return SnapshotSegments{header_and_body, receipt};
   }
 
+  static void verify_snapshot_seqno(
+    const SnapshotSegments& segments,
+    const std::shared_ptr<ccf::kv::AbstractTxEncryptor>& encryptor,
+    ccf::kv::Version expected_seqno)
+  {
+    auto deserialiser = ccf::kv::RawKvStoreDeserialiser(
+      encryptor, ccf::kv::SecurityDomain::PUBLIC);
+    ccf::kv::Term term = 0;
+    ccf::kv::EntryFlags flags = {};
+    const auto snapshot_seqno = deserialiser.init(
+      segments.header_and_body.data(),
+      segments.header_and_body.size(),
+      term,
+      flags,
+      false);
+    if (!snapshot_seqno.has_value())
+    {
+      throw std::logic_error("Failed to read version from recovery snapshot");
+    }
+    if (*snapshot_seqno != expected_seqno)
+    {
+      throw std::logic_error(fmt::format(
+        "Recovery snapshot body is at seqno {}, but its file name claims {}",
+        *snapshot_seqno,
+        expected_seqno));
+    }
+  }
+
   template <typename Verify, typename Install>
   static std::optional<std::string> try_verify_and_install_recovery_snapshot(
     Verify&& verify, Install&& install)

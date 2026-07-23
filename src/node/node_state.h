@@ -719,6 +719,18 @@ namespace ccf
       const auto segments = separate_segments(startup_snapshot_info->raw);
       const ccf::crypto::Pem target_identity(
         *config.recover.previous_service_identity);
+      try
+      {
+        verify_snapshot_seqno(
+          segments,
+          network.tables->get_encryptor(),
+          startup_snapshot_info->seqno);
+      }
+      catch (const std::exception& e)
+      {
+        fallback_from_recovery_snapshot_unsafe(e.what());
+        return;
+      }
 
       const auto direct_verification_error =
         try_verify_and_install_recovery_snapshot(

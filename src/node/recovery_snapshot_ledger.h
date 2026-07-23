@@ -8,6 +8,9 @@
 #include "host/ledger_filenames.h"
 #include "kv/kv_serialiser.h"
 #include "kv/serialised_entry_format.h"
+#include "node/cose_common.h"
+#include "node/history.h"
+#include "node/rpc/claims.h"
 #include "node/rpc/network_identity_chain_helpers.h"
 #include "service/tables/previous_service_identity.h"
 #include "service/tables/signatures.h"
@@ -28,13 +31,19 @@ namespace ccf
     2 * MAX_RECOVERY_SNAPSHOT_ENDORSEMENT_SIZE;
   static constexpr size_t MAX_RECOVERY_SNAPSHOT_ENDORSEMENTS_PAYLOAD_SIZE =
     size_t{4} * 1024 * 1024;
+  static constexpr size_t MAX_RECOVERY_SNAPSHOT_LEDGER_ENTRY_SIZE =
+    size_t{64} * 1024 * 1024;
 
   struct RecoverySnapshotLedgerEntry
   {
     ccf::kv::Version version = 0;
+    ccf::kv::Term term = 0;
     bool is_signature = false;
     std::optional<ccf::CoseEndorsement> endorsement = std::nullopt;
     std::optional<ccf::ServiceInfo> service_info = std::nullopt;
+    std::optional<ccf::CoseSignature> cose_signature = std::nullopt;
+    std::optional<std::vector<uint8_t>> serialised_tree = std::nullopt;
+    ccf::crypto::Sha256Hash leaf;
   };
 
   struct RecoverySnapshotLedgerScan
@@ -44,6 +53,65 @@ namespace ccf
     std::optional<std::pair<ccf::kv::Version, ccf::ServiceInfo>>
       latest_service_info = std::nullopt;
   };
+
+  static void parse_recovery_snapshot_ledger_write(
+    RecoverySnapshotLedgerEntry& result,
+    const std::string& map_name,
+    const ccf::kv::SerialisedKey& key,
+    const ccf::kv::SerialisedValue& value)
+  {
+    if (map_name == ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT)
+    {
+      if (
+        result.endorsement.has_value() ||
+        key != ccf::PreviousServiceIdentityEndorsement::create_unit())
+      {
+        throw std::logic_error(
+          "Invalid previous service identity endorsement table write");
+      }
+      if (value.size() > MAX_RECOVERY_SNAPSHOT_ENDORSEMENT_RECORD_SIZE)
+      {
+        throw std::logic_error(fmt::format(
+          "Serialised previous service identity endorsement is too large "
+          "({} bytes; maximum {} bytes)",
+          value.size(),
+          MAX_RECOVERY_SNAPSHOT_ENDORSEMENT_RECORD_SIZE));
+      }
+      result.endorsement = ccf::PreviousServiceIdentityEndorsement::
+        ValueSerialiser::from_serialised(value);
+    }
+    else if (map_name == ccf::Tables::SERVICE)
+    {
+      if (result.service_info.has_value() || key != ccf::Service::create_unit())
+      {
+        throw std::logic_error("Invalid service info table write");
+      }
+      result.service_info =
+        ccf::Service::ValueSerialiser::from_serialised(value);
+    }
+    else if (map_name == ccf::Tables::COSE_SIGNATURES)
+    {
+      if (
+        result.cose_signature.has_value() ||
+        key != ccf::CoseSignatures::create_unit())
+      {
+        throw std::logic_error("Invalid COSE signature table write");
+      }
+      result.cose_signature =
+        ccf::CoseSignatures::ValueSerialiser::from_serialised(value);
+    }
+    else if (map_name == ccf::Tables::SERIALISED_MERKLE_TREE)
+    {
+      if (
+        result.serialised_tree.has_value() ||
+        key != ccf::SerialisedMerkleTree::create_unit())
+      {
+        throw std::logic_error("Invalid serialised Merkle tree table write");
+      }
+      result.serialised_tree =
+        ccf::SerialisedMerkleTree::ValueSerialiser::from_serialised(value);
+    }
+  }
 
   static RecoverySnapshotLedgerEntry parse_recovery_snapshot_ledger_entry(
     const std::vector<uint8_t>& entry,
@@ -63,6 +131,7 @@ namespace ccf
 
     RecoverySnapshotLedgerEntry result;
     result.version = *version;
+    result.term = term;
     size_t map_count = 0;
     bool has_signature = false;
     bool has_cose_signature = false;
@@ -93,37 +162,7 @@ namespace ccf
       for (size_t i = 0; i < write_count; ++i)
       {
         auto [key, value] = deserialiser.deserialise_write();
-        if (*map_name == ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT)
-        {
-          if (
-            result.endorsement.has_value() ||
-            key != ccf::PreviousServiceIdentityEndorsement::create_unit())
-          {
-            throw std::logic_error(
-              "Invalid previous service identity endorsement table write");
-          }
-          if (value.size() > MAX_RECOVERY_SNAPSHOT_ENDORSEMENT_RECORD_SIZE)
-          {
-            throw std::logic_error(fmt::format(
-              "Serialised previous service identity endorsement is too large "
-              "({} bytes; maximum {} bytes)",
-              value.size(),
-              MAX_RECOVERY_SNAPSHOT_ENDORSEMENT_RECORD_SIZE));
-          }
-          result.endorsement = ccf::PreviousServiceIdentityEndorsement::
-            ValueSerialiser::from_serialised(value);
-        }
-        else if (*map_name == ccf::Tables::SERVICE)
-        {
-          if (
-            result.service_info.has_value() ||
-            key != ccf::Service::create_unit())
-          {
-            throw std::logic_error("Invalid service info table write");
-          }
-          result.service_info =
-            ccf::Service::ValueSerialiser::from_serialised(value);
-        }
+        parse_recovery_snapshot_ledger_write(result, *map_name, key, value);
       }
 
       const auto remove_count = deserialiser.deserialise_remove_header();
@@ -150,7 +189,84 @@ namespace ccf
     result.is_signature = has_serialised_tree &&
       ((map_count == 2 && has_signature != has_cose_signature) ||
        (map_count == 3 && has_signature && has_cose_signature));
+    const auto claims_digest = deserialiser.consume_claims_digest();
+    const auto commit_evidence_digest =
+      deserialiser.consume_commit_evidence_digest();
+    result.leaf = ccf::entry_leaf(entry, commit_evidence_digest, claims_digest);
     return result;
+  }
+
+  static void verify_recovery_snapshot_signature_boundary(
+    const RecoverySnapshotLedgerEntry& signature,
+    std::span<const uint8_t> signing_key,
+    const std::vector<std::pair<ccf::kv::Version, ccf::crypto::Sha256Hash>>&
+      endorsement_leaves,
+    const std::optional<std::pair<ccf::kv::Version, ccf::crypto::Sha256Hash>>&
+      service_info_leaf)
+  {
+    if (
+      !signature.is_signature || !signature.cose_signature.has_value() ||
+      !signature.serialised_tree.has_value())
+    {
+      throw std::logic_error(fmt::format(
+        "Ledger signature boundary at {} has no COSE signature and Merkle tree",
+        signature.version));
+    }
+    if (signature.version == 0)
+    {
+      throw std::logic_error("Ledger signature boundary cannot be at seqno 0");
+    }
+
+    const auto receipt =
+      ccf::cose::decode_ccf_receipt(*signature.cose_signature, false);
+    const auto receipt_txid = ccf::TxID::from_str(receipt.phdr.ccf.txid);
+    if (
+      !receipt_txid.has_value() || receipt_txid->seqno != signature.version ||
+      (signature.term != 0 && receipt_txid->view != signature.term))
+    {
+      throw std::logic_error(fmt::format(
+        "Ledger signature boundary at {}.{} has unexpected COSE TxID {}",
+        signature.term,
+        signature.version,
+        receipt.phdr.ccf.txid));
+    }
+
+    ccf::MerkleTreeHistory tree(*signature.serialised_tree);
+    if (tree.end_index() != signature.version - 1)
+    {
+      throw std::logic_error(fmt::format(
+        "Ledger signature boundary at {} contains a Merkle tree ending at {}",
+        signature.version,
+        tree.end_index()));
+    }
+
+    const auto verifier = ccf::crypto::make_cose_verifier_from_key(signing_key);
+    const auto root = tree.get_root();
+    if (!verifier->verify_detached(*signature.cose_signature, root.h))
+    {
+      throw std::logic_error(fmt::format(
+        "Ledger signature boundary at {} failed COSE signature verification",
+        signature.version));
+    }
+
+    const auto verify_leaf = [&](const auto& version_and_leaf) {
+      const auto& [version, expected_leaf] = version_and_leaf;
+      if (!tree.in_range(version) || tree.get_leaf(version) != expected_leaf)
+      {
+        throw std::logic_error(fmt::format(
+          "Ledger signature boundary at {} does not authenticate entry {}",
+          signature.version,
+          version));
+      }
+    };
+    for (const auto& endorsement_leaf : endorsement_leaves)
+    {
+      verify_leaf(endorsement_leaf);
+    }
+    if (service_info_leaf.has_value())
+    {
+      verify_leaf(*service_info_leaf);
+    }
   }
 
   struct RecoverySnapshotLedgerFile
@@ -270,10 +386,14 @@ namespace ccf
     scan.last_signed_idx = snapshot_seqno;
     auto expected_seqno = snapshot_seqno + 1;
     std::vector<CollectedCoseEndorsement> pending_endorsements;
+    std::vector<std::pair<ccf::kv::Version, ccf::crypto::Sha256Hash>>
+      pending_endorsement_leaves;
     size_t committed_endorsements_payload_size = 0;
     size_t pending_endorsements_payload_size = 0;
     std::optional<std::pair<ccf::kv::Version, ccf::ServiceInfo>>
       latest_observed_service_info = std::nullopt;
+    std::optional<std::pair<ccf::kv::Version, ccf::crypto::Sha256Hash>>
+      pending_service_info_leaf = std::nullopt;
 
     for (const auto& ledger_file :
          find_recovery_snapshot_ledger_files(ledger_config))
@@ -367,6 +487,13 @@ namespace ccf
             "Committed ledger file {} contains a truncated entry",
             ledger_file.path.string()));
         }
+        if (header.size > MAX_RECOVERY_SNAPSHOT_LEDGER_ENTRY_SIZE)
+        {
+          throw std::logic_error(fmt::format(
+            "Ledger entry is too large ({} bytes; maximum {} bytes)",
+            static_cast<size_t>(header.size),
+            MAX_RECOVERY_SNAPSHOT_LEDGER_ENTRY_SIZE));
+        }
 
         std::vector<uint8_t> entry(sizeof(header) + header.size);
         std::memcpy(entry.data(), &header, sizeof(header));
@@ -447,44 +574,58 @@ namespace ccf
           pending_endorsements_payload_size += endorsement_size;
           pending_endorsements.push_back(
             {parsed.version, std::move(*parsed.endorsement)});
+          pending_endorsement_leaves.emplace_back(parsed.version, parsed.leaf);
         }
         if (parsed.service_info.has_value())
         {
           latest_observed_service_info.emplace(
             parsed.version, std::move(*parsed.service_info));
+          pending_service_info_leaf.emplace(parsed.version, parsed.leaf);
         }
         if (parsed.is_signature)
         {
-          if (
-            pending_endorsements.size() >
-            MAX_RECOVERY_SNAPSHOT_ENDORSEMENTS_COUNT - scan.endorsements.size())
+          if (!pending_endorsements.empty())
           {
-            throw std::logic_error(fmt::format(
-              "Committed ledger suffix contains too many endorsements "
-              "(maximum {})",
-              MAX_RECOVERY_SNAPSHOT_ENDORSEMENTS_COUNT));
-          }
-          if (
-            pending_endorsements_payload_size >
-            MAX_RECOVERY_SNAPSHOT_ENDORSEMENTS_PAYLOAD_SIZE -
-              committed_endorsements_payload_size)
-          {
-            throw std::logic_error(fmt::format(
-              "Committed ledger endorsements payload is too large (maximum {} "
-              "bytes)",
-              MAX_RECOVERY_SNAPSHOT_ENDORSEMENTS_PAYLOAD_SIZE));
-          }
+            verify_recovery_snapshot_signature_boundary(
+              parsed,
+              pending_endorsements.back().endorsement.endorsing_key,
+              pending_endorsement_leaves,
+              pending_service_info_leaf);
 
-          scan.endorsements.insert(
-            scan.endorsements.end(),
-            std::make_move_iterator(pending_endorsements.begin()),
-            std::make_move_iterator(pending_endorsements.end()));
-          pending_endorsements.clear();
-          committed_endorsements_payload_size +=
-            pending_endorsements_payload_size;
-          pending_endorsements_payload_size = 0;
-          scan.latest_service_info = latest_observed_service_info;
-          scan.last_signed_idx = parsed.version;
+            if (
+              pending_endorsements.size() >
+              MAX_RECOVERY_SNAPSHOT_ENDORSEMENTS_COUNT -
+                scan.endorsements.size())
+            {
+              throw std::logic_error(fmt::format(
+                "Committed ledger suffix contains too many endorsements "
+                "(maximum {})",
+                MAX_RECOVERY_SNAPSHOT_ENDORSEMENTS_COUNT));
+            }
+            if (
+              pending_endorsements_payload_size >
+              MAX_RECOVERY_SNAPSHOT_ENDORSEMENTS_PAYLOAD_SIZE -
+                committed_endorsements_payload_size)
+            {
+              throw std::logic_error(fmt::format(
+                "Committed ledger endorsements payload is too large (maximum "
+                "{} bytes)",
+                MAX_RECOVERY_SNAPSHOT_ENDORSEMENTS_PAYLOAD_SIZE));
+            }
+
+            scan.endorsements.insert(
+              scan.endorsements.end(),
+              std::make_move_iterator(pending_endorsements.begin()),
+              std::make_move_iterator(pending_endorsements.end()));
+            pending_endorsements.clear();
+            pending_endorsement_leaves.clear();
+            committed_endorsements_payload_size +=
+              pending_endorsements_payload_size;
+            pending_endorsements_payload_size = 0;
+            scan.latest_service_info = latest_observed_service_info;
+            pending_service_info_leaf.reset();
+            scan.last_signed_idx = parsed.version;
+          }
         }
 
         if (expected_seqno == std::numeric_limits<ccf::kv::Version>::max())

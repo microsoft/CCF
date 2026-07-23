@@ -111,6 +111,16 @@ def _copy_ledger_prefix(source_dirs, destination, first_excluded_seqno):
     assert copied > 0
 
 
+def _assert_node_snapshot_unchanged(
+    network, node, snapshot_name, expected_snapshot_digest
+):
+    snapshots_dir = network.get_committed_snapshots(node, force_txs=False)
+    snapshot_path = os.path.join(snapshots_dir, snapshot_name)
+    assert os.path.isfile(snapshot_path), snapshot_path
+    with open(snapshot_path, "rb") as snapshot_file:
+        assert hashlib.sha256(snapshot_file.read()).digest() == expected_snapshot_digest
+
+
 def run_recovery_snapshot_endorsements(args):
     with infra.network.network(
         args.nodes,
@@ -197,8 +207,9 @@ def run_recovery_snapshot_endorsements(args):
                 < logs.index(snapshot_body_log)
                 < logs.index(public_recovery_log)
             )
-            with open(source_snapshot_path, "rb") as snapshot_file:
-                assert hashlib.sha256(snapshot_file.read()).digest() == snapshot_digest
+            _assert_node_snapshot_unchanged(
+                valid_attempt, valid_primary, snapshot_name, snapshot_digest
+            )
         finally:
             _stop_incomplete_recovery(valid_attempt)
 
@@ -231,8 +242,9 @@ def run_recovery_snapshot_endorsements(args):
             logs = _logs(fallback_primary)
             assert "Falling back to full-ledger recovery" in logs
             assert "Setting startup snapshot seqno" not in logs
-            with open(source_snapshot_path, "rb") as snapshot_file:
-                assert hashlib.sha256(snapshot_file.read()).digest() == snapshot_digest
+            _assert_node_snapshot_unchanged(
+                fallback_attempt, fallback_primary, snapshot_name, snapshot_digest
+            )
         finally:
             _stop_incomplete_recovery(fallback_attempt)
 
