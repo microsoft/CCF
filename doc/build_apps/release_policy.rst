@@ -87,6 +87,9 @@ Support calendar
    * - Major Release
      - First Release Date
      - End of Support Date
+   * - 6.0
+     - March 28, 2025
+     - August 21, 2026
    * - 7.0
      - April 21, 2026
      - TBD
