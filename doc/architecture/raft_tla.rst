@@ -64,9 +64,9 @@ Checked-in seed corpora live under ``tla/consensus/seeds/`` and are partitioned 
 
 .. code-block:: bash
 
-    $ python3 make_raft_seeds.py --output consensus/seeds/RaftSeeds_3N.tla traces/consensus/reconfig_01_el0_12.ndjson traces/consensus/pre_vote.ndjson
+    $ python3 make_raft_seeds.py --output consensus/seeds/RaftSeeds_3N.tla traces/consensus/*.ndjson
 
-CI regenerates this corpus and fails if the generated module differs from the checked-in copy. The current seed set is intentionally small: one state with multiple pre-vote candidates during reconfiguration and one denied pre-vote from a stale-log candidate.
+CI regenerates the seed directory and fails if it differs from the checked-in copy. The current seed set is intentionally small: one state with multiple pre-vote candidates during reconfiguration and one denied pre-vote from a stale-log candidate.
 
 Seeded simulation starts from a profile-specific seed corpus, such as ``RaftSeeds_3N!SeedInit``, and then runs the ordinary simulation actions:
 

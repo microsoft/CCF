@@ -38,13 +38,13 @@ def main():
     shutil.rmtree(work_dir, ignore_errors=True)
     work_dir.mkdir(parents=True)
 
-    servers = set()
+    seed_servers = None
     branches = []
     module_prefix = None
     tlc = pathlib.Path(__file__).with_name("tlc.py")
     spec = pathlib.Path("consensus") / "Traceccfraft.tla"
 
-    for trace in args.traces:
+    for trace in sorted(args.traces):
         seed_dir = work_dir / trace.stem
         subprocess.run(
             (
@@ -62,16 +62,30 @@ def main():
             ),
             check=True,
         )
-        seed_prefix, seed_servers, seed_body = extract_seed(seed_dir / "RaftSeeds.tla")
-        seed_prefix = seed_prefix.replace("---- MODULE RaftSeeds ----", f"---- MODULE {module_name} ----", 1)
+        seed_module = seed_dir / "RaftSeeds.tla"
+        if not seed_module.exists():
+            continue
+
+        seed_prefix, trace_servers, seed_body = extract_seed(seed_module)
+        seed_prefix = seed_prefix.replace(
+            "---- MODULE RaftSeeds ----", f"---- MODULE {module_name} ----", 1
+        )
         if module_prefix is None:
             module_prefix = seed_prefix
         elif module_prefix != seed_prefix:
             raise ValueError("Seed modules use different headers")
-        servers.update(re.findall(r'"[^"]+"', seed_servers))
+
+        if seed_servers is None:
+            seed_servers = trace_servers
+        elif seed_servers != trace_servers:
+            raise ValueError(
+                f"{trace} has SeedServers {trace_servers}, expected {seed_servers}"
+            )
         branches.append(seed_body)
 
-    rendered_servers = "{" + ", ".join(sorted(servers)) + "}"
+    if not branches or seed_servers is None or module_prefix is None:
+        raise ValueError("No seed markers found in the provided traces")
+
     rendered = []
     for branch in branches:
         lines = [line.strip() for line in branch.splitlines()]
@@ -79,7 +93,7 @@ def main():
         rendered.extend("       " + line for line in lines[1:])
     rendered_branches = "\n".join(rendered)
     args.output.write_text(
-        f"{module_prefix}{rendered_servers}\n\nSeedInit ==\n{rendered_branches}\n====\n",
+        f"{module_prefix}{seed_servers}\n\nSeedInit ==\n{rendered_branches}\n====\n",
         encoding="utf-8",
     )
     shutil.rmtree(work_dir)
