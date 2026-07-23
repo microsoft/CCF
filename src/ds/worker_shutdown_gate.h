@@ -32,7 +32,7 @@ namespace ccf::ds
      * (the gate is still open). Returns false if shutdown has begun - the
      * caller must not proceed to access the protected resource.
      */
-    bool try_register()
+    [[nodiscard]] bool try_register()
     {
       std::unique_lock<std::mutex> guard(lock);
       if (!alive)
@@ -72,7 +72,7 @@ namespace ccf::ds
     /**
      * Non-blocking check for whether shutdown has been initiated.
      */
-    bool is_shutting_down() const
+    [[nodiscard]] bool is_shutting_down() const
     {
       // alive is only ever written under the lock and only transitions
       // false->true, so a relaxed read is safe for a non-blocking check.
