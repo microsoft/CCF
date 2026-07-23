@@ -60,18 +60,18 @@ Seed extraction runs as part of trace validation. Pass ``--seed-output-dir`` to 
 
     $ ./tlc.py --workers 1 tv --disable-dfs --ccf-raft-trace traces/consensus/reconfig_01_el0_12.ndjson --seed-output-dir generated-seeds consensus/Traceccfraft.tla
 
-The checked-in ``tla/consensus/RaftSeeds.tla`` corpus contains selected high-value seeds. Regenerate the corpus with:
+Checked-in seed corpora live under ``tla/consensus/seeds/`` and are partitioned by model profile. Regenerate the current 3-node corpus with:
 
 .. code-block:: bash
 
-    $ python3 make_raft_seeds.py --output consensus/RaftSeeds.tla traces/consensus/reconfig_01_el0_12.ndjson traces/consensus/pre_vote.ndjson
+    $ python3 make_raft_seeds.py --output consensus/seeds/RaftSeeds_3N.tla traces/consensus/reconfig_01_el0_12.ndjson traces/consensus/pre_vote.ndjson
 
 CI regenerates this corpus and fails if the generated module differs from the checked-in copy. The current seed set is intentionally small: one state with multiple pre-vote candidates during reconfiguration and one denied pre-vote from a stale-log candidate.
 
-Seeded simulation starts from ``RaftSeeds!SeedInit`` and then runs the ordinary simulation actions:
+Seeded simulation starts from a profile-specific seed corpus, such as ``RaftSeeds_3N!SeedInit``, and then runs the ordinary simulation actions:
 
 .. code-block:: bash
 
-    $ ./tlc.py sim --depth 500 consensus/SeededSIMccfraft.tla
+    $ ./tlc.py sim --depth 500 consensus/SeededSIMccfraft_3N.tla
 
 The ``seedId`` variable is immutable after initialization, so every TLC state in a violation trace identifies the scenario marker that produced the seed. Seeded simulation is an additional long-verification search strategy, not a replacement for exhaustive model checking or ordinary simulation.

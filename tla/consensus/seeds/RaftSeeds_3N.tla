@@ -1,4 +1,4 @@
----- MODULE RaftSeeds ----
+---- MODULE RaftSeeds_3N ----
 EXTENDS ccfraft
 
 CONSTANTS

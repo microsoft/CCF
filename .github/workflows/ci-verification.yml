@@ -237,10 +237,10 @@ jobs:
         run: |
           set -x
           cd tla/
-          python3 make_raft_seeds.py --output generated-RaftSeeds.tla \
+          python3 make_raft_seeds.py --output generated-seeds/RaftSeeds_3N.tla \
             traces/consensus/reconfig_01_el0_12.ndjson \
             traces/consensus/pre_vote.ndjson
-          diff -u consensus/RaftSeeds.tla generated-RaftSeeds.tla
+          diff -u consensus/seeds/RaftSeeds_3N.tla generated-seeds/RaftSeeds_3N.tla
         shell: bash
 
       - name: Upload artifacts.

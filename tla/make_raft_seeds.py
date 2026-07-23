@@ -25,8 +25,14 @@ def extract_seed(module):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", required=True, type=pathlib.Path)
+    parser.add_argument(
+        "--module",
+        default=None,
+        help="Generated TLA module name, defaults to the output file stem",
+    )
     parser.add_argument("traces", nargs="+", type=pathlib.Path)
     args = parser.parse_args()
+    module_name = args.module or args.output.stem
 
     work_dir = args.output.parent / f".{args.output.name}.tmp"
     shutil.rmtree(work_dir, ignore_errors=True)
@@ -57,6 +63,7 @@ def main():
             check=True,
         )
         seed_prefix, seed_servers, seed_body = extract_seed(seed_dir / "RaftSeeds.tla")
+        seed_prefix = seed_prefix.replace("---- MODULE RaftSeeds ----", f"---- MODULE {module_name} ----", 1)
         if module_prefix is None:
             module_prefix = seed_prefix
         elif module_prefix != seed_prefix:

@@ -25,7 +25,10 @@ DEFAULT_JVM_ARGS = [
 ]
 
 
-DEFAULT_CLASSPATH_ARGS = ["-cp", "tla2tools.jar:CommunityModules-deps.jar"]
+DEFAULT_CLASSPATH_ARGS = [
+    "-cp",
+    "tla2tools.jar:CommunityModules-deps.jar:consensus/seeds",
+]
 
 USAGE = """
 To forward arguments directly to TLC that the wrapper does not support,

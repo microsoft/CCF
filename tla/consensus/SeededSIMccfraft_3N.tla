@@ -1,5 +1,5 @@
----------- MODULE SeededSIMccfraft ----------
-EXTENDS SIMccfraft, RaftSeeds
+---------- MODULE SeededSIMccfraft_3N ----------
+EXTENDS SIMccfraft, RaftSeeds_3N
 
 SeededVars == <<seedId, vars>>
 
