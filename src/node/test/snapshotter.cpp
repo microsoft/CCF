@@ -181,6 +181,22 @@ TEST_CASE("Recovery snapshot endorsement scan reads ledger files directly")
   REQUIRE_NOTHROW(ccf::verify_snapshot_seqno(first_entry, encryptor, 1));
   REQUIRE_THROWS(ccf::verify_snapshot_seqno(first_entry, encryptor, 2));
 
+  const auto signature =
+    ccf::parse_recovery_snapshot_ledger_entry(entries.back(), encryptor);
+  REQUIRE(signature.serialised_tree.has_value());
+  REQUIRE_NOTHROW(ccf::validate_recovery_snapshot_merkle_tree_encoding(
+    *signature.serialised_tree, signature.version));
+
+  auto excessive_leaf_count = *signature.serialised_tree;
+  std::fill_n(excessive_leaf_count.begin(), sizeof(uint64_t), 0xff);
+  REQUIRE_THROWS(ccf::validate_recovery_snapshot_merkle_tree_encoding(
+    excessive_leaf_count, signature.version));
+
+  auto truncated_tree = *signature.serialised_tree;
+  truncated_tree.pop_back();
+  REQUIRE_THROWS(ccf::validate_recovery_snapshot_merkle_tree_encoding(
+    truncated_tree, signature.version));
+
   write_current_ledger_file(ledger_dir.path / "ledger_1", entries);
 
   ccf::CCFConfig::Ledger ledger_config;

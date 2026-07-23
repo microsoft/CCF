@@ -16,6 +16,7 @@
 #include "service/tables/signatures.h"
 
 #include <algorithm>
+#include <bit>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -196,6 +197,65 @@ namespace ccf
     return result;
   }
 
+  static void validate_recovery_snapshot_merkle_tree_encoding(
+    std::span<const uint8_t> serialised_tree,
+    ccf::kv::Version signature_version)
+  {
+    static constexpr size_t header_size = 2 * sizeof(uint64_t);
+    static constexpr uint64_t max_leaf_nodes = 1'000'000;
+    if (serialised_tree.size() < header_size)
+    {
+      throw std::logic_error("Serialised Merkle tree header is truncated");
+    }
+
+    const auto read_uint64 = [&](size_t offset) {
+      uint64_t value = 0;
+      for (size_t i = 0; i < sizeof(uint64_t); ++i)
+      {
+        value = (value << 8) | serialised_tree[offset + i];
+      }
+      return value;
+    };
+    const auto leaf_nodes = read_uint64(0);
+    const auto flushed_leaves = read_uint64(sizeof(uint64_t));
+    if (leaf_nodes > max_leaf_nodes)
+    {
+      throw std::logic_error(fmt::format(
+        "Serialised Merkle tree contains too many leaf nodes ({}; maximum {})",
+        leaf_nodes,
+        max_leaf_nodes));
+    }
+    if (
+      flushed_leaves > signature_version ||
+      leaf_nodes != signature_version - flushed_leaves)
+    {
+      throw std::logic_error(fmt::format(
+        "Serialised Merkle tree leaf range {} + {} does not end before "
+        "signature {}",
+        flushed_leaves,
+        leaf_nodes,
+        signature_version));
+    }
+
+    const auto extra_hashes = std::popcount(flushed_leaves);
+    const auto hash_count = leaf_nodes + extra_hashes;
+    const auto max_hashes = (std::numeric_limits<size_t>::max() - header_size) /
+      ccf::crypto::Sha256Hash::SIZE;
+    if (hash_count > max_hashes)
+    {
+      throw std::logic_error("Serialised Merkle tree size overflows");
+    }
+    const auto expected_size = header_size +
+      static_cast<size_t>(hash_count) * ccf::crypto::Sha256Hash::SIZE;
+    if (serialised_tree.size() != expected_size)
+    {
+      throw std::logic_error(fmt::format(
+        "Serialised Merkle tree has {} bytes; expected {}",
+        serialised_tree.size(),
+        expected_size));
+    }
+  }
+
   static void verify_recovery_snapshot_signature_boundary(
     const RecoverySnapshotLedgerEntry& signature,
     std::span<const uint8_t> signing_key,
@@ -231,6 +291,8 @@ namespace ccf
         receipt.phdr.ccf.txid));
     }
 
+    validate_recovery_snapshot_merkle_tree_encoding(
+      *signature.serialised_tree, signature.version);
     ccf::MerkleTreeHistory tree(*signature.serialised_tree);
     if (tree.end_index() != signature.version - 1)
     {
