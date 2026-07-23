@@ -2282,8 +2282,11 @@ namespace aft
     {
       RAFT_DEBUG_FMT("Becoming aware of new term {}", term);
 
+      if (state->current_view != term)
+      {
+        voted_for.reset();
+      }
       state->current_view = term;
-      voted_for.reset();
       reset_votes_for_me();
       become_follower();
       is_new_follower = true;
