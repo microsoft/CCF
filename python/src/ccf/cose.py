@@ -334,6 +334,60 @@ def deserialize_cose_endorsements(serialized: bytes) -> list[bytes]:
     return endorsements
 
 
+def _get_required_integer_labeled_header(headers: dict, label: int, description: str):
+    for actual_label, value in headers.items():
+        if actual_label == label:
+            if type(actual_label) is not int:
+                raise ValueError(f"{description} label must be an integer")
+            return value
+    raise ValueError(f"{description} is required")
+
+
+def _reject_unprotected_header(headers: dict, label: int, description: str):
+    if any(actual_label == label for actual_label in headers):
+        raise ValueError(f"{description} must not appear in unprotected headers")
+
+
+def _validate_algorithm_and_kid_headers(
+    protected: dict,
+    unprotected: dict,
+    key: CertificatePublicKeyTypes,
+    description: str,
+    expected_kid: bytes | None = None,
+):
+    if not isinstance(protected, dict):
+        raise ValueError(f"{description} protected header must be a map")
+    if not isinstance(unprotected, dict):
+        raise ValueError(f"{description} unprotected header must be a map")
+
+    algorithm_label = int(cwt.COSEHeaders.ALG)
+    algorithm = _get_required_integer_labeled_header(
+        protected, algorithm_label, f"{description} signing algorithm"
+    )
+    if type(algorithm) is not int:
+        raise ValueError(f"{description} signing algorithm must be an integer")
+    expected_algorithm = int(default_algorithm_for_key(key))
+    if algorithm != expected_algorithm:
+        raise ValueError(
+            f"{description} signing algorithm {algorithm} does not match "
+            f"verification key algorithm {expected_algorithm}"
+        )
+    _reject_unprotected_header(
+        unprotected, algorithm_label, f"{description} signing algorithm"
+    )
+
+    if expected_kid is None:
+        return
+
+    kid_label = int(cwt.COSEHeaders.KID)
+    kid = _get_required_integer_labeled_header(
+        protected, kid_label, f"{description} key ID"
+    )
+    if not isinstance(kid, bytes) or kid != expected_kid:
+        raise ValueError(f"{description} key ID does not match the verification key")
+    _reject_unprotected_header(unprotected, kid_label, f"{description} key ID")
+
+
 def verify_cose_endorsements(
     endorsements: list[bytes],
     target_key: CertificatePublicKeyTypes,
@@ -347,13 +401,20 @@ def verify_cose_endorsements(
             Encoding.PEM, PublicFormat.SubjectPublicKeyInfo
         )
         try:
-            protected, _, endorsed_key_der = verify_cose_sign1_with_key(
+            protected, unprotected, endorsed_key_der = verify_cose_sign1_with_key(
                 current_key_pem, endorsement
             )
         except cwt.exceptions.CWTError as e:
             raise ValueError(
                 f"COSE endorsement at index {index} failed signature verification"
             ) from e
+
+        _validate_algorithm_and_kid_headers(
+            protected,
+            unprotected,
+            current_key,
+            f"COSE endorsement at index {index}",
+        )
 
         ccf_headers = protected.get(CCF_V1_LABEL)
         if not isinstance(ccf_headers, dict):
@@ -481,23 +542,39 @@ def verify_receipt(
     if not isinstance(protected, dict):
         raise ValueError("COSE receipt protected header must encode a map")
 
-    algorithm_label = int(cwt.COSEHeaders.ALG)
-    if algorithm_label not in protected or not isinstance(
-        protected[algorithm_label], int
-    ):
-        raise ValueError("COSE receipt signing algorithm is required")
-    kid_label = int(cwt.COSEHeaders.KID)
-    if protected.get(kid_label) != expected_kid.encode("utf-8"):
-        raise ValueError("COSE receipt key ID does not match the verification key")
-    if COSE_PHDR_VDS_LABEL not in protected:
-        raise ValueError("Verifiable data structure type is required")
-    if protected[COSE_PHDR_VDS_LABEL] != COSE_PHDR_VDS_CCF_LEDGER_SHA256:
-        raise ValueError("vds(395) protected header must be CCF_LEDGER_SHA256(2)")
+    _validate_algorithm_and_kid_headers(
+        protected,
+        unprotected,
+        key,
+        "COSE receipt",
+        expected_kid.encode("utf-8"),
+    )
 
-    verifiable_data_proof = unprotected.get(COSE_PHDR_VDP_LABEL)
+    verifiable_data_structure = _get_required_integer_labeled_header(
+        protected,
+        COSE_PHDR_VDS_LABEL,
+        "Verifiable data structure type",
+    )
+    if type(verifiable_data_structure) is not int:
+        raise ValueError("Verifiable data structure type must be an integer")
+    if verifiable_data_structure != COSE_PHDR_VDS_CCF_LEDGER_SHA256:
+        raise ValueError("vds(395) protected header must be CCF_LEDGER_SHA256(2)")
+    _reject_unprotected_header(
+        unprotected,
+        COSE_PHDR_VDS_LABEL,
+        "Verifiable data structure type",
+    )
+
+    verifiable_data_proof = _get_required_integer_labeled_header(
+        unprotected, COSE_PHDR_VDP_LABEL, "Verifiable data proof"
+    )
     if not isinstance(verifiable_data_proof, dict):
         raise ValueError("Verifiable data proof must be a map")
-    inclusion_proofs = verifiable_data_proof.get(COSE_RECEIPT_INCLUSION_PROOF_LABEL)
+    inclusion_proofs = _get_required_integer_labeled_header(
+        verifiable_data_proof,
+        COSE_RECEIPT_INCLUSION_PROOF_LABEL,
+        "Inclusion proofs",
+    )
     if not isinstance(inclusion_proofs, (list, tuple)):
         raise ValueError("Inclusion proofs must be an array")
     if not inclusion_proofs:
@@ -514,7 +591,9 @@ def verify_receipt(
         if not isinstance(proof, dict):
             raise ValueError("Inclusion proof must encode a map")
 
-        leaf = proof.get(CCF_PROOF_LEAF_LABEL)
+        leaf = _get_required_integer_labeled_header(
+            proof, CCF_PROOF_LEAF_LABEL, "Inclusion proof leaf"
+        )
         if not isinstance(leaf, (list, tuple)) or len(leaf) != 3:
             raise ValueError("Inclusion proof leaf must contain three elements")
         write_set_digest, commit_evidence, proof_claim_digest = leaf
@@ -540,7 +619,9 @@ def verify_receipt(
             + proof_claim_digest
         ).digest()
 
-        path = proof.get(CCF_PROOF_PATH_LABEL)
+        path = _get_required_integer_labeled_header(
+            proof, CCF_PROOF_PATH_LABEL, "Inclusion proof path"
+        )
         if not isinstance(path, (list, tuple)):
             raise ValueError("Inclusion proof path must be an array")
         for path_index, path_entry in enumerate(path):
