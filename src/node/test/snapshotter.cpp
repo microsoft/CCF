@@ -58,11 +58,21 @@ struct ScopedSnapshotDir
   }
 };
 
-std::vector<uint8_t> make_test_endorsement(uint8_t marker)
+void write_current_ledger_file(
+  const fs::path& path, const std::vector<std::vector<uint8_t>>& entries)
 {
-  std::vector<uint8_t> endorsement(ccf::MIN_SNAPSHOT_ENDORSEMENT_SIZE, marker);
-  endorsement.front() = 0xd2;
-  return endorsement;
+  std::ofstream ledger_file(path, std::ios::binary);
+  REQUIRE(ledger_file);
+  const size_t positions_offset = 0;
+  ledger_file.write(
+    reinterpret_cast<const char*>(&positions_offset), sizeof(positions_offset));
+  for (const auto& entry : entries)
+  {
+    ledger_file.write(
+      reinterpret_cast<const char*>(entry.data()),
+      static_cast<std::streamsize>(entry.size()));
+  }
+  REQUIRE(ledger_file);
 }
 
 TEST_CASE("Recovery snapshot installation failures do not request fallback")
@@ -74,15 +84,15 @@ TEST_CASE("Recovery snapshot installation failures do not request fallback")
 
   REQUIRE_THROWS_AS(
     [&]() {
-      const auto preparation_error =
-        ccf::try_prepare_and_install_recovery_snapshot(
+      const auto verification_error =
+        ccf::try_verify_and_install_recovery_snapshot(
           []() {},
           [&]() {
             install_started = true;
             store.set_readiness(ccf::kv::StoreReadiness::Failed);
             throw std::logic_error("snapshot installation failed");
           });
-      fallback_requested = preparation_error.has_value();
+      fallback_requested = verification_error.has_value();
     }(),
     std::logic_error);
   REQUIRE(install_started);
@@ -90,97 +100,11 @@ TEST_CASE("Recovery snapshot installation failures do not request fallback")
   REQUIRE_FALSE(fallback_requested);
 
   bool install_called = false;
-  const auto preparation_error = ccf::try_prepare_and_install_recovery_snapshot(
+  const auto verification_error = ccf::try_verify_and_install_recovery_snapshot(
     []() { throw std::logic_error("snapshot verification failed"); },
     [&]() { install_called = true; });
-  REQUIRE(preparation_error.has_value());
+  REQUIRE(verification_error.has_value());
   REQUIRE_FALSE(install_called);
-}
-
-TEST_CASE("Snapshot endorsement sidecar file lifecycle")
-{
-  ScopedSnapshotDir snapshot_dir;
-  const auto snapshot_path = snapshot_dir.path / "snapshot_42_43.committed";
-  const std::vector<uint8_t> snapshot_data{1, 2, 3, 4, 5};
-  files::dump(snapshot_data, snapshot_path);
-
-  const auto sidecar_path =
-    snapshots::get_snapshot_endorsements_path(snapshot_path);
-  REQUIRE(sidecar_path.filename() == "snapshot_42_43.committed.endorsements");
-  REQUIRE_FALSE(snapshots::is_snapshot_file_committed(sidecar_path.filename()));
-
-  const ccf::SerialisedCoseEndorsements endorsements{
-    make_test_endorsement(0x01), make_test_endorsement(0x02)};
-  ccf::write_cose_endorsements_sidecar(sidecar_path, endorsements);
-  REQUIRE(ccf::read_cose_endorsements_sidecar(sidecar_path) == endorsements);
-  REQUIRE(files::slurp(snapshot_path) == snapshot_data);
-
-  const auto discovered =
-    snapshots::find_committed_snapshots_in_directories({snapshot_dir.path});
-  REQUIRE(discovered.size() == 1);
-  REQUIRE(discovered.front().second == snapshot_path);
-
-  REQUIRE_THROWS_AS(
-    ccf::write_cose_endorsements_sidecar(sidecar_path, endorsements),
-    std::logic_error);
-
-  const std::vector<uint8_t> tampered{0xff};
-  files::dump(tampered, sidecar_path);
-  REQUIRE_THROWS(ccf::read_cose_endorsements_sidecar(sidecar_path));
-  REQUIRE(files::slurp(snapshot_path) == snapshot_data);
-}
-
-TEST_CASE("Snapshot endorsement sidecar resource limits")
-{
-  constexpr size_t pathological_endorsement_count = 1'000'000;
-  const std::vector<uint8_t> too_many{
-    0x9a,
-    static_cast<uint8_t>(pathological_endorsement_count >> 24),
-    static_cast<uint8_t>(pathological_endorsement_count >> 16),
-    static_cast<uint8_t>(pathological_endorsement_count >> 8),
-    static_cast<uint8_t>(pathological_endorsement_count)};
-  REQUIRE_THROWS(ccf::deserialise_cose_endorsements(too_many));
-
-  const std::vector<uint8_t> empty_array{0x80};
-  const std::vector<uint8_t> undersized{0x81, 0x40};
-  const std::vector<uint8_t> map_instead_of_array{0xa0};
-  const std::vector<uint8_t> indefinite_array{0x9f, 0xff};
-  REQUIRE_THROWS(ccf::deserialise_cose_endorsements(empty_array));
-  REQUIRE_THROWS(ccf::deserialise_cose_endorsements(undersized));
-  REQUIRE_THROWS(ccf::deserialise_cose_endorsements(map_instead_of_array));
-  REQUIRE_THROWS(ccf::deserialise_cose_endorsements(indefinite_array));
-
-  std::vector<uint8_t> nested_items{0x98, 0x40};
-  for (size_t i = 0; i < ccf::MAX_SNAPSHOT_ENDORSEMENTS_COUNT; ++i)
-  {
-    nested_items.insert(nested_items.end(), {0x98, 0x40});
-    nested_items.insert(
-      nested_items.end(), ccf::MAX_SNAPSHOT_ENDORSEMENTS_COUNT, 0x40);
-  }
-  REQUIRE_THROWS(ccf::deserialise_cose_endorsements(nested_items));
-
-  const std::vector<uint8_t> oversized_endorsement{
-    0x81, 0x5a, 0x00, 0x10, 0x00, 0x01};
-  REQUIRE_THROWS(ccf::deserialise_cose_endorsements(oversized_endorsement));
-
-  std::vector<uint8_t> oversized_payload{0x85};
-  for (size_t i = 0; i < 5; ++i)
-  {
-    oversized_payload.insert(
-      oversized_payload.end(), {0x5a, 0x00, 0x10, 0x00, 0x00});
-    oversized_payload.resize(
-      oversized_payload.size() + ccf::MAX_SNAPSHOT_ENDORSEMENT_SIZE);
-  }
-  REQUIRE_THROWS(ccf::deserialise_cose_endorsements(oversized_payload));
-
-  ccf::SerialisedCoseEndorsements excessive_count(
-    ccf::MAX_SNAPSHOT_ENDORSEMENTS_COUNT + 1, make_test_endorsement(0x01));
-  REQUIRE_THROWS(ccf::serialise_cose_endorsements(excessive_count));
-  REQUIRE_THROWS(ccf::serialise_cose_endorsements({}));
-  REQUIRE_THROWS(
-    ccf::serialise_cose_endorsements({std::vector<uint8_t>{0xd2}}));
-  REQUIRE_THROWS(ccf::serialise_cose_endorsements(
-    {std::vector<uint8_t>(ccf::MAX_SNAPSHOT_ENDORSEMENT_SIZE + 1, 0xd2)}));
 }
 
 TEST_CASE("Recovery snapshot endorsement scan reads ledger files directly")
@@ -245,22 +169,7 @@ TEST_CASE("Recovery snapshot endorsement scan reads ledger files directly")
     entries.push_back(std::move(latest_entry));
   }
 
-  const auto ledger_path = ledger_dir.path / "ledger_1";
-  {
-    std::ofstream ledger_file(ledger_path, std::ios::binary);
-    REQUIRE(ledger_file);
-    const size_t positions_offset = 0;
-    ledger_file.write(
-      reinterpret_cast<const char*>(&positions_offset),
-      sizeof(positions_offset));
-    for (const auto& entry : entries)
-    {
-      ledger_file.write(
-        reinterpret_cast<const char*>(entry.data()),
-        static_cast<std::streamsize>(entry.size()));
-    }
-    REQUIRE(ledger_file);
-  }
+  write_current_ledger_file(ledger_dir.path / "ledger_1", entries);
 
   ccf::CCFConfig::Ledger ledger_config;
   ledger_config.directory = ledger_dir.path.string();
@@ -285,7 +194,7 @@ TEST_CASE("Recovery snapshot endorsement scan bounds pending endorsements")
   source_store.initialise_term(2);
 
   std::vector<std::vector<uint8_t>> entries;
-  for (size_t i = 0; i < ccf::MAX_SNAPSHOT_ENDORSEMENTS_COUNT + 1; ++i)
+  for (size_t i = 0; i < ccf::MAX_RECOVERY_SNAPSHOT_ENDORSEMENTS_COUNT + 1; ++i)
   {
     ccf::CoseEndorsement endorsement;
     endorsement.endorsement = {0xd2, 0x01};
@@ -305,22 +214,7 @@ TEST_CASE("Recovery snapshot endorsement scan bounds pending endorsements")
     entries.push_back(std::move(latest_entry));
   }
 
-  const auto ledger_path = ledger_dir.path / "ledger_1";
-  {
-    std::ofstream ledger_file(ledger_path, std::ios::binary);
-    REQUIRE(ledger_file);
-    const size_t positions_offset = 0;
-    ledger_file.write(
-      reinterpret_cast<const char*>(&positions_offset),
-      sizeof(positions_offset));
-    for (const auto& entry : entries)
-    {
-      ledger_file.write(
-        reinterpret_cast<const char*>(entry.data()),
-        static_cast<std::streamsize>(entry.size()));
-    }
-    REQUIRE(ledger_file);
-  }
+  write_current_ledger_file(ledger_dir.path / "ledger_1", entries);
 
   ccf::CCFConfig::Ledger ledger_config;
   ledger_config.directory = ledger_dir.path.string();

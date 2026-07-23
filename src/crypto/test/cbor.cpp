@@ -1778,29 +1778,6 @@ TEST_CASE("CBOR: parse max depth")
   REQUIRE_NOTHROW(parse(map_depth2, 2));
 }
 
-TEST_CASE("CBOR: parse max container size")
-{
-  auto array = ccf::ds::from_hex("83010203");
-  REQUIRE_NOTHROW(parse(array, 16, 3));
-  REQUIRE_THROWS_AS(parse(array, 16, 2), CBORDecodeError);
-
-  auto nested_array = ccf::ds::from_hex("81820102");
-  REQUIRE_THROWS_AS(parse(nested_array, 16, 1), CBORDecodeError);
-
-  // {1: 2, 3: 4} -- a map counts entries against the same budget
-  auto map = ccf::ds::from_hex("a201020304");
-  REQUIRE_NOTHROW(parse(map, 16, 2));
-  REQUIRE_THROWS_AS(parse(map, 16, 1), CBORDecodeError);
-}
-
-TEST_CASE("CBOR: parse max total items")
-{
-  // [[1, 2], [3, 4]] contains 7 total items, including the 3 arrays.
-  auto nested_array = ccf::ds::from_hex("82820102820304");
-  REQUIRE_NOTHROW(parse(nested_array, 16, 2, 7));
-  REQUIRE_THROWS_AS(parse(nested_array, 16, 2, 6), CBORDecodeError);
-}
-
 TEST_CASE("CBOR: serialize max depth")
 {
   // depth 1: [42] -- should pass at max_depth=1,2

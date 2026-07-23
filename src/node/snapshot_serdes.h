@@ -5,14 +5,10 @@
 #include "ccf/crypto/cose.h"
 #include "ccf/crypto/cose_verifier.h"
 #include "ccf/crypto/pem.h"
-#include "ccf/crypto/verifier.h"
 #include "ccf/ds/json.h"
 #include "ccf/historical_queries_adapter.h"
-#include "ccf/receipt.h"
 #include "ccf/service/tables/nodes.h"
-#include "crypto/cbor.h"
 #include "crypto/cose.h"
-#include "ds/files.h"
 #include "ds/internal_logger.h"
 #include "ds/serialized.h"
 #include "kv/kv_types.h"
@@ -21,9 +17,7 @@
 #include "node/history.h"
 #include "node/rpc/network_identity_chain_helpers.h"
 #include "node/tx_receipt_impl.h"
-#include "snapshots/filenames.h"
 
-#include <fstream>
 #include <nlohmann/json.hpp>
 #include <ranges>
 #include <utility>
@@ -46,65 +40,6 @@ namespace ccf
     std::span<const uint8_t> header_and_body;
     std::span<const uint8_t> receipt;
   };
-
-  static constexpr size_t MAX_SNAPSHOT_ENDORSEMENTS_SIZE =
-    size_t{16} * 1024 * 1024;
-  static constexpr size_t MAX_SNAPSHOT_ENDORSEMENTS_COUNT = 64;
-  static constexpr size_t MIN_SNAPSHOT_ENDORSEMENT_SIZE = 64;
-  static constexpr size_t MAX_SNAPSHOT_ENDORSEMENT_SIZE = size_t{1024} * 1024;
-  static constexpr size_t MAX_SNAPSHOT_ENDORSEMENT_RECORD_SIZE =
-    2 * MAX_SNAPSHOT_ENDORSEMENT_SIZE;
-  static constexpr size_t MAX_SNAPSHOT_ENDORSEMENTS_PAYLOAD_SIZE =
-    size_t{4} * 1024 * 1024;
-
-  template <typename Endorsements>
-  static void validate_cose_endorsement_resource_limits(
-    const Endorsements& endorsements)
-  {
-    if (
-      endorsements.empty() ||
-      endorsements.size() > MAX_SNAPSHOT_ENDORSEMENTS_COUNT)
-    {
-      throw std::logic_error(fmt::format(
-        "Snapshot endorsements sidecar must contain between 1 and {} "
-        "endorsements, got {}",
-        MAX_SNAPSHOT_ENDORSEMENTS_COUNT,
-        endorsements.size()));
-    }
-
-    size_t payload_size = 0;
-    for (size_t i = 0; i < endorsements.size(); ++i)
-    {
-      const auto endorsement_size = endorsements[i].size();
-      if (endorsement_size < MIN_SNAPSHOT_ENDORSEMENT_SIZE)
-      {
-        throw std::logic_error(fmt::format(
-          "Snapshot endorsement at index {} is too small ({} bytes; minimum "
-          "{} bytes)",
-          i,
-          endorsement_size,
-          MIN_SNAPSHOT_ENDORSEMENT_SIZE));
-      }
-      if (endorsement_size > MAX_SNAPSHOT_ENDORSEMENT_SIZE)
-      {
-        throw std::logic_error(fmt::format(
-          "Snapshot endorsement at index {} is too large ({} bytes; maximum "
-          "{} bytes)",
-          i,
-          endorsement_size,
-          MAX_SNAPSHOT_ENDORSEMENT_SIZE));
-      }
-      if (
-        endorsement_size >
-        MAX_SNAPSHOT_ENDORSEMENTS_PAYLOAD_SIZE - payload_size)
-      {
-        throw std::logic_error(fmt::format(
-          "Snapshot endorsements payload is too large (maximum {} bytes)",
-          MAX_SNAPSHOT_ENDORSEMENTS_PAYLOAD_SIZE));
-      }
-      payload_size += endorsement_size;
-    }
-  }
 
   static SnapshotSegments separate_segments(
     const std::vector<uint8_t>& snapshot)
@@ -144,66 +79,13 @@ namespace ccf
     return SnapshotSegments{header_and_body, receipt};
   }
 
-  static std::vector<uint8_t> serialise_cose_endorsements(
-    const ccf::SerialisedCoseEndorsements& endorsements)
-  {
-    validate_cose_endorsement_resource_limits(endorsements);
-
-    std::vector<ccf::cbor::Value> items;
-    items.reserve(endorsements.size());
-    for (const auto& endorsement : endorsements)
-    {
-      items.emplace_back(ccf::cbor::make_bytes(endorsement));
-    }
-
-    return ccf::cbor::serialize(ccf::cbor::make_array(std::move(items)));
-  }
-
-  static ccf::SerialisedCoseEndorsements deserialise_cose_endorsements(
-    std::span<const uint8_t> serialised)
-  {
-    const auto parsed = ccf::cbor::rethrow_with_msg(
-      [&]() {
-        return ccf::cbor::parse(
-          serialised,
-          16,
-          MAX_SNAPSHOT_ENDORSEMENTS_COUNT,
-          MAX_SNAPSHOT_ENDORSEMENTS_COUNT + 1);
-      },
-      "Parse snapshot endorsements sidecar");
-    if (!std::holds_alternative<ccf::cbor::Array>(parsed->value))
-    {
-      throw std::logic_error(
-        "Snapshot endorsements sidecar must contain a CBOR array");
-    }
-
-    std::vector<std::span<const uint8_t>> endorsement_spans;
-    endorsement_spans.reserve(parsed->size());
-    for (size_t i = 0; i < parsed->size(); ++i)
-    {
-      const auto bytes = ccf::cbor::rethrow_with_msg(
-        [&]() { return parsed->array_at(i)->as_bytes(); },
-        fmt::format("Parse snapshot endorsement at index {}", i));
-      endorsement_spans.emplace_back(bytes);
-    }
-    validate_cose_endorsement_resource_limits(endorsement_spans);
-
-    ccf::SerialisedCoseEndorsements endorsements;
-    endorsements.reserve(endorsement_spans.size());
-    for (const auto endorsement : endorsement_spans)
-    {
-      endorsements.emplace_back(endorsement.begin(), endorsement.end());
-    }
-    return endorsements;
-  }
-
-  template <typename Prepare, typename Install>
-  static std::optional<std::string> try_prepare_and_install_recovery_snapshot(
-    Prepare&& prepare, Install&& install)
+  template <typename Verify, typename Install>
+  static std::optional<std::string> try_verify_and_install_recovery_snapshot(
+    Verify&& verify, Install&& install)
   {
     try
     {
-      std::forward<Prepare>(prepare)();
+      std::forward<Verify>(verify)();
     }
     catch (const std::exception& e)
     {
@@ -212,90 +94,6 @@ namespace ccf
 
     std::forward<Install>(install)();
     return std::nullopt;
-  }
-
-  static ccf::SerialisedCoseEndorsements read_cose_endorsements_sidecar(
-    const std::filesystem::path& path)
-  {
-    std::error_code ec;
-    const auto file_size = std::filesystem::file_size(path, ec);
-    if (ec)
-    {
-      throw std::logic_error(fmt::format(
-        "Unable to read snapshot endorsements sidecar size {}: {}",
-        path.string(),
-        ec.message()));
-    }
-    if (file_size > MAX_SNAPSHOT_ENDORSEMENTS_SIZE)
-    {
-      throw std::logic_error(fmt::format(
-        "Snapshot endorsements sidecar {} is too large ({} bytes, maximum "
-        "{} bytes)",
-        path.string(),
-        file_size,
-        MAX_SNAPSHOT_ENDORSEMENTS_SIZE));
-    }
-
-    std::ifstream file(path, std::ios::binary);
-    if (!file)
-    {
-      throw std::logic_error(fmt::format(
-        "Unable to open snapshot endorsements sidecar {}", path.string()));
-    }
-
-    std::vector<uint8_t> serialised(static_cast<size_t>(file_size));
-    if (!serialised.empty())
-    {
-      file.read(
-        reinterpret_cast<char*>(serialised.data()),
-        static_cast<std::streamsize>(serialised.size()));
-      if (
-        !file ||
-        file.gcount() != static_cast<std::streamsize>(serialised.size()))
-      {
-        throw std::logic_error(fmt::format(
-          "Unable to read complete snapshot endorsements sidecar {}",
-          path.string()));
-      }
-    }
-
-    return deserialise_cose_endorsements(serialised);
-  }
-
-  static void write_cose_endorsements_sidecar(
-    const std::filesystem::path& path,
-    const ccf::SerialisedCoseEndorsements& endorsements)
-  {
-    if (std::filesystem::exists(path))
-    {
-      throw std::logic_error(fmt::format(
-        "Refusing to overwrite existing snapshot endorsements sidecar {}",
-        path.string()));
-    }
-
-    const auto serialised = serialise_cose_endorsements(endorsements);
-    if (serialised.size() > MAX_SNAPSHOT_ENDORSEMENTS_SIZE)
-    {
-      throw std::logic_error(fmt::format(
-        "Snapshot endorsements sidecar is too large ({} bytes, maximum {} "
-        "bytes)",
-        serialised.size(),
-        MAX_SNAPSHOT_ENDORSEMENTS_SIZE));
-    }
-    auto temporary_path = std::filesystem::path(path.string() + ".tmp");
-    std::error_code ec;
-    std::filesystem::remove(temporary_path, ec);
-
-    try
-    {
-      files::dump(serialised, temporary_path);
-      files::rename(temporary_path, path);
-    }
-    catch (const std::exception&)
-    {
-      std::filesystem::remove(temporary_path, ec);
-      throw;
-    }
   }
 
   static ccf::CoseEndorsement parse_serialised_cose_endorsement(
@@ -319,7 +117,7 @@ namespace ccf
       .previous_version = ccf::kv::Version{0}};
   }
 
-  static std::vector<uint8_t> verify_serialised_cose_endorsements(
+  static std::vector<uint8_t> verify_recovery_snapshot_endorsement_chain(
     const ccf::SerialisedCoseEndorsements& endorsements,
     std::span<const uint8_t> target_key,
     ccf::kv::Version snapshot_seqno,
@@ -382,7 +180,7 @@ namespace ccf
   }
 
   static ccf::SerialisedCoseEndorsements
-  validate_and_serialise_collected_endorsements(
+  build_recovery_snapshot_endorsement_chain(
     const std::vector<CollectedCoseEndorsement>& collected,
     std::span<const uint8_t> target_key,
     ccf::kv::Version snapshot_seqno,
@@ -458,8 +256,8 @@ namespace ccf
         endorsed_key != previous_endorsing_key)
       {
         throw std::logic_error(fmt::format(
-          "Collected endorsement at {} does not endorse the preceding "
-          "service identity",
+          "Collected endorsement at {} does not endorse the preceding service "
+          "identity",
           write_version));
       }
       previous_endorsing_key = endorsement.endorsing_key;
@@ -494,14 +292,14 @@ namespace ccf
         snapshot_seqno));
     }
 
-    ccf::SerialisedCoseEndorsements serialised;
-    serialised.reserve(collected.size());
+    ccf::SerialisedCoseEndorsements endorsements;
+    endorsements.reserve(collected.size());
     for (const auto& collected_endorsement :
          std::ranges::reverse_view(collected))
     {
-      serialised.emplace_back(collected_endorsement.endorsement.endorsement);
+      endorsements.emplace_back(collected_endorsement.endorsement.endorsement);
     }
-    return serialised;
+    return endorsements;
   }
 
   static auto decode_and_verify_cose_snapshot_receipt(
@@ -646,8 +444,7 @@ namespace ccf
     else
     {
       throw std::logic_error(fmt::format(
-        "Invalid snapshot receipt: unrecognised format (first byte: "
-        "0x{:02X})",
+        "Invalid snapshot receipt: unrecognised format (first byte: 0x{:02X})",
         first_byte));
     }
   }
@@ -667,12 +464,12 @@ namespace ccf
     if (segments.receipt.empty() || segments.receipt[0] != 0xD2)
     {
       throw std::logic_error(
-        "Only snapshots with COSE receipts can use endorsement sidecars");
+        "Only snapshots with COSE receipts can use an endorsement chain");
     }
 
     const auto target_key = ccf::crypto::public_key_der_from_cert(
       ccf::crypto::cert_pem_to_der(target_identity));
-    const auto snapshot_signer_key = verify_serialised_cose_endorsements(
+    const auto snapshot_signer_key = verify_recovery_snapshot_endorsement_chain(
       endorsements, target_key, snapshot_seqno, target_service_from);
     const auto receipt = decode_and_verify_cose_snapshot_receipt(segments);
     const auto verifier =

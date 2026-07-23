@@ -299,25 +299,6 @@ namespace asynchost
               path.filename(),
               ec.message());
           }
-          else
-          {
-            const auto sidecar_path =
-              snapshots::get_snapshot_endorsements_path(path);
-            std::error_code sidecar_ec;
-            {
-              TimeBoundLogger log_remove_sidecar_if_slow(fmt::format(
-                "Deleting old snapshot endorsements sidecar - remove({})",
-                sidecar_path.filename()));
-              std::filesystem::remove(sidecar_path, sidecar_ec);
-            }
-            if (sidecar_ec)
-            {
-              LOG_FAIL_FMT(
-                "Failed to delete old snapshot endorsements sidecar {}: {}",
-                sidecar_path.filename(),
-                sidecar_ec.message());
-            }
-          }
         }
       }
     }

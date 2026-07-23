@@ -518,32 +518,6 @@ TEST_CASE("highest_committed_snapshot_seqno: ignores uncommitted snapshots")
   fs::remove_all(tmp);
 }
 
-TEST_CASE("cleanup_old_snapshots: removes adjacent endorsement sidecars")
-{
-  auto tmp = make_unique_test_dir("test_snapshot_sidecar_cleanup");
-  const auto oldest = create_committed_snapshot(tmp, 100, 105);
-  const auto middle = create_committed_snapshot(tmp, 200, 205);
-  const auto newest = create_committed_snapshot(tmp, 300, 305);
-  for (const auto& snapshot : {oldest, middle, newest})
-  {
-    write_file(
-      snapshots::get_snapshot_endorsements_path(snapshot), "endorsements");
-  }
-
-  const auto committed = find_committed_snapshots(tmp);
-  REQUIRE(committed.has_value());
-  cleanup_old_snapshots(*committed, 1);
-
-  CHECK_FALSE(fs::exists(oldest));
-  CHECK_FALSE(fs::exists(snapshots::get_snapshot_endorsements_path(oldest)));
-  CHECK_FALSE(fs::exists(middle));
-  CHECK_FALSE(fs::exists(snapshots::get_snapshot_endorsements_path(middle)));
-  CHECK(fs::exists(newest));
-  CHECK(fs::exists(snapshots::get_snapshot_endorsements_path(newest)));
-
-  fs::remove_all(tmp);
-}
-
 // ---- snapshot watermark in cleanup_old_ledger_chunks tests ----
 
 TEST_CASE(

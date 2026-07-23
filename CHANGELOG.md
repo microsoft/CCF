@@ -23,7 +23,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
-- Recovery can now use a COSE snapshot signed by an earlier service identity after one or more disaster recoveries. Before deserialising the snapshot, the node derives and validates the previous-service-identity endorsement chain from the public ledger suffix and caches it in an adjacent `.endorsements` sidecar. Invalid or incomplete chains fall back to full-ledger replay, and Python tooling can verify a snapshot plus sidecar against the latest trusted service certificate (#8092).
+- Recovery can now use a COSE snapshot signed by an earlier service identity after one or more disaster recoveries. Before deserialising the snapshot, the node derives and validates the previous-service-identity endorsement chain directly from the public ledger suffix and retains it only for the current recovery attempt. Invalid or incomplete chains fall back to full-ledger replay (#8092).
 
 ### Changed
 

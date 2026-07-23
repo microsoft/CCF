@@ -472,7 +472,6 @@ namespace ccf
     std::shared_ptr<JwtKeyAutoRefresh> jwt_key_auto_refresh;
 
     std::unique_ptr<StartupSnapshotInfo> startup_snapshot_info = nullptr;
-    std::optional<std::filesystem::path> startup_snapshot_path = std::nullopt;
     // Set to the snapshot seqno when a node starts from one and remembered for
     // the lifetime of the node
     ccf::kv::Version startup_seqno = 0;
@@ -529,18 +528,16 @@ namespace ccf
           snapshot_path,
           snapshot_data.size());
 
-        // A structurally invalid snapshot (for example a truncated or nulled
-        // file) is a fatal startup error rather than something we silently
-        // skip and continue past, so separate the segments outside the
-        // verification try/catch below.
+        // A structurally invalid snapshot is a fatal startup error, rather than
+        // something to skip after potentially consuming an ambiguous prefix.
         const auto segments = separate_segments(snapshot_data);
 
         try
         {
           if (start_type == StartType::Recover)
           {
-            // Validate the receipt structure and snapshot digest, but defer the
-            // identity check until the recovery sidecar gate has run.
+            // Validate the receipt structure and claims now, but defer the
+            // identity check until the public-ledger endorsement scan.
             verify_snapshot(segments);
           }
           else
@@ -597,7 +594,6 @@ namespace ccf
         {
           startup_snapshot_info = std::make_unique<StartupSnapshotInfo>(
             snapshot_seqno, std::move(snapshot_data));
-          startup_snapshot_path = snapshot_path;
           LOG_INFO_FMT(
             "Selected recovery snapshot {} for previous-service-identity "
             "verification",
@@ -623,7 +619,6 @@ namespace ccf
 
       startup_snapshot_info = std::make_unique<StartupSnapshotInfo>(
         snapshot_seqno, std::move(snapshot_data));
-      startup_snapshot_path.reset();
 
       install_startup_snapshot();
     }
@@ -683,40 +678,6 @@ namespace ccf
       }
     }
 
-    bool drop_recovery_snapshot_sidecar_unsafe(
-      const std::filesystem::path& sidecar_path)
-    {
-      std::error_code ec;
-      const auto exists = std::filesystem::exists(sidecar_path, ec);
-      if (ec)
-      {
-        LOG_FAIL_FMT(
-          "Unable to inspect snapshot endorsements sidecar {}: {}",
-          sidecar_path.string(),
-          ec.message());
-        return false;
-      }
-      if (!exists)
-      {
-        return true;
-      }
-
-      const auto removed = std::filesystem::remove(sidecar_path, ec);
-      if (ec || !removed)
-      {
-        LOG_FAIL_FMT(
-          "Unable to remove stale snapshot endorsements sidecar {}: {}",
-          sidecar_path.string(),
-          ec ? ec.message() : "file was not removed");
-        return false;
-      }
-
-      LOG_INFO_FMT(
-        "Removed stale snapshot endorsements sidecar {}",
-        sidecar_path.string());
-      return true;
-    }
-
     void start_public_ledger_recovery_unsafe()
     {
       sm.advance(NodeStartupState::readingPublicLedger);
@@ -730,40 +691,13 @@ namespace ccf
         "service identity: {}. Falling back to full-ledger recovery.",
         reason);
 
-      if (startup_snapshot_path.has_value())
-      {
-        const auto sidecar_path =
-          snapshots::get_snapshot_endorsements_path(*startup_snapshot_path);
-        std::ignore = drop_recovery_snapshot_sidecar_unsafe(sidecar_path);
-      }
-
       startup_snapshot_info.reset();
-      startup_snapshot_path.reset();
       startup_seqno = 0;
       last_recovered_idx = 0;
       last_recovered_signed_idx = 0;
       view_history.clear();
 
       start_public_ledger_recovery_unsafe();
-    }
-
-    [[nodiscard]] bool recovery_snapshot_directory_is_writable_unsafe() const
-    {
-      if (!startup_snapshot_path.has_value())
-      {
-        return false;
-      }
-
-      std::error_code ec;
-      const auto snapshot_dir = std::filesystem::weakly_canonical(
-        startup_snapshot_path->parent_path(), ec);
-      if (ec)
-      {
-        return false;
-      }
-      const auto writable_dir =
-        std::filesystem::weakly_canonical(config.snapshots.directory, ec);
-      return !ec && snapshot_dir == writable_dir;
     }
 
     void install_recovery_snapshot_and_start_unsafe()
@@ -775,7 +709,7 @@ namespace ccf
     void start_recovery_snapshot_verification_unsafe()
     {
       if (
-        !startup_snapshot_info || !startup_snapshot_path.has_value() ||
+        !startup_snapshot_info ||
         !config.recover.previous_service_identity.has_value())
       {
         start_public_ledger_recovery_unsafe();
@@ -785,65 +719,19 @@ namespace ccf
       const auto segments = separate_segments(startup_snapshot_info->raw);
       const ccf::crypto::Pem target_identity(
         *config.recover.previous_service_identity);
-      const auto sidecar_path =
-        snapshots::get_snapshot_endorsements_path(*startup_snapshot_path);
 
-      std::error_code ec;
-      const auto sidecar_exists = std::filesystem::exists(sidecar_path, ec);
-      if (ec)
-      {
-        fallback_from_recovery_snapshot_unsafe(fmt::format(
-          "unable to inspect sidecar {}: {}",
-          sidecar_path.string(),
-          ec.message()));
-        return;
-      }
-
-      if (sidecar_exists)
-      {
-        const auto preparation_error =
-          try_prepare_and_install_recovery_snapshot(
-            [&]() {
-              const auto endorsements =
-                read_cose_endorsements_sidecar(sidecar_path);
-              verify_recovery_snapshot(
-                segments,
-                target_identity,
-                endorsements,
-                startup_snapshot_info->seqno);
-              LOG_INFO_FMT(
-                "Reusing verified snapshot endorsements sidecar {}",
-                sidecar_path.string());
-            },
-            [&]() { install_recovery_snapshot_and_start_unsafe(); });
-        if (!preparation_error.has_value())
-        {
-          return;
-        }
-
-        LOG_FAIL_FMT(
-          "Snapshot endorsements sidecar {} is invalid: {}",
-          sidecar_path.string(),
-          *preparation_error);
-        if (!drop_recovery_snapshot_sidecar_unsafe(sidecar_path))
-        {
-          fallback_from_recovery_snapshot_unsafe(
-            "invalid sidecar could not be removed");
-          return;
-        }
-      }
-
-      const auto preparation_error = try_prepare_and_install_recovery_snapshot(
-        [&]() {
-          verify_recovery_snapshot(
-            segments, target_identity, {}, startup_snapshot_info->seqno);
-          LOG_INFO_FMT(
-            "Recovery snapshot {} is directly signed by the configured "
-            "previous service identity",
-            startup_snapshot_path->string());
-        },
-        [&]() { install_recovery_snapshot_and_start_unsafe(); });
-      if (!preparation_error.has_value())
+      const auto direct_verification_error =
+        try_verify_and_install_recovery_snapshot(
+          [&]() {
+            verify_recovery_snapshot(
+              segments, target_identity, {}, startup_snapshot_info->seqno);
+            LOG_INFO_FMT(
+              "Recovery snapshot at {} is directly signed by the configured "
+              "previous service identity",
+              startup_snapshot_info->seqno);
+          },
+          [&]() { install_recovery_snapshot_and_start_unsafe(); });
+      if (!direct_verification_error.has_value())
       {
         return;
       }
@@ -851,132 +739,71 @@ namespace ccf
       if (segments.receipt.empty() || segments.receipt[0] != 0xD2)
       {
         fallback_from_recovery_snapshot_unsafe(fmt::format(
-          "old-style snapshot receipt cannot be augmented: {}",
-          *preparation_error));
+          "old-style snapshot receipt cannot use an endorsement chain: {}",
+          *direct_verification_error));
         return;
       }
 
       LOG_INFO_FMT(
-        "Recovery snapshot {} is not directly signed by the configured "
+        "Recovery snapshot at {} is not directly signed by the configured "
         "previous service identity ({}); scanning the public ledger suffix "
         "for COSE endorsements",
-        startup_snapshot_path->string(),
-        *preparation_error);
+        startup_snapshot_info->seqno,
+        *direct_verification_error);
 
-      if (!recovery_snapshot_directory_is_writable_unsafe())
-      {
-        fallback_from_recovery_snapshot_unsafe(
-          "the selected snapshot is in a read-only directory and has no valid "
-          "endorsements sidecar");
-        return;
-      }
+      const auto chain_verification_error =
+        try_verify_and_install_recovery_snapshot(
+          [&]() {
+            const auto snapshot_seqno = startup_snapshot_info->seqno;
+            const auto scan = scan_recovery_snapshot_ledger_files(
+              config.ledger, network.tables->get_encryptor(), snapshot_seqno);
+            if (
+              scan.last_signed_idx <=
+              static_cast<::consensus::Index>(snapshot_seqno))
+            {
+              throw std::logic_error(
+                "No committed ledger suffix was found after the snapshot");
+            }
+            if (!scan.latest_service_info.has_value())
+            {
+              throw std::logic_error(
+                "No service identity was found in the committed ledger suffix");
+            }
 
-      if (
-        startup_snapshot_info->seqno ==
-        std::numeric_limits<ccf::kv::Version>::max())
-      {
-        fallback_from_recovery_snapshot_unsafe(
-          "snapshot seqno cannot be incremented for ledger scanning");
-        return;
-      }
+            const auto& latest_service = scan.latest_service_info->second;
+            if (latest_service.cert != target_identity)
+            {
+              throw std::logic_error(
+                "Latest ledger service identity does not match the configured "
+                "previous service identity");
+            }
+            if (!latest_service.current_service_create_txid.has_value())
+            {
+              throw std::logic_error(
+                "Latest ledger service identity has no creation TxID");
+            }
 
-      std::optional<RecoverySnapshotLedgerScan> scan = std::nullopt;
-      try
+            const auto target_key = ccf::crypto::public_key_der_from_cert(
+              ccf::crypto::cert_pem_to_der(target_identity));
+            const auto endorsements = build_recovery_snapshot_endorsement_chain(
+              scan.endorsements,
+              target_key,
+              snapshot_seqno,
+              *latest_service.current_service_create_txid);
+            verify_recovery_snapshot(
+              segments,
+              target_identity,
+              endorsements,
+              snapshot_seqno,
+              latest_service.current_service_create_txid);
+            LOG_INFO_FMT(
+              "Validated {} recovery snapshot endorsement(s) in memory",
+              endorsements.size());
+          },
+          [&]() { install_recovery_snapshot_and_start_unsafe(); });
+      if (chain_verification_error.has_value())
       {
-        scan = scan_recovery_snapshot_ledger_files(
-          config.ledger,
-          network.tables->get_encryptor(),
-          startup_snapshot_info->seqno);
-      }
-      catch (const std::exception& e)
-      {
-        fallback_from_recovery_snapshot_unsafe(e.what());
-        return;
-      }
-      finish_recovery_snapshot_endorsements_scan_unsafe(std::move(*scan));
-    }
-
-    void finish_recovery_snapshot_endorsements_scan_unsafe(
-      RecoverySnapshotLedgerScan&& scan)
-    {
-      if (
-        !startup_snapshot_info || !startup_snapshot_path.has_value() ||
-        !config.recover.previous_service_identity.has_value())
-      {
-        fallback_from_recovery_snapshot_unsafe(
-          "snapshot scan completed without a selected snapshot or target "
-          "identity");
-        return;
-      }
-
-      const auto snapshot_seqno = startup_snapshot_info->seqno;
-      ccf::SerialisedCoseEndorsements serialised_endorsements;
-      auto sidecar_path =
-        snapshots::get_snapshot_endorsements_path(*startup_snapshot_path);
-      try
-      {
-        if (
-          scan.last_signed_idx <=
-          static_cast<::consensus::Index>(snapshot_seqno))
-        {
-          throw std::logic_error(
-            "no committed ledger suffix was found after the snapshot");
-        }
-        if (!scan.latest_service_info.has_value())
-        {
-          throw std::logic_error(
-            "no service identity was found in the committed ledger suffix");
-        }
-
-        const ccf::crypto::Pem target_identity(
-          *config.recover.previous_service_identity);
-        const auto& latest_service = scan.latest_service_info->second;
-        if (latest_service.cert != target_identity)
-        {
-          throw std::logic_error(
-            "latest ledger service identity does not match the configured "
-            "previous service identity");
-        }
-        if (!latest_service.current_service_create_txid.has_value())
-        {
-          throw std::logic_error(
-            "latest ledger service identity has no creation TxID");
-        }
-
-        const auto target_key = ccf::crypto::public_key_der_from_cert(
-          ccf::crypto::cert_pem_to_der(target_identity));
-        serialised_endorsements = validate_and_serialise_collected_endorsements(
-          scan.endorsements,
-          target_key,
-          snapshot_seqno,
-          *latest_service.current_service_create_txid);
-        verify_recovery_snapshot(
-          separate_segments(startup_snapshot_info->raw),
-          target_identity,
-          serialised_endorsements,
-          snapshot_seqno,
-          latest_service.current_service_create_txid);
-        write_cose_endorsements_sidecar(sidecar_path, serialised_endorsements);
-      }
-      catch (const std::exception& e)
-      {
-        fallback_from_recovery_snapshot_unsafe(e.what());
-        return;
-      }
-
-      LOG_INFO_FMT(
-        "Persisted {} verified recovery snapshot endorsement(s) to {}",
-        serialised_endorsements.size(),
-        sidecar_path.string());
-
-      try
-      {
-        install_recovery_snapshot_and_start_unsafe();
-      }
-      catch (const std::exception&)
-      {
-        std::ignore = drop_recovery_snapshot_sidecar_unsafe(sidecar_path);
-        throw;
+        fallback_from_recovery_snapshot_unsafe(*chain_verification_error);
       }
     }
 
@@ -1628,15 +1455,14 @@ namespace ccf
               {
                 // The legacy httpclient path silently dropped a failed
                 // connection and relied on the periodic join timer to retry
-                // when the target could not yet be reached, while treating
-                // TLS handshake failures (e.g. an untrusted service
-                // certificate) as fatal. Preserve both behaviours: transient
-                // transport errors are retried, everything else is fatal.
+                // when the target could not yet be reached, while treating TLS
+                // handshake failures (e.g. an untrusted service certificate) as
+                // fatal. Preserve both behaviours: transient transport errors
+                // are retried, everything else is fatal.
                 if (ccf::curl::is_transient_transport_error(curl_response))
                 {
                   LOG_INFO_FMT(
-                    "Transient error contacting {} to join: {} ({}). The "
-                    "join "
+                    "Transient error contacting {} to join: {} ({}). The join "
                     "timer will retry.",
                     target_address,
                     curl_easy_strerror(curl_response),
@@ -1644,16 +1470,14 @@ namespace ccf
                   return;
                 }
 
-                // CURLE_WRITE_ERROR here means our own write callback
-                // rejected the response body, which for the join can only be
-                // the body exceeding max_join_response_size. Surface a clear,
-                // actionable message rather than curl's generic "write
-                // error".
+                // CURLE_WRITE_ERROR here means our own write callback rejected
+                // the response body, which for the join can only be the body
+                // exceeding max_join_response_size. Surface a clear, actionable
+                // message rather than curl's generic "write error".
                 if (curl_response == CURLE_WRITE_ERROR)
                 {
                   auto error_msg = fmt::format(
-                    "Join response from {} exceeded the maximum permitted "
-                    "size "
+                    "Join response from {} exceeded the maximum permitted size "
                     "of {} bytes. Shutting down node gracefully...",
                     target_address,
                     max_join_response_size);
@@ -1675,8 +1499,7 @@ namespace ccf
                   curl_response == CURLE_PEER_FAILED_VERIFICATION ||
                   curl_response == CURLE_SSL_CACERT_BADFILE;
                 auto error_msg = fmt::format(
-                  "Early error when joining existing network at {}: {}{} "
-                  "({}). "
+                  "Early error when joining existing network at {}: {}{} ({}). "
                   "Shutting down node gracefully...",
                   target_address,
                   tls_certificate_trust_check_failed ?
@@ -1717,8 +1540,7 @@ namespace ccf
                 {
                   // Leave error_response == nullopt
                   LOG_FAIL_FMT(
-                    "Join request returned {}, body is not "
-                    "ODataErrorResponse: "
+                    "Join request returned {}, body is not ODataErrorResponse: "
                     "{}",
                     status,
                     std::string(data.begin(), data.end()));
@@ -1731,16 +1553,15 @@ namespace ccf
                   config.join.fetch_recent_snapshot)
                 {
                   LOG_INFO_FMT(
-                    "Join request to {} returned {} error. Attempting to "
-                    "fetch "
+                    "Join request to {} returned {} error. Attempting to fetch "
                     "fresher snapshot",
                     target_address,
                     ccf::errors::StartupSeqnoIsOld);
 
-                  // If we've followed a redirect, it will have been updated
-                  // in config.join. Note that this is fire-and-forget, it is
-                  // assumed that it proceeds in the background, updating
-                  // state when it completes, and the join timer separately
+                  // If we've followed a redirect, it will have been updated in
+                  // config.join. Note that this is fire-and-forget, it is
+                  // assumed that it proceeds in the background, updating state
+                  // when it completes, and the join timer separately
                   // re-attempts join after this succeeds
                   if (
                     snapshot_fetch_task != nullptr &&
@@ -1808,8 +1629,7 @@ namespace ccf
               catch (const std::exception& e)
               {
                 LOG_FAIL_FMT(
-                  "An error occurred while parsing the join network "
-                  "response");
+                  "An error occurred while parsing the join network response");
 
                 LOG_DEBUG_FMT("Join network response error: {}", e.what());
                 LOG_DEBUG_FMT(
@@ -1864,9 +1684,8 @@ namespace ccf
                 std::vector<ccf::kv::Version> view_history_ = {};
                 if (startup_snapshot_info)
                 {
-                  // It is only possible to deserialise the entire snapshot
-                  // now, once the ledger secrets have been passed in by the
-                  // network
+                  // It is only possible to deserialise the entire snapshot now,
+                  // once the ledger secrets have been passed in by the network
                   ccf::kv::ConsensusHookPtrs hooks;
                   network.tables->set_readiness(
                     ccf::kv::StoreReadiness::InstallingSnapshot);
@@ -1889,9 +1708,9 @@ namespace ccf
 
                     if (!resp.network_info->public_only)
                     {
-                      // Only clear snapshot if not recovering. When joining
-                      // the public network the snapshot is used later to
-                      // initialise the recovery store
+                      // Only clear snapshot if not recovering. When joining the
+                      // public network the snapshot is used later to initialise
+                      // the recovery store
                       startup_snapshot_info.reset();
                     }
 

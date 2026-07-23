@@ -9,7 +9,6 @@
 #include "kv/kv_serialiser.h"
 #include "kv/serialised_entry_format.h"
 #include "node/rpc/network_identity_chain_helpers.h"
-#include "node/snapshot_serdes.h"
 #include "service/tables/previous_service_identity.h"
 #include "service/tables/signatures.h"
 
@@ -22,6 +21,14 @@
 
 namespace ccf
 {
+  static constexpr size_t MAX_RECOVERY_SNAPSHOT_ENDORSEMENTS_COUNT = 64;
+  static constexpr size_t MAX_RECOVERY_SNAPSHOT_ENDORSEMENT_SIZE =
+    size_t{1024} * 1024;
+  static constexpr size_t MAX_RECOVERY_SNAPSHOT_ENDORSEMENT_RECORD_SIZE =
+    2 * MAX_RECOVERY_SNAPSHOT_ENDORSEMENT_SIZE;
+  static constexpr size_t MAX_RECOVERY_SNAPSHOT_ENDORSEMENTS_PAYLOAD_SIZE =
+    size_t{4} * 1024 * 1024;
+
   struct RecoverySnapshotLedgerEntry
   {
     ccf::kv::Version version = 0;
@@ -95,13 +102,13 @@ namespace ccf
             throw std::logic_error(
               "Invalid previous service identity endorsement table write");
           }
-          if (value.size() > MAX_SNAPSHOT_ENDORSEMENT_RECORD_SIZE)
+          if (value.size() > MAX_RECOVERY_SNAPSHOT_ENDORSEMENT_RECORD_SIZE)
           {
             throw std::logic_error(fmt::format(
               "Serialised previous service identity endorsement is too large "
               "({} bytes; maximum {} bytes)",
               value.size(),
-              MAX_SNAPSHOT_ENDORSEMENT_RECORD_SIZE));
+              MAX_RECOVERY_SNAPSHOT_ENDORSEMENT_RECORD_SIZE));
           }
           result.endorsement = ccf::PreviousServiceIdentityEndorsement::
             ValueSerialiser::from_serialised(value);
@@ -410,30 +417,32 @@ namespace ccf
         if (parsed.endorsement.has_value())
         {
           const auto endorsement_size = parsed.endorsement->endorsement.size();
-          if (endorsement_size > MAX_SNAPSHOT_ENDORSEMENT_SIZE)
+          if (endorsement_size > MAX_RECOVERY_SNAPSHOT_ENDORSEMENT_SIZE)
           {
             throw std::logic_error(fmt::format(
               "Ledger endorsement at {} is too large ({} bytes; maximum {} "
               "bytes)",
               parsed.version,
               endorsement_size,
-              MAX_SNAPSHOT_ENDORSEMENT_SIZE));
+              MAX_RECOVERY_SNAPSHOT_ENDORSEMENT_SIZE));
           }
-          if (pending_endorsements.size() >= MAX_SNAPSHOT_ENDORSEMENTS_COUNT)
+          if (
+            pending_endorsements.size() >=
+            MAX_RECOVERY_SNAPSHOT_ENDORSEMENTS_COUNT)
           {
             throw std::logic_error(fmt::format(
               "Ledger suffix contains too many pending endorsements (maximum "
               "{})",
-              MAX_SNAPSHOT_ENDORSEMENTS_COUNT));
+              MAX_RECOVERY_SNAPSHOT_ENDORSEMENTS_COUNT));
           }
           if (
-            endorsement_size > MAX_SNAPSHOT_ENDORSEMENTS_PAYLOAD_SIZE -
+            endorsement_size > MAX_RECOVERY_SNAPSHOT_ENDORSEMENTS_PAYLOAD_SIZE -
               pending_endorsements_payload_size)
           {
             throw std::logic_error(fmt::format(
               "Pending ledger endorsements payload is too large (maximum {} "
               "bytes)",
-              MAX_SNAPSHOT_ENDORSEMENTS_PAYLOAD_SIZE));
+              MAX_RECOVERY_SNAPSHOT_ENDORSEMENTS_PAYLOAD_SIZE));
           }
           pending_endorsements_payload_size += endorsement_size;
           pending_endorsements.push_back(
@@ -448,22 +457,22 @@ namespace ccf
         {
           if (
             pending_endorsements.size() >
-            MAX_SNAPSHOT_ENDORSEMENTS_COUNT - scan.endorsements.size())
+            MAX_RECOVERY_SNAPSHOT_ENDORSEMENTS_COUNT - scan.endorsements.size())
           {
             throw std::logic_error(fmt::format(
               "Committed ledger suffix contains too many endorsements "
               "(maximum {})",
-              MAX_SNAPSHOT_ENDORSEMENTS_COUNT));
+              MAX_RECOVERY_SNAPSHOT_ENDORSEMENTS_COUNT));
           }
           if (
             pending_endorsements_payload_size >
-            MAX_SNAPSHOT_ENDORSEMENTS_PAYLOAD_SIZE -
+            MAX_RECOVERY_SNAPSHOT_ENDORSEMENTS_PAYLOAD_SIZE -
               committed_endorsements_payload_size)
           {
             throw std::logic_error(fmt::format(
               "Committed ledger endorsements payload is too large (maximum {} "
               "bytes)",
-              MAX_SNAPSHOT_ENDORSEMENTS_PAYLOAD_SIZE));
+              MAX_RECOVERY_SNAPSHOT_ENDORSEMENTS_PAYLOAD_SIZE));
           }
 
           scan.endorsements.insert(

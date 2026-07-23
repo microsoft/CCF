@@ -6,7 +6,6 @@ import hashlib
 import os
 import shutil
 
-import ccf.cose
 import ccf.ledger
 import infra.e2e_args
 import infra.logging_app as app
@@ -94,28 +93,22 @@ def _start_recovery_attempt(
     return attempt
 
 
-def _copy_recovery_snapshot_cache(network, destination):
-    primary, _ = network.find_primary()
-    copied = network.get_committed_snapshots(primary, force_txs=False)
+def _copy_ledger_prefix(source_dirs, destination, first_excluded_seqno):
     shutil.rmtree(destination, ignore_errors=True)
-    shutil.copytree(copied, destination)
-    return destination
-
-
-def _verify_snapshot_cache(
-    snapshots_dir, snapshot_name, snapshot_digest, target_identity
-):
-    snapshot_path = os.path.join(snapshots_dir, snapshot_name)
-    sidecar_path = ccf.ledger.snapshot_endorsements_path(snapshot_path)
-    assert os.path.isfile(sidecar_path), sidecar_path
-    with open(snapshot_path, "rb") as snapshot_file:
-        assert hashlib.sha256(snapshot_file.read()).digest() == snapshot_digest
-
-    endorsements = ccf.ledger.read_snapshot_endorsements(sidecar_path)
-    assert len(endorsements) == 2, len(endorsements)
-    with ccf.ledger.Snapshot(snapshot_path) as snapshot:
-        snapshot.verify_cose_receipt(target_identity, endorsements)
-    return sidecar_path
+    os.makedirs(destination)
+    copied = 0
+    for source_dir in source_dirs:
+        for name in os.listdir(source_dir):
+            if not ccf.ledger.is_ledger_chunk_committed(name):
+                continue
+            _, end_seqno = ccf.ledger.range_from_filename(name)
+            if end_seqno is None or end_seqno >= first_excluded_seqno:
+                continue
+            destination_path = os.path.join(destination, name)
+            if not os.path.exists(destination_path):
+                shutil.copy(os.path.join(source_dir, name), destination_path)
+                copied += 1
+    assert copied > 0
 
 
 def run_recovery_snapshot_endorsements(args):
@@ -153,15 +146,15 @@ def run_recovery_snapshot_endorsements(args):
         assert snapshots
         snapshot_name = snapshots[-1]
         original_snapshot_path = os.path.join(committed_snapshots_dir, snapshot_name)
-        with open(original_snapshot_path, "rb") as snapshot_file:
-            snapshot_digest = hashlib.sha256(snapshot_file.read()).digest()
 
         source_snapshots_dir = os.path.join(
             initial_network.common_dir, "recovery_snapshot_endorsements_source"
         )
         shutil.rmtree(source_snapshots_dir, ignore_errors=True)
         os.makedirs(source_snapshots_dir)
-        shutil.copy(original_snapshot_path, source_snapshots_dir)
+        source_snapshot_path = shutil.copy(original_snapshot_path, source_snapshots_dir)
+        with open(source_snapshot_path, "rb") as snapshot_file:
+            snapshot_digest = hashlib.sha256(snapshot_file.read()).digest()
 
         first_recovery, first_args = _recover_and_open(
             initial_network, args, f"{args.label}_identity_1"
@@ -172,19 +165,19 @@ def run_recovery_snapshot_endorsements(args):
 
         second_recovery.save_service_identity(second_args)
         target_identity_file = second_args.previous_service_identity_file
-        with open(target_identity_file, "rb") as target_file:
-            target_identity = target_file.read()
         primary, _ = second_recovery.find_primary()
+        with primary.client() as client:
+            service_create_txid = client.get("/node/network").body.json()[
+                "current_service_create_txid"
+            ]
+        service_create_seqno = int(service_create_txid.split(".")[1])
         second_recovery.stop_all_nodes()
         current_ledger_dir, committed_ledger_dirs = primary.get_ledger()
 
-        cache_dir = os.path.join(
-            second_recovery.common_dir, "recovery_snapshot_endorsements_cache"
-        )
-        first_attempt = _start_recovery_attempt(
+        valid_attempt = _start_recovery_attempt(
             second_recovery,
             second_args,
-            f"{args.label}_derive_sidecar",
+            f"{args.label}_in_memory_chain",
             current_ledger_dir,
             committed_ledger_dirs,
             source_snapshots_dir,
@@ -192,105 +185,60 @@ def run_recovery_snapshot_endorsements(args):
             100,
         )
         try:
-            first_primary, _ = first_attempt.find_primary()
-            logs = _logs(first_primary)
+            valid_primary, _ = valid_attempt.find_primary()
+            logs = _logs(valid_primary)
             scan_log = "scanning the public ledger suffix for COSE endorsements"
-            persisted_log = "Persisted 2 verified recovery snapshot endorsement(s)"
+            validated_log = "Validated 2 recovery snapshot endorsement(s) in memory"
             snapshot_body_log = "Deserialising snapshot (size:"
             public_recovery_log = "Starting to read public ledger"
             assert (
                 logs.index(scan_log)
-                < logs.index(persisted_log)
+                < logs.index(validated_log)
                 < logs.index(snapshot_body_log)
                 < logs.index(public_recovery_log)
             )
-            _copy_recovery_snapshot_cache(first_attempt, cache_dir)
-            sidecar_path = _verify_snapshot_cache(
-                cache_dir, snapshot_name, snapshot_digest, target_identity
-            )
+            with open(source_snapshot_path, "rb") as snapshot_file:
+                assert hashlib.sha256(snapshot_file.read()).digest() == snapshot_digest
         finally:
-            _stop_incomplete_recovery(first_attempt)
+            _stop_incomplete_recovery(valid_attempt)
 
-        reuse_attempt = _start_recovery_attempt(
-            second_recovery,
-            second_args,
-            f"{args.label}_reuse_sidecar",
-            current_ledger_dir,
-            committed_ledger_dirs,
-            cache_dir,
-            target_identity_file,
-            101,
+        incomplete_ledger_dir = os.path.join(
+            second_recovery.common_dir, "recovery_snapshot_incomplete_ledger"
         )
-        try:
-            reuse_primary, _ = reuse_attempt.find_primary()
-            assert "Reusing verified snapshot endorsements sidecar" in _logs(
-                reuse_primary
-            )
-        finally:
-            _stop_incomplete_recovery(reuse_attempt)
-
-        with open(sidecar_path, "wb") as sidecar_file:
-            sidecar_file.write(
-                bytes([0x98, ccf.cose.MAX_SNAPSHOT_ENDORSEMENTS_COUNT + 1])
-            )
-
-        tamper_attempt = _start_recovery_attempt(
-            second_recovery,
-            second_args,
-            f"{args.label}_replace_tampered_sidecar",
-            current_ledger_dir,
-            committed_ledger_dirs,
-            cache_dir,
-            target_identity_file,
-            102,
+        shutil.rmtree(incomplete_ledger_dir, ignore_errors=True)
+        os.makedirs(incomplete_ledger_dir)
+        incomplete_committed_ledger_dir = os.path.join(
+            second_recovery.common_dir,
+            "recovery_snapshot_incomplete_committed_ledger",
         )
-        try:
-            tamper_primary, _ = tamper_attempt.find_primary()
-            logs = _logs(tamper_primary)
-            assert "Snapshot endorsements sidecar" in logs
-            assert "is invalid" in logs
-            assert "Persisted 2 verified recovery snapshot endorsement(s)" in logs
-            _copy_recovery_snapshot_cache(tamper_attempt, cache_dir)
-            _verify_snapshot_cache(
-                cache_dir, snapshot_name, snapshot_digest, target_identity
-            )
-        finally:
-            _stop_incomplete_recovery(tamper_attempt)
-
-        fallback_dir = os.path.join(
-            second_recovery.common_dir, "recovery_snapshot_endorsements_fallback"
+        _copy_ledger_prefix(
+            [current_ledger_dir, *committed_ledger_dirs],
+            incomplete_committed_ledger_dir,
+            service_create_seqno,
         )
-        shutil.rmtree(fallback_dir, ignore_errors=True)
-        os.makedirs(fallback_dir)
-        shutil.copy(os.path.join(cache_dir, snapshot_name), fallback_dir)
-        wrong_identity_file = second_recovery.consortium.user_cert_path("user0")
-
         fallback_attempt = _start_recovery_attempt(
             second_recovery,
             second_args,
-            f"{args.label}_fallback",
-            current_ledger_dir,
-            committed_ledger_dirs,
-            fallback_dir,
-            wrong_identity_file,
-            103,
+            f"{args.label}_incomplete_suffix",
+            incomplete_ledger_dir,
+            [incomplete_committed_ledger_dir],
+            source_snapshots_dir,
+            target_identity_file,
+            101,
         )
         try:
             fallback_primary, _ = fallback_attempt.find_primary()
             logs = _logs(fallback_primary)
             assert "Falling back to full-ledger recovery" in logs
             assert "Setting startup snapshot seqno" not in logs
-            assert not os.path.exists(
-                ccf.ledger.snapshot_endorsements_path(
-                    os.path.join(fallback_dir, snapshot_name)
-                )
-            )
+            with open(source_snapshot_path, "rb") as snapshot_file:
+                assert hashlib.sha256(snapshot_file.read()).digest() == snapshot_digest
         finally:
             _stop_incomplete_recovery(fallback_attempt)
 
         LOG.success(
-            "Recovery snapshot sidecar derivation, verification, reuse, "
-            "tamper replacement, and fallback all succeeded"
+            "In-memory recovery snapshot endorsement validation and fallback "
+            "succeeded"
         )
 
 
@@ -298,7 +246,7 @@ if __name__ == "__main__":
 
     def add(parser):
         parser.description = (
-            "Verify recovery snapshot COSE endorsement sidecars across multiple "
+            "Verify in-memory recovery snapshot endorsement chains across multiple "
             "disaster recoveries."
         )
 

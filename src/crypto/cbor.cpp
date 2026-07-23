@@ -81,12 +81,7 @@ namespace
     std::list<std::vector<cbor_raw>> arrays;
     std::list<std::vector<cbor_map_entry>> maps;
   };
-  Value consume(
-    cbor_nondet_t cbor,
-    size_t depth,
-    size_t max_depth,
-    size_t max_container_size,
-    size_t& remaining_items);
+  Value consume(cbor_nondet_t cbor, size_t depth, size_t max_depth);
 
   void print_indent(std::ostringstream& os, size_t indent)
   {
@@ -134,12 +129,7 @@ namespace
     return std::make_shared<ValueImpl>(value);
   }
 
-  Value consume_array(
-    cbor_nondet_t cbor,
-    size_t depth,
-    size_t max_depth,
-    size_t max_container_size,
-    size_t& remaining_items)
+  Value consume_array(cbor_nondet_t cbor, size_t depth, size_t max_depth)
   {
     cbor_nondet_array_iterator_t iter;
     if (!cbor_nondet_array_iterator_start(cbor, &iter))
@@ -151,32 +141,18 @@ namespace
     Array array;
     while (!cbor_nondet_array_iterator_is_empty(iter))
     {
-      if (array.items.size() >= max_container_size)
-      {
-        throw CBORDecodeError(
-          Error::DECODE_FAILED,
-          fmt::format(
-            "Maximum CBOR array size ({}) exceeded", max_container_size));
-      }
-
       cbor_nondet_t item;
       if (!cbor_nondet_array_iterator_next(&iter, &item))
       {
         throw CBORDecodeError(
           Error::DECODE_FAILED, "Failed to get next array item");
       }
-      array.items.push_back(consume(
-        item, depth + 1, max_depth, max_container_size, remaining_items));
+      array.items.push_back(consume(item, depth + 1, max_depth));
     }
     return std::make_shared<ValueImpl>(std::move(array));
   }
 
-  Value consume_map(
-    cbor_nondet_t cbor,
-    size_t depth,
-    size_t max_depth,
-    size_t max_container_size,
-    size_t& remaining_items)
+  Value consume_map(cbor_nondet_t cbor, size_t depth, size_t max_depth)
   {
     cbor_map_iterator iter;
     if (!cbor_nondet_map_iterator_start(cbor, &iter))
@@ -188,14 +164,6 @@ namespace
     Map map;
     while (!cbor_nondet_map_iterator_is_empty(iter))
     {
-      if (map.items.size() >= max_container_size)
-      {
-        throw CBORDecodeError(
-          Error::DECODE_FAILED,
-          fmt::format(
-            "Maximum CBOR map size ({}) exceeded", max_container_size));
-      }
-
       cbor_raw key_raw;
       cbor_raw value_raw;
       if (!cbor_nondet_map_iterator_next(&iter, &key_raw, &value_raw))
@@ -204,24 +172,13 @@ namespace
           Error::DECODE_FAILED, "Failed to get next map entry");
       }
       map.items.emplace_back(
-        consume(
-          key_raw, depth + 1, max_depth, max_container_size, remaining_items),
-        consume(
-          value_raw,
-          depth + 1,
-          max_depth,
-          max_container_size,
-          remaining_items));
+        consume(key_raw, depth + 1, max_depth),
+        consume(value_raw, depth + 1, max_depth));
     }
     return std::make_shared<ValueImpl>(std::move(map));
   }
 
-  Value consume_tagged(
-    cbor_nondet_t cbor,
-    size_t depth,
-    size_t max_depth,
-    size_t max_container_size,
-    size_t& remaining_items)
+  Value consume_tagged(cbor_nondet_t cbor, size_t depth, size_t max_depth)
   {
     uint64_t tag = 0;
     cbor_nondet_t payload;
@@ -233,8 +190,7 @@ namespace
 
     Tagged tagged;
     tagged.tag = tag;
-    tagged.item = consume(
-      payload, depth + 1, max_depth, max_container_size, remaining_items);
+    tagged.item = consume(payload, depth + 1, max_depth);
     return std::make_shared<ValueImpl>(std::move(tagged));
   }
 
@@ -252,20 +208,8 @@ namespace
     return std::make_shared<ValueImpl>(value);
   }
 
-  Value consume(
-    cbor_nondet_t cbor,
-    size_t depth,
-    size_t max_depth,
-    size_t max_container_size,
-    size_t& remaining_items)
+  Value consume(cbor_nondet_t cbor, size_t depth, size_t max_depth)
   {
-    if (remaining_items == 0)
-    {
-      throw CBORDecodeError(
-        Error::DECODE_FAILED, "Maximum total CBOR item count exceeded");
-    }
-    --remaining_items;
-
     if (depth > max_depth)
     {
       throw CBORDecodeError(
@@ -284,14 +228,11 @@ namespace
       case CBOR_MAJOR_TYPE_TEXT_STRING:
         return consume_text_string(cbor);
       case CBOR_MAJOR_TYPE_ARRAY:
-        return consume_array(
-          cbor, depth, max_depth, max_container_size, remaining_items);
+        return consume_array(cbor, depth, max_depth);
       case CBOR_MAJOR_TYPE_MAP:
-        return consume_map(
-          cbor, depth, max_depth, max_container_size, remaining_items);
+        return consume_map(cbor, depth, max_depth);
       case CBOR_MAJOR_TYPE_TAGGED:
-        return consume_tagged(
-          cbor, depth, max_depth, max_container_size, remaining_items);
+        return consume_tagged(cbor, depth, max_depth);
       case CBOR_MAJOR_TYPE_SIMPLE_VALUE:
         return consume_simple(cbor);
       default:
@@ -621,11 +562,7 @@ namespace ccf::cbor
     return std::make_shared<ValueImpl>(Map{.items = std::move(data)});
   }
 
-  Value parse(
-    std::span<const uint8_t> raw,
-    size_t max_depth,
-    size_t max_container_size,
-    size_t max_total_items)
+  Value parse(std::span<const uint8_t> raw, size_t max_depth)
   {
     cbor_nondet_t cbor;
     const bool check_map_key_bound = false;
@@ -650,8 +587,7 @@ namespace ccf::cbor
         fmt::format("Trailing {} byte(s) after CBOR item", cbor_parse_size));
     }
 
-    auto remaining_items = max_total_items;
-    return consume(cbor, 0, max_depth, max_container_size, remaining_items);
+    return consume(cbor, 0, max_depth);
   }
 
   std::vector<uint8_t> serialize(const Value& value, size_t max_depth)

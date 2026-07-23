@@ -19,7 +19,6 @@ namespace snapshots
   static constexpr auto snapshot_idx_delimiter = "_";
   static constexpr auto snapshot_committed_suffix = ".committed";
   static constexpr auto snapshot_ignored_file_suffix = "ignored";
-  static constexpr auto snapshot_endorsements_suffix = ".endorsements";
 
   static bool is_snapshot_file(const std::string& file_name)
   {
@@ -34,20 +33,6 @@ namespace snapshots
   static bool is_snapshot_file_ignored(const std::string& file_name)
   {
     return file_name.ends_with(snapshot_ignored_file_suffix);
-  }
-
-  static fs::path get_snapshot_endorsements_path(const fs::path& snapshot_path)
-  {
-    const auto file_name = snapshot_path.filename().string();
-    if (!is_snapshot_file(file_name) || !is_snapshot_file_committed(file_name))
-    {
-      throw std::logic_error(fmt::format(
-        "Cannot derive endorsements sidecar name from non-committed snapshot "
-        "{}",
-        snapshot_path.string()));
-    }
-
-    return {snapshot_path.string() + snapshot_endorsements_suffix};
   }
 
   static void ignore_snapshot_file(
