@@ -378,9 +378,9 @@ namespace ccf
         {
           first_file_version = parsed.version;
         }
-        if (previous_file_version.has_value())
+        if (const auto previous_version_opt = previous_file_version)
         {
-          const auto previous_version = previous_file_version.value();
+          const auto previous_version = *previous_version_opt;
           if (
             previous_version == std::numeric_limits<ccf::kv::Version>::max() ||
             parsed.version != previous_version + 1)
@@ -486,9 +486,9 @@ namespace ccf
         ++expected_seqno;
       }
 
-      if (first_file_version.has_value())
+      if (const auto first_version_opt = first_file_version)
       {
-        const auto first_version = first_file_version.value();
+        const auto first_version = *first_version_opt;
         if (
           first_version != static_cast<ccf::kv::Version>(ledger_file.start_idx))
         {
@@ -498,13 +498,12 @@ namespace ccf
             ledger_file.start_idx));
         }
       }
-      if (ledger_file.end_idx.has_value())
+      if (const auto end_idx_opt = ledger_file.end_idx)
       {
         const auto declared_end_idx =
-          static_cast<ccf::kv::Version>(ledger_file.end_idx.value());
-        if (
-          !previous_file_version.has_value() ||
-          previous_file_version.value() != declared_end_idx)
+          static_cast<ccf::kv::Version>(*end_idx_opt);
+        const auto previous_version_opt = previous_file_version;
+        if (!previous_version_opt || *previous_version_opt != declared_end_idx)
         {
           throw std::logic_error(fmt::format(
             "Ledger file {} does not end at its declared seqno {}",
