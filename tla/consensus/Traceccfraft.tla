@@ -146,6 +146,54 @@ IsEvent(e) ==
     /\ l' = l + 1
     /\ ts' = logline.h_ts
 
+SeedOutputDir ==
+    IF "CCF_RAFT_SEED_OUTPUT_DIR" \in DOMAIN IOEnv
+    THEN IOEnv.CCF_RAFT_SEED_OUTPUT_DIR
+    ELSE ""
+
+SeedPrefix ==
+    IF "CCF_RAFT_SEED_PREFIX" \in DOMAIN IOEnv
+    THEN IOEnv.CCF_RAFT_SEED_PREFIX
+    ELSE "seed"
+
+SeedId ==
+    SeedPrefix \o "_" \o logline.msg.name
+
+SeedFilename ==
+    SeedOutputDir \o "/RaftSeed_" \o SeedId \o ".tla"
+
+SeedModule ==
+    "---- MODULE RaftSeed_" \o SeedId \o " ----\n" \o
+    "EXTENDS ccfraft\n\n" \o
+    "SeedInit ==\n" \o
+    "    /\\ seedId = " \o ToString(SeedId) \o "\n" \o
+    "    /\\ preVoteStatus = " \o ToString(preVoteStatus) \o "\n" \o
+    "    /\\ configurations = " \o ToString(configurations) \o "\n" \o
+    "    /\\ hasJoined = " \o ToString(hasJoined) \o "\n" \o
+    "    /\\ retirementCompleted = " \o ToString(retirementCompleted) \o "\n" \o
+    "    /\\ messages = " \o ToString(messages) \o "\n" \o
+    "    /\\ currentTerm = " \o ToString(currentTerm) \o "\n" \o
+    "    /\\ leadershipState = " \o ToString(leadershipState) \o "\n" \o
+    "    /\\ membershipState = " \o ToString(membershipState) \o "\n" \o
+    "    /\\ votedFor = " \o ToString(votedFor) \o "\n" \o
+    "    /\\ isNewFollower = " \o ToString(isNewFollower) \o "\n" \o
+    "    /\\ votesGranted = " \o ToString(votesGranted) \o "\n" \o
+    "    /\\ sentIndex = " \o ToString(sentIndex) \o "\n" \o
+    "    /\\ matchIndex = " \o ToString(matchIndex) \o "\n" \o
+    "    /\\ log = " \o ToString(log) \o "\n" \o
+    "    /\\ commitIndex = " \o ToString(commitIndex) \o "\n" \o
+    "====\n"
+
+ExportSeed ==
+    Serialize(SeedModule, SeedFilename,
+        [format |-> "TXT", charset |-> "UTF-8", openOptions |-> <<"WRITE", "CREATE", "TRUNCATE_EXISTING">>]
+    ).exitValue = 0
+
+IsSeedMarker ==
+    /\ IsEvent("mark_seed")
+    /\ ExportSeed
+    /\ UNCHANGED vars
+
 \* Message loss is known in controlled environments, such as raft (driver) scenarios. However, this assumption
 \* does not hold for traces collected from production workloads.  In these instances, message loss must be
 \* modeled in non-deterministically.  For example, by composing message loss to the next-state relation:
@@ -488,6 +536,7 @@ TraceNext ==
     \/ IsRcvProposeVoteRequest
 
     \/ IsDropPendingTo
+    \/ IsSeedMarker
 
 TraceSpec ==
     TraceInit /\ [][TraceNext]_<<l, ts, vars>>

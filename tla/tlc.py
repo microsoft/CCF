@@ -155,6 +155,12 @@ def cli():
         default="../tests/raft_scenarios_runner.py",
         help="Path to the raft_scenarios_runner.py script",
     )
+    tv.add_argument(
+        "--seed-output-dir",
+        type=pathlib.Path,
+        default=None,
+        help="Directory where trace validation writes generated TLA seed modules",
+    )
 
     # Simulation
     sim = subparsers.add_parser("sim", help="Simulation")
@@ -265,6 +271,12 @@ if __name__ == "__main__":
                 trace_dir, os.path.basename(args.scenario) + ".ndjson"
             )
             env["CCF_RAFT_TRACE"] = trace_path
+        if args.seed_output_dir is not None:
+            args.seed_output_dir.mkdir(parents=True, exist_ok=True)
+            env["CCF_RAFT_SEED_OUTPUT_DIR"] = args.seed_output_dir
+            env["CCF_RAFT_SEED_PREFIX"] = pathlib.Path(
+                env["CCF_RAFT_TRACE"]
+            ).stem.replace("-", "_").replace(".", "_")
     elif args.cmd == "sim":
         tlc_args.extend(["-simulate"])
         if args.num is not None:

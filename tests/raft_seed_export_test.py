@@ -23,8 +23,8 @@ def main():
 
     output_dir = args.output_dir
     shutil.rmtree(output_dir, ignore_errors=True)
-    trace_dir = output_dir / "traces"
-    seed_dir = output_dir / "seeds"
+    trace_dir = (output_dir / "traces").resolve()
+    seed_dir = (output_dir / "seeds").resolve()
     trace_dir.mkdir(parents=True)
     seed_dir.mkdir()
 
