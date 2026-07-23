@@ -205,6 +205,20 @@ TEST_CASE("Recovery snapshot endorsement scan reads ledger files directly")
   REQUIRE_THROWS(ccf::validate_recovery_snapshot_merkle_tree_encoding(
     impossible_flushed_count, signature.version));
 
+  std::vector<uint8_t> unsupported_tree_height(
+    2 * sizeof(uint64_t) + 2 * ccf::crypto::Sha256Hash::SIZE);
+  const auto write_big_endian_uint64 = [&](size_t offset, uint64_t value) {
+    for (size_t i = 0; i < sizeof(uint64_t); ++i)
+    {
+      unsupported_tree_height[offset + i] =
+        static_cast<uint8_t>(value >> (8 * (sizeof(uint64_t) - i - 1)));
+    }
+  };
+  write_big_endian_uint64(0, 1);
+  write_big_endian_uint64(sizeof(uint64_t), uint64_t{1} << 63);
+  REQUIRE_THROWS(ccf::validate_recovery_snapshot_merkle_tree_encoding(
+    unsupported_tree_height, (uint64_t{1} << 63) + 1));
+
   write_current_ledger_file(ledger_dir.path / "ledger_1", entries);
 
   ccf::CCFConfig::Ledger ledger_config;

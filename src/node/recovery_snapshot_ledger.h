@@ -203,6 +203,7 @@ namespace ccf
   {
     static constexpr size_t header_size = 2 * sizeof(uint64_t);
     static constexpr uint64_t max_leaf_nodes = 1'000'000;
+    static constexpr uint64_t max_flushed_leaves = (uint64_t{1} << 30) - 1;
     if (serialised_tree.size() < header_size)
     {
       throw std::logic_error("Serialised Merkle tree header is truncated");
@@ -224,6 +225,14 @@ namespace ccf
         "Serialised Merkle tree contains too many leaf nodes ({}; maximum {})",
         leaf_nodes,
         max_leaf_nodes));
+    }
+    if (flushed_leaves > max_flushed_leaves)
+    {
+      throw std::logic_error(fmt::format(
+        "Serialised Merkle tree contains too many flushed leaves ({}; maximum "
+        "{})",
+        flushed_leaves,
+        max_flushed_leaves));
     }
     if (
       flushed_leaves > signature_version ||
