@@ -178,8 +178,7 @@ namespace ccf
   }
 
   template <typename Prepare, typename Install>
-  static std::optional<std::string>
-  try_prepare_and_install_recovery_snapshot(
+  static std::optional<std::string> try_prepare_and_install_recovery_snapshot(
     Prepare&& prepare, Install&& install)
   {
     try

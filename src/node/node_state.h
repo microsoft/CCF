@@ -522,17 +522,21 @@ namespace ccf
         snapshots::find_committed_snapshots_in_directories(directories);
       for (const auto& [snapshot_seqno, snapshot_path] : committed_snapshots)
       {
-        std::vector<uint8_t> snapshot_data;
+        auto snapshot_data = files::slurp(snapshot_path);
+
+        LOG_INFO_FMT(
+          "Found latest local snapshot file: {} (size: {})",
+          snapshot_path,
+          snapshot_data.size());
+
+        // A structurally invalid snapshot (for example a truncated or nulled
+        // file) is a fatal startup error rather than something we silently
+        // skip and continue past, so separate the segments outside the
+        // verification try/catch below.
+        const auto segments = separate_segments(snapshot_data);
+
         try
         {
-          snapshot_data = files::slurp(snapshot_path);
-
-          LOG_INFO_FMT(
-            "Found latest local snapshot file: {} (size: {})",
-            snapshot_path,
-            snapshot_data.size());
-
-          const auto segments = separate_segments(snapshot_data);
           if (start_type == StartType::Recover)
           {
             // Validate the receipt structure and snapshot digest, but defer the
@@ -829,17 +833,16 @@ namespace ccf
         }
       }
 
-      const auto preparation_error =
-        try_prepare_and_install_recovery_snapshot(
-          [&]() {
-            verify_recovery_snapshot(
-              segments, target_identity, {}, startup_snapshot_info->seqno);
-            LOG_INFO_FMT(
-              "Recovery snapshot {} is directly signed by the configured "
-              "previous service identity",
-              startup_snapshot_path->string());
-          },
-          [&]() { install_recovery_snapshot_and_start_unsafe(); });
+      const auto preparation_error = try_prepare_and_install_recovery_snapshot(
+        [&]() {
+          verify_recovery_snapshot(
+            segments, target_identity, {}, startup_snapshot_info->seqno);
+          LOG_INFO_FMT(
+            "Recovery snapshot {} is directly signed by the configured "
+            "previous service identity",
+            startup_snapshot_path->string());
+        },
+        [&]() { install_recovery_snapshot_and_start_unsafe(); });
       if (!preparation_error.has_value())
       {
         return;
@@ -855,9 +858,10 @@ namespace ccf
 
       LOG_INFO_FMT(
         "Recovery snapshot {} is not directly signed by the configured "
-        "previous service identity; scanning the public ledger suffix for "
-        "COSE endorsements",
-        startup_snapshot_path->string());
+        "previous service identity ({}); scanning the public ledger suffix "
+        "for COSE endorsements",
+        startup_snapshot_path->string(),
+        *preparation_error);
 
       if (!recovery_snapshot_directory_is_writable_unsafe())
       {

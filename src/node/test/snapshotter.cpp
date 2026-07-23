@@ -79,10 +79,9 @@ TEST_CASE("Recovery snapshot installation failures do not request fallback")
   REQUIRE_FALSE(fallback_requested);
 
   bool install_called = false;
-  const auto preparation_error =
-    ccf::try_prepare_and_install_recovery_snapshot(
-      []() { throw std::logic_error("snapshot verification failed"); },
-      [&]() { install_called = true; });
+  const auto preparation_error = ccf::try_prepare_and_install_recovery_snapshot(
+    []() { throw std::logic_error("snapshot verification failed"); },
+    [&]() { install_called = true; });
   REQUIRE(preparation_error.has_value());
   REQUIRE_FALSE(install_called);
 }
@@ -122,16 +121,15 @@ TEST_CASE("Snapshot endorsement sidecar file lifecycle")
 
 TEST_CASE("Snapshot endorsement sidecar resource limits")
 {
-  std::vector<uint8_t> too_many{0x98, 0x41};
-  too_many.insert(
-    too_many.end(), ccf::MAX_SNAPSHOT_ENDORSEMENTS_COUNT + 1, 0x40);
+  constexpr size_t pathological_endorsement_count = 1'000'000;
+  std::vector<uint8_t> too_many{0x9a, 0x00, 0x0f, 0x42, 0x40};
+  too_many.insert(too_many.end(), pathological_endorsement_count, 0x40);
   REQUIRE_THROWS(ccf::deserialise_cose_endorsements(too_many));
 
   std::vector<uint8_t> oversized_endorsement{
     0x81, 0x5a, 0x00, 0x10, 0x00, 0x01};
   oversized_endorsement.resize(
-    oversized_endorsement.size() +
-    ccf::MAX_SNAPSHOT_ENDORSEMENT_SIZE + 1);
+    oversized_endorsement.size() + ccf::MAX_SNAPSHOT_ENDORSEMENT_SIZE + 1);
   REQUIRE_THROWS(ccf::deserialise_cose_endorsements(oversized_endorsement));
 
   std::vector<uint8_t> oversized_payload{0x85};
