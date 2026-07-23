@@ -37,10 +37,6 @@ The following commands can be run to verify that CCF was installed successfully:
     [16:10:23.350]   Node [0] = https://127.0.0.1:8000
     ...
 
-
-
-.. note:: Before version 7, CCF releases included custom binaries for each platform. So if you're installing an older version, you may need to find the ``snp`` or ``virtual`` rpm in the release, and this would be installed to ``/opt/ccf_snp`` or ``/opt/ccf_virtual``.
-
 ------------
 
 The CCF install notably contains:

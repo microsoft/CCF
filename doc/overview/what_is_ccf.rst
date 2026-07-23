@@ -5,7 +5,7 @@ The Confidential Consortium Framework (CCF) is an open-source framework for buil
 
 Leveraging the power of trusted execution environments (:term:`TEE`, or enclave), decentralised systems concepts, and cryptography, CCF enables enterprise-ready multiparty systems.
 
-CCF is based on web technologies: clients interact with CCF JavaScript applications over HTTPS.
+CCF is based on web technologies: clients interact with CCF applications over HTTPS.
 
 Core Concepts
 -------------
@@ -13,11 +13,12 @@ Core Concepts
 The following diagram shows a basic CCF network made of 3 nodes. All nodes run the same application inside an enclave. The effects of user (business) and member (governance) transactions are eventually committed to a replicated encrypted ledger. A consortium of members is in charge of governing the network.
 
 .. image:: ../img/about-ccf.png
+    :alt: A three-node CCF network processing governance and business transactions
 
 Network and Nodes
 ~~~~~~~~~~~~~~~~~
 
-A CCF network consists of several nodes, each running on top of a Trusted Execution Environment (:term:`TEE`), such as AMD :term:`SEV-SNP`. A CCF network is decentralised and highly-available.
+A CCF network consists of one or more nodes, each running on top of a Trusted Execution Environment (:term:`TEE`), such as AMD :term:`SEV-SNP`.
 
 Nodes are run and maintained by :term:`Operators`. However, nodes must be trusted by the consortium of members before participating in a CCF network.
 
@@ -26,20 +27,20 @@ Nodes are run and maintained by :term:`Operators`. However, nodes must be truste
 Application
 ~~~~~~~~~~~
 
-Each node runs the same application, written in JavaScript or C++. An application is a collection of endpoints that can be triggered by trusted :term:`Users`' HTTP commands over :term:`TLS`.
+Each node runs the same application, written in JavaScript or C++. An application is a collection of endpoints that clients invoke with HTTP requests over :term:`TLS`.
 
-Each endpoint can mutate or read the in-enclave-memory Key-Value Store that is replicated across all nodes in the network. Changes to the Key-Value Store must be agreed by at least a majority of nodes before being applied.
+Each endpoint can mutate or read the in-enclave-memory Key-Value Store that is replicated across all nodes in the network. Changes to the Key-Value Store must be agreed by at least a majority of nodes before being committed.
 
 The Key-Value Store is a collection of maps (associating a key to a value) that are defined by the application. These maps can be private (encrypted in the ledger) or public (integrity-protected and visible by anyone that has access to the ledger).
 
-Since all nodes in the CCF network can read the content of private maps, it is up to the application logic to control the access to such maps. Since every application endpoint has access to the identity of the user triggering it, it is easy to restrict which maps (and entries in those maps) a user can read or write to.
+Since all nodes in the CCF network can read the content of private maps, application logic must control access to them. Endpoints can use configured authentication policies and inspect an authenticated caller's identity to restrict which maps and entries the caller can read or write.
 
 .. note:: Find out how to build CCF applications in the :doc:`../build_apps/index` section.
 
 Ledger
 ~~~~~~
 
-All changes to the Key-Value Store are encrypted and recorded by each node of the network to disk to a decentralised auditable ledger.
+All changes to the Key-Value Store are recorded by each node of the network to disk in a decentralised auditable ledger. Private map contents are encrypted, while public map contents remain visible in the ledger.
 
 The integrity of the ledger is guaranteed by a :term:`Merkle Tree` whose root is periodically signed by the current primary/leader node.
 

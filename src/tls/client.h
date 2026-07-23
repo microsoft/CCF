@@ -14,7 +14,9 @@ namespace tls
   public:
     Client(std::shared_ptr<Cert> cert_) : Context(true), cert(std::move(cert_))
     {
-      cert->configure_ssl(ssl, cfg);
+      cert->configure_context(cfg);
+      create_ssl();
+      cert->configure_connection(get_ssl());
     }
   };
 }
