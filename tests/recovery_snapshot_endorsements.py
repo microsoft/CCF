@@ -6,6 +6,7 @@ import hashlib
 import os
 import shutil
 
+import ccf.cose
 import ccf.ledger
 import infra.e2e_args
 import infra.logging_app as app
@@ -228,11 +229,10 @@ def run_recovery_snapshot_endorsements(args):
         finally:
             _stop_incomplete_recovery(reuse_attempt)
 
-        with open(sidecar_path, "rb") as sidecar_file:
-            tampered = bytearray(sidecar_file.read())
-        tampered[-1] ^= 0xFF
         with open(sidecar_path, "wb") as sidecar_file:
-            sidecar_file.write(tampered)
+            sidecar_file.write(
+                bytes([0x98, ccf.cose.MAX_SNAPSHOT_ENDORSEMENTS_COUNT + 1])
+            )
 
         tamper_attempt = _start_recovery_attempt(
             second_recovery,

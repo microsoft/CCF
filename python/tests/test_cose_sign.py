@@ -197,14 +197,26 @@ def test_cose_endorsement_sidecar_encoding_is_strict():
     with pytest.raises(ValueError, match="CBOR array"):
         ccf.cose.deserialize_cose_endorsements(cbor2.dumps({"not": "an array"}))
     with pytest.raises(ValueError, match="Trailing data"):
-        ccf.cose.deserialize_cose_endorsements(cbor2.dumps([]) + b"\x00")
+        ccf.cose.deserialize_cose_endorsements(
+            ccf.cose.serialize_cose_endorsements([b"x" * 64]) + b"\x00"
+        )
 
 
 def test_cose_endorsement_sidecar_resource_limits(tmp_path):
-    pathological_count = 1_000_000
-    too_many = b"\x9a\x00\x0f\x42\x40" + b"\x40" * pathological_count
-    with pytest.raises(ValueError, match="too many endorsements"):
+    too_many = b"\x9a\x00\x0f\x42\x40"
+    with pytest.raises(ValueError, match="between 1 and"):
         ccf.cose.deserialize_cose_endorsements(too_many)
+
+    with pytest.raises(ValueError, match="between 1 and"):
+        ccf.cose.deserialize_cose_endorsements(b"\x80")
+    with pytest.raises(ValueError, match="between 1 and"):
+        ccf.cose.serialize_cose_endorsements([])
+    with pytest.raises(ValueError, match="too small"):
+        ccf.cose.deserialize_cose_endorsements(b"\x81\x40")
+    with pytest.raises(ValueError, match="too small"):
+        ccf.cose.serialize_cose_endorsements([b"x"])
+    with pytest.raises(ValueError, match="CBOR array"):
+        ccf.cose.deserialize_cose_endorsements(b"\x9f\xff")
 
     nested = cbor2.dumps(
         [

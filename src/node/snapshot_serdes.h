@@ -50,6 +50,7 @@ namespace ccf
   static constexpr size_t MAX_SNAPSHOT_ENDORSEMENTS_SIZE =
     size_t{16} * 1024 * 1024;
   static constexpr size_t MAX_SNAPSHOT_ENDORSEMENTS_COUNT = 64;
+  static constexpr size_t MIN_SNAPSHOT_ENDORSEMENT_SIZE = 64;
   static constexpr size_t MAX_SNAPSHOT_ENDORSEMENT_SIZE = size_t{1024} * 1024;
   static constexpr size_t MAX_SNAPSHOT_ENDORSEMENT_RECORD_SIZE =
     2 * MAX_SNAPSHOT_ENDORSEMENT_SIZE;
@@ -60,19 +61,30 @@ namespace ccf
   static void validate_cose_endorsement_resource_limits(
     const Endorsements& endorsements)
   {
-    if (endorsements.size() > MAX_SNAPSHOT_ENDORSEMENTS_COUNT)
+    if (
+      endorsements.empty() ||
+      endorsements.size() > MAX_SNAPSHOT_ENDORSEMENTS_COUNT)
     {
       throw std::logic_error(fmt::format(
-        "Snapshot endorsements sidecar contains too many endorsements ({}; "
-        "maximum {})",
-        endorsements.size(),
-        MAX_SNAPSHOT_ENDORSEMENTS_COUNT));
+        "Snapshot endorsements sidecar must contain between 1 and {} "
+        "endorsements, got {}",
+        MAX_SNAPSHOT_ENDORSEMENTS_COUNT,
+        endorsements.size()));
     }
 
     size_t payload_size = 0;
     for (size_t i = 0; i < endorsements.size(); ++i)
     {
       const auto endorsement_size = endorsements[i].size();
+      if (endorsement_size < MIN_SNAPSHOT_ENDORSEMENT_SIZE)
+      {
+        throw std::logic_error(fmt::format(
+          "Snapshot endorsement at index {} is too small ({} bytes; minimum "
+          "{} bytes)",
+          i,
+          endorsement_size,
+          MIN_SNAPSHOT_ENDORSEMENT_SIZE));
+      }
       if (endorsement_size > MAX_SNAPSHOT_ENDORSEMENT_SIZE)
       {
         throw std::logic_error(fmt::format(

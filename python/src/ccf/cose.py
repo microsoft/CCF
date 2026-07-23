@@ -62,6 +62,7 @@ CCF_ENDORSEMENT_RANGE_END = "epoch.end.txid"
 RECOVERY_VIEW_CHANGE = 2
 MAX_SNAPSHOT_ENDORSEMENTS_SIZE = 16 * 1024 * 1024
 MAX_SNAPSHOT_ENDORSEMENTS_COUNT = 64
+MIN_SNAPSHOT_ENDORSEMENT_SIZE = 64
 MAX_SNAPSHOT_ENDORSEMENT_SIZE = 1024 * 1024
 MAX_SNAPSHOT_ENDORSEMENTS_PAYLOAD_SIZE = 4 * 1024 * 1024
 
@@ -204,15 +205,22 @@ def verify_cose_sign1_with_key(key, cose_sign1, payload=None):
 def _validate_cose_endorsement_resource_limits(
     endorsements: list[bytes],
 ) -> None:
-    if len(endorsements) > MAX_SNAPSHOT_ENDORSEMENTS_COUNT:
+    if not 1 <= len(endorsements) <= MAX_SNAPSHOT_ENDORSEMENTS_COUNT:
         raise ValueError(
-            "Snapshot endorsements sidecar contains too many endorsements "
-            f"({len(endorsements)}; maximum {MAX_SNAPSHOT_ENDORSEMENTS_COUNT})"
+            "Snapshot endorsements sidecar must contain between 1 and "
+            f"{MAX_SNAPSHOT_ENDORSEMENTS_COUNT} endorsements, got "
+            f"{len(endorsements)}"
         )
 
     payload_size = 0
     for index, endorsement in enumerate(endorsements):
         endorsement_size = len(endorsement)
+        if endorsement_size < MIN_SNAPSHOT_ENDORSEMENT_SIZE:
+            raise ValueError(
+                f"Snapshot endorsement at index {index} is too small "
+                f"({endorsement_size} bytes; minimum "
+                f"{MIN_SNAPSHOT_ENDORSEMENT_SIZE} bytes)"
+            )
         if endorsement_size > MAX_SNAPSHOT_ENDORSEMENT_SIZE:
             raise ValueError(
                 f"Snapshot endorsement at index {index} is too large "
@@ -280,10 +288,11 @@ def deserialize_cose_endorsements(serialized: bytes) -> list[bytes]:
         endorsement_count, offset = _decode_cbor_length(data, 0, 4)
     except ValueError as e:
         raise ValueError("Snapshot endorsements must be a CBOR array") from e
-    if endorsement_count > MAX_SNAPSHOT_ENDORSEMENTS_COUNT:
+    if not 1 <= endorsement_count <= MAX_SNAPSHOT_ENDORSEMENTS_COUNT:
         raise ValueError(
-            "Snapshot endorsements sidecar contains too many endorsements "
-            f"({endorsement_count}; maximum {MAX_SNAPSHOT_ENDORSEMENTS_COUNT})"
+            "Snapshot endorsements sidecar must contain between 1 and "
+            f"{MAX_SNAPSHOT_ENDORSEMENTS_COUNT} endorsements, got "
+            f"{endorsement_count}"
         )
 
     endorsements: list[bytes] = []
@@ -295,6 +304,12 @@ def deserialize_cose_endorsements(serialized: bytes) -> list[bytes]:
             raise ValueError(
                 "Snapshot endorsements must be a CBOR array of byte strings"
             ) from e
+        if endorsement_size < MIN_SNAPSHOT_ENDORSEMENT_SIZE:
+            raise ValueError(
+                f"Snapshot endorsement at index {index} is too small "
+                f"({endorsement_size} bytes; minimum "
+                f"{MIN_SNAPSHOT_ENDORSEMENT_SIZE} bytes)"
+            )
         if endorsement_size > MAX_SNAPSHOT_ENDORSEMENT_SIZE:
             raise ValueError(
                 f"Snapshot endorsement at index {index} is too large "

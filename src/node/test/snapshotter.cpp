@@ -58,8 +58,17 @@ struct ScopedSnapshotDir
   }
 };
 
+std::vector<uint8_t> make_test_endorsement(uint8_t marker)
+{
+  std::vector<uint8_t> endorsement(ccf::MIN_SNAPSHOT_ENDORSEMENT_SIZE, marker);
+  endorsement.front() = 0xd2;
+  return endorsement;
+}
+
 TEST_CASE("Recovery snapshot installation failures do not request fallback")
 {
+  ccf::kv::Store store;
+  store.set_readiness(ccf::kv::StoreReadiness::InstallingSnapshot);
   bool install_started = false;
   bool fallback_requested = false;
 
@@ -70,12 +79,14 @@ TEST_CASE("Recovery snapshot installation failures do not request fallback")
           []() {},
           [&]() {
             install_started = true;
+            store.set_readiness(ccf::kv::StoreReadiness::Failed);
             throw std::logic_error("snapshot installation failed");
           });
       fallback_requested = preparation_error.has_value();
     }(),
     std::logic_error);
   REQUIRE(install_started);
+  REQUIRE(store.get_readiness() == ccf::kv::StoreReadiness::Failed);
   REQUIRE_FALSE(fallback_requested);
 
   bool install_called = false;
@@ -99,7 +110,7 @@ TEST_CASE("Snapshot endorsement sidecar file lifecycle")
   REQUIRE_FALSE(snapshots::is_snapshot_file_committed(sidecar_path.filename()));
 
   const ccf::SerialisedCoseEndorsements endorsements{
-    {0xd2, 0x01, 0x02}, {0xd2, 0x03, 0x04}};
+    make_test_endorsement(0x01), make_test_endorsement(0x02)};
   ccf::write_cose_endorsements_sidecar(sidecar_path, endorsements);
   REQUIRE(ccf::read_cose_endorsements_sidecar(sidecar_path) == endorsements);
   REQUIRE(files::slurp(snapshot_path) == snapshot_data);
@@ -122,9 +133,22 @@ TEST_CASE("Snapshot endorsement sidecar file lifecycle")
 TEST_CASE("Snapshot endorsement sidecar resource limits")
 {
   constexpr size_t pathological_endorsement_count = 1'000'000;
-  std::vector<uint8_t> too_many{0x9a, 0x00, 0x0f, 0x42, 0x40};
-  too_many.insert(too_many.end(), pathological_endorsement_count, 0x40);
+  const std::vector<uint8_t> too_many{
+    0x9a,
+    static_cast<uint8_t>(pathological_endorsement_count >> 24),
+    static_cast<uint8_t>(pathological_endorsement_count >> 16),
+    static_cast<uint8_t>(pathological_endorsement_count >> 8),
+    static_cast<uint8_t>(pathological_endorsement_count)};
   REQUIRE_THROWS(ccf::deserialise_cose_endorsements(too_many));
+
+  const std::vector<uint8_t> empty_array{0x80};
+  const std::vector<uint8_t> undersized{0x81, 0x40};
+  const std::vector<uint8_t> map_instead_of_array{0xa0};
+  const std::vector<uint8_t> indefinite_array{0x9f, 0xff};
+  REQUIRE_THROWS(ccf::deserialise_cose_endorsements(empty_array));
+  REQUIRE_THROWS(ccf::deserialise_cose_endorsements(undersized));
+  REQUIRE_THROWS(ccf::deserialise_cose_endorsements(map_instead_of_array));
+  REQUIRE_THROWS(ccf::deserialise_cose_endorsements(indefinite_array));
 
   std::vector<uint8_t> nested_items{0x98, 0x40};
   for (size_t i = 0; i < ccf::MAX_SNAPSHOT_ENDORSEMENTS_COUNT; ++i)
@@ -135,10 +159,8 @@ TEST_CASE("Snapshot endorsement sidecar resource limits")
   }
   REQUIRE_THROWS(ccf::deserialise_cose_endorsements(nested_items));
 
-  std::vector<uint8_t> oversized_endorsement{
+  const std::vector<uint8_t> oversized_endorsement{
     0x81, 0x5a, 0x00, 0x10, 0x00, 0x01};
-  oversized_endorsement.resize(
-    oversized_endorsement.size() + ccf::MAX_SNAPSHOT_ENDORSEMENT_SIZE + 1);
   REQUIRE_THROWS(ccf::deserialise_cose_endorsements(oversized_endorsement));
 
   std::vector<uint8_t> oversized_payload{0x85};
@@ -150,6 +172,15 @@ TEST_CASE("Snapshot endorsement sidecar resource limits")
       oversized_payload.size() + ccf::MAX_SNAPSHOT_ENDORSEMENT_SIZE);
   }
   REQUIRE_THROWS(ccf::deserialise_cose_endorsements(oversized_payload));
+
+  ccf::SerialisedCoseEndorsements excessive_count(
+    ccf::MAX_SNAPSHOT_ENDORSEMENTS_COUNT + 1, make_test_endorsement(0x01));
+  REQUIRE_THROWS(ccf::serialise_cose_endorsements(excessive_count));
+  REQUIRE_THROWS(ccf::serialise_cose_endorsements({}));
+  REQUIRE_THROWS(
+    ccf::serialise_cose_endorsements({std::vector<uint8_t>{0xd2}}));
+  REQUIRE_THROWS(ccf::serialise_cose_endorsements(
+    {std::vector<uint8_t>(ccf::MAX_SNAPSHOT_ENDORSEMENT_SIZE + 1, 0xd2)}));
 }
 
 TEST_CASE("Recovery snapshot endorsement scan reads ledger files directly")
@@ -167,7 +198,10 @@ TEST_CASE("Recovery snapshot endorsement scan reads ledger files directly")
     auto tx = source_store.create_tx();
     tx.rw<StringString>("public:unrelated")->put("key", "value");
     REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
-    entries.push_back(consensus->get_latest_data().value());
+    auto latest_entry =
+      consensus->get_latest_data().value_or(std::vector<uint8_t>{});
+    REQUIRE_FALSE(latest_entry.empty());
+    entries.push_back(std::move(latest_entry));
   }
 
   ccf::NetworkIdentity target_identity(
@@ -194,7 +228,10 @@ TEST_CASE("Recovery snapshot endorsement scan reads ledger files directly")
         ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT)
       ->put(endorsement);
     REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
-    entries.push_back(consensus->get_latest_data().value());
+    auto latest_entry =
+      consensus->get_latest_data().value_or(std::vector<uint8_t>{});
+    REQUIRE_FALSE(latest_entry.empty());
+    entries.push_back(std::move(latest_entry));
   }
   {
     auto tx = source_store.create_tx();
@@ -202,7 +239,10 @@ TEST_CASE("Recovery snapshot endorsement scan reads ledger files directly")
     tx.rw<ccf::SerialisedMerkleTree>(ccf::Tables::SERIALISED_MERKLE_TREE)
       ->put({0x01});
     REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
-    entries.push_back(consensus->get_latest_data().value());
+    auto latest_entry =
+      consensus->get_latest_data().value_or(std::vector<uint8_t>{});
+    REQUIRE_FALSE(latest_entry.empty());
+    entries.push_back(std::move(latest_entry));
   }
 
   const auto ledger_path = ledger_dir.path / "ledger_1";
@@ -259,7 +299,10 @@ TEST_CASE("Recovery snapshot endorsement scan bounds pending endorsements")
         ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT)
       ->put(endorsement);
     REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
-    entries.push_back(consensus->get_latest_data().value());
+    auto latest_entry =
+      consensus->get_latest_data().value_or(std::vector<uint8_t>{});
+    REQUIRE_FALSE(latest_entry.empty());
+    entries.push_back(std::move(latest_entry));
   }
 
   const auto ledger_path = ledger_dir.path / "ledger_1";
