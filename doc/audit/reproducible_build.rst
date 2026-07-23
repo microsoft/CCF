@@ -10,7 +10,7 @@ Reproducible builds enables our published packages to be independently verified.
 
 To reproduce a package:
 
-1. Download the ``reproduce_${PLATFORM}.json`` file for the desired release.
+1. Download the ``reproduce.json`` file for the desired release.
 2. Run the ``start_container_and_reproduce_rpm.sh`` script with the manifest as input:
 
 .. code-block:: bash
@@ -18,7 +18,7 @@ To reproduce a package:
     # Set CCF_VERSION to most recent LTS release
     $ export CCF_VERSION=$(curl -Ls -o /dev/null -w %{url_effective} https://github.com/microsoft/CCF/releases/latest | sed 's/^.*ccf-//')
     # Alternatively, set this manually, e.g.:
-    # export CCF_VERSION=6.0.0
+    # export CCF_VERSION=7.0.10
     $ wget https://github.com/microsoft/CCF/releases/download/ccf-${CCF_VERSION}/reproduce.json
     $ wget https://github.com/microsoft/CCF/releases/download/ccf-${CCF_VERSION}/start_container_and_reproduce_rpm.sh
     $ chmod +x ./start_container_and_reproduce_rpm.sh 
@@ -31,6 +31,6 @@ This builds the RPM in a container and outputs it to ``./reproduced/``. You can 
     # Set CCF_VERSION to most recent LTS release
     $ export CCF_VERSION=$(curl -Ls -o /dev/null -w %{url_effective} https://github.com/microsoft/CCF/releases/latest | sed 's/^.*ccf-//')
     # Alternatively, set this manually, e.g.:
-    # export CCF_VERSION=6.0.0
-    $ wget https://github.com/microsoft/CCF/releases/download/ccf-${CCF_VERSION}/ccf_virtual_devel_${CCF_VERSION}_x86_64.rpm
-    $ cmp ./ccf_virtual_devel_${CCF_VERSION}_x86_64.rpm ./reproduced/ccf_virtual_devel_${CCF_VERSION}_x86_64.rpm
+    # export CCF_VERSION=7.0.10
+    $ wget https://github.com/microsoft/CCF/releases/download/ccf-${CCF_VERSION}/ccf_devel_${CCF_VERSION}_x86_64.rpm
+    $ cmp ./ccf_devel_${CCF_VERSION}_x86_64.rpm ./reproduced/ccf_devel_${CCF_VERSION}_x86_64.rpm

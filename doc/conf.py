@@ -31,7 +31,7 @@ import generate_config_rst
 # -- Project information -----------------------------------------------------
 
 project = "CCF"
-copyright = "2024, Microsoft"
+copyright = "Microsoft"
 author = "Microsoft"
 
 # The short X.Y version
@@ -194,7 +194,7 @@ texinfo_documents = [
         "CCF Documentation",
         author,
         "CCF",
-        "One line description of project.",
+        "Confidential Consortium Framework documentation.",
         "Miscellaneous",
     )
 ]
@@ -216,15 +216,15 @@ breathe_default_project = "CCF"
 # Set up multiversion extension
 
 smv_tag_whitelist = r'(?!.*)' # Match nothing, build no tags. Docs suggest using None, but this produces a Warning
-smv_branch_whitelist = r"^(main)|(release\/([5-9]|\d\d\d*)\.x)$"
+smv_branch_whitelist = r"^(main)|(release\/([7-9]|\d\d\d*)\.x)$"
 smv_remote_whitelist = None
 smv_outputdir_format = "{ref.name}"
 
 assert re.match(smv_branch_whitelist, "main")
-assert not re.match(smv_branch_whitelist, "release/1.x")
-assert not re.match(smv_branch_whitelist, "release/2.x")
+assert not re.match(smv_branch_whitelist, "release/not-a-version")
+assert re.match(smv_branch_whitelist, "release/7.x")
 assert re.match(smv_branch_whitelist, "release/100.x")
-assert not re.match(smv_branch_whitelist, "release/1.x_feature")
+assert not re.match(smv_branch_whitelist, "release/7.x_feature")
 
 # -- Warnings filter
 
@@ -359,9 +359,9 @@ def typedoc_role(
         typedoc_path += f"/{kind_name}/{element_path}.html{url_hash}"
 
     # construct final url relative to current page
-    source = inliner.document.attributes["source"]
-    rel_source = source.split("/doc/", 1)[1]
-    levels = rel_source.count("/")
+    source = pathlib.Path(inliner.document.attributes["source"]).resolve()
+    rel_source = source.relative_to(pathlib.Path(__file__).parent.resolve())
+    levels = len(rel_source.parent.parts)
     refuri = "../" * levels + typedoc_path
 
     # build docutils node
@@ -421,21 +421,6 @@ def config_inited(app, config):
         if app.config.smv_metadata_path:
             os.environ["SMV_METADATA_PATH"] = app.config.smv_metadata_path
             os.environ["SMV_CURRENT_VERSION"] = app.config.smv_current_version
-        subprocess.run(
-            ["sed", "-i", r"s/\^4.2.3/4.2.4/g", "package.json"],
-            cwd=js_pkg_dir,
-            check=True,
-        )
-        subprocess.run(
-            ["sed", "-i", r's/"\^14\.14\.35"/"14\.17\.27"/g', "package.json"],
-            cwd=js_pkg_dir,
-            check=True,
-        )
-        subprocess.run(
-            ["npm", "install", "--save-exact", "colors@1.4.0"],
-            cwd=js_pkg_dir,
-            check=True,
-        )
         subprocess.run(
             ["npm", "install", "--no-package-lock", "--no-audit", "--no-fund"],
             cwd=js_pkg_dir,

@@ -214,10 +214,10 @@ If a node's ``RequestVote`` requests are able to reach the cluster, but it is un
 
 To mitigate this, the PreVote extension requires that a follower first become ``PreVoteCandidate`` and receive a quorum of speculative pre-votes, proving that they could be elected using the standard Raft election conditions, before becoming ``Candidate`` and potentially disrupting the cluster.
 
-More specifically, when a follower's election timeout elapses, it becomes a ``PreVoteCandidate`` for the current view and sends out ``RequestVote`` messages with the ``electionType`` set to ``ElectionType::PreVote``.
+More specifically, when a follower's election timeout elapses, it becomes a ``PreVoteCandidate`` for the current view and sends out ``RequestPreVote`` messages.
 If the ``PreVoteCandidate`` hears from a current leader, or a new leader, it reverts back to being a ``Follower``.
 Nodes receive this pre-vote request, and respond positively if node would have voted for the ``PreVoteCandidate``'s ledger during an election, (ie. if the ``PreVoteCandidate``'s ledger is at least as up to date as the receiver's ledger).
-If the ``PreVoteCandidate`` receives a quorum of positive pre-vote responses, it then becomes a ``Candidate``, increments its view, sends a ``RequestVote`` message with ``election_type`` set to ``ElectionType::RegularVote`` and the election proceeds as normal from here.
+If the ``PreVoteCandidate`` receives a quorum of positive pre-vote responses, it then becomes a ``Candidate``, increments its view, sends a ``RequestVote`` message and the election proceeds as normal from here.
 
 .. mermaid::
 
@@ -229,16 +229,16 @@ If the ``PreVoteCandidate`` receives a quorum of positive pre-vote responses, it
         Note over Node 0: Leader for view 2
 
         Note over Node 1: PreVoteCandidate in view 2
-        Node 1 ->> Node 2: RequestVote(ElectionType::PreVote, view=2)
+        Node 1 ->> Node 2: RequestPreVote(view=2)
 
         Note right of Node 2: No changes to Node 2's state
-        Node 2 ->> Node 1: RequestVoteResponse(ElectionType::PreVote, view=2, granted=true)
+        Node 2 ->> Node 1: RequestPreVoteResponse(view=2, granted=true)
 
         Note over Node 1: Candidate in view 3
-        Node 1 ->> Node 2: RequestVote(ElectionType::RegularVote, view=3)
+        Node 1 ->> Node 2: RequestVote(view=3)
 
         Note right of Node 2: Updates view to 3 and votes for Node 1
-        Node 2 ->> Node 1: RequestVoteResponse(ElectionType::RegularVote, view=3, granted=true)
+        Node 2 ->> Node 1: RequestVoteResponse(view=3, granted=true)
 
         Note over Node 1: Leader for view 3
 
@@ -258,16 +258,16 @@ This can be viewed as piggybacking the view information from that previous Candi
         Note over Node 2: Lagging Follower in view 1
 
         Note over Node 1: PreVoteCandidate in view 2
-        Node 1 ->> Node 2: RequestVote(ElectionType::PreVote, view=2)
+        Node 1 ->> Node 2: RequestPreVote(view=2)
 
         Note right of Node 2: Updates view to 2
-        Node 2 ->> Node 1: RequestVoteResponse(ElectionType::PreVote, view=2, granted=true)
+        Node 2 ->> Node 1: RequestPreVoteResponse(view=2, granted=true)
 
         Note over Node 1: Candidate in view 3
-        Node 1 ->> Node 2: RequestVote(ElectionType::RegularVote, view=3)
+        Node 1 ->> Node 2: RequestVote(view=3)
 
         Note right of Node 2: Updates to view 3 and votes for Node 1
-        Node 2 ->> Node 1: RequestVoteResponse(ElectionType::RegularVote, view=3, granted=true)
+        Node 2 ->> Node 1: RequestVoteResponse(view=3, granted=true)
 
         Note over Node 1: Leader for view 3
 
