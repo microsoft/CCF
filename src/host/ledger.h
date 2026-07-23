@@ -10,6 +10,7 @@
 #include "ds/internal_logger.h"
 #include "ds/messaging.h"
 #include "ds/serialized.h"
+#include "ds/worker_shutdown_gate.h"
 #include "kv/kv_types.h"
 #include "kv/serialised_entry_format.h"
 #include "ledger_filenames.h"
@@ -20,6 +21,8 @@
 #include <filesystem>
 #include <list>
 #include <map>
+#include <memory>
+#include <mutex>
 #include <string>
 #include <sys/types.h>
 #include <tuple>
@@ -838,6 +841,9 @@ namespace asynchost
     // complete
     std::optional<size_t> recovery_start_idx = std::nullopt;
 
+    std::shared_ptr<ccf::ds::WorkerShutdownGate> shutdown_gate =
+      std::make_shared<ccf::ds::WorkerShutdownGate>();
+
     [[nodiscard]] auto get_it_contains_idx(size_t idx) const
     {
       if (idx == 0)
@@ -1314,6 +1320,12 @@ namespace asynchost
 
     Ledger(const Ledger& that) = delete;
 
+    ~Ledger()
+    {
+      // Reject queued workers and wait for workers already using this Ledger.
+      shutdown_gate->shutdown_and_wait();
+    }
+
     void init(size_t idx, size_t recovery_start_idx_ = 0)
     {
       TimeBoundLogger log_if_slow(
@@ -1736,6 +1748,8 @@ namespace asynchost
       size_t to_idx{};
       size_t max_size{};
 
+      std::shared_ptr<ccf::ds::WorkerShutdownGate> gate;
+
       // First argument is ledger entries (or nullopt if not found)
       // Second argument is uv status code, which may indicate a cancellation
       using ResultCallback =
@@ -1749,6 +1763,19 @@ namespace asynchost
     static void on_ledger_get_async(uv_work_t* req)
     {
       auto* data = static_cast<AsyncLedgerGet*>(req->data);
+
+      auto gate = data->gate;
+      if (!gate->try_register())
+      {
+        LOG_DEBUG_FMT(
+          "Skipping async ledger read {} to {} because Ledger is shutting "
+          "down",
+          data->from_idx,
+          data->to_idx);
+        return;
+      }
+
+      ccf::ds::WorkerShutdownGate::UnregisterGuard guard{gate};
 
       data->read_result = data->ledger->read_entries_range(
         data->from_idx, data->to_idx, true, data->max_size);
@@ -1876,6 +1903,7 @@ namespace asynchost
               job->from_idx = from_idx;
               job->to_idx = to_idx;
               job->max_size = max_entries_size;
+              job->gate = shutdown_gate;
               job->result_cb = [to_enclave_ = to_enclave,
                                 from_idx_ = from_idx,
                                 to_idx_ = to_idx,
