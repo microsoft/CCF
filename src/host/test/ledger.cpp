@@ -2305,7 +2305,7 @@ TEST_CASE("Async ledger reads survive concurrent destruction")
 {
   // Stress test: queue multiple async reads via the real message dispatch path,
   // then immediately destroy the Ledger. The shutdown gate ensures no
-  // use-after-free occurs — workers either complete their read or are skipped.
+  // use-after-free occurs - workers either complete their read or are skipped.
   // This test is best run under TSAN/ASAN for full value.
   auto dir = AutoDeleteFolder(ledger_dir);
 
@@ -2315,8 +2315,7 @@ TEST_CASE("Async ledger reads survive concurrent destruction")
   // Create a dedicated ringbuffer and processor for this test since we need
   // to send messages to the Ledger (simulating the enclave).
   constexpr auto test_buffer_size = 64 * 1024;
-  auto test_in_buf =
-    std::make_unique<ringbuffer::TestBuffer>(test_buffer_size);
+  auto test_in_buf = std::make_unique<ringbuffer::TestBuffer>(test_buffer_size);
   auto test_out_buf =
     std::make_unique<ringbuffer::TestBuffer>(test_buffer_size);
   ringbuffer::Circuit test_circuit(test_in_buf->bd, test_out_buf->bd);
@@ -2335,7 +2334,7 @@ TEST_CASE("Async ledger reads survive concurrent destruction")
   ledger->register_message_handlers(bp.get_dispatcher());
 
   // Queue several async reads by writing ringbuffer messages and dispatching.
-  // Write to the "from outside" buffer (simulating enclave → host messages),
+  // Write to the "from outside" buffer (simulating enclave -> host messages),
   // then dispatch via the buffer processor.
   auto to_host_writer = test_wf.create_writer_to_outside();
   constexpr size_t num_reads = 10;

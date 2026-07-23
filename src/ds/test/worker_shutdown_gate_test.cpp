@@ -65,11 +65,10 @@ TEST_CASE("WorkerShutdownGate: shutdown blocks until worker finishes")
     done_future.wait_for(std::chrono::milliseconds(200)) ==
     std::future_status::timeout);
 
-  // Worker finishes — shutdown should complete
+  // Worker finishes - shutdown should complete
   gate.unregister();
   REQUIRE(
-    done_future.wait_for(std::chrono::seconds(5)) ==
-    std::future_status::ready);
+    done_future.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
 
   shutdown_thread.join();
 }
@@ -92,7 +91,7 @@ TEST_CASE("WorkerShutdownGate: shutdown blocks until all workers finish")
 
   auto done_future = shutdown_done.get_future();
 
-  // Unregister all but one — should still be blocked
+  // Unregister all but one - should still be blocked
   for (size_t i = 0; i < num_workers - 1; ++i)
   {
     gate.unregister();
@@ -104,8 +103,7 @@ TEST_CASE("WorkerShutdownGate: shutdown blocks until all workers finish")
   // Last worker finishes
   gate.unregister();
   REQUIRE(
-    done_future.wait_for(std::chrono::seconds(5)) ==
-    std::future_status::ready);
+    done_future.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
 
   shutdown_thread.join();
 }

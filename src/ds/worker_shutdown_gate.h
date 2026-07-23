@@ -29,7 +29,7 @@ namespace ccf::ds
   public:
     /**
      * Attempt to register a worker. Returns true if registration succeeded
-     * (the gate is still open). Returns false if shutdown has begun — the
+     * (the gate is still open). Returns false if shutdown has begun - the
      * caller must not proceed to access the protected resource.
      */
     bool try_register()
@@ -75,7 +75,7 @@ namespace ccf::ds
     bool is_shutting_down() const
     {
       // alive is only ever written under the lock and only transitions
-      // false→true, so a relaxed read is safe for a non-blocking check.
+      // false->true, so a relaxed read is safe for a non-blocking check.
       // However, to avoid UB we still take the lock briefly.
       auto* self = const_cast<WorkerShutdownGate*>(this);
       std::unique_lock<std::mutex> guard(self->lock);
