@@ -6,6 +6,7 @@ import time
 
 from contextlib import contextmanager
 from enum import Enum, IntEnum, auto
+import unittest
 from infra.clients import flush_info, CCFConnectionException, CCFIOException
 import infra.crypto
 import infra.member
@@ -2425,3 +2426,80 @@ def network(
     )
     if init_partitioner:
         net.partitioner.cleanup()
+
+
+class NetworkTestCase(unittest.TestCase):
+    label = None
+    package = "samples/apps/logging/logging"
+    test_config_overrides = lambda args: {}
+    network_kwargs = lambda args: {}
+    start_and_open_kwargs = {}
+    failure_stop_kwargs = {
+        "skip_verification": True,
+        "accept_ledger_diff": True,
+        "skip_verify_chunking": True,
+    }
+    success_stop_kwargs = {
+        "skip_verification": False,
+        "accept_ledger_diff": False,
+        "skip_verify_chunking": False,
+    }
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        if cls.label is None:
+            raise TypeError(f"{cls.__name__} must define a label")
+        if not isinstance(cls.label, str):
+            raise TypeError(f"{cls.__name__}.label must be a string")
+
+    @classmethod
+    def resolve_args_overrides(cls, args):
+        return cls.test_config_overrides(args)
+
+    @classmethod
+    def _cleanup(cls):
+        if cls._failing_test_id is None:
+            cls.network.stop_all_nodes(**cls.success_stop_kwargs)
+        else:
+            cls.network.txs = None
+            cls.network.log_stack_traces(timeout=10)
+            cls.network.stop_all_nodes(**cls.failure_stop_kwargs)
+
+    @classmethod
+    def setUpClass(cls):
+        cls.args = infra.e2e_args.cli_args(argv=[])
+        cls.args.label = cls.label
+        cls.args.package = cls.package
+        if not os.path.isabs(cls.args.package):
+            cls.args.package = os.path.join(cls.args.binary_dir, cls.args.package)
+        for name, value in cls.resolve_args_overrides(cls.args).items():
+            setattr(cls.args, name, value)
+
+        cls.network = infra.network.Network(
+            cls.args.nodes,
+            cls.args.binary_dir,
+            cls.args.debug_nodes,
+            **cls.network_kwargs(cls.args),
+        )
+        with infra.network.close_on_error(cls.network, pdb=cls.args.pdb):
+            cls.network.start_and_open(cls.args, **cls.start_and_open_kwargs)
+        cls._failing_test_id = None
+        cls.addClassCleanup(cls._cleanup)
+
+    # Record traces on exceptions
+    def _callTestMethod(self, method):
+        if type(self)._failing_test_id is not None:
+            raise unittest.SkipTest(
+                f"Skipping test due to previous failure: {type(self)._failing_test_id}"
+            )
+        try:
+            return method()
+        except unittest.SkipTest:
+            raise
+        except Exception:
+            type(self)._failing_test_id = self.id()
+            if self.args.pdb:
+                import pdb
+
+                pdb.post_mortem()
+            raise
