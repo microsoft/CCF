@@ -48,6 +48,8 @@ namespace ccf
   static constexpr size_t MAX_SNAPSHOT_ENDORSEMENTS_SIZE = 16 * 1024 * 1024;
   static constexpr size_t MAX_SNAPSHOT_ENDORSEMENTS_COUNT = 64;
   static constexpr size_t MAX_SNAPSHOT_ENDORSEMENT_SIZE = 1024 * 1024;
+  static constexpr size_t MAX_SNAPSHOT_ENDORSEMENT_RECORD_SIZE =
+    2 * MAX_SNAPSHOT_ENDORSEMENT_SIZE;
   static constexpr size_t MAX_SNAPSHOT_ENDORSEMENTS_PAYLOAD_SIZE =
     4 * 1024 * 1024;
 
@@ -148,7 +150,10 @@ namespace ccf
     const auto parsed = ccf::cbor::rethrow_with_msg(
       [&]() {
         return ccf::cbor::parse(
-          serialised, 16, MAX_SNAPSHOT_ENDORSEMENTS_COUNT);
+          serialised,
+          16,
+          MAX_SNAPSHOT_ENDORSEMENTS_COUNT,
+          MAX_SNAPSHOT_ENDORSEMENTS_COUNT + 1);
       },
       "Parse snapshot endorsements sidecar");
     if (!std::holds_alternative<ccf::cbor::Array>(parsed->value))

@@ -143,7 +143,14 @@ def snapshot_endorsements_path(snapshot_path: str) -> str:
 
 def read_snapshot_endorsements(path: str) -> list[bytes]:
     with open(path, "rb") as endorsements_file:
-        return ccf.cose.deserialize_cose_endorsements(endorsements_file.read())
+        serialized = endorsements_file.read(ccf.cose.MAX_SNAPSHOT_ENDORSEMENTS_SIZE + 1)
+    if len(serialized) > ccf.cose.MAX_SNAPSHOT_ENDORSEMENTS_SIZE:
+        raise ValueError(
+            f"Snapshot endorsements sidecar {path} is too large "
+            f"({len(serialized)} bytes read; maximum "
+            f"{ccf.cose.MAX_SNAPSHOT_ENDORSEMENTS_SIZE} bytes)"
+        )
+    return ccf.cose.deserialize_cose_endorsements(serialized)
 
 
 def digest(data):

@@ -16,6 +16,7 @@ from cryptography.hazmat.primitives.serialization import (
     PrivateFormat,
     PublicFormat,
 )
+import ccf.ledger
 import cwt
 import cwt.enums
 import cwt.utils
@@ -197,3 +198,36 @@ def test_cose_endorsement_sidecar_encoding_is_strict():
         ccf.cose.deserialize_cose_endorsements(cbor2.dumps({"not": "an array"}))
     with pytest.raises(ValueError, match="Trailing data"):
         ccf.cose.deserialize_cose_endorsements(cbor2.dumps([]) + b"\x00")
+
+
+def test_cose_endorsement_sidecar_resource_limits(tmp_path):
+    pathological_count = 1_000_000
+    too_many = b"\x9a\x00\x0f\x42\x40" + b"\x40" * pathological_count
+    with pytest.raises(ValueError, match="too many endorsements"):
+        ccf.cose.deserialize_cose_endorsements(too_many)
+
+    nested = cbor2.dumps(
+        [
+            [b""] * ccf.cose.MAX_SNAPSHOT_ENDORSEMENTS_COUNT
+            for _ in range(ccf.cose.MAX_SNAPSHOT_ENDORSEMENTS_COUNT)
+        ]
+    )
+    with pytest.raises(ValueError, match="byte strings"):
+        ccf.cose.deserialize_cose_endorsements(nested)
+
+    oversized_endorsement = b"\x00" * (ccf.cose.MAX_SNAPSHOT_ENDORSEMENT_SIZE + 1)
+    with pytest.raises(ValueError, match="too large"):
+        ccf.cose.serialize_cose_endorsements([oversized_endorsement])
+    with pytest.raises(ValueError, match="too large"):
+        ccf.cose.deserialize_cose_endorsements(cbor2.dumps([oversized_endorsement]))
+
+    maximum_endorsement = b"\x00" * ccf.cose.MAX_SNAPSHOT_ENDORSEMENT_SIZE
+    with pytest.raises(ValueError, match="payload is too large"):
+        ccf.cose.serialize_cose_endorsements([maximum_endorsement] * 5)
+    with pytest.raises(ValueError, match="payload is too large"):
+        ccf.cose.deserialize_cose_endorsements(cbor2.dumps([maximum_endorsement] * 5))
+
+    oversized_path = tmp_path / "oversized.endorsements"
+    oversized_path.write_bytes(b"\x00" * (ccf.cose.MAX_SNAPSHOT_ENDORSEMENTS_SIZE + 1))
+    with pytest.raises(ValueError, match="sidecar .* is too large"):
+        ccf.ledger.read_snapshot_endorsements(str(oversized_path))

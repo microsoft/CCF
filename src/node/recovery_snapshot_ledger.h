@@ -9,6 +9,7 @@
 #include "kv/kv_serialiser.h"
 #include "kv/serialised_entry_format.h"
 #include "node/rpc/network_identity_chain_helpers.h"
+#include "node/snapshot_serdes.h"
 #include "service/tables/previous_service_identity.h"
 #include "service/tables/signatures.h"
 
@@ -16,6 +17,7 @@
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <limits>
 
 namespace ccf
@@ -32,7 +34,8 @@ namespace ccf
   {
     ccf::kv::Version last_signed_idx = 0;
     std::vector<CollectedCoseEndorsement> endorsements;
-    std::vector<std::pair<ccf::kv::Version, ccf::ServiceInfo>> service_infos;
+    std::optional<std::pair<ccf::kv::Version, ccf::ServiceInfo>>
+      latest_service_info = std::nullopt;
   };
 
   static RecoverySnapshotLedgerEntry parse_recovery_snapshot_ledger_entry(
@@ -91,6 +94,14 @@ namespace ccf
           {
             throw std::logic_error(
               "Invalid previous service identity endorsement table write");
+          }
+          if (value.size() > MAX_SNAPSHOT_ENDORSEMENT_RECORD_SIZE)
+          {
+            throw std::logic_error(fmt::format(
+              "Serialised previous service identity endorsement is too large "
+              "({} bytes; maximum {} bytes)",
+              value.size(),
+              MAX_SNAPSHOT_ENDORSEMENT_RECORD_SIZE));
           }
           result.endorsement = ccf::PreviousServiceIdentityEndorsement::
             ValueSerialiser::from_serialised(value);
@@ -255,6 +266,11 @@ namespace ccf
     RecoverySnapshotLedgerScan scan;
     scan.last_signed_idx = snapshot_seqno;
     auto expected_seqno = snapshot_seqno + 1;
+    std::vector<CollectedCoseEndorsement> pending_endorsements;
+    size_t committed_endorsements_payload_size = 0;
+    size_t pending_endorsements_payload_size = 0;
+    std::optional<std::pair<ccf::kv::Version, ccf::ServiceInfo>>
+      latest_observed_service_info = std::nullopt;
 
     for (const auto& ledger_file :
          find_recovery_snapshot_ledger_files(ledger_config))
@@ -395,16 +411,72 @@ namespace ccf
 
         if (parsed.endorsement.has_value())
         {
-          scan.endorsements.push_back(
+          const auto endorsement_size = parsed.endorsement->endorsement.size();
+          if (endorsement_size > MAX_SNAPSHOT_ENDORSEMENT_SIZE)
+          {
+            throw std::logic_error(fmt::format(
+              "Ledger endorsement at {} is too large ({} bytes; maximum {} "
+              "bytes)",
+              parsed.version,
+              endorsement_size,
+              MAX_SNAPSHOT_ENDORSEMENT_SIZE));
+          }
+          if (pending_endorsements.size() >= MAX_SNAPSHOT_ENDORSEMENTS_COUNT)
+          {
+            throw std::logic_error(fmt::format(
+              "Ledger suffix contains too many pending endorsements (maximum "
+              "{})",
+              MAX_SNAPSHOT_ENDORSEMENTS_COUNT));
+          }
+          if (
+            endorsement_size > MAX_SNAPSHOT_ENDORSEMENTS_PAYLOAD_SIZE -
+              pending_endorsements_payload_size)
+          {
+            throw std::logic_error(fmt::format(
+              "Pending ledger endorsements payload is too large (maximum {} "
+              "bytes)",
+              MAX_SNAPSHOT_ENDORSEMENTS_PAYLOAD_SIZE));
+          }
+          pending_endorsements_payload_size += endorsement_size;
+          pending_endorsements.push_back(
             {parsed.version, std::move(*parsed.endorsement)});
         }
         if (parsed.service_info.has_value())
         {
-          scan.service_infos.emplace_back(
+          latest_observed_service_info.emplace(
             parsed.version, std::move(*parsed.service_info));
         }
         if (parsed.is_signature)
         {
+          if (
+            pending_endorsements.size() >
+            MAX_SNAPSHOT_ENDORSEMENTS_COUNT - scan.endorsements.size())
+          {
+            throw std::logic_error(fmt::format(
+              "Committed ledger suffix contains too many endorsements "
+              "(maximum {})",
+              MAX_SNAPSHOT_ENDORSEMENTS_COUNT));
+          }
+          if (
+            pending_endorsements_payload_size >
+            MAX_SNAPSHOT_ENDORSEMENTS_PAYLOAD_SIZE -
+              committed_endorsements_payload_size)
+          {
+            throw std::logic_error(fmt::format(
+              "Committed ledger endorsements payload is too large (maximum {} "
+              "bytes)",
+              MAX_SNAPSHOT_ENDORSEMENTS_PAYLOAD_SIZE));
+          }
+
+          scan.endorsements.insert(
+            scan.endorsements.end(),
+            std::make_move_iterator(pending_endorsements.begin()),
+            std::make_move_iterator(pending_endorsements.end()));
+          pending_endorsements.clear();
+          committed_endorsements_payload_size +=
+            pending_endorsements_payload_size;
+          pending_endorsements_payload_size = 0;
+          scan.latest_service_info = latest_observed_service_info;
           scan.last_signed_idx = parsed.version;
         }
 
@@ -439,12 +511,6 @@ namespace ccf
       }
     }
 
-    std::erase_if(scan.endorsements, [&](const auto& item) {
-      return item.write_version > scan.last_signed_idx;
-    });
-    std::erase_if(scan.service_infos, [&](const auto& item) {
-      return item.first > scan.last_signed_idx;
-    });
     return scan;
   }
 }

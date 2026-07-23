@@ -126,6 +126,15 @@ TEST_CASE("Snapshot endorsement sidecar resource limits")
   too_many.insert(too_many.end(), pathological_endorsement_count, 0x40);
   REQUIRE_THROWS(ccf::deserialise_cose_endorsements(too_many));
 
+  std::vector<uint8_t> nested_items{0x98, 0x40};
+  for (size_t i = 0; i < ccf::MAX_SNAPSHOT_ENDORSEMENTS_COUNT; ++i)
+  {
+    nested_items.insert(nested_items.end(), {0x98, 0x40});
+    nested_items.insert(
+      nested_items.end(), ccf::MAX_SNAPSHOT_ENDORSEMENTS_COUNT, 0x40);
+  }
+  REQUIRE_THROWS(ccf::deserialise_cose_endorsements(nested_items));
+
   std::vector<uint8_t> oversized_endorsement{
     0x81, 0x5a, 0x00, 0x10, 0x00, 0x01};
   oversized_endorsement.resize(
@@ -220,9 +229,60 @@ TEST_CASE("Recovery snapshot endorsement scan reads ledger files directly")
   REQUIRE(scan.last_signed_idx == 3);
   REQUIRE(scan.endorsements.size() == 1);
   REQUIRE(scan.endorsements.front().write_version == 2);
-  REQUIRE(scan.service_infos.size() == 1);
-  REQUIRE(scan.service_infos.front().first == 2);
-  REQUIRE(scan.service_infos.front().second.cert == target_identity.cert);
+  REQUIRE(scan.latest_service_info.has_value());
+  REQUIRE(scan.latest_service_info->first == 2);
+  REQUIRE(scan.latest_service_info->second.cert == target_identity.cert);
+}
+
+TEST_CASE("Recovery snapshot endorsement scan bounds pending endorsements")
+{
+  ScopedSnapshotDir ledger_dir;
+  ccf::kv::Store source_store;
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
+  auto consensus = std::make_shared<ccf::kv::test::StubConsensus>();
+  source_store.set_encryptor(encryptor);
+  source_store.set_consensus(consensus);
+  source_store.initialise_term(2);
+
+  std::vector<std::vector<uint8_t>> entries;
+  for (size_t i = 0; i < ccf::MAX_SNAPSHOT_ENDORSEMENTS_COUNT + 1; ++i)
+  {
+    ccf::CoseEndorsement endorsement;
+    endorsement.endorsement = {0xd2, 0x01};
+    endorsement.endorsing_key = {0x02, 0x03};
+    endorsement.endorsement_epoch_begin = {2, i + 1};
+    endorsement.endorsement_epoch_end = ccf::TxID{4, i + 1};
+    endorsement.previous_version = 1;
+
+    auto tx = source_store.create_tx();
+    tx.rw<ccf::PreviousServiceIdentityEndorsement>(
+        ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT)
+      ->put(endorsement);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+    entries.push_back(consensus->get_latest_data().value());
+  }
+
+  const auto ledger_path = ledger_dir.path / "ledger_1";
+  {
+    std::ofstream ledger_file(ledger_path, std::ios::binary);
+    REQUIRE(ledger_file);
+    const size_t positions_offset = 0;
+    ledger_file.write(
+      reinterpret_cast<const char*>(&positions_offset),
+      sizeof(positions_offset));
+    for (const auto& entry : entries)
+    {
+      ledger_file.write(
+        reinterpret_cast<const char*>(entry.data()),
+        static_cast<std::streamsize>(entry.size()));
+    }
+    REQUIRE(ledger_file);
+  }
+
+  ccf::CCFConfig::Ledger ledger_config;
+  ledger_config.directory = ledger_dir.path.string();
+  REQUIRE_THROWS(
+    ccf::scan_recovery_snapshot_ledger_files(ledger_config, encryptor, 0));
 }
 
 std::optional<fs::path> latest_committed_snapshot_path(const fs::path& dir)

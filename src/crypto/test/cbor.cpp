@@ -1793,6 +1793,14 @@ TEST_CASE("CBOR: parse max container size")
   REQUIRE_THROWS_AS(parse(map, 16, 1), CBORDecodeError);
 }
 
+TEST_CASE("CBOR: parse max total items")
+{
+  // [[1, 2], [3, 4]] contains 7 total items, including the 3 arrays.
+  auto nested_array = ccf::ds::from_hex("82820102820304");
+  REQUIRE_NOTHROW(parse(nested_array, 16, 2, 7));
+  REQUIRE_THROWS_AS(parse(nested_array, 16, 2, 6), CBORDecodeError);
+}
+
 TEST_CASE("CBOR: serialize max depth")
 {
   // depth 1: [42] -- should pass at max_depth=1,2

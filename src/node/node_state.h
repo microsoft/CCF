@@ -922,7 +922,7 @@ namespace ccf
           throw std::logic_error(
             "no committed ledger suffix was found after the snapshot");
         }
-        if (scan.service_infos.empty())
+        if (!scan.latest_service_info.has_value())
         {
           throw std::logic_error(
             "no service identity was found in the committed ledger suffix");
@@ -930,7 +930,7 @@ namespace ccf
 
         const ccf::crypto::Pem target_identity(
           *config.recover.previous_service_identity);
-        const auto& latest_service = scan.service_infos.back().second;
+        const auto& latest_service = scan.latest_service_info->second;
         if (latest_service.cert != target_identity)
         {
           throw std::logic_error(

@@ -4,7 +4,6 @@
 import argparse
 import base64
 import hashlib
-import io
 import json
 import sys
 from datetime import datetime
@@ -61,6 +60,10 @@ CCF_V1_LABEL = "ccf.v1"
 CCF_ENDORSEMENT_RANGE_BEGIN = "epoch.start.txid"
 CCF_ENDORSEMENT_RANGE_END = "epoch.end.txid"
 RECOVERY_VIEW_CHANGE = 2
+MAX_SNAPSHOT_ENDORSEMENTS_SIZE = 16 * 1024 * 1024
+MAX_SNAPSHOT_ENDORSEMENTS_COUNT = 64
+MAX_SNAPSHOT_ENDORSEMENT_SIZE = 1024 * 1024
+MAX_SNAPSHOT_ENDORSEMENTS_PAYLOAD_SIZE = 4 * 1024 * 1024
 
 
 def default_algorithm_for_key(key) -> int:
@@ -198,29 +201,120 @@ def verify_cose_sign1_with_key(key, cose_sign1, payload=None):
     return cose_ctx.decode_with_headers(cose_sign1, cose_key, detached_payload=payload)
 
 
+def _validate_cose_endorsement_resource_limits(
+    endorsements: list[bytes],
+) -> None:
+    if len(endorsements) > MAX_SNAPSHOT_ENDORSEMENTS_COUNT:
+        raise ValueError(
+            "Snapshot endorsements sidecar contains too many endorsements "
+            f"({len(endorsements)}; maximum {MAX_SNAPSHOT_ENDORSEMENTS_COUNT})"
+        )
+
+    payload_size = 0
+    for index, endorsement in enumerate(endorsements):
+        endorsement_size = len(endorsement)
+        if endorsement_size > MAX_SNAPSHOT_ENDORSEMENT_SIZE:
+            raise ValueError(
+                f"Snapshot endorsement at index {index} is too large "
+                f"({endorsement_size} bytes; maximum "
+                f"{MAX_SNAPSHOT_ENDORSEMENT_SIZE} bytes)"
+            )
+        payload_size += endorsement_size
+        if payload_size > MAX_SNAPSHOT_ENDORSEMENTS_PAYLOAD_SIZE:
+            raise ValueError(
+                "Snapshot endorsements payload is too large "
+                f"(maximum {MAX_SNAPSHOT_ENDORSEMENTS_PAYLOAD_SIZE} bytes)"
+            )
+
+
+def _decode_cbor_length(
+    serialized: memoryview, offset: int, expected_major_type: int
+) -> tuple[int, int]:
+    if offset >= len(serialized):
+        raise ValueError("Truncated snapshot endorsements CBOR")
+
+    initial_byte = serialized[offset]
+    offset += 1
+    if initial_byte >> 5 != expected_major_type:
+        raise ValueError("Unexpected snapshot endorsements CBOR type")
+
+    additional_info = initial_byte & 0x1F
+    if additional_info < 24:
+        return additional_info, offset
+
+    length_byte_count = {24: 1, 25: 2, 26: 4, 27: 8}.get(additional_info)
+    if length_byte_count is None:
+        raise ValueError("Indefinite or invalid snapshot endorsements CBOR length")
+    end = offset + length_byte_count
+    if end > len(serialized):
+        raise ValueError("Truncated snapshot endorsements CBOR length")
+    return int.from_bytes(serialized[offset:end]), end
+
+
 def serialize_cose_endorsements(endorsements: list[bytes]) -> bytes:
     if not all(isinstance(endorsement, bytes) for endorsement in endorsements):
         raise TypeError("COSE endorsements must be bytes")
-    return cbor2.dumps(endorsements)
+    _validate_cose_endorsement_resource_limits(endorsements)
+    serialized = cbor2.dumps(endorsements)
+    if len(serialized) > MAX_SNAPSHOT_ENDORSEMENTS_SIZE:
+        raise ValueError(
+            "Snapshot endorsements sidecar is too large "
+            f"({len(serialized)} bytes; maximum "
+            f"{MAX_SNAPSHOT_ENDORSEMENTS_SIZE} bytes)"
+        )
+    return serialized
 
 
 def deserialize_cose_endorsements(serialized: bytes) -> list[bytes]:
-    stream = io.BytesIO(serialized)
-    decoder = cbor2.CBORDecoder(stream)
     try:
-        endorsements = decoder.decode()
-    except (cbor2.CBORDecodeError, EOFError) as e:
-        raise ValueError("Invalid snapshot endorsements CBOR") from e
+        data = memoryview(serialized)
+    except TypeError as e:
+        raise TypeError("Snapshot endorsements CBOR must be bytes-like") from e
+    if len(data) > MAX_SNAPSHOT_ENDORSEMENTS_SIZE:
+        raise ValueError(
+            "Snapshot endorsements sidecar is too large "
+            f"({len(data)} bytes; maximum {MAX_SNAPSHOT_ENDORSEMENTS_SIZE} bytes)"
+        )
+
     try:
-        decoder.decode()
-    except cbor2.CBORDecodeEOF:
-        pass
-    else:
+        endorsement_count, offset = _decode_cbor_length(data, 0, 4)
+    except ValueError as e:
+        raise ValueError("Snapshot endorsements must be a CBOR array") from e
+    if endorsement_count > MAX_SNAPSHOT_ENDORSEMENTS_COUNT:
+        raise ValueError(
+            "Snapshot endorsements sidecar contains too many endorsements "
+            f"({endorsement_count}; maximum {MAX_SNAPSHOT_ENDORSEMENTS_COUNT})"
+        )
+
+    endorsements: list[bytes] = []
+    payload_size = 0
+    for index in range(endorsement_count):
+        try:
+            endorsement_size, offset = _decode_cbor_length(data, offset, 2)
+        except ValueError as e:
+            raise ValueError(
+                "Snapshot endorsements must be a CBOR array of byte strings"
+            ) from e
+        if endorsement_size > MAX_SNAPSHOT_ENDORSEMENT_SIZE:
+            raise ValueError(
+                f"Snapshot endorsement at index {index} is too large "
+                f"({endorsement_size} bytes; maximum "
+                f"{MAX_SNAPSHOT_ENDORSEMENT_SIZE} bytes)"
+            )
+        payload_size += endorsement_size
+        if payload_size > MAX_SNAPSHOT_ENDORSEMENTS_PAYLOAD_SIZE:
+            raise ValueError(
+                "Snapshot endorsements payload is too large "
+                f"(maximum {MAX_SNAPSHOT_ENDORSEMENTS_PAYLOAD_SIZE} bytes)"
+            )
+        end = offset + endorsement_size
+        if end > len(data):
+            raise ValueError(f"Snapshot endorsement at index {index} is truncated")
+        endorsements.append(bytes(data[offset:end]))
+        offset = end
+
+    if offset != len(data):
         raise ValueError("Trailing data after snapshot endorsements CBOR array")
-    if not isinstance(endorsements, list) or not all(
-        isinstance(endorsement, bytes) for endorsement in endorsements
-    ):
-        raise ValueError("Snapshot endorsements must be a CBOR array of byte strings")
     return endorsements
 
 
