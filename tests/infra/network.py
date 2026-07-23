@@ -1160,8 +1160,6 @@ class Network:
                 key=lambda x: ccf.ledger.get_range_from_file(x)[0],
             )
 
-            LOG.warning(f"TEMP DEBUG Files: {files}")
-
             # Trace contiguous chunks after the startup snapshot. Chunks wholly
             # before the snapshot may have been copied from another node, and
             # are covered by the network-wide committed-history check below.
