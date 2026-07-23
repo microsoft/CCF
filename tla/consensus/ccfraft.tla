@@ -1061,7 +1061,8 @@ ReturnToFollowerState(i, m) ==
     /\ leadershipState[i] \in {PreVoteCandidate, Candidate}
     /\ leadershipState' = [leadershipState EXCEPT ![i] = Follower]
     /\ isNewFollower' = [isNewFollower EXCEPT ![i] = TRUE]
-    \* CCF clears its vote when stepping down, even within the same term
+    \* Mirrors raft.h:1144: same-term AppendEntries calls
+    \* become_aware_of_new_term(), which clears voted_for at raft.h:2286.
     /\ votedFor' = [votedFor EXCEPT ![i] = Nil]
     \* Note that the set of messages is unchanged as m is discarded
     /\ UNCHANGED <<preVoteStatus, reconfigurationVars, currentTerm, logVars,
