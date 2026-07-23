@@ -1,8 +1,0 @@
-# Create a seed marker after startup reaches a leader state.
-start_node,0
-assert_detail,0,leadership_state,Leader
-emit_signature,2
-mark_seed,after_signature
-
-assert_detail,0,leadership_state,Leader
-assert_commit_idx,0,2

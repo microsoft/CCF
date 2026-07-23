@@ -237,9 +237,10 @@ jobs:
         run: |
           set -x
           cd tla/
-          rm -rf generated-seeds
-          ./tlc.py --workers 1 tv --disable-dfs --ccf-raft-trace traces/consensus/marked_startup.ndjson --seed-output-dir generated-seeds consensus/Traceccfraft.tla
-          diff -u consensus/RaftSeeds.tla generated-seeds/RaftSeeds.tla
+          python3 make_raft_seeds.py --output generated-RaftSeeds.tla \
+            traces/consensus/reconfig_01_el0_12.ndjson \
+            traces/consensus/pre_vote.ndjson
+          diff -u consensus/RaftSeeds.tla generated-RaftSeeds.tla
         shell: bash
 
       - name: Upload artifacts.

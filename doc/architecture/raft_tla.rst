@@ -58,9 +58,15 @@ Seed extraction runs as part of trace validation. Pass ``--seed-output-dir`` to 
 
 .. code-block:: bash
 
-    $ ./tlc.py --workers 1 tv --disable-dfs --ccf-raft-trace traces/consensus/marked_startup.ndjson --seed-output-dir generated-seeds consensus/Traceccfraft.tla
+    $ ./tlc.py --workers 1 tv --disable-dfs --ccf-raft-trace traces/consensus/reconfig_01_el0_12.ndjson --seed-output-dir generated-seeds consensus/Traceccfraft.tla
 
-The generated ``RaftSeeds.tla`` module is checked in as ``tla/consensus/RaftSeeds.tla``. CI regenerates it from ``marked_startup`` and fails if the generated module differs from the checked-in copy.
+The checked-in ``tla/consensus/RaftSeeds.tla`` corpus contains selected high-value seeds. Regenerate the corpus with:
+
+.. code-block:: bash
+
+    $ python3 make_raft_seeds.py --output consensus/RaftSeeds.tla traces/consensus/reconfig_01_el0_12.ndjson traces/consensus/pre_vote.ndjson
+
+CI regenerates this corpus and fails if the generated module differs from the checked-in copy. The current seed set is intentionally small: one state with multiple pre-vote candidates during reconfiguration and one denied pre-vote from a stale-log candidate.
 
 Seeded simulation starts from ``RaftSeeds!SeedInit`` and then runs the ordinary simulation actions:
 

@@ -200,7 +200,8 @@ ExportSeed ==
 
 IsSeedMarker ==
     /\ IsEvent("mark_seed")
-    /\ ExportSeed
+    /\ \/ SeedOutputDir = ""
+       \/ ExportSeed
     /\ UNCHANGED vars
 
 \* Message loss is known in controlled environments, such as raft (driver) scenarios. However, this assumption
