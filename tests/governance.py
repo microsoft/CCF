@@ -573,7 +573,7 @@ def gov(args):
 # requirements, so are run in a standalone network
 def single_node(args):
     def test_desc(s):
-        LOG.opt(colors=True).info(f"<magenta>Test: {s}</>")
+        LOG.info(f"Test: {s}")
 
     test_desc("Node data on start node")
     with tempfile.NamedTemporaryFile(mode="w+") as ntf:
