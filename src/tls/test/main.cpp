@@ -555,8 +555,7 @@ TEST_CASE("handshake prefers hybrid post-quantum group when available")
   const auto negotiated_group = client.negotiated_group_name();
   INFO("Negotiated TLS group: " << negotiated_group);
   REQUIRE(
-    std::find(
-      hybrid_groups.begin(), hybrid_groups.end(), negotiated_group) !=
+    std::find(hybrid_groups.begin(), hybrid_groups.end(), negotiated_group) !=
     hybrid_groups.end());
 }
 
