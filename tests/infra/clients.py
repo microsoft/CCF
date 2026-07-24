@@ -353,7 +353,8 @@ class CCFIOException(Exception):
 
 def get_curve(ca_file):
     # Auto detect EC curve to use based on server CA
-    ca_bytes = open(ca_file, "rb").read()
+    with open(ca_file, "rb") as ca:
+        ca_bytes = ca.read()
     return (
         x509.load_pem_x509_certificate(ca_bytes, default_backend()).public_key().curve
     )
@@ -728,9 +729,8 @@ class HttpxClient:
                     )
                 else:
                     extra_headers["Content-Length"] = "0"
-            auth = self._auth_provider(
-                self.key_id, open(self.signing_auth.key, "rb").read()
-            )
+            with open(self.signing_auth.key, "rb") as signing_key:
+                auth = self._auth_provider(self.key_id, signing_key.read())
 
         request_body = None
         if request.body is not None:
@@ -756,8 +756,10 @@ class HttpxClient:
                 extra_headers["content-type"] = content_type
 
         if self.cose_signing_auth is not None and request.http_verb != "GET":
-            key = open(self.cose_signing_auth.key, encoding="utf-8").read()
-            cert = open(self.cose_signing_auth.cert, encoding="utf-8").read()
+            with open(self.cose_signing_auth.key, encoding="utf-8") as key_file:
+                key = key_file.read()
+            with open(self.cose_signing_auth.cert, encoding="utf-8") as cert_file:
+                cert = cert_file.read()
             phdr = self.cose_header_builder(request.path, self.created_at_override)
             phdr.update(cose_header_parameters_override or {})
             if "ccf.gov.msg.created_at" in phdr and not isinstance(
@@ -849,11 +851,12 @@ class RawSocketClient:
                     .fingerprint(hashes.SHA256())
                     .hex()
                 )
-                private_key = load_pem_private_key(
-                    open(signing_auth.key, "rb").read(),
-                    password=None,
-                    backend=default_backend(),
-                )
+                with open(signing_auth.key, "rb") as signing_key:
+                    private_key = load_pem_private_key(
+                        signing_key.read(),
+                        password=None,
+                        backend=default_backend(),
+                    )
                 self.signing_details = (key_id, private_key)
         else:
             self.signing_details = None

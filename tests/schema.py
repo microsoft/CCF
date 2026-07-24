@@ -22,11 +22,11 @@ def run(args):
     os.makedirs(args.schema_dir, exist_ok=True)
 
     changed_files = []
-    old_schema = set(
+    old_schema = {
         dir_entry.path
         for dir_entry in os.scandir(args.schema_dir)
         if dir_entry.is_file()
-    )
+    }
 
     documents_valid = True
     all_methods = []

@@ -233,7 +233,9 @@ def create_and_fill_key_space(size: int, primary: infra.node.Node) -> list[str]:
 def replace_primary(network, host, old_primary, snapshots_dir, statistics):
     LOG.info(f"Set up new node: {host}")
     node = network.create_node(host)
-    statistics["new_node_join_start_time"] = datetime.datetime.now().isoformat()
+    statistics["new_node_join_start_time"] = datetime.datetime.now(
+        datetime.timezone.utc
+    ).isoformat()
     network.setup_join_node(
         node,
         args.package,
@@ -246,12 +248,16 @@ def replace_primary(network, host, old_primary, snapshots_dir, statistics):
         follow_redirect=False,
     )
     LOG.info(f"Shut down primary: {old_primary.local_node_id}")
-    statistics["initial_primary_shutdown_time"] = datetime.datetime.now().isoformat()
+    statistics["initial_primary_shutdown_time"] = datetime.datetime.now(
+        datetime.timezone.utc
+    ).isoformat()
     old_primary.stop()
     LOG.info(f"Start new node: {node.local_node_id}")
     network.run_join_node(node, wait_for_node_in_store=False)
     primary, _ = network.wait_for_new_primary(old_primary)
-    statistics["new_primary_detected_time"] = datetime.datetime.now().isoformat()
+    statistics["new_primary_detected_time"] = datetime.datetime.now(
+        datetime.timezone.utc
+    ).isoformat()
     network.wait_for_node_in_store(
         primary,
         node.node_id,
@@ -465,7 +471,12 @@ def run(args):
                     )
                     LOG.info(f"Analyzing results from {send_file} and {response_file}")
 
-                    def table():
+                    def table(
+                        client_id=client_id,
+                        send_file=send_file,
+                        response_file=response_file,
+                        remote_client=remote_client,
+                    ):
                         payloads = pl.read_parquet(requests_file_paths[client_id])
                         sent = pl.read_parquet(send_file)
                         rcvd = pl.read_parquet(response_file)

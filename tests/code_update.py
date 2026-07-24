@@ -349,7 +349,7 @@ def test_tcb_version_tables(network, args):
     assert cpuid.lower() == cpuid, f"Expected lowercase CPUID, {cpuid}"
 
     assert (
-        "hexstring" in tcb_version.keys()
+        "hexstring" in tcb_version
     ), "Prepopulated TCB version should include the orginal hex tcb"
     assert (
         tcb_version["hexstring"] == tcb_version["hexstring"].lower()
@@ -389,7 +389,7 @@ def test_tcb_version_tables(network, args):
         versions = r.body.json()["snp"]["tcbVersions"]
         assert cpuid in versions, f"Expected {cpuid} in TCB versions, {versions}"
         assert (
-            "hexstring" not in versions[cpuid].keys()
+            "hexstring" not in versions[cpuid]
         ), "TCB version should not include the hexstring tcb if set with the old API"
 
     LOG.info("Checking new nodes are allowed to join using expanded api")
@@ -407,7 +407,7 @@ def test_tcb_version_tables(network, args):
         versions = r.body.json()["snp"]["tcbVersions"]
         assert cpuid in versions, f"Expected {cpuid} in TCB versions, {versions}"
         assert (
-            "hexstring" in versions[cpuid].keys()
+            "hexstring" in versions[cpuid]
         ), "TCB version should include the orginal hexstring tcb"
         assert (
             versions[cpuid]["hexstring"] == permissive_tcb_version_raw
@@ -1035,7 +1035,7 @@ def _test_update_all_nodes(network, args, atomic_reconfiguration=False):
                         for host_data, security_policy in entries
                     }
                 elif infra.platform_detection.is_virtual():
-                    return set(host_data for host_data, _ in entries)
+                    return {host_data for host_data, _ in entries}
                 else:
                     raise ValueError(
                         f"Unsupported platform: {infra.platform_detection.get_platform()}"
@@ -1198,7 +1198,7 @@ def test_add_node_with_no_uvm_endorsements_in_kv(network, args):
         len(uvm_endorsements) == 1
     ), f"Expected one UVM endorsement, {uvm_endorsements}"
     did, value = next(iter(uvm_endorsements.items()))
-    feed, data = next(iter(value.items()))
+    feed, _data = next(iter(value.items()))
 
     network.consortium.remove_snp_uvm_endorsement(primary, did, feed)
 

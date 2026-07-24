@@ -15,10 +15,11 @@ import threading
 import time
 import urllib.parse
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timezone
 from hashlib import sha256
 from http.client import HTTPResponse
 from types import MappingProxyType
+from typing import ClassVar
 
 import cbor2
 import ccf.receipt
@@ -46,9 +47,10 @@ from loguru import logger as LOG
 
 def get_service_key(network):
     service_cert_path = os.path.join(network.common_dir, "service_cert.pem")
-    service_cert = load_pem_x509_certificate(
-        open(service_cert_path, "rb").read(), default_backend()
-    )
+    with open(service_cert_path, "rb") as service_cert_file:
+        service_cert = load_pem_x509_certificate(
+            service_cert_file.read(), default_backend()
+        )
     return service_cert.public_key()
 
 
@@ -1116,9 +1118,10 @@ def test_cose_receipt_schema(network, args):
     txid = r.headers[infra.clients.CCF_TX_ID_HEADER]
 
     service_cert_path = os.path.join(network.common_dir, "service_cert.pem")
-    service_cert = load_pem_x509_certificate(
-        open(service_cert_path, "rb").read(), default_backend()
-    )
+    with open(service_cert_path, "rb") as service_cert_file:
+        service_cert = load_pem_x509_certificate(
+            service_cert_file.read(), default_backend()
+        )
     service_key = service_cert.public_key()
 
     with primary.client("user0") as client:
@@ -1783,7 +1786,7 @@ def test_view_history(network, args):
 
 class SentTxs:
     # view -> seqno -> status
-    txs = defaultdict(lambda: defaultdict(lambda: TxStatus.Unknown))
+    txs: ClassVar = defaultdict(lambda: defaultdict(lambda: TxStatus.Unknown))
 
     @staticmethod
     def update_status(view, seqno, status=None):
@@ -2546,7 +2549,9 @@ def test_blocking_calls(network, args):
                     assert r.status_code == http.HTTPStatus.OK, r.status_code
                     txid = TxID.from_str(r.body.json()["transaction_id"])
                     if txid != prev_txid:
-                        self.known_commit_times.append((datetime.now(), txid))
+                        self.known_commit_times.append(
+                            (datetime.now(timezone.utc), txid)
+                        )
                         prev_txid = txid
 
     cp = CommitPoller(primary)
@@ -2581,7 +2586,7 @@ def test_blocking_calls(network, args):
                     b"\0" * 32,
                 )
 
-            now = datetime.now()
+            now = datetime.now(timezone.utc)
             txid = TxID.from_str(r.headers[infra.clients.CCF_TX_ID_HEADER])
             response_times.append((now, path, txid))
 

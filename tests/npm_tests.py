@@ -30,12 +30,12 @@ def validate_openapi(client):
     openapi_doc = api_response.body.json()
     try:
         openapi_spec_validator.validate_spec(openapi_doc)
-    except Exception as e:
+    except Exception:
         filename = "./bad_schema.json"
         with open(filename, "w", encoding="utf-8") as f:
             json.dump(openapi_doc, f, indent=2)
         LOG.error(f"Document written to {filename}")
-        raise e
+        raise
 
 
 def generate_and_verify_jwk(client):
@@ -228,7 +228,7 @@ def rand_bytes(n):
 
 @reqs.description("Build basic Node.js/npm app")
 def build_npm_app(network, args):
-    primary, _ = network.find_nodes()
+    _primary, _ = network.find_nodes()
 
     LOG.info("Building ccf-app npm package (dependency)")
     ccf_pkg_dir = os.path.join(PARENT_DIR, "js", "ccf-app")

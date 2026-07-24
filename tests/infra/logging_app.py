@@ -320,7 +320,7 @@ class LoggingTxs:
             f"Verifying historical range for all entries (from: {from_seqno}, to: {to_seqno})"
         )
         entries_count = 0
-        for idx in self.pub.keys():
+        for idx in self.pub:
             entries, _ = self.verify_range_for_idx(
                 idx, node, timeout, log_capture, from_seqno, to_seqno
             )
@@ -347,13 +347,13 @@ class LoggingTxs:
 
         sample_count = 5
         nodes = self.network.get_joined_nodes() if node is None else [node]
-        for node in nodes:
+        for target_node in nodes:
             for pub_idx, pub_value in self.pub.items():
                 # As public records do not yet handle historical queries,
                 # only verify the latest entry
                 entry = pub_value[-1]
                 self.verify_tx(
-                    node,
+                    target_node,
                     pub_idx,
                     entry["msg"],
                     entry["seqno"],

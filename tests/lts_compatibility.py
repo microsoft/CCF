@@ -451,7 +451,7 @@ def run_code_upgrade_from(
 
             # If host_data was found for original nodes, check if it's different on new nodes, in which case old should be removed
             if new_host_data is not None:
-                old_host_data, old_security_policy = (
+                old_host_data, _old_security_policy = (
                     infra.utils.get_host_data_and_security_policy(
                         infra.platform_detection.get_platform(),
                         args.package,

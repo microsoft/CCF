@@ -4,6 +4,7 @@
 import argparse
 import json
 import shutil
+from typing import ClassVar
 
 import ccf.ledger
 import ccf.signatures
@@ -45,7 +46,7 @@ class Liner:
 
 
 class DefaultLiner(Liner):
-    _bg_colour_mapping = {
+    _bg_colour_mapping: ClassVar[dict[str, str]] = {
         "New Service": "Black",
         "Recovering Service": "Red",
         "Service Open": "White",

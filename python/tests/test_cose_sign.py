@@ -45,7 +45,7 @@ def i2osp(x: int, x_len: int) -> bytes:
         x //= 256
     for _ in range(x_len - len(digits)):
         digits.append(0)
-    return bytes.fromhex("".join("%.2x" % x for x in digits[::-1]))
+    return bytes.fromhex("".join(f"{x:02x}" for x in digits[::-1]))
 
 
 def hash_algo(priv: ec.EllipticCurvePrivateKey):
@@ -80,7 +80,7 @@ def test_create_cose_sign1_finish(curve):
     a signature as create_cose_sign1().
     """
     priv = make_private_key(curve)
-    priv_pem, pub_pem = make_pem_pair(priv)
+    priv_pem, _pub_pem = make_pem_pair(priv)
     cert = make_self_signed_cert(priv, "example.com")
 
     payload = b"Hello World"

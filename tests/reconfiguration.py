@@ -83,7 +83,7 @@ def node_configs(network):
 
 
 def count_nodes(configs, network):
-    nodes = set(str(k) for k in configs.keys())
+    nodes = {str(k) for k in configs}
     stopped = {str(n.node_id) for n in network.nodes if n.is_stopped()}
     for node_id, node_config in configs.items():
         nodes_in_config = set(node_config.keys()) - stopped

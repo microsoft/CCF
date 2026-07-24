@@ -8,6 +8,7 @@ import signal
 import subprocess
 import time
 from enum import Enum, auto
+from typing import ClassVar
 
 import ccf._versionifier
 from jinja2 import Environment, FileSystemLoader, select_autoescape
@@ -300,7 +301,7 @@ class LocalRemote(CmdMixin):
 
 class CCFRemote:
     TEMPLATE_CONFIGURATION_FILE = "config.jinja"
-    DEPS = []
+    DEPS: ClassVar[list[str]] = []
 
     def __init__(
         self,

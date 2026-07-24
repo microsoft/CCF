@@ -80,8 +80,10 @@ def endpoint_properties(
 
 def sign_payload(identity, msg_type, json_payload):
     serialised_payload = json.dumps(json_payload).encode()
-    key = open(identity.key, "r").read()
-    cert = open(identity.cert, "r").read()
+    with open(identity.key) as key_file:
+        key = key_file.read()
+    with open(identity.cert) as cert_file:
+        cert = cert_file.read()
     phdr = {
         "app.msg.type": msg_type,
         "app.msg.created_at": int(infra.clients.get_clock().moment().timestamp()),
@@ -275,14 +277,15 @@ def test_custom_endpoints_kv_restrictions(network, args):
         },
     }
 
+    with open(
+        os.path.join(os.path.dirname(__file__), "programmability", "restrictions.js")
+    ) as module_file:
+        module = module_file.read()
+
     modules = [
         {
             "name": module_name,
-            "module": open(
-                os.path.join(
-                    os.path.dirname(__file__), "programmability", "restrictions.js"
-                )
-            ).read(),
+            "module": module,
         }
     ]
 
@@ -578,11 +581,12 @@ def deploy_npm_app_custom(network, args):
         app_dir, "dist", "bundle.json"
     )  # Produced by build_npm_app
 
-    signed_bundle = sign_payload(
-        network.identity(user.local_id),
-        "custom_endpoints",
-        json.load(open(bundle_path)),
-    )
+    with open(bundle_path) as bundle_file:
+        signed_bundle = sign_payload(
+            network.identity(user.local_id),
+            "custom_endpoints",
+            json.load(bundle_file),
+        )
     with primary.client() as c:
         r = c.put(
             "/app/custom_endpoints",

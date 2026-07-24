@@ -4,6 +4,7 @@ import asyncio
 import os
 import random
 import ssl
+import sys
 import tempfile
 from datetime import UTC, datetime, timedelta
 
@@ -133,7 +134,7 @@ async def main():
         cmd = "./curl_test"
         process = await asyncio.create_subprocess_shell(cmd, env=env)
         await process.wait()
-        exit(process.returncode)
+        sys.exit(process.returncode)
 
 
 if __name__ == "__main__":

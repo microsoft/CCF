@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import os
+from typing import ClassVar
 
 from loguru import logger as LOG
 
@@ -11,7 +12,7 @@ DBG = os.getenv("DBG", "cgdb")
 
 
 class CCFRemoteClient:
-    DEPS = []
+    DEPS: ClassVar[list[str]] = []
     LINES_RESULT_FROM_END = 8
 
     def __init__(
@@ -106,7 +107,7 @@ class CCFRemoteClient:
 
 
 class CCFRemoteCmd:
-    DEPS = []
+    DEPS: ClassVar[list[str]] = []
     LINES_RESULT_FROM_END = 8
 
     def __init__(self, name, host, bin_path, common_dir, workspace, dependencies):

@@ -1533,7 +1533,7 @@ def test_ledger_chunk_redirect_gap(network, args):
     Add a new node to the network from a recent snapshot, then access a ledger chunk that
     predates the snapshot on the new node, checking redirection to another node and content correctness.
     """
-    primary, backups = network.find_nodes()
+    primary, _backups = network.find_nodes()
 
     # Get commit index from primary
     with primary.client(interface_name=infra.interfaces.PRIMARY_RPC_INTERFACE) as c:
@@ -2041,9 +2041,10 @@ def run_cose_only_mode_upgrade(args):
 
     def get_service_key(network):
         service_cert_path = os.path.join(network.common_dir, "service_cert.pem")
-        service_cert = x509.load_pem_x509_certificate(
-            open(service_cert_path, "rb").read(), default_backend()
-        )
+        with open(service_cert_path, "rb") as service_cert_file:
+            service_cert = x509.load_pem_x509_certificate(
+                service_cert_file.read(), default_backend()
+            )
         return service_cert.public_key()
 
     def verify_receipt_available(node, view, seqno, service_key, expect_regular=True):
@@ -2431,8 +2432,8 @@ def run_late_mounted_ledger_check(args):
 
             # Copy correct files
             for dst_path, src_path in dst_files.items():
-                with open(dst_path, "wb") as f:
-                    f.write(open(src_path, "rb").read())
+                with open(src_path, "rb") as src, open(dst_path, "wb") as dst:
+                    dst.write(src.read())
 
             # Historical query now passes
             assert try_historical_fetch(new_node)
@@ -2443,17 +2444,20 @@ def run_late_mounted_ledger_check(args):
 
             # Check node output for expected errors
             out_path, _ = new_node.get_logs()
-            for line in open(out_path, "r", encoding="utf-8"):
-                expected_errors = [
-                    error for error in expected_errors if error not in line
-                ]
-                if len(expected_errors) == 0:
-                    break
-            else:
-                LOG.error("Expected to find following error messages in node output:")
-                for error in expected_errors:
-                    LOG.error(f"  {error}")
-                raise AssertionError(expected_errors)
+            with open(out_path, "r", encoding="utf-8") as output:
+                for line in output:
+                    expected_errors = [
+                        error for error in expected_errors if error not in line
+                    ]
+                    if len(expected_errors) == 0:
+                        break
+                else:
+                    LOG.error(
+                        "Expected to find following error messages in node output:"
+                    )
+                    for error in expected_errors:
+                        LOG.error(f"  {error}")
+                    raise AssertionError(expected_errors)
 
 
 def run_empty_ledger_dir_check(args):
@@ -2518,10 +2522,10 @@ def run_initial_uvm_descriptor_checks(const_args):
             snp_policy = r.body.json()["snp"]
             uvm_endorsements = snp_policy["uvmEndorsements"]
             assert len(uvm_endorsements) == 1, uvm_endorsements
-            did = list(uvm_endorsements.keys())[0]
+            did = next(iter(uvm_endorsements.keys()))
             feeds = uvm_endorsements[did]
             assert len(feeds) == 1, feeds
-            feed = list(feeds.keys())[0]
+            feed = next(iter(feeds.keys()))
             svn = int(feeds[feed]["svn"])
             LOG.info(f"Current UVM endorsement: did={did} feed={feed} svn={svn}")
 
@@ -3319,7 +3323,7 @@ def run_error_message_on_failure_to_read_aci_sec_context(args):
     ) as network:
         network.start_and_open(args)
 
-        primary, _ = network.find_primary()
+        _primary, _ = network.find_primary()
 
         args_copy = copy.deepcopy(args)
 
@@ -3349,13 +3353,14 @@ def run_error_message_on_failure_to_read_aci_sec_context(args):
         ]
 
         out_path, _ = new_node.get_logs()
-        for line in open(out_path, "r", encoding="utf-8"):
-            for expected in expected_log_messages:
-                if expected in line:
-                    expected_log_messages.remove(expected)
-                    LOG.info(f"Found expected log message: {expected}")
-            if len(expected_log_messages) == 0:
-                break
+        with open(out_path, "r", encoding="utf-8") as output:
+            for line in output:
+                for expected in expected_log_messages:
+                    if expected in line:
+                        expected_log_messages.remove(expected)
+                        LOG.info(f"Found expected log message: {expected}")
+                if len(expected_log_messages) == 0:
+                    break
 
         assert (
             len(expected_log_messages) == 0
@@ -3632,14 +3637,15 @@ def test_backup_snapshot_fetch_max_size(network, args):
     assert_no_snapshot_is_present()
     expected_log_message = "Failed writing received data to disk/application"
     out_path, _ = new_node.get_logs()
-    for line in open(out_path, "r", encoding="utf-8"):
-        if expected_log_message in line:
-            LOG.info(f"Found expected log message: {line}")
-            break
-    else:
-        raise AssertionError(
-            f"Did not find expected log message about snapshot exceeding max size: {expected_log_message}"
-        )
+    with open(out_path, "r", encoding="utf-8") as output:
+        for line in output:
+            if expected_log_message in line:
+                LOG.info(f"Found expected log message: {line}")
+                break
+        else:
+            raise AssertionError(
+                f"Did not find expected log message about snapshot exceeding max size: {expected_log_message}"
+            )
 
 
 def test_join_idempotency_short_circuits_on_backup(network, args):
@@ -3728,8 +3734,10 @@ def test_join_idempotency_short_circuits_on_backup(network, args):
     # primary ran add_node exactly once for this id.
     backup_out, _ = backup.get_logs()
     primary_out, _ = primary.get_logs()
-    backup_lines = open(backup_out, encoding="utf-8").read()
-    primary_lines = open(primary_out, encoding="utf-8").read()
+    with open(backup_out, encoding="utf-8") as backup_output:
+        backup_lines = backup_output.read()
+    with open(primary_out, encoding="utf-8") as primary_output:
+        primary_lines = primary_output.read()
 
     assert (
         "Join request redirected to primary" in backup_lines
@@ -4656,7 +4664,7 @@ def test_post_snapshot_chunks_retained(network, args, read_only_ledger_dir):
 
     # All post-snapshot chunks must still be present
     for chunk in post_snapshot_chunks:
-        chunk_start, chunk_end = ccf.ledger.range_from_filename(chunk)
+        _chunk_start, chunk_end = ccf.ledger.range_from_filename(chunk)
         assert chunk_end >= snapshot_seqno, (
             f"Post-snapshot chunk {chunk} (end={chunk_end}) should not have "
             f"been deleted (snapshot watermark={snapshot_seqno})"

@@ -4,7 +4,6 @@
 import urllib.parse
 from dataclasses import asdict, dataclass, field
 from enum import Enum
-from typing import Union
 
 from loguru import logger as LOG
 
@@ -121,7 +120,7 @@ class StaticAddressResolver:
         return StaticAddressResolver(target_address=json["target"]["address"])
 
 
-RedirectionResolver = Union[NodeByRoleResolver, StaticAddressResolver]
+RedirectionResolver = NodeByRoleResolver | StaticAddressResolver
 
 
 @dataclass

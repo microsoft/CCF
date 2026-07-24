@@ -52,7 +52,7 @@ class Stats:
 
     def display(self, print_fn):
         print_fn(f"{self.label} ({len(self.ns)} entries)")
-        keylen = max(len(k) for k in self.stats.keys())
+        keylen = max(len(k) for k in self.stats)
         valuelen = max(len(f"{v:.2f}") for v in self.stats.values())
 
         for k, v in self.stats.items():

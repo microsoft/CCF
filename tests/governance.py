@@ -264,7 +264,8 @@ def test_all_members(network, args):
                 enc_pub_key_file = os.path.join(
                     primary.common_dir, member.member_info["encryption_public_key_file"]
                 )
-                recovery_enc_key = open(enc_pub_key_file, encoding="utf-8").read()
+                with open(enc_pub_key_file, encoding="utf-8") as enc_pub_key:
+                    recovery_enc_key = enc_pub_key.read()
                 assert response_pub_enc_key == recovery_enc_key
             else:
                 assert response_pub_enc_key is None
@@ -369,7 +370,7 @@ def test_each_node_cert_renewal(network, args):
                         )
                     except Exception as e:
                         if expected_exception is None:
-                            raise e
+                            raise
                         assert isinstance(e, expected_exception)
                         continue
                     else:
@@ -679,14 +680,15 @@ def single_node(args):
     }
     warn_counts = {k: 0 for k in {validate_warn, apply_warn}}
     out_path, _ = primary.get_logs()
-    for line in open(out_path, "r", encoding="utf-8"):
-        for k in info_counts:
-            if k in line and "[info ]" in line:
-                info_counts[k] += 1
+    with open(out_path, "r", encoding="utf-8") as output:
+        for line in output:
+            for k in info_counts:
+                if k in line and "[info ]" in line:
+                    info_counts[k] += 1
 
-        for k in warn_counts:
-            if k in line and "[fail ]" in line:
-                warn_counts[k] += 1
+            for k in warn_counts:
+                if k in line and "[fail ]" in line:
+                    warn_counts[k] += 1
 
     LOG.debug("Found following info line occurrences in node output:")
     for k, v in info_counts.items():

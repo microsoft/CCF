@@ -9,6 +9,7 @@ import sys
 import threading
 import time
 from random import seed
+from typing import ClassVar
 
 import better_exceptions
 from loguru import logger as LOG
@@ -196,12 +197,12 @@ threading.excepthook = log_exception
 
 
 class ConcurrentRunner:
-    threads: list[threading.Thread] = []
+    threads: ClassVar[list[threading.Thread]] = []
 
     # Env var to filter sub-tests by exact name match. Value is a
     # '|'-separated list, e.g. CR_FILTER="testname1|testname2". When set,
     # only sub-tests whose name fully matches one of the entries are added.
-    _test_filter = (
+    _test_filter: ClassVar[list[str] | None] = (
         os.environ["CR_FILTER"].split("|") if os.environ.get("CR_FILTER") else None
     )
 

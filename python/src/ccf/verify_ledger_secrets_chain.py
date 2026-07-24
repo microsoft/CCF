@@ -53,7 +53,7 @@ def run(paths, uncommitted=False):
                     if table_name != historical_secrets_table:
                         continue
 
-                    for _, value in records.items():
+                    for value in records.values():
                         if value is not None:
                             txid = (
                                 transaction.gcm_header.view,

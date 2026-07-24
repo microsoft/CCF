@@ -38,7 +38,9 @@ def test_module_import(network, args):
     return network
 
 
-def compare_app_metadata(expected, actual, api_key_renames, route=[]):
+def compare_app_metadata(expected, actual, api_key_renames, route=None):
+    if route is None:
+        route = []
     path = ".".join(route)
     assert isinstance(
         actual, type(actual)

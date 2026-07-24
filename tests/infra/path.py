@@ -80,10 +80,7 @@ def quote_bytes(quote_file_name):
     Parses a binary quote file into raw bytes.
     """
     with open(quote_file_name, "rb") as quote:
-        chars = []
-        for c in quote.read():
-            chars.append(c)
-        return chars
+        return list(quote.read())
 
 
 def create_dir(dir_path):

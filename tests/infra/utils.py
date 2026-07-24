@@ -34,7 +34,8 @@ def get_host_data_and_security_policy(
             lib_path = os.path.join(binary_dir, package)
         else:
             lib_path = infra.path.build_lib_path(package, library_dir, version=version)
-        hash = sha256(open(lib_path, "rb").read())
+        with open(lib_path, "rb") as lib:
+            hash = sha256(lib.read())
         return hash.hexdigest(), None
     else:
         raise ValueError(f"Cannot get security policy on {enclave_platform}")

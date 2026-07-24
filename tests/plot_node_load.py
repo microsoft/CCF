@@ -85,8 +85,12 @@ def get_top(df):
 def parse_load(line):
     j = json.loads(line.split("|", maxsplit=1)[1].split(":", maxsplit=1)[1])
     counts = {
-        "startTime": datetime.datetime.fromtimestamp(j["start_time_ms"] / 1000),
-        "endTime": datetime.datetime.fromtimestamp(j["end_time_ms"] / 1000),
+        "startTime": datetime.datetime.fromtimestamp(
+            j["start_time_ms"] / 1000, datetime.timezone.utc
+        ),
+        "endTime": datetime.datetime.fromtimestamp(
+            j["end_time_ms"] / 1000, datetime.timezone.utc
+        ),
     }
     sizes = counts.copy()
     for k, v in j["ringbuffer_messages"].items():

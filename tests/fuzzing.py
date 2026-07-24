@@ -24,7 +24,7 @@ class CCFFuzzLogger(boofuzz.IFuzzLogger):
         self.log_lines = self.log_lines[-self.keep_lines :]
 
         if self.session is not None:
-            now = datetime.datetime.now()
+            now = datetime.datetime.now(datetime.timezone.utc)
             if self.last_printed is None or now - self.last_printed > self.print_period:
                 fuzzed_this_period = (
                     self.session.num_cases_actually_fuzzed - self.last_fuzzed_count

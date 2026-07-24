@@ -159,14 +159,14 @@ def check_signatures(ledger):
                 assert cose_txid.seqno == gcm_seqno, (cose_txid, gcm_seqno)
 
             # Adjacent signatures only occur on a view change
-            if prev_sig_txid is not None:
-                if prev_sig_txid.seqno + 1 == sig_txid.seqno:
-                    # Reduced from assert while investigating cause
-                    # https://github.com/microsoft/CCF/issues/5078
-                    if sig_txid.view <= prev_sig_txid.view:
-                        LOG.error(
-                            f"Adjacent signatures at {prev_sig_txid} and {sig_txid}"
-                        )
+            if (
+                prev_sig_txid is not None
+                and prev_sig_txid.seqno + 1 == sig_txid.seqno
+                and sig_txid.view <= prev_sig_txid.view
+            ):
+                # Reduced from assert while investigating cause
+                # https://github.com/microsoft/CCF/issues/5078
+                LOG.error(f"Adjacent signatures at {prev_sig_txid} and {sig_txid}")
 
             prev_sig_txid = sig_txid
 
@@ -190,9 +190,9 @@ def check_all_tables_are_documented(table_names_in_ledger, doc_path):
             f"Experimental tables {experimental_table_names_in_ledger} were present in ledger"
         )
 
-    public_table_names_in_ledger = set(
-        [tn for tn in table_names_in_ledger if tn.startswith("public:ccf.")]
-    )
+    public_table_names_in_ledger = {
+        tn for tn in table_names_in_ledger if tn.startswith("public:ccf.")
+    }
     undocumented_tables = public_table_names_in_ledger - set(table_names)
     assert undocumented_tables == set(), undocumented_tables
 

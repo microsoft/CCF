@@ -391,7 +391,7 @@ def check_kv_jwt_keys_not_empty(args, network, issuer):
     primary, _ = network.find_nodes()
     latest_jwt_signing_keys = get_jwt_keys(args, primary)
 
-    for _, data in latest_jwt_signing_keys.items():
+    for data in latest_jwt_signing_keys.values():
         for key in data:
             if key["issuer"] == issuer:
                 return

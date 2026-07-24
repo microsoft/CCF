@@ -592,7 +592,7 @@ class Consortium:
             metadata = json.load(f)
 
         # sanity checks
-        module_paths = set(module["name"] for module in modules)
+        module_paths = {module["name"] for module in modules}
         for url, methods in metadata["endpoints"].items():
             for method, endpoint in methods.items():
                 module_path = endpoint["js_module"]

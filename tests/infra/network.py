@@ -15,6 +15,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from enum import Enum, IntEnum, auto
+from typing import ClassVar
 
 import ccf.ledger
 from ccf.tx_id import TxID
@@ -180,7 +181,7 @@ def log_errors(
 class Network:
     KEY_GEN = "keygenerator.sh"
     SHARE_SCRIPT = "submit_recovery_share.sh"
-    node_args_to_forward = [
+    node_args_to_forward: ClassVar[list[str]] = [
         "log_level",
         "sig_tx_interval",
         "sig_ms_interval",
@@ -904,8 +905,7 @@ class Network:
     def wait_for_recovery_decision_protocol_finish(self, timeout=10):
         def cycle(items):
             while True:
-                for item in items:
-                    yield item
+                yield from items
 
         waiting_nodes = set(self.nodes)
         end_time = time.time() + timeout
@@ -937,7 +937,7 @@ class Network:
                 )
 
                 if not is_timeout:
-                    raise e
+                    raise
 
                 LOG.info(
                     f"Failed to get the status of {node.local_node_id}, retrying..."
@@ -1626,9 +1626,9 @@ class Network:
                 # the commit of the trust_node proposal may rely on the new node
                 # catching up (e.g. adding 1 node to a 1-node network).
                 if statistics is not None:
-                    statistics["node_replacement_governance_start"] = (
-                        datetime.now().isoformat()
-                    )
+                    statistics["node_replacement_governance_start"] = datetime.now(
+                        timezone.utc
+                    ).isoformat()
                 self.consortium.replace_node(
                     primary,
                     node_to_retire,
@@ -1638,9 +1638,9 @@ class Network:
                     timeout=args.ledger_recovery_timeout,
                 )
                 if statistics is not None:
-                    statistics["node_replacement_governance_committed"] = (
-                        datetime.now().isoformat()
-                    )
+                    statistics["node_replacement_governance_committed"] = datetime.now(
+                        timezone.utc
+                    ).isoformat()
         except (ValueError, TimeoutError):
             LOG.error(
                 f"Failed to replace {node_to_retire.node_id} with {node_to_add.node_id}"
@@ -1670,7 +1670,9 @@ class Network:
         else:
             raise TimeoutError(f"Timed out waiting for node to become removed: {r}")
         if statistics is not None:
-            statistics["old_node_removal_committed"] = datetime.now().isoformat()
+            statistics["old_node_removal_committed"] = datetime.now(
+                timezone.utc
+            ).isoformat()
         self.nodes.remove(node_to_retire)
 
     def create_user(self, local_user_id, curve, record=True):
@@ -1776,7 +1778,7 @@ class Network:
             with node.client() as c:
                 logs = []
                 r = c.get("/app/commit", log_capture=logs)
-                if not (r.status_code == http.HTTPStatus.NOT_FOUND.value):
+                if r.status_code != http.HTTPStatus.NOT_FOUND.value:
                     flush_info(logs, None)
                     return
                 time.sleep(0.1)
@@ -2128,7 +2130,7 @@ class Network:
         primary_opinions = {n: p.node_id if p else p for n, p in primaries.items()}
         assert all_good, f"Disagreement about primaries: {primary_opinions}"
         delay = time.time() - start_time
-        primary = list(primaries.values())[0]
+        primary = next(iter(primaries.values()))
         LOG.info(
             f"Primary unanimity after {delay:.2f}s: {primary.local_node_id} ({primary.node_id})"
         )

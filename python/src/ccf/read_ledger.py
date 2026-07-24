@@ -5,7 +5,7 @@ import argparse
 import json
 import re
 import sys
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import Enum, auto
 
 import ccf.ledger
@@ -46,7 +46,7 @@ def fmt_json(data):
 def fmt_cose_recent_timestamp(data):
     s = data.decode()
     ts, _ = s.split(":")
-    dt = datetime.fromtimestamp(int(ts))
+    dt = datetime.fromtimestamp(int(ts), UTC)
     return f"[{dt.isoformat()}] {s}"
 
 

@@ -474,7 +474,8 @@ def test_recover_service(
     network.save_service_identity(args)
     old_primary, _ = network.find_primary()
 
-    prev_ident = open(args.previous_service_identity_file, "r", encoding="utf-8").read()
+    with open(args.previous_service_identity_file, "r", encoding="utf-8") as prev_file:
+        prev_ident = prev_file.read()
     # Strip trailing null byte
     prev_ident = prev_ident.strip("\x00")
     with old_primary.client() as c:
@@ -1017,10 +1018,12 @@ def run_recover_service_from_files(
             for file in os.listdir(old_common)
             if file.startswith("user") and file.endswith("_cert.pem")
         ]
-        user_ids = [
-            infra.crypto.compute_cert_der_hash_hex_from_pem(open(cert).read())
-            for cert in user_certs
-        ]
+        user_ids = []
+        for cert in user_certs:
+            with open(cert) as cert_file:
+                user_ids.append(
+                    infra.crypto.compute_cert_der_hash_hex_from_pem(cert_file.read())
+                )
         for user_id in user_ids:
             LOG.info(f"Removing expired user {user_id}")
             network.consortium.remove_user(primary, user_id)
@@ -1725,7 +1728,7 @@ def run_recover_snapshot_alone(args):
         txs=txs,
     ) as network:
         network.start_and_open(args)
-        primary, _ = network.find_primary()
+        _primary, _ = network.find_primary()
         # Recover node solely from snapshot
         test_recover_service(network, args, from_snapshot=True, no_ledger=True)
         return network

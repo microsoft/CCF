@@ -200,7 +200,7 @@ def run_connection_caps_tests(args):
                     except Exception as e:
                         flush_info(logs)
                         LOG.error(e)
-                        raise e
+                        raise
 
                 time.sleep(1)
                 num_fds = fd_count(primary_pid)

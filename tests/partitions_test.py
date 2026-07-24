@@ -113,7 +113,7 @@ def test_partition_majority(network, args):
 @reqs.exactly_n_nodes(3)
 def test_isolate_primary_from_one_backup(network, args):
     p, backups = network.find_nodes()
-    b_0, b_1 = backups
+    b_0, _b_1 = backups
 
     # Issue one transaction, waiting for all nodes to be have reached
     # the same level of commit, so that nodes outside of partition can
@@ -1463,7 +1463,7 @@ def run_ledger_chunk_bytes_check(const_args):
         # When a node becomes primary, it may discover the current chunk is already over
         # the local chunk threshold, and should immediately terminate this chunk.
         # Confirm it has been correctly tracking chunk sizes while it was backup in this case.
-        smallest_node, smallest_size = nodes_and_sizes[0]
+        smallest_node, _smallest_size = nodes_and_sizes[0]
         for node, chunk_size in nodes_and_sizes[1:]:
             force_become_primary(network, args, node)
             with node.client("user0") as c:
@@ -1531,7 +1531,7 @@ def run_ledger_chunk_bytes_check(const_args):
                     for ledger_dir in (current, *committeds):
                         cmd = f"ls -alv {ledger_dir}"
                         LOG.warning(f"{cmd}")
-                        subprocess.run(cmd.split(" "))
+                        subprocess.run(cmd.split(" "), check=False)
 
                     ccf.read_ledger.run(
                         paths=[path],
