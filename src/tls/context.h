@@ -73,8 +73,12 @@ namespace ccf::tls
         "TLS_AES_128_GCM_SHA256";
       CHECK1(SSL_CTX_set_ciphersuites(cfg, ciphersuites));
 
-      // Restrict the curves to approved ones
-      CHECK1(SSL_CTX_set1_curves_list(cfg, "P-521:P-384:P-256"));
+      // Prefer hybrid post-quantum groups when available, while retaining the
+      // approved classical groups as fallbacks
+      CHECK1(SSL_CTX_set1_groups_list(
+        cfg,
+        "?X25519MLKEM768:?SecP256r1MLKEM768:?SecP384r1MLKEM1024:"
+        "P-521:P-384:P-256"));
 
       // Allow buffer to be relocated between WANT_WRITE retries, and do partial
       // writes if possible
