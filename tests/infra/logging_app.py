@@ -370,7 +370,7 @@ class LoggingTxs:
                     is_historical_entry = v != priv_value[-1]
                     if not is_historical_entry or include_historical:
                         self.verify_tx(
-                            node,
+                            target_node,
                             priv_idx,
                             v["msg"],
                             v["seqno"],
