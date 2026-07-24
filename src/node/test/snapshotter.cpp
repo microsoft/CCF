@@ -150,6 +150,47 @@ TEST_CASE("Recovery snapshot endorsement scan reads ledger files directly")
   REQUIRE_NOTHROW(ccf::verify_snapshot_seqno(first_entry, encryptor, 1));
   REQUIRE_THROWS(ccf::verify_snapshot_seqno(first_entry, encryptor, 2));
 
+  auto malformed_entry = entries.front();
+  const auto public_domain_size_offset =
+    sizeof(ccf::kv::SerialisedEntryHeader) + encryptor->get_header_length();
+  const auto invalid_public_domain_size = malformed_entry.size();
+  std::memcpy(
+    malformed_entry.data() + public_domain_size_offset,
+    &invalid_public_domain_size,
+    sizeof(invalid_public_domain_size));
+
+  ccf::kv::Store untouched_store;
+  const auto original_version = untouched_store.current_version();
+  const auto original_readiness = untouched_store.get_readiness();
+
+  bool snapshot_install_called = false;
+  const ccf::SnapshotSegments malformed_snapshot{
+    std::span<const uint8_t>(malformed_entry), {}};
+  const auto snapshot_error = ccf::try_verify_and_install_recovery_snapshot(
+    [&]() { ccf::verify_snapshot_seqno(malformed_snapshot, encryptor, 1); },
+    [&]() { snapshot_install_called = true; });
+  REQUIRE(snapshot_error.has_value());
+  REQUIRE_FALSE(snapshot_install_called);
+  REQUIRE(untouched_store.current_version() == original_version);
+  REQUIRE(untouched_store.get_readiness() == original_readiness);
+
+  ScopedSnapshotDir malformed_ledger_dir;
+  write_current_ledger_file(
+    malformed_ledger_dir.path / "ledger_1", {malformed_entry});
+  ccf::CCFConfig::Ledger malformed_ledger_config;
+  malformed_ledger_config.directory = malformed_ledger_dir.path.string();
+  bool scanner_install_called = false;
+  const auto scanner_error = ccf::try_verify_and_install_recovery_snapshot(
+    [&]() {
+      std::ignore = ccf::scan_recovery_snapshot_ledger_files(
+        malformed_ledger_config, encryptor, 0);
+    },
+    [&]() { scanner_install_called = true; });
+  REQUIRE(scanner_error.has_value());
+  REQUIRE_FALSE(scanner_install_called);
+  REQUIRE(untouched_store.current_version() == original_version);
+  REQUIRE(untouched_store.get_readiness() == original_readiness);
+
   write_current_ledger_file(ledger_dir.path / "ledger_1", entries);
 
   ccf::CCFConfig::Ledger ledger_config;

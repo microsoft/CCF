@@ -22,8 +22,9 @@ if [ ! -x "$(command -v uv)" ]; then
   exit 1
 fi
 
+RUFF_VERSION="0.15.7"
 if [ $FIX -ne 0 ]; then
-  uvx ruff check --fix python/ tests/
+  uvx --from "ruff==$RUFF_VERSION" ruff check --fix python/ tests/
 else
-  uvx ruff check python/ tests/
+  uvx --from "ruff==$RUFF_VERSION" ruff check python/ tests/
 fi
