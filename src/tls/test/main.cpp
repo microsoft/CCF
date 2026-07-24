@@ -14,7 +14,6 @@
 #include <chrono>
 #include <exception>
 #include <openssl/err.h>
-#include <openssl/objects.h>
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
 #include <iostream>
@@ -483,14 +482,19 @@ public:
 
   std::string negotiated_group_name()
   {
-    const auto nid = SSL_get_negotiated_group(get_ssl());
-    if (nid == NID_undef)
+    const auto group_id = SSL_get_negotiated_group(get_ssl());
+    if (group_id == NID_undef)
     {
       return {};
     }
 
-    const auto* name = OBJ_nid2sn(nid);
-    return name == nullptr ? std::to_string(nid) : name;
+    const auto* group_name = SSL_group_to_name(get_ssl(), group_id);
+    if (group_name != nullptr)
+    {
+      return group_name;
+    }
+
+    return std::to_string(group_id);
   }
 };
 
