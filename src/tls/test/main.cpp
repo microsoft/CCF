@@ -10,9 +10,11 @@
 #include "tls/server.h"
 #include "tls/tls.h"
 
+#include <algorithm>
 #include <chrono>
 #include <exception>
 #include <openssl/err.h>
+#include <openssl/objects.h>
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
 #include <iostream>
@@ -349,6 +351,53 @@ std::string truncate_message(const uint8_t* msg, size_t len)
   return str;
 }
 
+void run_handshake(tls::Server& server, tls::Client& client)
+{
+  std::atomic<bool> keep_going = true;
+  std::optional<std::runtime_error> client_exception, server_exception;
+
+  thread client_thread([&client, &keep_going, &client_exception]() {
+    LOG_INFO_FMT("Client handshake");
+    try
+    {
+      if (handshake(&client, keep_going))
+        throw runtime_error("Client handshake error");
+    }
+    catch (std::runtime_error& ex)
+    {
+      keep_going = false;
+      client_exception = ex;
+    }
+  });
+
+  thread server_thread([&server, &keep_going, &server_exception]() {
+    LOG_INFO_FMT("Server handshake");
+    try
+    {
+      if (handshake(&server, keep_going))
+        throw runtime_error("Server handshake error");
+    }
+    catch (std::runtime_error& ex)
+    {
+      keep_going = false;
+      server_exception = ex;
+    }
+  });
+
+  client_thread.join();
+  server_thread.join();
+  LOG_INFO_FMT("Handshake completed");
+
+  if (client_exception)
+  {
+    throw *client_exception;
+  }
+  if (server_exception)
+  {
+    throw *server_exception;
+  }
+}
+
 /// Test runner, with various options for different kinds of tests.
 void run_test_case(
   const uint8_t* message,
@@ -369,52 +418,7 @@ void run_test_case(
   server.set_bio(&pipe, send<TestPipe::SERVER>, recv<TestPipe::SERVER>);
   client.set_bio(&pipe, send<TestPipe::CLIENT>, recv<TestPipe::CLIENT>);
 
-  std::atomic<bool> keep_going = true;
-  std::optional<std::runtime_error> client_exception, server_exception;
-
-  // Create a thread for the client handshake
-  thread client_thread([&client, &keep_going, &client_exception]() {
-    LOG_INFO_FMT("Client handshake");
-    try
-    {
-      if (handshake(&client, keep_going))
-        throw runtime_error("Client handshake error");
-    }
-    catch (std::runtime_error& ex)
-    {
-      keep_going = false;
-      client_exception = ex;
-    }
-  });
-
-  // Create a thread for the server handshake
-  thread server_thread([&server, &keep_going, &server_exception]() {
-    LOG_INFO_FMT("Server handshake");
-    try
-    {
-      if (handshake(&server, keep_going))
-        throw runtime_error("Server handshake error");
-    }
-    catch (std::runtime_error& ex)
-    {
-      keep_going = false;
-      server_exception = ex;
-    }
-  });
-
-  // Join threads
-  client_thread.join();
-  server_thread.join();
-  LOG_INFO_FMT("Handshake completed");
-
-  if (client_exception)
-  {
-    throw *client_exception;
-  }
-  if (server_exception)
-  {
-    throw *server_exception;
-  }
+  run_handshake(server, client);
 
   // The rest of the communication is deterministic and easy to simulate
   // so we take them out of the thread, to guarantee there will be bytes
@@ -476,7 +480,31 @@ public:
   {
     return SSL_get_verify_mode(get_ssl());
   }
+
+  std::string negotiated_group_name()
+  {
+    const auto nid = SSL_get_negotiated_group(get_ssl());
+    if (nid == NID_undef)
+    {
+      return {};
+    }
+
+    const auto* name = OBJ_nid2sn(nid);
+    return name == nullptr ? std::to_string(nid) : name;
+  }
 };
+
+bool openssl_supports_group(const char* group_name)
+{
+  ccf::crypto::OpenSSL::Unique_SSL_CTX ctx(TLS_client_method());
+  const auto rc = SSL_CTX_set1_groups_list(ctx, group_name);
+  if (rc != 1)
+  {
+    ERR_clear_error();
+  }
+
+  return rc == 1;
+}
 
 TEST_CASE("connection inherits verification mode from context")
 {
@@ -495,6 +523,41 @@ TEST_CASE("connection inherits verification mode from context")
   REQUIRE((request_only_client.verify_mode() & SSL_VERIFY_PEER) != 0);
   REQUIRE(
     (request_only_client.verify_mode() & SSL_VERIFY_FAIL_IF_NO_PEER_CERT) == 0);
+}
+
+TEST_CASE("handshake prefers hybrid post-quantum group when available")
+{
+  const std::vector<std::string> hybrid_groups = {
+    "X25519MLKEM768", "SecP256r1MLKEM768", "SecP384r1MLKEM1024"};
+
+  bool supports_hybrid_group = false;
+  for (const auto& group : hybrid_groups)
+  {
+    supports_hybrid_group |= openssl_supports_group(group.c_str());
+  }
+
+  if (!supports_hybrid_group)
+  {
+    MESSAGE("OpenSSL does not support the hybrid post-quantum TLS groups");
+    return;
+  }
+
+  auto ca = get_ca();
+  tls::Server server(get_dummy_cert(ca, "server", false));
+  InspectableClient client(get_dummy_cert(ca, "client", false));
+
+  TestPipe pipe;
+  server.set_bio(&pipe, send<TestPipe::SERVER>, recv<TestPipe::SERVER>);
+  client.set_bio(&pipe, send<TestPipe::CLIENT>, recv<TestPipe::CLIENT>);
+
+  run_handshake(server, client);
+
+  const auto negotiated_group = client.negotiated_group_name();
+  INFO("Negotiated TLS group: " << negotiated_group);
+  REQUIRE(
+    std::find(
+      hybrid_groups.begin(), hybrid_groups.end(), negotiated_group) !=
+    hybrid_groups.end());
 }
 
 TEST_CASE("unverified handshake")
