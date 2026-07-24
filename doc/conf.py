@@ -222,6 +222,7 @@ smv_outputdir_format = "{ref.name}"
 
 assert re.match(smv_branch_whitelist, "main")
 assert not re.match(smv_branch_whitelist, "release/not-a-version")
+assert not re.match(smv_branch_whitelist, "release/2.x")
 assert re.match(smv_branch_whitelist, "release/7.x")
 assert re.match(smv_branch_whitelist, "release/100.x")
 assert not re.match(smv_branch_whitelist, "release/7.x_feature")
