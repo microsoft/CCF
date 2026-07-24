@@ -4,8 +4,9 @@
 import base64
 import functools
 import json
+from collections.abc import Container, Mapping
 from dataclasses import dataclass
-from typing import Any, Container, Mapping, Optional
+from typing import Any
 
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import hashes, serialization
@@ -99,14 +100,14 @@ class RawSignaturePayload:
     signing_node: str
     root: bytes
     signature: bytes
-    embedded_cert: Optional[bytes]
+    embedded_cert: bytes | None
     """PEM bytes of the signing node's certificate as embedded in the
     signature entry (``"cert"`` field), or ``None`` if absent."""
 
 
 def parse_raw_signature_from_tx(
     tx_tables: Mapping[str, Any],
-) -> Optional[RawSignaturePayload]:
+) -> RawSignaturePayload | None:
     """Return the raw signature payload in this tx, or ``None`` if absent.
 
     The signature table is a singleton (one entry per tx, keyed by
@@ -132,7 +133,7 @@ def parse_raw_signature_from_tx(
     )
 
 
-def parse_cose_signature_from_tx(tx_tables: Mapping[str, Any]) -> Optional[bytes]:
+def parse_cose_signature_from_tx(tx_tables: Mapping[str, Any]) -> bytes | None:
     """Return the COSE Sign1 bytes from this tx, or ``None`` if absent.
 
     Strips the JSON-string + base64 wrapper used in the KV table and returns

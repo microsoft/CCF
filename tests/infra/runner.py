@@ -1,23 +1,24 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
+import copy
 import getpass
-import time
 import logging
+import os
+import re
+import sys
+import threading
+import time
 from random import seed
+from typing import ClassVar
+
+import better_exceptions
+from loguru import logger as LOG
+
+import infra.bencher
 import infra.jwt_issuer
 import infra.network
 import infra.proc
 import infra.remote_client
-import threading
-import copy
-from typing import List
-import sys
-import better_exceptions
-import re
-import infra.bencher
-import os
-
-from loguru import logger as LOG
 
 logging.getLogger("matplotlib").setLevel(logging.WARNING)
 
@@ -61,7 +62,7 @@ def configure_remote_client(args, client_id, client_host, node, command_args):
         remote_client.setup()
         return remote_client
     except Exception:
-        LOG.exception("Failed to start client {}".format(client_host))
+        LOG.exception(f"Failed to start client {client_host}")
         raise
 
 
@@ -77,7 +78,7 @@ def run(get_command, args):
     args.sig_ms_interval = 1000  # Set to node default value
     args.ledger_chunk_bytes = "5MB"  # Set to node default value
 
-    LOG.info("Starting nodes on {}".format(hosts))
+    LOG.info(f"Starting nodes on {hosts}")
 
     with infra.network.network(
         hosts, args.binary_dir, args.debug_nodes, pdb=args.pdb
@@ -179,7 +180,7 @@ FAILURES = []
 
 
 def log_exception(args: threading.ExceptHookArgs):
-    description = f"Failure in {args.thread.name}: {repr(args.exc_value)}"
+    description = f"Failure in {args.thread.name}: {args.exc_value!r}"
     FAILURES.append(description)
     LOG.error(
         description
@@ -196,12 +197,12 @@ threading.excepthook = log_exception
 
 
 class ConcurrentRunner:
-    threads: List[threading.Thread] = []
+    threads: ClassVar[list[threading.Thread]] = []
 
     # Env var to filter sub-tests by exact name match. Value is a
     # '|'-separated list, e.g. CR_FILTER="testname1|testname2". When set,
     # only sub-tests whose name fully matches one of the entries are added.
-    _test_filter = (
+    _test_filter: ClassVar[list[str] | None] = (
         os.environ["CR_FILTER"].split("|") if os.environ.get("CR_FILTER") else None
     )
 

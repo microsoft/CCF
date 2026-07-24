@@ -1,16 +1,15 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-from hashlib import sha256
 import itertools
 import time
+from hashlib import sha256
 
+import infra.checker
+import infra.e2e_args
+import infra.net
 import infra.network
 import infra.proc
-import infra.net
-import infra.checker
 import suite.test_requirements as reqs
-import infra.e2e_args
-
 from loguru import logger as LOG
 
 id_gen = itertools.count()

@@ -6,13 +6,11 @@ import re
 import sys
 from email.parser import Parser
 from pathlib import Path
-from typing import List
 
 import matplotlib.pyplot as plt  # type: ignore
 import numpy as np
 import pandas as pd  # type: ignore
 from loguru import logger as LOG
-
 from prettytable import PrettyTable  # type: ignore
 
 SEC_MS = 1000
@@ -129,7 +127,7 @@ class Analyze:
         )
         return latency_output_table
 
-    def customize_table(self, fields_list: List[str], values_list: List[List]):
+    def customize_table(self, fields_list: list[str], values_list: list[list]):
         custom_table = PrettyTable()
         custom_table.field_names = fields_list
         for val_row in values_list:
@@ -193,7 +191,7 @@ class Analyze:
                 )
 
                 time_units.append(
-                    (float(df_responses.iloc[row]["receiveTime"]) - init_time)
+                    float(df_responses.iloc[row]["receiveTime"]) - init_time
                 )
         plt.figure()
         plt.scatter(time_units, tx_ids, label="Txid", marker="o")
@@ -211,7 +209,7 @@ class Analyze:
         y_limits=(None, None),
         **kwargs,
     ) -> None:
-        id_unit = [x for x in range(0, len(df_sends.index))]
+        id_unit = [x for x in range(len(df_sends.index))]
         lat_unit = self.ms_latency_list
         plt.figure(**kwargs)
         plt.scatter(id_unit, lat_unit, s=1, c="black")

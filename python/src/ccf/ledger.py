@@ -1,25 +1,22 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-import struct
-import os
-from enum import Enum, IntEnum, Flag, auto
-
 import json
-from dataclasses import dataclass
-
-from cryptography.x509 import load_pem_x509_certificate
-from cryptography.hazmat.backends import default_backend
-
-from ccf.merkletree import MerkleTree
-from ccf.tx_id import TxID
-import ccf.cose
-import ccf.receipt
-
+import os
+import struct
 import warnings
+from dataclasses import dataclass
+from enum import Enum, Flag, IntEnum, auto
 from hashlib import sha256
 
+from cryptography.hazmat.backends import default_backend
+from cryptography.x509 import load_pem_x509_certificate
+
+import ccf.cose
+import ccf.receipt
 from ccf import signatures
+from ccf.merkletree import MerkleTree
+from ccf.tx_id import TxID
 
 # Names that used to live in ``ccf.ledger`` and now live in ``ccf.signatures``.
 # Accessing them through ``ccf.ledger`` emits a DeprecationWarning; import
@@ -1092,11 +1089,9 @@ class Snapshot(Entry):
         commit_evidence_digest = sha256(
             receipt["leaf_components"]["commit_evidence"].encode()
         ).digest()
-        leaf = (
-            sha256(write_set_digest + commit_evidence_digest + claims_digest)
-            .digest()
-            .hex()
-        )
+        leaf = sha256(
+            write_set_digest + commit_evidence_digest + claims_digest
+        ).hexdigest()
         root = ccf.receipt.root(leaf, receipt["proof"])
         node_cert = load_pem_x509_certificate(
             receipt["cert"].encode(), default_backend()
@@ -1395,8 +1390,7 @@ class Ledger:
 
     def transactions(self):
         for chunk in self:
-            for transaction in chunk:
-                yield transaction
+            yield from chunk
 
     def get_transaction(self, seqno: int) -> Transaction:
         """

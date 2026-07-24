@@ -1,23 +1,24 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-from enum import Enum
-import infra.proc
-import infra.proposal
-import infra.crypto
-import infra.clients
-from infra.node import CCFVersion
-import http
-import os
 import base64
+import http
 import json
+import os
+from enum import Enum
 
 from loguru import logger as LOG
+
+import infra.clients
+import infra.crypto
+import infra.proc
+import infra.proposal
+from infra.node import CCFVersion
 
 
 class MemberEndpointException(Exception):
     def __init__(self, response, *args, **kwargs):
-        super(MemberEndpointException, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.response = response
 
 

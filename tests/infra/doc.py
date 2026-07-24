@@ -1,11 +1,13 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
+from typing import ClassVar
+
+import docutils.frontend
 import docutils.nodes
 import docutils.parsers.rst
 import docutils.utils
-import docutils.frontend
-from docutils.parsers.rst.directives import register_directive
 from docutils.parsers.rst import Directive
+from docutils.parsers.rst.directives import register_directive
 
 
 class StubDirective(Directive):
@@ -17,7 +19,7 @@ class StubDirective(Directive):
 
 class TablesVisitor(docutils.nodes.NodeVisitor):
     prefix = None
-    tables = []
+    tables: ClassVar[list[str]] = []
 
     def visit_section(self, node):
         (name,) = node.attributes["names"]

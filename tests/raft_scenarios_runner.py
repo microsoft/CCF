@@ -1,14 +1,15 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import argparse
-import sys
-import os
 import json
-from subprocess import Popen, PIPE
-from raft_scenarios_gen import generate_scenarios
-from contextlib import contextmanager
+import os
+import sys
 from collections import defaultdict
+from contextlib import contextmanager
 from heapq import merge
+from subprocess import PIPE, Popen
+
+from raft_scenarios_gen import generate_scenarios
 
 
 @contextmanager
@@ -27,7 +28,7 @@ def write_error_report(errors=None):
         scenario_len = max(len("Scenario"), *(len(error[0]) for error in errors))
         stderr_len = max(len("stderr"), *(len(error[1]) for error in errors))
         print("???+ error \n")
-        fmt_s = "   | {{:<{}}} | {{:<{}}} |\n".format(scenario_len, stderr_len)
+        fmt_s = f"   | {{:<{scenario_len}}} | {{:<{stderr_len}}} |\n"
         print(fmt_s.format("Scenario", "stderr"))
         print(fmt_s.format("-" * scenario_len, "-" * stderr_len))
         for error in errors:
@@ -157,10 +158,9 @@ if __name__ == "__main__":
     os.makedirs(args.output, exist_ok=True)
 
     for scenario in files:
-        ostream.write("## {}\n\n".format(os.path.basename(scenario)))
-        with block(ostream, "steps", 3):
-            with open(scenario, "r", encoding="utf-8") as scen:
-                ostream.write(scen.read())
+        ostream.write(f"## {os.path.basename(scenario)}\n\n")
+        with block(ostream, "steps", 3), open(scenario, "r", encoding="utf-8") as scen:
+            ostream.write(scen.read())
         proc = Popen(
             [args.driver, os.path.realpath(scenario)],
             stdout=PIPE,

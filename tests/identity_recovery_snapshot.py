@@ -1,19 +1,19 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
+import http
 import os
 import shutil
 import time
-import http
 
+import infra.crypto
 import infra.e2e_args
+import infra.logging_app as app
 import infra.network
 import infra.node
-import infra.crypto
-import infra.logging_app as app
 import suite.test_requirements as reqs
-from cryptography.x509 import load_pem_x509_certificate
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
+from cryptography.x509 import load_pem_x509_certificate
 from infra.runner import ConcurrentRunner
 from loguru import logger as LOG
 
