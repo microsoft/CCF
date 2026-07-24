@@ -121,6 +121,51 @@ def _assert_node_snapshot_unchanged(
         assert hashlib.sha256(snapshot_file.read()).digest() == expected_snapshot_digest
 
 
+def _assert_malformed_snapshot_falls_back(
+    base_network,
+    args,
+    label,
+    ledger_dir,
+    committed_ledger_dirs,
+    target_identity_file,
+    snapshot_name,
+    snapshot_bytes,
+    next_node_id,
+    expected_log,
+):
+    snapshots_dir = os.path.join(base_network.common_dir, label)
+    shutil.rmtree(snapshots_dir, ignore_errors=True)
+    os.makedirs(snapshots_dir)
+    snapshot_path = os.path.join(snapshots_dir, snapshot_name)
+    with open(snapshot_path, "wb") as snapshot_file:
+        snapshot_file.write(snapshot_bytes)
+    snapshot_digest = hashlib.sha256(snapshot_bytes).digest()
+
+    attempt = _start_recovery_attempt(
+        base_network,
+        args,
+        label,
+        ledger_dir,
+        committed_ledger_dirs,
+        snapshots_dir,
+        target_identity_file,
+        next_node_id,
+    )
+    try:
+        primary, _ = attempt.find_primary()
+        logs = _logs(primary)
+        assert expected_log in logs
+        assert "Starting to read public ledger" in logs
+        assert "Setting startup snapshot seqno" not in logs
+        assert "Deserialising snapshot (size:" not in logs
+        assert "Snapshot successfully deserialised" not in logs
+        _assert_node_snapshot_unchanged(
+            attempt, primary, snapshot_name, snapshot_digest
+        )
+    finally:
+        _stop_incomplete_recovery(attempt)
+
+
 def run_recovery_snapshot_endorsements(args):
     with infra.network.network(
         args.nodes,
@@ -164,7 +209,8 @@ def run_recovery_snapshot_endorsements(args):
         os.makedirs(source_snapshots_dir)
         source_snapshot_path = shutil.copy(original_snapshot_path, source_snapshots_dir)
         with open(source_snapshot_path, "rb") as snapshot_file:
-            snapshot_digest = hashlib.sha256(snapshot_file.read()).digest()
+            source_snapshot_bytes = snapshot_file.read()
+        snapshot_digest = hashlib.sha256(source_snapshot_bytes).digest()
 
         first_recovery, first_args = _recover_and_open(
             initial_network, args, f"{args.label}_identity_1"
@@ -248,9 +294,54 @@ def run_recovery_snapshot_endorsements(args):
         finally:
             _stop_incomplete_recovery(fallback_attempt)
 
+        malformed_snapshots = (
+            (
+                "zeroed_snapshot",
+                snapshot_name,
+                bytes(64),
+                "transaction size should not be zero",
+            ),
+            (
+                "truncated_snapshot_header",
+                snapshot_name,
+                source_snapshot_bytes[:4],
+                "Insufficient space",
+            ),
+            (
+                "oversized_snapshot_body",
+                snapshot_name,
+                source_snapshot_bytes[:8],
+                "exceeds available buffer size",
+            ),
+            (
+                "malformed_snapshot_filename",
+                "snapshot_not-a-seqno_1.committed",
+                source_snapshot_bytes,
+                "Unable to discover a valid recovery snapshot",
+            ),
+        )
+        for offset, (
+            malformed_label,
+            malformed_name,
+            malformed_bytes,
+            expected_log,
+        ) in enumerate(malformed_snapshots, start=102):
+            _assert_malformed_snapshot_falls_back(
+                second_recovery,
+                second_args,
+                f"{args.label}_{malformed_label}",
+                current_ledger_dir,
+                committed_ledger_dirs,
+                target_identity_file,
+                malformed_name,
+                malformed_bytes,
+                offset,
+                expected_log,
+            )
+
         LOG.success(
-            "In-memory recovery snapshot endorsement validation and fallback "
-            "succeeded"
+            "In-memory recovery snapshot endorsement validation, malformed "
+            "candidate rejection, and fallback succeeded"
         )
 
 

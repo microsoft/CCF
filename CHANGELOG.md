@@ -23,7 +23,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
-- Recovery can now use a COSE snapshot signed by an earlier service identity after one or more disaster recoveries. Before deserialising the snapshot, the node reads previous-service-identity endorsement candidates from the public ledger suffix, validates a complete chain against the operator-provided identity, and retains it only for the current recovery attempt. Invalid or incomplete chains fall back to full-ledger replay (#8092).
+- Recovery can now use a COSE snapshot signed by an earlier service identity after one or more disaster recoveries. Before deserialising the snapshot, the node reads previous-service-identity endorsement candidates from the public ledger suffix, validates a complete chain against the operator-provided identity, and retains it only for the current recovery attempt. Malformed snapshot candidates and invalid or incomplete chains fall back to full-ledger replay (#8092).
 
 ### Changed
 

@@ -106,6 +106,40 @@ TEST_CASE("Recovery snapshot installation failures do not request fallback")
   REQUIRE_FALSE(install_called);
 }
 
+TEST_CASE("Malformed recovery snapshot candidates do not install")
+{
+  std::vector<uint8_t> zeroed_snapshot(64);
+  std::vector<uint8_t> truncated_header(4);
+
+  ccf::kv::SerialisedEntryHeader oversized_header;
+  oversized_header.set_size(1024);
+  std::vector<uint8_t> oversized_body(sizeof(oversized_header));
+  std::memcpy(
+    oversized_body.data(), &oversized_header, sizeof(oversized_header));
+
+  for (const auto& snapshot :
+       {zeroed_snapshot, truncated_header, oversized_body})
+  {
+    ccf::kv::Store store;
+    const auto original_version = store.current_version();
+    const auto original_readiness = store.get_readiness();
+    bool install_called = false;
+
+    const auto verification_error =
+      ccf::try_verify_and_install_recovery_snapshot(
+        [&]() {
+          const auto segments = ccf::separate_segments(snapshot);
+          ccf::verify_snapshot(segments);
+        },
+        [&]() { install_called = true; });
+
+    REQUIRE(verification_error.has_value());
+    REQUIRE_FALSE(install_called);
+    REQUIRE(store.current_version() == original_version);
+    REQUIRE(store.get_readiness() == original_readiness);
+  }
+}
+
 TEST_CASE("Recovery snapshot endorsement scan reads ledger files directly")
 {
   ScopedSnapshotDir ledger_dir;
