@@ -241,6 +241,70 @@ def test_forced_snapshot(network, args):
     return network
 
 
+# https://github.com/microsoft/CCF/issues/6469
+@reqs.description("Forced snapshot while service is opening")
+def test_forced_snapshot_while_opening(network, args):
+    primary, _ = network.find_primary()
+    network.consortium.activate(primary)
+    network.consortium.check_for_service(primary, infra.network.ServiceStatus.OPENING)
+    member = network.consortium.get_any_active_member()
+
+    def issue_governance_txs(count):
+        assert count > 0
+        for _ in range(count):
+            response = member.update_ack_state_digest(primary)
+        with primary.client() as c:
+            c.wait_for_commit(response)
+
+    issue_governance_txs(3)
+
+    with primary.client() as c:
+        r = c.get("/node/commit").body.json()
+        hwm_pre_proposal = TxID.from_str(r["transaction_id"]).seqno
+
+    # Ensure there is at least one signature greater than the hwm.
+    issue_governance_txs(1)
+
+    proposal_body, careful_vote = network.consortium.make_proposal("trigger_snapshot")
+    proposal = member.propose(primary, proposal_body)
+    network.consortium.vote_using_majority(
+        primary,
+        proposal,
+        careful_vote,
+    )
+
+    issue_governance_txs(5)
+
+    snapshots_dir = network.get_committed_snapshots(
+        primary,
+        target_seqno=hwm_pre_proposal + 1,
+        force_txs=False,
+        wait_for_target_seqno=True,
+    )
+    snapshot_seqno = find_snapshot_after_seqno(snapshots_dir, hwm_pre_proposal)
+
+    _, committed_ledger_dirs = primary.get_ledger()
+    ledger = ccf.ledger.Ledger(
+        committed_ledger_dirs,
+        committed_only=True,
+        contiguous_suffix=True,
+    )
+    chunk, _, last, _ = find_ledger_chunk_for_seqno(ledger, snapshot_seqno)
+    assert chunk is not None, (
+        f"Could not find committed ledger chunk containing snapshot at "
+        f"{snapshot_seqno}"
+    )
+    assert (
+        chunk.is_complete and chunk.is_committed()
+    ), f"Ledger chunk containing snapshot at {snapshot_seqno} is not committed"
+    assert (
+        last == snapshot_seqno
+    ), f"Expected snapshot at ledger chunk boundary {snapshot_seqno}, got {last}"
+
+    network.consortium.check_for_service(primary, infra.network.ServiceStatus.OPENING)
+    return network
+
+
 @reqs.description("Create snapshot from node endpoint")
 @app.scoped_txs()
 def test_snapshot_create_endpoint(network, args):
@@ -570,6 +634,24 @@ def run_manual_snapshot_tests(const_args):
         test_snapshot_selection(network, args)
         test_forced_snapshot(network, args)
         test_snapshot_create_endpoint(network, args)
+
+
+def run_forced_snapshot_while_opening(const_args):
+    args = copy.deepcopy(const_args)
+    args.common_read_only_ledger_dir = None
+    args.label = f"{args.label}_opening_snapshot"
+    args.snapshot_tx_interval = 10000
+
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        pdb=args.pdb,
+    ) as network:
+        # Note: start() rather than start_and_open() intentionally leaves
+        # the service in the Opening state for test_forced_snapshot_while_opening
+        network.start(args)
+        test_forced_snapshot_while_opening(network, args)
 
 
 def test_snapshot_selection(network, args):
@@ -4707,6 +4789,7 @@ def run(args):
     run_split_ledger_test(args)
     run_max_uncommitted_tx_count(args)
     run_file_operations(args)
+    run_forced_snapshot_while_opening(args)
     run_manual_snapshot_tests(args)
     run_max_retained_snapshot_files(args)
     run_backup_snapshot_cleanup(args)
