@@ -129,7 +129,11 @@ def test_new_service(
 
     LOG.info("Add node to new service")
 
-    valid_from = str(infra.crypto.datetime_to_X509time(datetime.datetime.utcnow()))
+    valid_from = str(
+        infra.crypto.datetime_to_X509time(
+            datetime.datetime.now(datetime.timezone.utc)
+        )
+    )
 
     kwargs = {}
     kwargs["reconfiguration_type"] = "OneTransaction"
@@ -389,7 +393,9 @@ def run_code_upgrade_from(
                     new_node,
                     args,
                     valid_from=str(  # Pre-2.0 nodes require X509 time format
-                        infra.crypto.datetime_to_X509time(datetime.datetime.utcnow())
+                        infra.crypto.datetime_to_X509time(
+                            datetime.datetime.now(datetime.timezone.utc)
+                        )
                     ),
                 )
                 # For 2.x nodes joining a 1.x service before the constitution is updated,

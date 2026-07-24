@@ -562,7 +562,7 @@ def scoped_txs(identity="user0", verify=False):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
             if not isinstance(args[0], infra.network.Network):
-                raise ValueError("expected first argument to be of type Network")
+                raise TypeError("expected first argument to be of type Network")
 
             network = args[0]
             node = None

@@ -172,7 +172,7 @@ class Node:
         self.verify_ca_by_default = True
 
         if isinstance(self.host, str):
-            raise ValueError("Translate host to HostSpec before you get here")
+            raise TypeError("Translate host to HostSpec before you get here")
 
         for interface_name, rpc_interface in self.host.rpc_interfaces.items():
             # Expand "localhost" to a concrete address first, so the IPv6

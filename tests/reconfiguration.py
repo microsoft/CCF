@@ -9,7 +9,7 @@ import re
 import tempfile
 import time
 from copy import deepcopy
-from datetime import datetime
+from datetime import datetime, timezone
 from shutil import copy, rmtree
 
 import ccf.ledger
@@ -77,8 +77,8 @@ def node_configs(network):
         try:
             with node.client() as nc:
                 configs[node.node_id] = nc.get("/node/config").body.json()
-        except Exception:
-            pass
+        except Exception as config_error:
+            LOG.debug(f"Ignoring node config fetch failure: {config_error}")
     return configs
 
 
@@ -851,7 +851,7 @@ def test_join_straddling_primary_replacement(network, args):
                 "name": "transition_node_to_trusted",
                 "args": {
                     "node_id": new_node.node_id,
-                    "valid_from": str(datetime.utcnow()),
+                    "valid_from": str(datetime.now(timezone.utc)),
                 },
             },
             {

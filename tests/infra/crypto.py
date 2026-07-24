@@ -138,7 +138,7 @@ def generate_cert(
     if issuer_cn is None:
         issuer_cn = cn
     if valid_from is None:
-        valid_from = datetime.datetime.utcnow()
+        valid_from = datetime.datetime.now(datetime.timezone.utc)
     priv = load_pem_private_key(priv_key_pem.encode("ascii"), None, default_backend())
     pub = priv.public_key()
     issuer_priv = load_pem_private_key(
@@ -265,7 +265,7 @@ def sign(algorithm: dict, key_pem: str, data: bytes) -> bytes:
     elif isinstance(key, ed25519.Ed25519PrivateKey):
         return key.sign(data)
     else:
-        raise ValueError("Unsupported key type")
+        raise TypeError("Unsupported key type")
 
 
 def convert_ecdsa_signature_from_der_to_p1363(
@@ -306,7 +306,7 @@ def verify_signature(algorithm: dict, signature: bytes, data: bytes, key_pub_pem
     elif isinstance(key_pub, ed25519.Ed25519PublicKey):
         return key_pub.verify(signature, data)
     else:
-        raise ValueError("Unsupported key type")
+        raise TypeError("Unsupported key type")
 
 
 def convert_ecdsa_signature_from_p1363_der(signature_p1363: bytes) -> bytes:

@@ -44,7 +44,7 @@ def run(args):
             time.sleep(5)
             tvc.poll()
             if tvc.returncode is not None:
-                raise Exception(f"tvc failed with rc {tvc.returncode}")
+                raise RuntimeError(f"tvc failed with rc {tvc.returncode}")
             tvc.send_signal(signal.SIGINT)
             tvc.wait()
 

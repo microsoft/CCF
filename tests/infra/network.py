@@ -2048,8 +2048,8 @@ class Network:
                     return (new_primary, new_term)
             except PrimaryNotFound:
                 error = PrimaryNotFound
-            except Exception:
-                pass
+            except Exception as primary_error:
+                LOG.debug(f"Ignoring primary lookup failure while waiting: {primary_error}")
             time.sleep(0.1)
         flush_info(logs, None)
         raise error(f"A new primary was not elected after {timeout} seconds")
@@ -2086,8 +2086,8 @@ class Network:
                     return (new_primary, new_term)
             except PrimaryNotFound:
                 error = PrimaryNotFound
-            except Exception:
-                pass
+            except Exception as primary_error:
+                LOG.debug(f"Ignoring primary lookup failure while waiting: {primary_error}")
             time.sleep(0.1)
         flush_info(logs, None)
         raise error(f"A new primary was not elected after {timeout} seconds")

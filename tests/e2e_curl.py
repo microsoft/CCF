@@ -73,6 +73,11 @@ def make_self_signed_cert(san_dns):
     ).decode("ascii")
     return cert_pem, key_pem
 
+def write_tls_files(cert_path, cert_pem, key_path, key_pem):
+    with open(cert_path, "w", encoding="utf-8") as cert_file:
+        cert_file.write(cert_pem)
+    with open(key_path, "w", encoding="utf-8") as key_file:
+        key_file.write(key_pem)
 
 async def main():
     app = web.Application()
@@ -106,10 +111,9 @@ async def main():
     with tempfile.TemporaryDirectory() as tls_dir:
         cert_path = os.path.join(tls_dir, "tls_cert.pem")
         key_path = os.path.join(tls_dir, "tls_key.pem")
-        with open(cert_path, "w", encoding="utf-8") as cert_file:
-            cert_file.write(tls_cert_pem)
-        with open(key_path, "w", encoding="utf-8") as key_file:
-            key_file.write(tls_key_pem)
+        await asyncio.to_thread(
+            write_tls_files, cert_path, tls_cert_pem, key_path, tls_key_pem
+        )
 
         ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         ssl_context.load_cert_chain(cert_path, key_path)

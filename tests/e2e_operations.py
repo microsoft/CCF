@@ -938,8 +938,8 @@ def test_corrupt_snapshot_handling(network, args):
             # but we still need to ensure the process is down.
             try:
                 new_node.stop()
-            except Exception:
-                pass
+            except Exception as stop_error:
+                LOG.debug(f"Ignoring error while stopping failed node: {stop_error}")
 
         # -- Verify writable directory: file must be renamed to .ignored --
         writable_in_ws = os.path.join(node_root, os.path.basename(writable_dir))
@@ -1008,15 +1008,15 @@ def test_corrupt_snapshot_handling(network, args):
 
         try:
             network.run_join_node(new_node2)
-        except Exception:
+        except Exception as join_error:
             # The node may fail to join if it cannot write to the snapshots
             # directory at all; that is acceptable for this sub-test.
-            pass
+            LOG.debug(f"Ignoring expected join failure: {join_error}")
 
         try:
             new_node2.stop()
-        except Exception:
-            pass
+        except Exception as stop_error:
+            LOG.debug(f"Ignoring error while stopping failed node: {stop_error}")
 
         # The corrupt file should still be present (rename failed)
         ws_files2 = os.listdir(restricted_in_ws)
@@ -2490,8 +2490,8 @@ def run_empty_ledger_dir_check(args):
             # Start new network, this should fail
             try:
                 network.start(args, ledger_dir=tmp_dir)
-            except Exception:
-                pass
+            except Exception as start_error:
+                LOG.debug(f"Ignoring expected network start failure: {start_error}")
 
             # Check that the node has failed with the expected error message
             if not primary.check_log_for_error_message(
@@ -4727,8 +4727,8 @@ def run_ledger_cleanup_no_read_only_dir_check(const_args):
     ) as network:
         try:
             network.start(args)
-        except Exception:
-            pass
+        except Exception as start_error:
+            LOG.debug(f"Ignoring expected network start failure: {start_error}")
 
         network.skip_verify_chunking = True
         network.ignore_errors_on_shutdown()

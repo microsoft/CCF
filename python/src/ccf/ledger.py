@@ -1448,7 +1448,7 @@ class Ledger:
                             }
                         else:
                             public_tables[table_name] = records
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             print(f"Error reading ledger entry. Latest read seqno: {latest_seqno}")
             print(f"Error: {e}")
         return public_tables, latest_seqno

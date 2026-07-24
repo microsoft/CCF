@@ -66,8 +66,10 @@ def make_self_signed_cert(priv, subject_name: str):
         .issuer_name(issuer)
         .public_key(priv.public_key())
         .serial_number(x509.random_serial_number())
-        .not_valid_before(datetime.datetime.now())
-        .not_valid_after(datetime.datetime.now() + datetime.timedelta(days=30))
+        .not_valid_before(datetime.datetime.now(datetime.timezone.utc))
+        .not_valid_after(
+            datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=30)
+        )
         .sign(priv, hash_algo(priv))
     )
     return cert.public_bytes(Encoding.PEM).decode("ascii")
