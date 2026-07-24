@@ -3,10 +3,11 @@
 
 import base64
 from hashlib import sha256
-from cryptography.x509 import Certificate
-from cryptography.x509.verification import PolicyBuilder, Store
+
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec, utils
+from cryptography.x509 import Certificate
+from cryptography.x509.verification import PolicyBuilder, Store
 
 
 def root(leaf: str, proof: list[dict]):

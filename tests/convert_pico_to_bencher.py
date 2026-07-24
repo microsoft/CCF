@@ -3,8 +3,9 @@
 import collections
 import csv
 import os
-from loguru import logger as LOG
+
 import infra.bencher
+from loguru import logger as LOG
 
 benchmark_specs = {
     "kv_bench.csv": [

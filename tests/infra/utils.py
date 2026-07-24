@@ -1,16 +1,17 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import infra.path
-from hashlib import sha256
-import infra.snp as snp
-from infra.node import strip_version
-from packaging.version import Version  # type: ignore
 import os
+from hashlib import sha256
+
 import ccf
 import ccf.ledger
 import ccf.split_ledger
-
 from loguru import logger as LOG
+from packaging.version import Version  # type: ignore
+
+import infra.path
+from infra import snp
+from infra.node import strip_version
 
 
 def get_measurement(enclave_platform, package, library_dir="."):
@@ -33,7 +34,8 @@ def get_host_data_and_security_policy(
             lib_path = os.path.join(binary_dir, package)
         else:
             lib_path = infra.path.build_lib_path(package, library_dir, version=version)
-        hash = sha256(open(lib_path, "rb").read())
+        with open(lib_path, "rb") as lib:
+            hash = sha256(lib.read())
         return hash.hexdigest(), None
     else:
         raise ValueError(f"Cannot get security policy on {enclave_platform}")

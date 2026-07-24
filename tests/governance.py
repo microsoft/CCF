@@ -1,34 +1,33 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import os
 import http
+import json
+import os
+import random
+import tempfile
+from datetime import datetime, timezone
+from hashlib import sha256
+
+import governance_api
+import governance_history
+import governance_js
+import infra.crypto
+import infra.e2e_args
+import infra.interfaces
+import infra.log_capture
+import infra.logging_app as app
 import infra.member
+import infra.net
 import infra.network
 import infra.path
 import infra.proc
-import infra.net
-from infra.node import CCFVersion
-import infra.e2e_args
 import infra.proposal
-import suite.test_requirements as reqs
-import infra.logging_app as app
-import json
 import jinja2
-import infra.crypto
-from datetime import datetime, timezone
-import governance_js
-from infra.runner import ConcurrentRunner
-import governance_history
-import tempfile
-import infra.interfaces
-import infra.log_capture
-import governance_api
-from hashlib import sha256
-import random
-
 import memberclient
 import membership
-
+import suite.test_requirements as reqs
+from infra.node import CCFVersion
+from infra.runner import ConcurrentRunner
 from loguru import logger as LOG
 
 
@@ -265,7 +264,8 @@ def test_all_members(network, args):
                 enc_pub_key_file = os.path.join(
                     primary.common_dir, member.member_info["encryption_public_key_file"]
                 )
-                recovery_enc_key = open(enc_pub_key_file, encoding="utf-8").read()
+                with open(enc_pub_key_file, encoding="utf-8") as enc_pub_key:
+                    recovery_enc_key = enc_pub_key.read()
                 assert response_pub_enc_key == recovery_enc_key
             else:
                 assert response_pub_enc_key is None
@@ -370,7 +370,7 @@ def test_each_node_cert_renewal(network, args):
                         )
                     except Exception as e:
                         if expected_exception is None:
-                            raise e
+                            raise
                         assert isinstance(e, expected_exception)
                         continue
                     else:
@@ -466,7 +466,7 @@ def test_service_cert_renewal_extended(network, args):
 
     # Confirm that we can renew the service certificate multiple times
     # without issue
-    for _ in range(0, 5):
+    for _ in range(5):
         new_duration = random.randint(1, 100)
         LOG.info(f"Renewing service certificate for {new_duration} days")
         renew_service_certificate(network, args, now, new_duration)
@@ -680,14 +680,15 @@ def single_node(args):
     }
     warn_counts = {k: 0 for k in {validate_warn, apply_warn}}
     out_path, _ = primary.get_logs()
-    for line in open(out_path, "r", encoding="utf-8").readlines():
-        for k in info_counts.keys():
-            if k in line and "[info ]" in line:
-                info_counts[k] += 1
+    with open(out_path, "r", encoding="utf-8") as output:
+        for line in output:
+            for k in info_counts:
+                if k in line and "[info ]" in line:
+                    info_counts[k] += 1
 
-        for k in warn_counts.keys():
-            if k in line and "[fail ]" in line:
-                warn_counts[k] += 1
+            for k in warn_counts:
+                if k in line and "[fail ]" in line:
+                    warn_counts[k] += 1
 
     LOG.debug("Found following info line occurrences in node output:")
     for k, v in info_counts.items():

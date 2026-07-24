@@ -1,16 +1,16 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
+import http
+import time
+from concurrent import futures
+
+import infra.bencher
+import infra.commit
 import infra.e2e_args
+import infra.jwt_issuer
 import infra.network
 import infra.proc
-import infra.commit
-import http
-from concurrent import futures
 from infra.log_capture import flush_info
-import infra.jwt_issuer
-import time
-import infra.bencher
-
 from loguru import logger as LOG
 
 DEFAULT_TIMEOUT_S = 10

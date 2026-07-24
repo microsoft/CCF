@@ -1,10 +1,11 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-import ccf.ledger
 import argparse
 import json
 from collections import defaultdict
+
+import ccf.ledger
 
 
 def code_identity(info):

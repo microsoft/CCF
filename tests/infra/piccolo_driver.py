@@ -1,21 +1,22 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import argparse
-import os
-import infra.e2e_args
-import infra.remote_client
-import infra.jwt_issuer
-from infra.perf import PERF_COLUMNS
-from random import seed
 import getpass
-from loguru import logger as LOG
-import time
 import hashlib
 import json
-from piccolo import generator
-from piccolo import analyzer
+import os
+import time
+from random import seed
+
+from loguru import logger as LOG
+from piccolo import analyzer, generator
+
 import infra.bencher
+import infra.e2e_args
+import infra.jwt_issuer
 import infra.proc
+import infra.remote_client
+from infra.perf import PERF_COLUMNS
 
 
 def get_command_args(args, network, get_command):
@@ -67,7 +68,7 @@ def my_configure_remote_client(args, client_id, client_host, node, command_args)
         remote_client.setup()
         return remote_client
     except Exception:
-        LOG.exception("Failed to start client {}".format(client_host))
+        LOG.exception(f"Failed to start client {client_host}")
         raise
 
 
@@ -83,7 +84,7 @@ def run(get_command, args):
     args.sig_ms_interval = 100
     args.ledger_chunk_bytes = "5MB"  # Set to node default value
 
-    LOG.info("Starting nodes on {}".format(hosts))
+    LOG.info(f"Starting nodes on {hosts}")
 
     with infra.network.network(
         hosts, args.binary_dir, args.debug_nodes, pdb=args.pdb

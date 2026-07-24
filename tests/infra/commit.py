@@ -2,21 +2,19 @@
 # Licensed under the Apache 2.0 License.
 
 import http
-import time
 import pprint
+import time
 
-from typing import Optional, List
-
-from infra.tx_status import TxStatus
 from infra.log_capture import flush_info
+from infra.tx_status import TxStatus
 
 
 def wait_for_commit(
     client,
     seqno: int,
     view: int,
-    timeout: Optional[int] = None,
-    log_capture: Optional[list] = None,
+    timeout: int | None = None,
+    log_capture: list | None = None,
 ) -> None:
     """
     Waits for a specific seqno/view pair to be committed by the network,
@@ -40,7 +38,7 @@ def wait_for_commit(
     if view is None or seqno is None:
         raise ValueError(f"{view}.{seqno} is not a valid transaction ID")
 
-    logs: List[str] = []
+    logs: list[str] = []
     end_time = time.time() + timeout
     while time.time() < end_time:
         logs = []

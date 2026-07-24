@@ -1,14 +1,14 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
+import json
 import tempfile
+
+import infra.e2e_args
+import infra.net
 import infra.network
 import infra.path
 import infra.proc
-import infra.net
-import infra.e2e_args
 import suite.test_requirements as reqs
-import json
-
 from loguru import logger as LOG
 
 
