@@ -582,8 +582,6 @@ class Node:
         infra.path.create_dir(committed_ledger_dir)
 
         for f in os.listdir(main_ledger_dir):
-            LOG.warning(f"TEMP DEBUG Copying {f} from {main_ledger_dir}")
-
             infra.path.copy_dir(
                 os.path.join(main_ledger_dir, f),
                 committed_ledger_dir if is_file_committed(f) else current_ledger_dir,
@@ -593,7 +591,6 @@ class Node:
             for f in os.listdir(ro_dir):
                 # Uncommitted ledger files from r/o ledger directory are ignored by CCF
                 if is_file_committed(f):
-                    LOG.warning(f"TEMP DEBUG Copying {f} from (read-only) {ro_dir}")
                     infra.path.copy_dir(os.path.join(ro_dir, f), committed_ledger_dir)
 
         return current_ledger_dir, [committed_ledger_dir]
