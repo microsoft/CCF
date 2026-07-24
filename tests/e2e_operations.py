@@ -1844,37 +1844,40 @@ def run_config_timeout_check(const_args):
     if infra.platform_detection.is_snp():
         env.update(snp.get_aci_env())
 
-    proc = subprocess.Popen(
-        [
-            os.path.join(".", os.path.basename(node.remote.BIN)),
-            "--config",
-            "0.config.json",
-            "--config-timeout",
-            f"{config_timeout}s",
-        ],
-        cwd=start_node_path,
-        env=env,
-        stdout=open(os.path.join(start_node_path, "out"), "wb"),
-        stderr=open(os.path.join(start_node_path, "err"), "wb"),
-    )
-    time.sleep(2)
-    LOG.info("Copy a partial config")
-    # Replace it with a prefix
-    with open(os.path.join(start_node_path, "0.config.json"), "w") as f:
-        f.write("{")
-    time.sleep(2)
-    LOG.info("Move a full config back")
-    shutil.copy(
-        os.path.join(start_node_path, "0.config.json.bak"),
-        os.path.join(start_node_path, "0.config.json"),
-    )
-    LOG.info(f"Wait out the rest of the {config_timeout}s timeout")
-    time.sleep(config_timeout)
-    LOG.info("Check node")
-    assert proc.poll() is None, "Node process should still be running"
-    assert os.path.exists(os.path.join(start_node_path, "service_cert.pem"))
-    proc.terminate()
-    proc.wait()
+    with open(os.path.join(start_node_path, "out"), "wb") as stdout, open(
+        os.path.join(start_node_path, "err"), "wb"
+    ) as stderr:
+        proc = subprocess.Popen(
+            [
+                os.path.join(".", os.path.basename(node.remote.BIN)),
+                "--config",
+                "0.config.json",
+                "--config-timeout",
+                f"{config_timeout}s",
+            ],
+            cwd=start_node_path,
+            env=env,
+            stdout=stdout,
+            stderr=stderr,
+        )
+        time.sleep(2)
+        LOG.info("Copy a partial config")
+        # Replace it with a prefix
+        with open(os.path.join(start_node_path, "0.config.json"), "w") as f:
+            f.write("{")
+        time.sleep(2)
+        LOG.info("Move a full config back")
+        shutil.copy(
+            os.path.join(start_node_path, "0.config.json.bak"),
+            os.path.join(start_node_path, "0.config.json"),
+        )
+        LOG.info(f"Wait out the rest of the {config_timeout}s timeout")
+        time.sleep(config_timeout)
+        LOG.info("Check node")
+        assert proc.poll() is None, "Node process should still be running"
+        assert os.path.exists(os.path.join(start_node_path, "service_cert.pem"))
+        proc.terminate()
+        proc.wait()
 
 
 def run_sighup_check(const_args):

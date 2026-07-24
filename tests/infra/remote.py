@@ -156,8 +156,8 @@ class LocalRemote(CmdMixin):
         """
         cmd = self.get_cmd()
         LOG.info(f"[{self.hostname}] {cmd} (env: {self.env.keys()})")
-        self.stdout = open(self.out, "wb")
-        self.stderr = open(self.err, "wb")
+        self.stdout = open(self.out, "wb")  # noqa: SIM115 - closed in stop()
+        self.stderr = open(self.err, "wb")  # noqa: SIM115 - closed in stop()
         self.proc = subprocess.Popen(
             self.cmd,
             cwd=self.root,

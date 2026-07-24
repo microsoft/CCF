@@ -16,7 +16,7 @@ def create_new_ledger_file(directory: str) -> BinaryIO:
     ledger_file_path = os.path.join(directory, TEMPORARY_LEDGER_FILE_NAME)
     if os.path.exists(ledger_file_path):
         raise ValueError(f"Ledger file {ledger_file_path} already exists")
-    ledger_file = open(ledger_file_path, "wb") # noqa: SIM115
+    ledger_file = open(ledger_file_path, "wb")  # noqa: SIM115
     ledger_file.write(
         int.to_bytes(0, length=ccf.ledger.LEDGER_HEADER_SIZE, byteorder="little")
     )

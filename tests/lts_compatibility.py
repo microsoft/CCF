@@ -130,9 +130,7 @@ def test_new_service(
     LOG.info("Add node to new service")
 
     valid_from = str(
-        infra.crypto.datetime_to_X509time(
-            datetime.datetime.now(datetime.timezone.utc)
-        )
+        infra.crypto.datetime_to_X509time(datetime.datetime.now(datetime.timezone.utc))
     )
 
     kwargs = {}

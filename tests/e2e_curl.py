@@ -73,11 +73,13 @@ def make_self_signed_cert(san_dns):
     ).decode("ascii")
     return cert_pem, key_pem
 
+
 def write_tls_files(cert_path, cert_pem, key_path, key_pem):
     with open(cert_path, "w", encoding="utf-8") as cert_file:
         cert_file.write(cert_pem)
     with open(key_path, "w", encoding="utf-8") as key_file:
         key_file.write(key_pem)
+
 
 async def main():
     app = web.Application()
