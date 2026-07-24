@@ -132,14 +132,21 @@ def _assert_malformed_snapshot_falls_back(
     snapshot_bytes,
     next_node_id,
     expected_log,
+    snapshot_is_directory=False,
 ):
     snapshots_dir = os.path.join(base_network.common_dir, label)
     shutil.rmtree(snapshots_dir, ignore_errors=True)
     os.makedirs(snapshots_dir)
     snapshot_path = os.path.join(snapshots_dir, snapshot_name)
-    with open(snapshot_path, "wb") as snapshot_file:
-        snapshot_file.write(snapshot_bytes)
-    snapshot_digest = hashlib.sha256(snapshot_bytes).digest()
+    if snapshot_is_directory:
+        os.makedirs(snapshot_path)
+        marker_path = os.path.join(snapshot_path, "contents")
+        with open(marker_path, "wb") as marker_file:
+            marker_file.write(snapshot_bytes)
+    else:
+        with open(snapshot_path, "wb") as snapshot_file:
+            snapshot_file.write(snapshot_bytes)
+        snapshot_digest = hashlib.sha256(snapshot_bytes).digest()
 
     attempt = _start_recovery_attempt(
         base_network,
@@ -159,9 +166,13 @@ def _assert_malformed_snapshot_falls_back(
         assert "Setting startup snapshot seqno" not in logs
         assert "Deserialising snapshot (size:" not in logs
         assert "Snapshot successfully deserialised" not in logs
-        _assert_node_snapshot_unchanged(
-            attempt, primary, snapshot_name, snapshot_digest
-        )
+        if snapshot_is_directory:
+            with open(marker_path, "rb") as marker_file:
+                assert marker_file.read() == snapshot_bytes
+        else:
+            _assert_node_snapshot_unchanged(
+                attempt, primary, snapshot_name, snapshot_digest
+            )
     finally:
         _stop_incomplete_recovery(attempt)
 
@@ -300,24 +311,35 @@ def run_recovery_snapshot_endorsements(args):
                 snapshot_name,
                 bytes(64),
                 "transaction size should not be zero",
+                False,
             ),
             (
                 "truncated_snapshot_header",
                 snapshot_name,
                 source_snapshot_bytes[:4],
                 "Insufficient space",
+                False,
             ),
             (
                 "oversized_snapshot_body",
                 snapshot_name,
                 source_snapshot_bytes[:8],
                 "exceeds available buffer size",
+                False,
             ),
             (
                 "malformed_snapshot_filename",
                 "snapshot_not-a-seqno_1.committed",
                 source_snapshot_bytes,
                 "Unable to discover a valid recovery snapshot",
+                False,
+            ),
+            (
+                "unreadable_snapshot_candidate",
+                snapshot_name,
+                b"not a snapshot",
+                "is not a regular file",
+                True,
             ),
         )
         for offset, (
@@ -325,6 +347,7 @@ def run_recovery_snapshot_endorsements(args):
             malformed_name,
             malformed_bytes,
             expected_log,
+            snapshot_is_directory,
         ) in enumerate(malformed_snapshots, start=102):
             _assert_malformed_snapshot_falls_back(
                 second_recovery,
@@ -337,6 +360,7 @@ def run_recovery_snapshot_endorsements(args):
                 malformed_bytes,
                 offset,
                 expected_log,
+                snapshot_is_directory,
             )
 
         LOG.success(

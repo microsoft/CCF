@@ -546,7 +546,8 @@ namespace ccf
         {
           try
           {
-            auto snapshot_data = files::slurp(snapshot_path);
+            auto snapshot_data =
+              read_recovery_snapshot_candidate(snapshot_path);
 
             LOG_INFO_FMT(
               "Found latest local snapshot file: {} (size: {})",

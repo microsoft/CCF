@@ -138,6 +138,14 @@ TEST_CASE("Malformed recovery snapshot candidates do not install")
     REQUIRE(store.current_version() == original_version);
     REQUIRE(store.get_readiness() == original_readiness);
   }
+
+  ScopedSnapshotDir snapshot_dir;
+  REQUIRE_THROWS(ccf::read_recovery_snapshot_candidate(
+    snapshot_dir.path / "missing_snapshot"));
+  const auto directory_candidate = snapshot_dir.path / "snapshot_1_2.committed";
+  fs::create_directory(directory_candidate);
+  files::dump(std::vector<uint8_t>{1}, directory_candidate / "contents");
+  REQUIRE_THROWS(ccf::read_recovery_snapshot_candidate(directory_candidate));
 }
 
 TEST_CASE("Recovery snapshot endorsement scan reads ledger files directly")
