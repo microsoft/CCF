@@ -1390,8 +1390,7 @@ class Ledger:
 
     def transactions(self):
         for chunk in self:
-            for transaction in chunk:
-                yield transaction
+            yield from chunk
 
     def get_transaction(self, seqno: int) -> Transaction:
         """
@@ -1449,7 +1448,7 @@ class Ledger:
                             }
                         else:
                             public_tables[table_name] = records
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"Error reading ledger entry. Latest read seqno: {latest_seqno}")
             print(f"Error: {e}")
         return public_tables, latest_seqno

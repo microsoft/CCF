@@ -206,7 +206,7 @@ def verify_receipt(
 
     receipt = cbor2.loads(receipt_bytes)
     assert receipt.tag == cwt.const.COSE_TYPE_TO_TAG[cwt.const.COSETypes.SIGN1]
-    phdr, uhdr, payload, sig = receipt.value
+    phdr, uhdr, _payload, _sig = receipt.value
     phdr = cbor2.loads(phdr)
 
     assert phdr[4] == expected_kid.encode("utf-8")
