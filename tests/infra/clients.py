@@ -1,40 +1,40 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import abc
+import base64
 import contextlib
-import json
-import time
-import sys
-import os
-import subprocess
-import tempfile
 import hashlib
+import json
+import os
 import random
-from datetime import datetime, timezone, timedelta
+import re
+import socket
+import ssl
+import struct
+import subprocess
+import sys
+import tempfile
+import time
+import urllib.parse
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from http.client import HTTPResponse
 from io import BytesIO
+from threading import local
+from typing import Any
+
+import ccf.cose
+import httpx
+from ccf.tx_id import TxID
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives.serialization import load_pem_private_key
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec
-import struct
-import base64
-import re
-from typing import Union, Optional, List, Any
-from ccf.tx_id import TxID
-import ssl
-import socket
-import urllib.parse
-
-import httpx
-from threading import local
+from cryptography.hazmat.primitives.serialization import load_pem_private_key
 from loguru import logger as LOG  # type: ignore
 
 import infra.commit
 from infra.log_capture import flush_info
-import ccf.cose
 
 API_VERSION_PREVIEW_01 = "2023-06-01-preview"
 API_VERSION_01 = "2024-07-01"
@@ -143,7 +143,7 @@ class Request:
     #: Resource path (with optional query string)
     path: str
     #: Body of request
-    body: Optional[Union[dict, str, bytes]]
+    body: dict | str | bytes | None
     #: HTTP verb
     http_verb: str
     #: HTTP headers
@@ -249,9 +249,9 @@ class Response:
     #: Response body
     body: ResponseBody
     #: CCF sequence number
-    seqno: Optional[int]
+    seqno: int | None
     #: CCF consensus view
-    view: Optional[int]
+    view: int | None
     #: Response HTTP headers
     headers: dict
 
@@ -636,10 +636,10 @@ class HttpxClient:
         self,
         hostname: str,
         ca: str,
-        session_auth: Optional[Identity] = None,
-        signing_auth: Optional[Identity] = None,
-        cose_signing_auth: Optional[Identity] = None,
-        common_headers: Optional[dict] = None,
+        session_auth: Identity | None = None,
+        signing_auth: Identity | None = None,
+        cose_signing_auth: Identity | None = None,
+        common_headers: dict | None = None,
         **kwargs,
     ):
         self.hostname = hostname
@@ -674,7 +674,7 @@ class HttpxClient:
         request: Request,
         request_body: bytes,
         auth: Any,
-        extra_headers: Optional[dict],
+        extra_headers: dict | None,
         timeout: int,
     ):
         self._last_request = (request, request_body, auth, extra_headers, timeout)
@@ -830,10 +830,10 @@ class RawSocketClient:
         self,
         hostname: str,
         ca: str,
-        session_auth: Optional[Identity] = None,
-        signing_auth: Optional[Identity] = None,
-        cose_signing_auth: Optional[Identity] = None,
-        common_headers: Optional[dict] = None,
+        session_auth: Identity | None = None,
+        signing_auth: Identity | None = None,
+        cose_signing_auth: Identity | None = None,
+        common_headers: dict | None = None,
         **kwargs,
     ):
         self.ca = ca
@@ -1026,14 +1026,14 @@ class CCFClient:
         host: str,
         port: int,
         ca: str,
-        session_auth: Optional[Identity] = None,
-        signing_auth: Optional[Identity] = None,
-        cose_signing_auth: Optional[Identity] = None,
+        session_auth: Identity | None = None,
+        signing_auth: Identity | None = None,
+        cose_signing_auth: Identity | None = None,
         connection_timeout: int = DEFAULT_CONNECTION_TIMEOUT_SEC,
-        election_timeout_ms: Optional[int] = None,
-        description: Optional[str] = None,
-        impl_type: Union[CurlClient, HttpxClient, RawSocketClient] = default_impl_type,
-        common_headers: Optional[dict] = None,
+        election_timeout_ms: int | None = None,
+        description: str | None = None,
+        impl_type: CurlClient | HttpxClient | RawSocketClient = default_impl_type,
+        common_headers: dict | None = None,
         **kwargs,
     ):
         self.connection_timeout = connection_timeout
@@ -1063,13 +1063,13 @@ class CCFClient:
     def _call(
         self,
         path: str,
-        body: Optional[Union[str, dict, bytes]] = None,
+        body: str | dict | bytes | None = None,
         http_verb: str = "POST",
-        headers: Optional[dict] = None,
+        headers: dict | None = None,
         timeout: int = DEFAULT_REQUEST_TIMEOUT_SEC,
-        log_capture: Optional[list] = None,
+        log_capture: list | None = None,
         allow_redirects: bool = True,
-        cose_header_parameters_override: Optional[dict] = None,
+        cose_header_parameters_override: dict | None = None,
     ) -> Response:
         if headers is None:
             headers = {}
@@ -1116,13 +1116,13 @@ class CCFClient:
     def call(
         self,
         path: str,
-        body: Optional[Union[str, dict, bytes]] = None,
+        body: str | dict | bytes | None = None,
         http_verb: str = "POST",
-        headers: Optional[dict] = None,
+        headers: dict | None = None,
         timeout: int = DEFAULT_REQUEST_TIMEOUT_SEC,
-        log_capture: Optional[list] = None,
+        log_capture: list | None = None,
         allow_redirects: bool = True,
-        cose_header_parameters_override: Optional[dict] = None,
+        cose_header_parameters_override: dict | None = None,
     ) -> Response:
         """
         Issues one request, synchronously, and returns the response.
@@ -1141,7 +1141,7 @@ class CCFClient:
         if not path.startswith("/"):
             raise ValueError(f"URL path '{path}' is invalid, must start with /")
 
-        logs: List[str] = []
+        logs: list[str] = []
 
         if self.is_connected:
             r = self._call(
@@ -1277,7 +1277,7 @@ class CCFClient:
         kwargs["http_verb"] = "PATCH"
         return self.call(*args, **kwargs)
 
-    def wait_for_commit(self, response: Response, timeout: Optional[int] = None):
+    def wait_for_commit(self, response: Response, timeout: int | None = None):
         """
         Given a :py:class:`infra.clients.Response`, this functions waits
         for the associated sequence number and view to be committed by the CCF network.
@@ -1313,7 +1313,7 @@ def client(*args, **kwargs):
 
 class APIVersionedCCFClient(CCFClient):
     def __init__(self, *args, api_version=None, **kwargs):
-        super(APIVersionedCCFClient, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.api_version = api_version
         if self.api_version in (
             API_VERSION_PREVIEW_01,
@@ -1335,7 +1335,7 @@ class APIVersionedCCFClient(CCFClient):
         modified_path = APIVersionedCCFClient.add_query_arg_to_path(
             path, "api-version", self.api_version
         )
-        return super(APIVersionedCCFClient, self).call(modified_path, *args, **kwargs)
+        return super().call(modified_path, *args, **kwargs)
 
 
 @contextlib.contextmanager

@@ -1,11 +1,12 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import ccf.ledger
-import ccf.signatures
-import sys
 import argparse
 import os
+import sys
 from typing import BinaryIO
+
+import ccf.ledger
+import ccf.signatures
 
 DEFAULT_OUTPUT_DIR_NAME = "split_ledger"
 TEMPORARY_LEDGER_FILE_NAME = "ledger.tmp"

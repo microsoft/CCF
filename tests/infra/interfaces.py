@@ -1,10 +1,10 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-from dataclasses import dataclass, asdict, field
-from typing import Optional, Dict, Union
-from enum import Enum
 import urllib.parse
+from dataclasses import asdict, dataclass, field
+from enum import Enum
+from typing import Union
 
 from loguru import logger as LOG
 
@@ -166,40 +166,38 @@ class RPCInterface(Interface):
     # Underlying transport layer protocol (tcp, udp)
     transport: str = field(default_factory=lambda: "tcp")
     # Host name/IP
-    public_host: Optional[str] = None
+    public_host: str | None = None
     # Host port
-    public_port: Optional[int] = None
-    max_open_sessions_soft: Optional[int] = field(
+    public_port: int | None = None
+    max_open_sessions_soft: int | None = field(
         default_factory=lambda: DEFAULT_MAX_OPEN_SESSIONS_SOFT
     )
-    max_open_sessions_hard: Optional[int] = field(
+    max_open_sessions_hard: int | None = field(
         default_factory=lambda: DEFAULT_MAX_OPEN_SESSIONS_HARD
     )
-    max_http_body_size: Optional[int] = field(
+    max_http_body_size: int | None = field(
         default_factory=lambda: DEFAULT_MAX_HTTP_BODY_SIZE
     )
-    max_http_header_size: Optional[int] = field(
+    max_http_header_size: int | None = field(
         default_factory=lambda: DEFAULT_MAX_HTTP_HEADER_SIZE
     )
-    max_http_headers_count: Optional[int] = field(
+    max_http_headers_count: int | None = field(
         default_factory=lambda: DEFAULT_MAX_HTTP_HEADERS_COUNT
     )
-    max_concurrent_streams_count: Optional[int] = field(
+    max_concurrent_streams_count: int | None = field(
         default_factory=lambda: DEFAULT_MAX_CONCURRENT_STREAMS_COUNT
     )
-    initial_window_size: Optional[int] = field(
+    initial_window_size: int | None = field(
         default_factory=lambda: DEFAULT_INITIAL_WINDOW_SIZE
     )
-    max_frame_size: Optional[int] = field(
-        default_factory=lambda: DEFAULT_MAX_FRAME_SIZE
-    )
-    endorsement: Optional[Endorsement] = field(default_factory=lambda: Endorsement())
-    accepted_endpoints: Optional[str] = None
-    enabled_operator_features: Optional[list[str]] = None
-    forwarding_timeout_ms: Optional[int] = field(
+    max_frame_size: int | None = field(default_factory=lambda: DEFAULT_MAX_FRAME_SIZE)
+    endorsement: Endorsement | None = field(default_factory=lambda: Endorsement())
+    accepted_endpoints: str | None = None
+    enabled_operator_features: list[str] | None = None
+    forwarding_timeout_ms: int | None = field(
         default_factory=lambda: DEFAULT_FORWARDING_TIMEOUT_MS
     )
-    redirections: Optional[RedirectionConfig] = None
+    redirections: RedirectionConfig | None = None
     app_protocol: str = field(default_factory=lambda: "HTTP1")
 
     def apply_args(self, args):
@@ -304,7 +302,7 @@ def make_secondary_interface(transport="tcp", interface_name=SECONDARY_RPC_INTER
 
 @dataclass
 class HostSpec:
-    rpc_interfaces: Dict[str, RPCInterface] = field(
+    rpc_interfaces: dict[str, RPCInterface] = field(
         default_factory=lambda: {
             PRIMARY_RPC_INTERFACE: RPCInterface(),
             FILE_SERVING_RPC_INTERFACE: RPCInterface(

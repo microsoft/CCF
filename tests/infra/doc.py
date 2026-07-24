@@ -1,11 +1,11 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
+import docutils.frontend
 import docutils.nodes
 import docutils.parsers.rst
 import docutils.utils
-import docutils.frontend
-from docutils.parsers.rst.directives import register_directive
 from docutils.parsers.rst import Directive
+from docutils.parsers.rst.directives import register_directive
 
 
 class StubDirective(Directive):

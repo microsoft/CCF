@@ -1,32 +1,32 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import infra.e2e_args
-import infra.network
-import infra.proc
-import infra.platform_detection
-import infra.net
-import infra.utils
-import infra.logging_app as app
-from infra.tx_status import TxStatus
-import suite.test_requirements as reqs
-import tempfile
-from shutil import copy, rmtree
-from copy import deepcopy
+import http
+import json
 import os
+import pathlib
+import random
+import re
+import tempfile
 import time
+from copy import deepcopy
+from datetime import datetime
+from shutil import copy, rmtree
+
 import ccf.ledger
 import ccf.signatures
-import json
 import infra.crypto
-from datetime import datetime
-from infra.checker import check_can_progress
+import infra.e2e_args
+import infra.logging_app as app
+import infra.net
+import infra.network
+import infra.platform_detection
+import infra.proc
+import infra.utils
+import suite.test_requirements as reqs
 from governance_history import check_signatures
+from infra.checker import check_can_progress
 from infra.snp import SNP_SUPPORT
-import http
-import random
-import pathlib
-import re
-
+from infra.tx_status import TxStatus
 from loguru import logger as LOG
 
 # Matches an IPv4 dotted-quad with each octet in 0-255. Used to assert that an
@@ -1223,118 +1223,113 @@ def run_join_old_snapshot(const_args, ipv6=False):
     args.nodes = infra.e2e_args.nodes(args, 1)
     args.label += "_old_snapshot"
 
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        with infra.network.network(
-            args.nodes,
-            args.binary_dir,
-            args.debug_nodes,
-            pdb=args.pdb,
-            txs=txs,
-            ipv6=ipv6,
-        ) as network:
-            network.start_and_open(args)
-            primary, _ = network.find_primary()
+    with tempfile.TemporaryDirectory() as tmp_dir, infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        pdb=args.pdb,
+        txs=txs,
+        ipv6=ipv6,
+    ) as network:
+        network.start_and_open(args)
+        primary, _ = network.find_primary()
 
-            # First, retrieve and save one committed snapshot
-            txs.issue(network, number_txs=args.snapshot_tx_interval)
-            old_committed_snapshots = network.get_committed_snapshots(primary)
-            copy(
-                os.path.join(
-                    old_committed_snapshots, os.listdir(old_committed_snapshots)[0]
-                ),
-                tmp_dir,
+        # First, retrieve and save one committed snapshot
+        txs.issue(network, number_txs=args.snapshot_tx_interval)
+        old_committed_snapshots = network.get_committed_snapshots(primary)
+        copy(
+            os.path.join(
+                old_committed_snapshots, os.listdir(old_committed_snapshots)[0]
+            ),
+            tmp_dir,
+        )
+
+        # Then generate another newer snapshot, and add two more nodes from it
+        txs.issue(network, number_txs=args.snapshot_tx_interval)
+
+        for _ in range(2):
+            new_node = network.create_node()
+            snapshots_dir = network.get_committed_snapshots()
+            network.join_node(
+                new_node,
+                args.package,
+                args,
+                snapshots_dir=snapshots_dir,
+                from_snapshot=True,
             )
+            network.trust_node(new_node, args)
 
-            # Then generate another newer snapshot, and add two more nodes from it
-            txs.issue(network, number_txs=args.snapshot_tx_interval)
+        # Kill primary and wait for a new one: new primary is
+        # guaranteed to have started from the new snapshot
+        network.retire_node(remote_node=new_node, node_to_retire=primary)
+        primary.stop()
+        network.wait_for_new_primary(primary)
 
-            for _ in range(0, 2):
-                new_node = network.create_node()
-                snapshots_dir = network.get_committed_snapshots()
-                network.join_node(
-                    new_node,
-                    args.package,
-                    args,
-                    snapshots_dir=snapshots_dir,
-                    from_snapshot=True,
-                )
-                network.trust_node(new_node, args)
-
-            # Kill primary and wait for a new one: new primary is
-            # guaranteed to have started from the new snapshot
-            network.retire_node(remote_node=new_node, node_to_retire=primary)
-            primary.stop()
-            network.wait_for_new_primary(primary)
-
-            # Start new node from the old snapshot
-            try:
-                new_node = network.create_node()
-                network.join_node(
-                    new_node,
-                    args.package,
-                    args,
-                    from_snapshot=True,
-                    snapshots_dir=tmp_dir,
-                    fetch_recent_snapshot=False,
-                    timeout=3,
-                )
-            except infra.network.StartupSeqnoIsOld as e:
-                LOG.info(
-                    f"Node {new_node.local_node_id} started from old snapshot could not join the service, as expected"
-                )
-                assert (
-                    e.has_stopped
-                ), "Expected node to stop on receiving StartupSeqnoIsOld"
-            else:
-                raise RuntimeError(
-                    f"Node {new_node.local_node_id} started from old snapshot unexpectedly joined the service"
-                )
-
-            # Start new node from no snapshot
-            try:
-                new_node = network.create_node()
-                network.join_node(
-                    new_node,
-                    args.package,
-                    args,
-                    from_snapshot=False,
-                    fetch_recent_snapshot=False,
-                    timeout=3,
-                )
-            except infra.network.StartupSeqnoIsOld as e:
-                LOG.info(
-                    f"Node {new_node.local_node_id} started without snapshot could not join the service, as expected"
-                )
-                assert (
-                    e.has_stopped
-                ), "Expected node to stop on receiving StartupSeqnoIsOld"
-            else:
-                raise RuntimeError(
-                    f"Node {new_node.local_node_id} started without snapshot unexpectedly joined the service successfully"
-                )
-
-            # Find latest primary
-            primary, backups = network.find_nodes()
-            backup = backups[0]
-
-            # Remove backup's snapshots, so that they need to redirect during snapshot-discovery
-            snapshot_dir = os.path.join(
-                backup.remote.remote.root, backup.remote.snapshots_dir_name
-            )
-            rmtree(snapshot_dir)
-            pathlib.Path(snapshot_dir).mkdir(parents=True, exist_ok=True)
-
-            # Start new node with no snapshot dir, but fetching recent snapshot on startup - this should only pass if snapshot fetch works correctly
+        # Start new node from the old snapshot
+        try:
             new_node = network.create_node()
             network.join_node(
                 new_node,
                 args.package,
                 args,
-                target_node=backup,
-                from_snapshot=False,
-                fetch_recent_snapshot=True,
+                from_snapshot=True,
+                snapshots_dir=tmp_dir,
+                fetch_recent_snapshot=False,
                 timeout=3,
             )
+        except infra.network.StartupSeqnoIsOld as e:
+            LOG.info(
+                f"Node {new_node.local_node_id} started from old snapshot could not join the service, as expected"
+            )
+            assert e.has_stopped, "Expected node to stop on receiving StartupSeqnoIsOld"
+        else:
+            raise RuntimeError(
+                f"Node {new_node.local_node_id} started from old snapshot unexpectedly joined the service"
+            )
+
+        # Start new node from no snapshot
+        try:
+            new_node = network.create_node()
+            network.join_node(
+                new_node,
+                args.package,
+                args,
+                from_snapshot=False,
+                fetch_recent_snapshot=False,
+                timeout=3,
+            )
+        except infra.network.StartupSeqnoIsOld as e:
+            LOG.info(
+                f"Node {new_node.local_node_id} started without snapshot could not join the service, as expected"
+            )
+            assert e.has_stopped, "Expected node to stop on receiving StartupSeqnoIsOld"
+        else:
+            raise RuntimeError(
+                f"Node {new_node.local_node_id} started without snapshot unexpectedly joined the service successfully"
+            )
+
+        # Find latest primary
+        primary, backups = network.find_nodes()
+        backup = backups[0]
+
+        # Remove backup's snapshots, so that they need to redirect during snapshot-discovery
+        snapshot_dir = os.path.join(
+            backup.remote.remote.root, backup.remote.snapshots_dir_name
+        )
+        rmtree(snapshot_dir)
+        pathlib.Path(snapshot_dir).mkdir(parents=True, exist_ok=True)
+
+        # Start new node with no snapshot dir, but fetching recent snapshot on startup - this should only pass if snapshot fetch works correctly
+        new_node = network.create_node()
+        network.join_node(
+            new_node,
+            args.package,
+            args,
+            target_node=backup,
+            from_snapshot=False,
+            fetch_recent_snapshot=True,
+            timeout=3,
+        )
 
 
 def run_join_no_snapshot_against_original_primary(const_args, ipv6=False):

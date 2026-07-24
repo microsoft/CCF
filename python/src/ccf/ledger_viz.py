@@ -1,11 +1,12 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
+import argparse
+import json
+import shutil
+
 import ccf.ledger
 import ccf.signatures
-import argparse
-import shutil
-import json
 
 COLORS = {
     "Black": 40,

@@ -1,47 +1,46 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import infra.network
-import suite.test_requirements as reqs
-import infra.logging_app as app
-import infra.e2e_args
-from infra.tx_status import TxStatus
-import infra.checker
-import infra.jwt_issuer
-import infra.proc
-import http
-from http.client import HTTPResponse
-import ssl
-import socket
-import os
-from collections import defaultdict
-import time
-import json
+import base64
+import copy
 import hashlib
-import infra.clients
-from infra.log_capture import flush_info
-import ccf.receipt
-from ccf.tx_id import TxID
-from cryptography.x509 import load_pem_x509_certificate
-from cryptography.hazmat.backends import default_backend
-from cryptography.exceptions import InvalidSignature
-from cryptography.x509 import ObjectIdentifier
-import urllib.parse
+import http
+import json
+import os
 import random
 import re
-import infra.crypto
-from infra.runner import ConcurrentRunner
-from hashlib import sha256
-from infra.member import AckException
-from types import MappingProxyType
-import threading
-import copy
-import programmability
-import e2e_common_endpoints
+import socket
+import ssl
 import subprocess
-import base64
-import cbor2
+import threading
+import time
+import urllib.parse
+from collections import defaultdict
 from datetime import datetime
+from hashlib import sha256
+from http.client import HTTPResponse
+from types import MappingProxyType
 
+import cbor2
+import ccf.receipt
+import e2e_common_endpoints
+import infra.checker
+import infra.clients
+import infra.crypto
+import infra.e2e_args
+import infra.jwt_issuer
+import infra.logging_app as app
+import infra.network
+import infra.proc
+import programmability
+import suite.test_requirements as reqs
+from ccf.tx_id import TxID
+from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.backends import default_backend
+from cryptography.x509 import ObjectIdentifier, load_pem_x509_certificate
+from infra.log_capture import flush_info
+from infra.member import AckException
+from infra.runner import ConcurrentRunner
+from infra.tx_status import TxStatus
 from loguru import logger as LOG
 
 
@@ -117,15 +116,11 @@ def verify_receipt(
             assert "claims_digest" not in receipt["leaf_components"]
         claims_digest = sha256(claims).digest()
 
-        leaf = (
-            sha256(
-                bytes.fromhex(receipt["leaf_components"]["write_set_digest"])
-                + commit_evidence_digest
-                + claims_digest
-            )
-            .digest()
-            .hex()
-        )
+        leaf = sha256(
+            bytes.fromhex(receipt["leaf_components"]["write_set_digest"])
+            + commit_evidence_digest
+            + claims_digest
+        ).hexdigest()
     elif not is_signature_tx:
         assert "leaf_components" in receipt, receipt
         assert "write_set_digest" in receipt["leaf_components"]
@@ -139,11 +134,9 @@ def verify_receipt(
             if "claims_digest" in receipt["leaf_components"]
             else b""
         )
-        leaf = (
-            sha256(write_set_digest + commit_evidence_digest + claims_digest)
-            .digest()
-            .hex()
-        )
+        leaf = sha256(
+            write_set_digest + commit_evidence_digest + claims_digest
+        ).hexdigest()
     else:
         assert is_signature_tx
         leaf = receipt["leaf"]
@@ -1244,8 +1237,8 @@ def test_historical_query_range(network, args):
 
         # - Try the first invalid seqno.
         # !! If implicit TX occurs during this time, fetch last TX id and retry.
-        attemtps = 5
-        for _ in range(0, attemtps):
+        attempts = 5
+        for _ in range(attempts):
             r = c.get(
                 f"/app/log/public/historical/range?to_seqno={last_valid_seqno+1}&id={id_a}"
             )
@@ -1520,7 +1513,7 @@ def escaped_query_tests(c, endpoint):
             unescaped_query,
         )
 
-    all_chars = list(range(0, 255))
+    all_chars = list(range(255))
     max_args = 50
     for ichars in [
         all_chars[i : i + max_args] for i in range(0, len(all_chars), max_args)
@@ -1804,10 +1797,10 @@ class SentTxs:
         if status != current_status:
             valid = False
             # Only valid transitions from Unknown to any, or Pending to Committed/Invalid
-            if current_status == TxStatus.Unknown:
-                valid = True
-            elif current_status == TxStatus.Pending and (
-                status == TxStatus.Committed or status == TxStatus.Invalid
+            if (
+                current_status == TxStatus.Unknown
+                or current_status == TxStatus.Pending
+                and (status == TxStatus.Committed or status == TxStatus.Invalid)
             ):
                 valid = True
 

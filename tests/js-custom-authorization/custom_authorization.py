@@ -1,27 +1,27 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
+import base64
+import datetime
 import http
+import json
+import os
+import re
+import subprocess
+import tempfile
+import time
+import uuid
+from contextlib import contextmanager
+from functools import partial
+from http import HTTPStatus
+
+import infra.e2e_args
+import infra.net
 import infra.network
 import infra.path
 import infra.proc
-import infra.net
-import infra.e2e_args
 import suite.test_requirements as reqs
-from infra.runner import ConcurrentRunner
-import os
-import tempfile
-import base64
-import json
-import time
 from infra.jwt_issuer import JwtAlg, JwtAuthType, JwtIssuer, make_bearer_header
-import datetime
-import re
-import uuid
-from http import HTTPStatus
-import subprocess
-from contextlib import contextmanager
-from functools import partial
-
+from infra.runner import ConcurrentRunner
 from loguru import logger as LOG
 
 utctime = partial(datetime.datetime, tzinfo=datetime.UTC)
@@ -1164,7 +1164,7 @@ def test_metrics_logging(network, args):
         r".*\[js\].*\| JS execution complete: Method=(?P<Method>.*), Path=(?P<Path>.*), Status=(?P<Status>\d+), ExecMilliseconds=(?P<ExecMilliseconds>\d+)$"
     )
     out_path, _ = new_node.get_logs()
-    for line in open(out_path, "r", encoding="utf-8").readlines():
+    for line in open(out_path, "r", encoding="utf-8"):
         match = metrics_regex.match(line)
         if match is not None:
             expected_groups = assertions.pop(0)
@@ -1417,7 +1417,7 @@ def run_interpreter_reuse(args):
     ) as network:
         network.start_and_open(args)
 
-        network = test_reused_interpreter_behaviour(network, args)  #
+        network = test_reused_interpreter_behaviour(network, args)
         network = test_caching_of_kv_handles(network, args)
         network = test_caching_of_app_code(network, args)
 

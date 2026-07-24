@@ -1,25 +1,26 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
+import hashlib
 import os
 from contextlib import contextmanager
 from shutil import copy2, rmtree
-import hashlib
-import infra.node
-import infra.platform_detection
-from packaging.version import Version  # type: ignore
 
 from loguru import logger as LOG
+from packaging.version import Version  # type: ignore
+
+import infra.node
+import infra.platform_detection
 
 
 def mk(name, contents):
-    LOG.info('echo "<{} bytes>" > {}'.format(len(contents), name))
+    LOG.info(f'echo "<{len(contents)} bytes>" > {name}')
     with open(name, "w", encoding="utf-8") as dst:
         dst.write(contents)
 
 
 def mk_new(name, contents):
     if not os.path.isfile(name):
-        LOG.debug('Creating file at "{}" containing "{}"'.format(name, contents))
+        LOG.debug(f'Creating file at "{name}" containing "{contents}"')
         mk(name, contents)
 
 
@@ -107,7 +108,7 @@ def compute_file_checksum(file_name):
 @contextmanager
 def working_dir(path):
     cwd = os.getcwd()
-    LOG.info("cd {}".format(path))
+    LOG.info(f"cd {path}")
     os.chdir(path)
     try:
         yield

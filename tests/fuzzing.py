@@ -1,10 +1,11 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
+import datetime
+import struct
+
+import boofuzz
 import infra.e2e_args
 import infra.network
-import struct
-import boofuzz
-import datetime
 from loguru import logger as LOG
 
 
@@ -114,7 +115,7 @@ def fuzz_node_to_node(network, args):
                             ),
                             boofuzz.RandomData(
                                 "SenderContent",
-                                default_value="OtherNode".encode(),
+                                default_value=b"OtherNode",
                                 max_length=32,
                             ),
                         ],

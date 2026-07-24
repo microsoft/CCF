@@ -1,30 +1,29 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-from base64 import b64encode, b64decode
+import copy
+import http
+import json
+import os
+import shutil
+import tempfile
+import time
+from base64 import b64decode, b64encode
 from datetime import datetime, timedelta, timezone
+from hashlib import sha256
+
+import infra.clients
+import infra.commit
+import infra.crypto
 import infra.e2e_args
 import infra.network
 import infra.path
+import infra.platform_detection
 import infra.proc
 import infra.utils
-import infra.crypto
-import infra.platform_detection
-import infra.clients
-import infra.commit
 import suite.test_requirements as reqs
-import os
+from infra import snp
 from infra.checker import Checker, check_can_progress
 from infra.crypto import create_signed_statement
-import infra.snp as snp
-import tempfile
-import shutil
-import http
-import json
-from hashlib import sha256
-import copy
-import time
-
-
 from loguru import logger as LOG
 
 CERTIFICATE_VALID_FROM_OFFSET = timedelta(seconds=1)
@@ -1079,7 +1078,7 @@ def _test_update_all_nodes(network, args, atomic_reconfiguration=False):
     new_nodes = []
 
     LOG.info("Start fresh nodes running new code")
-    for _ in range(0, len(old_nodes)):
+    for _ in range(len(old_nodes)):
         new_node = network.create_node()
         network.join_node(new_node, replacement_package, args, from_snapshot=False)
         new_nodes.append(new_node)

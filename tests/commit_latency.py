@@ -1,16 +1,16 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-import time
 import http
 import statistics
+import time
+
+import infra.bencher
 import infra.e2e_args
 import infra.network
 import suite.test_requirements as reqs
 from infra.log_capture import flush_info
 from infra.tx_status import TxStatus
-import infra.bencher
-
 from loguru import logger as LOG
 
 

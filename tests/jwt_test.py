@@ -1,30 +1,30 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import tempfile
-import json
-import time
 import base64
+import json
 import socket
+import tempfile
+import time
 from contextlib import contextmanager
-import infra.network
-import infra.jwt_issuer
-import infra.path
-import infra.proc
-import infra.net
+
+import ca_certs
+import ccf.ledger
+import infra.clients
 import infra.crypto
 import infra.e2e_args
+import infra.jwt_issuer
+import infra.net
+import infra.network
+import infra.path
+import infra.proc
 import infra.proposal
 import suite.test_requirements as reqs
+from ccf.tx_id import TxID
 from infra.jwt_issuer import (
     OpenIDProviderServer,
     get_jwt_issuers,
     get_jwt_keys,
 )
-import ca_certs
-import ccf.ledger
-from ccf.tx_id import TxID
-import infra.clients
-
 from loguru import logger as LOG
 
 

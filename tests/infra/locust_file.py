@@ -1,9 +1,10 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-import locust.stats
-from locust import HttpUser, task, events, constant_throughput
 import json
+
+import locust.stats
+from locust import HttpUser, constant_throughput, events, task
 
 # Scope for logging txs so that they do not conflict
 # with the txs recorded by the actual tests

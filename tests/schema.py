@@ -1,21 +1,21 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import os
-import json
 import http
-import infra.network
-import infra.proc
-import infra.e2e_args
-import infra.checker
-import openapi_spec_validator
-from packaging import version
-from infra.runner import ConcurrentRunner
-import nobuiltins
-import packaging.version
+import json
+import os
+
 import e2e_operations
 import e2e_tutorial
-
+import infra.checker
+import infra.e2e_args
+import infra.network
+import infra.proc
+import nobuiltins
+import openapi_spec_validator
+import packaging.version
+from infra.runner import ConcurrentRunner
 from loguru import logger as LOG
+from packaging import version
 
 
 def run(args):
@@ -92,7 +92,7 @@ def run(args):
                         pass
                 changed_files.append(openapi_target_file)
             else:
-                LOG.debug("Schema matches in {}".format(openapi_target_file))
+                LOG.debug(f"Schema matches in {openapi_target_file}")
 
         try:
             openapi_spec_validator.validate_spec(response_body)

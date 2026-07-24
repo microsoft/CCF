@@ -1,14 +1,13 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import infra.network
-import infra.interfaces
-import infra.net
-from ccf.ledger import NodeStatus
 import http
 import random
+
+import infra.interfaces
+import infra.net
+import infra.network
 import suite.test_requirements as reqs
-
-
+from ccf.ledger import NodeStatus
 from loguru import logger as LOG
 
 

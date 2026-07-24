@@ -1,8 +1,8 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import infra.partitions
 import sys
 
+import infra.partitions
 from loguru import logger as LOG
 
 if __name__ == "__main__":

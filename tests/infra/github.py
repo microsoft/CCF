@@ -1,18 +1,16 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-import re
 import os
-
-import subprocess
-import git
-import urllib
+import re
 import shutil
+import subprocess
+import urllib
+
+import git
 import requests
-
-from packaging.version import Version  # type: ignore
-
 from loguru import logger as LOG
+from packaging.version import Version  # type: ignore
 
 REPOSITORY_NAME = "microsoft/CCF"
 REMOTE_URL = f"https://github.com/{REPOSITORY_NAME}"

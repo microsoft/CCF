@@ -1,23 +1,24 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-import infra.network
-import infra.crypto
-import ccf.ledger
-import ccf.signatures
-import infra.doc
-from infra.proposal import ProposalState
-import http
-import os
 import base64
+import http
 import json
-from loguru import logger as LOG
-import suite.test_requirements as reqs
+import os
+
+import ccf.ledger
 import ccf.read_ledger
-import infra.logging_app as app
-from ccf.tx_id import TxID
-from ccf.cose import cert_fingerprint
+import ccf.signatures
 import cwt
+import infra.crypto
+import infra.doc
+import infra.logging_app as app
+import infra.network
+import suite.test_requirements as reqs
+from ccf.cose import cert_fingerprint
+from ccf.tx_id import TxID
+from infra.proposal import ProposalState
+from loguru import logger as LOG
 
 
 def check_operations(ledger, operations):

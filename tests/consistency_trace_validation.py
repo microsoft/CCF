@@ -1,13 +1,13 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-import infra.e2e_args
-import subprocess
+import os
 import signal
+import subprocess
 import sys
 import time
-import os
 
+import infra.e2e_args
 from loguru import logger as LOG
 
 

@@ -1,42 +1,39 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import base64
+import functools
+import hashlib
+import http
+import json
 import os
+import pprint
+import random
+import re
 import time
-
+from collections import deque
 from contextlib import contextmanager
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from enum import Enum, IntEnum, auto
-from infra.clients import flush_info, CCFConnectionException, CCFIOException
+
+import ccf.ledger
+from ccf.tx_id import TxID
+from cryptography.hazmat.backends import default_backend
+from cryptography.x509 import load_pem_x509_certificate
+from loguru import logger as LOG
+
+import infra.consortium
 import infra.crypto
+import infra.e2e_args
 import infra.member
+import infra.node
 import infra.path
 import infra.proc
 import infra.service_load
-import infra.node
-from infra.node import CCFVersion
-import infra.consortium
-import infra.e2e_args
-import ccf.ledger
-from infra.tx_status import TxStatus
-from ccf.tx_id import TxID
-import random
-from dataclasses import dataclass
-import http
-import pprint
-import functools
-import re
-import hashlib
-import json
-
-from datetime import datetime, timedelta, timezone
+from infra.clients import CCFConnectionException, CCFIOException, flush_info
 from infra.consortium import slurp_file
-from collections import deque
-
-
-from loguru import logger as LOG
-
-from cryptography.x509 import load_pem_x509_certificate
-from cryptography.hazmat.backends import default_backend
+from infra.node import CCFVersion
+from infra.tx_status import TxStatus
 
 # JOIN_TIMEOUT should be greater than the worst case quote verification time (~ 25 secs)
 JOIN_TIMEOUT = 40
@@ -163,21 +160,19 @@ def log_errors(
             )
             for line in tail_lines:
                 LOG.info(line)
-    except IOError:
-        LOG.exception("Could not check output {} for errors".format(out_path))
+    except OSError:
+        LOG.exception(f"Could not check output {out_path} for errors")
 
     fatal_error_lines = []
     try:
         with open(err_path, "r", errors="replace", encoding="utf-8") as lines:
             fatal_error_lines = [
-                line
-                for line in lines.readlines()
-                if not line.startswith("[ perf record:")
+                line for line in lines if not line.startswith("[ perf record:")
             ]
             if fatal_error_lines:
                 LOG.error(f"Contents of {err_path}:\n{''.join(fatal_error_lines)}")
-    except IOError:
-        LOG.exception("Could not read err output {}".format(err_path))
+    except OSError:
+        LOG.exception(f"Could not read err output {err_path}")
 
     return error_lines, fatal_error_lines
 

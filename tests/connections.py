@@ -1,27 +1,26 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import infra.e2e_args
-import time
-import infra.network
-import infra.proc
-import infra.checker
-import infra.interfaces
 import contextlib
-import resource
-from infra.log_capture import flush_info
-from infra.clients import CCFConnectionException, CCFIOException
-import random
-import http
 import functools
-import httpx
+import http
 import os
+import random
+import resource
 import socket
 import struct
-from infra.runner import ConcurrentRunner
-
-from loguru import logger as LOG
+import time
 
 import fuzzing
+import httpx
+import infra.checker
+import infra.e2e_args
+import infra.interfaces
+import infra.network
+import infra.proc
+from infra.clients import CCFConnectionException, CCFIOException
+from infra.log_capture import flush_info
+from infra.runner import ConcurrentRunner
+from loguru import logger as LOG
 
 
 class AllConnectionsCreatedException(Exception):
@@ -399,7 +398,7 @@ def run_node_socket_robustness_tests(args):
                 try_write(msg)
 
         LOG.info("Sending messages which do not contain initial header")
-        for size in range(0, 16):
+        for size in range(16):
             try_write(struct.pack("<I", size) + b"\x00" * size)
 
         LOG.info("Sending plausible messages")

@@ -1,44 +1,40 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-from typing import Tuple, Optional
 import base64
-from enum import IntEnum
-import secrets
 import datetime
 import hashlib
 import ipaddress
-from pyasn1.type.useful import UTCTime
+import secrets
+import uuid
+from enum import IntEnum
 
-
+import cwt
+import cwt.utils
+import jwt
 from cryptography import x509
-from cryptography.x509.oid import NameOID
-from cryptography.x509 import (
-    load_pem_x509_certificate,
-    load_der_x509_certificate,
-)
-from cryptography.hazmat.primitives.asymmetric import ec, rsa, padding, ed25519, x25519
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import hashes, keywrap
+from cryptography.hazmat.primitives.asymmetric import ec, ed25519, padding, rsa, x25519
 from cryptography.hazmat.primitives.asymmetric.utils import (
     decode_dss_signature,
     encode_dss_signature,
 )
 from cryptography.hazmat.primitives.serialization import (
+    Encoding,
+    NoEncryption,
+    PrivateFormat,
+    PublicFormat,
     load_der_public_key,
     load_pem_private_key,
     load_pem_public_key,
-    Encoding,
-    PrivateFormat,
-    PublicFormat,
-    NoEncryption,
 )
-from cryptography.hazmat.primitives import hashes, keywrap
-from cryptography.hazmat.backends import default_backend
-
-import jwt
-import uuid
-
-import cwt
-import cwt.utils
+from cryptography.x509 import (
+    load_der_x509_certificate,
+    load_pem_x509_certificate,
+)
+from cryptography.x509.oid import NameOID
+from pyasn1.type.useful import UTCTime
 
 RECOMMENDED_RSA_PUBLIC_EXPONENT = 65537
 
@@ -75,7 +71,7 @@ def generate_aes_key(key_bits: int) -> bytes:
     return secrets.token_bytes(key_bits // 8)
 
 
-def generate_rsa_keypair(key_size: int) -> Tuple[str, str]:
+def generate_rsa_keypair(key_size: int) -> tuple[str, str]:
     assert key_size >= 2048
     # CodeQL [SM04455] False positive: The key size is asserted to be at least 2048 bytes
     priv = rsa.generate_private_key(
@@ -93,7 +89,7 @@ def generate_rsa_keypair(key_size: int) -> Tuple[str, str]:
     return priv_pem, pub_pem
 
 
-def generate_ec_keypair(curve: ec.EllipticCurve = ec.SECP256R1) -> Tuple[str, str]:
+def generate_ec_keypair(curve: ec.EllipticCurve = ec.SECP256R1) -> tuple[str, str]:
     priv = ec.generate_private_key(
         curve=curve(),
         backend=default_backend(),
@@ -108,7 +104,7 @@ def generate_ec_keypair(curve: ec.EllipticCurve = ec.SECP256R1) -> Tuple[str, st
     return priv_pem, pub_pem
 
 
-def generate_eddsa_keypair(curve: str) -> Tuple[str, str]:
+def generate_eddsa_keypair(curve: str) -> tuple[str, str]:
     key_class = {
         "curve25519": ed25519.Ed25519PrivateKey,
         "x25519": x25519.X25519PrivateKey,
@@ -134,7 +130,7 @@ def generate_cert(
     ca=False,
     valid_from=None,
     validity_days=10,
-    san: Optional[str] = None,
+    san: str | None = None,
 ) -> str:
     cn = cn or "dummy"
     if issuer_priv_key_pem is None:
@@ -197,7 +193,7 @@ def generate_cert(
 
 
 def unwrap_key_rsa_oaep(
-    wrapped_key: bytes, wrapping_key_priv_pem: str, label: Optional[bytes] = None
+    wrapped_key: bytes, wrapping_key_priv_pem: str, label: bytes | None = None
 ) -> bytes:
     wrapping_key = load_pem_private_key(
         wrapping_key_priv_pem.encode("ascii"), None, default_backend()
@@ -218,7 +214,7 @@ def unwrap_key_aes_pad(wrapped_key: bytes, wrapping_key: bytes) -> bytes:
 
 
 def unwrap_key_rsa_oaep_aes_pad(
-    data: bytes, oaep_key_priv_pem: str, label: Optional[bytes] = None
+    data: bytes, oaep_key_priv_pem: str, label: bytes | None = None
 ) -> bytes:
     oaep_key = load_pem_private_key(
         oaep_key_priv_pem.encode("ascii"), None, default_backend()

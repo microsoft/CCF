@@ -1,49 +1,50 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import infra.e2e_args
-import infra.member
-import infra.network
-import infra.net
-import infra.node
-import infra.proposal
-import infra.logging_app as app
-import infra.checker
-import infra.crypto
-import suite.test_requirements as reqs
+import base64
+import copy
+import hashlib
+import http
+import json
+import os
+import random
+import shutil
+import subprocess
+import tempfile
+import time
+from datetime import datetime, timezone
+
 import ccf.ledger
 import ccf.signatures
-import os
-import subprocess
-import json
-from infra.runner import ConcurrentRunner
-from infra.consortium import slurp_file
-import infra.health_watcher
-import time
-from e2e_logging import (
-    verify_receipt,
-    test_cose_receipt_schema,
-    get_service_key,
-    fetch_and_verify_cose_receipt,
-)
-from reconfiguration import assert_no_ipv4_in_node_configs
-import infra.service_load
 import ccf.tx_id
-import tempfile
-import http
-import base64
-import hashlib
-import shutil
-from cryptography.x509 import load_pem_x509_certificate
+import infra.checker
+import infra.commit
+import infra.crypto
+import infra.e2e_args
+import infra.health_watcher
+import infra.logging_app as app
+import infra.member
+import infra.net
+import infra.network
+import infra.node
+import infra.platform_detection
+import infra.proposal
+import infra.service_load
+import infra.utils
+import suite.test_requirements as reqs
+from ccf.cose import verify_cose_sign1_with_key  # type: ignore
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
-from ccf.cose import verify_cose_sign1_with_key  # type: ignore
-import random
-import copy
-from datetime import datetime, timezone
-import infra.commit
-import infra.utils
-import infra.platform_detection
+from cryptography.x509 import load_pem_x509_certificate
+from e2e_logging import (
+    fetch_and_verify_cose_receipt,
+    get_service_key,
+    test_cose_receipt_schema,
+    verify_receipt,
+)
+from infra.consortium import slurp_file
+from infra.runner import ConcurrentRunner
 from loguru import logger as LOG
+from reconfiguration import assert_no_ipv4_in_node_configs
 
 
 def shifted_tx(tx, view_diff, seq_dif):
@@ -69,7 +70,7 @@ def get_and_verify_historical_receipt(network, ref_msg):
 
 
 def query_endorsements_chain(node, txid):
-    for _ in range(0, 10):
+    for _ in range(10):
         with node.client("user0") as cli:
             response = cli.get(
                 "/log/public/cose_endorsements",
@@ -776,7 +777,7 @@ def test_recover_service_with_wrong_identity(network, args):
             )
 
             response = cli.get(
-                f"/node/receipt?transaction_id={str(before_recovery_tx_id)}"
+                f"/node/receipt?transaction_id={before_recovery_tx_id!s}"
             )
             assert response.status_code == http.HTTPStatus.NOT_FOUND, response
             assert (
@@ -1044,7 +1045,7 @@ def run_recover_service_from_files(
 
         for view, seqno in test_cose_receipts_at or []:
             with primary.client() as client:
-                for _ in range(0, 10):
+                for _ in range(10):
                     r = client.get(
                         "/log/public/cose_receipt",
                         headers={infra.clients.CCF_TX_ID_HEADER: f"{view}.{seqno}"},
@@ -1634,7 +1635,7 @@ def test_incomplete_ledger_recovery(network, args):
     current_ledger_dir, committed_ledger_dirs = primary.get_ledger()
     network.stop_all_nodes(skip_verification=True)
 
-    for attempt in range(0, ATTEMPTS):
+    for attempt in range(ATTEMPTS):
         LOG.info(
             f"Try get incomplete pre-recovery ledger files on primary, attempt=#{attempt}/{ATTEMPTS}"
         )

@@ -1,21 +1,20 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import infra.network
-import infra.e2e_args
-import infra.checker
-import infra.jwt_issuer
-import infra.proc
 import http
-import os
 import json
-from infra.runner import ConcurrentRunner
-from governance_js import action, proposal, ballot_yes
+import os
+
 import ccf.cose
+import infra.checker
 import infra.clients
-
-import npm_tests
+import infra.e2e_args
+import infra.jwt_issuer
+import infra.network
+import infra.proc
 import jwt_test
-
+import npm_tests
+from governance_js import action, ballot_yes, proposal
+from infra.runner import ConcurrentRunner
 from loguru import logger as LOG
 
 TESTJS = """

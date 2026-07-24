@@ -3,8 +3,9 @@
 import argparse
 import datetime
 import json
-import matplotlib.pyplot as plt
 import os
+
+import matplotlib.pyplot as plt
 import polars as pl
 from loguru import logger as LOG
 

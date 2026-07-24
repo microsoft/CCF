@@ -1,33 +1,32 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-from contextlib import contextmanager, closing
-from enum import Enum, auto
-import functools
-import infra.crypto
-import infra.remote
-from datetime import datetime, timedelta, timezone
-import infra.net
-import infra.path
-import infra.interfaces
-import infra.clients
-import ccf.ledger
-from ccf.tx_id import TxID
-import os
-import socket
-import re
-import ipaddress
-import ssl
 import copy
-import json
-import time
+import functools
 import http
+import ipaddress
+import json
+import os
+import re
+import socket
+import ssl
+import time
+from contextlib import closing, contextmanager
+from datetime import datetime, timedelta, timezone
+from enum import Enum, auto
 
 import ccf._versionifier
-
+import ccf.ledger
+from ccf.tx_id import TxID
+from loguru import logger as LOG
 from packaging.version import Version  # type: ignore
 
-from loguru import logger as LOG
+import infra.clients
+import infra.crypto
+import infra.interfaces
+import infra.net
+import infra.path
+import infra.remote
 
 BASE_NODE_CLIENT_HOST = "127.100.0.0"
 
@@ -382,15 +381,15 @@ class Node:
                 f.write(f"exec {' '.join(self.remote.remote.cmd)}\n")
                 f.write("fi\n")
 
-            print("")
+            print()
             print(
                 "================= Please run the below command on "
                 + self.get_public_rpc_host()
                 + " and press enter to continue ================="
             )
-            print("")
+            print()
             print(self.remote.debug_node_cmd())
-            print("")
+            print()
             input("Press Enter to continue...")
         else:
             self.remote.start()

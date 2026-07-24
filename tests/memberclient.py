@@ -3,14 +3,12 @@
 import http
 import re
 
+import infra.clients
+import infra.consortium
 import infra.e2e_args
 import infra.network
-import infra.consortium
-import infra.clients
-from infra.proposal import ProposalState
-
 import suite.test_requirements as reqs
-
+from infra.proposal import ProposalState
 from loguru import logger as LOG
 
 
@@ -44,7 +42,7 @@ def test_missing_signature_header(network, args):
 def make_signature_corrupter(fn):
     class SignatureCorrupter(infra.clients.HttpSig):
         def auth_flow(self, request):
-            yield fn(next(super(SignatureCorrupter, self).auth_flow(request)))
+            yield fn(next(super().auth_flow(request)))
 
     return SignatureCorrupter
 

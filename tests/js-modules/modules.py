@@ -1,23 +1,22 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import tempfile
 import http
-import os
 import json
+import os
 import shutil
+import tempfile
+import urllib.parse
+
+import infra.crypto
+import infra.e2e_args
+import infra.net
 import infra.network
 import infra.path
 import infra.proc
-import infra.net
-import infra.e2e_args
-import infra.crypto
 import suite.test_requirements as reqs
-import urllib.parse
 from e2e_logging import test_multi_auth
-
-from npm_tests import build_npm_app, deploy_npm_app, test_npm_app, validate_openapi
-
 from loguru import logger as LOG
+from npm_tests import build_npm_app, deploy_npm_app, test_npm_app, validate_openapi
 
 THIS_DIR = os.path.dirname(__file__)
 PARENT_DIR = os.path.normpath(os.path.join(THIS_DIR, os.path.pardir))
@@ -269,7 +268,7 @@ def test_app_bundle(network, args):
     # Testing the bundle archive support of the Python client here.
     # Plain bundle folders are tested in the npm-based app tests.
     bundle_dir = os.path.join(PARENT_DIR, "js-app-bundle")
-    raw_module_name = "/math.js".encode()
+    raw_module_name = b"/math.js"
     with tempfile.TemporaryDirectory(prefix="ccf") as tmp_dir:
         bundle_path = shutil.make_archive(
             os.path.join(tmp_dir, "bundle"), "zip", bundle_dir

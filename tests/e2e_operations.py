@@ -1,49 +1,48 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import tempfile
-import os
-import signal
-import shutil
-import urllib.parse
-
-import infra.logging_app as app
-import infra.e2e_args
-import infra.network
-import infra.platform_detection
-import ccf.ledger
-import ccf.signatures
-from ccf.tx_id import TxID
 import base64
-import suite.test_requirements as reqs
-import infra.crypto
-import ipaddress
-import infra.interfaces
-import infra.path
-import infra.proc
-import random
-import json
-import subprocess
-import time
-import http
 import copy
-import struct
-import infra.snp as snp
-from cryptography import x509
-from cryptography.hazmat.backends import default_backend
-import cbor2
+import hashlib
+import http
+import io
+import ipaddress
+import json
+import os
 import pathlib
-import infra.concurrency
-import ccf.read_ledger
+import random
+import re
+import shutil
+import signal
+import struct
+import subprocess
+import tempfile
+import time
+import urllib.parse
+from contextlib import contextmanager, redirect_stdout
+
+import cbor2
 import ccf.cose
+import ccf.ledger
+import ccf.ledger_viz
+import ccf.read_ledger
+import ccf.signatures
 import ccf.split_ledger
 import infra.commit
+import infra.concurrency
+import infra.crypto
+import infra.e2e_args
+import infra.interfaces
+import infra.logging_app as app
+import infra.network
+import infra.path
+import infra.platform_detection
+import infra.proc
 import infra.utils
-import re
-import hashlib
-import io
-from contextlib import contextmanager, redirect_stdout
-import ccf.ledger_viz
-
+import suite.test_requirements as reqs
+from ccf.tx_id import TxID
+from cryptography import x509
+from cryptography.hazmat.backends import default_backend
+from infra import snp
 from loguru import logger as LOG
 
 
@@ -142,7 +141,7 @@ def find_ledger_chunk_for_seqno(ledger, seqno):
                 and ccf.signatures.is_signature_transaction(tables)
             ):
                 next_signature = pd.get_seqno()
-        if first <= seqno and seqno <= last:
+        if first <= seqno <= last:
             return chunk, first, last, next_signature
     return None, None, None, None
 
@@ -398,127 +397,123 @@ def test_snapshot_access(network, args):
 
     with primary.client(
         interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
-    ) as file_client:
-        with primary.client(
-            interface_name=infra.interfaces.PRIMARY_RPC_INTERFACE
-        ) as disabled_client:
+    ) as file_client, primary.client(
+        interface_name=infra.interfaces.PRIMARY_RPC_INTERFACE
+    ) as disabled_client:
 
-            def do_request(http_verb, *args, **kwargs):
-                r = disabled_client.call(*args, http_verb=http_verb, **kwargs)
-                assert (
-                    r.status_code == http.HTTPStatus.NOT_FOUND
-                ), f"Expected inaccessible due to disabled opt-in feature. Found:\n{r}"
-                return file_client.call(*args, http_verb=http_verb, **kwargs)
+        def do_request(http_verb, *args, **kwargs):
+            r = disabled_client.call(*args, http_verb=http_verb, **kwargs)
+            assert (
+                r.status_code == http.HTTPStatus.NOT_FOUND
+            ), f"Expected inaccessible due to disabled opt-in feature. Found:\n{r}"
+            return file_client.call(*args, http_verb=http_verb, **kwargs)
 
-            r = do_request("HEAD", "/node/snapshot", allow_redirects=False)
-            assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value, r
-            assert "location" in r.headers, r.headers
-            location = r.headers["location"]
-            path = f"/node/snapshot/{snapshot_name}"
-            assert location == f"{loc}{path}"
-            LOG.warning(r.headers)
+        r = do_request("HEAD", "/node/snapshot", allow_redirects=False)
+        assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value, r
+        assert "location" in r.headers, r.headers
+        location = r.headers["location"]
+        path = f"/node/snapshot/{snapshot_name}"
+        assert location == f"{loc}{path}"
+        LOG.warning(r.headers)
 
-            # since uses closed/inclusive semantics: since=N returns snapshots
-            # with index >= N. So since=snapshot_index returns the snapshot
-            # (inclusive boundary), while since=snapshot_index+1 does not
-            # (strictly past the available snapshot index).
-            for since, expected in (
-                (0, location),
-                (1, location),
-                (snapshot_index // 2, location),
-                (snapshot_index - 1, location),
-                (snapshot_index, location),  # inclusive: exact index is returned
-                (snapshot_index + 1, None),  # strictly past: nothing returned
-            ):
-                for method in ("GET", "HEAD"):
-                    r = do_request(
-                        method,
-                        f"/node/snapshot?since={since}",
-                        allow_redirects=False,
-                    )
-                    if expected is None:
-                        assert r.status_code == http.HTTPStatus.NOT_FOUND, r
-                    else:
-                        assert (
-                            r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value
-                        ), r
-                        assert "location" in r.headers, r.headers
-                        actual = r.headers["location"]
-                        assert actual == expected
-
-            r = do_request("HEAD", path)
-            assert r.status_code == http.HTTPStatus.OK.value, r
-            assert r.headers["accept-ranges"] == "bytes", r.headers
-            total_size = int(r.headers["content-length"])
-
-            # Use HTTP-style inclusive range end value
-            range_max = total_size - 1
-
-            a = total_size // 3
-            b = a * 2
-            for start, end in [
-                (0, None),
-                (0, 0),
-                (0, range_max),
-                (0, a),
-                (a, a),
-                (a, b),
-                (b, b),
-                (b, range_max),
-                (b, None),
-                (range_max, range_max),
-                (range_max, None),
-            ]:
-                range_header_value = f"{start}-{'' if end is None else end}"
+        # since uses closed/inclusive semantics: since=N returns snapshots
+        # with index >= N. So since=snapshot_index returns the snapshot
+        # (inclusive boundary), while since=snapshot_index+1 does not
+        # (strictly past the available snapshot index).
+        for since, expected in (
+            (0, location),
+            (1, location),
+            (snapshot_index // 2, location),
+            (snapshot_index - 1, location),
+            (snapshot_index, location),  # inclusive: exact index is returned
+            (snapshot_index + 1, None),  # strictly past: nothing returned
+        ):
+            for method in ("GET", "HEAD"):
                 r = do_request(
-                    "GET", path, headers={"range": f"bytes={range_header_value}"}
+                    method,
+                    f"/node/snapshot?since={since}",
+                    allow_redirects=False,
                 )
-                assert r.status_code == http.HTTPStatus.PARTIAL_CONTENT.value, r
-                headers = r.headers
-                implied_end = range_max if end is None else end
-                assert int(headers["content-length"]) == implied_end - start + 1
-                assert (
-                    headers["content-range"]
-                    == f"bytes {start}-{implied_end}/{total_size}"
-                )
+                if expected is None:
+                    assert r.status_code == http.HTTPStatus.NOT_FOUND, r
+                else:
+                    assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value, r
+                    assert "location" in r.headers, r.headers
+                    actual = r.headers["location"]
+                    assert actual == expected
 
-                expected = snapshot_data[start : (None if end is None else end + 1)]
-                actual = r.body.data()
-                assert (
-                    expected == actual
-                ), f"Binary mismatch, {len(expected)} vs {len(actual)}:\n{expected}\nvs\n{actual}"
+        r = do_request("HEAD", path)
+        assert r.status_code == http.HTTPStatus.OK.value, r
+        assert r.headers["accept-ranges"] == "bytes", r.headers
+        total_size = int(r.headers["content-length"])
 
-            for negative_offset in [
-                1,
-                a,
-                b,
-            ]:
-                range_header_value = f"-{negative_offset}"
-                r = do_request(
-                    "GET", path, headers={"range": f"bytes={range_header_value}"}
-                )
-                assert r.status_code == http.HTTPStatus.PARTIAL_CONTENT.value, r
+        # Use HTTP-style inclusive range end value
+        range_max = total_size - 1
 
-                expected = snapshot_data[-negative_offset:]
-                actual = r.body.data()
-                assert (
-                    expected == actual
-                ), f"Binary mismatch, {len(expected)} vs {len(actual)}:\n{expected}\nvs\n{actual}"
+        a = total_size // 3
+        b = a * 2
+        for start, end in [
+            (0, None),
+            (0, 0),
+            (0, range_max),
+            (0, a),
+            (a, a),
+            (a, b),
+            (b, b),
+            (b, range_max),
+            (b, None),
+            (range_max, range_max),
+            (range_max, None),
+        ]:
+            range_header_value = f"{start}-{'' if end is None else end}"
+            r = do_request(
+                "GET", path, headers={"range": f"bytes={range_header_value}"}
+            )
+            assert r.status_code == http.HTTPStatus.PARTIAL_CONTENT.value, r
+            headers = r.headers
+            implied_end = range_max if end is None else end
+            assert int(headers["content-length"]) == implied_end - start + 1
+            assert (
+                headers["content-range"] == f"bytes {start}-{implied_end}/{total_size}"
+            )
 
-            # Check error handling for invalid ranges
-            for invalid_range, err_msg in [
-                (f"{a}-foo", "Unable to parse end of range value foo"),
-                ("foo-foo", "Unable to parse start of range value foo"),
-                (f"foo-{b}", "Unable to parse start of range value foo"),
-                (f"{b}-{a}", "out of order"),
-                ("-1-5", "Invalid format"),
-                ("-", "Invalid range"),
-                ("-foo", "Unable to parse end of range offset value foo"),
-                ("", "Invalid format"),
-            ]:
-                r = do_request("GET", path, headers={"range": f"bytes={invalid_range}"})
-                assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r
-                assert err_msg in r.body.json()["error"]["message"], r
+            expected = snapshot_data[start : (None if end is None else end + 1)]
+            actual = r.body.data()
+            assert (
+                expected == actual
+            ), f"Binary mismatch, {len(expected)} vs {len(actual)}:\n{expected}\nvs\n{actual}"
+
+        for negative_offset in [
+            1,
+            a,
+            b,
+        ]:
+            range_header_value = f"-{negative_offset}"
+            r = do_request(
+                "GET", path, headers={"range": f"bytes={range_header_value}"}
+            )
+            assert r.status_code == http.HTTPStatus.PARTIAL_CONTENT.value, r
+
+            expected = snapshot_data[-negative_offset:]
+            actual = r.body.data()
+            assert (
+                expected == actual
+            ), f"Binary mismatch, {len(expected)} vs {len(actual)}:\n{expected}\nvs\n{actual}"
+
+        # Check error handling for invalid ranges
+        for invalid_range, err_msg in [
+            (f"{a}-foo", "Unable to parse end of range value foo"),
+            ("foo-foo", "Unable to parse start of range value foo"),
+            (f"foo-{b}", "Unable to parse start of range value foo"),
+            (f"{b}-{a}", "out of order"),
+            ("-1-5", "Invalid format"),
+            ("-", "Invalid range"),
+            ("-foo", "Unable to parse end of range offset value foo"),
+            ("", "Invalid format"),
+        ]:
+            r = do_request("GET", path, headers={"range": f"bytes={invalid_range}"})
+            assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r
+            assert err_msg in r.body.json()["error"]["message"], r
 
 
 def test_snapshot_repr_digest(network, args):
@@ -721,7 +716,7 @@ def test_snapshot_selection(network, args):
             return snapshot_name
 
     # Each node redirects to the best snapshot, while the primary holding it is still live and primary
-    for node in node_to_snapshot.keys():
+    for node in node_to_snapshot:
         actual_snapshot_name = find_snapshot(node)
         assert actual_snapshot_name == best_snapshot
 
@@ -2406,7 +2401,7 @@ def run_late_mounted_ledger_check(args):
             }
 
             # Create empy files in the new node's directory, with the correct names
-            for dst_path in dst_files.keys():
+            for dst_path in dst_files:
                 with open(dst_path, "wb") as f:
                     pass
 
@@ -2448,7 +2443,7 @@ def run_late_mounted_ledger_check(args):
 
             # Check node output for expected errors
             out_path, _ = new_node.get_logs()
-            for line in open(out_path, "r", encoding="utf-8").readlines():
+            for line in open(out_path, "r", encoding="utf-8"):
                 expected_errors = [
                     error for error in expected_errors if error not in line
                 ]
@@ -3223,10 +3218,9 @@ def run_merkle_verification_level(args):
     assert source_offset < source_size
 
     # Create an alternate version of the chunk without the offsets table. Should be equivalent to the file immediately before it was marked `.committed`
-    no_offsets_table = (
-        int(0).to_bytes(header_size, byteorder="little")
-        + good_data[header_size:source_offset]
-    )
+    no_offsets_table = (0).to_bytes(header_size, byteorder="little") + good_data[
+        header_size:source_offset
+    ]
 
     null_block_size = source_size // 8
 
@@ -3355,7 +3349,7 @@ def run_error_message_on_failure_to_read_aci_sec_context(args):
         ]
 
         out_path, _ = new_node.get_logs()
-        for line in open(out_path, "r", encoding="utf-8").readlines():
+        for line in open(out_path, "r", encoding="utf-8"):
             for expected in expected_log_messages:
                 if expected in line:
                     expected_log_messages.remove(expected)
@@ -3638,7 +3632,7 @@ def test_backup_snapshot_fetch_max_size(network, args):
     assert_no_snapshot_is_present()
     expected_log_message = "Failed writing received data to disk/application"
     out_path, _ = new_node.get_logs()
-    for line in open(out_path, "r", encoding="utf-8").readlines():
+    for line in open(out_path, "r", encoding="utf-8"):
         if expected_log_message in line:
             LOG.info(f"Found expected log message: {line}")
             break

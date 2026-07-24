@@ -1,13 +1,14 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-import ccf.ledger
-import sys
+import argparse
 import json
 import re
-import argparse
+import sys
 from datetime import datetime
 from enum import Enum, auto
+
+import ccf.ledger
 
 
 class PrintMode(Enum):

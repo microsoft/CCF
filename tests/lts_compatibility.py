@@ -1,28 +1,28 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import infra.network
+import datetime
+import json
+import os
+import shutil
+import time
+
+import ccf.ledger
+import infra.crypto
 import infra.e2e_args
-import infra.proc
-import infra.logging_app as app
-import infra.utils
 import infra.github
 import infra.jwt_issuer
-import infra.crypto
+import infra.logging_app as app
+import infra.network
 import infra.node
 import infra.platform_detection
+import infra.proc
+import infra.utils
 import suite.test_requirements as reqs
-import ccf.ledger
 from ccf.tx_id import TxID
-import time
-import os
-import json
-import datetime
-from e2e_logging import test_random_receipts
-from governance import test_all_nodes_cert_renewal, test_service_cert_renewal
-import shutil
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
-
+from e2e_logging import test_random_receipts
+from governance import test_all_nodes_cert_renewal, test_service_cert_renewal
 from loguru import logger as LOG
 
 # Assumption:
@@ -197,10 +197,9 @@ def test_new_service(
                     return public_state
 
                 time.sleep(0.1)
-            else:
-                assert (
-                    False
-                ), f"Failed to up-to-date ledger state, seqno needed: {target_seqno}, last seqno: {last_seqno}"
+            assert (
+                False
+            ), f"Failed to up-to-date ledger state, seqno needed: {target_seqno}, last seqno: {last_seqno}"
 
         def table_has_entries(table_name, public_state):
             rows = public_state.get(table_name, None)
@@ -371,7 +370,7 @@ def run_code_upgrade_from(
             # Note: alternate between joining from snapshot and replaying entire ledger
             new_nodes = []
             fetch_recent_snapshot = True
-            for _ in range(0, len(old_nodes)):
+            for _ in range(len(old_nodes)):
                 new_node = network.create_node(
                     binary_dir=to_binary_dir,
                     library_dir=to_library_dir,
@@ -775,9 +774,7 @@ def run_ledger_compatibility_since_first(
                 skip_verification = test_jwt_cleanup
 
                 LOG.info(
-                    "Stopping network recovering from version {} to {}".format(
-                        previous_version, version
-                    )
+                    f"Stopping network recovering from version {previous_version} to {version}"
                 )
                 network.stop_all_nodes(
                     check_file_invariants=check_file_invariants,

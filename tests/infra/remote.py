@@ -1,24 +1,25 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
+import json
 import os
-import time
-from enum import Enum, auto
-import subprocess
-import infra.interfaces
-import infra.path
-import signal
 import re
 import shutil
-import infra.platform_detection
-from jinja2 import Environment, FileSystemLoader, select_autoescape
-import json
-import infra.snp as snp
+import signal
+import subprocess
+import time
+from enum import Enum, auto
+
 import ccf._versionifier
+from jinja2 import Environment, FileSystemLoader, select_autoescape
+from loguru import logger as LOG
 from packaging.version import (  # type: ignore
     Version,
 )
 
-from loguru import logger as LOG
+import infra.interfaces
+import infra.path
+import infra.platform_detection
+from infra import snp
 
 DBG = os.getenv("DBG", "lldb")
 
@@ -27,7 +28,7 @@ REMOTE_STARTUP_TIMEOUT_S = 5
 FILE_TIMEOUT_S = 60
 
 
-class CmdMixin(object):
+class CmdMixin:
     perfable = True
 
     @property
@@ -93,26 +94,26 @@ class LocalRemote(CmdMixin):
         return addr
 
     def _rc(self, cmd):
-        LOG.info("[{}] {}".format(self.hostname, cmd))
+        LOG.info(f"[{self.hostname}] {cmd}")
         return subprocess.call(cmd, shell=True)
 
     def cp(self, src_path, dst_path):
         if os.path.isdir(src_path):
-            assert self._rc("rm -rf {}".format(os.path.join(dst_path))) == 0
-            assert self._rc("cp -r {} {}".format(src_path, dst_path)) == 0
+            assert self._rc(f"rm -rf {os.path.join(dst_path)}") == 0
+            assert self._rc(f"cp -r {src_path} {dst_path}") == 0
         else:
-            assert self._rc("cp {} {}".format(src_path, dst_path)) == 0
+            assert self._rc(f"cp {src_path} {dst_path}") == 0
 
     def _setup_files(self, use_links: bool):
-        assert self._rc("rm -rf {}".format(self.root)) == 0
-        assert self._rc("mkdir -p {}".format(self.root)) == 0
+        assert self._rc(f"rm -rf {self.root}") == 0
+        assert self._rc(f"mkdir -p {self.root}") == 0
         for path in self.exe_files:
             dst_path = os.path.normpath(os.path.join(self.root, os.path.basename(path)))
             src_path = os.path.normpath(os.path.join(os.getcwd(), path))
             if use_links:
-                assert self._rc("ln -s {} {}".format(src_path, dst_path)) == 0
+                assert self._rc(f"ln -s {src_path} {dst_path}") == 0
             else:
-                assert self._rc("cp {} {}".format(src_path, dst_path)) == 0
+                assert self._rc(f"cp {src_path} {dst_path}") == 0
         for path in self.data_files:
             if len(path) > 0:
                 dst_path = os.path.join(self.root, os.path.basename(path))
@@ -199,7 +200,6 @@ class LocalRemote(CmdMixin):
                     command,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
-                    universal_newlines=True,
                     errors=errors,
                     text=True,
                     timeout=timeout,
@@ -234,7 +234,7 @@ class LocalRemote(CmdMixin):
         """
         Disconnect the client, and therefore shut down the command as well.
         """
-        LOG.info("[{}] closing".format(self.hostname))
+        LOG.info(f"[{self.hostname}] closing")
         if self.proc:
             self.proc.terminate()
             try:
@@ -298,7 +298,7 @@ class LocalRemote(CmdMixin):
             return self._get_perf(result)
 
 
-class CCFRemote(object):
+class CCFRemote:
     TEMPLATE_CONFIGURATION_FILE = "config.jinja"
     DEPS = []
 
@@ -712,7 +712,7 @@ class CCFRemote(object):
         try:
             self.remote.stop()
         except Exception:
-            LOG.exception("Failed to shut down {} cleanly".format(self.local_node_id))
+            LOG.exception(f"Failed to shut down {self.local_node_id} cleanly")
 
     def check_done(self, timeout=5, interval=0.2):
         return self.remote.check_done(timeout=timeout, interval=interval)

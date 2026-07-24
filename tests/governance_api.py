@@ -1,9 +1,8 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
+import infra.clients
 import infra.network
 import suite.test_requirements as reqs
-import infra.clients
-
 from loguru import logger as LOG  # type: ignore
 
 

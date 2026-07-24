@@ -1,23 +1,23 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 #
-from base64 import b64encode, b64decode
+import hmac
+import http
+import json
+import os
+import random
+import subprocess
+from base64 import b64decode, b64encode
+
+import infra.proc
+import openapi_spec_validator
+import suite.test_requirements as reqs
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
 from jwcrypto import jwk
-import hmac
-import http
-import infra.proc
-import json
-import openapi_spec_validator
-import os
-import random
-import subprocess
-import suite.test_requirements as reqs
-
 from loguru import logger as LOG
 
 THIS_DIR = os.path.dirname(__file__)
@@ -458,9 +458,7 @@ def test_npm_app(network, args):
         assert r.body.json() is True, r.body
 
         try:
-            infra.crypto.verify_signature(
-                algorithm, signature, "bar".encode(), key_pub_pem
-            )
+            infra.crypto.verify_signature(algorithm, signature, b"bar", key_pub_pem)
             assert False, "verify_signature() should throw"
         except InvalidSignature:
             pass
@@ -497,9 +495,7 @@ def test_npm_app(network, args):
             assert r.body.json() is True, r.body
 
             try:
-                infra.crypto.verify_signature(
-                    algorithm, signature, "bar".encode(), key_pub_pem
-                )
+                infra.crypto.verify_signature(algorithm, signature, b"bar", key_pub_pem)
                 assert False, "verify_signature() should throw"
             except InvalidSignature:
                 pass
@@ -534,9 +530,7 @@ def test_npm_app(network, args):
         assert r.body.json() is True, r.body
 
         try:
-            infra.crypto.verify_signature(
-                algorithm, signature, "bar".encode(), key_pub_pem
-            )
+            infra.crypto.verify_signature(algorithm, signature, b"bar", key_pub_pem)
             assert False, "verify_signature() should throw"
         except InvalidSignature:
             pass
@@ -562,7 +556,7 @@ def test_npm_app(network, args):
                 "algorithm": algorithm,
                 "key": key_pub_pem,
                 "signature": b64encode(signature).decode(),
-                "data": b64encode("bar".encode()).decode(),
+                "data": b64encode(b"bar").decode(),
             },
         )
         assert r.status_code == http.HTTPStatus.OK, r.status_code

@@ -1,32 +1,32 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-import infra.network
-import infra.net
-import infra.interfaces
-import infra.e2e_args
-import infra.partitions
-import infra.logging_app as app
-import suite.test_requirements as reqs
-from datetime import datetime, timedelta
-from infra.checker import check_can_progress, check_does_not_progress
-from infra.log_capture import flush_info
-import pprint
-from infra.tx_status import TxStatus
-import time
-import http
 import contextlib
-import ccf.ledger
-import subprocess
 import copy
+import http
+import os
+import pprint
+import subprocess
+import threading
+import time
 from collections import defaultdict
+from datetime import datetime, timedelta
+
+import ccf.ledger
+import infra.e2e_args
+import infra.interfaces
+import infra.logging_app as app
+import infra.net
+import infra.network
+import infra.partitions
+import suite.test_requirements as reqs
 from ccf.tx_id import TxID
 from e2e_logging import verify_receipt
-import os
-from reconfiguration import test_ledger_invariants
-import threading
-
+from infra.checker import check_can_progress, check_does_not_progress
+from infra.log_capture import flush_info
+from infra.tx_status import TxStatus
 from loguru import logger as LOG
+from reconfiguration import test_ledger_invariants
 
 # Arbitrary high record id, chosen to avoid clashing with ids used by other
 # tests sharing the same network/ledger.

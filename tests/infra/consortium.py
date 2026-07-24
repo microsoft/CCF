@@ -1,28 +1,28 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-import os
+import datetime
+import glob
 import http
 import json
+import os
 import random
-import infra.network
-import infra.proc
-import infra.checker
-import infra.node
-from infra.node import CCFVersion
-import infra.crypto
-import infra.member
-from infra.proposal import ProposalState
 import shutil
 import tempfile
-import glob
-import datetime
-import infra.clients
 
-from cryptography import x509
 import cryptography.hazmat.backends as crypto_backends
-
+from cryptography import x509
 from loguru import logger as LOG
+
+import infra.checker
+import infra.clients
+import infra.crypto
+import infra.member
+import infra.network
+import infra.node
+import infra.proc
+from infra.node import CCFVersion
+from infra.proposal import ProposalState
 
 
 def slurp_file(path):

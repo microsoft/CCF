@@ -1,22 +1,23 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
+import dataclasses
+import json
+import os
+import tempfile
+import uuid
+from contextlib import contextmanager
+
+import ccf.ledger
+import infra.clients
+import infra.e2e_args
+import infra.member
+import infra.net
 import infra.network
 import infra.path
 import infra.proc
-import infra.net
-import infra.e2e_args
 import infra.proposal
-import infra.member
 import suite.test_requirements as reqs
-import os
 from loguru import logger as LOG
-from contextlib import contextmanager
-import dataclasses
-import tempfile
-import uuid
-import infra.clients
-import json
-import ccf.ledger
 
 
 def action(name, **args):

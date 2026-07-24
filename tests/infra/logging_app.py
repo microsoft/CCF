@@ -2,19 +2,19 @@
 # Licensed under the Apache 2.0 License.
 
 import functools
-import infra.checker
-import infra.jwt_issuer
-import time
 import http
+import math
 import random
+import time
+from collections import defaultdict
+
+from ccf.tx_id import TxID
+from loguru import logger as LOG
+
+import infra.checker
 import infra.clients
 import infra.commit
-from collections import defaultdict
-from ccf.tx_id import TxID
-import math
-
-
-from loguru import logger as LOG
+import infra.jwt_issuer
 
 
 class LoggingTxsIssueException(Exception):
@@ -24,7 +24,7 @@ class LoggingTxsIssueException(Exception):
     """
 
     def __init__(self, response, *args, **kwargs):
-        super(LoggingTxsIssueException, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.response = response
 
 

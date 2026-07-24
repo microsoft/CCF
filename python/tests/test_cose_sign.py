@@ -3,27 +3,26 @@
 
 import base64
 import datetime
-from typing import Tuple
-from cryptography.hazmat.primitives.asymmetric import ec
+
+import cbor2
+import ccf.cose
+import pytest
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.asymmetric import ec, utils
 from cryptography.hazmat.primitives.serialization import (
     Encoding,
+    NoEncryption,
     PrivateFormat,
     PublicFormat,
-    NoEncryption,
 )
-from cryptography.hazmat.primitives.asymmetric import utils
-import ccf.cose
-import cbor2
-import pytest
 
 
 def make_private_key(curve: ec.EllipticCurve):
     return ec.generate_private_key(curve=curve)
 
 
-def make_pem_pair(priv) -> Tuple[str, str]:
+def make_pem_pair(priv) -> tuple[str, str]:
     pub = priv.public_key()
     priv_pem = priv.private_bytes(
         Encoding.PEM, PrivateFormat.PKCS8, NoEncryption()
