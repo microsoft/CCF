@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
-- TLS handshakes now prefer OpenSSL hybrid post-quantum key exchange groups when the linked OpenSSL version supports them, while retaining the existing P-521/P-384/P-256 groups as fallbacks (#0000).
+- TLS handshakes now prefer OpenSSL hybrid post-quantum key exchange groups when the linked OpenSSL version supports them, while retaining the existing P-521/P-384/P-256 groups as fallbacks (#8097).
 
 ## [7.0.10]
 
