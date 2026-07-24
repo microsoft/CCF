@@ -222,6 +222,7 @@ smv_outputdir_format = "{ref.name}"
 
 assert re.match(smv_branch_whitelist, "main")
 assert not re.match(smv_branch_whitelist, "release/not-a-version")
+assert not re.match(smv_branch_whitelist, "release/2.x")
 assert re.match(smv_branch_whitelist, "release/7.x")
 assert re.match(smv_branch_whitelist, "release/100.x")
 assert not re.match(smv_branch_whitelist, "release/7.x_feature")
@@ -358,10 +359,12 @@ def typedoc_role(
         element_path = ".".join(element_path)
         typedoc_path += f"/{kind_name}/{element_path}.html{url_hash}"
 
-    # construct final url relative to current page
-    source = pathlib.Path(inliner.document.attributes["source"]).resolve()
-    rel_source = source.relative_to(pathlib.Path(__file__).parent.resolve())
-    levels = len(rel_source.parent.parts)
+    # construct final url relative to current page. Use the Sphinx docname
+    # (always relative to the source root) rather than the filesystem path, so
+    # this works under sphinx-multiversion where sources live in a temporary
+    # checkout that differs from the conf.py location.
+    docname = inliner.document.settings.env.docname
+    levels = docname.count("/")
     refuri = "../" * levels + typedoc_path
 
     # build docutils node
