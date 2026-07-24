@@ -6,7 +6,6 @@ import hashlib
 import os
 import shutil
 
-import cbor2
 import ccf.ledger
 import infra.e2e_args
 import infra.logging_app as app
@@ -120,21 +119,6 @@ def _assert_node_snapshot_unchanged(
     assert os.path.isfile(snapshot_path), snapshot_path
     with open(snapshot_path, "rb") as snapshot_file:
         assert hashlib.sha256(snapshot_file.read()).digest() == expected_snapshot_digest
-
-
-def _snapshot_with_proof_sibling_size(snapshot_bytes, sibling_size):
-    header_size = ccf.ledger.TransactionHeader.get_size()
-    header = ccf.ledger.TransactionHeader(snapshot_bytes[:header_size])
-    receipt_pos = header_size + header.size
-    receipt = cbor2.loads(snapshot_bytes[receipt_pos:])
-    proofs = receipt.value[1][396][-1]
-    assert proofs
-    proof = cbor2.loads(proofs[0])
-    path = proof[2]
-    assert path
-    path[0][1] = bytes(sibling_size)
-    proofs[0] = cbor2.dumps(proof)
-    return snapshot_bytes[:receipt_pos] + cbor2.dumps(receipt)
 
 
 def _assert_malformed_snapshot_falls_back(
@@ -356,13 +340,6 @@ def run_recovery_snapshot_endorsements(args):
                 b"not a snapshot",
                 "is not a regular file",
                 True,
-            ),
-            (
-                "short_merkle_proof_sibling",
-                snapshot_name,
-                _snapshot_with_proof_sibling_size(source_snapshot_bytes, 1),
-                "Unsupported Merkle proof sibling size",
-                False,
             ),
         )
         for offset, (

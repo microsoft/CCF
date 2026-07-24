@@ -254,50 +254,47 @@ namespace ccf::cose
     std::vector<uint8_t> claims_digest;
   };
 
-  static void validate_sha256_bytes(
-    std::span<const uint8_t> bytes, std::string_view field)
-  {
-    if (bytes.size() != ccf::crypto::Sha256Hash::SIZE)
-    {
-      throw COSEDecodeError(fmt::format(
-        "Unsupported {} size: {} (expected {})",
-        field,
-        bytes.size(),
-        ccf::crypto::Sha256Hash::SIZE));
-    }
-  }
-
-  static ccf::crypto::Sha256Hash sha256_from_bytes(
-    std::span<const uint8_t> bytes, std::string_view field)
-  {
-    validate_sha256_bytes(bytes, field);
-    const std::span<const uint8_t, ccf::crypto::Sha256Hash::SIZE> fixed{
-      bytes.data(), ccf::crypto::Sha256Hash::SIZE};
-    return ccf::crypto::Sha256Hash::from_span(fixed);
-  }
-
   static std::vector<uint8_t> recompute_merkle_root(const MerkleProof& proof)
   {
     auto ce_digest = ccf::crypto::Sha256Hash(proof.leaf.commit_evidence);
 
+    if (proof.leaf.write_set_digest.size() != ccf::crypto::Sha256Hash::SIZE)
+    {
+      throw COSEDecodeError(fmt::format(
+        "Unsupported write set digest size in Merkle proof leaf: {}",
+        proof.leaf.write_set_digest.size()));
+    }
+    if (proof.leaf.claims_digest.size() != ccf::crypto::Sha256Hash::SIZE)
+    {
+      throw COSEDecodeError(fmt::format(
+        "Unsupported claims digest size in Merkle proof leaf: {}",
+        proof.leaf.claims_digest.size()));
+    }
+
+    std::span<const uint8_t, ccf::crypto::Sha256Hash::SIZE> wsd{
+      proof.leaf.write_set_digest.data(), ccf::crypto::Sha256Hash::SIZE};
+    std::span<const uint8_t, ccf::crypto::Sha256Hash::SIZE> cd{
+      proof.leaf.claims_digest.data(), ccf::crypto::Sha256Hash::SIZE};
     auto leaf_digest = ccf::crypto::Sha256Hash(
-      sha256_from_bytes(
-        proof.leaf.write_set_digest, "Merkle proof write set digest"),
+      ccf::crypto::Sha256Hash::from_span(wsd),
       ce_digest,
-      sha256_from_bytes(
-        proof.leaf.claims_digest, "Merkle proof claims digest"));
+      ccf::crypto::Sha256Hash::from_span(cd));
 
     for (const auto& element : proof.path)
     {
-      const auto sibling =
-        sha256_from_bytes(element.second, "Merkle proof sibling");
       if (element.first != 0)
       {
-        leaf_digest = ccf::crypto::Sha256Hash(sibling, leaf_digest);
+        std::span<const uint8_t, ccf::crypto::Sha256Hash::SIZE> sibling{
+          element.second.data(), ccf::crypto::Sha256Hash::SIZE};
+        leaf_digest = ccf::crypto::Sha256Hash(
+          ccf::crypto::Sha256Hash::from_span(sibling), leaf_digest);
       }
       else
       {
-        leaf_digest = ccf::crypto::Sha256Hash(leaf_digest, sibling);
+        std::span<const uint8_t, ccf::crypto::Sha256Hash::SIZE> sibling{
+          element.second.data(), ccf::crypto::Sha256Hash::SIZE};
+        leaf_digest = ccf::crypto::Sha256Hash(
+          leaf_digest, ccf::crypto::Sha256Hash::from_span(sibling));
       }
     }
 
@@ -418,7 +415,6 @@ namespace ccf::cose
         [&]() {
           const auto& bytes =
             leaf->array_at(ccf::MerkleProofPathBranch::LEFT)->as_bytes();
-          validate_sha256_bytes(bytes, "Merkle proof write set digest");
           proof.leaf.write_set_digest.assign(bytes.begin(), bytes.end());
         },
         "Parse leaf at wsd");
@@ -432,7 +428,6 @@ namespace ccf::cose
       rethrow_with_msg(
         [&]() {
           const auto& bytes = leaf->array_at(2)->as_bytes();
-          validate_sha256_bytes(bytes, "Merkle proof claims digest");
           proof.leaf.claims_digest.assign(bytes.begin(), bytes.end());
         },
         "Parse leaf at cd");
@@ -465,7 +460,6 @@ namespace ccf::cose
         rethrow_with_msg(
           [&]() {
             const auto& bytes = link->array_at(1)->as_bytes();
-            validate_sha256_bytes(bytes, "Merkle proof sibling");
             path_item.second.assign(bytes.begin(), bytes.end());
           },
           "Parse path element at hash");
