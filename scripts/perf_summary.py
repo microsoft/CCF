@@ -209,9 +209,8 @@ def repeated_values(value: float, count: int) -> str:
 
 def render_mermaid_xychart(series: ChartSeries, metric: str, unit: str) -> str:
     """Render a Mermaid xychart line chart for a single benchmark metric."""
-    ordered_series = list(reversed(series))
-    labels = ", ".join(json.dumps(label) for label, _ in ordered_series)
-    raw_values = [value for _, value in ordered_series]
+    labels = ", ".join(json.dumps(label) for label, _ in series)
+    raw_values = [value for _, value in series]
     values = ", ".join(f"{value:.2f}" for value in raw_values)
     chronological_values = [value for _, value in series]
     baseline = ewma(chronological_values)
