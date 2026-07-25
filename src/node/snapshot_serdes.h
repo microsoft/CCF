@@ -18,9 +18,6 @@
 #include "node/rpc/network_identity_chain_helpers.h"
 #include "node/tx_receipt_impl.h"
 
-#include <filesystem>
-#include <fstream>
-#include <limits>
 #include <nlohmann/json.hpp>
 #include <utility>
 
@@ -42,71 +39,6 @@ namespace ccf
     std::span<const uint8_t> header_and_body;
     std::span<const uint8_t> receipt;
   };
-
-  static std::vector<uint8_t> read_recovery_snapshot_candidate(
-    const std::filesystem::path& path)
-  {
-    std::error_code ec;
-    const auto is_regular_file = std::filesystem::is_regular_file(path, ec);
-    if (ec || !is_regular_file)
-    {
-      throw std::logic_error(fmt::format(
-        "Recovery snapshot candidate {} is not a regular file{}",
-        path.string(),
-        ec ? fmt::format(": {}", ec.message()) : ""));
-    }
-
-    std::ifstream file(path, std::ios::binary | std::ios::ate);
-    if (!file)
-    {
-      throw std::logic_error(fmt::format(
-        "Unable to open recovery snapshot candidate {}", path.string()));
-    }
-
-    const auto end = file.tellg();
-    if (end < 0)
-    {
-      throw std::logic_error(fmt::format(
-        "Unable to determine recovery snapshot candidate size {}",
-        path.string()));
-    }
-    const auto size = static_cast<uint64_t>(end);
-    if constexpr (sizeof(size_t) < sizeof(uint64_t))
-    {
-      if (size > std::numeric_limits<size_t>::max())
-      {
-        throw std::logic_error(fmt::format(
-          "Recovery snapshot candidate {} is too large", path.string()));
-      }
-    }
-    if (
-      size > static_cast<uint64_t>(std::numeric_limits<std::streamsize>::max()))
-    {
-      throw std::logic_error(fmt::format(
-        "Recovery snapshot candidate {} is too large", path.string()));
-    }
-
-    std::vector<uint8_t> data(static_cast<size_t>(size));
-    file.seekg(0, std::ios::beg);
-    if (!file)
-    {
-      throw std::logic_error(fmt::format(
-        "Unable to seek recovery snapshot candidate {}", path.string()));
-    }
-    if (!data.empty())
-    {
-      file.read(
-        reinterpret_cast<char*>(data.data()),
-        static_cast<std::streamsize>(data.size()));
-      if (!file || file.gcount() != static_cast<std::streamsize>(data.size()))
-      {
-        throw std::logic_error(fmt::format(
-          "Unable to read complete recovery snapshot candidate {}",
-          path.string()));
-      }
-    }
-    return data;
-  }
 
   static SnapshotSegments separate_segments(
     const std::vector<uint8_t>& snapshot)

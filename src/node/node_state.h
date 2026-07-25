@@ -517,70 +517,10 @@ namespace ccf
         directories.emplace_back(read_only_dir.value());
       }
 
-      std::vector<std::pair<size_t, std::filesystem::path>> committed_snapshots;
-      if (start_type == StartType::Recover)
-      {
-        try
-        {
-          committed_snapshots =
-            snapshots::find_committed_snapshots_in_directories(directories);
-        }
-        catch (const std::exception& e)
-        {
-          LOG_FAIL_FMT(
-            "Unable to discover a valid recovery snapshot: {}. Recovering "
-            "without a startup snapshot.",
-            e.what());
-          return;
-        }
-      }
-      else
-      {
-        committed_snapshots =
-          snapshots::find_committed_snapshots_in_directories(directories);
-      }
-
+      const auto committed_snapshots =
+        snapshots::find_committed_snapshots_in_directories(directories);
       for (const auto& [snapshot_seqno, snapshot_path] : committed_snapshots)
       {
-        if (start_type == StartType::Recover)
-        {
-          try
-          {
-            auto snapshot_data =
-              read_recovery_snapshot_candidate(snapshot_path);
-
-            LOG_INFO_FMT(
-              "Found latest local snapshot file: {} (size: {})",
-              snapshot_path,
-              snapshot_data.size());
-
-            const auto segments = separate_segments(snapshot_data);
-            // Validate the receipt structure and claims now, but defer the
-            // identity check until the public-ledger endorsement scan.
-            verify_snapshot(segments);
-
-            startup_snapshot_info = std::make_unique<StartupSnapshotInfo>(
-              snapshot_seqno, std::move(snapshot_data));
-            LOG_INFO_FMT(
-              "Selected recovery snapshot {} for previous-service-identity "
-              "verification",
-              snapshot_path.string());
-            return;
-          }
-          catch (const std::exception& e)
-          {
-            LOG_FAIL_FMT(
-              "Error while verifying recovery snapshot candidate {}: {}",
-              snapshot_path.string(),
-              e.what());
-            LOG_INFO_FMT(
-              "Leaving unusable recovery snapshot {} untouched and looking "
-              "for the next candidate",
-              snapshot_path.string());
-            continue;
-          }
-        }
-
         auto snapshot_data = files::slurp(snapshot_path);
 
         LOG_INFO_FMT(
@@ -588,8 +528,20 @@ namespace ccf
           snapshot_path,
           snapshot_data.size());
 
-        // Structurally invalid snapshots remain fatal for Join.
+        // Structurally invalid snapshots remain fatal.
         const auto segments = separate_segments(snapshot_data);
+
+        if (start_type == StartType::Recover)
+        {
+          // Validate the receipt structure and claims now, but defer the
+          // previous-service-identity check to the public-ledger endorsement
+          // scan. The snapshot is not installed until that verification
+          // succeeds, so the Store is not mutated by an unverified snapshot.
+          verify_snapshot(segments);
+          startup_snapshot_info = std::make_unique<StartupSnapshotInfo>(
+            snapshot_seqno, std::move(snapshot_data));
+          return;
+        }
 
         try
         {
