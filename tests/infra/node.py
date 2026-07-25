@@ -1,33 +1,32 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-from contextlib import contextmanager, closing
-from enum import Enum, auto
-import functools
-import infra.crypto
-import infra.remote
-from datetime import datetime, timedelta, timezone
-import infra.net
-import infra.path
-import infra.interfaces
-import infra.clients
-import ccf.ledger
-from ccf.tx_id import TxID
-import os
-import socket
-import re
-import ipaddress
-import ssl
 import copy
-import json
-import time
+import functools
 import http
+import ipaddress
+import json
+import os
+import re
+import socket
+import ssl
+import time
+from contextlib import closing, contextmanager
+from datetime import datetime, timedelta, timezone
+from enum import Enum, auto
 
 import ccf._versionifier
-
+import ccf.ledger
+from ccf.tx_id import TxID
+from loguru import logger as LOG
 from packaging.version import Version  # type: ignore
 
-from loguru import logger as LOG
+import infra.clients
+import infra.crypto
+import infra.interfaces
+import infra.net
+import infra.path
+import infra.remote
 
 BASE_NODE_CLIENT_HOST = "127.100.0.0"
 
@@ -173,7 +172,7 @@ class Node:
         self.verify_ca_by_default = True
 
         if isinstance(self.host, str):
-            raise ValueError("Translate host to HostSpec before you get here")
+            raise TypeError("Translate host to HostSpec before you get here")
 
         for interface_name, rpc_interface in self.host.rpc_interfaces.items():
             # Expand "localhost" to a concrete address first, so the IPv6
@@ -212,22 +211,22 @@ class Node:
                 )
 
             # LedgerChunkRead operator feature is only supported from 7.0.0-dev7 onwards
-            if self.version is not None and Version(
-                strip_version(self.version)
-            ) <= Version("7.0.0-dev6"):
-                if rpc_interface.enabled_operator_features:
-                    if "LedgerChunkRead" in rpc_interface.enabled_operator_features:
-                        rpc_interface.enabled_operator_features.remove(
-                            "LedgerChunkRead"
-                        )
+            if (
+                self.version is not None
+                and Version(strip_version(self.version)) <= Version("7.0.0-dev6")
+                and rpc_interface.enabled_operator_features
+                and "LedgerChunkRead" in rpc_interface.enabled_operator_features
+            ):
+                rpc_interface.enabled_operator_features.remove("LedgerChunkRead")
 
             # SnapshotCreate operator feature is only supported from 7.0.0-dev14 onwards
-            if self.version is not None and Version(
-                strip_version(self.version)
-            ) <= Version("7.0.0-dev13"):
-                if rpc_interface.enabled_operator_features:
-                    if "SnapshotCreate" in rpc_interface.enabled_operator_features:
-                        rpc_interface.enabled_operator_features.remove("SnapshotCreate")
+            if (
+                self.version is not None
+                and Version(strip_version(self.version)) <= Version("7.0.0-dev13")
+                and rpc_interface.enabled_operator_features
+                and "SnapshotCreate" in rpc_interface.enabled_operator_features
+            ):
+                rpc_interface.enabled_operator_features.remove("SnapshotCreate")
 
     def __hash__(self):
         return self.local_node_id
@@ -382,15 +381,15 @@ class Node:
                 f.write(f"exec {' '.join(self.remote.remote.cmd)}\n")
                 f.write("fi\n")
 
-            print("")
+            print()
             print(
                 "================= Please run the below command on "
                 + self.get_public_rpc_host()
                 + " and press enter to continue ================="
             )
-            print("")
+            print()
             print(self.remote.debug_node_cmd())
-            print("")
+            print()
             input("Press Enter to continue...")
         else:
             self.remote.start()
@@ -466,7 +465,7 @@ class Node:
                 )
                 self._resolve_address(rpc_address_file, self.host.rpc_interfaces)
                 #  In the infra, public RPC port is always the same as local RPC port
-                for _, interface in self.host.rpc_interfaces.items():
+                for interface in self.host.rpc_interfaces.values():
                     interface.public_port = interface.port
         else:
             # Legacy 1.x nodes
@@ -535,7 +534,7 @@ class Node:
         start_time = time.time()
         while time.time() < start_time + timeout:
             try:
-                with self.client(connection_timeout=timeout, *args, **kwargs) as nc:
+                with self.client(*args, connection_timeout=timeout, **kwargs) as nc:
                     rep = nc.get("/node/commit")
                     if rep.status_code == 200:
                         self.network_state = infra.node.NodeNetworkState.joined

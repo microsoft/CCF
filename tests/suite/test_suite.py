@@ -1,20 +1,20 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-import e2e_logging
-import memberclient
-import reconfiguration
-import recovery
-import nodes
+from inspect import Parameter, signature
+
 import code_update
-import membership
+import e2e_common_endpoints
+import e2e_logging
+import e2e_operations
+import governance
 import governance_history
 import jwt_test
-import governance
-import e2e_operations
-import e2e_common_endpoints
-
-from inspect import signature, Parameter
+import memberclient
+import membership
+import nodes
+import reconfiguration
+import recovery
 
 suites = {}
 

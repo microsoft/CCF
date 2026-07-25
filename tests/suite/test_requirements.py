@@ -3,9 +3,9 @@
 
 import functools
 
+from infra.member import RecoveryRole
 from infra.snp import SNP_SUPPORT
 from loguru import logger as LOG
-from infra.member import RecoveryRole
 
 
 class TestRequirementsNotMet(Exception):

@@ -1,13 +1,14 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-import ccf.ledger
-import sys
+import argparse
 import json
 import re
-import argparse
-from datetime import datetime
+import sys
+from datetime import UTC, datetime
 from enum import Enum, auto
+
+import ccf.ledger
 
 
 class PrintMode(Enum):
@@ -45,7 +46,7 @@ def fmt_json(data):
 def fmt_cose_recent_timestamp(data):
     s = data.decode()
     ts, _ = s.split(":")
-    dt = datetime.fromtimestamp(int(ts))
+    dt = datetime.fromtimestamp(int(ts), UTC)
     return f"[{dt.isoformat()}] {s}"
 
 

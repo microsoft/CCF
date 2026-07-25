@@ -1,24 +1,25 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import infra.crypto
 import base64
-from http.server import HTTPServer, BaseHTTPRequestHandler
-from http import HTTPStatus
-import ssl
-import threading
-from contextlib import AbstractContextManager
-import tempfile
 import json
+import ssl
+import tempfile
+import threading
 import time
 import uuid
-
-from infra.log_capture import flush_info
-from infra.node import CCFVersion
-from loguru import logger as LOG
+from contextlib import AbstractContextManager
 from enum import Enum
-from cryptography.x509 import load_pem_x509_certificate
+from http import HTTPStatus
+from http.server import BaseHTTPRequestHandler, HTTPServer
+
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.x509 import load_pem_x509_certificate
+from loguru import logger as LOG
+
+import infra.crypto
+from infra.log_capture import flush_info
+from infra.node import CCFVersion
 
 
 class JwtAlg(Enum):

@@ -2,12 +2,13 @@
 # Licensed under the Apache 2.0 License.
 import argparse
 import os
-import infra.interfaces
-import infra.path
-import infra.network
 import sys
 
 from loguru import logger as LOG
+
+import infra.interfaces
+import infra.network
+import infra.path
 
 _LOG_LEVEL_DISPLAY = {
     "TRACE": "TRC ",

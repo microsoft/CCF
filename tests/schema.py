@@ -1,32 +1,32 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import os
-import json
 import http
-import infra.network
-import infra.proc
-import infra.e2e_args
-import infra.checker
-import openapi_spec_validator
-from packaging import version
-from infra.runner import ConcurrentRunner
-import nobuiltins
-import packaging.version
+import json
+import os
+
 import e2e_operations
 import e2e_tutorial
-
+import infra.checker
+import infra.e2e_args
+import infra.network
+import infra.proc
+import nobuiltins
+import openapi_spec_validator
+import packaging.version
+from infra.runner import ConcurrentRunner
 from loguru import logger as LOG
+from packaging import version
 
 
 def run(args):
     os.makedirs(args.schema_dir, exist_ok=True)
 
     changed_files = []
-    old_schema = set(
+    old_schema = {
         dir_entry.path
         for dir_entry in os.scandir(args.schema_dir)
         if dir_entry.is_file()
-    )
+    }
 
     documents_valid = True
     all_methods = []
@@ -92,7 +92,7 @@ def run(args):
                         pass
                 changed_files.append(openapi_target_file)
             else:
-                LOG.debug("Schema matches in {}".format(openapi_target_file))
+                LOG.debug(f"Schema matches in {openapi_target_file}")
 
         try:
             openapi_spec_validator.validate_spec(response_body)
