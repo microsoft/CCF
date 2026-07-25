@@ -765,8 +765,7 @@ namespace ccf
       const auto direct_verification_error =
         try_verify_and_install_recovery_snapshot(
           [&]() {
-            verify_recovery_snapshot(
-              segments, target_identity, {}, startup_snapshot_info->seqno);
+            verify_snapshot(segments, target_identity.raw());
             LOG_INFO_FMT(
               "Recovery snapshot at {} is directly signed by the configured "
               "previous service identity",
@@ -801,13 +800,13 @@ namespace ccf
               config.ledger, network.tables->get_encryptor(), snapshot_seqno);
             const auto target_key = ccf::crypto::public_key_der_from_cert(
               ccf::crypto::cert_pem_to_der(target_identity));
-            const auto endorsements = build_recovery_snapshot_endorsement_chain(
-              scan.endorsements, target_key, snapshot_seqno);
-            verify_recovery_snapshot(
-              segments, target_identity, endorsements, snapshot_seqno);
+            const auto snapshot_signer_key =
+              validate_recovery_snapshot_endorsement_chain(
+                scan.endorsements, target_key, snapshot_seqno);
+            verify_recovery_snapshot_receipt(segments, snapshot_signer_key);
             LOG_INFO_FMT(
               "Validated {} recovery snapshot endorsement(s) in memory",
-              endorsements.size());
+              scan.endorsements.size());
           },
           [&]() { install_recovery_snapshot_and_start_unsafe(); });
       if (chain_verification_error.has_value())

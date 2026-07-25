@@ -22,7 +22,6 @@
 #include <fstream>
 #include <limits>
 #include <nlohmann/json.hpp>
-#include <ranges>
 #include <utility>
 
 namespace ccf
@@ -192,85 +191,12 @@ namespace ccf
     return std::nullopt;
   }
 
-  static ccf::CoseEndorsement parse_serialised_cose_endorsement(
-    const ccf::SerialisedCoseEndorsement& serialised)
-  {
-    const auto [from, to] =
-      ccf::crypto::extract_cose_endorsement_validity(serialised);
-    const auto from_txid = ccf::TxID::from_str(from);
-    const auto to_txid = ccf::TxID::from_str(to);
-    if (!from_txid.has_value() || !to_txid.has_value())
-    {
-      throw std::logic_error(
-        fmt::format("Invalid COSE endorsement epoch range {} - {}", from, to));
-    }
-
-    return ccf::CoseEndorsement{
-      .endorsement = serialised,
-      .endorsing_key = {},
-      .endorsement_epoch_begin = *from_txid,
-      .endorsement_epoch_end = to_txid,
-      .previous_version = ccf::kv::Version{0}};
-  }
-
-  static std::vector<uint8_t> verify_recovery_snapshot_endorsement_chain(
-    const ccf::SerialisedCoseEndorsements& endorsements,
-    std::span<const uint8_t> target_key,
-    ccf::kv::Version snapshot_seqno)
-  {
-    if (target_key.empty())
-    {
-      throw std::logic_error(
-        "Cannot verify snapshot endorsements with an empty target key");
-    }
-    if (endorsements.empty())
-    {
-      return {target_key.begin(), target_key.end()};
-    }
-
-    std::vector<uint8_t> current_key(target_key.begin(), target_key.end());
-    std::vector<ccf::CoseEndorsement> parsed;
-    parsed.reserve(endorsements.size());
-
-    for (const auto& endorsement : endorsements)
-    {
-      auto parsed_endorsement = parse_serialised_cose_endorsement(endorsement);
-      if (has_ill_formed_epoch_range(parsed_endorsement))
-      {
-        throw std::logic_error(fmt::format(
-          "COSE endorsement has an ill-formed epoch range {} - {}",
-          parsed_endorsement.endorsement_epoch_begin.to_str(),
-          format_epoch(parsed_endorsement.endorsement_epoch_end)));
-      }
-
-      current_key = verify_cose_endorsement_signature(endorsement, current_key);
-      parsed.emplace_back(std::move(parsed_endorsement));
-    }
-
-    for (size_t i = 0; i + 1 < parsed.size(); ++i)
-    {
-      verify_endorsements_connected(parsed[i], parsed[i + 1]);
-    }
-
-    const auto& oldest = parsed.back();
-    if (
-      !oldest.endorsement_epoch_end.has_value() ||
-      oldest.endorsement_epoch_begin.seqno > snapshot_seqno ||
-      oldest.endorsement_epoch_end->seqno < snapshot_seqno)
-    {
-      throw std::logic_error(fmt::format(
-        "Oldest COSE endorsement range {} - {} does not cover snapshot seqno "
-        "{}",
-        oldest.endorsement_epoch_begin.to_str(),
-        format_epoch(oldest.endorsement_epoch_end),
-        snapshot_seqno));
-    }
-
-    return current_key;
-  }
-
-  static ccf::SerialisedCoseEndorsements
-  build_recovery_snapshot_endorsement_chain(
+  // Validates the collected COSE endorsement chain against the configured
+  // previous service identity (target_key) and returns the snapshot signer
+  // key: the identity, active at snapshot_seqno, that signed the snapshot
+  // receipt. The oldest endorsement covers snapshot_seqno and endorses that
+  // key, so it is captured as the endorsed key of the first (oldest) link.
+  static std::vector<uint8_t> validate_recovery_snapshot_endorsement_chain(
     const std::vector<CollectedCoseEndorsement>& collected,
     std::span<const uint8_t> target_key,
     ccf::kv::Version snapshot_seqno)
@@ -282,6 +208,7 @@ namespace ccf
         "snapshot");
     }
 
+    std::vector<uint8_t> snapshot_signer_key;
     std::vector<uint8_t> previous_endorsing_key;
     for (size_t i = 0; i < collected.size(); ++i)
     {
@@ -340,6 +267,12 @@ namespace ccf
 
       const auto endorsed_key = verify_cose_endorsement_signature(
         endorsement.endorsement, endorsement.endorsing_key);
+      if (i == 0)
+      {
+        // The oldest endorsement covers snapshot_seqno; the key it endorses is
+        // the identity that signed the snapshot receipt.
+        snapshot_signer_key = endorsed_key;
+      }
       if (
         !previous_endorsing_key.empty() &&
         endorsed_key != previous_endorsing_key)
@@ -378,14 +311,7 @@ namespace ccf
         snapshot_seqno));
     }
 
-    ccf::SerialisedCoseEndorsements endorsements;
-    endorsements.reserve(collected.size());
-    for (const auto& collected_endorsement :
-         std::ranges::reverse_view(collected))
-    {
-      endorsements.emplace_back(collected_endorsement.endorsement.endorsement);
-    }
-    return endorsements;
+    return snapshot_signer_key;
   }
 
   static auto decode_and_verify_cose_snapshot_receipt(
@@ -535,27 +461,18 @@ namespace ccf
     }
   }
 
-  static void verify_recovery_snapshot(
+  // Verify the recovery snapshot receipt is signed by snapshot_signer_key, the
+  // snapshot service identity established by validating the endorsement chain.
+  static void verify_recovery_snapshot_receipt(
     const SnapshotSegments& segments,
-    const ccf::crypto::Pem& target_identity,
-    const ccf::SerialisedCoseEndorsements& endorsements,
-    ccf::kv::Version snapshot_seqno)
+    std::span<const uint8_t> snapshot_signer_key)
   {
-    if (endorsements.empty())
-    {
-      verify_snapshot(segments, target_identity.raw());
-      return;
-    }
     if (segments.receipt.empty() || segments.receipt[0] != 0xD2)
     {
       throw std::logic_error(
         "Only snapshots with COSE receipts can use an endorsement chain");
     }
 
-    const auto target_key = ccf::crypto::public_key_der_from_cert(
-      ccf::crypto::cert_pem_to_der(target_identity));
-    const auto snapshot_signer_key = verify_recovery_snapshot_endorsement_chain(
-      endorsements, target_key, snapshot_seqno);
     const auto receipt = decode_and_verify_cose_snapshot_receipt(segments);
     const auto verifier =
       ccf::crypto::make_cose_verifier_from_key(snapshot_signer_key);

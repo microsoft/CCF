@@ -246,7 +246,7 @@ TEST_CASE("Recovery snapshot endorsement scan reads ledger files directly")
   const auto verification_error = ccf::try_verify_and_install_recovery_snapshot(
     [&]() {
       const auto target_key = ccf::crypto::make_ec_key_pair()->public_key_der();
-      std::ignore = ccf::build_recovery_snapshot_endorsement_chain(
+      std::ignore = ccf::validate_recovery_snapshot_endorsement_chain(
         scan.endorsements, target_key, 1);
     },
     [&]() { install_called = true; });
