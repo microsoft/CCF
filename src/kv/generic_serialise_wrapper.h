@@ -347,7 +347,14 @@ namespace ccf::kv
       }
 
       serialized::skip(data_, size_, crypto_util->get_header_length());
-      auto public_domain_length = serialized::read<size_t>(data_, size_);
+      const auto public_domain_length = serialized::read<size_t>(data_, size_);
+      if (public_domain_length > size_)
+      {
+        throw std::logic_error(fmt::format(
+          "Public domain length {} exceeds remaining entry size {}",
+          public_domain_length,
+          size_));
+      }
 
       const auto* data_public = data_;
       public_reader.init(data_public, public_domain_length);

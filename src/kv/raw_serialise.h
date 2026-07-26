@@ -6,7 +6,9 @@
 #include "generic_serialise_wrapper.h"
 
 #include <array>
+#include <limits>
 #include <small_vector/SmallVector.h>
+#include <tuple>
 #include <type_traits>
 
 namespace ccf::kv
@@ -126,21 +128,69 @@ namespace ccf::kv
 
   class RawReader
   {
-  public:
-    const uint8_t* data_ptr;
-    size_t data_offset{0};
-    size_t data_size;
+  private:
+    [[nodiscard]] size_t remaining_bytes() const
+    {
+      if (data_offset > data_size)
+      {
+        throw std::logic_error(fmt::format(
+          "Raw reader offset {} exceeds data size {}", data_offset, data_size));
+      }
+      return data_size - data_offset;
+    }
 
+    void require_bytes(size_t required, const char* description) const
+    {
+      const auto remaining = remaining_bytes();
+      if (required > remaining)
+      {
+        throw std::runtime_error(fmt::format(
+          "Expected {} bytes for {}, found only {}",
+          required,
+          description,
+          remaining));
+      }
+    }
+
+    [[nodiscard]] const uint8_t* current_data() const
+    {
+      if (data_ptr == nullptr)
+      {
+        if (data_size != 0)
+        {
+          throw std::logic_error("Raw reader has non-zero size with null data");
+        }
+        return nullptr;
+      }
+      return data_ptr + data_offset;
+    }
+
+    void advance(size_t size)
+    {
+      require_bytes(size, "reader advance");
+      data_offset += size;
+    }
+
+    const uint8_t* data_ptr{nullptr};
+    size_t data_offset{0};
+    size_t data_size{0};
+
+  public:
     /** Reads the next entry, advancing data_offset
      */
     template <typename T>
     T read_entry()
     {
-      auto remainder = data_size - data_offset;
-      const auto* data = data_ptr + data_offset;
+      require_bytes(sizeof(T), "fixed-size entry");
+      const auto before = remaining_bytes();
+      auto remainder = before;
+      const auto* data = current_data();
       const auto entry = serialized::read<T>(data, remainder);
-      const auto bytes_read = data_size - data_offset - remainder;
-      data_offset += bytes_read;
+      if (remainder > before)
+      {
+        throw std::logic_error("Raw reader remaining size increased");
+      }
+      advance(before - remainder);
       return entry;
     }
 
@@ -148,17 +198,11 @@ namespace ccf::kv
      */
     size_t read_size_prefixed_entry(size_t& start_offset)
     {
-      auto remainder = data_size - data_offset;
-      auto entry_size = read_entry<size_t>();
-
-      if (remainder < entry_size)
-      {
-        throw std::runtime_error(fmt::format(
-          "Expected {} byte entry, found only {}", entry_size, remainder));
-      }
+      const auto entry_size = read_entry<size_t>();
+      require_bytes(entry_size, "size-prefixed entry");
 
       start_offset = data_offset;
-      data_offset += entry_size;
+      advance(entry_size);
 
       return entry_size;
     }
@@ -166,13 +210,18 @@ namespace ccf::kv
     RawReader(const RawReader& other) = delete;
     RawReader& operator=(const RawReader& other) = delete;
 
-    RawReader(const uint8_t* data_in_ptr = nullptr, size_t data_in_size = 0) :
-      data_ptr(data_in_ptr),
-      data_size(data_in_size)
-    {}
+    RawReader(const uint8_t* data_in_ptr = nullptr, size_t data_in_size = 0)
+    {
+      init(data_in_ptr, data_in_size);
+    }
 
     void init(const uint8_t* data_in_ptr, size_t data_in_size)
     {
+      if (data_in_ptr == nullptr && data_in_size != 0)
+      {
+        throw std::invalid_argument(
+          "Cannot initialise raw reader with null data and non-zero size");
+      }
       data_offset = 0;
       data_ptr = data_in_ptr;
       data_size = data_in_size;
@@ -186,9 +235,30 @@ namespace ccf::kv
         std::is_same_v<T, ccf::kv::serialisers::SerialisedEntry>)
       {
         size_t entry_offset = 0;
-        size_t entry_size = read_size_prefixed_entry(entry_offset);
+        const auto entry_size = read_size_prefixed_entry(entry_offset);
+        using Element = typename T::value_type;
+        if (entry_size % sizeof(Element) != 0)
+        {
+          throw std::runtime_error(fmt::format(
+            "Size-prefixed entry of {} bytes is not divisible by element size "
+            "{}",
+            entry_size,
+            sizeof(Element)));
+        }
 
-        T ret(entry_size / sizeof(typename T::value_type));
+        T ret;
+        const auto element_count = entry_size / sizeof(Element);
+        if (element_count > ret.max_size())
+        {
+          throw std::length_error(fmt::format(
+            "Size-prefixed entry contains too many elements ({})",
+            element_count));
+        }
+        ret.resize(element_count);
+        if (entry_size == 0)
+        {
+          return ret;
+        }
         auto* data_dest = reinterpret_cast<uint8_t*>(ret.data());
         auto capacity = entry_size;
         // NOLINTNEXTLINE(readability-suspicious-call-argument)
@@ -201,10 +271,15 @@ namespace ccf::kv
       {
         T ret{};
         auto* data_ = reinterpret_cast<uint8_t*>(ret.data());
-        constexpr size_t size = ret.size() * sizeof(typename T::value_type);
+        constexpr auto element_count = std::tuple_size_v<T>;
+        static_assert(
+          element_count <=
+          std::numeric_limits<size_t>::max() / sizeof(typename T::value_type));
+        constexpr size_t size = element_count * sizeof(typename T::value_type);
+        require_bytes(size, "fixed-size array");
         auto size_ = size;
-        serialized::write(data_, size_, data_ptr + data_offset, size);
-        data_offset += size;
+        serialized::write(data_, size_, current_data(), size);
+        advance(size);
 
         return ret;
       }
@@ -240,7 +315,7 @@ namespace ccf::kv
 
     [[nodiscard]] bool is_eos() const
     {
-      return data_offset >= data_size;
+      return remaining_bytes() == 0;
     }
   };
 
