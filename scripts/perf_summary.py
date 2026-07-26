@@ -212,11 +212,8 @@ def render_mermaid_xychart(series: ChartSeries, metric: str, unit: str) -> str:
     labels = ", ".join(json.dumps(label) for label, _ in series)
     raw_values = [value for _, value in series]
     values = ", ".join(f"{value:.2f}" for value in raw_values)
-    chronological_values = [value for _, value in series]
-    baseline = ewma(chronological_values)
-    sigma = (
-        statistics.pstdev(chronological_values) if len(chronological_values) > 1 else 0
-    )
+    baseline = ewma(raw_values)
+    sigma = statistics.pstdev(raw_values) if len(raw_values) > 1 else 0
     lines = [
         "```mermaid",
         "---",
