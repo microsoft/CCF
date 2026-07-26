@@ -16,8 +16,7 @@
             },
             "published_address": {
               "type": "string",
-              "default": "Value of 'bind_address'",
-              "description": "The published node address advertised to other nodes. This must be different on each node"
+              "description": "The published node address advertised to other nodes. This must be different on each node. If omitted, defaults to ``bind_address``"
             }
           },
           "description": "Addresses (host:port) to listen on for incoming node-to-node connections (e.g. internal consensus messages). IPv6 literals must be bracketed, e.g. ``[::1]:8081``",
@@ -35,8 +34,7 @@
               },
               "published_address": {
                 "type": "string",
-                "default": "Value of 'bind_address'",
-                "description": "The published RPC address advertised to clients"
+                "description": "The published RPC address advertised to clients. If omitted, defaults to ``bind_address``"
               },
               "protocol": {
                 "type": "string",
@@ -201,6 +199,7 @@
                   },
                   "cose_signatures": {
                     "type": "object",
+                    "description": "If specified, both ``issuer`` and ``subject`` are required",
                     "properties": {
                       "issuer": {
                         "type": "string",
@@ -351,6 +350,7 @@
             "properties": {
               "recover": {
                 "type": "object",
+                "description": "Required when ``command.type`` is ``Recover``",
                 "properties": {
                   "initial_service_certificate_validity_days": {
                     "type": "integer",
@@ -436,18 +436,18 @@
               },
               "url": {
                 "type": "string",
-                "description": "Server URLs used to retrieve attestation report endorsement certificates, e.g. \"kdsintf.amd.com\" (AMD), \"global.acccache.azure.net\" (Azure) or \"169.254.169.254\" (THIM)"
+                "description": "Server URL used to retrieve attestation report endorsement certificates"
               },
               "max_retries_count": {
                 "type": "integer",
-                "default": 3,
+                "default": 10,
                 "description": "Maximum number of retries to fetch endorsements from the server"
               }
             },
-            "required": ["url"],
+            "required": [],
             "additionalProperties": false
           },
-          "description": "List of servers used to retrieve attestation report endorsement certificates (SEV-SNP only). The first server in the list is always used and other servers are only specified as fallback. If set, attestation endorsements from ``--snp-security-context-dir-var`` are ignored, but uvm endorsements from that directory are still used."
+          "description": "List of servers used to retrieve attestation report endorsement certificates (SEV-SNP only). The first server in the list is always used and other servers are only specified as fallback."
         }
       },
       "description": "This section includes configuration for the attestation for AMD SEV-SNP platform.",
@@ -593,14 +593,13 @@
         "host_level": {
           "type": "string",
           "enum": ["Trace", "Debug", "Info", "Fail", "Fatal"],
-          "default": "Info",
-          "description": "Logging level for the untrusted host. DEPRECATED, use the --log-level CLI switch instead."
+          "description": "Deprecated. Accepted for compatibility but ignored. Use the ``--log-level`` command-line option instead"
         },
         "format": {
           "type": "string",
           "enum": ["Text", "Json"],
           "default": "Text",
-          "description": "If 'json', node logs will be formatted as JSON"
+          "description": "If ``Json``, node logs will be formatted as JSON"
         }
       },
       "description": "This section includes configuration for the logging of the node process",
@@ -673,7 +672,7 @@
         },
         "pid_file": {
           "type": "string",
-          "default": "node.pid",
+          "default": "my_node.pid",
           "description": "Path to file in which process identifier (PID) will be written to on startup"
         },
         "node_to_node_address_file": {
@@ -695,7 +694,7 @@
     },
     "slow_io_logging_threshold": {
       "type": "string",
-      "default": "10000us",
+      "default": "10ms",
       "description": "Maximum duration of I/O operations (ledger and snapshots) after which slow operations will be logged to node log"
     },
     "node_client_interface": {
@@ -747,6 +746,7 @@
     },
     "node_to_node_message_limit": {
       "type": "integer",
+      "default": 23726566,
       "description": "Cap at which node-to-node message channels will be closed, and a new channel will be created. Can be used to limit use of single cryptographic key",
       "minimum": 0
     },

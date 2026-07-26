@@ -1,0 +1,5 @@
+{
+  "rust-analyzer.cargo.features": [
+    "crypto_pure_rust", "crypto_openssl"
+  ]
+}

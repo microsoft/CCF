@@ -13,8 +13,7 @@ Run Analyzer
 ------------
 
 The command line tool in :ccf_repo:`tests/infra/piccolo/analyze_packages.py` 
-
-provide a default analysis that returns some throughput and latency metrics. 
+provides a default analysis that returns some throughput and latency metrics. 
 For more targeted analysis you can create your own scripts, such as 
 :ccf_repo:`tests/infra/piccolo/throughput_analysis.py`.
 
@@ -22,24 +21,24 @@ For more targeted analysis you can create your own scripts, such as
 Command-Line Tool
 #################
 
-For the default analysis of the command line tool you need to run the 
-following command from the :ccf_repo:`tests/infra/piccolo/` 
-
-directory:
+For a full description of all options, run:
 
 .. code-block:: bash
 
+    $ python3 analyze_packages.py --help
+
+Some example invocations from the :ccf_repo:`tests/infra/piccolo/` directory:
+
+.. code-block:: bash
+
+    # Analyze using default parquet file paths
     $ python3 analyze_packages.py
 
-You can specify the ``.parquet`` file paths you want to include in your 
-analysis using the following arguments:
-
-:: 
-
-    -h, --help show this help message and exit
-    -if INPUT_PATH, --input_path INPUT_PATH Path to the parquet file that contains generated requests (default: ../generator/requests.parquet)
-    -sf SEND_FILE_PATH, --send_file_path SEND_FILE_PATH Path to the parquet file that contains the submitted requests (default: ../submitter/cpp_send.parquet)
-    -rf RESPONSE_FILE_PATH, --response_file_path RESPONSE_FILE_PATH Path to the parquet file that contains the responses from the submitted requests (default: ../submitter/cpp_respond.parquet)
+    # Analyze using custom parquet file paths
+    $ python3 analyze_packages.py \
+        --input_path requests.parquet \
+        --send_file_path send.parquet \
+        --response_file_path responses.parquet
 
 Running this file will produce some tables on the terminals with the metrics 
 such as analysis-table_ and some images with graphs exported to the 

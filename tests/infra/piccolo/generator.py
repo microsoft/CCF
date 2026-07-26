@@ -4,9 +4,8 @@
 Generate requests
 """
 
-import pandas as pd  # type: ignore
-
 import fastparquet as fp  # type: ignore
+import pandas as pd  # type: ignore
 
 
 class Messages:
@@ -20,7 +19,7 @@ class Messages:
         http_version="HTTP/1.1",
         content_type="application/json",
         additional_headers=None,
-        body=bytes(),
+        body=b"",
     ):
         """
         Serialise HTTP request specified by the arguments, and

@@ -1,0 +1,129 @@
+name: "Demo CI"
+
+on:
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+
+concurrency:
+  group: ci-demo-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  web-verify-kernel:
+    name: web-verify-kernel e2e
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Install rust
+        run: |
+          rustup update stable && rustup default stable
+
+      - name: Setup WASM tooling
+        run: |
+          rustup target add wasm32-unknown-unknown
+          cargo install wasm-pack --version 0.13.1 --locked
+
+      - name: Build FFI WASM for the demo
+        working-directory: ffi
+        run: wasm-pack build --target web --out-dir ../demos/web-verify-kernel/pkg --no-default-features --features "crypto_webcrypto"
+
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: "26"
+
+      - name: Install web-verify-kernel Playwright and browsers
+        working-directory: demos/web-verify-kernel/tests
+        run: |
+          npm install --no-audit --no-fund
+          npx playwright install --with-deps chromium
+
+      - name: Run web-verify-kernel e2e test
+        working-directory: demos/web-verify-kernel/tests
+        run: npm test
+
+      - name: Upload failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: web-verify-kernel-playwright-report
+          path: |
+            demos/web-verify-kernel/tests/test-results/
+            demos/web-verify-kernel/tests/playwright-report/
+
+  caci-attestation-verify:
+    name: E2E test of CACI attestation verification
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Install rust
+        run: |
+          rustup update stable && rustup default stable
+
+      - name: Setup WASM tooling
+        run: |
+          rustup target add wasm32-unknown-unknown
+          cargo install wasm-pack --version 0.13.1 --locked
+
+      - name: Build FFI WASM for the demo
+        working-directory: ffi
+        run: wasm-pack build --target web --out-dir ../demos/caci-attestation-verify/caci_pkg --no-default-features --features "crypto_webcrypto"
+
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: "26"
+
+      - name: Install caci-attestation-verify Playwright and browsers
+        working-directory: demos/caci-attestation-verify/tests
+        run: |
+          npm install --no-audit --no-fund
+          npx playwright install --with-deps chromium
+
+      - name: Run caci-attestation-verify e2e test
+        working-directory: demos/caci-attestation-verify/tests
+        run: npm test
+
+      - name: Upload failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: caci-attestation-verify-playwright-report
+          path: |
+            demos/caci-attestation-verify/tests/test-results/
+            demos/caci-attestation-verify/tests/playwright-report/
+
+  c-ffi:
+    name: C FFI demo
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Install rust
+        run: |
+          rustup update stable && rustup default stable
+
+      - name: Run C FFI demo tests
+        run: python3 demos/c-ffi/run_tests.py
+
+  caci-c-ffi:
+    name: CACI C FFI demo
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Install rust
+        run: |
+          rustup update stable && rustup default stable
+
+      - name: Run CACI C FFI demo tests
+        run: python3 demos/caci-c-ffi/run_tests.py

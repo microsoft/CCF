@@ -1,0 +1,13 @@
+{
+  "name": "web-verify-kernel-tests",
+  "private": true,
+  "type": "module",
+  "description": "Playwright end-to-end tests for the web-verify-kernel WASM demo",
+  "scripts": {
+    "test": "playwright test",
+    "update-golden": "UPDATE_GOLDEN=1 playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.60.0"
+  }
+}

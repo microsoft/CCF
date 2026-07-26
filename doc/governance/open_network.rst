@@ -175,7 +175,7 @@ Once users are added to the opening network, members should create a proposal to
       --ccf-gov-msg-created_at `date -uIs` \
       --signing-key member0_privk.pem \
       --signing-cert member0_cert.pem \
-      --content transition_service_to_open.json
+      --content transition_service_to_open.json \
     | curl https://<ccf-node-address>/gov/members/proposals:create?api-version=2024-07-01 \
       --cacert service_cert.pem \
       --data-binary @- \

@@ -2,12 +2,41 @@
 # Licensed under the Apache 2.0 License.
 import argparse
 import os
-import infra.interfaces
-import infra.path
-import infra.network
 import sys
 
 from loguru import logger as LOG
+
+import infra.interfaces
+import infra.network
+import infra.path
+
+_LOG_LEVEL_DISPLAY = {
+    "TRACE": "TRC ",
+    "DEBUG": "DBG ",
+    "INFO": "INFO",
+    "SUCCESS": "SUCC",
+    "WARNING": "WARN",
+    "ERROR": "ERR ",
+    "CRITICAL": "CRIT",
+}
+
+_LOG_MESSAGE_MARKERS = {
+    "SUCCESS": "\u2705 ",
+    "WARNING": "\u26a0\ufe0f ",
+    "ERROR": "\u274c ",
+}
+
+
+def format_log_record(record, include_thread=False):
+    level_name = record["level"].name
+    display_level = _LOG_LEVEL_DISPLAY[level_name]
+    marker = _LOG_MESSAGE_MARKERS.get(level_name, "")
+    time_format = "YYYY-MM-DD HH:mm:ss.SSS" if include_thread else "HH:mm:ss.SSS"
+    thread = "{{{thread.name}}} " if include_thread else ""
+    return (
+        f"{{time:{time_format}}} | {display_level} | {thread}"
+        f"{{name}}:{{function}}:{{line}} - {marker}{{message}}\n{{exception}}"
+    )
 
 
 def absolute_path_to_existing_file(arg):
@@ -55,7 +84,7 @@ def cli_args(
     LOG.remove()
     LOG.add(
         sys.stdout,
-        format="<green>{time:HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
+        format=format_log_record,
     )
 
     if parser is None:

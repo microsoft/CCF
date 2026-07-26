@@ -4,8 +4,6 @@
 import os
 import sys
 import json
-import tempfile
-import filecmp
 
 # We can document each sub schema as either a header-led
 # section, or a nested definition list.
@@ -60,9 +58,6 @@ class MinimalRstGenerator:
     def add_definition_line(self, line):
         self.add_line(f"   |   {line}")
 
-    def add_definition_kv_line(self, k, v):
-        self.add_definition_line(f"**{k}**: {v}")
-
     def end_definition(self):
         self.add_line()
 
@@ -98,27 +93,57 @@ def dump_property(
     property_name: str,
     obj: dict,
     required: bool = False,
-    path: list = [],
-    conditions=[],
+    path: list | None = None,
+    conditions: list | None = None,
+    section_qualifier: str | None = None,
 ):
+    if path is None:
+        path = []
+    if conditions is None:
+        conditions = []
+
     prefix = "".join(path)
 
     # Don't document empty ("any") schema
     if len(obj) == 0:
         return
 
-    ref = obj.pop("$ref", None)
+    ref = obj.get("$ref")
     if ref:
-        obj = lookup_ref(output.document_root, ref)
+        referenced_obj = lookup_ref(output.document_root, ref)
+        obj = {
+            **referenced_obj,
+            **{k: v for k, v in obj.items() if k != "$ref"},
+        }
 
     t = obj.get("type")
 
+    metadata = []
+    if required:
+        metadata.append("**Required**")
+    if t is not None:
+        if isinstance(t, list):
+            t = " | ".join(t)
+        metadata.append(f"**Type**: {t}")
+    if "enum" in obj:
+        metadata.append(
+            f"**Values**: {', '.join(monospace_literal(v) for v in obj['enum'])}"
+        )
+    if "default" in obj:
+        metadata.append(f"**Default**: {monospace_literal(obj['default'])}")
+    if "minimum" in obj:
+        metadata.append(f"**Minimum**: {monospace_literal(obj['minimum'])}")
+    if "maximum" in obj:
+        metadata.append(f"**Maximum**: {monospace_literal(obj['maximum'])}")
+
     if has_subobjs(obj) or len(path) == 0:
         section_title = f"``{prefix}{property_name}``"
+        if section_qualifier:
+            section_title += f" ({section_qualifier})"
 
         output.start_section(section_title)
         for condition in conditions:
-            output.add_line(condition)
+            output.add_line(f"(Only applies if {condition})")
 
         desc = obj.get("description", None)
         if desc:
@@ -127,8 +152,18 @@ def dump_property(
                 desc = desc + "."
             output.add_line(desc)
 
+        for line in metadata:
+            output.add_line(line)
+
         if t == "object":
             dump_object(output, obj, path + [f"{property_name}."])
+        elif t == "array":
+            dump_property(
+                output,
+                "[item]",
+                obj.get("items", {}),
+                path=path + [f"{property_name}."],
+            )
 
         output.end_section()
 
@@ -141,36 +176,25 @@ def dump_property(
             # Insert a trailing full-stop, but only if not present in original string
             if desc[-1] != ".":
                 desc = desc + "."
-        output.add_definition_line(desc)
+            output.add_definition_line(desc)
 
-        if required:
-            output.add_definition_line("**Required**")
-
-        if isinstance(t, list):
-            t = " | ".join(t)
-        output.add_definition_kv_line("Type", t)
-
-        if "enum" in obj:
-            output.add_definition_kv_line(
-                "Values", ", ".join(monospace_literal(v) for v in obj["enum"])
-            )
-
-        default = obj.get("default", None)
-        if default:
-            output.add_definition_kv_line("Default", monospace_literal(default))
-
-        minimum = obj.get("minimum", None)
-        if minimum:
-            output.add_definition_kv_line("Minimum", monospace_literal(minimum))
-
-        maximum = obj.get("maximum", None)
-        if maximum:
-            output.add_definition_kv_line("Maximum", monospace_literal(maximum))
+        for line in metadata:
+            output.add_definition_line(line)
 
         output.end_definition()
 
 
-def dump_object(output: MinimalRstGenerator, obj: dict, path: list = [], conditions=[]):
+def dump_object(
+    output: MinimalRstGenerator,
+    obj: dict,
+    path: list | None = None,
+    conditions: list | None = None,
+):
+    if path is None:
+        path = []
+    if conditions is None:
+        conditions = []
+
     props = []
 
     def add_prop(name, obj, required=False, **kwargs):
@@ -218,16 +242,25 @@ def dump_object(output: MinimalRstGenerator, obj: dict, path: list = [], conditi
                 assert "const" in cond, "Only 'const' conditions supported"
                 goal_s = monospace_literal(cond["const"])
                 extra_conditions.append(
-                    f"(Only applies if {''.join(path)}{k} is {goal_s})"
+                    f"{''.join(path)}{k} is {goal_s}"
                 )
 
             gather_properties(obj["then"], conditions=conditions + extra_conditions)
 
     gather_properties(obj)
 
+    property_counts = {}
     for p in props:
+        name = p["property_name"]
+        property_counts[name] = property_counts.get(name, 0) + 1
+
+    for p in props:
+        section_qualifier = None
+        if property_counts[p["property_name"]] > 1 and p["conditions"]:
+            section_qualifier = " and ".join(p["conditions"])
         dump_property(
             output=output,
+            section_qualifier=section_qualifier,
             **p,
         )
 
@@ -251,16 +284,14 @@ def generate_configuration_docs(input_file_path, output_file_path):
     dump_object(output, j)
     out = "\n".join(lines) + output.render()
 
-    # Only update output file if the file will be modified
-    with tempfile.NamedTemporaryFile("w") as temp:
-        temp.write(out)
-        temp.flush()
-        if not os.path.exists(output_file_path) or not filecmp.cmp(
-            temp.name, output_file_path
-        ):
-            with open(output_file_path, "w") as out_:
-                out_.write(out)
-            print(f"Configuration file successfully generated at {output_file_path}")
+    if os.path.exists(output_file_path):
+        with open(output_file_path, "r") as current:
+            if current.read() == out:
+                return
+
+    with open(output_file_path, "w") as out_:
+        out_.write(out)
+    print(f"Configuration file successfully generated at {output_file_path}")
 
 
 if __name__ == "__main__":
