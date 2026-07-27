@@ -158,6 +158,19 @@ def metric_label_value(value: float, unit: str) -> str:
     return f"{compact_number(scaled)} {units[unit_index]}"
 
 
+def baseline_and_sigma(values: List[float]) -> Tuple[float, float]:
+    """EWMA baseline and sigma over the runs preceding the latest one.
+
+    The latest run is the point being judged, so it is excluded from both. With
+    no prior runs, the latest value is its own baseline and sigma is zero.
+    """
+    history = values[:-1] or values[-1:]
+    if not history:
+        return 0.0, 0.0
+    sigma = statistics.pstdev(history) if len(history) > 1 else 0.0
+    return ewma(history), sigma
+
+
 def metric_summaries(
     loaded: List[PerfRun], metric: str, unit: str
 ) -> List[MetricSummary]:
@@ -179,11 +192,10 @@ def metric_summaries(
             for _, _, _, data in loaded
             if (value := metric_value(data, benchmark, metric)) is not None
         ]
-        baseline = ewma(values)
+        baseline, sigma = baseline_and_sigma(values)
         if baseline <= 0:
             continue
 
-        sigma = statistics.pstdev(values) if len(values) > 1 else 0.0
         summaries.append(
             MetricSummary(
                 benchmark,
@@ -212,8 +224,7 @@ def render_mermaid_xychart(series: ChartSeries, metric: str, unit: str) -> str:
     labels = ", ".join(json.dumps(label) for label, _ in series)
     raw_values = [value for _, value in series]
     values = ", ".join(f"{value:.2f}" for value in raw_values)
-    baseline = ewma(raw_values)
-    sigma = statistics.pstdev(raw_values) if len(raw_values) > 1 else 0
+    baseline, sigma = baseline_and_sigma(raw_values)
     lines = [
         "```mermaid",
         "---",
@@ -358,8 +369,9 @@ def render_perf_summary(loaded: List[PerfRun]) -> str:
         (
             "_Each section compares its latest values with an EWMA baseline using a "
             f"{EWMA_HALF_LIFE}-run half-life, followed by historical charts with "
-            "+/-1 sigma reference lines. One sigma is the population standard "
-            "deviation across the displayed runs._"
+            "+/-1 sigma reference lines. The baseline and sigma are computed over "
+            "the displayed runs preceding the latest one, which is the run being "
+            "judged._"
         ),
         "",
     ]
