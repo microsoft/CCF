@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Asynchronous ledger reads (used to serve committed entry ranges to the enclave) no longer access the host `Ledger` object after it has been destroyed during shutdown. The `Ledger` now waits for any in-flight read workers to finish, and workers that have not yet started skip accessing it, fixing a potential use-after-free on shutdown (#8003).
 
+### Changed
+
+- TLS handshakes now prefer hybrid post-quantum key exchange groups, in the order `SecP384r1MLKEM1024`, `SecP256r1MLKEM768`, `X25519MLKEM768`, when the linked crypto provider supports them. The `P-521`, `P-384` and `P-256` groups are retained as fallbacks (#8107).
+
 ## [7.0.10]
 
 [7.0.10]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.10
