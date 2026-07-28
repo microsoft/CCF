@@ -9,6 +9,7 @@
 
 #include <memory>
 #include <openssl/bio.h>
+#include <openssl/err.h>
 #include <openssl/ssl.h>
 
 namespace ccf::tls
@@ -85,27 +86,58 @@ namespace ccf::tls
 
     virtual ~Context() = default;
 
-    virtual void set_bio(
-      void* cb_obj, BIO_callback_fn_ex send, BIO_callback_fn_ex recv)
+    virtual void set_bio()
     {
-      // Read/Write BIOs will be used by TLS
+      // In-memory read/write BIOs hold the encrypted bytes exchanged with the
+      // peer. TLSSession feeds received bytes into the read BIO (recv) and
+      // drains bytes to be sent out of the write BIO (send).
       std::unique_ptr<BIO, decltype(&BIO_free)> rbio(
         BIO_new(BIO_s_mem()), BIO_free);
       CHECKNULL(rbio.get());
+      CHECK1(BIO_set_mem_eof_return(rbio.get(), -1));
+      SSL_set0_rbio(get_ssl(), rbio.release());
 
       std::unique_ptr<BIO, decltype(&BIO_free)> wbio(
         BIO_new(BIO_s_mem()), BIO_free);
       CHECKNULL(wbio.get());
-
-      BIO_set_mem_eof_return(rbio.get(), -1);
-      BIO_set_callback_arg(rbio.get(), static_cast<char*>(cb_obj));
-      BIO_set_callback_ex(rbio.get(), recv);
-      SSL_set0_rbio(get_ssl(), rbio.release());
-
-      BIO_set_mem_eof_return(wbio.get(), -1);
-      BIO_set_callback_arg(wbio.get(), static_cast<char*>(cb_obj));
-      BIO_set_callback_ex(wbio.get(), send);
+      CHECK1(BIO_set_mem_eof_return(wbio.get(), -1));
       SSL_set0_wbio(get_ssl(), wbio.release());
+    }
+
+    // Feed encrypted bytes received from the peer into the read BIO.
+    virtual void recv(const uint8_t* buf, size_t len)
+    {
+      if (len == 0)
+      {
+        return;
+      }
+      // Writing to an in-memory BIO only fails on allocation failure, and is
+      // otherwise all-or-nothing.
+      size_t written = 0;
+      int success = BIO_write_ex(SSL_get_rbio(get_ssl()), buf, len, &written);
+      if (success <= 0 || written != len)
+      {
+        LOG_FAIL_FMT(
+          "Failed to buffer {} received bytes (success={}, written={})",
+          len,
+          success,
+          written);
+      }
+    }
+
+    // Number of encrypted bytes waiting in the write BIO to be sent to the
+    // peer.
+    virtual size_t pending_write()
+    {
+      return BIO_pending(SSL_get_wbio(get_ssl()));
+    }
+
+    // Drain encrypted bytes to be sent to the peer out of the write BIO.
+    virtual size_t send(uint8_t* buf, size_t len)
+    {
+      size_t readbytes = 0;
+      int success = BIO_read_ex(SSL_get_wbio(get_ssl()), buf, len, &readbytes);
+      return success > 0 ? readbytes : 0;
     }
 
     virtual int handshake()
@@ -115,90 +147,74 @@ namespace ccf::tls
         return 0;
       }
 
+      ERR_clear_error();
       int rc = SSL_do_handshake(get_ssl());
-      // Success in OpenSSL is 1, MBed is 0
       if (rc > 0)
       {
         LOG_TRACE_FMT("Context::handshake() : Success");
         return 0;
       }
 
-      // Want read/write needs special return
-      if (SSL_want_read(get_ssl()))
-      {
-        return TLS_ERR_WANT_READ;
-      }
+      int err = SSL_get_error(get_ssl(), rc);
 
-      if (SSL_want_write(get_ssl()))
-      {
-        return TLS_ERR_WANT_WRITE;
-      }
-
-      // So does x509 validation
-      if (!peer_cert_ok())
+      // A failed handshake with a bad peer certificate is reported as a generic
+      // SSL error, so we check the verification result explicitly to let the
+      // caller treat it as an authentication failure.
+      if (err == SSL_ERROR_SSL && !peer_cert_ok())
       {
         return TLS_ERR_X509_VERIFY;
       }
 
-      // Everything else falls here.
-      LOG_TRACE_FMT("Context::handshake() : Error code {}", rc);
-
-      // As an MBedTLS emulation, we return negative for errors.
-      return -SSL_get_error(get_ssl(), rc);
+      LOG_TRACE_FMT("Context::handshake() : SSL error {}", err);
+      return err;
     }
 
-    virtual int read(uint8_t* buf, size_t len)
+    virtual int read(uint8_t* buf, size_t len, size_t& readbytes)
     {
+      readbytes = 0;
       if (len == 0)
       {
         return 0;
       }
-      size_t readbytes = 0;
+      ERR_clear_error();
       int rc = SSL_read_ex(get_ssl(), buf, len, &readbytes);
       if (rc > 0)
       {
-        return readbytes;
+        return 0;
       }
-      if (SSL_want_read(get_ssl()))
-      {
-        return TLS_ERR_WANT_READ;
-      }
-
-      // Everything else falls here.
-      LOG_TRACE_FMT("Context::read() : Error code {}", rc);
-
-      // As an MBedTLS emulation, we return negative for errors.
-      return -SSL_get_error(get_ssl(), rc);
+      int err = SSL_get_error(get_ssl(), rc);
+      LOG_TRACE_FMT("Context::read() : SSL error {}", err);
+      return err;
     }
 
-    virtual int write(const uint8_t* buf, size_t len)
+    virtual int write(const uint8_t* buf, size_t len, size_t& written)
     {
+      written = 0;
       if (len == 0)
       {
         return 0;
       }
-      size_t written = 0;
+      ERR_clear_error();
       int rc = SSL_write_ex(get_ssl(), buf, len, &written);
       if (rc > 0)
       {
-        return written;
+        return 0;
       }
-      if (SSL_want_write(get_ssl()))
-      {
-        return TLS_ERR_WANT_WRITE;
-      }
-
-      // Everything else falls here.
-      LOG_TRACE_FMT("Context::write() : Error code {}", rc);
-
-      // As an MBedTLS emulation, we return negative for errors.
-      return -SSL_get_error(get_ssl(), rc);
+      int err = SSL_get_error(get_ssl(), rc);
+      LOG_TRACE_FMT("Context::write() : SSL error {}", err);
+      return err;
     }
 
     virtual int close()
     {
       LOG_TRACE_FMT("Context::close() : Shutdown");
-      return SSL_shutdown(get_ssl());
+      ERR_clear_error();
+      int rc = SSL_shutdown(get_ssl());
+      if (rc >= 0)
+      {
+        return 0;
+      }
+      return SSL_get_error(get_ssl(), rc);
     }
 
     virtual bool peer_cert_ok()
@@ -220,10 +236,9 @@ namespace ccf::tls
     {
       // CodeQL complains that we don't verify the peer certificate. We don't
       // need to do that because it's been verified before and we use
-      // SSL_get_peer_certificate just to extract it from the context.
+      // SSL_get0_peer_certificate just to extract it from the context.
 
-      ccf::crypto::OpenSSL::Unique_X509 cert(
-        SSL_get_peer_certificate(get_ssl()), /*check_null=*/false);
+      auto* cert = SSL_get0_peer_certificate(get_ssl());
       if (cert == nullptr)
       {
         LOG_TRACE_FMT("Empty peer cert");

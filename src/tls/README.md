@@ -1,67 +1,45 @@
 # OpenSSL TLS Implementation
 
-This is a TLS implementation using OpenSSL that mimics the existing MbedTLS
-one in a similar fashion. Because of that, some structures and call backs
-look odd and have some work-arounds to make it fit the current workflow.
+This is a TLS implementation using OpenSSL.
 
-Once we completely deprecate the MbedTLS implementation from CCF, we should
-re-write the TLS implementation to fit the OpenSSL coding flow, which would
-make it much simpler and easier to use.
+It used to emulate the previous MbedTLS implementation, but now that MbedTLS has
+been removed it follows OpenSSL's native style.
 
 ## CAs and Certificates
 
-In the MbedTLS world, certificates can be null and have methods to change
-some configurations in the TLS config/session objects. There isn't a lot of
-cross-over, so updating the config does the trick.
-
-However, in OpenSSL, session objects (ssl) are created from config objects
-(cfg) and inherit all its properties. Therefore, to emulate MbedTLS, we need
-to do to the session object every action we do to the config object, which is
-not only redundant, but could be unsafe, if the calls are slightly different.
+In OpenSSL, session objects (`ssl`) are created from config objects (`cfg`) and
+inherit all their properties. Because `Context` only handles a single session
+per configuration, configuration is applied to both objects so that either can
+be used safely.
 
 ### Validation
 
-Certificate validation can be complex to handle if you can accept connections
-with certificates or not, and if they come, when and how to validate.
-
-MbedTLS is a lot more lenient on checks. For example, CAs are not tested for
-validity of actually signing other certificates, while OpenSSL has extensive
-checks, which can fail functionality that was previously passing.
-
-For this reason, a number of extra checks in the OpenSSL side were disabled.
-Once we get rid of MbedTLS we should revisit those checks again and improve
-CCF's usage of TLS, and perhaps also creating weaker checks for non-CA
-certificates, etc.
+OpenSSL performs extensive certificate validation. The verification result is
+queried via `SSL_get_verify_result`, and a verification failure during the
+handshake is surfaced to the caller as a distinct status so it can be treated as
+an authentication failure rather than a generic error.
 
 ## Context
 
 ### BIOs
 
-MbedTLS operates reads and writes solely via callbacks, with a buffer in the
-session object acting as async I/O. This is in stark contrast with OpenSSL
-which uses BIO objects to pass information back and forth, and only have
-callbacks for debug or very specialized cases.
+The `Context` uses a pair of in-memory BIOs to exchange encrypted bytes with the
+peer: the TLS layer reads ciphertext from the read BIO and writes ciphertext to
+the write BIO.
 
-We had to implement callbacks and specialize our case, but it could really be
-just done with BIOs between the ring buffer and the context, but we'd have to
-change a lot of code outside of the TLS implementation to add that.
+`TLSSession` drives the I/O directly: it feeds bytes received from the ring
+buffer into the read BIO (`Context::recv`) and drains the bytes the TLS layer
+wants to send out of the write BIO (`Context::send`), forwarding them to the
+ring buffer. There are no BIO callbacks.
 
 ### Reads and Writes
 
-Reading and writing in MbedTLS returns a positive value for success (number of
-bytes written) or a negative value for error (pre-defined error codes) including
-WANTS_READ and WANTS_WRITE.
+`Context::handshake`, `Context::read` and `Context::write` return `0` on success
+and an OpenSSL `SSL_ERROR_*` status code otherwise (obtained from
+`SSL_get_error`). The number of bytes read or written is returned separately
+through an output parameter, so the return value is never overloaded to mean
+both a byte count and an error.
 
-In OpenSSL, those methods return 1 for success and 0 or -1 for errors (depending
-on the version), with all errors, including WANTS_READ and WANTS_WRITE
-accessible through `SSL_get_error`. This imposes a number of hacks needed to
-mimic the MbedTLS implementation, including:
-
-- Multiple `#define`s with common error messages in `tls.h`
-- Having to negate the error code to match
-- Multiple checks to `SSL_want_read` and `SSL_want_write`
-
-### Error Handling
-
-As discussed above, the error handling is slightly different and promotes
-verbose code in OpenSSL's side.
+The caller (`TLSSession`) inspects the status code to decide whether to wait for
+more data (`SSL_ERROR_WANT_READ` / `SSL_ERROR_WANT_WRITE`), close the connection
+(`SSL_ERROR_ZERO_RETURN`), or treat it as an error.

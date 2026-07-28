@@ -16,17 +16,42 @@ namespace nontls
     Unique_BIO write_bio;
 
   public:
-    void set_bio(
-      void* cb_obj, BIO_callback_fn_ex send, BIO_callback_fn_ex recv) override
+    void set_bio() override
     {
-      // Read/Write BIOs will be used by TLS
-      BIO_set_mem_eof_return(read_bio, -1);
-      BIO_set_callback_arg(read_bio, static_cast<char*>(cb_obj));
-      BIO_set_callback_ex(read_bio, recv);
+      // Plaintext passthrough: the read/write BIOs hold the unencrypted bytes
+      // exchanged with the peer directly.
+      CHECK1(BIO_set_mem_eof_return(read_bio, -1));
+      CHECK1(BIO_set_mem_eof_return(write_bio, -1));
+    }
 
-      BIO_set_mem_eof_return(write_bio, -1);
-      BIO_set_callback_arg(write_bio, static_cast<char*>(cb_obj));
-      BIO_set_callback_ex(write_bio, send);
+    void recv(const uint8_t* buf, size_t len) override
+    {
+      if (len == 0)
+      {
+        return;
+      }
+      size_t written = 0;
+      int success = BIO_write_ex(read_bio, buf, len, &written);
+      if (success <= 0 || written != len)
+      {
+        LOG_FAIL_FMT(
+          "Failed to buffer {} received bytes (success={}, written={})",
+          len,
+          success,
+          written);
+      }
+    }
+
+    size_t pending_write() override
+    {
+      return BIO_pending(write_bio);
+    }
+
+    size_t send(uint8_t* buf, size_t len) override
+    {
+      size_t readbytes = 0;
+      int success = BIO_read_ex(write_bio, buf, len, &readbytes);
+      return success > 0 ? readbytes : 0;
     }
 
     int handshake() override
@@ -34,34 +59,34 @@ namespace nontls
       return 0;
     }
 
-    int read(uint8_t* buf, size_t len) override
+    int read(uint8_t* buf, size_t len, size_t& readbytes) override
     {
+      readbytes = 0;
       if (len == 0)
       {
         return 0;
       }
-      size_t readbytes = 0;
-      int rc = BIO_read_ex(read_bio, buf, len, &readbytes);
-      if (rc > 0)
+      int success = BIO_read_ex(read_bio, buf, len, &readbytes);
+      if (success > 0)
       {
-        return readbytes;
+        return 0;
       }
-      return -rc;
+      return SSL_ERROR_WANT_READ;
     }
 
-    int write(const uint8_t* buf, size_t len) override
+    int write(const uint8_t* buf, size_t len, size_t& written) override
     {
+      written = 0;
       if (len == 0)
       {
         return 0;
       }
-      size_t written = 0;
-      int rc = BIO_write_ex(write_bio, buf, len, &written);
-      if (rc > 0)
+      int success = BIO_write_ex(write_bio, buf, len, &written);
+      if (success > 0)
       {
-        return written;
+        return 0;
       }
-      return -rc;
+      return SSL_ERROR_WANT_WRITE;
     }
 
     int close() override
