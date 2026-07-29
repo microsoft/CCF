@@ -1679,6 +1679,21 @@ TEST_CASE("CBOR: helper function make_string")
   REQUIRE(result == expected_repr);
 }
 
+TEST_CASE("CBOR: encode empty bytes and string with null data pointer")
+{
+  // Zero-length spans and string_views may hold a null data pointer.
+  const Bytes null_bytes{static_cast<const uint8_t*>(nullptr), 0};
+  REQUIRE_EQ(serialize(make_bytes(null_bytes)), ccf::ds::from_hex("40"));
+
+  const String null_string{};
+  REQUIRE(null_string.data() == nullptr);
+  REQUIRE_EQ(serialize(make_string(null_string)), ccf::ds::from_hex("60"));
+
+  // The common case: an empty vector, whose data() may be null.
+  const std::vector<uint8_t> empty_vec;
+  REQUIRE_EQ(serialize(make_bytes(empty_vec)), ccf::ds::from_hex("40"));
+}
+
 TEST_CASE("CBOR: error - invalid data")
 {
   auto cbor_bytes = ccf::ds::from_hex("18");
