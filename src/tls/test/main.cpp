@@ -10,6 +10,7 @@
 #include "tls/server.h"
 #include "tls/tls.h"
 
+#include <algorithm>
 #include <chrono>
 #include <exception>
 #include <openssl/err.h>
@@ -349,6 +350,53 @@ std::string truncate_message(const uint8_t* msg, size_t len)
   return str;
 }
 
+void run_handshake(tls::Server& server, tls::Client& client)
+{
+  std::atomic<bool> keep_going = true;
+  std::optional<std::runtime_error> client_exception, server_exception;
+
+  thread client_thread([&client, &keep_going, &client_exception]() {
+    LOG_INFO_FMT("Client handshake");
+    try
+    {
+      if (handshake(&client, keep_going))
+        throw runtime_error("Client handshake error");
+    }
+    catch (std::runtime_error& ex)
+    {
+      keep_going = false;
+      client_exception = ex;
+    }
+  });
+
+  thread server_thread([&server, &keep_going, &server_exception]() {
+    LOG_INFO_FMT("Server handshake");
+    try
+    {
+      if (handshake(&server, keep_going))
+        throw runtime_error("Server handshake error");
+    }
+    catch (std::runtime_error& ex)
+    {
+      keep_going = false;
+      server_exception = ex;
+    }
+  });
+
+  client_thread.join();
+  server_thread.join();
+  LOG_INFO_FMT("Handshake completed");
+
+  if (client_exception)
+  {
+    throw *client_exception;
+  }
+  if (server_exception)
+  {
+    throw *server_exception;
+  }
+}
+
 /// Test runner, with various options for different kinds of tests.
 void run_test_case(
   const uint8_t* message,
@@ -369,52 +417,7 @@ void run_test_case(
   server.set_bio(&pipe, send<TestPipe::SERVER>, recv<TestPipe::SERVER>);
   client.set_bio(&pipe, send<TestPipe::CLIENT>, recv<TestPipe::CLIENT>);
 
-  std::atomic<bool> keep_going = true;
-  std::optional<std::runtime_error> client_exception, server_exception;
-
-  // Create a thread for the client handshake
-  thread client_thread([&client, &keep_going, &client_exception]() {
-    LOG_INFO_FMT("Client handshake");
-    try
-    {
-      if (handshake(&client, keep_going))
-        throw runtime_error("Client handshake error");
-    }
-    catch (std::runtime_error& ex)
-    {
-      keep_going = false;
-      client_exception = ex;
-    }
-  });
-
-  // Create a thread for the server handshake
-  thread server_thread([&server, &keep_going, &server_exception]() {
-    LOG_INFO_FMT("Server handshake");
-    try
-    {
-      if (handshake(&server, keep_going))
-        throw runtime_error("Server handshake error");
-    }
-    catch (std::runtime_error& ex)
-    {
-      keep_going = false;
-      server_exception = ex;
-    }
-  });
-
-  // Join threads
-  client_thread.join();
-  server_thread.join();
-  LOG_INFO_FMT("Handshake completed");
-
-  if (client_exception)
-  {
-    throw *client_exception;
-  }
-  if (server_exception)
-  {
-    throw *server_exception;
-  }
+  run_handshake(server, client);
 
   // The rest of the communication is deterministic and easy to simulate
   // so we take them out of the thread, to guarantee there will be bytes
@@ -467,16 +470,97 @@ void run_test_case(
   server.close();
 }
 
+std::string negotiated_group_name(SSL* ssl)
+{
+  const auto group_id = SSL_get_negotiated_group(ssl);
+  if (group_id == NID_undef)
+  {
+    return {};
+  }
+
+  const auto* group_name = SSL_group_to_name(ssl, group_id);
+  if (group_name != nullptr)
+  {
+    return group_name;
+  }
+
+  return std::to_string(group_id);
+}
+
 class InspectableClient : public tls::Client
 {
 public:
   using tls::Client::Client;
 
+  InspectableClient(
+    std::shared_ptr<::tls::Cert> cert, const std::string& groups) :
+    tls::Client(std::move(cert))
+  {
+    REQUIRE(SSL_set1_groups_list(get_ssl(), groups.c_str()) == 1);
+  }
+
   int verify_mode()
   {
     return SSL_get_verify_mode(get_ssl());
   }
+
+  std::string negotiated_group()
+  {
+    return negotiated_group_name(get_ssl());
+  }
 };
+
+class InspectableServer : public tls::Server
+{
+public:
+  InspectableServer(
+    const std::shared_ptr<::tls::Cert>& cert, const std::string& groups) :
+    tls::Server(cert)
+  {
+    REQUIRE(SSL_set1_groups_list(get_ssl(), groups.c_str()) == 1);
+  }
+
+  std::string negotiated_group()
+  {
+    return negotiated_group_name(get_ssl());
+  }
+};
+
+#ifndef TEST_HYBRID_TLS_GROUPS
+#  define TEST_HYBRID_TLS_GROUPS 0
+#endif
+
+// Hybrid groups offered by src/tls/context.h, in the order they are offered
+constexpr auto secp384r1_mlkem1024 = "SecP384r1MLKEM1024";
+constexpr auto secp256r1_mlkem768 = "SecP256r1MLKEM768";
+constexpr auto x25519_mlkem768 = "X25519MLKEM768";
+
+// Classical groups offered by src/tls/context.h, in the same order
+constexpr auto classical_groups = "P-521:P-384:P-256";
+
+/// Handshakes a client offering client_groups against a server offering
+/// server_groups, and returns the group they agreed on. Throws if they cannot
+/// agree.
+std::string negotiate_group(
+  const std::string& client_groups, const std::string& server_groups)
+{
+  INFO("client groups: ", client_groups);
+  INFO("server groups: ", server_groups);
+
+  auto ca = get_ca();
+  InspectableServer server(get_dummy_cert(ca, "server", false), server_groups);
+  InspectableClient client(get_dummy_cert(ca, "client", false), client_groups);
+
+  TestPipe pipe;
+  server.set_bio(&pipe, send<TestPipe::SERVER>, recv<TestPipe::SERVER>);
+  client.set_bio(&pipe, send<TestPipe::CLIENT>, recv<TestPipe::CLIENT>);
+
+  run_handshake(server, client);
+
+  const auto group = client.negotiated_group();
+  REQUIRE(group == server.negotiated_group());
+  return group;
+}
 
 TEST_CASE("connection inherits verification mode from context")
 {
@@ -495,6 +579,113 @@ TEST_CASE("connection inherits verification mode from context")
   REQUIRE((request_only_client.verify_mode() & SSL_VERIFY_PEER) != 0);
   REQUIRE(
     (request_only_client.verify_mode() & SSL_VERIFY_FAIL_IF_NO_PEER_CERT) == 0);
+}
+
+TEST_CASE("group negotiation")
+{
+  SUBCASE("the first group offered by the client wins")
+  {
+    REQUIRE(
+      negotiate_group("P-384:P-256:P-521", "P-384:P-256:P-521") == "secp384r1");
+    REQUIRE(
+      negotiate_group("P-256:P-384:P-521", "P-256:P-384:P-521") == "secp256r1");
+  }
+
+  SUBCASE("the client order wins over the server order")
+  {
+    // In TLS 1.3 the server selects the group, and OpenSSL selects the first
+    // group the client offered that the server also supports. The server order
+    // is only a filter, so the client dictates the outcome.
+    REQUIRE(negotiate_group("P-256:P-521", "P-521:P-256") == "secp256r1");
+    REQUIRE(negotiate_group("P-521:P-256", "P-256:P-521") == "secp521r1");
+  }
+
+  SUBCASE("disjoint groups fail the handshake")
+  {
+    REQUIRE_THROWS_AS(
+      negotiate_group("P-521", "P-256"), const std::runtime_error&);
+  }
+}
+
+TEST_CASE(
+  "hybrid group negotiation" * doctest::skip(TEST_HYBRID_TLS_GROUPS == 0))
+{
+  const std::vector<std::string> hybrid_groups = {
+    secp384r1_mlkem1024, secp256r1_mlkem768, x25519_mlkem768};
+
+  SUBCASE("the configured groups negotiate the strongest hybrid group")
+  {
+    auto ca = get_ca();
+    tls::Server server(get_dummy_cert(ca, "server", false));
+    InspectableClient client(get_dummy_cert(ca, "client", false));
+
+    TestPipe pipe;
+    server.set_bio(&pipe, send<TestPipe::SERVER>, recv<TestPipe::SERVER>);
+    client.set_bio(&pipe, send<TestPipe::CLIENT>, recv<TestPipe::CLIENT>);
+
+    run_handshake(server, client);
+
+    REQUIRE(client.negotiated_group() == secp384r1_mlkem1024);
+  }
+
+  SUBCASE("disjoint hybrid groups with no classical fallback fail")
+  {
+    REQUIRE_THROWS_AS(
+      negotiate_group(secp384r1_mlkem1024, secp256r1_mlkem768),
+      const std::runtime_error&);
+  }
+
+  SUBCASE("disjoint hybrid groups fall back to the first shared classical one")
+  {
+    REQUIRE(
+      negotiate_group(
+        fmt::format("{}:{}", secp384r1_mlkem1024, classical_groups),
+        fmt::format("{}:{}", secp256r1_mlkem768, classical_groups)) ==
+      "secp521r1");
+  }
+
+  SUBCASE("disjoint hybrid and disjoint classical groups fail")
+  {
+    REQUIRE_THROWS_AS(
+      negotiate_group(
+        fmt::format("{}:P-521", secp384r1_mlkem1024),
+        fmt::format("{}:P-256", secp256r1_mlkem768)),
+      const std::runtime_error&);
+  }
+
+  SUBCASE("the client order decides which shared hybrid group is used")
+  {
+    // As for classical groups, the client's order is what matters
+    REQUIRE(
+      negotiate_group(
+        fmt::format("{}:{}", secp384r1_mlkem1024, secp256r1_mlkem768),
+        fmt::format("{}:{}", secp256r1_mlkem768, secp384r1_mlkem1024)) ==
+      secp384r1_mlkem1024);
+    REQUIRE(
+      negotiate_group(
+        fmt::format("{}:{}", secp256r1_mlkem768, secp384r1_mlkem1024),
+        fmt::format("{}:{}", secp384r1_mlkem1024, secp256r1_mlkem768)) ==
+      secp256r1_mlkem768);
+  }
+
+  SUBCASE("each hybrid group can be negotiated on its own")
+  {
+    for (const auto& group : hybrid_groups)
+    {
+      INFO("group: ", group);
+      REQUIRE(negotiate_group(group, group) == group);
+    }
+  }
+
+  SUBCASE("a shared hybrid group is preferred over classical fallbacks")
+  {
+    for (const auto& group : hybrid_groups)
+    {
+      INFO("group: ", group);
+      const auto groups = fmt::format("{}:{}", group, classical_groups);
+      REQUIRE(negotiate_group(groups, groups) == group);
+    }
+  }
 }
 
 TEST_CASE("unverified handshake")
