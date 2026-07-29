@@ -1737,7 +1737,8 @@
           "description": "Code measurements of acceptable enclaves.",
           "items": {
             "type": "string",
-            "format": "byte"
+            "format": "hex",
+            "pattern": "^[a-f0-9]{64}$"
           }
         }
       },
@@ -1873,17 +1874,22 @@
       "type": "object",
       "description": "Describes a single JWK.",
       "properties": {
-        "certificate": {
+        "publicKey": {
           "$ref": "#/definitions/ServiceState.pem",
-          "description": "x509 cert used to validate claims made by this key."
+          "description": "PEM-encoded public key used to validate claims."
         },
         "issuer": {
           "type": "string",
           "description": "Issuer ID of entity who issued this key."
+        },
+        "constraint": {
+          "type": "string",
+          "description": "Issuer constraint supplied by the key."
         }
       },
       "required": [
-        "certificate"
+        "publicKey",
+        "issuer"
       ]
     },
     "ServiceState.JwkInfo": {
@@ -1908,7 +1914,10 @@
           "type": "object",
           "description": "Collection of retrieved JWKs. Keyed by kid.",
           "additionalProperties": {
-            "$ref": "#/definitions/ServiceState.Jwk"
+            "type": "array",
+            "items": {
+              "$ref": "#/definitions/ServiceState.Jwk"
+            }
           }
         }
       },
@@ -2224,8 +2233,7 @@
           "type": "array",
           "description": "Code measurements of acceptable enclaves.",
           "items": {
-            "type": "string",
-            "format": "byte"
+            "type": "string"
           }
         },
         "hostData": {
@@ -2233,7 +2241,8 @@
           "description": "Collection of acceptable host data values.",
           "items": {
             "type": "string",
-            "format": "byte"
+            "format": "hex",
+            "pattern": "^[a-f0-9]{64}$"
           }
         }
       },
@@ -2251,14 +2260,14 @@
           "description": "Code measurements of acceptable enclaves.",
           "items": {
             "type": "string",
-            "format": "byte"
+            "format": "hex",
+            "pattern": "^[a-f0-9]{96}$"
           }
         },
         "hostData": {
           "type": "object",
-          "description": "Collection of acceptable host data values.",
+          "description": "Collection of acceptable host data values, keyed by hex-encoded SHA-256 digest.",
           "additionalProperties": {
-            "format": "byte",
             "type": "string"
           }
         },
