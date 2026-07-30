@@ -37,35 +37,35 @@ TEST_CASE(
   SUBCASE("Fixed-size integral")
   {
     std::vector<uint8_t> bytes(sizeof(uint64_t) - 1);
-    ccf::kv::RawReader reader(bytes.data(), bytes.size());
+    ccf::kv::RawReader reader(bytes);
     REQUIRE_THROWS(reader.read_next<uint64_t>());
   }
 
   SUBCASE("Fixed-size array")
   {
     std::vector<uint8_t> bytes(ccf::crypto::Sha256Hash::SIZE - 1);
-    ccf::kv::RawReader reader(bytes.data(), bytes.size());
+    ccf::kv::RawReader reader(bytes);
     REQUIRE_THROWS(reader.read_next<ccf::crypto::Sha256Hash::Representation>());
   }
 
   SUBCASE("Short size prefix")
   {
     std::vector<uint8_t> bytes(sizeof(size_t) - 1);
-    ccf::kv::RawReader reader(bytes.data(), bytes.size());
+    ccf::kv::RawReader reader(bytes);
     REQUIRE_THROWS(reader.read_next<std::vector<uint8_t>>());
   }
 
   SUBCASE("Prefix without payload")
   {
     auto bytes = make_size_prefixed_bytes(1, 0);
-    ccf::kv::RawReader reader(bytes.data(), bytes.size());
+    ccf::kv::RawReader reader(bytes);
     REQUIRE_THROWS(reader.read_next<std::vector<uint8_t>>());
   }
 
   SUBCASE("Nine bytes remaining declare two payload bytes")
   {
     auto bytes = make_size_prefixed_bytes(2, 1);
-    ccf::kv::RawReader reader(bytes.data(), bytes.size());
+    ccf::kv::RawReader reader(bytes);
     REQUIRE_THROWS(reader.read_next<std::vector<uint8_t>>());
   }
 
@@ -73,20 +73,22 @@ TEST_CASE(
   {
     auto bytes =
       make_size_prefixed_bytes(std::numeric_limits<size_t>::max(), 0);
-    ccf::kv::RawReader reader(bytes.data(), bytes.size());
+    ccf::kv::RawReader reader(bytes);
     REQUIRE_THROWS(reader.read_next<std::vector<uint8_t>>());
   }
 
   SUBCASE("Payload is not a whole number of elements")
   {
     auto bytes = make_size_prefixed_bytes(1, 1);
-    ccf::kv::RawReader reader(bytes.data(), bytes.size());
+    ccf::kv::RawReader reader(bytes);
     REQUIRE_THROWS(reader.read_next<std::vector<uint64_t>>());
   }
 
-  SUBCASE("Null data with non-zero size")
+  SUBCASE("Default-constructed reader is immediately at end of stream")
   {
-    REQUIRE_THROWS(ccf::kv::RawReader(nullptr, 1));
+    ccf::kv::RawReader reader;
+    REQUIRE(reader.is_eos());
+    REQUIRE_THROWS(reader.read_next<uint64_t>());
   }
 }
 

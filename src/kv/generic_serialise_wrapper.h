@@ -10,6 +10,7 @@
 #include "serialised_entry_format.h"
 
 #include <optional>
+#include <span>
 
 namespace ccf::kv
 {
@@ -341,7 +342,7 @@ namespace ccf::kv
       // public only with no header (test only)
       if (!crypto_util)
       {
-        public_reader.init(data_, size_);
+        public_reader.init(std::span<const uint8_t>(data_, size_));
         read_public_header();
         return version;
       }
@@ -357,7 +358,8 @@ namespace ccf::kv
       }
 
       const auto* data_public = data_;
-      public_reader.init(data_public, public_domain_length);
+      public_reader.init(
+        std::span<const uint8_t>(data_public, public_domain_length));
       read_public_header();
 
       // If the domain is public only, skip the decryption and only return the
@@ -390,7 +392,7 @@ namespace ccf::kv
         return std::nullopt;
       }
 
-      private_reader.init(decrypted_buffer.data(), decrypted_buffer.size());
+      private_reader.init(decrypted_buffer);
       return version;
     }
 
