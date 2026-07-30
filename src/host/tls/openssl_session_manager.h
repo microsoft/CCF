@@ -23,7 +23,6 @@
 // thread. The sessions map is guarded by a mutex.
 
 #include "ccf/node/session.h"
-#include "enclave/client_session.h"
 #include "enclave/session_writer.h"
 #include "host/tls/openssl_server.h"
 #include "tasks/basic_task.h"
@@ -115,18 +114,7 @@ namespace asynchost
         return;
       }
 
-      if (conn_id < 0)
-      {
-        auto client_session =
-          std::dynamic_pointer_cast<ccf::ClientSession>(session);
-        if (client_session != nullptr)
-        {
-          ccf::tasks::add_task(ccf::tasks::make_basic_task([client_session]() {
-            client_session->handle_error("Connection closed before response");
-          }));
-        }
-      }
-      else if (on_session_closed)
+      if (on_session_closed)
       {
         on_session_closed(conn_id);
       }
@@ -177,27 +165,6 @@ namespace asynchost
       const std::string& cert_pem, const std::string& key_pem)
     {
       server->set_server_cert(cert_pem, key_pem);
-    }
-
-    // Register a pre-built session (used for outbound client sessions, whose
-    // session is created before the connection is opened).
-    void register_session(
-      ::tcp::ConnID id, std::shared_ptr<ccf::Session> session)
-    {
-      std::lock_guard<std::mutex> guard(sessions_mutex);
-      sessions.emplace(id, std::move(session));
-    }
-
-    // Open an outbound client connection bound to `id` (thread-safe).
-    // `configure` sets up TLS verification / client certificate on the
-    // connection.
-    void connect(
-      ::tcp::ConnID id,
-      const std::string& host,
-      const std::string& service,
-      OpenSSLServer::ConfigureClientSSL configure = {})
-    {
-      server->connect(id, host, service, std::move(configure));
     }
 
     void start()

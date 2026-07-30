@@ -560,7 +560,6 @@ namespace ccf
         "snapshots.read_only_directory is deprecated and will be removed in a "
         "future release");
     }
-
     std::optional<asynchost::FilesCleanupTimer> files_cleanup;
     if (
       (config.files_cleanup.max_snapshots.has_value() ||

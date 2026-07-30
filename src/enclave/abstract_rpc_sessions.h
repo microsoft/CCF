@@ -4,17 +4,11 @@
 
 #include "ccf/crypto/pem.h"
 #include "ccf/service/node_info_network.h"
-#include "enclave/client_session.h"
 #include "forwarder_types.h"
 #include "node/session_metrics.h"
 
 #include <memory>
 #include <string>
-
-namespace tls
-{
-  class Cert;
-}
 
 namespace ccf
 {
@@ -29,11 +23,6 @@ namespace ccf
   {
   public:
     ~AbstractRPCSessions() override = default;
-
-    // Outbound client sessions (join, JWT refresh, redirects).
-    virtual std::shared_ptr<ClientSession> create_client(
-      const std::shared_ptr<::tls::Cert>& cert,
-      const std::string& app_protocol = "HTTP1") = 0;
 
     [[nodiscard]] virtual ccf::ApplicationProtocol
     get_app_protocol_main_interface() const = 0;

@@ -134,7 +134,6 @@ namespace ccf
     std::atomic<size_t> peak_sessions{0};
     // Outbound client sessions use the negative range, matching the historical
     // convention relied upon by forwarding.
-    std::atomic<int64_t> next_client_id{-1};
 
     // How long an idle connection is kept before being closed (nullopt =
     // never). Applied to each interface transport at listen() time.
@@ -305,18 +304,6 @@ namespace ccf
         li->http_configuration,
         error_reporter(),
         commit_callbacks_subsystem);
-    }
-
-    asynchost::OpenSSLSessionManager* primary_bridge()
-    {
-      for (auto& [name, li] : interfaces)
-      {
-        if (li->bridge != nullptr)
-        {
-          return li->bridge.get();
-        }
-      }
-      return nullptr;
     }
 
     void send_udp_reply(
@@ -579,62 +566,6 @@ namespace ccf
     }
 
     // ----- AbstractRPCSessions / AbstractRPCResponder -----------------------
-
-    std::shared_ptr<ClientSession> create_client(
-      const std::shared_ptr<::tls::Cert>& cert,
-      const std::string& app_protocol = "HTTP1") override
-    {
-      const int64_t id = next_client_id.fetch_sub(1);
-
-      asynchost::OpenSSLSessionManager* bridge = nullptr;
-      {
-        std::lock_guard<std::mutex> guard(interfaces_mutex);
-        bridge = primary_bridge();
-      }
-      if (bridge == nullptr)
-      {
-        throw std::runtime_error(
-          "Cannot create outbound client: no listening interface");
-      }
-
-      // The tls::Cert carries the peer CA (for server verification) and,
-      // optionally, this node's client certificate to present. It configures
-      // the outbound SSL when the connection is opened.
-      auto connect_cb =
-        [bridge,
-         cert](int64_t cid, const std::string& h, const std::string& s) {
-          bridge->connect(
-            static_cast<::tcp::ConnID>(cid),
-            h,
-            s,
-            [cert](SSL* ssl, SSL_CTX* ctx) {
-              if (cert != nullptr)
-              {
-                cert->configure_ssl(ssl, ctx);
-              }
-            });
-        };
-
-      std::shared_ptr<ClientSession> session;
-      std::shared_ptr<ccf::Session> as_session;
-      if (app_protocol == "HTTP2")
-      {
-        auto s =
-          std::make_shared<::http::HTTP2ClientSession>(id, *bridge, connect_cb);
-        session = s;
-        as_session = s;
-      }
-      else
-      {
-        auto s =
-          std::make_shared<::http::HTTPClientSession>(id, *bridge, connect_cb);
-        session = s;
-        as_session = s;
-      }
-
-      bridge->register_session(static_cast<::tcp::ConnID>(id), as_session);
-      return session;
-    }
 
     bool reply_async(
       int64_t id,
