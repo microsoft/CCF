@@ -219,8 +219,40 @@ namespace ccf
       // (which writes the rpc addresses file).
       {
         nlohmann::json resolved_rpc_addresses;
-        for (auto& [name, interface] : ccf_config_.network.rpc_interfaces)
+
+        // Bind interfaces with an explicit (non-zero) port before those
+        // requesting an ephemeral port (port 0 or unspecified). Multiple
+        // interfaces on a node can share a single host address (for example
+        // the sole ::1 IPv6 loopback), and if an ephemeral interface is bound
+        // first the OS may assign it the exact port that another interface is
+        // configured to bind, making that later bind fail with "address
+        // already in use".
+        const auto is_ephemeral = [](const auto& interface) {
+          const auto port =
+            ccf::split_net_address(interface.bind_address).second;
+          return port.empty() || port == "0";
+        };
+        std::vector<std::string> ordered_interface_names;
+        ordered_interface_names.reserve(
+          ccf_config_.network.rpc_interfaces.size());
+        for (const auto& [name, interface] : ccf_config_.network.rpc_interfaces)
         {
+          if (!is_ephemeral(interface))
+          {
+            ordered_interface_names.push_back(name);
+          }
+        }
+        for (const auto& [name, interface] : ccf_config_.network.rpc_interfaces)
+        {
+          if (is_ephemeral(interface))
+          {
+            ordered_interface_names.push_back(name);
+          }
+        }
+
+        for (const auto& name : ordered_interface_names)
+        {
+          auto& interface = ccf_config_.network.rpc_interfaces.at(name);
           const auto [host, port] =
             ccf::split_net_address(interface.bind_address);
           // UDP interfaces use the datagram (echo) path; TCP interfaces the
