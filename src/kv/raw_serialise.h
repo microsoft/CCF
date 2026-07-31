@@ -154,7 +154,7 @@ namespace ccf::kv
       return content;
     }
 
-    std::span<const uint8_t> span_{};
+    std::span<const uint8_t> span_;
 
   public:
     /** Reads the next entry of a trivially-copyable type, advancing the cursor.
