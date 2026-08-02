@@ -61,7 +61,7 @@ def fetch_and_verify_cose_receipt(
     while time.time() < (start_time + timeout):
         rc = client.get(f"/node/receipt/cose?transaction_id={view}.{seqno}")
         if rc.status_code == http.HTTPStatus.OK:
-            ccf.cose.verify_receipt(rc.body.data(), service_key, claim_digest)
+            ccf.receipt.verify_cose(rc.body.data(), service_key, claim_digest)
             return rc
         elif rc.status_code == http.HTTPStatus.NOT_FOUND:
             return rc
@@ -1136,7 +1136,7 @@ def test_cose_receipt_schema(network, args):
 
             if r.status_code == http.HTTPStatus.OK:
                 cbor_proof = r.body.data()
-                receipt_phdr = ccf.cose.verify_receipt(
+                receipt_phdr = ccf.receipt.verify_cose(
                     cbor_proof, service_key, b"\0" * 32
                 )
                 assert receipt_phdr[15][1] == "service.example.com"
@@ -1982,7 +1982,7 @@ def test_random_receipts(
                             assert (
                                 claim_digest == additional_seqnos[s]
                             ), f"Claim digest mismatch for seqno {s}"
-                        ccf.cose.verify_receipt(
+                        ccf.receipt.verify_cose(
                             receipt_bytes, service_key, claim_digest
                         )
                         break
@@ -2580,7 +2580,7 @@ def test_blocking_calls(network, args):
                 assert r.headers["content-type"] == "application/cose", r.headers[
                     "content-type"
                 ]
-                ccf.cose.verify_receipt(
+                ccf.receipt.verify_cose(
                     r.body.data(),
                     network.cert.public_key(),
                     b"\0" * 32,

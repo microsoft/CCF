@@ -1,10 +1,18 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
+"""Root-signature parsing and verification for CCF ledgers.
+
+Each signature scheme is one verifier in :data:`ROOT_SIGNATURE_VERIFIERS`,
+dispatched by :func:`verify_all_root_signatures`. Adding a scheme is a verifier
+plus one registry entry; a scheme signed by a new identity adds a field to
+:class:`RootSignatureContext`.
+"""
+
 import base64
 import functools
 import json
-from collections.abc import Container, Mapping
+from collections.abc import Callable, Container, Mapping
 from dataclasses import dataclass
 from typing import Any
 
@@ -27,23 +35,8 @@ SIGNATURE_TX_TABLE_NAME: str = "public:ccf.internal.signatures"
 COSE_SIGNATURE_TX_TABLE_NAME: str = "public:ccf.internal.cose_signatures"
 """KV table carrying the COSE Sign1 signature over the Merkle root."""
 
-SIGNATURE_TABLE_NAMES: frozenset[str] = frozenset(
-    {SIGNATURE_TX_TABLE_NAME, COSE_SIGNATURE_TX_TABLE_NAME}
-)
-"""All KV table names that carry a ledger-transaction signature."""
-
 WELL_KNOWN_SINGLETON_TABLE_KEY: bytes = bytes(bytearray(8))
 """Key used by CCF to record entries in single-row KV tables."""
-
-
-def is_signature_transaction(tx_tables: Container[str]) -> bool:
-    """Return ``True`` if ``tx_tables`` contains any signature table.
-
-    ``tx_tables`` is any object supporting ``in`` over table names. Typical
-    callers pass the dict returned by
-    ``transaction.get_public_domain().get_tables()``.
-    """
-    return any(name in tx_tables for name in SIGNATURE_TABLE_NAMES)
 
 
 # ---------------------------------------------------------------------------
@@ -199,10 +192,144 @@ def verify_cose_root_signature(
         ) from exc
 
 
+def verify_cose_root_signature_with_key(
+    service_key_pem: bytes, root: bytes, cose_sign1: bytes
+):
+    """Verify a COSE Sign1 signature over a Merkle root against the service key.
+
+    The key-taking counterpart of :func:`verify_cose_root_signature`, for callers
+    holding the service public key rather than its certificate. Returns the
+    decoded protected headers, and raises
+    :class:`InvalidRootCoseSignatureException` if verification fails.
+    """
+    try:
+        return ccf.cose.verify_cose_sign1_with_key(
+            service_key_pem, cose_sign1, payload=root
+        )
+    except Exception as exc:
+        raise InvalidRootCoseSignatureException(
+            "Signature verification failed:"
+            + f"\nKey: {service_key_pem.decode()}"
+            + f"\nRoot: {root!r}"
+        ) from exc
+
+
+def verify_root(computed_root: bytes, existing_root: bytes) -> None:
+    """Raise :class:`InvalidRootException` if the two roots differ."""
+    if computed_root != existing_root:
+        raise InvalidRootException(
+            f"\nComputed root: {computed_root.hex()} \nExisting root from ledger: {existing_root.hex()}"
+        )
+
+
 def verify_merkle_root(merkle_tree: MerkleTree, existing_root: bytes) -> None:
     """Raise :class:`InvalidRootException` if the tree's root differs from ``existing_root``."""
-    root = merkle_tree.get_merkle_root()
-    if root != existing_root:
-        raise InvalidRootException(
-            f"\nComputed root: {root.hex()} \nExisting root from ledger: {existing_root.hex()}"
+    verify_root(merkle_tree.get_merkle_root(), existing_root)
+
+
+# ---------------------------------------------------------------------------
+# Root signature verifiers: one per scheme
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class RootSignatureContext:
+    """The signing identities a verifier may need, beyond the transaction and
+    the Merkle root computed for it."""
+
+    view: int
+    seqno: int
+
+    service_cert_pem: str | None = None
+    """PEM service certificate, the identity behind COSE signatures."""
+
+    node_certificates: Mapping[str, bytes] | None = None
+    """PEM certificates of known nodes by node id. Raw signatures are issued by
+    whichever node was primary, so they are verified against these."""
+
+    check_signing_node: Callable[[str], None] | None = None
+    """Must raise if the given node was not entitled to sign at this point in
+    the ledger."""
+
+
+def verify_raw_root(
+    tx_tables: Mapping[str, Any], computed_root: bytes, ctx: RootSignatureContext
+) -> bool:
+    """Verify the raw ECDSA root signature, if this transaction carries one."""
+    payload = parse_raw_signature_from_tx(tx_tables)
+    if payload is None:
+        return False
+
+    assert ctx.node_certificates is not None
+    assert ctx.check_signing_node is not None
+
+    if payload.view != ctx.view or payload.seqno != ctx.seqno:
+        raise ValueError(
+            f"Signature payload position {payload.view}.{payload.seqno} does not "
+            f"match transaction header position {ctx.view}.{ctx.seqno}"
         )
+    ctx.check_signing_node(payload.signing_node)
+    cert = ctx.node_certificates[payload.signing_node]
+    if payload.embedded_cert is not None:
+        assert spki_from_cert(cert) == spki_from_cert(
+            payload.embedded_cert
+        ), f"Mismatch in public key for node {payload.signing_node}"
+    verify_raw_root_signature(cert, payload.root, payload.signature)
+    verify_root(computed_root, payload.root)
+    return True
+
+
+def verify_cose_root(
+    tx_tables: Mapping[str, Any], computed_root: bytes, ctx: RootSignatureContext
+) -> bool:
+    """Verify the COSE Sign1 root signature, if this transaction carries one."""
+    cose_sign1 = parse_cose_signature_from_tx(tx_tables)
+    if cose_sign1 is None:
+        return False
+
+    assert (
+        ctx.service_cert_pem is not None
+    ), "Cannot verify COSE root signature without a known service certificate"
+    verify_cose_root_signature(ctx.service_cert_pem, computed_root, cose_sign1)
+    return True
+
+
+ROOT_SIGNATURE_VERIFIERS: dict[
+    str, tuple[str, Callable[[Mapping[str, Any], bytes, RootSignatureContext], bool]]
+] = {
+    "raw": (SIGNATURE_TX_TABLE_NAME, verify_raw_root),
+    "cose": (COSE_SIGNATURE_TX_TABLE_NAME, verify_cose_root),
+}
+"""Every root signature scheme CCF may write, as ``name -> (KV table, verifier)``,
+in verification order. :data:`SIGNATURE_TABLE_NAMES` is derived from the tables
+here, so a new scheme is recognised as a signature transaction automatically."""
+
+SIGNATURE_TABLE_NAMES: frozenset[str] = frozenset(
+    table for table, _ in ROOT_SIGNATURE_VERIFIERS.values()
+)
+"""All KV table names that carry a ledger-transaction signature."""
+
+
+def is_signature_transaction(tx_tables: Container[str]) -> bool:
+    """Return ``True`` if ``tx_tables`` contains any signature table.
+
+    ``tx_tables`` is any object supporting ``in`` over table names. Typical
+    callers pass the dict returned by
+    ``transaction.get_public_domain().get_tables()``.
+    """
+    return any(name in tx_tables for name in SIGNATURE_TABLE_NAMES)
+
+
+def verify_all_root_signatures(
+    tx_tables: Mapping[str, Any], computed_root: bytes, ctx: RootSignatureContext
+) -> list[str]:
+    """Run every verifier, and return the names of those that found a signature.
+
+    An empty result means the transaction carried no root signature at all;
+    callers decide whether that is acceptable.
+    """
+    return [
+        name
+        for name, (_, verify) in ROOT_SIGNATURE_VERIFIERS.items()
+        if verify(tx_tables, computed_root, ctx)
+    ]

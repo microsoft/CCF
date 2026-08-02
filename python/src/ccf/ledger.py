@@ -12,7 +12,6 @@ from hashlib import sha256
 from cryptography.hazmat.backends import default_backend
 from cryptography.x509 import load_pem_x509_certificate
 
-import ccf.cose
 import ccf.receipt
 from ccf import signatures
 from ccf.merkletree import MerkleTree
@@ -725,47 +724,17 @@ class LedgerValidator:
 
         if is_signature_tx and self.verification_level >= VerificationLevel.MERKLE:
             if self.verification_level >= VerificationLevel.FULL:
-                verified_count = 0
-
-                payload = signatures.parse_raw_signature_from_tx(tables)
-                if payload is not None:
-                    if (
-                        payload.view != transaction.gcm_header.view
-                        or payload.seqno != transaction.gcm_header.seqno
-                    ):
-                        raise ValueError(
-                            f"Signature payload position "
-                            f"{payload.view}.{payload.seqno} does not match "
-                            f"transaction header position "
-                            f"{transaction.gcm_header.view}.{transaction.gcm_header.seqno}"
-                        )
-                    self._verify_signing_node_status(payload.signing_node)
-                    cert = self.node_certificates[payload.signing_node]
-                    if payload.embedded_cert is not None:
-                        assert signatures.spki_from_cert(
-                            cert
-                        ) == signatures.spki_from_cert(
-                            payload.embedded_cert
-                        ), f"Mismatch in public key for node {payload.signing_node}"
-                    signatures.verify_raw_root_signature(
-                        cert, payload.root, payload.signature
-                    )
-                    signatures.verify_merkle_root(self.merkle, payload.root)
-                    verified_count += 1
-
-                cose_sign1 = signatures.parse_cose_signature_from_tx(tables)
-                if cose_sign1 is not None:
-                    assert (
-                        self.service_cert is not None
-                    ), "Cannot verify COSE root signature without a known service certificate"
-                    signatures.verify_cose_root_signature(
-                        self.service_cert,
-                        self.merkle.get_merkle_root(),
-                        cose_sign1,
-                    )
-                    verified_count += 1
-
-                if verified_count == 0:
+                ctx = signatures.RootSignatureContext(
+                    view=transaction.gcm_header.view,
+                    seqno=transaction.gcm_header.seqno,
+                    service_cert_pem=self.service_cert,
+                    node_certificates=self.node_certificates,
+                    check_signing_node=self._verify_signing_node_status,
+                )
+                verified = signatures.verify_all_root_signatures(
+                    tables, self.merkle.get_merkle_root(), ctx
+                )
+                if not verified:
                     raise ValueError(
                         f"Signature transaction {transaction.gcm_header.view}."
                         f"{transaction.gcm_header.seqno} contained no verifiable "
@@ -1060,7 +1029,7 @@ class Snapshot(Entry):
     def _verify_cose_snapshot_receipt(
         self, receipt_bytes: bytes, snapshot_digest: bytes
     ):
-        ccf.cose.verify_receipt(
+        ccf.receipt.verify_cose(
             receipt_bytes, self._service_public_key(), snapshot_digest
         )
 

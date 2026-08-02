@@ -27,7 +27,6 @@ from cryptography.hazmat.primitives.serialization import (
     load_pem_public_key,
 )
 from cryptography.x509 import load_pem_x509_certificate
-from cryptography.x509.base import CertificatePublicKeyTypes
 
 Pem = str
 
@@ -187,63 +186,6 @@ def verify_cose_sign1_with_key(key, cose_sign1, payload=None):
     key_pem = key.decode()
     cose_key = cwt.COSEKey.from_pem(key_pem, kid=key_fingerprint_from_key(key_pem))
     return cose_ctx.decode_with_headers(cose_sign1, cose_key, detached_payload=payload)
-
-
-def verify_receipt(
-    receipt_bytes: bytes, key: CertificatePublicKeyTypes, claim_digest: bytes
-):
-    """
-    Verify a COSE Sign1 receipt as defined in https://datatracker.ietf.org/doc/draft-ietf-cose-merkle-tree-proofs/,
-    using the CCF tree algorithm defined in https://datatracker.ietf.org/doc/draft-birkholz-cose-receipts-ccf-profile/
-
-    """
-    key_pem = key.public_bytes(Encoding.PEM, PublicFormat.SubjectPublicKeyInfo).decode(
-        "ascii"
-    )
-    expected_kid = key_fingerprint_from_key(key_pem)
-    cose_key = cwt.COSEKey.from_pem(key_pem, kid=expected_kid)
-    cose_ctx = cwt.COSE.new()
-
-    receipt = cbor2.loads(receipt_bytes)
-    assert receipt.tag == cwt.const.COSE_TYPE_TO_TAG[cwt.const.COSETypes.SIGN1]
-    phdr, uhdr, _payload, _sig = receipt.value
-    phdr = cbor2.loads(phdr)
-
-    assert phdr[4] == expected_kid.encode("utf-8")
-
-    assert COSE_PHDR_VDS_LABEL in phdr, "Verifiable data structure type is required"
-    assert (
-        phdr[COSE_PHDR_VDS_LABEL] == COSE_PHDR_VDS_CCF_LEDGER_SHA256
-    ), "vds(395) protected header must be CCF_LEDGER_SHA256(2)"
-
-    assert COSE_PHDR_VDP_LABEL in uhdr, "Verifiable data proof is required"
-    proof = uhdr[COSE_PHDR_VDP_LABEL]
-    assert COSE_RECEIPT_INCLUSION_PROOF_LABEL in proof, "Inclusion proof is required"
-    inclusion_proofs = proof[COSE_RECEIPT_INCLUSION_PROOF_LABEL]
-    assert inclusion_proofs, "At least one inclusion proof is required"
-
-    ic_phdr = None
-    for inclusion_proof in inclusion_proofs:
-        assert isinstance(inclusion_proof, bytes), "Inclusion proof must be bstr"
-        proof = cbor2.loads(inclusion_proof)
-        assert CCF_PROOF_LEAF_LABEL in proof, "Leaf must be present"
-        leaf = proof[CCF_PROOF_LEAF_LABEL]
-        if claim_digest != leaf[2]:
-            raise ValueError(f"Claim digest mismatch: {leaf[2]!r} != {claim_digest!r}")
-        accumulator = hashlib.sha256(
-            leaf[0] + hashlib.sha256(leaf[1].encode()).digest() + leaf[2]
-        ).digest()
-        assert CCF_PROOF_PATH_LABEL in proof, "Path must be present"
-        path = proof[CCF_PROOF_PATH_LABEL]
-        for left, digest in path:
-            if left:
-                accumulator = hashlib.sha256(digest + accumulator).digest()
-            else:
-                accumulator = hashlib.sha256(accumulator + digest).digest()
-        ic_phdr, _, _ = cose_ctx.decode_with_headers(
-            receipt_bytes, cose_key, detached_payload=accumulator
-        )
-    return ic_phdr
 
 
 _SIGN_DESCRIPTION = """Create and sign a COSE Sign1 message for CCF governance
