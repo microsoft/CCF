@@ -36,7 +36,7 @@ let verified_report_data = tav::verify_caci_attestation(
     report,
     minimum_tcb,
     vec![trusted_caci_execution_policy], // SHA-256 digest of the loaded security policy.
-    caci_uvm_endorsement,
+    &caci_uvm_endorsement,
     "ContainerPlat-AMD-UVM",
     minimum_uvm_svn,
 )?;

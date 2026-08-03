@@ -66,8 +66,7 @@ unsafe fn uvm_endorsement_handle<'a>(
     if uvm_endorsement.is_null() {
         return Err(TavError::invalid_argument("uvm_endorsement is null"));
     }
-    // TavCborValue is a repr(transparent) C handle over cose::CborValue.
-    Ok(unsafe { &*uvm_endorsement.cast::<cose::CborValue>() })
+    Ok(unsafe { (*uvm_endorsement).as_native() })
 }
 
 unsafe fn minimum_tcb_entries(
@@ -218,7 +217,7 @@ pub unsafe extern "C" fn tav_verify_caci_attestation(
             *attestation,
             minimum_tcb,
             trusted_policy_digests,
-            uvm_endorsement.clone(),
+            uvm_endorsement,
             uvm_feed,
             minimum_svn,
         )

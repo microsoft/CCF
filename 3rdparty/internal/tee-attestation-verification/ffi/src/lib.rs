@@ -179,6 +179,7 @@ fn panic_message(payload: &(dyn std::any::Any + Send)) -> String {
 
 #[cfg(all(not(target_family = "wasm"), sync_crypto))]
 mod c_ffi;
+mod cbor_view;
 #[cfg(any(target_family = "wasm", test))]
 mod wasm_ffi;
 

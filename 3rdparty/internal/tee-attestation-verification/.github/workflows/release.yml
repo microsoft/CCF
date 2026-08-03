@@ -16,15 +16,19 @@ concurrency:
 jobs:
   prepare_release:
     name: Prepare release
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     outputs:
       tag: ${{ steps.prepare.outputs.tag }}
       version: ${{ steps.prepare.outputs.version }}
       commit_sha: ${{ steps.prepare.outputs.commit_sha }}
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
 
       - name: Validate tag and version
         id: prepare
@@ -42,14 +46,15 @@ jobs:
           commit_sha=$(git rev-parse "refs/tags/${candidate_tag}^{commit}")
           normalized_version="${candidate_tag#tav-}"
 
-          for manifest in attestation/Cargo.toml caci/Cargo.toml cose/Cargo.toml crypto/Cargo.toml ffi/Cargo.toml; do
-            manifest_version=$(git show "${commit_sha}:${manifest}" | python3 -c 'import sys, tomllib; print(tomllib.load(sys.stdin.buffer)["package"]["version"])')
-
-            if [[ "${manifest_version}" != "${normalized_version}" ]]; then
-              echo "Tag ${candidate_tag} does not match ${manifest} version ${manifest_version}" >&2
-              exit 1
-            fi
-          done
+          package_version=$(
+            python3 scripts/check-version-sync.py \
+              --root-path "${GITHUB_WORKSPACE}" \
+              --print-version
+          )
+          if [[ "${package_version}" != "${normalized_version}" ]]; then
+            echo "Tag ${candidate_tag} does not match package version ${package_version}" >&2
+            exit 1
+          fi
 
           echo "tag=${candidate_tag}" >> "${GITHUB_OUTPUT}"
           echo "version=${normalized_version}" >> "${GITHUB_OUTPUT}"
@@ -90,14 +95,14 @@ jobs:
     needs: prepare_release
     uses: ./.github/workflows/ci-ffi.yml
 
-  package_wasm:
-    name: Package WASM artifacts
-    runs-on: ubuntu-latest
+  package:
+    name: Package release artifacts
+    runs-on: ubuntu-22.04
     needs: prepare_release
     env:
       VERSION: ${{ needs.prepare_release.outputs.version }}
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.prepare_release.outputs.commit_sha }}
 
@@ -112,6 +117,14 @@ jobs:
         run: |
           rustup target add wasm32-unknown-unknown
           cargo install wasm-pack --version 0.13.1 --locked
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        with:
+          dotnet-version: "8.0.423"
+
+      - name: Install OpenSSL build dependencies
+        run: sudo apt-get update && sudo apt-get install --yes libssl-dev pkg-config
 
       - name: Build tav-wasm bundle with WebCrypto crypto
         shell: bash
@@ -130,40 +143,31 @@ jobs:
 
           tar -C ../dist -czf "../release-artifacts/tav-wasm-${VERSION}.tar.gz" tav-wasm
 
+      - name: Build and pack .NET package and native library
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet pack \
+            ffi/csharp/TeeAttestationVerification/TeeAttestationVerification.csproj \
+            --configuration Release \
+            -p:PackageVersion="${VERSION}" \
+            --output release-artifacts
+
       - name: Capture build toolchain info
         shell: bash
         run: |
           set -euo pipefail
-
-          mkdir -p release-artifacts
           {
-            echo "# Build toolchain used for TAV WASM release artifacts"
+            echo "# Build toolchain used for TAV release artifacts"
             echo "version: ${VERSION}"
             echo "commit: ${{ needs.prepare_release.outputs.commit_sha }}"
             echo
-            echo "## rustc"
-            rustc --version --verbose
-            echo
-            echo "## cargo"
-            cargo --version --verbose
-            echo
-            echo "## wasm-pack"
-            wasm-pack --version
+            scripts/capture-build-info.sh rust wasm dotnet
           } > release-artifacts/BUILD-INFO.txt
 
           cat release-artifacts/BUILD-INFO.txt
 
-      - name: Generate release artifact checksums
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          (
-            cd release-artifacts
-            sha256sum "tav-wasm-${VERSION}.tar.gz" BUILD-INFO.txt > SHA256SUMS
-          )
-
-      - name: Upload WASM release artifacts
+      - name: Upload release artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: release-artifacts
@@ -171,7 +175,7 @@ jobs:
 
   create_release:
     name: Create release
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     needs:
       - prepare_release
       - ci
@@ -181,11 +185,11 @@ jobs:
       - ci-crypto
       - ci-demo
       - ci-ffi
-      - package_wasm
+      - package
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.prepare_release.outputs.commit_sha }}
 
@@ -194,6 +198,18 @@ jobs:
         with:
           name: release-artifacts
           path: dist
+
+      - name: Generate release artifact checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          (
+            cd dist
+            find . -maxdepth 1 -type f -printf '%f\0' |
+              sort -z |
+              xargs -0 sha256sum > "${RUNNER_TEMP}/SHA256SUMS"
+          )
+          mv "${RUNNER_TEMP}/SHA256SUMS" dist/SHA256SUMS
 
       - name: Create draft GitHub release
         env:

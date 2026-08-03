@@ -10,3 +10,5 @@ See:
   worked examples.
 - [`src/wasm_ffi/README.md`](src/wasm_ffi/README.md) — WASM/JS bindings:
   release tarball consumption, building from source, and worked examples.
+- [`csharp/README.md`](csharp/README.md) — Linux x64 .NET binding and NuGet
+  package over the native C ABI.

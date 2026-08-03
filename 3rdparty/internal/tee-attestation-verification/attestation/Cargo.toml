@@ -1,6 +1,6 @@
 [package]
 name = "tee-attestation-verification-lib"
-version = "1.0.3"
+version = "1.0.4"
 edition = "2021"
 rust-version = "1.77"
 repository = "https://github.com/microsoft/TEE-Attestation-Verification"
@@ -45,7 +45,7 @@ env_logger = "0.11"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 
 [dependencies]
-crypto = { package = "tee-attestation-verification-crypto", version = "1.0.3", path = "../crypto", default-features = false }
+crypto = { package = "tee-attestation-verification-crypto", version = "1.0.4", path = "../crypto", default-features = false }
 zerocopy = {version = "0.8.31", features = ["derive"]}
 
 # KDS (online certificate fetching) dependencies
