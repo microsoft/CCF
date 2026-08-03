@@ -76,7 +76,7 @@ mod synchronous {
                 report,
                 Vec::new(),
                 vec![report.host_data],
-                uvm,
+                &uvm,
                 ACI_FEED,
                 ACI_SVN,
             )
@@ -207,7 +207,7 @@ mod synchronous {
                 report,
                 Vec::new(),
                 vec![report.host_data],
-                uvm.clone(),
+                &uvm,
                 ACI_FEED,
                 ACI_SVN,
             )
@@ -218,7 +218,7 @@ mod synchronous {
                 report,
                 Vec::new(),
                 vec![report.host_data],
-                uvm.clone(),
+                &uvm,
                 ACI_FEED,
                 ACI_SVN + 1,
             ) {
@@ -234,7 +234,7 @@ mod synchronous {
                 report,
                 Vec::new(),
                 vec![policy],
-                uvm.clone(),
+                &uvm,
                 ACI_FEED,
                 ACI_SVN,
             ) {
@@ -249,7 +249,7 @@ mod synchronous {
                 report,
                 Vec::new(),
                 vec![report.host_data],
-                wrong_feed,
+                &wrong_feed,
                 ACI_FEED,
                 ACI_SVN,
             ) {
@@ -267,7 +267,7 @@ mod synchronous {
                 report,
                 vec![(matching_cpuid, minimum_tcb)],
                 vec![report.host_data],
-                uvm.clone(),
+                &uvm,
                 ACI_FEED,
                 ACI_SVN,
             ) {
@@ -281,7 +281,7 @@ mod synchronous {
                 wrong_measurement,
                 Vec::new(),
                 vec![wrong_measurement.host_data],
-                uvm.clone(),
+                &uvm,
                 ACI_FEED,
                 ACI_SVN,
             ) {
@@ -300,7 +300,7 @@ mod synchronous {
                 debug_report,
                 Vec::new(),
                 vec![debug_report.host_data],
-                uvm.clone(),
+                &uvm,
                 ACI_FEED,
                 ACI_SVN,
             ) {
@@ -315,7 +315,7 @@ mod synchronous {
                 host_report,
                 Vec::new(),
                 vec![host_report.host_data],
-                uvm.clone(),
+                &uvm,
                 ACI_FEED,
                 ACI_SVN,
             ) {
@@ -344,7 +344,7 @@ mod synchronous {
             report,
             Vec::new(),
             vec![report.host_data],
-            missing_svn_int,
+            &missing_svn_int,
             ACI_FEED,
             ACI_SVN,
         ) {
@@ -360,7 +360,7 @@ mod synchronous {
             report,
             Vec::new(),
             vec![report.host_data],
-            uppercase_measurement,
+            &uppercase_measurement,
             ACI_FEED,
             ACI_SVN,
         ) {
@@ -384,7 +384,7 @@ mod asynchronous {
         attestation: AttestationReport,
         minimum_tcb: Vec<(snp::Cpuid, TcbVersionRaw)>,
         trusted_caci_execution_policy: Vec<[u8; SNP_HOST_DATA_LEN]>,
-        uvm_endorsement: CborValue,
+        uvm_endorsement: &CborValue,
         uvm_feed: &str,
         minimum_svn: u64,
     ) -> Result<[u8; SNP_REPORT_DATA_LEN], AciError> {
@@ -420,7 +420,7 @@ mod asynchronous {
                 report,
                 Vec::new(),
                 vec![report.host_data],
-                uvm,
+                &uvm,
                 ACI_FEED,
                 ACI_SVN,
             )
@@ -562,7 +562,7 @@ mod asynchronous {
                 report,
                 Vec::new(),
                 vec![report.host_data],
-                uvm.clone(),
+                &uvm,
                 ACI_FEED,
                 ACI_SVN,
             )
@@ -574,7 +574,7 @@ mod asynchronous {
                 report,
                 Vec::new(),
                 vec![report.host_data],
-                uvm.clone(),
+                &uvm,
                 ACI_FEED,
                 ACI_SVN + 1,
             )
@@ -588,15 +588,8 @@ mod asynchronous {
 
             let mut policy = report.host_data;
             policy[0] ^= 1;
-            match verify_caci_attestation(
-                report,
-                Vec::new(),
-                vec![policy],
-                uvm.clone(),
-                ACI_FEED,
-                ACI_SVN,
-            )
-            .await
+            match verify_caci_attestation(report, Vec::new(), vec![policy], &uvm, ACI_FEED, ACI_SVN)
+                .await
             {
                 Err(AciError::Policy(actual)) => {
                     assert_eq!(actual, "SNP HOST_DATA does not match trusted policy")
@@ -609,7 +602,7 @@ mod asynchronous {
                 report,
                 Vec::new(),
                 vec![report.host_data],
-                wrong_feed,
+                &wrong_feed,
                 ACI_FEED,
                 ACI_SVN,
             )
@@ -629,7 +622,7 @@ mod asynchronous {
                 report,
                 vec![(matching_cpuid, minimum_tcb)],
                 vec![report.host_data],
-                uvm.clone(),
+                &uvm,
                 ACI_FEED,
                 ACI_SVN,
             )
@@ -645,7 +638,7 @@ mod asynchronous {
                 wrong_measurement,
                 Vec::new(),
                 vec![wrong_measurement.host_data],
-                uvm.clone(),
+                &uvm,
                 ACI_FEED,
                 ACI_SVN,
             )
@@ -666,7 +659,7 @@ mod asynchronous {
                 debug_report,
                 Vec::new(),
                 vec![debug_report.host_data],
-                uvm.clone(),
+                &uvm,
                 ACI_FEED,
                 ACI_SVN,
             )
@@ -683,7 +676,7 @@ mod asynchronous {
                 host_report,
                 Vec::new(),
                 vec![host_report.host_data],
-                uvm.clone(),
+                &uvm,
                 ACI_FEED,
                 ACI_SVN,
             )
@@ -716,7 +709,7 @@ mod asynchronous {
             report,
             Vec::new(),
             vec![report.host_data],
-            missing_svn_int,
+            &missing_svn_int,
             ACI_FEED,
             ACI_SVN,
         )
@@ -734,7 +727,7 @@ mod asynchronous {
             report,
             Vec::new(),
             vec![report.host_data],
-            uppercase_measurement,
+            &uppercase_measurement,
             ACI_FEED,
             ACI_SVN,
         )

@@ -405,13 +405,13 @@ static void print_borrowed_report_field(
 }
 
 static void print_uvm_endorsement(const TavCborValue *uvm_endorsement) {
-    const TavCborValue *sign1 = NULL;
-    const TavCborValue *protected_value = NULL;
+    TavCborValue *sign1 = NULL;
+    TavCborValue *protected_value = NULL;
     const uint8_t *protected_bytes = NULL;
     size_t protected_len = 0;
     TavCborValue *protected_header = NULL;
-    const TavCborValue *content_type = NULL;
-    const TavCborValue *feed = NULL;
+    TavCborValue *content_type = NULL;
+    TavCborValue *feed = NULL;
     const char *text = NULL;
     size_t text_len = 0;
 
@@ -440,7 +440,11 @@ static void print_uvm_endorsement(const TavCborValue *uvm_endorsement) {
     check_cose_error(tav_cbor_value_text(feed, &text, &text_len), "read UVM feed text");
     print_text_value("feed", text, text_len);
 
+    tav_cbor_value_free(feed);
+    tav_cbor_value_free(content_type);
     tav_cbor_value_free(protected_header);
+    tav_cbor_value_free(protected_value);
+    tav_cbor_value_free(sign1);
 }
 
 static uint64_t parse_u64(const char *text, const char *name) {
