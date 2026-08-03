@@ -118,35 +118,43 @@ def verify_cose(
     expected_kid = key_fingerprint_from_key(key_pem)
 
     receipt = cbor2.loads(receipt_bytes)
-    assert receipt.tag == cwt.const.COSE_TYPE_TO_TAG[cwt.const.COSETypes.SIGN1]
+    if receipt.tag != cwt.const.COSE_TYPE_TO_TAG[cwt.const.COSETypes.SIGN1]:
+        raise ValueError(f"Receipt must be a COSE Sign1 message, got tag {receipt.tag}")
     phdr, uhdr, _payload, _sig = receipt.value
     phdr = cbor2.loads(phdr)
 
-    assert phdr[4] == expected_kid.encode("utf-8")
+    if phdr.get(4) != expected_kid.encode("utf-8"):
+        raise ValueError(f"Receipt is not signed by the expected key {expected_kid}")
 
-    assert COSE_PHDR_VDS_LABEL in phdr, "Verifiable data structure type is required"
-    assert (
-        phdr[COSE_PHDR_VDS_LABEL] == COSE_PHDR_VDS_CCF_LEDGER_SHA256
-    ), "vds(395) protected header must be CCF_LEDGER_SHA256(2)"
+    if COSE_PHDR_VDS_LABEL not in phdr:
+        raise ValueError("Verifiable data structure type is required")
+    if phdr[COSE_PHDR_VDS_LABEL] != COSE_PHDR_VDS_CCF_LEDGER_SHA256:
+        raise ValueError("vds(395) protected header must be CCF_LEDGER_SHA256(2)")
 
-    assert COSE_PHDR_VDP_LABEL in uhdr, "Verifiable data proof is required"
+    if COSE_PHDR_VDP_LABEL not in uhdr:
+        raise ValueError("Verifiable data proof is required")
     proof = uhdr[COSE_PHDR_VDP_LABEL]
-    assert COSE_RECEIPT_INCLUSION_PROOF_LABEL in proof, "Inclusion proof is required"
+    if COSE_RECEIPT_INCLUSION_PROOF_LABEL not in proof:
+        raise ValueError("Inclusion proof is required")
     inclusion_proofs = proof[COSE_RECEIPT_INCLUSION_PROOF_LABEL]
-    assert inclusion_proofs, "At least one inclusion proof is required"
+    if not inclusion_proofs:
+        raise ValueError("At least one inclusion proof is required")
 
     ic_phdr = None
     for inclusion_proof in inclusion_proofs:
-        assert isinstance(inclusion_proof, bytes), "Inclusion proof must be bstr"
+        if not isinstance(inclusion_proof, bytes):
+            raise TypeError("Inclusion proof must be bstr")
         proof = cbor2.loads(inclusion_proof)
-        assert CCF_PROOF_LEAF_LABEL in proof, "Leaf must be present"
+        if CCF_PROOF_LEAF_LABEL not in proof:
+            raise ValueError("Leaf must be present")
         leaf = proof[CCF_PROOF_LEAF_LABEL]
         if claim_digest != leaf[2]:
             raise ValueError(f"Claim digest mismatch: {leaf[2]!r} != {claim_digest!r}")
         accumulator = hashlib.sha256(
             leaf[0] + hashlib.sha256(leaf[1].encode()).digest() + leaf[2]
         ).digest()
-        assert CCF_PROOF_PATH_LABEL in proof, "Path must be present"
+        if CCF_PROOF_PATH_LABEL not in proof:
+            raise ValueError("Path must be present")
         path = proof[CCF_PROOF_PATH_LABEL]
         for left, digest in path:
             if left:

@@ -260,8 +260,11 @@ def verify_raw_root(
     if payload is None:
         return False
 
-    assert ctx.node_certificates is not None
-    assert ctx.check_signing_node is not None
+    if ctx.node_certificates is None or ctx.check_signing_node is None:
+        raise ValueError(
+            "Cannot verify raw root signature without known node certificates "
+            "and a signing node check"
+        )
 
     if payload.view != ctx.view or payload.seqno != ctx.seqno:
         raise ValueError(
@@ -270,10 +273,12 @@ def verify_raw_root(
         )
     ctx.check_signing_node(payload.signing_node)
     cert = ctx.node_certificates[payload.signing_node]
-    if payload.embedded_cert is not None:
-        assert spki_from_cert(cert) == spki_from_cert(
-            payload.embedded_cert
-        ), f"Mismatch in public key for node {payload.signing_node}"
+    if payload.embedded_cert is not None and spki_from_cert(cert) != spki_from_cert(
+        payload.embedded_cert
+    ):
+        raise UntrustedNodeException(
+            f"Mismatch in public key for node {payload.signing_node}"
+        )
     verify_raw_root_signature(cert, payload.root, payload.signature)
     verify_root(computed_root, payload.root)
     return True
@@ -287,9 +292,10 @@ def verify_cose_root(
     if cose_sign1 is None:
         return False
 
-    assert (
-        ctx.service_cert_pem is not None
-    ), "Cannot verify COSE root signature without a known service certificate"
+    if ctx.service_cert_pem is None:
+        raise ValueError(
+            "Cannot verify COSE root signature without a known service certificate"
+        )
     verify_cose_root_signature(ctx.service_cert_pem, computed_root, cose_sign1)
     return True
 

@@ -149,7 +149,7 @@ def test_raw_rejects_embedded_cert_for_a_different_key():
     for that node."""
     _, other_cert = _ec_identity()
 
-    with pytest.raises(AssertionError, match="Mismatch in public key"):
+    with pytest.raises(UntrustedNodeException, match="Mismatch in public key"):
         verify_all_root_signatures(_raw_tx(cert=other_cert), ROOT, _ctx())
 
 
@@ -179,5 +179,5 @@ def test_cose_requires_a_service_cert():
         }
     }
 
-    with pytest.raises(AssertionError, match="service certificate"):
+    with pytest.raises(ValueError, match="service certificate"):
         verify_all_root_signatures(tables, ROOT, _ctx())
