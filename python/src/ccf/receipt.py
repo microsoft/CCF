@@ -121,7 +121,7 @@ def verify_cose(
     phdr, uhdr, _payload, _sig = receipt.value
     phdr = cbor2.loads(phdr)
 
-    if phdr.get(4) != expected_kid.encode("utf-8"):
+    if phdr.get(int(cwt.COSEHeaders.KID)) != expected_kid.encode("utf-8"):
         raise ValueError(f"Receipt is not signed by the expected key {expected_kid}")
 
     if COSE_PHDR_VDS_LABEL not in phdr:
