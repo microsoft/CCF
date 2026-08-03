@@ -80,7 +80,7 @@ const JSON_GUEST_SVN_INT: &str = "x-ms-sevsnpvm-guestsvn-int";
 ///     report,
 ///     vec![],
 ///     vec![trusted_caci_execution_policy],
-///     uvm,
+///     &uvm,
 ///     "ContainerPlat-AMD-UVM",
 ///     minimum_uvm_svn,
 /// )?;
@@ -261,7 +261,7 @@ pub mod synchronous {
         attestation: AttestationReport,
         minimum_tcb: Vec<(snp::Cpuid, TcbVersionRaw)>,
         trusted_caci_execution_policy: Vec<[u8; SNP_HOST_DATA_LEN]>,
-        uvm_endorsement: CborValue,
+        uvm_endorsement: &CborValue,
         uvm_feed: &str,
         minimum_svn: u64,
     ) -> Result<[u8; SNP_REPORT_DATA_LEN], AciError> {
@@ -305,7 +305,7 @@ pub mod synchronous {
 ///     report,
 ///     vec![],
 ///     vec![trusted_caci_execution_policy],
-///     uvm,
+///     &uvm,
 ///     "ContainerPlat-AMD-UVM",
 ///     minimum_uvm_svn,
 /// ).await?;
@@ -494,7 +494,7 @@ pub mod asynchronous {
         attestation: AttestationReport,
         minimum_tcb: Vec<(snp::Cpuid, TcbVersionRaw)>,
         trusted_caci_execution_policy: Vec<[u8; SNP_HOST_DATA_LEN]>,
-        uvm_endorsement: CborValue,
+        uvm_endorsement: &CborValue,
         uvm_feed: &str,
         minimum_svn: u64,
     ) -> Result<[u8; SNP_REPORT_DATA_LEN], AciError> {
@@ -513,7 +513,7 @@ fn verify_caci_attestation_impl(
     attestation: AttestationReport,
     minimum_tcb: Vec<(snp::Cpuid, TcbVersionRaw)>,
     trusted_caci_execution_policy: Vec<[u8; SNP_HOST_DATA_LEN]>,
-    uvm_endorsement: CborValue,
+    uvm_endorsement: &CborValue,
     uvm_feed: &str,
     minimum_svn: u64,
 ) -> Result<[u8; SNP_REPORT_DATA_LEN], AciError> {
@@ -552,7 +552,7 @@ fn verify_caci_attestation_impl(
         }
     }
 
-    let sign1 = cose::cose_sign1(&uvm_endorsement).map_err(AciError::Cose)?;
+    let sign1 = cose::cose_sign1(uvm_endorsement).map_err(AciError::Cose)?;
     let payload = parse::cose_payload(sign1)?;
     let protected = required_bstr(sign1.array_at(0).map_err(AciError::Cose)?, "protected")?;
     let protected_header = CborValue::from_bytes(&protected).map_err(AciError::Cose)?;

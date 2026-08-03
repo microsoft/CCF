@@ -1,0 +1,55 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <AssemblyName>TeeAttestationVerification</AssemblyName>
+    <RootNamespace>TeeAttestationVerification</RootNamespace>
+    <PackageId>TeeAttestationVerification</PackageId>
+    <Version>1.0.4</Version>
+    <Authors>Microsoft</Authors>
+    <Company>Microsoft</Company>
+    <Copyright>Copyright (c) Microsoft. All rights reserved.</Copyright>
+    <Description>Linux x64 .NET bindings for TEE attestation verification.</Description>
+    <PackageTags>TEE;Attestation;SEV-SNP;Confidential-Computing;Microsoft</PackageTags>
+    <PackageProjectUrl>https://github.com/microsoft/TEE-Attestation-Verification</PackageProjectUrl>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <RepositoryType>git</RepositoryType>
+    <RepositoryUrl>https://github.com/microsoft/TEE-Attestation-Verification</RepositoryUrl>
+    <TavRepoRoot>$([MSBuild]::EnsureTrailingSlash($([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\..\..'))))</TavRepoRoot>
+    <TavNativeProfile Condition="'$(Configuration)' == 'Release'">release</TavNativeProfile>
+    <TavNativeProfile Condition="'$(TavNativeProfile)' == ''">debug</TavNativeProfile>
+    <TavCargoProfileFlag Condition="'$(Configuration)' == 'Release'">--release</TavCargoProfileFlag>
+    <TavNativeLibrary>$(TavRepoRoot)target/$(TavNativeProfile)/libtee_attestation_verification_ffi.so</TavNativeLibrary>
+    <TavHostRid Condition="'$(RuntimeIdentifier)' != ''">$(RuntimeIdentifier)</TavHostRid>
+    <TavHostRid Condition="'$(TavHostRid)' == ''">$(NETCoreSdkRuntimeIdentifier)</TavHostRid>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="$(TavNativeLibrary)"
+          Link="libtee_attestation_verification_ffi.so"
+          CopyToOutputDirectory="PreserveNewest"
+          CopyToPublishDirectory="PreserveNewest"
+          Pack="true"
+          PackagePath="runtimes/linux-x64/native/"
+          Visible="false" />
+    <None Include="../README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+
+  <Target Name="ValidateNativePlatform" BeforeTargets="BuildNativeLibrary">
+    <Error Condition="!$([MSBuild]::IsOSPlatform('Linux'))"
+           Text="TeeAttestationVerification currently supports Linux only." />
+    <Error Condition="'$(TavHostRid)' != 'linux-x64'"
+           Text="TeeAttestationVerification currently supports linux-x64 only (detected $(TavHostRid))." />
+  </Target>
+
+  <Target Name="BuildNativeLibrary"
+          BeforeTargets="PrepareForBuild"
+          Condition="'$(DesignTimeBuild)' != 'true'">
+    <Exec WorkingDirectory="$(TavRepoRoot)"
+          Command="cargo build --locked --manifest-path &quot;$(TavRepoRoot)ffi/Cargo.toml&quot; --no-default-features --features crypto_openssl $(TavCargoProfileFlag)" />
+  </Target>
+</Project>
