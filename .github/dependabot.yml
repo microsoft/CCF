@@ -25,4 +25,4 @@ updates:
     # PR, to reduce the supply-chain risk of pulling in a freshly tagged
     # (and potentially compromised) release.
     cooldown:
-      default-days: 5
+      default-days: 7
