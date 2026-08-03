@@ -731,15 +731,9 @@ class LedgerValidator:
                     node_certificates=self.node_certificates,
                     check_signing_node=self._verify_signing_node_status,
                 )
-                verified = signatures.verify_all_root_signatures(
+                signatures.verify_all_root_signatures(
                     tables, self.merkle.get_merkle_root(), ctx
                 )
-                if not verified:
-                    raise ValueError(
-                        f"Signature transaction {transaction.gcm_header.view}."
-                        f"{transaction.gcm_header.seqno} contained no verifiable "
-                        "signature blob"
-                    )
 
                 self.last_verified_seqno = transaction.gcm_header.seqno
                 self.last_verified_view = transaction.gcm_header.view

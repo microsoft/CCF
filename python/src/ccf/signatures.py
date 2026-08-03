@@ -3,10 +3,9 @@
 
 """Root-signature parsing and verification for CCF ledgers.
 
-Each signature scheme is one verifier in :data:`ROOT_SIGNATURE_VERIFIERS`,
-dispatched by :func:`verify_all_root_signatures`. Adding a scheme is a verifier
-plus one registry entry; a scheme signed by a new identity adds a field to
-:class:`RootSignatureContext`.
+Each signature scheme has a verifier returning the :class:`RootSignature` it
+verified, gathered by :func:`verify_all_root_signatures`. A scheme signed by a
+new identity adds a field to :class:`RootSignatureContext`.
 """
 
 import base64
@@ -14,6 +13,7 @@ import functools
 import json
 from collections.abc import Callable, Container, Mapping
 from dataclasses import dataclass
+from enum import Enum
 from typing import Any
 
 from cryptography.exceptions import InvalidSignature
@@ -252,13 +252,21 @@ class RootSignatureContext:
     the ledger."""
 
 
+class RootSignature(Enum):
+    """A root signature scheme recorded in a signature transaction."""
+
+    RAW = "raw"
+    COSE_EC384 = "cose_ec384"
+
+
 def verify_raw_root(
     tx_tables: Mapping[str, Any], computed_root: bytes, ctx: RootSignatureContext
-) -> bool:
-    """Verify the raw ECDSA root signature, if this transaction carries one."""
+) -> RootSignature | None:
+    """Verify the raw ECDSA root signature, and return the scheme verified, or
+    ``None`` if this transaction carries no raw signature."""
     payload = parse_raw_signature_from_tx(tx_tables)
     if payload is None:
-        return False
+        return None
 
     if ctx.node_certificates is None or ctx.check_signing_node is None:
         raise ValueError(
@@ -281,37 +289,28 @@ def verify_raw_root(
         )
     verify_raw_root_signature(cert, payload.root, payload.signature)
     verify_root(computed_root, payload.root)
-    return True
+    return RootSignature.RAW
 
 
 def verify_cose_root(
     tx_tables: Mapping[str, Any], computed_root: bytes, ctx: RootSignatureContext
-) -> bool:
-    """Verify the COSE Sign1 root signature, if this transaction carries one."""
+) -> RootSignature | None:
+    """Verify the COSE Sign1 root signature, and return the scheme verified, or
+    ``None`` if this transaction carries no COSE signature."""
     cose_sign1 = parse_cose_signature_from_tx(tx_tables)
     if cose_sign1 is None:
-        return False
+        return None
 
     if ctx.service_cert_pem is None:
         raise ValueError(
             "Cannot verify COSE root signature without a known service certificate"
         )
     verify_cose_root_signature(ctx.service_cert_pem, computed_root, cose_sign1)
-    return True
+    return RootSignature.COSE_EC384
 
-
-ROOT_SIGNATURE_VERIFIERS: dict[
-    str, tuple[str, Callable[[Mapping[str, Any], bytes, RootSignatureContext], bool]]
-] = {
-    "raw": (SIGNATURE_TX_TABLE_NAME, verify_raw_root),
-    "cose": (COSE_SIGNATURE_TX_TABLE_NAME, verify_cose_root),
-}
-"""Every root signature scheme CCF may write, as ``name -> (KV table, verifier)``,
-in verification order. :data:`SIGNATURE_TABLE_NAMES` is derived from the tables
-here, so a new scheme is recognised as a signature transaction automatically."""
 
 SIGNATURE_TABLE_NAMES: frozenset[str] = frozenset(
-    table for table, _ in ROOT_SIGNATURE_VERIFIERS.values()
+    {SIGNATURE_TX_TABLE_NAME, COSE_SIGNATURE_TX_TABLE_NAME}
 )
 """All KV table names that carry a ledger-transaction signature."""
 
@@ -328,14 +327,24 @@ def is_signature_transaction(tx_tables: Container[str]) -> bool:
 
 def verify_all_root_signatures(
     tx_tables: Mapping[str, Any], computed_root: bytes, ctx: RootSignatureContext
-) -> list[str]:
-    """Run every verifier, and return the names of those that found a signature.
+) -> list[RootSignature]:
+    """Verify every root signature this transaction carries, and return the
+    schemes verified.
 
-    An empty result means the transaction carried no root signature at all;
-    callers decide whether that is acceptable.
+    Raises if any signature present fails to verify, or if the transaction
+    carries no verifiable signature at all.
     """
-    return [
-        name
-        for name, (_, verify) in ROOT_SIGNATURE_VERIFIERS.items()
-        if verify(tx_tables, computed_root, ctx)
+    verified = [
+        scheme
+        for scheme in (
+            verify_raw_root(tx_tables, computed_root, ctx),
+            verify_cose_root(tx_tables, computed_root, ctx),
+        )
+        if scheme is not None
     ]
+    if not verified:
+        raise ValueError(
+            f"Signature transaction {ctx.view}.{ctx.seqno} contained no "
+            "verifiable signature blob"
+        )
+    return verified

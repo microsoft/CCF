@@ -10,15 +10,13 @@ import json
 import pytest
 from ccf.signatures import (
     COSE_SIGNATURE_TX_TABLE_NAME,
-    ROOT_SIGNATURE_VERIFIERS,
-    SIGNATURE_TABLE_NAMES,
     SIGNATURE_TX_TABLE_NAME,
     WELL_KNOWN_SINGLETON_TABLE_KEY,
     InvalidRootException,
     InvalidRootSignatureException,
+    RootSignature,
     RootSignatureContext,
     UntrustedNodeException,
-    is_signature_transaction,
     verify_all_root_signatures,
 )
 from cryptography import x509
@@ -81,46 +79,25 @@ def _ctx(**overrides):
     return RootSignatureContext(**kwargs)
 
 
-def test_registry_pins_current_verifiers():
-    """Pins the shipped registry, so adding or removing a scheme is deliberate."""
-    assert list(ROOT_SIGNATURE_VERIFIERS) == ["raw", "cose"]
-    assert ROOT_SIGNATURE_VERIFIERS["raw"][0] == SIGNATURE_TX_TABLE_NAME
-    assert ROOT_SIGNATURE_VERIFIERS["cose"][0] == COSE_SIGNATURE_TX_TABLE_NAME
+def test_schemes_pin_current_values():
+    """Pins the scheme names, so adding or removing one is deliberate."""
+    assert [s.name for s in RootSignature] == ["RAW", "COSE_EC384"]
 
 
-def test_signature_tables_are_derived_from_the_registry():
-    """``LedgerValidator`` only reaches the dispatcher for transactions that
-    ``is_signature_transaction`` recognises, so a registered scheme's table must
-    be recognised without a second edit."""
-    assert SIGNATURE_TABLE_NAMES == frozenset(
-        table for table, _ in ROOT_SIGNATURE_VERIFIERS.values()
-    )
-    for table, _ in ROOT_SIGNATURE_VERIFIERS.values():
-        assert is_signature_transaction({table: {}})
-    assert not is_signature_transaction({"public:ccf.gov.nodes.info": {}})
-
-
-def test_nothing_is_verified_without_a_signature():
-    """Neither a transaction without signature tables, nor one whose signature
-    table carries no entry, counts as a signature."""
+def test_a_transaction_without_a_verifiable_signature_is_rejected():
+    """A signature transaction must carry at least one signature that verifies,
+    whether its signature tables are absent or merely empty."""
     empty = {SIGNATURE_TX_TABLE_NAME: {}, COSE_SIGNATURE_TX_TABLE_NAME: {}}
 
-    assert verify_all_root_signatures({}, ROOT, _ctx()) == []
-    assert verify_all_root_signatures(empty, ROOT, _ctx()) == []
-
-
-def test_a_new_verifier_is_picked_up(monkeypatch):
-    """A new scheme needs a verifier plus one registry entry, no call site change."""
-    table = "public:ccf.internal.cose_pqc_signatures"
-    monkeypatch.setitem(
-        ROOT_SIGNATURE_VERIFIERS, "cose_pqc", (table, lambda tables, root, ctx: True)
-    )
-
-    assert verify_all_root_signatures({}, ROOT, _ctx()) == ["cose_pqc"]
+    for tables in ({}, empty):
+        with pytest.raises(ValueError, match="no verifiable signature"):
+            verify_all_root_signatures(tables, ROOT, _ctx())
 
 
 def test_raw_accepts_a_valid_signature():
-    assert verify_all_root_signatures(_raw_tx(cert=CERT), ROOT, _ctx()) == ["raw"]
+    assert verify_all_root_signatures(_raw_tx(cert=CERT), ROOT, _ctx()) == [
+        RootSignature.RAW
+    ]
 
 
 def test_raw_rejects_a_tampered_signature():
