@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-"""Unit tests for the root-signature verifiers in :mod:`ccf.signatures`."""
+"""Unit tests for the root-signature verifiers in ccf.signatures."""
 
 import base64
 import datetime

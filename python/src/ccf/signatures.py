@@ -1,13 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-"""Root-signature parsing and verification for CCF ledgers.
-
-Each signature scheme has a verifier returning the :class:`RootSignature` it
-verified, gathered by :func:`verify_all_root_signatures`. A scheme signed by a
-new identity adds a field to :class:`RootSignatureContext`.
-"""
-
 import base64
 import functools
 import json
@@ -234,26 +227,23 @@ def verify_merkle_root(merkle_tree: MerkleTree, existing_root: bytes) -> None:
 
 @dataclass
 class RootSignatureContext:
-    """The signing identities a verifier may need, beyond the transaction and
-    the Merkle root computed for it."""
+    """Signing identities needed to verify a transaction's root signatures."""
 
     view: int
     seqno: int
 
     service_cert_pem: str | None = None
-    """PEM service certificate, the identity behind COSE signatures."""
+    """PEM service certificate."""
 
     node_certificates: Mapping[str, bytes] | None = None
-    """PEM certificates of known nodes by node id. Raw signatures are issued by
-    whichever node was primary, so they are verified against these."""
+    """PEM certificates of known nodes, by node id."""
 
     check_signing_node: Callable[[str], None] | None = None
-    """Must raise if the given node was not entitled to sign at this point in
-    the ledger."""
+    """Raises if the given node was not entitled to sign."""
 
 
 class RootSignature(Enum):
-    """A root signature scheme recorded in a signature transaction."""
+    """A root signature scheme."""
 
     RAW = "raw"
     COSE_EC384 = "cose_ec384"
@@ -262,8 +252,7 @@ class RootSignature(Enum):
 def verify_raw_root(
     tx_tables: Mapping[str, Any], computed_root: bytes, ctx: RootSignatureContext
 ) -> RootSignature | None:
-    """Verify the raw ECDSA root signature, and return the scheme verified, or
-    ``None`` if this transaction carries no raw signature."""
+    """Verify the raw ECDSA root signature, or return ``None`` if absent."""
     payload = parse_raw_signature_from_tx(tx_tables)
     if payload is None:
         return None
@@ -295,8 +284,7 @@ def verify_raw_root(
 def verify_cose_root(
     tx_tables: Mapping[str, Any], computed_root: bytes, ctx: RootSignatureContext
 ) -> RootSignature | None:
-    """Verify the COSE Sign1 root signature, and return the scheme verified, or
-    ``None`` if this transaction carries no COSE signature."""
+    """Verify the COSE Sign1 root signature, or return ``None`` if absent."""
     cose_sign1 = parse_cose_signature_from_tx(tx_tables)
     if cose_sign1 is None:
         return None
@@ -328,11 +316,9 @@ def is_signature_transaction(tx_tables: Container[str]) -> bool:
 def verify_all_root_signatures(
     tx_tables: Mapping[str, Any], computed_root: bytes, ctx: RootSignatureContext
 ) -> list[RootSignature]:
-    """Verify every root signature this transaction carries, and return the
-    schemes verified.
+    """Verify every root signature this transaction carries.
 
-    Raises if any signature present fails to verify, or if the transaction
-    carries no verifiable signature at all.
+    Raises if a signature fails to verify, or if there is none to verify.
     """
     verified = [
         scheme

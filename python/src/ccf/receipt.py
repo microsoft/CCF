@@ -2,11 +2,9 @@
 # Licensed under the Apache 2.0 License.
 
 import base64
-import hashlib
 from hashlib import sha256
 
 import cbor2
-import cwt
 import cwt.const
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec, utils
@@ -150,17 +148,17 @@ def verify_cose(
         leaf = proof[CCF_PROOF_LEAF_LABEL]
         if claim_digest != leaf[2]:
             raise ValueError(f"Claim digest mismatch: {leaf[2]!r} != {claim_digest!r}")
-        accumulator = hashlib.sha256(
-            leaf[0] + hashlib.sha256(leaf[1].encode()).digest() + leaf[2]
+        accumulator = sha256(
+            leaf[0] + sha256(leaf[1].encode()).digest() + leaf[2]
         ).digest()
         if CCF_PROOF_PATH_LABEL not in proof:
             raise ValueError("Path must be present")
         path = proof[CCF_PROOF_PATH_LABEL]
         for left, digest in path:
             if left:
-                accumulator = hashlib.sha256(digest + accumulator).digest()
+                accumulator = sha256(digest + accumulator).digest()
             else:
-                accumulator = hashlib.sha256(accumulator + digest).digest()
+                accumulator = sha256(accumulator + digest).digest()
         ic_phdr, _, _ = ccf.signatures.verify_cose_root_signature_with_key(
             key_pem.encode("ascii"), accumulator, receipt_bytes
         )
