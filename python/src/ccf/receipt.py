@@ -5,6 +5,7 @@ import base64
 from hashlib import sha256
 
 import cbor2
+import cwt
 import cwt.const
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec, utils
