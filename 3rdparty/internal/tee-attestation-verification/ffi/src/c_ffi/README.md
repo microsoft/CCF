@@ -24,6 +24,28 @@ That produces `libtee_attestation_verification_ffi.{a,so}` under
 it and include `ffi/include/tav/`. See `ffi/tests/c-consumer/CMakeLists.txt`
 for a worked CMake setup, including static linking.
 
+## CBOR handle ownership
+
+Every CBOR parser, navigation, and COSE validation function returns an
+independently owned `TavCborValue *`. Projected handles share the immutable
+parsed document through reference counting; they do not clone a subtree or
+serialize and reparse it. Free every returned handle with the null-safe
+`tav_cbor_value_free`. Parent and child handles may be freed in any order:
+
+```c
+TavCborValue *root = NULL;
+TavCborValue *child = NULL;
+tav_cbor_value_from_bytes(cbor, cbor_len, &root);
+tav_cbor_value_array_at(root, 0, &child);
+
+tav_cbor_value_free(root); /* child remains valid */
+TavCborKind kind = tav_cbor_value_kind(child);
+tav_cbor_value_free(child);
+```
+
+Byte and text pointers are borrowed from the handle passed to their accessor and
+remain valid until that handle is freed.
+
 ## SNP verification
 
 ```c

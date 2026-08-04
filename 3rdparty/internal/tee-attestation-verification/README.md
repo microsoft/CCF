@@ -15,7 +15,7 @@ and returning authenticated report claims to callers.
 | `cose/` | `tee-attestation-verification-cose` | COSE signing and verification helpers. |
 | `caci/` | `tee-attestation-verification-caci` | CACI UVM endorsement verification against SEV-SNP attestations and DID x509 roots of trust. |
 | `attestation/` | `tee-attestation-verification-lib` | Public attestation verification APIs, SEV-SNP report types, and KDS support. |
-| `ffi/` | `tee-attestation-verification-ffi` | Native C ABI and WebAssembly bindings for the Rust domain crates. |
+| `ffi/` | `tee-attestation-verification-ffi` | Native C ABI, WebAssembly bindings, and a Linux x64 .NET binding and NuGet package for the Rust domain crates. |
 | `demos/web-verify-kernel/` | n/a | Browser demo verifying an SNP attestation using the WASM bindings. |
 | `demos/caci-attestation-verify/` | n/a | Browser demo verifying an SNP CACI attestation using the WASM bindings. |
 

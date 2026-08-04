@@ -1037,7 +1037,7 @@ dependencies = [
 
 [[package]]
 name = "tee-attestation-verification-caci"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "serde_json",
  "tee-attestation-verification-cose",
@@ -1049,7 +1049,7 @@ dependencies = [
 
 [[package]]
 name = "tee-attestation-verification-cose"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "cborrs",
  "cborrs-nondet",
@@ -1058,7 +1058,7 @@ dependencies = [
 
 [[package]]
 name = "tee-attestation-verification-crypto"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "ecdsa",
  "foreign-types",
@@ -1081,7 +1081,7 @@ dependencies = [
 
 [[package]]
 name = "tee-attestation-verification-ffi"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "js-sys",
  "serde_json",
@@ -1096,7 +1096,7 @@ dependencies = [
 
 [[package]]
 name = "tee-attestation-verification-lib"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "console_error_panic_hook",
  "curl",
