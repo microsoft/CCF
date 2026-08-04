@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - TLS handshakes now prefer hybrid post-quantum key exchange groups, in the order `SecP384r1MLKEM1024`, `SecP256r1MLKEM768`, `X25519MLKEM768`, when the linked crypto provider supports them. The `P-521`, `P-384` and `P-256` groups are retained as fallbacks (#8107).
+- `ccf.cose.verify_receipt()` has moved and been renamed to `ccf.receipt.verify_cose()`; the old name still works but is deprecated (#8109).
 
 ## [7.0.10]
 

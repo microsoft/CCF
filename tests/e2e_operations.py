@@ -21,10 +21,10 @@ import urllib.parse
 from contextlib import contextmanager, redirect_stdout
 
 import cbor2
-import ccf.cose
 import ccf.ledger
 import ccf.ledger_viz
 import ccf.read_ledger
+import ccf.receipt
 import ccf.signatures
 import ccf.split_ledger
 import infra.commit
@@ -2080,7 +2080,7 @@ def run_cose_only_mode_upgrade(args):
             assert (
                 cose_rc.status_code == http.HTTPStatus.OK
             ), f"COSE receipt should be available, got {cose_rc.status_code}"
-            ccf.cose.verify_receipt(cose_rc.body.data(), service_key, b"\0" * 32)
+            ccf.receipt.verify_cose(cose_rc.body.data(), service_key, b"\0" * 32)
 
         LOG.info(
             f"Receipt check OK for {view}.{seqno} "
