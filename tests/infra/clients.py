@@ -1080,9 +1080,12 @@ class CCFClient:
             headers = {}
 
         r = Request(path, body, http_verb, headers)
+        request_client = self.client_impl
+        request_hostname = self.hostname
+        request_protocol = getattr(request_client, "protocol", "https")
         flush_info([f"{self.description} {r}"], log_capture, 3)
 
-        response = self.client_impl.request(r, timeout, cose_header_parameters_override)
+        response = request_client.request(r, timeout, cose_header_parameters_override)
         flush_info([str(response)], log_capture, 3)
 
         # NB: We follow redirects at this level, because we do not trust the underlying
@@ -1101,23 +1104,34 @@ class CCFClient:
 
             redirect_url = response.headers["location"]
             split = urllib.parse.urlsplit(redirect_url)
-            hostname = split.netloc or self.hostname
+            request_hostname = split.netloc or request_hostname
+            request_protocol = split.scheme or request_protocol
             redirect_path = urllib.parse.urlunsplit(("", "", *split[2:]))
 
             # Construct a temporary client to follow this redirect
-            temp_client = type(self.client_impl)(hostname=hostname, **self.client_args)
+            temp_client = type(self.client_impl)(
+                hostname=request_hostname, **self.client_args
+            )
 
             # Copy any test-specific decorators from the main client to the temporary client
             temp_client._corrupt_signature = self.client_impl._corrupt_signature
             temp_client.cose_header_builder = self.client_impl.cose_header_builder
 
             r = Request(redirect_path, body, http_verb, headers)
+            request_client = temp_client
 
-            response = temp_client.request(r, timeout, cose_header_parameters_override)
+            response = request_client.request(
+                r, timeout, cose_header_parameters_override
+            )
             flush_info([str(response)], log_capture, 3)
 
         if self.openapi_validator is not None:
-            self.openapi_validator.validate(r, response, cose=self.cose)
+            self.openapi_validator.validate(
+                r,
+                response,
+                host_url=f"{request_protocol}://{request_hostname}",
+                cose=self.cose,
+            )
 
         return response
 

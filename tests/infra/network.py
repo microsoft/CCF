@@ -1324,7 +1324,8 @@ class Network:
 
         if self.common_dir is not None:
             self.openapi_validator.report(
-                os.path.join(self.common_dir, "openapi_coverage.json")
+                os.path.join(self.common_dir, "openapi_coverage.json"),
+                os.path.join(self.args.workspace, "openapi_coverage.json"),
             )
 
         fatal_error_found = False

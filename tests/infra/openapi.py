@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
+import fcntl
 import json
 import os
 import re
@@ -245,7 +246,7 @@ class OpenAPIValidator:
         value = json.loads(data) if data else None
         self._validate_v2_schema(prefix, value, response_schema["schema"])
 
-    def validate(self, request, response, cose=False):
+    def validate(self, request, response, host_url, cose=False):
         if not self.loaded:
             return
 
@@ -288,7 +289,7 @@ class OpenAPIValidator:
                 content_type = ""
 
         openapi_request = _Request(
-            host_url="https://ccf.test",
+            host_url=host_url,
             path=parsed.path,
             method=request.http_verb.lower(),
             parameters=RequestParameters(query=query, header=request_headers),
@@ -337,7 +338,38 @@ class OpenAPIValidator:
             if validate_response:
                 self._validated_responses.add(response_sample)
 
-    def report(self, output_path):
+    @staticmethod
+    def _merge_reports(existing, current):
+        merged = {}
+        for prefix in existing.keys() | current.keys():
+            existing_prefix = existing.get(prefix, {})
+            current_prefix = current.get(prefix, {})
+            operations = set(existing_prefix.get("operations", []))
+            operations.update(current_prefix.get("operations", []))
+            documented = operations | set(existing_prefix.get("missing", []))
+            documented.update(current_prefix.get("operations", []))
+            documented.update(current_prefix.get("missing", []))
+            undocumented = set(existing_prefix.get("undocumented", []))
+            undocumented.update(current_prefix.get("undocumented", []))
+            total = len(documented)
+            merged[prefix] = {
+                "covered": len(operations),
+                "total": total,
+                "percent": round(100 * len(operations) / total, 1) if total else 100.0,
+                "operations": sorted(operations),
+                "missing": sorted(documented - operations),
+                "undocumented": sorted(undocumented),
+            }
+        return merged
+
+    @staticmethod
+    def _write_report(output_path, report):
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        with open(output_path, "w", encoding="utf-8") as report_file:
+            json.dump(report, report_file, indent=2)
+            report_file.write("\n")
+
+    def report(self, output_path, aggregate_path=None):
         if not self.loaded:
             return
 
@@ -350,13 +382,16 @@ class OpenAPIValidator:
                     if visited_prefix == prefix
                 }
                 total = len(operations)
+                operation_names = {
+                    f"{method.upper()} {path}" for path, method in operations
+                }
+                visited_names = {f"{method.upper()} {path}" for path, method in visited}
                 report[prefix.removeprefix("/")] = {
                     "covered": len(visited),
                     "total": total,
                     "percent": round(100 * len(visited) / total, 1) if total else 100.0,
-                    "operations": [
-                        f"{method.upper()} {path}" for path, method in sorted(visited)
-                    ],
+                    "operations": sorted(visited_names),
+                    "missing": sorted(operation_names - visited_names),
                     "undocumented": [
                         f"{method.upper()} {path}"
                         for undocumented_prefix, path, method in sorted(
@@ -366,8 +401,21 @@ class OpenAPIValidator:
                     ],
                 }
 
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        with open(output_path, "w", encoding="utf-8") as report_file:
-            json.dump(report, report_file, indent=2)
-            report_file.write("\n")
+        self._write_report(output_path, report)
         LOG.info(f"Wrote OpenAPI coverage report to {output_path}: {report}")
+
+        if aggregate_path is not None:
+            lock_path = f"{aggregate_path}.lock"
+            os.makedirs(os.path.dirname(aggregate_path), exist_ok=True)
+            with open(lock_path, "w", encoding="utf-8") as lock_file:
+                fcntl.flock(lock_file, fcntl.LOCK_EX)
+                if os.path.exists(aggregate_path):
+                    with open(aggregate_path, encoding="utf-8") as aggregate_file:
+                        aggregate = json.load(aggregate_file)
+                else:
+                    aggregate = {}
+                aggregate = self._merge_reports(aggregate, report)
+                self._write_report(aggregate_path, aggregate)
+            LOG.info(
+                f"Merged OpenAPI coverage report into {aggregate_path}: {aggregate}"
+            )
