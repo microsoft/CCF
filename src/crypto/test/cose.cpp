@@ -10,6 +10,7 @@
 #include "crypto/openssl/cose_verifier.h"
 #include "node/cose_common.h"
 
+#include <array>
 #include <cstdint>
 #include <doctest/doctest.h>
 #include <limits>
@@ -232,6 +233,70 @@ TEST_CASE("Decode CCF COSE receipt")
 
   const auto receipt_bytes = ccf::ds::from_hex(receipt_hex);
 
+  enum class ProofHashField
+  {
+    WriteSetDigest,
+    ClaimsDigest,
+    Sibling,
+  };
+  const auto with_proof_hash_size = [&](ProofHashField field, size_t size) {
+    using namespace ccf::cbor;
+
+    auto receipt = parse(receipt_bytes);
+    const auto& envelope = receipt->tag_at(ccf::cbor::tag::COSE_SIGN_1);
+    const auto& unprotected = envelope->array_at(1);
+    const auto& vdp =
+      unprotected->map_at(make_signed(ccf::cose::header::iana::VDP));
+    const auto& proofs =
+      vdp->map_at(make_signed(ccf::cose::header::iana::INCLUSION_PROOFS));
+    auto proof = parse(proofs->array_at(0)->as_bytes());
+
+    std::vector<uint8_t> replacement(size, 0x42);
+    std::array<uint8_t, 1> empty_replacement{};
+    const std::span<const uint8_t> replacement_span = replacement.empty() ?
+      std::span<const uint8_t>(empty_replacement.data(), 0) :
+      std::span<const uint8_t>(replacement);
+    if (field == ProofHashField::Sibling)
+    {
+      const auto& path = proof->map_at(
+        make_signed(ccf::MerkleProofLabel::MERKLE_PROOF_PATH_LABEL));
+      const auto& link = path->array_at(0);
+      std::get<Array>(link->value).items.at(1) = make_bytes(replacement_span);
+    }
+    else
+    {
+      const auto& leaf = proof->map_at(
+        make_signed(ccf::MerkleProofLabel::MERKLE_PROOF_LEAF_LABEL));
+      const auto index = field == ProofHashField::WriteSetDigest ? 0 : 2;
+      std::get<Array>(leaf->value).items.at(index) =
+        make_bytes(replacement_span);
+    }
+
+    auto serialised_proof = serialize(proof);
+    std::get<Array>(proofs->value).items.at(0) = make_bytes(serialised_proof);
+    return serialize(receipt);
+  };
+  const auto decode_proofs = [](const std::vector<uint8_t>& receipt_bytes) {
+    auto receipt = ccf::cbor::parse(receipt_bytes);
+    const auto& envelope = receipt->tag_at(ccf::cbor::tag::COSE_SIGN_1);
+    return ccf::cose::decode_merkle_proofs(envelope);
+  };
+  const auto with_decoded_proof_hash_size =
+    [&](ProofHashField field, size_t size) {
+      auto proof = decode_proofs(receipt_bytes).at(0);
+      auto* hash = &proof.leaf.claims_digest;
+      if (field == ProofHashField::WriteSetDigest)
+      {
+        hash = &proof.leaf.write_set_digest;
+      }
+      else if (field == ProofHashField::Sibling)
+      {
+        hash = &proof.path.at(0).second;
+      }
+      hash->assign(size, 0x42);
+      return proof;
+    };
+
   auto receipt =
     ccf::cose::decode_ccf_receipt(receipt_bytes, /*recompute_root*/ true);
 
@@ -249,6 +314,44 @@ TEST_CASE("Decode CCF COSE receipt")
   REQUIRE(
     ccf::ds::to_hex(receipt.merkle_root) ==
     "209f5aefb0f45d7647c917337044c44a1b848fe833fa2869d016bea797d79a9e");
+
+  for (const auto size :
+       {size_t{0}, size_t{1}, size_t{31}, size_t{32}, size_t{33}})
+  {
+    const auto edited = with_proof_hash_size(ProofHashField::Sibling, size);
+    if (size == ccf::crypto::Sha256Hash::SIZE)
+    {
+      REQUIRE_NOTHROW(ccf::cose::decode_ccf_receipt(edited, true));
+    }
+    else
+    {
+      REQUIRE_THROWS_AS(decode_proofs(edited), ccf::cose::COSEDecodeError);
+    }
+  }
+
+  for (const auto field :
+       {ProofHashField::WriteSetDigest, ProofHashField::ClaimsDigest})
+  {
+    for (const auto size : {size_t{0}, size_t{31}, size_t{33}})
+    {
+      const auto malformed = with_proof_hash_size(field, size);
+      REQUIRE_THROWS_AS(decode_proofs(malformed), ccf::cose::COSEDecodeError);
+    }
+
+    const auto valid =
+      with_proof_hash_size(field, ccf::crypto::Sha256Hash::SIZE);
+    REQUIRE_NOTHROW(ccf::cose::decode_ccf_receipt(valid, true));
+  }
+
+  for (const auto field :
+       {ProofHashField::WriteSetDigest,
+        ProofHashField::ClaimsDigest,
+        ProofHashField::Sibling})
+  {
+    const auto malformed = with_decoded_proof_hash_size(field, 31);
+    REQUIRE_THROWS_AS(
+      ccf::cose::recompute_merkle_root(malformed), ccf::cose::COSEDecodeError);
+  }
 }
 
 TEST_CASE("make_cose_verifier_any_cert with PEM and DER certificates")
