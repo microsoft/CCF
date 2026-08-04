@@ -30,7 +30,6 @@
 #include "http/http_session.h"
 #include "node/rpc/custom_protocol_subsystem.h"
 #include "node/session_metrics.h"
-#include "tls/cert.h"
 
 #include <algorithm>
 #include <atomic>

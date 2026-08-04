@@ -202,10 +202,9 @@ namespace asynchost
     // Build a server SSL_CTX (min TLS 1.2, ALPN if configured) and load the
     // cert/key. Returns nullptr on failure. Called on the loop thread.
     //
-    // The cipher, ciphersuite, group and mode configuration below must be kept
-    // in sync with ccf::tls::Context (src/tls/context.h), which applies the
-    // same policy to the remaining non-RPC TLS users. tests/tls_groups.py
-    // asserts the negotiated group against this list.
+    // This is the only place CCF's inbound TLS policy is defined. It is
+    // asserted from the wire by src/host/test/openssl_server_test.cpp and, for
+    // a running service, by tests/tls_groups.py.
     SSL_CTX* build_server_ctx(
       const std::string& cert_pem, const std::string& key_pem)
     {

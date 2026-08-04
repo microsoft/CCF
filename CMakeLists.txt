@@ -873,10 +873,6 @@ if(BUILD_TESTS)
 
     add_unit_test(tls_test ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/main.cpp)
     target_link_libraries(tls_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
-    target_compile_definitions(
-      tls_test
-      PRIVATE TEST_HYBRID_TLS_GROUPS=$<BOOL:${TEST_HYBRID_TLS_GROUPS}>
-    )
 
     add_unit_test(
       base64_test

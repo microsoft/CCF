@@ -62,7 +62,7 @@ The context restricts what the handshake may negotiate:
 
 Note that in TLS 1.3 the *client* effectively chooses the group: OpenSSL picks the first client-offered group that the server also supports, so the server list acts as a filter rather than a preference.
 
-The same policy is applied by :ccf_repo:`ccf::tls::Context </src/tls/context.h>` for the remaining non-RPC TLS users, and the two must be kept in sync. It is asserted from the wire by the ``openssl_server_test`` unit tests and by the :ccf_repo:`tls_groups </tests/tls_groups.py>` end-to-end test, both of which only check the hybrid groups when built with ``-DTEST_HYBRID_TLS_GROUPS=ON``, since those groups require OpenSSL 3.5 or later.
+This policy is defined in one place, ``build_server_ctx()``. It is asserted from the wire by the ``openssl_server_test`` unit tests and, for a running service, by the :ccf_repo:`tls_groups </tests/tls_groups.py>` end-to-end test. Both only check the hybrid groups when built with ``-DTEST_HYBRID_TLS_GROUPS=ON``, since those groups require OpenSSL 3.5 or later.
 
 The context also sets ``SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER`` and ``SSL_MODE_ENABLE_PARTIAL_WRITE``, both of which are required by the write path described below.
 
@@ -122,7 +122,7 @@ Why OpenSSL?
 
 CCF originally used MbedTLS, and the OpenSSL implementation that replaced it emulated MbedTLS conventions, notably negated error codes and a memory-BIO indirection driven by callbacks.
 
-MbedTLS itself is long gone, and the inbound server path no longer goes anywhere near that emulation: ``OpenSSLServer`` calls ``SSL_read``/``SSL_write`` on a socket-backed ``SSL`` and interprets ``SSL_get_error`` directly. The emulation layer itself, however, still exists in :ccf_repo:`src/tls/context.h </src/tls/context.h>` (``TLS_ERR_WANT_READ`` and friends in :ccf_repo:`src/tls/tls.h </src/tls/tls.h>` are negated OpenSSL error codes, and ``set_bio()`` installs callback-driven memory BIOs). ``ccf::tls::Context`` and its ``Client``, ``Server`` and ``PlaintextServer`` subclasses are now reachable only from the ``tls_test`` unit test, and are candidates for removal.
+Both are now gone. ``OpenSSLServer`` calls ``SSL_read``/``SSL_write`` on a socket-backed ``SSL`` and interprets ``SSL_get_error`` directly. All that remains in ``src/tls`` are the ``CA`` and ``Cert`` helpers described above.
 
 The reasons for OpenSSL remain:
 

@@ -8,6 +8,7 @@
 #include "crypto/certs.h"
 #include "host/tls/openssl_server.h"
 #include "host/tls/openssl_session_manager.h"
+#include "tls/ca.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <arpa/inet.h>
@@ -56,6 +57,42 @@ namespace
       ccf::ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
     auto cert = ccf::crypto::create_self_signed_cert(
       kp, "CN=localhost", {}, valid_from, /*validity_days*/ 365);
+    return {cert.str(), kp->private_key_pem().str()};
+  }
+
+  struct TestCA
+  {
+    ccf::crypto::ECKeyPairPtr kp;
+    ccf::crypto::Pem cert;
+  };
+
+  TestCA make_ca()
+  {
+    using namespace std::literals;
+    auto kp = ccf::crypto::make_ec_key_pair();
+    const auto valid_from =
+      ccf::ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
+    return {
+      kp,
+      ccf::crypto::create_self_signed_cert(
+        kp, "CN=issuer", {}, valid_from, /*validity_days*/ 365)};
+  }
+
+  std::pair<std::string, std::string> make_endorsed_server_cert(
+    const TestCA& ca)
+  {
+    using namespace std::literals;
+    auto kp = ccf::crypto::make_ec_key_pair();
+    const auto valid_from =
+      ccf::ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
+    auto cert = ccf::crypto::create_endorsed_cert(
+      kp,
+      "CN=localhost",
+      {},
+      valid_from,
+      /*validity_days*/ 365,
+      ca.kp->private_key_pem(),
+      ca.cert);
     return {cert.str(), kp->private_key_pem().str()};
   }
 
@@ -220,6 +257,44 @@ namespace
     SSL_CTX_free(cctx);
     ::close(fd);
     return result;
+  }
+
+  // Handshakes with a client that verifies the server certificate against
+  // `trusted_ca`, the way ::tls::CA configures outbound CCF connections.
+  // Returns whether the handshake completed.
+  bool verifying_client_handshake(uint16_t port, const ccf::crypto::Pem& ca)
+  {
+    const int fd = ::socket(AF_INET, SOCK_STREAM, 0);
+    REQUIRE(fd >= 0);
+
+    sockaddr_in addr{};
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(port);
+    REQUIRE(inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr) == 1);
+    REQUIRE(
+      ::connect(fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) == 0);
+
+    SSL_CTX* cctx = SSL_CTX_new(TLS_client_method());
+    REQUIRE(cctx != nullptr);
+    ::tls::CA(ca.str()).configure_trusted_cert_store(cctx);
+    SSL_CTX_set_verify(cctx, SSL_VERIFY_PEER, nullptr);
+
+    SSL* ssl = SSL_new(cctx);
+    REQUIRE(ssl != nullptr);
+    REQUIRE(SSL_set_fd(ssl, fd) == 1);
+    SSL_set_connect_state(ssl);
+
+    const bool ok = SSL_connect(ssl) == 1;
+    if (ok)
+    {
+      REQUIRE(SSL_get_verify_result(ssl) == X509_V_OK);
+      SSL_shutdown(ssl);
+    }
+
+    SSL_free(ssl);
+    SSL_CTX_free(cctx);
+    ::close(fd);
+    return ok;
   }
 
   // Echoes received plaintext back to the same connection via send().
@@ -493,6 +568,70 @@ TEST_CASE("Peer certificate is captured for inbound connections")
   mgr.stop();
 }
 
+// The server deliberately does not enforce client certificate validity: it
+// requests one and hands whatever arrives to the application, which decides.
+// A client presenting no certificate at all must therefore still connect.
+TEST_CASE("Client certificate is requested but not enforced")
+{
+  auto [cert, key] = make_server_cert();
+
+  std::mutex m;
+  std::vector<uint8_t> captured;
+  std::atomic<bool> got{false};
+
+  OpenSSLSessionManager mgr(
+    cert,
+    key,
+    "127.0.0.1",
+    static_cast<uint16_t>(0),
+    [&](::tcp::ConnID id, ccf::SessionWriter& w, std::vector<uint8_t> pc) {
+      {
+        std::lock_guard<std::mutex> l(m);
+        captured = std::move(pc);
+      }
+      got.store(true);
+      return std::make_shared<EchoSession>(id, w);
+    });
+  mgr.start();
+
+  const std::vector<uint8_t> msg = {'n', 'o', 'c', 'e', 'r', 't'};
+  REQUIRE(tls_client_exchange(mgr.port(), msg, msg.size()) == msg);
+
+  REQUIRE(got.load());
+  std::lock_guard<std::mutex> l(m);
+  REQUIRE(captured.empty());
+
+  mgr.stop();
+}
+
+// The server certificate must be verifiable by a client that trusts the CA
+// which endorsed it, and rejected by one that does not.
+TEST_CASE("Server certificate is verified by the client")
+{
+  auto ca = make_ca();
+
+  SUBCASE("a client trusting the endorsing CA completes the handshake")
+  {
+    auto [cert, key] = make_endorsed_server_cert(ca);
+    EchoServer s(cert, key);
+    REQUIRE(verifying_client_handshake(s.port(), ca.cert));
+  }
+
+  SUBCASE("a client trusting a different CA rejects the server")
+  {
+    auto [cert, key] = make_endorsed_server_cert(ca);
+    EchoServer s(cert, key);
+    REQUIRE_FALSE(verifying_client_handshake(s.port(), make_ca().cert));
+  }
+
+  SUBCASE("a verifying client rejects a self-signed server certificate")
+  {
+    auto [cert, key] = make_server_cert();
+    EchoServer s(cert, key);
+    REQUIRE_FALSE(verifying_client_handshake(s.port(), ca.cert));
+  }
+}
+
 namespace
 {
   // Connect to host:port (resolved via getaddrinfo, any family), TLS
@@ -662,8 +801,8 @@ TEST_CASE("Persistent connection survives many sequential round-trips")
   ::close(fd);
 }
 
-// The server's cipher, ciphersuite and group policy must match
-// ccf::tls::Context (src/tls/context.h). These assert it from the wire.
+// The server's cipher, ciphersuite and group policy is defined in
+// build_server_ctx(). These assert it from the wire.
 
 TEST_CASE("Server restricts TLS 1.3 ciphersuites to the configured list")
 {
