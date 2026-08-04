@@ -1,18 +1,16 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-import re
 import os
-
-import subprocess
-import git
-import urllib
+import re
 import shutil
+import subprocess
+import urllib
+
+import git
 import requests
-
-from packaging.version import Version  # type: ignore
-
 from loguru import logger as LOG
+from packaging.version import Version  # type: ignore
 
 REPOSITORY_NAME = "microsoft/CCF"
 REMOTE_URL = f"https://github.com/{REPOSITORY_NAME}"
@@ -353,7 +351,10 @@ class Repository:
             assert False, f"Unsupported package type: {download_path}"
 
         # Write new file to avoid having to download install again
-        open(os.path.join(install_path, INSTALL_SUCCESS_FILE), "w+", encoding="utf-8")
+        with open(
+            os.path.join(install_path, INSTALL_SUCCESS_FILE), "w+", encoding="utf-8"
+        ):
+            pass
 
         LOG.info(f"CCF release {tag} successfully installed at {install_path}")
         return tag, install_path
@@ -480,7 +481,7 @@ if __name__ == "__main__":
         def has_release_for_tag_name(self, tag_name):
             # If tag_name is local branch, then the release from this tag
             # must be in progress
-            return True if tag_name != self.local_branch else False
+            return tag_name != self.local_branch
 
     def exp(prev=None, same=None):
         return {"previous LTS": prev, "same LTS": same}

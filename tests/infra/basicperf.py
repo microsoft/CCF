@@ -1,26 +1,27 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import argparse
-import os
-import infra.e2e_args
-import infra.remote_client
-import infra.jwt_issuer
-from loguru import logger as LOG
-import time
-import http
-import hashlib
-from piccolo import generator
-import polars as pl
-from typing import Dict, List
-import random
-import string
-import json
-import shutil
 import datetime
+import hashlib
+import http
+import json
+import os
+import random
+import shutil
+import string
+import time
+
 import ccf.ledger
 import plotext as plt
+import polars as pl
+from loguru import logger as LOG
+from piccolo import generator
+
 import infra.bencher
+import infra.e2e_args
+import infra.jwt_issuer
 import infra.proc
+import infra.remote_client
 
 
 def configure_remote_client(args, client_id, client_host, common_dir):
@@ -42,15 +43,15 @@ def configure_remote_client(args, client_id, client_host, common_dir):
         remote_client.setup()
         return remote_client
     except Exception:
-        LOG.exception("Failed to start client {}".format(client_host))
+        LOG.exception(f"Failed to start client {client_host}")
         raise
 
 
 def write_to_key_space(
-    key_space: List[str],
+    key_space: list[str],
     iterations: int,
     msgs: generator.Messages,
-    additional_headers: Dict[str, str],
+    additional_headers: dict[str, str],
 ):
     """
     Write fixed-size messages to a range of keys, this is the usual logging workload
@@ -72,10 +73,10 @@ def write_to_key_space(
 
 
 def read_from_key_space(
-    key_space: List[str],
+    key_space: list[str],
     iterations: int,
     msgs: generator.Messages,
-    additional_headers: Dict[str, str],
+    additional_headers: dict[str, str],
 ):
     LOG.info(f"Workload: {iterations} reads from a range of {len(key_space)} keys")
     indices = list(range(iterations))
@@ -91,10 +92,10 @@ def read_from_key_space(
 
 
 def blocking_write_to_key_space(
-    key_space: List[str],
+    key_space: list[str],
     iterations: int,
     msgs: generator.Messages,
-    additional_headers: Dict[str, str],
+    additional_headers: dict[str, str],
 ):
     LOG.info(
         f"Workload: {iterations} blocking writes to a range of {len(key_space)} keys"
@@ -113,10 +114,10 @@ def blocking_write_to_key_space(
 
 
 def blocking_read_from_key_space(
-    key_space: List[str],
+    key_space: list[str],
     iterations: int,
     msgs: generator.Messages,
-    additional_headers: Dict[str, str],
+    additional_headers: dict[str, str],
 ):
     LOG.info(
         f"Workload: {iterations} blocking reads from a range of {len(key_space)} keys"
@@ -173,10 +174,10 @@ class RWMix:
 
     def __call__(
         self,
-        key_space: List[str],
+        key_space: list[str],
         repetitions: int,
         msgs: generator.Messages,
-        additional_headers: Dict[str, str],
+        additional_headers: dict[str, str],
     ):
         assert repetitions % self.batch_size == 0
         LOG.info(
@@ -213,7 +214,7 @@ class RWMix:
                     )
 
 
-def create_and_fill_key_space(size: int, primary: infra.node.Node) -> List[str]:
+def create_and_fill_key_space(size: int, primary: infra.node.Node) -> list[str]:
     LOG.info(f"Creating and filling key space of size {size}")
     space = [f"{i}" for i in range(size)]
     mapping = {key: f"{hashlib.sha256(key.encode()).hexdigest()}" for key in space}
@@ -232,7 +233,9 @@ def create_and_fill_key_space(size: int, primary: infra.node.Node) -> List[str]:
 def replace_primary(network, host, old_primary, snapshots_dir, statistics):
     LOG.info(f"Set up new node: {host}")
     node = network.create_node(host)
-    statistics["new_node_join_start_time"] = datetime.datetime.now().isoformat()
+    statistics["new_node_join_start_time"] = datetime.datetime.now(
+        datetime.timezone.utc
+    ).isoformat()
     network.setup_join_node(
         node,
         args.package,
@@ -245,12 +248,16 @@ def replace_primary(network, host, old_primary, snapshots_dir, statistics):
         follow_redirect=False,
     )
     LOG.info(f"Shut down primary: {old_primary.local_node_id}")
-    statistics["initial_primary_shutdown_time"] = datetime.datetime.now().isoformat()
+    statistics["initial_primary_shutdown_time"] = datetime.datetime.now(
+        datetime.timezone.utc
+    ).isoformat()
     old_primary.stop()
     LOG.info(f"Start new node: {node.local_node_id}")
     network.run_join_node(node, wait_for_node_in_store=False)
     primary, _ = network.wait_for_new_primary(old_primary)
-    statistics["new_primary_detected_time"] = datetime.datetime.now().isoformat()
+    statistics["new_primary_detected_time"] = datetime.datetime.now(
+        datetime.timezone.utc
+    ).isoformat()
     network.wait_for_node_in_store(
         primary,
         node.node_id,
@@ -270,7 +277,7 @@ def run(args):
             len(hosts) > 1
         ), "Can only stop primary if there is at least one other node to fail over to"
 
-    LOG.info("Starting nodes on {}".format(hosts))
+    LOG.info(f"Starting nodes on {hosts}")
     with infra.network.network(
         hosts, args.binary_dir, args.debug_nodes, pdb=args.pdb
     ) as network:
@@ -464,7 +471,12 @@ def run(args):
                     )
                     LOG.info(f"Analyzing results from {send_file} and {response_file}")
 
-                    def table():
+                    def table(
+                        client_id=client_id,
+                        send_file=send_file,
+                        response_file=response_file,
+                        remote_client=remote_client,
+                    ):
                         payloads = pl.read_parquet(requests_file_paths[client_id])
                         sent = pl.read_parquet(send_file)
                         rcvd = pl.read_parquet(response_file)

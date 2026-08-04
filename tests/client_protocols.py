@@ -1,14 +1,15 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
+import difflib
+import os
+import re
+import subprocess
+
+import infra.e2e_args
+import infra.net
 import infra.network
 import infra.proc
-import infra.net
 import suite.test_requirements as reqs
-import infra.e2e_args
-import subprocess
-import os
-import difflib
-import re
 
 # As installed by setup scripts
 H2SPEC_BIN = "/opt/h2spec/h2spec"

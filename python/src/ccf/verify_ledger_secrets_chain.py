@@ -1,10 +1,11 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-import ccf.ledger
-import sys
-import json
 import argparse
+import json
+import sys
+
+import ccf.ledger
 
 
 def counted_string(string, name):
@@ -52,7 +53,7 @@ def run(paths, uncommitted=False):
                     if table_name != historical_secrets_table:
                         continue
 
-                    for _, value in records.items():
+                    for value in records.values():
                         if value is not None:
                             txid = (
                                 transaction.gcm_header.view,

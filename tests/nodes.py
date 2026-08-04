@@ -5,19 +5,18 @@ import http
 import math
 import time
 
+import committable
 import infra.checker
 import infra.e2e_args
 import infra.network
 import infra.proc
 import infra.service_load
+import reconfiguration
 import suite.test_requirements as reqs
 from ccf.tx_id import TxID
 from infra.network import PrimaryNotFound
 from infra.runner import ConcurrentRunner
 from loguru import logger as LOG
-
-import reconfiguration
-import committable
 
 
 def wait_for_committed_tx_in_current_view(node, timeout=5):
@@ -214,68 +213,63 @@ def test_commit_view_history(network, args):
 
 
 def run(args):
-    with infra.service_load.load() as load:
-        with infra.network.network(
-            args.nodes,
-            args.binary_dir,
-            args.debug_nodes,
-            pdb=args.pdb,
-            service_load=load,
-        ) as network:
-            check = infra.checker.Checker()
+    with infra.service_load.load() as load, infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        pdb=args.pdb,
+        service_load=load,
+    ) as network:
+        check = infra.checker.Checker()
 
-            network.start_and_open(args)
-            current_view = None
+        network.start_and_open(args)
+        current_view = None
+        primary, current_view = network.find_primary()
+
+        # Number of nodes F to stop until network cannot make progress
+        nodes_to_stop = math.ceil(len(args.nodes) / 2)
+
+        primary_is_known = True
+        for node_to_stop in range(nodes_to_stop):
             primary, current_view = network.find_primary()
 
-            # Number of nodes F to stop until network cannot make progress
-            nodes_to_stop = math.ceil(len(args.nodes) / 2)
-
-            primary_is_known = True
-            for node_to_stop in range(nodes_to_stop):
-                primary, current_view = network.find_primary()
-
-                LOG.debug(
-                    "Commit new transactions, primary:{}, current_view:{}".format(
-                        primary.local_node_id, current_view
-                    )
+            LOG.debug(
+                f"Commit new transactions, primary:{primary.local_node_id}, current_view:{current_view}"
+            )
+            with primary.client("user0") as c:
+                res = c.post(
+                    "/app/log/private",
+                    {
+                        "id": current_view,
+                        "msg": f"This log is committed in view {current_view}",
+                    },
                 )
-                with primary.client("user0") as c:
-                    res = c.post(
-                        "/app/log/private",
-                        {
-                            "id": current_view,
-                            "msg": "This log is committed in view {}".format(
-                                current_view
-                            ),
-                        },
+                check(res, result=True)
+
+            LOG.debug("Waiting for transaction to be committed by all nodes")
+
+            network.wait_for_all_nodes_to_commit(tx_id=TxID(res.view, res.seqno))
+
+            if node_to_stop == nodes_to_stop - 1:
+                # Killing this node goes past the service's fault tolerance threshold, so no primary can now be elected
+                primary.stop()
+
+                try:
+                    # Use smaller timeout multiplier since we expect the service to be stuck, so must wait this long
+                    network.wait_for_new_primary(
+                        primary,
+                        timeout_multiplier=5,
                     )
-                    check(res, result=True)
-
-                LOG.debug("Waiting for transaction to be committed by all nodes")
-
-                network.wait_for_all_nodes_to_commit(tx_id=TxID(res.view, res.seqno))
-
-                if node_to_stop == nodes_to_stop - 1:
-                    # Killing this node goes past the service's fault tolerance threshold, so no primary can now be elected
-                    primary.stop()
-
-                    try:
-                        # Use smaller timeout multiplier since we expect the service to be stuck, so must wait this long
-                        network.wait_for_new_primary(
-                            primary,
-                            timeout_multiplier=5,
-                        )
-                    except PrimaryNotFound:
-                        primary_is_known = False
-                    else:
-                        assert False, "Expected no primary to be found!"
+                except PrimaryNotFound:
+                    primary_is_known = False
                 else:
-                    test_kill_primary_no_reqs(network, args)
-                    test_commit_view_history(network, args)
+                    assert False, "Expected no primary to be found!"
+            else:
+                test_kill_primary_no_reqs(network, args)
+                test_commit_view_history(network, args)
 
-            assert not primary_is_known, "Primary is still known"
-            LOG.success("Test ended successfully.")
+        assert not primary_is_known, "Primary is still known"
+        LOG.success("Test ended successfully.")
 
 
 if __name__ == "__main__":

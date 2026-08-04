@@ -1,10 +1,11 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-import os
 import base64
 import glob
+import os
 from hashlib import sha256
+
 from infra.platform_detection import SNP_SUPPORT
 
 # It is the responsibility of the infra spinning up ACI container

@@ -1,22 +1,23 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
+import dataclasses
+import json
+import os
+import tempfile
+import uuid
+from contextlib import contextmanager
+
+import ccf.ledger
+import infra.clients
+import infra.e2e_args
+import infra.member
+import infra.net
 import infra.network
 import infra.path
 import infra.proc
-import infra.net
-import infra.e2e_args
 import infra.proposal
-import infra.member
 import suite.test_requirements as reqs
-import os
 from loguru import logger as LOG
-from contextlib import contextmanager
-import dataclasses
-import tempfile
-import uuid
-import infra.clients
-import json
-import ccf.ledger
 
 
 def action(name, **args):
@@ -28,7 +29,7 @@ def proposal(*actions):
 
 
 def merge(*proposals):
-    return {"actions": sum((prop["actions"] for prop in proposals), [])}
+    return {"actions": [action for prop in proposals for action in prop["actions"]]}
 
 
 def vote(body):
@@ -765,12 +766,11 @@ def test_operator_provisioner_proposals_and_votes(network, args):
     )
 
     cert_file = os.path.join(node.common_dir, operator.member_info["certificate_file"])
+    with open(cert_file, encoding="utf-8") as cert:
+        cert_contents = cert.read()
     set_operator, _ = network.consortium.make_proposal(
         "set_member",
-        cert=open(
-            cert_file,
-            encoding="utf-8",
-        ).read(),
+        cert=cert_contents,
         member_data={"is_operator": True},
     )
 
@@ -1494,7 +1494,7 @@ def test_ledger_governance_invariants(network, args):
         if table_name not in public_tables:
             continue
 
-        for _, raw_proposal in public_tables[table_name].items():
+        for raw_proposal in public_tables[table_name].values():
             if raw_proposal is None:
                 # This is a deletion
                 continue

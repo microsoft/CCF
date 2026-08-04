@@ -36,6 +36,15 @@ pub const CWT_CLAIMS_ISSUER: i64 = 1;
 pub const CWT_CLAIMS_SUBJECT: i64 = 2;
 pub const CWT_CLAIMS_IAT: i64 = 6;
 
+// IANA COSE Algorithms registry
+// https://www.iana.org/assignments/cose/cose.xhtml#algorithms
+pub const COSE_ALG_ES256: i64 = -7;
+pub const COSE_ALG_ES384: i64 = -35;
+pub const COSE_ALG_ES512: i64 = -36;
+pub const COSE_ALG_PS256: i64 = -37;
+pub const COSE_ALG_PS384: i64 = -38;
+pub const COSE_ALG_PS512: i64 = -39;
+
 /// Return the COSE_Sign1 array from a tagged or untagged COSE_Sign1 document.
 pub fn cose_sign1(document: &CborValue) -> Result<&CborValue, String> {
     // RFC 9052, Section 4.2: COSE_Sign1 may be encoded as CBOR tag 18
@@ -75,21 +84,21 @@ pub fn cose_sign1(document: &CborValue) -> Result<&CborValue, String> {
 pub fn signature_key_algorithm_for_cose_alg(alg: i64) -> Result<SignatureKeyAlgorithm, String> {
     match alg {
         // ES256. RFC 9053, Section 2.1; IANA COSE Algorithms value -7.
-        -7 => Ok(SignatureKeyAlgorithm::Ec(EcSignatureKeyAlgorithm::P256)),
+        COSE_ALG_ES256 => Ok(SignatureKeyAlgorithm::Ec(EcSignatureKeyAlgorithm::P256)),
         // ES384. RFC 9053, Section 2.1; IANA COSE Algorithms value -35.
-        -35 => Ok(SignatureKeyAlgorithm::Ec(EcSignatureKeyAlgorithm::P384)),
+        COSE_ALG_ES384 => Ok(SignatureKeyAlgorithm::Ec(EcSignatureKeyAlgorithm::P384)),
         // ES512. RFC 9053, Section 2.1; IANA COSE Algorithms value -36.
-        -36 => Ok(SignatureKeyAlgorithm::Ec(EcSignatureKeyAlgorithm::P521)),
+        COSE_ALG_ES512 => Ok(SignatureKeyAlgorithm::Ec(EcSignatureKeyAlgorithm::P521)),
         // PS256. RFC 8230, Section 2; IANA COSE Algorithms value -37.
-        -37 => Ok(SignatureKeyAlgorithm::RsaPss(
+        COSE_ALG_PS256 => Ok(SignatureKeyAlgorithm::RsaPss(
             RsaPssSignatureKeyAlgorithm::Ps256,
         )),
         // PS384. RFC 8230, Section 2; IANA COSE Algorithms value -38.
-        -38 => Ok(SignatureKeyAlgorithm::RsaPss(
+        COSE_ALG_PS384 => Ok(SignatureKeyAlgorithm::RsaPss(
             RsaPssSignatureKeyAlgorithm::Ps384,
         )),
         // PS512. RFC 8230, Section 2; IANA COSE Algorithms value -39.
-        -39 => Ok(SignatureKeyAlgorithm::RsaPss(
+        COSE_ALG_PS512 => Ok(SignatureKeyAlgorithm::RsaPss(
             RsaPssSignatureKeyAlgorithm::Ps512,
         )),
         _ => Err(format!("{alg} is not a supported COSE signature algorithm")),
@@ -101,12 +110,12 @@ pub fn cose_alg_for_signature_key_algorithm(
     algorithm: SignatureKeyAlgorithm,
 ) -> Result<i64, String> {
     match algorithm {
-        SignatureKeyAlgorithm::Ec(EcSignatureKeyAlgorithm::P256) => Ok(-7),
-        SignatureKeyAlgorithm::Ec(EcSignatureKeyAlgorithm::P384) => Ok(-35),
-        SignatureKeyAlgorithm::Ec(EcSignatureKeyAlgorithm::P521) => Ok(-36),
-        SignatureKeyAlgorithm::RsaPss(RsaPssSignatureKeyAlgorithm::Ps256) => Ok(-37),
-        SignatureKeyAlgorithm::RsaPss(RsaPssSignatureKeyAlgorithm::Ps384) => Ok(-38),
-        SignatureKeyAlgorithm::RsaPss(RsaPssSignatureKeyAlgorithm::Ps512) => Ok(-39),
+        SignatureKeyAlgorithm::Ec(EcSignatureKeyAlgorithm::P256) => Ok(COSE_ALG_ES256),
+        SignatureKeyAlgorithm::Ec(EcSignatureKeyAlgorithm::P384) => Ok(COSE_ALG_ES384),
+        SignatureKeyAlgorithm::Ec(EcSignatureKeyAlgorithm::P521) => Ok(COSE_ALG_ES512),
+        SignatureKeyAlgorithm::RsaPss(RsaPssSignatureKeyAlgorithm::Ps256) => Ok(COSE_ALG_PS256),
+        SignatureKeyAlgorithm::RsaPss(RsaPssSignatureKeyAlgorithm::Ps384) => Ok(COSE_ALG_PS384),
+        SignatureKeyAlgorithm::RsaPss(RsaPssSignatureKeyAlgorithm::Ps512) => Ok(COSE_ALG_PS512),
         _ => Err(format!(
             "Unsupported signature key algorithm {:?} for COSE",
             algorithm

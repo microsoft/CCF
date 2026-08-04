@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.0.4]
+
+[1.0.4]: https://github.com/microsoft/TEE-Attestation-Verification/releases/tag/tav-1.0.4
+
+### Added
+
+- Linux x64 .NET bindings and OpenSSL-backed NuGet packaging over the C FFI. (#88)
+
+### Fixed
+
+- C FFI `TavCborValue` accessors now return owned rather than borrowed values. (#81)
+- WASM `CborValue` accessors no longer clone CBOR subtrees during navigation. (#81)
+
 ## [1.0.3]
 
 [1.0.3]: https://github.com/microsoft/TEE-Attestation-Verification/releases/tag/tav-1.0.3

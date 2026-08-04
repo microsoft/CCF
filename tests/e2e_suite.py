@@ -1,21 +1,21 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
+import json
+import os
+import random
+import re
+import sys
+import time
+from enum import Enum, auto
+
 import infra.e2e_args
+import infra.jwt_issuer
+import infra.logging_app as app
 import infra.network
 import infra.proc
-import suite.test_suite as s
 import suite.test_requirements as reqs
-import infra.logging_app as app
-import infra.jwt_issuer
-import time
-import json
-import sys
-from enum import Enum, auto
-import random
-import os
-import re
-
+import suite.test_suite as s
 from loguru import logger as LOG
 
 

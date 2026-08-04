@@ -1,1 +1,10 @@
 line-length = 320
+
+[lint]
+ignore = [
+	# Test infrastructure often catches broad exceptions while probing transient
+	# node/process/network states, then retries, logs, or fails later with context.
+	"BLE001",
+	# Local/debug test runs intentionally support dropping into pdb on failure.
+	"T100",
+]

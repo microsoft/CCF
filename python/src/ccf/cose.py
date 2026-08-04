@@ -2,32 +2,33 @@
 # Licensed under the Apache 2.0 License.
 
 import argparse
+import base64
+import hashlib
+import json
 import sys
-
+import warnings
+from datetime import datetime
 from typing import Any
 
-import base64
+import cbor2
 import cwt
 import cwt.const
-import cwt.utils
 import cwt.enums
-import cbor2
-import json
-import hashlib
-from datetime import datetime
+import cwt.utils
+from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric.ec import (
     EllipticCurvePrivateKey,
     EllipticCurvePublicKey,
 )
-from cryptography.x509 import load_pem_x509_certificate
-from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.serialization import (
+    Encoding,
+    PublicFormat,
     load_pem_private_key,
     load_pem_public_key,
 )
+from cryptography.x509 import load_pem_x509_certificate
 from cryptography.x509.base import CertificatePublicKeyTypes
-from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
 Pem = str
 
@@ -196,7 +197,13 @@ def verify_receipt(
     Verify a COSE Sign1 receipt as defined in https://datatracker.ietf.org/doc/draft-ietf-cose-merkle-tree-proofs/,
     using the CCF tree algorithm defined in https://datatracker.ietf.org/doc/draft-birkholz-cose-receipts-ccf-profile/
 
+    Deprecated: use ccf.receipt.verify_cose instead.
     """
+    warnings.warn(
+        "ccf.cose.verify_receipt is deprecated; use ccf.receipt.verify_cose instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     key_pem = key.public_bytes(Encoding.PEM, PublicFormat.SubjectPublicKeyInfo).decode(
         "ascii"
     )
@@ -206,7 +213,7 @@ def verify_receipt(
 
     receipt = cbor2.loads(receipt_bytes)
     assert receipt.tag == cwt.const.COSE_TYPE_TO_TAG[cwt.const.COSETypes.SIGN1]
-    phdr, uhdr, payload, sig = receipt.value
+    phdr, uhdr, _payload, _sig = receipt.value
     phdr = cbor2.loads(phdr)
 
     assert phdr[4] == expected_kid.encode("utf-8")

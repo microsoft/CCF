@@ -1,13 +1,13 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-import infra.e2e_args
-import subprocess
+import os
 import signal
+import subprocess
 import sys
 import time
-import os
 
+import infra.e2e_args
 from loguru import logger as LOG
 
 
@@ -44,7 +44,7 @@ def run(args):
             time.sleep(5)
             tvc.poll()
             if tvc.returncode is not None:
-                raise Exception(f"tvc failed with rc {tvc.returncode}")
+                raise RuntimeError(f"tvc failed with rc {tvc.returncode}")
             tvc.send_signal(signal.SIGINT)
             tvc.wait()
 
