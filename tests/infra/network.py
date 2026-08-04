@@ -28,6 +28,7 @@ import infra.crypto
 import infra.e2e_args
 import infra.member
 import infra.node
+import infra.openapi
 import infra.path
 import infra.proc
 import infra.service_load
@@ -301,6 +302,7 @@ class Network:
         self.dbg_nodes = dbg_nodes
         self.version = version
         self.args = None
+        self.openapi_validator = infra.openapi.OpenAPIValidator()
         self.service_certificate_valid_from = None
         self.service_certificate_validity_days = None
 
@@ -347,6 +349,7 @@ class Network:
             ipv6=self.ipv6,
             **kwargs,
         )
+        node.openapi_validator = self.openapi_validator
         self.nodes.append(node)
         return node
 
@@ -696,8 +699,13 @@ class Network:
             self._wait_for_app_open(node, timeout=args.ledger_recovery_timeout)
 
         LOG.success("***** Network is now open *****")
+        self._start_openapi_validation(primary)
         if self.service_load:
             self.service_load.begin(self)
+
+    def _start_openapi_validation(self, node):
+        with node.client() as client:
+            self.openapi_validator.load(client, self.args.gov_api_version)
 
     def start_and_open(self, args, **kwargs):
         self.start(args, **kwargs)
@@ -1314,6 +1322,11 @@ class Network:
                 if verbose_verification:
                     flush_info(log_capture, None)
 
+        if self.common_dir is not None:
+            self.openapi_validator.report(
+                os.path.join(self.common_dir, "openapi_coverage.json")
+            )
+
         fatal_error_found = False
 
         if len(self.ignore_error_patterns) > 0:
@@ -1742,6 +1755,7 @@ class Network:
             )
         if final_state == infra.node.State.PART_OF_NETWORK.value:
             self.status = ServiceStatus.OPEN
+            self._start_openapi_validation(node)
 
     def wait_for_state(self, node, state, timeout=3):
         self.wait_for_states(node, [state], timeout=timeout)

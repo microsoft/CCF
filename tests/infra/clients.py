@@ -1037,6 +1037,7 @@ class CCFClient:
         description: str | None = None,
         impl_type: CurlClient | HttpxClient | RawSocketClient = default_impl_type,
         common_headers: dict | None = None,
+        openapi_validator=None,
         **kwargs,
     ):
         self.connection_timeout = connection_timeout
@@ -1048,6 +1049,7 @@ class CCFClient:
         self.auth = bool(session_auth)
         self.sign = bool(signing_auth)
         self.cose = bool(cose_signing_auth)
+        self.openapi_validator = openapi_validator
 
         self.client_args = {
             "ca": ca,
@@ -1113,6 +1115,9 @@ class CCFClient:
 
             response = temp_client.request(r, timeout, cose_header_parameters_override)
             flush_info([str(response)], log_capture, 3)
+
+        if self.openapi_validator is not None:
+            self.openapi_validator.validate(r, response, cose=self.cose)
 
         return response
 

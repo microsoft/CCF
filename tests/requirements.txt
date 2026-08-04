@@ -1,6 +1,7 @@
 wheel >= 0.46.2, < 0.47
 loguru >= 0.7.3, < 0.8
 openapi-spec-validator >= 0.7.2, < 0.8
+openapi-core >= 0.19.5, < 0.20
 PyJWT >= 2.10.0, < 3
 docutils >= 0.22.2, < 0.23
 python-iptables >= 1.2.0, < 1.3

@@ -11,6 +11,7 @@ bucket_b:
 bucket_c:
   raft_scenario_test
   versionifier_test
+  openapi_conformance_test
   github_version_lts_test
   js_batched_stress_test
   modules_test
