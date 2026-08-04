@@ -201,6 +201,11 @@ namespace asynchost
 
     // Build a server SSL_CTX (min TLS 1.2, ALPN if configured) and load the
     // cert/key. Returns nullptr on failure. Called on the loop thread.
+    //
+    // The cipher, ciphersuite, group and mode configuration below must be kept
+    // in sync with ccf::tls::Context (src/tls/context.h), which applies the
+    // same policy to the remaining non-RPC TLS users. tests/tls_groups.py
+    // asserts the negotiated group against this list.
     SSL_CTX* build_server_ctx(
       const std::string& cert_pem, const std::string& key_pem)
     {
@@ -209,11 +214,61 @@ namespace asynchost
       {
         return nullptr;
       }
+      // Require at least TLS 1.2, support up to 1.3
       if (SSL_CTX_set_min_proto_version(c, TLS1_2_VERSION) != 1)
       {
         SSL_CTX_free(c);
         return nullptr;
       }
+
+      // Disable renegotiation to avoid DoS
+      SSL_CTX_set_options(
+        c,
+        SSL_OP_CIPHER_SERVER_PREFERENCE |
+          SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION |
+          SSL_OP_NO_RENEGOTIATION);
+
+      // Set cipher for TLS 1.2
+      const auto* const cipher_list =
+        "ECDHE-ECDSA-AES256-GCM-SHA384:"
+        "ECDHE-ECDSA-AES128-GCM-SHA256:"
+        "ECDHE-RSA-AES256-GCM-SHA384:"
+        "ECDHE-RSA-AES128-GCM-SHA256";
+      if (SSL_CTX_set_cipher_list(c, cipher_list) != 1)
+      {
+        SSL_CTX_free(c);
+        return nullptr;
+      }
+
+      // Set cipher for TLS 1.3
+      const auto* const ciphersuites =
+        "TLS_AES_256_GCM_SHA384:"
+        "TLS_AES_128_GCM_SHA256";
+      if (SSL_CTX_set_ciphersuites(c, ciphersuites) != 1)
+      {
+        SSL_CTX_free(c);
+        return nullptr;
+      }
+
+      // Prefer hybrid post-quantum groups when available, while retaining the
+      // approved classical groups as fallbacks
+      if (
+        SSL_CTX_set1_groups_list(
+          c,
+          "?SecP384r1MLKEM1024:?SecP256r1MLKEM768:?X25519MLKEM768:"
+          "P-521:P-384:P-256") != 1)
+      {
+        SSL_CTX_free(c);
+        return nullptr;
+      }
+
+      // Allow buffer to be relocated between WANT_WRITE retries, and do partial
+      // writes if possible. do_write() retries SSL_write() from a std::vector
+      // that may have been appended to (and so reallocated) by
+      // drain_pending_out() since the previous attempt, so both are required.
+      SSL_CTX_set_mode(
+        c, SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER | SSL_MODE_ENABLE_PARTIAL_WRITE);
+
       // Request the client certificate during the handshake so it can be used
       // for application-level caller authentication (user/member cert auth).
       // Verification is not enforced here - the application decides.
@@ -844,17 +899,14 @@ namespace asynchost
         {
           continue;
         }
+        // SO_REUSEADDR permits rebinding a port left in TIME_WAIT by a
+        // previous process. Note that SO_REUSEPORT is deliberately *not* set:
+        // it would suppress EADDRINUSE, so two nodes misconfigured onto the
+        // same port would both bind successfully and have connections split
+        // between them at random, and it would let any process with the same
+        // effective UID siphon off a share of inbound connections.
         if (
           setsockopt(listen_fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one)) !=
-          0)
-        {
-          ::close(listen_fd);
-          listen_fd = -1;
-          continue;
-        }
-        // Allow multiple listeners to bind the same address.
-        if (
-          setsockopt(listen_fd, SOL_SOCKET, SO_REUSEPORT, &one, sizeof(one)) !=
           0)
         {
           ::close(listen_fd);

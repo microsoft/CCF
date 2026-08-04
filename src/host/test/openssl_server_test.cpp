@@ -14,6 +14,7 @@
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <csignal>
 #include <deque>
 #include <doctest/doctest.h>
 #include <mutex>
@@ -32,8 +33,21 @@
 
 using namespace asynchost;
 
+// Set by the build when the toolchain's OpenSSL is new enough (3.5+) to
+// negotiate the hybrid post-quantum groups the server offers.
+#ifndef TEST_HYBRID_TLS_GROUPS
+#  define TEST_HYBRID_TLS_GROUPS 0
+#endif
+
 namespace
 {
+  // The host process ignores SIGPIPE (see src/host/run.cpp), so writes to a
+  // socket the peer has already closed return EPIPE rather than killing it.
+  // Tests must do the same to reproduce production behaviour.
+  [[maybe_unused]] const bool ignore_sigpipe = []() {
+    return signal(SIGPIPE, SIG_IGN) != SIG_ERR;
+  }();
+
   std::pair<std::string, std::string> make_server_cert()
   {
     using namespace std::literals;
@@ -128,6 +142,84 @@ namespace
       b = static_cast<uint8_t>(rng());
     }
     return v;
+  }
+
+  std::string negotiated_group_name(SSL* ssl)
+  {
+    const auto group_id = SSL_get_negotiated_group(ssl);
+    if (group_id == NID_undef)
+    {
+      return {};
+    }
+
+    const auto* group_name = SSL_group_to_name(ssl, group_id);
+    if (group_name != nullptr)
+    {
+      return group_name;
+    }
+
+    return std::to_string(group_id);
+  }
+
+  struct HandshakeResult
+  {
+    bool succeeded = false;
+    std::string group;
+    std::string cipher;
+  };
+
+  // Handshakes against the server, optionally restricting what the client
+  // offers, and reports what was negotiated. Used to assert the server's
+  // configured cipher/group policy from the wire rather than by inspecting
+  // the SSL_CTX.
+  HandshakeResult handshake_and_inspect(
+    uint16_t port,
+    const std::string& client_groups = {},
+    const std::string& client_ciphersuites = {})
+  {
+    const int fd = ::socket(AF_INET, SOCK_STREAM, 0);
+    REQUIRE(fd >= 0);
+
+    sockaddr_in addr{};
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(port);
+    REQUIRE(inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr) == 1);
+    REQUIRE(
+      ::connect(fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) == 0);
+
+    SSL_CTX* cctx = SSL_CTX_new(TLS_client_method());
+    REQUIRE(cctx != nullptr);
+    if (!client_groups.empty())
+    {
+      REQUIRE(SSL_CTX_set1_groups_list(cctx, client_groups.c_str()) == 1);
+    }
+    if (!client_ciphersuites.empty())
+    {
+      REQUIRE(SSL_CTX_set_ciphersuites(cctx, client_ciphersuites.c_str()) == 1);
+    }
+
+    SSL* ssl = SSL_new(cctx);
+    REQUIRE(ssl != nullptr);
+    REQUIRE(SSL_set_fd(ssl, fd) == 1);
+    SSL_set_connect_state(ssl);
+
+    HandshakeResult result;
+    result.succeeded = SSL_connect(ssl) == 1;
+    if (result.succeeded)
+    {
+      result.group = negotiated_group_name(ssl);
+      const auto* cipher = SSL_get_current_cipher(ssl);
+      if (cipher != nullptr)
+      {
+        result.cipher = SSL_CIPHER_get_name(cipher);
+      }
+      SSL_shutdown(ssl);
+    }
+
+    SSL_free(ssl);
+    SSL_CTX_free(cctx);
+    ::close(fd);
+    return result;
   }
 
   // Echoes received plaintext back to the same connection via send().
@@ -568,4 +660,101 @@ TEST_CASE("Persistent connection survives many sequential round-trips")
   SSL_free(ssl);
   SSL_CTX_free(cctx);
   ::close(fd);
+}
+
+// The server's cipher, ciphersuite and group policy must match
+// ccf::tls::Context (src/tls/context.h). These assert it from the wire.
+
+TEST_CASE("Server restricts TLS 1.3 ciphersuites to the configured list")
+{
+  auto [cert, key] = make_server_cert();
+  EchoServer s(cert, key);
+
+  SUBCASE("a configured ciphersuite is accepted")
+  {
+    const auto r =
+      handshake_and_inspect(s.port(), {}, "TLS_AES_256_GCM_SHA384");
+    REQUIRE(r.succeeded);
+    REQUIRE(r.cipher == "TLS_AES_256_GCM_SHA384");
+  }
+
+  SUBCASE("the other configured ciphersuite is accepted")
+  {
+    const auto r =
+      handshake_and_inspect(s.port(), {}, "TLS_AES_128_GCM_SHA256");
+    REQUIRE(r.succeeded);
+    REQUIRE(r.cipher == "TLS_AES_128_GCM_SHA256");
+  }
+
+  SUBCASE("an unconfigured ciphersuite is refused")
+  {
+    // ChaCha20-Poly1305 is a valid TLS 1.3 ciphersuite that CCF does not offer.
+    const auto r =
+      handshake_and_inspect(s.port(), {}, "TLS_CHACHA20_POLY1305_SHA256");
+    REQUIRE_FALSE(r.succeeded);
+  }
+}
+
+TEST_CASE("Server restricts key exchange groups to the configured list")
+{
+  auto [cert, key] = make_server_cert();
+  EchoServer s(cert, key);
+
+  SUBCASE("an approved classical group is accepted")
+  {
+    const auto r = handshake_and_inspect(s.port(), "P-256");
+    REQUIRE(r.succeeded);
+    REQUIRE(r.group == "secp256r1");
+  }
+
+  SUBCASE("the client order decides among approved groups")
+  {
+    // In TLS 1.3 OpenSSL selects the first client-offered group the server
+    // also supports, so the server order is only a filter.
+    REQUIRE(
+      handshake_and_inspect(s.port(), "P-521:P-256").group == "secp521r1");
+    REQUIRE(
+      handshake_and_inspect(s.port(), "P-256:P-521").group == "secp256r1");
+  }
+
+  SUBCASE("a group the server does not offer is refused")
+  {
+    const auto r = handshake_and_inspect(s.port(), "X448");
+    REQUIRE_FALSE(r.succeeded);
+  }
+
+  SUBCASE("an unoffered group falls back to the first shared approved one")
+  {
+    const auto r = handshake_and_inspect(s.port(), "X448:P-384");
+    REQUIRE(r.succeeded);
+    REQUIRE(r.group == "secp384r1");
+  }
+}
+
+TEST_CASE(
+  "Server prefers the strongest hybrid post-quantum group" *
+  doctest::skip(TEST_HYBRID_TLS_GROUPS == 0))
+{
+  auto [cert, key] = make_server_cert();
+  EchoServer s(cert, key);
+
+  SUBCASE("a client offering all configured groups gets the strongest hybrid")
+  {
+    const auto r = handshake_and_inspect(
+      s.port(),
+      "SecP384r1MLKEM1024:SecP256r1MLKEM768:X25519MLKEM768:P-521:P-384:P-256");
+    REQUIRE(r.succeeded);
+    REQUIRE(r.group == "SecP384r1MLKEM1024");
+  }
+
+  SUBCASE("each configured hybrid group can be negotiated")
+  {
+    for (const auto* group :
+         {"SecP384r1MLKEM1024", "SecP256r1MLKEM768", "X25519MLKEM768"})
+    {
+      const auto r = handshake_and_inspect(s.port(), group);
+      REQUIRE(r.succeeded);
+      REQUIRE(r.group == group);
+    }
+  }
 }

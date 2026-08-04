@@ -719,6 +719,10 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/host/test/openssl_server_test.cpp
     )
     target_link_libraries(openssl_server_test PRIVATE ccf_tasks)
+    target_compile_definitions(
+      openssl_server_test
+      PRIVATE TEST_HYBRID_TLS_GROUPS=$<BOOL:${TEST_HYBRID_TLS_GROUPS}>
+    )
 
     add_unit_test(
       raft_test

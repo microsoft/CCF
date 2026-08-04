@@ -189,12 +189,6 @@ namespace asynchost
           sock = -1;
           continue;
         }
-        if (setsockopt(sock, SOL_SOCKET, SO_REUSEPORT, &one, sizeof(one)) != 0)
-        {
-          ::close(sock);
-          sock = -1;
-          continue;
-        }
         if (::bind(sock, ai->ai_addr, ai->ai_addrlen) == 0)
         {
           bound = true;
