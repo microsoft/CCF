@@ -185,7 +185,7 @@ def verify_cose_root_signature(
         ) from exc
 
 
-def verify_cose_root_signature_with_key(
+def _verify_cose_root_signature_with_key(
     service_key_pem: bytes, root: bytes, cose_sign1: bytes
 ):
     """Verify a COSE Sign1 signature over a Merkle root against the service key.
@@ -207,7 +207,7 @@ def verify_cose_root_signature_with_key(
         ) from exc
 
 
-def verify_root(computed_root: bytes, existing_root: bytes) -> None:
+def _verify_root(computed_root: bytes, existing_root: bytes) -> None:
     """Raise :class:`InvalidRootException` if the two roots differ."""
     if computed_root != existing_root:
         raise InvalidRootException(
@@ -217,7 +217,7 @@ def verify_root(computed_root: bytes, existing_root: bytes) -> None:
 
 def verify_merkle_root(merkle_tree: MerkleTree, existing_root: bytes) -> None:
     """Raise :class:`InvalidRootException` if the tree's root differs from ``existing_root``."""
-    verify_root(merkle_tree.get_merkle_root(), existing_root)
+    _verify_root(merkle_tree.get_merkle_root(), existing_root)
 
 
 # ---------------------------------------------------------------------------
@@ -249,7 +249,7 @@ class RootSignature(Enum):
     COSE_EC384 = "cose_ec384"
 
 
-def verify_raw_root(
+def _verify_raw_root(
     tx_tables: Mapping[str, Any], computed_root: bytes, ctx: RootSignatureContext
 ) -> RootSignature | None:
     """Verify the raw ECDSA root signature, or return ``None`` if absent."""
@@ -277,11 +277,11 @@ def verify_raw_root(
             f"Mismatch in public key for node {payload.signing_node}"
         )
     verify_raw_root_signature(cert, payload.root, payload.signature)
-    verify_root(computed_root, payload.root)
+    _verify_root(computed_root, payload.root)
     return RootSignature.RAW
 
 
-def verify_cose_root(
+def _verify_cose_root(
     tx_tables: Mapping[str, Any], computed_root: bytes, ctx: RootSignatureContext
 ) -> RootSignature | None:
     """Verify the COSE Sign1 root signature, or return ``None`` if absent."""
@@ -313,7 +313,7 @@ def is_signature_transaction(tx_tables: Container[str]) -> bool:
     return any(name in tx_tables for name in SIGNATURE_TABLE_NAMES)
 
 
-def verify_all_root_signatures(
+def _verify_all_root_signatures(
     tx_tables: Mapping[str, Any], computed_root: bytes, ctx: RootSignatureContext
 ) -> list[RootSignature]:
     """Verify every root signature this transaction carries.
@@ -323,8 +323,8 @@ def verify_all_root_signatures(
     verified = [
         scheme
         for scheme in (
-            verify_raw_root(tx_tables, computed_root, ctx),
-            verify_cose_root(tx_tables, computed_root, ctx),
+            _verify_raw_root(tx_tables, computed_root, ctx),
+            _verify_cose_root(tx_tables, computed_root, ctx),
         )
         if scheme is not None
     ]

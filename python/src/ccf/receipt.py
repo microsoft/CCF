@@ -159,7 +159,7 @@ def verify_cose(
                 accumulator = sha256(digest + accumulator).digest()
             else:
                 accumulator = sha256(accumulator + digest).digest()
-        ic_phdr, _, _ = ccf.signatures.verify_cose_root_signature_with_key(
+        ic_phdr, _, _ = ccf.signatures._verify_cose_root_signature_with_key(
             key_pem.encode("ascii"), accumulator, receipt_bytes
         )
     return ic_phdr

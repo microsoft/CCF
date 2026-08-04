@@ -731,7 +731,7 @@ class LedgerValidator:
                     node_certificates=self.node_certificates,
                     check_signing_node=self._verify_signing_node_status,
                 )
-                signatures.verify_all_root_signatures(
+                signatures._verify_all_root_signatures(
                     tables, self.merkle.get_merkle_root(), ctx
                 )
 

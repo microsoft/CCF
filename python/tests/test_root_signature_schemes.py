@@ -17,7 +17,7 @@ from ccf.signatures import (
     RootSignature,
     RootSignatureContext,
     UntrustedNodeException,
-    verify_all_root_signatures,
+    _verify_all_root_signatures,
 )
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
@@ -91,11 +91,11 @@ def test_a_transaction_without_a_verifiable_signature_is_rejected():
 
     for tables in ({}, empty):
         with pytest.raises(ValueError, match="no verifiable signature"):
-            verify_all_root_signatures(tables, ROOT, _ctx())
+            _verify_all_root_signatures(tables, ROOT, _ctx())
 
 
 def test_raw_accepts_a_valid_signature():
-    assert verify_all_root_signatures(_raw_tx(cert=CERT), ROOT, _ctx()) == [
+    assert _verify_all_root_signatures(_raw_tx(cert=CERT), ROOT, _ctx()) == [
         RootSignature.RAW
     ]
 
@@ -111,14 +111,14 @@ def test_raw_rejects_a_tampered_signature():
     ).encode()
 
     with pytest.raises(InvalidRootSignatureException):
-        verify_all_root_signatures(tables, ROOT, _ctx())
+        _verify_all_root_signatures(tables, ROOT, _ctx())
 
 
 def test_raw_rejects_root_mismatch():
     """The signature is valid over the root the entry claims, but that is not
     the root computed from the ledger."""
     with pytest.raises(InvalidRootException):
-        verify_all_root_signatures(_raw_tx(), b"\x6b" * 32, _ctx())
+        _verify_all_root_signatures(_raw_tx(), b"\x6b" * 32, _ctx())
 
 
 def test_raw_rejects_embedded_cert_for_a_different_key():
@@ -127,7 +127,7 @@ def test_raw_rejects_embedded_cert_for_a_different_key():
     _, other_cert = _ec_identity()
 
     with pytest.raises(UntrustedNodeException, match="Mismatch in public key"):
-        verify_all_root_signatures(_raw_tx(cert=other_cert), ROOT, _ctx())
+        _verify_all_root_signatures(_raw_tx(cert=other_cert), ROOT, _ctx())
 
 
 def test_raw_rejects_untrustworthy_signer():
@@ -138,13 +138,13 @@ def test_raw_rejects_untrustworthy_signer():
         raise UntrustedNodeException(node)
 
     with pytest.raises(ValueError, match="does not match transaction header"):
-        verify_all_root_signatures(_raw_tx(), ROOT, _ctx(seqno=8))
+        _verify_all_root_signatures(_raw_tx(), ROOT, _ctx(seqno=8))
 
     with pytest.raises(KeyError):
-        verify_all_root_signatures(_raw_tx(), ROOT, _ctx(node_certificates={}))
+        _verify_all_root_signatures(_raw_tx(), ROOT, _ctx(node_certificates={}))
 
     with pytest.raises(UntrustedNodeException, match="node0"):
-        verify_all_root_signatures(_raw_tx(), ROOT, _ctx(check_signing_node=_reject))
+        _verify_all_root_signatures(_raw_tx(), ROOT, _ctx(check_signing_node=_reject))
 
 
 def test_cose_requires_a_service_cert():
@@ -157,4 +157,4 @@ def test_cose_requires_a_service_cert():
     }
 
     with pytest.raises(ValueError, match="service certificate"):
-        verify_all_root_signatures(tables, ROOT, _ctx())
+        _verify_all_root_signatures(tables, ROOT, _ctx())
