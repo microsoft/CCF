@@ -13,9 +13,7 @@
 
 namespace http
 {
-  using HTTPSession = ccf::PlaintextSession;
-
-  class HTTPServerSession : public HTTPSession,
+  class HTTPServerSession : public ccf::PlaintextSession,
                             public http::RequestProcessor,
                             public ccf::http::HTTPResponder
   {
@@ -39,7 +37,7 @@ namespace http
       const ccf::http::ParserConfiguration& configuration,
       const std::shared_ptr<ErrorReporter>& error_reporter_,
       const std::shared_ptr<ccf::CommitCallbackSubsystem>& commit_callbacks_) :
-      HTTPSession(session_id_, writer, std::move(peer_cert)),
+      ccf::PlaintextSession(session_id_, writer, std::move(peer_cert)),
       request_parser(*this, configuration),
       rpc_map(std::move(rpc_map_)),
       error_reporter(error_reporter_),
@@ -303,7 +301,4 @@ namespace http
         std::move(body));
     }
   };
-
-  using UnencryptedHTTPSession = ccf::PlaintextSession;
-
 }
