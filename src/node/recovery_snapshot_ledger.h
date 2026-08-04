@@ -23,7 +23,7 @@ namespace ccf
     size_t{1024} * 1024;
   static constexpr size_t MAX_RECOVERY_SNAPSHOT_ENDORSEMENT_RECORD_SIZE =
     2 * MAX_RECOVERY_SNAPSHOT_ENDORSEMENT_SIZE;
-  static constexpr size_t MAX_RECOVERY_SNAPSHOT_ENDORSEMENTS_PAYLOAD_SIZE =
+  static constexpr size_t MAX_RECOVERY_SNAPSHOT_ENDORSEMENTS_SERIALISED_SIZE =
     size_t{4} * 1024 * 1024;
   static constexpr size_t MAX_RECOVERY_SNAPSHOT_LEDGER_ENTRY_SIZE =
     size_t{16} * 1024 * 1024;
@@ -32,6 +32,7 @@ namespace ccf
   {
     ccf::kv::Version version = 0;
     std::optional<ccf::CoseEndorsement> endorsement = std::nullopt;
+    size_t endorsement_serialised_size = 0;
   };
 
   struct RecoverySnapshotLedgerScan
@@ -92,6 +93,7 @@ namespace ccf
             value.size(),
             MAX_RECOVERY_SNAPSHOT_ENDORSEMENT_RECORD_SIZE));
         }
+        result.endorsement_serialised_size = value.size();
         result.endorsement = ccf::PreviousServiceIdentityEndorsement::
           ValueSerialiser::from_serialised(value);
       }
@@ -213,7 +215,15 @@ namespace ccf
       {
         return lhs.start_idx < rhs.start_idx;
       }
-      return lhs.end_idx.has_value() && !rhs.end_idx.has_value();
+      if (lhs.end_idx.has_value() != rhs.end_idx.has_value())
+      {
+        return lhs.end_idx.has_value();
+      }
+      if (lhs.end_idx != rhs.end_idx)
+      {
+        return lhs.end_idx > rhs.end_idx;
+      }
+      return lhs.path < rhs.path;
     });
     return files;
   }
@@ -232,7 +242,7 @@ namespace ccf
 
     RecoverySnapshotLedgerScan scan;
     auto expected_seqno = snapshot_seqno + 1;
-    size_t endorsements_payload_size = 0;
+    size_t endorsements_serialised_size = 0;
 
     for (const auto& ledger_file :
          find_recovery_snapshot_ledger_files(ledger_config))
@@ -401,14 +411,16 @@ namespace ccf
               MAX_RECOVERY_SNAPSHOT_ENDORSEMENTS_COUNT));
           }
           if (
-            endorsement_size > MAX_RECOVERY_SNAPSHOT_ENDORSEMENTS_PAYLOAD_SIZE -
-              endorsements_payload_size)
+            parsed.endorsement_serialised_size >
+            MAX_RECOVERY_SNAPSHOT_ENDORSEMENTS_SERIALISED_SIZE -
+              endorsements_serialised_size)
           {
             throw std::logic_error(fmt::format(
-              "Ledger endorsements payload is too large (maximum {} bytes)",
-              MAX_RECOVERY_SNAPSHOT_ENDORSEMENTS_PAYLOAD_SIZE));
+              "Serialised ledger endorsements are too large (maximum {} "
+              "bytes)",
+              MAX_RECOVERY_SNAPSHOT_ENDORSEMENTS_SERIALISED_SIZE));
           }
-          endorsements_payload_size += endorsement_size;
+          endorsements_serialised_size += parsed.endorsement_serialised_size;
           scan.endorsements.push_back(
             {parsed.version, std::move(*parsed.endorsement)});
         }
