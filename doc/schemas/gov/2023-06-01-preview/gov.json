@@ -1738,6 +1738,7 @@
         },
         "constraint": {
           "type": "string",
+          "x-nullable": true,
           "description": "Issuer constraint supplied by the key."
         }
       },
