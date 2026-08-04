@@ -1,6 +1,6 @@
 [package]
 name = "tee-attestation-verification-crypto"
-version = "1.0.3"
+version = "1.0.4"
 edition = "2021"
 rust-version = "1.77"
 repository = "https://github.com/microsoft/TEE-Attestation-Verification"

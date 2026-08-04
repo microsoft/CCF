@@ -6,9 +6,12 @@ from __future__ import annotations
 
 import argparse
 import glob
+import os
 import pathlib
 import re
+import subprocess
 import sys
+import tempfile
 import tomllib
 from collections.abc import Iterator
 from typing import Any
@@ -68,12 +71,10 @@ def dependency_sections(data: dict[str, Any]) -> Iterator[tuple[str, dict[str, A
             yield f"target.{target_name}.{section}", target.get(section, {})
 
 
-def check_version_sync(root: pathlib.Path) -> None:
-    changelog_version = latest_changelog_version(root)
-
-    # First check that all packages define the same version
+def check_rust_version_sync(root: pathlib.Path, expected_version: str) -> None:
+    manifest_paths = workspace_manifest_paths_with_package(root)
     packages = set()
-    for manifest in workspace_manifest_paths_with_package(root):
+    for manifest in manifest_paths:
         if not manifest.is_file():
             raise VersionSyncError(f"Expected Cargo.toml file not found: {manifest}")
         manifest_data = load_toml(manifest)
@@ -81,10 +82,10 @@ def check_version_sync(root: pathlib.Path) -> None:
         if version is None:
             raise VersionSyncError(f"{manifest}: [package] section must define a version")
 
-        if version != changelog_version:
+        if version != expected_version:
             raise VersionSyncError(
                 f"{manifest}: package version {version} does not match "
-                f"CHANGELOG.md latest version {changelog_version}"
+                f"CHANGELOG.md latest version {expected_version}"
             )
 
         package = manifest_data.get("package", {}).get("name", None)
@@ -92,8 +93,7 @@ def check_version_sync(root: pathlib.Path) -> None:
             raise VersionSyncError(f"{manifest}: [package] section must define a name")
         packages.add(package)
 
-    # Check that all internal dependencies point to the same version as well
-    for manifest in workspace_manifest_paths_with_package(root):
+    for manifest in manifest_paths:
         manifest_data = load_toml(manifest)
         for section, dependencies in dependency_sections(manifest_data):
             for alias, spec in dependencies.items():
@@ -106,12 +106,70 @@ def check_version_sync(root: pathlib.Path) -> None:
                 else:
                     continue
 
-                if package_name in packages and actual_version != changelog_version:
+                if package_name in packages and actual_version != expected_version:
                     raise VersionSyncError(
                         f"{manifest}: {section}.{alias} points at internal package {package_name} "
-                        f"but version is {actual_version!r}; expected {changelog_version!r}"
+                        f"but version is {actual_version!r}; expected {expected_version!r}"
                     )
-    print(f"All Cargo package versions and internal dependency versions match {changelog_version}")
+
+
+def dotnet_project_property(project: pathlib.Path, property_name: str) -> str:
+    with tempfile.TemporaryDirectory(prefix="tav-msbuild-") as temporary:
+        result_file = pathlib.Path(temporary) / "result.txt"
+        try:
+            subprocess.run(
+                [
+                    "dotnet",
+                    "msbuild",
+                    str(project),
+                    f"-getProperty:{property_name}",
+                    f"-getResultOutputFile:{result_file}",
+                    "-nologo",
+                ],
+                check=True,
+                capture_output=True,
+                env={**os.environ, "DOTNET_NOLOGO": "true"},
+                text=True,
+            )
+        except FileNotFoundError as error:
+            raise VersionSyncError("dotnet was not found") from error
+        except subprocess.CalledProcessError as error:
+            raise VersionSyncError(
+                f"Failed to evaluate {property_name} from {project}: "
+                f"{error.stderr.strip()}"
+            ) from error
+
+        value = result_file.read_text(encoding="utf-8").strip()
+        if not value:
+            raise VersionSyncError(f"{project}: {property_name} is empty")
+        return value
+
+
+def check_csharp_version_sync(root: pathlib.Path, expected_version: str) -> None:
+    managed_manifest = (
+        root
+        / "ffi"
+        / "csharp"
+        / "TeeAttestationVerification"
+        / "TeeAttestationVerification.csproj"
+    )
+    if not managed_manifest.is_file():
+        raise VersionSyncError(f"Expected .NET project file not found: {managed_manifest}")
+
+    managed_version = dotnet_project_property(managed_manifest, "PackageVersion")
+
+    if managed_version != expected_version:
+        raise VersionSyncError(
+            f"{managed_manifest}: package version {managed_version!r} does not match "
+            f"CHANGELOG.md latest version {expected_version}"
+        )
+
+
+def check_version_sync(root: pathlib.Path) -> str:
+    changelog_version = latest_changelog_version(root)
+    check_rust_version_sync(root, changelog_version)
+    check_csharp_version_sync(root, changelog_version)
+    return changelog_version
 
 
 def main() -> int:
@@ -123,14 +181,27 @@ def main() -> int:
         help = "Path to the root of the repository (default: current working directory)",
         type = pathlib.Path,
     )
+    argparser.add_argument(
+        "--print-version",
+        action="store_true",
+        help="Print the synchronized package version",
+    )
 
     args = argparser.parse_args()
 
     try:
-        check_version_sync(args.root_path)
+        version = check_version_sync(args.root_path)
     except VersionSyncError as error:
         print(error, file=sys.stderr)
         return 1
+
+    if args.print_version:
+        print(version)
+    else:
+        print(
+            "All Cargo and .NET package versions and internal dependency versions "
+            f"match {version}"
+        )
     return 0
 
 

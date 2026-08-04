@@ -6,6 +6,11 @@ on async entry points (owned args are copied at the boundary; borrowed
 handles and live JS arrays must not be mutated or freed until the returned
 promise settles).
 
+`CborValue` and `CoseSign1` wrappers retain a shared immutable CBOR document.
+Navigation creates independent wrappers over that document without cloning
+subtrees, so a child remains usable after its parent wrapper is freed. Byte and
+text accessors still return JS-owned copies.
+
 ## Consuming a release tarball
 
 Release tags use the `tav-<crate-version>` format.
