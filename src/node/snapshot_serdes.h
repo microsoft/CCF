@@ -374,29 +374,6 @@ namespace ccf
     }
   }
 
-  // Verify the recovery snapshot receipt is signed by snapshot_signer_key, the
-  // snapshot service identity established by validating the endorsement chain.
-  static void verify_recovery_snapshot_receipt(
-    const SnapshotSegments& segments,
-    std::span<const uint8_t> snapshot_signer_key)
-  {
-    if (segments.receipt.empty() || segments.receipt[0] != 0xD2)
-    {
-      throw std::logic_error(
-        "Only snapshots with COSE receipts can use an endorsement chain");
-    }
-
-    const auto receipt = decode_and_verify_cose_snapshot_receipt(segments);
-    const auto verifier =
-      ccf::crypto::make_cose_verifier_from_key(snapshot_signer_key);
-    if (!verifier->verify_detached(segments.receipt, receipt.merkle_root))
-    {
-      throw std::logic_error(
-        "Snapshot receipt signature verification failed under the endorsed "
-        "snapshot service identity");
-    }
-  }
-
   static void deserialise_snapshot(
     const std::shared_ptr<ccf::kv::Store>& store,
     const SnapshotSegments& segments,

@@ -516,7 +516,35 @@ namespace ccf
       {
         verify_snapshot_seqno(
           segments, network.tables->get_encryptor(), snapshot_seqno);
-        verify_snapshot(segments);
+      }
+      catch (const std::exception& e)
+      {
+        return e.what();
+      }
+
+      if (segments.receipt.empty() || segments.receipt[0] != 0xD2)
+      {
+        try
+        {
+          verify_snapshot(segments, target_identity.raw());
+          LOG_INFO_FMT(
+            "Recovery snapshot at {} is directly signed by the configured "
+            "previous service identity",
+            snapshot_seqno);
+          return std::nullopt;
+        }
+        catch (const std::exception& e)
+        {
+          return fmt::format(
+            "old-style snapshot receipt cannot use an endorsement chain: {}",
+            e.what());
+        }
+      }
+
+      ccf::cose::CcfCoseReceipt receipt;
+      try
+      {
+        receipt = decode_and_verify_cose_snapshot_receipt(segments);
       }
       catch (const std::exception& e)
       {
@@ -526,23 +554,23 @@ namespace ccf
       std::string direct_verification_error;
       try
       {
-        verify_snapshot(segments, target_identity.raw());
-        LOG_INFO_FMT(
-          "Recovery snapshot at {} is directly signed by the configured "
-          "previous service identity",
-          snapshot_seqno);
-        return std::nullopt;
+        const auto verifier =
+          ccf::crypto::make_cose_verifier_from_pem_cert(target_identity);
+        if (verifier->verify_detached(segments.receipt, receipt.merkle_root))
+        {
+          LOG_INFO_FMT(
+            "Recovery snapshot at {} is directly signed by the configured "
+            "previous service identity",
+            snapshot_seqno);
+          return std::nullopt;
+        }
+        direct_verification_error =
+          "Previous service identity does not match the service identity that "
+          "signed the snapshot";
       }
       catch (const std::exception& e)
       {
         direct_verification_error = e.what();
-      }
-
-      if (segments.receipt.empty() || segments.receipt[0] != 0xD2)
-      {
-        return fmt::format(
-          "old-style snapshot receipt cannot use an endorsement chain: {}",
-          direct_verification_error);
       }
 
       LOG_INFO_FMT(
@@ -561,7 +589,14 @@ namespace ccf
         const auto snapshot_signer_key =
           validate_recovery_snapshot_endorsement_chain(
             scan.endorsements, target_key, snapshot_seqno);
-        verify_recovery_snapshot_receipt(segments, snapshot_signer_key);
+        const auto verifier =
+          ccf::crypto::make_cose_verifier_from_key(snapshot_signer_key);
+        if (!verifier->verify_detached(segments.receipt, receipt.merkle_root))
+        {
+          throw std::logic_error(
+            "Snapshot receipt signature verification failed under the "
+            "endorsed snapshot service identity");
+        }
         LOG_INFO_FMT(
           "Validated {} recovery snapshot endorsement(s) in memory",
           scan.endorsements.size());

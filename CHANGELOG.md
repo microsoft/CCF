@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [7.0.11]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.11
 
+### Added
+
+- Recovery can now use a COSE snapshot signed by an earlier service identity after one or more disaster recoveries. Before deserialising the snapshot, the node reads previous-service-identity endorsement candidates from the public ledger suffix, validates a complete chain against the operator-provided identity, and retains it only for the current recovery attempt. Invalid or incomplete endorsement chains fall back to full-ledger replay (#8092).
+
 ### Fixed
 
 - Asynchronous ledger reads (used to serve committed entry ranges to the enclave) no longer access the host `Ledger` object after it has been destroyed during shutdown. The `Ledger` now waits for any in-flight read workers to finish, and workers that have not yet started skip accessing it, fixing a potential use-after-free on shutdown (#8003).
@@ -20,10 +24,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ## [7.0.10]
 
 [7.0.10]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.10
-
-### Added
-
-- Recovery can now use a COSE snapshot signed by an earlier service identity after one or more disaster recoveries. Before deserialising the snapshot, the node reads previous-service-identity endorsement candidates from the public ledger suffix, validates a complete chain against the operator-provided identity, and retains it only for the current recovery attempt. Invalid or incomplete endorsement chains fall back to full-ledger replay (#8092).
 
 ### Changed
 
