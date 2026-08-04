@@ -139,6 +139,19 @@ def run_recovery_snapshot_endorsements(args):
             wait_for_sync=True,
         )
         snapshot_trigger = primary.trigger_snapshot()
+        initial_network.get_committed_snapshots(
+            primary,
+            target_seqno=snapshot_trigger.seqno,
+            wait_for_target_seqno=True,
+        )
+        app.LoggingTxs("user0").issue(
+            initial_network,
+            number_txs=2,
+            send_private=False,
+            send_public=True,
+            wait_for_sync=True,
+        )
+        snapshot_trigger = primary.trigger_snapshot()
         committed_snapshots_dir = initial_network.get_committed_snapshots(
             primary,
             target_seqno=snapshot_trigger.seqno,
@@ -153,16 +166,25 @@ def run_recovery_snapshot_endorsements(args):
             ),
             key=lambda name: infra.node.get_snapshot_seqnos(name)[0],
         )
-        assert snapshots
-        snapshot_name = snapshots[-1]
-        original_snapshot_path = os.path.join(committed_snapshots_dir, snapshot_name)
+        assert len(snapshots) >= 2
+        snapshot_name = snapshots[-2]
+        malformed_snapshot_name = snapshots[-1]
 
         source_snapshots_dir = os.path.join(
             initial_network.common_dir, "recovery_snapshot_endorsements_source"
         )
         shutil.rmtree(source_snapshots_dir, ignore_errors=True)
         os.makedirs(source_snapshots_dir)
-        source_snapshot_path = shutil.copy(original_snapshot_path, source_snapshots_dir)
+        source_snapshot_path = shutil.copy(
+            os.path.join(committed_snapshots_dir, snapshot_name), source_snapshots_dir
+        )
+        malformed_snapshot_path = shutil.copy(
+            os.path.join(committed_snapshots_dir, malformed_snapshot_name),
+            source_snapshots_dir,
+        )
+        with open(malformed_snapshot_path, "r+b") as malformed_snapshot:
+            malformed_snapshot.seek(0, os.SEEK_END)
+            malformed_snapshot.truncate(malformed_snapshot.tell() - 1)
         with open(source_snapshot_path, "rb") as snapshot_file:
             source_snapshot_bytes = snapshot_file.read()
         snapshot_digest = hashlib.sha256(source_snapshot_bytes).digest()
@@ -202,8 +224,14 @@ def run_recovery_snapshot_endorsements(args):
             validated_log = "Validated 2 recovery snapshot endorsement(s) in memory"
             snapshot_body_log = "Deserialising snapshot (size:"
             public_recovery_log = "Starting to read public ledger"
+            malformed_log = (
+                "Recovery snapshot recovery_snapshot_endorsements_source/"
+                f"{malformed_snapshot_name} cannot be verified"
+            )
             assert (
-                logs.index(scan_log)
+                logs.index(malformed_log)
+                < logs.index("Looking for an older snapshot")
+                < logs.index(scan_log)
                 < logs.index(validated_log)
                 < logs.index(snapshot_body_log)
                 < logs.index(public_recovery_log)
@@ -241,7 +269,7 @@ def run_recovery_snapshot_endorsements(args):
         try:
             fallback_primary, _ = fallback_attempt.find_primary()
             logs = _logs(fallback_primary)
-            assert "Falling back to full-ledger recovery" in logs
+            assert "No usable local snapshot found" in logs
             assert "Setting startup snapshot seqno" not in logs
             _assert_node_snapshot_unchanged(
                 fallback_attempt, fallback_primary, snapshot_name, snapshot_digest

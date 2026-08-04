@@ -502,6 +502,77 @@ namespace ccf
 #endif
     }
 
+    std::optional<std::string> verify_recovery_snapshot_candidate_unsafe(
+      const SnapshotSegments& segments, ccf::kv::Version snapshot_seqno)
+    {
+      if (!config.recover.previous_service_identity.has_value())
+      {
+        return "No previous service identity is configured";
+      }
+
+      const ccf::crypto::Pem target_identity(
+        *config.recover.previous_service_identity);
+      try
+      {
+        verify_snapshot_seqno(
+          segments, network.tables->get_encryptor(), snapshot_seqno);
+        verify_snapshot(segments);
+      }
+      catch (const std::exception& e)
+      {
+        return e.what();
+      }
+
+      std::string direct_verification_error;
+      try
+      {
+        verify_snapshot(segments, target_identity.raw());
+        LOG_INFO_FMT(
+          "Recovery snapshot at {} is directly signed by the configured "
+          "previous service identity",
+          snapshot_seqno);
+        return std::nullopt;
+      }
+      catch (const std::exception& e)
+      {
+        direct_verification_error = e.what();
+      }
+
+      if (segments.receipt.empty() || segments.receipt[0] != 0xD2)
+      {
+        return fmt::format(
+          "old-style snapshot receipt cannot use an endorsement chain: {}",
+          direct_verification_error);
+      }
+
+      LOG_INFO_FMT(
+        "Recovery snapshot at {} is not directly signed by the configured "
+        "previous service identity ({}); scanning the public ledger suffix "
+        "for COSE endorsements",
+        snapshot_seqno,
+        direct_verification_error);
+
+      try
+      {
+        const auto scan = scan_recovery_snapshot_ledger_files(
+          config.ledger, network.tables->get_encryptor(), snapshot_seqno);
+        const auto target_key = ccf::crypto::public_key_der_from_cert(
+          ccf::crypto::cert_pem_to_der(target_identity));
+        const auto snapshot_signer_key =
+          validate_recovery_snapshot_endorsement_chain(
+            scan.endorsements, target_key, snapshot_seqno);
+        verify_recovery_snapshot_receipt(segments, snapshot_signer_key);
+        LOG_INFO_FMT(
+          "Validated {} recovery snapshot endorsement(s) in memory",
+          scan.endorsements.size());
+        return std::nullopt;
+      }
+      catch (const std::exception& e)
+      {
+        return e.what();
+      }
+    }
+
     void find_local_startup_snapshot()
     {
       if (start_type != StartType::Join && start_type != StartType::Recover)
@@ -533,11 +604,18 @@ namespace ccf
 
         if (start_type == StartType::Recover)
         {
-          // Validate the receipt structure and claims now, but defer the
-          // previous-service-identity check to the public-ledger endorsement
-          // scan. The snapshot is not installed until that verification
-          // succeeds, so the Store is not mutated by an unverified snapshot.
-          verify_snapshot(segments);
+          const auto verification_error =
+            verify_recovery_snapshot_candidate_unsafe(segments, snapshot_seqno);
+          if (verification_error.has_value())
+          {
+            LOG_FAIL_FMT(
+              "Recovery snapshot {} cannot be verified: {}. Looking for an "
+              "older snapshot.",
+              snapshot_path.string(),
+              *verification_error);
+            continue;
+          }
+
           startup_snapshot_info = std::make_unique<StartupSnapshotInfo>(
             snapshot_seqno, std::move(snapshot_data));
           return;
@@ -587,7 +665,7 @@ namespace ccf
         return;
       }
 
-      LOG_INFO_FMT("No local snapshot found");
+      LOG_INFO_FMT("No usable local snapshot found");
     }
 
     void set_startup_snapshot(
@@ -666,105 +744,10 @@ namespace ccf
       start_ledger_recovery_unsafe();
     }
 
-    void fallback_from_recovery_snapshot_unsafe(const std::string& reason)
-    {
-      LOG_FAIL_FMT(
-        "Recovery snapshot cannot be verified under the configured previous "
-        "service identity: {}. Falling back to full-ledger recovery.",
-        reason);
-
-      startup_snapshot_info.reset();
-      startup_seqno = 0;
-      last_recovered_idx = 0;
-      last_recovered_signed_idx = 0;
-      view_history.clear();
-
-      start_public_ledger_recovery_unsafe();
-    }
-
     void install_recovery_snapshot_and_start_unsafe()
     {
       install_startup_snapshot();
       start_public_ledger_recovery_unsafe();
-    }
-
-    void start_recovery_snapshot_verification_unsafe()
-    {
-      if (
-        !startup_snapshot_info ||
-        !config.recover.previous_service_identity.has_value())
-      {
-        start_public_ledger_recovery_unsafe();
-        return;
-      }
-
-      const auto segments = separate_segments(startup_snapshot_info->raw);
-      const ccf::crypto::Pem target_identity(
-        *config.recover.previous_service_identity);
-      try
-      {
-        verify_snapshot_seqno(
-          segments,
-          network.tables->get_encryptor(),
-          startup_snapshot_info->seqno);
-      }
-      catch (const std::exception& e)
-      {
-        fallback_from_recovery_snapshot_unsafe(e.what());
-        return;
-      }
-
-      const auto direct_verification_error =
-        try_verify_and_install_recovery_snapshot(
-          [&]() {
-            verify_snapshot(segments, target_identity.raw());
-            LOG_INFO_FMT(
-              "Recovery snapshot at {} is directly signed by the configured "
-              "previous service identity",
-              startup_snapshot_info->seqno);
-          },
-          [&]() { install_recovery_snapshot_and_start_unsafe(); });
-      if (!direct_verification_error.has_value())
-      {
-        return;
-      }
-
-      if (segments.receipt.empty() || segments.receipt[0] != 0xD2)
-      {
-        fallback_from_recovery_snapshot_unsafe(fmt::format(
-          "old-style snapshot receipt cannot use an endorsement chain: {}",
-          *direct_verification_error));
-        return;
-      }
-
-      LOG_INFO_FMT(
-        "Recovery snapshot at {} is not directly signed by the configured "
-        "previous service identity ({}); scanning the public ledger suffix "
-        "for COSE endorsements",
-        startup_snapshot_info->seqno,
-        *direct_verification_error);
-
-      const auto chain_verification_error =
-        try_verify_and_install_recovery_snapshot(
-          [&]() {
-            const auto snapshot_seqno = startup_snapshot_info->seqno;
-            const auto scan = scan_recovery_snapshot_ledger_files(
-              config.ledger, network.tables->get_encryptor(), snapshot_seqno);
-            const auto target_key = ccf::crypto::public_key_der_from_cert(
-              ccf::crypto::cert_pem_to_der(target_identity));
-            const auto snapshot_signer_key =
-              validate_recovery_snapshot_endorsement_chain(
-                scan.endorsements, target_key, snapshot_seqno);
-            verify_recovery_snapshot_receipt(segments, snapshot_signer_key);
-            LOG_INFO_FMT(
-              "Validated {} recovery snapshot endorsement(s) in memory",
-              scan.endorsements.size());
-          },
-          [&]() { install_recovery_snapshot_and_start_unsafe(); });
-      if (chain_verification_error.has_value())
-      {
-        fallback_from_recovery_snapshot_unsafe(*chain_verification_error);
-      }
     }
 
     RecoveryDecisionProtocolSubsystem recovery_decision_protocol;
@@ -970,7 +953,7 @@ namespace ccf
 
           if (startup_snapshot_info)
           {
-            start_recovery_snapshot_verification_unsafe();
+            install_recovery_snapshot_and_start_unsafe();
           }
           else
           {

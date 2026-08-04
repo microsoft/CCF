@@ -19,8 +19,6 @@
 #include "node/tx_receipt_impl.h"
 
 #include <nlohmann/json.hpp>
-#include <utility>
-
 namespace ccf
 {
   struct StartupSnapshotInfo
@@ -104,23 +102,6 @@ namespace ccf
         *snapshot_seqno,
         expected_seqno));
     }
-  }
-
-  template <typename Verify, typename Install>
-  static std::optional<std::string> try_verify_and_install_recovery_snapshot(
-    Verify&& verify, Install&& install)
-  {
-    try
-    {
-      std::forward<Verify>(verify)();
-    }
-    catch (const std::exception& e)
-    {
-      return e.what();
-    }
-
-    std::forward<Install>(install)();
-    return std::nullopt;
   }
 
   // Validates the collected COSE endorsement chain against the configured
