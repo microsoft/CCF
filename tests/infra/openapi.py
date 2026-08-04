@@ -148,18 +148,6 @@ class OpenAPIValidator:
             if value.lower() not in {"true", "false"}:
                 return value
             return value.lower() == "true"
-        if parameter_type == "array":
-            separator = {
-                "csv": ",",
-                "pipes": "|",
-                "ssv": " ",
-                "tsv": "\t",
-            }.get(schema.get("collectionFormat", "csv"))
-            values = value if separator is None else value.split(separator)
-            return [
-                OpenAPIValidator._coerce_parameter(item, schema.get("items", {}))
-                for item in values
-            ]
         return value
 
     def _validate_v2_request(self, prefix, operation, request, parsed, cose):
