@@ -2,31 +2,26 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-// Bridges the OpenSSL-native transport (OpenSSLServer) to ccf::Session objects.
+// Bridges the OpenSSL-native transport (OpenSSLServer) to ccf::Session objects:
 //
-// This is the seam the real HTTP/HTTP2 sessions plug into once TLS lives in the
-// connection layer:
 //   * inbound plaintext from a connection -> ccf::Session::handle_incoming_data
 //   * ccf::Session output (via ccf::SessionWriter) -> OpenSSLServer::send,
-//   which
-//     encrypts + writes with backpressure
+//     which encrypts and writes with backpressure
 //   * connection teardown -> the owning session is dropped
 //
 // One ccf::Session is created per connection by a caller-supplied factory (e.g.
 // "make an HTTPServerSession for this interface"). Sessions are created lazily
 // on first inbound data and removed on close.
 //
-// Threading: OpenSSLServer invokes on_data/on_close on its epoll thread; the
+// Threading: OpenSSLServer invokes on_data/on_close on its loop thread. The
 // session may then process on OrderedTasks workers and reply via write_outbound
-// from those threads. write_outbound/close_socket forward to OpenSSLServer's
-// thread-safe send/close_connection, so this class is safe to call from any
-// thread. The sessions map is guarded by a mutex.
+// from those threads, which forwards to OpenSSLServer's thread-safe
+// send/close_connection. Every public method is therefore safe to call from any
+// thread, and the sessions map is guarded by a mutex.
 
 #include "ccf/node/session.h"
 #include "enclave/session_writer.h"
 #include "host/tls/openssl_server.h"
-#include "tasks/basic_task.h"
-#include "tasks/task_system.h"
 
 #include <atomic>
 #include <chrono>
@@ -55,8 +50,9 @@ namespace asynchost
   private:
     std::unique_ptr<OpenSSLServer> server;
     SessionFactory factory;
-    // Invoked (on the loop thread) when a connection's session is dropped, so
-    // an owner can update per-interface counters/metrics.
+    // Invoked when a connection's session is dropped, so an owner can update
+    // per-interface counters/metrics. Called on the loop thread from on_close,
+    // or on a worker thread from close_socket, so it must be thread-safe.
     std::function<void(::tcp::ConnID)> on_session_closed;
 
     std::mutex sessions_mutex;

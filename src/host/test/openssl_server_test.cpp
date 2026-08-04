@@ -8,7 +8,6 @@
 #include "crypto/certs.h"
 #include "host/tls/openssl_server.h"
 #include "host/tls/openssl_session_manager.h"
-#include "tls/ca.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <arpa/inet.h>
@@ -260,8 +259,7 @@ namespace
   }
 
   // Handshakes with a client that verifies the server certificate against
-  // `trusted_ca`, the way ::tls::CA configures outbound CCF connections.
-  // Returns whether the handshake completed.
+  // `ca`. Returns whether the handshake completed.
   bool verifying_client_handshake(uint16_t port, const ccf::crypto::Pem& ca)
   {
     const int fd = ::socket(AF_INET, SOCK_STREAM, 0);
@@ -276,7 +274,15 @@ namespace
 
     SSL_CTX* cctx = SSL_CTX_new(TLS_client_method());
     REQUIRE(cctx != nullptr);
-    ::tls::CA(ca.str()).configure_trusted_cert_store(cctx);
+    {
+      const auto ca_pem = ca.str();
+      BIO* cb = BIO_new_mem_buf(ca_pem.data(), static_cast<int>(ca_pem.size()));
+      X509* root = PEM_read_bio_X509(cb, nullptr, nullptr, nullptr);
+      BIO_free(cb);
+      REQUIRE(root != nullptr);
+      REQUIRE(X509_STORE_add_cert(SSL_CTX_get_cert_store(cctx), root) == 1);
+      X509_free(root);
+    }
     SSL_CTX_set_verify(cctx, SSL_VERIFY_PEER, nullptr);
 
     SSL* ssl = SSL_new(cctx);
@@ -330,7 +336,7 @@ namespace
   };
 
   // A minimal ccf::Session that echoes received bytes back through its writer,
-  // exercising the real Session / SessionWriter seam over TLS.
+  // exercising the real Session / SessionWriter path over TLS.
   struct EchoSession : public ccf::Session
   {
     ::tcp::ConnID id;
@@ -509,7 +515,7 @@ TEST_CASE("Session bridge: round-trip via ccf::Session + SessionWriter")
   mgr.stop();
 }
 
-TEST_CASE("Session bridge: large transfer through the seam")
+TEST_CASE("Session bridge: large transfer via ccf::Session + SessionWriter")
 {
   auto [cert, key] = make_server_cert();
   OpenSSLSessionManager mgr(

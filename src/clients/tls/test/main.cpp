@@ -1,16 +1,17 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-// Unit tests for the certificate helpers in src/tls, which configure an
-// OpenSSL context and connection with a trusted root and an owned identity.
-// The TLS transport itself is tested in src/host/test/openssl_server_test.cpp.
+// Unit tests for the certificate helpers used by the C++ test clients, which
+// configure an OpenSSL context and connection with a trusted root and an owned
+// identity. The TLS transport itself is tested in
+// src/host/test/openssl_server_test.cpp.
 
 #include "ccf/crypto/ec_key_pair.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/x509_time_fmt.h"
+#include "clients/tls/ca.h"
+#include "clients/tls/cert.h"
 #include "crypto/certs.h"
-#include "tls/ca.h"
-#include "tls/cert.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <chrono>

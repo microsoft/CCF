@@ -8,7 +8,7 @@ In CCF, the :term:`TLS` layer is implemented using OpenSSL (3.3 or later).
 
 TLS is terminated in the **connection layer**: OpenSSL owns the socket file descriptor directly, and a local ``epoll`` loop drives the non-blocking handshake, reads, writes, graceful close and idle connection cleanup. Everything above the connection layer, including HTTP parsing and endpoint dispatch, only ever sees plaintext.
 
-This document describes the connection layer and the seam between it and the session layer, to facilitate further changes.
+This document describes the connection layer and its interface to the session layer above it.
 
 Layers
 ~~~~~~
@@ -41,13 +41,6 @@ An interface starts listening before its certificate is necessarily known. A joi
 ``set_server_cert()`` may be called from any thread. It does not build the ``SSL_CTX`` inline: it queues the request and wakes the loop, so the context is only ever created or replaced on the loop thread. This avoids locking the context on the hot path. Replacing the context affects only subsequent connections; existing connections keep the context they were created with, which OpenSSL keeps alive by reference counting.
 
 The server context sets a minimum version of TLS 1.2 and, when the interface is configured for HTTP/2, advertises ``h2`` via ALPN.
-
-Two certificate helpers remain in ``src/tls``:
-
-- :ccf_repo:`CA </src/tls/ca.h>` holds a root certificate and can populate a trusted certificate store.
-- :ccf_repo:`Cert </src/tls/cert.h>` holds an endpoint's own certificate and private key, and configures an ``SSL`` object with them.
-
-These are used for outbound connections and by node startup code, not by the inbound server path.
 
 Cryptographic policy
 ~~~~~~~~~~~~~~~~~~~~
@@ -115,14 +108,16 @@ An interface configured as ``UNSECURED`` runs the same loop with no ``SSL`` obje
 Outbound connections
 ~~~~~~~~~~~~~~~~~~~~
 
-Outbound connections use a non-blocking ``connect`` followed by a client handshake driven by the same loop. The caller supplies a callback that configures the client ``SSL`` object, which is where peer CA verification, the client certificate and SNI are applied via ``tls::Cert``.
+``OpenSSLServer`` is inbound only. Outbound requests - fetching quote endorsements, refreshing JWT signing keys, and the recovery decision protocol - are made with libcurl, which does its own TLS.
+
+The only remaining OpenSSL client helpers, :ccf_repo:`CA </src/clients/tls/ca.h>` and :ccf_repo:`Cert </src/clients/tls/cert.h>`, are used solely by the C++ test and perf clients in :ccf_repo:`src/clients </src/clients>`. No node code uses them.
 
 Why OpenSSL?
 ~~~~~~~~~~~~
 
 CCF originally used MbedTLS, and the OpenSSL implementation that replaced it emulated MbedTLS conventions, notably negated error codes and a memory-BIO indirection driven by callbacks.
 
-Both are now gone. ``OpenSSLServer`` calls ``SSL_read``/``SSL_write`` on a socket-backed ``SSL`` and interprets ``SSL_get_error`` directly. All that remains in ``src/tls`` are the ``CA`` and ``Cert`` helpers described above.
+Both are now gone. ``OpenSSLServer`` calls ``SSL_read``/``SSL_write`` on a socket-backed ``SSL`` and interprets ``SSL_get_error`` directly, and ``src/tls`` no longer exists.
 
 The reasons for OpenSSL remain:
 

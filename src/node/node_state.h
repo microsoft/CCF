@@ -1162,12 +1162,10 @@ namespace ccf
 
       // The service certificate is the sole trust anchor for the join
       // connection. CURLOPT_CAINFO_BLOB installs it and CURLOPT_CAPATH=nullptr
-      // prevents any fallback to the system CA store, so the set of accepted
-      // certificate authorities is identical to the legacy tls::CA path. The
-      // joining node presents its self-signed node certificate for mutual TLS
-      // (it is not yet endorsed at join time). CURLOPT_SSL_VERIFYHOST=2
-      // additionally checks that the target certificate matches the address we
-      // connected to.
+      // prevents any fallback to the system CA store. The joining node presents
+      // its self-signed node certificate for mutual TLS (it is not yet endorsed
+      // at join time). CURLOPT_SSL_VERIFYHOST=2 additionally checks that the
+      // target certificate matches the address we connected to.
       ccf::curl::UniqueCURL curl_handle;
       curl_handle.set_opt(CURLOPT_SSL_VERIFYPEER, 1L);
       curl_handle.set_opt(CURLOPT_SSL_VERIFYHOST, 2L);
