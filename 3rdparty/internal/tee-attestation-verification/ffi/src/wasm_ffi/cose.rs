@@ -5,27 +5,30 @@ use js_sys::{Array, Promise};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::future_to_promise;
 
+use crate::cbor_view::CborView;
 use cose::{signature_key_algorithm_for_cose_alg, CborValue as NativeCborValue};
 use crypto::{AsyncCryptoBackend, AsyncKeyBackend};
 
-/// JavaScript wrapper around an owned CBOR value.
+/// JavaScript wrapper around an independently owned immutable CBOR view.
 #[wasm_bindgen]
 #[derive(Clone)]
 pub struct CborValue {
-    inner: NativeCborValue,
+    inner: CborView,
 }
 
 impl CborValue {
     pub fn from_native(inner: NativeCborValue) -> Self {
+        Self {
+            inner: CborView::new(inner),
+        }
+    }
+
+    fn from_view(inner: CborView) -> Self {
         Self { inner }
     }
 
     pub fn as_native(&self) -> &NativeCborValue {
-        &self.inner
-    }
-
-    pub fn into_native(self) -> NativeCborValue {
-        self.inner
+        self.inner.as_native()
     }
 }
 
@@ -38,12 +41,12 @@ impl CborValue {
 
     /// Serialize this value as deterministic CBOR bytes.
     pub fn to_bytes(&self) -> Result<Vec<u8>, String> {
-        self.inner.to_bytes()
+        self.as_native().to_bytes()
     }
 
     /// Return the CBOR major type represented by this value.
     pub fn kind(&self) -> String {
-        match self.inner {
+        match self.as_native() {
             NativeCborValue::Int(_) => "int",
             NativeCborValue::Simple(_) => "simple",
             NativeCborValue::ByteString(_) => "bytes",
@@ -56,51 +59,51 @@ impl CborValue {
     }
 
     pub fn int(&self) -> Result<i64, String> {
-        match &self.inner {
+        match self.as_native() {
             NativeCborValue::Int(value) => Ok(*value),
             other => Err(format!("Expected Int, got {:?}", other)),
         }
     }
 
     pub fn simple(&self) -> Result<u8, String> {
-        match &self.inner {
+        match self.as_native() {
             NativeCborValue::Simple(value) => Ok(*value),
             other => Err(format!("Expected Simple, got {:?}", other)),
         }
     }
 
     pub fn bytes(&self) -> Result<Vec<u8>, String> {
-        match &self.inner {
+        match self.as_native() {
             NativeCborValue::ByteString(value) => Ok(value.clone()),
             other => Err(format!("Expected ByteString, got {:?}", other)),
         }
     }
 
     pub fn text(&self) -> Result<String, String> {
-        match &self.inner {
+        match self.as_native() {
             NativeCborValue::TextString(value) => Ok(value.clone()),
             other => Err(format!("Expected TextString, got {:?}", other)),
         }
     }
 
     pub fn tag(&self) -> Result<u64, String> {
-        match &self.inner {
+        match self.as_native() {
             NativeCborValue::Tagged { tag, .. } => Ok(*tag),
             other => Err(format!("Expected Tagged, got {:?}", other)),
         }
     }
 
     pub fn tagged_payload(&self) -> Result<CborValue, String> {
-        match &self.inner {
-            NativeCborValue::Tagged { payload, .. } => {
-                Ok(CborValue::from_native(payload.as_ref().clone()))
-            }
-            other => Err(format!("Expected Tagged, got {:?}", other)),
-        }
+        self.inner
+            .project(|value| match value {
+                NativeCborValue::Tagged { payload, .. } => Ok([payload.as_ref()]),
+                other => Err(format!("Expected Tagged, got {:?}", other)),
+            })
+            .map(|[view]| CborValue::from_view(view))
     }
 
     pub fn len(&self) -> Result<u32, String> {
-        self.inner
+        self.as_native()
             .len()?
             .try_into()
             .map_err(|_| "CBOR container length does not fit u32".to_string())
@@ -108,65 +111,67 @@ impl CborValue {
 
     pub fn array_at(&self, index: u32) -> Result<CborValue, String> {
         self.inner
-            .array_at(index as usize)
-            .cloned()
-            .map(CborValue::from_native)
+            .project(|value| value.array_at(index as usize).map(|child| [child]))
+            .map(|[view]| CborValue::from_view(view))
     }
 
     pub fn map_at_int(&self, key: i64) -> Result<CborValue, String> {
         self.inner
-            .map_at_int(key)
-            .cloned()
-            .map(CborValue::from_native)
+            .project(|value| value.map_at_int(key).map(|child| [child]))
+            .map(|[view]| CborValue::from_view(view))
     }
 
     pub fn map_at_text(&self, key: &str) -> Result<CborValue, String> {
         self.inner
-            .map_at_str(key)
-            .cloned()
-            .map(CborValue::from_native)
+            .project(|value| value.map_at_str(key).map(|child| [child]))
+            .map(|[view]| CborValue::from_view(view))
     }
 
     pub fn map_at(&self, key: &CborValue) -> Result<CborValue, String> {
         self.inner
-            .map_at(key.as_native())
-            .cloned()
-            .map(CborValue::from_native)
+            .project(|value| value.map_at(key.as_native()).map(|child| [child]))
+            .map(|[view]| CborValue::from_view(view))
     }
 
     pub fn map_entry_at(&self, index: u32) -> Result<Array, String> {
-        map_entry_at(&self.inner, index).map(|(key, value)| {
-            let entry = Array::new();
-            entry.push(&CborValue::from_native(key.clone()).into());
-            entry.push(&CborValue::from_native(value.clone()).into());
-            entry
-        })
+        self.inner
+            .project(|value| map_entry_at(value, index).map(|(key, value)| [key, value]))
+            .map(|[key, value]| {
+                let entry = Array::new();
+                entry.push(&CborValue::from_view(key).into());
+                entry.push(&CborValue::from_view(value).into());
+                entry
+            })
     }
 
     pub fn map_key_at(&self, index: u32) -> Result<CborValue, String> {
-        map_entry_at(&self.inner, index).map(|(key, _)| CborValue::from_native(key.clone()))
+        self.inner
+            .project(|value| map_entry_at(value, index).map(|(key, _)| [key]))
+            .map(|[view]| CborValue::from_view(view))
     }
 
     pub fn map_value_at(&self, index: u32) -> Result<CborValue, String> {
-        map_entry_at(&self.inner, index).map(|(_, value)| CborValue::from_native(value.clone()))
+        self.inner
+            .project(|value| map_entry_at(value, index).map(|(_, value)| [value]))
+            .map(|[view]| CborValue::from_view(view))
     }
 
     pub fn map_has_int(&self, key: i64) -> Result<bool, String> {
-        self.inner.map_has_int_key(key)
+        self.as_native().map_has_int_key(key)
     }
 
     pub fn map_has_text(&self, key: &str) -> Result<bool, String> {
-        self.inner.map_has_str_key(key)
+        self.as_native().map_has_str_key(key)
     }
 
     pub fn map_has(&self, key: &CborValue) -> Result<bool, String> {
-        self.inner.map_has_key(key.as_native())
+        self.as_native().map_has_key(key.as_native())
     }
 
     pub fn as_cose_sign1(&self) -> Result<CoseSign1, String> {
-        cose::cose_sign1(&self.inner)
-            .cloned()
-            .map(CoseSign1::from_native)
+        self.inner
+            .project(|value| cose::cose_sign1(value).map(|sign1| [sign1]))
+            .map(|[view]| CoseSign1::from_view(view))
     }
 }
 
@@ -174,35 +179,42 @@ impl CborValue {
 #[wasm_bindgen]
 #[derive(Clone)]
 pub struct CoseSign1 {
-    inner: NativeCborValue,
+    inner: CborView,
 }
 
 impl CoseSign1 {
-    pub fn from_native(inner: NativeCborValue) -> Self {
+    fn from_view(inner: CborView) -> Self {
         Self { inner }
+    }
+
+    fn as_native(&self) -> &NativeCborValue {
+        self.inner.as_native()
     }
 }
 
 #[wasm_bindgen]
 impl CoseSign1 {
     pub fn protected(&self) -> Result<Vec<u8>, String> {
-        required_bytes(self.inner.array_at(0)?, "protected")
+        required_bytes(self.as_native().array_at(0)?, "protected")
     }
 
     pub fn unprotected(&self) -> Result<CborValue, String> {
-        self.inner.array_at(1).cloned().map(CborValue::from_native)
+        self.inner
+            .project(|value| value.array_at(1).map(|child| [child]))
+            .map(|[view]| CborValue::from_view(view))
     }
 
     pub fn payload(&self) -> Result<Vec<u8>, String> {
-        required_bytes(self.inner.array_at(2)?, "payload")
+        required_bytes(self.as_native().array_at(2)?, "payload")
     }
 
     pub fn signature(&self) -> Result<Vec<u8>, String> {
-        required_bytes(self.inner.array_at(3)?, "signature")
+        required_bytes(self.as_native().array_at(3)?, "signature")
     }
 
     pub fn protected_header(&self) -> Result<CborValue, String> {
-        NativeCborValue::from_bytes(&self.protected()?).map(CborValue::from_native)
+        let protected = borrowed_bytes(self.as_native().array_at(0)?, "protected")?;
+        NativeCborValue::from_bytes(protected).map(CborValue::from_native)
     }
 }
 
@@ -221,10 +233,10 @@ impl CoseSign1 {
     /// payload is read from COSE field 2; for detached verification field 2 must be
     /// nil (CBOR simple value 22) and the caller-supplied `detached_payload` is used.
     fn signed_material(&self, detached_payload: Option<Vec<u8>>) -> Result<SignedMaterial, String> {
-        let protected = required_bytes(self.inner.array_at(0)?, "protected")?;
-        let signature = required_bytes(self.inner.array_at(3)?, "signature")?;
+        let protected = required_bytes(self.as_native().array_at(0)?, "protected")?;
+        let signature = required_bytes(self.as_native().array_at(3)?, "signature")?;
         let payload = match detached_payload {
-            Some(payload) => match self.inner.array_at(2)? {
+            Some(payload) => match self.as_native().array_at(2)? {
                 NativeCborValue::Simple(22) => payload,
                 NativeCborValue::ByteString(_) => return Err(
                     "detached payload verification requires nil COSE payload; use embedded verification for byte string payloads"
@@ -232,7 +244,7 @@ impl CoseSign1 {
                 ),
                 _ => return Err("detached payload verification requires nil COSE payload".into()),
             },
-            None => required_bytes(self.inner.array_at(2)?, "payload")?,
+            None => required_bytes(self.as_native().array_at(2)?, "payload")?,
         };
         Ok(SignedMaterial {
             protected,
@@ -297,8 +309,12 @@ fn verify_sign1(
 }
 
 pub fn required_bytes(value: &NativeCborValue, name: &str) -> Result<Vec<u8>, String> {
+    borrowed_bytes(value, name).map(<[u8]>::to_vec)
+}
+
+fn borrowed_bytes<'a>(value: &'a NativeCborValue, name: &str) -> Result<&'a [u8], String> {
     match value {
-        NativeCborValue::ByteString(bytes) => Ok(bytes.clone()),
+        NativeCborValue::ByteString(bytes) => Ok(bytes),
         _ => Err(format!("{name} must be a byte string")),
     }
 }
@@ -313,5 +329,36 @@ fn map_entry_at(
             .map(|(key, value)| (key, value))
             .ok_or_else(|| format!("Index {index} out of bounds")),
         other => Err(format!("Expected Map, got {:?}", other)),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn nested_child_remains_usable_after_ancestors_are_dropped() {
+        let root = CborValue::from_bytes(&[0xa1, 0x61, 0x6b, 0x81, 0x18, 0x2a]).unwrap();
+        let array = root.map_at_text("k").unwrap();
+        let child = array.array_at(0).unwrap();
+
+        drop(array);
+        drop(root);
+
+        assert_eq!(child.int().unwrap(), 42);
+    }
+
+    #[test]
+    fn cose_sign1_and_child_remain_usable_after_parents_are_dropped() {
+        let root =
+            CborValue::from_bytes(&[0xd2, 0x84, 0x40, 0xa1, 0x01, 0x02, 0x41, 0x2a, 0x40]).unwrap();
+        let sign1 = root.as_cose_sign1().unwrap();
+        let unprotected = sign1.unprotected().unwrap();
+
+        drop(root);
+        assert_eq!(sign1.payload().unwrap(), [0x2a]);
+
+        drop(sign1);
+        assert_eq!(unprotected.map_at_int(1).unwrap().int().unwrap(), 2);
     }
 }

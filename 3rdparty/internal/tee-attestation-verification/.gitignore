@@ -3,6 +3,11 @@ target/
 dist/
 pkg/
 
+# .NET build and package outputs
+ffi/csharp/**/bin/
+ffi/csharp/**/obj/
+ffi/csharp/artifacts/
+
 # Python bytecode cache
 __pycache__/
 *.pyc

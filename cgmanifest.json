@@ -134,8 +134,8 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/microsoft/TEE-Attestation-Verification",
-          "commitHash": "8f8606adedee337a7ca80df163ebf6e267058845",
-          "tag": "tav-1.0.3"
+          "commitHash": "cbe514e65f96eda1e359c3ededbd8ce8c0c61657",
+          "tag": "tav-1.0.4"
         }
       }
     }
