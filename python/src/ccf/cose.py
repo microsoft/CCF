@@ -6,6 +6,7 @@ import base64
 import hashlib
 import json
 import sys
+import warnings
 from datetime import datetime
 from typing import Any
 
@@ -196,7 +197,13 @@ def verify_receipt(
     Verify a COSE Sign1 receipt as defined in https://datatracker.ietf.org/doc/draft-ietf-cose-merkle-tree-proofs/,
     using the CCF tree algorithm defined in https://datatracker.ietf.org/doc/draft-birkholz-cose-receipts-ccf-profile/
 
+    Deprecated: use ccf.receipt.verify_cose instead.
     """
+    warnings.warn(
+        "ccf.cose.verify_receipt is deprecated; use ccf.receipt.verify_cose instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     key_pem = key.public_bytes(Encoding.PEM, PublicFormat.SubjectPublicKeyInfo).decode(
         "ascii"
     )
