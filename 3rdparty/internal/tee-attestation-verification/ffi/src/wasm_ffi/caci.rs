@@ -91,7 +91,7 @@ pub async fn verify_caci_attestation(
         *attestation.report(),
         minimum_tcb,
         trusted_caci_execution_policies,
-        uvm.as_native().clone(),
+        uvm.as_native(),
         uvm_feed,
         minimum_svn,
     )

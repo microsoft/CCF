@@ -59,6 +59,8 @@ done < <(
     -o -path '*/dist' \
     -o -path '*/pkg' \
     -o -path '*/caci_pkg' \
+    -o -path '*/obj' \
+    -o -path '*/bin' \
     -o -path '*/vendor' \) -prune -o \
     -type f \( \
     -name '*.py' \
@@ -68,6 +70,7 @@ done < <(
     -o -name '*.cpp' \
     -o -name '*.hpp' \
     -o -name '*.js' \
+    -o -name '*.cs' \
     -o -name '*.sh' \) -print0
 )
 

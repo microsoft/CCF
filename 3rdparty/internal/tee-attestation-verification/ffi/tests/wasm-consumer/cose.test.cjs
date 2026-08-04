@@ -96,6 +96,37 @@ test('cbor accessors decode scalars, containers, tags, and COSE_Sign1', () => {
   assertStringError(() => malformedSign1.payload(), /payload must be a byte string/);
 });
 
+test('CBOR children and COSE_Sign1 wrappers own their document lifetime', () => {
+  const root = pkg.CborValue.from_bytes(Uint8Array.of(
+    0xa1,
+    0x61, 0x6b,
+    0x81, 0x18, 0x2a,
+  ));
+  const array = root.map_at_text('k');
+  const child = array.array_at(0);
+  array.free();
+  root.free();
+  assert.equal(child.int(), 42n);
+  child.free();
+
+  const sign1Root = pkg.CborValue.from_bytes(Uint8Array.of(
+    0xd2, 0x84,
+    0x40,
+    0xa1, 0x01, 0x02,
+    0x41, 0x2a,
+    0x40,
+  ));
+  const sign1 = sign1Root.as_cose_sign1();
+  const unprotected = sign1.unprotected();
+  sign1Root.free();
+  assert.deepEqual(Array.from(sign1.payload()), [0x2a]);
+  sign1.free();
+  const unprotectedValue = unprotected.map_at_int(1n);
+  assert.equal(unprotectedValue.int(), 2n);
+  unprotectedValue.free();
+  unprotected.free();
+});
+
 // Standalone COSE_Sign1 signature verification: the wasm equivalent of the C
 // ABI tav_verify_cose_sign1_embedded / tav_verify_cose_sign1_detached. Uses the
 // same P-256 verification-only vector as the C consumer and in-crate tests.
