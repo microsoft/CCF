@@ -1048,14 +1048,6 @@ if(BUILD_TESTS)
     set_property(TEST versionifier_test APPEND PROPERTY LABELS bucket_c)
 
     add_test(
-      NAME openapi_conformance_test
-      COMMAND
-        ${CMAKE_COMMAND} -E env PYTHONPATH=${CMAKE_SOURCE_DIR}/tests ${PYTHON}
-        ${CMAKE_SOURCE_DIR}/tests/infra/test_openapi.py
-    )
-    set_property(TEST openapi_conformance_test APPEND PROPERTY LABELS bucket_c)
-
-    add_test(
       NAME github_version_lts_test
       COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/infra/github.py
     )

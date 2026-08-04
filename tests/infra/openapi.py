@@ -67,7 +67,9 @@ class OpenAPIValidator:
             for prefix, schema in schemas.items():
                 self._schemas[prefix] = schema
                 self._apis[prefix] = (
-                    None if schema.get("swagger") == "2.0" else OpenAPI.from_dict(schema)
+                    None
+                    if schema.get("swagger") == "2.0"
+                    else OpenAPI.from_dict(schema)
                 )
                 self._operations[prefix] = {
                     (path, method)
@@ -105,7 +107,9 @@ class OpenAPIValidator:
     def _operation(self, prefix, method, path):
         method = method.lower()
         for template, operation_method in self._operations[prefix]:
-            if operation_method.lower() == method and self._path_matches(template, path):
+            if operation_method.lower() == method and self._path_matches(
+                template, path
+            ):
                 return (prefix, template, method)
         return None
 
@@ -179,9 +183,7 @@ class OpenAPIValidator:
             name = parameter["name"]
             if location == "body":
                 if request.body is not None and not cose:
-                    self._validate_v2_schema(
-                        prefix, request.body, parameter["schema"]
-                    )
+                    self._validate_v2_schema(prefix, request.body, parameter["schema"])
                 elif parameter.get("required") and request.body is None:
                     raise jsonschema.ValidationError(f"{name} is required")
                 continue
@@ -189,11 +191,11 @@ class OpenAPIValidator:
             values = (
                 path_values.get(name)
                 if location == "path"
-                else query.get(name)
-                if location == "query"
-                else headers.get(name.lower())
-                if location == "header"
-                else None
+                else (
+                    query.get(name)
+                    if location == "query"
+                    else headers.get(name.lower()) if location == "header" else None
+                )
             )
             if values is None:
                 if parameter.get("required"):
@@ -262,9 +264,7 @@ class OpenAPIValidator:
         operation = self._operation(prefix, request.http_verb, parsed.path)
         if operation is None:
             with self._lock:
-                self._undocumented.add(
-                    (prefix, parsed.path, request.http_verb.lower())
-                )
+                self._undocumented.add((prefix, parsed.path, request.http_verb.lower()))
             return
 
         query = ImmutableMultiDict(urllib.parse.parse_qsl(parsed.query))
@@ -315,9 +315,7 @@ class OpenAPIValidator:
         try:
             if self._apis[prefix] is None:
                 if validate_request:
-                    self._validate_v2_request(
-                        prefix, operation, request, parsed, cose
-                    )
+                    self._validate_v2_request(prefix, operation, request, parsed, cose)
                 if validate_response:
                     self._validate_v2_response(prefix, operation, response)
             else:
@@ -357,8 +355,7 @@ class OpenAPIValidator:
                     "total": total,
                     "percent": round(100 * len(visited) / total, 1) if total else 100.0,
                     "operations": [
-                        f"{method.upper()} {path}"
-                        for path, method in sorted(visited)
+                        f"{method.upper()} {path}" for path, method in sorted(visited)
                     ],
                     "undocumented": [
                         f"{method.upper()} {path}"
