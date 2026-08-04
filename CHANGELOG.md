@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
-- Recovery can now use a COSE snapshot signed by an earlier service identity after one or more disaster recoveries. Before deserialising the snapshot, the node reads previous-service-identity endorsement candidates from the public ledger suffix, validates a complete chain against the operator-provided identity, and retains it only for the current recovery attempt. Invalid or incomplete endorsement chains fall back to full-ledger replay (#8092).
+- Recovery can now use a COSE snapshot signed by an earlier service identity after one or more disaster recoveries. Before deserialising the snapshot, the node reads previous-service-identity endorsement candidates from the public ledger suffix, validates a complete chain against the operator-provided identity, and retains it only for the current recovery attempt. Invalid or incomplete endorsement chains fall back to full-ledger replay. See [Upgrading to COSE-Only Ledger Signatures](https://ccf.dev/main/operations/configuration.html#upgrading-to-cose-only-ledger-signatures) for how to switch an existing deployment to COSE-only signing (#8092).
 
 ### Fixed
 
