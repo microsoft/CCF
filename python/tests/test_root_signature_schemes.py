@@ -15,10 +15,11 @@ from ccf.signatures import (
     InvalidRootException,
     InvalidRootSignatureException,
     RootSignature,
-    RootSignatureContext,
+    RootSignatureCollateral,
     UntrustedNodeException,
     _verify_all_root_signatures,
 )
+from ccf.tx_id import TxID
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec, utils
@@ -68,15 +69,13 @@ def _raw_tx(root=ROOT, sign=True, view=2, seqno=7, cert=None):
     }
 
 
-def _ctx(**overrides):
+def _collateral(**overrides):
     kwargs = {
-        "view": 2,
-        "seqno": 7,
         "node_certificates": {"node0": CERT},
         "check_signing_node": lambda node: None,
     }
     kwargs.update(overrides)
-    return RootSignatureContext(**kwargs)
+    return RootSignatureCollateral(**kwargs)
 
 
 def test_schemes_pin_current_values():
@@ -91,13 +90,13 @@ def test_a_transaction_without_a_verifiable_signature_is_rejected():
 
     for tables in ({}, empty):
         with pytest.raises(ValueError, match="no verifiable signature"):
-            _verify_all_root_signatures(tables, ROOT, _ctx())
+            _verify_all_root_signatures(tables, ROOT, _collateral())
 
 
 def test_raw_accepts_a_valid_signature():
-    assert _verify_all_root_signatures(_raw_tx(cert=CERT), ROOT, _ctx()) == [
-        RootSignature.RAW
-    ]
+    schemes, txid = _verify_all_root_signatures(_raw_tx(cert=CERT), ROOT, _collateral())
+    assert schemes == [RootSignature.RAW]
+    assert txid == TxID(2, 7)
 
 
 def test_raw_rejects_a_tampered_signature():
@@ -111,14 +110,14 @@ def test_raw_rejects_a_tampered_signature():
     ).encode()
 
     with pytest.raises(InvalidRootSignatureException):
-        _verify_all_root_signatures(tables, ROOT, _ctx())
+        _verify_all_root_signatures(tables, ROOT, _collateral())
 
 
 def test_raw_rejects_root_mismatch():
     """The signature is valid over the root the entry claims, but that is not
     the root computed from the ledger."""
     with pytest.raises(InvalidRootException):
-        _verify_all_root_signatures(_raw_tx(), b"\x6b" * 32, _ctx())
+        _verify_all_root_signatures(_raw_tx(), b"\x6b" * 32, _collateral())
 
 
 def test_raw_rejects_embedded_cert_for_a_different_key():
@@ -127,24 +126,30 @@ def test_raw_rejects_embedded_cert_for_a_different_key():
     _, other_cert = _ec_identity()
 
     with pytest.raises(UntrustedNodeException, match="Mismatch in public key"):
-        _verify_all_root_signatures(_raw_tx(cert=other_cert), ROOT, _ctx())
+        _verify_all_root_signatures(_raw_tx(cert=other_cert), ROOT, _collateral())
+
+
+def test_raw_reports_the_transaction_it_covers():
+    """The caller compares this against the transaction header, so a signature
+    for another transaction must be reported as such rather than silently
+    accepted."""
+    _, txid = _verify_all_root_signatures(_raw_tx(view=4, seqno=9), ROOT, _collateral())
+    assert txid == TxID(4, 9)
 
 
 def test_raw_rejects_untrustworthy_signer():
-    """The signature must sit in its own transaction, and be issued by a known
-    node that was entitled to sign."""
+    """The signature must be issued by a known node entitled to sign."""
 
     def _reject(node):
         raise UntrustedNodeException(node)
 
-    with pytest.raises(ValueError, match="does not match transaction header"):
-        _verify_all_root_signatures(_raw_tx(), ROOT, _ctx(seqno=8))
-
     with pytest.raises(KeyError):
-        _verify_all_root_signatures(_raw_tx(), ROOT, _ctx(node_certificates={}))
+        _verify_all_root_signatures(_raw_tx(), ROOT, _collateral(node_certificates={}))
 
     with pytest.raises(UntrustedNodeException, match="node0"):
-        _verify_all_root_signatures(_raw_tx(), ROOT, _ctx(check_signing_node=_reject))
+        _verify_all_root_signatures(
+            _raw_tx(), ROOT, _collateral(check_signing_node=_reject)
+        )
 
 
 def test_cose_requires_a_service_cert():
@@ -157,4 +162,16 @@ def test_cose_requires_a_service_cert():
     }
 
     with pytest.raises(ValueError, match="service certificate"):
-        _verify_all_root_signatures(tables, ROOT, _ctx())
+        _verify_all_root_signatures(tables, ROOT, _collateral())
+
+
+def test_signatures_disagreeing_on_the_transaction_are_rejected(monkeypatch):
+    """Raw and COSE signatures in one transaction must cover the same
+    transaction, otherwise one of them belongs elsewhere."""
+    monkeypatch.setattr(
+        "ccf.signatures._verify_cose_root",
+        lambda tables, root, collateral: (RootSignature.COSE_EC384, TxID(2, 8)),
+    )
+
+    with pytest.raises(ValueError, match="disagree on the transaction"):
+        _verify_all_root_signatures(_raw_tx(), ROOT, _collateral())

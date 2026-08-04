@@ -16,6 +16,7 @@ from cryptography.x509 import load_pem_x509_certificate
 
 import ccf.cose
 from ccf.merkletree import MerkleTree
+from ccf.tx_id import TxID
 
 # ---------------------------------------------------------------------------
 # Registry
@@ -163,15 +164,14 @@ def verify_raw_root_signature(node_cert: bytes, root: bytes, signature: bytes) -
         ) from exc
 
 
-def verify_cose_root_signature(
-    service_cert: str, root: bytes, cose_sign1: bytes
-) -> None:
+def verify_cose_root_signature(service_cert: str, root: bytes, cose_sign1: bytes):
     """Verify a COSE Sign1 signature over a Merkle root against the service cert.
 
-    Raises :class:`InvalidRootCoseSignatureException` if verification fails.
+    Returns the decoded COSE headers. Raises
+    :class:`InvalidRootCoseSignatureException` if verification fails.
     """
     try:
-        ccf.cose.verify_cose_sign1_with_cert(
+        return ccf.cose.verify_cose_sign1_with_cert(
             certificate=service_cert.encode("ascii"),
             cose_sign1=cose_sign1,
             use_key=True,
@@ -226,11 +226,8 @@ def verify_merkle_root(merkle_tree: MerkleTree, existing_root: bytes) -> None:
 
 
 @dataclass
-class RootSignatureContext:
+class RootSignatureCollateral:
     """Signing identities needed to verify a transaction's root signatures."""
-
-    view: int
-    seqno: int
 
     service_cert_pem: str | None = None
     """PEM service certificate."""
@@ -250,26 +247,24 @@ class RootSignature(Enum):
 
 
 def _verify_raw_root(
-    tx_tables: Mapping[str, Any], computed_root: bytes, ctx: RootSignatureContext
-) -> RootSignature | None:
-    """Verify the raw ECDSA root signature, or return ``None`` if absent."""
+    tx_tables: Mapping[str, Any],
+    computed_root: bytes,
+    collateral: RootSignatureCollateral,
+) -> tuple[RootSignature, TxID] | None:
+    """Verify the raw ECDSA root signature, and return the scheme and the
+    transaction it attests, or ``None`` if absent."""
     payload = parse_raw_signature_from_tx(tx_tables)
     if payload is None:
         return None
 
-    if ctx.node_certificates is None or ctx.check_signing_node is None:
+    if collateral.node_certificates is None or collateral.check_signing_node is None:
         raise ValueError(
             "Cannot verify raw root signature without known node certificates "
             "and a signing node check"
         )
 
-    if payload.view != ctx.view or payload.seqno != ctx.seqno:
-        raise ValueError(
-            f"Signature payload position {payload.view}.{payload.seqno} does not "
-            f"match transaction header position {ctx.view}.{ctx.seqno}"
-        )
-    ctx.check_signing_node(payload.signing_node)
-    cert = ctx.node_certificates[payload.signing_node]
+    collateral.check_signing_node(payload.signing_node)
+    cert = collateral.node_certificates[payload.signing_node]
     if payload.embedded_cert is not None and spki_from_cert(cert) != spki_from_cert(
         payload.embedded_cert
     ):
@@ -278,23 +273,28 @@ def _verify_raw_root(
         )
     verify_raw_root_signature(cert, payload.root, payload.signature)
     _verify_root(computed_root, payload.root)
-    return RootSignature.RAW
+    return RootSignature.RAW, TxID(payload.view, payload.seqno)
 
 
 def _verify_cose_root(
-    tx_tables: Mapping[str, Any], computed_root: bytes, ctx: RootSignatureContext
-) -> RootSignature | None:
-    """Verify the COSE Sign1 root signature, or return ``None`` if absent."""
+    tx_tables: Mapping[str, Any],
+    computed_root: bytes,
+    collateral: RootSignatureCollateral,
+) -> tuple[RootSignature, TxID] | None:
+    """Verify the COSE Sign1 root signature, and return the scheme and the
+    transaction it attests, or ``None`` if absent."""
     cose_sign1 = parse_cose_signature_from_tx(tx_tables)
     if cose_sign1 is None:
         return None
 
-    if ctx.service_cert_pem is None:
+    if collateral.service_cert_pem is None:
         raise ValueError(
             "Cannot verify COSE root signature without a known service certificate"
         )
-    verify_cose_root_signature(ctx.service_cert_pem, computed_root, cose_sign1)
-    return RootSignature.COSE_EC384
+    phdr, _, _ = verify_cose_root_signature(
+        collateral.service_cert_pem, computed_root, cose_sign1
+    )
+    return RootSignature.COSE_EC384, TxID.from_str(phdr["ccf.v1"]["txid"])
 
 
 SIGNATURE_TABLE_NAMES: frozenset[str] = frozenset(
@@ -314,23 +314,32 @@ def is_signature_transaction(tx_tables: Container[str]) -> bool:
 
 
 def _verify_all_root_signatures(
-    tx_tables: Mapping[str, Any], computed_root: bytes, ctx: RootSignatureContext
-) -> list[RootSignature]:
-    """Verify every root signature this transaction carries.
+    tx_tables: Mapping[str, Any],
+    computed_root: bytes,
+    collateral: RootSignatureCollateral,
+) -> tuple[list[RootSignature], TxID]:
+    """Verify every root signature this transaction carries, and return the
+    schemes verified and the transaction they attest.
 
-    Raises if a signature fails to verify, or if there is none to verify.
+    Raises if a signature fails to verify, if there is none to verify, or if the
+    signatures disagree on which transaction they cover.
     """
     verified = [
-        scheme
-        for scheme in (
-            _verify_raw_root(tx_tables, computed_root, ctx),
-            _verify_cose_root(tx_tables, computed_root, ctx),
+        result
+        for result in (
+            _verify_raw_root(tx_tables, computed_root, collateral),
+            _verify_cose_root(tx_tables, computed_root, collateral),
         )
-        if scheme is not None
+        if result is not None
     ]
     if not verified:
+        raise ValueError("Transaction contained no verifiable signature blob")
+
+    schemes = [scheme for scheme, _ in verified]
+    txids = [txid for _, txid in verified]
+    if any(txid != txids[0] for txid in txids):
         raise ValueError(
-            f"Signature transaction {ctx.view}.{ctx.seqno} contained no "
-            "verifiable signature blob"
+            "Root signatures disagree on the transaction they cover: "
+            + ", ".join(f"{s.value}={t}" for s, t in verified)
         )
-    return verified
+    return schemes, txids[0]

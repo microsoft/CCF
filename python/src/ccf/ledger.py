@@ -724,16 +724,22 @@ class LedgerValidator:
 
         if is_signature_tx and self.verification_level >= VerificationLevel.MERKLE:
             if self.verification_level >= VerificationLevel.FULL:
-                ctx = signatures.RootSignatureContext(
-                    view=transaction.gcm_header.view,
-                    seqno=transaction.gcm_header.seqno,
+                collateral = signatures.RootSignatureCollateral(
                     service_cert_pem=self.service_cert,
                     node_certificates=self.node_certificates,
                     check_signing_node=self._verify_signing_node_status,
                 )
-                signatures._verify_all_root_signatures(
-                    tables, self.merkle.get_merkle_root(), ctx
+                _, signed_txid = signatures._verify_all_root_signatures(
+                    tables, self.merkle.get_merkle_root(), collateral
                 )
+                header_txid = TxID(
+                    transaction.gcm_header.view, transaction.gcm_header.seqno
+                )
+                if signed_txid != header_txid:
+                    raise ValueError(
+                        f"Signature payload position {signed_txid} does not match "
+                        f"transaction header position {header_txid}"
+                    )
 
                 self.last_verified_seqno = transaction.gcm_header.seqno
                 self.last_verified_view = transaction.gcm_header.view
