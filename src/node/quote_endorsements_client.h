@@ -338,8 +338,16 @@ namespace ccf
     QuoteEndorsementsClient(
       pal::snp::EndorsementEndpointsConfiguration config_,
       QuoteEndorsementsFetchedCallback cb) :
+      QuoteEndorsementsClient(std::move(config_), {}, std::move(cb))
+    {}
+
+    QuoteEndorsementsClient(
+      pal::snp::EndorsementEndpointsConfiguration config_,
+      std::vector<uint8_t> initial_endorsements,
+      QuoteEndorsementsFetchedCallback cb) :
       config(std::move(config_)),
-      done_cb(std::move(cb))
+      done_cb(std::move(cb)),
+      endorsements_pem(std::move(initial_endorsements))
     {}
 
     void fetch_endorsements()

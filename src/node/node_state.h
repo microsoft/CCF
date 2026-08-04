@@ -867,8 +867,16 @@ namespace ccf
 
         if (quote_info.format == QuoteFormat::amd_sev_snp_v1)
         {
+          const auto* quote =
+            reinterpret_cast<const ccf::pal::snp::Attestation*>(
+              quote_info.quote.data());
+          const bool is_vlek = quote->flags.signing_key ==
+            ccf::pal::snp::attestation_flags_signing_key_vlek;
+
           // Use endorsements retrieved from file, if available
-          if (config.attestation.environment.snp_endorsements.has_value())
+          if (
+            config.attestation.environment.snp_endorsements.has_value() &&
+            !is_vlek)
           {
             bool loaded_endorsements = false;
             try
@@ -882,9 +890,6 @@ namespace ccf
 
               // Check that tcbm in endorsement matches reported TCB in our
               // retrieved attestation
-              const auto* quote =
-                reinterpret_cast<const ccf::pal::snp::Attestation*>(
-                  quote_info.quote.data());
               const auto reported_tcb = quote->reported_tcb;
 
               // tcbm is a single hex value, like DB18000000000004. To match
@@ -960,7 +965,9 @@ namespace ccf
           }
           // On SEV-SNP, fetch endorsements from servers if specified
           quote_endorsements_client = std::make_shared<QuoteEndorsementsClient>(
-            endpoint_config, [this](std::vector<uint8_t>&& endorsements) {
+            endpoint_config,
+            quote_info.endorsements,
+            [this](std::vector<uint8_t>&& endorsements) {
               std::lock_guard<pal::Mutex> guard(lock);
               quote_info.endorsements = std::move(endorsements);
               try

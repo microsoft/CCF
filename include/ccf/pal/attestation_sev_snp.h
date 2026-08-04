@@ -366,6 +366,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
     "Cannot cast GuestPolicy to uint64_t");
 
   static constexpr uint8_t attestation_flags_signing_key_vcek = 0;
+  static constexpr uint8_t attestation_flags_signing_key_vlek = 1;
 
 #pragma pack(push, 1)
   struct Flags
@@ -489,10 +490,17 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
 
     EndorsementEndpointsConfiguration config;
 
-    auto chip_id_hex =
-      fmt::format("{:02x}", fmt::join(quote.get_chip_id_for_vcek(), ""));
     auto reported_tcb = fmt::format(
       "{:0x}", *reinterpret_cast<const uint64_t*>(&quote.reported_tcb));
+    const bool is_vlek =
+      quote.flags.signing_key == attestation_flags_signing_key_vlek;
+
+    std::optional<std::string> chip_id_hex = std::nullopt;
+    if (!is_vlek)
+    {
+      chip_id_hex =
+        fmt::format("{:02x}", fmt::join(quote.get_chip_id_for_vcek(), ""));
+    }
 
     constexpr size_t default_max_retries_count = 10;
     static const ds::SizeString default_max_client_response_size =
@@ -500,13 +508,26 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
 
     if (endorsements_servers.empty())
     {
-      // Default to Azure server if no servers are specified
-      config.servers.emplace_back(make_azure_endorsements_server(
-        default_azure_endorsements_endpoint,
-        chip_id_hex,
-        reported_tcb,
-        default_max_retries_count,
-        default_max_client_response_size));
+      if (is_vlek)
+      {
+        const auto product =
+          get_sev_snp_product(quote.cpuid_fam_id, quote.cpuid_mod_id);
+        config.servers.emplace_back(make_amd_vlek_endorsements_server(
+          default_amd_endorsements_endpoint,
+          product,
+          default_max_retries_count,
+          default_max_client_response_size));
+      }
+      else
+      {
+        // Default to Azure server if no servers are specified
+        config.servers.emplace_back(make_azure_endorsements_server(
+          default_azure_endorsements_endpoint,
+          chip_id_hex.value(),
+          reported_tcb,
+          default_max_retries_count,
+          default_max_client_response_size));
+      }
       return config;
     }
 
@@ -521,11 +542,17 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
       {
         case EndorsementsEndpointType::Azure:
         {
+          if (is_vlek)
+          {
+            throw std::logic_error(
+              "Azure endorsements endpoints do not support VLEK-signed "
+              "attestation reports");
+          }
           auto loc =
             get_endpoint_loc(server, default_azure_endorsements_endpoint);
           config.servers.emplace_back(make_azure_endorsements_server(
             loc,
-            chip_id_hex,
+            chip_id_hex.value(),
             reported_tcb,
             max_retries_count,
             max_client_response_size));
@@ -535,6 +562,15 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
         {
           auto product =
             get_sev_snp_product(quote.cpuid_fam_id, quote.cpuid_mod_id);
+
+          auto loc =
+            get_endpoint_loc(server, default_amd_endorsements_endpoint);
+          if (is_vlek)
+          {
+            config.servers.emplace_back(make_amd_vlek_endorsements_server(
+              loc, product, max_retries_count, max_client_response_size));
+            break;
+          }
 
           std::string boot_loader;
           std::string tee;
@@ -570,11 +606,9 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
             }
           }
 
-          auto loc =
-            get_endpoint_loc(server, default_amd_endorsements_endpoint);
           config.servers.emplace_back(make_amd_endorsements_server(
             loc,
-            chip_id_hex,
+            chip_id_hex.value(),
             boot_loader,
             tee,
             snp,
@@ -587,11 +621,17 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
         }
         case EndorsementsEndpointType::THIM:
         {
+          if (is_vlek)
+          {
+            throw std::logic_error(
+              "THIM endorsements endpoints do not support VLEK-signed "
+              "attestation reports");
+          }
           auto loc =
             get_endpoint_loc(server, default_thim_endorsements_endpoint);
           config.servers.emplace_back(make_thim_endorsements_server(
             loc,
-            chip_id_hex,
+            chip_id_hex.value(),
             reported_tcb,
             max_retries_count,
             max_client_response_size));
@@ -613,6 +653,10 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
   public:
     [[nodiscard]] virtual const snp::Attestation& get() const = 0;
     virtual std::vector<uint8_t> get_raw() = 0;
+    virtual std::vector<std::vector<uint8_t>> get_endorsements()
+    {
+      return {};
+    }
 
     virtual ~AttestationInterface() = default;
   };

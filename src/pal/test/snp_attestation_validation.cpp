@@ -12,6 +12,7 @@
 #include "ccf/pal/measurement.h"
 #include "ccf/pal/report_data.h"
 #include "ccf/pal/sev_snp_cpuid.h"
+#include "ccf/pal/snp_ioctl6.h"
 #include "crypto/openssl/hash.h"
 #include "pal/test/attestation.h"
 #include "pal/test/attestation_sev_snp_endorsements.h"
@@ -515,6 +516,135 @@ TEST_CASE("Quote endorsements generation for v2 attestation version fails")
       }}),
     "SEV-SNP: attestation version 2 is not supported. Minimum supported "
     "version is 3");
+}
+
+TEST_CASE("VLEK endorsement endpoint generation")
+{
+  auto quote = *reinterpret_cast<const ccf::pal::snp::Attestation*>(
+    ccf::pal::snp::testing::genoa_attestation.data());
+  quote.flags.signing_key = ccf::pal::snp::attestation_flags_signing_key_vlek;
+  std::fill(std::begin(quote.chip_id), std::end(quote.chip_id), 0);
+
+  auto config = ccf::pal::snp::make_endorsement_endpoint_configuration(
+    quote,
+    {{
+      ccf::pal::snp::EndorsementsEndpointType::AMD,
+      "invalid.amd.com:12345",
+    }});
+
+  REQUIRE(config.servers.size() == 1);
+  REQUIRE(config.servers.front().size() == 1);
+  const auto& endpoint = config.servers.front().front();
+  CHECK_EQ(endpoint.host, "invalid.amd.com");
+  CHECK_EQ(endpoint.port, "12345");
+  CHECK_EQ(endpoint.uri, "/vlek/v1/Genoa/cert_chain");
+  CHECK(endpoint.params.empty());
+  CHECK_FALSE(endpoint.response_is_der);
+
+  CHECK_THROWS_WITH(
+    ccf::pal::snp::make_endorsement_endpoint_configuration(
+      quote, {{ccf::pal::snp::EndorsementsEndpointType::Azure}}),
+    "Azure endorsements endpoints do not support VLEK-signed attestation "
+    "reports");
+  CHECK_THROWS_WITH(
+    ccf::pal::snp::make_endorsement_endpoint_configuration(
+      quote, {{ccf::pal::snp::EndorsementsEndpointType::THIM}}),
+    "THIM endorsements endpoints do not support VLEK-signed attestation "
+    "reports");
+}
+
+TEST_CASE("VLEK certificate table parsing")
+{
+  using namespace ccf::pal::snp::ioctl6;
+
+  static constexpr std::array<uint8_t, 4> certificate = {1, 2, 3, 4};
+  // Reserve room for two entries plus a terminator, so that tables with a
+  // duplicated entry remain correctly terminated.
+  static constexpr uint32_t certificate_offset =
+    3 * sizeof(CertificateTableEntry);
+  CertificateTableEntry vlek_entry = {
+    .guid = VLEK_CERTIFICATE_GUID,
+    .offset = certificate_offset,
+    .length = certificate.size()};
+  CertificateTableEntry terminator = {};
+
+  std::vector<uint8_t> table(
+    certificate_offset + certificate.size(), static_cast<uint8_t>(0));
+  memcpy(table.data(), &vlek_entry, sizeof(vlek_entry));
+  memcpy(
+    table.data() + 2 * sizeof(CertificateTableEntry),
+    &terminator,
+    sizeof(terminator));
+  std::copy(
+    certificate.begin(), certificate.end(), table.begin() + certificate_offset);
+
+  auto extracted = extract_vlek_certificate(table);
+  REQUIRE(extracted.has_value());
+  CHECK(std::equal(certificate.begin(), certificate.end(), extracted->begin()));
+
+  {
+    INFO("An endorsement key published under the VCEK GUID is still usable");
+    auto vcek_slot = table;
+    auto vcek_entry = vlek_entry;
+    vcek_entry.guid = VCEK_CERTIFICATE_GUID;
+    memcpy(vcek_slot.data(), &vcek_entry, sizeof(vcek_entry));
+
+    auto entries = parse_certificate_table(vcek_slot);
+    CHECK_FALSE(
+      extract_certificate(entries, VLEK_CERTIFICATE_GUID).has_value());
+    auto from_vcek_slot = extract_certificate(entries, VCEK_CERTIFICATE_GUID);
+    REQUIRE(from_vcek_slot.has_value());
+    CHECK(std::equal(
+      certificate.begin(), certificate.end(), from_vcek_slot->begin()));
+  }
+
+  {
+    INFO("GUIDs published in mixed-endian byte order are also recognised");
+    auto mixed_endian = table;
+    auto mixed_entry = vlek_entry;
+    mixed_entry.guid = VLEK_CERTIFICATE_GUID_MIXED_ENDIAN;
+    memcpy(mixed_endian.data(), &mixed_entry, sizeof(mixed_entry));
+
+    auto entries = parse_certificate_table(mixed_endian);
+    CHECK_FALSE(
+      extract_certificate(entries, VLEK_CERTIFICATE_GUID).has_value());
+    auto from_mixed_endian =
+      extract_certificate(entries, VLEK_CERTIFICATE_GUID_MIXED_ENDIAN);
+    REQUIRE(from_mixed_endian.has_value());
+    CHECK(std::equal(
+      certificate.begin(), certificate.end(), from_mixed_endian->begin()));
+  }
+
+  {
+    INFO("Both encodings of a GUID render as the same identifier");
+    CHECK_EQ(
+      format_certificate_guid(VLEK_CERTIFICATE_GUID),
+      "a8074bc2-a25a-483e-aae6-39c045a0b8a1");
+    CHECK_EQ(
+      format_certificate_guid(VCEK_CERTIFICATE_GUID),
+      "63da758d-e664-4564-adc5-f4b93be8accd");
+  }
+
+  auto duplicate = table;
+  memcpy(
+    duplicate.data() + sizeof(vlek_entry), &vlek_entry, sizeof(vlek_entry));
+  CHECK_THROWS_WITH(
+    extract_vlek_certificate(duplicate),
+    "SEV-SNP certificate table contains multiple "
+    "a8074bc2-a25a-483e-aae6-39c045a0b8a1 certificates");
+
+  auto out_of_bounds = vlek_entry;
+  out_of_bounds.offset = table.size();
+  out_of_bounds.length = 1;
+  memcpy(table.data(), &out_of_bounds, sizeof(out_of_bounds));
+  CHECK_THROWS_WITH(
+    extract_vlek_certificate(table),
+    "SEV-SNP certificate table entry is out of bounds");
+
+  std::vector<uint8_t> unterminated(sizeof(CertificateTableEntry), 1);
+  CHECK_THROWS_WITH(
+    extract_vlek_certificate(unterminated),
+    "SEV-SNP certificate table entry is out of bounds");
 }
 
 TEST_CASE("Extracting metadata from endorsements")

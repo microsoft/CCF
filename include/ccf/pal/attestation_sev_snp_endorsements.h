@@ -171,6 +171,25 @@ namespace ccf::pal::snp
     return server;
   }
 
+  static EndorsementEndpointsConfiguration::Server
+  make_amd_vlek_endorsements_server(
+    const HostPort& endpoint,
+    const ProductName& product_name,
+    size_t max_retries_count,
+    size_t max_client_response_size)
+  {
+    EndorsementEndpointsConfiguration::EndpointInfo chain{
+      .host = endpoint.host,
+      .port = endpoint.port,
+      .uri = fmt::format("/vlek/v1/{}/cert_chain", to_string(product_name)),
+      .params = {},
+      .headers = {}};
+    chain.max_retries_count = max_retries_count;
+    chain.max_client_response_size = max_client_response_size;
+
+    return {chain};
+  }
+
   static HostPort default_thim_endorsements_endpoint = {
     "169.254.169.254", "80"};
 
