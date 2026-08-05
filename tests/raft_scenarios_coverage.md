@@ -3,8 +3,9 @@
 ## Method
 
 Coverage was measured from a Debug build configured with `-DCOVERAGE=ON`.
-The baseline ran the 42 pre-existing files in `tests/raft_scenarios/`. Each new
-scenario profile was then merged cumulatively in the order shown below.
+The baseline ran the 42 scenario files on the base commit, before the eight
+files added by this PR. Each new scenario profile was then merged cumulatively
+in the order shown below.
 `llvm-profdata-18` and `llvm-cov-18 report` produced the line and branch totals.
 Raft tracing was disabled for the coverage build, matching `coverage.yml`.
 
@@ -14,22 +15,25 @@ The overall figures include every instrumented source file linked into
 
 ## Results
 
-| Scope | Baseline lines | Final lines | Baseline branches | Final branches |
-| --- | ---: | ---: | ---: | ---: |
-| Whole `raft_driver` binary | 3,243/6,604 (49.11%) | 3,325/6,604 (50.35%) | 940/1,522 (61.76%) | 970/1,522 (63.73%) |
-| Raft driver and AFT core | 2,692/3,520 (76.48%) | 2,774/3,520 (78.81%) | 853/1,312 (65.02%) | 883/1,312 (67.30%) |
+| Scope                      |       Baseline lines |          Final lines |  Baseline branches |     Final branches |
+| -------------------------- | -------------------: | -------------------: | -----------------: | -----------------: |
+| Whole `raft_driver` binary | 3,243/6,604 (49.11%) | 3,361/6,604 (50.89%) | 940/1,522 (61.76%) | 982/1,522 (64.52%) |
+| Raft driver and AFT core   | 2,692/3,520 (76.48%) | 2,807/3,520 (79.74%) | 853/1,312 (65.02%) | 893/1,312 (68.06%) |
 
-The five scenarios add 82 covered lines and 30 covered branch outcomes. This
-raises whole-binary line coverage by 1.24 percentage points and branch coverage
-by 1.97 percentage points.
+Together, the eight scenarios added by this PR add 118 covered lines and 42
+covered branch outcomes. This raises whole-binary line coverage by 1.79
+percentage points and branch coverage by 2.76 percentage points.
 
-| Scenario | Summary | New lines | New branches | Cumulative line / branch coverage |
-| --- | --- | ---: | ---: | ---: |
-| `leadership_race` | Isolates a leader until CheckQuorum makes it step down, attempts a client write and leadership transfer while leaderless, then elects a replacement from the surviving quorum. | 25 | 7 | 49.49% / 62.22% |
-| `delayed_vote_requests` | Starts simultaneous election attempts, rejects a delayed same-term vote request after learning the winner, and ignores the delayed rejection during a later pre-vote round. | 19 | 6 | 49.77% / 62.61% |
-| `retirement_rollback` | Delivers an unsigned retirement to the retiring node, then elects it with quorums from both active configurations so leadership rolls back the abandoned reconfiguration. | 16 | 6 | 50.02% / 63.01% |
-| `retired_node_delayed_responses` | Retains vote and append responses across retirement cleanup and verifies that responses from the removed peer are safely ignored. | 12 | 6 | 50.20% / 63.40% |
-| `large_entry_batching` | Replicates a burst whose encoded size crosses the AppendEntries target, forcing batch-size recalculation and proactive sends before normal commit. | 10 | 5 | 50.35% / 63.73% |
+| Scenario                         | Summary                                                                                                                                                                        | New lines | New branches | Cumulative line / branch coverage |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------: | -----------: | --------------------------------: |
+| `leadership_race`                | Isolates a leader until CheckQuorum makes it step down, attempts a client write and leadership transfer while leaderless, then elects a replacement from the surviving quorum. |        25 |            7 |                   49.49% / 62.22% |
+| `delayed_vote_requests`          | Starts simultaneous election attempts, rejects a delayed same-term vote request after learning the winner, and ignores the delayed rejection during a later pre-vote round.    |        19 |            6 |                   49.77% / 62.61% |
+| `retirement_rollback`            | Delivers an unsigned retirement to the retiring node, then elects it with quorums from both active configurations so leadership rolls back the abandoned reconfiguration.      |        16 |            6 |                   50.02% / 63.01% |
+| `retired_node_delayed_responses` | Retains vote and append responses across retirement cleanup and verifies that responses from the removed peer are safely ignored.                                              |        12 |            6 |                   50.20% / 63.40% |
+| `large_entry_batching`           | Replicates a burst whose encoded size crosses the AppendEntries target, forcing batch-size recalculation and proactive sends before normal commit.                             |        10 |            5 |                   50.35% / 63.73% |
+| `message_type_summaries`         | Queues the messages produced by replication, elections, and nomination, then renders their compact diagnostic labels, including a successful append response.                  |        25 |            8 |                   50.73% / 64.26% |
+| `replicate_on_latest_leader`     | Keeps primaries alive in two terms and verifies that `replicate,latest` selects the higher-term leader.                                                                        |         4 |            1 |                   50.79% / 64.32% |
+| `swap_single_node`               | Atomically replaces one backup through the singular `swap_node` command and converges the replacement on the committed configuration.                                          |         7 |            3 |                   50.89% / 64.52% |
 
 ### Incrementally covered source
 
@@ -50,17 +54,27 @@ by 1.97 percentage points.
 - `large_entry_batching`
   - `raft.h:716-726`: cross the AppendEntries size target, update batching, and
     proactively send the pending entries to followers.
+- `message_type_summaries`
+  - `driver.h:669-711`: render request-vote, append-entries, proposal, and
+    pre-vote request/response diagnostics, including the append ACK branch.
+- `replicate_on_latest_leader`
+  - `driver.h:952-956`: select the highest-term primary for a `latest`
+    replication request when multiple primaries exist.
+- `swap_single_node`
+  - `driver.cpp:125-128`: parse and execute the singular node-swap command.
+  - `kv_types.h:69-71`: compare reconfiguration IDs while applying the atomic
+    replacement.
 
 ## Remaining gaps
 
 After these scenarios, the focused files still report the following misses:
 
-| File | Missed lines | Missed branch outcomes |
-| --- | ---: | ---: |
-| `src/consensus/aft/raft.h` | 315 | 355 |
-| `src/consensus/aft/test/driver.cpp` | 53 | 13 |
-| `src/consensus/aft/test/driver.h` | 273 | 56 |
-| `src/consensus/aft/test/logging_stub.h` | 105 | 5 |
+| File                                    | Missed lines | Missed branch outcomes |
+| --------------------------------------- | -----------: | ---------------------: |
+| `src/consensus/aft/raft.h`              |          315 |                    355 |
+| `src/consensus/aft/test/driver.cpp`     |           49 |                     12 |
+| `src/consensus/aft/test/driver.h`       |          244 |                     47 |
+| `src/consensus/aft/test/logging_stub.h` |          105 |                      5 |
 
 The remaining gaps fall into these groups:
 

@@ -1,5 +1,5 @@
-# Queue each message type used by the Raft driver and render its compact label.
-# This keeps the scenario diagnostics useful as new election paths are added.
+# Queue the messages produced by replication, elections, and nomination, then
+# render their compact labels for scenario diagnostics.
 start_node,0
 emit_signature,2
 trust_nodes,2,1,2
