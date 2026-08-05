@@ -502,25 +502,18 @@ namespace ccf
 #endif
     }
 
-    std::optional<std::string> verify_recovery_snapshot_candidate_unsafe(
+    void verify_recovery_snapshot_candidate_unsafe(
       const SnapshotSegments& segments, ccf::kv::Version snapshot_seqno)
     {
       if (!config.recover.previous_service_identity.has_value())
       {
-        return "No previous service identity is configured";
+        throw std::logic_error("No previous service identity is configured");
       }
 
       const ccf::crypto::Pem target_identity(
         *config.recover.previous_service_identity);
-      try
-      {
-        verify_snapshot_seqno(
-          segments, network.tables->get_encryptor(), snapshot_seqno);
-      }
-      catch (const std::exception& e)
-      {
-        return e.what();
-      }
+      verify_snapshot_seqno(
+        segments, network.tables->get_encryptor(), snapshot_seqno);
 
       if (segments.receipt.empty() || segments.receipt[0] != 0xD2)
       {
@@ -531,25 +524,17 @@ namespace ccf
             "Recovery snapshot at {} is directly signed by the configured "
             "previous service identity",
             snapshot_seqno);
-          return std::nullopt;
+          return;
         }
         catch (const std::exception& e)
         {
-          return fmt::format(
+          throw std::logic_error(fmt::format(
             "old-style snapshot receipt cannot use an endorsement chain: {}",
-            e.what());
+            e.what()));
         }
       }
 
-      ccf::cose::CcfCoseReceipt receipt;
-      try
-      {
-        receipt = decode_and_verify_cose_snapshot_receipt(segments);
-      }
-      catch (const std::exception& e)
-      {
-        return e.what();
-      }
+      const auto receipt = decode_and_verify_cose_snapshot_receipt(segments);
 
       std::string direct_verification_error;
       try
@@ -562,7 +547,7 @@ namespace ccf
             "Recovery snapshot at {} is directly signed by the configured "
             "previous service identity",
             snapshot_seqno);
-          return std::nullopt;
+          return;
         }
         direct_verification_error =
           "Previous service identity does not match the service identity that "
@@ -580,32 +565,24 @@ namespace ccf
         snapshot_seqno,
         direct_verification_error);
 
-      try
+      const auto scan = scan_recovery_snapshot_ledger_files(
+        config.ledger, network.tables->get_encryptor(), snapshot_seqno);
+      const auto target_key = ccf::crypto::public_key_der_from_cert(
+        ccf::crypto::cert_pem_to_der(target_identity));
+      const auto snapshot_signer_key =
+        validate_recovery_snapshot_endorsement_chain(
+          scan.endorsements, target_key, snapshot_seqno);
+      const auto verifier =
+        ccf::crypto::make_cose_verifier_from_key(snapshot_signer_key);
+      if (!verifier->verify_detached(segments.receipt, receipt.merkle_root))
       {
-        const auto scan = scan_recovery_snapshot_ledger_files(
-          config.ledger, network.tables->get_encryptor(), snapshot_seqno);
-        const auto target_key = ccf::crypto::public_key_der_from_cert(
-          ccf::crypto::cert_pem_to_der(target_identity));
-        const auto snapshot_signer_key =
-          validate_recovery_snapshot_endorsement_chain(
-            scan.endorsements, target_key, snapshot_seqno);
-        const auto verifier =
-          ccf::crypto::make_cose_verifier_from_key(snapshot_signer_key);
-        if (!verifier->verify_detached(segments.receipt, receipt.merkle_root))
-        {
-          throw std::logic_error(
-            "Snapshot receipt signature verification failed under the "
-            "endorsed snapshot service identity");
-        }
-        LOG_INFO_FMT(
-          "Validated {} recovery snapshot endorsement(s) in memory",
-          scan.endorsements.size());
-        return std::nullopt;
+        throw std::logic_error(
+          "Snapshot receipt signature verification failed under the "
+          "endorsed snapshot service identity");
       }
-      catch (const std::exception& e)
-      {
-        return e.what();
-      }
+      LOG_INFO_FMT(
+        "Validated {} recovery snapshot endorsement(s) in memory",
+        scan.endorsements.size());
     }
 
     void find_local_startup_snapshot()
@@ -639,15 +616,17 @@ namespace ccf
 
         if (start_type == StartType::Recover)
         {
-          const auto verification_error =
+          try
+          {
             verify_recovery_snapshot_candidate_unsafe(segments, snapshot_seqno);
-          if (verification_error.has_value())
+          }
+          catch (const std::exception& e)
           {
             LOG_FAIL_FMT(
               "Recovery snapshot {} cannot be verified: {}. Looking for an "
               "older snapshot.",
               snapshot_path.string(),
-              *verification_error);
+              e.what());
             continue;
           }
 
