@@ -23,6 +23,7 @@
 #include <mutex>
 #include <netdb.h>
 #include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <openssl/err.h>
 #include <openssl/pem.h>
 #include <openssl/ssl.h>
@@ -586,6 +587,17 @@ namespace asynchost
           logf(
             "accept error: %s", std::generic_category().message(err).c_str());
           break;
+        }
+
+        const int one = 1;
+        if (setsockopt(cfd, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one)) != 0)
+        {
+          const auto err = errno;
+          logf(
+            "setsockopt(TCP_NODELAY) error: %s",
+            std::generic_category().message(err).c_str());
+          ::close(cfd);
+          continue;
         }
 
         auto c = std::make_unique<Conn>();
