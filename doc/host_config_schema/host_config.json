@@ -38,6 +38,7 @@
               },
               "protocol": {
                 "type": "string",
+                "enum": ["tcp", "udp"],
                 "default": "tcp",
                 "description": "The RPC protocol used (udp | tcp)"
               },
@@ -436,7 +437,7 @@
               },
               "url": {
                 "type": "string",
-                "description": "Server URL used to retrieve attestation report endorsement certificates"
+                "description": "Server URL used to retrieve attestation report endorsement certificates. If omitted, uses the default endpoint for the selected server type: global.acccache.azure.net:443 (Azure), kdsintf.amd.com:443 (AMD), or 169.254.169.254:80 (THIM)"
               },
               "max_retries_count": {
                 "type": "integer",
