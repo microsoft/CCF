@@ -107,11 +107,20 @@ class OpenAPIValidator:
 
     def _operation(self, prefix, method, path):
         method = method.lower()
+        # Match CCF dispatch: prefer an exact path before considering templates.
+        if (path, method) in self._operations[prefix]:
+            return (prefix, path, method)
+
+        matches = []
         for template, operation_method in self._operations[prefix]:
             if operation_method.lower() == method and self._path_matches(
                 template, path
             ):
-                return (prefix, template, method)
+                matches.append((prefix, template, method))
+        if len(matches) > 1:
+            raise ValueError(f"Ambiguous OpenAPI paths for {method.upper()} {path}")
+        if matches:
+            return matches[0]
         return None
 
     def _v2_operation(self, prefix, operation):
@@ -171,9 +180,12 @@ class OpenAPIValidator:
             location = parameter["in"]
             name = parameter["name"]
             if location == "body":
-                if request.body is not None and not cose:
+                # The client replaces this logical body with a COSE envelope later.
+                if cose:
+                    continue
+                if request.body is not None:
                     self._validate_v2_schema(prefix, request.body, parameter["schema"])
-                elif parameter.get("required") and request.body is None:
+                elif parameter.get("required"):
                     raise jsonschema.ValidationError(f"{name} is required")
                 continue
 
@@ -231,6 +243,10 @@ class OpenAPIValidator:
         if "schema" not in response_schema:
             return
         data = response.body.data()
+        content_type = self._header(response.headers, "content-type") or ""
+        media_type = content_type.partition(";")[0].strip().lower()
+        if media_type != "application/json" and not media_type.endswith("+json"):
+            return
         value = json.loads(data) if data else None
         self._validate_v2_schema(prefix, value, response_schema["schema"])
 
@@ -281,7 +297,11 @@ class OpenAPIValidator:
             path=parsed.path,
             method=request.http_verb.lower(),
             parameters=RequestParameters(query=query, header=request_headers),
-            body=self._body_bytes(request.body),
+            # Preserve required-body semantics when the client-generated COSE
+            # envelope is not available to this validation layer.
+            body=(
+                b"" if cose and request.body is None else self._body_bytes(request.body)
+            ),
             content_type=content_type,
         )
         response_headers = Headers(response.headers)
@@ -299,7 +319,10 @@ class OpenAPIValidator:
                 and operation not in self._validated_requests
             )
             response_sample = (*operation, response.status_code)
-            validate_response = response_sample not in self._validated_responses
+            validate_response = (
+                request.http_verb != "HEAD"
+                and response_sample not in self._validated_responses
+            )
 
         try:
             if self._apis[prefix] is None:
