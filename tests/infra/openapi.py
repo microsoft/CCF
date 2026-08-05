@@ -390,7 +390,7 @@ class OpenAPIValidator:
                 }
 
         self._write_report(output_path, report)
-        LOG.info(f"Wrote OpenAPI coverage report to {output_path}: {report}")
+        LOG.info(f"Wrote OpenAPI coverage report to {output_path}")
 
         if aggregate_path is not None:
             lock_path = f"{aggregate_path}.lock"
@@ -404,6 +404,4 @@ class OpenAPIValidator:
                     aggregate = {}
                 aggregate = self._merge_reports(aggregate, report)
                 self._write_report(aggregate_path, aggregate)
-            LOG.info(
-                f"Merged OpenAPI coverage report into {aggregate_path}: {aggregate}"
-            )
+            LOG.info(f"Merged OpenAPI coverage report into {aggregate_path}")
