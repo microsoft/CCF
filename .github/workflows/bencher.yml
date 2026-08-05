@@ -123,7 +123,7 @@ jobs:
         if: success() || failure()
 
       - name: "Upload logs"
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: logs-bench-virtual-${{ env.BRANCH_SLUG }}
           path: |
@@ -136,7 +136,7 @@ jobs:
         if: success() || failure()
 
       - name: "Upload perf data"
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: perf-bench-virtual-${{ env.BRANCH_SLUG }}
           path: perf
@@ -204,7 +204,7 @@ jobs:
         if: success() || failure()
 
       - name: "Upload logs"
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: logs-bench-snp-${{ env.BRANCH_SLUG }}
           path: |
@@ -218,7 +218,7 @@ jobs:
         if: success() || failure()
 
       - name: "Upload perf data"
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: perf-bench-snp-${{ env.BRANCH_SLUG }}
           path: perf
