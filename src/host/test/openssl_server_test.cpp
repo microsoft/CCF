@@ -325,8 +325,8 @@ namespace
 
   struct EchoServer
   {
-    UVLoopRunner loop;
     std::unique_ptr<OpenSSLServer> server;
+    UVLoopRunner loop;
 
     EchoServer(
       const std::string& cert,
@@ -484,7 +484,6 @@ TEST_CASE("Concurrent connections")
 TEST_CASE("Reply from a worker thread")
 {
   auto [cert, key] = make_server_cert();
-  UVLoopRunner loop;
 
   OpenSSLServer* sp = nullptr;
   std::mutex m;
@@ -520,6 +519,7 @@ TEST_CASE("Reply from a worker thread")
       }
       cv.notify_one();
     });
+  UVLoopRunner loop;
   sp = &server;
   server.start();
   loop.start();
@@ -538,7 +538,6 @@ TEST_CASE("Reply from a worker thread")
 
 TEST_CASE("Datagram server round-trip on the libuv reactor")
 {
-  UVLoopRunner loop;
   DatagramServer* server_ptr = nullptr;
   DatagramServer server(
     "127.0.0.1",
@@ -550,6 +549,7 @@ TEST_CASE("Datagram server round-trip on the libuv reactor")
       socklen_t peerlen) {
       REQUIRE(server_ptr->send_to(peer, peerlen, data, len));
     });
+  UVLoopRunner loop;
   server_ptr = &server;
   server.start();
   loop.start();
@@ -584,7 +584,6 @@ TEST_CASE("Datagram server round-trip on the libuv reactor")
 TEST_CASE("Session bridge: round-trip via ccf::Session + SessionWriter")
 {
   auto [cert, key] = make_server_cert();
-  UVLoopRunner loop;
   OpenSSLSessionManager mgr(
     cert,
     key,
@@ -593,6 +592,7 @@ TEST_CASE("Session bridge: round-trip via ccf::Session + SessionWriter")
     [](::tcp::ConnID id, ccf::SessionWriter& w, std::vector<uint8_t>) {
       return std::make_shared<EchoSession>(id, w);
     });
+  UVLoopRunner loop;
   mgr.start();
   loop.start();
   REQUIRE(mgr.port() != 0);
@@ -606,7 +606,6 @@ TEST_CASE("Session bridge: round-trip via ccf::Session + SessionWriter")
 TEST_CASE("Session bridge: large transfer via ccf::Session + SessionWriter")
 {
   auto [cert, key] = make_server_cert();
-  UVLoopRunner loop;
   OpenSSLSessionManager mgr(
     cert,
     key,
@@ -615,6 +614,7 @@ TEST_CASE("Session bridge: large transfer via ccf::Session + SessionWriter")
     [](::tcp::ConnID id, ccf::SessionWriter& w, std::vector<uint8_t>) {
       return std::make_shared<EchoSession>(id, w);
     });
+  UVLoopRunner loop;
   mgr.start();
   loop.start();
 
@@ -632,7 +632,6 @@ TEST_CASE("Peer certificate is captured for inbound connections")
 {
   auto [cert, key] = make_server_cert();
   auto [client_cert, client_key] = make_server_cert();
-  UVLoopRunner loop;
 
   std::mutex m;
   std::vector<uint8_t> captured;
@@ -651,6 +650,7 @@ TEST_CASE("Peer certificate is captured for inbound connections")
       got.store(true);
       return std::make_shared<EchoSession>(id, w);
     });
+  UVLoopRunner loop;
   mgr.start();
   loop.start();
 
@@ -672,7 +672,6 @@ TEST_CASE("Peer certificate is captured for inbound connections")
 TEST_CASE("Client certificate is requested but not enforced")
 {
   auto [cert, key] = make_server_cert();
-  UVLoopRunner loop;
 
   std::mutex m;
   std::vector<uint8_t> captured;
@@ -691,6 +690,7 @@ TEST_CASE("Client certificate is requested but not enforced")
       got.store(true);
       return std::make_shared<EchoSession>(id, w);
     });
+  UVLoopRunner loop;
   mgr.start();
   loop.start();
 
@@ -832,7 +832,6 @@ TEST_CASE("Graceful close flushes buffered response without truncation")
 {
   auto [cert, key] = make_server_cert();
   const auto payload = random_bytes(4 * 1024 * 1024);
-  UVLoopRunner loop;
 
   OpenSSLSessionManager mgr(
     cert,
@@ -842,6 +841,7 @@ TEST_CASE("Graceful close flushes buffered response without truncation")
     [&payload](::tcp::ConnID id, ccf::SessionWriter& w, std::vector<uint8_t>) {
       return std::make_shared<LargeThenCloseSession>(id, w, payload);
     });
+  UVLoopRunner loop;
   mgr.start();
   loop.start();
 
