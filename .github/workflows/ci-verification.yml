@@ -51,7 +51,7 @@ jobs:
       - run: cd tla && ./tlc.py mc consistency/MCMultiNodeReadsAlt.tla
 
       - name: Upload TLC traces
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: ${{ failure() }}
         with:
           name: tlc-model-checking-consistency
@@ -97,7 +97,7 @@ jobs:
       - run: ./tlc.py sim --num 500 --depth 50 consistency/MultiNodeReads.tla
 
       - name: Upload TLC traces
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: ${{ failure() }}
         with:
           name: tlc-simulation-consistency
@@ -136,7 +136,7 @@ jobs:
       - run: cd tla && ./tlc.py --trace-name 1C3N mc --term-count 0 --request-count 3 --raft-configs 1C3N consensus/MCccfraft.tla
 
       - name: Upload TLC traces
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: ${{ failure() }}
         with:
           name: tlc-model-checking-consensus
@@ -162,7 +162,7 @@ jobs:
       - run: ./tlc.py sim consensus/SIMccfraft.tla
 
       - name: Upload TLC traces
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: ${{ failure() }}
         with:
           name: tlc-simulation-consensus
@@ -234,7 +234,7 @@ jobs:
         shell: bash
 
       - name: Upload artifacts.
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: tlc-trace-validation-consensus
