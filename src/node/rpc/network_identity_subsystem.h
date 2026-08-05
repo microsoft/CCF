@@ -16,60 +16,6 @@
 
 namespace ccf
 {
-  inline std::string format_epoch(const std::optional<ccf::TxID>& epoch_end)
-  {
-    return epoch_end.has_value() ? epoch_end->to_str() : "null";
-  }
-
-  inline void validate_fetched_endorsement(
-    const ccf::CoseEndorsement& endorsement)
-  {
-    LOG_INFO_FMT(
-      "Validating fetched endorsement from {} to {}",
-      endorsement.endorsement_epoch_begin.to_str(),
-      format_epoch(endorsement.endorsement_epoch_end));
-
-    if (!is_self_endorsement(endorsement))
-    {
-      const auto [from, to] =
-        ccf::crypto::extract_cose_endorsement_validity(endorsement.endorsement);
-
-      const auto from_txid = ccf::TxID::from_str(from);
-      if (!from_txid.has_value())
-      {
-        throw std::logic_error(fmt::format(
-          "Cannot parse COSE endorsement header: {}",
-          ccf::cose::header::custom::TX_RANGE_BEGIN));
-      }
-
-      const auto to_txid = ccf::TxID::from_str(to);
-      if (!to_txid.has_value())
-      {
-        throw std::logic_error(fmt::format(
-          "Cannot parse COSE endorsement header: {}",
-          ccf::cose::header::custom::TX_RANGE_END));
-      }
-
-      if (!endorsement.endorsement_epoch_end.has_value())
-      {
-        throw std::logic_error(
-          "COSE endorsement does not contain epoch end in the table entry");
-      }
-      if (
-        endorsement.endorsement_epoch_begin != *from_txid ||
-        *endorsement.endorsement_epoch_end != *to_txid)
-      {
-        throw std::logic_error(fmt::format(
-          "COSE endorsement fetched but range is invalid, epoch begin {}, "
-          "epoch end {}, header epoch begin: {}, header epoch end: {}",
-          endorsement.endorsement_epoch_begin.to_str(),
-          endorsement.endorsement_epoch_end->to_str(),
-          from,
-          to));
-      }
-    }
-  }
-
   class NetworkIdentitySubsystem : public NetworkIdentitySubsystemInterface
   {
   protected:
@@ -495,10 +441,13 @@ namespace ccf
       std::span<const uint8_t> previous_key_der{};
       for (const auto& [seqno, endorsement] : endorsements)
       {
-        auto verifier =
-          ccf::crypto::make_cose_verifier_from_key(endorsement.endorsing_key);
-        std::span<uint8_t> endorsed_key;
-        if (!verifier->verify(endorsement.endorsement, endorsed_key))
+        std::vector<uint8_t> endorsed_key;
+        try
+        {
+          endorsed_key = verify_cose_endorsement_signature(
+            endorsement.endorsement, endorsement.endorsing_key);
+        }
+        catch (const std::logic_error&)
         {
           throw std::logic_error(fmt::format(
             "COSE endorsement chain integrity is violated, endorsement from "
