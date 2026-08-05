@@ -494,7 +494,8 @@ namespace ccf
         decrement_interface_sessions(li);
       };
 
-      const auto port_num = static_cast<uint16_t>(std::stoi(port));
+      const auto port_num =
+        port.empty() ? 0 : static_cast<uint16_t>(std::stoi(port));
       li->bridge = std::make_unique<asynchost::OpenSSLSessionManager>(
         cert_pem,
         key_pem,
@@ -543,7 +544,7 @@ namespace ccf
 
       udp->server = std::make_unique<asynchost::DatagramServer>(
         host,
-        static_cast<uint16_t>(std::stoi(port)),
+        port.empty() ? 0 : static_cast<uint16_t>(std::stoi(port)),
         [this, li, udp_ptr, writer](
           const uint8_t* data,
           size_t len,
