@@ -68,7 +68,7 @@ jobs:
         shell: bash
 
       - name: "Upload logs for AL4 virtual A"
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: logs-al4-virtual-a
           path: |
@@ -142,7 +142,7 @@ jobs:
         shell: bash
 
       - name: "Upload logs for AL4 virtual B"
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: logs-al4-virtual-b
           path: |
@@ -205,7 +205,7 @@ jobs:
         shell: bash
 
       - name: "Upload logs for AL4 virtual C"
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: logs-al4-virtual-c
           path: |
