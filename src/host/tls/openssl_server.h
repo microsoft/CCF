@@ -966,8 +966,7 @@ namespace asynchost
       on_data(std::move(on_data_)),
       on_close(std::move(on_close_)),
       plaintext(plaintext_),
-      verbose(verbose_),
-      started(false)
+      verbose(verbose_)
     {
       if (!alpn.empty())
       {
