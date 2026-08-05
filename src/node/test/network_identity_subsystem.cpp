@@ -7,6 +7,7 @@
 #include "crypto/openssl/ec_key_pair.h"
 #include "node/rpc/network_identity_accessors.h"
 #include "node/rpc/network_identity_chain_helpers.h"
+#include "node/snapshot_serdes.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <chrono>
@@ -473,6 +474,69 @@ TEST_CASE(
   ccf::TxID after{2 + aft::starting_view_change, 21};
   REQUIRE_THROWS_AS(
     ccf::validate_chain_front_connection(bad, after), std::logic_error);
+}
+
+TEST_CASE("Recovery snapshot endorsements are validated newest-to-oldest")
+{
+  ChainBuilder cb;
+  cb.add_self({2, 1}).add_next({2, 1}, {4, 100}).add_next({6, 101}, {8, 200});
+
+  std::vector<ccf::CollectedCoseEndorsement> collected{
+    {cb.write_versions[1], cb.entries[1]},
+    {cb.write_versions[2], cb.entries[2]}};
+  const auto target_key = cb.current_pkey_der();
+
+  const auto snapshot_signer =
+    ccf::validate_recovery_snapshot_endorsement_chain(collected, target_key, 1);
+  REQUIRE(snapshot_signer == cb.service_keys.front()->public_key_der());
+}
+
+TEST_CASE("Recovery snapshot endorsements fail closed")
+{
+  ChainBuilder cb;
+  cb.add_self({2, 1}).add_next({2, 1}, {4, 100}).add_next({6, 101}, {8, 200});
+
+  std::vector<ccf::CollectedCoseEndorsement> collected{
+    {cb.write_versions[1], cb.entries[1]},
+    {cb.write_versions[2], cb.entries[2]}};
+  const auto target_key = cb.current_pkey_der();
+
+  // Snapshot seqno inconsistent with the collected endorsement chain.
+  REQUIRE_THROWS_AS(
+    ccf::validate_recovery_snapshot_endorsement_chain(
+      collected, target_key, 1000),
+    std::logic_error);
+
+  const auto wrong_target_key =
+    ccf::crypto::make_ec_key_pair()->public_key_der();
+  REQUIRE_THROWS_AS(
+    ccf::validate_recovery_snapshot_endorsement_chain(
+      collected, wrong_target_key, 1),
+    std::logic_error);
+
+  auto broken_back_pointer = collected;
+  broken_back_pointer.back().endorsement.previous_version = 999;
+  REQUIRE_THROWS_AS(
+    ccf::validate_recovery_snapshot_endorsement_chain(
+      broken_back_pointer, target_key, 1),
+    std::logic_error);
+
+  auto epoch_mismatch = collected;
+  epoch_mismatch.front().endorsement.endorsement_epoch_end->seqno -= 1;
+  REQUIRE_THROWS_AS(
+    ccf::validate_recovery_snapshot_endorsement_chain(
+      epoch_mismatch, target_key, 1),
+    std::logic_error);
+
+  auto injected = collected;
+  auto injected_endorsement = collected.back();
+  ++injected_endorsement.write_version;
+  injected_endorsement.endorsement.previous_version =
+    collected.back().write_version;
+  injected.emplace_back(std::move(injected_endorsement));
+  REQUIRE_THROWS_AS(
+    ccf::validate_recovery_snapshot_endorsement_chain(injected, target_key, 1),
+    std::logic_error);
 }
 
 // ------------------------------------------------------------------------

@@ -15,10 +15,10 @@
 #include "kv/serialised_entry_format.h"
 #include "node/cose_common.h"
 #include "node/history.h"
+#include "node/rpc/network_identity_chain_helpers.h"
 #include "node/tx_receipt_impl.h"
 
 #include <nlohmann/json.hpp>
-
 namespace ccf
 {
   struct StartupSnapshotInfo
@@ -76,9 +76,159 @@ namespace ccf
     return SnapshotSegments{header_and_body, receipt};
   }
 
-  static void verify_cose_snapshot_receipt(
+  static void verify_snapshot_seqno(
     const SnapshotSegments& segments,
-    const std::optional<std::vector<uint8_t>>& prev_service_identity)
+    const std::shared_ptr<ccf::kv::AbstractTxEncryptor>& encryptor,
+    ccf::kv::Version expected_seqno)
+  {
+    auto deserialiser = ccf::kv::RawKvStoreDeserialiser(
+      encryptor, ccf::kv::SecurityDomain::PUBLIC);
+    ccf::kv::Term term = 0;
+    ccf::kv::EntryFlags flags = {};
+    const auto snapshot_seqno = deserialiser.init(
+      segments.header_and_body.data(),
+      segments.header_and_body.size(),
+      term,
+      flags,
+      false);
+    if (!snapshot_seqno.has_value())
+    {
+      throw std::logic_error("Failed to read version from recovery snapshot");
+    }
+    if (*snapshot_seqno != expected_seqno)
+    {
+      throw std::logic_error(fmt::format(
+        "Recovery snapshot body is at seqno {}, but its file name claims {}",
+        *snapshot_seqno,
+        expected_seqno));
+    }
+  }
+
+  // Validates the collected COSE endorsement chain against the configured
+  // previous service identity (target_key) and returns the snapshot signer
+  // key: the identity, active at snapshot_seqno, that signed the snapshot
+  // receipt. The oldest endorsement covers snapshot_seqno and endorses that
+  // key, so it is captured as the endorsed key of the first (oldest) link.
+  static std::vector<uint8_t> validate_recovery_snapshot_endorsement_chain(
+    const std::vector<CollectedCoseEndorsement>& collected,
+    std::span<const uint8_t> target_key,
+    ccf::kv::Version snapshot_seqno)
+  {
+    if (collected.empty())
+    {
+      throw std::logic_error(
+        "No previous service identity endorsements were found after the "
+        "snapshot");
+    }
+
+    std::vector<uint8_t> snapshot_signer_key;
+    std::vector<uint8_t> previous_endorsing_key;
+    for (size_t i = 0; i < collected.size(); ++i)
+    {
+      const auto& [write_version, endorsement] = collected[i];
+      if (write_version <= snapshot_seqno)
+      {
+        throw std::logic_error(fmt::format(
+          "Collected endorsement write at {} is not after snapshot seqno {}",
+          write_version,
+          snapshot_seqno));
+      }
+      if (is_self_endorsement(endorsement))
+      {
+        throw std::logic_error(fmt::format(
+          "Unexpected self-endorsement after snapshot at {}",
+          endorsement.endorsement_epoch_begin.to_str()));
+      }
+      if (has_ill_formed_epoch_range(endorsement))
+      {
+        throw std::logic_error(fmt::format(
+          "Collected endorsement has an ill-formed epoch range {} - {}",
+          endorsement.endorsement_epoch_begin.to_str(),
+          format_epoch(endorsement.endorsement_epoch_end)));
+      }
+
+      validate_fetched_endorsement(endorsement);
+
+      if (i == 0)
+      {
+        if (
+          !endorsement.previous_version.has_value() ||
+          endorsement.previous_version.value() > snapshot_seqno)
+        {
+          throw std::logic_error(fmt::format(
+            "Oldest collected endorsement at {} does not point to an "
+            "endorsement at or before snapshot seqno {}",
+            write_version,
+            snapshot_seqno));
+        }
+      }
+      else
+      {
+        const auto& previous = collected[i - 1];
+        if (
+          !endorsement.previous_version.has_value() ||
+          endorsement.previous_version.value() != previous.write_version)
+        {
+          throw std::logic_error(fmt::format(
+            "Collected endorsement at {} does not point to the previous "
+            "collected endorsement at {}",
+            write_version,
+            previous.write_version));
+        }
+        verify_endorsements_connected(endorsement, previous.endorsement);
+      }
+
+      const auto endorsed_key = verify_cose_endorsement_signature(
+        endorsement.endorsement, endorsement.endorsing_key);
+      if (i == 0)
+      {
+        // The oldest endorsement covers snapshot_seqno; the key it endorses is
+        // the identity that signed the snapshot receipt.
+        snapshot_signer_key = endorsed_key;
+      }
+      if (
+        !previous_endorsing_key.empty() &&
+        endorsed_key != previous_endorsing_key)
+      {
+        throw std::logic_error(fmt::format(
+          "Collected endorsement at {} does not endorse the preceding service "
+          "identity",
+          write_version));
+      }
+      previous_endorsing_key = endorsement.endorsing_key;
+    }
+
+    if (
+      previous_endorsing_key.size() != target_key.size() ||
+      !std::equal(
+        previous_endorsing_key.begin(),
+        previous_endorsing_key.end(),
+        target_key.begin()))
+    {
+      throw std::logic_error(
+        "Newest collected endorsement is not signed by the configured "
+        "previous service identity");
+    }
+
+    const auto& oldest = collected.front().endorsement;
+    if (
+      !oldest.endorsement_epoch_end.has_value() ||
+      oldest.endorsement_epoch_begin.seqno > snapshot_seqno ||
+      oldest.endorsement_epoch_end->seqno < snapshot_seqno)
+    {
+      throw std::logic_error(fmt::format(
+        "Oldest collected endorsement range {} - {} does not cover snapshot "
+        "seqno {}",
+        oldest.endorsement_epoch_begin.to_str(),
+        format_epoch(oldest.endorsement_epoch_end),
+        snapshot_seqno));
+    }
+
+    return snapshot_signer_key;
+  }
+
+  static auto decode_and_verify_cose_snapshot_receipt(
+    const SnapshotSegments& segments)
   {
     auto receipt = ccf::cose::decode_ccf_receipt(
       {segments.receipt.begin(), segments.receipt.end()},
@@ -98,6 +248,15 @@ namespace ccf
         snapshot_digest,
         ds::to_hex(receipt.claims_digest)));
     }
+
+    return receipt;
+  }
+
+  static void verify_cose_snapshot_receipt(
+    const SnapshotSegments& segments,
+    const std::optional<std::vector<uint8_t>>& prev_service_identity)
+  {
+    const auto receipt = decode_and_verify_cose_snapshot_receipt(segments);
 
     if (prev_service_identity)
     {
