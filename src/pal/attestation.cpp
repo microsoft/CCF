@@ -8,10 +8,9 @@
 #include "ccf/pal/attestation_sev_snp.h"
 #include "ccf/pal/sev_snp_cpuid.h"
 #include "ds/internal_logger.h"
-#include "tav/snp.h"
+#include "pal/tav_ffi.h"
 
 #include <cstdint>
-#include <memory>
 #include <openssl/objects.h>
 
 namespace ccf::pal
@@ -261,19 +260,17 @@ namespace ccf::pal
     auto ark_cert = certificates[2];
 
     TavSnpAttestationReport* verified_report_raw = nullptr;
-    using TavErrorPtr = std::unique_ptr<TavError, decltype(&tav_error_free)>;
-    TavErrorPtr verification_error(
-      tav_verify_snp_attestation(
-        quote_info.quote.data(),
-        quote_info.quote.size(),
-        ark_cert.data(),
-        ark_cert.size(),
-        ask_cert.data(),
-        ask_cert.size(),
-        vcek_cert.data(),
-        vcek_cert.size(),
-        &verified_report_raw),
-      tav_error_free);
+    TavErrorPtr verification_error(tav_verify_snp_attestation(
+      quote_info.quote.data(),
+      quote_info.quote.size(),
+      ark_cert.data(),
+      ark_cert.size(),
+      ask_cert.data(),
+      ask_cert.size(),
+      vcek_cert.data(),
+      vcek_cert.size(),
+      &verified_report_raw));
+    TavAttestationReportPtr verified_report(verified_report_raw);
     if (verification_error != nullptr)
     {
       const auto error_code = tav_error_code(verification_error.get());
@@ -284,11 +281,6 @@ namespace ccf::pal
         error_message == nullptr ? "Unknown TAV error" : error_message));
     }
 
-    using TavReportPtr = std::unique_ptr<
-      TavSnpAttestationReport,
-      decltype(&tav_snp_attestation_report_free)>;
-    TavReportPtr verified_report(
-      verified_report_raw, tav_snp_attestation_report_free);
     if (verified_report == nullptr)
     {
       throw std::logic_error(
