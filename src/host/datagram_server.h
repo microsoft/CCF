@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-// A minimal UDP datagram server: it owns a SOCK_DGRAM socket in its own epoll
-// loop and delivers each received datagram to a handler. It backs UDP
-// interfaces, leaving protocol behaviour to its handler.
+// A minimal UDP datagram server: it owns a SOCK_DGRAM socket polled by the
+// host libuv loop and delivers each received datagram to a handler. It backs
+// UDP interfaces, leaving protocol behaviour to its handler.
 //
 // ===========================================================================
 // QUIC EXTENSION POINT
@@ -12,50 +12,40 @@
 // This is deliberately the substrate a future OpenSSL-native QUIC server would
 // build on. The UDP socket created and bound here is exactly the datagram
 // socket OpenSSL QUIC operates on. The pieces that change for QUIC are marked
-// "QUIC EXTENSION POINT" inline; the socket creation, binding, epoll loop and
-// lifecycle below are unchanged by that switch.
+// "QUIC EXTENSION POINT" inline; socket creation, binding and lifecycle remain.
 //
 // To become a QUIC server (needs OpenSSL >= 3.5, which adds SSL_new_listener /
-// SSL_accept_connection / OSSL_QUIC_server_method - absent in the 3.3.x we
-// build against today):
-//   * wrap `sock` with BIO_new_dgram()/SSL_set_fd() on a QUIC listener SSL
-//     (OSSL_QUIC_server_method + SSL_new_listener);
-//   * epoll the descriptor returned by SSL_get_rpoll_descriptor() (it is this
-//     same UDP fd) plus an SSL_get_event_timeout() timer, instead of `sock`
-//     directly;
+// SSL_accept_connection / OSSL_QUIC_server_method):
+//   * wrap `sock` with BIO_new_dgram()/SSL_set_fd() on a QUIC listener SSL;
+//   * poll the descriptor returned by SSL_get_rpoll_descriptor() and use an
+//     SSL_get_event_timeout() timer;
 //   * on readability/timeout call SSL_handle_events(), then
 //     SSL_accept_connection()/SSL_accept_stream()/SSL_read_ex(), and reply with
-//     SSL_write_ex() on a stream rather than the raw sendto() below.
-// The event-driven integration primitives (SSL_handle_events,
-// SSL_get_rpoll_descriptor, SSL_get_event_timeout, BIO_new_dgram,
-// SSL_set1_initial_peer_addr) already exist in 3.3.x - only the server-side
-// listener/accept is missing.
+//     SSL_write_ex().
 // ===========================================================================
 
 #include <arpa/inet.h>
-#include <atomic>
 #include <cerrno>
+#include <condition_variable>
 #include <cstdint>
 #include <cstring>
 #include <fcntl.h>
 #include <functional>
+#include <mutex>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <stdexcept>
 #include <string>
-#include <sys/epoll.h>
-#include <sys/eventfd.h>
 #include <sys/socket.h>
 #include <thread>
 #include <unistd.h>
-#include <vector>
+#include <uv.h>
 
 namespace asynchost
 {
   class DatagramServer
   {
   public:
-    // Invoked on the loop thread for each received datagram.
     using OnDatagram = std::function<void(
       const uint8_t* data,
       size_t len,
@@ -63,17 +53,25 @@ namespace asynchost
       socklen_t peerlen)>;
 
   private:
-    // Max UDP payload (theoretical IPv4 limit); datagrams are read whole.
     static constexpr size_t max_datagram = 65535;
 
+    uv_loop_t* loop = nullptr;
     int sock = -1;
-    int epoll_fd = -1;
-    int stop_fd = -1;
+    uv_poll_t socket_poll{};
+    uv_async_t stop_handle{};
     uint16_t bound_port = 0;
     OnDatagram on_datagram;
 
-    std::thread loop_thread;
-    std::atomic<bool> running{false};
+    std::mutex lifecycle_mutex;
+    std::condition_variable stopped_cv;
+    std::thread::id loop_thread_id;
+    bool started = false;
+    bool stopping = false;
+    bool shutdown_started = false;
+    bool stopped = false;
+    size_t pending_uv_closes = 0;
+    std::thread::id initialising_thread_id;
+    bool loop_thread_seen = false;
 
     static bool set_nonblocking(int fd)
     {
@@ -83,6 +81,13 @@ namespace asynchost
         return false;
       }
       return fcntl(fd, F_SETFL, flags | O_NONBLOCK) == 0;
+    }
+
+    void mark_loop_thread()
+    {
+      std::lock_guard<std::mutex> guard(lifecycle_mutex);
+      loop_thread_id = std::this_thread::get_id();
+      loop_thread_seen = true;
     }
 
     void drain()
@@ -115,54 +120,80 @@ namespace asynchost
         if (on_datagram)
         {
           // === QUIC EXTENSION POINT ===
-          // A QUIC server would feed the received bytes to OpenSSL
-          // (SSL_handle_events). `peer` is the source address that
-          // SSL_set1_initial_peer_addr() consumes.
+          // A QUIC server would feed these bytes to SSL_handle_events().
           on_datagram(buf, static_cast<size_t>(n), peer, peerlen);
         }
       }
     }
 
-    void run()
+    static void on_socket_poll(uv_poll_t* handle, int status, int events)
     {
-      constexpr int max_events = 8;
-      std::vector<epoll_event> events(max_events);
-      while (running.load())
+      auto* self = static_cast<DatagramServer*>(handle->data);
+      self->mark_loop_thread();
+      if (status < 0)
       {
-        const int n = epoll_wait(epoll_fd, events.data(), max_events, -1);
-        if (n < 0)
-        {
-          if (errno == EINTR)
-          {
-            continue;
-          }
-          break;
-        }
-        for (int i = 0; i < n; ++i)
-        {
-          const int fd = events[i].data.fd;
-          if (fd == stop_fd)
-          {
-            running.store(false);
-            break;
-          }
-          if (fd == sock)
-          {
-            // === QUIC EXTENSION POINT ===
-            // For QUIC this becomes SSL_handle_events() on the listener.
-            drain();
-          }
-        }
+        self->stop_on_loop();
+        return;
       }
+      if ((events & UV_READABLE) != 0)
+      {
+        // === QUIC EXTENSION POINT ===
+        // For QUIC this becomes SSL_handle_events() on the listener.
+        self->drain();
+      }
+    }
+
+    static void on_stop(uv_async_t* handle)
+    {
+      auto* self = static_cast<DatagramServer*>(handle->data);
+      self->mark_loop_thread();
+      self->stop_on_loop();
+    }
+
+    static void on_handle_closed(uv_handle_t* handle)
+    {
+      auto* self = static_cast<DatagramServer*>(handle->data);
+      std::lock_guard<std::mutex> guard(self->lifecycle_mutex);
+      --self->pending_uv_closes;
+      if (self->pending_uv_closes == 0)
+      {
+        self->stopped = true;
+        self->stopped_cv.notify_all();
+      }
+    }
+
+    void stop_on_loop()
+    {
+      {
+        std::lock_guard<std::mutex> guard(lifecycle_mutex);
+        if (shutdown_started)
+        {
+          return;
+        }
+        stopping = true;
+        shutdown_started = true;
+        pending_uv_closes = 2;
+      }
+
+      (void)uv_poll_stop(&socket_poll);
+      if (sock >= 0)
+      {
+        ::close(sock);
+        sock = -1;
+      }
+      uv_close(reinterpret_cast<uv_handle_t*>(&socket_poll), on_handle_closed);
+      uv_close(reinterpret_cast<uv_handle_t*>(&stop_handle), on_handle_closed);
     }
 
   public:
     DatagramServer(
-      const std::string& host, uint16_t port, OnDatagram on_datagram_) :
+      const std::string& host,
+      uint16_t port,
+      OnDatagram on_datagram_,
+      uv_loop_t* loop_ = uv_default_loop()) :
+      loop(loop_),
       on_datagram(std::move(on_datagram_))
     {
-      // Resolve + bind the datagram address (getaddrinfo supports hostnames and
-      // IPv6, matching the TCP listener).
       addrinfo hints{};
       hints.ai_family = AF_UNSPEC;
       hints.ai_socktype = SOCK_DGRAM;
@@ -209,42 +240,17 @@ namespace asynchost
         throw std::runtime_error("set_nonblocking (udp) failed");
       }
 
-      // Read back the actual bound port (supports ephemeral port 0, v4 and v6).
-      sockaddr_storage b{};
-      socklen_t blen = sizeof(b);
-      if (getsockname(sock, reinterpret_cast<sockaddr*>(&b), &blen) == 0)
+      sockaddr_storage bound_address{};
+      socklen_t bound_address_len = sizeof(bound_address);
+      if (
+        getsockname(
+          sock,
+          reinterpret_cast<sockaddr*>(&bound_address),
+          &bound_address_len) == 0)
       {
-        bound_port = (b.ss_family == AF_INET6) ?
-          ntohs(reinterpret_cast<sockaddr_in6*>(&b)->sin6_port) :
-          ntohs(reinterpret_cast<sockaddr_in*>(&b)->sin_port);
-      }
-
-      epoll_fd = epoll_create1(0);
-      if (epoll_fd < 0)
-      {
-        cleanup();
-        throw std::runtime_error("epoll_create1 (udp) failed");
-      }
-      stop_fd = eventfd(0, EFD_NONBLOCK);
-      if (stop_fd < 0)
-      {
-        cleanup();
-        throw std::runtime_error("eventfd (udp) failed");
-      }
-
-      epoll_event ev{};
-      ev.events = EPOLLIN;
-      ev.data.fd = sock;
-      if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, sock, &ev) != 0)
-      {
-        cleanup();
-        throw std::runtime_error("epoll_ctl(sock udp) failed");
-      }
-      ev.data.fd = stop_fd;
-      if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, stop_fd, &ev) != 0)
-      {
-        cleanup();
-        throw std::runtime_error("epoll_ctl(stop udp) failed");
+        bound_port = (bound_address.ss_family == AF_INET6) ?
+          ntohs(reinterpret_cast<sockaddr_in6*>(&bound_address)->sin6_port) :
+          ntohs(reinterpret_cast<sockaddr_in*>(&bound_address)->sin_port);
       }
     }
 
@@ -261,29 +267,76 @@ namespace asynchost
 
     void start()
     {
-      running.store(true);
-      loop_thread = std::thread([this]() { run(); });
+      std::lock_guard<std::mutex> guard(lifecycle_mutex);
+      if (started)
+      {
+        return;
+      }
+      int rc = uv_poll_init_socket(loop, &socket_poll, sock);
+      if (rc != 0)
+      {
+        throw std::runtime_error(
+          std::string("uv_poll_init_socket(udp) failed: ") + uv_strerror(rc));
+      }
+      socket_poll.data = this;
+      rc = uv_async_init(loop, &stop_handle, on_stop);
+      if (rc != 0)
+      {
+        throw std::runtime_error(
+          std::string("uv_async_init(udp) failed: ") + uv_strerror(rc));
+      }
+      stop_handle.data = this;
+      rc = uv_poll_start(&socket_poll, UV_READABLE, on_socket_poll);
+      if (rc != 0)
+      {
+        throw std::runtime_error(
+          std::string("uv_poll_start(udp) failed: ") + uv_strerror(rc));
+      }
+      started = true;
+      stopping = false;
+      shutdown_started = false;
+      stopped = false;
+      initialising_thread_id = std::this_thread::get_id();
+      loop_thread_seen = false;
     }
 
     void stop()
     {
-      if (!running.exchange(false))
+      std::unique_lock<std::mutex> lock(lifecycle_mutex);
+      if (!started || stopped)
       {
-        if (loop_thread.joinable())
-        {
-          loop_thread.join();
-        }
         return;
       }
-      if (stop_fd >= 0)
+      if (!stopping)
       {
-        const uint64_t one = 1;
-        [[maybe_unused]] auto w = ::write(stop_fd, &one, sizeof(one));
+        stopping = true;
+        (void)uv_async_send(&stop_handle);
       }
-      if (loop_thread.joinable())
+      const bool loop_not_started_here = !loop_thread_seen &&
+        std::this_thread::get_id() == initialising_thread_id;
+      if (loop_not_started_here)
       {
-        loop_thread.join();
+        lock.unlock();
+        stop_on_loop();
+        for (;;)
+        {
+          {
+            std::lock_guard<std::mutex> guard(lifecycle_mutex);
+            if (stopped)
+            {
+              return;
+            }
+          }
+          (void)uv_run(loop, UV_RUN_NOWAIT);
+        }
       }
+      if (std::this_thread::get_id() == loop_thread_id)
+      {
+        lock.unlock();
+        stop_on_loop();
+        return;
+      }
+      stopped_cv.wait(lock, [this]() { return stopped; });
     }
 
     [[nodiscard]] uint16_t port() const
@@ -305,16 +358,6 @@ namespace asynchost
   private:
     void cleanup()
     {
-      if (stop_fd >= 0)
-      {
-        ::close(stop_fd);
-        stop_fd = -1;
-      }
-      if (epoll_fd >= 0)
-      {
-        ::close(epoll_fd);
-        epoll_fd = -1;
-      }
       if (sock >= 0)
       {
         ::close(sock);

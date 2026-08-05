@@ -6,7 +6,7 @@ Overview
 
 In CCF, the :term:`TLS` layer is implemented using OpenSSL (3.3 or later).
 
-TLS is terminated in the **connection layer**: OpenSSL owns the socket file descriptor directly, and a local ``epoll`` loop drives the non-blocking handshake, reads, writes, graceful close and idle connection cleanup. Everything above the connection layer, including HTTP parsing and endpoint dispatch, only ever sees plaintext.
+TLS is terminated in the **connection layer**: OpenSSL owns the socket file descriptor directly, while the existing host ``libuv`` loop drives the non-blocking handshake, reads, writes, graceful close and idle connection cleanup. Everything above the connection layer, including HTTP parsing and endpoint dispatch, only ever sees plaintext.
 
 This document describes the connection layer and its interface to the session layer above it.
 
@@ -15,7 +15,7 @@ Layers
 
 A single RPC interface is served by these pieces:
 
-- :ccf_repo:`OpenSSLServer </src/host/tls/openssl_server.h>` owns the listening socket, one ``epoll`` instance, and one loop thread. Each accepted connection holds an ``SSL`` object bound to its file descriptor with ``SSL_set_fd``. It emits decrypted bytes through an ``OnData`` callback and reports teardown through ``OnClose``.
+- :ccf_repo:`OpenSSLServer </src/host/tls/openssl_server.h>` owns the listening and accepted sockets and registers ``uv_poll_t`` handles for them on the existing host loop. Each accepted connection holds an ``SSL`` object bound to its file descriptor with ``SSL_set_fd``. It emits decrypted bytes through an ``OnData`` callback and reports teardown through ``OnClose``.
 - :ccf_repo:`OpenSSLSessionManager </src/host/tls/openssl_session_manager.h>` bridges the transport to the session layer. It lazily creates one ``ccf::Session`` per connection using a caller-supplied factory, and implements :ccf_repo:`ccf::SessionWriter </src/enclave/session_writer.h>` so that a session's outbound plaintext is handed back to the transport.
 - :ccf_repo:`ccf::PlaintextSession </src/enclave/session.h>` is the base for the protocol sessions (:ccf_repo:`HTTPServerSession </src/http/http_session.h>`, :ccf_repo:`HTTP2ServerSession </src/http/http2_session.h>`). It receives plaintext, and emits plaintext through its ``SessionWriter``.
 - :ccf_repo:`RPCConnectionManager </src/host/rpc_connection_manager.h>` owns one of these stacks per configured RPC interface, and holds the cross-interface policy: certificates, session caps, and metrics.
@@ -67,18 +67,18 @@ The server calls ``SSL_CTX_set_verify`` with ``SSL_VERIFY_PEER`` and an accept-a
 Reading
 ~~~~~~~
 
-When ``epoll`` reports a connection readable, the loop calls ``SSL_read`` repeatedly until it reports ``SSL_ERROR_WANT_READ``. Every chunk of decrypted bytes is passed to the ``OnData`` callback as it is produced, so a single readable event may yield several callbacks.
+When ``libuv`` reports a connection readable, the loop calls ``SSL_read`` repeatedly until it reports ``SSL_ERROR_WANT_READ``. Every chunk of decrypted bytes is passed to the ``OnData`` callback as it is produced, so a single readable event may yield several callbacks.
 
 ``OpenSSLSessionManager`` receives those bytes, finds or creates the session for that connection, and calls ``handle_incoming_data``. The session dispatches the actual parsing to a worker via ``OrderedTasks``, so the loop thread does not block on application work.
 
-``SSL_ERROR_WANT_WRITE`` on a read is not an error: a TLS 1.3 key update needs the socket to become writable, so the connection is left open with ``EPOLLOUT`` armed. Any other result, whether a clean ``SSL_ERROR_ZERO_RETURN``, an unclean EOF, or a fatal error, closes the connection.
+``SSL_ERROR_WANT_WRITE`` on a read is not an error: a TLS 1.3 key update needs the socket to become writable, so the connection is left open with ``UV_WRITABLE`` armed. Any other result, whether a clean ``SSL_ERROR_ZERO_RETURN``, an unclean EOF, or a fatal error, closes the connection.
 
 Writing and backpressure
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
 ``send()`` is thread-safe. It appends the plaintext to a queue guarded by a mutex and signals an ``eventfd``, waking the loop thread, which drains the queue and attempts the write.
 
-Writes are where genuine backpressure appears. ``SSL_write`` on a non-blocking socket may report ``SSL_ERROR_WANT_WRITE`` after consuming only part of the buffer. The remainder stays buffered against the connection, ``EPOLLOUT`` is armed, and the write resumes when the socket next becomes writable. Because the socket is owned by OpenSSL and is non-blocking, this reflects the real state of the :term:`TCP` send buffer rather than an internal approximation.
+Writes are where genuine backpressure appears. ``SSL_write`` on a non-blocking socket may report ``SSL_ERROR_WANT_WRITE`` after consuming only part of the buffer. The remainder stays buffered against the connection, ``UV_WRITABLE`` is armed, and the write resumes when the socket next becomes writable. Because the socket is owned by OpenSSL and is non-blocking, this reflects the real state of the :term:`TCP` send buffer rather than an internal approximation.
 
 Closing
 ~~~~~~~
@@ -87,12 +87,12 @@ Closing is deferred rather than immediate. A close requested while output is sti
 
 This matters because the common pattern is to write a response and immediately close. Closing eagerly truncates any response large enough to have been backpressured, which the client observes as a connection reset partway through the body rather than as a well-formed response.
 
-Idle connections are closed separately. If an idle timeout is configured, the loop uses a finite ``epoll_wait`` timeout and periodically sweeps connections whose last I/O is older than the timeout.
+Idle connections are closed separately. If an idle timeout is configured, a repeating ``uv_timer_t`` periodically sweeps connections whose last I/O is older than the timeout. This retains the once-per-second scheduling used by the previous RPC transport while comparing actual ``steady_clock`` timestamps rather than counting timer ticks.
 
 Threading
 ~~~~~~~~~
 
-Each ``OpenSSLServer`` runs exactly one loop thread, and all socket and ``SSL`` operations happen on it. Work reaches that thread in one of two ways: file descriptor readiness reported by ``epoll``, or a cross-thread request (a queued write, a close, or a certificate update) posted to a queue and signalled through an ``eventfd``.
+All socket and ``SSL`` operations happen on the existing host ``libuv`` thread; an ``OpenSSLServer`` does not create a thread or private reactor. Work reaches the loop in one of two ways: file descriptor readiness reported through ``uv_poll_t``, or a cross-thread request (a queued write, a close, or a certificate update) posted to a queue and signalled through ``uv_async_t``.
 
 .. warning::
 
@@ -130,6 +130,6 @@ Future: QUIC
 
 QUIC is not yet implemented. Server-side QUIC requires OpenSSL 3.5 or later, which adds ``SSL_new_listener``, ``SSL_accept_connection`` and ``OSSL_QUIC_server_method``; these are absent from the 3.3.x baseline CCF currently supports.
 
-:ccf_repo:`DatagramServer </src/host/datagram_server.h>` exists as the substrate for that work. It is deliberately shaped as the UDP socket a QUIC server operates on: socket creation, binding, the ``epoll`` loop and the per-datagram dispatch are all reusable as-is. The points that change for QUIC are marked ``QUIC EXTENSION POINT`` inline, and consist of wrapping the socket with ``BIO_new_dgram``/``SSL_set_fd`` on a listener ``SSL``, and replacing the datagram callback with ``SSL_handle_events``.
+:ccf_repo:`DatagramServer </src/host/datagram_server.h>` exists as the substrate for that work. It is deliberately shaped as the UDP socket a QUIC server operates on: socket creation, binding, ``uv_poll_t`` readiness and per-datagram dispatch are all reusable as-is. The points that change for QUIC are marked ``QUIC EXTENSION POINT`` inline, and consist of wrapping the socket with ``BIO_new_dgram``/``SSL_set_fd`` on a listener ``SSL``, adding the OpenSSL event timeout, and replacing the datagram callback with ``SSL_handle_events``.
 
 Until then, a UDP interface uses a built-in datagram echo session.

@@ -6,6 +6,7 @@
 #include "ccf/crypto/ec_key_pair.h"
 #include "ccf/ds/x509_time_fmt.h"
 #include "crypto/certs.h"
+#include "host/datagram_server.h"
 #include "host/tls/openssl_server.h"
 #include "host/tls/openssl_session_manager.h"
 
@@ -304,8 +305,27 @@ namespace
   }
 
   // Echoes received plaintext back to the same connection via send().
+  struct UVLoopRunner
+  {
+    std::thread thread;
+
+    void start()
+    {
+      thread = std::thread([]() { uv_run(uv_default_loop(), UV_RUN_DEFAULT); });
+    }
+
+    ~UVLoopRunner()
+    {
+      if (thread.joinable())
+      {
+        thread.join();
+      }
+    }
+  };
+
   struct EchoServer
   {
+    UVLoopRunner loop;
     std::unique_ptr<OpenSSLServer> server;
 
     EchoServer(
@@ -322,6 +342,7 @@ namespace
           server->send(id, d.data(), d.size());
         });
       server->start();
+      loop.start();
     }
 
     ~EchoServer()
@@ -386,6 +407,24 @@ namespace
   };
 }
 
+TEST_CASE("Transports stop cleanly before the libuv loop starts")
+{
+  auto [cert, key] = make_server_cert();
+  OpenSSLServer tcp_server(
+    cert, key, "127.0.0.1", 0, [](::tcp::ConnID, std::vector<uint8_t>) {});
+  tcp_server.start();
+  tcp_server.stop();
+
+  DatagramServer udp_server(
+    "127.0.0.1",
+    0,
+    [](const uint8_t*, size_t, const sockaddr_storage&, socklen_t) {});
+  udp_server.start();
+  udp_server.stop();
+
+  REQUIRE(uv_loop_alive(uv_default_loop()) == 0);
+}
+
 TEST_CASE("TLS handshake and small round-trip")
 {
   auto [cert, key] = make_server_cert();
@@ -402,7 +441,7 @@ TEST_CASE("Large transfer exercises the backpressure path")
   EchoServer s(cert, key);
 
   // 4 MiB forces the socket send buffer to fill, so SSL_write returns
-  // WANT_WRITE and the server must buffer + re-arm EPOLLOUT.
+  // WANT_WRITE and the server must buffer + re-arm UV_WRITABLE.
   const auto payload = random_bytes(4 * 1024 * 1024);
   const auto resp = tls_client_exchange(s.port(), payload, payload.size());
 
@@ -439,12 +478,13 @@ TEST_CASE("Concurrent connections")
   REQUIRE(ok.load() == num_clients);
 }
 
-// Models the production dispatch path: the epoll thread hands the request to a
+// Models the production dispatch path: the libuv thread hands the request to a
 // worker thread, which replies via send() - exercising cross-thread send +
-// eventfd loop wakeup.
+// uv_async_t loop wakeup.
 TEST_CASE("Reply from a worker thread")
 {
   auto [cert, key] = make_server_cert();
+  UVLoopRunner loop;
 
   OpenSSLServer* sp = nullptr;
   std::mutex m;
@@ -482,6 +522,7 @@ TEST_CASE("Reply from a worker thread")
     });
   sp = &server;
   server.start();
+  loop.start();
 
   const std::vector<uint8_t> msg = {'w', 'o', 'r', 'k', 'e', 'r'};
   REQUIRE(tls_client_exchange(server.port(), msg, msg.size()) == msg);
@@ -495,9 +536,55 @@ TEST_CASE("Reply from a worker thread")
   worker.join();
 }
 
+TEST_CASE("Datagram server round-trip on the libuv reactor")
+{
+  UVLoopRunner loop;
+  DatagramServer* server_ptr = nullptr;
+  DatagramServer server(
+    "127.0.0.1",
+    0,
+    [&](
+      const uint8_t* data,
+      size_t len,
+      const sockaddr_storage& peer,
+      socklen_t peerlen) {
+      REQUIRE(server_ptr->send_to(peer, peerlen, data, len));
+    });
+  server_ptr = &server;
+  server.start();
+  loop.start();
+
+  const int fd = ::socket(AF_INET, SOCK_DGRAM, 0);
+  REQUIRE(fd >= 0);
+  timeval timeout{1, 0};
+  REQUIRE(
+    setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) == 0);
+  sockaddr_in address{};
+  address.sin_family = AF_INET;
+  address.sin_port = htons(server.port());
+  REQUIRE(inet_pton(AF_INET, "127.0.0.1", &address.sin_addr) == 1);
+
+  const std::vector<uint8_t> message = {'u', 'd', 'p'};
+  REQUIRE(
+    ::sendto(
+      fd,
+      message.data(),
+      message.size(),
+      0,
+      reinterpret_cast<sockaddr*>(&address),
+      sizeof(address)) == static_cast<ssize_t>(message.size()));
+  std::vector<uint8_t> response(message.size());
+  REQUIRE(::recv(fd, response.data(), response.size(), 0) == 3);
+  REQUIRE(response == message);
+  ::close(fd);
+
+  server.stop();
+}
+
 TEST_CASE("Session bridge: round-trip via ccf::Session + SessionWriter")
 {
   auto [cert, key] = make_server_cert();
+  UVLoopRunner loop;
   OpenSSLSessionManager mgr(
     cert,
     key,
@@ -507,6 +594,7 @@ TEST_CASE("Session bridge: round-trip via ccf::Session + SessionWriter")
       return std::make_shared<EchoSession>(id, w);
     });
   mgr.start();
+  loop.start();
   REQUIRE(mgr.port() != 0);
 
   const std::vector<uint8_t> msg = {'b', 'r', 'i', 'd', 'g', 'e'};
@@ -518,6 +606,7 @@ TEST_CASE("Session bridge: round-trip via ccf::Session + SessionWriter")
 TEST_CASE("Session bridge: large transfer via ccf::Session + SessionWriter")
 {
   auto [cert, key] = make_server_cert();
+  UVLoopRunner loop;
   OpenSSLSessionManager mgr(
     cert,
     key,
@@ -527,6 +616,7 @@ TEST_CASE("Session bridge: large transfer via ccf::Session + SessionWriter")
       return std::make_shared<EchoSession>(id, w);
     });
   mgr.start();
+  loop.start();
 
   const auto payload = random_bytes(2 * 1024 * 1024);
   const auto resp = tls_client_exchange(mgr.port(), payload, payload.size());
@@ -542,6 +632,7 @@ TEST_CASE("Peer certificate is captured for inbound connections")
 {
   auto [cert, key] = make_server_cert();
   auto [client_cert, client_key] = make_server_cert();
+  UVLoopRunner loop;
 
   std::mutex m;
   std::vector<uint8_t> captured;
@@ -561,6 +652,7 @@ TEST_CASE("Peer certificate is captured for inbound connections")
       return std::make_shared<EchoSession>(id, w);
     });
   mgr.start();
+  loop.start();
 
   const std::vector<uint8_t> msg = {'m', 't', 'l', 's'};
   REQUIRE(
@@ -580,6 +672,7 @@ TEST_CASE("Peer certificate is captured for inbound connections")
 TEST_CASE("Client certificate is requested but not enforced")
 {
   auto [cert, key] = make_server_cert();
+  UVLoopRunner loop;
 
   std::mutex m;
   std::vector<uint8_t> captured;
@@ -599,6 +692,7 @@ TEST_CASE("Client certificate is requested but not enforced")
       return std::make_shared<EchoSession>(id, w);
     });
   mgr.start();
+  loop.start();
 
   const std::vector<uint8_t> msg = {'n', 'o', 'c', 'e', 'r', 't'};
   REQUIRE(tls_client_exchange(mgr.port(), msg, msg.size()) == msg);
@@ -738,6 +832,7 @@ TEST_CASE("Graceful close flushes buffered response without truncation")
 {
   auto [cert, key] = make_server_cert();
   const auto payload = random_bytes(4 * 1024 * 1024);
+  UVLoopRunner loop;
 
   OpenSSLSessionManager mgr(
     cert,
@@ -748,6 +843,7 @@ TEST_CASE("Graceful close flushes buffered response without truncation")
       return std::make_shared<LargeThenCloseSession>(id, w, payload);
     });
   mgr.start();
+  loop.start();
 
   const std::vector<uint8_t> req = {'g', 'o'};
   const auto resp = tls_client_exchange(mgr.port(), req, payload.size());

@@ -3,7 +3,7 @@
 #pragma once
 
 // OpenSSL-native TLS/plaintext TCP server for RPC interfaces. OpenSSL owns the
-// socket fd directly, while a local epoll loop drives non-blocking handshake,
+// socket fd directly, while the host libuv loop drives non-blocking handshake,
 // reads, writes, graceful close, and idle connection cleanup.
 
 #include "tcp/msg_types.h"
@@ -12,6 +12,7 @@
 #include <atomic>
 #include <cerrno>
 #include <chrono>
+#include <condition_variable>
 #include <cstdarg>
 #include <cstdint>
 #include <cstdio>
@@ -29,14 +30,13 @@
 #include <optional>
 #include <stdexcept>
 #include <string>
-#include <sys/epoll.h>
-#include <sys/eventfd.h>
 #include <sys/socket.h>
 #include <system_error>
 #include <thread>
 #include <unistd.h>
 #include <unordered_map>
 #include <utility>
+#include <uv.h>
 #include <vector>
 
 namespace asynchost
@@ -44,14 +44,14 @@ namespace asynchost
   class OpenSSLServer
   {
   public:
-    // Invoked on the epoll thread with a complete chunk of decrypted bytes for
+    // Invoked on the libuv thread with a complete chunk of decrypted bytes for
     // connection `conn_id`. The handler typically hands processing to a worker
     // (e.g. OrderedTasks) and later calls send()/close_connection() from that
     // thread - both are thread-safe and wake the loop.
     using OnData =
       std::function<void(::tcp::ConnID conn_id, std::vector<uint8_t> data)>;
 
-    // Invoked on the epoll thread when a connection is torn down (peer
+    // Invoked on the libuv thread when a connection is torn down (peer
     // disconnect, error, or close_connection()). Lets an owner drop per-
     // connection state.
     using OnClose = std::function<void(::tcp::ConnID conn_id)>;
@@ -61,7 +61,9 @@ namespace asynchost
 
     struct Conn
     {
+      OpenSSLServer* owner = nullptr;
       int fd = -1;
+      uv_poll_t poll{};
       SSL* ssl = nullptr;
       ::tcp::ConnID id = 0;
       enum State : uint8_t
@@ -90,16 +92,21 @@ namespace asynchost
     // ALPN protocol advertised by the server (wire format, length-prefixed),
     // e.g. "\x02h2" or "\x08http/1.1". Empty disables ALPN.
     std::string alpn_wire;
+    uv_loop_t* loop = nullptr;
     int listen_fd = -1;
-    int epoll_fd = -1;
-    int stop_fd = -1;
-    int wake_fd = -1;
+    uv_poll_t listen_poll{};
+    uv_async_t wake_handle{};
+    uv_timer_t idle_timer{};
+    bool listen_poll_initialised = false;
+    bool wake_handle_initialised = false;
+    bool idle_timer_initialised = false;
     uint16_t bound_port = 0;
     OnData on_data;
     OnClose on_close;
     bool verbose = false;
 
     std::unordered_map<int, std::unique_ptr<Conn>> conns;
+    std::unordered_map<Conn*, std::unique_ptr<Conn>> closing_conns;
     std::unordered_map<::tcp::ConnID, int> id_to_fd;
     ::tcp::ConnID next_id = 1;
     // Optional shared id source so multiple servers (one per interface)
@@ -108,14 +115,14 @@ namespace asynchost
     std::atomic<::tcp::ConnID>* shared_next_id = nullptr;
 
     // Close a connection after this much inactivity (no I/O); nullopt disables
-    // idle closure. The loop wakes every idle_sweep_interval_ms to check.
+    // idle closure. A libuv timer wakes every idle_sweep_interval_ms to check.
     static constexpr int idle_sweep_interval_ms = 1000;
     std::optional<std::chrono::milliseconds> idle_timeout;
     std::chrono::steady_clock::time_point last_idle_sweep =
       std::chrono::steady_clock::now();
 
     // Cross-thread outbound queue: send()/close_connection() append here from
-    // any thread and wake the loop, which drains it on the epoll thread.
+    // any thread and wake the loop, which drains it on the libuv thread.
     struct OutItem
     {
       ::tcp::ConnID id = 0;
@@ -129,8 +136,16 @@ namespace asynchost
     // applied on the loop thread so `ctx` is only ever touched there.
     std::vector<std::pair<std::string, std::string>> pending_certs;
 
-    std::thread loop_thread;
-    std::atomic<bool> running{false};
+    std::mutex lifecycle_mutex;
+    std::condition_variable stopped_cv;
+    bool started = false;
+    bool stopping = false;
+    bool shutdown_started = false;
+    bool stopped = false;
+    size_t pending_uv_closes = 0;
+    std::thread::id initialising_thread_id;
+    std::thread::id loop_thread_id;
+    bool loop_thread_seen = false;
 
     void logf(const char* fmt, ...) const
     {
@@ -287,21 +302,17 @@ namespace asynchost
 
     void update_interest(Conn& c) const
     {
-      epoll_event ev{};
-      ev.data.fd = c.fd;
-      ev.events = EPOLLIN | (c.want_write ? EPOLLOUT : 0);
-      if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, c.fd, &ev) != 0)
+      const int events = UV_READABLE | (c.want_write ? UV_WRITABLE : 0);
+      const int rc = uv_poll_start(&c.poll, events, on_connection_poll);
+      if (rc != 0)
       {
-        const auto err = errno;
-        logf(
-          "epoll_ctl MOD error: %s",
-          std::generic_category().message(err).c_str());
+        logf("uv_poll_start error: %s", uv_strerror(rc));
       }
     }
 
     // After writing, tear the connection down if a graceful close was requested
-    // and all buffered output has been flushed; otherwise update epoll
-    // interest (re-arming EPOLLOUT while output remains).
+    // and all buffered output has been flushed; otherwise update poll interest
+    // (re-arming UV_WRITABLE while output remains).
     void finish_or_close(int fd, Conn& c)
     {
       if (c.close_after_flush && c.out_off >= c.outbuf.size())
@@ -480,7 +491,7 @@ namespace asynchost
 
     // Returns false if the connection should be closed. Implements
     // backpressure: a WANT_WRITE leaves the remaining plaintext buffered and
-    // arms EPOLLOUT.
+    // arms UV_WRITABLE.
     bool do_write(Conn& c)
     {
       if (c.ssl == nullptr)
@@ -533,16 +544,24 @@ namespace asynchost
       {
         on_close(it->second->id);
       }
-      epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, nullptr);
       id_to_fd.erase(it->second->id);
-      SSL* ssl = it->second->ssl;
+      auto conn = std::move(it->second);
+      conns.erase(it);
+      (void)uv_poll_stop(&conn->poll);
+      SSL* ssl = conn->ssl;
       if (ssl != nullptr)
       {
         SSL_shutdown(ssl);
         SSL_free(ssl);
+        conn->ssl = nullptr;
       }
       ::close(fd);
-      conns.erase(it);
+      conn->fd = -1;
+      auto* raw = conn.get();
+      closing_conns.emplace(raw, std::move(conn));
+      ++pending_uv_closes;
+      uv_close(
+        reinterpret_cast<uv_handle_t*>(&raw->poll), on_connection_poll_closed);
     }
 
     void accept_all()
@@ -570,6 +589,7 @@ namespace asynchost
         }
 
         auto c = std::make_unique<Conn>();
+        c->owner = this;
         c->fd = cfd;
         c->id = (shared_next_id != nullptr) ? shared_next_id->fetch_add(1) :
                                               next_id++;
@@ -608,16 +628,33 @@ namespace asynchost
           c->ssl = ssl;
         }
 
-        epoll_event ev{};
-        ev.data.fd = cfd;
-        ev.events = EPOLLIN;
-        if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, cfd, &ev) != 0)
+        const int poll_rc = uv_poll_init_socket(loop, &c->poll, cfd);
+        if (poll_rc != 0)
         {
           if (c->ssl != nullptr)
           {
             SSL_free(c->ssl);
           }
           ::close(cfd);
+          continue;
+        }
+        c->poll.data = c.get();
+        const int start_rc =
+          uv_poll_start(&c->poll, UV_READABLE, on_connection_poll);
+        if (start_rc != 0)
+        {
+          if (c->ssl != nullptr)
+          {
+            SSL_free(c->ssl);
+          }
+          ::close(cfd);
+          ++pending_uv_closes;
+          c->fd = -1;
+          auto* raw = c.get();
+          closing_conns.emplace(raw, std::move(c));
+          uv_close(
+            reinterpret_cast<uv_handle_t*>(&raw->poll),
+            on_connection_poll_closed);
           continue;
         }
         const auto cid = c->id;
@@ -627,7 +664,7 @@ namespace asynchost
       }
     }
 
-    void on_conn_event(int fd, uint32_t events)
+    void on_conn_event(int fd, int events)
     {
       auto it = conns.find(fd);
       if (it == conns.end())
@@ -643,7 +680,7 @@ namespace asynchost
       }
       else
       {
-        if ((events & (EPOLLIN | EPOLLERR | EPOLLHUP)) != 0)
+        if ((events & (UV_READABLE | UV_DISCONNECT)) != 0)
         {
           alive = do_read(c);
         }
@@ -661,25 +698,47 @@ namespace asynchost
       finish_or_close(fd, c);
     }
 
-    void wake() const
+    void mark_loop_thread()
     {
-      if (wake_fd >= 0)
+      std::lock_guard<std::mutex> guard(lifecycle_mutex);
+      loop_thread_id = std::this_thread::get_id();
+      loop_thread_seen = true;
+    }
+
+    static void on_connection_poll(uv_poll_t* handle, int status, int events)
+    {
+      auto* conn = static_cast<Conn*>(handle->data);
+      auto* self = conn->owner;
+      self->mark_loop_thread();
+      if (status < 0)
       {
-        const uint64_t one = 1;
-        [[maybe_unused]] auto w = ::write(wake_fd, &one, sizeof(one));
+        self->close_conn(conn->fd);
+        return;
+      }
+      self->on_conn_event(conn->fd, events);
+    }
+
+    static void on_connection_poll_closed(uv_handle_t* handle)
+    {
+      auto* conn = static_cast<Conn*>(handle->data);
+      auto* self = conn->owner;
+      self->closing_conns.erase(conn);
+      self->complete_uv_close();
+    }
+
+    void wake()
+    {
+      std::lock_guard<std::mutex> guard(lifecycle_mutex);
+      if (wake_handle_initialised && !stopping)
+      {
+        (void)uv_async_send(&wake_handle);
       }
     }
 
-    // Drain the cross-thread outbound queue on the epoll thread: append queued
+    // Drain the cross-thread outbound queue on the libuv thread: append queued
     // plaintext to each connection and flush (with backpressure), or close.
     void drain_pending_out()
     {
-      uint64_t counter = 0;
-      while (::read(wake_fd, &counter, sizeof(counter)) > 0)
-      {
-        // Clear the eventfd counter.
-      }
-
       std::vector<OutItem> items;
       std::vector<std::pair<std::string, std::string>> certs;
       {
@@ -771,68 +830,118 @@ namespace asynchost
       }
     }
 
-    void run()
+    static void on_listen_poll(uv_poll_t* handle, int status, int events)
     {
-      constexpr int max_events = 64;
-      // With an idle timeout configured, wake periodically to sweep idle
-      // connections; otherwise block until there is work.
-      const int wait_ms =
-        idle_timeout.has_value() ? idle_sweep_interval_ms : -1;
-      std::vector<epoll_event> events(max_events);
-      while (running.load())
+      auto* self = static_cast<OpenSSLServer*>(handle->data);
+      self->mark_loop_thread();
+      if (status < 0)
       {
-        const int n = epoll_wait(epoll_fd, events.data(), max_events, wait_ms);
-        if (n < 0)
-        {
-          if (errno == EINTR)
-          {
-            continue;
-          }
-          const auto err = errno;
-          logf(
-            "epoll_wait error: %s",
-            std::generic_category().message(err).c_str());
-          break;
-        }
-
-        for (int i = 0; i < n; ++i)
-        {
-          const int fd = events[i].data.fd;
-          if (fd == stop_fd)
-          {
-            running.store(false);
-            break;
-          }
-          if (fd == wake_fd)
-          {
-            drain_pending_out();
-            continue;
-          }
-          if (fd == listen_fd)
-          {
-            accept_all();
-            continue;
-          }
-          on_conn_event(fd, events[i].events);
-        }
-
-        if (idle_timeout.has_value())
-        {
-          const auto now = std::chrono::steady_clock::now();
-          if (
-            now - last_idle_sweep >=
-            std::chrono::milliseconds(idle_sweep_interval_ms))
-          {
-            last_idle_sweep = now;
-            sweep_idle();
-          }
-        }
+        self->request_stop_on_loop();
+        return;
       }
+      if ((events & UV_READABLE) != 0)
+      {
+        self->accept_all();
+      }
+    }
 
-      // Tear down all live connections on the loop thread.
+    static void on_wake(uv_async_t* handle)
+    {
+      auto* self = static_cast<OpenSSLServer*>(handle->data);
+      self->mark_loop_thread();
+      bool should_stop = false;
+      {
+        std::lock_guard<std::mutex> guard(self->lifecycle_mutex);
+        should_stop = self->stopping;
+      }
+      if (should_stop)
+      {
+        self->request_stop_on_loop();
+      }
+      else
+      {
+        self->drain_pending_out();
+      }
+    }
+
+    static void on_idle_timer(uv_timer_t* handle)
+    {
+      auto* self = static_cast<OpenSSLServer*>(handle->data);
+      self->mark_loop_thread();
+      self->sweep_idle();
+    }
+
+    static void on_server_handle_closed(uv_handle_t* handle)
+    {
+      auto* self = static_cast<OpenSSLServer*>(handle->data);
+      self->complete_uv_close();
+    }
+
+    void complete_uv_close()
+    {
+      std::lock_guard<std::mutex> guard(lifecycle_mutex);
+      if (pending_uv_closes > 0)
+      {
+        --pending_uv_closes;
+      }
+      if (stopping && pending_uv_closes == 0)
+      {
+        stopped = true;
+        stopped_cv.notify_all();
+      }
+    }
+
+    void close_server_handle(uv_handle_t* handle)
+    {
+      if (!uv_is_closing(handle))
+      {
+        ++pending_uv_closes;
+        uv_close(handle, on_server_handle_closed);
+      }
+    }
+
+    void request_stop_on_loop()
+    {
+      {
+        std::lock_guard<std::mutex> guard(lifecycle_mutex);
+        if (shutdown_started)
+        {
+          return;
+        }
+        stopping = true;
+        shutdown_started = true;
+      }
+      (void)uv_poll_stop(&listen_poll);
+      if (listen_fd >= 0)
+      {
+        ::close(listen_fd);
+        listen_fd = -1;
+      }
       while (!conns.empty())
       {
         close_conn(conns.begin()->first);
+      }
+      if (idle_timer_initialised)
+      {
+        (void)uv_timer_stop(&idle_timer);
+        close_server_handle(reinterpret_cast<uv_handle_t*>(&idle_timer));
+        idle_timer_initialised = false;
+      }
+      if (listen_poll_initialised)
+      {
+        close_server_handle(reinterpret_cast<uv_handle_t*>(&listen_poll));
+        listen_poll_initialised = false;
+      }
+      if (wake_handle_initialised)
+      {
+        close_server_handle(reinterpret_cast<uv_handle_t*>(&wake_handle));
+        wake_handle_initialised = false;
+      }
+      std::lock_guard<std::mutex> guard(lifecycle_mutex);
+      if (pending_uv_closes == 0)
+      {
+        stopped = true;
+        stopped_cv.notify_all();
       }
     }
 
@@ -848,8 +957,10 @@ namespace asynchost
       bool plaintext_ = false,
       bool verbose_ = false,
       std::atomic<::tcp::ConnID>* shared_next_id_ = nullptr,
-      std::optional<std::chrono::milliseconds> idle_timeout_ = std::nullopt) :
+      std::optional<std::chrono::milliseconds> idle_timeout_ = std::nullopt,
+      uv_loop_t* loop_ = uv_default_loop()) :
       plaintext(plaintext_),
+      loop(loop_),
       on_data(std::move(on_data_)),
       on_close(std::move(on_close_)),
       verbose(verbose_),
@@ -953,46 +1064,6 @@ namespace asynchost
           bound_port = ntohs(reinterpret_cast<sockaddr_in*>(&bound)->sin_port);
         }
       }
-
-      epoll_fd = epoll_create1(0);
-      if (epoll_fd < 0)
-      {
-        cleanup();
-        throw std::runtime_error("epoll_create1 failed");
-      }
-      stop_fd = eventfd(0, EFD_NONBLOCK);
-      if (stop_fd < 0)
-      {
-        cleanup();
-        throw std::runtime_error("eventfd failed");
-      }
-      wake_fd = eventfd(0, EFD_NONBLOCK);
-      if (wake_fd < 0)
-      {
-        cleanup();
-        throw std::runtime_error("eventfd (wake) failed");
-      }
-
-      epoll_event ev{};
-      ev.data.fd = listen_fd;
-      ev.events = EPOLLIN;
-      if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, listen_fd, &ev) != 0)
-      {
-        cleanup();
-        throw std::runtime_error("epoll_ctl(listen) failed");
-      }
-      ev.data.fd = stop_fd;
-      if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, stop_fd, &ev) != 0)
-      {
-        cleanup();
-        throw std::runtime_error("epoll_ctl(stop) failed");
-      }
-      ev.data.fd = wake_fd;
-      if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, wake_fd, &ev) != 0)
-      {
-        cleanup();
-        throw std::runtime_error("epoll_ctl(wake) failed");
-      }
     }
 
     OpenSSLServer(const OpenSSLServer&) = delete;
@@ -1013,29 +1084,103 @@ namespace asynchost
 
     void start()
     {
-      running.store(true);
-      loop_thread = std::thread([this]() { run(); });
+      std::lock_guard<std::mutex> guard(lifecycle_mutex);
+      if (started)
+      {
+        return;
+      }
+      int rc = uv_poll_init_socket(loop, &listen_poll, listen_fd);
+      if (rc != 0)
+      {
+        throw std::runtime_error(
+          std::string("uv_poll_init_socket(listen) failed: ") +
+          uv_strerror(rc));
+      }
+      listen_poll_initialised = true;
+      listen_poll.data = this;
+
+      rc = uv_async_init(loop, &wake_handle, on_wake);
+      if (rc != 0)
+      {
+        throw std::runtime_error(
+          std::string("uv_async_init failed: ") + uv_strerror(rc));
+      }
+      wake_handle_initialised = true;
+      wake_handle.data = this;
+
+      if (idle_timeout.has_value())
+      {
+        rc = uv_timer_init(loop, &idle_timer);
+        if (rc != 0)
+        {
+          throw std::runtime_error(
+            std::string("uv_timer_init failed: ") + uv_strerror(rc));
+        }
+        idle_timer_initialised = true;
+        idle_timer.data = this;
+        rc = uv_timer_start(
+          &idle_timer,
+          on_idle_timer,
+          idle_sweep_interval_ms,
+          idle_sweep_interval_ms);
+        if (rc != 0)
+        {
+          throw std::runtime_error(
+            std::string("uv_timer_start failed: ") + uv_strerror(rc));
+        }
+      }
+
+      rc = uv_poll_start(&listen_poll, UV_READABLE, on_listen_poll);
+      if (rc != 0)
+      {
+        throw std::runtime_error(
+          std::string("uv_poll_start(listen) failed: ") + uv_strerror(rc));
+      }
+      stopped = false;
+      stopping = false;
+      shutdown_started = false;
+      initialising_thread_id = std::this_thread::get_id();
+      loop_thread_seen = false;
+      started = true;
     }
 
     void stop()
     {
-      if (!running.exchange(false))
+      std::unique_lock<std::mutex> lock(lifecycle_mutex);
+      if (!started || stopped)
       {
-        if (loop_thread.joinable())
-        {
-          loop_thread.join();
-        }
         return;
       }
-      if (stop_fd >= 0)
+      if (!stopping)
       {
-        const uint64_t one = 1;
-        [[maybe_unused]] auto w = ::write(stop_fd, &one, sizeof(one));
+        stopping = true;
+        (void)uv_async_send(&wake_handle);
       }
-      if (loop_thread.joinable())
+      const bool loop_not_started_here = !loop_thread_seen &&
+        std::this_thread::get_id() == initialising_thread_id;
+      if (loop_not_started_here)
       {
-        loop_thread.join();
+        lock.unlock();
+        request_stop_on_loop();
+        for (;;)
+        {
+          {
+            std::lock_guard<std::mutex> guard(lifecycle_mutex);
+            if (stopped)
+            {
+              return;
+            }
+          }
+          (void)uv_run(loop, UV_RUN_NOWAIT);
+        }
       }
+      if (std::this_thread::get_id() == loop_thread_id)
+      {
+        lock.unlock();
+        request_stop_on_loop();
+        return;
+      }
+      stopped_cv.wait(lock, [this]() { return stopped; });
     }
 
     // Thread-safe. Queue plaintext to be encrypted and written to `conn_id`.
@@ -1106,21 +1251,6 @@ namespace asynchost
   private:
     void cleanup()
     {
-      if (wake_fd >= 0)
-      {
-        ::close(wake_fd);
-        wake_fd = -1;
-      }
-      if (stop_fd >= 0)
-      {
-        ::close(stop_fd);
-        stop_fd = -1;
-      }
-      if (epoll_fd >= 0)
-      {
-        ::close(epoll_fd);
-        epoll_fd = -1;
-      }
       if (listen_fd >= 0)
       {
         ::close(listen_fd);
