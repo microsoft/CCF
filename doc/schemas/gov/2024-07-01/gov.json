@@ -1679,9 +1679,9 @@
       "type": "string",
       "description": "Describes the forwarding behavior of a specific endpoint. Write requests cannot be executed on a backup, so will generally be forwarded by any backup node which receives them to the current primary. Future requests on the same session may then be forwarded to maintain session consistency.",
       "enum": [
-        "Sometimes",
-        "Always",
-        "Never"
+        "sometimes",
+        "always",
+        "never"
       ],
       "x-ms-enum": {
         "name": "ForwardingRequired",
@@ -1689,17 +1689,17 @@
         "values": [
           {
             "name": "Sometimes",
-            "value": "Sometimes",
+            "value": "sometimes",
             "description": "Indicates that this request should be forwarded if-and-only-if it is needed to maintain session consistency. If stale reads are acceptable then they can be completed on a backup, and the request will not be forwarded. This should be the default behavior for read-only endpoints."
           },
           {
             "name": "Always",
-            "value": "Always",
+            "value": "always",
             "description": "Indicates that this request should always be forwarded. This will trigger forwarding of any additional requests on the same session, even those marked ForwardRequired::Sometimes. This should be the default behavior for any endpoint which writes to the Key-Value store."
           },
           {
             "name": "Never",
-            "value": "Never",
+            "value": "never",
             "description": "Indicates endpoints which will never be forwarded, even when this will result in a break of session consistency. This should be used only to access node-local information, or when weaker consistency is acceptable."
           }
         ]
@@ -1808,9 +1808,9 @@
       "type": "string",
       "description": "Describes the execution requirements of a specific endpoint.",
       "enum": [
-        "ReadWrite",
-        "ReadOnly",
-        "Historical"
+        "readwrite",
+        "readonly",
+        "historical"
       ],
       "x-ms-enum": {
         "name": "JsExecMode",
@@ -1818,17 +1818,17 @@
         "values": [
           {
             "name": "ReadWrite",
-            "value": "ReadWrite",
+            "value": "readwrite",
             "description": "Indicates that the endpoint does (or may) produces writes to the Key-Value store."
           },
           {
             "name": "ReadOnly",
-            "value": "ReadOnly",
+            "value": "readonly",
             "description": "Indicates that the endpoint is a pure read, and will never write to the Key-Value store. Note that this includes endpoints which only access node-local state, and do not read from the Key-Value store at all."
           },
           {
             "name": "Historical",
-            "value": "Historical",
+            "value": "historical",
             "description": "Indicates that the endpoint operates over a historical write to the Key-Value store rather than the latest, current state. These endpoints are also read-only, and may not produce writes."
           }
         ]
