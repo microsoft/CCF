@@ -40,7 +40,7 @@
                 "type": "string",
                 "enum": ["tcp", "udp"],
                 "default": "tcp",
-                "description": "The RPC protocol used (udp | tcp)"
+                "description": "The transport protocol used by the RPC interface"
               },
               "app_protocol": {
                 "type": "string",
