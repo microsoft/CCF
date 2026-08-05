@@ -86,65 +86,66 @@ namespace asynchost
         std::chrono::steady_clock::now();
     };
 
-    SSL_CTX* ctx = nullptr;
-    // Plaintext (UNSECURED) interface: no TLS, raw socket I/O.
-    bool plaintext = false;
-    // ALPN protocol advertised by the server (wire format, length-prefixed),
-    // e.g. "\x02h2" or "\x08http/1.1". Empty disables ALPN.
-    std::string alpn_wire;
-    uv_loop_t* loop = nullptr;
-    int listen_fd = -1;
-    uv_poll_t listen_poll{};
-    uv_async_t wake_handle{};
-    uv_timer_t idle_timer{};
-    bool listen_poll_initialised = false;
-    bool wake_handle_initialised = false;
-    bool idle_timer_initialised = false;
-    uint16_t bound_port = 0;
-    OnData on_data;
-    OnClose on_close;
-    bool verbose = false;
-
-    std::unordered_map<int, std::unique_ptr<Conn>> conns;
-    std::unordered_map<Conn*, std::unique_ptr<Conn>> closing_conns;
-    std::unordered_map<::tcp::ConnID, int> id_to_fd;
-    ::tcp::ConnID next_id = 1;
-    // Optional shared id source so multiple servers (one per interface)
-    // allocate connection ids from a single global space - required for a
-    // global session registry and reply routing.
-    std::atomic<::tcp::ConnID>* shared_next_id = nullptr;
-
-    // Close a connection after this much inactivity (no I/O); nullopt disables
-    // idle closure. A libuv timer wakes every idle_sweep_interval_ms to check.
-    static constexpr int idle_sweep_interval_ms = 1000;
-    std::optional<std::chrono::milliseconds> idle_timeout;
-    std::chrono::steady_clock::time_point last_idle_sweep =
-      std::chrono::steady_clock::now();
-
-    // Cross-thread outbound queue: send()/close_connection() append here from
-    // any thread and wake the loop, which drains it on the libuv thread.
     struct OutItem
     {
       ::tcp::ConnID id = 0;
       std::vector<uint8_t> data;
       bool close = false;
     };
-    std::mutex out_mutex;
+
+    SSL_CTX* ctx = nullptr;
+    uv_loop_t* loop = nullptr;
+    ::tcp::ConnID next_id = 1;
+    // Optional shared id source so multiple servers (one per interface)
+    // allocate connection ids from a single global space - required for a
+    // global session registry and reply routing.
+    std::atomic<::tcp::ConnID>* shared_next_id = nullptr;
+    std::chrono::steady_clock::time_point last_idle_sweep =
+      std::chrono::steady_clock::now();
+    size_t pending_uv_closes = 0;
+    std::thread::id initialising_thread_id;
+    std::thread::id loop_thread_id;
+
+    // Close a connection after this much inactivity (no I/O); nullopt disables
+    // idle closure. A libuv timer wakes every idle_sweep_interval_ms to check.
+    static constexpr int idle_sweep_interval_ms = 1000;
+    std::optional<std::chrono::milliseconds> idle_timeout;
+
+    // Cross-thread outbound queue: send()/close_connection() append here from
+    // any thread and wake the loop, which drains it on the libuv thread.
     std::vector<OutItem> pending_out;
 
     // Cross-thread server-cert (re)load requests (deferred cert / rotation),
     // applied on the loop thread so `ctx` is only ever touched there.
     std::vector<std::pair<std::string, std::string>> pending_certs;
 
+    // ALPN protocol advertised by the server (wire format, length-prefixed),
+    // e.g. "\x02h2" or "\x08http/1.1". Empty disables ALPN.
+    std::string alpn_wire;
+    OnData on_data;
+    OnClose on_close;
+
+    std::mutex out_mutex;
     std::mutex lifecycle_mutex;
     std::condition_variable stopped_cv;
+    std::unordered_map<int, std::unique_ptr<Conn>> conns;
+    std::unordered_map<Conn*, std::unique_ptr<Conn>> closing_conns;
+    std::unordered_map<::tcp::ConnID, int> id_to_fd;
+    uv_async_t wake_handle{};
+    uv_timer_t idle_timer{};
+    uv_poll_t listen_poll{};
+    int listen_fd = -1;
+    uint16_t bound_port = 0;
+    // Plaintext (UNSECURED) interface: no TLS, raw socket I/O.
+    bool plaintext = false;
+    bool listen_poll_initialised = false;
+    bool wake_handle_initialised = false;
+    bool idle_timer_initialised = false;
+    bool verbose = false;
     bool started = false;
     bool stopping = false;
     bool shutdown_started = false;
     bool stopped = false;
-    size_t pending_uv_closes = 0;
-    std::thread::id initialising_thread_id;
-    std::thread::id loop_thread_id;
     bool loop_thread_seen = false;
 
     void logf(const char* fmt, ...) const
@@ -893,7 +894,7 @@ namespace asynchost
 
     void close_server_handle(uv_handle_t* handle)
     {
-      if (!uv_is_closing(handle))
+      if (uv_is_closing(handle) == 0)
       {
         ++pending_uv_closes;
         uv_close(handle, on_server_handle_closed);
@@ -959,13 +960,14 @@ namespace asynchost
       std::atomic<::tcp::ConnID>* shared_next_id_ = nullptr,
       std::optional<std::chrono::milliseconds> idle_timeout_ = std::nullopt,
       uv_loop_t* loop_ = uv_default_loop()) :
-      plaintext(plaintext_),
       loop(loop_),
+      shared_next_id(shared_next_id_),
+      idle_timeout(idle_timeout_),
       on_data(std::move(on_data_)),
       on_close(std::move(on_close_)),
+      plaintext(plaintext_),
       verbose(verbose_),
-      shared_next_id(shared_next_id_),
-      idle_timeout(idle_timeout_)
+      started(false)
     {
       if (!alpn.empty())
       {
