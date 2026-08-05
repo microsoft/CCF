@@ -915,7 +915,7 @@
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "5.0.5"
+    "version": "5.0.6"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -1585,6 +1585,9 @@
           "204": {
             "description": "Default response description"
           },
+          "503": {
+            "description": "The application frontend is not ready."
+          },
           "default": {
             "$ref": "#/components/responses/default"
           }
@@ -1600,6 +1603,9 @@
         "responses": {
           "204": {
             "description": "Default response description"
+          },
+          "503": {
+            "description": "The governance frontend is not ready."
           },
           "default": {
             "$ref": "#/components/responses/default"
@@ -1635,6 +1641,16 @@
             },
             "description": "Default response description"
           },
+          "202": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/string"
+                }
+              }
+            },
+            "description": "The transaction is not yet available. The response describes why and the Retry-After header indicates when to retry."
+          },
           "default": {
             "$ref": "#/components/responses/default"
           }
@@ -1669,6 +1685,16 @@
               }
             },
             "description": "Default response description"
+          },
+          "202": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/string"
+                }
+              }
+            },
+            "description": "The transaction is not yet available. The response describes why and the Retry-After header indicates when to retry."
           },
           "default": {
             "$ref": "#/components/responses/default"

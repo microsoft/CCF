@@ -444,7 +444,7 @@ namespace ccf
       openapi_info.description =
         "This API provides public, uncredentialed access to service and node "
         "state.";
-      openapi_info.document_version = "5.0.5";
+      openapi_info.document_version = "5.0.6";
     }
 
     // NOLINTNEXTLINE(readability-function-cognitive-complexity)
@@ -1855,6 +1855,9 @@ namespace ccf
       make_command_endpoint(
         "/ready/app", HTTP_GET, get_ready_app, no_auth_required)
         .set_auto_schema<void, void>()
+        .add_openapi_response(
+          HTTP_STATUS_SERVICE_UNAVAILABLE,
+          "The application frontend is not ready.")
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .install();
 
@@ -1885,6 +1888,9 @@ namespace ccf
       make_command_endpoint(
         "/ready/gov", HTTP_GET, get_ready_gov, no_auth_required)
         .set_auto_schema<void, void>()
+        .add_openapi_response(
+          HTTP_STATUS_SERVICE_UNAVAILABLE,
+          "The governance frontend is not ready.")
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .install();
 
