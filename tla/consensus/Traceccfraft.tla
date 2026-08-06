@@ -449,10 +449,7 @@ IsCheckQuorum ==
 
 IsSigTermProposeVote ==
     /\ IsEvent("step_down_and_nominate_successor")
-    \* C++ logs the request even when there is no successor and sends nothing.
-    /\ IF PlausibleSucessorNodes(logline.msg.state.node_id) = {}
-       THEN UNCHANGED vars
-       ELSE SigTermProposeVote(logline.msg.state.node_id)
+    /\ SigTermProposeVote(logline.msg.state.node_id)
     /\ leadershipState[logline.msg.state.node_id] = Leader
     /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
