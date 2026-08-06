@@ -1805,6 +1805,7 @@ def run_recovery_corrupt_snapshot(args):
                     )
                 ]
             assert startup_seqnos == [expected_seqno], startup_seqnos
+            recovered.stop_all_nodes()
 
 
 def run_recover_snapshot_alone(args):

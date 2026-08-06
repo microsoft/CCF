@@ -611,24 +611,11 @@ namespace ccf
           snapshot_path,
           snapshot_data.size());
 
-        SnapshotSegments segments;
-        try
-        {
-          segments = separate_segments(snapshot_data);
-        }
-        catch (const std::exception& e)
-        {
-          LOG_FAIL_FMT(
-            "Snapshot {} cannot be parsed: {}. Looking for an older snapshot.",
-            snapshot_path.string(),
-            e.what());
-          continue;
-        }
-
         if (start_type == StartType::Recover)
         {
           try
           {
+            const auto segments = separate_segments(snapshot_data);
             verify_recovery_snapshot_candidate_unsafe(segments, snapshot_seqno);
           }
           catch (const std::exception& e)
@@ -646,6 +633,7 @@ namespace ccf
           return;
         }
 
+        const auto segments = separate_segments(snapshot_data);
         try
         {
           verify_snapshot(segments, config.recover.previous_service_identity);
