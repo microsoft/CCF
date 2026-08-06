@@ -48,3 +48,30 @@ Generating a trace of a scenario and validating it in one go can be done with ``
 This runs the raft_driver on the scenario, cleans the trace and then validates it against the TLA+ specification.
 
 CCF also provides a command line trace visualizer to aid debugging, for example, the ``append`` scenario can be visualized with ``python ../tests/trace_viz.py ../build/append.ndjson``. 
+
+Seeded simulation
+-----------------
+
+Scenario authors can mark an interesting trace-validation state with ``mark_seed,<name>`` after the scenario step whose resulting state should seed later simulation. The marker is a no-op for Raft state, but the driver emits a trace-validation event carrying the current node state and marker name.
+
+Seed extraction runs as part of trace validation. Pass ``--seed-output-dir`` to ``tlc.py tv`` to write the generated seed corpus:
+
+.. code-block:: bash
+
+    $ ./tlc.py --workers 1 tv --disable-dfs --ccf-raft-trace traces/consensus/reconfig_01_el0_12.ndjson --seed-output-dir generated-seeds consensus/Traceccfraft.tla
+
+Checked-in seed corpora live under ``tla/consensus/seeds/`` and are partitioned by model profile. Regenerate the current 3-node corpus with:
+
+.. code-block:: bash
+
+    $ python3 make_raft_seeds.py --output consensus/seeds/RaftSeeds_3N.tla traces/consensus/*.ndjson
+
+CI regenerates the seed directory and fails if it differs from the checked-in copy. The current seed set is intentionally small: one state with multiple pre-vote candidates during reconfiguration and one denied pre-vote from a stale-log candidate.
+
+Seeded simulation starts from a profile-specific seed corpus, such as ``RaftSeeds_3N!SeedInit``, and then runs the ordinary simulation actions:
+
+.. code-block:: bash
+
+    $ ./tlc.py sim --depth 500 consensus/SeededSIMccfraft_3N.tla
+
+The ``seedId`` variable is immutable after initialization, so every TLC state in a violation trace identifies the scenario marker that produced the seed. Seeded simulation is an additional long-verification search strategy, not a replacement for exhaustive model checking or ordinary simulation.

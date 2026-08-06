@@ -763,6 +763,23 @@ public:
     }
   }
 
+  void mark_seed(const std::string& name)
+  {
+    if (_nodes.empty())
+    {
+      throw std::runtime_error("mark_seed requires at least one node");
+    }
+
+#ifdef CCF_RAFT_TRACING
+    const auto node_id = _nodes.begin()->first;
+    nlohmann::json j = {};
+    j["function"] = "mark_seed";
+    j["name"] = name;
+    j["state"] = _nodes.at(node_id).raft->get_state_representation();
+    RAFT_TRACE_JSON_OUT(j);
+#endif
+  }
+
   void shuffle_messages_one(ccf::NodeId node_id)
   {
     auto raft = _nodes.at(node_id).raft;

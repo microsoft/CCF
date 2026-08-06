@@ -25,7 +25,10 @@ DEFAULT_JVM_ARGS = [
 ]
 
 
-DEFAULT_CLASSPATH_ARGS = ["-cp", "tla2tools.jar:CommunityModules-deps.jar"]
+DEFAULT_CLASSPATH_ARGS = [
+    "-cp",
+    "tla2tools.jar:CommunityModules-deps.jar:consensus/seeds",
+]
 
 USAGE = """
 To forward arguments directly to TLC that the wrapper does not support,
@@ -155,6 +158,12 @@ def cli():
         default="../tests/raft_scenarios_runner.py",
         help="Path to the raft_scenarios_runner.py script",
     )
+    tv.add_argument(
+        "--seed-output-dir",
+        type=pathlib.Path,
+        default=None,
+        help="Directory where trace validation writes generated TLA seed modules",
+    )
 
     # Simulation
     sim = subparsers.add_parser("sim", help="Simulation")
@@ -243,7 +252,7 @@ if __name__ == "__main__":
         if not args.disable_dfs:
             jvm_args.append("-Dtlc2.tool.queue.IStateQueue=StateDeque")
         if args.ccf_raft_trace is not None:
-            env["CCF_RAFT_TRACE"] = args.ccf_raft_trace
+            env["CCF_RAFT_TRACE"] = str(args.ccf_raft_trace)
         if args.scenario is not None:
             # Generate the trace from the scenario using the scenarios runner
             trace_dir = "traces"
@@ -265,6 +274,13 @@ if __name__ == "__main__":
                 trace_dir, os.path.basename(args.scenario) + ".ndjson"
             )
             env["CCF_RAFT_TRACE"] = trace_path
+        if args.seed_output_dir is not None:
+            args.seed_output_dir.mkdir(parents=True, exist_ok=True)
+            env["CCF_RAFT_SEED_OUTPUT_DIR"] = str(args.seed_output_dir)
+            seed_source = env.get("CCF_RAFT_TRACE", args.spec)
+            env["CCF_RAFT_SEED_PREFIX"] = (
+                pathlib.Path(seed_source).stem.replace("-", "_").replace(".", "_")
+            )
     elif args.cmd == "sim":
         tlc_args.extend(["-simulate"])
         if args.num is not None:

@@ -45,6 +45,7 @@ assert_detail,2,leadership_state,PreVoteCandidate
 periodic_one,0,150
 periodic_one,0,150
 assert_detail,0,leadership_state,PreVoteCandidate
+mark_seed,prevote_multiple_candidates
 dispatch_all
 dispatch_all
 # and becomes leader once more

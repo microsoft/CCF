@@ -6,10 +6,10 @@
 #include "driver.h"
 
 #include "ccf/ds/hash.h"
-
 #include <cassert>
 #include <fstream>
 #include <iostream>
+#include <nlohmann/json.hpp>
 #include <regex>
 #include <string>
 
@@ -73,8 +73,10 @@ int main(int argc, char** argv)
 #ifdef CCF_RAFT_TRACING
     if (!line.empty())
     {
-      std::cout << "{\"tag\": \"raft_trace\", \"cmd\": \"" << line << "\"}"
-                << std::endl;
+      nlohmann::json j;
+      j["tag"] = "raft_trace";
+      j["cmd"] = line;
+      std::cout << j.dump() << std::endl;
     }
 #endif
     // Steps which don't alter state don't need to recheck invariants
@@ -204,6 +206,11 @@ int main(int argc, char** argv)
       case shash("summarise_messages"):
         assert(items.size() == 3);
         driver->summarise_messages(items[1], items[2]);
+        break;
+      case shash("mark_seed"):
+        assert(items.size() == 2);
+        skip_invariants = true;
+        driver->mark_seed(items[1]);
         break;
       case shash("shuffle_one"):
         assert(items.size() == 2);
