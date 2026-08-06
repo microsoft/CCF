@@ -13,11 +13,11 @@
 // "make an HTTPServerSession for this interface"). Sessions are created lazily
 // on first inbound data and removed on close.
 //
-// Threading: OpenSSLServer invokes on_data/on_close on its loop thread. The
-// session may then process on OrderedTasks workers and reply via write_outbound
-// from those threads, which forwards to OpenSSLServer's thread-safe
-// send/close_connection. Every public method is therefore safe to call from any
-// thread, and the sessions map is guarded by a mutex.
+// Threading: OpenSSLServer invokes on_data on its TLS OrderedTasks worker and
+// on_close on its loop thread. The session may dispatch again to its own
+// OrderedTasks and reply via write_outbound from any worker. Every public
+// method is therefore safe to call from any thread, and the sessions map is
+// guarded by a mutex.
 
 #include "ccf/node/session.h"
 #include "enclave/session_writer.h"
@@ -58,7 +58,10 @@ namespace asynchost
     std::mutex sessions_mutex;
     std::unordered_map<::tcp::ConnID, std::shared_ptr<ccf::Session>> sessions;
 
-    void on_data(::tcp::ConnID conn_id, std::vector<uint8_t> data)
+    void on_data(
+      ::tcp::ConnID conn_id,
+      std::vector<uint8_t> data,
+      const std::vector<uint8_t>& peer_cert)
     {
       std::shared_ptr<ccf::Session> session;
       {
@@ -66,11 +69,7 @@ namespace asynchost
         auto it = sessions.find(conn_id);
         if (it == sessions.end())
         {
-          // Lazily create the session for a newly accepted connection. The
-          // peer certificate is fetched here (on the loop thread) from the
-          // handshaken connection.
-          auto peer_cert = server->get_peer_cert(conn_id);
-          session = factory(conn_id, *this, std::move(peer_cert));
+          session = factory(conn_id, *this, peer_cert);
           if (session == nullptr)
           {
             // Factory refused (e.g. hard session cap) - tear the connection
@@ -137,8 +136,11 @@ namespace asynchost
         key_pem,
         host,
         port,
-        [this](::tcp::ConnID id, std::vector<uint8_t> data) {
-          on_data(id, std::move(data));
+        [this](
+          ::tcp::ConnID id,
+          std::vector<uint8_t> data,
+          const std::vector<uint8_t>& peer_cert) {
+          on_data(id, std::move(data), peer_cert);
         },
         [this](::tcp::ConnID id) { on_close(id); },
         alpn,

@@ -9,6 +9,7 @@
 #include "host/datagram_server.h"
 #include "host/tls/openssl_server.h"
 #include "host/tls/openssl_session_manager.h"
+#include "tasks/task_system.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <arpa/inet.h>
@@ -21,6 +22,7 @@
 #include <mutex>
 #include <netdb.h>
 #include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <openssl/pem.h>
 #include <openssl/ssl.h>
 #include <openssl/x509.h>
@@ -48,6 +50,19 @@ namespace
   [[maybe_unused]] const bool ignore_sigpipe = []() {
     return signal(SIGPIPE, SIG_IGN) != SIG_ERR;
   }();
+
+  struct TaskWorkers
+  {
+    TaskWorkers()
+    {
+      ccf::tasks::set_task_threads(4);
+    }
+
+    ~TaskWorkers()
+    {
+      ccf::tasks::set_task_threads(0);
+    }
+  } task_workers;
 
   std::pair<std::string, std::string> make_server_cert()
   {
@@ -338,7 +353,8 @@ namespace
         key,
         host,
         static_cast<uint16_t>(0),
-        [this](uint64_t id, std::vector<uint8_t> d) {
+        [this](
+          uint64_t id, std::vector<uint8_t> d, const std::vector<uint8_t>&) {
           server->send(id, d.data(), d.size());
         });
       server->start();
@@ -411,7 +427,11 @@ TEST_CASE("Transports stop cleanly before the libuv loop starts")
 {
   auto [cert, key] = make_server_cert();
   OpenSSLServer tcp_server(
-    cert, key, "127.0.0.1", 0, [](::tcp::ConnID, std::vector<uint8_t>) {});
+    cert,
+    key,
+    "127.0.0.1",
+    0,
+    [](::tcp::ConnID, std::vector<uint8_t>, const std::vector<uint8_t>&) {});
   tcp_server.start();
   tcp_server.stop();
 
@@ -425,6 +445,80 @@ TEST_CASE("Transports stop cleanly before the libuv loop starts")
   REQUIRE(uv_loop_alive(uv_default_loop()) == 0);
 }
 
+TEST_CASE("Transport shutdown drains TLS tasks with no background workers")
+{
+  struct RestoreWorkers
+  {
+    ~RestoreWorkers()
+    {
+      ccf::tasks::set_task_threads(4);
+    }
+  } restore_workers;
+  ccf::tasks::set_task_threads(0);
+
+  auto [cert, key] = make_server_cert();
+  OpenSSLServer server(
+    cert,
+    key,
+    "127.0.0.1",
+    0,
+    [](::tcp::ConnID, std::vector<uint8_t>, const std::vector<uint8_t>&) {});
+  UVLoopRunner loop;
+  server.start();
+  loop.start();
+
+  const int fd = ::socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
+  REQUIRE(fd >= 0);
+  sockaddr_in addr{};
+  addr.sin_family = AF_INET;
+  addr.sin_port = htons(server.port());
+  REQUIRE(inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr) == 1);
+  REQUIRE(::connect(fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) == 0);
+  const uint8_t byte = 0;
+  REQUIRE(::send(fd, &byte, sizeof(byte), MSG_NOSIGNAL) == sizeof(byte));
+
+  const auto deadline =
+    std::chrono::steady_clock::now() + std::chrono::seconds(5);
+  while (ccf::tasks::get_main_job_board().get_summary().pending_tasks == 0 &&
+         std::chrono::steady_clock::now() < deadline)
+  {
+    std::this_thread::yield();
+  }
+  REQUIRE(ccf::tasks::get_main_job_board().get_summary().pending_tasks > 0);
+
+  server.stop();
+  ::close(fd);
+}
+
+TEST_CASE("TCP connections use the legacy latency and keepalive options")
+{
+  const int fd = ::socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
+  REQUIRE(fd >= 0);
+  REQUIRE_FALSE(asynchost::details::configure_tcp_connection(fd).has_value());
+
+  const auto get_option = [fd](int level, int option) {
+    int value = 0;
+    socklen_t value_size = sizeof(value);
+    REQUIRE(getsockopt(fd, level, option, &value, &value_size) == 0);
+    REQUIRE(value_size == sizeof(value));
+    return value;
+  };
+
+  REQUIRE(get_option(IPPROTO_TCP, TCP_NODELAY) == 1);
+  REQUIRE(get_option(SOL_SOCKET, SO_KEEPALIVE) == 1);
+  REQUIRE(get_option(IPPROTO_TCP, TCP_KEEPIDLE) == 30);
+  REQUIRE(get_option(IPPROTO_TCP, TCP_KEEPINTVL) == 1);
+  REQUIRE(get_option(IPPROTO_TCP, TCP_KEEPCNT) == 10);
+  REQUIRE((fcntl(fd, F_GETFD) & FD_CLOEXEC) != 0);
+
+  ::close(fd);
+
+  const auto error = asynchost::details::configure_tcp_connection(-1);
+  REQUIRE(error.has_value());
+  REQUIRE(std::string(error->option) == "TCP_NODELAY");
+  REQUIRE(error->error == EBADF);
+}
+
 TEST_CASE("TLS handshake and small round-trip")
 {
   auto [cert, key] = make_server_cert();
@@ -433,6 +527,43 @@ TEST_CASE("TLS handshake and small round-trip")
 
   const std::vector<uint8_t> msg = {'h', 'e', 'l', 'l', 'o'};
   REQUIRE(tls_client_exchange(s.port(), msg, msg.size()) == msg);
+}
+
+TEST_CASE("TLS processing runs off the libuv thread")
+{
+  auto [cert, key] = make_server_cert();
+  std::mutex callback_mutex;
+  std::thread::id callback_thread;
+  OpenSSLServer* server_ptr = nullptr;
+  OpenSSLServer server(
+    cert,
+    key,
+    "127.0.0.1",
+    0,
+    [&](
+      ::tcp::ConnID id,
+      std::vector<uint8_t> data,
+      const std::vector<uint8_t>&) {
+      {
+        std::lock_guard<std::mutex> guard(callback_mutex);
+        callback_thread = std::this_thread::get_id();
+      }
+      server_ptr->send(id, data.data(), data.size());
+    });
+  UVLoopRunner loop;
+  server_ptr = &server;
+  server.start();
+  loop.start();
+
+  const std::vector<uint8_t> msg = {'w', 'o', 'r', 'k', 'e', 'r'};
+  REQUIRE(tls_client_exchange(server.port(), msg, msg.size()) == msg);
+  {
+    std::lock_guard<std::mutex> guard(callback_mutex);
+    REQUIRE(callback_thread != std::thread::id{});
+    REQUIRE(callback_thread != loop.thread.get_id());
+  }
+
+  server.stop();
 }
 
 TEST_CASE("Large transfer exercises the backpressure path")
@@ -512,7 +643,7 @@ TEST_CASE("Reply from a worker thread")
     key,
     "127.0.0.1",
     static_cast<uint16_t>(0),
-    [&](uint64_t id, std::vector<uint8_t> d) {
+    [&](uint64_t id, std::vector<uint8_t> d, const std::vector<uint8_t>&) {
       {
         std::lock_guard<std::mutex> l(m);
         q.emplace_back(id, std::move(d));

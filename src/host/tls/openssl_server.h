@@ -3,13 +3,19 @@
 #pragma once
 
 // OpenSSL-native TLS/plaintext TCP server for RPC interfaces. OpenSSL owns the
-// socket fd directly, while the host libuv loop drives non-blocking handshake,
-// reads, writes, graceful close, and idle connection cleanup.
+// socket fd directly. The host libuv loop reports readiness, while
+// per-connection OrderedTasks drive non-blocking handshake, reads, writes, and
+// graceful close away from the loop thread.
 
+#include "ds/internal_logger.h"
+#include "tasks/ordered_tasks.h"
+#include "tasks/task_system.h"
+#include "tasks/worker.h"
 #include "tcp/msg_types.h"
 
 #include <arpa/inet.h>
 #include <atomic>
+#include <cassert>
 #include <cerrno>
 #include <chrono>
 #include <condition_variable>
@@ -23,6 +29,7 @@
 #include <mutex>
 #include <netdb.h>
 #include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <openssl/err.h>
 #include <openssl/pem.h>
 #include <openssl/ssl.h>
@@ -41,15 +48,61 @@
 
 namespace asynchost
 {
+  namespace details
+  {
+    struct SocketOptionError
+    {
+      const char* option = nullptr;
+      int error = 0;
+    };
+
+    inline std::optional<SocketOptionError> configure_tcp_connection(int fd)
+    {
+      const auto set_option = [fd](
+                                int level,
+                                int option,
+                                const char* option_name,
+                                int value) -> std::optional<SocketOptionError> {
+        if (setsockopt(fd, level, option, &value, sizeof(value)) != 0)
+        {
+          return SocketOptionError{option_name, errno};
+        }
+        return std::nullopt;
+      };
+
+      const int one = 1;
+      if (auto error = set_option(IPPROTO_TCP, TCP_NODELAY, "TCP_NODELAY", one))
+      {
+        return error;
+      }
+      if (
+        auto error = set_option(SOL_SOCKET, SO_KEEPALIVE, "SO_KEEPALIVE", one))
+      {
+        return error;
+      }
+      if (
+        auto error = set_option(IPPROTO_TCP, TCP_KEEPIDLE, "TCP_KEEPIDLE", 30))
+      {
+        return error;
+      }
+      if (
+        auto error = set_option(IPPROTO_TCP, TCP_KEEPINTVL, "TCP_KEEPINTVL", 1))
+      {
+        return error;
+      }
+      return set_option(IPPROTO_TCP, TCP_KEEPCNT, "TCP_KEEPCNT", 10);
+    }
+  }
+
   class OpenSSLServer
   {
   public:
-    // Invoked on the libuv thread with a complete chunk of decrypted bytes for
-    // connection `conn_id`. The handler typically hands processing to a worker
-    // (e.g. OrderedTasks) and later calls send()/close_connection() from that
-    // thread - both are thread-safe and wake the loop.
-    using OnData =
-      std::function<void(::tcp::ConnID conn_id, std::vector<uint8_t> data)>;
+    // Invoked on a worker with a complete chunk of decrypted bytes and the
+    // certificate captured during this connection's handshake.
+    using OnData = std::function<void(
+      ::tcp::ConnID conn_id,
+      std::vector<uint8_t> data,
+      const std::vector<uint8_t>& peer_cert)>;
 
     // Invoked on the libuv thread when a connection is torn down (peer
     // disconnect, error, or close_connection()). Lets an owner drop per-
@@ -58,12 +111,17 @@ namespace asynchost
 
   private:
     static constexpr size_t read_chunk = 16384;
+    static constexpr size_t max_read_per_event = read_chunk * 4;
+
+    struct OutItem;
 
     struct Conn
     {
       OpenSSLServer* owner = nullptr;
       int fd = -1;
       uv_poll_t poll{};
+      std::shared_ptr<ccf::tasks::OrderedTasks> tls_tasks;
+      std::shared_ptr<SSL_CTX> accepted_ctx;
       SSL* ssl = nullptr;
       ::tcp::ConnID id = 0;
       enum State : uint8_t
@@ -71,6 +129,7 @@ namespace asynchost
         Handshaking,
         Ready
       } state = Handshaking;
+      std::vector<uint8_t> peer_cert;
       // Pending plaintext to be encrypted/written; out_off bytes already sent.
       std::vector<uint8_t> outbuf;
       size_t out_off = 0;
@@ -84,6 +143,13 @@ namespace asynchost
       // Last time any I/O happened on this connection; used for idle timeout.
       std::chrono::steady_clock::time_point last_active =
         std::chrono::steady_clock::now();
+
+      // The fields below are accessed only on the libuv thread. Polling stays
+      // stopped while worker_active is true.
+      std::vector<OutItem> pending_commands;
+      int pending_events = 0;
+      bool worker_active = false;
+      bool close_requested = false;
     };
 
     struct OutItem
@@ -93,7 +159,21 @@ namespace asynchost
       bool close = false;
     };
 
-    SSL_CTX* ctx = nullptr;
+    struct DriveInput
+    {
+      int events = 0;
+      std::vector<OutItem> commands;
+      bool close_requested = false;
+    };
+
+    struct DriveResult
+    {
+      std::shared_ptr<Conn> conn;
+      bool alive = true;
+      std::chrono::steady_clock::time_point last_active;
+    };
+
+    std::shared_ptr<SSL_CTX> ctx;
     uv_loop_t* loop = nullptr;
     ::tcp::ConnID next_id = 1;
     // Optional shared id source so multiple servers (one per interface)
@@ -114,6 +194,7 @@ namespace asynchost
     // Cross-thread outbound queue: send()/close_connection() append here from
     // any thread and wake the loop, which drains it on the libuv thread.
     std::vector<OutItem> pending_out;
+    std::vector<DriveResult> completed_drives;
 
     // Cross-thread server-cert (re)load requests (deferred cert / rotation),
     // applied on the loop thread so `ctx` is only ever touched there.
@@ -128,8 +209,8 @@ namespace asynchost
     std::mutex out_mutex;
     std::mutex lifecycle_mutex;
     std::condition_variable stopped_cv;
-    std::unordered_map<int, std::unique_ptr<Conn>> conns;
-    std::unordered_map<Conn*, std::unique_ptr<Conn>> closing_conns;
+    std::unordered_map<int, std::shared_ptr<Conn>> conns;
+    std::unordered_map<Conn*, std::shared_ptr<Conn>> closing_conns;
     std::unordered_map<::tcp::ConnID, int> id_to_fd;
     uv_async_t wake_handle{};
     uv_timer_t idle_timer{};
@@ -221,19 +302,19 @@ namespace asynchost
     // This is the only place CCF's inbound TLS policy is defined. It is
     // asserted from the wire by src/host/test/openssl_server_test.cpp and, for
     // a running service, by tests/tls_groups.py.
-    SSL_CTX* build_server_ctx(
+    std::shared_ptr<SSL_CTX> build_server_ctx(
       const std::string& cert_pem, const std::string& key_pem)
     {
       SSL_CTX* c = SSL_CTX_new(TLS_server_method());
       if (c == nullptr)
       {
-        return nullptr;
+        return {};
       }
       // Require at least TLS 1.2, support up to 1.3
       if (SSL_CTX_set_min_proto_version(c, TLS1_2_VERSION) != 1)
       {
         SSL_CTX_free(c);
-        return nullptr;
+        return {};
       }
 
       // Disable renegotiation to avoid DoS
@@ -252,7 +333,7 @@ namespace asynchost
       if (SSL_CTX_set_cipher_list(c, cipher_list) != 1)
       {
         SSL_CTX_free(c);
-        return nullptr;
+        return {};
       }
 
       // Set cipher for TLS 1.3
@@ -262,7 +343,7 @@ namespace asynchost
       if (SSL_CTX_set_ciphersuites(c, ciphersuites) != 1)
       {
         SSL_CTX_free(c);
-        return nullptr;
+        return {};
       }
 
       // Prefer hybrid post-quantum groups when available, while retaining the
@@ -274,7 +355,7 @@ namespace asynchost
           "P-521:P-384:P-256") != 1)
       {
         SSL_CTX_free(c);
-        return nullptr;
+        return {};
       }
 
       // Allow buffer to be relocated between WANT_WRITE retries, and do partial
@@ -296,9 +377,9 @@ namespace asynchost
       if (!load_cert_key(c, cert_pem, key_pem))
       {
         SSL_CTX_free(c);
-        return nullptr;
+        return {};
       }
-      return c;
+      return {c, SSL_CTX_free};
     }
 
     void update_interest(Conn& c) const
@@ -308,21 +389,6 @@ namespace asynchost
       if (rc != 0)
       {
         logf("uv_poll_start error: %s", uv_strerror(rc));
-      }
-    }
-
-    // After writing, tear the connection down if a graceful close was requested
-    // and all buffered output has been flushed; otherwise update poll interest
-    // (re-arming UV_WRITABLE while output remains).
-    void finish_or_close(int fd, Conn& c)
-    {
-      if (c.close_after_flush && c.out_off >= c.outbuf.size())
-      {
-        close_conn(fd);
-      }
-      else
-      {
-        update_interest(c);
       }
     }
 
@@ -359,16 +425,30 @@ namespace asynchost
     // Returns false if the connection should be closed.
     bool do_handshake(Conn& c)
     {
-      // The error queue is thread-local and shared across every connection
-      // serviced by this loop, and SSL_get_error() consults it. Clear it before
-      // each SSL operation so a stale error from another connection cannot be
-      // misattributed (which would spuriously close healthy connections).
+      // The error queue is thread-local and SSL_get_error() consults it. Clear
+      // it before each operation because successive actions for this
+      // connection may execute on different workers.
       ERR_clear_error();
       const int r = SSL_accept(c.ssl);
       if (r == 1)
       {
         c.state = Conn::Ready;
         c.want_write = false;
+        X509* cert = SSL_get_peer_certificate(c.ssl);
+        if (cert != nullptr)
+        {
+          const int len = i2d_X509(cert, nullptr);
+          if (len > 0)
+          {
+            c.peer_cert.resize(static_cast<size_t>(len));
+            unsigned char* p = c.peer_cert.data();
+            if (i2d_X509(cert, &p) != len)
+            {
+              c.peer_cert.clear();
+            }
+          }
+          X509_free(cert);
+        }
         logf("conn %llu: handshake complete", (unsigned long long)c.id);
         return do_read(c) && do_write(c);
       }
@@ -391,16 +471,20 @@ namespace asynchost
     // Returns false if the connection should be closed.
     bool do_read_plaintext(Conn& c)
     {
-      for (;;)
+      size_t total_read = 0;
+      while (total_read < max_read_per_event)
       {
         uint8_t buf[read_chunk];
         const ssize_t n = ::recv(c.fd, buf, sizeof(buf), 0);
         if (n > 0)
         {
+          total_read += static_cast<size_t>(n);
           if (on_data)
           {
             on_data(
-              c.id, std::vector<uint8_t>(buf, buf + static_cast<size_t>(n)));
+              c.id,
+              std::vector<uint8_t>(buf, buf + static_cast<size_t>(n)),
+              c.peer_cert);
           }
           continue;
         }
@@ -418,6 +502,7 @@ namespace asynchost
         }
         return false;
       }
+      return true;
     }
 
     // Returns false if the connection should be closed.
@@ -459,16 +544,18 @@ namespace asynchost
       {
         return do_read_plaintext(c);
       }
-      for (;;)
+      size_t total_read = 0;
+      while (total_read < max_read_per_event)
       {
         uint8_t buf[read_chunk];
         ERR_clear_error();
         const int n = SSL_read(c.ssl, buf, static_cast<int>(sizeof(buf)));
         if (n > 0)
         {
+          total_read += static_cast<size_t>(n);
           if (on_data)
           {
-            on_data(c.id, std::vector<uint8_t>(buf, buf + n));
+            on_data(c.id, std::vector<uint8_t>(buf, buf + n), c.peer_cert);
           }
           continue;
         }
@@ -488,6 +575,7 @@ namespace asynchost
         // (no close_notify), or a fatal error - in all cases close.
         return false;
       }
+      return true;
     }
 
     // Returns false if the connection should be closed. Implements
@@ -534,6 +622,108 @@ namespace asynchost
       return true;
     }
 
+    void complete_drive(std::shared_ptr<Conn> conn, bool alive)
+    {
+      {
+        std::lock_guard<std::mutex> guard(out_mutex);
+        completed_drives.push_back(
+          {std::move(conn), alive, std::chrono::steady_clock::now()});
+      }
+      std::lock_guard<std::mutex> guard(lifecycle_mutex);
+      if (wake_handle_initialised)
+      {
+        (void)uv_async_send(&wake_handle);
+      }
+    }
+
+    void drive_connection(std::shared_ptr<Conn> conn, DriveInput input)
+    {
+      bool alive = true;
+
+      if (conn->ssl == nullptr && conn->accepted_ctx != nullptr)
+      {
+        conn->ssl = SSL_new(conn->accepted_ctx.get());
+        if (conn->ssl == nullptr || SSL_set_fd(conn->ssl, conn->fd) != 1)
+        {
+          if (conn->ssl != nullptr)
+          {
+            SSL_free(conn->ssl);
+            conn->ssl = nullptr;
+          }
+          complete_drive(std::move(conn), false);
+          return;
+        }
+        SSL_set_accept_state(conn->ssl);
+      }
+
+      for (auto& command : input.commands)
+      {
+        if (command.close)
+        {
+          conn->close_after_flush = true;
+        }
+        else
+        {
+          conn->outbuf.insert(
+            conn->outbuf.end(), command.data.begin(), command.data.end());
+        }
+      }
+      if (input.close_requested)
+      {
+        conn->close_after_flush = true;
+      }
+
+      if (conn->state == Conn::Handshaking)
+      {
+        alive = do_handshake(*conn);
+      }
+      else
+      {
+        if ((input.events & (UV_READABLE | UV_DISCONNECT)) != 0)
+        {
+          alive = do_read(*conn);
+        }
+        if (alive)
+        {
+          alive = do_write(*conn);
+        }
+      }
+
+      if (
+        alive && conn->close_after_flush &&
+        conn->out_off >= conn->outbuf.size())
+      {
+        alive = false;
+      }
+      if (!alive && conn->ssl != nullptr)
+      {
+        ERR_clear_error();
+        (void)SSL_shutdown(conn->ssl);
+        SSL_free(conn->ssl);
+        conn->ssl = nullptr;
+      }
+      complete_drive(std::move(conn), alive);
+    }
+
+    void dispatch_connection(const std::shared_ptr<Conn>& conn)
+    {
+      if (conn->worker_active)
+      {
+        return;
+      }
+      (void)uv_poll_stop(&conn->poll);
+      conn->worker_active = true;
+      DriveInput input;
+      input.events = std::exchange(conn->pending_events, 0);
+      input.commands.swap(conn->pending_commands);
+      input.close_requested = std::exchange(conn->close_requested, false);
+      conn->tls_tasks->add_action(ccf::tasks::make_basic_action(
+        [this, conn, input = std::move(input)]() mutable {
+          drive_connection(conn, std::move(input));
+        },
+        "OpenSSLServer::drive_connection"));
+    }
+
     void close_conn(int fd)
     {
       auto it = conns.find(fd);
@@ -546,16 +736,10 @@ namespace asynchost
         on_close(it->second->id);
       }
       id_to_fd.erase(it->second->id);
-      auto conn = std::move(it->second);
+      auto conn = it->second;
       conns.erase(it);
       (void)uv_poll_stop(&conn->poll);
-      SSL* ssl = conn->ssl;
-      if (ssl != nullptr)
-      {
-        SSL_shutdown(ssl);
-        SSL_free(ssl);
-        conn->ssl = nullptr;
-      }
+      assert(conn->ssl == nullptr);
       ::close(fd);
       conn->fd = -1;
       auto* raw = conn.get();
@@ -563,6 +747,7 @@ namespace asynchost
       ++pending_uv_closes;
       uv_close(
         reinterpret_cast<uv_handle_t*>(&raw->poll), on_connection_poll_closed);
+      finish_stopping_on_loop();
     }
 
     void accept_all()
@@ -572,7 +757,10 @@ namespace asynchost
         sockaddr_storage peer{};
         socklen_t plen = sizeof(peer);
         const int cfd = accept4(
-          listen_fd, reinterpret_cast<sockaddr*>(&peer), &plen, SOCK_NONBLOCK);
+          listen_fd,
+          reinterpret_cast<sockaddr*>(&peer),
+          &plen,
+          SOCK_NONBLOCK | SOCK_CLOEXEC);
         if (cfd < 0)
         {
           if (errno == EAGAIN || errno == EWOULDBLOCK)
@@ -589,11 +777,24 @@ namespace asynchost
           break;
         }
 
+        if (const auto error = details::configure_tcp_connection(cfd))
+        {
+          LOG_FAIL_FMT(
+            "setsockopt({}) failed for accepted RPC socket: {}",
+            error->option,
+            std::generic_category().message(error->error));
+          ::close(cfd);
+          continue;
+        }
+
         auto c = std::make_unique<Conn>();
         c->owner = this;
         c->fd = cfd;
         c->id = (shared_next_id != nullptr) ? shared_next_id->fetch_add(1) :
                                               next_id++;
+        c->tls_tasks = ccf::tasks::OrderedTasks::create(
+          ccf::tasks::get_main_job_board(),
+          "TLS connection " + std::to_string(c->id));
 
         if (plaintext)
         {
@@ -609,33 +810,12 @@ namespace asynchost
             ::close(cfd);
             continue;
           }
-          SSL* ssl = SSL_new(ctx);
-          if (ssl == nullptr)
-          {
-            ::close(cfd);
-            continue;
-          }
-          SSL_set_mode(
-            ssl,
-            SSL_MODE_ENABLE_PARTIAL_WRITE |
-              SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER);
-          if (SSL_set_fd(ssl, cfd) != 1)
-          {
-            SSL_free(ssl);
-            ::close(cfd);
-            continue;
-          }
-          SSL_set_accept_state(ssl);
-          c->ssl = ssl;
+          c->accepted_ctx = ctx;
         }
 
         const int poll_rc = uv_poll_init_socket(loop, &c->poll, cfd);
         if (poll_rc != 0)
         {
-          if (c->ssl != nullptr)
-          {
-            SSL_free(c->ssl);
-          }
           ::close(cfd);
           continue;
         }
@@ -644,10 +824,6 @@ namespace asynchost
           uv_poll_start(&c->poll, UV_READABLE, on_connection_poll);
         if (start_rc != 0)
         {
-          if (c->ssl != nullptr)
-          {
-            SSL_free(c->ssl);
-          }
           ::close(cfd);
           ++pending_uv_closes;
           c->fd = -1;
@@ -672,31 +848,10 @@ namespace asynchost
       {
         return;
       }
-      Conn& c = *it->second;
-      c.last_active = std::chrono::steady_clock::now();
-      bool alive = true;
-      if (c.state == Conn::Handshaking)
-      {
-        alive = do_handshake(c);
-      }
-      else
-      {
-        if ((events & (UV_READABLE | UV_DISCONNECT)) != 0)
-        {
-          alive = do_read(c);
-        }
-        if (alive)
-        {
-          alive = do_write(c);
-        }
-      }
-
-      if (!alive)
-      {
-        close_conn(fd);
-        return;
-      }
-      finish_or_close(fd, c);
+      auto& c = it->second;
+      c->last_active = std::chrono::steady_clock::now();
+      c->pending_events |= events;
+      dispatch_connection(c);
     }
 
     void mark_loop_thread()
@@ -713,7 +868,12 @@ namespace asynchost
       self->mark_loop_thread();
       if (status < 0)
       {
-        self->close_conn(conn->fd);
+        auto it = self->conns.find(conn->fd);
+        if (it != self->conns.end())
+        {
+          it->second->close_requested = true;
+          self->dispatch_connection(it->second);
+        }
         return;
       }
       self->on_conn_event(conn->fd, events);
@@ -736,31 +896,28 @@ namespace asynchost
       }
     }
 
-    // Drain the cross-thread outbound queue on the libuv thread: append queued
-    // plaintext to each connection and flush (with backpressure), or close.
+    // Apply worker completions and cross-thread commands on the libuv thread.
     void drain_pending_out()
     {
       std::vector<OutItem> items;
+      std::vector<DriveResult> completions;
       std::vector<std::pair<std::string, std::string>> certs;
       {
         std::lock_guard<std::mutex> g(out_mutex);
         std::swap(items, pending_out);
+        std::swap(completions, completed_drives);
         std::swap(certs, pending_certs);
       }
 
       for (auto& [cert_pem, key_pem] : certs)
       {
-        SSL_CTX* nc = build_server_ctx(cert_pem, key_pem);
+        auto nc = build_server_ctx(cert_pem, key_pem);
         if (nc == nullptr)
         {
           logf("set_server_cert: build context failed");
           continue;
         }
-        if (ctx != nullptr)
-        {
-          SSL_CTX_free(ctx);
-        }
-        ctx = nc;
+        ctx = std::move(nc);
       }
 
       for (auto& item : items)
@@ -770,41 +927,54 @@ namespace asynchost
         {
           continue;
         }
-        const int fd = fit->second;
-        if (item.close)
-        {
-          auto cit = conns.find(fd);
-          if (cit == conns.end())
-          {
-            continue;
-          }
-          Conn& c = *cit->second;
-          // Graceful close: flush any buffered response before tearing the
-          // connection down, so a large response queued just before
-          // close_socket() is not truncated.
-          c.close_after_flush = true;
-          if (!do_write(c))
-          {
-            close_conn(fd);
-            continue;
-          }
-          finish_or_close(fd, c);
-          continue;
-        }
-        auto cit = conns.find(fd);
+        auto cit = conns.find(fit->second);
         if (cit == conns.end())
         {
           continue;
         }
-        Conn& c = *cit->second;
-        c.outbuf.insert(c.outbuf.end(), item.data.begin(), item.data.end());
-        c.last_active = std::chrono::steady_clock::now();
-        if (!do_write(c))
+        if (item.close)
         {
-          close_conn(fd);
+          cit->second->close_requested = true;
+        }
+        else
+        {
+          cit->second->last_active = std::chrono::steady_clock::now();
+          cit->second->pending_commands.push_back(std::move(item));
+        }
+      }
+
+      for (auto& completion : completions)
+      {
+        const auto& conn = completion.conn;
+        auto it = conns.find(conn->fd);
+        if (it == conns.end() || it->second.get() != conn.get())
+        {
           continue;
         }
-        finish_or_close(fd, c);
+        conn->worker_active = false;
+        conn->last_active = completion.last_active;
+        if (!completion.alive)
+        {
+          close_conn(conn->fd);
+        }
+      }
+
+      for (auto& [fd, conn] : conns)
+      {
+        if (conn->worker_active)
+        {
+          continue;
+        }
+        if (
+          conn->close_requested || !conn->pending_commands.empty() ||
+          conn->pending_events != 0)
+        {
+          dispatch_connection(conn);
+        }
+        else
+        {
+          update_interest(*conn);
+        }
       }
     }
 
@@ -819,7 +989,7 @@ namespace asynchost
       std::vector<int> to_close;
       for (const auto& [fd, c] : conns)
       {
-        if (now - c->last_active > *idle_timeout)
+        if (!c->worker_active && now - c->last_active > *idle_timeout)
         {
           to_close.push_back(fd);
         }
@@ -827,7 +997,12 @@ namespace asynchost
       for (const int fd : to_close)
       {
         logf("closing idle connection on fd %d", fd);
-        close_conn(fd);
+        auto it = conns.find(fd);
+        if (it != conns.end())
+        {
+          it->second->close_requested = true;
+          dispatch_connection(it->second);
+        }
       }
     }
 
@@ -859,10 +1034,7 @@ namespace asynchost
       {
         self->request_stop_on_loop();
       }
-      else
-      {
-        self->drain_pending_out();
-      }
+      self->drain_pending_out();
     }
 
     static void on_idle_timer(uv_timer_t* handle)
@@ -918,9 +1090,19 @@ namespace asynchost
         ::close(listen_fd);
         listen_fd = -1;
       }
-      while (!conns.empty())
+      for (auto& [fd, conn] : conns)
       {
-        close_conn(conns.begin()->first);
+        conn->close_requested = true;
+        dispatch_connection(conn);
+      }
+      finish_stopping_on_loop();
+    }
+
+    void finish_stopping_on_loop()
+    {
+      if (!stopping || !conns.empty())
+      {
+        return;
       }
       if (idle_timer_initialised)
       {
@@ -1005,7 +1187,8 @@ namespace asynchost
       bool bound_ok = false;
       for (addrinfo* ai = res; ai != nullptr; ai = ai->ai_next)
       {
-        listen_fd = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
+        listen_fd = socket(
+          ai->ai_family, ai->ai_socktype | SOCK_CLOEXEC, ai->ai_protocol);
         if (listen_fd < 0)
         {
           continue;
@@ -1172,6 +1355,11 @@ namespace asynchost
               return;
             }
           }
+          auto task = ccf::tasks::get_main_job_board().get_task();
+          if (task != nullptr)
+          {
+            ccf::tasks::try_do_task(*task);
+          }
           (void)uv_run(loop, UV_RUN_NOWAIT);
         }
       }
@@ -1181,7 +1369,20 @@ namespace asynchost
         request_stop_on_loop();
         return;
       }
-      stopped_cv.wait(lock, [this]() { return stopped; });
+      while (!stopped)
+      {
+        lock.unlock();
+        auto task = ccf::tasks::get_main_job_board().get_task();
+        if (task != nullptr)
+        {
+          ccf::tasks::try_do_task(*task);
+        }
+        lock.lock();
+        if (!stopped && task == nullptr)
+        {
+          stopped_cv.wait_for(lock, std::chrono::milliseconds(1));
+        }
+      }
     }
 
     // Thread-safe. Queue plaintext to be encrypted and written to `conn_id`.
@@ -1218,37 +1419,6 @@ namespace asynchost
       wake();
     }
 
-    // Peer certificate (DER) for `conn_id`, or empty. MUST be called on the
-    // loop thread (e.g. synchronously from within the OnData callback).
-    std::vector<uint8_t> get_peer_cert(::tcp::ConnID conn_id)
-    {
-      auto fit = id_to_fd.find(conn_id);
-      if (fit == id_to_fd.end())
-      {
-        return {};
-      }
-      auto cit = conns.find(fit->second);
-      if (cit == conns.end() || cit->second->ssl == nullptr)
-      {
-        return {};
-      }
-      X509* cert = SSL_get_peer_certificate(cit->second->ssl);
-      if (cert == nullptr)
-      {
-        return {};
-      }
-      std::vector<uint8_t> der;
-      const int len = i2d_X509(cert, nullptr);
-      if (len > 0)
-      {
-        der.resize(static_cast<size_t>(len));
-        unsigned char* p = der.data();
-        i2d_X509(cert, &p);
-      }
-      X509_free(cert);
-      return der;
-    }
-
   private:
     void cleanup()
     {
@@ -1257,11 +1427,7 @@ namespace asynchost
         ::close(listen_fd);
         listen_fd = -1;
       }
-      if (ctx != nullptr)
-      {
-        SSL_CTX_free(ctx);
-        ctx = nullptr;
-      }
+      ctx.reset();
     }
   };
 }
