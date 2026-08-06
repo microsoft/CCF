@@ -273,7 +273,7 @@ class OpenAPIValidator:
             return
 
         query = ImmutableMultiDict(urllib.parse.parse_qsl(parsed.query))
-        request_headers = Headers(request.headers)
+        request_headers = Headers(request.headers.items())
         content_type = self._header(request.headers, "content-type")
         if content_type is None:
             if cose and request.http_verb != "GET":
@@ -304,7 +304,7 @@ class OpenAPIValidator:
             ),
             content_type=content_type,
         )
-        response_headers = Headers(response.headers)
+        response_headers = Headers(response.headers.items())
         openapi_response = _Response(
             status_code=response.status_code,
             headers=response_headers,

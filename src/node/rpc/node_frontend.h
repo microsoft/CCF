@@ -1368,6 +1368,9 @@ namespace ccf
       make_read_only_endpoint(
         "/primary", HTTP_HEAD, head_primary, no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
+        .add_openapi_response(
+          HTTP_STATUS_PERMANENT_REDIRECT,
+          "Redirect to the current primary node.")
         .install();
 
       auto get_primary = [this](auto& args) {

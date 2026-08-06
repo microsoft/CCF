@@ -26,6 +26,11 @@ namespace ccf::ds::openapi
   struct Cose
   {};
 
+  /** Tag type representing an arbitrary binary body (application/octet-stream).
+   */
+  struct Binary
+  {};
+
   inline void fill_json_schema(
     nlohmann::json& schema, [[maybe_unused]] const Cose* cose)
   {
@@ -36,6 +41,18 @@ namespace ccf::ds::openapi
   inline std::string schema_name([[maybe_unused]] const Cose* cose)
   {
     return "Cose";
+  }
+
+  inline void fill_json_schema(
+    nlohmann::json& schema, [[maybe_unused]] const Binary* binary)
+  {
+    schema["type"] = "string";
+    schema["format"] = "binary";
+  }
+
+  inline std::string schema_name([[maybe_unused]] const Binary* binary)
+  {
+    return "Binary";
   }
 }
 
@@ -415,6 +432,10 @@ namespace ccf::ds::openapi
     else if constexpr (std::is_same_v<T, Cose>)
     {
       return http::headervalues::contenttype::COSE;
+    }
+    else if constexpr (std::is_same_v<T, Binary>)
+    {
+      return http::headervalues::contenttype::OCTET_STREAM;
     }
     else
     {

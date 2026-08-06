@@ -15,7 +15,33 @@ namespace ccf::endpoints
 
   Endpoint& Endpoint::require_operator_feature(OperatorFeature feature)
   {
+    const auto first_required_feature = required_operator_features.empty();
     required_operator_features.insert(feature);
+    if (!first_required_feature)
+    {
+      return *this;
+    }
+
+    schema_builders.emplace_back(
+      [](nlohmann::json& document, const Endpoint& endpoint) {
+        const auto http_verb = endpoint.dispatch.verb.get_http_method();
+        if (!http_verb.has_value())
+        {
+          return;
+        }
+
+        auto& path_operation = ds::openapi::path_operation(
+          ds::openapi::path(document, endpoint.full_uri_path),
+          http_verb.value());
+        auto& responses = ds::openapi::responses(path_operation);
+        if (!responses.contains(std::to_string(HTTP_STATUS_NOT_FOUND)))
+        {
+          ds::openapi::response(
+            path_operation,
+            HTTP_STATUS_NOT_FOUND,
+            "The required operator feature is not enabled on this interface.");
+        }
+      });
     return *this;
   }
 

@@ -637,6 +637,10 @@ namespace ccf::node
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
       .add_query_parameter<ccf::SeqNo>(
         file_since_param_key, ccf::endpoints::OptionalParameter)
+      .add_openapi_response(
+        HTTP_STATUS_PERMANENT_REDIRECT, "Redirect to the selected snapshot.")
+      .add_openapi_response(
+        HTTP_STATUS_NOT_FOUND, "No matching snapshot is available.")
       .require_operator_feature(endpoints::OperatorFeature::SnapshotRead)
       .install();
     registry
@@ -645,6 +649,10 @@ namespace ccf::node
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
       .add_query_parameter<ccf::SeqNo>(
         file_since_param_key, ccf::endpoints::OptionalParameter)
+      .add_openapi_response(
+        HTTP_STATUS_PERMANENT_REDIRECT, "Redirect to the selected snapshot.")
+      .add_openapi_response(
+        HTTP_STATUS_NOT_FOUND, "No matching snapshot is available.")
       .require_operator_feature(endpoints::OperatorFeature::SnapshotRead)
       .install();
 
@@ -805,6 +813,11 @@ namespace ccf::node
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
       .add_query_parameter<ccf::SeqNo>(
         file_since_param_key, ccf::endpoints::RequiredParameter)
+      .add_openapi_response(
+        HTTP_STATUS_PERMANENT_REDIRECT,
+        "Redirect to the selected ledger chunk.")
+      .add_openapi_response(
+        HTTP_STATUS_NOT_FOUND, "No matching ledger chunk is available.")
       .require_operator_feature(endpoints::OperatorFeature::LedgerChunkRead)
       .set_openapi_summary("Ledger chunk metadata")
       .set_openapi_description(
@@ -818,6 +831,11 @@ namespace ccf::node
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
       .add_query_parameter<ccf::SeqNo>(
         file_since_param_key, ccf::endpoints::RequiredParameter)
+      .add_openapi_response(
+        HTTP_STATUS_PERMANENT_REDIRECT,
+        "Redirect to the selected ledger chunk.")
+      .add_openapi_response(
+        HTTP_STATUS_NOT_FOUND, "No matching ledger chunk is available.")
       .require_operator_feature(endpoints::OperatorFeature::LedgerChunkRead)
       .set_openapi_summary("Download ledger chunk")
       .set_openapi_description(
@@ -878,12 +896,30 @@ namespace ccf::node
       .make_command_endpoint(
         "/snapshot/{snapshot_name}", HTTP_HEAD, get_snapshot, no_auth_required)
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
+      .add_openapi_response(
+        HTTP_STATUS_OK, "Metadata for the requested snapshot.")
+      .add_openapi_response(
+        HTTP_STATUS_PARTIAL_CONTENT,
+        "Metadata for the requested snapshot range.")
+      .add_openapi_response(
+        HTTP_STATUS_NOT_MODIFIED, "The requested snapshot has not changed.")
+      .add_openapi_response(
+        HTTP_STATUS_NOT_FOUND, "The requested snapshot is not available.")
       .require_operator_feature(endpoints::OperatorFeature::SnapshotRead)
       .install();
     registry
       .make_command_endpoint(
         "/snapshot/{snapshot_name}", HTTP_GET, get_snapshot, no_auth_required)
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
+      .add_openapi_response<ds::openapi::Binary>(
+        HTTP_STATUS_OK, "The requested snapshot.")
+      .add_openapi_response<ds::openapi::Binary>(
+        HTTP_STATUS_PARTIAL_CONTENT,
+        "The requested byte range of the snapshot.")
+      .add_openapi_response(
+        HTTP_STATUS_NOT_MODIFIED, "The requested snapshot has not changed.")
+      .add_openapi_response(
+        HTTP_STATUS_NOT_FOUND, "The requested snapshot is not available.")
       .require_operator_feature(endpoints::OperatorFeature::SnapshotRead)
       .install();
 
@@ -945,6 +981,15 @@ namespace ccf::node
         get_ledger_chunk,
         no_auth_required)
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
+      .add_openapi_response(
+        HTTP_STATUS_OK, "Metadata for the requested ledger chunk.")
+      .add_openapi_response(
+        HTTP_STATUS_PARTIAL_CONTENT,
+        "Metadata for the requested ledger chunk range.")
+      .add_openapi_response(
+        HTTP_STATUS_NOT_MODIFIED, "The requested ledger chunk has not changed.")
+      .add_openapi_response(
+        HTTP_STATUS_NOT_FOUND, "The requested ledger chunk is not available.")
       .require_operator_feature(endpoints::OperatorFeature::LedgerChunkRead)
       .set_openapi_summary("Ledger chunk metadata")
       .set_openapi_description(
@@ -958,6 +1003,15 @@ namespace ccf::node
         get_ledger_chunk,
         no_auth_required)
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
+      .add_openapi_response<ds::openapi::Binary>(
+        HTTP_STATUS_OK, "The requested ledger chunk.")
+      .add_openapi_response<ds::openapi::Binary>(
+        HTTP_STATUS_PARTIAL_CONTENT,
+        "The requested byte range of the ledger chunk.")
+      .add_openapi_response(
+        HTTP_STATUS_NOT_MODIFIED, "The requested ledger chunk has not changed.")
+      .add_openapi_response(
+        HTTP_STATUS_NOT_FOUND, "The requested ledger chunk is not available.")
       .require_operator_feature(endpoints::OperatorFeature::LedgerChunkRead)
       .set_openapi_summary("Download ledger chunk")
       .set_openapi_description(

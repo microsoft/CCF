@@ -57,6 +57,10 @@
         ],
         "type": "string"
       },
+      "Binary": {
+        "format": "binary",
+        "type": "string"
+      },
       "CCFError": {
         "properties": {
           "error": {
@@ -1201,8 +1205,11 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "Default response description"
+          "308": {
+            "description": "Redirect to the selected ledger chunk."
+          },
+          "404": {
+            "description": "No matching ledger chunk is available."
           },
           "default": {
             "$ref": "#/components/responses/default"
@@ -1227,8 +1234,11 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "Default response description"
+          "308": {
+            "description": "Redirect to the selected ledger chunk."
+          },
+          "404": {
+            "description": "No matching ledger chunk is available."
           },
           "default": {
             "$ref": "#/components/responses/default"
@@ -1246,7 +1256,30 @@
         "operationId": "GetNodeLedgerChunkChunkName",
         "responses": {
           "200": {
-            "description": "Default response description"
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/Binary"
+                }
+              }
+            },
+            "description": "The requested ledger chunk."
+          },
+          "206": {
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/Binary"
+                }
+              }
+            },
+            "description": "The requested byte range of the ledger chunk."
+          },
+          "304": {
+            "description": "The requested ledger chunk has not changed."
+          },
+          "404": {
+            "description": "The requested ledger chunk is not available."
           },
           "default": {
             "$ref": "#/components/responses/default"
@@ -1262,7 +1295,16 @@
         "operationId": "HeadNodeLedgerChunkChunkName",
         "responses": {
           "200": {
-            "description": "Default response description"
+            "description": "Metadata for the requested ledger chunk."
+          },
+          "206": {
+            "description": "Metadata for the requested ledger chunk range."
+          },
+          "304": {
+            "description": "The requested ledger chunk has not changed."
+          },
+          "404": {
+            "description": "The requested ledger chunk is not available."
           },
           "default": {
             "$ref": "#/components/responses/default"
@@ -1520,8 +1562,8 @@
       "head": {
         "operationId": "HeadNodePrimary",
         "responses": {
-          "200": {
-            "description": "Default response description"
+          "308": {
+            "description": "Redirect to the current primary node."
           },
           "default": {
             "$ref": "#/components/responses/default"
@@ -1789,8 +1831,11 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "Default response description"
+          "308": {
+            "description": "Redirect to the selected snapshot."
+          },
+          "404": {
+            "description": "No matching snapshot is available."
           },
           "default": {
             "$ref": "#/components/responses/default"
@@ -1813,8 +1858,11 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "Default response description"
+          "308": {
+            "description": "Redirect to the selected snapshot."
+          },
+          "404": {
+            "description": "No matching snapshot is available."
           },
           "default": {
             "$ref": "#/components/responses/default"
@@ -1830,7 +1878,30 @@
         "operationId": "GetNodeSnapshotSnapshotName",
         "responses": {
           "200": {
-            "description": "Default response description"
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/Binary"
+                }
+              }
+            },
+            "description": "The requested snapshot."
+          },
+          "206": {
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/Binary"
+                }
+              }
+            },
+            "description": "The requested byte range of the snapshot."
+          },
+          "304": {
+            "description": "The requested snapshot has not changed."
+          },
+          "404": {
+            "description": "The requested snapshot is not available."
           },
           "default": {
             "$ref": "#/components/responses/default"
@@ -1844,7 +1915,16 @@
         "operationId": "HeadNodeSnapshotSnapshotName",
         "responses": {
           "200": {
-            "description": "Default response description"
+            "description": "Metadata for the requested snapshot."
+          },
+          "206": {
+            "description": "Metadata for the requested snapshot range."
+          },
+          "304": {
+            "description": "The requested snapshot has not changed."
+          },
+          "404": {
+            "description": "The requested snapshot is not available."
           },
           "default": {
             "$ref": "#/components/responses/default"
@@ -1871,6 +1951,9 @@
         "responses": {
           "204": {
             "description": "Default response description"
+          },
+          "404": {
+            "description": "The required operator feature is not enabled on this interface."
           },
           "default": {
             "$ref": "#/components/responses/default"
