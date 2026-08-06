@@ -611,8 +611,19 @@ namespace ccf
           snapshot_path,
           snapshot_data.size());
 
-        // Structurally invalid snapshots remain fatal.
-        const auto segments = separate_segments(snapshot_data);
+        SnapshotSegments segments;
+        try
+        {
+          segments = separate_segments(snapshot_data);
+        }
+        catch (const std::exception& e)
+        {
+          LOG_FAIL_FMT(
+            "Snapshot {} cannot be parsed: {}. Looking for an older snapshot.",
+            snapshot_path.string(),
+            e.what());
+          continue;
+        }
 
         if (start_type == StartType::Recover)
         {
