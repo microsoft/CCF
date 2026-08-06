@@ -18,8 +18,8 @@
 void fetch_endorsements(
   const std::vector<uint8_t>& attestation_raw, std::vector<uint8_t>& output)
 {
-  auto attestation = *reinterpret_cast<const ccf::pal::snp::Attestation*>(
-    attestation_raw.data());
+  auto attestation =
+    ccf::pal::snp::parse_attestation_report_unverified(attestation_raw);
 
   auto endorsement_config =
     ccf::pal::snp::make_endorsement_endpoint_configuration(
@@ -64,15 +64,16 @@ int main(int argc, char** argv)
     .add_option(
       "-a,--attestation", attestation_hex, "Attestation in hex format")
     ->check([](const std::string& attestation_hex) {
-      auto attest = ccf::ds::from_hex(attestation_hex);
-      if (attest.size() != sizeof(ccf::pal::snp::Attestation))
+      try
       {
-        return std::string(fmt::format(
-          "Attestation size is incorrect {} != {}",
-          attest.size(),
-          sizeof(ccf::pal::snp::Attestation)));
+        ccf::pal::snp::parse_attestation_report_unverified(
+          ccf::ds::from_hex(attestation_hex));
+        return std::string();
       }
-      return std::string();
+      catch (const std::exception& e)
+      {
+        return std::string(e.what());
+      }
     });
 
   ccf::LoggerLevel log_level = ccf::LoggerLevel::INFO;

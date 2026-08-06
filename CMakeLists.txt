@@ -604,6 +604,7 @@ if(BUILD_TESTS)
       snp_ioctl_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/pal/test/snp_ioctl_test.cpp
     )
+    target_link_libraries(snp_ioctl_test PRIVATE ccf_pal)
     set_property(TEST snp_ioctl_test APPEND PROPERTY LABELS snp)
     set_property(TEST snp_ioctl_test APPEND PROPERTY CONFIGURATIONS snp)
 

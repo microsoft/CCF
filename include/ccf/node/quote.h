@@ -39,7 +39,7 @@ namespace ccf
 
     static std::optional<HostData> get_host_data(const QuoteInfo& quote_info);
 
-    static std::optional<pal::snp::Attestation> get_snp_attestation(
+    static std::optional<pal::snp::AttestationReport> get_snp_attestation(
       const QuoteInfo& quote_info);
 
     static QuoteVerificationResult verify_quote_against_store(
