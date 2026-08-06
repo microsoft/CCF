@@ -422,15 +422,9 @@ namespace ccf::endpoints
           });
       }
 
-      http_status response_status;
-      if constexpr (!std::is_same_v<Out, void>)
-      {
-        response_status = status.value_or(HTTP_STATUS_OK);
-      }
-      else
-      {
-        response_status = status.value_or(HTTP_STATUS_NO_CONTENT);
-      }
+      constexpr http_status fallback_status =
+        std::is_same_v<Out, void> ? HTTP_STATUS_NO_CONTENT : HTTP_STATUS_OK;
+      const http_status response_status = status.value_or(fallback_status);
 
       return add_openapi_response<Out>(response_status);
     }
