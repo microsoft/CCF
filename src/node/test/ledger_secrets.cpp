@@ -1,9 +1,10 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "kv/test/null_encryptor.h"
-#include "kv/store.h"
 #include "node/ledger_secrets.h"
+
+#include "kv/store.h"
+#include "kv/test/null_encryptor.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
@@ -34,9 +35,8 @@ TEST_CASE("Ledger secret KV dependency lock ordering")
   store.set_map_hook(
     ccf::Tables::ENCRYPTED_LEDGER_SECRETS,
     ccf::Secrets::wrap_map_hook(
-      [&ledger_secrets](
-        ccf::kv::Version version,
-        const ccf::Secrets::Write&) -> ccf::kv::ConsensusHookPtr {
+      [&ledger_secrets](ccf::kv::Version version, const ccf::Secrets::Write&)
+        -> ccf::kv::ConsensusHookPtr {
         ledger_secrets.set_secret(version + 1, ccf::make_ledger_secret());
         return nullptr;
       }));
