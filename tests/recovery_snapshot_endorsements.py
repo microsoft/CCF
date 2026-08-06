@@ -157,19 +157,6 @@ def run_recovery_snapshot_endorsements(args):
             target_seqno=snapshot_trigger.seqno,
             wait_for_target_seqno=True,
         )
-        app.LoggingTxs("user0").issue(
-            initial_network,
-            number_txs=2,
-            send_private=False,
-            send_public=True,
-            wait_for_sync=True,
-        )
-        snapshot_trigger = primary.trigger_snapshot()
-        committed_snapshots_dir = initial_network.get_committed_snapshots(
-            primary,
-            target_seqno=snapshot_trigger.seqno,
-            wait_for_target_seqno=True,
-        )
         snapshots = sorted(
             (
                 name
@@ -179,10 +166,9 @@ def run_recovery_snapshot_endorsements(args):
             ),
             key=lambda name: infra.node.get_snapshot_seqnos(name)[0],
         )
-        assert len(snapshots) >= 3
-        snapshot_name = snapshots[-3]
-        malformed_receipt_snapshot_name = snapshots[-2]
-        malformed_structure_snapshot_name = snapshots[-1]
+        assert len(snapshots) >= 2
+        snapshot_name = snapshots[-2]
+        malformed_snapshot_name = snapshots[-1]
 
         source_snapshots_dir = os.path.join(
             initial_network.common_dir, "recovery_snapshot_endorsements_source"
@@ -192,26 +178,13 @@ def run_recovery_snapshot_endorsements(args):
         source_snapshot_path = shutil.copy(
             os.path.join(committed_snapshots_dir, snapshot_name), source_snapshots_dir
         )
-        malformed_receipt_snapshot_path = shutil.copy(
-            os.path.join(committed_snapshots_dir, malformed_receipt_snapshot_name),
+        malformed_snapshot_path = shutil.copy(
+            os.path.join(committed_snapshots_dir, malformed_snapshot_name),
             source_snapshots_dir,
         )
-        with open(
-            malformed_receipt_snapshot_path, "r+b"
-        ) as malformed_receipt_snapshot:
-            malformed_receipt_snapshot.seek(0, os.SEEK_END)
-            malformed_receipt_snapshot.truncate(
-                malformed_receipt_snapshot.tell() - 1
-            )
-        malformed_structure_snapshot_path = shutil.copy(
-            os.path.join(committed_snapshots_dir, malformed_structure_snapshot_name),
-            source_snapshots_dir,
-        )
-        with open(
-            malformed_structure_snapshot_path, "r+b"
-        ) as malformed_structure_snapshot:
-            # Keep the file non-empty so snapshot discovery does not skip it.
-            malformed_structure_snapshot.truncate(1)
+        with open(malformed_snapshot_path, "r+b") as malformed_snapshot:
+            malformed_snapshot.seek(0, os.SEEK_END)
+            malformed_snapshot.truncate(malformed_snapshot.tell() - 1)
         with open(source_snapshot_path, "rb") as snapshot_file:
             source_snapshot_bytes = snapshot_file.read()
         snapshot_digest = hashlib.sha256(source_snapshot_bytes).digest()
@@ -251,29 +224,13 @@ def run_recovery_snapshot_endorsements(args):
             validated_log = "Validated 2 recovery snapshot endorsement(s) in memory"
             snapshot_body_log = "Deserialising snapshot (size:"
             public_recovery_log = "Starting to read public ledger"
-            malformed_structure_log = (
+            malformed_log = (
                 "Recovery snapshot recovery_snapshot_endorsements_source/"
-                f"{malformed_structure_snapshot_name} cannot be verified"
-            )
-            malformed_receipt_log = (
-                "Recovery snapshot recovery_snapshot_endorsements_source/"
-                f"{malformed_receipt_snapshot_name} cannot be verified"
-            )
-            malformed_structure_idx = logs.index(malformed_structure_log)
-            first_fallback_idx = logs.index(
-                "Looking for an older snapshot", malformed_structure_idx
-            )
-            malformed_receipt_idx = logs.index(
-                malformed_receipt_log, first_fallback_idx
-            )
-            second_fallback_idx = logs.index(
-                "Looking for an older snapshot", malformed_receipt_idx
+                f"{malformed_snapshot_name} cannot be verified"
             )
             assert (
-                malformed_structure_idx
-                < first_fallback_idx
-                < malformed_receipt_idx
-                < second_fallback_idx
+                logs.index(malformed_log)
+                < logs.index("Looking for an older snapshot")
                 < logs.index(scan_log)
                 < logs.index(validated_log)
                 < logs.index(snapshot_body_log)

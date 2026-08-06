@@ -6,6 +6,7 @@ bucket_b:
   recovery_stale_snapshot_join_test
   recovery_intermediate_snapshot_join_test
   recovery_snapshot_endorsements_test
+  recovery_corrupt_snapshot_test
   schema_test
   nodes_test
 
