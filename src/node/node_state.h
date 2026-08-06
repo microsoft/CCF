@@ -633,9 +633,9 @@ namespace ccf
           return;
         }
 
-        const auto segments = separate_segments(snapshot_data);
         try
         {
+          const auto segments = separate_segments(snapshot_data);
           verify_snapshot(segments, config.recover.previous_service_identity);
         }
         catch (const std::exception& e)
