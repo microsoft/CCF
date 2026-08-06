@@ -25,9 +25,10 @@ TEST_CASE("SNP request attestation")
   PlatformAttestationReportData report_data(snp_report_data);
   snp::ioctl6::Attestation ioctl_attestation(report_data);
 
-  const snp::Attestation& attestation = ioctl_attestation.get();
+  const auto attestation =
+    snp::parse_attestation_report_unverified(ioctl_attestation.get_raw());
 
-  SnpAttestationReportData attested_report_data(attestation.report_data);
+  SnpAttestationReportData attested_report_data(attestation.report_data());
 
   REQUIRE_EQ(snp_report_data.report_data, attested_report_data.report_data);
 }

@@ -241,12 +241,11 @@ int main(int argc, char** argv)
           "Expected SNP quote format");
 
         LOG_INFO_FMT("Verifying endorsements");
-        const auto* attestation_unverified =
-          reinterpret_cast<const ccf::pal::snp::Attestation*>(
-            quote_info.quote.data());
+        const auto attestation_unverified =
+          ccf::pal::snp::parse_attestation_report_unverified(quote_info.quote);
         validate_endorsements(
           endorsements,
-          attestation_unverified->reported_tcb,
+          attestation_unverified.reported_tcb(),
           quote_info.endorsements);
 
         LOG_INFO_FMT("Verifying quote");

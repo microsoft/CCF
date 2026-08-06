@@ -90,24 +90,25 @@ namespace ccf::pal
     QuoteInfo node_quote_info = {};
     node_quote_info.format = QuoteFormat::amd_sev_snp_v1;
     auto attestation = snp::get_attestation(report_data);
+    node_quote_info.quote = attestation->get_raw();
+    auto report =
+      snp::parse_attestation_report_unverified(node_quote_info.quote);
 
-    if (attestation->get().version < pal::snp::minimum_attestation_version)
+    if (report.version() < pal::snp::minimum_attestation_version)
     {
       throw std::logic_error(fmt::format(
         "SEV-SNP: attestation version {} is less than the minimum supported "
         "version {}",
-        attestation->get().version,
+        report.version(),
         pal::snp::minimum_attestation_version));
     }
-
-    node_quote_info.quote = attestation->get_raw();
 
     if (endorsement_cb != nullptr)
     {
       endorsement_cb(
         node_quote_info,
         snp::make_endorsement_endpoint_configuration(
-          attestation->get(), endorsements_servers));
+          report, endorsements_servers));
     }
   }
 
