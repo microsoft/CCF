@@ -197,9 +197,9 @@ namespace ccf::pal
   }
 
   std::optional<std::vector<uint8_t>> get_endorsed_chip_id_from_cert(
-    const crypto::Pem& vcek_leaf_cert)
+    const crypto::Pem& vek_leaf_cert)
   {
-    ccf::crypto::OpenSSL::Unique_BIO mem_bio(vcek_leaf_cert);
+    ccf::crypto::OpenSSL::Unique_BIO mem_bio(vek_leaf_cert);
     ccf::crypto::OpenSSL::Unique_X509 x509(mem_bio, true);
 
     const std::string chip_id_oid = "1.3.6.1.4.1.3704.1.4";
@@ -210,8 +210,6 @@ namespace ccf::pal
     int ext_index = X509_get_ext_by_OBJ(x509, chip_id_obj, -1);
     if (ext_index < 0)
     {
-      LOG_FAIL_FMT(
-        "Chip ID OID {} not present in VCEK certificate", chip_id_oid);
       return std::nullopt;
     }
 
@@ -281,8 +279,8 @@ namespace ccf::pal
     }
 
     // ark_cert --signs--> ask_cert
-    // ask_cert --signs--> vcek_cert
-    auto vcek_cert = certificates[0];
+    // ask_cert --signs--> vek_cert
+    auto vek_cert = certificates[0];
     auto ask_cert = certificates[1];
     auto ark_cert = certificates[2];
 
@@ -328,8 +326,8 @@ namespace ccf::pal
         "self signed as expected");
     }
 
-    auto vcek_verifier = ccf::crypto::make_verifier(/* leaf */ vcek_cert);
-    if (!vcek_verifier->verify_certificate(
+    auto vek_verifier = ccf::crypto::make_verifier(/* leaf */ vek_cert);
+    if (!vek_verifier->verify_certificate(
           /* root */ {&ark_cert}, /* chain */ {&ask_cert}))
     {
       throw std::logic_error(
@@ -360,22 +358,25 @@ namespace ccf::pal
     std::span quote_without_signature{
       quote_info.quote.data(),
       quote_info.quote.size() - sizeof(quote.signature)};
-    if (!vcek_verifier->verify(quote_without_signature, quote_signature))
+    if (!vek_verifier->verify(quote_without_signature, quote_signature))
     {
       throw std::logic_error(
-        "SEV-SNP: Chip certificate (VCEK) did not sign this attestation");
+        "SEV-SNP: VEK certificate did not sign this attestation");
     }
 
     // ---- Verify attestation report contents ----
 
-    if (quote.flags.signing_key != snp::attestation_flags_signing_key_vcek)
+    const bool is_vcek =
+      quote.flags.signing_key == snp::attestation_flags_signing_key_vcek;
+    const bool is_vlek =
+      quote.flags.signing_key == snp::attestation_flags_signing_key_vlek;
+    if (!is_vcek && !is_vlek)
     {
       throw std::logic_error(fmt::format(
-        "SEV-SNP: Attestation report must be signed by VCEK: {}",
+        "SEV-SNP: Attestation report has unsupported signing key: {}",
         static_cast<uint8_t>(quote.flags.signing_key)));
     }
 
-    // mask_chip_key if set means the operator set the vcek to 0s
     if (quote.flags.mask_chip_key != 0)
     {
       throw std::logic_error(
@@ -409,7 +410,7 @@ namespace ccf::pal
         "enabled");
     }
 
-    auto endorsed_tcb = get_endorsed_tcb_from_cert(product_family, vcek_cert);
+    auto endorsed_tcb = get_endorsed_tcb_from_cert(product_family, vek_cert);
     if (endorsed_tcb.has_value())
     {
       auto endorsed_tcb_policy = endorsed_tcb->to_policy(product_family);
@@ -425,21 +426,41 @@ namespace ccf::pal
       }
     }
 
-    auto endorsed_chip_id = get_endorsed_chip_id_from_cert(vcek_cert);
-    auto reported_chip_id = quote.get_chip_id_for_vcek();
-    if (
-      endorsed_chip_id.has_value() &&
-      (endorsed_chip_id->size() != reported_chip_id.size() ||
-       memcmp(
-         endorsed_chip_id->data(),
-         reported_chip_id.data(),
-         reported_chip_id.size()) != 0))
+    auto endorsed_chip_id = get_endorsed_chip_id_from_cert(vek_cert);
+    if (is_vcek)
     {
-      throw std::logic_error(fmt::format(
-        "SEV-SNP: Chip ID in attestation does not match endorsed chip ID: {} "
-        "!= {}",
-        ccf::ds::to_hex(endorsed_chip_id.value()),
-        ccf::ds::to_hex(reported_chip_id)));
+      auto reported_chip_id = quote.get_chip_id_for_vcek();
+      if (
+        endorsed_chip_id.has_value() &&
+        (endorsed_chip_id->size() != reported_chip_id.size() ||
+         memcmp(
+           endorsed_chip_id->data(),
+           reported_chip_id.data(),
+           reported_chip_id.size()) != 0))
+      {
+        throw std::logic_error(fmt::format(
+          "SEV-SNP: Chip ID in attestation does not match endorsed chip ID: "
+          "{} != {}",
+          ccf::ds::to_hex(endorsed_chip_id.value()),
+          ccf::ds::to_hex(reported_chip_id)));
+      }
+    }
+    else
+    {
+      if (endorsed_chip_id.has_value())
+      {
+        throw std::logic_error(
+          "SEV-SNP: VLEK certificate unexpectedly contains a chip ID");
+      }
+      if (!std::all_of(
+            std::begin(quote.chip_id), std::end(quote.chip_id), [](uint8_t b) {
+              return b == 0;
+            }))
+      {
+        throw std::logic_error(
+          "SEV-SNP: VLEK-signed attestation report contains a non-zero chip "
+          "ID");
+      }
     }
 
     if (quote_info.endorsed_tcb.has_value())
