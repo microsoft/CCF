@@ -2,6 +2,7 @@
 # Licensed under the Apache 2.0 License.
 
 import os
+import re
 import shutil
 
 import ccf.ledger
@@ -88,9 +89,19 @@ def run_recovery_corrupt_snapshot(args):
 
             recovered_primary, _ = recovered.find_primary()
             expected_seqno = infra.node.get_snapshot_seqnos(valid_snapshot_name)[0]
-            assert recovered_primary.check_log_for_error_message(
-                f"Setting startup snapshot seqno to {expected_seqno}"
-            )
+            out_path, _ = recovered_primary.get_logs()
+            assert out_path is not None
+            with open(out_path, encoding="utf-8", errors="replace") as output:
+                startup_seqnos = [
+                    int(match.group(1))
+                    for line in output
+                    if (
+                        match := re.search(
+                            r"Setting startup snapshot seqno to (\d+)", line
+                        )
+                    )
+                ]
+            assert startup_seqnos == [expected_seqno], startup_seqnos
 
 
 if __name__ == "__main__":
