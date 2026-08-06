@@ -117,7 +117,7 @@ def test_module_access(network, args):
         # submitted (including exactly which fields are present/omitted). The
         # only changes are the casing of HTTP verbs, and the prefixing of module
         # names.
-        r = c.get("/gov/service/javascript-app?case=original")
+        r = c.get("/gov/service/javascript-app?case=original", validate_openapi=False)
         assert r.status_code == http.HTTPStatus.OK, r.status_code
         actual = r.body.json()
         expected = canonicalise(

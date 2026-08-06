@@ -1075,6 +1075,7 @@ class CCFClient:
         log_capture: list | None = None,
         allow_redirects: bool = True,
         cose_header_parameters_override: dict | None = None,
+        validate_openapi: bool = True,
     ) -> Response:
         if headers is None:
             headers = {}
@@ -1125,7 +1126,7 @@ class CCFClient:
             )
             flush_info([str(response)], log_capture, 3)
 
-        if self.openapi_validator is not None:
+        if self.openapi_validator is not None and validate_openapi:
             self.openapi_validator.validate(
                 r,
                 response,
@@ -1145,6 +1146,7 @@ class CCFClient:
         log_capture: list | None = None,
         allow_redirects: bool = True,
         cose_header_parameters_override: dict | None = None,
+        validate_openapi: bool = True,
     ) -> Response:
         """
         Issues one request, synchronously, and returns the response.
@@ -1157,6 +1159,7 @@ class CCFClient:
         :param int timeout: Maximum time to wait for a response before giving up.
         :param list log_capture: Rather than emit to default handler, capture log lines to list (optional).
         :param bool allow_redirects: Select whether redirects are followed.
+        :param bool validate_openapi: Select whether the request and response are validated against the reported API schema.
 
         :return: :py:class:`infra.clients.Response`
         """
@@ -1175,6 +1178,7 @@ class CCFClient:
                 logs,
                 allow_redirects,
                 cose_header_parameters_override,
+                validate_openapi,
             )
             flush_info(logs, log_capture, 2)
             return r
@@ -1192,6 +1196,7 @@ class CCFClient:
                     logs,
                     allow_redirects,
                     cose_header_parameters_override,
+                    validate_openapi,
                 )
                 # Only the first request gets this timeout logic - future calls
                 # call _call

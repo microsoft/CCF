@@ -818,6 +818,7 @@ class Network:
         suspend_after_start=False,
         **kwargs,
     ):
+        self.args = args
         self.common_dir = (
             common_dir
             or self.common_dir

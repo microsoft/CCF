@@ -140,6 +140,18 @@ TEST_CASE("URL template parsing")
   REQUIRE_THROWS(PathTemplateSpec::parse("/{id}/{id}/foo"));
 }
 
+TEST_CASE("Endpoint properties OpenAPI default")
+{
+  EndpointProperties properties;
+  REQUIRE(properties.openapi == nlohmann::json::object());
+
+  const nlohmann::json serialised = properties;
+  REQUIRE_FALSE(serialised.contains("openapi"));
+
+  const auto deserialised = serialised.get<EndpointProperties>();
+  REQUIRE(deserialised.openapi == nlohmann::json::object());
+}
+
 TEST_CASE("Additional OpenAPI responses")
 {
   Endpoint endpoint;

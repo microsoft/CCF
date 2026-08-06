@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - Asynchronous ledger reads (used to serve committed entry ranges to the enclave) no longer access the host `Ledger` object after it has been destroyed during shutdown. The `Ledger` now waits for any in-flight read workers to finish, and workers that have not yet started skip accessing it, fixing a potential use-after-free on shutdown (#8003).
+- `GET /gov/service/javascript-app` now reports an empty `openApi` object for endpoints without OpenAPI metadata, matching its response schema. The `?case=original` response remains unchanged. (#8115)
 
 ### Changed
 

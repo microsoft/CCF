@@ -319,15 +319,8 @@ class OpenAPIValidator:
                 and operation not in self._validated_requests
             )
             response_sample = (*operation, response.status_code)
-            # case=original returns raw submitted metadata, preserving snake_case
-            # field names and omitted defaults rather than the canonical API shape.
-            raw_js_app_response = (
-                operation == ("/gov", "/gov/service/javascript-app", "get")
-                and query.get("case") == "original"
-            )
             validate_response = (
                 request.http_verb != "HEAD"
-                and not raw_js_app_response
                 and response_sample not in self._validated_responses
             )
 

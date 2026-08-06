@@ -178,7 +178,7 @@ namespace ccf::endpoints
     /// Authentication policies
     std::vector<nlohmann::json> authn_policies;
     /// OpenAPI schema for endpoint
-    nlohmann::json openapi;
+    nlohmann::json openapi = nlohmann::json::object();
     //// Whether to include endpoint schema in frontend schema
     bool openapi_hidden = false;
     /// JavaScript module
