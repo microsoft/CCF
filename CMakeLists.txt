@@ -1123,6 +1123,12 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
+    NAME recovery_snapshot_endorsements_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery_snapshot_endorsements.py
+    BUCKET bucket_b
+  )
+
+  add_e2e_test(
     NAME recovery_test_suite
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
     LABEL suite
