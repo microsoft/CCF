@@ -52,6 +52,14 @@ namespace asynchost
       const sockaddr_storage& peer,
       socklen_t peerlen)>;
 
+    // Whether anything is running the libuv loop when stop() is called. See
+    // stop() for why this has to be stated rather than inferred.
+    enum class LoopState : uint8_t
+    {
+      Running,
+      NotRunning,
+    };
+
   private:
     static constexpr size_t max_datagram = 65535;
     // Datagrams handled per readable event. The handler runs inline on the
@@ -63,26 +71,38 @@ namespace asynchost
 
     uv_loop_t* loop = nullptr;
     int sock = -1;
-    uv_poll_t socket_poll{};
-    uv_async_t stop_handle{};
+    // Heap-allocated and freed by their own close callbacks, so that this
+    // server can be destroyed without waiting for the loop to run them. See
+    // the equivalent note in host/tls/openssl_server.h.
+    uv_poll_t* socket_poll = nullptr;
+    uv_async_t* stop_handle = nullptr;
     uint16_t bound_port = 0;
     OnDatagram on_datagram;
 
     std::mutex lifecycle_mutex;
-    std::condition_variable stopped_cv;
-    std::thread::id loop_thread_id;
+    std::condition_variable teardown_cv;
     bool started = false;
     bool stopping = false;
-    bool shutdown_started = false;
-    bool stopped = false;
-    // Tracked separately from `started`, because start() can throw part way
-    // through initialisation and the handles which were initialised must
-    // still be closed.
-    bool socket_poll_initialised = false;
-    bool stop_handle_initialised = false;
-    size_t pending_uv_closes = 0;
-    std::thread::id initialising_thread_id;
-    bool loop_thread_seen = false;
+    bool torn_down = false;
+
+    template <typename THandle>
+    static void close_handle(THandle*& handle)
+    {
+      if (handle == nullptr)
+      {
+        return;
+      }
+      auto* as_handle = reinterpret_cast<uv_handle_t*>(handle);
+      handle = nullptr;
+      if (uv_is_closing(as_handle) != 0)
+      {
+        return;
+      }
+      uv_close(as_handle, [](uv_handle_t* h) {
+        // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+        delete reinterpret_cast<THandle*>(h);
+      });
+    }
 
     static bool set_nonblocking(int fd)
     {
@@ -92,13 +112,6 @@ namespace asynchost
         return false;
       }
       return fcntl(fd, F_SETFL, flags | O_NONBLOCK) == 0;
-    }
-
-    void mark_loop_thread()
-    {
-      std::lock_guard<std::mutex> guard(lifecycle_mutex);
-      loop_thread_id = std::this_thread::get_id();
-      loop_thread_seen = true;
     }
 
     void drain()
@@ -144,10 +157,9 @@ namespace asynchost
     static void on_socket_poll(uv_poll_t* handle, int status, int events)
     {
       auto* self = static_cast<DatagramServer*>(handle->data);
-      self->mark_loop_thread();
       if (status < 0)
       {
-        self->stop_on_loop();
+        self->tear_down_on_loop();
         return;
       }
       if ((events & UV_READABLE) != 0)
@@ -161,76 +173,39 @@ namespace asynchost
     static void on_stop(uv_async_t* handle)
     {
       auto* self = static_cast<DatagramServer*>(handle->data);
-      self->mark_loop_thread();
-      self->stop_on_loop();
+      self->tear_down_on_loop();
     }
 
-    static void on_handle_closed(uv_handle_t* handle)
+    // Close the socket and hand every handle to uv_close(). Must only run
+    // where it cannot race the loop - see stop(). Does not wait for the
+    // closes: the handles own themselves.
+    void tear_down_on_loop()
     {
-      auto* self = static_cast<DatagramServer*>(handle->data);
-      std::lock_guard<std::mutex> guard(self->lifecycle_mutex);
-      --self->pending_uv_closes;
-      if (self->pending_uv_closes == 0)
+      std::lock_guard<std::mutex> guard(lifecycle_mutex);
+      if (torn_down)
       {
-        self->stopped = true;
-        self->stopped_cv.notify_all();
+        return;
       }
-    }
+      stopping = true;
 
-    void stop_on_loop()
-    {
-      bool close_socket_poll = false;
-      bool close_stop_handle = false;
+      if (socket_poll != nullptr)
       {
-        std::lock_guard<std::mutex> guard(lifecycle_mutex);
-        if (shutdown_started)
-        {
-          return;
-        }
-        stopping = true;
-        shutdown_started = true;
-
-        // Only the handles start() actually initialised. Counting blindly
-        // would leave pending_uv_closes permanently non-zero (so stop() would
-        // never complete) if start() threw part way through.
-        close_socket_poll = socket_poll_initialised;
-        close_stop_handle = stop_handle_initialised;
-        socket_poll_initialised = false;
-        stop_handle_initialised = false;
-        pending_uv_closes = static_cast<size_t>(close_socket_poll) +
-          static_cast<size_t>(close_stop_handle);
-
-        if (close_socket_poll)
-        {
-          (void)uv_poll_stop(&socket_poll);
-        }
-        // Closed under the lock so that a concurrent send_to() cannot be left
-        // holding a descriptor which has been closed (and possibly reused)
-        // underneath it.
-        if (sock >= 0)
-        {
-          ::close(sock);
-          sock = -1;
-        }
-
-        if (pending_uv_closes == 0)
-        {
-          stopped = true;
-          stopped_cv.notify_all();
-          return;
-        }
+        (void)uv_poll_stop(socket_poll);
+      }
+      // Closed under the lock so that a concurrent send_to() cannot be left
+      // holding a descriptor which has been closed (and possibly reused)
+      // underneath it.
+      if (sock >= 0)
+      {
+        ::close(sock);
+        sock = -1;
       }
 
-      if (close_socket_poll)
-      {
-        uv_close(
-          reinterpret_cast<uv_handle_t*>(&socket_poll), on_handle_closed);
-      }
-      if (close_stop_handle)
-      {
-        uv_close(
-          reinterpret_cast<uv_handle_t*>(&stop_handle), on_handle_closed);
-      }
+      close_handle(socket_poll);
+      close_handle(stop_handle);
+
+      torn_down = true;
+      teardown_cv.notify_all();
     }
 
   public:
@@ -321,36 +296,32 @@ namespace asynchost
         return;
       }
 
-      // Marked started before any handle is initialised, so that a failure
-      // part way through still leaves a server whose destructor closes and
-      // drains the handles which were initialised (stop() is a no-op unless
-      // `started` is set).
+      // Marked started before any handle is created, so that a failure part
+      // way through still leaves a server whose destructor closes the handles
+      // which were created (stop() is a no-op unless `started` is set).
       started = true;
       stopping = false;
-      shutdown_started = false;
-      stopped = false;
-      initialising_thread_id = std::this_thread::get_id();
-      loop_thread_seen = false;
+      torn_down = false;
 
-      int rc = uv_poll_init_socket(loop, &socket_poll, sock);
+      socket_poll = new uv_poll_t{}; // NOLINT(cppcoreguidelines-owning-memory)
+      socket_poll->data = this;
+      int rc = uv_poll_init_socket(loop, socket_poll, sock);
       if (rc != 0)
       {
         throw std::runtime_error(
           std::string("uv_poll_init_socket(udp) failed: ") + uv_strerror(rc));
       }
-      socket_poll_initialised = true;
-      socket_poll.data = this;
 
-      rc = uv_async_init(loop, &stop_handle, on_stop);
+      stop_handle = new uv_async_t{}; // NOLINT(cppcoreguidelines-owning-memory)
+      stop_handle->data = this;
+      rc = uv_async_init(loop, stop_handle, on_stop);
       if (rc != 0)
       {
         throw std::runtime_error(
           std::string("uv_async_init(udp) failed: ") + uv_strerror(rc));
       }
-      stop_handle_initialised = true;
-      stop_handle.data = this;
 
-      rc = uv_poll_start(&socket_poll, UV_READABLE, on_socket_poll);
+      rc = uv_poll_start(socket_poll, UV_READABLE, on_socket_poll);
       if (rc != 0)
       {
         throw std::runtime_error(
@@ -358,50 +329,33 @@ namespace asynchost
       }
     }
 
-    void stop()
+    // Tear the server down. Idempotent, and safe to call from the destructor.
+    // See OpenSSLServer::stop() for why `loop_state` is stated rather than
+    // inferred.
+    void stop(LoopState loop_state = LoopState::NotRunning)
     {
       std::unique_lock<std::mutex> lock(lifecycle_mutex);
-      if (!started || stopped)
+      if (!started || torn_down)
       {
         return;
       }
+
+      if (loop_state == LoopState::NotRunning)
+      {
+        lock.unlock();
+        tear_down_on_loop();
+        return;
+      }
+
       if (!stopping)
       {
         stopping = true;
-        if (stop_handle_initialised)
+        if (stop_handle != nullptr)
         {
-          (void)uv_async_send(&stop_handle);
+          (void)uv_async_send(stop_handle);
         }
       }
-      const bool loop_not_started_here = !loop_thread_seen &&
-        std::this_thread::get_id() == initialising_thread_id;
-      if (loop_not_started_here)
-      {
-        lock.unlock();
-        stop_on_loop();
-        for (;;)
-        {
-          {
-            std::lock_guard<std::mutex> guard(lifecycle_mutex);
-            if (stopped)
-            {
-              return;
-            }
-          }
-          (void)uv_run(loop, UV_RUN_NOWAIT);
-          // uv_run(UV_RUN_NOWAIT) returns immediately, so without this the
-          // loop would spin at 100% CPU while waiting for the outstanding uv
-          // close callbacks.
-          std::this_thread::sleep_for(std::chrono::milliseconds(1));
-        }
-      }
-      if (std::this_thread::get_id() == loop_thread_id)
-      {
-        lock.unlock();
-        stop_on_loop();
-        return;
-      }
-      stopped_cv.wait(lock, [this]() { return stopped; });
+      teardown_cv.wait(lock, [this]() { return torn_down; });
     }
 
     [[nodiscard]] uint16_t port() const

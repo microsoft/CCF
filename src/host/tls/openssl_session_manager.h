@@ -56,7 +56,7 @@ namespace asynchost
       bool soft_limited)>;
 
   private:
-    std::unique_ptr<OpenSSLServer> server;
+    std::shared_ptr<OpenSSLServer> server;
     SessionFactory factory;
     // Invoked when an admitted connection is torn down, so an owner can
     // release whatever it reserved at accept time. Called on the loop thread
@@ -124,27 +124,18 @@ namespace asynchost
     }
 
   public:
+    // Takes the transport's own Config verbatim, so there is a single place
+    // where a listening interface is described.
     OpenSSLSessionManager(
-      const std::string& cert_pem,
-      const std::string& key_pem,
-      const std::string& host,
-      uint16_t port,
+      OpenSSLServer::Config config,
       SessionFactory factory_,
-      const std::string& alpn = "",
-      bool plaintext = false,
-      bool verbose = false,
-      std::atomic<::tcp::ConnID>* shared_next_id = nullptr,
       std::function<void(::tcp::ConnID)> on_connection_closed_ = {},
-      std::optional<std::chrono::milliseconds> idle_timeout = std::nullopt,
       OpenSSLServer::OnAccept on_accept = {}) :
       factory(std::move(factory_)),
       on_connection_closed(std::move(on_connection_closed_))
     {
-      server = std::make_unique<OpenSSLServer>(
-        cert_pem,
-        key_pem,
-        host,
-        port,
+      server = std::make_shared<OpenSSLServer>(
+        std::move(config),
         [this](
           ::tcp::ConnID id,
           std::vector<uint8_t> data,
@@ -153,11 +144,6 @@ namespace asynchost
           on_data(id, std::move(data), peer_cert, soft_limited);
         },
         [this](::tcp::ConnID id) { on_close(id); },
-        alpn,
-        plaintext,
-        verbose,
-        shared_next_id,
-        idle_timeout,
         std::move(on_accept));
     }
 
@@ -181,9 +167,11 @@ namespace asynchost
       server->start();
     }
 
-    void stop()
+    void stop(
+      OpenSSLServer::LoopState loop_state =
+        OpenSSLServer::LoopState::NotRunning)
     {
-      server->stop();
+      server->stop(loop_state);
     }
 
     uint16_t port() const
@@ -196,7 +184,7 @@ namespace asynchost
     void write_outbound(
       ::tcp::ConnID id,
       std::span<const uint8_t> data,
-      sockaddr_storage /*addr*/ = {}) override
+      const ccf::SessionEndpoint& /*peer*/ = {}) override
     {
       server->send(id, data.data(), data.size());
     }

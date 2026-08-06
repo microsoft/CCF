@@ -512,7 +512,9 @@ namespace ccf
         }
 
         LOG_INFO_FMT("Stopping RPC transports");
-        rpcsessions->stop();
+        // The host is still running the libuv loop at this point - it only
+        // exits once we send AdminMessage::stopped below.
+        rpcsessions->stop(asynchost::OpenSSLServer::LoopState::Running);
 
         LOG_INFO_FMT("Enclave stopped successfully. Stopping host...");
         RINGBUFFER_WRITE_MESSAGE(AdminMessage::stopped, to_host);

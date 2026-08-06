@@ -88,7 +88,7 @@ namespace ccf
     // Implement Session::handle_incoming_data by dispatching a thread message
     // that eventually invokes the virtual handle_incoming_data_thread()
     void handle_incoming_data(
-      std::span<const uint8_t> data, sockaddr_storage /*addr*/) override
+      std::span<const uint8_t> data, const SessionEndpoint& /*peer*/) override
     {
       task_scheduler->add_action(
         std::make_shared<HandleIncomingDataTask>(data, shared_from_this()));

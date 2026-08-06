@@ -6,10 +6,12 @@
 //
 // Owns one OpenSSL transport per listening interface (TLS terminated in the
 // connection, see host/tls/openssl_server.h), creates the protocol session for
-// each connection, applies per-interface session caps and certificates, and
-// exposes outbound client creation. It implements ccf::AbstractRPCSessions so
-// the node (NodeState/frontends) reaches it without depending on the transport
-// backend.
+// each connection, and applies per-interface session caps and certificates. It
+// implements ccf::AbstractRPCSessions so the node (NodeState/frontends) reaches
+// it without depending on the transport backend.
+//
+// Inbound only: outbound requests (quote endorsements, JWT refresh, node join)
+// are made with libcurl and do not come through here.
 //
 // Cert-deferred listening: interfaces bind at startup even before their
 // certificate exists (a joining node receives the service cert later). A TLS
@@ -53,10 +55,57 @@ namespace ccf
   // How often idle UDP sessions are swept, mirroring the TCP idle sweep.
   static constexpr auto udp_idle_sweep_interval = std::chrono::seconds(1);
 
-  class RPCConnectionManager
-    : public std::enable_shared_from_this<RPCConnectionManager>,
-      public ccf::AbstractRPCSessions,
-      public ::http::ErrorReporter
+  // Per-interface error counters, deliberately kept out of the manager.
+  //
+  // Sessions are handed an ErrorReporter and hold it for their whole lifetime.
+  // If that were the manager itself, the manager would own the interfaces,
+  // which own the transport, which owns the sessions, which own the manager -
+  // a cycle keeping the manager alive for as long as any session exists.
+  // Owning the counts separately breaks it, and they are all a session
+  // actually needs.
+  class InterfaceErrorCounts : public ::http::ErrorReporter
+  {
+  public:
+    struct Counts
+    {
+      size_t parsing = 0;
+      size_t payload_too_large = 0;
+      size_t header_too_large = 0;
+    };
+
+    Counts get(const ccf::ListenInterfaceID& id)
+    {
+      std::lock_guard<std::mutex> guard(mutex);
+      auto it = counts.find(id);
+      return it == counts.end() ? Counts{} : it->second;
+    }
+
+    void report_parsing_error(const ccf::ListenInterfaceID& id) override
+    {
+      std::lock_guard<std::mutex> guard(mutex);
+      ++counts[id].parsing;
+    }
+
+    void report_request_payload_too_large_error(
+      const ccf::ListenInterfaceID& id) override
+    {
+      std::lock_guard<std::mutex> guard(mutex);
+      ++counts[id].payload_too_large;
+    }
+
+    void report_request_header_too_large_error(
+      const ccf::ListenInterfaceID& id) override
+    {
+      std::lock_guard<std::mutex> guard(mutex);
+      ++counts[id].header_too_large;
+    }
+
+  private:
+    std::mutex mutex;
+    std::map<ccf::ListenInterfaceID, Counts> counts;
+  };
+
+  class RPCConnectionManager : public ccf::AbstractRPCSessions
   {
   private:
     struct ListenInterface
@@ -70,9 +119,6 @@ namespace ccf
 
       std::atomic<size_t> open_sessions{0};
       std::atomic<size_t> peak_sessions{0};
-      std::atomic<size_t> err_parsing{0};
-      std::atomic<size_t> err_payload_too_large{0};
-      std::atomic<size_t> err_header_too_large{0};
 
       // The transport for this interface (created on listen()). Held by
       // shared_ptr so that callers which snapshot it under interfaces_mutex
@@ -98,7 +144,7 @@ namespace ccf
       void write_outbound(
         ::tcp::ConnID id,
         std::span<const uint8_t> data,
-        sockaddr_storage /*addr*/ = {}) override
+        const ccf::SessionEndpoint& /*peer*/ = {}) override
       {
         write(id, data);
       }
@@ -139,16 +185,14 @@ namespace ccf
     std::shared_ptr<CommitCallbackSubsystem> commit_callbacks_subsystem;
 
     // Set at the start of stop(). Once set no further sessions are created:
-    // the transports are being torn down, and when stop() is invoked from the
-    // destructor shared_from_this() (used by error_reporter()) would throw
-    // std::bad_weak_ptr because the control block has already expired.
+    // the transports are being torn down.
     std::atomic<bool> stopping{false};
 
     std::mutex interfaces_mutex;
     std::map<std::string, std::unique_ptr<ListenInterface>> interfaces;
-    // UDP interface state, keyed by interface name. UDP "QUIC" interfaces use
-    // a built-in datagram echo session until OpenSSL-native QUIC is available;
-    // other UDP protocols are routed to custom sessions, one session per peer.
+    // UDP interface state, keyed by interface name. Only custom UDP protocols
+    // hold state here, one session per peer; "QUIC" interfaces are echoed
+    // statelessly (see listen_udp) and so have no entries at all.
     std::map<std::string, std::unique_ptr<DatagramInterface>> udp_interfaces;
     // cert/key PEM per endorsement authority (for cert-deferred listening).
     std::map<ccf::Authority, std::pair<std::string, std::string>> certs;
@@ -158,16 +202,18 @@ namespace ccf
     std::atomic<::tcp::ConnID> shared_conn_id{1};
     std::atomic<size_t> active_sessions{0};
     std::atomic<size_t> peak_sessions{0};
-    // Outbound client sessions use the negative range, matching the historical
-    // convention relied upon by forwarding.
 
     // How long an idle connection is kept before being closed (nullopt =
     // never). Applied to each interface transport at listen() time.
     std::optional<std::chrono::milliseconds> idle_connection_timeout;
 
+    // Outlives this manager if a session does - see InterfaceErrorCounts.
+    std::shared_ptr<InterfaceErrorCounts> error_counts =
+      std::make_shared<InterfaceErrorCounts>();
+
     std::shared_ptr<::http::ErrorReporter> error_reporter()
     {
-      return shared_from_this();
+      return error_counts;
     }
 
     std::shared_ptr<CustomProtocolSubsystem> get_custom_protocol_subsystem()
@@ -570,10 +616,19 @@ namespace ccf
 
     ~RPCConnectionManager() override
     {
-      stop();
+      // By this point either stop() has already run (the normal path, from
+      // Enclave::run() while the loop was still going), in which case this is
+      // a no-op, or node startup failed before the event loop was ever
+      // entered - which is exactly LoopState::NotRunning.
+      stop(asynchost::OpenSSLServer::LoopState::NotRunning);
     }
 
-    void stop()
+    // Tear down every transport. `loop_state` says whether another thread is
+    // running the libuv loop, which the transports cannot determine for
+    // themselves - see OpenSSLServer::stop().
+    void stop(
+      asynchost::OpenSSLServer::LoopState loop_state =
+        asynchost::OpenSSLServer::LoopState::NotRunning)
     {
       // Refuse new sessions before tearing anything down. This is what makes
       // it safe for the destructor to call stop(): make_session() will no
@@ -606,17 +661,21 @@ namespace ccf
 
       for (const auto& bridge : bridges)
       {
-        bridge->stop();
+        bridge->stop(loop_state);
       }
       for (const auto& server : datagram_servers)
       {
-        server->stop();
+        server->stop(
+          loop_state == asynchost::OpenSSLServer::LoopState::Running ?
+            asynchost::DatagramServer::LoopState::Running :
+            asynchost::DatagramServer::LoopState::NotRunning);
       }
     }
 
     // Bind and start listening on `name` (which must have been configured via
-    // update_listening_interface_options). Returns the bound port (supports
-    // ephemeral port 0), or 0 on failure.
+    // update_listening_interface_options). Returns the bound port, which for a
+    // configured port of 0 is the ephemeral port the OS assigned. Throws if the
+    // interface is unconfigured, or if the socket cannot be bound.
     uint16_t listen(
       const std::string& name, const std::string& host, const std::string& port)
     {
@@ -658,20 +717,20 @@ namespace ccf
       };
       auto on_closed = [this, li](::tcp::ConnID) { release_connection(li); };
 
-      const auto port_num =
+      const uint16_t port_num =
         port.empty() ? 0 : static_cast<uint16_t>(std::stoi(port));
       li->bridge = std::make_shared<asynchost::OpenSSLSessionManager>(
-        cert_pem,
-        key_pem,
-        host,
-        port_num,
+        asynchost::OpenSSLServer::Config{
+          .host = host,
+          .port = port_num,
+          .cert_pem = cert_pem,
+          .key_pem = key_pem,
+          .alpn = alpn,
+          .plaintext = plaintext,
+          .idle_timeout = idle_connection_timeout,
+          .shared_next_id = &shared_conn_id},
         factory,
-        alpn,
-        plaintext,
-        false,
-        &shared_conn_id,
         on_closed,
-        idle_connection_timeout,
         on_accept);
       li->bridge->start();
       return li->bridge->port();
@@ -740,7 +799,7 @@ namespace ccf
           {
             return;
           }
-          session->handle_incoming_data({data, len}, peer);
+          session->handle_incoming_data({data, len}, {peer, peerlen});
         });
       udp->server->start();
       const uint16_t bound = udp->server->port();
@@ -784,28 +843,17 @@ namespace ccf
       return false;
     }
 
-    ccf::ApplicationProtocol get_app_protocol_main_interface() const override
-    {
-      // NB: const_cast to lock - the mutex is logically mutable here.
-      auto& self = const_cast<RPCConnectionManager&>(*this);
-      std::lock_guard<std::mutex> guard(self.interfaces_mutex);
-      if (self.interfaces.empty())
-      {
-        throw std::logic_error("No listening interface for this node");
-      }
-      return self.interfaces.begin()->second->app_protocol;
-    }
-
     ccf::SessionMetrics get_session_metrics() override
     {
       ccf::SessionMetrics sm;
       std::lock_guard<std::mutex> guard(interfaces_mutex);
       for (auto& [name, li] : interfaces)
       {
+        const auto counts = error_counts->get(name);
         ccf::SessionMetrics::Errors errs{};
-        errs.parsing = li->err_parsing.load();
-        errs.request_payload_too_large = li->err_payload_too_large.load();
-        errs.request_header_too_large = li->err_header_too_large.load();
+        errs.parsing = counts.parsing;
+        errs.request_payload_too_large = counts.payload_too_large;
+        errs.request_header_too_large = counts.header_too_large;
 
         sm.interfaces[name] = {
           li->open_sessions.load(),
@@ -904,40 +952,6 @@ namespace ccf
     {
       std::lock_guard<std::mutex> guard(subsystems_mutex);
       commit_callbacks_subsystem = std::move(fcss);
-    }
-
-    // ----- ErrorReporter ----------------------------------------------------
-
-    void report_parsing_error(const ccf::ListenInterfaceID& id) override
-    {
-      std::lock_guard<std::mutex> guard(interfaces_mutex);
-      auto it = interfaces.find(id);
-      if (it != interfaces.end())
-      {
-        it->second->err_parsing++;
-      }
-    }
-
-    void report_request_payload_too_large_error(
-      const ccf::ListenInterfaceID& id) override
-    {
-      std::lock_guard<std::mutex> guard(interfaces_mutex);
-      auto it = interfaces.find(id);
-      if (it != interfaces.end())
-      {
-        it->second->err_payload_too_large++;
-      }
-    }
-
-    void report_request_header_too_large_error(
-      const ccf::ListenInterfaceID& id) override
-    {
-      std::lock_guard<std::mutex> guard(interfaces_mutex);
-      auto it = interfaces.find(id);
-      if (it != interfaces.end())
-      {
-        it->second->err_header_too_large++;
-      }
     }
   };
 }

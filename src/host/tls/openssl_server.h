@@ -20,9 +20,7 @@
 #include <cerrno>
 #include <chrono>
 #include <condition_variable>
-#include <cstdarg>
 #include <cstdint>
-#include <cstdio>
 #include <cstring>
 #include <fcntl.h>
 #include <functional>
@@ -95,7 +93,7 @@ namespace asynchost
     }
   }
 
-  class OpenSSLServer
+  class OpenSSLServer : public std::enable_shared_from_this<OpenSSLServer>
   {
   public:
     // Invoked on a worker with a complete chunk of decrypted bytes, the
@@ -127,9 +125,102 @@ namespace asynchost
     // resource here and release it in OnClose.
     using OnAccept = std::function<std::optional<bool>(::tcp::ConnID conn_id)>;
 
+    // Whether anything is running the libuv loop when stop() is called. See
+    // stop() for why this has to be stated rather than inferred.
+    enum class LoopState : uint8_t
+    {
+      Running,
+      NotRunning,
+    };
+
+    // Everything about a server which is not a callback. Aggregate-initialised
+    // at the call site so each setting is named, rather than being a run of
+    // positional arguments where a transposition would compile silently.
+    //
+    // Every field has a default member initialiser, so a call site can name
+    // only the settings it cares about without tripping
+    // -Wmissing-field-initializers. That is also why the `= {}` on the string
+    // members cannot be dropped, despite looking redundant on its own.
+    // NOLINTBEGIN(readability-redundant-member-init)
+    struct Config
+    {
+      // Address to bind. Resolved with getaddrinfo, so hostnames ("localhost")
+      // and IPv6 literals ("::1") work, not just IPv4 literals. Port 0
+      // requests an ephemeral port, which port() reports back once bound.
+      std::string host = {};
+      uint16_t port = 0;
+
+      // Server certificate and key. May be empty for a TLS interface whose
+      // certificate is not yet known - the interface then refuses connections
+      // until set_server_cert() supplies one. Ignored when `plaintext` is set.
+      std::string cert_pem = {};
+      std::string key_pem = {};
+
+      // ALPN protocol to advertise, e.g. "h2" or "http/1.1". Empty disables
+      // ALPN.
+      std::string alpn = {};
+
+      // UNSECURED interface: no TLS at all, raw socket reads and writes.
+      bool plaintext = false;
+
+      // Close a connection after this much inactivity. nullopt keeps idle
+      // connections open indefinitely.
+      std::optional<std::chrono::milliseconds> idle_timeout = std::nullopt;
+
+      // Shared connection-id source, so that servers on different interfaces
+      // allocate ids from a single space - required for a global session
+      // registry and reply routing. Null uses a per-server counter.
+      std::atomic<::tcp::ConnID>* shared_next_id = nullptr;
+
+      // Loop to register this server's handles on.
+      uv_loop_t* loop = uv_default_loop();
+    };
+    // NOLINTEND(readability-redundant-member-init)
+
   private:
     static constexpr size_t read_chunk = 16384;
     static constexpr size_t max_read_per_event = read_chunk * 4;
+
+    // Heap-allocate a libuv handle whose lifetime is independent of this
+    // server, and close it so that it frees itself.
+    //
+    // uv_close() is asynchronous: the close callback only runs when the loop
+    // next runs, which may be long after the server has been destroyed - or
+    // never, if node startup failed before the event loop was entered. If
+    // handles were members, destruction would have to block until the loop had
+    // drained them, which in turn would force the server to drive the loop
+    // itself. Owning each handle separately means shutdown is fire-and-forget:
+    // request the close, drop the handle, and let the loop reclaim it whenever
+    // it next runs.
+    //
+    // Nothing dereferences handle->data after uv_close(), because libuv
+    // guarantees no further callbacks for a handle beyond its close callback,
+    // and that callback does nothing but free the handle.
+    template <typename THandle>
+    static THandle* new_handle()
+    {
+      // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+      return new THandle{};
+    }
+
+    template <typename THandle>
+    static void close_handle(THandle*& handle)
+    {
+      if (handle == nullptr)
+      {
+        return;
+      }
+      auto* as_handle = reinterpret_cast<uv_handle_t*>(handle);
+      handle = nullptr;
+      if (uv_is_closing(as_handle) != 0)
+      {
+        return;
+      }
+      uv_close(as_handle, [](uv_handle_t* h) {
+        // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+        delete reinterpret_cast<THandle*>(h);
+      });
+    }
 
     struct OutItem;
 
@@ -137,7 +228,7 @@ namespace asynchost
     {
       OpenSSLServer* owner = nullptr;
       int fd = -1;
-      uv_poll_t poll{};
+      uv_poll_t* poll = nullptr;
       std::shared_ptr<ccf::tasks::OrderedTasks> tls_tasks;
       std::shared_ptr<SSL_CTX> accepted_ctx;
       SSL* ssl = nullptr;
@@ -206,9 +297,6 @@ namespace asynchost
     std::atomic<::tcp::ConnID>* shared_next_id = nullptr;
     std::chrono::steady_clock::time_point last_idle_sweep =
       std::chrono::steady_clock::now();
-    size_t pending_uv_closes = 0;
-    std::thread::id initialising_thread_id;
-    std::thread::id loop_thread_id;
 
     // Close a connection after this much inactivity (no I/O); nullopt disables
     // idle closure. A libuv timer wakes every idle_sweep_interval_ms to check.
@@ -233,42 +321,56 @@ namespace asynchost
 
     std::mutex out_mutex;
     std::mutex lifecycle_mutex;
-    std::condition_variable stopped_cv;
+    std::condition_variable teardown_cv;
     std::unordered_map<int, std::shared_ptr<Conn>> conns;
-    std::unordered_map<Conn*, std::shared_ptr<Conn>> closing_conns;
     std::unordered_map<::tcp::ConnID, int> id_to_fd;
-    uv_async_t wake_handle{};
-    uv_timer_t idle_timer{};
-    uv_poll_t listen_poll{};
+    // Owned by the loop once closed - see new_handle()/close_handle().
+    uv_async_t* wake_handle = nullptr;
+    uv_timer_t* idle_timer = nullptr;
+    uv_poll_t* listen_poll = nullptr;
     int listen_fd = -1;
     uint16_t bound_port = 0;
     // Plaintext (UNSECURED) interface: no TLS, raw socket I/O.
     bool plaintext = false;
-    bool listen_poll_initialised = false;
-    bool wake_handle_initialised = false;
-    bool idle_timer_initialised = false;
-    bool verbose = false;
     bool started = false;
     bool stopping = false;
-    bool shutdown_started = false;
-    // Set once every connection has gone *and* the server's own handles have
-    // been handed to uv_close(). Until then pending_uv_closes reaching zero is
-    // only a lull between connection closures, not the end of shutdown.
-    bool handles_closing = false;
-    bool stopped = false;
-    bool loop_thread_seen = false;
+    // Set once the teardown has run: every connection dropped, every handle
+    // handed to uv_close(), and the listening socket closed. The handles may
+    // not have been reclaimed by the loop yet, but nothing here refers to
+    // them any more, so the server is safe to destroy.
+    bool torn_down = false;
 
-    void logf(const char* fmt, ...) const
+    // Describe a failed SSL operation. SSL_get_error() only gives the
+    // category: for SSL_ERROR_SSL the detail is in the (thread-local) error
+    // queue, and for SSL_ERROR_SYSCALL it may be in errno instead. Consuming
+    // the queue entry here also keeps it from being misattributed to the next
+    // operation this worker performs.
+    static std::string ssl_error_string(int ssl_error)
     {
-      if (!verbose)
+      switch (ssl_error)
       {
-        return;
+        case SSL_ERROR_ZERO_RETURN:
+          return "peer closed the TLS connection";
+
+        case SSL_ERROR_SSL:
+        case SSL_ERROR_SYSCALL:
+        {
+          const auto err = ERR_get_error();
+          if (err != 0)
+          {
+            return ccf::crypto::OpenSSL::error_string(err);
+          }
+          if (ssl_error == SSL_ERROR_SYSCALL)
+          {
+            return fmt::format(
+              "syscall failed: {}", std::generic_category().message(errno));
+          }
+          return "protocol error";
+        }
+
+        default:
+          return fmt::format("SSL_get_error {}", ssl_error);
       }
-      va_list args; // NOLINT
-      va_start(args, fmt);
-      (void)std::vfprintf(stderr, fmt, args);
-      (void)std::fputc('\n', stderr);
-      va_end(args);
     }
 
     static bool set_nonblocking(int fd)
@@ -406,11 +508,18 @@ namespace asynchost
 
     void update_interest(Conn& c) const
     {
+      if (c.poll == nullptr)
+      {
+        return;
+      }
       const int events = UV_READABLE | (c.want_write ? UV_WRITABLE : 0);
-      const int rc = uv_poll_start(&c.poll, events, on_connection_poll);
+      const int rc = uv_poll_start(c.poll, events, on_connection_poll);
       if (rc != 0)
       {
-        logf("uv_poll_start error: %s", uv_strerror(rc));
+        // Should not happen. If it does the connection will make no further
+        // progress, so it is worth reporting loudly rather than hiding.
+        LOG_FAIL_FMT(
+          "uv_poll_start failed for connection {}: {}", c.id, uv_strerror(rc));
       }
     }
 
@@ -471,7 +580,7 @@ namespace asynchost
           }
           X509_free(cert);
         }
-        logf("conn %llu: handshake complete", (unsigned long long)c.id);
+        LOG_TRACE_FMT("Connection {}: handshake complete", c.id);
         return do_read(c, more_to_read) && do_write(c);
       }
 
@@ -486,7 +595,11 @@ namespace asynchost
         c.want_write = true;
         return true;
       }
-      logf("conn %llu: handshake error %d", (unsigned long long)c.id, e);
+      // Entirely client-controlled (an unsupported cipher, a rejected
+      // certificate, or simply a port scan), so this must stay at a level
+      // which cannot be used to flood the log.
+      LOG_DEBUG_FMT(
+        "Connection {}: handshake failed: {}", c.id, ssl_error_string(e));
       return false;
     }
 
@@ -652,7 +765,10 @@ namespace asynchost
           // A renegotiation needs to read before we can write more.
           return true;
         }
-        logf("conn %llu: write err %d", (unsigned long long)c.id, e);
+        // Usually just the peer having gone away mid-response, so again a
+        // level which a client cannot use to flood the log.
+        LOG_DEBUG_FMT(
+          "Connection {}: write failed: {}", c.id, ssl_error_string(e));
         return false;
       }
 
@@ -676,14 +792,11 @@ namespace asynchost
       }
       // Unlike wake(), this must signal even while stopping: shutdown only
       // completes once the loop has observed every outstanding completion and
-      // closed the corresponding connection. The wake handle is guaranteed to
-      // still be open here, because finish_stopping_on_loop() only closes it
-      // once `conns` is empty, and a connection with a running worker has not
-      // yet been removed from `conns`.
+      // closed the corresponding connection.
       std::lock_guard<std::mutex> guard(lifecycle_mutex);
-      if (wake_handle_initialised)
+      if (wake_handle != nullptr)
       {
-        (void)uv_async_send(&wake_handle);
+        (void)uv_async_send(wake_handle);
       }
     }
 
@@ -763,15 +876,23 @@ namespace asynchost
       {
         return;
       }
-      (void)uv_poll_stop(&conn->poll);
+      if (conn->poll != nullptr)
+      {
+        (void)uv_poll_stop(conn->poll);
+      }
       conn->worker_active = true;
       DriveInput input;
       input.events = std::exchange(conn->pending_events, 0);
       input.commands.swap(conn->pending_commands);
       input.close_requested = std::exchange(conn->close_requested, false);
+      // The worker keeps the server alive for the whole pass. complete_drive()
+      // posts its result and only then touches lifecycle_mutex and
+      // wake_handle; without this the loop could consume that result, finish
+      // the teardown and let stop() return in between, destroying the server
+      // underneath the worker.
       conn->tls_tasks->add_action(ccf::tasks::make_basic_action(
-        [this, conn, input = std::move(input)]() mutable {
-          drive_connection(conn, std::move(input));
+        [self = shared_from_this(), conn, input = std::move(input)]() mutable {
+          self->drive_connection(conn, std::move(input));
         },
         "OpenSSLServer::drive_connection"));
     }
@@ -783,26 +904,24 @@ namespace asynchost
       {
         return;
       }
+      auto conn = it->second;
       if (on_close)
       {
-        on_close(it->second->id);
+        on_close(conn->id);
       }
-      id_to_fd.erase(it->second->id);
-      auto conn = it->second;
+      id_to_fd.erase(conn->id);
       conns.erase(it);
-      (void)uv_poll_stop(&conn->poll);
+
+      if (conn->poll != nullptr)
+      {
+        (void)uv_poll_stop(conn->poll);
+      }
       assert(conn->ssl == nullptr);
+      // The poll handle frees itself, so the Conn can be dropped here rather
+      // than being parked until the close callback runs.
+      close_handle(conn->poll);
       ::close(fd);
       conn->fd = -1;
-      auto* raw = conn.get();
-      closing_conns.emplace(raw, std::move(conn));
-      {
-        std::lock_guard<std::mutex> guard(lifecycle_mutex);
-        ++pending_uv_closes;
-      }
-      uv_close(
-        reinterpret_cast<uv_handle_t*>(&raw->poll), on_connection_poll_closed);
-      finish_stopping_on_loop();
     }
 
     void accept_all()
@@ -827,8 +946,12 @@ namespace asynchost
             continue;
           }
           const auto err = errno;
-          logf(
-            "accept error: %s", std::generic_category().message(err).c_str());
+          // The listening socket is level-triggered, so a persistent failure
+          // (notably EMFILE once the process is out of file descriptors) is
+          // re-reported on every loop iteration. Keep it out of the default
+          // log for that reason.
+          LOG_DEBUG_FMT(
+            "accept4 failed: {}", std::generic_category().message(err));
           break;
         }
 
@@ -905,37 +1028,40 @@ namespace asynchost
           c->accepted_ctx = ctx;
         }
 
-        const int poll_rc = uv_poll_init_socket(loop, &c->poll, cfd);
+        c->poll = new_handle<uv_poll_t>();
+        const int poll_rc = uv_poll_init_socket(loop, c->poll, cfd);
         if (poll_rc != 0)
         {
-          logf("uv_poll_init_socket error: %s", uv_strerror(poll_rc));
+          LOG_FAIL_FMT(
+            "uv_poll_init_socket failed for connection {}: {}",
+            cid,
+            uv_strerror(poll_rc));
+          // Never registered with the loop, so free it directly rather than
+          // going through uv_close.
+          // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+          delete c->poll;
+          c->poll = nullptr;
           ::close(cfd);
           release_admitted();
           continue;
         }
-        c->poll.data = c.get();
+        c->poll->data = c.get();
         const int start_rc =
-          uv_poll_start(&c->poll, UV_READABLE, on_connection_poll);
+          uv_poll_start(c->poll, UV_READABLE, on_connection_poll);
         if (start_rc != 0)
         {
-          logf("uv_poll_start error: %s", uv_strerror(start_rc));
+          LOG_FAIL_FMT(
+            "uv_poll_start failed for connection {}: {}",
+            cid,
+            uv_strerror(start_rc));
+          close_handle(c->poll);
           ::close(cfd);
-          c->fd = -1;
-          auto* raw = c.get();
-          closing_conns.emplace(raw, std::move(c));
-          {
-            std::lock_guard<std::mutex> guard(lifecycle_mutex);
-            ++pending_uv_closes;
-          }
-          uv_close(
-            reinterpret_cast<uv_handle_t*>(&raw->poll),
-            on_connection_poll_closed);
           release_admitted();
           continue;
         }
         conns.emplace(cfd, std::move(c));
         id_to_fd.emplace(cid, cfd);
-        logf("accepted conn on fd %d", cfd);
+        LOG_TRACE_FMT("Accepted connection {} on fd {}", cid, cfd);
       }
     }
 
@@ -952,18 +1078,10 @@ namespace asynchost
       dispatch_connection(c);
     }
 
-    void mark_loop_thread()
-    {
-      std::lock_guard<std::mutex> guard(lifecycle_mutex);
-      loop_thread_id = std::this_thread::get_id();
-      loop_thread_seen = true;
-    }
-
     static void on_connection_poll(uv_poll_t* handle, int status, int events)
     {
       auto* conn = static_cast<Conn*>(handle->data);
       auto* self = conn->owner;
-      self->mark_loop_thread();
       if (status < 0)
       {
         auto it = self->conns.find(conn->fd);
@@ -977,20 +1095,12 @@ namespace asynchost
       self->on_conn_event(conn->fd, events);
     }
 
-    static void on_connection_poll_closed(uv_handle_t* handle)
-    {
-      auto* conn = static_cast<Conn*>(handle->data);
-      auto* self = conn->owner;
-      self->closing_conns.erase(conn);
-      self->complete_uv_close();
-    }
-
     void wake()
     {
       std::lock_guard<std::mutex> guard(lifecycle_mutex);
-      if (wake_handle_initialised && !stopping)
+      if (wake_handle != nullptr && !stopping)
       {
-        (void)uv_async_send(&wake_handle);
+        (void)uv_async_send(wake_handle);
       }
     }
 
@@ -1091,6 +1201,18 @@ namespace asynchost
           update_interest(*conn);
         }
       }
+
+      bool shutting_down = false;
+      {
+        std::lock_guard<std::mutex> guard(lifecycle_mutex);
+        shutting_down = stopping && !torn_down;
+      }
+      if (shutting_down)
+      {
+        // Some of those connections may have just gone, which may be the last
+        // thing shutdown was waiting for.
+        tear_down_on_loop();
+      }
     }
 
     // Close connections idle longer than idle_timeout (loop thread).
@@ -1111,10 +1233,10 @@ namespace asynchost
       }
       for (const int fd : to_close)
       {
-        logf("closing idle connection on fd %d", fd);
         auto it = conns.find(fd);
         if (it != conns.end())
         {
+          LOG_DEBUG_FMT("Closing idle connection {}", it->second->id);
           it->second->close_requested = true;
           dispatch_connection(it->second);
         }
@@ -1124,10 +1246,9 @@ namespace asynchost
     static void on_listen_poll(uv_poll_t* handle, int status, int events)
     {
       auto* self = static_cast<OpenSSLServer*>(handle->data);
-      self->mark_loop_thread();
       if (status < 0)
       {
-        self->request_stop_on_loop();
+        self->tear_down_on_loop();
         return;
       }
       if ((events & UV_READABLE) != 0)
@@ -1139,174 +1260,148 @@ namespace asynchost
     static void on_wake(uv_async_t* handle)
     {
       auto* self = static_cast<OpenSSLServer*>(handle->data);
-      self->mark_loop_thread();
-      bool should_stop = false;
-      {
-        std::lock_guard<std::mutex> guard(self->lifecycle_mutex);
-        should_stop = self->stopping;
-      }
-      if (should_stop)
-      {
-        self->request_stop_on_loop();
-      }
+      // Always drain, including while shutting down: shutdown completes only
+      // once every connection worker's completion has been processed and its
+      // connection closed, and drain_pending_out() resumes the teardown once
+      // it has done so.
       self->drain_pending_out();
     }
 
     static void on_idle_timer(uv_timer_t* handle)
     {
       auto* self = static_cast<OpenSSLServer*>(handle->data);
-      self->mark_loop_thread();
       self->sweep_idle();
     }
 
-    static void on_server_handle_closed(uv_handle_t* handle)
-    {
-      auto* self = static_cast<OpenSSLServer*>(handle->data);
-      self->complete_uv_close();
-    }
-
-    void complete_uv_close()
-    {
-      std::lock_guard<std::mutex> guard(lifecycle_mutex);
-      if (pending_uv_closes > 0)
-      {
-        --pending_uv_closes;
-      }
-      // Only finish once finish_stopping_on_loop() has queued the listener,
-      // timer and async handles for closure. Connections close one at a time,
-      // so without the handles_closing gate the first connection to finish
-      // closing would drive the count to zero and declare shutdown complete
-      // while other connections, and all three server handles, were still
-      // open - leaving uv_loop_close() to fail with EBUSY.
-      if (stopping && handles_closing && pending_uv_closes == 0)
-      {
-        stopped = true;
-        stopped_cv.notify_all();
-      }
-    }
-
-    // Requires lifecycle_mutex to be held by the caller. uv_close() never runs
-    // its callback synchronously, so complete_uv_close() cannot re-enter the
-    // lock from here.
-    void close_server_handle(uv_handle_t* handle)
-    {
-      if (uv_is_closing(handle) == 0)
-      {
-        ++pending_uv_closes;
-        uv_close(handle, on_server_handle_closed);
-      }
-    }
-
-    void request_stop_on_loop()
+    // Begin, or resume, shutdown on the loop thread.
+    //
+    // The listener closes immediately and every live connection is asked to
+    // close, but the server's own handles can only go once those connections
+    // have actually gone: a connection whose worker is still running is still
+    // reading and writing its socket, so neither its fd nor its poll handle
+    // may be touched here. drain_pending_out() calls back in as each worker
+    // completes, and the last call finishes the job.
+    //
+    // Nothing here waits for the uv close callbacks. Each handle owns itself
+    // (see new_handle()), so once torn_down is set nothing refers to them any
+    // more and the server is safe to destroy, whether or not the loop ever
+    // runs again.
+    void tear_down_on_loop()
     {
       {
         std::lock_guard<std::mutex> guard(lifecycle_mutex);
-        if (shutdown_started)
+        if (torn_down)
         {
           return;
         }
         stopping = true;
-        shutdown_started = true;
       }
-      // May run before start() finished initialising, if start() threw part
-      // way through, so the handle may not exist yet.
-      if (listen_poll_initialised)
+
+      if (listen_poll != nullptr)
       {
-        (void)uv_poll_stop(&listen_poll);
+        (void)uv_poll_stop(listen_poll);
+        close_handle(listen_poll);
       }
       if (listen_fd >= 0)
       {
         ::close(listen_fd);
         listen_fd = -1;
       }
+
       for (auto& [fd, conn] : conns)
       {
         conn->close_requested = true;
         dispatch_connection(conn);
       }
-      finish_stopping_on_loop();
-    }
-
-    // Loop thread. Completes shutdown once every connection has gone: stops
-    // the idle timer and closes the server's own uv handles.
-    //
-    // Every flag touched here is also read from other threads (see wake() and
-    // complete_drive()), so the whole body runs under lifecycle_mutex, and
-    // each *_initialised flag is cleared *before* the corresponding uv_close().
-    // Clearing afterwards would leave a window in which another thread sees
-    // the handle as usable and calls uv_async_send() on a closing handle.
-    void finish_stopping_on_loop()
-    {
-      std::lock_guard<std::mutex> guard(lifecycle_mutex);
-      if (!stopping || handles_closing || !conns.empty())
+      if (!conns.empty())
       {
+        // Workers still own these connections. Finish when they report back.
         return;
       }
 
-      // Every connection has gone. From here on there is nothing left to
-      // close but the server's own handles, so once the count reaches zero
-      // shutdown really is complete.
-      handles_closing = true;
+      if (idle_timer != nullptr)
+      {
+        (void)uv_timer_stop(idle_timer);
+        close_handle(idle_timer);
+      }
 
-      if (idle_timer_initialised)
       {
-        idle_timer_initialised = false;
-        (void)uv_timer_stop(&idle_timer);
-        close_server_handle(reinterpret_cast<uv_handle_t*>(&idle_timer));
+        // Cleared under the lock, because send()/close_connection() and
+        // complete_drive() consult it from other threads. Clearing it before
+        // the uv_close() means no other thread can observe the handle as
+        // usable once it is closing.
+        std::lock_guard<std::mutex> guard(lifecycle_mutex);
+        auto* wake = wake_handle;
+        wake_handle = nullptr;
+        close_handle(wake);
+
+        torn_down = true;
+        teardown_cv.notify_all();
       }
-      if (listen_poll_initialised)
+    }
+
+    // Drive shutdown to completion when nothing is running the loop. Only this
+    // server's own queues need servicing - no libuv work is required, and no
+    // other thread can be inside the loop - so this never runs the loop
+    // itself.
+    void tear_down_without_loop()
+    {
+      for (;;)
       {
-        listen_poll_initialised = false;
-        close_server_handle(reinterpret_cast<uv_handle_t*>(&listen_poll));
-      }
-      if (wake_handle_initialised)
-      {
-        wake_handle_initialised = false;
-        close_server_handle(reinterpret_cast<uv_handle_t*>(&wake_handle));
-      }
-      if (pending_uv_closes == 0)
-      {
-        stopped = true;
-        stopped_cv.notify_all();
+        tear_down_on_loop();
+        {
+          std::lock_guard<std::mutex> guard(lifecycle_mutex);
+          if (torn_down)
+          {
+            return;
+          }
+        }
+
+        // A connection worker is still running. Service the task board so it
+        // can finish, then pick up its completion.
+        auto task = ccf::tasks::get_main_job_board().get_task();
+        if (task != nullptr)
+        {
+          ccf::tasks::try_do_task(*task);
+        }
+        else
+        {
+          std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        drain_pending_out();
       }
     }
 
   public:
+    // `on_data` is required; `on_close` and `on_accept` are optional. These
+    // stay as explicit parameters rather than joining Config so that on_data
+    // cannot be omitted, and so a transposition is a compile error (their
+    // signatures differ).
     OpenSSLServer(
-      const std::string& cert_pem,
-      const std::string& key_pem,
-      const std::string& host,
-      uint16_t port,
+      Config config,
       OnData on_data_,
       OnClose on_close_ = {},
-      const std::string& alpn = "",
-      bool plaintext_ = false,
-      bool verbose_ = false,
-      std::atomic<::tcp::ConnID>* shared_next_id_ = nullptr,
-      std::optional<std::chrono::milliseconds> idle_timeout_ = std::nullopt,
-      OnAccept on_accept_ = {},
-      uv_loop_t* loop_ = uv_default_loop()) :
-      loop(loop_),
-      shared_next_id(shared_next_id_),
-      idle_timeout(idle_timeout_),
+      OnAccept on_accept_ = {}) :
+      loop(config.loop),
+      shared_next_id(config.shared_next_id),
+      idle_timeout(config.idle_timeout),
       on_data(std::move(on_data_)),
       on_close(std::move(on_close_)),
       on_accept(std::move(on_accept_)),
-      plaintext(plaintext_),
-      verbose(verbose_)
+      plaintext(config.plaintext)
     {
-      if (!alpn.empty())
+      if (!config.alpn.empty())
       {
-        alpn_wire.push_back(static_cast<char>(alpn.size()));
-        alpn_wire.append(alpn);
+        alpn_wire.push_back(static_cast<char>(config.alpn.size()));
+        alpn_wire.append(config.alpn);
       }
 
       // Plaintext interfaces have no TLS context. TLS interfaces build their
       // context now if the cert is already available, or defer until
       // set_server_cert() (e.g. a joining node receiving the service cert).
-      if (!plaintext && !cert_pem.empty())
+      if (!plaintext && !config.cert_pem.empty())
       {
-        ctx = build_server_ctx(cert_pem, key_pem);
+        ctx = build_server_ctx(config.cert_pem, config.key_pem);
         if (ctx == nullptr)
         {
           throw std::runtime_error("Failed to load server cert/key");
@@ -1321,11 +1416,11 @@ namespace asynchost
       hints.ai_socktype = SOCK_STREAM;
       hints.ai_flags = AI_PASSIVE;
       addrinfo* res = nullptr;
-      const std::string port_str = std::to_string(port);
-      if (getaddrinfo(host.c_str(), port_str.c_str(), &hints, &res) != 0)
+      const std::string port_str = std::to_string(config.port);
+      if (getaddrinfo(config.host.c_str(), port_str.c_str(), &hints, &res) != 0)
       {
         cleanup();
-        throw std::runtime_error("getaddrinfo failed for " + host);
+        throw std::runtime_error("getaddrinfo failed for " + config.host);
       }
 
       const int one = 1;
@@ -1364,7 +1459,7 @@ namespace asynchost
       if (!bound_ok)
       {
         cleanup();
-        throw std::runtime_error("bind() failed for " + host);
+        throw std::runtime_error("bind() failed for " + config.host);
       }
       if (listen(listen_fd, SOMAXCONN) != 0)
       {
@@ -1419,51 +1514,45 @@ namespace asynchost
         return;
       }
 
-      // Mark the server started, and reset the lifecycle flags, *before* any
-      // handle is initialised. If one of the steps below throws, the handles
-      // which were already initialised are still registered with the loop and
-      // must be closed, or uv_loop_close() will fail with EBUSY. stop() does
-      // exactly that, but only when `started` is set - so setting it here is
-      // what makes a partially-initialised server safe to destroy.
-      stopped = false;
+      // Mark the server started before any handle is created. If one of the
+      // steps below throws, the handles which were already created are still
+      // registered with the loop and must be closed, and stop() is a no-op
+      // unless `started` is set.
+      torn_down = false;
       stopping = false;
-      shutdown_started = false;
-      handles_closing = false;
-      initialising_thread_id = std::this_thread::get_id();
-      loop_thread_seen = false;
       started = true;
 
-      int rc = uv_poll_init_socket(loop, &listen_poll, listen_fd);
+      listen_poll = new_handle<uv_poll_t>();
+      listen_poll->data = this;
+      int rc = uv_poll_init_socket(loop, listen_poll, listen_fd);
       if (rc != 0)
       {
         throw std::runtime_error(
           std::string("uv_poll_init_socket(listen) failed: ") +
           uv_strerror(rc));
       }
-      listen_poll_initialised = true;
-      listen_poll.data = this;
 
-      rc = uv_async_init(loop, &wake_handle, on_wake);
+      wake_handle = new_handle<uv_async_t>();
+      wake_handle->data = this;
+      rc = uv_async_init(loop, wake_handle, on_wake);
       if (rc != 0)
       {
         throw std::runtime_error(
           std::string("uv_async_init failed: ") + uv_strerror(rc));
       }
-      wake_handle_initialised = true;
-      wake_handle.data = this;
 
       if (idle_timeout.has_value())
       {
-        rc = uv_timer_init(loop, &idle_timer);
+        idle_timer = new_handle<uv_timer_t>();
+        idle_timer->data = this;
+        rc = uv_timer_init(loop, idle_timer);
         if (rc != 0)
         {
           throw std::runtime_error(
             std::string("uv_timer_init failed: ") + uv_strerror(rc));
         }
-        idle_timer_initialised = true;
-        idle_timer.data = this;
         rc = uv_timer_start(
-          &idle_timer,
+          idle_timer,
           on_idle_timer,
           idle_sweep_interval_ms,
           idle_sweep_interval_ms);
@@ -1474,7 +1563,7 @@ namespace asynchost
         }
       }
 
-      rc = uv_poll_start(&listen_poll, UV_READABLE, on_listen_poll);
+      rc = uv_poll_start(listen_poll, UV_READABLE, on_listen_poll);
       if (rc != 0)
       {
         throw std::runtime_error(
@@ -1482,60 +1571,54 @@ namespace asynchost
       }
     }
 
-    void stop()
+    // Tear the server down. Idempotent, and safe to call from the destructor.
+    //
+    // The teardown itself must run where it cannot race the loop, and that is
+    // not something this class can work out for itself: a loop which is
+    // running only reveals itself when it first invokes a callback, and for an
+    // interface which has seen no connections that may never happen. So the
+    // caller states it.
+    //
+    // `loop_state` == Running: another thread is running the loop, so the
+    // teardown is posted to it and this blocks until it has run.
+    //
+    // `loop_state` == NotRunning: nothing is running the loop and nothing
+    // will - node startup failed before the event loop was entered, or this is
+    // a test which never started one. The teardown runs inline, which is safe
+    // precisely because no other thread can be inside the loop, and returns
+    // without waiting: the handles own themselves, so their close callbacks
+    // simply never run.
+    void stop(LoopState loop_state = LoopState::NotRunning)
     {
       std::unique_lock<std::mutex> lock(lifecycle_mutex);
-      if (!started || stopped)
+      if (!started || torn_down)
       {
         return;
       }
+
+      if (loop_state == LoopState::NotRunning)
+      {
+        lock.unlock();
+        tear_down_without_loop();
+        return;
+      }
+
       if (!stopping)
       {
         stopping = true;
-        // finish_stopping_on_loop() clears wake_handle_initialised before it
-        // closes the handle, so this cannot signal a handle already closing.
-        if (wake_handle_initialised)
+        // tear_down_on_loop() clears wake_handle under this same lock before
+        // closing it, so this cannot signal a handle which is already closing.
+        if (wake_handle != nullptr)
         {
-          (void)uv_async_send(&wake_handle);
+          (void)uv_async_send(wake_handle);
         }
       }
-      const bool loop_not_started_here = !loop_thread_seen &&
-        std::this_thread::get_id() == initialising_thread_id;
-      if (loop_not_started_here)
-      {
-        lock.unlock();
-        request_stop_on_loop();
-        for (;;)
-        {
-          {
-            std::lock_guard<std::mutex> guard(lifecycle_mutex);
-            if (stopped)
-            {
-              return;
-            }
-          }
-          auto task = ccf::tasks::get_main_job_board().get_task();
-          if (task != nullptr)
-          {
-            ccf::tasks::try_do_task(*task);
-          }
-          (void)uv_run(loop, UV_RUN_NOWAIT);
-          if (task == nullptr)
-          {
-            // Nothing to do but wait for outstanding uv close callbacks.
-            // uv_run(UV_RUN_NOWAIT) returns immediately, so without this the
-            // loop below would spin at 100% CPU for the whole shutdown.
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
-          }
-        }
-      }
-      if (std::this_thread::get_id() == loop_thread_id)
-      {
-        lock.unlock();
-        request_stop_on_loop();
-        return;
-      }
-      while (!stopped)
+
+      // The loop performs the teardown. Keep servicing the task board while
+      // waiting, because an in-flight connection worker may need to complete
+      // before the loop can finish with it, and this thread may be one of the
+      // few able to run it.
+      while (!torn_down)
       {
         lock.unlock();
         auto task = ccf::tasks::get_main_job_board().get_task();
@@ -1544,9 +1627,9 @@ namespace asynchost
           ccf::tasks::try_do_task(*task);
         }
         lock.lock();
-        if (!stopped && task == nullptr)
+        if (!torn_down && task == nullptr)
         {
-          stopped_cv.wait_for(lock, std::chrono::milliseconds(1));
+          teardown_cv.wait_for(lock, std::chrono::milliseconds(1));
         }
       }
     }

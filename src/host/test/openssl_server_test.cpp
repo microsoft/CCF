@@ -341,7 +341,7 @@ namespace
 
   struct EchoServer
   {
-    std::unique_ptr<OpenSSLServer> server;
+    std::shared_ptr<OpenSSLServer> server;
     UVLoopRunner loop;
 
     EchoServer(
@@ -349,11 +349,8 @@ namespace
       const std::string& key,
       const std::string& host = "127.0.0.1")
     {
-      server = std::make_unique<OpenSSLServer>(
-        cert,
-        key,
-        host,
-        static_cast<uint16_t>(0),
+      server = std::make_shared<OpenSSLServer>(
+        OpenSSLServer::Config{.host = host, .cert_pem = cert, .key_pem = key},
         [this](
           uint64_t id,
           std::vector<uint8_t> d,
@@ -365,7 +362,7 @@ namespace
 
     ~EchoServer()
     {
-      server->stop();
+      server->stop(OpenSSLServer::LoopState::Running);
     }
 
     uint16_t port() const
@@ -385,7 +382,8 @@ namespace
     {}
 
     void handle_incoming_data(
-      std::span<const uint8_t> data, sockaddr_storage /*addr*/ = {}) override
+      std::span<const uint8_t> data,
+      const ccf::SessionEndpoint& /*peer*/ = {}) override
     {
       writer.write_outbound(id, data);
     }
@@ -415,7 +413,7 @@ namespace
 
     void handle_incoming_data(
       std::span<const uint8_t> /*data*/,
-      sockaddr_storage /*addr*/ = {}) override
+      const ccf::SessionEndpoint& /*peer*/ = {}) override
     {
       writer.write_outbound(id, payload);
       writer.close_socket(id);
@@ -443,11 +441,9 @@ TEST_CASE("Connections are admitted at accept time and released once")
   // Refuse everything after the first two connections, as a hard cap would.
   constexpr size_t cap = 2;
 
-  OpenSSLServer server(
-    cert,
-    key,
-    "127.0.0.1",
-    static_cast<uint16_t>(0),
+  auto server = std::make_shared<OpenSSLServer>(
+    OpenSSLServer::Config{
+      .host = "127.0.0.1", .cert_pem = cert, .key_pem = key},
     [&](
       ::tcp::ConnID, std::vector<uint8_t>, const std::vector<uint8_t>&, bool) {
       std::lock_guard<std::mutex> guard(m);
@@ -459,11 +455,6 @@ TEST_CASE("Connections are admitted at accept time and released once")
       closed.push_back(id);
       cv.notify_all();
     },
-    "",
-    false,
-    false,
-    nullptr,
-    std::nullopt,
     [&](::tcp::ConnID id) -> std::optional<bool> {
       std::lock_guard<std::mutex> guard(m);
       if (admitted.size() >= cap)
@@ -475,8 +466,8 @@ TEST_CASE("Connections are admitted at accept time and released once")
       return false;
     });
   UVLoopRunner loop;
-  server.start();
-  const auto port = server.port();
+  server->start();
+  const auto port = server->port();
   loop.start();
 
   const auto connect_tls = [port](int& fd, SSL_CTX*& ctx, SSL*& ssl) {
@@ -550,29 +541,50 @@ TEST_CASE("Connections are admitted at accept time and released once")
       std::set<::tcp::ConnID>(admitted.begin(), admitted.end()));
   }
 
-  server.stop();
+  server->stop(OpenSSLServer::LoopState::Running);
 }
 
-TEST_CASE("Transports stop cleanly before the libuv loop starts")
+// Node startup can fail after the interfaces are listening but before the
+// event loop is ever entered, so stopping without a running loop has to be
+// safe. The servers do not drive the loop themselves: they hand their handles
+// to uv_close and return. Each handle owns itself, so the servers can then be
+// destroyed immediately, and the loop reclaims the handles whenever it next
+// runs - or never, for a process on its way out.
+TEST_CASE("Transports stop and are destroyed before the libuv loop ever runs")
 {
   auto [cert, key] = make_server_cert();
-  OpenSSLServer tcp_server(
-    cert,
-    key,
-    "127.0.0.1",
-    0,
-    [](::tcp::ConnID, std::vector<uint8_t>, const std::vector<uint8_t>&, bool) {
-    });
-  tcp_server.start();
-  tcp_server.stop();
+  {
+    auto tcp_server = std::make_shared<OpenSSLServer>(
+      OpenSSLServer::Config{
+        .host = "127.0.0.1", .cert_pem = cert, .key_pem = key},
+      [](
+        ::tcp::ConnID,
+        std::vector<uint8_t>,
+        const std::vector<uint8_t>&,
+        bool) {});
+    tcp_server->start();
+    tcp_server->stop();
 
-  DatagramServer udp_server(
-    "127.0.0.1",
-    0,
-    [](const uint8_t*, size_t, const sockaddr_storage&, socklen_t) {});
-  udp_server.start();
-  udp_server.stop();
+    DatagramServer udp_server(
+      "127.0.0.1",
+      0,
+      [](const uint8_t*, size_t, const sockaddr_storage&, socklen_t) {});
+    udp_server.start();
+    udp_server.stop();
 
+    // Both servers go out of scope here, while their handles are still
+    // registered with the loop and awaiting their close callbacks.
+  }
+
+  // Which the loop can now run without touching the destroyed servers. This
+  // mirrors the drain run.cpp performs after its event loop exits.
+  constexpr size_t max_iterations = 100;
+  size_t iterations = 0;
+  while (uv_loop_alive(uv_default_loop()) != 0 && iterations < max_iterations)
+  {
+    uv_run(uv_default_loop(), UV_RUN_NOWAIT);
+    ++iterations;
+  }
   REQUIRE(uv_loop_alive(uv_default_loop()) == 0);
 }
 
@@ -588,22 +600,20 @@ TEST_CASE("Transport shutdown drains TLS tasks with no background workers")
   ccf::tasks::set_task_threads(0);
 
   auto [cert, key] = make_server_cert();
-  OpenSSLServer server(
-    cert,
-    key,
-    "127.0.0.1",
-    0,
+  auto server = std::make_shared<OpenSSLServer>(
+    OpenSSLServer::Config{
+      .host = "127.0.0.1", .cert_pem = cert, .key_pem = key},
     [](::tcp::ConnID, std::vector<uint8_t>, const std::vector<uint8_t>&, bool) {
     });
   UVLoopRunner loop;
-  server.start();
+  server->start();
   loop.start();
 
   const int fd = ::socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
   REQUIRE(fd >= 0);
   sockaddr_in addr{};
   addr.sin_family = AF_INET;
-  addr.sin_port = htons(server.port());
+  addr.sin_port = htons(server->port());
   REQUIRE(inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr) == 1);
   REQUIRE(::connect(fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) == 0);
   const uint8_t byte = 0;
@@ -618,17 +628,16 @@ TEST_CASE("Transport shutdown drains TLS tasks with no background workers")
   }
   REQUIRE(ccf::tasks::get_main_job_board().get_summary().pending_tasks > 0);
 
-  server.stop();
+  server->stop(OpenSSLServer::LoopState::Running);
   ::close(fd);
 }
 
 // Shutdown must not declare itself complete on a transient lull in the
 // pending-close count. Connections close one at a time, and libuv runs close
 // callbacks at the end of each loop iteration, so a connection which tears
-// down promptly drives the count back to zero in an iteration where other
-// connections - and the listener, timer and async handles - are still open.
+// down promptly can look like the last one while others are still open.
 // Reporting "stopped" there lets the caller destroy the server while the loop
-// still owns its handles, and uv_loop_close() then fails with EBUSY.
+// is still going to use its handles.
 //
 // The stagger is produced by holding some connections' workers inside on_data
 // while one connection is left idle and therefore closes immediately.
@@ -645,11 +654,13 @@ TEST_CASE("Shutdown with staggered connection closes releases every uv handle")
   size_t arrived = 0;
   bool release = false;
 
-  auto server = std::make_unique<OpenSSLServer>(
-    cert,
-    key,
-    "127.0.0.1",
-    static_cast<uint16_t>(0),
+  auto server = std::make_shared<OpenSSLServer>(
+    OpenSSLServer::Config{
+      .host = "127.0.0.1",
+      .cert_pem = cert,
+      .key_pem = key,
+      // Configure an idle timeout, so the timer handle is in play as well.
+      .idle_timeout = std::chrono::milliseconds(60000)},
     [&](
       ::tcp::ConnID id,
       std::vector<uint8_t>,
@@ -672,14 +683,7 @@ TEST_CASE("Shutdown with staggered connection closes releases every uv handle")
           cv.wait(lock, [&]() { return release; });
         }
       }
-    },
-    OpenSSLServer::OnClose{},
-    "",
-    false,
-    false,
-    nullptr,
-    // Configure an idle timeout, so the timer handle is in play as well.
-    std::chrono::milliseconds(60000));
+    });
   UVLoopRunner loop;
   server->start();
   const auto port = server->port();
@@ -737,19 +741,23 @@ TEST_CASE("Shutdown with staggered connection closes releases every uv handle")
     cv.notify_all();
   });
 
-  server->stop();
-
-  // stop() has returned, so shutdown claims to be complete. That must mean
-  // every handle the server owned - per-connection polls, the listener poll,
-  // the idle timer and the async - has actually been closed.
-  REQUIRE(uv_loop_alive(uv_default_loop()) == 0);
+  server->stop(OpenSSLServer::LoopState::Running);
 
   releaser.join();
   for (auto& t : clients)
   {
     t.join();
   }
+
+  // stop() has returned, so nothing refers to the handles any more and the
+  // server can be destroyed even though the loop has not yet reclaimed them.
   server.reset();
+
+  // The loop then finishes of its own accord, which it can only do once every
+  // handle has been closed - so if any had been missed, or if a close callback
+  // touched the destroyed server, this would hang or crash rather than pass.
+  loop.thread.join();
+  REQUIRE(uv_loop_alive(uv_default_loop()) == 0);
 }
 
 TEST_CASE("TCP connections use the legacy latency and keepalive options")
@@ -797,11 +805,9 @@ TEST_CASE("TLS processing runs off the libuv thread")
   std::mutex callback_mutex;
   std::thread::id callback_thread;
   OpenSSLServer* server_ptr = nullptr;
-  OpenSSLServer server(
-    cert,
-    key,
-    "127.0.0.1",
-    0,
+  auto server = std::make_shared<OpenSSLServer>(
+    OpenSSLServer::Config{
+      .host = "127.0.0.1", .cert_pem = cert, .key_pem = key},
     [&](
       ::tcp::ConnID id,
       std::vector<uint8_t> data,
@@ -814,19 +820,19 @@ TEST_CASE("TLS processing runs off the libuv thread")
       server_ptr->send(id, data.data(), data.size());
     });
   UVLoopRunner loop;
-  server_ptr = &server;
-  server.start();
+  server_ptr = server.get();
+  server->start();
   loop.start();
 
   const std::vector<uint8_t> msg = {'w', 'o', 'r', 'k', 'e', 'r'};
-  REQUIRE(tls_client_exchange(server.port(), msg, msg.size()) == msg);
+  REQUIRE(tls_client_exchange(server->port(), msg, msg.size()) == msg);
   {
     std::lock_guard<std::mutex> guard(callback_mutex);
     REQUIRE(callback_thread != std::thread::id{});
     REQUIRE(callback_thread != loop.thread.get_id());
   }
 
-  server.stop();
+  server->stop(OpenSSLServer::LoopState::Running);
 }
 
 TEST_CASE("Large transfer exercises the backpressure path")
@@ -861,11 +867,9 @@ TEST_CASE("A single large write past the per-pass read cap is fully delivered")
   std::condition_variable cv;
   size_t received = 0;
 
-  OpenSSLServer server(
-    cert,
-    key,
-    "127.0.0.1",
-    static_cast<uint16_t>(0),
+  auto server = std::make_shared<OpenSSLServer>(
+    OpenSSLServer::Config{
+      .host = "127.0.0.1", .cert_pem = cert, .key_pem = key},
     [&](
       ::tcp::ConnID,
       std::vector<uint8_t> data,
@@ -876,7 +880,7 @@ TEST_CASE("A single large write past the per-pass read cap is fully delivered")
       cv.notify_all();
     });
   UVLoopRunner loop;
-  server.start();
+  server->start();
   loop.start();
 
   // Comfortably more than the 64KiB per-pass cap, written in one go and
@@ -889,7 +893,7 @@ TEST_CASE("A single large write past the per-pass read cap is fully delivered")
     REQUIRE(fd >= 0);
     sockaddr_in addr{};
     addr.sin_family = AF_INET;
-    addr.sin_port = htons(server.port());
+    addr.sin_port = htons(server->port());
     REQUIRE(inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr) == 1);
     REQUIRE(
       ::connect(fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) == 0);
@@ -935,7 +939,7 @@ TEST_CASE("A single large write past the per-pass read cap is fully delivered")
   }
 
   client.join();
-  server.stop();
+  server->stop(OpenSSLServer::LoopState::Running);
 }
 
 TEST_CASE("Concurrent connections")
@@ -996,11 +1000,9 @@ TEST_CASE("Reply from a worker thread")
     }
   });
 
-  OpenSSLServer server(
-    cert,
-    key,
-    "127.0.0.1",
-    static_cast<uint16_t>(0),
+  auto server = std::make_shared<OpenSSLServer>(
+    OpenSSLServer::Config{
+      .host = "127.0.0.1", .cert_pem = cert, .key_pem = key},
     [&](
       uint64_t id, std::vector<uint8_t> d, const std::vector<uint8_t>&, bool) {
       {
@@ -1010,14 +1012,14 @@ TEST_CASE("Reply from a worker thread")
       cv.notify_one();
     });
   UVLoopRunner loop;
-  sp = &server;
-  server.start();
+  sp = server.get();
+  server->start();
   loop.start();
 
   const std::vector<uint8_t> msg = {'w', 'o', 'r', 'k', 'e', 'r'};
-  REQUIRE(tls_client_exchange(server.port(), msg, msg.size()) == msg);
+  REQUIRE(tls_client_exchange(server->port(), msg, msg.size()) == msg);
 
-  server.stop();
+  server->stop(OpenSSLServer::LoopState::Running);
   {
     std::lock_guard<std::mutex> l(m);
     stop.store(true);
@@ -1068,7 +1070,7 @@ TEST_CASE("Datagram server round-trip on the libuv reactor")
   REQUIRE(response == message);
   ::close(fd);
 
-  server.stop();
+  server.stop(DatagramServer::LoopState::Running);
 }
 
 // The datagram handler runs inline on the libuv thread and, in the real
@@ -1134,7 +1136,7 @@ TEST_CASE("Datagram server stops cleanly while datagrams are still arriving")
 
   // Stops while the flood is still in flight. If this deadlocks, the test
   // hangs rather than failing, which is the intended signal.
-  server.stop();
+  server.stop(DatagramServer::LoopState::Running);
 
   sending.store(false);
   flooder.join();
@@ -1146,10 +1148,7 @@ TEST_CASE("Session bridge: round-trip via ccf::Session + SessionWriter")
 {
   auto [cert, key] = make_server_cert();
   OpenSSLSessionManager mgr(
-    cert,
-    key,
-    "127.0.0.1",
-    static_cast<uint16_t>(0),
+    {.host = "127.0.0.1", .cert_pem = cert, .key_pem = key},
     [](::tcp::ConnID id, ccf::SessionWriter& w, std::vector<uint8_t>, bool) {
       return std::make_shared<EchoSession>(id, w);
     });
@@ -1161,17 +1160,14 @@ TEST_CASE("Session bridge: round-trip via ccf::Session + SessionWriter")
   const std::vector<uint8_t> msg = {'b', 'r', 'i', 'd', 'g', 'e'};
   REQUIRE(tls_client_exchange(mgr.port(), msg, msg.size()) == msg);
 
-  mgr.stop();
+  mgr.stop(OpenSSLServer::LoopState::Running);
 }
 
 TEST_CASE("Session bridge: large transfer via ccf::Session + SessionWriter")
 {
   auto [cert, key] = make_server_cert();
   OpenSSLSessionManager mgr(
-    cert,
-    key,
-    "127.0.0.1",
-    static_cast<uint16_t>(0),
+    {.host = "127.0.0.1", .cert_pem = cert, .key_pem = key},
     [](::tcp::ConnID id, ccf::SessionWriter& w, std::vector<uint8_t>, bool) {
       return std::make_shared<EchoSession>(id, w);
     });
@@ -1183,7 +1179,7 @@ TEST_CASE("Session bridge: large transfer via ccf::Session + SessionWriter")
   const auto resp = tls_client_exchange(mgr.port(), payload, payload.size());
   REQUIRE(resp == payload);
 
-  mgr.stop();
+  mgr.stop(OpenSSLServer::LoopState::Running);
 }
 
 // The server must request the client certificate during the handshake so it is
@@ -1199,10 +1195,7 @@ TEST_CASE("Peer certificate is captured for inbound connections")
   std::atomic<bool> got{false};
 
   OpenSSLSessionManager mgr(
-    cert,
-    key,
-    "127.0.0.1",
-    static_cast<uint16_t>(0),
+    {.host = "127.0.0.1", .cert_pem = cert, .key_pem = key},
     [&](
       ::tcp::ConnID id, ccf::SessionWriter& w, std::vector<uint8_t> pc, bool) {
       {
@@ -1225,7 +1218,7 @@ TEST_CASE("Peer certificate is captured for inbound connections")
   std::lock_guard<std::mutex> l(m);
   REQUIRE(!captured.empty());
 
-  mgr.stop();
+  mgr.stop(OpenSSLServer::LoopState::Running);
 }
 
 // The server deliberately does not enforce client certificate validity: it
@@ -1240,10 +1233,7 @@ TEST_CASE("Client certificate is requested but not enforced")
   std::atomic<bool> got{false};
 
   OpenSSLSessionManager mgr(
-    cert,
-    key,
-    "127.0.0.1",
-    static_cast<uint16_t>(0),
+    {.host = "127.0.0.1", .cert_pem = cert, .key_pem = key},
     [&](
       ::tcp::ConnID id, ccf::SessionWriter& w, std::vector<uint8_t> pc, bool) {
       {
@@ -1264,7 +1254,7 @@ TEST_CASE("Client certificate is requested but not enforced")
   std::lock_guard<std::mutex> l(m);
   REQUIRE(captured.empty());
 
-  mgr.stop();
+  mgr.stop(OpenSSLServer::LoopState::Running);
 }
 
 // The server certificate must be verifiable by a client that trusts the CA
@@ -1397,10 +1387,7 @@ TEST_CASE("Graceful close flushes buffered response without truncation")
   const auto payload = random_bytes(4 * 1024 * 1024);
 
   OpenSSLSessionManager mgr(
-    cert,
-    key,
-    "127.0.0.1",
-    static_cast<uint16_t>(0),
+    {.host = "127.0.0.1", .cert_pem = cert, .key_pem = key},
     [&payload](
       ::tcp::ConnID id, ccf::SessionWriter& w, std::vector<uint8_t>, bool) {
       return std::make_shared<LargeThenCloseSession>(id, w, payload);
@@ -1414,7 +1401,7 @@ TEST_CASE("Graceful close flushes buffered response without truncation")
   REQUIRE(resp.size() == payload.size());
   REQUIRE(resp == payload);
 
-  mgr.stop();
+  mgr.stop(OpenSSLServer::LoopState::Running);
 }
 
 // Multiple sequential requests on a single kept-alive TLS connection - the node

@@ -24,9 +24,6 @@ namespace ccf
   public:
     ~AbstractRPCSessions() override = default;
 
-    [[nodiscard]] virtual ccf::ApplicationProtocol
-    get_app_protocol_main_interface() const = 0;
-
     virtual ccf::SessionMetrics get_session_metrics() = 0;
 
     virtual void set_node_cert(
