@@ -789,9 +789,17 @@ if(BUILD_TESTS)
     add_unit_test(
       ledger_secrets_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/ledger_secrets.cpp
-      DETECT_DEADLOCKS
     )
     target_link_libraries(ledger_secrets_test PRIVATE ccf_kv)
+    if(TSAN)
+      set_property(
+        TEST ledger_secrets_test
+        PROPERTY
+          ENVIRONMENT
+            "TSAN_OPTIONS=detect_deadlocks=1:halt_on_error=1:second_deadlock_stack=1"
+            "TSAN_SYMBOLIZER_PATH=${LLVM_SYMBOLIZER}"
+      )
+    endif()
 
     add_unit_test(js_test ${CMAKE_CURRENT_SOURCE_DIR}/src/js/test/js.cpp)
     target_link_libraries(
