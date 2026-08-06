@@ -1200,12 +1200,14 @@ HandleAppendEntriesResponse(i, j, m) ==
     /\ Discard(m)
     /\ UNCHANGED <<preVoteStatus, reconfigurationVars, serverVars, candidateVars, logVars>>
 
-\* Any message with a newer term causes the recipient to advance its term first.
+\* Any message with a newer term causes the recipient to advance its term first,
+\* except ProposeVoteRequest, which is ignored unless its term matches.
 \* Note that UpdateTerm does not discard message m from the set of messages so this 
 \* message can be parsed again by the receiver. Note that all other message parsing actions should
 \* check that m.term <= currentTerm[i] to ensure that this action is the only one ENABLED.
 \* Analogous to raft.h::become_aware_of_new_term
 UpdateTerm(i, j, m) ==
+    /\ m.type /= ProposeVoteRequest
     /\ m.term > currentTerm[i]
     /\ currentTerm'    = [currentTerm EXCEPT ![i] = m.term]
     \* See become_aware_of_new_term() in raft.h:1915
@@ -1312,8 +1314,10 @@ RcvProposeVoteRequest(i, j) ==
     \E m \in Network!MessagesTo(i, j) :
         /\ j = m.source
         /\ m.type = ProposeVoteRequest
-        /\ m.term = currentTerm[i]
-        /\ BecomeCandidate(m.dest)
+        /\ \/ /\ m.term = currentTerm[i]
+              /\ BecomeCandidate(m.dest)
+           \/ /\ m.term /= currentTerm[i]
+              /\ UNCHANGED <<preVoteStatus, reconfigurationVars, serverVars, candidateVars, leaderVars, logVars>>
         /\ Discard(m)
 
 \* Node i receives a message from node j.
