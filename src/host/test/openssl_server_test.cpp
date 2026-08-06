@@ -27,6 +27,7 @@
 #include <openssl/ssl.h>
 #include <openssl/x509.h>
 #include <random>
+#include <set>
 #include <string>
 #include <sys/socket.h>
 #include <thread>
@@ -354,9 +355,10 @@ namespace
         host,
         static_cast<uint16_t>(0),
         [this](
-          uint64_t id, std::vector<uint8_t> d, const std::vector<uint8_t>&) {
-          server->send(id, d.data(), d.size());
-        });
+          uint64_t id,
+          std::vector<uint8_t> d,
+          const std::vector<uint8_t>&,
+          bool) { server->send(id, d.data(), d.size()); });
       server->start();
       loop.start();
     }
@@ -383,7 +385,7 @@ namespace
     {}
 
     void handle_incoming_data(
-      std::span<const uint8_t> data, sockaddr /*addr*/ = {}) override
+      std::span<const uint8_t> data, sockaddr_storage /*addr*/ = {}) override
     {
       writer.write_outbound(id, data);
     }
@@ -412,7 +414,8 @@ namespace
     {}
 
     void handle_incoming_data(
-      std::span<const uint8_t> /*data*/, sockaddr /*addr*/ = {}) override
+      std::span<const uint8_t> /*data*/,
+      sockaddr_storage /*addr*/ = {}) override
     {
       writer.write_outbound(id, payload);
       writer.close_socket(id);
@@ -423,6 +426,133 @@ namespace
   };
 }
 
+// Admission control must run at accept time, not when the first request
+// arrives. A client which completes the TCP and TLS handshakes and then sends
+// nothing still holds a file descriptor and TLS state on the node, so it has
+// to be counted - and the count has to be released exactly once when the
+// connection goes away, whether or not it ever produced a session.
+TEST_CASE("Connections are admitted at accept time and released once")
+{
+  auto [cert, key] = make_server_cert();
+
+  std::mutex m;
+  std::condition_variable cv;
+  std::vector<::tcp::ConnID> admitted;
+  std::vector<::tcp::ConnID> closed;
+  size_t data_callbacks = 0;
+  // Refuse everything after the first two connections, as a hard cap would.
+  constexpr size_t cap = 2;
+
+  OpenSSLServer server(
+    cert,
+    key,
+    "127.0.0.1",
+    static_cast<uint16_t>(0),
+    [&](
+      ::tcp::ConnID, std::vector<uint8_t>, const std::vector<uint8_t>&, bool) {
+      std::lock_guard<std::mutex> guard(m);
+      ++data_callbacks;
+      cv.notify_all();
+    },
+    [&](::tcp::ConnID id) {
+      std::lock_guard<std::mutex> guard(m);
+      closed.push_back(id);
+      cv.notify_all();
+    },
+    "",
+    false,
+    false,
+    nullptr,
+    std::nullopt,
+    [&](::tcp::ConnID id) -> std::optional<bool> {
+      std::lock_guard<std::mutex> guard(m);
+      if (admitted.size() >= cap)
+      {
+        return std::nullopt;
+      }
+      admitted.push_back(id);
+      cv.notify_all();
+      return false;
+    });
+  UVLoopRunner loop;
+  server.start();
+  const auto port = server.port();
+  loop.start();
+
+  const auto connect_tls = [port](int& fd, SSL_CTX*& ctx, SSL*& ssl) {
+    fd = ::socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
+    REQUIRE(fd >= 0);
+    sockaddr_in addr{};
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(port);
+    REQUIRE(inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr) == 1);
+    REQUIRE(
+      ::connect(fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) == 0);
+    ctx = SSL_CTX_new(TLS_client_method());
+    REQUIRE(ctx != nullptr);
+    ssl = SSL_new(ctx);
+    REQUIRE(ssl != nullptr);
+    REQUIRE(SSL_set_fd(ssl, fd) == 1);
+    SSL_set_connect_state(ssl);
+  };
+
+  // Two silent clients: they complete the TLS handshake and then send nothing
+  // at all, so on_data is never invoked for them.
+  int fds[cap] = {-1, -1};
+  SSL_CTX* ctxs[cap] = {nullptr, nullptr};
+  SSL* ssls[cap] = {nullptr, nullptr};
+  for (size_t i = 0; i < cap; ++i)
+  {
+    connect_tls(fds[i], ctxs[i], ssls[i]);
+    REQUIRE(SSL_connect(ssls[i]) == 1);
+  }
+
+  {
+    std::unique_lock<std::mutex> lock(m);
+    REQUIRE(cv.wait_for(lock, std::chrono::seconds(10), [&]() {
+      return admitted.size() == cap;
+    }));
+    // Nothing was sent, so nothing reached the session layer - which is
+    // precisely why counting there would have missed these connections.
+    REQUIRE(data_callbacks == 0);
+    REQUIRE(closed.empty());
+  }
+
+  // A third connection is refused at accept. It is closed without a TLS
+  // handshake, and must not be reported through on_close since it was never
+  // admitted.
+  {
+    int fd = -1;
+    SSL_CTX* ctx = nullptr;
+    SSL* ssl = nullptr;
+    connect_tls(fd, ctx, ssl);
+    REQUIRE(SSL_connect(ssl) != 1);
+    SSL_free(ssl);
+    SSL_CTX_free(ctx);
+    ::close(fd);
+  }
+
+  // Now drop the two admitted connections; each must be released exactly once.
+  for (size_t i = 0; i < cap; ++i)
+  {
+    SSL_free(ssls[i]);
+    SSL_CTX_free(ctxs[i]);
+    ::close(fds[i]);
+  }
+
+  {
+    std::unique_lock<std::mutex> lock(m);
+    REQUIRE(cv.wait_for(
+      lock, std::chrono::seconds(10), [&]() { return closed.size() >= cap; }));
+    REQUIRE(closed.size() == cap);
+    REQUIRE(
+      std::set<::tcp::ConnID>(closed.begin(), closed.end()) ==
+      std::set<::tcp::ConnID>(admitted.begin(), admitted.end()));
+  }
+
+  server.stop();
+}
+
 TEST_CASE("Transports stop cleanly before the libuv loop starts")
 {
   auto [cert, key] = make_server_cert();
@@ -431,7 +561,8 @@ TEST_CASE("Transports stop cleanly before the libuv loop starts")
     key,
     "127.0.0.1",
     0,
-    [](::tcp::ConnID, std::vector<uint8_t>, const std::vector<uint8_t>&) {});
+    [](::tcp::ConnID, std::vector<uint8_t>, const std::vector<uint8_t>&, bool) {
+    });
   tcp_server.start();
   tcp_server.stop();
 
@@ -462,7 +593,8 @@ TEST_CASE("Transport shutdown drains TLS tasks with no background workers")
     key,
     "127.0.0.1",
     0,
-    [](::tcp::ConnID, std::vector<uint8_t>, const std::vector<uint8_t>&) {});
+    [](::tcp::ConnID, std::vector<uint8_t>, const std::vector<uint8_t>&, bool) {
+    });
   UVLoopRunner loop;
   server.start();
   loop.start();
@@ -488,6 +620,136 @@ TEST_CASE("Transport shutdown drains TLS tasks with no background workers")
 
   server.stop();
   ::close(fd);
+}
+
+// Shutdown must not declare itself complete on a transient lull in the
+// pending-close count. Connections close one at a time, and libuv runs close
+// callbacks at the end of each loop iteration, so a connection which tears
+// down promptly drives the count back to zero in an iteration where other
+// connections - and the listener, timer and async handles - are still open.
+// Reporting "stopped" there lets the caller destroy the server while the loop
+// still owns its handles, and uv_loop_close() then fails with EBUSY.
+//
+// The stagger is produced by holding some connections' workers inside on_data
+// while one connection is left idle and therefore closes immediately.
+TEST_CASE("Shutdown with staggered connection closes releases every uv handle")
+{
+  auto [cert, key] = make_server_cert();
+
+  constexpr size_t num_conns = 3;
+  constexpr size_t num_blocked = 2;
+
+  std::mutex m;
+  std::condition_variable cv;
+  std::map<::tcp::ConnID, bool> block_decision;
+  size_t arrived = 0;
+  bool release = false;
+
+  auto server = std::make_unique<OpenSSLServer>(
+    cert,
+    key,
+    "127.0.0.1",
+    static_cast<uint16_t>(0),
+    [&](
+      ::tcp::ConnID id,
+      std::vector<uint8_t>,
+      const std::vector<uint8_t>&,
+      bool) {
+      bool should_block = false;
+      {
+        std::unique_lock<std::mutex> lock(m);
+        auto it = block_decision.find(id);
+        if (it == block_decision.end())
+        {
+          it = block_decision.emplace(id, block_decision.size() < num_blocked)
+                 .first;
+          ++arrived;
+          cv.notify_all();
+        }
+        should_block = it->second;
+        if (should_block)
+        {
+          cv.wait(lock, [&]() { return release; });
+        }
+      }
+    },
+    OpenSSLServer::OnClose{},
+    "",
+    false,
+    false,
+    nullptr,
+    // Configure an idle timeout, so the timer handle is in play as well.
+    std::chrono::milliseconds(60000));
+  UVLoopRunner loop;
+  server->start();
+  const auto port = server->port();
+  loop.start();
+
+  std::vector<std::thread> clients;
+  clients.reserve(num_conns);
+  for (size_t i = 0; i < num_conns; ++i)
+  {
+    clients.emplace_back([port, &m, &cv, &release]() {
+      const int fd = ::socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
+      REQUIRE(fd >= 0);
+      sockaddr_in addr{};
+      addr.sin_family = AF_INET;
+      addr.sin_port = htons(port);
+      REQUIRE(inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr) == 1);
+      REQUIRE(
+        ::connect(fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) == 0);
+
+      SSL_CTX* cctx = SSL_CTX_new(TLS_client_method());
+      REQUIRE(cctx != nullptr);
+      SSL* ssl = SSL_new(cctx);
+      REQUIRE(ssl != nullptr);
+      REQUIRE(SSL_set_fd(ssl, fd) == 1);
+      SSL_set_connect_state(ssl);
+      REQUIRE(SSL_connect(ssl) == 1);
+      const uint8_t byte = 'x';
+      REQUIRE(SSL_write(ssl, &byte, 1) == 1);
+
+      // Hold the connection open until the blocked workers are released, so
+      // that shutdown genuinely has several live connections to tear down.
+      {
+        std::unique_lock<std::mutex> lock(m);
+        cv.wait(lock, [&]() { return release; });
+      }
+      SSL_free(ssl);
+      SSL_CTX_free(cctx);
+      ::close(fd);
+    });
+  }
+
+  {
+    std::unique_lock<std::mutex> lock(m);
+    REQUIRE(cv.wait_for(
+      lock, std::chrono::seconds(10), [&]() { return arrived == num_conns; }));
+  }
+
+  // Release the held workers only after shutdown has had time to close the
+  // one connection which is not blocked, which is the window in which the
+  // pending-close count transiently reaches zero.
+  std::thread releaser([&]() {
+    std::this_thread::sleep_for(std::chrono::milliseconds(250));
+    std::lock_guard<std::mutex> guard(m);
+    release = true;
+    cv.notify_all();
+  });
+
+  server->stop();
+
+  // stop() has returned, so shutdown claims to be complete. That must mean
+  // every handle the server owned - per-connection polls, the listener poll,
+  // the idle timer and the async - has actually been closed.
+  REQUIRE(uv_loop_alive(uv_default_loop()) == 0);
+
+  releaser.join();
+  for (auto& t : clients)
+  {
+    t.join();
+  }
+  server.reset();
 }
 
 TEST_CASE("TCP connections use the legacy latency and keepalive options")
@@ -543,7 +805,8 @@ TEST_CASE("TLS processing runs off the libuv thread")
     [&](
       ::tcp::ConnID id,
       std::vector<uint8_t> data,
-      const std::vector<uint8_t>&) {
+      const std::vector<uint8_t>&,
+      bool) {
       {
         std::lock_guard<std::mutex> guard(callback_mutex);
         callback_thread = std::this_thread::get_id();
@@ -578,6 +841,101 @@ TEST_CASE("Large transfer exercises the backpressure path")
 
   REQUIRE(resp.size() == payload.size());
   REQUIRE(resp == payload);
+}
+
+// A read pass stops after max_read_per_event (64KiB), so a client which sends
+// far more than that in one go and then goes silent must still have all of it
+// delivered - either because the socket is still readable, or because the
+// server noticed OpenSSL's own buffered data (SSL_has_pending) and scheduled
+// another pass.
+//
+// NB: with OpenSSL's default TLS settings (read_ahead off, one record per
+// socket read) the second case is hard to provoke deliberately, so this test
+// does not by itself prove the SSL_has_pending() continuation is load-bearing.
+// It covers the multi-pass read path, which is the part that regresses easily.
+TEST_CASE("A single large write past the per-pass read cap is fully delivered")
+{
+  auto [cert, key] = make_server_cert();
+
+  std::mutex m;
+  std::condition_variable cv;
+  size_t received = 0;
+
+  OpenSSLServer server(
+    cert,
+    key,
+    "127.0.0.1",
+    static_cast<uint16_t>(0),
+    [&](
+      ::tcp::ConnID,
+      std::vector<uint8_t> data,
+      const std::vector<uint8_t>&,
+      bool) {
+      std::lock_guard<std::mutex> guard(m);
+      received += data.size();
+      cv.notify_all();
+    });
+  UVLoopRunner loop;
+  server.start();
+  loop.start();
+
+  // Comfortably more than the 64KiB per-pass cap, written in one go and
+  // followed by no further traffic at all.
+  const size_t payload_size = 512 * 1024;
+  const auto payload = random_bytes(payload_size);
+
+  std::thread client([&]() {
+    const int fd = ::socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
+    REQUIRE(fd >= 0);
+    sockaddr_in addr{};
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(server.port());
+    REQUIRE(inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr) == 1);
+    REQUIRE(
+      ::connect(fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) == 0);
+
+    SSL_CTX* cctx = SSL_CTX_new(TLS_client_method());
+    REQUIRE(cctx != nullptr);
+    SSL* ssl = SSL_new(cctx);
+    REQUIRE(ssl != nullptr);
+    REQUIRE(SSL_set_fd(ssl, fd) == 1);
+    SSL_set_connect_state(ssl);
+    REQUIRE(SSL_connect(ssl) == 1);
+
+    size_t off = 0;
+    while (off < payload.size())
+    {
+      const int n = SSL_write(
+        ssl, payload.data() + off, static_cast<int>(payload.size() - off));
+      REQUIRE(n > 0);
+      off += static_cast<size_t>(n);
+    }
+
+    // Deliberately send nothing more, and hold the connection open, so the
+    // only way the server can see the rest is by noticing its own buffered
+    // data rather than waiting for readability.
+    {
+      std::unique_lock<std::mutex> lock(m);
+      cv.wait_for(lock, std::chrono::seconds(10), [&]() {
+        return received >= payload_size;
+      });
+    }
+
+    SSL_free(ssl);
+    SSL_CTX_free(cctx);
+    ::close(fd);
+  });
+
+  {
+    std::unique_lock<std::mutex> lock(m);
+    REQUIRE(cv.wait_for(lock, std::chrono::seconds(10), [&]() {
+      return received >= payload_size;
+    }));
+    REQUIRE(received == payload_size);
+  }
+
+  client.join();
+  server.stop();
 }
 
 TEST_CASE("Concurrent connections")
@@ -643,7 +1001,8 @@ TEST_CASE("Reply from a worker thread")
     key,
     "127.0.0.1",
     static_cast<uint16_t>(0),
-    [&](uint64_t id, std::vector<uint8_t> d, const std::vector<uint8_t>&) {
+    [&](
+      uint64_t id, std::vector<uint8_t> d, const std::vector<uint8_t>&, bool) {
       {
         std::lock_guard<std::mutex> l(m);
         q.emplace_back(id, std::move(d));
@@ -712,6 +1071,77 @@ TEST_CASE("Datagram server round-trip on the libuv reactor")
   server.stop();
 }
 
+// The datagram handler runs inline on the libuv thread and, in the real
+// manager, takes the same lock that shutdown needs. Shutting down while
+// datagrams are still arriving must therefore not deadlock: shutdown waits on
+// the loop, and the loop must never end up waiting on shutdown.
+TEST_CASE("Datagram server stops cleanly while datagrams are still arriving")
+{
+  std::atomic<size_t> handled{0};
+  std::mutex handler_mutex;
+
+  DatagramServer* server_ptr = nullptr;
+  DatagramServer server(
+    "127.0.0.1",
+    0,
+    [&](
+      const uint8_t* data,
+      size_t len,
+      const sockaddr_storage& peer,
+      socklen_t peerlen) {
+      // Stands in for RPCConnectionManager's interfaces_mutex, which the
+      // datagram path takes on the loop thread while stop() may be running on
+      // another thread.
+      std::lock_guard<std::mutex> guard(handler_mutex);
+      handled.fetch_add(1);
+      (void)server_ptr->send_to(peer, peerlen, data, len);
+    });
+  UVLoopRunner loop;
+  server_ptr = &server;
+  server.start();
+  const auto port = server.port();
+  loop.start();
+
+  std::atomic<bool> sending{true};
+  std::thread flooder([port, &sending]() {
+    const int fd = ::socket(AF_INET, SOCK_DGRAM, 0);
+    REQUIRE(fd >= 0);
+    sockaddr_in address{};
+    address.sin_family = AF_INET;
+    address.sin_port = htons(port);
+    REQUIRE(inet_pton(AF_INET, "127.0.0.1", &address.sin_addr) == 1);
+    const std::vector<uint8_t> message = {'u', 'd', 'p'};
+    while (sending.load())
+    {
+      (void)::sendto(
+        fd,
+        message.data(),
+        message.size(),
+        0,
+        reinterpret_cast<sockaddr*>(&address),
+        sizeof(address));
+    }
+    ::close(fd);
+  });
+
+  const auto deadline =
+    std::chrono::steady_clock::now() + std::chrono::seconds(10);
+  while (handled.load() == 0 && std::chrono::steady_clock::now() < deadline)
+  {
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  }
+  REQUIRE(handled.load() > 0);
+
+  // Stops while the flood is still in flight. If this deadlocks, the test
+  // hangs rather than failing, which is the intended signal.
+  server.stop();
+
+  sending.store(false);
+  flooder.join();
+
+  REQUIRE(uv_loop_alive(uv_default_loop()) == 0);
+}
+
 TEST_CASE("Session bridge: round-trip via ccf::Session + SessionWriter")
 {
   auto [cert, key] = make_server_cert();
@@ -720,7 +1150,7 @@ TEST_CASE("Session bridge: round-trip via ccf::Session + SessionWriter")
     key,
     "127.0.0.1",
     static_cast<uint16_t>(0),
-    [](::tcp::ConnID id, ccf::SessionWriter& w, std::vector<uint8_t>) {
+    [](::tcp::ConnID id, ccf::SessionWriter& w, std::vector<uint8_t>, bool) {
       return std::make_shared<EchoSession>(id, w);
     });
   UVLoopRunner loop;
@@ -742,7 +1172,7 @@ TEST_CASE("Session bridge: large transfer via ccf::Session + SessionWriter")
     key,
     "127.0.0.1",
     static_cast<uint16_t>(0),
-    [](::tcp::ConnID id, ccf::SessionWriter& w, std::vector<uint8_t>) {
+    [](::tcp::ConnID id, ccf::SessionWriter& w, std::vector<uint8_t>, bool) {
       return std::make_shared<EchoSession>(id, w);
     });
   UVLoopRunner loop;
@@ -773,7 +1203,8 @@ TEST_CASE("Peer certificate is captured for inbound connections")
     key,
     "127.0.0.1",
     static_cast<uint16_t>(0),
-    [&](::tcp::ConnID id, ccf::SessionWriter& w, std::vector<uint8_t> pc) {
+    [&](
+      ::tcp::ConnID id, ccf::SessionWriter& w, std::vector<uint8_t> pc, bool) {
       {
         std::lock_guard<std::mutex> l(m);
         captured = std::move(pc);
@@ -813,7 +1244,8 @@ TEST_CASE("Client certificate is requested but not enforced")
     key,
     "127.0.0.1",
     static_cast<uint16_t>(0),
-    [&](::tcp::ConnID id, ccf::SessionWriter& w, std::vector<uint8_t> pc) {
+    [&](
+      ::tcp::ConnID id, ccf::SessionWriter& w, std::vector<uint8_t> pc, bool) {
       {
         std::lock_guard<std::mutex> l(m);
         captured = std::move(pc);
@@ -969,7 +1401,8 @@ TEST_CASE("Graceful close flushes buffered response without truncation")
     key,
     "127.0.0.1",
     static_cast<uint16_t>(0),
-    [&payload](::tcp::ConnID id, ccf::SessionWriter& w, std::vector<uint8_t>) {
+    [&payload](
+      ::tcp::ConnID id, ccf::SessionWriter& w, std::vector<uint8_t>, bool) {
       return std::make_shared<LargeThenCloseSession>(id, w, payload);
     });
   UVLoopRunner loop;

@@ -6,7 +6,7 @@ Overview
 
 In CCF, the :term:`TLS` layer is implemented using OpenSSL (3.3 or later).
 
-TLS is terminated in the **connection layer**: OpenSSL owns the socket file descriptor directly, while the existing host ``libuv`` loop drives the non-blocking handshake, reads, writes, graceful close and idle connection cleanup. Everything above the connection layer, including HTTP parsing and endpoint dispatch, only ever sees plaintext.
+TLS is terminated in the **connection layer**: OpenSSL owns the socket file descriptor directly. The existing host ``libuv`` loop reports file descriptor readiness, and a per-connection worker drives the non-blocking handshake, reads, writes and graceful close. Everything above the connection layer, including HTTP parsing and endpoint dispatch, only ever sees plaintext.
 
 This document describes the connection layer and its interface to the session layer above it.
 
@@ -22,7 +22,7 @@ A single RPC interface is served by these pieces:
 
 Because TLS lives below the session, there is no separate "encrypted session" type. The difference between a TLS interface and an ``UNSECURED`` one is a flag on the connection layer, not a different session class.
 
-Note that the inbound and outbound paths are not symmetric. Inbound plaintext is pushed straight into the session, but a session cannot touch the socket: it hands bytes to a ``SessionWriter``, which queues them for the loop thread. This is what allows sessions to run on worker threads while all socket I/O stays on one thread per interface.
+Note that the inbound and outbound paths are not symmetric. Inbound plaintext is pushed straight into the session, but a session cannot touch the socket: it hands bytes to a ``SessionWriter``, which queues them for the owning connection. This is what allows sessions to run on any worker thread while each socket is still only ever touched by one thread at a time.
 
 Listening
 ~~~~~~~~~
@@ -67,16 +67,18 @@ The server calls ``SSL_CTX_set_verify`` with ``SSL_VERIFY_PEER`` and an accept-a
 Reading
 ~~~~~~~
 
-When ``libuv`` reports a connection readable, the loop calls ``SSL_read`` repeatedly until it reports ``SSL_ERROR_WANT_READ``. Every chunk of decrypted bytes is passed to the ``OnData`` callback as it is produced, so a single readable event may yield several callbacks.
+When ``libuv`` reports a connection readable, the loop hands the connection to its worker (see `Threading`_), which calls ``SSL_read`` repeatedly until it reports ``SSL_ERROR_WANT_READ``. Every chunk of decrypted bytes is passed to the ``OnData`` callback as it is produced, so a single readable event may yield several callbacks.
 
-``OpenSSLSessionManager`` receives those bytes, finds or creates the session for that connection, and calls ``handle_incoming_data``. The session dispatches the actual parsing to a worker via ``OrderedTasks``, so the loop thread does not block on application work.
+A single pass is capped at a fixed number of bytes so that one busy connection cannot monopolise its worker. Reaching that cap does not end the read: OpenSSL may still be holding buffered records, in which case the file descriptor is *not* readable and waiting for a further ``uv_poll`` event would stall the connection. The worker therefore reports ``SSL_pending()`` back to the loop, which immediately schedules another pass instead of re-arming ``UV_READABLE``.
+
+``OpenSSLSessionManager`` receives those bytes, finds or creates the session for that connection, and calls ``handle_incoming_data``. The session dispatches the actual parsing to its own ``OrderedTasks``, so neither the loop thread nor the connection worker blocks on application work.
 
 ``SSL_ERROR_WANT_WRITE`` on a read is not an error: a TLS 1.3 key update needs the socket to become writable, so the connection is left open with ``UV_WRITABLE`` armed. Any other result, whether a clean ``SSL_ERROR_ZERO_RETURN``, an unclean EOF, or a fatal error, closes the connection.
 
 Writing and backpressure
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-``send()`` is thread-safe. It appends the plaintext to a queue guarded by a mutex and signals an ``eventfd``, waking the loop thread, which drains the queue and attempts the write.
+``send()`` is thread-safe. It appends the plaintext to a queue guarded by a mutex and signals a ``uv_async_t``, waking the loop thread, which moves the bytes onto the target connection and schedules a worker pass to attempt the write.
 
 Writes are where genuine backpressure appears. ``SSL_write`` on a non-blocking socket may report ``SSL_ERROR_WANT_WRITE`` after consuming only part of the buffer. The remainder stays buffered against the connection, ``UV_WRITABLE`` is armed, and the write resumes when the socket next becomes writable. Because the socket is owned by OpenSSL and is non-blocking, this reflects the real state of the :term:`TCP` send buffer rather than an internal approximation.
 
@@ -92,11 +94,18 @@ Idle connections are closed separately. If an idle timeout is configured, a repe
 Threading
 ~~~~~~~~~
 
-All socket and ``SSL`` operations happen on the existing host ``libuv`` thread; an ``OpenSSLServer`` does not create a thread or private reactor. Work reaches the loop in one of two ways: file descriptor readiness reported through ``uv_poll_t``, or a cross-thread request (a queued write, a close, or a certificate update) posted to a queue and signalled through ``uv_async_t``.
+``OpenSSLServer`` does not create a thread or a private reactor. It splits its work between the existing host ``libuv`` thread and the general task system, along a single dividing line:
+
+- The **loop thread** owns everything that touches the server's own state: accepting connections, the connection and identifier maps, ``uv_poll_t`` registration, building and replacing the ``SSL_CTX``, sweeping idle connections, and finally closing file descriptors. It performs no ``SSL`` operations.
+- Each connection owns an :ccf_repo:`OrderedTasks </src/tasks/ordered_tasks.h>` queue, and every ``SSL`` operation for that connection - ``SSL_new``, ``SSL_accept``, ``SSL_read``, ``SSL_write``, ``SSL_shutdown``, ``SSL_free`` - runs there, as does the ``OnData`` callback. This keeps handshakes and bulk encryption off the loop thread.
+
+Work reaches the loop in one of two ways: file descriptor readiness reported through ``uv_poll_t``, or a cross-thread request (a queued write, a close, or a certificate update) posted to a mutex-guarded queue and signalled through ``uv_async_t``. Either way the loop only ever *schedules* a pass over the connection; it never performs the I/O itself.
+
+A connection is serviced by at most one worker pass at a time. Before dispatching, the loop calls ``uv_poll_stop`` for that connection, so no second pass can be scheduled while one is running. Readiness events and cross-thread commands that arrive meanwhile accumulate in loop-thread-only fields and are handed to the next pass. When a pass finishes it posts its result back to the loop, which re-arms polling, schedules another pass if more work accumulated, or tears the connection down.
 
 .. warning::
 
-    OpenSSL's error queue is **thread-local**, and one loop thread services every connection on an interface. ``SSL_get_error`` consults that queue, so an error left behind by one connection can be misattributed to the next operation on a completely different connection.
+    OpenSSL's error queue is **thread-local**, and successive passes over the same connection may run on different worker threads. ``SSL_get_error`` consults that queue, so an error left behind by unrelated work on the same thread can be misattributed to this connection.
 
     Every ``SSL_accept``, ``SSL_read`` and ``SSL_write`` is therefore preceded by ``ERR_clear_error()``. Omitting this causes healthy keep-alive connections to be closed spuriously, because a stale error (for example a previous client disconnecting without ``close_notify``) is read as a fatal error on an unrelated connection.
 

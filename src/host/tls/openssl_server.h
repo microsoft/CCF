@@ -7,6 +7,7 @@
 // per-connection OrderedTasks drive non-blocking handshake, reads, writes, and
 // graceful close away from the loop thread.
 
+#include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "ds/internal_logger.h"
 #include "tasks/ordered_tasks.h"
 #include "tasks/task_system.h"
@@ -97,17 +98,34 @@ namespace asynchost
   class OpenSSLServer
   {
   public:
-    // Invoked on a worker with a complete chunk of decrypted bytes and the
-    // certificate captured during this connection's handshake.
+    // Invoked on a worker with a complete chunk of decrypted bytes, the
+    // certificate captured during this connection's handshake, and the
+    // soft-limit decision taken when the connection was admitted.
     using OnData = std::function<void(
       ::tcp::ConnID conn_id,
       std::vector<uint8_t> data,
-      const std::vector<uint8_t>& peer_cert)>;
+      const std::vector<uint8_t>& peer_cert,
+      bool soft_limited)>;
 
     // Invoked on the libuv thread when a connection is torn down (peer
     // disconnect, error, or close_connection()). Lets an owner drop per-
     // connection state.
     using OnClose = std::function<void(::tcp::ConnID conn_id)>;
+
+    // Invoked on the libuv thread for each newly accepted connection, before
+    // any TLS state is created. Returning nullopt refuses the connection: the
+    // socket is closed immediately and OnClose is *not* invoked for it.
+    //
+    // Otherwise the returned bool is the "admitted above a soft limit"
+    // decision, recorded on the connection and handed back to OnData. It is
+    // decided here rather than when the first request arrives so that it
+    // reflects the connection's position in the admission order, and does not
+    // drift for a client which is slow to send.
+    //
+    // If this returns a value, OnClose is guaranteed to be invoked exactly
+    // once for that connection id. Admission control can therefore reserve a
+    // resource here and release it in OnClose.
+    using OnAccept = std::function<std::optional<bool>(::tcp::ConnID conn_id)>;
 
   private:
     static constexpr size_t read_chunk = 16384;
@@ -124,6 +142,8 @@ namespace asynchost
       std::shared_ptr<SSL_CTX> accepted_ctx;
       SSL* ssl = nullptr;
       ::tcp::ConnID id = 0;
+      // Admission decision from OnAccept, passed to OnData.
+      bool soft_limited = false;
       enum State : uint8_t
       {
         Handshaking,
@@ -170,6 +190,10 @@ namespace asynchost
     {
       std::shared_ptr<Conn> conn;
       bool alive = true;
+      // The pass stopped at the per-pass read cap with bytes still available
+      // that will not produce a new readability event. The loop must schedule
+      // another pass rather than re-arm polling.
+      bool more_to_read = false;
       std::chrono::steady_clock::time_point last_active;
     };
 
@@ -205,6 +229,7 @@ namespace asynchost
     std::string alpn_wire;
     OnData on_data;
     OnClose on_close;
+    OnAccept on_accept;
 
     std::mutex out_mutex;
     std::mutex lifecycle_mutex;
@@ -226,6 +251,10 @@ namespace asynchost
     bool started = false;
     bool stopping = false;
     bool shutdown_started = false;
+    // Set once every connection has gone *and* the server's own handles have
+    // been handed to uv_close(). Until then pending_uv_closes reaching zero is
+    // only a lull between connection closures, not the end of shutdown.
+    bool handles_closing = false;
     bool stopped = false;
     bool loop_thread_seen = false;
 
@@ -255,40 +284,33 @@ namespace asynchost
     static bool load_cert_key(
       SSL_CTX* ctx, const std::string& cert_pem, const std::string& key_pem)
     {
-      BIO* cbio =
-        BIO_new_mem_buf(cert_pem.data(), static_cast<int>(cert_pem.size()));
-      if (cbio == nullptr)
-      {
-        return false;
-      }
-      X509* cert = PEM_read_bio_X509(cbio, nullptr, nullptr, nullptr);
-      BIO_free(cbio);
+      namespace OpenSSL = ccf::crypto::OpenSSL;
+
+      OpenSSL::Unique_BIO cbio(
+        cert_pem.data(), static_cast<int>(cert_pem.size()));
+      // check_null defaults to false for this overload: a malformed PEM yields
+      // a null pointer rather than an exception.
+      OpenSSL::Unique_X509 cert(cbio, true);
       if (cert == nullptr)
       {
         return false;
       }
-      const bool cert_ok = SSL_CTX_use_certificate(ctx, cert) == 1;
-      X509_free(cert);
-      if (!cert_ok)
+      if (SSL_CTX_use_certificate(ctx, cert) != 1)
       {
         return false;
       }
 
-      BIO* kbio =
-        BIO_new_mem_buf(key_pem.data(), static_cast<int>(key_pem.size()));
-      if (kbio == nullptr)
-      {
-        return false;
-      }
-      EVP_PKEY* pkey = PEM_read_bio_PrivateKey(kbio, nullptr, nullptr, nullptr);
-      BIO_free(kbio);
+      OpenSSL::Unique_BIO kbio(
+        key_pem.data(), static_cast<int>(key_pem.size()));
+      OpenSSL::Unique_PKEY pkey(
+        PEM_read_bio_PrivateKey(kbio, nullptr, nullptr, nullptr),
+        EVP_PKEY_free,
+        false);
       if (pkey == nullptr)
       {
         return false;
       }
-      const bool key_ok = SSL_CTX_use_PrivateKey(ctx, pkey) == 1;
-      EVP_PKEY_free(pkey);
-      if (!key_ok)
+      if (SSL_CTX_use_PrivateKey(ctx, pkey) != 1)
       {
         return false;
       }
@@ -360,8 +382,8 @@ namespace asynchost
 
       // Allow buffer to be relocated between WANT_WRITE retries, and do partial
       // writes if possible. do_write() retries SSL_write() from a std::vector
-      // that may have been appended to (and so reallocated) by
-      // drain_pending_out() since the previous attempt, so both are required.
+      // which drive_connection() may have appended to (and so reallocated)
+      // since the previous attempt, so both are required.
       SSL_CTX_set_mode(
         c, SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER | SSL_MODE_ENABLE_PARTIAL_WRITE);
 
@@ -423,7 +445,7 @@ namespace asynchost
     }
 
     // Returns false if the connection should be closed.
-    bool do_handshake(Conn& c)
+    bool do_handshake(Conn& c, bool& more_to_read)
     {
       // The error queue is thread-local and SSL_get_error() consults it. Clear
       // it before each operation because successive actions for this
@@ -450,7 +472,7 @@ namespace asynchost
           X509_free(cert);
         }
         logf("conn %llu: handshake complete", (unsigned long long)c.id);
-        return do_read(c) && do_write(c);
+        return do_read(c, more_to_read) && do_write(c);
       }
 
       const int e = SSL_get_error(c.ssl, r);
@@ -469,7 +491,7 @@ namespace asynchost
     }
 
     // Returns false if the connection should be closed.
-    bool do_read_plaintext(Conn& c)
+    bool do_read_plaintext(Conn& c, bool& more_to_read)
     {
       size_t total_read = 0;
       while (total_read < max_read_per_event)
@@ -484,7 +506,8 @@ namespace asynchost
             on_data(
               c.id,
               std::vector<uint8_t>(buf, buf + static_cast<size_t>(n)),
-              c.peer_cert);
+              c.peer_cert,
+              c.soft_limited);
           }
           continue;
         }
@@ -502,6 +525,10 @@ namespace asynchost
         }
         return false;
       }
+      // Stopped at the cap rather than at EAGAIN, so there may be more in the
+      // socket buffer. Level-triggered polling would report it again, but ask
+      // for another pass directly rather than depend on that.
+      more_to_read = true;
       return true;
     }
 
@@ -538,11 +565,11 @@ namespace asynchost
     }
 
     // Returns false if the connection should be closed.
-    bool do_read(Conn& c)
+    bool do_read(Conn& c, bool& more_to_read)
     {
       if (c.ssl == nullptr)
       {
-        return do_read_plaintext(c);
+        return do_read_plaintext(c, more_to_read);
       }
       size_t total_read = 0;
       while (total_read < max_read_per_event)
@@ -555,7 +582,11 @@ namespace asynchost
           total_read += static_cast<size_t>(n);
           if (on_data)
           {
-            on_data(c.id, std::vector<uint8_t>(buf, buf + n), c.peer_cert);
+            on_data(
+              c.id,
+              std::vector<uint8_t>(buf, buf + n),
+              c.peer_cert,
+              c.soft_limited);
           }
           continue;
         }
@@ -575,6 +606,16 @@ namespace asynchost
         // (no close_notify), or a fatal error - in all cases close.
         return false;
       }
+
+      // Stopped at the per-pass cap rather than at WANT_READ. OpenSSL may
+      // still be holding bytes it has already taken off the socket - either
+      // decrypted plaintext or a buffered record. Those bytes will never
+      // produce a readability event, so waiting for one here would stall the
+      // connection until the peer happened to send more. Ask for another pass
+      // instead. SSL_has_pending() covers both processed and unprocessed
+      // buffered data; if it is only a partial record, the next pass returns
+      // WANT_READ and polling resumes normally.
+      more_to_read = SSL_has_pending(c.ssl) == 1;
       return true;
     }
 
@@ -622,13 +663,23 @@ namespace asynchost
       return true;
     }
 
-    void complete_drive(std::shared_ptr<Conn> conn, bool alive)
+    void complete_drive(
+      std::shared_ptr<Conn> conn, bool alive, bool more_to_read)
     {
       {
         std::lock_guard<std::mutex> guard(out_mutex);
         completed_drives.push_back(
-          {std::move(conn), alive, std::chrono::steady_clock::now()});
+          {std::move(conn),
+           alive,
+           more_to_read,
+           std::chrono::steady_clock::now()});
       }
+      // Unlike wake(), this must signal even while stopping: shutdown only
+      // completes once the loop has observed every outstanding completion and
+      // closed the corresponding connection. The wake handle is guaranteed to
+      // still be open here, because finish_stopping_on_loop() only closes it
+      // once `conns` is empty, and a connection with a running worker has not
+      // yet been removed from `conns`.
       std::lock_guard<std::mutex> guard(lifecycle_mutex);
       if (wake_handle_initialised)
       {
@@ -639,6 +690,7 @@ namespace asynchost
     void drive_connection(std::shared_ptr<Conn> conn, DriveInput input)
     {
       bool alive = true;
+      bool more_to_read = false;
 
       if (conn->ssl == nullptr && conn->accepted_ctx != nullptr)
       {
@@ -650,7 +702,7 @@ namespace asynchost
             SSL_free(conn->ssl);
             conn->ssl = nullptr;
           }
-          complete_drive(std::move(conn), false);
+          complete_drive(std::move(conn), false, false);
           return;
         }
         SSL_set_accept_state(conn->ssl);
@@ -675,13 +727,13 @@ namespace asynchost
 
       if (conn->state == Conn::Handshaking)
       {
-        alive = do_handshake(*conn);
+        alive = do_handshake(*conn, more_to_read);
       }
       else
       {
         if ((input.events & (UV_READABLE | UV_DISCONNECT)) != 0)
         {
-          alive = do_read(*conn);
+          alive = do_read(*conn, more_to_read);
         }
         if (alive)
         {
@@ -702,7 +754,7 @@ namespace asynchost
         SSL_free(conn->ssl);
         conn->ssl = nullptr;
       }
-      complete_drive(std::move(conn), alive);
+      complete_drive(std::move(conn), alive, more_to_read);
     }
 
     void dispatch_connection(const std::shared_ptr<Conn>& conn)
@@ -744,7 +796,10 @@ namespace asynchost
       conn->fd = -1;
       auto* raw = conn.get();
       closing_conns.emplace(raw, std::move(conn));
-      ++pending_uv_closes;
+      {
+        std::lock_guard<std::mutex> guard(lifecycle_mutex);
+        ++pending_uv_closes;
+      }
       uv_close(
         reinterpret_cast<uv_handle_t*>(&raw->poll), on_connection_poll_closed);
       finish_stopping_on_loop();
@@ -787,11 +842,43 @@ namespace asynchost
           continue;
         }
 
+        const ::tcp::ConnID cid = (shared_next_id != nullptr) ?
+          shared_next_id->fetch_add(1) :
+          next_id++;
+
+        // Admission control runs here, before any TLS context, SSL object or
+        // task queue is created for the connection. A refused connection
+        // therefore costs nothing beyond the accept itself, and - crucially -
+        // an admitted connection is counted from the moment it exists, not
+        // from the moment it first sends a request. A client which completes
+        // the TCP and TLS handshakes and then goes silent still holds a file
+        // descriptor and TLS state, and must count against the caps.
+        bool soft_limited = false;
+        if (on_accept)
+        {
+          const auto admission = on_accept(cid);
+          if (!admission.has_value())
+          {
+            ::close(cfd);
+            continue;
+          }
+          soft_limited = *admission;
+        }
+
+        // From here on the connection has been admitted, so every failure path
+        // must release it by invoking on_close.
+        const auto release_admitted = [this, cid]() {
+          if (on_accept && on_close)
+          {
+            on_close(cid);
+          }
+        };
+
         auto c = std::make_unique<Conn>();
         c->owner = this;
         c->fd = cfd;
-        c->id = (shared_next_id != nullptr) ? shared_next_id->fetch_add(1) :
-                                              next_id++;
+        c->id = cid;
+        c->soft_limited = soft_limited;
         c->tls_tasks = ccf::tasks::OrderedTasks::create(
           ccf::tasks::get_main_job_board(),
           "TLS connection " + std::to_string(c->id));
@@ -806,8 +893,13 @@ namespace asynchost
           if (ctx == nullptr)
           {
             // No server certificate yet - refuse the connection until one is
-            // supplied (see set_server_cert).
+            // supplied (see set_server_cert). Expected while a joining node
+            // waits for the service certificate, so this is not an error, but
+            // it is otherwise invisible, hence the log.
+            LOG_DEBUG_FMT(
+              "Refusing connection {}: no server certificate yet", cid);
             ::close(cfd);
+            release_admitted();
             continue;
           }
           c->accepted_ctx = ctx;
@@ -816,7 +908,9 @@ namespace asynchost
         const int poll_rc = uv_poll_init_socket(loop, &c->poll, cfd);
         if (poll_rc != 0)
         {
+          logf("uv_poll_init_socket error: %s", uv_strerror(poll_rc));
           ::close(cfd);
+          release_admitted();
           continue;
         }
         c->poll.data = c.get();
@@ -824,17 +918,21 @@ namespace asynchost
           uv_poll_start(&c->poll, UV_READABLE, on_connection_poll);
         if (start_rc != 0)
         {
+          logf("uv_poll_start error: %s", uv_strerror(start_rc));
           ::close(cfd);
-          ++pending_uv_closes;
           c->fd = -1;
           auto* raw = c.get();
           closing_conns.emplace(raw, std::move(c));
+          {
+            std::lock_guard<std::mutex> guard(lifecycle_mutex);
+            ++pending_uv_closes;
+          }
           uv_close(
             reinterpret_cast<uv_handle_t*>(&raw->poll),
             on_connection_poll_closed);
+          release_admitted();
           continue;
         }
-        const auto cid = c->id;
         conns.emplace(cfd, std::move(c));
         id_to_fd.emplace(cid, cfd);
         logf("accepted conn on fd %d", cfd);
@@ -911,13 +1009,24 @@ namespace asynchost
 
       for (auto& [cert_pem, key_pem] : certs)
       {
-        auto nc = build_server_ctx(cert_pem, key_pem);
-        if (nc == nullptr)
+        // This runs inside a libuv callback, so nothing may escape: an
+        // operator-supplied cert which fails to parse must not terminate the
+        // process, it must leave the previous context in place.
+        try
         {
-          logf("set_server_cert: build context failed");
-          continue;
+          auto nc = build_server_ctx(cert_pem, key_pem);
+          if (nc == nullptr)
+          {
+            LOG_FAIL_FMT("set_server_cert: failed to build TLS context");
+            continue;
+          }
+          ctx = std::move(nc);
         }
-        ctx = std::move(nc);
+        catch (const std::exception& e)
+        {
+          LOG_FAIL_FMT(
+            "set_server_cert: failed to build TLS context: {}", e.what());
+        }
       }
 
       for (auto& item : items)
@@ -956,6 +1065,12 @@ namespace asynchost
         if (!completion.alive)
         {
           close_conn(conn->fd);
+        }
+        else if (completion.more_to_read)
+        {
+          // Data is buffered where polling cannot see it, so ask for another
+          // pass explicitly. The loop below dispatches on pending_events.
+          conn->pending_events |= UV_READABLE;
         }
       }
 
@@ -1057,13 +1172,22 @@ namespace asynchost
       {
         --pending_uv_closes;
       }
-      if (stopping && pending_uv_closes == 0)
+      // Only finish once finish_stopping_on_loop() has queued the listener,
+      // timer and async handles for closure. Connections close one at a time,
+      // so without the handles_closing gate the first connection to finish
+      // closing would drive the count to zero and declare shutdown complete
+      // while other connections, and all three server handles, were still
+      // open - leaving uv_loop_close() to fail with EBUSY.
+      if (stopping && handles_closing && pending_uv_closes == 0)
       {
         stopped = true;
         stopped_cv.notify_all();
       }
     }
 
+    // Requires lifecycle_mutex to be held by the caller. uv_close() never runs
+    // its callback synchronously, so complete_uv_close() cannot re-enter the
+    // lock from here.
     void close_server_handle(uv_handle_t* handle)
     {
       if (uv_is_closing(handle) == 0)
@@ -1084,7 +1208,12 @@ namespace asynchost
         stopping = true;
         shutdown_started = true;
       }
-      (void)uv_poll_stop(&listen_poll);
+      // May run before start() finished initialising, if start() threw part
+      // way through, so the handle may not exist yet.
+      if (listen_poll_initialised)
+      {
+        (void)uv_poll_stop(&listen_poll);
+      }
       if (listen_fd >= 0)
       {
         ::close(listen_fd);
@@ -1098,29 +1227,43 @@ namespace asynchost
       finish_stopping_on_loop();
     }
 
+    // Loop thread. Completes shutdown once every connection has gone: stops
+    // the idle timer and closes the server's own uv handles.
+    //
+    // Every flag touched here is also read from other threads (see wake() and
+    // complete_drive()), so the whole body runs under lifecycle_mutex, and
+    // each *_initialised flag is cleared *before* the corresponding uv_close().
+    // Clearing afterwards would leave a window in which another thread sees
+    // the handle as usable and calls uv_async_send() on a closing handle.
     void finish_stopping_on_loop()
     {
-      if (!stopping || !conns.empty())
+      std::lock_guard<std::mutex> guard(lifecycle_mutex);
+      if (!stopping || handles_closing || !conns.empty())
       {
         return;
       }
+
+      // Every connection has gone. From here on there is nothing left to
+      // close but the server's own handles, so once the count reaches zero
+      // shutdown really is complete.
+      handles_closing = true;
+
       if (idle_timer_initialised)
       {
+        idle_timer_initialised = false;
         (void)uv_timer_stop(&idle_timer);
         close_server_handle(reinterpret_cast<uv_handle_t*>(&idle_timer));
-        idle_timer_initialised = false;
       }
       if (listen_poll_initialised)
       {
-        close_server_handle(reinterpret_cast<uv_handle_t*>(&listen_poll));
         listen_poll_initialised = false;
+        close_server_handle(reinterpret_cast<uv_handle_t*>(&listen_poll));
       }
       if (wake_handle_initialised)
       {
-        close_server_handle(reinterpret_cast<uv_handle_t*>(&wake_handle));
         wake_handle_initialised = false;
+        close_server_handle(reinterpret_cast<uv_handle_t*>(&wake_handle));
       }
-      std::lock_guard<std::mutex> guard(lifecycle_mutex);
       if (pending_uv_closes == 0)
       {
         stopped = true;
@@ -1141,12 +1284,14 @@ namespace asynchost
       bool verbose_ = false,
       std::atomic<::tcp::ConnID>* shared_next_id_ = nullptr,
       std::optional<std::chrono::milliseconds> idle_timeout_ = std::nullopt,
+      OnAccept on_accept_ = {},
       uv_loop_t* loop_ = uv_default_loop()) :
       loop(loop_),
       shared_next_id(shared_next_id_),
       idle_timeout(idle_timeout_),
       on_data(std::move(on_data_)),
       on_close(std::move(on_close_)),
+      on_accept(std::move(on_accept_)),
       plaintext(plaintext_),
       verbose(verbose_)
     {
@@ -1273,6 +1418,21 @@ namespace asynchost
       {
         return;
       }
+
+      // Mark the server started, and reset the lifecycle flags, *before* any
+      // handle is initialised. If one of the steps below throws, the handles
+      // which were already initialised are still registered with the loop and
+      // must be closed, or uv_loop_close() will fail with EBUSY. stop() does
+      // exactly that, but only when `started` is set - so setting it here is
+      // what makes a partially-initialised server safe to destroy.
+      stopped = false;
+      stopping = false;
+      shutdown_started = false;
+      handles_closing = false;
+      initialising_thread_id = std::this_thread::get_id();
+      loop_thread_seen = false;
+      started = true;
+
       int rc = uv_poll_init_socket(loop, &listen_poll, listen_fd);
       if (rc != 0)
       {
@@ -1320,12 +1480,6 @@ namespace asynchost
         throw std::runtime_error(
           std::string("uv_poll_start(listen) failed: ") + uv_strerror(rc));
       }
-      stopped = false;
-      stopping = false;
-      shutdown_started = false;
-      initialising_thread_id = std::this_thread::get_id();
-      loop_thread_seen = false;
-      started = true;
     }
 
     void stop()
@@ -1338,7 +1492,12 @@ namespace asynchost
       if (!stopping)
       {
         stopping = true;
-        (void)uv_async_send(&wake_handle);
+        // finish_stopping_on_loop() clears wake_handle_initialised before it
+        // closes the handle, so this cannot signal a handle already closing.
+        if (wake_handle_initialised)
+        {
+          (void)uv_async_send(&wake_handle);
+        }
       }
       const bool loop_not_started_here = !loop_thread_seen &&
         std::this_thread::get_id() == initialising_thread_id;
@@ -1361,6 +1520,13 @@ namespace asynchost
             ccf::tasks::try_do_task(*task);
           }
           (void)uv_run(loop, UV_RUN_NOWAIT);
+          if (task == nullptr)
+          {
+            // Nothing to do but wait for outstanding uv close callbacks.
+            // uv_run(UV_RUN_NOWAIT) returns immediately, so without this the
+            // loop below would spin at 100% CPU for the whole shutdown.
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+          }
         }
       }
       if (std::this_thread::get_id() == loop_thread_id)

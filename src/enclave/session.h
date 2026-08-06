@@ -88,7 +88,7 @@ namespace ccf
     // Implement Session::handle_incoming_data by dispatching a thread message
     // that eventually invokes the virtual handle_incoming_data_thread()
     void handle_incoming_data(
-      std::span<const uint8_t> data, sockaddr /*addr*/) override
+      std::span<const uint8_t> data, sockaddr_storage /*addr*/) override
     {
       task_scheduler->add_action(
         std::make_shared<HandleIncomingDataTask>(data, shared_from_this()));
@@ -132,6 +132,16 @@ namespace ccf
     ::tcp::ConnID session_id;
     ccf::SessionWriter& session_writer;
     std::vector<uint8_t> peer_cert_;
+    // Set once parse() has reported that it will process no more data (a parse
+    // error, an oversized request, a protocol-level shutdown). The protocol
+    // session has already emitted its error response and closed the session by
+    // that point, but the transport may still deliver bytes which were already
+    // in flight. Feeding those to a parser which has errored produces
+    // duplicate responses on a socket which is closing, so drop them instead.
+    //
+    // Only touched from handle_incoming_data_thread(), which runs on this
+    // session's own OrderedTasks and is therefore serialised.
+    bool parsing_finished = false;
 
     PlaintextSession(
       ::tcp::ConnID session_id_,
@@ -156,7 +166,15 @@ namespace ccf
 
     void handle_incoming_data_thread(std::vector<uint8_t>&& data) override
     {
-      parse({data.data(), data.size()});
+      if (parsing_finished)
+      {
+        return;
+      }
+
+      if (!parse({data.data(), data.size()}))
+      {
+        parsing_finished = true;
+      }
     }
 
     void close_session_thread() override

@@ -13,10 +13,16 @@
 // "make an HTTPServerSession for this interface"). Sessions are created lazily
 // on first inbound data and removed on close.
 //
+// Note that admission control is deliberately *not* tied to the session: a
+// connection is admitted (and counted) by the transport's OnAccept before any
+// session exists, and released here in on_close, once per admitted connection.
+// Tying it to the session would leave connections which complete the TLS
+// handshake but never send a request entirely uncounted.
+//
 // Threading: OpenSSLServer invokes on_data on its TLS OrderedTasks worker and
 // on_close on its loop thread. The session may dispatch again to its own
 // OrderedTasks and reply via write_outbound from any worker. Every public
-// method is therefore safe to call from any thread, and the sessions map is
+// method is therefore safe to call from any thread, and the connection map is
 // guarded by a mutex.
 
 #include "ccf/node/session.h"
@@ -41,77 +47,79 @@ namespace asynchost
     // Creates the protocol session for a freshly seen connection. `writer` is
     // this manager - the session emits its (plaintext) output through it.
     // `peer_cert` is the client certificate (DER) captured at handshake, for
-    // caller authentication.
+    // caller authentication. `soft_limited` is the admission decision taken
+    // when the connection was accepted.
     using SessionFactory = std::function<std::shared_ptr<ccf::Session>(
       ::tcp::ConnID conn_id,
       ccf::SessionWriter& writer,
-      std::vector<uint8_t> peer_cert)>;
+      std::vector<uint8_t> peer_cert,
+      bool soft_limited)>;
 
   private:
     std::unique_ptr<OpenSSLServer> server;
     SessionFactory factory;
-    // Invoked when a connection's session is dropped, so an owner can update
-    // per-interface counters/metrics. Called on the loop thread from on_close,
-    // or on a worker thread from close_socket, so it must be thread-safe.
-    std::function<void(::tcp::ConnID)> on_session_closed;
+    // Invoked when an admitted connection is torn down, so an owner can
+    // release whatever it reserved at accept time. Called on the loop thread
+    // from on_close, exactly once per admitted connection.
+    std::function<void(::tcp::ConnID)> on_connection_closed;
 
-    std::mutex sessions_mutex;
-    std::unordered_map<::tcp::ConnID, std::shared_ptr<ccf::Session>> sessions;
+    struct ConnState
+    {
+      std::shared_ptr<ccf::Session> session;
+      // The session asked for the connection to be closed. The transport
+      // teardown is asynchronous, so bytes already in flight may still arrive;
+      // they are dropped rather than being used to build a replacement
+      // session for a connection which is going away.
+      bool closing = false;
+    };
+
+    std::mutex conns_mutex;
+    std::unordered_map<::tcp::ConnID, ConnState> conns;
 
     void on_data(
       ::tcp::ConnID conn_id,
       std::vector<uint8_t> data,
-      const std::vector<uint8_t>& peer_cert)
+      const std::vector<uint8_t>& peer_cert,
+      bool soft_limited)
     {
       std::shared_ptr<ccf::Session> session;
       {
-        std::lock_guard<std::mutex> guard(sessions_mutex);
-        auto it = sessions.find(conn_id);
-        if (it == sessions.end())
+        std::lock_guard<std::mutex> guard(conns_mutex);
+        auto& state = conns[conn_id];
+        if (state.closing)
         {
-          session = factory(conn_id, *this, peer_cert);
-          if (session == nullptr)
+          return;
+        }
+        if (state.session == nullptr)
+        {
+          state.session = factory(conn_id, *this, peer_cert, soft_limited);
+          if (state.session == nullptr)
           {
-            // Factory refused (e.g. hard session cap) - tear the connection
-            // down.
+            // Factory refused - tear the connection down.
+            state.closing = true;
             server->close_connection(conn_id);
             return;
           }
-          sessions.emplace(conn_id, session);
         }
-        else
-        {
-          session = it->second;
-        }
+        session = state.session;
       }
 
-      if (session != nullptr)
-      {
-        session->handle_incoming_data({data.data(), data.size()});
-      }
+      session->handle_incoming_data({data.data(), data.size()});
     }
 
     void on_close(::tcp::ConnID conn_id)
     {
-      std::shared_ptr<ccf::Session> session;
       {
-        std::lock_guard<std::mutex> guard(sessions_mutex);
-        auto it = sessions.find(conn_id);
-        if (it != sessions.end())
-        {
-          session = it->second;
-          sessions.erase(it);
-        }
+        std::lock_guard<std::mutex> guard(conns_mutex);
+        conns.erase(conn_id);
       }
 
-      if (session == nullptr)
+      // Unconditional: the connection, not the session, is what was reserved
+      // at accept time, and a connection which never sent a request has no
+      // session to key off.
+      if (on_connection_closed)
       {
-        return;
-      }
-
-      if (on_session_closed)
-      {
-        on_session_closed(conn_id);
+        on_connection_closed(conn_id);
       }
     }
 
@@ -126,10 +134,11 @@ namespace asynchost
       bool plaintext = false,
       bool verbose = false,
       std::atomic<::tcp::ConnID>* shared_next_id = nullptr,
-      std::function<void(::tcp::ConnID)> on_session_closed_ = {},
-      std::optional<std::chrono::milliseconds> idle_timeout = std::nullopt) :
+      std::function<void(::tcp::ConnID)> on_connection_closed_ = {},
+      std::optional<std::chrono::milliseconds> idle_timeout = std::nullopt,
+      OpenSSLServer::OnAccept on_accept = {}) :
       factory(std::move(factory_)),
-      on_session_closed(std::move(on_session_closed_))
+      on_connection_closed(std::move(on_connection_closed_))
     {
       server = std::make_unique<OpenSSLServer>(
         cert_pem,
@@ -139,23 +148,25 @@ namespace asynchost
         [this](
           ::tcp::ConnID id,
           std::vector<uint8_t> data,
-          const std::vector<uint8_t>& peer_cert) {
-          on_data(id, std::move(data), peer_cert);
+          const std::vector<uint8_t>& peer_cert,
+          bool soft_limited) {
+          on_data(id, std::move(data), peer_cert, soft_limited);
         },
         [this](::tcp::ConnID id) { on_close(id); },
         alpn,
         plaintext,
         verbose,
         shared_next_id,
-        idle_timeout);
+        idle_timeout,
+        std::move(on_accept));
     }
 
     // The session for `id`, or nullptr. Thread-safe.
     std::shared_ptr<ccf::Session> get_session(::tcp::ConnID id)
     {
-      std::lock_guard<std::mutex> guard(sessions_mutex);
-      auto it = sessions.find(id);
-      return it == sessions.end() ? nullptr : it->second;
+      std::lock_guard<std::mutex> guard(conns_mutex);
+      auto it = conns.find(id);
+      return it == conns.end() ? nullptr : it->second.session;
     }
 
     // (Re)load this interface's server certificate (deferred cert / rotation).
@@ -185,22 +196,24 @@ namespace asynchost
     void write_outbound(
       ::tcp::ConnID id,
       std::span<const uint8_t> data,
-      sockaddr /*addr*/ = {}) override
+      sockaddr_storage /*addr*/ = {}) override
     {
       server->send(id, data.data(), data.size());
     }
 
     void close_socket(::tcp::ConnID id) override
     {
-      bool had_session = false;
       {
-        std::lock_guard<std::mutex> guard(sessions_mutex);
-        had_session = sessions.erase(id) > 0;
+        std::lock_guard<std::mutex> guard(conns_mutex);
+        auto it = conns.find(id);
+        if (it != conns.end())
+        {
+          it->second.closing = true;
+          it->second.session.reset();
+        }
       }
-      if (had_session && id >= 0 && on_session_closed)
-      {
-        on_session_closed(id);
-      }
+      // No release here: the connection's reservation is released by on_close
+      // when the transport has actually torn it down, exactly once.
       server->close_connection(id);
     }
   };

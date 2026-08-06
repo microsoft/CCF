@@ -54,6 +54,12 @@ namespace asynchost
 
   private:
     static constexpr size_t max_datagram = 65535;
+    // Datagrams handled per readable event. The handler runs inline on the
+    // loop thread, so an unbounded drain would let a UDP flood starve every
+    // other handle on the loop. The socket stays level-triggered, so any
+    // remainder is picked up on the next iteration. This replaces the read
+    // quota the previous ringbuffer-based UDP transport applied.
+    static constexpr size_t max_datagrams_per_event = 64;
 
     uv_loop_t* loop = nullptr;
     int sock = -1;
@@ -69,6 +75,11 @@ namespace asynchost
     bool stopping = false;
     bool shutdown_started = false;
     bool stopped = false;
+    // Tracked separately from `started`, because start() can throw part way
+    // through initialisation and the handles which were initialised must
+    // still be closed.
+    bool socket_poll_initialised = false;
+    bool stop_handle_initialised = false;
     size_t pending_uv_closes = 0;
     std::thread::id initialising_thread_id;
     bool loop_thread_seen = false;
@@ -92,7 +103,8 @@ namespace asynchost
 
     void drain()
     {
-      for (;;)
+      size_t handled = 0;
+      while (handled < max_datagrams_per_event)
       {
         uint8_t buf[max_datagram];
         sockaddr_storage peer{};
@@ -112,11 +124,14 @@ namespace asynchost
           }
           if (errno == EINTR)
           {
+            // Interrupted before receiving anything, so this does not count
+            // against the quota.
             continue;
           }
           break;
         }
 
+        ++handled;
         if (on_datagram)
         {
           // === QUIC EXTENSION POINT ===
@@ -164,6 +179,8 @@ namespace asynchost
 
     void stop_on_loop()
     {
+      bool close_socket_poll = false;
+      bool close_stop_handle = false;
       {
         std::lock_guard<std::mutex> guard(lifecycle_mutex);
         if (shutdown_started)
@@ -172,17 +189,48 @@ namespace asynchost
         }
         stopping = true;
         shutdown_started = true;
-        pending_uv_closes = 2;
+
+        // Only the handles start() actually initialised. Counting blindly
+        // would leave pending_uv_closes permanently non-zero (so stop() would
+        // never complete) if start() threw part way through.
+        close_socket_poll = socket_poll_initialised;
+        close_stop_handle = stop_handle_initialised;
+        socket_poll_initialised = false;
+        stop_handle_initialised = false;
+        pending_uv_closes = static_cast<size_t>(close_socket_poll) +
+          static_cast<size_t>(close_stop_handle);
+
+        if (close_socket_poll)
+        {
+          (void)uv_poll_stop(&socket_poll);
+        }
+        // Closed under the lock so that a concurrent send_to() cannot be left
+        // holding a descriptor which has been closed (and possibly reused)
+        // underneath it.
+        if (sock >= 0)
+        {
+          ::close(sock);
+          sock = -1;
+        }
+
+        if (pending_uv_closes == 0)
+        {
+          stopped = true;
+          stopped_cv.notify_all();
+          return;
+        }
       }
 
-      (void)uv_poll_stop(&socket_poll);
-      if (sock >= 0)
+      if (close_socket_poll)
       {
-        ::close(sock);
-        sock = -1;
+        uv_close(
+          reinterpret_cast<uv_handle_t*>(&socket_poll), on_handle_closed);
       }
-      uv_close(reinterpret_cast<uv_handle_t*>(&socket_poll), on_handle_closed);
-      uv_close(reinterpret_cast<uv_handle_t*>(&stop_handle), on_handle_closed);
+      if (close_stop_handle)
+      {
+        uv_close(
+          reinterpret_cast<uv_handle_t*>(&stop_handle), on_handle_closed);
+      }
     }
 
   public:
@@ -272,32 +320,42 @@ namespace asynchost
       {
         return;
       }
-      int rc = uv_poll_init_socket(loop, &socket_poll, sock);
-      if (rc != 0)
-      {
-        throw std::runtime_error(
-          std::string("uv_poll_init_socket(udp) failed: ") + uv_strerror(rc));
-      }
-      socket_poll.data = this;
-      rc = uv_async_init(loop, &stop_handle, on_stop);
-      if (rc != 0)
-      {
-        throw std::runtime_error(
-          std::string("uv_async_init(udp) failed: ") + uv_strerror(rc));
-      }
-      stop_handle.data = this;
-      rc = uv_poll_start(&socket_poll, UV_READABLE, on_socket_poll);
-      if (rc != 0)
-      {
-        throw std::runtime_error(
-          std::string("uv_poll_start(udp) failed: ") + uv_strerror(rc));
-      }
+
+      // Marked started before any handle is initialised, so that a failure
+      // part way through still leaves a server whose destructor closes and
+      // drains the handles which were initialised (stop() is a no-op unless
+      // `started` is set).
       started = true;
       stopping = false;
       shutdown_started = false;
       stopped = false;
       initialising_thread_id = std::this_thread::get_id();
       loop_thread_seen = false;
+
+      int rc = uv_poll_init_socket(loop, &socket_poll, sock);
+      if (rc != 0)
+      {
+        throw std::runtime_error(
+          std::string("uv_poll_init_socket(udp) failed: ") + uv_strerror(rc));
+      }
+      socket_poll_initialised = true;
+      socket_poll.data = this;
+
+      rc = uv_async_init(loop, &stop_handle, on_stop);
+      if (rc != 0)
+      {
+        throw std::runtime_error(
+          std::string("uv_async_init(udp) failed: ") + uv_strerror(rc));
+      }
+      stop_handle_initialised = true;
+      stop_handle.data = this;
+
+      rc = uv_poll_start(&socket_poll, UV_READABLE, on_socket_poll);
+      if (rc != 0)
+      {
+        throw std::runtime_error(
+          std::string("uv_poll_start(udp) failed: ") + uv_strerror(rc));
+      }
     }
 
     void stop()
@@ -310,7 +368,10 @@ namespace asynchost
       if (!stopping)
       {
         stopping = true;
-        (void)uv_async_send(&stop_handle);
+        if (stop_handle_initialised)
+        {
+          (void)uv_async_send(&stop_handle);
+        }
       }
       const bool loop_not_started_here = !loop_thread_seen &&
         std::this_thread::get_id() == initialising_thread_id;
@@ -328,6 +389,10 @@ namespace asynchost
             }
           }
           (void)uv_run(loop, UV_RUN_NOWAIT);
+          // uv_run(UV_RUN_NOWAIT) returns immediately, so without this the
+          // loop would spin at 100% CPU while waiting for the outstanding uv
+          // close callbacks.
+          std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
       }
       if (std::this_thread::get_id() == loop_thread_id)
@@ -344,12 +409,19 @@ namespace asynchost
       return bound_port;
     }
 
+    // Thread-safe: replies are sent from session workers, while the socket may
+    // be closed concurrently by shutdown on the loop thread.
     [[nodiscard]] bool send_to(
       const sockaddr_storage& peer,
       socklen_t peerlen,
       const uint8_t* data,
-      size_t len) const
+      size_t len)
     {
+      std::lock_guard<std::mutex> guard(lifecycle_mutex);
+      if (sock < 0)
+      {
+        return false;
+      }
       const auto rc = ::sendto(
         sock, data, len, 0, reinterpret_cast<const sockaddr*>(&peer), peerlen);
       return rc >= 0;

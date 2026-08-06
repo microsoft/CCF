@@ -22,7 +22,6 @@
 #include "enclave/abstract_rpc_sessions.h"
 #include "enclave/no_more_sessions.h"
 #include "enclave/rpc_map.h"
-#include "host/datagram_echo_session.h"
 #include "host/datagram_server.h"
 #include "host/tls/openssl_session_manager.h"
 #include "http/error_reporter.h"
@@ -51,6 +50,8 @@ namespace ccf
   static constexpr size_t ocm_max_open_sessions_hard_default = 1010;
   static const ccf::Endorsement ocm_endorsement_default = {
     ccf::Authority::SERVICE};
+  // How often idle UDP sessions are swept, mirroring the TCP idle sweep.
+  static constexpr auto udp_idle_sweep_interval = std::chrono::seconds(1);
 
   class RPCConnectionManager
     : public std::enable_shared_from_this<RPCConnectionManager>,
@@ -73,8 +74,11 @@ namespace ccf
       std::atomic<size_t> err_payload_too_large{0};
       std::atomic<size_t> err_header_too_large{0};
 
-      // The transport for this interface (created on listen()).
-      std::unique_ptr<asynchost::OpenSSLSessionManager> bridge;
+      // The transport for this interface (created on listen()). Held by
+      // shared_ptr so that callers which snapshot it under interfaces_mutex
+      // and then use it without the lock (stop(), reply_async()) cannot race
+      // with it being replaced or destroyed.
+      std::shared_ptr<asynchost::OpenSSLSessionManager> bridge;
     };
 
     class DatagramSessionWriter : public ccf::SessionWriter
@@ -94,7 +98,7 @@ namespace ccf
       void write_outbound(
         ::tcp::ConnID id,
         std::span<const uint8_t> data,
-        sockaddr /*addr*/ = {}) override
+        sockaddr_storage /*addr*/ = {}) override
       {
         write(id, data);
       }
@@ -105,17 +109,40 @@ namespace ccf
       }
     };
 
+    struct UdpSession
+    {
+      std::shared_ptr<ccf::Session> session;
+      ::tcp::ConnID conn_id = 0;
+      std::chrono::steady_clock::time_point last_active =
+        std::chrono::steady_clock::now();
+    };
+
     struct DatagramInterface
     {
-      std::unique_ptr<asynchost::DatagramServer> server;
+      std::shared_ptr<asynchost::DatagramServer> server;
       std::unique_ptr<DatagramSessionWriter> writer;
-      std::map<std::string, std::shared_ptr<ccf::Session>> sessions_by_peer;
+      std::map<std::string, UdpSession> sessions_by_peer;
       std::map<::tcp::ConnID, std::string> peer_by_id;
+      std::chrono::steady_clock::time_point last_idle_sweep =
+        std::chrono::steady_clock::now();
     };
 
     std::shared_ptr<RPCMap> rpc_map;
+
+    // Subsystems are installed by NodeState during node creation, which now
+    // happens after the interfaces are already listening, so they can be
+    // assigned while sessions are being created on TLS worker threads. Guarded
+    // by their own mutex rather than interfaces_mutex, so that reading them on
+    // the session-creation path does not contend with the interface map.
+    std::mutex subsystems_mutex;
     std::shared_ptr<CustomProtocolSubsystem> custom_protocol_subsystem;
     std::shared_ptr<CommitCallbackSubsystem> commit_callbacks_subsystem;
+
+    // Set at the start of stop(). Once set no further sessions are created:
+    // the transports are being torn down, and when stop() is invoked from the
+    // destructor shared_from_this() (used by error_reporter()) would throw
+    // std::bad_weak_ptr because the control block has already expired.
+    std::atomic<bool> stopping{false};
 
     std::mutex interfaces_mutex;
     std::map<std::string, std::unique_ptr<ListenInterface>> interfaces;
@@ -141,6 +168,18 @@ namespace ccf
     std::shared_ptr<::http::ErrorReporter> error_reporter()
     {
       return shared_from_this();
+    }
+
+    std::shared_ptr<CustomProtocolSubsystem> get_custom_protocol_subsystem()
+    {
+      std::lock_guard<std::mutex> guard(subsystems_mutex);
+      return custom_protocol_subsystem;
+    }
+
+    std::shared_ptr<CommitCallbackSubsystem> get_commit_callbacks_subsystem()
+    {
+      std::lock_guard<std::mutex> guard(subsystems_mutex);
+      return commit_callbacks_subsystem;
     }
 
     static std::string peer_key(const sockaddr_storage& peer, socklen_t peerlen)
@@ -187,53 +226,102 @@ namespace ccf
       }
     }
 
-    // Build the protocol session for a connection on `li`, applying caps.
-    // Returns nullptr to refuse (hard cap). Runs on the interface's loop
-    // thread.
-    std::shared_ptr<ccf::Session> make_session(
-      ListenInterface* li,
-      ::tcp::ConnID conn_id,
-      ccf::SessionWriter& writer,
-      std::vector<uint8_t> peer_cert)
+    // Admission control, run by the transport for every accepted connection
+    // before any TLS state exists.
+    //
+    // Reserving here rather than when the first request arrives is what makes
+    // max_open_sessions_hard a bound on *connections*: a client which
+    // completes the TCP and TLS handshakes and then sends nothing still holds
+    // a file descriptor and TLS state on the node, and previously went
+    // entirely uncounted.
+    //
+    // Returns nullopt to refuse, otherwise whether the connection was admitted
+    // above the soft limit (and so should be answered with a 503). Runs on the
+    // interface's libuv loop thread.
+    std::optional<bool> admit_connection(
+      ListenInterface* li, ::tcp::ConnID conn_id)
     {
+      if (stopping.load())
+      {
+        return std::nullopt;
+      }
+
       const size_t open = li->open_sessions.fetch_add(1);
       if (open >= li->max_open_sessions_hard)
       {
         decrement_interface_sessions(li);
         LOG_INFO_FMT(
-          "Refusing session {} on interface {} - {} open, hard limit {}",
+          "Refusing connection {} on interface {} - {} open, hard limit {}",
           conn_id,
           li->name,
           open,
           li->max_open_sessions_hard);
-        return nullptr;
+        return std::nullopt;
       }
 
-      const size_t now_open = open + 1;
-      increment_interface_peak(li, now_open);
+      increment_interface_peak(li, open + 1);
       increment_active_sessions();
 
-      if (open >= li->max_open_sessions_soft)
+      const bool soft_limited = open >= li->max_open_sessions_soft;
+      if (soft_limited)
       {
         LOG_INFO_FMT(
-          "Soft-refusing session {} (503) on interface {} - {} open, soft "
+          "Soft-refusing connection {} (503) on interface {} - {} open, soft "
           "limit {}",
           conn_id,
           li->name,
           open,
           li->max_open_sessions_soft);
-        return make_capped_session(li, conn_id, writer, std::move(peer_cert));
+      }
+      return soft_limited;
+    }
+
+    // Release the reservation taken by admit_connection. Invoked exactly once
+    // per admitted connection, when the transport has torn it down.
+    void release_connection(ListenInterface* li)
+    {
+      decrement_interface_sessions(li);
+      decrement_active_sessions();
+    }
+
+    // Build the protocol session for a connection on `li`, which has already
+    // been admitted (see admit_connection). Returns nullptr to close the
+    // connection. Runs on the connection's TLS worker (invoked from
+    // OpenSSLServer's OnData), not on the libuv loop thread, so it must be
+    // safe to call concurrently for other connections.
+    std::shared_ptr<ccf::Session> make_session(
+      ListenInterface* li,
+      ::tcp::ConnID conn_id,
+      ccf::SessionWriter& writer,
+      std::vector<uint8_t> peer_cert,
+      bool soft_limited)
+    {
+      if (stopping.load())
+      {
+        // Shutting down - do not build new sessions, and in particular do not
+        // call error_reporter() (see `stopping`).
+        return nullptr;
       }
 
       try
       {
+        if (soft_limited)
+        {
+          return make_capped_session(li, conn_id, writer, std::move(peer_cert));
+        }
         return make_server_session(li, conn_id, writer, std::move(peer_cert));
       }
-      catch (...)
+      catch (const std::exception& e)
       {
-        decrement_interface_sessions(li);
-        decrement_active_sessions();
-        throw;
+        // Runs on a worker, so an escaping exception would be fatal. Closing
+        // the connection is the only useful response to being unable to build
+        // a session for it.
+        LOG_FAIL_FMT(
+          "Failed to create session {} on interface {}: {}",
+          conn_id,
+          li->name,
+          e.what());
+        return nullptr;
       }
     }
 
@@ -264,12 +352,12 @@ namespace ccf
           std::move(peer_cert),
           li->http_configuration,
           error_reporter(),
-          commit_callbacks_subsystem);
+          get_commit_callbacks_subsystem());
       }
-      if (custom_protocol_subsystem != nullptr)
+      auto cpss = get_custom_protocol_subsystem();
+      if (cpss != nullptr)
       {
-        return custom_protocol_subsystem->create_session(
-          li->app_protocol, conn_id, writer);
+        return cpss->create_session(li->app_protocol, conn_id, writer);
       }
       throw std::runtime_error(fmt::format(
         "Unknown application protocol '{}' and custom protocol subsystem "
@@ -302,7 +390,7 @@ namespace ccf
         std::move(peer_cert),
         li->http_configuration,
         error_reporter(),
-        commit_callbacks_subsystem);
+        get_commit_callbacks_subsystem());
     }
 
     void send_udp_reply(
@@ -354,6 +442,49 @@ namespace ccf
       decrement_active_sessions();
     }
 
+    // Drop UDP sessions which have seen no traffic for
+    // idle_connection_timeout. Unlike TCP there is no connection teardown to
+    // react to, and source addresses are trivially spoofable, so without this
+    // a UDP interface accumulates one session per distinct source address
+    // until it reaches max_open_sessions_hard and stops responding entirely.
+    //
+    // Sweeping here (on datagram arrival, rate-limited) rather than from a
+    // timer keeps the work where the growth happens and avoids a second timer
+    // per interface. Caller must hold interfaces_mutex.
+    void sweep_idle_udp_sessions(ListenInterface* li, DatagramInterface* udp)
+    {
+      if (!idle_connection_timeout.has_value())
+      {
+        return;
+      }
+
+      const auto now = std::chrono::steady_clock::now();
+      if (now - udp->last_idle_sweep < udp_idle_sweep_interval)
+      {
+        return;
+      }
+      udp->last_idle_sweep = now;
+
+      for (auto it = udp->sessions_by_peer.begin();
+           it != udp->sessions_by_peer.end();)
+      {
+        if (now - it->second.last_active <= *idle_connection_timeout)
+        {
+          ++it;
+          continue;
+        }
+
+        LOG_DEBUG_FMT(
+          "Closing idle UDP session {} on interface {}",
+          it->second.conn_id,
+          li->name);
+        udp->peer_by_id.erase(it->second.conn_id);
+        it = udp->sessions_by_peer.erase(it);
+        decrement_interface_sessions(li);
+        decrement_active_sessions();
+      }
+    }
+
     std::shared_ptr<ccf::Session> get_or_create_udp_session(
       ListenInterface* li,
       DatagramInterface* udp,
@@ -362,14 +493,23 @@ namespace ccf
       socklen_t peerlen)
     {
       std::lock_guard<std::mutex> guard(interfaces_mutex);
+      sweep_idle_udp_sessions(li, udp);
+
       const auto key = peer_key(peer, peerlen);
       auto sit = udp->sessions_by_peer.find(key);
       if (sit != udp->sessions_by_peer.end())
       {
-        return sit->second;
+        sit->second.last_active = std::chrono::steady_clock::now();
+        return sit->second.session;
       }
 
-      if (li->app_protocol != "QUIC" && custom_protocol_subsystem == nullptr)
+      if (stopping.load())
+      {
+        return nullptr;
+      }
+
+      auto cpss = get_custom_protocol_subsystem();
+      if (cpss == nullptr)
       {
         LOG_DEBUG_FMT(
           "Unknown UDP protocol '{}' and custom protocol subsystem missing",
@@ -395,23 +535,19 @@ namespace ccf
       const auto conn_id =
         static_cast<::tcp::ConnID>(shared_conn_id.fetch_add(1));
       std::shared_ptr<ccf::Session> session;
-      if (li->app_protocol == "QUIC")
+      try
       {
-        session = std::make_shared<ccf::DatagramEchoSession>(conn_id, writer);
+        session = cpss->create_session(li->app_protocol, conn_id, writer);
       }
-      else
+      catch (const std::exception& e)
       {
-        try
-        {
-          session = custom_protocol_subsystem->create_session(
-            li->app_protocol, conn_id, writer);
-        }
-        catch (...)
-        {
-          decrement_interface_sessions(li);
-          decrement_active_sessions();
-          throw;
-        }
+        decrement_interface_sessions(li);
+        decrement_active_sessions();
+        LOG_FAIL_FMT(
+          "Failed to create UDP session on interface {}: {}",
+          li->name,
+          e.what());
+        return nullptr;
       }
 
       if (session == nullptr)
@@ -422,7 +558,8 @@ namespace ccf
       }
 
       udp->peer_by_id.emplace(conn_id, key);
-      udp->sessions_by_peer.emplace(key, session);
+      udp->sessions_by_peer.emplace(
+        key, UdpSession{session, conn_id, std::chrono::steady_clock::now()});
       return session;
     }
 
@@ -438,17 +575,42 @@ namespace ccf
 
     void stop()
     {
-      std::lock_guard<std::mutex> guard(interfaces_mutex);
-      for (auto& [name, li] : interfaces)
+      // Refuse new sessions before tearing anything down. This is what makes
+      // it safe for the destructor to call stop(): make_session() will no
+      // longer reach error_reporter()/shared_from_this().
+      stopping.store(true);
+
+      // Snapshot the transports under the lock, but stop them without it.
+      // Stopping blocks until the libuv loop has torn down every connection,
+      // and the loop thread itself needs interfaces_mutex (for example in
+      // get_or_create_udp_session(), send_udp_reply() or a drained task
+      // calling report_parsing_error()), so holding it across the stop would
+      // deadlock. The snapshots are shared_ptr, so the transports stay alive
+      // for the duration even if the maps change.
+      std::vector<std::shared_ptr<asynchost::OpenSSLSessionManager>> bridges;
+      std::vector<std::shared_ptr<asynchost::DatagramServer>> datagram_servers;
       {
-        if (li->bridge != nullptr)
+        std::lock_guard<std::mutex> guard(interfaces_mutex);
+        for (auto& [name, li] : interfaces)
         {
-          li->bridge->stop();
+          if (li->bridge != nullptr)
+          {
+            bridges.push_back(li->bridge);
+          }
+        }
+        for (auto& [name, interface] : udp_interfaces)
+        {
+          datagram_servers.push_back(interface->server);
         }
       }
-      for (auto& [name, interface] : udp_interfaces)
+
+      for (const auto& bridge : bridges)
       {
-        interface->server->stop();
+        bridge->stop();
+      }
+      for (const auto& server : datagram_servers)
+      {
+        server->stop();
       }
     }
 
@@ -484,19 +646,21 @@ namespace ccf
         }
       }
 
-      auto factory =
-        [this, li](
-          ::tcp::ConnID cid, ccf::SessionWriter& w, std::vector<uint8_t> pc) {
-          return make_session(li, cid, w, std::move(pc));
-        };
-      auto on_closed = [this, li](::tcp::ConnID) {
-        decrement_active_sessions();
-        decrement_interface_sessions(li);
+      auto on_accept = [this, li](::tcp::ConnID cid) {
+        return admit_connection(li, cid);
       };
+      auto factory = [this, li](
+                       ::tcp::ConnID cid,
+                       ccf::SessionWriter& w,
+                       std::vector<uint8_t> pc,
+                       bool soft_limited) {
+        return make_session(li, cid, w, std::move(pc), soft_limited);
+      };
+      auto on_closed = [this, li](::tcp::ConnID) { release_connection(li); };
 
       const auto port_num =
         port.empty() ? 0 : static_cast<uint16_t>(std::stoi(port));
-      li->bridge = std::make_unique<asynchost::OpenSSLSessionManager>(
+      li->bridge = std::make_shared<asynchost::OpenSSLSessionManager>(
         cert_pem,
         key_pem,
         host,
@@ -507,13 +671,14 @@ namespace ccf
         false,
         &shared_conn_id,
         on_closed,
-        idle_connection_timeout);
+        idle_connection_timeout,
+        on_accept);
       li->bridge->start();
       return li->bridge->port();
     }
 
     // Bind and start a UDP listener for `name` (interfaces with protocol
-    // "udp"). Incoming datagrams are routed to a per-peer session.
+    // "udp").
     //
     // === QUIC EXTENSION POINT ===
     // A real QUIC interface would, instead of echoing, hand each datagram to an
@@ -542,7 +707,7 @@ namespace ccf
         });
       auto* writer = udp->writer.get();
 
-      udp->server = std::make_unique<asynchost::DatagramServer>(
+      udp->server = std::make_shared<asynchost::DatagramServer>(
         host,
         port.empty() ? 0 : static_cast<uint16_t>(std::stoi(port)),
         [this, li, udp_ptr, writer](
@@ -550,14 +715,32 @@ namespace ccf
           size_t len,
           const sockaddr_storage& peer,
           socklen_t peerlen) {
+          if (li->app_protocol == "QUIC")
+          {
+            // Placeholder behaviour until OpenSSL-native QUIC: echo the
+            // datagram straight back.
+            //
+            // Deliberately stateless. UDP has no connection to close, and
+            // source addresses are trivially spoofable, so retaining anything
+            // per peer here would let an attacker grow the session map and
+            // consume the interface's session capacity permanently with a
+            // handful of forged packets. The echo needs no state, so it keeps
+            // none.
+            if (!udp_ptr->server->send_to(peer, peerlen, data, len))
+            {
+              LOG_DEBUG_FMT(
+                "Failed to echo UDP datagram on interface {}", li->name);
+            }
+            return;
+          }
+
           auto session =
             get_or_create_udp_session(li, udp_ptr, *writer, peer, peerlen);
           if (session == nullptr)
           {
             return;
           }
-          session->handle_incoming_data(
-            {data, len}, *reinterpret_cast<const sockaddr*>(&peer));
+          session->handle_incoming_data({data, len}, peer);
         });
       udp->server->start();
       const uint16_t bound = udp->server->port();
@@ -572,19 +755,19 @@ namespace ccf
       bool terminate_after_reply,
       std::vector<uint8_t>&& data) override
     {
-      std::vector<asynchost::OpenSSLSessionManager*> bridges;
+      std::vector<std::shared_ptr<asynchost::OpenSSLSessionManager>> bridges;
       {
         std::lock_guard<std::mutex> guard(interfaces_mutex);
         for (auto& [name, li] : interfaces)
         {
           if (li->bridge != nullptr)
           {
-            bridges.push_back(li->bridge.get());
+            bridges.push_back(li->bridge);
           }
         }
       }
 
-      for (auto* bridge : bridges)
+      for (const auto& bridge : bridges)
       {
         auto session = bridge->get_session(id);
         if (session != nullptr)
@@ -712,12 +895,14 @@ namespace ccf
     void set_custom_protocol_subsystem(
       std::shared_ptr<CustomProtocolSubsystem> cpss) override
     {
+      std::lock_guard<std::mutex> guard(subsystems_mutex);
       custom_protocol_subsystem = std::move(cpss);
     }
 
     void set_commit_callbacks_subsystem(
       std::shared_ptr<CommitCallbackSubsystem> fcss) override
     {
+      std::lock_guard<std::mutex> guard(subsystems_mutex);
       commit_callbacks_subsystem = std::move(fcss);
     }
 

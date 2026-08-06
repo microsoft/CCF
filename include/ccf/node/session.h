@@ -15,9 +15,10 @@ namespace ccf
 
     // Inbound bytes for this session. `addr` is the source address of the
     // datagram for connectionless (UDP) transports, and is unused (default) for
-    // stream (TCP) transports.
+    // stream (TCP) transports. sockaddr_storage rather than sockaddr, because
+    // sockaddr is too small to hold an IPv6 address.
     virtual void handle_incoming_data(
-      std::span<const uint8_t> data, sockaddr addr = {}) = 0;
+      std::span<const uint8_t> data, sockaddr_storage addr = {}) = 0;
     virtual void send_data(std::vector<uint8_t>&& data) = 0;
     virtual void close_session() = 0;
   };

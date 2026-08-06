@@ -25,8 +25,9 @@ namespace ccf
 
     // Queue bytes to be written to the socket associated with `id`. For
     // datagram protocols, `addr` identifies the destination peer; it is ignored
-    // for stream (TCP) connections. The bytes are copied, so the caller's
-    // buffer can be reused immediately.
+    // for stream (TCP) connections. sockaddr_storage rather than sockaddr,
+    // because sockaddr is too small to hold an IPv6 address. The bytes are
+    // copied, so the caller's buffer can be reused immediately.
     //
     // Fire-and-forget: there is currently no backpressure signal.
     //
@@ -35,7 +36,9 @@ namespace ccf
     // (tracking per-connection queued bytes) and return a writable/would-block
     // status here.
     virtual void write_outbound(
-      ::tcp::ConnID id, std::span<const uint8_t> data, sockaddr addr = {}) = 0;
+      ::tcp::ConnID id,
+      std::span<const uint8_t> data,
+      sockaddr_storage addr = {}) = 0;
 
     // Tear down the connection: stop the underlying socket and drop the
     // session.

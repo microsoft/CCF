@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [7.0.12]
+
+[7.0.12]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.12
+
+### Changed
+
+- TLS is now terminated by OpenSSL directly on the socket, rather than being relayed over the ringbuffer and decrypted through a memory BIO. The session interfaces in `include/ccf/node/session.h` and `include/ccf/node/rpc/custom_protocol_subsystem_interface.h` have changed shape accordingly, and custom protocols are no longer supported on UDP interfaces (#8117).
+
 ## [7.0.11]
 
 [7.0.11]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.11
