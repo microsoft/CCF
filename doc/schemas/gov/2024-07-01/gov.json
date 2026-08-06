@@ -2283,7 +2283,7 @@
           "type": "object",
           "description": "Collection of minimum TCB versions. Keyed by corresponding CPUID.",
           "additionalProperties": {
-            "$ref": "#/definitions/ServiceState.MinimumTcbVersion"
+            "$ref": "#/definitions/ServiceState.TcbVersion"
           }
         }
       },
@@ -2347,13 +2347,6 @@
           "type": "integer",
           "description": ""
         }
-      }
-    },
-    "ServiceState.MinimumTcbVersion": {
-      "type": "object",
-      "description": "Collection of minimum TCB versions. Keyed by corresponding CPUID.",
-      "additionalProperties": {
-        "$ref": "#/definitions/ServiceState.TcbVersion"
       }
     },
     "ServiceState.caCertBundle": {
