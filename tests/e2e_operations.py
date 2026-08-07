@@ -826,27 +826,30 @@ def test_nulled_snapshot(network, args):
             LOG.debug(f"Created empty snapshot {temp_empty_snapshot.name}")
             temp_empty_snapshot.write(b"\x00" * 64)
 
-        LOG.info(
-            "Attempt to join a node using the corrupted snapshot copy (should fail)"
-        )
+        LOG.info("Attempt to join a node using the corrupted snapshot copy")
         new_node = network.create_node()
-        failed = False
-        try:
-            network.join_node(
-                new_node,
-                args.package,
-                args,
-                snapshots_dir=snapshots_dir,
-                # Don't try to fetch a snapshot, look at the local files
-                fetch_recent_snapshot=False,
-                from_snapshot=True,
-            )
-        except Exception as e:
-            failed = True
-            LOG.info(f"Node failed to join as expected: {e}")
+        network.join_node(
+            new_node,
+            args.package,
+            args,
+            snapshots_dir=snapshots_dir,
+            # Don't try to fetch a snapshot, look at the local files
+            fetch_recent_snapshot=False,
+            from_snapshot=True,
+        )
+        new_node.stop()
 
-        # (Existing assertion logic retained)
-        assert failed, "Node should not have joined successfully"
+        assert new_node.check_log_for_error_message(
+            "Ignoring corrupt snapshot"
+        ), "Expected corrupt snapshot to be ignored in node logs"
+
+        node_snapshots_dir = os.path.join(
+            new_node.remote.remote.root,
+            new_node.remote.snapshots_dir_name,
+        )
+        assert os.path.exists(
+            os.path.join(node_snapshots_dir, f"{snapshot_name}.ignored")
+        )
 
 
 def test_corrupt_snapshot_handling(network, args):
