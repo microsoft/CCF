@@ -116,11 +116,13 @@ namespace ccf::pal::snp::ioctl6
     uint32_t status = 0;
     uint32_t report_size = 0;
     uint8_t reserved[0x20 - 0x8] = {0};
-    Attestation report;
+    std::array<uint8_t, attestation_report_size> report = {};
     uint8_t padding[64] = {0};
     // padding to the size of SEV_SNP_REPORT_RSP_BUF_SZ (i.e., 1280 bytes)
   };
 #pragma pack(pop)
+  static_assert(offsetof(AttestationResp, report) == 0x20);
+  static_assert(sizeof(AttestationResp) == 1280);
 
   // Table 20 of the SEVSNP ABI
   constexpr uint8_t GUEST_FIELD_SELECT_GUEST_POLICY = 0b00000001;
@@ -260,15 +262,16 @@ namespace ccf::pal::snp::ioctl6
       }
     }
 
-    [[nodiscard]] const snp::Attestation& get() const override
-    {
-      return padded_resp.report;
-    }
-
     std::vector<uint8_t> get_raw() override
     {
-      auto* quote_bytes = reinterpret_cast<uint8_t*>(&padded_resp.report);
-      return {quote_bytes, quote_bytes + padded_resp.report_size};
+      if (padded_resp.report_size != attestation_report_size)
+      {
+        throw std::logic_error(fmt::format(
+          "Unexpected SEV-SNP attestation report size: {} != {}",
+          padded_resp.report_size,
+          attestation_report_size));
+      }
+      return {padded_resp.report.begin(), padded_resp.report.end()};
     }
   };
 

@@ -869,7 +869,7 @@ namespace ccf
         AttestationProvider::get_snp_attestation(quote_info);
       if (snp_attestation.has_value())
       {
-        snp_tcb_version = snp_attestation.value().reported_tcb;
+        snp_tcb_version = snp_attestation.value().reported_tcb();
       }
 
       // Verify that the security policy matches the quoted digest of the policy
@@ -1017,19 +1017,13 @@ namespace ccf
 
               // Check that tcbm in endorsement matches reported TCB in our
               // retrieved attestation
-              const auto* quote =
-                reinterpret_cast<const ccf::pal::snp::Attestation*>(
-                  quote_info.quote.data());
-              const auto reported_tcb = quote->reported_tcb;
+              const auto report =
+                ccf::pal::snp::parse_attestation_report_unverified(
+                  quote_info.quote);
+              const auto reported_tcb = report.reported_tcb();
 
-              // tcbm is a single hex value, like DB18000000000004. To match
-              // that with a TcbVersion, reverse the bytes.
-              const auto* tcb_begin =
-                reinterpret_cast<const uint8_t*>(&reported_tcb);
-              const std::span<const uint8_t> tcb_bytes{
-                tcb_begin, tcb_begin + sizeof(reported_tcb)};
-              auto tcb_as_hex = fmt::format(
-                "{:02x}", fmt::join(tcb_bytes.rbegin(), tcb_bytes.rend(), ""));
+              // tcbm is a single hex value, like DB18000000000004.
+              auto tcb_as_hex = reported_tcb.to_hex();
               ccf::nonstd::to_upper(tcb_as_hex);
 
               if (tcb_as_hex == aci_endorsements.tcbm)
