@@ -45,6 +45,7 @@
 #include "node/node_inbound_message.h"
 #include "node/node_to_node_channel_manager.h"
 #include "node/recovery_decision_protocol.h"
+#include "node/recovery_snapshot_ledger.h"
 #include "node/signature_cache_subsystem.h"
 #include "node/snapshotter.h"
 #include "node_to_node.h"
@@ -501,6 +502,89 @@ namespace ccf
 #endif
     }
 
+    void verify_recovery_snapshot_candidate_unsafe(
+      const SnapshotSegments& segments, ccf::kv::Version snapshot_seqno)
+    {
+      if (!config.recover.previous_service_identity.has_value())
+      {
+        throw std::logic_error("No previous service identity is configured");
+      }
+
+      const ccf::crypto::Pem target_identity(
+        *config.recover.previous_service_identity);
+      verify_snapshot_seqno(
+        segments, network.tables->get_encryptor(), snapshot_seqno);
+
+      if (segments.receipt.empty() || segments.receipt[0] != 0xD2)
+      {
+        try
+        {
+          verify_snapshot(segments, target_identity.raw());
+          LOG_INFO_FMT(
+            "Recovery snapshot at {} is directly signed by the configured "
+            "previous service identity",
+            snapshot_seqno);
+          return;
+        }
+        catch (const std::exception& e)
+        {
+          throw std::logic_error(fmt::format(
+            "old-style snapshot receipt cannot use an endorsement chain: {}",
+            e.what()));
+        }
+      }
+
+      const auto receipt = decode_and_verify_cose_snapshot_receipt(segments);
+
+      std::string direct_verification_error;
+      try
+      {
+        const auto verifier =
+          ccf::crypto::make_cose_verifier_from_pem_cert(target_identity);
+        if (verifier->verify_detached(segments.receipt, receipt.merkle_root))
+        {
+          LOG_INFO_FMT(
+            "Recovery snapshot at {} is directly signed by the configured "
+            "previous service identity",
+            snapshot_seqno);
+          return;
+        }
+        direct_verification_error =
+          "Previous service identity does not match the service identity that "
+          "signed the snapshot";
+      }
+      catch (const std::exception& e)
+      {
+        direct_verification_error = e.what();
+      }
+
+      LOG_INFO_FMT(
+        "Recovery snapshot at {} is not directly signed by the configured "
+        "previous service identity ({}); scanning the public ledger suffix "
+        "for COSE endorsements",
+        snapshot_seqno,
+        direct_verification_error);
+
+      const auto scan = scan_recovery_snapshot_ledger_files(
+        config.ledger, network.tables->get_encryptor(), snapshot_seqno);
+      const auto target_key = ccf::crypto::public_key_der_from_cert(
+        ccf::crypto::cert_pem_to_der(target_identity));
+      const auto snapshot_signer_key =
+        validate_recovery_snapshot_endorsement_chain(
+          scan.endorsements, target_key, snapshot_seqno);
+      const auto verifier =
+        ccf::crypto::make_cose_verifier_from_key(snapshot_signer_key);
+      if (!verifier->verify_detached(segments.receipt, receipt.merkle_root))
+      {
+        throw std::logic_error(
+          "Snapshot receipt signature verification failed under the "
+          "endorsed snapshot service identity");
+      }
+      LOG_INFO_FMT(
+        "Validated {} recovery snapshot endorsement(s) in memory",
+        scan.endorsements.size());
+    }
+
     void find_local_startup_snapshot()
     {
       if (start_type != StartType::Join && start_type != StartType::Recover)
@@ -527,10 +611,31 @@ namespace ccf
           snapshot_path,
           snapshot_data.size());
 
-        const auto segments = separate_segments(snapshot_data);
+        if (start_type == StartType::Recover)
+        {
+          try
+          {
+            const auto segments = separate_segments(snapshot_data);
+            verify_recovery_snapshot_candidate_unsafe(segments, snapshot_seqno);
+          }
+          catch (const std::exception& e)
+          {
+            LOG_FAIL_FMT(
+              "Recovery snapshot {} cannot be verified: {}. Looking for an "
+              "older snapshot.",
+              snapshot_path.string(),
+              e.what());
+            continue;
+          }
+
+          startup_snapshot_info = std::make_unique<StartupSnapshotInfo>(
+            snapshot_seqno, std::move(snapshot_data));
+          return;
+        }
 
         try
         {
+          const auto segments = separate_segments(snapshot_data);
           verify_snapshot(segments, config.recover.previous_service_identity);
         }
         catch (const std::exception& e)
@@ -573,7 +678,7 @@ namespace ccf
         return;
       }
 
-      LOG_INFO_FMT("No local snapshot found");
+      LOG_INFO_FMT("No usable local snapshot found");
     }
 
     void set_startup_snapshot(
@@ -588,7 +693,18 @@ namespace ccf
       startup_snapshot_info = std::make_unique<StartupSnapshotInfo>(
         snapshot_seqno, std::move(snapshot_data));
 
-      LOG_INFO_FMT("Setting startup snapshot seqno to {}", snapshot_seqno);
+      install_startup_snapshot();
+    }
+
+    void install_startup_snapshot()
+    {
+      if (!startup_snapshot_info)
+      {
+        throw std::logic_error("No startup snapshot selected for installation");
+      }
+
+      LOG_INFO_FMT(
+        "Setting startup snapshot seqno to {}", startup_snapshot_info->seqno);
 
       startup_seqno = startup_snapshot_info->seqno;
       last_recovered_idx = startup_seqno;
@@ -633,6 +749,18 @@ namespace ccf
           throw;
         }
       }
+    }
+
+    void start_public_ledger_recovery_unsafe()
+    {
+      sm.advance(NodeStartupState::readingPublicLedger);
+      start_ledger_recovery_unsafe();
+    }
+
+    void install_recovery_snapshot_and_start_unsafe()
+    {
+      install_startup_snapshot();
+      start_public_ledger_recovery_unsafe();
     }
 
     RecoveryDecisionProtocolSubsystem recovery_decision_protocol;
@@ -836,8 +964,14 @@ namespace ccf
 
           find_local_startup_snapshot();
 
-          sm.advance(NodeStartupState::readingPublicLedger);
-          start_ledger_recovery_unsafe();
+          if (startup_snapshot_info)
+          {
+            install_recovery_snapshot_and_start_unsafe();
+          }
+          else
+          {
+            start_public_ledger_recovery_unsafe();
+          }
           return;
         }
         default:

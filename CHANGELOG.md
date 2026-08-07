@@ -5,9 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [7.0.12]
+
+[7.0.12]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.12
+
+### Fixed
+
+- Joining or recovering nodes now ignore structurally invalid local snapshots and try an older snapshot instead of terminating during startup (#8124).
+
+### Dependencies
+
+- The Python `ccf` package now supports `cryptography` 50 and requires `cwt` 3.3.0 or later (#8118).
+
 ## [7.0.11]
 
 [7.0.11]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.11
+
+### Added
+
+- Recovery can now use a COSE snapshot signed by an earlier service identity after one or more disaster recoveries. Before deserialising the snapshot, the node reads previous-service-identity endorsement candidates from the public ledger suffix, validates a complete chain against the operator-provided identity, and retains it only for the current recovery attempt. Invalid or incomplete endorsement chains fall back to full-ledger replay. See [Upgrading to COSE-Only Ledger Signatures](https://ccf.dev/main/operations/configuration.html#upgrading-to-cose-only-ledger-signatures) for how to switch an existing deployment to COSE-only signing (#8092).
 
 ### Fixed
 
