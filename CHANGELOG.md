@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [7.0.12]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.12
 
+### Added
+
+- C++ endpoints can now use `ccf::endpoints::Endpoint::add_openapi_response<Out>()` to document additional HTTP responses in their generated OpenAPI schema without changing the endpoint's primary success response (#8115).
+
 ### Fixed
 
 - Joining or recovering nodes now ignore structurally invalid local snapshots and try an older snapshot instead of terminating during startup (#8124).
