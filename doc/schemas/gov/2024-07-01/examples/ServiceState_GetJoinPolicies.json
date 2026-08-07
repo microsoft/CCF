@@ -18,7 +18,15 @@
           "measurements": [],
           "hostData": {},
           "uvmEndorsements": {},
-          "tcbVersions": {}
+          "tcbVersions": {
+            "00a00f11": {
+              "hexstring": "d315000000000004",
+              "boot_loader": 4,
+              "tee": 0,
+              "snp": 21,
+              "microcode": 211
+            }
+          }
         }
       }
     }
