@@ -74,7 +74,7 @@ def endpoint_properties(
         "redirection_strategy": redirection_strategy,
         "authn_policies": ["no_auth"],
         "mode": mode,
-        "openapi": {},
+        "openapi": {"responses": {"200": {"description": "Test content"}}},
     }
 
 
