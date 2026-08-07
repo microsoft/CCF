@@ -786,6 +786,13 @@ if(BUILD_TESTS)
     )
     target_link_libraries(encryptor_test PRIVATE ccfcrypto ccf_kv)
 
+    add_unit_test(
+      ledger_secrets_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/ledger_secrets.cpp
+      DETECT_DEADLOCKS
+    )
+    target_link_libraries(ledger_secrets_test PRIVATE ccf_kv)
+
     add_unit_test(js_test ${CMAKE_CURRENT_SOURCE_DIR}/src/js/test/js.cpp)
     target_link_libraries(
       js_test
@@ -1117,6 +1124,12 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/identity_recovery_snapshot.py
     BUCKET bucket_b
     ADDITIONAL_ARGS --regex ^recovery_intermediate_snapshot_join$
+  )
+
+  add_e2e_test(
+    NAME recovery_snapshot_endorsements_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery_snapshot_endorsements.py
+    BUCKET bucket_b
   )
 
   add_e2e_test(
