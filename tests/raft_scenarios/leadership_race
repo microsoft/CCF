@@ -1,0 +1,32 @@
+# Exercise operations which race with a leader losing its quorum. A client write
+# and leadership-transfer request are ignored while no primary exists, and the
+# surviving quorum elects a replacement before the network heals.
+start_node,0
+emit_signature,2
+trust_nodes,2,1,2
+emit_signature,2
+dispatch_all
+periodic_all,10
+dispatch_all
+periodic_all,10
+dispatch_all
+assert_state_sync
+
+drop_pending,0
+disconnect_node,0
+periodic_one,0,100
+assert_detail,0,leadership_state,Follower
+replicate,latest,write while leaderless
+nominate_successor,0
+state_one,0
+
+periodic_one,2,100
+assert_detail,2,leadership_state,PreVoteCandidate
+dispatch_single,2,1
+dispatch_single,1,2
+assert_detail,2,leadership_state,Candidate
+dispatch_single,2,1
+dispatch_single,1,2
+assert_detail,2,leadership_state,Leader
+
+loop_until_sync
