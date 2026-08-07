@@ -2378,14 +2378,7 @@ namespace aft
       }
       else if (phase == ccf::kv::RetirementPhase::RetiredCommitted)
       {
-        if (state->leadership_state == ccf::kv::LeadershipState::Leader)
-        {
-          const auto successor = find_successor();
-          if (successor.has_value())
-          {
-            send_propose_request_vote(successor.value());
-          }
-        }
+        nominate_successor();
 
         leader_id.reset();
         state->leadership_state = ccf::kv::LeadershipState::None;
@@ -2785,17 +2778,18 @@ namespace aft
       LOG_INFO_FMT("Nominating successor for {}", state->node_id);
 
       const auto successor = find_successor();
-      if (successor.has_value())
-      {
+
 #ifdef CCF_RAFT_TRACING
-        nlohmann::json j = {};
-        j["function"] = "step_down_and_nominate_successor";
-        j["state"] = *state;
-        COMMITTABLE_INDICES(j["state"], state);
-        j["configurations"] = configurations;
-        RAFT_TRACE_JSON_OUT(j);
+      nlohmann::json j = {};
+      j["function"] = "step_down_and_nominate_successor";
+      j["state"] = *state;
+      COMMITTABLE_INDICES(j["state"], state);
+      j["configurations"] = configurations;
+      RAFT_TRACE_JSON_OUT(j);
 #endif
 
+      if (successor.has_value())
+      {
         send_propose_request_vote(successor.value());
       }
     }
