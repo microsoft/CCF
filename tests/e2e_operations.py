@@ -847,9 +847,10 @@ def test_nulled_snapshot(network, args):
             new_node.remote.remote.root,
             new_node.remote.snapshots_dir_name,
         )
-        assert os.path.exists(
-            os.path.join(node_snapshots_dir, f"{snapshot_name}.ignored")
+        ignored_snapshot_path = os.path.join(
+            node_snapshots_dir, f"{snapshot_name}.ignored"
         )
+        assert os.path.exists(ignored_snapshot_path), ignored_snapshot_path
 
 
 def test_corrupt_snapshot_handling(network, args):
