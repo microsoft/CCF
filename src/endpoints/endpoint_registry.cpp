@@ -64,7 +64,7 @@ namespace ccf::endpoints
       // defined, assume this can return 200
       if (ds::openapi::responses(path_op).empty())
       {
-        ds::openapi::response(path_op, endpoint->success_status);
+        ds::openapi::response(path_op, HTTP_STATUS_OK);
       }
 
       // Add a default error response

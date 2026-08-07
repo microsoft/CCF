@@ -42,6 +42,14 @@ LOCAL_CHECKOUT_DIRECTORY = "."
 DEFAULT_NODE_CERTIFICATE_VALIDITY_DAYS = 365
 
 
+def disable_openapi_validation(network):
+    def skip_openapi_validation(_node):
+        pass
+
+    network._start_openapi_validation = skip_openapi_validation
+    return network
+
+
 def update_gov_authn(version):
     rv = None
     if not infra.node.CCFVersion(version) > infra.node.CCFVersion("ccf-3.0.0"):
@@ -317,6 +325,7 @@ def run_code_upgrade_from(
             version=from_version,
             skip_verify_chunking=fv_skip_verify_chunking or tv_skip_verify_chunking,
         ) as network:
+            disable_openapi_validation(network)
             kwargs = {}
             if not infra.node.CCFVersion(from_version) > infra.node.CCFVersion(
                 "ccf-4.0.0-rc1"
@@ -688,7 +697,9 @@ def run_ledger_compatibility_since_first(
                             dirs_exist_ok=True,
                         )
 
-                    network = infra.network.Network(**network_args)
+                    network = disable_openapi_validation(
+                        infra.network.Network(**network_args)
+                    )
 
                     args.previous_service_identity_file = os.path.join(
                         service_dir, "common", "service_cert.pem"
@@ -710,8 +721,8 @@ def run_ledger_compatibility_since_first(
                     jwt_issuer.register(network)
                 else:
                     LOG.info(f"Recovering service (new version: {version})")
-                    network = infra.network.Network(
-                        **network_args, existing_network=network
+                    network = disable_openapi_validation(
+                        infra.network.Network(**network_args, existing_network=network)
                     )
 
                     network.start_in_recovery(
