@@ -1089,8 +1089,8 @@ namespace ccf
     void set_consensus_and_history(
       ccf::kv::Consensus* consensus_, ccf::kv::TxHistory* history_) override
     {
-      endpoints.set_consensus(consensus_);
       endpoints.set_history(history_);
+      endpoints.set_consensus(consensus_);
       history.store(history_, std::memory_order_release);
       consensus.store(consensus_, std::memory_order_release);
     }

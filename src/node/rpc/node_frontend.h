@@ -534,9 +534,11 @@ namespace ccf
         }
 
         // Not the primary => Redirect if possible to primary
-        if (consensus != nullptr && !this->node_operation.can_replicate())
+        auto* current_consensus = get_consensus();
+        if (
+          current_consensus != nullptr && !this->node_operation.can_replicate())
         {
-          auto primary_id = consensus->primary();
+          auto primary_id = current_consensus->primary();
           if (primary_id.has_value())
           {
             const auto address = node::get_redirect_address_for_node(
@@ -892,10 +894,11 @@ namespace ccf
           out.service_data = service_value.service_data;
           out.current_service_create_txid =
             service_value.current_service_create_txid;
-          if (consensus != nullptr)
+          auto* current_consensus = get_consensus();
+          if (current_consensus != nullptr)
           {
-            out.current_view = consensus->get_view();
-            auto primary_id = consensus->primary();
+            out.current_view = current_consensus->get_view();
+            auto primary_id = current_consensus->primary();
             if (primary_id.has_value())
             {
               out.primary_id = primary_id.value();
@@ -975,7 +978,8 @@ namespace ccf
         GetNodes::Out out;
 
         auto nodes = args.tx.ro(this->network.nodes);
-        nodes->foreach([this, host, port, status, &out, nodes](
+        auto* current_consensus = get_consensus();
+        nodes->foreach([host, port, status, &out, nodes, current_consensus](
                          const NodeId& nid, const NodeInfo& ni) {
           if (status.has_value() && status.value() != ni.status)
           {
@@ -1004,9 +1008,9 @@ namespace ccf
           }
 
           bool is_primary = false;
-          if (consensus != nullptr)
+          if (current_consensus != nullptr)
           {
-            is_primary = consensus->primary() == nid;
+            is_primary = current_consensus->primary() == nid;
           }
 
           out.nodes.push_back(
@@ -1197,9 +1201,10 @@ namespace ccf
         }
 
         bool is_primary = false;
-        if (consensus != nullptr)
+        auto* current_consensus = get_consensus();
+        if (current_consensus != nullptr)
         {
-          auto primary = consensus->primary();
+          auto primary = current_consensus->primary();
           if (primary.has_value() && primary.value() == node_id)
           {
             is_primary = true;
@@ -1228,9 +1233,10 @@ namespace ccf
         auto info = nodes->get(node_id);
 
         bool is_primary = false;
-        if (consensus != nullptr)
+        auto* current_consensus = get_consensus();
+        if (current_consensus != nullptr)
         {
-          auto primary = consensus->primary();
+          auto primary = current_consensus->primary();
           if (primary.has_value() && primary.value() == node_id)
           {
             is_primary = true;
@@ -1281,9 +1287,10 @@ namespace ccf
         .install();
 
       auto get_primary_node = [this](auto& args, nlohmann::json&&) {
-        if (consensus != nullptr)
+        auto* current_consensus = get_consensus();
+        if (current_consensus != nullptr)
         {
-          auto primary_id = consensus->primary();
+          auto primary_id = current_consensus->primary();
           if (!primary_id.has_value())
           {
             return make_error(
@@ -1333,7 +1340,8 @@ namespace ccf
         }
         else
         {
-          if (consensus == nullptr)
+          auto* current_consensus = get_consensus();
+          if (current_consensus == nullptr)
           {
             args.rpc_ctx->set_error(
               HTTP_STATUS_INTERNAL_SERVER_ERROR,
@@ -1342,7 +1350,7 @@ namespace ccf
             return;
           }
 
-          auto primary_id = consensus->primary();
+          auto primary_id = current_consensus->primary();
           if (!primary_id.has_value())
           {
             args.rpc_ctx->set_error(
@@ -1405,9 +1413,10 @@ namespace ccf
 
       auto consensus_config = [this](auto& /*args*/, nlohmann::json&&) {
         // Query node for configurations, separate current from pending
-        if (consensus != nullptr)
+        auto* current_consensus = get_consensus();
+        if (current_consensus != nullptr)
         {
-          auto cfg = consensus->get_latest_configuration();
+          auto cfg = current_consensus->get_latest_configuration();
           ConsensusConfig cc;
           for (auto& [nid, ninfo] : cfg)
           {
@@ -1435,9 +1444,11 @@ namespace ccf
         .install();
 
       auto consensus_state = [this](auto& /*args*/, nlohmann::json&&) {
-        if (consensus != nullptr)
+        auto* current_consensus = get_consensus();
+        if (current_consensus != nullptr)
         {
-          return make_success(ConsensusConfigDetails{consensus->get_details()});
+          return make_success(
+            ConsensusConfigDetails{current_consensus->get_details()});
         }
 
         return make_error(
@@ -1699,7 +1710,8 @@ namespace ccf
       auto refresh_jwt_keys = [this](auto& ctx, nlohmann::json&& body) {
         // All errors are server errors since the client is the server.
 
-        auto primary_id = consensus->primary();
+        auto* current_consensus = get_consensus();
+        auto primary_id = current_consensus->primary();
         if (!primary_id.has_value())
         {
           LOG_FAIL_FMT("JWT key auto-refresh: primary unknown");

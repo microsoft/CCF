@@ -544,7 +544,9 @@ TEST_CASE("Frontend state publication is thread-safe")
     }
   });
 
-  const auto request = create_simple_request("/empty_function_no_auth");
+  auto request = create_simple_request("/tx");
+  request.set_method(HTTP_GET);
+  request.set_query_param("transaction_id", "1.1");
   const auto serialised_request = request.build_request();
   auto session = std::make_shared<ccf::SessionContext>(
     ccf::InvalidSessionId, anonymous_caller_der);

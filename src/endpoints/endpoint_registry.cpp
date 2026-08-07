@@ -663,11 +663,11 @@ namespace ccf::endpoints
 
   void EndpointRegistry::set_consensus(ccf::kv::Consensus* c)
   {
-    consensus = c;
+    consensus.store(c, std::memory_order_release);
   }
 
   void EndpointRegistry::set_history(ccf::kv::TxHistory* h)
   {
-    history = h;
+    history.store(h, std::memory_order_release);
   }
 }
