@@ -69,7 +69,7 @@ Reading
 
 When ``libuv`` reports a connection readable, the loop hands the connection to its worker (see `Threading`_), which calls ``SSL_read`` repeatedly until it reports ``SSL_ERROR_WANT_READ``. Every chunk of decrypted bytes is passed to the ``OnData`` callback as it is produced, so a single readable event may yield several callbacks.
 
-A single pass is capped at a fixed number of bytes so that one busy connection cannot monopolise its worker. Reaching that cap does not end the read: OpenSSL may still be holding buffered records, in which case the file descriptor is *not* readable and waiting for a further ``uv_poll`` event would stall the connection. The worker therefore reports ``SSL_pending()`` back to the loop, which immediately schedules another pass instead of re-arming ``UV_READABLE``.
+A single pass is capped at a fixed number of bytes so that one busy connection cannot monopolise its worker. Reaching that cap does not end the read: OpenSSL may still be holding buffered records, in which case the file descriptor is *not* readable and waiting for a further ``uv_poll`` event would stall the connection. The worker therefore reports ``SSL_has_pending()`` back to the loop, which immediately schedules another pass instead of re-arming ``UV_READABLE``. ``SSL_has_pending()`` rather than ``SSL_pending()``, because it also covers bytes which have been read off the socket but not yet processed into plaintext.
 
 ``OpenSSLSessionManager`` receives those bytes, finds or creates the session for that connection, and calls ``handle_incoming_data``. The session dispatches the actual parsing to its own ``OrderedTasks``, so neither the loop thread nor the connection worker blocks on application work.
 
@@ -101,6 +101,8 @@ Closing
 Closing is deferred rather than immediate. A close requested while output is still buffered sets a flag and flushes; the file descriptor is only closed once the buffered bytes have been written.
 
 This matters because the common pattern is to write a response and immediately close. Closing eagerly truncates any response large enough to have been backpressured, which the client observes as a connection reset partway through the body rather than as a well-formed response.
+
+Server shutdown is the exception: there the close is forced rather than deferred. Each connection takes exactly one further worker pass, writing whatever the socket will accept, and then goes. Waiting for the flush would let a peer which has stopped reading hold the whole node's shutdown open indefinitely.
 
 Idle connections are closed separately. If an idle timeout is configured, a repeating ``uv_timer_t`` periodically sweeps connections whose last I/O is older than the timeout. This retains the once-per-second scheduling used by the previous RPC transport while comparing actual ``steady_clock`` timestamps rather than counting timer ticks.
 
@@ -154,4 +156,4 @@ QUIC is not yet implemented. Server-side QUIC requires OpenSSL 3.5 or later, whi
 
 :ccf_repo:`DatagramServer </src/host/datagram_server.h>` exists as the substrate for that work. It is deliberately shaped as the UDP socket a QUIC server operates on: socket creation, binding, ``uv_poll_t`` readiness and per-datagram dispatch are all reusable as-is. The points that change for QUIC are marked ``QUIC EXTENSION POINT`` inline, and consist of wrapping the socket with ``BIO_new_dgram``/``SSL_set_fd`` on a listener ``SSL``, adding the OpenSSL event timeout, and replacing the datagram callback with ``SSL_handle_events``.
 
-Until then, a UDP interface uses a built-in datagram echo session.
+Until then, an interface whose ``app_protocol`` is ``QUIC`` echoes each datagram straight back, statelessly. Other UDP interfaces are served by the custom protocol subsystem (:ccf_repo:`custom_protocol_subsystem_interface.h </include/ccf/research/custom_protocol_subsystem_interface.h>`) in the usual way, with one session per source address, swept on the same idle timeout as TCP connections.

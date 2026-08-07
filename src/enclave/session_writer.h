@@ -6,8 +6,6 @@
 #include "tcp/msg_types.h"
 
 #include <cstdint>
-#include <span>
-#include <sys/socket.h>
 #include <vector>
 
 namespace ccf
@@ -24,10 +22,9 @@ namespace ccf
   public:
     virtual ~SessionWriter() = default;
 
-    // Queue bytes to be written to the socket associated with `id`. For
-    // datagram protocols, `peer` identifies the destination; it is ignored for
-    // stream (TCP) connections. The bytes are copied, so the caller's buffer
-    // can be reused immediately.
+    // Queue bytes to be written to the socket associated with `id`. Ownership
+    // is transferred, so that a response which may be arbitrarily large is
+    // moved through to the transport rather than copied again.
     //
     // Fire-and-forget: there is currently no backpressure signal.
     //
@@ -36,9 +33,7 @@ namespace ccf
     // (tracking per-connection queued bytes) and return a writable/would-block
     // status here.
     virtual void write_outbound(
-      ::tcp::ConnID id,
-      std::span<const uint8_t> data,
-      const SessionEndpoint& peer = {}) = 0;
+      ::tcp::ConnID id, std::vector<uint8_t>&& data) = 0;
 
     // Tear down the connection: stop the underlying socket and drop the
     // session.

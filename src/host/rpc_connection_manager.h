@@ -34,6 +34,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <charconv>
 #include <chrono>
 #include <cstring>
 #include <functional>
@@ -43,6 +44,7 @@
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <system_error>
 #include <utility>
 #include <vector>
 
@@ -145,9 +147,7 @@ namespace ccf
       {}
 
       void write_outbound(
-        ::tcp::ConnID id,
-        std::span<const uint8_t> data,
-        const ccf::SessionEndpoint& /*peer*/ = {}) override
+        ::tcp::ConnID id, std::vector<uint8_t>&& data) override
       {
         write(id, data);
       }
@@ -243,6 +243,31 @@ namespace ccf
         std::min<size_t>(peerlen, sizeof(peer))};
     }
 
+    // Ports reach here from operator configuration, so a malformed or
+    // out-of-range value must be reported rather than narrowed to whatever it
+    // happens to alias ("70000" would otherwise bind port 4464). An empty port
+    // requests an ephemeral one.
+    static uint16_t parse_port(const std::string& name, const std::string& port)
+    {
+      if (port.empty())
+      {
+        return 0;
+      }
+
+      uint16_t parsed = 0;
+      const auto* const end = port.data() + port.size();
+      const auto [read_to, ec] = std::from_chars(port.data(), end, parsed);
+      if (ec != std::errc() || read_to != end)
+      {
+        throw std::logic_error(fmt::format(
+          "Invalid port '{}' for interface '{}' - expected a number in "
+          "[0, 65535]",
+          port,
+          name));
+      }
+      return parsed;
+    }
+
     void increment_active_sessions()
     {
       const size_t now_active = ++active_sessions;
@@ -255,11 +280,7 @@ namespace ccf
 
     void decrement_active_sessions()
     {
-      size_t expected = active_sessions.load();
-      while (expected > 0 &&
-             !active_sessions.compare_exchange_weak(expected, expected - 1))
-      {
-      }
+      active_sessions.fetch_sub(1);
     }
 
     void increment_interface_peak(ListenInterface* li, size_t now_open)
@@ -273,11 +294,7 @@ namespace ccf
 
     void decrement_interface_sessions(ListenInterface* li)
     {
-      size_t expected = li->open_sessions.load();
-      while (expected > 0 &&
-             !li->open_sessions.compare_exchange_weak(expected, expected - 1))
-      {
-      }
+      li->open_sessions.fetch_sub(1);
     }
 
     // Admission control, run by the transport for every accepted connection
@@ -597,7 +614,10 @@ namespace ccf
       {
         decrement_interface_sessions(li);
         decrement_active_sessions();
-        LOG_FAIL_FMT(
+        // Driven entirely by unauthenticated datagrams from a trivially
+        // spoofable source, so this must stay at a level which cannot be used
+        // to flood the log.
+        LOG_DEBUG_FMT(
           "Failed to create UDP session on interface {}: {}",
           li->name,
           e.what());
@@ -725,12 +745,12 @@ namespace ccf
       };
       auto on_closed = [this, li](::tcp::ConnID) { release_connection(li); };
 
-      const uint16_t port_num =
-        port.empty() ? 0 : static_cast<uint16_t>(std::stoi(port));
+      LOG_INFO_FMT(
+        "Registering RPC interface {}, on tcp {}:{}", name, host, port);
       li->bridge = std::make_shared<asynchost::OpenSSLSessionManager>(
         asynchost::OpenSSLServer::Config{
           .host = host,
-          .port = port_num,
+          .port = parse_port(name, port),
           .cert_pem = cert_pem,
           .key_pem = key_pem,
           .alpn = alpn,
@@ -742,7 +762,10 @@ namespace ccf
         on_closed,
         on_accept);
       li->bridge->start();
-      return li->bridge->port();
+      const uint16_t bound = li->bridge->port();
+      LOG_INFO_FMT(
+        "Registered RPC interface {}, on tcp {}:{}", name, host, bound);
+      return bound;
     }
 
     // Bind and start a UDP listener for `name` (interfaces with protocol
@@ -775,9 +798,11 @@ namespace ccf
         });
       auto* writer = udp->writer.get();
 
+      LOG_INFO_FMT(
+        "Registering RPC interface {}, on udp {}:{}", name, host, port);
       udp->server = std::make_shared<asynchost::DatagramServer>(
         host,
-        port.empty() ? 0 : static_cast<uint16_t>(std::stoi(port)),
+        parse_port(name, port),
         [this, li, udp_ptr, writer](
           const uint8_t* data,
           size_t len,
@@ -808,11 +833,13 @@ namespace ccf
           {
             return;
           }
-          session->handle_incoming_data({data, len}, {peer, peerlen});
+          session->handle_incoming_data(std::vector<uint8_t>(data, data + len));
         });
       udp->server->start();
       const uint16_t bound = udp->server->port();
       udp_interfaces.emplace(name, std::move(udp));
+      LOG_INFO_FMT(
+        "Registered RPC interface {}, on udp {}:{}", name, host, bound);
       return bound;
     }
 

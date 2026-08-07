@@ -615,6 +615,34 @@ namespace ccf
     auto curl_libuv_context =
       curl::CurlmLibuvContextSingleton(uv_default_loop());
 
+    // Validate and normalise the configured RPC addresses here, at the input
+    // boundary, so that everything downstream sees a well-formed "host:port"
+    // with a port in range. ccf::split_net_address, used to bind them, is
+    // deliberately lenient and does no validation of its own.
+    for (auto& [name, interface] : config.network.rpc_interfaces)
+    {
+      try
+      {
+        const auto [rpc_host, rpc_port] =
+          cli::validate_address(interface.bind_address);
+        interface.bind_address = ccf::make_net_address(rpc_host, rpc_port);
+
+        if (!interface.published_address.empty())
+        {
+          const auto [pub_host, pub_port] =
+            cli::validate_address(interface.published_address);
+          interface.published_address =
+            ccf::make_net_address(pub_host, pub_port);
+        }
+      }
+      catch (const std::exception& e)
+      {
+        LOG_FATAL_FMT(
+          "Invalid address for RPC interface {}: {}. Exiting.", name, e.what());
+        return static_cast<int>(CLI::ExitCodes::ValidationError);
+      }
+    }
+
     // Prepare startup configuration
     const size_t certificate_size = 4096;
     std::vector<uint8_t> node_cert(certificate_size);

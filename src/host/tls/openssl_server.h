@@ -267,6 +267,11 @@ namespace asynchost
       int pending_events = 0;
       bool worker_active = false;
       bool close_requested = false;
+      // Set once, when the server is being torn down. Unlike close_requested
+      // it is sticky, and it does not wait for buffered output to drain: a
+      // peer which has stopped reading must not be able to keep the connection
+      // (and so the shutdown) alive indefinitely.
+      bool force_close = false;
     };
 
     struct OutItem
@@ -281,6 +286,7 @@ namespace asynchost
       int events = 0;
       std::vector<OutItem> commands;
       bool close_requested = false;
+      bool force_close = false;
     };
 
     struct DriveResult
@@ -449,7 +455,8 @@ namespace asynchost
     }
 
     // Build a server SSL_CTX (min TLS 1.2, ALPN if configured) and load the
-    // cert/key. Returns nullptr on failure. Called on the loop thread.
+    // cert/key. Returns nullptr on failure, having logged which step failed and
+    // why. Called on the loop thread.
     //
     // This is the only place CCF's inbound TLS policy is defined. It is
     // asserted from the wire by src/host/test/openssl_server_test.cpp and, for
@@ -457,16 +464,24 @@ namespace asynchost
     std::shared_ptr<SSL_CTX> build_server_ctx(
       const std::string& cert_pem, const std::string& key_pem)
     {
-      SSL_CTX* c = SSL_CTX_new(TLS_server_method());
-      if (c == nullptr)
-      {
-        return {};
-      }
+      // So that anything reported below comes from this function rather than
+      // from unrelated work previously done on this thread.
+      ERR_clear_error();
+
+      const auto fail = [](const char* step) {
+        LOG_FAIL_FMT(
+          "Failed to build TLS context ({}): {}",
+          step,
+          ccf::crypto::OpenSSL::error_string(ERR_get_error()));
+        return std::shared_ptr<SSL_CTX>{};
+      };
+
+      ccf::crypto::OpenSSL::Unique_SSL_CTX c(TLS_server_method());
+
       // Require at least TLS 1.2, support up to 1.3
       if (SSL_CTX_set_min_proto_version(c, TLS1_2_VERSION) != 1)
       {
-        SSL_CTX_free(c);
-        return {};
+        return fail("SSL_CTX_set_min_proto_version");
       }
 
       // Disable renegotiation to avoid DoS
@@ -484,8 +499,7 @@ namespace asynchost
         "ECDHE-RSA-AES128-GCM-SHA256";
       if (SSL_CTX_set_cipher_list(c, cipher_list) != 1)
       {
-        SSL_CTX_free(c);
-        return {};
+        return fail("SSL_CTX_set_cipher_list");
       }
 
       // Set cipher for TLS 1.3
@@ -494,8 +508,7 @@ namespace asynchost
         "TLS_AES_128_GCM_SHA256";
       if (SSL_CTX_set_ciphersuites(c, ciphersuites) != 1)
       {
-        SSL_CTX_free(c);
-        return {};
+        return fail("SSL_CTX_set_ciphersuites");
       }
 
       // Prefer hybrid post-quantum groups when available, while retaining the
@@ -506,8 +519,7 @@ namespace asynchost
           "?SecP384r1MLKEM1024:?SecP256r1MLKEM768:?X25519MLKEM768:"
           "P-521:P-384:P-256") != 1)
       {
-        SSL_CTX_free(c);
-        return {};
+        return fail("SSL_CTX_set1_groups_list");
       }
 
       // Allow buffer to be relocated between WANT_WRITE retries, and do partial
@@ -528,10 +540,9 @@ namespace asynchost
       }
       if (!load_cert_key(c, cert_pem, key_pem))
       {
-        SSL_CTX_free(c);
-        return {};
+        return fail("loading certificate and key");
       }
-      return {c, SSL_CTX_free};
+      return {c.release(), SSL_CTX_free};
     }
 
     void update_interest(Conn& c) const
@@ -605,7 +616,7 @@ namespace asynchost
       {
         c.state = Conn::Ready;
         c.want_write = false;
-        X509* cert = SSL_get_peer_certificate(c.ssl);
+        X509* cert = SSL_get1_peer_certificate(c.ssl);
         if (cert != nullptr)
         {
           const int len = i2d_X509(cert, nullptr);
@@ -870,9 +881,14 @@ namespace asynchost
 
       if (conn->ssl == nullptr && conn->accepted_ctx != nullptr)
       {
+        ERR_clear_error();
         conn->ssl = SSL_new(conn->accepted_ctx.get());
         if (conn->ssl == nullptr || SSL_set_fd(conn->ssl, conn->fd) != 1)
         {
+          LOG_FAIL_FMT(
+            "Connection {}: failed to create SSL state: {}",
+            conn->id,
+            ccf::crypto::OpenSSL::error_string(ERR_get_error()));
           if (conn->ssl != nullptr)
           {
             SSL_free(conn->ssl);
@@ -931,6 +947,12 @@ namespace asynchost
       {
         alive = false;
       }
+      if (input.force_close)
+      {
+        // The server is going away. Whatever could be written above has been,
+        // but the connection is not held open waiting for more room.
+        alive = false;
+      }
       if (!alive && conn->ssl != nullptr)
       {
         ERR_clear_error();
@@ -961,6 +983,7 @@ namespace asynchost
       conn->pending_events &= ~input.events;
       input.commands.swap(conn->pending_commands);
       input.close_requested = std::exchange(conn->close_requested, false);
+      input.force_close = conn->force_close;
       // The worker keeps the server alive for the whole pass. complete_drive()
       // posts its result and only then touches lifecycle_mutex and
       // wake_handle; without this the loop could consume that result, finish
@@ -1200,10 +1223,10 @@ namespace asynchost
         // process, it must leave the previous context in place.
         try
         {
+          // build_server_ctx() reports why it failed.
           auto nc = build_server_ctx(cert_pem, key_pem);
           if (nc == nullptr)
           {
-            LOG_FAIL_FMT("set_server_cert: failed to build TLS context");
             continue;
           }
           ctx = std::move(nc);
@@ -1267,8 +1290,8 @@ namespace asynchost
           continue;
         }
         if (
-          conn->close_requested || !conn->pending_commands.empty() ||
-          actionable_events(*conn) != 0)
+          conn->force_close || conn->close_requested ||
+          !conn->pending_commands.empty() || actionable_events(*conn) != 0)
         {
           dispatch_connection(conn);
         }
@@ -1351,12 +1374,16 @@ namespace asynchost
 
     // Begin, or resume, shutdown on the loop thread.
     //
-    // The listener closes immediately and every live connection is asked to
-    // close, but the server's own handles can only go once those connections
-    // have actually gone: a connection whose worker is still running is still
-    // reading and writing its socket, so neither its fd nor its poll handle
-    // may be touched here. drain_pending_out() calls back in as each worker
-    // completes, and the last call finishes the job.
+    // The listener closes immediately and every live connection is marked for
+    // forced close, but the server's own handles can only go once those
+    // connections have actually gone: a connection whose worker is still
+    // running is still reading and writing its socket, so neither its fd nor
+    // its poll handle may be touched here. drain_pending_out() calls back in
+    // as each worker completes, and the last call finishes the job.
+    //
+    // The close is forced rather than deferred until buffered output has
+    // flushed, so that each connection takes exactly one further worker pass
+    // and shutdown cannot be held up by a peer which has stopped reading.
     //
     // Nothing here waits for the uv close callbacks. Each handle owns itself
     // (see new_handle()), so once torn_down is set nothing refers to them any
@@ -1386,7 +1413,15 @@ namespace asynchost
 
       for (auto& [fd, conn] : conns)
       {
-        conn->close_requested = true;
+        // force_close is sticky, so a connection already on its way out is not
+        // dispatched again. Without that, a connection whose output cannot
+        // drain would be re-dispatched on every completion, spinning the loop
+        // thread and a worker for as long as its peer declined to read.
+        if (conn->force_close)
+        {
+          continue;
+        }
+        conn->force_close = true;
         dispatch_connection(conn);
       }
       if (!conns.empty())
@@ -1732,14 +1767,22 @@ namespace asynchost
     }
 
     // Thread-safe. Queue plaintext to be encrypted and written to `conn_id`.
-    void send(::tcp::ConnID conn_id, const uint8_t* data, size_t len)
+    // The buffer is taken rather than copied, so a response of any size crosses
+    // this boundary without another allocation.
+    void send(::tcp::ConnID conn_id, std::vector<uint8_t>&& data)
     {
       {
         std::lock_guard<std::mutex> g(out_mutex);
-        pending_out.push_back(
-          {conn_id, std::vector<uint8_t>(data, data + len), false});
+        pending_out.push_back({conn_id, std::move(data), false});
       }
       wake();
+    }
+
+    // Thread-safe. Queue a copy of plaintext to be encrypted and written to
+    // `conn_id`.
+    void send(::tcp::ConnID conn_id, const uint8_t* data, size_t len)
+    {
+      send(conn_id, std::vector<uint8_t>(data, data + len));
     }
 
     // Thread-safe. Request that `conn_id` be torn down.

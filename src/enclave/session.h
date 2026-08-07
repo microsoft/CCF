@@ -26,17 +26,8 @@ namespace ccf
       std::vector<uint8_t> data;
       std::shared_ptr<ThreadedSession> self;
 
-      // Inbound: the transport owns the buffer it hands over and reuses it as
-      // soon as this returns, so the bytes must be copied.
-      SessionDataTask(
-        std::span<const uint8_t> d, std::shared_ptr<ThreadedSession> s) :
-        self(std::move(s))
-      {
-        data.assign(d.begin(), d.end());
-      }
-
-      // Outbound: the caller has already built a buffer for us, so take it
-      // rather than copying a response which may be arbitrarily large.
+      // The caller has already built a buffer for us, so take it rather than
+      // copying a request or response which may be arbitrarily large.
       SessionDataTask(
         std::vector<uint8_t>&& d, std::shared_ptr<ThreadedSession> s) :
         data(std::move(d)),
@@ -110,11 +101,10 @@ namespace ccf
 
     // Implement Session::handle_incoming_data by dispatching a thread message
     // that eventually invokes the virtual handle_incoming_data_thread()
-    void handle_incoming_data(
-      std::span<const uint8_t> data, const SessionEndpoint& /*peer*/) override
+    void handle_incoming_data(std::vector<uint8_t>&& data) override
     {
-      task_scheduler->add_action(
-        std::make_shared<HandleIncomingDataTask>(data, shared_from_this()));
+      task_scheduler->add_action(std::make_shared<HandleIncomingDataTask>(
+        std::move(data), shared_from_this()));
     }
 
     virtual void handle_incoming_data_thread(std::vector<uint8_t>&& data) = 0;
@@ -190,7 +180,7 @@ namespace ccf
 
     void send_data_thread(std::vector<uint8_t>&& data) override
     {
-      session_writer.write_outbound(session_id, {data.data(), data.size()});
+      session_writer.write_outbound(session_id, std::move(data));
     }
 
     void handle_incoming_data_thread(std::vector<uint8_t>&& data) override

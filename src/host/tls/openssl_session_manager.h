@@ -93,10 +93,21 @@ namespace asynchost
       const std::vector<uint8_t>& peer_cert,
       bool soft_limited)
     {
+      const size_t size = data.size();
       std::shared_ptr<ccf::Session> session;
       {
         std::lock_guard<std::mutex> guard(conns_mutex);
-        auto& state = conns[conn_id];
+        // find() then insert, rather than operator[], so that first sight of a
+        // connection is an explicit case. An entry is only ever removed by
+        // on_close, and the transport delivers nothing for a connection after
+        // that, so an insert here is always a genuinely new connection and
+        // never a zombie whose inbound budget nothing would release.
+        auto it = conns.find(conn_id);
+        if (it == conns.end())
+        {
+          it = conns.emplace(conn_id, ConnState{}).first;
+        }
+        auto& state = it->second;
         if (state.closing)
         {
           return;
@@ -114,15 +125,15 @@ namespace asynchost
         }
         session = state.session;
         // Charged only now that the data is definitely being delivered.
-        state.inbound_outstanding += data.size();
+        state.inbound_outstanding += size;
       }
 
       if (inbound_admission != nullptr)
       {
-        inbound_admission->queued(data.size());
+        inbound_admission->queued(size);
       }
 
-      session->handle_incoming_data({data.data(), data.size()});
+      session->handle_incoming_data(std::move(data));
     }
 
     void on_close(::tcp::ConnID conn_id)
@@ -214,12 +225,9 @@ namespace asynchost
 
     // ccf::SessionWriter (callable from any thread).
 
-    void write_outbound(
-      ::tcp::ConnID id,
-      std::span<const uint8_t> data,
-      const ccf::SessionEndpoint& /*peer*/ = {}) override
+    void write_outbound(::tcp::ConnID id, std::vector<uint8_t>&& data) override
     {
-      server->send(id, data.data(), data.size());
+      server->send(id, std::move(data));
     }
 
     void close_socket(::tcp::ConnID id) override

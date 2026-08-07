@@ -218,7 +218,9 @@ namespace ccf
       // assigned here, so the resolved addresses are reported back to the host
       // (which writes the rpc addresses file).
       {
-        nlohmann::json resolved_rpc_addresses;
+        // An object rather than a default-constructed (null) json, so that a
+        // node with no RPC interfaces still writes a well-formed, empty map.
+        nlohmann::json resolved_rpc_addresses = nlohmann::json::object();
 
         // Bind interfaces with an explicit (non-zero) port before those
         // requesting an ephemeral port (port 0 or unspecified). Multiple

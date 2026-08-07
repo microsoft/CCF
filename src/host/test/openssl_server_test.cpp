@@ -19,6 +19,7 @@
 #include <csignal>
 #include <deque>
 #include <doctest/doctest.h>
+#include <future>
 #include <mutex>
 #include <netdb.h>
 #include <netinet/in.h>
@@ -381,11 +382,9 @@ namespace
     EchoSession(::tcp::ConnID id_, ccf::SessionWriter& w) : id(id_), writer(w)
     {}
 
-    void handle_incoming_data(
-      std::span<const uint8_t> data,
-      const ccf::SessionEndpoint& /*peer*/ = {}) override
+    void handle_incoming_data(std::vector<uint8_t>&& data) override
     {
-      writer.write_outbound(id, data);
+      writer.write_outbound(id, std::move(data));
     }
 
     void send_data(std::vector<uint8_t>&& /*data*/) override {}
@@ -411,11 +410,9 @@ namespace
       payload(std::move(p))
     {}
 
-    void handle_incoming_data(
-      std::span<const uint8_t> /*data*/,
-      const ccf::SessionEndpoint& /*peer*/ = {}) override
+    void handle_incoming_data(std::vector<uint8_t>&& /*data*/) override
     {
-      writer.write_outbound(id, payload);
+      writer.write_outbound(id, std::vector<uint8_t>(payload));
       writer.close_socket(id);
     }
 
@@ -756,6 +753,77 @@ TEST_CASE("Shutdown with staggered connection closes releases every uv handle")
   // The loop then finishes of its own accord, which it can only do once every
   // handle has been closed - so if any had been missed, or if a close callback
   // touched the destroyed server, this would hang or crash rather than pass.
+  loop.thread.join();
+  REQUIRE(uv_loop_alive(uv_default_loop()) == 0);
+}
+
+// Shutdown must not be hostage to a peer which has stopped reading. A
+// connection with output it cannot flush is closed after a single further
+// pass, rather than being re-dispatched until the socket becomes writable -
+// which, for a client advertising a zero window, is never.
+TEST_CASE("Shutdown completes while a connection cannot flush its output")
+{
+  auto [cert, key] = make_server_cert();
+
+  // Far larger than any socket buffer, so the write is guaranteed to stall
+  // with most of the payload still queued.
+  constexpr size_t payload_size = 32 * 1024 * 1024;
+  const std::vector<uint8_t> payload(payload_size, 'z');
+
+  std::shared_ptr<OpenSSLServer> server;
+  server = std::make_shared<OpenSSLServer>(
+    OpenSSLServer::Config{
+      .host = "127.0.0.1", .cert_pem = cert, .key_pem = key},
+    [&](
+      ::tcp::ConnID id,
+      std::vector<uint8_t>,
+      const std::vector<uint8_t>&,
+      bool) { server->send(id, std::vector<uint8_t>(payload)); });
+  UVLoopRunner loop;
+  server->start();
+  const auto port = server->port();
+  loop.start();
+
+  const int fd = ::socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
+  REQUIRE(fd >= 0);
+  sockaddr_in addr{};
+  addr.sin_family = AF_INET;
+  addr.sin_port = htons(port);
+  REQUIRE(inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr) == 1);
+  REQUIRE(::connect(fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) == 0);
+
+  SSL_CTX* cctx = SSL_CTX_new(TLS_client_method());
+  REQUIRE(cctx != nullptr);
+  SSL* ssl = SSL_new(cctx);
+  REQUIRE(ssl != nullptr);
+  REQUIRE(SSL_set_fd(ssl, fd) == 1);
+  SSL_set_connect_state(ssl);
+  REQUIRE(SSL_connect(ssl) == 1);
+
+  const uint8_t request = 'x';
+  REQUIRE(SSL_write(ssl, &request, 1) == 1);
+
+  // Read just enough to know the response has started, then stop reading. The
+  // server's remaining output has nowhere to go from here on.
+  std::vector<uint8_t> chunk(1024);
+  REQUIRE(SSL_read(ssl, chunk.data(), static_cast<int>(chunk.size())) > 0);
+
+  auto stopped = std::async(std::launch::async, [&]() {
+    server->stop(OpenSSLServer::LoopState::Running);
+  });
+  const bool completed =
+    stopped.wait_for(std::chrono::seconds(10)) == std::future_status::ready;
+
+  // Unblock the server if it did not stop, so that the failure is reported
+  // rather than hanging the test binary.
+  SSL_free(ssl);
+  SSL_CTX_free(cctx);
+  ::close(fd);
+
+  stopped.get();
+  REQUIRE(completed);
+
+  server.reset();
   loop.thread.join();
   REQUIRE(uv_loop_alive(uv_default_loop()) == 0);
 }
