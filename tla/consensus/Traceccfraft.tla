@@ -449,6 +449,8 @@ IsCheckQuorum ==
 
 IsSigTermProposeVote ==
     /\ IsEvent("step_down_and_nominate_successor")
+    \* C++ only emits this event when a successor was found, so this
+    \* trace action always sends a ProposeVoteRequest to that successor.
     /\ IF logline.msg.state.membership_state = "Retired"
        THEN \* C++ logs this nomination as it completes retirement, but the
             \* state transition and any message this implies were already
@@ -458,10 +460,7 @@ IsSigTermProposeVote ==
             /\ UNCHANGED vars
             /\ leadershipState[logline.msg.state.node_id] = Follower
        ELSE /\ leadershipState[logline.msg.state.node_id] = Leader
-            /\ IF PlausibleSucessorNodes(logline.msg.state.node_id) = {}
-               THEN \* C++ logs the request even when there is no successor and sends nothing.
-                    UNCHANGED vars
-               ELSE SigTermProposeVote(logline.msg.state.node_id)
+            /\ SigTermProposeVote(logline.msg.state.node_id)
     /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
     /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]

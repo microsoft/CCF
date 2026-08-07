@@ -2779,17 +2779,17 @@ namespace aft
 
       const auto successor = find_successor();
 
-#ifdef CCF_RAFT_TRACING
-      nlohmann::json j = {};
-      j["function"] = "step_down_and_nominate_successor";
-      j["state"] = *state;
-      COMMITTABLE_INDICES(j["state"], state);
-      j["configurations"] = configurations;
-      RAFT_TRACE_JSON_OUT(j);
-#endif
-
       if (successor.has_value())
       {
+#ifdef CCF_RAFT_TRACING
+        nlohmann::json j = {};
+        j["function"] = "step_down_and_nominate_successor";
+        j["state"] = *state;
+        COMMITTABLE_INDICES(j["state"], state);
+        j["configurations"] = configurations;
+        RAFT_TRACE_JSON_OUT(j);
+#endif
+
         send_propose_request_vote(successor.value());
       }
     }
