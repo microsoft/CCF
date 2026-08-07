@@ -1550,3 +1550,213 @@ TEST_CASE(
     }
   }
 }
+
+// A client which sends faster than the node can execute must not be able to
+// make it queue unbounded work. Reads pause once the node-wide budget is
+// exhausted and resume once it is released, without dropping or truncating
+// anything.
+TEST_CASE("Reads pause while the node-wide inbound budget is exhausted")
+{
+  auto [cert, key] = make_server_cert();
+
+  constexpr size_t limit = 64 * 1024;
+  constexpr size_t to_send = 4 * 1024 * 1024;
+  auto admission = std::make_shared<InboundAdmission>(limit);
+
+  std::atomic<size_t> received{0};
+
+  // Stands in for the bridge, which charges the budget as it hands data to a
+  // session and releases it once the session reports the data processed. This
+  // session never reports, so the budget stays charged until the test frees it.
+  auto server = std::make_shared<OpenSSLServer>(
+    OpenSSLServer::Config{
+      .host = "127.0.0.1",
+      .cert_pem = cert,
+      .key_pem = key,
+      .inbound_admission = admission},
+    [&](
+      ::tcp::ConnID,
+      std::vector<uint8_t> d,
+      const std::vector<uint8_t>&,
+      bool) {
+      received += d.size();
+      admission->queued(d.size());
+    });
+
+  UVLoopRunner loop;
+  server->start();
+  const auto port = server->port();
+  loop.start();
+
+  // The client has to run on its own thread: once the server stops reading,
+  // the socket buffers fill and SSL_write blocks. It must also stay connected
+  // until the server has read everything - closing a socket which still has
+  // unread data resets the connection and discards it.
+  std::atomic<bool> client_may_close{false};
+  std::thread client([port, &client_may_close]() {
+    const int fd = ::socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
+    REQUIRE(fd >= 0);
+    sockaddr_in addr{};
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(port);
+    REQUIRE(inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr) == 1);
+    REQUIRE(
+      ::connect(fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) == 0);
+
+    SSL_CTX* cctx = SSL_CTX_new(TLS_client_method());
+    REQUIRE(cctx != nullptr);
+    SSL* ssl = SSL_new(cctx);
+    REQUIRE(ssl != nullptr);
+    REQUIRE(SSL_set_fd(ssl, fd) == 1);
+    SSL_set_connect_state(ssl);
+    REQUIRE(SSL_connect(ssl) == 1);
+
+    const std::vector<uint8_t> chunk(16 * 1024, 'x');
+    size_t sent = 0;
+    while (sent < to_send)
+    {
+      const int n =
+        SSL_write(ssl, chunk.data(), static_cast<int>(chunk.size()));
+      if (n <= 0)
+      {
+        break;
+      }
+      sent += static_cast<size_t>(n);
+    }
+
+    while (!client_may_close.load())
+    {
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+
+    SSL_free(ssl);
+    SSL_CTX_free(cctx);
+    ::close(fd);
+  });
+
+  // Wait for the gate to engage.
+  const auto deadline =
+    std::chrono::steady_clock::now() + std::chrono::seconds(10);
+  while (!admission->saturated() && std::chrono::steady_clock::now() < deadline)
+  {
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  }
+  REQUIRE(admission->saturated());
+
+  // Give the server every chance to keep reading if the gate does not hold.
+  std::this_thread::sleep_for(std::chrono::milliseconds(500));
+
+  // A pass which was already in flight when the gate engaged may read up to
+  // its per-pass cap, and the kernel and OpenSSL hold buffers of their own, so
+  // some overshoot is expected. What must not happen is the whole 4MiB
+  // arriving: without the gate this reaches to_send almost immediately.
+  const size_t stalled_at = received.load();
+  REQUIRE(stalled_at < to_send);
+  REQUIRE(stalled_at <= limit + (1024 * 1024));
+
+  // Releasing the budget must wake the transport and let the rest through -
+  // the gate pauses reads, it does not drop or truncate anything.
+  admission->consumed(admission->bytes_pending());
+  REQUIRE_FALSE(admission->saturated());
+
+  const auto resume_deadline =
+    std::chrono::steady_clock::now() + std::chrono::seconds(20);
+  while (received.load() < to_send &&
+         std::chrono::steady_clock::now() < resume_deadline)
+  {
+    // The test is standing in for the bridge, so it also has to keep releasing
+    // as the server reads more.
+    admission->consumed(admission->bytes_pending());
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  }
+  REQUIRE(received.load() == to_send);
+
+  client_may_close.store(true);
+  client.join();
+  server->stop(OpenSSLServer::LoopState::Running);
+  server.reset();
+  loop.thread.join();
+}
+
+// A session which never reports the data it was given - a custom protocol, or
+// one whose queued work is cancelled as it is destroyed - must not be able to
+// strand part of the node-wide budget. The bridge releases whatever is still
+// outstanding when the connection is torn down.
+TEST_CASE("Inbound budget is released when a connection closes unreported")
+{
+  auto [cert, key] = make_server_cert();
+
+  constexpr size_t limit = 1024 * 1024;
+  auto admission = std::make_shared<InboundAdmission>(limit);
+
+  OpenSSLSessionManager bridge(
+    OpenSSLServer::Config{
+      .host = "127.0.0.1",
+      .cert_pem = cert,
+      .key_pem = key,
+      .inbound_admission = admission},
+    [&](::tcp::ConnID id, ccf::SessionWriter& w, std::vector<uint8_t>, bool)
+      -> std::shared_ptr<ccf::Session> {
+      // EchoSession is a plain ccf::Session, so it never calls
+      // inbound_consumed - exactly the case this test is about.
+      return std::make_shared<EchoSession>(id, w);
+    });
+
+  UVLoopRunner loop;
+  bridge.start();
+  const auto port = bridge.port();
+  loop.start();
+
+  {
+    const int fd = ::socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
+    REQUIRE(fd >= 0);
+    sockaddr_in addr{};
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(port);
+    REQUIRE(inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr) == 1);
+    REQUIRE(
+      ::connect(fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) == 0);
+
+    SSL_CTX* cctx = SSL_CTX_new(TLS_client_method());
+    REQUIRE(cctx != nullptr);
+    SSL* ssl = SSL_new(cctx);
+    REQUIRE(ssl != nullptr);
+    REQUIRE(SSL_set_fd(ssl, fd) == 1);
+    SSL_set_connect_state(ssl);
+    REQUIRE(SSL_connect(ssl) == 1);
+
+    const std::vector<uint8_t> payload(32 * 1024, 'y');
+    REQUIRE(
+      SSL_write(ssl, payload.data(), static_cast<int>(payload.size())) ==
+      static_cast<int>(payload.size()));
+
+    // Wait for the bytes to be charged to the budget.
+    const auto deadline =
+      std::chrono::steady_clock::now() + std::chrono::seconds(10);
+    while (admission->bytes_pending() < payload.size() &&
+           std::chrono::steady_clock::now() < deadline)
+    {
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    REQUIRE(admission->bytes_pending() >= payload.size());
+
+    SSL_free(ssl);
+    SSL_CTX_free(cctx);
+    ::close(fd);
+  }
+
+  // Closing the connection must hand the whole charge back, or a node would
+  // leak budget on every connection which used a non-reporting session and
+  // would eventually stop reading altogether.
+  const auto deadline =
+    std::chrono::steady_clock::now() + std::chrono::seconds(10);
+  while (admission->bytes_pending() != 0 &&
+         std::chrono::steady_clock::now() < deadline)
+  {
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  }
+  REQUIRE(admission->bytes_pending() == 0);
+
+  bridge.stop(OpenSSLServer::LoopState::Running);
+  loop.thread.join();
+}

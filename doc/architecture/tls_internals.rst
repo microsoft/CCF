@@ -75,6 +75,19 @@ A single pass is capped at a fixed number of bytes so that one busy connection c
 
 ``SSL_ERROR_WANT_WRITE`` on a read is not an error: a TLS 1.3 key update needs the socket to become writable, so the connection is left open with ``UV_WRITABLE`` armed. Any other result, whether a clean ``SSL_ERROR_ZERO_RETURN``, an unclean EOF, or a fatal error, closes the connection.
 
+Inbound flow control
+~~~~~~~~~~~~~~~~~~~~
+
+How much the node reads is bounded by how far behind the application is. ``OpenSSLSessionManager`` charges every chunk it hands to a session against a node-wide budget, and releases it once the session reports that chunk processed. Because request execution happens inside the parse task, "processed" means the request has actually run, so the budget measures unexecuted work rather than merely unparsed bytes.
+
+While the budget is exhausted, no interface arms ``UV_READABLE``. The sending client's own :term:`TCP` window then closes, and it cannot queue more work than the node can retire. Nothing is dropped or refused: reads simply pause and resume.
+
+The budget is node-wide rather than per-connection, so a single connection can exhaust it and pause the others. That is deliberate: a per-connection limit would have to be smaller than one maximum-sized request before it could bound total node memory to the same figure.
+
+Releasing the budget wakes every registered transport, not only the one whose session made room, so an interface with no traffic of its own does not stay paused. A session which never reports - a custom protocol, or one whose queued work is cancelled as it is destroyed - cannot strand the budget either: whatever is still outstanding for a connection is released when that connection is torn down.
+
+A connection paused this way is performing no I/O, so it ages towards the idle timeout in the usual way. That is intentional: a connection which cannot make progress in either direction for the whole idle period is one the node is too far behind to serve.
+
 Writing and backpressure
 ~~~~~~~~~~~~~~~~~~~~~~~~
 

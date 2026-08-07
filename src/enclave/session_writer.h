@@ -43,5 +43,17 @@ namespace ccf
     // Tear down the connection: stop the underlying socket and drop the
     // session.
     virtual void close_socket(::tcp::ConnID id) = 0;
+
+    // Report that `bytes` of previously delivered inbound data have now been
+    // processed. The transport uses this to decide when it may read more: it
+    // stops reading once the node is holding more unprocessed inbound data
+    // than it is willing to, and resumes as sessions catch up. Without it a
+    // client could make the node queue work faster than it retires it, for as
+    // long as it liked.
+    //
+    // A session which does not report is not penalised beyond its own
+    // connection - the transport releases whatever is still outstanding when
+    // the connection closes - so this defaults to a no-op.
+    virtual void inbound_consumed(::tcp::ConnID /*id*/, size_t /*bytes*/) {}
   };
 }

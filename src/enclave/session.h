@@ -50,6 +50,19 @@ namespace ccf
 
       void do_action() override
       {
+        // The transport is holding this data against a node-wide budget until
+        // we say we are done with it, so report on every exit path - including
+        // the early return below, and an exception out of the parser.
+        struct ReportConsumed
+        {
+          ThreadedSession& session;
+          size_t bytes;
+          ~ReportConsumed()
+          {
+            session.on_inbound_consumed(bytes);
+          }
+        } report{*self, data.size()};
+
         if (self->is_closing.load())
         {
           return;
@@ -105,6 +118,12 @@ namespace ccf
     }
 
     virtual void handle_incoming_data_thread(std::vector<uint8_t>&& data) = 0;
+
+    // Called once the data from a single handle_incoming_data() has been
+    // processed, so that the transport can resume reading. Sessions which have
+    // no transport to report to leave this as a no-op; the transport then
+    // reclaims their share when the connection closes.
+    virtual void on_inbound_consumed(size_t /*bytes*/) {}
 
     // Implement Session::sent_data by dispatching a thread message
     // that eventually invokes the virtual send_data_thread()
@@ -185,6 +204,11 @@ namespace ccf
       {
         parsing_finished = true;
       }
+    }
+
+    void on_inbound_consumed(size_t bytes) override
+    {
+      session_writer.inbound_consumed(session_id, bytes);
     }
 
     void close_session_thread() override

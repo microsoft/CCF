@@ -48,10 +48,13 @@
 
 namespace ccf
 {
-  static constexpr size_t ocm_max_open_sessions_soft_default = 1000;
-  static constexpr size_t ocm_max_open_sessions_hard_default = 1010;
-  static const ccf::Endorsement ocm_endorsement_default = {
-    ccf::Authority::SERVICE};
+  static constexpr size_t max_open_sessions_soft_default = 1000;
+  static constexpr size_t max_open_sessions_hard_default = 1010;
+  // Node-wide bound on inbound data which has been read off sockets but not
+  // yet processed. Sized well above any legitimate working set - clients are
+  // expected to pipeline deeply - so that it only engages under overload.
+  static constexpr size_t inbound_queue_limit = 16UL * 1024 * 1024;
+  static const ccf::Endorsement endorsement_default = {ccf::Authority::SERVICE};
   // How often idle UDP sessions are swept, mirroring the TCP idle sweep.
   static constexpr auto udp_idle_sweep_interval = std::chrono::seconds(1);
 
@@ -111,9 +114,9 @@ namespace ccf
     struct ListenInterface
     {
       std::string name;
-      size_t max_open_sessions_soft = ocm_max_open_sessions_soft_default;
-      size_t max_open_sessions_hard = ocm_max_open_sessions_hard_default;
-      ccf::Endorsement endorsement = ocm_endorsement_default;
+      size_t max_open_sessions_soft = max_open_sessions_soft_default;
+      size_t max_open_sessions_hard = max_open_sessions_hard_default;
+      ccf::Endorsement endorsement = endorsement_default;
       http::ParserConfiguration http_configuration;
       ccf::ApplicationProtocol app_protocol = "HTTP1";
 
@@ -206,6 +209,11 @@ namespace ccf
     // How long an idle connection is kept before being closed (nullopt =
     // never). Applied to each interface transport at listen() time.
     std::optional<std::chrono::milliseconds> idle_connection_timeout;
+
+    // Shared by every interface transport, so the bound is on the node rather
+    // than on any one interface or connection.
+    std::shared_ptr<asynchost::InboundAdmission> inbound_admission =
+      std::make_shared<asynchost::InboundAdmission>(inbound_queue_limit);
 
     // Outlives this manager if a session does - see InterfaceErrorCounts.
     std::shared_ptr<InterfaceErrorCounts> error_counts =
@@ -728,7 +736,8 @@ namespace ccf
           .alpn = alpn,
           .plaintext = plaintext,
           .idle_timeout = idle_connection_timeout,
-          .shared_next_id = &shared_conn_id},
+          .shared_next_id = &shared_conn_id,
+          .inbound_admission = inbound_admission},
         factory,
         on_closed,
         on_accept);
@@ -920,11 +929,10 @@ namespace ccf
         auto* li = it->second.get();
 
         li->max_open_sessions_soft = interface.max_open_sessions_soft.value_or(
-          ocm_max_open_sessions_soft_default);
+          max_open_sessions_soft_default);
         li->max_open_sessions_hard = interface.max_open_sessions_hard.value_or(
-          ocm_max_open_sessions_hard_default);
-        li->endorsement =
-          interface.endorsement.value_or(ocm_endorsement_default);
+          max_open_sessions_hard_default);
+        li->endorsement = interface.endorsement.value_or(endorsement_default);
         li->http_configuration =
           interface.http_configuration.value_or(http::ParserConfiguration{});
         li->app_protocol = interface.app_protocol.value_or("HTTP1");

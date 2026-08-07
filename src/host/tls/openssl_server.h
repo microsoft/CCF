@@ -9,6 +9,7 @@
 
 #include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "ds/internal_logger.h"
+#include "host/tls/inbound_admission.h"
 #include "tasks/ordered_tasks.h"
 #include "tasks/task_system.h"
 #include "tasks/worker.h"
@@ -172,6 +173,11 @@ namespace asynchost
       // registry and reply routing. Null uses a per-server counter.
       std::atomic<::tcp::ConnID>* shared_next_id = nullptr;
 
+      // Node-wide bound on inbound data which has been read but not yet
+      // processed, shared with every other interface's transport. While it is
+      // saturated this server stops reading. Null disables the gate.
+      std::shared_ptr<InboundAdmission> inbound_admission = nullptr;
+
       // Loop to register this server's handles on.
       uv_loop_t* loop = uv_default_loop();
     };
@@ -302,6 +308,28 @@ namespace asynchost
     // idle closure. A libuv timer wakes every idle_sweep_interval_ms to check.
     static constexpr int idle_sweep_interval_ms = 1000;
     std::optional<std::chrono::milliseconds> idle_timeout;
+
+    // Node-wide inbound budget, shared with every other interface's transport.
+    // Null disables the gate.
+    std::shared_ptr<InboundAdmission> inbound_admission;
+    std::optional<size_t> admission_token;
+
+    [[nodiscard]] bool inbound_saturated() const
+    {
+      return inbound_admission != nullptr && inbound_admission->saturated();
+    }
+
+    // The subset of a connection's pending events which may be acted on now.
+    // Read interest is withheld while the node holds more unprocessed inbound
+    // data than it is willing to.
+    [[nodiscard]] int actionable_events(const Conn& c) const
+    {
+      if (!inbound_saturated())
+      {
+        return c.pending_events;
+      }
+      return c.pending_events & ~UV_READABLE;
+    }
 
     // Cross-thread outbound queue: send()/close_connection() append here from
     // any thread and wake the loop, which drains it on the libuv thread.
@@ -512,7 +540,19 @@ namespace asynchost
       {
         return;
       }
-      const int events = UV_READABLE | (c.want_write ? UV_WRITABLE : 0);
+      int events = c.want_write ? UV_WRITABLE : 0;
+      if (!inbound_saturated())
+      {
+        events |= UV_READABLE;
+      }
+      if (events == 0)
+      {
+        // uv_poll_start rejects an empty mask, and there is genuinely nothing
+        // to wait for: this connection resumes when the node drops back under
+        // its inbound budget, at which point every transport is woken.
+        (void)uv_poll_stop(c.poll);
+        return;
+      }
       const int rc = uv_poll_start(c.poll, events, on_connection_poll);
       if (rc != 0)
       {
@@ -913,7 +953,12 @@ namespace asynchost
       }
       conn->worker_active = true;
       DriveInput input;
-      input.events = std::exchange(conn->pending_events, 0);
+      input.events = actionable_events(*conn);
+      // Read interest which the inbound budget is currently withholding stays
+      // pending rather than being discarded: it may be the only record that
+      // OpenSSL is holding buffered data which will never produce another
+      // readability event.
+      conn->pending_events &= ~input.events;
       input.commands.swap(conn->pending_commands);
       input.close_requested = std::exchange(conn->close_requested, false);
       // The worker keeps the server alive for the whole pass. complete_drive()
@@ -1223,7 +1268,7 @@ namespace asynchost
         }
         if (
           conn->close_requested || !conn->pending_commands.empty() ||
-          conn->pending_events != 0)
+          actionable_events(*conn) != 0)
         {
           dispatch_connection(conn);
         }
@@ -1416,6 +1461,7 @@ namespace asynchost
       loop(config.loop),
       shared_next_id(config.shared_next_id),
       idle_timeout(config.idle_timeout),
+      inbound_admission(std::move(config.inbound_admission)),
       on_data(std::move(on_data_)),
       on_close(std::move(on_close_)),
       on_accept(std::move(on_accept_)),
@@ -1600,6 +1646,20 @@ namespace asynchost
         throw std::runtime_error(
           std::string("uv_poll_start(listen) failed: ") + uv_strerror(rc));
       }
+
+      if (inbound_admission != nullptr)
+      {
+        // Woken when the node drops back under its inbound budget, so that
+        // this interface re-arms its reads even if the bytes which freed the
+        // budget belonged to a different one.
+        admission_token =
+          inbound_admission->register_waker([weak = weak_from_this()]() {
+            if (auto self = weak.lock())
+            {
+              self->wake();
+            }
+          });
+      }
     }
 
     // Tear the server down. Idempotent, and safe to call from the destructor.
@@ -1625,6 +1685,12 @@ namespace asynchost
       if (!started || torn_down)
       {
         return;
+      }
+
+      if (admission_token.has_value())
+      {
+        inbound_admission->unregister_waker(*admission_token);
+        admission_token.reset();
       }
 
       if (loop_state == LoopState::NotRunning)

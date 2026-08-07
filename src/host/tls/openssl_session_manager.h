@@ -29,6 +29,7 @@
 #include "enclave/session_writer.h"
 #include "host/tls/openssl_server.h"
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <cstdint>
@@ -58,6 +59,11 @@ namespace asynchost
   private:
     std::shared_ptr<OpenSSLServer> server;
     SessionFactory factory;
+    // Node-wide budget for inbound data which has been delivered to a session
+    // but not yet processed. Charged here rather than in the transport so that
+    // every path which drops data instead of delivering it is visible in one
+    // function. Null disables the accounting.
+    std::shared_ptr<InboundAdmission> inbound_admission;
     // Invoked when an admitted connection is torn down, so an owner can
     // release whatever it reserved at accept time. Called on the loop thread
     // from on_close, exactly once per admitted connection.
@@ -71,6 +77,11 @@ namespace asynchost
       // they are dropped rather than being used to build a replacement
       // session for a connection which is going away.
       bool closing = false;
+      // Bytes delivered to the session which it has not yet reported as
+      // processed. Released to the node-wide budget when this connection is
+      // torn down, so that a session which never reports (or whose queued work
+      // is cancelled) cannot strand part of the budget forever.
+      size_t inbound_outstanding = 0;
     };
 
     std::mutex conns_mutex;
@@ -102,6 +113,13 @@ namespace asynchost
           }
         }
         session = state.session;
+        // Charged only now that the data is definitely being delivered.
+        state.inbound_outstanding += data.size();
+      }
+
+      if (inbound_admission != nullptr)
+      {
+        inbound_admission->queued(data.size());
       }
 
       session->handle_incoming_data({data.data(), data.size()});
@@ -109,9 +127,23 @@ namespace asynchost
 
     void on_close(::tcp::ConnID conn_id)
     {
+      size_t to_release = 0;
       {
         std::lock_guard<std::mutex> guard(conns_mutex);
-        conns.erase(conn_id);
+        auto it = conns.find(conn_id);
+        if (it != conns.end())
+        {
+          to_release = it->second.inbound_outstanding;
+          conns.erase(it);
+        }
+      }
+
+      // The transport only tears a connection down once its worker has
+      // finished, so no further data can be delivered for it and anything
+      // still outstanding will never be reported as processed.
+      if (inbound_admission != nullptr)
+      {
+        inbound_admission->consumed(to_release);
       }
 
       // Unconditional: the connection, not the session, is what was reserved
@@ -132,6 +164,7 @@ namespace asynchost
       std::function<void(::tcp::ConnID)> on_connection_closed_ = {},
       OpenSSLServer::OnAccept on_accept = {}) :
       factory(std::move(factory_)),
+      inbound_admission(config.inbound_admission),
       on_connection_closed(std::move(on_connection_closed_))
     {
       server = std::make_shared<OpenSSLServer>(
@@ -203,6 +236,31 @@ namespace asynchost
       // No release here: the connection's reservation is released by on_close
       // when the transport has actually torn it down, exactly once.
       server->close_connection(id);
+    }
+
+    void inbound_consumed(::tcp::ConnID id, size_t bytes) override
+    {
+      size_t to_release = 0;
+      {
+        std::lock_guard<std::mutex> guard(conns_mutex);
+        auto it = conns.find(id);
+        if (it == conns.end())
+        {
+          // Already torn down, and on_close released everything which was
+          // outstanding for it.
+          return;
+        }
+        // Clamped rather than trusted: releasing more than was charged would
+        // underflow the node-wide counter and pause every interface's reads
+        // permanently.
+        to_release = std::min(bytes, it->second.inbound_outstanding);
+        it->second.inbound_outstanding -= to_release;
+      }
+
+      if (inbound_admission != nullptr)
+      {
+        inbound_admission->consumed(to_release);
+      }
     }
   };
 }
