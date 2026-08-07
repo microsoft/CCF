@@ -23,7 +23,9 @@
 
 #include <doctest/doctest.h>
 #include <iostream>
+#include <latch>
 #include <string>
+#include <thread>
 
 using namespace ccf;
 using namespace std;
@@ -465,6 +467,33 @@ UserId user_id;
 MemberId member_id;
 MemberId invalid_member_id;
 
+class TestNodeConfiguration : public NodeConfigurationInterface
+{
+private:
+  StartupConfig config;
+  NodeConfigurationState state;
+
+public:
+  TestNodeConfiguration() : state{config, {}, true}
+  {
+    NodeInfoNetwork_v2::NetInterface interface;
+    interface.redirections = NodeInfoNetwork_v2::NetInterface::Redirections{};
+    config.network.rpc_interfaces.emplace("test_interface", interface);
+  }
+
+  const NodeConfigurationState& get() override
+  {
+    return state;
+  }
+};
+
+void publish_frontend_state(RpcHandler& frontend, NetworkState& network)
+{
+  const auto consensus = network.tables->get_consensus();
+  const auto history = network.tables->get_history();
+  frontend.set_consensus_and_history(consensus.get(), history.get());
+}
+
 void prepare_callers(NetworkState& network)
 {
   // It is necessary to set a consensus before committing the first transaction,
@@ -485,6 +514,74 @@ void prepare_callers(NetworkState& network)
   member_id = InternalTablesAccess::add_member(tx, member_cert);
   invalid_member_id = InternalTablesAccess::add_member(tx, invalid_caller);
   CHECK(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+}
+
+TEST_CASE("Frontend state publication is thread-safe")
+{
+  NetworkState network;
+  prepare_callers(network);
+  TestUserFrontend frontend(*network.tables);
+
+  auto first_consensus =
+    std::make_shared<ccf::kv::test::PrimaryStubConsensus>();
+  auto second_consensus =
+    std::make_shared<ccf::kv::test::BackupStubConsensus>();
+  const auto history = network.tables->get_history();
+
+  constexpr size_t iterations = 1'000;
+  std::latch start(2);
+  std::thread publisher([&]() {
+    start.arrive_and_wait();
+    for (size_t i = 0; i < iterations; ++i)
+    {
+      ccf::kv::Consensus* current_consensus = first_consensus.get();
+      if (i % 2 != 0)
+      {
+        current_consensus = second_consensus.get();
+      }
+      frontend.set_consensus_and_history(current_consensus, history.get());
+      std::this_thread::yield();
+    }
+  });
+
+  auto request = create_simple_request("/tx");
+  request.set_method(HTTP_GET);
+  request.set_query_param("transaction_id", "1.1");
+  const auto serialised_request = request.build_request();
+  auto session = std::make_shared<ccf::SessionContext>(
+    ccf::InvalidSessionId, anonymous_caller_der);
+
+  bool all_requests_succeeded = true;
+  start.arrive_and_wait();
+  for (size_t i = 0; i < iterations; ++i)
+  {
+    auto rpc_ctx = ccf::make_rpc_context(session, serialised_request);
+    frontend.process(rpc_ctx);
+    all_requests_succeeded &= rpc_ctx->get_response_status() == HTTP_STATUS_OK;
+    std::this_thread::yield();
+  }
+
+  publisher.join();
+  REQUIRE(all_requests_succeeded);
+}
+
+TEST_CASE("Redirect resolution handles unpublished consensus")
+{
+  NetworkState network;
+  prepare_callers(network);
+  TestUserFrontend frontend(*network.tables);
+  frontend.context.install_subsystem(std::make_shared<TestNodeConfiguration>());
+
+  const auto request = create_simple_request("/empty_function_no_auth");
+  const auto serialised_request = request.build_request();
+  auto session = std::make_shared<ccf::SessionContext>(
+    ccf::InvalidSessionId, anonymous_caller_der, "test_interface");
+  auto rpc_ctx = ccf::make_rpc_context(session, serialised_request);
+
+  frontend.process(rpc_ctx);
+
+  REQUIRE(!rpc_ctx->response_is_pending);
+  REQUIRE(rpc_ctx->get_response_status() == HTTP_STATUS_SERVICE_UNAVAILABLE);
 }
 
 TEST_CASE("SignedReq to and from json")
@@ -1102,6 +1199,8 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
   auto backup_consensus =
     std::make_shared<ccf::kv::test::BackupStubConsensus>();
   network_backup.tables->set_consensus(backup_consensus);
+  publish_frontend_state(user_frontend_primary, network_primary);
+  publish_frontend_state(user_frontend_backup, network_backup);
 
   auto simple_call = create_simple_request();
   auto serialized_call = simple_call.build_request();
@@ -1127,6 +1226,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
   {
     INFO("Read command is not forwarded to primary");
     TestUserFrontend user_frontend_backup_read(*network_backup.tables);
+    publish_frontend_state(user_frontend_backup_read, network_backup);
     REQUIRE(channel_stub->is_empty());
 
     user_frontend_backup_read.process(backup_ctx);
@@ -1160,6 +1260,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     };
 
     prepare_callers(network_primary);
+    publish_frontend_state(user_frontend_primary, network_primary);
 
     {
       INFO("Valid caller");
@@ -1200,6 +1301,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
 
     TestUserFrontend user_frontend_backup_read(*network_backup.tables);
     user_frontend_backup_read.set_cmd_forwarder(backup_forwarder);
+    publish_frontend_state(user_frontend_backup_read, network_backup);
     REQUIRE(channel_stub->is_empty());
 
     user_frontend_backup_read.process(backup_ctx);
@@ -1250,6 +1352,8 @@ TEST_CASE("Nodefrontend forwarding" * doctest::test_suite("forwarding"))
   auto backup_consensus =
     std::make_shared<ccf::kv::test::BackupStubConsensus>();
   network_backup.tables->set_consensus(backup_consensus);
+  publish_frontend_state(node_frontend_primary, network_primary);
+  publish_frontend_state(node_frontend_backup, network_backup);
 
   auto write_req = create_simple_request();
   auto serialized_call = write_req.build_request();
@@ -1301,6 +1405,8 @@ TEST_CASE("Userfrontend forwarding" * doctest::test_suite("forwarding"))
   auto backup_consensus =
     std::make_shared<ccf::kv::test::BackupStubConsensus>();
   network_backup.tables->set_consensus(backup_consensus);
+  publish_frontend_state(user_frontend_primary, network_primary);
+  publish_frontend_state(user_frontend_backup, network_backup);
 
   auto write_req = create_simple_request();
   auto serialized_call = write_req.build_request();
@@ -1352,6 +1458,8 @@ TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
   auto backup_consensus =
     std::make_shared<ccf::kv::test::BackupStubConsensus>();
   network_backup.tables->set_consensus(backup_consensus);
+  publish_frontend_state(member_frontend_primary, network_primary);
+  publish_frontend_state(member_frontend_backup, network_backup);
 
   auto write_req = create_simple_request();
   auto serialized_call = write_req.build_request();

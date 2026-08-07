@@ -1548,8 +1548,9 @@ namespace loggingapp
 
       auto is_tx_committed =
         [this](ccf::View view, ccf::SeqNo seqno, std::string& error_reason) {
+          auto* current_consensus = get_consensus();
           return ccf::historical::is_tx_committed_v2(
-            consensus, view, seqno, error_reason);
+            current_consensus, view, seqno, error_reason);
         };
       make_read_only_endpoint(
         "/log/private/historical",
