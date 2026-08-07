@@ -140,6 +140,95 @@ TEST_CASE("URL template parsing")
   REQUIRE_THROWS(PathTemplateSpec::parse("/{id}/{id}/foo"));
 }
 
+TEST_CASE("Endpoint properties OpenAPI default")
+{
+  EndpointProperties properties;
+  REQUIRE(properties.openapi == nlohmann::json::object());
+
+  const nlohmann::json serialised = properties;
+  REQUIRE_FALSE(serialised.contains("openapi"));
+
+  const auto deserialised = serialised.get<EndpointProperties>();
+  REQUIRE(deserialised.openapi == nlohmann::json::object());
+}
+
+TEST_CASE("Additional OpenAPI responses")
+{
+  Endpoint endpoint;
+  endpoint.dispatch.uri_path = "/foo";
+  endpoint.dispatch.verb = HTTP_GET;
+  endpoint.full_uri_path = endpoint.dispatch.uri_path;
+
+  endpoint.set_auto_schema<void, nlohmann::json>();
+  endpoint.add_openapi_response<std::string>(
+    HTTP_STATUS_ACCEPTED, "The result is not ready");
+  endpoint.add_openapi_response<ccf::ds::openapi::Binary>(
+    HTTP_STATUS_PARTIAL_CONTENT, "A partial binary response");
+  endpoint.add_openapi_response(
+    HTTP_STATUS_SERVICE_UNAVAILABLE, "The endpoint is not ready");
+  endpoint.require_operator_feature(OperatorFeature::SnapshotRead);
+
+  auto document = ccf::ds::openapi::create_document("Test", "Test", "1.0.0");
+  for (const auto& schema_builder : endpoint.schema_builders)
+  {
+    schema_builder(document, endpoint);
+  }
+
+  const auto& responses = document["paths"]["/foo"]["get"]["responses"];
+  REQUIRE(responses["200"]["content"].contains("application/json"));
+  REQUIRE(responses["202"]["description"] == "The result is not ready");
+  REQUIRE(responses["202"]["content"].contains("text/plain"));
+  REQUIRE(responses["206"]["content"].contains("application/octet-stream"));
+  REQUIRE(responses["503"]["description"] == "The endpoint is not ready");
+  REQUIRE_FALSE(responses["503"].contains("content"));
+  REQUIRE(
+    responses["404"]["description"] ==
+    "The required operator feature is not enabled on this interface.");
+  REQUIRE_FALSE(responses["404"].contains("content"));
+
+  Endpoint specific_not_found_endpoint;
+  specific_not_found_endpoint.dispatch.uri_path = "/specific";
+  specific_not_found_endpoint.dispatch.verb = HTTP_GET;
+  specific_not_found_endpoint.full_uri_path =
+    specific_not_found_endpoint.dispatch.uri_path;
+  specific_not_found_endpoint.add_openapi_response(
+    HTTP_STATUS_NOT_FOUND, "Endpoint-specific response");
+  specific_not_found_endpoint.require_operator_feature(
+    OperatorFeature::SnapshotRead);
+  for (const auto& schema_builder : specific_not_found_endpoint.schema_builders)
+  {
+    schema_builder(document, specific_not_found_endpoint);
+  }
+  REQUIRE(
+    document["paths"]["/specific"]["get"]["responses"]["404"]["description"] ==
+    "Endpoint-specific response");
+
+  Endpoint raw_schema_endpoint;
+  raw_schema_endpoint.dispatch.uri_path = "/raw";
+  raw_schema_endpoint.dispatch.verb = HTTP_POST;
+  raw_schema_endpoint.full_uri_path = raw_schema_endpoint.dispatch.uri_path;
+
+  auto request_schema = nlohmann::json{{"type", "string"}};
+  auto response_schema = nlohmann::json{{"type", "boolean"}};
+  raw_schema_endpoint.set_params_schema(request_schema);
+  raw_schema_endpoint.set_result_schema(response_schema, HTTP_STATUS_CREATED);
+  request_schema["type"] = "integer";
+  response_schema["type"] = "number";
+
+  for (const auto& schema_builder : raw_schema_endpoint.schema_builders)
+  {
+    schema_builder(document, raw_schema_endpoint);
+  }
+
+  const auto& raw_operation = document["paths"]["/raw"]["post"];
+  REQUIRE(
+    raw_operation["requestBody"]["content"]["application/json"]["schema"]
+                 ["type"] == "string");
+  REQUIRE(
+    raw_operation["responses"]["201"]["content"]["application/json"]["schema"]
+                 ["type"] == "boolean");
+}
+
 TEST_CASE("camel_case" * doctest::test_suite("nonstd"))
 {
   using ccf::endpoints::camel_case;

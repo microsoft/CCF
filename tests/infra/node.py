@@ -752,6 +752,8 @@ class Node:
 
         if hasattr(self, "client_impl"):
             akwargs["impl_type"] = self.client_impl
+        if hasattr(self, "openapi_validator"):
+            akwargs["openapi_validator"] = self.openapi_validator
 
         return cls(rpc_interface.public_host, rpc_interface.public_port, **akwargs)
 
