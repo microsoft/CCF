@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - Asynchronous ledger reads (used to serve committed entry ranges to the enclave) no longer access the host `Ledger` object after it has been destroyed during shutdown. The `Ledger` now waits for any in-flight read workers to finish, and workers that have not yet started skip accessing it, fixing a potential use-after-free on shutdown (#8003).
+- Nodes now fall back to older local snapshots when the newest is corrupt during join or recovery, rather than failing to start (#8124).
 
 ### Changed
 

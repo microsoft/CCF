@@ -1791,6 +1791,8 @@ def run_recovery_corrupt_snapshot(args):
             recovered.recover(args)
 
             recovered_primary, _ = recovered.find_primary()
+            recovered.stop_all_nodes()
+
             expected_seqno = infra.node.get_snapshot_seqnos(valid_snapshot_name)[0]
             out_path, _ = recovered_primary.get_logs()
             assert out_path is not None
@@ -1805,7 +1807,6 @@ def run_recovery_corrupt_snapshot(args):
                     )
                 ]
             assert startup_seqnos == [expected_seqno], startup_seqnos
-            recovered.stop_all_nodes()
 
 
 def run_recover_snapshot_alone(args):
