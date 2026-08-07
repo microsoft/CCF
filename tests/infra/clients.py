@@ -1310,8 +1310,10 @@ class CCFClient:
 @contextlib.contextmanager
 def client(*args, **kwargs):
     c = CCFClient(*args, **kwargs)
-    yield c
-    c.close()
+    try:
+        yield c
+    finally:
+        c.close()
 
 
 class APIVersionedCCFClient(CCFClient):
@@ -1344,5 +1346,7 @@ class APIVersionedCCFClient(CCFClient):
 @contextlib.contextmanager
 def api_versioned_client(*args, api_version=None, **kwargs):
     c = APIVersionedCCFClient(*args, api_version=api_version, **kwargs)
-    yield c
-    c.close()
+    try:
+        yield c
+    finally:
+        c.close()

@@ -27,7 +27,7 @@
 #include "ds/files.h"
 #include "ds/internal_logger.h"
 #include "ds/state_machine.h"
-#include "enclave/rpc_sessions.h"
+#include "enclave/abstract_rpc_sessions.h"
 #include "encryptor.h"
 #include "history.h"
 #include "http/curl.h"
@@ -442,7 +442,7 @@ namespace ccf
     std::shared_ptr<Forwarder<NodeToNode>> cmd_forwarder;
     std::shared_ptr<ccf::CommitCallbackSubsystem> commit_callbacks = nullptr;
     std::shared_ptr<ccf::SignatureCacheSubsystem> signature_cache = nullptr;
-    std::shared_ptr<RPCSessions> rpcsessions;
+    std::shared_ptr<AbstractRPCSessions> rpcsessions;
 
     std::shared_ptr<ccf::kv::TxHistory> history;
     std::shared_ptr<ccf::kv::AbstractTxEncryptor> encryptor;
@@ -770,7 +770,7 @@ namespace ccf
     NodeState(
       ringbuffer::AbstractWriterFactory& writer_factory,
       NetworkState& network,
-      std::shared_ptr<RPCSessions> rpcsessions,
+      std::shared_ptr<AbstractRPCSessions> rpcsessions,
       ccf::crypto::CurveID curve_id_) :
       sm("NodeState", NodeStartupState::uninitialized),
       curve_id(curve_id_),
@@ -1297,12 +1297,10 @@ namespace ccf
 
       // The service certificate is the sole trust anchor for the join
       // connection. CURLOPT_CAINFO_BLOB installs it and CURLOPT_CAPATH=nullptr
-      // prevents any fallback to the system CA store, so the set of accepted
-      // certificate authorities is identical to the legacy tls::CA path. The
-      // joining node presents its self-signed node certificate for mutual TLS
-      // (it is not yet endorsed at join time). CURLOPT_SSL_VERIFYHOST=2
-      // additionally checks that the target certificate matches the address we
-      // connected to.
+      // prevents any fallback to the system CA store. The joining node presents
+      // its self-signed node certificate for mutual TLS (it is not yet endorsed
+      // at join time). CURLOPT_SSL_VERIFYHOST=2 additionally checks that the
+      // target certificate matches the address we connected to.
       ccf::curl::UniqueCURL curl_handle;
       curl_handle.set_opt(CURLOPT_SSL_VERIFYPEER, 1L);
       curl_handle.set_opt(CURLOPT_SSL_VERIFYHOST, 2L);

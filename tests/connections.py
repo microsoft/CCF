@@ -340,8 +340,10 @@ def node_tcp_socket(node):
     interface = node.n2n_interface
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.connect((interface.host, interface.port))
-    yield s
-    s.close()
+    try:
+        yield s
+    finally:
+        s.close()
 
 
 # NB: This does rudimentary smoke testing. See fuzzing.py for more thorough test

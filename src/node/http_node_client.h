@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "http/http_rpc_context.h"
 #include "node/node_client.h"
 
 #include <chrono>

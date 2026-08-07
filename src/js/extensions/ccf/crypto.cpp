@@ -9,6 +9,7 @@
 #include "ccf/crypto/entropy.h"
 #include "ccf/crypto/hmac.h"
 #include "ccf/crypto/key_wrap.h"
+#include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/crypto/sha256.h"
 #include "ccf/crypto/verifier.h"
@@ -16,7 +17,6 @@
 #include "ccf/js/core/context.h"
 #include "ds/internal_logger.h"
 #include "js/checks.h"
-#include "tls/ca.h"
 
 #include <climits>
 
@@ -310,7 +310,16 @@ namespace ccf::js::extensions
 
       try
       {
-        ::tls::CA ca(pem.value());
+        ccf::crypto::OpenSSL::Unique_BIO bio(
+          pem.value().data(), pem.value().size());
+        ccf::crypto::OpenSSL::Unique_X509 cert(bio, true);
+        if (cert == nullptr)
+        {
+          LOG_DEBUG_FMT(
+            "isValidX509Bundle: {}",
+            ccf::crypto::OpenSSL::error_string(ERR_get_error()));
+          return ccf::js::core::constants::False;
+        }
       }
       catch (const std::runtime_error& e)
       {

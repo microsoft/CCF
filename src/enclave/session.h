@@ -3,13 +3,14 @@
 #pragma once
 
 #include "ccf/node/session.h"
-#include "enclave/tls_session.h"
+#include "enclave/session_writer.h"
 #include "tasks/ordered_tasks.h"
 #include "tasks/task.h"
 #include "tasks/task_system.h"
 #include "tcp/msg_types.h"
 
 #include <span>
+#include <string>
 
 namespace ccf
 {
@@ -86,12 +87,11 @@ namespace ccf
 
     // Implement Session::handle_incoming_data by dispatching a thread message
     // that eventually invokes the virtual handle_incoming_data_thread()
-    void handle_incoming_data(std::span<const uint8_t> data) override
+    void handle_incoming_data(
+      std::span<const uint8_t> data, sockaddr /*addr*/) override
     {
-      auto [_, body] = ringbuffer::read_message<::tcp::tcp_inbound>(data);
-
       task_scheduler->add_action(
-        std::make_shared<HandleIncomingDataTask>(body, shared_from_this()));
+        std::make_shared<HandleIncomingDataTask>(data, shared_from_this()));
     }
 
     virtual void handle_incoming_data_thread(std::vector<uint8_t>&& data) = 0;
@@ -117,110 +117,51 @@ namespace ccf
     virtual void close_session_thread() = 0;
   };
 
-  class EncryptedSession : public ThreadedSession
+  // A protocol session (HTTP/HTTP2/...) running over a transport that owns the
+  // TLS connection (the host-side OpenSSL connection). It receives and emits
+  // plaintext: inbound bytes are already decrypted, and outbound bytes are
+  // handed to a SessionWriter which encrypts and writes them. The peer
+  // certificate and SNI (captured by the transport at handshake) are provided
+  // for caller authentication.
+  class PlaintextSession : public ThreadedSession
   {
   public:
     virtual bool parse(std::span<const uint8_t> data) = 0;
 
   protected:
-    std::shared_ptr<ccf::TLSSession> tls_io;
     ::tcp::ConnID session_id;
+    ccf::SessionWriter& session_writer;
+    std::vector<uint8_t> peer_cert_;
 
-    EncryptedSession(
+    PlaintextSession(
       ::tcp::ConnID session_id_,
-      ringbuffer::AbstractWriterFactory& writer_factory,
-      std::unique_ptr<ccf::tls::Context> ctx) :
+      ccf::SessionWriter& writer,
+      std::vector<uint8_t> peer_cert = {}) :
       ThreadedSession(session_id_),
-      tls_io(std::make_shared<ccf::TLSSession>(
-        session_id_, writer_factory, std::move(ctx))),
-      session_id(session_id_)
-    {}
-
-  public:
-    void send_data_thread(std::vector<uint8_t>&& data) override
-    {
-      tls_io->send_data(data.data(), data.size());
-    }
-
-    void handle_incoming_data_thread(std::vector<uint8_t>&& data) override
-    {
-      tls_io->recv_buffered(data.data(), data.size());
-
-      LOG_TRACE_FMT("recv called with {} bytes", data.size());
-
-      // Try to parse all incoming data, reusing the vector we were just passed
-      // for storage. Increase the size if the received vector was too small
-      // (for the case where this chunk is very small, but we had some previous
-      // data to continue reading).
-      constexpr auto min_read_block_size = 4096;
-      if (data.size() < min_read_block_size)
-      {
-        data.resize(min_read_block_size);
-      }
-
-      auto n_read = tls_io->read(data.data(), data.size(), false);
-
-      while (true)
-      {
-        if (n_read == 0)
-        {
-          return;
-        }
-
-        LOG_TRACE_FMT("Going to parse {} bytes", n_read);
-
-        bool cont = parse({data.data(), n_read});
-        if (!cont)
-        {
-          return;
-        }
-
-        // Used all provided bytes - check if more are available
-        n_read = tls_io->read(data.data(), data.size(), false);
-      }
-    }
-
-    void close_session_thread() override
-    {
-      tls_io->close();
-    }
-  };
-
-  class UnencryptedSession : public ccf::ThreadedSession
-  {
-  public:
-    virtual bool parse(std::span<const uint8_t> data) = 0;
-
-  protected:
-    ::tcp::ConnID session_id;
-    ringbuffer::WriterPtr to_host;
-
-    UnencryptedSession(
-      ::tcp::ConnID session_id_,
-      ringbuffer::AbstractWriterFactory& writer_factory_) :
-      ccf::ThreadedSession(session_id_),
       session_id(session_id_),
-      to_host(writer_factory_.create_writer_to_outside())
+      session_writer(writer),
+      peer_cert_(std::move(peer_cert))
     {}
+
+  public:
+    const std::vector<uint8_t>& peer_cert() const
+    {
+      return peer_cert_;
+    }
 
     void send_data_thread(std::vector<uint8_t>&& data) override
     {
-      RINGBUFFER_WRITE_MESSAGE(
-        ::tcp::tcp_outbound,
-        to_host,
-        session_id,
-        serializer::ByteRange{data.data(), data.size()});
-    }
-
-    void close_session_thread() override
-    {
-      RINGBUFFER_WRITE_MESSAGE(
-        ::tcp::tcp_stop, to_host, session_id, std::string("Session closed"));
+      session_writer.write_outbound(session_id, {data.data(), data.size()});
     }
 
     void handle_incoming_data_thread(std::vector<uint8_t>&& data) override
     {
-      parse(data);
+      parse({data.data(), data.size()});
+    }
+
+    void close_session_thread() override
+    {
+      session_writer.close_socket(session_id);
     }
   };
 }
