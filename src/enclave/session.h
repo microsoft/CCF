@@ -26,12 +26,22 @@ namespace ccf
       std::vector<uint8_t> data;
       std::shared_ptr<ThreadedSession> self;
 
+      // Inbound: the transport owns the buffer it hands over and reuses it as
+      // soon as this returns, so the bytes must be copied.
       SessionDataTask(
         std::span<const uint8_t> d, std::shared_ptr<ThreadedSession> s) :
         self(std::move(s))
       {
         data.assign(d.begin(), d.end());
       }
+
+      // Outbound: the caller has already built a buffer for us, so take it
+      // rather than copying a response which may be arbitrarily large.
+      SessionDataTask(
+        std::vector<uint8_t>&& d, std::shared_ptr<ThreadedSession> s) :
+        data(std::move(d)),
+        self(std::move(s))
+      {}
     };
 
     struct HandleIncomingDataTask : public SessionDataTask

@@ -663,6 +663,7 @@ namespace asynchost
         if (n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK))
         {
           c.want_write = true;
+          compact_outbuf(c);
           return true;
         }
         if (n < 0 && errno == EINTR)
@@ -732,6 +733,27 @@ namespace asynchost
       return true;
     }
 
+    // Release the already-written prefix of a partially flushed buffer, so a
+    // large response which is draining slowly does not keep holding the bytes
+    // the peer has already received. erase() would retain the original
+    // capacity, so rebuild into a right-sized buffer instead. Called only when
+    // a write has just stalled and the remainder is about to be held until the
+    // socket becomes writable again - compacting a buffer we are about to
+    // flush anyway would be pure overhead. Only worth the copy once most of
+    // the buffer is consumed, which also bounds the total copying for one
+    // response to O(its size).
+    static void compact_outbuf(Conn& c)
+    {
+      if (c.out_off == 0 || c.out_off <= c.outbuf.size() / 2)
+      {
+        return;
+      }
+      std::vector<uint8_t> remaining(
+        c.outbuf.data() + c.out_off, c.outbuf.data() + c.outbuf.size());
+      c.outbuf = std::move(remaining);
+      c.out_off = 0;
+    }
+
     // Returns false if the connection should be closed. Implements
     // backpressure: a WANT_WRITE leaves the remaining plaintext buffered and
     // arms UV_WRITABLE.
@@ -758,6 +780,7 @@ namespace asynchost
         if (e == SSL_ERROR_WANT_WRITE)
         {
           c.want_write = true;
+          compact_outbuf(c);
           return true;
         }
         if (e == SSL_ERROR_WANT_READ)
@@ -826,6 +849,14 @@ namespace asynchost
         if (command.close)
         {
           conn->close_after_flush = true;
+        }
+        else if (conn->outbuf.empty())
+        {
+          // The common case is a single response with nothing still draining,
+          // so take ownership of the buffer instead of copying it again.
+          // outbuf is only ever emptied alongside out_off being reset, so
+          // there is no consumed prefix to preserve here.
+          conn->outbuf = std::move(command.data);
         }
         else
         {
