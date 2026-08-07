@@ -46,11 +46,11 @@ ninja                                      # Build all targets
 
 ### Testing
 
-Before selecting, running, or writing tests, load the [testing skill](./skills/testing/SKILL.md) for unit, e2e, SDK, test-label, coverage, and e2e test-pattern guidance.
+Before selecting, running, or writing tests, load the [testing skill](/.github/skills/testing/SKILL.md) for unit, e2e, SDK, test-label, coverage, and e2e test-pattern guidance.
 
 ### Linting and formatting
 
-Before formatting or linting changes, load the [formatting-and-linting skill](./skills/formatting-and-linting/SKILL.md) to choose the checks for each file type and identify which support auto-fix.
+Before formatting or linting changes, load the [formatting-and-linting skill](/.github/skills/formatting-and-linting/SKILL.md) to choose the checks for each file type and identify which support auto-fix.
 
 ### Documentation
 
