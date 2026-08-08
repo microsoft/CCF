@@ -49,6 +49,8 @@ jobs:
       - run: cd tla && ./tlc.py mc consistency/MCMultiNode.tla
       - run: cd tla && ./tlc.py mc consistency/MCMultiNodeReads.tla
       - run: cd tla && ./tlc.py mc consistency/MCMultiNodeReadsAlt.tla
+      - name: Validate consistency rollback trace
+        run: cd tla && JSON=consistency/traces/rollback_same_seqno.ndjson ./tlc.py --workers 1 tv --disable-dfs consistency/TraceMultiNodeReads.tla
 
       - name: Upload TLC traces
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
