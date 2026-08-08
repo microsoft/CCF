@@ -49,6 +49,9 @@ jobs:
       - run: cd tla && ./tlc.py mc consistency/MCMultiNode.tla
       - run: cd tla && ./tlc.py mc consistency/MCMultiNodeReads.tla
       - run: cd tla && ./tlc.py mc consistency/MCMultiNodeReadsAlt.tla
+      # This trace is hard-coded because generating rollbacks requires a
+      # partitions test, where election and transaction timing are difficult
+      # to control deterministically.
       - name: Validate consistency rollback trace
         run: cd tla && JSON=consistency/traces/rollback_same_seqno.ndjson ./tlc.py --workers 1 tv --disable-dfs consistency/TraceMultiNodeReads.tla
 
