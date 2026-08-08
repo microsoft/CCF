@@ -49,6 +49,16 @@ jobs:
       - run: cd tla && ./tlc.py mc consistency/MCMultiNode.tla
       - run: cd tla && ./tlc.py mc consistency/MCMultiNodeReads.tla
       - run: cd tla && ./tlc.py mc consistency/MCMultiNodeReadsAlt.tla
+      # These traces are hard-coded because generating rollbacks requires a
+      # partitions test, where election and transaction timing are difficult
+      # to control deterministically.
+      - name: Validate consistency election traces
+        run: |
+          cd tla
+          for trace in consistency/traces/*.ndjson; do
+            echo "Validating ${trace}"
+            JSON="${trace}" ./tlc.py --workers 1 tv --disable-dfs consistency/TraceMultiNodeReads.tla
+          done
 
       - name: Upload TLC traces
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
