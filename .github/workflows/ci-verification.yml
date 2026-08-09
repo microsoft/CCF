@@ -78,6 +78,7 @@ jobs:
       - run: ./tlc_debug.sh --config consistency/MCMultiNodeCommitReachability.cfg mc consistency/MCMultiNodeReads.tla
       - run: ./tlc_debug.sh --config consistency/MCMultiNodeInvalidReachability.cfg mc consistency/MCMultiNodeReads.tla
       - run: ./tlc_debug.sh --config consistency/MCMultiNodeReadsNotLinearizable.cfg mc consistency/MCMultiNodeReads.tla
+      - run: ./tlc_debug.sh --config consistency/MCSingleNodeOrderedSerializableCounterexample.cfg mc consistency/MCSingleNode.tla
 
   simulation-consistency:
     name: Simulation - Consistency
