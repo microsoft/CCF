@@ -46,55 +46,31 @@ response or committed-status event in the external history.
 ## Single-node trace
 
 TLC finds the following deterministic breadth-first trace with one worker.
-Transaction IDs are `<<view, sequence number>>`.
+Transaction IDs are `<<view, sequence number>>`. The git graph projects the
+final state in transaction order; the table below gives the exact transition
+and external-event order. The `main` line is the actual ledger order annotated
+with response observations. The `filtered` line branches at transaction `0`
+and shows the pair that the invariant constructs after filtering out
+transaction `1`.
 
 ```mermaid
-flowchart TB
-  subgraph history["External history: 7 events"]
-    direction LR
-    h1["1: request tx 0<br/>transition 1"]
-    h2["2: request tx 1<br/>transition 2"]
-    h3["3: request tx 2<br/>transition 3"]
-    h4["4: response tx 0<br/>ID &lt;&lt;1,1&gt;&gt;<br/>observed &lt;&lt;0&gt;&gt;<br/>transition 7"]
-    h5["5: response tx 2<br/>ID &lt;&lt;1,3&gt;&gt;<br/>observed &lt;&lt;0,1,2&gt;&gt;<br/>transition 8"]
-    h6["6: status &lt;&lt;1,1&gt;&gt;<br/>committed<br/>transition 9"]
-    h7["7: status &lt;&lt;1,3&gt;&gt;<br/>committed<br/>transition 10"]
-    h1 --> h2
-    h2 --> h3
-    h3 --> h4
-    h4 --> h5
-    h5 --> h6
-    h6 --> h7
-  end
-
-  subgraph ledger["Ledger branch 1"]
-    direction LR
-    l1["slot 1: tx 0<br/>transition 4"]
-    l2["slot 2: tx 1<br/>transition 5"]
-    l3["slot 3: tx 2<br/>transition 6"]
-    l1 --> l2
-    l2 --> l3
-  end
-
-  h1 -.-> l1
-  h2 -.-> l2
-  h3 -.-> l3
-  l1 -.-> h4
-  l3 -.-> h5
-  l2 -.-> omitted["OMITTED FROM HISTORY<br/>no response for tx 1<br/>no status for tx 1"]
-
-  subgraph comparison["Invariant comparison at state 11"]
-    direction LR
-    expected["expected = Append(&lt;&lt;0&gt;&gt;, 2)<br/>= &lt;&lt;0,2&gt;&gt;"]
-    mismatch["&lt;&lt;0,1,2&gt;&gt; != &lt;&lt;0,2&gt;&gt;"]
-    actual["actual = &lt;&lt;0,1,2&gt;&gt;"]
-    expected --> mismatch
-    actual --> mismatch
-  end
-
-  h4 -.-> expected
-  h5 -.-> actual
+%%{init: {"theme":"base","themeVariables":{"git0":"#0072B2","git1":"#E69F00","gitInv1":"#CC79A7","gitBranchLabel0":"#FFFFFF","gitBranchLabel1":"#000000","commitLabelColor":"#000000","commitLabelBackground":"#FFFFFF"},"gitGraph":{"showBranches":true,"showCommitLabel":true,"rotateCommitLabel":true}}}%%
+gitGraph LR:
+  commit id: "tx0: observed #60;#60;0#62;#62;" type: NORMAL
+  branch filtered
+  checkout main
+  commit id: "tx1: ledger; no response/status" type: REVERSE
+  commit id: "tx2 actual: observed #60;#60;0,1,2#62;#62;" type: NORMAL
+  checkout filtered
+  commit id: "tx2 expected: Append(#60;#60;0#62;#62;,2)#61;#60;#60;0,2#62;#62;" type: HIGHLIGHT
 ```
+
+**Legend:** Blue `main` and circular `NORMAL` markers show the actual ledger
+and response observations. The crossed `REVERSE` marker is not a rollback:
+transaction `1` is in the ledger and in transaction `2`'s observation, but has
+no response or status event. Orange `filtered` is a logical projection, not a
+second ledger branch. Its rectangular `HIGHLIGHT` marker is the false
+expectation where `CommittedRwOrderedSerializableInv` breaks.
 
 | Transition | State reached | TLC action                        | Relevant result                       | History length |
 | ---------: | ------------: | --------------------------------- | ------------------------------------- | -------------: |
@@ -170,29 +146,41 @@ actions are enabled by the specification but are not selected by this
 shortest counterexample.
 
 ```mermaid
-flowchart TB
-  subgraph multi["MCNextMultiNodeAction"]
-    direction TB
-    subgraph single["Included subset: MCNextSingleNodeAction"]
-      direction LR
-      s1["State 1<br/>empty history<br/>one empty branch"]
-      s4["State 4<br/>requests 0, 1, 2"]
-      s7["State 7<br/>view 1 slots contain 0, 1, 2"]
-      s9["State 9<br/>responses for 0 and 2"]
-      s11["State 11<br/>7 history events<br/>invariant violated"]
-      s1 -->|3 request transitions| s4
-      s4 -->|3 execute transitions| s7
-      s7 -->|2 response transitions| s9
-      s9 -->|2 committed-status transitions| s11
-    end
-
-    truncate["MCTruncateLedgerAction<br/>available, not selected"]
-    invalid["MCStatusInvalidResponseAction<br/>available, not selected"]
-  end
-
-  s7 -.-> view["ledgerBranches has length 1 throughout<br/>view 1 only; no view change"]
-  s11 --> result["&lt;&lt;0,1,2&gt;&gt; != &lt;&lt;0,2&gt;&gt;"]
+%%{init: {"theme":"base","themeVariables":{"git0":"#0072B2","git1":"#E69F00","gitInv1":"#CC79A7","gitBranchLabel0":"#FFFFFF","gitBranchLabel1":"#000000","commitLabelColor":"#000000","commitLabelBackground":"#FFFFFF"},"gitGraph":{"showBranches":true,"showCommitLabel":true,"rotateCommitLabel":true}}}%%
+gitGraph LR:
+  commit id: "tx0 view 1: observed #60;#60;0#62;#62;" type: NORMAL
+  branch filtered
+  checkout main
+  commit id: "tx1 view 1: ledger; no response/status" type: REVERSE
+  commit id: "tx2 actual view 1: observed #60;#60;0,1,2#62;#62;" type: NORMAL
+  checkout filtered
+  commit id: "tx2 expected: Append(#60;#60;0#62;#62;,2)#61;#60;#60;0,2#62;#62;" type: HIGHLIGHT
 ```
+
+**Legend:** Blue `main` contains only view `1` and shows the same actual
+transaction order as the single-node witness. The crossed transaction `1` is
+present in the ledger and later observation but lacks a response or status.
+Orange `filtered` is the invariant's projection, not another ledger view; its
+rectangular `HIGHLIGHT` marker is the failing expectation. No view change is
+drawn because none occurs.
+
+The configured multi-node action set still contains unused alternatives:
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#FFFFFF","primaryTextColor":"#000000","primaryBorderColor":"#333333","lineColor":"#333333"}}}%%
+flowchart LR
+  multi["MCNextMultiNodeAction<br/>ViewLimit = 3"] -->|contains| single["MCNextSingleNodeAction<br/>selected for all 10 transitions"]
+  multi -.->|also contains| extra["View-change / invalid-status alternatives<br/>MCTruncateLedgerAction<br/>MCStatusInvalidResponseAction<br/>available; selected 0 times"]
+  classDef root fill:#FFFFFF,stroke:#333333,stroke-width:2px,color:#000000
+  classDef selected fill:#0072B2,stroke:#003B5C,stroke-width:2px,color:#FFFFFF
+  classDef unused fill:#E69F00,stroke:#7A5200,stroke-width:2px,color:#000000
+  class multi root
+  class single selected
+  class extra unused
+```
+
+**Legend:** Solid blue is the selected single-node subset. Dashed orange is
+available under `MCSpecMultiNode` but unused by this witness.
 
 This is an important containment result rather than a weakness in the
 multi-node check. `MCMultiNode.tla` defines:
