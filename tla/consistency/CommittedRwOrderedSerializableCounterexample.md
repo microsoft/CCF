@@ -43,34 +43,61 @@ The equality is too strong. An intervening client write can be present in the
 ledger and in the later response's observations without having its own
 response or committed-status event in the external history.
 
-## Single-node trace
+## Shared deterministic trace
 
-TLC finds the following deterministic breadth-first trace with one worker.
-Transaction IDs are `<<view, sequence number>>`. The git graph projects the
-final state in transaction order; the table below gives the exact transition
-and external-event order. The `main` line is the actual ledger order annotated
-with response observations. The `filtered` line branches at transaction `0`
-and shows the pair that the invariant constructs after filtering out
-transaction `1`.
+With one worker, both the single-node configuration and the `MCMultiNode.tla`
+configuration produce this exact deterministic breadth-first history. The
+diagram is the complete transition order, not a projection: its single path
+contains all ten transitions and ends at the state 11 violation. Transaction
+IDs are `<<view, sequence number>>`.
 
 ```mermaid
-%%{init: {"theme":"base","themeVariables":{"git0":"#0072B2","git1":"#E69F00","gitInv1":"#CC79A7","gitBranchLabel0":"#FFFFFF","gitBranchLabel1":"#000000","commitLabelColor":"#000000","commitLabelBackground":"#FFFFFF"},"gitGraph":{"showBranches":true,"showCommitLabel":true,"rotateCommitLabel":true}}}%%
-gitGraph LR:
-  commit id: "tx0: observed #60;#60;0#62;#62;" type: NORMAL
-  branch filtered
-  checkout main
-  commit id: "tx1: ledger; no response/status" type: REVERSE
-  commit id: "tx2 actual: observed #60;#60;0,1,2#62;#62;" type: NORMAL
-  checkout filtered
-  commit id: "tx2 expected: Append(#60;#60;0#62;#62;,2)#61;#60;#60;0,2#62;#62;" type: HIGHLIGHT
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"Arial, sans-serif","lineColor":"#333333","primaryTextColor":"#111111"}}}%%
+flowchart TB
+  t1["<b>1. HISTORY 1 - REQUEST tx0</b><br/>MCRwTxRequestAction; history length 1"]
+  t2["<b>2. HISTORY 2 - REQUEST tx1</b><br/>MCRwTxRequestAction; history length 2"]
+  t3["<b>3. HISTORY 3 - REQUEST tx2</b><br/>MCRwTxRequestAction; history length 3"]
+  t4(["<b>4. INTERNAL - EXECUTE tx0</b><br/>view 1, slot 1; history remains 3"])
+  t5(["<b>5. INTERNAL - EXECUTE tx1</b><br/>view 1, slot 2; history remains 3<br/><b>Present in ledger; no later response or status</b>"])
+  t6(["<b>6. INTERNAL - EXECUTE tx2</b><br/>view 1, slot 3; history remains 3"])
+  t7{{"<b>7. HISTORY 4 - RESPONSE tx0</b><br/>ID &lt;&lt;1, 1&gt;&gt;; observed &lt;&lt;0&gt;&gt;<br/><b>Retained once committed at transition 9</b>"}}
+  t8{{"<b>8. HISTORY 5 - RESPONSE tx2</b><br/>ID &lt;&lt;1, 3&gt;&gt;; observed &lt;&lt;0, <strong style='color:#B00020'>1 UNEXPECTED</strong>, 2&gt;&gt;<br/><b>Retained once committed at transition 10; unexpected tx1 contribution</b>"}}
+  t9{{"<b>9. HISTORY 6 - COMMITTED STATUS &lt;&lt;1, 1&gt;&gt;</b><br/>MCStatusCommittedResponseAction; retains response tx0"}}
+  t10{{"<b>10. HISTORY 7 - COMMITTED STATUS &lt;&lt;1, 3&gt;&gt;</b><br/>MCStatusCommittedResponseAction; retains response tx2"}}
+  failure[["<b>ANALYSIS - INVARIANT VIOLATION</b><br/>Filtering produces responses tx0 and tx2; tx1 has no response/status.<br/>expected Append(&lt;&lt;0&gt;&gt;, 2) = &lt;&lt;0, 2&gt;&gt;<br/>actual = &lt;&lt;0, <strong style='color:#B00020'>1 UNEXPECTED</strong>, 2&gt;&gt;<br/><b>CommittedRwOrderedSerializableInv is false.</b>"]]
+
+  t1 --> t2
+  t2 --> t3
+  t3 --> t4
+  t4 --> t5
+  t5 --> t6
+  t6 --> t7
+  t7 --> t8
+  t8 --> t9
+  t9 --> t10
+  t10 --> failure
+
+  classDef external fill:#D9EAF7,stroke:#0072B2,stroke-width:3px,color:#111111
+  classDef internal fill:#E5E7EB,stroke:#4B5563,stroke-width:3px,color:#111111
+  classDef intervening fill:#FDE7B0,stroke:#A85D00,stroke-width:4px,color:#111111
+  classDef retained fill:#DFF2E1,stroke:#007A3D,stroke-width:3px,color:#111111
+  classDef unexpected fill:#DFF2E1,stroke:#B00020,stroke-width:5px,color:#111111
+  classDef violation fill:#FFD6D6,stroke:#B00020,stroke-width:6px,color:#660000
+  class t1,t2,t3 external
+  class t4,t6 internal
+  class t5 intervening
+  class t7,t9,t10 retained
+  class t8 unexpected
+  class failure violation
+  linkStyle default stroke:#333333,stroke-width:3px
 ```
 
-**Legend:** Blue `main` and circular `NORMAL` markers show the actual ledger
-and response observations. The crossed `REVERSE` marker is not a rollback:
-transaction `1` is in the ledger and in transaction `2`'s observation, but has
-no response or status event. Orange `filtered` is a logical projection, not a
-second ledger branch. Its rectangular `HIGHLIGHT` marker is the false
-expectation where `CommittedRwOrderedSerializableInv` breaks.
+**Legend:** Blue rectangles are ordinary external history events. Gray rounded
+nodes are internal execute actions and do not change `history`. The amber
+rounded node marks transaction `1`, which is present in the ledger but absent
+from response/status filtering. Green hexagons are response/status events
+retained by that filtering. Red text and heavy red borders mark the unexpected
+transaction `1` contribution and the final invariant violation.
 
 | Transition | State reached | TLC action                        | Relevant result                       | History length |
 | ---------: | ------------: | --------------------------------- | ------------------------------------- | -------------: |
@@ -129,9 +156,22 @@ These are ten transitions. The execution actions do not append to `history`,
 so the three requests, two responses, and two statuses produce seven history
 events.
 
-## Multi-node trace
+## Configuration-specific reproduction
 
-The dedicated multi-node configuration uses:
+### Single-node configuration
+
+The dedicated single-node configuration uses:
+
+```tla
+SPECIFICATION MCSpecSingleNode
+HistoryLimit = 7
+```
+
+It produces the shared ten-transition, eleven-state trace above.
+
+### Multi-node configuration
+
+The dedicated `MCMultiNode.tla` configuration uses:
 
 ```tla
 SPECIFICATION MCSpecMultiNode
@@ -139,48 +179,11 @@ HistoryLimit = 7
 ViewLimit = 3
 ```
 
-At these bounds TLC produces the same values and action order as the
-single-node run. Every selected action comes from
-`MCNextSingleNodeAction`. The multi-node-only truncation and invalid-status
-actions are enabled by the specification but are not selected by this
-shortest counterexample.
-
-```mermaid
-%%{init: {"theme":"base","themeVariables":{"git0":"#0072B2","git1":"#E69F00","gitInv1":"#CC79A7","gitBranchLabel0":"#FFFFFF","gitBranchLabel1":"#000000","commitLabelColor":"#000000","commitLabelBackground":"#FFFFFF"},"gitGraph":{"showBranches":true,"showCommitLabel":true,"rotateCommitLabel":true}}}%%
-gitGraph LR:
-  commit id: "tx0 view 1: observed #60;#60;0#62;#62;" type: NORMAL
-  branch filtered
-  checkout main
-  commit id: "tx1 view 1: ledger; no response/status" type: REVERSE
-  commit id: "tx2 actual view 1: observed #60;#60;0,1,2#62;#62;" type: NORMAL
-  checkout filtered
-  commit id: "tx2 expected: Append(#60;#60;0#62;#62;,2)#61;#60;#60;0,2#62;#62;" type: HIGHLIGHT
-```
-
-**Legend:** Blue `main` contains only view `1` and shows the same actual
-transaction order as the single-node witness. The crossed transaction `1` is
-present in the ledger and later observation but lacks a response or status.
-Orange `filtered` is the invariant's projection, not another ledger view; its
-rectangular `HIGHLIGHT` marker is the failing expectation. No view change is
-drawn because none occurs.
-
-The configured multi-node action set still contains unused alternatives:
-
-```mermaid
-%%{init: {"theme":"base","themeVariables":{"primaryColor":"#FFFFFF","primaryTextColor":"#000000","primaryBorderColor":"#333333","lineColor":"#333333"}}}%%
-flowchart LR
-  multi["MCNextMultiNodeAction<br/>ViewLimit = 3"] -->|contains| single["MCNextSingleNodeAction<br/>selected for all 10 transitions"]
-  multi -.->|also contains| extra["View-change / invalid-status alternatives<br/>MCTruncateLedgerAction<br/>MCStatusInvalidResponseAction<br/>available; selected 0 times"]
-  classDef root fill:#FFFFFF,stroke:#333333,stroke-width:2px,color:#000000
-  classDef selected fill:#0072B2,stroke:#003B5C,stroke-width:2px,color:#FFFFFF
-  classDef unused fill:#E69F00,stroke:#7A5200,stroke-width:2px,color:#000000
-  class multi root
-  class single selected
-  class extra unused
-```
-
-**Legend:** Solid blue is the selected single-node subset. Dashed orange is
-available under `MCSpecMultiNode` but unused by this witness.
+At these bounds `MCMultiNode.tla` produces the exact same linear history,
+values, and action order as the single-node run. Although `ViewLimit = 3` is
+configured, no view change, truncation, or invalidation occurs because the
+shortest witness stays entirely in the embedded `MCNextSingleNodeAction`
+subset. The multi-node-only alternatives are enabled but selected zero times.
 
 This is an important containment result rather than a weakness in the
 multi-node check. `MCMultiNode.tla` defines:
