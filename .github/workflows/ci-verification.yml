@@ -78,6 +78,8 @@ jobs:
       - run: ./tlc_debug.sh --config consistency/MCMultiNodeCommitReachability.cfg mc consistency/MCMultiNodeReads.tla
       - run: ./tlc_debug.sh --config consistency/MCMultiNodeInvalidReachability.cfg mc consistency/MCMultiNodeReads.tla
       - run: ./tlc_debug.sh --config consistency/MCMultiNodeReadsNotLinearizable.cfg mc consistency/MCMultiNodeReads.tla
+      # Expected-failure check: tlc_debug.sh succeeds only when TLC reports:
+      # Error: Invariant CommittedRwOrderedSerializableInv is violated.
       - run: ./tlc_debug.sh --config consistency/MCSingleNodeOrderedSerializableCounterexample.cfg mc consistency/MCSingleNode.tla
 
   simulation-consistency:
