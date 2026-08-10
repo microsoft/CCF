@@ -157,10 +157,14 @@ def test_network_node_info(network, args):
         r = c.get("/node/version", allow_redirects=False)
         assert r.status_code == http.HTTPStatus.OK.value
 
-        r = c.get("/node/metrics", allow_redirects=False)
+        r = c.get("/node/metrics", allow_redirects=False, validate_openapi=False)
         assert r.status_code == http.HTTPStatus.SERVICE_UNAVAILABLE.value
 
-        r = c.get("/node/network/nodes/self", allow_redirects=False)
+        r = c.get(
+            "/node/network/nodes/self",
+            allow_redirects=False,
+            validate_openapi=False,
+        )
         assert r.status_code == http.HTTPStatus.SERVICE_UNAVAILABLE.value
         assert r.body.json()["error"]["code"] == "FrontendNotOpen"
     new_node.stop()

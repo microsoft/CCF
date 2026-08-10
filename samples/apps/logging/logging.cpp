@@ -585,7 +585,7 @@ namespace loggingapp
         "recording messages at client-specified IDs. It demonstrates most of "
         "the features available to CCF apps.";
 
-      openapi_info.document_version = "2.8.3";
+      openapi_info.document_version = "2.8.4";
     };
 
     // NOLINTNEXTLINE(readability-function-cognitive-complexity)
