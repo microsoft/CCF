@@ -1,6 +1,7 @@
 ---
-name: Testing
-description: How to run unit tests, end-to-end tests, and Python SDK tests. Covers test labels, the tests.sh wrapper, e2e test infrastructure, and patterns for writing new tests.
+name: testing
+user-invocable: false
+description: "Run and write CCF tests. Use when selecting or executing unit, end-to-end, partition, compatibility, coverage, or Python SDK tests, or when adding an e2e test. Covers test labels, the tests.sh wrapper, e2e infrastructure, and test patterns. Never call ctest without reading this first."
 ---
 
 # Testing
