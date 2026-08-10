@@ -46,6 +46,8 @@ jobs:
 
       - run: cd tla && ./tlc.py mc consistency/MCSingleNode.tla
       - run: cd tla && ./tlc.py mc consistency/MCSingleNodeReads.tla
+      # Covers the formerly failing seven-event trace.
+      - run: cd tla && ./tlc.py --workers 1 --config consistency/MCSingleNodeOrderedSerializable.cfg mc consistency/MCSingleNode.tla
       - run: cd tla && ./tlc.py mc consistency/MCMultiNode.tla
       - run: cd tla && ./tlc.py mc consistency/MCMultiNodeReads.tla
       - run: cd tla && ./tlc.py mc consistency/MCMultiNodeReadsAlt.tla
