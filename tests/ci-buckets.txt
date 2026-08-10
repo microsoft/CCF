@@ -29,6 +29,7 @@ no_bucket:
   map_bench
   logger_bench
   json_bench
+  msgpack_bench
   ring_buffer_bench
   ledger_bench
   crypto_bench

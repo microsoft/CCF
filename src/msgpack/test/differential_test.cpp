@@ -5,7 +5,6 @@
 // nlohmann::json::from_msgpack, assert structural equality.
 // nlohmann is the oracle.
 #include "msgpack/encode.h"
-
 #include "msgpack/test/gen.h"
 
 #include <chrono>
@@ -93,9 +92,11 @@ namespace
       case 1:
         return gen::boolean()(rng);
       case 2:
-        return gen::uint64_in_range(0, std::numeric_limits<uint64_t>::max())(rng);
+        return gen::uint64_in_range(0, std::numeric_limits<uint64_t>::max())(
+          rng);
       case 3:
-        return gen::int64_in_range(std::numeric_limits<int64_t>::min(), -1)(rng);
+        return gen::int64_in_range(std::numeric_limits<int64_t>::min(), -1)(
+          rng);
       case 4:
         return gen::finite_double()(rng);
       case 5:
@@ -135,7 +136,8 @@ namespace
       // collapsed by nlohmann::json's object representation; we encode
       // .size() pairs (the deduplicated count), so the count claimed
       // by our map header always matches the count produced.
-      const auto key = gen::ascii_string_of_size(gen::size_in_range(1, 10))(rng);
+      const auto key =
+        gen::ascii_string_of_size(gen::size_in_range(1, 10))(rng);
       obj[key] = gen_value(rng, depth - 1);
     }
     return obj;
@@ -203,8 +205,8 @@ TEST_CASE("differential: scalar coverage")
 
 TEST_CASE("differential: FluentdEventTime decodes as binary_t with subtype 0")
 {
-  const auto et = FluentdEventTime::make(
-    tp_from_components(1700000000LL, 123456789U));
+  const auto et =
+    FluentdEventTime::make(tp_from_components(1700000000LL, 123456789U));
   std::vector<uint8_t> buf;
   write_event_time(buf, et);
 
@@ -235,19 +237,18 @@ TEST_CASE("fluentd Message-mode byte-for-byte vector")
   //    FluentdEventTime(seconds=0x69F37C9F, nanoseconds=0x315B5B4C),
   //    {'path': '/api/v1/foo', 'status': 200, 'ms': 12.3}]
   const std::vector<uint8_t> expected = {
-    0x93, 0xAC, 0x6D, 0x79, 0x61, 0x70, 0x70, 0x2E, 0x61, 0x63, 0x63, 0x65,
-    0x73, 0x73, 0xD7, 0x00, 0x69, 0xF3, 0x7C, 0x9F, 0x31, 0x5B, 0x5B, 0x4C,
-    0x83, 0xA4, 0x70, 0x61, 0x74, 0x68, 0xAB, 0x2F, 0x61, 0x70, 0x69, 0x2F,
-    0x76, 0x31, 0x2F, 0x66, 0x6F, 0x6F, 0xA6, 0x73, 0x74, 0x61, 0x74, 0x75,
-    0x73, 0xCC, 0xC8, 0xA2, 0x6D, 0x73, 0xCB, 0x40, 0x28, 0x99, 0x99, 0x99,
-    0x99, 0x99, 0x9A};
+    0x93, 0xAC, 0x6D, 0x79, 0x61, 0x70, 0x70, 0x2E, 0x61, 0x63, 0x63,
+    0x65, 0x73, 0x73, 0xD7, 0x00, 0x69, 0xF3, 0x7C, 0x9F, 0x31, 0x5B,
+    0x5B, 0x4C, 0x83, 0xA4, 0x70, 0x61, 0x74, 0x68, 0xAB, 0x2F, 0x61,
+    0x70, 0x69, 0x2F, 0x76, 0x31, 0x2F, 0x66, 0x6F, 0x6F, 0xA6, 0x73,
+    0x74, 0x61, 0x74, 0x75, 0x73, 0xCC, 0xC8, 0xA2, 0x6D, 0x73, 0xCB,
+    0x40, 0x28, 0x99, 0x99, 0x99, 0x99, 0x99, 0x9A};
 
   std::vector<uint8_t> buf;
   write_array_header(buf, 3);
   write_str(buf, "myapp.access");
   write_event_time(
-    buf,
-    FluentdEventTime::make(tp_from_components(0x69F37C9FLL, 0x315B5B4CU)));
+    buf, FluentdEventTime::make(tp_from_components(0x69F37C9FLL, 0x315B5B4CU)));
   write_map_header(buf, 3);
   write_str(buf, "path");
   write_str(buf, "/api/v1/foo");

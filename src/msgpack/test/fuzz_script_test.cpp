@@ -25,8 +25,8 @@
 #include <vector>
 
 namespace gen = ccf::msgpack::test::gen;
-using nlohmann::json;
 using ccf::msgpack::FluentdEventTime;
+using nlohmann::json;
 
 namespace
 {
@@ -62,8 +62,7 @@ namespace
     REQUIRE(ch <= 'z');
     const uint8_t b = static_cast<uint8_t>(ch - 'a');
     return CannedKey{
-      std::vector<uint8_t>(gen::KEY_LEN, b),
-      std::string(gen::KEY_LEN, ch)};
+      std::vector<uint8_t>(gen::KEY_LEN, b), std::string(gen::KEY_LEN, ch)};
   }
 
   // Helper: append all bytes from `src` to `dst`.
@@ -136,22 +135,12 @@ TEST_CASE("encode_one: FluentdEventTime at top level")
 
   // Op 7, then seconds u64 and nanoseconds u64. Nanoseconds are zero so
   // the expected payload is independent of system_clock tick precision.
-  auto [buf, mirror] = run_script(
-    {7,
-     0, 0, 0, 0, 0x01, 0x02, 0x03, 0x04,
-     0, 0, 0, 0, 0, 0, 0, 0});
+  auto [buf, mirror] =
+    run_script({7, 0, 0, 0, 0, 0x01, 0x02, 0x03, 0x04, 0, 0, 0, 0, 0, 0, 0, 0});
   CHECK(
-    buf == std::vector<uint8_t>{
-             0xD7,
-             0x00,
-             0x01,
-             0x02,
-             0x03,
-             0x04,
-             0x00,
-             0x00,
-             0x00,
-             0x00});
+    buf ==
+    std::vector<uint8_t>{
+      0xD7, 0x00, 0x01, 0x02, 0x03, 0x04, 0x00, 0x00, 0x00, 0x00});
   check_binary_payload(mirror, payload, true, 0);
   CHECK(json::from_msgpack(buf) == mirror);
 }
@@ -188,8 +177,7 @@ TEST_CASE("encode_one: map with single nil value, 32-char key")
   std::vector<uint8_t> expected_buf = {0x80 | 1};
   expected_buf.push_back(0xD9);
   expected_buf.push_back(static_cast<uint8_t>(gen::KEY_LEN));
-  expected_buf.insert(
-    expected_buf.end(), key.str.begin(), key.str.end());
+  expected_buf.insert(expected_buf.end(), key.str.begin(), key.str.end());
   expected_buf.push_back(0xC0);
   CHECK(buf == expected_buf);
 
@@ -235,8 +223,7 @@ TEST_CASE("encode_one: composites beyond the stack depth cap become nil")
   for (const uint8_t composite_op : {8, 9})
   {
     CAPTURE(composite_op);
-    auto [buf, mirror] =
-      run_script({8, 1, 8, 1, 8, 1, composite_op, 1, 0});
+    auto [buf, mirror] = run_script({8, 1, 8, 1, 8, 1, composite_op, 1, 0});
 
     CHECK(buf == std::vector<uint8_t>{0x91, 0x91, 0x91, 0xC0});
 
@@ -267,8 +254,7 @@ TEST_CASE("encode_one: object whose value is a singleton array")
   // str_8(32, "aaaa...")
   expected_buf.push_back(0xD9);
   expected_buf.push_back(static_cast<uint8_t>(gen::KEY_LEN));
-  expected_buf.insert(
-    expected_buf.end(), key.str.begin(), key.str.end());
+  expected_buf.insert(expected_buf.end(), key.str.begin(), key.str.end());
   // value: fixarray(1) ++ nil
   expected_buf.push_back(0x91);
   expected_buf.push_back(0xC0);
@@ -301,14 +287,12 @@ TEST_CASE("encode_one: object containing object")
   // outer key
   expected_buf.push_back(0xD9);
   expected_buf.push_back(static_cast<uint8_t>(gen::KEY_LEN));
-  expected_buf.insert(
-    expected_buf.end(), outer.str.begin(), outer.str.end());
+  expected_buf.insert(expected_buf.end(), outer.str.begin(), outer.str.end());
   // inner map
   expected_buf.push_back(0x80 | 1);
   expected_buf.push_back(0xD9);
   expected_buf.push_back(static_cast<uint8_t>(gen::KEY_LEN));
-  expected_buf.insert(
-    expected_buf.end(), inner.str.begin(), inner.str.end());
+  expected_buf.insert(expected_buf.end(), inner.str.begin(), inner.str.end());
   expected_buf.push_back(0xC0);
   CHECK(buf == expected_buf);
 
@@ -344,8 +328,7 @@ TEST_CASE("encode_one: array mixing object and empty array")
   expected_buf.push_back(0x80 | 1);
   expected_buf.push_back(0xD9);
   expected_buf.push_back(static_cast<uint8_t>(gen::KEY_LEN));
-  expected_buf.insert(
-    expected_buf.end(), key.str.begin(), key.str.end());
+  expected_buf.insert(expected_buf.end(), key.str.begin(), key.str.end());
   expected_buf.push_back(0xC0);
   // child 1: empty array
   expected_buf.push_back(0x90);
@@ -367,47 +350,26 @@ TEST_CASE("encode_one: array containing bin and FluentdEventTime")
     0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00};
 
   // array(2): bin8(2, 0xAA 0xBB), EventTime(seconds=1, nanoseconds=0).
-  auto [buf, mirror] = run_script(
-    {8,
-     2,
-     6,
-     2,
-     0xAA,
-     0xBB,
-     7,
-     0,
-     0,
-     0,
-     0,
-     0,
-     0,
-     0,
-     1,
-     0,
-     0,
-     0,
-     0,
-     0,
-     0,
-     0,
-     0});
+  auto [buf, mirror] = run_script({8, 2, 6, 2, 0xAA, 0xBB, 7, 0, 0, 0, 0, 0,
+                                   0, 0, 1, 0, 0,    0,    0, 0, 0, 0, 0});
   CHECK(
-    buf == std::vector<uint8_t>{
-             0x92,
-             0xC4,
-             0x02,
-             0xAA,
-             0xBB,
-             0xD7,
-             0x00,
-             0x00,
-             0x00,
-             0x00,
-             0x01,
-             0x00,
-             0x00,
-             0x00,
-             0x00});
+    buf ==
+    std::vector<uint8_t>{
+      0x92,
+      0xC4,
+      0x02,
+      0xAA,
+      0xBB,
+      0xD7,
+      0x00,
+      0x00,
+      0x00,
+      0x00,
+      0x01,
+      0x00,
+      0x00,
+      0x00,
+      0x00});
 
   REQUIRE(mirror.is_array());
   REQUIRE(mirror.size() == 2);
@@ -455,8 +417,7 @@ TEST_CASE("encode_one: uint64 of 0xC0 emits uint_8")
 {
   // 0xC0 is 192, doesn't fit in positive fixint (max 127), uses uint_8.
   // Wire: 0xCC 0xC0.
-  auto [buf, mirror] =
-    run_script({2, 0, 0, 0, 0, 0, 0, 0, 0xC0});
+  auto [buf, mirror] = run_script({2, 0, 0, 0, 0, 0, 0, 0, 0xC0});
   CHECK(buf == std::vector<uint8_t>{0xCC, 0xC0});
   CHECK(mirror == json(static_cast<uint64_t>(0xC0)));
   CHECK(json::from_msgpack(buf) == mirror);
