@@ -450,14 +450,20 @@ IsCheckQuorum ==
 
 IsSigTermProposeVote ==
     /\ IsEvent("step_down_and_nominate_successor")
-    \* C++ logs the request even when there is no successor and sends nothing.
-    /\ IF PlausibleSucessorNodes(logline.msg.state.node_id) = {}
-       THEN UNCHANGED vars
-       ELSE SigTermProposeVote(logline.msg.state.node_id)
-    /\ leadershipState[logline.msg.state.node_id] = Leader
+    \* C++ only emits this event when a successor was found, so this
+    \* trace action always sends a ProposeVoteRequest to that successor.
+    /\ IF logline.msg.state.membership_state = "Retired"
+       THEN \* C++ logs this nomination as it completes retirement, but the
+            \* state transition and any message this implies were already
+            \* modeled atomically by the preceding AdvanceCommitIndex step
+            \* (see the "commit" event), which is why leadershipState here
+            \* is no longer Leader.
+            /\ UNCHANGED vars
+            /\ leadershipState[logline.msg.state.node_id] = Follower
+       ELSE /\ leadershipState[logline.msg.state.node_id] = Leader
+            /\ SigTermProposeVote(logline.msg.state.node_id)
     /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
-    /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
     /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
     /\ Len(log[logline.msg.state.node_id]) = logline.msg.state.last_idx
     /\ (logline.msg.state.pre_vote_enabled => PreVoteEnabled \in preVoteStatus[logline.msg.state.node_id])
