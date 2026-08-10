@@ -32,6 +32,7 @@
 #include <chrono>
 #include <cstdint>
 #include <cstring>
+#include <functional>
 #include <limits>
 #include <span>
 #include <stdexcept>
@@ -48,7 +49,7 @@ namespace ccf::msgpack
     STRING_TOO_LARGE = 1, // > 2^32-1 bytes
     BIN_TOO_LARGE = 2, // > 2^32-1 bytes
     MAP_TOO_LARGE = 3, // > 65535 elements (we cap at map16)
-    INVALID_EVENT_TIME = 4, // nanoseconds >= 1_000_000_000
+    INVALID_EVENT_TIME = 4, // outside Fluentd EventTime's representable range
   };
 
   // Every error knows how to describe itself. The returned string_view
@@ -374,9 +375,8 @@ namespace ccf::msgpack
   //   [65536, 2^32-1]       -> str 32   (5-byte header)
   // Throws MsgpackEncodeError(STRING_TOO_LARGE) for sizes >= 2^32.
   //
-  // The payload is copied verbatim — msgpack str is byte-array,
-  // not text. We do not validate UTF-8 (the spec doesn't require it
-  // and the wire format is opaque to byte content).
+  // The payload is copied verbatim. The msgpack spec defines str as
+  // UTF-8, but this encoder does not validate it.
   inline void write_str(std::vector<uint8_t>& buf, std::string_view s)
   {
     // The reinterpret_cast below from `const char*` to `const uint8_t*`
@@ -429,6 +429,21 @@ namespace ccf::msgpack
   inline void write_bin(
     std::vector<uint8_t>& buf, std::span<const uint8_t> data)
   {
+    std::vector<uint8_t> aliased_data;
+    if (!buf.empty() && !data.empty())
+    {
+      const auto less = std::less<const uint8_t*>{};
+      const auto* const buf_begin = buf.data();
+      const auto* const buf_end = buf_begin + buf.size();
+      const auto* const data_begin = data.data();
+      const auto* const data_end = data_begin + data.size();
+      if (less(data_begin, buf_end) && less(buf_begin, data_end))
+      {
+        aliased_data.assign(data.begin(), data.end());
+        data = aliased_data;
+      }
+    }
+
     const auto n = data.size();
     if (n <= 0xFFU)
     {

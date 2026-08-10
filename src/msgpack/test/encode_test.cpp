@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <cstring>
 #include <doctest/doctest.h>
+#include <iterator>
 #include <limits>
 #include <vector>
 
@@ -475,6 +476,19 @@ TEST_CASE("write_bin length prefix and family")
   }
 }
 
+TEST_CASE("write_bin supports payloads stored in the destination buffer")
+{
+  std::vector<uint8_t> buf = {0xDE, 0xAD, 0xBE, 0xEF};
+  buf.shrink_to_fit();
+
+  write_bin(buf, std::span<const uint8_t>{buf});
+
+  CHECK(
+    buf ==
+    std::vector<uint8_t>{
+      0xDE, 0xAD, 0xBE, 0xEF, 0xC4, 0x04, 0xDE, 0xAD, 0xBE, 0xEF});
+}
+
 // ===== container headers =====
 
 TEST_CASE("write_array_header boundary table")
@@ -720,4 +734,3 @@ TEST_CASE("to_string(Error) maps every enumerator to a unique stable label")
   CHECK(to_string(Error::STRING_TOO_LARGE) == "STRING_TOO_LARGE");
   CHECK(to_string(Error::INVALID_EVENT_TIME) == "INVALID_EVENT_TIME");
 }
-

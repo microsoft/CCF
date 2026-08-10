@@ -134,8 +134,8 @@ namespace ccf::msgpack::test::gen
     return [size_gen = std::move(size_gen)](Rng& rng) {
       const auto n = size_gen(rng);
       std::string s(n, '\0');
-      // Full byte range: msgpack's str format is byte-array, not text.
-      // The encoder is binary-safe; tests should exercise that.
+      // Full byte range: the spec defines str as UTF-8, but the encoder
+      // intentionally leaves validation to callers.
       std::uniform_int_distribution<int> ch(0, 255);
       for (auto& c : s)
       {
@@ -460,9 +460,13 @@ namespace ccf::msgpack::test::gen
         }
         case 8: // Array
         {
-          // Once the stack is at the depth cap, force a nil to bound
-          // adversarial inputs.
           const uint32_t n = r.u8() % 5;
+          if (stack.size() >= MAX_STACK_DEPTH)
+          {
+            write_nil(buf);
+            splice_into(frame, json(nullptr));
+            break;
+          }
           write_array_header(buf, n);
           stack.push_back(std::make_shared<OpenFrame>(
             OpenFrame{json::array(), n, std::nullopt}));
@@ -473,6 +477,12 @@ namespace ccf::msgpack::test::gen
         case 9: // Map
         {
           const uint32_t n = r.u8() % 5;
+          if (stack.size() >= MAX_STACK_DEPTH)
+          {
+            write_nil(buf);
+            splice_into(frame, json(nullptr));
+            break;
+          }
           write_map_header(buf, n);
           stack.push_back(std::make_shared<OpenFrame>(
             OpenFrame{json::object(), n, std::nullopt}));

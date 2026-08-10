@@ -230,6 +230,26 @@ TEST_CASE("encode_one: array containing array containing nil")
   CHECK(json::from_msgpack(buf) == mirror);
 }
 
+TEST_CASE("encode_one: composites beyond the stack depth cap become nil")
+{
+  for (const uint8_t composite_op : {8, 9})
+  {
+    CAPTURE(composite_op);
+    auto [buf, mirror] =
+      run_script({8, 1, 8, 1, 8, 1, composite_op, 1, 0});
+
+    CHECK(buf == std::vector<uint8_t>{0x91, 0x91, 0x91, 0xC0});
+
+    json expected = nullptr;
+    for (size_t i = 1; i < gen::MAX_STACK_DEPTH; ++i)
+    {
+      expected = json::array({std::move(expected)});
+    }
+    CHECK(mirror == expected);
+    CHECK(json::from_msgpack(buf) == mirror);
+  }
+}
+
 TEST_CASE("encode_one: object whose value is a singleton array")
 {
   // map(1) key={'a' x 32} value=array(1, nil)
