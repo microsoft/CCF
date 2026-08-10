@@ -65,10 +65,8 @@ namespace ccf::curl
   // that are generally safe to retry: the peer may not be ready yet, a
   // connection was dropped, or a transient HTTP/2 framing error occurred.
   // Callers that run a retry loop (e.g. the node join client) use this to
-  // distinguish retryable transport failures from fatal certificate or
-  // application errors. CURLE_SSL_CONNECT_ERROR is retryable because it also
-  // reports a peer disappearing during the TLS handshake; certificate
-  // verification failures have distinct error codes.
+  // distinguish retryable transport failures from fatal TLS/certificate or
+  // application errors.
   //
   // This deliberately excludes CURLE_WRITE_ERROR: that indicates our own write
   // callback rejected the response (e.g. it exceeded the caller's size cap),
@@ -78,11 +76,10 @@ namespace ccf::curl
   {
     return code == CURLE_COULDNT_RESOLVE_PROXY ||
       code == CURLE_COULDNT_RESOLVE_HOST || code == CURLE_COULDNT_CONNECT ||
-      code == CURLE_OPERATION_TIMEDOUT || code == CURLE_SSL_CONNECT_ERROR ||
-      code == CURLE_GOT_NOTHING || code == CURLE_RECV_ERROR ||
-      code == CURLE_SEND_ERROR || code == CURLE_PARTIAL_FILE ||
-      code == CURLE_WEIRD_SERVER_REPLY || code == CURLE_HTTP2 ||
-      code == CURLE_HTTP2_STREAM;
+      code == CURLE_OPERATION_TIMEDOUT || code == CURLE_GOT_NOTHING ||
+      code == CURLE_RECV_ERROR || code == CURLE_SEND_ERROR ||
+      code == CURLE_PARTIAL_FILE || code == CURLE_WEIRD_SERVER_REPLY ||
+      code == CURLE_HTTP2 || code == CURLE_HTTP2_STREAM;
   }
 
   class UniqueCURL

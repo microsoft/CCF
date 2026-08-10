@@ -14,8 +14,6 @@
 
 namespace ccf
 {
-  class SessionWriter;
-
   namespace tls
   {
     using ConnID = int64_t;

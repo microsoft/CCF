@@ -828,6 +828,203 @@ TEST_CASE("Shutdown completes while a connection cannot flush its output")
   REQUIRE(uv_loop_alive(uv_default_loop()) == 0);
 }
 
+// An interface binds before its certificate is necessarily known - a joining
+// node only receives the service certificate once its join has been accepted.
+// Until then it must refuse connections outright rather than accept them and
+// drop them, so that a client fails to connect (and retries) rather than
+// completing a TCP handshake and then failing mid-TLS.
+TEST_CASE("A TLS interface without a certificate refuses connections")
+{
+  auto [cert, key] = make_server_cert();
+
+  std::mutex m;
+  std::condition_variable cv;
+  size_t data_callbacks = 0;
+
+  // No cert_pem/key_pem: the certificate arrives later, via set_server_cert.
+  std::shared_ptr<OpenSSLServer> server;
+  server = std::make_shared<OpenSSLServer>(
+    OpenSSLServer::Config{.host = "127.0.0.1"},
+    [&](
+      ::tcp::ConnID id,
+      std::vector<uint8_t> d,
+      const std::vector<uint8_t>&,
+      bool) {
+      server->send(id, std::move(d));
+      std::lock_guard<std::mutex> guard(m);
+      ++data_callbacks;
+      cv.notify_all();
+    });
+  UVLoopRunner loop;
+  server->start();
+
+  // The port is fixed by the bind, so it is reportable even before the
+  // interface is serving.
+  const auto port = server->port();
+  REQUIRE(port != 0);
+  loop.start();
+
+  const auto try_connect = [port]() {
+    const int fd = ::socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
+    REQUIRE(fd >= 0);
+    sockaddr_in addr{};
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(port);
+    REQUIRE(inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr) == 1);
+    const int rc =
+      ::connect(fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr));
+    const int err = errno;
+    ::close(fd);
+    return rc == 0 ? 0 : err;
+  };
+
+  // Bound but not listening, so the kernel answers the SYN with a reset.
+  REQUIRE(try_connect() == ECONNREFUSED);
+
+  // Supplying the certificate is what puts the interface into service.
+  server->set_server_cert(cert, key);
+
+  const auto deadline =
+    std::chrono::steady_clock::now() + std::chrono::seconds(10);
+  while (try_connect() != 0 && std::chrono::steady_clock::now() < deadline)
+  {
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  }
+  REQUIRE(try_connect() == 0);
+
+  // And the interface now serves a complete TLS session.
+  {
+    const int fd = ::socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
+    REQUIRE(fd >= 0);
+    sockaddr_in addr{};
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(port);
+    REQUIRE(inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr) == 1);
+    REQUIRE(
+      ::connect(fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) == 0);
+
+    SSL_CTX* cctx = SSL_CTX_new(TLS_client_method());
+    REQUIRE(cctx != nullptr);
+    SSL* ssl = SSL_new(cctx);
+    REQUIRE(ssl != nullptr);
+    REQUIRE(SSL_set_fd(ssl, fd) == 1);
+    SSL_set_connect_state(ssl);
+    REQUIRE(SSL_connect(ssl) == 1);
+
+    const std::string request = "hello";
+    REQUIRE(
+      SSL_write(ssl, request.data(), static_cast<int>(request.size())) ==
+      static_cast<int>(request.size()));
+
+    std::vector<uint8_t> echoed(request.size());
+    REQUIRE(
+      SSL_read(ssl, echoed.data(), static_cast<int>(echoed.size())) ==
+      static_cast<int>(request.size()));
+    REQUIRE(
+      std::string(echoed.begin(), echoed.end()) == request);
+
+    SSL_free(ssl);
+    SSL_CTX_free(cctx);
+    ::close(fd);
+  }
+
+  {
+    std::unique_lock<std::mutex> lock(m);
+    REQUIRE(cv.wait_for(lock, std::chrono::seconds(10), [&]() {
+      return data_callbacks > 0;
+    }));
+  }
+
+  server->stop(OpenSSLServer::LoopState::Running);
+  server.reset();
+  loop.thread.join();
+  REQUIRE(uv_loop_alive(uv_default_loop()) == 0);
+}
+
+// Idle connections are closed so that a client which connects, handshakes and
+// then goes quiet cannot hold a file descriptor and TLS state indefinitely.
+TEST_CASE("Idle connections are closed after the configured timeout")
+{
+  auto [cert, key] = make_server_cert();
+
+  std::mutex m;
+  std::condition_variable cv;
+  std::set<::tcp::ConnID> opened;
+  std::set<::tcp::ConnID> closed;
+
+  // Shorter than the sweep interval, so the first sweep after the connection
+  // goes quiet closes it.
+  std::shared_ptr<OpenSSLServer> server;
+  server = std::make_shared<OpenSSLServer>(
+    OpenSSLServer::Config{
+      .host = "127.0.0.1",
+      .cert_pem = cert,
+      .key_pem = key,
+      .idle_timeout = std::chrono::milliseconds(100)},
+    [&](
+      ::tcp::ConnID id,
+      std::vector<uint8_t> d,
+      const std::vector<uint8_t>&,
+      bool) {
+      server->send(id, std::move(d));
+      std::lock_guard<std::mutex> guard(m);
+      opened.insert(id);
+      cv.notify_all();
+    },
+    [&](::tcp::ConnID id) {
+      std::lock_guard<std::mutex> guard(m);
+      closed.insert(id);
+      cv.notify_all();
+    });
+  UVLoopRunner loop;
+  server->start();
+  const auto port = server->port();
+  loop.start();
+
+  const int fd = ::socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
+  REQUIRE(fd >= 0);
+  sockaddr_in addr{};
+  addr.sin_family = AF_INET;
+  addr.sin_port = htons(port);
+  REQUIRE(inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr) == 1);
+  REQUIRE(::connect(fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) == 0);
+
+  SSL_CTX* cctx = SSL_CTX_new(TLS_client_method());
+  REQUIRE(cctx != nullptr);
+  SSL* ssl = SSL_new(cctx);
+  REQUIRE(ssl != nullptr);
+  REQUIRE(SSL_set_fd(ssl, fd) == 1);
+  SSL_set_connect_state(ssl);
+  REQUIRE(SSL_connect(ssl) == 1);
+
+  const uint8_t request = 'x';
+  REQUIRE(SSL_write(ssl, &request, 1) == 1);
+  uint8_t echoed = 0;
+  REQUIRE(SSL_read(ssl, &echoed, 1) == 1);
+
+  // The connection is established and served. Now go quiet, and the server
+  // should close it of its own accord.
+  {
+    std::unique_lock<std::mutex> lock(m);
+    REQUIRE(cv.wait_for(
+      lock, std::chrono::seconds(10), [&]() { return !closed.empty(); }));
+    REQUIRE(closed == opened);
+  }
+
+  // The client observes the close rather than the connection simply stalling.
+  uint8_t after = 0;
+  REQUIRE(SSL_read(ssl, &after, 1) <= 0);
+
+  SSL_free(ssl);
+  SSL_CTX_free(cctx);
+  ::close(fd);
+
+  server->stop(OpenSSLServer::LoopState::Running);
+  server.reset();
+  loop.thread.join();
+  REQUIRE(uv_loop_alive(uv_default_loop()) == 0);
+}
+
 TEST_CASE("TCP connections use the legacy latency and keepalive options")
 {
   const int fd = ::socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);

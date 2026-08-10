@@ -45,6 +45,7 @@
 #include <stdexcept>
 #include <string>
 #include <system_error>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -193,6 +194,18 @@ namespace ccf
 
     std::mutex interfaces_mutex;
     std::map<std::string, std::unique_ptr<ListenInterface>> interfaces;
+
+    // The transport each admitted TCP connection belongs to, so that a reply
+    // can find its session directly. Guarded by its own mutex rather than
+    // interfaces_mutex: replies arrive on session workers, while the entries
+    // are added and removed on the libuv loop thread, and putting that on the
+    // interface lock would serialise every forwarded reply behind unrelated
+    // loop-thread work.
+    std::mutex connection_interfaces_mutex;
+    std::unordered_map<
+      ::tcp::ConnID,
+      std::shared_ptr<asynchost::OpenSSLSessionManager>>
+      connection_transports;
     // UDP interface state, keyed by interface name. Only custom UDP protocols
     // hold state here, one session per peer; "QUIC" interfaces are echoed
     // statelessly (see listen_udp) and so have no entries at all.
@@ -332,6 +345,12 @@ namespace ccf
 
       increment_interface_peak(li, open + 1);
       increment_active_sessions();
+      {
+        // li->bridge is assigned by listen() before the transport is started,
+        // and so before it can accept anything and reach here.
+        std::lock_guard<std::mutex> guard(connection_interfaces_mutex);
+        connection_transports[conn_id] = li->bridge;
+      }
 
       const bool soft_limited = open >= li->max_open_sessions_soft;
       if (soft_limited)
@@ -349,8 +368,12 @@ namespace ccf
 
     // Release the reservation taken by admit_connection. Invoked exactly once
     // per admitted connection, when the transport has torn it down.
-    void release_connection(ListenInterface* li)
+    void release_connection(ListenInterface* li, ::tcp::ConnID conn_id)
     {
+      {
+        std::lock_guard<std::mutex> guard(connection_interfaces_mutex);
+        connection_transports.erase(conn_id);
+      }
       decrement_interface_sessions(li);
       decrement_active_sessions();
     }
@@ -743,7 +766,9 @@ namespace ccf
                        bool soft_limited) {
         return make_session(li, cid, w, std::move(pc), soft_limited);
       };
-      auto on_closed = [this, li](::tcp::ConnID) { release_connection(li); };
+      auto on_closed = [this, li](::tcp::ConnID cid) {
+        release_connection(li, cid);
+      };
 
       LOG_INFO_FMT(
         "Registering RPC interface {}, on tcp {}:{}", name, host, port);
@@ -850,33 +875,32 @@ namespace ccf
       bool terminate_after_reply,
       std::vector<uint8_t>&& data) override
     {
-      std::vector<std::shared_ptr<asynchost::OpenSSLSessionManager>> bridges;
+      // The transport is snapshotted under the lock and used without it:
+      // stopping a transport blocks on the libuv loop, which itself needs
+      // interfaces_mutex, so no manager lock may be held across a send.
+      std::shared_ptr<asynchost::OpenSSLSessionManager> bridge;
       {
-        std::lock_guard<std::mutex> guard(interfaces_mutex);
-        for (auto& [name, li] : interfaces)
+        std::lock_guard<std::mutex> guard(connection_interfaces_mutex);
+        auto it = connection_transports.find(id);
+        if (it != connection_transports.end())
         {
-          if (li->bridge != nullptr)
-          {
-            bridges.push_back(li->bridge);
-          }
+          bridge = it->second;
         }
       }
 
-      for (const auto& bridge : bridges)
+      auto session = bridge == nullptr ? nullptr : bridge->get_session(id);
+      if (session == nullptr)
       {
-        auto session = bridge->get_session(id);
-        if (session != nullptr)
-        {
-          session->send_data(std::move(data));
-          if (terminate_after_reply)
-          {
-            session->close_session();
-          }
-          return true;
-        }
+        LOG_DEBUG_FMT("Refusing to reply to unknown session {}", id);
+        return false;
       }
-      LOG_DEBUG_FMT("Refusing to reply to unknown session {}", id);
-      return false;
+
+      session->send_data(std::move(data));
+      if (terminate_after_reply)
+      {
+        session->close_session();
+      }
+      return true;
     }
 
     ccf::SessionMetrics get_session_metrics() override

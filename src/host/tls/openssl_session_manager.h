@@ -26,7 +26,6 @@
 // guarded by a mutex.
 
 #include "ccf/node/session.h"
-#include "enclave/session_writer.h"
 #include "host/tls/openssl_server.h"
 
 #include <algorithm>

@@ -364,6 +364,11 @@ namespace asynchost
     uv_poll_t* listen_poll = nullptr;
     int listen_fd = -1;
     uint16_t bound_port = 0;
+    // Whether the bound socket has been placed in the LISTEN state and its
+    // poll handle armed. A TLS interface with no certificate stays bound but
+    // not listening, so inbound connections are refused by the kernel rather
+    // than accepted and dropped. Loop-thread only after start().
+    bool listening = false;
     // Plaintext (UNSECURED) interface: no TLS, raw socket I/O.
     bool plaintext = false;
     bool started = false;
@@ -1203,6 +1208,37 @@ namespace asynchost
       }
     }
 
+    // Place the bound socket in the LISTEN state and arm its poll handle, if
+    // the interface is ready to serve connections and is not already doing so.
+    // Idempotent. Called from start() and, for an interface whose certificate
+    // arrived later, from the loop thread once it has been applied.
+    void begin_listening()
+    {
+      if (listening || listen_poll == nullptr || listen_fd < 0)
+      {
+        return;
+      }
+      if (listen(listen_fd, SOMAXCONN) != 0)
+      {
+        LOG_FAIL_FMT(
+          "listen() failed on port {}: {}",
+          bound_port,
+          std::generic_category().message(errno));
+        return;
+      }
+
+      const int rc = uv_poll_start(listen_poll, UV_READABLE, on_listen_poll);
+      if (rc != 0)
+      {
+        LOG_FAIL_FMT(
+          "uv_poll_start(listen) failed on port {}: {}",
+          bound_port,
+          uv_strerror(rc));
+        return;
+      }
+      listening = true;
+    }
+
     // Apply worker completions and cross-thread commands on the libuv thread.
     void drain_pending_out()
     {
@@ -1236,6 +1272,12 @@ namespace asynchost
           LOG_FAIL_FMT(
             "set_server_cert: failed to build TLS context: {}", e.what());
         }
+      }
+
+      if (!certs.empty())
+      {
+        // A cert-deferred interface has been waiting for exactly this.
+        begin_listening();
       }
 
       for (auto& item : items)
@@ -1405,6 +1447,7 @@ namespace asynchost
         (void)uv_poll_stop(listen_poll);
         close_handle(listen_poll);
       }
+      listening = false;
       if (listen_fd >= 0)
       {
         ::close(listen_fd);
@@ -1573,11 +1616,12 @@ namespace asynchost
         cleanup();
         throw std::runtime_error("bind() failed for " + config.host);
       }
-      if (listen(listen_fd, SOMAXCONN) != 0)
-      {
-        cleanup();
-        throw std::runtime_error("listen() failed");
-      }
+      // Deliberately no listen() here. Binding reserves the port (and fixes an
+      // ephemeral one, which port() reports), but the socket only enters the
+      // LISTEN state once this interface can actually serve a connection - see
+      // begin_listening(). Until then the kernel refuses inbound SYNs, so a
+      // client fails to connect rather than completing a TCP handshake against
+      // an interface which will immediately drop it.
       if (!set_nonblocking(listen_fd))
       {
         cleanup();
@@ -1633,6 +1677,7 @@ namespace asynchost
       torn_down = false;
       stopping = false;
       started = true;
+      listening = false;
 
       listen_poll = new_handle<uv_poll_t>();
       listen_poll->data = this;
@@ -1675,12 +1720,10 @@ namespace asynchost
         }
       }
 
-      rc = uv_poll_start(listen_poll, UV_READABLE, on_listen_poll);
-      if (rc != 0)
-      {
-        throw std::runtime_error(
-          std::string("uv_poll_start(listen) failed: ") + uv_strerror(rc));
-      }
+      // Only actually listens if this interface can serve a connection now; a
+      // TLS interface still waiting for its certificate stays bound but
+      // unlistening until set_server_cert() supplies one.
+      begin_listening();
 
       if (inbound_admission != nullptr)
       {

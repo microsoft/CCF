@@ -3,7 +3,6 @@
 #pragma once
 
 #include "ccf/node/session.h"
-#include "enclave/session_writer.h"
 #include "tasks/ordered_tasks.h"
 #include "tasks/task.h"
 #include "tasks/task_system.h"
@@ -149,6 +148,14 @@ namespace ccf
 
   protected:
     ::tcp::ConnID session_id;
+    // Not owned. The writer is the transport's per-interface bridge, which is
+    // owned by the RPCConnectionManager and outlives every session on that
+    // interface: the manager is only destroyed if node creation fails, before
+    // any session exists, and is otherwise never destroyed. That matters
+    // because a queued task holds a shared_ptr to its session, so a session
+    // can outlive its removal from the transport's connection map. If the
+    // manager ever becomes destructible on the normal path, this must become a
+    // weak_ptr.
     ccf::SessionWriter& session_writer;
     std::vector<uint8_t> peer_cert_;
     // Set once parse() has reported that it will process no more data (a parse
