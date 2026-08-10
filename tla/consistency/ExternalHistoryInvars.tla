@@ -235,13 +235,17 @@ CommittedRwOrderedRealTimeInv ==
                 /\ i < j 
                 => TxIDStrictlyLessThan(history[i].tx_id, history[k].tx_id)
 
-\* Each transaction observes the previous transaction in the TxID order and its own write
-\* Note that this invariant is only considers committed read-write transactions.
-\* This property is false when the committed-response filter hides an
-\* intervening ledger write. See CommittedRwOrderedSerializableCounterexample.md.
+\* Each later transaction in TxID order extends the earlier observation and
+\* ends with its own write. Intervening ledger writes need not have a response
+\* with an explicitly received committed status.
+\* Note that this invariant only considers committed read-write transactions.
 CommittedRwOrderedSerializableInv ==
     \A i \in 1..Len(CommittedRwResponses)-1:
-        CommittedRwResponses[i+1].observed = Append(CommittedRwResponses[i].observed, CommittedRwResponses[i+1].tx)
+        LET Earlier == CommittedRwResponses[i]
+            Later == CommittedRwResponses[i+1]
+        IN  /\ IsPrefix(Earlier.observed, Later.observed)
+            /\ Len(Earlier.observed) < Len(Later.observed)
+            /\ Last(Later.observed) = Later.tx
 
 \* Ordered speculative linearizability for committed read-write transactions is the primary consistency
 \* guarantee provided by CCF. Note that this invariant is stronger than traditional linearizability.
