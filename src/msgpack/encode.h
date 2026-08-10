@@ -23,7 +23,7 @@
 // Failure modes that may escape ANY write_* function:
 //   - MsgpackEncodeError on encoder-defined limits (see Error enum).
 //   - std::bad_alloc from the underlying std::vector if buffer growth
-//     fails. The encoder offers no special handling — callers that
+//     fails. The encoder offers no special handling - callers that
 //     might recover from OOM should treat the buffer as undefined-but-
 //     well-typed.
 
@@ -96,7 +96,8 @@ namespace ccf::msgpack
     // shape used at every throw site, ensuring every diagnostic
     // includes the error code's name without each call site having to
     // remember the convention.
-    [[nodiscard]] static MsgpackEncodeError make(Error err, std::string_view detail)
+    [[nodiscard]] static MsgpackEncodeError make(
+      Error err, std::string_view detail)
     {
       return MsgpackEncodeError(
         err, std::string{to_string(err)} + ": " + std::string{detail});
@@ -116,7 +117,7 @@ namespace ccf::msgpack
   // This is fluentd's application-defined timestamp ext type, NOT the
   // msgpack-spec Timestamp (ext type -1). The two have different
   // layouts. If you need msgpack-spec Timestamp later, add it as a
-  // separate type (TimestampExt or similar) — do not overload this one.
+  // separate type (TimestampExt or similar) - do not overload this one.
   //
   // Wire format (fixext8): 0xD7 0x00 <seconds_be4> <nanoseconds_be4>.
   //
@@ -146,8 +147,8 @@ namespace ccf::msgpack
     // platforms where system_clock::period is at least as fine as
     // nanoseconds (libstdc++: 1ns; MSVC STL: 100ns), the full
     // sub-second component round-trips. On platforms where it is
-    // coarser (libc++: 1μs), the low digits of the encoded
-    // nanoseconds field are always zero — still spec-conformant,
+    // coarser (libc++: 1us), the low digits of the encoded
+    // nanoseconds field are always zero - still spec-conformant,
     // just no precision beyond the platform's clock resolution.
     [[nodiscard]] static FluentdEventTime make(
       std::chrono::system_clock::time_point tp)
@@ -172,8 +173,8 @@ namespace ccf::msgpack
       const auto secs =
         std::chrono::duration_cast<std::chrono::seconds>(since_epoch);
       const auto secs_count = secs.count();
-      if (secs_count >
-          static_cast<int64_t>(std::numeric_limits<uint32_t>::max()))
+      if (
+        secs_count > static_cast<int64_t>(std::numeric_limits<uint32_t>::max()))
       {
         throw MsgpackEncodeError::make(
           Error::INVALID_EVENT_TIME,
@@ -185,8 +186,7 @@ namespace ccf::msgpack
       // above, so duration_cast (truncating toward zero) leaves a
       // non-negative remainder.
       const auto ns_count =
-        std::chrono::duration_cast<std::chrono::nanoseconds>(
-          since_epoch - secs)
+        std::chrono::duration_cast<std::chrono::nanoseconds>(since_epoch - secs)
           .count();
       return FluentdEventTime{
         static_cast<uint32_t>(secs_count), static_cast<uint32_t>(ns_count)};
@@ -243,8 +243,8 @@ namespace ccf::msgpack
     constexpr uint8_t FIXSTR_PREFIX = 0xA0; // 0b101XXXXX (0xA0..0xBF)
     constexpr uint8_t FIXARRAY_PREFIX = 0x90; // 0b1001XXXX (0x90..0x9F)
     constexpr uint8_t FIXMAP_PREFIX = 0x80; // 0b1000XXXX (0x80..0x8F)
-    // positive fixint: 0b0XXXXXXX (0x00..0x7F) — emitted as the value itself.
-    // negative fixint: 0b111XXXXX (0xE0..0xFF) — emitted as the int8 bit
+    // positive fixint: 0b0XXXXXXX (0x00..0x7F) - emitted as the value itself.
+    // negative fixint: 0b111XXXXX (0xE0..0xFF) - emitted as the int8 bit
     // pattern.
 
     // Fluentd-specific ext type byte (NOT the msgpack-spec Timestamp's -1).
@@ -474,7 +474,7 @@ namespace ccf::msgpack
   // Coupling: the wire format requires the element count up front, so
   // the caller must subsequently emit exactly `n` values (or `n`
   // key/value pairs for a map). A wrong `n` produces malformed msgpack
-  // output silently — the encoder cannot check this at the header
+  // output silently - the encoder cannot check this at the header
   // call site.
 
   // Smallest-format-wins:
@@ -506,7 +506,7 @@ namespace ccf::msgpack
   //   [0, 15]              -> fixmap   (1-byte header)
   //   [16, 65535]          -> map_16   (3-byte header)
   // Throws MsgpackEncodeError(MAP_TOO_LARGE) for n > 65535. The
-  // map_32 family is intentionally not supported — fluentd record
+  // map_32 family is intentionally not supported - fluentd record
   // shapes never approach that key count, and rejecting at the
   // encoder boundary catches accidental over-large maps before they
   // become silent wire corruption. (Contrast write_array_header,

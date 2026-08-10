@@ -5,12 +5,10 @@
 #include <nlohmann/json.hpp>
 
 #define PICOBENCH_IMPLEMENT_WITH_MAIN
+#include <cstdint>
 #include <picobench/picobench.hpp>
-
 #include <rapidjson/stringbuffer.h>
 #include <rapidjson/writer.h>
-
-#include <cstdint>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -101,7 +99,9 @@ namespace
     w.Double(float_value);
 
     w.Key("string");
-    w.String(string_value.data(), static_cast<rapidjson::SizeType>(string_value.size()));
+    w.String(
+      string_value.data(),
+      static_cast<rapidjson::SizeType>(string_value.size()));
 
     w.Key("map");
     w.StartObject();
@@ -122,7 +122,7 @@ namespace
     clobber_memory();
     picobench::scope scope(s);
 
-    for (size_t i = 0; i < s.iterations(); ++i)
+    for (int i = 0; i < s.iterations(); ++i)
     {
       const auto j = make_json_object();
       const auto dumped = j.dump();
@@ -136,7 +136,7 @@ namespace
     clobber_memory();
     picobench::scope scope(s);
 
-    for (size_t i = 0; i < s.iterations(); ++i)
+    for (int i = 0; i < s.iterations(); ++i)
     {
       std::vector<uint8_t> out;
       write_msgpack_object(out);
@@ -150,7 +150,7 @@ namespace
     clobber_memory();
     picobench::scope scope(s);
 
-    for (size_t i = 0; i < s.iterations(); ++i)
+    for (int i = 0; i < s.iterations(); ++i)
     {
       rapidjson::StringBuffer buffer;
       rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);

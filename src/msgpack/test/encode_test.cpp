@@ -2,12 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "msgpack/encode.h"
-
 #include "msgpack/test/format_introspect.h"
 #include "msgpack/test/gen.h"
 
-#include <cmath>
 #include <chrono>
+#include <cmath>
 #include <cstdint>
 #include <cstring>
 #include <doctest/doctest.h>
@@ -205,16 +204,13 @@ TEST_CASE("write_int negative boundary table")
         decoded = static_cast<int8_t>(buf[1]);
         break;
       case 3:
-        decoded =
-          static_cast<int16_t>(decode_be<uint16_t>(buf, 1));
+        decoded = static_cast<int16_t>(decode_be<uint16_t>(buf, 1));
         break;
       case 5:
-        decoded =
-          static_cast<int32_t>(decode_be<uint32_t>(buf, 1));
+        decoded = static_cast<int32_t>(decode_be<uint32_t>(buf, 1));
         break;
       case 9:
-        decoded =
-          static_cast<int64_t>(decode_be<uint64_t>(buf, 1));
+        decoded = static_cast<int64_t>(decode_be<uint64_t>(buf, 1));
         break;
       default:
         FAIL("unexpected encoded size for write_int row");
@@ -237,8 +233,7 @@ TEST_CASE("write_int smallest-format-wins (property)")
     gen::int64_in_range(-32, -1),
     gen::int64_in_range(-128, -33),
     gen::int64_in_range(-32768, -129),
-    gen::int64_in_range(
-      std::numeric_limits<int32_t>::min(), -32769),
+    gen::int64_in_range(std::numeric_limits<int32_t>::min(), -32769),
     gen::int64_in_range(
       std::numeric_limits<int64_t>::min(),
       static_cast<int64_t>(std::numeric_limits<int32_t>::min()) - 1),
@@ -258,8 +253,7 @@ TEST_CASE("write_int smallest-format-wins (property)")
     {
       CHECK(family == FormatFamily::NEGATIVE_FIXINT);
       CHECK(buf.size() == 1);
-      CHECK(
-        static_cast<int8_t>(buf[0]) == static_cast<int8_t>(v));
+      CHECK(static_cast<int8_t>(buf[0]) == static_cast<int8_t>(v));
     }
     else if (v >= std::numeric_limits<int8_t>::min())
     {
@@ -437,7 +431,7 @@ TEST_CASE("write_float always emits float64")
 
 TEST_CASE("write_bin length prefix and family")
 {
-  // Boundary table only — generator coverage overlaps with str.
+  // Boundary table only - generator coverage overlaps with str.
   struct Row
   {
     size_t n;
@@ -578,7 +572,8 @@ namespace
   }
 }
 
-TEST_CASE("FluentdEventTime::make accepts iff seconds-since-epoch in [0, UINT32_MAX]")
+TEST_CASE(
+  "FluentdEventTime::make accepts iff seconds-since-epoch in [0, UINT32_MAX]")
 {
   gen::Rng rng(0xE7E7);
   INFO("seed=0xE7E7");
@@ -605,16 +600,14 @@ TEST_CASE("FluentdEventTime::make accepts iff seconds-since-epoch in [0, UINT32_
 
   for (int i = 0; i < property_iters; ++i)
   {
-    const int64_t s_raw =
-      (coin(rng) < 30) ? s_boundaries[bp(rng)] : any_s(rng);
+    const int64_t s_raw = (coin(rng) < 30) ? s_boundaries[bp(rng)] : any_s(rng);
     const uint32_t ns = any_ns(rng);
     CAPTURE(s_raw);
     CAPTURE(ns);
 
     const auto tp = tp_from_components(s_raw, ns);
 
-    const bool should_throw =
-      s_raw < 0 ||
+    const bool should_throw = s_raw < 0 ||
       s_raw > static_cast<int64_t>(std::numeric_limits<uint32_t>::max());
     bool threw = false;
     try
@@ -639,8 +632,8 @@ TEST_CASE("write_event_time byte shape")
   // Concrete value chosen so the bytes contain non-trivial bit patterns
   // in every position; any byte-order or layout regression flips at
   // least one of these.
-  const auto et = FluentdEventTime::make(
-    tp_from_components(0x69F37C9FLL, 0x315B5B4CU));
+  const auto et =
+    FluentdEventTime::make(tp_from_components(0x69F37C9FLL, 0x315B5B4CU));
   std::vector<uint8_t> buf;
   write_event_time(buf, et);
   const std::vector<uint8_t> expected{
@@ -674,7 +667,7 @@ TEST_CASE("write_event_time always fixext8 (property)")
 
 TEST_CASE("write_float passes through non-finite bit-patterns unchanged")
 {
-  // The encoder doc states NaN / ±inf / signalling-NaN are emitted
+  // The encoder doc states NaN / +/-inf / signalling-NaN are emitted
   // verbatim with no canonicalisation. Round-trip the bit pattern
   // through encode and back-decode; bytes 1..9 must equal the input
   // bits exactly.
