@@ -1,6 +1,7 @@
 ---
-name: Formatting and linting
-description: How to run the individual formatting and linting check scripts, which support auto-fix, and which scripts to use for each file type.
+name: formatting-and-linting
+user-invocable: false
+description: "Format and lint CCF changes. Use when choosing or running checks for C++, Python, TypeScript, JavaScript, Markdown, YAML, JSON, CMake, shell scripts, or release notes, and when deciding which checks support automatic fixes."
 ---
 
 # Formatting and linting
@@ -26,7 +27,7 @@ These scripts accept a `-f` flag that automatically corrects issues. Always run 
 
 ## Scripts without auto-fix
 
-These scripts only report problems. Run them and read the error output to determine what manual changes are needed:
+These scripts only report problems. Run them and read their error output to determine what manual changes are needed:
 
 | Script                           | Run with                         | File types                                                                         | What to look for in the output                                                                                                         |
 | -------------------------------- | -------------------------------- | ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
