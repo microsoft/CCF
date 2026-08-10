@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [7.0.12]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.12
 
+### Added
+
+- C++ endpoints can now use `ccf::endpoints::Endpoint::add_openapi_response<Out>()` to document additional HTTP responses in their generated OpenAPI schema without changing the endpoint's primary success response (#8115).
+
 ### Fixed
 
 - Joining or recovering nodes now ignore structurally invalid local snapshots and try an older snapshot instead of terminating during startup (#8124).
@@ -28,6 +32,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - Asynchronous ledger reads (used to serve committed entry ranges to the enclave) no longer access the host `Ledger` object after it has been destroyed during shutdown. The `Ledger` now waits for any in-flight read workers to finish, and workers that have not yet started skip accessing it, fixing a potential use-after-free on shutdown (#8003).
+- `GET /gov/service/javascript-app` now reports an empty `openApi` object for endpoints without OpenAPI metadata, matching its response schema. The `?case=original` response remains unchanged. (#8115)
 
 ### Changed
 
