@@ -5,13 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
-## [7.0.12]
+## [7.0.13]
 
-[7.0.12]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.12
+[7.0.13]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.13
 
 ### Changed
 
 - TLS is now terminated by OpenSSL directly on the socket, rather than being relayed over the ringbuffer and decrypted through a memory BIO. The session interfaces in `include/ccf/node/session.h` and `include/ccf/research/custom_protocol_subsystem_interface.h` have changed shape accordingly: a session now receives and emits plaintext, taking ownership of the inbound buffer, and writes its output through a `ccf::SessionWriter` rather than a `tls::Context` (#8117).
+
+## [7.0.12]
+
+[7.0.12]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.12
+
+### Added
+
+- C++ endpoints can now use `ccf::endpoints::Endpoint::add_openapi_response<Out>()` to document additional HTTP responses in their generated OpenAPI schema without changing the endpoint's primary success response (#8115).
+
+### Fixed
+
+- Joining or recovering nodes now ignore structurally invalid local snapshots and try an older snapshot instead of terminating during startup (#8124).
+
+### Dependencies
+
+- The Python `ccf` package now supports `cryptography` 50 and requires `cwt` 3.3.0 or later (#8118).
 
 ## [7.0.11]
 
@@ -24,6 +40,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - Asynchronous ledger reads (used to serve committed entry ranges to the enclave) no longer access the host `Ledger` object after it has been destroyed during shutdown. The `Ledger` now waits for any in-flight read workers to finish, and workers that have not yet started skip accessing it, fixing a potential use-after-free on shutdown (#8003).
+- `GET /gov/service/javascript-app` now reports an empty `openApi` object for endpoints without OpenAPI metadata, matching its response schema. The `?case=original` response remains unchanged. (#8115)
 
 ### Changed
 

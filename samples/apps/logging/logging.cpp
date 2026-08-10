@@ -585,7 +585,7 @@ namespace loggingapp
         "recording messages at client-specified IDs. It demonstrates most of "
         "the features available to CCF apps.";
 
-      openapi_info.document_version = "2.8.3";
+      openapi_info.document_version = "2.8.4";
     };
 
     // NOLINTNEXTLINE(readability-function-cognitive-complexity)
@@ -1548,8 +1548,9 @@ namespace loggingapp
 
       auto is_tx_committed =
         [this](ccf::View view, ccf::SeqNo seqno, std::string& error_reason) {
+          auto* current_consensus = get_consensus();
           return ccf::historical::is_tx_committed_v2(
-            consensus, view, seqno, error_reason);
+            current_consensus, view, seqno, error_reason);
         };
       make_read_only_endpoint(
         "/log/private/historical",

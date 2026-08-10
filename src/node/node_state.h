@@ -611,13 +611,11 @@ namespace ccf
           snapshot_path,
           snapshot_data.size());
 
-        // Structurally invalid snapshots remain fatal.
-        const auto segments = separate_segments(snapshot_data);
-
         if (start_type == StartType::Recover)
         {
           try
           {
+            const auto segments = separate_segments(snapshot_data);
             verify_recovery_snapshot_candidate_unsafe(segments, snapshot_seqno);
           }
           catch (const std::exception& e)
@@ -637,6 +635,7 @@ namespace ccf
 
         try
         {
+          const auto segments = separate_segments(snapshot_data);
           verify_snapshot(segments, config.recover.previous_service_identity);
         }
         catch (const std::exception& e)
@@ -3529,6 +3528,11 @@ namespace ccf
 
       network.tables->set_consensus(consensus);
       network.tables->set_snapshotter(snapshotter);
+
+      for (auto& [actor, frontend] : rpc_map->frontends())
+      {
+        frontend->set_consensus_and_history(consensus.get(), history.get());
+      }
 
       // When a node is added, even locally, inform consensus so that it
       // can add a new active configuration.

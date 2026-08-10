@@ -256,8 +256,9 @@ namespace ccf
 
     auto is_tx_committed =
       [this](ccf::View view, ccf::SeqNo seqno, std::string& error_reason) {
+        auto* current_consensus = get_consensus();
         return ccf::historical::is_tx_committed_v2(
-          consensus, view, seqno, error_reason);
+          current_consensus, view, seqno, error_reason);
       };
 
     auto get_receipt =
@@ -280,6 +281,10 @@ namespace ccf
         get_receipt, context, is_tx_committed, txid_from_query_string),
       no_auth_required)
       .set_auto_schema<void, nlohmann::json>()
+      .add_openapi_response<std::string>(
+        HTTP_STATUS_ACCEPTED,
+        "The transaction is not yet available. The response describes why "
+        "and the Retry-After header indicates when to retry.")
       .add_query_parameter<ccf::TxID>(tx_id_param_key)
       .set_openapi_summary("Receipt for a transaction")
       .set_openapi_description(
@@ -318,6 +323,10 @@ namespace ccf
         get_cose_receipt, context, is_tx_committed, txid_from_query_string),
       no_auth_required)
       .set_auto_schema<void, ds::openapi::Cose>()
+      .add_openapi_response<std::string>(
+        HTTP_STATUS_ACCEPTED,
+        "The transaction is not yet available. The response describes why "
+        "and the Retry-After header indicates when to retry.")
       .add_query_parameter<ccf::TxID>(tx_id_param_key)
       .set_openapi_summary("COSE receipt for a transaction")
       .set_openapi_description(
