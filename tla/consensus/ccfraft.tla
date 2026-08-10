@@ -1201,7 +1201,8 @@ HandleAppendEntriesResponse(i, j, m) ==
     /\ UNCHANGED <<preVoteStatus, reconfigurationVars, serverVars, candidateVars, logVars>>
 
 \* Any message with a newer term causes the recipient to advance its term first,
-\* except ProposeVoteRequest, which is ignored unless its term matches:
+\* except ProposeVoteRequest, which DropIgnoredMessage handles unless its term
+\* matches:
 \* https://github.com/microsoft/CCF/blob/970268f010feb31118dbf83a7c8f6056205a0e82/src/consensus/aft/raft.h#L2066-L2075
 \* Note that UpdateTerm does not discard message m from the set of messages so this 
 \* message can be parsed again by the receiver. Note that all other message parsing actions should
@@ -1247,6 +1248,9 @@ DropIgnoredMessage(i,j,m) ==
        \/ /\ leadershipState[i] = None
           \* .. and the message is anything other than an append entries request
           /\ m.type /= AppendEntriesRequest
+       \* raft.h::recv_propose_request_vote
+       \/ /\ m.type = ProposeVoteRequest
+          /\ m.term /= currentTerm[i]
        \*  OR if message is to a server that has surpassed the None stage ..
        \/ /\ leadershipState[i] /= None
         \* .. and it comes from a server outside of the configuration
@@ -1315,10 +1319,8 @@ RcvProposeVoteRequest(i, j) ==
     \E m \in Network!MessagesTo(i, j) :
         /\ j = m.source
         /\ m.type = ProposeVoteRequest
-        /\ \/ /\ m.term = currentTerm[i]
-              /\ BecomeCandidate(m.dest)
-           \/ /\ m.term /= currentTerm[i]
-              /\ UNCHANGED <<preVoteStatus, reconfigurationVars, serverVars, candidateVars, leaderVars, logVars>>
+        /\ m.term = currentTerm[i]
+        /\ BecomeCandidate(m.dest)
         /\ Discard(m)
 
 \* Node i receives a message from node j.
