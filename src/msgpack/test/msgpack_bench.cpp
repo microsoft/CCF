@@ -7,6 +7,9 @@
 #define PICOBENCH_IMPLEMENT_WITH_MAIN
 #include <picobench/picobench.hpp>
 
+#include <rapidjson/stringbuffer.h>
+#include <rapidjson/writer.h>
+
 #include <cstdint>
 #include <string>
 #include <string_view>
@@ -78,6 +81,42 @@ namespace
     ccf::msgpack::write_int(out, array_value);
   }
 
+  void write_rapidjson_object(rapidjson::Writer<rapidjson::StringBuffer>& w)
+  {
+    w.StartObject();
+
+    w.Key("nil");
+    w.Null();
+
+    w.Key("bool");
+    w.Bool(true);
+
+    w.Key("uint");
+    w.Uint64(uint_value);
+
+    w.Key("int");
+    w.Int64(int_value);
+
+    w.Key("float");
+    w.Double(float_value);
+
+    w.Key("string");
+    w.String(string_value.data(), static_cast<rapidjson::SizeType>(string_value.size()));
+
+    w.Key("map");
+    w.StartObject();
+    w.Key("value");
+    w.Int64(nested_map_value);
+    w.EndObject();
+
+    w.Key("array");
+    w.StartArray();
+    w.Int64(array_value);
+    w.EndArray();
+
+    w.EndObject();
+  }
+
   static void json_dump(picobench::state& s)
   {
     clobber_memory();
@@ -105,10 +144,26 @@ namespace
       clobber_memory();
     }
   }
+
+  static void rapidjson_write(picobench::state& s)
+  {
+    clobber_memory();
+    picobench::scope scope(s);
+
+    for (size_t i = 0; i < s.iterations(); ++i)
+    {
+      rapidjson::StringBuffer buffer;
+      rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+      write_rapidjson_object(writer);
+      do_not_optimize(buffer);
+      clobber_memory();
+    }
+  }
 }
 
 const std::vector<int> sizes = {100, 1'000, 10'000};
 
 PICOBENCH_SUITE("msgpack serialise");
 PICOBENCH(json_dump).iterations(sizes).baseline();
+PICOBENCH(rapidjson_write).iterations(sizes);
 PICOBENCH(msgpack_encode).iterations(sizes);
