@@ -920,8 +920,7 @@ TEST_CASE("A TLS interface without a certificate refuses connections")
     REQUIRE(
       SSL_read(ssl, echoed.data(), static_cast<int>(echoed.size())) ==
       static_cast<int>(request.size()));
-    REQUIRE(
-      std::string(echoed.begin(), echoed.end()) == request);
+    REQUIRE(std::string(echoed.begin(), echoed.end()) == request);
 
     SSL_free(ssl);
     SSL_CTX_free(cctx);
@@ -930,9 +929,8 @@ TEST_CASE("A TLS interface without a certificate refuses connections")
 
   {
     std::unique_lock<std::mutex> lock(m);
-    REQUIRE(cv.wait_for(lock, std::chrono::seconds(10), [&]() {
-      return data_callbacks > 0;
-    }));
+    REQUIRE(cv.wait_for(
+      lock, std::chrono::seconds(10), [&]() { return data_callbacks > 0; }));
   }
 
   server->stop(OpenSSLServer::LoopState::Running);
