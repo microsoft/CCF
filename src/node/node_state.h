@@ -3531,6 +3531,11 @@ namespace ccf
       network.tables->set_consensus(consensus);
       network.tables->set_snapshotter(snapshotter);
 
+      for (auto& [actor, frontend] : rpc_map->frontends())
+      {
+        frontend->set_consensus_and_history(consensus.get(), history.get());
+      }
+
       // When a node is added, even locally, inform consensus so that it
       // can add a new active configuration.
       network.tables->set_map_hook(

@@ -459,7 +459,7 @@ def test_rolled_back_node_certificate(network, args):
             rollback_tx,
             timeout=network.election_duration * 4,
         )
-    network.wait_for_node_commit_sync()
+    network.wait_for_node_commit_sync(timeout=network.election_duration * 4)
     assert get_stored_certificate(renewed_node) == original_cert
 
     with new_primary.client() as c:
