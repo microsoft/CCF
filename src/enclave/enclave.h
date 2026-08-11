@@ -184,10 +184,13 @@ namespace ccf
         signature_cache,
         sig_tx_interval,
         sig_ms_interval);
+
+      ccf::tasks::get_main_job_board().set_work_beacon(work_beacon);
     }
 
     ~Enclave()
     {
+      ccf::tasks::get_main_job_board().set_work_beacon(nullptr);
       LOG_TRACE_FMT("Shutting down enclave");
     }
 
@@ -480,12 +483,16 @@ namespace ccf
         // processed in a single iteration
         static constexpr size_t max_messages = 256;
 
+        bool should_wait_for_work = true;
         while (!bp.get_finished())
         {
-          // Wait until the host indicates that some ringbuffer messages are
-          // available, but wake at least every 100ms to check thread messages
-          work_beacon->wait_for_work_with_timeout(
-            std::chrono::milliseconds(100));
+          if (should_wait_for_work)
+          {
+            // Wait until the host indicates that some ringbuffer messages or
+            // tasks are available, but wake at least every 100ms.
+            work_beacon->wait_for_work_with_timeout(
+              std::chrono::milliseconds(100));
+          }
 
           // First, read some messages from the ringbuffer
           auto read = bp.read_n(max_messages, circuit->read_from_outside());
@@ -504,6 +511,10 @@ namespace ccf
             }
             task = job_board.get_task();
           }
+          // Hitting the task budget may leave queued work behind. Continue
+          // immediately rather than consuming the only coalesced wake and then
+          // sleeping with a non-empty JobBoard.
+          should_wait_for_work = tasks_done < max_messages;
 
           // If no messages were read from the ringbuffer and tasks were
           // executed, idle

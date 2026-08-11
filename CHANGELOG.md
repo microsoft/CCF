@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - TLS is now terminated by OpenSSL directly on the socket, rather than being relayed over the ringbuffer and decrypted through a memory BIO. The session interfaces in `include/ccf/node/session.h` and `include/ccf/research/custom_protocol_subsystem_interface.h` have changed shape accordingly: a session now receives and emits plaintext, taking ownership of the inbound buffer, and writes its output through a `ccf::SessionWriter` rather than a `tls::Context` (#8117).
 
+### Fixed
+
+- Nodes configured with zero worker threads now wake the enclave main loop immediately when the OpenSSL transport queues work, rather than waiting for the next tick or polling timeout (#8117).
+
 ## [7.0.12]
 
 [7.0.12]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.12
