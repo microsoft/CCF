@@ -2620,6 +2620,7 @@ namespace ccf
         fmt::format("Node in state {} cannot open service", sm.value()));
     }
 
+  private:
     // Copies of the recovery state protected by recovery_secrets_lock. These
     // return by value so that callers never hold the mutex while touching the
     // KV store, which would invert the KV locks -> recovery_secrets_lock order
@@ -2636,6 +2637,7 @@ namespace ccf
       return recovered_encrypted_ledger_secrets;
     }
 
+  public:
     void initiate_private_recovery(ccf::kv::Tx& tx) override
     {
       std::lock_guard<pal::Mutex> guard(lock);
