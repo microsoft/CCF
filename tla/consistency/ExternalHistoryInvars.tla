@@ -230,7 +230,7 @@ CommittedRwResponses ==
 CommittedRwOrderedRealTimeInv == 
     \A i \in RwTxResponseCommittedEventIndexes :
         \A j \in RwTxRequestCommittedEventIndexes :
-            \A k \in RoTxResponseCommittedEventIndexes :
+            \A k \in RwTxResponseCommittedEventIndexes :
                 /\ history[k].tx = history[j].tx
                 /\ i < j 
                 => TxIDStrictlyLessThan(history[i].tx_id, history[k].tx_id)
