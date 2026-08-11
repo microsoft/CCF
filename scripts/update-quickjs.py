@@ -31,6 +31,8 @@ CHANGELOG = Path("CHANGELOG.md")
 
 MAX_PAGE_SIZE = 2 * 1024 * 1024
 MAX_ARCHIVE_SIZE = 100 * 1024 * 1024
+MAX_ARCHIVE_MEMBERS = 4096
+MAX_EXTRACTED_SIZE = 64 * 1024 * 1024
 REQUEST_TIMEOUT_SECONDS = 60
 USER_AGENT = "CCF-QuickJS-Updater"
 
@@ -58,6 +60,7 @@ REQUIRED_FILES = frozenset(
         "libunicode-table.h",
         "libunicode.c",
         "libunicode.h",
+        "list.h",
         "quickjs-atom.h",
         "quickjs-opcode.h",
         "quickjs.c",
@@ -75,6 +78,12 @@ class Release:
     version: str
     revision: int
     url: str
+
+    @property
+    def identifier(self) -> str:
+        if self.revision == 0:
+            return self.version
+        return f"{self.version}-{self.revision}"
 
 
 class ReleasePageParser(HTMLParser):
@@ -176,7 +185,13 @@ def extract_release(archive_path: Path, output_directory: Path, version: str) ->
             members = archive.getmembers()
             if not members:
                 raise UpdateError("QuickJS release archive is empty")
+            if len(members) > MAX_ARCHIVE_MEMBERS:
+                raise UpdateError(
+                    "QuickJS release archive contains more than "
+                    f"{MAX_ARCHIVE_MEMBERS} entries"
+                )
 
+            extracted_size = 0
             for member in members:
                 member_path = PurePosixPath(member.name)
                 if (
@@ -192,6 +207,12 @@ def extract_release(archive_path: Path, output_directory: Path, version: str) ->
                     raise UpdateError(
                         f"Unsupported entry in QuickJS archive: {member.name}"
                     )
+                extracted_size += member.size
+                if extracted_size > MAX_EXTRACTED_SIZE:
+                    raise UpdateError(
+                        "QuickJS release archive expands to more than "
+                        f"{MAX_EXTRACTED_SIZE} bytes"
+                    )
 
             archive.extractall(output_directory, filter="data")
     except (tarfile.TarError, OSError) as exc:
@@ -199,7 +220,10 @@ def extract_release(archive_path: Path, output_directory: Path, version: str) ->
 
     release_root = output_directory / expected_root
     version_path = release_root / "VERSION"
-    if not version_path.is_file() or version_path.read_text().strip() != version:
+    if (
+        not version_path.is_file()
+        or version_path.read_text(encoding="utf-8").strip() != version
+    ):
         raise UpdateError(
             f"QuickJS archive does not contain the expected VERSION ({version})"
         )
@@ -235,14 +259,19 @@ def verify_release_files(release_root: Path, commit: str) -> None:
         for name in sorted(REQUIRED_FILES):
             try:
                 member = archive.getmember(f"{expected_root}/{name}")
-                upstream_file = archive.extractfile(member)
             except KeyError:
-                upstream_file = None
+                mismatches.append(name)
+                continue
 
+            release_file = release_root / name
+            if not member.isfile() or member.size != release_file.stat().st_size:
+                mismatches.append(name)
+                continue
+
+            upstream_file = archive.extractfile(member)
             if (
                 upstream_file is None
-                or not member.isfile()
-                or upstream_file.read() != (release_root / name).read_bytes()
+                or upstream_file.read() != release_file.read_bytes()
             ):
                 mismatches.append(name)
 
@@ -253,10 +282,7 @@ def verify_release_files(release_root: Path, commit: str) -> None:
         )
 
 
-def render_cgmanifest(current_content: str, commit: str) -> str:
-    if COMMIT_SHA.fullmatch(commit) is None:
-        raise UpdateError(f"Invalid QuickJS commit SHA: {commit}")
-
+def find_quickjs_registration(current_content: str) -> tuple[dict, dict]:
     try:
         manifest = json.loads(current_content)
     except json.JSONDecodeError as exc:
@@ -288,22 +314,41 @@ def render_cgmanifest(current_content: str, commit: str) -> str:
             "Expected exactly one QuickJS registration in cgmanifest.json"
         )
 
-    matches[0]["commitHash"] = commit
+    return manifest, matches[0]
+
+
+def read_vendored_commit(current_content: str) -> str:
+    _, git_component = find_quickjs_registration(current_content)
+    commit = git_component.get("commitHash")
+    if not isinstance(commit, str) or COMMIT_SHA.fullmatch(commit) is None:
+        raise UpdateError("cgmanifest.json does not record a valid QuickJS commitHash")
+    return commit
+
+
+def render_cgmanifest(current_content: str, commit: str) -> str:
+    if COMMIT_SHA.fullmatch(commit) is None:
+        raise UpdateError(f"Invalid QuickJS commit SHA: {commit}")
+
+    manifest, git_component = find_quickjs_registration(current_content)
+    git_component["commitHash"] = commit
     return json.dumps(manifest, indent=2) + "\n"
 
 
-def render_changelog(
-    current_content: str,
-    old_version: str,
-    new_version: str,
-    pr_number: int | None,
+def render_release_note(
+    old_version: str, release: Release, commit: str, pr_number: int
 ) -> str:
-    if old_version == new_version:
-        return current_content
-    if pr_number is None:
-        raise UpdateError("--pr-number is required when upgrading QuickJS")
+    if release.version != old_version:
+        return (
+            f"- Upgraded QuickJS from {old_version} to {release.identifier} "
+            f"(#{pr_number})."
+        )
+    return (
+        f"- Updated the vendored QuickJS {release.identifier} sources to release "
+        f"commit `{commit}` (#{pr_number})."
+    )
 
-    entry = f"- Upgraded QuickJS from {old_version} to {new_version} (#{pr_number})."
+
+def render_changelog(current_content: str, entry: str) -> str:
     if entry in current_content:
         return current_content
 
@@ -343,8 +388,10 @@ def render_changelog(
             section = f"{section}\n{entry}"
         block_lines[dependencies_index:section_end] = section.splitlines()
 
-    updated_block = "\n".join(block_lines) + "\n\n"
-    return current_content[:block_start] + updated_block + current_content[block_end:]
+    remainder = current_content[block_end:]
+    separator = "\n\n" if remainder else "\n"
+    updated_block = "\n".join(block_lines) + separator
+    return current_content[:block_start] + updated_block + remainder
 
 
 def write_file_atomically(path: Path, content: str) -> None:
@@ -354,7 +401,9 @@ def write_file_atomically(path: Path, content: str) -> None:
     )
     temporary_path = Path(temporary_name)
     try:
-        with os.fdopen(descriptor, "w", encoding="utf-8") as temporary_file:
+        with os.fdopen(
+            descriptor, "w", encoding="utf-8", newline="\n"
+        ) as temporary_file:
             temporary_file.write(content)
         os.chmod(temporary_path, mode)
         temporary_path.replace(path)
@@ -366,7 +415,7 @@ def write_file_atomically(path: Path, content: str) -> None:
 def apply_update(
     release_root: Path, quickjs_directory: Path, metadata: dict[Path, str]
 ) -> None:
-    original_metadata = {path: path.read_text() for path in metadata}
+    original_metadata = {path: path.read_text(encoding="utf-8") for path in metadata}
     temporary_directory = Path(
         tempfile.mkdtemp(prefix=".quickjs-update-", dir=quickjs_directory.parent)
     )
@@ -390,14 +439,27 @@ def apply_update(
                 if quickjs_directory.exists():
                     shutil.rmtree(quickjs_directory)
                 original_directory.rename(quickjs_directory)
-                for path, content in original_metadata.items():
-                    write_file_atomically(path, content)
             except BaseException as rollback_error:
                 preserve_temporary_directory = True
                 raise UpdateError(
-                    "QuickJS update rollback failed; the original source is "
-                    f"preserved at {original_directory}"
+                    f"QuickJS update rollback failed; {quickjs_directory} and the "
+                    "metadata files are in an unknown state, and the original "
+                    f"source is preserved at {original_directory}"
                 ) from rollback_error
+
+            unrestored = []
+            for path, content in original_metadata.items():
+                try:
+                    write_file_atomically(path, content)
+                except OSError:
+                    unrestored.append(path)
+
+            if unrestored:
+                raise UpdateError(
+                    f"QuickJS update rolled back {quickjs_directory}, but "
+                    f"{', '.join(str(path) for path in unrestored)} could not be "
+                    "restored and must be reverted from source control"
+                )
             raise
     finally:
         if not preserve_temporary_directory:
@@ -436,9 +498,14 @@ def main() -> None:
     version_path = quickjs_directory / "VERSION"
     if not version_path.is_file():
         raise UpdateError(f"Could not find vendored QuickJS at {quickjs_directory}")
-    old_version = version_path.read_text().strip()
+    old_version = version_path.read_text(encoding="utf-8").strip()
     if VERSION.fullmatch(old_version) is None:
         raise UpdateError(f"Invalid vendored QuickJS version: {old_version}")
+
+    # The vendored VERSION only records the release date, so the release commit
+    # from cgmanifest.json is what distinguishes revisions of the same release.
+    cgmanifest_content = cgmanifest_path.read_text(encoding="utf-8")
+    old_commit = read_vendored_commit(cgmanifest_content)
 
     latest_release = find_latest_release(fetch(QUICKJS_HOME, MAX_PAGE_SIZE))
     if latest_release.version < old_version:
@@ -447,16 +514,21 @@ def main() -> None:
             f"({latest_release.version}) is older than the vendored version "
             f"({old_version})"
         )
-    if latest_release.version != old_version and args.pr_number is None:
-        parser.error("--pr-number is required when upgrading QuickJS")
 
     release_commit = find_release_commit(latest_release.version)
-    cgmanifest = render_cgmanifest(cgmanifest_path.read_text(), release_commit)
+    if latest_release.version == old_version and release_commit == old_commit:
+        print(f"QuickJS {old_version} ({old_commit}) is already up to date")
+        return
+
+    if args.pr_number is None:
+        parser.error("--pr-number is required when updating QuickJS")
+
+    cgmanifest = render_cgmanifest(cgmanifest_content, release_commit)
     changelog = render_changelog(
-        changelog_path.read_text(),
-        old_version,
-        latest_release.version,
-        args.pr_number,
+        changelog_path.read_text(encoding="utf-8"),
+        render_release_note(
+            old_version, latest_release, release_commit, args.pr_number
+        ),
     )
 
     with tempfile.TemporaryDirectory(prefix="quickjs-download-") as temporary_directory:
@@ -479,8 +551,8 @@ def main() -> None:
         )
 
     print(
-        f"Updated QuickJS from {old_version} to {latest_release.version} "
-        f"({release_commit})"
+        f"Updated QuickJS from {old_version} ({old_commit}) to "
+        f"{latest_release.identifier} ({release_commit})"
     )
 
 
