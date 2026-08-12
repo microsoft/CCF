@@ -532,11 +532,11 @@ def test_jwt_auth_msft_single_tenant(network, args):
 
     r = try_auth(primary, issuer, jwt_kid, ISSUER_TENANT, "garbage_tenant")
     assert r.status_code == HTTPStatus.UNAUTHORIZED, r
-    assert "failed issuer constraint validation" in parse_error_message(r), r
+    assert "The token failed the issuer constraint validation in the kid" in parse_error_message(r), r
 
     r = try_auth(primary, issuer, jwt_kid, ISSUER_TENANT, "{tenantid}")
     assert r.status_code == HTTPStatus.UNAUTHORIZED, r
-    assert "failed issuer constraint validation" in parse_error_message(r), r
+    assert "The token failed the issuer constraint validation in the kid" in parse_error_message(r), r
 
     r = try_auth(primary, issuer, jwt_kid, ISSUER_TENANT, TENANT_ID)
     assert r.status_code == HTTPStatus.OK, r
@@ -603,14 +603,14 @@ def test_jwt_auth_msft_multitenancy(network, args):
 
     r = try_auth(primary, issuer, jwt_kid_1, ISSUER_TENANT, ANOTHER_TENANT_ID)
     assert r.status_code == HTTPStatus.UNAUTHORIZED, r
-    assert "failed issuer constraint validation" in parse_error_message(r), r
+    assert "The token failed the issuer constraint validation in the kid" in parse_error_message(r), r
 
     r = try_auth(primary, issuer, jwt_kid_2, ISSUER_TENANT, TENANT_ID)
     assert r.status_code == HTTPStatus.OK, r
 
     r = try_auth(primary, issuer, jwt_kid_2, ISSUER_ANOTHER, ANOTHER_TENANT_ID)
     assert r.status_code == HTTPStatus.UNAUTHORIZED, r
-    assert "failed issuer constraint validation" in parse_error_message(r), r
+    assert "The token failed the issuer constraint validation in the kid" in parse_error_message(r), r
 
     network.consortium.remove_jwt_issuer(primary, issuer.name)
 
@@ -655,7 +655,7 @@ def test_jwt_auth_msft_same_kids_different_issuers(network, args):
 
     r = try_auth(primary, another, jwt_kid, ISSUER_ANOTHER, ANOTHER_TENANT_ID)
     assert r.status_code == HTTPStatus.UNAUTHORIZED, r
-    assert "failed issuer constraint validation" in parse_error_message(r), r
+    assert "The token failed the issuer constraint validation in the kid" in parse_error_message(r), r
 
     set_issuer_with_a_key(primary, network, another, jwt_kid, ISSUER_ANOTHER)
 
@@ -669,7 +669,7 @@ def test_jwt_auth_msft_same_kids_different_issuers(network, args):
 
     r = try_auth(primary, issuer, jwt_kid, ISSUER_TENANT, TENANT_ID)
     assert r.status_code == HTTPStatus.UNAUTHORIZED, r
-    assert "failed issuer constraint validation" in parse_error_message(r), r
+    assert "The token failed the issuer constraint validation in the kid" in parse_error_message(r), r
 
     r = try_auth(primary, another, jwt_kid, ISSUER_ANOTHER, ANOTHER_TENANT_ID)
     assert r.status_code == HTTPStatus.OK, r
@@ -720,7 +720,7 @@ def test_jwt_auth_msft_same_kids_overwrite_constraint(network, args):
 
     r = try_auth(primary, issuer, jwt_kid, ISSUER_ANOTHER, ANOTHER_TENANT_ID)
     assert r.status_code == HTTPStatus.UNAUTHORIZED, r
-    assert "failed issuer constraint validation" in parse_error_message(r), r
+    assert "The token failed the issuer constraint validation in the kid" in parse_error_message(r), r
 
     network.consortium.remove_jwt_issuer(primary, issuer.name)
 

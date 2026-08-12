@@ -231,9 +231,8 @@ namespace ccf
           *metadata.constraint))
       {
         error_reason = fmt::format(
-          "Kid {} failed issuer constraint validation {}",
-          key_id,
-          *metadata.constraint);
+          "The token failed the issuer constraint validation in the kid {}",
+          key_id);
         continue;
       }
 
