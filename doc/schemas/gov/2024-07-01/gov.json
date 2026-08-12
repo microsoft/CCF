@@ -20,6 +20,37 @@
   ],
   "tags": [],
   "paths": {
+    "/gov/api": {
+      "get": {
+        "operationId": "GetGovApi",
+        "description": "Retrieve the OpenAPI schema for the requested governance API version.",
+        "parameters": [
+          {
+            "$ref": "#/parameters/Azure.Core.Foundations.ApiVersionParameter"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The request has succeeded.",
+            "schema": {
+              "type": "object"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/Azure.Core.Foundations.ErrorResponse"
+            },
+            "headers": {
+              "x-ms-error-code": {
+                "type": "string",
+                "description": "String error code indicating what went wrong."
+              }
+            }
+          }
+        }
+      }
+    },
     "/gov/members/proposals": {
       "get": {
         "operationId": "Proposals_List",
