@@ -10,6 +10,7 @@ import infra.e2e_args
 import infra.jwt_issuer
 import infra.network
 import infra.proc
+import suite.test_requirements as reqs
 from infra.runner import ConcurrentRunner
 
 
@@ -63,6 +64,8 @@ def test_forward_larger_than_default_requests(network, args):
         assert r.status_code == http.HTTPStatus.OK.value, r
 
 
+@reqs.description("Transactions larger than ledger.max_transaction_size are rejected")
+@reqs.supports_methods("/app/log/private")
 def test_transaction_size_limit(network, args):
     primary, _ = network.find_primary()
 
@@ -70,12 +73,26 @@ def test_transaction_size_limit(network, args):
         r = c.post("/app/log/private", {"id": 1, "msg": "small"})
         assert r.status_code == http.HTTPStatus.OK.value, r
 
-        msg = "A" * 1024 * 1024
+        # Comfortably under the interface's max_http_body_size, so this is
+        # rejected by the ledger transaction size limit rather than by the HTTP
+        # request parser, which reports RequestBodyTooLarge and closes the
+        # session.
+        msg = "A" * 600 * 1024
         r = c.post("/app/log/private", {"id": 2, "msg": msg})
         assert r.status_code == http.HTTPStatus.REQUEST_ENTITY_TOO_LARGE.value, r
+        assert r.body.json()["error"]["code"] == "TransactionTooLarge", r
+
+        # The rejected transaction was never applied, so it neither wrote a
+        # value nor prevented later transactions from being processed
+        r = c.get("/app/log/private?id=2")
+        assert r.status_code == http.HTTPStatus.NOT_FOUND.value, r
 
         r = c.post("/app/log/private", {"id": 3, "msg": "still processing"})
         assert r.status_code == http.HTTPStatus.OK.value, r
+
+        r = c.get("/app/log/private?id=3")
+        assert r.status_code == http.HTTPStatus.OK.value, r
+        assert r.body.json()["msg"] == "still processing", r
 
 
 def run_parser_limits_checks(args):
@@ -97,9 +114,9 @@ def run_parser_limits_checks(args):
 
 def run_transaction_size_limit_checks(args):
     new_args = copy.copy(args)
-    # Deliberately larger than the constitution scripts written to the KV
-    # store as part of service creation, but well under the oversized
-    # request used below, so only the latter is rejected.
+    # Larger than the constitution scripts written to the KV store as part of
+    # service creation, and than any governance transaction, but smaller than
+    # the oversized request used by the test
     new_args.ledger_max_transaction_bytes = "512KB"
     with infra.network.network(
         new_args.nodes,

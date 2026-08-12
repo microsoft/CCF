@@ -1019,10 +1019,12 @@ namespace ccf
         }
         catch (const ccf::kv::MaxTransactionSizeExceeded& e)
         {
+          // Thrown before the transaction is applied, so the store is
+          // unchanged and later transactions are unaffected
           ctx->clear_response_headers();
           ctx->set_error(
             HTTP_STATUS_PAYLOAD_TOO_LARGE,
-            ccf::errors::RequestBodyTooLarge,
+            ccf::errors::TransactionTooLarge,
             e.what());
 
           return;

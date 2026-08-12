@@ -28,10 +28,11 @@ namespace consensus
       auto header =
         serialized::peek<ccf::kv::SerialisedEntryHeader>(data, size);
       const size_t body_size = header.size;
-      // This is a buffer-bounds safety check, not the configurable transaction
-      // size limit: that limit applies only when serialising new transactions.
-      // Deserialisation (including recovery replay) is exempt, so entries
-      // written under a larger or unset limit can always be read back.
+      // The size in the entry header is not trusted: check it against the
+      // buffer we were given before allocating. This is distinct from the
+      // configured max_transaction_size, which applies only when serialising
+      // new transactions, so that entries written under a larger or unset
+      // limit can always be read back.
       if (body_size + ccf::kv::serialised_entry_header_size > size)
       {
         throw std::logic_error(fmt::format(

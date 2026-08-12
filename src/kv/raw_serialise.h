@@ -15,6 +15,43 @@
 
 namespace ccf::kv
 {
+  /** Number of bytes RawWriter::append() will emit for this entry.
+   *
+   * Must be kept in sync with RawWriter::append(), which is checked by
+   * "RawWriter and SizeWriter agree" in kv_serialisation.cpp.
+   */
+  template <typename T>
+  size_t serialised_size(const T& entry)
+  {
+    if constexpr (
+      ccf::nonstd::is_std_vector<T>::value ||
+      std::is_same_v<T, ccf::kv::serialisers::SerialisedEntry>)
+    {
+      return sizeof(size_t) + (entry.size() * sizeof(typename T::value_type));
+    }
+    else if constexpr (std::is_same_v<T, ccf::crypto::Sha256Hash>)
+    {
+      return sizeof(entry.h);
+    }
+    else if constexpr (std::is_same_v<T, EntryType>)
+    {
+      return sizeof(uint8_t);
+    }
+    else if constexpr (std::is_same_v<T, std::string>)
+    {
+      return sizeof(size_t) + entry.size();
+    }
+    else if constexpr (std::is_integral_v<T>)
+    {
+      return sizeof(T);
+    }
+    else
+    {
+      static_assert(
+        ccf::nonstd::dependent_false<T>::value, "Can't serialise this type");
+    }
+  }
+
   class RawWriter
   {
   private:
@@ -122,9 +159,50 @@ namespace ccf::kv
       buf.clear();
     }
 
+    [[nodiscard]] size_t size() const
+    {
+      return buf.size();
+    }
+
     std::vector<uint8_t> get_raw_data()
     {
       return {buf.data(), buf.data() + buf.size()};
+    }
+  };
+
+  /** Writer which only accounts for the size of what it is given, without
+   * serialising it.
+   *
+   * Used to determine how large a transaction's ledger entry will be, before
+   * the transaction is applied to the store.
+   */
+  class SizeWriter
+  {
+  private:
+    size_t total_size = 0;
+
+  public:
+    SizeWriter() = default;
+
+    template <typename T>
+    void append(const T& entry)
+    {
+      total_size += serialised_size(entry);
+    }
+
+    void clear()
+    {
+      total_size = 0;
+    }
+
+    [[nodiscard]] size_t size() const
+    {
+      return total_size;
+    }
+
+    static std::vector<uint8_t> get_raw_data()
+    {
+      throw std::logic_error("SizeWriter does not retain serialised data");
     }
   };
 

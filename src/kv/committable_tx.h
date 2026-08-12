@@ -36,6 +36,61 @@ namespace ccf::kv
     TxFlags flags = 0;
     SerialisedEntryFlags entry_flags = 0;
 
+    // Serialises the same changes as serialise(), into a serialiser which only
+    // measures their size, to determine how large this transaction's ledger
+    // entry will be. Change sets are not modified by apply_changes(), so this
+    // can be called before the transaction is applied to the store, and the
+    // result is exactly the size serialise() will produce.
+    size_t projected_serialised_size(
+      const ccf::ClaimsDigest& claims_digest_, bool include_reads = false)
+    {
+      auto e = pimpl->store->get_encryptor();
+      if (e == nullptr)
+      {
+        throw KvSerialiserException("No encryptor set");
+      }
+
+      SizeKvStoreSerialiser size_serialiser(
+        e,
+        {pimpl->commit_view, NoVersion},
+        EntryType::WriteSetWithCommitEvidenceAndClaims,
+        entry_flags,
+        // Both digests are fixed-size, so their values do not affect the
+        // size of the resulting entry
+        ccf::crypto::Sha256Hash{},
+        claims_digest_);
+
+      serialise_all_changes(size_serialiser, include_reads);
+
+      return size_serialiser.get_serialised_size();
+    }
+
+    void serialise_all_changes(
+      KvStoreSerialiser& serialiser, bool include_reads)
+    {
+      // Process in security domain order
+      for (auto domain : {SecurityDomain::PUBLIC, SecurityDomain::PRIVATE})
+      {
+        for (const auto& it : all_changes)
+        {
+          const auto& map = it.second.map;
+          const auto& changeset = it.second.changeset;
+          if (map->get_security_domain() == domain && changeset->has_writes())
+          {
+            map->serialise_changes(changeset.get(), serialiser, include_reads);
+          }
+        }
+      }
+    }
+
+    [[nodiscard]] bool has_writes() const
+    {
+      return std::any_of(
+        all_changes.begin(), all_changes.end(), [](const auto& it) {
+          return it.second.changeset->has_writes();
+        });
+    }
+
     std::vector<uint8_t> serialise(
       ccf::crypto::Sha256Hash& commit_evidence_digest,
       std::string& commit_evidence,
@@ -58,12 +113,7 @@ namespace ccf::kv
       }
 
       // If no transactions made changes, return a zero length vector.
-      const bool any_changes =
-        std::any_of(all_changes.begin(), all_changes.end(), [](const auto& it) {
-          return it.second.changeset->has_writes();
-        });
-
-      if (!any_changes)
+      if (!has_writes())
       {
         return {};
       }
@@ -95,20 +145,7 @@ namespace ccf::kv
         false /* historical_hint */,
         pimpl->store->get_max_transaction_size());
 
-      // Process in security domain order
-      for (auto domain : {SecurityDomain::PUBLIC, SecurityDomain::PRIVATE})
-      {
-        for (const auto& it : all_changes)
-        {
-          const auto& map = it.second.map;
-          const auto& changeset = it.second.changeset;
-          if (map->get_security_domain() == domain && changeset->has_writes())
-          {
-            map->serialise_changes(
-              changeset.get(), replicated_serialiser, include_reads);
-          }
-        }
-      }
+      serialise_all_changes(replicated_serialiser, include_reads);
 
       // Return serialised Tx.
       return replicated_serialiser.get_raw_data();
@@ -152,6 +189,22 @@ namespace ccf::kv
         return CommitResult::SUCCESS;
       }
 
+      // Reject transactions whose ledger entry would exceed the configured
+      // limit before any change is applied. Once apply_changes() below has
+      // taken a version and mutated the maps, the transaction can no longer be
+      // abandoned without losing the entry at that version.
+      if (has_writes())
+      {
+        const auto max_transaction_size =
+          pimpl->store->get_max_transaction_size();
+        const auto entry_size = projected_serialised_size(claims);
+        if (entry_size > max_transaction_size)
+        {
+          throw MaxTransactionSizeExceeded(describe_serialised_entry_size_error(
+            entry_size, max_transaction_size));
+        }
+      }
+
       // If this transaction creates any maps, ensure that commit gets a
       // consistent snapshot of the existing map set
       const bool maps_created = !pimpl->created_maps.empty();
@@ -163,11 +216,6 @@ namespace ccf::kv
       ccf::kv::ConsensusHookPtrs hooks;
 
       std::optional<Version> new_maps_conflict_version = std::nullopt;
-      // If serialisation later rejects this transaction because it exceeds the
-      // configured size limit, roll the store back to the state from before
-      // apply_changes mutates maps and advances the version.
-      const auto [rollback_txid, rollback_term] =
-        pimpl->store->current_txid_and_commit_term();
 
       bool track_deletes_on_missing_keys = false;
       auto c = apply_changes(
@@ -252,12 +300,6 @@ namespace ccf::kv
             std::move(commit_evidence_digest),
             std::move(hooks)),
           false);
-      }
-      catch (const MaxTransactionSizeExceeded&)
-      {
-        pimpl->store->rollback(rollback_txid, rollback_term);
-        committed = false;
-        throw;
       }
       catch (const std::exception& e)
       {

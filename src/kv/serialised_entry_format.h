@@ -47,6 +47,12 @@ namespace ccf::kv
   static constexpr size_t serialised_entry_header_size =
     sizeof(SerialisedEntryHeader);
 
+  // Largest ledger entry which can be described by a SerialisedEntryHeader,
+  // including that header
+  static constexpr size_t max_serialised_entry_size =
+    SerialisedEntryHeader::max_serialised_entry_body_size +
+    serialised_entry_header_size;
+
   static inline std::string describe_serialised_entry_size_error(
     size_t entry_size, size_t max_entry_size)
   {

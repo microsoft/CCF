@@ -70,8 +70,7 @@ namespace ccf::kv
       const ccf::crypto::Sha256Hash& commit_evidence_digest_ = {},
       const ccf::ClaimsDigest& claims_digest_ = ccf::no_claims(),
       bool historical_hint_ = false,
-      size_t max_transaction_size_ =
-        SerialisedEntryHeader::max_serialised_entry_body_size) :
+      size_t max_transaction_size_ = max_serialised_entry_size) :
       tx_id(tx_id_),
       entry_type(entry_type_),
       header_flags(header_flags_),
@@ -160,6 +159,27 @@ namespace ccf::kv
         public_writer.get_raw_data(), private_writer.get_raw_data());
     }
 
+    /** Size of the ledger entry which get_raw_data() would produce for
+     * everything serialised so far.
+     *
+     * This covers the whole entry: the fixed-size ledger entry header, the
+     * ledger encryption header, the public domain size field, and both
+     * domains. Encryption does not change the size of the private domain, so
+     * this is exact.
+     */
+    [[nodiscard]] size_t get_serialised_size() const
+    {
+      size_t size_ = public_writer.size();
+
+      if (crypto_util)
+      {
+        size_ += crypto_util->get_header_length() + sizeof(size_t) +
+          private_writer.size();
+      }
+
+      return size_ + sizeof(SerialisedEntryHeader);
+    }
+
     std::vector<uint8_t> serialise_domains(
       const std::vector<uint8_t>& serialised_public_domain,
       const std::vector<uint8_t>& serialised_private_domain) override
@@ -177,17 +197,22 @@ namespace ccf::kv
         size_ += crypto_util->get_header_length() + sizeof(size_t) +
           serialised_private_domain.size();
       }
-      entry_header.set_size(size_);
 
       // The configured limit applies to the whole serialised ledger entry,
       // including the fixed-size entry header.
-      size_ += sizeof(SerialisedEntryHeader);
-
-      if (size_ > max_transaction_size)
+      const size_t entry_size = size_ + sizeof(SerialisedEntryHeader);
+      if (entry_size > max_transaction_size)
       {
-        throw MaxTransactionSizeExceeded(
-          describe_serialised_entry_size_error(size_, max_transaction_size));
+        // CommittableTx checks this limit before it applies its changes, so
+        // reaching this point means the entry cannot be written and the
+        // transaction cannot be undone. Throw the fatal serialisation error
+        // rather than one callers may try to recover from.
+        throw KvSerialiserException(describe_serialised_entry_size_error(
+          entry_size, max_transaction_size));
       }
+
+      entry_header.set_size(size_);
+      size_ = entry_size;
 
       std::vector<uint8_t> entry(size_);
       auto* data_ = entry.data();
@@ -315,7 +340,7 @@ namespace ccf::kv
       size_t size,
       ccf::kv::Term& term,
       EntryFlags& flags,
-      bool historical_hint = false) override
+      bool historical_hint) override
     {
       current_reader = &public_reader;
       const auto* data_ = data;
@@ -333,6 +358,7 @@ namespace ccf::kv
           tx_header.size,
           size_));
       }
+
       const auto* gcm_hdr_data = data_;
 
       switch (tx_header.version)

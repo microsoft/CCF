@@ -327,6 +327,7 @@ TEST_CASE(
   MapTypes::StringString map("public:pub_map");
 
   {
+    INFO("An oversized transaction is rejected before it is applied");
     auto tx = kv_store.create_tx();
     auto handle = tx.rw(map);
     handle->put("oversized", std::string(2048, 'A'));
@@ -336,11 +337,67 @@ TEST_CASE(
   }
 
   {
+    INFO("Later transactions are unaffected");
     auto tx = kv_store.create_tx();
     auto handle = tx.rw(map);
     handle->put("small", "ok");
     REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     REQUIRE(kv_store.current_version() == 1);
+  }
+}
+
+TEST_CASE(
+  "The transaction size limit is compared against the exact entry size" *
+  doctest::test_suite("serialisation"))
+{
+  auto consensus = std::make_shared<ccf::kv::test::StubConsensus>();
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
+
+  MapTypes::StringString map("public:pub_map");
+  const auto value = std::string(512, 'A');
+
+  // Serialise the transaction under a permissive limit to find the exact size
+  // of the ledger entry it produces.
+  size_t entry_size = 0;
+  {
+    ccf::kv::Store kv_store;
+    kv_store.set_consensus(consensus);
+    kv_store.set_encryptor(encryptor);
+
+    auto tx = kv_store.create_tx();
+    auto handle = tx.rw(map);
+    handle->put("key", value);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+
+    const auto latest_data = consensus->get_latest_data();
+    REQUIRE(latest_data.has_value());
+    entry_size = latest_data->size();
+  }
+
+  // The size projected before the transaction is applied must match the size
+  // of the entry which is eventually written, exactly. A limit of precisely
+  // that size is accepted, and one byte less is not.
+  {
+    ccf::kv::Store kv_store;
+    kv_store.set_encryptor(encryptor);
+    kv_store.set_max_transaction_size(entry_size);
+
+    auto tx = kv_store.create_tx();
+    auto handle = tx.rw(map);
+    handle->put("key", value);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+
+  {
+    ccf::kv::Store kv_store;
+    kv_store.set_encryptor(encryptor);
+    kv_store.set_max_transaction_size(entry_size - 1);
+
+    auto tx = kv_store.create_tx();
+    auto handle = tx.rw(map);
+    handle->put("key", value);
+    REQUIRE_THROWS_AS(tx.commit(), ccf::kv::MaxTransactionSizeExceeded);
+    REQUIRE(kv_store.current_version() == 0);
   }
 }
 
@@ -380,15 +437,41 @@ TEST_CASE(
 }
 
 TEST_CASE(
+  "RawWriter and SizeWriter agree" * doctest::test_suite("serialisation"))
+{
+  const auto check = [](const auto& entry) {
+    ccf::kv::RawWriter raw_writer;
+    ccf::kv::SizeWriter size_writer;
+    raw_writer.append(entry);
+    size_writer.append(entry);
+    REQUIRE(raw_writer.size() == size_writer.size());
+    REQUIRE(size_writer.size() == ccf::kv::serialised_size(entry));
+  };
+
+  check(ccf::kv::EntryType::WriteSetWithCommitEvidenceAndClaims);
+  check(uint8_t(42));
+  check(uint64_t(42));
+  check(ccf::kv::Version(42));
+  check(ccf::crypto::Sha256Hash(std::string("some content")));
+  check(std::string());
+  check(std::string("a string of some length"));
+  check(std::vector<uint8_t>());
+  check(std::vector<uint8_t>(37, 'x'));
+  check(std::vector<ccf::kv::Version>{1, 2, 3});
+  check(ccf::kv::serialisers::SerialisedEntry());
+  check(ccf::kv::serialisers::SerialisedEntry(91, 'y'));
+}
+
+TEST_CASE(
   "Reject configuring a maximum transaction size beyond the serialisable "
   "limit" *
   doctest::test_suite("serialisation"))
 {
   ccf::kv::Store kv_store;
 
-  // The largest size the ledger entry header can represent is accepted.
-  REQUIRE_NOTHROW(kv_store.set_max_transaction_size(
-    ccf::kv::SerialisedEntryHeader::max_serialised_entry_body_size));
+  // The largest entry the ledger entry header can describe is accepted.
+  REQUIRE_NOTHROW(
+    kv_store.set_max_transaction_size(ccf::kv::max_serialised_entry_size));
 
   // A value larger than can ever be serialised is rejected at configuration
   // time, rather than being deferred to a later serialisation failure.
