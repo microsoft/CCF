@@ -1214,7 +1214,9 @@ namespace asynchost
     // arrived later, from the loop thread once it has been applied.
     void begin_listening()
     {
-      if (listening || listen_poll == nullptr || listen_fd < 0)
+      if (
+        listening || listen_poll == nullptr || listen_fd < 0 ||
+        (!plaintext && ctx == nullptr))
       {
         return;
       }

@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- TLS interfaces without a configured certificate now remain unlistening until a certificate is supplied, so clients receive an immediate connection refusal rather than entering an unusable TLS connection (#8117).
 - Nodes configured with zero worker threads now wake the enclave main loop immediately when the OpenSSL transport queues work, rather than waiting for the next tick or polling timeout (#8117).
 
 ## [7.0.12]

@@ -11,7 +11,7 @@
 #include "host/tls/openssl_session_manager.h"
 #include "tasks/task_system.h"
 
-#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+#define DOCTEST_CONFIG_IMPLEMENT
 #include <arpa/inet.h>
 #include <atomic>
 #include <chrono>
@@ -24,6 +24,7 @@
 #include <netdb.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
+#include <openssl/crypto.h>
 #include <openssl/pem.h>
 #include <openssl/ssl.h>
 #include <openssl/x509.h>
@@ -52,19 +53,6 @@ namespace
   [[maybe_unused]] const bool ignore_sigpipe = []() {
     return signal(SIGPIPE, SIG_IGN) != SIG_ERR;
   }();
-
-  struct TaskWorkers
-  {
-    TaskWorkers()
-    {
-      ccf::tasks::set_task_threads(4);
-    }
-
-    ~TaskWorkers()
-    {
-      ccf::tasks::set_task_threads(0);
-    }
-  } task_workers;
 
   std::pair<std::string, std::string> make_server_cert()
   {
@@ -2022,4 +2010,17 @@ TEST_CASE("Inbound budget is released when a connection closes unreported")
 
   bridge.stop(OpenSSLServer::LoopState::Running);
   loop.thread.join();
+}
+
+int main(int argc, char** argv)
+{
+  ccf::tasks::set_task_threads(4);
+
+  doctest::Context context;
+  context.applyCommandLine(argc, argv);
+  const auto result = context.run();
+
+  ccf::tasks::set_task_threads(0);
+  OPENSSL_cleanup();
+  return result;
 }
