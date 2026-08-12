@@ -718,7 +718,7 @@ if(BUILD_TESTS)
       openssl_server_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/host/test/openssl_server_test.cpp
     )
-    target_link_libraries(openssl_server_test PRIVATE ccf_tasks uv)
+    target_link_libraries(openssl_server_test PRIVATE ccf_tasks http_parser uv)
     target_compile_definitions(
       openssl_server_test
       PRIVATE TEST_HYBRID_TLS_GROUPS=$<BOOL:${TEST_HYBRID_TLS_GROUPS}>

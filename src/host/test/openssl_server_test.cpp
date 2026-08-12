@@ -5,6 +5,7 @@
 
 #include "ccf/crypto/ec_key_pair.h"
 #include "ccf/ds/x509_time_fmt.h"
+#include "clients/rpc_tls_client.h"
 #include "crypto/certs.h"
 #include "host/datagram_server.h"
 #include "host/tls/openssl_server.h"
@@ -13,6 +14,7 @@
 
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <arpa/inet.h>
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
@@ -1048,6 +1050,47 @@ TEST_CASE("TLS handshake and small round-trip")
 
   const std::vector<uint8_t> msg = {'h', 'e', 'l', 'l', 'o'};
   REQUIRE(tls_client_exchange(s.port(), msg, msg.size()) == msg);
+}
+
+TEST_CASE("Coalesced pipelined HTTP responses are preserved")
+{
+  auto [cert, key] = make_server_cert();
+
+  std::shared_ptr<OpenSSLServer> server;
+  server = std::make_shared<OpenSSLServer>(
+    OpenSSLServer::Config{
+      .host = "127.0.0.1", .cert_pem = cert, .key_pem = key},
+    [&](
+      ::tcp::ConnID id,
+      std::vector<uint8_t>,
+      const std::vector<uint8_t>&,
+      bool) {
+      const std::string responses =
+        "HTTP/1.1 200 OK\r\nContent-Length: 1\r\n\r\na"
+        "HTTP/1.1 201 Created\r\nContent-Length: 1\r\n\r\nb";
+      server->send(
+        id, std::vector<uint8_t>(responses.begin(), responses.end()));
+    });
+  UVLoopRunner loop;
+  server->start();
+  loop.start();
+
+  {
+    auto ca = std::make_shared<::tls::CA>(cert);
+    client::RpcTlsClient client(
+      "127.0.0.1", std::to_string(server->port()), ca);
+    const std::array<uint8_t, 1> request = {'x'};
+    client.write(request);
+
+    const auto first = client.read_response();
+    const auto second = client.read_response();
+    REQUIRE(first.status == HTTP_STATUS_OK);
+    REQUIRE(std::string(first.body.begin(), first.body.end()) == "a");
+    REQUIRE(second.status == HTTP_STATUS_CREATED);
+    REQUIRE(std::string(second.body.begin(), second.body.end()) == "b");
+  }
+
+  server->stop(OpenSSLServer::LoopState::Running);
 }
 
 TEST_CASE("TLS processing runs off the libuv thread")

@@ -8,6 +8,7 @@
 #include "tls_client.h"
 
 #define FMT_HEADER_ONLY
+#include <deque>
 #include <fmt/format.h>
 #include <nlohmann/json.hpp>
 #include <optional>
@@ -90,7 +91,7 @@ namespace client
       return call_raw(prep.encoded);
     }
 
-    std::optional<Response> last_response;
+    std::deque<Response> pending_responses;
 
   public:
     using TlsClient::TlsClient;
@@ -206,20 +207,20 @@ namespace client
 
     Response read_response()
     {
-      last_response = std::nullopt;
-
-      while (!last_response.has_value())
+      while (pending_responses.empty())
       {
         const auto next = read_all();
         parser.execute(next.data(), next.size());
       }
 
-      return std::move(last_response.value());
+      auto response = std::move(pending_responses.front());
+      pending_responses.pop_front();
+      return response;
     }
 
     std::optional<Response> read_response_non_blocking()
     {
-      if (bytes_available())
+      if (!pending_responses.empty() || bytes_available())
       {
         return read_response();
       }
@@ -232,8 +233,8 @@ namespace client
       ccf::http::HeaderMap&& headers,
       std::vector<uint8_t>&& body) override
     {
-      last_response = {
-        next_recv_id++, status, std::move(headers), std::move(body)};
+      pending_responses.push_back(
+        {next_recv_id++, status, std::move(headers), std::move(body)});
     }
 
     void set_prefix(const std::string& prefix_)
