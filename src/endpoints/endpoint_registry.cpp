@@ -64,7 +64,7 @@ namespace ccf::endpoints
       // defined, assume this can return 200
       if (ds::openapi::responses(path_op).empty())
       {
-        ds::openapi::response(path_op, endpoint->success_status);
+        ds::openapi::response(path_op, HTTP_STATUS_OK);
       }
 
       // Add a default error response
@@ -335,9 +335,11 @@ namespace ccf::endpoints
     const CommandEndpointFunction& f,
     const AuthnPolicies& ap)
   {
-    return make_endpoint(
-             method, verb, [f](EndpointContext& ctx) { f(ctx); }, ap)
-      .set_forwarding_required(ForwardingRequired::Sometimes)
+    auto endpoint =
+      make_endpoint(method, verb, [f](EndpointContext& ctx) { f(ctx); }, ap);
+    endpoint.execution_mode = EndpointExecutionMode::Command;
+    endpoint.command_func = f;
+    return endpoint.set_forwarding_required(ForwardingRequired::Sometimes)
       .set_redirection_strategy(RedirectionStrategy::None);
   }
 
@@ -470,10 +472,9 @@ namespace ccf::endpoints
 
   void EndpointRegistry::init_handlers() {}
 
-  EndpointDefinitionPtr EndpointRegistry::find_endpoint(
-    ccf::kv::Tx& tx, ccf::RpcContext& rpc_ctx)
+  EndpointDefinitionPtr EndpointRegistry::find_endpoint_without_kv(
+    ccf::RpcContext& rpc_ctx)
   {
-    (void)tx;
     auto method = rpc_ctx.get_method();
     auto endpoints_for_exact_method = fully_qualified_endpoints.find(method);
     if (endpoints_for_exact_method != fully_qualified_endpoints.end())
@@ -548,6 +549,26 @@ namespace ccf::endpoints
     }
 
     return nullptr;
+  }
+
+  EndpointDefinitionPtr EndpointRegistry::find_endpoint(
+    ccf::kv::Tx& tx, ccf::RpcContext& rpc_ctx)
+  {
+    (void)tx;
+    return find_endpoint_without_kv(rpc_ctx);
+  }
+
+  void EndpointRegistry::execute_command_endpoint(
+    EndpointDefinitionPtr e, CommandEndpointContext& ctx)
+  {
+    const auto* endpoint = dynamic_cast<const Endpoint*>(e.get());
+    if (endpoint == nullptr || !endpoint->command_func)
+    {
+      throw std::logic_error(
+        "Base execute_command_endpoint called on incorrect Endpoint type");
+    }
+
+    endpoint->command_func(ctx);
   }
 
   void EndpointRegistry::execute_endpoint(
@@ -642,11 +663,11 @@ namespace ccf::endpoints
 
   void EndpointRegistry::set_consensus(ccf::kv::Consensus* c)
   {
-    consensus = c;
+    consensus.store(c, std::memory_order_release);
   }
 
   void EndpointRegistry::set_history(ccf::kv::TxHistory* h)
   {
-    history = h;
+    history.store(h, std::memory_order_release);
   }
 }

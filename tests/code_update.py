@@ -1,30 +1,29 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-from base64 import b64encode, b64decode
+import copy
+import http
+import json
+import os
+import shutil
+import tempfile
+import time
+from base64 import b64decode, b64encode
 from datetime import datetime, timedelta, timezone
+from hashlib import sha256
+
+import infra.clients
+import infra.commit
+import infra.crypto
 import infra.e2e_args
 import infra.network
 import infra.path
+import infra.platform_detection
 import infra.proc
 import infra.utils
-import infra.crypto
-import infra.platform_detection
-import infra.clients
-import infra.commit
 import suite.test_requirements as reqs
-import os
+from infra import snp
 from infra.checker import Checker, check_can_progress
 from infra.crypto import create_signed_statement
-import infra.snp as snp
-import tempfile
-import shutil
-import http
-import json
-from hashlib import sha256
-import copy
-import time
-
-
 from loguru import logger as LOG
 
 CERTIFICATE_VALID_FROM_OFFSET = timedelta(seconds=1)
@@ -350,7 +349,7 @@ def test_tcb_version_tables(network, args):
     assert cpuid.lower() == cpuid, f"Expected lowercase CPUID, {cpuid}"
 
     assert (
-        "hexstring" in tcb_version.keys()
+        "hexstring" in tcb_version
     ), "Prepopulated TCB version should include the orginal hex tcb"
     assert (
         tcb_version["hexstring"] == tcb_version["hexstring"].lower()
@@ -390,7 +389,7 @@ def test_tcb_version_tables(network, args):
         versions = r.body.json()["snp"]["tcbVersions"]
         assert cpuid in versions, f"Expected {cpuid} in TCB versions, {versions}"
         assert (
-            "hexstring" not in versions[cpuid].keys()
+            "hexstring" not in versions[cpuid]
         ), "TCB version should not include the hexstring tcb if set with the old API"
 
     LOG.info("Checking new nodes are allowed to join using expanded api")
@@ -408,7 +407,7 @@ def test_tcb_version_tables(network, args):
         versions = r.body.json()["snp"]["tcbVersions"]
         assert cpuid in versions, f"Expected {cpuid} in TCB versions, {versions}"
         assert (
-            "hexstring" in versions[cpuid].keys()
+            "hexstring" in versions[cpuid]
         ), "TCB version should include the orginal hexstring tcb"
         assert (
             versions[cpuid]["hexstring"] == permissive_tcb_version_raw
@@ -668,6 +667,32 @@ def test_add_node_via_code_policy(network, args):
         payload=bytes.fromhex(host_data), sub="Some feed", svn=500, eku="2.999"
     )
     transparent_statement = register_signed_statement(primary, signed_statement)
+
+    # --- Statement IAT is outside the signing certificate validity period ---
+    invalid_iat_statement, invalid_iat_issuer = create_signed_statement(
+        payload=bytes.fromhex(host_data),
+        sub="Some feed",
+        svn=500,
+        eku="2.999",
+        iat=1,
+    )
+    invalid_iat_transparent_statement = register_signed_statement(
+        primary, invalid_iat_statement
+    )
+    invalid_iat_joiner_args = prepare_joiner_with_statement(
+        args, network, invalid_iat_transparent_statement
+    )
+    network.consortium.set_node_join_policy(
+        primary,
+        make_node_join_policy(
+            invalid_iat_issuer,
+            min_svn=500,
+            receipt_issuer=receipt_issuer,
+            receipt_subject=receipt_subject,
+        ),
+    )
+    assert_node_join_fails(network, invalid_iat_joiner_args)
+
     joiner_args = prepare_joiner_with_statement(args, network, transparent_statement)
 
     # --- Policy 1: SVN too low (requires >= 501, statement has 500) ---
@@ -1010,7 +1035,7 @@ def _test_update_all_nodes(network, args, atomic_reconfiguration=False):
                         for host_data, security_policy in entries
                     }
                 elif infra.platform_detection.is_virtual():
-                    return set(host_data for host_data, _ in entries)
+                    return {host_data for host_data, _ in entries}
                 else:
                     raise ValueError(
                         f"Unsupported platform: {infra.platform_detection.get_platform()}"
@@ -1053,7 +1078,7 @@ def _test_update_all_nodes(network, args, atomic_reconfiguration=False):
     new_nodes = []
 
     LOG.info("Start fresh nodes running new code")
-    for _ in range(0, len(old_nodes)):
+    for _ in range(len(old_nodes)):
         new_node = network.create_node()
         network.join_node(new_node, replacement_package, args, from_snapshot=False)
         new_nodes.append(new_node)
@@ -1173,7 +1198,7 @@ def test_add_node_with_no_uvm_endorsements_in_kv(network, args):
         len(uvm_endorsements) == 1
     ), f"Expected one UVM endorsement, {uvm_endorsements}"
     did, value = next(iter(uvm_endorsements.items()))
-    feed, data = next(iter(value.items()))
+    feed, _data = next(iter(value.items()))
 
     network.consortium.remove_snp_uvm_endorsement(primary, did, feed)
 

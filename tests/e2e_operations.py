@@ -1,49 +1,48 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import tempfile
-import os
-import signal
-import shutil
-import urllib.parse
-
-import infra.logging_app as app
-import infra.e2e_args
-import infra.network
-import infra.platform_detection
-import ccf.ledger
-import ccf.signatures
-from ccf.tx_id import TxID
 import base64
-import suite.test_requirements as reqs
-import infra.crypto
-import ipaddress
-import infra.interfaces
-import infra.path
-import infra.proc
-import random
-import json
-import subprocess
-import time
-import http
 import copy
-import struct
-import infra.snp as snp
-from cryptography import x509
-from cryptography.hazmat.backends import default_backend
-import cbor2
+import hashlib
+import http
+import io
+import ipaddress
+import json
+import os
 import pathlib
-import infra.concurrency
+import random
+import re
+import shutil
+import signal
+import struct
+import subprocess
+import tempfile
+import time
+import urllib.parse
+from contextlib import contextmanager, redirect_stdout
+
+import cbor2
+import ccf.ledger
+import ccf.ledger_viz
 import ccf.read_ledger
-import ccf.cose
+import ccf.receipt
+import ccf.signatures
 import ccf.split_ledger
 import infra.commit
+import infra.concurrency
+import infra.crypto
+import infra.e2e_args
+import infra.interfaces
+import infra.logging_app as app
+import infra.network
+import infra.path
+import infra.platform_detection
+import infra.proc
 import infra.utils
-import re
-import hashlib
-import io
-from contextlib import contextmanager, redirect_stdout
-import ccf.ledger_viz
-
+import suite.test_requirements as reqs
+from ccf.tx_id import TxID
+from cryptography import x509
+from cryptography.hazmat.backends import default_backend
+from infra import snp
 from loguru import logger as LOG
 
 
@@ -142,7 +141,7 @@ def find_ledger_chunk_for_seqno(ledger, seqno):
                 and ccf.signatures.is_signature_transaction(tables)
             ):
                 next_signature = pd.get_seqno()
-        if first <= seqno and seqno <= last:
+        if first <= seqno <= last:
             return chunk, first, last, next_signature
     return None, None, None, None
 
@@ -239,6 +238,70 @@ def test_forced_snapshot(network, args):
     return network
 
 
+# https://github.com/microsoft/CCF/issues/6469
+@reqs.description("Forced snapshot while service is opening")
+def test_forced_snapshot_while_opening(network, args):
+    primary, _ = network.find_primary()
+    network.consortium.activate(primary)
+    network.consortium.check_for_service(primary, infra.network.ServiceStatus.OPENING)
+    member = network.consortium.get_any_active_member()
+
+    def issue_governance_txs(count):
+        assert count > 0
+        for _ in range(count):
+            response = member.update_ack_state_digest(primary)
+        with primary.client() as c:
+            c.wait_for_commit(response)
+
+    issue_governance_txs(3)
+
+    with primary.client() as c:
+        r = c.get("/node/commit").body.json()
+        hwm_pre_proposal = TxID.from_str(r["transaction_id"]).seqno
+
+    # Ensure there is at least one signature greater than the hwm.
+    issue_governance_txs(1)
+
+    proposal_body, careful_vote = network.consortium.make_proposal("trigger_snapshot")
+    proposal = member.propose(primary, proposal_body)
+    network.consortium.vote_using_majority(
+        primary,
+        proposal,
+        careful_vote,
+    )
+
+    issue_governance_txs(5)
+
+    snapshots_dir = network.get_committed_snapshots(
+        primary,
+        target_seqno=hwm_pre_proposal + 1,
+        force_txs=False,
+        wait_for_target_seqno=True,
+    )
+    snapshot_seqno = find_snapshot_after_seqno(snapshots_dir, hwm_pre_proposal)
+
+    _, committed_ledger_dirs = primary.get_ledger()
+    ledger = ccf.ledger.Ledger(
+        committed_ledger_dirs,
+        committed_only=True,
+        contiguous_suffix=True,
+    )
+    chunk, _, last, _ = find_ledger_chunk_for_seqno(ledger, snapshot_seqno)
+    assert chunk is not None, (
+        f"Could not find committed ledger chunk containing snapshot at "
+        f"{snapshot_seqno}"
+    )
+    assert (
+        chunk.is_complete and chunk.is_committed()
+    ), f"Ledger chunk containing snapshot at {snapshot_seqno} is not committed"
+    assert (
+        last == snapshot_seqno
+    ), f"Expected snapshot at ledger chunk boundary {snapshot_seqno}, got {last}"
+
+    network.consortium.check_for_service(primary, infra.network.ServiceStatus.OPENING)
+    return network
+
+
 @reqs.description("Create snapshot from node endpoint")
 @app.scoped_txs()
 def test_snapshot_create_endpoint(network, args):
@@ -332,127 +395,123 @@ def test_snapshot_access(network, args):
 
     with primary.client(
         interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
-    ) as file_client:
-        with primary.client(
-            interface_name=infra.interfaces.PRIMARY_RPC_INTERFACE
-        ) as disabled_client:
+    ) as file_client, primary.client(
+        interface_name=infra.interfaces.PRIMARY_RPC_INTERFACE
+    ) as disabled_client:
 
-            def do_request(http_verb, *args, **kwargs):
-                r = disabled_client.call(*args, http_verb=http_verb, **kwargs)
-                assert (
-                    r.status_code == http.HTTPStatus.NOT_FOUND
-                ), f"Expected inaccessible due to disabled opt-in feature. Found:\n{r}"
-                return file_client.call(*args, http_verb=http_verb, **kwargs)
+        def do_request(http_verb, *args, **kwargs):
+            r = disabled_client.call(*args, http_verb=http_verb, **kwargs)
+            assert (
+                r.status_code == http.HTTPStatus.NOT_FOUND
+            ), f"Expected inaccessible due to disabled opt-in feature. Found:\n{r}"
+            return file_client.call(*args, http_verb=http_verb, **kwargs)
 
-            r = do_request("HEAD", "/node/snapshot", allow_redirects=False)
-            assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value, r
-            assert "location" in r.headers, r.headers
-            location = r.headers["location"]
-            path = f"/node/snapshot/{snapshot_name}"
-            assert location == f"{loc}{path}"
-            LOG.warning(r.headers)
+        r = do_request("HEAD", "/node/snapshot", allow_redirects=False)
+        assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value, r
+        assert "location" in r.headers, r.headers
+        location = r.headers["location"]
+        path = f"/node/snapshot/{snapshot_name}"
+        assert location == f"{loc}{path}"
+        LOG.warning(r.headers)
 
-            # since uses closed/inclusive semantics: since=N returns snapshots
-            # with index >= N. So since=snapshot_index returns the snapshot
-            # (inclusive boundary), while since=snapshot_index+1 does not
-            # (strictly past the available snapshot index).
-            for since, expected in (
-                (0, location),
-                (1, location),
-                (snapshot_index // 2, location),
-                (snapshot_index - 1, location),
-                (snapshot_index, location),  # inclusive: exact index is returned
-                (snapshot_index + 1, None),  # strictly past: nothing returned
-            ):
-                for method in ("GET", "HEAD"):
-                    r = do_request(
-                        method,
-                        f"/node/snapshot?since={since}",
-                        allow_redirects=False,
-                    )
-                    if expected is None:
-                        assert r.status_code == http.HTTPStatus.NOT_FOUND, r
-                    else:
-                        assert (
-                            r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value
-                        ), r
-                        assert "location" in r.headers, r.headers
-                        actual = r.headers["location"]
-                        assert actual == expected
-
-            r = do_request("HEAD", path)
-            assert r.status_code == http.HTTPStatus.OK.value, r
-            assert r.headers["accept-ranges"] == "bytes", r.headers
-            total_size = int(r.headers["content-length"])
-
-            # Use HTTP-style inclusive range end value
-            range_max = total_size - 1
-
-            a = total_size // 3
-            b = a * 2
-            for start, end in [
-                (0, None),
-                (0, 0),
-                (0, range_max),
-                (0, a),
-                (a, a),
-                (a, b),
-                (b, b),
-                (b, range_max),
-                (b, None),
-                (range_max, range_max),
-                (range_max, None),
-            ]:
-                range_header_value = f"{start}-{'' if end is None else end}"
+        # since uses closed/inclusive semantics: since=N returns snapshots
+        # with index >= N. So since=snapshot_index returns the snapshot
+        # (inclusive boundary), while since=snapshot_index+1 does not
+        # (strictly past the available snapshot index).
+        for since, expected in (
+            (0, location),
+            (1, location),
+            (snapshot_index // 2, location),
+            (snapshot_index - 1, location),
+            (snapshot_index, location),  # inclusive: exact index is returned
+            (snapshot_index + 1, None),  # strictly past: nothing returned
+        ):
+            for method in ("GET", "HEAD"):
                 r = do_request(
-                    "GET", path, headers={"range": f"bytes={range_header_value}"}
+                    method,
+                    f"/node/snapshot?since={since}",
+                    allow_redirects=False,
                 )
-                assert r.status_code == http.HTTPStatus.PARTIAL_CONTENT.value, r
-                headers = r.headers
-                implied_end = range_max if end is None else end
-                assert int(headers["content-length"]) == implied_end - start + 1
-                assert (
-                    headers["content-range"]
-                    == f"bytes {start}-{implied_end}/{total_size}"
-                )
+                if expected is None:
+                    assert r.status_code == http.HTTPStatus.NOT_FOUND, r
+                else:
+                    assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value, r
+                    assert "location" in r.headers, r.headers
+                    actual = r.headers["location"]
+                    assert actual == expected
 
-                expected = snapshot_data[start : (None if end is None else end + 1)]
-                actual = r.body.data()
-                assert (
-                    expected == actual
-                ), f"Binary mismatch, {len(expected)} vs {len(actual)}:\n{expected}\nvs\n{actual}"
+        r = do_request("HEAD", path)
+        assert r.status_code == http.HTTPStatus.OK.value, r
+        assert r.headers["accept-ranges"] == "bytes", r.headers
+        total_size = int(r.headers["content-length"])
 
-            for negative_offset in [
-                1,
-                a,
-                b,
-            ]:
-                range_header_value = f"-{negative_offset}"
-                r = do_request(
-                    "GET", path, headers={"range": f"bytes={range_header_value}"}
-                )
-                assert r.status_code == http.HTTPStatus.PARTIAL_CONTENT.value, r
+        # Use HTTP-style inclusive range end value
+        range_max = total_size - 1
 
-                expected = snapshot_data[-negative_offset:]
-                actual = r.body.data()
-                assert (
-                    expected == actual
-                ), f"Binary mismatch, {len(expected)} vs {len(actual)}:\n{expected}\nvs\n{actual}"
+        a = total_size // 3
+        b = a * 2
+        for start, end in [
+            (0, None),
+            (0, 0),
+            (0, range_max),
+            (0, a),
+            (a, a),
+            (a, b),
+            (b, b),
+            (b, range_max),
+            (b, None),
+            (range_max, range_max),
+            (range_max, None),
+        ]:
+            range_header_value = f"{start}-{'' if end is None else end}"
+            r = do_request(
+                "GET", path, headers={"range": f"bytes={range_header_value}"}
+            )
+            assert r.status_code == http.HTTPStatus.PARTIAL_CONTENT.value, r
+            headers = r.headers
+            implied_end = range_max if end is None else end
+            assert int(headers["content-length"]) == implied_end - start + 1
+            assert (
+                headers["content-range"] == f"bytes {start}-{implied_end}/{total_size}"
+            )
 
-            # Check error handling for invalid ranges
-            for invalid_range, err_msg in [
-                (f"{a}-foo", "Unable to parse end of range value foo"),
-                ("foo-foo", "Unable to parse start of range value foo"),
-                (f"foo-{b}", "Unable to parse start of range value foo"),
-                (f"{b}-{a}", "out of order"),
-                ("-1-5", "Invalid format"),
-                ("-", "Invalid range"),
-                ("-foo", "Unable to parse end of range offset value foo"),
-                ("", "Invalid format"),
-            ]:
-                r = do_request("GET", path, headers={"range": f"bytes={invalid_range}"})
-                assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r
-                assert err_msg in r.body.json()["error"]["message"], r
+            expected = snapshot_data[start : (None if end is None else end + 1)]
+            actual = r.body.data()
+            assert (
+                expected == actual
+            ), f"Binary mismatch, {len(expected)} vs {len(actual)}:\n{expected}\nvs\n{actual}"
+
+        for negative_offset in [
+            1,
+            a,
+            b,
+        ]:
+            range_header_value = f"-{negative_offset}"
+            r = do_request(
+                "GET", path, headers={"range": f"bytes={range_header_value}"}
+            )
+            assert r.status_code == http.HTTPStatus.PARTIAL_CONTENT.value, r
+
+            expected = snapshot_data[-negative_offset:]
+            actual = r.body.data()
+            assert (
+                expected == actual
+            ), f"Binary mismatch, {len(expected)} vs {len(actual)}:\n{expected}\nvs\n{actual}"
+
+        # Check error handling for invalid ranges
+        for invalid_range, err_msg in [
+            (f"{a}-foo", "Unable to parse end of range value foo"),
+            ("foo-foo", "Unable to parse start of range value foo"),
+            (f"foo-{b}", "Unable to parse start of range value foo"),
+            (f"{b}-{a}", "out of order"),
+            ("-1-5", "Invalid format"),
+            ("-", "Invalid range"),
+            ("-foo", "Unable to parse end of range offset value foo"),
+            ("", "Invalid format"),
+        ]:
+            r = do_request("GET", path, headers={"range": f"bytes={invalid_range}"})
+            assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r
+            assert err_msg in r.body.json()["error"]["message"], r
 
 
 def test_snapshot_repr_digest(network, args):
@@ -570,6 +629,24 @@ def run_manual_snapshot_tests(const_args):
         test_snapshot_create_endpoint(network, args)
 
 
+def run_forced_snapshot_while_opening(const_args):
+    args = copy.deepcopy(const_args)
+    args.common_read_only_ledger_dir = None
+    args.label = f"{args.label}_opening_snapshot"
+    args.snapshot_tx_interval = 10000
+
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        pdb=args.pdb,
+    ) as network:
+        # Note: start() rather than start_and_open() intentionally leaves
+        # the service in the Opening state for test_forced_snapshot_while_opening
+        network.start(args)
+        test_forced_snapshot_while_opening(network, args)
+
+
 def test_snapshot_selection(network, args):
     # Add nodes so we have at least 3
     while len(network.get_joined_nodes()) < 3:
@@ -637,7 +714,7 @@ def test_snapshot_selection(network, args):
             return snapshot_name
 
     # Each node redirects to the best snapshot, while the primary holding it is still live and primary
-    for node in node_to_snapshot.keys():
+    for node in node_to_snapshot:
         actual_snapshot_name = find_snapshot(node)
         assert actual_snapshot_name == best_snapshot
 
@@ -747,27 +824,21 @@ def test_nulled_snapshot(network, args):
             LOG.debug(f"Created empty snapshot {temp_empty_snapshot.name}")
             temp_empty_snapshot.write(b"\x00" * 64)
 
-        LOG.info(
-            "Attempt to join a node using the corrupted snapshot copy (should fail)"
-        )
+        LOG.info("Join a node, ignoring the corrupted snapshot copy")
         new_node = network.create_node()
-        failed = False
-        try:
-            network.join_node(
-                new_node,
-                args.package,
-                args,
-                snapshots_dir=snapshots_dir,
-                # Don't try to fetch a snapshot, look at the local files
-                fetch_recent_snapshot=False,
-                from_snapshot=True,
-            )
-        except Exception as e:
-            failed = True
-            LOG.info(f"Node failed to join as expected: {e}")
+        network.join_node(
+            new_node,
+            args.package,
+            args,
+            snapshots_dir=snapshots_dir,
+            # Don't try to fetch a snapshot, look at the local files
+            fetch_recent_snapshot=False,
+            from_snapshot=True,
+        )
+        new_node.stop()
 
-        # (Existing assertion logic retained)
-        assert failed, "Node should not have joined successfully"
+        if not new_node.check_log_for_error_message("Ignoring corrupt snapshot"):
+            raise AssertionError("Expected corrupt snapshot to be skipped in node logs")
 
 
 def test_corrupt_snapshot_handling(network, args):
@@ -859,8 +930,8 @@ def test_corrupt_snapshot_handling(network, args):
             # but we still need to ensure the process is down.
             try:
                 new_node.stop()
-            except Exception:
-                pass
+            except Exception as stop_error:
+                LOG.debug(f"Ignoring error while stopping failed node: {stop_error}")
 
         # -- Verify writable directory: file must be renamed to .ignored --
         writable_in_ws = os.path.join(node_root, os.path.basename(writable_dir))
@@ -929,15 +1000,15 @@ def test_corrupt_snapshot_handling(network, args):
 
         try:
             network.run_join_node(new_node2)
-        except Exception:
+        except Exception as join_error:
             # The node may fail to join if it cannot write to the snapshots
             # directory at all; that is acceptable for this sub-test.
-            pass
+            LOG.debug(f"Ignoring expected join failure: {join_error}")
 
         try:
             new_node2.stop()
-        except Exception:
-            pass
+        except Exception as stop_error:
+            LOG.debug(f"Ignoring error while stopping failed node: {stop_error}")
 
         # The corrupt file should still be present (rename failed)
         ws_files2 = os.listdir(restricted_in_ws)
@@ -1454,7 +1525,7 @@ def test_ledger_chunk_redirect_gap(network, args):
     Add a new node to the network from a recent snapshot, then access a ledger chunk that
     predates the snapshot on the new node, checking redirection to another node and content correctness.
     """
-    primary, backups = network.find_nodes()
+    primary, _backups = network.find_nodes()
 
     # Get commit index from primary
     with primary.client(interface_name=infra.interfaces.PRIMARY_RPC_INTERFACE) as c:
@@ -1664,6 +1735,72 @@ def run_tls_san_checks(const_args):
         ), f"Expected SANs do not match: {ip_sans} vs {dummy_public_rpc_hosts}"
 
 
+def run_tls_san_join_mismatch(const_args):
+    # Since the join client was migrated to libcurl, a joining node verifies
+    # (CURLOPT_SSL_VERIFYHOST=2) that the target node's certificate covers the
+    # address it dialled. Check that a join is rejected when the dialled address
+    # is absent from the target node's certificate SANs, even though the service
+    # certificate itself is trusted. This exercises the hostname/SAN check
+    # specifically, as opposed to the untrusted-service-certificate path already
+    # covered by reconfiguration.test_add_node_invalid_service_cert.
+    args = copy.deepcopy(const_args)
+    args.label += "_tls_san_join_mismatch"
+
+    # Bind the target node's primary and file-serving interfaces to distinct
+    # loopback addresses, and restrict the node certificate SANs to the primary
+    # address only. The test harness reaches the node through the primary
+    # interface (in the SAN, so trusted), while a joining node dials the
+    # file-serving interface (not in the SAN, so rejected).
+    primary_host = "127.0.0.1"
+    file_serving_host = "127.0.0.2"
+
+    args.nodes = infra.e2e_args.nodes(args, 1)
+    target_spec = args.nodes[0]
+    target_spec.get_primary_interface().host = primary_host
+    target_spec.get_file_serving_interface().host = file_serving_host
+    args.subject_alt_names = [f"iPAddress:{primary_host}"]
+
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        pdb=args.pdb,
+    ) as network:
+        network.start_and_open(args)
+
+        LOG.info(
+            "A join is rejected when the target address is not covered by the "
+            "target node's certificate SANs"
+        )
+        new_node = network.create_node()
+        try:
+            network.join_node(
+                new_node,
+                args.package,
+                args,
+                timeout=3,
+                stop_on_error=True,
+                from_snapshot=False,
+                # Skip the proactive snapshot fetch so the node goes straight to
+                # the join request. The snapshot fetch treats a certificate
+                # verification failure as a retryable (non-fatal) error, whereas
+                # the join request itself treats it as fatal, which is the
+                # behaviour under test.
+                fetch_recent_snapshot=False,
+            )
+        except infra.network.ServiceCertificateInvalid:
+            LOG.info(
+                f"Node {new_node.local_node_id} correctly rejected the target, "
+                "whose certificate SANs do not cover the dialled file-serving "
+                "address (VERIFYHOST)"
+            )
+        else:
+            assert False, (
+                f"Node {new_node.local_node_id} unexpectedly joined despite a "
+                "target certificate SAN mismatch"
+            )
+
+
 def run_config_timeout_check(const_args):
     args = copy.deepcopy(const_args)
     args.nodes = infra.e2e_args.nodes(args, 1)
@@ -1699,37 +1836,40 @@ def run_config_timeout_check(const_args):
     if infra.platform_detection.is_snp():
         env.update(snp.get_aci_env())
 
-    proc = subprocess.Popen(
-        [
-            os.path.join(".", os.path.basename(node.remote.BIN)),
-            "--config",
-            "0.config.json",
-            "--config-timeout",
-            f"{config_timeout}s",
-        ],
-        cwd=start_node_path,
-        env=env,
-        stdout=open(os.path.join(start_node_path, "out"), "wb"),
-        stderr=open(os.path.join(start_node_path, "err"), "wb"),
-    )
-    time.sleep(2)
-    LOG.info("Copy a partial config")
-    # Replace it with a prefix
-    with open(os.path.join(start_node_path, "0.config.json"), "w") as f:
-        f.write("{")
-    time.sleep(2)
-    LOG.info("Move a full config back")
-    shutil.copy(
-        os.path.join(start_node_path, "0.config.json.bak"),
-        os.path.join(start_node_path, "0.config.json"),
-    )
-    LOG.info(f"Wait out the rest of the {config_timeout}s timeout")
-    time.sleep(config_timeout)
-    LOG.info("Check node")
-    assert proc.poll() is None, "Node process should still be running"
-    assert os.path.exists(os.path.join(start_node_path, "service_cert.pem"))
-    proc.terminate()
-    proc.wait()
+    with open(os.path.join(start_node_path, "out"), "wb") as stdout, open(
+        os.path.join(start_node_path, "err"), "wb"
+    ) as stderr:
+        proc = subprocess.Popen(
+            [
+                os.path.join(".", os.path.basename(node.remote.BIN)),
+                "--config",
+                "0.config.json",
+                "--config-timeout",
+                f"{config_timeout}s",
+            ],
+            cwd=start_node_path,
+            env=env,
+            stdout=stdout,
+            stderr=stderr,
+        )
+        time.sleep(2)
+        LOG.info("Copy a partial config")
+        # Replace it with a prefix
+        with open(os.path.join(start_node_path, "0.config.json"), "w") as f:
+            f.write("{")
+        time.sleep(2)
+        LOG.info("Move a full config back")
+        shutil.copy(
+            os.path.join(start_node_path, "0.config.json.bak"),
+            os.path.join(start_node_path, "0.config.json"),
+        )
+        LOG.info(f"Wait out the rest of the {config_timeout}s timeout")
+        time.sleep(config_timeout)
+        LOG.info("Check node")
+        assert proc.poll() is None, "Node process should still be running"
+        assert os.path.exists(os.path.join(start_node_path, "service_cert.pem"))
+        proc.terminate()
+        proc.wait()
 
 
 def run_sighup_check(const_args):
@@ -1896,9 +2036,10 @@ def run_cose_only_mode_upgrade(args):
 
     def get_service_key(network):
         service_cert_path = os.path.join(network.common_dir, "service_cert.pem")
-        service_cert = x509.load_pem_x509_certificate(
-            open(service_cert_path, "rb").read(), default_backend()
-        )
+        with open(service_cert_path, "rb") as service_cert_file:
+            service_cert = x509.load_pem_x509_certificate(
+                service_cert_file.read(), default_backend()
+            )
         return service_cert.public_key()
 
     def verify_receipt_available(node, view, seqno, service_key, expect_regular=True):
@@ -1931,7 +2072,7 @@ def run_cose_only_mode_upgrade(args):
             assert (
                 cose_rc.status_code == http.HTTPStatus.OK
             ), f"COSE receipt should be available, got {cose_rc.status_code}"
-            ccf.cose.verify_receipt(cose_rc.body.data(), service_key, b"\0" * 32)
+            ccf.receipt.verify_cose(cose_rc.body.data(), service_key, b"\0" * 32)
 
         LOG.info(
             f"Receipt check OK for {view}.{seqno} "
@@ -2040,7 +2181,7 @@ def run_cose_only_mode_upgrade(args):
 
         network.txs.issue(network, number_txs=3)
 
-        # Verify a Dual joiner can still join (allow_dual_signing_joinee=true)
+        # Verify a Dual joiner can still join (allow_dual_signing_joiner=true)
         LOG.info("Verifying Dual joiner can still join COSE-only (allow dual) network")
         dual_joiner = network.create_node()
         network.join_node(dual_joiner, nargs.package, nargs, from_snapshot=False)
@@ -2256,7 +2397,7 @@ def run_late_mounted_ledger_check(args):
             }
 
             # Create empy files in the new node's directory, with the correct names
-            for dst_path in dst_files.keys():
+            for dst_path in dst_files:
                 with open(dst_path, "wb") as f:
                     pass
 
@@ -2286,8 +2427,8 @@ def run_late_mounted_ledger_check(args):
 
             # Copy correct files
             for dst_path, src_path in dst_files.items():
-                with open(dst_path, "wb") as f:
-                    f.write(open(src_path, "rb").read())
+                with open(src_path, "rb") as src, open(dst_path, "wb") as dst:
+                    dst.write(src.read())
 
             # Historical query now passes
             assert try_historical_fetch(new_node)
@@ -2298,17 +2439,20 @@ def run_late_mounted_ledger_check(args):
 
             # Check node output for expected errors
             out_path, _ = new_node.get_logs()
-            for line in open(out_path, "r", encoding="utf-8").readlines():
-                expected_errors = [
-                    error for error in expected_errors if error not in line
-                ]
-                if len(expected_errors) == 0:
-                    break
-            else:
-                LOG.error("Expected to find following error messages in node output:")
-                for error in expected_errors:
-                    LOG.error(f"  {error}")
-                raise AssertionError(expected_errors)
+            with open(out_path, "r", encoding="utf-8") as output:
+                for line in output:
+                    expected_errors = [
+                        error for error in expected_errors if error not in line
+                    ]
+                    if len(expected_errors) == 0:
+                        break
+                else:
+                    LOG.error(
+                        "Expected to find following error messages in node output:"
+                    )
+                    for error in expected_errors:
+                        LOG.error(f"  {error}")
+                    raise AssertionError(expected_errors)
 
 
 def run_empty_ledger_dir_check(args):
@@ -2341,8 +2485,8 @@ def run_empty_ledger_dir_check(args):
             # Start new network, this should fail
             try:
                 network.start(args, ledger_dir=tmp_dir)
-            except Exception:
-                pass
+            except Exception as start_error:
+                LOG.debug(f"Ignoring expected network start failure: {start_error}")
 
             # Check that the node has failed with the expected error message
             if not primary.check_log_for_error_message(
@@ -2373,10 +2517,10 @@ def run_initial_uvm_descriptor_checks(const_args):
             snp_policy = r.body.json()["snp"]
             uvm_endorsements = snp_policy["uvmEndorsements"]
             assert len(uvm_endorsements) == 1, uvm_endorsements
-            did = list(uvm_endorsements.keys())[0]
+            did = next(iter(uvm_endorsements.keys()))
             feeds = uvm_endorsements[did]
             assert len(feeds) == 1, feeds
-            feed = list(feeds.keys())[0]
+            feed = next(iter(feeds.keys()))
             svn = int(feeds[feed]["svn"])
             LOG.info(f"Current UVM endorsement: did={did} feed={feed} svn={svn}")
 
@@ -3073,10 +3217,9 @@ def run_merkle_verification_level(args):
     assert source_offset < source_size
 
     # Create an alternate version of the chunk without the offsets table. Should be equivalent to the file immediately before it was marked `.committed`
-    no_offsets_table = (
-        int(0).to_bytes(header_size, byteorder="little")
-        + good_data[header_size:source_offset]
-    )
+    no_offsets_table = (0).to_bytes(header_size, byteorder="little") + good_data[
+        header_size:source_offset
+    ]
 
     null_block_size = source_size // 8
 
@@ -3175,7 +3318,7 @@ def run_error_message_on_failure_to_read_aci_sec_context(args):
     ) as network:
         network.start_and_open(args)
 
-        primary, _ = network.find_primary()
+        _primary, _ = network.find_primary()
 
         args_copy = copy.deepcopy(args)
 
@@ -3205,13 +3348,14 @@ def run_error_message_on_failure_to_read_aci_sec_context(args):
         ]
 
         out_path, _ = new_node.get_logs()
-        for line in open(out_path, "r", encoding="utf-8").readlines():
-            for expected in expected_log_messages:
-                if expected in line:
-                    expected_log_messages.remove(expected)
-                    LOG.info(f"Found expected log message: {expected}")
-            if len(expected_log_messages) == 0:
-                break
+        with open(out_path, "r", encoding="utf-8") as output:
+            for line in output:
+                for expected in expected_log_messages:
+                    if expected in line:
+                        expected_log_messages.remove(expected)
+                        LOG.info(f"Found expected log message: {expected}")
+                if len(expected_log_messages) == 0:
+                    break
 
         assert (
             len(expected_log_messages) == 0
@@ -3488,14 +3632,15 @@ def test_backup_snapshot_fetch_max_size(network, args):
     assert_no_snapshot_is_present()
     expected_log_message = "Failed writing received data to disk/application"
     out_path, _ = new_node.get_logs()
-    for line in open(out_path, "r", encoding="utf-8").readlines():
-        if expected_log_message in line:
-            LOG.info(f"Found expected log message: {line}")
-            break
-    else:
-        raise AssertionError(
-            f"Did not find expected log message about snapshot exceeding max size: {expected_log_message}"
-        )
+    with open(out_path, "r", encoding="utf-8") as output:
+        for line in output:
+            if expected_log_message in line:
+                LOG.info(f"Found expected log message: {line}")
+                break
+        else:
+            raise AssertionError(
+                f"Did not find expected log message about snapshot exceeding max size: {expected_log_message}"
+            )
 
 
 def test_join_idempotency_short_circuits_on_backup(network, args):
@@ -3584,8 +3729,10 @@ def test_join_idempotency_short_circuits_on_backup(network, args):
     # primary ran add_node exactly once for this id.
     backup_out, _ = backup.get_logs()
     primary_out, _ = primary.get_logs()
-    backup_lines = open(backup_out, encoding="utf-8").read()
-    primary_lines = open(primary_out, encoding="utf-8").read()
+    with open(backup_out, encoding="utf-8") as backup_output:
+        backup_lines = backup_output.read()
+    with open(primary_out, encoding="utf-8") as primary_output:
+        primary_lines = primary_output.read()
 
     assert (
         "Join request redirected to primary" in backup_lines
@@ -4512,7 +4659,7 @@ def test_post_snapshot_chunks_retained(network, args, read_only_ledger_dir):
 
     # All post-snapshot chunks must still be present
     for chunk in post_snapshot_chunks:
-        chunk_start, chunk_end = ccf.ledger.range_from_filename(chunk)
+        _chunk_start, chunk_end = ccf.ledger.range_from_filename(chunk)
         assert chunk_end >= snapshot_seqno, (
             f"Post-snapshot chunk {chunk} (end={chunk_end}) should not have "
             f"been deleted (snapshot watermark={snapshot_seqno})"
@@ -4575,8 +4722,8 @@ def run_ledger_cleanup_no_read_only_dir_check(const_args):
     ) as network:
         try:
             network.start(args)
-        except Exception:
-            pass
+        except Exception as start_error:
+            LOG.debug(f"Ignoring expected network start failure: {start_error}")
 
         network.skip_verify_chunking = True
         network.ignore_errors_on_shutdown()
@@ -4639,6 +4786,7 @@ def run(args):
     run_split_ledger_test(args)
     run_max_uncommitted_tx_count(args)
     run_file_operations(args)
+    run_forced_snapshot_while_opening(args)
     run_manual_snapshot_tests(args)
     run_max_retained_snapshot_files(args)
     run_backup_snapshot_cleanup(args)
@@ -4647,6 +4795,7 @@ def run(args):
     run_ledger_cleanup_no_read_only_dir_check(args)
     run_ledger_chunk_cleanup_tests(args)
     run_tls_san_checks(args)
+    run_tls_san_join_mismatch(args)
     run_config_timeout_check(args)
     run_configuration_file_checks(args)
     run_pid_file_check(args)

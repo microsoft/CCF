@@ -1,23 +1,24 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-import infra.network
-import infra.crypto
-import ccf.ledger
-import ccf.signatures
-import infra.doc
-from infra.proposal import ProposalState
-import http
-import os
 import base64
+import http
 import json
-from loguru import logger as LOG
-import suite.test_requirements as reqs
+import os
+
+import ccf.ledger
 import ccf.read_ledger
-import infra.logging_app as app
-from ccf.tx_id import TxID
-from ccf.cose import cert_fingerprint
+import ccf.signatures
 import cwt
+import infra.crypto
+import infra.doc
+import infra.logging_app as app
+import infra.network
+import suite.test_requirements as reqs
+from ccf.cose import cert_fingerprint
+from ccf.tx_id import TxID
+from infra.proposal import ProposalState
+from loguru import logger as LOG
 
 
 def check_operations(ledger, operations):
@@ -158,14 +159,14 @@ def check_signatures(ledger):
                 assert cose_txid.seqno == gcm_seqno, (cose_txid, gcm_seqno)
 
             # Adjacent signatures only occur on a view change
-            if prev_sig_txid is not None:
-                if prev_sig_txid.seqno + 1 == sig_txid.seqno:
-                    # Reduced from assert while investigating cause
-                    # https://github.com/microsoft/CCF/issues/5078
-                    if sig_txid.view <= prev_sig_txid.view:
-                        LOG.error(
-                            f"Adjacent signatures at {prev_sig_txid} and {sig_txid}"
-                        )
+            if (
+                prev_sig_txid is not None
+                and prev_sig_txid.seqno + 1 == sig_txid.seqno
+                and sig_txid.view <= prev_sig_txid.view
+            ):
+                # Reduced from assert while investigating cause
+                # https://github.com/microsoft/CCF/issues/5078
+                LOG.error(f"Adjacent signatures at {prev_sig_txid} and {sig_txid}")
 
             prev_sig_txid = sig_txid
 
@@ -189,9 +190,9 @@ def check_all_tables_are_documented(table_names_in_ledger, doc_path):
             f"Experimental tables {experimental_table_names_in_ledger} were present in ledger"
         )
 
-    public_table_names_in_ledger = set(
-        [tn for tn in table_names_in_ledger if tn.startswith("public:ccf.")]
-    )
+    public_table_names_in_ledger = {
+        tn for tn in table_names_in_ledger if tn.startswith("public:ccf.")
+    }
     undocumented_tables = public_table_names_in_ledger - set(table_names)
     assert undocumented_tables == set(), undocumented_tables
 

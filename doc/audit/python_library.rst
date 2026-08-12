@@ -66,16 +66,17 @@ The ``read_ledger.py`` command line utility can be used to parse, verify the int
     Reading ledger from ['/path/to/ledger/dir']
     Contains 9 chunks
     chunk /path/to/first/ledger/chunk (committed)
-      seqno 1 (9 public tables) # Number of tables written at seqno 1
-        table "public:ccf.gov.constitution" (1 write): # 1 write to this table at seqno 1
+      txid 2.1 (9 public tables) [1234 bytes] # Number of tables written at transaction 2.1
+        table "public:ccf.gov.constitution" (1 write): # 1 write to this table at transaction 2.1
           <u64: 0>: # key
             "class Action ..." # value
-        table "public:ccf.gov.members.acks" (2 writes): # 2 writes to this table at seqno 1
+        table "public:ccf.gov.members.acks" (2 writes): # 2 writes to this table at transaction 2.1
             ...
-      seqno 31 (0 public tables) # transaction at seqno 31 is private only
+      txid 2.31 (0 public tables) [94 bytes] # transaction 2.31 is private only
       -- private: 94 bytes # size of private entry
     ...
-    Ledger verification complete. Found 15 signatures, and verified until 2.52 # Ledger integrity verified up to seqno 2.52
+    Ledger verification complete
+    Verified FULL - 52 transactions, 15 signatures, until 2.52 # Ledger integrity verified up to transaction 2.52
 
 By default, non-committed ledger files are ignored, unless the ``--uncommitted`` command line argument is specified.
 
@@ -110,7 +111,7 @@ Alternatively, ``read_ledger.py`` can parse the content of a snapshot file:
 
     $ read_ledger.py --snapshot /path/to/snapshot/file
     Reading snapshot from /path/to/snapshot/file (committed)
-      seqno 12 (15 public tables)
+      txid 2.12 (15 public tables) [1234 bytes]
     ...
 
 .. note::

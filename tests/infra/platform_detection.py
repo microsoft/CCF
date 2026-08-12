@@ -1,10 +1,10 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
+import re
+import sys
 from enum import StrEnum
 from os import getenv, path
-import sys
-import re
 
 
 class Platform(StrEnum):

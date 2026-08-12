@@ -6,12 +6,12 @@ It is possible for existing members to add new members to the consortium after a
 Generating Member Keys and Certificates
 ---------------------------------------
 
-.. note:: See :doc:`/governance/hsm_keys` for a guide on how to used member keys and certificate store in Azure Key Vault.
+.. note:: See :doc:`/governance/hsm_keys` for a guide on using member keys and certificates stored in Azure Key Vault.
 
 First, the identity and encryption public and private key pairs of the new member should be created.
 
 The ``keygenerator.sh`` script can be used to generate the member’s certificate and associated private key as well as their encryption public and private keys.
-It is included in the `ccf` Python package, and the `.rpm` package will install it under `/opt/ccf_*/bin/`.
+It is included in the `ccf` Python package, and the RPM package installs it under ``/opt/ccf/bin/``.
 
 .. code-block:: bash
 
@@ -58,12 +58,13 @@ First, the new member should update and retrieve the latest state digest via the
 .. code-block:: bash
 
     $ touch empty_file
+    # Passing an empty content file is required.
     $ ccf_cose_sign1 \
       --ccf-gov-msg-type state_digest \
       --ccf-gov-msg-created_at `date -uIs` \
       --signing-key new_member_privk.pem \
       --signing-cert new_member_cert.pem \
-      --content empty_file \ # Note that passing an empty file is required
+      --content empty_file \
     | curl https://<ccf-node-address>/gov/members/state-digests/7f46110b62ccbbd5f18b4c9bda876024399fd538133f8c26d4bfe5a9d80e59e6:update?api-version=2024-07-01 \
       -X POST \
       --cacert service_cert.pem \

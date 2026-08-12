@@ -2282,18 +2282,19 @@ namespace aft
     {
       RAFT_DEBUG_FMT("Becoming aware of new term {}", term);
 
+      if (state->current_view != term)
+      {
+        voted_for.reset();
+      }
       state->current_view = term;
-      voted_for.reset();
       reset_votes_for_me();
       become_follower();
       is_new_follower = true;
     }
 
   private:
-    void send_propose_request_vote()
+    std::optional<ccf::NodeId> find_successor()
     {
-      ProposeRequestVote prv{.term = state->current_view};
-
       std::optional<ccf::NodeId> successor = std::nullopt;
       Index max_match_idx = 0;
       ccf::kv::ReconfigurationId reconf_id_of_max_match = 0;
@@ -2332,12 +2333,15 @@ namespace aft
           }
         }
       }
-      if (successor.has_value())
-      {
-        RAFT_INFO_FMT("Proposing that {} becomes candidate", successor.value());
-        channels->send_authenticated(
-          successor.value(), ccf::NodeMsgType::consensus_msg, prv);
-      }
+      return successor;
+    }
+
+    void send_propose_request_vote(const ccf::NodeId& successor)
+    {
+      ProposeRequestVote prv{.term = state->current_view};
+      RAFT_INFO_FMT("Proposing that {} becomes candidate", successor);
+      channels->send_authenticated(
+        successor, ccf::NodeMsgType::consensus_msg, prv);
     }
     void become_retired(Index idx, ccf::kv::RetirementPhase phase)
     {
@@ -2374,10 +2378,7 @@ namespace aft
       }
       else if (phase == ccf::kv::RetirementPhase::RetiredCommitted)
       {
-        if (state->leadership_state == ccf::kv::LeadershipState::Leader)
-        {
-          send_propose_request_vote();
-        }
+        nominate_successor();
 
         leader_id.reset();
         state->leadership_state = ccf::kv::LeadershipState::None;
@@ -2776,16 +2777,21 @@ namespace aft
 
       LOG_INFO_FMT("Nominating successor for {}", state->node_id);
 
+      const auto successor = find_successor();
+
+      if (successor.has_value())
+      {
 #ifdef CCF_RAFT_TRACING
-      nlohmann::json j = {};
-      j["function"] = "step_down_and_nominate_successor";
-      j["state"] = *state;
-      COMMITTABLE_INDICES(j["state"], state);
-      j["configurations"] = configurations;
-      RAFT_TRACE_JSON_OUT(j);
+        nlohmann::json j = {};
+        j["function"] = "step_down_and_nominate_successor";
+        j["state"] = *state;
+        COMMITTABLE_INDICES(j["state"], state);
+        j["configurations"] = configurations;
+        RAFT_TRACE_JSON_OUT(j);
 #endif
 
-      send_propose_request_vote();
+        send_propose_request_vote(successor.value());
+      }
     }
 
   private:

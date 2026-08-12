@@ -1,0 +1,8 @@
+# Pin the Rust toolchain for reproducible builds, in particular the WASM
+# release artifacts (see #66). rustup honours this file for every in-tree
+# cargo/rustc invocation, so CI, release, and local builds all use the same
+# compiler. Bump deliberately when adopting a newer stable.
+[toolchain]
+channel = "1.96.0"
+components = ["rustfmt", "clippy"]
+targets = ["wasm32-unknown-unknown"]

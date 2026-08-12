@@ -75,10 +75,23 @@ namespace client
     Unique_SSL_CTX ctx;
     Unique_BIO bio;
 
-    void init()
+    static Unique_SSL_CTX create_context(
+      const std::shared_ptr<::tls::CA>& node_ca,
+      const std::shared_ptr<::tls::Cert>& cert)
     {
+      Unique_SSL_CTX ctx(TLS_client_method());
       SSL_CTX_clear_mode(ctx, SSL_MODE_AUTO_RETRY);
 
+      if (cert)
+        cert->configure_context(ctx);
+      if (node_ca)
+        node_ca->configure_trusted_cert_store(ctx);
+
+      return ctx;
+    }
+
+    void init()
+    {
       SSL* ssl;
       BIO_get_ssl(bio, &ssl);
       if (!ssl)
@@ -98,9 +111,7 @@ namespace client
       BIO_set_nbio(bio, 1);
 
       if (cert)
-        cert->configure_ssl(ssl, ctx);
-      if (node_ca)
-        node_ca->configure_trusted_cert_store(ctx);
+        cert->configure_connection(ssl);
 
       do
       {
@@ -125,7 +136,7 @@ namespace client
       port(port),
       node_ca(node_ca),
       cert(cert),
-      ctx(TLS_client_method()),
+      ctx(create_context(node_ca, cert)),
       bio(ctx)
     {
       init();
@@ -136,7 +147,7 @@ namespace client
       port(c.port),
       node_ca(c.node_ca),
       cert(c.cert),
-      ctx(TLS_client_method()),
+      ctx(create_context(node_ca, cert)),
       bio(ctx)
     {
       init();

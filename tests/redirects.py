@@ -1,13 +1,13 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import infra.network
-import infra.e2e_args
-import infra.interfaces
-import infra.net
-from infra.runner import ConcurrentRunner
 import http
 import time
 
+import infra.e2e_args
+import infra.interfaces
+import infra.net
+import infra.network
+from infra.runner import ConcurrentRunner
 from loguru import logger as LOG
 
 

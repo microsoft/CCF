@@ -14,6 +14,8 @@
 namespace ccf::kv
 {
   class CommittableTx;
+  class Consensus;
+  class TxHistory;
 }
 
 namespace ccf
@@ -33,6 +35,8 @@ namespace ccf
     virtual void tick(std::chrono::milliseconds /*elapsed*/) {}
     virtual void open() = 0;
     virtual bool is_open() = 0;
+    virtual void set_consensus_and_history(
+      ccf::kv::Consensus* consensus, ccf::kv::TxHistory* history) = 0;
 
     // Used by rpcendpoint to process incoming client RPCs
     virtual void process(std::shared_ptr<RpcContextImpl> ctx) = 0;

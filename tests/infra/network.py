@@ -1,42 +1,41 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import base64
+import functools
+import hashlib
+import http
+import json
 import os
+import pprint
+import random
+import re
 import time
-
+from collections import deque
 from contextlib import contextmanager
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from enum import Enum, IntEnum, auto
-from infra.clients import flush_info, CCFConnectionException, CCFIOException
+from typing import ClassVar
+
+import ccf.ledger
+from ccf.tx_id import TxID
+from cryptography.hazmat.backends import default_backend
+from cryptography.x509 import load_pem_x509_certificate
+from loguru import logger as LOG
+
+import infra.consortium
 import infra.crypto
+import infra.e2e_args
 import infra.member
+import infra.node
+import infra.openapi
 import infra.path
 import infra.proc
 import infra.service_load
-import infra.node
-from infra.node import CCFVersion
-import infra.consortium
-import infra.e2e_args
-import ccf.ledger
-from infra.tx_status import TxStatus
-from ccf.tx_id import TxID
-import random
-from dataclasses import dataclass
-import http
-import pprint
-import functools
-import re
-import hashlib
-import json
-
-from datetime import datetime, timedelta, timezone
+from infra.clients import CCFConnectionException, CCFIOException, flush_info
 from infra.consortium import slurp_file
-from collections import deque
-
-
-from loguru import logger as LOG
-
-from cryptography.x509 import load_pem_x509_certificate
-from cryptography.hazmat.backends import default_backend
+from infra.node import CCFVersion
+from infra.tx_status import TxStatus
 
 # JOIN_TIMEOUT should be greater than the worst case quote verification time (~ 25 secs)
 JOIN_TIMEOUT = 40
@@ -105,7 +104,11 @@ class CollateralFetchTimeout(NodeJoinException):
 
 
 class ServiceCertificateInvalid(NodeJoinException):
-    pass
+    """Raised when a joining node cannot establish TLS certificate trust with
+    the target service. This covers any join-time certificate trust failure
+    (an untrusted or wrong service certificate, a hostname/SAN mismatch under
+    VERIFYHOST, or a service certificate that cannot be loaded), not only a
+    literally invalid certificate."""
 
 
 class NetworkShutdownError(Exception):
@@ -159,21 +162,19 @@ def log_errors(
             )
             for line in tail_lines:
                 LOG.info(line)
-    except IOError:
-        LOG.exception("Could not check output {} for errors".format(out_path))
+    except OSError:
+        LOG.exception(f"Could not check output {out_path} for errors")
 
     fatal_error_lines = []
     try:
         with open(err_path, "r", errors="replace", encoding="utf-8") as lines:
             fatal_error_lines = [
-                line
-                for line in lines.readlines()
-                if not line.startswith("[ perf record:")
+                line for line in lines if not line.startswith("[ perf record:")
             ]
             if fatal_error_lines:
                 LOG.error(f"Contents of {err_path}:\n{''.join(fatal_error_lines)}")
-    except IOError:
-        LOG.exception("Could not read err output {}".format(err_path))
+    except OSError:
+        LOG.exception(f"Could not read err output {err_path}")
 
     return error_lines, fatal_error_lines
 
@@ -181,7 +182,7 @@ def log_errors(
 class Network:
     KEY_GEN = "keygenerator.sh"
     SHARE_SCRIPT = "submit_recovery_share.sh"
-    node_args_to_forward = [
+    node_args_to_forward: ClassVar[list[str]] = [
         "log_level",
         "sig_tx_interval",
         "sig_ms_interval",
@@ -301,6 +302,7 @@ class Network:
         self.dbg_nodes = dbg_nodes
         self.version = version
         self.args = None
+        self.openapi_validator = infra.openapi.OpenAPIValidator()
         self.service_certificate_valid_from = None
         self.service_certificate_validity_days = None
 
@@ -347,6 +349,7 @@ class Network:
             ipv6=self.ipv6,
             **kwargs,
         )
+        node.openapi_validator = self.openapi_validator
         self.nodes.append(node)
         return node
 
@@ -696,8 +699,13 @@ class Network:
             self._wait_for_app_open(node, timeout=args.ledger_recovery_timeout)
 
         LOG.success("***** Network is now open *****")
+        self._start_openapi_validation(primary)
         if self.service_load:
             self.service_load.begin(self)
+
+    def _start_openapi_validation(self, node):
+        with node.client() as client:
+            self.openapi_validator.load(client, self.args.gov_api_version)
 
     def start_and_open(self, args, **kwargs):
         self.start(args, **kwargs)
@@ -810,6 +818,7 @@ class Network:
         suspend_after_start=False,
         **kwargs,
     ):
+        self.args = args
         self.common_dir = (
             common_dir
             or self.common_dir
@@ -905,8 +914,7 @@ class Network:
     def wait_for_recovery_decision_protocol_finish(self, timeout=10):
         def cycle(items):
             while True:
-                for item in items:
-                    yield item
+                yield from items
 
         waiting_nodes = set(self.nodes)
         end_time = time.time() + timeout
@@ -938,7 +946,7 @@ class Network:
                 )
 
                 if not is_timeout:
-                    raise e
+                    raise
 
                 LOG.info(
                     f"Failed to get the status of {node.local_node_id}, retrying..."
@@ -1315,6 +1323,12 @@ class Network:
                 if verbose_verification:
                     flush_info(log_capture, None)
 
+        if self.common_dir is not None:
+            self.openapi_validator.report(
+                os.path.join(self.common_dir, "openapi_coverage.json"),
+                os.path.join(self.args.workspace, "openapi_coverage.json"),
+            )
+
         fatal_error_found = False
 
         if len(self.ignore_error_patterns) > 0:
@@ -1420,7 +1434,20 @@ class Network:
                             ) from e
                         if "StartupSeqnoIsOld" in error:
                             raise StartupSeqnoIsOld(node, has_stopped, error) from e
-                        if "invalid cert on handshake" in error:
+                        # The joining node now connects to the target via the
+                        # curl client, which reports any failure to establish
+                        # certificate trust as "TLS certificate trust check
+                        # failed": a rejected or untrusted service certificate,
+                        # a hostname/SAN mismatch (VERIFYHOST=2) or any other
+                        # peer verification failure, or a configured service
+                        # certificate that could not be loaded. The legacy
+                        # TLS-session wording ("invalid cert on handshake") is
+                        # retained for compatibility with logs from older nodes
+                        # during mixed-version tests.
+                        if (
+                            "TLS certificate trust check failed" in error
+                            or "invalid cert on handshake" in error
+                        ):
                             raise ServiceCertificateInvalid(
                                 node, has_stopped, error
                             ) from e
@@ -1614,9 +1641,9 @@ class Network:
                 # the commit of the trust_node proposal may rely on the new node
                 # catching up (e.g. adding 1 node to a 1-node network).
                 if statistics is not None:
-                    statistics["node_replacement_governance_start"] = (
-                        datetime.now().isoformat()
-                    )
+                    statistics["node_replacement_governance_start"] = datetime.now(
+                        timezone.utc
+                    ).isoformat()
                 self.consortium.replace_node(
                     primary,
                     node_to_retire,
@@ -1626,9 +1653,9 @@ class Network:
                     timeout=args.ledger_recovery_timeout,
                 )
                 if statistics is not None:
-                    statistics["node_replacement_governance_committed"] = (
-                        datetime.now().isoformat()
-                    )
+                    statistics["node_replacement_governance_committed"] = datetime.now(
+                        timezone.utc
+                    ).isoformat()
         except (ValueError, TimeoutError):
             LOG.error(
                 f"Failed to replace {node_to_retire.node_id} with {node_to_add.node_id}"
@@ -1658,7 +1685,9 @@ class Network:
         else:
             raise TimeoutError(f"Timed out waiting for node to become removed: {r}")
         if statistics is not None:
-            statistics["old_node_removal_committed"] = datetime.now().isoformat()
+            statistics["old_node_removal_committed"] = datetime.now(
+                timezone.utc
+            ).isoformat()
         self.nodes.remove(node_to_retire)
 
     def create_user(self, local_user_id, curve, record=True):
@@ -1711,10 +1740,12 @@ class Network:
         while time.time() < end_time:
             try:
                 with node.client(connection_timeout=timeout) as c:
-                    r = c.get("/node/state").body.json()
-                    if r["state"] in states:
-                        final_state = r["state"]
-                        break
+                    response = c.get("/node/state")
+                    if response.status_code == http.HTTPStatus.OK.value:
+                        body = response.body.json()
+                        if body["state"] in states:
+                            final_state = body["state"]
+                            break
             except ConnectionRefusedError:
                 pass
             except CCFConnectionException:
@@ -1726,6 +1757,7 @@ class Network:
             )
         if final_state == infra.node.State.PART_OF_NETWORK.value:
             self.status = ServiceStatus.OPEN
+            self._start_openapi_validation(node)
 
     def wait_for_state(self, node, state, timeout=3):
         self.wait_for_states(node, [state], timeout=timeout)
@@ -1735,9 +1767,11 @@ class Network:
         while time.time() < end_time:
             try:
                 with node.client(connection_timeout=timeout, verify_ca=verify_ca) as c:
-                    r = c.get("/node/network").body.json()
-                    if r["service_status"] in statuses:
-                        break
+                    response = c.get("/node/network")
+                    if response.status_code == http.HTTPStatus.OK.value:
+                        body = response.body.json()
+                        if body["service_status"] in statuses:
+                            break
             except ConnectionRefusedError:
                 pass
             except CCFConnectionException:
@@ -1760,7 +1794,7 @@ class Network:
             with node.client() as c:
                 logs = []
                 r = c.get("/app/commit", log_capture=logs)
-                if not (r.status_code == http.HTTPStatus.NOT_FOUND.value):
+                if r.status_code != http.HTTPStatus.NOT_FOUND.value:
                     flush_info(logs, None)
                     return
                 time.sleep(0.1)
@@ -2030,8 +2064,10 @@ class Network:
                     return (new_primary, new_term)
             except PrimaryNotFound:
                 error = PrimaryNotFound
-            except Exception:
-                pass
+            except Exception as primary_error:
+                LOG.debug(
+                    f"Ignoring primary lookup failure while waiting: {primary_error}"
+                )
             time.sleep(0.1)
         flush_info(logs, None)
         raise error(f"A new primary was not elected after {timeout} seconds")
@@ -2068,8 +2104,10 @@ class Network:
                     return (new_primary, new_term)
             except PrimaryNotFound:
                 error = PrimaryNotFound
-            except Exception:
-                pass
+            except Exception as primary_error:
+                LOG.debug(
+                    f"Ignoring primary lookup failure while waiting: {primary_error}"
+                )
             time.sleep(0.1)
         flush_info(logs, None)
         raise error(f"A new primary was not elected after {timeout} seconds")
@@ -2112,7 +2150,7 @@ class Network:
         primary_opinions = {n: p.node_id if p else p for n, p in primaries.items()}
         assert all_good, f"Disagreement about primaries: {primary_opinions}"
         delay = time.time() - start_time
-        primary = list(primaries.values())[0]
+        primary = next(iter(primaries.values()))
         LOG.info(
             f"Primary unanimity after {delay:.2f}s: {primary.local_node_id} ({primary.node_id})"
         )
@@ -2179,7 +2217,7 @@ class Network:
             node, _ = self.find_primary()
 
         proposal = self.consortium.force_ledger_chunk(node)
-        target_seqno = seqno if seqno is not None else proposal.completed_seqno
+        target_seqno = seqno or proposal.completed_seqno
         end_time = time.time() + timeout
         last_error = None
         while time.time() < end_time:

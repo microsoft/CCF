@@ -8,7 +8,7 @@ The ledger and snapshot files written by CCF nodes to disk should be managed by 
 Ledger
 ------
 
-The ledger is the persistent replicated append-only record of the transactions that have been executed by the CCF service. It is written by the primary node when a transaction is executed and replicated to all backups which maintain their own duplicated copy. Each node in a network creates and maintains its own local copy of the ledger. Committed entries are always byte identical between :ref:`a majority <architecture/consensus/index:Consensus Protocol>` of nodes, but a node may be more or less up to date, and uncommitted entries may differ.
+The ledger is the persistent replicated append-only record of the transactions that have been executed by the CCF service. It is written by the primary node when a transaction is executed and replicated to all backups which maintain their own duplicated copy. Each node in a network creates and maintains its own local copy of the ledger. Committed entries are byte identical on all up-to-date nodes, but a node may be more or less up to date, and uncommitted entries may differ.
 
 On each node, the ledger is written to disk in a directory specified by the ``ledger.directory`` configuration entry.
 
@@ -73,7 +73,7 @@ In the typical case, a requesting client will first hit a Backup, and will event
         Backup->>-Client: 308 Location: https://primary/node/ledger_chunk?since=endIndex+1
         Client->>+Primary: GET /node/ledger_chunk?since=endIndex+1
         Primary->>-Client: 308 Location: /node/ledger_chunk/ledger_endIndex+1_nextEndIndex.committed
-        Client->>+Primary: GET /node/ledger_chunk/ledger_startIndex_endIndex.committed
+        Client->>+Primary: GET /node/ledger_chunk/ledger_endIndex+1_nextEndIndex.committed
         Note over Primary: But the Primary node has the most recent chunk already
         Primary->>-Client: 200 <Chunk Contents>
 
@@ -105,7 +105,7 @@ then the following sequence can occur:
         Backup->>-Client: 200 <Chunk Contents>
         Client->>+Backup: GET /node/ledger_chunk?since=101
         Note over Backup: Backup node does not have 101-150
-        Backup->>-Client: 308 Location: https://primary/node/ledger_chunk?since=51
+        Backup->>-Client: 308 Location: https://primary/node/ledger_chunk?since=101
         Client->>+Primary: GET /node/ledger_chunk?since=101
 
 2. :http:GET:`/node/ledger_chunk/{chunk_name}` and :http:HEAD:`/node/ledger_chunk/{chunk_name}`
@@ -128,10 +128,10 @@ This allows clients to verify the integrity of downloaded files and avoid re-dow
 ETag and If-None-Match
 ^^^^^^^^^^^^^^^^^^^^^^
 
-``GET /node/ledger_chunk/{chunk_name}`` supports ``ETag`` and ``If-None-Match`` headers, allowing clients to atomically check whether a chunk (or a range of a chunk) has changed and re-download it in a single request, without needing a separate metadata query first.
+``GET`` and ``HEAD /node/ledger_chunk/{chunk_name}`` support ``ETag`` and ``If-None-Match`` headers, allowing clients to atomically check whether a chunk (or a range of a chunk) has changed and re-download it in a single request, without needing a separate metadata query first.
 Every successful ``GET`` response includes an ``ETag`` header whose value uses the `RFC 9530 <https://www.rfc-editor.org/rfc/rfc9530>`_ digest format: ``"sha-256=:<base64_digest>:"``, where ``<base64_digest>`` is the base64-encoded SHA-256 digest of the returned content (which may be a sub-range when the ``Range`` header is used).
 
-.. note:: ETag values must be surrounded by double quotes, as per `RFC 7232 <https://www.rfc-editor.org/rfc/rfc7232#section-2.3>`_.
+.. note:: ETag values must be surrounded by double quotes, as per `RFC 7232 <https://www.rfc-editor.org/rfc/rfc7232.html#section-2.3>`_.
 
 Clients can send an ``If-None-Match`` request header containing one or more ETags. If the content matches any of the provided ETags, the server responds with ``304 Not Modified`` instead of re-sending the body. The supported digest algorithms are ``sha-256``, ``sha-384``, and ``sha-512``.
 When the client already holds a chunk and wants to check if it has changed, it sends the previously received ETag in ``If-None-Match``. If the content has not changed, the server responds with ``304 Not Modified``, saving bandwidth:
@@ -187,9 +187,9 @@ Join or Recover From Snapshot
 
 Joining nodes will request a snapshot from the target service to accelerate their join. This behaviour is controlled by the ``command.join.fetch_recent_snapshot`` configuration option, and enabled by default. This removes the need for a shared read-only snapshot mount, and corresponding operator actions to keep it up-to-date. Instead, if the joiner is told by the network that the snapshot they have locally is too old, the joiner will send a sequence of HTTP requests, potentially following redirect responses to find the current primary and request a specific snapshot, to download a recent snapshot which should allow them to join rapidly. Any suffix after a snapshot (including the entire ledger, in the rare cases where no snapshot can be found) will be replicated to that node via the consensus protocol.
 
-The legacy behaviour without ``fetch_recent_snapshot`` relies on a shared read-only directory. On start-up, the new node will search both ``snapshot.directory`` and ``read_only_directory`` to find the latest committed snapshot file. Operators are responsible for populating these with recent snapshots emitted by the service, and making this available (such as via a shared read-only mounted) on joining nodes.
+The legacy behaviour without ``fetch_recent_snapshot`` relies on a shared read-only directory. On start-up, the new node will search both ``snapshots.directory`` and ``snapshots.read_only_directory`` to find the latest committed snapshot file. Operators are responsible for populating these with recent snapshots emitted by the service, and making this available (such as via a shared read-only mount) on joining nodes.
 
-In particular, there is hard lower-bound on the age of the snapshot that a joining node can start from. It must be at least as recent as the snapshot that the primary node started from, otherwise the primary will return a ``StartupSeqnoIsOld`` error to the joining node.
+In particular, there is a hard lower bound on the age of the snapshot that a joining node can start from. It must be at least as recent as the snapshot that the primary node started from, otherwise the primary will return a ``StartupSeqnoIsOld`` error to the joining node.
 
 The following flowchart summarises the join procedure when ``command.join.fetch_recent_snapshot`` is enabled:
 
@@ -293,7 +293,7 @@ Before these ledger files are present the node will be functional, participating
 Invariants
 ----------
 
-1. To facilitate audit and verification of the integrity of the ledger, individual ledger files always end on a signature transaction.
+1. To facilitate audit and verification of the integrity of the ledger, completed ledger files always end on a signature transaction.
 
 2. For operator convenience, all committed ledger files (``.committed`` suffix) are the same on all up-to-date nodes. More precisely, among up-to-date nodes:
 

@@ -1,31 +1,32 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-import infra.network
-import infra.net
-import infra.interfaces
+import contextlib
+import copy
+import http
+import os
+import pprint
+import subprocess
+import threading
+import time
+from collections import defaultdict
+from datetime import datetime, timedelta, timezone
+
+import ccf.ledger
 import infra.e2e_args
-import infra.partitions
+import infra.interfaces
 import infra.logging_app as app
+import infra.net
+import infra.network
+import infra.partitions
 import suite.test_requirements as reqs
-from datetime import datetime, timedelta
+from ccf.tx_id import TxID
+from e2e_logging import verify_receipt
 from infra.checker import check_can_progress, check_does_not_progress
 from infra.log_capture import flush_info
-import pprint
 from infra.tx_status import TxStatus
-import time
-import http
-import contextlib
-import ccf.ledger
-import subprocess
-import copy
-from collections import defaultdict
-from ccf.tx_id import TxID
-import os
-from reconfiguration import test_ledger_invariants
-import threading
-
 from loguru import logger as LOG
+from reconfiguration import test_ledger_invariants
 
 # Arbitrary high record id, chosen to avoid clashing with ids used by other
 # tests sharing the same network/ledger.
@@ -112,7 +113,7 @@ def test_partition_majority(network, args):
 @reqs.exactly_n_nodes(3)
 def test_isolate_primary_from_one_backup(network, args):
     p, backups = network.find_nodes()
-    b_0, b_1 = backups
+    b_0, _b_1 = backups
 
     # Issue one transaction, waiting for all nodes to be have reached
     # the same level of commit, so that nodes outside of partition can
@@ -332,7 +333,7 @@ def test_expired_certs(network, args):
     def set_certs(from_days_diff, validity_period_days, nodes):
         valid_from = str(
             infra.crypto.datetime_to_X509time(
-                datetime.utcnow() + timedelta(days=from_days_diff)
+                datetime.now(timezone.utc) + timedelta(days=from_days_diff)
             )
         )
         for node in nodes:
@@ -411,6 +412,84 @@ def test_expired_certs(network, args):
     return network
 
 
+@reqs.description("A node can use a rolled-back certificate renewal")
+@reqs.exactly_n_nodes(3)
+def test_rolled_back_node_certificate(network, args):
+    renewed_node, backups = network.find_nodes()
+    network.wait_for_all_nodes_to_commit(primary=renewed_node)
+
+    def get_stored_certificate(remote_node):
+        with remote_node.api_versioned_client(api_version=args.gov_api_version) as c:
+            r = c.get(f"/gov/service/nodes/{renewed_node.node_id}")
+            assert r.status_code == http.HTTPStatus.OK, r
+            return r.body.json()["certificate"]
+
+    original_cert = get_stored_certificate(renewed_node)
+
+    LOG.info("Renew the primary's certificate while it is isolated")
+    with network.partitioner.partition(
+        [renewed_node], name="isolate primary during certificate renewal"
+    ):
+        renewal = network.consortium.set_node_certificate_validity(
+            renewed_node,
+            renewed_node,
+            valid_from=str(
+                infra.crypto.datetime_to_X509time(
+                    datetime.now(timezone.utc) - timedelta(days=1)
+                )
+            ),
+            validity_period_days=args.maximum_node_certificate_validity_days - 1,
+            wait_for_commit=False,
+        )
+
+        uncommitted_cert = get_stored_certificate(renewed_node)
+        assert uncommitted_cert != original_cert
+        assert (
+            infra.crypto.compute_public_key_der_hash_hex_from_pem(uncommitted_cert)
+            == renewed_node.node_id
+        )
+
+        new_primary, _ = network.wait_for_new_primary(renewed_node, nodes=backups)
+        rollback_tx = check_can_progress(new_primary)
+
+    LOG.info("Confirm the certificate renewal was rolled back")
+    new_primary = network.wait_for_primary_unanimity(nodes=backups)
+    with renewed_node.client() as c:
+        c.wait_for_commit(
+            rollback_tx,
+            timeout=network.election_duration * 4,
+        )
+    network.wait_for_node_commit_sync(timeout=network.election_duration * 4)
+    assert get_stored_certificate(renewed_node) == original_cert
+
+    with new_primary.client() as c:
+        r = c.get(
+            f"/node/tx?transaction_id="
+            f"{renewal.completed_view}.{renewal.completed_seqno}"
+        )
+        assert TxStatus(r.body.json()["status"]) == TxStatus.Invalid, r
+
+    LOG.info("Confirm the re-elected node can use the rolled-back certificate")
+    force_become_primary(network, args, renewed_node)
+    with renewed_node.client("user0") as c:
+        r = c.post(
+            "/app/log/public",
+            {"id": 7059, "msg": "Signed after certificate renewal rollback"},
+        )
+        assert r.status_code == http.HTTPStatus.OK, r
+        c.wait_for_commit(r)
+
+    receipt = renewed_node.get_receipt(
+        view=r.view,
+        seqno=r.seqno,
+    ).json()
+    assert receipt["node_id"] == renewed_node.node_id
+    assert receipt["cert"] == uncommitted_cert
+    verify_receipt(receipt, network.cert)
+
+    return network
+
+
 @reqs.description("Test election while reconfiguration is in flight")
 @reqs.at_least_n_nodes(3)
 def test_election_reconfiguration(network, args):
@@ -448,7 +527,7 @@ def test_election_reconfiguration(network, args):
         network.consortium.trust_nodes(
             primary,
             [n.node_id for n in new_nodes],
-            valid_from=datetime.utcnow(),
+            valid_from=datetime.now(timezone.utc),
             wait_for_commit=False,
         )
 
@@ -536,7 +615,7 @@ def test_join_rollback_on_primary_isolation(network, args):
         ccf.ledger.NodeStatus.PENDING,
         timeout=args.ledger_recovery_timeout,
     )
-    valid_from = datetime.utcnow()
+    valid_from = datetime.now(timezone.utc)
     network.consortium.trust_node(
         primary,
         pending_node.node_id,
@@ -570,7 +649,7 @@ def test_join_rollback_on_primary_isolation(network, args):
         network.consortium.trust_node(
             primary,
             trusted_node.node_id,
-            valid_from=datetime.utcnow(),
+            valid_from=datetime.now(timezone.utc),
             wait_for_commit=False,
         )
         trusted_node.wait_for_node_to_join(
@@ -594,7 +673,7 @@ def test_join_rollback_on_primary_isolation(network, args):
         ccf.ledger.NodeStatus.PENDING,
         timeout=args.ledger_recovery_timeout,
     )
-    valid_from = datetime.utcnow()
+    valid_from = datetime.now(timezone.utc)
     network.consortium.trust_node(
         primary,
         trusted_node.node_id,
@@ -1386,7 +1465,7 @@ def run_ledger_chunk_bytes_check(const_args):
         # When a node becomes primary, it may discover the current chunk is already over
         # the local chunk threshold, and should immediately terminate this chunk.
         # Confirm it has been correctly tracking chunk sizes while it was backup in this case.
-        smallest_node, smallest_size = nodes_and_sizes[0]
+        smallest_node, _smallest_size = nodes_and_sizes[0]
         for node, chunk_size in nodes_and_sizes[1:]:
             force_become_primary(network, args, node)
             with node.client("user0") as c:
@@ -1454,7 +1533,7 @@ def run_ledger_chunk_bytes_check(const_args):
                     for ledger_dir in (current, *committeds):
                         cmd = f"ls -alv {ledger_dir}"
                         LOG.warning(f"{cmd}")
-                        subprocess.run(cmd.split(" "))
+                        subprocess.run(cmd.split(" "), check=False)
 
                     ccf.read_ledger.run(
                         paths=[path],
@@ -1490,6 +1569,7 @@ def run(args):
         test_isolate_primary_from_one_backup(network, args)
         test_new_joiner_helps_liveness(network, args)
         test_expired_certs(network, args)
+        test_rolled_back_node_certificate(network, args)
         for n in range(5):
             test_isolate_and_reconnect_primary(network, args, iteration=n)
         test_join_rollback_on_primary_isolation(network, args)

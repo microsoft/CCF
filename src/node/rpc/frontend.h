@@ -4,6 +4,7 @@
 
 #include "ccf/endpoint_registry.h"
 #include "ccf/http_status.h"
+#include "ccf/node/node_configuration_interface.h"
 #include "ccf/node_context.h"
 #include "ccf/pal/locking.h"
 #include "ccf/rpc_exception.h"
@@ -25,6 +26,7 @@
 
 #define FMT_HEADER_ONLY
 
+#include <atomic>
 #include <fmt/format.h>
 #include <utility>
 #include <vector>
@@ -42,33 +44,16 @@ namespace ccf
     ccf::pal::Mutex open_lock;
     bool is_open_ = false;
 
-    ccf::kv::Consensus* consensus{nullptr};
+    std::atomic<ccf::kv::Consensus*> consensus{nullptr};
     std::shared_ptr<AbstractForwarder> cmd_forwarder;
-    ccf::kv::TxHistory* history{nullptr};
+    std::atomic<ccf::kv::TxHistory*> history{nullptr};
 
     size_t sig_tx_interval = 5000;
     std::chrono::milliseconds sig_ms_interval = std::chrono::milliseconds(1000);
     std::chrono::milliseconds ms_to_sig = std::chrono::milliseconds(1000);
 
-    std::shared_ptr<NodeConfigurationSubsystem> node_configuration_subsystem =
+    std::shared_ptr<NodeConfigurationInterface> node_configuration_subsystem =
       nullptr;
-
-    void update_consensus()
-    {
-      auto* c = tables.get_consensus().get();
-
-      if (consensus != c)
-      {
-        consensus = c;
-        endpoints.set_consensus(consensus);
-      }
-    }
-
-    void update_history()
-    {
-      history = tables.get_history().get();
-      endpoints.set_history(history);
-    }
 
     endpoints::EndpointDefinitionPtr find_endpoint(
       std::shared_ptr<ccf::RpcContextImpl> ctx, ccf::kv::CommittableTx& tx)
@@ -125,12 +110,12 @@ namespace ccf
       const endpoints::EndpointDefinitionPtr& endpoint)
     {
       auto interface_id = ctx->get_session_context()->interface_id;
-      if ((consensus != nullptr) && interface_id)
+      if (interface_id)
       {
         if (!node_configuration_subsystem)
         {
           node_configuration_subsystem =
-            node_context.get_subsystem<NodeConfigurationSubsystem>();
+            node_context.get_subsystem<NodeConfigurationInterface>();
           if (!node_configuration_subsystem)
           {
             ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
@@ -213,8 +198,8 @@ namespace ccf
       }
       else
       {
-        // internal or forwarded: OK because they have been checked by the
-        // forwarder (forward() happens further down).
+        // Internal or forwarded requests have no interface ID. Forwarded
+        // requests have already been checked by the forwarder.
       }
 
       return true;
@@ -223,7 +208,8 @@ namespace ccf
     std::optional<std::string> resolve_redirect_location(
       const RedirectionResolverConfig& resolver,
       ccf::kv::ReadOnlyTx& tx,
-      const ccf::ListenInterfaceID& incoming_interface)
+      const ccf::ListenInterfaceID& incoming_interface,
+      ccf::kv::Consensus* current_consensus)
     {
       switch (resolver.kind)
       {
@@ -248,8 +234,14 @@ namespace ccf
           std::vector<std::map<NodeId, NodeInfo>::const_iterator>
             target_node_its;
           const auto nodes = InternalTablesAccess::get_trusted_nodes(tx);
+
+          if (current_consensus == nullptr)
           {
-            const auto primary_id = consensus->primary();
+            return std::nullopt;
+          }
+
+          {
+            const auto primary_id = current_consensus->primary();
             if (seeking_primary && primary_id.has_value())
             {
               target_node_its.push_back(nodes.find(primary_id.value()));
@@ -303,7 +295,8 @@ namespace ccf
       ccf::kv::ReadOnlyTx& tx,
       std::shared_ptr<ccf::RpcContextImpl> ctx,
       const endpoints::EndpointDefinitionPtr& endpoint,
-      const ccf::NodeInfoNetwork_v2::NetInterface::Redirections& redirections)
+      const ccf::NodeInfoNetwork_v2::NetInterface::Redirections& redirections,
+      ccf::kv::Consensus* current_consensus)
     {
       auto rs = endpoint->properties.redirection_strategy;
 
@@ -317,7 +310,7 @@ namespace ccf
         case (ccf::endpoints::RedirectionStrategy::ToPrimary):
         {
           const bool is_primary =
-            (consensus != nullptr) && consensus->can_replicate();
+            current_consensus != nullptr && current_consensus->can_replicate();
 
           if (!is_primary)
           {
@@ -326,8 +319,8 @@ namespace ccf
             const auto listen_interface =
               ctx->get_session_context()->interface_id.value_or(
                 PRIMARY_RPC_INTERFACE);
-            const auto location =
-              resolve_redirect_location(resolver, tx, listen_interface);
+            const auto location = resolve_redirect_location(
+              resolver, tx, listen_interface, current_consensus);
             if (location.has_value())
             {
               ctx->set_response_header(
@@ -352,7 +345,7 @@ namespace ccf
         case (ccf::endpoints::RedirectionStrategy::ToBackup):
         {
           const bool is_backup =
-            (consensus != nullptr) && !consensus->can_replicate();
+            current_consensus != nullptr && !current_consensus->can_replicate();
 
           if (!is_backup)
           {
@@ -361,8 +354,8 @@ namespace ccf
             const auto listen_interface =
               ctx->get_session_context()->interface_id.value_or(
                 PRIMARY_RPC_INTERFACE);
-            const auto location =
-              resolve_redirect_location(resolver, tx, listen_interface);
+            const auto location = resolve_redirect_location(
+              resolver, tx, listen_interface, current_consensus);
             if (location.has_value())
             {
               ctx->set_response_header(
@@ -398,7 +391,7 @@ namespace ccf
       if (!node_configuration_subsystem)
       {
         node_configuration_subsystem =
-          node_context.get_subsystem<NodeConfigurationSubsystem>();
+          node_context.get_subsystem<NodeConfigurationInterface>();
         if (!node_configuration_subsystem)
         {
           LOG_FAIL_FMT("Unable to access NodeConfigurationSubsystem");
@@ -420,11 +413,13 @@ namespace ccf
       return interface_it->second.redirections;
     }
 
-    bool check_session_consistency(std::shared_ptr<ccf::RpcContextImpl> ctx)
+    bool check_session_consistency(
+      std::shared_ptr<ccf::RpcContextImpl> ctx,
+      ccf::kv::Consensus* current_consensus)
     {
-      if (consensus != nullptr)
+      if (current_consensus != nullptr)
       {
-        auto current_view = consensus->get_view();
+        auto current_view = current_consensus->get_view();
         auto session_ctx = ctx->get_session_context();
         if (!session_ctx->active_view.has_value())
         {
@@ -532,7 +527,8 @@ namespace ccf
     void forward(
       std::shared_ptr<ccf::RpcContextImpl> ctx,
       ccf::kv::ReadOnlyTx& /*tx*/,
-      const endpoints::EndpointDefinitionPtr& /*endpoint*/)
+      const endpoints::EndpointDefinitionPtr& /*endpoint*/,
+      ccf::kv::Consensus* current_consensus)
     {
       // HTTP/2 does not support forwarding
       if (ctx->get_http_version() == HttpVersion::HTTP2)
@@ -545,7 +541,7 @@ namespace ccf
         return;
       }
 
-      if (!cmd_forwarder || (consensus == nullptr))
+      if (!cmd_forwarder || current_consensus == nullptr)
       {
         ctx->set_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
@@ -569,12 +565,12 @@ namespace ccf
 
       // Before attempting to forward, make sure we're in the same View as we
       // previously thought we were.
-      if (!check_session_consistency(ctx))
+      if (!check_session_consistency(ctx, current_consensus))
       {
         return;
       }
 
-      auto primary_id = consensus->primary();
+      auto primary_id = current_consensus->primary();
       if (!primary_id.has_value())
       {
         ctx->set_error(
@@ -646,6 +642,65 @@ namespace ccf
       }
     }
 
+    void process_command_without_kv(
+      std::shared_ptr<ccf::RpcContextImpl> ctx,
+      endpoints::EndpointDefinitionPtr& endpoint,
+      size_t& attempts)
+    {
+      try
+      {
+        endpoint = endpoints.find_endpoint_without_kv(*ctx);
+        if (
+          endpoint == nullptr ||
+          endpoint->execution_mode !=
+            endpoints::EndpointExecutionMode::Command ||
+          !endpoint->authn_policies.empty() ||
+          endpoint->properties.forwarding_required !=
+            endpoints::ForwardingRequired::Never)
+        {
+          ctx->set_error(
+            HTTP_STATUS_SERVICE_UNAVAILABLE,
+            ccf::errors::FrontendNotOpen,
+            "KV store is not ready.");
+          return;
+        }
+
+        if (!check_uri_allowed(ctx, endpoint))
+        {
+          return;
+        }
+
+        ++attempts;
+        endpoints::CommandEndpointContext args(ctx);
+        endpoints.execute_command_endpoint(endpoint, args);
+      }
+      catch (RpcException& e)
+      {
+        ctx->clear_response_headers();
+        ctx->set_error(std::move(e.error));
+      }
+      catch (const ccf::JsonParseError& e)
+      {
+        ctx->clear_response_headers();
+        ctx->set_error(
+          HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidInput, e.describe());
+      }
+      catch (const nlohmann::json::exception& e)
+      {
+        ctx->clear_response_headers();
+        ctx->set_error(
+          HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidInput, e.what());
+      }
+      catch (const std::exception& e)
+      {
+        ctx->clear_response_headers();
+        ctx->set_error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::InternalError,
+          e.what());
+      }
+    }
+
     // NOLINTNEXTLINE(readability-function-cognitive-complexity)
     void process_command_inner(
       std::shared_ptr<ccf::RpcContextImpl> ctx,
@@ -655,11 +710,31 @@ namespace ccf
       constexpr auto max_attempts = 30;
       while (attempts < max_attempts)
       {
-        if (consensus != nullptr)
+        if (!is_open())
+        {
+          ctx->set_error(
+            HTTP_STATUS_NOT_FOUND,
+            ccf::errors::FrontendNotOpen,
+            "Frontend is not open.");
+          return;
+        }
+
+        if (!tables.is_ready())
+        {
+          process_command_without_kv(ctx, endpoint, attempts);
+          return;
+        }
+
+        // Readiness is published after these pointers. Load them only after
+        // the acquire above so this request observes their publication.
+        auto* current_consensus = consensus.load(std::memory_order_acquire);
+        auto* current_history = history.load(std::memory_order_acquire);
+
+        if (current_consensus != nullptr)
         {
           if (
             endpoints.apply_uncommitted_tx_backpressure() &&
-            consensus->is_at_max_capacity())
+            current_consensus->is_at_max_capacity())
           {
             ctx->set_error(
               HTTP_STATUS_SERVICE_UNAVAILABLE,
@@ -670,7 +745,7 @@ namespace ccf
         }
 
         std::unique_ptr<ccf::kv::CommittableTx> tx_p = tables.create_tx_ptr();
-        set_root_on_proposals(*ctx, *tx_p);
+        set_root_on_proposals(*ctx, *tx_p, current_history);
 
         if (attempts > 0)
         {
@@ -679,17 +754,7 @@ namespace ccf
           ctx->reset_response();
         }
 
-        if (!is_open())
-        {
-          ctx->set_error(
-            HTTP_STATUS_NOT_FOUND,
-            ccf::errors::FrontendNotOpen,
-            "Frontend is not open.");
-          return;
-        }
-
         ++attempts;
-        update_history();
 
         endpoint = find_endpoint(ctx, *tx_p);
         if (endpoint == nullptr)
@@ -720,16 +785,17 @@ namespace ccf
           // and no forwarding is done
           if (redirections.has_value())
           {
-            if (check_redirect(*tx_p, ctx, endpoint, *redirections))
+            if (check_redirect(
+                  *tx_p, ctx, endpoint, *redirections, current_consensus))
             {
               return;
             }
           }
           else
           {
-            bool is_primary =
-              (consensus == nullptr) || consensus->can_replicate();
-            const bool forwardable = (consensus != nullptr);
+            bool is_primary = current_consensus == nullptr ||
+              current_consensus->can_replicate();
+            const bool forwardable = current_consensus != nullptr;
 
             if (!is_primary && forwardable)
             {
@@ -744,7 +810,7 @@ namespace ccf
                 {
                   if (ctx->get_session_context()->is_forwarding)
                   {
-                    forward(ctx, *tx_p, endpoint);
+                    forward(ctx, *tx_p, endpoint, current_consensus);
                     return;
                   }
                   break;
@@ -752,7 +818,7 @@ namespace ccf
 
                 case endpoints::ForwardingRequired::Always:
                 {
-                  forward(ctx, *tx_p, endpoint);
+                  forward(ctx, *tx_p, endpoint, current_consensus);
                   return;
                 }
               }
@@ -781,7 +847,7 @@ namespace ccf
 
           // If we've seen a View change, abandon this transaction as
           // inconsistent
-          if (!check_session_consistency(ctx))
+          if (!check_session_consistency(ctx, current_consensus))
           {
             return;
           }
@@ -842,7 +908,7 @@ namespace ccf
             case ccf::kv::CommitResult::SUCCESS:
             {
               auto tx_id_opt = tx.get_txid();
-              if (tx_id_opt.has_value() && consensus != nullptr)
+              if (tx_id_opt.has_value() && current_consensus != nullptr)
               {
                 ccf::TxID tx_id = tx_id_opt.value();
 
@@ -893,10 +959,11 @@ namespace ccf
               }
 
               if (
-                consensus != nullptr && consensus->can_replicate() &&
-                history != nullptr)
+                current_consensus != nullptr &&
+                current_consensus->can_replicate() &&
+                current_history != nullptr)
               {
-                history->try_emit_signature();
+                current_history->try_emit_signature();
               }
 
               return;
@@ -1019,6 +1086,15 @@ namespace ccf
       }
     }
 
+    void set_consensus_and_history(
+      ccf::kv::Consensus* consensus_, ccf::kv::TxHistory* history_) override
+    {
+      endpoints.set_history(history_);
+      endpoints.set_consensus(consensus_);
+      history.store(history_, std::memory_order_release);
+      consensus.store(consensus_, std::memory_order_release);
+    }
+
     bool is_open() override
     {
       std::lock_guard<ccf::pal::Mutex> mguard(open_lock);
@@ -1026,19 +1102,20 @@ namespace ccf
     }
 
     void set_root_on_proposals(
-      const ccf::RpcContextImpl& ctx, ccf::kv::CommittableTx& tx)
+      const ccf::RpcContextImpl& ctx,
+      ccf::kv::CommittableTx& tx,
+      ccf::kv::TxHistory* current_history)
     {
       if (endpoints.request_needs_root(ctx))
       {
-        update_history();
-        if (history != nullptr)
+        if (current_history != nullptr)
         {
           // Warning: Retrieving the current TxID and root from the history
           // should only ever be used for the proposal creation endpoint and
           // nothing else. Many bad things could happen otherwise (e.g. breaking
           // session consistency).
           const auto& [txid, root, term_of_next_version] =
-            history->get_replicated_state_txid_and_root();
+            current_history->get_replicated_state_txid_and_root();
           tx.set_read_txid(txid, term_of_next_version);
           tx.set_root_at_read_version(root);
         }
@@ -1055,8 +1132,6 @@ namespace ccf
      */
     void process(std::shared_ptr<ccf::RpcContextImpl> ctx) override
     {
-      update_consensus();
-
       // NB: If we want to re-execute on backups, the original command could
       // be propagated from here
       process_command(ctx);
@@ -1074,7 +1149,6 @@ namespace ccf
           "Processing forwarded command with unitialised forwarded context");
       }
 
-      update_consensus();
       process_command(ctx);
       if (ctx->response_is_pending)
       {
@@ -1086,8 +1160,6 @@ namespace ccf
 
     void tick(std::chrono::milliseconds elapsed) override
     {
-      update_consensus();
-
       endpoints.tick(elapsed);
     }
   };

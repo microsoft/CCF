@@ -13,6 +13,10 @@ on:
 
 permissions: read-all
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
 jobs:
   benchmark_pr:
     name: Benchmark PR
@@ -23,6 +27,8 @@ jobs:
         "JobId=bab_benchmark_pr-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
       ]
     if: ${{ (github.event.action == 'labeled' && github.event.label.name == 'bench-ab') || (github.event.action != 'labeled' && contains(github.event.pull_request.labels.*.name, 'bench-ab')) }}
+    env:
+      BRANCH_PERF_ARTIFACT: perf-bench-virtual-pr-${{ github.event.pull_request.number }}
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root
@@ -32,7 +38,7 @@ jobs:
           gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
           tdnf -y update && tdnf -y install ca-certificates git gh
 
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
@@ -71,16 +77,93 @@ jobs:
               break
             fi
           done
-          # Keep only the most recent points that perf_compare_radar.py uses; the
-          # main artifact accumulates history and older files would just add copy
-          # overhead without affecting the comparison.
-          (cd main_perf && ls -1 | sort -t- -k1,1n -k2,2n -k3,3n | head -n -15 | xargs -r rm -f)
+          # Select the comparison window here; perf_compare_radar.py uses every
+          # retained point.
+          (cd main_perf && ls -1 | sort -t- -k1,1n -k2,2n -k3,3n | head -n -30 | xargs -r rm -f)
         env:
           GH_TOKEN: ${{ github.token }}
 
+      - name: Restore recent branch perf results
+        run: |
+          set -exo pipefail
+          mkdir -p branch_perf
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          run_ids=$(gh api "repos/${{ github.repository }}/actions/artifacts?name=${BRANCH_PERF_ARTIFACT}&per_page=100" \
+            --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0:20] | .[].workflow_run.id')
+          for run_id in $run_ids; do
+            if gh run download "$run_id" --name "$BRANCH_PERF_ARTIFACT" --dir branch_artifact; then
+              find branch_artifact -name '*.json' -exec cp {} branch_perf/ \;
+              break
+            fi
+          done
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Collect branch perf results
+        run: |
+          set -exo pipefail
+          jobid="${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}"
+          cp build/bencher.json "branch_perf/${jobid}.json"
+          (cd branch_perf && ls -1 | sort -t- -k1,1n -k2,2n -k3,3n | head -n -5 | xargs -r rm -f)
+
+      - name: Upload branch perf results
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ env.BRANCH_PERF_ARTIFACT }}
+          path: branch_perf
+          if-no-files-found: error
+
       - name: Summarise A/B comparison against main
         run: |
-          set -ex
-          python3 scripts/perf_compare_radar.py main_perf build/bencher.json \
+          set -exo pipefail
+          python3 scripts/perf_compare_radar.py main_perf branch_perf \
             --branch-label "#${{ github.event.pull_request.number }}" \
-            >> "$GITHUB_STEP_SUMMARY"
+            | tee benchmark-ab-summary.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload A/B comparison summary
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: benchmark-ab-summary
+          path: benchmark-ab-summary.md
+          if-no-files-found: error
+          retention-days: 1
+
+  post_summary:
+    name: Post performance summary
+    needs: benchmark_pr
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Download A/B comparison summary
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: benchmark-ab-summary
+
+      - name: Create or update PR comment
+        shell: bash
+        run: |
+          set -euo pipefail
+          marker="<!-- benchmark-ab-summary -->"
+          {
+            printf '%s\n\n' "$marker"
+            cat benchmark-ab-summary.md
+          } > benchmark-ab-comment.md
+          comment_ids=$(gh api --paginate \
+            "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
+            --jq ".[] | select(.user.login == \"github-actions[bot]\" and (.body | contains(\"${marker}\"))) | .id")
+          comment_id=${comment_ids%%$'\n'*}
+
+          if [[ -n "$comment_id" ]]; then
+            gh api --method PATCH \
+              "repos/${GITHUB_REPOSITORY}/issues/comments/${comment_id}" \
+              -F body=@benchmark-ab-comment.md > /dev/null
+          else
+            gh api --method POST \
+              "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
+              -F body=@benchmark-ab-comment.md > /dev/null
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}

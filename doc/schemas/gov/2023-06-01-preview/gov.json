@@ -1567,9 +1567,9 @@
       "type": "string",
       "description": "Describes the forwarding behavior of a specific endpoint. Write requests cannot be executed on a backup, so will generally be forwarded by any backup node which receives them to the current primary. Future requests on the same session may then be forwarded to maintain session consistency.",
       "enum": [
-        "Sometimes",
-        "Always",
-        "Never"
+        "sometimes",
+        "always",
+        "never"
       ],
       "x-ms-enum": {
         "name": "ForwardingRequired",
@@ -1577,17 +1577,17 @@
         "values": [
           {
             "name": "Sometimes",
-            "value": "Sometimes",
+            "value": "sometimes",
             "description": "Indicates that this request should be forwarded if-and-only-if it is needed to maintain session consistency. If stale reads are acceptable then they can be completed on a backup, and the request will not be forwarded. This should be the default behavior for read-only endpoints."
           },
           {
             "name": "Always",
-            "value": "Always",
+            "value": "always",
             "description": "Indicates that this request should always be forwarded. This will trigger forwarding of any additional requests on the same session, even those marked ForwardRequired::Sometimes. This should be the default behavior for any endpoint which writes to the Key-Value store."
           },
           {
             "name": "Never",
-            "value": "Never",
+            "value": "never",
             "description": "Indicates endpoints which will never be forwarded, even when this will result in a break of session consistency. This should be used only to access node-local information, or when weaker consistency is acceptable."
           }
         ]
@@ -1620,7 +1620,8 @@
           "description": "Code measurements of acceptable enclaves.",
           "items": {
             "type": "string",
-            "format": "byte"
+            "format": "hex",
+            "pattern": "^[a-f0-9]{64}$"
           }
         }
       },
@@ -1690,9 +1691,9 @@
       "type": "string",
       "description": "Describes the execution requirements of a specific endpoint.",
       "enum": [
-        "ReadWrite",
-        "ReadOnly",
-        "Historical"
+        "readwrite",
+        "readonly",
+        "historical"
       ],
       "x-ms-enum": {
         "name": "JsExecMode",
@@ -1700,17 +1701,17 @@
         "values": [
           {
             "name": "ReadWrite",
-            "value": "ReadWrite",
+            "value": "readwrite",
             "description": "Indicates that the endpoint does (or may) produces writes to the Key-Value store."
           },
           {
             "name": "ReadOnly",
-            "value": "ReadOnly",
+            "value": "readonly",
             "description": "Indicates that the endpoint is a pure read, and will never write to the Key-Value store. Note that this includes endpoints which only access node-local state, and do not read from the Key-Value store at all."
           },
           {
             "name": "Historical",
-            "value": "Historical",
+            "value": "historical",
             "description": "Indicates that the endpoint operates over a historical write to the Key-Value store rather than the latest, current state. These endpoints are also read-only, and may not produce writes."
           }
         ]
@@ -1727,17 +1728,23 @@
       "type": "object",
       "description": "Describes a single JWK.",
       "properties": {
-        "certificate": {
+        "publicKey": {
           "$ref": "#/definitions/ServiceState.pem",
-          "description": "x509 cert used to validate claims made by this key."
+          "description": "PEM-encoded public key used to validate claims."
         },
         "issuer": {
           "type": "string",
           "description": "Issuer ID of entity who issued this key."
+        },
+        "constraint": {
+          "type": "string",
+          "x-nullable": true,
+          "description": "Issuer constraint supplied by the key."
         }
       },
       "required": [
-        "certificate"
+        "publicKey",
+        "issuer"
       ]
     },
     "ServiceState.JwkInfo": {
@@ -1762,7 +1769,10 @@
           "type": "object",
           "description": "Collection of retrieved JWKs. Keyed by kid.",
           "additionalProperties": {
-            "$ref": "#/definitions/ServiceState.Jwk"
+            "type": "array",
+            "items": {
+              "$ref": "#/definitions/ServiceState.Jwk"
+            }
           }
         }
       },
@@ -1776,10 +1786,6 @@
       "type": "object",
       "description": "Description of a JWT issuer or identity provider that the current service will trust tokens from.",
       "properties": {
-        "keyFilter": {
-          "$ref": "#/definitions/ServiceState.JwtIssuerKeyFilter",
-          "description": "Adds restrictions on whether keys should be accepted from this issuer."
-        },
         "keyPolicy": {
           "type": "object",
           "description": "Collection of claims which must be present in SGX attestation to permit updates from this issuer.",
@@ -1797,33 +1803,8 @@
         }
       },
       "required": [
-        "keyFilter",
         "autoRefresh"
       ]
-    },
-    "ServiceState.JwtIssuerKeyFilter": {
-      "type": "string",
-      "description": "Possible restrictions on what keys will be accepted from a JWT issuer.",
-      "enum": [
-        "All",
-        "Sgx"
-      ],
-      "x-ms-enum": {
-        "name": "JwtIssuerKeyFilter",
-        "modelAsString": true,
-        "values": [
-          {
-            "name": "All",
-            "value": "All",
-            "description": "Accepts any JWT issuer."
-          },
-          {
-            "name": "Sgx",
-            "value": "Sgx",
-            "description": "Only accepts JWTs issued by a token provider running in SGX, which provides a suitable attestation and additional claims."
-          }
-        ]
-      }
     },
     "ServiceState.Member": {
       "type": "object",
@@ -2108,14 +2089,14 @@
           "description": "Code measurements of acceptable enclaves.",
           "items": {
             "type": "string",
-            "format": "byte"
+            "format": "hex",
+            "pattern": "^[a-f0-9]{96}$"
           }
         },
         "hostData": {
           "type": "object",
-          "description": "Collection of acceptable host data values.",
+          "description": "Collection of acceptable host data values, keyed by hex-encoded SHA-256 digest.",
           "additionalProperties": {
-            "format": "byte",
             "type": "string"
           }
         },

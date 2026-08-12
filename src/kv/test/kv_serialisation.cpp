@@ -2,12 +2,16 @@
 // Licensed under the Apache 2.0 License.
 #include "ds/internal_logger.h"
 #include "kv/kv_serialiser.h"
+#include "kv/raw_serialise.h"
 #include "kv/store.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
 
 #include <doctest/doctest.h>
 #undef FAIL
+#include <array>
+#include <cstring>
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -18,6 +22,140 @@ struct MapTypes
   using NumString = ccf::kv::Map<size_t, std::string>;
   using StringNum = ccf::kv::Map<std::string, size_t>;
 };
+
+static std::vector<uint8_t> make_size_prefixed_bytes(
+  size_t declared_size, size_t actual_size)
+{
+  std::vector<uint8_t> bytes(sizeof(size_t) + actual_size);
+  std::memcpy(bytes.data(), &declared_size, sizeof(declared_size));
+  return bytes;
+}
+
+TEST_CASE(
+  "Raw reader rejects truncated entries" * doctest::test_suite("serialisation"))
+{
+  SUBCASE("Fixed-size integral")
+  {
+    std::vector<uint8_t> bytes(sizeof(uint64_t) - 1);
+    ccf::kv::RawReader reader(bytes);
+    REQUIRE_THROWS(reader.read_next<uint64_t>());
+  }
+
+  SUBCASE("Fixed-size array")
+  {
+    std::vector<uint8_t> bytes(ccf::crypto::Sha256Hash::SIZE - 1);
+    ccf::kv::RawReader reader(bytes);
+    REQUIRE_THROWS(reader.read_next<ccf::crypto::Sha256Hash::Representation>());
+  }
+
+  SUBCASE("Short size prefix")
+  {
+    std::vector<uint8_t> bytes(sizeof(size_t) - 1);
+    ccf::kv::RawReader reader(bytes);
+    REQUIRE_THROWS(reader.read_next<std::vector<uint8_t>>());
+  }
+
+  SUBCASE("Prefix without payload")
+  {
+    auto bytes = make_size_prefixed_bytes(1, 0);
+    ccf::kv::RawReader reader(bytes);
+    REQUIRE_THROWS(reader.read_next<std::vector<uint8_t>>());
+  }
+
+  SUBCASE("Nine bytes remaining declare two payload bytes")
+  {
+    auto bytes = make_size_prefixed_bytes(2, 1);
+    ccf::kv::RawReader reader(bytes);
+    REQUIRE_THROWS(reader.read_next<std::vector<uint8_t>>());
+  }
+
+  SUBCASE("Impossible payload length")
+  {
+    auto bytes =
+      make_size_prefixed_bytes(std::numeric_limits<size_t>::max(), 0);
+    ccf::kv::RawReader reader(bytes);
+    REQUIRE_THROWS(reader.read_next<std::vector<uint8_t>>());
+  }
+
+  SUBCASE("Payload is not a whole number of elements")
+  {
+    auto bytes = make_size_prefixed_bytes(1, 1);
+    ccf::kv::RawReader reader(bytes);
+    REQUIRE_THROWS(reader.read_next<std::vector<uint64_t>>());
+  }
+
+  SUBCASE("Default-constructed reader is immediately at end of stream")
+  {
+    ccf::kv::RawReader reader;
+    REQUIRE(reader.is_eos());
+    REQUIRE_THROWS(reader.read_next<uint64_t>());
+  }
+}
+
+static std::vector<uint8_t> make_public_domain_entry(
+  size_t declared_public_domain_size, const std::vector<uint8_t>& public_domain)
+{
+  ccf::kv::SerialisedEntryHeader header;
+  header.set_size(sizeof(size_t) + public_domain.size());
+  std::vector<uint8_t> entry(sizeof(header) + header.size);
+  auto* data = entry.data();
+  auto remaining = entry.size();
+  serialized::write(data, remaining, header);
+  serialized::write(data, remaining, declared_public_domain_size);
+  serialized::write(
+    data, remaining, public_domain.data(), public_domain.size());
+  return entry;
+}
+
+TEST_CASE(
+  "KV deserialiser rejects invalid public domains" *
+  doctest::test_suite("serialisation"))
+{
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
+
+  const auto initialise = [&](const std::vector<uint8_t>& entry) {
+    ccf::kv::RawKvStoreDeserialiser deserialiser(
+      encryptor, ccf::kv::SecurityDomain::PUBLIC);
+    ccf::kv::Term term = 0;
+    ccf::kv::EntryFlags flags = {};
+    return deserialiser.init(entry.data(), entry.size(), term, flags, false);
+  };
+
+  SUBCASE("Public domain exceeds remaining entry")
+  {
+    const auto entry = make_public_domain_entry(2, {0});
+    REQUIRE_THROWS(initialise(entry));
+  }
+
+  SUBCASE("Public domain length prefix is truncated")
+  {
+    ccf::kv::SerialisedEntryHeader header;
+    header.set_size(sizeof(size_t) - 1);
+    std::vector<uint8_t> entry(sizeof(header) + header.size);
+    std::memcpy(entry.data(), &header, sizeof(header));
+    REQUIRE_THROWS(initialise(entry));
+  }
+
+  SUBCASE("Public domain length is impossible")
+  {
+    const auto entry =
+      make_public_domain_entry(std::numeric_limits<size_t>::max(), {});
+    REQUIRE_THROWS(initialise(entry));
+  }
+
+  SUBCASE("Claims digest is truncated")
+  {
+    std::vector<uint8_t> public_domain(
+      sizeof(ccf::kv::EntryType) + sizeof(ccf::kv::Version));
+    auto* data = public_domain.data();
+    *data++ = static_cast<uint8_t>(ccf::kv::EntryType::WriteSetWithClaims);
+    const ccf::kv::Version version = 1;
+    std::memcpy(data, &version, sizeof(version));
+    const auto entry =
+      make_public_domain_entry(public_domain.size(), public_domain);
+    REQUIRE_THROWS(initialise(entry));
+  }
+}
 
 TEST_CASE(
   "Serialise/deserialise public map only" *

@@ -1,27 +1,27 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
+import base64
+import datetime
 import http
+import json
+import os
+import re
+import subprocess
+import tempfile
+import time
+import uuid
+from contextlib import contextmanager
+from functools import partial
+from http import HTTPStatus
+
+import infra.e2e_args
+import infra.net
 import infra.network
 import infra.path
 import infra.proc
-import infra.net
-import infra.e2e_args
 import suite.test_requirements as reqs
-from infra.runner import ConcurrentRunner
-import os
-import tempfile
-import base64
-import json
-import time
 from infra.jwt_issuer import JwtAlg, JwtAuthType, JwtIssuer, make_bearer_header
-import datetime
-import re
-import uuid
-from http import HTTPStatus
-import subprocess
-from contextlib import contextmanager
-from functools import partial
-
+from infra.runner import ConcurrentRunner
 from loguru import logger as LOG
 
 utctime = partial(datetime.datetime, tzinfo=datetime.UTC)
@@ -1005,7 +1005,7 @@ def test_random_api(args):
                 with primary.client() as c:
                     r = c.get("/app/make_randoms")
                     assert r.status_code == 200, r
-                    for _, n in r.body.json().items():
+                    for n in r.body.json().values():
                         assert_fresh(n)
 
 
@@ -1164,15 +1164,16 @@ def test_metrics_logging(network, args):
         r".*\[js\].*\| JS execution complete: Method=(?P<Method>.*), Path=(?P<Path>.*), Status=(?P<Status>\d+), ExecMilliseconds=(?P<ExecMilliseconds>\d+)$"
     )
     out_path, _ = new_node.get_logs()
-    for line in open(out_path, "r", encoding="utf-8").readlines():
-        match = metrics_regex.match(line)
-        if match is not None:
-            expected_groups = assertions.pop(0)
-            for k, v in expected_groups.items():
-                actual_match = match.group(k)
-                assert actual_match == v
-            LOG.success(f"Found metrics logging line: {line}")
-            LOG.info(f"Parsed to: {match.groups()}")
+    with open(out_path, "r", encoding="utf-8") as output:
+        for line in output:
+            match = metrics_regex.match(line)
+            if match is not None:
+                expected_groups = assertions.pop(0)
+                for k, v in expected_groups.items():
+                    actual_match = match.group(k)
+                    assert actual_match == v
+                LOG.success(f"Found metrics logging line: {line}")
+                LOG.info(f"Parsed to: {match.groups()}")
 
     assert len(assertions) == 0
 
@@ -1195,9 +1196,9 @@ def test_reused_interpreter_behaviour(network, args):
     primary, _ = network.find_nodes()
 
     def timed(fn):
-        start = datetime.datetime.now()
+        start = datetime.datetime.now(datetime.timezone.utc)
         result = fn()
-        end = datetime.datetime.now()
+        end = datetime.datetime.now(datetime.timezone.utc)
         duration = (end - start).total_seconds()
         LOG.debug(f"({duration:.2f}s)")
         return duration, result
@@ -1417,7 +1418,7 @@ def run_interpreter_reuse(args):
     ) as network:
         network.start_and_open(args)
 
-        network = test_reused_interpreter_behaviour(network, args)  #
+        network = test_reused_interpreter_behaviour(network, args)
         network = test_caching_of_kv_handles(network, args)
         network = test_caching_of_app_code(network, args)
 

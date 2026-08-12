@@ -1,26 +1,26 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import infra.network
+import datetime
+import json
+import os
+import shutil
+
+import ccf.ledger
+import infra.crypto
 import infra.e2e_args
-import infra.proc
-import infra.logging_app as app
-import infra.utils
 import infra.github
 import infra.jwt_issuer
-import infra.crypto
+import infra.logging_app as app
+import infra.network
 import infra.node
 import infra.platform_detection
+import infra.proc
+import infra.utils
 import suite.test_requirements as reqs
-import ccf.ledger
-import os
-import json
-import datetime
-from e2e_logging import test_random_receipts
-from governance import test_all_nodes_cert_renewal, test_service_cert_renewal
-import shutil
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
-
+from e2e_logging import test_random_receipts
+from governance import test_all_nodes_cert_renewal, test_service_cert_renewal
 from loguru import logger as LOG
 
 # Assumption:
@@ -38,6 +38,14 @@ LOCAL_CHECKOUT_DIRECTORY = "."
 # its certificate, using a default value for the validity period
 # hardcoded in CCF.
 DEFAULT_NODE_CERTIFICATE_VALIDITY_DAYS = 365
+
+
+def disable_openapi_validation(network):
+    def skip_openapi_validation(_node):
+        pass
+
+    network._start_openapi_validation = skip_openapi_validation
+    return network
 
 
 def update_gov_authn(version):
@@ -127,7 +135,9 @@ def test_new_service(
 
     LOG.info("Add node to new service")
 
-    valid_from = str(infra.crypto.datetime_to_X509time(datetime.datetime.utcnow()))
+    valid_from = str(
+        infra.crypto.datetime_to_X509time(datetime.datetime.now(datetime.timezone.utc))
+    )
 
     kwargs = {}
     kwargs["reconfiguration_type"] = "OneTransaction"
@@ -299,6 +309,7 @@ def run_code_upgrade_from(
             version=from_version,
             skip_verify_chunking=fv_skip_verify_chunking or tv_skip_verify_chunking,
         ) as network:
+            disable_openapi_validation(network)
             kwargs = {}
             if not infra.node.CCFVersion(from_version) > infra.node.CCFVersion(
                 "ccf-4.0.0-rc1"
@@ -354,7 +365,7 @@ def run_code_upgrade_from(
             # Note: alternate between joining from snapshot and replaying entire ledger
             new_nodes = []
             fetch_recent_snapshot = True
-            for _ in range(0, len(old_nodes)):
+            for _ in range(len(old_nodes)):
                 new_node = network.create_node(
                     binary_dir=to_binary_dir,
                     library_dir=to_library_dir,
@@ -373,7 +384,9 @@ def run_code_upgrade_from(
                     new_node,
                     args,
                     valid_from=str(  # Pre-2.0 nodes require X509 time format
-                        infra.crypto.datetime_to_X509time(datetime.datetime.utcnow())
+                        infra.crypto.datetime_to_X509time(
+                            datetime.datetime.now(datetime.timezone.utc)
+                        )
                     ),
                 )
                 # For 2.x nodes joining a 1.x service before the constitution is updated,
@@ -435,7 +448,7 @@ def run_code_upgrade_from(
 
             # If host_data was found for original nodes, check if it's different on new nodes, in which case old should be removed
             if new_host_data is not None:
-                old_host_data, old_security_policy = (
+                old_host_data, _old_security_policy = (
                     infra.utils.get_host_data_and_security_policy(
                         infra.platform_detection.get_platform(),
                         args.package,
@@ -668,7 +681,9 @@ def run_ledger_compatibility_since_first(
                             dirs_exist_ok=True,
                         )
 
-                    network = infra.network.Network(**network_args)
+                    network = disable_openapi_validation(
+                        infra.network.Network(**network_args)
+                    )
 
                     args.previous_service_identity_file = os.path.join(
                         service_dir, "common", "service_cert.pem"
@@ -690,8 +705,8 @@ def run_ledger_compatibility_since_first(
                     jwt_issuer.register(network)
                 else:
                     LOG.info(f"Recovering service (new version: {version})")
-                    network = infra.network.Network(
-                        **network_args, existing_network=network
+                    network = disable_openapi_validation(
+                        infra.network.Network(**network_args, existing_network=network)
                     )
 
                     network.start_in_recovery(
@@ -758,9 +773,7 @@ def run_ledger_compatibility_since_first(
                 skip_verification = test_jwt_cleanup
 
                 LOG.info(
-                    "Stopping network recovering from version {} to {}".format(
-                        previous_version, version
-                    )
+                    f"Stopping network recovering from version {previous_version} to {version}"
                 )
                 network.stop_all_nodes(
                     check_file_invariants=check_file_invariants,

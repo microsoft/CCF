@@ -34,7 +34,7 @@ jobs:
           tdnf -y update
           tdnf -y install ca-certificates git gh
 
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
@@ -106,11 +106,12 @@ jobs:
         shell: bash
 
       - name: "Collect perf results"
-        run: |
-          set -ex
+        run: &collect_perf |
+          set -exo pipefail
           jobid="${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}"
           mkdir -p perf
           cp build/bencher.json "perf/${jobid}.json"
+          (cd perf && ls -1 | sort -t- -k1,1n -k2,2n -k3,3n | head -n -180 | xargs -r rm -f)
         shell: bash
         if: success() || failure()
 
@@ -122,7 +123,7 @@ jobs:
         if: success() || failure()
 
       - name: "Upload logs"
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: logs-bench-virtual-${{ env.BRANCH_SLUG }}
           path: |
@@ -131,11 +132,12 @@ jobs:
             build/workspace/*/err
             build/workspace/*/*.ledger/*
             build/workspace/*/stack_trace
+            build/workspace/**/openapi_coverage.json
           if-no-files-found: ignore
         if: success() || failure()
 
       - name: "Upload perf data"
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: perf-bench-virtual-${{ env.BRANCH_SLUG }}
           path: perf
@@ -155,7 +157,7 @@ jobs:
         shell: bash
         run: tdnf -y install gh
 
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
@@ -193,11 +195,7 @@ jobs:
         shell: bash
 
       - name: "Collect perf results"
-        run: |
-          set -ex
-          jobid="${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}"
-          mkdir -p perf
-          cp build/bencher.json "perf/${jobid}.json"
+        run: *collect_perf
         shell: bash
         if: success() || failure()
 
@@ -207,7 +205,7 @@ jobs:
         if: success() || failure()
 
       - name: "Upload logs"
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: logs-bench-snp-${{ env.BRANCH_SLUG }}
           path: |
@@ -217,11 +215,12 @@ jobs:
             build/workspace/*/err
             build/workspace/*/*.ledger/*
             build/workspace/*/stack_trace
+            build/workspace/**/openapi_coverage.json
           if-no-files-found: ignore
         if: success() || failure()
 
       - name: "Upload perf data"
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: perf-bench-snp-${{ env.BRANCH_SLUG }}
           path: perf

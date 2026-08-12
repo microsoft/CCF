@@ -1,15 +1,16 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
+import http
+import json
+import os
+import shutil
+import sys
+import time
+
 import infra.e2e_args
 import infra.interfaces
 import infra.network
 import infra.platform_detection
-import http
-import time
-import sys
-import json
-import os
-import shutil
 from loguru import logger as LOG
 
 DEFAULT_NODES = ["local://127.0.0.1:8000"]
@@ -69,7 +70,7 @@ def run(args):
         LOG.remove()
         LOG.add(
             sys.stdout,
-            format="<green>[{time:HH:mm:ss.SSS}]</green> {message}",
+            format="[{time:HH:mm:ss.SSS}] {message}",
         )
         LOG.disable("infra")
         LOG.disable("ccf")
@@ -140,10 +141,7 @@ def run(args):
             LOG.info("Started CCF network with the following nodes:")
             for node in nodes:
                 LOG.info(
-                    "  Node [{}] = https://{}".format(
-                        pad_node_id(node.local_node_id),
-                        node.get_public_rpc_address(),
-                    )
+                    f"  Node [{pad_node_id(node.local_node_id)}] = https://{node.get_public_rpc_address()}"
                 )
 
             LOG.info(

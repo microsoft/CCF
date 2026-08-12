@@ -10,6 +10,7 @@
 #include "ds/internal_logger.h"
 #include "ds/messaging.h"
 #include "ds/serialized.h"
+#include "ds/worker_shutdown_gate.h"
 #include "kv/kv_types.h"
 #include "kv/serialised_entry_format.h"
 #include "ledger_filenames.h"
@@ -20,8 +21,11 @@
 #include <filesystem>
 #include <list>
 #include <map>
+#include <memory>
+#include <mutex>
 #include <string>
 #include <sys/types.h>
+#include <tuple>
 #include <uv.h>
 #include <vector>
 
@@ -103,6 +107,24 @@ namespace asynchost
     // contain entries later than init idx), remain on disk and new entries are
     // checked against the existing ones, until a divergence is found.
     bool from_existing_file = false;
+
+    int close()
+    {
+      if (file == nullptr)
+      {
+        return 0;
+      }
+
+      TimeBoundLogger log_if_slow(
+        fmt::format("Closing ledger file - fclose({})", file_name));
+      errno = 0;
+      auto* file_to_close = file;
+      file = nullptr;
+      // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+      const auto close_rc = fclose(file_to_close);
+      const auto close_errno = errno;
+      return close_rc == 0 ? 0 : (close_errno != 0 ? close_errno : EIO);
+    }
 
   public:
     // Used when creating a new (empty) ledger file
@@ -310,13 +332,7 @@ namespace asynchost
 
     ~LedgerFile()
     {
-      if (file != nullptr)
-      {
-        TimeBoundLogger log_if_slow(
-          fmt::format("Closing ledger file - fclose({})", file_name));
-        std::ignore =
-          fclose(file); // NOLINT(cppcoreguidelines-owning-memory,cert-err33-c)
-      }
+      std::ignore = close();
     }
 
     [[nodiscard]] size_t get_start_idx() const
@@ -658,10 +674,30 @@ namespace asynchost
       completed = true;
     }
 
-    bool rename(const std::string& new_file_name)
+    bool rename(const std::string& new_file_name, bool close_and_reopen = false)
     {
       auto file_path = dir / file_name;
       auto new_file_path = dir / new_file_name;
+      const auto should_close_and_reopen = close_and_reopen && !committed;
+
+      if (should_close_and_reopen)
+      {
+        // Uncommitted files may be truncated and written again after recovery.
+        // Work around a Linux CIFS client bug on Confidential Azure Container
+        // Instances where renaming a file with an open write handle drops its
+        // SMB write-caching lease, making subsequent writes synchronous. Close
+        // before the rename and reopen afterwards to acquire a fresh lease.
+        // Remove this workaround once the platform kernel includes upstream
+        // fix 2c7d399e551c.
+        const auto close_error = close();
+        if (close_error != 0)
+        {
+          throw std::logic_error(fmt::format(
+            "Failed to close ledger file {}: {}",
+            file_path,
+            ccf::nonstd::strerror(close_error)));
+        }
+      }
 
       try
       {
@@ -673,18 +709,44 @@ namespace asynchost
       }
       catch (const std::exception& e)
       {
+        if (close_and_reopen)
+        {
+          throw;
+        }
+
         // If the file cannot be renamed (e.g. file was removed), report an
         // error and continue
         LOG_FAIL_FMT("Error renaming ledger file: {}", e.what());
       }
       file_name = new_file_name;
+
+      if (should_close_and_reopen)
+      {
+        int open_errno = 0;
+        {
+          TimeBoundLogger log_if_slow(
+            fmt::format("Reopening ledger file - fopen({})", new_file_path));
+          errno = 0;
+          // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+          file = fopen(new_file_path.c_str(), "r+b");
+          open_errno = errno;
+        }
+        if (file == nullptr)
+        {
+          throw std::logic_error(fmt::format(
+            "Failed to reopen ledger file {}: {}",
+            new_file_path,
+            ccf::nonstd::strerror(open_errno != 0 ? open_errno : EIO)));
+        }
+      }
+
       return true;
     }
 
     void open()
     {
       auto new_file_name = remove_recovery_suffix(file_name.c_str());
-      rename(new_file_name);
+      rename(new_file_name, true /* close_and_reopen */);
       recovery = false;
       LOG_DEBUG_FMT("Open recovery ledger file {}", new_file_name);
     }
@@ -778,6 +840,9 @@ namespace asynchost
     // Set during recovery to mark files as temporary until the recovery is
     // complete
     std::optional<size_t> recovery_start_idx = std::nullopt;
+
+    std::shared_ptr<ccf::ds::WorkerShutdownGate> shutdown_gate =
+      std::make_shared<ccf::ds::WorkerShutdownGate>();
 
     [[nodiscard]] auto get_it_contains_idx(size_t idx) const
     {
@@ -1255,6 +1320,12 @@ namespace asynchost
 
     Ledger(const Ledger& that) = delete;
 
+    ~Ledger()
+    {
+      // Reject queued workers and wait for workers already using this Ledger.
+      shutdown_gate->shutdown_and_wait();
+    }
+
     void init(size_t idx, size_t recovery_start_idx_ = 0)
     {
       TimeBoundLogger log_if_slow(
@@ -1677,6 +1748,8 @@ namespace asynchost
       size_t to_idx{};
       size_t max_size{};
 
+      std::shared_ptr<ccf::ds::WorkerShutdownGate> gate;
+
       // First argument is ledger entries (or nullopt if not found)
       // Second argument is uv status code, which may indicate a cancellation
       using ResultCallback =
@@ -1690,6 +1763,19 @@ namespace asynchost
     static void on_ledger_get_async(uv_work_t* req)
     {
       auto* data = static_cast<AsyncLedgerGet*>(req->data);
+
+      auto gate = data->gate;
+      if (!gate->try_register())
+      {
+        LOG_DEBUG_FMT(
+          "Skipping async ledger read {} to {} because Ledger is shutting "
+          "down",
+          data->from_idx,
+          data->to_idx);
+        return;
+      }
+
+      ccf::ds::WorkerShutdownGate::UnregisterGuard guard{gate};
 
       data->read_result = data->ledger->read_entries_range(
         data->from_idx, data->to_idx, true, data->max_size);
@@ -1817,6 +1903,7 @@ namespace asynchost
               job->from_idx = from_idx;
               job->to_idx = to_idx;
               job->max_size = max_entries_size;
+              job->gate = shutdown_gate;
               job->result_cb = [to_enclave_ = to_enclave,
                                 from_idx_ = from_idx,
                                 to_idx_ = to_idx,

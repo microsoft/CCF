@@ -1,12 +1,11 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import infra.network
 import random
-import infra.proposal
+
 import infra.member
-
+import infra.network
+import infra.proposal
 import suite.test_requirements as reqs
-
 from loguru import logger as LOG
 
 
