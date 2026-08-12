@@ -190,7 +190,7 @@ This app can then define its own endpoints from a blank slate. If it wants to pr
 Historical Queries
 ~~~~~~~~~~~~~~~~~~
 
-This sample demonstrates how to define a historical query endpoint with the help of :cpp:func:`ccf::historical::adapter_v4`.
+This sample demonstrates how to define a historical query endpoint with the help of :cpp:func:`ccf::historical::read_only_adapter_v4`.
 Most endpoints operate over the `current` state of the KV, but these historical queries operate over `old` state, specifically over the writes made by a previous transaction.
 The adapter handles extracting the target :term:`Transaction ID` from the user's request, and interacting with the :ref:`Historical Queries API <build_apps/api:Historical Queries>` to asynchronously fetch this entry from the ledger.
 The deserialised and verified transaction is then presented to the handler code below, which performs reads and constructs a response like any other handler.
@@ -397,4 +397,4 @@ The callback receives a ``CommittedTxInfo`` struct containing the ``TxID``, ``Fi
 
     This feature is currently supported on HTTP/1.1 connections only. HTTP/2 sessions send responses immediately regardless of whether a consensus-committed callback is set.
 
-    Read-only endpoints may also use this mechanism to confirm that their response reflects committed state. However, attempting to construct a receipt for a read-only transaction will throw, since read-only transactions do not produce the write set digest or commit evidence required for receipt construction.
+    Read-only endpoints may also use this mechanism to confirm that their response reflects committed state. However, attempting to construct a receipt for a read-only transaction will fail with a ``500 Internal Server Error``, since read-only transactions do not produce the write set digest or commit evidence required for receipt construction.

@@ -38,7 +38,7 @@ jobs:
           tdnf -y update
           tdnf -y install ca-certificates git
 
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install TLC dependencies
         run: |
           tdnf install -y jre wget
@@ -51,7 +51,7 @@ jobs:
       - run: cd tla && ./tlc.py mc consistency/MCMultiNodeReadsAlt.tla
 
       - name: Upload TLC traces
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: ${{ failure() }}
         with:
           name: tlc-model-checking-consistency
@@ -67,7 +67,7 @@ jobs:
         working-directory: tla
 
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install TLC dependencies
         run: |
           sudo apt update
@@ -87,7 +87,7 @@ jobs:
         working-directory: tla
 
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install TLC dependencies
         run: |
           sudo apt update
@@ -97,7 +97,7 @@ jobs:
       - run: ./tlc.py sim --num 500 --depth 50 consistency/MultiNodeReads.tla
 
       - name: Upload TLC traces
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: ${{ failure() }}
         with:
           name: tlc-simulation-consistency
@@ -125,7 +125,7 @@ jobs:
           tdnf -y update
           tdnf -y install ca-certificates git
 
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install TLC dependencies
         run: |
           tdnf install -y jre wget
@@ -136,7 +136,7 @@ jobs:
       - run: cd tla && ./tlc.py --trace-name 1C3N mc --term-count 0 --request-count 3 --raft-configs 1C3N consensus/MCccfraft.tla
 
       - name: Upload TLC traces
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: ${{ failure() }}
         with:
           name: tlc-model-checking-consensus
@@ -152,7 +152,7 @@ jobs:
         working-directory: tla
 
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install TLC dependencies
         run: |
           sudo apt update
@@ -162,7 +162,7 @@ jobs:
       - run: ./tlc.py sim consensus/SIMccfraft.tla
 
       - name: Upload TLC traces
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: ${{ failure() }}
         with:
           name: tlc-simulation-consensus
@@ -190,7 +190,7 @@ jobs:
           tdnf -y update
           tdnf -y install ca-certificates git
 
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
@@ -234,7 +234,7 @@ jobs:
         shell: bash
 
       - name: Upload artifacts.
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: tlc-trace-validation-consensus
@@ -256,7 +256,7 @@ jobs:
           tdnf -y update
           tdnf -y install ca-certificates git
 
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install Stateright dependencies
         run: |
           tdnf install -y cargo

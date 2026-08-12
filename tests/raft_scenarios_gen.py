@@ -2,8 +2,8 @@
 # Licensed under the Apache 2.0 License.
 import os
 import sys
-from random import randrange, choice, choices
 from itertools import combinations, count
+from random import choice, choices, randrange
 
 
 def fully_connected_scenario(nodes, steps):
@@ -11,9 +11,7 @@ def fully_connected_scenario(nodes, steps):
     step_def = {
         0: lambda: "dispatch_all",
         # Most of the time, advance by a small periodic amount. Occasionally time out long enough to trigger an election
-        1: lambda: "periodic_all,{}".format(
-            choices([randrange(20), randrange(100, 500)], weights=[10, 1])[0]
-        ),
+        1: lambda: f"periodic_all,{choices([randrange(20), randrange(100, 500)], weights=[10, 1])[0]}",
         2: lambda: "replicate,latest,{}".format(f"hello {next(index)}"),
     }
 
@@ -21,7 +19,7 @@ def fully_connected_scenario(nodes, steps):
     lines = ["nodes,{}".format(",".join(str(n) for n in range(nodes)))]
 
     for first, second in combinations(range(nodes), 2):
-        lines.append("connect,{},{}".format(first, second))
+        lines.append(f"connect,{first},{second}")
 
     # Get past the initial election
     lines.append("periodic_one,0,110")
@@ -64,7 +62,7 @@ def generate_scenarios(tgt_dir="."):
     scenario_paths = []
     for scen_index in range(SCENARIOS):
         with open(
-            os.path.join(tgt_dir, "scenario-{}".format(scen_index)),
+            os.path.join(tgt_dir, f"scenario-{scen_index}"),
             "w",
             encoding="utf-8",
         ) as scen:

@@ -195,14 +195,14 @@ For Confidential Azure Container Instance (ACI) deployments, trusted endorsement
 
 **Key** Trusted endorser DID (did:x509 only for now: https://github.com/microsoft/did-x509/blob/main/specification.md).
 
-**Value** Map of issuer feed to Security Version Number (SVN) represented as JSON. See https://ietf-wg-scitt.github.io/draft-ietf-scitt-architecture/draft-ietf-scitt-architecture.html#name-issuer-identity.
+**Value** Map of issuer feed to Security Version Number (SVN) represented as JSON. See https://www.rfc-editor.org/rfc/rfc9943.
 
 ``nodes.snp.tcb_versions``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The minimum trusted TCB version for new nodes allowed to join the network (:doc`SNP <../operations/platforms/snp>` only).
+The minimum trusted TCB version for new nodes allowed to join the network (:doc:`SNP <../operations/platforms/snp>` only).
 
-.. note:: For improved serviceability on confidential ACI deployments, see :ref:`audit/builtin_maps:``nodes.snp.tcb_versions``` map.
+.. note:: For improved serviceability on confidential ACI deployments, see :ref:`audit/builtin_maps:``nodes.snp.uvm_endorsements``` map.
 
 **Key** AMD CPUID, represented as a lowercase hex string without an '0x' prefix.
 
@@ -401,37 +401,10 @@ JWT issuers.
    :project: CCF
    :members:
 
-``jwt.public_signing_keys``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-JWT signing keys, used until 5.0.
-
-**Key** JWT Key ID, represented as a string.
-
-**Value** JWT public key or certificate, represented as a DER-encoded string.
-
-``jwt.public_signing_key_issuer``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-JWT signing key to Issuer mapping, used until 5.0.
-
-**Key** JWT Key ID, represented as a string.
-
-**Value** JWT issuer URL, represented as a string.
-
-``jwt.public_signing_keys_metadata``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-JWT signing keys, used until 6.0.
-
-**Key** JWT Key ID, represented as a string.
-
-**Value** List of (DER-encoded certificate, issuer, constraint), represented as JSON.
-
 ``jwt.public_signing_keys_metadata_v2``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-JWT signing keys, from 6.0.0 onwards.
+JWT signing keys.
 
 **Key** JWT Key ID, represented as a string.
 
@@ -584,7 +557,13 @@ While the contents themselves are encrypted, the table is public so as to be acc
 
 **Key** Sentinel value 0, represented as a little-endian 64-bit unsigned integer.
 
-**Value** Raw COSE Sign1 message as byte string (DER-encoded). Implements the following :ccf_repo:`CDDL schema </cddl/ccf-cose-endorsement-service-identity.cddl>`.
+**Value**
+
+.. doxygenstruct:: ccf::CoseEndorsement
+    :project: CCF
+    :members:
+
+The ``endorsement`` field contains the raw COSE Sign1 message implementing the following :ccf_repo:`CDDL schema </cddl/ccf-cose-endorsement-service-identity.cddl>`.
 
 
 ``previous_service_last_signed_root``

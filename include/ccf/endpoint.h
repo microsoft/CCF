@@ -117,6 +117,12 @@ namespace ccf::endpoints
     Historical
   };
 
+  enum class EndpointExecutionMode : uint8_t
+  {
+    KV,
+    Command
+  };
+
   enum QueryParamPresence : uint8_t
   {
     RequiredParameter,
@@ -172,7 +178,7 @@ namespace ccf::endpoints
     /// Authentication policies
     std::vector<nlohmann::json> authn_policies;
     /// OpenAPI schema for endpoint
-    nlohmann::json openapi;
+    nlohmann::json openapi = nlohmann::json::object();
     //// Whether to include endpoint schema in frontend schema
     bool openapi_hidden = false;
     /// JavaScript module
@@ -208,6 +214,8 @@ namespace ccf::endpoints
     URI full_uri_path;
 
     EndpointProperties properties;
+
+    EndpointExecutionMode execution_mode = EndpointExecutionMode::KV;
 
     /** List of authentication policies which will be checked before executing
      * this endpoint.
@@ -260,6 +268,9 @@ namespace ccf::endpoints
     // Functor which is invoked to process requests for this Endpoint
     EndpointFunction func;
 
+    // Functor which is invoked without constructing a KV transaction
+    CommandEndpointFunction command_func;
+
     // Functor which is invoked to modify the response after it is locally
     // committed (ie - assigned a transaction ID)
     LocallyCommittedEndpointFunction locally_committed_func;
@@ -276,10 +287,6 @@ namespace ccf::endpoints
     std::vector<SchemaBuilderFn> schema_builders;
 
     bool openapi_hidden = false;
-
-    http_status success_status = HTTP_STATUS_OK;
-    nlohmann::json params_schema = nullptr;
-    nlohmann::json result_schema = nullptr;
 
     std::optional<std::string> openapi_summary = std::nullopt;
     std::optional<std::string> openapi_description = std::nullopt;
@@ -342,6 +349,43 @@ namespace ccf::endpoints
       const nlohmann::json& j,
       std::optional<http_status> status = std::nullopt);
 
+    /** Adds an OpenAPI response for a status code without changing the
+     * endpoint's primary success status.
+     *
+     * @tparam Out Response body JSON-serialisable data structure, or void for
+     * a response without a body
+     * @param status Response status code
+     * @param description Description of this response
+     * @return This Endpoint for further modification
+     */
+    template <typename Out = void>
+    Endpoint& add_openapi_response(
+      http_status status,
+      const std::string& description = "Default response description")
+    {
+      schema_builders.push_back(
+        [status,
+         description](nlohmann::json& document, const Endpoint& endpoint) {
+          const auto http_verb = endpoint.dispatch.verb.get_http_method();
+          if (!http_verb.has_value())
+          {
+            return;
+          }
+
+          auto& path_operation = ds::openapi::path_operation(
+            ds::openapi::path(document, endpoint.full_uri_path),
+            http_verb.value());
+          if constexpr (!std::is_same_v<Out, void>)
+          {
+            ds::openapi::add_response_schema<Out>(
+              document, endpoint.full_uri_path, http_verb.value(), status);
+          }
+          ds::openapi::response(path_operation, status, description);
+        });
+
+      return *this;
+    }
+
     /** Sets the schema that the request and response bodies should comply
      * with. These are used to populate the generated OpenAPI document, but do
      * not introduce any constraints on the actual types that are parsed or
@@ -364,8 +408,6 @@ namespace ccf::endpoints
     {
       if constexpr (!std::is_same_v<In, void>)
       {
-        params_schema = ds::json::build_schema<In>();
-
         schema_builders.push_back(
           [](nlohmann::json& document, const Endpoint& endpoint) {
             const auto http_verb = endpoint.dispatch.verb.get_http_method();
@@ -379,39 +421,12 @@ namespace ccf::endpoints
               document, endpoint.full_uri_path, http_verb.value());
           });
       }
-      else
-      {
-        params_schema = nullptr;
-      }
 
-      if constexpr (!std::is_same_v<Out, void>)
-      {
-        success_status = status.value_or(HTTP_STATUS_OK);
+      constexpr http_status fallback_status =
+        std::is_same_v<Out, void> ? HTTP_STATUS_NO_CONTENT : HTTP_STATUS_OK;
+      const http_status response_status = status.value_or(fallback_status);
 
-        result_schema = ds::json::build_schema<Out>();
-
-        schema_builders.push_back(
-          [](nlohmann::json& document, const Endpoint& endpoint) {
-            const auto http_verb = endpoint.dispatch.verb.get_http_method();
-            if (!http_verb.has_value())
-            {
-              return;
-            }
-
-            ds::openapi::add_response_schema<Out>(
-              document,
-              endpoint.full_uri_path,
-              http_verb.value(),
-              endpoint.success_status);
-          });
-      }
-      else
-      {
-        success_status = status.value_or(HTTP_STATUS_NO_CONTENT);
-        result_schema = nullptr;
-      }
-
-      return *this;
+      return add_openapi_response<Out>(response_status);
     }
 
     /** Sets schemas for request and response bodies using typedefs within T.

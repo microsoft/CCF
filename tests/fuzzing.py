@@ -1,10 +1,11 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
+import datetime
+import struct
+
+import boofuzz
 import infra.e2e_args
 import infra.network
-import struct
-import boofuzz
-import datetime
 from loguru import logger as LOG
 
 
@@ -23,7 +24,7 @@ class CCFFuzzLogger(boofuzz.IFuzzLogger):
         self.log_lines = self.log_lines[-self.keep_lines :]
 
         if self.session is not None:
-            now = datetime.datetime.now()
+            now = datetime.datetime.now(datetime.timezone.utc)
             if self.last_printed is None or now - self.last_printed > self.print_period:
                 fuzzed_this_period = (
                     self.session.num_cases_actually_fuzzed - self.last_fuzzed_count
@@ -42,10 +43,10 @@ class CCFFuzzLogger(boofuzz.IFuzzLogger):
         self._store_line(f" Test step: {description}")
 
     def log_send(self, data):
-        self._store_line(infra.clients.escape_loguru_tags(f"  Sent: {data}"))
+        self._store_line(f"  Sent: {data}")
 
     def log_recv(self, data):
-        self._store_line(infra.clients.escape_loguru_tags(f"  Received: {data}"))
+        self._store_line(f"  Received: {data}")
 
     def log_check(self, description):
         self._store_line(f"  Checking: {description}")
@@ -114,7 +115,7 @@ def fuzz_node_to_node(network, args):
                             ),
                             boofuzz.RandomData(
                                 "SenderContent",
-                                default_value="OtherNode".encode(),
+                                default_value=b"OtherNode",
                                 max_length=32,
                             ),
                         ],

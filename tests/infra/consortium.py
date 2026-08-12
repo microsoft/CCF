@@ -1,28 +1,28 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-import os
+import datetime
+import glob
 import http
 import json
+import os
 import random
-import infra.network
-import infra.proc
-import infra.checker
-import infra.node
-from infra.node import CCFVersion
-import infra.crypto
-import infra.member
-from infra.proposal import ProposalState
 import shutil
 import tempfile
-import glob
-import datetime
-import infra.clients
 
-from cryptography import x509
 import cryptography.hazmat.backends as crypto_backends
-
+from cryptography import x509
 from loguru import logger as LOG
+
+import infra.checker
+import infra.clients
+import infra.crypto
+import infra.member
+import infra.network
+import infra.node
+import infra.proc
+from infra.node import CCFVersion
+from infra.proposal import ProposalState
 
 
 def slurp_file(path):
@@ -592,7 +592,7 @@ class Consortium:
             metadata = json.load(f)
 
         # sanity checks
-        module_paths = set(module["name"] for module in modules)
+        module_paths = {module["name"] for module in modules}
         for url, methods in metadata["endpoints"].items():
             for method, endpoint in methods.items():
                 module_path = endpoint["js_module"]
@@ -962,7 +962,12 @@ class Consortium:
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
     def set_node_certificate_validity(
-        self, remote_node, node_to_renew, valid_from, validity_period_days
+        self,
+        remote_node,
+        node_to_renew,
+        valid_from,
+        validity_period_days,
+        **kwargs,
     ):
         proposal_body, careful_vote = self.make_proposal(
             "set_node_certificate_validity",
@@ -971,7 +976,7 @@ class Consortium:
             validity_period_days=validity_period_days,
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
-        return self.vote_using_majority(remote_node, proposal, careful_vote)
+        return self.vote_using_majority(remote_node, proposal, careful_vote, **kwargs)
 
     def set_all_nodes_certificate_validity(
         self, remote_node, valid_from, validity_period_days

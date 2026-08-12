@@ -1,5 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+
 #include "host/ledger.h"
 
 #include "ccf/crypto/sha256_hash.h"
@@ -13,8 +14,11 @@
 
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>
+#include <fcntl.h>
 #include <random>
 #include <string>
+#include <sys/file.h>
+#include <unistd.h>
 
 using namespace asynchost;
 
@@ -1138,6 +1142,84 @@ size_t number_open_fd()
   return fd_count;
 }
 
+int get_open_fd_for_file(const fs::path& file)
+{
+  std::vector<int> matching_fds;
+  for (auto const& fd : fs::directory_iterator("/proc/self/fd"))
+  {
+    std::error_code ec;
+    if (fs::equivalent(fd.path(), file, ec) && !ec)
+    {
+      matching_fds.push_back(std::stoi(fd.path().filename()));
+    }
+  }
+
+  if (matching_fds.size() != 1)
+  {
+    throw std::logic_error(fmt::format(
+      "Expected exactly one open file descriptor for {}, found {}",
+      file,
+      matching_fds.size()));
+  }
+
+  return matching_fds.front();
+}
+
+// flock locks are associated with an open file description. Renaming a file
+// while its handle remains open preserves the lock, whereas closing that handle
+// releases it. A separately opened descriptor can therefore acquire the lock
+// after complete_recovery() only if the original ledger handle was closed and
+// replaced. This remains true even if fopen() reuses the same descriptor
+// number.
+void lock_open_file_description(const fs::path& file)
+{
+  const auto fd = get_open_fd_for_file(file);
+  errno = 0;
+  if (flock(fd, LOCK_EX | LOCK_NB) != 0)
+  {
+    const auto lock_errno = errno;
+    throw std::logic_error(fmt::format(
+      "Failed to lock open file {}: {}",
+      file,
+      ccf::nonstd::strerror(lock_errno != 0 ? lock_errno : EIO)));
+  }
+}
+
+void require_file_lock_released(const fs::path& file)
+{
+  const auto fd = files::open_fd(file, O_RDWR);
+  if (fd == -1)
+  {
+    throw std::logic_error(fmt::format(
+      "Failed to open file {} to check its lock: {}",
+      file,
+      ccf::nonstd::strerror(errno)));
+  }
+
+  errno = 0;
+  const auto lock_rc = flock(fd, LOCK_EX | LOCK_NB);
+  const auto lock_errno = errno;
+  errno = 0;
+  const auto close_rc = close(fd);
+  const auto close_errno = errno;
+
+  if (lock_rc != 0)
+  {
+    throw std::logic_error(fmt::format(
+      "Original open file description for {} was not closed: {}",
+      file,
+      ccf::nonstd::strerror(lock_errno != 0 ? lock_errno : EIO)));
+  }
+
+  if (close_rc != 0)
+  {
+    throw std::logic_error(fmt::format(
+      "Failed to close file descriptor for {}: {}",
+      file,
+      ccf::nonstd::strerror(close_errno != 0 ? close_errno : EIO)));
+  }
+}
+
 TEST_CASE("Limit number of open files")
 {
   auto dir = AutoDeleteFolder(ledger_dir);
@@ -1840,6 +1922,82 @@ TEST_CASE("Recovery")
     read_entry_from_ledger(ledger, recovery_idx + 1);
   }
 
+  SUBCASE("Reopen active file when completing recovery")
+  {
+    Ledger ledger(ledger_dir, wf);
+    TestEntrySubmitter entry_submitter(ledger, chunk_threshold);
+
+    initialise_ledger(entry_submitter, entries_per_chunk, 1);
+    ledger.commit(entry_submitter.get_last_idx());
+
+    ledger.set_recovery_start_idx(entry_submitter.get_last_idx());
+    entry_submitter.write(true);
+    REQUIRE(number_of_recovery_files_in_ledger_dir() == 1);
+
+    const auto recovery_file = fs::path(ledger_dir) /
+      fmt::format("ledger_{}{}",
+                  entry_submitter.get_last_idx(),
+                  ledger_recovery_file_suffix);
+    lock_open_file_description(recovery_file);
+
+    const auto file_count = number_of_files_in_ledger_dir();
+    const auto fd_count = number_open_fd();
+    ledger.complete_recovery();
+
+    REQUIRE(number_of_recovery_files_in_ledger_dir() == 0);
+    REQUIRE(number_of_files_in_ledger_dir() == file_count);
+    REQUIRE(number_open_fd() == fd_count);
+    require_file_lock_released(remove_recovery_suffix(recovery_file.string()));
+
+    entry_submitter.write(true);
+    const auto post_recovery_idx = entry_submitter.get_last_idx();
+    REQUIRE(number_of_files_in_ledger_dir() == file_count);
+    read_entry_from_ledger(ledger, post_recovery_idx);
+
+    entry_submitter.write(true, ccf::kv::EntryFlags::FORCE_LEDGER_CHUNK_AFTER);
+    ledger.commit(entry_submitter.get_last_idx());
+    read_entries_range_from_ledger(ledger, 1, entry_submitter.get_last_idx());
+  }
+
+  SUBCASE("Reopen uncommitted completed file when completing recovery")
+  {
+    Ledger ledger(ledger_dir, wf);
+    TestEntrySubmitter entry_submitter(ledger, chunk_threshold);
+
+    initialise_ledger(entry_submitter, entries_per_chunk, 1);
+    ledger.commit(entry_submitter.get_last_idx());
+
+    ledger.set_recovery_start_idx(entry_submitter.get_last_idx());
+    entry_submitter.write(true);
+    const auto first_recovery_idx = entry_submitter.get_last_idx();
+    entry_submitter.write(true, ccf::kv::EntryFlags::FORCE_LEDGER_CHUNK_AFTER);
+    REQUIRE(number_of_recovery_files_in_ledger_dir() == 1);
+
+    const auto recovery_file = fs::path(ledger_dir) /
+      fmt::format("ledger_{}{}",
+                  first_recovery_idx,
+                  ledger_recovery_file_suffix);
+    lock_open_file_description(recovery_file);
+
+    const auto file_count = number_of_files_in_ledger_dir();
+    const auto fd_count = number_open_fd();
+    ledger.complete_recovery();
+
+    REQUIRE(number_of_recovery_files_in_ledger_dir() == 0);
+    REQUIRE(number_of_files_in_ledger_dir() == file_count);
+    REQUIRE(number_open_fd() == fd_count);
+    require_file_lock_released(remove_recovery_suffix(recovery_file.string()));
+
+    entry_submitter.truncate(first_recovery_idx);
+    entry_submitter.write(true);
+    REQUIRE(number_of_files_in_ledger_dir() == file_count);
+    read_entry_from_ledger(ledger, entry_submitter.get_last_idx());
+
+    entry_submitter.write(true, ccf::kv::EntryFlags::FORCE_LEDGER_CHUNK_AFTER);
+    ledger.commit(entry_submitter.get_last_idx());
+    read_entries_range_from_ledger(ledger, 1, entry_submitter.get_last_idx());
+  }
+
   SUBCASE("Enable and complete recovery")
   {
     Ledger ledger(ledger_dir, wf);
@@ -2141,6 +2299,64 @@ TEST_CASE("Ledger init with existing files")
     ledger.write_entry(e.data(), e.size(), true);
     ledger.write_entry(e.data(), e.size(), true);
   }
+}
+
+TEST_CASE("Async ledger reads survive concurrent destruction")
+{
+  // Stress test: queue multiple async reads via the real message dispatch path,
+  // then immediately destroy the Ledger. The shutdown gate ensures no
+  // use-after-free occurs - workers either complete their read or are skipped.
+  // This test is best run under TSAN/ASAN for full value.
+  auto dir = AutoDeleteFolder(ledger_dir);
+
+  const size_t chunk_threshold = 30;
+  const size_t entries_per_chunk = get_entries_per_chunk(chunk_threshold);
+
+  // Create a dedicated ringbuffer and processor for this test since we need
+  // to send messages to the Ledger (simulating the enclave).
+  constexpr auto test_buffer_size = 64 * 1024;
+  auto test_in_buf = std::make_unique<ringbuffer::TestBuffer>(test_buffer_size);
+  auto test_out_buf =
+    std::make_unique<ringbuffer::TestBuffer>(test_buffer_size);
+  ringbuffer::Circuit test_circuit(test_in_buf->bd, test_out_buf->bd);
+  ringbuffer::WriterFactory test_wf(test_circuit);
+
+  auto ledger = std::make_unique<Ledger>(ledger_dir, test_wf);
+  TestEntrySubmitter entry_submitter(*ledger, chunk_threshold);
+
+  const size_t end_of_first_chunk_idx =
+    initialise_ledger(entry_submitter, entries_per_chunk, 3);
+  ledger->commit(end_of_first_chunk_idx);
+  REQUIRE(ledger->is_in_committed_file(end_of_first_chunk_idx));
+
+  // Set up message dispatch.
+  messaging::BufferProcessor bp("async_test");
+  ledger->register_message_handlers(bp.get_dispatcher());
+
+  // Queue several async reads by writing ringbuffer messages and dispatching.
+  // Write to the "from outside" buffer (simulating enclave -> host messages),
+  // then dispatch via the buffer processor.
+  auto to_host_writer = test_wf.create_writer_to_outside();
+  constexpr size_t num_reads = 10;
+  for (size_t i = 0; i < num_reads; ++i)
+  {
+    RINGBUFFER_WRITE_MESSAGE(
+      ::consensus::ledger_get_range,
+      to_host_writer,
+      ::consensus::Index(1),
+      ::consensus::Index(end_of_first_chunk_idx),
+      ::consensus::LedgerRequestPurpose::Recovery);
+    bp.read_all(test_circuit.read_from_inside());
+  }
+
+  // Destroy while reads may still be in the threadpool. The shutdown gate
+  // ensures destruction blocks until active workers finish, and rejects
+  // workers that haven't started yet.
+  ledger.reset();
+
+  // Run any pending completion callbacks (some may report empty results due to
+  // the shutdown gate rejecting them, which is the correct behaviour).
+  uv_run(uv_default_loop(), UV_RUN_DEFAULT);
 }
 
 int main(int argc, char** argv)

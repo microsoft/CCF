@@ -115,7 +115,7 @@ Updating Recovery Threshold
 
 To protect the ledger secrets required to recover an existing service, CCF requires :ref:`members to submit their recovery shares <governance/accept_recovery:Submitting Recovery Shares>`.
 
-.. note:: The initial value of the recovery threshold is set via the ``start.service_configuration.recovery_threshold`` configuration entry when starting the first node in a new service. If this value is unspecified, it is set to the initial number of consortium members.
+.. note:: The initial value of the recovery threshold is set via the ``command.start.service_configuration.recovery_threshold`` configuration entry when starting the first node in a new service. If this value is unspecified, it is set to the number of initial consortium members with a public encryption key. If the consortium contains only recovery owners, it defaults to 1.
 
 The number of member shares required to restore the private ledger (``recovery_threshold``) is part of the service configuration and can be updated by members via the usual propose and vote process.
 
@@ -150,7 +150,7 @@ Renewing Node Certificate
 
 To renew the soon-to-be-expired certificate of a node, members should issue a ``set_node_certificate_validity`` proposal, specifying the date at which the validity period of the renewed certificate should start (``valid_from``), as well as its validity period in days (``validity_period_days`` -- optional).
 
-- The ``valid_from`` date/time argument accepts time points in ASN.1 UTCTime format (``"YYMMDDhhmmssZ"``) or ISO 8601 format (``"YYYY-MM-DD HH:MM:SS.ssssss+HH:MM"``), with optional fractional seconds and timezone offset. For details see :ccf_repo:`src/ds/x509_time_fmt.h`.
+- The ``valid_from`` date/time argument accepts time points in ASN.1 UTCTime format (``"YYMMDDhhmmssZ"``) or ISO 8601 format (``"YYYY-MM-DD HH:MM:SS.ssssss+HH:MM"``), with optional fractional seconds and timezone offset. For details see :ccf_repo:`include/ccf/ds/x509_time_fmt.h`.
 - If set, the ``validity_period_days`` should be less than the service-wide maximum validity period configured by operators. If omitted, the ``validity_period_days`` defaults to the service-wide maximum validity period configured by operators (see :ref:`operations/certificates:Node Certificates`).
 - Both Service-endorsed and self-signed node certificates are renewed by this proposal.
 
@@ -164,7 +164,7 @@ A sample proposal is:
             {
                 "name": "set_node_certificate_validity",
                 "args": {
-                    "node_id": "86c0ccfab4b869abbc779937c51158c9dd2a130d58323643a3119e83b33dcf5c"
+                    "node_id": "86c0ccfab4b869abbc779937c51158c9dd2a130d58323643a3119e83b33dcf5c",
                     "valid_from": "220101143018Z",
                     "validity_period_days": 365
                 }

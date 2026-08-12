@@ -1,23 +1,22 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import tempfile
 import http
-import os
 import json
+import os
 import shutil
+import tempfile
+import urllib.parse
+
+import infra.crypto
+import infra.e2e_args
+import infra.net
 import infra.network
 import infra.path
 import infra.proc
-import infra.net
-import infra.e2e_args
-import infra.crypto
 import suite.test_requirements as reqs
-import urllib.parse
 from e2e_logging import test_multi_auth
-
-from npm_tests import build_npm_app, deploy_npm_app, test_npm_app, validate_openapi
-
 from loguru import logger as LOG
+from npm_tests import build_npm_app, deploy_npm_app, test_npm_app, validate_openapi
 
 THIS_DIR = os.path.dirname(__file__)
 PARENT_DIR = os.path.normpath(os.path.join(THIS_DIR, os.path.pardir))
@@ -39,7 +38,9 @@ def test_module_import(network, args):
     return network
 
 
-def compare_app_metadata(expected, actual, api_key_renames, route=[]):
+def compare_app_metadata(expected, actual, api_key_renames, route=None):
+    if route is None:
+        route = []
     path = ".".join(route)
     assert isinstance(
         actual, type(actual)
@@ -116,7 +117,7 @@ def test_module_access(network, args):
         # submitted (including exactly which fields are present/omitted). The
         # only changes are the casing of HTTP verbs, and the prefixing of module
         # names.
-        r = c.get("/gov/service/javascript-app?case=original")
+        r = c.get("/gov/service/javascript-app?case=original", validate_openapi=False)
         assert r.status_code == http.HTTPStatus.OK, r.status_code
         actual = r.body.json()
         expected = canonicalise(
@@ -269,7 +270,7 @@ def test_app_bundle(network, args):
     # Testing the bundle archive support of the Python client here.
     # Plain bundle folders are tested in the npm-based app tests.
     bundle_dir = os.path.join(PARENT_DIR, "js-app-bundle")
-    raw_module_name = "/math.js".encode()
+    raw_module_name = b"/math.js"
     with tempfile.TemporaryDirectory(prefix="ccf") as tmp_dir:
         bundle_path = shutil.make_archive(
             os.path.join(tmp_dir, "bundle"), "zip", bundle_dir

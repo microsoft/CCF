@@ -1,7 +1,13 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
+# DETECT_DEADLOCKS opts a test out of the repository-wide TSAN suppressions
+# (which otherwise hide lock-order-inversion reports from src/kv/store.h and
+# src/kv/untyped_map.h), and turns on TSAN's deadlock detector, which is off
+# by default. Use this only for tests specifically targeting lock ordering.
 function(add_san_test_properties name)
+  cmake_parse_arguments(PARSE_ARGV 1 PARSED_ARGS "DETECT_DEADLOCKS" "" "")
+
   if(SAN)
     set_property(
       TEST ${name}
@@ -11,12 +17,23 @@ function(add_san_test_properties name)
   endif()
 
   if(TSAN)
-    set_property(
-      TEST ${name}
-      APPEND
-      PROPERTY
-        ENVIRONMENT "TSAN_OPTIONS=suppressions=${CCF_DIR}/tsan_env_suppressions"
-    )
+    if(PARSED_ARGS_DETECT_DEADLOCKS)
+      set_property(
+        TEST ${name}
+        APPEND
+        PROPERTY
+          ENVIRONMENT
+            "TSAN_OPTIONS=detect_deadlocks=1:halt_on_error=1:second_deadlock_stack=1"
+      )
+    else()
+      set_property(
+        TEST ${name}
+        APPEND
+        PROPERTY
+          ENVIRONMENT
+            "TSAN_OPTIONS=suppressions=${CCF_DIR}/tsan_env_suppressions"
+      )
+    endif()
 
     set_property(
       TEST ${name}
@@ -28,7 +45,9 @@ endfunction()
 
 # Unit test wrapper
 function(add_unit_test name)
-  add_executable(${name} ${CCF_DIR}/src/enclave/thread_local.cpp ${ARGN})
+  cmake_parse_arguments(PARSE_ARGV 1 PARSED_ARGS "DETECT_DEADLOCKS" "" "")
+
+  add_executable(${name} ${PARSED_ARGS_UNPARSED_ARGUMENTS})
   target_include_directories(
     ${name}
     PRIVATE src ${CCFCRYPTO_INC} ${CCF_DIR}/3rdparty/test
@@ -49,12 +68,16 @@ function(add_unit_test name)
     )
   endif()
 
-  add_san_test_properties(${name})
+  set(SAN_TEST_ARGS "")
+  if(PARSED_ARGS_DETECT_DEADLOCKS)
+    set(SAN_TEST_ARGS DETECT_DEADLOCKS)
+  endif()
+  add_san_test_properties(${name} ${SAN_TEST_ARGS})
 endfunction()
 
 # Fuzz test wrapper (requires -DFUZZING=ON)
 function(add_fuzz_test name)
-  add_executable(${name} ${CCF_DIR}/src/enclave/thread_local.cpp ${ARGN})
+  add_executable(${name} ${ARGN})
   target_compile_options(${name} PRIVATE -fsanitize=fuzzer)
   target_link_options(${name} PRIVATE -fsanitize=fuzzer)
   target_include_directories(${name} PRIVATE src ${CCFCRYPTO_INC})
@@ -82,7 +105,7 @@ endfunction()
 
 # Test binary wrapper
 function(add_test_bin name)
-  add_executable(${name} ${CCF_DIR}/src/enclave/thread_local.cpp ${ARGN})
+  add_executable(${name} ${ARGN})
   target_include_directories(
     ${name}
     PRIVATE src ${CCFCRYPTO_INC} ${CCF_DIR}/3rdparty/test
@@ -256,11 +279,7 @@ function(add_picobench name)
     "SRCS;INCLUDE_DIRS;LINK_LIBS"
   )
 
-  add_executable(
-    ${name}
-    ${PARSED_ARGS_SRCS}
-    ${CCF_DIR}/src/enclave/thread_local.cpp
-  )
+  add_executable(${name} ${PARSED_ARGS_SRCS})
 
   target_include_directories(${name} PRIVATE src ${PARSED_ARGS_INCLUDE_DIRS})
 

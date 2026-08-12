@@ -31,6 +31,30 @@ std::string to_lowercase(std::string s)
   return s;
 }
 
+// Production parsing rejects conflicting Content-Length and Transfer-Encoding
+// headers. These test-only parsers exercise llhttp's chunked precedence path.
+class LenientChunkedLengthRequestParser : public http::RequestParser
+{
+public:
+  LenientChunkedLengthRequestParser(
+    http::RequestProcessor& proc,
+    const ccf::http::ParserConfiguration& config) :
+    http::RequestParser(proc, config)
+  {
+    llhttp_set_lenient_chunked_length(&parser, 1);
+  }
+};
+
+class LenientChunkedLengthResponseParser : public http::ResponseParser
+{
+public:
+  explicit LenientChunkedLengthResponseParser(http::ResponseProcessor& proc) :
+    http::ResponseParser(proc)
+  {
+    llhttp_set_lenient_chunked_length(&parser, 1);
+  }
+};
+
 DOCTEST_TEST_CASE("Complete request")
 {
   for (const auto method : {HTTP_POST, HTTP_GET, HTTP_DELETE})
@@ -165,6 +189,177 @@ DOCTEST_TEST_CASE("Partial body")
   const auto& m = sp.received.front();
   DOCTEST_CHECK(m.method == HTTP_POST);
   DOCTEST_CHECK(m.body == r0);
+}
+
+DOCTEST_TEST_CASE("Body too large")
+{
+  ccf::http::ParserConfiguration config;
+  config.max_body_size = ccf::ds::SizeString("8B");
+
+  // Response parsing uses the same base Parser, so an oversized Content-Length
+  // should also be rejected at headers-complete time.
+  {
+    ::http::SimpleResponseProcessor sp;
+    ::http::ResponseParser p(sp);
+
+    const auto too_big = ccf::http::default_max_body_size.count_bytes() + 1;
+    const auto res =
+      fmt::format("HTTP/1.1 200 OK\r\ncontent-length: {}\r\n\r\n", too_big);
+    const auto bytes = std::vector<uint8_t>(res.begin(), res.end());
+
+    DOCTEST_CHECK_THROWS_AS(
+      p.execute(bytes.data(), bytes.size()),
+      http::RequestPayloadTooLargeException);
+    DOCTEST_CHECK(sp.received.empty());
+  }
+
+  // A body exceeding max_body_size is rejected. With a Content-Length header
+  // the parser exits early, at the point where headers are complete, before
+  // any body chunk has been appended.
+  {
+    http::SimpleRequestProcessor sp;
+    http::RequestParser p(sp, config);
+
+    const std::vector<uint8_t> body(16, 'a');
+    auto req = http::build_post_request(body);
+
+    DOCTEST_CHECK_THROWS_AS(
+      p.execute(req.data(), req.size()), http::RequestPayloadTooLargeException);
+    DOCTEST_CHECK(sp.received.empty());
+  }
+
+  // The early exit happens before any body bytes are received. Send only the
+  // headers (advertising a large Content-Length) with no body at all, and the
+  // request is still rejected.
+  {
+    http::SimpleRequestProcessor sp;
+    http::RequestParser p(sp, config);
+
+    const std::vector<uint8_t> body(16, 'a');
+    auto header = http::build_post_header(body);
+
+    DOCTEST_CHECK_THROWS_AS(
+      p.execute(header.data(), header.size()),
+      http::RequestPayloadTooLargeException);
+    DOCTEST_CHECK(sp.received.empty());
+  }
+
+  // A body within max_body_size is accepted.
+  {
+    http::SimpleRequestProcessor sp;
+    http::RequestParser p(sp, config);
+
+    const std::vector<uint8_t> body(4, 'a');
+    auto req = http::build_post_request(body);
+
+    p.execute(req.data(), req.size());
+    DOCTEST_CHECK(!sp.received.empty());
+    DOCTEST_CHECK(sp.received.front().body == body);
+  }
+
+  // A body exactly at max_body_size is accepted: the check is strictly
+  // greater-than, so the boundary value is allowed.
+  {
+    http::SimpleRequestProcessor sp;
+    http::RequestParser p(sp, config);
+
+    const std::vector<uint8_t> body(8, 'a');
+    auto req = http::build_post_request(body);
+
+    p.execute(req.data(), req.size());
+    DOCTEST_CHECK(!sp.received.empty());
+    DOCTEST_CHECK(sp.received.front().body == body);
+  }
+
+  // The append_body accumulation check is the fallback that rejects chunked
+  // messages once the chunks received exceed max_body_size.
+  auto build_chunked_message = [](
+                                 std::string_view start_line,
+                                 size_t body_size,
+                                 std::string_view additional_headers = {}) {
+    const std::string chunk(body_size, 'a');
+    const std::string message = fmt::format(
+      "{}\r\n"
+      "transfer-encoding: chunked\r\n"
+      "{}"
+      "\r\n"
+      "{:x}\r\n"
+      "{}\r\n"
+      "0\r\n"
+      "\r\n",
+      start_line,
+      additional_headers,
+      body_size,
+      chunk);
+    return std::vector<uint8_t>(message.begin(), message.end());
+  };
+
+  // An oversized chunked body is rejected by append_body as the chunks
+  // accumulate, even though no Content-Length was advertised.
+  {
+    http::SimpleRequestProcessor sp;
+    http::RequestParser p(sp, config);
+
+    auto req = build_chunked_message("POST / HTTP/1.1", 16);
+
+    DOCTEST_CHECK_THROWS_AS(
+      p.execute(req.data(), req.size()), http::RequestPayloadTooLargeException);
+    DOCTEST_CHECK(sp.received.empty());
+  }
+
+  // A chunked body within max_body_size is accepted.
+  {
+    http::SimpleRequestProcessor sp;
+    http::RequestParser p(sp, config);
+
+    auto req = build_chunked_message("POST / HTTP/1.1", 4);
+
+    p.execute(req.data(), req.size());
+    DOCTEST_CHECK(!sp.received.empty());
+    DOCTEST_CHECK(sp.received.front().body.size() == 4);
+  }
+
+  // When llhttp accepts both headers, Transfer-Encoding takes precedence and
+  // the ignored Content-Length must not trigger the early size check.
+  {
+    http::SimpleRequestProcessor sp;
+    LenientChunkedLengthRequestParser p(sp, config);
+
+    auto req =
+      build_chunked_message("POST / HTTP/1.1", 4, "content-length: 16\r\n");
+
+    p.execute(req.data(), req.size());
+    DOCTEST_CHECK(!sp.received.empty());
+    DOCTEST_CHECK(sp.received.front().body.size() == 4);
+  }
+
+  // Ignoring Content-Length for a chunked message does not bypass the limit:
+  // append_body still rejects the actual accumulated body size.
+  {
+    http::SimpleRequestProcessor sp;
+    LenientChunkedLengthRequestParser p(sp, config);
+
+    auto req =
+      build_chunked_message("POST / HTTP/1.1", 16, "content-length: 4\r\n");
+
+    DOCTEST_CHECK_THROWS_AS(
+      p.execute(req.data(), req.size()), http::RequestPayloadTooLargeException);
+    DOCTEST_CHECK(sp.received.empty());
+  }
+
+  // The same chunked precedence applies to responses in the shared Parser.
+  {
+    ::http::SimpleResponseProcessor sp;
+    LenientChunkedLengthResponseParser p(sp);
+
+    const auto too_big = ccf::http::default_max_body_size.count_bytes() + 1;
+    const auto content_length = fmt::format("content-length: {}\r\n", too_big);
+    auto response = build_chunked_message("HTTP/1.1 200 OK", 4, content_length);
+
+    p.execute(response.data(), response.size());
+    DOCTEST_CHECK(!sp.received.empty());
+    DOCTEST_CHECK(sp.received.front().body.size() == 4);
+  }
 }
 
 DOCTEST_TEST_CASE("Multiple requests")
@@ -468,6 +663,79 @@ DOCTEST_TEST_CASE("URL parser")
   }
 }
 
+DOCTEST_TEST_CASE("Query component decoding")
+{
+  // Passes plain ASCII through unchanged
+  DOCTEST_REQUIRE(ccf::http::decode_query_component("") == "");
+  DOCTEST_REQUIRE(
+    ccf::http::decode_query_component("plain_ascii123") == "plain_ascii123");
+
+  // '+' is decoded to a space
+  DOCTEST_REQUIRE(ccf::http::decode_query_component("a+b+c") == "a b c");
+
+  // %XX escapes are decoded, for both upper and lower case hex digits
+  DOCTEST_REQUIRE(ccf::http::decode_query_component("%41%42%43") == "ABC");
+  DOCTEST_REQUIRE(ccf::http::decode_query_component("%61%62%63") == "abc");
+  DOCTEST_REQUIRE(ccf::http::decode_query_component("%2f%2F") == "//");
+  DOCTEST_REQUIRE(ccf::http::decode_query_component("100%25") == "100%");
+
+  // Truncated escapes at the end of the string are passed through literally,
+  // rather than reading out of bounds or throwing
+  DOCTEST_REQUIRE(ccf::http::decode_query_component("%") == "%");
+  DOCTEST_REQUIRE(ccf::http::decode_query_component("a%") == "a%");
+  DOCTEST_REQUIRE(ccf::http::decode_query_component("a%2") == "a%2");
+
+  // Escapes with non-hex-digit characters are passed through literally
+  DOCTEST_REQUIRE(ccf::http::decode_query_component("%zz") == "%zz");
+  DOCTEST_REQUIRE(ccf::http::decode_query_component("%2g") == "%2g");
+  DOCTEST_REQUIRE(ccf::http::decode_query_component("%g2") == "%g2");
+
+  // Multi-byte (UTF-8) sequences are decoded byte-by-byte, and recombine to
+  // the original encoded code point
+  DOCTEST_REQUIRE(ccf::http::decode_query_component("%C3%A9") == "\xC3\xA9");
+
+  // '+' and %20 both decode to a space, while %2B is a literal '+'
+  DOCTEST_REQUIRE(ccf::http::decode_query_component("a+b%20c") == "a b c");
+  DOCTEST_REQUIRE(ccf::http::decode_query_component("a%2Bb%20c") == "a+b c");
+  DOCTEST_REQUIRE(ccf::http::decode_query_component("%2B") == "+");
+
+  // A literal '%' is kept when it does not begin a valid escape, including
+  // immediately before an otherwise-valid escape
+  DOCTEST_REQUIRE(ccf::http::decode_query_component("%%41") == "%A");
+  DOCTEST_REQUIRE(ccf::http::decode_query_component("%41%") == "A%");
+  DOCTEST_REQUIRE(ccf::http::decode_query_component("%41%%42") == "A%B");
+
+  // NUL bytes are decoded and preserved (std::string can hold them)
+  DOCTEST_REQUIRE(
+    ccf::http::decode_query_component("%00") == std::string(1, '\0'));
+  DOCTEST_REQUIRE(
+    ccf::http::decode_query_component("a%00b") == std::string("a\0b", 3));
+
+  {
+    DOCTEST_INFO(
+      "Every possible byte value round-trips through percent-encoding and "
+      "decode_query_component");
+    for (size_t byte = 0; byte < 256; ++byte)
+    {
+      const auto c = static_cast<char>(byte);
+
+      // '+' is ambiguous with space when percent-encoding is not used, so
+      // skip it here (it is covered explicitly above) - every other byte
+      // should round-trip when escaped as %XX
+      if (c == '+')
+      {
+        continue;
+      }
+
+      const auto escaped =
+        fmt::format("%{:02X}", static_cast<unsigned char>(byte));
+      const auto decoded = ccf::http::decode_query_component(escaped);
+      DOCTEST_REQUIRE(decoded.size() == 1);
+      DOCTEST_REQUIRE(decoded[0] == c);
+    }
+  }
+}
+
 DOCTEST_TEST_CASE("Query parser")
 {
   constexpr auto query =
@@ -480,6 +748,13 @@ DOCTEST_TEST_CASE("Query parser")
 
     // Parses certain things as empty-string values
     "&empty&also_empty="
+
+    // Splits before URL-decoding each key and value
+    "&bar%26baz=tom%26jerry&encoded%3Dkey=encoded%3Dvalue"
+
+    // Malformed or truncated percent-escapes within a key or value are kept
+    // literally, rather than being dropped or causing a parse failure
+    "&malformed%=oops&trailing%"
 
     // Will even produce empty-string keys, since it splits at every ampersand
     "&"
@@ -518,6 +793,10 @@ DOCTEST_TEST_CASE("Query parser")
   REQUIRE_PARSED_SINGLE_QUERY_PARAM("awkward!key?\"", "fine");
   REQUIRE_PARSED_EMPTY_QUERY_PARAM("empty");
   REQUIRE_PARSED_EMPTY_QUERY_PARAM("also_empty");
+  REQUIRE_PARSED_SINGLE_QUERY_PARAM("bar&baz", "tom&jerry");
+  REQUIRE_PARSED_SINGLE_QUERY_PARAM("encoded=key", "encoded=value");
+  REQUIRE_PARSED_SINGLE_QUERY_PARAM("malformed%", "oops");
+  REQUIRE_PARSED_EMPTY_QUERY_PARAM("trailing%");
   REQUIRE_PARSED_EMPTY_QUERY_PARAM("");
 
 #undef REQUIRE_PARSED_SINGLE_QUERY_PARAM
@@ -560,6 +839,34 @@ DOCTEST_TEST_CASE("Query parser")
     const auto k = it->first;
     const auto found = std::find(checked_keys.begin(), checked_keys.end(), k);
     DOCTEST_REQUIRE(found != checked_keys.end());
+  }
+}
+
+DOCTEST_TEST_CASE("Query parser edge cases")
+{
+  {
+    // A leading '=' produces an empty key with a (decoded) value
+    const auto parsed = ccf::http::parse_query("=value");
+    const auto it = parsed.find("");
+    DOCTEST_REQUIRE(it != parsed.end());
+    DOCTEST_REQUIRE(it->second == "value");
+  }
+
+  {
+    // A trailing '=' produces an empty value
+    const auto parsed = ccf::http::parse_query("key=");
+    const auto it = parsed.find("key");
+    DOCTEST_REQUIRE(it != parsed.end());
+    DOCTEST_REQUIRE(it->second.empty());
+  }
+
+  {
+    // Splitting happens on the first raw '=' only; a '=' escaped as %3D and an
+    // '&' escaped as %26 inside the value are preserved
+    const auto parsed = ccf::http::parse_query("k=a=b%26c");
+    const auto it = parsed.find("k");
+    DOCTEST_REQUIRE(it != parsed.end());
+    DOCTEST_REQUIRE(it->second == "a=b&c");
   }
 }
 
@@ -700,6 +1007,85 @@ DOCTEST_TEST_CASE("Query parser getters")
         err ==
         "Unable to parse value 'filenotfound' as bool in parameter 'fnf'");
     }
+  }
+
+  {
+    DOCTEST_INFO("Signed integral types accept negative values");
+    constexpr auto query = "neg=-42&pos=42";
+    const auto parsed = ccf::http::parse_query(query);
+    std::string err;
+
+    {
+      int val = 0;
+      DOCTEST_REQUIRE(ccf::http::get_query_value(parsed, "neg", val, err));
+      DOCTEST_REQUIRE(val == -42);
+      DOCTEST_REQUIRE(err.empty());
+    }
+
+    {
+      // Unsigned types correctly reject a negative value, rather than
+      // wrapping around to a large positive value
+      size_t val = 0;
+      DOCTEST_REQUIRE(!ccf::http::get_query_value(parsed, "neg", val, err));
+      DOCTEST_REQUIRE(err == "Unable to parse value '-42' in parameter 'neg'");
+    }
+
+    {
+      uint8_t val = 0;
+      err.clear();
+      DOCTEST_REQUIRE(ccf::http::get_query_value(parsed, "pos", val, err));
+      DOCTEST_REQUIRE(val == 42);
+      DOCTEST_REQUIRE(err.empty());
+    }
+  }
+
+  {
+    DOCTEST_INFO(
+      "Values which overflow the target integral type, or contain trailing "
+      "garbage, are rejected rather than silently truncated");
+    constexpr auto query =
+      "overflow=999999999999999999999999&trailing=123abc&"
+      "leading_space= 123&hex=0x1A";
+    const auto parsed = ccf::http::parse_query(query);
+    std::string err;
+
+    {
+      uint8_t val = 0;
+      DOCTEST_REQUIRE(
+        !ccf::http::get_query_value(parsed, "overflow", val, err));
+    }
+
+    {
+      int val = 0;
+      DOCTEST_REQUIRE(
+        !ccf::http::get_query_value(parsed, "trailing", val, err));
+    }
+
+    {
+      int val = 0;
+      DOCTEST_REQUIRE(
+        !ccf::http::get_query_value(parsed, "leading_space", val, err));
+    }
+
+    {
+      // from_chars parses decimal by default, so a hex-prefixed string is
+      // parsed only up to the invalid 'x', and rejected as trailing garbage
+      int val = 0;
+      DOCTEST_REQUIRE(!ccf::http::get_query_value(parsed, "hex", val, err));
+    }
+  }
+
+  {
+    DOCTEST_INFO("Percent-escaped integral values are decoded before parsing");
+    constexpr auto query = "escaped_neg=%2D42";
+    const auto parsed = ccf::http::parse_query(query);
+    std::string err;
+
+    int val = 0;
+    DOCTEST_REQUIRE(
+      ccf::http::get_query_value(parsed, "escaped_neg", val, err));
+    DOCTEST_REQUIRE(val == -42);
+    DOCTEST_REQUIRE(err.empty());
   }
 }
 

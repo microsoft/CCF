@@ -1,9 +1,8 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
+import infra.clients
 import infra.network
 import suite.test_requirements as reqs
-import infra.clients
-
 from loguru import logger as LOG  # type: ignore
 
 
@@ -96,7 +95,8 @@ def test_api_service_state(network, args):
         for local_user in local_users:
             assert local_user.service_id in user_infos
             user_info = user_infos[local_user.service_id]
-            local_cert = open(local_user.cert_path).read()
+            with open(local_user.cert_path) as local_cert_file:
+                local_cert = local_cert_file.read()
             assert local_cert == user_info["certificate"]
 
         local_nodes = network.nodes

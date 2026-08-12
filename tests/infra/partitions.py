@@ -1,14 +1,14 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import infra.node
-import infra.network
-import iptc
+import enum
 import json
 from dataclasses import field
-from typing import List, Optional
-import enum
 
+import iptc
 from loguru import logger as LOG
+
+import infra.network
+import infra.node
 
 CCF_IPTABLES_CHAIN = "CCF-TEST"
 
@@ -39,9 +39,9 @@ class Rules:
     Set of iptables rules created by the :py:class:`infra.partitions.Partitioner`
     """
 
-    rules: List[dict] = field(default_factory=list)
+    rules: list[dict] = field(default_factory=list)
 
-    name: Optional[str] = None
+    name: str | None = None
 
     def __init__(self, rules, name=None):
         self.rules = rules
@@ -132,7 +132,7 @@ class Partitioner:
     def isolate_node(
         self,
         node: infra.node.Node,
-        other: Optional[infra.node.Node] = None,
+        other: infra.node.Node | None = None,
         isolation_dir: IsolationDir = IsolationDir.ALL,
     ):
         """
@@ -191,14 +191,14 @@ class Partitioner:
         return Rules(rules, name)
 
     @staticmethod
-    def _get_partition_name(partition: List[infra.node.Node]):
+    def _get_partition_name(partition: list[infra.node.Node]):
         if not partition:
             return ""
         return f'[{",".join(str(node.local_node_id) for node in partition)}]'
 
     def partition(
         self,
-        *args: List[infra.node.Node],
+        *args: list[infra.node.Node],
         name=None,
     ):
         """
@@ -253,7 +253,7 @@ class Partitioner:
 
         return Rules(rules, partition_name)
 
-    def partitions(self, *args: List[List[infra.node.Node]]):
+    def partitions(self, *args: list[list[infra.node.Node]]):
         rule = Rules([])
         names = []
         for nodes in args:

@@ -19,7 +19,7 @@ To build CCF from source, run the following:
     $ cmake -GNinja .. 
     $ ninja
 
-.. note:::
+.. note::
 
     CCF defaults to building in the `RelWithDebInfo <https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html>`_ configuration.
 
@@ -52,13 +52,6 @@ Tests can be started through the ``tests.sh`` wrapper for ``ctest``.
     $ ./tests.sh
 
 Although CCF's unit tests can be run through ``ctest`` directly, the end-to-end tests that start a network require some Python infrastructure. :ccf_repo:`tests.sh </tests/tests.sh>` will set up a virtual environment with these dependencies and activate it before running ``ctest``. Add ``-VV`` for verbose test output. Further runs will re-use that virtual environment.
-
-Build Older Versions of CCF
----------------------------
-
-Building older versions of CCF may require a different toolchain than the one used to build the current ``main`` branch.
-To build a 5.x version of CCF locally without having to install another toolchain that may conflict with the current one, it is possible to use the ``ghcr.io/microsoft/ccf/ci/(default|sgx)`` images.
-The version tag of the ``ccf/ci`` image used to build the old version can be found in the :ccf_repo:`.github/workflows/ci.yml` YAML file.
 
 Update the Documentation
 ------------------------

@@ -97,7 +97,7 @@ The proof is empty, and the ``leaf`` field is set to the value being signed, whi
 This allows writing verification code that handles both regular and signature receipts similarly, but it is worth noting that the 'leaf' value for signatures is `not`
 the digest of the signature transaction itself.
 
-From version 2.0, CCF also includes endorsement certificate for the valid service identity at the moment of the requested historical TX, signed by the current :term:`Service Identity`, in `service_endorsements`. This only applies to the services that have gone through at least one completed recovery.
+CCF also includes an endorsement certificate for the valid service identity at the moment of the requested historical TX, signed by the current :term:`Service Identity`, in `service_endorsements`. This only applies to services that have gone through at least one completed recovery.
 
 Receipt Verification
 --------------------
@@ -115,7 +115,7 @@ Note that since a receipt is a committment by a service to a transaction, a veri
 Application Claims
 ------------------
 
-CCF allows application code to attach arbitrary claims to a transaction, via the :cpp:func:`enclave::RpcContext::set_claims_digest` API, as illustrated in :ref:`build_apps/example_cpp:User-Defined Claims in Receipts`.
+CCF allows application code to attach arbitrary claims to a transaction, via the :cpp:func:`ccf::RpcContext::set_claims_digest` API, as illustrated in :ref:`build_apps/example_cpp:User-Defined Claims in Receipts`.
 
 This is useful to allow the reveal and verification of application-related claims offline, ie. without access to the CCF network.
 For example, a logging application may choose to set the digest of the payload being logged as ``claims_digest``.

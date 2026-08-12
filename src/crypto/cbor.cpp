@@ -266,13 +266,17 @@ namespace
     return cbor_nondet_mk_int64(v);
   }
 
+  // EverCBOR rejects null data pointers, which empty spans and string_views
+  // may hold. Never dereferenced, because the length is zero.
+  uint8_t empty_string_placeholder{0};
+
   cbor_raw to_raw_string(const String& v)
   {
     cbor_raw result;
-    if (!cbor_nondet_mk_text_string(
-          reinterpret_cast<uint8_t*>(const_cast<char*>(v.data())),
-          v.size(),
-          &result))
+    auto* data = v.empty() ?
+      &empty_string_placeholder :
+      reinterpret_cast<uint8_t*>(const_cast<char*>(v.data()));
+    if (!cbor_nondet_mk_text_string(data, v.size(), &result))
     {
       throw CBOREncodeError(
         Error::ENCODE_FAILED, fmt::format("Encoding text string {} failed", v));
@@ -283,8 +287,9 @@ namespace
   cbor_raw to_raw_bytes(const Bytes& v)
   {
     cbor_raw result;
-    if (!cbor_nondet_mk_byte_string(
-          const_cast<uint8_t*>(v.data()), v.size(), &result))
+    auto* data =
+      v.empty() ? &empty_string_placeholder : const_cast<uint8_t*>(v.data());
+    if (!cbor_nondet_mk_byte_string(data, v.size(), &result))
     {
       throw CBOREncodeError(
         Error::ENCODE_FAILED,

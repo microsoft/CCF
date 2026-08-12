@@ -22,6 +22,14 @@
 
 namespace ccf::kv
 {
+  enum class StoreReadiness : uint8_t
+  {
+    Unavailable,
+    InstallingSnapshot,
+    Ready,
+    Failed
+  };
+
   class StoreState
   {
   protected:
@@ -116,6 +124,8 @@ namespace ccf::kv
     // may be called from different threads without a common lock.
     std::atomic<uint8_t> flags = 0;
 
+    std::atomic<StoreReadiness> readiness = StoreReadiness::Ready;
+
     bool commit_deserialised(
       OrderedChanges& changes,
       Version v,
@@ -124,6 +134,12 @@ namespace ccf::kv
       ccf::kv::ConsensusHookPtrs& hooks,
       bool track_deletes_on_missing_keys) override
     {
+      std::unique_lock<ccf::pal::Mutex> maps_guard(maps_lock, std::defer_lock);
+      if (!new_maps.empty())
+      {
+        maps_guard.lock();
+      }
+
       auto c = apply_changes(
         changes,
         [v](bool) { return std::make_tuple(v, v - 1); },
@@ -182,6 +198,21 @@ namespace ccf::kv
     {}
 
     Store(const Store& that) = delete;
+
+    void set_readiness(StoreReadiness readiness_)
+    {
+      readiness.store(readiness_, std::memory_order_release);
+    }
+
+    [[nodiscard]] StoreReadiness get_readiness() const
+    {
+      return readiness.load(std::memory_order_acquire);
+    }
+
+    [[nodiscard]] bool is_ready() const
+    {
+      return get_readiness() == StoreReadiness::Ready;
+    }
 
     std::shared_ptr<Consensus> get_consensus() override
     {

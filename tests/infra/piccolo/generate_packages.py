@@ -2,6 +2,7 @@
 # Licensed under the Apache 2.0 License.
 
 import argparse
+
 from generator import Messages
 
 
@@ -18,7 +19,7 @@ def main():
     parser.add_argument(
         "-hs",
         "--host",
-        help="The host to submit the request.",
+        help="Value for the generated HTTP Host header.",
         default="127.0.0.1:8000",
         type=str,
     )
@@ -75,7 +76,12 @@ def main():
     msg = Messages()
     for _ in range(args.rows):
         msg.append(
-            args.path, args.verb, args.request_type, args.content_type, body=args.data
+            args.path,
+            args.verb,
+            args.request_type,
+            args.content_type,
+            additional_headers={"host": args.host},
+            body=args.data,
         )
 
     msg.to_parquet_file(args.path_to_parquet)
