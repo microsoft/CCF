@@ -35,7 +35,7 @@ from loguru import logger as LOG
 def test_create_endpoint(network, args):
     primary, _ = network.find_nodes()
     with primary.client("user0") as c:
-        r = c.post("/node/create")
+        r = c.post("/node/create", validate_openapi=False)
         assert r.status_code == http.HTTPStatus.FORBIDDEN.value
         assert r.body.json()["error"]["message"] == "Node is not in initial state."
     return network

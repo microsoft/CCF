@@ -841,7 +841,7 @@
         }
       }
     },
-    "/gov/service/js-modules": {
+    "/gov/service/javascript-modules": {
       "get": {
         "operationId": "ServiceState_ListJsModules",
         "description": "Retrieve list of all modules constituting the current app.",
@@ -882,7 +882,7 @@
         }
       }
     },
-    "/gov/service/js-modules/{moduleName}": {
+    "/gov/service/javascript-modules/{moduleName}": {
       "get": {
         "operationId": "ServiceState_GetJsModule",
         "description": "Retrieve single module of current app, by name. Note that the moduleName path parameter (which may contain forward slashes indicating module path segments) must be URL-escaped to register as a single URL path segment. For instance '/foo/bar.js' should become '%2Ffoo%2Fbar.js'.",

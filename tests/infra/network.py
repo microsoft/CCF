@@ -1619,7 +1619,12 @@ class Network:
             req["public_encryption_key"] = f.read()
 
         with target_node.client(identity=name) as c:
-            response = c.post("/node/join", body=req, allow_redirects=False)
+            response = c.post(
+                "/node/join",
+                body=req,
+                allow_redirects=False,
+                validate_openapi=False,
+            )
 
         return response, pubkey_hash_hex
 
