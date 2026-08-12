@@ -4,6 +4,7 @@
 
 #include "ccf/base_endpoint_registry.h"
 #include "ccf/ds/json.h"
+#include "node/gov/api_types.h"
 #include "node/gov/api_version.h"
 
 namespace ccf::gov::endpoints
@@ -169,7 +170,7 @@ namespace ccf::gov::endpoints
       {
         case ApiVersion::preview_v1:
         case ApiVersion::v1:
-        default:
+        case ApiVersion::Latest:
         {
           auto constitution_handle =
             ctx.tx.template ro<ccf::Constitution>(ccf::Tables::CONSTITUTION);
@@ -201,7 +202,8 @@ namespace ccf::gov::endpoints
         HTTP_GET,
         api_version_adapter(get_constitution),
         no_auth_required)
-      .set_openapi_hidden(true)
+      .set_auto_schema<void, ds::openapi::Javascript>()
+      .set_openapi_summary("Get the service constitution")
       .install();
 
     auto get_service_info = [&](auto& ctx, ApiVersion api_version) {
@@ -209,7 +211,7 @@ namespace ccf::gov::endpoints
       {
         case ApiVersion::preview_v1:
         case ApiVersion::v1:
-        default:
+        case ApiVersion::Latest:
         {
           auto response_body = nlohmann::json::object();
 
@@ -293,7 +295,8 @@ namespace ccf::gov::endpoints
         HTTP_GET,
         api_version_adapter(get_service_info),
         no_auth_required)
-      .set_openapi_hidden(true)
+      .set_auto_schema<void, api::ServiceInfo>()
+      .set_openapi_summary("Get service information")
       .install();
 
     auto get_javascript_app = [&](auto& ctx, ApiVersion api_version) {
@@ -301,7 +304,7 @@ namespace ccf::gov::endpoints
       {
         case ApiVersion::preview_v1:
         case ApiVersion::v1:
-        default:
+        case ApiVersion::Latest:
         {
           auto response_body = nlohmann::json::object();
 
@@ -404,8 +407,10 @@ namespace ccf::gov::endpoints
         HTTP_GET,
         api_version_adapter(get_javascript_app, ApiVersion::v1),
         no_auth_required)
-      .add_query_parameter<std::string>("case")
-      .set_openapi_hidden(true)
+      .set_auto_schema<void, api::JavascriptApp>()
+      .add_query_parameter<api::OriginalCase>(
+        "case", ccf::endpoints::QueryParamPresence::OptionalParameter)
+      .set_openapi_summary("Get the installed JavaScript application")
       .install();
 
     auto get_javascript_modules = [&](auto& ctx, ApiVersion api_version) {
@@ -413,7 +418,7 @@ namespace ccf::gov::endpoints
       {
         case ApiVersion::preview_v1:
         case ApiVersion::v1:
-        default:
+        case ApiVersion::Latest:
         {
           auto response_body = nlohmann::json::object();
 
@@ -445,7 +450,8 @@ namespace ccf::gov::endpoints
         HTTP_GET,
         api_version_adapter(get_javascript_modules, ApiVersion::v1),
         no_auth_required)
-      .set_openapi_hidden(true)
+      .set_auto_schema<void, api::JavascriptModules>()
+      .set_openapi_summary("List JavaScript modules")
       .install();
 
     auto get_javascript_module_by_name =
@@ -454,7 +460,7 @@ namespace ccf::gov::endpoints
         {
           case ApiVersion::preview_v1:
           case ApiVersion::v1:
-          default:
+          case ApiVersion::Latest:
           {
             std::string module_name;
             {
@@ -506,7 +512,8 @@ namespace ccf::gov::endpoints
         HTTP_GET,
         api_version_adapter(get_javascript_module_by_name, ApiVersion::v1),
         no_auth_required)
-      .set_openapi_hidden(true)
+      .set_auto_schema<void, ds::openapi::Javascript>()
+      .set_openapi_summary("Get a JavaScript module")
       .install();
 
     auto get_join_policy = [&](auto& ctx, ApiVersion api_version) {
@@ -514,7 +521,7 @@ namespace ccf::gov::endpoints
       {
         case ApiVersion::preview_v1:
         case ApiVersion::v1:
-        default:
+        case ApiVersion::Latest:
         {
           auto response_body = nlohmann::json::object();
 
@@ -644,7 +651,8 @@ namespace ccf::gov::endpoints
         HTTP_GET,
         api_version_adapter(get_join_policy),
         no_auth_required)
-      .set_openapi_hidden(true)
+      .set_auto_schema<void, api::JoinPolicy>()
+      .set_openapi_summary("Get the service join policy")
       .install();
 
     auto get_jwk = [&](auto& ctx, ApiVersion api_version) {
@@ -652,7 +660,7 @@ namespace ccf::gov::endpoints
       {
         case ApiVersion::preview_v1:
         case ApiVersion::v1:
-        default:
+        case ApiVersion::Latest:
         {
           auto response_body = nlohmann::json::object();
 
@@ -745,7 +753,8 @@ namespace ccf::gov::endpoints
         HTTP_GET,
         api_version_adapter(get_jwk),
         no_auth_required)
-      .set_openapi_hidden(true)
+      .set_auto_schema<void, api::JwkInfo>()
+      .set_openapi_summary("Get accepted JWT issuers and keys")
       .install();
 
     auto get_members = [&](auto& ctx, ApiVersion api_version) {
@@ -753,7 +762,7 @@ namespace ccf::gov::endpoints
       {
         case ApiVersion::preview_v1:
         case ApiVersion::v1:
-        default:
+        case ApiVersion::Latest:
         {
           auto response_body = nlohmann::json::object();
 
@@ -794,7 +803,8 @@ namespace ccf::gov::endpoints
         HTTP_GET,
         api_version_adapter(get_members),
         no_auth_required)
-      .set_openapi_hidden(true)
+      .set_auto_schema<void, api::MemberList>()
+      .set_openapi_summary("List consortium members")
       .install();
 
     auto get_member_by_id = [&](auto& ctx, ApiVersion api_version) {
@@ -802,7 +812,7 @@ namespace ccf::gov::endpoints
       {
         case ApiVersion::preview_v1:
         case ApiVersion::v1:
-        default:
+        case ApiVersion::Latest:
         {
           ccf::MemberId member_id;
           if (!detail::try_parse_member_id(ctx.rpc_ctx, member_id))
@@ -846,7 +856,8 @@ namespace ccf::gov::endpoints
         HTTP_GET,
         api_version_adapter(get_member_by_id),
         no_auth_required)
-      .set_openapi_hidden(true)
+      .set_auto_schema<void, api::Member>()
+      .set_openapi_summary("Get a consortium member")
       .install();
 
     auto get_users = [&](auto& ctx, ApiVersion api_version) {
@@ -854,7 +865,7 @@ namespace ccf::gov::endpoints
       {
         case ApiVersion::preview_v1:
         case ApiVersion::v1:
-        default:
+        case ApiVersion::Latest:
         {
           auto response_body = nlohmann::json::object();
 
@@ -888,7 +899,8 @@ namespace ccf::gov::endpoints
         HTTP_GET,
         api_version_adapter(get_users),
         no_auth_required)
-      .set_openapi_hidden(true)
+      .set_auto_schema<void, api::UserList>()
+      .set_openapi_summary("List application users")
       .install();
 
     auto get_user_by_id = [&](auto& ctx, ApiVersion api_version) {
@@ -896,7 +908,7 @@ namespace ccf::gov::endpoints
       {
         case ApiVersion::preview_v1:
         case ApiVersion::v1:
-        default:
+        case ApiVersion::Latest:
         {
           ccf::UserId user_id;
           if (!detail::try_parse_user_id(ctx.rpc_ctx, user_id))
@@ -935,7 +947,8 @@ namespace ccf::gov::endpoints
         HTTP_GET,
         api_version_adapter(get_user_by_id),
         no_auth_required)
-      .set_openapi_hidden(true)
+      .set_auto_schema<void, api::User>()
+      .set_openapi_summary("Get an application user")
       .install();
 
     auto get_nodes = [&](auto& ctx, ApiVersion api_version) {
@@ -943,7 +956,7 @@ namespace ccf::gov::endpoints
       {
         case ApiVersion::preview_v1:
         case ApiVersion::v1:
-        default:
+        case ApiVersion::Latest:
         {
           auto response_body = nlohmann::json::object();
 
@@ -978,7 +991,8 @@ namespace ccf::gov::endpoints
         HTTP_GET,
         api_version_adapter(get_nodes),
         no_auth_required)
-      .set_openapi_hidden(true)
+      .set_auto_schema<void, api::NodeList>()
+      .set_openapi_summary("List service nodes")
       .install();
 
     auto get_node_by_id = [&](auto& ctx, ApiVersion api_version) {
@@ -986,7 +1000,7 @@ namespace ccf::gov::endpoints
       {
         case ApiVersion::preview_v1:
         case ApiVersion::v1:
-        default:
+        case ApiVersion::Latest:
         {
           ccf::NodeId node_id;
           if (!detail::try_parse_node_id(ctx.rpc_ctx, node_id))
@@ -1024,7 +1038,8 @@ namespace ccf::gov::endpoints
         HTTP_GET,
         api_version_adapter(get_node_by_id),
         no_auth_required)
-      .set_openapi_hidden(true)
+      .set_auto_schema<void, api::Node>()
+      .set_openapi_summary("Get a service node")
       .install();
   }
 }

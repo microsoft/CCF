@@ -4,6 +4,7 @@
 
 #include "ccf/base_endpoint_registry.h"
 #include "ccf/ds/json.h"
+#include "node/gov/api_types.h"
 #include "node/gov/api_version.h"
 #include "node/gov/handlers/helpers.h"
 #include "node/history.h"
@@ -23,7 +24,7 @@ namespace ccf::gov::endpoints
       {
         case ApiVersion::preview_v1:
         case ApiVersion::v1:
-        default:
+        case ApiVersion::Latest:
         {
           // Get memberId from path parameter
           std::string error;
@@ -71,7 +72,8 @@ namespace ccf::gov::endpoints
         HTTP_GET,
         api_version_adapter(get_state_digest),
         no_auth_required)
-      .set_openapi_hidden(true)
+      .set_auto_schema<void, api::StateDigest>()
+      .set_openapi_summary("Get a member's state digest")
       .install();
 
     auto update_state_digest = [&](auto& ctx, ApiVersion api_version) {
@@ -79,7 +81,7 @@ namespace ccf::gov::endpoints
       {
         case ApiVersion::preview_v1:
         case ApiVersion::v1:
-        default:
+        case ApiVersion::Latest:
         {
           // Get memberId from path parameter
           std::string error;
@@ -160,7 +162,8 @@ namespace ccf::gov::endpoints
         HTTP_POST,
         api_version_adapter(update_state_digest),
         detail::member_sig_only_policies("state_digest"))
-      .set_openapi_hidden(true)
+      .set_auto_schema<ds::openapi::Cose, api::StateDigest>()
+      .set_openapi_summary("Update a member's state digest")
       .install();
 
     auto ack_state_digest = [&](auto& ctx, ApiVersion api_version) {
@@ -168,7 +171,7 @@ namespace ccf::gov::endpoints
       {
         case ApiVersion::preview_v1:
         case ApiVersion::v1:
-        default:
+        case ApiVersion::Latest:
         {
           // Get memberId from path parameter
           std::string error;
@@ -342,7 +345,8 @@ namespace ccf::gov::endpoints
         HTTP_POST,
         api_version_adapter(ack_state_digest),
         {std::make_shared<MemberCOSESign1AuthnPolicy>("ack")})
-      .set_openapi_hidden(true)
+      .set_auto_schema<ds::openapi::Cose, void>()
+      .set_openapi_summary("Acknowledge a member's state digest")
       .install();
   }
 }

@@ -10,7 +10,31 @@ from loguru import logger as LOG  # type: ignore
 def test_api_service_state(network, args):
     primary, _ = network.find_primary()
 
+    with primary.client() as unversioned_client:
+        unversioned_service_info = unversioned_client.get("/gov/service/info")
+        assert unversioned_service_info.status_code == 200, unversioned_service_info
+
     with primary.api_versioned_client(api_version=args.gov_api_version) as c:
+        latest_service_info = c.get("/gov/service/info")
+        assert latest_service_info.status_code == 200, latest_service_info
+        assert latest_service_info.body.json() == unversioned_service_info.body.json()
+
+        LOG.info("/gov/service/join-policy endpoint")
+        r = c.get("/gov/service/join-policy")
+        assert r.status_code == 200, r
+        assert set(r.body.json()) == {"sgx", "snp", "virtual"}
+
+        LOG.info("/gov/service/jwk endpoint")
+        r = c.get("/gov/service/jwk")
+        assert r.status_code == 200, r
+        assert set(r.body.json()) == {"issuers", "keys", "caCertBundles"}
+
+        LOG.info("/gov/members/state-digests/{memberId} endpoint")
+        member_id = network.consortium.members[0].service_id
+        r = c.get(f"/gov/members/state-digests/{member_id}")
+        assert r.status_code == 200, r
+        assert r.body.json()["memberId"] == member_id
+
         LOG.info("/gov/service/members* endpoints")
         r = c.get("/gov/service/members")
         assert r.status_code == 200, r

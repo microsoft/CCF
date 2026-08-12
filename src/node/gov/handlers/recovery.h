@@ -4,6 +4,7 @@
 
 #include "ccf/base_endpoint_registry.h"
 #include "ccf/ds/json.h"
+#include "node/gov/api_types.h"
 #include "node/gov/api_version.h"
 #include "node/gov/handlers/helpers.h"
 #include "node/share_manager.h"
@@ -21,7 +22,7 @@ namespace ccf::gov::endpoints
         {
           case ApiVersion::preview_v1:
           case ApiVersion::v1:
-          default:
+          case ApiVersion::Latest:
           {
             ccf::MemberId member_id;
             if (!detail::try_parse_member_id(ctx.rpc_ctx, member_id))
@@ -59,7 +60,8 @@ namespace ccf::gov::endpoints
         HTTP_GET,
         api_version_adapter(get_encrypted_share_for_member),
         ccf::no_auth_required)
-      .set_openapi_hidden(true)
+      .set_auto_schema<void, api::EncryptedRecoveryShare>()
+      .set_openapi_summary("Get an encrypted recovery share")
       .install();
 
     auto submit_recovery_share = [&](auto& ctx, ApiVersion api_version) {
@@ -67,7 +69,7 @@ namespace ccf::gov::endpoints
       {
         case ApiVersion::preview_v1:
         case ApiVersion::v1:
-        default:
+        case ApiVersion::Latest:
         {
           if (
             InternalTablesAccess::get_service_status(ctx.tx) !=
@@ -221,7 +223,8 @@ namespace ccf::gov::endpoints
         HTTP_POST,
         api_version_adapter(submit_recovery_share),
         detail::active_member_sig_only_policies("recovery_share"))
-      .set_openapi_hidden(true)
+      .set_auto_schema<ds::openapi::Cose, api::RecoveryResponse>()
+      .set_openapi_summary("Submit a recovery share")
       .install();
   }
 }

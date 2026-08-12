@@ -54,7 +54,7 @@ def run(args):
             f.seek(0)
             previous = f.read().strip()
             if previous != formatted_schema:
-                file_version = "0.0.0"
+                file_version = version.parse("0.0.0")
                 try:
                     from_file = json.loads(previous)
                     file_version = from_file["info"]["version"]
@@ -119,6 +119,30 @@ def run(args):
             LOG.info("node frontend")
             if not fetch_schema(client.get("/node/api"), "node_openapi.json"):
                 documents_valid = False
+
+            LOG.info("gov API - latest (unversioned)")
+            latest_gov_schema = client.get("/gov/api")
+            if not fetch_schema(latest_gov_schema, "gov_openapi.json"):
+                documents_valid = False
+
+            invalid_version_response = client.get("/gov/api?api-version=not-a-version")
+            check(
+                invalid_version_response,
+                error=lambda status, msg: (
+                    status == http.HTTPStatus.BAD_REQUEST.value
+                    and msg.json()["error"]["code"] == "UnsupportedApiVersionValue"
+                ),
+            )
+
+        with primary.api_versioned_client(
+            api_version=infra.clients.API_VERSION_LATEST
+        ) as client:
+            LOG.info("gov API - latest (explicit)")
+            explicit_latest_gov_schema = client.get("/gov/api")
+            assert explicit_latest_gov_schema.status_code == http.HTTPStatus.OK.value
+            assert (
+                explicit_latest_gov_schema.body.json() == latest_gov_schema.body.json()
+            )
 
         with primary.api_versioned_client(
             api_version=infra.clients.API_VERSION_PREVIEW_01

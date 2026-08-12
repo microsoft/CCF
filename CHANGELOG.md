@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [7.0.13]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.13
 
+### Changed
+
+- Governance endpoints now select the API implemented by the running CCF build when `api-version` is omitted or set to `latest`. `GET /gov/api` returns an auto-generated OpenAPI document for this moving API, while dated `api-version` values continue to return their frozen documents. (#XXXX)
+
 ### Added
 
 - C++ endpoints can now use `ccf::endpoints::Endpoint::add_openapi_response<Out>()` to document additional HTTP responses in their generated OpenAPI schema without changing the endpoint's primary success response (#8115).

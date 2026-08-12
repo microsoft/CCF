@@ -6,6 +6,7 @@
 #include "ccf/json_handler.h"
 #include "ccf/tx_id.h"
 #include "ccf/tx_status.h"
+#include "node/gov/api_types.h"
 #include "node/gov/api_version.h"
 
 namespace ccf::gov::endpoints
@@ -17,7 +18,7 @@ namespace ccf::gov::endpoints
       {
         case ApiVersion::preview_v1:
         case ApiVersion::v1:
-        default:
+        case ApiVersion::Latest:
         {
           // Extract transaction ID from path parameter
           std::string tx_id_str;
@@ -84,7 +85,8 @@ namespace ccf::gov::endpoints
         HTTP_GET,
         api_version_adapter(get_transaction_status),
         no_auth_required)
-      .set_openapi_hidden(true)
+      .set_auto_schema<void, api::Transaction>()
+      .set_openapi_summary("Get transaction status")
       .install();
 
     auto get_commit = [&](auto& ctx, ApiVersion api_version) {
@@ -92,7 +94,7 @@ namespace ccf::gov::endpoints
       {
         case ApiVersion::preview_v1:
         case ApiVersion::v1:
-        default:
+        case ApiVersion::Latest:
         {
           // Lookup committed
           ccf::View view = 0;
@@ -142,7 +144,8 @@ namespace ccf::gov::endpoints
         HTTP_GET,
         api_version_adapter(get_commit),
         no_auth_required)
-      .set_openapi_hidden(true)
+      .set_auto_schema<void, api::Transaction>()
+      .set_openapi_summary("Get the latest committed transaction")
       .install();
   }
 }

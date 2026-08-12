@@ -1,0 +1,2491 @@
+{
+  "components": {
+    "responses": {
+      "default": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/CCFError"
+            }
+          }
+        },
+        "description": "An error occurred"
+      }
+    },
+    "schemas": {
+      "CCFError": {
+        "properties": {
+          "error": {
+            "properties": {
+              "code": {
+                "description": "Response error code. CCF error codes: https://microsoft.github.io/CCF/main/operations/troubleshooting.html#error-codes",
+                "type": "string"
+              },
+              "message": {
+                "description": "Response error message",
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "Cose": {
+        "format": "binary",
+        "type": "string"
+      },
+      "GetCommit__Out": {
+        "properties": {
+          "transaction_id": {
+            "$ref": "#/components/schemas/TransactionId"
+          },
+          "view_history": {
+            "$ref": "#/components/schemas/TransactionId_array"
+          }
+        },
+        "required": [
+          "transaction_id"
+        ],
+        "type": "object"
+      },
+      "GetTxStatus__Out": {
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/TxStatus"
+          },
+          "transaction_id": {
+            "$ref": "#/components/schemas/TransactionId"
+          }
+        },
+        "required": [
+          "transaction_id",
+          "status"
+        ],
+        "type": "object"
+      },
+      "GovEncryptedRecoveryShare": {
+        "properties": {
+          "encryptedShare": {
+            "format": "byte",
+            "type": "string"
+          },
+          "memberId": {
+            "pattern": "^[a-f0-9]{64}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "memberId",
+          "encryptedShare"
+        ],
+        "type": "object"
+      },
+      "GovJavascriptApp": {
+        "properties": {
+          "endpoints": {
+            "additionalProperties": {
+              "type": "object"
+            },
+            "type": "object"
+          }
+        },
+        "required": [
+          "endpoints"
+        ],
+        "type": "object"
+      },
+      "GovJavascriptAppCase": {
+        "enum": [
+          "original"
+        ],
+        "type": "string"
+      },
+      "GovJavascriptModules": {
+        "properties": {
+          "value": {
+            "items": {
+              "properties": {
+                "moduleName": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "moduleName"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "value"
+        ],
+        "type": "object"
+      },
+      "GovJoinPolicy": {
+        "properties": {
+          "sgx": {
+            "properties": {
+              "measurements": {
+                "items": {
+                  "format": "hex",
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "measurements"
+            ],
+            "type": "object"
+          },
+          "snp": {
+            "properties": {
+              "hostData": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              "measurements": {
+                "items": {
+                  "format": "hex",
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "tcbVersions": {
+                "type": "object"
+              },
+              "uvmEndorsements": {
+                "type": "object"
+              }
+            },
+            "required": [
+              "measurements",
+              "hostData",
+              "uvmEndorsements",
+              "tcbVersions"
+            ],
+            "type": "object"
+          },
+          "virtual": {
+            "properties": {
+              "hostData": {
+                "items": {
+                  "pattern": "^[a-f0-9]{64}$",
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "measurements": {
+                "items": {
+                  "format": "hex",
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "measurements",
+              "hostData"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "sgx",
+          "virtual",
+          "snp"
+        ],
+        "type": "object"
+      },
+      "GovJwkInfo": {
+        "properties": {
+          "caCertBundles": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "issuers": {
+            "additionalProperties": {
+              "properties": {
+                "autoRefresh": {
+                  "type": "boolean"
+                },
+                "caCertBundleName": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "autoRefresh"
+              ],
+              "type": "object"
+            },
+            "type": "object"
+          },
+          "keys": {
+            "additionalProperties": {
+              "items": {
+                "properties": {
+                  "constraint": {},
+                  "issuer": {
+                    "type": "string"
+                  },
+                  "publicKey": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "publicKey",
+                  "issuer",
+                  "constraint"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "type": "object"
+          }
+        },
+        "required": [
+          "issuers",
+          "keys",
+          "caCertBundles"
+        ],
+        "type": "object"
+      },
+      "GovMember": {
+        "properties": {
+          "certificate": {
+            "type": "string"
+          },
+          "memberData": {},
+          "memberId": {
+            "pattern": "^[a-f0-9]{64}$",
+            "type": "string"
+          },
+          "publicEncryptionKey": {
+            "type": "string"
+          },
+          "recoveryRole": {
+            "enum": [
+              "NonParticipant",
+              "Participant",
+              "Owner"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "Accepted",
+              "Active"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "memberId",
+          "status",
+          "memberData",
+          "recoveryRole"
+        ],
+        "type": "object"
+      },
+      "GovMemberList": {
+        "properties": {
+          "value": {
+            "items": {
+              "properties": {
+                "certificate": {
+                  "type": "string"
+                },
+                "memberData": {},
+                "memberId": {
+                  "pattern": "^[a-f0-9]{64}$",
+                  "type": "string"
+                },
+                "publicEncryptionKey": {
+                  "type": "string"
+                },
+                "recoveryRole": {
+                  "enum": [
+                    "NonParticipant",
+                    "Participant",
+                    "Owner"
+                  ],
+                  "type": "string"
+                },
+                "status": {
+                  "enum": [
+                    "Accepted",
+                    "Active"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "memberId",
+                "status",
+                "memberData",
+                "recoveryRole"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "value"
+        ],
+        "type": "object"
+      },
+      "GovNode": {
+        "properties": {
+          "certificate": {
+            "type": "string"
+          },
+          "nodeData": {},
+          "nodeId": {
+            "pattern": "^[a-f0-9]{64}$",
+            "type": "string"
+          },
+          "quoteInfo": {
+            "properties": {
+              "details": {
+                "type": "object"
+              },
+              "endorsedTcb": {
+                "type": "string"
+              },
+              "endorsements": {
+                "type": "string"
+              },
+              "format": {
+                "enum": [
+                  "OE_SGX_v1",
+                  "Insecure_Virtual",
+                  "AMD_SEV_SNP_v1"
+                ],
+                "type": "string"
+              },
+              "quote": {
+                "type": "string"
+              },
+              "rawQuote": {
+                "type": "string"
+              },
+              "uvmEndorsements": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "format"
+            ],
+            "type": "object"
+          },
+          "retiredCommitted": {
+            "type": "boolean"
+          },
+          "rpcInterfaces": {
+            "additionalProperties": {
+              "properties": {
+                "protocol": {
+                  "type": "string"
+                },
+                "publishedAddress": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "publishedAddress"
+              ],
+              "type": "object"
+            },
+            "type": "object"
+          },
+          "status": {
+            "enum": [
+              "Pending",
+              "Trusted",
+              "Retired"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "nodeId",
+          "status",
+          "nodeData",
+          "retiredCommitted",
+          "quoteInfo",
+          "rpcInterfaces"
+        ],
+        "type": "object"
+      },
+      "GovNodeList": {
+        "properties": {
+          "value": {
+            "items": {
+              "properties": {
+                "certificate": {
+                  "type": "string"
+                },
+                "nodeData": {},
+                "nodeId": {
+                  "pattern": "^[a-f0-9]{64}$",
+                  "type": "string"
+                },
+                "quoteInfo": {
+                  "properties": {
+                    "details": {
+                      "type": "object"
+                    },
+                    "endorsedTcb": {
+                      "type": "string"
+                    },
+                    "endorsements": {
+                      "type": "string"
+                    },
+                    "format": {
+                      "enum": [
+                        "OE_SGX_v1",
+                        "Insecure_Virtual",
+                        "AMD_SEV_SNP_v1"
+                      ],
+                      "type": "string"
+                    },
+                    "quote": {
+                      "type": "string"
+                    },
+                    "rawQuote": {
+                      "type": "string"
+                    },
+                    "uvmEndorsements": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "format"
+                  ],
+                  "type": "object"
+                },
+                "retiredCommitted": {
+                  "type": "boolean"
+                },
+                "rpcInterfaces": {
+                  "additionalProperties": {
+                    "properties": {
+                      "protocol": {
+                        "type": "string"
+                      },
+                      "publishedAddress": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "publishedAddress"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "object"
+                },
+                "status": {
+                  "enum": [
+                    "Pending",
+                    "Trusted",
+                    "Retired"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "nodeId",
+                "status",
+                "nodeData",
+                "retiredCommitted",
+                "quoteInfo",
+                "rpcInterfaces"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "value"
+        ],
+        "type": "object"
+      },
+      "GovProposal": {
+        "properties": {
+          "ballotCount": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "ballotSubmitters": {
+            "items": {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "failure": {
+            "properties": {
+              "reason": {
+                "type": "string"
+              },
+              "trace": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "reason"
+            ],
+            "type": "object"
+          },
+          "finalVotes": {
+            "additionalProperties": {
+              "type": "boolean"
+            },
+            "type": "object"
+          },
+          "proposalId": {
+            "pattern": "^[a-f0-9]{64}$",
+            "type": "string"
+          },
+          "proposalState": {
+            "enum": [
+              "Open",
+              "Accepted",
+              "Withdrawn",
+              "Rejected",
+              "Failed",
+              "Dropped"
+            ],
+            "type": "string"
+          },
+          "proposerId": {
+            "pattern": "^[a-f0-9]{64}$",
+            "type": "string"
+          },
+          "voteFailures": {
+            "additionalProperties": {
+              "properties": {
+                "reason": {
+                  "type": "string"
+                },
+                "trace": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "reason"
+              ],
+              "type": "object"
+            },
+            "type": "object"
+          }
+        },
+        "required": [
+          "proposalId",
+          "proposerId",
+          "proposalState",
+          "ballotCount",
+          "ballotSubmitters"
+        ],
+        "type": "object"
+      },
+      "GovProposalActions": {
+        "properties": {
+          "actions": {
+            "items": {
+              "properties": {
+                "args": {},
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "actions"
+        ],
+        "type": "object"
+      },
+      "GovProposalList": {
+        "properties": {
+          "value": {
+            "items": {
+              "properties": {
+                "ballotCount": {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "ballotSubmitters": {
+                  "items": {
+                    "pattern": "^[a-f0-9]{64}$",
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "failure": {
+                  "properties": {
+                    "reason": {
+                      "type": "string"
+                    },
+                    "trace": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "reason"
+                  ],
+                  "type": "object"
+                },
+                "finalVotes": {
+                  "additionalProperties": {
+                    "type": "boolean"
+                  },
+                  "type": "object"
+                },
+                "proposalId": {
+                  "pattern": "^[a-f0-9]{64}$",
+                  "type": "string"
+                },
+                "proposalState": {
+                  "enum": [
+                    "Open",
+                    "Accepted",
+                    "Withdrawn",
+                    "Rejected",
+                    "Failed",
+                    "Dropped"
+                  ],
+                  "type": "string"
+                },
+                "proposerId": {
+                  "pattern": "^[a-f0-9]{64}$",
+                  "type": "string"
+                },
+                "voteFailures": {
+                  "additionalProperties": {
+                    "properties": {
+                      "reason": {
+                        "type": "string"
+                      },
+                      "trace": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "reason"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "object"
+                }
+              },
+              "required": [
+                "proposalId",
+                "proposerId",
+                "proposalState",
+                "ballotCount",
+                "ballotSubmitters"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "value"
+        ],
+        "type": "object"
+      },
+      "GovRecoveryResponse": {
+        "properties": {
+          "fullKeySubmitted": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "recoveryThreshold": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "submittedCount": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "message",
+          "submittedCount",
+          "recoveryThreshold",
+          "fullKeySubmitted"
+        ],
+        "type": "object"
+      },
+      "GovServiceInfo": {
+        "properties": {
+          "certificate": {
+            "type": "string"
+          },
+          "configuration": {
+            "properties": {
+              "maximumNodeCertificateValidityDays": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "maximumServiceCertificateValidityDays": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "recentCoseProposalsWindowSize": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "recoveryThreshold": {
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "recoveryThreshold",
+              "maximumNodeCertificateValidityDays",
+              "maximumServiceCertificateValidityDays",
+              "recentCoseProposalsWindowSize"
+            ],
+            "type": "object"
+          },
+          "creationTransactionId": {
+            "pattern": "^[0-9]+\\.[0-9]+$",
+            "type": "string"
+          },
+          "previousServiceCreationTransactionId": {
+            "pattern": "^[0-9]+\\.[0-9]+$",
+            "type": "string"
+          },
+          "recoveryCount": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "serviceData": {},
+          "status": {
+            "enum": [
+              "Opening",
+              "Open",
+              "WaitingForRecoveryShares",
+              "Recovering"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "certificate",
+          "recoveryCount",
+          "serviceData"
+        ],
+        "type": "object"
+      },
+      "GovStateDigest": {
+        "properties": {
+          "memberId": {
+            "pattern": "^[a-f0-9]{64}$",
+            "type": "string"
+          },
+          "stateDigest": {
+            "pattern": "^[a-f0-9]{64}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "memberId",
+          "stateDigest"
+        ],
+        "type": "object"
+      },
+      "GovTransaction": {
+        "properties": {
+          "status": {
+            "enum": [
+              "Unknown",
+              "Pending",
+              "Committed",
+              "Invalid"
+            ],
+            "type": "string"
+          },
+          "transactionId": {
+            "pattern": "^[0-9]+\\.[0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "transactionId"
+        ],
+        "type": "object"
+      },
+      "GovUser": {
+        "properties": {
+          "certificate": {
+            "type": "string"
+          },
+          "userData": {},
+          "userId": {
+            "pattern": "^[a-f0-9]{64}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "userId",
+          "certificate",
+          "userData"
+        ],
+        "type": "object"
+      },
+      "GovUserList": {
+        "properties": {
+          "value": {
+            "items": {
+              "properties": {
+                "certificate": {
+                  "type": "string"
+                },
+                "userData": {},
+                "userId": {
+                  "pattern": "^[a-f0-9]{64}$",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "userId",
+                "certificate",
+                "userData"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "value"
+        ],
+        "type": "object"
+      },
+      "Javascript": {
+        "type": "string"
+      },
+      "TransactionId": {
+        "pattern": "^[0-9]+\\.[0-9]+$",
+        "type": "string"
+      },
+      "TransactionId_array": {
+        "items": {
+          "$ref": "#/components/schemas/TransactionId"
+        },
+        "type": "array"
+      },
+      "TxStatus": {
+        "enum": [
+          "Unknown",
+          "Pending",
+          "Committed",
+          "Invalid"
+        ],
+        "type": "string"
+      },
+      "boolean": {
+        "type": "boolean"
+      },
+      "json": {},
+      "string": {
+        "type": "string"
+      },
+      "uint64": {
+        "maximum": 18446744073709551615,
+        "minimum": 0,
+        "type": "integer"
+      }
+    },
+    "x-ccf-forwarding": {
+      "always": {
+        "description": "If this request is made to a backup node, it will be forwarded to the primary node for execution.",
+        "value": "always"
+      },
+      "never": {
+        "description": "This call will never be forwarded, and is always executed on the receiving node, potentially breaking session consistency. If this attempts to write on a backup, this will fail.",
+        "value": "never"
+      },
+      "sometimes": {
+        "description": "If this request is made to a backup node, it may be forwarded to the primary node for execution. Specifically, if this request is sent as part of a session which was already forwarded, then it will also be forwarded.",
+        "value": "sometimes"
+      }
+    }
+  },
+  "info": {
+    "description": "The governance API implemented by this CCF build. This document describes the moving 'latest' API and does not guarantee that older document versions remain available.",
+    "title": "CCF Governance",
+    "version": "5.0.0"
+  },
+  "openapi": "3.0.0",
+  "paths": {
+    "/gov/api": {
+      "get": {
+        "operationId": "GetGovApi",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/json"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "summary": "OpenAPI schema",
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      },
+      "parameters": [
+        {
+          "description": "Optional selector for the API implemented by this CCF build. 'latest' is a moving alias and does not identify a frozen API contract.",
+          "in": "query",
+          "name": "api-version",
+          "required": false,
+          "schema": {
+            "default": "latest",
+            "enum": [
+              "latest"
+            ],
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "/gov/commit": {
+      "get": {
+        "description": "Latest transaction ID that has been committed on the service",
+        "operationId": "GetGovCommit",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "view_history",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "view_history_since",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/uint64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetCommit__Out"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "summary": "Current commit level",
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      },
+      "parameters": [
+        {
+          "description": "Optional selector for the API implemented by this CCF build. 'latest' is a moving alias and does not identify a frozen API contract.",
+          "in": "query",
+          "name": "api-version",
+          "required": false,
+          "schema": {
+            "default": "latest",
+            "enum": [
+              "latest"
+            ],
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "/gov/members/proposals": {
+      "get": {
+        "operationId": "GetGovMembersProposals",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GovProposalList"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "summary": "List governance proposals",
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      },
+      "parameters": [
+        {
+          "description": "Optional selector for the API implemented by this CCF build. 'latest' is a moving alias and does not identify a frozen API contract.",
+          "in": "query",
+          "name": "api-version",
+          "required": false,
+          "schema": {
+            "default": "latest",
+            "enum": [
+              "latest"
+            ],
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "/gov/members/proposals/{proposalId}": {
+      "get": {
+        "operationId": "GetGovMembersProposalsProposalId",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GovProposal"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "summary": "Get a governance proposal",
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "proposalId",
+          "required": true,
+          "schema": {
+            "pattern": "^[a-f0-9]{64}$",
+            "type": "string"
+          }
+        },
+        {
+          "description": "Optional selector for the API implemented by this CCF build. 'latest' is a moving alias and does not identify a frozen API contract.",
+          "in": "query",
+          "name": "api-version",
+          "required": false,
+          "schema": {
+            "default": "latest",
+            "enum": [
+              "latest"
+            ],
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "/gov/members/proposals/{proposalId}/actions": {
+      "get": {
+        "operationId": "GetGovMembersProposalsProposalIdActions",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GovProposalActions"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "summary": "Get a proposal's actions",
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "proposalId",
+          "required": true,
+          "schema": {
+            "pattern": "^[a-f0-9]{64}$",
+            "type": "string"
+          }
+        },
+        {
+          "description": "Optional selector for the API implemented by this CCF build. 'latest' is a moving alias and does not identify a frozen API contract.",
+          "in": "query",
+          "name": "api-version",
+          "required": false,
+          "schema": {
+            "default": "latest",
+            "enum": [
+              "latest"
+            ],
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "/gov/members/proposals/{proposalId}/ballots/{memberId}": {
+      "get": {
+        "operationId": "GetGovMembersProposalsProposalIdBallotsMemberId",
+        "responses": {
+          "200": {
+            "content": {
+              "text/javascript": {
+                "schema": {
+                  "$ref": "#/components/schemas/Javascript"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "summary": "Get a member's ballot",
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "proposalId",
+          "required": true,
+          "schema": {
+            "pattern": "^[a-f0-9]{64}$",
+            "type": "string"
+          }
+        },
+        {
+          "in": "path",
+          "name": "memberId",
+          "required": true,
+          "schema": {
+            "pattern": "^[a-f0-9]{64}$",
+            "type": "string"
+          }
+        },
+        {
+          "description": "Optional selector for the API implemented by this CCF build. 'latest' is a moving alias and does not identify a frozen API contract.",
+          "in": "query",
+          "name": "api-version",
+          "required": false,
+          "schema": {
+            "default": "latest",
+            "enum": [
+              "latest"
+            ],
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "/gov/members/proposals/{proposalId}/ballots/{memberId}:submit": {
+      "parameters": [
+        {
+          "in": "path",
+          "name": "proposalId",
+          "required": true,
+          "schema": {
+            "pattern": "^[a-f0-9]{64}$",
+            "type": "string"
+          }
+        },
+        {
+          "in": "path",
+          "name": "memberId",
+          "required": true,
+          "schema": {
+            "pattern": "^[a-f0-9]{64}$",
+            "type": "string"
+          }
+        },
+        {
+          "description": "Optional selector for the API implemented by this CCF build. 'latest' is a moving alias and does not identify a frozen API contract.",
+          "in": "query",
+          "name": "api-version",
+          "required": false,
+          "schema": {
+            "default": "latest",
+            "enum": [
+              "latest"
+            ],
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "operationId": "PostGovMembersProposalsProposalIdBallotsMemberIdSubmit",
+        "requestBody": {
+          "content": {
+            "application/cose": {
+              "schema": {
+                "$ref": "#/components/schemas/Cose"
+              }
+            }
+          },
+          "description": "Auto-generated request body schema",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GovProposal"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "summary": "Submit a ballot",
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/always"
+        }
+      }
+    },
+    "/gov/members/proposals/{proposalId}:withdraw": {
+      "parameters": [
+        {
+          "in": "path",
+          "name": "proposalId",
+          "required": true,
+          "schema": {
+            "pattern": "^[a-f0-9]{64}$",
+            "type": "string"
+          }
+        },
+        {
+          "description": "Optional selector for the API implemented by this CCF build. 'latest' is a moving alias and does not identify a frozen API contract.",
+          "in": "query",
+          "name": "api-version",
+          "required": false,
+          "schema": {
+            "default": "latest",
+            "enum": [
+              "latest"
+            ],
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "operationId": "PostGovMembersProposalsProposalIdWithdraw",
+        "requestBody": {
+          "content": {
+            "application/cose": {
+              "schema": {
+                "$ref": "#/components/schemas/Cose"
+              }
+            }
+          },
+          "description": "Auto-generated request body schema",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GovProposal"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "204": {
+            "description": "The proposal no longer exists."
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "summary": "Withdraw a governance proposal",
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/always"
+        }
+      }
+    },
+    "/gov/members/proposals:create": {
+      "parameters": [
+        {
+          "description": "Optional selector for the API implemented by this CCF build. 'latest' is a moving alias and does not identify a frozen API contract.",
+          "in": "query",
+          "name": "api-version",
+          "required": false,
+          "schema": {
+            "default": "latest",
+            "enum": [
+              "latest"
+            ],
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "operationId": "PostGovMembersProposalsCreate",
+        "requestBody": {
+          "content": {
+            "application/cose": {
+              "schema": {
+                "$ref": "#/components/schemas/Cose"
+              }
+            }
+          },
+          "description": "Auto-generated request body schema",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GovProposal"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "summary": "Create a governance proposal",
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/always"
+        }
+      }
+    },
+    "/gov/members/state-digests/{memberId}": {
+      "get": {
+        "operationId": "GetGovMembersStateDigestsMemberId",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GovStateDigest"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "summary": "Get a member's state digest",
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "memberId",
+          "required": true,
+          "schema": {
+            "pattern": "^[a-f0-9]{64}$",
+            "type": "string"
+          }
+        },
+        {
+          "description": "Optional selector for the API implemented by this CCF build. 'latest' is a moving alias and does not identify a frozen API contract.",
+          "in": "query",
+          "name": "api-version",
+          "required": false,
+          "schema": {
+            "default": "latest",
+            "enum": [
+              "latest"
+            ],
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "/gov/members/state-digests/{memberId}:ack": {
+      "parameters": [
+        {
+          "in": "path",
+          "name": "memberId",
+          "required": true,
+          "schema": {
+            "pattern": "^[a-f0-9]{64}$",
+            "type": "string"
+          }
+        },
+        {
+          "description": "Optional selector for the API implemented by this CCF build. 'latest' is a moving alias and does not identify a frozen API contract.",
+          "in": "query",
+          "name": "api-version",
+          "required": false,
+          "schema": {
+            "default": "latest",
+            "enum": [
+              "latest"
+            ],
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "operationId": "PostGovMembersStateDigestsMemberIdAck",
+        "requestBody": {
+          "content": {
+            "application/cose": {
+              "schema": {
+                "$ref": "#/components/schemas/Cose"
+              }
+            }
+          },
+          "description": "Auto-generated request body schema",
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "summary": "Acknowledge a member's state digest",
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/always"
+        }
+      }
+    },
+    "/gov/members/state-digests/{memberId}:update": {
+      "parameters": [
+        {
+          "in": "path",
+          "name": "memberId",
+          "required": true,
+          "schema": {
+            "pattern": "^[a-f0-9]{64}$",
+            "type": "string"
+          }
+        },
+        {
+          "description": "Optional selector for the API implemented by this CCF build. 'latest' is a moving alias and does not identify a frozen API contract.",
+          "in": "query",
+          "name": "api-version",
+          "required": false,
+          "schema": {
+            "default": "latest",
+            "enum": [
+              "latest"
+            ],
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "operationId": "PostGovMembersStateDigestsMemberIdUpdate",
+        "requestBody": {
+          "content": {
+            "application/cose": {
+              "schema": {
+                "$ref": "#/components/schemas/Cose"
+              }
+            }
+          },
+          "description": "Auto-generated request body schema",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GovStateDigest"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "summary": "Update a member's state digest",
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/always"
+        }
+      }
+    },
+    "/gov/receipt": {
+      "get": {
+        "description": "A signed statement from the service over a transaction entry in the ledger",
+        "operationId": "GetGovReceipt",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "transaction_id",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/TransactionId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/json"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "202": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/string"
+                }
+              }
+            },
+            "description": "The transaction is not yet available. The response describes why and the Retry-After header indicates when to retry."
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "summary": "Receipt for a transaction",
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      },
+      "parameters": [
+        {
+          "description": "Optional selector for the API implemented by this CCF build. 'latest' is a moving alias and does not identify a frozen API contract.",
+          "in": "query",
+          "name": "api-version",
+          "required": false,
+          "schema": {
+            "default": "latest",
+            "enum": [
+              "latest"
+            ],
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "/gov/receipt/cose": {
+      "get": {
+        "description": "A COSE Sign1 envelope containing a signed statement from the service over a transaction entry in the ledger, with a Merkle proof in the unprotected header. See https://datatracker.ietf.org/doc/draft-ietf-scitt-receipts-ccf-profile/ for a complete description.",
+        "operationId": "GetGovReceiptCose",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "transaction_id",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/TransactionId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/cose": {
+                "schema": {
+                  "$ref": "#/components/schemas/Cose"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "202": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/string"
+                }
+              }
+            },
+            "description": "The transaction is not yet available. The response describes why and the Retry-After header indicates when to retry."
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "summary": "COSE receipt for a transaction",
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      },
+      "parameters": [
+        {
+          "description": "Optional selector for the API implemented by this CCF build. 'latest' is a moving alias and does not identify a frozen API contract.",
+          "in": "query",
+          "name": "api-version",
+          "required": false,
+          "schema": {
+            "default": "latest",
+            "enum": [
+              "latest"
+            ],
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "/gov/recovery/encrypted-shares/{memberId}": {
+      "get": {
+        "operationId": "GetGovRecoveryEncryptedSharesMemberId",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GovEncryptedRecoveryShare"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "summary": "Get an encrypted recovery share",
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "memberId",
+          "required": true,
+          "schema": {
+            "pattern": "^[a-f0-9]{64}$",
+            "type": "string"
+          }
+        },
+        {
+          "description": "Optional selector for the API implemented by this CCF build. 'latest' is a moving alias and does not identify a frozen API contract.",
+          "in": "query",
+          "name": "api-version",
+          "required": false,
+          "schema": {
+            "default": "latest",
+            "enum": [
+              "latest"
+            ],
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "/gov/recovery/members/{memberId}:recover": {
+      "parameters": [
+        {
+          "in": "path",
+          "name": "memberId",
+          "required": true,
+          "schema": {
+            "pattern": "^[a-f0-9]{64}$",
+            "type": "string"
+          }
+        },
+        {
+          "description": "Optional selector for the API implemented by this CCF build. 'latest' is a moving alias and does not identify a frozen API contract.",
+          "in": "query",
+          "name": "api-version",
+          "required": false,
+          "schema": {
+            "default": "latest",
+            "enum": [
+              "latest"
+            ],
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "operationId": "PostGovRecoveryMembersMemberIdRecover",
+        "requestBody": {
+          "content": {
+            "application/cose": {
+              "schema": {
+                "$ref": "#/components/schemas/Cose"
+              }
+            }
+          },
+          "description": "Auto-generated request body schema",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GovRecoveryResponse"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "summary": "Submit a recovery share",
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/always"
+        }
+      }
+    },
+    "/gov/service/constitution": {
+      "get": {
+        "operationId": "GetGovServiceConstitution",
+        "responses": {
+          "200": {
+            "content": {
+              "text/javascript": {
+                "schema": {
+                  "$ref": "#/components/schemas/Javascript"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "summary": "Get the service constitution",
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      },
+      "parameters": [
+        {
+          "description": "Optional selector for the API implemented by this CCF build. 'latest' is a moving alias and does not identify a frozen API contract.",
+          "in": "query",
+          "name": "api-version",
+          "required": false,
+          "schema": {
+            "default": "latest",
+            "enum": [
+              "latest"
+            ],
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "/gov/service/info": {
+      "get": {
+        "operationId": "GetGovServiceInfo",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GovServiceInfo"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "summary": "Get service information",
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      },
+      "parameters": [
+        {
+          "description": "Optional selector for the API implemented by this CCF build. 'latest' is a moving alias and does not identify a frozen API contract.",
+          "in": "query",
+          "name": "api-version",
+          "required": false,
+          "schema": {
+            "default": "latest",
+            "enum": [
+              "latest"
+            ],
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "/gov/service/javascript-app": {
+      "get": {
+        "operationId": "GetGovServiceJavascriptApp",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "case",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/GovJavascriptAppCase"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GovJavascriptApp"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "summary": "Get the installed JavaScript application",
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      },
+      "parameters": [
+        {
+          "description": "Optional selector for the API implemented by this CCF build. 'latest' is a moving alias and does not identify a frozen API contract.",
+          "in": "query",
+          "name": "api-version",
+          "required": false,
+          "schema": {
+            "default": "latest",
+            "enum": [
+              "latest"
+            ],
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "/gov/service/javascript-modules": {
+      "get": {
+        "operationId": "GetGovServiceJavascriptModules",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GovJavascriptModules"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "summary": "List JavaScript modules",
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      },
+      "parameters": [
+        {
+          "description": "Optional selector for the API implemented by this CCF build. 'latest' is a moving alias and does not identify a frozen API contract.",
+          "in": "query",
+          "name": "api-version",
+          "required": false,
+          "schema": {
+            "default": "latest",
+            "enum": [
+              "latest"
+            ],
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "/gov/service/javascript-modules/{moduleName}": {
+      "get": {
+        "operationId": "GetGovServiceJavascriptModulesModuleName",
+        "responses": {
+          "200": {
+            "content": {
+              "text/javascript": {
+                "schema": {
+                  "$ref": "#/components/schemas/Javascript"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "summary": "Get a JavaScript module",
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "moduleName",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "description": "Optional selector for the API implemented by this CCF build. 'latest' is a moving alias and does not identify a frozen API contract.",
+          "in": "query",
+          "name": "api-version",
+          "required": false,
+          "schema": {
+            "default": "latest",
+            "enum": [
+              "latest"
+            ],
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "/gov/service/join-policy": {
+      "get": {
+        "operationId": "GetGovServiceJoinPolicy",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GovJoinPolicy"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "summary": "Get the service join policy",
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      },
+      "parameters": [
+        {
+          "description": "Optional selector for the API implemented by this CCF build. 'latest' is a moving alias and does not identify a frozen API contract.",
+          "in": "query",
+          "name": "api-version",
+          "required": false,
+          "schema": {
+            "default": "latest",
+            "enum": [
+              "latest"
+            ],
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "/gov/service/jwk": {
+      "get": {
+        "operationId": "GetGovServiceJwk",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GovJwkInfo"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "summary": "Get accepted JWT issuers and keys",
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      },
+      "parameters": [
+        {
+          "description": "Optional selector for the API implemented by this CCF build. 'latest' is a moving alias and does not identify a frozen API contract.",
+          "in": "query",
+          "name": "api-version",
+          "required": false,
+          "schema": {
+            "default": "latest",
+            "enum": [
+              "latest"
+            ],
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "/gov/service/members": {
+      "get": {
+        "operationId": "GetGovServiceMembers",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GovMemberList"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "summary": "List consortium members",
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      },
+      "parameters": [
+        {
+          "description": "Optional selector for the API implemented by this CCF build. 'latest' is a moving alias and does not identify a frozen API contract.",
+          "in": "query",
+          "name": "api-version",
+          "required": false,
+          "schema": {
+            "default": "latest",
+            "enum": [
+              "latest"
+            ],
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "/gov/service/members/{memberId}": {
+      "get": {
+        "operationId": "GetGovServiceMembersMemberId",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GovMember"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "summary": "Get a consortium member",
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "memberId",
+          "required": true,
+          "schema": {
+            "pattern": "^[a-f0-9]{64}$",
+            "type": "string"
+          }
+        },
+        {
+          "description": "Optional selector for the API implemented by this CCF build. 'latest' is a moving alias and does not identify a frozen API contract.",
+          "in": "query",
+          "name": "api-version",
+          "required": false,
+          "schema": {
+            "default": "latest",
+            "enum": [
+              "latest"
+            ],
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "/gov/service/nodes": {
+      "get": {
+        "operationId": "GetGovServiceNodes",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GovNodeList"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "summary": "List service nodes",
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      },
+      "parameters": [
+        {
+          "description": "Optional selector for the API implemented by this CCF build. 'latest' is a moving alias and does not identify a frozen API contract.",
+          "in": "query",
+          "name": "api-version",
+          "required": false,
+          "schema": {
+            "default": "latest",
+            "enum": [
+              "latest"
+            ],
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "/gov/service/nodes/{nodeId}": {
+      "get": {
+        "operationId": "GetGovServiceNodesNodeId",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GovNode"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "summary": "Get a service node",
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "nodeId",
+          "required": true,
+          "schema": {
+            "pattern": "^[a-f0-9]{64}$",
+            "type": "string"
+          }
+        },
+        {
+          "description": "Optional selector for the API implemented by this CCF build. 'latest' is a moving alias and does not identify a frozen API contract.",
+          "in": "query",
+          "name": "api-version",
+          "required": false,
+          "schema": {
+            "default": "latest",
+            "enum": [
+              "latest"
+            ],
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "/gov/service/transactions/commit": {
+      "get": {
+        "operationId": "GetGovServiceTransactionsCommit",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GovTransaction"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "summary": "Get the latest committed transaction",
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      },
+      "parameters": [
+        {
+          "description": "Optional selector for the API implemented by this CCF build. 'latest' is a moving alias and does not identify a frozen API contract.",
+          "in": "query",
+          "name": "api-version",
+          "required": false,
+          "schema": {
+            "default": "latest",
+            "enum": [
+              "latest"
+            ],
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "/gov/service/transactions/{transactionId}": {
+      "get": {
+        "operationId": "GetGovServiceTransactionsTransactionId",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GovTransaction"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "summary": "Get transaction status",
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "transactionId",
+          "required": true,
+          "schema": {
+            "pattern": "^[0-9]+\\.[0-9]+$",
+            "type": "string"
+          }
+        },
+        {
+          "description": "Optional selector for the API implemented by this CCF build. 'latest' is a moving alias and does not identify a frozen API contract.",
+          "in": "query",
+          "name": "api-version",
+          "required": false,
+          "schema": {
+            "default": "latest",
+            "enum": [
+              "latest"
+            ],
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "/gov/service/users": {
+      "get": {
+        "operationId": "GetGovServiceUsers",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GovUserList"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "summary": "List application users",
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      },
+      "parameters": [
+        {
+          "description": "Optional selector for the API implemented by this CCF build. 'latest' is a moving alias and does not identify a frozen API contract.",
+          "in": "query",
+          "name": "api-version",
+          "required": false,
+          "schema": {
+            "default": "latest",
+            "enum": [
+              "latest"
+            ],
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "/gov/service/users/{userId}": {
+      "get": {
+        "operationId": "GetGovServiceUsersUserId",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GovUser"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "summary": "Get an application user",
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "userId",
+          "required": true,
+          "schema": {
+            "pattern": "^[a-f0-9]{64}$",
+            "type": "string"
+          }
+        },
+        {
+          "description": "Optional selector for the API implemented by this CCF build. 'latest' is a moving alias and does not identify a frozen API contract.",
+          "in": "query",
+          "name": "api-version",
+          "required": false,
+          "schema": {
+            "default": "latest",
+            "enum": [
+              "latest"
+            ],
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "/gov/tx": {
+      "get": {
+        "description": "Possible statuses returned are Unknown, Pending, Committed or Invalid.",
+        "operationId": "GetGovTx",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "transaction_id",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/TransactionId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetTxStatus__Out"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "summary": "Current status of a transaction",
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      },
+      "parameters": [
+        {
+          "description": "Optional selector for the API implemented by this CCF build. 'latest' is a moving alias and does not identify a frozen API contract.",
+          "in": "query",
+          "name": "api-version",
+          "required": false,
+          "schema": {
+            "default": "latest",
+            "enum": [
+              "latest"
+            ],
+            "type": "string"
+          }
+        }
+      ]
+    }
+  },
+  "servers": []
+}

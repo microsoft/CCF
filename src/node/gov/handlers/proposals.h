@@ -9,6 +9,7 @@
 #include "js/checks.h"
 #include "js/extensions/ccf/network.h"
 #include "js/extensions/ccf/node.h"
+#include "node/gov/api_types.h"
 #include "node/gov/api_version.h"
 #include "node/gov/handlers/helpers.h"
 
@@ -416,7 +417,7 @@ namespace ccf::gov::endpoints
       {
         case ApiVersion::preview_v1:
         case ApiVersion::v1:
-        default:
+        case ApiVersion::Latest:
         {
           const auto& cose_ident =
             ctx.template get_caller<ccf::MemberCOSESign1AuthnIdentity>();
@@ -676,7 +677,8 @@ namespace ccf::gov::endpoints
         HTTP_POST,
         api_version_adapter(create_proposal),
         detail::active_member_sig_only_policies("proposal"))
-      .set_openapi_hidden(true)
+      .set_auto_schema<ds::openapi::Cose, api::Proposal>()
+      .set_openapi_summary("Create a governance proposal")
       .install();
 
     auto withdraw_proposal = [&](auto& ctx, ApiVersion api_version) {
@@ -684,7 +686,7 @@ namespace ccf::gov::endpoints
       {
         case ApiVersion::preview_v1:
         case ApiVersion::v1:
-        default:
+        case ApiVersion::Latest:
         {
           const auto& cose_ident =
             ctx.template get_caller<ccf::MemberCOSESign1AuthnIdentity>();
@@ -771,7 +773,10 @@ namespace ccf::gov::endpoints
         HTTP_POST,
         api_version_adapter(withdraw_proposal),
         detail::active_member_sig_only_policies("withdrawal"))
-      .set_openapi_hidden(true)
+      .set_auto_schema<ds::openapi::Cose, api::Proposal>()
+      .add_openapi_response<void>(
+        HTTP_STATUS_NO_CONTENT, "The proposal no longer exists.")
+      .set_openapi_summary("Withdraw a governance proposal")
       .install();
 
     auto get_proposal = [&](auto& ctx, ApiVersion api_version) {
@@ -779,7 +784,7 @@ namespace ccf::gov::endpoints
       {
         case ApiVersion::preview_v1:
         case ApiVersion::v1:
-        default:
+        case ApiVersion::Latest:
         {
           ccf::ProposalId proposal_id;
           if (!detail::try_parse_proposal_id(ctx.rpc_ctx, proposal_id))
@@ -815,7 +820,8 @@ namespace ccf::gov::endpoints
         HTTP_GET,
         api_version_adapter(get_proposal),
         no_auth_required)
-      .set_openapi_hidden(true)
+      .set_auto_schema<void, api::Proposal>()
+      .set_openapi_summary("Get a governance proposal")
       .install();
 
     auto list_proposals = [&](auto& ctx, ApiVersion api_version) {
@@ -823,7 +829,7 @@ namespace ccf::gov::endpoints
       {
         case ApiVersion::preview_v1:
         case ApiVersion::v1:
-        default:
+        case ApiVersion::Latest:
         {
           auto proposal_info_handle =
             ctx.tx.template ro<ccf::jsgov::ProposalInfoMap>(
@@ -853,7 +859,8 @@ namespace ccf::gov::endpoints
         HTTP_GET,
         api_version_adapter(list_proposals),
         no_auth_required)
-      .set_openapi_hidden(true)
+      .set_auto_schema<void, api::ProposalList>()
+      .set_openapi_summary("List governance proposals")
       .install();
 
     auto get_actions = [&](auto& ctx, ApiVersion api_version) {
@@ -861,7 +868,7 @@ namespace ccf::gov::endpoints
       {
         case ApiVersion::preview_v1:
         case ApiVersion::v1:
-        default:
+        case ApiVersion::Latest:
         {
           ccf::ProposalId proposal_id;
           if (!detail::try_parse_proposal_id(ctx.rpc_ctx, proposal_id))
@@ -885,6 +892,8 @@ namespace ccf::gov::endpoints
 
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
           ctx.rpc_ctx->set_response_body(proposal.value());
+          ctx.rpc_ctx->set_response_header(
+            http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
           return;
           break;
         }
@@ -896,7 +905,8 @@ namespace ccf::gov::endpoints
         HTTP_GET,
         api_version_adapter(get_actions),
         no_auth_required)
-      .set_openapi_hidden(true)
+      .set_auto_schema<void, api::ProposalActions>()
+      .set_openapi_summary("Get a proposal's actions")
       .install();
 
     //// implementation of TSP interface Ballots
@@ -907,7 +917,7 @@ namespace ccf::gov::endpoints
       {
         case ApiVersion::preview_v1:
         case ApiVersion::v1:
-        default:
+        case ApiVersion::Latest:
         {
           const auto& cose_ident =
             ctx.template get_caller<ccf::MemberCOSESign1AuthnIdentity>();
@@ -1069,7 +1079,8 @@ namespace ccf::gov::endpoints
         HTTP_POST,
         api_version_adapter(submit_ballot),
         detail::active_member_sig_only_policies("ballot"))
-      .set_openapi_hidden(true)
+      .set_auto_schema<ds::openapi::Cose, api::Proposal>()
+      .set_openapi_summary("Submit a ballot")
       .install();
 
     auto get_ballot = [&](auto& ctx, ApiVersion api_version) {
@@ -1077,7 +1088,7 @@ namespace ccf::gov::endpoints
       {
         case ApiVersion::preview_v1:
         case ApiVersion::v1:
-        default:
+        case ApiVersion::Latest:
         {
           ccf::ProposalId proposal_id;
           if (!detail::try_parse_proposal_id(ctx.rpc_ctx, proposal_id))
@@ -1140,7 +1151,8 @@ namespace ccf::gov::endpoints
         HTTP_GET,
         api_version_adapter(get_ballot),
         no_auth_required)
-      .set_openapi_hidden(true)
+      .set_auto_schema<void, ds::openapi::Javascript>()
+      .set_openapi_summary("Get a member's ballot")
       .install();
   }
 }

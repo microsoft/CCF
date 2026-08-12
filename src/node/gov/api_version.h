@@ -15,23 +15,37 @@ namespace ccf::gov::endpoints
     MIN = preview_v1,
 
     v1,
+
+    Latest,
   };
 
   static constexpr std::pair<ApiVersion, char const*> api_version_strings[] = {
     {ApiVersion::preview_v1, "2023-06-01-preview"},
-    {ApiVersion::v1, "2024-07-01"}};
+    {ApiVersion::v1, "2024-07-01"},
+    {ApiVersion::Latest, "latest"}};
+
+  enum class MissingApiVersionPolicy
+  {
+    Reject,
+    UseLatest,
+  };
+
+  inline bool is_api_version_accepted(
+    ApiVersion api_version, ApiVersion min_accepted)
+  {
+    return api_version == ApiVersion::Latest || api_version >= min_accepted;
+  }
 
   inline std::optional<ApiVersion> get_api_version(
     ccf::endpoints::CommandEndpointContext& ctx,
     ApiVersion min_accepted,
-    // Optional out-parameter indicating why API version wasn't found
-    const char** error_code = nullptr)
+    MissingApiVersionPolicy missing_policy = MissingApiVersionPolicy::Reject)
   {
     std::string accepted_versions_suffix = "The supported api-versions are: ";
     auto first = true;
     for (const auto& p : api_version_strings)
     {
-      if (p.first < min_accepted)
+      if (!is_api_version_accepted(p.first, min_accepted))
       {
         continue;
       }
@@ -53,18 +67,19 @@ namespace ccf::gov::endpoints
     const auto qit = parsed_query.find(param_name);
     if (qit == parsed_query.end())
     {
+      if (missing_policy == MissingApiVersionPolicy::UseLatest)
+      {
+        return ApiVersion::Latest;
+      }
+
       ctx.rpc_ctx->set_error(
         HTTP_STATUS_BAD_REQUEST,
         ccf::errors::MissingApiVersionParameter,
         fmt::format(
-          "The api-version query parameter (?{}=) is required for all "
-          "requests. {}",
+          "The api-version query parameter (?{}=) is required for this "
+          "request. {}",
           param_name,
           accepted_versions_suffix));
-      if (error_code != nullptr)
-      {
-        *error_code = ccf::errors::MissingApiVersionParameter;
-      }
       return std::nullopt;
     }
 
@@ -72,7 +87,9 @@ namespace ccf::gov::endpoints
       std::begin(api_version_strings),
       std::end(api_version_strings),
       [&qit](const auto& p) { return p.second == qit->second; });
-    if (it == std::end(api_version_strings) || it->first < min_accepted)
+    if (
+      it == std::end(api_version_strings) ||
+      !is_api_version_accepted(it->first, min_accepted))
     {
       auto message = fmt::format(
         "Unsupported api-version '{}'. {}",
@@ -82,26 +99,24 @@ namespace ccf::gov::endpoints
         HTTP_STATUS_BAD_REQUEST,
         ccf::errors::UnsupportedApiVersionValue,
         std::move(message));
-      if (error_code != nullptr)
-      {
-        *error_code = ccf::errors::UnsupportedApiVersionValue;
-      }
       return std::nullopt;
     }
 
     return it->first;
   }
 
-  // Extracts api-version from query parameter, and passes this to the given
-  // functor. Will return error responses for missing and unknown api-versions.
-  // This means handler functors can safely provide a default implementation
-  // without validating the given API version, so long as the behaviour is the
-  // same for *all* accepted versions.
+  // Extracts api-version from the query parameter, using Latest when it is
+  // omitted, and passes this to the given functor. Unknown api-versions produce
+  // an error response.
   template <typename Fn>
-  auto api_version_adapter(Fn&& f, ApiVersion min_accepted = ApiVersion::MIN)
+  auto api_version_adapter(
+    Fn&& f,
+    ApiVersion min_accepted = ApiVersion::MIN,
+    MissingApiVersionPolicy missing_policy = MissingApiVersionPolicy::UseLatest)
   {
-    return [f = std::forward<Fn>(f), min_accepted](auto& ctx) {
-      const auto api_version = get_api_version(ctx, min_accepted);
+    return [f = std::forward<Fn>(f), min_accepted, missing_policy](auto& ctx) {
+      const auto api_version =
+        get_api_version(ctx, min_accepted, missing_policy);
       if (api_version.has_value())
       {
         f(ctx, api_version.value());
