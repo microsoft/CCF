@@ -4,7 +4,6 @@
 
 #include "ccf/base_endpoint_registry.h"
 #include "ccf/ds/json.h"
-#include "node/gov/api_types.h"
 #include "node/gov/api_version.h"
 #include "node/gov/handlers/helpers.h"
 #include "node/history.h"
@@ -13,6 +12,18 @@
 
 namespace ccf::gov::endpoints
 {
+  namespace api
+  {
+    struct StateDigest
+    {
+      ccf::MemberId member_id;
+      std::string state_digest;
+    };
+    DECLARE_JSON_TYPE(StateDigest);
+    DECLARE_JSON_REQUIRED_FIELDS_WITH_RENAMES(
+      StateDigest, member_id, "memberId", state_digest, "stateDigest");
+  }
+
   // NOLINTNEXTLINE(readability-function-cognitive-complexity)
   inline void init_ack_handlers(
     ccf::BaseEndpointRegistry& registry,
@@ -58,9 +69,7 @@ namespace ccf::gov::endpoints
             return;
           }
 
-          auto response_body = nlohmann::json::object();
-          response_body["memberId"] = member_id_str;
-          response_body["stateDigest"] = ack->state_digest;
+          const api::StateDigest response_body{member_id, ack->state_digest};
           ctx.rpc_ctx->set_response_json(response_body, HTTP_STATUS_OK);
           return;
         }
@@ -148,9 +157,7 @@ namespace ccf::gov::endpoints
           ack.state_digest = history.get_root().hex_str();
           acks_handle->put(member_id, ack);
 
-          auto body = nlohmann::json::object();
-          body["memberId"] = member_id_str;
-          body["stateDigest"] = ack.state_digest;
+          const api::StateDigest body{member_id, ack.state_digest};
           ctx.rpc_ctx->set_response_json(body, HTTP_STATUS_OK);
           return;
         }

@@ -4,13 +4,47 @@
 
 #include "ccf/base_endpoint_registry.h"
 #include "ccf/ds/json.h"
-#include "node/gov/api_types.h"
 #include "node/gov/api_version.h"
 #include "node/gov/handlers/helpers.h"
 #include "node/share_manager.h"
 
 namespace ccf::gov::endpoints
 {
+  namespace api
+  {
+    struct EncryptedRecoveryShare
+    {
+      ccf::MemberId member_id;
+      std::string encrypted_share;
+    };
+    DECLARE_JSON_TYPE(EncryptedRecoveryShare);
+    DECLARE_JSON_REQUIRED_FIELDS_WITH_RENAMES(
+      EncryptedRecoveryShare,
+      member_id,
+      "memberId",
+      encrypted_share,
+      "encryptedShare");
+
+    struct RecoveryResponse
+    {
+      std::string message;
+      size_t submitted_count = 0;
+      size_t recovery_threshold = 0;
+      bool full_key_submitted = false;
+    };
+    DECLARE_JSON_TYPE(RecoveryResponse);
+    DECLARE_JSON_REQUIRED_FIELDS_WITH_RENAMES(
+      RecoveryResponse,
+      message,
+      "message",
+      submitted_count,
+      "submittedCount",
+      recovery_threshold,
+      "recoveryThreshold",
+      full_key_submitted,
+      "fullKeySubmitted");
+  }
+
   inline void init_recovery_handlers(
     ccf::BaseEndpointRegistry& registry,
     ShareManager& share_manager,
@@ -44,10 +78,8 @@ namespace ccf::gov::endpoints
               return;
             }
 
-            auto response_body = nlohmann::json::object();
-            response_body["memberId"] = member_id;
-            response_body["encryptedShare"] =
-              ccf::crypto::b64_from_raw(encrypted_share.value());
+            const api::EncryptedRecoveryShare response_body{
+              member_id, ccf::crypto::b64_from_raw(encrypted_share.value())};
 
             ctx.rpc_ctx->set_response_json(response_body, HTTP_STATUS_OK);
             return;
@@ -206,11 +238,8 @@ namespace ccf::gov::endpoints
             }
           }
 
-          auto response_body = nlohmann::json::object();
-          response_body["message"] = message;
-          response_body["submittedCount"] = submitted_shares_count;
-          response_body["recoveryThreshold"] = threshold;
-          response_body["fullKeySubmitted"] = full_key_submitted;
+          const api::RecoveryResponse response_body{
+            message, submitted_shares_count, threshold, full_key_submitted};
 
           ctx.rpc_ctx->set_response_json(response_body, HTTP_STATUS_OK);
           return;

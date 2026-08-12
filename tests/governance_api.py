@@ -10,14 +10,26 @@ from loguru import logger as LOG  # type: ignore
 def test_api_service_state(network, args):
     primary, _ = network.find_primary()
 
+    # The network validator may be loaded with a dated schema, while these two
+    # requests deliberately exercise the unversioned and latest APIs.
     with primary.client() as unversioned_client:
-        unversioned_service_info = unversioned_client.get("/gov/service/info")
+        unversioned_service_info = unversioned_client.get(
+            "/gov/service/info", validate_openapi=False
+        )
         assert unversioned_service_info.status_code == 200, unversioned_service_info
 
-    with primary.api_versioned_client(api_version=args.gov_api_version) as c:
-        latest_service_info = c.get("/gov/service/info")
+    with primary.api_versioned_client(
+        api_version=infra.clients.API_VERSION_LATEST
+    ) as latest_client:
+        latest_service_info = latest_client.get(
+            "/gov/service/info", validate_openapi=False
+        )
         assert latest_service_info.status_code == 200, latest_service_info
         assert latest_service_info.body.json() == unversioned_service_info.body.json()
+
+    with primary.api_versioned_client(api_version=args.gov_api_version) as c:
+        selected_service_info = c.get("/gov/service/info")
+        assert selected_service_info.status_code == 200, selected_service_info
 
         LOG.info("/gov/service/join-policy endpoint")
         r = c.get("/gov/service/join-policy")

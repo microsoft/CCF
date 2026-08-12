@@ -13,6 +13,17 @@
       }
     },
     "schemas": {
+      "BasicJoinPolicy": {
+        "properties": {
+          "measurements": {
+            "$ref": "#/components/schemas/string_array"
+          }
+        },
+        "required": [
+          "measurements"
+        ],
+        "type": "object"
+      },
       "CCFError": {
         "properties": {
           "error": {
@@ -34,6 +45,35 @@
       "Cose": {
         "format": "binary",
         "type": "string"
+      },
+      "EncryptedRecoveryShare": {
+        "properties": {
+          "encryptedShare": {
+            "$ref": "#/components/schemas/string"
+          },
+          "memberId": {
+            "$ref": "#/components/schemas/MemberId"
+          }
+        },
+        "required": [
+          "memberId",
+          "encryptedShare"
+        ],
+        "type": "object"
+      },
+      "Failure": {
+        "properties": {
+          "reason": {
+            "$ref": "#/components/schemas/string"
+          },
+          "trace": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "type": "object"
       },
       "GetCommit__Out": {
         "properties": {
@@ -64,30 +104,13 @@
         ],
         "type": "object"
       },
-      "GovEncryptedRecoveryShare": {
-        "properties": {
-          "encryptedShare": {
-            "format": "byte",
-            "type": "string"
-          },
-          "memberId": {
-            "pattern": "^[a-f0-9]{64}$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "memberId",
-          "encryptedShare"
-        ],
-        "type": "object"
+      "Javascript": {
+        "type": "string"
       },
-      "GovJavascriptApp": {
+      "JavascriptApp": {
         "properties": {
           "endpoints": {
-            "additionalProperties": {
-              "type": "object"
-            },
-            "type": "object"
+            "$ref": "#/components/schemas/json"
           }
         },
         "required": [
@@ -95,27 +118,33 @@
         ],
         "type": "object"
       },
-      "GovJavascriptAppCase": {
+      "JavascriptAppCase": {
         "enum": [
           "original"
         ],
         "type": "string"
       },
-      "GovJavascriptModules": {
+      "JavascriptModule": {
+        "properties": {
+          "moduleName": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "required": [
+          "moduleName"
+        ],
+        "type": "object"
+      },
+      "JavascriptModule_array": {
+        "items": {
+          "$ref": "#/components/schemas/JavascriptModule"
+        },
+        "type": "array"
+      },
+      "JavascriptModules": {
         "properties": {
           "value": {
-            "items": {
-              "properties": {
-                "moduleName": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "moduleName"
-              ],
-              "type": "object"
-            },
-            "type": "array"
+            "$ref": "#/components/schemas/JavascriptModule_array"
           }
         },
         "required": [
@@ -123,75 +152,16 @@
         ],
         "type": "object"
       },
-      "GovJoinPolicy": {
+      "JoinPolicy": {
         "properties": {
           "sgx": {
-            "properties": {
-              "measurements": {
-                "items": {
-                  "format": "hex",
-                  "type": "string"
-                },
-                "type": "array"
-              }
-            },
-            "required": [
-              "measurements"
-            ],
-            "type": "object"
+            "$ref": "#/components/schemas/BasicJoinPolicy"
           },
           "snp": {
-            "properties": {
-              "hostData": {
-                "additionalProperties": {
-                  "type": "string"
-                },
-                "type": "object"
-              },
-              "measurements": {
-                "items": {
-                  "format": "hex",
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              "tcbVersions": {
-                "type": "object"
-              },
-              "uvmEndorsements": {
-                "type": "object"
-              }
-            },
-            "required": [
-              "measurements",
-              "hostData",
-              "uvmEndorsements",
-              "tcbVersions"
-            ],
-            "type": "object"
+            "$ref": "#/components/schemas/SnpJoinPolicy"
           },
           "virtual": {
-            "properties": {
-              "hostData": {
-                "items": {
-                  "pattern": "^[a-f0-9]{64}$",
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              "measurements": {
-                "items": {
-                  "format": "hex",
-                  "type": "string"
-                },
-                "type": "array"
-              }
-            },
-            "required": [
-              "measurements",
-              "hostData"
-            ],
-            "type": "object"
+            "$ref": "#/components/schemas/VirtualJoinPolicy"
           }
         },
         "required": [
@@ -201,53 +171,35 @@
         ],
         "type": "object"
       },
-      "GovJwkInfo": {
+      "Jwk": {
+        "properties": {
+          "constraint": {
+            "$ref": "#/components/schemas/json"
+          },
+          "issuer": {
+            "$ref": "#/components/schemas/string"
+          },
+          "publicKey": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "required": [
+          "publicKey",
+          "issuer",
+          "constraint"
+        ],
+        "type": "object"
+      },
+      "JwkInfo": {
         "properties": {
           "caCertBundles": {
-            "additionalProperties": {
-              "type": "string"
-            },
-            "type": "object"
+            "$ref": "#/components/schemas/string_to_string"
           },
           "issuers": {
-            "additionalProperties": {
-              "properties": {
-                "autoRefresh": {
-                  "type": "boolean"
-                },
-                "caCertBundleName": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "autoRefresh"
-              ],
-              "type": "object"
-            },
-            "type": "object"
+            "$ref": "#/components/schemas/string_to_JwtIssuer"
           },
           "keys": {
-            "additionalProperties": {
-              "items": {
-                "properties": {
-                  "constraint": {},
-                  "issuer": {
-                    "type": "string"
-                  },
-                  "publicKey": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "publicKey",
-                  "issuer",
-                  "constraint"
-                ],
-                "type": "object"
-              },
-              "type": "array"
-            },
-            "type": "object"
+            "$ref": "#/components/schemas/string_to_Jwk_array"
           }
         },
         "required": [
@@ -257,33 +209,45 @@
         ],
         "type": "object"
       },
-      "GovMember": {
+      "Jwk_array": {
+        "items": {
+          "$ref": "#/components/schemas/Jwk"
+        },
+        "type": "array"
+      },
+      "JwtIssuer": {
+        "properties": {
+          "autoRefresh": {
+            "$ref": "#/components/schemas/boolean"
+          },
+          "caCertBundleName": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "required": [
+          "autoRefresh"
+        ],
+        "type": "object"
+      },
+      "Member": {
         "properties": {
           "certificate": {
-            "type": "string"
+            "$ref": "#/components/schemas/string"
           },
-          "memberData": {},
+          "memberData": {
+            "$ref": "#/components/schemas/json"
+          },
           "memberId": {
-            "pattern": "^[a-f0-9]{64}$",
-            "type": "string"
+            "$ref": "#/components/schemas/MemberId"
           },
           "publicEncryptionKey": {
-            "type": "string"
+            "$ref": "#/components/schemas/string"
           },
           "recoveryRole": {
-            "enum": [
-              "NonParticipant",
-              "Participant",
-              "Owner"
-            ],
-            "type": "string"
+            "$ref": "#/components/schemas/MemberRecoveryRole"
           },
           "status": {
-            "enum": [
-              "Accepted",
-              "Active"
-            ],
-            "type": "string"
+            "$ref": "#/components/schemas/MemberStatus"
           }
         },
         "required": [
@@ -294,47 +258,54 @@
         ],
         "type": "object"
       },
-      "GovMemberList": {
+      "MemberId": {
+        "format": "hex",
+        "pattern": "^[a-f0-9]{64}$",
+        "type": "string"
+      },
+      "MemberId_array": {
+        "items": {
+          "$ref": "#/components/schemas/MemberId"
+        },
+        "type": "array"
+      },
+      "MemberId_to_Failure": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/Failure"
+        },
+        "type": "object"
+      },
+      "MemberId_to_boolean": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/boolean"
+        },
+        "type": "object"
+      },
+      "MemberRecoveryRole": {
+        "enum": [
+          "NonParticipant",
+          "Participant",
+          "Owner"
+        ],
+        "type": "string"
+      },
+      "MemberStatus": {
+        "enum": [
+          "Accepted",
+          "Active"
+        ],
+        "type": "string"
+      },
+      "Member_array": {
+        "items": {
+          "$ref": "#/components/schemas/Member"
+        },
+        "type": "array"
+      },
+      "Members": {
         "properties": {
           "value": {
-            "items": {
-              "properties": {
-                "certificate": {
-                  "type": "string"
-                },
-                "memberData": {},
-                "memberId": {
-                  "pattern": "^[a-f0-9]{64}$",
-                  "type": "string"
-                },
-                "publicEncryptionKey": {
-                  "type": "string"
-                },
-                "recoveryRole": {
-                  "enum": [
-                    "NonParticipant",
-                    "Participant",
-                    "Owner"
-                  ],
-                  "type": "string"
-                },
-                "status": {
-                  "enum": [
-                    "Accepted",
-                    "Active"
-                  ],
-                  "type": "string"
-                }
-              },
-              "required": [
-                "memberId",
-                "status",
-                "memberData",
-                "recoveryRole"
-              ],
-              "type": "object"
-            },
-            "type": "array"
+            "$ref": "#/components/schemas/Member_array"
           }
         },
         "required": [
@@ -342,77 +313,42 @@
         ],
         "type": "object"
       },
-      "GovNode": {
+      "NetworkInterface": {
+        "properties": {
+          "protocol": {
+            "$ref": "#/components/schemas/string"
+          },
+          "publishedAddress": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "required": [
+          "publishedAddress"
+        ],
+        "type": "object"
+      },
+      "Node": {
         "properties": {
           "certificate": {
-            "type": "string"
+            "$ref": "#/components/schemas/string"
           },
-          "nodeData": {},
+          "nodeData": {
+            "$ref": "#/components/schemas/json"
+          },
           "nodeId": {
-            "pattern": "^[a-f0-9]{64}$",
-            "type": "string"
+            "$ref": "#/components/schemas/NodeId"
           },
           "quoteInfo": {
-            "properties": {
-              "details": {
-                "type": "object"
-              },
-              "endorsedTcb": {
-                "type": "string"
-              },
-              "endorsements": {
-                "type": "string"
-              },
-              "format": {
-                "enum": [
-                  "OE_SGX_v1",
-                  "Insecure_Virtual",
-                  "AMD_SEV_SNP_v1"
-                ],
-                "type": "string"
-              },
-              "quote": {
-                "type": "string"
-              },
-              "rawQuote": {
-                "type": "string"
-              },
-              "uvmEndorsements": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "format"
-            ],
-            "type": "object"
+            "$ref": "#/components/schemas/json"
           },
           "retiredCommitted": {
-            "type": "boolean"
+            "$ref": "#/components/schemas/boolean"
           },
           "rpcInterfaces": {
-            "additionalProperties": {
-              "properties": {
-                "protocol": {
-                  "type": "string"
-                },
-                "publishedAddress": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "publishedAddress"
-              ],
-              "type": "object"
-            },
-            "type": "object"
+            "$ref": "#/components/schemas/string_to_NetworkInterface"
           },
           "status": {
-            "enum": [
-              "Pending",
-              "Trusted",
-              "Retired"
-            ],
-            "type": "string"
+            "$ref": "#/components/schemas/NodeStatus"
           }
         },
         "required": [
@@ -425,93 +361,29 @@
         ],
         "type": "object"
       },
-      "GovNodeList": {
+      "NodeId": {
+        "format": "hex",
+        "pattern": "^[a-f0-9]{64}$",
+        "type": "string"
+      },
+      "NodeStatus": {
+        "enum": [
+          "Pending",
+          "Trusted",
+          "Retired"
+        ],
+        "type": "string"
+      },
+      "Node_array": {
+        "items": {
+          "$ref": "#/components/schemas/Node"
+        },
+        "type": "array"
+      },
+      "Nodes": {
         "properties": {
           "value": {
-            "items": {
-              "properties": {
-                "certificate": {
-                  "type": "string"
-                },
-                "nodeData": {},
-                "nodeId": {
-                  "pattern": "^[a-f0-9]{64}$",
-                  "type": "string"
-                },
-                "quoteInfo": {
-                  "properties": {
-                    "details": {
-                      "type": "object"
-                    },
-                    "endorsedTcb": {
-                      "type": "string"
-                    },
-                    "endorsements": {
-                      "type": "string"
-                    },
-                    "format": {
-                      "enum": [
-                        "OE_SGX_v1",
-                        "Insecure_Virtual",
-                        "AMD_SEV_SNP_v1"
-                      ],
-                      "type": "string"
-                    },
-                    "quote": {
-                      "type": "string"
-                    },
-                    "rawQuote": {
-                      "type": "string"
-                    },
-                    "uvmEndorsements": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "format"
-                  ],
-                  "type": "object"
-                },
-                "retiredCommitted": {
-                  "type": "boolean"
-                },
-                "rpcInterfaces": {
-                  "additionalProperties": {
-                    "properties": {
-                      "protocol": {
-                        "type": "string"
-                      },
-                      "publishedAddress": {
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "publishedAddress"
-                    ],
-                    "type": "object"
-                  },
-                  "type": "object"
-                },
-                "status": {
-                  "enum": [
-                    "Pending",
-                    "Trusted",
-                    "Retired"
-                  ],
-                  "type": "string"
-                }
-              },
-              "required": [
-                "nodeId",
-                "status",
-                "nodeData",
-                "retiredCommitted",
-                "quoteInfo",
-                "rpcInterfaces"
-              ],
-              "type": "object"
-            },
-            "type": "array"
+            "$ref": "#/components/schemas/Node_array"
           }
         },
         "required": [
@@ -519,74 +391,31 @@
         ],
         "type": "object"
       },
-      "GovProposal": {
+      "Proposal": {
         "properties": {
           "ballotCount": {
-            "minimum": 0,
-            "type": "integer"
+            "$ref": "#/components/schemas/uint64"
           },
           "ballotSubmitters": {
-            "items": {
-              "pattern": "^[a-f0-9]{64}$",
-              "type": "string"
-            },
-            "type": "array"
+            "$ref": "#/components/schemas/MemberId_array"
           },
           "failure": {
-            "properties": {
-              "reason": {
-                "type": "string"
-              },
-              "trace": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "reason"
-            ],
-            "type": "object"
+            "$ref": "#/components/schemas/Failure"
           },
           "finalVotes": {
-            "additionalProperties": {
-              "type": "boolean"
-            },
-            "type": "object"
+            "$ref": "#/components/schemas/MemberId_to_boolean"
           },
           "proposalId": {
-            "pattern": "^[a-f0-9]{64}$",
-            "type": "string"
+            "$ref": "#/components/schemas/string"
           },
           "proposalState": {
-            "enum": [
-              "Open",
-              "Accepted",
-              "Withdrawn",
-              "Rejected",
-              "Failed",
-              "Dropped"
-            ],
-            "type": "string"
+            "$ref": "#/components/schemas/ProposalState"
           },
           "proposerId": {
-            "pattern": "^[a-f0-9]{64}$",
-            "type": "string"
+            "$ref": "#/components/schemas/MemberId"
           },
           "voteFailures": {
-            "additionalProperties": {
-              "properties": {
-                "reason": {
-                  "type": "string"
-                },
-                "trace": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "reason"
-              ],
-              "type": "object"
-            },
-            "type": "object"
+            "$ref": "#/components/schemas/MemberId_to_Failure"
           }
         },
         "required": [
@@ -598,22 +427,30 @@
         ],
         "type": "object"
       },
-      "GovProposalActions": {
+      "ProposalAction": {
+        "properties": {
+          "args": {
+            "$ref": "#/components/schemas/json"
+          },
+          "name": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
+      "ProposalAction_array": {
+        "items": {
+          "$ref": "#/components/schemas/ProposalAction"
+        },
+        "type": "array"
+      },
+      "ProposalActions": {
         "properties": {
           "actions": {
-            "items": {
-              "properties": {
-                "args": {},
-                "name": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "name"
-              ],
-              "type": "object"
-            },
-            "type": "array"
+            "$ref": "#/components/schemas/ProposalAction_array"
           }
         },
         "required": [
@@ -621,89 +458,10 @@
         ],
         "type": "object"
       },
-      "GovProposalList": {
+      "ProposalList": {
         "properties": {
           "value": {
-            "items": {
-              "properties": {
-                "ballotCount": {
-                  "minimum": 0,
-                  "type": "integer"
-                },
-                "ballotSubmitters": {
-                  "items": {
-                    "pattern": "^[a-f0-9]{64}$",
-                    "type": "string"
-                  },
-                  "type": "array"
-                },
-                "failure": {
-                  "properties": {
-                    "reason": {
-                      "type": "string"
-                    },
-                    "trace": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "reason"
-                  ],
-                  "type": "object"
-                },
-                "finalVotes": {
-                  "additionalProperties": {
-                    "type": "boolean"
-                  },
-                  "type": "object"
-                },
-                "proposalId": {
-                  "pattern": "^[a-f0-9]{64}$",
-                  "type": "string"
-                },
-                "proposalState": {
-                  "enum": [
-                    "Open",
-                    "Accepted",
-                    "Withdrawn",
-                    "Rejected",
-                    "Failed",
-                    "Dropped"
-                  ],
-                  "type": "string"
-                },
-                "proposerId": {
-                  "pattern": "^[a-f0-9]{64}$",
-                  "type": "string"
-                },
-                "voteFailures": {
-                  "additionalProperties": {
-                    "properties": {
-                      "reason": {
-                        "type": "string"
-                      },
-                      "trace": {
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "reason"
-                    ],
-                    "type": "object"
-                  },
-                  "type": "object"
-                }
-              },
-              "required": [
-                "proposalId",
-                "proposerId",
-                "proposalState",
-                "ballotCount",
-                "ballotSubmitters"
-              ],
-              "type": "object"
-            },
-            "type": "array"
+            "$ref": "#/components/schemas/Proposal_array"
           }
         },
         "required": [
@@ -711,21 +469,36 @@
         ],
         "type": "object"
       },
-      "GovRecoveryResponse": {
+      "ProposalState": {
+        "enum": [
+          "Open",
+          "Accepted",
+          "Withdrawn",
+          "Rejected",
+          "Failed",
+          "Dropped"
+        ],
+        "type": "string"
+      },
+      "Proposal_array": {
+        "items": {
+          "$ref": "#/components/schemas/Proposal"
+        },
+        "type": "array"
+      },
+      "RecoveryResponse": {
         "properties": {
           "fullKeySubmitted": {
-            "type": "boolean"
+            "$ref": "#/components/schemas/boolean"
           },
           "message": {
-            "type": "string"
+            "$ref": "#/components/schemas/string"
           },
           "recoveryThreshold": {
-            "minimum": 0,
-            "type": "integer"
+            "$ref": "#/components/schemas/uint64"
           },
           "submittedCount": {
-            "minimum": 0,
-            "type": "integer"
+            "$ref": "#/components/schemas/uint64"
           }
         },
         "required": [
@@ -736,59 +509,51 @@
         ],
         "type": "object"
       },
-      "GovServiceInfo": {
+      "ServiceConfiguration": {
+        "properties": {
+          "maximumNodeCertificateValidityDays": {
+            "$ref": "#/components/schemas/uint64"
+          },
+          "maximumServiceCertificateValidityDays": {
+            "$ref": "#/components/schemas/uint64"
+          },
+          "recentCoseProposalsWindowSize": {
+            "$ref": "#/components/schemas/uint64"
+          },
+          "recoveryThreshold": {
+            "$ref": "#/components/schemas/uint64"
+          }
+        },
+        "required": [
+          "recoveryThreshold",
+          "maximumNodeCertificateValidityDays",
+          "maximumServiceCertificateValidityDays",
+          "recentCoseProposalsWindowSize"
+        ],
+        "type": "object"
+      },
+      "ServiceInfo": {
         "properties": {
           "certificate": {
-            "type": "string"
+            "$ref": "#/components/schemas/string"
           },
           "configuration": {
-            "properties": {
-              "maximumNodeCertificateValidityDays": {
-                "minimum": 0,
-                "type": "integer"
-              },
-              "maximumServiceCertificateValidityDays": {
-                "minimum": 0,
-                "type": "integer"
-              },
-              "recentCoseProposalsWindowSize": {
-                "minimum": 0,
-                "type": "integer"
-              },
-              "recoveryThreshold": {
-                "minimum": 0,
-                "type": "integer"
-              }
-            },
-            "required": [
-              "recoveryThreshold",
-              "maximumNodeCertificateValidityDays",
-              "maximumServiceCertificateValidityDays",
-              "recentCoseProposalsWindowSize"
-            ],
-            "type": "object"
+            "$ref": "#/components/schemas/ServiceConfiguration"
           },
           "creationTransactionId": {
-            "pattern": "^[0-9]+\\.[0-9]+$",
-            "type": "string"
+            "$ref": "#/components/schemas/TransactionId"
           },
           "previousServiceCreationTransactionId": {
-            "pattern": "^[0-9]+\\.[0-9]+$",
-            "type": "string"
+            "$ref": "#/components/schemas/TransactionId"
           },
           "recoveryCount": {
-            "minimum": 0,
-            "type": "integer"
+            "$ref": "#/components/schemas/uint64"
           },
-          "serviceData": {},
+          "serviceData": {
+            "$ref": "#/components/schemas/json"
+          },
           "status": {
-            "enum": [
-              "Opening",
-              "Open",
-              "WaitingForRecoveryShares",
-              "Recovering"
-            ],
-            "type": "string"
+            "$ref": "#/components/schemas/ServiceStatus"
           }
         },
         "required": [
@@ -799,15 +564,45 @@
         ],
         "type": "object"
       },
-      "GovStateDigest": {
+      "ServiceStatus": {
+        "enum": [
+          "Opening",
+          "Open",
+          "WaitingForRecoveryShares",
+          "Recovering"
+        ],
+        "type": "string"
+      },
+      "SnpJoinPolicy": {
+        "properties": {
+          "hostData": {
+            "$ref": "#/components/schemas/string_to_string"
+          },
+          "measurements": {
+            "$ref": "#/components/schemas/string_array"
+          },
+          "tcbVersions": {
+            "$ref": "#/components/schemas/string_to_TcbVersionPolicy"
+          },
+          "uvmEndorsements": {
+            "$ref": "#/components/schemas/string_to_string_to_UVMEndorsementsData"
+          }
+        },
+        "required": [
+          "measurements",
+          "hostData",
+          "uvmEndorsements",
+          "tcbVersions"
+        ],
+        "type": "object"
+      },
+      "StateDigest": {
         "properties": {
           "memberId": {
-            "pattern": "^[a-f0-9]{64}$",
-            "type": "string"
+            "$ref": "#/components/schemas/MemberId"
           },
           "stateDigest": {
-            "pattern": "^[a-f0-9]{64}$",
-            "type": "string"
+            "$ref": "#/components/schemas/string"
           }
         },
         "required": [
@@ -816,20 +611,36 @@
         ],
         "type": "object"
       },
-      "GovTransaction": {
+      "TcbVersionPolicy": {
+        "properties": {
+          "boot_loader": {
+            "$ref": "#/components/schemas/uint32"
+          },
+          "fmc": {
+            "$ref": "#/components/schemas/uint32"
+          },
+          "hexstring": {
+            "$ref": "#/components/schemas/string"
+          },
+          "microcode": {
+            "$ref": "#/components/schemas/uint32"
+          },
+          "snp": {
+            "$ref": "#/components/schemas/uint32"
+          },
+          "tee": {
+            "$ref": "#/components/schemas/uint32"
+          }
+        },
+        "type": "object"
+      },
+      "Transaction": {
         "properties": {
           "status": {
-            "enum": [
-              "Unknown",
-              "Pending",
-              "Committed",
-              "Invalid"
-            ],
-            "type": "string"
+            "$ref": "#/components/schemas/TxStatus"
           },
           "transactionId": {
-            "pattern": "^[0-9]+\\.[0-9]+$",
-            "type": "string"
+            "$ref": "#/components/schemas/TransactionId"
           }
         },
         "required": [
@@ -837,56 +648,6 @@
           "transactionId"
         ],
         "type": "object"
-      },
-      "GovUser": {
-        "properties": {
-          "certificate": {
-            "type": "string"
-          },
-          "userData": {},
-          "userId": {
-            "pattern": "^[a-f0-9]{64}$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "userId",
-          "certificate",
-          "userData"
-        ],
-        "type": "object"
-      },
-      "GovUserList": {
-        "properties": {
-          "value": {
-            "items": {
-              "properties": {
-                "certificate": {
-                  "type": "string"
-                },
-                "userData": {},
-                "userId": {
-                  "pattern": "^[a-f0-9]{64}$",
-                  "type": "string"
-                }
-              },
-              "required": [
-                "userId",
-                "certificate",
-                "userData"
-              ],
-              "type": "object"
-            },
-            "type": "array"
-          }
-        },
-        "required": [
-          "value"
-        ],
-        "type": "object"
-      },
-      "Javascript": {
-        "type": "string"
       },
       "TransactionId": {
         "pattern": "^[0-9]+\\.[0-9]+$",
@@ -907,12 +668,132 @@
         ],
         "type": "string"
       },
+      "UVMEndorsementsData": {
+        "properties": {
+          "svn": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "required": [
+          "svn"
+        ],
+        "type": "object"
+      },
+      "User": {
+        "properties": {
+          "certificate": {
+            "$ref": "#/components/schemas/string"
+          },
+          "userData": {
+            "$ref": "#/components/schemas/json"
+          },
+          "userId": {
+            "$ref": "#/components/schemas/UserId"
+          }
+        },
+        "required": [
+          "userId",
+          "certificate",
+          "userData"
+        ],
+        "type": "object"
+      },
+      "UserId": {
+        "format": "hex",
+        "pattern": "^[a-f0-9]{64}$",
+        "type": "string"
+      },
+      "User_array": {
+        "items": {
+          "$ref": "#/components/schemas/User"
+        },
+        "type": "array"
+      },
+      "Users": {
+        "properties": {
+          "value": {
+            "$ref": "#/components/schemas/User_array"
+          }
+        },
+        "required": [
+          "value"
+        ],
+        "type": "object"
+      },
+      "VirtualJoinPolicy": {
+        "properties": {
+          "hostData": {
+            "$ref": "#/components/schemas/string_array"
+          },
+          "measurements": {
+            "$ref": "#/components/schemas/string_array"
+          }
+        },
+        "required": [
+          "measurements",
+          "hostData"
+        ],
+        "type": "object"
+      },
       "boolean": {
         "type": "boolean"
       },
       "json": {},
       "string": {
         "type": "string"
+      },
+      "string_array": {
+        "items": {
+          "$ref": "#/components/schemas/string"
+        },
+        "type": "array"
+      },
+      "string_to_Jwk_array": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/Jwk_array"
+        },
+        "type": "object"
+      },
+      "string_to_JwtIssuer": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/JwtIssuer"
+        },
+        "type": "object"
+      },
+      "string_to_NetworkInterface": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/NetworkInterface"
+        },
+        "type": "object"
+      },
+      "string_to_TcbVersionPolicy": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/TcbVersionPolicy"
+        },
+        "type": "object"
+      },
+      "string_to_UVMEndorsementsData": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/UVMEndorsementsData"
+        },
+        "type": "object"
+      },
+      "string_to_string": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/string"
+        },
+        "type": "object"
+      },
+      "string_to_string_to_UVMEndorsementsData": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/string_to_UVMEndorsementsData"
+        },
+        "type": "object"
+      },
+      "uint32": {
+        "maximum": 4294967295,
+        "minimum": 0,
+        "type": "integer"
       },
       "uint64": {
         "maximum": 18446744073709551615,
@@ -967,15 +848,12 @@
       },
       "parameters": [
         {
-          "description": "Optional selector for the API implemented by this CCF build. 'latest' is a moving alias and does not identify a frozen API contract.",
+          "description": "Optional API selector. 'latest' selects the API implemented by this CCF build and does not identify a frozen contract. Dated versions select frozen compatibility contracts while they remain supported.",
           "in": "query",
           "name": "api-version",
           "required": false,
           "schema": {
             "default": "latest",
-            "enum": [
-              "latest"
-            ],
             "type": "string"
           }
         }
@@ -1025,15 +903,12 @@
       },
       "parameters": [
         {
-          "description": "Optional selector for the API implemented by this CCF build. 'latest' is a moving alias and does not identify a frozen API contract.",
+          "description": "Optional API selector. 'latest' selects the API implemented by this CCF build and does not identify a frozen contract. Dated versions select frozen compatibility contracts while they remain supported.",
           "in": "query",
           "name": "api-version",
           "required": false,
           "schema": {
             "default": "latest",
-            "enum": [
-              "latest"
-            ],
             "type": "string"
           }
         }
@@ -1047,7 +922,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GovProposalList"
+                  "$ref": "#/components/schemas/ProposalList"
                 }
               }
             },
@@ -1064,15 +939,12 @@
       },
       "parameters": [
         {
-          "description": "Optional selector for the API implemented by this CCF build. 'latest' is a moving alias and does not identify a frozen API contract.",
+          "description": "Optional API selector. 'latest' selects the API implemented by this CCF build and does not identify a frozen contract. Dated versions select frozen compatibility contracts while they remain supported.",
           "in": "query",
           "name": "api-version",
           "required": false,
           "schema": {
             "default": "latest",
-            "enum": [
-              "latest"
-            ],
             "type": "string"
           }
         }
@@ -1086,7 +958,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GovProposal"
+                  "$ref": "#/components/schemas/Proposal"
                 }
               }
             },
@@ -1112,15 +984,12 @@
           }
         },
         {
-          "description": "Optional selector for the API implemented by this CCF build. 'latest' is a moving alias and does not identify a frozen API contract.",
+          "description": "Optional API selector. 'latest' selects the API implemented by this CCF build and does not identify a frozen contract. Dated versions select frozen compatibility contracts while they remain supported.",
           "in": "query",
           "name": "api-version",
           "required": false,
           "schema": {
             "default": "latest",
-            "enum": [
-              "latest"
-            ],
             "type": "string"
           }
         }
@@ -1134,7 +1003,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GovProposalActions"
+                  "$ref": "#/components/schemas/ProposalActions"
                 }
               }
             },
@@ -1160,15 +1029,12 @@
           }
         },
         {
-          "description": "Optional selector for the API implemented by this CCF build. 'latest' is a moving alias and does not identify a frozen API contract.",
+          "description": "Optional API selector. 'latest' selects the API implemented by this CCF build and does not identify a frozen contract. Dated versions select frozen compatibility contracts while they remain supported.",
           "in": "query",
           "name": "api-version",
           "required": false,
           "schema": {
             "default": "latest",
-            "enum": [
-              "latest"
-            ],
             "type": "string"
           }
         }
@@ -1217,15 +1083,12 @@
           }
         },
         {
-          "description": "Optional selector for the API implemented by this CCF build. 'latest' is a moving alias and does not identify a frozen API contract.",
+          "description": "Optional API selector. 'latest' selects the API implemented by this CCF build and does not identify a frozen contract. Dated versions select frozen compatibility contracts while they remain supported.",
           "in": "query",
           "name": "api-version",
           "required": false,
           "schema": {
             "default": "latest",
-            "enum": [
-              "latest"
-            ],
             "type": "string"
           }
         }
@@ -1252,15 +1115,12 @@
           }
         },
         {
-          "description": "Optional selector for the API implemented by this CCF build. 'latest' is a moving alias and does not identify a frozen API contract.",
+          "description": "Optional API selector. 'latest' selects the API implemented by this CCF build and does not identify a frozen contract. Dated versions select frozen compatibility contracts while they remain supported.",
           "in": "query",
           "name": "api-version",
           "required": false,
           "schema": {
             "default": "latest",
-            "enum": [
-              "latest"
-            ],
             "type": "string"
           }
         }
@@ -1283,7 +1143,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GovProposal"
+                  "$ref": "#/components/schemas/Proposal"
                 }
               }
             },
@@ -1311,15 +1171,12 @@
           }
         },
         {
-          "description": "Optional selector for the API implemented by this CCF build. 'latest' is a moving alias and does not identify a frozen API contract.",
+          "description": "Optional API selector. 'latest' selects the API implemented by this CCF build and does not identify a frozen contract. Dated versions select frozen compatibility contracts while they remain supported.",
           "in": "query",
           "name": "api-version",
           "required": false,
           "schema": {
             "default": "latest",
-            "enum": [
-              "latest"
-            ],
             "type": "string"
           }
         }
@@ -1342,7 +1199,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GovProposal"
+                  "$ref": "#/components/schemas/Proposal"
                 }
               }
             },
@@ -1364,15 +1221,12 @@
     "/gov/members/proposals:create": {
       "parameters": [
         {
-          "description": "Optional selector for the API implemented by this CCF build. 'latest' is a moving alias and does not identify a frozen API contract.",
+          "description": "Optional API selector. 'latest' selects the API implemented by this CCF build and does not identify a frozen contract. Dated versions select frozen compatibility contracts while they remain supported.",
           "in": "query",
           "name": "api-version",
           "required": false,
           "schema": {
             "default": "latest",
-            "enum": [
-              "latest"
-            ],
             "type": "string"
           }
         }
@@ -1395,7 +1249,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GovProposal"
+                  "$ref": "#/components/schemas/Proposal"
                 }
               }
             },
@@ -1419,7 +1273,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GovStateDigest"
+                  "$ref": "#/components/schemas/StateDigest"
                 }
               }
             },
@@ -1445,15 +1299,12 @@
           }
         },
         {
-          "description": "Optional selector for the API implemented by this CCF build. 'latest' is a moving alias and does not identify a frozen API contract.",
+          "description": "Optional API selector. 'latest' selects the API implemented by this CCF build and does not identify a frozen contract. Dated versions select frozen compatibility contracts while they remain supported.",
           "in": "query",
           "name": "api-version",
           "required": false,
           "schema": {
             "default": "latest",
-            "enum": [
-              "latest"
-            ],
             "type": "string"
           }
         }
@@ -1471,15 +1322,12 @@
           }
         },
         {
-          "description": "Optional selector for the API implemented by this CCF build. 'latest' is a moving alias and does not identify a frozen API contract.",
+          "description": "Optional API selector. 'latest' selects the API implemented by this CCF build and does not identify a frozen contract. Dated versions select frozen compatibility contracts while they remain supported.",
           "in": "query",
           "name": "api-version",
           "required": false,
           "schema": {
             "default": "latest",
-            "enum": [
-              "latest"
-            ],
             "type": "string"
           }
         }
@@ -1523,15 +1371,12 @@
           }
         },
         {
-          "description": "Optional selector for the API implemented by this CCF build. 'latest' is a moving alias and does not identify a frozen API contract.",
+          "description": "Optional API selector. 'latest' selects the API implemented by this CCF build and does not identify a frozen contract. Dated versions select frozen compatibility contracts while they remain supported.",
           "in": "query",
           "name": "api-version",
           "required": false,
           "schema": {
             "default": "latest",
-            "enum": [
-              "latest"
-            ],
             "type": "string"
           }
         }
@@ -1554,7 +1399,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GovStateDigest"
+                  "$ref": "#/components/schemas/StateDigest"
                 }
               }
             },
@@ -1616,15 +1461,12 @@
       },
       "parameters": [
         {
-          "description": "Optional selector for the API implemented by this CCF build. 'latest' is a moving alias and does not identify a frozen API contract.",
+          "description": "Optional API selector. 'latest' selects the API implemented by this CCF build and does not identify a frozen contract. Dated versions select frozen compatibility contracts while they remain supported.",
           "in": "query",
           "name": "api-version",
           "required": false,
           "schema": {
             "default": "latest",
-            "enum": [
-              "latest"
-            ],
             "type": "string"
           }
         }
@@ -1676,15 +1518,12 @@
       },
       "parameters": [
         {
-          "description": "Optional selector for the API implemented by this CCF build. 'latest' is a moving alias and does not identify a frozen API contract.",
+          "description": "Optional API selector. 'latest' selects the API implemented by this CCF build and does not identify a frozen contract. Dated versions select frozen compatibility contracts while they remain supported.",
           "in": "query",
           "name": "api-version",
           "required": false,
           "schema": {
             "default": "latest",
-            "enum": [
-              "latest"
-            ],
             "type": "string"
           }
         }
@@ -1698,7 +1537,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GovEncryptedRecoveryShare"
+                  "$ref": "#/components/schemas/EncryptedRecoveryShare"
                 }
               }
             },
@@ -1724,15 +1563,12 @@
           }
         },
         {
-          "description": "Optional selector for the API implemented by this CCF build. 'latest' is a moving alias and does not identify a frozen API contract.",
+          "description": "Optional API selector. 'latest' selects the API implemented by this CCF build and does not identify a frozen contract. Dated versions select frozen compatibility contracts while they remain supported.",
           "in": "query",
           "name": "api-version",
           "required": false,
           "schema": {
             "default": "latest",
-            "enum": [
-              "latest"
-            ],
             "type": "string"
           }
         }
@@ -1750,15 +1586,12 @@
           }
         },
         {
-          "description": "Optional selector for the API implemented by this CCF build. 'latest' is a moving alias and does not identify a frozen API contract.",
+          "description": "Optional API selector. 'latest' selects the API implemented by this CCF build and does not identify a frozen contract. Dated versions select frozen compatibility contracts while they remain supported.",
           "in": "query",
           "name": "api-version",
           "required": false,
           "schema": {
             "default": "latest",
-            "enum": [
-              "latest"
-            ],
             "type": "string"
           }
         }
@@ -1781,7 +1614,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GovRecoveryResponse"
+                  "$ref": "#/components/schemas/RecoveryResponse"
                 }
               }
             },
@@ -1822,15 +1655,12 @@
       },
       "parameters": [
         {
-          "description": "Optional selector for the API implemented by this CCF build. 'latest' is a moving alias and does not identify a frozen API contract.",
+          "description": "Optional API selector. 'latest' selects the API implemented by this CCF build and does not identify a frozen contract. Dated versions select frozen compatibility contracts while they remain supported.",
           "in": "query",
           "name": "api-version",
           "required": false,
           "schema": {
             "default": "latest",
-            "enum": [
-              "latest"
-            ],
             "type": "string"
           }
         }
@@ -1844,7 +1674,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GovServiceInfo"
+                  "$ref": "#/components/schemas/ServiceInfo"
                 }
               }
             },
@@ -1861,15 +1691,12 @@
       },
       "parameters": [
         {
-          "description": "Optional selector for the API implemented by this CCF build. 'latest' is a moving alias and does not identify a frozen API contract.",
+          "description": "Optional API selector. 'latest' selects the API implemented by this CCF build and does not identify a frozen contract. Dated versions select frozen compatibility contracts while they remain supported.",
           "in": "query",
           "name": "api-version",
           "required": false,
           "schema": {
             "default": "latest",
-            "enum": [
-              "latest"
-            ],
             "type": "string"
           }
         }
@@ -1884,7 +1711,7 @@
             "name": "case",
             "required": false,
             "schema": {
-              "$ref": "#/components/schemas/GovJavascriptAppCase"
+              "$ref": "#/components/schemas/JavascriptAppCase"
             }
           }
         ],
@@ -1893,7 +1720,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GovJavascriptApp"
+                  "$ref": "#/components/schemas/JavascriptApp"
                 }
               }
             },
@@ -1910,15 +1737,12 @@
       },
       "parameters": [
         {
-          "description": "Optional selector for the API implemented by this CCF build. 'latest' is a moving alias and does not identify a frozen API contract.",
+          "description": "Optional API selector. 'latest' selects the API implemented by this CCF build and does not identify a frozen contract. Dated versions select frozen compatibility contracts while they remain supported.",
           "in": "query",
           "name": "api-version",
           "required": false,
           "schema": {
             "default": "latest",
-            "enum": [
-              "latest"
-            ],
             "type": "string"
           }
         }
@@ -1932,7 +1756,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GovJavascriptModules"
+                  "$ref": "#/components/schemas/JavascriptModules"
                 }
               }
             },
@@ -1949,15 +1773,12 @@
       },
       "parameters": [
         {
-          "description": "Optional selector for the API implemented by this CCF build. 'latest' is a moving alias and does not identify a frozen API contract.",
+          "description": "Optional API selector. 'latest' selects the API implemented by this CCF build and does not identify a frozen contract. Dated versions select frozen compatibility contracts while they remain supported.",
           "in": "query",
           "name": "api-version",
           "required": false,
           "schema": {
             "default": "latest",
-            "enum": [
-              "latest"
-            ],
             "type": "string"
           }
         }
@@ -1996,15 +1817,12 @@
           }
         },
         {
-          "description": "Optional selector for the API implemented by this CCF build. 'latest' is a moving alias and does not identify a frozen API contract.",
+          "description": "Optional API selector. 'latest' selects the API implemented by this CCF build and does not identify a frozen contract. Dated versions select frozen compatibility contracts while they remain supported.",
           "in": "query",
           "name": "api-version",
           "required": false,
           "schema": {
             "default": "latest",
-            "enum": [
-              "latest"
-            ],
             "type": "string"
           }
         }
@@ -2018,7 +1836,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GovJoinPolicy"
+                  "$ref": "#/components/schemas/JoinPolicy"
                 }
               }
             },
@@ -2035,15 +1853,12 @@
       },
       "parameters": [
         {
-          "description": "Optional selector for the API implemented by this CCF build. 'latest' is a moving alias and does not identify a frozen API contract.",
+          "description": "Optional API selector. 'latest' selects the API implemented by this CCF build and does not identify a frozen contract. Dated versions select frozen compatibility contracts while they remain supported.",
           "in": "query",
           "name": "api-version",
           "required": false,
           "schema": {
             "default": "latest",
-            "enum": [
-              "latest"
-            ],
             "type": "string"
           }
         }
@@ -2057,7 +1872,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GovJwkInfo"
+                  "$ref": "#/components/schemas/JwkInfo"
                 }
               }
             },
@@ -2074,15 +1889,12 @@
       },
       "parameters": [
         {
-          "description": "Optional selector for the API implemented by this CCF build. 'latest' is a moving alias and does not identify a frozen API contract.",
+          "description": "Optional API selector. 'latest' selects the API implemented by this CCF build and does not identify a frozen contract. Dated versions select frozen compatibility contracts while they remain supported.",
           "in": "query",
           "name": "api-version",
           "required": false,
           "schema": {
             "default": "latest",
-            "enum": [
-              "latest"
-            ],
             "type": "string"
           }
         }
@@ -2096,7 +1908,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GovMemberList"
+                  "$ref": "#/components/schemas/Members"
                 }
               }
             },
@@ -2113,15 +1925,12 @@
       },
       "parameters": [
         {
-          "description": "Optional selector for the API implemented by this CCF build. 'latest' is a moving alias and does not identify a frozen API contract.",
+          "description": "Optional API selector. 'latest' selects the API implemented by this CCF build and does not identify a frozen contract. Dated versions select frozen compatibility contracts while they remain supported.",
           "in": "query",
           "name": "api-version",
           "required": false,
           "schema": {
             "default": "latest",
-            "enum": [
-              "latest"
-            ],
             "type": "string"
           }
         }
@@ -2135,7 +1944,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GovMember"
+                  "$ref": "#/components/schemas/Member"
                 }
               }
             },
@@ -2161,15 +1970,12 @@
           }
         },
         {
-          "description": "Optional selector for the API implemented by this CCF build. 'latest' is a moving alias and does not identify a frozen API contract.",
+          "description": "Optional API selector. 'latest' selects the API implemented by this CCF build and does not identify a frozen contract. Dated versions select frozen compatibility contracts while they remain supported.",
           "in": "query",
           "name": "api-version",
           "required": false,
           "schema": {
             "default": "latest",
-            "enum": [
-              "latest"
-            ],
             "type": "string"
           }
         }
@@ -2183,7 +1989,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GovNodeList"
+                  "$ref": "#/components/schemas/Nodes"
                 }
               }
             },
@@ -2200,15 +2006,12 @@
       },
       "parameters": [
         {
-          "description": "Optional selector for the API implemented by this CCF build. 'latest' is a moving alias and does not identify a frozen API contract.",
+          "description": "Optional API selector. 'latest' selects the API implemented by this CCF build and does not identify a frozen contract. Dated versions select frozen compatibility contracts while they remain supported.",
           "in": "query",
           "name": "api-version",
           "required": false,
           "schema": {
             "default": "latest",
-            "enum": [
-              "latest"
-            ],
             "type": "string"
           }
         }
@@ -2222,7 +2025,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GovNode"
+                  "$ref": "#/components/schemas/Node"
                 }
               }
             },
@@ -2248,15 +2051,12 @@
           }
         },
         {
-          "description": "Optional selector for the API implemented by this CCF build. 'latest' is a moving alias and does not identify a frozen API contract.",
+          "description": "Optional API selector. 'latest' selects the API implemented by this CCF build and does not identify a frozen contract. Dated versions select frozen compatibility contracts while they remain supported.",
           "in": "query",
           "name": "api-version",
           "required": false,
           "schema": {
             "default": "latest",
-            "enum": [
-              "latest"
-            ],
             "type": "string"
           }
         }
@@ -2270,7 +2070,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GovTransaction"
+                  "$ref": "#/components/schemas/Transaction"
                 }
               }
             },
@@ -2287,15 +2087,12 @@
       },
       "parameters": [
         {
-          "description": "Optional selector for the API implemented by this CCF build. 'latest' is a moving alias and does not identify a frozen API contract.",
+          "description": "Optional API selector. 'latest' selects the API implemented by this CCF build and does not identify a frozen contract. Dated versions select frozen compatibility contracts while they remain supported.",
           "in": "query",
           "name": "api-version",
           "required": false,
           "schema": {
             "default": "latest",
-            "enum": [
-              "latest"
-            ],
             "type": "string"
           }
         }
@@ -2309,7 +2106,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GovTransaction"
+                  "$ref": "#/components/schemas/Transaction"
                 }
               }
             },
@@ -2335,15 +2132,12 @@
           }
         },
         {
-          "description": "Optional selector for the API implemented by this CCF build. 'latest' is a moving alias and does not identify a frozen API contract.",
+          "description": "Optional API selector. 'latest' selects the API implemented by this CCF build and does not identify a frozen contract. Dated versions select frozen compatibility contracts while they remain supported.",
           "in": "query",
           "name": "api-version",
           "required": false,
           "schema": {
             "default": "latest",
-            "enum": [
-              "latest"
-            ],
             "type": "string"
           }
         }
@@ -2357,7 +2151,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GovUserList"
+                  "$ref": "#/components/schemas/Users"
                 }
               }
             },
@@ -2374,15 +2168,12 @@
       },
       "parameters": [
         {
-          "description": "Optional selector for the API implemented by this CCF build. 'latest' is a moving alias and does not identify a frozen API contract.",
+          "description": "Optional API selector. 'latest' selects the API implemented by this CCF build and does not identify a frozen contract. Dated versions select frozen compatibility contracts while they remain supported.",
           "in": "query",
           "name": "api-version",
           "required": false,
           "schema": {
             "default": "latest",
-            "enum": [
-              "latest"
-            ],
             "type": "string"
           }
         }
@@ -2396,7 +2187,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GovUser"
+                  "$ref": "#/components/schemas/User"
                 }
               }
             },
@@ -2422,15 +2213,12 @@
           }
         },
         {
-          "description": "Optional selector for the API implemented by this CCF build. 'latest' is a moving alias and does not identify a frozen API contract.",
+          "description": "Optional API selector. 'latest' selects the API implemented by this CCF build and does not identify a frozen contract. Dated versions select frozen compatibility contracts while they remain supported.",
           "in": "query",
           "name": "api-version",
           "required": false,
           "schema": {
             "default": "latest",
-            "enum": [
-              "latest"
-            ],
             "type": "string"
           }
         }
@@ -2472,15 +2260,12 @@
       },
       "parameters": [
         {
-          "description": "Optional selector for the API implemented by this CCF build. 'latest' is a moving alias and does not identify a frozen API contract.",
+          "description": "Optional API selector. 'latest' selects the API implemented by this CCF build and does not identify a frozen contract. Dated versions select frozen compatibility contracts while they remain supported.",
           "in": "query",
           "name": "api-version",
           "required": false,
           "schema": {
             "default": "latest",
-            "enum": [
-              "latest"
-            ],
             "type": "string"
           }
         }

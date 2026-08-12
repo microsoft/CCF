@@ -24,7 +24,7 @@ namespace ccf::gov::endpoints
     {ApiVersion::v1, "2024-07-01"},
     {ApiVersion::Latest, "latest"}};
 
-  enum class MissingApiVersionPolicy
+  enum class MissingApiVersionPolicy : uint8_t
   {
     Reject,
     UseLatest,

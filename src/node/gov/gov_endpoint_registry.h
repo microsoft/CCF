@@ -58,20 +58,19 @@ namespace ccf
         {"in", "query"},
         {"required", false},
         {"description",
-         "Optional selector for the API implemented by this CCF build. "
-         "'latest' is a moving alias and does not identify a frozen API "
-         "contract."},
+         "Optional API selector. 'latest' selects the API implemented by this "
+         "CCF build and does not identify a frozen contract. Dated versions "
+         "select frozen compatibility contracts while they remain supported."},
         {"schema",
          {
            {"type", "string"},
-           {"enum", nlohmann::json::array({"latest"})},
            {"default", "latest"},
          }}};
 
-      for (auto& [path, path_item] : document["paths"].items())
+      for (const auto& [path, path_item] : document["paths"].items())
       {
         (void)path;
-        for (auto& [method, operation] : path_item.items())
+        for (const auto& [method, operation] : path_item.items())
         {
           (void)method;
           if (operation.is_object())

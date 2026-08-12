@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
-- Governance endpoints now select the API implemented by the running CCF build when `api-version` is omitted or set to `latest`. `GET /gov/api` returns an auto-generated OpenAPI document for this moving API, while dated `api-version` values continue to return their frozen documents. (#XXXX)
+- Governance endpoints now select the API implemented by the running CCF build when `api-version` is omitted or set to `latest`. `GET /gov/api` returns an auto-generated OpenAPI document for this moving API, while dated `api-version` values continue to return their frozen documents. (#8147)
 
 ### Added
 
