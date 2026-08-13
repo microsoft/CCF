@@ -59,6 +59,7 @@ def negotiate_group(address, groups):
             if match is not None:
                 group_id = match.group(1)
                 return GROUP_IDS.get(group_id, group_id)
+            break
 
     match = PEER_TEMP_KEY.search(output)
     if match is not None:
