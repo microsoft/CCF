@@ -645,12 +645,29 @@ class Node:
         with self.client(
             interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
         ) as c:
+
+            def get_chunk(seqno, allow_redirects):
+                try:
+                    return c.get(
+                        f"/node/ledger_chunk?since={seqno}",
+                        allow_redirects=allow_redirects,
+                    )
+                except (
+                    infra.clients.CCFConnectionException,
+                    infra.clients.CCFIOException,
+                ):
+                    # A node which does not hold a chunk redirects to another
+                    # node, which may since have been retired and stopped.
+                    # Treat that as the chunk being unavailable.
+                    return None
+
             while next_seqno <= target_seqno:
-                r = c.get(
-                    f"/node/ledger_chunk?since={next_seqno}",
-                    allow_redirects=not local_only,
-                )
-                if local_only and r.status_code == http.HTTPStatus.PERMANENT_REDIRECT:
+                r = get_chunk(next_seqno, not local_only)
+                if (
+                    local_only
+                    and r is not None
+                    and r.status_code == http.HTTPStatus.PERMANENT_REDIRECT
+                ):
                     chunk_url = urllib.parse.urlparse(r.headers["Location"])
                     if chunk_url.query:
                         if time.time() >= end_time:
@@ -663,18 +680,15 @@ class Node:
                         continue
                     r = c.get(chunk_url.path, allow_redirects=False)
 
-                if r.status_code == http.HTTPStatus.NOT_FOUND:
+                if r is None or r.status_code == http.HTTPStatus.NOT_FOUND:
                     if (
                         not local_only
                         and not ledger_paths
                         and start_seqno is None
                         and next_seqno < target_seqno
                     ):
-                        r = c.get(
-                            f"/node/ledger_chunk?since={target_seqno}",
-                            allow_redirects=True,
-                        )
-                        if r.status_code == http.HTTPStatus.OK:
+                        r = get_chunk(target_seqno, True)
+                        if r is not None and r.status_code == http.HTTPStatus.OK:
                             save_chunk(r, target_seqno)
                             return ledger_paths
 

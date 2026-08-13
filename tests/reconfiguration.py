@@ -888,7 +888,10 @@ def test_retired_nodes_stop_signing_after_retired_committed(network, args):
     primary, _ = network.find_primary()
 
     target_seqno = network.create_and_wait_for_ledger_chunk(primary)
-    ledger = primary.get_ledger_from_api(target_seqno)
+    # Only read the range this node replicated itself. Asking for earlier
+    # seqnos would be redirected to other nodes, which may since have been
+    # retired and stopped.
+    ledger = primary.get_ledger_from_api(target_seqno, local_only=True)
 
     # True once a subsequent signature has committed the retired_committed tx
     # itself: rc is then globally committed and the node's retired_committed
