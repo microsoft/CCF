@@ -271,12 +271,17 @@ namespace ccf
         struct ClearOnExit
         {
           NodeState* owner;
+          BackupSnapshotFetch* task;
           ~ClearOnExit()
           {
-            std::lock_guard<pal::Mutex> guard(owner->lock);
-            owner->backup_snapshot_fetch_task = nullptr;
+            std::lock_guard<pal::Mutex> guard(
+              owner->backup_snapshot_fetch_task_lock);
+            if (owner->backup_snapshot_fetch_task.get() == task)
+            {
+              owner->backup_snapshot_fetch_task = nullptr;
+            }
           }
-        } clear_on_exit{owner};
+        } clear_on_exit{owner, this};
 
         // Resolve the primary's RPC address
         std::string primary_address;
@@ -479,6 +484,7 @@ namespace ccf
 
     ccf::tasks::Task join_periodic_task;
     ccf::tasks::Task snapshot_fetch_task;
+    pal::Mutex backup_snapshot_fetch_task_lock;
     ccf::tasks::Task backup_snapshot_fetch_task;
 
     // Set while a join request is in flight so the periodic join timer does
@@ -3616,24 +3622,33 @@ namespace ccf
               config.snapshots.backup_fetch.enabled && consensus != nullptr &&
               !consensus->is_primary())
             {
-              std::lock_guard<pal::Mutex> guard(lock);
-              if (
-                backup_snapshot_fetch_task != nullptr &&
-                !backup_snapshot_fetch_task->is_cancelled())
+              ccf::tasks::Task task_to_schedule = nullptr;
               {
-                LOG_DEBUG_FMT(
-                  "Backup snapshot fetch already in progress, skipping");
+                std::lock_guard<pal::Mutex> guard(
+                  backup_snapshot_fetch_task_lock);
+                if (
+                  backup_snapshot_fetch_task != nullptr &&
+                  !backup_snapshot_fetch_task->is_cancelled())
+                {
+                  LOG_DEBUG_FMT(
+                    "Backup snapshot fetch already in progress, skipping");
+                }
+                else
+                {
+                  LOG_INFO_FMT(
+                    "Snapshot evidence detected on backup - scheduling "
+                    "snapshot fetch from primary (since seqno: {})",
+                    snapshot_evidence.version);
+                  backup_snapshot_fetch_task =
+                    std::make_shared<BackupSnapshotFetch>(
+                      config.snapshots, snapshot_evidence.version, this);
+                  task_to_schedule = backup_snapshot_fetch_task;
+                }
               }
-              else
+
+              if (task_to_schedule != nullptr)
               {
-                LOG_INFO_FMT(
-                  "Snapshot evidence detected on backup - scheduling "
-                  "snapshot fetch from primary (since seqno: {})",
-                  snapshot_evidence.version);
-                backup_snapshot_fetch_task =
-                  std::make_shared<BackupSnapshotFetch>(
-                    config.snapshots, snapshot_evidence.version, this);
-                ccf::tasks::add_task(backup_snapshot_fetch_task);
+                ccf::tasks::add_task(std::move(task_to_schedule));
               }
             }
           }));
