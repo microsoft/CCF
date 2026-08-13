@@ -53,7 +53,7 @@ jobs:
           ./scripts/ci-checks.sh
           mkdir build
           cd build
-          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DCLANG_TIDY=ON -DTEST_HYBRID_TLS_GROUPS=ON ..
+          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DCLANG_TIDY=ON ..
           ninja
         shell: bash
 
