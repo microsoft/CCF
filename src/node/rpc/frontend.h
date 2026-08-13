@@ -1159,7 +1159,10 @@ namespace ccf
 
     void tick(std::chrono::milliseconds elapsed) override
     {
-      endpoints.tick(elapsed);
+      if (is_open_.load(std::memory_order_acquire))
+      {
+        endpoints.tick(elapsed);
+      }
     }
   };
 }

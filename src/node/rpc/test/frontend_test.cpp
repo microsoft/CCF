@@ -494,6 +494,7 @@ class BlockingUserEndpointRegistry : public UserEndpointRegistry
 
 public:
   std::atomic<size_t> init_count{0};
+  std::atomic<size_t> tick_count{0};
 
   BlockingUserEndpointRegistry(
     ccf::AbstractNodeContext& context,
@@ -510,6 +511,11 @@ public:
     init_started.count_down();
     continue_init.wait();
     UserEndpointRegistry::init_handlers();
+  }
+
+  void tick(std::chrono::milliseconds) override
+  {
+    ++tick_count;
   }
 };
 
@@ -557,12 +563,16 @@ TEST_CASE("Frontend opens atomically")
   std::thread opener([&frontend]() { frontend.open(); });
   init_started.wait();
   CHECK_FALSE(frontend.is_open());
+  frontend.tick(std::chrono::milliseconds(1));
+  CHECK(registry.tick_count.load() == 0);
   continue_init.count_down();
   opener.join();
 
   REQUIRE(frontend.is_open());
+  frontend.tick(std::chrono::milliseconds(1));
   frontend.open();
   REQUIRE(registry.init_count.load() == 1);
+  REQUIRE(registry.tick_count.load() == 1);
 }
 
 TEST_CASE("Frontend state publication is thread-safe")
