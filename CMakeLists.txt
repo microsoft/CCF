@@ -797,6 +797,11 @@ if(BUILD_TESTS)
     )
     target_link_libraries(ledger_secrets_test PRIVATE ccf_kv)
 
+    add_unit_test(
+      node_client_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/node_client.cpp
+    )
+
     add_unit_test(js_test ${CMAKE_CURRENT_SOURCE_DIR}/src/js/test/js.cpp)
     target_link_libraries(
       js_test
