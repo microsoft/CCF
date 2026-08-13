@@ -271,12 +271,17 @@ namespace ccf
         struct ClearOnExit
         {
           NodeState* owner;
+          BackupSnapshotFetch* task;
           ~ClearOnExit()
           {
-            std::lock_guard<pal::Mutex> guard(owner->lock);
-            owner->backup_snapshot_fetch_task = nullptr;
+            std::lock_guard<pal::Mutex> guard(
+              owner->backup_snapshot_fetch_task_lock);
+            if (owner->backup_snapshot_fetch_task.get() == task)
+            {
+              owner->backup_snapshot_fetch_task = nullptr;
+            }
           }
-        } clear_on_exit{owner};
+        } clear_on_exit{owner, this};
 
         // Resolve the primary's RPC address
         std::string primary_address;
@@ -412,6 +417,7 @@ namespace ccf
     std::shared_ptr<ccf::crypto::ECKeyPair_OpenSSL> node_sign_kp;
     NodeId self;
     std::shared_ptr<ccf::crypto::RSAKeyPair> node_encrypt_kp;
+    pal::Mutex node_certificates_lock;
     ccf::crypto::Pem self_signed_node_cert;
     std::optional<ccf::crypto::Pem> endorsed_node_cert = std::nullopt;
     QuoteInfo quote_info;
@@ -478,6 +484,7 @@ namespace ccf
 
     ccf::tasks::Task join_periodic_task;
     ccf::tasks::Task snapshot_fetch_task;
+    pal::Mutex backup_snapshot_fetch_task_lock;
     ccf::tasks::Task backup_snapshot_fetch_task;
 
     // Set while a join request is in flight so the periodic join timer does
@@ -1143,14 +1150,18 @@ namespace ccf
       subject_alt_names = get_subject_alternative_names();
 
       js::register_class_ids();
-      self_signed_node_cert = create_self_signed_cert(
+      const auto new_self_signed_node_cert = create_self_signed_cert(
         node_sign_kp,
         config.node_certificate.subject_name,
         subject_alt_names,
         config.startup_host_time,
         config.node_certificate.initial_validity_days);
+      {
+        std::lock_guard<pal::Mutex> cert_guard(node_certificates_lock);
+        self_signed_node_cert = new_self_signed_node_cert;
+      }
 
-      accept_node_tls_connections();
+      accept_node_tls_connections(new_self_signed_node_cert);
 
       // Signatures are only emitted on a timer once the public ledger has been
       // recovered
@@ -1175,7 +1186,7 @@ namespace ccf
           history->set_service_signing_identity(
             network.identity->get_key_pair(), config.cose_signatures);
 
-          setup_consensus(false, endorsed_node_cert);
+          setup_consensus(false);
 
           // Become the primary and force replication
           consensus->force_become_primary();
@@ -1185,14 +1196,14 @@ namespace ccf
           initiate_quote_generation();
 
           LOG_INFO_FMT("Created new node {}", self);
-          return {self_signed_node_cert, network.identity->cert};
+          return {new_self_signed_node_cert, network.identity->cert};
         }
         case StartType::Join:
         {
           initiate_quote_generation();
 
           LOG_INFO_FMT("Created join node {}", self);
-          return {self_signed_node_cert, {}};
+          return {new_self_signed_node_cert, {}};
         }
         case StartType::Recover:
         {
@@ -1215,7 +1226,7 @@ namespace ccf
           initiate_quote_generation();
 
           LOG_INFO_FMT("Created recovery node {}", self);
-          return {self_signed_node_cert, network.identity->cert};
+          return {new_self_signed_node_cert, network.identity->cert};
         }
         default:
         {
@@ -1320,10 +1331,9 @@ namespace ccf
       curl_handle.set_opt(CURLOPT_TIMEOUT, 60L);
 
       const auto client_key_pem = node_sign_kp->private_key_pem();
+      const auto self_signed_cert = get_self_signed_certificate();
       curl_handle.set_blob_opt(
-        CURLOPT_SSLCERT_BLOB,
-        self_signed_node_cert.data(),
-        self_signed_node_cert.size());
+        CURLOPT_SSLCERT_BLOB, self_signed_cert.data(), self_signed_cert.size());
       curl_handle.set_opt(CURLOPT_SSLCERTTYPE, "PEM");
       curl_handle.set_blob_opt(
         CURLOPT_SSLKEY_BLOB, client_key_pem.data(), client_key_pem.size());
@@ -1828,7 +1838,7 @@ namespace ccf
         consensus,
         rpc_map,
         node_sign_kp,
-        self_signed_node_cert,
+        get_self_signed_certificate(),
         config.jwt.key_refresh_max_response_size);
       jwt_key_auto_refresh->start();
 
@@ -2809,7 +2819,7 @@ namespace ccf
 
     ccf::crypto::Pem get_self_signed_certificate() override
     {
-      std::lock_guard<pal::Mutex> guard(lock);
+      std::lock_guard<pal::Mutex> guard(node_certificates_lock);
       return self_signed_node_cert;
     }
 
@@ -2878,30 +2888,21 @@ namespace ccf
       return sans;
     }
 
-    void accept_node_tls_connections()
+    void accept_node_tls_connections(const ccf::crypto::Pem& self_signed_cert)
     {
       // Accept TLS connections, presenting self-signed (i.e. non-endorsed)
       // node certificate.
       rpcsessions->set_node_cert(
-        self_signed_node_cert, node_sign_kp->private_key_pem());
+        self_signed_cert, node_sign_kp->private_key_pem());
       LOG_INFO_FMT("Node TLS connections now accepted");
     }
 
-    void accept_network_tls_connections()
+    void accept_network_tls_connections(const ccf::crypto::Pem& endorsed_cert)
     {
       // Accept TLS connections, presenting node certificate signed by network
       // certificate
-      CCF_ASSERT_FMT(
-        endorsed_node_cert.has_value(),
-        "Node certificate should be endorsed before accepting endorsed "
-        "client "
-        "connections");
-      if (auto cert_opt = endorsed_node_cert; cert_opt.has_value())
-      {
-        const auto& endorsed_cert = cert_opt.value();
-        rpcsessions->set_network_cert(
-          endorsed_cert, node_sign_kp->private_key_pem());
-      }
+      rpcsessions->set_network_cert(
+        endorsed_cert, node_sign_kp->private_key_pem());
       LOG_INFO_FMT("Network TLS connections now accepted");
     }
 
@@ -2926,20 +2927,13 @@ namespace ccf
       open_frontend(ActorsType::users);
     }
 
-    bool is_member_frontend_open_unsafe()
+    bool is_member_frontend_open() override
     {
       return find_frontend(ActorsType::members)->is_open();
     }
 
-    bool is_member_frontend_open() override
-    {
-      std::lock_guard<pal::Mutex> guard(lock);
-      return is_member_frontend_open_unsafe();
-    }
-
     bool is_user_frontend_open() override
     {
-      std::lock_guard<pal::Mutex> guard(lock);
       return find_frontend(ActorsType::users)->is_open();
     }
 
@@ -3039,8 +3033,9 @@ namespace ccf
 
     bool send_create_request(const std::vector<uint8_t>& packed)
     {
+      const auto self_signed_cert = get_self_signed_certificate();
       auto node_session = std::make_shared<SessionContext>(
-        InvalidSessionId, self_signed_node_cert.raw());
+        InvalidSessionId, self_signed_cert.raw());
       auto ctx = make_rpc_context(node_session, packed);
 
       std::shared_ptr<ccf::RpcHandler> search =
@@ -3267,21 +3262,26 @@ namespace ccf
                   "Could not find endorsed node certificate for {}", self));
               }
 
-              std::lock_guard<pal::Mutex> guard(lock);
+              const auto new_endorsed_node_cert = endorsed_certificate.value();
+              std::optional<ccf::crypto::Pem> previous_endorsed_node_cert;
+              {
+                std::lock_guard<pal::Mutex> cert_guard(node_certificates_lock);
+                previous_endorsed_node_cert = endorsed_node_cert;
+                endorsed_node_cert = new_endorsed_node_cert;
+              }
 
-              if (endorsed_node_cert.has_value())
+              if (previous_endorsed_node_cert.has_value())
               {
                 LOG_INFO_FMT(
                   "[local] Previous endorsed node cert was:\n{}",
-                  endorsed_node_cert->str());
+                  previous_endorsed_node_cert->str());
               }
 
-              endorsed_node_cert = endorsed_certificate.value();
               LOG_INFO_FMT(
-                "[local] Under lock, setting endorsed node cert to:\n{}",
-                endorsed_node_cert->str());
-              history->set_endorsed_certificate(endorsed_node_cert.value());
-              n2n_channels->set_endorsed_node_cert(endorsed_node_cert.value());
+                "[local] Setting endorsed node cert to:\n{}",
+                new_endorsed_node_cert.str());
+              history->set_endorsed_certificate(new_endorsed_node_cert);
+              n2n_channels->set_endorsed_node_cert(new_endorsed_node_cert);
             }
 
             return {nullptr};
@@ -3317,12 +3317,12 @@ namespace ccf
                   "Could not find endorsed node certificate for {}", self));
               }
 
-              std::lock_guard<pal::Mutex> guard(lock);
+              const auto new_endorsed_node_cert = endorsed_certificate.value();
 
               LOG_INFO_FMT("[global] Accepting network connections");
-              accept_network_tls_connections();
+              accept_network_tls_connections(new_endorsed_node_cert);
 
-              if (is_member_frontend_open_unsafe())
+              if (is_member_frontend_open())
               {
                 // Also, automatically refresh self-signed node certificate,
                 // using the same validity period as the endorsed certificate.
@@ -3331,30 +3331,43 @@ namespace ccf
                 // for the initial addition of the node (the self-signed
                 // certificate is output to disk then).
                 auto [valid_from, valid_to] =
-                  ccf::crypto::make_verifier(endorsed_node_cert.value())
+                  ccf::crypto::make_verifier(new_endorsed_node_cert)
                     ->validity_period();
                 LOG_INFO_FMT(
                   "[global] Member frontend is open, so refreshing self-signed "
                   "node cert");
-                LOG_INFO_FMT(
-                  "[global] Previously:\n{}", self_signed_node_cert.str());
-                self_signed_node_cert = create_self_signed_cert(
+                const auto new_self_signed_node_cert = create_self_signed_cert(
                   node_sign_kp,
                   config.node_certificate.subject_name,
                   subject_alt_names,
                   valid_from,
                   valid_to);
-                LOG_INFO_FMT("[global] Now:\n{}", self_signed_node_cert.str());
+
+                ccf::crypto::Pem previous_self_signed_node_cert;
+                {
+                  std::lock_guard<pal::Mutex> cert_guard(
+                    node_certificates_lock);
+                  previous_self_signed_node_cert = self_signed_node_cert;
+                  self_signed_node_cert = new_self_signed_node_cert;
+                }
+
+                LOG_INFO_FMT(
+                  "[global] Previously:\n{}",
+                  previous_self_signed_node_cert.str());
+                LOG_INFO_FMT(
+                  "[global] Now:\n{}", new_self_signed_node_cert.str());
 
                 LOG_INFO_FMT("[global] Accepting node connections");
-                accept_node_tls_connections();
+                accept_node_tls_connections(new_self_signed_node_cert);
               }
               else
               {
+                const auto current_self_signed_node_cert =
+                  get_self_signed_certificate();
                 LOG_INFO_FMT("[global] Member frontend is NOT open");
                 LOG_INFO_FMT(
                   "[global] Self-signed node cert remains:\n{}",
-                  self_signed_node_cert.str());
+                  current_self_signed_node_cert.str());
               }
 
               LOG_INFO_FMT("[global] Opening members frontend");
@@ -3516,7 +3529,10 @@ namespace ccf
       auto shared_state = std::make_shared<aft::State>(self);
 
       auto node_client = std::make_shared<HTTPNodeClient>(
-        rpc_map, node_sign_kp, self_signed_node_cert, endorsed_node_cert);
+        rpc_map,
+        node_sign_kp,
+        get_self_signed_certificate(),
+        endorsed_node_certificate_);
 
       consensus = std::make_shared<RaftType>(
         consensus_config,
@@ -3606,24 +3622,33 @@ namespace ccf
               config.snapshots.backup_fetch.enabled && consensus != nullptr &&
               !consensus->is_primary())
             {
-              std::lock_guard<pal::Mutex> guard(lock);
-              if (
-                backup_snapshot_fetch_task != nullptr &&
-                !backup_snapshot_fetch_task->is_cancelled())
+              ccf::tasks::Task task_to_schedule = nullptr;
               {
-                LOG_DEBUG_FMT(
-                  "Backup snapshot fetch already in progress, skipping");
+                std::lock_guard<pal::Mutex> guard(
+                  backup_snapshot_fetch_task_lock);
+                if (
+                  backup_snapshot_fetch_task != nullptr &&
+                  !backup_snapshot_fetch_task->is_cancelled())
+                {
+                  LOG_DEBUG_FMT(
+                    "Backup snapshot fetch already in progress, skipping");
+                }
+                else
+                {
+                  LOG_INFO_FMT(
+                    "Snapshot evidence detected on backup - scheduling "
+                    "snapshot fetch from primary (since seqno: {})",
+                    snapshot_evidence.version);
+                  backup_snapshot_fetch_task =
+                    std::make_shared<BackupSnapshotFetch>(
+                      config.snapshots, snapshot_evidence.version, this);
+                  task_to_schedule = backup_snapshot_fetch_task;
+                }
               }
-              else
+
+              if (task_to_schedule != nullptr)
               {
-                LOG_INFO_FMT(
-                  "Snapshot evidence detected on backup - scheduling "
-                  "snapshot fetch from primary (since seqno: {})",
-                  snapshot_evidence.version);
-                backup_snapshot_fetch_task =
-                  std::make_shared<BackupSnapshotFetch>(
-                    config.snapshots, snapshot_evidence.version, this);
-                ccf::tasks::add_task(backup_snapshot_fetch_task);
+                ccf::tasks::add_task(std::move(task_to_schedule));
               }
             }
           }));
