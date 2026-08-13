@@ -58,10 +58,10 @@ TEST_CASE("is_transient_transport_error classifies curl errors")
     CHECK(ccf::curl::is_transient_transport_error(code));
   }
 
-  // Errors that must be treated as fatal (never retried): TLS/certificate
-  // failures, application-level errors, and our own response size-cap
-  // rejection (CURLE_WRITE_ERROR). CURLE_OK and CURLE_ABORTED_BY_CALLBACK are
-  // not transport errors either.
+  // Errors that must be treated as fatal (never retried): explicit certificate
+  // or local TLS configuration failures, application-level errors, and our own
+  // response size-cap rejection (CURLE_WRITE_ERROR). CURLE_OK and
+  // CURLE_ABORTED_BY_CALLBACK are not transport errors either.
   const std::vector<CURLcode> fatal = {
     CURLE_OK,
     CURLE_PEER_FAILED_VERIFICATION,
@@ -79,6 +79,20 @@ TEST_CASE("is_transient_transport_error classifies curl errors")
     INFO("code = " << static_cast<int>(code));
     CHECK_FALSE(ccf::curl::is_transient_transport_error(code));
   }
+}
+
+TEST_CASE("is_retryable_join_error narrows generic TLS handshake failures")
+{
+  CHECK_FALSE(
+    ccf::curl::is_retryable_join_error(CURLE_SSL_CONNECT_ERROR, false));
+  CHECK(ccf::curl::is_retryable_join_error(CURLE_SSL_CONNECT_ERROR, true));
+
+  CHECK(ccf::curl::is_retryable_join_error(CURLE_COULDNT_CONNECT, false));
+  CHECK_FALSE(
+    ccf::curl::is_retryable_join_error(CURLE_PEER_FAILED_VERIFICATION, true));
+  CHECK_FALSE(
+    ccf::curl::is_retryable_join_error(CURLE_SSL_CACERT_BADFILE, true));
+  CHECK_FALSE(ccf::curl::is_retryable_join_error(CURLE_SSL_CERTPROBLEM, true));
 }
 
 TEST_CASE("RequestBody supports replay")

@@ -490,6 +490,11 @@ namespace ccf
     // and so must not take NodeState::lock.
     std::atomic<bool> join_request_in_flight = false;
 
+    // A successful PENDING response proves that this joiner's TLS settings and
+    // pinned service identity are valid. A later generic TLS handshake failure
+    // can then be retried safely while the target changes role.
+    bool has_received_pending_join_response = false;
+
     // Number of times we have fetched the latest snapshot from the primary
     size_t join_fetch_count = 0;
 
@@ -1410,10 +1415,11 @@ namespace ccf
                 // The legacy httpclient path silently dropped a failed
                 // connection and relied on the periodic join timer to retry
                 // when the target could not yet be reached, while treating TLS
-                // handshake failures (e.g. an untrusted service certificate) as
-                // fatal. Preserve both behaviours: transient transport errors
-                // are retried, everything else is fatal.
-                if (ccf::curl::is_transient_transport_error(curl_response))
+                // explicit certificate verification/loading failures as fatal.
+                // Preserve both behaviours: transient transport errors are
+                // retried, everything else is fatal.
+                if (ccf::curl::is_retryable_join_error(
+                      curl_response, has_received_pending_join_response))
                 {
                   LOG_INFO_FMT(
                     "Transient error contacting {} to join: {} ({}). The join "
@@ -1740,6 +1746,7 @@ namespace ccf
               }
               else if (resp.node_status == NodeStatus::PENDING)
               {
+                has_received_pending_join_response = true;
                 LOG_INFO_FMT(
                   "Node {} is waiting for votes of members to be trusted",
                   self);
