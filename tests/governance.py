@@ -35,7 +35,7 @@ from loguru import logger as LOG
 def test_create_endpoint(network, args):
     primary, _ = network.find_nodes()
     with primary.client("user0") as c:
-        r = c.post("/node/create")
+        r = c.post("/node/create", validate_openapi=False)
         assert r.status_code == http.HTTPStatus.FORBIDDEN.value
         assert r.body.json()["error"]["message"] == "Node is not in initial state."
     return network
@@ -308,7 +308,18 @@ def test_all_members(network, args):
 @reqs.description("Test ack state digest updates")
 def test_ack_state_digest_update(network, args):
     for node in network.get_joined_nodes():
-        network.consortium.get_any_active_member().update_ack_state_digest(node)
+        member = network.consortium.get_any_active_member()
+        updated = member.update_ack_state_digest(node)
+        updated_digest = updated.body.json()
+        assert updated_digest["memberId"] == member.service_id
+        assert len(bytes.fromhex(updated_digest["stateDigest"])) == 32
+
+        with node.client() as c:
+            c.wait_for_commit(updated)
+        with node.api_versioned_client(api_version=args.gov_api_version) as c:
+            r = c.get(f"/gov/members/state-digests/{member.service_id}")
+            assert r.status_code == http.HTTPStatus.OK, r
+            assert r.body.json() == updated_digest
     return network
 
 
@@ -556,12 +567,12 @@ def gov(args):
         test_create_endpoint(network, args)
         test_consensus_status(network, args)
         test_member_data(network, args)
+        test_ack_state_digest_update(network, args)
         network = test_all_members(network, args)
         test_user(network, args)
         test_jinja_templates(network, args)
         test_no_quote(network, args)
         test_node_data(network, args)
-        test_ack_state_digest_update(network, args)
         test_each_node_cert_renewal(network, args)
         test_binding_proposal_to_service_identity(network, args)
         test_all_nodes_cert_renewal(network, args)

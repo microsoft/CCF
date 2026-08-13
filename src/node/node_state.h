@@ -465,10 +465,19 @@ namespace ccf
     ccf::crypto::Sha256Hash recovery_root;
     std::vector<ccf::kv::Version> view_history;
     ::consensus::Index last_recovered_signed_idx = 0;
+
+    // Dedicated mutex for the two recovery fields below, which are written
+    // from KV hooks and read from governance paths which must not take the
+    // broad NodeState::lock. Because the recovery map hook runs from
+    // apply_changes(), with KV map locks held, this mutex must never be held
+    // while accessing the KV store. Accessors copy the state out and release
+    // the mutex before doing any KV work.
+    pal::Mutex recovery_secrets_lock;
     RecoveredEncryptedLedgerSecrets recovered_encrypted_ledger_secrets;
-    std::optional<
-      std::tuple<ccf::NodeId, std::vector<uint8_t>, SealedRecoveryKey>>
-      cached_sealed_recovery_data = std::nullopt;
+    using SealedRecoveryData = std::optional<
+      std::tuple<ccf::NodeId, std::vector<uint8_t>, SealedRecoveryKey>>;
+    SealedRecoveryData cached_sealed_recovery_data = std::nullopt;
+
     ::consensus::Index last_recovered_idx = 0;
     static const size_t recovery_batch_size = 100;
 
@@ -2103,6 +2112,7 @@ namespace ccf
       if (config.sealing_recovery.has_value())
       {
         auto& name = config.sealing_recovery->location.name;
+        SealedRecoveryData sealed_recovery_data = std::nullopt;
         auto* node_id_lookup =
           tx.ro<LocalSealingNodeIdMap>(Tables::SEALING_RECOVERY_NAMES);
         auto local_sealing_node_id_opt = node_id_lookup->get(name);
@@ -2127,7 +2137,7 @@ namespace ccf
                 sealed_recovery_shares.encrypted_wrapping_keys.end() &&
               sealed_recovery_key.has_value())
             {
-              cached_sealed_recovery_data = std::make_tuple(
+              sealed_recovery_data = std::make_tuple(
                 local_sealing_node_id.value(),
                 sealed_share_it->second,
                 sealed_recovery_key.value());
@@ -2135,13 +2145,18 @@ namespace ccf
           }
         }
 
-        if (!cached_sealed_recovery_data.has_value())
+        if (!sealed_recovery_data.has_value())
         {
           throw std::logic_error(fmt::format(
             "Failed to find sealed recovery data for location ({}) in ledger "
             "at {}",
             name,
             last_recovered_signed_idx));
+        }
+
+        {
+          std::lock_guard<pal::Mutex> guard(recovery_secrets_lock);
+          cached_sealed_recovery_data = std::move(sealed_recovery_data);
         }
       }
 
@@ -2330,7 +2345,10 @@ namespace ccf
             "Could not commit transaction when finishing network recovery");
         }
       }
-      recovered_encrypted_ledger_secrets.clear();
+      {
+        std::lock_guard<pal::Mutex> guard(recovery_secrets_lock);
+        recovered_encrypted_ledger_secrets.clear();
+      }
       reset_data(quote_info.quote);
       reset_data(quote_info.endorsements);
       sm.advance(NodeStartupState::partOfNetwork);
@@ -2474,7 +2492,18 @@ namespace ccf
       ccf::kv::Tx& tx,
       AbstractGovernanceEffects::ServiceIdentities identities) override
     {
-      std::lock_guard<pal::Mutex> guard(lock);
+      // NB: NodeState::lock is deliberately not taken here. This is called
+      // from governance execution and from the recovery decision protocol
+      // handlers, which are already operating on a KV transaction. Taking the
+      // broad lock here would establish NodeState::lock -> KV locks, inverting
+      // the KV locks -> NodeState::lock order taken by the KV hooks installed
+      // by this class.
+      //
+      // Every member accessed below is either read through the caller's tx
+      // (which has its own KV-level synchronisation), immutable once the node
+      // reaches the states checked here (config, network.identity, sm),
+      // independently synchronised (share_manager, via LedgerSecrets), or
+      // copied out under recovery_secrets_lock.
 
       auto* service = tx.rw<Service>(Tables::SERVICE);
       auto service_info = service->get();
@@ -2543,14 +2572,15 @@ namespace ccf
           config.sealing_recovery.has_value() &&
           !config.sealing_recovery->location.name.empty())
         {
-          if (!cached_sealed_recovery_data.has_value())
+          auto sealed_recovery_data = get_cached_sealed_recovery_data();
+          if (!sealed_recovery_data.has_value())
           {
             throw std::logic_error(
               "Missing cached sealed recovery key for private recovery");
           }
 
           auto& [last_sealed_node_id, last_sealed_wrapping_key, last_sealed_recovery_key] =
-            cached_sealed_recovery_data.value();
+            sealed_recovery_data.value();
           auto unsealed_ls = sealing::unseal_share(
             tx, last_sealed_wrapping_key, last_sealed_recovery_key);
           if (unsealed_ls.has_value())
@@ -2558,7 +2588,7 @@ namespace ccf
             tx.wo<LastRecoveryType>(Tables::LAST_RECOVERY_TYPE)
               ->put(RecoveryType::LOCAL_UNSEALING);
             LOG_INFO_FMT("Unsealed ledger secret, initiating private recovery");
-            initiate_private_recovery_unsealing_unsafe(tx, unsealed_ls.value());
+            initiate_private_recovery_unsealing(tx, unsealed_ls.value());
           }
           else
           {
@@ -2600,30 +2630,48 @@ namespace ccf
         fmt::format("Node in state {} cannot open service", sm.value()));
     }
 
+  private:
+    // Copies of the recovery state protected by recovery_secrets_lock. These
+    // return by value so that callers never hold the mutex while touching the
+    // KV store, which would invert the KV locks -> recovery_secrets_lock order
+    // taken by the recovery map hook.
+    SealedRecoveryData get_cached_sealed_recovery_data()
+    {
+      std::lock_guard<pal::Mutex> guard(recovery_secrets_lock);
+      return cached_sealed_recovery_data;
+    }
+
+    RecoveredEncryptedLedgerSecrets get_recovered_encrypted_ledger_secrets()
+    {
+      std::lock_guard<pal::Mutex> guard(recovery_secrets_lock);
+      return recovered_encrypted_ledger_secrets;
+    }
+
+  public:
     void initiate_private_recovery(ccf::kv::Tx& tx) override
     {
       std::lock_guard<pal::Mutex> guard(lock);
       sm.expect(NodeStartupState::partOfPublicNetwork);
       LedgerSecretsMap recovered_ledger_secrets =
         share_manager.restore_recovery_shares_info(
-          tx, recovered_encrypted_ledger_secrets);
-      initiate_private_recovery_unsafe(tx, recovered_ledger_secrets);
+          tx, get_recovered_encrypted_ledger_secrets());
+      broadcast_recovered_ledger_secrets(tx, recovered_ledger_secrets);
     }
 
-    void initiate_private_recovery_unsealing_unsafe(
+    void initiate_private_recovery_unsealing(
       ccf::kv::Tx& tx, const LedgerSecretPtr& unsealed_ledger_secret)
     {
       sm.expect(NodeStartupState::partOfPublicNetwork);
       LedgerSecretsMap recovered_ledger_secrets =
         share_manager.restore_ledger_secrets_map(
-          tx, recovered_encrypted_ledger_secrets, unsealed_ledger_secret);
-      initiate_private_recovery_unsafe(tx, recovered_ledger_secrets);
+          tx, get_recovered_encrypted_ledger_secrets(), unsealed_ledger_secret);
+      broadcast_recovered_ledger_secrets(tx, recovered_ledger_secrets);
     }
 
     // Decrypts chain of ledger secrets, and writes those to the ledger
     // encrypted for each node. On a commit hook for this write, each node
     // (including this one!) will begin_private_recovery().
-    void initiate_private_recovery_unsafe(
+    void broadcast_recovered_ledger_secrets(
       ccf::kv::Tx& tx, LedgerSecretsMap recovered_ledger_secrets)
     {
       // Broadcast decrypted ledger secrets to other nodes for them to
@@ -3460,8 +3508,11 @@ namespace ccf
                 encrypted_ledger_secret_info->previous_ledger_secret->version);
             }
 
-            recovered_encrypted_ledger_secrets.emplace_back(
-              std::move(encrypted_ledger_secret_info.value()));
+            {
+              std::lock_guard<pal::Mutex> guard(recovery_secrets_lock);
+              recovered_encrypted_ledger_secrets.emplace_back(
+                std::move(encrypted_ledger_secret_info.value()));
+            }
 
             return {nullptr};
           }));

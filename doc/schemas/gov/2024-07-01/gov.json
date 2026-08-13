@@ -20,6 +20,37 @@
   ],
   "tags": [],
   "paths": {
+    "/gov/api": {
+      "get": {
+        "operationId": "GetGovApi",
+        "description": "Retrieve the OpenAPI schema for the requested governance API version.",
+        "parameters": [
+          {
+            "$ref": "#/parameters/Azure.Core.Foundations.ApiVersionParameter"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The request has succeeded.",
+            "schema": {
+              "type": "object"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/Azure.Core.Foundations.ErrorResponse"
+            },
+            "headers": {
+              "x-ms-error-code": {
+                "type": "string",
+                "description": "String error code indicating what went wrong."
+              }
+            }
+          }
+        }
+      }
+    },
     "/gov/members/proposals": {
       "get": {
         "operationId": "Proposals_List",
@@ -841,7 +872,7 @@
         }
       }
     },
-    "/gov/service/js-modules": {
+    "/gov/service/javascript-modules": {
       "get": {
         "operationId": "ServiceState_ListJsModules",
         "description": "Retrieve list of all modules constituting the current app.",
@@ -882,7 +913,7 @@
         }
       }
     },
-    "/gov/service/js-modules/{moduleName}": {
+    "/gov/service/javascript-modules/{moduleName}": {
       "get": {
         "operationId": "ServiceState_GetJsModule",
         "description": "Retrieve single module of current app, by name. Note that the moduleName path parameter (which may contain forward slashes indicating module path segments) must be URL-escaped to register as a single URL path segment. For instance '/foo/bar.js' should become '%2Ffoo%2Fbar.js'.",

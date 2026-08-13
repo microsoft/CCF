@@ -88,6 +88,10 @@ def test_set_recovery_threshold(network, args, recovery_threshold=None):
 
     primary, _ = network.find_primary()
     network.consortium.set_recovery_threshold(primary, recovery_threshold)
+    with primary.client() as c:
+        r = c.get("/node/service/configuration")
+        assert r.status_code == 200, r
+        assert r.body.json()["recovery_threshold"] == recovery_threshold
     return network
 
 
