@@ -1051,7 +1051,10 @@ def test_joining_nodes_snapshot_ledger_offset(network, args):
     )
 
     target_seqno = network.create_and_wait_for_ledger_chunk(primary)
-    downloaded_ledger = primary.download_ledger(target_seqno)
+    # Only read the range this node replicated itself. Asking for earlier
+    # seqnos would be redirected to other nodes, which may since have been
+    # retired and stopped.
+    downloaded_ledger = primary.download_ledger(target_seqno, local_only=True)
     ledger = ccf.ledger.Ledger(downloaded_ledger)
 
     snapshot_chunk_start = None
