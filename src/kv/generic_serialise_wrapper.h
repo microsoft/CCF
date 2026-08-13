@@ -25,10 +25,6 @@ namespace ccf::kv
     EntryType entry_type;
     SerialisedEntryFlags header_flags;
     size_t max_transaction_size;
-    size_t version_offset = 0;
-    std::optional<size_t> commit_evidence_digest_offset = std::nullopt;
-    bool enforce_max_transaction_size;
-    bool finalised = false;
 
     std::shared_ptr<AbstractTxEncryptor> crypto_util;
 
@@ -41,21 +37,6 @@ namespace ccf::kv
     template <typename T>
     void serialise_internal(const T& t)
     {
-      if (enforce_max_transaction_size)
-      {
-        const auto current_size = get_serialised_size();
-        const auto additional_size = W::serialised_size(t);
-        if (
-          current_size > max_transaction_size ||
-          additional_size > max_transaction_size - current_size)
-        {
-          throw MaxTransactionSizeExceeded(fmt::format(
-            "Cannot serialise transaction because its serialised size exceeds "
-            "the configured maximum of {} bytes",
-            max_transaction_size));
-        }
-      }
-
       current_writer->append(t);
     }
 
@@ -89,14 +70,11 @@ namespace ccf::kv
       const ccf::crypto::Sha256Hash& commit_evidence_digest_ = {},
       const ccf::ClaimsDigest& claims_digest_ = ccf::no_claims(),
       bool historical_hint_ = false,
-      size_t max_transaction_size_ = max_serialised_entry_size,
-      bool enforce_max_transaction_size_ = false) :
+      size_t max_transaction_size_ = max_serialised_entry_size) :
       tx_id(tx_id_),
       entry_type(entry_type_),
       header_flags(header_flags_),
       max_transaction_size(max_transaction_size_),
-      version_offset(W::serialised_size(entry_type_)),
-      enforce_max_transaction_size(enforce_max_transaction_size_),
       crypto_util(std::move(e)),
       historical_hint(historical_hint_)
     {
@@ -109,7 +87,6 @@ namespace ccf::kv
       }
       if (has_commit_evidence(entry_type))
       {
-        commit_evidence_digest_offset = public_writer.size();
         serialise_internal(commit_evidence_digest_);
       }
       // Write a placeholder max_conflict_version for compatibility
@@ -171,33 +148,8 @@ namespace ccf::kv
       serialise_internal(k);
     }
 
-    void set_tx_id(const TxID& tx_id_)
-    {
-      tx_id = tx_id_;
-      public_writer.overwrite(version_offset, tx_id.seqno);
-    }
-
-    void set_commit_evidence_digest(
-      const ccf::crypto::Sha256Hash& commit_evidence_digest)
-    {
-      if (!commit_evidence_digest_offset.has_value())
-      {
-        throw std::logic_error(
-          "Cannot set commit evidence digest on entry without commit evidence");
-      }
-
-      public_writer.overwrite(
-        commit_evidence_digest_offset.value(), commit_evidence_digest);
-    }
-
     std::vector<uint8_t> get_raw_data() override
     {
-      if (finalised)
-      {
-        throw std::logic_error("Serialiser has already been finalised");
-      }
-      finalised = true;
-
       // make sure the private buffer is empty when we return
       auto writer_guard_func = [](W* writer) { writer->clear(); };
       std::unique_ptr<decltype(private_writer), decltype(writer_guard_func)>
@@ -251,10 +203,9 @@ namespace ccf::kv
       const size_t entry_size = size_ + sizeof(SerialisedEntryHeader);
       if (entry_size > max_transaction_size)
       {
-        // Non-reserved transactions check this exact size before applying
-        // their changes. Reserved signature transactions are exempt from the
-        // configured limit and use the largest representable entry size here.
-        // Reaching this point is therefore always a fatal serialisation error.
+        // Non-reserved transactions measure this exact size before applying
+        // their changes. Reserved signature transactions use the largest
+        // representable entry size here. Reaching this point is always fatal.
         throw KvSerialiserException(describe_serialised_entry_size_error(
           entry_size, max_transaction_size));
       }

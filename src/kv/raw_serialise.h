@@ -159,46 +159,39 @@ namespace ccf::kv
       return buf.size();
     }
 
-    template <typename T>
-    void overwrite(size_t offset, const T& entry)
+    std::vector<uint8_t> get_raw_data()
     {
-      if constexpr (std::is_same_v<T, ccf::crypto::Sha256Hash>)
-      {
-        if (offset > buf.size() || sizeof(entry.h) > buf.size() - offset)
-        {
-          throw std::logic_error("Cannot overwrite outside serialised data");
-        }
+      return {buf.data(), buf.data() + buf.size()};
+    }
+  };
 
-        auto* data_ = buf.data() + offset;
-        auto size_ = buf.size() - offset;
-        serialized::write(
-          data_,
-          size_,
-          reinterpret_cast<const uint8_t*>(entry.h.data()),
-          sizeof(entry.h));
-      }
-      else if constexpr (std::is_integral_v<T>)
-      {
-        if (offset > buf.size() || sizeof(T) > buf.size() - offset)
-        {
-          throw std::logic_error("Cannot overwrite outside serialised data");
-        }
+  class SizeWriter
+  {
+  private:
+    size_t total_size = 0;
 
-        auto* data_ = buf.data() + offset;
-        auto size_ = buf.size() - offset;
-        serialized::write(data_, size_, entry);
-      }
-      else
-      {
-        static_assert(
-          ccf::nonstd::dependent_false<T>::value,
-          "Can't overwrite this serialised type");
-      }
+  public:
+    SizeWriter() = default;
+
+    template <typename T>
+    void append(const T& entry)
+    {
+      total_size += RawWriter::serialised_size(entry);
+    }
+
+    void clear()
+    {
+      total_size = 0;
+    }
+
+    [[nodiscard]] size_t size() const
+    {
+      return total_size;
     }
 
     std::vector<uint8_t> get_raw_data()
     {
-      return {buf.data(), buf.data() + buf.size()};
+      throw std::logic_error("SizeWriter does not retain serialised data");
     }
   };
 

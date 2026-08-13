@@ -293,7 +293,7 @@ def cli_args(
             "(size string)"
         ),
         type=str,
-        default="100MB",
+        default="64MB",
     )
     parser.add_argument(
         "--snapshot-tx-interval",
@@ -433,7 +433,7 @@ def cli_args(
         "--max-msg-size-bytes",
         help="Maximum message size (bytes) allowed on the ring buffer",
         type=str,
-        default="64MB",
+        default="65MB",
     )
     parser.add_argument(
         "--gov-api-version",

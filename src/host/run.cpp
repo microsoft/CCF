@@ -21,6 +21,7 @@
 #include "common/enclave_interface_types.h"
 #include "config_schema.h"
 #include "configuration.h"
+#include "consensus/ledger_enclave_types.h"
 #include "crypto/openssl/hash.h"
 #include "ds/files.h"
 #include "ds/internal_logger.h"
@@ -96,6 +97,28 @@ static constexpr size_t retry_interval_ms = 100;
 
 namespace ccf
 {
+  void validate_ledger_transaction_size(const host::HostConfig& config)
+  {
+    const auto max_message_size = config.memory.max_msg_size.count_bytes();
+    const auto max_transaction_size =
+      config.ledger.max_transaction_size.count_bytes();
+    const auto response_overhead =
+      ::consensus::ledger_range_response_metadata_size;
+
+    if (
+      max_message_size <= response_overhead ||
+      max_transaction_size > max_message_size - response_overhead)
+    {
+      throw std::logic_error(fmt::format(
+        "ledger.max_transaction_size ({}) must be at least {} bytes smaller "
+        "than memory.max_msg_size ({}) so a single ledger entry fits in a "
+        "ring-buffer range response",
+        max_transaction_size,
+        response_overhead,
+        max_message_size));
+    }
+  }
+
   void validate_and_adjust_recovery_threshold(host::HostConfig& config)
   {
     if (config.command.type != StartType::Start)
@@ -1019,6 +1042,7 @@ namespace ccf
 
     try
     {
+      validate_ledger_transaction_size(config);
       validate_and_adjust_recovery_threshold(config);
     }
     catch (const std::logic_error& e)

@@ -375,7 +375,7 @@ TEST_CASE(
     entry_size = latest_data->size();
   }
 
-  // The retained serialised domains must report the exact size of the entry
+  // The allocation-free sizing pass must report the exact size of the entry
   // which is eventually written. A limit of precisely that size is accepted,
   // and one byte less is not.
   {
@@ -495,14 +495,16 @@ TEST_CASE(
 }
 
 TEST_CASE(
-  "RawWriter append size estimates are exact" *
-  doctest::test_suite("serialisation"))
+  "RawWriter and SizeWriter agree" * doctest::test_suite("serialisation"))
 {
   const auto check = [](const auto& entry) {
-    ccf::kv::RawWriter writer;
+    ccf::kv::RawWriter raw_writer;
+    ccf::kv::SizeWriter size_writer;
     const auto expected_size = ccf::kv::RawWriter::serialised_size(entry);
-    writer.append(entry);
-    REQUIRE(writer.size() == expected_size);
+    raw_writer.append(entry);
+    size_writer.append(entry);
+    REQUIRE(raw_writer.size() == expected_size);
+    REQUIRE(size_writer.size() == expected_size);
   };
 
   check(ccf::kv::EntryType::WriteSetWithCommitEvidenceAndClaims);
