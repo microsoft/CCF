@@ -28,8 +28,8 @@ UNSUPPORTED_GROUP = "X448"
 
 # s_client output varies between OpenSSL 3.3 and 3.5
 NEGOTIATED_GROUP = re.compile(r"^Negotiated TLS1\.3 group: (\S+)$", re.MULTILINE)
-NEGOTIATED_GROUP_ID = re.compile(
-    r"ServerHello,.*?extension_type=key_share\(51\).*?" r"NamedGroup: [^\n]*\((\d+)\)",
+TRACED_GROUP_ID = re.compile(
+    r"extension_type=key_share\(51\).*?NamedGroup: [^\n]*\((\d+)\)",
     re.DOTALL,
 )
 PEER_TEMP_KEY = re.compile(r"^Peer Temp Key: ECDH, ([^,]+),", re.MULTILINE)
@@ -54,9 +54,11 @@ def negotiate_group(address, groups):
     if match is not None and match.group(1) != "<NULL>":
         return match.group(1)
 
-    match = NEGOTIATED_GROUP_ID.search(output)
-    if match is not None:
-        return GROUP_IDS.get(match.group(1))
+    for record in output.split("Received TLS Record"):
+        if "ServerHello," in record:
+            match = TRACED_GROUP_ID.search(record)
+            if match is not None:
+                return GROUP_IDS.get(match.group(1))
 
     match = PEER_TEMP_KEY.search(output)
     if match is not None:
