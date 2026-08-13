@@ -58,7 +58,8 @@ def negotiate_group(address, groups):
         if "ServerHello," in record:
             match = TRACED_GROUP_ID.search(record)
             if match is not None:
-                return GROUP_IDS.get(match.group(1))
+                group_id = match.group(1)
+                return GROUP_IDS.get(group_id, group_id)
 
     match = PEER_TEMP_KEY.search(output)
     if match is not None:
