@@ -14,6 +14,43 @@ namespace consensus
 {
   class LedgerEnclave
   {
+  private:
+    static size_t get_entry_size(const uint8_t* data, size_t size)
+    {
+      if (size < ccf::kv::serialised_entry_header_size)
+      {
+        throw std::logic_error(fmt::format(
+          "Cannot read transaction header: buffer contains {} bytes, but the "
+          "fixed ledger entry header requires {} bytes",
+          size,
+          ccf::kv::serialised_entry_header_size));
+      }
+
+      const auto header =
+        serialized::peek<ccf::kv::SerialisedEntryHeader>(data, size);
+      const size_t body_size = header.size;
+      const auto available_body_size =
+        size - ccf::kv::serialised_entry_header_size;
+
+      // The size in the entry header is not trusted: check it against the
+      // buffer we were given before allocating. This is distinct from the
+      // configured max_transaction_size, which applies only when serialising
+      // new transactions, so that entries written under a larger or unset
+      // limit can always be read back.
+      if (body_size > available_body_size)
+      {
+        throw std::logic_error(fmt::format(
+          "Cannot read transaction with serialised body size {} bytes from "
+          "buffer containing {} bytes after the fixed {}-byte ledger entry "
+          "header",
+          body_size,
+          available_body_size,
+          ccf::kv::serialised_entry_header_size));
+      }
+
+      return ccf::kv::serialised_entry_header_size + body_size;
+    }
+
   public:
     /**
      * Retrieve a single entry, advancing offset to the next entry.
@@ -25,25 +62,7 @@ namespace consensus
      */
     static std::vector<uint8_t> get_entry(const uint8_t*& data, size_t& size)
     {
-      auto header =
-        serialized::peek<ccf::kv::SerialisedEntryHeader>(data, size);
-      const size_t body_size = header.size;
-      // The size in the entry header is not trusted: check it against the
-      // buffer we were given before allocating. This is distinct from the
-      // configured max_transaction_size, which applies only when serialising
-      // new transactions, so that entries written under a larger or unset
-      // limit can always be read back.
-      if (body_size + ccf::kv::serialised_entry_header_size > size)
-      {
-        throw std::logic_error(fmt::format(
-          "Cannot read transaction with serialised body size {} bytes from "
-          "buffer containing {} bytes after the fixed {}-byte ledger entry "
-          "header",
-          body_size,
-          size - ccf::kv::serialised_entry_header_size,
-          ccf::kv::serialised_entry_header_size));
-      }
-      size_t entry_size = ccf::kv::serialised_entry_header_size + body_size;
+      const auto entry_size = get_entry_size(data, size);
       std::vector<uint8_t> entry(data, data + entry_size);
       serialized::skip(data, size, entry_size);
       return entry;
@@ -107,9 +126,7 @@ namespace consensus
      */
     static void skip_entry(const uint8_t*& data, size_t& size)
     {
-      auto header =
-        serialized::read<ccf::kv::SerialisedEntryHeader>(data, size);
-      serialized::skip(data, size, header.size);
+      serialized::skip(data, size, get_entry_size(data, size));
     }
 
     /**
