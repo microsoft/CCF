@@ -7,7 +7,3 @@
 # For partitions_test
 deadlock:*/store.h
 deadlock:*/untyped_map.h
-
-# Race between closedir and epoll_ctl.
-race:closedir
-race:epoll_ctl
