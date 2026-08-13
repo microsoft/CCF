@@ -36,35 +36,6 @@ namespace ccf::kv
     TxFlags flags = 0;
     SerialisedEntryFlags entry_flags = 0;
 
-    // Serialises the same changes as serialise(), into a serialiser which only
-    // measures their size, to determine how large this transaction's ledger
-    // entry will be. Change sets are not modified by apply_changes(), so this
-    // can be called before the transaction is applied to the store, and the
-    // result is exactly the size serialise() will produce.
-    size_t projected_serialised_size(
-      const ccf::ClaimsDigest& claims_digest_, bool include_reads = false)
-    {
-      auto e = pimpl->store->get_encryptor();
-      if (e == nullptr)
-      {
-        throw KvSerialiserException("No encryptor set");
-      }
-
-      SizeKvStoreSerialiser size_serialiser(
-        e,
-        {pimpl->commit_view, NoVersion},
-        EntryType::WriteSetWithCommitEvidenceAndClaims,
-        entry_flags,
-        // Both digests are fixed-size, so their values do not affect the
-        // size of the resulting entry
-        ccf::crypto::Sha256Hash{},
-        claims_digest_);
-
-      serialise_all_changes(size_serialiser, include_reads);
-
-      return size_serialiser.get_serialised_size();
-    }
-
     void serialise_all_changes(
       KvStoreSerialiser& serialiser, bool include_reads)
     {
@@ -91,11 +62,47 @@ namespace ccf::kv
         });
     }
 
-    std::vector<uint8_t> serialise(
-      ccf::crypto::Sha256Hash& commit_evidence_digest,
-      std::string& commit_evidence,
+    std::unique_ptr<RawKvStoreSerialiser> prepare_serialisation(
       const ccf::ClaimsDigest& claims_digest_,
+      size_t max_transaction_size,
       bool include_reads = false)
+    {
+      if (claims_digest_.empty())
+      {
+        throw std::logic_error("Missing claims");
+      }
+
+      auto e = pimpl->store->get_encryptor();
+      if (e == nullptr)
+      {
+        throw KvSerialiserException("No encryptor set");
+      }
+
+      if (tx_flag_enabled(TxFlag::LEDGER_CHUNK_BEFORE_THIS_TX))
+      {
+        entry_flags |= EntryFlags::FORCE_LEDGER_CHUNK_BEFORE;
+      }
+
+      auto serialiser = std::make_unique<RawKvStoreSerialiser>(
+        e,
+        TxID{pimpl->commit_view, NoVersion},
+        EntryType::WriteSetWithCommitEvidenceAndClaims,
+        entry_flags,
+        ccf::crypto::Sha256Hash{},
+        claims_digest_,
+        false /* historical_hint */,
+        max_transaction_size,
+        true /* enforce_max_transaction_size */);
+
+      serialise_all_changes(*serialiser, include_reads);
+
+      return serialiser;
+    }
+
+    std::vector<uint8_t> finalise_serialisation(
+      RawKvStoreSerialiser& serialiser,
+      ccf::crypto::Sha256Hash& commit_evidence_digest,
+      std::string& commit_evidence)
     {
       if (!committed)
       {
@@ -105,17 +112,6 @@ namespace ccf::kv
       if (!success)
       {
         throw std::logic_error("Transaction aborted");
-      }
-
-      if (claims_digest_.empty())
-      {
-        throw std::logic_error("Missing claims");
-      }
-
-      // If no transactions made changes, return a zero length vector.
-      if (!has_writes())
-      {
-        return {};
       }
 
       auto e = pimpl->store->get_encryptor();
@@ -128,27 +124,29 @@ namespace ccf::kv
       LOG_TRACE_FMT("Commit evidence: {}", commit_evidence);
       ccf::crypto::Sha256Hash tx_commit_evidence_digest(commit_evidence);
       commit_evidence_digest = tx_commit_evidence_digest;
-      auto entry_type = EntryType::WriteSetWithCommitEvidenceAndClaims;
-
-      if (tx_flag_enabled(TxFlag::LEDGER_CHUNK_BEFORE_THIS_TX))
-      {
-        entry_flags |= EntryFlags::FORCE_LEDGER_CHUNK_BEFORE;
-      }
-
-      RawKvStoreSerialiser replicated_serialiser(
-        e,
-        {pimpl->commit_view, version},
-        entry_type,
-        entry_flags,
-        tx_commit_evidence_digest,
-        claims_digest_,
-        false /* historical_hint */,
-        pimpl->store->get_max_transaction_size());
-
-      serialise_all_changes(replicated_serialiser, include_reads);
+      serialiser.set_tx_id({pimpl->commit_view, version});
+      serialiser.set_commit_evidence_digest(tx_commit_evidence_digest);
 
       // Return serialised Tx.
-      return replicated_serialiser.get_raw_data();
+      return serialiser.get_raw_data();
+    }
+
+    std::vector<uint8_t> serialise(
+      ccf::crypto::Sha256Hash& commit_evidence_digest,
+      std::string& commit_evidence,
+      const ccf::ClaimsDigest& claims_digest_,
+      size_t max_transaction_size,
+      bool include_reads = false)
+    {
+      if (!has_writes())
+      {
+        return {};
+      }
+
+      auto serialiser = prepare_serialisation(
+        claims_digest_, max_transaction_size, include_reads);
+      return finalise_serialisation(
+        *serialiser, commit_evidence_digest, commit_evidence);
     }
 
   public:
@@ -189,20 +187,16 @@ namespace ccf::kv
         return CommitResult::SUCCESS;
       }
 
-      // Reject transactions whose ledger entry would exceed the configured
-      // limit before any change is applied. Once apply_changes() below has
-      // taken a version and mutated the maps, the transaction can no longer be
-      // abandoned without losing the entry at that version.
+      std::unique_ptr<RawKvStoreSerialiser> replicated_serialiser;
+
+      // Serialise the write set and reject oversized entries before any change
+      // is applied. The retained domain buffers are patched with the assigned
+      // version and commit evidence after apply_changes(), then encrypted and
+      // packaged without walking the write set again.
       if (has_writes())
       {
-        const auto max_transaction_size =
-          pimpl->store->get_max_transaction_size();
-        const auto entry_size = projected_serialised_size(claims);
-        if (entry_size > max_transaction_size)
-        {
-          throw MaxTransactionSizeExceeded(describe_serialised_entry_size_error(
-            entry_size, max_transaction_size));
-        }
+        replicated_serialiser = prepare_serialisation(
+          claims, pimpl->store->get_max_transaction_size());
       }
 
       // If this transaction creates any maps, ensure that commit gets a
@@ -277,12 +271,14 @@ namespace ccf::kv
       {
         ccf::crypto::Sha256Hash commit_evidence_digest;
         std::string commit_evidence;
-        auto data = serialise(commit_evidence_digest, commit_evidence, claims);
-
-        if (data.empty())
+        if (replicated_serialiser == nullptr)
         {
-          return CommitResult::SUCCESS;
+          throw std::logic_error(
+            "Missing serialised write set for committed transaction");
         }
+        auto data = finalise_serialisation(
+          *replicated_serialiser, commit_evidence_digest, commit_evidence);
+        replicated_serialiser.reset();
 
         if (write_set_observer != nullptr)
         {
@@ -500,7 +496,14 @@ namespace ccf::kv
 
       committed = true;
       auto claims = ccf::empty_claims();
-      auto data = serialise(commit_evidence_digest, commit_evidence, claims);
+      // Reserved transactions are used solely for signatures. They must always
+      // fill their reserved version, so the operator-configured transaction
+      // size limit does not apply to them.
+      auto data = serialise(
+        commit_evidence_digest,
+        commit_evidence,
+        claims,
+        max_serialised_entry_size);
 
       return {
         CommitResult::SUCCESS,

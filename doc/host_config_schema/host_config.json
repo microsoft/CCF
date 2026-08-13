@@ -481,7 +481,7 @@
         "max_transaction_size": {
           "type": "string",
           "default": "100MB",
-          "description": "Maximum total serialised size (size string) of a transaction written to the ledger. This covers the whole ledger entry: the fixed 8-byte ledger entry header, the ledger encryption header, public domain size field, public domain and encrypted private domain"
+          "description": "Maximum total serialised size (size string) of a transaction written to the ledger. Reserved internal signature transactions are exempt. This covers the whole ledger entry: the fixed 8-byte ledger entry header, the ledger encryption header, public domain size field, public domain and encrypted private domain"
         }
       },
       "description": "This section includes configuration for the ledger directories and files",

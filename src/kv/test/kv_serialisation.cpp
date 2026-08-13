@@ -374,9 +374,9 @@ TEST_CASE(
     entry_size = latest_data->size();
   }
 
-  // The size projected before the transaction is applied must match the size
-  // of the entry which is eventually written, exactly. A limit of precisely
-  // that size is accepted, and one byte less is not.
+  // The retained serialised domains must report the exact size of the entry
+  // which is eventually written. A limit of precisely that size is accepted,
+  // and one byte less is not.
   {
     ccf::kv::Store kv_store;
     kv_store.set_encryptor(encryptor);
@@ -437,15 +437,14 @@ TEST_CASE(
 }
 
 TEST_CASE(
-  "RawWriter and SizeWriter agree" * doctest::test_suite("serialisation"))
+  "RawWriter append size estimates are exact" *
+  doctest::test_suite("serialisation"))
 {
   const auto check = [](const auto& entry) {
-    ccf::kv::RawWriter raw_writer;
-    ccf::kv::SizeWriter size_writer;
-    raw_writer.append(entry);
-    size_writer.append(entry);
-    REQUIRE(raw_writer.size() == size_writer.size());
-    REQUIRE(size_writer.size() == ccf::kv::serialised_size(entry));
+    ccf::kv::RawWriter writer;
+    const auto expected_size = ccf::kv::RawWriter::serialised_size(entry);
+    writer.append(entry);
+    REQUIRE(writer.size() == expected_size);
   };
 
   check(ccf::kv::EntryType::WriteSetWithCommitEvidenceAndClaims);
@@ -460,6 +459,26 @@ TEST_CASE(
   check(std::vector<ccf::kv::Version>{1, 2, 3});
   check(ccf::kv::serialisers::SerialisedEntry());
   check(ccf::kv::serialisers::SerialisedEntry(91, 'y'));
+}
+
+TEST_CASE(
+  "Reserved signature transactions ignore the configured transaction size "
+  "limit" *
+  doctest::test_suite("serialisation"))
+{
+  ccf::kv::Store kv_store;
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
+  kv_store.set_encryptor(encryptor);
+  kv_store.set_max_transaction_size(1);
+
+  MapTypes::StringString map("public:signature");
+  auto tx = kv_store.create_reserved_tx(kv_store.next_txid());
+  tx.rw(map)->put("signature", std::string(512, 'A'));
+
+  const auto [result, data, claims, commit_evidence, hooks] =
+    tx.commit_reserved();
+  REQUIRE(result == ccf::kv::CommitResult::SUCCESS);
+  REQUIRE(data.size() > kv_store.get_max_transaction_size());
 }
 
 TEST_CASE(
@@ -990,6 +1009,7 @@ TEST_CASE(
 
   ccf::ClaimsDigest claims_digest;
   claims_digest.set(ccf::crypto::Sha256Hash("claim text"));
+  ccf::crypto::Sha256Hash expected_commit_evidence_digest;
 
   INFO("Commit to source store, including claims");
   {
@@ -1001,9 +1021,11 @@ TEST_CASE(
     handle_pub->put("pubk1", "pubv1");
 
     REQUIRE(tx.commit(claims_digest) == ccf::kv::CommitResult::SUCCESS);
+    expected_commit_evidence_digest = ccf::crypto::Sha256Hash(
+      encryptor->get_commit_evidence({tx.commit_term(), tx.commit_version()}));
   }
 
-  INFO("Deserialise transaction in target store and extract claims");
+  INFO("Deserialise transaction in target store and extract digests");
   {
     const auto latest_data = consensus->get_latest_data();
     REQUIRE(latest_data.has_value());
@@ -1011,6 +1033,11 @@ TEST_CASE(
     REQUIRE(wrapper->apply() != ccf::kv::ApplyResult::FAIL);
     auto deserialised_claims = wrapper->consume_claims_digest();
     REQUIRE(claims_digest == deserialised_claims);
+    auto deserialised_commit_evidence =
+      wrapper->consume_commit_evidence_digest();
+    REQUIRE(deserialised_commit_evidence.has_value());
+    REQUIRE(
+      deserialised_commit_evidence.value() == expected_commit_evidence_digest);
 
     auto tx_target = kv_store_target.create_tx();
     auto handle_priv = tx_target.rw<MapTypes::StringString>(priv_map);

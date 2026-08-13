@@ -288,7 +288,10 @@ def cli_args(
     )
     parser.add_argument(
         "--ledger-max-transaction-bytes",
-        help="Maximum serialised transaction body size (bytes)",
+        help=(
+            "Maximum total serialised ledger entry size, including its header "
+            "(size string)"
+        ),
         type=str,
         default="100MB",
     )
