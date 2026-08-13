@@ -6,6 +6,7 @@
 #include "kv/store.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
+#include "node/encryptor.h"
 
 #include <doctest/doctest.h>
 #undef FAIL
@@ -396,6 +397,63 @@ TEST_CASE(
     auto tx = kv_store.create_tx();
     auto handle = tx.rw(map);
     handle->put("key", value);
+    REQUIRE_THROWS_AS(tx.commit(), ccf::kv::MaxTransactionSizeExceeded);
+    REQUIRE(kv_store.current_version() == 0);
+  }
+}
+
+TEST_CASE(
+  "The transaction size limit includes encrypted private data" *
+  doctest::test_suite("serialisation"))
+{
+  const auto create_encryptor = []() {
+    auto secrets = std::make_shared<ccf::LedgerSecrets>();
+    secrets->init();
+    return std::make_shared<ccf::NodeEncryptor>(secrets);
+  };
+
+  MapTypes::StringString public_map("public:pub_map");
+  MapTypes::StringString private_map("priv_map");
+  const auto value = std::string(512, 'A');
+
+  const auto populate = [&](ccf::kv::CommittableTx& tx) {
+    tx.rw(public_map)->put("public_key", value);
+    tx.rw(private_map)->put("private_key", value);
+  };
+
+  size_t entry_size = 0;
+  {
+    auto consensus = std::make_shared<ccf::kv::test::StubConsensus>();
+    ccf::kv::Store kv_store;
+    kv_store.set_consensus(consensus);
+    kv_store.set_encryptor(create_encryptor());
+
+    auto tx = kv_store.create_tx();
+    populate(tx);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+
+    const auto latest_data = consensus->get_latest_data();
+    REQUIRE(latest_data.has_value());
+    entry_size = latest_data->size();
+  }
+
+  {
+    ccf::kv::Store kv_store;
+    kv_store.set_encryptor(create_encryptor());
+    kv_store.set_max_transaction_size(entry_size);
+
+    auto tx = kv_store.create_tx();
+    populate(tx);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+
+  {
+    ccf::kv::Store kv_store;
+    kv_store.set_encryptor(create_encryptor());
+    kv_store.set_max_transaction_size(entry_size - 1);
+
+    auto tx = kv_store.create_tx();
+    populate(tx);
     REQUIRE_THROWS_AS(tx.commit(), ccf::kv::MaxTransactionSizeExceeded);
     REQUIRE(kv_store.current_version() == 0);
   }

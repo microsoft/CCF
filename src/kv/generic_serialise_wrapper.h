@@ -95,13 +95,13 @@ namespace ccf::kv
       entry_type(entry_type_),
       header_flags(header_flags_),
       max_transaction_size(max_transaction_size_),
+      version_offset(W::serialised_size(entry_type_)),
       enforce_max_transaction_size(enforce_max_transaction_size_),
       crypto_util(std::move(e)),
       historical_hint(historical_hint_)
     {
       set_current_domain(SecurityDomain::PUBLIC);
       serialise_internal(entry_type);
-      version_offset = public_writer.size();
       serialise_internal(tx_id.seqno);
       if (has_claims(entry_type))
       {
