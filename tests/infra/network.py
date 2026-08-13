@@ -807,6 +807,7 @@ class Network:
         # Catch-up in recovery can take a long time, so extend this timeout
         self.wait_for_all_nodes_to_commit(primary=primary, timeout=20)
         LOG.success("All nodes joined public network")
+        self._start_openapi_validation(primary)
 
     def start_in_recovery_decision_protocol(
         self,
@@ -1619,7 +1620,12 @@ class Network:
             req["public_encryption_key"] = f.read()
 
         with target_node.client(identity=name) as c:
-            response = c.post("/node/join", body=req, allow_redirects=False)
+            response = c.post(
+                "/node/join",
+                body=req,
+                allow_redirects=False,
+                validate_openapi=False,
+            )
 
         return response, pubkey_hash_hex
 

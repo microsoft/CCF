@@ -420,4 +420,19 @@ class Member:
             env=os.environ,
         )
         res.check_returncode()
-        return infra.clients.Response.from_raw(res.stdout)
+        response = infra.clients.Response.from_raw(res.stdout)
+
+        if supports_api_version and support_member_id_cert:
+            path = infra.clients.APIVersionedCCFClient.add_query_arg_to_path(
+                f"/gov/recovery/members/{self.service_id}:recover",
+                "api-version",
+                api_version,
+            )
+            remote_node.openapi_validator.validate(
+                infra.clients.Request(path, None, "POST", {}),
+                response,
+                host_url=f"https://{remote_node.get_public_rpc_address()}",
+                cose=True,
+            )
+
+        return response
