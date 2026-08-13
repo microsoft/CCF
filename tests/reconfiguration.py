@@ -739,7 +739,7 @@ def test_issue_fake_join(network, args):
 
         LOG.info("Join with SGX dummy quote")
         req["quote_info"] = {"format": "OE_SGX_v1", "quote": "", "endorsements": ""}
-        r = c.post("/node/join", body=req)
+        r = c.post("/node/join", body=req, validate_openapi=False)
         assert r.status_code == http.HTTPStatus.UNAUTHORIZED
         assert (
             r.body.json()["error"]["code"] == "InvalidQuote"
@@ -751,7 +751,7 @@ def test_issue_fake_join(network, args):
             "quote": own_quote["raw"],
             "endorsements": own_quote["endorsements"],
         }
-        r = c.post("/node/join", body=req)
+        r = c.post("/node/join", body=req, validate_openapi=False)
         assert r.status_code == http.HTTPStatus.UNAUTHORIZED
         assert r.body.json()["error"]["code"] == "InvalidQuote"
         assert r.body.json()["error"]["message"] == "Quote could not be verified"
@@ -776,7 +776,7 @@ def test_issue_fake_join(network, args):
             }
             if "uvm_endorsements" in own_quote:
                 req["quote_info"]["uvm_endorsements"] = own_quote["uvm_endorsements"]
-            r = c.post("/node/join", body=req)
+            r = c.post("/node/join", body=req, validate_openapi=False)
             if infra.platform_detection.get_platform() != platform:
                 assert r.status_code == http.HTTPStatus.UNAUTHORIZED
                 assert r.body.json()["error"]["code"] == "InvalidQuote"

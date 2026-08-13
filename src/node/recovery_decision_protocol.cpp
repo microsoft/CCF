@@ -429,13 +429,8 @@ namespace ccf
         // Send a timeout to the internal handlers
         curl::UniqueCURL curl_handle;
 
-        crypto::Pem cert;
-        crypto::Pem privkey_pem;
-        {
-          std::lock_guard<pal::Mutex> guard(node_state->lock);
-          cert = node_state->self_signed_node_cert;
-          privkey_pem = node_state->node_sign_kp->private_key_pem();
-        }
+        const auto cert = node_state->get_self_signed_certificate();
+        const auto privkey_pem = node_state->node_sign_kp->private_key_pem();
 
         curl_handle.set_opt(CURLOPT_SSL_VERIFYHOST, 0L);
         curl_handle.set_opt(CURLOPT_SSL_VERIFYPEER, 0L);
@@ -596,6 +591,9 @@ namespace ccf
     request.info = get_node_info(tx);
     request.txid = get_last_recovered_signed_txid();
     nlohmann::json request_json = request;
+    const auto self_signed_node_cert =
+      node_state->get_self_signed_certificate();
+    const auto node_private_key = node_state->node_sign_kp->private_key_pem();
 
     for (auto& target : config.expected_locations)
     {
@@ -604,8 +602,8 @@ namespace ccf
         request_json,
         target_address,
         "gossip",
-        node_state->self_signed_node_cert,
-        node_state->node_sign_kp->private_key_pem());
+        self_signed_node_cert,
+        node_private_key);
     }
   }
 
@@ -619,14 +617,15 @@ namespace ccf
 
     recovery_decision_protocol::TaggedWithNodeInfo request{
       .info = get_node_info(tx)};
-
     nlohmann::json request_json = request;
+    const auto self_signed_node_cert =
+      node_state->get_self_signed_certificate();
 
     dispatch_authenticated_message(
       request_json,
       node_info.location.address,
       "vote",
-      node_state->self_signed_node_cert,
+      self_signed_node_cert,
       node_state->node_sign_kp->private_key_pem());
   }
 
@@ -676,6 +675,9 @@ namespace ccf
     LOG_TRACE_FMT("Sending recovery-decision-protocol iamopen");
 
     nlohmann::json request_json = get_iamopen_request(tx);
+    const auto self_signed_node_cert =
+      node_state->get_self_signed_certificate();
+    const auto node_private_key = node_state->node_sign_kp->private_key_pem();
 
     for (auto& target : config.expected_locations)
     {
@@ -688,8 +690,8 @@ namespace ccf
         request_json,
         target.address,
         "iamopen",
-        node_state->self_signed_node_cert,
-        node_state->node_sign_kp->private_key_pem());
+        self_signed_node_cert,
+        node_private_key);
     }
   }
 
