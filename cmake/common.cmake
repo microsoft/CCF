@@ -126,7 +126,7 @@ function(add_e2e_test)
   cmake_parse_arguments(
     PARSE_ARGV 0
     PARSED_ARGS
-    ""
+    "DETECT_DEADLOCKS"
     "NAME;PYTHON_SCRIPT;LABEL;CURL_CLIENT;BUCKET"
     "CONSTITUTION;ADDITIONAL_ARGS;CONFIGURATIONS"
   )
@@ -190,7 +190,11 @@ function(add_e2e_test)
       )
     endif()
 
-    add_san_test_properties(${PARSED_ARGS_NAME})
+    set(SAN_TEST_ARGS "")
+    if(PARSED_ARGS_DETECT_DEADLOCKS)
+      set(SAN_TEST_ARGS DETECT_DEADLOCKS)
+    endif()
+    add_san_test_properties(${PARSED_ARGS_NAME} ${SAN_TEST_ARGS})
 
     if(COVERAGE)
       set_property(

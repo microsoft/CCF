@@ -939,6 +939,7 @@ if(BUILD_TESTS)
       ${CCF_DIR}/src/node/quote.cpp
       ${CCF_DIR}/src/node/uvm_endorsements.cpp
       ${CCF_DIR}/src/node/recovery_decision_protocol.cpp
+      DETECT_DEADLOCKS
     )
     target_link_libraries(
       frontend_test
@@ -1252,6 +1253,7 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
     CONSTITUTION ${CONSTITUTION_ARGS}
     BUCKET bucket_c
+    DETECT_DEADLOCKS
     ADDITIONAL_ARGS
       --initial-operator-count
       1
@@ -1290,6 +1292,7 @@ if(BUILD_TESTS)
     NAME e2e_logging
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
     BUCKET bucket_c
+    DETECT_DEADLOCKS
     ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
   )
 
@@ -1345,6 +1348,7 @@ if(BUILD_TESTS)
     NAME partitions
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/partitions_test.py
     LABEL partitions
+    DETECT_DEADLOCKS
     CONFIGURATIONS partitions
   )
 
