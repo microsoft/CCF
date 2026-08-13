@@ -493,7 +493,7 @@ def test_recover_service(
         assert r.status_code == http.HTTPStatus.OK, r
         previous_service_info = r.body.json()
         assert previous_service_info["status"] == infra.network.ServiceStatus.OPEN.value
-        assert previous_service_info["certificate"].strip("\x00") == prev_ident
+        assert previous_service_info["certificate"] == prev_ident
         assert previous_service_info["recoveryCount"] == network.recovery_count
         assert (
             previous_service_info["creationTransactionId"]
@@ -627,9 +627,10 @@ def test_recover_service(
         assert r.status_code == http.HTTPStatus.OK, r
         current_service_info = r.body.json()
         assert current_service_info["status"] == infra.network.ServiceStatus.OPEN.value
-        assert current_service_info["certificate"].strip(
-            "\x00"
-        ) == current_network_info["service_certificate"].strip("\x00")
+        assert (
+            current_service_info["certificate"]
+            == current_network_info["service_certificate"]
+        )
         assert (
             current_service_info["recoveryCount"]
             == previous_service_info["recoveryCount"] + 1
