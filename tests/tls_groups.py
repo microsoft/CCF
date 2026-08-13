@@ -15,11 +15,23 @@ HYBRID_GROUPS = ["SecP384r1MLKEM1024", "SecP256r1MLKEM768", "X25519MLKEM768"]
 WEAKEST_GROUP = "P-256"
 WEAKEST_GROUP_REPORTED = "prime256v1"
 
+# TLS NamedGroup IDs reported by OpenSSL 3.3
+GROUP_IDS = {
+    "23": WEAKEST_GROUP_REPORTED,
+    "4587": "SecP256r1MLKEM768",
+    "4588": "X25519MLKEM768",
+    "4589": "SecP384r1MLKEM1024",
+}
+
 # A group CCF does not offer
 UNSUPPORTED_GROUP = "X448"
 
-# s_client reports hybrid groups by name, and classical groups as a peer key
+# s_client output varies between OpenSSL 3.3 and 3.5
 NEGOTIATED_GROUP = re.compile(r"^Negotiated TLS1\.3 group: (\S+)$", re.MULTILINE)
+NEGOTIATED_GROUP_ID = re.compile(
+    r"ServerHello,.*?extension_type=key_share\(51\).*?" r"NamedGroup: [^\n]*\((\d+)\)",
+    re.DOTALL,
+)
 PEER_TEMP_KEY = re.compile(r"^Peer Temp Key: ECDH, ([^,]+),", re.MULTILINE)
 
 
@@ -29,7 +41,7 @@ def negotiate_group(address, groups):
     group they agreed on, or None if they could not agree.
     """
     completed = subprocess.run(
-        ["openssl", "s_client", "-connect", address, "-groups", groups],
+        ["openssl", "s_client", "-trace", "-connect", address, "-groups", groups],
         input="",
         capture_output=True,
         text=True,
@@ -41,6 +53,10 @@ def negotiate_group(address, groups):
     match = NEGOTIATED_GROUP.search(output)
     if match is not None and match.group(1) != "<NULL>":
         return match.group(1)
+
+    match = NEGOTIATED_GROUP_ID.search(output)
+    if match is not None:
+        return GROUP_IDS.get(match.group(1))
 
     match = PEER_TEMP_KEY.search(output)
     if match is not None:
