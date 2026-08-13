@@ -14,10 +14,13 @@ namespace ccf
     HTTPNodeClient(
       std::shared_ptr<ccf::RPCMap> rpc_map,
       ccf::crypto::ECKeyPairPtr node_sign_kp,
-      const ccf::crypto::Pem& self_signed_node_cert_,
-      const std::optional<ccf::crypto::Pem>& endorsed_node_cert_) :
+      ccf::crypto::Pem self_signed_node_cert_,
+      std::optional<ccf::crypto::Pem> endorsed_node_cert_) :
       NodeClient(
-        rpc_map, node_sign_kp, self_signed_node_cert_, endorsed_node_cert_)
+        std::move(rpc_map),
+        std::move(node_sign_kp),
+        std::move(self_signed_node_cert_),
+        std::move(endorsed_node_cert_))
     {}
 
     ~HTTPNodeClient() override = default;
