@@ -8,7 +8,6 @@ import time
 from contextlib import contextmanager
 
 import ca_certs
-import ccf.ledger
 import infra.clients
 import infra.crypto
 import infra.e2e_args
@@ -803,12 +802,10 @@ def test_jwt_key_auto_refresh_entries(network, args):
             timeout=max(5, args.jwt_key_refresh_interval_s * 5),
         )
 
-        # Force chunking
-        network.get_latest_ledger_public_state()
+        target_seqno = network.create_and_wait_for_ledger_chunk(primary)
         # Check that despite refreshing JWTs multiple times, only a single
         # transaction was created for this kid.
-        ledger_directories = primary.remote.ledger_paths()
-        ledger = ccf.ledger.Ledger(ledger_directories, contiguous_suffix=True)
+        ledger = primary.get_ledger_from_api(target_seqno)
 
         last_key_refresh = None
         for chunk in ledger:
