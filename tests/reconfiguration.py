@@ -14,6 +14,7 @@ from shutil import copy, rmtree
 
 import ccf.ledger
 import ccf.signatures
+import infra.clients
 import infra.crypto
 import infra.e2e_args
 import infra.logging_app as app
@@ -979,7 +980,22 @@ def test_ledger_invariants(network, args):
                 contiguous_suffix=True,
             )
         else:
-            ledger = node.get_ledger_from_api(target_seqno, local_only=True)
+            try:
+                ledger = node.get_ledger_from_api(target_seqno, local_only=True)
+            except (
+                infra.clients.CCFConnectionException,
+                infra.clients.CCFIOException,
+                TimeoutError,
+            ):
+                LOG.warning(
+                    "Node {} is no longer reachable; reading its ledger files "
+                    "directly",
+                    node.local_node_id,
+                )
+                ledger = ccf.ledger.Ledger(
+                    node.remote.ledger_paths(),
+                    contiguous_suffix=True,
+                )
         check_signatures(ledger)
 
     return network

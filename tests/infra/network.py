@@ -2256,31 +2256,17 @@ class Network:
 
         return target_seqno
 
-    def _get_ledger_public_view_at(self, node, call, seqno, timeout):
-        target_seqno = self.create_and_wait_for_ledger_chunk(
-            node=node,
-            timeout=timeout,
-        )
-        if self._supports_operator_feature(node, "LedgerChunkRead"):
-            return call(
-                node.get_ledger_from_api(target_seqno, timeout=timeout),
-                seqno,
-            )
-
-        return call(None, seqno)
-
     def get_ledger_public_state_at(self, seqno, timeout=5):
         primary, _ = self.find_primary()
-        return self._get_ledger_public_view_at(
-            primary,
-            lambda ledger, s: (
-                ledger.get_transaction(s).get_public_domain().get_tables()
-                if ledger is not None
-                else primary.get_ledger_public_tables_at(s)
-            ),
-            seqno,
-            timeout,
+        self.create_and_wait_for_ledger_chunk(
+            node=primary,
+            timeout=timeout,
         )
+        if self._supports_operator_feature(primary, "LedgerChunkRead"):
+            ledger = primary.get_ledger_chunk_from_api(seqno, timeout=timeout)
+            return ledger.get_transaction(seqno).get_public_domain().get_tables()
+
+        return primary.get_ledger_public_tables_at(seqno)
 
     def get_latest_ledger_public_state(self, timeout=5):
         primary, _ = self.find_primary()
@@ -2288,16 +2274,19 @@ class Network:
             resp = nc.get("/node/commit")
             body = resp.body.json()
             tx_id = TxID.from_str(body["transaction_id"])
-        return self._get_ledger_public_view_at(
-            primary,
-            lambda ledger, s: (
-                ledger.get_latest_public_state()
-                if ledger is not None
-                else primary.get_ledger_public_state_at(s)
-            ),
-            tx_id.seqno,
-            timeout,
+        target_seqno = self.create_and_wait_for_ledger_chunk(
+            node=primary,
+            timeout=timeout,
         )
+        if self._supports_operator_feature(
+            primary, "LedgerChunkRead"
+        ) and self._supports_operator_feature(primary, "SnapshotRead"):
+            return primary.get_public_state_from_api(
+                target_seqno,
+                timeout=timeout,
+            )
+
+        return primary.get_ledger_public_state_at(tx_id.seqno)
 
     @functools.cached_property
     def cert_path(self):

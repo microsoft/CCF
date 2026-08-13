@@ -603,13 +603,37 @@ class Node:
             f"node {self.local_node_id} after {timeout}s"
         )
 
-    def download_ledger(self, target_seqno, timeout=5, local_only=False):
+    def download_ledger(
+        self,
+        target_seqno,
+        timeout=5,
+        local_only=False,
+        start_seqno=None,
+    ):
         ledger_dir = tempfile.mkdtemp(
             prefix=f"{self.local_node_id}.ledger.downloaded.",
             dir=self.common_dir,
         )
         ledger_paths = []
-        if local_only:
+
+        def save_chunk(response, requested_seqno):
+            chunk_name = os.path.basename(
+                response.headers["x-ms-ccf-ledger-chunk-name"]
+            )
+            start_seqno, end_seqno = ccf.ledger.range_from_filename(chunk_name)
+            assert (
+                end_seqno is not None and start_seqno <= requested_seqno <= end_seqno
+            ), f"Ledger chunk {chunk_name} does not cover seqno {requested_seqno}"
+
+            chunk_path = os.path.join(ledger_dir, chunk_name)
+            with open(chunk_path, "wb") as chunk_file:
+                chunk_file.write(response.body.data())
+            ledger_paths.append(chunk_path)
+            return end_seqno
+
+        if start_seqno is not None:
+            next_seqno = start_seqno
+        elif local_only:
             with self.client() as c:
                 r = c.get("/node/state")
                 assert r.status_code == http.HTTPStatus.OK, r
@@ -640,6 +664,20 @@ class Node:
                     r = c.get(chunk_url.path, allow_redirects=False)
 
                 if r.status_code == http.HTTPStatus.NOT_FOUND:
+                    if (
+                        not local_only
+                        and not ledger_paths
+                        and start_seqno is None
+                        and next_seqno < target_seqno
+                    ):
+                        r = c.get(
+                            f"/node/ledger_chunk?since={target_seqno}",
+                            allow_redirects=True,
+                        )
+                        if r.status_code == http.HTTPStatus.OK:
+                            save_chunk(r, target_seqno)
+                            return ledger_paths
+
                     if time.time() >= end_time:
                         raise TimeoutError(
                             f"Could not download ledger through seqno "
@@ -655,31 +693,96 @@ class Node:
                         f"covering seqno {next_seqno}: {r}"
                     )
 
-                chunk_name = os.path.basename(r.headers["x-ms-ccf-ledger-chunk-name"])
-                start_seqno, end_seqno = ccf.ledger.range_from_filename(chunk_name)
-                assert (
-                    end_seqno is not None and start_seqno <= next_seqno <= end_seqno
-                ), f"Ledger chunk {chunk_name} does not cover seqno {next_seqno}"
-
-                chunk_path = os.path.join(ledger_dir, chunk_name)
-                with open(chunk_path, "wb") as chunk_file:
-                    chunk_file.write(r.body.data())
-                ledger_paths.append(chunk_path)
+                end_seqno = save_chunk(r, next_seqno)
                 next_seqno = end_seqno + 1
                 end_time = time.time() + timeout
 
         return ledger_paths
 
-    def get_ledger_from_api(self, target_seqno, timeout=5, local_only=False, **kwargs):
+    def get_ledger_from_api(
+        self,
+        target_seqno,
+        timeout=5,
+        local_only=False,
+        start_seqno=None,
+        **kwargs,
+    ):
         kwargs.setdefault("committed_only", True)
         return ccf.ledger.Ledger(
             self.download_ledger(
                 target_seqno,
                 timeout=timeout,
                 local_only=local_only,
+                start_seqno=start_seqno,
             ),
             **kwargs,
         )
+
+    def get_ledger_chunk_from_api(self, seqno, timeout=5):
+        return self.get_ledger_from_api(
+            seqno,
+            timeout=timeout,
+            start_seqno=seqno,
+        )
+
+    def get_public_state_from_api(self, target_seqno, timeout=5):
+        snapshot_dir = tempfile.mkdtemp(
+            prefix=f"{self.local_node_id}.snapshot.downloaded.",
+            dir=self.common_dir,
+        )
+        end_time = time.time() + timeout
+        with self.client(
+            interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
+        ) as c:
+            while True:
+                r = c.get("/node/snapshot", allow_redirects=True)
+                if r.status_code == http.HTTPStatus.OK:
+                    break
+                if time.time() >= end_time:
+                    raise RuntimeError(
+                        f"Unexpected response while downloading latest snapshot: {r}"
+                    )
+                if (
+                    r.status_code != http.HTTPStatus.NOT_FOUND
+                    and r.status_code < http.HTTPStatus.INTERNAL_SERVER_ERROR
+                ):
+                    raise RuntimeError(
+                        f"Unexpected response while downloading latest snapshot: {r}"
+                    )
+                time.sleep(0.1)
+
+            snapshot_name = os.path.basename(r.headers["x-ms-ccf-snapshot-name"])
+            snapshot_path = os.path.join(snapshot_dir, snapshot_name)
+            with open(snapshot_path, "wb") as snapshot_file:
+                snapshot_file.write(r.body.data())
+
+        with ccf.ledger.Snapshot(snapshot_path) as snapshot:
+            public_domain = snapshot.get_public_domain()
+            public_tables = public_domain.get_tables()
+            latest_seqno = public_domain.get_seqno()
+
+        if latest_seqno >= target_seqno:
+            return public_tables, latest_seqno
+
+        for transaction in self.get_ledger_from_api(
+            target_seqno,
+            timeout=timeout,
+            local_only=False,
+            start_seqno=latest_seqno + 1,
+            committed_only=True,
+        ).transactions():
+            public_domain = transaction.get_public_domain()
+            if public_domain.get_seqno() <= latest_seqno:
+                continue
+            latest_seqno = public_domain.get_seqno()
+            for table_name, records in public_domain.get_tables().items():
+                table = public_tables.setdefault(table_name, {})
+                table.update(records)
+                public_tables[table_name] = {
+                    key: value for key, value in table.items() if value is not None
+                }
+
+        return public_tables, latest_seqno
 
     def get_main_ledger_dir(self):
         """

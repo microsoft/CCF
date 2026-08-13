@@ -207,8 +207,8 @@ def remove_prefix(s, prefix):
 def test_tables_doc(network, args):
     primary, _ = network.find_primary()
     target_seqno = network.create_and_wait_for_ledger_chunk(primary)
-    ledger = primary.get_ledger_from_api(target_seqno)
-    table_names_in_ledger = ledger.get_latest_public_state()[0].keys()
+    public_state, _ = primary.get_public_state_from_api(target_seqno)
+    table_names_in_ledger = public_state.keys()
     check_all_tables_are_documented(
         table_names_in_ledger, "../doc/audit/builtin_maps.rst"
     )

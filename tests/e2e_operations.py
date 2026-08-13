@@ -162,7 +162,7 @@ def test_forced_ledger_chunk(network, args):
 
     # Check that there is indeed a ledger chunk that ends at the
     # first signature after proposal.completed_seqno
-    ledger = primary.get_ledger_from_api(proposal.completed_seqno)
+    ledger = primary.get_ledger_chunk_from_api(proposal.completed_seqno)
     chunk, _, last, next_signature = find_ledger_chunk_for_seqno(
         ledger, proposal.completed_seqno
     )
