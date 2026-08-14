@@ -248,9 +248,6 @@ def axis_label_color(percent: float, higher_is_better: bool, within_noise: bool)
     return LABEL_GOOD if improved else LABEL_BAD
 
 
-NEW_BENCHMARK_MARKER = "new"
-
-
 def shorten_label(label: str, max_length: int) -> str:
     """Shorten a label to fit, keeping both ends.
 
@@ -269,24 +266,14 @@ def shorten_label(label: str, max_length: int) -> str:
 
 
 def axis_label(
-    benchmark: str,
-    value: float,
-    percent: float,
-    unit: str,
-    within_noise: bool,
-    is_new: bool = False,
+    benchmark: str, value: float, percent: float, unit: str, within_noise: bool
 ) -> str:
     """Shorten benchmark labels and include the branch real value and delta."""
     label = SIG_MS_INTERVAL_RE.sub(r" \1", benchmark)
-    if is_new:
-        # There is no baseline to express a difference against, so report the
-        # value alone and say why.
-        suffix = f": {metric_label_value(value, unit)} ({NEW_BENCHMARK_MARKER})"
-    else:
-        suffix = (
-            f": {metric_label_value(value, unit)} "
-            f"{format_delta_percent(percent, within_noise)}"
-        )
+    suffix = (
+        f": {metric_label_value(value, unit)} "
+        f"{format_delta_percent(percent, within_noise)}"
+    )
     return f"{shorten_label(label, MAX_AXIS_LABEL_LENGTH - len(suffix))}{suffix}"
 
 
@@ -347,13 +334,15 @@ def render_mermaid_radar_chart(
             if (value := metric_value(data, benchmark, metric)) is not None
         ]
 
-        # A benchmark added by this branch has no main history to compare
-        # against. Rather than drop it, which would make a new benchmark
-        # invisible on the very PR that adds it, plot it against this branch's
-        # own earliest run so that movement across branch runs is still
-        # visible, and mark it so it is not mistaken for a main comparison.
-        is_new = not main_values
-        if is_new:
+        # A benchmark added by this branch has no main runs to build a baseline
+        # from. Rather than drop it, which would make a new benchmark invisible
+        # on the very pull request which adds it, use this branch's own earliest
+        # run as the reference, so the axis is normalised and plotted exactly
+        # like every other one.
+        if main_values:
+            baseline = ewma(main_values)
+            sigma = statistics.pstdev(main_values) if len(main_values) > 1 else 0.0
+        else:
             branch_values = [
                 value
                 for data in branch_runs
@@ -363,22 +352,15 @@ def render_mermaid_radar_chart(
                 continue
             baseline = branch_values[0]
             sigma = 0.0
-        else:
-            baseline = ewma(main_values)
-            sigma = statistics.pstdev(main_values) if len(main_values) > 1 else 0.0
 
         if baseline <= 0:
             continue
 
         branch_percent = normalized_percent(branch_value, baseline)
         sigma_percent = normalized_percent(sigma, baseline)
-        # Without a main baseline there is no improvement or regression to
-        # report, so such an axis is never coloured as either.
-        within_noise = (
-            True if is_new else within_noise_band(branch_percent, sigma_percent)
-        )
+        within_noise = within_noise_band(branch_percent, sigma_percent)
         axes.append(
-            f"b{index}[{mermaid_label(axis_label(benchmark, branch_value, branch_percent, unit, within_noise, is_new))}]"
+            f"b{index}[{mermaid_label(axis_label(benchmark, branch_value, branch_percent, unit, within_noise))}]"
         )
         axis_colors.append(
             axis_label_color(branch_percent, higher_better, within_noise)
@@ -555,11 +537,10 @@ def render_comparison(
         ),
         "",
         (
-            f"_A benchmark marked ({NEW_BENCHMARK_MARKER}) does not exist on `main` yet, "
-            "so it has no baseline to be compared against. It is plotted against this "
-            "branch's own earliest run instead, which shows how it moved across the "
-            "branch's runs but says nothing about `main`, and it is never coloured as "
-            "an improvement or a regression._"
+            "_A benchmark which does not exist on `main` yet has no baseline of its "
+            "own, so this branch's earliest run is used as its reference instead. "
+            "Its axis is normalized and plotted like any other, but the comparison "
+            "is against this branch rather than against `main`._"
         ),
         "",
         "</details>",
