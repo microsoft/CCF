@@ -67,20 +67,22 @@ void share_and_recover(
     {
       Share recovered;
       recover_unauthenticated_secret(recovered, recovered_shares, threshold);
-      INFO(fmt::format(
-        "Recovering secret with threshold {} from {} shares",
-        threshold,
-        recovered_shares.size()));
+      INFO(
+        fmt::format(
+          "Recovering secret with threshold {} from {} shares",
+          threshold,
+          recovered_shares.size()));
       REQUIRE(secret == recovered);
     }
 
     {
       Share recovered;
       recovered_shares.pop_back();
-      INFO(fmt::format(
-        "Recovering secret with threshold {} from {} shares",
-        threshold - 1,
-        recovered_shares.size()));
+      INFO(
+        fmt::format(
+          "Recovering secret with threshold {} from {} shares",
+          threshold - 1,
+          recovered_shares.size()));
       REQUIRE_THROWS_AS(
         recover_unauthenticated_secret(recovered, recovered_shares, threshold),
         std::invalid_argument);

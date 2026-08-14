@@ -115,22 +115,24 @@ TEST_CASE("CBOR: bytes")
       auto value = parse(cbor_bytes);
 
       auto bytes = value->as_bytes();
-      REQUIRE(std::equal(
-        expected_value.begin(),
-        expected_value.end(),
-        bytes.begin(),
-        bytes.end()));
+      REQUIRE(
+        std::equal(
+          expected_value.begin(),
+          expected_value.end(),
+          bytes.begin(),
+          bytes.end()));
 
       auto encoded = serialize(value);
       auto decoded = parse(encoded);
       REQUIRE_EQ(cbor_bytes, encoded);
 
       bytes = decoded->as_bytes();
-      REQUIRE(std::equal(
-        expected_value.begin(),
-        expected_value.end(),
-        bytes.begin(),
-        bytes.end()));
+      REQUIRE(
+        std::equal(
+          expected_value.begin(),
+          expected_value.end(),
+          bytes.begin(),
+          bytes.end()));
 
       const std::string result = to_string(value);
       REQUIRE(result == expected_repr);
@@ -228,11 +230,12 @@ TEST_CASE("CBOR: tagged value Tag(9003) with bytes")
   REQUIRE_EQ(cbor_bytes, encoded);
 
   auto round_trip_bytes = decoded->tag_at(9003)->as_bytes();
-  REQUIRE(std::equal(
-    round_trip_bytes.begin(),
-    round_trip_bytes.end(),
-    bytes.begin(),
-    bytes.end()));
+  REQUIRE(
+    std::equal(
+      round_trip_bytes.begin(),
+      round_trip_bytes.end(),
+      bytes.begin(),
+      bytes.end()));
 
   const std::string expected_repr = R"(Tagged[9003]:
   Bytes[2]: cafe)";

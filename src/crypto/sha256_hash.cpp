@@ -94,10 +94,11 @@ namespace ccf::crypto
     }
     catch (const std::logic_error& e)
     {
-      throw ccf::JsonParseError(fmt::format(
-        "Input string \"{}\" is not valid hex-encoded SHA-256: {}",
-        value,
-        e.what()));
+      throw ccf::JsonParseError(
+        fmt::format(
+          "Input string \"{}\" is not valid hex-encoded SHA-256: {}",
+          value,
+          e.what()));
     }
   }
 

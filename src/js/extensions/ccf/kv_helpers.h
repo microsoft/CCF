@@ -10,9 +10,9 @@ namespace ccf::js::extensions::kvhelpers
 {
   using KVMap = ::ccf::kv::untyped::Map;
 
-  using ROHandleGetter = KVMap::ReadOnlyHandle* (*)(js::core::Context& jsctx,
+  using ROHandleGetter = KVMap::ReadOnlyHandle* (*)(js::core::Context & jsctx,
                                                     JSValueConst this_val);
-  using RWHandleGetter = KVMap::Handle* (*)(js::core::Context& jsctx,
+  using RWHandleGetter = KVMap::Handle* (*)(js::core::Context & jsctx,
                                             JSValueConst this_val);
 
 #define JS_KV_PERMISSION_ERROR_HELPER(C_FUNC_NAME, JS_METHOD_NAME) \

@@ -46,10 +46,11 @@ namespace ccf::indexing
     {
       if (tx_id_less(tx_id, committed))
       {
-        throw std::logic_error(fmt::format(
-          "Committing out-of-order. Committed to {}, trying to commit {}",
-          committed.to_str(),
-          tx_id.to_str()));
+        throw std::logic_error(
+          fmt::format(
+            "Committing out-of-order. Committed to {}, trying to commit {}",
+            committed.to_str(),
+            tx_id.to_str()));
       }
 
       committed = tx_id;

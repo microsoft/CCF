@@ -150,10 +150,11 @@ namespace ccf
 
         result.content_type = ccf::cbor::rethrow_with_msg(
           [&]() {
-            return std::string(parsed_phdr
-                                 ->map_at(ccf::cbor::make_signed(
-                                   header::iana::PREIMAGE_CONTENT_TYPE))
-                                 ->as_string());
+            return std::string(
+              parsed_phdr
+                ->map_at(
+                  ccf::cbor::make_signed(header::iana::PREIMAGE_CONTENT_TYPE))
+                ->as_string());
           },
           fmt::format(
             "Parse content-type ({}) in protected header in UVM endorsements",
@@ -226,8 +227,10 @@ namespace ccf
 
     if (!(cose::is_rsa_alg(phdr.alg) || cose::is_ecdsa_alg(phdr.alg)))
     {
-      throw std::logic_error(fmt::format(
-        "Signature algorithm {} is not one of expected: RSA, ECDSA", phdr.alg));
+      throw std::logic_error(
+        fmt::format(
+          "Signature algorithm {} is not one of expected: RSA, ECDSA",
+          phdr.alg));
     }
 
     std::vector<std::string> pem_chain;
@@ -259,8 +262,11 @@ namespace ccf
       }
       case ccf::crypto::JsonWebKeyType::OKP:
       {
-        throw std::logic_error(fmt::format(
-          "Unsupported public key type ({}) for DID {}", generic_jwk.kty, did));
+        throw std::logic_error(
+          fmt::format(
+            "Unsupported public key type ({}) for DID {}",
+            generic_jwk.kty,
+            did));
       }
     }
 
@@ -272,10 +278,11 @@ namespace ccf
     {
       if (phdr.content_type != cose::value::CT_JSON)
       {
-        throw std::logic_error(fmt::format(
-          "Unexpected payload content type {}, expected {}",
-          phdr.content_type,
-          cose::value::CT_JSON));
+        throw std::logic_error(
+          fmt::format(
+            "Unexpected payload content type {}, expected {}",
+            phdr.content_type,
+            cose::value::CT_JSON));
       }
 
       auto payload = ccf::parse_json_safe(raw_payload);
@@ -292,11 +299,12 @@ namespace ccf
           uintval);
         if (result.ec != std::errc())
         {
-          throw std::logic_error(fmt::format(
-            "Unable to parse sevsnpvm_guest_svn value {} to unsigned in UVM "
-            "endorsements "
-            "payload",
-            sevsnpvm_guest_svn));
+          throw std::logic_error(
+            fmt::format(
+              "Unable to parse sevsnpvm_guest_svn value {} to unsigned in UVM "
+              "endorsements "
+              "payload",
+              sevsnpvm_guest_svn));
         }
       }
       else if (sevsnpvm_guest_svn_obj.is_number_unsigned())
@@ -306,20 +314,22 @@ namespace ccf
       }
       else
       {
-        throw std::logic_error(fmt::format(
-          "Unexpected type {} for sevsnpvm_guest_svn in UVM endorsements "
-          "payload, expected string or unsigned integer",
-          sevsnpvm_guest_svn_obj.type_name()));
+        throw std::logic_error(
+          fmt::format(
+            "Unexpected type {} for sevsnpvm_guest_svn in UVM endorsements "
+            "payload, expected string or unsigned integer",
+            sevsnpvm_guest_svn_obj.type_name()));
       }
     }
     else
     {
       if (phdr.content_type != cose::value::CT_OCTET_STREAM)
       {
-        throw std::logic_error(fmt::format(
-          "Unexpected payload content type {}, expected {}",
-          phdr.content_type,
-          cose::value::CT_OCTET_STREAM));
+        throw std::logic_error(
+          fmt::format(
+            "Unexpected payload content type {}, expected {}",
+            phdr.content_type,
+            cose::value::CT_OCTET_STREAM));
       }
 
       sevsnpvm_launch_measurement =
@@ -328,11 +338,12 @@ namespace ccf
 
     if (sevsnpvm_launch_measurement != uvm_measurement.hex_str())
     {
-      throw std::logic_error(fmt::format(
-        "Launch measurement in UVM endorsements payload {} is not equal "
-        "to UVM attestation measurement {}",
-        sevsnpvm_launch_measurement,
-        uvm_measurement.hex_str()));
+      throw std::logic_error(
+        fmt::format(
+          "Launch measurement in UVM endorsements payload {} is not equal "
+          "to UVM attestation measurement {}",
+          sevsnpvm_launch_measurement,
+          uvm_measurement.hex_str()));
     }
 
     LOG_INFO_FMT(
@@ -349,12 +360,13 @@ namespace ccf
       enforce_uvm_roots_of_trust &&
       !matches_uvm_roots_of_trust(end, uvm_roots_of_trust))
     {
-      throw std::logic_error(fmt::format(
-        "UVM endorsements did {}, feed {}, svn {} "
-        "do not match any of the known UVM roots of trust",
-        end.did,
-        end.feed,
-        end.svn));
+      throw std::logic_error(
+        fmt::format(
+          "UVM endorsements did {}, feed {}, svn {} "
+          "do not match any of the known UVM roots of trust",
+          end.did,
+          end.feed,
+          end.svn));
     }
 
     return end;

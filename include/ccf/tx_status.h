@@ -86,10 +86,11 @@ namespace ccf
 
     if (is_committed && !view_known)
     {
-      throw std::logic_error(fmt::format(
-        "Should know local view for seqnos up to {}, but have no view for {}",
-        committed_seqno,
-        target_seqno));
+      throw std::logic_error(
+        fmt::format(
+          "Should know local view for seqnos up to {}, but have no view for {}",
+          committed_seqno,
+          target_seqno));
     }
 
     if (is_committed)

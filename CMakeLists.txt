@@ -1468,6 +1468,60 @@ if(BUILD_TESTS)
       "1,write,3000000,primary"
   )
 
+  set(BLOCKING_PERF_CLIENT_COUNT 320 CACHE STRING "Blocking perf client count")
+  set(
+    BLOCKING_PERF_CLIENTS_PER_PROCESS
+    32
+    CACHE STRING
+    "Blocking perf logical clients per process"
+  )
+  set(
+    BLOCKING_PERF_ITERATIONS
+    2000
+    CACHE STRING
+    "Blocking perf iterations per client"
+  )
+  set(
+    BLOCKING_PERF_SIG_TX_INTERVAL
+    5000
+    CACHE STRING
+    "Blocking perf signature transaction interval"
+  )
+  set(
+    BLOCKING_PERF_SIG_MS_INTERVAL
+    2
+    CACHE STRING
+    "Blocking perf signature time interval"
+  )
+  set(
+    BLOCKING_PERF_NODE_CPU_AFFINITY
+    ""
+    CACHE STRING
+    "Blocking perf node CPU list"
+  )
+  set(
+    BLOCKING_PERF_CLIENT_CPU_AFFINITY
+    ""
+    CACHE STRING
+    "Blocking perf client CPU list"
+  )
+
+  set(BLOCKING_PERF_AFFINITY_ARGS)
+  if(BLOCKING_PERF_NODE_CPU_AFFINITY)
+    list(
+      APPEND BLOCKING_PERF_AFFINITY_ARGS
+      --node-cpu-affinity
+      ${BLOCKING_PERF_NODE_CPU_AFFINITY}
+    )
+  endif()
+  if(BLOCKING_PERF_CLIENT_CPU_AFFINITY)
+    list(
+      APPEND BLOCKING_PERF_AFFINITY_ARGS
+      --client-cpu-affinity
+      ${BLOCKING_PERF_CLIENT_CPU_AFFINITY}
+    )
+  endif()
+
   add_piccolo_test(
     NAME pi_basic_blocking
     PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/basicperf.py
@@ -1477,9 +1531,16 @@ if(BUILD_TESTS)
       --package
       "samples/apps/basic/basic"
       --client-def
-      "128,blocking_write,100,primary"
+      "${BLOCKING_PERF_CLIENT_COUNT},blocking_write,${BLOCKING_PERF_ITERATIONS},primary"
+      --clients-per-process
+      ${BLOCKING_PERF_CLIENTS_PER_PROCESS}
       --max-writes-ahead
       0
+      --sig-tx-interval
+      ${BLOCKING_PERF_SIG_TX_INTERVAL}
+      --sig-ms-interval
+      ${BLOCKING_PERF_SIG_MS_INTERVAL}
+      ${BLOCKING_PERF_AFFINITY_ARGS}
   )
 
   add_piccolo_test(

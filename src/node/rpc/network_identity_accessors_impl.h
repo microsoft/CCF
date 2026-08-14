@@ -88,10 +88,11 @@ namespace ccf
       }
       if (!state->store)
       {
-        throw std::runtime_error(fmt::format(
-          "Historical state with seqno {} is loaded but its store is "
-          "missing",
-          seq));
+        throw std::runtime_error(
+          fmt::format(
+            "Historical state with seqno {} is loaded but its store is "
+            "missing",
+            seq));
       }
       auto htx = state->store->create_read_only_tx();
       auto endorsement =
@@ -101,10 +102,11 @@ namespace ccf
           ->get();
       if (!endorsement.has_value())
       {
-        throw std::runtime_error(fmt::format(
-          "COSE endorsement entry for seqno {} is missing from its "
-          "historical state",
-          seq));
+        throw std::runtime_error(
+          fmt::format(
+            "COSE endorsement entry for seqno {} is missing from its "
+            "historical state",
+            seq));
       }
       return endorsement;
     }

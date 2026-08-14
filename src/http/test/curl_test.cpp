@@ -110,10 +110,12 @@ TEST_CASE("RequestBody supports replay")
   REQUIRE(
     ccf::curl::RequestBody::send_data(
       replayed.data(), 1, replayed.size(), &body) == replayed.size());
-  REQUIRE(std::equal(
-    replayed.begin(), replayed.end(), expected.begin(), [](char lhs, auto rhs) {
-      return static_cast<uint8_t>(lhs) == rhs;
-    }));
+  REQUIRE(
+    std::equal(
+      replayed.begin(),
+      replayed.end(),
+      expected.begin(),
+      [](char lhs, auto rhs) { return static_cast<uint8_t>(lhs) == rhs; }));
 
   REQUIRE(body.seek(2, SEEK_SET));
   REQUIRE_FALSE(body.seek(std::numeric_limits<curl_off_t>::max(), SEEK_CUR));

@@ -42,10 +42,11 @@ namespace ccf::ds
         std::from_chars(value.data(), value.data() + value.size(), ret);
       if (res.ec != std::errc())
       {
-        throw std::logic_error(fmt::format(
-          "Could not convert value from size string \"{}\": {}",
-          value,
-          res.ec));
+        throw std::logic_error(
+          fmt::format(
+            "Could not convert value from size string \"{}\": {}",
+            value,
+            res.ec));
       }
 
       if (unit.empty())
@@ -66,8 +67,9 @@ namespace ccf::ds
             allowed_units_str += ", ";
           }
         }
-        throw std::logic_error(fmt::format(
-          "Unit {} is invalid. Allowed: {}", unit, allowed_units_str));
+        throw std::logic_error(
+          fmt::format(
+            "Unit {} is invalid. Allowed: {}", unit, allowed_units_str));
       }
 
       return f(ret, factor->second);

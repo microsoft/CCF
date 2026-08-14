@@ -27,8 +27,9 @@ namespace ccf
     {
       if (term > 0x7FFFFFFF)
       {
-        throw std::logic_error(fmt::format(
-          "term should fit in 31 bits of IV. Value is: 0x{0:x}", term));
+        throw std::logic_error(
+          fmt::format(
+            "term should fit in 31 bits of IV. Value is: 0x{0:x}", term));
       }
 
       *reinterpret_cast<uint32_t*>(iv.data() + IV_DELIMITER) =

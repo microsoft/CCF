@@ -317,16 +317,18 @@ namespace ccf::kv
       auto map = std::dynamic_pointer_cast<ccf::kv::untyped::Map>(map_);
       if (map == nullptr)
       {
-        throw std::logic_error(fmt::format(
-          "Can't add dynamic map - {} is not of expected type",
-          map_->get_name()));
+        throw std::logic_error(
+          fmt::format(
+            "Can't add dynamic map - {} is not of expected type",
+            map_->get_name()));
       }
 
       const auto map_name = map->get_name();
       if (get_map_unsafe(v, map_name) != nullptr)
       {
-        throw std::logic_error(fmt::format(
-          "Can't add dynamic map - already have a map named {}", map_name));
+        throw std::logic_error(
+          fmt::format(
+            "Can't add dynamic map - already have a map named {}", map_name));
       }
 
       LOG_DEBUG_FMT("Adding newly created map '{}' at version {}", map_name, v);
@@ -353,20 +355,22 @@ namespace ccf::kv
       auto cv = compacted_version();
       if (v < cv)
       {
-        throw std::logic_error(fmt::format(
-          "Cannot snapshot at version {} which is earlier than last "
-          "compacted version {} ",
-          v,
-          cv));
+        throw std::logic_error(
+          fmt::format(
+            "Cannot snapshot at version {} which is earlier than last "
+            "compacted version {} ",
+            v,
+            cv));
       }
 
       if (v > current_version())
       {
-        throw std::logic_error(fmt::format(
-          "Cannot snapshot at version {} which is later than current "
-          "version {} ",
-          v,
-          current_version()));
+        throw std::logic_error(
+          fmt::format(
+            "Cannot snapshot at version {} which is later than current "
+            "version {} ",
+            v,
+            current_version()));
       }
 
       auto snapshot = std::make_unique<StoreSnapshot>(v);
@@ -649,10 +653,11 @@ namespace ccf::kv
         std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
         if (tx_id.seqno < compacted)
         {
-          throw std::logic_error(fmt::format(
-            "Attempting rollback to {}, earlier than commit version {}",
-            tx_id.seqno,
-            compacted));
+          throw std::logic_error(
+            fmt::format(
+              "Attempting rollback to {}, earlier than commit version {}",
+              tx_id.seqno,
+              compacted));
         }
 
         // The term should always be updated on rollback() when passed
@@ -1203,11 +1208,13 @@ namespace ccf::kv
         const auto target_version = current_version();
         if (source_version > target_version)
         {
-          throw std::runtime_error(fmt::format(
-            "Invalid call to swap_private_maps. Source is at version {} while "
-            "target is at {}",
-            source_version,
-            target_version));
+          throw std::runtime_error(
+            fmt::format(
+              "Invalid call to swap_private_maps. Source is at version {} "
+              "while "
+              "target is at {}",
+              source_version,
+              target_version));
         }
       }
 
@@ -1254,9 +1261,10 @@ namespace ccf::kv
           map = it->second.second;
           if (map->get_security_domain() != SecurityDomain::PRIVATE)
           {
-            throw std::logic_error(fmt::format(
-              "Swap mismatch - map {} is private in source but not in target",
-              name));
+            throw std::logic_error(
+              fmt::format(
+                "Swap mismatch - map {} is private in source but not in target",
+                name));
           }
         }
 

@@ -37,8 +37,9 @@ namespace ccf::crypto
       return {str.substr(DNS_NAME_PREFIX.size()), false};
     }
 
-    throw std::logic_error(fmt::format(
-      "SAN could not be parsed: {}, must be (iPAddress|dNSName):VALUE", str));
+    throw std::logic_error(
+      fmt::format(
+        "SAN could not be parsed: {}, must be (iPAddress|dNSName):VALUE", str));
   }
 
   static std::vector<SubjectAltName> sans_from_string_list(

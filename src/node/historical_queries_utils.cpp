@@ -228,17 +228,20 @@ namespace ccf
       }
       if (fetching == FetchStatus::Failed)
       {
-        throw std::runtime_error(fmt::format(
-          "The service identity endorsement for the receipt at seqno {} "
-          "cannot be fetched",
-          state->transaction_id.seqno));
+        throw std::runtime_error(
+          fmt::format(
+            "The service identity endorsement for the receipt at seqno {} "
+            "cannot be fetched",
+            state->transaction_id.seqno));
       }
       if (fetching != FetchStatus::Done && fetching != FetchStatus::Partial)
       {
-        throw std::runtime_error(fmt::format(
-          "Unexpected endorsements fetching status: expected Done or Partial; "
-          "got {}",
-          ccf::to_string(fetching)));
+        throw std::runtime_error(
+          fmt::format(
+            "Unexpected endorsements fetching status: expected Done or "
+            "Partial; "
+            "got {}",
+            ccf::to_string(fetching)));
       }
 
       auto cose_endorsements =
@@ -247,10 +250,11 @@ namespace ccf
       if (!cose_endorsements.has_value())
       {
         // Cannot tell whether this seqno was ever endorsed.
-        throw std::runtime_error(fmt::format(
-          "Cannot determine the service identity endorsement chain "
-          "for the receipt at {}",
-          state->transaction_id.to_str()));
+        throw std::runtime_error(
+          fmt::format(
+            "Cannot determine the service identity endorsement chain "
+            "for the receipt at {}",
+            state->transaction_id.to_str()));
       }
       state->receipt->cose_endorsements = cose_endorsements;
       return true;
@@ -267,17 +271,19 @@ namespace ccf
       const auto tx_id = ccf::TxID::from_str(receipt.phdr.ccf.txid);
       if (!tx_id.has_value())
       {
-        throw std::logic_error(fmt::format(
-          "Failed to convert txid {} to ccf::TxID", receipt.phdr.ccf.txid));
+        throw std::logic_error(
+          fmt::format(
+            "Failed to convert txid {} to ccf::TxID", receipt.phdr.ccf.txid));
       }
 
       const auto trusted_key =
         network_identity_subsystem->get_trusted_identity_for(tx_id->seqno);
       if (!trusted_key)
       {
-        throw std::logic_error(fmt::format(
-          "Verifying receipt for seqno {} failed due to trusted key absence",
-          tx_id->seqno));
+        throw std::logic_error(
+          fmt::format(
+            "Verifying receipt for seqno {} failed due to trusted key absence",
+            tx_id->seqno));
       }
 
       const auto verifier =

@@ -19,8 +19,9 @@
     const auto it = j.find(#FIELD); \
     if (it == j.end()) \
     { \
-      throw ccf::JsonParseError(fmt::format( \
-        "Missing required field '" #FIELD "' in object:", j.dump())); \
+      throw ccf::JsonParseError( \
+        fmt::format( \
+          "Missing required field '" #FIELD "' in object:", j.dump())); \
     } \
     FROM_JSON_TRY_PARSE(TYPE, DOC, FIELD) \
   }
@@ -53,9 +54,10 @@ namespace ccf
   {
     if (!j.is_object())
     {
-      throw ccf::JsonParseError(fmt::format(
-        "Cannot parse Receipt LeafComponents: Expected object, got {}",
-        j.dump()));
+      throw ccf::JsonParseError(
+        fmt::format(
+          "Cannot parse Receipt LeafComponents: Expected object, got {}",
+          j.dump()));
     }
 
     FROM_JSON_GET_REQUIRED_FIELD(
@@ -120,18 +122,20 @@ namespace ccf
   {
     if (!j.is_object())
     {
-      throw ccf::JsonParseError(fmt::format(
-        "Cannot parse Receipt Step: Expected object, got {}", j.dump()));
+      throw ccf::JsonParseError(
+        fmt::format(
+          "Cannot parse Receipt Step: Expected object, got {}", j.dump()));
     }
 
     const auto l_it = j.find("left");
     const auto r_it = j.find("right");
     if ((l_it == j.end()) == (r_it == j.end()))
     {
-      throw ccf::JsonParseError(fmt::format(
-        "Cannot parse Receipt Step: Expected either 'left' or 'right' field, "
-        "got {}",
-        j.dump()));
+      throw ccf::JsonParseError(
+        fmt::format(
+          "Cannot parse Receipt Step: Expected either 'left' or 'right' field, "
+          "got {}",
+          j.dump()));
     }
 
     if (l_it != j.end())
@@ -232,10 +236,11 @@ namespace ccf
       }
       else
       {
-        throw ccf::JsonParseError(fmt::format(
-          "Cannot parse Receipt: Expected 'leaf_components' and 'proof'"
-          "fields, got {}",
-          j.dump()));
+        throw ccf::JsonParseError(
+          fmt::format(
+            "Cannot parse Receipt: Expected 'leaf_components' and 'proof'"
+            "fields, got {}",
+            j.dump()));
       }
     }
     else
@@ -277,11 +282,12 @@ namespace ccf
       }
       else
       {
-        throw ccf::JsonParseError(fmt::format(
-          "Cannot parse v1 Receipt: Expected either 'leaf' or "
-          "'leaf_components' "
-          "field, got {}",
-          j.dump()));
+        throw ccf::JsonParseError(
+          fmt::format(
+            "Cannot parse v1 Receipt: Expected either 'leaf' or "
+            "'leaf_components' "
+            "field, got {}",
+            j.dump()));
       }
     }
 

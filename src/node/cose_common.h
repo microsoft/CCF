@@ -154,8 +154,10 @@ namespace ccf::cose
       ccf::crypto::OpenSSL::get_x509_chain_common_validity_period(x5chain);
     if (!common_validity_period.has_value())
     {
-      throw COSEDecodeError(fmt::format(
-        "Certificates in {} x5chain have no common validity period", context));
+      throw COSEDecodeError(
+        fmt::format(
+          "Certificates in {} x5chain have no common validity period",
+          context));
     }
 
     const auto iat = ccf::nonstd::SystemClock::time_point{
@@ -164,12 +166,13 @@ namespace ccf::cose
       iat < common_validity_period->not_before ||
       iat > common_validity_period->not_after)
     {
-      throw COSEDecodeError(fmt::format(
-        "CWT iat {} in {} is outside x5chain common validity period [{}, {}]",
-        claims.iat.value(),
-        context,
-        ccf::ds::to_x509_time_string(common_validity_period->not_before),
-        ccf::ds::to_x509_time_string(common_validity_period->not_after)));
+      throw COSEDecodeError(
+        fmt::format(
+          "CWT iat {} in {} is outside x5chain common validity period [{}, {}]",
+          claims.iat.value(),
+          context,
+          ccf::ds::to_x509_time_string(common_validity_period->not_before),
+          ccf::ds::to_x509_time_string(common_validity_period->not_after)));
     }
   }
 
@@ -259,11 +262,12 @@ namespace ccf::cose
   {
     if (bytes.size() != ccf::crypto::Sha256Hash::SIZE)
     {
-      throw COSEDecodeError(fmt::format(
-        "Unsupported {} size: {} (expected {})",
-        field,
-        bytes.size(),
-        ccf::crypto::Sha256Hash::SIZE));
+      throw COSEDecodeError(
+        fmt::format(
+          "Unsupported {} size: {} (expected {})",
+          field,
+          bytes.size(),
+          ccf::crypto::Sha256Hash::SIZE));
     }
   }
 
@@ -356,8 +360,9 @@ namespace ccf::cose
 
     if (phdr.vds != ccf::cose::value::CCF_LEDGER_SHA256)
     {
-      throw COSEDecodeError(fmt::format(
-        "Unsupported vds value ({}) in protected header", phdr.vds));
+      throw COSEDecodeError(
+        fmt::format(
+          "Unsupported vds value ({}) in protected header", phdr.vds));
     }
 
     decode_cwt_claims(cbor, phdr.cwt);
@@ -521,10 +526,11 @@ namespace ccf::cose
         }
         if (proofs[i].leaf.claims_digest != receipt.claims_digest)
         {
-          throw COSEDecodeError(fmt::format(
-            "Claims from proofs don't match: {} != {}",
-            ds::to_hex(receipt.claims_digest),
-            ds::to_hex(proofs[i].leaf.claims_digest)));
+          throw COSEDecodeError(
+            fmt::format(
+              "Claims from proofs don't match: {} != {}",
+              ds::to_hex(receipt.claims_digest),
+              ds::to_hex(proofs[i].leaf.claims_digest)));
         }
       }
     }

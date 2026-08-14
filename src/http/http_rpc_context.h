@@ -374,10 +374,11 @@ namespace ccf
 
     if (processor.received.size() != 1)
     {
-      throw std::logic_error(fmt::format(
-        "Expected packed to contain a single complete HTTP message. Actually "
-        "parsed {} messages",
-        processor.received.size()));
+      throw std::logic_error(
+        fmt::format(
+          "Expected packed to contain a single complete HTTP message. Actually "
+          "parsed {} messages",
+          processor.received.size()));
     }
 
     const auto& msg = processor.received.front();

@@ -98,10 +98,11 @@ namespace snapshots
 
     if (range_start.empty() || range_end.empty() || total_size.empty())
     {
-      throw std::runtime_error(fmt::format(
-        "Unsupported content-range header format. Expected 'bytes "
-        "<begin>-<end>/<total>', received: {}",
-        it->second));
+      throw std::runtime_error(
+        fmt::format(
+          "Unsupported content-range header format. Expected 'bytes "
+          "<begin>-<end>/<total>', received: {}",
+          it->second));
     }
 
     ContentRangeHeader parsed_values{};
@@ -111,10 +112,11 @@ namespace snapshots
         range_start.begin(), range_start.end(), parsed_values.range_start);
       if (ec != std::errc())
       {
-        throw std::runtime_error(fmt::format(
-          "Could not parse range start ({}) from content-range header: {}",
-          range_start,
-          it->second));
+        throw std::runtime_error(
+          fmt::format(
+            "Could not parse range start ({}) from content-range header: {}",
+            range_start,
+            it->second));
       }
     }
 
@@ -123,10 +125,11 @@ namespace snapshots
         range_end.begin(), range_end.end(), parsed_values.inclusive_range_end);
       if (ec != std::errc())
       {
-        throw std::runtime_error(fmt::format(
-          "Could not parse range end ({}) from content-range header: {}",
-          range_end,
-          it->second));
+        throw std::runtime_error(
+          fmt::format(
+            "Could not parse range end ({}) from content-range header: {}",
+            range_end,
+            it->second));
       }
     }
 
@@ -135,10 +138,11 @@ namespace snapshots
         total_size.begin(), total_size.end(), parsed_values.total_size);
       if (ec != std::errc())
       {
-        throw std::runtime_error(fmt::format(
-          "Could not parse total size ({}) from content-range header: {}",
-          total_size,
-          it->second));
+        throw std::runtime_error(
+          fmt::format(
+            "Could not parse total size ({}) from content-range header: {}",
+            total_size,
+            it->second));
       }
     }
 
@@ -162,9 +166,10 @@ namespace snapshots
 
         if (ec != std::errc())
         {
-          throw std::runtime_error(fmt::format(
-            "Could not parse length from content-length header: {}",
-            length_it->second));
+          throw std::runtime_error(
+            fmt::format(
+              "Could not parse length from content-length header: {}",
+              length_it->second));
         }
       }
 
@@ -192,12 +197,14 @@ namespace snapshots
       }
       else
       {
-        throw std::runtime_error(fmt::format(
-          "content-range ({}, {} bytes) and content-length ({}) headers do not "
-          "agree",
-          it->second,
-          range_length + 1,
-          length_it->second));
+        throw std::runtime_error(
+          fmt::format(
+            "content-range ({}, {} bytes) and content-length ({}) headers do "
+            "not "
+            "agree",
+            it->second,
+            range_length + 1,
+            length_it->second));
       }
     }
 
@@ -247,24 +254,26 @@ namespace snapshots
 
           if (content_range.range_start != range_start)
           {
-            throw std::runtime_error(fmt::format(
-              "Unexpected range response. Requested bytes {}-{}, received "
-              "range starting at {}",
-              range_start,
-              range_end,
-              content_range.range_start));
+            throw std::runtime_error(
+              fmt::format(
+                "Unexpected range response. Requested bytes {}-{}, received "
+                "range starting at {}",
+                range_start,
+                range_end,
+                content_range.range_start));
           }
 
           // The server may give us _less_ than we requested (since they know
           // where the file ends), but should never give us more
           if (content_range.inclusive_range_end > inclusive_range_end)
           {
-            throw std::runtime_error(fmt::format(
-              "Unexpected range response. Requested bytes {}-{}, received "
-              "range ending at {}",
-              range_start,
-              inclusive_range_end,
-              content_range.inclusive_range_end));
+            throw std::runtime_error(
+              fmt::format(
+                "Unexpected range response. Requested bytes {}-{}, received "
+                "range ending at {}",
+                range_start,
+                inclusive_range_end,
+                content_range.inclusive_range_end));
           }
 
           const auto content_range_exclusive_range_end =
@@ -332,11 +341,12 @@ namespace snapshots
 
         if (curl_response != CURLE_OK)
         {
-          throw std::runtime_error(fmt::format(
-            "Error fetching snapshot redirect from {}: {} ({})",
-            request->get_url(),
-            curl_easy_strerror(curl_response),
-            status_code));
+          throw std::runtime_error(
+            fmt::format(
+              "Error fetching snapshot redirect from {}: {} ({})",
+              request->get_url(),
+              curl_easy_strerror(curl_response),
+              status_code));
         }
 
         if (status_code == HTTP_STATUS_NOT_FOUND)
@@ -414,11 +424,12 @@ namespace snapshots
             snapshot_response_callback));
         if (curl_response != CURLE_OK)
         {
-          throw std::runtime_error(fmt::format(
-            "Error fetching snapshot chunk range from {}: {} ({})",
-            snapshot_range_request->get_url(),
-            curl_easy_strerror(curl_response),
-            snapshot_range_status_code));
+          throw std::runtime_error(
+            fmt::format(
+              "Error fetching snapshot chunk range from {}: {} ({})",
+              snapshot_range_request->get_url(),
+              curl_easy_strerror(curl_response),
+              snapshot_range_status_code));
         }
         EXPECT_HTTP_RESPONSE_STATUS(
           snapshot_range_request,

@@ -91,8 +91,9 @@ namespace serialized
   {
     if (size < block_size)
     {
-      throw InsufficientSpaceException(fmt::format(
-        "Insufficient space (read block: {} < {})", size, block_size));
+      throw InsufficientSpaceException(
+        fmt::format(
+          "Insufficient space (read block: {} < {})", size, block_size));
     }
 
     std::vector<uint8_t> v(data, data + block_size);
@@ -121,8 +122,9 @@ namespace serialized
   {
     if (size < block_size)
     {
-      throw InsufficientSpaceException(fmt::format(
-        "Insufficient space (write block: {} < {})", size, block_size));
+      throw InsufficientSpaceException(
+        fmt::format(
+          "Insufficient space (write block: {} < {})", size, block_size));
     }
 
     if (block_size > 0)
@@ -139,8 +141,9 @@ namespace serialized
     const auto string_size = sizeof(size_t) + v.size();
     if (size < string_size)
     {
-      throw InsufficientSpaceException(fmt::format(
-        "Insufficient space (write string: {} < {})", size, string_size));
+      throw InsufficientSpaceException(
+        fmt::format(
+          "Insufficient space (write string: {} < {})", size, string_size));
     }
 
     write(data, size, v.size());
@@ -152,8 +155,9 @@ namespace serialized
   {
     if (size < sizeof(T))
     {
-      throw InsufficientSpaceException(fmt::format(
-        "Insufficient space (overlay<T>: {} < {})", size, sizeof(T)));
+      throw InsufficientSpaceException(
+        fmt::format(
+          "Insufficient space (overlay<T>: {} < {})", size, sizeof(T)));
     }
 
     T* v = (T*)data;

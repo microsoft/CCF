@@ -295,10 +295,11 @@ namespace ccf::kv
     }
     else if (name.starts_with(reserved_category_prefix))
     {
-      throw std::logic_error(fmt::format(
-        "Map name '{}' includes disallowed reserved prefix '{}'",
-        name,
-        reserved_category_prefix));
+      throw std::logic_error(
+        fmt::format(
+          "Map name '{}' includes disallowed reserved prefix '{}'",
+          name,
+          reserved_category_prefix));
     }
 
     return {security_domain, access_category};

@@ -467,12 +467,14 @@ namespace ccf::historical
                 if (
                   !filled_this && my_stores.find(new_seqno) != my_stores.end())
                 {
-                  throw std::logic_error(fmt::format(
-                    "Unexpected: Found a signature at {}, and contiguous range "
-                    "of transactions from {}, yet signature does not cover "
-                    "this seqno!",
-                    next_seqno,
-                    new_seqno));
+                  throw std::logic_error(
+                    fmt::format(
+                      "Unexpected: Found a signature at {}, and contiguous "
+                      "range "
+                      "of transactions from {}, yet signature does not cover "
+                      "this seqno!",
+                      next_seqno,
+                      new_seqno));
                 }
 
                 return added;
@@ -550,8 +552,10 @@ namespace ccf::historical
                     ccf::TxID::from_str(cose_receipt.phdr.ccf.txid);
                   if (!parsed_txid.has_value())
                   {
-                    throw std::logic_error(fmt::format(
-                      "Cannot parse CCF TxID: {}", cose_receipt.phdr.ccf.txid));
+                    throw std::logic_error(
+                      fmt::format(
+                        "Cannot parse CCF TxID: {}",
+                        cose_receipt.phdr.ccf.txid));
                   }
 
                   details->transaction_id = {parsed_txid->view, seqno};
@@ -772,11 +776,12 @@ namespace ccf::historical
         // Still need more secrets, fetch the next
         if (!previous_secret_stored_version.has_value())
         {
-          throw std::logic_error(fmt::format(
-            "Earliest known ledger secret at {} has no earlier secret stored "
-            "version ({})",
-            earliest_ledger_secret_seqno,
-            seqno));
+          throw std::logic_error(
+            fmt::format(
+              "Earliest known ledger secret at {} has no earlier secret stored "
+              "version ({})",
+              earliest_ledger_secret_seqno,
+              seqno));
         }
 
         const auto seqno_to_fetch = previous_secret_stored_version.value();
@@ -1010,10 +1015,11 @@ namespace ccf::historical
     {
       if (end_seqno < start_seqno)
       {
-        throw std::logic_error(fmt::format(
-          "Invalid range for historical query: end {} is before start {}",
-          end_seqno,
-          start_seqno));
+        throw std::logic_error(
+          fmt::format(
+            "Invalid range for historical query: end {} is before start {}",
+            end_seqno,
+            start_seqno));
       }
 
       SeqNoCollection c(start_seqno, end_seqno - start_seqno);

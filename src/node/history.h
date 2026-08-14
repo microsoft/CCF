@@ -389,9 +389,10 @@ namespace ccf
           CoseKey::from_private(key_der.data(), key_der.size(), key_err);
         if (!cose_key.is_set())
         {
-          throw std::runtime_error(fmt::format(
-            "cose_key_from_der_private failed: {}",
-            key_err.is_set() ? key_err.to_string() : "unknown error"));
+          throw std::runtime_error(
+            fmt::format(
+              "cose_key_from_der_private failed: {}",
+              key_err.is_set() ? key_err.to_string() : "unknown error"));
         }
         auto [inserted, _] = cose_key_cache.emplace(kid, std::move(cose_key));
         it = inserted;
@@ -416,9 +417,10 @@ namespace ccf
         cose_err);
       if (rc != 0 || !cose_buf.is_set())
       {
-        throw std::runtime_error(fmt::format(
-          "cose_sign_ledger failed: {}",
-          cose_err.is_set() ? cose_err.to_string() : "unknown error"));
+        throw std::runtime_error(
+          fmt::format(
+            "cose_sign_ledger failed: {}",
+            cose_err.is_set() ? cose_err.to_string() : "unknown error"));
       }
       std::vector<uint8_t> cose_sign(cose_buf.to_vector());
 
@@ -493,18 +495,20 @@ namespace ccf
     {
       if (index < begin_index())
       {
-        throw std::logic_error(fmt::format(
-          "Cannot produce proof for {}: index is older than first index {}, "
-          "and has been flushed from memory",
-          index,
-          begin_index()));
+        throw std::logic_error(
+          fmt::format(
+            "Cannot produce proof for {}: index is older than first index {}, "
+            "and has been flushed from memory",
+            index,
+            begin_index()));
       }
       if (index > end_index())
       {
-        throw std::logic_error(fmt::format(
-          "Cannot produce proof for {}: index is later than last index {}",
-          index,
-          end_index()));
+        throw std::logic_error(
+          fmt::format(
+            "Cannot produce proof for {}: index is later than last index {}",
+            index,
+            end_index()));
       }
       return {tree.get(), index};
     }
@@ -622,8 +626,9 @@ namespace ccf
 
       const auto ledger_sign_mode_ = ccf::get_ledger_sign_mode();
 
-      signing_identity.emplace(ServiceSigningIdentity{
-        service_kp_, cose_signatures_config_, ledger_sign_mode_});
+      signing_identity.emplace(
+        ServiceSigningIdentity{
+          service_kp_, cose_signatures_config_, ledger_sign_mode_});
 
       LOG_INFO_FMT(
         "Setting service signing identity to iss: {} sub: {}. Ledger "

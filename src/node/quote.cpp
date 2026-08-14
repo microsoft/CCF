@@ -80,8 +80,10 @@ namespace ccf
       case QuoteFormat::insecure_virtual:
       {
         if (!tx.ro<VirtualMeasurements>(Tables::NODE_VIRTUAL_MEASUREMENTS)
-               ->has(pal::VirtualAttestationMeasurement(
-                 quote_measurement.data.begin(), quote_measurement.data.end())))
+               ->has(
+                 pal::VirtualAttestationMeasurement(
+                   quote_measurement.data.begin(),
+                   quote_measurement.data.end())))
         {
           return QuoteVerificationResult::FailedMeasurementNotFound;
         }
@@ -111,9 +113,10 @@ namespace ccf
       }
       default:
       {
-        throw std::logic_error(fmt::format(
-          "Unexpected quote format {} when verifying quote against store",
-          quote_format));
+        throw std::logic_error(
+          fmt::format(
+            "Unexpected quote format {} when verifying quote against store",
+            quote_format));
       }
     }
 
@@ -335,8 +338,11 @@ namespace ccf
 
       if (generic_jwk.kty != ccf::crypto::JsonWebKeyType::EC)
       {
-        throw std::logic_error(fmt::format(
-          "Unsupported key type ({}) for DID {}", generic_jwk.kty, issuer_did));
+        throw std::logic_error(
+          fmt::format(
+            "Unsupported key type ({}) for DID {}",
+            generic_jwk.kty,
+            issuer_did));
       }
 
       auto ec_jwk = jwk.get<ccf::crypto::JsonWebKeyECPublic>();
@@ -391,10 +397,11 @@ namespace ccf
         payload.size() != HostData::SIZE ||
         std::memcmp(payload.data(), host_data.h.data(), HostData::SIZE) != 0)
       {
-        throw std::logic_error(fmt::format(
-          "Transparent statement payload ({}) does not match host_data ({})",
-          ccf::ds::to_hex(payload),
-          host_data.hex_str()));
+        throw std::logic_error(
+          fmt::format(
+            "Transparent statement payload ({}) does not match host_data ({})",
+            ccf::ds::to_hex(payload),
+            host_data.hex_str()));
       }
 
       return h;
@@ -484,12 +491,13 @@ namespace ccf
               expected_claims_digest.h.data(),
               ccf::crypto::Sha256Hash::SIZE) != 0)
           {
-            throw std::logic_error(fmt::format(
-              "Receipt {} claims_digest ({}) does not match signed "
-              "statement hash ({})",
-              i,
-              ccf::ds::to_hex(proof.leaf.claims_digest),
-              expected_claims_digest.hex_str()));
+            throw std::logic_error(
+              fmt::format(
+                "Receipt {} claims_digest ({}) does not match signed "
+                "statement hash ({})",
+                i,
+                ccf::ds::to_hex(proof.leaf.claims_digest),
+                expected_claims_digest.hex_str()));
           }
         }
 
@@ -544,9 +552,10 @@ namespace ccf
       }
       if (violation.has_value())
       {
-        throw std::logic_error(fmt::format(
-          "Code update policy rejected transparent statement: {}",
-          violation.value()));
+        throw std::logic_error(
+          fmt::format(
+            "Code update policy rejected transparent statement: {}",
+            violation.value()));
       }
     }
   }

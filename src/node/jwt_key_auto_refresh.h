@@ -165,10 +165,11 @@ namespace ccf
     template <typename T>
     void send_refresh_jwt_keys(T msg)
     {
-      ::http::Request request(fmt::format(
-        "/{}/{}",
-        ccf::get_actor_prefix(ccf::ActorsType::nodes),
-        "jwt_keys/refresh"));
+      ::http::Request request(
+        fmt::format(
+          "/{}/{}",
+          ccf::get_actor_prefix(ccf::ActorsType::nodes),
+          "jwt_keys/refresh"));
       request.set_header(
         http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
 

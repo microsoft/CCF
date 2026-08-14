@@ -149,11 +149,12 @@ namespace ccf
         }
 
         // Any failure in above checks falls through to this detailed error.
-        throw std::logic_error(fmt::format(
-          "Unsupported auth policy. Policies must be either a string, or an "
-          "object containing an \"all_of\" key with list-of-strings value. "
-          "Unsupported value: {}",
-          policy_desc.dump()));
+        throw std::logic_error(
+          fmt::format(
+            "Unsupported auth policy. Policies must be either a string, or an "
+            "object containing an \"all_of\" key with list-of-strings value. "
+            "Unsupported value: {}",
+            policy_desc.dump()));
       }
     }
   }

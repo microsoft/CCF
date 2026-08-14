@@ -114,8 +114,9 @@ namespace ccf
 
     static TimePoint time_point_from_snapshot_status(uint64_t timestamp)
     {
-      return TimePoint(std::chrono::duration_cast<TimePoint::duration>(
-        std::chrono::nanoseconds(static_cast<int64_t>(timestamp))));
+      return TimePoint(
+        std::chrono::duration_cast<TimePoint::duration>(
+          std::chrono::nanoseconds(static_cast<int64_t>(timestamp))));
     }
 
     static uint64_t snapshot_status_timestamp_from_time_point(
@@ -181,10 +182,11 @@ namespace ccf
         generation_count(_generation_count),
         timestamp(_timestamp),
         serialised(std::move(_serialised)),
-        name(fmt::format(
-          "serialise-snapshot@{}[{}]",
-          snapshot->get_version(),
-          generation_count))
+        name(
+          fmt::format(
+            "serialise-snapshot@{}[{}]",
+            snapshot->get_version(),
+            generation_count))
       {}
 
       void do_action() override
@@ -621,12 +623,13 @@ namespace ccf
         ccf::tasks::get_main_job_board(),
         fmt::format("snapshot@{}[{}]", idx, generation));
 
-      info.tasks->add_action(std::make_shared<SerialiseSnapshotAction>(
-        shared_from_this(),
-        store->snapshot_unsafe_maps(idx),
-        generation,
-        timestamp,
-        info.serialised));
+      info.tasks->add_action(
+        std::make_shared<SerialiseSnapshotAction>(
+          shared_from_this(),
+          store->snapshot_unsafe_maps(idx),
+          generation,
+          timestamp,
+          info.serialised));
     }
 
     void commit(::consensus::Index idx, bool generate_snapshot) override
@@ -646,11 +649,12 @@ namespace ccf
 
       if (idx < last_snapshot_idx)
       {
-        throw std::logic_error(fmt::format(
-          "Cannot snapshot at seqno {} which is earlier than last snapshot "
-          "seqno {}",
-          idx,
-          last_snapshot_idx));
+        throw std::logic_error(
+          fmt::format(
+            "Cannot snapshot at seqno {} which is earlier than last snapshot "
+            "seqno {}",
+            idx,
+            last_snapshot_idx));
       }
 
       CCF_ASSERT_FMT(

@@ -49,13 +49,15 @@ namespace ccf::crypto
       if (rc < 0)
       {
         auto err_str = OpenSSL::error_string(ERR_get_error());
-        throw std::invalid_argument(fmt::format(
-          "OSSL: Could not decode update from base64 string: {} [{} bytes out "
-          "of {}, chunk_len = {}]",
-          err_str,
-          size,
-          max_size,
-          chunk_len));
+        throw std::invalid_argument(
+          fmt::format(
+            "OSSL: Could not decode update from base64 string: {} [{} bytes "
+            "out "
+            "of {}, chunk_len = {}]",
+            err_str,
+            size,
+            max_size,
+            chunk_len));
       }
       encoded_len = chunk_len;
 
@@ -63,13 +65,14 @@ namespace ccf::crypto
       if (rc != 1)
       {
         auto err_str = OpenSSL::error_string(ERR_get_error());
-        throw std::logic_error(fmt::format(
-          "OSSL: Could not decode final from base64 string: {} [{} bytes out "
-          "of {}, chunk_len = {}]",
-          err_str,
-          size,
-          max_size,
-          chunk_len));
+        throw std::logic_error(
+          fmt::format(
+            "OSSL: Could not decode final from base64 string: {} [{} bytes out "
+            "of {}, chunk_len = {}]",
+            err_str,
+            size,
+            max_size,
+            chunk_len));
       }
       encoded_len += chunk_len;
 
@@ -105,13 +108,15 @@ namespace ccf::crypto
       if (rc < 0)
       {
         auto err_str = OpenSSL::error_string(ERR_get_error());
-        throw std::logic_error(fmt::format(
-          "OSSL: Could not encode update to base64 string: {} [{} bytes out of "
-          "{}, chunk_len = {}]",
-          err_str,
-          size,
-          max_size,
-          chunk_len));
+        throw std::logic_error(
+          fmt::format(
+            "OSSL: Could not encode update to base64 string: {} [{} bytes out "
+            "of "
+            "{}, chunk_len = {}]",
+            err_str,
+            size,
+            max_size,
+            chunk_len));
       }
 
       // Encode Final Line (after previous lines, if any)
@@ -120,13 +125,15 @@ namespace ccf::crypto
       if (err != 0)
       {
         auto err_str = OpenSSL::error_string(err);
-        throw std::logic_error(fmt::format(
-          "OSSL: Could not encode final to base64 string: {} [{} bytes out of "
-          "{}, chunk_len = {}]",
-          err_str,
-          size,
-          max_size,
-          chunk_len));
+        throw std::logic_error(
+          fmt::format(
+            "OSSL: Could not encode final to base64 string: {} [{} bytes out "
+            "of "
+            "{}, chunk_len = {}]",
+            err_str,
+            size,
+            max_size,
+            chunk_len));
       }
 
       // Clean up result (last \0, newlines)

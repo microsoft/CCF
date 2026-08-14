@@ -45,9 +45,10 @@ namespace ccf
         return std::make_pair(
           HTTP_STATUS_UNAUTHORIZED, "Quote TCB version is too low");
       default:
-        throw std::logic_error(fmt::format(
-          "Unknown QuoteVerificationResult: {}",
-          static_cast<uint32_t>(result)));
+        throw std::logic_error(
+          fmt::format(
+            "Unknown QuoteVerificationResult: {}",
+            static_cast<uint32_t>(result)));
     }
   }
 }

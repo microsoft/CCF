@@ -46,10 +46,11 @@ namespace snapshots
     auto ignored_file_name =
       fmt::format("{}.{}", file_name, snapshot_ignored_file_suffix);
     {
-      asynchost::TimeBoundLogger log_if_slow(fmt::format(
-        "Ignoring snapshot file - rename({} to {})",
-        file_name,
-        ignored_file_name));
+      asynchost::TimeBoundLogger log_if_slow(
+        fmt::format(
+          "Ignoring snapshot file - rename({} to {})",
+          file_name,
+          ignored_file_name));
       files::rename(dir / file_name, dir / ignored_file_name);
     }
   }
@@ -68,10 +69,11 @@ namespace snapshots
 
     if (res.ptr != end_ptr)
     {
-      throw std::logic_error(fmt::format(
-        R"(Trailing characters in "{}" cannot be converted to idx: "{}")",
-        str,
-        std::string(res.ptr, end_ptr)));
+      throw std::logic_error(
+        fmt::format(
+          R"(Trailing characters in "{}" cannot be converted to idx: "{}")",
+          str,
+          std::string(res.ptr, end_ptr)));
     }
     return idx;
   }
@@ -111,16 +113,18 @@ namespace snapshots
     auto idx_pos = file_name.find_first_of(snapshot_idx_delimiter);
     if (idx_pos == std::string::npos)
     {
-      throw std::logic_error(fmt::format(
-        "Snapshot file name {} does not contain snapshot seqno", file_name));
+      throw std::logic_error(
+        fmt::format(
+          "Snapshot file name {} does not contain snapshot seqno", file_name));
     }
 
     auto evidence_idx_pos =
       file_name.find_first_of(snapshot_idx_delimiter, idx_pos + 1);
     if (evidence_idx_pos == std::string::npos)
     {
-      throw std::logic_error(fmt::format(
-        "Snapshot file \"{}\" does not contain evidence index", file_name));
+      throw std::logic_error(
+        fmt::format(
+          "Snapshot file \"{}\" does not contain evidence index", file_name));
     }
 
     return read_idx(
@@ -147,8 +151,9 @@ namespace snapshots
       file_name.find_first_of(snapshot_idx_delimiter, idx_pos + 1);
     if (evidence_idx_pos == std::string::npos)
     {
-      throw std::logic_error(fmt::format(
-        "Snapshot file \"{}\" does not contain evidence index", file_name));
+      throw std::logic_error(
+        fmt::format(
+          "Snapshot file \"{}\" does not contain evidence index", file_name));
     }
 
     // Note: Snapshot file may not be committed

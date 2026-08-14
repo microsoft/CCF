@@ -316,11 +316,12 @@ namespace asynchost
     {
       if (status != from)
       {
-        throw std::logic_error(fmt::format(
-          "Trying to transition from {} to {} but current status is {}",
-          from,
-          to,
-          status));
+        throw std::logic_error(
+          fmt::format(
+            "Trying to transition from {} to {} but current status is {}",
+            from,
+            to,
+            status));
       }
 
       status = to;

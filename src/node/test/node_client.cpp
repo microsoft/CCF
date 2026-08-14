@@ -34,8 +34,9 @@ TEST_CASE("NodeClient owns certificate snapshots")
 {
   ccf::crypto::Pem self_signed_node_cert(
     "-----BEGIN CERTIFICATE-----\nself\n-----END CERTIFICATE-----");
-  std::optional<ccf::crypto::Pem> endorsed_node_cert(ccf::crypto::Pem(
-    "-----BEGIN CERTIFICATE-----\nendorsed\n-----END CERTIFICATE-----"));
+  std::optional<ccf::crypto::Pem> endorsed_node_cert(
+    ccf::crypto::Pem(
+      "-----BEGIN CERTIFICATE-----\nendorsed\n-----END CERTIFICATE-----"));
   const auto initial_self_signed_node_cert = self_signed_node_cert;
   const auto initial_endorsed_node_cert = endorsed_node_cert.value();
 

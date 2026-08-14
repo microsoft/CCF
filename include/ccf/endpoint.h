@@ -541,9 +541,10 @@ struct formatter<ccf::endpoints::ForwardingRequired>
       }
       default:
       {
-        throw std::logic_error(fmt::format(
-          "Unhandled value for ForwardingRequired: {}",
-          static_cast<uint8_t>(v)));
+        throw std::logic_error(
+          fmt::format(
+            "Unhandled value for ForwardingRequired: {}",
+            static_cast<uint8_t>(v)));
       }
     }
   }

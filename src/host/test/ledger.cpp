@@ -1156,10 +1156,11 @@ int get_open_fd_for_file(const fs::path& file)
 
   if (matching_fds.size() != 1)
   {
-    throw std::logic_error(fmt::format(
-      "Expected exactly one open file descriptor for {}, found {}",
-      file,
-      matching_fds.size()));
+    throw std::logic_error(
+      fmt::format(
+        "Expected exactly one open file descriptor for {}, found {}",
+        file,
+        matching_fds.size()));
   }
 
   return matching_fds.front();
@@ -1178,10 +1179,11 @@ void lock_open_file_description(const fs::path& file)
   if (flock(fd, LOCK_EX | LOCK_NB) != 0)
   {
     const auto lock_errno = errno;
-    throw std::logic_error(fmt::format(
-      "Failed to lock open file {}: {}",
-      file,
-      ccf::nonstd::strerror(lock_errno != 0 ? lock_errno : EIO)));
+    throw std::logic_error(
+      fmt::format(
+        "Failed to lock open file {}: {}",
+        file,
+        ccf::nonstd::strerror(lock_errno != 0 ? lock_errno : EIO)));
   }
 }
 
@@ -1190,10 +1192,11 @@ void require_file_lock_released(const fs::path& file)
   const auto fd = files::open_fd(file, O_RDWR);
   if (fd == -1)
   {
-    throw std::logic_error(fmt::format(
-      "Failed to open file {} to check its lock: {}",
-      file,
-      ccf::nonstd::strerror(errno)));
+    throw std::logic_error(
+      fmt::format(
+        "Failed to open file {} to check its lock: {}",
+        file,
+        ccf::nonstd::strerror(errno)));
   }
 
   errno = 0;
@@ -1205,18 +1208,20 @@ void require_file_lock_released(const fs::path& file)
 
   if (lock_rc != 0)
   {
-    throw std::logic_error(fmt::format(
-      "Original open file description for {} was not closed: {}",
-      file,
-      ccf::nonstd::strerror(lock_errno != 0 ? lock_errno : EIO)));
+    throw std::logic_error(
+      fmt::format(
+        "Original open file description for {} was not closed: {}",
+        file,
+        ccf::nonstd::strerror(lock_errno != 0 ? lock_errno : EIO)));
   }
 
   if (close_rc != 0)
   {
-    throw std::logic_error(fmt::format(
-      "Failed to close file descriptor for {}: {}",
-      file,
-      ccf::nonstd::strerror(close_errno != 0 ? close_errno : EIO)));
+    throw std::logic_error(
+      fmt::format(
+        "Failed to close file descriptor for {}: {}",
+        file,
+        ccf::nonstd::strerror(close_errno != 0 ? close_errno : EIO)));
   }
 }
 

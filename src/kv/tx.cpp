@@ -121,10 +121,11 @@ namespace ccf::kv
       throw std::logic_error(
         fmt::format("read_txid should have already been set"));
     }
-    throw CompactedVersionConflict(fmt::format(
-      "Unable to retrieve state over map {} at {}",
-      map_name,
-      read_txid->seqno));
+    throw CompactedVersionConflict(
+      fmt::format(
+        "Unable to retrieve state over map {} at {}",
+        map_name,
+        read_txid->seqno));
   }
 
   BaseTx::BaseTx(AbstractStore* store_)

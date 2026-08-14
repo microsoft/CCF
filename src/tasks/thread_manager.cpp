@@ -61,10 +61,11 @@ namespace ccf::tasks
 
       if (new_worker_count >= MAX_WORKERS)
       {
-        throw std::logic_error(fmt::format(
-          "Cannot create {} workers. Max permitted is {}",
-          new_worker_count,
-          MAX_WORKERS));
+        throw std::logic_error(
+          fmt::format(
+            "Cannot create {} workers. Max permitted is {}",
+            new_worker_count,
+            MAX_WORKERS));
       }
 
       if (new_worker_count < current_workers)

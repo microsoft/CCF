@@ -87,11 +87,12 @@ namespace ccf
         }
         if (value.size() > MAX_RECOVERY_SNAPSHOT_ENDORSEMENT_RECORD_SIZE)
         {
-          throw std::logic_error(fmt::format(
-            "Serialised previous service identity endorsement is too large "
-            "({} bytes; maximum {} bytes)",
-            value.size(),
-            MAX_RECOVERY_SNAPSHOT_ENDORSEMENT_RECORD_SIZE));
+          throw std::logic_error(
+            fmt::format(
+              "Serialised previous service identity endorsement is too large "
+              "({} bytes; maximum {} bytes)",
+              value.size(),
+              MAX_RECOVERY_SNAPSHOT_ENDORSEMENT_RECORD_SIZE));
         }
         result.endorsement_serialised_size = value.size();
         result.endorsement = ccf::PreviousServiceIdentityEndorsement::
@@ -138,10 +139,11 @@ namespace ccf
         const auto exists = std::filesystem::exists(directory, ec);
         if (ec)
         {
-          throw std::logic_error(fmt::format(
-            "Unable to inspect ledger directory {}: {}",
-            directory.string(),
-            ec.message()));
+          throw std::logic_error(
+            fmt::format(
+              "Unable to inspect ledger directory {}: {}",
+              directory.string(),
+              ec.message()));
         }
         if (!exists)
         {
@@ -154,10 +156,11 @@ namespace ccf
         {
           if (ec)
           {
-            throw std::logic_error(fmt::format(
-              "Unable to iterate ledger directory {}: {}",
-              directory.string(),
-              ec.message()));
+            throw std::logic_error(
+              fmt::format(
+                "Unable to iterate ledger directory {}: {}",
+                directory.string(),
+                ec.message()));
           }
           if (!it->is_regular_file())
           {
@@ -197,10 +200,11 @@ namespace ccf
         }
         if (ec)
         {
-          throw std::logic_error(fmt::format(
-            "Unable to iterate ledger directory {}: {}",
-            directory.string(),
-            ec.message()));
+          throw std::logic_error(
+            fmt::format(
+              "Unable to iterate ledger directory {}: {}",
+              directory.string(),
+              ec.message()));
         }
       };
 
@@ -241,8 +245,9 @@ namespace ccf
     std::ifstream file(ledger_file.path, std::ios::binary | std::ios::ate);
     if (!file)
     {
-      throw std::logic_error(fmt::format(
-        "Unable to open ledger file {}", ledger_file.path.string()));
+      throw std::logic_error(
+        fmt::format(
+          "Unable to open ledger file {}", ledger_file.path.string()));
     }
 
     const auto file_size = static_cast<std::streamoff>(file.tellg());
@@ -258,14 +263,16 @@ namespace ccf
       reinterpret_cast<char*>(&positions_offset), sizeof(positions_offset));
     if (!file)
     {
-      throw std::logic_error(fmt::format(
-        "Unable to read ledger file header {}", ledger_file.path.string()));
+      throw std::logic_error(
+        fmt::format(
+          "Unable to read ledger file header {}", ledger_file.path.string()));
     }
     if (ledger_file.committed && positions_offset == 0)
     {
-      throw std::logic_error(fmt::format(
-        "Committed ledger file {} has no positions table",
-        ledger_file.path.string()));
+      throw std::logic_error(
+        fmt::format(
+          "Committed ledger file {} has no positions table",
+          ledger_file.path.string()));
     }
 
     const auto entries_end = positions_offset == 0 ?
@@ -275,10 +282,11 @@ namespace ccf
       entries_end < static_cast<std::streamoff>(sizeof(size_t)) ||
       entries_end > file_size)
     {
-      throw std::logic_error(fmt::format(
-        "Ledger file {} has invalid positions table offset {}",
-        ledger_file.path.string(),
-        positions_offset));
+      throw std::logic_error(
+        fmt::format(
+          "Ledger file {} has invalid positions table offset {}",
+          ledger_file.path.string(),
+          positions_offset));
     }
 
     return {std::move(file), entries_end, positions_offset == 0};
@@ -303,18 +311,20 @@ namespace ccf
       {
         return std::nullopt;
       }
-      throw std::logic_error(fmt::format(
-        "Committed ledger file {} ends with a partial entry header",
-        ledger_file.path.string()));
+      throw std::logic_error(
+        fmt::format(
+          "Committed ledger file {} ends with a partial entry header",
+          ledger_file.path.string()));
     }
 
     ccf::kv::SerialisedEntryHeader header{};
     reader.file.read(reinterpret_cast<char*>(&header), sizeof(header));
     if (!reader.file)
     {
-      throw std::logic_error(fmt::format(
-        "Unable to read entry header from ledger file {}",
-        ledger_file.path.string()));
+      throw std::logic_error(
+        fmt::format(
+          "Unable to read entry header from ledger file {}",
+          ledger_file.path.string()));
     }
 
     const auto body_remaining = reader.entries_end - reader.file.tellg();
@@ -324,16 +334,18 @@ namespace ccf
       {
         return std::nullopt;
       }
-      throw std::logic_error(fmt::format(
-        "Committed ledger file {} contains a truncated entry",
-        ledger_file.path.string()));
+      throw std::logic_error(
+        fmt::format(
+          "Committed ledger file {} contains a truncated entry",
+          ledger_file.path.string()));
     }
     if (header.size > MAX_RECOVERY_SNAPSHOT_LEDGER_ENTRY_SIZE)
     {
-      throw std::logic_error(fmt::format(
-        "Ledger entry is too large ({} bytes; maximum {} bytes)",
-        static_cast<size_t>(header.size),
-        MAX_RECOVERY_SNAPSHOT_LEDGER_ENTRY_SIZE));
+      throw std::logic_error(
+        fmt::format(
+          "Ledger entry is too large ({} bytes; maximum {} bytes)",
+          static_cast<size_t>(header.size),
+          MAX_RECOVERY_SNAPSHOT_LEDGER_ENTRY_SIZE));
     }
 
     std::vector<uint8_t> entry(sizeof(header) + header.size);
@@ -343,9 +355,10 @@ namespace ccf
       static_cast<std::streamsize>(header.size));
     if (!reader.file)
     {
-      throw std::logic_error(fmt::format(
-        "Unable to read complete entry from ledger file {}",
-        ledger_file.path.string()));
+      throw std::logic_error(
+        fmt::format(
+          "Unable to read complete entry from ledger file {}",
+          ledger_file.path.string()));
     }
     return entry;
   }
@@ -359,20 +372,22 @@ namespace ccf
       first.has_value() &&
       *first != static_cast<ccf::kv::Version>(ledger_file.start_idx))
     {
-      throw std::logic_error(fmt::format(
-        "Ledger file {} does not start at its declared seqno {}",
-        ledger_file.path.string(),
-        ledger_file.start_idx));
+      throw std::logic_error(
+        fmt::format(
+          "Ledger file {} does not start at its declared seqno {}",
+          ledger_file.path.string(),
+          ledger_file.start_idx));
     }
     if (
       ledger_file.end_idx.has_value() &&
       (!last.has_value() ||
        *last != static_cast<ccf::kv::Version>(*ledger_file.end_idx)))
     {
-      throw std::logic_error(fmt::format(
-        "Ledger file {} does not end at its declared seqno {}",
-        ledger_file.path.string(),
-        *ledger_file.end_idx));
+      throw std::logic_error(
+        fmt::format(
+          "Ledger file {} does not end at its declared seqno {}",
+          ledger_file.path.string(),
+          *ledger_file.end_idx));
     }
   }
 
@@ -389,26 +404,29 @@ namespace ccf
     const auto endorsement_size = parsed.endorsement->endorsement.size();
     if (endorsement_size > MAX_RECOVERY_SNAPSHOT_ENDORSEMENT_SIZE)
     {
-      throw std::logic_error(fmt::format(
-        "Ledger endorsement at {} is too large ({} bytes; maximum {} bytes)",
-        parsed.version,
-        endorsement_size,
-        MAX_RECOVERY_SNAPSHOT_ENDORSEMENT_SIZE));
+      throw std::logic_error(
+        fmt::format(
+          "Ledger endorsement at {} is too large ({} bytes; maximum {} bytes)",
+          parsed.version,
+          endorsement_size,
+          MAX_RECOVERY_SNAPSHOT_ENDORSEMENT_SIZE));
     }
     if (scan.endorsements.size() >= MAX_RECOVERY_SNAPSHOT_ENDORSEMENTS_COUNT)
     {
-      throw std::logic_error(fmt::format(
-        "Ledger suffix contains too many endorsements (maximum {})",
-        MAX_RECOVERY_SNAPSHOT_ENDORSEMENTS_COUNT));
+      throw std::logic_error(
+        fmt::format(
+          "Ledger suffix contains too many endorsements (maximum {})",
+          MAX_RECOVERY_SNAPSHOT_ENDORSEMENTS_COUNT));
     }
     if (
       parsed.endorsement_serialised_size >
       MAX_RECOVERY_SNAPSHOT_ENDORSEMENTS_SERIALISED_SIZE -
         endorsements_serialised_size)
     {
-      throw std::logic_error(fmt::format(
-        "Serialised ledger endorsements are too large (maximum {} bytes)",
-        MAX_RECOVERY_SNAPSHOT_ENDORSEMENTS_SERIALISED_SIZE));
+      throw std::logic_error(
+        fmt::format(
+          "Serialised ledger endorsements are too large (maximum {} bytes)",
+          MAX_RECOVERY_SNAPSHOT_ENDORSEMENTS_SERIALISED_SIZE));
     }
 
     endorsements_serialised_size += parsed.endorsement_serialised_size;
@@ -449,11 +467,12 @@ namespace ccf
           previous_version == std::numeric_limits<ccf::kv::Version>::max() ||
           parsed.version != previous_version + 1)
         {
-          throw std::logic_error(fmt::format(
-            "Ledger file {} contains non-contiguous versions {} and {}",
-            ledger_file.path.string(),
-            previous_version,
-            parsed.version));
+          throw std::logic_error(
+            fmt::format(
+              "Ledger file {} contains non-contiguous versions {} and {}",
+              ledger_file.path.string(),
+              previous_version,
+              parsed.version));
         }
       }
       previous_file_version = parsed.version;
@@ -464,11 +483,12 @@ namespace ccf
       }
       if (parsed.version > expected_seqno)
       {
-        throw std::logic_error(fmt::format(
-          "Ledger suffix after snapshot is missing seqno {} (next entry is "
-          "{})",
-          expected_seqno,
-          parsed.version));
+        throw std::logic_error(
+          fmt::format(
+            "Ledger suffix after snapshot is missing seqno {} (next entry is "
+            "{})",
+            expected_seqno,
+            parsed.version));
       }
 
       append_recovery_snapshot_endorsement(

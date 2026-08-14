@@ -119,9 +119,10 @@ namespace ccf
       auto tx_id_opt = ccf::TxID::from_str(receipt.phdr.ccf.txid);
       if (!tx_id_opt.has_value())
       {
-        throw std::logic_error(fmt::format(
-          "Failed to parse TxID from COSE signature: {}",
-          receipt.phdr.ccf.txid));
+        throw std::logic_error(
+          fmt::format(
+            "Failed to parse TxID from COSE signature: {}",
+            receipt.phdr.ccf.txid));
       }
       if (tx_id_opt->seqno > best_seqno)
       {
@@ -544,9 +545,10 @@ namespace ccf
         }
         catch (const std::exception& e)
         {
-          throw std::logic_error(fmt::format(
-            "old-style snapshot receipt cannot use an endorsement chain: {}",
-            e.what()));
+          throw std::logic_error(
+            fmt::format(
+              "old-style snapshot receipt cannot use an endorsement chain: {}",
+              e.what()));
         }
       }
 
@@ -911,12 +913,13 @@ namespace ccf
           ccf::crypto::Sha256Hash(security_policy);
         if (security_policy_digest != quoted_digest.value())
         {
-          throw std::logic_error(fmt::format(
-            "Digest of decoded security policy \"{}\" {} does not match "
-            "attestation host data {}",
-            security_policy,
-            security_policy_digest.hex_str(),
-            quoted_digest.value().hex_str()));
+          throw std::logic_error(
+            fmt::format(
+              "Digest of decoded security policy \"{}\" {} does not match "
+              "attestation host data {}",
+              security_policy,
+              security_policy_digest.hex_str(),
+              quoted_digest.value().hex_str()));
         }
         LOG_INFO_FMT(
           "Successfully verified attested security policy {}",
@@ -1131,9 +1134,10 @@ namespace ccf
 
         if (quote_info.format != QuoteFormat::insecure_virtual)
         {
-          throw std::runtime_error(fmt::format(
-            "Unsupported quote format: {}",
-            static_cast<int>(quote_info.format)));
+          throw std::runtime_error(
+            fmt::format(
+              "Unsupported quote format: {}",
+              static_cast<int>(quote_info.format)));
         }
 
         launch_node();
@@ -1409,371 +1413,380 @@ namespace ccf
               std::move(request->get_response_body()->buffer) :
               std::vector<uint8_t>{});
 
-          ccf::tasks::add_task(ccf::tasks::make_basic_task([this,
-                                                            target_address,
-                                                            curl_response,
-                                                            status_code,
-                                                            response_headers,
-                                                            response_body]() {
-            std::lock_guard<pal::Mutex> guard(lock);
-            if (
-              !sm.check(NodeStartupState::pending) ||
-              network.tables->get_readiness() ==
-                ccf::kv::StoreReadiness::Failed)
-            {
-              return;
-            }
-
-            try
-            {
-              if (curl_response != CURLE_OK)
+          ccf::tasks::add_task(
+            ccf::tasks::make_basic_task([this,
+                                         target_address,
+                                         curl_response,
+                                         status_code,
+                                         response_headers,
+                                         response_body]() {
+              std::lock_guard<pal::Mutex> guard(lock);
+              if (
+                !sm.check(NodeStartupState::pending) ||
+                network.tables->get_readiness() ==
+                  ccf::kv::StoreReadiness::Failed)
               {
-                // The legacy httpclient path silently dropped a failed
-                // connection and relied on the periodic join timer to retry
-                // when the target could not yet be reached, while treating TLS
-                // handshake failures (e.g. an untrusted service certificate) as
-                // fatal. Preserve both behaviours: transient transport errors
-                // are retried, everything else is fatal.
-                if (ccf::curl::is_transient_transport_error(curl_response))
+                return;
+              }
+
+              try
+              {
+                if (curl_response != CURLE_OK)
                 {
-                  LOG_INFO_FMT(
-                    "Transient error contacting {} to join: {} ({}). The join "
-                    "timer will retry.",
+                  // The legacy httpclient path silently dropped a failed
+                  // connection and relied on the periodic join timer to retry
+                  // when the target could not yet be reached, while treating
+                  // TLS handshake failures (e.g. an untrusted service
+                  // certificate) as fatal. Preserve both behaviours: transient
+                  // transport errors are retried, everything else is fatal.
+                  if (ccf::curl::is_transient_transport_error(curl_response))
+                  {
+                    LOG_INFO_FMT(
+                      "Transient error contacting {} to join: {} ({}). The "
+                      "join "
+                      "timer will retry.",
+                      target_address,
+                      curl_easy_strerror(curl_response),
+                      static_cast<int>(curl_response));
+                    return;
+                  }
+
+                  // CURLE_WRITE_ERROR here means our own write callback
+                  // rejected the response body, which for the join can only be
+                  // the body exceeding max_join_response_size. Surface a clear,
+                  // actionable message rather than curl's generic "write
+                  // error".
+                  if (curl_response == CURLE_WRITE_ERROR)
+                  {
+                    auto error_msg = fmt::format(
+                      "Join response from {} exceeded the maximum permitted "
+                      "size "
+                      "of {} bytes. Shutting down node gracefully...",
+                      target_address,
+                      max_join_response_size);
+                    LOG_FAIL_FMT("{}", error_msg);
+                    RINGBUFFER_WRITE_MESSAGE(
+                      AdminMessage::fatal_error_msg, to_host, error_msg);
+                    return;
+                  }
+
+                  // Fatal TLS/protocol-layer failure. Certificate trust could
+                  // not be established: either the peer certificate failed
+                  // verification (an untrusted or expired service certificate,
+                  // a hostname/SAN mismatch under VERIFYHOST=2, or any other
+                  // peer verification failure), or the configured service
+                  // certificate could not be loaded (CURLE_SSL_CACERT_BADFILE).
+                  // Flag these with a stable marker so they can be told apart
+                  // from other fatal errors in logs and tests.
+                  const bool tls_certificate_trust_check_failed =
+                    curl_response == CURLE_PEER_FAILED_VERIFICATION ||
+                    curl_response == CURLE_SSL_CACERT_BADFILE;
+                  auto error_msg = fmt::format(
+                    "Early error when joining existing network at {}: {}{} "
+                    "({}). "
+                    "Shutting down node gracefully...",
                     target_address,
+                    tls_certificate_trust_check_failed ?
+                      "TLS certificate trust check failed: " :
+                      "",
                     curl_easy_strerror(curl_response),
                     static_cast<int>(curl_response));
-                  return;
-                }
-
-                // CURLE_WRITE_ERROR here means our own write callback rejected
-                // the response body, which for the join can only be the body
-                // exceeding max_join_response_size. Surface a clear, actionable
-                // message rather than curl's generic "write error".
-                if (curl_response == CURLE_WRITE_ERROR)
-                {
-                  auto error_msg = fmt::format(
-                    "Join response from {} exceeded the maximum permitted size "
-                    "of {} bytes. Shutting down node gracefully...",
-                    target_address,
-                    max_join_response_size);
                   LOG_FAIL_FMT("{}", error_msg);
                   RINGBUFFER_WRITE_MESSAGE(
                     AdminMessage::fatal_error_msg, to_host, error_msg);
                   return;
                 }
 
-                // Fatal TLS/protocol-layer failure. Certificate trust could
-                // not be established: either the peer certificate failed
-                // verification (an untrusted or expired service certificate,
-                // a hostname/SAN mismatch under VERIFYHOST=2, or any other
-                // peer verification failure), or the configured service
-                // certificate could not be loaded (CURLE_SSL_CACERT_BADFILE).
-                // Flag these with a stable marker so they can be told apart
-                // from other fatal errors in logs and tests.
-                const bool tls_certificate_trust_check_failed =
-                  curl_response == CURLE_PEER_FAILED_VERIFICATION ||
-                  curl_response == CURLE_SSL_CACERT_BADFILE;
-                auto error_msg = fmt::format(
-                  "Early error when joining existing network at {}: {}{} ({}). "
-                  "Shutting down node gracefully...",
-                  target_address,
-                  tls_certificate_trust_check_failed ?
-                    "TLS certificate trust check failed: " :
-                    "",
-                  curl_easy_strerror(curl_response),
-                  static_cast<int>(curl_response));
-                LOG_FAIL_FMT("{}", error_msg);
-                RINGBUFFER_WRITE_MESSAGE(
-                  AdminMessage::fatal_error_msg, to_host, error_msg);
-                return;
-              }
+                const auto status = static_cast<ccf::http_status>(status_code);
+                const auto& headers = *response_headers;
+                const auto& data = *response_body;
 
-              const auto status = static_cast<ccf::http_status>(status_code);
-              const auto& headers = *response_headers;
-              const auto& data = *response_body;
-
-              if (is_http_status_client_error(status))
-              {
-                std::optional<ccf::ODataErrorResponse> error_response =
-                  std::nullopt;
-
-                try
+                if (is_http_status_client_error(status))
                 {
-                  auto j = ccf::parse_json_safe(data);
-                  error_response = j.get<ccf::ODataErrorResponse>();
-                }
-                catch (const ccf::JsonParseError& e)
-                {
-                  LOG_FAIL_FMT(
-                    "Join request returned {}, body exceeds permitted JSON "
-                    "nesting "
-                    "depth: {}",
-                    status,
-                    e.what());
-                }
-                catch (const nlohmann::json::exception& e)
-                {
-                  // Leave error_response == nullopt
-                  LOG_FAIL_FMT(
-                    "Join request returned {}, body is not ODataErrorResponse: "
-                    "{}",
-                    status,
-                    std::string(data.begin(), data.end()));
-                }
+                  std::optional<ccf::ODataErrorResponse> error_response =
+                    std::nullopt;
 
-                if (
-                  error_response.has_value() &&
-                  error_response->error.code ==
-                    ccf::errors::StartupSeqnoIsOld &&
-                  config.join.fetch_recent_snapshot)
-                {
-                  LOG_INFO_FMT(
-                    "Join request to {} returned {} error. Attempting to fetch "
-                    "fresher snapshot",
-                    target_address,
-                    ccf::errors::StartupSeqnoIsOld);
+                  try
+                  {
+                    auto j = ccf::parse_json_safe(data);
+                    error_response = j.get<ccf::ODataErrorResponse>();
+                  }
+                  catch (const ccf::JsonParseError& e)
+                  {
+                    LOG_FAIL_FMT(
+                      "Join request returned {}, body exceeds permitted JSON "
+                      "nesting "
+                      "depth: {}",
+                      status,
+                      e.what());
+                  }
+                  catch (const nlohmann::json::exception& e)
+                  {
+                    // Leave error_response == nullopt
+                    LOG_FAIL_FMT(
+                      "Join request returned {}, body is not "
+                      "ODataErrorResponse: "
+                      "{}",
+                      status,
+                      std::string(data.begin(), data.end()));
+                  }
 
-                  // If we've followed a redirect, it will have been updated in
-                  // config.join. Note that this is fire-and-forget, it is
-                  // assumed that it proceeds in the background, updating state
-                  // when it completes, and the join timer separately
-                  // re-attempts join after this succeeds
                   if (
-                    snapshot_fetch_task != nullptr &&
-                    !snapshot_fetch_task->is_cancelled())
+                    error_response.has_value() &&
+                    error_response->error.code ==
+                      ccf::errors::StartupSeqnoIsOld &&
+                    config.join.fetch_recent_snapshot)
                   {
                     LOG_INFO_FMT(
-                      "Snapshot fetch already in progress, skipping");
+                      "Join request to {} returned {} error. Attempting to "
+                      "fetch "
+                      "fresher snapshot",
+                      target_address,
+                      ccf::errors::StartupSeqnoIsOld);
+
+                    // If we've followed a redirect, it will have been updated
+                    // in config.join. Note that this is fire-and-forget, it is
+                    // assumed that it proceeds in the background, updating
+                    // state when it completes, and the join timer separately
+                    // re-attempts join after this succeeds
+                    if (
+                      snapshot_fetch_task != nullptr &&
+                      !snapshot_fetch_task->is_cancelled())
+                    {
+                      LOG_INFO_FMT(
+                        "Snapshot fetch already in progress, skipping");
+                    }
+                    else
+                    {
+                      snapshot_fetch_task = std::make_shared<FetchSnapshot>(
+                        config.join, config.snapshots, this);
+                      ccf::tasks::add_task(snapshot_fetch_task);
+                    }
+                    return;
+                  }
+
+                  auto error_msg = fmt::format(
+                    "Join request to {} returned {} Bad Request: {}. Shutting "
+                    "down node gracefully.",
+                    target_address,
+                    status,
+                    std::string(data.begin(), data.end()));
+                  LOG_FAIL_FMT("{}", error_msg);
+                  RINGBUFFER_WRITE_MESSAGE(
+                    AdminMessage::fatal_error_msg, to_host, error_msg);
+                  return;
+                }
+
+                if (status != HTTP_STATUS_OK)
+                {
+                  const auto& location = headers.find(http::headers::LOCATION);
+                  if (
+                    config.join.follow_redirect &&
+                    (status == HTTP_STATUS_PERMANENT_REDIRECT ||
+                     status == HTTP_STATUS_TEMPORARY_REDIRECT) &&
+                    location != headers.end())
+                  {
+                    const auto& url = ::http::parse_url_full(location->second);
+                    config.join.target_rpc_address =
+                      make_net_address(url.host, url.port);
+                    LOG_INFO_FMT(
+                      "Target node redirected to {}", location->second);
                   }
                   else
                   {
-                    snapshot_fetch_task = std::make_shared<FetchSnapshot>(
-                      config.join, config.snapshots, this);
-                    ccf::tasks::add_task(snapshot_fetch_task);
+                    LOG_FAIL_FMT(
+                      "An error occurred while joining the network: {} {}{}",
+                      status,
+                      ccf::http_status_str(status),
+                      data.empty() ?
+                        "" :
+                        fmt::format(
+                          "  '{}'", std::string(data.begin(), data.end())));
                   }
                   return;
                 }
 
-                auto error_msg = fmt::format(
-                  "Join request to {} returned {} Bad Request: {}. Shutting "
-                  "down node gracefully.",
-                  target_address,
-                  status,
-                  std::string(data.begin(), data.end()));
-                LOG_FAIL_FMT("{}", error_msg);
-                RINGBUFFER_WRITE_MESSAGE(
-                  AdminMessage::fatal_error_msg, to_host, error_msg);
-                return;
-              }
-
-              if (status != HTTP_STATUS_OK)
-              {
-                const auto& location = headers.find(http::headers::LOCATION);
-                if (
-                  config.join.follow_redirect &&
-                  (status == HTTP_STATUS_PERMANENT_REDIRECT ||
-                   status == HTTP_STATUS_TEMPORARY_REDIRECT) &&
-                  location != headers.end())
+                JoinNetworkNodeToNode::Out resp;
+                try
                 {
-                  const auto& url = ::http::parse_url_full(location->second);
-                  config.join.target_rpc_address =
-                    make_net_address(url.host, url.port);
-                  LOG_INFO_FMT(
-                    "Target node redirected to {}", location->second);
+                  auto j = ccf::parse_json_safe(data);
+                  resp = j.get<JoinNetworkNodeToNode::Out>();
                 }
-                else
+                catch (const std::exception& e)
                 {
                   LOG_FAIL_FMT(
-                    "An error occurred while joining the network: {} {}{}",
-                    status,
-                    ccf::http_status_str(status),
-                    data.empty() ?
-                      "" :
-                      fmt::format(
-                        "  '{}'", std::string(data.begin(), data.end())));
-                }
-                return;
-              }
+                    "An error occurred while parsing the join network "
+                    "response");
 
-              JoinNetworkNodeToNode::Out resp;
-              try
-              {
-                auto j = ccf::parse_json_safe(data);
-                resp = j.get<JoinNetworkNodeToNode::Out>();
+                  LOG_DEBUG_FMT("Join network response error: {}", e.what());
+                  LOG_DEBUG_FMT(
+                    "Join network response body: {}",
+                    std::string(data.begin(), data.end()));
+
+                  return;
+                }
+
+                // Set network secrets, node id and become part of network.
+                if (resp.node_status == NodeStatus::TRUSTED)
+                {
+                  if (!resp.network_info.has_value())
+                  {
+                    throw std::logic_error(
+                      "Expected network info in join response");
+                  }
+
+                  network.identity = std::make_unique<ccf::NetworkIdentity>(
+                    resp.network_info->identity);
+                  network.ledger_secrets->init_from_map(
+                    std::move(resp.network_info->ledger_secrets));
+
+                  history->set_service_signing_identity(
+                    network.identity->get_key_pair(),
+                    resp.network_info->cose_signatures_config.value_or(
+                      ccf::COSESignaturesConfig{}));
+
+                  ccf::crypto::Pem n2n_channels_cert;
+                  if (!resp.network_info->endorsed_certificate.has_value())
+                  {
+                    // Endorsed certificate was added to join response in 2.x
+                    throw std::logic_error(
+                      "Expected endorsed certificate in join response");
+                  }
+                  n2n_channels_cert =
+                    resp.network_info->endorsed_certificate.value();
+
+                  setup_consensus(
+                    resp.network_info->public_only, n2n_channels_cert);
+                  auto_refresh_jwt_keys();
+
+                  if (resp.network_info->public_only)
+                  {
+                    last_recovered_signed_idx =
+                      resp.network_info->last_recovered_signed_idx;
+                    setup_recovery_hook();
+                    snapshotter->set_snapshot_generation(false);
+                  }
+
+                  View view = VIEW_UNKNOWN;
+                  std::vector<ccf::kv::Version> view_history_ = {};
+                  if (startup_snapshot_info)
+                  {
+                    // It is only possible to deserialise the entire snapshot
+                    // now, once the ledger secrets have been passed in by the
+                    // network
+                    ccf::kv::ConsensusHookPtrs hooks;
+                    network.tables->set_readiness(
+                      ccf::kv::StoreReadiness::InstallingSnapshot);
+                    try
+                    {
+                      deserialise_snapshot(
+                        network.tables,
+                        startup_snapshot_info->raw,
+                        hooks,
+                        &view_history_,
+                        resp.network_info->public_only);
+
+                      for (auto& hook : hooks)
+                      {
+                        hook->call(consensus.get());
+                      }
+
+                      auto tx = network.tables->create_read_only_tx();
+                      view = resolve_latest_sig_view(tx);
+
+                      if (!resp.network_info->public_only)
+                      {
+                        // Only clear snapshot if not recovering. When joining
+                        // the public network the snapshot is used later to
+                        // initialise the recovery store
+                        startup_snapshot_info.reset();
+                      }
+
+                      LOG_INFO_FMT(
+                        "Joiner successfully resumed from snapshot at seqno {} "
+                        "and view {}",
+                        network.tables->current_version(),
+                        view);
+                    }
+                    catch (const std::exception& e)
+                    {
+                      network.tables->set_readiness(
+                        ccf::kv::StoreReadiness::Failed);
+                      if (join_periodic_task != nullptr)
+                      {
+                        join_periodic_task->cancel_task();
+                        join_periodic_task = nullptr;
+                      }
+
+                      auto error_msg = fmt::format(
+                        "Failed to install startup snapshot: {}. Shutting down "
+                        "node gracefully...",
+                        e.what());
+                      LOG_FAIL_FMT("{}", error_msg);
+                      RINGBUFFER_WRITE_MESSAGE(
+                        AdminMessage::fatal_error_msg, to_host, error_msg);
+                      return;
+                    }
+                  }
+
+                  consensus->init_as_backup(
+                    network.tables->current_version(),
+                    view,
+                    view_history_,
+                    last_recovered_signed_idx);
+
+                  {
+                    auto snap_tx = network.tables->create_read_only_tx();
+                    auto snapshot_status =
+                      snap_tx.ro<SnapshotStatusValue>(Tables::SNAPSHOT_STATUS)
+                        ->get();
+                    if (snapshot_status.has_value())
+                    {
+                      snapshotter->init_from_snapshot_status(
+                        snapshot_status.value());
+                    }
+                  }
+                  history->start_signature_emit_timer();
+                  network.tables->set_readiness(ccf::kv::StoreReadiness::Ready);
+
+                  if (resp.network_info->public_only)
+                  {
+                    sm.advance(NodeStartupState::partOfPublicNetwork);
+                  }
+                  else
+                  {
+                    reset_data(quote_info.quote);
+                    reset_data(quote_info.endorsements);
+                    sm.advance(NodeStartupState::partOfNetwork);
+                  }
+
+                  if (join_periodic_task != nullptr)
+                  {
+                    join_periodic_task->cancel_task();
+                    join_periodic_task = nullptr;
+                  }
+
+                  LOG_INFO_FMT(
+                    "Node has now joined the network as node {}: {}",
+                    self,
+                    (resp.network_info->public_only ? "public only" :
+                                                      "all domains"));
+                }
+                else if (resp.node_status == NodeStatus::PENDING)
+                {
+                  LOG_INFO_FMT(
+                    "Node {} is waiting for votes of members to be trusted",
+                    self);
+                }
               }
               catch (const std::exception& e)
               {
                 LOG_FAIL_FMT(
-                  "An error occurred while parsing the join network response");
-
-                LOG_DEBUG_FMT("Join network response error: {}", e.what());
-                LOG_DEBUG_FMT(
-                  "Join network response body: {}",
-                  std::string(data.begin(), data.end()));
-
-                return;
+                  "Unhandled error while processing join response from {}: {}",
+                  target_address,
+                  e.what());
               }
-
-              // Set network secrets, node id and become part of network.
-              if (resp.node_status == NodeStatus::TRUSTED)
-              {
-                if (!resp.network_info.has_value())
-                {
-                  throw std::logic_error(
-                    "Expected network info in join response");
-                }
-
-                network.identity = std::make_unique<ccf::NetworkIdentity>(
-                  resp.network_info->identity);
-                network.ledger_secrets->init_from_map(
-                  std::move(resp.network_info->ledger_secrets));
-
-                history->set_service_signing_identity(
-                  network.identity->get_key_pair(),
-                  resp.network_info->cose_signatures_config.value_or(
-                    ccf::COSESignaturesConfig{}));
-
-                ccf::crypto::Pem n2n_channels_cert;
-                if (!resp.network_info->endorsed_certificate.has_value())
-                {
-                  // Endorsed certificate was added to join response in 2.x
-                  throw std::logic_error(
-                    "Expected endorsed certificate in join response");
-                }
-                n2n_channels_cert =
-                  resp.network_info->endorsed_certificate.value();
-
-                setup_consensus(
-                  resp.network_info->public_only, n2n_channels_cert);
-                auto_refresh_jwt_keys();
-
-                if (resp.network_info->public_only)
-                {
-                  last_recovered_signed_idx =
-                    resp.network_info->last_recovered_signed_idx;
-                  setup_recovery_hook();
-                  snapshotter->set_snapshot_generation(false);
-                }
-
-                View view = VIEW_UNKNOWN;
-                std::vector<ccf::kv::Version> view_history_ = {};
-                if (startup_snapshot_info)
-                {
-                  // It is only possible to deserialise the entire snapshot now,
-                  // once the ledger secrets have been passed in by the network
-                  ccf::kv::ConsensusHookPtrs hooks;
-                  network.tables->set_readiness(
-                    ccf::kv::StoreReadiness::InstallingSnapshot);
-                  try
-                  {
-                    deserialise_snapshot(
-                      network.tables,
-                      startup_snapshot_info->raw,
-                      hooks,
-                      &view_history_,
-                      resp.network_info->public_only);
-
-                    for (auto& hook : hooks)
-                    {
-                      hook->call(consensus.get());
-                    }
-
-                    auto tx = network.tables->create_read_only_tx();
-                    view = resolve_latest_sig_view(tx);
-
-                    if (!resp.network_info->public_only)
-                    {
-                      // Only clear snapshot if not recovering. When joining the
-                      // public network the snapshot is used later to initialise
-                      // the recovery store
-                      startup_snapshot_info.reset();
-                    }
-
-                    LOG_INFO_FMT(
-                      "Joiner successfully resumed from snapshot at seqno {} "
-                      "and view {}",
-                      network.tables->current_version(),
-                      view);
-                  }
-                  catch (const std::exception& e)
-                  {
-                    network.tables->set_readiness(
-                      ccf::kv::StoreReadiness::Failed);
-                    if (join_periodic_task != nullptr)
-                    {
-                      join_periodic_task->cancel_task();
-                      join_periodic_task = nullptr;
-                    }
-
-                    auto error_msg = fmt::format(
-                      "Failed to install startup snapshot: {}. Shutting down "
-                      "node gracefully...",
-                      e.what());
-                    LOG_FAIL_FMT("{}", error_msg);
-                    RINGBUFFER_WRITE_MESSAGE(
-                      AdminMessage::fatal_error_msg, to_host, error_msg);
-                    return;
-                  }
-                }
-
-                consensus->init_as_backup(
-                  network.tables->current_version(),
-                  view,
-                  view_history_,
-                  last_recovered_signed_idx);
-
-                {
-                  auto snap_tx = network.tables->create_read_only_tx();
-                  auto snapshot_status =
-                    snap_tx.ro<SnapshotStatusValue>(Tables::SNAPSHOT_STATUS)
-                      ->get();
-                  if (snapshot_status.has_value())
-                  {
-                    snapshotter->init_from_snapshot_status(
-                      snapshot_status.value());
-                  }
-                }
-                history->start_signature_emit_timer();
-                network.tables->set_readiness(ccf::kv::StoreReadiness::Ready);
-
-                if (resp.network_info->public_only)
-                {
-                  sm.advance(NodeStartupState::partOfPublicNetwork);
-                }
-                else
-                {
-                  reset_data(quote_info.quote);
-                  reset_data(quote_info.endorsements);
-                  sm.advance(NodeStartupState::partOfNetwork);
-                }
-
-                if (join_periodic_task != nullptr)
-                {
-                  join_periodic_task->cancel_task();
-                  join_periodic_task = nullptr;
-                }
-
-                LOG_INFO_FMT(
-                  "Node has now joined the network as node {}: {}",
-                  self,
-                  (resp.network_info->public_only ? "public only" :
-                                                    "all domains"));
-              }
-              else if (resp.node_status == NodeStatus::PENDING)
-              {
-                LOG_INFO_FMT(
-                  "Node {} is waiting for votes of members to be trusted",
-                  self);
-              }
-            }
-            catch (const std::exception& e)
-            {
-              LOG_FAIL_FMT(
-                "Unhandled error while processing join response from {}: {}",
-                target_address,
-                e.what());
-            }
-          }));
+            }));
         };
       // NOLINTEND(readability-function-cognitive-complexity)
 
@@ -1872,9 +1885,10 @@ namespace ccf
     {
       if (!sm.check(NodeStartupState::readingPublicLedger))
       {
-        throw std::logic_error(fmt::format(
-          "Node should be in state {} to start reading ledger",
-          NodeStartupState::readingPublicLedger));
+        throw std::logic_error(
+          fmt::format(
+            "Node should be in state {} to start reading ledger",
+            NodeStartupState::readingPublicLedger));
       }
 
       LOG_INFO_FMT("Starting to read public ledger");
@@ -2048,9 +2062,10 @@ namespace ccf
           auto tx_id_opt = ccf::TxID::from_str(as_receipt.phdr.ccf.txid);
           if (!tx_id_opt.has_value())
           {
-            throw std::logic_error(fmt::format(
-              "Failed to parse TxID from COSE signature: {}",
-              as_receipt.phdr.ccf.txid));
+            throw std::logic_error(
+              fmt::format(
+                "Failed to parse TxID from COSE signature: {}",
+                as_receipt.phdr.ccf.txid));
           }
 
           cose_seqno = tx_id_opt->seqno;
@@ -2147,11 +2162,12 @@ namespace ccf
 
         if (!sealed_recovery_data.has_value())
         {
-          throw std::logic_error(fmt::format(
-            "Failed to find sealed recovery data for location ({}) in ledger "
-            "at {}",
-            name,
-            last_recovered_signed_idx));
+          throw std::logic_error(
+            fmt::format(
+              "Failed to find sealed recovery data for location ({}) in ledger "
+              "at {}",
+              name,
+              last_recovered_signed_idx));
         }
 
         {
@@ -2262,19 +2278,21 @@ namespace ccf
 
       if (recovery_v != recovery_store->current_version())
       {
-        throw std::logic_error(fmt::format(
-          "Private recovery did not reach public ledger seqno: {}/{}",
-          recovery_store->current_version(),
-          recovery_v));
+        throw std::logic_error(
+          fmt::format(
+            "Private recovery did not reach public ledger seqno: {}/{}",
+            recovery_store->current_version(),
+            recovery_v));
       }
 
       auto* h =
         dynamic_cast<MerkleTxHistory*>(recovery_store->get_history().get());
       if (h->get_replicated_state_root() != recovery_root)
       {
-        throw std::logic_error(fmt::format(
-          "Root of public store does not match root of private store at {}",
-          recovery_v));
+        throw std::logic_error(
+          fmt::format(
+            "Root of public store does not match root of private store at {}",
+            recovery_v));
       }
 
       network.tables->swap_private_maps(*recovery_store);
@@ -2303,18 +2321,20 @@ namespace ccf
 
           if (!active_service.has_value())
           {
-            throw std::logic_error(fmt::format(
-              "Error in {}: no value in {}", __func__, Tables::SERVICE));
+            throw std::logic_error(
+              fmt::format(
+                "Error in {}: no value in {}", __func__, Tables::SERVICE));
           }
 
           if (
             active_service->status !=
             ServiceStatus::WAITING_FOR_RECOVERY_SHARES)
           {
-            throw std::logic_error(fmt::format(
-              "Error in {}: current service status is {}",
-              __func__,
-              active_service->status));
+            throw std::logic_error(
+              fmt::format(
+                "Error in {}: current service status is {}",
+                __func__,
+                active_service->status));
           }
         }
 
@@ -2369,9 +2389,10 @@ namespace ccf
             -> ccf::kv::ConsensusHookPtr {
             if (!w.has_value())
             {
-              throw std::logic_error(fmt::format(
-                "Unexpected removal from {} table",
-                network.encrypted_ledger_secrets.get_name()));
+              throw std::logic_error(
+                fmt::format(
+                  "Unexpected removal from {} table",
+                  network.encrypted_ledger_secrets.get_name()));
             }
 
             network.ledger_secrets->adjust_previous_secret_stored_version(
@@ -2543,22 +2564,24 @@ namespace ccf
           identities.previous->data(), identities.previous->size());
         if (prev_ident.value() != from_proposal)
         {
-          throw std::logic_error(fmt::format(
-            "Previous service identity does not match.\nActual:\n{}\nIn "
-            "proposal:\n{}",
-            prev_ident->str(),
-            from_proposal.str()));
+          throw std::logic_error(
+            fmt::format(
+              "Previous service identity does not match.\nActual:\n{}\nIn "
+              "proposal:\n{}",
+              prev_ident->str(),
+              from_proposal.str()));
         }
       }
 
       if (identities.next != service_info->cert)
       {
-        throw std::logic_error(fmt::format(
-          "Service identity mismatch: the next service identity in the "
-          "transition_service_to_open proposal does not match the current "
-          "service identity:\nNext:\n{}\nCurrent:\n{}",
-          identities.next.str(),
-          service_info->cert.str()));
+        throw std::logic_error(
+          fmt::format(
+            "Service identity mismatch: the next service identity in the "
+            "transition_service_to_open proposal does not match the current "
+            "service identity:\nNext:\n{}\nCurrent:\n{}",
+            identities.next.str(),
+            service_info->cert.str()));
       }
 
       if (is_part_of_public_network())
@@ -2905,8 +2928,9 @@ namespace ccf
           .back();
       if (final_component.empty())
       {
-        throw std::runtime_error(fmt::format(
-          "{} has a trailing period, is not a valid hostname", hostname));
+        throw std::runtime_error(
+          fmt::format(
+            "{} has a trailing period, is not a valid hostname", hostname));
       }
 
       return std::ranges::all_of(
@@ -3154,9 +3178,10 @@ namespace ccf
             const auto& ledger_secrets_for_nodes = w;
             if (!ledger_secrets_for_nodes.has_value())
             {
-              throw std::logic_error(fmt::format(
-                "Unexpected removal from {} table",
-                network.secrets.get_name()));
+              throw std::logic_error(
+                fmt::format(
+                  "Unexpected removal from {} table",
+                  network.secrets.get_name()));
             }
 
             for (const auto& [node_id, encrypted_ledger_secrets] :
@@ -3201,8 +3226,10 @@ namespace ccf
           const auto& ledger_secrets_for_nodes = w;
           if (!ledger_secrets_for_nodes.has_value())
           {
-            throw std::logic_error(fmt::format(
-              "Unexpected removal from {} table", network.secrets.get_name()));
+            throw std::logic_error(
+              fmt::format(
+                "Unexpected removal from {} table",
+                network.secrets.get_name()));
           }
 
           for (const auto& [node_id, encrypted_ledger_secrets] :
@@ -3222,11 +3249,12 @@ namespace ccf
               // version read from the write set.
               if (!encrypted_ledger_secret.version.has_value())
               {
-                throw std::logic_error(fmt::format(
-                  "Commit hook at seqno {} for table {}: no version for "
-                  "encrypted ledger secret",
-                  hook_version,
-                  network.secrets.get_name()));
+                throw std::logic_error(
+                  fmt::format(
+                    "Commit hook at seqno {} for table {}: no version for "
+                    "encrypted ledger secret",
+                    hook_version,
+                    network.secrets.get_name()));
               }
 
               auto plain_ledger_secret = LedgerSecretsBroadcast::decrypt(
@@ -3306,8 +3334,9 @@ namespace ccf
               {
                 LOG_FAIL_FMT(
                   "[local] Endorsed cert for self ({}) has been deleted", self);
-                throw std::logic_error(fmt::format(
-                  "Could not find endorsed node certificate for {}", self));
+                throw std::logic_error(
+                  fmt::format(
+                    "Could not find endorsed node certificate for {}", self));
               }
 
               const auto new_endorsed_node_cert = endorsed_certificate.value();
@@ -3361,8 +3390,9 @@ namespace ccf
                 LOG_FAIL_FMT(
                   "[global] Endorsed cert for self ({}) has been deleted",
                   self);
-                throw std::logic_error(fmt::format(
-                  "Could not find endorsed node certificate for {}", self));
+                throw std::logic_error(
+                  fmt::format(
+                    "Could not find endorsed node certificate for {}", self));
               }
 
               const auto new_endorsed_node_cert = endorsed_certificate.value();
@@ -3488,9 +3518,10 @@ namespace ccf
             auto encrypted_ledger_secret_info = w;
             if (!encrypted_ledger_secret_info.has_value())
             {
-              throw std::logic_error(fmt::format(
-                "Unexpected removal from {} table",
-                network.encrypted_ledger_secrets.get_name()));
+              throw std::logic_error(
+                fmt::format(
+                  "Unexpected removal from {} table",
+                  network.encrypted_ledger_secrets.get_name()));
             }
 
             // If the version of the next ledger secret is not set, deduce it

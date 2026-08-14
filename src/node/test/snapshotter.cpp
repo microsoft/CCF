@@ -136,8 +136,9 @@ TEST_CASE("Recovery snapshot endorsement scan reads ledger files directly")
     malformed_ledger_dir.path / "ledger_1", {malformed_entry});
   ccf::CCFConfig::Ledger malformed_ledger_config;
   malformed_ledger_config.directory = malformed_ledger_dir.path.string();
-  REQUIRE_THROWS(ccf::scan_recovery_snapshot_ledger_files(
-    malformed_ledger_config, encryptor, 0));
+  REQUIRE_THROWS(
+    ccf::scan_recovery_snapshot_ledger_files(
+      malformed_ledger_config, encryptor, 0));
 
   write_current_ledger_file(ledger_dir.path / "ledger_1", entries);
 
@@ -149,8 +150,9 @@ TEST_CASE("Recovery snapshot endorsement scan reads ledger files directly")
   REQUIRE(scan.endorsements.front().write_version == 2);
 
   const auto target_key = ccf::crypto::make_ec_key_pair()->public_key_der();
-  REQUIRE_THROWS(ccf::validate_recovery_snapshot_endorsement_chain(
-    scan.endorsements, target_key, 1));
+  REQUIRE_THROWS(
+    ccf::validate_recovery_snapshot_endorsement_chain(
+      scan.endorsements, target_key, 1));
 }
 
 TEST_CASE("Recovery snapshot endorsement scan bounds candidate endorsements")
@@ -300,8 +302,9 @@ TEST_CASE("Recovery snapshot endorsement scan bounds ledger entry allocation")
 
   ccf::CCFConfig::Ledger ledger_config;
   ledger_config.directory = ledger_dir.path.string();
-  REQUIRE_THROWS(ccf::scan_recovery_snapshot_ledger_files(
-    ledger_config, std::make_shared<ccf::kv::NullTxEncryptor>(), 0));
+  REQUIRE_THROWS(
+    ccf::scan_recovery_snapshot_ledger_files(
+      ledger_config, std::make_shared<ccf::kv::NullTxEncryptor>(), 0));
 }
 
 std::optional<fs::path> latest_committed_snapshot_path(const fs::path& dir)

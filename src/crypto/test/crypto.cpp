@@ -1013,11 +1013,13 @@ TEST_CASE("X509 chain common validity period")
     "20241231235959Z");
 
   const auto disjoint = make_certificate("20250101000000Z", "20260101000000Z");
-  REQUIRE_FALSE(ccf::crypto::OpenSSL::get_x509_chain_common_validity_period(
-                  {first, disjoint})
-                  .has_value());
-  REQUIRE_FALSE(ccf::crypto::OpenSSL::get_x509_chain_common_validity_period({})
-                  .has_value());
+  REQUIRE_FALSE(
+    ccf::crypto::OpenSSL::get_x509_chain_common_validity_period(
+      {first, disjoint})
+      .has_value());
+  REQUIRE_FALSE(
+    ccf::crypto::OpenSSL::get_x509_chain_common_validity_period({})
+      .has_value());
 }
 
 TEST_CASE("hmac")

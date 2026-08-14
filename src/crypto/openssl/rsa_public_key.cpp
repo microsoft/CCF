@@ -234,8 +234,9 @@ namespace ccf::crypto
     {
       if (salt_length > INT_MAX)
       {
-        throw std::invalid_argument(fmt::format(
-          "salt_length {} exceeds maximum ({})", salt_length, INT_MAX));
+        throw std::invalid_argument(
+          fmt::format(
+            "salt_length {} exceeds maximum ({})", salt_length, INT_MAX));
       }
       CHECKPOSITIVE(EVP_PKEY_CTX_set_rsa_pss_saltlen(pctx, salt_length));
     }

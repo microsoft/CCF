@@ -27,8 +27,9 @@
     const auto res = fn(__VA_ARGS__); \
     if (res != CURLE_OK) \
     { \
-      throw std::runtime_error(fmt::format( \
-        "Error calling " #fn ": {} ({})", res, curl_easy_strerror(res))); \
+      throw std::runtime_error( \
+        fmt::format( \
+          "Error calling " #fn ": {} ({})", res, curl_easy_strerror(res))); \
     } \
   } while (0)
 
@@ -43,8 +44,9 @@
     const auto res = fn(__VA_ARGS__); \
     if (res != CURLM_OK) \
     { \
-      throw std::runtime_error(fmt::format( \
-        "Error calling " #fn ": {} ({})", res, curl_multi_strerror(res))); \
+      throw std::runtime_error( \
+        fmt::format( \
+          "Error calling " #fn ": {} ({})", res, curl_multi_strerror(res))); \
     } \
   } while (0)
 
@@ -128,9 +130,9 @@ namespace ccf::curl
         throw std::logic_error("Cannot set option on a null CURL handle");
       }
 
-      struct curl_blob blob
-      {
-        .data = const_cast<uint8_t*>(data), .len = length,
+      struct curl_blob blob{
+        .data = const_cast<uint8_t*>(data),
+        .len = length,
         .flags = CURL_BLOB_COPY,
       };
 
@@ -692,6 +694,11 @@ namespace ccf::curl
       return curl_handle;
     }
 
+    [[nodiscard]] UniqueCURL take_easy_handle()
+    {
+      return std::move(curl_handle);
+    }
+
     [[nodiscard]] RESTVerb get_method() const
     {
       return method;
@@ -1225,9 +1232,10 @@ namespace ccf::curl
       CHECK_UV(
         uv_async_init, loop, &async_requests_handle, async_requests_callback);
       async_requests_handle.data = this;
-      uv_unref(reinterpret_cast<uv_handle_t*>(
-        &async_requests_handle)); // allow the loop to exit if this is the
-                                  // only active handle
+      uv_unref(
+        reinterpret_cast<uv_handle_t*>(
+          &async_requests_handle)); // allow the loop to exit if this is the
+                                    // only active handle
 
       // attach timeouts
       CHECK_CURL_MULTI(
@@ -1276,6 +1284,25 @@ namespace ccf::curl
       {
         safe_abort_request(std::move(request_to_abort), "attach_request");
       }
+    }
+
+    void set_connection_limits(long maximum_connections)
+    {
+      CHECK_CURL_MULTI(
+        curl_multi_setopt,
+        curl_request_curlm,
+        CURLMOPT_MAXCONNECTS,
+        maximum_connections);
+      CHECK_CURL_MULTI(
+        curl_multi_setopt,
+        curl_request_curlm,
+        CURLMOPT_MAX_HOST_CONNECTIONS,
+        maximum_connections);
+      CHECK_CURL_MULTI(
+        curl_multi_setopt,
+        curl_request_curlm,
+        CURLMOPT_MAX_TOTAL_CONNECTIONS,
+        maximum_connections);
     }
 
   private:

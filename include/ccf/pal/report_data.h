@@ -25,11 +25,12 @@ namespace ccf::pal
     {
       if (data.size() != size())
       {
-        throw std::logic_error(fmt::format(
-          "Cannot initialise AttestationReportData with data of size {}, "
-          "expected {}",
-          data.size(),
-          size()));
+        throw std::logic_error(
+          fmt::format(
+            "Cannot initialise AttestationReportData with data of size {}, "
+            "expected {}",
+            data.size(),
+            size()));
       }
 
       std::copy(data.data(), data.data() + data.size(), report_data.data());

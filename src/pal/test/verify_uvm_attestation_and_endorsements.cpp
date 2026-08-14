@@ -44,11 +44,12 @@ void validate_endorsements(
   }
   else
   {
-    throw std::runtime_error(fmt::format(
-      "SNP endorsements loaded from disk contained tcbm {}, which does not "
-      "match reported TCB of current attestation {}. ",
-      aci_endorsements.tcbm,
-      tcb_as_hex));
+    throw std::runtime_error(
+      fmt::format(
+        "SNP endorsements loaded from disk contained tcbm {}, which does not "
+        "match reported TCB of current attestation {}. ",
+        aci_endorsements.tcbm,
+        tcb_as_hex));
   }
 
   endorsements_pem.clear();
@@ -78,12 +79,13 @@ void validate_security_policy(
     ccf::crypto::Sha256Hash(security_policy);
   if (security_policy_digest != quoted_digest.value())
   {
-    throw std::logic_error(fmt::format(
-      "Digest of decoded security policy \"{}\" {} does not match "
-      "attestation host data {}",
-      security_policy,
-      security_policy_digest.hex_str(),
-      quoted_digest.value().hex_str()));
+    throw std::logic_error(
+      fmt::format(
+        "Digest of decoded security policy \"{}\" {} does not match "
+        "attestation host data {}",
+        security_policy,
+        security_policy_digest.hex_str(),
+        quoted_digest.value().hex_str()));
   }
   LOG_INFO_FMT(
     "Successfully verified attested security policy {}",

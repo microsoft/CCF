@@ -136,8 +136,9 @@ namespace ccf::pal::snp
     {
       return ProductName::Turin;
     }
-    throw std::logic_error(fmt::format(
-      "SEV-SNP: Unsupported CPUID family {} model {}", family, model));
+    throw std::logic_error(
+      fmt::format(
+        "SEV-SNP: Unsupported CPUID family {} model {}", family, model));
   }
 
   inline ProductName get_sev_snp_product(const CPUID& cpuid)
@@ -162,8 +163,9 @@ namespace ccf::pal::snp
         // https://www.amd.com/content/dam/amd/en/documents/processor-tech-docs/revision-guides/58251.pdf
         return "00b00f21";
       default:
-        throw std::logic_error(fmt::format(
-          "SEV-SNP: Unsupported product for CPUID: {}", to_string(product)));
+        throw std::logic_error(
+          fmt::format(
+            "SEV-SNP: Unsupported product for CPUID: {}", to_string(product)));
     }
   }
 }

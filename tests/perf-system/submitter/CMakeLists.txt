@@ -8,6 +8,9 @@ add_executable(
 )
 
 add_warning_checks(submit)
-target_link_libraries(submit PRIVATE http_parser ccfcrypto arrow parquet)
+target_link_libraries(
+  submit
+  PRIVATE http_parser ccfcrypto arrow parquet curl uv
+)
 
 install(TARGETS submit DESTINATION bin)

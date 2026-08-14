@@ -98,8 +98,9 @@ namespace ccf::jwt_management_detail
     }
     catch (std::invalid_argument& exc)
     {
-      throw std::logic_error(fmt::format(
-        "JWKS kid {} has an invalid X.509 certificate: {}", kid, exc.what()));
+      throw std::logic_error(
+        fmt::format(
+          "JWKS kid {} has an invalid X.509 certificate: {}", kid, exc.what()));
     }
   }
 
@@ -228,13 +229,14 @@ namespace ccf
         {
           if (!check_issuer_constraint(issuer, *jwk.issuer))
           {
-            throw std::logic_error(fmt::format(
-              "JWKS kid {} with issuer constraint {} fails validation "
-              "against "
-              "issuer {}",
-              kid,
-              *jwk.issuer,
-              issuer));
+            throw std::logic_error(
+              fmt::format(
+                "JWKS kid {} with issuer constraint {} fails validation "
+                "against "
+                "issuer {}",
+                kid,
+                *jwk.issuer,
+                issuer));
           }
 
           issuer_constraints.emplace(kid, *jwk.issuer);

@@ -59,8 +59,9 @@ namespace cli
       }
       else
       {
-        throw std::logic_error(fmt::format(
-          "Address '{}' has unexpected characters after ']'", addr));
+        throw std::logic_error(
+          fmt::format(
+            "Address '{}' has unexpected characters after ']'", addr));
       }
     }
     else
@@ -72,8 +73,9 @@ namespace cli
         addr.find(':') != std::string::npos &&
         addr.find(':') != addr.find_last_of(':'))
       {
-        throw std::logic_error(fmt::format(
-          "IPv6 address '{}' must be bracketed as '[host]:port'", addr));
+        throw std::logic_error(
+          fmt::format(
+            "IPv6 address '{}' must be bracketed as '[host]:port'", addr));
       }
 
       auto found = addr.find_last_of(':');

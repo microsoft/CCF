@@ -32,11 +32,12 @@ namespace ccf::pal
       if (rc < 0)
       {
         const auto ec = ERR_get_error();
-        throw std::runtime_error(fmt::format(
-          "OpenSSL error (rc={}, ec={}): {}",
-          rc,
-          ec,
-          ccf::crypto::OpenSSL::error_string(ec)));
+        throw std::runtime_error(
+          fmt::format(
+            "OpenSSL error (rc={}, ec={}): {}",
+            rc,
+            ec,
+            ccf::crypto::OpenSSL::error_string(ec)));
       }
 
       BUF_MEM* bptr = nullptr;
@@ -76,11 +77,12 @@ namespace ccf::pal
     X509_EXTENSION* ext = X509_get_ext(x509, ext_loc);
     if (ext == nullptr)
     {
-      throw std::logic_error(fmt::format(
-        "Expected TCB version OID {} present but could not fetch extension "
-        "at index {} in VCEK certificate",
-        oid,
-        ext_loc));
+      throw std::logic_error(
+        fmt::format(
+          "Expected TCB version OID {} present but could not fetch extension "
+          "at index {} in VCEK certificate",
+          oid,
+          ext_loc));
     }
 
     ASN1_OCTET_STRING* data = X509_EXTENSION_get_data(ext);
@@ -111,8 +113,11 @@ namespace ccf::pal
     } \
     if (val_##FIELD.value() < 0 || val_##FIELD.value() > UINT8_MAX) \
     { \
-      throw std::logic_error(fmt::format( \
-        "Invalid {} value in TCB version: {}", #FIELD, val_##FIELD.value())); \
+      throw std::logic_error( \
+        fmt::format( \
+          "Invalid {} value in TCB version: {}", \
+          #FIELD, \
+          val_##FIELD.value())); \
     } \
     (TCB)->FIELD = static_cast<uint8_t>(val_##FIELD.value()); \
   } while (0)
@@ -218,10 +223,11 @@ namespace ccf::pal
     X509_EXTENSION* ext = X509_get_ext(x509, ext_index);
     if (ext == nullptr)
     {
-      throw std::logic_error(fmt::format(
-        "Failed to fetch extension at index {} for OID {}",
-        ext_index,
-        chip_id_oid));
+      throw std::logic_error(
+        fmt::format(
+          "Failed to fetch extension at index {} for OID {}",
+          ext_index,
+          chip_id_oid));
     }
 
     ASN1_OCTET_STRING* data = X509_EXTENSION_get_data(ext);
@@ -242,17 +248,19 @@ namespace ccf::pal
   {
     if (quote_info.format != QuoteFormat::amd_sev_snp_v1)
     {
-      throw std::logic_error(fmt::format(
-        "Unexpected attestation report to verify for SEV-SNP: {}",
-        quote_info.format));
+      throw std::logic_error(
+        fmt::format(
+          "Unexpected attestation report to verify for SEV-SNP: {}",
+          quote_info.format));
     }
 
     if (quote_info.quote.size() != sizeof(snp::Attestation))
     {
-      throw std::logic_error(fmt::format(
-        "Input SEV-SNP attestation report is not of expected size {}: {}",
-        sizeof(snp::Attestation),
-        quote_info.quote.size()));
+      throw std::logic_error(
+        fmt::format(
+          "Input SEV-SNP attestation report is not of expected size {}: {}",
+          sizeof(snp::Attestation),
+          quote_info.quote.size()));
     }
 
     auto quote =
@@ -260,10 +268,11 @@ namespace ccf::pal
 
     if (quote.version < snp::minimum_attestation_version)
     {
-      throw std::logic_error(fmt::format(
-        "SEV-SNP: Attestation version is {} not >= expected minimum {}",
-        quote.version,
-        snp::minimum_attestation_version));
+      throw std::logic_error(
+        fmt::format(
+          "SEV-SNP: Attestation version is {} not >= expected minimum {}",
+          quote.version,
+          snp::minimum_attestation_version));
     }
 
     auto product_family =
@@ -271,13 +280,16 @@ namespace ccf::pal
 
     // ---- Verify certificate chain ----
 
-    auto certificates = ccf::crypto::split_x509_cert_bundle(std::string_view(
-      reinterpret_cast<const char*>(quote_info.endorsements.data()),
-      quote_info.endorsements.size()));
+    auto certificates = ccf::crypto::split_x509_cert_bundle(
+      std::string_view(
+        reinterpret_cast<const char*>(quote_info.endorsements.data()),
+        quote_info.endorsements.size()));
     if (certificates.size() != 3)
     {
-      throw std::logic_error(fmt::format(
-        "Expected 3 endorsement certificates but got {}", certificates.size()));
+      throw std::logic_error(
+        fmt::format(
+          "Expected 3 endorsement certificates but got {}",
+          certificates.size()));
     }
 
     // ark_cert --signs--> ask_cert
@@ -291,20 +303,22 @@ namespace ccf::pal
     auto key = snp::amd_root_signing_keys.find(product_family);
     if (key == snp::amd_root_signing_keys.end())
     {
-      throw std::logic_error(fmt::format(
-        "SEV-SNP: No known root certificate for {}", product_family));
+      throw std::logic_error(
+        fmt::format(
+          "SEV-SNP: No known root certificate for {}", product_family));
     }
     const auto& expected_ark = key->second;
     if (ark_verifier->public_key_pem().str() != expected_ark.public_key)
     {
-      throw std::logic_error(fmt::format(
-        "SEV-SNP: The root of trust public key for this attestation was not "
-        "the expected one for v{} {} {}:  {} != {}",
-        quote.version,
-        quote.cpuid_fam_id,
-        quote.cpuid_mod_id,
-        ark_verifier->public_key_pem().str(),
-        expected_ark.public_key));
+      throw std::logic_error(
+        fmt::format(
+          "SEV-SNP: The root of trust public key for this attestation was not "
+          "the expected one for v{} {} {}:  {} != {}",
+          quote.version,
+          quote.cpuid_fam_id,
+          quote.cpuid_mod_id,
+          ark_verifier->public_key_pem().str(),
+          expected_ark.public_key));
     }
 
     ccf::crypto::OpenSSL::Unique_BIO mem_bio(ark_cert);
@@ -313,12 +327,13 @@ namespace ccf::pal
     const auto issuer = x509_name_to_rfc2253_string(X509_get_issuer_name(x509));
     if (issuer != expected_ark.issuer)
     {
-      throw std::logic_error(fmt::format(
-        "SEV-SNP: The root of trust issuer for this attestation was not "
-        "the expected one for {}: {} != {}",
-        product_family,
-        issuer,
-        expected_ark.issuer));
+      throw std::logic_error(
+        fmt::format(
+          "SEV-SNP: The root of trust issuer for this attestation was not "
+          "the expected one for {}: {} != {}",
+          product_family,
+          issuer,
+          expected_ark.issuer));
     }
 
     if (!ark_verifier->verify_certificate({&ark_cert}))
@@ -342,10 +357,11 @@ namespace ccf::pal
     // According to Table 134 (2025-06-12) only ecdsa_p384_sha384 is supported
     if (quote.signature_algo != snp::SignatureAlgorithm::ecdsa_p384_sha384)
     {
-      throw std::logic_error(fmt::format(
-        "SEV-SNP: Unsupported signature algorithm: {} (supported: {})",
-        quote.signature_algo,
-        snp::SignatureAlgorithm::ecdsa_p384_sha384));
+      throw std::logic_error(
+        fmt::format(
+          "SEV-SNP: Unsupported signature algorithm: {} (supported: {})",
+          quote.signature_algo,
+          snp::SignatureAlgorithm::ecdsa_p384_sha384));
     }
 
     // Make ASN1 DER signature
@@ -370,9 +386,10 @@ namespace ccf::pal
 
     if (quote.flags.signing_key != snp::attestation_flags_signing_key_vcek)
     {
-      throw std::logic_error(fmt::format(
-        "SEV-SNP: Attestation report must be signed by VCEK: {}",
-        static_cast<uint8_t>(quote.flags.signing_key)));
+      throw std::logic_error(
+        fmt::format(
+          "SEV-SNP: Attestation report must be signed by VCEK: {}",
+          static_cast<uint8_t>(quote.flags.signing_key)));
     }
 
     // mask_chip_key if set means the operator set the vcek to 0s
@@ -387,9 +404,10 @@ namespace ccf::pal
     // We should reject host generated reports.
     if (quote.vmpl > 3)
     {
-      throw std::logic_error(fmt::format(
-        "SEV-SNP: This report seems to be host generated (VMPL {} > 3)",
-        quote.vmpl));
+      throw std::logic_error(
+        fmt::format(
+          "SEV-SNP: This report seems to be host generated (VMPL {} > 3)",
+          quote.vmpl));
     }
 
     // Debug mode would allow decryption of guest pages
@@ -417,11 +435,12 @@ namespace ccf::pal
 
       if (!snp::TcbVersionPolicy::is_valid(endorsed_tcb_policy, reported_tcb))
       {
-        throw std::logic_error(fmt::format(
-          "SEV-SNP: Reported TCB {} does not meet or exceed the endorsed TCB "
-          "{}",
-          nlohmann::json(reported_tcb).dump(),
-          nlohmann::json(endorsed_tcb).dump()));
+        throw std::logic_error(
+          fmt::format(
+            "SEV-SNP: Reported TCB {} does not meet or exceed the endorsed TCB "
+            "{}",
+            nlohmann::json(reported_tcb).dump(),
+            nlohmann::json(endorsed_tcb).dump()));
       }
     }
 
@@ -435,11 +454,12 @@ namespace ccf::pal
          reported_chip_id.data(),
          reported_chip_id.size()) != 0))
     {
-      throw std::logic_error(fmt::format(
-        "SEV-SNP: Chip ID in attestation does not match endorsed chip ID: {} "
-        "!= {}",
-        ccf::ds::to_hex(endorsed_chip_id.value()),
-        ccf::ds::to_hex(reported_chip_id)));
+      throw std::logic_error(
+        fmt::format(
+          "SEV-SNP: Chip ID in attestation does not match endorsed chip ID: {} "
+          "!= {}",
+          ccf::ds::to_hex(endorsed_chip_id.value()),
+          ccf::ds::to_hex(reported_chip_id)));
     }
 
     if (quote_info.endorsed_tcb.has_value())
@@ -451,10 +471,11 @@ namespace ccf::pal
       {
         auto endorsed_tcb_hex = raw_endorsed_tcb.to_hex();
         auto report_tcb_hex = quote.reported_tcb.to_hex();
-        throw std::logic_error(fmt::format(
-          "SEV-SNP: endorsed TCB {} does not match reported TCB {}",
-          endorsed_tcb_hex,
-          report_tcb_hex));
+        throw std::logic_error(
+          fmt::format(
+            "SEV-SNP: endorsed TCB {} does not match reported TCB {}",
+            endorsed_tcb_hex,
+            report_tcb_hex));
       }
     }
 

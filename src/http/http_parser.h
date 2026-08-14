@@ -222,11 +222,12 @@ namespace http
       }
       else if (err_no != HPE_OK)
       {
-        throw std::runtime_error(fmt::format(
-          "HTTP parsing failed ({}: {}) around byte {}",
-          llhttp_errno_name(err_no),
-          llhttp_get_error_reason(&parser),
-          llhttp_get_error_pos(&parser) - data_char));
+        throw std::runtime_error(
+          fmt::format(
+            "HTTP parsing failed ({}: {}) around byte {}",
+            llhttp_errno_name(err_no),
+            llhttp_get_error_reason(&parser),
+            llhttp_get_error_pos(&parser) - data_char));
       }
     }
 
@@ -241,9 +242,10 @@ namespace http
           ccf::http::default_max_body_size);
         if (body_buf.size() > max_body_size)
         {
-          throw RequestPayloadTooLargeException(fmt::format(
-            "HTTP request body is too large (max size allowed: {})",
-            max_body_size));
+          throw RequestPayloadTooLargeException(
+            fmt::format(
+              "HTTP request body is too large (max size allowed: {})",
+              max_body_size));
         }
       }
       else
@@ -295,8 +297,9 @@ namespace http
         ccf::http::default_max_headers_count);
       if (headers.size() >= max_headers_count)
       {
-        throw RequestHeaderTooLargeException(fmt::format(
-          "Too many headers (max number allowed: {})", max_headers_count));
+        throw RequestHeaderTooLargeException(
+          fmt::format(
+            "Too many headers (max number allowed: {})", max_headers_count));
       }
 
       // HTTP headers are stored lowercase as it is easier to verify HTTP
@@ -310,10 +313,11 @@ namespace http
         ccf::http::default_max_header_size);
       if (partial_header_key.size() > max_header_size)
       {
-        throw RequestHeaderTooLargeException(fmt::format(
-          "Header key for '{}' is too large (max size allowed: {})",
-          partial_parsed_header.first,
-          max_header_size));
+        throw RequestHeaderTooLargeException(
+          fmt::format(
+            "Header key for '{}' is too large (max size allowed: {})",
+            partial_parsed_header.first,
+            max_header_size));
       }
     }
 
@@ -325,10 +329,11 @@ namespace http
         ccf::http::default_max_header_size);
       if (partial_header_value.size() > max_header_size)
       {
-        throw RequestHeaderTooLargeException(fmt::format(
-          "Header value for '{}' is too large (max size allowed: {})",
-          partial_parsed_header.first,
-          max_header_size));
+        throw RequestHeaderTooLargeException(
+          fmt::format(
+            "Header value for '{}' is too large (max size allowed: {})",
+            partial_parsed_header.first,
+            max_header_size));
       }
     }
 
@@ -348,11 +353,12 @@ namespace http
         (parser.flags & F_CONTENT_LENGTH) != 0 &&
         parser.content_length > max_body_size)
       {
-        throw RequestPayloadTooLargeException(fmt::format(
-          "HTTP message body is too large (Content-Length: {}, max size "
-          "allowed: {})",
-          parser.content_length,
-          max_body_size));
+        throw RequestPayloadTooLargeException(
+          fmt::format(
+            "HTTP message body is too large (Content-Length: {}, max size "
+            "allowed: {})",
+            parser.content_length,
+            max_body_size));
       }
     }
   };

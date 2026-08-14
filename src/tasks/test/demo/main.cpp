@@ -293,8 +293,9 @@ TEST_CASE("Run")
       std::vector<std::unique_ptr<Client>> clients;
       for (auto i = 0u; i < 12; ++i)
       {
-        clients.push_back(std::make_unique<Client>(
-          node.new_session(std::to_string(i)), client_params, i));
+        clients.push_back(
+          std::make_unique<Client>(
+            node.new_session(std::to_string(i)), client_params, i));
         clients.back()->start();
       }
 

@@ -135,11 +135,12 @@ namespace ccf::kv
     {
       if (required > span_.size())
       {
-        throw std::runtime_error(fmt::format(
-          "Expected {} bytes for {}, found only {}",
-          required,
-          description,
-          span_.size()));
+        throw std::runtime_error(
+          fmt::format(
+            "Expected {} bytes for {}, found only {}",
+            required,
+            description,
+            span_.size()));
       }
     }
 
@@ -195,20 +196,23 @@ namespace ccf::kv
         const auto entry_size = entry_span.size();
         if (entry_size % sizeof(Element) != 0)
         {
-          throw std::runtime_error(fmt::format(
-            "Size-prefixed entry of {} bytes is not divisible by element size "
-            "{}",
-            entry_size,
-            sizeof(Element)));
+          throw std::runtime_error(
+            fmt::format(
+              "Size-prefixed entry of {} bytes is not divisible by element "
+              "size "
+              "{}",
+              entry_size,
+              sizeof(Element)));
         }
 
         T ret;
         const auto element_count = entry_size / sizeof(Element);
         if (element_count > ret.max_size())
         {
-          throw std::length_error(fmt::format(
-            "Size-prefixed entry contains too many elements ({})",
-            element_count));
+          throw std::length_error(
+            fmt::format(
+              "Size-prefixed entry contains too many elements ({})",
+              element_count));
         }
         ret.resize(element_count);
         if (entry_size > 0)

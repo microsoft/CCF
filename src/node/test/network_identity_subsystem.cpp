@@ -90,8 +90,9 @@ namespace
         // to nullopt, which means "state not yet loaded"). Reaching
         // here from a test is a test-author bug -- surface it loudly
         // rather than silently dropping the subsystem into Retry.
-        throw std::runtime_error(fmt::format(
-          "MockHistoricalStateAccessor: no entry for seqno {}", seq));
+        throw std::runtime_error(
+          fmt::format(
+            "MockHistoricalStateAccessor: no entry for seqno {}", seq));
       }
       return it->second;
     }

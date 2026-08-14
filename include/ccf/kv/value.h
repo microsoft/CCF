@@ -79,8 +79,7 @@ namespace ccf::kv
 
   template <
     typename V,
-    template <typename>
-    typename VSerialiser,
+    template <typename> typename VSerialiser,
     typename Unit = ccf::kv::serialisers::ZeroBlitUnitCreator>
   using ValueSerialisedWith = TypedValue<V, VSerialiser<V>, Unit>;
 

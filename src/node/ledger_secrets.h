@@ -239,11 +239,12 @@ namespace ccf
         restored_ledger_secrets.rbegin()->first >=
           ledger_secrets.begin()->first)
       {
-        throw std::logic_error(fmt::format(
-          "Last restored version {} is greater than first existing version "
-          "{}",
-          restored_ledger_secrets.rbegin()->first,
-          ledger_secrets.begin()->first));
+        throw std::logic_error(
+          fmt::format(
+            "Last restored version {} is greater than first existing version "
+            "{}",
+            restored_ledger_secrets.rbegin()->first,
+            ledger_secrets.begin()->first));
       }
 
       ledger_secrets.merge(restored_ledger_secrets);

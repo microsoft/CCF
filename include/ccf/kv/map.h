@@ -88,8 +88,7 @@ namespace ccf::kv
   template <
     typename K,
     typename V,
-    template <typename>
-    typename KSerialiser,
+    template <typename> typename KSerialiser,
     template <typename> typename VSerialiser = KSerialiser>
   using MapSerialisedWith = TypedMap<K, V, KSerialiser<K>, VSerialiser<V>>;
 

@@ -533,9 +533,10 @@ TEST_CASE("Extracting metadata from endorsements")
   auto attestation = *reinterpret_cast<const pal::snp::Attestation*>(
     milan_quote_info.quote.data());
 
-  auto certificates = ccf::crypto::split_x509_cert_bundle(std::string_view(
-    reinterpret_cast<const char*>(milan_quote_info.endorsements.data()),
-    milan_quote_info.endorsements.size()));
+  auto certificates = ccf::crypto::split_x509_cert_bundle(
+    std::string_view(
+      reinterpret_cast<const char*>(milan_quote_info.endorsements.data()),
+      milan_quote_info.endorsements.size()));
 
   auto chip_certificate = certificates[0];
 

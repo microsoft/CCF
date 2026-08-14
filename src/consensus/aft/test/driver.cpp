@@ -95,10 +95,11 @@ int main(int argc, char** argv)
         }
         else
         {
-          throw std::runtime_error(fmt::format(
-            "pre_vote_enabled value must be true or false on line "
-            "{}",
-            lineno));
+          throw std::runtime_error(
+            fmt::format(
+              "pre_vote_enabled value must be true or false on line "
+              "{}",
+              lineno));
         }
         break;
       }
@@ -157,9 +158,10 @@ int main(int argc, char** argv)
         }
         else
         {
-          throw std::runtime_error(fmt::format(
-            "swap_nodes: expected 'in' or 'out' after term on line {}",
-            lineno));
+          throw std::runtime_error(
+            fmt::format(
+              "swap_nodes: expected 'in' or 'out' after term on line {}",
+              lineno));
         }
 
         break;

@@ -41,10 +41,11 @@ namespace aft
         const auto current_latest_index = views.back();
         if (idx < current_latest_index)
         {
-          throw std::logic_error(fmt::format(
-            "version must not move backwards ({} < {})",
-            idx,
-            current_latest_index));
+          throw std::logic_error(
+            fmt::format(
+              "version must not move backwards ({} < {})",
+              idx,
+              current_latest_index));
         }
       }
 

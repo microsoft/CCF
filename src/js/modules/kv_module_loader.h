@@ -56,8 +56,9 @@ namespace ccf::js::modules
           CCF_APP_FAIL("{}: {}", reason, trace.value_or("<no trace>"));
         }
 
-        throw std::runtime_error(fmt::format(
-          "Failed to compile module '{}': {}", module_name, reason));
+        throw std::runtime_error(
+          fmt::format(
+            "Failed to compile module '{}': {}", module_name, reason));
       }
 
       CCF_APP_TRACE(

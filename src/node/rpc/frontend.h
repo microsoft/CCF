@@ -134,9 +134,10 @@ namespace ccf
           auto interface_it = interfaces.find(*interface_id);
           if (interface_it == interfaces.end())
           {
-            throw std::runtime_error(fmt::format(
-              "Could not find RPC interface named '{}' in startup config",
-              *interface_id));
+            throw std::runtime_error(
+              fmt::format(
+                "Could not find RPC interface named '{}' in startup config",
+                *interface_id));
           }
 
           const auto& enabled_features =
@@ -472,10 +473,11 @@ namespace ccf
           break;
         }
         // Collate error details
-        error_details.emplace_back(ODataAuthErrorDetails{
-          policy->get_security_scheme_name(),
-          ccf::errors::InvalidAuthenticationInfo,
-          auth_error_reason});
+        error_details.emplace_back(
+          ODataAuthErrorDetails{
+            policy->get_security_scheme_name(),
+            ccf::errors::InvalidAuthenticationInfo,
+            auth_error_reason});
       }
 
       if (identity == nullptr)

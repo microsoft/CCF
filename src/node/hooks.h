@@ -58,10 +58,12 @@ namespace ccf
           }
           default:
           {
-            throw std::logic_error(fmt::format(
-              "Unknown node status {} for node {} in configuration change hook",
-              static_cast<uint8_t>(ni.status),
-              node_id));
+            throw std::logic_error(
+              fmt::format(
+                "Unknown node status {} for node {} in configuration change "
+                "hook",
+                static_cast<uint8_t>(ni.status),
+                node_id));
           }
         }
       }

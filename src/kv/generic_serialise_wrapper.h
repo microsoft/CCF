@@ -94,8 +94,9 @@ namespace ccf::kv
     {
       if (domain == SecurityDomain::PRIVATE && !crypto_util)
       {
-        throw KvSerialiserException(fmt::format(
-          "Private map {} cannot be serialised without an encryptor", name));
+        throw KvSerialiserException(
+          fmt::format(
+            "Private map {} cannot be serialised without an encryptor", name));
       }
 
       if (domain != current_domain)
@@ -210,8 +211,9 @@ namespace ccf::kv
             entry_type,
             historical_hint))
       {
-        throw KvSerialiserException(fmt::format(
-          "Could not serialise transaction at seqno {}", tx_id.seqno));
+        throw KvSerialiserException(
+          fmt::format(
+            "Could not serialise transaction at seqno {}", tx_id.seqno));
       }
 
       serialized::write(
@@ -316,10 +318,11 @@ namespace ccf::kv
 
       if (tx_header.size != size_)
       {
-        throw std::logic_error(fmt::format(
-          "Reported size in entry header {} does not match size of entry {}",
-          tx_header.size,
-          size_));
+        throw std::logic_error(
+          fmt::format(
+            "Reported size in entry header {} does not match size of entry {}",
+            tx_header.size,
+            size_));
       }
 
       const auto* gcm_hdr_data = data_;
@@ -333,8 +336,9 @@ namespace ccf::kv
         }
         default:
         {
-          throw std::logic_error(fmt::format(
-            "Cannot deserialise entry format {}", tx_header.version));
+          throw std::logic_error(
+            fmt::format(
+              "Cannot deserialise entry format {}", tx_header.version));
         }
       }
 
@@ -351,10 +355,11 @@ namespace ccf::kv
       const auto public_domain_length = serialized::read<size_t>(data_, size_);
       if (public_domain_length > size_)
       {
-        throw std::logic_error(fmt::format(
-          "Public domain length {} exceeds remaining entry size {}",
-          public_domain_length,
-          size_));
+        throw std::logic_error(
+          fmt::format(
+            "Public domain length {} exceeds remaining entry size {}",
+            public_domain_length,
+            size_));
       }
 
       const auto* data_public = data_;

@@ -293,8 +293,10 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
             .fmc = tcb.fmc};
         }
         default:
-          throw std::logic_error(fmt::format(
-            "Unsupported SEV-SNP product for TCB version policy: {}", product));
+          throw std::logic_error(
+            fmt::format(
+              "Unsupported SEV-SNP product for TCB version policy: {}",
+              product));
       }
     }
 
@@ -480,11 +482,12 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
   {
     if (quote.version < minimum_attestation_version)
     {
-      throw std::logic_error(fmt::format(
-        "SEV-SNP: attestation version {} is not supported. Minimum "
-        "supported version is {}",
-        quote.version,
-        minimum_attestation_version));
+      throw std::logic_error(
+        fmt::format(
+          "SEV-SNP: attestation version {} is not supported. Minimum "
+          "supported version is {}",
+          quote.version,
+          minimum_attestation_version));
     }
 
     EndorsementEndpointsConfiguration config;
@@ -599,8 +602,9 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
         }
         default:
         {
-          throw std::logic_error(fmt::format(
-            "Unsupported endorsements server type: {}", server.type));
+          throw std::logic_error(
+            fmt::format(
+              "Unsupported endorsements server type: {}", server.type));
         }
       }
     }

@@ -67,10 +67,11 @@ int main(int argc, char** argv)
       auto attest = ccf::ds::from_hex(attestation_hex);
       if (attest.size() != sizeof(ccf::pal::snp::Attestation))
       {
-        return std::string(fmt::format(
-          "Attestation size is incorrect {} != {}",
-          attest.size(),
-          sizeof(ccf::pal::snp::Attestation)));
+        return std::string(
+          fmt::format(
+            "Attestation size is incorrect {} != {}",
+            attest.size(),
+            sizeof(ccf::pal::snp::Attestation)));
       }
       return std::string();
     });

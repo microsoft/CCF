@@ -27,8 +27,10 @@ namespace ccf::pal
     std::ifstream f(package_path, std::ios::binary | std::ios::ate);
     if (!f)
     {
-      throw std::runtime_error(fmt::format(
-        "Cannot emit virtual measurement: Cannot open file {}", package_path));
+      throw std::runtime_error(
+        fmt::format(
+          "Cannot emit virtual measurement: Cannot open file {}",
+          package_path));
     }
 
     const size_t size = f.tellg();
@@ -93,11 +95,12 @@ namespace ccf::pal
 
     if (attestation->get().version < pal::snp::minimum_attestation_version)
     {
-      throw std::logic_error(fmt::format(
-        "SEV-SNP: attestation version {} is less than the minimum supported "
-        "version {}",
-        attestation->get().version,
-        pal::snp::minimum_attestation_version));
+      throw std::logic_error(
+        fmt::format(
+          "SEV-SNP: attestation version {} is less than the minimum supported "
+          "version {}",
+          attestation->get().version,
+          pal::snp::minimum_attestation_version));
     }
 
     node_quote_info.quote = attestation->get_raw();
@@ -134,8 +137,10 @@ namespace ccf::pal
       case (ccf::pal::Platform::Unknown):
       default:
       {
-        throw std::logic_error(fmt::format(
-          "Unsupported platform for quote generation: {}", ccf::pal::platform));
+        throw std::logic_error(
+          fmt::format(
+            "Unsupported platform for quote generation: {}",
+            ccf::pal::platform));
       }
     }
   }

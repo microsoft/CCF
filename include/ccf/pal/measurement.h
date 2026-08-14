@@ -36,11 +36,12 @@ namespace ccf::pal
     {
       if (data.size() != size())
       {
-        throw std::logic_error(fmt::format(
-          "Cannot initialise AttestationMeasurement with data of size {}, "
-          "expected {}",
-          data.size(),
-          size()));
+        throw std::logic_error(
+          fmt::format(
+            "Cannot initialise AttestationMeasurement with data of size {}, "
+            "expected {}",
+            data.size(),
+            size()));
       }
 
       std::copy(data.data(), data.data() + data.size(), measurement.data());
@@ -73,8 +74,10 @@ namespace ccf::pal
     }
     else
     {
-      throw ccf::JsonParseError(fmt::format(
-        "Attestation measurement should be hex-encoded string: {}", j.dump()));
+      throw ccf::JsonParseError(
+        fmt::format(
+          "Attestation measurement should be hex-encoded string: {}",
+          j.dump()));
     }
   }
 

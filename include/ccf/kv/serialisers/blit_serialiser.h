@@ -53,10 +53,12 @@ namespace ccf::kv::serialisers
         T t;
         if (rep.size() != t.size())
         {
-          throw std::logic_error(fmt::format(
-            "Wrong serialised size {} for deserialisation of array of size {}",
-            rep.size(),
-            t.size()));
+          throw std::logic_error(
+            fmt::format(
+              "Wrong serialised size {} for deserialisation of array of size "
+              "{}",
+              rep.size(),
+              t.size()));
         }
         std::copy_n(rep.begin(), t.size(), t.begin());
         return t;
@@ -65,11 +67,13 @@ namespace ccf::kv::serialisers
       {
         if (rep.size() != sizeof(T))
         {
-          throw std::logic_error(fmt::format(
-            "Wrong serialised size {} for deserialisation of integral of size "
-            "{}",
-            rep.size(),
-            sizeof(T)));
+          throw std::logic_error(
+            fmt::format(
+              "Wrong serialised size {} for deserialisation of integral of "
+              "size "
+              "{}",
+              rep.size(),
+              sizeof(T)));
         }
         return *(T*)rep.data();
       }

@@ -12,6 +12,7 @@ public:
   ParquetData() {}
 
   std::vector<std::string> ids;
+  std::vector<std::string> session_ids;
   std::vector<std::vector<uint8_t>> request;
   std::vector<size_t> response_status_code;
   std::vector<std::string> response_headers;

@@ -44,8 +44,9 @@ void sleep_with_many_workers(
 
   for (size_t i = 0; i < num_sleeps; ++i)
   {
-    ccf::tasks::add_task(ccf::tasks::make_basic_task(
-      []() { SleepImpl::sleep_for(std::chrono::milliseconds(1)); }));
+    ccf::tasks::add_task(ccf::tasks::make_basic_task([]() {
+      SleepImpl::sleep_for(std::chrono::milliseconds(1));
+    }));
   }
 
   ccf::tasks::add_task(

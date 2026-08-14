@@ -101,10 +101,11 @@ namespace ccf
     }
     else
     {
-      throw ccf::JsonParseError(fmt::format(
-        "{} should be hex-encoded string: {}",
-        FmtExtender::ID_LABEL,
-        j.dump()));
+      throw ccf::JsonParseError(
+        fmt::format(
+          "{} should be hex-encoded string: {}",
+          FmtExtender::ID_LABEL,
+          j.dump()));
     }
   }
 

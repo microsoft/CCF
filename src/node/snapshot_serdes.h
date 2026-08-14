@@ -55,11 +55,12 @@ namespace ccf
 
     if (store_snapshot_size > size)
     {
-      throw std::invalid_argument(fmt::format(
-        "Snapshot transaction header claims size {} which exceeds available "
-        "buffer size {}",
-        store_snapshot_size,
-        size));
+      throw std::invalid_argument(
+        fmt::format(
+          "Snapshot transaction header claims size {} which exceeds available "
+          "buffer size {}",
+          store_snapshot_size,
+          size));
     }
 
     const auto* receipt_data = data + store_snapshot_size;
@@ -97,10 +98,11 @@ namespace ccf
     }
     if (*snapshot_seqno != expected_seqno)
     {
-      throw std::logic_error(fmt::format(
-        "Recovery snapshot body is at seqno {}, but its file name claims {}",
-        *snapshot_seqno,
-        expected_seqno));
+      throw std::logic_error(
+        fmt::format(
+          "Recovery snapshot body is at seqno {}, but its file name claims {}",
+          *snapshot_seqno,
+          expected_seqno));
     }
   }
 
@@ -128,23 +130,26 @@ namespace ccf
       const auto& [write_version, endorsement] = collected[i];
       if (write_version <= snapshot_seqno)
       {
-        throw std::logic_error(fmt::format(
-          "Collected endorsement write at {} is not after snapshot seqno {}",
-          write_version,
-          snapshot_seqno));
+        throw std::logic_error(
+          fmt::format(
+            "Collected endorsement write at {} is not after snapshot seqno {}",
+            write_version,
+            snapshot_seqno));
       }
       if (is_self_endorsement(endorsement))
       {
-        throw std::logic_error(fmt::format(
-          "Unexpected self-endorsement after snapshot at {}",
-          endorsement.endorsement_epoch_begin.to_str()));
+        throw std::logic_error(
+          fmt::format(
+            "Unexpected self-endorsement after snapshot at {}",
+            endorsement.endorsement_epoch_begin.to_str()));
       }
       if (has_ill_formed_epoch_range(endorsement))
       {
-        throw std::logic_error(fmt::format(
-          "Collected endorsement has an ill-formed epoch range {} - {}",
-          endorsement.endorsement_epoch_begin.to_str(),
-          format_epoch(endorsement.endorsement_epoch_end)));
+        throw std::logic_error(
+          fmt::format(
+            "Collected endorsement has an ill-formed epoch range {} - {}",
+            endorsement.endorsement_epoch_begin.to_str(),
+            format_epoch(endorsement.endorsement_epoch_end)));
       }
 
       validate_fetched_endorsement(endorsement);
@@ -155,11 +160,12 @@ namespace ccf
           !endorsement.previous_version.has_value() ||
           endorsement.previous_version.value() > snapshot_seqno)
         {
-          throw std::logic_error(fmt::format(
-            "Oldest collected endorsement at {} does not point to an "
-            "endorsement at or before snapshot seqno {}",
-            write_version,
-            snapshot_seqno));
+          throw std::logic_error(
+            fmt::format(
+              "Oldest collected endorsement at {} does not point to an "
+              "endorsement at or before snapshot seqno {}",
+              write_version,
+              snapshot_seqno));
         }
       }
       else
@@ -169,11 +175,12 @@ namespace ccf
           !endorsement.previous_version.has_value() ||
           endorsement.previous_version.value() != previous.write_version)
         {
-          throw std::logic_error(fmt::format(
-            "Collected endorsement at {} does not point to the previous "
-            "collected endorsement at {}",
-            write_version,
-            previous.write_version));
+          throw std::logic_error(
+            fmt::format(
+              "Collected endorsement at {} does not point to the previous "
+              "collected endorsement at {}",
+              write_version,
+              previous.write_version));
         }
         verify_endorsements_connected(endorsement, previous.endorsement);
       }
@@ -190,10 +197,12 @@ namespace ccf
         !previous_endorsing_key.empty() &&
         endorsed_key != previous_endorsing_key)
       {
-        throw std::logic_error(fmt::format(
-          "Collected endorsement at {} does not endorse the preceding service "
-          "identity",
-          write_version));
+        throw std::logic_error(
+          fmt::format(
+            "Collected endorsement at {} does not endorse the preceding "
+            "service "
+            "identity",
+            write_version));
       }
       previous_endorsing_key = endorsement.endorsing_key;
     }
@@ -216,12 +225,13 @@ namespace ccf
       oldest.endorsement_epoch_begin.seqno > snapshot_seqno ||
       oldest.endorsement_epoch_end->seqno < snapshot_seqno)
     {
-      throw std::logic_error(fmt::format(
-        "Oldest collected endorsement range {} - {} does not cover snapshot "
-        "seqno {}",
-        oldest.endorsement_epoch_begin.to_str(),
-        format_epoch(oldest.endorsement_epoch_end),
-        snapshot_seqno));
+      throw std::logic_error(
+        fmt::format(
+          "Oldest collected endorsement range {} - {} does not cover snapshot "
+          "seqno {}",
+          oldest.endorsement_epoch_begin.to_str(),
+          format_epoch(oldest.endorsement_epoch_end),
+          snapshot_seqno));
     }
 
     return snapshot_signer_key;
@@ -243,10 +253,11 @@ namespace ccf
         receipt.claims_digest.data(),
         ccf::crypto::Sha256Hash::SIZE) != 0)
     {
-      throw std::logic_error(fmt::format(
-        "Snapshot digest ({}) does not match receipt claim ({})",
-        snapshot_digest,
-        ds::to_hex(receipt.claims_digest)));
+      throw std::logic_error(
+        fmt::format(
+          "Snapshot digest ({}) does not match receipt claim ({})",
+          snapshot_digest,
+          ds::to_hex(receipt.claims_digest)));
     }
 
     return receipt;
@@ -291,10 +302,11 @@ namespace ccf
     auto snapshot_digest_claim = receipt->leaf_components.claims_digest.value();
     if (snapshot_digest != snapshot_digest_claim)
     {
-      throw std::logic_error(fmt::format(
-        "Snapshot digest ({}) does not match receipt claim ({})",
-        snapshot_digest,
-        snapshot_digest_claim));
+      throw std::logic_error(
+        fmt::format(
+          "Snapshot digest ({}) does not match receipt claim ({})",
+          snapshot_digest,
+          snapshot_digest_claim));
     }
 
     auto root = receipt->calculate_root();
@@ -368,9 +380,11 @@ namespace ccf
     }
     else
     {
-      throw std::logic_error(fmt::format(
-        "Invalid snapshot receipt: unrecognised format (first byte: 0x{:02X})",
-        first_byte));
+      throw std::logic_error(
+        fmt::format(
+          "Invalid snapshot receipt: unrecognised format (first byte: "
+          "0x{:02X})",
+          first_byte));
     }
   }
 

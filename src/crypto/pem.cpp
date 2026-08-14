@@ -49,9 +49,10 @@ namespace ccf::crypto
       {
         ++separator_end;
       }
-      pems.emplace_back(std::string(pem.substr(
-        separator_end,
-        (next_separator_start - separator_end) + separator.size())));
+      pems.emplace_back(
+        std::string(pem.substr(
+          separator_end,
+          (next_separator_start - separator_end) + separator.size())));
       separator_end = next_separator_start + separator.size();
       next_separator_start = pem.find(separator, separator_end);
     }

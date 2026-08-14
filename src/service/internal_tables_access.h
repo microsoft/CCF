@@ -209,11 +209,13 @@ namespace ccf
         {
           if (member_recovery_role != ccf::MemberRecoveryRole::NonParticipant)
           {
-            throw std::logic_error(fmt::format(
-              "Member {} cannot be added as recovery_role has a value set but "
-              "no "
-              "encryption public key is specified",
-              id));
+            throw std::logic_error(
+              fmt::format(
+                "Member {} cannot be added as recovery_role has a value set "
+                "but "
+                "no "
+                "encryption public key is specified",
+                id));
           }
         }
         else
@@ -222,12 +224,14 @@ namespace ccf
             member_recovery_role != ccf::MemberRecoveryRole::Participant &&
             member_recovery_role != ccf::MemberRecoveryRole::Owner)
           {
-            throw std::logic_error(fmt::format(
-              "Recovery member {} cannot be added as with recovery role value "
-              "of "
-              "{}",
-              id,
-              member_recovery_role));
+            throw std::logic_error(
+              fmt::format(
+                "Recovery member {} cannot be added as with recovery role "
+                "value "
+                "of "
+                "{}",
+                id,
+                member_recovery_role));
           }
         }
       }
@@ -270,8 +274,9 @@ namespace ccf
       auto member = member_info->get(member_id);
       if (!member.has_value())
       {
-        throw std::logic_error(fmt::format(
-          "Member {} cannot be activated as they do not exist", member_id));
+        throw std::logic_error(
+          fmt::format(
+            "Member {} cannot be activated as they do not exist", member_id));
       }
 
       const auto newly_active = member->status != MemberStatus::ACTIVE;
@@ -825,8 +830,10 @@ namespace ccf
         }
         default:
         {
-          throw std::logic_error(fmt::format(
-            "Unexpected quote format {} when trusting node code id", platform));
+          throw std::logic_error(
+            fmt::format(
+              "Unexpected quote format {} when trusting node code id",
+              platform));
         }
       }
     }
@@ -934,11 +941,12 @@ namespace ccf
     {
       if (attestation.version < pal::snp::minimum_attestation_version)
       {
-        throw std::logic_error(fmt::format(
-          "SEV-SNP: attestation version {} is not supported. Minimum "
-          "supported version is {}",
-          attestation.version,
-          pal::snp::minimum_attestation_version));
+        throw std::logic_error(
+          fmt::format(
+            "SEV-SNP: attestation version {} is not supported. Minimum "
+            "supported version is {}",
+            attestation.version,
+            pal::snp::minimum_attestation_version));
       }
       // As cpuid -> attestation cpuid is surjective, we must use the local
       // cpuid and validate it against the attestation's cpuid
@@ -948,13 +956,14 @@ namespace ccf
         cpuid.get_model_id() != attestation.cpuid_mod_id ||
         cpuid.stepping != attestation.cpuid_step)
       {
-        throw std::runtime_error(fmt::format(
-          "CPU-sourced cpuid does not match attestation cpuid ({} != {}, {}, "
-          "{})",
-          cpuid.hex_str(),
-          attestation.cpuid_fam_id,
-          attestation.cpuid_mod_id,
-          attestation.cpuid_step));
+        throw std::runtime_error(
+          fmt::format(
+            "CPU-sourced cpuid does not match attestation cpuid ({} != {}, {}, "
+            "{})",
+            cpuid.hex_str(),
+            attestation.cpuid_fam_id,
+            attestation.cpuid_mod_id,
+            attestation.cpuid_step));
       }
       auto* h = tx.wo<ccf::SnpTcbVersionMap>(Tables::SNP_TCB_VERSIONS);
       auto product = pal::snp::get_sev_snp_product(cpuid);

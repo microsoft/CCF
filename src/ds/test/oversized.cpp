@@ -221,13 +221,15 @@ TEST_CASE("Writing" * doctest::test_suite("oversized"))
         sizeof(oversized::InitialFragmentHeader),
         total_max),
       std::logic_error);
-    REQUIRE_NOTHROW(oversized::Writer(
-      std::make_unique<ringbuffer::Writer>(rr),
-      sizeof(oversized::InitialFragmentHeader) + 1,
-      total_max));
+    REQUIRE_NOTHROW(
+      oversized::Writer(
+        std::make_unique<ringbuffer::Writer>(rr),
+        sizeof(oversized::InitialFragmentHeader) + 1,
+        total_max));
 
-    REQUIRE_NOTHROW(oversized::Writer(
-      std::make_unique<ringbuffer::Writer>(rr), total_max - 1, total_max));
+    REQUIRE_NOTHROW(
+      oversized::Writer(
+        std::make_unique<ringbuffer::Writer>(rr), total_max - 1, total_max));
     REQUIRE_THROWS_AS(
       oversized::Writer(
         std::make_unique<ringbuffer::Writer>(rr), total_max, total_max),

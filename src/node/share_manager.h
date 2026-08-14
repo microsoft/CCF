@@ -245,11 +245,13 @@ namespace ccf
       {
         if (recovery_threshold > active_recovery_participants_info.size())
         {
-          throw std::logic_error(fmt::format(
-            "Recovery threshold {} should be equal to or less than the number "
-            "of active recovery members {}",
-            recovery_threshold,
-            active_recovery_participants_info.size()));
+          throw std::logic_error(
+            fmt::format(
+              "Recovery threshold {} should be equal to or less than the "
+              "number "
+              "of active recovery members {}",
+              recovery_threshold,
+              active_recovery_participants_info.size()));
         }
 
         num_shares = active_recovery_participants_info.size();
@@ -258,11 +260,12 @@ namespace ccf
       {
         if (recovery_threshold > 1)
         {
-          throw std::logic_error(fmt::format(
-            "Recovery threshold {} cannot be greater than 1 when the "
-            "consortium consists of only active recovery owner members ({})",
-            recovery_threshold,
-            active_recovery_owners_info.size()));
+          throw std::logic_error(
+            fmt::format(
+              "Recovery threshold {} cannot be greater than 1 when the "
+              "consortium consists of only active recovery owner members ({})",
+              recovery_threshold,
+              active_recovery_owners_info.size()));
         }
 
         num_shares = 1;
@@ -382,44 +385,46 @@ namespace ccf
 
       std::optional<ccf::crypto::sharing::Share> full_share;
       std::vector<ccf::crypto::sharing::Share> new_shares = {};
-      encrypted_submitted_shares->foreach(
-        [&new_shares, &full_share, &tx, this](
-          const MemberId, const EncryptedSubmittedShare& encrypted_share) {
-          auto decrypted_share = decrypt_submitted_share(
-            encrypted_share, ledger_secrets->get_latest(tx).second);
-          switch (decrypted_share.size())
+      encrypted_submitted_shares->foreach([&new_shares, &full_share, &tx, this](
+                                            const MemberId,
+                                            const EncryptedSubmittedShare&
+                                              encrypted_share) {
+        auto decrypted_share = decrypt_submitted_share(
+          encrypted_share, ledger_secrets->get_latest(tx).second);
+        switch (decrypted_share.size())
+        {
+          case ccf::crypto::sharing::Share::serialised_size:
           {
-            case ccf::crypto::sharing::Share::serialised_size:
+            // For a new share, we can check the index and decide if it's
+            // a full share or just a partial share (compare to zero).
+            // If it is a full share, we can short-circuit and return a
+            // ReconstructedLedgerSecretWrappingKey directly, otherwise we
+            // follow the existing flow.
+            auto share = ccf::crypto::sharing::Share(decrypted_share);
+            if (share.x == 0)
             {
-              // For a new share, we can check the index and decide if it's
-              // a full share or just a partial share (compare to zero).
-              // If it is a full share, we can short-circuit and return a
-              // ReconstructedLedgerSecretWrappingKey directly, otherwise we
-              // follow the existing flow.
-              auto share = ccf::crypto::sharing::Share(decrypted_share);
-              if (share.x == 0)
-              {
-                full_share = share;
-              }
-              else
-              {
-                new_shares.emplace_back(decrypted_share);
-              }
-              break;
+              full_share = share;
             }
-            default:
+            else
             {
-              OPENSSL_cleanse(decrypted_share.data(), decrypted_share.size());
-              throw std::logic_error(fmt::format(
+              new_shares.emplace_back(decrypted_share);
+            }
+            break;
+          }
+          default:
+          {
+            OPENSSL_cleanse(decrypted_share.data(), decrypted_share.size());
+            throw std::logic_error(
+              fmt::format(
                 "Error combining recovery shares: decrypted share of {} bytes "
                 "is not an {}-byte long new-style share.",
                 decrypted_share.size(),
                 ccf::crypto::sharing::Share::serialised_size));
-            }
           }
-          OPENSSL_cleanse(decrypted_share.data(), decrypted_share.size());
-          return !full_share.has_value();
-        });
+        }
+        OPENSSL_cleanse(decrypted_share.data(), decrypted_share.size());
+        return !full_share.has_value();
+      });
 
       if (full_share.has_value())
       {
@@ -436,11 +441,12 @@ namespace ccf
       auto recovery_threshold = config_val->recovery_threshold;
       if (recovery_threshold > num_shares)
       {
-        throw std::logic_error(fmt::format(
-          "Error combining recovery shares: only {} recovery shares were "
-          "submitted but recovery threshold is {}",
-          num_shares,
-          recovery_threshold));
+        throw std::logic_error(
+          fmt::format(
+            "Error combining recovery shares: only {} recovery shares were "
+            "submitted but recovery threshold is {}",
+            num_shares,
+            recovery_threshold));
       }
 
       return {std::move(new_shares), recovery_threshold};

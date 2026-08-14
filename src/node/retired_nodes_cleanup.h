@@ -33,8 +33,9 @@ namespace ccf
 
     void cleanup()
     {
-      ccf::tasks::add_task(ccf::tasks::make_basic_task(
-        [this]() { this->send_cleanup_retired_nodes(); }));
+      ccf::tasks::add_task(ccf::tasks::make_basic_task([this]() {
+        this->send_cleanup_retired_nodes();
+      }));
     }
   };
 }

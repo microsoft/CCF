@@ -365,11 +365,12 @@ namespace ccf::crypto
     Unique_X509_TIME not_after(valid_to);
     if (!validate_chronological_times(not_before, not_after))
     {
-      throw std::logic_error(fmt::format(
-        "Certificate cannot be created with not_before date {} > not_after "
-        "date {}",
-        to_x509_time_string(not_before),
-        to_x509_time_string(not_after)));
+      throw std::logic_error(
+        fmt::format(
+          "Certificate cannot be created with not_before date {} > not_after "
+          "date {}",
+          to_x509_time_string(not_before),
+          to_x509_time_string(not_after)));
     }
 
     OpenSSL::CHECK1(X509_set1_notBefore(crt, not_before));

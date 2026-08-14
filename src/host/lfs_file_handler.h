@@ -22,14 +22,16 @@ namespace asynchost
       if (std::filesystem::is_directory(root_dir))
       {
         LOG_INFO_FMT("Clearing contents from existing directory {}", root_dir);
-        TimeBoundLogger log_if_slow(fmt::format(
-          "Clearing LFS index directory - remove_all({})", root_dir));
+        TimeBoundLogger log_if_slow(
+          fmt::format(
+            "Clearing LFS index directory - remove_all({})", root_dir));
         std::filesystem::remove_all(root_dir);
       }
 
       {
-        TimeBoundLogger log_if_slow(fmt::format(
-          "Creating LFS index directory - create_directory({})", root_dir));
+        TimeBoundLogger log_if_slow(
+          fmt::format(
+            "Creating LFS index directory - create_directory({})", root_dir));
         if (!std::filesystem::create_directory(root_dir))
         {
           throw std::logic_error(
@@ -49,10 +51,11 @@ namespace asynchost
 
           const auto target_path = root_dir / key;
           {
-            TimeBoundLogger log_if_slow(fmt::format(
-              "Writing LFS file ({} bytes) - {}",
-              encrypted.size(),
-              target_path));
+            TimeBoundLogger log_if_slow(
+              fmt::format(
+                "Writing LFS file ({} bytes) - {}",
+                encrypted.size(),
+                target_path));
             LOG_TRACE_FMT(
               "Writing {} byte file to {}", encrypted.size(), target_path);
             files::dump(encrypted, target_path);

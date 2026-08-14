@@ -2565,8 +2565,9 @@ namespace aft
     {
       if (idx > state->last_idx)
       {
-        throw std::logic_error(fmt::format(
-          "Tried to commit {} but last_idx is {}", idx, state->last_idx));
+        throw std::logic_error(
+          fmt::format(
+            "Tried to commit {} but last_idx is {}", idx, state->last_idx));
       }
 
       RAFT_DEBUG_FMT("Starting commit");

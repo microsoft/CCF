@@ -152,8 +152,9 @@ namespace ccf::endpoints
       template_end = regex_s.find_first_of('}', template_start);
       if (template_end == std::string::npos)
       {
-        throw std::logic_error(fmt::format(
-          "Invalid templated path - missing closing curly bracket: {}", uri));
+        throw std::logic_error(
+          fmt::format(
+            "Invalid templated path - missing closing curly bracket: {}", uri));
       }
 
       // Default regex is "([^/]+)", aka "match everything until the next /"
@@ -184,10 +185,11 @@ namespace ccf::endpoints
     auto& names = spec.template_component_names;
     if (std::unique(names.begin(), names.end()) != names.end())
     {
-      throw std::logic_error(fmt::format(
-        "Invalid templated path - duplicated component names ({}): {}",
-        fmt::join(names, ", "),
-        uri));
+      throw std::logic_error(
+        fmt::format(
+          "Invalid templated path - duplicated component names ({}): {}",
+          fmt::join(names, ", "),
+          uri));
     }
 
     LOG_TRACE_FMT("Parsed a templated endpoint: {} became {}", uri, regex_s);

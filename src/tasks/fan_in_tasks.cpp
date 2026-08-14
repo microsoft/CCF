@@ -89,26 +89,29 @@ namespace ccf::tasks
 
       if (task_index < pimpl->next_expected_task_index)
       {
-        throw std::runtime_error(fmt::format(
-          "[{}] Received task {} ({}) out-of-order - already advanced next "
-          "expected "
-          "to {}",
-          get_name(),
-          task_index,
-          task->get_name(),
-          pimpl->next_expected_task_index));
+        throw std::runtime_error(
+          fmt::format(
+            "[{}] Received task {} ({}) out-of-order - already advanced next "
+            "expected "
+            "to {}",
+            get_name(),
+            task_index,
+            task->get_name(),
+            pimpl->next_expected_task_index));
       }
 
       auto it = pimpl->pending_tasks.find(task_index);
       if (it != pimpl->pending_tasks.end())
       {
-        throw std::runtime_error(fmt::format(
-          "[{}] Received duplicate task {} ({}) - already have pending task {}",
-          get_name(),
-          task_index,
-          task->get_name(),
-          it->second == nullptr ? std::string("nullptr") :
-                                  it->second->get_name()));
+        throw std::runtime_error(
+          fmt::format(
+            "[{}] Received duplicate task {} ({}) - already have pending task "
+            "{}",
+            get_name(),
+            task_index,
+            task->get_name(),
+            it->second == nullptr ? std::string("nullptr") :
+                                    it->second->get_name()));
       }
 
       pimpl->pending_tasks.emplace(task_index, task);

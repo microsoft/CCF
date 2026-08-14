@@ -22,10 +22,11 @@ struct Action_ProcessClientAction : public ccf::tasks::ITaskAction
     input_action(action),
     client_session(cs),
     responses_sent(rs),
-    name(fmt::format(
-      "Processing action '{}' from session {}",
-      input_action,
-      (void*)&client_session))
+    name(
+      fmt::format(
+        "Processing action '{}' from session {}",
+        input_action,
+        (void*)&client_session))
   {}
 
   void do_action() override
@@ -130,8 +131,9 @@ struct Dispatcher : public LoopingThread<DispatcherState>
         {
           ret_val = Stage::Running;
 
-          tasks.add_action(std::make_shared<Action_ProcessClientAction>(
-            incoming.value(), *session, state.responses_sent));
+          tasks.add_action(
+            std::make_shared<Action_ProcessClientAction>(
+              incoming.value(), *session, state.responses_sent));
 
           incoming = session->to_node.try_pop();
         }

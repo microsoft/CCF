@@ -81,8 +81,9 @@ namespace ccf::js::extensions
           out_buf = JS_WriteObject(ctx2, &out_buf_len, module_val.val, flags);
           if (!out_buf)
           {
-            throw std::runtime_error(fmt::format(
-              "Unable to serialize bytecode for JS module '{}'", name));
+            throw std::runtime_error(
+              fmt::format(
+                "Unable to serialize bytecode for JS module '{}'", name));
           }
 
           quickjs_bytecode->put(name, {out_buf, out_buf + out_buf_len});

@@ -47,9 +47,10 @@ namespace ccf
       {
         return it->second(conn_id, std::move(ctx));
       }
-      throw std::logic_error(fmt::format(
-        "Session creation function for protocol '{}' has not been installed",
-        protocol_name));
+      throw std::logic_error(
+        fmt::format(
+          "Session creation function for protocol '{}' has not been installed",
+          protocol_name));
     }
 
     std::shared_ptr<Essentials> get_essentials() override

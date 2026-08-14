@@ -53,10 +53,11 @@ namespace ccf::kv
     {
       if (threshold == 0 || threshold > max_chunk_threshold_size)
       {
-        throw std::logic_error(fmt::format(
-          "Error: Ledger chunk threshold ({}) must be between 1-{}",
-          threshold,
-          max_chunk_threshold_size));
+        throw std::logic_error(
+          fmt::format(
+            "Error: Ledger chunk threshold ({}) must be between 1-{}",
+            threshold,
+            max_chunk_threshold_size));
       }
     }
 

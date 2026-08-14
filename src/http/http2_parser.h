@@ -98,9 +98,10 @@ namespace http2
         session, NGHTTP2_FLAG_NONE, settings.data(), settings.size());
       if (rv != 0)
       {
-        throw std::logic_error(fmt::format(
-          "Error submitting settings for HTTP2 session: {}",
-          nghttp2_strerror(rv)));
+        throw std::logic_error(
+          fmt::format(
+            "Error submitting settings for HTTP2 session: {}",
+            nghttp2_strerror(rv)));
       }
 
       nghttp2_session_callbacks_del(callbacks);
@@ -133,8 +134,9 @@ namespace http2
       auto it = streams.find(stream_id);
       if (it != streams.end())
       {
-        throw std::logic_error(fmt::format(
-          "Cannot store new stream {} as it already exists", stream_id));
+        throw std::logic_error(
+          fmt::format(
+            "Cannot store new stream {} as it already exists", stream_id));
       }
 
       streams.insert(it, {stream_id, stream_data});
@@ -198,8 +200,9 @@ namespace http2
       auto readlen = nghttp2_session_mem_recv(session, data, size);
       if (readlen < 0)
       {
-        throw std::logic_error(fmt::format(
-          "HTTP/2: Error receiving data: {}", nghttp2_strerror(readlen)));
+        throw std::logic_error(
+          fmt::format(
+            "HTTP/2: Error receiving data: {}", nghttp2_strerror(readlen)));
       }
 
       send_all_submitted();
@@ -229,8 +232,9 @@ namespace http2
         }
         else
         {
-          throw std::logic_error(fmt::format(
-            "HTTP/2: Error sending data: {}", nghttp2_strerror(size)));
+          throw std::logic_error(
+            fmt::format(
+              "HTTP/2: Error sending data: {}", nghttp2_strerror(size)));
         }
       }
     }
@@ -260,8 +264,9 @@ namespace http2
         nghttp2_submit_trailer(session, stream_id, trlrs.data(), trlrs.size());
       if (rv != 0)
       {
-        throw std::logic_error(fmt::format(
-          "nghttp2_submit_trailer error: {}", nghttp2_strerror(rv)));
+        throw std::logic_error(
+          fmt::format(
+            "nghttp2_submit_trailer error: {}", nghttp2_strerror(rv)));
       }
     }
 
@@ -295,8 +300,9 @@ namespace http2
         session, stream_id, hdrs.data(), hdrs.size(), &prov);
       if (rv != 0)
       {
-        throw std::logic_error(fmt::format(
-          "nghttp2_submit_response error: {}", nghttp2_strerror(rv)));
+        throw std::logic_error(
+          fmt::format(
+            "nghttp2_submit_response error: {}", nghttp2_strerror(rv)));
       }
     }
 
@@ -391,8 +397,9 @@ namespace http2
 
       if (stream_data->outgoing.state != StreamResponseState::Uninitialised)
       {
-        throw std::logic_error(fmt::format(
-          "Stream {} should be uninitialised to start stream", stream_id));
+        throw std::logic_error(
+          fmt::format(
+            "Stream {} should be uninitialised to start stream", stream_id));
       }
 
       stream_data->outgoing.state = StreamResponseState::Streaming;
@@ -424,8 +431,9 @@ namespace http2
       int rv = nghttp2_session_resume_data(session, stream_id);
       if (rv < 0)
       {
-        throw std::logic_error(fmt::format(
-          "nghttp2_session_resume_data error: {}", nghttp2_strerror(rv)));
+        throw std::logic_error(
+          fmt::format(
+            "nghttp2_session_resume_data error: {}", nghttp2_strerror(rv)));
       }
 
       send_all_submitted();

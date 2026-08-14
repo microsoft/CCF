@@ -142,8 +142,9 @@ namespace snapshots
         auto committed_file_name =
           fmt::format("{}{}", file_name, snapshot_committed_suffix);
         {
-          asynchost::TimeBoundLogger log_rename_if_slow(fmt::format(
-            "Renaming snapshot to committed - rename({})", file_name));
+          asynchost::TimeBoundLogger log_rename_if_slow(
+            fmt::format(
+              "Renaming snapshot to committed - rename({})", file_name));
           files::rename(
             snapshot_dir / file_name, snapshot_dir / committed_file_name);
         }
@@ -169,8 +170,9 @@ namespace snapshots
     static bool write_all(
       int fd, const std::string& file_name, const uint8_t* data, size_t size)
     {
-      asynchost::TimeBoundLogger log_if_slow(fmt::format(
-        "Writing snapshot data ({} bytes) - write({})", size, file_name));
+      asynchost::TimeBoundLogger log_if_slow(
+        fmt::format(
+          "Writing snapshot data ({} bytes) - write({})", size, file_name));
 
       size_t offset = 0;
       while (offset < size)

@@ -184,9 +184,10 @@ namespace ccf::node
       .make_endpoint(
         "/recovery_decision_protocol/gossip",
         HTTP_PUT,
-        json_adapter(wrap_recovery_decision_protocol<
-                     recovery_decision_protocol::GossipRequest>(
-          recovery_decision_protocol_gossip, node_context)),
+        json_adapter(
+          wrap_recovery_decision_protocol<
+            recovery_decision_protocol::GossipRequest>(
+            recovery_decision_protocol_gossip, node_context)),
         no_auth_required)
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
       .set_openapi_hidden(true)
@@ -210,9 +211,10 @@ namespace ccf::node
       .make_endpoint(
         "/recovery_decision_protocol/vote",
         HTTP_PUT,
-        json_adapter(wrap_recovery_decision_protocol<
-                     recovery_decision_protocol::TaggedWithNodeInfo>(
-          recovery_decision_protocol_vote, node_context)),
+        json_adapter(
+          wrap_recovery_decision_protocol<
+            recovery_decision_protocol::TaggedWithNodeInfo>(
+            recovery_decision_protocol_vote, node_context)),
         no_auth_required)
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
       .set_openapi_hidden(true)
@@ -282,9 +284,10 @@ namespace ccf::node
       .make_endpoint(
         "/recovery_decision_protocol/iamopen",
         HTTP_PUT,
-        json_adapter(wrap_recovery_decision_protocol<
-                     recovery_decision_protocol::IAmOpenRequest>(
-          recovery_decision_protocol_iamopen, node_context)),
+        json_adapter(
+          wrap_recovery_decision_protocol<
+            recovery_decision_protocol::IAmOpenRequest>(
+            recovery_decision_protocol_iamopen, node_context)),
         no_auth_required)
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
       .set_openapi_hidden(true)

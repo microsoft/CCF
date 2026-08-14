@@ -265,9 +265,10 @@ namespace loggingapp
       {
         if (!(it->is_number_integer() || it->is_number_unsigned()))
         {
-          throw std::logic_error(fmt::format(
-            "node_data.logging configuration '{}' must be a positive integer",
-            key));
+          throw std::logic_error(
+            fmt::format(
+              "node_data.logging configuration '{}' must be a positive integer",
+              key));
         }
 
         const auto v = it->is_number_unsigned() ?
@@ -275,9 +276,10 @@ namespace loggingapp
           it->get<int64_t>();
         if (v <= 0)
         {
-          throw std::logic_error(fmt::format(
-            "node_data.logging configuration '{}' must be a positive integer",
-            key));
+          throw std::logic_error(
+            fmt::format(
+              "node_data.logging configuration '{}' must be a positive integer",
+              key));
         }
 
         value = static_cast<size_t>(v);
@@ -846,8 +848,9 @@ namespace loggingapp
         if (result != ccf::ApiResult::OK)
         {
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
-          ctx.rpc_ctx->set_response_body(fmt::format(
-            "Failed to retrieve current committed TxID: {}", result));
+          ctx.rpc_ctx->set_response_body(
+            fmt::format(
+              "Failed to retrieve current committed TxID: {}", result));
           return;
         }
 
@@ -1877,12 +1880,13 @@ namespace loggingapp
           ctx.rpc_ctx->set_response_header(
             ccf::http::headers::CONTENT_TYPE,
             ccf::http::headervalues::contenttype::TEXT);
-          ctx.rpc_ctx->set_response_body(fmt::format(
-            "Still constructing index for public records on key {} - indexed "
-            "to {}/{}",
-            id,
-            indexed_txid.seqno,
-            to_seqno));
+          ctx.rpc_ctx->set_response_body(
+            fmt::format(
+              "Still constructing index for public records on key {} - indexed "
+              "to {}/{}",
+              id,
+              indexed_txid.seqno,
+              to_seqno));
           return;
         }
 
@@ -1907,8 +1911,9 @@ namespace loggingapp
           ctx.rpc_ctx->set_response_header(
             ccf::http::headers::CONTENT_TYPE,
             ccf::http::headervalues::contenttype::TEXT);
-          ctx.rpc_ctx->set_response_body(fmt::format(
-            "Still constructing index for private records at {}", id));
+          ctx.rpc_ctx->set_response_body(
+            fmt::format(
+              "Still constructing index for private records at {}", id));
           return;
         }
 
@@ -1945,11 +1950,12 @@ namespace loggingapp
             ctx.rpc_ctx->set_response_header(
               ccf::http::headers::CONTENT_TYPE,
               ccf::http::headervalues::contenttype::TEXT);
-            ctx.rpc_ctx->set_response_body(fmt::format(
-              "Historical transactions from {} to {} are not yet "
-              "available, fetching now",
-              range_begin,
-              range_end));
+            ctx.rpc_ctx->set_response_body(
+              fmt::format(
+                "Historical transactions from {} to {} are not yet "
+                "available, fetching now",
+                range_begin,
+                range_end));
             return;
           }
         }
@@ -2135,8 +2141,9 @@ namespace loggingapp
           ctx.rpc_ctx->set_response_header(
             ccf::http::headers::CONTENT_TYPE,
             ccf::http::headervalues::contenttype::TEXT);
-          ctx.rpc_ctx->set_response_body(fmt::format(
-            "Historical transactions are not yet available, fetching now"));
+          ctx.rpc_ctx->set_response_body(
+            fmt::format(
+              "Historical transactions are not yet available, fetching now"));
           return;
         }
 

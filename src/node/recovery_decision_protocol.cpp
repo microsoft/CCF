@@ -231,9 +231,10 @@ namespace ccf
                              ->get(chosen_replica.value());
         if (!node_config.has_value())
         {
-          throw std::logic_error(fmt::format(
-            "Recovery-decision-protocol chosen node {} not found",
-            chosen_replica.value()));
+          throw std::logic_error(
+            fmt::format(
+              "Recovery-decision-protocol chosen node {} not found",
+              chosen_replica.value()));
         }
 
         LOG_INFO_FMT(
@@ -262,9 +263,10 @@ namespace ccf
         break;
       }
       default:
-        throw std::logic_error(fmt::format(
-          "Unknown recovery-decision-protocol state: {}",
-          static_cast<int>(sm_state)));
+        throw std::logic_error(
+          fmt::format(
+            "Unknown recovery-decision-protocol state: {}",
+            static_cast<int>(sm_state)));
     }
 
     // Advance timeout SM
@@ -355,9 +357,10 @@ namespace ccf
               node_info_handle->get(chosen_replica_handle->get().value());
             if (!chosen_node_info.has_value())
             {
-              throw std::logic_error(fmt::format(
-                "Recovery-decision-protocol chosen node {} not found",
-                chosen_replica_handle->get().value()));
+              throw std::logic_error(
+                fmt::format(
+                  "Recovery-decision-protocol chosen node {} not found",
+                  chosen_replica_handle->get().value()));
             }
             send_vote_unsafe(tx, chosen_node_info.value());
             // keep gossiping to allow lagging nodes to eventually vote
@@ -372,9 +375,10 @@ namespace ccf
             stop_timers();
             return;
           default:
-            throw std::logic_error(fmt::format(
-              "Unknown recovery-decision-protocol state: {}",
-              static_cast<int>(sm_state)));
+            throw std::logic_error(
+              fmt::format(
+                "Unknown recovery-decision-protocol state: {}",
+                static_cast<int>(sm_state)));
         }
       },
       "RecoveryDecisionProtocolRetry");
@@ -566,8 +570,9 @@ namespace ccf
     auto node_info_opt = nodes_handle->get(node_state->get_node_id());
     if (!node_info_opt.has_value())
     {
-      throw std::logic_error(fmt::format(
-        "Node {} not found in nodes table", node_state->get_node_id()));
+      throw std::logic_error(
+        fmt::format(
+          "Node {} not found in nodes table", node_state->get_node_id()));
     }
     {
       std::lock_guard<pal::Mutex> ns_guard(node_state->lock);
@@ -728,9 +733,10 @@ namespace ccf
     // history (too old or too new)
     if (recovery_view == ccf::VIEW_UNKNOWN)
     {
-      throw std::logic_error(fmt::format(
-        "Could not find view for last recovered signed seqno {}",
-        recovery_seqno));
+      throw std::logic_error(
+        fmt::format(
+          "Could not find view for last recovered signed seqno {}",
+          recovery_seqno));
     }
     return ccf::TxID{recovery_view, recovery_seqno};
   }

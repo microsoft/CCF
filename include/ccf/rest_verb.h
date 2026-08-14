@@ -93,8 +93,9 @@ namespace ccf
   {
     if (!j.is_string())
     {
-      throw std::runtime_error(fmt::format(
-        "Cannot parse RESTVerb from non-string JSON value: {}", j.dump()));
+      throw std::runtime_error(
+        fmt::format(
+          "Cannot parse RESTVerb from non-string JSON value: {}", j.dump()));
     }
 
     std::string s = j.get<std::string>();

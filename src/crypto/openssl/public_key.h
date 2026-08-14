@@ -65,24 +65,30 @@ namespace ccf::crypto
         {
           if (cose_alg != -7)
           {
-            throw std::domain_error(fmt::format(
-              "secp256r1 key cannot be used with COSE algorithm {}", cose_alg));
+            throw std::domain_error(
+              fmt::format(
+                "secp256r1 key cannot be used with COSE algorithm {}",
+                cose_alg));
           }
         }
         else if (gname == SN_secp384r1) // P-384
         {
           if (cose_alg != -35)
           {
-            throw std::domain_error(fmt::format(
-              "secp384r1 key cannot be used with COSE algorithm {}", cose_alg));
+            throw std::domain_error(
+              fmt::format(
+                "secp384r1 key cannot be used with COSE algorithm {}",
+                cose_alg));
           }
         }
         else if (gname == SN_secp521r1) // P-521
         {
           if (cose_alg != -36)
           {
-            throw std::domain_error(fmt::format(
-              "secp521r1 key cannot be used with COSE algorithm {}", cose_alg));
+            throw std::domain_error(
+              fmt::format(
+                "secp521r1 key cannot be used with COSE algorithm {}",
+                cose_alg));
           }
         }
         else

@@ -64,10 +64,11 @@ namespace http
 
         LOG_DEBUG_FMT("Request is too large: {}", e.what());
 
-        send_odata_error_response(ccf::ErrorDetails{
-          HTTP_STATUS_PAYLOAD_TOO_LARGE,
-          ccf::errors::RequestBodyTooLarge,
-          e.what()});
+        send_odata_error_response(
+          ccf::ErrorDetails{
+            HTTP_STATUS_PAYLOAD_TOO_LARGE,
+            ccf::errors::RequestBodyTooLarge,
+            e.what()});
 
         close_session();
       }
@@ -80,10 +81,11 @@ namespace http
 
         LOG_DEBUG_FMT("Request header is too large: {}", e.what());
 
-        send_odata_error_response(ccf::ErrorDetails{
-          HTTP_STATUS_REQUEST_HEADER_FIELDS_TOO_LARGE,
-          ccf::errors::RequestHeaderTooLarge,
-          e.what()});
+        send_odata_error_response(
+          ccf::ErrorDetails{
+            HTTP_STATUS_REQUEST_HEADER_FIELDS_TOO_LARGE,
+            ccf::errors::RequestHeaderTooLarge,
+            e.what()});
 
         close_session();
       }
@@ -155,10 +157,11 @@ namespace http
         }
         catch (std::exception& e)
         {
-          send_odata_error_response(ccf::ErrorDetails{
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            ccf::errors::InternalError,
-            fmt::format("Error constructing RpcContext: {}", e.what())});
+          send_odata_error_response(
+            ccf::ErrorDetails{
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              fmt::format("Error constructing RpcContext: {}", e.what())});
           close_session();
           return;
         }
@@ -247,10 +250,11 @@ namespace http
       }
       catch (const std::exception& e)
       {
-        send_odata_error_response(ccf::ErrorDetails{
-          HTTP_STATUS_INTERNAL_SERVER_ERROR,
-          ccf::errors::InternalError,
-          fmt::format("Exception: {}", e.what())});
+        send_odata_error_response(
+          ccf::ErrorDetails{
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            fmt::format("Exception: {}", e.what())});
 
         // On any exception, close the connection.
         LOG_FAIL_FMT("Closing connection");

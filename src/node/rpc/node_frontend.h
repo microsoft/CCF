@@ -719,9 +719,10 @@ namespace ccf
           auto txid = ccf::TxID::from_str(receipt.phdr.ccf.txid);
           if (!txid.has_value())
           {
-            throw std::logic_error(fmt::format(
-              "Failed to parse txid from COSE signature: {}",
-              receipt.phdr.ccf.txid));
+            throw std::logic_error(
+              fmt::format(
+                "Failed to parse txid from COSE signature: {}",
+                receipt.phdr.ccf.txid));
           }
           cose_seqno = txid->seqno;
         }
@@ -1211,13 +1212,14 @@ namespace ccf
           }
         }
         auto& ni = info.value();
-        return make_success(GetNode::Out{
-          node_id,
-          ni.status,
-          is_primary,
-          ni.rpc_interfaces,
-          ni.node_data,
-          nodes->get_version_of_previous_write(node_id).value_or(0)});
+        return make_success(
+          GetNode::Out{
+            node_id,
+            ni.status,
+            is_primary,
+            ni.rpc_interfaces,
+            ni.node_data,
+            nodes->get_version_of_previous_write(node_id).value_or(0)});
       };
       make_read_only_endpoint(
         "/network/nodes/{node_id}",
@@ -1248,13 +1250,14 @@ namespace ccf
           // Answers from the KV are preferred, as they are more up-to-date,
           // especially status and node_data.
           auto& ni = info.value();
-          return make_success(GetNode::Out{
-            node_id,
-            ni.status,
-            is_primary,
-            ni.rpc_interfaces,
-            ni.node_data,
-            nodes->get_version_of_previous_write(node_id).value_or(0)});
+          return make_success(
+            GetNode::Out{
+              node_id,
+              ni.status,
+              is_primary,
+              ni.rpc_interfaces,
+              ni.node_data,
+              nodes->get_version_of_previous_write(node_id).value_or(0)});
         }
 
         // If the node isn't in its KV yet, fall back to configuration
@@ -1269,13 +1272,14 @@ namespace ccf
         }
         const auto& node_startup_config =
           node_configuration_subsystem->get().node_config;
-        return make_success(GetNode::Out{
-          node_id,
-          ccf::NodeStatus::PENDING,
-          is_primary,
-          node_startup_config.network.rpc_interfaces,
-          node_startup_config.node_data,
-          0});
+        return make_success(
+          GetNode::Out{
+            node_id,
+            ccf::NodeStatus::PENDING,
+            is_primary,
+            node_startup_config.network.rpc_interfaces,
+            node_startup_config.node_data,
+            0});
       };
       make_read_only_endpoint(
         "/network/nodes/self",
@@ -1310,14 +1314,15 @@ namespace ccf
           }
 
           auto& ni = info.value();
-          return make_success(GetNode::Out{
-            primary_id.value(),
-            ni.status,
-            true,
-            ni.rpc_interfaces,
-            ni.node_data,
-            nodes->get_version_of_previous_write(primary_id.value())
-              .value_or(0)});
+          return make_success(
+            GetNode::Out{
+              primary_id.value(),
+              ni.status,
+              true,
+              ni.rpc_interfaces,
+              ni.node_data,
+              nodes->get_version_of_previous_write(primary_id.value())
+                .value_or(0)});
         }
 
         return make_error(

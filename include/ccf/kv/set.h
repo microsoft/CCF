@@ -87,8 +87,7 @@ namespace ccf::kv
 
   template <
     typename K,
-    template <typename>
-    typename KSerialiser,
+    template <typename> typename KSerialiser,
     typename Unit = ccf::kv::serialisers::ZeroBlitUnitCreator>
   using SetSerialisedWith = TypedSet<K, KSerialiser<K>, Unit>;
 

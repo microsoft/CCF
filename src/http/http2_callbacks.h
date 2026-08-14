@@ -160,10 +160,11 @@ namespace http2
       session, stream_id, stream_data.get());
     if (rc != 0)
     {
-      throw std::logic_error(fmt::format(
-        "HTTP/2: Could not set user data for stream {}: {}",
-        stream_id,
-        nghttp2_strerror(rc)));
+      throw std::logic_error(
+        fmt::format(
+          "HTTP/2: Could not set user data for stream {}: {}",
+          stream_id,
+          nghttp2_strerror(rc)));
     }
 
     return 0;

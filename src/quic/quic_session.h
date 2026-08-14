@@ -206,8 +206,9 @@ namespace quic
 
     void send_raw(const uint8_t* data, size_t size, sockaddr addr)
     {
-      task_scheduler->add_action(std::make_shared<SendDataTask>(
-        shared_from_this(), std::span<const uint8_t>{data, size}, addr));
+      task_scheduler->add_action(
+        std::make_shared<SendDataTask>(
+          shared_from_this(), std::span<const uint8_t>{data, size}, addr));
     }
 
     void send_raw_thread(const std::vector<uint8_t>& data, sockaddr addr)
@@ -246,10 +247,11 @@ namespace quic
       auto [_, addr_family, addr_data, body] =
         ringbuffer::read_message<udp::udp_inbound>(data);
 
-      task_scheduler->add_action(std::make_shared<RecvDataTask>(
-        shared_from_this(),
-        body,
-        udp::sockaddr_decode(addr_family, addr_data)));
+      task_scheduler->add_action(
+        std::make_shared<RecvDataTask>(
+          shared_from_this(),
+          body,
+          udp::sockaddr_decode(addr_family, addr_data)));
     }
 
     virtual void recv(const uint8_t* data_, size_t size_, sockaddr addr_) = 0;

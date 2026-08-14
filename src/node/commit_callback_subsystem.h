@@ -109,12 +109,14 @@ namespace ccf
 
             if (status != TxStatus::Committed && status != TxStatus::Invalid)
             {
-              throw std::logic_error(fmt::format(
-                "Expected transaction {} evaluated against commit point {} to "
-                "return terminal TxStatus, instead returned {}",
-                tx_id.to_str(),
-                committed.to_str(),
-                nlohmann::json(status).dump()));
+              throw std::logic_error(
+                fmt::format(
+                  "Expected transaction {} evaluated against commit point {} "
+                  "to "
+                  "return terminal TxStatus, instead returned {}",
+                  tx_id.to_str(),
+                  committed.to_str(),
+                  nlohmann::json(status).dump()));
             }
 
             const auto final_status = static_cast<ccf::FinalTxStatus>(status);

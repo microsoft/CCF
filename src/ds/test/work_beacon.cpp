@@ -90,33 +90,34 @@ size_t run_jobs(size_t n_senders, size_t n_receivers)
 
   for (size_t i = 0; i < n_senders; ++i)
   {
-    senders.push_back(std::thread(
-      [&](size_t sender_idx) {
-        for (auto x = 0; x < 10; ++x)
-        {
-          work_queue.add_work([=]() {
-            std::this_thread::sleep_for(std::chrono::nanoseconds(x * x));
-            return false;
-          });
-          beacon.notify_work_available();
-          std::this_thread::sleep_for(std::chrono::milliseconds(2));
-        }
+    senders.push_back(
+      std::thread(
+        [&](size_t sender_idx) {
+          for (auto x = 0; x < 10; ++x)
+          {
+            work_queue.add_work([=]() {
+              std::this_thread::sleep_for(std::chrono::nanoseconds(x * x));
+              return false;
+            });
+            beacon.notify_work_available();
+            std::this_thread::sleep_for(std::chrono::milliseconds(2));
+          }
 
-        // Add tasks that tells the receiving worker to terminate. Each sender
-        // is responsible for sending some fraction of terminate tasks, such
-        // that each receiver receives exactly one.
-        size_t quota = n_receivers / n_senders;
-        if (sender_idx == 0)
-        {
-          quota += n_receivers % n_senders;
-        }
-        for (size_t j = 0; j < quota; ++j)
-        {
-          work_queue.add_work([&]() { return true; });
-          beacon.notify_work_available();
-        }
-      },
-      i));
+          // Add tasks that tells the receiving worker to terminate. Each sender
+          // is responsible for sending some fraction of terminate tasks, such
+          // that each receiver receives exactly one.
+          size_t quota = n_receivers / n_senders;
+          if (sender_idx == 0)
+          {
+            quota += n_receivers % n_senders;
+          }
+          for (size_t j = 0; j < quota; ++j)
+          {
+            work_queue.add_work([&]() { return true; });
+            beacon.notify_work_available();
+          }
+        },
+        i));
   }
 
   for (size_t i = 0; i < n_receivers; ++i)

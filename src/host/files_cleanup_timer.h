@@ -288,8 +288,9 @@ namespace asynchost
             max_retained);
           std::error_code ec;
           {
-            TimeBoundLogger log_remove_if_slow(fmt::format(
-              "Deleting old snapshot - remove({})", path.filename()));
+            TimeBoundLogger log_remove_if_slow(
+              fmt::format(
+                "Deleting old snapshot - remove({})", path.filename()));
             std::filesystem::remove(path, ec);
           }
           if (ec)
@@ -401,8 +402,9 @@ namespace asynchost
           max_retained);
         std::error_code ec;
         {
-          TimeBoundLogger log_remove_if_slow(fmt::format(
-            "Deleting old ledger chunk - remove({})", path.filename()));
+          TimeBoundLogger log_remove_if_slow(
+            fmt::format(
+              "Deleting old ledger chunk - remove({})", path.filename()));
           std::filesystem::remove(path, ec);
         }
         if (ec)
@@ -521,9 +523,10 @@ namespace asynchost
 
       if (max_snapshots.has_value() && max_snapshots.value() < 1)
       {
-        throw std::logic_error(fmt::format(
-          "files_cleanup.max_snapshots must be at least 1, got {}",
-          max_snapshots.value()));
+        throw std::logic_error(
+          fmt::format(
+            "files_cleanup.max_snapshots must be at least 1, got {}",
+            max_snapshots.value()));
       }
       if (
         max_committed_ledger_chunks.has_value() &&

@@ -54,17 +54,19 @@ namespace ccf
       const auto from_txid = ccf::TxID::from_str(from);
       if (!from_txid.has_value())
       {
-        throw std::logic_error(fmt::format(
-          "Cannot parse COSE endorsement header: {}",
-          ccf::cose::header::custom::TX_RANGE_BEGIN));
+        throw std::logic_error(
+          fmt::format(
+            "Cannot parse COSE endorsement header: {}",
+            ccf::cose::header::custom::TX_RANGE_BEGIN));
       }
 
       const auto to_txid = ccf::TxID::from_str(to);
       if (!to_txid.has_value())
       {
-        throw std::logic_error(fmt::format(
-          "Cannot parse COSE endorsement header: {}",
-          ccf::cose::header::custom::TX_RANGE_END));
+        throw std::logic_error(
+          fmt::format(
+            "Cannot parse COSE endorsement header: {}",
+            ccf::cose::header::custom::TX_RANGE_END));
       }
 
       if (!endorsement.endorsement_epoch_end.has_value())
@@ -76,13 +78,14 @@ namespace ccf
         endorsement.endorsement_epoch_begin != *from_txid ||
         *endorsement.endorsement_epoch_end != *to_txid)
       {
-        throw std::logic_error(fmt::format(
-          "COSE endorsement fetched but range is invalid, epoch begin {}, "
-          "epoch end {}, header epoch begin: {}, header epoch end: {}",
-          endorsement.endorsement_epoch_begin.to_str(),
-          endorsement.endorsement_epoch_end->to_str(),
-          from,
-          to));
+        throw std::logic_error(
+          fmt::format(
+            "COSE endorsement fetched but range is invalid, epoch begin {}, "
+            "epoch end {}, header epoch begin: {}, header epoch end: {}",
+            endorsement.endorsement_epoch_begin.to_str(),
+            endorsement.endorsement_epoch_end->to_str(),
+            from,
+            to));
       }
     }
   }
@@ -111,10 +114,11 @@ namespace ccf
   {
     if (!older.endorsement_epoch_end.has_value())
     {
-      throw std::logic_error(fmt::format(
-        "COSE endorsement chain integrity is violated, previous endorsement "
-        "from {} does not have an epoch end",
-        older.endorsement_epoch_begin.to_str()));
+      throw std::logic_error(
+        fmt::format(
+          "COSE endorsement chain integrity is violated, previous endorsement "
+          "from {} does not have an epoch end",
+          older.endorsement_epoch_begin.to_str()));
     }
 
     if (
@@ -123,11 +127,12 @@ namespace ccf
       newer.endorsement_epoch_begin.seqno - 1 !=
         older.endorsement_epoch_end->seqno)
     {
-      throw std::logic_error(fmt::format(
-        "COSE endorsement chain integrity is violated, previous endorsement "
-        "epoch end {} is not chained with newer endorsement epoch begin {}",
-        older.endorsement_epoch_end->to_str(),
-        newer.endorsement_epoch_begin.to_str()));
+      throw std::logic_error(
+        fmt::format(
+          "COSE endorsement chain integrity is violated, previous endorsement "
+          "epoch end {} is not chained with newer endorsement epoch begin {}",
+          older.endorsement_epoch_end->to_str(),
+          newer.endorsement_epoch_begin.to_str()));
     }
   }
 
@@ -137,20 +142,22 @@ namespace ccf
   {
     if (!newest.endorsement_epoch_end.has_value())
     {
-      throw std::logic_error(fmt::format(
-        "The last fetched endorsement at {} has no epoch end",
-        newest.endorsement_epoch_begin.to_str()));
+      throw std::logic_error(
+        fmt::format(
+          "The last fetched endorsement at {} has no epoch end",
+          newest.endorsement_epoch_begin.to_str()));
     }
     if (
       current_service_from.view - aft::starting_view_change !=
         newest.endorsement_epoch_end->view ||
       current_service_from.seqno - 1 != newest.endorsement_epoch_end->seqno)
     {
-      throw std::logic_error(fmt::format(
-        "COSE endorsement chain integrity is violated, the current service "
-        "start at {} is not chained with previous endorsement ending at {}",
-        current_service_from.to_str(),
-        newest.endorsement_epoch_end->to_str()));
+      throw std::logic_error(
+        fmt::format(
+          "COSE endorsement chain integrity is violated, the current service "
+          "start at {} is not chained with previous endorsement ending at {}",
+          current_service_from.to_str(),
+          newest.endorsement_epoch_end->to_str()));
     }
   }
 }
