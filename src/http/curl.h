@@ -630,10 +630,7 @@ namespace ccf::curl
 
       response_headers.attach_to_curl(curl_handle);
 
-      if (headers.get() != nullptr)
-      {
-        CHECK_CURL_EASY_SETOPT(curl_handle, CURLOPT_HTTPHEADER, headers.get());
-      }
+      CHECK_CURL_EASY_SETOPT(curl_handle, CURLOPT_HTTPHEADER, headers.get());
     }
 
     static void handle_response(
@@ -690,6 +687,11 @@ namespace ccf::curl
     [[nodiscard]] UniqueCURL& get_easy_handle_ptr()
     {
       return curl_handle;
+    }
+
+    [[nodiscard]] UniqueCURL take_easy_handle()
+    {
+      return std::move(curl_handle);
     }
 
     [[nodiscard]] RESTVerb get_method() const
@@ -1276,6 +1278,25 @@ namespace ccf::curl
       {
         safe_abort_request(std::move(request_to_abort), "attach_request");
       }
+    }
+
+    void set_connection_limits(long maximum_connections)
+    {
+      CHECK_CURL_MULTI(
+        curl_multi_setopt,
+        curl_request_curlm,
+        CURLMOPT_MAXCONNECTS,
+        maximum_connections);
+      CHECK_CURL_MULTI(
+        curl_multi_setopt,
+        curl_request_curlm,
+        CURLMOPT_MAX_HOST_CONNECTIONS,
+        maximum_connections);
+      CHECK_CURL_MULTI(
+        curl_multi_setopt,
+        curl_request_curlm,
+        CURLMOPT_MAX_TOTAL_CONNECTIONS,
+        maximum_connections);
     }
 
   private:

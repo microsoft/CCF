@@ -24,6 +24,33 @@ import infra.proc
 import infra.remote_client
 
 
+def parse_cpu_affinity(value: str) -> set[int]:
+    cpus = set()
+    for item in value.split(","):
+        bounds = [int(bound) for bound in item.split("-", maxsplit=1)]
+        if len(bounds) == 1:
+            cpus.add(bounds[0])
+        else:
+            if bounds[0] > bounds[1]:
+                raise ValueError(f"CPU affinity range must be ascending: {item}")
+            cpus.update(range(bounds[0], bounds[1] + 1))
+    if not cpus:
+        raise ValueError("CPU affinity cannot be empty")
+    return cpus
+
+
+def set_process_affinity(pid: int, value: str):
+    cpus = parse_cpu_affinity(value)
+    unavailable = cpus - os.sched_getaffinity(0)
+    if unavailable:
+        raise ValueError(f"CPUs are unavailable to this process: {unavailable}")
+    for task_id in os.listdir(f"/proc/{pid}/task"):
+        try:
+            os.sched_setaffinity(int(task_id), cpus)
+        except ProcessLookupError:
+            pass
+
+
 def configure_remote_client(args, client_id, client_host, common_dir):
     client_host = infra.net.expand_localhost()
 
@@ -272,6 +299,14 @@ def replace_primary(network, host, old_primary, snapshots_dir, statistics):
 def run(args):
     hosts = args.nodes or infra.e2e_args.nodes(args, 1)
 
+    if args.clients_per_process <= 0:
+        raise ValueError("--clients-per-process must be positive")
+    if args.stop_primary_after_s and args.clients_per_process != 1:
+        raise ValueError(
+            "Failover tests require --clients-per-process=1 because the "
+            "multi-session submitter does not support failover"
+        )
+
     if args.stop_primary_after_s:
         assert (
             len(hosts) > 1
@@ -289,6 +324,12 @@ def run(args):
                     network.per_node_args_override[i] = {"election_timeout_ms": 15000}
         network.start_and_open(args)
 
+        if args.node_cpu_affinity:
+            for node in network.nodes:
+                set_process_affinity(
+                    node.remote.remote.proc.pid, args.node_cpu_affinity
+                )
+
         primary, backups = network.find_nodes()
         additional_headers = {}
         if args.use_jwt:
@@ -299,9 +340,9 @@ def run(args):
 
         key_space = create_and_fill_key_space(args.key_space_size, primary)
 
-        clients = []
         client_idx = 0
-        requests_file_paths = []
+        pending_batches = {}
+        client_batches = []
         for client_def in args.client_def:
             count, gen, iterations, target = client_def.split(",")
             # The round robin index deliberately starts at 1, so that backups/any are
@@ -320,7 +361,14 @@ def run(args):
                 )
                 LOG.info(f"Writing generated requests to {path_to_requests_file}")
                 msgs.to_parquet_file(path_to_requests_file)
-                requests_file_paths.append(path_to_requests_file)
+                session_id = f"client_{client_idx}"
+                payloads = pl.read_parquet(path_to_requests_file).with_columns(
+                    pl.concat_str(
+                        [pl.lit(f"{session_id}:"), pl.col("messageID")]
+                    ).alias("messageID"),
+                    sessionID=pl.lit(session_id),
+                )
+                payloads.write_parquet(path_to_requests_file)
                 node = None
                 if target == "primary":
                     node = primary
@@ -332,40 +380,75 @@ def run(args):
                     rr_idx += 1
                 else:
                     raise NotImplementedError(f"Unknown target {target}")
-                remote_client = configure_remote_client(
-                    args, client_idx, "localhost", network.common_dir
+
+                batch_key = node.get_public_rpc_address()
+                batch = pending_batches.setdefault(batch_key, [])
+                batch.append(
+                    {
+                        "gen": gen,
+                        "iterations": iterations,
+                        "node": node,
+                        "path": path_to_requests_file,
+                        "target": target,
+                    }
                 )
-                cmd = [
-                    args.client,
-                    "--cert",
-                    "user0_cert.pem",
-                    "--key",
-                    "user0_privk.pem",
-                    "--cacert",
-                    os.path.basename(network.cert_path),
-                    f"--server-address={node.get_public_rpc_host()}:{node.get_public_rpc_port()}",
-                    "--max-writes-ahead",
-                    str(args.max_writes_ahead),
-                    "--send-filepath",
-                    "pi_requests.parquet",
-                    "--response-filepath",
-                    "pi_response.parquet",
-                    "--generator-filepath",
-                    os.path.abspath(path_to_requests_file),
-                    "--pid-file-path",
-                    "cmd.pid",
-                ]
-                # All clients talking to the primary are configured to fail over to the first backup,
-                # which is the only node whose election timeout has not been raised, to guarantee its
-                # election as the old primary becomes unavailable.
-                if args.stop_primary_after_s and target == "primary":
-                    cmd.append(
-                        f"--failover-server-address={backups[0].get_public_rpc_host()}:{backups[0].get_public_rpc_port()}"
-                    )
-                remote_client.setcmd(cmd)
-                remote_client.description = f"{gen} x {iterations} to {target} ({node.get_public_rpc_address()})"
-                clients.append(remote_client)
+                if len(batch) == args.clients_per_process:
+                    client_batches.append(batch)
+                    pending_batches[batch_key] = []
                 client_idx += 1
+
+        client_batches.extend(batch for batch in pending_batches.values() if batch)
+
+        clients = []
+        requests_file_paths = []
+        for process_idx, batch in enumerate(client_batches):
+            node = batch[0]["node"]
+            path_to_requests_file = os.path.join(
+                network.common_dir, f"pi_client_process{process_idx}_requests.parquet"
+            )
+            pl.concat(
+                [pl.read_parquet(client["path"]) for client in batch], rechunk=True
+            ).write_parquet(path_to_requests_file)
+            requests_file_paths.append(path_to_requests_file)
+
+            remote_client = configure_remote_client(
+                args, process_idx, "localhost", network.common_dir
+            )
+            cmd = [
+                args.client,
+                "--cert",
+                "user0_cert.pem",
+                "--key",
+                "user0_privk.pem",
+                "--cacert",
+                os.path.basename(network.cert_path),
+                f"--server-address={node.get_public_rpc_host()}:{node.get_public_rpc_port()}",
+                "--max-writes-ahead",
+                str(args.max_writes_ahead),
+                "--send-filepath",
+                "pi_requests.parquet",
+                "--response-filepath",
+                "pi_response.parquet",
+                "--generator-filepath",
+                os.path.abspath(path_to_requests_file),
+                "--pid-file-path",
+                "cmd.pid",
+            ]
+            if args.client_cpu_affinity:
+                cmd = ["taskset", "--cpu-list", args.client_cpu_affinity] + cmd
+            if len(batch) > 1:
+                cmd.append("--multi-session")
+            target = batch[0]["target"]
+            if args.stop_primary_after_s and target == "primary":
+                cmd.append(
+                    f"--failover-server-address={backups[0].get_public_rpc_host()}:{backups[0].get_public_rpc_port()}"
+                )
+            remote_client.setcmd(cmd)
+            remote_client.description = ", ".join(
+                f'{client["gen"]} x {client["iterations"]} to {client["target"]}'
+                for client in batch
+            )
+            clients.append(remote_client)
 
         if args.network_only:
             for remote_client in clients:
@@ -483,7 +566,7 @@ def run(args):
                         overall = payloads.join(sent, on="messageID")
                         overall = rcvd.join(overall, on="messageID")
                         overall = overall.with_columns(
-                            client=pl.lit(remote_client.name),
+                            client=pl.col("sessionID"),
                             requestSize=pl.col("request").map_elements(
                                 len, return_dtype=pl.Int64
                             ),
@@ -560,6 +643,16 @@ def run(args):
                 byte_output = (agg["responseSize"].sum() / duration_s) / (1024 * 1024)
                 statistics["average_request_output_mb/s"] = byte_output
                 print(f"Average request output: {byte_output:.2f} Mbytes/s")
+
+                latency_us = agg.select(
+                    pl.col("latency").dt.total_microseconds().alias("latency_us")
+                )["latency_us"]
+                for percentile in (50, 90, 99):
+                    value = latency_us.quantile(
+                        percentile / 100, interpolation="nearest"
+                    )
+                    statistics[f"latency_p{percentile}_us"] = value
+                    print(f"Latency p{percentile}: {value}us")
 
                 each_client = agg.partition_by("client")
                 latest_start = max(client["sendTime"].min() for client in each_client)
@@ -851,6 +944,20 @@ def cli_args():
         help="Client definitions, e.g. '3,write,1000,primary' starts 3 clients sending 1000 writes to the primary",
         action="append",
         required=True,
+    )
+    parser.add_argument(
+        "--clients-per-process",
+        help="Number of logical client sessions driven by each submitter process",
+        type=int,
+        default=1,
+    )
+    parser.add_argument(
+        "--node-cpu-affinity",
+        help="CPU list assigned to all local CCF node threads, for example 0-7",
+    )
+    parser.add_argument(
+        "--client-cpu-affinity",
+        help="CPU list assigned to local submitter processes, for example 8-31",
     )
     parser.add_argument(
         "--stop-primary-after-s", help="Stop primary after this many seconds", type=int

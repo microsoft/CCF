@@ -24,6 +24,7 @@ public:
   std::string generator_filepath;
   int max_inflight_requests = 0;
   std::string pid_file_path = "submit.pid";
+  bool multi_session = false;
 
   ArgumentParser(const std::string& default_label, CLI::App& app) :
     label(default_label)
@@ -60,7 +61,8 @@ public:
       .add_option(
         "--failover-server-address",
         failover_server_address,
-        "Specify failover address, in case connection to the main server address is lost.")
+        "Specify failover address, in case connection to the main server "
+        "address is lost.")
       ->capture_default_str();
     app
       .add_option(
@@ -99,5 +101,10 @@ public:
         pid_file_path,
         "Path to file where the pid of the submitter will be stored.")
       ->capture_default_str();
+    app.add_flag(
+      "--multi-session",
+      multi_session,
+      "Run each sessionID in the input as an independent asynchronous HTTP "
+      "session. This mode requires --max-writes-ahead=0.");
   }
 };

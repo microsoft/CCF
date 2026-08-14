@@ -8,6 +8,7 @@ import sys
 import tempfile
 from datetime import UTC, datetime, timedelta
 
+import polars as pl
 from aiohttp import web
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
@@ -81,6 +82,57 @@ def write_tls_files(cert_path, cert_pem, key_path, key_pem):
         key_file.write(key_pem)
 
 
+async def test_submitter_callback_failure(addr, cert_path, key_path, temp_dir):
+    workload_path = os.path.join(temp_dir, "submitter_workload.parquet")
+    pl.DataFrame(
+        {
+            "messageID": ["first", "second"],
+            "sessionID": ["session", "session"],
+            "request": [
+                b"GET /first HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n",
+                b"DELETE /second HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n",
+            ],
+        }
+    ).write_parquet(workload_path, compression="uncompressed")
+
+    process = await asyncio.create_subprocess_exec(
+        "./submit",
+        "--cert",
+        cert_path,
+        "--key",
+        key_path,
+        "--cacert",
+        cert_path,
+        "--server-address",
+        addr,
+        "--max-writes-ahead",
+        "0",
+        "--send-filepath",
+        os.path.join(temp_dir, "submitter_send.parquet"),
+        "--response-filepath",
+        os.path.join(temp_dir, "submitter_response.parquet"),
+        "--generator-filepath",
+        workload_path,
+        "--pid-file-path",
+        os.path.join(temp_dir, "submitter.pid"),
+        "--multi-session",
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    try:
+        stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=10)
+    except TimeoutError:
+        process.kill()
+        await process.wait()
+        raise AssertionError("Submitter hung after callback failure")
+
+    output = (stdout + stderr).decode()
+    if process.returncode == 0:
+        raise AssertionError(f"Submitter unexpectedly succeeded:\n{output}")
+    if "Unsupported HTTP method: DELETE" not in output:
+        raise AssertionError(f"Submitter did not surface callback failure:\n{output}")
+
+
 async def main():
     app = web.Application()
     app.router.add_route("*", "/redirect", redirect_handler)
@@ -140,7 +192,10 @@ async def main():
         cmd = "./curl_test"
         process = await asyncio.create_subprocess_shell(cmd, env=env)
         await process.wait()
-        sys.exit(process.returncode)
+        if process.returncode != 0:
+            sys.exit(process.returncode)
+
+        await test_submitter_callback_failure(tls_addr, cert_path, key_path, tls_dir)
 
 
 if __name__ == "__main__":

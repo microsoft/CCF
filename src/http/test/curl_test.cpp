@@ -246,6 +246,68 @@ TEST_CASE("CurlmLibuvContext aborts queued requests on close")
   REQUIRE(observed_status_code == 0);
 }
 
+TEST_CASE("Reused easy handles clear absent header lists")
+{
+  const std::string url = fmt::format("http://{}/reused", server_address);
+  std::optional<ccf::curl::UniqueCURL> reused_handle;
+  long first_local_port = 0;
+
+  auto stale_headers = ccf::curl::UniqueSlist();
+  stale_headers.append("X-Stale-Header", "must-not-be-reused");
+  auto first_response = [&reused_handle, &first_local_port](
+                          std::unique_ptr<ccf::curl::CurlRequest>&& request,
+                          CURLcode curl_response,
+                          long status_code) {
+    REQUIRE(curl_response == CURLE_OK);
+    REQUIRE(status_code == 200);
+    CHECK_CURL_EASY_GETINFO(
+      request->get_easy_handle(), CURLINFO_LOCAL_PORT, &first_local_port);
+    reused_handle.emplace(request->take_easy_handle());
+  };
+
+  auto first_request = std::make_unique<ccf::curl::CurlRequest>(
+    ccf::curl::UniqueCURL(),
+    HTTP_GET,
+    url,
+    std::move(stale_headers),
+    nullptr,
+    std::make_unique<ccf::curl::ResponseBody>(SIZE_MAX),
+    std::move(first_response));
+  ccf::curl::CurlRequest::synchronous_perform(std::move(first_request));
+  REQUIRE(reused_handle.has_value());
+
+  long second_local_port = 0;
+  std::string response_body;
+  auto second_response = [&second_local_port, &response_body](
+                           std::unique_ptr<ccf::curl::CurlRequest>&& request,
+                           CURLcode curl_response,
+                           long status_code) {
+    REQUIRE(curl_response == CURLE_OK);
+    REQUIRE(status_code == 200);
+    CHECK_CURL_EASY_GETINFO(
+      request->get_easy_handle(), CURLINFO_LOCAL_PORT, &second_local_port);
+    const auto* body = request->get_response_body();
+    response_body.assign(body->buffer.begin(), body->buffer.end());
+  };
+
+  auto second_request = std::make_unique<ccf::curl::CurlRequest>(
+    std::move(reused_handle.value()),
+    HTTP_GET,
+    url,
+    ccf::curl::UniqueSlist(),
+    nullptr,
+    std::make_unique<ccf::curl::ResponseBody>(SIZE_MAX),
+    std::move(second_response));
+  ccf::curl::CurlRequest::synchronous_perform(std::move(second_request));
+
+  REQUIRE(first_local_port == second_local_port);
+  const auto parsed = nlohmann::json::parse(response_body);
+  for (const auto& header : parsed.at("headers"))
+  {
+    REQUIRE(header.at(0) != "X-Stale-Header");
+  }
+}
+
 TEST_CASE("Synchronous")
 {
   Data data = {.foo = "alpha", .bar = "beta"};
