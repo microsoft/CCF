@@ -526,10 +526,6 @@ public:
   }
 };
 
-#ifndef TEST_HYBRID_TLS_GROUPS
-#  define TEST_HYBRID_TLS_GROUPS 0
-#endif
-
 // Hybrid groups offered by src/tls/context.h, in the order they are offered
 constexpr auto secp384r1_mlkem1024 = "SecP384r1MLKEM1024";
 constexpr auto secp256r1_mlkem768 = "SecP256r1MLKEM768";
@@ -607,8 +603,7 @@ TEST_CASE("group negotiation")
   }
 }
 
-TEST_CASE(
-  "hybrid group negotiation" * doctest::skip(TEST_HYBRID_TLS_GROUPS == 0))
+TEST_CASE("hybrid group negotiation")
 {
   const std::vector<std::string> hybrid_groups = {
     secp384r1_mlkem1024, secp256r1_mlkem768, x25519_mlkem768};
