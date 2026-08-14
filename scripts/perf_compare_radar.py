@@ -248,21 +248,47 @@ def axis_label_color(percent: float, higher_is_better: bool, within_noise: bool)
     return LABEL_GOOD if improved else LABEL_BAD
 
 
-def shorten_label(label: str, max_length: int) -> str:
-    """Shorten a label to fit, keeping both ends.
+# U+2026 HORIZONTAL ELLIPSIS. One character wide, so eliding the middle of a
+# word with it costs a single column rather than the three of "...".
+ELLIPSIS = "\u2026"
 
-    Benchmarks measured at several settings differ only in their suffix, for
-    example the interval in "Basic Blocking Locust 100ms", so truncating the
-    end would render such axes indistinguishable from one another.
+# Eliding a shorter word saves nothing, since "abc" and "a" + ELLIPSIS + "c"
+# are both three characters.
+MIN_ELIDABLE_WORD_LENGTH = 4
+
+
+def elide_word(word: str) -> str:
+    """Replace the middle of a word with a single ellipsis character."""
+    return f"{word[0]}{ELLIPSIS}{word[-1]}"
+
+
+def shorten_label(label: str, max_length: int) -> str:
+    """Shorten a label to fit by eliding the middles of its words.
+
+    Words are elided from left to right, each keeping its first and last letter,
+    until the label fits. Benchmarks measured at several settings differ only in
+    their last word, for example the interval in "Basic Blocking Locust 100ms",
+    so eliding from the left keeps the part which tells them apart readable for
+    as long as possible.
     """
     if len(label) <= max_length:
         return label
-    if max_length <= 3:
-        return label[:max_length]
-    budget = max_length - 3
-    head = budget // 2
-    tail = budget - head
-    return f"{label[:head]}...{label[-tail:]}"
+
+    words = label.split(" ")
+    for index, word in enumerate(words):
+        if len(word) < MIN_ELIDABLE_WORD_LENGTH:
+            continue
+        words[index] = elide_word(word)
+        elided = " ".join(words)
+        if len(elided) <= max_length:
+            return elided
+
+    # Every word is elided and it still does not fit. Keep the end, which is
+    # what distinguishes one setting of a benchmark from another.
+    elided = " ".join(words)
+    if max_length <= 1:
+        return elided[:max_length]
+    return ELLIPSIS + elided[len(elided) - (max_length - 1) :]
 
 
 def axis_label(
