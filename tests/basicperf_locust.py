@@ -126,6 +126,25 @@ def read_aggregated_stats(stats_path: str) -> dict:
     raise RuntimeError(f"No {AGGREGATED_ROW_NAME} row found in {stats_path}")
 
 
+def stat_as_float(stats: dict, column: str) -> float:
+    """Read one numeric column from locust's statistics.
+
+    Locust writes "N/A" rather than a number when it has too few samples to
+    produce a percentile, so a run which barely gathered any data would
+    otherwise fail here with a bare ValueError, after the network has already
+    been torn down and the evidence lost.
+    """
+    value = stats[column]
+    try:
+        return float(value)
+    except ValueError as e:
+        raise RuntimeError(
+            f"Locust reported {column!r} as {value!r} rather than a number, "
+            "which means it had too few samples to compute it. The run did "
+            "not gather enough data to describe steady state."
+        ) from e
+
+
 def run(args):
     LOG.info(f"Starting nodes on {args.nodes}")
     with infra.network.network(
@@ -141,11 +160,11 @@ def run(args):
 
         request_count = int(stats["Request Count"])
         failure_count = int(stats["Failure Count"])
-        throughput = float(stats["Requests/s"])
+        throughput = stat_as_float(stats, "Requests/s")
         # Locust reports response times in milliseconds.
-        median_latency_ms = float(stats["Median Response Time"])
-        p99_latency_ms = float(stats["99%"])
-        min_latency_ms = float(stats["Min Response Time"])
+        median_latency_ms = stat_as_float(stats, "Median Response Time")
+        p99_latency_ms = stat_as_float(stats, "99%")
+        min_latency_ms = stat_as_float(stats, "Min Response Time")
 
         LOG.info(
             f"{request_count} requests ({failure_count} failures) "
