@@ -22,6 +22,7 @@ import os
 import subprocess
 
 import infra.bencher
+import infra.cpu_isolation
 import infra.e2e_args
 import infra.interfaces
 import infra.key_space
@@ -110,7 +111,9 @@ def run_locust(args, network, primary) -> dict:
 
     LOG.info(f"Starting locust: {' '.join(cmd)}")
     # Locust exits non-zero if any request failed, which should fail the test.
-    subprocess.run(cmd, check=True)
+    subprocess.run(
+        infra.cpu_isolation.command_prefix(infra.cpu_isolation.CLIENT) + cmd, check=True
+    )
 
     return read_aggregated_stats(f"{csv_prefix}_stats.csv")
 
@@ -223,6 +226,10 @@ def measure(args, sig_ms_interval: int) -> dict:
 
 
 def run(args):
+    # Must happen before any node or client process is launched, since the
+    # affinity is applied as they are spawned.
+    infra.cpu_isolation.enable(args.cpu_isolation, args.isolated_node_cpus)
+
     # Each interval needs its own network, since the signature interval is
     # fixed in the node's configuration at startup.
     results = {}
@@ -230,6 +237,13 @@ def run(args):
         results[sig_ms_interval] = measure(args, sig_ms_interval)
 
     bf = infra.bencher.Bencher()
+    # Isolated and unisolated numbers are not comparable, so record which one
+    # produced these. Every perf test in a CI run appends to the same
+    # bencher.json, so the key names the test rather than claiming to describe
+    # the whole file. All intervals in a sweep share one plan, deliberately: a
+    # sweep is a single experiment, and isolating only some of its intervals
+    # would make its own results incomparable with each other.
+    bf.set_metadata(f"cpu_isolation_{args.label}", infra.cpu_isolation.describe())
     for sig_ms_interval, result in results.items():
         label = f"{args.perf_label} (sig_ms_interval={sig_ms_interval}ms)"
         bf.set(label, infra.bencher.Throughput(round(result["throughput"], 1)))
@@ -288,6 +302,21 @@ def cli_args():
         type=int,
         nargs="+",
         default=[2, 100, 1000],
+    )
+    parser.add_argument(
+        "--cpu-isolation",
+        help="Pin the node and the locust clients to disjoint sets of CPUs, so "
+        "that they do not compete for the same cores. Best-effort: if it cannot "
+        "be applied the test still runs, with a warning",
+        choices=infra.cpu_isolation.MODES,
+        default=infra.cpu_isolation.MODE_OFF,
+    )
+    parser.add_argument(
+        "--isolated-node-cpus",
+        help="Number of CPUs reserved for the node when --cpu-isolation is on. "
+        "Rounded up to whole physical cores",
+        type=int,
+        default=infra.cpu_isolation.DEFAULT_NODE_CPUS,
     )
     parser.add_argument(
         "--key-space-size",

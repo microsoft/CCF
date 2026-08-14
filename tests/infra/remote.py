@@ -17,6 +17,7 @@ from packaging.version import (  # type: ignore
     Version,
 )
 
+import infra.cpu_isolation
 import infra.interfaces
 import infra.path
 import infra.platform_detection
@@ -60,12 +61,14 @@ class LocalRemote(CmdMixin):
         workspace,
         common_dir,
         env=None,
+        cpu_role=None,
         **kwargs,
     ):
         self.hostname = hostname
         self.exe_files = set(exe_files)
         self.data_files = data_files
         self._cmd = cmd
+        self.cpu_role = cpu_role
         self.root = os.path.join(workspace, name)
         self.common_dir = common_dir
         self.proc = None
@@ -154,12 +157,12 @@ class LocalRemote(CmdMixin):
         """
         Start cmd. stdout and err are captured to file locally.
         """
-        cmd = self.get_cmd()
-        LOG.info(f"[{self.hostname}] {cmd} (env: {self.env.keys()})")
+        cmd = infra.cpu_isolation.command_prefix(self.cpu_role) + self.cmd
+        LOG.info(f"[{self.hostname}] {' '.join(cmd)} (env: {self.env.keys()})")
         self.stdout = open(self.out, "wb")  # noqa: SIM115 - closed in stop()
         self.stderr = open(self.err, "wb")  # noqa: SIM115 - closed in stop()
         self.proc = subprocess.Popen(
-            self.cmd,
+            cmd,
             cwd=self.root,
             stdout=self.stdout,
             stderr=self.stderr,
@@ -667,6 +670,7 @@ class CCFRemote:
             workspace,
             common_dir,
             env,
+            cpu_role=infra.cpu_isolation.NODE,
             pid_file=node_pid_file,
             binary_dir=binary_dir,
             host=host,

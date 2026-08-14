@@ -1517,6 +1517,12 @@ if(BUILD_TESTS)
       2
       100
       1000
+      # Pin the node and the locust clients to disjoint CPUs, so the figures
+      # describe the node rather than how it and the load generator happened to
+      # divide the machine. This benchmark has no history on main yet, so
+      # turning isolation on here costs no comparability.
+      --cpu-isolation
+      auto
   )
 
   if(WORKER_THREADS)
