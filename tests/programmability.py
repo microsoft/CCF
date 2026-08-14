@@ -594,6 +594,7 @@ def deploy_npm_app_custom(network, args):
             headers={"Content-Type": "application/cose"},
         )
         assert r.status_code == http.HTTPStatus.NO_CONTENT.value, r.status_code
+        c.wait_for_commit(r)
 
     return network
 
