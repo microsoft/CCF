@@ -25,6 +25,7 @@ import infra.bencher
 import infra.e2e_args
 import infra.interfaces
 import infra.key_space
+import infra.net
 import infra.network
 import infra.proc
 from loguru import logger as LOG
@@ -93,6 +94,13 @@ def run_locust(args, network, primary) -> dict:
     # all of its users from one thread. Fork enough workers to keep the client
     # from being the bottleneck.
     cmd += ["--processes", f"{args.locust_processes}"]
+
+    # Workers reach the master over TCP, on a fixed port 5557 by default. Pick
+    # a free one instead, so that a second locust run on the same machine, from
+    # another test or another checkout, does not fail to bind.
+    master_port = infra.net.probably_free_local_port("localhost")
+    cmd += ["--master-bind-port", f"{master_port}"]
+    cmd += ["--master-port", f"{master_port}"]
 
     # Discard everything recorded while users were still being spawned, so the
     # reported numbers describe steady state at the full user count.
