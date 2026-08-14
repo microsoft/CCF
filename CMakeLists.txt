@@ -1498,6 +1498,11 @@ if(BUILD_TESTS)
       "samples/apps/basic/basic"
       --perf-label
       "Basic Blocking Locust"
+      # add_piccolo_test passes this for every piccolo perf test, but
+      # add_e2e_test does not, and the default is 10. Without it this
+      # benchmark snapshots every 10 transactions and measures the disk.
+      --snapshot-tx-interval
+      10000
       --users
       128
       --spawn-rate
