@@ -261,13 +261,13 @@ def cli_args():
         "--users",
         help="Number of concurrent locust users, each sending one blocking write at a time",
         type=int,
-        default=128,
+        default=320,
     )
     parser.add_argument(
         "--spawn-rate",
         help="Number of users to start per second",
         type=int,
-        default=128,
+        default=320,
     )
     parser.add_argument(
         "--measure-time-s",
@@ -279,7 +279,7 @@ def cli_args():
         "--locust-processes",
         help="Number of locust worker processes to fork",
         type=int,
-        default=4,
+        default=10,
     )
     parser.add_argument(
         "--sig-ms-intervals",
