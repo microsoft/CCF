@@ -1502,7 +1502,7 @@ if(BUILD_TESTS)
       128
       --spawn-rate
       128
-      --run-time-s
+      --measure-time-s
       20
   )
 
