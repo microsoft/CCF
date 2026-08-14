@@ -17,6 +17,7 @@ bencher metrics.
 
 import argparse
 import csv
+import math
 import os
 import subprocess
 
@@ -36,6 +37,14 @@ CSV_PREFIX = "locust"
 
 # Name of the row holding totals across all request types in locust's stats CSV.
 AGGREGATED_ROW_NAME = "Aggregated"
+
+# Slack allowed on top of the expected spawn and measurement time before the
+# run is considered stuck and killed by locust's own --run-time.
+RUN_TIME_MARGIN_S = 60
+
+# Shortest measurement window, as a fraction of the one requested, which is
+# still accepted as describing steady state.
+MIN_MEASURED_FRACTION = 0.9
 
 
 def locust_file_path() -> str:
@@ -69,7 +78,16 @@ def run_locust(args, network, primary) -> dict:
     # Load profile
     cmd += ["--users", f"{args.users}"]
     cmd += ["--spawn-rate", f"{args.spawn_rate}"]
-    cmd += ["--run-time", f"{args.run_time_s}s"]
+    cmd += ["--measure-time-s", f"{args.measure_time_s}"]
+
+    # The run is normally ended by the locustfile, a fixed time after the last
+    # user has spawned. This is only a backstop against a run which never
+    # finishes spawning, so it is deliberately generous: locust's --run-time
+    # includes the ramp, and pre-empting the real deadline would silently
+    # shorten the measurement window.
+    spawn_time_s = math.ceil(args.users / args.spawn_rate)
+    run_time_ceiling_s = spawn_time_s + args.measure_time_s + RUN_TIME_MARGIN_S
+    cmd += ["--run-time", f"{run_time_ceiling_s}s"]
 
     # A single locust process cannot saturate the service, because it drives
     # all of its users from one thread. Fork enough workers to keep the client
@@ -133,6 +151,20 @@ def run(args):
         if request_count == 0:
             raise RuntimeError("Locust recorded no requests")
 
+        # Locust reports throughput over the window its statistics cover, so
+        # the two together give the length of that window. Check it against the
+        # window that was asked for: a short window still yields a plausible
+        # looking throughput, so without this a truncated run would be reported
+        # as a valid result.
+        measured_duration_s = request_count / throughput
+        if measured_duration_s < args.measure_time_s * MIN_MEASURED_FRACTION:
+            raise RuntimeError(
+                f"Measured over {measured_duration_s:.1f}s, but expected "
+                f"{args.measure_time_s}s. The run was cut short, so this "
+                "result does not describe steady state."
+            )
+        LOG.info(f"Measured over {measured_duration_s:.1f}s")
+
         # Locust should already have exited non-zero, but do not report a
         # throughput figure built from failed requests under any circumstances.
         if failure_count != 0:
@@ -175,8 +207,8 @@ def cli_args():
         default=128,
     )
     parser.add_argument(
-        "--run-time-s",
-        help="Duration of the load, in seconds, excluding the time taken to spawn users",
+        "--measure-time-s",
+        help="Seconds to measure for, once all users have spawned",
         type=int,
         default=20,
     )
