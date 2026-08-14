@@ -1483,6 +1483,26 @@ if(BUILD_TESTS)
       "1,write,300000,primary"
   )
 
+  # Same workload as pi_basic_blocking, driven by locust rather than piccolo,
+  # so that the number of concurrent clients can be varied.
+  add_e2e_test(
+    NAME pi_basic_blocking_locust
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/basicperf_locust.py
+    LABEL perf
+    CONFIGURATIONS perf
+    ADDITIONAL_ARGS
+      --package
+      "samples/apps/basic/basic"
+      --perf-label
+      "Basic Blocking Locust"
+      --users
+      128
+      --spawn-rate
+      128
+      --run-time-s
+      20
+  )
+
   if(WORKER_THREADS)
     add_piccolo_test(
       NAME pi_basic_mt
