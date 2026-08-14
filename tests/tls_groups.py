@@ -16,6 +16,8 @@ WEAKEST_GROUP = "P-256"
 WEAKEST_GROUP_REPORTED = "prime256v1"
 
 # TLS NamedGroup IDs reported by OpenSSL 3.3
+# Match IANA Group IDs defined in
+# https://www.iana.org/assignments/tls-parameters/tls-parameters.xhtml#tls-parameters-8
 GROUP_IDS = {
     "23": WEAKEST_GROUP_REPORTED,
     "4587": "SecP256r1MLKEM768",
