@@ -377,7 +377,11 @@ def render_mermaid_radar_chart(
             if not branch_values:
                 continue
             baseline = branch_values[0]
-            sigma = 0.0
+            # Spread is measured the same way as for a benchmark with main
+            # history, from the runs available, so that such an axis carries a
+            # band and a noise threshold like every other one rather than
+            # collapsing to a point at the baseline.
+            sigma = statistics.pstdev(branch_values) if len(branch_values) > 1 else 0.0
 
         if baseline <= 0:
             continue
@@ -564,9 +568,10 @@ def render_comparison(
         "",
         (
             "_A benchmark which does not exist on `main` yet has no baseline of its "
-            "own, so this branch's earliest run is used as its reference instead. "
-            "Its axis is normalized and plotted like any other, but the comparison "
-            "is against this branch rather than against `main`._"
+            "own, so this branch's earliest run is used as its reference and its band "
+            "is measured across this branch's runs. Its axis is normalized, scaled and "
+            "coloured like any other, but the comparison is against this branch rather "
+            "than against `main`._"
         ),
         "",
         "</details>",
