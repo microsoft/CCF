@@ -248,19 +248,46 @@ def axis_label_color(percent: float, higher_is_better: bool, within_noise: bool)
     return LABEL_GOOD if improved else LABEL_BAD
 
 
+NEW_BENCHMARK_MARKER = "new"
+
+
+def shorten_label(label: str, max_length: int) -> str:
+    """Shorten a label to fit, keeping both ends.
+
+    Benchmarks measured at several settings differ only in their suffix, for
+    example the interval in "Basic Blocking Locust 100ms", so truncating the
+    end would render such axes indistinguishable from one another.
+    """
+    if len(label) <= max_length:
+        return label
+    if max_length <= 3:
+        return label[:max_length]
+    budget = max_length - 3
+    head = budget // 2
+    tail = budget - head
+    return f"{label[:head]}...{label[-tail:]}"
+
+
 def axis_label(
-    benchmark: str, value: float, percent: float, unit: str, within_noise: bool
+    benchmark: str,
+    value: float,
+    percent: float,
+    unit: str,
+    within_noise: bool,
+    is_new: bool = False,
 ) -> str:
     """Shorten benchmark labels and include the branch real value and delta."""
     label = SIG_MS_INTERVAL_RE.sub(r" \1", benchmark)
-    suffix = (
-        f": {metric_label_value(value, unit)} "
-        f"{format_delta_percent(percent, within_noise)}"
-    )
-    max_label_length = MAX_AXIS_LABEL_LENGTH - len(suffix)
-    if len(label) <= max_label_length:
-        return f"{label}{suffix}"
-    return f"{label[:max_label_length - 3]}...{suffix}"
+    if is_new:
+        # There is no baseline to express a difference against, so report the
+        # value alone and say why.
+        suffix = f": {metric_label_value(value, unit)} ({NEW_BENCHMARK_MARKER})"
+    else:
+        suffix = (
+            f": {metric_label_value(value, unit)} "
+            f"{format_delta_percent(percent, within_noise)}"
+        )
+    return f"{shorten_label(label, MAX_AXIS_LABEL_LENGTH - len(suffix))}{suffix}"
 
 
 def normalized_percent(value: float, baseline: float) -> float:
@@ -319,19 +346,39 @@ def render_mermaid_radar_chart(
             for data in trend
             if (value := metric_value(data, benchmark, metric)) is not None
         ]
-        if not main_values:
-            continue
 
-        baseline = ewma(main_values)
+        # A benchmark added by this branch has no main history to compare
+        # against. Rather than drop it, which would make a new benchmark
+        # invisible on the very PR that adds it, plot it against this branch's
+        # own earliest run so that movement across branch runs is still
+        # visible, and mark it so it is not mistaken for a main comparison.
+        is_new = not main_values
+        if is_new:
+            branch_values = [
+                value
+                for data in branch_runs
+                if (value := metric_value(data, benchmark, metric)) is not None
+            ]
+            if not branch_values:
+                continue
+            baseline = branch_values[0]
+            sigma = 0.0
+        else:
+            baseline = ewma(main_values)
+            sigma = statistics.pstdev(main_values) if len(main_values) > 1 else 0.0
+
         if baseline <= 0:
             continue
 
-        sigma = statistics.pstdev(main_values) if len(main_values) > 1 else 0.0
         branch_percent = normalized_percent(branch_value, baseline)
         sigma_percent = normalized_percent(sigma, baseline)
-        within_noise = within_noise_band(branch_percent, sigma_percent)
+        # Without a main baseline there is no improvement or regression to
+        # report, so such an axis is never coloured as either.
+        within_noise = (
+            True if is_new else within_noise_band(branch_percent, sigma_percent)
+        )
         axes.append(
-            f"b{index}[{mermaid_label(axis_label(benchmark, branch_value, branch_percent, unit, within_noise))}]"
+            f"b{index}[{mermaid_label(axis_label(benchmark, branch_value, branch_percent, unit, within_noise, is_new))}]"
         )
         axis_colors.append(
             axis_label_color(branch_percent, higher_better, within_noise)
@@ -505,6 +552,14 @@ def render_comparison(
             "regresses, and grey where the difference is within one std dev of the "
             "baseline (within noise). "
             "Higher is better for throughput and rate, lower for latency and memory._"
+        ),
+        "",
+        (
+            f"_A benchmark marked ({NEW_BENCHMARK_MARKER}) does not exist on `main` yet, "
+            "so it has no baseline to be compared against. It is plotted against this "
+            "branch's own earliest run instead, which shows how it moved across the "
+            "branch's runs but says nothing about `main`, and it is never coloured as "
+            "an improvement or a regression._"
         ),
         "",
         "</details>",
