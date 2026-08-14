@@ -1504,9 +1504,11 @@ if(BUILD_TESTS)
       --snapshot-tx-interval
       10000
       --users
-      128
+      320
       --spawn-rate
-      128
+      320
+      --locust-processes
+      10
       --measure-time-s
       20
       # Blocking writes return on commit, and commit cannot outpace the
