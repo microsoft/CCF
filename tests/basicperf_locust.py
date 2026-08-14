@@ -287,7 +287,7 @@ def cli_args():
         "Each is measured against its own network.",
         type=int,
         nargs="+",
-        default=[5, 100, 1000],
+        default=[2, 100, 1000],
     )
     parser.add_argument(
         "--key-space-size",

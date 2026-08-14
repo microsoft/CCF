@@ -1511,7 +1511,7 @@ if(BUILD_TESTS)
       # Blocking writes return on commit, and commit cannot outpace the
       # signature interval, so this sweeps from latency-bound to capacity-bound.
       --sig-ms-intervals
-      5
+      2
       100
       1000
   )
