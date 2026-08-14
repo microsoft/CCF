@@ -1506,6 +1506,12 @@ if(BUILD_TESTS)
       128
       --measure-time-s
       20
+      # Blocking writes return on commit, and commit cannot outpace the
+      # signature interval, so this sweeps from latency-bound to capacity-bound.
+      --sig-ms-intervals
+      5
+      100
+      1000
   )
 
   if(WORKER_THREADS)
