@@ -145,8 +145,18 @@ def stat_as_float(stats: dict, column: str) -> float:
         ) from e
 
 
-def run(args):
-    LOG.info(f"Starting nodes on {args.nodes}")
+def measure(args, sig_ms_interval: int) -> dict:
+    """Run the workload against a fresh network with the given signature
+    interval, and return the statistics locust recorded."""
+    args.sig_ms_interval = sig_ms_interval
+    # A response is only sent once its transaction commits, and commit cannot
+    # be observed any faster than the primary sends consensus updates. Move
+    # that in step with the signature interval, as commit_latency.py does,
+    # otherwise the shorter intervals are gated by the 100ms default and the
+    # setting has no effect.
+    args.consensus_update_timeout_ms = sig_ms_interval
+
+    LOG.info(f"Starting nodes on {args.nodes} with {sig_ms_interval}ms signatures")
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
     ) as network:
@@ -203,18 +213,44 @@ def run(args):
 
         network.stop_all_nodes()
 
-        bf = infra.bencher.Bencher()
-        bf.set(args.perf_label, infra.bencher.Throughput(round(throughput, 1)))
+        return {
+            "throughput": throughput,
+            "median_latency_ms": median_latency_ms,
+            "p99_latency_ms": p99_latency_ms,
+            "min_latency_ms": min_latency_ms,
+            "memory": mem,
+        }
+
+
+def run(args):
+    # Each interval needs its own network, since the signature interval is
+    # fixed in the node's configuration at startup.
+    results = {}
+    for sig_ms_interval in args.sig_ms_intervals:
+        results[sig_ms_interval] = measure(args, sig_ms_interval)
+
+    bf = infra.bencher.Bencher()
+    for sig_ms_interval, result in results.items():
+        label = f"{args.perf_label} (sig_ms_interval={sig_ms_interval}ms)"
+        bf.set(label, infra.bencher.Throughput(round(result["throughput"], 1)))
         bf.set(
-            args.perf_label,
+            label,
             infra.bencher.Latency(
-                value=median_latency_ms,
-                high_value=p99_latency_ms,
-                low_value=min_latency_ms,
+                value=result["median_latency_ms"],
+                high_value=result["p99_latency_ms"],
+                low_value=result["min_latency_ms"],
             ),
         )
-        if mem is not None:
-            bf.set_memory(args.perf_label, mem)
+        if result["memory"] is not None:
+            bf.set_memory(label, result["memory"])
+
+    LOG.info("Summary:")
+    for sig_ms_interval, result in results.items():
+        LOG.info(
+            f"  {sig_ms_interval:>5}ms signatures: "
+            f"{result['throughput']:>9.1f} tx/s, "
+            f"p50 {result['median_latency_ms']:.1f}ms"
+        )
 
 
 def cli_args():
@@ -244,6 +280,14 @@ def cli_args():
         help="Number of locust worker processes to fork",
         type=int,
         default=4,
+    )
+    parser.add_argument(
+        "--sig-ms-intervals",
+        help="Signature intervals, in milliseconds, to measure the workload at. "
+        "Each is measured against its own network.",
+        type=int,
+        nargs="+",
+        default=[5, 100, 1000],
     )
     parser.add_argument(
         "--key-space-size",
