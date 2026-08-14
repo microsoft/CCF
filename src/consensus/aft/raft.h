@@ -1315,8 +1315,7 @@ namespace aft
       if (!leader_id.has_value() || leader_id.value() != from)
       {
         set_leader_id(from);
-        RAFT_DEBUG_FMT(
-          "Node {} thinks leader is {}", state->node_id, leader_id.value());
+        RAFT_DEBUG_FMT("Node {} thinks leader is {}", state->node_id, from);
       }
 
       // Third, check index consistency, making sure entries are not in the past
