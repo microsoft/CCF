@@ -124,7 +124,15 @@ namespace aft
 
     // Volatile
     std::optional<ccf::NodeId> voted_for = std::nullopt;
+    // Public consensus queries may run on task workers while Raft messages are
+    // processed on the enclave main thread. Keep these small query fields
+    // independently synchronized so endpoint transactions do not need to take
+    // state->lock and invert the KV/Raft lock order.
+    mutable ccf::pal::Mutex public_state_lock;
     std::optional<ccf::NodeId> leader_id = std::nullopt;
+    Index published_last_idx = 0;
+    Index published_commit_idx = 0;
+    ViewHistory published_view_history;
 
     // Keep track of votes in each active configuration
     struct Votes
@@ -201,6 +209,105 @@ namespace aft
     // pre-deserialisation, without an additional header.
     static constexpr size_t max_terms_per_append_entries = 1;
 
+    // Called while state->lock is held.
+    void set_leader_id(const ccf::NodeId& leader)
+    {
+      std::lock_guard<ccf::pal::Mutex> guard(public_state_lock);
+      leader_id = leader;
+    }
+
+    // Called while state->lock is held.
+    void reset_leader_id()
+    {
+      std::lock_guard<ccf::pal::Mutex> guard(public_state_lock);
+      leader_id.reset();
+    }
+
+    // Called while state->lock is held.
+    void set_leadership_state(ccf::kv::LeadershipState leadership_state)
+    {
+      std::lock_guard<ccf::pal::Mutex> guard(public_state_lock);
+      state->leadership_state = leadership_state;
+    }
+
+    // Called while state->lock is held.
+    void set_current_view(Term view)
+    {
+      std::lock_guard<ccf::pal::Mutex> guard(public_state_lock);
+      state->current_view = view;
+    }
+
+    // Called while state->lock is held.
+    void advance_current_view(Term increment)
+    {
+      std::lock_guard<ccf::pal::Mutex> guard(public_state_lock);
+      state->current_view += increment;
+    }
+
+    // Called while state->lock is held.
+    void initialise_log_state(
+      Index last_idx,
+      Index commit_idx,
+      const std::vector<Index>& terms,
+      std::optional<std::pair<Index, Term>> view_update = std::nullopt)
+    {
+      state->last_idx = last_idx;
+      state->commit_idx = commit_idx;
+      state->view_history.initialise(terms);
+      if (view_update.has_value())
+      {
+        state->view_history.update(view_update->first, view_update->second);
+      }
+      publish_log_state();
+    }
+
+    // Called while state->lock is held.
+    void publish_replicated_entry(Index index, Term view)
+    {
+      state->last_idx = index;
+      state->view_history.update(index, view);
+      publish_log_state();
+    }
+
+    // Called while state->lock is held, or during construction.
+    void publish_log_state()
+    {
+      std::lock_guard<ccf::pal::Mutex> guard(public_state_lock);
+      published_last_idx = state->last_idx;
+      published_commit_idx = state->commit_idx;
+      published_view_history = state->view_history;
+    }
+
+    // Called while state->lock is held.
+    void update_view_history(Index index, Term view)
+    {
+      state->view_history.update(index, view);
+    }
+
+    // Called while state->lock is held.
+    void rollback_view_history(Index index)
+    {
+      state->view_history.rollback(index);
+    }
+
+    // Called while state->lock is held.
+    void set_last_idx(Index index)
+    {
+      state->last_idx = index;
+    }
+
+    // Called while state->lock is held.
+    void decrement_last_idx()
+    {
+      state->last_idx--;
+    }
+
+    // Called while state->lock is held.
+    void set_commit_idx(Index index)
+    {
+      state->commit_idx = index;
+    }
+
   public:
     static constexpr size_t append_entries_size_limit = 20000;
     std::unique_ptr<LedgerProxy> ledger;
@@ -239,6 +346,7 @@ namespace aft
       ledger(std::move(ledger_)),
       channels(std::move(channels_))
     {
+      publish_log_state();
       if (commit_callbacks != nullptr)
       {
         commit_callbacks->set_consensus(this);
@@ -249,6 +357,7 @@ namespace aft
 
     std::optional<ccf::NodeId> primary() override
     {
+      std::lock_guard<ccf::pal::Mutex> guard(public_state_lock);
       return leader_id;
     }
 
@@ -259,11 +368,13 @@ namespace aft
 
     bool is_primary() override
     {
+      std::lock_guard<ccf::pal::Mutex> guard(public_state_lock);
       return state->leadership_state == ccf::kv::LeadershipState::Leader;
     }
 
     bool is_candidate() override
     {
+      std::lock_guard<ccf::pal::Mutex> guard(public_state_lock);
       return state->leadership_state == ccf::kv::LeadershipState::Candidate;
     }
 
@@ -305,6 +416,7 @@ namespace aft
 
     bool is_backup() override
     {
+      std::lock_guard<ccf::pal::Mutex> guard(public_state_lock);
       return state->leadership_state == ccf::kv::LeadershipState::Follower;
     }
 
@@ -404,14 +516,14 @@ namespace aft
     {
       // This is unsafe and should only be called when the node is certain
       // there is no leader and no other node will attempt to force leadership.
+      std::lock_guard<ccf::pal::Mutex> guard(state->lock);
       if (leader_id.has_value())
       {
         throw std::logic_error(
           "Can't force leadership if there is already a leader");
       }
 
-      std::lock_guard<ccf::pal::Mutex> guard(state->lock);
-      state->current_view += starting_view_change;
+      advance_current_view(starting_view_change);
       become_leader(true);
     }
 
@@ -423,19 +535,16 @@ namespace aft
     {
       // This is unsafe and should only be called when the node is certain
       // there is no leader and no other node will attempt to force leadership.
+      std::lock_guard<ccf::pal::Mutex> guard(state->lock);
       if (leader_id.has_value())
       {
         throw std::logic_error(
           "Can't force leadership if there is already a leader");
       }
 
-      std::lock_guard<ccf::pal::Mutex> guard(state->lock);
-      state->current_view = term;
-      state->last_idx = index;
-      state->commit_idx = commit_idx_;
-      state->view_history.initialise(terms);
-      state->view_history.update(index, term);
-      state->current_view += starting_view_change;
+      initialise_log_state(
+        index, commit_idx_, terms, std::make_pair(index, term));
+      set_current_view(term + starting_view_change);
       become_leader(true);
     }
 
@@ -449,10 +558,7 @@ namespace aft
       // before it has received any append entries.
       std::lock_guard<ccf::pal::Mutex> guard(state->lock);
 
-      state->last_idx = index;
-      state->commit_idx = index;
-
-      state->view_history.initialise(term_history);
+      initialise_log_state(index, index, term_history);
 
       ledger->init(index, recovery_start_index);
 
@@ -461,44 +567,50 @@ namespace aft
 
     Index get_last_idx()
     {
-      return state->last_idx;
+      std::lock_guard<ccf::pal::Mutex> guard(public_state_lock);
+      return published_last_idx;
     }
 
     Index get_committed_seqno() override
     {
-      std::lock_guard<ccf::pal::Mutex> guard(state->lock);
-      return get_commit_idx_unsafe();
+      std::lock_guard<ccf::pal::Mutex> guard(public_state_lock);
+      return published_commit_idx;
     }
 
     Term get_view() override
     {
-      std::lock_guard<ccf::pal::Mutex> guard(state->lock);
+      std::lock_guard<ccf::pal::Mutex> guard(public_state_lock);
       return state->current_view;
     }
 
     std::pair<Term, Index> get_committed_txid() override
     {
-      std::lock_guard<ccf::pal::Mutex> guard(state->lock);
-      ccf::SeqNo commit_idx = get_commit_idx_unsafe();
-      return {get_term_internal(commit_idx), commit_idx};
+      std::lock_guard<ccf::pal::Mutex> guard(public_state_lock);
+      return {
+        published_view_history.view_at(published_commit_idx),
+        published_commit_idx};
     }
 
     Term get_view(Index idx) override
     {
-      std::lock_guard<ccf::pal::Mutex> guard(state->lock);
-      return get_term_internal(idx);
+      std::lock_guard<ccf::pal::Mutex> guard(public_state_lock);
+      if (idx > published_last_idx)
+      {
+        return ccf::VIEW_UNKNOWN;
+      }
+      return published_view_history.view_at(idx);
     }
 
     std::vector<Index> get_view_history(Index idx) override
     {
-      // This should only be called when the spin lock is held.
-      return state->view_history.get_history_until(idx);
+      std::lock_guard<ccf::pal::Mutex> guard(public_state_lock);
+      return published_view_history.get_history_until(idx);
     }
 
     std::vector<Index> get_view_history_since(Index idx) override
     {
-      // This should only be called when the spin lock is held.
-      return state->view_history.get_history_since(idx);
+      std::lock_guard<ccf::pal::Mutex> guard(public_state_lock);
+      return published_view_history.get_history_since(idx);
     }
 
     // Same as ccfraft.tla GetServerSet/IsInServerSet
@@ -706,13 +818,12 @@ namespace aft
           should_sign = false;
         }
 
-        state->last_idx = index;
         ledger->put_entry(
           *data, globally_committable, state->current_view, index);
         entry_size_not_limited += data->size();
         entry_count++;
 
-        state->view_history.update(index, state->current_view);
+        publish_replicated_entry(index, state->current_view);
         if (entry_size_not_limited >= append_entries_size_limit)
         {
           update_batch_size();
@@ -1203,7 +1314,7 @@ namespace aft
       restart_election_timeout();
       if (!leader_id.has_value() || leader_id.value() != from)
       {
-        leader_id = from;
+        set_leader_id(from);
         RAFT_DEBUG_FMT(
           "Node {} thinks leader is {}", state->node_id, leader_id.value());
       }
@@ -1377,10 +1488,11 @@ namespace aft
         if (apply_success == ccf::kv::ApplyResult::FAIL)
         {
           ledger->truncate(i - 1);
+          publish_log_state();
           send_append_entries_response_nack(from);
           return;
         }
-        state->last_idx = i;
+        set_last_idx(i);
 
         for (auto& hook : ds->get_hooks())
         {
@@ -1404,7 +1516,7 @@ namespace aft
           case ccf::kv::ApplyResult::FAIL:
           {
             RAFT_FAIL_FMT("Follower failed to apply log entry: {}", i);
-            state->last_idx--;
+            decrement_last_idx();
             ledger->truncate(state->last_idx);
             send_append_entries_response_nack(from);
             break;
@@ -1428,7 +1540,7 @@ namespace aft
               // happened in sig_term. We reflect this in the history.
               if (r.term_of_idx == aft::ViewHistory::InvalidView)
               {
-                state->view_history.update(1, r.term);
+                update_view_history(1, r.term);
               }
               else
               {
@@ -1439,7 +1551,7 @@ namespace aft
                   max_terms_per_append_entries == 1,
                   "AppendEntries processing for term updates assumes single "
                   "term");
-                state->view_history.update(r.prev_idx + 1, ds->get_term());
+                update_view_history(r.prev_idx + 1, ds->get_term());
               }
 
               commit_if_possible(r.leader_commit_idx);
@@ -1465,6 +1577,7 @@ namespace aft
       }
 
       execute_append_entries_finish(r, from);
+      publish_log_state();
     }
 
     void execute_append_entries_finish(
@@ -1483,7 +1596,7 @@ namespace aft
         // occurred, when processing a heartbeat at index 0, which does not
         // happen in a real node (due to the genesis transaction executing
         // before ticks start), but may happen in tests.
-        state->view_history.update(1, r.term);
+        update_view_history(1, r.term);
       }
       else
       {
@@ -1492,7 +1605,7 @@ namespace aft
         // after the previous signature we saw (lci, last committable index).
         if (r.idx > lci)
         {
-          state->view_history.update(lci + 1, r.term_of_idx);
+          update_view_history(lci + 1, r.term_of_idx);
         }
       }
 
@@ -1825,7 +1938,7 @@ namespace aft
       {
         // If we grant our vote to a candidate, then an election is in progress
         restart_election_timeout();
-        leader_id.reset();
+        reset_leader_id();
         voted_for = from;
       }
 
@@ -2102,8 +2215,8 @@ namespace aft
         return;
       }
 
-      state->leadership_state = ccf::kv::LeadershipState::PreVoteCandidate;
-      leader_id.reset();
+      set_leadership_state(ccf::kv::LeadershipState::PreVoteCandidate);
+      reset_leader_id();
 
       reset_votes_for_me();
       restart_election_timeout();
@@ -2147,12 +2260,12 @@ namespace aft
         return;
       }
 
-      state->leadership_state = ccf::kv::LeadershipState::Candidate;
-      leader_id.reset();
+      set_leadership_state(ccf::kv::LeadershipState::Candidate);
+      reset_leader_id();
 
       voted_for = state->node_id;
       reset_votes_for_me();
-      state->current_view++;
+      advance_current_view(1);
 
       restart_election_timeout();
       reset_last_ack_timeouts();
@@ -2204,8 +2317,8 @@ namespace aft
         store->initialise_term(state->current_view);
       }
 
-      state->leadership_state = ccf::kv::LeadershipState::Leader;
-      leader_id = state->node_id;
+      set_leadership_state(ccf::kv::LeadershipState::Leader);
+      set_leader_id(state->node_id);
       should_sign = true;
 
       using namespace std::chrono_literals;
@@ -2254,11 +2367,11 @@ namespace aft
     // primary node has not received a majority of acks (CheckQuorum)
     void become_follower()
     {
-      leader_id.reset();
+      reset_leader_id();
       restart_election_timeout();
       reset_last_ack_timeouts();
 
-      state->leadership_state = ccf::kv::LeadershipState::Follower;
+      set_leadership_state(ccf::kv::LeadershipState::Follower);
       RAFT_INFO_FMT(
         "Becoming follower {}: {}.{}",
         state->node_id,
@@ -2286,7 +2399,7 @@ namespace aft
       {
         voted_for.reset();
       }
-      state->current_view = term;
+      set_current_view(term);
       reset_votes_for_me();
       become_follower();
       is_new_follower = true;
@@ -2380,8 +2493,8 @@ namespace aft
       {
         nominate_successor();
 
-        leader_id.reset();
-        state->leadership_state = ccf::kv::LeadershipState::None;
+        reset_leader_id();
+        set_leadership_state(ccf::kv::LeadershipState::None);
       }
 
       state->membership_state = ccf::kv::MembershipState::Retired;
@@ -2518,6 +2631,7 @@ namespace aft
           if (term_of_new == state->current_view)
           {
             commit(new_commit_idx.value());
+            publish_log_state();
           }
           else
           {
@@ -2591,7 +2705,7 @@ namespace aft
 
       compact_committable_indices(idx);
 
-      state->commit_idx = idx;
+      set_commit_idx(idx);
       if (
         is_retired() &&
         state->retirement_phase == ccf::kv::RetirementPhase::Signed &&
@@ -2650,7 +2764,9 @@ namespace aft
       if (changed)
       {
         create_and_remove_node_state();
-        if (retired_node_cleanup && is_primary())
+        if (
+          retired_node_cleanup &&
+          state->leadership_state == ccf::kv::LeadershipState::Leader)
         {
           retired_node_cleanup->cleanup();
         }
@@ -2693,10 +2809,11 @@ namespace aft
 
       RAFT_DEBUG_FMT("Setting term in store to: {}", state->current_view);
       ledger->truncate(idx);
-      state->last_idx = idx;
+      set_last_idx(idx);
       RAFT_DEBUG_FMT("Rolled back at {}", idx);
 
-      state->view_history.rollback(idx);
+      rollback_view_history(idx);
+      publish_log_state();
 
       while (!state->committable_indices.empty() &&
              (state->committable_indices.back() > idx))
