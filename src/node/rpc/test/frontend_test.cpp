@@ -666,9 +666,7 @@ TEST_CASE("process with caller")
   CHECK(
     user_session->caller_cert_sha256 ==
     ccf::crypto::Sha256Hash(user_caller_der).hex_str());
-  CHECK(
-    anonymous_session->caller_cert_sha256 ==
-    ccf::crypto::Sha256Hash(anonymous_caller_der).hex_str());
+  CHECK(anonymous_session->caller_cert.empty());
 
   NetworkState network;
   prepare_callers(network);
