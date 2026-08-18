@@ -147,10 +147,7 @@ endif()
 
 # Must happen before tools.cmake is included
 if(CLANG_TIDY)
-  find_program(
-    CLANG_TIDY_EXE
-    NAMES "clang-tidy-18" "clang-tidy"
-  )
+  find_program(CLANG_TIDY_EXE NAMES "clang-tidy-18" "clang-tidy" REQUIRED)
   message(STATUS "Using clang-tidy from: ${CLANG_TIDY_EXE}")
 endif()
 
