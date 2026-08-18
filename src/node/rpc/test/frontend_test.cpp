@@ -487,6 +487,38 @@ public:
   }
 };
 
+class BlockingUserEndpointRegistry : public UserEndpointRegistry
+{
+  std::latch& init_started;
+  std::latch& continue_init;
+
+public:
+  std::atomic<size_t> init_count{0};
+  std::atomic<size_t> tick_count{0};
+
+  BlockingUserEndpointRegistry(
+    ccf::AbstractNodeContext& context,
+    std::latch& init_started_,
+    std::latch& continue_init_) :
+    UserEndpointRegistry(context),
+    init_started(init_started_),
+    continue_init(continue_init_)
+  {}
+
+  void init_handlers() override
+  {
+    ++init_count;
+    init_started.count_down();
+    continue_init.wait();
+    UserEndpointRegistry::init_handlers();
+  }
+
+  void tick(std::chrono::milliseconds) override
+  {
+    ++tick_count;
+  }
+};
+
 void publish_frontend_state(RpcHandler& frontend, NetworkState& network)
 {
   const auto consensus = network.tables->get_consensus();
@@ -514,6 +546,33 @@ void prepare_callers(NetworkState& network)
   member_id = InternalTablesAccess::add_member(tx, member_cert);
   invalid_member_id = InternalTablesAccess::add_member(tx, invalid_caller);
   CHECK(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+}
+
+TEST_CASE("Frontend opens atomically")
+{
+  NetworkState network;
+  prepare_callers(network);
+  ccf::StubNodeContext context;
+  std::latch init_started(1);
+  std::latch continue_init(1);
+  BlockingUserEndpointRegistry registry(context, init_started, continue_init);
+  RpcFrontend frontend(*network.tables, registry, context);
+
+  REQUIRE_FALSE(frontend.is_open());
+
+  std::thread opener([&frontend]() { frontend.open(); });
+  init_started.wait();
+  CHECK_FALSE(frontend.is_open());
+  frontend.tick(std::chrono::milliseconds(1));
+  CHECK(registry.tick_count.load() == 0);
+  continue_init.count_down();
+  opener.join();
+
+  REQUIRE(frontend.is_open());
+  frontend.tick(std::chrono::milliseconds(1));
+  frontend.open();
+  REQUIRE(registry.init_count.load() == 1);
+  REQUIRE(registry.tick_count.load() == 1);
 }
 
 TEST_CASE("Frontend state publication is thread-safe")

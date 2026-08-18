@@ -134,12 +134,6 @@ option(LONG_TESTS "Enable long end-to-end tests" OFF)
 option(USE_SNMALLOC "Link against snmalloc" ON)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/snmalloc.cmake)
 
-option(
-  TEST_HYBRID_TLS_GROUPS
-  "Assert that TLS handshakes negotiate a hybrid post-quantum group, which requires OpenSSL 3.5 or later"
-  OFF
-)
-
 option(CLANG_TIDY "Run clang-tidy on the codebase" OFF)
 
 option(
@@ -881,10 +875,6 @@ if(BUILD_TESTS)
 
     add_unit_test(tls_test ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/main.cpp)
     target_link_libraries(tls_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
-    target_compile_definitions(
-      tls_test
-      PRIVATE TEST_HYBRID_TLS_GROUPS=$<BOOL:${TEST_HYBRID_TLS_GROUPS}>
-    )
 
     add_unit_test(
       base64_test
@@ -939,6 +929,7 @@ if(BUILD_TESTS)
       ${CCF_DIR}/src/node/quote.cpp
       ${CCF_DIR}/src/node/uvm_endorsements.cpp
       ${CCF_DIR}/src/node/recovery_decision_protocol.cpp
+      DETECT_DEADLOCKS
     )
     target_link_libraries(
       frontend_test
@@ -1252,6 +1243,7 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
     CONSTITUTION ${CONSTITUTION_ARGS}
     BUCKET bucket_c
+    DETECT_DEADLOCKS
     ADDITIONAL_ARGS
       --initial-operator-count
       1
@@ -1290,6 +1282,7 @@ if(BUILD_TESTS)
     NAME e2e_logging
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
     BUCKET bucket_c
+    DETECT_DEADLOCKS
     ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
   )
 
@@ -1345,6 +1338,7 @@ if(BUILD_TESTS)
     NAME partitions
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/partitions_test.py
     LABEL partitions
+    DETECT_DEADLOCKS
     CONFIGURATIONS partitions
   )
 
@@ -1360,13 +1354,11 @@ if(BUILD_TESTS)
     BUCKET bucket_c
   )
 
-  if(TEST_HYBRID_TLS_GROUPS)
-    add_e2e_test(
-      NAME tls_groups_test
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/tls_groups.py
-      BUCKET bucket_a
-    )
-  endif()
+  add_e2e_test(
+    NAME tls_groups_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/tls_groups.py
+    BUCKET bucket_a
+  )
 
   if(CLIENT_PROTOCOLS_TEST)
     add_e2e_test(
