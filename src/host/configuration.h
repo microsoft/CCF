@@ -75,7 +75,7 @@ namespace host
     struct Memory
     {
       ccf::ds::SizeString circuit_size = {"16MB"};
-      ccf::ds::SizeString max_msg_size = {"65MB"};
+      ccf::ds::SizeString max_msg_size = {"64MB"};
       ccf::ds::SizeString max_fragment_size = {"256KB"};
 
       bool operator==(const Memory&) const = default;

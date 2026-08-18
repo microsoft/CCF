@@ -89,7 +89,7 @@
   "worker_threads": 0,
   "memory": {
     "circuit_size": "16MB",
-    "max_msg_size": "65MB",
+    "max_msg_size": "64MB",
     "max_fragment_size": "256KB"
   }
 }
