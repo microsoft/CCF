@@ -1512,8 +1512,8 @@ if(BUILD_TESTS)
       # signature interval, so this sweeps from latency-bound to capacity-bound.
       --sig-ms-intervals
       2
+      20
       100
-      1000
   )
 
   if(WORKER_THREADS)
