@@ -1017,6 +1017,19 @@ namespace ccf
         argv + argc, // NOLINT(cppcoreguidelines-pro-bounds-pointer-arithmetic)
         "\" \""));
 
+    // Validated before the --check early return, so that operators verifying a
+    // configuration file are told about a ledger/ring-buffer size mismatch
+    // rather than discovering it when the node starts for real
+    try
+    {
+      validate_ledger_transaction_size(config);
+    }
+    catch (const std::logic_error& e)
+    {
+      LOG_FATAL_FMT("{}. Exiting.", e.what());
+      return static_cast<int>(CLI::ExitCodes::ValidationError);
+    }
+
     if (check_config_only)
     {
       LOG_INFO_FMT("Configuration file successfully verified");
@@ -1042,7 +1055,6 @@ namespace ccf
 
     try
     {
-      validate_ledger_transaction_size(config);
       validate_and_adjust_recovery_threshold(config);
     }
     catch (const std::logic_error& e)
