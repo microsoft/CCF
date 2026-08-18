@@ -570,6 +570,11 @@
       "description": "This section includes configuration for periodic cleanup of old files (snapshots, ledger chunks)",
       "additionalProperties": false
     },
+    "pending_node_timeout": {
+      "type": "string",
+      "default": "1h",
+      "description": "Delay after which the primary automatically removes a node that remains Pending. Cleanup runs at least once per minute, so removal may occur up to one minute after this delay. A still-running joining node may register itself again on its next retry. Set to 0s to disable automatic removal."
+    },
     "identity_history_fetch": {
       "type": "object",
       "properties": {

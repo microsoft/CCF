@@ -9,6 +9,7 @@
 #include "ccf/http_query.h"
 #include "ccf/js/core/context.h"
 #include "ccf/json_handler.h"
+#include "ccf/node/node_configuration_interface.h"
 #include "ccf/node/quote.h"
 #include "ccf/odata_error.h"
 #include "ccf/pal/attestation.h"
@@ -35,6 +36,7 @@
 #include "service/tables/snapshot_status.h"
 #include "snapshots/filenames.h"
 
+#include <chrono>
 #include <llhttp/llhttp.h>
 #include <stdexcept>
 
@@ -266,6 +268,13 @@ namespace ccf
       return duplicate_node_id;
     }
 
+    static int64_t current_time_ms()
+    {
+      return std::chrono::duration_cast<std::chrono::milliseconds>(
+               std::chrono::system_clock::now().time_since_epoch())
+        .count();
+    }
+
     auto add_node(
       ccf::kv::Tx& tx,
       const std::vector<uint8_t>& node_der,
@@ -360,6 +369,11 @@ namespace ccf
         in.certificate_signing_request,
         client_public_key_pem,
         in.node_data};
+
+      if (node_status == NodeStatus::PENDING)
+      {
+        node_info.pending_since = current_time_ms();
+      }
 
       nodes->put(joining_node_id, node_info);
 
@@ -657,6 +671,75 @@ namespace ccf
       };
       make_endpoint("/join", HTTP_POST, json_adapter(accept), no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
+        .set_openapi_hidden(true)
+        .install();
+
+      auto remove_expired_pending = [this](auto& ctx, nlohmann::json&&) {
+        const auto node_configuration_subsystem =
+          this->context.get_subsystem<NodeConfigurationInterface>();
+        if (node_configuration_subsystem == nullptr)
+        {
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "NodeConfiguration subsystem is not available");
+        }
+
+        const auto pending_node_timeout = std::chrono::milliseconds(
+          node_configuration_subsystem->get().node_config.pending_node_timeout);
+        if (pending_node_timeout <= std::chrono::milliseconds::zero())
+        {
+          return make_success(true);
+        }
+
+        const auto now = current_time_ms();
+        auto nodes = ctx.tx.rw(network.nodes);
+        std::map<NodeId, NodeInfo> pending_nodes_to_timestamp;
+        std::vector<NodeId> expired_pending_nodes;
+        nodes->foreach([&](const auto& node_id, const auto& node_info) {
+          if (node_info.status != NodeStatus::PENDING)
+          {
+            return true;
+          }
+
+          if (
+            !node_info.pending_since.has_value() ||
+            node_info.pending_since.value() < 0 ||
+            node_info.pending_since.value() > now)
+          {
+            auto updated_node_info = node_info;
+            updated_node_info.pending_since = now;
+            pending_nodes_to_timestamp.emplace(
+              node_id, std::move(updated_node_info));
+          }
+          else if (
+            now - node_info.pending_since.value() >=
+            pending_node_timeout.count())
+          {
+            expired_pending_nodes.push_back(node_id);
+          }
+
+          return true;
+        });
+
+        for (const auto& [node_id, node_info] : pending_nodes_to_timestamp)
+        {
+          nodes->put(node_id, node_info);
+        }
+
+        for (const auto& node_id : expired_pending_nodes)
+        {
+          LOG_INFO_FMT("Removing expired Pending node {}", node_id);
+          InternalTablesAccess::remove_node(ctx.tx, node_id);
+        }
+
+        return make_success(true);
+      };
+      make_endpoint(
+        "network/nodes/remove_expired_pending",
+        HTTP_POST,
+        json_adapter(remove_expired_pending),
+        {std::make_shared<NodeCertAuthnPolicy>()})
         .set_openapi_hidden(true)
         .install();
 
