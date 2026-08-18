@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/historical_queries_interface.h"
+#include "ccf/node/node_configuration_interface.h"
 #include "kv/test/stub_consensus.h"
 #include "node/recovery_decision_protocol.h"
 #include "node/rpc/gov_effects_interface.h"
@@ -277,12 +278,25 @@ namespace ccf
     }
   };
 
+  class StubNodeConfiguration : public ccf::NodeConfigurationInterface
+  {
+  public:
+    ccf::StartupConfig config = {};
+    ccf::NodeConfigurationState state = {config, {}, true};
+
+    const ccf::NodeConfigurationState& get() override
+    {
+      return state;
+    }
+  };
+
   struct StubNodeContext : public ccf::AbstractNodeContext
   {
   public:
     std::shared_ptr<StubNodeOperation> node_operation = nullptr;
     std::shared_ptr<StubGovernanceEffects> gov_effects = nullptr;
     std::shared_ptr<StubNodeStateCache> cache = nullptr;
+    std::shared_ptr<StubNodeConfiguration> node_configuration = nullptr;
 
     StubNodeContext()
     {
@@ -294,6 +308,9 @@ namespace ccf
 
       cache = std::make_shared<StubNodeStateCache>();
       install_subsystem(cache);
+
+      node_configuration = std::make_shared<StubNodeConfiguration>();
+      install_subsystem<ccf::NodeConfigurationInterface>(node_configuration);
     }
 
     ccf::NodeId get_node_id() const override

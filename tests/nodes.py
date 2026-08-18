@@ -6,6 +6,7 @@ import math
 import time
 
 import committable
+import e2e_operations
 import infra.checker
 import infra.e2e_args
 import infra.network
@@ -284,6 +285,12 @@ if __name__ == "__main__":
 
     cr = ConcurrentRunner(add)
     args = copy.deepcopy(cr.args)
+
+    cr.add(
+        "pending_node_expiration",
+        e2e_operations.run_pending_node_expiration,
+        package="samples/apps/logging/logging",
+    )
 
     cr.add(
         "rotation",

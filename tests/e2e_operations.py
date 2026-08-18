@@ -4781,6 +4781,57 @@ def run_ledger_chunk_cleanup_tests(const_args):
             test_ledger_chunk_cleanup_digest_mismatch(network, args)
 
 
+@reqs.description("Pending node entries expire after the configured timeout")
+def test_pending_node_expiration(network, args):
+    primary, _ = network.find_primary()
+    pending_node = network.create_node()
+    network.join_node(
+        pending_node,
+        args.package,
+        args,
+        target_node=primary,
+        from_snapshot=False,
+    )
+
+    with primary.client() as c:
+        r = c.get(f"/node/network/nodes/{pending_node.node_id}")
+        assert r.status_code == http.HTTPStatus.OK, r
+        assert r.body.json()["status"] == "Pending", r.body.json()
+
+    pending_node.stop()
+
+    end_time = time.time() + 10
+    with primary.client() as c:
+        while time.time() < end_time:
+            r = c.get(f"/node/network/nodes/{pending_node.node_id}")
+            if r.status_code == http.HTTPStatus.NOT_FOUND:
+                break
+            assert r.status_code == http.HTTPStatus.OK, r
+            assert r.body.json()["status"] == "Pending", r.body.json()
+            time.sleep(0.1)
+        else:
+            raise TimeoutError(f"Pending node {pending_node.node_id} was not removed")
+
+    return network
+
+
+def run_pending_node_expiration(const_args):
+    args = copy.deepcopy(const_args)
+    args.label += "_pending_node_expiration"
+    args.nodes = infra.e2e_args.min_nodes(args, f=0)
+    args.pending_node_timeout = "2s"
+
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        pdb=args.pdb,
+        txs=app.LoggingTxs("user0"),
+    ) as network:
+        network.start_and_open(args)
+        test_pending_node_expiration(network, args)
+
+
 def run(args):
     run_ledger_viz_test(args)
     run_split_ledger_test(args)
@@ -4797,6 +4848,7 @@ def run(args):
     run_tls_san_checks(args)
     run_tls_san_join_mismatch(args)
     run_config_timeout_check(args)
+    run_pending_node_expiration(args)
     run_configuration_file_checks(args)
     run_pid_file_check(args)
     run_preopen_readiness_check(args)

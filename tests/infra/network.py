@@ -192,6 +192,7 @@ class Network:
         "log_format_json",
         "constitution",
         "join_timer_s",
+        "pending_node_timeout",
         "worker_threads",
         "ledger_chunk_bytes",
         "subject_alt_names",

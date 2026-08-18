@@ -31,7 +31,8 @@ namespace ccf
       {
         if (!opt_ni.has_value())
         {
-          // Deleted node will have already been retired
+          // Deleted Pending nodes were never added to consensus, while other
+          // deleted nodes will have already been retired.
           continue;
         }
 
