@@ -23,7 +23,7 @@ function(add_e2e_test)
   cmake_parse_arguments(
     PARSE_ARGV 0
     PARSED_ARGS
-    ""
+    "DETECT_DEADLOCKS"
     "NAME;PYTHON_SCRIPT;LABEL;CURL_CLIENT;BUCKET"
     "CONSTITUTION;ADDITIONAL_ARGS;CONFIGURATIONS"
   )
