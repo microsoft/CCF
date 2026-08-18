@@ -26,6 +26,7 @@
 #include <latch>
 #include <string>
 #include <thread>
+#include <type_traits>
 
 using namespace ccf;
 using namespace std;
@@ -462,6 +463,10 @@ auto member_session =
 auto anonymous_session =
   make_shared<ccf::SessionContext>(ccf::InvalidSessionId, anonymous_caller_der);
 
+static_assert(
+  std::is_const_v<decltype(user_session->caller_cert)>,
+  "Session caller certificates must remain immutable");
+
 UserId user_id;
 
 MemberId member_id;
@@ -658,6 +663,13 @@ TEST_CASE("SignedReq to and from json")
 
 TEST_CASE("process with caller")
 {
+  CHECK(
+    user_session->caller_cert_sha256 ==
+    ccf::crypto::Sha256Hash(user_caller_der).hex_str());
+  CHECK(
+    anonymous_session->caller_cert_sha256 ==
+    ccf::crypto::Sha256Hash(anonymous_caller_der).hex_str());
+
   NetworkState network;
   prepare_callers(network);
   TestUserFrontend frontend(*network.tables);
