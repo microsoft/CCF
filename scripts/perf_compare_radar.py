@@ -5,10 +5,10 @@
 recent trend on ``main``.
 
 For each metric, benchmarks form the radar axes. Two nested shaded bands show the
-EWMA baseline +/- 1 and +/- 2 standard deviations of the most recent ``main``
-runs. Up to five branch curves run from the oldest and faintest to the latest and
-strongest. Values are normalized per benchmark so that 100 is the ``main`` EWMA
-baseline.
+baseline +/- 1 and +/- 2 standard deviations. Up to five branch curves run from
+the oldest and faintest to the latest and strongest. Values are normalized per
+benchmark so that 100 is the ``main`` EWMA baseline, or the earliest available
+branch value when the benchmark does not exist on ``main`` yet.
 """
 
 import os
@@ -271,10 +271,16 @@ def shorten_label(label: str, max_length: int) -> str:
     so eliding from the left keeps the part which tells them apart readable for
     as long as possible.
     """
+    if max_length <= 0:
+        return ""
     if len(label) <= max_length:
         return label
 
-    words = label.split(" ")
+    words = label.split()
+    elided = " ".join(words)
+    if len(elided) <= max_length:
+        return elided
+
     for index, word in enumerate(words):
         if len(word) < MIN_ELIDABLE_WORD_LENGTH:
             continue
@@ -300,7 +306,11 @@ def axis_label(
         f": {metric_label_value(value, unit)} "
         f"{format_delta_percent(percent, within_noise)}"
     )
-    return f"{shorten_label(label, MAX_AXIS_LABEL_LENGTH - len(suffix))}{suffix}"
+    shortened_suffix = shorten_label(suffix, MAX_AXIS_LABEL_LENGTH)
+    return (
+        f"{shorten_label(label, MAX_AXIS_LABEL_LENGTH - len(shortened_suffix))}"
+        f"{shortened_suffix}"
+    )
 
 
 def normalized_percent(value: float, baseline: float) -> float:
@@ -337,7 +347,11 @@ def render_mermaid_radar_chart(
     unit: str,
     branch_label: str,
 ) -> str:
-    """Render one radar chart comparing the branch runs with the main trend."""
+    """Render one radar chart comparing the branch runs with the main trend.
+
+    ``branch_runs`` must be ordered chronologically, oldest first, as returned by
+    ``load_runs``.
+    """
     higher_better = metric in HIGHER_IS_BETTER
     latest_branch = branch_runs[-1]
     axes: list[str] = []
@@ -376,6 +390,8 @@ def render_mermaid_radar_chart(
             ]
             if not branch_values:
                 continue
+            # load_runs orders branch_runs oldest first, so this is the earliest
+            # available value for the metric.
             baseline = branch_values[0]
             # Spread is measured the same way as for a benchmark with main
             # history, from the runs available, so that such an axis carries a
@@ -568,10 +584,10 @@ def render_comparison(
         "",
         (
             "_A benchmark which does not exist on `main` yet has no baseline of its "
-            "own, so this branch's earliest run is used as its reference and its band "
-            "is measured across this branch's runs. Its axis is normalized, scaled and "
-            "coloured like any other, but the comparison is against this branch rather "
-            "than against `main`._"
+            "own, so its earliest available run from this branch is used as its "
+            "reference and its band is measured across this branch's runs. Its axis is "
+            "normalized, scaled and coloured like any other, but the comparison is "
+            "against this branch rather than against `main`._"
         ),
         "",
         "</details>",
