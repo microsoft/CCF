@@ -76,6 +76,20 @@ class E2EArgsTest(unittest.TestCase):
         ):
             self.parse_args(use_host_config_defaults=True)
 
+    def test_missing_wildcard_schema_property_has_clear_error(self):
+        schema = infra.e2e_args._load_host_config_schema()
+        del schema["properties"]["network"]["properties"]["rpc_interfaces"][
+            "additionalProperties"
+        ]
+
+        with patch.object(
+            infra.e2e_args, "_load_host_config_schema", return_value=schema
+        ), self.assertRaisesRegex(
+            KeyError,
+            r"additionalProperties.*network\.rpc_interfaces\.\*",
+        ):
+            self.parse_args(use_host_config_defaults=True)
+
     def test_start_network_uses_host_config_defaults(self):
         result = subprocess.run(
             [

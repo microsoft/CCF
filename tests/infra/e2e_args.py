@@ -130,7 +130,12 @@ def _get_schema_property(schema, config_path):
     current = schema
     for name in config_path.split("."):
         if name == "*":
-            current = current["additionalProperties"]
+            additional_properties = current.get("additionalProperties")
+            if not isinstance(additional_properties, dict):
+                raise KeyError(
+                    f"Expected additionalProperties while resolving {config_path}"
+                )
+            current = additional_properties
             continue
 
         matches = []
