@@ -36,4 +36,38 @@ For a finer grained view of performance the clients in these tests can also dump
 Profiling
 ---------
 
-End-to-end performance tests can be run with the linux utility ``perf`` attached to the nodes to produce profile data. Set the `CCF_PERF` environment variable before running a test to enable this.
+End-to-end performance tests can be run with the Linux utility ``perf``
+attached to the nodes to produce profile data. Set the ``CCF_PERF`` environment
+variable before running a test to enable this:
+
+.. code-block:: bash
+
+    CCF_PERF=1 ./tests.sh -VV -R '^pi_basic$' -C perf
+
+By default, nodes run under
+``perf record -m 16 -e task-clock:u -F 99 -g --call-graph dwarf --quiet``.
+The small mmap buffer also works in constrained environments such as
+Codespaces, while user-only quiet sampling avoids irrelevant kernel symbol
+warnings in node error logs. Set ``CCF_PERF_ARGS`` to replace these recording
+options. The output path remains fixed: each node writes ``perf.data`` in its
+workspace directory.
+
+The profiling process requires permission to use ``perf_event_open``. The
+Azure Linux 4 development container installs ``perf`` and grants the
+``PERFMON`` capability. Hardware performance counters may still be unavailable
+when the host does not expose a hardware PMU; the default software task-clock
+event remains available in that case.
+
+Inspect the recorded profile directly with:
+
+.. code-block:: bash
+
+    perf report --stdio --no-children -i workspace/pi_basic_0/perf.data
+
+To render a flame graph with the Inferno tools, run:
+
+.. code-block:: bash
+
+    perf script -i workspace/pi_basic_0/perf.data \
+      | inferno-collapse-perf \
+      | inferno-flamegraph > pi_basic_flamegraph.svg
