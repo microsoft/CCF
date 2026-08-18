@@ -1073,7 +1073,8 @@ AppendEntriesAlreadyDone(i, j, index, m) ==
           /\ \A idx \in 1..Len(m.entries) :
                 log[i][index + (idx - 1)].term = m.entries[idx].term
     \* See condition guards in commit() and commit_if_possible(), raft.h
-    /\ LET newCommitIndex == max(min(MaxCommittableIndex(log[i]), m.commitIndex), commitIndex[i])
+    /\ LET requestEndIndex == m.prevLogIndex + Len(m.entries)
+           newCommitIndex == max(min(min(MaxCommittableIndex(log[i]), m.commitIndex), requestEndIndex), commitIndex[i])
            newConfigurationIndex == LastConfigurationToIndex(i, newCommitIndex)
        IN /\ commitIndex' = [commitIndex EXCEPT ![i] = newCommitIndex]
           \* Pop any newly committed reconfigurations, except the most recent
@@ -1121,7 +1122,8 @@ NoConflictAppendEntriesRequest(i, j, m) ==
     \* If new txs include reconfigurations, add them to configurations
     \* Also, if the commitIndex is updated, we may pop some old configs at the same time
     /\ LET
-        new_commit_index == max(min(MaxCommittableIndex(log'[i]), m.commitIndex), commitIndex[i])
+        request_end_index == m.prevLogIndex + Len(m.entries)
+        new_commit_index == max(min(min(MaxCommittableIndex(log'[i]), m.commitIndex), request_end_index), commitIndex[i])
         new_indexes == m.prevLogIndex + 1 .. m.prevLogIndex + Len(m.entries)
         \* log entries to be added to the log
         new_log_entries == 

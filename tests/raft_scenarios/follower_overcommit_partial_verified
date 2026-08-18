@@ -127,5 +127,6 @@ dispatch_single,2,0
 periodic_one,0,10
 summarise_messages,0,2
 
-# Expected failure: node 2 advances commit to its divergent 3.8 suffix.
+# Node 2 only commits through the range verified by this request.
 dispatch_single,0,2
+assert_commit_idx,2,6
