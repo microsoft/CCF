@@ -134,12 +134,6 @@ option(LONG_TESTS "Enable long end-to-end tests" OFF)
 option(USE_SNMALLOC "Link against snmalloc" ON)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/snmalloc.cmake)
 
-option(
-  TEST_HYBRID_TLS_GROUPS
-  "Assert that TLS handshakes negotiate a hybrid post-quantum group, which requires OpenSSL 3.5 or later"
-  OFF
-)
-
 option(CLANG_TIDY "Run clang-tidy on the codebase" OFF)
 
 option(
@@ -719,10 +713,6 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/host/test/openssl_server_test.cpp
     )
     target_link_libraries(openssl_server_test PRIVATE ccf_tasks http_parser uv)
-    target_compile_definitions(
-      openssl_server_test
-      PRIVATE TEST_HYBRID_TLS_GROUPS=$<BOOL:${TEST_HYBRID_TLS_GROUPS}>
-    )
 
     add_unit_test(
       raft_test
@@ -1363,13 +1353,11 @@ if(BUILD_TESTS)
     BUCKET bucket_c
   )
 
-  if(TEST_HYBRID_TLS_GROUPS)
-    add_e2e_test(
-      NAME tls_groups_test
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/tls_groups.py
-      BUCKET bucket_a
-    )
-  endif()
+  add_e2e_test(
+    NAME tls_groups_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/tls_groups.py
+    BUCKET bucket_a
+  )
 
   if(CLIENT_PROTOCOLS_TEST)
     add_e2e_test(

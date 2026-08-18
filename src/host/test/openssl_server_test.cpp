@@ -41,12 +41,6 @@
 
 using namespace asynchost;
 
-// Set by the build when the toolchain's OpenSSL is new enough (3.5+) to
-// negotiate the hybrid post-quantum groups the server offers.
-#ifndef TEST_HYBRID_TLS_GROUPS
-#  define TEST_HYBRID_TLS_GROUPS 0
-#endif
-
 namespace
 {
   // The host process ignores SIGPIPE (see src/host/run.cpp), so writes to a
@@ -264,6 +258,17 @@ namespace
     SSL_CTX_free(cctx);
     ::close(fd);
     return result;
+  }
+
+  bool supports_hybrid_groups()
+  {
+    SSL_CTX* ctx = SSL_CTX_new(TLS_client_method());
+    REQUIRE(ctx != nullptr);
+    const bool supported =
+      SSL_CTX_set1_groups_list(
+        ctx, "SecP384r1MLKEM1024:SecP256r1MLKEM768:X25519MLKEM768") == 1;
+    SSL_CTX_free(ctx);
+    return supported;
   }
 
   // Handshakes with a client that verifies the server certificate against
@@ -1817,10 +1822,13 @@ TEST_CASE("Server restricts key exchange groups to the configured list")
   }
 }
 
-TEST_CASE(
-  "Server prefers the strongest hybrid post-quantum group" *
-  doctest::skip(TEST_HYBRID_TLS_GROUPS == 0))
+TEST_CASE("Server prefers the strongest hybrid post-quantum group")
 {
+  if (!supports_hybrid_groups())
+  {
+    return;
+  }
+
   auto [cert, key] = make_server_cert();
   EchoServer s(cert, key);
 
