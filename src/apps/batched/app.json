@@ -21,6 +21,17 @@
         "mode": "readonly",
         "openapi": {}
       }
+    },
+    "/batch/generate": {
+      "post": {
+        "js_module": "batched.js",
+        "js_function": "generate_response",
+        "forwarding_required": "never",
+        "redirection_strategy": "none",
+        "authn_policies": ["user_cert"],
+        "mode": "readonly",
+        "openapi": {}
+      }
     }
   }
 }

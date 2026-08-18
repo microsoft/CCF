@@ -30,3 +30,10 @@ export function fetch_batch(request) {
     body: results,
   };
 }
+
+export function generate_response(request) {
+  const size = request.body.json().size;
+  return {
+    body: "X".repeat(size),
+  };
+}

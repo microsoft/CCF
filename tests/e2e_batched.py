@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
+import http
 import itertools
 import time
 from hashlib import sha256
@@ -13,6 +14,23 @@ import suite.test_requirements as reqs
 from loguru import logger as LOG
 
 id_gen = itertools.count()
+
+
+@reqs.description("Generate a response at the ringbuffer message size limit")
+def test_large_response(network, args):
+    primary, _ = network.find_primary()
+    response_size = int(args.max_msg_size_bytes)
+
+    LOG.info(f"Generating a {response_size} byte response")
+    with primary.client("user0") as c:
+        response = c.post("/app/batch/generate", {"size": response_size}, timeout=30)
+        assert response.status_code == http.HTTPStatus.OK, response
+        body = response.body.data()
+        assert len(body) == response_size
+        assert body[:1] == b"X"
+        assert body[-1:] == b"X"
+
+    return network
 
 
 @reqs.description("Running batch submission of new entries")
@@ -62,6 +80,7 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
+        network = test_large_response(network, args)
         network = test(network, args, batch_size=1)
         network = test(network, args, batch_size=10)
         network = test(network, args, batch_size=100)
