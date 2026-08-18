@@ -1060,6 +1060,12 @@ def test_joining_nodes_snapshot_ledger_offset(network, args):
     snapshot_chunk_start = None
     snapshot_chunk_entries = None
     post_snapshot_entries = []
+    base_dir = os.path.join(network.common_dir, "joining_nodes_snapshot_ledger_offset")
+    rmtree(base_dir, ignore_errors=True)
+    os.makedirs(base_dir)
+    prefix_source_dir = os.path.join(base_dir, "ledger.prefix")
+    os.makedirs(prefix_source_dir)
+    prefix_ledger_paths = []
     with primary.download_ledger(target_seqno, local_only=True) as ledger_paths:
         ledger = ccf.ledger.Ledger(ledger_paths)
         for chunk in ledger:
@@ -1084,6 +1090,14 @@ def test_joining_nodes_snapshot_ledger_offset(network, args):
                 if snapshot_seqno < seqno <= rest_txid.seqno
             )
 
+        assert (
+            snapshot_chunk_start is not None
+        ), f"Could not find ledger chunk ending at snapshot seqno {snapshot_seqno}"
+        for source_path in ledger_paths:
+            _, range_end = ccf.ledger.range_from_filename(source_path)
+            if range_end is not None and range_end < snapshot_chunk_start:
+                prefix_ledger_paths.append(copy(source_path, prefix_source_dir))
+
     assert (
         snapshot_chunk_start is not None
     ), f"Could not find ledger chunk ending at snapshot seqno {snapshot_seqno}"
@@ -1100,10 +1114,6 @@ def test_joining_nodes_snapshot_ledger_offset(network, args):
         post_snapshot_entries
     ), f"Expected ledger entries after snapshot {snapshot_seqno}"
     assert post_snapshot_entries[0][0] == snapshot_seqno + 1, post_snapshot_entries[0]
-
-    base_dir = os.path.join(network.common_dir, "joining_nodes_snapshot_ledger_offset")
-    rmtree(base_dir, ignore_errors=True)
-    os.makedirs(base_dir)
 
     variants = [
         (
@@ -1129,10 +1139,8 @@ def test_joining_nodes_snapshot_ledger_offset(network, args):
         os.makedirs(current_dir)
         os.makedirs(prefix_dir)
 
-        for source_path in downloaded_ledger:
-            _, range_end = ccf.ledger.range_from_filename(source_path)
-            if range_end is not None and range_end < snapshot_chunk_start:
-                copy(source_path, prefix_dir)
+        for source_path in prefix_ledger_paths:
+            copy(source_path, prefix_dir)
 
         for entries, end_seqno, complete in chunks_to_write:
             infra.utils.write_ledger_chunk(current_dir, entries, end_seqno, complete)
