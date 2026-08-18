@@ -166,6 +166,12 @@ def _apply_host_config_defaults(parser):
 
     for destination, config_path in CLI_ARGUMENT_CONFIG_PATHS.items():
         config_property = _get_schema_property(schema, config_path)
+        missing_metadata = {"default", "description"} - config_property.keys()
+        if missing_metadata:
+            raise KeyError(
+                f"Host config schema property {config_path} for CLI argument "
+                f"{destination} is missing: {', '.join(sorted(missing_metadata))}"
+            )
         converter = _CONFIG_DEFAULT_CONVERTERS.get(destination, lambda value: value)
         actions[destination].default = converter(config_property["default"])
         actions[destination].help = config_property["description"]

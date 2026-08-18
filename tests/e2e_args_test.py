@@ -64,6 +64,18 @@ class E2EArgsTest(unittest.TestCase):
 
         self.assertEqual(args.sig_ms_interval, 250)
 
+    def test_missing_schema_metadata_has_clear_error(self):
+        schema = infra.e2e_args._load_host_config_schema()
+        del schema["properties"]["ledger_signatures"]["properties"]["delay"]["default"]
+
+        with patch.object(
+            infra.e2e_args, "_load_host_config_schema", return_value=schema
+        ), self.assertRaisesRegex(
+            KeyError,
+            "ledger_signatures.delay.*sig_ms_interval.*default",
+        ):
+            self.parse_args(use_host_config_defaults=True)
+
     def test_start_network_uses_host_config_defaults(self):
         result = subprocess.run(
             [
@@ -79,9 +91,9 @@ class E2EArgsTest(unittest.TestCase):
 
         normalised_help = " ".join(result.stdout.split())
         schema = infra.e2e_args._load_host_config_schema()
-        signature_description = schema["properties"]["ledger_signatures"][
-            "properties"
-        ]["delay"]["description"]
+        signature_description = schema["properties"]["ledger_signatures"]["properties"][
+            "delay"
+        ]["description"]
         self.assertIn(signature_description, normalised_help)
         self.assertIn("(default: 1000)", normalised_help)
 
