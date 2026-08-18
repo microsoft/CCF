@@ -31,7 +31,8 @@ ccf::crypto::Pem key = {};
 std::string key_id = "Invalid";
 std::shared_ptr<::tls::Cert> tls_cert = nullptr;
 
-static int64_t get_realtime_us()
+static int64_t get_realtime_us()
+
 {
   timespec timestamp;
   clock_gettime(CLOCK_REALTIME, &timestamp);
