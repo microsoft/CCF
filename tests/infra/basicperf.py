@@ -321,6 +321,7 @@ def run(args):
                 LOG.info(f"Writing generated requests to {path_to_requests_file}")
                 msgs.to_parquet_file(path_to_requests_file)
                 requests_file_paths.append(path_to_requests_file)
+                del msgs
                 node = None
                 if target == "primary":
                     node = primary
