@@ -2263,8 +2263,8 @@ class Network:
             timeout=timeout,
         )
         if self._supports_operator_feature(primary, "LedgerChunkRead"):
-            ledger = primary.get_ledger_chunk_from_api(seqno, timeout=timeout)
-            return ledger.get_transaction(seqno).get_public_domain().get_tables()
+            with primary.get_ledger_chunk_from_api(seqno, timeout=timeout) as ledger:
+                return ledger.get_transaction(seqno).get_public_domain().get_tables()
 
         return primary.get_ledger_public_tables_at(seqno)
 

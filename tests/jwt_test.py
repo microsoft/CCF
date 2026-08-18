@@ -805,25 +805,24 @@ def test_jwt_key_auto_refresh_entries(network, args):
         target_seqno = network.create_and_wait_for_ledger_chunk(primary)
         # Check that despite refreshing JWTs multiple times, only a single
         # transaction was created for this kid.
-        ledger = primary.get_ledger_from_api(target_seqno)
-
-        last_key_refresh = None
-        for chunk in ledger:
-            for tx in chunk:
-                txid = TxID(tx.gcm_header.view, tx.gcm_header.seqno)
-                tables = tx.get_public_domain().get_tables()
-                if "public:ccf.gov.jwt.public_signing_keys_metadata_v2" in tables:
-                    pub_keys = tables[
-                        "public:ccf.gov.jwt.public_signing_keys_metadata_v2"
-                    ]
-                    if kid.encode() in pub_keys:
-                        if last_key_refresh is None:
-                            LOG.info(f"Refresh found for kid: {kid} at {txid}")
-                            last_key_refresh = txid
-                        else:
-                            assert (
-                                last_key_refresh == txid
-                            ), "Duplicate JWT refresh transaction"
+        with primary.get_ledger_from_api(target_seqno) as ledger:
+            last_key_refresh = None
+            for chunk in ledger:
+                for tx in chunk:
+                    txid = TxID(tx.gcm_header.view, tx.gcm_header.seqno)
+                    tables = tx.get_public_domain().get_tables()
+                    if "public:ccf.gov.jwt.public_signing_keys_metadata_v2" in tables:
+                        pub_keys = tables[
+                            "public:ccf.gov.jwt.public_signing_keys_metadata_v2"
+                        ]
+                        if kid.encode() in pub_keys:
+                            if last_key_refresh is None:
+                                LOG.info(f"Refresh found for kid: {kid} at {txid}")
+                                last_key_refresh = txid
+                            else:
+                                assert (
+                                    last_key_refresh == txid
+                                ), "Duplicate JWT refresh transaction"
         assert last_key_refresh, "Missing JWT refresh transaction"
 
     return network

@@ -8,6 +8,7 @@ import random
 import re
 import tempfile
 import time
+from contextlib import ExitStack
 from copy import deepcopy
 from datetime import datetime, timezone
 from shutil import copy, rmtree
@@ -891,50 +892,49 @@ def test_retired_nodes_stop_signing_after_retired_committed(network, args):
     # Only read the range this node replicated itself. Asking for earlier
     # seqnos would be redirected to other nodes, which may since have been
     # retired and stopped.
-    ledger = primary.get_ledger_from_api(target_seqno, local_only=True)
-
     # True once a subsequent signature has committed the retired_committed tx
     # itself: rc is then globally committed and the node's retired_committed
     # hook must have fired, so any further signature from that node is a
     # violation. Presence in this dict means rc has been observed for the node.
     rc_globally_committed: dict[str, bool] = {}
 
-    for chunk in ledger:
-        for tr in chunk:
-            tables = tr.get_public_domain().get_tables()
+    with primary.get_ledger_from_api(target_seqno, local_only=True) as ledger:
+        for chunk in ledger:
+            for tr in chunk:
+                tables = tr.get_public_domain().get_tables()
 
-            if ccf.ledger.NODES_TABLE_NAME in tables:
-                for nid_bytes, info_ in tables[ccf.ledger.NODES_TABLE_NAME].items():
-                    if info_ is None:
-                        continue
-                    info = json.loads(info_)
-                    nid = nid_bytes.decode()
-                    if (
-                        info.get("retired_committed")
-                        and nid not in rc_globally_committed
-                    ):
-                        rc_globally_committed[nid] = False
+                if ccf.ledger.NODES_TABLE_NAME in tables:
+                    for nid_bytes, info_ in tables[ccf.ledger.NODES_TABLE_NAME].items():
+                        if info_ is None:
+                            continue
+                        info = json.loads(info_)
+                        nid = nid_bytes.decode()
+                        if (
+                            info.get("retired_committed")
+                            and nid not in rc_globally_committed
+                        ):
+                            rc_globally_committed[nid] = False
 
-            if ccf.signatures.SIGNATURE_TX_TABLE_NAME in tables:
-                sig = ccf.signatures.parse_raw_signature_from_tx(tables)
-                assert sig is not None, tables
-                signing_node = sig.signing_node
-                sig_seqno = sig.seqno
+                if ccf.signatures.SIGNATURE_TX_TABLE_NAME in tables:
+                    sig = ccf.signatures.parse_raw_signature_from_tx(tables)
+                    assert sig is not None, tables
+                    signing_node = sig.signing_node
+                    sig_seqno = sig.seqno
 
-                # Check BEFORE marking. A node may legally emit exactly one
-                # signature past its rc tx (the chain-closer that commits it).
-                # Once that chain-closer has been seen, the node's
-                # retired_committed hook must have fired, so any further
-                # signature from that node is a violation.
-                assert not rc_globally_committed.get(signing_node, False), (
-                    f"Node {signing_node} signed at seqno {sig_seqno} after "
-                    f"its retired_committed was already globally committed"
-                )
+                    # Check BEFORE marking. A node may legally emit exactly one
+                    # signature past its rc tx (the chain-closer that commits it).
+                    # Once that chain-closer has been seen, the node's
+                    # retired_committed hook must have fired, so any further
+                    # signature from that node is a violation.
+                    assert not rc_globally_committed.get(signing_node, False), (
+                        f"Node {signing_node} signed at seqno {sig_seqno} after "
+                        f"its retired_committed was already globally committed"
+                    )
 
-                # Ledger iteration is seqno-ordered, so any tracked rc was
-                # written at a lower seqno than this sig; the sig commits it.
-                for nid in rc_globally_committed:
-                    rc_globally_committed[nid] = True
+                    # Ledger iteration is seqno-ordered, so any tracked rc was
+                    # written at a lower seqno than this sig; the sig commits it.
+                    for nid in rc_globally_committed:
+                        rc_globally_committed[nid] = True
 
     LOG.info(
         "{} nodes had retired_committed observed throughout test",
@@ -977,29 +977,32 @@ def test_ledger_invariants(network, args):
 
     for node in network.nodes:
         LOG.info(f"Examining ledger on node {node.local_node_id}")
-        if node.is_stopped():
-            ledger = ccf.ledger.Ledger(
-                node.remote.ledger_paths(),
-                contiguous_suffix=True,
-            )
-        else:
-            try:
-                ledger = node.get_ledger_from_api(target_seqno, local_only=True)
-            except (
-                infra.clients.CCFConnectionException,
-                infra.clients.CCFIOException,
-                TimeoutError,
-            ):
-                LOG.warning(
-                    "Node {} is no longer reachable; reading its ledger files "
-                    "directly",
-                    node.local_node_id,
-                )
+        with ExitStack() as stack:
+            if node.is_stopped():
                 ledger = ccf.ledger.Ledger(
                     node.remote.ledger_paths(),
                     contiguous_suffix=True,
                 )
-        check_signatures(ledger)
+            else:
+                try:
+                    ledger = stack.enter_context(
+                        node.get_ledger_from_api(target_seqno, local_only=True)
+                    )
+                except (
+                    infra.clients.CCFConnectionException,
+                    infra.clients.CCFIOException,
+                    TimeoutError,
+                ):
+                    LOG.warning(
+                        "Node {} is no longer reachable; reading its ledger files "
+                        "directly",
+                        node.local_node_id,
+                    )
+                    ledger = ccf.ledger.Ledger(
+                        node.remote.ledger_paths(),
+                        contiguous_suffix=True,
+                    )
+            check_signatures(ledger)
 
     return network
 
@@ -1054,33 +1057,32 @@ def test_joining_nodes_snapshot_ledger_offset(network, args):
     # Only read the range this node replicated itself. Asking for earlier
     # seqnos would be redirected to other nodes, which may since have been
     # retired and stopped.
-    downloaded_ledger = primary.download_ledger(target_seqno, local_only=True)
-    ledger = ccf.ledger.Ledger(downloaded_ledger)
-
     snapshot_chunk_start = None
     snapshot_chunk_entries = None
     post_snapshot_entries = []
-    for chunk in ledger:
-        entries = [
-            (tx.get_public_domain().get_seqno(), tx.get_raw_tx()) for tx in chunk
-        ]
-        if not entries:
-            continue
+    with primary.download_ledger(target_seqno, local_only=True) as ledger_paths:
+        ledger = ccf.ledger.Ledger(ledger_paths)
+        for chunk in ledger:
+            entries = [
+                (tx.get_public_domain().get_seqno(), tx.get_raw_tx()) for tx in chunk
+            ]
+            if not entries:
+                continue
 
-        chunk_start = entries[0][0]
-        chunk_end = entries[-1][0]
-        if chunk_start <= snapshot_seqno <= chunk_end:
-            snapshot_chunk_start = chunk_start
-            snapshot_chunk_entries = entries
-            assert (
-                chunk_end == snapshot_seqno
-            ), f"Expected snapshot seqno {snapshot_seqno} at chunk boundary, got chunk {chunk_start}-{chunk_end}"
+            chunk_start = entries[0][0]
+            chunk_end = entries[-1][0]
+            if chunk_start <= snapshot_seqno <= chunk_end:
+                snapshot_chunk_start = chunk_start
+                snapshot_chunk_entries = entries
+                assert (
+                    chunk_end == snapshot_seqno
+                ), f"Expected snapshot seqno {snapshot_seqno} at chunk boundary, got chunk {chunk_start}-{chunk_end}"
 
-        post_snapshot_entries.extend(
-            (seqno, raw_tx)
-            for seqno, raw_tx in entries
-            if snapshot_seqno < seqno <= rest_txid.seqno
-        )
+            post_snapshot_entries.extend(
+                (seqno, raw_tx)
+                for seqno, raw_tx in entries
+                if snapshot_seqno < seqno <= rest_txid.seqno
+            )
 
     assert (
         snapshot_chunk_start is not None

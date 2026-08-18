@@ -220,10 +220,10 @@ def test_ledger_is_readable(network, args):
     primary, backups = network.find_nodes()
     target_seqno = network.create_and_wait_for_ledger_chunk(primary)
     for node in (primary, *backups):
-        ledger = node.get_ledger_from_api(target_seqno, local_only=True)
-        for chunk in ledger:
-            for _ in chunk:
-                pass
+        with node.get_ledger_from_api(target_seqno, local_only=True) as ledger:
+            for chunk in ledger:
+                for _ in chunk:
+                    pass
     return network
 
 
@@ -239,11 +239,12 @@ def test_read_ledger_utility(network, args):
 
     primary, backups = network.find_nodes()
     for node in (primary, *backups):
-        assert ccf.read_ledger.run(
-            paths=node.download_ledger(target_seqno, local_only=True),
-            print_mode=ccf.read_ledger.PrintMode.Contents,
-            tables_format_rules=format_rule,
-        )
+        with node.download_ledger(target_seqno, local_only=True) as ledger_paths:
+            assert ccf.read_ledger.run(
+                paths=ledger_paths,
+                print_mode=ccf.read_ledger.PrintMode.Contents,
+                tables_format_rules=format_rule,
+            )
 
     snapshot_dir = network.get_committed_snapshots(primary)
     assert ccf.read_ledger.run(
@@ -322,9 +323,9 @@ def run(args):
 
         target_seqno = network.create_and_wait_for_ledger_chunk(primary)
 
-        ledger = primary.get_ledger_from_api(target_seqno)
-        check_operations(ledger, governance_operations)
-        check_signatures(ledger)
+        with primary.get_ledger_from_api(target_seqno) as ledger:
+            check_operations(ledger, governance_operations)
+            check_signatures(ledger)
 
         test_ledger_is_readable(network, args)
         test_read_ledger_utility(network, args)

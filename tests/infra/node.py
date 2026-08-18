@@ -603,17 +603,14 @@ class Node:
             f"node {self.local_node_id} after {timeout}s"
         )
 
-    def download_ledger(
+    def _download_ledger(
         self,
+        ledger_dir,
         target_seqno,
         timeout=5,
         local_only=False,
         start_seqno=None,
     ):
-        ledger_dir = tempfile.mkdtemp(
-            prefix=f"{self.local_node_id}.ledger.downloaded.",
-            dir=self.common_dir,
-        )
         ledger_paths = []
 
         def save_chunk(response, requested_seqno):
@@ -713,6 +710,27 @@ class Node:
 
         return ledger_paths
 
+    @contextmanager
+    def download_ledger(
+        self,
+        target_seqno,
+        timeout=5,
+        local_only=False,
+        start_seqno=None,
+    ):
+        with tempfile.TemporaryDirectory(
+            prefix=f"{self.local_node_id}.ledger.downloaded.",
+            dir=self.common_dir,
+        ) as ledger_dir:
+            yield self._download_ledger(
+                ledger_dir,
+                target_seqno,
+                timeout=timeout,
+                local_only=local_only,
+                start_seqno=start_seqno,
+            )
+
+    @contextmanager
     def get_ledger_from_api(
         self,
         target_seqno,
@@ -722,28 +740,24 @@ class Node:
         **kwargs,
     ):
         kwargs.setdefault("committed_only", True)
-        return ccf.ledger.Ledger(
-            self.download_ledger(
-                target_seqno,
-                timeout=timeout,
-                local_only=local_only,
-                start_seqno=start_seqno,
-            ),
-            **kwargs,
-        )
+        with self.download_ledger(
+            target_seqno,
+            timeout=timeout,
+            local_only=local_only,
+            start_seqno=start_seqno,
+        ) as ledger_paths:
+            yield ccf.ledger.Ledger(ledger_paths, **kwargs)
 
+    @contextmanager
     def get_ledger_chunk_from_api(self, seqno, timeout=5):
-        return self.get_ledger_from_api(
+        with self.get_ledger_from_api(
             seqno,
             timeout=timeout,
             start_seqno=seqno,
-        )
+        ) as ledger:
+            yield ledger
 
-    def get_public_state_from_api(self, target_seqno, timeout=5):
-        snapshot_dir = tempfile.mkdtemp(
-            prefix=f"{self.local_node_id}.snapshot.downloaded.",
-            dir=self.common_dir,
-        )
+    def _download_snapshot(self, snapshot_dir, timeout):
         end_time = time.time() + timeout
         with self.client(
             interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
@@ -752,16 +766,17 @@ class Node:
                 r = c.get("/node/snapshot", allow_redirects=True)
                 if r.status_code == http.HTTPStatus.OK:
                     break
-                if time.time() >= end_time:
-                    raise RuntimeError(
-                        f"Unexpected response while downloading latest snapshot: {r}"
-                    )
                 if (
                     r.status_code != http.HTTPStatus.NOT_FOUND
                     and r.status_code < http.HTTPStatus.INTERNAL_SERVER_ERROR
                 ):
                     raise RuntimeError(
                         f"Unexpected response while downloading latest snapshot: {r}"
+                    )
+                if time.time() >= end_time:
+                    raise TimeoutError(
+                        f"Could not download latest snapshot from node "
+                        f"{self.local_node_id} after {timeout}s; last response: {r}"
                     )
                 time.sleep(0.1)
 
@@ -770,31 +785,40 @@ class Node:
             with open(snapshot_path, "wb") as snapshot_file:
                 snapshot_file.write(r.body.data())
 
-        with ccf.ledger.Snapshot(snapshot_path) as snapshot:
-            public_domain = snapshot.get_public_domain()
-            public_tables = public_domain.get_tables()
-            latest_seqno = public_domain.get_seqno()
+        return snapshot_path
+
+    def get_public_state_from_api(self, target_seqno, timeout=5):
+        with tempfile.TemporaryDirectory(
+            prefix=f"{self.local_node_id}.snapshot.downloaded.",
+            dir=self.common_dir,
+        ) as snapshot_dir:
+            snapshot_path = self._download_snapshot(snapshot_dir, timeout)
+            with ccf.ledger.Snapshot(snapshot_path) as snapshot:
+                public_domain = snapshot.get_public_domain()
+                public_tables = public_domain.get_tables()
+                latest_seqno = public_domain.get_seqno()
 
         if latest_seqno >= target_seqno:
             return public_tables, latest_seqno
 
-        for transaction in self.get_ledger_from_api(
+        with self.get_ledger_from_api(
             target_seqno,
             timeout=timeout,
             local_only=False,
             start_seqno=latest_seqno + 1,
             committed_only=True,
-        ).transactions():
-            public_domain = transaction.get_public_domain()
-            if public_domain.get_seqno() <= latest_seqno:
-                continue
-            latest_seqno = public_domain.get_seqno()
-            for table_name, records in public_domain.get_tables().items():
-                table = public_tables.setdefault(table_name, {})
-                table.update(records)
-                public_tables[table_name] = {
-                    key: value for key, value in table.items() if value is not None
-                }
+        ) as ledger:
+            for transaction in ledger.transactions():
+                public_domain = transaction.get_public_domain()
+                if public_domain.get_seqno() <= latest_seqno:
+                    continue
+                latest_seqno = public_domain.get_seqno()
+                for table_name, records in public_domain.get_tables().items():
+                    table = public_tables.setdefault(table_name, {})
+                    table.update(records)
+                    public_tables[table_name] = {
+                        key: value for key, value in table.items() if value is not None
+                    }
 
         return public_tables, latest_seqno
 
