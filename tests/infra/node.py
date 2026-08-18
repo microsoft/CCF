@@ -212,11 +212,11 @@ class Node:
                     host=rpc_interface.host, port=node_port
                 )
 
-            # The ledger chunk download API is only supported from
-            # 7.0.0-dev10 onwards.
+            # These helpers use the underscored ledger chunk endpoint, which is
+            # only supported from 7.0.0-dev13 onwards.
             if (
                 self.version is not None
-                and Version(strip_version(self.version)) <= Version("7.0.0-dev9")
+                and Version(strip_version(self.version)) <= Version("7.0.0-dev12")
                 and rpc_interface.enabled_operator_features
                 and "LedgerChunkRead" in rpc_interface.enabled_operator_features
             ):

@@ -2226,7 +2226,7 @@ class Network:
         if file_serving_interface is None:
             return False
         operator_features = file_serving_interface.enabled_operator_features
-        return operator_features is None or feature in operator_features
+        return operator_features is not None and feature in operator_features
 
     def create_and_wait_for_ledger_chunk(self, node=None, timeout=5):
         if node is None:
