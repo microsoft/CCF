@@ -2218,24 +2218,55 @@ class Network:
 
         return node.get_committed_snapshots(wait_for_snapshots_to_be_committed)
 
-    def _get_ledger_public_view_at(self, node, call, seqno, timeout):
-        end_time = time.time() + timeout
-        self.consortium.force_ledger_chunk(node)
-        while time.time() < end_time:
-            try:
-                return call(seqno)
-            except Exception as ex:
-                LOG.info(f"Exception: {ex}")
-                time.sleep(0.1)
-        raise TimeoutError(
-            f"Could not read transaction at seqno {seqno} from ledger {node.remote.ledger_paths()} after {timeout}s"
+    @staticmethod
+    def _supports_operator_feature(node, feature):
+        file_serving_interface = node.host.rpc_interfaces.get(
+            infra.interfaces.FILE_SERVING_RPC_INTERFACE
         )
+        if file_serving_interface is None:
+            return False
+        operator_features = file_serving_interface.enabled_operator_features
+        return operator_features is not None and feature in operator_features
+
+    def create_and_wait_for_ledger_chunk(self, node=None, timeout=5):
+        if node is None:
+            node, _ = self.find_primary()
+
+        if self._supports_operator_feature(node, "SnapshotCreate"):
+            target_seqno = node.trigger_snapshot().seqno
+        else:
+            proposal = self.consortium.force_ledger_chunk(node)
+            target_seqno = proposal.completed_seqno
+
+        if self._supports_operator_feature(node, "LedgerChunkRead"):
+            node.wait_for_ledger_chunk(target_seqno, timeout=timeout)
+        else:
+            end_time = time.time() + timeout
+            while time.time() < end_time:
+                try:
+                    node.get_ledger_public_tables_at(target_seqno)
+                    break
+                except (AssertionError, ccf.ledger.UnknownTransaction):
+                    time.sleep(0.1)
+            else:
+                raise TimeoutError(
+                    f"Could not read transaction at seqno {target_seqno} from "
+                    f"ledger {node.remote.ledger_paths()} after {timeout}s"
+                )
+
+        return target_seqno
 
     def get_ledger_public_state_at(self, seqno, timeout=5):
         primary, _ = self.find_primary()
-        return self._get_ledger_public_view_at(
-            primary, primary.get_ledger_public_tables_at, seqno, timeout
+        self.create_and_wait_for_ledger_chunk(
+            node=primary,
+            timeout=timeout,
         )
+        if self._supports_operator_feature(primary, "LedgerChunkRead"):
+            with primary.get_ledger_chunk_from_api(seqno, timeout=timeout) as ledger:
+                return ledger.get_transaction(seqno).get_public_domain().get_tables()
+
+        return primary.get_ledger_public_tables_at(seqno)
 
     def get_latest_ledger_public_state(self, timeout=5):
         primary, _ = self.find_primary()
@@ -2243,9 +2274,19 @@ class Network:
             resp = nc.get("/node/commit")
             body = resp.body.json()
             tx_id = TxID.from_str(body["transaction_id"])
-        return self._get_ledger_public_view_at(
-            primary, primary.get_ledger_public_state_at, tx_id.seqno, timeout
+        target_seqno = self.create_and_wait_for_ledger_chunk(
+            node=primary,
+            timeout=timeout,
         )
+        if self._supports_operator_feature(
+            primary, "LedgerChunkRead"
+        ) and self._supports_operator_feature(primary, "SnapshotRead"):
+            return primary.get_public_state_from_api(
+                target_seqno,
+                timeout=timeout,
+            )
+
+        return primary.get_ledger_public_state_at(tx_id.seqno)
 
     @functools.cached_property
     def cert_path(self):
