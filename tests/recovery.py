@@ -473,6 +473,7 @@ def test_recover_service(
     force_election=False,
 ):
     network.save_service_identity(args)
+    old_node_ids = {node.node_id for node in network.get_joined_nodes()}
     old_primary, _ = network.find_primary()
 
     with open(args.previous_service_identity_file, "r", encoding="utf-8") as prev_file:
@@ -644,6 +645,42 @@ def test_recover_service(
             == previous_service_info["creationTransactionId"]
         )
         assert current_service_info["serviceData"] == service_data
+
+    end_time = time.time() + args.ledger_recovery_timeout
+    while time.time() < end_time:
+        with new_primary.client() as c:
+            nodes = c.get("/node/network/nodes").body.json()["nodes"]
+            nodes_by_id = {node["node_id"]: node for node in nodes}
+            assert old_node_ids <= nodes_by_id.keys(), nodes_by_id
+            assert all(
+                nodes_by_id[node_id]["status"] == "Retired" for node_id in old_node_ids
+            ), nodes_by_id
+
+            removable_nodes = c.get("/node/network/removable_nodes").body.json()[
+                "nodes"
+            ]
+            removable_node_ids = {node["node_id"] for node in removable_nodes}
+            if old_node_ids <= removable_node_ids:
+                break
+        time.sleep(0.1)
+    else:
+        raise TimeoutError(
+            "Pre-recovery nodes did not become removable: "
+            f"expected={old_node_ids}, removable={removable_node_ids}"
+        )
+
+    with new_primary.client() as c:
+        check_commit = infra.checker.Checker(c)
+        for node_id in old_node_ids:
+            r = c.delete(f"/node/network/nodes/{node_id}")
+            assert r.status_code == http.HTTPStatus.OK, r
+            check_commit(r)
+
+        remaining_node_ids = {
+            node["node_id"]
+            for node in c.get("/node/network/nodes").body.json()["nodes"]
+        }
+        assert old_node_ids.isdisjoint(remaining_node_ids), remaining_node_ids
 
     return recovered_network
 

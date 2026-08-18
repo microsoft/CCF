@@ -1574,8 +1574,12 @@ namespace ccf
         InternalTablesAccess::create_service(
           ctx.tx, in.service_cert, in.create_txid, in.service_data, recovering);
 
-        // Retire all nodes, in case there are any (i.e. post recovery)
-        InternalTablesAccess::retire_active_nodes(ctx.tx);
+        if (recovering)
+        {
+          // Pre-recovery nodes are absent from the new consensus configuration,
+          // so their retirement is already globally established.
+          InternalTablesAccess::retire_active_nodes(ctx.tx);
+        }
 
         // Genesis transaction (i.e. not after recovery)
         if (in.genesis_info.has_value())

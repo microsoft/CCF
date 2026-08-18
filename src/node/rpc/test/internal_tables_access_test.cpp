@@ -241,3 +241,55 @@ TEST_CASE(
     REQUIRE(it->second.svn == "42");
   }
 }
+
+TEST_CASE("retire_active_nodes")
+{
+  ccf::kv::Store kv_store;
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
+  kv_store.set_encryptor(encryptor);
+
+  Nodes nodes(Tables::NODES);
+  const NodeId trusted_id = std::string("trusted");
+  const NodeId retired_id = std::string("retired");
+  const NodeId retired_committed_id = std::string("retired_committed");
+
+  {
+    auto tx = kv_store.create_tx();
+    auto handle = tx.rw(nodes);
+    const auto encryption_pub_key =
+      ccf::crypto::make_ec_key_pair()->public_key_pem();
+
+    NodeInfo trusted;
+    trusted.encryption_pub_key = encryption_pub_key;
+    trusted.status = NodeStatus::TRUSTED;
+    handle->put(trusted_id, trusted);
+
+    NodeInfo retired = trusted;
+    retired.status = NodeStatus::RETIRED;
+    handle->put(retired_id, retired);
+
+    NodeInfo retired_committed = retired;
+    retired_committed.retired_committed = true;
+    handle->put(retired_committed_id, retired_committed);
+
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+
+  {
+    auto tx = kv_store.create_tx();
+    InternalTablesAccess::retire_active_nodes(tx);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+
+  {
+    auto tx = kv_store.create_read_only_tx();
+    auto handle = tx.ro(nodes);
+    for (const auto& node_id : {trusted_id, retired_id, retired_committed_id})
+    {
+      const auto node_info = handle->get(node_id);
+      REQUIRE(node_info.has_value());
+      REQUIRE(node_info->status == NodeStatus::RETIRED);
+      REQUIRE(node_info->retired_committed);
+    }
+  }
+}

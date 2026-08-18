@@ -59,19 +59,19 @@ namespace ccf
     {
       auto* nodes = tx.rw<ccf::Nodes>(Tables::NODES);
 
-      std::map<NodeId, NodeInfo> nodes_to_delete;
-      nodes->foreach([&nodes_to_delete](const NodeId& nid, const NodeInfo& ni) {
-        // Only retire nodes that have not already been retired
-        if (ni.status != NodeStatus::RETIRED)
+      std::map<NodeId, NodeInfo> nodes_to_retire;
+      nodes->foreach([&nodes_to_retire](const NodeId& nid, const NodeInfo& ni) {
+        if (ni.status != NodeStatus::RETIRED || !ni.retired_committed)
         {
-          nodes_to_delete[nid] = ni;
+          nodes_to_retire[nid] = ni;
         }
         return true;
       });
 
-      for (auto [nid, ni] : nodes_to_delete)
+      for (auto [nid, ni] : nodes_to_retire)
       {
         ni.status = NodeStatus::RETIRED;
+        ni.retired_committed = true;
         nodes->put(nid, ni);
       }
     }
