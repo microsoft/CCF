@@ -532,6 +532,10 @@ install(
   PATTERN "*.py"
   PATTERN "*/__pycache__*" EXCLUDE
 )
+install(
+  FILES ${CCF_DIR}/doc/host_config_schema/host_config.json
+  DESTINATION bin/infra
+)
 
 install(PROGRAMS tests/sandbox/sandbox.sh DESTINATION bin)
 install(PROGRAMS tests/docker_wrap.sh DESTINATION bin)
@@ -576,6 +580,12 @@ if(BUILD_TESTS)
 
   # Unit tests
   if(BUILD_UNIT_TESTS)
+    add_test(
+      NAME e2e_args_test
+      COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/e2e_args_test.py
+    )
+    set_property(TEST e2e_args_test APPEND PROPERTY LABELS unit)
+
     add_test(
       NAME verify_uvm_attestation_and_endorsements
       COMMAND
