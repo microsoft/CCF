@@ -415,6 +415,10 @@ LastCommittableTerm(i) ==
 MaxCommittableIndex(xlog) ==
     SelectLastInSeq(xlog, HasTypeSignature)
 
+\* Return the latest committable index no greater than idx.
+MaxCommittableIndexAt(xlog, idx) ==
+    MaxCommittableIndex(SubSeq(xlog, 1, min(idx, Len(xlog))))
+
 \* CCF: Returns the term associated with the MaxCommittableIndex(xlog)
 MaxCommittableTerm(xlog) ==
     LET iMax == MaxCommittableIndex(xlog)
@@ -1074,7 +1078,7 @@ AppendEntriesAlreadyDone(i, j, index, m) ==
                 log[i][index + (idx - 1)].term = m.entries[idx].term
     \* See condition guards in commit() and commit_if_possible(), raft.h
     /\ LET requestEndIndex == m.prevLogIndex + Len(m.entries)
-           newCommitIndex == max(min(min(MaxCommittableIndex(log[i]), m.commitIndex), requestEndIndex), commitIndex[i])
+           newCommitIndex == max(MaxCommittableIndexAt(log[i], min(m.commitIndex, requestEndIndex)), commitIndex[i])
            newConfigurationIndex == LastConfigurationToIndex(i, newCommitIndex)
        IN /\ commitIndex' = [commitIndex EXCEPT ![i] = newCommitIndex]
           \* Pop any newly committed reconfigurations, except the most recent
@@ -1123,7 +1127,7 @@ NoConflictAppendEntriesRequest(i, j, m) ==
     \* Also, if the commitIndex is updated, we may pop some old configs at the same time
     /\ LET
         request_end_index == m.prevLogIndex + Len(m.entries)
-        new_commit_index == max(min(min(MaxCommittableIndex(log'[i]), m.commitIndex), request_end_index), commitIndex[i])
+        new_commit_index == max(MaxCommittableIndexAt(log'[i], min(m.commitIndex, request_end_index)), commitIndex[i])
         new_indexes == m.prevLogIndex + 1 .. m.prevLogIndex + Len(m.entries)
         \* log entries to be added to the log
         new_log_entries == 
