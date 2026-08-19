@@ -759,12 +759,12 @@ namespace ccf::kv::untyped
       roll.rollback_counter = 0;
     }
 
-    void lock() CCF_ACQUIRE(sl) override
+    void lock() CCF_NO_THREAD_SAFETY_ANALYSIS override
     {
       sl.lock();
     }
 
-    void unlock() CCF_RELEASE(sl) override
+    void unlock() CCF_NO_THREAD_SAFETY_ANALYSIS override
     {
       sl.unlock();
     }
