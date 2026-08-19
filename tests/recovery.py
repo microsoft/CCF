@@ -2361,8 +2361,7 @@ def run_recover_snapshot_ledger_offset(args):
         network.start_and_open(args)
         primary, _ = network.find_primary()
 
-        network.consortium.force_ledger_chunk(primary)
-        network.get_latest_ledger_public_state()
+        network.create_and_wait_for_ledger_chunk(primary)
 
         network.txs.issue(network, number_txs=5, send_private=False, send_public=True)
         network.txs.issue(network, number_txs=5, send_private=False, send_public=True)
@@ -2400,7 +2399,7 @@ def run_recover_snapshot_ledger_offset(args):
         rest_txid = network.txs.issue(
             network, number_txs=5, send_private=False, send_public=True
         )
-        network.get_latest_ledger_public_state()
+        network.create_and_wait_for_ledger_chunk(primary)
 
         assert snapshot_trigger_txid.seqno < snapshot_seqno < rest_txid.seqno, (
             snapshot_trigger_txid,

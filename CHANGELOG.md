@@ -21,6 +21,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - C++ endpoints can now use `ccf::endpoints::Endpoint::add_openapi_response<Out>()` to document additional HTTP responses in their generated OpenAPI schema without changing the endpoint's primary success response (#8115).
 
+### Changed
+
+- `ccf::SessionContext::caller_cert` is now immutable, and its SHA-256 digest is cached per session to avoid repeated hashing during user and member certificate authentication (#8164).
+
 ### Fixed
 
 - Joining or recovering nodes now ignore structurally invalid local snapshots and try an older snapshot instead of terminating during startup (#8124).

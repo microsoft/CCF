@@ -2975,9 +2975,13 @@ namespace ccf
       find_frontend(actor)->open();
     }
 
-    void open_user_frontend()
+    void open_frontend_async(ActorsType actor)
     {
-      open_frontend(ActorsType::users);
+      // Global hooks may run while KV locks are held. Defer frontend
+      // initialisation so its internal locks are acquired after the hook
+      // returns. RpcFrontend::open() is idempotent.
+      ccf::tasks::add_task(
+        ccf::tasks::make_basic_task([this, actor]() { open_frontend(actor); }));
     }
 
     bool is_member_frontend_open() override
@@ -3424,7 +3428,7 @@ namespace ccf
               }
 
               LOG_INFO_FMT("[global] Opening members frontend");
-              open_frontend(ActorsType::members);
+              open_frontend_async(ActorsType::members);
             }
           }));
 
@@ -3462,7 +3466,7 @@ namespace ccf
             network.identity->set_certificate(w->cert);
             if (w->status == ServiceStatus::OPEN)
             {
-              open_user_frontend();
+              open_frontend_async(ActorsType::users);
 
               RINGBUFFER_WRITE_MESSAGE(::consensus::ledger_open, to_host);
               LOG_INFO_FMT("Service open at seqno {}", hook_version);

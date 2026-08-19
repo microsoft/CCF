@@ -160,20 +160,18 @@ def test_forced_ledger_chunk(network, args):
     # Issue some more transactions
     network.txs.issue(network, number_txs=5)
 
-    ledger_dirs = primary.remote.ledger_paths()
-
     # Check that there is indeed a ledger chunk that ends at the
     # first signature after proposal.completed_seqno
-    ledger = ccf.ledger.Ledger(ledger_dirs, contiguous_suffix=True)
-    chunk, _, last, next_signature = find_ledger_chunk_for_seqno(
-        ledger, proposal.completed_seqno
-    )
-    LOG.info(
-        f"Found ledger chunk {chunk.filename()} with chunking proposal @{proposal.completed_seqno} and signature @{next_signature}"
-    )
-    assert chunk.is_complete and chunk.is_committed()
-    assert last == next_signature
-    assert next_signature - proposal.completed_seqno < args.sig_tx_interval
+    with primary.get_ledger_chunk_from_api(proposal.completed_seqno) as ledger:
+        chunk, _, last, next_signature = find_ledger_chunk_for_seqno(
+            ledger, proposal.completed_seqno
+        )
+        LOG.info(
+            f"Found ledger chunk {chunk.filename()} with chunking proposal @{proposal.completed_seqno} and signature @{next_signature}"
+        )
+        assert chunk.is_complete and chunk.is_committed()
+        assert last == next_signature
+        assert next_signature - proposal.completed_seqno < args.sig_tx_interval
     return network
 
 

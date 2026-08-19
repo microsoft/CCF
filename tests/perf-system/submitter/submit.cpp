@@ -24,13 +24,88 @@
 #include <time.h>
 #include <utility>
 
-
 using namespace std;
 using namespace client;
 
 ccf::crypto::Pem key = {};
 std::string key_id = "Invalid";
 std::shared_ptr<::tls::Cert> tls_cert = nullptr;
+
+static int64_t get_realtime_us()
+
+{
+  timespec timestamp;
+  clock_gettime(CLOCK_REALTIME, &timestamp);
+  return timestamp.tv_sec * 1'000'000 + timestamp.tv_nsec / 1000;
+}
+
+class ResponseData
+{
+private:
+  arrow::TimestampBuilder response_time_builder;
+  arrow::NumericBuilder<arrow::UInt64Type> response_status_builder;
+  arrow::StringBuilder response_headers_builder;
+  arrow::BinaryBuilder response_body_builder;
+
+public:
+  ResponseData() :
+    response_time_builder(
+      arrow::timestamp(arrow::TimeUnit::MICRO), arrow::default_memory_pool())
+  {}
+
+  void reserve(size_t size)
+  {
+    PARQUET_THROW_NOT_OK(response_time_builder.Reserve(size));
+    PARQUET_THROW_NOT_OK(response_status_builder.Reserve(size));
+    PARQUET_THROW_NOT_OK(response_headers_builder.Reserve(size));
+    PARQUET_THROW_NOT_OK(response_body_builder.Reserve(size));
+  }
+
+  void append(
+    client::HttpRpcTlsClient::Response&& response, int64_t response_time)
+  {
+    PARQUET_THROW_NOT_OK(response_time_builder.Append(response_time));
+    PARQUET_THROW_NOT_OK(response_status_builder.Append(response.status));
+
+    std::string concat_headers;
+    for (const auto& [name, value] : response.headers)
+    {
+      if (!concat_headers.empty())
+      {
+        concat_headers += "\n";
+      }
+      concat_headers += fmt::format("{}: {}", name, value);
+    }
+    PARQUET_THROW_NOT_OK(response_headers_builder.Append(concat_headers));
+    PARQUET_THROW_NOT_OK(
+      response_body_builder.Append(response.body.data(), response.body.size()));
+  }
+
+  int64_t size() const
+  {
+    return response_time_builder.length();
+  }
+
+  std::shared_ptr<arrow::Array> finish_response_times()
+  {
+    return response_time_builder.Finish().ValueOrDie();
+  }
+
+  std::shared_ptr<arrow::Array> finish_response_statuses()
+  {
+    return response_status_builder.Finish().ValueOrDie();
+  }
+
+  std::shared_ptr<arrow::Array> finish_response_headers()
+  {
+    return response_headers_builder.Finish().ValueOrDie();
+  }
+
+  std::shared_ptr<arrow::Array> finish_response_bodies()
+  {
+    return response_body_builder.Finish().ValueOrDie();
+  }
+};
 
 void read_parquet_file(string generator_filepath, ParquetData& data_handler)
 {
@@ -119,9 +194,9 @@ void read_parquet_file(string generator_filepath, ParquetData& data_handler)
     exit(1);
   }
 
-  auto message_id_values =
+  data_handler.ids =
     std::dynamic_pointer_cast<arrow::StringArray>(message_id_column->chunk(0));
-  if (message_id_values == nullptr)
+  if (data_handler.ids == nullptr)
   {
     LOG_FAIL_FMT(
       "The messageID column of input file could not be read as string array");
@@ -144,20 +219,22 @@ void read_parquet_file(string generator_filepath, ParquetData& data_handler)
     exit(1);
   }
 
-  auto request_values =
+  data_handler.requests =
     std::dynamic_pointer_cast<arrow::BinaryArray>(request_column->chunk(0));
-  if (request_values == nullptr)
+  if (data_handler.requests == nullptr)
   {
     LOG_FAIL_FMT(
       "The request column of input file could not be read as binary array");
     exit(1);
   }
 
-  for (int64_t row = 0; row < table->num_rows(); row++)
+  if (data_handler.ids->length() != data_handler.requests->length())
   {
-    data_handler.ids.push_back(message_id_values->GetString(row));
-    const auto request = request_values->Value(row);
-    data_handler.request.push_back({request.begin(), request.end()});
+    LOG_FAIL_FMT(
+      "Generator file contains {} message IDs but {} requests",
+      data_handler.ids->length(),
+      data_handler.requests->length());
+    exit(1);
   }
 }
 
@@ -197,7 +274,10 @@ std::shared_ptr<RpcTlsClient> create_connection(
   return conn;
 }
 
-void store_parquet_results(ArgumentParser args, ParquetData data_handler)
+void store_parquet_results(
+  const ArgumentParser& args,
+  const ParquetData& data_handler,
+  ResponseData& response_data)
 {
   LOG_INFO_FMT("Start storing results");
 
@@ -205,9 +285,6 @@ void store_parquet_results(ArgumentParser args, ParquetData data_handler)
 
   // Write Send Parquet
   {
-    arrow::StringBuilder message_id_builder;
-    PARQUET_THROW_NOT_OK(message_id_builder.AppendValues(data_handler.ids));
-
     arrow::TimestampBuilder send_time_builder(
       us_timestamp_type, arrow::default_memory_pool());
     PARQUET_THROW_NOT_OK(
@@ -217,45 +294,18 @@ void store_parquet_results(ArgumentParser args, ParquetData data_handler)
       arrow::schema(
         {arrow::field("messageID", arrow::utf8()),
          arrow::field("sendTime", us_timestamp_type)}),
-      {message_id_builder.Finish().ValueOrDie(),
-       send_time_builder.Finish().ValueOrDie()});
+      {data_handler.ids, send_time_builder.Finish().ValueOrDie()});
 
     std::shared_ptr<arrow::io::FileOutputStream> outfile;
     PARQUET_ASSIGN_OR_THROW(
       outfile, arrow::io::FileOutputStream::Open(args.send_filepath));
-    PARQUET_THROW_NOT_OK(parquet::arrow::WriteTable(
-      *table, arrow::default_memory_pool(), outfile));
+    PARQUET_THROW_NOT_OK(
+      parquet::arrow::WriteTable(
+        *table, arrow::default_memory_pool(), outfile));
   }
 
   // Write Response Parquet
   {
-    arrow::StringBuilder message_id_builder;
-    PARQUET_THROW_NOT_OK(message_id_builder.AppendValues(data_handler.ids));
-
-    arrow::TimestampBuilder receive_time_builder(
-      us_timestamp_type, arrow::default_memory_pool());
-    PARQUET_THROW_NOT_OK(
-      receive_time_builder.AppendValues(data_handler.response_time));
-
-    arrow::NumericBuilder<arrow::UInt64Type> response_status_builder;
-    for (const auto& response_status : data_handler.response_status_code)
-    {
-      PARQUET_THROW_NOT_OK(response_status_builder.Append(response_status));
-    }
-
-    arrow::StringBuilder response_headers_builder;
-    for (const auto& response_headers : data_handler.response_headers)
-    {
-      PARQUET_THROW_NOT_OK(response_headers_builder.Append(response_headers));
-    }
-
-    arrow::BinaryBuilder response_body_builder;
-    for (auto& response_body : data_handler.response_body)
-    {
-      PARQUET_THROW_NOT_OK(response_body_builder.Append(
-        response_body.data(), response_body.size()));
-    }
-
     auto table = arrow::Table::Make(
       arrow::schema({
         arrow::field("messageID", arrow::utf8()),
@@ -264,17 +314,18 @@ void store_parquet_results(ArgumentParser args, ParquetData data_handler)
         arrow::field("responseHeaders", arrow::utf8()),
         arrow::field("rawResponse", arrow::binary()),
       }),
-      {message_id_builder.Finish().ValueOrDie(),
-       receive_time_builder.Finish().ValueOrDie(),
-       response_status_builder.Finish().ValueOrDie(),
-       response_headers_builder.Finish().ValueOrDie(),
-       response_body_builder.Finish().ValueOrDie()});
+      {data_handler.ids,
+       response_data.finish_response_times(),
+       response_data.finish_response_statuses(),
+       response_data.finish_response_headers(),
+       response_data.finish_response_bodies()});
 
     std::shared_ptr<arrow::io::FileOutputStream> outfile;
     PARQUET_ASSIGN_OR_THROW(
       outfile, arrow::io::FileOutputStream::Open(args.response_filepath));
-    PARQUET_THROW_NOT_OK(parquet::arrow::WriteTable(
-      *table, arrow::default_memory_pool(), outfile));
+    PARQUET_THROW_NOT_OK(
+      parquet::arrow::WriteTable(
+        *table, arrow::default_memory_pool(), outfile));
   }
 
   LOG_INFO_FMT("Finished storing results");
@@ -308,14 +359,10 @@ int main(int argc, char** argv)
   // Write PID to disk
   files::dump(fmt::format("{}", ::getpid()), args.pid_file_path);
 
-  auto requests_size = data_handler.ids.size();
-
-  std::vector<timespec> start(requests_size);
-  std::vector<timespec> end(requests_size);
-
-  // Store responses until they are processed to be written in parquet
-  std::vector<client::HttpRpcTlsClient::Response> responses(
-    data_handler.ids.size());
+  const auto requests_size = static_cast<size_t>(data_handler.ids->length());
+  data_handler.send_time.resize(requests_size);
+  ResponseData response_data;
+  response_data.reserve(requests_size);
 
   LOG_INFO_FMT("Start Request Submission");
 
@@ -334,17 +381,16 @@ int main(int argc, char** argv)
     {
       for (size_t ridx = read_reqs; ridx < requests_size; ridx++)
       {
-        clock_gettime(CLOCK_REALTIME, &start[ridx]);
-        auto request = data_handler.request[ridx];
-        connection->write({request.data(), request.size()});
+        data_handler.send_time[ridx] = get_realtime_us();
+        const auto request = data_handler.requests->Value(ridx);
+        connection->write(
+          {reinterpret_cast<const uint8_t*>(request.data()), request.size()});
         if (
           connection->bytes_available() or
           (args.max_inflight_requests >= 0 &&
-           ridx - read_reqs >=
-             static_cast<size_t>(args.max_inflight_requests)))
+           ridx - read_reqs >= static_cast<size_t>(args.max_inflight_requests)))
         {
-          responses[read_reqs] = connection->read_response();
-          clock_gettime(CLOCK_REALTIME, &end[read_reqs]);
+          response_data.append(connection->read_response(), get_realtime_us());
           read_reqs++;
         }
         if (ridx % 20000 == 0)
@@ -355,8 +401,7 @@ int main(int argc, char** argv)
       // Read remaining responses
       while (read_reqs < requests_size)
       {
-        responses[read_reqs] = connection->read_response();
-        clock_gettime(CLOCK_REALTIME, &end[read_reqs]);
+        response_data.append(connection->read_response(), get_realtime_us());
         read_reqs++;
       }
       connection.reset();
@@ -377,31 +422,16 @@ int main(int argc, char** argv)
 
   LOG_INFO_FMT("Finished Request Submission");
 
-  for (size_t req = 0; req < requests_size; req++)
+  if (response_data.size() != static_cast<int64_t>(requests_size))
   {
-    auto& response = responses[req];
-    data_handler.response_status_code.push_back(response.status);
-    std::string concat_headers;
-    for (const auto& [k, v] : response.headers)
-    {
-      if (!concat_headers.empty())
-      {
-        concat_headers += "\n";
-      }
-      concat_headers += fmt::format("{}: {}", k, v);
-    }
-    data_handler.response_headers.push_back(concat_headers);
-    data_handler.response_body.push_back(std::move(response.body));
-
-    size_t send_time_us =
-      start[req].tv_sec * 1'000'000 + start[req].tv_nsec / 1000;
-    size_t response_time_us =
-      end[req].tv_sec * 1'000'000 + end[req].tv_nsec / 1000;
-    data_handler.send_time.push_back(send_time_us);
-    data_handler.response_time.push_back(response_time_us);
+    LOG_FAIL_FMT(
+      "Received {} responses for {} requests",
+      response_data.size(),
+      requests_size);
+    return 1;
   }
 
-  store_parquet_results(args, data_handler);
+  store_parquet_results(args, data_handler, response_data);
 
   return 0;
 }
