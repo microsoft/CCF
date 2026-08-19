@@ -78,9 +78,11 @@ Inspect the recorded profile directly with:
 
     perf report --stdio --no-children -i workspace/pi_basic_0/perf.data
 
-To render a flame graph with the Inferno tools, run:
+To install the Inferno tools and render a flame graph, run:
 
 .. code-block:: bash
+
+    cargo install inferno
 
     perf script -i workspace/pi_basic_0/perf.data \
       | inferno-collapse-perf \
