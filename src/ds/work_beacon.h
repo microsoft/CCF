@@ -2,26 +2,27 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/pal/locking.h"
+
 #define FMT_HEADER_ONLY
 #include <condition_variable>
 #include <fmt/format.h>
 #include <iostream>
 #include <memory>
-#include <mutex>
 
 namespace ccf::ds
 {
   class WorkBeacon
   {
   protected:
-    std::mutex mutex;
-    std::condition_variable condition_variable;
-    size_t work_available = 0;
+    ccf::pal::Mutex mutex;
+    std::condition_variable_any condition_variable;
+    size_t work_available CCF_GUARDED_BY(mutex) = 0;
 
   public:
     void wait_for_work()
     {
-      std::unique_lock<std::mutex> lock(mutex);
+      ccf::pal::MutexGuard lock(mutex);
       condition_variable.wait(lock, [this] { return work_available > 0; });
       --work_available;
     }
@@ -32,7 +33,7 @@ namespace ccf::ds
     bool wait_for_work_with_timeout(
       const std::chrono::duration<DurationRep, DurationPeriod>& timeout)
     {
-      std::unique_lock<std::mutex> lock(mutex);
+      ccf::pal::MutexGuard lock(mutex);
       const auto woke_for_work = condition_variable.wait_for(
         lock, timeout, [this] { return work_available > 0; });
       if (woke_for_work)
@@ -49,7 +50,7 @@ namespace ccf::ds
     void notify_work_available()
     {
       {
-        std::lock_guard<std::mutex> lock(mutex);
+        ccf::pal::MutexGuard lock(mutex);
         ++work_available;
       }
 

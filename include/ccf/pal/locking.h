@@ -43,4 +43,34 @@ namespace ccf::pal
       return mutex.native_handle();
     }
   };
+
+  class CCF_SCOPED_CAPABILITY MutexGuard
+  {
+  private:
+    Mutex& mutex;
+
+  public:
+    explicit MutexGuard(Mutex& mutex_) CCF_ACQUIRE(mutex_) : mutex(mutex_)
+    {
+      mutex.lock();
+    }
+
+    ~MutexGuard() CCF_RELEASE()
+    {
+      mutex.unlock();
+    }
+
+    MutexGuard(const MutexGuard&) = delete;
+    MutexGuard& operator=(const MutexGuard&) = delete;
+
+    void lock() CCF_ACQUIRE()
+    {
+      mutex.lock();
+    }
+
+    void unlock() CCF_RELEASE()
+    {
+      mutex.unlock();
+    }
+  };
 }

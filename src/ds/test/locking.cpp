@@ -27,6 +27,12 @@ namespace
       mutex.unlock();
     }
 
+    int get()
+    {
+      ccf::pal::MutexGuard guard(mutex);
+      return value;
+    }
+
     std::optional<int> try_get()
     {
       if (mutex.try_lock())
@@ -45,6 +51,7 @@ TEST_CASE("PAL mutex" * doctest::test_suite("locking"))
 {
   ProtectedValue value;
   value.set(42);
+  CHECK(value.get() == 42);
   const auto result = value.try_get();
   REQUIRE(result.has_value());
   CHECK(result.value() == 42);
