@@ -2431,7 +2431,6 @@ namespace aft
       }
     }
 
-  public:
     // Called when a replica becomes follower in the same term, e.g. when the
     // primary node has not received a majority of acks (CheckQuorum)
     void become_follower()
@@ -2457,6 +2456,7 @@ namespace aft
 #endif
     }
 
+  public:
     // Called when a replica becomes aware of the existence of a new term
     // If retired already, state remains unchanged, but the replica otherwise
     // becomes a follower in the new term.

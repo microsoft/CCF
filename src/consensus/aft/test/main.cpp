@@ -5,7 +5,9 @@
 
 #define DOCTEST_CONFIG_NO_SHORT_MACRO_NAMES
 #define DOCTEST_CONFIG_IMPLEMENT
+#include <atomic>
 #include <doctest/doctest.h>
+#include <thread>
 
 using ms = std::chrono::milliseconds;
 
@@ -84,27 +86,26 @@ DOCTEST_TEST_CASE("Single node commit" * doctest::test_suite("single"))
 }
 
 DOCTEST_TEST_CASE(
-  "Public state reads are data-race-free across a leadership transition" *
-  doctest::test_suite("single"))
+  "Concurrent public state reads under a driving leadership transition" *
+  doctest::test_suite("concurrency"))
 {
-  // This is a regression test for the data race that public_state_lock
-  // fixes: leader_id and state->leadership_state used to be read (by
-  // primary()/is_primary()/get_view()) and written (by become_leader()/
-  // become_follower()) without any shared lock, which is undefined
-  // behaviour under concurrent access (and was caught by TSAN).
-  // public_state_lock makes each individual read/write of these fields
-  // well-defined.
+  // Regression test for a genuine data race: leader_id and
+  // state->leadership_state used to be read (by
+  // primary()/is_primary()/is_candidate()/is_backup()/get_details()) and
+  // written (by become_leader()/become_aware_of_new_term(), driven here via
+  // force_become_primary()/become_aware_of_new_term()) without any lock
+  // shared between readers and writers. That is undefined behaviour under
+  // concurrent access, and is exactly what TSAN caught in nodes_test.
   //
-  // What this fix does NOT do, and cannot do, is make several separate
-  // getter calls appear as a single atomic snapshot. The primary is
-  // legitimately allowed to change while an endpoint is executing - e.g.
-  // between an is_primary() call and a later primary() call, a
-  // leadership transition may genuinely occur on another thread. Callers
-  // must tolerate that a sequence of these calls may observe different
-  // points in time, not treat them as one consistent view. This test
-  // demonstrates that: even with public_state_lock in place, a
-  // transition interleaved between two calls still changes what they
-  // report - each call is race-free, but the pair is not atomic.
+  // A single background thread repeatedly forces this node through real
+  // leadership transitions, while several foreground threads spin calling
+  // the public getters. This does not (and cannot) assert anything about
+  // what values the readers observe - the primary is legitimately allowed
+  // to change while a reader is running, so there is no "correct" snapshot
+  // to check for. The value of this test is solely to give TSAN, run under
+  // `-DTSAN=ON`, enough real concurrent access to these fields to catch a
+  // regression if public_state_lock is ever removed or bypassed; it is not
+  // expected to fail without TSAN instrumentation.
   ccf::NodeId node_id = ccf::kv::test::PrimaryNodeId;
   auto kv_store = std::make_shared<Store>(node_id);
 
@@ -121,37 +122,48 @@ DOCTEST_TEST_CASE(
   config.try_emplace(node_id);
   r0.add_configuration(0, config);
 
-  r0.periodic(election_timeout * 2);
-  DOCTEST_REQUIRE(r0.is_primary());
-  DOCTEST_REQUIRE(r0.primary() == node_id);
+  std::atomic<bool> stop = false;
 
-  // An endpoint-style caller observes this node is currently primary...
-  const bool was_primary = r0.is_primary();
-  DOCTEST_REQUIRE(was_primary);
+  constexpr size_t transition_count = 2000;
+  std::thread driver([&]() {
+    aft::Term term = 1;
+    for (size_t i = 0; i < transition_count; ++i)
+    {
+      r0.force_become_primary();
+      // Advancing the term is what become_aware_of_new_term uses to step
+      // back down to follower - it is the same public entry point used
+      // when a real node hears from a more up-to-date peer.
+      r0.become_aware_of_new_term(++term);
+    }
+    stop = true;
+  });
 
-  // ...but before it gets around to reading primary() to report who that
-  // is, something else (in production: a concurrent thread handling a
-  // CheckQuorum failure or a higher-term message) drives a leadership
-  // transition. become_follower() is a public method that mutates
-  // leader_id and state->leadership_state while holding state->lock
-  // (which its caller, e.g. periodic()/recv_append_entries(), is
-  // expected to already hold) - public_state_lock only orders this
-  // against the getters below, it does not delay or serialize it with
-  // them into a single transaction.
-  r0.become_follower();
+  constexpr size_t reader_thread_count = 8;
+  std::vector<std::thread> readers;
+  for (size_t i = 0; i < reader_thread_count; ++i)
+  {
+    readers.emplace_back([&]() {
+      while (!stop)
+      {
+        // The return values are deliberately unchecked - any interleaving
+        // of these calls with the driver's transitions is valid. Only
+        // TSAN's instrumentation, not any assertion here, is meant to
+        // catch a regression.
+        r0.is_primary();
+        r0.is_candidate();
+        r0.is_backup();
+        r0.primary();
+        r0.get_view();
+        r0.get_details();
+      }
+    });
+  }
 
-  // The two calls together are not a consistent snapshot: this node was
-  // primary a moment ago, but no longer is by the time primary() is
-  // called. This is expected and unavoidable - it reflects a real
-  // transition that happened between the calls, not a bug. An endpoint
-  // must not assume "is_primary() implies primary() == self" holds
-  // across separate calls; each call is only guaranteed to report an
-  // accurate, race-free value at the instant it runs.
-  const auto primary_after = r0.primary();
-  DOCTEST_REQUIRE(was_primary);
-  DOCTEST_REQUIRE_FALSE(r0.is_primary());
-  DOCTEST_REQUIRE_FALSE(primary_after.has_value());
-  DOCTEST_REQUIRE_FALSE(primary_after == node_id);
+  driver.join();
+  for (auto& reader : readers)
+  {
+    reader.join();
+  }
 }
 
 DOCTEST_TEST_CASE(
