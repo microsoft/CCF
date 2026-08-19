@@ -19,7 +19,7 @@ Before adding an entry, determine the latest published CCF release from the repo
 
 ## Pull request references
 
-Every new or modified entry must include a reference to the pull request that introduced the change, in the form `(#1234)` at the end of the entry, matching the existing convention.
+Every new or modified entry must include a reference to the pull request that introduced the change and to the relevant issues(s) that the PR closes, in the form `(#1234)` at the end of the entry, matching the existing convention.
 
 When reviewing, flag any added or modified bullet under an `Added`, `Changed`, `Fixed`, `Removed`, or similarly named section that does not include such a `(#<number>)` reference, and ask the author to add the corresponding PR number. This applies to entries directly under top-level version sections and in nested subsections such as `Developer API` / `C++` / `Added`.
 
