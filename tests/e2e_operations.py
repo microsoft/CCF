@@ -2582,7 +2582,9 @@ def run_initial_uvm_descriptor_checks(const_args):
             )
             for chunk in ledger:
                 _, chunk_end_seqno = chunk.get_seqnos()
-                if chunk_end_seqno < recovery_seqno:
+                # Open chunks have no end seqno, so they may contain the
+                # recovery transaction. Only skip chunks known to end earlier.
+                if chunk_end_seqno is not None and chunk_end_seqno < recovery_seqno:
                     continue
                 for tx in chunk:
                     tables = tx.get_public_domain().get_tables()
@@ -2665,7 +2667,9 @@ def run_initial_tcb_version_checks(const_args):
             )
             for chunk in ledger:
                 _, chunk_end_seqno = chunk.get_seqnos()
-                if chunk_end_seqno < recovery_seqno:
+                # Open chunks have no end seqno, so they may contain the
+                # recovery transaction. Only skip chunks known to end earlier.
+                if chunk_end_seqno is not None and chunk_end_seqno < recovery_seqno:
                     continue
                 for tx in chunk:
                     tables = tx.get_public_domain().get_tables()

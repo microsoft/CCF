@@ -706,10 +706,10 @@ if(BUILD_TESTS)
     )
 
     add_unit_test(
-      rpc_connections_test
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/host/test/rpc_connections.cpp
+      openssl_server_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/host/test/openssl_server_test.cpp
     )
-    target_link_libraries(rpc_connections_test PRIVATE uv)
+    target_link_libraries(openssl_server_test PRIVATE ccf_tasks http_parser uv)
 
     add_unit_test(
       raft_test
@@ -870,7 +870,10 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/node_info_json.cpp
     )
 
-    add_unit_test(tls_test ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/main.cpp)
+    add_unit_test(
+      tls_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/clients/tls/test/main.cpp
+    )
     target_link_libraries(tls_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
 
     add_unit_test(

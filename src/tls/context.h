@@ -77,7 +77,7 @@ namespace ccf::tls
       // approved classical groups as fallbacks
       CHECK1(SSL_CTX_set1_groups_list(
         cfg,
-        "?SecP384r1MLKEM1024:?SecP256r1MLKEM768:?X25519MLKEM768:"
+        "?X25519MLKEM768:?SecP256r1MLKEM768:?SecP384r1MLKEM1024:"
         "P-521:P-384:P-256"));
 
       // Allow buffer to be relocated between WANT_WRITE retries, and do partial

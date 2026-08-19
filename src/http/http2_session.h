@@ -12,8 +12,6 @@
 
 namespace http
 {
-  using HTTP2Session = ccf::EncryptedSession;
-
   struct HTTP2SessionContext : public ccf::SessionContext
   {
     int32_t stream_id;
@@ -172,7 +170,7 @@ namespace http
     }
   };
 
-  class HTTP2ServerSession : public HTTP2Session,
+  class HTTP2ServerSession : public ccf::PlaintextSession,
                              public http::RequestProcessor,
                              public ccf::http::HTTPResponder
   {
@@ -200,7 +198,7 @@ namespace http
           it,
           stream_id,
           std::make_shared<HTTP2SessionContext>(
-            session_id, tls_io->peer_cert(), interface_id, stream_id));
+            session_id, peer_cert(), interface_id, stream_id));
       }
 
       return it->second;
@@ -241,11 +239,11 @@ namespace http
       std::shared_ptr<ccf::RPCMap> rpc_map_,
       int64_t session_id_,
       ccf::ListenInterfaceID interface_id_,
-      ringbuffer::AbstractWriterFactory& writer_factory,
-      std::unique_ptr<ccf::tls::Context> ctx,
+      ccf::SessionWriter& writer,
+      std::vector<uint8_t> peer_cert,
       const ccf::http::ParserConfiguration& configuration,
       const std::shared_ptr<ErrorReporter>& error_reporter_) :
-      HTTP2Session(session_id_, writer_factory, std::move(ctx)),
+      ccf::PlaintextSession(session_id_, writer, std::move(peer_cert)),
       server_parser(
         std::make_shared<http2::ServerParser>(*this, configuration)),
       rpc_map(std::move(rpc_map_)),
@@ -433,4 +431,5 @@ namespace http
         ->set_on_stream_close_callback(cb);
     }
   };
+
 }

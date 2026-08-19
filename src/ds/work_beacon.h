@@ -55,6 +55,24 @@ namespace ccf::ds
 
       condition_variable.notify_all();
     }
+
+    void notify_work_available_coalesced()
+    {
+      bool notify = false;
+      {
+        std::lock_guard<std::mutex> lock(mutex);
+        if (work_available == 0)
+        {
+          work_available = 1;
+          notify = true;
+        }
+      }
+
+      if (notify)
+      {
+        condition_variable.notify_all();
+      }
+    }
   };
 
   using WorkBeaconPtr = std::shared_ptr<WorkBeacon>;
