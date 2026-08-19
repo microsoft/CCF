@@ -4,7 +4,7 @@ AMD SEV-SNP
 How to use the AMD SEV-SNP platform
 -----------------------------------
 
-CCF must run on an AMD CPU which supports SEV-SNP, such as `Azure confidential containers <https://learn.microsoft.com/en-us/azure/confidential-computing/confidential-containers>`_ or `Azure Kubernetes Service with Confidential Containers <https://learn.microsoft.com/en-us/azure/aks/confidential-containers-overview>`_.
+CCF must run on an AMD CPU which supports SEV-SNP, such as `Azure confidential containers <https://learn.microsoft.com/en-us/azure/confidential-computing/confidential-containers>`_, `Azure Kubernetes Service with Confidential Containers <https://learn.microsoft.com/en-us/azure/aks/confidential-containers-overview>`_, or AWS EC2 SEV-SNP instances.
 
 CCF will use the SEV-SNP platform features automatically on the supported hardware.
 
@@ -48,7 +48,12 @@ AMD VCEK endorsements must be fetched, preferably from the THIM service, but con
 Non-Azure Deployment
 ~~~~~~~~~~~~~~~~~~~~
 
-For non-Azure deployments, the certificate chain for VCEK can be retrieved either from file, if already cached, or from an endorsement server, as specified in the :ref:`operations/configuration:``attestation.snp_endorsements_servers``` configuration section. For example, for the `well-known AMD endorsement server <https://docs.amd.com/v/u/en-US/57230>`_, the value should be set to:
+For non-Azure deployments, configure an endorsement server in the :ref:`operations/configuration:``attestation.snp_endorsements_servers``` configuration section. CCF selects the collateral flow from the signing key recorded in the attestation report:
+
+- For VCEK-signed reports, CCF retrieves the chip-specific VCEK and certificate chain.
+- For VLEK-signed reports, such as reports from AWS EC2 shared-tenancy SEV-SNP instances, CCF obtains the VLEK leaf certificate from the host through ``SNP_GET_EXT_REPORT`` and retrieves the ASVK/ARK chain from AMD. The leaf is read from the certificate table published by the hypervisor, under either the VLEK or the VCEK GUID and in either big-endian or mixed-endian byte order, since hosts differ in which slot and encoding they use.
+
+For the `well-known AMD endorsement server <https://docs.amd.com/v/u/en-US/57230>`_, the value should be set to:
 
 .. code-block:: json
 
@@ -66,7 +71,9 @@ For non-Azure deployments, the certificate chain for VCEK can be retrieved eithe
 
 .. tip:: See :ccf_repo:`samples/config/start_config_amd_sev_snp.json` for a sample node configuration for non-Azure deployments.
 
-.. note:: If no local file is available, the CCF node will fetch the AMD VCEK endorsements from the server on startup, which may cause substantial deployment delays (up to tens of seconds) depending on network latency and endpoint throttling. 
+.. note:: CCF fetches the AMD certificate chain from the server on startup, which may cause substantial deployment delays (up to tens of seconds) depending on network latency and endpoint throttling.
+
+.. note:: The ``snp_endorsements_file`` option contains VCEK collateral and is not used for VLEK-signed reports.
 
 Governance Proposals
 ~~~~~~~~~~~~~~~~~~~~

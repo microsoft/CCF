@@ -101,6 +101,12 @@ namespace ccf::pal
     }
 
     node_quote_info.quote = attestation->get_raw();
+    for (const auto& endorsement : attestation->get_endorsements())
+    {
+      const auto pem = ccf::crypto::cert_der_to_pem(endorsement).raw();
+      node_quote_info.endorsements.insert(
+        node_quote_info.endorsements.end(), pem.begin(), pem.end());
+    }
 
     if (endorsement_cb != nullptr)
     {
