@@ -4,7 +4,6 @@ import datetime
 import json
 import os
 import shutil
-import time
 
 import ccf.ledger
 import infra.crypto
@@ -18,7 +17,6 @@ import infra.platform_detection
 import infra.proc
 import infra.utils
 import suite.test_requirements as reqs
-from ccf.tx_id import TxID
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 from e2e_logging import test_random_receipts
@@ -192,24 +190,8 @@ def test_new_service(
     if test_jwt_cleanup:
 
         def get_fresh_public_state():
-            with primary.client() as c:
-                r = c.get("/node/commit")
-                target_seqno = TxID.from_str(r.body.json()["transaction_id"]).seqno
-            network.consortium.force_ledger_chunk(primary)
-            for _ in range(10):
-                ledger = ccf.ledger.Ledger(
-                    primary.remote.ledger_paths(),
-                    committed_only=True,
-                    contiguous_suffix=True,
-                )
-                public_state, last_seqno = ledger.get_latest_public_state()
-                if last_seqno >= target_seqno:
-                    return public_state
-
-                time.sleep(0.1)
-            assert (
-                False
-            ), f"Failed to up-to-date ledger state, seqno needed: {target_seqno}, last seqno: {last_seqno}"
+            public_state, _ = network.get_latest_ledger_public_state()
+            return public_state
 
         def table_has_entries(table_name, public_state):
             rows = public_state.get(table_name, None)
@@ -548,7 +530,7 @@ def run_code_upgrade_from(
                 to_version,
                 expected_subject_name=service_subject_name,
             )
-            network.get_latest_ledger_public_state()
+            network.create_and_wait_for_ledger_chunk()
 
 
 @reqs.description("Run live compatibility with latest LTS")
