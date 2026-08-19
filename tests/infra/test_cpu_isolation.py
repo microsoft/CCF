@@ -218,9 +218,9 @@ def test_isolation_metadata_survives_a_later_test():
                 os.environ["GITHUB_SHA"] = original_sha
 
     metadata = data[infra.bencher.METADATA_KEY]
-    assert metadata.get("cpu_isolation_pi_basic_blocking_locust") == "node=8-11", (
-        f"isolation metadata was lost when a later test ran: {metadata}"
-    )
+    assert (
+        metadata.get("cpu_isolation_pi_basic_blocking_locust") == "node=8-11"
+    ), f"isolation metadata was lost when a later test ran: {metadata}"
     assert metadata.get("commit") == "0123456789abcdef", "run metadata was lost"
     assert "Basic Blocking" in data and "Basic Blocking Locust" in data
 

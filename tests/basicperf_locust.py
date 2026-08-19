@@ -301,7 +301,7 @@ def cli_args():
         "Each is measured against its own network.",
         type=int,
         nargs="+",
-        default=[2, 100, 1000],
+        default=[2, 20, 100],
     )
     parser.add_argument(
         "--cpu-isolation",

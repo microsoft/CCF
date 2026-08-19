@@ -147,10 +147,7 @@ endif()
 
 # Must happen before tools.cmake is included
 if(CLANG_TIDY)
-  find_program(
-    CLANG_TIDY_EXE
-    NAMES "clang-tidy" "clang-tidy-18" "clang-tidy-15"
-  )
+  find_program(CLANG_TIDY_EXE NAMES "clang-tidy-18" "clang-tidy" REQUIRED)
   message(STATUS "Using clang-tidy from: ${CLANG_TIDY_EXE}")
 endif()
 
@@ -1055,6 +1052,17 @@ if(BUILD_TESTS)
       COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/infra/github.py
     )
     set_property(TEST github_version_lts_test APPEND PROPERTY LABELS bucket_c)
+
+    add_test(
+      NAME cpu_isolation_test
+      COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/infra/test_cpu_isolation.py
+    )
+    set_property(
+      TEST cpu_isolation_test
+      APPEND
+      PROPERTY ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH}"
+    )
+    set_property(TEST cpu_isolation_test APPEND PROPERTY LABELS bucket_c)
   endif()
 
   if(NOT TSAN)
@@ -1515,12 +1523,11 @@ if(BUILD_TESTS)
       # signature interval, so this sweeps from latency-bound to capacity-bound.
       --sig-ms-intervals
       2
+      20
       100
-      1000
       # Pin the node and the locust clients to disjoint CPUs, so the figures
       # describe the node rather than how it and the load generator happened to
-      # divide the machine. This benchmark has no history on main yet, so
-      # turning isolation on here costs no comparability.
+      # divide the machine.
       --cpu-isolation
       auto
   )
