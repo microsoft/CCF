@@ -16,7 +16,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - Joining or recovering nodes now ignore structurally invalid local snapshots and try an older snapshot instead of terminating during startup (#8124).
-- Nodes from the previous service are now marked as completely retired during disaster recovery, so they appear in `GET /node/network/removable_nodes` and can be deleted with `DELETE /node/network/nodes/{node_id}` (#8177).
+- Nodes from the previous service are now removed during disaster recovery instead of being retained as retired entries in `GET /node/network/nodes` (#8177).
 
 ### Dependencies
 

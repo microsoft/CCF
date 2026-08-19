@@ -21,11 +21,13 @@
 #include "node/ledger_secrets.h"
 #include "node/uvm_endorsements.h"
 #include "service/tables/governance_history.h"
+#include "service/tables/local_sealing.h"
 #include "service/tables/previous_service_identity.h"
 
 #include <algorithm>
 #include <ostream>
 #include <stdexcept>
+#include <vector>
 
 namespace ccf
 {
@@ -55,24 +57,49 @@ namespace ccf
     // instantiated
     InternalTablesAccess() = delete;
 
-    static void retire_active_nodes(ccf::kv::Tx& tx)
+    static void remove_node(ccf::kv::Tx& tx, const NodeId& node_id)
     {
       auto* nodes = tx.rw<ccf::Nodes>(Tables::NODES);
+      auto* node_endorsed_certificates = tx.rw<ccf::NodeEndorsedCertificates>(
+        Tables::NODE_ENDORSED_CERTIFICATES);
+      auto* local_sealing_node_id_map =
+        tx.rw<LocalSealingNodeIdMap>(Tables::SEALING_RECOVERY_NAMES);
+      auto* sealed_recovery_keys =
+        tx.rw<SealedRecoveryKeys>(Tables::SEALED_RECOVERY_KEYS);
 
-      std::map<NodeId, NodeInfo> nodes_to_retire;
-      nodes->foreach([&nodes_to_retire](const NodeId& nid, const NodeInfo& ni) {
-        if (ni.status != NodeStatus::RETIRED || !ni.retired_committed)
-        {
-          nodes_to_retire[nid] = ni;
-        }
-        return true;
-      });
+      nodes->remove(node_id);
+      node_endorsed_certificates->remove(node_id);
+      sealed_recovery_keys->remove(node_id);
 
-      for (auto [nid, ni] : nodes_to_retire)
+      std::vector<sealing_recovery::Name> sealing_recovery_names;
+      local_sealing_node_id_map->foreach(
+        [&sealing_recovery_names, &node_id](
+          const auto& sealing_recovery_name, const auto& sealing_node_id) {
+          if (sealing_node_id == node_id)
+          {
+            sealing_recovery_names.push_back(sealing_recovery_name);
+          }
+          return true;
+        });
+      for (const auto& sealing_recovery_name : sealing_recovery_names)
       {
-        ni.status = NodeStatus::RETIRED;
-        ni.retired_committed = true;
-        nodes->put(nid, ni);
+        local_sealing_node_id_map->remove(sealing_recovery_name);
+      }
+    }
+
+    static void remove_previous_service_nodes(ccf::kv::Tx& tx)
+    {
+      auto* nodes = tx.rw<ccf::Nodes>(Tables::NODES);
+      std::vector<NodeId> previous_service_node_ids;
+      nodes->foreach(
+        [&previous_service_node_ids](const NodeId& node_id, const NodeInfo&) {
+          previous_service_node_ids.push_back(node_id);
+          return true;
+        });
+
+      for (const auto& node_id : previous_service_node_ids)
+      {
+        remove_node(tx, node_id);
       }
     }
 

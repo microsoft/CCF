@@ -242,54 +242,88 @@ TEST_CASE(
   }
 }
 
-TEST_CASE("retire_active_nodes")
+TEST_CASE("remove_previous_service_nodes")
 {
   ccf::kv::Store kv_store;
   auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
   kv_store.set_encryptor(encryptor);
 
   Nodes nodes(Tables::NODES);
+  NodeEndorsedCertificates node_endorsed_certificates(
+    Tables::NODE_ENDORSED_CERTIFICATES);
+  LocalSealingNodeIdMap local_sealing_node_ids(Tables::SEALING_RECOVERY_NAMES);
+  SealedRecoveryKeys sealed_recovery_keys(Tables::SEALED_RECOVERY_KEYS);
   const NodeId trusted_id = std::string("trusted");
   const NodeId retired_id = std::string("retired");
   const NodeId retired_committed_id = std::string("retired_committed");
+  const std::string trusted_sealing_name = "trusted";
+  const std::string retired_sealing_name = "retired";
+  const std::string retired_committed_sealing_name = "retired_committed";
 
   {
     auto tx = kv_store.create_tx();
-    auto handle = tx.rw(nodes);
+    auto nodes_handle = tx.rw(nodes);
+    auto node_endorsed_certificates_handle = tx.rw(node_endorsed_certificates);
+    auto local_sealing_node_ids_handle = tx.rw(local_sealing_node_ids);
+    auto sealed_recovery_keys_handle = tx.rw(sealed_recovery_keys);
     const auto encryption_pub_key =
       ccf::crypto::make_ec_key_pair()->public_key_pem();
 
     NodeInfo trusted;
     trusted.encryption_pub_key = encryption_pub_key;
     trusted.status = NodeStatus::TRUSTED;
-    handle->put(trusted_id, trusted);
+    nodes_handle->put(trusted_id, trusted);
 
     NodeInfo retired = trusted;
     retired.status = NodeStatus::RETIRED;
-    handle->put(retired_id, retired);
+    nodes_handle->put(retired_id, retired);
 
     NodeInfo retired_committed = retired;
     retired_committed.retired_committed = true;
-    handle->put(retired_committed_id, retired_committed);
+    nodes_handle->put(retired_committed_id, retired_committed);
+
+    SealedRecoveryKey sealed_recovery_key;
+    sealed_recovery_key.ciphertext = {0};
+    sealed_recovery_key.pubkey = encryption_pub_key;
+    for (const auto& node_id : {trusted_id, retired_id, retired_committed_id})
+    {
+      node_endorsed_certificates_handle->put(node_id, encryption_pub_key);
+      sealed_recovery_keys_handle->put(node_id, sealed_recovery_key);
+    }
+    local_sealing_node_ids_handle->put(trusted_sealing_name, trusted_id);
+    local_sealing_node_ids_handle->put(retired_sealing_name, retired_id);
+    local_sealing_node_ids_handle->put(
+      retired_committed_sealing_name, retired_committed_id);
 
     REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
   }
 
   {
     auto tx = kv_store.create_tx();
-    InternalTablesAccess::retire_active_nodes(tx);
+    InternalTablesAccess::remove_previous_service_nodes(tx);
     REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
   }
 
   {
     auto tx = kv_store.create_read_only_tx();
-    auto handle = tx.ro(nodes);
+    auto nodes_handle = tx.ro(nodes);
+    auto node_endorsed_certificates_handle = tx.ro(node_endorsed_certificates);
+    auto local_sealing_node_ids_handle = tx.ro(local_sealing_node_ids);
+    auto sealed_recovery_keys_handle = tx.ro(sealed_recovery_keys);
     for (const auto& node_id : {trusted_id, retired_id, retired_committed_id})
     {
-      const auto node_info = handle->get(node_id);
-      REQUIRE(node_info.has_value());
-      REQUIRE(node_info->status == NodeStatus::RETIRED);
-      REQUIRE(node_info->retired_committed);
+      REQUIRE_FALSE(nodes_handle->get(node_id).has_value());
+      REQUIRE_FALSE(
+        node_endorsed_certificates_handle->get(node_id).has_value());
+      REQUIRE_FALSE(sealed_recovery_keys_handle->get(node_id).has_value());
+    }
+    for (const auto& sealing_name :
+         {trusted_sealing_name,
+          retired_sealing_name,
+          retired_committed_sealing_name})
+    {
+      REQUIRE_FALSE(
+        local_sealing_node_ids_handle->get(sealing_name).has_value());
     }
   }
 }
