@@ -39,10 +39,17 @@ class CmdMixin:
     def cmd(self):
         if self.perfable and os.getenv("CCF_PERF"):
             perf_args = os.getenv("CCF_PERF_ARGS", DEFAULT_PERF_RECORD_ARGS)
+            try:
+                parsed_perf_args = shlex.split(perf_args)
+            except ValueError as e:
+                raise ValueError(
+                    f"Invalid CCF_PERF_ARGS {perf_args!r}; expected a shell-style "
+                    "argument string"
+                ) from e
             return [
                 "perf",
                 "record",
-                *shlex.split(perf_args),
+                *parsed_perf_args,
                 "-o",
                 "perf.data",
                 "--",
@@ -222,7 +229,13 @@ class LocalRemote(CmdMixin):
     def _send_signal(self, sig):
         try:
             if self._profiling_enabled() and self.pid_file:
-                signal.pidfd_send_signal(self._open_profiled_pidfd(), sig)
+                try:
+                    profiled_pidfd = self._open_profiled_pidfd()
+                except RuntimeError:
+                    if self.proc.poll() is None:
+                        self.proc.send_signal(sig)
+                else:
+                    signal.pidfd_send_signal(profiled_pidfd, sig)
             else:
                 self.proc.send_signal(sig)
         except ProcessLookupError:
