@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [7.0.13]
+
+[7.0.13]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.13
+
 ### Fixed
 
 - Fixed a data race where `primary()`/`is_primary()` could read Raft's `leader_id`/`leadership_state` concurrently with a leadership transition writing them, by guarding both with a dedicated lock (#8181).

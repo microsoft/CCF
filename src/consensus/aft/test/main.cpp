@@ -87,15 +87,16 @@ DOCTEST_TEST_CASE(
   "Splicing public state reads across a leadership transition" *
   doctest::test_suite("single"))
 {
-  // This reproduces, without any threading or TSAN, the shape of bug that
-  // motivated the (reverted) AFT public-state synchronization change: none
-  // of primary(), is_primary() and get_view() are protected by a single
-  // lock that also guards leadership transitions (become_leader() /
-  // become_follower()), so two calls made "in sequence" by a caller (e.g.
-  // an HTTP endpoint building a status response) are not actually a
-  // consistent snapshot if a transition happens between them. In the real
-  // system that gap is filled by a second thread; here we fill it by hand
-  // to show the resulting combination can violate invariants an endpoint
+  // This is a regression test confirming that application endpoints see a
+  // consistent snapshot of Raft's public state, rather than one spliced
+  // together from multiple separate calls made around a leadership
+  // transition. primary(), is_primary() and get_view() are each
+  // individually synchronized against become_leader()/become_follower(),
+  // but a caller that reads several of them in sequence (e.g. an HTTP
+  // endpoint building a status response) has no guarantee that a
+  // transition did not happen between those reads. In the real system
+  // that gap is filled by a second thread; here we fill it by hand to
+  // show the resulting combination can violate invariants an endpoint
   // might reasonably assume, e.g. "if is_primary() was true a moment ago,
   // primary() should still identify this node".
   ccf::NodeId node_id = ccf::kv::test::PrimaryNodeId;
