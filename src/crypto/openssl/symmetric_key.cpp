@@ -7,9 +7,12 @@
 #include "ccf/crypto/symmetric_key.h"
 #include "ds/internal_logger.h"
 
+#include <array>
 #include <climits>
+#include <mutex>
 #include <openssl/aes.h>
 #include <openssl/evp.h>
+#include <optional>
 
 namespace ccf::crypto
 {
@@ -19,30 +22,158 @@ namespace ccf::crypto
   static constexpr size_t KEY_SIZE_192 = 192;
   static constexpr size_t KEY_SIZE_128 = 128;
 
-  KeyAesGcm_OpenSSL::KeyAesGcm_OpenSSL(std::span<const uint8_t> rawKey) :
-    key(std::vector<uint8_t>(rawKey.data(), rawKey.data() + rawKey.size()))
+  namespace
   {
-    const auto n = static_cast<unsigned int>(rawKey.size() * CHAR_BIT);
-    if (n >= KEY_SIZE_256)
+    static constexpr size_t MAX_CACHED_CONTEXTS = 16;
+
+    const char* get_gcm_cipher_name(std::span<const uint8_t> raw_key)
     {
-      evp_cipher = EVP_aes_256_gcm();
-      evp_cipher_wrap_pad = EVP_aes_256_wrap_pad();
-    }
-    else if (n >= KEY_SIZE_192)
-    {
-      evp_cipher = EVP_aes_192_gcm();
-      evp_cipher_wrap_pad = EVP_aes_192_wrap_pad();
-    }
-    else if (n >= KEY_SIZE_128)
-    {
-      evp_cipher = EVP_aes_128_gcm();
-      evp_cipher_wrap_pad = EVP_aes_128_wrap_pad();
-    }
-    else
-    {
+      const auto n = static_cast<unsigned int>(raw_key.size() * CHAR_BIT);
+      if (n >= KEY_SIZE_256)
+      {
+        return "AES-256-GCM";
+      }
+      if (n >= KEY_SIZE_192)
+      {
+        return "AES-192-GCM";
+      }
+      if (n >= KEY_SIZE_128)
+      {
+        return "AES-128-GCM";
+      }
       throw std::logic_error(
         fmt::format("Need at least {} bits, only have {}", KEY_SIZE_128, n));
     }
+
+    const EVP_CIPHER* get_wrap_pad_cipher(std::span<const uint8_t> raw_key)
+    {
+      const auto n = static_cast<unsigned int>(raw_key.size() * CHAR_BIT);
+      if (n >= KEY_SIZE_256)
+      {
+        return EVP_aes_256_wrap_pad();
+      }
+      if (n >= KEY_SIZE_192)
+      {
+        return EVP_aes_192_wrap_pad();
+      }
+      return EVP_aes_128_wrap_pad();
+    }
+
+    struct CachedContext
+    {
+      std::mutex lock;
+      std::optional<Unique_EVP_CIPHER_CTX> context = std::nullopt;
+      bool keyed = false;
+    };
+
+    class ContextLease
+    {
+    private:
+      CachedContext* cached = nullptr;
+      [[maybe_unused]] std::unique_lock<std::mutex> lock;
+      std::optional<Unique_EVP_CIPHER_CTX> uncached = std::nullopt;
+      EVP_CIPHER_CTX* context = nullptr;
+
+    public:
+      ContextLease(
+        CachedContext& cached_, std::unique_lock<std::mutex>&& lock_) :
+        cached(&cached_),
+        lock(std::move(lock_))
+      {
+        if (!cached->context.has_value())
+        {
+          cached->context.emplace();
+        }
+        context = cached->context.value();
+      }
+
+      ContextLease() : uncached(std::in_place), context(uncached.value()) {}
+
+      EVP_CIPHER_CTX* get()
+      {
+        return context;
+      }
+
+      void initialise(
+        bool encrypt, const EVP_CIPHER* cipher, std::span<const uint8_t> key)
+      {
+        if (cached != nullptr && cached->keyed)
+        {
+          return;
+        }
+
+        if (encrypt)
+        {
+          CHECK1(
+            EVP_EncryptInit_ex2(context, cipher, key.data(), nullptr, nullptr));
+        }
+        else
+        {
+          CHECK1(
+            EVP_DecryptInit_ex2(context, cipher, key.data(), nullptr, nullptr));
+        }
+
+        if (cached != nullptr)
+        {
+          cached->keyed = true;
+        }
+      }
+    };
+
+    class ContextPool
+    {
+    private:
+      const bool encrypt;
+      std::array<CachedContext, MAX_CACHED_CONTEXTS> contexts;
+
+    public:
+      ContextPool(bool encrypt_) : encrypt(encrypt_) {}
+
+      ContextLease acquire(
+        const EVP_CIPHER* cipher, std::span<const uint8_t> key)
+      {
+        for (auto& cached : contexts)
+        {
+          std::unique_lock<std::mutex> lock(cached.lock, std::try_to_lock);
+          if (lock.owns_lock())
+          {
+            ContextLease lease(cached, std::move(lock));
+            lease.initialise(encrypt, cipher, key);
+            return lease;
+          }
+        }
+
+        ContextLease lease;
+        lease.initialise(encrypt, cipher, key);
+        return lease;
+      }
+    };
+  }
+
+  struct KeyAesGcm_OpenSSL::ContextPools
+  {
+    ContextPool encrypt{true};
+    ContextPool decrypt{false};
+  };
+
+  KeyAesGcm_OpenSSL::KeyAesGcm_OpenSSL(std::span<const uint8_t> rawKey) :
+    key(std::vector<uint8_t>(rawKey.data(), rawKey.data() + rawKey.size())),
+    evp_cipher(EVP_CIPHER_fetch(nullptr, get_gcm_cipher_name(rawKey), nullptr)),
+    evp_cipher_wrap_pad(get_wrap_pad_cipher(rawKey)),
+    context_pools(std::make_unique<ContextPools>())
+  {}
+
+  KeyAesGcm_OpenSSL::KeyAesGcm_OpenSSL(KeyAesGcm_OpenSSL&& that) noexcept :
+    key(std::move(that.key)),
+    evp_cipher(std::move(that.evp_cipher)),
+    evp_cipher_wrap_pad(that.evp_cipher_wrap_pad),
+    context_pools(std::move(that.context_pools))
+  {}
+
+  KeyAesGcm_OpenSSL::~KeyAesGcm_OpenSSL()
+  {
+    context_pools.reset();
+    OPENSSL_cleanse(const_cast<uint8_t*>(key.data()), key.size());
   }
 
   size_t KeyAesGcm_OpenSSL::key_size() const
@@ -62,12 +193,12 @@ namespace ccf::crypto
       throw std::logic_error("aad and plain cannot both be empty");
     }
 
-    Unique_EVP_CIPHER_CTX ctx;
-    CHECK1(EVP_EncryptInit_ex(ctx, evp_cipher, nullptr, key.data(), nullptr));
+    auto lease = context_pools->encrypt.acquire(evp_cipher, key);
+    auto* ctx = lease.get();
 
     CHECK1(
       EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN, iv.size(), nullptr));
-    CHECK1(EVP_EncryptInit_ex(ctx, nullptr, nullptr, key.data(), iv.data()));
+    CHECK1(EVP_EncryptInit_ex2(ctx, nullptr, nullptr, iv.data(), nullptr));
 
     if (!aad.empty())
     {
@@ -113,12 +244,13 @@ namespace ccf::crypto
     std::span<const uint8_t> aad,
     std::vector<uint8_t>& plain) const
   {
-    Unique_EVP_CIPHER_CTX ctx;
-    CHECK1(EVP_DecryptInit_ex(ctx, evp_cipher, nullptr, nullptr, nullptr));
+    auto lease = context_pools->decrypt.acquire(evp_cipher, key);
+    auto* ctx = lease.get();
+
     CHECK1(
       EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN, iv.size(), nullptr));
 
-    CHECK1(EVP_DecryptInit_ex(ctx, nullptr, nullptr, key.data(), iv.data()));
+    CHECK1(EVP_DecryptInit_ex2(ctx, nullptr, nullptr, iv.data(), nullptr));
     if (!aad.empty())
     {
       int aad_outl{0};

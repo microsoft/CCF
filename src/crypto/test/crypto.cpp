@@ -25,12 +25,16 @@
 #include "crypto/openssl/verifier.h"
 #include "crypto/openssl/x509_time.h"
 
+#include <array>
+#include <atomic>
+#include <barrier>
 #include <chrono>
 #include <cstring>
 #include <ctime>
 #include <doctest/doctest.h>
 #include <optional>
 #include <span>
+#include <thread>
 
 using namespace std;
 using namespace ccf::crypto;
@@ -807,6 +811,162 @@ static const vector<uint8_t>& get_raw_key()
 {
   static const vector<uint8_t> v(16, '$');
   return v;
+}
+
+TEST_CASE("AES-GCM context reuse")
+{
+  const std::vector<uint8_t> key(16, 0);
+  const std::vector<uint8_t> iv(12, 0);
+  const std::vector<uint8_t> plain(16, 0);
+  const std::vector<uint8_t> expected_cipher = {
+    0x03,
+    0x88,
+    0xda,
+    0xce,
+    0x60,
+    0xb6,
+    0xa3,
+    0x92,
+    0xf3,
+    0x28,
+    0xc2,
+    0xb9,
+    0x71,
+    0xb2,
+    0xfe,
+    0x78};
+  const uint8_t expected_tag[GCM_SIZE_TAG] = {
+    0xab,
+    0x6e,
+    0x47,
+    0xd4,
+    0x2c,
+    0xec,
+    0x13,
+    0xbd,
+    0xf5,
+    0x3a,
+    0x67,
+    0xb2,
+    0x12,
+    0x57,
+    0xbd,
+    0xdf};
+  auto aes_gcm_key = make_key_aes_gcm(key);
+
+  std::vector<uint8_t> cipher;
+  uint8_t tag[GCM_SIZE_TAG] = {};
+  aes_gcm_key->encrypt(iv, plain, {}, cipher, tag);
+
+  REQUIRE(cipher == expected_cipher);
+  REQUIRE(std::equal(std::begin(tag), std::end(tag), std::begin(expected_tag)));
+
+  std::vector<uint8_t> decrypted;
+  std::array<uint8_t, GCM_SIZE_TAG> invalid_tag;
+  std::copy(std::begin(tag), std::end(tag), invalid_tag.begin());
+  invalid_tag[0] ^= 1;
+  REQUIRE_FALSE(
+    aes_gcm_key->decrypt(iv, invalid_tag.data(), cipher, {}, decrypted));
+  REQUIRE(decrypted.empty());
+
+  REQUIRE(aes_gcm_key->decrypt(iv, tag, cipher, {}, decrypted));
+  REQUIRE(decrypted == plain);
+}
+
+TEST_CASE("AES-GCM empty inputs")
+{
+  auto aes_gcm_key = make_key_aes_gcm(get_raw_key());
+  const std::vector<uint8_t> iv(12, 0);
+  const std::vector<uint8_t> aad(8, 0x42);
+  const std::vector<uint8_t> plain(8, 0x24);
+  uint8_t tag[GCM_SIZE_TAG] = {};
+  std::vector<uint8_t> cipher;
+  std::vector<uint8_t> decrypted;
+
+  aes_gcm_key->encrypt(iv, {}, aad, cipher, tag);
+  REQUIRE(cipher.empty());
+  REQUIRE(aes_gcm_key->decrypt(iv, tag, cipher, aad, decrypted));
+  REQUIRE(decrypted.empty());
+
+  aes_gcm_key->encrypt(iv, plain, {}, cipher, tag);
+  REQUIRE(aes_gcm_key->decrypt(iv, tag, cipher, {}, decrypted));
+  REQUIRE(decrypted == plain);
+
+  REQUIRE_THROWS_AS(
+    aes_gcm_key->encrypt(iv, {}, {}, cipher, tag), std::logic_error);
+
+  const std::vector<uint8_t> empty_key(16, 0);
+  auto empty_aes_gcm_key = make_key_aes_gcm(empty_key);
+  const uint8_t empty_tag[GCM_SIZE_TAG] = {
+    0x58,
+    0xe2,
+    0xfc,
+    0xce,
+    0xfa,
+    0x7e,
+    0x30,
+    0x61,
+    0x36,
+    0x7f,
+    0x1d,
+    0x57,
+    0xa4,
+    0xe7,
+    0x45,
+    0x5a};
+  decrypted.clear();
+  REQUIRE(empty_aes_gcm_key->decrypt(iv, empty_tag, {}, {}, decrypted));
+  REQUIRE(decrypted.empty());
+}
+
+TEST_CASE("Concurrent AES-GCM context reuse")
+{
+  constexpr size_t thread_count = 24;
+  constexpr size_t iteration_count = 128;
+  auto aes_gcm_key = make_key_aes_gcm(get_raw_key());
+  std::barrier start(thread_count);
+  std::atomic<bool> success = true;
+  std::vector<std::thread> threads;
+
+  for (size_t thread_index = 0; thread_index < thread_count; ++thread_index)
+  {
+    threads.emplace_back([&, thread_index]() {
+      try
+      {
+        start.arrive_and_wait();
+        for (size_t i = 0; i < iteration_count; ++i)
+        {
+          const uint64_t nonce = (thread_index * iteration_count) + i + 1;
+          std::vector<uint8_t> iv(12, 0);
+          memcpy(iv.data(), &nonce, sizeof(nonce));
+          const std::vector<uint8_t> plain(64, thread_index);
+          const std::vector<uint8_t> aad(16, i);
+          std::vector<uint8_t> cipher;
+          uint8_t tag[GCM_SIZE_TAG] = {};
+
+          aes_gcm_key->encrypt(iv, plain, aad, cipher, tag);
+          std::vector<uint8_t> decrypted;
+          if (
+            !aes_gcm_key->decrypt(iv, tag, cipher, aad, decrypted) ||
+            decrypted != plain)
+          {
+            success = false;
+          }
+        }
+      }
+      catch (...)
+      {
+        success = false;
+      }
+    });
+  }
+
+  for (auto& thread : threads)
+  {
+    thread.join();
+  }
+
+  REQUIRE(success);
 }
 
 TEST_CASE("ExtendedIv0")

@@ -414,18 +414,22 @@ TEST_CASE("Encryptor rollback")
   ledger_secrets->init();
   auto encryptor = std::make_shared<ccf::NodeEncryptor>(ledger_secrets);
   store.set_encryptor(encryptor);
+  std::weak_ptr<ccf::crypto::KeyAesGcm> rolled_back_key;
 
   commit_one(store, map);
 
   // Assumes tx at seqno 2 rekeys. Txs from seqno 3 will be encrypted with new
   // secret
   commit_one(store, map);
-  ledger_secrets->set_secret(3, ccf::make_ledger_secret());
+  auto rolled_back_secret = ccf::make_ledger_secret();
+  rolled_back_key = rolled_back_secret->key;
+  ledger_secrets->set_secret(3, std::move(rolled_back_secret));
 
   commit_one(store, map);
 
   // Rollback store at seqno 1, discarding encryption key at 3
   store.rollback({store_term, 1}, store.commit_view());
+  REQUIRE(rolled_back_key.expired());
 
   commit_one(store, map);
 

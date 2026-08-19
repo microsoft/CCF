@@ -354,6 +354,14 @@ namespace ccf::crypto::OpenSSL
     using Unique_SSL_OBJECT::Unique_SSL_OBJECT;
   };
 
+  struct Unique_EVP_CIPHER
+    : public Unique_SSL_OBJECT<EVP_CIPHER, nullptr, EVP_CIPHER_free>
+  {
+    Unique_EVP_CIPHER(EVP_CIPHER* cipher) :
+      Unique_SSL_OBJECT(cipher, EVP_CIPHER_free)
+    {}
+  };
+
   struct Unique_STACK_OF_X509
     : public Unique_SSL_OBJECT<STACK_OF(X509), nullptr, nullptr>
   {
