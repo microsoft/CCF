@@ -67,7 +67,10 @@ namespace ccf::ds
     {
       ccf::pal::MutexGuard guard(lock);
       alive = false;
-      all_workers_done.wait(guard, [this]() { return active_workers == 0; });
+      while (active_workers > 0)
+      {
+        all_workers_done.wait(guard);
+      }
     }
 
     /**
