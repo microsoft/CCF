@@ -5,10 +5,10 @@
 recent trend on ``main``.
 
 For each metric, benchmarks form the radar axes. Two nested shaded bands show the
-EWMA baseline +/- 1 and +/- 2 standard deviations of the most recent ``main``
-runs. Up to five branch curves run from the oldest and faintest to the latest and
-strongest. Values are normalized per benchmark so that 100 is the ``main`` EWMA
-baseline.
+baseline +/- 1 and +/- 2 standard deviations. Up to five branch curves run from
+the oldest and faintest to the latest and strongest. Values are normalized per
+benchmark so that 100 is the ``main`` EWMA baseline, or the earliest available
+branch value when the benchmark does not exist on ``main`` yet.
 """
 
 import os
@@ -248,6 +248,55 @@ def axis_label_color(percent: float, higher_is_better: bool, within_noise: bool)
     return LABEL_GOOD if improved else LABEL_BAD
 
 
+# U+2026 HORIZONTAL ELLIPSIS. One character wide, so eliding the middle of a
+# word with it costs a single column rather than the three of "...".
+ELLIPSIS = "\u2026"
+
+# Eliding a shorter word saves nothing, since "abc" and "a" + ELLIPSIS + "c"
+# are both three characters.
+MIN_ELIDABLE_WORD_LENGTH = 4
+
+
+def elide_word(word: str) -> str:
+    """Replace the middle of a word with a single ellipsis character."""
+    return f"{word[0]}{ELLIPSIS}{word[-1]}"
+
+
+def shorten_label(label: str, max_length: int) -> str:
+    """Shorten a label to fit by eliding the middles of its words.
+
+    Words are elided from left to right, each keeping its first and last letter,
+    until the label fits. Benchmarks measured at several settings differ only in
+    their last word, for example the interval in "Basic Blocking Locust 100ms",
+    so eliding from the left keeps the part which tells them apart readable for
+    as long as possible.
+    """
+    if max_length <= 0:
+        return ""
+    if len(label) <= max_length:
+        return label
+
+    words = label.split()
+    elided = " ".join(words)
+    if len(elided) <= max_length:
+        return elided
+
+    for index, word in enumerate(words):
+        if len(word) < MIN_ELIDABLE_WORD_LENGTH:
+            continue
+        words[index] = elide_word(word)
+        elided = " ".join(words)
+        if len(elided) <= max_length:
+            return elided
+
+    # Every word is elided and it still does not fit. Keep the end, which is
+    # what distinguishes one setting of a benchmark from another.
+    elided = " ".join(words)
+    if max_length <= 1:
+        return elided[:max_length]
+    return ELLIPSIS + elided[len(elided) - (max_length - 1) :]
+
+
 def axis_label(
     benchmark: str, value: float, percent: float, unit: str, within_noise: bool
 ) -> str:
@@ -257,10 +306,11 @@ def axis_label(
         f": {metric_label_value(value, unit)} "
         f"{format_delta_percent(percent, within_noise)}"
     )
-    max_label_length = MAX_AXIS_LABEL_LENGTH - len(suffix)
-    if len(label) <= max_label_length:
-        return f"{label}{suffix}"
-    return f"{label[:max_label_length - 3]}...{suffix}"
+    shortened_suffix = shorten_label(suffix, MAX_AXIS_LABEL_LENGTH)
+    return (
+        f"{shorten_label(label, MAX_AXIS_LABEL_LENGTH - len(shortened_suffix))}"
+        f"{shortened_suffix}"
+    )
 
 
 def normalized_percent(value: float, baseline: float) -> float:
@@ -297,7 +347,11 @@ def render_mermaid_radar_chart(
     unit: str,
     branch_label: str,
 ) -> str:
-    """Render one radar chart comparing the branch runs with the main trend."""
+    """Render one radar chart comparing the branch runs with the main trend.
+
+    ``branch_runs`` must be ordered chronologically, oldest first, as returned by
+    ``load_runs``.
+    """
     higher_better = metric in HIGHER_IS_BETTER
     latest_branch = branch_runs[-1]
     axes: list[str] = []
@@ -319,14 +373,35 @@ def render_mermaid_radar_chart(
             for data in trend
             if (value := metric_value(data, benchmark, metric)) is not None
         ]
-        if not main_values:
-            continue
 
-        baseline = ewma(main_values)
+        # A benchmark added by this branch has no main runs to build a baseline
+        # from. Rather than drop it, which would make a new benchmark invisible
+        # on the very pull request which adds it, use this branch's own earliest
+        # run as the reference, so the axis is normalised and plotted exactly
+        # like every other one.
+        if main_values:
+            baseline = ewma(main_values)
+            sigma = statistics.pstdev(main_values) if len(main_values) > 1 else 0.0
+        else:
+            branch_values = [
+                value
+                for data in branch_runs
+                if (value := metric_value(data, benchmark, metric)) is not None
+            ]
+            if not branch_values:
+                continue
+            # load_runs orders branch_runs oldest first, so this is the earliest
+            # available value for the metric.
+            baseline = branch_values[0]
+            # Spread is measured the same way as for a benchmark with main
+            # history, from the runs available, so that such an axis carries a
+            # band and a noise threshold like every other one rather than
+            # collapsing to a point at the baseline.
+            sigma = statistics.pstdev(branch_values) if len(branch_values) > 1 else 0.0
+
         if baseline <= 0:
             continue
 
-        sigma = statistics.pstdev(main_values) if len(main_values) > 1 else 0.0
         branch_percent = normalized_percent(branch_value, baseline)
         sigma_percent = normalized_percent(sigma, baseline)
         within_noise = within_noise_band(branch_percent, sigma_percent)
@@ -505,6 +580,14 @@ def render_comparison(
             "regresses, and grey where the difference is within one std dev of the "
             "baseline (within noise). "
             "Higher is better for throughput and rate, lower for latency and memory._"
+        ),
+        "",
+        (
+            "_A benchmark which does not exist on `main` yet has no baseline of its "
+            "own, so its earliest available run from this branch is used as its "
+            "reference and its band is measured across this branch's runs. Its axis is "
+            "normalized, scaled and coloured like any other, but the comparison is "
+            "against this branch rather than against `main`._"
         ),
         "",
         "</details>",
