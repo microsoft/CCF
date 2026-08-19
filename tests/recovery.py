@@ -482,7 +482,23 @@ def test_recover_service(
     with old_primary.client() as c:
         r = c.get("/node/service/previous_identity")
         assert r.status_code in (200, 404), r.status_code
-        prev_view = c.get("/node/network").body.json()["current_view"]
+        previous_network_info = c.get("/node/network").body.json()
+        previous_service_create_txid = previous_network_info[
+            "current_service_create_txid"
+        ]
+        prev_view = previous_network_info["current_view"]
+
+    with old_primary.api_versioned_client(api_version=args.gov_api_version) as c:
+        r = c.get("/gov/service/info")
+        assert r.status_code == http.HTTPStatus.OK, r
+        previous_service_info = r.body.json()
+        assert previous_service_info["status"] == infra.network.ServiceStatus.OPEN.value
+        assert previous_service_info["certificate"] == prev_ident
+        assert previous_service_info["recoveryCount"] == network.recovery_count
+        assert (
+            previous_service_info["creationTransactionId"]
+            == previous_service_create_txid
+        )
 
     snapshots_dir = None
     if from_snapshot:
@@ -584,9 +600,10 @@ def test_recover_service(
     LOG.info("Check that new service view is as expected")
     new_primary, _ = recovered_network.find_primary()
     with new_primary.client() as c:
+        current_network_info = c.get("/node/network").body.json()
         assert (
             ccf.tx_id.TxID.from_str(
-                c.get("/node/network").body.json()["current_service_create_txid"]
+                current_network_info["current_service_create_txid"]
             ).view
             == prev_view + 2
         )
@@ -604,6 +621,29 @@ def test_recover_service(
             r = c.get("/node/ready/app")
 
         assert r.status_code == http.HTTPStatus.NO_CONTENT.value, r
+
+    with new_primary.api_versioned_client(api_version=args.gov_api_version) as c:
+        r = c.get("/gov/service/info")
+        assert r.status_code == http.HTTPStatus.OK, r
+        current_service_info = r.body.json()
+        assert current_service_info["status"] == infra.network.ServiceStatus.OPEN.value
+        assert (
+            current_service_info["certificate"]
+            == current_network_info["service_certificate"]
+        )
+        assert (
+            current_service_info["recoveryCount"]
+            == previous_service_info["recoveryCount"] + 1
+        )
+        assert (
+            current_service_info["creationTransactionId"]
+            == current_network_info["current_service_create_txid"]
+        )
+        assert (
+            current_service_info["previousServiceCreationTransactionId"]
+            == previous_service_info["creationTransactionId"]
+        )
+        assert current_service_info["serviceData"] == service_data
 
     return recovered_network
 
@@ -2321,8 +2361,7 @@ def run_recover_snapshot_ledger_offset(args):
         network.start_and_open(args)
         primary, _ = network.find_primary()
 
-        network.consortium.force_ledger_chunk(primary)
-        network.get_latest_ledger_public_state()
+        network.create_and_wait_for_ledger_chunk(primary)
 
         network.txs.issue(network, number_txs=5, send_private=False, send_public=True)
         network.txs.issue(network, number_txs=5, send_private=False, send_public=True)
@@ -2360,7 +2399,7 @@ def run_recover_snapshot_ledger_offset(args):
         rest_txid = network.txs.issue(
             network, number_txs=5, send_private=False, send_public=True
         )
-        network.get_latest_ledger_public_state()
+        network.create_and_wait_for_ledger_chunk(primary)
 
         assert snapshot_trigger_txid.seqno < snapshot_seqno < rest_txid.seqno, (
             snapshot_trigger_txid,

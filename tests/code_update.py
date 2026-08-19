@@ -44,8 +44,20 @@ def test_verify_quotes(network, args):
         trusted_virtual_measurements = policy["virtual"]["measurements"]
         trusted_virtual_host_data = policy["virtual"]["hostData"]
 
-        r = uc.get("/node/attestations")
-        all_quotes = r.body.json()["attestations"]
+    with primary.client() as c:
+        r = c.get("/node/attestations")
+        assert r.status_code == http.HTTPStatus.OK, r
+        all_attestations = r.body.json()["attestations"]
+
+        r = c.get("/node/quotes")
+        assert r.status_code == http.HTTPStatus.OK, r
+        all_quotes = r.body.json()["quotes"]
+
+        quotes_by_node = {quote["node_id"]: quote for quote in all_quotes}
+        attestations_by_node = {
+            attestation["node_id"]: attestation for attestation in all_attestations
+        }
+        assert quotes_by_node == attestations_by_node
         assert len(all_quotes) >= len(
             network.get_joined_nodes()
         ), f"There are {len(network.get_joined_nodes())} joined nodes, yet got only {len(all_quotes)} quotes: {json.dumps(all_quotes, indent=2)}"

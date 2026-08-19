@@ -42,7 +42,7 @@ namespace ccf
 
   private:
     ccf::pal::Mutex open_lock;
-    bool is_open_ = false;
+    std::atomic<bool> is_open_{false};
 
     std::atomic<ccf::kv::Consensus*> consensus{nullptr};
     std::shared_ptr<AbstractForwarder> cmd_forwarder;
@@ -1078,11 +1078,11 @@ namespace ccf
     void open() override
     {
       std::lock_guard<ccf::pal::Mutex> mguard(open_lock);
-      if (!is_open_)
+      if (!is_open_.load(std::memory_order_relaxed))
       {
         LOG_INFO_FMT("Opening frontend");
-        is_open_ = true;
         endpoints.init_handlers();
+        is_open_.store(true, std::memory_order_release);
       }
     }
 
@@ -1097,8 +1097,7 @@ namespace ccf
 
     bool is_open() override
     {
-      std::lock_guard<ccf::pal::Mutex> mguard(open_lock);
-      return is_open_;
+      return is_open_.load(std::memory_order_acquire);
     }
 
     void set_root_on_proposals(
@@ -1160,7 +1159,10 @@ namespace ccf
 
     void tick(std::chrono::milliseconds elapsed) override
     {
-      endpoints.tick(elapsed);
+      if (is_open_.load(std::memory_order_acquire))
+      {
+        endpoints.tick(elapsed);
+      }
     }
   };
 }
