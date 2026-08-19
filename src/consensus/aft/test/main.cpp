@@ -84,6 +84,68 @@ DOCTEST_TEST_CASE("Single node commit" * doctest::test_suite("single"))
 }
 
 DOCTEST_TEST_CASE(
+  "Splicing public state reads across a leadership transition" *
+  doctest::test_suite("single"))
+{
+  // This reproduces, without any threading or TSAN, the shape of bug that
+  // motivated the (reverted) AFT public-state synchronization change: none
+  // of primary(), is_primary() and get_view() are protected by a single
+  // lock that also guards leadership transitions (become_leader() /
+  // become_follower()), so two calls made "in sequence" by a caller (e.g.
+  // an HTTP endpoint building a status response) are not actually a
+  // consistent snapshot if a transition happens between them. In the real
+  // system that gap is filled by a second thread; here we fill it by hand
+  // to show the resulting combination can violate invariants an endpoint
+  // might reasonably assume, e.g. "if is_primary() was true a moment ago,
+  // primary() should still identify this node".
+  ccf::NodeId node_id = ccf::kv::test::PrimaryNodeId;
+  auto kv_store = std::make_shared<Store>(node_id);
+
+  TRaft r0(
+    raft_settings,
+    std::make_unique<Adaptor>(kv_store),
+    std::make_unique<aft::LedgerStubProxy>(node_id),
+    std::make_shared<aft::ChannelStubProxy>(),
+    std::make_shared<aft::State>(node_id),
+    nullptr);
+  r0.start_ticking();
+
+  ccf::kv::Configuration::Nodes config;
+  config.try_emplace(node_id);
+  r0.add_configuration(0, config);
+
+  r0.periodic(election_timeout * 2);
+  DOCTEST_REQUIRE(r0.is_primary());
+  DOCTEST_REQUIRE(r0.primary() == node_id);
+
+  // An endpoint-style caller observes this node is currently primary...
+  const bool was_primary = r0.is_primary();
+  DOCTEST_REQUIRE(was_primary);
+
+  // ...but before it gets around to reading primary() to report who that
+  // is, something else (in production: a concurrent thread handling a
+  // CheckQuorum failure or a higher-term message) drives a leadership
+  // transition. become_follower() is a public method that mutates
+  // leader_id and state->leadership_state without acquiring state->lock
+  // itself (it relies on callers, e.g. periodic()/recv_append_entries(),
+  // to already hold it) - so nothing prevents this from happening between
+  // the two reads.
+  r0.become_follower();
+
+  // The caller's combined snapshot is now internally inconsistent: it
+  // believes this node is (or very recently was) primary, yet primary()
+  // no longer identifies it as such. An endpoint that assumed
+  // "is_primary() implies primary() == self" would report a
+  // contradiction (or otherwise misuse the stale information) to a
+  // client.
+  const auto primary_after = r0.primary();
+  DOCTEST_REQUIRE(was_primary);
+  DOCTEST_REQUIRE_FALSE(r0.is_primary());
+  DOCTEST_REQUIRE_FALSE(primary_after.has_value());
+  DOCTEST_REQUIRE_FALSE(primary_after == node_id);
+}
+
+DOCTEST_TEST_CASE(
   "Multiple nodes startup and election" * doctest::test_suite("multiple"))
 {
   ccf::NodeId node_id0 = ccf::kv::test::PrimaryNodeId;
