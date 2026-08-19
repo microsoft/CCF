@@ -9,7 +9,7 @@ These instructions apply both when writing and when reviewing changes to `CHANGE
 
 ## Selecting the release section
 
-Before adding an entry, determine the latest published CCF release from the repository's releases or `ccf-<version>` tags. Do not infer release status from the contents of `CHANGELOG.md` alone.
+Before adding an entry, determine the latest published CCF release from the git `ccf-<version>` tags or github.com/microsoft/CCF releases. Do not infer release status from the contents of `CHANGELOG.md` alone.
 
 - Every entry must be placed under a concrete Semantic Versioning release section.
 - If the first release section in `CHANGELOG.md` is newer than the latest published release, treat it as the next release and add the entry to the appropriate existing subsection.
