@@ -229,7 +229,7 @@ TEST_CASE("PauseAndResume")
 
 void describe_session_manager(SessionManager& sm)
 {
-  std::lock_guard<std::mutex> lock(sm.sessions_mutex);
+  ccf::pal::MutexGuard lock(sm.sessions_mutex);
   LOG_INFO_FMT("SessionManager contains {} sessions", sm.all_sessions.size());
   for (auto& session : sm.all_sessions)
   {

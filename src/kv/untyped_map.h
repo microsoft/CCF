@@ -759,12 +759,14 @@ namespace ccf::kv::untyped
       roll.rollback_counter = 0;
     }
 
-    void lock() override
+    // Clang cannot track capabilities selected and held across map collection
+    // loops, so these dynamic lock-forwarding methods remain opaque.
+    void lock() CCF_NO_THREAD_SAFETY_ANALYSIS override
     {
       sl.lock();
     }
 
-    void unlock() override
+    void unlock() CCF_NO_THREAD_SAFETY_ANALYSIS override
     {
       sl.unlock();
     }
