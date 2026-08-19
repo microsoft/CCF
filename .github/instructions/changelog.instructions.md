@@ -3,11 +3,25 @@ applyTo:
   - "CHANGELOG.md"
 ---
 
-# Code review – CHANGELOG entries
+# CHANGELOG entries
 
-When reviewing changes to `CHANGELOG.md`, always verify that every new or modified entry includes a reference to the pull request that introduced the change, in the form `(#1234)` at the end of the entry (matching the existing convention).
+These instructions apply both when writing and when reviewing changes to `CHANGELOG.md`.
 
-Flag any added or modified bullet under an `Added`, `Changed`, `Fixed`, `Removed`, or similarly-named section that does not include such a `(#<number>)` reference, and ask the author to add the corresponding PR number. This applies to entries under both top-level version sections (e.g. `[Unreleased]`) and nested subsections (e.g. `### Developer API` → `#### C++` → `##### Added`).
+## Selecting the release section
+
+Before adding an entry, determine the latest published CCF release from the repository's releases or `ccf-<version>` tags. Do not infer release status from the contents of `CHANGELOG.md` alone.
+
+- Every entry must be placed under a concrete Semantic Versioning release section.
+- If the first release section in `CHANGELOG.md` is newer than the latest published release, treat it as the next release and add the entry to the appropriate existing subsection.
+- If the first release section has already been published, create a new section above it by incrementing the patch component of the latest published release. Add the matching link definition using the existing `https://github.com/microsoft/CCF/releases/tag/ccf-<version>` convention.
+- Whenever a new release section is created, update `project.version` in `python/pyproject.toml` to the same version. The first version in `CHANGELOG.md` and `project.version` must always match.
+- When reviewing a changelog addition, verify the release status, section selection, and version synchronisation above.
+
+## Pull request references
+
+Every new or modified entry must include a reference to the pull request that introduced the change, in the form `(#1234)` at the end of the entry, matching the existing convention.
+
+When reviewing, flag any added or modified bullet under an `Added`, `Changed`, `Fixed`, `Removed`, or similarly named section that does not include such a `(#<number>)` reference, and ask the author to add the corresponding PR number. This applies to entries directly under top-level version sections and in nested subsections such as `Developer API` / `C++` / `Added`.
 
 Do not flag:
 
