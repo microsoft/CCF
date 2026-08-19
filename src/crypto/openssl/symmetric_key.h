@@ -12,12 +12,9 @@ namespace ccf::crypto
   class KeyAesGcm_OpenSSL : public KeyAesGcm
   {
   private:
-    struct ContextPools;
-
     std::vector<uint8_t> key;
-    OpenSSL::Unique_EVP_CIPHER evp_cipher;
+    const EVP_CIPHER* evp_cipher;
     const EVP_CIPHER* evp_cipher_wrap_pad;
-    std::unique_ptr<ContextPools> context_pools;
 
   public:
     KeyAesGcm_OpenSSL(std::span<const uint8_t> rawKey);
@@ -26,6 +23,8 @@ namespace ccf::crypto
     ~KeyAesGcm_OpenSSL() override;
 
     [[nodiscard]] size_t key_size() const override;
+
+    std::unique_ptr<Context> make_context() override;
 
     void encrypt(
       std::span<const uint8_t> iv,

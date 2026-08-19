@@ -13,8 +13,11 @@
 
 #include <doctest/doctest.h>
 #undef FAIL
+#include <atomic>
+#include <barrier>
 #include <random>
 #include <string>
+#include <thread>
 
 ccf::kv::ConsensusHookPtrs hooks;
 using StringString = ccf::kv::Map<std::string, std::string>;
@@ -100,6 +103,41 @@ TEST_CASE("Simple encryption/decryption")
   REQUIRE(encrypt_round_trip(encryptor, plain, 4));
   REQUIRE(encrypt_round_trip(encryptor, plain, 5));
   REQUIRE(encrypt_round_trip(encryptor, plain, 6));
+}
+
+TEST_CASE("Concurrent encryption/decryption")
+{
+  constexpr size_t thread_count = 16;
+  constexpr size_t iteration_count = 64;
+  auto ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
+  ledger_secrets->init();
+  ccf::NodeEncryptor encryptor(ledger_secrets);
+  std::barrier start(thread_count);
+  std::atomic<bool> success = true;
+  std::vector<std::thread> threads;
+
+  for (size_t thread_index = 0; thread_index < thread_count; ++thread_index)
+  {
+    threads.emplace_back([&, thread_index]() {
+      start.arrive_and_wait();
+      for (size_t i = 0; i < iteration_count; ++i)
+      {
+        std::vector<uint8_t> plain(64, thread_index);
+        const auto version = (thread_index * iteration_count) + i + 1;
+        if (!encrypt_round_trip(encryptor, plain, version))
+        {
+          success = false;
+        }
+      }
+    });
+  }
+
+  for (auto& thread : threads)
+  {
+    thread.join();
+  }
+
+  REQUIRE(success);
 }
 
 TEST_CASE("Subsequent ciphers from same plaintext are different")
