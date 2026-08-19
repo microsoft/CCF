@@ -128,6 +128,34 @@ namespace aft
     // processed on the enclave main thread. Keep these small query fields
     // independently synchronized so endpoint transactions do not need to take
     // state->lock and invert the KV/Raft lock order.
+    //
+    // Guarded by public_state_lock (read and written only through the
+    // wrappers below, e.g. set_leader_id()/primary(),
+    // set_leadership_state()/is_primary()/is_candidate()/is_backup(),
+    // set_membership_state()/is_active()/is_retired()/..., set_ticking()):
+    //   - leader_id
+    //   - published_last_idx, published_commit_idx, published_view_history
+    //     (published snapshots of state->last_idx/commit_idx/view_history)
+    //   - state->leadership_state
+    //   - state->membership_state, state->retirement_phase
+    //   - ticking
+    // state->current_view is also guarded by public_state_lock, via
+    // set_current_view()/advance_current_view()/get_view().
+    //
+    // All mutations of these fields happen while state->lock is already
+    // held (see the "Called while state->lock is held" comments below), so
+    // state->lock continues to order writes with respect to each other;
+    // public_state_lock only needs to order writes with respect to the
+    // lightweight readers below, and must never be taken while already
+    // holding state->lock's writer nested inside another public_state_lock
+    // acquisition (i.e. treat it as a leaf lock, acquired alone).
+    //
+    // Note: get_details() still takes state->lock (not just
+    // public_state_lock) because it also reads `configurations` and
+    // `all_other_nodes`, which are not yet part of this lightweight
+    // published-state set. Removing that remaining state->lock acquisition
+    // from the endpoint-facing get_details() path would require publishing
+    // those fields too, which is a larger change out of scope here.
     mutable ccf::pal::Mutex public_state_lock;
     std::optional<ccf::NodeId> leader_id = std::nullopt;
     Index published_last_idx = 0;
@@ -228,6 +256,28 @@ namespace aft
     {
       std::lock_guard<ccf::pal::Mutex> guard(public_state_lock);
       state->leadership_state = leadership_state;
+    }
+
+    // Called while state->lock is held.
+    void set_membership_state(ccf::kv::MembershipState membership_state)
+    {
+      std::lock_guard<ccf::pal::Mutex> guard(public_state_lock);
+      state->membership_state = membership_state;
+    }
+
+    // Called while state->lock is held.
+    void set_retirement_phase(
+      std::optional<ccf::kv::RetirementPhase> retirement_phase)
+    {
+      std::lock_guard<ccf::pal::Mutex> guard(public_state_lock);
+      state->retirement_phase = retirement_phase;
+    }
+
+    // Called while state->lock is held.
+    void set_ticking(bool ticking_)
+    {
+      std::lock_guard<ccf::pal::Mutex> guard(public_state_lock);
+      ticking = ticking_;
     }
 
     // Called while state->lock is held.
@@ -422,26 +472,36 @@ namespace aft
 
     bool is_active() const
     {
+      std::lock_guard<ccf::pal::Mutex> guard(public_state_lock);
       return state->membership_state == ccf::kv::MembershipState::Active;
     }
 
     bool is_retired() const
     {
+      std::lock_guard<ccf::pal::Mutex> guard(public_state_lock);
       return state->membership_state == ccf::kv::MembershipState::Retired;
     }
 
     bool is_retired_committed() const
     {
+      std::lock_guard<ccf::pal::Mutex> guard(public_state_lock);
       return state->membership_state == ccf::kv::MembershipState::Retired &&
         state->retirement_phase == ccf::kv::RetirementPhase::RetiredCommitted;
     }
 
     bool is_retired_completed() const
     {
+      std::lock_guard<ccf::pal::Mutex> guard(public_state_lock);
       return state->membership_state == ccf::kv::MembershipState::Retired &&
         state->retirement_phase == ccf::kv::RetirementPhase::Completed;
     }
 
+    // NOTE: unlike most mutators in this class, this is called directly from
+    // a KV commit hook (see node_state.h) and does not appear to hold
+    // state->lock. This is a pre-existing gap, orthogonal to
+    // public_state_lock (which only orders these fields' writes against the
+    // lightweight readers below, not against other writers) - not addressed
+    // here.
     void set_retired_committed(
       ccf::SeqNo seqno, const std::vector<ccf::kv::NodeId>& node_ids) override
     {
@@ -674,9 +734,10 @@ namespace aft
       }
     }
 
+    // Called while state->lock is held.
     void start_ticking()
     {
-      ticking = true;
+      set_ticking(true);
       using namespace std::chrono_literals;
       timeout_elapsed = 0ms;
       RAFT_INFO_FMT("Election timer has become active");
@@ -710,16 +771,25 @@ namespace aft
     ccf::kv::ConsensusDetails get_details() override
     {
       ccf::kv::ConsensusDetails details;
-      std::lock_guard<ccf::pal::Mutex> guard(state->lock);
-      details.primary_id = leader_id;
-      details.current_view = state->current_view;
-      details.ticking = ticking;
-      details.leadership_state = state->leadership_state;
-      details.membership_state = state->membership_state;
-      if (is_retired())
+      // These fields are all guarded by public_state_lock (see its
+      // declaration above), so this does not need to take the heavier
+      // state->lock or block on Raft message processing.
       {
-        details.retirement_phase = state->retirement_phase;
+        std::lock_guard<ccf::pal::Mutex> guard(public_state_lock);
+        details.primary_id = leader_id;
+        details.current_view = state->current_view;
+        details.ticking = ticking;
+        details.leadership_state = state->leadership_state;
+        details.membership_state = state->membership_state;
+        if (state->membership_state == ccf::kv::MembershipState::Retired)
+        {
+          details.retirement_phase = state->retirement_phase;
+        }
       }
+      // configurations and all_other_nodes are not part of the
+      // public_state_lock-guarded set, so state->lock is still required to
+      // read them safely.
+      std::lock_guard<ccf::pal::Mutex> guard(state->lock);
       for (auto const& conf : configurations)
       {
         details.configs.push_back(conf);
@@ -2455,6 +2525,10 @@ namespace aft
       channels->send_authenticated(
         successor, ccf::NodeMsgType::consensus_msg, prv);
     }
+    // Called while state->lock is held (writes state->retirement_idx /
+    // state->retirement_committable_idx / state->retired_committed_idx,
+    // which are not part of the public_state_lock-guarded set and so still
+    // rely on state->lock for synchronization).
     void become_retired(Index idx, ccf::kv::RetirementPhase phase)
     {
       RAFT_INFO_FMT(
@@ -2496,8 +2570,8 @@ namespace aft
         set_leadership_state(ccf::kv::LeadershipState::None);
       }
 
-      state->membership_state = ccf::kv::MembershipState::Retired;
-      state->retirement_phase = phase;
+      set_membership_state(ccf::kv::MembershipState::Retired);
+      set_retirement_phase(phase);
     }
 
     void add_vote_for_me(const ccf::NodeId& from)
@@ -2833,7 +2907,7 @@ namespace aft
           if (retirement_committable > idx)
           {
             state->retirement_committable_idx = std::nullopt;
-            state->retirement_phase = ccf::kv::RetirementPhase::Ordered;
+            set_retirement_phase(ccf::kv::RetirementPhase::Ordered);
           }
         }
       }
@@ -2851,8 +2925,8 @@ namespace aft
           if (retirement > idx)
           {
             state->retirement_idx = std::nullopt;
-            state->retirement_phase = std::nullopt;
-            state->membership_state = ccf::kv::MembershipState::Active;
+            set_retirement_phase(std::nullopt);
+            set_membership_state(ccf::kv::MembershipState::Active);
             RAFT_DEBUG_FMT("Becoming Active after rollback");
           }
         }
