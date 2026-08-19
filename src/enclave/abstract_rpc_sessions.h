@@ -37,6 +37,6 @@ namespace ccf
     virtual void set_custom_protocol_subsystem(
       std::shared_ptr<CustomProtocolSubsystem> cpss) = 0;
     virtual void set_commit_callbacks_subsystem(
-      std::shared_ptr<CommitCallbackSubsystem> fcss) = 0;
+      std::shared_ptr<CommitCallbackSubsystem> ccss) = 0;
   };
 }
