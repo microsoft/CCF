@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - C++ endpoints can now use `ccf::endpoints::Endpoint::add_openapi_response<Out>()` to document additional HTTP responses in their generated OpenAPI schema without changing the endpoint's primary success response (#8115).
+- C++ callers can use `ccf::crypto::KeyAesGcm::make_context()` to explicitly own and reuse a pre-keyed AES-GCM context when they can ensure it is not accessed concurrently (#8170).
 
 ### Changed
 

@@ -853,10 +853,12 @@ TEST_CASE("AES-GCM context reuse")
     0xbd,
     0xdf};
   auto aes_gcm_key = make_key_aes_gcm(key);
+  auto context = aes_gcm_key->make_context();
+  aes_gcm_key.reset();
 
   std::vector<uint8_t> cipher;
   uint8_t tag[GCM_SIZE_TAG] = {};
-  aes_gcm_key->encrypt(iv, plain, {}, cipher, tag);
+  context->encrypt(iv, plain, {}, cipher, tag);
 
   REQUIRE(cipher == expected_cipher);
   REQUIRE(std::equal(std::begin(tag), std::end(tag), std::begin(expected_tag)));
@@ -866,10 +868,10 @@ TEST_CASE("AES-GCM context reuse")
   std::copy(std::begin(tag), std::end(tag), invalid_tag.begin());
   invalid_tag[0] ^= 1;
   REQUIRE_FALSE(
-    aes_gcm_key->decrypt(iv, invalid_tag.data(), cipher, {}, decrypted));
+    context->decrypt(iv, invalid_tag.data(), cipher, {}, decrypted));
   REQUIRE(decrypted.empty());
 
-  REQUIRE(aes_gcm_key->decrypt(iv, tag, cipher, {}, decrypted));
+  REQUIRE(context->decrypt(iv, tag, cipher, {}, decrypted));
   REQUIRE(decrypted == plain);
 }
 
@@ -919,7 +921,7 @@ TEST_CASE("AES-GCM empty inputs")
   REQUIRE(decrypted.empty());
 }
 
-TEST_CASE("Concurrent AES-GCM context reuse")
+TEST_CASE("Concurrent AES-GCM convenience calls")
 {
   constexpr size_t thread_count = 24;
   constexpr size_t iteration_count = 128;

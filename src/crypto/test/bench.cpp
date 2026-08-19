@@ -118,6 +118,7 @@ static void benchmark_aes_gcm_encrypt(picobench::state& s)
   const std::vector<uint8_t> key(GCM_DEFAULT_KEY_SIZE, 0x42);
   const auto contents = make_contents<NContents>();
   auto aes_gcm_key = make_key_aes_gcm(key);
+  auto context = aes_gcm_key->make_context();
   StandardGcmHeader header;
   std::vector<uint8_t> cipher;
   uint64_t iv = 0;
@@ -128,7 +129,7 @@ static void benchmark_aes_gcm_encrypt(picobench::state& s)
     (void)_;
     memcpy(header.iv.data(), &iv, sizeof(iv));
     ++iv;
-    aes_gcm_key->encrypt(header.get_iv(), contents, {}, cipher, header.tag);
+    context->encrypt(header.get_iv(), contents, {}, cipher, header.tag);
     do_not_optimize(cipher);
     clobber_memory();
   }
