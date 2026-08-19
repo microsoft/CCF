@@ -25,8 +25,8 @@ struct SessionManager
 {
   using SessionPtr = std::unique_ptr<Session>;
 
-  std::mutex sessions_mutex;
-  std::vector<SessionPtr> all_sessions;
+  ccf::pal::Mutex sessions_mutex;
+  std::vector<SessionPtr> all_sessions CCF_GUARDED_BY(sessions_mutex);
 
   ~SessionManager()
   {
@@ -35,7 +35,7 @@ struct SessionManager
 
   Session& new_session(const std::string& s)
   {
-    std::lock_guard<std::mutex> lock(sessions_mutex);
+    ccf::pal::MutexGuard lock(sessions_mutex);
     return *all_sessions.emplace_back(std::make_unique<Session>(s));
   }
 };
