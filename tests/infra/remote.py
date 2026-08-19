@@ -28,6 +28,7 @@ DBG = os.getenv("DBG", "lldb")
 # Duration after which unresponsive node is declared as crashed on startup
 REMOTE_STARTUP_TIMEOUT_S = 5
 FILE_TIMEOUT_S = 60
+# See doc/overview/performance.rst for the rationale behind these defaults.
 DEFAULT_PERF_RECORD_ARGS = "-m 16 -e task-clock:u -F 99 -g --call-graph dwarf --quiet"
 
 
