@@ -65,7 +65,7 @@ sphinx-build --fail-on-warning -b html doc doc/html
 - All tests in `ci.yml` must pass before a PR can be merged. Consider which are likely to be affected by your changes and run those locally before pushing.
 - Take particular care with any changes that may affect compatibility with older releases, and ensure these are tested, via the `lts_compatibility` test with `LONG_TESTS=1` enabled.
 - Take particular care with changes to the consensus and crypto code, as these are critical for security and correctness. Ensure you have a thorough understanding of the existing code and the implications of your changes before proceeding.
-- Any changes to user-facing APIs or behaviour must be documented in `CHANGELOG.md` (Keep a Changelog format, under the current `[Unreleased]` or dev version, in `Added`/`Changed`/`Fixed`/`Removed` sections). When adding a new version to `CHANGELOG.md`, be sure to update `python/pyproject.toml` to match.
+- Any changes to user-facing APIs or behaviour must be documented in `CHANGELOG.md` in Keep a Changelog format, under a concrete version and in an `Added`, `Changed`, `Fixed`, `Removed`, or similarly named section. Follow `.github/instructions/changelog.instructions.md` to select the correct release section and keep `python/pyproject.toml` in sync.
 
 ### C++
 

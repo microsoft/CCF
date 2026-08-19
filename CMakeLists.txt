@@ -147,10 +147,7 @@ endif()
 
 # Must happen before tools.cmake is included
 if(CLANG_TIDY)
-  find_program(
-    CLANG_TIDY_EXE
-    NAMES "clang-tidy" "clang-tidy-18" "clang-tidy-15"
-  )
+  find_program(CLANG_TIDY_EXE NAMES "clang-tidy-18" "clang-tidy" REQUIRED)
   message(STATUS "Using clang-tidy from: ${CLANG_TIDY_EXE}")
 endif()
 
@@ -1484,6 +1481,39 @@ if(BUILD_TESTS)
       ${CMAKE_SOURCE_DIR}/samples/apps/basic/js
       --client-def
       "1,write,300000,primary"
+  )
+
+  # Same workload as pi_basic_blocking, driven by locust rather than piccolo,
+  # so that the number of concurrent clients can be varied.
+  add_e2e_test(
+    NAME pi_basic_blocking_locust
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/basicperf_locust.py
+    LABEL perf
+    CONFIGURATIONS perf
+    ADDITIONAL_ARGS
+      --package
+      "samples/apps/basic/basic"
+      --perf-label
+      "Basic Blocking Locust"
+      # add_piccolo_test passes this for every piccolo perf test, but
+      # add_e2e_test does not, and the default is 10. Without it this
+      # benchmark snapshots every 10 transactions and measures the disk.
+      --snapshot-tx-interval
+      10000
+      --users
+      320
+      --spawn-rate
+      320
+      --locust-processes
+      10
+      --measure-time-s
+      20
+      # Blocking writes return on commit, and commit cannot outpace the
+      # signature interval, so this sweeps from latency-bound to capacity-bound.
+      --sig-ms-intervals
+      2
+      20
+      100
   )
 
   if(WORKER_THREADS)

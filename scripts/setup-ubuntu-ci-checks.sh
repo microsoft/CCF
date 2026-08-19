@@ -29,9 +29,9 @@ fi
 install_packages_ubuntu() {
   log "Installing packages with apt (Ubuntu)"
   export DEBIAN_FRONTEND=noninteractive
-  $SUDO apt-get update
+  $SUDO apt-get -o Acquire::http::Timeout=5 -o Acquire::https::Timeout=5 -o Acquire::Retries=1 update
   # clang-format-18 matches the version pinned by scripts/check-format.sh.
-  $SUDO apt-get install -y --no-install-recommends \
+  $SUDO apt-get -o Acquire::http::Timeout=5 -o Acquire::https::Timeout=5 -o Acquire::Retries=1 install -y --no-install-recommends \
     ca-certificates \
     git \
     tar \
