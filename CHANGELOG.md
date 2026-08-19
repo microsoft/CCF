@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- Fixed a data race where `primary()`/`is_primary()` could read Raft's `leader_id`/`leadership_state` concurrently with a leadership transition writing them, by guarding both with a dedicated lock (#8181).
+
 ## [7.0.12]
 
 [7.0.12]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.12
