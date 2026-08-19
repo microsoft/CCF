@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
+import http
 import itertools
 import time
 from hashlib import sha256
@@ -13,6 +14,40 @@ import suite.test_requirements as reqs
 from loguru import logger as LOG
 
 id_gen = itertools.count()
+
+RINGBUFFER_CAPACITY = 16 * 1024 * 1024
+MAX_RESPONSE_SIZE = 2 * RINGBUFFER_CAPACITY
+LARGE_RESPONSE_SIZES = (RINGBUFFER_CAPACITY, MAX_RESPONSE_SIZE)
+INVALID_RESPONSE_SIZES = (-1, 1.5, MAX_RESPONSE_SIZE + 1)
+
+
+@reqs.description("Generate responses at and above ringbuffer capacity")
+def test_large_responses(network, args):
+    primary, _ = network.find_primary()
+
+    with primary.client("user0") as c:
+        for response_size in LARGE_RESPONSE_SIZES:
+            LOG.info(f"Generating a {response_size} byte response")
+            response = c.post(
+                "/app/batch/generate", {"size": response_size}, timeout=30
+            )
+            assert response.status_code == http.HTTPStatus.OK, (
+                f"Expected {http.HTTPStatus.OK}, got {response.status_code}: "
+                f"{response.body.data()[:200]!r}"
+            )
+            body = response.body.data()
+            assert len(body) == response_size
+            assert body[:1] == b"X"
+            assert body[-1:] == b"X"
+
+        for response_size in INVALID_RESPONSE_SIZES:
+            response = c.post("/app/batch/generate", {"size": response_size})
+            assert response.status_code == http.HTTPStatus.BAD_REQUEST, (
+                f"Expected {http.HTTPStatus.BAD_REQUEST}, got {response.status_code}: "
+                f"{response.body.data()[:200]!r}"
+            )
+
+    return network
 
 
 @reqs.description("Running batch submission of new entries")
@@ -62,6 +97,7 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
+        network = test_large_responses(network, args)
         network = test(network, args, batch_size=1)
         network = test(network, args, batch_size=10)
         network = test(network, args, batch_size=100)
@@ -137,8 +173,9 @@ if __name__ == "__main__":
     args.package = "js_generic"
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
 
-    # Helps ensure expected destruction workflow. See #6373 for details.
-    args.max_msg_size_bytes = f"{1024 * 1024 * 16}"  # 16MB
-
+    args.max_msg_size_bytes = f"{4 * RINGBUFFER_CAPACITY}"
     run(args)
+
+    # Helps ensure expected destruction workflow. See #6373 for details.
+    args.max_msg_size_bytes = f"{RINGBUFFER_CAPACITY}"
     run_to_destruction(args)

@@ -1,3 +1,5 @@
+const MAX_RESPONSE_SIZE = 32 * 1024 * 1024;
+
 export function submit_batch(request) {
   const params = request.body.json();
   var count = 0;
@@ -28,5 +30,28 @@ export function fetch_batch(request) {
   }
   return {
     body: results,
+  };
+}
+
+export function generate_response(request) {
+  const size = request.body.json().size;
+  if (
+    !Number.isSafeInteger(size) ||
+    size < 0 ||
+    size > MAX_RESPONSE_SIZE
+  ) {
+    return {
+      statusCode: 400,
+      body: {
+        error: {
+          code: "InvalidInput",
+          msg: `size must be an integer between 0 and ${MAX_RESPONSE_SIZE}`,
+        },
+      },
+    };
+  }
+
+  return {
+    body: "X".repeat(size),
   };
 }
