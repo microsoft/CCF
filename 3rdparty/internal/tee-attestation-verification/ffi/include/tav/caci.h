@@ -57,6 +57,10 @@ TAV_CACI_API TavError *tav_verify_caci_uvm_endorsement(
 /*
  * Verify the relying-party CACI policy over staged verified artifacts.
  *
+ * attestation must be a report returned by tav_verify_snp_attestation. The
+ * caller is responsible for not passing a report created by
+ * tav_snp_attestation_report_from_unverified_bytes.
+ *
  * The minimum TCB policy is passed as two parallel arrays of minimum_tcb_count
  * entries: minimum_tcb_cpuids holds one uint32_t CPUID per entry, and
  * minimum_tcb_values holds minimum_tcb_count contiguous 8-byte TCB values (the
