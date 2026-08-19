@@ -3,6 +3,7 @@
 
 #include "ccf/app_interface.h"
 #include "ccf/service/tables/host_data.h"
+#include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/service.h"
 #include "service/tables/config.h"
 #include "service/tables/signatures.h"
@@ -11,11 +12,82 @@
 
 #include "kv/store.h"
 #include "kv/test/null_encryptor.h"
+#include "node/hooks.h"
 #include "service/internal_tables_access.h"
 
 #include <doctest/doctest.h>
 
 using namespace ccf;
+
+namespace
+{
+  class TestConsensus : public ccf::kv::ConfigurableConsensus
+  {
+  public:
+    ccf::kv::Configuration::Nodes configuration;
+    ccf::SeqNo configuration_version = 0;
+    size_t configuration_changes = 0;
+
+    TestConsensus(ccf::kv::Configuration::Nodes configuration_) :
+      configuration(std::move(configuration_))
+    {}
+
+    void add_configuration(
+      ccf::SeqNo seqno,
+      const ccf::kv::Configuration::Nodes& new_configuration) override
+    {
+      configuration_version = seqno;
+      configuration = new_configuration;
+      ++configuration_changes;
+    }
+
+    ccf::kv::Configuration::Nodes get_latest_configuration() override
+    {
+      return configuration;
+    }
+
+    ccf::kv::Configuration::Nodes get_latest_configuration_unsafe()
+      const override
+    {
+      return configuration;
+    }
+
+    ccf::kv::ConsensusDetails get_details() override
+    {
+      return {};
+    }
+  };
+}
+
+TEST_CASE("direct node deletion updates consensus configuration")
+{
+  const NodeId removed_id = std::string("removed");
+  const NodeId other_removed_id = std::string("other_removed");
+  const NodeId retained_id = std::string("retained");
+  const NodeId unknown_id = std::string("unknown");
+  TestConsensus consensus(
+    {{removed_id, {"removed.example.com", "1234"}},
+     {other_removed_id, {"other-removed.example.com", "2345"}},
+     {retained_id, {"retained.example.com", "5678"}}});
+  Nodes::Write node_writes = {
+    {removed_id, std::nullopt},
+    {other_removed_id, std::nullopt},
+    {unknown_id, std::nullopt}};
+
+  ConfigurationChangeHook(42, node_writes).call(&consensus);
+
+  REQUIRE(consensus.configuration_version == 42);
+  REQUIRE(consensus.configuration_changes == 1);
+  REQUIRE_FALSE(consensus.configuration.contains(removed_id));
+  REQUIRE_FALSE(consensus.configuration.contains(other_removed_id));
+  REQUIRE(consensus.configuration.contains(retained_id));
+
+  ConfigurationChangeHook(43, Nodes::Write{{unknown_id, std::nullopt}})
+    .call(&consensus);
+
+  REQUIRE(consensus.configuration_version == 42);
+  REQUIRE(consensus.configuration_changes == 1);
+}
 
 TEST_CASE("trust_node_uvm_endorsements - not recovering, empty map")
 {
@@ -257,6 +329,7 @@ TEST_CASE("remove_previous_service_nodes")
   const NodeId retired_id = std::string("retired");
   const NodeId retired_committed_id = std::string("retired_committed");
   const std::string trusted_sealing_name = "trusted";
+  const std::string trusted_alternate_sealing_name = "trusted_alternate";
   const std::string retired_sealing_name = "retired";
   const std::string retired_committed_sealing_name = "retired_committed";
 
@@ -291,6 +364,8 @@ TEST_CASE("remove_previous_service_nodes")
       sealed_recovery_keys_handle->put(node_id, sealed_recovery_key);
     }
     local_sealing_node_ids_handle->put(trusted_sealing_name, trusted_id);
+    local_sealing_node_ids_handle->put(
+      trusted_alternate_sealing_name, trusted_id);
     local_sealing_node_ids_handle->put(retired_sealing_name, retired_id);
     local_sealing_node_ids_handle->put(
       retired_committed_sealing_name, retired_committed_id);
@@ -319,6 +394,7 @@ TEST_CASE("remove_previous_service_nodes")
     }
     for (const auto& sealing_name :
          {trusted_sealing_name,
+          trusted_alternate_sealing_name,
           retired_sealing_name,
           retired_committed_sealing_name})
     {

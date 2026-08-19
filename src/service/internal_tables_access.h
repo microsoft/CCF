@@ -26,6 +26,7 @@
 
 #include <algorithm>
 #include <ostream>
+#include <set>
 #include <stdexcept>
 #include <vector>
 
@@ -52,12 +53,8 @@ namespace ccf
   // available.
   class InternalTablesAccess
   {
-  public:
-    // This class is purely a container for static methods, should not be
-    // instantiated
-    InternalTablesAccess() = delete;
-
-    static void remove_node(ccf::kv::Tx& tx, const NodeId& node_id)
+  private:
+    static void remove_nodes(ccf::kv::Tx& tx, const std::set<NodeId>& node_ids)
     {
       auto* nodes = tx.rw<ccf::Nodes>(Tables::NODES);
       auto* node_endorsed_certificates = tx.rw<ccf::NodeEndorsedCertificates>(
@@ -67,15 +64,18 @@ namespace ccf
       auto* sealed_recovery_keys =
         tx.rw<SealedRecoveryKeys>(Tables::SEALED_RECOVERY_KEYS);
 
-      nodes->remove(node_id);
-      node_endorsed_certificates->remove(node_id);
-      sealed_recovery_keys->remove(node_id);
+      for (const auto& node_id : node_ids)
+      {
+        nodes->remove(node_id);
+        node_endorsed_certificates->remove(node_id);
+        sealed_recovery_keys->remove(node_id);
+      }
 
       std::vector<sealing_recovery::Name> sealing_recovery_names;
       local_sealing_node_id_map->foreach(
-        [&sealing_recovery_names, &node_id](
+        [&sealing_recovery_names, &node_ids](
           const auto& sealing_recovery_name, const auto& sealing_node_id) {
-          if (sealing_node_id == node_id)
+          if (node_ids.contains(sealing_node_id))
           {
             sealing_recovery_names.push_back(sealing_recovery_name);
           }
@@ -87,20 +87,27 @@ namespace ccf
       }
     }
 
+  public:
+    // This class is purely a container for static methods, should not be
+    // instantiated
+    InternalTablesAccess() = delete;
+
+    static void remove_node(ccf::kv::Tx& tx, const NodeId& node_id)
+    {
+      remove_nodes(tx, {node_id});
+    }
+
     static void remove_previous_service_nodes(ccf::kv::Tx& tx)
     {
       auto* nodes = tx.rw<ccf::Nodes>(Tables::NODES);
-      std::vector<NodeId> previous_service_node_ids;
+      std::set<NodeId> previous_service_node_ids;
       nodes->foreach(
         [&previous_service_node_ids](const NodeId& node_id, const NodeInfo&) {
-          previous_service_node_ids.push_back(node_id);
+          previous_service_node_ids.insert(node_id);
           return true;
         });
 
-      for (const auto& node_id : previous_service_node_ids)
-      {
-        remove_node(tx, node_id);
-      }
+      remove_nodes(tx, previous_service_node_ids);
     }
 
     static bool is_recovery_participant_or_owner(

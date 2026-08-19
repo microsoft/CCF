@@ -651,12 +651,14 @@ def test_recover_service(
             node["node_id"]
             for node in c.get("/node/network/nodes").body.json()["nodes"]
         }
-        assert old_node_ids.isdisjoint(current_node_ids), current_node_ids
+        unexpected_node_ids = old_node_ids & current_node_ids
+        assert not unexpected_node_ids, unexpected_node_ids
         removable_node_ids = {
             node["node_id"]
             for node in c.get("/node/network/removable_nodes").body.json()["nodes"]
         }
-        assert old_node_ids.isdisjoint(removable_node_ids), removable_node_ids
+        unexpected_removable_node_ids = old_node_ids & removable_node_ids
+        assert not unexpected_removable_node_ids, unexpected_removable_node_ids
 
     return recovered_network
 
