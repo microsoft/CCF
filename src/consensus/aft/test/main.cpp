@@ -84,21 +84,27 @@ DOCTEST_TEST_CASE("Single node commit" * doctest::test_suite("single"))
 }
 
 DOCTEST_TEST_CASE(
-  "Splicing public state reads across a leadership transition" *
+  "Public state reads are data-race-free across a leadership transition" *
   doctest::test_suite("single"))
 {
-  // This is a regression test confirming that application endpoints see a
-  // consistent snapshot of Raft's public state, rather than one spliced
-  // together from multiple separate calls made around a leadership
-  // transition. primary(), is_primary() and get_view() are each
-  // individually synchronized against become_leader()/become_follower(),
-  // but a caller that reads several of them in sequence (e.g. an HTTP
-  // endpoint building a status response) has no guarantee that a
-  // transition did not happen between those reads. In the real system
-  // that gap is filled by a second thread; here we fill it by hand to
-  // show the resulting combination can violate invariants an endpoint
-  // might reasonably assume, e.g. "if is_primary() was true a moment ago,
-  // primary() should still identify this node".
+  // This is a regression test for the data race that public_state_lock
+  // fixes: leader_id and state->leadership_state used to be read (by
+  // primary()/is_primary()/get_view()) and written (by become_leader()/
+  // become_follower()) without any shared lock, which is undefined
+  // behaviour under concurrent access (and was caught by TSAN).
+  // public_state_lock makes each individual read/write of these fields
+  // well-defined.
+  //
+  // What this fix does NOT do, and cannot do, is make several separate
+  // getter calls appear as a single atomic snapshot. The primary is
+  // legitimately allowed to change while an endpoint is executing - e.g.
+  // between an is_primary() call and a later primary() call, a
+  // leadership transition may genuinely occur on another thread. Callers
+  // must tolerate that a sequence of these calls may observe different
+  // points in time, not treat them as one consistent view. This test
+  // demonstrates that: even with public_state_lock in place, a
+  // transition interleaved between two calls still changes what they
+  // report - each call is race-free, but the pair is not atomic.
   ccf::NodeId node_id = ccf::kv::test::PrimaryNodeId;
   auto kv_store = std::make_shared<Store>(node_id);
 
@@ -127,18 +133,20 @@ DOCTEST_TEST_CASE(
   // is, something else (in production: a concurrent thread handling a
   // CheckQuorum failure or a higher-term message) drives a leadership
   // transition. become_follower() is a public method that mutates
-  // leader_id and state->leadership_state without acquiring state->lock
-  // itself (it relies on callers, e.g. periodic()/recv_append_entries(),
-  // to already hold it) - so nothing prevents this from happening between
-  // the two reads.
+  // leader_id and state->leadership_state while holding state->lock
+  // (which its caller, e.g. periodic()/recv_append_entries(), is
+  // expected to already hold) - public_state_lock only orders this
+  // against the getters below, it does not delay or serialize it with
+  // them into a single transaction.
   r0.become_follower();
 
-  // The caller's combined snapshot is now internally inconsistent: it
-  // believes this node is (or very recently was) primary, yet primary()
-  // no longer identifies it as such. An endpoint that assumed
-  // "is_primary() implies primary() == self" would report a
-  // contradiction (or otherwise misuse the stale information) to a
-  // client.
+  // The two calls together are not a consistent snapshot: this node was
+  // primary a moment ago, but no longer is by the time primary() is
+  // called. This is expected and unavoidable - it reflects a real
+  // transition that happened between the calls, not a bug. An endpoint
+  // must not assume "is_primary() implies primary() == self" holds
+  // across separate calls; each call is only guaranteed to report an
+  // accurate, race-free value at the instant it runs.
   const auto primary_after = r0.primary();
   DOCTEST_REQUIRE(was_primary);
   DOCTEST_REQUIRE_FALSE(r0.is_primary());
