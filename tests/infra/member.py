@@ -145,6 +145,9 @@ class MemberAPI:
     class v1(v1_Base):
         API_VERSION = infra.clients.API_VERSION_01
 
+    class Latest(v1_Base):
+        API_VERSION = infra.clients.API_VERSION_LATEST
+
     # A special client used only for lts_compatibility tests. Attempts to use latest
     # API by default, but checks node version to fallback to a supported older API
     # where required
