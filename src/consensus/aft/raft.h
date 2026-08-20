@@ -21,7 +21,6 @@
 #include "service/tables/signatures.h"
 
 #include <algorithm>
-#include <atomic>
 #include <list>
 #include <random>
 #include <unordered_map>
@@ -202,11 +201,6 @@ namespace aft
     // pre-deserialisation, without an additional header.
     static constexpr size_t max_terms_per_append_entries = 1;
 
-    void set_leadership_state(ccf::kv::LeadershipState new_state)
-    {
-      std::atomic_ref(state->leadership_state).store(new_state);
-    }
-
   public:
     static constexpr size_t append_entries_size_limit = 20000;
     std::unique_ptr<LedgerProxy> ledger;
@@ -292,12 +286,6 @@ namespace aft
         return Consensus::SignatureDisposition::CAN_SIGN;
       }
       return Consensus::SignatureDisposition::CANT_REPLICATE;
-    }
-
-    bool is_primary() const
-    {
-      return std::atomic_ref(state->leadership_state).load() ==
-        ccf::kv::LeadershipState::Leader;
     }
 
   private:
@@ -2076,7 +2064,7 @@ namespace aft
         return;
       }
 
-      set_leadership_state(ccf::kv::LeadershipState::PreVoteCandidate);
+      state->leadership_state = ccf::kv::LeadershipState::PreVoteCandidate;
       leader_id.reset();
 
       reset_votes_for_me();
@@ -2121,7 +2109,7 @@ namespace aft
         return;
       }
 
-      set_leadership_state(ccf::kv::LeadershipState::Candidate);
+      state->leadership_state = ccf::kv::LeadershipState::Candidate;
       leader_id.reset();
 
       voted_for = state->node_id;
@@ -2178,7 +2166,7 @@ namespace aft
         store->initialise_term(state->current_view);
       }
 
-      set_leadership_state(ccf::kv::LeadershipState::Leader);
+      state->leadership_state = ccf::kv::LeadershipState::Leader;
       leader_id = state->node_id;
       should_sign = true;
 
@@ -2232,7 +2220,7 @@ namespace aft
       restart_election_timeout();
       reset_last_ack_timeouts();
 
-      set_leadership_state(ccf::kv::LeadershipState::Follower);
+      state->leadership_state = ccf::kv::LeadershipState::Follower;
       RAFT_INFO_FMT(
         "Becoming follower {}: {}.{}",
         state->node_id,
@@ -2355,7 +2343,7 @@ namespace aft
         nominate_successor();
 
         leader_id.reset();
-        set_leadership_state(ccf::kv::LeadershipState::None);
+        state->leadership_state = ccf::kv::LeadershipState::None;
       }
 
       state->membership_state = ccf::kv::MembershipState::Retired;
@@ -2581,7 +2569,8 @@ namespace aft
       }
 
       RAFT_DEBUG_FMT("Compacting...");
-      store->compact(idx, is_primary());
+      store->compact(
+        idx, state->leadership_state == ccf::kv::LeadershipState::Leader);
       ledger->commit(idx);
 
       if (commit_callbacks != nullptr)

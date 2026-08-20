@@ -153,6 +153,11 @@ namespace aft
       return this->get_light_details().primary_id;
     }
 
+    bool is_primary()
+    {
+      return this->get_light_details().is_primary();
+    }
+
     bool is_backup()
     {
       return this->get_light_details().is_backup();
