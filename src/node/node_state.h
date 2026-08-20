@@ -3675,8 +3675,7 @@ namespace ccf
             // If backup snapshot fetching is enabled and this node is a
             // backup, schedule a fetch task
             if (
-              config.snapshots.backup_fetch.enabled &&
-              consensus != nullptr &&
+              config.snapshots.backup_fetch.enabled && consensus != nullptr &&
               !consensus->get_light_details().is_primary())
             {
               ccf::tasks::Task task_to_schedule = nullptr;

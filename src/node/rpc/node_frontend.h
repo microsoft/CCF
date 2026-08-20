@@ -1432,7 +1432,7 @@ namespace ccf
             ccf::kv::Configuration::Nodes{} :
             details.configs.back().nodes;
           ConsensusConfig cc;
-          for (auto& [nid, ninfo] : cfg)
+          for (const auto& [nid, ninfo] : cfg)
           {
             cc.emplace(
               nid.value(),
