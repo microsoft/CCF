@@ -58,10 +58,10 @@ install_python_tools() {
         python3 -m pip install gersemi clang-format==18.1.8
     fi
 
-    local python_scripts_dir
-    python_scripts_dir=$(python3 -c 'import sysconfig; print(sysconfig.get_path("scripts"))')
-    # The PyPI package provides an unversioned executable.
-    ln -sf "$python_scripts_dir/clang-format" "$python_scripts_dir/clang-format-18"
+    local clang_format
+    clang_format=$(PATH="/usr/local/bin:$PATH" command -v clang-format)
+    # The PyPI package provides an unversioned executable, so add the expected name.
+    ln -sf "$clang_format" /usr/local/bin/clang-format-18
 }
 
 retry "Development dependencies" install_dev_dependencies
