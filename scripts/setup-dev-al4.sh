@@ -53,9 +53,15 @@ install_lts_test_dependencies() {
 }
 
 install_python_tools() {
-    if ! python3 -m pip install gersemi --break-system-packages; then
-        python3 -m pip install gersemi
+    # Match the clang-format version used by the existing formatting checks.
+    if ! python3 -m pip install gersemi clang-format==18.1.8 --break-system-packages; then
+        python3 -m pip install gersemi clang-format==18.1.8
     fi
+
+    local python_scripts_dir
+    python_scripts_dir=$(python3 -c 'import sysconfig; print(sysconfig.get_path("scripts"))')
+    # The PyPI package provides an unversioned executable.
+    ln -sf "$python_scripts_dir/clang-format" "$python_scripts_dir/clang-format-18"
 }
 
 retry "Development dependencies" install_dev_dependencies
