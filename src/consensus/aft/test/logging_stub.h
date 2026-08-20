@@ -141,6 +141,8 @@ namespace aft
     void commit(Index idx) {}
   };
 
+  // This is a shim presenting the old Raft API for test purposes, to avoid
+  // unnecessarily rewriting many test calling points
   template <typename LedgerProxy>
   class TestAft : public Aft<LedgerProxy>
   {
