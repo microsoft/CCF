@@ -32,6 +32,17 @@
         "mode": "readonly",
         "openapi": {}
       }
+    },
+    "/batch/generate/config": {
+      "post": {
+        "js_module": "batched.js",
+        "js_function": "configure_response",
+        "forwarding_required": "never",
+        "redirection_strategy": "none",
+        "authn_policies": ["member_cert"],
+        "mode": "readwrite",
+        "openapi": {}
+      }
     }
   }
 }

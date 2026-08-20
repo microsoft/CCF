@@ -1,4 +1,5 @@
-const MAX_RESPONSE_SIZE = 32 * 1024 * 1024;
+const responseConfig = ccf.kv["response_config"];
+const MAX_RESPONSE_SIZE_KEY = "max_response_size";
 
 export function submit_batch(request) {
   const params = request.body.json();
@@ -33,15 +34,52 @@ export function fetch_batch(request) {
   };
 }
 
-export function generate_response(request) {
-  const size = request.body.json().size;
-  if (!Number.isSafeInteger(size) || size < 0 || size > MAX_RESPONSE_SIZE) {
+export function configure_response(request) {
+  const maxResponseSize = request.body.json().max_response_size;
+  if (!Number.isSafeInteger(maxResponseSize) || maxResponseSize < 0) {
     return {
       statusCode: 400,
       body: {
         error: {
           code: "InvalidInput",
-          msg: `size must be an integer between 0 and ${MAX_RESPONSE_SIZE}`,
+          msg: "max_response_size must be a non-negative safe integer",
+        },
+      },
+    };
+  }
+
+  responseConfig.set(
+    ccf.strToBuf(MAX_RESPONSE_SIZE_KEY),
+    ccf.strToBuf(`${maxResponseSize}`),
+  );
+  return { statusCode: 204 };
+}
+
+export function generate_response(request) {
+  const maxResponseSizeBuffer = responseConfig.get(
+    ccf.strToBuf(MAX_RESPONSE_SIZE_KEY),
+  );
+  if (maxResponseSizeBuffer === undefined) {
+    return {
+      statusCode: 500,
+      body: {
+        error: {
+          code: "InternalError",
+          msg: "Response generator is not configured",
+        },
+      },
+    };
+  }
+
+  const maxResponseSize = Number(ccf.bufToStr(maxResponseSizeBuffer));
+  const size = request.body.json().size;
+  if (!Number.isSafeInteger(size) || size < 0 || size > maxResponseSize) {
+    return {
+      statusCode: 400,
+      body: {
+        error: {
+          code: "InvalidInput",
+          msg: `size must be an integer between 0 and ${maxResponseSize}`,
         },
       },
     };
