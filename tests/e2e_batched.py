@@ -42,21 +42,25 @@ def size_string_to_bytes(size):
     return int(value) * multiplier
 
 
-def get_node_memory_sizes(node):
+def get_node_response_sizes(node):
     config_path = os.path.join(node.common_dir, f"{node.local_node_id}.config.json")
     with open(config_path, encoding="utf-8") as f:
         memory_config = json.load(f)["memory"]
 
+    ringbuffer_capacity = size_string_to_bytes(memory_config["circuit_size"])
+    max_ringbuffer_message_size = size_string_to_bytes(memory_config["max_msg_size"])
+
     return (
-        size_string_to_bytes(memory_config["circuit_size"]),
-        size_string_to_bytes(memory_config["max_msg_size"]),
+        ringbuffer_capacity,
+        # Leave headroom for the QuickJS string and response serialization.
+        max_ringbuffer_message_size // 2,
     )
 
 
 @reqs.description("Generate responses at and above ringbuffer capacity")
 def test_large_responses(network, args):
     primary, _ = network.find_primary()
-    ringbuffer_capacity, max_response_size = get_node_memory_sizes(primary)
+    ringbuffer_capacity, max_response_size = get_node_response_sizes(primary)
     large_response_sizes = (ringbuffer_capacity, max_response_size)
     invalid_response_sizes = (-1, 1.5, max_response_size + 1)
 
