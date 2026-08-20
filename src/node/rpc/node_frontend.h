@@ -9,6 +9,7 @@
 #include "ccf/http_query.h"
 #include "ccf/js/core/context.h"
 #include "ccf/json_handler.h"
+#include "ccf/node/node_configuration_interface.h"
 #include "ccf/node/quote.h"
 #include "ccf/odata_error.h"
 #include "ccf/pal/attestation.h"
@@ -35,6 +36,7 @@
 #include "service/tables/snapshot_status.h"
 #include "snapshots/filenames.h"
 
+#include <chrono>
 #include <llhttp/llhttp.h>
 #include <stdexcept>
 
@@ -266,6 +268,33 @@ namespace ccf
       return duplicate_node_id;
     }
 
+    static int64_t current_time_ms()
+    {
+      return std::chrono::duration_cast<std::chrono::milliseconds>(
+               std::chrono::system_clock::now().time_since_epoch())
+        .count();
+    }
+
+    void remove_node_from_store(ccf::kv::Tx& tx, const NodeId& node_id)
+    {
+      tx.rw(network.nodes)->remove(node_id);
+      tx.rw(network.node_endorsed_certificates)->remove(node_id);
+
+      auto* local_sealing_node_id_map =
+        tx.rw<LocalSealingNodeIdMap>(Tables::SEALING_RECOVERY_NAMES);
+      local_sealing_node_id_map->foreach(
+        [&](const auto& sealing_recovery_name, const auto& sealing_node_id) {
+          if (sealing_node_id == node_id)
+          {
+            local_sealing_node_id_map->remove(sealing_recovery_name);
+            return false;
+          }
+          return true;
+        });
+
+      tx.rw<SealedRecoveryKeys>(Tables::SEALED_RECOVERY_KEYS)->remove(node_id);
+    }
+
     auto add_node(
       ccf::kv::Tx& tx,
       const std::vector<uint8_t>& node_der,
@@ -360,6 +389,11 @@ namespace ccf
         in.certificate_signing_request,
         client_public_key_pem,
         in.node_data};
+
+      if (node_status == NodeStatus::PENDING)
+      {
+        node_info.pending_since = current_time_ms();
+      }
 
       nodes->put(joining_node_id, node_info);
 
@@ -657,6 +691,75 @@ namespace ccf
       };
       make_endpoint("/join", HTTP_POST, json_adapter(accept), no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
+        .set_openapi_hidden(true)
+        .install();
+
+      auto remove_expired_pending = [this](auto& ctx, nlohmann::json&&) {
+        const auto node_configuration_subsystem =
+          this->context.get_subsystem<NodeConfigurationInterface>();
+        if (node_configuration_subsystem == nullptr)
+        {
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "NodeConfiguration subsystem is not available");
+        }
+
+        const auto pending_node_timeout = std::chrono::milliseconds(
+          node_configuration_subsystem->get().node_config.pending_node_timeout);
+        if (pending_node_timeout <= std::chrono::milliseconds::zero())
+        {
+          return make_success(true);
+        }
+
+        const auto now = current_time_ms();
+        auto nodes = ctx.tx.rw(network.nodes);
+        std::map<NodeId, NodeInfo> pending_nodes_to_timestamp;
+        std::vector<NodeId> expired_pending_nodes;
+        nodes->foreach([&](const auto& node_id, const auto& node_info) {
+          if (node_info.status != NodeStatus::PENDING)
+          {
+            return true;
+          }
+
+          if (
+            !node_info.pending_since.has_value() ||
+            node_info.pending_since.value() < 0 ||
+            node_info.pending_since.value() > now)
+          {
+            auto updated_node_info = node_info;
+            updated_node_info.pending_since = now;
+            pending_nodes_to_timestamp.emplace(
+              node_id, std::move(updated_node_info));
+          }
+          else if (
+            now - node_info.pending_since.value() >=
+            pending_node_timeout.count())
+          {
+            expired_pending_nodes.push_back(node_id);
+          }
+
+          return true;
+        });
+
+        for (const auto& [node_id, node_info] : pending_nodes_to_timestamp)
+        {
+          nodes->put(node_id, node_info);
+        }
+
+        for (const auto& node_id : expired_pending_nodes)
+        {
+          LOG_INFO_FMT("Removing expired Pending node {}", node_id);
+          remove_node_from_store(ctx.tx, node_id);
+        }
+
+        return make_success(true);
+      };
+      make_endpoint(
+        "network/nodes/remove_expired_pending",
+        HTTP_POST,
+        json_adapter(remove_expired_pending),
+        {std::make_shared<NodeCertAuthnPolicy>()})
         .set_openapi_hidden(true)
         .install();
 
@@ -1078,81 +1181,59 @@ namespace ccf
         .set_auto_schema<void, GetNodes::Out>()
         .install();
 
-      auto delete_retired_committed_node = [this](
-                                             auto& args, nlohmann::json&&) {
-        GetNodes::Out out;
+      auto delete_retired_committed_node =
+        [this](auto& args, nlohmann::json&&) {
+          GetNodes::Out out;
 
-        std::string node_id;
-        std::string error;
-        if (!get_path_param(
-              args.rpc_ctx->get_request_path_params(),
-              "node_id",
-              node_id,
-              error))
-        {
-          return make_error(
-            HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
-        }
+          std::string node_id;
+          std::string error;
+          if (!get_path_param(
+                args.rpc_ctx->get_request_path_params(),
+                "node_id",
+                node_id,
+                error))
+          {
+            return make_error(
+              HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
+          }
 
-        auto nodes = args.tx.rw(this->network.nodes);
-        if (!nodes->has(node_id))
-        {
-          return make_error(
-            HTTP_STATUS_NOT_FOUND,
-            ccf::errors::ResourceNotFound,
-            "No such node");
-        }
+          auto nodes = args.tx.rw(this->network.nodes);
+          if (!nodes->has(node_id))
+          {
+            return make_error(
+              HTTP_STATUS_NOT_FOUND,
+              ccf::errors::ResourceNotFound,
+              "No such node");
+          }
 
-        auto node_endorsed_certificates =
-          args.tx.rw(network.node_endorsed_certificates);
+          // A node's retirement is only complete when the
+          // transition of retired_committed is itself committed,
+          // i.e. when the next eligible primary is guaranteed to
+          // be aware the retirement is committed.
+          // As a result, the handler must check node info at the
+          // current committed level, rather than at the end of the
+          // local suffix.
+          // While this transaction does execute a write, it specifically
+          // deletes the value it reads from. It is therefore safe to
+          // execute on the basis of a potentially stale read-set,
+          // which get_globally_committed() typically produces.
+          auto node = nodes->get_globally_committed(node_id);
+          if (
+            node.has_value() && node->status == ccf::NodeStatus::RETIRED &&
+            node->retired_committed)
+          {
+            remove_node_from_store(args.tx, node_id);
+          }
+          else
+          {
+            return make_error(
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::NodeNotRetiredCommitted,
+              "Node is not completely retired");
+          }
 
-        // A node's retirement is only complete when the
-        // transition of retired_committed is itself committed,
-        // i.e. when the next eligible primary is guaranteed to
-        // be aware the retirement is committed.
-        // As a result, the handler must check node info at the
-        // current committed level, rather than at the end of the
-        // local suffix.
-        // While this transaction does execute a write, it specifically
-        // deletes the value it reads from. It is therefore safe to
-        // execute on the basis of a potentially stale read-set,
-        // which get_globally_committed() typically produces.
-        auto node = nodes->get_globally_committed(node_id);
-        if (
-          node.has_value() && node->status == ccf::NodeStatus::RETIRED &&
-          node->retired_committed)
-        {
-          nodes->remove(node_id);
-          node_endorsed_certificates->remove(node_id);
-
-          // clean up sealing tables
-          auto* local_sealing_node_id_map =
-            args.tx.template rw<LocalSealingNodeIdMap>(
-              Tables::SEALING_RECOVERY_NAMES);
-          local_sealing_node_id_map->foreach(
-            [&](
-              const auto& sealing_recovery_name, const auto& sealing_node_id) {
-              if (sealing_node_id == node_id)
-              {
-                local_sealing_node_id_map->remove(sealing_recovery_name);
-                return false;
-              }
-              return true;
-            });
-          auto* sealed_recovery_keys = args.tx.template rw<SealedRecoveryKeys>(
-            Tables::SEALED_RECOVERY_KEYS);
-          sealed_recovery_keys->remove(node_id);
-        }
-        else
-        {
-          return make_error(
-            HTTP_STATUS_BAD_REQUEST,
-            ccf::errors::NodeNotRetiredCommitted,
-            "Node is not completely retired");
-        }
-
-        return make_success(true);
-      };
+          return make_success(true);
+        };
 
       make_endpoint(
         "/network/nodes/{node_id}",

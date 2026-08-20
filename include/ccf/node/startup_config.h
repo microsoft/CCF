@@ -29,6 +29,8 @@ namespace ccf
 
     ccf::ds::SizeString historical_cache_soft_limit = {"512MB"};
 
+    ccf::ds::TimeString pending_node_timeout = {"24h"};
+
     ccf::consensus::Configuration consensus = {};
     ccf::NodeInfoNetwork network;
 

@@ -73,7 +73,9 @@
       "target_rpc_interface": "{{ backup_snapshot_fetch_target_rpc_interface }}"{% endif %}{% if backup_snapshot_fetch_max_size %},
       "max_size": "{{ backup_snapshot_fetch_max_size }}"{% endif %}
     }{% endif %}
-  },{% if files_cleanup_max_snapshots or files_cleanup_max_committed_ledger_chunks or files_cleanup_interval %}
+  },{% if pending_node_timeout %}
+  "pending_node_timeout": "{{ pending_node_timeout }}",
+  {% endif %}{% if files_cleanup_max_snapshots or files_cleanup_max_committed_ledger_chunks or files_cleanup_interval %}
   "files_cleanup":
   {
     {% if files_cleanup_max_snapshots %}"max_snapshots": {{ files_cleanup_max_snapshots }}{% endif %}{% if files_cleanup_max_snapshots and (files_cleanup_max_committed_ledger_chunks or files_cleanup_interval) %},

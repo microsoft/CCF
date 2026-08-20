@@ -30,8 +30,8 @@ TResponse frontend_process(
   r.set_body(body);
   auto serialise_request = r.build_request();
 
-  auto session =
-    std::make_shared<ccf::SessionContext>(ccf::InvalidSessionId, caller.raw());
+  auto session = std::make_shared<ccf::SessionContext>(
+    ccf::InvalidSessionId, ccf::crypto::cert_pem_to_der(caller));
   auto rpc_ctx = ccf::make_rpc_context(session, serialise_request);
   frontend.process(rpc_ctx);
 
@@ -312,6 +312,89 @@ TEST_CASE("Add a node to an open service")
     CHECK(
       response.network_info->endorsed_certificate.value() ==
       dummy_endorsed_certificate);
+  }
+
+  INFO("Expired Pending nodes are removed");
+  {
+    ccf::crypto::ECKeyPairPtr expired_node_kp = ccf::crypto::make_ec_key_pair();
+    const auto expired_node_caller =
+      expired_node_kp->self_sign("CN=Expired Joiner", valid_from, valid_to);
+    const auto expired_node_id = ccf::compute_node_id_from_kp(expired_node_kp);
+
+    JoinNetworkNodeToNode::In expired_join_input;
+    expired_join_input.public_encryption_key =
+      ccf::crypto::make_ec_key_pair()->public_key_pem();
+    expired_join_input.certificate_signing_request =
+      expired_node_kp->create_csr("CN=Expired Joiner");
+    expired_join_input.node_info_network.node_to_node_interface
+      .published_address = "localhost:1234";
+
+    auto http_response = frontend_process(
+      frontend, expired_join_input, "join", expired_node_caller);
+    CHECK(http_response.status == HTTP_STATUS_OK);
+
+    {
+      auto verify_tx = network.tables->create_tx();
+      auto nodes = verify_tx.ro(network.nodes);
+      const auto node_info = nodes->get(expired_node_id);
+      REQUIRE(node_info.has_value());
+      REQUIRE(node_info->pending_since.has_value());
+
+      nlohmann::json node_info_json = node_info.value();
+      CHECK(
+        node_info_json.get<NodeInfo>().pending_since ==
+        node_info->pending_since);
+      node_info_json.erase("pending_since");
+      CHECK(!node_info_json.get<NodeInfo>().pending_since.has_value());
+    }
+
+    {
+      auto age_tx = network.tables->create_tx();
+      auto nodes = age_tx.rw(network.nodes);
+      auto node_info = nodes->get(expired_node_id);
+      REQUIRE(node_info.has_value());
+      node_info->pending_since.reset();
+      nodes->put(expired_node_id, node_info.value());
+      REQUIRE(age_tx.commit() == ccf::kv::CommitResult::SUCCESS);
+    }
+
+    http_response = frontend_process(
+      frontend,
+      nullptr,
+      "network/nodes/remove_expired_pending",
+      expired_node_caller);
+    CHECK(http_response.status == HTTP_STATUS_OK);
+    {
+      auto verify_tx = network.tables->create_tx();
+      const auto node_info = verify_tx.ro(network.nodes)->get(expired_node_id);
+      REQUIRE(node_info.has_value());
+      CHECK(node_info->pending_since.has_value());
+    }
+
+    {
+      auto age_tx = network.tables->create_tx();
+      auto nodes = age_tx.rw(network.nodes);
+      auto node_info = nodes->get(expired_node_id);
+      REQUIRE(node_info.has_value());
+      node_info->pending_since =
+        std::chrono::duration_cast<std::chrono::milliseconds>(
+          (std::chrono::system_clock::now() - std::chrono::hours(25))
+            .time_since_epoch())
+          .count();
+      nodes->put(expired_node_id, node_info.value());
+      REQUIRE(age_tx.commit() == ccf::kv::CommitResult::SUCCESS);
+    }
+
+    http_response = frontend_process(
+      frontend,
+      nullptr,
+      "network/nodes/remove_expired_pending",
+      expired_node_caller);
+    CHECK(http_response.status == HTTP_STATUS_OK);
+    {
+      auto verify_tx = network.tables->create_tx();
+      CHECK(!verify_tx.ro(network.nodes)->has(expired_node_id));
+    }
   }
 }
 
