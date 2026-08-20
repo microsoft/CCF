@@ -536,6 +536,7 @@ def _recover_service(
     snapshots_dir=None,
 ):
     network.save_service_identity(args)
+    old_node_ids = {node.node_id for node in network.get_joined_nodes()}
     old_primary, _ = network.find_primary()
 
     with open(args.previous_service_identity_file, "r", encoding="utf-8") as prev_file:
@@ -706,6 +707,20 @@ def _recover_service(
             == previous_service_info["creationTransactionId"]
         )
         assert current_service_info["serviceData"] == service_data
+
+    with new_primary.client() as c:
+        current_node_ids = {
+            node["node_id"]
+            for node in c.get("/node/network/nodes").body.json()["nodes"]
+        }
+        unexpected_node_ids = old_node_ids & current_node_ids
+        assert not unexpected_node_ids, unexpected_node_ids
+        removable_node_ids = {
+            node["node_id"]
+            for node in c.get("/node/network/removable_nodes").body.json()["nodes"]
+        }
+        unexpected_removable_node_ids = old_node_ids & removable_node_ids
+        assert not unexpected_removable_node_ids, unexpected_removable_node_ids
 
     return recovered_network
 

@@ -164,6 +164,8 @@ TEST_CASE("Additional OpenAPI responses")
     HTTP_STATUS_ACCEPTED, "The result is not ready");
   endpoint.add_openapi_response<ccf::ds::openapi::Binary>(
     HTTP_STATUS_PARTIAL_CONTENT, "A partial binary response");
+  endpoint.add_openapi_response<ccf::ds::openapi::Javascript>(
+    HTTP_STATUS_CREATED, "JavaScript source");
   endpoint.add_openapi_response(
     HTTP_STATUS_SERVICE_UNAVAILABLE, "The endpoint is not ready");
   endpoint.require_operator_feature(OperatorFeature::SnapshotRead);
@@ -179,6 +181,7 @@ TEST_CASE("Additional OpenAPI responses")
   REQUIRE(responses["202"]["description"] == "The result is not ready");
   REQUIRE(responses["202"]["content"].contains("text/plain"));
   REQUIRE(responses["206"]["content"].contains("application/octet-stream"));
+  REQUIRE(responses["201"]["content"].contains("text/javascript"));
   REQUIRE(responses["503"]["description"] == "The endpoint is not ready");
   REQUIRE_FALSE(responses["503"].contains("content"));
   REQUIRE(
