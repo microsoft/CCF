@@ -77,6 +77,7 @@ function(add_warning_checks name)
       -Wno-unused-function
       -Wshadow
       -Wswitch-enum
+      $<$<COMPILE_LANG_AND_ID:CXX,Clang>:-Wthread-safety>
   )
 endfunction()
 

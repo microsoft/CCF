@@ -98,7 +98,7 @@ struct Dispatcher : public LoopingThread<DispatcherState>
     Stage ret_val =
       state.consider_termination.load() ? Stage::Terminated : Stage::Running;
 
-    std::lock_guard<std::mutex> lock(state.session_manager.sessions_mutex);
+    ccf::pal::MutexGuard lock(state.session_manager.sessions_mutex);
     for (auto& session : state.session_manager.all_sessions)
     {
       auto it = state.ordered_tasks_per_client.find(session.get());

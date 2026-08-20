@@ -3,6 +3,7 @@
 
 #include "node/rpc/network_identity_subsystem.h"
 
+#include "ccf/pal/locking.h"
 #include "cose/cose_rs_ffi.h"
 #include "crypto/openssl/ec_key_pair.h"
 #include "node/rpc/network_identity_accessors.h"
@@ -102,19 +103,19 @@ namespace
   class FakeTaskScheduler : public ccf::TaskScheduler
   {
   public:
-    std::mutex mtx;
-    std::deque<std::function<void()>> delayed;
+    ccf::pal::Mutex mtx;
+    std::deque<std::function<void()>> delayed CCF_GUARDED_BY(mtx);
 
     void add_delayed_task(
       std::function<void()> fn, std::chrono::milliseconds /* delay */) override
     {
-      std::lock_guard<std::mutex> g(mtx);
+      ccf::pal::MutexGuard g(mtx);
       delayed.push_back(std::move(fn));
     }
 
     [[nodiscard]] size_t pending_delayed_count()
     {
-      std::lock_guard<std::mutex> g(mtx);
+      ccf::pal::MutexGuard g(mtx);
       return delayed.size();
     }
 
@@ -123,7 +124,7 @@ namespace
     {
       std::deque<std::function<void()>> batch;
       {
-        std::lock_guard<std::mutex> g(mtx);
+        ccf::pal::MutexGuard g(mtx);
         batch = std::move(delayed);
         delayed.clear();
       }

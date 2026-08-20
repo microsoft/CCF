@@ -2,12 +2,12 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/pal/locking.h"
 #include "consensus/aft/impl/state.h"
 #include "kv/kv_types.h"
 #include "node/commit_callback_interface.h"
 
 #include <map>
-#include <mutex>
 
 namespace ccf
 {
@@ -15,12 +15,13 @@ namespace ccf
   {
   private:
     using Callbacks = std::vector<std::pair<ccf::TxID, CommitCallback>>;
-    std::map<ccf::SeqNo, Callbacks> pending_callbacks;
+    ccf::pal::Mutex callbacks_mutex;
+    std::map<ccf::SeqNo, Callbacks> pending_callbacks
+      CCF_GUARDED_BY(callbacks_mutex);
 
-    std::optional<ccf::TxID> known_commit = std::nullopt;
-    aft::ViewHistory known_view_history;
-
-    std::mutex callbacks_mutex;
+    std::optional<ccf::TxID> known_commit CCF_GUARDED_BY(callbacks_mutex) =
+      std::nullopt;
+    aft::ViewHistory known_view_history CCF_GUARDED_BY(callbacks_mutex);
 
     ccf::kv::Consensus* consensus = nullptr;
 
@@ -37,7 +38,7 @@ namespace ccf
       std::optional<ccf::FinalTxStatus> immediate_status;
 
       {
-        std::lock_guard<std::mutex> guard(callbacks_mutex);
+        ccf::pal::MutexGuard guard(callbacks_mutex);
 
         if (known_commit.has_value())
         {
@@ -83,7 +84,7 @@ namespace ccf
       std::vector<ReadyCallback> ready;
 
       {
-        std::lock_guard<std::mutex> guard(callbacks_mutex);
+        ccf::pal::MutexGuard guard(callbacks_mutex);
 
         known_commit = committed;
         known_view_history = view_history;
