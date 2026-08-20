@@ -134,6 +134,12 @@
           "configs": {
             "$ref": "#/components/schemas/Configuration_array"
           },
+          "committed_seqno": {
+            "$ref": "#/components/schemas/uint64"
+          },
+          "committed_view": {
+            "$ref": "#/components/schemas/uint64"
+          },
           "current_view": {
             "$ref": "#/components/schemas/uint64"
           },

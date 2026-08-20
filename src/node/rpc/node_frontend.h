@@ -538,7 +538,8 @@ namespace ccf
         if (
           current_consensus != nullptr && !this->node_operation.can_replicate())
         {
-          auto primary_id = current_consensus->primary();
+          const auto primary_id =
+            current_consensus->get_light_details().primary_id;
           if (primary_id.has_value())
           {
             const auto address = node::get_redirect_address_for_node(
@@ -897,8 +898,10 @@ namespace ccf
           auto* current_consensus = get_consensus();
           if (current_consensus != nullptr)
           {
-            out.current_view = current_consensus->get_view();
-            auto primary_id = current_consensus->primary();
+            const auto consensus_details =
+              current_consensus->get_light_details();
+            out.current_view = consensus_details.current_view;
+            const auto& primary_id = consensus_details.primary_id;
             if (primary_id.has_value())
             {
               out.primary_id = primary_id.value();
@@ -1010,7 +1013,8 @@ namespace ccf
           bool is_primary = false;
           if (current_consensus != nullptr)
           {
-            is_primary = current_consensus->primary() == nid;
+            is_primary =
+              current_consensus->get_light_details().primary_id == nid;
           }
 
           out.nodes.push_back(
@@ -1204,7 +1208,8 @@ namespace ccf
         auto* current_consensus = get_consensus();
         if (current_consensus != nullptr)
         {
-          auto primary = current_consensus->primary();
+          const auto primary =
+            current_consensus->get_light_details().primary_id;
           if (primary.has_value() && primary.value() == node_id)
           {
             is_primary = true;
@@ -1236,7 +1241,8 @@ namespace ccf
         auto* current_consensus = get_consensus();
         if (current_consensus != nullptr)
         {
-          auto primary = current_consensus->primary();
+          const auto primary =
+            current_consensus->get_light_details().primary_id;
           if (primary.has_value() && primary.value() == node_id)
           {
             is_primary = true;
@@ -1290,7 +1296,8 @@ namespace ccf
         auto* current_consensus = get_consensus();
         if (current_consensus != nullptr)
         {
-          auto primary_id = current_consensus->primary();
+          const auto primary_id =
+            current_consensus->get_light_details().primary_id;
           if (!primary_id.has_value())
           {
             return make_error(
@@ -1350,7 +1357,8 @@ namespace ccf
             return;
           }
 
-          auto primary_id = current_consensus->primary();
+          const auto primary_id =
+            current_consensus->get_light_details().primary_id;
           if (!primary_id.has_value())
           {
             args.rpc_ctx->set_error(
@@ -1419,7 +1427,10 @@ namespace ccf
         auto* current_consensus = get_consensus();
         if (current_consensus != nullptr)
         {
-          auto cfg = current_consensus->get_latest_configuration();
+          const auto details = current_consensus->get_details();
+          const auto cfg = details.configs.empty() ?
+            ccf::kv::Configuration::Nodes{} :
+            details.configs.back().nodes;
           ConsensusConfig cc;
           for (auto& [nid, ninfo] : cfg)
           {
@@ -1714,7 +1725,8 @@ namespace ccf
         // All errors are server errors since the client is the server.
 
         auto* current_consensus = get_consensus();
-        auto primary_id = current_consensus->primary();
+        const auto primary_id =
+          current_consensus->get_light_details().primary_id;
         if (!primary_id.has_value())
         {
           LOG_FAIL_FMT("JWT key auto-refresh: primary unknown");

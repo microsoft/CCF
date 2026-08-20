@@ -195,8 +195,8 @@ DOCTEST_TEST_CASE("Retention of dead leader's commit")
     DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_idD, channelsD->messages));
     DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_idE, channelsE->messages));
 
-    DOCTEST_REQUIRE(rA.is_primary());
-    DOCTEST_REQUIRE(rA.get_view() == 1);
+    DOCTEST_REQUIRE(rA.get_light_details().is_primary());
+    DOCTEST_REQUIRE(rA.get_light_details().current_view == 1);
 
     // Dispatch initial AppendEntries
     DOCTEST_REQUIRE(4 == dispatch_all(nodes, node_idA, channelsA->messages));
@@ -207,8 +207,8 @@ DOCTEST_TEST_CASE("Retention of dead leader's commit")
     DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_idD, channelsD->messages));
     DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_idE, channelsE->messages));
 
-    DOCTEST_REQUIRE(rA.is_primary());
-    DOCTEST_REQUIRE(rA.get_view() == 1);
+    DOCTEST_REQUIRE(rA.get_light_details().is_primary());
+    DOCTEST_REQUIRE(rA.get_light_details().current_view == 1);
   }
 
   DOCTEST_INFO("Entry at 1.1 is received by all nodes");
@@ -216,7 +216,7 @@ DOCTEST_TEST_CASE("Retention of dead leader's commit")
     auto entry = make_ledger_entry(1, 1);
     rA.replicate(ccf::kv::BatchVector{{1, entry, true, hooks}}, 1);
     DOCTEST_REQUIRE(rA.get_last_idx() == 1);
-    DOCTEST_REQUIRE(rA.get_committed_seqno() == 0);
+    DOCTEST_REQUIRE(rA.get_light_details().committed_seqno == 0);
     // Size limit was reached, so periodic is not needed
     // rA.periodic(request_timeout);
 
@@ -236,7 +236,7 @@ DOCTEST_TEST_CASE("Retention of dead leader's commit")
     DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_idE, channelsE->messages));
 
     // Node A now knows this is committed
-    DOCTEST_REQUIRE(rA.get_committed_seqno() == 1);
+    DOCTEST_REQUIRE(rA.get_light_details().committed_seqno == 1);
   }
 
   DOCTEST_INFO(
@@ -246,21 +246,21 @@ DOCTEST_TEST_CASE("Retention of dead leader's commit")
     auto entry = make_ledger_entry(1, 2);
     rA.replicate(ccf::kv::BatchVector{{2, entry, true, hooks}}, 1);
     DOCTEST_REQUIRE(rA.get_last_idx() == 2);
-    DOCTEST_REQUIRE(rA.get_committed_seqno() == 1);
+    DOCTEST_REQUIRE(rA.get_light_details().committed_seqno == 1);
     // Size limit was reached, so periodic is not needed
     // rA.periodic(request_timeout);
 
     entry = make_ledger_entry(1, 3);
     rA.replicate(ccf::kv::BatchVector{{3, entry, true, hooks}}, 1);
     DOCTEST_REQUIRE(rA.get_last_idx() == 3);
-    DOCTEST_REQUIRE(rA.get_committed_seqno() == 1);
+    DOCTEST_REQUIRE(rA.get_light_details().committed_seqno == 1);
     // Size limit was reached, so periodic is not needed
     // rA.periodic(request_timeout);
 
     entry = make_ledger_entry(1, 4);
     rA.replicate(ccf::kv::BatchVector{{4, entry, true, hooks}}, 1);
     DOCTEST_REQUIRE(rA.get_last_idx() == 4);
-    DOCTEST_REQUIRE(rA.get_committed_seqno() == 1);
+    DOCTEST_REQUIRE(rA.get_light_details().committed_seqno == 1);
     // Size limit was reached, so periodic is not needed
     // rA.periodic(request_timeout);
 
@@ -329,12 +329,12 @@ DOCTEST_TEST_CASE("Retention of dead leader's commit")
     DOCTEST_REQUIRE(0 == dispatch_all(nodes, node_idE, channelsE->messages));
 
     // Node A now knows that 1.4 is committed
-    DOCTEST_REQUIRE(rA.get_committed_seqno() == 4);
+    DOCTEST_REQUIRE(rA.get_light_details().committed_seqno == 4);
 
     // Nodes B and C have this commit index, and are responsible for persisting
     // it
-    DOCTEST_REQUIRE(rB.get_last_idx() >= rA.get_committed_seqno());
-    DOCTEST_REQUIRE(rC.get_last_idx() >= rA.get_committed_seqno());
+    DOCTEST_REQUIRE(rB.get_last_idx() >= rA.get_light_details().committed_seqno);
+    DOCTEST_REQUIRE(rC.get_last_idx() >= rA.get_light_details().committed_seqno);
   }
 
   DOCTEST_INFO("Node A dies");
@@ -360,8 +360,8 @@ DOCTEST_TEST_CASE("Retention of dead leader's commit")
     DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_idD, channelsD->messages));
     DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_idE, channelsE->messages));
 
-    DOCTEST_REQUIRE(rB.is_primary());
-    DOCTEST_REQUIRE(rB.get_view() == 2);
+    DOCTEST_REQUIRE(rB.get_light_details().is_primary());
+    DOCTEST_REQUIRE(rB.get_light_details().current_view == 2);
   }
 
   DOCTEST_INFO("Node B writes some entries, though they are lost");
@@ -383,8 +383,8 @@ DOCTEST_TEST_CASE("Retention of dead leader's commit")
 
     // The key features is that B is one of the quorum responsible for
     // persistence of 1.4, despites its commit index not being as high as 1.4
-    DOCTEST_REQUIRE(rB.get_committed_seqno() < rA.get_committed_seqno());
-    DOCTEST_REQUIRE(rB.get_last_idx() >= rA.get_committed_seqno());
+    DOCTEST_REQUIRE(rB.get_light_details().committed_seqno < rA.get_light_details().committed_seqno);
+    DOCTEST_REQUIRE(rB.get_last_idx() >= rA.get_light_details().committed_seqno);
   }
 
   DOCTEST_INFO("Node C wins an election");
@@ -407,8 +407,8 @@ DOCTEST_TEST_CASE("Retention of dead leader's commit")
     DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_idD, channelsD->messages));
     DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_idE, channelsE->messages));
 
-    DOCTEST_REQUIRE(rC.is_primary());
-    DOCTEST_REQUIRE(rC.get_view() == 3);
+    DOCTEST_REQUIRE(rC.get_light_details().is_primary());
+    DOCTEST_REQUIRE(rC.get_light_details().current_view == 3);
 
     DOCTEST_REQUIRE(rB.get_last_idx() == 7);
     DOCTEST_REQUIRE(rC.get_last_idx() == 4);
@@ -419,8 +419,8 @@ DOCTEST_TEST_CASE("Retention of dead leader's commit")
 
     DOCTEST_REQUIRE(rB.get_last_idx() == 7);
 
-    DOCTEST_REQUIRE(rB.get_committed_seqno() < rA.get_committed_seqno());
-    DOCTEST_REQUIRE(rB.get_last_idx() >= rA.get_committed_seqno());
+    DOCTEST_REQUIRE(rB.get_light_details().committed_seqno < rA.get_light_details().committed_seqno);
+    DOCTEST_REQUIRE(rB.get_last_idx() >= rA.get_light_details().committed_seqno);
   }
 
   DOCTEST_REQUIRE("Node C produces 3.5, 3.6, and 3.7");
@@ -479,7 +479,7 @@ DOCTEST_TEST_CASE("Retention of dead leader's commit")
     DOCTEST_REQUIRE(rB.get_last_idx() != tail_of_b);
 
     // B must still be holding the committed index it holds from A
-    DOCTEST_REQUIRE(rB.get_last_idx() >= rA.get_committed_seqno());
+    DOCTEST_REQUIRE(rB.get_last_idx() >= rA.get_light_details().committed_seqno);
 
     // B's term history must match the current primary's
     DOCTEST_REQUIRE(rB.get_last_idx() <= rC.get_last_idx());
@@ -541,8 +541,8 @@ DOCTEST_TEST_CASE_TEMPLATE("Multi-term divergence", T, WorstCase, RandomCase)
     DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_idB));
     DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_idC));
 
-    DOCTEST_REQUIRE(rA.is_primary());
-    DOCTEST_REQUIRE(rA.get_view() == 1);
+    DOCTEST_REQUIRE(rA.get_light_details().is_primary());
+    DOCTEST_REQUIRE(rA.get_light_details().current_view == 1);
 
     // Election-triggered heartbeats
     DOCTEST_REQUIRE(2 == dispatch_all(nodes, node_idA));
@@ -561,7 +561,7 @@ DOCTEST_TEST_CASE_TEMPLATE("Multi-term divergence", T, WorstCase, RandomCase)
 
     // If C is in an older term, it gets a heartbeat to join this primary's
     // term, but nothing more
-    if (rC.get_view() < primary.get_view())
+    if (rC.get_light_details().current_view < primary.get_light_details().current_view)
     {
       primary.periodic(request_timeout);
       keep_messages_for(node_idC, channels_primary->messages);
@@ -569,13 +569,13 @@ DOCTEST_TEST_CASE_TEMPLATE("Multi-term divergence", T, WorstCase, RandomCase)
       channelsC->messages.clear();
     }
 
-    DOCTEST_REQUIRE(rC.get_view() >= primary.get_view());
+    DOCTEST_REQUIRE(rC.get_light_details().current_view >= primary.get_light_details().current_view);
 
-    if (rC.get_view() > primary.get_view())
+    if (rC.get_light_details().current_view > primary.get_light_details().current_view)
     {
       // Trigger a message from the intended primary, so C will respond with its
       // current term
-      if (primary.is_primary())
+      if (primary.get_light_details().is_primary())
       {
         // If we were already primary, then request_timeout will produce an
         // AppendEntries
@@ -595,7 +595,7 @@ DOCTEST_TEST_CASE_TEMPLATE("Multi-term divergence", T, WorstCase, RandomCase)
       keep_messages_for(primary_id, channelsC->messages);
       DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_idC));
 
-      DOCTEST_REQUIRE(rC.get_view() == primary.get_view());
+      DOCTEST_REQUIRE(rC.get_light_details().current_view == primary.get_light_details().current_view);
     }
     else
     {
@@ -632,14 +632,14 @@ DOCTEST_TEST_CASE_TEMPLATE("Multi-term divergence", T, WorstCase, RandomCase)
         }));
 
     // That's sufficient to win this election
-    DOCTEST_REQUIRE(primary.is_primary());
+    DOCTEST_REQUIRE(primary.get_light_details().is_primary());
 
     const auto start_idx = primary.get_last_idx();
     for (auto idx = start_idx + 1; idx <= start_idx + num_entries; ++idx)
     {
-      auto entry = make_ledger_entry(primary.get_view(), idx);
+      auto entry = make_ledger_entry(primary.get_light_details().current_view, idx);
       primary.replicate(
-        ccf::kv::BatchVector{{idx, entry, true, hooks}}, primary.get_view());
+        ccf::kv::BatchVector{{idx, entry, true, hooks}}, primary.get_light_details().current_view);
     }
 
     // All related AppendEntries are lost
@@ -672,7 +672,7 @@ DOCTEST_TEST_CASE_TEMPLATE("Multi-term divergence", T, WorstCase, RandomCase)
     entry = make_ledger_entry(1, 2);
     rA.replicate(ccf::kv::BatchVector{{2, entry, true, hooks}}, 1);
     DOCTEST_REQUIRE(rA.get_last_idx() == 2);
-    DOCTEST_REQUIRE(rA.get_committed_seqno() == 0);
+    DOCTEST_REQUIRE(rA.get_light_details().committed_seqno == 0);
     // Size limit was reached, so periodic is not needed
     // rA.periodic(request_timeout);
 
@@ -687,7 +687,7 @@ DOCTEST_TEST_CASE_TEMPLATE("Multi-term divergence", T, WorstCase, RandomCase)
     DOCTEST_REQUIRE(rC.get_last_idx() == 2);
 
     // And primary knows it is committed
-    DOCTEST_REQUIRE(rA.get_committed_seqno() == 2);
+    DOCTEST_REQUIRE(rA.get_light_details().committed_seqno == 2);
 
     // After a periodic heartbeat
     rA.periodic(request_timeout);
@@ -696,9 +696,9 @@ DOCTEST_TEST_CASE_TEMPLATE("Multi-term divergence", T, WorstCase, RandomCase)
     DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_idC));
 
     // All nodes know that this is committed
-    DOCTEST_REQUIRE(rA.get_committed_seqno() == 2);
-    DOCTEST_REQUIRE(rB.get_committed_seqno() == 2);
-    DOCTEST_REQUIRE(rC.get_committed_seqno() == 2);
+    DOCTEST_REQUIRE(rA.get_light_details().committed_seqno == 2);
+    DOCTEST_REQUIRE(rB.get_light_details().committed_seqno == 2);
+    DOCTEST_REQUIRE(rC.get_light_details().committed_seqno == 2);
 
     // Node A produces 2 additional entries that A and B have, and 2 additional
     // entries that are only present on A
@@ -724,9 +724,9 @@ DOCTEST_TEST_CASE_TEMPLATE("Multi-term divergence", T, WorstCase, RandomCase)
 
     // Commit did not advance, though 4 is present on f+1 nodes and will be
     // persisted from here
-    DOCTEST_REQUIRE(rA.get_committed_seqno() == 2);
-    DOCTEST_REQUIRE(rB.get_committed_seqno() == 2);
-    DOCTEST_REQUIRE(rC.get_committed_seqno() == 2);
+    DOCTEST_REQUIRE(rA.get_light_details().committed_seqno == 2);
+    DOCTEST_REQUIRE(rB.get_light_details().committed_seqno == 2);
+    DOCTEST_REQUIRE(rC.get_light_details().committed_seqno == 2);
 
     persisted_idx = 4;
     persisted_entry = rB.ledger->ledger[persisted_idx - 1];
@@ -752,15 +752,15 @@ DOCTEST_TEST_CASE_TEMPLATE("Multi-term divergence", T, WorstCase, RandomCase)
 
     // Nodes A and B now have long, distinct, multi-term non-committed suffixes.
     // Node C has not advanced its log at all
-    DOCTEST_REQUIRE(rA.get_committed_seqno() == 2);
-    DOCTEST_REQUIRE(rB.get_committed_seqno() == 2);
-    DOCTEST_REQUIRE(rC.get_committed_seqno() == 2);
+    DOCTEST_REQUIRE(rA.get_light_details().committed_seqno == 2);
+    DOCTEST_REQUIRE(rB.get_light_details().committed_seqno == 2);
+    DOCTEST_REQUIRE(rC.get_light_details().committed_seqno == 2);
 
     DOCTEST_REQUIRE(rA.get_last_idx() > 4);
     DOCTEST_REQUIRE(rB.get_last_idx() > 3);
     DOCTEST_REQUIRE(rC.get_last_idx() == 2);
 
-    DOCTEST_REQUIRE(rA.get_view() != rB.get_view());
+    DOCTEST_REQUIRE(rA.get_light_details().current_view != rB.get_light_details().current_view);
     DOCTEST_REQUIRE(
       rA.get_view_history(rA.get_last_idx()) !=
       rB.get_view_history(rB.get_last_idx()));
@@ -792,7 +792,7 @@ DOCTEST_TEST_CASE_TEMPLATE("Multi-term divergence", T, WorstCase, RandomCase)
     {
       aim_for_a_primary = true;
       DOCTEST_INFO("Node A wins");
-      while (rA.get_view() <= rC.get_view())
+      while (rA.get_light_details().current_view <= rC.get_light_details().current_view)
       {
         channelsA->messages.clear();
         rA.periodic(election_timeout);
@@ -806,7 +806,7 @@ DOCTEST_TEST_CASE_TEMPLATE("Multi-term divergence", T, WorstCase, RandomCase)
     {
       aim_for_a_primary = false;
       DOCTEST_INFO("Node B wins");
-      while (rB.get_view() <= rC.get_view())
+      while (rB.get_light_details().current_view <= rC.get_light_details().current_view)
       {
         channelsB->messages.clear();
         rB.periodic(election_timeout);
@@ -828,7 +828,7 @@ DOCTEST_TEST_CASE_TEMPLATE("Multi-term divergence", T, WorstCase, RandomCase)
     dispatch_all(nodes, id_primary);
     dispatch_all(nodes, node_idC);
 
-    DOCTEST_REQUIRE(rPrimary.is_primary());
+    DOCTEST_REQUIRE(rPrimary.get_light_details().is_primary());
 
     {
       DOCTEST_INFO("Catch node C up");
@@ -867,7 +867,7 @@ DOCTEST_TEST_CASE_TEMPLATE("Multi-term divergence", T, WorstCase, RandomCase)
     }
 
     DOCTEST_INFO("Bring other node in-sync");
-    const auto id_other = rA.is_primary() ? node_idB : node_idA;
+    const auto id_other = rA.get_light_details().is_primary() ? node_idB : node_idA;
 
     {
       channelsA->messages.clear();
@@ -987,7 +987,7 @@ DOCTEST_TEST_CASE_TEMPLATE("Multi-term divergence", T, WorstCase, RandomCase)
       {
         // One more entry in this term, and replication of it, and post-ACK
         // dispatch, to reach unanimous commit point
-        const auto view = rPrimary.get_view();
+        const auto view = rPrimary.get_light_details().current_view;
         const auto seqno = rPrimary.get_last_idx() + 1;
         auto final_entry = make_ledger_entry(view, seqno);
         rPrimary.replicate(
@@ -1012,8 +1012,8 @@ DOCTEST_TEST_CASE_TEMPLATE("Multi-term divergence", T, WorstCase, RandomCase)
             DOCTEST_REQUIRE(ae.leader_commit_idx == seqno);
           });
 
-        DOCTEST_REQUIRE(rPrimary.get_committed_seqno() == seqno);
-        DOCTEST_REQUIRE(rA.get_committed_seqno() == rB.get_committed_seqno());
+        DOCTEST_REQUIRE(rPrimary.get_light_details().committed_seqno == seqno);
+        DOCTEST_REQUIRE(rA.get_light_details().committed_seqno == rB.get_light_details().committed_seqno);
       }
 
       if constexpr (is_worst_case)
@@ -1036,8 +1036,8 @@ DOCTEST_TEST_CASE_TEMPLATE("Multi-term divergence", T, WorstCase, RandomCase)
         DOCTEST_REQUIRE(rA.get_last_idx() == rB.get_last_idx());
         DOCTEST_REQUIRE(rB.get_last_idx() == rC.get_last_idx());
 
-        DOCTEST_REQUIRE(rA.get_committed_seqno() == rB.get_committed_seqno());
-        DOCTEST_REQUIRE(rB.get_committed_seqno() == rC.get_committed_seqno());
+        DOCTEST_REQUIRE(rA.get_light_details().committed_seqno == rB.get_light_details().committed_seqno);
+        DOCTEST_REQUIRE(rB.get_light_details().committed_seqno == rC.get_light_details().committed_seqno);
 
         const auto term_history_on_A = rA.get_view_history(rA.get_last_idx());
         const auto term_history_on_B = rB.get_view_history(rB.get_last_idx());
@@ -1056,7 +1056,7 @@ DOCTEST_TEST_CASE_TEMPLATE("Multi-term divergence", T, WorstCase, RandomCase)
           // In the random case, assert that the pre-constrcted shared prefix is
           // still here
           DOCTEST_REQUIRE(rA.get_last_idx() > 3);
-          DOCTEST_REQUIRE(rA.get_committed_seqno() > 3);
+          DOCTEST_REQUIRE(rA.get_light_details().committed_seqno > 3);
 
           // And finally, that thing we said was persisted earlier (but wasn't
           // known to be committed), is still present on all nodes

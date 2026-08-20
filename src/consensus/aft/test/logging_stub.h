@@ -351,7 +351,7 @@ namespace aft
       set_retired_committed_hook = set_retired_committed_hook_;
     }
 
-    virtual void compact(Index i) {}
+    virtual void compact(Index i, bool is_primary = false) {}
 
     virtual void rollback(const ccf::TxID& tx_id, Term t) {}
 
@@ -482,7 +482,7 @@ namespace aft
     // compact and rollback emulate the behaviour of the retired_committed hook
     // in the real store through the retired_committed_entries vector, see
     // node_state.h, circa line 2147
-    virtual void compact(Index i) override
+    virtual void compact(Index i, bool is_primary = false) override
     {
       for (auto& [version, configuration] : retired_committed_entries)
       {

@@ -29,20 +29,120 @@ DOCTEST_TEST_CASE("Single node startup" * doctest::test_suite("single"))
 
   DOCTEST_INFO("DOCTEST_REQUIRE Initial State");
 
-  DOCTEST_REQUIRE(!r0.is_primary());
-  DOCTEST_REQUIRE(!r0.primary().has_value());
-  DOCTEST_REQUIRE(r0.get_view() == 0);
-  DOCTEST_REQUIRE(r0.get_committed_seqno() == 0);
+  DOCTEST_REQUIRE(!r0.get_light_details().is_primary());
+  DOCTEST_REQUIRE(!r0.get_light_details().primary_id.has_value());
+  DOCTEST_REQUIRE(r0.get_light_details().current_view == 0);
+  DOCTEST_REQUIRE(r0.get_light_details().committed_seqno == 0);
 
   DOCTEST_INFO(
     "In the absence of other nodes, become leader after election timeout");
 
   r0.periodic(ms(0));
-  DOCTEST_REQUIRE(!r0.is_primary());
+  DOCTEST_REQUIRE(!r0.get_light_details().is_primary());
 
   r0.periodic(election_timeout * 2);
-  DOCTEST_REQUIRE(r0.is_primary());
-  DOCTEST_REQUIRE(r0.primary() == node_id);
+  DOCTEST_REQUIRE(r0.get_light_details().is_primary());
+  DOCTEST_REQUIRE(r0.get_light_details().primary_id == node_id);
+}
+
+DOCTEST_TEST_CASE(
+  "Consensus details and KV queries" * doctest::test_suite("single"))
+{
+  const auto node_id = ccf::kv::test::PrimaryNodeId;
+  const auto other_node_id = ccf::kv::test::FirstBackupNodeId;
+  auto kv_store = std::make_shared<Store>(node_id);
+
+  TRaft raft(
+    raft_settings,
+    std::make_unique<Adaptor>(kv_store),
+    std::make_unique<aft::LedgerStubProxy>(node_id),
+    std::make_shared<aft::ChannelStubProxy>(),
+    std::make_shared<aft::State>(node_id),
+    nullptr);
+
+  ccf::kv::Configuration::Nodes config;
+  config.try_emplace(node_id);
+  config.try_emplace(other_node_id);
+  raft.add_configuration(0, config);
+
+  const auto light_details = raft.get_light_details();
+  DOCTEST_REQUIRE(!light_details.is_primary());
+  DOCTEST_REQUIRE(!raft.is_primary());
+
+  const auto diagnostic_details = raft.get_details();
+  DOCTEST_REQUIRE(diagnostic_details.configs.size() == 1);
+  DOCTEST_REQUIRE(diagnostic_details.configs.front().nodes == config);
+  DOCTEST_REQUIRE(diagnostic_details.acks.contains(other_node_id));
+
+  raft.force_become_primary();
+  const auto primary_details = raft.get_light_details();
+  DOCTEST_REQUIRE(primary_details.is_primary());
+  DOCTEST_REQUIRE(primary_details.primary_id == node_id);
+  DOCTEST_REQUIRE(raft.is_primary());
+
+  raft.become_follower();
+  DOCTEST_REQUIRE(!raft.get_light_details().is_primary());
+  DOCTEST_REQUIRE(!raft.is_primary());
+}
+
+DOCTEST_TEST_CASE(
+  "Concurrent public state reads during leadership transitions" *
+  doctest::test_suite("concurrency"))
+{
+  const auto node_id = ccf::kv::test::PrimaryNodeId;
+  const auto other_node_id = ccf::kv::test::FirstBackupNodeId;
+  auto kv_store = std::make_shared<Store>(node_id);
+
+  TRaft raft(
+    raft_settings,
+    std::make_unique<Adaptor>(kv_store),
+    std::make_unique<aft::LedgerStubProxy>(node_id),
+    std::make_shared<aft::ChannelStubProxy>(),
+    std::make_shared<aft::State>(node_id),
+    nullptr);
+
+  aft::Configuration::Nodes config;
+  config.try_emplace(node_id);
+  config.try_emplace(other_node_id);
+  raft.add_configuration(0, config);
+
+  std::atomic<bool> stop = false;
+  std::atomic<bool> observed = false;
+  std::thread driver([&]() {
+    constexpr size_t transition_count = 2000;
+    for (size_t i = 0; i < transition_count; ++i)
+    {
+      raft.force_become_primary();
+      raft.periodic(election_timeout);
+    }
+    stop.store(true, std::memory_order_release);
+  });
+
+  constexpr size_t reader_thread_count = 8;
+  std::vector<std::thread> readers;
+  readers.reserve(reader_thread_count);
+  for (size_t i = 0; i < reader_thread_count; ++i)
+  {
+    readers.emplace_back([&]() {
+      while (!stop.load(std::memory_order_acquire))
+      {
+        const auto details = raft.get_light_details();
+        observed.store(true, std::memory_order_release);
+        static_cast<void>(details.primary_id.has_value());
+        static_cast<void>(details.is_primary());
+        static_cast<void>(details.is_candidate());
+        static_cast<void>(details.is_backup());
+        raft.is_primary();
+      }
+    });
+  }
+
+  driver.join();
+  for (auto& reader : readers)
+  {
+    reader.join();
+  }
+  DOCTEST_REQUIRE(observed.load(std::memory_order_acquire));
 }
 
 DOCTEST_TEST_CASE("Single node commit" * doctest::test_suite("single"))
@@ -66,7 +166,7 @@ DOCTEST_TEST_CASE("Single node commit" * doctest::test_suite("single"))
 
   r0.start_ticking();
   r0.periodic(election_timeout * 2);
-  DOCTEST_REQUIRE(r0.is_primary());
+  DOCTEST_REQUIRE(r0.get_light_details().is_primary());
 
   DOCTEST_INFO("Observe that data is committed on replicate immediately");
 
@@ -79,7 +179,7 @@ DOCTEST_TEST_CASE("Single node commit" * doctest::test_suite("single"))
 
     r0.replicate(ccf::kv::BatchVector{{i, entry, true, hooks}}, 1);
     DOCTEST_REQUIRE(r0.get_last_idx() == i);
-    DOCTEST_REQUIRE(r0.get_committed_seqno() == i);
+    DOCTEST_REQUIRE(r0.get_light_details().committed_seqno == i);
   }
 }
 
@@ -279,7 +379,7 @@ DOCTEST_TEST_CASE(
   DOCTEST_INFO(
     "Node 0 is now leader, and sends empty append entries to other nodes");
 
-  DOCTEST_REQUIRE(r0.is_primary());
+  DOCTEST_REQUIRE(r0.get_light_details().is_primary());
   DOCTEST_REQUIRE(
     r0c->count_messages_with_type(aft::RaftMsgType::raft_append_entries) == 3);
 
@@ -315,7 +415,7 @@ DOCTEST_TEST_CASE(
 
   receive_message(r0, r3, *rvr_raw);
 
-  auto r3_primary = r3.primary();
+  auto r3_primary = r3.get_light_details().primary_id;
   DOCTEST_REQUIRE(r3_primary.has_value());
   DOCTEST_REQUIRE(r3_primary.value() == r0.id());
 
@@ -647,7 +747,7 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id0, r0c->messages));
     DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id1, r1c->messages));
 
-    DOCTEST_REQUIRE(r0.is_primary());
+    DOCTEST_REQUIRE(r0.get_light_details().is_primary());
     DOCTEST_REQUIRE(r0c->messages.size() == 1);
     DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id0, r0c->messages));
     DOCTEST_REQUIRE(r0c->messages.size() == 0);
@@ -1071,7 +1171,7 @@ DOCTEST_TEST_CASE(
     DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id0, r0c->messages));
     DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id1, r1c->messages));
 
-    DOCTEST_REQUIRE(r0.is_primary());
+    DOCTEST_REQUIRE(r0.get_light_details().is_primary());
     DOCTEST_REQUIRE(r0c->messages.size() == 1);
     DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id0, r0c->messages));
     DOCTEST_REQUIRE(r0c->messages.size() == 0);

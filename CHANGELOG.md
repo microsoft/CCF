@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - `ccf::SessionContext::caller_cert` is now immutable, and its SHA-256 digest is cached per session to avoid repeated hashing during user and member certificate authentication (#8164).
+- Consensus current-state queries now return coherent light or full details snapshots. Full details include configuration and per-node acknowledgement data, while KV critical sections use a separate lock-order-safe consensus query API (#8184).
 
 ## [7.0.12]
 

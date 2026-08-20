@@ -153,7 +153,42 @@ namespace ccf::kv
   DECLARE_JSON_TYPE(Configuration);
   DECLARE_JSON_REQUIRED_FIELDS(Configuration, idx, nodes, rid);
 
-  struct ConsensusDetails
+  struct ConsensusLightDetails
+  {
+    MembershipState membership_state{};
+    std::optional<LeadershipState> leadership_state = std::nullopt;
+    std::optional<RetirementPhase> retirement_phase = std::nullopt;
+    std::optional<std::unordered_map<ccf::NodeId, ccf::SeqNo>> learners =
+      std::nullopt;
+    std::optional<ccf::ReconfigurationType> reconfiguration_type = std::nullopt;
+    std::optional<ccf::NodeId> primary_id = std::nullopt;
+    ccf::View current_view = 0;
+    ccf::View committed_view = 0;
+    ccf::SeqNo committed_seqno = 0;
+    bool ticking = false;
+
+    [[nodiscard]] bool is_primary() const
+    {
+      return leadership_state == LeadershipState::Leader;
+    }
+
+    [[nodiscard]] bool is_backup() const
+    {
+      return leadership_state == LeadershipState::Follower;
+    }
+
+    [[nodiscard]] bool is_candidate() const
+    {
+      return leadership_state == LeadershipState::Candidate;
+    }
+
+    [[nodiscard]] ccf::TxID committed_txid() const
+    {
+      return {committed_view, committed_seqno};
+    }
+  };
+
+  struct ConsensusDetails : ConsensusLightDetails
   {
     struct Ack
     {
@@ -163,35 +198,25 @@ namespace ccf::kv
 
     std::vector<Configuration> configs;
     std::unordered_map<ccf::NodeId, Ack> acks;
-    MembershipState membership_state{};
-    std::optional<LeadershipState> leadership_state = std::nullopt;
-    std::optional<RetirementPhase> retirement_phase = std::nullopt;
-    std::optional<std::unordered_map<ccf::NodeId, ccf::SeqNo>> learners =
-      std::nullopt;
-    std::optional<ccf::ReconfigurationType> reconfiguration_type = std::nullopt;
-    std::optional<ccf::NodeId> primary_id = std::nullopt;
-    ccf::View current_view = 0;
-    bool ticking = false;
   };
 
   DECLARE_JSON_TYPE(ConsensusDetails::Ack);
   DECLARE_JSON_REQUIRED_FIELDS(ConsensusDetails::Ack, seqno, last_received_ms);
 
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ConsensusDetails);
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ConsensusLightDetails);
   DECLARE_JSON_REQUIRED_FIELDS(
-    ConsensusDetails,
-    configs,
-    acks,
-    membership_state,
-    primary_id,
-    current_view,
-    ticking);
+    ConsensusLightDetails, membership_state, primary_id, current_view, ticking);
   DECLARE_JSON_OPTIONAL_FIELDS(
-    ConsensusDetails,
+    ConsensusLightDetails,
     reconfiguration_type,
     learners,
     leadership_state,
-    retirement_phase);
+    retirement_phase,
+    committed_view,
+    committed_seqno);
+
+  DECLARE_JSON_TYPE_WITH_BASE(ConsensusDetails, ConsensusLightDetails);
+  DECLARE_JSON_REQUIRED_FIELDS(ConsensusDetails, configs, acks);
 
   class ConfigurableConsensus
   {
@@ -199,10 +224,8 @@ namespace ccf::kv
     virtual ~ConfigurableConsensus() = default;
     virtual void add_configuration(
       ccf::SeqNo seqno, const Configuration::Nodes& conf) = 0;
-    virtual Configuration::Nodes get_latest_configuration() = 0;
     [[nodiscard]] virtual Configuration::Nodes get_latest_configuration_unsafe()
       const = 0;
-    virtual ConsensusDetails get_details() = 0;
   };
 
   using BatchVector = std::vector<std::tuple<
@@ -424,9 +447,6 @@ namespace ccf::kv
     ~Consensus() override = default;
 
     virtual NodeId id() = 0;
-    virtual bool is_primary() = 0;
-    virtual bool is_backup() = 0;
-    virtual bool is_candidate() = 0;
     virtual bool can_replicate() = 0;
     virtual bool is_at_max_capacity() = 0;
 
@@ -445,16 +465,15 @@ namespace ccf::kv
       ccf::SeqNo, ccf::View, const std::vector<ccf::SeqNo>&, ccf::SeqNo) = 0;
 
     virtual bool replicate(const BatchVector& entries, ccf::View view) = 0;
-    virtual std::pair<ccf::View, ccf::SeqNo> get_committed_txid() = 0;
+
+    virtual ConsensusLightDetails get_light_details() = 0;
+    virtual ConsensusDetails get_details() = 0;
 
     virtual ccf::View get_view(ccf::SeqNo seqno) = 0;
-    virtual ccf::View get_view() = 0;
     virtual std::vector<ccf::SeqNo> get_view_history(
       ccf::SeqNo seqno = std::numeric_limits<ccf::SeqNo>::max()) = 0;
     virtual std::vector<ccf::SeqNo> get_view_history_since(
       ccf::SeqNo seqno) = 0;
-    virtual ccf::SeqNo get_committed_seqno() = 0;
-    virtual std::optional<NodeId> primary() = 0;
 
     virtual void recv_message(
       const NodeId& from, const uint8_t* data, size_t size) = 0;
@@ -474,10 +493,15 @@ namespace ccf::kv
       ccf::View target_view, ccf::SeqNo target_seqno)
     {
       const auto local_view = get_view(target_seqno);
-      const auto [committed_view, committed_seqno] = get_committed_txid();
+      const auto details = get_light_details();
+      const auto committed_txid = details.committed_txid();
 
       return ccf::evaluate_tx_status(
-        target_view, target_seqno, local_view, committed_view, committed_seqno);
+        target_view,
+        target_seqno,
+        local_view,
+        committed_txid.view,
+        committed_txid.seqno);
     }
   };
 
@@ -726,7 +750,7 @@ namespace ccf::kv
       const std::vector<uint8_t>& data,
       bool public_only = false,
       const std::optional<ccf::TxID>& expected_txid = std::nullopt) = 0;
-    virtual void compact(Version v) = 0;
+    virtual void compact(Version v, bool is_primary = false) = 0;
     virtual void rollback(const ccf::TxID& tx_id, Term write_term_) = 0;
     virtual void initialise_term(Term t) = 0;
     virtual CommitResult commit(

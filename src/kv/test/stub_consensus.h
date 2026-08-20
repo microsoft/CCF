@@ -45,16 +45,6 @@ namespace ccf::kv::test
       return local_id;
     }
 
-    virtual bool is_primary() override
-    {
-      return state == Primary;
-    }
-
-    virtual bool is_candidate() override
-    {
-      return state == Candidate;
-    }
-
     virtual bool can_replicate() override
     {
       return state == Primary;
@@ -75,11 +65,6 @@ namespace ccf::kv::test
       {
         return Consensus::SignatureDisposition::CANT_REPLICATE;
       }
-    }
-
-    virtual bool is_backup() override
-    {
-      return state == Backup;
     }
 
     virtual void force_become_primary() override
@@ -162,29 +147,14 @@ namespace ccf::kv::test
       replica.clear();
     }
 
-    std::pair<ccf::View, ccf::SeqNo> get_committed_txid() override
+    virtual std::pair<ccf::View, ccf::SeqNo> get_committed_txid()
     {
       return {committed_txid.view, committed_txid.seqno};
-    }
-
-    ccf::SeqNo get_committed_seqno() override
-    {
-      return committed_txid.seqno;
-    }
-
-    std::optional<NodeId> primary() override
-    {
-      return PrimaryNodeId;
     }
 
     ccf::View get_view(ccf::SeqNo seqno) override
     {
       return view_history.view_at(seqno);
-    }
-
-    ccf::View get_view() override
-    {
-      return current_view;
     }
 
     std::vector<ccf::SeqNo> get_view_history(ccf::SeqNo seqno) override
@@ -210,14 +180,31 @@ namespace ccf::kv::test
       return {};
     }
 
-    Configuration::Nodes get_latest_configuration() override
+    virtual Configuration::Nodes get_latest_configuration()
     {
       return {};
     }
 
+    ConsensusLightDetails get_light_details() override
+    {
+      ConsensusLightDetails details;
+      details.membership_state = MembershipState::Active;
+      details.leadership_state = state == Primary ? LeadershipState::Leader :
+        state == Candidate                        ? LeadershipState::Candidate :
+                                                    LeadershipState::Follower;
+      details.primary_id = state == Primary ? std::optional<NodeId>{PrimaryNodeId} :
+                                              std::nullopt;
+      details.current_view = current_view;
+      details.committed_view = committed_txid.view;
+      details.committed_seqno = committed_txid.seqno;
+      return details;
+    }
+
     ConsensusDetails get_details() override
     {
-      return ConsensusDetails{{}, {}, MembershipState::Active};
+      ConsensusDetails details;
+      static_cast<ConsensusLightDetails&>(details) = get_light_details();
+      return details;
     }
 
     void set_last_signature_at(ccf::SeqNo seqno)
@@ -230,11 +217,6 @@ namespace ccf::kv::test
   {
   public:
     BackupStubConsensus() : StubConsensus() {}
-
-    bool is_primary() override
-    {
-      return false;
-    }
 
     bool replicate(const BatchVector& entries, ccf::View view) override
     {
@@ -256,11 +238,6 @@ namespace ccf::kv::test
   {
   public:
     PrimaryStubConsensus() : StubConsensus() {}
-
-    bool is_primary() override
-    {
-      return true;
-    }
 
     bool can_replicate() override
     {

@@ -287,7 +287,8 @@ namespace ccf
         std::string primary_address;
         std::vector<uint8_t> service_cert;
         {
-          auto primary_id = owner->consensus->primary();
+          const auto primary_id =
+            owner->consensus->get_light_details().primary_id;
           if (!primary_id.has_value())
           {
             LOG_INFO_FMT(
@@ -2258,7 +2259,7 @@ namespace ccf
       LOG_INFO_FMT(
         "Try end private recovery at {}. Is primary: {}",
         recovery_v,
-        consensus->is_primary());
+        consensus->get_light_details().is_primary());
 
       if (recovery_v != recovery_store->current_version())
       {
@@ -2699,8 +2700,8 @@ namespace ccf
 
       if (sm.check(NodeStartupState::partOfNetwork))
       {
-        const auto tx_id = consensus->get_committed_txid();
-        indexer->update_strategies(elapsed, {tx_id.first, tx_id.second});
+        const auto details = consensus->get_light_details();
+        indexer->update_strategies(elapsed, details.committed_txid());
       }
 
       n2n_channels->tick(elapsed);
@@ -2753,7 +2754,7 @@ namespace ccf
         (sm.check(NodeStartupState::partOfNetwork) ||
          sm.check(NodeStartupState::partOfPublicNetwork) ||
          sm.check(NodeStartupState::readingPrivateLedger)) &&
-        consensus->is_primary());
+        consensus->get_light_details().is_primary());
     }
 
     bool can_replicate() override
@@ -2767,7 +2768,7 @@ namespace ccf
 
     std::optional<ccf::NodeId> get_primary() override
     {
-      return consensus->primary();
+      return consensus->get_light_details().primary_id;
     }
 
     [[nodiscard]] bool is_in_initialised_state() const override
@@ -3674,8 +3675,9 @@ namespace ccf
             // If backup snapshot fetching is enabled and this node is a
             // backup, schedule a fetch task
             if (
-              config.snapshots.backup_fetch.enabled && consensus != nullptr &&
-              !consensus->is_primary())
+              config.snapshots.backup_fetch.enabled &&
+              consensus != nullptr &&
+              !consensus->get_light_details().is_primary())
             {
               ccf::tasks::Task task_to_schedule = nullptr;
               {
