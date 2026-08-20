@@ -70,12 +70,14 @@ Reconfiguration
 
 This discusses changes to the original Raft implementation that are not trivial. For more information on Raft please see the original `paper <https://www.usenix.org/system/files/conference/atc14/atc14-paper-ongaro.pdf>`_.
 
-From a ledger and KV store perspective, reconfiguration is materialised in two separate transactions:
+For a live service, reconfiguration is materialised in two separate transactions:
 
   - Any transaction that contains at least one write to :ref:`audit/builtin_maps:``nodes.info``` setting a node's status to ``TRUSTED`` or ``RETIRED`` is a *reconfiguration transaction*.
   - Any transaction that contains at least one write to :ref:`audit/builtin_maps:``nodes.info``` setting a node's retired_committed to ``TRUE`` is a *retirement committed transaction*.
 
 In contrast to normal transactions, reconfiguration transactions will only commit when the necessary quorum of acknowledgements is reached in **both** the previous and the new configuration it defines.
+
+Disaster recovery is an exception to this retirement sequence. Replaying the public ledger reconstructs the previous service's trusted-node configuration in the new consensus instance. When the recovery service is created, its recovery transaction deletes the previous service's entries from ``nodes.info`` directly, and those deletions remove the old nodes from the new consensus configuration. The previous nodes do not transition through ``RETIRED`` or ``retired_committed`` because the old service is unavailable and does not participate in the recovery service's consensus. See :ref:`operations/recovery:Disaster Recovery`.
 
 The following sample illustrates the addition of a single node to a one-node network:
 
@@ -177,7 +179,7 @@ In our example above, the election timeout on Node 1 simply expires and causes N
 Retirement details
 ~~~~~~~~~~~~~~~~~~
 
-Retirement of a node runs through five phases, as indicated by the following diagram. It starts with a reconfiguration transaction (RTX), involves 
+Normal retirement of a node in a live service runs through five phases, as indicated by the following diagram. Previous-service nodes deleted during disaster recovery do not enter these phases. Live retirement starts with a reconfiguration transaction (RTX), involves
 two additional elements of state and ends with a retirement committed transaction (RTCX), whose commitment indicates that all future primaries are aware RTX is committed,
 and no longer require nodes in the old configuration to make progress.
 
