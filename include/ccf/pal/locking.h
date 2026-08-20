@@ -10,6 +10,7 @@
 
 namespace ccf::pal
 {
+  class ConditionVariable;
   class MutexGuard;
 
   /**
@@ -18,6 +19,7 @@ namespace ccf::pal
   class CCF_CAPABILITY("mutex") Mutex
   {
   private:
+    friend class ConditionVariable;
     friend class MutexGuard;
     std::mutex mutex;
 
