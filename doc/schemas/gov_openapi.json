@@ -427,37 +427,6 @@
         ],
         "type": "object"
       },
-      "ProposalAction": {
-        "properties": {
-          "args": {
-            "$ref": "#/components/schemas/json"
-          },
-          "name": {
-            "$ref": "#/components/schemas/string"
-          }
-        },
-        "required": [
-          "name"
-        ],
-        "type": "object"
-      },
-      "ProposalAction_array": {
-        "items": {
-          "$ref": "#/components/schemas/ProposalAction"
-        },
-        "type": "array"
-      },
-      "ProposalActions": {
-        "properties": {
-          "actions": {
-            "$ref": "#/components/schemas/ProposalAction_array"
-          }
-        },
-        "required": [
-          "actions"
-        ],
-        "type": "object"
-      },
       "ProposalList": {
         "properties": {
           "value": {
@@ -1003,7 +972,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProposalActions"
+                  "$ref": "#/components/schemas/json"
                 }
               }
             },

@@ -55,22 +55,6 @@ namespace ccf::gov::endpoints
     };
     DECLARE_JSON_TYPE(ProposalList);
     DECLARE_JSON_REQUIRED_FIELDS(ProposalList, value);
-
-    struct ProposalAction
-    {
-      std::string name;
-      nlohmann::json args = nullptr;
-    };
-    DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ProposalAction);
-    DECLARE_JSON_REQUIRED_FIELDS(ProposalAction, name);
-    DECLARE_JSON_OPTIONAL_FIELDS(ProposalAction, args);
-
-    struct ProposalActions
-    {
-      std::vector<ProposalAction> actions;
-    };
-    DECLARE_JSON_TYPE(ProposalActions);
-    DECLARE_JSON_REQUIRED_FIELDS(ProposalActions, actions);
   }
 
   namespace detail
@@ -912,8 +896,6 @@ namespace ccf::gov::endpoints
             return;
           }
 
-          (void)ccf::parse_json_safe(proposal.value())
-            .template get<api::ProposalActions>();
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
           ctx.rpc_ctx->set_response_body(proposal.value());
           ctx.rpc_ctx->set_response_header(
@@ -929,7 +911,7 @@ namespace ccf::gov::endpoints
         HTTP_GET,
         api_version_adapter(get_actions),
         no_auth_required)
-      .set_auto_schema<void, api::ProposalActions>()
+      .set_auto_schema<void, nlohmann::json>()
       .set_openapi_summary("Get a proposal's actions")
       .install();
 
