@@ -38,6 +38,7 @@ from infra.log_capture import flush_info
 
 API_VERSION_PREVIEW_01 = "2023-06-01-preview"
 API_VERSION_01 = "2024-07-01"
+API_VERSION_LATEST = "latest"
 
 
 class OffSettableSecondsSinceEpoch:
@@ -1345,6 +1346,7 @@ class APIVersionedCCFClient(CCFClient):
         if self.api_version in (
             API_VERSION_PREVIEW_01,
             API_VERSION_01,
+            API_VERSION_LATEST,
         ):
             self.client_impl.cose_header_builder = cose_protected_headers_api_v1
         else:
