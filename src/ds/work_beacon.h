@@ -22,10 +22,9 @@ namespace ccf::ds
     void wait_for_work()
     {
       ccf::pal::MutexGuard lock(mutex);
-      while (work_available == 0)
-      {
-        condition_variable.wait(lock);
-      }
+      condition_variable.wait(
+        lock,
+        [this]() CCF_REQUIRES(mutex) { return work_available > 0; });
       --work_available;
     }
 
@@ -36,18 +35,16 @@ namespace ccf::ds
       const std::chrono::duration<DurationRep, DurationPeriod>& timeout)
     {
       ccf::pal::MutexGuard lock(mutex);
-      const auto deadline = std::chrono::steady_clock::now() + timeout;
-      while (work_available == 0)
+      const auto woke_for_work = condition_variable.wait_for(
+        lock,
+        timeout,
+        [this]() CCF_REQUIRES(mutex) { return work_available > 0; });
+      if (woke_for_work)
       {
-        const auto status = condition_variable.wait_until(lock, deadline);
-        if (status == std::cv_status::timeout && work_available == 0)
-        {
-          return false;
-        }
+        --work_available;
       }
 
-      --work_available;
-      return true;
+      return woke_for_work;
     }
 
     void notify_work_available()

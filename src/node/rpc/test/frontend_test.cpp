@@ -1666,10 +1666,7 @@ public:
     void wait()
     {
       ccf::pal::MutexGuard lock(m);
-      while (!ready)
-      {
-        cv.wait(lock);
-      }
+      cv.wait(lock, [this]() CCF_REQUIRES(m) { return ready; });
     }
 
     void notify()

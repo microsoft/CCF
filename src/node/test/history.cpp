@@ -357,10 +357,9 @@ public:
     paused.reserved_tx_created_cv.notify_one();
 
     ccf::pal::MutexGuard guard(paused.lock);
-    while (!paused.resume)
-    {
-      paused.resume_cv.wait(guard);
-    }
+    paused.resume_cv.wait(
+      guard,
+      [this]() CCF_REQUIRES(paused.lock) { return paused.resume; });
 
     return tx.commit_reserved();
   }
@@ -559,10 +558,11 @@ TEST_CASE(
 
   {
     ccf::pal::MutexGuard guard(paused.lock);
-    while (!paused.reserved_tx_created)
-    {
-      paused.reserved_tx_created_cv.wait(guard);
-    }
+    paused.reserved_tx_created_cv.wait(
+      guard,
+      [&paused]() CCF_REQUIRES(paused.lock) {
+        return paused.reserved_tx_created;
+      });
   }
 
   const auto new_term = store_term + 1;

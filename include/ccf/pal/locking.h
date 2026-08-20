@@ -6,6 +6,7 @@
 
 #include <condition_variable>
 #include <mutex>
+#include <utility>
 
 namespace ccf::pal
 {
@@ -53,18 +54,15 @@ namespace ccf::pal
   private:
     friend class ConditionVariable;
     Mutex& mutex;
-    std::unique_lock<std::mutex> lock;
 
   public:
     explicit MutexGuard(Mutex& mutex_) CCF_ACQUIRE(mutex_) : mutex(mutex_)
     {
       mutex.lock();
-      lock = std::unique_lock<std::mutex>(mutex.mutex, std::adopt_lock);
     }
 
     ~MutexGuard() CCF_RELEASE()
     {
-      lock.release();
       mutex.unlock();
     }
 
@@ -75,6 +73,27 @@ namespace ccf::pal
   class ConditionVariable
   {
   private:
+    class NativeLock
+    {
+    private:
+      std::unique_lock<std::mutex> lock;
+
+    public:
+      explicit NativeLock(std::mutex& mutex) :
+        lock(mutex, std::adopt_lock)
+      {}
+
+      ~NativeLock()
+      {
+        lock.release();
+      }
+
+      std::unique_lock<std::mutex>& get()
+      {
+        return lock;
+      }
+    };
+
     std::condition_variable condition_variable;
 
   public:
@@ -90,7 +109,15 @@ namespace ccf::pal
 
     void wait(MutexGuard& guard)
     {
-      condition_variable.wait(guard.lock);
+      NativeLock lock(guard.mutex.mutex);
+      condition_variable.wait(lock.get());
+    }
+
+    template <typename Predicate>
+    void wait(MutexGuard& guard, Predicate predicate)
+    {
+      NativeLock lock(guard.mutex.mutex);
+      condition_variable.wait(lock.get(), std::move(predicate));
     }
 
     template <typename Rep, typename Period>
@@ -98,7 +125,19 @@ namespace ccf::pal
       MutexGuard& guard,
       const std::chrono::duration<Rep, Period>& relative_time)
     {
-      return condition_variable.wait_for(guard.lock, relative_time);
+      NativeLock lock(guard.mutex.mutex);
+      return condition_variable.wait_for(lock.get(), relative_time);
+    }
+
+    template <typename Rep, typename Period, typename Predicate>
+    bool wait_for(
+      MutexGuard& guard,
+      const std::chrono::duration<Rep, Period>& relative_time,
+      Predicate predicate)
+    {
+      NativeLock lock(guard.mutex.mutex);
+      return condition_variable.wait_for(
+        lock.get(), relative_time, std::move(predicate));
     }
 
     template <typename Clock, typename Duration>
@@ -106,7 +145,19 @@ namespace ccf::pal
       MutexGuard& guard,
       const std::chrono::time_point<Clock, Duration>& timeout_time)
     {
-      return condition_variable.wait_until(guard.lock, timeout_time);
+      NativeLock lock(guard.mutex.mutex);
+      return condition_variable.wait_until(lock.get(), timeout_time);
+    }
+
+    template <typename Clock, typename Duration, typename Predicate>
+    bool wait_until(
+      MutexGuard& guard,
+      const std::chrono::time_point<Clock, Duration>& timeout_time,
+      Predicate predicate)
+    {
+      NativeLock lock(guard.mutex.mutex);
+      return condition_variable.wait_until(
+        lock.get(), timeout_time, std::move(predicate));
     }
   };
 }
