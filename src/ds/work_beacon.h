@@ -23,8 +23,7 @@ namespace ccf::ds
     {
       ccf::pal::MutexGuard lock(mutex);
       condition_variable.wait(
-        lock,
-        [this]() CCF_REQUIRES(mutex) { return work_available > 0; });
+        lock, [this]() CCF_REQUIRES(mutex) { return work_available > 0; });
       --work_available;
     }
 
@@ -36,9 +35,9 @@ namespace ccf::ds
     {
       ccf::pal::MutexGuard lock(mutex);
       const auto woke_for_work = condition_variable.wait_for(
-        lock,
-        timeout,
-        [this]() CCF_REQUIRES(mutex) { return work_available > 0; });
+        lock, timeout, [this]() CCF_REQUIRES(mutex) {
+          return work_available > 0;
+        });
       if (woke_for_work)
       {
         --work_available;

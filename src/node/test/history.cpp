@@ -358,8 +358,7 @@ public:
 
     ccf::pal::MutexGuard guard(paused.lock);
     paused.resume_cv.wait(
-      guard,
-      [this]() CCF_REQUIRES(paused.lock) { return paused.resume; });
+      guard, [this]() CCF_REQUIRES(paused.lock) { return paused.resume; });
 
     return tx.commit_reserved();
   }
@@ -559,8 +558,7 @@ TEST_CASE(
   {
     ccf::pal::MutexGuard guard(paused.lock);
     paused.reserved_tx_created_cv.wait(
-      guard,
-      [&paused]() CCF_REQUIRES(paused.lock) {
+      guard, [&paused]() CCF_REQUIRES(paused.lock) {
         return paused.reserved_tx_created;
       });
   }
