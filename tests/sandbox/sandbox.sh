@@ -110,9 +110,6 @@ exec python "${START_NETWORK_SCRIPT}" \
     --constitution "${CONSTITUTION_DIR}"/validate.js \
     --constitution "${CONSTITUTION_DIR}"/resolve.js \
     --constitution "${CONSTITUTION_DIR}"/apply.js \
-    --ledger-chunk-bytes 5000000 \
-    --snapshot-tx-interval 10000 \
-    --initial-node-cert-validity-days 90 \
-    --initial-service-cert-validity-days 90 \
+    --use-defaults-from-host-config \
     --label sandbox \
     "${extra_args[@]}"
