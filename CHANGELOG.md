@@ -24,7 +24,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - Fixed an edge case where a follower could incorrectly commit to an abandoned fork while synchronising with the leader, causing it to become unavailable. (#8172).
-- `sandbox.sh` now derives node configuration defaults and CLI descriptions from the `cchost` configuration schema, rather than using defaults selected by the end-to-end test infrastructure. Environment variables used by that infrastructure no longer override sandbox defaults; for example, use the existing `--election-timeout-ms` option instead of `ELECTION_TIMEOUT_MS` (#8176).
+- `sandbox.sh` now derives node configuration defaults and CLI descriptions from the `cchost` configuration schema, rather than using defaults selected by the end-to-end test infrastructure. This changes the sandbox defaults for signature delay (100 ms -> 1000 ms), election timeout (4000 ms -> 5000 ms), ledger chunk size (5000000 bytes -> `5MB`, or 5242880 bytes), initial node and service certificate validity (90 days -> 1 day), and tick interval (1 ms -> 10 ms). Environment variables used by the test infrastructure no longer override sandbox defaults; for example, use the existing `--election-timeout-ms` option instead of `ELECTION_TIMEOUT_MS` (#8176).
 
 ## [7.0.12]
 
