@@ -84,6 +84,9 @@ install_test_dependencies() {
         # partitions test
         iptables
         strace
+        # taskset, for the CPU isolation used by perf tests. Not present in the
+        # base image, and perf tests silently run unisolated without it.
+        util-linux
     )
     tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install "${packages[@]}" &&
     gem install cddl

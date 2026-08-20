@@ -1052,6 +1052,17 @@ if(BUILD_TESTS)
       COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/infra/github.py
     )
     set_property(TEST github_version_lts_test APPEND PROPERTY LABELS bucket_c)
+
+    add_test(
+      NAME cpu_isolation_test
+      COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/infra/test_cpu_isolation.py
+    )
+    set_property(
+      TEST cpu_isolation_test
+      APPEND
+      PROPERTY ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH}"
+    )
+    set_property(TEST cpu_isolation_test APPEND PROPERTY LABELS bucket_c)
   endif()
 
   if(NOT TSAN)
@@ -1514,6 +1525,11 @@ if(BUILD_TESTS)
       2
       20
       100
+      # Pin the node and the locust clients to disjoint CPUs, so the figures
+      # describe the node rather than how it and the load generator happened to
+      # divide the machine.
+      --cpu-isolation
+      auto
   )
 
   if(WORKER_THREADS)

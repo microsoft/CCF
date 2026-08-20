@@ -113,9 +113,25 @@ class Bencher:
         if metadata:
             with open(BENCHER_FILE, "r") as bf:
                 data = json.load(bf)
-            data[METADATA_KEY] = metadata
+            # Every perf test in a CI run appends to the same file, so refresh
+            # the run metadata without discarding keys an earlier test set.
+            data.setdefault(METADATA_KEY, {}).update(metadata)
             with open(BENCHER_FILE, "w") as bf:
                 json.dump(data, bf, indent=4)
+
+    def set_metadata(self, key: str, value):
+        """Record a property of the run itself, rather than a measurement.
+
+        Metadata lives under a reserved key which the comparison scripts skip,
+        so it travels with the results without being treated as a benchmark.
+        Note that every perf test in a CI run writes to the same file, so keys
+        recording a property of one test must say which test they describe.
+        """
+        with open(BENCHER_FILE, "r") as bf:
+            data = json.load(bf)
+        data.setdefault(METADATA_KEY, {})[key] = value
+        with open(BENCHER_FILE, "w") as bf:
+            json.dump(data, bf, indent=4)
 
     def set_memory(self, key: str, proc_stats: dict):
         LOG.info(
