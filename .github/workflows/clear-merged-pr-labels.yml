@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  issues: write
+  pull-requests: write
 
 jobs:
   clear-label:
@@ -18,5 +18,4 @@ jobs:
         run: |
           set -euo pipefail
           gh pr list --repo "${GITHUB_REPOSITORY}" --state merged --label "READY TO MERGE" --limit 1000 --json number --jq ".[].number" |
-            xargs -r -I{} gh api --method DELETE \
-              "/repos/${GITHUB_REPOSITORY}/issues/{}/labels/READY%20TO%20MERGE"
+            xargs -r -I{} gh pr edit --repo "${GITHUB_REPOSITORY}" {} --remove-label "READY TO MERGE"
