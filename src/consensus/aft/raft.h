@@ -1442,7 +1442,7 @@ namespace aft
                 state->view_history.update(r.prev_idx + 1, ds->get_term());
               }
 
-              commit_if_possible(r.leader_commit_idx);
+              commit_if_possible(std::min(r.leader_commit_idx, r.idx));
             }
             break;
           }
@@ -1472,7 +1472,7 @@ namespace aft
     {
       // After entries have been deserialised, try to commit the leader's
       // commit index and update our term history accordingly
-      commit_if_possible(r.leader_commit_idx);
+      commit_if_possible(std::min(r.leader_commit_idx, r.idx));
 
       // The term may have changed, and we have not have seen a signature yet.
       auto lci = last_committable_index();
