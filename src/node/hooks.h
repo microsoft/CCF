@@ -31,6 +31,15 @@ namespace ccf
       {
         if (!opt_ni.has_value())
         {
+          // A node is normally written as RETIRED before its row is deleted,
+          // and that RETIRED write already removes it from consensus. Disaster
+          // recovery is different: replaying the public ledger rebuilds the
+          // previous service's trusted-node configuration in the new consensus
+          // instance, then the recovery create transaction deletes those rows
+          // directly. The deletions must therefore also remove the old nodes
+          // from consensus, or they remain voters and the recovery nodes may be
+          // unable to elect a primary. If a node was already retired, erasing
+          // it from the configuration is a no-op.
           cfg_delta.try_emplace(node_id, std::nullopt);
           continue;
         }
