@@ -19,7 +19,6 @@
 #include <doctest/doctest.h>
 #undef FAIL
 
-#include <condition_variable>
 #include <exception>
 #include <thread>
 
@@ -318,8 +317,8 @@ public:
 struct PausedSignatureCommit
 {
   ccf::pal::Mutex lock;
-  std::condition_variable_any reserved_tx_created_cv;
-  std::condition_variable_any resume_cv;
+  ccf::pal::ConditionVariable reserved_tx_created_cv;
+  ccf::pal::ConditionVariable resume_cv;
   bool reserved_tx_created CCF_GUARDED_BY(lock) = false;
   bool resume CCF_GUARDED_BY(lock) = false;
 };

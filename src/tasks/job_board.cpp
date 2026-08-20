@@ -5,7 +5,6 @@
 #include "ccf/pal/locking.h"
 
 #include <chrono>
-#include <condition_variable>
 #include <map>
 
 namespace ccf::tasks
@@ -15,7 +14,7 @@ namespace ccf::tasks
   struct WaitingWorkerThread
   {
     // Ownership of a condition variable that a single thread will wait on
-    std::condition_variable_any cv;
+    ccf::pal::ConditionVariable cv;
 
     // Output variable to assign that thread a task
     Task& assigned_task;

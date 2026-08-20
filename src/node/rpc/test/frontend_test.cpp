@@ -22,7 +22,6 @@
 #include "node_stub.h"
 #include "service/internal_tables_access.h"
 
-#include <condition_variable>
 #include <doctest/doctest.h>
 #include <iostream>
 #include <latch>
@@ -1661,7 +1660,7 @@ public:
   struct WaitPoint
   {
     ccf::pal::Mutex m;
-    std::condition_variable_any cv;
+    ccf::pal::ConditionVariable cv;
     bool ready CCF_GUARDED_BY(m) = false;
 
     void wait()

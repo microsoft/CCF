@@ -4,7 +4,6 @@
 
 #include "ccf/pal/locking.h"
 
-#include <condition_variable>
 #include <memory>
 
 namespace ccf::ds
@@ -23,7 +22,7 @@ namespace ccf::ds
   {
   private:
     mutable ccf::pal::Mutex lock;
-    std::condition_variable_any all_workers_done;
+    ccf::pal::ConditionVariable all_workers_done;
     size_t active_workers CCF_GUARDED_BY(lock) = 0;
     bool alive CCF_GUARDED_BY(lock) = true;
 

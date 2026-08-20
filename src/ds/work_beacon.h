@@ -5,7 +5,6 @@
 #include "ccf/pal/locking.h"
 
 #define FMT_HEADER_ONLY
-#include <condition_variable>
 #include <fmt/format.h>
 #include <iostream>
 #include <memory>
@@ -16,7 +15,7 @@ namespace ccf::ds
   {
   protected:
     ccf::pal::Mutex mutex;
-    std::condition_variable_any condition_variable;
+    ccf::pal::ConditionVariable condition_variable;
     size_t work_available CCF_GUARDED_BY(mutex) = 0;
 
   public:
