@@ -750,7 +750,7 @@ namespace ccf::kv
       const std::vector<uint8_t>& data,
       bool public_only = false,
       const std::optional<ccf::TxID>& expected_txid = std::nullopt) = 0;
-    virtual void compact(Version v, bool is_primary = false) = 0;
+    virtual void compact(Version v) = 0;
     virtual void rollback(const ccf::TxID& tx_id, Term write_term_) = 0;
     virtual void initialise_term(Term t) = 0;
     virtual CommitResult commit(

@@ -74,10 +74,10 @@ struct LoggingStubStore_Mermaid : public aft::LoggingStubStoreConfig
 {
   using LoggingStubStoreConfig::LoggingStubStoreConfig;
 
-  void compact(aft::Index idx) override
+  void compact(aft::Index idx, bool is_primary) override
   {
     RAFT_DRIVER_PRINT("{}->>{}: [KV] compacting to {}", _id, _id, idx);
-    aft::LoggingStubStoreConfig::compact(idx);
+    aft::LoggingStubStoreConfig::compact(idx, is_primary);
   }
 
   void rollback(const ccf::TxID& tx_id, aft::Term t) override
@@ -100,7 +100,7 @@ struct LoggingStubStore_Mermaid : public aft::LoggingStubStoreConfig
 };
 
 using ms = std::chrono::milliseconds;
-using TRaft = aft::Aft<LedgerStubProxy_Mermaid>;
+using TRaft = aft::TestAft<LedgerStubProxy_Mermaid>;
 using Store = LoggingStubStore_Mermaid;
 using Adaptor = aft::Adaptor<Store>;
 
@@ -635,7 +635,7 @@ public:
     {
       const auto t = r.get_view(i);
       auto s = fmt::format("{}.{}", t, i);
-      if (i == r.get_light_details().committed_seqno)
+      if (i == r.get_committed_seqno())
       {
         s = fmt::format("[{}]", s);
       }
@@ -742,18 +742,17 @@ public:
   void state_one(ccf::NodeId node_id)
   {
     auto raft = _nodes.at(node_id).raft;
-    const auto details = raft->get_light_details();
     RAFT_DRIVER_PRINT(
       "Note right of {}: leadership {} membership {} @{}.{} (committed "
       "{})",
       node_id,
-      details.is_backup() ?
+      raft->is_backup() ?
         "F" :
-        (details.is_candidate() ? "C" : (details.is_primary() ? "P" : "?")),
-      details.membership_state == ccf::kv::MembershipState::Retired ? "R" : "A",
-      details.current_view,
+        (raft->is_candidate() ? "C" : (raft->is_primary() ? "P" : "?")),
+      raft->is_retired() ? "R" : "A",
+      raft->get_view(),
       raft->get_last_idx(),
-      details.committed_seqno);
+      raft->get_committed_seqno());
   }
 
   void state_all()
@@ -935,10 +934,9 @@ public:
     std::vector<std::pair<aft::Term, ccf::NodeId>> primaries;
     for (const auto& [node_id, node_driver] : _nodes)
     {
-      const auto details = node_driver.raft->get_light_details();
-      if (details.is_primary())
+      if (node_driver.raft->is_primary())
       {
-        primaries.emplace_back(details.current_view, node_id);
+        primaries.emplace_back(node_driver.raft->get_view(), node_id);
       }
     }
     return primaries;
@@ -1089,20 +1087,20 @@ public:
 
     auto [target_id, nd] = *nodes.begin();
     auto& target_raft = nd.raft;
-    const auto target_term = target_raft->get_light_details().current_view;
+    const auto target_term = target_raft->get_view();
     const auto target_last_idx = target_raft->get_last_idx();
-    const auto target_commit_idx = target_raft->get_light_details().committed_seqno;
+    const auto target_commit_idx = target_raft->get_committed_seqno();
 
     for (auto it = std::next(nodes.begin()); it != nodes.end(); ++it)
     {
       const auto& node_id = it->first;
       auto& raft = it->second.raft;
 
-      if (raft->get_light_details().current_view != target_term)
+      if (raft->get_view() != target_term)
       {
         discrepancies[node_id].push_back(fmt::format(
           "Term {} doesn't match term {} on {}",
-          raft->get_light_details().current_view,
+          raft->get_view(),
           target_term,
           target_id));
       }
@@ -1150,11 +1148,11 @@ public:
         }
       }
 
-      if (raft->get_light_details().committed_seqno != target_commit_idx)
+      if (raft->get_committed_seqno() != target_commit_idx)
       {
         discrepancies[node_id].push_back(fmt::format(
           "Commit index {} doesn't match commit index {} on {}",
-          raft->get_light_details().committed_seqno,
+          raft->get_committed_seqno(),
           target_commit_idx,
           target_id));
       }
@@ -1265,7 +1263,7 @@ public:
     // seqno).
     // Similar to the QuorumLogInv invariant from the TLA spec.
     const auto& raft = _nodes.at(node_id).raft;
-    const auto committed_seqno = raft->get_light_details().committed_seqno;
+    const auto committed_seqno = raft->get_committed_seqno();
 
     auto get_ledger_prefix = [this](ccf::NodeId id, ccf::SeqNo seqno) {
       std::vector<std::vector<uint8_t>> prefix;
@@ -1346,7 +1344,7 @@ public:
     ccf::NodeId node_id, const std::string& idx_s, const size_t lineno)
   {
     auto idx = static_cast<aft::Index>(std::stoull(idx_s));
-    if (_nodes.at(node_id).raft->get_light_details().committed_seqno != idx)
+    if (_nodes.at(node_id).raft->get_committed_seqno() != idx)
     {
       RAFT_DRIVER_PRINT(
         "Note over {}: Node is not at expected commit idx {}", node_id, idx);
@@ -1355,7 +1353,7 @@ public:
         node_id,
         idx,
         std::to_string((int)lineno),
-        _nodes.at(node_id).raft->get_light_details().committed_seqno));
+        _nodes.at(node_id).raft->get_committed_seqno()));
     }
   }
 

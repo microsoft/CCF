@@ -566,7 +566,12 @@ namespace ccf::kv
       return ApplyResult::PASS;
     }
 
-    void compact(Version v, bool is_primary = false) override
+    void compact(Version v) override
+    {
+      compact(v, false);
+    }
+
+    void compact(Version v, bool is_primary)
     {
       // This is called when the store will never be rolled back to any
       // state before the specified version.

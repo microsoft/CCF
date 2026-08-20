@@ -38,11 +38,25 @@ namespace ccf::kv::test
     State state;
     NodeId local_id;
 
-    StubConsensus() : replica(), state(Backup), local_id(PrimaryNodeId) {}
+    explicit StubConsensus(State state_ = Primary) :
+      replica(),
+      state(state_),
+      local_id(PrimaryNodeId)
+    {}
 
     virtual NodeId id() override
     {
       return local_id;
+    }
+
+    virtual bool is_primary()
+    {
+      return state == Primary;
+    }
+
+    virtual bool is_candidate()
+    {
+      return state == Candidate;
     }
 
     virtual bool can_replicate() override
@@ -65,6 +79,11 @@ namespace ccf::kv::test
       {
         return Consensus::SignatureDisposition::CANT_REPLICATE;
       }
+    }
+
+    virtual bool is_backup()
+    {
+      return state == Backup;
     }
 
     virtual void force_become_primary() override
@@ -92,6 +111,11 @@ namespace ccf::kv::test
 
     bool replicate(const BatchVector& entries, ccf::View view) override
     {
+      if (!can_replicate())
+      {
+        return false;
+      }
+
       for (const auto& entry : entries)
       {
         replica.push_back(entry);
@@ -152,9 +176,24 @@ namespace ccf::kv::test
       return {committed_txid.view, committed_txid.seqno};
     }
 
+    virtual ccf::SeqNo get_committed_seqno()
+    {
+      return committed_txid.seqno;
+    }
+
+    virtual std::optional<NodeId> primary()
+    {
+      return PrimaryNodeId;
+    }
+
     ccf::View get_view(ccf::SeqNo seqno) override
     {
       return view_history.view_at(seqno);
+    }
+
+    virtual ccf::View get_view()
+    {
+      return current_view;
     }
 
     std::vector<ccf::SeqNo> get_view_history(ccf::SeqNo seqno) override
@@ -192,8 +231,7 @@ namespace ccf::kv::test
       details.leadership_state = state == Primary ? LeadershipState::Leader :
         state == Candidate                        ? LeadershipState::Candidate :
                                                     LeadershipState::Follower;
-      details.primary_id = state == Primary ? std::optional<NodeId>{PrimaryNodeId} :
-                                              std::nullopt;
+      details.primary_id = PrimaryNodeId;
       details.current_view = current_view;
       details.committed_view = committed_txid.view;
       details.committed_seqno = committed_txid.seqno;
@@ -216,37 +254,12 @@ namespace ccf::kv::test
   class BackupStubConsensus : public StubConsensus
   {
   public:
-    BackupStubConsensus() : StubConsensus() {}
-
-    bool replicate(const BatchVector& entries, ccf::View view) override
-    {
-      return false;
-    }
-
-    bool can_replicate() override
-    {
-      return false;
-    }
-
-    Consensus::SignatureDisposition get_signature_disposition() override
-    {
-      return Consensus::SignatureDisposition::CANT_REPLICATE;
-    }
+    BackupStubConsensus() : StubConsensus(Backup) {}
   };
 
   class PrimaryStubConsensus : public StubConsensus
   {
   public:
-    PrimaryStubConsensus() : StubConsensus() {}
-
-    bool can_replicate() override
-    {
-      return true;
-    }
-
-    Consensus::SignatureDisposition get_signature_disposition() override
-    {
-      return Consensus::SignatureDisposition::CAN_SIGN;
-    }
+    PrimaryStubConsensus() : StubConsensus(Primary) {}
   };
 }

@@ -10,7 +10,7 @@
 #include <chrono>
 #include <string>
 
-using TRaft = aft::Aft<aft::LedgerStubProxy>;
+using TRaft = aft::TestAft<aft::LedgerStubProxy>;
 using Store = aft::LoggingStubStore;
 using Adaptor = aft::Adaptor<Store>;
 

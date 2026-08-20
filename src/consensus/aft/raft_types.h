@@ -26,7 +26,7 @@ namespace aft
   {
   public:
     virtual ~Store() = default;
-    virtual void compact(Index v, bool is_primary = false) = 0;
+    virtual void compact(Index v, bool is_primary) = 0;
     virtual void rollback(
       const ccf::TxID& tx_id, Term term_of_next_version) = 0;
     virtual void initialise_term(Term t) = 0;
@@ -45,7 +45,7 @@ namespace aft
   public:
     Adaptor(std::shared_ptr<T> x) : x(x) {}
 
-    void compact(Index v, bool is_primary = false) override
+    void compact(Index v, bool is_primary) override
     {
       auto p = x.lock();
       if (p)
