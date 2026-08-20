@@ -3330,8 +3330,9 @@ def run_error_message_on_failure_to_read_aci_sec_context(args):
         args_copy.snp_endorsements_file = "/a/fake/path"
         failed = False
         try:
+            # 4 retries after 3s timeout, 3s backoff between retries = 27 seconds
             network.join_node(
-                new_node, args.package, args_copy, timeout=20, from_snapshot=False
+                new_node, args.package, args_copy, timeout=60, from_snapshot=False
             )
         except infra.network.CollateralFetchTimeout:
             LOG.info(

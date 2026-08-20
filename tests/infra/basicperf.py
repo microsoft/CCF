@@ -3,7 +3,6 @@
 import argparse
 import datetime
 import hashlib
-import http
 import json
 import os
 import random
@@ -20,6 +19,7 @@ from piccolo import generator
 import infra.bencher
 import infra.e2e_args
 import infra.jwt_issuer
+import infra.key_space
 import infra.proc
 import infra.remote_client
 
@@ -214,22 +214,6 @@ class RWMix:
                     )
 
 
-def create_and_fill_key_space(size: int, primary: infra.node.Node) -> list[str]:
-    LOG.info(f"Creating and filling key space of size {size}")
-    space = [f"{i}" for i in range(size)]
-    mapping = {key: f"{hashlib.sha256(key.encode()).hexdigest()}" for key in space}
-    with primary.client("user0") as c:
-        r = c.post("/records", mapping)
-        assert r.status_code == http.HTTPStatus.NO_CONTENT, r
-        # Quick sanity check
-        for j in [0, -1]:
-            r = c.get(f"/records/{space[j]}")
-            assert r.status_code == http.HTTPStatus.OK, r
-            assert r.body.text() == mapping[space[j]], r
-    LOG.info("Key space created and filled")
-    return space
-
-
 def replace_primary(network, host, old_primary, snapshots_dir, statistics):
     LOG.info(f"Set up new node: {host}")
     node = network.create_node(host)
@@ -297,7 +281,9 @@ def run(args):
             jwt = jwt_issuer.issue_jwt()
             additional_headers["Authorization"] = f"Bearer {jwt}"
 
-        key_space = create_and_fill_key_space(args.key_space_size, primary)
+        key_space = infra.key_space.create_and_fill_key_space(
+            args.key_space_size, primary
+        )
 
         clients = []
         client_idx = 0
