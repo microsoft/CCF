@@ -193,6 +193,8 @@ jobs:
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
+    env:
+      PIP_INDEX_URL: https://packagefeedproxy.microsoft.io/pypi/simple/
 
     steps:
       - name: "Checkout dependencies"

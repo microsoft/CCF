@@ -13,6 +13,9 @@ concurrency:
 
 permissions: read-all
 
+env:
+  PIP_INDEX_URL: https://packagefeedproxy.microsoft.io/pypi/simple/
+
 jobs:
   vmss-virtual-a:
     name: "VMSS Virtual A" # CI Checks, Clang Tidy, Python package tests, Doc build, Unit tests, e2e (bucket_a)
