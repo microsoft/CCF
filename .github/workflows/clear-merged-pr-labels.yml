@@ -6,40 +6,17 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pull-requests: write
-
-concurrency:
-  group: clear-merged-pr-labels
-  cancel-in-progress: false
+  issues: write
 
 jobs:
-  clear-ready-to-merge:
-    name: Clear READY TO MERGE
+  clear-label:
     runs-on: ubuntu-latest
     steps:
-      - name: Remove label from merged pull requests
+      - name: Remove label
         env:
           GH_TOKEN: ${{ github.token }}
-        shell: bash
         run: |
           set -euo pipefail
-
-          pull_requests="$(
-            gh api --paginate \
-              --header "Accept: application/vnd.github+json" \
-              "/repos/${GITHUB_REPOSITORY}/issues?state=closed&labels=READY%20TO%20MERGE&per_page=100" \
-              --jq ".[] | select(.pull_request.merged_at != null) | .number"
-          )"
-
-          if [[ -z "${pull_requests}" ]]; then
-            echo "No merged pull requests have the READY TO MERGE label."
-            exit 0
-          fi
-
-          while IFS= read -r pull_request; do
-            gh api --method DELETE \
-              --header "Accept: application/vnd.github+json" \
-              "/repos/${GITHUB_REPOSITORY}/issues/${pull_request}/labels/READY%20TO%20MERGE"
-            echo "Removed READY TO MERGE from pull request #${pull_request}."
-          done <<< "${pull_requests}"
+          gh pr list --repo "${GITHUB_REPOSITORY}" --state merged --label "READY TO MERGE" --limit 1000 --json number --jq ".[].number" |
+            xargs -r -I{} gh api --method DELETE \
+              "/repos/${GITHUB_REPOSITORY}/issues/{}/labels/READY%20TO%20MERGE"
