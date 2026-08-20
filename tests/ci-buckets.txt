@@ -14,6 +14,7 @@ bucket_c:
   raft_scenario_test
   versionifier_test
   github_version_lts_test
+  cpu_isolation_test
   js_batched_stress_test
   modules_test
   auth
@@ -43,4 +44,3 @@ no_bucket:
   recovery_test_suite
   reconfiguration_test_suite
   full_test_suite
-
