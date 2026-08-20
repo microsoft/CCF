@@ -19,7 +19,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
-- Fixed an edge case where a follower could incorrect commit to an abandoned fork while synchronising with the leader, causing it to become unavailable. (#8172)
+- Fixed an edge case where a follower could incorrectly commit to an abandoned fork while synchronising with the leader, causing it to become unavailable. (#8172).
 
 ## [7.0.12]
 
