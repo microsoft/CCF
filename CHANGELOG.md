@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - `ccf::SessionContext::caller_cert` is now immutable, and its SHA-256 digest is cached per session to avoid repeated hashing during user and member certificate authentication (#8164).
 
+### Fixed
+
+- Fixed an edge case where a follower could incorrectly commit to an abandoned fork while synchronising with the leader, causing it to become unavailable. (#8172).
+
 ## [7.0.12]
 
 [7.0.12]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.12
