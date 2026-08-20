@@ -16,6 +16,8 @@ permissions: read-all
 jobs:
   vmss-virtual-a:
     name: "VMSS Virtual A" # CI Checks, Clang Tidy, Python package tests, Doc build, Unit tests, e2e (bucket_a)
+    env:
+      NPM_CONFIG_REGISTRY: https://packagefeedproxy.microsoft.io/npm/
     runs-on:
       [
         self-hosted,
