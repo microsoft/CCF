@@ -35,11 +35,7 @@ export function fetch_batch(request) {
 
 export function generate_response(request) {
   const size = request.body.json().size;
-  if (
-    !Number.isSafeInteger(size) ||
-    size < 0 ||
-    size > MAX_RESPONSE_SIZE
-  ) {
+  if (!Number.isSafeInteger(size) || size < 0 || size > MAX_RESPONSE_SIZE) {
     return {
       statusCode: 400,
       body: {
