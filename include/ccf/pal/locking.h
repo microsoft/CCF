@@ -81,9 +81,7 @@ namespace ccf::pal
       std::unique_lock<std::mutex> lock;
 
     public:
-      explicit NativeLock(std::mutex& mutex) :
-        lock(mutex, std::adopt_lock)
-      {}
+      explicit NativeLock(std::mutex& mutex) : lock(mutex, std::adopt_lock) {}
 
       ~NativeLock()
       {
