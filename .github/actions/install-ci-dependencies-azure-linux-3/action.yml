@@ -1,10 +1,5 @@
-name: Install CI dependencies
-description: Restore and populate the Azure Linux package cache
-
-inputs:
-  azure-linux-version:
-    description: Azure Linux major version
-    required: true
+name: Install Azure Linux 3 CI dependencies
+description: Restore and populate the Azure Linux 3 package cache
 
 outputs:
   cache-hit:
@@ -17,8 +12,6 @@ runs:
     - name: Configure package cache
       id: configure
       shell: bash
-      env:
-        AZURE_LINUX_VERSION: ${{ inputs.azure-linux-version }}
       run: |
         set -euo pipefail
 
@@ -57,41 +50,19 @@ runs:
           done
         }
 
-        case "$AZURE_LINUX_VERSION" in
-          3)
-            manager=tdnf
-            cache_dir=/github/home/.cache/tdnf
-            config_file=/etc/tdnf/tdnf.conf
-            setup_script=scripts/setup-ci.sh
-            generation_file=.github/azure-linux-3-snapshot
-            cache_generation=$(tr -d '\r\n' < "$generation_file")
+        cache_dir=/github/home/.cache/tdnf
+        config_file=/etc/tdnf/tdnf.conf
+        generation_file=.github/azure-linux-3-snapshot
+        cache_generation=$(tr -d '\r\n' < "$generation_file")
 
-            retry_package_command \
-              "TDNF cache tools" \
-              tdnf --snapshottime="$cache_generation" -y install tar zstd
-            set_config_option "$config_file" cachedir "$cache_dir"
-            set_config_option "$config_file" keepcache 1
-            ;;
-          4)
-            manager=dnf
-            cache_dir=/github/home/.cache/libdnf5
-            config_file=/etc/dnf/dnf.conf
-            setup_script=scripts/setup-ci-al4.sh
-            generation_file=.github/azure-linux-4-cache-version
-            cache_generation=$(tr -d '\r\n' < "$generation_file")
-
-            retry_package_command "DNF cache tools" dnf -y install tar zstd
-            set_config_option "$config_file" system_cachedir "$cache_dir"
-            set_config_option "$config_file" keepcache True
-            ;;
-          *)
-            echo "Unsupported Azure Linux version: $AZURE_LINUX_VERSION" >&2
-            exit 1
-            ;;
-        esac
+        retry_package_command \
+          "TDNF cache tools" \
+          tdnf --snapshottime="$cache_generation" -y install tar zstd
+        set_config_option "$config_file" cachedir "$cache_dir"
+        set_config_option "$config_file" keepcache 1
 
         mkdir -p "$cache_dir"
-        grep -E '^(cachedir|system_cachedir|keepcache)=' "$config_file"
+        grep -E '^(cachedir|keepcache)=' "$config_file"
 
         base_fingerprint=$(
           {
@@ -104,19 +75,17 @@ runs:
         )
         dependency_fingerprint=$(
           sha256sum \
-            "$setup_script" \
+            scripts/setup-ci.sh \
             "$generation_file" \
-            .github/actions/install-ci-dependencies/action.yml |
+            .github/actions/install-ci-dependencies-azure-linux-3/action.yml |
             sha256sum |
             cut -d' ' -f1
         )
-        key="azure-linux-rpms-v1-$manager-$RUNNER_ARCH-$cache_generation-$base_fingerprint-$dependency_fingerprint"
+        key="azure-linux-rpms-v2-tdnf-$RUNNER_ARCH-$cache_generation-$base_fingerprint-$dependency_fingerprint"
 
         echo "cache-dir=$cache_dir" >> "$GITHUB_OUTPUT"
         echo "cache-generation=$cache_generation" >> "$GITHUB_OUTPUT"
         echo "key=$key" >> "$GITHUB_OUTPUT"
-        echo "manager=$manager" >> "$GITHUB_OUTPUT"
-        echo "setup-script=$setup_script" >> "$GITHUB_OUTPUT"
 
     - name: Restore package cache
       id: package-cache
@@ -128,17 +97,12 @@ runs:
     - name: Install dependencies
       shell: bash
       env:
-        CACHE_GENERATION: ${{ steps.configure.outputs.cache-generation }}
         CCF_PACKAGE_CACHE_DIR: ${{ steps.configure.outputs.cache-dir }}
         CCF_PACKAGE_CACHE_ONLY: ${{ steps.package-cache.outputs.cache-hit == 'true' && '1' || '0' }}
-        MANAGER: ${{ steps.configure.outputs.manager }}
-        SETUP_SCRIPT: ${{ steps.configure.outputs.setup-script }}
+        SOURCE_DATE_EPOCH: ${{ steps.configure.outputs.cache-generation }}
       run: |
         set -euo pipefail
-        if [[ "$MANAGER" == "tdnf" ]]; then
-          export SOURCE_DATE_EPOCH="$CACHE_GENERATION"
-        fi
-        "$SETUP_SCRIPT"
+        scripts/setup-ci.sh
 
     - name: Save package cache
       if: ${{ steps.package-cache.outputs.cache-hit != 'true' }}
