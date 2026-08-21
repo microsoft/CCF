@@ -14,6 +14,7 @@ concurrency:
 permissions: read-all
 
 env:
+  NPM_CONFIG_REGISTRY: https://packagefeedproxy.microsoft.io/npm/
   PIP_INDEX_URL: https://packagefeedproxy.microsoft.io/pypi/simple/
 
 jobs:
