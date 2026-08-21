@@ -22,13 +22,25 @@ retry() {
 
     local attempt=1
     local delay
+    local max_attempts=5
+    local status
     while true; do
-        if "$@"; then
+        # Calling a function from an if condition disables errexit within it,
+        # so a later successful command can mask an earlier failure.
+        set +e
+        (
+            set -e
+            "$@"
+        )
+        status=$?
+        set -e
+
+        if (( status == 0 )); then
             return
         fi
 
-        if (( attempt == 3 )); then
-            echo "'$description' failed after 3 attempts"
+        if (( attempt == max_attempts )); then
+            echo "'$description' failed after $max_attempts attempts"
             return 1
         fi
 
