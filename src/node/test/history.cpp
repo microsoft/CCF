@@ -286,11 +286,6 @@ public:
   {
     return ccf::kv::test::PrimaryNodeId;
   }
-
-  ccf::View get_view(ccf::kv::Version version) override
-  {
-    return 2;
-  }
 };
 
 class TestPendingTx : public ccf::kv::PendingTx
@@ -458,11 +453,6 @@ public:
   ccf::kv::NodeId id() override
   {
     return ccf::kv::test::PrimaryNodeId;
-  }
-
-  ccf::View get_view(ccf::SeqNo seqno) override
-  {
-    return 2;
   }
 
   ccf::View get_view() override

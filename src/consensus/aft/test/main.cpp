@@ -10,6 +10,21 @@
 
 using ms = std::chrono::milliseconds;
 
+DOCTEST_TEST_CASE("Consensus view history snapshot")
+{
+  ccf::kv::ConsensusViewHistory view_history{{1, 4, 4, 9}};
+
+  DOCTEST_REQUIRE(view_history.view_at(0) == ccf::VIEW_UNKNOWN);
+  DOCTEST_REQUIRE(view_history.view_at(1) == 1);
+  DOCTEST_REQUIRE(view_history.view_at(3) == 1);
+  DOCTEST_REQUIRE(view_history.view_at(4) == 3);
+  DOCTEST_REQUIRE(view_history.view_at(9) == 4);
+
+  DOCTEST_REQUIRE(view_history.since(0).empty());
+  DOCTEST_REQUIRE(view_history.since(2) == std::vector<ccf::SeqNo>{4, 4, 9});
+  DOCTEST_REQUIRE(view_history.since(5).empty());
+}
+
 DOCTEST_TEST_CASE("Single node startup" * doctest::test_suite("single"))
 {
   ccf::NodeId node_id = ccf::kv::test::PrimaryNodeId;

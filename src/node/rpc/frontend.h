@@ -310,8 +310,8 @@ namespace ccf
 
         case (ccf::endpoints::RedirectionStrategy::ToPrimary):
         {
-          const bool is_primary =
-            current_consensus != nullptr && current_consensus->can_replicate();
+          const bool is_primary = current_consensus != nullptr &&
+            current_consensus->get_light_details().can_replicate();
 
           if (!is_primary)
           {
@@ -345,8 +345,8 @@ namespace ccf
 
         case (ccf::endpoints::RedirectionStrategy::ToBackup):
         {
-          const bool is_backup =
-            current_consensus != nullptr && !current_consensus->can_replicate();
+          const bool is_backup = current_consensus != nullptr &&
+            current_consensus->get_light_details().is_backup();
 
           if (!is_backup)
           {
@@ -796,7 +796,7 @@ namespace ccf
           else
           {
             bool is_primary = current_consensus == nullptr ||
-              current_consensus->can_replicate();
+              current_consensus->get_light_details().can_replicate();
             const bool forwardable = current_consensus != nullptr;
 
             if (!is_primary && forwardable)
@@ -962,7 +962,7 @@ namespace ccf
 
               if (
                 current_consensus != nullptr &&
-                current_consensus->can_replicate() &&
+                current_consensus->get_light_details().can_replicate() &&
                 current_history != nullptr)
               {
                 current_history->try_emit_signature();

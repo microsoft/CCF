@@ -44,7 +44,7 @@ namespace ccf::kv::test
       local_id(PrimaryNodeId)
     {}
 
-    virtual NodeId id() override
+    virtual NodeId id()
     {
       return local_id;
     }
@@ -57,11 +57,6 @@ namespace ccf::kv::test
     virtual bool is_candidate()
     {
       return state == Candidate;
-    }
-
-    virtual bool can_replicate() override
-    {
-      return state == Primary;
     }
 
     virtual bool is_at_max_capacity() override
@@ -111,7 +106,7 @@ namespace ccf::kv::test
 
     bool replicate(const BatchVector& entries, ccf::View view) override
     {
-      if (!can_replicate())
+      if (state != Primary)
       {
         return false;
       }
@@ -186,11 +181,6 @@ namespace ccf::kv::test
       return PrimaryNodeId;
     }
 
-    ccf::View get_view(ccf::SeqNo seqno) override
-    {
-      return view_history.view_at(seqno);
-    }
-
     virtual ccf::View get_view()
     {
       return current_view;
@@ -201,9 +191,15 @@ namespace ccf::kv::test
       return view_history.get_history_until(seqno);
     }
 
-    std::vector<ccf::SeqNo> get_view_history_since(ccf::SeqNo seqno) override
+    ccf::TxStatus evaluate_tx_status(
+      ccf::View target_view, ccf::SeqNo target_seqno) override
     {
-      return view_history.get_history_since(seqno);
+      return ccf::evaluate_tx_status(
+        target_view,
+        target_seqno,
+        view_history.view_at(target_seqno),
+        committed_txid.view,
+        committed_txid.seqno);
     }
 
     void recv_message(
@@ -211,13 +207,12 @@ namespace ccf::kv::test
     {}
 
     void add_configuration(
-      ccf::SeqNo seqno, const Configuration::Nodes& conf) override
+      ccf::SeqNo seqno, const Configuration::Nodes& configuration) override
     {}
 
-    Configuration::Nodes get_latest_configuration_unsafe() const override
-    {
-      return {};
-    }
+    void update_configuration(
+      ccf::SeqNo seqno, const Configuration::NodeChanges& changes) override
+    {}
 
     virtual Configuration::Nodes get_latest_configuration()
     {
@@ -242,6 +237,7 @@ namespace ccf::kv::test
     {
       ConsensusDetails details;
       static_cast<ConsensusLightDetails&>(details) = get_light_details();
+      details.view_history.starts = view_history.get_history_until();
       return details;
     }
 

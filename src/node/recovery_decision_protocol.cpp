@@ -723,9 +723,10 @@ namespace ccf
   ccf::TxID RecoveryDecisionProtocolSubsystem::get_last_recovered_signed_txid()
   {
     auto recovery_seqno = node_state->last_recovered_signed_idx;
-    auto recovery_view = node_state->consensus->get_view(recovery_seqno);
-    // get_view returns VIEW_UNKNOWN=InvalidView if the view is not in the view
-    // history (too old or too new)
+    auto recovery_view =
+      node_state->consensus->get_details().view_history.view_at(recovery_seqno);
+    // view_at returns VIEW_UNKNOWN if the sequence number is not in the view
+    // history (too old or too new).
     if (recovery_view == ccf::VIEW_UNKNOWN)
     {
       throw std::logic_error(fmt::format(

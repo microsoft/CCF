@@ -247,15 +247,9 @@ namespace aft
 
     ~Aft() override = default;
 
-    ccf::NodeId id() override
+    ccf::NodeId id()
     {
       return state->node_id;
-    }
-
-    bool can_replicate() override
-    {
-      std::unique_lock<ccf::pal::Mutex> guard(state->lock);
-      return can_replicate_unsafe();
     }
 
     /**
@@ -306,7 +300,7 @@ namespace aft
     {
       for (const auto& node_id : node_ids)
       {
-        if (id() == node_id)
+        if (state->node_id == node_id)
         {
           CCF_ASSERT(
             state->membership_state == ccf::kv::MembershipState::Retired,
@@ -435,22 +429,22 @@ namespace aft
       return state->last_idx;
     }
 
-    Term get_view(Index idx) override
-    {
-      std::lock_guard<ccf::pal::Mutex> guard(state->lock);
-      return get_term_internal(idx);
-    }
-
     std::vector<Index> get_view_history(Index idx) override
     {
-      // This should only be called when the spin lock is held.
+      // Called by snapshot creation from Aft::commit(), with state->lock held.
       return state->view_history.get_history_until(idx);
     }
 
-    std::vector<Index> get_view_history_since(Index idx) override
+    ccf::TxStatus evaluate_tx_status(
+      ccf::View target_view, ccf::SeqNo target_seqno) override
     {
-      // This should only be called when the spin lock is held.
-      return state->view_history.get_history_since(idx);
+      std::lock_guard<ccf::pal::Mutex> guard(state->lock);
+      const auto local_view = get_term_internal(target_seqno);
+      const auto committed_seqno = get_commit_idx_unsafe();
+      const auto committed_view = get_term_internal(committed_seqno);
+
+      return ccf::evaluate_tx_status(
+        target_view, target_seqno, local_view, committed_view, committed_seqno);
     }
 
     // Same as ccfraft.tla GetServerSet/IsInServerSet
@@ -531,14 +525,28 @@ namespace aft
       }
     }
 
-    Configuration::Nodes get_latest_configuration_unsafe() const override
+    void update_configuration(
+      Index idx, const Configuration::NodeChanges& changes) override
     {
-      if (configurations.empty())
+      if (changes.empty())
       {
-        return {};
+        return;
       }
 
-      return configurations.back().nodes;
+      auto configuration = configurations.empty() ? Configuration::Nodes{} :
+                                                    configurations.back().nodes;
+      for (const auto& [node_id, node_info] : changes)
+      {
+        if (node_info.has_value())
+        {
+          configuration.insert_or_assign(node_id, node_info.value());
+        }
+        else
+        {
+          configuration.erase(node_id);
+        }
+      }
+      add_configuration(idx, configuration);
     }
 
   private:
@@ -575,6 +583,7 @@ namespace aft
       static_cast<ccf::kv::ConsensusLightDetails&>(details) =
         get_light_details_unsafe();
       details.configs.assign(configurations.begin(), configurations.end());
+      details.view_history.starts = state->view_history.get_history_until();
       for (auto& [k, v] : all_other_nodes)
       {
         details.acks[k] = {

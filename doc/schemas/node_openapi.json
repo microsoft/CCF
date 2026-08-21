@@ -163,11 +163,15 @@
           },
           "ticking": {
             "$ref": "#/components/schemas/boolean"
+          },
+          "view_history": {
+            "$ref": "#/components/schemas/ConsensusViewHistory"
           }
         },
         "required": [
           "configs",
           "acks",
+          "view_history",
           "membership_state",
           "primary_id",
           "current_view",
@@ -187,6 +191,17 @@
         "required": [
           "seqno",
           "last_received_ms"
+        ],
+        "type": "object"
+      },
+      "ConsensusViewHistory": {
+        "properties": {
+          "starts": {
+            "$ref": "#/components/schemas/uint64_array"
+          }
+        },
+        "required": [
+          "starts"
         ],
         "type": "object"
       },
@@ -905,6 +920,12 @@
         "maximum": 18446744073709551615,
         "minimum": 0,
         "type": "integer"
+      },
+      "uint64_array": {
+        "items": {
+          "$ref": "#/components/schemas/uint64"
+        },
+        "type": "array"
       }
     },
     "x-ccf-forwarding": {

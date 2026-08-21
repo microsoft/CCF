@@ -1348,7 +1348,8 @@ namespace ccf::historical
           return false;
         }
 
-        const auto actual_view = consensus->get_view(seqno);
+        const auto actual_view =
+          consensus->get_details().view_history.view_at(seqno);
         if (actual_view != tx_id.view)
         {
           LOG_FAIL_FMT(

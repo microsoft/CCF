@@ -112,7 +112,7 @@ namespace ccf
           return;
         }
 
-        if (!self_sp->consensus->can_replicate())
+        if (!self_sp->consensus->get_light_details().can_replicate())
         {
           LOG_DEBUG_FMT("JWT key auto-refresh: Node is not primary, skipping");
         }
@@ -150,7 +150,7 @@ namespace ccf
           return;
         }
 
-        if (!self_sp->consensus->can_replicate())
+        if (!self_sp->consensus->get_light_details().can_replicate())
         {
           LOG_DEBUG_FMT(
             "JWT key one-off refresh: Node is not primary, skipping");

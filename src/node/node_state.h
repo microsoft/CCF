@@ -2288,7 +2288,7 @@ namespace ccf
       snapshotter->set_snapshot_generation(true);
 
       // Open the service
-      if (consensus->can_replicate())
+      if (consensus->get_light_details().can_replicate())
       {
         LOG_INFO_FMT(
           "Try end private recovery at {}. Trigger service opening",
@@ -2763,7 +2763,7 @@ namespace ccf
         (sm.check(NodeStartupState::partOfNetwork) ||
          sm.check(NodeStartupState::partOfPublicNetwork) ||
          sm.check(NodeStartupState::readingPrivateLedger)) &&
-        consensus->can_replicate());
+        consensus->get_light_details().can_replicate());
     }
 
     std::optional<ccf::NodeId> get_primary() override

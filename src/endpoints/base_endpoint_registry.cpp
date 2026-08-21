@@ -32,15 +32,14 @@ namespace ccf
           reason = ccf::InvalidArgsReason::ViewSmallerThanOne;
           return ApiResult::InvalidArgs;
         }
-        const auto latest_view =
-          current_consensus->get_light_details().current_view;
+        const auto details = current_consensus->get_details();
+        const auto latest_view = details.current_view;
         if (since > latest_view)
         {
           // asking for something in the future
           return ApiResult::NotFound;
         }
-        const auto view_history =
-          current_consensus->get_view_history_since(since);
+        const auto view_history = details.view_history.since(since);
         for (ccf::View i = 0; i < view_history.size(); i++)
         {
           const auto view = i + since;
@@ -208,7 +207,8 @@ namespace ccf
       auto* current_consensus = get_consensus();
       if (current_consensus != nullptr)
       {
-        const auto v = current_consensus->get_view(seqno);
+        const auto v =
+          current_consensus->get_details().view_history.view_at(seqno);
         if (v != ccf::VIEW_UNKNOWN)
         {
           view = v;

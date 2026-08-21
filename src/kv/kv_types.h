@@ -72,6 +72,7 @@ namespace ccf::kv
     };
 
     using Nodes = std::map<NodeId, NodeInfo>;
+    using NodeChanges = std::map<NodeId, std::optional<NodeInfo>>;
 
     ccf::SeqNo idx = 0;
     Nodes nodes;
@@ -153,6 +154,36 @@ namespace ccf::kv
   DECLARE_JSON_TYPE(Configuration);
   DECLARE_JSON_REQUIRED_FIELDS(Configuration, idx, nodes, rid);
 
+  struct ConsensusViewHistory
+  {
+    // Entry i stores the first sequence number in view i + 1.
+    std::vector<ccf::SeqNo> starts;
+
+    [[nodiscard]] ccf::View view_at(ccf::SeqNo seqno) const
+    {
+      const auto it = std::upper_bound(starts.begin(), starts.end(), seqno);
+      if (it == starts.begin())
+      {
+        return ccf::VIEW_UNKNOWN;
+      }
+
+      return it - starts.begin();
+    }
+
+    [[nodiscard]] std::vector<ccf::SeqNo> since(ccf::View view) const
+    {
+      if (view == 0 || view > starts.size())
+      {
+        return {};
+      }
+
+      return {starts.begin() + view - 1, starts.end()};
+    }
+  };
+
+  DECLARE_JSON_TYPE(ConsensusViewHistory);
+  DECLARE_JSON_REQUIRED_FIELDS(ConsensusViewHistory, starts);
+
   struct ConsensusLightDetails
   {
     MembershipState membership_state{};
@@ -182,6 +213,13 @@ namespace ccf::kv
       return leadership_state == LeadershipState::Candidate;
     }
 
+    [[nodiscard]] bool can_replicate() const
+    {
+      return is_primary() &&
+        !(membership_state == MembershipState::Retired &&
+          retirement_phase == RetirementPhase::RetiredCommitted);
+    }
+
     [[nodiscard]] ccf::TxID committed_txid() const
     {
       return {committed_view, committed_seqno};
@@ -198,6 +236,7 @@ namespace ccf::kv
 
     std::vector<Configuration> configs;
     std::unordered_map<ccf::NodeId, Ack> acks;
+    ConsensusViewHistory view_history;
   };
 
   DECLARE_JSON_TYPE(ConsensusDetails::Ack);
@@ -216,16 +255,16 @@ namespace ccf::kv
     committed_seqno);
 
   DECLARE_JSON_TYPE_WITH_BASE(ConsensusDetails, ConsensusLightDetails);
-  DECLARE_JSON_REQUIRED_FIELDS(ConsensusDetails, configs, acks);
+  DECLARE_JSON_REQUIRED_FIELDS(ConsensusDetails, configs, acks, view_history);
 
   class ConfigurableConsensus
   {
   public:
     virtual ~ConfigurableConsensus() = default;
     virtual void add_configuration(
-      ccf::SeqNo seqno, const Configuration::Nodes& conf) = 0;
-    [[nodiscard]] virtual Configuration::Nodes get_latest_configuration_unsafe()
-      const = 0;
+      ccf::SeqNo seqno, const Configuration::Nodes& configuration) = 0;
+    virtual void update_configuration(
+      ccf::SeqNo seqno, const Configuration::NodeChanges& changes) = 0;
   };
 
   using BatchVector = std::vector<std::tuple<
@@ -446,8 +485,6 @@ namespace ccf::kv
   public:
     ~Consensus() override = default;
 
-    virtual NodeId id() = 0;
-    virtual bool can_replicate() = 0;
     virtual bool is_at_max_capacity() = 0;
 
     enum class SignatureDisposition : uint8_t
@@ -469,11 +506,11 @@ namespace ccf::kv
     virtual ConsensusLightDetails get_light_details() = 0;
     virtual ConsensusDetails get_details() = 0;
 
-    virtual ccf::View get_view(ccf::SeqNo seqno) = 0;
     virtual std::vector<ccf::SeqNo> get_view_history(
       ccf::SeqNo seqno = std::numeric_limits<ccf::SeqNo>::max()) = 0;
-    virtual std::vector<ccf::SeqNo> get_view_history_since(
-      ccf::SeqNo seqno) = 0;
+
+    virtual ccf::TxStatus evaluate_tx_status(
+      ccf::View target_view, ccf::SeqNo target_seqno) = 0;
 
     virtual void recv_message(
       const NodeId& from, const uint8_t* data, size_t size) = 0;
@@ -488,21 +525,6 @@ namespace ccf::kv
     {}
 
     virtual void nominate_successor() {}
-
-    ccf::TxStatus evaluate_tx_status(
-      ccf::View target_view, ccf::SeqNo target_seqno)
-    {
-      const auto local_view = get_view(target_seqno);
-      const auto details = get_light_details();
-      const auto committed_txid = details.committed_txid();
-
-      return ccf::evaluate_tx_status(
-        target_view,
-        target_seqno,
-        local_view,
-        committed_txid.view,
-        committed_txid.seqno);
-    }
   };
 
   struct PendingTxInfo

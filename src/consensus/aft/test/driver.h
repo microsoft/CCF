@@ -633,7 +633,7 @@ public:
     std::vector<std::string> entries;
     for (ccf::kv::Version i = 1; i <= r.get_last_idx(); ++i)
     {
-      const auto t = r.get_view(i);
+      const auto t = r.get_details().view_history.view_at(i);
       auto s = fmt::format("{}.{}", t, i);
       if (i == r.get_committed_seqno())
       {

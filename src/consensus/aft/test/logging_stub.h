@@ -148,7 +148,11 @@ namespace aft
   {
   public:
     using Aft<LedgerProxy>::Aft;
-    using Aft<LedgerProxy>::get_view;
+
+    ccf::View get_view(ccf::SeqNo seqno)
+    {
+      return this->get_details().view_history.view_at(seqno);
+    }
 
     std::optional<ccf::NodeId> primary()
     {
@@ -375,29 +379,7 @@ namespace aft
 
     void call(ccf::kv::ConfigurableConsensus* consensus) override
     {
-      auto configuration = consensus->get_latest_configuration_unsafe();
-      std::list<Configuration::Nodes::const_iterator> itrs;
-
-      // Remove and track retired nodes
-      for (auto it = configuration.begin(); it != configuration.end(); ++it)
-      {
-        if (new_configuration.find(it->first) == new_configuration.end())
-        {
-          itrs.push_back(it);
-        }
-      }
-      for (auto it : itrs)
-      {
-        configuration.erase(it);
-      }
-
-      // Add new node to configuration
-      for (const auto& [node_id, _] : new_configuration)
-      {
-        configuration[node_id] = {};
-      }
-
-      consensus->add_configuration(version, configuration);
+      consensus->add_configuration(version, new_configuration);
     }
   };
 

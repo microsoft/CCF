@@ -12,16 +12,10 @@
 
 namespace ccf
 {
-  struct NodeAddr
-  {
-    std::string hostname;
-    std::string port;
-  };
-
   class ConfigurationChangeHook : public ccf::kv::ConsensusHook
   {
     ccf::kv::Version version;
-    std::map<NodeId, std::optional<NodeAddr>> cfg_delta;
+    ccf::kv::Configuration::NodeChanges cfg_delta;
 
   public:
     ConfigurationChangeHook(ccf::kv::Version version_, const Nodes::Write& w) :
@@ -48,7 +42,8 @@ namespace ccf
           }
           case NodeStatus::TRUSTED:
           {
-            cfg_delta.try_emplace(node_id, NodeAddr{host, port});
+            cfg_delta.try_emplace(
+              node_id, ccf::kv::Configuration::NodeInfo{host, port});
             break;
           }
           case NodeStatus::RETIRED:
@@ -69,22 +64,7 @@ namespace ccf
 
     void call(ccf::kv::ConfigurableConsensus* consensus) override
     {
-      auto configuration = consensus->get_latest_configuration_unsafe();
-      for (const auto& [node_id, opt_ni] : cfg_delta)
-      {
-        if (opt_ni.has_value())
-        {
-          configuration.try_emplace(node_id, opt_ni->hostname, opt_ni->port);
-        }
-        else
-        {
-          configuration.erase(node_id);
-        }
-      }
-      if (!cfg_delta.empty())
-      {
-        consensus->add_configuration(version, configuration);
-      }
+      consensus->update_configuration(version, cfg_delta);
     }
   };
 }
