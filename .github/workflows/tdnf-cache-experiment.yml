@@ -1,0 +1,167 @@
+name: TDNF Cache Experiment
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/tdnf-cache-experiment.yml"
+      - "scripts/setup-ci.sh"
+
+permissions: read-all
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  SOURCE_DATE_EPOCH: "1787306400"
+  TDNF_CACHE_DIR: /github/home/.cache/tdnf
+
+jobs:
+  package-install:
+    if: ${{ github.event.pull_request.draft }}
+    name: ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Control
+            mode: control
+            use_cache: false
+          - name: Cached
+            mode: cached
+            use_cache: true
+    runs-on:
+      [
+        self-hosted,
+        1ES.Pool=gha-vmss-d16av6-ci,
+        "JobId=tdnf-cache-${{ matrix.mode }}-${{ github.run_id }}-${{ github.run_attempt }}",
+      ]
+    container:
+      image: mcr.microsoft.com/azurelinux/base/core@sha256:76325dbdd581f039ac2edffca3ff40aef88951da7aa24cf0c07b40992e6d6bd2
+      options: --user root
+
+    steps:
+      - name: Bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
+          tdnf --snapshottime="$SOURCE_DATE_EPOCH" -y update
+          tdnf --snapshottime="$SOURCE_DATE_EPOCH" -y install \
+            ca-certificates \
+            git \
+            tar \
+            zstd
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+
+      - name: Configure TDNF cache
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$TDNF_CACHE_DIR"
+          sed -i "s|^cachedir=.*|cachedir=$TDNF_CACHE_DIR|" /etc/tdnf/tdnf.conf
+          grep '^cachedir=' /etc/tdnf/tdnf.conf
+
+      - name: Compute cache key
+        id: cache-key
+        shell: bash
+        run: |
+          set -euo pipefail
+          base_fingerprint=$(
+            {
+              rpm -qa --qf '%{NAME}-%{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH}\n' |
+                LC_ALL=C sort
+              sha256sum /etc/yum.repos.d/*.repo
+            } |
+              sha256sum |
+              cut -d' ' -f1
+          )
+          key="tdnf-full-v1-$RUNNER_ARCH-$SOURCE_DATE_EPOCH-$base_fingerprint-${{ hashFiles('scripts/setup-ci.sh') }}"
+          echo "key=$key" >> "$GITHUB_OUTPUT"
+          echo "$key"
+
+      - name: Restore TDNF cache
+        if: ${{ matrix.use_cache }}
+        id: tdnf-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.TDNF_CACHE_DIR }}
+          key: ${{ steps.cache-key.outputs.key }}
+
+      - name: Install dependencies
+        shell: bash
+        env:
+          EXPERIMENT_MODE: ${{ matrix.mode }}
+          TDNF_CACHE_HIT: ${{ steps.tdnf-cache.outputs.cache-hit }}
+          TDNF_CACHE_ONLY: ${{ steps.tdnf-cache.outputs.cache-hit == 'true' && '1' || '0' }}
+          TDNF_KEEP_CACHE: ${{ matrix.use_cache && '1' || '0' }}
+        run: |
+          set -euo pipefail
+          results_dir="$RUNNER_TEMP/tdnf-cache-experiment"
+          mkdir -p "$results_dir"
+
+          rx_before=$(cat /sys/class/net/eth0/statistics/rx_bytes 2>/dev/null || echo 0)
+          started_at=$(date +%s)
+          ./scripts/setup-ci.sh
+          completed_at=$(date +%s)
+          rx_after=$(cat /sys/class/net/eth0/statistics/rx_bytes 2>/dev/null || echo "$rx_before")
+
+          rpm -qa --qf '%{NAME}-%{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH}\n' |
+            LC_ALL=C sort > "$results_dir/rpm-manifest-$EXPERIMENT_MODE.txt"
+          manifest_sha256=$(
+            sha256sum "$results_dir/rpm-manifest-$EXPERIMENT_MODE.txt" |
+              cut -d' ' -f1
+          )
+          cache_bytes=$(du -sb "$TDNF_CACHE_DIR" | cut -f1)
+          elapsed_seconds=$((completed_at - started_at))
+          received_bytes=$((rx_after - rx_before))
+
+          printf \
+            '{"mode":"%s","cache_hit":"%s","elapsed_seconds":%d,"received_bytes":%d,"cache_bytes":%d,"manifest_sha256":"%s"}\n' \
+            "$EXPERIMENT_MODE" \
+            "$TDNF_CACHE_HIT" \
+            "$elapsed_seconds" \
+            "$received_bytes" \
+            "$cache_bytes" \
+            "$manifest_sha256" \
+            > "$results_dir/metrics-$EXPERIMENT_MODE.json"
+          echo "TDNF_EXPERIMENT_METRIC $(cat "$results_dir/metrics-$EXPERIMENT_MODE.json")"
+
+      - name: Save TDNF cache
+        if: ${{ matrix.use_cache && steps.tdnf-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.TDNF_CACHE_DIR }}
+          key: ${{ steps.cache-key.outputs.key }}
+
+      - name: Upload experiment results
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: tdnf-cache-experiment-${{ matrix.mode }}
+          path: ${{ runner.temp }}/tdnf-cache-experiment
+
+  compare:
+    name: Compare results
+    needs: package-install
+    if: ${{ needs.package-install.result == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download experiment results
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          path: results
+          pattern: tdnf-cache-experiment-*
+          merge-multiple: true
+
+      - name: Compare installed RPMs
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat results/metrics-control.json
+          cat results/metrics-cached.json
+          diff -u \
+            results/rpm-manifest-control.txt \
+            results/rpm-manifest-cached.txt
