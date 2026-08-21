@@ -21,6 +21,7 @@ env:
   NPM_CONFIG_FETCH_RETRY_MINTIMEOUT: "5000"
   NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT: "30000"
   NPM_CONFIG_FETCH_TIMEOUT: "60000"
+  PIP_INDEX_URL: https://packagefeedproxy.microsoft.io/pypi/simple/
 
 jobs:
   vmss-virtual-a:
