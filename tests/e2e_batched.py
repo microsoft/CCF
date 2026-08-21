@@ -1,6 +1,10 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
+import http
 import itertools
+import json
+import os
+import re
 import time
 from hashlib import sha256
 
@@ -13,6 +17,86 @@ import suite.test_requirements as reqs
 from loguru import logger as LOG
 
 id_gen = itertools.count()
+
+SIZE_SUFFIXES = {
+    "": 1,
+    "b": 1,
+    "kb": 1024,
+    "mb": 1024**2,
+    "gb": 1024**3,
+    "tb": 1024**4,
+    "pb": 1024**5,
+}
+
+
+def size_string_to_bytes(size):
+    match = re.fullmatch(r"(\d+)([a-zA-Z]*)", size)
+    if match is None:
+        raise ValueError(f"Invalid size string: {size}")
+
+    value, suffix = match.groups()
+    try:
+        multiplier = SIZE_SUFFIXES[suffix.lower()]
+    except KeyError as e:
+        raise ValueError(f"Invalid size suffix: {suffix}") from e
+    return int(value) * multiplier
+
+
+def get_node_response_sizes(node):
+    config_path = os.path.join(node.common_dir, f"{node.local_node_id}.config.json")
+    with open(config_path, encoding="utf-8") as f:
+        memory_config = json.load(f)["memory"]
+
+    ringbuffer_capacity = size_string_to_bytes(memory_config["circuit_size"])
+    max_ringbuffer_message_size = size_string_to_bytes(memory_config["max_msg_size"])
+
+    return (
+        ringbuffer_capacity,
+        # Leave headroom for the QuickJS string and response serialization.
+        max_ringbuffer_message_size // 2,
+    )
+
+
+@reqs.description("Generate responses at and above ringbuffer capacity")
+def test_large_responses(network, args):
+    primary, _ = network.find_primary()
+    ringbuffer_capacity, max_response_size = get_node_response_sizes(primary)
+    large_response_sizes = (ringbuffer_capacity, max_response_size)
+    invalid_response_sizes = (-1, 1.5, max_response_size + 1)
+
+    with primary.client("member0") as c:
+        response = c.post(
+            "/app/batch/generate/config",
+            {"max_response_size": max_response_size},
+        )
+        assert response.status_code == http.HTTPStatus.NO_CONTENT, (
+            f"Expected {http.HTTPStatus.NO_CONTENT}, got {response.status_code}: "
+            f"{response.body.data()[:200]!r}"
+        )
+
+    with primary.client("user0") as c:
+        for response_size in large_response_sizes:
+            LOG.info(f"Generating a {response_size} byte response")
+            response = c.post(
+                "/app/batch/generate", {"size": response_size}, timeout=30
+            )
+            assert response.status_code == http.HTTPStatus.OK, (
+                f"Expected {http.HTTPStatus.OK}, got {response.status_code}: "
+                f"{response.body.data()[:200]!r}"
+            )
+            body = response.body.data()
+            assert len(body) == response_size
+            assert body[:1] == b"X"
+            assert body[-1:] == b"X"
+
+        for response_size in invalid_response_sizes:
+            response = c.post("/app/batch/generate", {"size": response_size})
+            assert response.status_code == http.HTTPStatus.BAD_REQUEST, (
+                f"Expected {http.HTTPStatus.BAD_REQUEST}, got {response.status_code}: "
+                f"{response.body.data()[:200]!r}"
+            )
+
+    return network, ringbuffer_capacity
 
 
 @reqs.description("Running batch submission of new entries")
@@ -62,6 +146,7 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
+        network, ringbuffer_capacity = test_large_responses(network, args)
         network = test(network, args, batch_size=1)
         network = test(network, args, batch_size=10)
         network = test(network, args, batch_size=100)
@@ -86,6 +171,8 @@ def run(args):
         # while bs <= 30000:
         #     network = test(network, args, batch_size=bs)
         #     bs += step_size
+
+        return ringbuffer_capacity
 
 
 def run_to_destruction(args):
@@ -137,8 +224,8 @@ if __name__ == "__main__":
     args.package = "js_generic"
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
 
-    # Helps ensure expected destruction workflow. See #6373 for details.
-    args.max_msg_size_bytes = f"{1024 * 1024 * 16}"  # 16MB
+    ringbuffer_capacity = run(args)
 
-    run(args)
+    # Helps ensure expected destruction workflow. See #6373 for details.
+    args.max_msg_size_bytes = f"{ringbuffer_capacity}"
     run_to_destruction(args)
