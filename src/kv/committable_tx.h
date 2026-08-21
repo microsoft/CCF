@@ -328,14 +328,13 @@ namespace ccf::kv
       return TxID(pimpl->commit_view, version);
     }
 
-    void set_read_txid(const TxID& tx_id, Term commit_view_)
+    void set_read_txid(const TxID& tx_id)
     {
       if (pimpl->read_txid.has_value())
       {
         throw std::logic_error("Read TxID already set");
       }
       pimpl->read_txid = tx_id;
-      pimpl->commit_view = commit_view_;
     }
 
     void set_root_at_read_version(const ccf::crypto::Sha256Hash& r)

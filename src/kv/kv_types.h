@@ -393,8 +393,7 @@ namespace ccf::kv
     virtual ccf::crypto::Sha256Hash get_replicated_state_root() = 0;
     virtual std::tuple<
       ccf::TxID /* TxID of last transaction seen by history */,
-      ccf::crypto::Sha256Hash /* root as of TxID */,
-      ccf::kv::Term /* term_of_next_version */>
+      ccf::crypto::Sha256Hash /* root as of TxID */>
     get_replicated_state_txid_and_root() = 0;
     virtual std::vector<uint8_t> get_proof(Version v) = 0;
     virtual bool verify_proof(const std::vector<uint8_t>& proof) = 0;
@@ -402,11 +401,8 @@ namespace ccf::kv
       const std::vector<uint8_t>& hash_at_snapshot) = 0;
     virtual std::vector<uint8_t> get_raw_leaf(uint64_t index) = 0;
     virtual void append(const std::vector<uint8_t>& data) = 0;
-    virtual void append_entry(
-      const ccf::crypto::Sha256Hash& digest,
-      std::optional<ccf::kv::Term> expected_term = std::nullopt) = 0;
-    virtual void rollback(
-      const ccf::TxID& tx_id, ccf::kv::Term term_of_next_version_) = 0;
+    virtual void append_entry(const ccf::crypto::Sha256Hash& digest) = 0;
+    virtual void rollback(const ccf::TxID& tx_id) = 0;
     virtual void compact(Version v) = 0;
     virtual void set_term(ccf::kv::Term) = 0;
     virtual std::vector<uint8_t> serialise_tree(size_t to) = 0;

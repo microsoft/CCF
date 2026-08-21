@@ -2432,7 +2432,7 @@ namespace ccf
       // version can advance before its Merkle history is updated during commit,
       // so these must be captured together from the history.
       auto* h = dynamic_cast<MerkleTxHistory*>(history.get());
-      const auto& [txid, root, _] = h->get_replicated_state_txid_and_root();
+      const auto& [txid, root] = h->get_replicated_state_txid_and_root();
       recovery_v = txid.seqno;
       recovery_root = root;
 

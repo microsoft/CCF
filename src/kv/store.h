@@ -665,7 +665,7 @@ namespace ccf::kv
         auto h = get_history();
         if (h)
         {
-          h->rollback(tx_id, term_of_next_version);
+          h->rollback(tx_id);
         }
 
         if (tx_id.seqno >= version)
@@ -1049,10 +1049,8 @@ namespace ccf::kv
 
         if (h)
         {
-          h->append_entry(
-            ccf::entry_leaf(
-              *data_shared, commit_evidence_digest_, claims_digest_),
-            replication_view);
+          h->append_entry(ccf::entry_leaf(
+            *data_shared, commit_evidence_digest_, claims_digest_));
         }
 
         if (chunker)
