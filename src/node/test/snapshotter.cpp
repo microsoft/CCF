@@ -567,17 +567,13 @@ TEST_CASE("Rollback before snapshot is committed")
     // evidence was originally committed
 
     snapshotter->commit(
-      snapshot_tx_interval + 1,
-      true,
-      consensus->get_details().view_history);
+      snapshot_tx_interval + 1, true, consensus->get_details().view_history);
 
     // Snapshot previously generated is not committed
     REQUIRE_FALSE(latest_committed_snapshot_idx(snapshot_dir.path).has_value());
 
     snapshotter->commit(
-      snapshot_tx_interval + 2,
-      true,
-      consensus->get_details().view_history);
+      snapshot_tx_interval + 2, true, consensus->get_details().view_history);
     REQUIRE_FALSE(latest_committed_snapshot_idx(snapshot_dir.path).has_value());
   }
 
@@ -694,9 +690,7 @@ TEST_CASE("Snapshot status updates preserve future queued snapshot")
     record_signature(history, snapshotter, network.tables->current_version()));
 
   snapshotter->commit(
-    2 * snapshot_tx_interval,
-    true,
-    consensus->get_details().view_history);
+    2 * snapshot_tx_interval, true, consensus->get_details().view_history);
   run_one_task();
 
   // The snapshot was generated at the expected idx, as confirmed by the

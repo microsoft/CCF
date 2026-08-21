@@ -572,9 +572,7 @@ namespace ccf::kv
     }
 
     void compact(
-      Version v,
-      bool is_primary,
-      const ConsensusViewHistory& view_history)
+      Version v, bool is_primary, const ConsensusViewHistory& view_history)
     {
       // This is called when the store will never be rolled back to any
       // state before the specified version.

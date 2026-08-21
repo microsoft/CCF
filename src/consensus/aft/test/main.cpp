@@ -23,7 +23,8 @@ DOCTEST_TEST_CASE("Consensus view history snapshot")
   DOCTEST_REQUIRE(view_history.until(0).starts.empty());
   DOCTEST_REQUIRE(
     view_history.until(4).starts == std::vector<ccf::SeqNo>{1, 4, 4});
-  DOCTEST_REQUIRE(view_history.until(8).starts == std::vector<ccf::SeqNo>{1, 4, 4});
+  DOCTEST_REQUIRE(
+    view_history.until(8).starts == std::vector<ccf::SeqNo>{1, 4, 4});
 
   DOCTEST_REQUIRE(view_history.since(0).empty());
   DOCTEST_REQUIRE(view_history.since(2) == std::vector<ccf::SeqNo>{4, 4, 9});

@@ -173,7 +173,8 @@ namespace ccf::kv
     [[nodiscard]] ConsensusViewHistory until(ccf::SeqNo seqno) const
     {
       return {
-        {starts.begin(), std::upper_bound(starts.begin(), starts.end(), seqno)}};
+        {starts.begin(),
+         std::upper_bound(starts.begin(), starts.end(), seqno)}};
     }
 
     [[nodiscard]] std::vector<ccf::SeqNo> since(ccf::View view) const
