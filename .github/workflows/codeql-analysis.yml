@@ -22,6 +22,9 @@ concurrency:
 
 permissions: read-all
 
+env:
+  PIP_INDEX_URL: https://packagefeedproxy.microsoft.io/pypi/simple/
+
 jobs:
   analyze:
     name: Analyze
