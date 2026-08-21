@@ -287,6 +287,15 @@ def cli_args(
         default=ledger_chunk_bytes_override or "20KB",
     )
     parser.add_argument(
+        "--ledger-max-transaction-bytes",
+        help=(
+            "Maximum total serialised ledger entry size, including its header "
+            "(size string)"
+        ),
+        type=str,
+        default="32MB",
+    )
+    parser.add_argument(
         "--snapshot-tx-interval",
         help="Number of transactions between two snapshots",
         type=int,
