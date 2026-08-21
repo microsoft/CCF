@@ -17,8 +17,19 @@ retry() {
 
     local attempt=1
     local delay
+    local status
     while true; do
-        if "$@"; then
+        # Calling a function from an if condition disables errexit within it,
+        # so a later successful command can mask an earlier failure.
+        set +e
+        (
+            set -e
+            "$@"
+        )
+        status=$?
+        set -e
+
+        if (( status == 0 )); then
             return
         fi
 
