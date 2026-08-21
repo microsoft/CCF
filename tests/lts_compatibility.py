@@ -799,6 +799,7 @@ def run_ledger_compatibility_since_first(
 if __name__ == "__main__":
 
     def add(parser):
+        parser.set_defaults(gov_api_version=infra.clients.API_VERSION_01)
         parser.add_argument("--check-ledger-compatibility", action="store_true")
         parser.add_argument(
             "--compatibility-report-file", type=str, default="compatibility_report.json"
