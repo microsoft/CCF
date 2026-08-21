@@ -241,7 +241,8 @@ namespace ccf
           }
 
           {
-            const auto primary_id = current_consensus->primary();
+            const auto primary_id =
+              current_consensus->get_light_details().primary_id;
             if (seeking_primary && primary_id.has_value())
             {
               target_node_its.push_back(nodes.find(primary_id.value()));
@@ -419,7 +420,8 @@ namespace ccf
     {
       if (current_consensus != nullptr)
       {
-        auto current_view = current_consensus->get_view();
+        const auto current_view =
+          current_consensus->get_light_details().current_view;
         auto session_ctx = ctx->get_session_context();
         if (!session_ctx->active_view.has_value())
         {
@@ -570,7 +572,7 @@ namespace ccf
         return;
       }
 
-      auto primary_id = current_consensus->primary();
+      const auto primary_id = current_consensus->get_light_details().primary_id;
       if (!primary_id.has_value())
       {
         ctx->set_error(

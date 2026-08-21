@@ -141,6 +141,74 @@ namespace aft
     void commit(Index idx) {}
   };
 
+  template <typename LedgerProxy>
+  class TestAft : public Aft<LedgerProxy>
+  {
+  public:
+    using Aft<LedgerProxy>::Aft;
+    using Aft<LedgerProxy>::get_view;
+
+    std::optional<ccf::NodeId> primary()
+    {
+      return this->get_light_details().primary_id;
+    }
+
+    bool is_primary()
+    {
+      return this->get_light_details().is_primary();
+    }
+
+    bool is_backup()
+    {
+      return this->get_light_details().is_backup();
+    }
+
+    bool is_candidate()
+    {
+      return this->get_light_details().is_candidate();
+    }
+
+    bool is_active()
+    {
+      return this->get_light_details().membership_state ==
+        ccf::kv::MembershipState::Active;
+    }
+
+    bool is_retired()
+    {
+      return this->get_light_details().membership_state ==
+        ccf::kv::MembershipState::Retired;
+    }
+
+    bool is_retired_completed()
+    {
+      const auto details = this->get_light_details();
+      return details.membership_state == ccf::kv::MembershipState::Retired &&
+        details.retirement_phase == ccf::kv::RetirementPhase::Completed;
+    }
+
+    Index get_committed_seqno()
+    {
+      return this->get_light_details().committed_seqno;
+    }
+
+    Term get_view()
+    {
+      return this->get_light_details().current_view;
+    }
+
+    std::pair<Term, Index> get_committed_txid()
+    {
+      const auto details = this->get_light_details();
+      return {details.committed_view, details.committed_seqno};
+    }
+
+    Configuration::Nodes get_latest_configuration()
+    {
+      return this->get_details().configs.back().nodes;
+    }
+  };
+
   class ChannelStubProxy : public ccf::NodeToNode
   {
   public:
@@ -351,7 +419,7 @@ namespace aft
       set_retired_committed_hook = set_retired_committed_hook_;
     }
 
-    virtual void compact(Index i) {}
+    virtual void compact(Index i, bool is_primary) {}
 
     virtual void rollback(const ccf::TxID& tx_id, Term t) {}
 
@@ -482,7 +550,7 @@ namespace aft
     // compact and rollback emulate the behaviour of the retired_committed hook
     // in the real store through the retired_committed_entries vector, see
     // node_state.h, circa line 2147
-    virtual void compact(Index i) override
+    virtual void compact(Index i, bool is_primary) override
     {
       for (auto& [version, configuration] : retired_committed_entries)
       {

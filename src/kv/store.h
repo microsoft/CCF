@@ -568,15 +568,18 @@ namespace ccf::kv
 
     void compact(Version v) override
     {
+      compact(v, false);
+    }
+
+    void compact(Version v, bool is_primary)
+    {
       // This is called when the store will never be rolled back to any
       // state before the specified version.
       // No transactions can be prepared or committed during compaction.
 
       if (snapshotter)
       {
-        auto c = get_consensus();
-        bool generate_snapshot = c && c->is_primary();
-        snapshotter->commit(v, generate_snapshot);
+        snapshotter->commit(v, is_primary);
       }
 
       if (chunker)
@@ -961,10 +964,10 @@ namespace ccf::kv
 
       {
         std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
-        if (txid.view != term_of_next_version && get_consensus()->is_primary())
+        if (txid.view != term_of_next_version)
         {
           // This can happen when a transaction started before a view change,
-          // but tries to commit after the view change is complete.
+          // but tries to commit after the local store has moved to a new term.
           LOG_DEBUG_FMT(
             "Want to commit for term {} but term is {}",
             txid.view,

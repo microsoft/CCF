@@ -5,6 +5,7 @@
 
 #define DOCTEST_CONFIG_NO_SHORT_MACRO_NAMES
 #define DOCTEST_CONFIG_IMPLEMENT
+#include <barrier>
 #include <doctest/doctest.h>
 
 using ms = std::chrono::milliseconds;
@@ -43,6 +44,109 @@ DOCTEST_TEST_CASE("Single node startup" * doctest::test_suite("single"))
   r0.periodic(election_timeout * 2);
   DOCTEST_REQUIRE(r0.is_primary());
   DOCTEST_REQUIRE(r0.primary() == node_id);
+}
+
+DOCTEST_TEST_CASE(
+  "Consensus details and primary state" * doctest::test_suite("single"))
+{
+  const auto node_id = ccf::kv::test::PrimaryNodeId;
+  const auto other_node_id = ccf::kv::test::FirstBackupNodeId;
+  auto kv_store = std::make_shared<Store>(node_id);
+
+  TRaft raft(
+    raft_settings,
+    std::make_unique<Adaptor>(kv_store),
+    std::make_unique<aft::LedgerStubProxy>(node_id),
+    std::make_shared<aft::ChannelStubProxy>(),
+    std::make_shared<aft::State>(node_id),
+    nullptr);
+
+  ccf::kv::Configuration::Nodes config;
+  config.try_emplace(node_id);
+  config.try_emplace(other_node_id);
+  raft.add_configuration(0, config);
+
+  const auto light_details = raft.get_light_details();
+  DOCTEST_REQUIRE(!light_details.is_primary());
+  DOCTEST_REQUIRE(!raft.is_primary());
+
+  const auto diagnostic_details = raft.get_details();
+  DOCTEST_REQUIRE(diagnostic_details.configs.size() == 1);
+  DOCTEST_REQUIRE(diagnostic_details.configs.front().nodes == config);
+  DOCTEST_REQUIRE(diagnostic_details.acks.contains(other_node_id));
+
+  raft.force_become_primary();
+  const auto primary_details = raft.get_light_details();
+  DOCTEST_REQUIRE(primary_details.is_primary());
+  DOCTEST_REQUIRE(primary_details.primary_id == node_id);
+  DOCTEST_REQUIRE(raft.is_primary());
+
+  raft.become_follower();
+  DOCTEST_REQUIRE(!raft.get_light_details().is_primary());
+  DOCTEST_REQUIRE(!raft.is_primary());
+}
+
+DOCTEST_TEST_CASE(
+  "Concurrent public state reads during leadership transitions" *
+  doctest::test_suite("concurrency"))
+{
+  const auto node_id = ccf::kv::test::PrimaryNodeId;
+  const auto other_node_id = ccf::kv::test::FirstBackupNodeId;
+  auto kv_store = std::make_shared<Store>(node_id);
+
+  TRaft raft(
+    raft_settings,
+    std::make_unique<Adaptor>(kv_store),
+    std::make_unique<aft::LedgerStubProxy>(node_id),
+    std::make_shared<aft::ChannelStubProxy>(),
+    std::make_shared<aft::State>(node_id),
+    nullptr);
+
+  aft::Configuration::Nodes config;
+  config.try_emplace(node_id);
+  config.try_emplace(other_node_id);
+  raft.add_configuration(0, config);
+
+  std::atomic<bool> stop = false;
+  std::atomic<bool> observed = false;
+  constexpr size_t reader_thread_count = 8;
+  std::barrier start(reader_thread_count + 1);
+  std::thread driver([&]() {
+    start.arrive_and_wait();
+    constexpr size_t transition_count = 2000;
+    for (size_t i = 0; i < transition_count; ++i)
+    {
+      raft.force_become_primary();
+      raft.periodic(election_timeout);
+    }
+    stop.store(true, std::memory_order_release);
+  });
+
+  std::vector<std::thread> readers;
+  readers.reserve(reader_thread_count);
+  for (size_t i = 0; i < reader_thread_count; ++i)
+  {
+    readers.emplace_back([&]() {
+      start.arrive_and_wait();
+      while (!stop.load(std::memory_order_acquire))
+      {
+        const auto details = raft.get_light_details();
+        observed.store(true, std::memory_order_release);
+        static_cast<void>(details.primary_id.has_value());
+        static_cast<void>(details.is_primary());
+        static_cast<void>(details.is_candidate());
+        static_cast<void>(details.is_backup());
+        raft.is_primary();
+      }
+    });
+  }
+
+  driver.join();
+  for (auto& reader : readers)
+  {
+    reader.join();
+  }
+  DOCTEST_REQUIRE(observed.load(std::memory_order_acquire));
 }
 
 DOCTEST_TEST_CASE("Single node commit" * doctest::test_suite("single"))

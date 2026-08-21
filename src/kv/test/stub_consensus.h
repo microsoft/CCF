@@ -38,19 +38,23 @@ namespace ccf::kv::test
     State state;
     NodeId local_id;
 
-    StubConsensus() : replica(), state(Backup), local_id(PrimaryNodeId) {}
+    explicit StubConsensus(State state_ = Primary) :
+      replica(),
+      state(state_),
+      local_id(PrimaryNodeId)
+    {}
 
     virtual NodeId id() override
     {
       return local_id;
     }
 
-    virtual bool is_primary() override
+    virtual bool is_primary()
     {
       return state == Primary;
     }
 
-    virtual bool is_candidate() override
+    virtual bool is_candidate()
     {
       return state == Candidate;
     }
@@ -77,7 +81,7 @@ namespace ccf::kv::test
       }
     }
 
-    virtual bool is_backup() override
+    virtual bool is_backup()
     {
       return state == Backup;
     }
@@ -107,6 +111,11 @@ namespace ccf::kv::test
 
     bool replicate(const BatchVector& entries, ccf::View view) override
     {
+      if (!can_replicate())
+      {
+        return false;
+      }
+
       for (const auto& entry : entries)
       {
         replica.push_back(entry);
@@ -162,17 +171,17 @@ namespace ccf::kv::test
       replica.clear();
     }
 
-    std::pair<ccf::View, ccf::SeqNo> get_committed_txid() override
+    virtual std::pair<ccf::View, ccf::SeqNo> get_committed_txid()
     {
       return {committed_txid.view, committed_txid.seqno};
     }
 
-    ccf::SeqNo get_committed_seqno() override
+    virtual ccf::SeqNo get_committed_seqno()
     {
       return committed_txid.seqno;
     }
 
-    std::optional<NodeId> primary() override
+    virtual std::optional<NodeId> primary()
     {
       return PrimaryNodeId;
     }
@@ -182,7 +191,7 @@ namespace ccf::kv::test
       return view_history.view_at(seqno);
     }
 
-    ccf::View get_view() override
+    virtual ccf::View get_view()
     {
       return current_view;
     }
@@ -210,14 +219,30 @@ namespace ccf::kv::test
       return {};
     }
 
-    Configuration::Nodes get_latest_configuration() override
+    virtual Configuration::Nodes get_latest_configuration()
     {
       return {};
     }
 
+    ConsensusLightDetails get_light_details() override
+    {
+      ConsensusLightDetails details;
+      details.membership_state = MembershipState::Active;
+      details.leadership_state = state == Primary ? LeadershipState::Leader :
+        state == Candidate                        ? LeadershipState::Candidate :
+                                                    LeadershipState::Follower;
+      details.primary_id = PrimaryNodeId;
+      details.current_view = current_view;
+      details.committed_view = committed_txid.view;
+      details.committed_seqno = committed_txid.seqno;
+      return details;
+    }
+
     ConsensusDetails get_details() override
     {
-      return ConsensusDetails{{}, {}, MembershipState::Active};
+      ConsensusDetails details;
+      static_cast<ConsensusLightDetails&>(details) = get_light_details();
+      return details;
     }
 
     void set_last_signature_at(ccf::SeqNo seqno)
@@ -229,47 +254,12 @@ namespace ccf::kv::test
   class BackupStubConsensus : public StubConsensus
   {
   public:
-    BackupStubConsensus() : StubConsensus() {}
-
-    bool is_primary() override
-    {
-      return false;
-    }
-
-    bool replicate(const BatchVector& entries, ccf::View view) override
-    {
-      return false;
-    }
-
-    bool can_replicate() override
-    {
-      return false;
-    }
-
-    Consensus::SignatureDisposition get_signature_disposition() override
-    {
-      return Consensus::SignatureDisposition::CANT_REPLICATE;
-    }
+    BackupStubConsensus() : StubConsensus(Backup) {}
   };
 
   class PrimaryStubConsensus : public StubConsensus
   {
   public:
-    PrimaryStubConsensus() : StubConsensus() {}
-
-    bool is_primary() override
-    {
-      return true;
-    }
-
-    bool can_replicate() override
-    {
-      return true;
-    }
-
-    Consensus::SignatureDisposition get_signature_disposition() override
-    {
-      return Consensus::SignatureDisposition::CAN_SIGN;
-    }
+    PrimaryStubConsensus() : StubConsensus(Primary) {}
   };
 }

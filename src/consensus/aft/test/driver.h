@@ -74,10 +74,10 @@ struct LoggingStubStore_Mermaid : public aft::LoggingStubStoreConfig
 {
   using LoggingStubStoreConfig::LoggingStubStoreConfig;
 
-  void compact(aft::Index idx) override
+  void compact(aft::Index idx, bool is_primary) override
   {
     RAFT_DRIVER_PRINT("{}->>{}: [KV] compacting to {}", _id, _id, idx);
-    aft::LoggingStubStoreConfig::compact(idx);
+    aft::LoggingStubStoreConfig::compact(idx, is_primary);
   }
 
   void rollback(const ccf::TxID& tx_id, aft::Term t) override
@@ -100,7 +100,7 @@ struct LoggingStubStore_Mermaid : public aft::LoggingStubStoreConfig
 };
 
 using ms = std::chrono::milliseconds;
-using TRaft = aft::Aft<LedgerStubProxy_Mermaid>;
+using TRaft = aft::TestAft<LedgerStubProxy_Mermaid>;
 using Store = LoggingStubStore_Mermaid;
 using Adaptor = aft::Adaptor<Store>;
 

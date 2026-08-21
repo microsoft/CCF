@@ -32,7 +32,8 @@ namespace ccf
           reason = ccf::InvalidArgsReason::ViewSmallerThanOne;
           return ApiResult::InvalidArgs;
         }
-        auto latest_view = current_consensus->get_view();
+        const auto latest_view =
+          current_consensus->get_light_details().current_view;
         if (since > latest_view)
         {
           // asking for something in the future
@@ -96,9 +97,10 @@ namespace ccf
     {
       try
       {
-        const auto [v, s] = current_consensus->get_committed_txid();
-        view = v;
-        seqno = s;
+        const auto details = current_consensus->get_light_details();
+        const auto committed_txid = details.committed_txid();
+        view = committed_txid.view;
+        seqno = committed_txid.seqno;
         return ApiResult::OK;
       }
       catch (const std::exception& e)

@@ -247,24 +247,9 @@ namespace aft
 
     ~Aft() override = default;
 
-    std::optional<ccf::NodeId> primary() override
-    {
-      return leader_id;
-    }
-
     ccf::NodeId id() override
     {
       return state->node_id;
-    }
-
-    bool is_primary() override
-    {
-      return state->leadership_state == ccf::kv::LeadershipState::Leader;
-    }
-
-    bool is_candidate() override
-    {
-      return state->leadership_state == ccf::kv::LeadershipState::Candidate;
     }
 
     bool can_replicate() override
@@ -303,16 +288,7 @@ namespace aft
       return Consensus::SignatureDisposition::CANT_REPLICATE;
     }
 
-    bool is_backup() override
-    {
-      return state->leadership_state == ccf::kv::LeadershipState::Follower;
-    }
-
-    bool is_active() const
-    {
-      return state->membership_state == ccf::kv::MembershipState::Active;
-    }
-
+  private:
     bool is_retired() const
     {
       return state->membership_state == ccf::kv::MembershipState::Retired;
@@ -324,12 +300,7 @@ namespace aft
         state->retirement_phase == ccf::kv::RetirementPhase::RetiredCommitted;
     }
 
-    bool is_retired_completed() const
-    {
-      return state->membership_state == ccf::kv::MembershipState::Retired &&
-        state->retirement_phase == ccf::kv::RetirementPhase::Completed;
-    }
-
+  public:
     void set_retired_committed(
       ccf::SeqNo seqno, const std::vector<ccf::kv::NodeId>& node_ids) override
     {
@@ -464,25 +435,6 @@ namespace aft
       return state->last_idx;
     }
 
-    Index get_committed_seqno() override
-    {
-      std::lock_guard<ccf::pal::Mutex> guard(state->lock);
-      return get_commit_idx_unsafe();
-    }
-
-    Term get_view() override
-    {
-      std::lock_guard<ccf::pal::Mutex> guard(state->lock);
-      return state->current_view;
-    }
-
-    std::pair<Term, Index> get_committed_txid() override
-    {
-      std::lock_guard<ccf::pal::Mutex> guard(state->lock);
-      ccf::SeqNo commit_idx = get_commit_idx_unsafe();
-      return {get_term_internal(commit_idx), commit_idx};
-    }
-
     Term get_view(Index idx) override
     {
       std::lock_guard<ccf::pal::Mutex> guard(state->lock);
@@ -589,18 +541,15 @@ namespace aft
       return configurations.back().nodes;
     }
 
-    Configuration::Nodes get_latest_configuration() override
+  private:
+    ccf::kv::ConsensusLightDetails get_light_details_unsafe()
     {
-      std::lock_guard<ccf::pal::Mutex> guard(state->lock);
-      return get_latest_configuration_unsafe();
-    }
-
-    ccf::kv::ConsensusDetails get_details() override
-    {
-      ccf::kv::ConsensusDetails details;
-      std::lock_guard<ccf::pal::Mutex> guard(state->lock);
+      ccf::kv::ConsensusLightDetails details;
       details.primary_id = leader_id;
       details.current_view = state->current_view;
+      const auto committed_seqno = get_commit_idx_unsafe();
+      details.committed_seqno = committed_seqno;
+      details.committed_view = get_term_internal(committed_seqno);
       details.ticking = ticking;
       details.leadership_state = state->leadership_state;
       details.membership_state = state->membership_state;
@@ -608,16 +557,29 @@ namespace aft
       {
         details.retirement_phase = state->retirement_phase;
       }
-      for (auto const& conf : configurations)
-      {
-        details.configs.push_back(conf);
-      }
+      details.reconfiguration_type = ccf::ReconfigurationType::ONE_TRANSACTION;
+      return details;
+    }
+
+  public:
+    ccf::kv::ConsensusLightDetails get_light_details() override
+    {
+      std::lock_guard<ccf::pal::Mutex> guard(state->lock);
+      return get_light_details_unsafe();
+    }
+
+    ccf::kv::ConsensusDetails get_details() override
+    {
+      ccf::kv::ConsensusDetails details;
+      std::lock_guard<ccf::pal::Mutex> guard(state->lock);
+      static_cast<ccf::kv::ConsensusLightDetails&>(details) =
+        get_light_details_unsafe();
+      details.configs.assign(configurations.begin(), configurations.end());
       for (auto& [k, v] : all_other_nodes)
       {
         details.acks[k] = {
           v.match_idx, static_cast<size_t>(v.last_ack_timeout.count())};
       }
-      details.reconfiguration_type = ccf::ReconfigurationType::ONE_TRANSACTION;
       return details;
     }
 
@@ -2607,7 +2569,8 @@ namespace aft
       }
 
       RAFT_DEBUG_FMT("Compacting...");
-      store->compact(idx);
+      store->compact(
+        idx, state->leadership_state == ccf::kv::LeadershipState::Leader);
       ledger->commit(idx);
 
       if (commit_callbacks != nullptr)
@@ -2650,7 +2613,9 @@ namespace aft
       if (changed)
       {
         create_and_remove_node_state();
-        if (retired_node_cleanup && is_primary())
+        if (
+          retired_node_cleanup &&
+          state->leadership_state == ccf::kv::LeadershipState::Leader)
         {
           retired_node_cleanup->cleanup();
         }
