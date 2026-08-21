@@ -5,7 +5,6 @@
 #include "ds/work_beacon.h"
 #include "tasks/task.h"
 
-#include <mutex>
 #include <optional>
 #include <queue>
 
