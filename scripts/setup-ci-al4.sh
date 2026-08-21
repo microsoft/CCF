@@ -17,6 +17,7 @@ retry() {
 
     local attempt=1
     local delay
+    local max_attempts=5
     local status
     while true; do
         # Calling a function from an if condition disables errexit within it,
@@ -33,8 +34,8 @@ retry() {
             return
         fi
 
-        if (( attempt == 3 )); then
-            echo "'$description' failed after 3 attempts"
+        if (( attempt == max_attempts )); then
+            echo "'$description' failed after $max_attempts attempts"
             return 1
         fi
 
