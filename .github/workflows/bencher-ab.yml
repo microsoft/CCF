@@ -13,6 +13,9 @@ on:
 
 permissions: read-all
 
+env:
+  PIP_INDEX_URL: https://packagefeedproxy.microsoft.io/pypi/simple/
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
   cancel-in-progress: false
@@ -29,7 +32,6 @@ jobs:
     if: ${{ (github.event.action == 'labeled' && github.event.label.name == 'bench-ab') || (github.event.action != 'labeled' && contains(github.event.pull_request.labels.*.name, 'bench-ab')) }}
     env:
       BRANCH_PERF_ARTIFACT: perf-bench-virtual-pr-${{ github.event.pull_request.number }}
-      PIP_INDEX_URL: https://packagefeedproxy.microsoft.io/pypi/simple/
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root

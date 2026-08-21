@@ -15,6 +15,7 @@ permissions: read-all
 
 env:
   IMAGE: mcr.microsoft.com/azurelinux/base/core:3.0
+  PIP_INDEX_URL: https://packagefeedproxy.microsoft.io/pypi/simple/
 
 jobs:
   make_sbom:
@@ -105,8 +106,6 @@ jobs:
     container:
       image: ${{ needs.image_digest.outputs.image_digest }}
       options: "--user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE --sysctl net.ipv6.conf.all.disable_ipv6=0 --sysctl net.ipv6.conf.default.disable_ipv6=0 --sysctl net.ipv6.conf.lo.disable_ipv6=0"
-    env:
-      PIP_INDEX_URL: https://packagefeedproxy.microsoft.io/pypi/simple/
 
     steps:
       - name: "Set SOURCE_DATE_EPOCH"
