@@ -59,11 +59,20 @@ jobs:
 
       - name: Configure TDNF cache
         shell: bash
+        env:
+          USE_CACHE: ${{ matrix.use_cache }}
         run: |
           set -euo pipefail
           mkdir -p "$TDNF_CACHE_DIR"
           sed -i "s|^cachedir=.*|cachedir=$TDNF_CACHE_DIR|" /etc/tdnf/tdnf.conf
-          grep '^cachedir=' /etc/tdnf/tdnf.conf
+          if [[ "$USE_CACHE" == "true" ]]; then
+            if grep -q '^keepcache=' /etc/tdnf/tdnf.conf; then
+              sed -i 's/^keepcache=.*/keepcache=1/' /etc/tdnf/tdnf.conf
+            else
+              printf '\nkeepcache=1\n' >> /etc/tdnf/tdnf.conf
+            fi
+          fi
+          grep -E '^(cachedir|keepcache)=' /etc/tdnf/tdnf.conf
 
       - name: Compute cache key
         id: cache-key
@@ -79,7 +88,7 @@ jobs:
               sha256sum |
               cut -d' ' -f1
           )
-          key="tdnf-full-v1-$RUNNER_ARCH-$SOURCE_DATE_EPOCH-$base_fingerprint-${{ hashFiles('scripts/setup-ci.sh') }}"
+          key="tdnf-full-v2-$RUNNER_ARCH-$SOURCE_DATE_EPOCH-$base_fingerprint-${{ hashFiles('scripts/setup-ci.sh', '.github/workflows/tdnf-cache-experiment.yml') }}"
           echo "key=$key" >> "$GITHUB_OUTPUT"
           echo "$key"
 
