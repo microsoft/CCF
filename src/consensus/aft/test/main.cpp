@@ -96,6 +96,21 @@ DOCTEST_TEST_CASE(
   DOCTEST_REQUIRE(diagnostic_details.configs.front().nodes == config);
   DOCTEST_REQUIRE(diagnostic_details.acks.contains(other_node_id));
 
+  // Configuration deltas add new nodes without rewriting existing node info.
+  const auto new_node_id = ccf::kv::test::SecondBackupNodeId;
+  raft.update_configuration(
+    1,
+    {{other_node_id, ccf::kv::Configuration::NodeInfo{"ignored", "1"}},
+     {new_node_id, ccf::kv::Configuration::NodeInfo{"new", "2"}}});
+  const auto updated_details = raft.get_details();
+  DOCTEST_REQUIRE(updated_details.configs.size() == 2);
+  DOCTEST_REQUIRE(
+    updated_details.configs.back().nodes.at(other_node_id) ==
+    config.at(other_node_id));
+  DOCTEST_REQUIRE(
+    updated_details.configs.back().nodes.at(new_node_id) ==
+    ccf::kv::Configuration::NodeInfo{"new", "2"});
+
   raft.force_become_primary();
   const auto primary_details = raft.get_light_details();
   DOCTEST_REQUIRE(primary_details.is_primary());

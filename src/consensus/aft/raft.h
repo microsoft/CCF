@@ -538,7 +538,7 @@ namespace aft
       {
         if (node_info.has_value())
         {
-          configuration.insert_or_assign(node_id, node_info.value());
+          configuration.try_emplace(node_id, node_info.value());
         }
         else
         {
