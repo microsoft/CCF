@@ -67,10 +67,9 @@ jobs:
           queries: security-extended
 
       - name: "Install dependencies"
-        shell: bash
-        run: |
-          set -ex
-          ./scripts/setup-ci.sh
+        uses: ./.github/actions/install-ci-dependencies
+        with:
+          azure-linux-version: "3"
 
       - name: "Run CMake"
         run: |

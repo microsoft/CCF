@@ -10,10 +10,7 @@ export SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH:-$(date +%s)}
 echo "Using SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH}"
 
 TDNF_OPTIONS=("--snapshottime=$SOURCE_DATE_EPOCH" -y)
-if [[ ${TDNF_KEEP_CACHE:-0} == 1 ]]; then
-    TDNF_OPTIONS+=(--setopt=keepcache=1)
-fi
-if [[ ${TDNF_CACHE_ONLY:-0} == 1 ]]; then
+if [[ ${CCF_PACKAGE_CACHE_ONLY:-0} == 1 ]]; then
     TDNF_OPTIONS+=(--cacheonly)
 fi
 
