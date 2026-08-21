@@ -57,7 +57,7 @@ TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
     nullptr;
   {
     ccf::kv::ScopedStoreMapsLock maps_lock(&store);
-    first_snapshot = store.snapshot_unsafe_maps(first_snapshot_version);
+    first_snapshot = store.snapshot_unsafe_maps(first_snapshot_version, {});
   }
   auto first_serialised_snapshot =
     store.serialise_snapshot(std::move(first_snapshot));
@@ -118,7 +118,7 @@ TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
     nullptr;
   {
     ccf::kv::ScopedStoreMapsLock maps_lock(&store);
-    second_snapshot = store.snapshot_unsafe_maps(second_snapshot_version);
+    second_snapshot = store.snapshot_unsafe_maps(second_snapshot_version, {});
   }
   auto second_serialised_snapshot =
     store.serialise_snapshot(std::move(second_snapshot));
@@ -278,7 +278,7 @@ TEST_CASE(
   std::unique_ptr<ccf::kv::AbstractStore::AbstractSnapshot> snapshot = nullptr;
   {
     ccf::kv::ScopedStoreMapsLock maps_lock(&store);
-    snapshot = store.snapshot_unsafe_maps(snapshot_version);
+    snapshot = store.snapshot_unsafe_maps(snapshot_version, {});
   }
   auto serialised_snapshot = store.serialise_snapshot(std::move(snapshot));
 
@@ -389,7 +389,7 @@ TEST_CASE("Commit hooks with snapshot" * doctest::test_suite("snapshot"))
   std::unique_ptr<ccf::kv::AbstractStore::AbstractSnapshot> snapshot = nullptr;
   {
     ccf::kv::ScopedStoreMapsLock maps_lock(&store);
-    snapshot = store.snapshot_unsafe_maps(snapshot_version);
+    snapshot = store.snapshot_unsafe_maps(snapshot_version, {});
   }
   auto serialised_snapshot = store.serialise_snapshot(std::move(snapshot));
 
@@ -522,7 +522,7 @@ TEST_CASE("Commit hooks with snapshot" * doctest::test_suite("snapshot"))
     snapshot_version = tx.commit_version();
     {
       ccf::kv::ScopedStoreMapsLock maps_lock(&store);
-      snapshot = store.snapshot_unsafe_maps(snapshot_version);
+      snapshot = store.snapshot_unsafe_maps(snapshot_version, {});
     }
     serialised_snapshot = store.serialise_snapshot(std::move(snapshot));
 

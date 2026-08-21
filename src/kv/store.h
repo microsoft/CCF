@@ -348,7 +348,8 @@ namespace ccf::kv
       }
     }
 
-    std::unique_ptr<AbstractSnapshot> snapshot_unsafe_maps(Version v) override
+    std::unique_ptr<AbstractSnapshot> snapshot_unsafe_maps(
+      Version v, ConsensusViewHistory view_history) override
     {
       auto cv = compacted_version();
       if (v < cv)
@@ -384,10 +385,9 @@ namespace ccf::kv
           snapshot->add_hash_at_snapshot(h->get_raw_leaf(v));
         }
 
-        auto c = get_consensus();
-        if (c)
+        if (!view_history.starts.empty())
         {
-          snapshot->add_view_history(c->get_view_history(v));
+          snapshot->add_view_history(std::move(view_history.starts));
         }
       }
 
@@ -568,10 +568,13 @@ namespace ccf::kv
 
     void compact(Version v) override
     {
-      compact(v, false);
+      compact(v, false, {});
     }
 
-    void compact(Version v, bool is_primary)
+    void compact(
+      Version v,
+      bool is_primary,
+      const ConsensusViewHistory& view_history)
     {
       // This is called when the store will never be rolled back to any
       // state before the specified version.
@@ -579,7 +582,7 @@ namespace ccf::kv
 
       if (snapshotter)
       {
-        snapshotter->commit(v, is_primary);
+        snapshotter->commit(v, is_primary, view_history);
       }
 
       if (chunker)

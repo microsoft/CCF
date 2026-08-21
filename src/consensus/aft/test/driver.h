@@ -74,10 +74,13 @@ struct LoggingStubStore_Mermaid : public aft::LoggingStubStoreConfig
 {
   using LoggingStubStoreConfig::LoggingStubStoreConfig;
 
-  void compact(aft::Index idx, bool is_primary) override
+  void compact(
+    aft::Index idx,
+    bool is_primary,
+    const ccf::kv::ConsensusViewHistory& view_history) override
   {
     RAFT_DRIVER_PRINT("{}->>{}: [KV] compacting to {}", _id, _id, idx);
-    aft::LoggingStubStoreConfig::compact(idx, is_primary);
+    aft::LoggingStubStoreConfig::compact(idx, is_primary, view_history);
   }
 
   void rollback(const ccf::TxID& tx_id, aft::Term t) override

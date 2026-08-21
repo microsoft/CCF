@@ -186,11 +186,6 @@ namespace ccf::kv::test
       return current_view;
     }
 
-    std::vector<ccf::SeqNo> get_view_history(ccf::SeqNo seqno) override
-    {
-      return view_history.get_history_until(seqno);
-    }
-
     ccf::TxStatus evaluate_tx_status(
       ccf::View target_view, ccf::SeqNo target_seqno) override
     {

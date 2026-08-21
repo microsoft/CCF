@@ -428,7 +428,8 @@ TEST_CASE("Regular snapshotting")
   {
     REQUIRE_FALSE(record_signature(history, snapshotter, snapshot_idx - 1));
     commit_idx = snapshot_idx - 1;
-    snapshotter->commit(commit_idx, true);
+    snapshotter->commit(
+      commit_idx, true, consensus->get_details().view_history);
     run_one_task();
 
     REQUIRE_THROWS_AS(
@@ -445,7 +446,8 @@ TEST_CASE("Regular snapshotting")
     // Note: even if commit_idx > snapshot_tx_interval, the snapshot is
     // generated at snapshot_idx
     commit_idx = snapshot_idx + 1;
-    snapshotter->commit(commit_idx, true);
+    snapshotter->commit(
+      commit_idx, true, consensus->get_details().view_history);
 
     run_one_task();
     // Snapshot evidence is committed to the KV, but the snapshot is not
@@ -460,7 +462,8 @@ TEST_CASE("Regular snapshotting")
     record_snapshot_evidence(snapshotter, snapshot_idx, snapshot_evidence_idx);
     commit_idx = snapshot_idx + 2;
     REQUIRE_FALSE(record_signature(history, snapshotter, commit_idx));
-    snapshotter->commit(commit_idx, true);
+    snapshotter->commit(
+      commit_idx, true, consensus->get_details().view_history);
     // The persist action runs on the task system once commit evidence is
     // durable
     run_one_task();
@@ -474,7 +477,8 @@ TEST_CASE("Regular snapshotting")
   INFO("Subsequent commit before next snapshot idx has no effect");
   {
     commit_idx = snapshot_idx + 2;
-    snapshotter->commit(commit_idx, true);
+    snapshotter->commit(
+      commit_idx, true, consensus->get_details().view_history);
     run_one_task();
     REQUIRE(
       latest_committed_snapshot_idx(snapshot_dir.path) ==
@@ -490,7 +494,8 @@ TEST_CASE("Regular snapshotting")
     REQUIRE(record_signature(history, snapshotter, snapshot_idx));
     // Note: Commit exactly on snapshot idx
     commit_idx = snapshot_idx;
-    snapshotter->commit(commit_idx, true);
+    snapshotter->commit(
+      commit_idx, true, consensus->get_details().view_history);
 
     run_one_task();
     REQUIRE(read_latest_snapshot_evidence(network.tables) == snapshot_idx);
@@ -507,7 +512,8 @@ TEST_CASE("Regular snapshotting")
     commit_idx = snapshot_idx + 2;
     REQUIRE_FALSE(record_signature(history, snapshotter, commit_idx));
 
-    snapshotter->commit(commit_idx, true);
+    snapshotter->commit(
+      commit_idx, true, consensus->get_details().view_history);
     run_one_task();
     REQUIRE(latest_committed_snapshot_idx(snapshot_dir.path) == snapshot_idx);
     REQUIRE(
@@ -545,7 +551,8 @@ TEST_CASE("Rollback before snapshot is committed")
   {
     snapshot_idx = snapshot_tx_interval;
     REQUIRE(record_signature(history, snapshotter, snapshot_idx));
-    snapshotter->commit(snapshot_idx, true);
+    snapshotter->commit(
+      snapshot_idx, true, consensus->get_details().view_history);
 
     run_one_task();
     REQUIRE(read_latest_snapshot_evidence(network.tables) == snapshot_idx);
@@ -559,12 +566,18 @@ TEST_CASE("Rollback before snapshot is committed")
     // ... More transactions are committed, passing the idx at which the
     // evidence was originally committed
 
-    snapshotter->commit(snapshot_tx_interval + 1, true);
+    snapshotter->commit(
+      snapshot_tx_interval + 1,
+      true,
+      consensus->get_details().view_history);
 
     // Snapshot previously generated is not committed
     REQUIRE_FALSE(latest_committed_snapshot_idx(snapshot_dir.path).has_value());
 
-    snapshotter->commit(snapshot_tx_interval + 2, true);
+    snapshotter->commit(
+      snapshot_tx_interval + 2,
+      true,
+      consensus->get_details().view_history);
     REQUIRE_FALSE(latest_committed_snapshot_idx(snapshot_dir.path).has_value());
   }
 
@@ -574,7 +587,8 @@ TEST_CASE("Rollback before snapshot is committed")
     size_t new_snapshot_idx = network.tables->current_version();
 
     REQUIRE(record_signature(history, snapshotter, new_snapshot_idx));
-    snapshotter->commit(new_snapshot_idx, true);
+    snapshotter->commit(
+      new_snapshot_idx, true, consensus->get_details().view_history);
 
     run_one_task();
     REQUIRE(read_latest_snapshot_evidence(network.tables) == new_snapshot_idx);
@@ -586,7 +600,8 @@ TEST_CASE("Rollback before snapshot is committed")
     record_snapshot_evidence(
       snapshotter, new_snapshot_idx, new_snapshot_idx + 1);
     REQUIRE_FALSE(record_signature(history, snapshotter, commit_idx));
-    snapshotter->commit(commit_idx, true);
+    snapshotter->commit(
+      commit_idx, true, consensus->get_details().view_history);
     run_one_task();
     REQUIRE(
       latest_committed_snapshot_idx(snapshot_dir.path) == new_snapshot_idx);
@@ -601,7 +616,8 @@ TEST_CASE("Rollback before snapshot is committed")
       ccf::kv::AbstractStore::StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
 
     REQUIRE(record_signature(history, snapshotter, new_snapshot_idx));
-    snapshotter->commit(new_snapshot_idx, true);
+    snapshotter->commit(
+      new_snapshot_idx, true, consensus->get_details().view_history);
 
     run_one_task();
     REQUIRE(read_latest_snapshot_evidence(network.tables) == new_snapshot_idx);
@@ -618,7 +634,8 @@ TEST_CASE("Rollback before snapshot is committed")
     record_snapshot_evidence(
       snapshotter, new_snapshot_idx, new_snapshot_idx + 1);
     REQUIRE_FALSE(record_signature(history, snapshotter, commit_idx));
-    snapshotter->commit(commit_idx, true);
+    snapshotter->commit(
+      commit_idx, true, consensus->get_details().view_history);
     run_one_task();
     REQUIRE(
       latest_committed_snapshot_idx(snapshot_dir.path) == new_snapshot_idx);
@@ -676,7 +693,10 @@ TEST_CASE("Snapshot status updates preserve future queued snapshot")
   REQUIRE_FALSE(
     record_signature(history, snapshotter, network.tables->current_version()));
 
-  snapshotter->commit(2 * snapshot_tx_interval, true);
+  snapshotter->commit(
+    2 * snapshot_tx_interval,
+    true,
+    consensus->get_details().view_history);
   run_one_task();
 
   // The snapshot was generated at the expected idx, as confirmed by the
@@ -766,7 +786,8 @@ TEST_CASE("Rekey ledger while snapshot is in progress")
     tx.commit();
 
     REQUIRE(record_signature(history, snapshotter, snapshot_idx));
-    snapshotter->commit(snapshot_idx, true);
+    snapshotter->commit(
+      snapshot_idx, true, consensus->get_details().view_history);
 
     // Do not schedule task just yet so that we can interleave ledger rekey
   }
@@ -790,7 +811,8 @@ TEST_CASE("Rekey ledger while snapshot is in progress")
     record_snapshot_evidence(snapshotter, snapshot_idx, snapshot_idx + 1);
     auto commit_idx = snapshot_idx + 2;
     REQUIRE_FALSE(record_signature(history, snapshotter, commit_idx));
-    snapshotter->commit(commit_idx, true);
+    snapshotter->commit(
+      commit_idx, true, consensus->get_details().view_history);
 
     // The persist action runs on the task system, writing the serialised
     // snapshot bytes to disk.

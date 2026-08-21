@@ -429,9 +429,8 @@ namespace aft
       return state->last_idx;
     }
 
-    std::vector<Index> get_view_history(Index idx) override
+    std::vector<Index> get_view_history(Index idx)
     {
-      // Called by snapshot creation from Aft::commit(), with state->lock held.
       return state->view_history.get_history_until(idx);
     }
 
@@ -2579,7 +2578,9 @@ namespace aft
 
       RAFT_DEBUG_FMT("Compacting...");
       store->compact(
-        idx, state->leadership_state == ccf::kv::LeadershipState::Leader);
+        idx,
+        state->leadership_state == ccf::kv::LeadershipState::Leader,
+        {state->view_history.get_history_until(idx)});
       ledger->commit(idx);
 
       if (commit_callbacks != nullptr)

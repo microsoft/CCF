@@ -113,7 +113,10 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
         nullptr;
       {
         ccf::kv::ScopedStoreMapsLock maps_lock(&source_store);
-        snapshot = source_store.snapshot_unsafe_maps(snapshot_version - 1);
+        snapshot = source_store.snapshot_unsafe_maps(
+          snapshot_version - 1,
+          {source_consensus->view_history.get_history_until(
+            snapshot_version - 1)});
       }
       auto serialised_snapshot =
         source_store.serialise_snapshot(std::move(snapshot));
@@ -135,7 +138,9 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
         nullptr;
       {
         ccf::kv::ScopedStoreMapsLock maps_lock(&source_store);
-        snapshot = source_store.snapshot_unsafe_maps(snapshot_version);
+        snapshot = source_store.snapshot_unsafe_maps(
+          snapshot_version,
+          {source_consensus->view_history.get_history_until(snapshot_version)});
       }
       auto serialised_snapshot =
         source_store.serialise_snapshot(std::move(snapshot));

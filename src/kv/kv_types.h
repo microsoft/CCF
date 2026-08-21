@@ -170,6 +170,12 @@ namespace ccf::kv
       return it - starts.begin();
     }
 
+    [[nodiscard]] ConsensusViewHistory until(ccf::SeqNo seqno) const
+    {
+      return {
+        {starts.begin(), std::upper_bound(starts.begin(), starts.end(), seqno)}};
+    }
+
     [[nodiscard]] std::vector<ccf::SeqNo> since(ccf::View view) const
     {
       if (view == 0 || view > starts.size())
@@ -506,9 +512,6 @@ namespace ccf::kv
     virtual ConsensusLightDetails get_light_details() = 0;
     virtual ConsensusDetails get_details() = 0;
 
-    virtual std::vector<ccf::SeqNo> get_view_history(
-      ccf::SeqNo seqno = std::numeric_limits<ccf::SeqNo>::max()) = 0;
-
     virtual ccf::TxStatus evaluate_tx_status(
       ccf::View target_view, ccf::SeqNo target_seqno) = 0;
 
@@ -634,7 +637,10 @@ namespace ccf::kv
 
     virtual bool record_committable(ccf::kv::Version v) = 0;
     virtual bool should_schedule_snapshot(ccf::kv::Version v) = 0;
-    virtual void commit(ccf::kv::Version v, bool generate_snapshot) = 0;
+    virtual void commit(
+      ccf::kv::Version v,
+      bool generate_snapshot,
+      const ConsensusViewHistory& view_history) = 0;
     virtual void rollback(ccf::kv::Version v) = 0;
   };
   using SnapshotterPtr = std::shared_ptr<AbstractSnapshotter>;
@@ -782,7 +788,7 @@ namespace ccf::kv
     virtual bool check_rollback_count(Version count) = 0;
 
     virtual std::unique_ptr<AbstractSnapshot> snapshot_unsafe_maps(
-      Version v) = 0;
+      Version v, ConsensusViewHistory view_history) = 0;
     virtual void lock_maps() = 0;
     virtual void unlock_maps() = 0;
     virtual std::vector<uint8_t> serialise_snapshot(

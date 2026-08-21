@@ -539,7 +539,7 @@ TEST_CASE("Dynamic map snapshot serialisation" * doctest::test_suite("dynamic"))
   std::unique_ptr<ccf::kv::AbstractStore::AbstractSnapshot> snapshot = nullptr;
   {
     ccf::kv::ScopedStoreMapsLock maps_lock(&store);
-    snapshot = store.snapshot_unsafe_maps(snapshot_version);
+    snapshot = store.snapshot_unsafe_maps(snapshot_version, {});
   }
   auto serialised_snapshot = store.serialise_snapshot(std::move(snapshot));
 

@@ -598,7 +598,10 @@ namespace ccf
       });
     }
 
-    void schedule_snapshot(::consensus::Index idx, TimePoint timestamp)
+    void schedule_snapshot(
+      ::consensus::Index idx,
+      TimePoint timestamp,
+      const ccf::kv::ConsensusViewHistory& view_history)
     {
       // Called with lock held (from commit()).
       static uint32_t generation_count = 0;
@@ -623,13 +626,16 @@ namespace ccf
 
       info.tasks->add_action(std::make_shared<SerialiseSnapshotAction>(
         shared_from_this(),
-        store->snapshot_unsafe_maps(idx),
+        store->snapshot_unsafe_maps(idx, view_history.until(idx)),
         generation,
         timestamp,
         info.serialised));
     }
 
-    void commit(::consensus::Index idx, bool generate_snapshot) override
+    void commit(
+      ::consensus::Index idx,
+      bool generate_snapshot,
+      const ccf::kv::ConsensusViewHistory& view_history) override
     {
       // If generate_snapshot is true, takes a snapshot of the key value store
       // at the last snapshottable index before idx, and schedule snapshot
@@ -673,11 +679,11 @@ namespace ccf
             LOG_FAIL_FMT(
               "Could not find scheduled snapshot time for idx {}", next.idx);
             scheduled_snapshot_times[next.idx] = timestamp;
-            schedule_snapshot(next.idx, timestamp);
+            schedule_snapshot(next.idx, timestamp, view_history);
           }
           else
           {
-            schedule_snapshot(next.idx, snapshot_time->second);
+            schedule_snapshot(next.idx, snapshot_time->second, view_history);
           }
           next.done = true;
         }
