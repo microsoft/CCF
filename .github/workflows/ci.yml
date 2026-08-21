@@ -15,9 +15,6 @@ permissions: read-all
 
 env:
   NPM_CONFIG_REGISTRY: https://packagefeedproxy.microsoft.io/npm/
-  # Rewrite npmjs lockfile URLs through the proxy without changing the proxy's
-  # own Azure Artifacts download URLs.
-  NPM_CONFIG_REPLACE_REGISTRY_HOST: npmjs
   # Add bounded retries for transient runner-to-package-storage route failures.
   NPM_CONFIG_FETCH_RETRIES: "5"
   NPM_CONFIG_FETCH_RETRY_FACTOR: "2"
