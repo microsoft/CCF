@@ -180,9 +180,20 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf_app.cmake)
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf_app.cmake DESTINATION cmake)
 install(
   DIRECTORY ${CCF_DIR}/src/rust/
-  DESTINATION share/ccf/rust
+  DESTINATION share/ccf/src/rust
   PATTERN target EXCLUDE
 )
+install(
+  DIRECTORY ${CCF_DIR}/src/cose/cose_rs/
+  DESTINATION share/ccf/src/cose/cose_rs
+  PATTERN target EXCLUDE
+)
+install(
+  DIRECTORY ${CCF_DIR}/3rdparty/internal/cose-openssl/
+  DESTINATION share/ccf/3rdparty/internal/cose-openssl
+  PATTERN target EXCLUDE
+)
+install(FILES ${CCF_DIR}/src/rust/app_bridge.cpp DESTINATION share/ccf/rust)
 install(
   FILES ${CCF_DIR}/samples/apps/main.cpp
   DESTINATION share/ccf/rust

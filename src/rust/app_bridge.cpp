@@ -72,10 +72,9 @@ namespace
         code_point = (code_point << 6) | (next & 0x3f);
       }
 
-      const auto minimum =
-        continuation_count == 1 ? 0x80u :
-        continuation_count == 2 ? 0x800u :
-                                  0x10000u;
+      const auto minimum = continuation_count == 1 ? 0x80u :
+        continuation_count == 2                    ? 0x800u :
+                                                     0x10000u;
       if (
         code_point < minimum || code_point > 0x10ffff ||
         (code_point >= 0xd800 && code_point <= 0xdfff))
@@ -330,8 +329,7 @@ extern "C"
 
     try
     {
-      auto state =
-        std::make_shared<CallbackState>(callback, drop, user_data);
+      auto state = std::make_shared<CallbackState>(callback, drop, user_data);
       registry->registry->add_endpoint(
         to_string(path),
         ccf::RESTVerb(to_string(method)),
@@ -384,9 +382,7 @@ extern "C"
   }
 
   int ccf_rust_request_path_param(
-    ccf_rust_endpoint_context* ctx,
-    ccf_rust_slice name,
-    ccf_rust_slice* value)
+    ccf_rust_endpoint_context* ctx, ccf_rust_slice name, ccf_rust_slice* value)
   {
     if (ctx == nullptr || value == nullptr || !is_valid_utf8(name))
     {
@@ -412,9 +408,7 @@ extern "C"
   }
 
   int ccf_rust_request_header(
-    ccf_rust_endpoint_context* ctx,
-    ccf_rust_slice name,
-    ccf_rust_slice* value)
+    ccf_rust_endpoint_context* ctx, ccf_rust_slice name, ccf_rust_slice* value)
   {
     if (ctx == nullptr || value == nullptr || !is_valid_utf8(name))
     {
@@ -438,8 +432,7 @@ extern "C"
     }
   }
 
-  int ccf_rust_response_status(
-    ccf_rust_endpoint_context* ctx, uint16_t status)
+  int ccf_rust_response_status(ccf_rust_endpoint_context* ctx, uint16_t status)
   {
     if (ctx == nullptr || status < 100 || status > 599)
     {
@@ -457,9 +450,7 @@ extern "C"
   }
 
   int ccf_rust_response_header(
-    ccf_rust_endpoint_context* ctx,
-    ccf_rust_slice name,
-    ccf_rust_slice value)
+    ccf_rust_endpoint_context* ctx, ccf_rust_slice name, ccf_rust_slice value)
   {
     if (
       ctx == nullptr || !is_valid_utf8(name) || name.len == 0 ||
@@ -503,8 +494,8 @@ extern "C"
     ccf_rust_slice message)
   {
     if (
-      ctx == nullptr || status < 400 || status > 599 ||
-      !is_valid_utf8(code) || code.len == 0 || !is_valid_utf8(message))
+      ctx == nullptr || status < 400 || status > 599 || !is_valid_utf8(code) ||
+      code.len == 0 || !is_valid_utf8(message))
     {
       return CCF_RUST_INVALID_ARGUMENT;
     }
@@ -605,9 +596,7 @@ extern "C"
   }
 
   int ccf_rust_kv_remove(
-    ccf_rust_endpoint_context* ctx,
-    ccf_rust_slice map_name,
-    ccf_rust_slice key)
+    ccf_rust_endpoint_context* ctx, ccf_rust_slice map_name, ccf_rust_slice key)
   {
     if (
       ctx == nullptr || !is_valid_utf8(map_name) || map_name.len == 0 ||

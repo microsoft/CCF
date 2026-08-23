@@ -57,19 +57,13 @@ extern "C"
   int ccf_rust_request_query(
     ccf_rust_endpoint_context* ctx, ccf_rust_slice* query);
   int ccf_rust_request_path_param(
-    ccf_rust_endpoint_context* ctx,
-    ccf_rust_slice name,
-    ccf_rust_slice* value);
+    ccf_rust_endpoint_context* ctx, ccf_rust_slice name, ccf_rust_slice* value);
   int ccf_rust_request_header(
-    ccf_rust_endpoint_context* ctx,
-    ccf_rust_slice name,
-    ccf_rust_slice* value);
+    ccf_rust_endpoint_context* ctx, ccf_rust_slice name, ccf_rust_slice* value);
 
   int ccf_rust_response_status(ccf_rust_endpoint_context* ctx, uint16_t status);
   int ccf_rust_response_header(
-    ccf_rust_endpoint_context* ctx,
-    ccf_rust_slice name,
-    ccf_rust_slice value);
+    ccf_rust_endpoint_context* ctx, ccf_rust_slice name, ccf_rust_slice value);
   int ccf_rust_response_body(
     ccf_rust_endpoint_context* ctx, ccf_rust_slice body);
   int ccf_rust_response_error(
@@ -102,5 +96,10 @@ extern "C"
   int ccf_rust_app_register(ccf_rust_registry* registry);
 
 #ifdef __cplusplus
+}
+
+namespace ccf
+{
+  inline constexpr uint32_t rust_abi_version = CCF_RUST_ABI_VERSION;
 }
 #endif

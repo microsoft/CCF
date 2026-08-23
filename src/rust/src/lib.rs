@@ -666,7 +666,9 @@ macro_rules! export_app {
         }
 
         #[unsafe(no_mangle)]
-        pub extern "C" fn ccf_rust_app_register(raw_registry: *mut $crate::RawRegistry) -> i32 {
+        pub unsafe extern "C" fn ccf_rust_app_register(
+            raw_registry: *mut $crate::RawRegistry,
+        ) -> i32 {
             let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 // SAFETY: The C++ bridge passes a live registry for this call.
                 let mut registry = unsafe { $crate::Registry::from_raw(raw_registry) }?;

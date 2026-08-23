@@ -17,8 +17,9 @@ Build
 -----
 
 Rust 1.90 and Cargo are required. A Rust application is a ``staticlib`` crate
-which depends on the installed or source-tree ``ccf-rs`` crate. Its CMake file
-registers the crate with ``add_ccf_rust_app``:
+which depends on the source-tree ``src/rust`` crate or the installed
+``share/ccf/src/rust`` crate. Its CMake file registers the crate with
+``add_ccf_rust_app``:
 
 .. code-block:: cmake
 

@@ -90,14 +90,12 @@ function(add_ccf_rust_app name)
   get_filename_component(MANIFEST_PATH ${PARSED_ARGS_MANIFEST_PATH} ABSOLUTE)
   get_filename_component(MANIFEST_DIR ${MANIFEST_PATH} DIRECTORY)
   set(CARGO_TARGET_DIR ${CMAKE_CURRENT_BINARY_DIR}/cargo/${name})
-  set(RUST_APP_LIB ${CARGO_TARGET_DIR}/${CARGO_PROFILE_DIR}/lib${RUST_LIB_NAME}.a)
-
-  file(
-    GLOB_RECURSE
-    RUST_APP_SOURCES
-    CONFIGURE_DEPENDS
-    ${MANIFEST_DIR}/src/*.rs
+  set(
+    RUST_APP_LIB
+    ${CARGO_TARGET_DIR}/${CARGO_PROFILE_DIR}/lib${RUST_LIB_NAME}.a
   )
+
+  file(GLOB_RECURSE RUST_APP_SOURCES CONFIGURE_DEPENDS ${MANIFEST_DIR}/src/*.rs)
 
   set(RUSTFLAGS "--remap-path-prefix=${MANIFEST_DIR}=APP")
   add_custom_command(
