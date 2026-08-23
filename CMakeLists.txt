@@ -178,6 +178,16 @@ install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/tools.cmake DESTINATION cmake)
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf_app.cmake)
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf_app.cmake DESTINATION cmake)
+install(
+  DIRECTORY ${CCF_DIR}/src/rust/
+  DESTINATION share/ccf/rust
+  PATTERN target EXCLUDE
+)
+install(
+  FILES ${CCF_DIR}/samples/apps/main.cpp
+  DESTINATION share/ccf/rust
+  RENAME app_main.cpp
+)
 
 # Copy and install CCF utilities
 set(CCF_UTILITIES keygenerator.sh submit_recovery_share.sh)

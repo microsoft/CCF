@@ -1,0 +1,634 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the Apache 2.0 License.
+
+#include "ccf/app_interface.h"
+#include "ccf/common_auth_policies.h"
+#include "ccf/http_status.h"
+#include "ccf/odata_error.h"
+#include "ccf/rust_ffi.h"
+#include "kv/untyped_map.h"
+
+#include <memory>
+#include <string>
+#include <unordered_map>
+#include <utility>
+#include <vector>
+
+namespace
+{
+  using RawMap = ccf::kv::untyped::Map;
+  class RustEndpointRegistry;
+
+  bool is_valid_utf8(const ccf_rust_slice& value)
+  {
+    if (value.data == nullptr)
+    {
+      return value.len == 0;
+    }
+
+    size_t i = 0;
+    while (i < value.len)
+    {
+      const auto first = value.data[i++];
+      if (first <= 0x7f)
+      {
+        continue;
+      }
+
+      size_t continuation_count = 0;
+      uint32_t code_point = 0;
+      if ((first & 0xe0) == 0xc0)
+      {
+        continuation_count = 1;
+        code_point = first & 0x1f;
+      }
+      else if ((first & 0xf0) == 0xe0)
+      {
+        continuation_count = 2;
+        code_point = first & 0x0f;
+      }
+      else if ((first & 0xf8) == 0xf0)
+      {
+        continuation_count = 3;
+        code_point = first & 0x07;
+      }
+      else
+      {
+        return false;
+      }
+
+      if (i + continuation_count > value.len)
+      {
+        return false;
+      }
+
+      for (size_t j = 0; j < continuation_count; ++j)
+      {
+        const auto next = value.data[i++];
+        if ((next & 0xc0) != 0x80)
+        {
+          return false;
+        }
+        code_point = (code_point << 6) | (next & 0x3f);
+      }
+
+      const auto minimum =
+        continuation_count == 1 ? 0x80u :
+        continuation_count == 2 ? 0x800u :
+                                  0x10000u;
+      if (
+        code_point < minimum || code_point > 0x10ffff ||
+        (code_point >= 0xd800 && code_point <= 0xdfff))
+      {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  bool is_valid_buffer(const ccf_rust_slice& value)
+  {
+    return value.data != nullptr || value.len == 0;
+  }
+
+  std::string to_string(const ccf_rust_slice& value)
+  {
+    if (value.len == 0)
+    {
+      return {};
+    }
+    return {reinterpret_cast<const char*>(value.data), value.len};
+  }
+
+  std::vector<uint8_t> to_bytes(const ccf_rust_slice& value)
+  {
+    if (value.len == 0)
+    {
+      return {};
+    }
+    return {value.data, value.data + value.len};
+  }
+
+  void set_slice(ccf_rust_slice* out, const std::vector<uint8_t>& value)
+  {
+    out->data = value.data();
+    out->len = value.size();
+  }
+
+  void set_slice(ccf_rust_slice* out, const std::string& value)
+  {
+    out->data = reinterpret_cast<const uint8_t*>(value.data());
+    out->len = value.size();
+  }
+
+  struct CallbackState
+  {
+    ccf_rust_endpoint_callback callback;
+    ccf_rust_drop_callback drop;
+    void* user_data;
+
+    ~CallbackState()
+    {
+      if (drop != nullptr)
+      {
+        drop(user_data);
+      }
+    }
+  };
+}
+
+struct ccf_rust_registry
+{
+  RustEndpointRegistry* registry;
+};
+
+struct ccf_rust_endpoint_context
+{
+  std::shared_ptr<ccf::RpcContext> rpc;
+  ccf::kv::ReadOnlyTx* tx;
+  ccf::kv::Tx* writable_tx;
+  std::unordered_map<std::string, RawMap::ReadOnlyHandle*> read_handles;
+  std::unordered_map<std::string, RawMap::Handle*> write_handles;
+  std::vector<uint8_t> scratch;
+
+  RawMap::ReadOnlyHandle* read_handle(const std::string& map_name)
+  {
+    const auto existing = read_handles.find(map_name);
+    if (existing != read_handles.end())
+    {
+      return existing->second;
+    }
+
+    auto* handle = tx->ro<RawMap>(map_name);
+    read_handles.emplace(map_name, handle);
+    return handle;
+  }
+
+  RawMap::Handle* write_handle(const std::string& map_name)
+  {
+    if (writable_tx == nullptr)
+    {
+      return nullptr;
+    }
+
+    const auto existing = write_handles.find(map_name);
+    if (existing != write_handles.end())
+    {
+      return existing->second;
+    }
+
+    auto* handle = writable_tx->rw<RawMap>(map_name);
+    write_handles.emplace(map_name, handle);
+    read_handles[map_name] = handle;
+    return handle;
+  }
+};
+
+namespace
+{
+  class RustEndpointRegistry : public ccf::UserEndpointRegistry
+  {
+  public:
+    using ccf::UserEndpointRegistry::UserEndpointRegistry;
+
+    void init_handlers() override
+    {
+      CommonEndpointRegistry::init_handlers();
+      if (ccf_rust_app_abi_version() != CCF_RUST_ABI_VERSION)
+      {
+        throw std::logic_error("Rust application ABI version mismatch");
+      }
+
+      ccf_rust_registry registry{this};
+      if (ccf_rust_app_register(&registry) != CCF_RUST_OK)
+      {
+        throw std::logic_error("Rust application endpoint registration failed");
+      }
+    }
+
+    void add_endpoint(
+      const std::string& path,
+      const ccf::RESTVerb& method,
+      ccf_rust_auth auth,
+      bool read_only,
+      const std::shared_ptr<CallbackState>& state)
+    {
+      ccf::AuthnPolicies policies;
+      if (auth == CCF_RUST_AUTH_USER_CERT)
+      {
+        policies = {ccf::user_cert_auth_policy};
+      }
+
+      if (read_only)
+      {
+        make_read_only_endpoint(
+          path,
+          method,
+          [state](ccf::endpoints::ReadOnlyEndpointContext& ctx) {
+            ccf_rust_endpoint_context rust_ctx{
+              ctx.rpc_ctx, &ctx.tx, nullptr, {}, {}, {}};
+            try
+            {
+              if (state->callback(state->user_data, &rust_ctx) != CCF_RUST_OK)
+              {
+                ctx.rpc_ctx->set_error(
+                  HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                  ccf::errors::InternalError,
+                  "Rust endpoint execution failed");
+              }
+            }
+            catch (const std::exception& e)
+            {
+              ctx.rpc_ctx->set_error(
+                HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                ccf::errors::InternalError,
+                fmt::format("Rust endpoint bridge failed: {}", e.what()));
+            }
+            catch (...)
+            {
+              ctx.rpc_ctx->set_error(
+                HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                ccf::errors::InternalError,
+                "Rust endpoint bridge failed");
+            }
+          },
+          policies)
+          .install();
+      }
+      else
+      {
+        make_endpoint(
+          path,
+          method,
+          [state](ccf::endpoints::EndpointContext& ctx) {
+            ccf_rust_endpoint_context rust_ctx{
+              ctx.rpc_ctx, &ctx.tx, &ctx.tx, {}, {}, {}};
+            try
+            {
+              if (state->callback(state->user_data, &rust_ctx) != CCF_RUST_OK)
+              {
+                ctx.rpc_ctx->set_error(
+                  HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                  ccf::errors::InternalError,
+                  "Rust endpoint execution failed");
+              }
+            }
+            catch (const std::exception& e)
+            {
+              ctx.rpc_ctx->set_error(
+                HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                ccf::errors::InternalError,
+                fmt::format("Rust endpoint bridge failed: {}", e.what()));
+            }
+            catch (...)
+            {
+              ctx.rpc_ctx->set_error(
+                HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                ccf::errors::InternalError,
+                "Rust endpoint bridge failed");
+            }
+          },
+          policies)
+          .install();
+      }
+    }
+  };
+}
+
+extern "C"
+{
+  uint32_t ccf_rust_get_abi_version(void)
+  {
+    return CCF_RUST_ABI_VERSION;
+  }
+
+  int ccf_rust_register_endpoint(
+    ccf_rust_registry* registry,
+    ccf_rust_slice path,
+    ccf_rust_slice method,
+    ccf_rust_auth auth,
+    int read_only,
+    ccf_rust_endpoint_callback callback,
+    ccf_rust_drop_callback drop,
+    void* user_data)
+  {
+    if (
+      registry == nullptr || registry->registry == nullptr ||
+      !is_valid_utf8(path) || path.len == 0 || !is_valid_utf8(method) ||
+      method.len == 0 || callback == nullptr ||
+      (auth != CCF_RUST_AUTH_NONE && auth != CCF_RUST_AUTH_USER_CERT) ||
+      (read_only != 0 && read_only != 1))
+    {
+      return CCF_RUST_INVALID_ARGUMENT;
+    }
+
+    try
+    {
+      auto state =
+        std::make_shared<CallbackState>(callback, drop, user_data);
+      registry->registry->add_endpoint(
+        to_string(path),
+        ccf::RESTVerb(to_string(method)),
+        auth,
+        read_only == 1,
+        state);
+      return CCF_RUST_OK;
+    }
+    catch (...)
+    {
+      return CCF_RUST_INTERNAL_ERROR;
+    }
+  }
+
+  int ccf_rust_request_body(
+    ccf_rust_endpoint_context* ctx, ccf_rust_slice* body)
+  {
+    if (ctx == nullptr || body == nullptr)
+    {
+      return CCF_RUST_INVALID_ARGUMENT;
+    }
+    try
+    {
+      set_slice(body, ctx->rpc->get_request_body());
+      return CCF_RUST_OK;
+    }
+    catch (...)
+    {
+      return CCF_RUST_INTERNAL_ERROR;
+    }
+  }
+
+  int ccf_rust_request_query(
+    ccf_rust_endpoint_context* ctx, ccf_rust_slice* query)
+  {
+    if (ctx == nullptr || query == nullptr)
+    {
+      return CCF_RUST_INVALID_ARGUMENT;
+    }
+    try
+    {
+      set_slice(query, ctx->rpc->get_request_query());
+      return CCF_RUST_OK;
+    }
+    catch (...)
+    {
+      return CCF_RUST_INTERNAL_ERROR;
+    }
+  }
+
+  int ccf_rust_request_path_param(
+    ccf_rust_endpoint_context* ctx,
+    ccf_rust_slice name,
+    ccf_rust_slice* value)
+  {
+    if (ctx == nullptr || value == nullptr || !is_valid_utf8(name))
+    {
+      return CCF_RUST_INVALID_ARGUMENT;
+    }
+    try
+    {
+      const auto& params = ctx->rpc->get_decoded_request_path_params();
+      const auto it = params.find(to_string(name));
+      if (it == params.end())
+      {
+        return CCF_RUST_NOT_FOUND;
+      }
+      ctx->scratch.assign(it->second.begin(), it->second.end());
+      set_slice(value, ctx->scratch);
+      return CCF_RUST_OK;
+    }
+    catch (...)
+    {
+      return CCF_RUST_INTERNAL_ERROR;
+    }
+  }
+
+  int ccf_rust_request_header(
+    ccf_rust_endpoint_context* ctx,
+    ccf_rust_slice name,
+    ccf_rust_slice* value)
+  {
+    if (ctx == nullptr || value == nullptr || !is_valid_utf8(name))
+    {
+      return CCF_RUST_INVALID_ARGUMENT;
+    }
+    try
+    {
+      const auto header = ctx->rpc->get_request_header(to_string(name));
+      if (!header.has_value())
+      {
+        return CCF_RUST_NOT_FOUND;
+      }
+      ctx->scratch.assign(header->begin(), header->end());
+      set_slice(value, ctx->scratch);
+      return CCF_RUST_OK;
+    }
+    catch (...)
+    {
+      return CCF_RUST_INTERNAL_ERROR;
+    }
+  }
+
+  int ccf_rust_response_status(
+    ccf_rust_endpoint_context* ctx, uint16_t status)
+  {
+    if (ctx == nullptr || status < 100 || status > 599)
+    {
+      return CCF_RUST_INVALID_ARGUMENT;
+    }
+    try
+    {
+      ctx->rpc->set_response_status(status);
+      return CCF_RUST_OK;
+    }
+    catch (...)
+    {
+      return CCF_RUST_INTERNAL_ERROR;
+    }
+  }
+
+  int ccf_rust_response_header(
+    ccf_rust_endpoint_context* ctx,
+    ccf_rust_slice name,
+    ccf_rust_slice value)
+  {
+    if (
+      ctx == nullptr || !is_valid_utf8(name) || name.len == 0 ||
+      !is_valid_utf8(value))
+    {
+      return CCF_RUST_INVALID_ARGUMENT;
+    }
+    try
+    {
+      ctx->rpc->set_response_header(to_string(name), to_string(value));
+      return CCF_RUST_OK;
+    }
+    catch (...)
+    {
+      return CCF_RUST_INTERNAL_ERROR;
+    }
+  }
+
+  int ccf_rust_response_body(
+    ccf_rust_endpoint_context* ctx, ccf_rust_slice body)
+  {
+    if (ctx == nullptr || !is_valid_buffer(body))
+    {
+      return CCF_RUST_INVALID_ARGUMENT;
+    }
+    try
+    {
+      ctx->rpc->set_response_body(to_bytes(body));
+      return CCF_RUST_OK;
+    }
+    catch (...)
+    {
+      return CCF_RUST_INTERNAL_ERROR;
+    }
+  }
+
+  int ccf_rust_response_error(
+    ccf_rust_endpoint_context* ctx,
+    uint16_t status,
+    ccf_rust_slice code,
+    ccf_rust_slice message)
+  {
+    if (
+      ctx == nullptr || status < 400 || status > 599 ||
+      !is_valid_utf8(code) || code.len == 0 || !is_valid_utf8(message))
+    {
+      return CCF_RUST_INVALID_ARGUMENT;
+    }
+    try
+    {
+      ctx->rpc->set_error(
+        static_cast<ccf::http_status>(status),
+        to_string(code),
+        to_string(message));
+      return CCF_RUST_OK;
+    }
+    catch (...)
+    {
+      return CCF_RUST_INTERNAL_ERROR;
+    }
+  }
+
+  int ccf_rust_kv_get(
+    ccf_rust_endpoint_context* ctx,
+    ccf_rust_slice map_name,
+    ccf_rust_slice key,
+    ccf_rust_slice* value)
+  {
+    if (
+      ctx == nullptr || value == nullptr || !is_valid_utf8(map_name) ||
+      map_name.len == 0 || !is_valid_buffer(key))
+    {
+      return CCF_RUST_INVALID_ARGUMENT;
+    }
+    try
+    {
+      const auto result =
+        ctx->read_handle(to_string(map_name))->get(to_bytes(key));
+      if (!result.has_value())
+      {
+        return CCF_RUST_NOT_FOUND;
+      }
+      ctx->scratch = std::move(result.value());
+      set_slice(value, ctx->scratch);
+      return CCF_RUST_OK;
+    }
+    catch (...)
+    {
+      return CCF_RUST_INTERNAL_ERROR;
+    }
+  }
+
+  int ccf_rust_kv_has(
+    ccf_rust_endpoint_context* ctx,
+    ccf_rust_slice map_name,
+    ccf_rust_slice key,
+    int* present)
+  {
+    if (
+      ctx == nullptr || present == nullptr || !is_valid_utf8(map_name) ||
+      map_name.len == 0 || !is_valid_buffer(key))
+    {
+      return CCF_RUST_INVALID_ARGUMENT;
+    }
+    try
+    {
+      *present =
+        ctx->read_handle(to_string(map_name))->has(to_bytes(key)) ? 1 : 0;
+      return CCF_RUST_OK;
+    }
+    catch (...)
+    {
+      return CCF_RUST_INTERNAL_ERROR;
+    }
+  }
+
+  int ccf_rust_kv_put(
+    ccf_rust_endpoint_context* ctx,
+    ccf_rust_slice map_name,
+    ccf_rust_slice key,
+    ccf_rust_slice value)
+  {
+    if (
+      ctx == nullptr || !is_valid_utf8(map_name) || map_name.len == 0 ||
+      !is_valid_buffer(key) || !is_valid_buffer(value))
+    {
+      return CCF_RUST_INVALID_ARGUMENT;
+    }
+    try
+    {
+      auto* handle = ctx->write_handle(to_string(map_name));
+      if (handle == nullptr)
+      {
+        return CCF_RUST_READ_ONLY;
+      }
+      handle->put(to_bytes(key), to_bytes(value));
+      return CCF_RUST_OK;
+    }
+    catch (...)
+    {
+      return CCF_RUST_INTERNAL_ERROR;
+    }
+  }
+
+  int ccf_rust_kv_remove(
+    ccf_rust_endpoint_context* ctx,
+    ccf_rust_slice map_name,
+    ccf_rust_slice key)
+  {
+    if (
+      ctx == nullptr || !is_valid_utf8(map_name) || map_name.len == 0 ||
+      !is_valid_buffer(key))
+    {
+      return CCF_RUST_INVALID_ARGUMENT;
+    }
+    try
+    {
+      auto* handle = ctx->write_handle(to_string(map_name));
+      if (handle == nullptr)
+      {
+        return CCF_RUST_READ_ONLY;
+      }
+      handle->remove(to_bytes(key));
+      return CCF_RUST_OK;
+    }
+    catch (...)
+    {
+      return CCF_RUST_INTERNAL_ERROR;
+    }
+  }
+}
+
+namespace ccf
+{
+  std::unique_ptr<ccf::endpoints::EndpointRegistry> make_user_endpoints(
+    ccf::AbstractNodeContext& context)
+  {
+    return std::make_unique<RustEndpointRegistry>(context);
+  }
+}
