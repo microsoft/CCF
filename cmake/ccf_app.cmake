@@ -97,7 +97,10 @@ function(add_ccf_rust_app name)
 
   file(GLOB_RECURSE RUST_APP_SOURCES CONFIGURE_DEPENDS ${MANIFEST_DIR}/src/*.rs)
 
-  set(RUSTFLAGS "--remap-path-prefix=${MANIFEST_DIR}=APP")
+  set(
+    RUSTFLAGS
+    "$ENV{RUSTFLAGS} --remap-path-prefix=${MANIFEST_DIR}=APP --remap-path-prefix=${CCF_DIR}=CCF --remap-path-prefix=$ENV{HOME}/.cargo=CARGO"
+  )
   add_custom_command(
     OUTPUT ${RUST_APP_LIB}
     COMMAND ${CMAKE_COMMAND} -E make_directory ${CARGO_TARGET_DIR}

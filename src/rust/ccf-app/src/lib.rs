@@ -42,6 +42,9 @@ enum RawResult {
     InternalError = 4,
 }
 
+#[doc(hidden)]
+pub const INTERNAL_ERROR_CODE: i32 = RawResult::InternalError as i32;
+
 #[repr(i32)]
 #[derive(Clone, Copy)]
 enum RawAuth {
@@ -676,7 +679,7 @@ macro_rules! export_app {
             }));
             match result {
                 Ok(Ok(())) => 0,
-                _ => 4,
+                _ => $crate::INTERNAL_ERROR_CODE,
             }
         }
     };
