@@ -4,9 +4,9 @@
 #include "ccf/app_interface.h"
 #include "ccf/common_auth_policies.h"
 #include "ccf/http_status.h"
+#include "ccf/kv/map.h"
 #include "ccf/odata_error.h"
 #include "ccf/rust_ffi.h"
-#include "kv/untyped_map.h"
 
 #include <memory>
 #include <string>
@@ -16,7 +16,8 @@
 
 namespace
 {
-  using RawMap = ccf::kv::untyped::Map;
+  using RawMap =
+    ccf::kv::RawCopySerialisedMap<ccf::ByteVector, ccf::ByteVector>;
   class RustEndpointRegistry;
 
   bool is_valid_utf8(const ccf_rust_slice& value)
