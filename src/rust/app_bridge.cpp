@@ -101,7 +101,7 @@ namespace
     return {reinterpret_cast<const char*>(value.data), value.len};
   }
 
-  std::vector<uint8_t> to_bytes(const ccf_rust_slice& value)
+  RawMap::Handle::KeyType to_bytes(const ccf_rust_slice& value)
   {
     if (value.len == 0)
     {
@@ -110,13 +110,17 @@ namespace
     return {value.data, value.data + value.len};
   }
 
-  void set_slice(ccf_rust_slice* out, const std::vector<uint8_t>& value)
+  std::vector<uint8_t> to_vector(const ccf_rust_slice& value)
   {
-    out->data = value.data();
-    out->len = value.size();
+    if (value.len == 0)
+    {
+      return {};
+    }
+    return {value.data, value.data + value.len};
   }
 
-  void set_slice(ccf_rust_slice* out, const std::string& value)
+  template <typename T>
+  void set_slice(ccf_rust_slice* out, const T& value)
   {
     out->data = reinterpret_cast<const uint8_t*>(value.data());
     out->len = value.size();
@@ -127,10 +131,11 @@ namespace
     ccf_rust_endpoint_callback callback;
     ccf_rust_drop_callback drop;
     void* user_data;
+    bool owns_user_data = false;
 
     ~CallbackState()
     {
-      if (drop != nullptr)
+      if (owns_user_data && drop != nullptr)
       {
         drop(user_data);
       }
@@ -150,7 +155,7 @@ struct ccf_rust_endpoint_context
   ccf::kv::Tx* writable_tx;
   std::unordered_map<std::string, RawMap::ReadOnlyHandle*> read_handles;
   std::unordered_map<std::string, RawMap::Handle*> write_handles;
-  std::vector<uint8_t> scratch;
+  RawMap::Handle::ValueType scratch;
 
   RawMap::ReadOnlyHandle* read_handle(const std::string& map_name)
   {
@@ -333,6 +338,7 @@ extern "C"
         auth,
         read_only == 1,
         state);
+      state->owns_user_data = true;
       return CCF_RUST_OK;
     }
     catch (...)
@@ -394,7 +400,8 @@ extern "C"
       {
         return CCF_RUST_NOT_FOUND;
       }
-      ctx->scratch.assign(it->second.begin(), it->second.end());
+      ctx->scratch.clear();
+      ctx->scratch.append(it->second.begin(), it->second.end());
       set_slice(value, ctx->scratch);
       return CCF_RUST_OK;
     }
@@ -420,7 +427,8 @@ extern "C"
       {
         return CCF_RUST_NOT_FOUND;
       }
-      ctx->scratch.assign(header->begin(), header->end());
+      ctx->scratch.clear();
+      ctx->scratch.append(header->begin(), header->end());
       set_slice(value, ctx->scratch);
       return CCF_RUST_OK;
     }
@@ -479,7 +487,7 @@ extern "C"
     }
     try
     {
-      ctx->rpc->set_response_body(to_bytes(body));
+      ctx->rpc->set_response_body(to_vector(body));
       return CCF_RUST_OK;
     }
     catch (...)

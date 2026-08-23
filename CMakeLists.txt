@@ -1294,6 +1294,13 @@ if(BUILD_TESTS)
     ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
   )
 
+  add_e2e_test(
+    NAME basic_rust
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/basic_rust.py
+    BUCKET bucket_c
+    ADDITIONAL_ARGS --package samples/apps/basic_rust/basic_rust
+  )
+
   set(
     RBAC_CONSTITUTION_ARGS
     --constitution
