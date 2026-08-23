@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-use ccf_rs::{Auth, BridgeError, EndpointError, EndpointResult, Registry};
+use ccf_app::{Auth, BridgeError, EndpointError, EndpointResult, Registry};
 
 const RECORDS: &str = "records";
 
@@ -50,4 +50,4 @@ fn register(registry: &mut Registry) -> Result<(), BridgeError> {
     Ok(())
 }
 
-ccf_rs::export_app!(register);
+ccf_app::export_app!(register);

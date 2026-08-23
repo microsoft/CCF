@@ -5,10 +5,3 @@ version = 4
 [[package]]
 name = "ccf-app"
 version = "0.1.0"
-
-[[package]]
-name = "ccf-basic-rust"
-version = "0.1.0"
-dependencies = [
- "ccf-app",
-]

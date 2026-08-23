@@ -7,7 +7,7 @@ edition = "2024"
 crate-type = ["staticlib"]
 
 [dependencies]
-ccf-rs = { path = "../../../src/rust" }
+ccf-app = { path = "../../../src/rust/ccf-app" }
 
 [profile.release]
 lto = true

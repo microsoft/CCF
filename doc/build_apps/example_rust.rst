@@ -17,8 +17,8 @@ Build
 -----
 
 Rust 1.90 and Cargo are required. A Rust application is a ``staticlib`` crate
-which depends on the source-tree ``src/rust`` crate or the installed
-``share/ccf/src/rust`` crate. Its CMake file registers the crate with
+which depends on the source-tree ``src/rust/ccf-app`` crate or the installed
+``share/ccf/src/rust/ccf-app`` crate. Its CMake file registers the crate with
 ``add_ccf_rust_app``:
 
 .. code-block:: cmake
@@ -36,7 +36,7 @@ file are build dependencies. The application should commit ``Cargo.lock`` and
 pin a Rust toolchain for reproducible builds.
 
 The complete records example is in :ccf_repo:`samples/apps/basic_rust`. It
-exports a registration function with ``ccf_rs::export_app!`` and registers
+exports a registration function with ``ccf_app::export_app!`` and registers
 handlers through ``Registry::read_write`` and ``Registry::read_only``.
 
 Endpoint execution
