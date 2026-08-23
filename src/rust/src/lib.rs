@@ -539,10 +539,8 @@ unsafe extern "C" fn invoke_handler(
 
     // SAFETY: The registry owns this Handler until it invokes drop_handler.
     let handler = unsafe { &*(user_data.cast::<Handler>()) };
-    let raw = match NonNull::new(raw_context) {
-        Some(raw) => raw,
-        None => return RawResult::InvalidArgument as i32,
-    };
+    // SAFETY: The null guard above validated raw_context.
+    let raw = unsafe { NonNull::new_unchecked(raw_context) };
 
     let result = catch_unwind(AssertUnwindSafe(|| match handler {
         Handler::Read(handler) => handler(&mut ReadOnlyContext(Context {
@@ -705,7 +703,7 @@ mod tests {
     }
 
     #[test]
-    fn contains_handler_panics() {
+    fn panicking_handler_returns_internal_error() {
         let handler = Box::new(Handler::Write(Box::new(|_| panic!("test panic"))));
         let user_data = Box::into_raw(handler).cast::<c_void>();
         let raw_context = NonNull::<RawEndpointContext>::dangling().as_ptr();
