@@ -17,7 +17,7 @@
 namespace
 {
   using RawMap =
-    ccf::kv::RawCopySerialisedMap<ccf::ByteVector, ccf::ByteVector>;
+    ccf::kv::RawCopySerialisedMap<std::vector<uint8_t>, std::vector<uint8_t>>;
   class RustEndpointRegistry;
 
   bool is_valid_utf8(const ccf_rust_slice& value)
@@ -398,7 +398,8 @@ extern "C"
         return CCF_RUST_NOT_FOUND;
       }
       ctx->scratch.clear();
-      ctx->scratch.append(it->second.begin(), it->second.end());
+      ctx->scratch.insert(
+        ctx->scratch.end(), it->second.begin(), it->second.end());
       set_slice(value, ctx->scratch);
       return CCF_RUST_OK;
     }
@@ -423,7 +424,7 @@ extern "C"
         return CCF_RUST_NOT_FOUND;
       }
       ctx->scratch.clear();
-      ctx->scratch.append(header->begin(), header->end());
+      ctx->scratch.insert(ctx->scratch.end(), header->begin(), header->end());
       set_slice(value, ctx->scratch);
       return CCF_RUST_OK;
     }
