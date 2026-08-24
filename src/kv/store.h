@@ -43,7 +43,6 @@ namespace ccf::kv
 
     ccf::pal::Mutex version_lock;
     std::atomic<Version> version = 0;
-    Version last_new_map = ccf::kv::NoVersion;
     std::atomic<Version> compacted = 0;
 
     // Calls to Store::commit are made atomic by taking this lock.
@@ -78,7 +77,6 @@ namespace ccf::kv
       pending_txs.clear();
 
       version = 0;
-      last_new_map = ccf::kv::NoVersion;
       compacted = 0;
       term_of_next_version = 0;
       term_of_last_version = 0;
@@ -139,7 +137,7 @@ namespace ccf::kv
 
       auto c = apply_changes(
         changes,
-        [v](bool) { return std::make_tuple(v, v - 1); },
+        [term, v]() { return ccf::TxID(term, v); },
         hooks,
         new_maps,
         std::nullopt,
@@ -530,7 +528,7 @@ namespace ccf::kv
         bool track_deletes_on_missing_keys = false;
         auto r = apply_changes(
           changes,
-          [](bool) { return std::make_tuple(NoVersion, NoVersion); },
+          [term, v]() { return ccf::TxID(term, v); },
           hooks,
           new_maps,
           std::nullopt,
@@ -913,13 +911,6 @@ namespace ccf::kv
       return current_txid_unsafe();
     }
 
-    std::pair<TxID, Term> current_txid_and_commit_term() override
-    {
-      // Must lock in case the version or commit term is being incremented.
-      std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
-      return {current_txid_unsafe(), term_of_next_version};
-    }
-
     Version compacted_version() override
     {
       return compacted;
@@ -1146,26 +1137,6 @@ namespace ccf::kv
     {
       std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
       return rollback_count == count;
-    }
-
-    std::tuple<Version, Version> next_version(bool commit_new_map) override
-    {
-      std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
-      Version v = next_version_unsafe();
-
-      auto previous_last_new_map = last_new_map;
-      if (commit_new_map)
-      {
-        last_new_map = v;
-      }
-
-      return std::make_tuple(v, previous_last_new_map);
-    }
-
-    Version next_version() override
-    {
-      std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
-      return next_version_unsafe();
     }
 
     TxID next_txid() override

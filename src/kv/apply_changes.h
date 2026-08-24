@@ -16,17 +16,14 @@ namespace ccf::kv
   using MapCollection = std::map<std::string, std::shared_ptr<AbstractMap>>;
 
   // Atomically checks for conflicts then applies the writes in the given change
-  // sets to their underlying Maps. Calls f() at most once, iff the writes are
-  // applied, to retrieve a unique Version for the write set and return the max
-  // version which can have a conflict with the transaction.
+  // sets to their underlying Maps. Calls tx_id_resolver() at most once, iff the
+  // writes are applied, to retrieve a unique TxID for the write set.
 
-  using VersionLastNewMap = Version;
-  using VersionResolver = std::function<std::tuple<Version, VersionLastNewMap>(
-    bool tx_contains_new_map)>;
+  using TxIDResolver = std::function<ccf::TxID()>;
 
-  static inline std::optional<Version> apply_changes(
+  static inline std::optional<ccf::TxID> apply_changes(
     OrderedChanges& changes,
-    VersionResolver version_resolver_fn,
+    TxIDResolver tx_id_resolver,
     ccf::kv::ConsensusHookPtrs& hooks,
     const MapCollection& new_maps,
     const std::optional<Version>& new_maps_conflict_version,
@@ -37,7 +34,7 @@ namespace ccf::kv
     // and possibly committed, and then all maps with pending writes are
     // unlocked. This is to prevent transactions from being committed in an
     // interleaved fashion.
-    Version version = NoVersion;
+    ccf::TxID tx_id;
     bool has_writes = false;
 
     std::map<std::string, std::unique_ptr<AbstractCommitter>> views;
@@ -117,9 +114,7 @@ namespace ccf::kv
     if (ok && has_writes)
     {
       // Get the version number to be used for this commit.
-      ccf::kv::Version version_last_new_map = 0;
-      std::tie(version, version_last_new_map) =
-        version_resolver_fn(!new_maps.empty());
+      tx_id = tx_id_resolver();
 
       // Transfer ownership of these new maps to their target stores, iff we
       // have writes to them
@@ -128,13 +123,13 @@ namespace ccf::kv
         const auto it = views.find(map_name);
         if (it != views.end() && it->second->has_writes())
         {
-          map_ptr->get_store()->add_dynamic_map(version, map_ptr);
+          map_ptr->get_store()->add_dynamic_map(tx_id.seqno, map_ptr);
         }
       }
 
       for (auto& [view_name, view_ptr] : views)
       {
-        view_ptr->commit(version, track_deletes_on_missing_keys);
+        view_ptr->commit(tx_id.seqno, track_deletes_on_missing_keys);
       }
 
       // Collect ConsensusHooks
@@ -158,6 +153,6 @@ namespace ccf::kv
       return std::nullopt;
     }
 
-    return version;
+    return tx_id;
   }
 }

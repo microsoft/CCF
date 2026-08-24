@@ -696,13 +696,10 @@ namespace ccf::kv
     virtual void lock_map_set() = 0;
     virtual void unlock_map_set() = 0;
 
-    virtual Version next_version() = 0;
-    virtual std::tuple<Version, Version> next_version(bool commit_new_map) = 0;
     virtual ccf::TxID next_txid() = 0;
 
     virtual Version current_version() = 0;
     virtual ccf::TxID current_txid() = 0;
-    virtual std::pair<ccf::TxID, Term> current_txid_and_commit_term() = 0;
 
     virtual Version compacted_version() = 0;
     virtual Term commit_view() = 0;

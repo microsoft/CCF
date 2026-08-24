@@ -21,7 +21,6 @@ namespace ccf::kv
     // Note: read_txid version is set to NoVersion for the first transaction in
     // the service, before anything has been applied to the KV.
     std::optional<TxID> read_txid = std::nullopt;
-    ccf::View commit_view = ccf::VIEW_UNKNOWN;
 
     std::map<std::string, std::shared_ptr<AbstractMap>> created_maps;
   };

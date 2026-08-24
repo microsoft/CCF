@@ -58,9 +58,7 @@ namespace ccf::kv
       // rather than earlier, at Tx construction. This is to minimise the
       // window during which concurrent transactions can write to the same map
       // and cause this transaction to conflict on commit.
-      auto p = pimpl->store->current_txid_and_commit_term();
-      read_txid = p.first;
-      pimpl->commit_view = p.second;
+      read_txid = pimpl->store->current_txid();
     }
 
     auto abstract_map = pimpl->store->get_map(read_txid->seqno, map_name);
