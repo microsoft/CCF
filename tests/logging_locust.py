@@ -1,33 +1,31 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-"""Blocking-on-commit logging benchmark authenticated with bearer JWTs."""
+"""Blocking-on-commit logging benchmark authenticated with user certificates."""
 
 import argparse
 
 import infra.e2e_args
-import infra.jwt_issuer
 import infra.locust_benchmark
 
 LOCUST_FILE_NAME = "logging_locustfile.py"
 DEFAULT_KEY_SPACE_SIZE = 1000
 
 
-def prepare_workload(args, network, _primary) -> infra.locust_benchmark.Workload:
-    jwt_issuer = infra.jwt_issuer.JwtIssuer("https://example.issuer")
-    jwt_issuer.register(network)
-    jwt = jwt_issuer.issue_jwt()
+def prepare_workload(args, _network, primary) -> infra.locust_benchmark.Workload:
+    session_auth = primary.session_auth("user0")["session_auth"]
     return infra.locust_benchmark.Workload(
         locust_file_name=LOCUST_FILE_NAME,
         arguments=(
             "--authentication",
-            "jwt",
+            "certificate",
+            "--cert",
+            session_auth.cert,
+            "--key",
+            session_auth.key,
             "--key-space-size",
             str(args.key_space_size),
         ),
-        # The token is inherited by Locust workers but never appears in the
-        # process command line or the logged command.
-        environment={infra.locust_benchmark.JWT_ENVIRONMENT_VARIABLE: jwt},
     )
 
 
