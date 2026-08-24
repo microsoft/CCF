@@ -2239,7 +2239,9 @@ class Network:
             # the snapshot flag after the request commits. In that case the chunk
             # ends immediately before the request; otherwise it ends at a later
             # signature. The preceding seqno is covered in either ordering.
-            target_seqno = snapshot_txid.seqno - 1
+            target_seqno = snapshot_txid.seqno
+            if target_seqno > 1:
+                target_seqno -= 1
         else:
             proposal = self.consortium.force_ledger_chunk(node)
             target_seqno = proposal.completed_seqno
