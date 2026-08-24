@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - `ccf::SessionContext::caller_cert` is now immutable, and its SHA-256 digest is cached per session to avoid repeated hashing during user and member certificate authentication (#8164).
+- Clang builds now enable compile-time thread safety analysis for CCF's annotated PAL mutexes and condition-variable waits, with reusable annotations available from `ccf/ds/thread_safety.h` (#8180).
 
 ### Fixed
 
