@@ -6,11 +6,6 @@ set -exo pipefail
 
 H2SPEC_VERSION="v2.6.0"
 
-DNF_OPTIONS=(-y)
-if [[ ${CCF_PACKAGE_CACHE_ONLY:-0} == 1 ]]; then
-    DNF_OPTIONS+=(--cacheonly)
-fi
-
 retry() {
     local description=$1
     shift
@@ -58,7 +53,7 @@ retry() {
 
 install_source_control() {
     # Source control and tools used by this script.
-    dnf "${DNF_OPTIONS[@]}" install  \
+    dnf -y install  \
         git  \
         ca-certificates  \
         curl  \
@@ -70,7 +65,7 @@ install_build_dependencies() {
     # To build CCF. Azure Linux 4 uses more explicit package names than Azure
     # Linux 3: build-essential is not present, and the curl/nghttp2 development
     # packages are named libcurl-devel and libnghttp2-devel.
-    dnf "${DNF_OPTIONS[@]}" install  \
+    dnf -y install  \
         gcc  \
         gcc-c++  \
         make  \
@@ -93,21 +88,7 @@ install_build_dependencies() {
         libstdc++-devel
     # Azure Linux 4 beta does not publish libbacktrace-static yet; the Azure
     # Linux 3.0 RPM contains only backtrace.h and libbacktrace.a and works here.
-    local libbacktrace_rpm=libbacktrace-static-13.2.0-7.azl3.x86_64.rpm
-    local libbacktrace_path="${CCF_PACKAGE_CACHE_DIR:-/tmp}/$libbacktrace_rpm"
-    if [[ ! -f "$libbacktrace_path" ]]; then
-        if [[ ${CCF_PACKAGE_CACHE_ONLY:-0} == 1 ]]; then
-            echo "Cached package is missing: $libbacktrace_path" >&2
-            return 1
-        fi
-        local libbacktrace_tmp="${libbacktrace_path}.tmp"
-        rm -f "$libbacktrace_tmp"
-        curl --fail --location \
-            --output "$libbacktrace_tmp" \
-            "https://packages.microsoft.com/azurelinux/3.0/prod/base/x86_64/Packages/l/$libbacktrace_rpm"
-        mv "$libbacktrace_tmp" "$libbacktrace_path"
-    fi
-    dnf "${DNF_OPTIONS[@]}" install "$libbacktrace_path"
+    dnf install -y https://packages.microsoft.com/azurelinux/3.0/prod/base/x86_64/Packages/l/libbacktrace-static-13.2.0-7.azl3.x86_64.rpm
 }
 
 install_test_dependencies() {
@@ -124,7 +105,7 @@ install_test_dependencies() {
         bind-utils
         strace
     )
-    dnf "${DNF_OPTIONS[@]}" install "${packages[@]}" &&
+    dnf -y install "${packages[@]}" &&
     gem install cddl
 }
 
@@ -143,7 +124,7 @@ install_h2spec() {
 install_node() {
     # The Azure Linux 4 package repositories currently provide Node.js 22. The
     # JS packages in this repository require Node.js >= 20.
-    dnf "${DNF_OPTIONS[@]}" install  \
+    dnf -y install  \
         nodejs  \
         nodejs-npm
 
@@ -163,7 +144,7 @@ install_packaging_and_python() {
         python3-pip
         python3-devel
     )
-    dnf "${DNF_OPTIONS[@]}" install "${packages[@]}"
+    dnf -y install "${packages[@]}"
 
     if ! python3 -m pip install uv==0.11.19 --break-system-packages; then
         python3 -m pip install uv==0.11.19

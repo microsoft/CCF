@@ -6,12 +6,10 @@ set -exo pipefail
 
 H2SPEC_VERSION="v2.6.0"
 
-export SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH:-$(date +%s)}
-echo "Using SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH}"
-
-TDNF_OPTIONS=("--snapshottime=$SOURCE_DATE_EPOCH" -y)
-if [[ ${CCF_PACKAGE_CACHE_ONLY:-0} == 1 ]]; then
-    TDNF_OPTIONS+=(--cacheonly)
+TDNF_OPTIONS=(-y)
+if [[ -n ${SOURCE_DATE_EPOCH:-} ]]; then
+    echo "Using SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH}"
+    TDNF_OPTIONS+=("--snapshottime=$SOURCE_DATE_EPOCH")
 fi
 
 retry() {

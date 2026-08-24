@@ -70,7 +70,7 @@ jobs:
           queries: security-extended
 
       - name: "Install dependencies"
-        uses: ./.github/actions/install-ci-dependencies-azure-linux-3
+        uses: ./.github/actions/install-ci-dependencies
 
       - name: "Run CMake"
         run: |

@@ -50,7 +50,7 @@ jobs:
           fetch-depth: 0
 
       - name: "Install dependencies"
-        uses: ./.github/actions/install-ci-dependencies-azure-linux-3
+        uses: ./.github/actions/install-ci-dependencies
 
       - name: "Install development dependencies"
         shell: bash
@@ -146,7 +146,7 @@ jobs:
         shell: bash
 
       - name: "Install dependencies"
-        uses: ./.github/actions/install-ci-dependencies-azure-linux-3
+        uses: ./.github/actions/install-ci-dependencies
 
       - name: "Confirm running on Virtual"
         run: |
@@ -214,7 +214,7 @@ jobs:
           fetch-depth: 0
 
       - name: "Install dependencies"
-        uses: ./.github/actions/install-ci-dependencies-azure-linux-3
+        uses: ./.github/actions/install-ci-dependencies
 
       - name: "Build Debug"
         run: |
