@@ -46,6 +46,13 @@ class Result:
 PrepareWorkload = Callable[[argparse.Namespace, Any, Any], Workload]
 
 
+def positive_int(value: str) -> int:
+    parsed_value = int(value)
+    if parsed_value <= 0:
+        raise argparse.ArgumentTypeError("must be greater than 0")
+    return parsed_value
+
+
 def add_cli_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--users",
@@ -56,7 +63,7 @@ def add_cli_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--spawn-rate",
         help="Number of users to start per second",
-        type=int,
+        type=positive_int,
         default=320,
     )
     parser.add_argument(

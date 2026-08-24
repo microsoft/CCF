@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
+import argparse
 import os
 import tempfile
 import unittest
@@ -11,6 +12,16 @@ import infra.locust_benchmark
 
 
 class LocustBenchmarkTest(unittest.TestCase):
+    def test_spawn_rate_must_be_positive(self):
+        parser = argparse.ArgumentParser()
+        infra.locust_benchmark.add_cli_arguments(parser)
+
+        with self.assertRaises(SystemExit):
+            parser.parse_args(["--spawn-rate", "0"])
+
+        args = parser.parse_args(["--spawn-rate", "1"])
+        self.assertEqual(args.spawn_rate, 1)
+
     def test_passes_secrets_in_environment_only(self):
         class Primary:
             @staticmethod
