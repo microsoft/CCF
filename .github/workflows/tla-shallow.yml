@@ -1,4 +1,4 @@
-name: "TLA Trace Validation"
+name: "TLA Shallow Verification"
 
 on:
   pull_request:
@@ -16,6 +16,40 @@ env:
   PIP_INDEX_URL: https://packagefeedproxy.microsoft.io/pypi/simple/
 
 jobs:
+  simulation:
+    name: TLA Simulation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: tla
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install TLC dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y default-jre wget
+          python3 install_deps.py
+
+      - name: Simulate TLA specifications
+        shell: bash
+        run: |
+          status=0
+          ./tlc.py --trace-name consistency-simulation sim --num 500 --depth 50 consistency/MultiNodeReads.tla || status=$?
+          ./tlc.py --trace-name consensus-simulation sim --max-seconds 300 consensus/SIMccfraft.tla || status=$?
+          exit "${status}"
+
+      - name: Upload simulation traces
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: ${{ failure() }}
+        with:
+          name: tlc-simulation
+          path: |
+            tla/consistency/*_TTrace_*.tla
+            tla/consensus/*_TTrace_*.tla
+            tla/*.json
+
   trace-validation-consensus:
     name: Trace Validation - Consensus
     runs-on: ubuntu-latest
