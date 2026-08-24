@@ -7,6 +7,7 @@
 #include "ccf/app_interface.h"
 #include "ccf/json_handler.h"
 #include "ccf/kv/map.h"
+#include "ccf/pal/locking.h"
 #include "crypto/openssl/hash.h"
 #include "ds/files.h"
 #include "ds/internal_logger.h"
@@ -1658,23 +1659,29 @@ public:
 
   struct WaitPoint
   {
-    std::mutex m;
-    std::condition_variable cv;
-    bool ready = false;
+    ccf::pal::Mutex m;
+    ccf::pal::ConditionVariable cv;
+    bool ready CCF_GUARDED_BY(m) = false;
 
     void wait()
     {
-      std::unique_lock lock(m);
-      cv.wait(lock, [this] { return ready; });
+      ccf::pal::MutexGuard lock(m);
+      cv.wait(lock, [this]() CCF_REQUIRES(m) { return ready; });
     }
 
     void notify()
     {
       {
-        std::lock_guard lock(m);
+        ccf::pal::MutexGuard lock(m);
         ready = true;
       }
       cv.notify_one();
+    }
+
+    void reset()
+    {
+      ccf::pal::MutexGuard lock(m);
+      ready = false;
     }
   };
 
@@ -1815,10 +1822,10 @@ TEST_CASE("Manual conflicts")
                     std::function<void()>&& read_write_op,
                     std::shared_ptr<ccf::SessionContext> session = user_session,
                     ccf::http_status expected_status = HTTP_STATUS_OK) {
-    frontend.registry.before_read.ready = false;
-    frontend.registry.after_read.ready = false;
-    frontend.registry.before_write.ready = false;
-    frontend.registry.after_write.ready = false;
+    frontend.registry.before_read.reset();
+    frontend.registry.after_read.reset();
+    frontend.registry.before_write.reset();
+    frontend.registry.after_write.reset();
 
     std::thread worker(call_pausable, session, expected_status);
 

@@ -5,7 +5,6 @@
 #include "tasks/job_board.h"
 
 #include <memory>
-#include <mutex>
 
 namespace ccf::tasks
 {

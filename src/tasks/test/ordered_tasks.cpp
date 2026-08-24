@@ -3,6 +3,7 @@
 
 #include "tasks/ordered_tasks.h"
 
+#include "ccf/pal/locking.h"
 #include "tasks/basic_task.h"
 #include "tasks/sub_task_queue.h"
 #include "tasks/thread_manager.h"
@@ -27,8 +28,8 @@ uint8_t thread_name()
 void thread_print(const std::string& s)
 {
 #if false
-  static std::mutex logging_mutex;
-  std::lock_guard<std::mutex> guard(logging_mutex);
+  static ccf::pal::Mutex logging_mutex;
+  ccf::pal::MutexGuard guard(logging_mutex);
   fmt::print("[{:0x}] {}\n", thread_name(), s);
 #endif
 }
