@@ -2,10 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/pal/locking.h"
 #include "node/signature_cache_interface.h"
 
 #include <map>
-#include <mutex>
 
 namespace ccf
 {
@@ -27,11 +27,11 @@ namespace ccf
       }
     };
 
-    std::map<ccf::SeqNo, PendingEntry> cache;
-    size_t max_cache_size = DEFAULT_MAX_CACHE_SIZE;
-    mutable std::mutex cache_mutex;
+    mutable ccf::pal::Mutex cache_mutex;
+    std::map<ccf::SeqNo, PendingEntry> cache CCF_GUARDED_BY(cache_mutex);
+    size_t max_cache_size CCF_GUARDED_BY(cache_mutex) = DEFAULT_MAX_CACHE_SIZE;
 
-    void evict_oldest()
+    void evict_oldest() CCF_REQUIRES(cache_mutex)
     {
       if (cache.size() > max_cache_size)
       {
@@ -42,6 +42,7 @@ namespace ccf
     }
 
     PendingEntry& get_or_create_entry(ccf::kv::Version version)
+      CCF_REQUIRES(cache_mutex)
     {
       cache.try_emplace(version);
       evict_oldest();
@@ -63,7 +64,7 @@ namespace ccf
 
     void set_max_cache_size(size_t n) override
     {
-      std::lock_guard<std::mutex> guard(cache_mutex);
+      ccf::pal::MutexGuard guard(cache_mutex);
       max_cache_size = std::max<size_t>(1, n);
       evict_oldest();
     }
@@ -71,7 +72,7 @@ namespace ccf
     [[nodiscard]] std::optional<CachedSignature> get_signature_for(
       ccf::SeqNo seqno) const override
     {
-      std::lock_guard<std::mutex> guard(cache_mutex);
+      ccf::pal::MutexGuard guard(cache_mutex);
 
       // Find the first entry with version > seqno (the covering signature).
       auto it = cache.upper_bound(seqno);
@@ -98,7 +99,7 @@ namespace ccf
     void on_signature_committed(
       ccf::kv::Version version, const PrimarySignature& sig)
     {
-      std::lock_guard<std::mutex> guard(cache_mutex);
+      ccf::pal::MutexGuard guard(cache_mutex);
       auto& entry = get_or_create_entry(version);
       entry.sig = sig;
     }
@@ -106,7 +107,7 @@ namespace ccf
     void on_cose_signature_committed(
       ccf::kv::Version version, const std::vector<uint8_t>& cose_sig)
     {
-      std::lock_guard<std::mutex> guard(cache_mutex);
+      ccf::pal::MutexGuard guard(cache_mutex);
       auto& entry = get_or_create_entry(version);
       entry.cose_signature = cose_sig;
     }
@@ -114,7 +115,7 @@ namespace ccf
     void on_tree_committed(
       ccf::kv::Version version, const std::vector<uint8_t>& tree)
     {
-      std::lock_guard<std::mutex> guard(cache_mutex);
+      ccf::pal::MutexGuard guard(cache_mutex);
       auto& entry = get_or_create_entry(version);
       entry.serialised_tree = tree;
     }
