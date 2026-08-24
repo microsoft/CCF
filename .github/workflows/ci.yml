@@ -15,6 +15,12 @@ permissions: read-all
 
 env:
   NPM_CONFIG_REGISTRY: https://packagefeedproxy.microsoft.io/npm/
+  # Add bounded retries for transient runner-to-package-storage route failures.
+  NPM_CONFIG_FETCH_RETRIES: "5"
+  NPM_CONFIG_FETCH_RETRY_FACTOR: "2"
+  NPM_CONFIG_FETCH_RETRY_MINTIMEOUT: "5000"
+  NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT: "30000"
+  NPM_CONFIG_FETCH_TIMEOUT: "60000"
   PIP_INDEX_URL: https://packagefeedproxy.microsoft.io/pypi/simple/
 
 jobs:
