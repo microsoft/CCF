@@ -100,7 +100,7 @@ namespace ccf::kv
     Hooks global_hooks;
     MapHooks map_hooks;
 
-    std::shared_ptr<Consensus> consensus = nullptr;
+    std::atomic<std::shared_ptr<Consensus>> consensus = nullptr;
     std::shared_ptr<TxHistory> history = nullptr;
     std::shared_ptr<ILedgerChunker> chunker = nullptr;
     EncryptorPtr encryptor = nullptr;
@@ -213,15 +213,12 @@ namespace ccf::kv
 
     std::shared_ptr<Consensus> get_consensus() override
     {
-      // We need to use std::atomic_load<std::shared_ptr<T>>
-      // after clang supports it.
-      // https://en.cppreference.com/w/Template:cpp/compiler_support/20
-      return std::atomic_load(&consensus);
+      return consensus.load();
     }
 
     void set_consensus(const std::shared_ptr<Consensus>& consensus_)
     {
-      std::atomic_store(&consensus, consensus_);
+      consensus.store(consensus_);
     }
 
     std::shared_ptr<TxHistory> get_history() override
