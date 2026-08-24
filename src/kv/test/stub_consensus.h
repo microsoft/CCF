@@ -105,7 +105,7 @@ namespace ccf::kv::test
       state = Backup;
     }
 
-    bool replicate(const BatchVector& entries, ccf::View view) override
+    bool replicate(const BatchVector& entries) override
     {
       for (const auto& entry : entries)
       {
@@ -113,16 +113,15 @@ namespace ccf::kv::test
 
         const auto& [tx_id, data, committable, hooks] = entry;
 
-        // Simplification: all entries are replicated in the same term
-        view_history.update(tx_id.seqno, view);
+        view_history.update(tx_id.seqno, tx_id.view);
 
         if (committable)
         {
           // All committable indices are instantly committed
           committed_txid = tx_id;
         }
+        current_view = tx_id.view;
       }
-      current_view = view;
       return true;
     }
 
@@ -236,7 +235,7 @@ namespace ccf::kv::test
       return false;
     }
 
-    bool replicate(const BatchVector& entries, ccf::View view) override
+    bool replicate(const BatchVector& entries) override
     {
       return false;
     }

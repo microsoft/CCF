@@ -946,7 +946,6 @@ namespace ccf::kv
       Version previous_last_replicated = 0;
       Version next_last_replicated = 0;
       Version previous_rollback_count = 0;
-      ccf::View replication_view = 0; // TODO: Remove
 
       std::vector<decltype(pending_txs)::mapped_type> contiguous_pending_txs;
       auto h = get_history();
@@ -988,8 +987,6 @@ namespace ccf::kv
         previous_rollback_count = rollback_count;
         previous_last_replicated = last_replicated;
         next_last_replicated = last_replicated + contiguous_pending_txs.size();
-
-        replication_view = term_of_next_version;
       }
       // Release version lock
 
@@ -1053,7 +1050,7 @@ namespace ccf::kv
         offset++;
       }
 
-      if (c->replicate(batch, replication_view))
+      if (c->replicate(batch))
       {
         std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
         if (

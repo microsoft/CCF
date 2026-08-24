@@ -40,7 +40,7 @@ public:
 
   DummyConsensus(ccf::kv::Store* store_) : store(store_) {}
 
-  bool replicate(const ccf::kv::BatchVector& entries, ccf::View view) override
+  bool replicate(const ccf::kv::BatchVector& entries) override
   {
     if (store)
     {
@@ -256,7 +256,7 @@ public:
 
   CompactingConsensus(ccf::kv::Store* store_) : store(store_) {}
 
-  bool replicate(const ccf::kv::BatchVector& entries, ccf::View view) override
+  bool replicate(const ccf::kv::BatchVector& entries) override
   {
     for (auto& [tx_id, data, committable, hooks] : entries)
     {
@@ -429,13 +429,13 @@ public:
     rollback_to(rollback_to_)
   {}
 
-  bool replicate(const ccf::kv::BatchVector& entries, ccf::View view) override
+  bool replicate(const ccf::kv::BatchVector& entries) override
   {
     for (auto& [tx_id, data, committable, hook] : entries)
     {
       count++;
       if (tx_id.seqno == rollback_at)
-        store->rollback({view, rollback_to}, store->commit_view());
+        store->rollback(tx_id, store->commit_view());
     }
     return true;
   }

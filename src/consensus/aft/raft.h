@@ -621,8 +621,7 @@ namespace aft
       return details;
     }
 
-    // TODO TODO: Mid-refactor. Term argument should be removed
-    bool replicate(const ccf::kv::BatchVector& entries, Term term) override
+    bool replicate(const ccf::kv::BatchVector& entries) override
     {
       std::lock_guard<ccf::pal::Mutex> guard(state->lock);
 

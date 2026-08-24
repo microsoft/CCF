@@ -22,7 +22,7 @@ class SlowStubConsensus : public ccf::kv::test::StubConsensus
 public:
   using ccf::kv::test::StubConsensus::StubConsensus;
 
-  bool replicate(const ccf::kv::BatchVector& entries, ccf::View view) override
+  bool replicate(const ccf::kv::BatchVector& entries) override
   {
     if (rand() % 2 == 0)
     {
@@ -30,7 +30,7 @@ public:
       std::this_thread::sleep_for(std::chrono::milliseconds(delay));
     }
 
-    return ccf::kv::test::StubConsensus::replicate(entries, view);
+    return ccf::kv::test::StubConsensus::replicate(entries);
   }
 };
 

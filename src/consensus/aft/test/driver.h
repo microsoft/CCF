@@ -189,8 +189,7 @@ private:
     auto s = nlohmann::json(aft::ReplicatedData{type, data}).dump();
     auto d = std::make_shared<std::vector<uint8_t>>(s.begin(), s.end());
     raft->replicate(
-      ccf::kv::BatchVector{{ccf::TxID{term, idx}, d, committable, hooks}},
-      term);
+      ccf::kv::BatchVector{{ccf::TxID{term, idx}, d, committable, hooks}});
   }
 
   void add_node(ccf::NodeId node_id)
