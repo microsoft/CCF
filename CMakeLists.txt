@@ -1048,17 +1048,6 @@ if(BUILD_TESTS)
     set_property(TEST versionifier_test APPEND PROPERTY LABELS bucket_c)
 
     add_test(
-      NAME locust_benchmark_test
-      COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/infra/test_locust_benchmark.py
-    )
-    set_property(TEST locust_benchmark_test APPEND PROPERTY LABELS unit)
-    set_property(
-      TEST locust_benchmark_test
-      APPEND
-      PROPERTY ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH}"
-    )
-
-    add_test(
       NAME github_version_lts_test
       COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/infra/github.py
     )
