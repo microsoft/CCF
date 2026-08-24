@@ -8,7 +8,6 @@ import argparse
 import infra.e2e_args
 import infra.jwt_issuer
 import infra.locust_benchmark
-from loguru import logger as LOG
 
 LOCUST_FILE_NAME = "logging_jwt_locustfile.py"
 DEFAULT_KEY_SPACE_SIZE = 1000
@@ -46,5 +45,4 @@ def cli_args():
 if __name__ == "__main__":
     args = cli_args()
     args.nodes = infra.e2e_args.min_nodes(args, f=0)
-    LOG.info("Running Logging JWT Blocking Locust benchmark")
     infra.locust_benchmark.run(args, prepare_workload)

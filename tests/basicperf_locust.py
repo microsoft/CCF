@@ -19,7 +19,6 @@ import argparse
 import infra.e2e_args
 import infra.key_space
 import infra.locust_benchmark
-from loguru import logger as LOG
 
 LOCUST_FILE_NAME = "basicperf_locustfile.py"
 
@@ -62,5 +61,4 @@ if __name__ == "__main__":
     # on the primary, and additional nodes only add replication cost.
     args.nodes = infra.e2e_args.min_nodes(args, f=0)
 
-    LOG.info("Running Basic Blocking Locust benchmark")
     infra.locust_benchmark.run(args, prepare_workload)
