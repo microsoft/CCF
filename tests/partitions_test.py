@@ -1178,12 +1178,10 @@ def force_become_primary(network, args, target_node):
         # target becomes primary and emits signature
         # target replicates signature
         # then we can remove the partition
-        rules = network.partitioner.isolate_node(primary, target_node)
-        target_node.wait_for_leadership_state(
-            0, "Leader", timeout=2 * args.election_timeout_ms / 1000
-        )
-        network.wait_for_node_commit_sync(nodes=backups)
-        rules.drop()
+        timeout = 4 * network.observed_election_duration
+        with network.partitioner.isolate_node(primary, target_node):
+            target_node.wait_for_leadership_state(0, "Leader", timeout=timeout)
+            network.wait_for_node_commit_sync(nodes=backups, timeout=timeout)
         # Wait for the old primary to observe the new one
         network.wait_for_new_primary_in({target_node}, nodes=[primary])
         network.wait_for_primary_unanimity()
