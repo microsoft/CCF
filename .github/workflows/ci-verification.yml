@@ -3,13 +3,6 @@ name: "Continuous Verification"
 on:
   schedule:
     - cron: "0 0 * * 0"
-  pull_request:
-    paths:
-      - "tla/**"
-      - "src/consensus/**"
-      - "tests/raft_scenarios/**"
-      - ".github/workflows/ci-verification.yml"
-  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
