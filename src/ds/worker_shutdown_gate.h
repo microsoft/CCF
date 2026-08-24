@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include <condition_variable>
+#include "ccf/pal/locking.h"
+
 #include <memory>
-#include <mutex>
 
 namespace ccf::ds
 {
@@ -21,10 +21,10 @@ namespace ccf::ds
   class WorkerShutdownGate
   {
   private:
-    std::mutex lock;
-    std::condition_variable all_workers_done;
-    size_t active_workers = 0;
-    bool alive = true;
+    mutable ccf::pal::Mutex lock;
+    ccf::pal::ConditionVariable all_workers_done;
+    size_t active_workers CCF_GUARDED_BY(lock) = 0;
+    bool alive CCF_GUARDED_BY(lock) = true;
 
   public:
     /**
@@ -34,7 +34,7 @@ namespace ccf::ds
      */
     [[nodiscard]] bool try_register()
     {
-      std::unique_lock<std::mutex> guard(lock);
+      ccf::pal::MutexGuard guard(lock);
       if (!alive)
       {
         return false;
@@ -49,7 +49,7 @@ namespace ccf::ds
      */
     void unregister()
     {
-      std::unique_lock<std::mutex> guard(lock);
+      ccf::pal::MutexGuard guard(lock);
       --active_workers;
       if (active_workers == 0)
       {
@@ -64,9 +64,10 @@ namespace ccf::ds
      */
     void shutdown_and_wait()
     {
-      std::unique_lock<std::mutex> guard(lock);
+      ccf::pal::MutexGuard guard(lock);
       alive = false;
-      all_workers_done.wait(guard, [this]() { return active_workers == 0; });
+      all_workers_done.wait(
+        guard, [this]() CCF_REQUIRES(lock) { return active_workers == 0; });
     }
 
     /**
@@ -77,8 +78,7 @@ namespace ccf::ds
       // alive is only ever written under the lock and only transitions
       // false->true, so a relaxed read is safe for a non-blocking check.
       // However, to avoid UB we still take the lock briefly.
-      auto* self = const_cast<WorkerShutdownGate*>(this);
-      std::unique_lock<std::mutex> guard(self->lock);
+      ccf::pal::MutexGuard guard(lock);
       return !alive;
     }
 
