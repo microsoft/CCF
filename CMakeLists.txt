@@ -1048,6 +1048,17 @@ if(BUILD_TESTS)
     set_property(TEST versionifier_test APPEND PROPERTY LABELS bucket_c)
 
     add_test(
+      NAME locust_benchmark_test
+      COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/infra/test_locust_benchmark.py
+    )
+    set_property(TEST locust_benchmark_test APPEND PROPERTY LABELS unit)
+    set_property(
+      TEST locust_benchmark_test
+      APPEND
+      PROPERTY ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH}"
+    )
+
+    add_test(
       NAME github_version_lts_test
       COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/infra/github.py
     )
@@ -1530,19 +1541,32 @@ if(BUILD_TESTS)
     )
   endif()
 
-  add_piccolo_test(
-    NAME pi_ls_jwt
-    PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/piccolo_driver.py
-    CLIENT_BIN ./submit
-    PERF_LABEL "Logging JWT"
+  # JWT-authenticated blocking logging workload, driven by locust so that the
+  # number of concurrent clients can be varied.
+  add_e2e_test(
+    NAME pi_logging_jwt_blocking_locust
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/logging_jwt_locust.py
+    LABEL perf
+    CONFIGURATIONS perf
     ADDITIONAL_ARGS
       --package
       "samples/apps/logging/logging"
-      --max-writes-ahead
-      1000
-      --repetitions
+      --perf-label
+      "Logging JWT Blocking Locust"
+      --snapshot-tx-interval
       10000
-      --use-jwt
+      --users
+      320
+      --spawn-rate
+      320
+      --locust-processes
+      10
+      --measure-time-s
+      20
+      --sig-ms-intervals
+      2
+      20
+      100
   )
 
   add_e2e_test(
