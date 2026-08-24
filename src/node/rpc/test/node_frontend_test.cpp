@@ -378,7 +378,7 @@ TEST_CASE("Add a node to an open service")
       REQUIRE(node_info.has_value());
       node_info->pending_since =
         std::chrono::duration_cast<std::chrono::milliseconds>(
-          (std::chrono::system_clock::now() - std::chrono::hours(25))
+          (std::chrono::system_clock::now() - std::chrono::hours(2))
             .time_since_epoch())
           .count();
       nodes->put(expired_node_id, node_info.value());
