@@ -634,16 +634,6 @@ namespace aft
         return false;
       }
 
-      if (term != state->current_view)
-      {
-        RAFT_DEBUG_FMT(
-          "Failed to replicate {} items at term {}, current term is {}",
-          entries.size(),
-          term,
-          state->current_view);
-        return false;
-      }
-
       if (is_retired_committed())
       {
         RAFT_DEBUG_FMT(
@@ -657,23 +647,31 @@ namespace aft
 
       for (const auto& [tx_id, data, is_globally_committable, hooks] : entries)
       {
-        // TODO TODO: This is a temporary hack to allow the new TxID type to be
-        // used in the raft code. Once the raft code is fully migrated to use
-        // TxID, this can be removed.
-        const auto index = tx_id.seqno;
         bool globally_committable = is_globally_committable;
 
-        if (index != state->last_idx + 1)
+        if (tx_id.seqno != state->last_idx + 1)
         {
-          LOG_INFO_FMT(
-            "!!!! Not contiguous ({} != {} + 1)", index, state->last_idx);
+          RAFT_DEBUG_FMT(
+            "Received non-contiguous batch: {} != {} + 1",
+            tx_id.seqno,
+            state->last_idx);
+          return false;
+        }
+
+        if (tx_id.view != state->current_view)
+        {
+          RAFT_DEBUG_FMT(
+            "Failed to replicate item at {}.{}, current term is {}",
+            tx_id.view,
+            tx_id.seqno,
+            state->current_view);
           return false;
         }
 
         RAFT_DEBUG_FMT(
           "Replicated on leader {}: {}{} ({} hooks)",
           state->node_id,
-          index,
+          tx_id.seqno,
           (globally_committable ? " committable" : ""),
           hooks->size());
 
@@ -683,7 +681,7 @@ namespace aft
         j["state"] = *state;
         COMMITTABLE_INDICES(j["state"], state);
         j["view"] = term;
-        j["seqno"] = index;
+        j["seqno"] = tx_id.seqno;
         j["globally_committable"] = globally_committable;
         RAFT_TRACE_JSON_OUT(j);
 #endif
@@ -703,9 +701,9 @@ namespace aft
             state->membership_state == ccf::kv::MembershipState::Retired &&
             state->retirement_phase == ccf::kv::RetirementPhase::Ordered)
           {
-            become_retired(index, ccf::kv::RetirementPhase::Signed);
+            become_retired(tx_id.seqno, ccf::kv::RetirementPhase::Signed);
           }
-          state->committable_indices.push_back(index);
+          state->committable_indices.push_back(tx_id.seqno);
           start_ticking_if_necessary();
 
           // Reset should_sign here - whenever we see a committable entry we
@@ -713,13 +711,12 @@ namespace aft
           should_sign = false;
         }
 
-        state->last_idx = index;
-        ledger->put_entry(
-          *data, globally_committable, state->current_view, index);
+        state->last_idx = tx_id.seqno;
+        ledger->put_entry(*data, globally_committable, tx_id.view, tx_id.seqno);
         entry_size_not_limited += data->size();
         entry_count++;
 
-        state->view_history.update(index, state->current_view);
+        state->view_history.update(tx_id.seqno, state->current_view);
         if (entry_size_not_limited >= append_entries_size_limit)
         {
           update_batch_size();
