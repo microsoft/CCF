@@ -16,8 +16,9 @@ class LocustBenchmarkTest(unittest.TestCase):
         parser = argparse.ArgumentParser()
         infra.locust_benchmark.add_cli_arguments(parser)
 
-        with self.assertRaises(SystemExit):
-            parser.parse_args(["--spawn-rate", "0"])
+        for spawn_rate in ("0", "-1"):
+            with self.subTest(spawn_rate=spawn_rate), self.assertRaises(SystemExit):
+                parser.parse_args(["--spawn-rate", spawn_rate])
 
         args = parser.parse_args(["--spawn-rate", "1"])
         self.assertEqual(args.spawn_rate, 1)
@@ -66,7 +67,7 @@ class LocustBenchmarkTest(unittest.TestCase):
 
         command = run.call_args.args[0]
         environment = run.call_args.kwargs["env"]
-        self.assertNotIn(token, command)
+        self.assertNotIn(token, " ".join(command))
         self.assertEqual(
             environment[infra.locust_benchmark.JWT_ENVIRONMENT_VARIABLE], token
         )
