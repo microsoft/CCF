@@ -316,6 +316,10 @@ TEST_CASE("Add a node to an open service")
 
   INFO("Expired Pending nodes are removed");
   {
+    CHECK(
+      std::chrono::milliseconds(StartupConfig{}.pending_node_timeout) ==
+      std::chrono::hours(1));
+
     ccf::crypto::ECKeyPairPtr expired_node_kp = ccf::crypto::make_ec_key_pair();
     const auto expired_node_caller =
       expired_node_kp->self_sign("CN=Expired Joiner", valid_from, valid_to);
