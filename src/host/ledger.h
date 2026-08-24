@@ -22,7 +22,6 @@
 #include <list>
 #include <map>
 #include <memory>
-#include <mutex>
 #include <string>
 #include <sys/types.h>
 #include <tuple>

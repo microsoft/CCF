@@ -420,7 +420,7 @@ namespace ccf::kv
       return snapshot;
     }
 
-    void lock_maps() override
+    void lock_maps() CCF_ACQUIRE(maps_lock) override
     {
       maps_lock.lock();
       for (auto& it : maps)
@@ -430,7 +430,7 @@ namespace ccf::kv
       }
     }
 
-    void unlock_maps() override
+    void unlock_maps() CCF_RELEASE(maps_lock) override
     {
       for (auto& it : maps)
       {
@@ -1163,12 +1163,12 @@ namespace ccf::kv
       return r;
     }
 
-    void lock_map_set() override
+    void lock_map_set() CCF_ACQUIRE(maps_lock) override
     {
       maps_lock.lock();
     }
 
-    void unlock_map_set() override
+    void unlock_map_set() CCF_RELEASE(maps_lock) override
     {
       maps_lock.unlock();
     }

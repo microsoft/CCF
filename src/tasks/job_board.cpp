@@ -2,8 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #include "tasks/job_board.h"
 
+#include "ccf/pal/locking.h"
+
 #include <chrono>
-#include <condition_variable>
 #include <map>
 
 namespace ccf::tasks
@@ -13,7 +14,7 @@ namespace ccf::tasks
   struct WaitingWorkerThread
   {
     // Ownership of a condition variable that a single thread will wait on
-    std::condition_variable cv;
+    ccf::pal::ConditionVariable cv;
 
     // Output variable to assign that thread a task
     Task& assigned_task;
@@ -49,17 +50,17 @@ namespace ccf::tasks
     std::atomic<std::chrono::milliseconds> total_elapsed =
       std::chrono::milliseconds(0);
 
-    std::mutex tasks_mutex;
-    DelayedTasksByTime tasks;
+    ccf::pal::Mutex tasks_mutex;
+    DelayedTasksByTime tasks CCF_GUARDED_BY(tasks_mutex);
   };
 
   struct JobBoard::PImpl
   {
     // Mutex protects access to both pending_tasks and waiting_worker_threads
-    std::mutex mutex;
+    ccf::pal::Mutex mutex;
 
     // Collection of tasks that are ready for execution
-    std::queue<Task> pending_tasks;
+    std::queue<Task> pending_tasks CCF_GUARDED_BY(mutex);
 
     // Collection describing idle worker threads. This takes shared pointers, to
     // ensure the objects remain valid even if the caller exits exceptionally
@@ -67,8 +68,8 @@ namespace ccf::tasks
     // shared pointer, so that the caller can ensure the lifetime persists past
     // a condition_variable wait.
     using WorkerThreadPtr = std::shared_ptr<WaitingWorkerThread>;
-    std::shared_ptr<std::vector<WorkerThreadPtr>> waiting_worker_threads =
-      std::make_shared<std::vector<WorkerThreadPtr>>();
+    std::shared_ptr<std::vector<WorkerThreadPtr>> waiting_worker_threads
+      CCF_GUARDED_BY(mutex) = std::make_shared<std::vector<WorkerThreadPtr>>();
 
     // Collection of delayed tasks, that may be ready for execution on a future
     // tick
@@ -77,7 +78,7 @@ namespace ccf::tasks
     void add_task(Task&& task)
     {
       // Under lock
-      std::unique_lock<std::mutex> lock(mutex);
+      ccf::pal::MutexGuard lock(mutex);
 
       // First check if there is an idle worker waiting for a task
       for (WorkerThreadPtr& worker : *waiting_worker_threads)
@@ -111,7 +112,7 @@ namespace ccf::tasks
 
       {
         // Under lock
-        std::unique_lock<std::mutex> lock(mutex);
+        ccf::pal::MutexGuard lock(mutex);
 
         // Get local copy to extend life, even if this object dies while we're
         // waiting.
@@ -159,7 +160,7 @@ namespace ccf::tasks
       std::chrono::milliseconds initial_delay,
       std::optional<std::chrono::milliseconds> periodic_delay)
     {
-      std::lock_guard<std::mutex> lock(delayed.tasks_mutex);
+      ccf::pal::MutexGuard lock(delayed.tasks_mutex);
 
       const auto trigger_time = delayed.total_elapsed.load() + initial_delay;
       delayed.tasks[trigger_time].emplace_back(task, periodic_delay);
@@ -170,7 +171,7 @@ namespace ccf::tasks
       elapsed += delayed.total_elapsed.load();
 
       {
-        std::lock_guard<std::mutex> lock(delayed.tasks_mutex);
+        ccf::pal::MutexGuard lock(delayed.tasks_mutex);
         auto end_it = delayed.tasks.upper_bound(elapsed);
 
         Delayed::DelayedTasksByTime repeats;
@@ -245,7 +246,7 @@ namespace ccf::tasks
   {
     Summary summary{};
     {
-      std::lock_guard<std::mutex> lock(pimpl->mutex);
+      ccf::pal::MutexGuard lock(pimpl->mutex);
       summary.pending_tasks = pimpl->pending_tasks.size();
       summary.idle_workers = pimpl->waiting_worker_threads->size();
     }

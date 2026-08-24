@@ -2,8 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/pal/locking.h"
+
 #include <deque>
-#include <mutex>
 
 namespace ccf::tasks
 {
@@ -13,37 +14,37 @@ namespace ccf::tasks
   class LockingMPMCQueue
   {
   protected:
-    std::mutex mutex;
-    std::deque<T> deque;
+    ccf::pal::Mutex mutex;
+    std::deque<T> deque CCF_GUARDED_BY(mutex);
 
   public:
     bool empty()
     {
-      std::lock_guard<std::mutex> lock(mutex);
+      ccf::pal::MutexGuard lock(mutex);
       return deque.empty();
     }
 
     size_t size()
     {
-      std::lock_guard<std::mutex> lock(mutex);
+      ccf::pal::MutexGuard lock(mutex);
       return deque.size();
     }
 
     void push_back(const T& t)
     {
-      std::lock_guard<std::mutex> lock(mutex);
+      ccf::pal::MutexGuard lock(mutex);
       deque.push_back(t);
     }
 
     void emplace_back(T&& t)
     {
-      std::lock_guard<std::mutex> lock(mutex);
+      ccf::pal::MutexGuard lock(mutex);
       deque.emplace_back(std::move(t));
     }
 
     std::optional<T> try_pop()
     {
-      std::lock_guard<std::mutex> lock(mutex);
+      ccf::pal::MutexGuard lock(mutex);
 
       if (deque.empty())
       {
