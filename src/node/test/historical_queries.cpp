@@ -223,18 +223,18 @@ std::map<ccf::SeqNo, std::vector<uint8_t>> construct_host_ledger(
   std::map<ccf::SeqNo, std::vector<uint8_t>> ledger;
 
   auto next_ledger_entry = consensus->pop_oldest_entry();
-  auto version = std::get<0>(next_ledger_entry.value());
+  auto version = std::get<0>(next_ledger_entry.value()).seqno;
   while (next_ledger_entry.has_value())
   {
-    const auto ib = ledger.insert(std::make_pair(
-      std::get<0>(next_ledger_entry.value()),
-      *std::get<1>(next_ledger_entry.value())));
+    const auto next_version = std::get<0>(next_ledger_entry.value()).seqno;
+    const auto ib = ledger.insert(
+      std::make_pair(next_version, *std::get<1>(next_ledger_entry.value())));
     REQUIRE(ib.second);
     next_ledger_entry = consensus->pop_oldest_entry();
     if (next_ledger_entry.has_value())
     {
-      REQUIRE(version + 1 == std::get<0>(next_ledger_entry.value()));
-      version = std::get<0>(next_ledger_entry.value());
+      REQUIRE(version + 1 == next_version);
+      version = next_version;
     }
   }
 

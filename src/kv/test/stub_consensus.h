@@ -111,15 +111,15 @@ namespace ccf::kv::test
       {
         replica.push_back(entry);
 
-        const auto& [v, data, committable, hooks] = entry;
+        const auto& [tx_id, data, committable, hooks] = entry;
 
         // Simplification: all entries are replicated in the same term
-        view_history.update(v, view);
+        view_history.update(tx_id.seqno, view);
 
         if (committable)
         {
           // All committable indices are instantly committed
-          committed_txid = {view, v};
+          committed_txid = tx_id;
         }
       }
       current_view = view;

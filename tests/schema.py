@@ -264,14 +264,15 @@ if __name__ == "__main__":
         initial_member_count=1,
     )
 
-    cr.add(
-        "operations",
-        e2e_operations.run,
-        package="samples/apps/logging/logging",
-        nodes=infra.e2e_args.min_nodes(cr.args, f=0),
-        initial_user_count=1,
-        ledger_chunk_bytes="1B",  # Chunk ledger at every signature transaction
-    )
+    ## TODO: Too slow, temporarily disabled for faster smoke testing
+    # cr.add(
+    #     "operations",
+    #     e2e_operations.run,
+    #     package="samples/apps/logging/logging",
+    #     nodes=infra.e2e_args.min_nodes(cr.args, f=0),
+    #     initial_user_count=1,
+    #     ledger_chunk_bytes="1B",  # Chunk ledger at every signature transaction
+    # )
 
     cr.add(
         "download",

@@ -621,6 +621,7 @@ namespace aft
       return details;
     }
 
+    // TODO TODO: Mid-refactor. Term argument should be removed
     bool replicate(const ccf::kv::BatchVector& entries, Term term) override
     {
       std::lock_guard<ccf::pal::Mutex> guard(state->lock);
@@ -654,12 +655,18 @@ namespace aft
 
       RAFT_DEBUG_FMT("Replicating {} entries", entries.size());
 
-      for (const auto& [index, data, is_globally_committable, hooks] : entries)
+      for (const auto& [tx_id, data, is_globally_committable, hooks] : entries)
       {
+        // TODO TODO: This is a temporary hack to allow the new TxID type to be
+        // used in the raft code. Once the raft code is fully migrated to use
+        // TxID, this can be removed.
+        const auto index = tx_id.seqno;
         bool globally_committable = is_globally_committable;
 
         if (index != state->last_idx + 1)
         {
+          LOG_INFO_FMT(
+            "!!!! Not contiguous ({} != {} + 1)", index, state->last_idx);
           return false;
         }
 

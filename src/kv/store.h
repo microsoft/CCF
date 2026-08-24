@@ -64,7 +64,9 @@ namespace ccf::kv
 
     Version rollback_count = 0;
 
-    std::unordered_map<Version, std::tuple<std::unique_ptr<PendingTx>, bool>>
+    std::unordered_map<
+      Version,
+      std::tuple<ccf::TxID, std::unique_ptr<PendingTx>, bool>>
       pending_txs;
 
   public:
@@ -944,25 +946,13 @@ namespace ccf::kv
       Version previous_last_replicated = 0;
       Version next_last_replicated = 0;
       Version previous_rollback_count = 0;
-      ccf::View replication_view = 0;
+      ccf::View replication_view = 0; // TODO: Remove
 
-      std::vector<std::tuple<std::unique_ptr<PendingTx>, bool>>
-        contiguous_pending_txs;
+      std::vector<decltype(pending_txs)::mapped_type> contiguous_pending_txs;
       auto h = get_history();
 
       {
         std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
-        if (txid.view != term_of_next_version && get_consensus()->is_primary())
-        {
-          // This can happen when a transaction started before a view change,
-          // but tries to commit after the view change is complete.
-          LOG_DEBUG_FMT(
-            "Want to commit for term {} but term is {}",
-            txid.view,
-            term_of_next_version);
-
-          return CommitResult::FAIL_NO_REPLICATE;
-        }
 
         if (globally_committable && txid.seqno > last_committable)
         {
@@ -971,7 +961,7 @@ namespace ccf::kv
 
         pending_txs.insert(
           {txid.seqno,
-           std::make_tuple(std::move(pending_tx), globally_committable)});
+           std::make_tuple(txid, std::move(pending_tx), globally_committable)});
 
         LOG_TRACE_FMT("Inserting pending tx at {}", txid.seqno);
 
@@ -1009,7 +999,8 @@ namespace ccf::kv
       }
 
       size_t offset = 1;
-      for (auto& [pending_tx_, committable_] : contiguous_pending_txs)
+      for (auto& [pending_txid_, pending_tx_, committable_] :
+           contiguous_pending_txs)
       {
         auto
           [success_, data_, claims_digest_, commit_evidence_digest_, hooks_] =
@@ -1057,10 +1048,7 @@ namespace ccf::kv
           txid.seqno);
 
         batch.emplace_back(
-          previous_last_replicated + offset,
-          data_shared,
-          committable_,
-          hooks_shared);
+          pending_txid_, data_shared, committable_, hooks_shared);
 
         offset++;
       }

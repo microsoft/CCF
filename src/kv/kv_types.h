@@ -206,7 +206,7 @@ namespace ccf::kv
   };
 
   using BatchVector = std::vector<std::tuple<
-    Version,
+    ccf::TxID,
     std::shared_ptr<std::vector<uint8_t>>,
     bool,
     std::shared_ptr<ConsensusHookPtrs>>>;

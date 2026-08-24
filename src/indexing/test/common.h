@@ -92,7 +92,7 @@ public:
     // Rather than building a history that produces real signatures, we just
     // overwrite the entries here to say that everything is committable
     ccf::kv::BatchVector entries(entries_);
-    for (auto& [seqno, data, committable, hooks] : entries)
+    for (auto& [tx_id, data, committable, hooks] : entries)
     {
       committable = true;
     }
