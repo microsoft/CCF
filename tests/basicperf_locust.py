@@ -5,10 +5,9 @@
 "Basic Blocking Locust" benchmark.
 
 Measures the throughput of blocking writes (PUT /records/blocking/{key}), which
-only return once the transaction has committed. This covers the same ground as
-the piccolo-driven "Basic Blocking" benchmark, but drives load with locust
-instead, so that the client count can be ramped up and the workload described
-in Python rather than in a pre-generated parquet file.
+only return once the transaction has committed. Locust lets the client count be
+ramped up and the workload be described in Python rather than in a pre-generated
+parquet file.
 
 The load itself is defined in infra/basicperf_locustfile.py. Shared Locust
 orchestration and statistics handling live in infra/locust_benchmark.py.
