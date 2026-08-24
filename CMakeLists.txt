@@ -1553,9 +1553,7 @@ if(BUILD_TESTS)
       --measure-time-s
       20
       --sig-ms-intervals
-      2
       20
-      100
   )
 
   add_e2e_test(

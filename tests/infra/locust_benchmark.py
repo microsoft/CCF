@@ -259,7 +259,11 @@ def run(args: argparse.Namespace, prepare_workload: PrepareWorkload) -> None:
 
     bencher = infra.bencher.Bencher()
     for sig_ms_interval, result in results.items():
-        label = f"{args.perf_label} (sig_ms_interval={sig_ms_interval}ms)"
+        label = (
+            args.perf_label
+            if len(results) == 1
+            else f"{args.perf_label} (sig_ms_interval={sig_ms_interval}ms)"
+        )
         bencher.set(label, infra.bencher.Throughput(round(result.throughput, 1)))
         bencher.set(
             label,
