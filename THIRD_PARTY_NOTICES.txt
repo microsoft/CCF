@@ -53,7 +53,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 -------------------------------------------------------------------
 
-onqtam/doctest f4e82db55c6ab572be6a69bc9d2bc2e726aa9488 - MIT
+doctest/doctest f4e82db55c6ab572be6a69bc9d2bc2e726aa9488 - MIT
 Copyright 2012 Twitter, Inc
 Copyright Louis Dionne 2015
 Copyright (c) 2006 Google Inc.
