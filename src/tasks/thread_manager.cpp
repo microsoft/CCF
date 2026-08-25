@@ -3,6 +3,7 @@
 
 #include "tasks/thread_manager.h"
 
+#include "ccf/pal/locking.h"
 #include "ds/internal_logger.h"
 #include "tasks/worker.h"
 
@@ -10,6 +11,7 @@
 
 namespace ccf::tasks
 {
+  // NOLINTBEGIN(clang-analyzer-optin.performance.Padding)
   struct ThreadManager::PImpl
   {
     // Align by cacheline to avoid false sharing
@@ -25,11 +27,11 @@ namespace ccf::tasks
 
     static constexpr size_t MAX_WORKERS = 64;
 
-    std::thread workers[MAX_WORKERS] = {};
-    StopSignal stop_signals[MAX_WORKERS] = {};
-
-    std::mutex worker_count_mutex;
-    size_t current_workers = 0;
+    ccf::pal::Mutex worker_count_mutex;
+    std::thread workers[MAX_WORKERS] CCF_GUARDED_BY(worker_count_mutex) = {};
+    StopSignal stop_signals[MAX_WORKERS] CCF_GUARDED_BY(
+      worker_count_mutex) = {};
+    size_t current_workers CCF_GUARDED_BY(worker_count_mutex) = 0;
 
     JobBoard& job_board;
 
@@ -57,7 +59,7 @@ namespace ccf::tasks
 
     void set_task_threads(size_t new_worker_count)
     {
-      std::unique_lock<std::mutex> lock(worker_count_mutex);
+      ccf::pal::MutexGuard lock(worker_count_mutex);
 
       if (new_worker_count >= MAX_WORKERS)
       {
@@ -100,6 +102,7 @@ namespace ccf::tasks
       current_workers = new_worker_count;
     }
   };
+  // NOLINTEND(clang-analyzer-optin.performance.Padding)
 
   ThreadManager::ThreadManager(JobBoard& job_board_) :
     pimpl(std::make_unique<PImpl>(job_board_))

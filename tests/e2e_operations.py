@@ -235,6 +235,16 @@ def test_forced_snapshot(network, args):
     )
     find_snapshot_after_seqno(snapshots_dir, hwm_pre_proposal)
 
+    # Do not issue another transaction after this call. The snapshot request
+    # must make all preceding transactions available in a committed chunk even
+    # when the network is otherwise idle.
+    target_seqno = network.create_and_wait_for_ledger_chunk(primary)
+    with primary.get_ledger_chunk_from_api(target_seqno) as ledger:
+        chunk, first, last, _ = find_ledger_chunk_for_seqno(ledger, target_seqno)
+        assert chunk is not None
+        assert chunk.is_complete and chunk.is_committed()
+        assert first <= target_seqno <= last
+
     return network
 
 
@@ -3329,8 +3339,9 @@ def run_error_message_on_failure_to_read_aci_sec_context(args):
         args_copy.snp_endorsements_file = "/a/fake/path"
         failed = False
         try:
+            # 4 retries after 3s timeout, 3s backoff between retries = 27 seconds
             network.join_node(
-                new_node, args.package, args_copy, timeout=20, from_snapshot=False
+                new_node, args.package, args_copy, timeout=60, from_snapshot=False
             )
         except infra.network.CollateralFetchTimeout:
             LOG.info(

@@ -12,6 +12,9 @@ concurrency:
 
 permissions: read-all
 
+env:
+  PIP_INDEX_URL: https://packagefeedproxy.microsoft.io/pypi/simple/
+
 jobs:
   vmss-virtual-a:
     name: "AL4 VMSS Virtual A" # Debug build, unit tests, e2e (bucket_a)
@@ -38,10 +41,7 @@ jobs:
           fetch-depth: 0
 
       - name: "Install dependencies"
-        shell: bash
-        run: |
-          set -ex
-          ./scripts/setup-ci-al4.sh
+        uses: ./.github/actions/install-ci-dependencies
 
       - name: "Build Debug"
         run: |
@@ -111,10 +111,7 @@ jobs:
         shell: bash
 
       - name: "Install dependencies"
-        shell: bash
-        run: |
-          set -ex
-          ./scripts/setup-ci-al4.sh
+        uses: ./.github/actions/install-ci-dependencies
 
       - name: "Confirm running on Virtual"
         run: |
@@ -181,10 +178,7 @@ jobs:
           fetch-depth: 0
 
       - name: "Install dependencies"
-        shell: bash
-        run: |
-          set -ex
-          ./scripts/setup-ci-al4.sh
+        uses: ./.github/actions/install-ci-dependencies
 
       - name: "Build Debug"
         run: |

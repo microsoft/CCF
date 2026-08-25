@@ -13,6 +13,9 @@ on:
 
 permissions: read-all
 
+env:
+  PIP_INDEX_URL: https://packagefeedproxy.microsoft.io/pypi/simple/
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
   cancel-in-progress: false
@@ -43,7 +46,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install dependencies
-        run: ./scripts/setup-ci.sh
+        uses: ./.github/actions/install-ci-dependencies
 
       - name: Confirm platform
         run: python3 tests/infra/platform_detection.py virtual
