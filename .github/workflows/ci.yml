@@ -15,6 +15,12 @@ permissions: read-all
 
 env:
   NPM_CONFIG_REGISTRY: https://packagefeedproxy.microsoft.io/npm/
+  # Add bounded retries for transient runner-to-package-storage route failures.
+  NPM_CONFIG_FETCH_RETRIES: "5"
+  NPM_CONFIG_FETCH_RETRY_FACTOR: "2"
+  NPM_CONFIG_FETCH_RETRY_MINTIMEOUT: "5000"
+  NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT: "30000"
+  NPM_CONFIG_FETCH_TIMEOUT: "60000"
   PIP_INDEX_URL: https://packagefeedproxy.microsoft.io/pypi/simple/
 
 jobs:
@@ -44,10 +50,12 @@ jobs:
           fetch-depth: 0
 
       - name: "Install dependencies"
+        uses: ./.github/actions/install-ci-dependencies
+
+      - name: "Install development dependencies"
         shell: bash
         run: |
           set -ex
-          ./scripts/setup-ci.sh
           ./scripts/setup-dev.sh
 
       - name: "Run Checks and Build Debug with clang-tidy"
@@ -138,10 +146,7 @@ jobs:
         shell: bash
 
       - name: "Install dependencies"
-        shell: bash
-        run: |
-          set -ex
-          ./scripts/setup-ci.sh
+        uses: ./.github/actions/install-ci-dependencies
 
       - name: "Confirm running on Virtual"
         run: |
@@ -209,10 +214,7 @@ jobs:
           fetch-depth: 0
 
       - name: "Install dependencies"
-        shell: bash
-        run: |
-          set -ex
-          ./scripts/setup-ci.sh
+        uses: ./.github/actions/install-ci-dependencies
 
       - name: "Build Debug"
         run: |

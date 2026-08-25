@@ -46,7 +46,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install dependencies
-        run: ./scripts/setup-ci.sh
+        uses: ./.github/actions/install-ci-dependencies
 
       - name: Confirm platform
         run: python3 tests/infra/platform_detection.py virtual

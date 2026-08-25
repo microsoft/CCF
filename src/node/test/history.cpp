@@ -4,6 +4,7 @@
 
 #include "ccf/app_interface.h"
 #include "ccf/ds/x509_time_fmt.h"
+#include "ccf/pal/locking.h"
 #include "ccf/service/tables/nodes.h"
 #include "crypto/certs.h"
 #include "crypto/openssl/hash.h"
@@ -18,9 +19,7 @@
 #include <doctest/doctest.h>
 #undef FAIL
 
-#include <condition_variable>
 #include <exception>
-#include <mutex>
 #include <thread>
 
 using MapT = ccf::kv::Map<size_t, size_t>;
@@ -321,11 +320,11 @@ public:
 
 struct PausedSignatureCommit
 {
-  std::mutex lock;
-  std::condition_variable reserved_tx_created_cv;
-  std::condition_variable resume_cv;
-  bool reserved_tx_created = false;
-  bool resume = false;
+  ccf::pal::Mutex lock;
+  ccf::pal::ConditionVariable reserved_tx_created_cv;
+  ccf::pal::ConditionVariable resume_cv;
+  bool reserved_tx_created CCF_GUARDED_BY(lock) = false;
+  bool resume CCF_GUARDED_BY(lock) = false;
 };
 
 class PausedReservedSignatureTx : public ccf::kv::PendingTx
@@ -356,13 +355,14 @@ public:
     tree->put({});
 
     {
-      std::lock_guard<std::mutex> guard(paused.lock);
+      ccf::pal::MutexGuard guard(paused.lock);
       paused.reserved_tx_created = true;
     }
     paused.reserved_tx_created_cv.notify_one();
 
-    std::unique_lock<std::mutex> guard(paused.lock);
-    paused.resume_cv.wait(guard, [this]() { return paused.resume; });
+    ccf::pal::MutexGuard guard(paused.lock);
+    paused.resume_cv.wait(
+      guard, [this]() CCF_REQUIRES(paused.lock) { return paused.resume; });
 
     return tx.commit_reserved();
   }
@@ -560,9 +560,11 @@ TEST_CASE(
   });
 
   {
-    std::unique_lock<std::mutex> guard(paused.lock);
+    ccf::pal::MutexGuard guard(paused.lock);
     paused.reserved_tx_created_cv.wait(
-      guard, [&paused]() { return paused.reserved_tx_created; });
+      guard, [&paused]() CCF_REQUIRES(paused.lock) {
+        return paused.reserved_tx_created;
+      });
   }
 
   const auto new_term = store_term + 1;
@@ -575,7 +577,7 @@ TEST_CASE(
   REQUIRE(store.current_txid() == ccf::TxID(store_term, 1));
 
   {
-    std::lock_guard<std::mutex> guard(paused.lock);
+    ccf::pal::MutexGuard guard(paused.lock);
     paused.resume = true;
   }
   paused.resume_cv.notify_one();
