@@ -70,19 +70,26 @@ File: `codeql-analysis.yml`
 
 # Continuous Verification
 
-Runs quick verification jobs: trace validation, simulation and short model checking configurations. Triggered on PRs that affect tla/, src/consensus, tests/raft_scenarios, or the workflow itself, weekly, and manually.
+Runs the standard model checking, simulation, trace validation, counterexample, and disaster recovery jobs each week.
 
 File: `ci-verification.yml`
 3rd party dependencies: None
 
 # Long Verification
 
-Runs more expensive verification jobs, such as model checking with reconfiguration.
-
-- Runs weekly.
-- Can be manually run on a PR by setting `run-long-verification` label.
+Runs the longer consensus model checking and simulation jobs each week.
 
 File: `long-verification.yml`
+3rd party dependencies: None
+
+# TLA Shallow Verification
+
+Runs on pull requests that change `tla/` or `src/consensus/aft/raft.h`.
+
+- Simulates the consistency and consensus specifications on a GitHub-hosted runner. The simulation job has a 10-minute timeout.
+- Builds the Raft scenario driver and validates its traces against the consensus specification on a GitHub-hosted runner.
+
+File: `tla-shallow.yml`
 3rd party dependencies: None
 
 # Release
