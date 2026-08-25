@@ -5,6 +5,7 @@ on:
     paths:
       - "tla/**"
       - "src/consensus/aft/raft.h"
+      - ".github/workflows/tla-shallow.yml"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
