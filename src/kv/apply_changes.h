@@ -18,6 +18,8 @@ namespace ccf::kv
   // Atomically checks for conflicts then applies the writes in the given change
   // sets to their underlying Maps. Calls tx_id_resolver() at most once, iff the
   // writes are applied, to retrieve a unique TxID for the write set.
+  // Returns std::nullopt on conflict, a default TxID on successful application
+  // with no writes, or the assigned TxID on successful application with writes.
 
   using TxIDResolver = std::function<ccf::TxID()>;
 

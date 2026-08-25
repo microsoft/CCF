@@ -87,7 +87,7 @@ class AllCommittableWrapper : public TConsensus
 public:
   using TConsensus::TConsensus;
 
-  bool replicate(const ccf::kv::BatchVector& entries_) override
+  size_t replicate(const ccf::kv::BatchVector& entries_) override
   {
     // Rather than building a history that produces real signatures, we just
     // overwrite the entries here to say that everything is committable

@@ -678,7 +678,6 @@ namespace aft
           j["function"] = "replicate";
           j["state"] = *state;
           COMMITTABLE_INDICES(j["state"], state);
-          j["view"] = term; // TODO
           j["seqno"] = tx_id.seqno;
           j["globally_committable"] = globally_committable;
           RAFT_TRACE_JSON_OUT(j);

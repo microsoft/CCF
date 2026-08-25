@@ -210,6 +210,7 @@ namespace ccf::kv
       if (applied_txid->seqno == NoVersion)
       {
         // Read-only transaction
+        applied_txid = pimpl->read_txid;
         return CommitResult::SUCCESS;
       }
 
@@ -308,22 +309,6 @@ namespace ccf::kv
         throw std::logic_error("Transaction not yet committed");
       }
 
-      if (!pimpl->read_txid.has_value())
-      {
-        // Transaction did not get a handle on any map.
-        return std::nullopt;
-      }
-
-      // A committed tx is read-only (i.e. no write to any map) if it was not
-      // assigned a version when it was committed
-      // TODO: This is no longer true. Just return applied_txid, if possible
-      if (!applied_txid.has_value() || applied_txid->seqno == NoVersion)
-      {
-        // Read-only transaction
-        return pimpl->read_txid;
-      }
-
-      // Write transaction
       return applied_txid;
     }
 

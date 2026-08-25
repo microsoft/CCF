@@ -22,7 +22,7 @@ class SlowStubConsensus : public ccf::kv::test::StubConsensus
 public:
   using ccf::kv::test::StubConsensus::StubConsensus;
 
-  bool replicate(const ccf::kv::BatchVector& entries) override
+  size_t replicate(const ccf::kv::BatchVector& entries) override
   {
     if (rand() % 2 == 0)
     {
