@@ -20,6 +20,7 @@
 // boundary thresholds at lower frequency.
 
 #include "msgpack/encode.h"
+#include "msgpack/fluentd_event_time.h"
 
 #include <cassert>
 #include <chrono>
@@ -454,7 +455,7 @@ namespace ccf::msgpack::test::gen
             seconds{static_cast<int64_t>(s)} + nanoseconds{ns});
           const auto tp = system_clock::time_point{since_epoch};
           const auto et = FluentdEventTime::make(tp);
-          write_event_time(buf, et);
+          write_fluentd_event_time(buf, et);
           splice_into(frame, json::binary(event_time_payload(et), 0));
           break;
         }

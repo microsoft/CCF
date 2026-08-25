@@ -5,6 +5,7 @@
 // nlohmann::json::from_msgpack, assert structural equality.
 // nlohmann is the oracle.
 #include "msgpack/encode.h"
+#include "msgpack/fluentd_event_time.h"
 #include "msgpack/test/gen.h"
 
 #include <chrono>
@@ -208,7 +209,7 @@ TEST_CASE("differential: FluentdEventTime decodes as binary_t with subtype 0")
   const auto et =
     FluentdEventTime::make(tp_from_components(1700000000LL, 123456789U));
   std::vector<uint8_t> buf;
-  write_event_time(buf, et);
+  write_fluentd_event_time(buf, et);
 
   json decoded = json::from_msgpack(buf);
   REQUIRE(decoded.is_binary());
@@ -247,7 +248,7 @@ TEST_CASE("fluentd Message-mode byte-for-byte vector")
   std::vector<uint8_t> buf;
   write_array_header(buf, 3);
   write_str(buf, "myapp.access");
-  write_event_time(
+  write_fluentd_event_time(
     buf, FluentdEventTime::make(tp_from_components(0x69F37C9FLL, 0x315B5B4CU)));
   write_map_header(buf, 3);
   write_str(buf, "path");

@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "msgpack/encode.h"
+#include "msgpack/fluentd_event_time.h"
 #include "msgpack/test/format_introspect.h"
 #include "msgpack/test/gen.h"
 
@@ -625,7 +626,7 @@ TEST_CASE(
   }
 }
 
-TEST_CASE("write_event_time byte shape")
+TEST_CASE("write_fluentd_event_time byte shape")
 {
   // Spec (fluentd Forward Protocol v1, EventTime ext type 0, fixext8
   // form): 0xD7 0x00 <s_be4> <ns_be4>.
@@ -635,13 +636,13 @@ TEST_CASE("write_event_time byte shape")
   const auto et =
     FluentdEventTime::make(tp_from_components(0x69F37C9FLL, 0x315B5B4CU));
   std::vector<uint8_t> buf;
-  write_event_time(buf, et);
+  write_fluentd_event_time(buf, et);
   const std::vector<uint8_t> expected{
     0xD7, 0x00, 0x69, 0xF3, 0x7C, 0x9F, 0x31, 0x5B, 0x5B, 0x4C};
   CHECK(buf == expected);
 }
 
-TEST_CASE("write_event_time always fixext8 (property)")
+TEST_CASE("write_fluentd_event_time always fixext8 (property)")
 {
   gen::Rng rng(0x517E);
   INFO("seed=0x517E");
@@ -654,7 +655,7 @@ TEST_CASE("write_event_time always fixext8 (property)")
     const auto ns = nd(rng);
     const auto et = FluentdEventTime::make(tp_from_components(s, ns));
     std::vector<uint8_t> buf;
-    write_event_time(buf, et);
+    write_fluentd_event_time(buf, et);
     REQUIRE(buf.size() == 10);
     CHECK(buf[0] == 0xD7);
     CHECK(buf[1] == 0x00);

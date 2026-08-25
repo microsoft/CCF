@@ -14,11 +14,9 @@
 //   - All msgpack scalar types (nil, bool, int, uint, float64,
 //     str fixstr/str8/str16/str32, bin bin8/16/32).
 //   - Arrays (fixarray/array16/array32) and maps (fixmap/map16).
-//   - The fluentd in_forward EventTime ext type (ext type 0, fixext8 form).
 // Out of scope:
 //   - map32 (write_map_header throws MAP_TOO_LARGE for n > 65535).
 //   - float32 (write_float always emits float64).
-//   - The 12-byte EventTime ext form (fixext8 covers all uint32 seconds).
 //
 // Failure modes that may escape ANY write_* function:
 //   - MsgpackEncodeError on encoder-defined limits (see Error enum).
@@ -29,7 +27,6 @@
 
 #include "msgpack/endian.h"
 
-#include <chrono>
 #include <cstdint>
 #include <cstring>
 #include <functional>
@@ -76,7 +73,7 @@ namespace ccf::msgpack
     }
   }
 
-  // Thrown by encoder boundary functions (write_*, FluentdEventTime::make).
+  // Thrown by encoder boundary functions.
   //
   // API contract:
   //   - error_code() identifies the failure as a stable enum value.
@@ -110,103 +107,6 @@ namespace ccf::msgpack
 
   private:
     Error error;
-  };
-
-  // ===== FluentdEventTime: validated wrapper for fluentd's ext type 0 =====
-  //
-  // This is fluentd's application-defined timestamp ext type, NOT the
-  // msgpack-spec Timestamp (ext type -1). The two have different
-  // layouts. If you need msgpack-spec Timestamp later, add it as a
-  // separate type (TimestampExt or similar) - do not overload this one.
-  //
-  // Wire format (fixext8): 0xD7 0x00 <seconds_be4> <nanoseconds_be4>.
-  //
-  // Construction takes a system_clock::time_point so the caller can't
-  // accidentally swap the seconds and nanoseconds operands (the unit
-  // types are distinct), and so callers that already work in
-  // time_point don't have to decompose by hand.
-  //
-  // Range limitations enforced by make():
-  //   - seconds-since-epoch must fit in uint32_t (range ends at
-  //     2106-02-07 06:28:15 UTC); a time_point outside this range
-  //     throws INVALID_EVENT_TIME rather than silently wrapping.
-  //   - the time_point must not predate the epoch (negative
-  //     seconds-since-epoch); these throw INVALID_EVENT_TIME.
-  // If timestamps past 2106 are ever needed, switch to the msgpack-spec
-  // Timestamp 64 form (34-bit seconds, range to year 2514) as a
-  // sibling type.
-
-  class FluentdEventTime
-  {
-  public:
-    // Throws MsgpackEncodeError(INVALID_EVENT_TIME) if the time_point
-    // is before the epoch or beyond 2106-02-07 06:28:15 UTC.
-    // The thrown what() includes the offending epoch-seconds value.
-    //
-    // Precision: the wire format carries 32-bit nanoseconds. On
-    // platforms where system_clock::period is at least as fine as
-    // nanoseconds (libstdc++: 1ns; MSVC STL: 100ns), the full
-    // sub-second component round-trips. On platforms where it is
-    // coarser (libc++: 1us), the low digits of the encoded
-    // nanoseconds field are always zero - still spec-conformant,
-    // just no precision beyond the platform's clock resolution.
-    [[nodiscard]] static FluentdEventTime make(
-      std::chrono::system_clock::time_point tp)
-    {
-      const auto since_epoch = tp.time_since_epoch();
-
-      // Reject any time_point that predates the epoch. We must check
-      // the original duration here (not secs.count() below): for a
-      // small negative duration like -0.5s, duration_cast<seconds>
-      // truncates toward zero and yields 0, masking the negativity.
-      if (since_epoch < std::chrono::system_clock::duration::zero())
-      {
-        const auto ns_signed =
-          std::chrono::duration_cast<std::chrono::nanoseconds>(since_epoch)
-            .count();
-        throw MsgpackEncodeError::make(
-          Error::INVALID_EVENT_TIME,
-          "time_point predates the epoch (since_epoch_ns=" +
-            std::to_string(ns_signed) + ")");
-      }
-
-      const auto secs =
-        std::chrono::duration_cast<std::chrono::seconds>(since_epoch);
-      const auto secs_count = secs.count();
-      if (
-        secs_count > static_cast<int64_t>(std::numeric_limits<uint32_t>::max()))
-      {
-        throw MsgpackEncodeError::make(
-          Error::INVALID_EVENT_TIME,
-          "time_point beyond 2106-02-07 06:28:15 UTC (seconds=" +
-            std::to_string(secs_count) + ")");
-      }
-
-      // sub-second component in [0, 1s). since_epoch >= 0 was confirmed
-      // above, so duration_cast (truncating toward zero) leaves a
-      // non-negative remainder.
-      const auto ns_count =
-        std::chrono::duration_cast<std::chrono::nanoseconds>(since_epoch - secs)
-          .count();
-      return FluentdEventTime{
-        static_cast<uint32_t>(secs_count), static_cast<uint32_t>(ns_count)};
-    }
-
-    [[nodiscard]] uint32_t seconds() const
-    {
-      return s_;
-    }
-    [[nodiscard]] uint32_t nanoseconds() const
-    {
-      return ns_;
-    }
-
-    bool operator==(const FluentdEventTime&) const = default;
-
-  private:
-    FluentdEventTime(uint32_t s, uint32_t ns) : s_(s), ns_(ns) {}
-    uint32_t s_;
-    uint32_t ns_;
   };
 
   // ===== Format byte constants =====
@@ -247,8 +147,6 @@ namespace ccf::msgpack
     // negative fixint: 0b111XXXXX (0xE0..0xFF) - emitted as the int8 bit
     // pattern.
 
-    // Fluentd-specific ext type byte (NOT the msgpack-spec Timestamp's -1).
-    constexpr uint8_t FLUENTD_EVENT_TIME_EXT_TYPE = 0x00;
   } // namespace fmt_byte
 
   // ===== Scalar encoders =====
@@ -529,18 +427,5 @@ namespace ccf::msgpack
         "map size " + std::to_string(n) +
           " exceeds map16 cap of 65535 keys (no map32 by design)");
     }
-  }
-
-  // ===== FluentdEventTime =====
-  // Wire format (fluentd ext type 0, fixext8 form):
-  //   0xD7 0x00 <s_be4> <ns_be4>.
-  // The msgpack-spec Timestamp ext type (-1) has a different layout
-  // and is intentionally NOT supported here.
-  inline void write_event_time(std::vector<uint8_t>& buf, FluentdEventTime t)
-  {
-    buf.push_back(fmt_byte::FIXEXT_8);
-    buf.push_back(fmt_byte::FLUENTD_EVENT_TIME_EXT_TYPE);
-    utils::write_be<uint32_t>(buf, t.seconds());
-    utils::write_be<uint32_t>(buf, t.nanoseconds());
   }
 } // namespace ccf::msgpack

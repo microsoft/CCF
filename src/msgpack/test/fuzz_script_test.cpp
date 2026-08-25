@@ -16,6 +16,7 @@
 // bytes for any particular composite shape.
 
 #include "msgpack/encode.h"
+#include "msgpack/fluentd_event_time.h"
 #include "msgpack/test/gen.h"
 
 #include <cstdint>
