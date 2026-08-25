@@ -70,10 +70,7 @@ jobs:
           queries: security-extended
 
       - name: "Install dependencies"
-        shell: bash
-        run: |
-          set -ex
-          ./scripts/setup-ci.sh
+        uses: ./.github/actions/install-ci-dependencies
 
       - name: "Run CMake"
         run: |
