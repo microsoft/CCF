@@ -12,7 +12,7 @@ import shutil
 import subprocess
 import tempfile
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import ccf.ledger
 import ccf.signatures
@@ -471,6 +471,69 @@ def test_recover_service(
     no_ledger=False,
     via_recovery_owner=False,
     force_election=False,
+    snapshots_dir=None,
+    isolate_latest_snapshot=False,
+):
+    if not from_snapshot and snapshots_dir is not None:
+        raise ValueError("snapshots_dir requires from_snapshot=True")
+    if isolate_latest_snapshot and not from_snapshot:
+        raise ValueError("isolate_latest_snapshot requires from_snapshot=True")
+    if isolate_latest_snapshot and snapshots_dir is not None:
+        raise ValueError(
+            "isolate_latest_snapshot cannot be combined with snapshots_dir"
+        )
+
+    if isolate_latest_snapshot:
+        # The recovery requirement has already issued its tracked transactions, so
+        # this snapshot contains everything that the recovered network must verify.
+        primary, _ = network.find_primary()
+        snapshot_trigger = primary.trigger_snapshot()
+        committed_snapshots_dir = network.get_committed_snapshots(
+            primary,
+            target_seqno=snapshot_trigger.seqno,
+            wait_for_target_seqno=True,
+        )
+        snapshot_name = ccf.ledger.latest_snapshot(committed_snapshots_dir)
+        assert snapshot_name is not None
+        snapshot_seqno, _ = ccf.ledger.snapshot_index_from_filename(snapshot_name)
+        assert snapshot_seqno >= snapshot_trigger.seqno
+
+        with tempfile.TemporaryDirectory(
+            prefix="ccf_recovery_snapshot_"
+        ) as isolated_snapshots_dir:
+            shutil.copy(
+                os.path.join(committed_snapshots_dir, snapshot_name),
+                isolated_snapshots_dir,
+            )
+            return _recover_service(
+                network,
+                args,
+                from_snapshot=from_snapshot,
+                no_ledger=no_ledger,
+                via_recovery_owner=via_recovery_owner,
+                force_election=force_election,
+                snapshots_dir=isolated_snapshots_dir,
+            )
+
+    return _recover_service(
+        network,
+        args,
+        from_snapshot=from_snapshot,
+        no_ledger=no_ledger,
+        via_recovery_owner=via_recovery_owner,
+        force_election=force_election,
+        snapshots_dir=snapshots_dir,
+    )
+
+
+def _recover_service(
+    network,
+    args,
+    from_snapshot=True,
+    no_ledger=False,
+    via_recovery_owner=False,
+    force_election=False,
+    snapshots_dir=None,
 ):
     network.save_service_identity(args)
     old_node_ids = {node.node_id for node in network.get_joined_nodes()}
@@ -501,8 +564,7 @@ def test_recover_service(
             == previous_service_create_txid
         )
 
-    snapshots_dir = None
-    if from_snapshot:
+    if from_snapshot and snapshots_dir is None:
         snapshots_dir = network.get_committed_snapshots(old_primary)
 
     if force_election:
@@ -1883,6 +1945,57 @@ def run_recover_snapshot_alone(args):
         return network
 
 
+def run_recover_snapshot_from_expired_node_certificate(args):
+    txs = app.LoggingTxs("user0")
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        pdb=args.pdb,
+        txs=txs,
+    ) as network:
+        network.start_and_open(args)
+        primary, _ = network.find_primary()
+
+        previous_verify_ca_by_default = primary.verify_ca_by_default
+        recovered_network = None
+        try:
+            valid_from = str(
+                infra.crypto.datetime_to_X509time(
+                    datetime.now(timezone.utc) - timedelta(days=2)
+                )
+            )
+            validity_period_days = 1
+            primary.verify_ca_by_default = False
+            network.consortium.set_node_certificate_validity(
+                primary,
+                primary,
+                valid_from=valid_from,
+                validity_period_days=validity_period_days,
+            )
+            primary.set_certificate_validity_period(valid_from, validity_period_days)
+
+            network.wait_for_all_nodes_to_commit(primary)
+            primary.verify_certificate_validity_period()
+            _, valid_to = infra.crypto.get_validity_period_from_pem_cert(
+                primary.get_tls_certificate_pem()
+            )
+            assert valid_to < datetime.now(timezone.utc), valid_to
+
+            recovered_network = test_recover_service(
+                network,
+                args,
+                from_snapshot=True,
+                no_ledger=True,
+                isolate_latest_snapshot=True,
+            )
+        finally:
+            primary.verify_ca_by_default = previous_verify_ca_by_default
+            if recovered_network is not None:
+                # There is no pre-snapshot ledger for historical range queries.
+                recovered_network.stop_all_nodes(skip_verification=True)
+
+
 def run_recovery_with_election(args):
     """
     Recover a service but force election during recovery.
@@ -2984,6 +3097,15 @@ checked. Note that the key for each logging message is unique (per table).
         run_recover_snapshot_alone,
         package="samples/apps/logging/logging",
         nodes=infra.e2e_args.min_nodes(cr.args, f=0),  # 1 node suffices for recovery
+    )
+
+    cr.add(
+        "recovery_expired_node_certificate_snapshot",
+        run_recover_snapshot_from_expired_node_certificate,
+        package="samples/apps/logging/logging",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=0),
+        snapshot_tx_interval=10,
+        sig_tx_interval=1,
     )
 
     cr.add(
