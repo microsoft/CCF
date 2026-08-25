@@ -3,19 +3,15 @@
 
 #pragma once
 
+#include <arrow/array/array_binary.h>
+#include <memory>
 #include <string>
 #include <vector>
 
 class ParquetData
 {
 public:
-  ParquetData() {}
-
-  std::vector<std::string> ids;
-  std::vector<std::vector<uint8_t>> request;
-  std::vector<size_t> response_status_code;
-  std::vector<std::string> response_headers;
-  std::vector<std::vector<uint8_t>> response_body;
+  std::shared_ptr<arrow::StringArray> ids;
+  std::shared_ptr<arrow::BinaryArray> requests;
   std::vector<int64_t> send_time;
-  std::vector<int64_t> response_time;
 };

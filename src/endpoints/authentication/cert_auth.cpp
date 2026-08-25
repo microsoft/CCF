@@ -109,7 +109,8 @@ namespace ccf
     const std::shared_ptr<ccf::RpcContext>& ctx,
     std::string& error_reason)
   {
-    const auto& caller_cert = ctx->get_session_context()->caller_cert;
+    const auto& session = ctx->get_session_context();
+    const auto& caller_cert = session->caller_cert;
     if (caller_cert.empty())
     {
       error_reason = "No caller user certificate";
@@ -122,7 +123,7 @@ namespace ccf
       return nullptr;
     }
 
-    auto caller_id = ccf::crypto::Sha256Hash(caller_cert).hex_str();
+    const auto& caller_id = session->caller_cert_sha256;
 
     auto* user_certs = tx.ro<UserCerts>(Tables::USER_CERTS);
     if (user_certs->has(caller_id))
@@ -147,14 +148,15 @@ namespace ccf
     const std::shared_ptr<ccf::RpcContext>& ctx,
     std::string& error_reason)
   {
-    const auto& caller_cert = ctx->get_session_context()->caller_cert;
+    const auto& session = ctx->get_session_context();
+    const auto& caller_cert = session->caller_cert;
     if (caller_cert.empty())
     {
       error_reason = "No caller member certificate";
       return nullptr;
     }
 
-    auto caller_id = ccf::crypto::Sha256Hash(caller_cert).hex_str();
+    const auto& caller_id = session->caller_cert_sha256;
 
     auto* member_certs = tx.ro<MemberCerts>(Tables::MEMBER_CERTS);
     if (member_certs->has(caller_id))

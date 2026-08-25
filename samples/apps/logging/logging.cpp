@@ -25,6 +25,7 @@
 #include "ccf/json_handler.h"
 #include "ccf/network_identity_interface.h"
 #include "ccf/node/node_configuration_interface.h"
+#include "ccf/pal/locking.h"
 #include "ccf/version.h"
 
 #include <charconv>
@@ -176,8 +177,8 @@ namespace loggingapp
   private:
     std::string map_name;
     std::map<size_t, std::string> records;
-    std::mutex txid_lock;
-    ccf::TxID current_txid = {};
+    ccf::pal::Mutex txid_lock;
+    ccf::TxID current_txid CCF_GUARDED_BY(txid_lock) = {};
 
   public:
     CommittedRecords(
@@ -190,7 +191,7 @@ namespace loggingapp
     void handle_committed_transaction(
       const ccf::TxID& tx_id, const ccf::kv::ReadOnlyStorePtr& store) override
     {
-      std::lock_guard<std::mutex> lock(txid_lock);
+      ccf::pal::MutexGuard lock(txid_lock);
       auto tx_diff = store->create_tx_diff();
       auto* m = tx_diff.template diff<RecordsMap>(map_name);
       m->foreach([this](const size_t& k, std::optional<std::string> v) -> bool {
@@ -211,7 +212,7 @@ namespace loggingapp
 
     std::optional<ccf::SeqNo> next_requested() override
     {
-      std::lock_guard<std::mutex> lock(txid_lock);
+      ccf::pal::MutexGuard lock(txid_lock);
       return current_txid.seqno + 1;
     }
 
@@ -227,7 +228,7 @@ namespace loggingapp
 
     ccf::TxID get_current_txid()
     {
-      std::lock_guard<std::mutex> lock(txid_lock);
+      ccf::pal::MutexGuard lock(txid_lock);
       return current_txid;
     }
   };

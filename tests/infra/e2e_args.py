@@ -430,7 +430,7 @@ def cli_args(
         "--gov-api-version",
         help="api-version to be used for accessing /gov endpoints",
         type=str,
-        default=infra.clients.API_VERSION_01,
+        default=infra.clients.API_VERSION_LATEST,
     )
     add(parser)
 

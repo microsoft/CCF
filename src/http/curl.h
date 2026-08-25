@@ -4,6 +4,7 @@
 
 #include "ccf/ds/nonstd.h"
 #include "ccf/http_configuration.h"
+#include "ccf/pal/locking.h"
 #include "ccf/rest_verb.h"
 #include "ds/internal_logger.h"
 #include "host/proxy.h"
@@ -13,7 +14,6 @@
 #include <curl/curl.h>
 #include <curl/multi.h>
 #include <memory>
-#include <mutex>
 #include <optional>
 #include <regex>
 #include <span>
@@ -835,8 +835,9 @@ namespace ccf::curl
     using SocketContext = asynchost::proxy_ptr<SocketContextImpl>;
 
     uv_async_t async_requests_handle{};
-    std::mutex requests_mutex;
-    std::deque<std::unique_ptr<CurlRequest>> pending_requests;
+    ccf::pal::Mutex requests_mutex;
+    std::deque<std::unique_ptr<CurlRequest>> pending_requests
+      CCF_GUARDED_BY(requests_mutex);
 
     static bool log_uv_error(const char* function_name, int rc)
     {
@@ -911,7 +912,7 @@ namespace ccf::curl
       std::deque<std::unique_ptr<CurlRequest>> requests_to_abort;
       std::deque<std::unique_ptr<CurlRequest>> requests_to_add;
       {
-        std::lock_guard<std::mutex> requests_lock(self->requests_mutex);
+        ccf::pal::MutexGuard requests_lock(self->requests_mutex);
         if (self->is_stopping)
         {
           LOG_DEBUG_FMT("async_requests_callback called while stopping");
@@ -1253,7 +1254,7 @@ namespace ccf::curl
       LOG_DEBUG_FMT("Adding request to {} to queue", request->get_url());
       std::unique_ptr<CurlRequest> request_to_abort = nullptr;
       {
-        std::lock_guard<std::mutex> requests_lock(requests_mutex);
+        ccf::pal::MutexGuard requests_lock(requests_mutex);
         if (is_stopping)
         {
           LOG_FAIL_FMT(
@@ -1292,7 +1293,7 @@ namespace ccf::curl
       // Prevent multiple close calls
       std::deque<std::unique_ptr<CurlRequest>> pending_requests_to_complete;
       {
-        std::lock_guard<std::mutex> requests_lock(requests_mutex);
+        ccf::pal::MutexGuard requests_lock(requests_mutex);
         if (is_stopping)
         {
           LOG_INFO_FMT(
