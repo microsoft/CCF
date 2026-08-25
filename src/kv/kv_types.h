@@ -440,7 +440,7 @@ namespace ccf::kv
     virtual void init_as_backup(
       ccf::SeqNo, ccf::View, const std::vector<ccf::SeqNo>&, ccf::SeqNo) = 0;
 
-    virtual bool replicate(const BatchVector& entries) = 0;
+    virtual size_t replicate(const BatchVector& entries) = 0;
     virtual std::pair<ccf::View, ccf::SeqNo> get_committed_txid() = 0;
 
     virtual ccf::View get_view(ccf::SeqNo seqno) = 0;

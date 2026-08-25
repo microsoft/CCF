@@ -716,8 +716,9 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/main.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/view_history.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/committable_suffix.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/view_straddling_transactions.cpp
     )
-    target_link_libraries(raft_test PRIVATE ccfcrypto ccf_tasks)
+    target_link_libraries(raft_test PRIVATE ccfcrypto ccf_kv ccf_tasks)
 
     add_unit_test(
       raft_enclave_test

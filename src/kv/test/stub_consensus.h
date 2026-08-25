@@ -105,7 +105,7 @@ namespace ccf::kv::test
       state = Backup;
     }
 
-    bool replicate(const BatchVector& entries) override
+    size_t replicate(const BatchVector& entries) override
     {
       for (const auto& entry : entries)
       {
@@ -122,7 +122,7 @@ namespace ccf::kv::test
         }
         current_view = tx_id.view;
       }
-      return true;
+      return entries.size();
     }
 
     std::optional<std::vector<uint8_t>> get_latest_data()
@@ -235,9 +235,9 @@ namespace ccf::kv::test
       return false;
     }
 
-    bool replicate(const BatchVector& entries) override
+    size_t replicate(const BatchVector& entries) override
     {
-      return false;
+      return 0;
     }
 
     bool can_replicate() override
