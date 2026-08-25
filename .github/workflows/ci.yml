@@ -50,10 +50,12 @@ jobs:
           fetch-depth: 0
 
       - name: "Install dependencies"
+        uses: ./.github/actions/install-ci-dependencies
+
+      - name: "Install development dependencies"
         shell: bash
         run: |
           set -ex
-          ./scripts/setup-ci.sh
           ./scripts/setup-dev.sh
 
       - name: "Run Checks and Build Debug with clang-tidy"
@@ -144,10 +146,7 @@ jobs:
         shell: bash
 
       - name: "Install dependencies"
-        shell: bash
-        run: |
-          set -ex
-          ./scripts/setup-ci.sh
+        uses: ./.github/actions/install-ci-dependencies
 
       - name: "Confirm running on Virtual"
         run: |
@@ -215,10 +214,7 @@ jobs:
           fetch-depth: 0
 
       - name: "Install dependencies"
-        shell: bash
-        run: |
-          set -ex
-          ./scripts/setup-ci.sh
+        uses: ./.github/actions/install-ci-dependencies
 
       - name: "Build Debug"
         run: |
