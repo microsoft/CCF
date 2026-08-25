@@ -15,9 +15,9 @@
       "component": {
         "type": "git",
         "git": {
-          "repositoryUrl": "https://github.com/onqtam/doctest.git",
-          "commitHash": "1da23a3e8119ec5cce4f9388e91b065e20bf06f5",
-          "tag": "v2.4.12"
+          "repositoryUrl": "https://github.com/doctest/doctest.git",
+          "commitHash": "2d0a9359a60c51affe2a9bebb1be1dca47868151",
+          "tag": "v2.5.3"
         }
       }
     },
