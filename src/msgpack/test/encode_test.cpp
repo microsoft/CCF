@@ -133,6 +133,20 @@ TEST_CASE("write_uint boundary table")
   }
 }
 
+TEST_CASE("tagged writes append after existing bytes")
+{
+  std::vector<uint8_t> buf = {0xAA, 0xBB};
+
+  write_uint(buf, 0x0102);
+  write_array_header(buf, 16);
+  write_map_header(buf, 16);
+
+  CHECK(
+    buf ==
+    std::vector<uint8_t>{
+      0xAA, 0xBB, 0xCD, 0x01, 0x02, 0xDC, 0x00, 0x10, 0xDE, 0x00, 0x10});
+}
+
 // ===== write_int: smallest-format-wins, non-negative delegates =====
 
 TEST_CASE("write_int delegates to write_uint for non-negative")
@@ -635,10 +649,10 @@ TEST_CASE("write_fluentd_event_time byte shape")
   // least one of these.
   const auto et =
     FluentdEventTime::make(tp_from_components(0x69F37C9FLL, 0x315B5B4CU));
-  std::vector<uint8_t> buf;
+  std::vector<uint8_t> buf{0xAA, 0xBB};
   write_fluentd_event_time(buf, et);
   const std::vector<uint8_t> expected{
-    0xD7, 0x00, 0x69, 0xF3, 0x7C, 0x9F, 0x31, 0x5B, 0x5B, 0x4C};
+    0xAA, 0xBB, 0xD7, 0x00, 0x69, 0xF3, 0x7C, 0x9F, 0x31, 0x5B, 0x5B, 0x4C};
   CHECK(buf == expected);
 }
 

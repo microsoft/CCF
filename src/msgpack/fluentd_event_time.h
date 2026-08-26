@@ -100,9 +100,10 @@ namespace ccf::msgpack
     std::vector<uint8_t>& buf, FluentdEventTime t)
   {
     constexpr uint8_t fluentd_event_time_ext_type = 0x00;
-    buf.push_back(fmt_byte::FIXEXT_8);
-    buf.push_back(fluentd_event_time_ext_type);
-    utils::write_be<uint32_t>(buf, t.seconds());
-    utils::write_be<uint32_t>(buf, t.nanoseconds());
+    auto* out = utils::append_space(buf, 10);
+    *out++ = fmt_byte::FIXEXT_8;
+    *out++ = fluentd_event_time_ext_type;
+    utils::write_be<uint32_t>(out, t.seconds());
+    utils::write_be<uint32_t>(out + sizeof(uint32_t), t.nanoseconds());
   }
 } // namespace ccf::msgpack
