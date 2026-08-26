@@ -83,7 +83,9 @@ namespace ccf::kv
 
       SizeKvStoreSerialiser size_serialiser(
         e,
-        TxID{pimpl->commit_view, NoVersion},
+        // Used as IV for encrypted serialisation, but does not affect the
+        // projected size.
+        ccf::TxID{0, 0},
         EntryType::WriteSetWithCommitEvidenceAndClaims,
         entry_flags,
         // Both digests are fixed-size, so their values do not affect the
