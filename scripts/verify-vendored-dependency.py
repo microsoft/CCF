@@ -18,11 +18,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
-try:
-    import git
-except ImportError as exc:
-    print(f"ERROR: {exc}", file=sys.stderr)
-    sys.exit(1)
+import git
 
 COMMIT_HASH = re.compile(r"[0-9a-fA-F]{40}")
 NETWORK_TIMEOUT_SECONDS = 5
