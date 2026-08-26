@@ -9,7 +9,6 @@ import json
 import os
 import re
 import stat
-import subprocess
 import sys
 import tarfile
 import tempfile
@@ -17,7 +16,13 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
-from urllib.request import Request, urlopen
+from urllib.request import HTTPRedirectHandler, Request, build_opener
+
+try:
+    import git
+except ImportError as exc:
+    print(f"ERROR: {exc}", file=sys.stderr)
+    sys.exit(1)
 
 COMMIT_HASH = re.compile(r"[0-9a-fA-F]{40}")
 NETWORK_TIMEOUT_SECONDS = 5
@@ -78,27 +83,17 @@ class VerificationError(RuntimeError):
     pass
 
 
-def git(repository: Path, *arguments: str) -> bytes:
-    environment = os.environ.copy()
-    environment.update({"GIT_TERMINAL_PROMPT": "0", "LC_ALL": "C"})
-    try:
-        result = subprocess.run(
-            ["git", "-C", str(repository), *arguments],
-            check=True,
-            capture_output=True,
-            env=environment,
-            timeout=NETWORK_TIMEOUT_SECONDS,
-        )
-    except FileNotFoundError as exc:
-        raise VerificationError("git is required but was not found") from exc
-    except subprocess.CalledProcessError as exc:
-        detail = exc.stderr.decode(errors="replace").strip()
-        raise VerificationError(f"git {' '.join(arguments)} failed: {detail}") from exc
-    except subprocess.TimeoutExpired as exc:
-        raise VerificationError(
-            f"git {' '.join(arguments)} exceeded {NETWORK_TIMEOUT_SECONDS} seconds"
-        ) from exc
-    return result.stdout
+class HTTPSOnlyRedirectHandler(HTTPRedirectHandler):
+    """Refuse to follow a redirect away from HTTPS, so a compromised or
+    misconfigured HTTPS endpoint cannot downgrade a download to plaintext."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        if urlparse(newurl).scheme != "https":
+            raise URLError(f"Refused to follow redirect to non-HTTPS URL: {newurl}")
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+_HTTPS_ONLY_OPENER = build_opener(HTTPSOnlyRedirectHandler)
 
 
 def checkout(
@@ -112,29 +107,42 @@ def checkout(
         raise VerificationError("Repository URL must not begin with '-'")
 
     reference = component.commit if tag is None else f"refs/tags/{tag}"
-    git(destination, "init", "--quiet")
-    if tag is not None:
-        git(destination, "check-ref-format", reference)
-    git(
-        destination,
-        "fetch",
-        "--quiet",
-        "--no-tags",
-        "--depth=1",
-        component.repository_url,
-        reference,
-    )
-    actual_commit = (
-        git(destination, "rev-parse", "--verify", "FETCH_HEAD^{commit}")
-        .decode()
-        .strip()
-    )
-    if actual_commit != component.commit:
-        raise VerificationError(
-            f"{reference} resolves to {actual_commit}, "
-            f"but the manifest claims {component.commit}"
+    try:
+        repository = git.Repo.init(destination)
+        # Don't hang waiting for credentials on an inaccessible repository.
+        repository.git.update_environment(GIT_TERMINAL_PROMPT="0")
+        if tag is not None:
+            repository.git.check_ref_format(
+                reference, kill_after_timeout=NETWORK_TIMEOUT_SECONDS
+            )
+        repository.git.fetch(
+            "--quiet",
+            "--no-tags",
+            "--depth=1",
+            component.repository_url,
+            reference,
+            kill_after_timeout=NETWORK_TIMEOUT_SECONDS,
         )
-    git(destination, "checkout", "--quiet", "--detach", "FETCH_HEAD")
+        actual_commit = repository.git.rev_parse(
+            "--verify",
+            "FETCH_HEAD^{commit}",
+            kill_after_timeout=NETWORK_TIMEOUT_SECONDS,
+        ).strip()
+        if actual_commit != component.commit:
+            raise VerificationError(
+                f"{reference} resolves to {actual_commit}, "
+                f"but the manifest claims {component.commit}"
+            )
+        repository.git.checkout(
+            "--quiet",
+            "--detach",
+            "FETCH_HEAD",
+            kill_after_timeout=NETWORK_TIMEOUT_SECONDS,
+        )
+    except git.exc.GitCommandNotFound as exc:
+        raise VerificationError("git is required but was not found") from exc
+    except git.exc.GitCommandError as exc:
+        raise VerificationError(str(exc)) from exc
 
 
 def download(
@@ -143,7 +151,7 @@ def download(
     if urlparse(url).scheme != "https":
         raise VerificationError(f"Download URL must use HTTPS: {url}")
     try:
-        with urlopen(
+        with _HTTPS_ONLY_OPENER.open(
             Request(url, headers=headers or {}),
             timeout=NETWORK_TIMEOUT_SECONDS,
         ) as response:
@@ -191,7 +199,7 @@ def github_asset(component: GitComponent, asset_name: str) -> tuple[str, bytes]:
     )
     headers = {
         "Accept": "application/vnd.github+json",
-        "X-GitHub-Api-Version": "2022-11-28",
+        "X-GitHub-Api-Version": "2026-03-10",
     }
 
     try:
@@ -219,6 +227,10 @@ def github_asset(component: GitComponent, asset_name: str) -> tuple[str, bytes]:
 
 
 def files(directory: Path, *, vendored: bool = False) -> list[Path]:
+    if vendored and directory.is_symlink():
+        raise VerificationError(
+            f"Vendored directory must not be a symlink: {directory}"
+        )
     if not directory.is_dir():
         raise VerificationError(f"Directory does not exist: {directory}")
 
@@ -459,10 +471,19 @@ def load_manifest(path: Path) -> list[GitComponent]:
 
 def dependency_directory(manifest: Path, component: GitComponent) -> Path:
     expected_name = DIRECTORY_ALIASES.get(component.identity, component.identity[1])
+    third_party = manifest.parent / "3rdparty"
+    if third_party.is_symlink():
+        raise VerificationError(
+            f"3rdparty directory must not be a symlink: {third_party}"
+        )
+    third_party_resolved = third_party.resolve()
+
     matches = [
         path
-        for path in (manifest.parent / "3rdparty").glob("*/*")
-        if path.is_dir() and path.name == expected_name
+        for path in third_party.glob("*/*")
+        if path.is_dir()
+        and path.name == expected_name
+        and path.resolve().is_relative_to(third_party_resolved)
     ]
     if len(matches) != 1:
         raise VerificationError(

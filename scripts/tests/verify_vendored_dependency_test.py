@@ -131,6 +131,39 @@ class VerifyVendoredDependencyTest(unittest.TestCase):
         ):
             VERIFIER.verify_tree(invented, upstream)
 
+    def test_rejects_symlinked_vendored_directory(self) -> None:
+        upstream = self.create_tree("upstream", {"foo.h": b"foo\n"})
+        real_directory = self.create_tree("real-vendored", {"foo.h": b"foo\n"})
+        symlinked_vendored = self.root / "symlinked-vendored"
+        symlinked_vendored.symlink_to(real_directory, target_is_directory=True)
+
+        with self.assertRaisesRegex(
+            VERIFIER.VerificationError, "must not be a symlink"
+        ):
+            VERIFIER.verify_tree(symlinked_vendored, upstream)
+
+    def test_download_refuses_to_follow_redirect_off_https(self) -> None:
+        handler = VERIFIER.HTTPSOnlyRedirectHandler()
+        request = VERIFIER.Request("https://example.com/dependency.h")
+
+        with self.assertRaisesRegex(VERIFIER.URLError, "non-HTTPS"):
+            handler.redirect_request(
+                request, None, 302, "Found", {}, "http://example.com/dependency.h"
+            )
+
+        # A same-scheme redirect is still delegated to the base handler.
+        redirected = handler.redirect_request(
+            request, None, 302, "Found", {}, "https://example.com/moved.h"
+        )
+        self.assertEqual(redirected.full_url, "https://example.com/moved.h")
+
+        with mock.patch.object(
+            VERIFIER._HTTPS_ONLY_OPENER,
+            "open",
+            side_effect=VERIFIER.URLError("redirected off HTTPS"),
+        ), self.assertRaisesRegex(VERIFIER.VerificationError, "Failed to download"):
+            VERIFIER.download("https://example.com/dependency.h", 1024)
+
     def test_rejects_missing_or_modified_files(self) -> None:
         upstream = self.create_tree("upstream", {"include/foo.h": b"foo\n"})
         vendored = self.create_tree(
@@ -226,6 +259,39 @@ class VerifyVendoredDependencyTest(unittest.TestCase):
         )
         with self.assertRaisesRegex(VERIFIER.VerificationError, "json-library"):
             VERIFIER.dependency_directory(manifest, unlisted)
+
+    def test_dependency_directory_rejects_symlink_escape(self) -> None:
+        checkout = self.root / "escape"
+        (checkout / "3rdparty").mkdir(parents=True)
+        outside = self.root / "outside"
+        outside.mkdir()
+        (outside / "json").mkdir()
+        (checkout / "3rdparty" / "exported").symlink_to(
+            outside, target_is_directory=True
+        )
+        manifest = checkout / "cgmanifest.json"
+        component = VERIFIER.GitComponent(
+            "https://github.com/nlohmann/json.git", "0" * 40
+        )
+
+        with self.assertRaisesRegex(VERIFIER.VerificationError, "Expected one"):
+            VERIFIER.dependency_directory(manifest, component)
+
+    def test_dependency_directory_rejects_symlinked_3rdparty_root(self) -> None:
+        checkout = self.root / "escape-root"
+        checkout.mkdir(parents=True)
+        outside = self.root / "outside-root"
+        (outside / "exported" / "json").mkdir(parents=True)
+        (checkout / "3rdparty").symlink_to(outside, target_is_directory=True)
+        manifest = checkout / "cgmanifest.json"
+        component = VERIFIER.GitComponent(
+            "https://github.com/nlohmann/json.git", "0" * 40
+        )
+
+        with self.assertRaisesRegex(
+            VERIFIER.VerificationError, "must not be a symlink"
+        ):
+            VERIFIER.dependency_directory(manifest, component)
 
     def test_git_tag_must_resolve_to_manifest_commit(self) -> None:
         repository, commit = self.create_repository(

@@ -7,6 +7,7 @@ on:
       - "cgmanifest.json"
       - "scripts/verify-vendored-dependency.py"
       - "scripts/tests/verify_vendored_dependency_test.py"
+      - "scripts/requirements.txt"
       - ".github/workflows/vendor-verification.yml"
   push:
     branches:
@@ -16,6 +17,7 @@ on:
       - "cgmanifest.json"
       - "scripts/verify-vendored-dependency.py"
       - "scripts/tests/verify_vendored_dependency_test.py"
+      - "scripts/requirements.txt"
       - ".github/workflows/vendor-verification.yml"
   workflow_dispatch:
 
@@ -32,6 +34,15 @@ jobs:
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install dependencies
+        run: |
+          python3 -m venv env
+          source env/bin/activate
+          pip install -U pip
+          pip install -U -r scripts/requirements.txt
+          echo "$PWD/env/bin" >> "$GITHUB_PATH"
+        shell: bash
 
       - name: Test verifier
         run: python3 scripts/tests/verify_vendored_dependency_test.py
