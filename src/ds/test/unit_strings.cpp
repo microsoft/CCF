@@ -5,6 +5,7 @@
 
 #include <cmath>
 #include <doctest/doctest.h>
+#include <limits>
 
 using namespace ccf::ds;
 
@@ -29,6 +30,19 @@ TEST_CASE("Size strings" * doctest::test_suite("unit strings"))
   REQUIRE(convert_size_string("3GB") == 3 * std::pow(1024, 3));
   REQUIRE(convert_size_string("3TB") == 3 * std::pow(1024, 4));
   REQUIRE(convert_size_string("3PB") == 3 * std::pow(1024, 5));
+
+  const auto max_size = std::numeric_limits<size_t>::max();
+  REQUIRE(convert_size_string(std::to_string(max_size) + "B") == max_size);
+
+  const auto max_kb_value = max_size / 1024;
+  REQUIRE(
+    convert_size_string(std::to_string(max_kb_value) + "KB") ==
+    max_kb_value * 1024);
+  REQUIRE_THROWS_AS(
+    convert_size_string(std::to_string(max_kb_value + 1) + "KB"),
+    std::logic_error);
+  REQUIRE_THROWS_AS(
+    convert_size_string(std::to_string(max_size) + "PB"), std::logic_error);
 }
 
 TEST_CASE("Time strings" * doctest::test_suite("unit strings"))
