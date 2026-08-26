@@ -3027,6 +3027,8 @@ TEST_CASE("Reported TxID after commit")
 
     // Committed transaction was not assigned a TxID because it was empty
     REQUIRE_FALSE(tx.get_txid().has_value());
+    REQUIRE_EQ(tx.commit_version(), ccf::kv::NoVersion);
+    REQUIRE_EQ(tx.commit_term(), ccf::VIEW_UNKNOWN);
   }
 
   INFO("Simple read-only tx");

@@ -33,9 +33,11 @@ namespace ccf::kv
     // are available only pre-commit, some only post-commit.
     bool committed = false;
 
-    // Populated only after commit() has been called, and only if the
-    // transaction was successful. This is the version at which the transaction
-    // was applied to the local KV.
+    // The TxID at which this transaction was applied to the local KV. A
+    // successful transaction that never acquired a map handle has no changes
+    // and no TxID; its legacy commit metadata is represented by NoVersion and
+    // VIEW_UNKNOWN. A committed transaction with changes but no applied TxID
+    // was aborted.
     std::optional<ccf::TxID> applied_txid = std::nullopt;
 
     TxFlags flags = 0;
@@ -187,7 +189,6 @@ namespace ccf::kv
       if (all_changes.empty())
       {
         committed = true;
-        applied_txid = pimpl->read_txid;
         return CommitResult::SUCCESS;
       }
 
@@ -334,6 +335,11 @@ namespace ccf::kv
 
       if (!applied_txid.has_value())
       {
+        if (all_changes.empty())
+        {
+          return NoVersion;
+        }
+
         throw std::logic_error("Transaction aborted");
       }
 
@@ -356,6 +362,11 @@ namespace ccf::kv
 
       if (!applied_txid.has_value())
       {
+        if (all_changes.empty())
+        {
+          return ccf::VIEW_UNKNOWN;
+        }
+
         throw std::logic_error("Transaction aborted");
       }
 
