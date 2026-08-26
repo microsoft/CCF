@@ -15,6 +15,7 @@
 #include "kv_types.h"
 
 #define FMT_HEADER_ONLY
+#include <algorithm>
 #include <atomic>
 #include <fmt/format.h>
 #include <memory>
@@ -100,11 +101,12 @@ namespace ccf::kv
     Hooks global_hooks;
     MapHooks map_hooks;
 
-    std::shared_ptr<Consensus> consensus = nullptr;
+    std::atomic<std::shared_ptr<Consensus>> consensus = nullptr;
     std::shared_ptr<TxHistory> history = nullptr;
     std::shared_ptr<ILedgerChunker> chunker = nullptr;
     EncryptorPtr encryptor = nullptr;
     SnapshotterPtr snapshotter = nullptr;
+    size_t max_transaction_size = max_serialised_entry_size;
 
     // Generally we will only accept deserialised views if they are contiguous -
     // at Version N we reject everything but N+1. The exception is when a Store
@@ -213,15 +215,12 @@ namespace ccf::kv
 
     std::shared_ptr<Consensus> get_consensus() override
     {
-      // We need to use std::atomic_load<std::shared_ptr<T>>
-      // after clang supports it.
-      // https://en.cppreference.com/w/Template:cpp/compiler_support/20
-      return std::atomic_load(&consensus);
+      return consensus.load();
     }
 
     void set_consensus(const std::shared_ptr<Consensus>& consensus_)
     {
-      std::atomic_store(&consensus, consensus_);
+      consensus.store(consensus_);
     }
 
     std::shared_ptr<TxHistory> get_history() override
@@ -252,6 +251,30 @@ namespace ccf::kv
     EncryptorPtr get_encryptor() override
     {
       return encryptor;
+    }
+
+    void set_max_transaction_size(size_t max_transaction_size_)
+    {
+      // The limit covers the whole ledger entry, so it can never usefully
+      // exceed the largest entry the header can describe, nor the largest
+      // buffer the allocator can produce
+      static const size_t max_allocatable = std::vector<uint8_t>().max_size();
+      const auto effective_max =
+        std::min(max_serialised_entry_size, max_allocatable);
+      if (max_transaction_size_ > effective_max)
+      {
+        throw std::logic_error(fmt::format(
+          "Configured maximum transaction size {} exceeds the largest "
+          "serialisable ledger entry size {}",
+          max_transaction_size_,
+          effective_max));
+      }
+      max_transaction_size = max_transaction_size_;
+    }
+
+    [[nodiscard]] size_t get_max_transaction_size() const override
+    {
+      return max_transaction_size;
     }
 
     void set_snapshotter(const SnapshotterPtr& snapshotter_)
@@ -418,6 +441,9 @@ namespace ccf::kv
       std::unique_ptr<AbstractSnapshot> snapshot) override
     {
       auto e = get_encryptor();
+      // Snapshots capture the entire committed state and are legitimately
+      // larger than any single transaction, so max_transaction_size does not
+      // apply to them.
       return snapshot->serialise(e);
     }
 

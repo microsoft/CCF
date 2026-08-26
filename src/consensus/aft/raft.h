@@ -1307,7 +1307,22 @@ namespace aft
           {
             // If the current entry has already been deserialised, skip the
             // payload for that entry
-            ledger->skip_entry(data, size);
+            try
+            {
+              ledger->skip_entry(data, size);
+            }
+            catch (const std::logic_error& e)
+            {
+              // This should only fail if there is malformed data.
+              RAFT_FAIL_FMT(
+                "Recv {} to {} from {} but the data is malformed: {}",
+                r.msg,
+                state->node_id,
+                from,
+                e.what());
+              send_append_entries_response_nack(from);
+              return;
+            }
             continue;
           }
         }

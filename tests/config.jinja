@@ -57,7 +57,8 @@
   {
     "directory": "{{ ledger_dir }}",
     "read_only_directories": {{ read_only_ledger_dirs|tojson }},
-    "chunk_size": "{{ ledger_chunk_bytes }}"
+    "chunk_size": "{{ ledger_chunk_bytes }}",
+    "max_transaction_size": "{{ ledger_max_transaction_bytes }}"
   },
   "snapshots":
   {
