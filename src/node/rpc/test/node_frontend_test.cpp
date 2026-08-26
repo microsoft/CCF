@@ -342,14 +342,14 @@ TEST_CASE("Add a node to an open service")
       auto nodes = verify_tx.ro(network.nodes);
       const auto node_info = nodes->get(expired_node_id);
       REQUIRE(node_info.has_value());
-      REQUIRE(node_info->pending_since.has_value());
+      REQUIRE(node_info->pending_last_seen.has_value());
 
       nlohmann::json node_info_json = node_info.value();
       CHECK(
-        node_info_json.get<NodeInfo>().pending_since ==
-        node_info->pending_since);
-      node_info_json.erase("pending_since");
-      CHECK(!node_info_json.get<NodeInfo>().pending_since.has_value());
+        node_info_json.get<NodeInfo>().pending_last_seen ==
+        node_info->pending_last_seen);
+      node_info_json.erase("pending_last_seen");
+      CHECK(!node_info_json.get<NodeInfo>().pending_last_seen.has_value());
     }
 
     {
@@ -357,7 +357,7 @@ TEST_CASE("Add a node to an open service")
       auto nodes = age_tx.rw(network.nodes);
       auto node_info = nodes->get(expired_node_id);
       REQUIRE(node_info.has_value());
-      node_info->pending_since.reset();
+      node_info->pending_last_seen.reset();
       nodes->put(expired_node_id, node_info.value());
       REQUIRE(age_tx.commit() == ccf::kv::CommitResult::SUCCESS);
     }
@@ -372,7 +372,55 @@ TEST_CASE("Add a node to an open service")
       auto verify_tx = network.tables->create_tx();
       const auto node_info = verify_tx.ro(network.nodes)->get(expired_node_id);
       REQUIRE(node_info.has_value());
-      CHECK(node_info->pending_since.has_value());
+      CHECK(node_info->pending_last_seen.has_value());
+    }
+
+    const auto stale_pending_last_seen =
+      std::chrono::duration_cast<std::chrono::milliseconds>(
+        (std::chrono::system_clock::now() - std::chrono::minutes(31))
+          .time_since_epoch())
+        .count();
+    {
+      auto age_tx = network.tables->create_tx();
+      auto nodes = age_tx.rw(network.nodes);
+      auto node_info = nodes->get(expired_node_id);
+      REQUIRE(node_info.has_value());
+      node_info->pending_last_seen = stale_pending_last_seen;
+      nodes->put(expired_node_id, node_info.value());
+      REQUIRE(age_tx.commit() == ccf::kv::CommitResult::SUCCESS);
+    }
+
+    auto consensus = std::make_shared<ccf::kv::test::StubConsensus>();
+    consensus->state = ccf::kv::test::StubConsensus::Backup;
+    frontend.set_consensus_and_history(consensus.get(), nullptr);
+    context.node_operation->can_replicate_result = false;
+
+    http_response = frontend_process(
+      frontend, expired_join_input, "join", expired_node_caller);
+    CHECK(http_response.status != HTTP_STATUS_OK);
+    {
+      auto verify_tx = network.tables->create_tx();
+      const auto node_info = verify_tx.ro(network.nodes)->get(expired_node_id);
+      REQUIRE(node_info.has_value());
+      CHECK(node_info->pending_last_seen == stale_pending_last_seen);
+    }
+
+    consensus->state = ccf::kv::test::StubConsensus::Primary;
+    context.node_operation->can_replicate_result = true;
+    http_response = frontend_process(
+      frontend, expired_join_input, "join", expired_node_caller);
+    CHECK(http_response.status == HTTP_STATUS_OK);
+    {
+      auto verify_tx = network.tables->create_tx();
+      const auto node_info = verify_tx.ro(network.nodes)->get(expired_node_id);
+      REQUIRE(node_info.has_value());
+      REQUIRE(node_info->pending_last_seen.has_value());
+      CHECK(
+        node_info->pending_last_seen.value() >
+        std::chrono::duration_cast<std::chrono::milliseconds>(
+          (std::chrono::system_clock::now() - std::chrono::minutes(1))
+            .time_since_epoch())
+          .count());
     }
 
     {
@@ -380,7 +428,7 @@ TEST_CASE("Add a node to an open service")
       auto nodes = age_tx.rw(network.nodes);
       auto node_info = nodes->get(expired_node_id);
       REQUIRE(node_info.has_value());
-      node_info->pending_since =
+      node_info->pending_last_seen =
         std::chrono::duration_cast<std::chrono::milliseconds>(
           (std::chrono::system_clock::now() - std::chrono::hours(2))
             .time_since_epoch())

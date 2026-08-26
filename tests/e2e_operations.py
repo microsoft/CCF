@@ -4801,7 +4801,7 @@ def test_pending_node_expiration(network, args):
 
     pending_node.stop()
 
-    end_time = time.time() + 10
+    end_time = time.time() + 30
     with primary.client() as c:
         while time.time() < end_time:
             r = c.get(f"/node/network/nodes/{pending_node.node_id}")
@@ -4820,7 +4820,7 @@ def run_pending_node_expiration(const_args):
     args = copy.deepcopy(const_args)
     args.label += "_pending_node_expiration"
     args.nodes = infra.e2e_args.min_nodes(args, f=0)
-    args.pending_node_timeout = "2s"
+    args.pending_node_timeout = "10s"
 
     with infra.network.network(
         args.nodes,

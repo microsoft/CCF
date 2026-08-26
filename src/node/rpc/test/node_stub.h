@@ -18,6 +18,7 @@ namespace ccf
   {
   public:
     bool is_public = false;
+    bool can_replicate_result = true;
     ccf::COSESignaturesConfig cose_signatures_config = {};
 
     ExtendedState state() override
@@ -67,7 +68,7 @@ namespace ccf
 
     bool can_replicate() override
     {
-      return true;
+      return can_replicate_result;
     }
 
     std::optional<ccf::NodeId> get_primary() override

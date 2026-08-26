@@ -62,7 +62,7 @@ If the network has not yet been opened by members (see :ref:`governance/open_net
 
 The ``Pending`` joining node automatically polls the service (interval configurable via ``join.retry_timeout`` configuration entry) until the members have successfully transitioned the node to the ``Trusted`` state. It is only then that the joining node transitions to the ``PartOfNetwork`` state and starts updating its ledger.
 
-The primary automatically removes a node entry that remains ``Pending`` for longer than the ``pending_node_timeout`` configuration entry (1 hour by default). Cleanup runs at least once per minute. A joining node that is still running will register itself again on its next retry. Set ``pending_node_timeout`` to ``0s`` to disable automatic removal.
+The primary automatically removes a ``Pending`` node that has stopped sending join requests for longer than the ``pending_node_timeout`` configuration entry (1 hour by default). Cleanup runs at least once per minute. Set ``pending_node_timeout`` to ``0s`` to disable automatic removal.
 
 .. tip:: After the node has been trusted by members, operators should poll the :http:GET:`/node/state` endpoint on the newly added node, using the node's self-signed certificate as TLS CA, until the ``{"state": "PartOfNetwork"}`` is reported. This status confirms that the replication of the ledger has started on this node.
 
