@@ -45,6 +45,14 @@ CGROUP_IO_FILES = (
     "io.pressure",
     "io.stat",
 )
+VM_WRITEBACK_FIELDS = (
+    "dirty_background_bytes",
+    "dirty_background_ratio",
+    "dirty_bytes",
+    "dirty_expire_centisecs",
+    "dirty_ratio",
+    "dirty_writeback_centisecs",
+)
 
 
 def write_json_line(output: TextIO, value: dict[str, Any]) -> None:
@@ -96,12 +104,16 @@ def find_io_cgroup(errors: list[dict[str, Any]]) -> Path | None:
     for line in cgroup_description.splitlines():
         _, controllers, relative_path = line.split(":", maxsplit=2)
         if "blkio" in controllers.split(","):
-            return Path("/sys/fs/cgroup/blkio") / relative_path.lstrip("/")
+            mount = Path("/sys/fs/cgroup/blkio")
+            candidate = mount / relative_path.lstrip("/")
+            return candidate if candidate.exists() else mount
         if not controllers:
             unified_path = relative_path
 
     if unified_path is not None:
-        return Path("/sys/fs/cgroup") / unified_path.lstrip("/")
+        mount = Path("/sys/fs/cgroup")
+        candidate = mount / unified_path.lstrip("/")
+        return candidate if candidate.exists() else mount
     return None
 
 
@@ -375,6 +387,10 @@ def write_metadata(
         "target_device_minor": os.minor(target_stat.st_dev),
         "target_dir": str(target_dir),
         "uname": list(platform.uname()),
+        "vm_writeback": {
+            name: read_text(Path("/proc/sys/vm") / name, errors)
+            for name in VM_WRITEBACK_FIELDS
+        },
     }
     output_path.write_text(
         json.dumps(metadata, indent=2, sort_keys=True) + "\n",
