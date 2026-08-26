@@ -16,6 +16,21 @@ from loguru import logger as LOG
 
 DEFAULT_NODES = ["local://127.0.0.1:8000"]
 
+START_NETWORK_CLI_ARGUMENT_CONFIG_PATHS = {
+    "node": None,
+    "verbose": None,
+    "recover": None,
+    "ledger_dir": None,
+    "snapshots_dir": None,
+    "common_dir": None,
+    "auto_shutdown": None,
+    "auto_shutdown_delay_s": None,
+    "redirection_kind": None,
+    "primary_hostname": None,
+    "backup_hostname": None,
+    "use_defaults_from_host_config": None,
+}
+
 
 def run(args):
     # Read RPC interfaces from configuration file if specified, otherwise
@@ -260,7 +275,9 @@ if __name__ == "__main__":
         )
 
     args = infra.e2e_args.cli_args(
-        add, use_host_config_defaults=defaults.use_defaults_from_host_config
+        add,
+        use_host_config_defaults=defaults.use_defaults_from_host_config,
+        additional_cli_argument_config_paths=START_NETWORK_CLI_ARGUMENT_CONFIG_PATHS,
     )
     if args.recover and not all([args.ledger_dir, args.common_dir]):
         print("Error: --recover requires --ledger-dir and --common-dir arguments.")
