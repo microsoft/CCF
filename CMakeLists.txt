@@ -1433,29 +1433,41 @@ if(BUILD_TESTS)
 
   # Certificate-authenticated blocking logging workload, driven by locust so
   # that the number of concurrent clients can be varied.
-  add_e2e_test(
-    NAME pi_logging_cert_blocking_locust
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/logging_locust.py
-    LABEL perf
-    CONFIGURATIONS perf
-    ADDITIONAL_ARGS
-      --package
-      "samples/apps/logging/logging"
-      --perf-label
-      "Logging Certificate Blocking Locust"
-      --snapshot-tx-interval
-      10000
-      --users
-      640
-      --spawn-rate
-      640
-      --locust-processes
-      10
-      --measure-time-s
-      20
-      --sig-ms-intervals
-      20
+  foreach(
+    LOGGING_CERT_LOCUST_USERS
+    320
+    480
+    560
+    640
+    720
+    800
+    900
+    1000
   )
+    add_e2e_test(
+      NAME pi_logging_cert_blocking_locust_${LOGGING_CERT_LOCUST_USERS}
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/logging_locust.py
+      LABEL perf
+      CONFIGURATIONS perf
+      ADDITIONAL_ARGS
+        --package
+        "samples/apps/logging/logging"
+        --perf-label
+        "Logging Certificate Blocking Locust (${LOGGING_CERT_LOCUST_USERS} users)"
+        --snapshot-tx-interval
+        10000
+        --users
+        ${LOGGING_CERT_LOCUST_USERS}
+        --spawn-rate
+        ${LOGGING_CERT_LOCUST_USERS}
+        --locust-processes
+        10
+        --measure-time-s
+        20
+        --sig-ms-intervals
+        20
+    )
+  endforeach()
 
   add_piccolo_test(
     NAME pi_basic
