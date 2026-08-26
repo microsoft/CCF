@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
+import http
 import itertools
 import time
 from hashlib import sha256
@@ -16,7 +17,14 @@ id_gen = itertools.count()
 
 
 @reqs.description("Running batch submission of new entries")
-def test(network, args, batch_size=100, write_key_divisor=1, write_size_multiplier=1):
+def test(
+    network,
+    args,
+    batch_size=100,
+    write_key_divisor=1,
+    write_size_multiplier=1,
+    expect_transaction_too_large=False,
+):
     LOG.info(f"Number of batched entries: {batch_size}")
     primary, _ = network.find_primary()
 
@@ -31,18 +39,24 @@ def test(network, args, batch_size=100, write_key_divisor=1, write_size_multipli
         ]
 
         pre_submit = time.time()
-        check(
-            c.post(
-                "/app/batch/submit",
-                {
-                    "entries": messages,
-                    "write_key_divisor": write_key_divisor,
-                    "write_size_multiplier": write_size_multiplier,
-                },
-                timeout=30,
-            ),
-            result=len(messages),
+        response = c.post(
+            "/app/batch/submit",
+            {
+                "entries": messages,
+                "write_key_divisor": write_key_divisor,
+                "write_size_multiplier": write_size_multiplier,
+            },
+            timeout=30,
         )
+
+        if expect_transaction_too_large:
+            assert (
+                response.status_code == http.HTTPStatus.REQUEST_ENTITY_TOO_LARGE.value
+            )
+            assert response.body.json()["error"]["code"] == "TransactionTooLarge"
+            return network
+
+        check(response, result=len(messages))
         post_submit = time.time()
         LOG.warning(
             f"Submitting {batch_size} new keys took {post_submit - pre_submit}s"
@@ -88,48 +102,27 @@ def run(args):
         #     bs += step_size
 
 
-def run_to_destruction(args):
+def run_to_transaction_limit(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
 
-        LOG.warning("About to issue transactions until destruction")
-        try:
-            wsm = 5000
-            while True:
-                LOG.info(f"Trying with writes scaled by {wsm}")
-                network = test(network, args, batch_size=10, write_size_multiplier=wsm)
-                if wsm > 1000000:
-                    LOG.error(
-                        f"Run to destruction still hasn't caused exception with write sizes multiplied by {wsm}. Infinite loop, or not actually submitting?"
-                    )
-                    raise ValueError(wsm)
-                else:
-                    wsm += 100000  # Grow very quickly, expect to fail on the second iteration
-        except Exception as e:
-            timeout = 120
+        LOG.warning("About to issue a transaction above the configured limit")
+        network = test(network, args, batch_size=10, write_size_multiplier=5000)
+        network = test(
+            network,
+            args,
+            batch_size=10,
+            write_size_multiplier=105000,
+            expect_transaction_too_large=True,
+        )
 
-            LOG.info("Large write set caused an exception, as expected")
-            LOG.info(f"Exception was: {e}")
-            LOG.info(f"Polling for {timeout}s for node to terminate")
+        exit_codes = [node.remote.remote.proc.poll() for node in network.nodes]
+        assert all(exit_code is None for exit_code in exit_codes), exit_codes
 
-            end_time = time.time() + timeout
-            while time.time() < end_time:
-                time.sleep(0.1)
-                exit_codes = [node.remote.remote.proc.poll() for node in network.nodes]
-                if any(exit_codes):
-                    LOG.info(
-                        f"One or more nodes terminated with exit codes {exit_codes}"
-                    )
-                    break
-
-            if time.time() > end_time:
-                raise TimeoutError(
-                    f"Node took longer than {timeout}s to terminate"
-                ) from e
-
-            network.ignore_errors_on_shutdown()
+        # The rejected transaction must not prevent subsequent commits.
+        network = test(network, args, batch_size=10)
 
 
 if __name__ == "__main__":
@@ -137,8 +130,11 @@ if __name__ == "__main__":
     args.package = "js_generic"
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
 
-    # Helps ensure expected destruction workflow. See #6373 for details.
+    # Keep this stress test's successful write below the configured transaction
+    # limit while allowing the next, much larger write to exercise clean
+    # rejection.
     args.max_msg_size_bytes = f"{1024 * 1024 * 16}"  # 16MB
+    args.ledger_max_transaction_bytes = f"{1024 * 1024 * 15}"  # 15MB
 
     run(args)
-    run_to_destruction(args)
+    run_to_transaction_limit(args)
