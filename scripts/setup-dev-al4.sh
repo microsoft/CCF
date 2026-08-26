@@ -43,7 +43,7 @@ install_dev_dependencies() {
     dnf -y install  \
         clang-tools-extra  \
         python3-pip  \
-        perf  \
+        kernel-tools  \
         jq  \
         tar
 }

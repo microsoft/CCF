@@ -41,7 +41,7 @@ install_dev_dependencies() {
     tdnf -y install  \
         clang-tools-extra  \
         python-pip \
-        perf \
+        kernel-tools \
         jq \
         tar \
         build-essential
