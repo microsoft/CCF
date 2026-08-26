@@ -7,6 +7,7 @@
 
 #include <charconv>
 #include <cmath>
+#include <limits>
 #include <nlohmann/json.hpp>
 #include <string>
 
@@ -81,7 +82,27 @@ namespace ccf::ds
 
     return UnitStringConverter::convert(
       input, size_suffix_to_power, [](size_t value, size_t power) {
-        return value * std::pow(1024, power);
+        constexpr size_t base = 1024;
+        size_t factor = 1;
+        for (size_t i = 0; i < power; ++i)
+        {
+          if (factor > std::numeric_limits<size_t>::max() / base)
+          {
+            throw std::logic_error("Size string unit multiplier is too large");
+          }
+          factor *= base;
+        }
+
+        if (value > std::numeric_limits<size_t>::max() / factor)
+        {
+          throw std::logic_error(fmt::format(
+            "Size string value {} with multiplier {} exceeds the largest "
+            "representable size",
+            value,
+            factor));
+        }
+
+        return value * factor;
       });
   }
 
