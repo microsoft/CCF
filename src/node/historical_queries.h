@@ -1485,6 +1485,11 @@ namespace ccf::historical
         false /* Do not start from very first seqno */,
         true /* Make use of historical secrets */);
 
+      // max_transaction_size is deliberately not set on this store. It is a
+      // write-time limit, and historical queries must remain able to
+      // reconstruct any entry which was validly written, including under a
+      // previously larger or unset limit.
+
       // If this is older than the node's currently known ledger secrets, use
       // the historical encryptor (which should have older secrets)
       if (seqno < source_ledger_secrets->get_first().first)

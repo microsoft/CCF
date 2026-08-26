@@ -48,10 +48,7 @@ jobs:
           fetch-depth: 0
 
       - name: "Install dependencies"
-        shell: bash
-        run: |
-          set -ex
-          ./scripts/setup-ci.sh
+        uses: ./.github/actions/install-ci-dependencies
 
       - name: "Build Debug (Long Test)"
         run: |
@@ -109,10 +106,7 @@ jobs:
           fetch-depth: 0
 
       - name: "Install dependencies"
-        shell: bash
-        run: |
-          set -ex
-          ./scripts/setup-ci.sh
+        uses: ./.github/actions/install-ci-dependencies
 
       - name: "Build Debug (Long Test)"
         run: |
@@ -173,10 +167,7 @@ jobs:
           fetch-depth: 0
 
       - name: "Install dependencies"
-        shell: bash
-        run: |
-          set -ex
-          ./scripts/setup-ci.sh
+        uses: ./.github/actions/install-ci-dependencies
 
       - name: "Build"
         run: |
@@ -246,10 +237,7 @@ jobs:
           fetch-depth: 0
 
       - name: "Install dependencies"
-        shell: bash
-        run: |
-          set -ex
-          ./scripts/setup-ci.sh
+        uses: ./.github/actions/install-ci-dependencies
 
       - name: "Build"
         run: |
@@ -311,10 +299,7 @@ jobs:
           fetch-depth: 0
 
       - name: "Install dependencies"
-        shell: bash
-        run: |
-          set -ex
-          ./scripts/setup-ci.sh
+        uses: ./.github/actions/install-ci-dependencies
 
       - name: "Build"
         run: |

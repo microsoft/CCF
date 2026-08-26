@@ -1779,6 +1779,7 @@ def run_file_operations(args):
         ntf.flush()
 
         args.max_msg_size_bytes = f"{1024 ** 2}"
+        args.ledger_max_transaction_bytes = f"{1024 ** 2 - 2048}"
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             txs = app.LoggingTxs("user0")
