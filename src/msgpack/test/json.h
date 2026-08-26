@@ -15,59 +15,82 @@ namespace ccf::msgpack::test
   inline void encode_json(
     std::vector<uint8_t>& buf, const nlohmann::json& value)
   {
-    if (value.is_null())
+    struct Work
     {
-      write_nil(buf);
-    }
-    else if (value.is_boolean())
+      const nlohmann::json* value = nullptr;
+      const std::string* key = nullptr;
+    };
+
+    std::vector<Work> pending = {{&value, nullptr}};
+    while (!pending.empty())
     {
-      write_bool(buf, value.get<bool>());
-    }
-    else if (value.is_number_unsigned())
-    {
-      write_uint(buf, value.get<uint64_t>());
-    }
-    else if (value.is_number_integer())
-    {
-      write_int(buf, value.get<int64_t>());
-    }
-    else if (value.is_number_float())
-    {
-      write_float(buf, value.get<double>());
-    }
-    else if (value.is_string())
-    {
-      write_str(buf, value.get_ref<const std::string&>());
-    }
-    else if (value.is_binary())
-    {
-      const auto& binary = value.get_binary();
-      if (binary.has_subtype())
+      const auto work = pending.back();
+      pending.pop_back();
+
+      if (work.key != nullptr)
       {
-        throw std::logic_error("MessagePack extension values are unsupported");
+        write_str(buf, *work.key);
+        continue;
       }
-      write_bin(buf, binary);
-    }
-    else if (value.is_array())
-    {
-      write_array_header(buf, static_cast<uint32_t>(value.size()));
-      for (const auto& element : value)
+
+      const auto& current = *work.value;
+      if (current.is_null())
       {
-        encode_json(buf, element);
+        write_nil(buf);
       }
-    }
-    else if (value.is_object())
-    {
-      write_map_header(buf, static_cast<uint32_t>(value.size()));
-      for (const auto& [key, element] : value.items())
+      else if (current.is_boolean())
       {
-        write_str(buf, key);
-        encode_json(buf, element);
+        write_bool(buf, current.get<bool>());
       }
-    }
-    else
-    {
-      throw std::logic_error("Unsupported JSON value");
+      else if (current.is_number_unsigned())
+      {
+        write_uint(buf, current.get<uint64_t>());
+      }
+      else if (current.is_number_integer())
+      {
+        write_int(buf, current.get<int64_t>());
+      }
+      else if (current.is_number_float())
+      {
+        write_float(buf, current.get<double>());
+      }
+      else if (current.is_string())
+      {
+        write_str(buf, current.get_ref<const std::string&>());
+      }
+      else if (current.is_binary())
+      {
+        const auto& binary = current.get_binary();
+        if (binary.has_subtype())
+        {
+          throw std::logic_error(
+            "MessagePack extension values are unsupported");
+        }
+        write_bin(buf, binary);
+      }
+      else if (current.is_array())
+      {
+        write_array_header(buf, static_cast<uint32_t>(current.size()));
+        const auto& array = current.get_ref<const nlohmann::json::array_t&>();
+        for (auto it = array.rbegin(); it != array.rend(); ++it)
+        {
+          pending.push_back({&*it, nullptr});
+        }
+      }
+      else if (current.is_object())
+      {
+        write_map_header(buf, static_cast<uint32_t>(current.size()));
+        const auto& object = current.get_ref<const nlohmann::json::object_t&>();
+        for (auto it = object.rbegin(); it != object.rend(); ++it)
+        {
+          pending.push_back({&it->second, nullptr});
+          pending.push_back({nullptr, &it->first});
+        }
+      }
+      else
+      {
+        throw std::logic_error("Unsupported JSON value");
+      }
     }
   }
 }

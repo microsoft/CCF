@@ -6,6 +6,7 @@
 #include "msgpack/test/format_introspect.h"
 #include "msgpack/test/json.h"
 
+#include <algorithm>
 #include <chrono>
 #include <cstdint>
 #include <cstring>
@@ -456,6 +457,24 @@ TEST_CASE("known nested values roundtrip through nlohmann")
     encode_json(buf, value);
     CHECK(json::from_msgpack(buf) == value);
   }
+}
+
+TEST_CASE("encode_json handles deeply nested values iteratively")
+{
+  constexpr size_t depth = 4096;
+  json value = nullptr;
+  for (size_t i = 0; i < depth; ++i)
+  {
+    value = json::array({std::move(value)});
+  }
+
+  std::vector<uint8_t> buf;
+  encode_json(buf, value);
+
+  REQUIRE(buf.size() == depth + 1);
+  CHECK(std::all_of(
+    buf.begin(), buf.end() - 1, [](uint8_t byte) { return byte == 0x91; }));
+  CHECK(buf.back() == 0xC0);
 }
 
 TEST_CASE("FluentdEventTime roundtrips through nlohmann")
