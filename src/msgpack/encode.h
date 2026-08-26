@@ -285,6 +285,21 @@ namespace ccf::msgpack
       std::is_same_v<uint8_t, unsigned char>,
       "ccf::msgpack assumes uint8_t == unsigned char");
 
+    std::string aliased_s;
+    if (!buf.empty() && !s.empty())
+    {
+      const auto less = std::less<const uint8_t*>{};
+      const auto* const buf_begin = buf.data();
+      const auto* const buf_end = buf_begin + buf.size();
+      const auto* const s_begin = reinterpret_cast<const uint8_t*>(s.data());
+      const auto* const s_end = s_begin + s.size();
+      if (less(s_begin, buf_end) && less(buf_begin, s_end))
+      {
+        aliased_s.assign(s);
+        s = aliased_s;
+      }
+    }
+
     const auto n = s.size();
     if (n <= 31U)
     {
