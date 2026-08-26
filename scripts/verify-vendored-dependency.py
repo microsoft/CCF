@@ -191,7 +191,7 @@ def github_asset(component: GitComponent, asset_name: str) -> tuple[str, bytes]:
     )
     headers = {
         "Accept": "application/vnd.github+json",
-        "X-GitHub-Api-Version": "2022-11-28",
+        "X-GitHub-Api-Version": "2026-03-10",
     }
 
     try:
