@@ -347,7 +347,7 @@ namespace ccf::kv
      *
      * @return Commit term
      */
-    [[nodiscard]] Version commit_term() const
+    [[nodiscard]] Term commit_term() const
     {
       if (!committed)
       {
