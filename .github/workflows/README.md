@@ -92,6 +92,16 @@ Runs on pull requests that change `tla/` or `src/consensus/aft/raft.h`.
 File: `tla-shallow.yml`
 3rd party dependencies: None
 
+# Vendored Dependency Verification
+
+Verifies that files under `3rdparty/` match the Git commits or release artifacts
+recorded in `cgmanifest.json`. Triggered on pull requests and pushes to `main`
+that change vendored sources, the manifest, the verifier, or this workflow. It
+can also be run manually.
+
+File: `vendor-verification.yml`
+3rd party dependencies: None
+
 # Release
 
 Produces CCF reference release artifacts for all languages and platforms. Triggered on tags matching `ccf-[67].*`, and manually with an optional dry run. The output of a non-dry-run job is a draft release, which needs to be published manually. Publishing triggers the downstream jobs listed below.
