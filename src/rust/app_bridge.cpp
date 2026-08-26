@@ -4,11 +4,13 @@
 #include "ccf/app_interface.h"
 #include "ccf/common_auth_policies.h"
 #include "ccf/http_status.h"
+#include "ccf/kv/compacted_version_conflict.h"
 #include "ccf/kv/map.h"
 #include "ccf/odata_error.h"
 #include "ccf/rust_ffi.h"
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -92,6 +94,20 @@ namespace
     return value.data != nullptr || value.len == 0;
   }
 
+  bool is_known_http_status(uint16_t status)
+  {
+    switch (status)
+    {
+#define XX(code, name, string) \
+  case code: \
+    return true;
+      HTTP_STATUS_MAP(XX)
+#undef XX
+      default:
+        return false;
+    }
+  }
+
   std::string to_string(const ccf_rust_slice& value)
   {
     if (value.len == 0)
@@ -156,6 +172,8 @@ struct ccf_rust_endpoint_context
   std::unordered_map<std::string, RawMap::ReadOnlyHandle*> read_handles;
   std::unordered_map<std::string, RawMap::Handle*> write_handles;
   RawMap::Handle::ValueType scratch;
+  std::optional<ccf::kv::CompactedVersionConflict> compacted_version_conflict =
+    std::nullopt;
 
   RawMap::ReadOnlyHandle* read_handle(const std::string& map_name)
   {
@@ -187,6 +205,14 @@ struct ccf_rust_endpoint_context
     write_handles.emplace(map_name, handle);
     read_handles[map_name] = handle;
     return handle;
+  }
+
+  void rethrow_compacted_version_conflict()
+  {
+    if (compacted_version_conflict.has_value())
+    {
+      throw std::move(compacted_version_conflict.value());
+    }
   }
 };
 
@@ -235,13 +261,19 @@ namespace
               ctx.rpc_ctx, &ctx.tx, nullptr, {}, {}, {}};
             try
             {
-              if (state->callback(state->user_data, &rust_ctx) != CCF_RUST_OK)
+              const auto result = state->callback(state->user_data, &rust_ctx);
+              rust_ctx.rethrow_compacted_version_conflict();
+              if (result != CCF_RUST_OK)
               {
                 ctx.rpc_ctx->set_error(
                   HTTP_STATUS_INTERNAL_SERVER_ERROR,
                   ccf::errors::InternalError,
                   "Rust endpoint execution failed");
               }
+            }
+            catch (const ccf::kv::CompactedVersionConflict&)
+            {
+              throw;
             }
             catch (const std::exception& e)
             {
@@ -271,13 +303,19 @@ namespace
               ctx.rpc_ctx, &ctx.tx, &ctx.tx, {}, {}, {}};
             try
             {
-              if (state->callback(state->user_data, &rust_ctx) != CCF_RUST_OK)
+              const auto result = state->callback(state->user_data, &rust_ctx);
+              rust_ctx.rethrow_compacted_version_conflict();
+              if (result != CCF_RUST_OK)
               {
                 ctx.rpc_ctx->set_error(
                   HTTP_STATUS_INTERNAL_SERVER_ERROR,
                   ccf::errors::InternalError,
                   "Rust endpoint execution failed");
               }
+            }
+            catch (const ccf::kv::CompactedVersionConflict&)
+            {
+              throw;
             }
             catch (const std::exception& e)
             {
@@ -436,7 +474,7 @@ extern "C"
 
   int ccf_rust_response_status(ccf_rust_endpoint_context* ctx, uint16_t status)
   {
-    if (ctx == nullptr || status < 100 || status > 599)
+    if (ctx == nullptr || !is_known_http_status(status))
     {
       return CCF_RUST_INVALID_ARGUMENT;
     }
@@ -496,8 +534,8 @@ extern "C"
     ccf_rust_slice message)
   {
     if (
-      ctx == nullptr || status < 400 || status > 599 || !is_valid_utf8(code) ||
-      code.len == 0 || !is_valid_utf8(message))
+      ctx == nullptr || status < 400 || !is_known_http_status(status) ||
+      !is_valid_utf8(code) || code.len == 0 || !is_valid_utf8(message))
     {
       return CCF_RUST_INVALID_ARGUMENT;
     }
@@ -539,6 +577,11 @@ extern "C"
       set_slice(value, ctx->scratch);
       return CCF_RUST_OK;
     }
+    catch (const ccf::kv::CompactedVersionConflict& e)
+    {
+      ctx->compacted_version_conflict = e;
+      return CCF_RUST_INTERNAL_ERROR;
+    }
     catch (...)
     {
       return CCF_RUST_INTERNAL_ERROR;
@@ -562,6 +605,11 @@ extern "C"
       *present =
         ctx->read_handle(to_string(map_name))->has(to_bytes(key)) ? 1 : 0;
       return CCF_RUST_OK;
+    }
+    catch (const ccf::kv::CompactedVersionConflict& e)
+    {
+      ctx->compacted_version_conflict = e;
+      return CCF_RUST_INTERNAL_ERROR;
     }
     catch (...)
     {
@@ -591,6 +639,11 @@ extern "C"
       handle->put(to_bytes(key), to_bytes(value));
       return CCF_RUST_OK;
     }
+    catch (const ccf::kv::CompactedVersionConflict& e)
+    {
+      ctx->compacted_version_conflict = e;
+      return CCF_RUST_INTERNAL_ERROR;
+    }
     catch (...)
     {
       return CCF_RUST_INTERNAL_ERROR;
@@ -615,6 +668,11 @@ extern "C"
       }
       handle->remove(to_bytes(key));
       return CCF_RUST_OK;
+    }
+    catch (const ccf::kv::CompactedVersionConflict& e)
+    {
+      ctx->compacted_version_conflict = e;
+      return CCF_RUST_INTERNAL_ERROR;
     }
     catch (...)
     {
