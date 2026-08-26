@@ -529,6 +529,10 @@ install(
   PATTERN "*.py"
   PATTERN "*/__pycache__*" EXCLUDE
 )
+install(
+  FILES ${CCF_DIR}/doc/host_config_schema/host_config.json
+  DESTINATION bin/infra
+)
 
 install(PROGRAMS tests/sandbox/sandbox.sh DESTINATION bin)
 install(PROGRAMS tests/docker_wrap.sh DESTINATION bin)

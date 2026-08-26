@@ -1,14 +1,186 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import argparse
+import json
 import os
+import re
 import sys
+from pathlib import Path
 
 from loguru import logger as LOG
 
 import infra.interfaces
 import infra.network
 import infra.path
+
+CLI_ARGUMENT_CONFIG_PATHS = {
+    "jwt_key_refresh_max_response_size": "jwt.key_refresh_max_response_size",
+    "sig_tx_interval": "ledger_signatures.tx_count",
+    "sig_ms_interval": "ledger_signatures.delay",
+    "election_timeout_ms": "consensus.election_timeout",
+    "consensus_update_timeout_ms": "consensus.message_timeout",
+    "worker_threads": "worker_threads",
+    "subject_name": "node_certificate.subject_name",
+    "join_timer_s": "command.join.retry_timeout",
+    "ledger_chunk_bytes": "ledger.chunk_size",
+    "snapshot_tx_interval": "snapshots.tx_count",
+    "snapshot_min_tx_interval": "snapshots.min_tx_count",
+    "snapshot_time_interval": "snapshots.time_interval",
+    "max_open_sessions": "network.rpc_interfaces.*.max_open_sessions_soft",
+    "max_open_sessions_hard": "network.rpc_interfaces.*.max_open_sessions_hard",
+    "jwt_key_refresh_interval_s": "jwt.key_refresh_interval",
+    "curve_id": "node_certificate.curve_id",
+    "initial_node_cert_validity_days": "node_certificate.initial_validity_days",
+    "initial_service_cert_validity_days": (
+        "command.start.initial_service_certificate_validity_days"
+    ),
+    "maximum_node_certificate_validity_days": (
+        "command.start.service_configuration.maximum_node_certificate_validity_days"
+    ),
+    "maximum_service_certificate_validity_days": (
+        "command.start.service_configuration.maximum_service_certificate_validity_days"
+    ),
+    "max_http_body_size": ("network.rpc_interfaces.*.http_configuration.max_body_size"),
+    "max_http_header_size": (
+        "network.rpc_interfaces.*.http_configuration.max_header_size"
+    ),
+    "max_http_headers_count": (
+        "network.rpc_interfaces.*.http_configuration.max_headers_count"
+    ),
+    "forwarding_timeout_ms": "network.rpc_interfaces.*.forwarding_timeout_ms",
+    "tick_ms": "tick_interval",
+    "max_msg_size_bytes": "memory.max_msg_size",
+}
+
+_TIME_UNITS_IN_US = {
+    "us": 1,
+    "ms": 1000,
+    "s": 1000 * 1000,
+    "min": 60 * 1000 * 1000,
+    "h": 60 * 60 * 1000 * 1000,
+}
+
+_SIZE_UNITS_IN_BYTES = {
+    "B": 1,
+    "KB": 1024,
+    "MB": 1024 * 1024,
+    "GB": 1024 * 1024 * 1024,
+    "TB": 1024 * 1024 * 1024 * 1024,
+}
+
+
+def _convert_time_string(value, target_unit):
+    match = re.fullmatch(r"(\d+)(us|ms|s|min|h)", value)
+    if match is None:
+        raise ValueError(f"Invalid time string in host config schema: {value}")
+
+    source_value, source_unit = match.groups()
+    value_in_us = int(source_value) * _TIME_UNITS_IN_US[source_unit]
+    target_unit_in_us = _TIME_UNITS_IN_US[target_unit]
+    if value_in_us % target_unit_in_us != 0:
+        raise ValueError(
+            f"Host config default {value} cannot be represented in {target_unit}"
+        )
+    return value_in_us // target_unit_in_us
+
+
+def _convert_size_string_to_bytes(value):
+    match = re.fullmatch(r"(\d+)(B|KB|MB|GB|TB)?", value)
+    if match is None:
+        raise ValueError(f"Invalid size string in host config schema: {value}")
+
+    source_value, source_unit = match.groups()
+    return int(source_value) * _SIZE_UNITS_IN_BYTES[source_unit or "B"]
+
+
+def _convert_curve_id(value):
+    return infra.network.EllipticCurve[value.lower()]
+
+
+_CONFIG_DEFAULT_CONVERTERS = {
+    "sig_ms_interval": lambda value: _convert_time_string(value, "ms"),
+    "election_timeout_ms": lambda value: _convert_time_string(value, "ms"),
+    "consensus_update_timeout_ms": lambda value: _convert_time_string(value, "ms"),
+    "join_timer_s": lambda value: _convert_time_string(value, "s"),
+    "jwt_key_refresh_interval_s": lambda value: _convert_time_string(value, "s"),
+    "curve_id": _convert_curve_id,
+    "max_http_body_size": _convert_size_string_to_bytes,
+    "max_http_header_size": _convert_size_string_to_bytes,
+    "tick_ms": lambda value: _convert_time_string(value, "ms"),
+}
+
+
+def _load_host_config_schema():
+    candidates = (
+        Path(__file__).with_name("host_config.json"),
+        Path(__file__).parents[2] / "doc/host_config_schema/host_config.json",
+    )
+    for candidate in candidates:
+        if candidate.is_file():
+            with candidate.open(encoding="utf-8") as schema_file:
+                return json.load(schema_file)
+
+    raise FileNotFoundError(
+        "Cannot find host configuration schema in "
+        + " or ".join(str(candidate) for candidate in candidates)
+    )
+
+
+def _get_schema_property(schema, config_path):
+    current = schema
+    for name in config_path.split("."):
+        if name == "*":
+            additional_properties = current.get("additionalProperties")
+            if not isinstance(additional_properties, dict):
+                raise KeyError(
+                    f"Expected additionalProperties while resolving {config_path}"
+                )
+            current = additional_properties
+            continue
+
+        matches = []
+        properties = current.get("properties", {})
+        if name in properties:
+            matches.append(properties[name])
+
+        for condition in current.get("allOf", []):
+            for branch_name in ("then", "else"):
+                branch = condition.get(branch_name, {})
+                branch_properties = branch.get("properties", {})
+                if name in branch_properties:
+                    matches.append(branch_properties[name])
+
+        if len(matches) != 1:
+            raise KeyError(
+                f"Expected one schema property for {config_path}, found {len(matches)}"
+            )
+        current = matches[0]
+
+    return current
+
+
+def _apply_host_config_defaults(parser):
+    schema = _load_host_config_schema()
+    actions = {action.dest: action for action in parser._actions}
+    missing_arguments = CLI_ARGUMENT_CONFIG_PATHS.keys() - actions.keys()
+    if missing_arguments:
+        raise ValueError(
+            "No CLI arguments found for host configuration options: "
+            + ", ".join(sorted(missing_arguments))
+        )
+
+    for destination, config_path in CLI_ARGUMENT_CONFIG_PATHS.items():
+        config_property = _get_schema_property(schema, config_path)
+        missing_metadata = {"default", "description"} - config_property.keys()
+        if missing_metadata:
+            raise KeyError(
+                f"Host config schema property {config_path} for CLI argument "
+                f"{destination} is missing: {', '.join(sorted(missing_metadata))}"
+            )
+        converter = _CONFIG_DEFAULT_CONVERTERS.get(destination, lambda value: value)
+        actions[destination].default = converter(config_property["default"])
+        actions[destination].help = config_property["description"]
+
 
 _LOG_LEVEL_DISPLAY = {
     "TRACE": "TRC ",
@@ -80,6 +252,7 @@ def cli_args(
     parser=None,
     accept_unknown=False,
     ledger_chunk_bytes_override=None,
+    use_host_config_defaults=False,
 ):
     LOG.remove()
     LOG.add(
@@ -442,6 +615,9 @@ def cli_args(
         default=infra.clients.API_VERSION_LATEST,
     )
     add(parser)
+
+    if use_host_config_defaults:
+        _apply_host_config_defaults(parser)
 
     if accept_unknown:
         args, unknown_args = parser.parse_known_args()
