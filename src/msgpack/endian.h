@@ -3,6 +3,7 @@
 #pragma once
 
 #include <bit>
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <type_traits>
@@ -19,13 +20,11 @@ namespace ccf::msgpack::utils
     "ccf::msgpack::utils::write_be assumes a little-endian host; "
     "rework the byte-swap to support a big-endian platform.");
 
-  // Append `value` to `buf` in big-endian byte order. Only unsigned
-  // integer widths are accepted; callers wanting to write a signed
-  // value reinterpret it through the matching unsigned type at the
-  // call site, so the byte-swap logic here doesn't need a signed
-  // overload.
+  // Write `value` to `out` in big-endian byte order. Only unsigned integer
+  // widths are accepted; callers wanting to write a signed value reinterpret
+  // it through the matching unsigned type at the call site.
   template <typename T>
-  void write_be(std::vector<uint8_t>& buf, T value)
+  void write_be(uint8_t* out, T value)
   {
     static_assert(std::is_unsigned_v<T>, "write_be expects an unsigned type");
     static_assert(
@@ -34,15 +33,27 @@ namespace ccf::msgpack::utils
 
     if constexpr (sizeof(T) == 1)
     {
-      buf.push_back(static_cast<uint8_t>(value));
-      return;
+      *out = static_cast<uint8_t>(value);
     }
     else
     {
       const auto swapped = std::byteswap(value);
-      const auto offset = buf.size();
-      buf.resize(offset + sizeof(T));
-      std::memcpy(buf.data() + offset, &swapped, sizeof(T));
+      std::memcpy(out, &swapped, sizeof(T));
     }
+  }
+
+  inline uint8_t* append_space(std::vector<uint8_t>& buf, size_t size)
+  {
+    const auto offset = buf.size();
+    buf.resize(offset + size);
+    return buf.data() + offset;
+  }
+
+  template <typename T>
+  void append_tagged_be(std::vector<uint8_t>& buf, uint8_t tag, T value)
+  {
+    auto* out = append_space(buf, 1 + sizeof(T));
+    *out = tag;
+    write_be(out + 1, value);
   }
 } // namespace ccf::msgpack::utils

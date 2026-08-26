@@ -23,6 +23,9 @@
 //     fails. The encoder offers no special handling - callers that
 //     might recover from OOM should treat the buffer as undefined-but-
 //     well-typed.
+//
+// For repeated records, reserve the expected maximum size once and reuse the
+// same vector with clear(). This keeps its allocation while resetting its size.
 
 #include "msgpack/endian.h"
 
@@ -172,23 +175,22 @@ namespace ccf::msgpack
     }
     else if (v <= 0xFFU)
     {
-      buf.push_back(fmt_byte::UINT_8);
-      utils::write_be<uint8_t>(buf, static_cast<uint8_t>(v));
+      utils::append_tagged_be<uint8_t>(
+        buf, fmt_byte::UINT_8, static_cast<uint8_t>(v));
     }
     else if (v <= 0xFFFFU)
     {
-      buf.push_back(fmt_byte::UINT_16);
-      utils::write_be<uint16_t>(buf, static_cast<uint16_t>(v));
+      utils::append_tagged_be<uint16_t>(
+        buf, fmt_byte::UINT_16, static_cast<uint16_t>(v));
     }
     else if (v <= 0xFFFFFFFFU)
     {
-      buf.push_back(fmt_byte::UINT_32);
-      utils::write_be<uint32_t>(buf, static_cast<uint32_t>(v));
+      utils::append_tagged_be<uint32_t>(
+        buf, fmt_byte::UINT_32, static_cast<uint32_t>(v));
     }
     else
     {
-      buf.push_back(fmt_byte::UINT_64);
-      utils::write_be<uint64_t>(buf, v);
+      utils::append_tagged_be<uint64_t>(buf, fmt_byte::UINT_64, v);
     }
   }
 
@@ -221,26 +223,23 @@ namespace ccf::msgpack
     }
     else if (v >= std::numeric_limits<int8_t>::min())
     {
-      buf.push_back(fmt_byte::INT_8);
-      utils::write_be<uint8_t>(
-        buf, static_cast<uint8_t>(static_cast<int8_t>(v)));
+      utils::append_tagged_be<uint8_t>(
+        buf, fmt_byte::INT_8, static_cast<uint8_t>(static_cast<int8_t>(v)));
     }
     else if (v >= std::numeric_limits<int16_t>::min())
     {
-      buf.push_back(fmt_byte::INT_16);
-      utils::write_be<uint16_t>(
-        buf, static_cast<uint16_t>(static_cast<int16_t>(v)));
+      utils::append_tagged_be<uint16_t>(
+        buf, fmt_byte::INT_16, static_cast<uint16_t>(static_cast<int16_t>(v)));
     }
     else if (v >= std::numeric_limits<int32_t>::min())
     {
-      buf.push_back(fmt_byte::INT_32);
-      utils::write_be<uint32_t>(
-        buf, static_cast<uint32_t>(static_cast<int32_t>(v)));
+      utils::append_tagged_be<uint32_t>(
+        buf, fmt_byte::INT_32, static_cast<uint32_t>(static_cast<int32_t>(v)));
     }
     else
     {
-      buf.push_back(fmt_byte::INT_64);
-      utils::write_be<uint64_t>(buf, static_cast<uint64_t>(v));
+      utils::append_tagged_be<uint64_t>(
+        buf, fmt_byte::INT_64, static_cast<uint64_t>(v));
     }
   }
 
@@ -257,8 +256,7 @@ namespace ccf::msgpack
       sizeof(double) == 8, "ccf::msgpack assumes IEEE-754 binary64 doubles");
     uint64_t bits = 0;
     std::memcpy(&bits, &v, sizeof(bits));
-    buf.push_back(fmt_byte::FLOAT_64);
-    utils::write_be<uint64_t>(buf, bits);
+    utils::append_tagged_be<uint64_t>(buf, fmt_byte::FLOAT_64, bits);
   }
 
   // ===== str =====
@@ -304,18 +302,18 @@ namespace ccf::msgpack
     }
     else if (n <= 0xFFU)
     {
-      buf.push_back(fmt_byte::STR_8);
-      utils::write_be<uint8_t>(buf, static_cast<uint8_t>(n));
+      utils::append_tagged_be<uint8_t>(
+        buf, fmt_byte::STR_8, static_cast<uint8_t>(n));
     }
     else if (n <= 0xFFFFU)
     {
-      buf.push_back(fmt_byte::STR_16);
-      utils::write_be<uint16_t>(buf, static_cast<uint16_t>(n));
+      utils::append_tagged_be<uint16_t>(
+        buf, fmt_byte::STR_16, static_cast<uint16_t>(n));
     }
     else if (n <= 0xFFFFFFFFULL)
     {
-      buf.push_back(fmt_byte::STR_32);
-      utils::write_be<uint32_t>(buf, static_cast<uint32_t>(n));
+      utils::append_tagged_be<uint32_t>(
+        buf, fmt_byte::STR_32, static_cast<uint32_t>(n));
     }
     else
     {
@@ -360,18 +358,18 @@ namespace ccf::msgpack
     const auto n = data.size();
     if (n <= 0xFFU)
     {
-      buf.push_back(fmt_byte::BIN_8);
-      utils::write_be<uint8_t>(buf, static_cast<uint8_t>(n));
+      utils::append_tagged_be<uint8_t>(
+        buf, fmt_byte::BIN_8, static_cast<uint8_t>(n));
     }
     else if (n <= 0xFFFFU)
     {
-      buf.push_back(fmt_byte::BIN_16);
-      utils::write_be<uint16_t>(buf, static_cast<uint16_t>(n));
+      utils::append_tagged_be<uint16_t>(
+        buf, fmt_byte::BIN_16, static_cast<uint16_t>(n));
     }
     else if (n <= 0xFFFFFFFFULL)
     {
-      buf.push_back(fmt_byte::BIN_32);
-      utils::write_be<uint32_t>(buf, static_cast<uint32_t>(n));
+      utils::append_tagged_be<uint32_t>(
+        buf, fmt_byte::BIN_32, static_cast<uint32_t>(n));
     }
     else
     {
@@ -404,13 +402,12 @@ namespace ccf::msgpack
     }
     else if (n <= 0xFFFFU)
     {
-      buf.push_back(fmt_byte::ARRAY_16);
-      utils::write_be<uint16_t>(buf, static_cast<uint16_t>(n));
+      utils::append_tagged_be<uint16_t>(
+        buf, fmt_byte::ARRAY_16, static_cast<uint16_t>(n));
     }
     else
     {
-      buf.push_back(fmt_byte::ARRAY_32);
-      utils::write_be<uint32_t>(buf, n);
+      utils::append_tagged_be<uint32_t>(buf, fmt_byte::ARRAY_32, n);
     }
   }
 
@@ -426,13 +423,12 @@ namespace ccf::msgpack
     }
     else if (n <= 0xFFFFU)
     {
-      buf.push_back(fmt_byte::MAP_16);
-      utils::write_be<uint16_t>(buf, static_cast<uint16_t>(n));
+      utils::append_tagged_be<uint16_t>(
+        buf, fmt_byte::MAP_16, static_cast<uint16_t>(n));
     }
     else
     {
-      buf.push_back(fmt_byte::MAP_32);
-      utils::write_be<uint32_t>(buf, n);
+      utils::append_tagged_be<uint32_t>(buf, fmt_byte::MAP_32, n);
     }
   }
 } // namespace ccf::msgpack

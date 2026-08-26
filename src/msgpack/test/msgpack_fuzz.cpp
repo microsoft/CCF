@@ -165,7 +165,7 @@ namespace
         {
           *current = json::object();
           auto& object = current->get_ref<json::object_t&>();
-          const auto size = input.byte() % 5;
+          const size_t size = input.byte() % 5;
           for (size_t i = 0; i < size; ++i)
           {
             const auto key =
