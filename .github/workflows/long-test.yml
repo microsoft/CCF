@@ -183,7 +183,7 @@ jobs:
           cd build
           ./tests.sh --output-on-failure --timeout 1600 -LE "benchmark"
 
-      - name: "Run CBOR fuzz test"
+      - name: "Run fuzz tests"
         run: |
           set -o pipefail
           set -ex
@@ -191,9 +191,17 @@ jobs:
           cd build_fuzz
           rm -f CMakeCache.txt
           cmake -GNinja -DFUZZING=ON -DSAN=ON -DUSE_SNMALLOC=OFF ..
-          ninja cbor_fuzz_test
-          mkdir -p /tmp/cbor_fuzz_live
-          ./cbor_fuzz_test /tmp/cbor_fuzz_live ../src/crypto/test/cbor_fuzz_corpus -max_total_time=60
+          ninja cbor_fuzz_test msgpack_fuzz_test
+          mkdir -p fuzz-live/cbor fuzz-live/msgpack fuzz-artifacts/cbor fuzz-artifacts/msgpack
+          ./cbor_fuzz_test fuzz-live/cbor ../src/crypto/test/cbor_fuzz_corpus \
+            -max_total_time=60 \
+            -artifact_prefix="$PWD/fuzz-artifacts/cbor/"
+          ./msgpack_fuzz_test fuzz-live/msgpack ../src/msgpack/test/msgpack_fuzz_corpus \
+            -max_total_time=60 \
+            -max_len=4096 \
+            -timeout=2 \
+            -rss_limit_mb=1024 \
+            -artifact_prefix="$PWD/fuzz-artifacts/msgpack/"
 
       - name: "Upload logs"
         if: success() || failure()
@@ -207,6 +215,7 @@ jobs:
             build/workspace/*/*.ledger/*
             build/workspace/*/stack_trace
             build/workspace/**/openapi_coverage.json
+            build_fuzz/fuzz-artifacts/**
           if-no-files-found: ignore
 
   # All e2e tests in release mode (same as release build).

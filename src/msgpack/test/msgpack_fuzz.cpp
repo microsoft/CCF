@@ -1,81 +1,182 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-//
-// libFuzzer harness for the msgpack encoder.
-//
-// Strategy: treat the input bytes as a "script" of write operations.
-// Each opcode picks a writer; operands are consumed from the rest of
-// the stream. The harness builds an in-memory mirror (nlohmann::json)
-// of what the encoder wrote, then runs the round-trip check:
-//
-//   bytes  = encode(script)
-//   value  = nlohmann::from_msgpack(bytes)
-//   value should == mirror
-//
-// If the encoded bytes don't round-trip through the nlohmann oracle
-// into a value equal to the mirror, we've produced something
-// non-canonical (wrong format family) or non-deterministic, and the
-// harness traps.
-//
-// Binary and ext values are mirrored using nlohmann::json::binary, matching
-// the representation produced by from_msgpack.
-//
-// `encode_one` and `StreamReader` live in `gen.h` so the canned tests in
-// `fuzz_script_test.cpp` can exercise the same code paths as this harness.
 
-#include "msgpack/encode.h"
-#include "msgpack/test/gen.h"
+#include "msgpack/test/json.h"
 
+#include <algorithm>
+#include <bit>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
-#include <cstdio>
 #include <nlohmann/json.hpp>
+#include <string>
 #include <vector>
+
+namespace
+{
+  using nlohmann::json;
+
+  // Translate every fuzz input into one supported JSON value. Payloads share
+  // a fixed budget so nested values cannot cause unbounded allocations.
+  class Input
+  {
+  private:
+    const uint8_t* data;
+    size_t size;
+    size_t offset = 0;
+    size_t payload_budget = 65'536;
+
+  public:
+    Input(const uint8_t* data_, size_t size_) : data(data_), size(size_) {}
+
+    uint8_t byte()
+    {
+      return offset < size ? data[offset++] : 0;
+    }
+
+    uint64_t uint64()
+    {
+      uint64_t value = 0;
+      for (size_t i = 0; i < sizeof(value); ++i)
+      {
+        value = (value << 8) | byte();
+      }
+      return value;
+    }
+
+    size_t payload_size()
+    {
+      // Most selectors produce a small payload. Four sentinel values exercise
+      // the str/bin format boundaries without requiring large corpus files.
+      const auto selector = byte();
+      size_t requested = selector;
+      switch (selector)
+      {
+        case 0:
+        case 1:
+        case 31:
+        case 32:
+          break;
+        case 252:
+          requested = 65'536;
+          break;
+        case 253:
+          requested = 65'535;
+          break;
+        case 254:
+          requested = 256;
+          break;
+        case 255:
+          requested = 255;
+          break;
+        default:
+          requested %= 64;
+          break;
+      }
+      const auto granted = std::min(requested, payload_budget);
+      payload_budget -= granted;
+      return granted;
+    }
+
+    std::string string()
+    {
+      const auto length = payload_size();
+      const auto pattern = byte();
+      std::string value(length, '\0');
+      for (size_t i = 0; i < length; ++i)
+      {
+        value[i] = static_cast<char>(32 + ((pattern + i) % 95));
+      }
+      return value;
+    }
+
+    json::binary_t binary()
+    {
+      const auto length = payload_size();
+      const auto pattern = byte();
+      json::binary_t value;
+      value.resize(length);
+      for (size_t i = 0; i < length; ++i)
+      {
+        value[i] = static_cast<uint8_t>(pattern + i);
+      }
+      return value;
+    }
+  };
+
+  json generate_value(Input& input, size_t depth)
+  {
+    constexpr uint8_t SCALAR_VARIANTS = 7;
+    constexpr uint8_t ALL_VARIANTS = 9;
+    const auto variant =
+      input.byte() % (depth == 0 ? SCALAR_VARIANTS : ALL_VARIANTS);
+
+    switch (variant)
+    {
+      case 0:
+        return nullptr;
+      case 1:
+        return (input.byte() & 1) != 0;
+      case 2:
+        return input.uint64();
+      case 3:
+      {
+        const auto value = std::bit_cast<int64_t>(input.uint64());
+        return value < 0 ? json(value) : json(static_cast<uint64_t>(value));
+      }
+      case 4:
+      {
+        auto value = std::bit_cast<double>(input.uint64());
+        if (!std::isfinite(value))
+        {
+          value = 0;
+        }
+        return value;
+      }
+      case 5:
+        return input.string();
+      case 6:
+        return json::binary(input.binary());
+      case 7:
+      {
+        auto value = json::array();
+        const auto size = input.byte() % 5;
+        for (uint8_t i = 0; i < size; ++i)
+        {
+          value.push_back(generate_value(input, depth - 1));
+        }
+        return value;
+      }
+      case 8:
+      {
+        auto value = json::object();
+        const auto size = input.byte() % 5;
+        for (uint8_t i = 0; i < size; ++i)
+        {
+          const auto key =
+            std::to_string(i) + static_cast<char>('a' + input.byte() % 26);
+          value[key] = generate_value(input, depth - 1);
+        }
+        return value;
+      }
+      default:
+        __builtin_unreachable();
+    }
+  }
+}
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
 {
-  using nlohmann::json;
-  namespace gen = ccf::msgpack::test::gen;
+  Input input(data, size);
+  const auto expected = generate_value(input, 3);
 
-  gen::StreamReader r(data, size);
-  std::vector<uint8_t> buf;
-  json mirror;
-  try
+  std::vector<uint8_t> encoded;
+  ccf::msgpack::test::encode_json(encoded, expected);
+
+  if (json::from_msgpack(encoded) != expected)
   {
-    mirror = gen::encode_one(r, buf);
-  }
-  catch (const ccf::msgpack::MsgpackEncodeError&)
-  {
-    // Expected: e.g. MAP_TOO_LARGE if the script asks for one. Not a bug.
-    return 0;
-  }
-  // Round-trip check: oracle must decode our bytes into a value equal
-  // to the JSON mirror we built alongside the encoding.
-  json decoded;
-  try
-  {
-    decoded = json::from_msgpack(buf);
-  }
-  catch (const json::exception& e)
-  {
-    // We produced bytes the JSON oracle can't decode. That's a bug.
-    std::fprintf(
-      stderr,
-      "[msgpack_fuzz] from_msgpack failed: %s; encoded %zu bytes\n",
-      e.what(),
-      buf.size());
     __builtin_trap();
   }
-  if (decoded != mirror)
-  {
-    std::fprintf(
-      stderr,
-      "[msgpack_fuzz] round-trip mismatch:\n"
-      "  mirror : %s\n"
-      "  decoded: %s\n",
-      mirror.dump().c_str(),
-      decoded.dump().c_str());
-    __builtin_trap();
-  }
+
   return 0;
 }
