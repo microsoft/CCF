@@ -4,6 +4,8 @@
 
 set -exo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
+
 retry() {
     local description=$1
     shift
@@ -40,7 +42,6 @@ retry() {
 install_dev_dependencies() {
     tdnf -y install  \
         clang-tools-extra  \
-        python-pip \
         kernel-tools \
         jq \
         tar \
@@ -53,7 +54,8 @@ install_lts_test_dependencies() {
 }
 
 install_python_tools() {
-    pip install gersemi
+    bash "$SCRIPT_DIR/install_uv.sh" /usr/local/bin || return 1
+    uv pip install --system --break-system-packages gersemi
 }
 
 retry "Development dependencies" install_dev_dependencies

@@ -11,7 +11,7 @@ on:
 permissions: read-all
 
 env:
-  PIP_INDEX_URL: https://packagefeedproxy.microsoft.io/pypi/simple/
+  UV_INDEX_URL: https://packagefeedproxy.microsoft.io/pypi/simple/
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

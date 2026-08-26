@@ -4,6 +4,8 @@
 
 set -exo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
+
 retry() {
     local description=$1
     shift
@@ -42,7 +44,6 @@ install_dev_dependencies() {
     # is installed by setup-ci-al4.sh; here we add the developer-only tools.
     dnf -y install  \
         clang-tools-extra  \
-        python3-pip  \
         kernel-tools  \
         jq  \
         tar
@@ -55,9 +56,12 @@ install_lts_test_dependencies() {
 
 install_python_tools() {
     # Match the clang-format version used by the existing formatting checks.
-    if ! python3 -m pip install gersemi clang-format==18.1.8 --break-system-packages; then
-        python3 -m pip install gersemi clang-format==18.1.8
-    fi
+    bash "$SCRIPT_DIR/install_uv.sh" /usr/local/bin || return 1
+    uv pip install \
+        --system \
+        --break-system-packages \
+        gersemi \
+        clang-format==18.1.8
 
     local clang_format
     clang_format=$(PATH="/usr/local/bin:$PATH" command -v clang-format)
