@@ -363,10 +363,6 @@ TEST_CASE(
   REQUIRE(current_result.has_value());
   CHECK(current_result.value() == ccf::kv::CommitResult::SUCCESS);
 
-  const auto a = fixture.store->current_txid();
-  const auto b = ccf::TxID(reelection_view, 3);
-  std::cout << "Current TxID: " << a.to_str() << ", expected: " << b.to_str()
-            << std::endl;
   CHECK(fixture.store->current_txid() == ccf::TxID(reelection_view, 3));
   CHECK_FALSE(read_value(*fixture.store, fixture.table, 1).has_value());
   CHECK(read_value(*fixture.store, fixture.table, 2) == 3);
