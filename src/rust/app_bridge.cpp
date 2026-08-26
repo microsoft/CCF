@@ -144,9 +144,9 @@ namespace
 
   struct CallbackState
   {
-    ccf_rust_endpoint_callback callback;
-    ccf_rust_drop_callback drop;
-    void* user_data;
+    ccf_rust_endpoint_callback callback = nullptr;
+    ccf_rust_drop_callback drop = nullptr;
+    void* user_data = nullptr;
     bool owns_user_data = false;
 
     ~CallbackState()
@@ -166,9 +166,9 @@ struct ccf_rust_registry
 
 struct ccf_rust_endpoint_context
 {
-  std::shared_ptr<ccf::RpcContext> rpc;
-  ccf::kv::ReadOnlyTx* tx;
-  ccf::kv::Tx* writable_tx;
+  std::shared_ptr<ccf::RpcContext> rpc = nullptr;
+  ccf::kv::ReadOnlyTx* tx = nullptr;
+  ccf::kv::Tx* writable_tx = nullptr;
   std::unordered_map<std::string, RawMap::ReadOnlyHandle*> read_handles;
   std::unordered_map<std::string, RawMap::Handle*> write_handles;
   RawMap::Handle::ValueType scratch;
@@ -346,12 +346,12 @@ extern "C"
     return CCF_RUST_ABI_VERSION;
   }
 
-  int ccf_rust_register_endpoint(
+  ccf_rust_result ccf_rust_register_endpoint(
     ccf_rust_registry* registry,
     ccf_rust_slice path,
     ccf_rust_slice method,
     ccf_rust_auth auth,
-    int read_only,
+    int32_t read_only,
     ccf_rust_endpoint_callback callback,
     ccf_rust_drop_callback drop,
     void* user_data)
@@ -384,7 +384,7 @@ extern "C"
     }
   }
 
-  int ccf_rust_request_body(
+  ccf_rust_result ccf_rust_request_body(
     ccf_rust_endpoint_context* ctx, ccf_rust_slice* body)
   {
     if (ctx == nullptr || body == nullptr)
@@ -402,7 +402,7 @@ extern "C"
     }
   }
 
-  int ccf_rust_request_query(
+  ccf_rust_result ccf_rust_request_query(
     ccf_rust_endpoint_context* ctx, ccf_rust_slice* query)
   {
     if (ctx == nullptr || query == nullptr)
@@ -420,7 +420,7 @@ extern "C"
     }
   }
 
-  int ccf_rust_request_path_param(
+  ccf_rust_result ccf_rust_request_path_param(
     ccf_rust_endpoint_context* ctx, ccf_rust_slice name, ccf_rust_slice* value)
   {
     if (ctx == nullptr || value == nullptr || !is_valid_utf8(name))
@@ -447,7 +447,7 @@ extern "C"
     }
   }
 
-  int ccf_rust_request_header(
+  ccf_rust_result ccf_rust_request_header(
     ccf_rust_endpoint_context* ctx, ccf_rust_slice name, ccf_rust_slice* value)
   {
     if (ctx == nullptr || value == nullptr || !is_valid_utf8(name))
@@ -472,7 +472,8 @@ extern "C"
     }
   }
 
-  int ccf_rust_response_status(ccf_rust_endpoint_context* ctx, uint16_t status)
+  ccf_rust_result ccf_rust_response_status(
+    ccf_rust_endpoint_context* ctx, uint16_t status)
   {
     if (ctx == nullptr || !is_known_http_status(status))
     {
@@ -489,7 +490,7 @@ extern "C"
     }
   }
 
-  int ccf_rust_response_header(
+  ccf_rust_result ccf_rust_response_header(
     ccf_rust_endpoint_context* ctx, ccf_rust_slice name, ccf_rust_slice value)
   {
     if (
@@ -509,7 +510,7 @@ extern "C"
     }
   }
 
-  int ccf_rust_response_body(
+  ccf_rust_result ccf_rust_response_body(
     ccf_rust_endpoint_context* ctx, ccf_rust_slice body)
   {
     if (ctx == nullptr || !is_valid_buffer(body))
@@ -527,7 +528,7 @@ extern "C"
     }
   }
 
-  int ccf_rust_response_error(
+  ccf_rust_result ccf_rust_response_error(
     ccf_rust_endpoint_context* ctx,
     uint16_t status,
     ccf_rust_slice code,
@@ -553,7 +554,7 @@ extern "C"
     }
   }
 
-  int ccf_rust_kv_get(
+  ccf_rust_result ccf_rust_kv_get(
     ccf_rust_endpoint_context* ctx,
     ccf_rust_slice map_name,
     ccf_rust_slice key,
@@ -567,8 +568,7 @@ extern "C"
     }
     try
     {
-      const auto result =
-        ctx->read_handle(to_string(map_name))->get(to_bytes(key));
+      auto result = ctx->read_handle(to_string(map_name))->get(to_bytes(key));
       if (!result.has_value())
       {
         return CCF_RUST_NOT_FOUND;
@@ -588,11 +588,11 @@ extern "C"
     }
   }
 
-  int ccf_rust_kv_has(
+  ccf_rust_result ccf_rust_kv_has(
     ccf_rust_endpoint_context* ctx,
     ccf_rust_slice map_name,
     ccf_rust_slice key,
-    int* present)
+    int32_t* present)
   {
     if (
       ctx == nullptr || present == nullptr || !is_valid_utf8(map_name) ||
@@ -617,7 +617,7 @@ extern "C"
     }
   }
 
-  int ccf_rust_kv_put(
+  ccf_rust_result ccf_rust_kv_put(
     ccf_rust_endpoint_context* ctx,
     ccf_rust_slice map_name,
     ccf_rust_slice key,
@@ -650,7 +650,7 @@ extern "C"
     }
   }
 
-  int ccf_rust_kv_remove(
+  ccf_rust_result ccf_rust_kv_remove(
     ccf_rust_endpoint_context* ctx, ccf_rust_slice map_name, ccf_rust_slice key)
   {
     if (

@@ -596,6 +596,19 @@ if(BUILD_TESTS)
   # Unit tests
   if(BUILD_UNIT_TESTS)
     add_test(
+      NAME ccf_app_rust_test
+      COMMAND
+        ${CMAKE_COMMAND} -E env --unset=CARGO_BUILD_TARGET "CARGO_NET_RETRY=10"
+        "CARGO_HTTP_TIMEOUT=60" "CARGO_BUILD_RUSTC=${RUSTC}" ${CARGO} test
+        --manifest-path ${CCF_DIR}/src/rust/ccf-app/Cargo.toml --target-dir
+        ${CMAKE_BINARY_DIR}/cargo/ccf-app-test --locked
+    )
+    set_tests_properties(
+      ccf_app_rust_test
+      PROPERTIES LABELS unit WORKING_DIRECTORY ${CCF_DIR}/src/rust/ccf-app
+    )
+
+    add_test(
       NAME verify_uvm_attestation_and_endorsements
       COMMAND
         bash

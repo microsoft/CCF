@@ -31,9 +31,10 @@ which depends on the source-tree ``src/rust/ccf-app`` crate or the installed
 
 The helper maps CMake ``Debug`` builds to Cargo's development profile and all
 other build types to Cargo's release profile. It also links the generic C++ ABI
-bridge, launcher, and CCF libraries. Cargo sources, the manifest, and the lock
-file are build dependencies. The application should commit ``Cargo.lock`` and
-pin a Rust toolchain for reproducible builds.
+bridge, launcher, and CCF libraries. Cargo is invoked on every build and decides
+whether the crate is up to date, so Rust source edits do not require CMake to be
+reconfigured. The application should commit ``Cargo.lock`` and pin a Rust
+toolchain for reproducible builds.
 
 The complete records example is in :ccf_repo:`samples/apps/basic_rust`. It
 exports a registration function with ``ccf_app::export_app!`` and registers
@@ -47,8 +48,10 @@ retry a read-write handler when a transaction conflicts, so handlers should be
 deterministic and should not perform non-transactional side effects.
 
 Request, response, transaction, and map values borrow the callback context and
-cannot be retained. Rust panics are caught at the ABI boundary and become HTTP
-500 errors. C++ exceptions are also contained by the bridge.
+cannot be retained. The SDK requires Rust's ``unwind`` panic strategy so that
+panics are caught at the ABI boundary and become HTTP 500 errors. Builds using
+``panic = "abort"`` are rejected. C++ exceptions are also contained by the
+bridge.
 
 KV values and keys
 ------------------
@@ -59,8 +62,10 @@ common interface without prescribing a wire format.
 
 Map names retain the standard CCF security semantics. Names beginning with
 ``public:`` are written to the ledger in plaintext. All other application map
-names, such as the sample's ``records`` map, are private and encrypted. The
-framework continues to enforce reserved governance and internal map namespaces.
+names, such as the sample's ``records`` map, are private and encrypted. Like
+native C++ applications, native Rust applications are trusted code: raw map
+access does not enforce the namespace restrictions applied to JavaScript
+applications for reserved governance and internal maps.
 
 Read-only handlers receive only ``ReadOnlyMap``, so write operations are
 not available at compile time. Errors returned by a handler use the normal CCF

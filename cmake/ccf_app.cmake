@@ -53,13 +53,7 @@ function(add_ccf_app name)
 endfunction()
 
 function(add_ccf_rust_app name)
-  cmake_parse_arguments(
-    PARSE_ARGV 1
-    PARSED_ARGS
-    ""
-    "MANIFEST_PATH;PACKAGE"
-    "DEPS"
-  )
+  cmake_parse_arguments(PARSE_ARGV 1 PARSED_ARGS "" "MANIFEST_PATH;PACKAGE" "")
 
   if(NOT PARSED_ARGS_MANIFEST_PATH)
     message(FATAL_ERROR "add_ccf_rust_app requires MANIFEST_PATH")
@@ -95,14 +89,13 @@ function(add_ccf_rust_app name)
     ${CARGO_TARGET_DIR}/${CARGO_PROFILE_DIR}/lib${RUST_LIB_NAME}.a
   )
 
-  file(GLOB_RECURSE RUST_APP_SOURCES CONFIGURE_DEPENDS ${MANIFEST_DIR}/src/*.rs)
-
   set(
     RUSTFLAGS
     "$ENV{RUSTFLAGS} --remap-path-prefix=${MANIFEST_DIR}=APP --remap-path-prefix=${CCF_DIR}=CCF --remap-path-prefix=$ENV{HOME}/.cargo=CARGO"
   )
-  add_custom_command(
-    OUTPUT ${RUST_APP_LIB}
+  add_custom_target(
+    cargo-build_${name}
+    BYPRODUCTS ${RUST_APP_LIB}
     COMMAND ${CMAKE_COMMAND} -E make_directory ${CARGO_TARGET_DIR}
     COMMAND
       ${CMAKE_COMMAND} -E env --unset=CARGO_BUILD_TARGET
@@ -112,16 +105,10 @@ function(add_ccf_rust_app name)
       ${PARSED_ARGS_PACKAGE} --manifest-path ${MANIFEST_PATH} --target-dir
       ${CARGO_TARGET_DIR} ${CARGO_PROFILE_FLAG} --locked
     WORKING_DIRECTORY ${MANIFEST_DIR}
-    DEPENDS
-      ${MANIFEST_PATH}
-      ${MANIFEST_DIR}/Cargo.lock
-      ${RUST_APP_SOURCES}
-      ${PARSED_ARGS_DEPS}
     COMMENT "Building Rust CCF application ${name}"
     USES_TERMINAL
     VERBATIM
   )
-  add_custom_target(cargo-build_${name} DEPENDS ${RUST_APP_LIB})
 
   if(EXISTS "${CCF_DIR}/src/rust/app_bridge.cpp")
     set(RUST_BRIDGE_SOURCE "${CCF_DIR}/src/rust/app_bridge.cpp")

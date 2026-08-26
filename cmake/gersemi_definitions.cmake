@@ -16,13 +16,7 @@ function(add_ccf_app name)
 endfunction()
 
 function(add_ccf_rust_app name)
-  cmake_parse_arguments(
-    PARSE_ARGV 1
-    PARSED_ARGS
-    ""
-    "MANIFEST_PATH;PACKAGE"
-    "DEPS"
-  )
+  cmake_parse_arguments(PARSE_ARGV 1 PARSED_ARGS "" "MANIFEST_PATH;PACKAGE" "")
 endfunction()
 
 function(add_ccf_static_library name)

@@ -15,5 +15,4 @@ add_ccf_rust_app(
   basic_rust
   MANIFEST_PATH ${CMAKE_CURRENT_LIST_DIR}/Cargo.toml
   PACKAGE ccf-basic-rust
-  DEPS ${CCF_DIR}/src/rust/ccf-app/src/lib.rs
 )
