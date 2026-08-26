@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <filesystem>
+#include <limits>
 #include <list>
 #include <map>
 #include <memory>
@@ -534,6 +535,90 @@ namespace asynchost
       return LedgerReadResult{entries, to_};
     }
 
+    std::optional<std::vector<uint8_t>> read_entries_as_completed_chunk(
+      size_t from, size_t to)
+    {
+      std::unique_lock<ccf::pal::Mutex> guard(file_lock);
+
+      const auto [raw_entries_size, end_idx] = entries_size(from, to);
+      if (raw_entries_size == 0 || end_idx != to)
+      {
+        return std::nullopt;
+      }
+
+      const auto entry_count = to - from + 1;
+      if (
+        raw_entries_size >
+        std::numeric_limits<size_t>::max() - sizeof(positions_offset_header_t))
+      {
+        throw std::logic_error(fmt::format(
+          "Ledger entry range {}-{} is too large to represent as a chunk",
+          from,
+          to));
+      }
+      const auto positions_offset =
+        sizeof(positions_offset_header_t) + raw_entries_size;
+      if (
+        positions_offset > std::numeric_limits<uint32_t>::max() ||
+        entry_count > (std::numeric_limits<size_t>::max() - positions_offset) /
+            sizeof(positions.at(0)))
+      {
+        throw std::logic_error(fmt::format(
+          "Ledger entry range {}-{} is too large to represent as a chunk",
+          from,
+          to));
+      }
+
+      const auto positions_size = entry_count * sizeof(positions.at(0));
+      std::vector<uint8_t> chunk(positions_offset + positions_size);
+      auto* out = chunk.data();
+      auto remaining = chunk.size();
+      serialized::write(out, remaining, positions_offset);
+
+      if (fseeko(file, positions.at(from - start_idx), SEEK_SET) != 0)
+      {
+        throw std::logic_error(fmt::format(
+          "Failed to seek to entry {} in ledger file {}", from, file_name));
+      }
+
+      {
+        TimeBoundLogger log_if_slow(fmt::format(
+          "Reading committed ledger prefix {} to {} ({} bytes) - fread({})",
+          from,
+          to,
+          raw_entries_size,
+          file_name));
+        if (fread(out, raw_entries_size, 1, file) != 1)
+        {
+          throw std::logic_error(fmt::format(
+            "Failed to read entry range {}-{} from ledger file {}",
+            from,
+            to,
+            file_name));
+        }
+      }
+      out += raw_entries_size;
+      remaining -= raw_entries_size;
+
+      const auto first_position = positions.at(from - start_idx);
+      for (size_t idx = from; idx <= to; ++idx)
+      {
+        const auto relative_position = sizeof(positions_offset_header_t) +
+          positions.at(idx - start_idx) - first_position;
+        if (relative_position > std::numeric_limits<uint32_t>::max())
+        {
+          throw std::logic_error(fmt::format(
+            "Entry {} offset is too large to represent in a ledger chunk",
+            idx));
+        }
+
+        serialized::write(
+          out, remaining, static_cast<uint32_t>(relative_position));
+      }
+
+      return chunk;
+    }
+
     bool truncate(size_t idx, bool remove_file_if_empty = true)
     {
       if (
@@ -959,7 +1044,9 @@ namespace asynchost
             return idx >= f->get_start_idx();
           });
 
-        if (f != files.rend() && idx <= (*f)->get_last_idx())
+        if (
+          f != files.rend() && (*f)->get_start_idx() <= idx &&
+          idx <= (*f)->get_last_idx())
         {
           return *f;
         }
@@ -1730,6 +1817,49 @@ namespace asynchost
       }
 
       return ledger_dir / name.value();
+    }
+
+    [[nodiscard]] std::optional<std::pair<size_t, size_t>>
+    committed_ledger_prefix_range_with_idx(size_t idx)
+    {
+      std::unique_lock<ccf::pal::Mutex> guard(state_lock);
+
+      if (idx == 0 || idx <= end_of_committed_files_idx || idx > committed_idx)
+      {
+        return std::nullopt;
+      }
+
+      const auto it = get_it_contains_idx(idx);
+      if (
+        it == files.end() || (*it)->get_start_idx() > idx ||
+        (*it)->is_committed() || (*it)->is_recovery())
+      {
+        return std::nullopt;
+      }
+
+      return std::make_pair(
+        idx, std::min(committed_idx, (*it)->get_last_idx()));
+    }
+
+    [[nodiscard]] std::optional<std::vector<uint8_t>>
+    read_committed_ledger_prefix(size_t from, size_t to)
+    {
+      std::unique_lock<ccf::pal::Mutex> guard(state_lock);
+
+      if (from == 0 || to < from || to > committed_idx)
+      {
+        return std::nullopt;
+      }
+
+      const auto file = get_file_from_idx(from);
+      if (
+        file == nullptr || file->get_start_idx() > from ||
+        file->get_last_idx() < to || file->is_recovery())
+      {
+        return std::nullopt;
+      }
+
+      return file->read_entries_as_completed_chunk(from, to);
     }
 
     [[nodiscard]] size_t get_init_idx()

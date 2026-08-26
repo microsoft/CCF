@@ -150,7 +150,7 @@ namespace ccf::node
     return node_configuration_subsystem;
   }
 
-  // Helper function to serve byte ranges from a file stream.
+  // Helper function to serve byte ranges from a resource.
   // This populates the response body, and range-related response headers. This
   // may produce an error response if an invalid range was requested.
   //
@@ -169,13 +169,13 @@ namespace ccf::node
   // with any other metadata headers) _before_ calling this function, and
   // generally avoid modifying the response further _after_ calling this
   // function.
+  template <typename ReadRange>
   // NOLINTNEXTLINE(readability-function-cognitive-complexity)
-  static void fill_range_response_from_file(
-    ccf::endpoints::CommandEndpointContext& ctx, std::ifstream& f)
+  static void fill_range_response(
+    ccf::endpoints::CommandEndpointContext& ctx,
+    size_t total_size,
+    ReadRange&& read_range)
   {
-    f.seekg(0, std::ifstream::end);
-    const auto total_size = (size_t)f.tellg();
-
     if (total_size == 0)
     {
       // Refuse to return an empty file - it's not going to be a valid snapshot
@@ -350,7 +350,7 @@ namespace ccf::node
             }
 
             range_end = total_size;
-            range_start = range_end - offset;
+            range_start = offset >= range_end ? 0 : range_end - offset;
           }
           else
           {
@@ -379,15 +379,8 @@ namespace ccf::node
     std::vector<uint8_t> contents;
     if (digest_algo.has_value())
     {
-      // Need full file contents for the digest
-      f.seekg(0);
-      std::vector<uint8_t> full_contents(total_size);
-      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
-      f.read(reinterpret_cast<char*>(full_contents.data()), total_size);
-      f.close();
-
-      auto bytes_read = static_cast<size_t>(f.gcount());
-      if (bytes_read < range_end)
+      auto full_contents = read_range(0, total_size);
+      if (!full_contents.has_value() || full_contents->size() != total_size)
       {
         ctx.rpc_ctx->set_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
@@ -396,29 +389,38 @@ namespace ccf::node
         return;
       }
 
-      if (bytes_read == total_size)
-      {
-        ctx.rpc_ctx->set_response_header(
-          ccf::http::headers::REPR_DIGEST,
-          format_repr_digest(
-            digest_algo->first,
-            digest_algo->second,
-            full_contents.data(),
-            full_contents.size()));
-      }
+      ctx.rpc_ctx->set_response_header(
+        ccf::http::headers::REPR_DIGEST,
+        format_repr_digest(
+          digest_algo->first,
+          digest_algo->second,
+          full_contents->data(),
+          full_contents->size()));
 
       // Extract the requested range
-      contents.assign(
-        full_contents.begin() + range_start, full_contents.begin() + range_end);
+      if (range_start == 0 && range_end == total_size)
+      {
+        contents = std::move(full_contents.value());
+      }
+      else
+      {
+        contents.assign(
+          full_contents->begin() + range_start,
+          full_contents->begin() + range_end);
+      }
     }
     else
     {
-      // Read only the requested range
-      contents.resize(range_size);
-      f.seekg(range_start);
-      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
-      f.read(reinterpret_cast<char*>(contents.data()), contents.size());
-      f.close();
+      auto range_contents = read_range(range_start, range_end);
+      if (!range_contents.has_value() || range_contents->size() != range_size)
+      {
+        ctx.rpc_ctx->set_error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::InternalError,
+          "Server was unable to read the file correctly");
+        return;
+      }
+      contents = std::move(range_contents.value());
     }
 
     // Compute ETag over the response content (RFC 9530 structured field
@@ -515,11 +517,74 @@ namespace ccf::node
     }
   }
 
+  static void fill_range_response_from_file(
+    ccf::endpoints::CommandEndpointContext& ctx, std::ifstream& f)
+  {
+    f.seekg(0, std::ifstream::end);
+    const auto end = f.tellg();
+    if (end < 0)
+    {
+      ctx.rpc_ctx->set_error(
+        HTTP_STATUS_INTERNAL_SERVER_ERROR,
+        ccf::errors::InternalError,
+        "Server was unable to determine the file size");
+      return;
+    }
+
+    const auto total_size = static_cast<size_t>(end);
+    const auto read_range =
+      [&f](size_t start, size_t end) -> std::optional<std::vector<uint8_t>> {
+      const auto size = end - start;
+      std::vector<uint8_t> contents(size);
+      f.clear();
+      f.seekg(static_cast<std::streamoff>(start), std::ifstream::beg);
+      if (!f.good())
+      {
+        return std::nullopt;
+      }
+
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+      f.read(reinterpret_cast<char*>(contents.data()), contents.size());
+      if (static_cast<size_t>(f.gcount()) != size)
+      {
+        return std::nullopt;
+      }
+      return contents;
+    };
+
+    fill_range_response(ctx, total_size, read_range);
+  }
+
+  static void fill_range_response_from_contents(
+    ccf::endpoints::CommandEndpointContext& ctx, std::vector<uint8_t>&& source)
+  {
+    const auto total_size = source.size();
+    const auto read_range =
+      [&source](
+        size_t start, size_t end) -> std::optional<std::vector<uint8_t>> {
+      if (start > end || end > source.size())
+      {
+        return std::nullopt;
+      }
+
+      if (start == 0 && end == source.size())
+      {
+        return std::move(source);
+      }
+
+      return std::vector<uint8_t>(source.begin() + start, source.begin() + end);
+    };
+
+    fill_range_response(ctx, total_size, read_range);
+  }
+
   // NOLINTNEXTLINE(readability-function-cognitive-complexity)
   static void init_file_serving_handlers(
     ccf::BaseEndpointRegistry& registry, ccf::AbstractNodeContext& node_context)
   {
     static constexpr auto file_since_param_key = "since";
+    static constexpr auto include_committed_prefix_param_key =
+      "include_committed_prefix";
 
     auto find_snapshot = [&](ccf::endpoints::ReadOnlyEndpointContext& ctx) {
       size_t latest_idx = 0;
@@ -659,8 +724,8 @@ namespace ccf::node
     // Find a ledger chunk that includes the since value
     auto find_chunk = [&](ccf::endpoints::ReadOnlyEndpointContext& ctx) {
       size_t since_idx = 0;
+      bool include_committed_prefix = false;
       {
-        // Get since_idx from query param, if present
         const auto parsed_query =
           http::parse_query(ctx.rpc_ctx->get_request_query());
 
@@ -688,6 +753,23 @@ namespace ccf::node
             fmt::format(
               "Missing required query parameter '{}'", file_since_param_key));
           return;
+        }
+
+        if (parsed_query.contains(include_committed_prefix_param_key))
+        {
+          error_reason.clear();
+          if (!http::get_query_value(
+                parsed_query,
+                include_committed_prefix_param_key,
+                include_committed_prefix,
+                error_reason))
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::InvalidQueryParameterValue,
+              std::move(error_reason));
+            return;
+          }
         }
       }
       LOG_DEBUG_FMT("Finding ledger chunk including index {}", since_idx);
@@ -723,18 +805,61 @@ namespace ccf::node
       const auto chunk_path =
         read_ledger_subsystem->committed_ledger_path_with_idx(since_idx);
 
+      const auto redirect_to_committed_chunk =
+        [&](const std::filesystem::path& path) {
+          const auto chunk_filename = path.filename();
+          const auto redirect_url = fmt::format(
+            "https://{}/node/ledger_chunk/{}", address.value(), chunk_filename);
+          LOG_DEBUG_FMT("Redirecting to ledger chunk: {}", redirect_url);
+          ctx.rpc_ctx->set_response_header(
+            ccf::http::headers::LOCATION, redirect_url);
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_PERMANENT_REDIRECT);
+        };
+
       // If the file is found locally, always serve it from this node
       if (chunk_path.has_value())
       {
-        const auto chunk_filename = chunk_path.value().filename();
-
-        auto redirect_url = fmt::format(
-          "https://{}/node/ledger_chunk/{}", address.value(), chunk_filename);
-        LOG_DEBUG_FMT("Redirecting to ledger chunk: {}", redirect_url);
-        ctx.rpc_ctx->set_response_header(
-          ccf::http::headers::LOCATION, redirect_url);
-        ctx.rpc_ctx->set_response_status(HTTP_STATUS_PERMANENT_REDIRECT);
+        redirect_to_committed_chunk(chunk_path.value());
         return;
+      }
+
+      if (include_committed_prefix)
+      {
+        const auto prefix_range =
+          read_ledger_subsystem->committed_ledger_prefix_range_with_idx(
+            since_idx);
+        if (prefix_range.has_value())
+        {
+          const auto chunk_filename = fmt::format(
+            "ledger_{}-{}{}",
+            prefix_range->start_idx,
+            prefix_range->end_idx,
+            asynchost::ledger_committed_prefix_suffix);
+          const auto redirect_url = fmt::format(
+            "https://{}/node/ledger_chunk/committed_prefix/{}",
+            address.value(),
+            chunk_filename);
+          LOG_DEBUG_FMT(
+            "Redirecting to committed ledger prefix: {}", redirect_url);
+          ctx.rpc_ctx->set_response_header(
+            ccf::http::headers::LOCATION, redirect_url);
+          ctx.rpc_ctx->set_response_header(
+            ccf::http::headers::CACHE_CONTROL, "no-store");
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_TEMPORARY_REDIRECT);
+          return;
+        }
+
+        // A completed source file may have been promoted after the first
+        // committed-file lookup but before the prefix lookup. Retry the
+        // canonical lookup so this atomic state transition cannot produce a
+        // false 404.
+        const auto promoted_chunk_path =
+          read_ledger_subsystem->committed_ledger_path_with_idx(since_idx);
+        if (promoted_chunk_path.has_value())
+        {
+          redirect_to_committed_chunk(promoted_chunk_path.value());
+          return;
+        }
       }
 
       // Otherwise, if the file is before our init index, i.e. where we started
@@ -760,9 +885,17 @@ namespace ccf::node
           address.value(),
           file_since_param_key,
           since_idx);
+        if (include_committed_prefix)
+        {
+          location +=
+            fmt::format("&{}=true", include_committed_prefix_param_key);
+          ctx.rpc_ctx->set_response_header(
+            ccf::http::headers::CACHE_CONTROL, "no-store");
+        }
         ctx.rpc_ctx->set_response_header(http::headers::LOCATION, location);
         ctx.rpc_ctx->set_error(
-          HTTP_STATUS_PERMANENT_REDIRECT,
+          include_committed_prefix ? HTTP_STATUS_TEMPORARY_REDIRECT :
+                                     HTTP_STATUS_PERMANENT_REDIRECT,
           ccf::errors::NodeCannotHandleRequest,
           "Node does not have ledger chunk; redirecting to next node");
         return;
@@ -785,10 +918,18 @@ namespace ccf::node
             auto location =
               fmt::format("https://{}/node/ledger_chunk", address.value());
             location += fmt::format("?{}={}", file_since_param_key, since_idx);
+            if (include_committed_prefix)
+            {
+              location +=
+                fmt::format("&{}=true", include_committed_prefix_param_key);
+              ctx.rpc_ctx->set_response_header(
+                ccf::http::headers::CACHE_CONTROL, "no-store");
+            }
 
             ctx.rpc_ctx->set_response_header(http::headers::LOCATION, location);
             ctx.rpc_ctx->set_error(
-              HTTP_STATUS_PERMANENT_REDIRECT,
+              include_committed_prefix ? HTTP_STATUS_TEMPORARY_REDIRECT :
+                                         HTTP_STATUS_PERMANENT_REDIRECT,
               ccf::errors::NodeCannotHandleRequest,
               fmt::format(
                 "Ledger chunk including index {} not found locally; "
@@ -800,6 +941,11 @@ namespace ccf::node
       }
 
       // Redirect possibilities exhausted
+      if (include_committed_prefix)
+      {
+        ctx.rpc_ctx->set_response_header(
+          ccf::http::headers::CACHE_CONTROL, "no-store");
+      }
       ctx.rpc_ctx->set_error(
         HTTP_STATUS_NOT_FOUND,
         ccf::errors::ResourceNotFound,
@@ -813,6 +959,11 @@ namespace ccf::node
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
       .add_query_parameter<ccf::SeqNo>(
         file_since_param_key, ccf::endpoints::RequiredParameter)
+      .add_query_parameter<bool>(
+        include_committed_prefix_param_key, ccf::endpoints::OptionalParameter)
+      .add_openapi_response(
+        HTTP_STATUS_TEMPORARY_REDIRECT,
+        "Redirect to a temporary committed ledger prefix.")
       .add_openapi_response(
         HTTP_STATUS_PERMANENT_REDIRECT,
         "Redirect to the selected ledger chunk.")
@@ -823,7 +974,9 @@ namespace ccf::node
       .set_openapi_description(
         "Redirect to the corresponding /node/ledger_chunk/{chunk_name} "
         "endpoint for the ledger chunk including the sequence number specified "
-        "in the 'since' query parameter.")
+        "in the 'since' query parameter. If 'include_committed_prefix' is true "
+        "and no committed file is available, this may temporarily redirect to "
+        "a synthetic committed-prefix resource.")
       .install();
     registry
       .make_read_only_endpoint(
@@ -831,6 +984,11 @@ namespace ccf::node
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
       .add_query_parameter<ccf::SeqNo>(
         file_since_param_key, ccf::endpoints::RequiredParameter)
+      .add_query_parameter<bool>(
+        include_committed_prefix_param_key, ccf::endpoints::OptionalParameter)
+      .add_openapi_response(
+        HTTP_STATUS_TEMPORARY_REDIRECT,
+        "Redirect to a temporary committed ledger prefix.")
       .add_openapi_response(
         HTTP_STATUS_PERMANENT_REDIRECT,
         "Redirect to the selected ledger chunk.")
@@ -841,7 +999,9 @@ namespace ccf::node
       .set_openapi_description(
         "Redirect to the corresponding /node/ledger_chunk/{chunk_name} "
         "endpoint for the ledger chunk including the sequence number specified "
-        "in the 'since' query parameter.")
+        "in the 'since' query parameter. If 'include_committed_prefix' is true "
+        "and no committed file is available, this may temporarily redirect to "
+        "a synthetic committed-prefix resource.")
       .install();
 
     auto get_snapshot = [&](ccf::endpoints::CommandEndpointContext& ctx) {
@@ -1017,6 +1177,119 @@ namespace ccf::node
       .set_openapi_description(
         "Download a specific ledger chunk by name. Supports HTTP Range header "
         "for partial downloads.")
+      .install();
+
+    auto get_committed_ledger_prefix =
+      [&](ccf::endpoints::CommandEndpointContext& ctx) {
+        ctx.rpc_ctx->set_response_header(
+          ccf::http::headers::CACHE_CONTROL, "no-store");
+
+        std::string chunk_name;
+        std::string error;
+        if (!ccf::endpoints::get_path_param(
+              ctx.rpc_ctx->get_request_path_params(),
+              "chunk_name",
+              chunk_name,
+              error))
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::InvalidResourceName,
+            std::move(error));
+          return;
+        }
+
+        const auto range =
+          asynchost::get_ledger_committed_prefix_range_from_file_name(
+            chunk_name);
+        if (!range.has_value())
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::InvalidResourceName,
+            fmt::format(
+              "{} is not a valid committed ledger prefix name", chunk_name));
+          return;
+        }
+
+        auto read_ledger_subsystem =
+          node_context.get_subsystem<ccf::ReadLedgerSubsystem>();
+        if (read_ledger_subsystem == nullptr)
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "LedgerReadSubsystem is not available");
+          return;
+        }
+
+        auto contents = read_ledger_subsystem->read_committed_ledger_prefix(
+          range->first, range->second);
+        if (!contents.has_value())
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_NOT_FOUND,
+            ccf::errors::ResourceNotFound,
+            fmt::format(
+              "This node cannot provide committed ledger prefix {}",
+              chunk_name));
+          return;
+        }
+
+        ctx.rpc_ctx->set_response_header(
+          ccf::http::headers::CCF_LEDGER_CHUNK_NAME, chunk_name);
+        ctx.rpc_ctx->set_response_header(
+          ccf::http::headers::CCF_LEDGER_CHUNK_KIND, "committed-prefix");
+        fill_range_response_from_contents(ctx, std::move(contents.value()));
+      };
+    registry
+      .make_command_endpoint(
+        "/ledger_chunk/committed_prefix/{chunk_name}",
+        HTTP_HEAD,
+        get_committed_ledger_prefix,
+        no_auth_required)
+      .set_forwarding_required(endpoints::ForwardingRequired::Never)
+      .add_openapi_response(
+        HTTP_STATUS_OK, "Metadata for the requested committed ledger prefix.")
+      .add_openapi_response(
+        HTTP_STATUS_PARTIAL_CONTENT,
+        "Metadata for the requested committed ledger prefix range.")
+      .add_openapi_response(
+        HTTP_STATUS_NOT_MODIFIED,
+        "The requested committed ledger prefix has not changed.")
+      .add_openapi_response(
+        HTTP_STATUS_NOT_FOUND,
+        "The requested committed ledger prefix is not available.")
+      .require_operator_feature(endpoints::OperatorFeature::LedgerChunkRead)
+      .set_openapi_summary("Committed ledger prefix metadata")
+      .set_openapi_description(
+        "Metadata about a synthetic chunk containing only committed ledger "
+        "entries. The resource is not a canonical .committed ledger file.")
+      .install();
+    registry
+      .make_command_endpoint(
+        "/ledger_chunk/committed_prefix/{chunk_name}",
+        HTTP_GET,
+        get_committed_ledger_prefix,
+        no_auth_required)
+      .set_forwarding_required(endpoints::ForwardingRequired::Never)
+      .add_openapi_response<ds::openapi::Binary>(
+        HTTP_STATUS_OK, "The requested committed ledger prefix.")
+      .add_openapi_response<ds::openapi::Binary>(
+        HTTP_STATUS_PARTIAL_CONTENT,
+        "The requested byte range of the committed ledger prefix.")
+      .add_openapi_response(
+        HTTP_STATUS_NOT_MODIFIED,
+        "The requested committed ledger prefix has not changed.")
+      .add_openapi_response(
+        HTTP_STATUS_NOT_FOUND,
+        "The requested committed ledger prefix is not available.")
+      .require_operator_feature(endpoints::OperatorFeature::LedgerChunkRead)
+      .set_openapi_summary("Download committed ledger prefix")
+      .set_openapi_description(
+        "Download a synthetic chunk containing only committed ledger entries. "
+        "Supports HTTP Range and digest headers. The resource is not a "
+        "canonical .committed ledger file and must not be used for recovery.")
       .install();
   }
 }

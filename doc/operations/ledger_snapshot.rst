@@ -114,10 +114,33 @@ These endpoints allow downloading a specific ledger chunk by name, where `<chunk
 They support the HTTP `Range` header for partial downloads, and the `HEAD` method for clients to query metadata such as the total size without downloading the full chunk.
 They also populate the `x-ms-ccf-ledger-chunk-name` response header with the name of the chunk being served.
 
+Committed Prefixes
+^^^^^^^^^^^^^^^^^^
+
+By default, the ledger chunk locator endpoints expose only canonical ``.committed`` files. A client that also needs recent committed entries from an in-progress file can opt in with ``include_committed_prefix=true``:
+
+.. code-block:: http
+
+    GET /node/ledger_chunk?since=101&include_committed_prefix=true
+
+The node still prefers a canonical ``.committed`` file when one covers the requested sequence number. Otherwise, if the sequence number is locally available and committed, it returns a ``307 Temporary Redirect`` to a resource such as:
+
+.. code-block:: http
+
+    /node/ledger_chunk/committed_prefix/ledger_101-140.committed_prefix
+
+The ``.committed_prefix`` suffix distinguishes this synthetic resource from a canonical physical ledger file. The response contains a normal completed ledger representation - header, unchanged transaction bytes, and positions table - but only for the selected committed range. It can be read directly with :py:class:`ccf.ledger.LedgerChunk`.
+
+Both the temporary redirect and the committed-prefix response include ``Cache-Control: no-store``. The response also includes ``x-ms-ccf-ledger-chunk-kind: committed-prefix``. Clients must not archive, install, or use this resource for recovery as though it were a canonical ``.committed`` file. In particular, committed-prefix files are ignored by committed-only ledger directory discovery.
+
+The ``307`` redirect intentionally differs from the ``308 Permanent Redirect`` used for canonical ``.committed`` files. A physical chunk's name and range are final, while the committed-prefix range selected for the same ``since`` value may grow as the commit watermark advances. The exact ``.committed_prefix`` URL is immutable once returned, so it remains suitable for retrying or resuming that specific download.
+
+More than one contiguous committed prefix can be available. For example, physical chunking may have produced unsuffixed files ``ledger_101-150`` and ``ledger_151-200`` before the commit watermark catches up to 200. The API preserves these physical boundaries and can expose ``ledger_101-150.committed_prefix`` followed by ``ledger_151-200.committed_prefix``.
+
 Want-Repr-Digest and Repr-Digest
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-These endpoints also support the ``Want-Repr-Digest`` request header (`RFC 9530 <https://www.rfc-editor.org/rfc/rfc9530>`_).
+The canonical and committed-prefix chunk endpoints also support the ``Want-Repr-Digest`` request header (`RFC 9530 <https://www.rfc-editor.org/rfc/rfc9530>`_).
 When set, the response will include a ``Repr-Digest`` header containing the digest of the full representation of the file.
 Supported algorithms are ``sha-256``, ``sha-384``, and ``sha-512``. If the header contains only unsupported or invalid algorithms, the server defaults to ``sha-256`` (as permitted by `RFC 9530 Appendix C.2 <https://www.rfc-editor.org/rfc/rfc9530#appendix-C.2>`_).
 For example, a client sending ``Want-Repr-Digest: sha-256=1`` will receive a header such as ``Repr-Digest: sha-256=:AEGPTgUMw5e96wxZuDtpfm23RBU3nFwtgY5fw4NYORo=:`` in the response.

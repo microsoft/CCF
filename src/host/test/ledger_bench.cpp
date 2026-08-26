@@ -16,6 +16,12 @@ namespace
   static constexpr size_t mebibyte = 1024 * kibibyte;
   static constexpr size_t entry_count = 10'000;
 
+  template <typename T>
+  inline void do_not_optimize(const T& value)
+  {
+    asm volatile("" : : "g"(value) : "memory");
+  }
+
   struct RemoveDirectory
   {
     fs::path path;
@@ -144,6 +150,53 @@ namespace
       state, "100_mib", prepare_sized_file<100 * mebibyte>);
   }
 
+  template <size_t FileSize, bool MaterializePrefix>
+  void benchmark_chunk_read(
+    picobench::state& state, const std::string& fixture_name)
+  {
+    const auto directory = fs::path(
+      fmt::format("ledger_read_bench_{}_{}", fixture_name, MaterializePrefix));
+    fs::remove_all(directory);
+    fs::create_directory(directory);
+    RemoveDirectory remove_directory{directory};
+
+    LedgerFile file(directory, 1);
+    prepare_sized_file<FileSize>(file);
+
+    state.start_timer();
+    for ([[maybe_unused]] auto iteration : state)
+    {
+      if constexpr (MaterializePrefix)
+      {
+        const auto result = file.read_entries_as_completed_chunk(1, 1);
+        do_not_optimize(result);
+      }
+      else
+      {
+        const auto result = files::slurp((directory / "ledger_1").string());
+        do_not_optimize(result);
+      }
+    }
+    state.stop_timer();
+  }
+
+#define DECLARE_CHUNK_READ_BENCHMARKS(NAME, SIZE) \
+  static void read_##NAME(picobench::state& state) \
+  { \
+    benchmark_chunk_read<SIZE, false>(state, #NAME); \
+  } \
+  static void materialize_##NAME##_prefix(picobench::state& state) \
+  { \
+    benchmark_chunk_read<SIZE, true>(state, #NAME); \
+  }
+
+  DECLARE_CHUNK_READ_BENCHMARKS(64_kib, 64 * kibibyte);
+  DECLARE_CHUNK_READ_BENCHMARKS(1_mib, mebibyte);
+  DECLARE_CHUNK_READ_BENCHMARKS(5_mib, 5 * mebibyte);
+  DECLARE_CHUNK_READ_BENCHMARKS(50_mib, 50 * mebibyte);
+
+#undef DECLARE_CHUNK_READ_BENCHMARKS
+
   const std::vector<int> rename_iterations = {20};
 }
 
@@ -166,6 +219,22 @@ PICOBENCH(rename_10_mib_close_and_reopen).iterations(rename_iterations);
 PICOBENCH_SUITE("rename 100 MiB ledger file");
 PICOBENCH(rename_100_mib).iterations(rename_iterations).baseline();
 PICOBENCH(rename_100_mib_close_and_reopen).iterations(rename_iterations);
+
+PICOBENCH_SUITE("read 64 KiB ledger chunk");
+PICOBENCH(read_64_kib).iterations({100}).baseline();
+PICOBENCH(materialize_64_kib_prefix).iterations({100});
+
+PICOBENCH_SUITE("read 1 MiB ledger chunk");
+PICOBENCH(read_1_mib).iterations({20}).baseline();
+PICOBENCH(materialize_1_mib_prefix).iterations({20});
+
+PICOBENCH_SUITE("read 5 MiB ledger chunk");
+PICOBENCH(read_5_mib).iterations({5}).baseline();
+PICOBENCH(materialize_5_mib_prefix).iterations({5});
+
+PICOBENCH_SUITE("read 50 MiB ledger chunk");
+PICOBENCH(read_50_mib).iterations({1}).baseline();
+PICOBENCH(materialize_50_mib_prefix).iterations({1});
 
 int main(int argc, char* argv[])
 {

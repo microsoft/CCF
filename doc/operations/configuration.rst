@@ -71,7 +71,7 @@ The `enabled_operator_features` configuration field allows enabling or disabling
 Currently supported features are:
 
 1. 'SnapshotRead': gates access to endpoints used to fetch snapshots directly from nodes (:http:GET:`/node/snapshot`, :http:HEAD:`/node/snapshot`, :http:GET:`/node/snapshot/{snapshot_name}` and :http:HEAD:`/node/snapshot/{snapshot_name}`).
-2. 'LedgerChunkRead': gates access to endpoints used to retrieve ledger chunks (:http:GET:`/node/ledger_chunk`, :http:HEAD:`/node/ledger_chunk`, :http:GET:`/node/ledger_chunk/{chunk_name}` and :http:HEAD:`/node/ledger_chunk/{chunk_name}`).
+2. 'LedgerChunkRead': gates access to endpoints used to retrieve ledger chunks (:http:GET:`/node/ledger_chunk`, :http:HEAD:`/node/ledger_chunk`, :http:GET:`/node/ledger_chunk/{chunk_name}`, :http:HEAD:`/node/ledger_chunk/{chunk_name}`, :http:GET:`/node/ledger_chunk/committed_prefix/{chunk_name}` and :http:HEAD:`/node/ledger_chunk/committed_prefix/{chunk_name}`).
 3. 'SnapshotCreate': gates access to the operator endpoint used to create a snapshot on the next signature transaction (:http:POST:`/node/snapshot:create`).
 
 Since these operations may require disk IO and produce large responses, these features should not be enabled on interfaces with public access, and instead restricted to interfaces with local connectivity for node-to-node and operator access.
@@ -100,4 +100,3 @@ A rolling upgrade from ``Dual`` to ``CoseOnly`` is a two-step process:
 1. **CoseAllowDualJoin.** Deploy a binary that returns ``CoseAllowDualJoin``. Replace nodes one at a time. During this phase, new nodes running the old ``Dual`` binary can still join as replacements.
 
 2. **CoseOnly.** Once all nodes are upgraded, deploy a binary that returns ``CoseOnly``. Replace nodes again. After this, ``Dual`` joiners are rejected.
-
