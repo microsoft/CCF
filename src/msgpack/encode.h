@@ -13,9 +13,8 @@
 // Supported subset:
 //   - All msgpack scalar types (nil, bool, int, uint, float64,
 //     str fixstr/str8/str16/str32, bin bin8/16/32).
-//   - Arrays (fixarray/array16/array32) and maps (fixmap/map16).
+//   - Arrays (fixarray/array16/array32) and maps (fixmap/map16/map32).
 // Out of scope:
-//   - map32 (write_map_header throws MAP_TOO_LARGE for n > 65535).
 //   - float32 (write_float always emits float64).
 //
 // Failure modes that may escape ANY write_* function:
@@ -45,7 +44,6 @@ namespace ccf::msgpack
   {
     STRING_TOO_LARGE = 1, // > 2^32-1 bytes
     BIN_TOO_LARGE = 2, // > 2^32-1 bytes
-    MAP_TOO_LARGE = 3, // > 65535 elements (we cap at map16)
     INVALID_EVENT_TIME = 4, // outside Fluentd EventTime's representable range
   };
 
@@ -64,8 +62,6 @@ namespace ccf::msgpack
         return "STRING_TOO_LARGE";
       case Error::BIN_TOO_LARGE:
         return "BIN_TOO_LARGE";
-      case Error::MAP_TOO_LARGE:
-        return "MAP_TOO_LARGE";
       case Error::INVALID_EVENT_TIME:
         return "INVALID_EVENT_TIME";
       default:
@@ -138,6 +134,7 @@ namespace ccf::msgpack
     constexpr uint8_t ARRAY_16 = 0xDC;
     constexpr uint8_t ARRAY_32 = 0xDD;
     constexpr uint8_t MAP_16 = 0xDE;
+    constexpr uint8_t MAP_32 = 0xDF;
 
     // Fix-family prefixes (OR with the 4- or 5-bit count).
     constexpr uint8_t FIXSTR_PREFIX = 0xA0; // 0b101XXXXX (0xA0..0xBF)
@@ -395,8 +392,7 @@ namespace ccf::msgpack
   //   [16, 65535]          -> array_16  (3-byte header)
   //   [65536, 2^32-1]      -> array_32  (5-byte header)
   // Cannot throw MsgpackEncodeError: the input is uint32_t, so every
-  // value fits one of the above families. (Contrast write_map_header,
-  // which throws above 65535.)
+  // value fits one of the above families.
   inline void write_array_header(std::vector<uint8_t>& buf, uint32_t n)
   {
     if (n <= 15U)
@@ -418,12 +414,7 @@ namespace ccf::msgpack
   // Smallest-format-wins:
   //   [0, 15]              -> fixmap   (1-byte header)
   //   [16, 65535]          -> map_16   (3-byte header)
-  // Throws MsgpackEncodeError(MAP_TOO_LARGE) for n > 65535. The
-  // map_32 family is intentionally not supported - fluentd record
-  // shapes never approach that key count, and rejecting at the
-  // encoder boundary catches accidental over-large maps before they
-  // become silent wire corruption. (Contrast write_array_header,
-  // which supports the full uint32_t range via array_32.)
+  //   [65536, 2^32-1]      -> map_32   (5-byte header)
   inline void write_map_header(std::vector<uint8_t>& buf, uint32_t n)
   {
     if (n <= 15U)
@@ -437,10 +428,8 @@ namespace ccf::msgpack
     }
     else
     {
-      throw MsgpackEncodeError::make(
-        Error::MAP_TOO_LARGE,
-        "map size " + std::to_string(n) +
-          " exceeds map16 cap of 65535 keys (no map32 by design)");
+      buf.push_back(fmt_byte::MAP_32);
+      utils::write_be<uint32_t>(buf, n);
     }
   }
 } // namespace ccf::msgpack
