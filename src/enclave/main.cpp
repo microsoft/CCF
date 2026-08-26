@@ -106,6 +106,7 @@ namespace ccf
         ccf_config.ledger_signatures.tx_count,
         ccf_config.ledger_signatures.delay.count_ms(),
         ccf_config.ledger.chunk_size,
+        ccf_config.ledger.max_transaction_size,
         ccf_config.consensus,
         ccf_config.node_certificate.curve_id,
         work_beacon,
