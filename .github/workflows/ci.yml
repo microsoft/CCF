@@ -305,10 +305,49 @@ jobs:
 
       - name: "Tests"
         run: |
-          set -ex
+          set -euxo pipefail
           cd build
           rm -rf /github/home/.cache
           mkdir -p /github/home/.cache
+
+          diagnostics_dir=/dev/shm/ccf-io-diagnostics
+          rm -rf "$diagnostics_dir"
+          mkdir -p "$diagnostics_dir"
+          python3 ../scripts/io_diagnostics.py \
+            --target-dir "$PWD" \
+            --process-root "$PWD/workspace" \
+            --output-dir "$diagnostics_dir" \
+            > "$diagnostics_dir/monitor.log" 2>&1 &
+          diagnostics_pid=$!
+
+          cleanup_diagnostics() {
+            test_status=$?
+            trap - EXIT
+            if kill -0 "$diagnostics_pid" 2>/dev/null; then
+              kill "$diagnostics_pid" 2>/dev/null || true
+            fi
+            set +e
+            wait "$diagnostics_pid"
+            monitor_status=$?
+            set -e
+            if [[ "$test_status" -eq 0 && "$monitor_status" -ne 0 ]]; then
+              exit "$monitor_status"
+            fi
+            exit "$test_status"
+          }
+          trap cleanup_diagnostics EXIT
+
+          for _ in {1..50}; do
+            if [[ -f "$diagnostics_dir/metadata.json" ]]; then
+              break
+            fi
+            sleep 0.1
+          done
+          if [[ ! -f "$diagnostics_dir/metadata.json" ]]; then
+            cat "$diagnostics_dir/monitor.log"
+            exit 1
+          fi
+
           ./tests.sh --timeout 360 --output-on-failure -C snp -L snp
           ./tests.sh --timeout 360 --output-on-failure -R code_update
           ./tests.sh --timeout 360 -V -R '^ledger_bench$'
@@ -338,6 +377,14 @@ jobs:
             build/workspace/*/*.ledger/*
             build/workspace/*/stack_trace
             build/workspace/**/openapi_coverage.json
+          if-no-files-found: ignore
+        if: success() || failure()
+
+      - name: "Upload I/O diagnostics"
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: io-diagnostics-aci-snp-milan-${{ github.run_attempt }}
+          path: /dev/shm/ccf-io-diagnostics
           if-no-files-found: ignore
         if: success() || failure()
 
