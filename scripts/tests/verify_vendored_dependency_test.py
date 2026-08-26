@@ -137,7 +137,32 @@ class VerifyVendoredDependencyTest(unittest.TestCase):
             "vendored", {"foo.h": b"modified\n", "missing.h": b"missing\n"}
         )
 
-        with self.assertRaisesRegex(VERIFIER.VerificationError, "different contents"):
+        with self.assertRaisesRegex(
+            VERIFIER.VerificationError, "different contents"
+        ) as context:
+            VERIFIER.verify_tree(vendored, upstream)
+
+        message = str(context.exception)
+        self.assertIn("-foo", message)
+        self.assertIn("+modified", message)
+        self.assertIn("not found upstream", message)
+
+    def test_diff_shows_missing_trailing_newline(self) -> None:
+        upstream = self.create_tree("upstream", {"include/foo.h": b"foo\n"})
+        vendored = self.create_tree("vendored", {"foo.h": b"foo"})
+
+        with self.assertRaisesRegex(
+            VERIFIER.VerificationError, "No newline at end of file"
+        ):
+            VERIFIER.verify_tree(vendored, upstream)
+
+    def test_diff_reports_binary_files_without_decoding(self) -> None:
+        upstream = self.create_tree("upstream", {"include/foo.bin": b"\x00\x01\xff"})
+        vendored = self.create_tree("vendored", {"foo.bin": b"\x00\x02\xff"})
+
+        with self.assertRaisesRegex(
+            VERIFIER.VerificationError, r"binary files differ \(3 vs 3 bytes\)"
+        ):
             VERIFIER.verify_tree(vendored, upstream)
 
     def test_declared_prefix_exception_is_optional(self) -> None:

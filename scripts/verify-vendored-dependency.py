@@ -3,6 +3,7 @@
 # Licensed under the Apache 2.0 License.
 
 import argparse
+import difflib
 import io
 import json
 import os
@@ -24,6 +25,7 @@ MAX_GITHUB_RESPONSE_SIZE = 2 * 1024 * 1024
 MAX_ARTIFACT_SIZE = 100 * 1024 * 1024
 MAX_EXPANDED_SIZE = 500 * 1024 * 1024
 MAX_ARCHIVE_ENTRIES = 100_000
+MAX_DIFF_LINES = 40
 
 DIRECTORY_ALIASES = {
     ("nlohmann", "json"): "nlohmann",
@@ -260,6 +262,44 @@ def prefix_for(upstream_path: Path, vendored_path: Path) -> tuple[str, ...] | No
     return upstream_parts[: -len(vendored_parts)]
 
 
+def content_diff(
+    upstream_path: Path,
+    vendored_path: Path,
+    upstream_bytes: bytes,
+    vendored_bytes: bytes,
+) -> str:
+    try:
+        upstream_text = upstream_bytes.decode("utf-8")
+        vendored_text = vendored_bytes.decode("utf-8")
+    except UnicodeDecodeError:
+        return (
+            f"    binary files differ ({len(upstream_bytes)} vs "
+            f"{len(vendored_bytes)} bytes)"
+        )
+
+    # keepends=True so a missing/extra trailing newline shows up as a diff,
+    # rather than being silently dropped by line splitting.
+    diff = difflib.unified_diff(
+        upstream_text.splitlines(keepends=True),
+        vendored_text.splitlines(keepends=True),
+        fromfile=f"upstream/{upstream_path}",
+        tofile=f"vendored/{vendored_path}",
+    )
+
+    lines = []
+    for line in diff:
+        lines.append(line.rstrip("\n"))
+        if line[:1] in " +-" and not line.endswith("\n"):
+            lines.append(r"\ No newline at end of file")
+    if not lines:
+        return "    (no textual difference; files differ only in encoding)"
+
+    if len(lines) > MAX_DIFF_LINES:
+        lines = lines[:MAX_DIFF_LINES]
+        lines.append(f"... diff truncated after {MAX_DIFF_LINES} lines")
+    return "\n".join(f"    {line}" for line in lines)
+
+
 def verify_tree(
     vendored_directory: Path,
     upstream_directory: Path,
@@ -275,14 +315,29 @@ def verify_tree(
     for vendored_file in vendored_files:
         relative_path = vendored_file.relative_to(vendored_directory)
         candidates = upstream_by_name.get(vendored_file.name, [])
+        vendored_content = vendored_file.read_bytes()
         matching = [
             candidate
             for candidate in candidates
-            if candidate.read_bytes() == vendored_file.read_bytes()
+            if candidate.read_bytes() == vendored_content
         ]
         if not matching:
-            reason = "not found" if not candidates else "different contents"
-            failures.append(f"{relative_path}: {reason}")
+            if not candidates:
+                failures.append(f"{relative_path}: not found upstream")
+            else:
+                closest = candidates[0]
+                diff = content_diff(
+                    closest.relative_to(upstream_directory),
+                    relative_path,
+                    closest.read_bytes(),
+                    vendored_content,
+                )
+                note = (
+                    f" (showing diff against 1 of {len(candidates)} candidates)"
+                    if len(candidates) > 1
+                    else ""
+                )
+                failures.append(f"{relative_path}: different contents{note}\n{diff}")
             continue
 
         prefixes = {
