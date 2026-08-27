@@ -33,6 +33,8 @@ jobs:
 
       - name: Install dependencies
         uses: ./.github/actions/install-ci-dependencies
+        with:
+          python-cache-scope: docs
 
       - name: Setup Pages
         id: pages
