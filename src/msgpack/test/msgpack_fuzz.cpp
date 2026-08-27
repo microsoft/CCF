@@ -104,71 +104,103 @@ namespace
     }
   };
 
+  struct PendingValue
+  {
+    json* value;
+    size_t depth;
+  };
+
   json generate_value(Input& input, size_t depth)
   {
     constexpr uint8_t SCALAR_VARIANTS = 7;
     constexpr uint8_t ALL_VARIANTS = 9;
-    const auto variant =
-      input.byte() % (depth == 0 ? SCALAR_VARIANTS : ALL_VARIANTS);
 
-    switch (variant)
+    json result;
+    std::vector<PendingValue> pending = {{&result, depth}};
+
+    while (!pending.empty())
     {
-      case 0:
-        return nullptr;
-      case 1:
-        return (input.byte() & 1) != 0;
-      case 2:
-        return input.uint64();
-      case 3:
+      const auto current = pending.back();
+      pending.pop_back();
+
+      const auto variant =
+        input.byte() % (current.depth == 0 ? SCALAR_VARIANTS : ALL_VARIANTS);
+
+      switch (variant)
       {
-        const auto value = std::bit_cast<int64_t>(input.uint64());
-        return value < 0 ? json(value) : json(static_cast<uint64_t>(value));
-      }
-      case 4:
-      {
-        auto value = std::bit_cast<double>(input.uint64());
-        if (!std::isfinite(value))
+        case 0:
+          *current.value = nullptr;
+          break;
+        case 1:
+          *current.value = (input.byte() & 1) != 0;
+          break;
+        case 2:
+          *current.value = input.uint64();
+          break;
+        case 3:
         {
-          value = 0;
+          const auto value = std::bit_cast<int64_t>(input.uint64());
+          *current.value =
+            value < 0 ? json(value) : json(static_cast<uint64_t>(value));
+          break;
         }
-        return value;
-      }
-      case 5:
-        return input.string();
-      case 6:
-        return json::binary(input.binary());
-      case 7:
-      {
-        auto value = json::array();
-        const auto size = input.byte() % 5;
-        for (uint8_t i = 0; i < size; ++i)
+        case 4:
         {
-          value.push_back(generate_value(input, depth - 1));
+          auto value = std::bit_cast<double>(input.uint64());
+          if (!std::isfinite(value))
+          {
+            value = 0;
+          }
+          *current.value = value;
+          break;
         }
-        return value;
-      }
-      case 8:
-      {
-        auto value = json::object();
-        const auto size = input.byte() % 5;
-        for (uint8_t i = 0; i < size; ++i)
+        case 5:
+          *current.value = input.string();
+          break;
+        case 6:
+          *current.value = json::binary(input.binary());
+          break;
+        case 7:
         {
-          const auto key =
-            std::to_string(i) + static_cast<char>('a' + input.byte() % 26);
-          value[key] = generate_value(input, depth - 1);
+          *current.value = json::array();
+          auto& array = current.value->get_ref<json::array_t&>();
+          array.resize(input.byte() % 5);
+          for (auto it = array.rbegin(); it != array.rend(); ++it)
+          {
+            pending.push_back({&*it, current.depth - 1});
+          }
+          break;
         }
-        return value;
+        case 8:
+        {
+          *current.value = json::object();
+          auto& object = current.value->get_ref<json::object_t&>();
+          const auto size = input.byte() % 5;
+          for (size_t i = 0; i < size; ++i)
+          {
+            const auto key =
+              std::to_string(i) + static_cast<char>('a' + input.byte() % 26);
+            object[key] = nullptr;
+          }
+          for (auto it = object.rbegin(); it != object.rend(); ++it)
+          {
+            pending.push_back({&it->second, current.depth - 1});
+          }
+          break;
+        }
+        default:
+          __builtin_unreachable();
       }
-      default:
-        __builtin_unreachable();
     }
+
+    return result;
   }
 }
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
 {
   Input input(data, size);
-  const auto expected = generate_value(input, 3);
+  const auto expected = generate_value(input, size);
 
   std::vector<uint8_t> encoded;
   ccf::msgpack::test::encode_json(encoded, expected);
