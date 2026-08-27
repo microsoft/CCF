@@ -11,9 +11,6 @@ concurrency:
 
 permissions: read-all
 
-env:
-  UV_INDEX_URL: https://packagefeedproxy.microsoft.io/pypi/simple/
-
 jobs:
   vmss-virtual-a:
     name: "AL4 VMSS Virtual A" # Debug build, unit tests, e2e (bucket_a)
