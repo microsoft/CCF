@@ -51,6 +51,8 @@ jobs:
 
       - name: "Install dependencies"
         uses: ./.github/actions/install-ci-dependencies
+        with:
+          python-cache-scope: all
 
       - name: "Install development dependencies"
         shell: bash

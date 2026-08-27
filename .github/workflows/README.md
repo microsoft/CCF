@@ -8,6 +8,8 @@ The local composite action in `.github/actions/install-ci-dependencies/action.ym
 
 At a weekly rollover, restore keys first reuse the latest cache for the same dependency inputs and then fall back to a compatible cache for the same architecture. The package managers refresh registry metadata and download only missing or updated packages. `actions/cache` saves each populated directory automatically after a successful job when the exact weekly key was not restored.
 
+The action also assigns uv a writable cache directory outside `/github/home/.cache`, because some tests clear that directory. Separate weekly caches for test, documentation, and combined CI workloads persist uv's content-addressed package cache. Their keys additionally hash Python dependency files, the pinned uv installer, and the check scripts that invoke uv tools. Workload scopes prevent the first job from claiming an immutable cache before other jobs add their distinct dependencies, while jobs that do not install Python packages disable this cache entirely. CI dependency setup uses `uv pip` so cached packages remain reusable, with workflows configuring the package index through `UV_INDEX_URL`. Pip is not used for package installation because the PyPI proxy redirects artifacts to short-lived URLs that pip cannot reuse across jobs.
+
 # Maintained
 
 ## Bencher
