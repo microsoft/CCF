@@ -99,9 +99,9 @@ namespace ccf::msgpack
   inline void write_fluentd_event_time(
     std::vector<uint8_t>& buf, FluentdEventTime t)
   {
-    constexpr uint8_t fluentd_event_time_ext_type = 0x00;
+    constexpr uint8_t FLUENTD_EVENT_TIME_EXT_TYPE = 0x00;
     buf.push_back(fmt_byte::FIXEXT_8);
-    buf.push_back(fluentd_event_time_ext_type);
+    buf.push_back(FLUENTD_EVENT_TIME_EXT_TYPE);
     utils::write_be<uint32_t>(buf, t.seconds());
     utils::write_be<uint32_t>(buf, t.nanoseconds());
   }
