@@ -30,6 +30,7 @@
 #include <memory>
 #include <optional>
 #include <set>
+#include <stdexcept>
 #include <string>
 #include <tuple>
 #include <unordered_set>
@@ -383,6 +384,13 @@ namespace ccf::kv
     }
   };
 
+  class MaxTransactionSizeExceeded : public std::logic_error
+  {
+  public:
+    MaxTransactionSizeExceeded(const std::string& msg) : std::logic_error(msg)
+    {}
+  };
+
   class TxHistory
   {
   public:
@@ -722,6 +730,7 @@ namespace ccf::kv
     virtual std::shared_ptr<TxHistory> get_history() = 0;
     virtual std::shared_ptr<ILedgerChunker> get_chunker() = 0;
     virtual EncryptorPtr get_encryptor() = 0;
+    [[nodiscard]] virtual size_t get_max_transaction_size() const = 0;
     virtual std::unique_ptr<AbstractExecutionWrapper> deserialize(
       const std::vector<uint8_t>& data,
       bool public_only = false,

@@ -6,6 +6,6 @@ RUN tdnf -y install ca-certificates git
 RUN tdnf -y install wget tar dotnet-sdk-8.0
 ENV RUNNER_ALLOW_RUNASROOT=true
 
-COPY scripts/setup-ci.sh /tmp/setup-ci.sh
+COPY scripts/setup-ci.sh scripts/install_uv.sh /tmp/
 RUN chmod +x /tmp/setup-ci.sh
 RUN /tmp/setup-ci.sh

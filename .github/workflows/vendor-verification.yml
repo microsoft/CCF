@@ -1,0 +1,51 @@
+name: "Vendored Dependency Verification"
+
+on:
+  pull_request:
+    paths:
+      - "3rdparty/**"
+      - "cgmanifest.json"
+      - "scripts/verify-vendored-dependency.py"
+      - "scripts/tests/verify_vendored_dependency_test.py"
+      - "scripts/requirements.txt"
+      - ".github/workflows/vendor-verification.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "3rdparty/**"
+      - "cgmanifest.json"
+      - "scripts/verify-vendored-dependency.py"
+      - "scripts/tests/verify_vendored_dependency_test.py"
+      - "scripts/requirements.txt"
+      - ".github/workflows/vendor-verification.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: read-all
+
+jobs:
+  verify:
+    name: Verify Vendored Dependencies
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install dependencies
+        run: |
+          python3 -m venv env
+          source env/bin/activate
+          pip install -U pip
+          pip install -U -r scripts/requirements.txt
+          echo "$PWD/env/bin" >> "$GITHUB_PATH"
+        shell: bash
+
+      - name: Test verifier
+        run: python3 scripts/tests/verify_vendored_dependency_test.py
+
+      - name: Verify vendored dependencies
+        run: scripts/verify-vendored-dependency.py cgmanifest.json

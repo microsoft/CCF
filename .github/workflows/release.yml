@@ -15,7 +15,7 @@ permissions: read-all
 
 env:
   IMAGE: mcr.microsoft.com/azurelinux/base/core:3.0
-  PIP_INDEX_URL: https://packagefeedproxy.microsoft.io/pypi/simple/
+  UV_INDEX_URL: https://packagefeedproxy.microsoft.io/pypi/simple/
 
 jobs:
   make_sbom:
@@ -261,10 +261,7 @@ jobs:
         run: |
           set -ex
           cd python
-          python3 -m venv env
-          source ./env/bin/activate
-          pip install wheel build
-          python -m build --wheel
+          uv build --wheel
           WHL=`ls dist/*.whl`
           echo "name=$WHL" >> $GITHUB_OUTPUT
         shell: bash
