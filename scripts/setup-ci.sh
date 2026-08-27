@@ -5,6 +5,7 @@
 set -exo pipefail
 
 H2SPEC_VERSION="v2.6.0"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 
 TDNF_OPTIONS=(-y)
 if [[ -n ${SOURCE_DATE_EPOCH:-} ]]; then
@@ -119,10 +120,10 @@ install_packaging_and_python() {
         # For packaging
         rpm-build
         # For end to end tests and scripts
-        python3-pip
+        python3
     )
     tdnf "${TDNF_OPTIONS[@]}" install "${packages[@]}" &&
-    pip install uv==0.11.19
+    bash "$SCRIPT_DIR/install_uv.sh" /usr/local/bin
 }
 
 retry "Source control dependencies" install_source_control
