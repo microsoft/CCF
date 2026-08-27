@@ -41,6 +41,13 @@ Main continuous integration job. Builds CCF for all target platforms, runs unit,
 File: `ci.yml`
 3rd party dependencies: None
 
+# Continuous Integration AL4
+
+Builds CCF on Azure Linux 4 and runs unit and end to end tests, to track readiness for the move from Azure Linux 3, which `ci.yml` builds against. Runs daily on `main` on week days, and manually. It deliberately does not run on PRs, to keep PR feedback fast and limit pool usage.
+
+File: `ci-al4.yml`
+3rd party dependencies: None
+
 # Coverage
 
 Builds CCF with coverage enabled, runs unit and end to end tests, and uploads HTML coverage reports. Triggered on every commit on `main`, twice daily on week days, and manually.
