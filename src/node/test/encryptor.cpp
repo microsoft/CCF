@@ -119,15 +119,22 @@ TEST_CASE("Concurrent encryption/decryption")
   for (size_t thread_index = 0; thread_index < thread_count; ++thread_index)
   {
     threads.emplace_back([&, thread_index]() {
-      start.arrive_and_wait();
-      for (size_t i = 0; i < iteration_count; ++i)
+      try
       {
-        std::vector<uint8_t> plain(64, thread_index);
-        const auto version = (thread_index * iteration_count) + i + 1;
-        if (!encrypt_round_trip(encryptor, plain, version))
+        start.arrive_and_wait();
+        for (size_t i = 0; i < iteration_count; ++i)
         {
-          success = false;
+          std::vector<uint8_t> plain(64, thread_index);
+          const auto version = (thread_index * iteration_count) + i + 1;
+          if (!encrypt_round_trip(encryptor, plain, version))
+          {
+            success = false;
+          }
         }
+      }
+      catch (...)
+      {
+        success = false;
       }
     });
   }

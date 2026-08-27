@@ -93,7 +93,7 @@ namespace ccf::crypto
       int final_outl{0};
       CHECK1(EVP_EncryptFinal_ex(ctx, nullptr, &final_outl));
 
-      // As long a we use GSM cipher, the final outl must be 0, because there's
+      // As long as we use GCM cipher, the final outl must be 0, because there's
       // no padding and the block size is equal to 1, so EncryptUpdate() always
       // does the whole thing. Final is still a must to finalize and check the
       // error.
@@ -104,10 +104,7 @@ namespace ccf::crypto
       CHECK1(
         EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_GET_TAG, GCM_SIZE_TAG, &tag[0]));
 
-      if (!plain.empty())
-      {
-        cipher = std::move(ciphertext);
-      }
+      cipher = std::move(ciphertext);
     }
 
     bool decrypt_with_context(
@@ -145,13 +142,15 @@ namespace ccf::crypto
       CHECK1(
         EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_TAG, GCM_SIZE_TAG, tag_ptr));
 
+      plain.clear();
+
       int final_outl{0};
       if (EVP_DecryptFinal_ex(ctx, nullptr, &final_outl) != 1)
       {
         return false;
       }
 
-      // As long a we use GSM cipher, the final outl must be 0, because there's
+      // As long as we use GCM cipher, the final outl must be 0, because there's
       // no padding and the block size is equal to 1, so EncryptUpdate() always
       // does the whole thing. Final is still a must to finalize and check the
       // error.
@@ -159,10 +158,7 @@ namespace ccf::crypto
       // See https://docs.openssl.org/3.3/man3/EVP_EncryptInit/#aead-interface.
       assert(final_outl == 0);
 
-      if (!cipher.empty())
-      {
-        plain = std::move(plaintext);
-      }
+      plain = std::move(plaintext);
 
       return true;
     }
@@ -210,12 +206,6 @@ namespace ccf::crypto
     key(std::vector<uint8_t>(rawKey.data(), rawKey.data() + rawKey.size())),
     evp_cipher(get_gcm_cipher(rawKey)),
     evp_cipher_wrap_pad(get_wrap_pad_cipher(rawKey))
-  {}
-
-  KeyAesGcm_OpenSSL::KeyAesGcm_OpenSSL(KeyAesGcm_OpenSSL&& that) noexcept :
-    key(std::move(that.key)),
-    evp_cipher(that.evp_cipher),
-    evp_cipher_wrap_pad(that.evp_cipher_wrap_pad)
   {}
 
   KeyAesGcm_OpenSSL::~KeyAesGcm_OpenSSL()

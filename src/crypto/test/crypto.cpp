@@ -887,6 +887,7 @@ TEST_CASE("AES-GCM empty inputs")
 
   aes_gcm_key->encrypt(iv, {}, aad, cipher, tag);
   REQUIRE(cipher.empty());
+  decrypted.assign(8, 0xAB);
   REQUIRE(aes_gcm_key->decrypt(iv, tag, cipher, aad, decrypted));
   REQUIRE(decrypted.empty());
 
@@ -916,7 +917,7 @@ TEST_CASE("AES-GCM empty inputs")
     0xe7,
     0x45,
     0x5a};
-  decrypted.clear();
+  decrypted.assign(8, 0xAB);
   REQUIRE(empty_aes_gcm_key->decrypt(iv, empty_tag, {}, {}, decrypted));
   REQUIRE(decrypted.empty());
 }

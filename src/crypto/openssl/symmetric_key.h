@@ -12,14 +12,13 @@ namespace ccf::crypto
   class KeyAesGcm_OpenSSL : public KeyAesGcm
   {
   private:
-    std::vector<uint8_t> key;
+    const std::vector<uint8_t> key;
     const EVP_CIPHER* evp_cipher;
     const EVP_CIPHER* evp_cipher_wrap_pad;
 
   public:
     KeyAesGcm_OpenSSL(std::span<const uint8_t> rawKey);
     KeyAesGcm_OpenSSL(const KeyAesGcm_OpenSSL& that) = delete;
-    KeyAesGcm_OpenSSL(KeyAesGcm_OpenSSL&& that) noexcept;
     ~KeyAesGcm_OpenSSL() override;
 
     [[nodiscard]] size_t key_size() const override;
