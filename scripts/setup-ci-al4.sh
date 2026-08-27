@@ -5,6 +5,7 @@
 set -exo pipefail
 
 H2SPEC_VERSION="v2.6.0"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 
 retry() {
     local description=$1
@@ -141,14 +142,11 @@ install_packaging_and_python() {
         # For packaging
         rpm-build
         # For end to end tests and scripts
-        python3-pip
+        python3
         python3-devel
     )
     dnf -y install "${packages[@]}"
-
-    if ! python3 -m pip install uv==0.11.19 --break-system-packages; then
-        python3 -m pip install uv==0.11.19
-    fi
+    bash "$SCRIPT_DIR/install_uv.sh" /usr/local/bin
 }
 
 retry "Source control dependencies" install_source_control
