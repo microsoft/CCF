@@ -23,7 +23,7 @@ concurrency:
 permissions: read-all
 
 env:
-  PIP_INDEX_URL: https://packagefeedproxy.microsoft.io/pypi/simple/
+  UV_INDEX_URL: https://packagefeedproxy.microsoft.io/pypi/simple/
 
 jobs:
   analyze:
