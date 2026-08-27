@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-"""Shared orchestration and reporting for blocking Locust benchmarks."""
+"""Shared orchestration and reporting for Locust benchmarks."""
 
 import argparse
 import csv
@@ -56,7 +56,7 @@ def positive_int(value: str) -> int:
 def add_cli_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--users",
-        help="Number of concurrent Locust users, each sending one blocking write at a time",
+        help="Number of concurrent Locust users, each sending one request at a time",
         type=int,
         default=320,
     )
@@ -230,9 +230,9 @@ def measure(
 ) -> Result:
     """Run one workload against a fresh network at one signature interval."""
     args.sig_ms_interval = sig_ms_interval
-    # Commit cannot be observed faster than consensus updates are sent. Keep
-    # this in step with signatures so shorter intervals are not gated by the
-    # 100ms default.
+    # Keep consensus updates in step with signatures. This is required by
+    # workloads which wait for commit and gives all workloads consistent
+    # interval configuration.
     args.consensus_update_timeout_ms = sig_ms_interval
 
     LOG.info(f"Starting nodes on {args.nodes} with {sig_ms_interval}ms signatures")
