@@ -4,9 +4,9 @@ Documents the various GitHub Actions workflows, the role they fulfill and 3rd pa
 
 ## Azure Linux CI dependencies
 
-The local composite action in `.github/actions/install-ci-dependencies/action.yml` installs Azure Linux 3 and 4 CI dependencies and caches downloaded RPMs. Its cache key separates package managers and runner architectures, includes a hash of `scripts/setup-ci*.sh`, and includes the date of the most recent Sunday at midnight UTC. The weekly date makes GitHub Actions create a refreshed immutable cache each week.
+The local composite action in `.github/actions/install-ci-dependencies/action.yml` installs Azure Linux 3 and 4 CI dependencies and caches downloaded RPM and npm packages. Cache keys separate runner architectures, hash the relevant dependency inputs, and include the date of the most recent Sunday at midnight UTC. The RPM key also separates package managers, while the npm key separates jobs so each job can save the packages it downloads. The weekly date makes GitHub Actions create refreshed immutable caches each week.
 
-At a weekly rollover, restore keys first reuse the latest cache for the same dependency scripts and then fall back to any cache for the same package manager and architecture. The package manager refreshes repository metadata and downloads only missing or updated RPMs. `actions/cache` saves the populated directory automatically after a successful job when the exact weekly key was not restored.
+At a weekly rollover, restore keys first reuse the latest cache for the same dependency inputs and then fall back to a compatible cache for the same architecture. The package managers refresh registry metadata and download only missing or updated packages. `actions/cache` saves each populated directory automatically after a successful job when the exact weekly key was not restored.
 
 The action also assigns uv a writable cache directory outside `/github/home/.cache`, because some tests clear that directory. Separate weekly caches for test, documentation, and combined CI workloads persist uv's content-addressed package cache. Their keys additionally hash Python dependency files, the pinned uv installer, and the check scripts that invoke uv tools. Workload scopes prevent the first job from claiming an immutable cache before other jobs add their distinct dependencies, while jobs that do not install Python packages disable this cache entirely. CI dependency setup uses `uv pip` so cached packages remain reusable, with workflows configuring the package index through `UV_INDEX_URL`. Pip is not used for package installation because the PyPI proxy redirects artifacts to short-lived URLs that pip cannot reuse across jobs.
 
@@ -92,6 +92,16 @@ Runs on pull requests that change `tla/` or `src/consensus/aft/raft.h`.
 - Builds the Raft scenario driver and validates its traces against the consensus specification on a GitHub-hosted runner.
 
 File: `tla-shallow.yml`
+3rd party dependencies: None
+
+# Vendored Dependency Verification
+
+Verifies that files under `3rdparty/` match the Git commits or release artifacts
+recorded in `cgmanifest.json`. Triggered on pull requests and pushes to `main`
+that change vendored sources, the manifest, the verifier, or this workflow. It
+can also be run manually.
+
+File: `vendor-verification.yml`
 3rd party dependencies: None
 
 # Release
