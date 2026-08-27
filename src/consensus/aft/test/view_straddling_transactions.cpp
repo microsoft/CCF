@@ -3,8 +3,10 @@
 
 #include "kv/store.h"
 #include "kv/test/null_encryptor.h"
+#include "node/history.h"
 #include "test_common.h"
 
+#include <chrono>
 #include <condition_variable>
 #include <doctest/doctest.h>
 #include <mutex>
@@ -140,6 +142,138 @@ namespace
       globally_committable,
       std::make_shared<ccf::kv::ConsensusHookPtrs>()};
   }
+
+  // A Raft which can be paused on entry to replicate(). This models the window
+  // in which a committing thread has produced a batch, but has not yet acquired
+  // the consensus lock - in production it blocks on state->lock, which is held
+  // for the entire duration of an election.
+  class PausableHistory : public ccf::MerkleTxHistory
+  {
+    std::mutex lock;
+    std::condition_variable cv;
+    bool armed = false;
+    bool appended = false;
+    bool resume = false;
+
+  public:
+    using ccf::MerkleTxHistory::MerkleTxHistory;
+
+    // Pause on the _next_ entry appended, so that setup is unaffected.
+    void arm()
+    {
+      std::lock_guard<std::mutex> guard(lock);
+      armed = true;
+    }
+
+    void append_entry(const ccf::crypto::Sha256Hash& digest) override
+    {
+      ccf::MerkleTxHistory::append_entry(digest);
+
+      // Pause only once the base class has released its own lock, so that the
+      // resulting tree is observable by other threads, as it would be by any
+      // reader of the history while this thread waits for the consensus lock.
+      std::unique_lock<std::mutex> guard(lock);
+      if (armed)
+      {
+        armed = false;
+        appended = true;
+        cv.notify_all();
+        cv.wait(guard, [this]() { return resume; });
+      }
+    }
+
+    bool wait_until_appended(std::chrono::milliseconds timeout)
+    {
+      std::unique_lock<std::mutex> guard(lock);
+      return cv.wait_for(guard, timeout, [this]() { return appended; });
+    }
+
+    void release()
+    {
+      {
+        std::lock_guard<std::mutex> guard(lock);
+        resume = true;
+      }
+      cv.notify_all();
+    }
+  };
+
+  // Behaves exactly like ccf::kv::MovePendingTx, which is the PendingTx of
+  // every normal (non-signature) transaction: it hands over an already
+  // serialised entry, and cannot fail. It additionally pauses first, modelling
+  // the committing thread being descheduled after Store::commit() has checked
+  // the transaction's view and released version_lock, but before it appends the
+  // entry to the ledger history.
+  class PausingMovePendingTx : public ccf::kv::PendingTx
+  {
+    ccf::kv::PendingTxInfo info;
+    CommitPause& pause;
+
+  public:
+    PausingMovePendingTx(ccf::kv::PendingTxInfo&& info_, CommitPause& pause_) :
+      info(std::move(info_)),
+      pause(pause_)
+    {}
+
+    ccf::kv::PendingTxInfo call() override
+    {
+      pause.pause();
+      return std::move(info);
+    }
+  };
+
+  // As Fixture, but with a real Merkle history installed, so that the ledger
+  // digest which is published to readers can be observed.
+  struct HistoryFixture
+  {
+    const ccf::NodeId node_id = ccf::kv::test::PrimaryNodeId;
+    std::shared_ptr<ccf::kv::Store> store = std::make_shared<ccf::kv::Store>();
+    TestMap table{"public:table"};
+    ccf::crypto::ECKeyPairPtr node_kp = ccf::crypto::make_ec_key_pair();
+    std::shared_ptr<PausableHistory> history;
+    std::shared_ptr<Raft> raft;
+    ccf::View initial_view = 0;
+
+    HistoryFixture()
+    {
+      store->set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+
+      history = std::make_shared<PausableHistory>(*store, node_id, *node_kp);
+      store->set_history(history);
+
+      raft = std::make_shared<Raft>(
+        raft_settings,
+        std::make_unique<aft::Adaptor<ccf::kv::Store>>(store),
+        std::make_unique<aft::LedgerStubProxy>(node_id),
+        std::make_shared<aft::ChannelStubProxy>(),
+        std::make_shared<aft::State>(node_id),
+        nullptr);
+      store->set_consensus(raft);
+
+      ccf::kv::Configuration::Nodes configuration;
+      configuration.try_emplace(node_id);
+      raft->add_configuration(0, configuration);
+      raft->force_become_primary();
+      initial_view = raft->get_view();
+
+      const auto baseline_txid = store->next_txid();
+      REQUIRE(
+        store->commit(
+          baseline_txid,
+          std::make_unique<BaselinePendingTx>(baseline_txid, *store, table),
+          true) == ccf::kv::CommitResult::SUCCESS);
+      REQUIRE(store->current_txid() == ccf::TxID(initial_view, 1));
+      REQUIRE(raft->get_committed_seqno() == 1);
+      REQUIRE(raft->ledger->ledger.size() == 1);
+    }
+
+    ccf::View reelect()
+    {
+      raft->become_aware_of_new_term(raft->get_view() + 1);
+      raft->force_become_primary();
+      return raft->get_view();
+    }
+  };
 }
 
 TEST_CASE(
@@ -484,4 +618,92 @@ TEST_CASE(
   CHECK(raft.replicate({make_entry({current_view, 3})}));
   CHECK(raft.get_last_idx() == 3);
   CHECK(raft.ledger->ledger.size() == 3);
+}
+TEST_CASE(
+  "Rolled-back stale transaction must not be published to ledger history" *
+  doctest::test_suite("view_straddling_transactions"))
+{
+  HistoryFixture fixture;
+
+  const auto [baseline_txid, baseline_root] =
+    fixture.history->get_replicated_state_txid_and_root();
+  REQUIRE(baseline_txid.seqno == 1);
+
+  INFO("Apply and serialise a transaction in the initial view");
+  const auto stale_txid = fixture.store->next_txid();
+  REQUIRE(stale_txid == ccf::TxID(fixture.initial_view, 2));
+
+  auto stale_info = [&]() {
+    auto tx = fixture.store->create_reserved_tx(stale_txid);
+    tx.rw(fixture.table)->put(1, 2);
+    return tx.commit_reserved();
+  }();
+  REQUIRE(stale_info.success == ccf::kv::CommitResult::SUCCESS);
+  REQUIRE(fixture.store->current_txid() == stale_txid);
+
+  INFO("Enter Store::commit, pass its view check, then deschedule");
+  CommitPause commit_pause;
+  std::optional<ccf::kv::CommitResult> stale_result;
+  std::thread stale_worker([&]() {
+    stale_result = fixture.store->commit(
+      stale_txid,
+      std::make_unique<PausingMovePendingTx>(
+        std::move(stale_info), commit_pause),
+      false);
+  });
+  commit_pause.wait_until_paused();
+
+  INFO("Lose leadership and win a later election, rolling back to 1");
+  fixture.reelect();
+  {
+    const auto [rolled_back_txid, rolled_back_root] =
+      fixture.history->get_replicated_state_txid_and_root();
+    REQUIRE(rolled_back_txid.seqno == 1);
+    REQUIRE(rolled_back_root == baseline_root);
+  }
+
+  INFO("Resume the stale commit, which consensus is going to reject");
+  fixture.history->arm();
+  commit_pause.release();
+
+  // The rolled-back entry must never become visible in the ledger history.
+  // The history is read without holding any Store lock, for instance by
+  // set_root_on_proposals(), which binds a proposal id to this root.
+  const bool published =
+    fixture.history->wait_until_appended(std::chrono::seconds(2));
+
+  CHECK_FALSE(published);
+
+  if (published)
+  {
+    const auto [observed_txid, observed_root] =
+      fixture.history->get_replicated_state_txid_and_root();
+
+    // The KV and the ledger have both been rolled back, but the history has
+    // advanced past them, publishing an entry which is in neither.
+    CHECK(fixture.store->current_txid().seqno == 1);
+    CHECK(fixture.raft->get_last_idx() == 1);
+    CHECK(fixture.raft->ledger->ledger.size() == 1);
+
+    CHECK(observed_txid.seqno == 1);
+    CHECK(observed_root == baseline_root);
+
+    fixture.history->release();
+  }
+
+  stale_worker.join();
+
+  INFO("Consensus rejects the stale transaction");
+  REQUIRE(stale_result.has_value());
+  CHECK(stale_result.value() == ccf::kv::CommitResult::FAIL_NO_REPLICATE);
+
+  INFO("The history is consistent with the store once the dust settles");
+  {
+    const auto [final_txid, final_root] =
+      fixture.history->get_replicated_state_txid_and_root();
+    CHECK(final_txid.seqno == 1);
+    CHECK(final_root == baseline_root);
+    CHECK(fixture.store->current_txid().seqno == 1);
+    CHECK(fixture.raft->ledger->ledger.size() == 1);
+  }
 }
