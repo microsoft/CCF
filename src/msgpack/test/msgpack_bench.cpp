@@ -3,10 +3,9 @@
 #include "msgpack/encode.h"
 
 #define PICOBENCH_IMPLEMENT_WITH_MAIN
-#include <picobench/picobench.hpp>
-
 #include <cstddef>
 #include <cstdint>
+#include <picobench/picobench.hpp>
 #include <stdexcept>
 #include <string_view>
 #include <vector>

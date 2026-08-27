@@ -751,9 +751,7 @@ if(BUILD_TESTS)
 
     add_unit_test(
       msgpack_test
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/msgpack/test/encode_test.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/msgpack/test/differential_test.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/msgpack/test/fuzz_script_test.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/msgpack/test/msgpack_unit.cpp
     )
 
     if(FUZZING)

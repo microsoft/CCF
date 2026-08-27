@@ -3,13 +3,13 @@
 #pragma once
 
 // Test-only helper: classify the first byte of a msgpack-encoded value
-// into its format family. Used by smallest-format-wins property tests
+// into its format family. Used by smallest-format-wins boundary tests
 // to assert the encoder picked the narrowest fitting form.
 //
 // The hex `case` labels here are intentional: they cross-check the
 // `fmt_byte::*` constants used by the encoder by re-stating the same
 // values from a separate source. A bug that swapped, say, 0xCD and
-// 0xCE in either place is caught when the property tests run.
+// 0xCE in either place is caught when the boundary tests run.
 
 #include <cstdint>
 
@@ -44,6 +44,7 @@ namespace ccf::msgpack::test
     ARRAY_16,
     ARRAY_32,
     MAP_16,
+    MAP_32,
     NEVER_USED, // 0xC1, must never appear in valid encoded output
     UNRECOGNISED, // bytes the encoder cannot emit (ext families other
                   // than fixext8, the never-used 0xC1, etc.)
@@ -120,6 +121,8 @@ namespace ccf::msgpack::test
         return FormatFamily::ARRAY_32;
       case 0xDE:
         return FormatFamily::MAP_16;
+      case 0xDF:
+        return FormatFamily::MAP_32;
       default:
         return FormatFamily::UNRECOGNISED;
     }
