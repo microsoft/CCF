@@ -315,6 +315,7 @@ jobs:
           ./tests.sh --timeout 360 -V -R '^ledger_bench$'
         shell: bash
         env:
+          CCF_TEST_SYNC_AFTER_SETUP: 1
           ELECTION_TIMEOUT_MS: 10000
 
       - name: "Capture dmesg"
@@ -400,6 +401,7 @@ jobs:
           ./tests.sh --timeout 360 -V -R '^ledger_bench$'
         shell: bash
         env:
+          CCF_TEST_SYNC_AFTER_SETUP: 1
           ELECTION_TIMEOUT_MS: 10000
 
       - name: "Capture dmesg"
