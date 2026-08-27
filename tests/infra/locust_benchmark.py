@@ -284,13 +284,6 @@ def run(args: argparse.Namespace, prepare_workload: PrepareWorkload) -> None:
     }
 
     bencher = infra.bencher.Bencher()
-    # Isolated and unisolated numbers are not comparable, so record which one
-    # produced these. Every perf test in a CI run appends to the same
-    # bencher.json, so the key names the test rather than claiming to describe
-    # the whole file. All intervals in a sweep share one plan, deliberately: a
-    # sweep is a single experiment, and isolating only some of its intervals
-    # would make its own results incomparable with each other.
-    bencher.set_metadata(f"cpu_isolation_{args.label}", infra.cpu_isolation.describe())
     for sig_ms_interval, result in results.items():
         label = (
             args.perf_label

@@ -44,12 +44,6 @@ from dataclasses import dataclass
 
 from loguru import logger as LOG
 
-# Overrides the mode chosen by the test, so that a CI job can turn isolation on
-# or off without editing the test definition.
-ENV_MODE = "CCF_CPU_ISOLATION"
-# Overrides the number of CPUs reserved for the node.
-ENV_NODE_CPUS = "CCF_ISOLATED_NODE_CPUS"
-
 MODE_OFF = "off"
 MODE_AUTO = "auto"
 MODES = (MODE_OFF, MODE_AUTO)
@@ -218,21 +212,15 @@ def make_plan(node_cpu_count: int = DEFAULT_NODE_CPUS) -> IsolationPlan | None:
 def enable(mode: str = MODE_AUTO, node_cpu_count: int = DEFAULT_NODE_CPUS):
     """Turn isolation on for this test process.
 
-    Returns the plan in force, or None if the tests should run unisolated. The
-    environment takes precedence over the arguments so that a CI job can flip
-    the behaviour without changing the test definition.
+    Returns the plan in force, or None if the tests should run unisolated.
     """
     global _plan
 
-    mode = os.environ.get(ENV_MODE, mode).strip().lower()
     if mode not in MODES:
         raise ValueError(
             f"Invalid CPU isolation mode {mode!r}, expected one of {MODES}"
         )
 
-    env_node_cpus = os.environ.get(ENV_NODE_CPUS)
-    if env_node_cpus:
-        node_cpu_count = int(env_node_cpus)
     if node_cpu_count < 1:
         raise ValueError(f"Invalid node CPU count {node_cpu_count}, must be at least 1")
 
@@ -253,21 +241,6 @@ def enable(mode: str = MODE_AUTO, node_cpu_count: int = DEFAULT_NODE_CPUS):
     else:
         LOG.info(f"CPU isolation enabled: {_plan.describe()}")
     return _plan
-
-
-def disable():
-    global _plan
-    _plan = None
-
-
-def current() -> IsolationPlan | None:
-    return _plan
-
-
-def describe() -> str:
-    """Description of the mode in force, for recording alongside results so
-    that isolated and unisolated numbers are never confused."""
-    return "off" if _plan is None else _plan.describe()
 
 
 def command_prefix(role: str | None) -> list[str]:

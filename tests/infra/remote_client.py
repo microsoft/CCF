@@ -5,7 +5,6 @@ from typing import ClassVar
 
 from loguru import logger as LOG
 
-import infra.cpu_isolation
 import infra.network
 import infra.remote
 
@@ -67,14 +66,7 @@ class CCFRemoteClient:
             ] + client_command_args
 
         self.remote = infra.remote.LocalRemote(
-            name,
-            host,
-            [self.BIN],
-            self.DEPS,
-            cmd,
-            workspace,
-            self.common_dir,
-            cpu_role=infra.cpu_isolation.CLIENT,
+            name, host, [self.BIN], self.DEPS, cmd, workspace, self.common_dir
         )
         # We do not want to record perf data for the remote client
         # and we may not be able to without additional setup depending
@@ -136,7 +128,6 @@ class CCFRemoteCmd:
             [],
             workspace,
             self.common_dir,
-            cpu_role=infra.cpu_isolation.CLIENT,
             pid_file="cmd.pid",
         )
         # We do not want to record perf data for the remote client
