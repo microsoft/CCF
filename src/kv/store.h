@@ -1074,6 +1074,23 @@ namespace ccf::kv
 
         if (h)
         {
+          // This transaction's view was checked before version_lock was
+          // released, but a rollback may have happened since, retracting the
+          // history and moving the Store to a new view. Re-check atomically
+          // with the append, so that an entry which consensus is going to
+          // reject is never published to readers of the history.
+          std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
+
+          if (pending_txid_.view != term_of_next_version)
+          {
+            LOG_DEBUG_FMT(
+              "Discarding transaction {} after Store moved to view {}",
+              pending_txid_.to_str(),
+              term_of_next_version);
+
+            return CommitResult::FAIL_NO_REPLICATE;
+          }
+
           h->append_entry(ccf::entry_leaf(
             *data_shared, commit_evidence_digest_, claims_digest_));
         }
