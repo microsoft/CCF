@@ -82,6 +82,19 @@ namespace ccf::curl
       code == CURLE_HTTP2 || code == CURLE_HTTP2_STREAM;
   }
 
+  inline bool is_retryable_join_error(
+    CURLcode code, bool has_received_pending_join_response)
+  {
+    // CURLE_SSL_CONNECT_ERROR is intentionally not generally transient: it
+    // covers permanent TLS configuration and protocol errors as well as a peer
+    // disappearing during the handshake. Once this joiner has received a
+    // PENDING response, the same TLS configuration and pinned service identity
+    // have already succeeded, so a later handshake failure may be retried while
+    // that target changes role.
+    return is_transient_transport_error(code) ||
+      (has_received_pending_join_response && code == CURLE_SSL_CONNECT_ERROR);
+  }
+
   class UniqueCURL
   {
   private:

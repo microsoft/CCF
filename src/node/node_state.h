@@ -27,7 +27,7 @@
 #include "ds/files.h"
 #include "ds/internal_logger.h"
 #include "ds/state_machine.h"
-#include "enclave/rpc_sessions.h"
+#include "enclave/abstract_rpc_sessions.h"
 #include "encryptor.h"
 #include "history.h"
 #include "http/curl.h"
@@ -448,7 +448,7 @@ namespace ccf
     std::shared_ptr<Forwarder<NodeToNode>> cmd_forwarder;
     std::shared_ptr<ccf::CommitCallbackSubsystem> commit_callbacks = nullptr;
     std::shared_ptr<ccf::SignatureCacheSubsystem> signature_cache = nullptr;
-    std::shared_ptr<RPCSessions> rpcsessions;
+    std::shared_ptr<AbstractRPCSessions> rpcsessions;
 
     std::shared_ptr<ccf::kv::TxHistory> history;
     std::shared_ptr<ccf::kv::AbstractTxEncryptor> encryptor;
@@ -505,6 +505,11 @@ namespace ccf
     // atomically from the response callback, which runs on the libuv thread
     // and so must not take NodeState::lock.
     std::atomic<bool> join_request_in_flight = false;
+
+    // A successful PENDING response proves that this joiner's TLS settings and
+    // pinned service identity are valid. A later generic TLS handshake failure
+    // can then be retried safely while the target changes role.
+    bool has_received_pending_join_response = false;
 
     // Number of times we have fetched the latest snapshot from the primary
     size_t join_fetch_count = 0;
@@ -785,7 +790,7 @@ namespace ccf
     NodeState(
       ringbuffer::AbstractWriterFactory& writer_factory,
       NetworkState& network,
-      std::shared_ptr<RPCSessions> rpcsessions,
+      std::shared_ptr<AbstractRPCSessions> rpcsessions,
       ccf::crypto::CurveID curve_id_) :
       sm("NodeState", NodeStartupState::uninitialized),
       curve_id(curve_id_),
@@ -1316,12 +1321,10 @@ namespace ccf
 
       // The service certificate is the sole trust anchor for the join
       // connection. CURLOPT_CAINFO_BLOB installs it and CURLOPT_CAPATH=nullptr
-      // prevents any fallback to the system CA store, so the set of accepted
-      // certificate authorities is identical to the legacy tls::CA path. The
-      // joining node presents its self-signed node certificate for mutual TLS
-      // (it is not yet endorsed at join time). CURLOPT_SSL_VERIFYHOST=2
-      // additionally checks that the target certificate matches the address we
-      // connected to.
+      // prevents any fallback to the system CA store. The joining node presents
+      // its self-signed node certificate for mutual TLS (it is not yet endorsed
+      // at join time). CURLOPT_SSL_VERIFYHOST=2 additionally checks that the
+      // target certificate matches the address we connected to.
       ccf::curl::UniqueCURL curl_handle;
       curl_handle.set_opt(CURLOPT_SSL_VERIFYPEER, 1L);
       curl_handle.set_opt(CURLOPT_SSL_VERIFYHOST, 2L);
@@ -1431,10 +1434,11 @@ namespace ccf
                 // The legacy httpclient path silently dropped a failed
                 // connection and relied on the periodic join timer to retry
                 // when the target could not yet be reached, while treating TLS
-                // handshake failures (e.g. an untrusted service certificate) as
-                // fatal. Preserve both behaviours: transient transport errors
-                // are retried, everything else is fatal.
-                if (ccf::curl::is_transient_transport_error(curl_response))
+                // explicit certificate verification/loading failures as fatal.
+                // Preserve both behaviours: transient transport errors are
+                // retried, everything else is fatal.
+                if (ccf::curl::is_retryable_join_error(
+                      curl_response, has_received_pending_join_response))
                 {
                   LOG_INFO_FMT(
                     "Transient error contacting {} to join: {} ({}). The join "
@@ -1761,6 +1765,7 @@ namespace ccf
               }
               else if (resp.node_status == NodeStatus::PENDING)
               {
+                has_received_pending_join_response = true;
                 LOG_INFO_FMT(
                   "Node {} is waiting for votes of members to be trusted",
                   self);

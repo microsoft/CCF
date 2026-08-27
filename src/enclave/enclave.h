@@ -11,6 +11,7 @@
 #include "ds/oversized.h"
 #include "ds/work_beacon.h"
 #include "host/ledger.h"
+#include "host/rpc_connection_manager.h"
 #include "indexing/enclave_lfs_access.h"
 #include "indexing/historical_transaction_fetcher.h"
 #include "interface.h"
@@ -34,7 +35,6 @@
 #include "node/rpc/user_frontend.h"
 #include "node/signature_cache_subsystem.h"
 #include "rpc_map.h"
-#include "rpc_sessions.h"
 #include "tasks/worker.h"
 
 namespace ccf
@@ -48,7 +48,7 @@ namespace ccf
     ccf::ds::WorkBeaconPtr work_beacon;
     ccf::NetworkState network;
     std::shared_ptr<RPCMap> rpc_map;
-    std::shared_ptr<RPCSessions> rpcsessions;
+    std::shared_ptr<RPCConnectionManager> rpcsessions;
     std::unique_ptr<ccf::NodeState> node;
     ringbuffer::WriterPtr to_host = nullptr;
     std::chrono::high_resolution_clock::time_point last_tick_time;
@@ -92,7 +92,7 @@ namespace ccf
       writer_factory(std::move(writer_factory_)),
       work_beacon(std::move(work_beacon_)),
       rpc_map(std::make_shared<RPCMap>()),
-      rpcsessions(std::make_shared<RPCSessions>(*writer_factory, rpc_map))
+      rpcsessions(std::make_shared<RPCConnectionManager>(rpc_map))
     {
       to_host = writer_factory->create_writer_to_outside();
 
@@ -184,22 +184,109 @@ namespace ccf
         signature_cache,
         sig_tx_interval,
         sig_ms_interval);
+
+      ccf::tasks::get_main_job_board().set_work_beacon(work_beacon);
     }
 
     ~Enclave()
     {
+      ccf::tasks::get_main_job_board().set_work_beacon(nullptr);
       LOG_TRACE_FMT("Shutting down enclave");
     }
 
     CreateNodeStatus create_new_node(
       StartType start_type_,
-      const ccf::StartupConfig& ccf_config_,
+      ccf::StartupConfig ccf_config_,
       std::vector<uint8_t>& node_cert,
-      std::vector<uint8_t>& service_cert)
+      std::vector<uint8_t>& service_cert,
+      std::vector<uint8_t>& rpc_addresses)
     {
       start_type = start_type_;
 
       rpcsessions->update_listening_interface_options(ccf_config_.network);
+
+      // Idle RPC connections are closed after this period (nullopt = never).
+      std::optional<std::chrono::milliseconds> rpc_idle_timeout;
+      if (ccf_config_.idle_connection_timeout.has_value())
+      {
+        rpc_idle_timeout = std::chrono::milliseconds(
+          ccf_config_.idle_connection_timeout->count_ms());
+      }
+      rpcsessions->set_idle_connection_timeout(rpc_idle_timeout);
+
+      // Bind and start listening on each configured RPC interface. TLS is now
+      // terminated in the connection: an interface whose certificate is not yet
+      // available refuses connections until set_*_cert provides one (a joining
+      // node receives the service cert later). Ephemeral ports (bind ":0") are
+      // assigned here, so the resolved addresses are reported back to the host
+      // (which writes the rpc addresses file).
+      {
+        // An object rather than a default-constructed (null) json, so that a
+        // node with no RPC interfaces still writes a well-formed, empty map.
+        nlohmann::json resolved_rpc_addresses = nlohmann::json::object();
+
+        // Bind interfaces with an explicit (non-zero) port before those
+        // requesting an ephemeral port (port 0 or unspecified). Multiple
+        // interfaces on a node can share a single host address (for example
+        // the sole ::1 IPv6 loopback), and if an ephemeral interface is bound
+        // first the OS may assign it the exact port that another interface is
+        // configured to bind, making that later bind fail with "address
+        // already in use".
+        const auto is_ephemeral = [](const auto& interface) {
+          const auto port =
+            ccf::split_net_address(interface.bind_address).second;
+          return port.empty() || port == "0";
+        };
+        std::vector<std::string> ordered_interface_names;
+        ordered_interface_names.reserve(
+          ccf_config_.network.rpc_interfaces.size());
+        for (const auto& [name, interface] : ccf_config_.network.rpc_interfaces)
+        {
+          if (!is_ephemeral(interface))
+          {
+            ordered_interface_names.push_back(name);
+          }
+        }
+        for (const auto& [name, interface] : ccf_config_.network.rpc_interfaces)
+        {
+          if (is_ephemeral(interface))
+          {
+            ordered_interface_names.push_back(name);
+          }
+        }
+
+        for (const auto& name : ordered_interface_names)
+        {
+          auto& interface = ccf_config_.network.rpc_interfaces.at(name);
+          const auto [host, port] =
+            ccf::split_net_address(interface.bind_address);
+          // UDP interfaces use the datagram (echo) path; TCP interfaces the
+          // OpenSSL stream path.
+          const uint16_t bound = (interface.protocol == "udp") ?
+            rpcsessions->listen_udp(name, host, port) :
+            rpcsessions->listen(name, host, port);
+          interface.bind_address =
+            ccf::make_net_address(host, std::to_string(bound));
+
+          if (interface.published_address.empty())
+          {
+            interface.published_address = interface.bind_address;
+          }
+          else
+          {
+            const auto [phost, pport] =
+              ccf::split_net_address(interface.published_address);
+            if (pport == "0")
+            {
+              interface.published_address =
+                ccf::make_net_address(phost, std::to_string(bound));
+            }
+          }
+          resolved_rpc_addresses[name] = interface.bind_address;
+        }
+        const auto dumped = resolved_rpc_addresses.dump();
+        rpc_addresses.assign(dumped.begin(), dumped.end());
+      }
 
       node->set_n2n_message_limit(ccf_config_.node_to_node_message_limit);
 
@@ -392,18 +479,20 @@ namespace ccf
             }
           });
 
-        rpcsessions->register_message_handlers(bp.get_dispatcher());
-
         // Maximum number of inbound ringbuffer messages which will be
         // processed in a single iteration
         static constexpr size_t max_messages = 256;
 
+        bool should_wait_for_work = true;
         while (!bp.get_finished())
         {
-          // Wait until the host indicates that some ringbuffer messages are
-          // available, but wake at least every 100ms to check thread messages
-          work_beacon->wait_for_work_with_timeout(
-            std::chrono::milliseconds(100));
+          if (should_wait_for_work)
+          {
+            // Wait until the host indicates that some ringbuffer messages or
+            // tasks are available, but wake at least every 100ms.
+            work_beacon->wait_for_work_with_timeout(
+              std::chrono::milliseconds(100));
+          }
 
           // First, read some messages from the ringbuffer
           auto read = bp.read_n(max_messages, circuit->read_from_outside());
@@ -422,6 +511,10 @@ namespace ccf
             }
             task = job_board.get_task();
           }
+          // Hitting the task budget may leave queued work behind. Continue
+          // immediately rather than consuming the only coalesced wake and then
+          // sleeping with a non-empty JobBoard.
+          should_wait_for_work = tasks_done < max_messages;
 
           // If no messages were read from the ringbuffer and tasks were
           // executed, idle
@@ -430,6 +523,11 @@ namespace ccf
             std::this_thread::yield();
           }
         }
+
+        LOG_INFO_FMT("Stopping RPC transports");
+        // The host is still running the libuv loop at this point - it only
+        // exits once we send AdminMessage::stopped below.
+        rpcsessions->stop(asynchost::OpenSSLServer::LoopState::Running);
 
         LOG_INFO_FMT("Enclave stopped successfully. Stopping host...");
         RINGBUFFER_WRITE_MESSAGE(AdminMessage::stopped, to_host);

@@ -3,9 +3,9 @@
 #pragma once
 
 #include "ccf/crypto/openssl/openssl_wrappers.h"
+#include "clients/tls/ca.h"
+#include "clients/tls/cert.h"
 #include "ds/internal_logger.h"
-#include "tls/ca.h"
-#include "tls/cert.h"
 
 #include <cstdint>
 #include <cstring>

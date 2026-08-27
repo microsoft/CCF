@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
+- TLS is now terminated by OpenSSL directly on the socket, rather than being relayed over the ringbuffer and decrypted through a memory BIO. The session interfaces in `include/ccf/node/session.h` and `include/ccf/research/custom_protocol_subsystem_interface.h` have changed shape accordingly: a session now receives and emits plaintext, taking ownership of the inbound buffer, and writes its output through a `ccf::SessionWriter` rather than a `tls::Context` (#8117).
 - Governance endpoints now select the API implemented by the running CCF build when `api-version` is omitted or set to `latest`. `GET /gov/api` returns an auto-generated OpenAPI document for this moving API, while dated `api-version` values continue to return their frozen documents. (#8147)
 
 ### Added
