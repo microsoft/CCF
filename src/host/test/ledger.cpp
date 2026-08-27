@@ -1083,15 +1083,48 @@ TEST_CASE("Committed ledger prefixes")
 TEST_CASE("Committed ledger prefix files are not recovered")
 {
   auto dir = AutoDeleteFolder(ledger_dir);
+  auto ro_dir = AutoDeleteFolder(ledger_dir_read_only);
+  fs::create_directory(ledger_dir);
+  fs::create_directory(ledger_dir_read_only);
+
+  std::vector<uint8_t> prefix;
+  {
+    LedgerFile source(ledger_dir, 1);
+    for (size_t idx = 1; idx <= 5; ++idx)
+    {
+      const auto entry = make_ledger_entry(idx);
+      source.write_entry(entry.data(), entry.size(), true);
+    }
+
+    const auto result = source.read_entries_as_completed_chunk(1, 5);
+    REQUIRE(result.has_value());
+    prefix = std::move(result.value());
+  }
+
+  fs::remove_all(ledger_dir);
   fs::create_directory(ledger_dir);
   const auto prefix_path = fs::path(ledger_dir) / "ledger_1-5.committed_prefix";
-  files::dump(std::vector<uint8_t>{1}, prefix_path);
+  files::dump(prefix, prefix_path);
 
-  Ledger ledger(ledger_dir, wf);
-  REQUIRE(ledger.get_last_idx() == 0);
+  {
+    Ledger ledger(ledger_dir, wf);
+    REQUIRE(ledger.get_last_idx() == 0);
+  }
   REQUIRE_FALSE(fs::exists(prefix_path));
   REQUIRE(
     fs::exists(fmt::format("{}{}", prefix_path, ledger_ignored_file_suffix)));
+
+  const auto read_only_prefix_path =
+    fs::path(ledger_dir_read_only) / prefix_path.filename();
+  files::dump(prefix, read_only_prefix_path);
+  Ledger ledger(
+    ledger_dir,
+    wf,
+    ledger_max_read_cache_files_default,
+    {ledger_dir_read_only});
+  REQUIRE(ledger.get_last_idx() == 0);
+  REQUIRE_FALSE(ledger.read_entry(1).has_value());
+  REQUIRE(fs::exists(read_only_prefix_path));
 }
 
 TEST_CASE("Restore existing ledger")

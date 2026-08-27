@@ -46,6 +46,7 @@ namespace asynchost
       auto f_name = f.path().filename();
       if (
         is_ledger_file_name_ignored(f_name) ||
+        is_ledger_file_name_committed_prefix(f_name) ||
         (!allow_recovery_files && is_ledger_file_name_recovery(f_name)))
       {
         continue;

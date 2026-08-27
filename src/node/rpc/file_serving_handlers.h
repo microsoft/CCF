@@ -174,7 +174,7 @@ namespace ccf::node
   static void fill_range_response(
     ccf::endpoints::CommandEndpointContext& ctx,
     size_t total_size,
-    ReadRange&& read_range)
+    const ReadRange& read_range)
   {
     if (total_size == 0)
     {
@@ -346,6 +346,15 @@ namespace ccf::node
                   "Unable to parse end of range offset value {} in {}",
                   s_range_end,
                   range_header.value()));
+              return;
+            }
+
+            if (offset == 0)
+            {
+              ctx.rpc_ctx->set_error(
+                HTTP_STATUS_BAD_REQUEST,
+                ccf::errors::InvalidHeaderValue,
+                "Range suffix length must be greater than zero");
               return;
             }
 

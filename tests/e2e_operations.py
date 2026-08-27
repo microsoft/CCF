@@ -1304,6 +1304,13 @@ def test_ledger_chunk_access(network, args):
         assert r.status_code == http.HTTPStatus.PARTIAL_CONTENT.value, r
         assert r.body.data() == chunk_data
 
+        r = c.get(
+            chunk_url,
+            headers={"range": "bytes=-0"},
+            allow_redirects=False,
+        )
+        assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r
+
         # Non-matching If-None-Match on range -> fresh partial download
         r = c.call(
             chunk_url,
@@ -1648,10 +1655,6 @@ def test_ledger_chunk_redirect_recent(network, args):
     with late_backup.client(
         interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
     ) as c:
-        r = c.head(
-            f"/node/ledger_chunk?since={start_of_last_chunk}", allow_redirects=False
-        )
-        assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value, r
         expected_host = primary.get_public_rpc_host(
             interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
         )
@@ -1659,6 +1662,23 @@ def test_ledger_chunk_redirect_recent(network, args):
             interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
         )
         expected_location = f"https://{infra.interfaces.make_address(expected_host, expected_port)}/node/ledger_chunk?since={start_of_last_chunk}"
+
+        r = c.head(
+            f"/node/ledger_chunk?since={start_of_last_chunk}"
+            "&include_committed_prefix=true",
+            allow_redirects=False,
+        )
+        assert r.status_code == http.HTTPStatus.TEMPORARY_REDIRECT.value, r
+        assert r.headers["cache-control"] == "no-store", r
+        assert (
+            r.headers["Location"]
+            == f"{expected_location}&include_committed_prefix=true"
+        ), r
+
+        r = c.head(
+            f"/node/ledger_chunk?since={start_of_last_chunk}", allow_redirects=False
+        )
+        assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value, r
         assert r.headers["Location"] == expected_location, r
         r = c.get(
             f"/node/ledger_chunk?since={start_of_last_chunk}", allow_redirects=True
@@ -1724,6 +1744,21 @@ def test_ledger_chunk_redirect_gap(network, args):
         with new_node.client(
             interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
         ) as c:
+            r = c.head(
+                f"/node/ledger_chunk?since={download_index}"
+                "&include_committed_prefix=true",
+                allow_redirects=False,
+            )
+            assert r.status_code == http.HTTPStatus.TEMPORARY_REDIRECT.value, r
+            assert r.headers["cache-control"] == "no-store", r
+            redirect_query = urllib.parse.parse_qs(
+                urllib.parse.urlparse(r.headers["Location"]).query
+            )
+            assert redirect_query == {
+                "since": [str(download_index)],
+                "include_committed_prefix": ["true"],
+            }, r
+
             r = c.head(
                 f"/node/ledger_chunk?since={download_index}", allow_redirects=False
             )
