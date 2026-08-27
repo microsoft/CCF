@@ -461,9 +461,9 @@ TEST_CASE("known nested values roundtrip through nlohmann")
 
 TEST_CASE("encode_json handles deeply nested values iteratively")
 {
-  constexpr size_t depth = 4096;
+  constexpr size_t DEPTH = 4096;
   json value = nullptr;
-  for (size_t i = 0; i < depth; ++i)
+  for (size_t i = 0; i < DEPTH; ++i)
   {
     value = json::array({std::move(value)});
   }
