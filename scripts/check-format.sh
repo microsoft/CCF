@@ -31,6 +31,8 @@ fi
 if [ -x "$(command -v clang-format-18)" ]; then
     CLANG_FORMAT=(clang-format-18)
 else
+    # This is specifically for AzL4, where the clang-format is newer
+    # and behaves differently with the same configuration.
     CLANG_FORMAT=(uvx --from clang-format==18.1.8 clang-format)
 fi
 
