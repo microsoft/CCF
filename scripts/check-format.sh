@@ -34,7 +34,11 @@ else
     CLANG_FORMAT=(uvx --from clang-format==18.1.8 clang-format)
 fi
 
-echo "Using $("${CLANG_FORMAT[@]}" --version)"
+if ! CLANG_FORMAT_VERSION=$("${CLANG_FORMAT[@]}" --version); then
+  echo "Unable to run clang-format. Install clang-format-18 or uv." >&2
+  exit 1
+fi
+echo "Using $CLANG_FORMAT_VERSION"
 
 NPROC=$(nproc 2>/dev/null || echo 4)
 
