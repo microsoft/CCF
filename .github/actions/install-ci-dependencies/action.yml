@@ -1,15 +1,5 @@
 name: Install Azure Linux CI dependencies
-description: Restore and populate the Azure Linux dependency caches
-
-inputs:
-  cache-python-packages:
-    description: Restore and save uv's package cache
-    required: false
-    default: "true"
-  python-cache-scope:
-    description: Dependency workload stored in the uv cache
-    required: false
-    default: tests
+description: Restore and populate the Azure Linux RPM and npm package caches
 
 runs:
   using: composite
@@ -72,8 +62,7 @@ runs:
 
         set_config_option "$cache_option" "$cache_dir"
         set_config_option keepcache "$keepcache_value"
-        uv_cache_dir=/github/home/.ccf-package-cache/uv
-        mkdir -p "$cache_dir" "$uv_cache_dir"
+        mkdir -p "$cache_dir"
 
         day_of_week=$(date -u +%u)
         days_since_sunday=$((day_of_week % 7))
@@ -83,9 +72,6 @@ runs:
         echo "cache-week=$cache_week" >> "$GITHUB_OUTPUT"
         echo "package-manager=$package_manager" >> "$GITHUB_OUTPUT"
         echo "setup-script=$setup_script" >> "$GITHUB_OUTPUT"
-        echo "uv-cache-dir=$uv_cache_dir" >> "$GITHUB_OUTPUT"
-
-        echo "UV_CACHE_DIR=$uv_cache_dir" >> "$GITHUB_ENV"
 
     - name: Restore RPM package cache
       continue-on-error: true
@@ -97,20 +83,6 @@ runs:
           azure-linux-${{ steps.configure.outputs.package-manager }}-rpms-${{ runner.arch }}-${{ hashFiles('scripts/setup-ci*.sh') }}-
           azure-linux-${{ steps.configure.outputs.package-manager }}-rpms-${{ runner.arch }}-
 
-    # The PyPI proxy redirects downloads to short-lived URLs, which prevents
-    # pip from reusing its cache across jobs. CI dependency installs use uv so
-    # this cache remains content-addressed and reusable.
-    - name: Restore Python package cache
-      if: inputs.cache-python-packages == 'true'
-      continue-on-error: true
-      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-      with:
-        path: ${{ steps.configure.outputs.uv-cache-dir }}
-        key: azure-linux-${{ steps.configure.outputs.package-manager }}-python-packages-${{ runner.arch }}-${{ inputs.python-cache-scope }}-${{ hashFiles('python/pyproject.toml', '**/*requirements*.txt', 'scripts/*checks.sh', 'scripts/setup-ci*.sh', 'scripts/install_uv.sh') }}-${{ steps.configure.outputs.cache-week }}
-        restore-keys: |
-          azure-linux-${{ steps.configure.outputs.package-manager }}-python-packages-${{ runner.arch }}-${{ inputs.python-cache-scope }}-${{ hashFiles('python/pyproject.toml', '**/*requirements*.txt', 'scripts/*checks.sh', 'scripts/setup-ci*.sh', 'scripts/install_uv.sh') }}-
-          azure-linux-${{ steps.configure.outputs.package-manager }}-python-packages-${{ runner.arch }}-${{ inputs.python-cache-scope }}-
-          azure-linux-${{ steps.configure.outputs.package-manager }}-python-packages-${{ runner.arch }}-
     - name: Restore npm package cache
       continue-on-error: true
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0

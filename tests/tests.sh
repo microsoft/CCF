@@ -19,6 +19,13 @@ uv pip install -q -e ../python/
 uv pip install -q -r ../tests/requirements.txt
 echo "Python environment successfully setup"
 
+if [[ "${CCF_TEST_SYNC_AFTER_SETUP:-0}" == "1" ]]; then
+    echo "Flushing filesystem writeback after Python environment setup..."
+    sync_start=$SECONDS
+    sync
+    echo "Filesystem writeback completed in $((SECONDS - sync_start))s"
+fi
+
 # Export where the VENV has been set, so tests running
 # a sandbox.sh can inherit it rather create a new one
 VENV_DIR=$(realpath env)
