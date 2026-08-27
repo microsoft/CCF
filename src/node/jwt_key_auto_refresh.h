@@ -4,6 +4,7 @@
 
 #include "ccf/ds/json.h"
 #include "ccf/ds/nonstd.h"
+#include "ccf/pal/locking.h"
 #include "ccf/service/tables/jwt.h"
 #include "http/curl.h"
 #include "http/http_builder.h"
@@ -13,8 +14,10 @@
 #include "tasks/task_system.h"
 
 #define FMT_HEADER_ONLY
+#include <algorithm>
 #include <curl/curl.h>
 #include <fmt/format.h>
+#include <map>
 
 namespace ccf
 {
@@ -34,8 +37,129 @@ namespace ccf
 
     ccf::tasks::Task periodic_refresh_task;
 
+    struct RetryState
+    {
+      size_t delay_s;
+      size_t generation = 0;
+      ccf::tasks::Task task = nullptr;
+    };
+
+    ccf::pal::Mutex retry_states_lock;
+    std::map<JwtIssuer, RetryState> retry_states
+      CCF_GUARDED_BY(retry_states_lock);
+    size_t next_retry_generation CCF_GUARDED_BY(retry_states_lock) = 0;
+
+    static constexpr size_t initial_retry_delay_s = 5;
     static constexpr long request_connection_timeout_s = 5;
     static constexpr long request_response_timeout_s = 5;
+
+    bool begin_retry(const JwtIssuer& issuer, size_t generation)
+    {
+      ccf::pal::MutexGuard guard(retry_states_lock);
+      const auto it = retry_states.find(issuer);
+      if (
+        it == retry_states.end() || it->second.generation != generation ||
+        it->second.task == nullptr)
+      {
+        return false;
+      }
+
+      it->second.task = nullptr;
+      return true;
+    }
+
+    void cancel_retry(const JwtIssuer& issuer)
+    {
+      ccf::pal::MutexGuard guard(retry_states_lock);
+      const auto it = retry_states.find(issuer);
+      if (it == retry_states.end())
+      {
+        return;
+      }
+
+      if (it->second.task != nullptr)
+      {
+        it->second.task->cancel_task();
+      }
+      retry_states.erase(it);
+    }
+
+    void cancel_retries()
+    {
+      ccf::pal::MutexGuard guard(retry_states_lock);
+      for (auto& retry_state_entry : retry_states)
+      {
+        auto& retry_state = retry_state_entry.second;
+        if (retry_state.task != nullptr)
+        {
+          retry_state.task->cancel_task();
+        }
+      }
+      retry_states.clear();
+    }
+
+    void schedule_retry(const JwtIssuer& issuer)
+    {
+      ccf::tasks::Task retry_task;
+      size_t delay_s = 0;
+      {
+        ccf::pal::MutexGuard guard(retry_states_lock);
+        if (stopped.load())
+        {
+          return;
+        }
+
+        const auto initial_delay_s =
+          std::min(initial_retry_delay_s, refresh_interval_s);
+        const auto it =
+          retry_states
+            .try_emplace(issuer, RetryState{initial_delay_s, 0, nullptr})
+            .first;
+        auto& retry_state = it->second;
+        if (retry_state.task != nullptr && !retry_state.task->is_cancelled())
+        {
+          return;
+        }
+
+        delay_s = retry_state.delay_s;
+        const auto generation = ++next_retry_generation;
+        retry_state.generation = generation;
+        const auto self = weak_from_this();
+        retry_task = ccf::tasks::make_basic_task([self, issuer, generation]() {
+          const auto self_sp = self.lock();
+          if (
+            self_sp == nullptr || self_sp->stopped.load() ||
+            !self_sp->begin_retry(issuer, generation))
+          {
+            return;
+          }
+
+          if (!self_sp->consensus->can_replicate())
+          {
+            LOG_DEBUG_FMT(
+              "JWT key auto-refresh retry: Node is not primary, skipping");
+            self_sp->cancel_retry(issuer);
+            return;
+          }
+
+          self_sp->refresh_jwt_keys(issuer);
+        });
+        retry_state.task = retry_task;
+
+        if (retry_state.delay_s < refresh_interval_s)
+        {
+          retry_state.delay_s = retry_state.delay_s > refresh_interval_s / 2 ?
+            refresh_interval_s :
+            retry_state.delay_s * 2;
+        }
+      }
+
+      LOG_DEBUG_FMT(
+        "JWT key auto-refresh: Scheduling retry for issuer '{}' in {}s",
+        issuer,
+        delay_s);
+      ccf::tasks::add_delayed_task(retry_task, std::chrono::seconds(delay_s));
+    }
 
     void send_curl_get(
       const std::string& url,
@@ -137,6 +261,7 @@ namespace ccf
       {
         periodic_refresh_task->cancel_task();
       }
+      cancel_retries();
     }
 
     void schedule_once()
@@ -163,7 +288,7 @@ namespace ccf
     }
 
     template <typename T>
-    void send_refresh_jwt_keys(T msg)
+    bool send_refresh_jwt_keys(T msg)
     {
       ::http::Request request(fmt::format(
         "/{}/{}",
@@ -185,14 +310,17 @@ namespace ccf
         ::http::fetch_rpc_handler(ctx, this->rpc_map);
 
       search->process(ctx);
+      return ::http::status_success(
+        static_cast<ccf::http_status>(ctx->get_response_status()));
     }
 
-    void send_refresh_jwt_keys_error()
+    void send_refresh_jwt_keys_error(const JwtIssuer& issuer)
     {
       // A message that the endpoint fails to parse, leading to 500.
       // This is done purely for exposing errors as endpoint metrics.
       auto msg = false;
       send_refresh_jwt_keys(msg);
+      schedule_retry(issuer);
     }
 
     void handle_jwt_jwks_response(
@@ -210,7 +338,7 @@ namespace ccf
           data.empty() ?
             "" :
             fmt::format("  '{}'", std::string(data.begin(), data.end())));
-        send_refresh_jwt_keys_error();
+        send_refresh_jwt_keys_error(issuer);
         return;
       }
 
@@ -228,7 +356,7 @@ namespace ccf
           "JWT key auto-refresh: Cannot parse JWKS for issuer '{}': {}",
           issuer,
           e.what());
-        send_refresh_jwt_keys_error();
+        send_refresh_jwt_keys_error(issuer);
         return;
       }
 
@@ -248,7 +376,14 @@ namespace ccf
       // call internal endpoint to update keys
       auto msg = SetJwtPublicSigningKeys{issuer, jwks};
 
-      send_refresh_jwt_keys(msg);
+      if (send_refresh_jwt_keys(msg))
+      {
+        cancel_retry(issuer);
+      }
+      else
+      {
+        schedule_retry(issuer);
+      }
     }
 
     void handle_jwt_metadata_response(
@@ -267,7 +402,7 @@ namespace ccf
           data.empty() ?
             "" :
             fmt::format("  '{}'", std::string(data.begin(), data.end())));
-        send_refresh_jwt_keys_error();
+        send_refresh_jwt_keys_error(issuer);
         return;
       }
 
@@ -295,7 +430,7 @@ namespace ccf
           "{}",
           issuer,
           e.what());
-        send_refresh_jwt_keys_error();
+        send_refresh_jwt_keys_error(issuer);
         return;
       }
       // Validate jwks_uri before handing it to libcurl; the parsed result is
@@ -315,7 +450,7 @@ namespace ccf
           issuer,
           jwks_url_str,
           e.what());
-        send_refresh_jwt_keys_error();
+        send_refresh_jwt_keys_error(issuer);
         return;
       }
 
@@ -326,7 +461,7 @@ namespace ccf
           "JWT key auto-refresh: jwks_uri for issuer '{}' must use https: {}",
           issuer,
           jwks_url_str);
-        send_refresh_jwt_keys_error();
+        send_refresh_jwt_keys_error(issuer);
         return;
       }
 
@@ -365,7 +500,7 @@ namespace ccf
                   issuer,
                   curl_easy_strerror(curl_response),
                   curl_response);
-                self_sp->send_refresh_jwt_keys_error();
+                self_sp->send_refresh_jwt_keys_error(issuer);
                 return;
               }
               self_sp->handle_jwt_jwks_response(
@@ -379,7 +514,8 @@ namespace ccf
       send_curl_get(jwks_url_str, ca_bundle_pem, std::move(response_callback));
     }
 
-    void refresh_jwt_keys()
+    void refresh_jwt_keys(
+      const std::optional<JwtIssuer>& issuer_filter = std::nullopt)
     {
       if (stopped.load())
       {
@@ -389,7 +525,11 @@ namespace ccf
       auto tx = network.tables->create_read_only_tx();
       auto* jwt_issuers = tx.ro(network.jwt_issuers);
       auto* ca_cert_bundles = tx.ro(network.ca_cert_bundles);
-      jwt_issuers->foreach([this, &ca_cert_bundles](
+      bool issuer_found = !issuer_filter.has_value();
+      jwt_issuers->foreach([this,
+                            &ca_cert_bundles,
+                            &issuer_filter,
+                            &issuer_found](
                              const JwtIssuer& issuer,
                              const JwtIssuerMetadata& metadata) {
         if (stopped.load())
@@ -397,12 +537,19 @@ namespace ccf
           return false;
         }
 
+        if (issuer_filter.has_value() && issuer != issuer_filter.value())
+        {
+          return true;
+        }
+        issuer_found = true;
+
         if (!metadata.auto_refresh)
         {
           LOG_DEBUG_FMT(
             "JWT key auto-refresh: Skipping issuer '{}', auto-refresh is "
             "disabled",
             issuer);
+          cancel_retry(issuer);
           return true;
         }
 
@@ -421,7 +568,7 @@ namespace ccf
             "found",
             ca_cert_bundle_name,
             issuer);
-          send_refresh_jwt_keys_error();
+          send_refresh_jwt_keys_error(issuer);
           return true;
         }
 
@@ -465,7 +612,7 @@ namespace ccf
                     issuer,
                     curl_easy_strerror(curl_response),
                     curl_response);
-                  self_sp->send_refresh_jwt_keys_error();
+                  self_sp->send_refresh_jwt_keys_error(issuer);
                   return;
                 }
                 self_sp->handle_jwt_metadata_response(
@@ -480,6 +627,11 @@ namespace ccf
           metadata_url, ca_bundle_pem, std::move(response_callback));
         return true;
       });
+
+      if (!issuer_found)
+      {
+        cancel_retry(issuer_filter.value());
+      }
     }
 
     // Returns a copy of the current attempts

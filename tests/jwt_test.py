@@ -451,6 +451,7 @@ def test_jwt_key_auto_refresh_connection_failure(network, args):
     remove_all_jwt_issuers(network, args, primary)
     failures_before = get_jwt_refresh_endpoint_metrics(primary)["failures"]
     issuer_host = "127.0.0.1"
+    kid = "connection_failure"
 
     LOG.info("Add JWT issuer with auto-refresh pointing at an unavailable endpoint")
     with reserve_unlistened_local_port() as issuer_port:
@@ -458,13 +459,23 @@ def test_jwt_key_auto_refresh_connection_failure(network, args):
             f"https://{issuer_host}:{issuer_port}", cn=issuer_host
         )
         add_auto_refresh_jwt_issuer(network, primary, issuer, "jwt_connection_failure")
-        try:
+
+    try:
+        with_timeout(
+            lambda: check_refresh_failures_increased(primary, failures_before),
+            timeout=5,
+        )
+
+        LOG.info("Start the OpenID endpoint and check that the refresh is retried")
+        with issuer.start_openid_server(issuer_port, kid):
             with_timeout(
-                lambda: check_refresh_failures_increased(primary, failures_before),
-                timeout=5,
+                lambda: check_kv_jwt_key_matches(
+                    args, network, kid, issuer.key_pub_pem
+                ),
+                timeout=15,
             )
-        finally:
-            network.consortium.remove_jwt_issuer(primary, issuer.name)
+    finally:
+        network.consortium.remove_jwt_issuer(primary, issuer.name)
 
 
 def test_jwt_key_auto_refresh_tls_failure(network, args):
