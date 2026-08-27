@@ -87,21 +87,6 @@ def add_cli_arguments(parser: argparse.ArgumentParser) -> None:
         nargs="+",
         default=[2, 20, 100],
     )
-    parser.add_argument(
-        "--cpu-isolation",
-        help="Pin the node and the locust clients to disjoint sets of CPUs, so "
-        "that they do not compete for the same cores. Best-effort: if it cannot "
-        "be applied the test still runs, with a warning",
-        choices=infra.cpu_isolation.MODES,
-        default=infra.cpu_isolation.MODE_OFF,
-    )
-    parser.add_argument(
-        "--isolated-node-cpus",
-        help="Number of CPUs reserved for the node when --cpu-isolation is on. "
-        "Rounded up to whole physical cores",
-        type=int,
-        default=infra.cpu_isolation.DEFAULT_NODE_CPUS,
-    )
 
 
 def locust_file_path(file_name: str) -> str:
@@ -272,9 +257,10 @@ def measure(
 
 
 def run(args: argparse.Namespace, prepare_workload: PrepareWorkload) -> None:
-    # Must happen before any node or client process is launched, since the
-    # affinity is applied as they are spawned.
-    infra.cpu_isolation.enable(args.cpu_isolation, args.isolated_node_cpus)
+    # First thing the benchmark does, both so the layout is logged before any
+    # other output and because the affinity is applied to node and client
+    # processes as they are spawned.
+    infra.cpu_isolation.enable()
 
     # Each interval needs its own network because the signature interval is
     # fixed in the node's configuration at startup.

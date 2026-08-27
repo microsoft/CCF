@@ -1501,11 +1501,6 @@ if(BUILD_TESTS)
       2
       20
       100
-      # Pin the node and the locust clients to disjoint CPUs, so the figures
-      # describe the node rather than how it and the load generator happened to
-      # divide the machine.
-      --cpu-isolation
-      auto
   )
 
   if(WORKER_THREADS)

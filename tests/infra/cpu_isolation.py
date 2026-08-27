@@ -2,7 +2,7 @@
 # Licensed under the Apache 2.0 License.
 
 """
-Optional CPU isolation for performance tests.
+CPU isolation for performance tests.
 
 Perf tests run the CCF node and their load generator on the same machine, so
 both compete for the same cores. What gets measured is then partly a property
@@ -11,8 +11,9 @@ from the node, and the reported throughput drops for reasons that have nothing
 to do with the node.
 
 Pinning the node and the clients to disjoint sets of CPUs removes that
-coupling. Isolation is opt-in, and best-effort: if it cannot be applied the
-caller is told so, loudly, and the test runs unisolated rather than failing.
+coupling. It is always applied, on every machine, so that runs are comparable
+wherever they happen. It is best-effort only in that a machine too small to
+split usefully is reported loudly and runs unisolated rather than failing.
 
 The mechanism is a `taskset` prefix on the launched command. taskset calls
 sched_setaffinity(2) before exec, so the mask is inherited by the process
@@ -43,10 +44,6 @@ import subprocess
 from dataclasses import dataclass
 
 from loguru import logger as LOG
-
-MODE_OFF = "off"
-MODE_AUTO = "auto"
-MODES = (MODE_OFF, MODE_AUTO)
 
 # The node runs WORKER_THREADS worker threads plus a host thread and some
 # bookkeeping, so four CPUs is enough for it to be scheduler-bound rather than
@@ -134,9 +131,13 @@ class IsolationPlan:
         raise ValueError(f"Unknown CPU isolation role: {role}")
 
     def describe(self) -> str:
+        """One-line summary of the layout, for logging before anything starts."""
+        total = len(self.node_cpus) + len(self.client_cpus)
         return (
-            f"node={_format_cpu_list(self.node_cpus)} "
-            f"clients={_format_cpu_list(self.client_cpus)}"
+            f"node -> CPUs {_format_cpu_list(self.node_cpus)} "
+            f"({len(self.node_cpus)} of {total}), "
+            f"clients -> CPUs {_format_cpu_list(self.client_cpus)} "
+            f"({len(self.client_cpus)} of {total})"
         )
 
 
@@ -209,37 +210,28 @@ def make_plan(node_cpu_count: int = DEFAULT_NODE_CPUS) -> IsolationPlan | None:
     return IsolationPlan(frozenset(node_cpus), frozenset(client_cpus))
 
 
-def enable(mode: str = MODE_AUTO, node_cpu_count: int = DEFAULT_NODE_CPUS):
-    """Turn isolation on for this test process.
+def enable(node_cpu_count: int = DEFAULT_NODE_CPUS):
+    """Split this machine's CPUs between the node and the clients.
 
-    Returns the plan in force, or None if the tests should run unisolated.
+    Call once, before any node or client process is launched. Returns the plan
+    in force, or None if this machine cannot usefully be split and the run must
+    go ahead unisolated.
     """
     global _plan
 
-    if mode not in MODES:
-        raise ValueError(
-            f"Invalid CPU isolation mode {mode!r}, expected one of {MODES}"
-        )
-
     if node_cpu_count < 1:
         raise ValueError(f"Invalid node CPU count {node_cpu_count}, must be at least 1")
-
-    if mode == MODE_OFF:
-        _plan = None
-        LOG.info("CPU isolation disabled, node and clients share all CPUs")
-        return None
 
     _plan = make_plan(node_cpu_count)
     if _plan is None:
         # Not an error: the test is still valid, it is just noisier and not
         # comparable with isolated runs. Say so unmissably.
         LOG.warning(
-            "CPU isolation was requested but could not be applied. "
-            "Running WITHOUT isolation: results are not comparable with "
-            "isolated runs."
+            "CPU isolation NOT applied: node and clients will share all CPUs, "
+            "so these results are not comparable with isolated runs."
         )
     else:
-        LOG.info(f"CPU isolation enabled: {_plan.describe()}")
+        LOG.info(f"CPU isolation: {_plan.describe()}")
     return _plan
 
 
