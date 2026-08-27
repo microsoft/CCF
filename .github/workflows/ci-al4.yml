@@ -3,7 +3,6 @@ name: Continuous Integration AL4
 on:
   schedule:
     - cron: "0 0 * * 1-5"
-  pull_request:
   workflow_dispatch:
 
 concurrency:
