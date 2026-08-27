@@ -1,10 +1,10 @@
 name: Install Azure Linux CI dependencies
-description: Restore and populate the Azure Linux package cache
+description: Restore and populate the Azure Linux RPM and npm package caches
 
 runs:
   using: composite
   steps:
-    - name: Configure package cache
+    - name: Configure RPM package cache
       id: configure
       shell: bash
       run: |
@@ -73,7 +73,7 @@ runs:
         echo "package-manager=$package_manager" >> "$GITHUB_OUTPUT"
         echo "setup-script=$setup_script" >> "$GITHUB_OUTPUT"
 
-    - name: Restore package cache
+    - name: Restore RPM package cache
       continue-on-error: true
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
@@ -82,6 +82,17 @@ runs:
         restore-keys: |
           azure-linux-${{ steps.configure.outputs.package-manager }}-rpms-${{ runner.arch }}-${{ hashFiles('scripts/setup-ci*.sh') }}-
           azure-linux-${{ steps.configure.outputs.package-manager }}-rpms-${{ runner.arch }}-
+
+    - name: Restore npm package cache
+      continue-on-error: true
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: /github/home/.npm
+        key: azure-linux-npm-packages-${{ runner.arch }}-${{ hashFiles('**/package.json', 'scripts/prettier-checks.sh') }}-${{ github.job }}-${{ steps.configure.outputs.cache-week }}
+        restore-keys: |
+          azure-linux-npm-packages-${{ runner.arch }}-${{ hashFiles('**/package.json', 'scripts/prettier-checks.sh') }}-${{ github.job }}-
+          azure-linux-npm-packages-${{ runner.arch }}-${{ hashFiles('**/package.json', 'scripts/prettier-checks.sh') }}-
+          azure-linux-npm-packages-${{ runner.arch }}-
 
     - name: Install dependencies
       shell: bash
