@@ -68,6 +68,8 @@ jobs:
 
       - name: "Install dependencies"
         uses: ./.github/actions/install-ci-dependencies
+        with:
+          cache-python-packages: "false"
 
       - name: "Run CMake"
         run: |
