@@ -52,7 +52,7 @@ jobs:
       - name: "Install dependencies"
         uses: ./.github/actions/install-ci-dependencies
         with:
-          python-cache-scope: all
+          python-requirements: doc/requirements.txt,doc/historical_ccf_requirements.txt,tests/requirements.txt
 
       - name: "Install development dependencies"
         shell: bash

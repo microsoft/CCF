@@ -34,7 +34,7 @@ jobs:
       - name: Install dependencies
         uses: ./.github/actions/install-ci-dependencies
         with:
-          python-cache-scope: docs
+          python-requirements: doc/requirements.txt,doc/historical_ccf_requirements.txt
 
       - name: Setup Pages
         id: pages

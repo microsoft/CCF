@@ -6,10 +6,10 @@ inputs:
     description: Restore and save uv's package cache
     required: false
     default: "true"
-  python-cache-scope:
-    description: Dependency workload stored in the uv cache
+  python-requirements:
+    description: Comma-separated requirements files installed by this workload, hashed into the uv cache key
     required: false
-    default: tests
+    default: tests/requirements.txt
 
 runs:
   using: composite
@@ -106,10 +106,9 @@ runs:
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ${{ steps.configure.outputs.uv-cache-dir }}
-        key: azure-linux-${{ steps.configure.outputs.package-manager }}-python-packages-${{ runner.arch }}-${{ inputs.python-cache-scope }}-${{ hashFiles('python/pyproject.toml', '**/*requirements*.txt', 'scripts/*checks.sh', 'scripts/setup-ci*.sh', 'scripts/install_uv.sh') }}-${{ steps.configure.outputs.cache-week }}
+        key: azure-linux-${{ steps.configure.outputs.package-manager }}-python-packages-${{ runner.arch }}-${{ hashFiles('scripts/install_uv.sh', 'python/pyproject.toml', inputs.python-requirements) }}-${{ steps.configure.outputs.cache-week }}
         restore-keys: |
-          azure-linux-${{ steps.configure.outputs.package-manager }}-python-packages-${{ runner.arch }}-${{ inputs.python-cache-scope }}-${{ hashFiles('python/pyproject.toml', '**/*requirements*.txt', 'scripts/*checks.sh', 'scripts/setup-ci*.sh', 'scripts/install_uv.sh') }}-
-          azure-linux-${{ steps.configure.outputs.package-manager }}-python-packages-${{ runner.arch }}-${{ inputs.python-cache-scope }}-
+          azure-linux-${{ steps.configure.outputs.package-manager }}-python-packages-${{ runner.arch }}-${{ hashFiles('scripts/install_uv.sh', 'python/pyproject.toml', inputs.python-requirements) }}-
           azure-linux-${{ steps.configure.outputs.package-manager }}-python-packages-${{ runner.arch }}-
     - name: Restore npm package cache
       continue-on-error: true
