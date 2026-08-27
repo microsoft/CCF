@@ -1470,8 +1470,9 @@ if(BUILD_TESTS)
       "1,write,300000,primary"
   )
 
-  # Blocking commit benchmark driven by locust so that the number of
-  # concurrent clients can be varied.
+  # Blocking commit benchmark driven by locust. Its concurrent connections
+  # exercise every configured worker thread, so this also covers the
+  # multi-threaded basic workload.
   add_e2e_test(
     NAME pi_basic_blocking_locust
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/basicperf_locust.py
@@ -1502,20 +1503,6 @@ if(BUILD_TESTS)
       20
       100
   )
-
-  if(WORKER_THREADS)
-    add_piccolo_test(
-      NAME pi_basic_mt
-      PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/basicperf.py
-      CLIENT_BIN ./submit
-      PERF_LABEL "Basic Multi-Threaded"
-      ADDITIONAL_ARGS
-        --package
-        "samples/apps/basic/basic"
-        --client-def
-        "${WORKER_THREADS},write,2000000,primary"
-    )
-  endif()
 
   # JWT-authenticated blocking logging workload, driven by locust so that the
   # number of concurrent clients can be varied.
