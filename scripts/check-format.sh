@@ -28,12 +28,13 @@ else
   echo "Checking file format in" "$@"
 fi
 
-CLANG_FORMAT=clang-format
 if [ -x "$(command -v clang-format-18)" ]; then
-    CLANG_FORMAT=clang-format-18
+    CLANG_FORMAT=(clang-format-18)
+else
+    CLANG_FORMAT=(uvx --from clang-format==18.1.8 clang-format)
 fi
 
-echo "Using $(${CLANG_FORMAT} --version)"
+echo "Using $("${CLANG_FORMAT[@]}" --version)"
 
 NPROC=$(nproc 2>/dev/null || echo 4)
 
@@ -46,12 +47,12 @@ if [ "${#files[@]}" -eq 0 ]; then
 else
   # Check which files need formatting (parallel)
   unformatted_files=$(printf '%s\n' "${files[@]}" | \
-    xargs -P "$NPROC" -n 50 "$CLANG_FORMAT" -n -Werror -style=file 2>&1 | \
+    xargs -P "$NPROC" -n 50 "${CLANG_FORMAT[@]}" -n -Werror -style=file 2>&1 | \
     sed -n 's/^\(.*\):[0-9]*:[0-9]*:.*/\1/p' | sort -u) || true
 
   if $fix && [ "$unformatted_files" != "" ]; then
     # Fix only the files that failed the check
-    echo "$unformatted_files" | xargs -P "$NPROC" -n 50 "$CLANG_FORMAT" -style=file -i
+    echo "$unformatted_files" | xargs -P "$NPROC" -n 50 "${CLANG_FORMAT[@]}" -style=file -i
   fi
 fi
 

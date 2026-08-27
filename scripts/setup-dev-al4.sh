@@ -54,21 +54,10 @@ install_lts_test_dependencies() {
     dnf -y install cpio
 }
 
-install_python_tools() {
-    # Match the clang-format version used by the existing formatting checks.
-    bash "$SCRIPT_DIR/install_uv.sh" /usr/local/bin || return 1
-    uv pip install \
-        --system \
-        --break-system-packages \
-        gersemi \
-        clang-format==18.1.8
-
-    local clang_format
-    clang_format=$(PATH="/usr/local/bin:$PATH" command -v clang-format)
-    # The PyPI package provides an unversioned executable, so add the expected name.
-    ln -sf "$clang_format" /usr/local/bin/clang-format-18
+install_uv() {
+    bash "$SCRIPT_DIR/install_uv.sh" /usr/local/bin
 }
 
 retry "Development dependencies" install_dev_dependencies
 retry "LTS test dependencies" install_lts_test_dependencies
-retry "Python tools" install_python_tools
+retry "uv" install_uv
