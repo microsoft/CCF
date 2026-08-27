@@ -53,11 +53,10 @@ install_lts_test_dependencies() {
     tdnf -y install cpio
 }
 
-install_python_tools() {
-    bash "$SCRIPT_DIR/install_uv.sh" /usr/local/bin || return 1
-    uv pip install --system --break-system-packages gersemi
+install_uv() {
+    bash "$SCRIPT_DIR/install_uv.sh" /usr/local/bin
 }
 
 retry "Development dependencies" install_dev_dependencies
 retry "LTS test dependencies" install_lts_test_dependencies
-retry "Python tools" install_python_tools
+retry "uv" install_uv
