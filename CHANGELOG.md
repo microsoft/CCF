@@ -9,13 +9,24 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [7.0.13]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.13
 
+### Changed
+
+- Governance endpoints now select the API implemented by the running CCF build when `api-version` is omitted or set to `latest`. `GET /gov/api` returns an auto-generated OpenAPI document for this moving API, while dated `api-version` values continue to return their frozen documents. (#8147)
+
 ### Added
 
 - C++ endpoints can now use `ccf::endpoints::Endpoint::add_openapi_response<Out>()` to document additional HTTP responses in their generated OpenAPI schema without changing the endpoint's primary success response (#8115).
+- New `ledger.max_transaction_size` node configuration option (default `32MB`), which caps the total serialised size of transactions written to the ledger. The limit covers the whole ledger entry: the fixed 8-byte ledger entry header, the ledger encryption header, public domain size field, public domain and encrypted private domain. It is checked before a transaction is applied, so an oversized transaction is now rejected with `413 Payload Too Large` and error code `TransactionTooLarge`, and subsequent transactions are unaffected, where previously an excessively large transaction could terminate the node. Reserved internal signature transactions are exempt because they must fill their reserved ledger version. The limit applies only to newly serialised non-reserved transactions; deserialising existing entries (including during recovery), historical queries and snapshots are unaffected, so entries written under a larger or unset limit remain readable. It must be smaller than `memory.max_msg_size` by at least the ring-buffer range response overhead, which is validated at node startup and by `--check` (#7992).
 
 ### Changed
 
 - `ccf::SessionContext::caller_cert` is now immutable, and its SHA-256 digest is cached per session to avoid repeated hashing during user and member certificate authentication (#8164).
+- Clang builds now enable compile-time thread safety analysis for CCF's annotated PAL mutexes and condition-variable waits, with reusable annotations available from `ccf/ds/thread_safety.h` (#8180).
+
+### Fixed
+
+- Nodes from the previous service are now removed during disaster recovery instead of being retained as retired entries in `GET /node/network/nodes`, and `ledger_code.py` reports their code identities as removed (#8177).
+- Fixed an edge case where a follower could incorrectly commit to an abandoned fork while synchronising with the leader, causing it to become unavailable (#8172).
 
 ## [7.0.12]
 

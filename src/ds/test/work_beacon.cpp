@@ -3,6 +3,7 @@
 
 #include "../work_beacon.h"
 
+#include "ccf/pal/locking.h"
 #include "ds/internal_logger.h"
 
 #include <doctest/doctest.h>
@@ -16,18 +17,18 @@ using WorkItem = std::function<bool()>;
 
 struct WorkQueue
 {
-  std::mutex mutex;
-  std::queue<WorkItem> work;
+  ccf::pal::Mutex mutex;
+  std::queue<WorkItem> work CCF_GUARDED_BY(mutex);
 
   void add_work(WorkItem&& item)
   {
-    std::unique_lock<std::mutex> lock(mutex);
+    ccf::pal::MutexGuard lock(mutex);
     work.push(std::move(item));
   }
 
   std::optional<WorkItem> get_work()
   {
-    std::unique_lock<std::mutex> lock(mutex);
+    ccf::pal::MutexGuard lock(mutex);
 
     std::optional<WorkItem> result = std::nullopt;
     if (!work.empty())

@@ -22,7 +22,6 @@
 #include <list>
 #include <map>
 #include <memory>
-#include <mutex>
 #include <string>
 #include <sys/types.h>
 #include <tuple>
@@ -1885,9 +1884,8 @@ namespace asynchost
 
           // Ledger entries response has metadata so cap total entries size
           // accordingly
-          constexpr size_t write_ledger_range_response_metadata_size = 2048;
           auto max_entries_size = to_enclave->get_max_message_size() -
-            write_ledger_range_response_metadata_size;
+            ::consensus::ledger_range_response_metadata_size;
 
           if (is_in_committed_file(to_idx))
           {

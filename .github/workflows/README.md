@@ -1,5 +1,13 @@
 Documents the various GitHub Actions workflows, the role they fulfill and 3rd party (i.e. outside of https://github.com/actions/) dependencies if any.
 
+# Shared actions
+
+## Azure Linux CI dependencies
+
+The local composite action in `.github/actions/install-ci-dependencies/action.yml` installs Azure Linux 3 and 4 CI dependencies and caches downloaded RPM and npm packages. Cache keys separate runner architectures, hash the relevant dependency inputs, and include the date of the most recent Sunday at midnight UTC. The RPM key also separates package managers, while the npm key separates jobs so each job can save the packages it downloads. The weekly date makes GitHub Actions create refreshed immutable caches each week.
+
+At a weekly rollover, restore keys first reuse the latest cache for the same dependency inputs and then fall back to a compatible cache for the same architecture. The package managers refresh registry metadata and download only missing or updated packages. `actions/cache` saves each populated directory automatically after a successful job when the exact weekly key was not restored.
+
 # Maintained
 
 ## Bencher
@@ -62,19 +70,36 @@ File: `codeql-analysis.yml`
 
 # Continuous Verification
 
-Runs quick verification jobs: trace validation, simulation and short model checking configurations. Triggered on PRs that affect tla/, src/consensus, tests/raft_scenarios, or the workflow itself, weekly, and manually.
+Runs the standard model checking, simulation, trace validation, counterexample, and disaster recovery jobs each week.
 
 File: `ci-verification.yml`
 3rd party dependencies: None
 
 # Long Verification
 
-Runs more expensive verification jobs, such as model checking with reconfiguration.
-
-- Runs weekly.
-- Can be manually run on a PR by setting `run-long-verification` label.
+Runs the longer consensus model checking and simulation jobs each week.
 
 File: `long-verification.yml`
+3rd party dependencies: None
+
+# TLA Shallow Verification
+
+Runs on pull requests that change `tla/` or `src/consensus/aft/raft.h`.
+
+- Simulates the consistency and consensus specifications on a GitHub-hosted runner. The simulation job has a 10-minute timeout.
+- Builds the Raft scenario driver and validates its traces against the consensus specification on a GitHub-hosted runner.
+
+File: `tla-shallow.yml`
+3rd party dependencies: None
+
+# Vendored Dependency Verification
+
+Verifies that files under `3rdparty/` match the Git commits or release artifacts
+recorded in `cgmanifest.json`. Triggered on pull requests and pushes to `main`
+that change vendored sources, the manifest, the verifier, or this workflow. It
+can also be run manually.
+
+File: `vendor-verification.yml`
 3rd party dependencies: None
 
 # Release

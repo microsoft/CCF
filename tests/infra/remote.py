@@ -3,6 +3,7 @@
 import json
 import os
 import re
+import shlex
 import shutil
 import signal
 import subprocess
@@ -28,6 +29,8 @@ DBG = os.getenv("DBG", "lldb")
 # Duration after which unresponsive node is declared as crashed on startup
 REMOTE_STARTUP_TIMEOUT_S = 5
 FILE_TIMEOUT_S = 60
+# See doc/overview/performance.rst for the rationale behind these defaults.
+DEFAULT_PERF_RECORD_ARGS = "-m 16 -e task-clock:u -F 99 -g --call-graph dwarf --quiet"
 
 
 class CmdMixin:
@@ -36,7 +39,23 @@ class CmdMixin:
     @property
     def cmd(self):
         if self.perfable and os.getenv("CCF_PERF"):
-            return ["perf", "record"] + self._cmd
+            perf_args = os.getenv("CCF_PERF_ARGS", DEFAULT_PERF_RECORD_ARGS)
+            try:
+                parsed_perf_args = shlex.split(perf_args)
+            except ValueError as e:
+                raise ValueError(
+                    f"Invalid CCF_PERF_ARGS {perf_args!r}; expected a shell-style "
+                    "argument string"
+                ) from e
+            return [
+                "perf",
+                "record",
+                *parsed_perf_args,
+                "-o",
+                "perf.data",
+                "--",
+                *self._cmd,
+            ]
         else:
             return self._cmd
 
@@ -80,6 +99,9 @@ class LocalRemote(CmdMixin):
         self.err = os.path.join(self.root, "err")
         self.stack_trace = os.path.join(self.root, "stack_trace")
         self._shutdown_timeout = 10
+        self.pid_file = kwargs.get("pid_file")
+        self.profiled_pid = None
+        self.profiled_pidfd = None
 
     @property
     def shutdown_timeout(self):
@@ -170,13 +192,57 @@ class LocalRemote(CmdMixin):
         )
 
     def suspend(self):
-        self.proc.send_signal(signal.SIGSTOP)
+        self._send_signal(signal.SIGSTOP)
 
     def resume(self):
-        self.proc.send_signal(signal.SIGCONT)
+        self._send_signal(signal.SIGCONT)
 
     def hangup(self):
-        self.proc.send_signal(signal.SIGHUP)
+        self._send_signal(signal.SIGHUP)
+
+    def _profiling_enabled(self):
+        return self.perfable and os.getenv("CCF_PERF")
+
+    def _open_profiled_pidfd(self):
+        if self.profiled_pidfd is not None:
+            return self.profiled_pidfd
+
+        pid_path = os.path.join(self.root, self.pid_file)
+        deadline = time.monotonic() + REMOTE_STARTUP_TIMEOUT_S
+        while time.monotonic() < deadline:
+            try:
+                with open(pid_path, encoding="utf-8") as f:
+                    self.profiled_pid = int(f.read())
+                self.profiled_pidfd = os.pidfd_open(self.profiled_pid)
+                return self.profiled_pidfd
+            except (OSError, ValueError):
+                if self.proc.poll() is not None:
+                    break
+                time.sleep(0.05)
+
+        raise RuntimeError(f"Unable to open profiled process from {pid_path}")
+
+    def _target_pid(self):
+        if self._profiling_enabled() and self.pid_file:
+            self._open_profiled_pidfd()
+            return self.profiled_pid
+
+        return self.proc.pid
+
+    def _send_signal(self, sig):
+        try:
+            if self._profiling_enabled() and self.pid_file:
+                try:
+                    profiled_pidfd = self._open_profiled_pidfd()
+                except RuntimeError:
+                    if self.proc.poll() is None:
+                        self.proc.send_signal(sig)
+                else:
+                    signal.pidfd_send_signal(profiled_pidfd, sig)
+            else:
+                self.proc.send_signal(sig)
+        except ProcessLookupError:
+            pass
 
     def get_logs(self):
         return self.out, self.err
@@ -191,7 +257,7 @@ class LocalRemote(CmdMixin):
                     "lldb",
                     "--batch",  # Ensure non-interactive
                     "-p",
-                    f"{self.proc.pid}",
+                    f"{self._target_pid()}",
                     "--one-line",
                     "thread backtrace all",
                     "--one-line",
@@ -229,10 +295,10 @@ class LocalRemote(CmdMixin):
             )
 
     def sigterm(self):
-        self.proc.terminate()
+        self._send_signal(signal.SIGTERM)
 
     def sigkill(self):
-        self.proc.send_signal(signal.SIGKILL)
+        self._send_signal(signal.SIGKILL)
 
     def stop(self):
         """
@@ -240,7 +306,7 @@ class LocalRemote(CmdMixin):
         """
         LOG.info(f"[{self.hostname}] closing")
         if self.proc:
-            self.proc.terminate()
+            self.sigterm()
             try:
                 self.proc.wait(self._shutdown_timeout)
             except subprocess.TimeoutExpired:
@@ -256,10 +322,22 @@ class LocalRemote(CmdMixin):
             if exit_code is not None and exit_code < 0:
                 signal_str = signal.strsignal(-exit_code)
                 LOG.error(f"{self.hostname} exited with signal: {signal_str}")
+            profile_error = None
+            if self._profiling_enabled():
+                if exit_code != 0:
+                    profile_error = f"perf record exited with code {exit_code}"
+                perf_data = os.path.join(self.root, "perf.data")
+                if not os.path.isfile(perf_data) or os.path.getsize(perf_data) == 0:
+                    profile_error = f"perf record did not produce {perf_data}"
             if self.stdout:
                 self.stdout.close()
             if self.stderr:
                 self.stderr.close()
+            if self.profiled_pidfd is not None:
+                os.close(self.profiled_pidfd)
+                self.profiled_pidfd = None
+            if profile_error:
+                raise RuntimeError(profile_error)
 
     def setup(self, use_links=True):
         """

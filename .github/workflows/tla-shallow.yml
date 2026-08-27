@@ -1,0 +1,118 @@
+name: "TLA Shallow Verification"
+
+on:
+  pull_request:
+    paths:
+      - "tla/**"
+      - "src/consensus/aft/raft.h"
+      - ".github/workflows/tla-shallow.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: read-all
+
+env:
+  UV_INDEX_URL: https://packagefeedproxy.microsoft.io/pypi/simple/
+
+jobs:
+  simulation:
+    name: TLA Simulation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: tla
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install TLC dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y default-jre wget
+          python3 install_deps.py
+
+      - name: Simulate TLA specifications
+        shell: bash
+        run: |
+          status=0
+          ./tlc.py --trace-name consistency-simulation sim --num 500 --depth 50 consistency/MultiNodeReads.tla || status=$?
+          ./tlc.py --trace-name consensus-simulation sim --max-seconds 300 consensus/SIMccfraft.tla || status=$?
+          exit "${status}"
+
+      - name: Upload simulation traces
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: ${{ failure() }}
+        with:
+          name: tlc-simulation
+          path: |
+            tla/consistency/*_TTrace_*.tla
+            tla/consensus/*_TTrace_*.tla
+            tla/*.json
+
+  trace-validation-consensus:
+    name: Trace Validation - Consensus
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/azurelinux/base/core:3.0
+      options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
+
+    steps:
+      - name: "Checkout dependencies"
+        shell: bash
+        run: |
+          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
+          tdnf -y update
+          tdnf -y install ca-certificates git
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: "Install dependencies"
+        shell: bash
+        run: |
+          set -ex
+          ./scripts/setup-ci.sh
+
+      - name: Install TLC dependencies
+        run: |
+          tdnf install -y jre wget
+          python3 tla/install_deps.py --tdnf-extended
+
+      - name: "Build"
+        run: |
+          set -ex
+          git config --global --add safe.directory /__w/CCF/CCF
+          mkdir build
+          cd build
+          cmake -L -GNinja .. -DCMAKE_BUILD_TYPE=Debug -DVERBOSE_LOGGING=ON -DCCF_RAFT_TRACING=ON
+          ninja raft_driver
+        shell: bash
+
+      - name: "Test"
+        run: |
+          set -x
+          cd build
+          rm -rf /github/home/.cache
+          mkdir -p /github/home/.cache
+          ./tests.sh -VV --timeout --no-compress-output -T Test -L raft_scenario
+        shell: bash
+
+      - name: Run trace validation
+        run: |
+          set -x
+          cd tla/
+          mkdir -p traces/consensus
+          mv ../build/consensus traces/
+          parallel './tlc.py --workers 1 --dot --trace-name {} tv --ccf-raft-trace {} consensus/Traceccfraft.tla' ::: traces/consensus/*.ndjson
+        shell: bash
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: tlc-trace-validation-consensus
+          path: |
+            tla/traces/*

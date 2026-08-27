@@ -8,6 +8,9 @@ on:
 
 permissions: read-all
 
+env:
+  UV_INDEX_URL: https://packagefeedproxy.microsoft.io/pypi/simple/
+
 jobs:
   build:
     name: Build
@@ -28,6 +31,9 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Install dependencies
+        uses: ./.github/actions/install-ci-dependencies
+
       - name: Setup Pages
         id: pages
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
@@ -35,13 +41,11 @@ jobs:
       - name: Build Documentation
         run: |
           set -x
-          ./scripts/setup-ci.sh
-          python3 -m venv env
+          python3 -m venv --without-pip env
           source env/bin/activate
-          pip install -U pip
-          pip install -U -e ./python
-          pip install -U -r doc/requirements.txt
-          pip install -U -r doc/historical_ccf_requirements.txt
+          uv pip install -e ./python
+          uv pip install -r doc/requirements.txt
+          uv pip install -r doc/historical_ccf_requirements.txt
           sphinx-multiversion -D smv_remote_whitelist=origin doc build/html
         shell: bash
 

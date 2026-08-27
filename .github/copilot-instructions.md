@@ -55,7 +55,7 @@ Before formatting or linting changes, load the [formatting-and-linting skill](/.
 ### Documentation
 
 ```bash
-pip install -r doc/requirements.txt -r doc/historical_ccf_requirements.txt
+uv pip install -r doc/requirements.txt -r doc/historical_ccf_requirements.txt
 sphinx-build --fail-on-warning -b html doc doc/html
 ```
 

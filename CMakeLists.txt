@@ -533,6 +533,7 @@ install(
 install(PROGRAMS tests/sandbox/sandbox.sh DESTINATION bin)
 install(PROGRAMS tests/docker_wrap.sh DESTINATION bin)
 install(PROGRAMS scripts/ensure-snmalloc.sh DESTINATION bin)
+install(PROGRAMS scripts/install_uv.sh DESTINATION bin)
 install(FILES samples/constitutions/default/actions.js DESTINATION bin)
 install(FILES samples/constitutions/default/validate.js DESTINATION bin)
 install(FILES samples/constitutions/sandbox/resolve.js DESTINATION bin)
@@ -1469,20 +1470,6 @@ if(BUILD_TESTS)
   )
 
   add_piccolo_test(
-    NAME pi_basic_blocking
-    PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/basicperf.py
-    CLIENT_BIN ./submit
-    PERF_LABEL "Basic Blocking"
-    ADDITIONAL_ARGS
-      --package
-      "samples/apps/basic/basic"
-      --client-def
-      "128,blocking_write,100,primary"
-      --max-writes-ahead
-      0
-  )
-
-  add_piccolo_test(
     NAME pi_basic_js
     PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/basicperf.py
     CLIENT_BIN ./submit
@@ -1494,8 +1481,8 @@ if(BUILD_TESTS)
       "1,write,300000,primary"
   )
 
-  # Same workload as pi_basic_blocking, driven by locust rather than piccolo,
-  # so that the number of concurrent clients can be varied.
+  # Blocking commit benchmark driven by locust so that the number of
+  # concurrent clients can be varied.
   add_e2e_test(
     NAME pi_basic_blocking_locust
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/basicperf_locust.py
@@ -1546,19 +1533,30 @@ if(BUILD_TESTS)
     )
   endif()
 
-  add_piccolo_test(
-    NAME pi_ls_jwt
-    PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/piccolo_driver.py
-    CLIENT_BIN ./submit
-    PERF_LABEL "Logging JWT"
+  # JWT-authenticated blocking logging workload, driven by locust so that the
+  # number of concurrent clients can be varied.
+  add_e2e_test(
+    NAME pi_logging_jwt_blocking_locust
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/logging_jwt_locust.py
+    LABEL perf
+    CONFIGURATIONS perf
     ADDITIONAL_ARGS
       --package
       "samples/apps/logging/logging"
-      --max-writes-ahead
-      1000
-      --repetitions
+      --perf-label
+      "Logging JWT Blocking Locust"
+      --snapshot-tx-interval
       10000
-      --use-jwt
+      --users
+      320
+      --spawn-rate
+      320
+      --locust-processes
+      10
+      --measure-time-s
+      20
+      --sig-ms-intervals
+      20
   )
 
   add_e2e_test(

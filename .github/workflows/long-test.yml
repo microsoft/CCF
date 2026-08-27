@@ -17,6 +17,9 @@ concurrency:
 
 permissions: read-all
 
+env:
+  UV_INDEX_URL: https://packagefeedproxy.microsoft.io/pypi/simple/
+
 jobs:
   long-asan:
     if: &check_trigger_conditions ${{ (github.event.action == 'labeled' && github.event.label.name == 'run-long-test') || (github.event.action != 'labeled' && contains(github.event.pull_request.labels.*.name, 'run-long-test')) || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' }}
@@ -45,10 +48,7 @@ jobs:
           fetch-depth: 0
 
       - name: "Install dependencies"
-        shell: bash
-        run: |
-          set -ex
-          ./scripts/setup-ci.sh
+        uses: ./.github/actions/install-ci-dependencies
 
       - name: "Build Debug (Long Test)"
         run: |
@@ -106,10 +106,7 @@ jobs:
           fetch-depth: 0
 
       - name: "Install dependencies"
-        shell: bash
-        run: |
-          set -ex
-          ./scripts/setup-ci.sh
+        uses: ./.github/actions/install-ci-dependencies
 
       - name: "Build Debug (Long Test)"
         run: |
@@ -170,10 +167,7 @@ jobs:
           fetch-depth: 0
 
       - name: "Install dependencies"
-        shell: bash
-        run: |
-          set -ex
-          ./scripts/setup-ci.sh
+        uses: ./.github/actions/install-ci-dependencies
 
       - name: "Build"
         run: |
@@ -243,10 +237,7 @@ jobs:
           fetch-depth: 0
 
       - name: "Install dependencies"
-        shell: bash
-        run: |
-          set -ex
-          ./scripts/setup-ci.sh
+        uses: ./.github/actions/install-ci-dependencies
 
       - name: "Build"
         run: |
@@ -308,10 +299,7 @@ jobs:
           fetch-depth: 0
 
       - name: "Install dependencies"
-        shell: bash
-        run: |
-          set -ex
-          ./scripts/setup-ci.sh
+        uses: ./.github/actions/install-ci-dependencies
 
       - name: "Build"
         run: |
