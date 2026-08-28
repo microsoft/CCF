@@ -17,14 +17,13 @@ def prepare_workload(args, _network, primary) -> infra.locust_benchmark.Workload
     return infra.locust_benchmark.Workload(
         locust_file_name=LOCUST_FILE_NAME,
         arguments=(
-            "--authentication",
-            "certificate",
+            "--key-space-size",
+            str(args.key_space_size),
+            infra.locust_benchmark.AUTHENTICATION_CERTIFICATE,
             "--cert",
             session_auth.cert,
             "--key",
             session_auth.key,
-            "--key-space-size",
-            str(args.key_space_size),
         ),
     )
 

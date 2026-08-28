@@ -26,10 +26,16 @@ RUN_TIME_MARGIN_S = 60
 MIN_MEASURED_FRACTION = 0.9
 JWT_ENVIRONMENT_VARIABLE = "CCF_LOCUST_JWT"
 
+# Authentication subcommands understood by logging_locustfile.py.
+AUTHENTICATION_CERTIFICATE = "cert"
+AUTHENTICATION_JWT = "jwt"
+
 
 @dataclasses.dataclass(frozen=True)
 class Workload:
     locust_file_name: str
+    # Appended after every option this module passes, so a locustfile that
+    # takes a subcommand must place it last within these arguments.
     arguments: tuple[str, ...] = ()
     environment: Mapping[str, str] = dataclasses.field(default_factory=dict)
 
@@ -117,7 +123,6 @@ def run_locust(
         "--measure-time-s",
         str(args.measure_time_s),
     ]
-    cmd.extend(workload.arguments)
 
     # The locustfile ends the run after a full measurement window following the
     # ramp. Locust's own deadline is only a generous backstop for a stuck ramp.
@@ -134,6 +139,10 @@ def run_locust(
 
     # Report only steady state, at the full user count.
     cmd += ["--reset-stats", "--csv", csv_prefix]
+
+    # Last, because a locustfile may take a subcommand, and argparse gives every
+    # subsequent argument to the subparser.
+    cmd.extend(workload.arguments)
 
     LOG.info(f"Starting Locust: {' '.join(cmd)}")
     process_environment = os.environ.copy()

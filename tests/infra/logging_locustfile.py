@@ -17,8 +17,11 @@ import infra.locust_benchmark_support
 REQUEST_NAME = "POST /app/log/blocking/private"
 DEFAULT_KEY_SPACE_SIZE = 1000
 EXPECTED_STATUS = 200
-AUTHENTICATION_CERTIFICATE = "certificate"
-AUTHENTICATION_JWT = "jwt"
+
+# Shared with the drivers, so that they name the same subcommands.
+AUTHENTICATION_CERTIFICATE = infra.locust_benchmark.AUTHENTICATION_CERTIFICATE
+AUTHENTICATION_JWT = infra.locust_benchmark.AUTHENTICATION_JWT
+JWT_ENVIRONMENT_VARIABLE = infra.locust_benchmark.JWT_ENVIRONMENT_VARIABLE
 
 _bodies: list[str] = []
 
@@ -43,17 +46,28 @@ def _get_bodies(key_space_size: int) -> list[str]:
 def init_parser(parser):
     infra.locust_benchmark_support.add_common_arguments(parser)
     parser.add_argument(
-        "--authentication",
-        choices=(AUTHENTICATION_CERTIFICATE, AUTHENTICATION_JWT),
-        required=True,
-    )
-    parser.add_argument("--cert", help="Path to client certificate")
-    parser.add_argument("--key", help="Path to client private key")
-    parser.add_argument(
         "--key-space-size",
         help="Number of distinct logging records written to",
         type=int,
         default=DEFAULT_KEY_SPACE_SIZE,
+    )
+    # A subcommand per authentication mode, so that argparse enforces which
+    # options each mode accepts. Everything after the subcommand is parsed by
+    # the subparser, so it must come last on the command line.
+    authentication = parser.add_subparsers(
+        dest="authentication",
+        required=True,
+        metavar=f"{{{AUTHENTICATION_CERTIFICATE},{AUTHENTICATION_JWT}}}",
+    )
+    certificate = authentication.add_parser(
+        AUTHENTICATION_CERTIFICATE,
+        help="Authenticate as a user with their certificate",
+    )
+    certificate.add_argument("--cert", help="Path to client certificate", required=True)
+    certificate.add_argument("--key", help="Path to client private key", required=True)
+    authentication.add_parser(
+        AUTHENTICATION_JWT,
+        help=f"Authenticate with the bearer token in ${JWT_ENVIRONMENT_VARIABLE}",
     )
 
 
@@ -65,21 +79,13 @@ class BlockingWriter(FastHttpUser):
         super().__init__(environment)
         opts = environment.parsed_options
         self.headers = {"content-type": "application/json"}
-        if opts.authentication == AUTHENTICATION_CERTIFICATE:
-            if opts.cert is None or opts.key is None:
-                raise RuntimeError(
-                    "--cert and --key are required for certificate authentication"
-                )
-        else:
-            if opts.cert is not None or opts.key is not None:
-                raise RuntimeError(
-                    "--cert and --key must not be supplied with JWT authentication"
-                )
-            token = os.environ.get(infra.locust_benchmark.JWT_ENVIRONMENT_VARIABLE)
+        if opts.authentication == AUTHENTICATION_JWT:
+            # Read from the environment rather than declared as an option,
+            # because the master sends every parsed option to its workers, over
+            # a socket which listens on all interfaces by default.
+            token = os.environ.get(JWT_ENVIRONMENT_VARIABLE)
             if token is None:
-                raise RuntimeError(
-                    f"{infra.locust_benchmark.JWT_ENVIRONMENT_VARIABLE} is not set"
-                )
+                raise RuntimeError(f"{JWT_ENVIRONMENT_VARIABLE} is not set")
             self.headers["authorization"] = f"Bearer {token}"
 
         self.key_space_size = opts.key_space_size

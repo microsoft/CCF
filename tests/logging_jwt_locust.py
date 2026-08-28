@@ -20,10 +20,9 @@ def prepare_workload(args, network, _primary) -> infra.locust_benchmark.Workload
     return infra.locust_benchmark.Workload(
         locust_file_name=LOCUST_FILE_NAME,
         arguments=(
-            "--authentication",
-            "jwt",
             "--key-space-size",
             str(args.key_space_size),
+            infra.locust_benchmark.AUTHENTICATION_JWT,
         ),
         # The token is inherited by Locust workers but never appears in the
         # process command line or the logged command.
