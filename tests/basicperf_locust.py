@@ -6,7 +6,7 @@ Locust benchmark for the Basic C++ and JavaScript applications.
 
 The C++ workload uses blocking writes which only return once the transaction has
 committed. The JavaScript workload uses its standard PUT /records/{key}
-endpoint, which returns after local commit.
+endpoint, which returns without waiting for consensus commit.
 
 The load itself is defined in infra/basicperf_locustfile.py. Shared Locust
 orchestration and statistics handling live in infra/locust_benchmark.py.

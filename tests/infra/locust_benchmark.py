@@ -57,7 +57,7 @@ def add_cli_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--users",
         help="Number of concurrent Locust users, each sending one request at a time",
-        type=int,
+        type=positive_int,
         default=320,
     )
     parser.add_argument(
