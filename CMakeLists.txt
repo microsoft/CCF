@@ -1598,11 +1598,31 @@ if(BUILD_TESTS)
       20
   )
 
+  # Historical range query benchmark driven by locust against a backup.
   add_e2e_test(
-    NAME historical_query_perf_test
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/historical_query_perf.py
+    NAME historical_query_locust
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/historical_query_locust.py
     LABEL perf
     CONFIGURATIONS perf
+    ADDITIONAL_ARGS
+      --package
+      "samples/apps/logging/logging"
+      --perf-label
+      "Historical Queries Locust"
+      --snapshot-tx-interval
+      10000
+      --entry-count
+      30000
+      --users
+      3
+      --spawn-rate
+      3
+      --locust-processes
+      3
+      --measure-time-s
+      20
+      --sig-ms-intervals
+      1000
   )
 
   add_test_bin(
