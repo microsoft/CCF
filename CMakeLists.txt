@@ -1470,16 +1470,31 @@ if(BUILD_TESTS)
       "1,write,3000000,primary"
   )
 
-  add_piccolo_test(
-    NAME pi_basic_js
-    PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/basicperf.py
-    CLIENT_BIN ./submit
-    PERF_LABEL "Basic JS"
+  # JavaScript write workload driven by locust so that the number of
+  # concurrent clients can be varied.
+  add_e2e_test(
+    NAME basic_js_locust
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/basicperf_locust.py
+    LABEL perf
+    CONFIGURATIONS perf
     ADDITIONAL_ARGS
       --js-app-bundle
       ${CMAKE_SOURCE_DIR}/samples/apps/basic/js
-      --client-def
-      "1,write,300000,primary"
+      --perf-label
+      "Basic JS Locust"
+      --snapshot-tx-interval
+      10000
+      --users
+      320
+      --spawn-rate
+      320
+      --locust-processes
+      10
+      --measure-time-s
+      20
+      # Match the signing interval used by the old Piccolo benchmark.
+      --sig-ms-intervals
+      100
   )
 
   # Blocking commit benchmark driven by locust. Its concurrent connections
