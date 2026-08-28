@@ -1436,7 +1436,7 @@ if(BUILD_TESTS)
   # that the number of concurrent clients can be varied.
   add_e2e_test(
     NAME pi_logging_cert_blocking_locust
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/logging_locust.py
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/logging_cert_locust.py
     LABEL perf
     CONFIGURATIONS perf
     ADDITIONAL_ARGS
