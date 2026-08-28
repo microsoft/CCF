@@ -57,10 +57,9 @@ namespace
   // whether initialisation has already happened, and if not, performs it -
   // but the read and the (potential) write are two separate critical
   // sections rather than one, leaving a gap in which another actor can
-  // run. run_actor_with_gap() marks that gap with yield_point(), since an
-  // uncontended lock is not itself a branch point (see
-  // DeterministicScheduler::choose_next()'s comment) - without it, this
-  // scenario's two critical sections would never be explored interleaved.
+  // run. run_actor_with_gap() also marks that gap with yield_point(), on
+  // top of the decision points already made at each lock/unlock, purely
+  // to give it an explicit, named label in describe()'s output.
   struct LazyInitScenario
   {
     bool initialised = false;
@@ -247,10 +246,11 @@ DOCTEST_TEST_CASE(
   }
 
   {
-    // The exhaustive test above finds exactly 6 schedules for this
-    // scenario - a random-walk estimate is not expected to land on that
-    // exactly, but should be in the right ballpark rather than off by
-    // orders of magnitude.
+    // The exhaustive test above finds exactly 736 schedules for this
+    // scenario now that every lock/unlock (not just contended ones) is a
+    // decision point - a random-walk estimate is not expected to land on
+    // that exactly, but should be in the right ballpark rather than off
+    // by orders of magnitude.
     std::unique_ptr<LazyInitScenario> scenario;
     const auto estimates =
       estimate_schedule_count(2, [&]() -> std::vector<std::function<void()>> {
@@ -262,10 +262,10 @@ DOCTEST_TEST_CASE(
     double min_estimate = *std::min_element(estimates.begin(), estimates.end());
     double max_estimate = *std::max_element(estimates.begin(), estimates.end());
     DOCTEST_INFO(fmt::format(
-      "Estimates ranged from {} to {} (true count is 6)",
+      "Estimates ranged from {} to {} (true count is 736)",
       min_estimate,
       max_estimate));
     DOCTEST_CHECK(min_estimate >= 1.0);
-    DOCTEST_CHECK(max_estimate <= 100.0);
+    DOCTEST_CHECK(max_estimate <= 20000.0);
   }
 }

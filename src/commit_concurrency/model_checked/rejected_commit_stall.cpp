@@ -39,21 +39,22 @@ namespace
   }
 }
 
-// NOTE_REJECTED_COMMIT_STALL: exhaustively explores every interleaving of
-// a transaction committing across a real election, rather than the one
+// NOTE_REJECTED_COMMIT_STALL: randomly samples interleavings of a
+// transaction committing across a real election, rather than the one
 // pinned interleaving in deterministic.cpp. See that file for the
 // invariant being checked and why it currently fails.
+// estimate_schedule_count() below puts this scenario's interleaving space
+// (every real lock acquisition is now a decision point, not just
+// contended ones) far beyond what is practical to exhaust, so this
+// samples a fixed, reproducible number of random schedules instead.
 DOCTEST_TEST_CASE(
-  "Exhaustive: every interleaving of a stale-view commit and a real "
-  "election leaves replication able to catch up to the Store's own "
-  "version" *
+  "Randomly sampled: every sampled interleaving of a stale-view commit "
+  "and a real election leaves replication able to catch up to the "
+  "Store's own version" *
   doctest::test_suite("commit_concurrency_model"))
 {
   std::unique_ptr<CommitConcurrencyFixture> fixture;
   ccf::TxID baseline_txid;
-  size_t schedules_stalled = 0;
-  size_t schedules_clean = 0;
-  std::string first_stalled_schedule_description;
 
   const auto make_run = [&]() -> std::vector<std::function<void()>> {
     fixture = std::make_unique<CommitConcurrencyFixture>();
@@ -61,45 +62,42 @@ DOCTEST_TEST_CASE(
     return {[&]() { run_writer(*fixture, 0); }, [&]() { fixture->reelect(); }};
   };
   const auto on_schedule = [&](const DeterministicScheduler& scheduler) {
-    bool stalled = false;
     if (fixture->store->current_txid().seqno != baseline_txid.seqno)
     {
-      // The write landed locally without reaching consensus.
-      stalled = !replication_can_catch_up(*fixture);
-    }
-    if (stalled)
-    {
-      schedules_stalled++;
-      if (first_stalled_schedule_description.empty())
-      {
-        first_stalled_schedule_description = scheduler.describe();
-      }
-    }
-    else
-    {
-      schedules_clean++;
+      const auto description = "Schedule:\n" + scheduler.describe();
+      DOCTEST_INFO(description);
+      DOCTEST_CHECK(
+        replication_can_catch_up(*fixture)); // NOTE_REJECTED_COMMIT_STALL
     }
   };
 
-  const auto explored = explore_all_interleavings(
-    2, make_run, on_schedule, 2000, {"writer", "elector"});
+  const auto estimates = estimate_schedule_count(2, make_run);
+  const double min_estimate =
+    *std::min_element(estimates.begin(), estimates.end());
+  const double max_estimate =
+    *std::max_element(estimates.begin(), estimates.end());
+  DOCTEST_MESSAGE(fmt::format(
+    "Estimated schedule count for the single-writer scenario: {} to {}",
+    min_estimate,
+    max_estimate));
 
+  constexpr size_t num_samples = 500;
+  constexpr uint32_t seed = 42;
   DOCTEST_INFO(fmt::format(
-    "Explored {} schedules: {} clean, {} stalled",
-    explored,
-    schedules_clean,
-    schedules_stalled));
-  const auto description =
-    "First stalled schedule:\n" + first_stalled_schedule_description;
-  DOCTEST_INFO(description);
-  DOCTEST_CHECK(schedules_stalled == 0); // NOTE_REJECTED_COMMIT_STALL
+    "Sampling {} of an estimated {}-{} schedules (seed {})",
+    num_samples,
+    min_estimate,
+    max_estimate,
+    seed));
+  explore_random_interleavings(
+    2, make_run, on_schedule, num_samples, seed, {"writer", "elector"});
 }
 
 // NOTE_REJECTED_COMMIT_STALL: the same invariant as above, but with a
 // second concurrent writer added. estimate_schedule_count() below puts
-// this scenario's interleaving space well beyond what is practical to
-// exhaust (see the DOCTEST_MESSAGE this prints), so this samples a fixed,
-// reproducible number of random schedules instead of exhausting them all.
+// this scenario's interleaving space even further beyond what is
+// practical to exhaust (see the DOCTEST_MESSAGE this prints), so this
+// samples a fixed, reproducible number of random schedules instead.
 DOCTEST_TEST_CASE(
   "Randomly sampled: every sampled interleaving of two concurrent "
   "stale-view commits and a real election leaves replication able to "
@@ -134,7 +132,7 @@ DOCTEST_TEST_CASE(
     *std::max_element(estimates.begin(), estimates.end());
   DOCTEST_MESSAGE(fmt::format(
     "Estimated schedule count for the two-writer scenario: {} to {} "
-    "(compare with the single-writer scenario's exhaustive count above)",
+    "(compare with the single-writer scenario's estimate above)",
     min_estimate,
     max_estimate));
 

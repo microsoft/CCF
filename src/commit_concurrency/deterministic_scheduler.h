@@ -108,42 +108,18 @@ namespace ccf::kv::test
     }
 
     // Must be called with m held. Picks the next actor to run by asking
-    // `chooser` for an index into the ready set - see the constructor's
-    // comment for what strategies that can be. Candidates are every actor
-    // in `restrict_to` that is neither finished nor blocked waiting on a
-    // lock, or (with no restriction given) every actor in the run meeting
-    // that description - see the call sites below for when each is used
-    // and why: restricting keeps routine, uncontended lock traffic from
-    // branching the search on every actor's every lock call, which would
-    // make the search space of any realistically-sized scenario
-    // intractable.
-    void choose_next(
-      std::unique_lock<std::mutex>& lock,
-      const std::vector<ActorId>* restrict_to = nullptr)
+    // `chooser` for an index into the ready set - the set of every actor
+    // that is neither finished nor currently blocked waiting on a lock -
+    // see the constructor's comment for what strategies that can be.
+    void choose_next(std::unique_lock<std::mutex>& lock)
     {
       (void)lock;
       std::vector<ActorId> ready;
-      auto is_ready = [&](ActorId a) {
-        return !finished[a] && !blocked_on_lock[a];
-      };
-      if (restrict_to != nullptr)
+      for (ActorId a = 0; a < num_actors; ++a)
       {
-        for (auto a : *restrict_to)
+        if (!finished[a] && !blocked_on_lock[a])
         {
-          if (is_ready(a))
-          {
-            ready.push_back(a);
-          }
-        }
-      }
-      else
-      {
-        for (ActorId a = 0; a < num_actors; ++a)
-        {
-          if (is_ready(a))
-          {
-            ready.push_back(a);
-          }
+          ready.push_back(a);
         }
       }
       if (ready.empty())
@@ -253,53 +229,62 @@ namespace ccf::kv::test
     }
 
     // Called by SchedulerMutex::lock(). Blocks until this actor actually
-    // holds the lock. Taking an uncontended lock does not itself branch
-    // the search - see choose_next()'s comment - so only lock use that is
-    // genuinely contended (or an explicit yield_point()) grows the space
-    // of schedules explored.
+    // holds the lock. Every acquisition is itself a decision point - once
+    // this actor takes ownership (whether or not it had to wait for it),
+    // the scheduler considers every ready actor, including this one
+    // continuing immediately, before letting it proceed. The one
+    // exception is the reserved driver "actor" (see DriverRegistration):
+    // it never actually contends with a real actor for any lock, so its
+    // own incidental lock use (e.g. real work done while constructing a
+    // scenario's fixture) only needs to update ownership bookkeeping
+    // consistently for whichever real actor looks at the same lock next -
+    // not create a decision point of its own, since no other actor thread
+    // even exists yet to be a candidate.
     void before_lock(ActorId self, void* mutex_key)
     {
       std::unique_lock<std::mutex> lock(m);
       auto& mtx = mutex_states[mutex_key];
-      if (!mtx.owner.has_value())
+      if (self >= num_actors)
       {
         mtx.owner = self;
         return;
       }
-      for (;;)
+      while (mtx.owner.has_value())
       {
         mtx.waiters.push_back(self);
         blocked_on_lock[self] = true;
         choose_next(lock);
         cv.wait(lock, [&] { return running == self; });
-        if (!mtx.owner.has_value())
-        {
-          mtx.owner = self;
-          return;
-        }
-        // Someone else took it between this actor being woken and it
-        // running again - loop back and contend for it again.
+        // Someone else may have taken it between this actor being woken
+        // and it running again - the loop condition re-checks that.
       }
+      mtx.owner = self;
+      choose_next(lock);
+      cv.wait(lock, [&] { return running == self; });
     }
 
-    // Called by SchedulerMutex::unlock(), after releasing it. If nothing
-    // was waiting specifically on this lock, this actor simply continues
-    // (no branch); if something was, this is the one, small, meaningful
-    // decision of whether it or the actor that just unlocked runs next.
+    // Called by SchedulerMutex::unlock(), after releasing it. Every
+    // release is itself a decision point, whether or not anything was
+    // specifically waiting on this lock - any ready actor (including one
+    // now free to claim this lock) is a candidate to run next. As in
+    // before_lock() above, the reserved driver "actor" is the one
+    // exception - it only needs to clear its own ownership bookkeeping.
     void after_unlock(ActorId self, void* mutex_key)
     {
       std::unique_lock<std::mutex> lock(m);
       auto& mtx = mutex_states[mutex_key];
       mtx.owner.reset();
-      if (mtx.waiters.empty())
+      if (self >= num_actors)
       {
         return;
       }
-      const auto woken = mtx.waiters.front();
-      mtx.waiters.erase(mtx.waiters.begin());
-      blocked_on_lock[woken] = false;
-      const std::vector<ActorId> candidates{self, woken};
-      choose_next(lock, &candidates);
+      if (!mtx.waiters.empty())
+      {
+        const auto woken = mtx.waiters.front();
+        mtx.waiters.erase(mtx.waiters.begin());
+        blocked_on_lock[woken] = false;
+      }
+      choose_next(lock);
       cv.wait(lock, [&] { return running == self; });
     }
 
