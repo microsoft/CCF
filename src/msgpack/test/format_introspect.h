@@ -6,9 +6,12 @@
 // into its format family. Used by smallest-format-wins boundary tests
 // to assert the encoder picked the narrowest fitting form.
 //
-// The hex `case` labels here are intentional: they cross-check the
-// `fmt_byte::*` constants used by the encoder by re-stating the same
-// values from a separate source. A bug that swapped, say, 0xCD and
+// The MessagePack-defined names, bit masks, and byte values below come from
+// the format table:
+// https://github.com/msgpack/msgpack/blob/9aa092d6ca81f12005bd7dcbeb6488ad319e5133/spec.md#L98-L136
+//
+// The hex `case` labels intentionally cross-check the `fmt_byte::*`
+// constants used by the encoder. A bug that swaps, for example, 0xCD and
 // 0xCE in either place is caught when the boundary tests run.
 
 #include <cstdint>

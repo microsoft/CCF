@@ -39,37 +39,7 @@ namespace ccf::msgpack::utils
     }
     else
     {
-      // std::byteswap is C++23-only; this hand-rolled swap keeps the
-      // file C++20-compatible.
-      const auto swapped = [&]() -> T {
-        if constexpr (sizeof(T) == 2)
-        {
-          return static_cast<T>(
-            (static_cast<uint16_t>(value) << 8) |
-            (static_cast<uint16_t>(value) >> 8));
-        }
-        else if constexpr (sizeof(T) == 4)
-        {
-          const auto v = static_cast<uint32_t>(value);
-          return static_cast<T>(
-            ((v & 0x000000FFu) << 24) | ((v & 0x0000FF00u) << 8) |
-            ((v & 0x00FF0000u) >> 8) | ((v & 0xFF000000u) >> 24));
-        }
-        else
-        {
-          const auto v = static_cast<uint64_t>(value);
-          return static_cast<T>(
-            ((v & 0x00000000000000FFull) << 56) |
-            ((v & 0x000000000000FF00ull) << 40) |
-            ((v & 0x0000000000FF0000ull) << 24) |
-            ((v & 0x00000000FF000000ull) << 8) |
-            ((v & 0x000000FF00000000ull) >> 8) |
-            ((v & 0x0000FF0000000000ull) >> 24) |
-            ((v & 0x00FF000000000000ull) >> 40) |
-            ((v & 0xFF00000000000000ull) >> 56));
-        }
-      }();
-
+      const auto swapped = std::byteswap(value);
       const auto offset = buf.size();
       buf.resize(offset + sizeof(T));
       std::memcpy(buf.data() + offset, &swapped, sizeof(T));
