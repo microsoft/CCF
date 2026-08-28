@@ -1435,7 +1435,7 @@ if(BUILD_TESTS)
   # Certificate-authenticated blocking logging workload, driven by locust so
   # that the number of concurrent clients can be varied.
   add_e2e_test(
-    NAME pi_logging_cert_blocking_locust
+    NAME logging_cert_blocking_locust
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/logging_cert_locust.py
     LABEL perf
     CONFIGURATIONS perf
@@ -1486,7 +1486,7 @@ if(BUILD_TESTS)
   # exercise every configured worker thread, so this also covers the
   # multi-threaded basic workload.
   add_e2e_test(
-    NAME pi_basic_blocking_locust
+    NAME basic_blocking_locust
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/basicperf_locust.py
     LABEL perf
     CONFIGURATIONS perf
@@ -1519,7 +1519,7 @@ if(BUILD_TESTS)
   # JWT-authenticated blocking logging workload, driven by locust so that the
   # number of concurrent clients can be varied.
   add_e2e_test(
-    NAME pi_logging_jwt_blocking_locust
+    NAME logging_jwt_blocking_locust
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/logging_jwt_locust.py
     LABEL perf
     CONFIGURATIONS perf
