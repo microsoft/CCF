@@ -111,6 +111,28 @@ namespace ccf::kv::test
     // `chooser` for an index into the ready set - the set of every actor
     // that is neither finished nor currently blocked waiting on a lock -
     // see the constructor's comment for what strategies that can be.
+    //
+    // TODO: every lock/unlock/yield_point() is currently an unconditional
+    // decision point (branches the search over every ready actor). A
+    // useful middle ground: treat each of these as only a *candidate*
+    // decision point, and let a per-scenario predicate (matched against
+    // the real semantic label already reported via
+    // ccf::pal::lock_label_sink/yield_point()'s own label - no further
+    // production code changes needed) decide whether it actually
+    // branches, or just fast-passes the current actor through unchanged
+    // (as the driver "actor" already does unconditionally below). Real
+    // mutual exclusion is unaffected either way - only whether the search
+    // explores alternatives there. This lets a scenario dial the search
+    // space down to exactly the handful of points it cares about (e.g.
+    // "the unlock of version_lock in Store::commit()"), rather than
+    // choosing between "every lock branches" (often computationally
+    // infeasible - see estimate_schedule_count()) and "only explicit
+    // yield_points branch" (may miss semantic-lock-ordering bugs
+    // entirely). Suggested workflow once this exists: random search over
+    // the full, unfiltered space to find violations; turn each found
+    // violation into a deterministic regression test pinned to its exact
+    // decision sequence; then fuzz with a narrow allowlist around those
+    // known points for cheap, targeted, ongoing coverage.
     void choose_next(std::unique_lock<std::mutex>& lock)
     {
       (void)lock;
