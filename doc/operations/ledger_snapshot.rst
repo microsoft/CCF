@@ -121,11 +121,11 @@ By default, the ledger chunk locator endpoints expose only canonical ``.committe
 
 .. code-block:: http
 
-    GET /node/ledger_chunk?since=101&include_committed_prefix=true
+    GET /node/ledger_chunk?since=101&include_committed_prefix=true HTTP/1.1
 
 The node still prefers a canonical ``.committed`` file when one covers the requested sequence number. Otherwise, if the sequence number is locally available and committed, it returns a ``307 Temporary Redirect`` to a resource such as:
 
-.. code-block:: http
+.. code-block:: text
 
     /node/ledger_chunk/committed_prefix/ledger_101-140.committed_prefix
 
