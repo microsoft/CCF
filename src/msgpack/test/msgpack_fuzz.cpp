@@ -104,77 +104,67 @@ namespace
     }
   };
 
-  struct PendingValue
+  json generate_value(Input& input)
   {
-    json* value;
-    size_t depth;
-  };
-
-  json generate_value(Input& input, size_t depth)
-  {
-    constexpr uint8_t SCALAR_VARIANTS = 7;
-    constexpr uint8_t ALL_VARIANTS = 9;
+    constexpr uint8_t VARIANTS = 9;
 
     json result;
-    std::vector<PendingValue> pending = {{&result, depth}};
+    std::vector<json*> pending = {&result};
 
     while (!pending.empty())
     {
-      const auto current = pending.back();
+      auto* current = pending.back();
       pending.pop_back();
 
-      const auto variant =
-        input.byte() % (current.depth == 0 ? SCALAR_VARIANTS : ALL_VARIANTS);
-
-      switch (variant)
+      switch (input.byte() % VARIANTS)
       {
-        case 0:
-          *current.value = nullptr;
+        case 0: // Null
+          *current = nullptr;
           break;
-        case 1:
-          *current.value = (input.byte() & 1) != 0;
+        case 1: // Boolean
+          *current = (input.byte() & 1) != 0;
           break;
-        case 2:
-          *current.value = input.uint64();
+        case 2: // Unsigned integer
+          *current = input.uint64();
           break;
-        case 3:
+        case 3: // Signed integer
         {
           const auto value = std::bit_cast<int64_t>(input.uint64());
-          *current.value =
+          *current =
             value < 0 ? json(value) : json(static_cast<uint64_t>(value));
           break;
         }
-        case 4:
+        case 4: // Floating-point number
         {
           auto value = std::bit_cast<double>(input.uint64());
           if (!std::isfinite(value))
           {
             value = 0;
           }
-          *current.value = value;
+          *current = value;
           break;
         }
-        case 5:
-          *current.value = input.string();
+        case 5: // String
+          *current = input.string();
           break;
-        case 6:
-          *current.value = json::binary(input.binary());
+        case 6: // Binary data
+          *current = json::binary(input.binary());
           break;
-        case 7:
+        case 7: // Array
         {
-          *current.value = json::array();
-          auto& array = current.value->get_ref<json::array_t&>();
+          *current = json::array();
+          auto& array = current->get_ref<json::array_t&>();
           array.resize(input.byte() % 5);
           for (auto it = array.rbegin(); it != array.rend(); ++it)
           {
-            pending.push_back({&*it, current.depth - 1});
+            pending.push_back(&*it);
           }
           break;
         }
-        case 8:
+        case 8: // Map
         {
-          *current.value = json::object();
-          auto& object = current.value->get_ref<json::object_t&>();
+          *current = json::object();
+          auto& object = current->get_ref<json::object_t&>();
           const auto size = input.byte() % 5;
           for (size_t i = 0; i < size; ++i)
           {
@@ -184,7 +174,7 @@ namespace
           }
           for (auto it = object.rbegin(); it != object.rend(); ++it)
           {
-            pending.push_back({&it->second, current.depth - 1});
+            pending.push_back(&it->second);
           }
           break;
         }
@@ -200,7 +190,7 @@ namespace
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
 {
   Input input(data, size);
-  const auto expected = generate_value(input, size);
+  const auto expected = generate_value(input);
 
   std::vector<uint8_t> encoded;
   ccf::msgpack::test::encode_json(encoded, expected);

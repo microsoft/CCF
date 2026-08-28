@@ -471,7 +471,7 @@ TEST_CASE("encode_json handles deeply nested values iteratively")
   std::vector<uint8_t> buf;
   encode_json(buf, value);
 
-  REQUIRE(buf.size() == depth + 1);
+  REQUIRE(buf.size() == DEPTH + 1);
   CHECK(std::all_of(
     buf.begin(), buf.end() - 1, [](uint8_t byte) { return byte == 0x91; }));
   CHECK(buf.back() == 0xC0);

@@ -323,7 +323,8 @@ namespace ccf::msgpack
         Error::STRING_TOO_LARGE,
         "string length " + std::to_string(n) + " exceeds 2^32 - 1");
     }
-    if (!s.empty()){
+    if (!s.empty())
+    {
       buf.insert(
         buf.end(),
         reinterpret_cast<const uint8_t*>(s.data()),
