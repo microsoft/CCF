@@ -48,9 +48,15 @@ def cli_args():
         type=int,
         default=1000,
     )
-    return infra.e2e_args.cli_args(
+    args = infra.e2e_args.cli_args(
         parser=parser, accept_unknown=False, ledger_chunk_bytes_override="5MB"
     )
+    if args.js_app_bundle is not None:
+        parser.error(
+            "--js-app-bundle is not supported: this benchmark requires the "
+            "C++-only /records/blocking/{key} endpoint"
+        )
+    return args
 
 
 if __name__ == "__main__":
