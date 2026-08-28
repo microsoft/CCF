@@ -13,6 +13,7 @@ function(add_ccf_app name)
 
   # Build app executable
   add_executable(${name} ${PARSED_ARGS_SRCS})
+  target_compile_features(${name} PRIVATE cxx_std_23)
 
   target_include_directories(${name} PRIVATE ${PARSED_ARGS_INCLUDE_DIRS})
   target_include_directories(
@@ -56,6 +57,7 @@ function(add_ccf_static_library name)
   cmake_parse_arguments(PARSE_ARGV 1 PARSED_ARGS "" "" "SRCS;LINK_LIBS")
 
   add_library(${name} STATIC ${PARSED_ARGS_SRCS})
+  target_compile_features(${name} PUBLIC cxx_std_23)
 
   target_link_libraries(${name} PUBLIC ${PARSED_ARGS_LINK_LIBS})
 
