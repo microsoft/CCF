@@ -537,6 +537,7 @@ install(
 install(PROGRAMS tests/sandbox/sandbox.sh DESTINATION bin)
 install(PROGRAMS tests/docker_wrap.sh DESTINATION bin)
 install(PROGRAMS scripts/ensure-snmalloc.sh DESTINATION bin)
+install(PROGRAMS scripts/install_uv.sh DESTINATION bin)
 install(FILES samples/constitutions/default/actions.js DESTINATION bin)
 install(FILES samples/constitutions/default/validate.js DESTINATION bin)
 install(FILES samples/constitutions/sandbox/resolve.js DESTINATION bin)
@@ -1435,18 +1436,30 @@ if(BUILD_TESTS)
     ADDITIONAL_ARGS ${RECONFIG_TEST_ARGS} ${ROTATION_TEST_ARGS}
   )
 
-  add_piccolo_test(
-    NAME pi_ls
-    PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/piccolo_driver.py
-    CLIENT_BIN ./submit
-    PERF_LABEL "Logging"
+  # Certificate-authenticated blocking logging workload, driven by locust so
+  # that the number of concurrent clients can be varied.
+  add_e2e_test(
+    NAME logging_cert_blocking_locust
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/logging_cert_locust.py
+    LABEL perf
+    CONFIGURATIONS perf
     ADDITIONAL_ARGS
       --package
       "samples/apps/logging/logging"
-      --max-writes-ahead
-      1000
-      --repetitions
-      100000
+      --perf-label
+      "Logging Certificate Blocking Locust"
+      --snapshot-tx-interval
+      10000
+      --users
+      640
+      --spawn-rate
+      640
+      --locust-processes
+      10
+      --measure-time-s
+      20
+      --sig-ms-intervals
+      20
   )
 
   add_piccolo_test(
@@ -1461,22 +1474,38 @@ if(BUILD_TESTS)
       "1,write,3000000,primary"
   )
 
-  add_piccolo_test(
-    NAME pi_basic_js
-    PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/basicperf.py
-    CLIENT_BIN ./submit
-    PERF_LABEL "Basic JS"
+  # JavaScript write workload driven by locust so that the number of
+  # concurrent clients can be varied.
+  add_e2e_test(
+    NAME basic_js_locust
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/basicperf_locust.py
+    LABEL perf
+    CONFIGURATIONS perf
     ADDITIONAL_ARGS
       --js-app-bundle
       ${CMAKE_SOURCE_DIR}/samples/apps/basic/js
-      --client-def
-      "1,write,300000,primary"
+      --perf-label
+      "Basic JS Locust"
+      --snapshot-tx-interval
+      10000
+      --users
+      320
+      --spawn-rate
+      320
+      --locust-processes
+      10
+      --measure-time-s
+      20
+      # Match the signing interval used by the old Piccolo benchmark.
+      --sig-ms-intervals
+      100
   )
 
-  # Blocking commit benchmark driven by locust so that the number of
-  # concurrent clients can be varied.
+  # Blocking commit benchmark driven by locust. Its concurrent connections
+  # exercise every configured worker thread, so this also covers the
+  # multi-threaded basic workload.
   add_e2e_test(
-    NAME pi_basic_blocking_locust
+    NAME basic_blocking_locust
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/basicperf_locust.py
     LABEL perf
     CONFIGURATIONS perf
@@ -1506,24 +1535,10 @@ if(BUILD_TESTS)
       100
   )
 
-  if(WORKER_THREADS)
-    add_piccolo_test(
-      NAME pi_basic_mt
-      PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/basicperf.py
-      CLIENT_BIN ./submit
-      PERF_LABEL "Basic Multi-Threaded"
-      ADDITIONAL_ARGS
-        --package
-        "samples/apps/basic/basic"
-        --client-def
-        "${WORKER_THREADS},write,2000000,primary"
-    )
-  endif()
-
   # JWT-authenticated blocking logging workload, driven by locust so that the
   # number of concurrent clients can be varied.
   add_e2e_test(
-    NAME pi_logging_jwt_blocking_locust
+    NAME logging_jwt_blocking_locust
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/logging_jwt_locust.py
     LABEL perf
     CONFIGURATIONS perf

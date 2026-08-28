@@ -50,6 +50,7 @@ if [ -f "${VERSION_FILE}" ]; then
     # install tree
     BINARY_DIR=${PATH_HERE}
     START_NETWORK_SCRIPT="${PATH_HERE}"/start_network.py
+    UV_INSTALLER="${PATH_HERE}"/install_uv.sh
     if [ ${is_package_specified} == false ] && [ ${is_js_bundle_specified} == false ]; then
         # Only on install tree, default to installed js logging app
         echo "No package/app specified. Defaulting to installed JS logging app"
@@ -60,16 +61,19 @@ else
     # source tree
     BINARY_DIR=.
     START_NETWORK_SCRIPT="${PATH_HERE}"/../start_network.py
+    UV_INSTALLER="${PATH_HERE}"/../../scripts/install_uv.sh
 fi
 
 if [ ! -f "${VENV_DIR}/bin/activate" ]; then
     echo "Setting up Python environment..."
-    python3 -m venv "${VENV_DIR}"
+    python3 -m venv --without-pip "${VENV_DIR}"
+    bash "${UV_INSTALLER}" "${VENV_DIR}"/bin
 
     # shellcheck source=/dev/null
     source "${VENV_DIR}"/bin/activate
-    echo "Installing pip..."
-    pip install -U -q pip
+    if [ -n "${PIP_INDEX_URL:-}" ] && [ -z "${UV_INDEX_URL:-}" ]; then
+        export UV_INDEX_URL="$PIP_INDEX_URL"
+    fi
 
     if [ -f "${VERSION_FILE}" ]; then
         VERSION=$(<"${VERSION_FILE}")
@@ -79,20 +83,20 @@ if [ ! -f "${VENV_DIR}/bin/activate" ]; then
             # an install just before it is released
             echo "Using python package: ${PYTHON_PACKAGE_PATH}"
             echo "Installing ccf package from ${PYTHON_PACKAGE_PATH}..."
-            pip install -q -U -e "${PYTHON_PACKAGE_PATH}"
+            uv pip install -q -e "${PYTHON_PACKAGE_PATH}"
         else
             # Note: Strip unsafe suffix if it exists
             sanitised_version=${VERSION%"+unsafe"}
             echo "Installing ccf package (${sanitised_version})..."
-            pip install -q -U ccf=="${sanitised_version}"
+            uv pip install -q ccf=="${sanitised_version}"
         fi
         echo "Installing test dependencies..."
-        pip install -q -U -r "${PATH_HERE}"/requirements.txt
+        uv pip install -q -r "${PATH_HERE}"/requirements.txt
     else
         echo "Installing ccf package from source tree..."
-        pip install -q -U -e "${PATH_HERE}"/../../python/
+        uv pip install -q -e "${PATH_HERE}"/../../python/
         echo "Installing test dependencies..."
-        pip install -q -U -r "${PATH_HERE}"/../requirements.txt
+        uv pip install -q -r "${PATH_HERE}"/../requirements.txt
     fi
 
     echo "Python environment successfully setup"

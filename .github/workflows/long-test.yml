@@ -17,9 +17,6 @@ concurrency:
 
 permissions: read-all
 
-env:
-  PIP_INDEX_URL: https://packagefeedproxy.microsoft.io/pypi/simple/
-
 jobs:
   long-asan:
     if: &check_trigger_conditions ${{ (github.event.action == 'labeled' && github.event.label.name == 'run-long-test') || (github.event.action != 'labeled' && contains(github.event.pull_request.labels.*.name, 'run-long-test')) || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' }}

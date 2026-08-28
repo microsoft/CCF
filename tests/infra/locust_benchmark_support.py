@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-"""Locust-side helpers shared by blocking benchmark workloads."""
+"""Locust-side helpers shared by benchmark workloads."""
 
 import logging
 import ssl
