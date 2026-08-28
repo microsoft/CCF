@@ -14,23 +14,39 @@ namespace asynchost
 {
   static const auto UnassociatedNode = ccf::NodeId("Unknown");
 
-  class NodeConnections
+  // See NodeConnectionsImpl::simultaneous_connect_window.
+  static constexpr auto default_simultaneous_connect_window =
+    std::chrono::seconds(2);
+
+  template <class ConnType>
+  class NodeConnectionsImpl
   {
   private:
-    class NodeConnectionBehaviour : public SocketBehaviour<TCP>
+    // Identifies the current connection with a peer, whether we opened it, and
+    // when it was created. Knowing this is what allows two nodes which dialled
+    // each other at the same moment to agree on which connection to keep.
+    struct ConnectionInfo
+    {
+      ConnType socket = nullptr;
+      bool outgoing = false;
+      std::chrono::steady_clock::time_point created =
+        std::chrono::steady_clock::now();
+    };
+
+    class NodeConnectionBehaviour : public SocketBehaviour<ConnType>
     {
     private:
     public:
-      NodeConnections& parent;
+      NodeConnectionsImpl& parent;
       std::optional<ccf::NodeId> node;
       std::optional<size_t> msg_size = std::nullopt;
       std::vector<uint8_t> pending;
 
       NodeConnectionBehaviour(
         const char* name,
-        NodeConnections& parent,
+        NodeConnectionsImpl& parent,
         std::optional<ccf::NodeId> node = std::nullopt) :
-        SocketBehaviour<TCP>(name, "TCP"),
+        SocketBehaviour<ConnType>(name, "TCP"),
         parent(parent),
         node(std::move(node))
       {}
@@ -115,7 +131,13 @@ namespace asynchost
 
           if (!node.has_value())
           {
-            associate_incoming(from);
+            if (!associate_incoming(from))
+            {
+              // We are keeping an existing connection with this peer in
+              // preference to this one. Close it, rather than leaving two
+              // connections up and having to guess which one to write to.
+              return false;
+            }
             node = from;
           }
 
@@ -147,23 +169,29 @@ namespace asynchost
         return true;
       }
 
-      virtual void associate_incoming(const ccf::NodeId& /*unused*/) {}
+      /// Returns false if this connection should be dropped rather than used.
+      virtual bool associate_incoming(const ccf::NodeId& /*unused*/)
+      {
+        return true;
+      }
     };
 
     class NodeIncomingBehaviour : public NodeConnectionBehaviour
     {
     public:
+      using NodeConnectionBehaviour::parent;
+
       size_t id;
       std::optional<ccf::NodeId> node_id;
 
-      NodeIncomingBehaviour(NodeConnections& parent, size_t id_) :
+      NodeIncomingBehaviour(NodeConnectionsImpl& parent, size_t id_) :
         NodeConnectionBehaviour("Node Incoming", parent),
         id(id_)
       {}
 
       void on_disconnect() override
       {
-        LOG_DEBUG_FMT("Disconnecting incoming connection {}", id);
+        LOG_INFO_FMT("Disconnecting incoming connection {}", id);
         parent.unassociated_incoming.erase(id);
 
         if (node_id.has_value())
@@ -172,10 +200,8 @@ namespace asynchost
         }
       }
 
-      void associate_incoming(const ccf::NodeId& n) override
+      bool associate_incoming(const ccf::NodeId& n) override
       {
-        node_id = n;
-
         const auto unassociated = parent.unassociated_incoming.find(id);
         CCF_ASSERT_FMT(
           unassociated != parent.unassociated_incoming.end(),
@@ -184,31 +210,60 @@ namespace asynchost
           n,
           id);
 
-        // Always prefer this (probably) newer connection. Pathological case is
-        // where both nodes open outgoings to each other at the same time, both
-        // see the corresponding incoming connections and _drop_ their outgoing
-        // connections. Both have a useless incoming connection they think they
-        // can use. Assumption is that they progress at different rates, and one
-        // of them eventually spots the dead connection and opens a new one
-        // which succeeds.
-        parent.connections[n] = unassociated->second;
+        // If we already have a *recently created* outgoing connection to this
+        // peer, then the two of us dialled each other at the same time and
+        // there are now two connections where one is needed. Both nodes must
+        // independently pick the same one to keep. If they do not, each
+        // destroys the connection the other is relying on, and both are left
+        // holding a socket whose far end is gone. Ordering by node ID gives
+        // both sides the same answer using only information they already have.
+        //
+        // The age check matters. An incoming connection from a peer we already
+        // have a settled connection to means that peer believes the link is
+        // broken, and it is in a better position to know - it may have seen an
+        // error we did not. Defending our own connection indefinitely would
+        // deny the peer the only means it has of repairing a link that is dead
+        // in a way we cannot detect, which is precisely the failure this change
+        // exists to prevent. So we only defend a connection young enough to
+        // still be part of a genuine race; anything older yields, as before.
+        const auto existing = parent.connections.find(n);
+        if (
+          existing != parent.connections.end() && existing->second.outgoing &&
+          (std::chrono::steady_clock::now() - existing->second.created) <
+            parent.simultaneous_connect_window &&
+          !parent.prefer_incoming_from(n))
+        {
+          LOG_INFO_FMT(
+            "Refusing incoming node connection ({}) from {}: keeping our "
+            "existing outgoing connection to resolve a simultaneous connect",
+            id,
+            n);
+          return false;
+        }
+
+        node_id = n;
+        parent.connections[n] = {unassociated->second, false};
         parent.unassociated_incoming.erase(unassociated);
 
-        LOG_DEBUG_FMT(
-          "Node incoming connection ({}) associated with {}", id, n);
+        LOG_INFO_FMT("Node incoming connection ({}) associated with {}", id, n);
+        return true;
       }
     };
 
     class NodeOutgoingBehaviour : public NodeConnectionBehaviour
     {
     public:
-      NodeOutgoingBehaviour(NodeConnections& parent, const ccf::NodeId& node) :
+      using NodeConnectionBehaviour::node;
+      using NodeConnectionBehaviour::parent;
+
+      NodeOutgoingBehaviour(
+        NodeConnectionsImpl& parent, const ccf::NodeId& node) :
         NodeConnectionBehaviour("Node Outgoing", parent, node)
       {}
 
       void on_bind_failed() override
       {
-        LOG_DEBUG_FMT(
+        LOG_INFO_FMT(
           "Disconnecting outgoing connection with {}: bind failed",
           *node); // NOLINT(bugprone-unchecked-optional-access)
         parent.remove_connection(
@@ -217,7 +272,7 @@ namespace asynchost
 
       void on_resolve_failed() override
       {
-        LOG_DEBUG_FMT(
+        LOG_INFO_FMT(
           "Disconnecting outgoing connection with {}: resolve failed",
           *node); // NOLINT(bugprone-unchecked-optional-access)
         parent.remove_connection(
@@ -226,7 +281,7 @@ namespace asynchost
 
       void on_connect_failed() override
       {
-        LOG_DEBUG_FMT(
+        LOG_INFO_FMT(
           "Disconnecting outgoing connection with {}: connect failed",
           *node); // NOLINT(bugprone-unchecked-optional-access)
         parent.remove_connection(
@@ -235,7 +290,7 @@ namespace asynchost
 
       void on_disconnect() override
       {
-        LOG_DEBUG_FMT(
+        LOG_INFO_FMT(
           "Disconnecting outgoing connection with {}: disconnected",
           *node); // NOLINT(bugprone-unchecked-optional-access)
         parent.remove_connection(
@@ -243,35 +298,49 @@ namespace asynchost
       }
     };
 
-    class NodeServerBehaviour : public SocketBehaviour<TCP>
+    class NodeServerBehaviour : public SocketBehaviour<ConnType>
     {
     public:
-      NodeConnections& parent;
+      NodeConnectionsImpl& parent;
 
-      NodeServerBehaviour(NodeConnections& parent) :
-        SocketBehaviour<TCP>("Node Server", "TCP"),
+      NodeServerBehaviour(NodeConnectionsImpl& parent) :
+        SocketBehaviour<ConnType>("Node Server", "TCP"),
         parent(parent)
       {}
 
-      void on_accept(TCP& peer) override
+      void on_accept(ConnType& peer) override
       {
         auto id = parent.get_next_id();
         peer->set_behaviour(
           std::make_unique<NodeIncomingBehaviour>(parent, id));
         parent.unassociated_incoming.emplace(id, peer);
-        LOG_DEBUG_FMT("Accepted new incoming node connection ({})", id);
+        LOG_INFO_FMT("Accepted new incoming node connection ({})", id);
       }
     };
 
     Ledger& ledger;
-    TCP listener;
+    ConnType listener;
 
     std::unordered_map<ccf::NodeId, std::pair<std::string, std::string>>
       node_addresses;
 
-    std::unordered_map<ccf::NodeId, TCP> connections;
+    std::unordered_map<ccf::NodeId, ConnectionInfo> connections;
 
-    std::unordered_map<size_t, TCP> unassociated_incoming;
+    // How recently we must have opened an outgoing connection to treat an
+    // incoming connection from the same peer as a simultaneous connect rather
+    // than as that peer trying to repair a link it believes is broken. A real
+    // race is resolved within a round trip; this only needs to be long enough
+    // to cover one, and short enough that a peer's repair is not denied for
+    // any meaningful time.
+    std::chrono::milliseconds simultaneous_connect_window{
+      default_simultaneous_connect_window};
+
+    // This node's own ID, which the host is never told directly. It is carried
+    // in the sender field of every outbound message, and is only needed once
+    // an outgoing connection exists - which implies we have already sent.
+    std::optional<ccf::NodeId> self_node_id = std::nullopt;
+
+    std::unordered_map<size_t, ConnType> unassociated_incoming;
     size_t next_id = 1;
 
     ringbuffer::WriterPtr to_enclave;
@@ -281,7 +350,7 @@ namespace asynchost
       std::nullopt;
 
   public:
-    NodeConnections(
+    NodeConnectionsImpl(
       messaging::Dispatcher<ringbuffer::Message>& disp,
       Ledger& ledger,
       ringbuffer::AbstractWriterFactory& writer_factory,
@@ -301,6 +370,13 @@ namespace asynchost
       port = listener->get_port();
 
       register_message_handlers(disp);
+    }
+
+    // Only used by tests, to exercise the behaviour either side of the window
+    // without having to wait for real time to pass.
+    void set_simultaneous_connect_window(std::chrono::milliseconds window)
+    {
+      simultaneous_connect_window = window;
     }
 
     void register_message_handlers(
@@ -331,7 +407,27 @@ namespace asynchost
           // Read piece-by-piece rather than all at once
           ccf::NodeId to = serialized::read<ccf::NodeId::Value>(data, size);
 
-          TCP outbound_connection = nullptr;
+          // Peek at the sender ID without consuming it. This is the only place
+          // the host learns its own node ID, which is needed to resolve
+          // simultaneous connects consistently on both sides.
+          if (!self_node_id.has_value())
+          {
+            const uint8_t* peek = data;
+            size_t peek_size = size;
+            try
+            {
+              serialized::read<ccf::NodeMsgType>(peek, peek_size);
+              self_node_id = ccf::NodeId(
+                serialized::read<ccf::NodeId::Value>(peek, peek_size));
+            }
+            catch (const std::exception& e)
+            {
+              LOG_DEBUG_FMT(
+                "Unable to read own node ID from outbound: {}", e.what());
+            }
+          }
+
+          ConnType outbound_connection = nullptr;
           {
             const auto connection_it = connections.find(to);
             if (connection_it == connections.end())
@@ -355,7 +451,7 @@ namespace asynchost
             }
             else
             {
-              outbound_connection = connection_it->second;
+              outbound_connection = connection_it->second.socket;
             }
           }
 
@@ -446,12 +542,33 @@ namespace asynchost
     }
 
   private:
-    TCP create_connection(
+    // Decide which of two simultaneously-created connections with a peer to
+    // keep. Both nodes evaluate this for the same pair and must agree: the node
+    // with the lower ID keeps the connection it opened, and the node with the
+    // higher ID prefers the one its peer opened. Exactly one of the two
+    // connections therefore survives, and both ends of it agree.
+    bool prefer_incoming_from(const ccf::NodeId& peer) const
+    {
+      if (!self_node_id.has_value())
+      {
+        // We cannot have an outgoing connection without having sent a message,
+        // so this should be unreachable. Fall back to the previous behaviour of
+        // always preferring the newer connection.
+        LOG_FAIL_FMT(
+          "Resolving simultaneous connect with {} without knowing own node ID",
+          peer);
+        return true;
+      }
+
+      return self_node_id.value().value() > peer.value();
+    }
+
+    ConnType create_connection(
       const ccf::NodeId& node_id,
       const std::string& host,
       const std::string& port)
     {
-      auto s = TCP(true, client_connection_timeout);
+      auto s = ConnType(true, client_connection_timeout);
       s->set_behaviour(std::make_unique<NodeOutgoingBehaviour>(*this, node_id));
 
       if (!s->connect(host, port, client_interface))
@@ -460,13 +577,14 @@ namespace asynchost
         return nullptr;
       }
 
-      connections.emplace(node_id, s);
-      LOG_DEBUG_FMT(
+      connections[node_id] = {s, true};
+      LOG_INFO_FMT(
         "Added node connection with {} ({}:{})", node_id, host, port);
 
       return s;
     }
 
+    // Remove the connection with this peer, if any.
     bool remove_connection(const ccf::NodeId& node)
     {
       if (connections.erase(node) < 1)
@@ -475,7 +593,7 @@ namespace asynchost
         return false;
       }
 
-      LOG_DEBUG_FMT("Removed node connection with {}", node);
+      LOG_INFO_FMT("Removed node connection with {}", node);
       return true;
     }
 
@@ -491,4 +609,6 @@ namespace asynchost
       return id;
     }
   };
+
+  using NodeConnections = NodeConnectionsImpl<TCP>;
 }
