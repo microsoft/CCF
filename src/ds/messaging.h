@@ -170,7 +170,12 @@ namespace messaging
           get_decorated_message_name(m),
           size);
         LOG_TRACE_FMT("{}", e.what());
-        throw e;
+        // Bare throw. Throwing the named object would copy-construct a
+        // std::exception, slicing away the real type and message of every
+        // handler exception. The identical changes in cbor.h and
+        // cose_auth.cpp are for consistency; this is the only site where
+        // slicing actually occurred.
+        throw;
       }
     }
   };
