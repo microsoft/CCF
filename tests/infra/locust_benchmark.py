@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-"""Shared orchestration and reporting for blocking Locust benchmarks."""
+"""Shared orchestration and reporting for Locust benchmarks."""
 
 import argparse
 import csv
@@ -26,10 +26,16 @@ RUN_TIME_MARGIN_S = 60
 MIN_MEASURED_FRACTION = 0.9
 JWT_ENVIRONMENT_VARIABLE = "CCF_LOCUST_JWT"
 
+# Authentication subcommands understood by logging_locustfile.py.
+AUTHENTICATION_CERTIFICATE = "cert"
+AUTHENTICATION_JWT = "jwt"
+
 
 @dataclasses.dataclass(frozen=True)
 class Workload:
     locust_file_name: str
+    # Appended after every option this module passes, so a locustfile that
+    # takes a subcommand must place it last within these arguments.
     arguments: tuple[str, ...] = ()
     environment: Mapping[str, str] = dataclasses.field(default_factory=dict)
 
@@ -56,8 +62,8 @@ def positive_int(value: str) -> int:
 def add_cli_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--users",
-        help="Number of concurrent Locust users, each sending one blocking write at a time",
-        type=int,
+        help="Number of concurrent Locust users, each sending one request at a time",
+        type=positive_int,
         default=320,
     )
     parser.add_argument(
@@ -117,7 +123,6 @@ def run_locust(
         "--measure-time-s",
         str(args.measure_time_s),
     ]
-    cmd.extend(workload.arguments)
 
     # The locustfile ends the run after a full measurement window following the
     # ramp. Locust's own deadline is only a generous backstop for a stuck ramp.
@@ -134,6 +139,10 @@ def run_locust(
 
     # Report only steady state, at the full user count.
     cmd += ["--reset-stats", "--csv", csv_prefix]
+
+    # Last, because a locustfile may take a subcommand, and argparse gives every
+    # subsequent argument to the subparser.
+    cmd.extend(workload.arguments)
 
     LOG.info(f"Starting Locust: {' '.join(cmd)}")
     process_environment = os.environ.copy()
@@ -230,9 +239,9 @@ def measure(
 ) -> Result:
     """Run one workload against a fresh network at one signature interval."""
     args.sig_ms_interval = sig_ms_interval
-    # Commit cannot be observed faster than consensus updates are sent. Keep
-    # this in step with signatures so shorter intervals are not gated by the
-    # 100ms default.
+    # Keep consensus updates in step with signatures. This is required by
+    # workloads which wait for commit and gives all workloads consistent
+    # interval configuration.
     args.consensus_update_timeout_ms = sig_ms_interval
 
     LOG.info(f"Starting nodes on {args.nodes} with {sig_ms_interval}ms signatures")
