@@ -102,8 +102,8 @@ def plot_timeseries(sent, received, ax, title, args):
     ax.set_prop_cycle(cycler(color=colours))
 
     # Plot transaction times, by method
-    for grp in test_df.partition_by("method", maintain_order=True):
-        method = grp["method"][0]
+    for method in sorted(test_df["method"].drop_nulls().unique().to_list()):
+        grp = test_df.filter(pl.col("method") == method)
         tx_time_lines[method] += ax.plot(
             grp["sent_msec"].to_list(),
             grp["request_time"].to_list(),
