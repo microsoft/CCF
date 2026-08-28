@@ -1461,7 +1461,7 @@ if(BUILD_TESTS)
   # JavaScript write workload driven by locust so that the number of
   # concurrent clients can be varied.
   add_e2e_test(
-    NAME pi_basic_js_locust
+    NAME basic_js_locust
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/basicperf_locust.py
     LABEL perf
     CONFIGURATIONS perf
