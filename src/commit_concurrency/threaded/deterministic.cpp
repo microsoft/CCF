@@ -124,9 +124,9 @@ DOCTEST_TEST_CASE(
     "Rejecting the stale transaction did not leave anything behind to "
     "clean up: every further ordinary commit keeps reaching consensus "
     "immediately, with no additional election required (contrast with "
-    "NOTE_REJECTED_COMMIT_STALL below, where regaining leadership before "
-    "the stale commit lands currently does leave the Store unable to "
-    "replicate anything further until another election happens)");
+    "the test below, where regaining leadership before the stale commit "
+    "lands currently does leave the Store unable to replicate anything "
+    "further until another election happens)");
   for (size_t i = 0; i < 3; ++i)
   {
     auto later_tx = fixture.store->create_tx();
@@ -136,18 +136,19 @@ DOCTEST_TEST_CASE(
   }
 }
 
+// NOTE_REJECTED_COMMIT_STALL: a transaction rejected by Store::commit()
+// for a stale view (FAIL_NO_REPLICATE) can still leave its local write
+// applied to the Store, with no corresponding entry ever reaching
+// consensus. Once that has happened, every ordinary transaction
+// committed afterwards can also keep succeeding locally without
+// reaching consensus, until a further election restores agreement.
+// Elsewhere in this suite, DOCTEST_CHECKs marked with this same tag are
+// the specific assertions currently broken by this.
 DOCTEST_TEST_CASE(
-  "NOTE_REJECTED_COMMIT_STALL: regaining leadership before a stale-view "
-  "commit lands must not permanently stall replication" *
+  "Regaining leadership before a stale-view commit lands must not "
+  "permanently stall replication" *
   doctest::test_suite("commit_concurrency_deterministic"))
 {
-  // NOTE_REJECTED_COMMIT_STALL: as of writing, a transaction rejected here
-  // leaves its local write applied to the Store with no corresponding
-  // entry ever reaching consensus, and every ordinary transaction
-  // committed afterwards keeps succeeding locally while none of them
-  // reach consensus either - until a further election restores agreement.
-  // The DOCTEST_CHECKs below marked with this tag are expected to fail
-  // until that is fixed; the rest of this test still passes.
   CommitConcurrencyFixture fixture;
   const auto baseline_txid = fixture.commit_signature();
 

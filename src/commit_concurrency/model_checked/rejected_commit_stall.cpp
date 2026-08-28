@@ -39,10 +39,10 @@ namespace
   }
 }
 
-// NOTE_REJECTED_COMMIT_STALL: randomly samples interleavings of a
-// transaction committing across a real election, rather than the one
-// pinned interleaving in deterministic.cpp. See that file for the
-// invariant being checked and why it currently fails.
+// Randomly samples interleavings of a transaction committing across a
+// real election, rather than the one pinned interleaving in
+// deterministic.cpp - see that file for the invariant being checked and
+// why it currently fails.
 // estimate_schedule_count() below puts this scenario's interleaving space
 // (every real lock acquisition is now a decision point, not just
 // contended ones) far beyond what is practical to exhaust, so this
@@ -90,14 +90,14 @@ DOCTEST_TEST_CASE(
     max_estimate,
     seed));
   explore_random_interleavings(
-    2, make_run, on_schedule, num_samples, seed, {"writer", "elector"});
+    2, make_run, on_schedule, num_samples, seed, {"writer 0", "elector"});
 }
 
-// NOTE_REJECTED_COMMIT_STALL: the same invariant as above, but with a
-// second concurrent writer added. estimate_schedule_count() below puts
-// this scenario's interleaving space even further beyond what is
-// practical to exhaust (see the DOCTEST_MESSAGE this prints), so this
-// samples a fixed, reproducible number of random schedules instead.
+// The same invariant as above, but with a second concurrent writer
+// added. estimate_schedule_count() below puts this scenario's
+// interleaving space even further beyond what is practical to exhaust
+// (see the DOCTEST_MESSAGE this prints), so this samples a fixed,
+// reproducible number of random schedules instead.
 DOCTEST_TEST_CASE(
   "Randomly sampled: every sampled interleaving of two concurrent "
   "stale-view commits and a real election leaves replication able to "
