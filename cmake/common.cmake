@@ -231,48 +231,6 @@ function(add_e2e_test)
   endif()
 endfunction()
 
-# Helper for building end-to-end perf tests using the python infrastucture
-function(add_piccolo_test)
-  cmake_parse_arguments(
-    PARSE_ARGV 0
-    PARSED_ARGS
-    ""
-    "NAME;PYTHON_SCRIPT;CONSTITUTION;CLIENT_BIN;PERF_LABEL"
-    "ADDITIONAL_ARGS"
-  )
-
-  if(NOT PARSED_ARGS_CONSTITUTION)
-    set(PARSED_ARGS_CONSTITUTION ${CCF_NETWORK_TEST_DEFAULT_CONSTITUTION})
-  endif()
-
-  set(TEST_NAME "${PARSED_ARGS_NAME}")
-
-  if(NOT PARSED_ARGS_PERF_LABEL)
-    set(PARSED_ARGS_PERF_LABEL ${TEST_NAME})
-  endif()
-
-  add_test(
-    NAME "${PARSED_ARGS_NAME}"
-    COMMAND
-      ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT} -b . -c ${PARSED_ARGS_CLIENT_BIN}
-      ${CCF_NETWORK_TEST_ARGS} ${PARSED_ARGS_CONSTITUTION} --label ${TEST_NAME}
-      --perf-label ${PARSED_ARGS_PERF_LABEL} --snapshot-tx-interval 10000
-      ${PARSED_ARGS_ADDITIONAL_ARGS} ${NODES}
-    CONFIGURATIONS perf
-  )
-
-  # Make python test client framework importable
-  set_property(
-    TEST ${TEST_NAME}
-    APPEND
-    PROPERTY ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH}"
-  )
-
-  set_property(TEST ${TEST_NAME} APPEND PROPERTY LABELS perf)
-
-  add_san_test_properties(${TEST_NAME})
-endfunction()
-
 # Picobench wrapper
 function(add_picobench name)
   cmake_parse_arguments(

@@ -2,13 +2,11 @@
 # Licensed under the Apache 2.0 License.
 
 """
-Locust benchmark for the Basic C++ and JavaScript applications.
+"Basic Blocking Locust" benchmark.
 
-The C++ workload uses blocking writes which only return once the transaction has
-committed. The JavaScript workload uses its standard PUT /records/{key}
-endpoint, which returns without waiting for consensus commit, because
-set_consensus_committed_function() has no JavaScript equivalent. The two
-throughput figures are therefore not directly comparable.
+Measures the throughput of blocking writes (PUT /records/blocking/{key}), which
+only return once the transaction has committed. Locust lets the client count be
+ramped up while each user waits for commit.
 
 The load itself is defined in infra/basicperf_locustfile.py. Shared Locust
 orchestration and statistics handling live in infra/locust_benchmark.py.
@@ -21,16 +19,11 @@ import infra.key_space
 import infra.locust_benchmark
 
 LOCUST_FILE_NAME = "basicperf_locustfile.py"
-BLOCKING_ENDPOINT = "/records/blocking/{key}"
-RECORDS_ENDPOINT = "/records/{key}"
 
 
 def prepare_workload(args, _network, primary) -> infra.locust_benchmark.Workload:
     infra.key_space.create_and_fill_key_space(args.key_space_size, primary)
     session_auth = primary.session_auth("user0")["session_auth"]
-    # Only the C++ application has a blocking endpoint, since responding on
-    # commit is a C++-only API.
-    endpoint = RECORDS_ENDPOINT if args.js_app_bundle else BLOCKING_ENDPOINT
     return infra.locust_benchmark.Workload(
         locust_file_name=LOCUST_FILE_NAME,
         arguments=(
@@ -40,8 +33,6 @@ def prepare_workload(args, _network, primary) -> infra.locust_benchmark.Workload
             session_auth.key,
             "--key-space-size",
             str(args.key_space_size),
-            "--endpoint",
-            endpoint,
         ),
     )
 
@@ -64,8 +55,8 @@ def cli_args():
 
 if __name__ == "__main__":
     args = cli_args()
-    # The workload targets the primary, and additional nodes only add
-    # replication cost.
+    # A single node is enough: the benchmark measures the time taken to commit
+    # on the primary, and additional nodes only add replication cost.
     args.nodes = infra.e2e_args.min_nodes(args, f=0)
 
     infra.locust_benchmark.run(args, prepare_workload)

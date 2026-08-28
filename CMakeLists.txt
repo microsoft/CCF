@@ -136,11 +136,7 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/snmalloc.cmake)
 
 option(CLANG_TIDY "Run clang-tidy on the codebase" OFF)
 
-option(
-  GLIBCXX_DEBUG
-  "Enable libstdc++ debug mode (_GLIBCXX_DEBUG). Disables the submit binary (which links against Arrow, not built with _GLIBCXX_DEBUG)."
-  OFF
-)
+option(GLIBCXX_DEBUG "Enable libstdc++ debug mode (_GLIBCXX_DEBUG)." OFF)
 if(GLIBCXX_DEBUG)
   add_compile_definitions(_GLIBCXX_DEBUG)
 endif()
@@ -1458,45 +1454,6 @@ if(BUILD_TESTS)
       20
   )
 
-  add_piccolo_test(
-    NAME pi_basic
-    PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/basicperf.py
-    CLIENT_BIN ./submit
-    PERF_LABEL "Basic"
-    ADDITIONAL_ARGS
-      --package
-      "samples/apps/basic/basic"
-      --client-def
-      "1,write,3000000,primary"
-  )
-
-  # JavaScript write workload driven by locust so that the number of
-  # concurrent clients can be varied.
-  add_e2e_test(
-    NAME basic_js_locust
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/basicperf_locust.py
-    LABEL perf
-    CONFIGURATIONS perf
-    ADDITIONAL_ARGS
-      --js-app-bundle
-      ${CMAKE_SOURCE_DIR}/samples/apps/basic/js
-      --perf-label
-      "Basic JS Locust"
-      --snapshot-tx-interval
-      10000
-      --users
-      320
-      --spawn-rate
-      320
-      --locust-processes
-      10
-      --measure-time-s
-      20
-      # Match the signing interval used by the old Piccolo benchmark.
-      --sig-ms-intervals
-      100
-  )
-
   # Blocking commit benchmark driven by locust. Its concurrent connections
   # exercise every configured worker thread, so this also covers the
   # multi-threaded basic workload.
@@ -1510,9 +1467,7 @@ if(BUILD_TESTS)
       "samples/apps/basic/basic"
       --perf-label
       "Basic Blocking Locust"
-      # add_piccolo_test passes this for every piccolo perf test, but
-      # add_e2e_test does not, and the default is 10. Without it this
-      # benchmark snapshots every 10 transactions and measures the disk.
+      # Keep snapshot disk activity out of the measurement.
       --snapshot-tx-interval
       10000
       --users
@@ -1645,9 +1600,3 @@ install(
     ${CMAKE_CURRENT_SOURCE_DIR}/cmake/cpack_versions_pin.cmake
   DESTINATION ${CMAKE_INSTALL_PREFIX}/cmake
 )
-
-# Perf tool executable (requires Arrow/Parquet, not compatible with GLIBCXX_DEBUG)
-if(NOT GLIBCXX_DEBUG)
-  include(${CCF_DIR}/tests/perf-system/submitter/CMakeLists.txt)
-  add_hardening(submit)
-endif()

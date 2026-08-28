@@ -3,17 +3,16 @@
 import argparse
 import json
 import subprocess
-import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
-from sklearn.linear_model import LinearRegression
 from collections import defaultdict
+
+import matplotlib.pyplot as plt
+import numpy as np
+import polars as pl
 from cycler import cycler
 
 
 def compute_linear_regression(x, y):
-    model = LinearRegression().fit(x, y)
-    return model.coef_[0]
+    return np.polyfit(x, y, 1)[0]
 
 
 def plot_timeseries(sent, received, ax, title, args):
@@ -21,19 +20,30 @@ def plot_timeseries(sent, received, ax, title, args):
     tx_time_lines = defaultdict(list)
 
     # Add cumcount column to deal with duplicate idxs
-    sent = sent.assign(cumcount=sent.groupby("idx").cumcount())
-    received = received.assign(cumcount=received.groupby("idx").cumcount())
+    sent = sent.with_columns(pl.int_range(pl.len()).over("idx").alias("cumcount"))
+    received = received.with_columns(
+        pl.int_range(pl.len()).over("idx").alias("cumcount")
+    )
 
     # Join DataFrames
-    test_df = sent.merge(received, on=["idx", "cumcount"]).drop("cumcount", 1)
-    test_df["recv_msec"] = test_df["recv_sec"] * 1000
-    test_df["sent_msec"] = test_df["sent_sec"] * 1000
-    test_df["request_time"] = test_df["recv_msec"] - test_df["sent_msec"]
+    test_df = (
+        sent.join(
+            received,
+            on=["idx", "cumcount"],
+            maintain_order="left",
+        )
+        .drop("cumcount")
+        .with_columns(
+            (pl.col("recv_sec") * 1000).alias("recv_msec"),
+            (pl.col("sent_sec") * 1000).alias("sent_msec"),
+        )
+        .with_columns((pl.col("recv_msec") - pl.col("sent_msec")).alias("request_time"))
+    )
 
     if not args.no_throughput:
         # Print performance global throughput in dedicated box
         successful_global_commit_rate = compute_linear_regression(
-            test_df["sent_sec"].values.reshape((-1, 1)), test_df["global_commit"]
+            test_df["sent_sec"].to_numpy(), test_df["global_commit"].to_numpy()
         )
         global_rate_string = f"""global commit throughput (successful txs only):
                                 {int(successful_global_commit_rate)} tx/s"""
@@ -49,8 +59,15 @@ def plot_timeseries(sent, received, ax, title, args):
         )
 
     # Remove error values
-    test_df["commit"].replace(0, np.nan, inplace=True)
-    test_df["global_commit"].replace(0, np.nan, inplace=True)
+    test_df = test_df.with_columns(
+        [
+            pl.when(pl.col(column) == 0)
+            .then(float("nan"))
+            .otherwise(pl.col(column).cast(pl.Float64))
+            .alias(column)
+            for column in ("commit", "global_commit")
+        ]
+    )
 
     # Set axis properties
     ax.title.set_text(title)
@@ -60,18 +77,23 @@ def plot_timeseries(sent, received, ax, title, args):
     commit_ax = ax.twinx()
     for column in ("commit", "global_commit"):
         commit_lines[column] += commit_ax.plot(
-            test_df["sent_msec"], test_df[column], label=column
+            test_df["sent_msec"].to_list(),
+            test_df[column].to_list(),
+            label=column,
         )
     commit_ax.set_ylim(bottom=0, auto=True)
+    subplotspec = commit_ax.get_subplotspec()
 
     # Based on label_outer, but keeping label on last col rather than first
-    if commit_ax.is_last_col():
+    if subplotspec is None or subplotspec.is_last_col():
         commit_ax.set_ylabel("Version")
     else:
         commit_ax.set_yticks([])
 
     if args.combine_methods:
-        test_df["method"] = test_df["method"].apply(lambda s: s.split("_")[0])
+        test_df = test_df.with_columns(
+            pl.col("method").str.split("_").list.first().alias("method")
+        )
 
     colours = plt.rcParams["axes.prop_cycle"].by_key()["color"]
     used_colours = len(commit_lines)
@@ -80,16 +102,20 @@ def plot_timeseries(sent, received, ax, title, args):
     ax.set_prop_cycle(cycler(color=colours))
 
     # Plot transaction times, by method
-    for method, grp in test_df.groupby("method"):
+    for grp in test_df.partition_by("method", maintain_order=True):
+        method = grp["method"][0]
         tx_time_lines[method] += ax.plot(
-            grp["sent_msec"], grp["request_time"], ".", label=method
+            grp["sent_msec"].to_list(),
+            grp["request_time"].to_list(),
+            ".",
+            label=method,
         )
     ax.set_ylim(bottom=0, auto=True)
     ax.set_xlim(auto=True)
     ax.set(xlabel="Sent time (ms)")
 
     # Based on label_outer, but keeping x labels for all
-    if commit_ax.is_first_col():
+    if subplotspec is None or subplotspec.is_first_col():
         ax.set_ylabel("Response delay (ms)")
 
     ax.grid(axis="y")
@@ -153,8 +179,8 @@ if __name__ == "__main__":
 
     if args.command == "single":
         figure = plt.figure(figsize=figsize)
-        sent_df = pd.read_csv(args.sent)
-        received_df = pd.read_csv(args.received)
+        sent_df = pl.read_csv(args.sent)
+        received_df = pl.read_csv(args.received)
 
         ax = plt.axes()
         commits, times = plot_timeseries(sent_df, received_df, ax, args.title, args)
@@ -201,8 +227,8 @@ if __name__ == "__main__":
                     print("  No command to execute")
 
                 # Load and plotresults
-                sent_df = pd.read_csv(variant["sent"])
-                received_df = pd.read_csv(variant["received"])
+                sent_df = pl.read_csv(variant["sent"])
+                received_df = pl.read_csv(variant["received"])
                 commits, times = plot_timeseries(
                     sent_df, received_df, ax, variant["subtitle"], args
                 )
