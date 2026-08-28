@@ -5,8 +5,7 @@
 Locust write workload for the Basic C++ and JavaScript benchmarks.
 
 Each user issues writes one at a time, waiting for each response before sending
-the next. The native application uses its blocking-on-commit endpoint, while
-the JavaScript application uses its standard records endpoint.
+the next, to the path given by --endpoint.
 
 FastHttpUser (geventhttpclient) is used rather than HttpUser (requests),
 because the latter cannot drive enough requests per second to saturate the
@@ -21,10 +20,7 @@ from locust.contrib.fasthttp import FastHttpUser
 
 import infra.locust_benchmark_support
 
-ENDPOINT_PATHS = {
-    "blocking": "/records/blocking/{key}",
-    "records": "/records/{key}",
-}
+DEFAULT_ENDPOINT = "/records/blocking/{key}"
 
 DEFAULT_KEY_SPACE_SIZE = 1000
 
@@ -51,9 +47,8 @@ def init_parser(parser):
     parser.add_argument("--key", help="Path to client private key", required=True)
     parser.add_argument(
         "--endpoint",
-        help="Basic application endpoint variant to benchmark",
-        choices=tuple(ENDPOINT_PATHS),
-        default="blocking",
+        help="Path to write to, in which {key} is replaced by the key written",
+        default=DEFAULT_ENDPOINT,
     )
     parser.add_argument(
         "--key-space-size",
@@ -76,7 +71,7 @@ class Writer(FastHttpUser):
         super().__init__(environment)
         self.key_space_size = environment.parsed_options.key_space_size
         self.bodies = _get_bodies(self.key_space_size)
-        self.endpoint_path = ENDPOINT_PATHS[environment.parsed_options.endpoint]
+        self.endpoint_path = environment.parsed_options.endpoint
         # Aggregate requests into one statistics entry rather than one per key.
         self.request_name = f"PUT {self.endpoint_path}"
 

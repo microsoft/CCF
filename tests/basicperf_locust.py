@@ -19,8 +19,8 @@ import infra.key_space
 import infra.locust_benchmark
 
 LOCUST_FILE_NAME = "basicperf_locustfile.py"
-BLOCKING_ENDPOINT = "blocking"
-RECORDS_ENDPOINT = "records"
+BLOCKING_ENDPOINT = "/records/blocking/{key}"
+RECORDS_ENDPOINT = "/records/{key}"
 
 
 def prepare_workload(args, _network, primary) -> infra.locust_benchmark.Workload:
