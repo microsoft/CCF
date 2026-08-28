@@ -5,7 +5,6 @@
 
 import hashlib
 import json
-import os
 import random
 
 from locust import constant, events, task
@@ -65,9 +64,17 @@ def init_parser(parser):
     )
     certificate.add_argument("--cert", help="Path to client certificate", required=True)
     certificate.add_argument("--key", help="Path to client private key", required=True)
-    authentication.add_parser(
+    jwt = authentication.add_parser(
         AUTHENTICATION_JWT,
-        help=f"Authenticate with the bearer token in ${JWT_ENVIRONMENT_VARIABLE}",
+        help="Authenticate as a user with a bearer token",
+    )
+    jwt.add_argument(
+        "--jwt",
+        help=f"Bearer token, taken from ${JWT_ENVIRONMENT_VARIABLE} so that it "
+        "does not appear on the command line",
+        required=True,
+        env_var=JWT_ENVIRONMENT_VARIABLE,
+        is_secret=True,
     )
 
 
@@ -80,13 +87,7 @@ class BlockingWriter(FastHttpUser):
         opts = environment.parsed_options
         self.headers = {"content-type": "application/json"}
         if opts.authentication == AUTHENTICATION_JWT:
-            # Read from the environment rather than declared as an option,
-            # because the master sends every parsed option to its workers, over
-            # a socket which listens on all interfaces by default.
-            token = os.environ.get(JWT_ENVIRONMENT_VARIABLE)
-            if token is None:
-                raise RuntimeError(f"{JWT_ENVIRONMENT_VARIABLE} is not set")
-            self.headers["authorization"] = f"Bearer {token}"
+            self.headers["authorization"] = f"Bearer {opts.jwt}"
 
         self.key_space_size = opts.key_space_size
         self.bodies = _get_bodies(self.key_space_size)

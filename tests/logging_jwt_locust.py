@@ -24,8 +24,8 @@ def prepare_workload(args, network, _primary) -> infra.locust_benchmark.Workload
             str(args.key_space_size),
             infra.locust_benchmark.AUTHENTICATION_JWT,
         ),
-        # The token is inherited by Locust workers but never appears in the
-        # process command line or the logged command.
+        # Read by the jwt subcommand's --jwt, which takes its value from this
+        # variable so that the token never appears on the command line.
         environment={infra.locust_benchmark.JWT_ENVIRONMENT_VARIABLE: jwt},
     )
 
