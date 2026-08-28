@@ -28,10 +28,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Nodes from the previous service are now removed during disaster recovery instead of being retained as retired entries in `GET /node/network/nodes`, and `ledger_code.py` reports their code identities as removed (#8177).
 - Fixed an edge case where a follower could incorrectly commit to an abandoned fork while synchronising with the leader, causing it to become unavailable (#8172).
 
-### Removed
-
-- Removed the unused `ccf.cose.get_priv_key_type()` Python helper, the stale `py-spy` test dependency, and the unused `bottle` documentation dependency. (#8228)
-
 ## [7.0.12]
 
 [7.0.12]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.12
