@@ -28,6 +28,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Nodes from the previous service are now removed during disaster recovery instead of being retained as retired entries in `GET /node/network/nodes`, and `ledger_code.py` reports their code identities as removed (#8177).
 - Fixed an edge case where a follower could incorrectly commit to an abandoned fork while synchronising with the leader, causing it to become unavailable (#8172).
 
+### Removed
+
+- The Piccolo performance framework, its `submit` client, and its non-blocking Basic performance benchmarks have been removed. The `basic_blocking_locust` benchmark remains for Basic end-to-end performance coverage. (#8237)
+
 ## [7.0.12]
 
 [7.0.12]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.12
