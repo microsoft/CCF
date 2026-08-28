@@ -12,6 +12,8 @@
 #include "parquet_data.h"
 
 #include <CLI11/CLI11.hpp>
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 #include <arrow/array/array_binary.h>
 #include <arrow/builder.h>
 #include <arrow/filesystem/localfs.h>
@@ -20,6 +22,7 @@
 #include <arrow/util/config.h>
 #include <parquet/arrow/reader.h>
 #include <parquet/arrow/writer.h>
+#pragma GCC diagnostic pop
 #include <signal.h>
 #include <time.h>
 #include <utility>

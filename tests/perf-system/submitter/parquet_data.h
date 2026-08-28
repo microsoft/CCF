@@ -3,7 +3,10 @@
 
 #pragma once
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 #include <arrow/array/array_binary.h>
+#pragma GCC diagnostic pop
 #include <memory>
 #include <string>
 #include <vector>
