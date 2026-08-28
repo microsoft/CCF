@@ -721,6 +721,32 @@ if(BUILD_TESTS)
     )
     target_link_libraries(raft_test PRIVATE ccfcrypto ccf_tasks)
 
+    # Combines a real ccf::kv::Store, a real aft::Aft (raft consensus), and a
+    # real ccf::MerkleTxHistory under real OS-thread concurrency - the three
+    # components production code relies on together, but which no other unit
+    # test suite exercises jointly (kv_test stubs consensus, raft_test stubs
+    # the store, history_test stubs consensus). DETECT_DEADLOCKS is passed
+    # because the interleaving primitive itself (src/kv/test/interleaving.h)
+    # could deadlock if buggy.
+    add_unit_test(
+      real_stack_concurrency_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/interleaving_test.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/real_stack/main.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/real_stack/smoke.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/real_stack/deterministic.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/real_stack/fuzzer.cpp
+      DETECT_DEADLOCKS
+    )
+    set_property(
+      TEST real_stack_concurrency_test
+      APPEND
+      PROPERTY LABELS concurrency
+    )
+    target_link_libraries(
+      real_stack_concurrency_test
+      PRIVATE ccfcrypto http_parser ccf_kv ccf_tasks
+    )
+
     add_unit_test(
       raft_enclave_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/enclave.cpp
