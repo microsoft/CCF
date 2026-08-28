@@ -15,7 +15,6 @@ permissions: read-all
 
 env:
   IMAGE: mcr.microsoft.com/azurelinux/base/core:3.0
-  UV_INDEX_URL: https://packagefeedproxy.microsoft.io/pypi/simple/
 
 jobs:
   make_sbom:

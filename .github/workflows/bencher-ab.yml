@@ -13,9 +13,6 @@ on:
 
 permissions: read-all
 
-env:
-  UV_INDEX_URL: https://packagefeedproxy.microsoft.io/pypi/simple/
-
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
   cancel-in-progress: false

@@ -2,12 +2,10 @@
 # Licensed under the Apache 2.0 License.
 
 """
-Locust workload for the "Basic Blocking Locust" benchmark.
+Locust write workload for the Basic C++ and JavaScript benchmarks.
 
-Each user issues blocking writes (PUT /records/blocking/{key}) one at a time,
-waiting for each response before sending the next. That endpoint only responds
-once the transaction has committed, so a single user's rate is bounded by
-commit latency, and total throughput is driven by the number of users.
+Each user issues writes one at a time, waiting for each response before sending
+the next, to the path given by --endpoint.
 
 FastHttpUser (geventhttpclient) is used rather than HttpUser (requests),
 because the latter cannot drive enough requests per second to saturate the
@@ -22,9 +20,7 @@ from locust.contrib.fasthttp import FastHttpUser
 
 import infra.locust_benchmark_support
 
-# All requests are reported under a single name, so that locust aggregates them
-# into one statistics entry rather than one per key.
-REQUEST_NAME = "PUT /records/blocking/{key}"
+DEFAULT_ENDPOINT = "/records/blocking/{key}"
 
 DEFAULT_KEY_SPACE_SIZE = 1000
 
@@ -50,6 +46,11 @@ def init_parser(parser):
     parser.add_argument("--cert", help="Path to client certificate", required=True)
     parser.add_argument("--key", help="Path to client private key", required=True)
     parser.add_argument(
+        "--endpoint",
+        help="Path to write to, in which {key} is replaced by the key written",
+        default=DEFAULT_ENDPOINT,
+    )
+    parser.add_argument(
         "--key-space-size",
         help="Number of distinct keys written to",
         type=int,
@@ -57,9 +58,9 @@ def init_parser(parser):
     )
 
 
-class BlockingWriter(FastHttpUser):
-    # Send the next request as soon as the previous response arrives. Each
-    # response already waits for commit, so no additional pacing is wanted.
+class Writer(FastHttpUser):
+    # Send the next request as soon as the previous response arrives, so the
+    # user count controls concurrency without additional pacing.
     wait_time = constant(0)
 
     # Verify the service certificate, rather than skipping verification as
@@ -70,6 +71,9 @@ class BlockingWriter(FastHttpUser):
         super().__init__(environment)
         self.key_space_size = environment.parsed_options.key_space_size
         self.bodies = _get_bodies(self.key_space_size)
+        self.endpoint_path = environment.parsed_options.endpoint
+        # Aggregate requests into one statistics entry rather than one per key.
+        self.request_name = f"PUT {self.endpoint_path}"
 
     def ssl_context_factory(self):
         opts = self.environment.parsed_options
@@ -78,18 +82,16 @@ class BlockingWriter(FastHttpUser):
         )
 
     @task
-    def blocking_write(self):
+    def write(self):
         index = random.randrange(self.key_space_size)
         with self.client.put(
-            f"/records/blocking/{index}",
+            self.endpoint_path.format(key=index),
             data=self.bodies[index],
             headers={"content-type": "text/plain"},
-            name=REQUEST_NAME,
+            name=self.request_name,
             catch_response=True,
         ) as response:
-            # Anything other than the expected status is a failure, including
-            # the 5xx returned when a transaction is invalidated, and the 0
-            # reported when the connection itself failed.
+            # The transport reports status 0 when the connection itself fails.
             if response.status_code == EXPECTED_STATUS:
                 response.success()
             else:
