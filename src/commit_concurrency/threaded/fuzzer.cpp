@@ -1,6 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "consensus/aft/test/real_stack/fixture.h"
+#include "commit_concurrency/threaded/fixture.h"
 
 #define DOCTEST_CONFIG_NO_SHORT_MACRO_NAMES
 #include <atomic>
@@ -16,10 +16,10 @@
 
 // The randomised, multi-actor complement to deterministic.cpp's pinned
 // scenarios. Drives a real Store + real Aft + real MerkleTxHistory
-// (RealStackFixture) with:
+// (CommitConcurrencyFixture) with:
 //  - N writer threads, each committing ordinary transactions in a loop.
 //  - One election-churn actor, repeatedly winning a fresh real election via
-//    RealStackFixture::reelect().
+//    CommitConcurrencyFixture::reelect().
 //  - One reader thread, continuously polling
 //    TxHistory::get_replicated_state_txid_and_root() and
 //    Store::current_txid() concurrently, checking this suite's core
@@ -98,12 +98,13 @@ namespace
   void run_fuzz(uint32_t seed, const FuzzConfig& cfg)
   {
     fmt::println(
-      "real_stack fuzzer seed: {} (rerun with RNG_SEED={} to reproduce)",
+      "commit_concurrency fuzzer seed: {} (rerun with RNG_SEED={} to "
+      "reproduce)",
       seed,
       seed);
     std::mt19937 seed_rng(seed);
 
-    RealStackFixture fixture(cfg.use_real_crypto);
+    CommitConcurrencyFixture fixture(cfg.use_real_crypto);
     const auto baseline_txid = fixture.commit_signature();
 
     InvariantViolations violations;
@@ -135,12 +136,12 @@ namespace
         }
 
         // history_term_of_next_version() (unlike history_txid().view - see
-        // the comment on RealStackFixture::history_txid()) is refreshed on
-        // every rollback() to whatever term Aft passes at that moment, so
-        // it must never be ahead of Aft's own current view. It can
-        // legitimately lag transiently, since reelect() is two steps: a
-        // message bumping Aft's view, then a separate call that performs
-        // the rollback syncing history to it.
+        // the comment on CommitConcurrencyFixture::history_txid()) is refreshed
+        // on every rollback() to whatever term Aft passes at that moment, so it
+        // must never be ahead of Aft's own current view. It can legitimately
+        // lag transiently, since reelect() is two steps: a message bumping
+        // Aft's view, then a separate call that performs the rollback syncing
+        // history to it.
         const auto raft_view_before = fixture.raft->get_view();
         const auto history_current_view =
           fixture.history_term_of_next_version();
@@ -226,12 +227,12 @@ namespace
 DOCTEST_TEST_CASE(
   "Fuzz: concurrent writers, election churn, and a continuous reader keep "
   "TxHistory consistent with the Store (fast, NullTxEncryptor)" *
-  doctest::test_suite("real_stack_fuzz"))
+  doctest::test_suite("commit_concurrency_fuzz"))
 {
   // The writer threads and election_churn thread spawned by run_fuzz()
   // below run fully concurrently with no synchronisation between them, so
   // this currently exercises NOTE_IS_PRIMARY_RACE (see
-  // RealStackFixture::reelect() in fixture.h). Expect this test to fail
+  // CommitConcurrencyFixture::reelect() in fixture.h). Expect this test to fail
   // occasionally, or to abort the whole process under ThreadSanitizer,
   // until that race is fixed.
   run_fuzz(pick_seed(), FuzzConfig{});
@@ -239,7 +240,7 @@ DOCTEST_TEST_CASE(
 
 DOCTEST_TEST_CASE(
   "Soak: as above, with real crypto and more iterations" *
-  doctest::test_suite("real_stack_fuzz_soak"))
+  doctest::test_suite("commit_concurrency_fuzz_soak"))
 {
   // See NOTE_IS_PRIMARY_RACE (fixture.h) - applies here too.
   if (std::getenv("REAL_STACK_SOAK") == nullptr)

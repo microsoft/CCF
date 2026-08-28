@@ -16,12 +16,12 @@
 #include "ccf/ds/unit_strings.h"
 #include "ccf/ds/x509_time_fmt.h"
 #include "ccf/service/consensus_config.h"
+#include "commit_concurrency/interleaving.h"
 #include "consensus/aft/raft.h"
 #include "consensus/aft/test/logging_stub.h"
 #include "crypto/certs.h"
 #include "crypto/openssl/ec_key_pair.h"
 #include "kv/store.h"
-#include "kv/test/interleaving.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
 #include "node/encryptor.h"
@@ -34,10 +34,10 @@
 
 namespace ccf::kv::test
 {
-  using RealStackRaft = aft::Aft<aft::LedgerStubProxy>;
-  using RealStackTable = ccf::kv::Map<size_t, size_t>;
+  using CommitConcurrencyRaft = aft::Aft<aft::LedgerStubProxy>;
+  using CommitConcurrencyTable = ccf::kv::Map<size_t, size_t>;
 
-  inline const ccf::consensus::Configuration& real_stack_raft_settings()
+  inline const ccf::consensus::Configuration& commit_concurrency_raft_settings()
   {
     static const ccf::consensus::Configuration settings{
       ccf::ds::TimeString{"10ms"}, ccf::ds::TimeString{"100ms"}, 0};
@@ -45,7 +45,7 @@ namespace ccf::kv::test
   }
 
   inline std::optional<size_t> read_value(
-    ccf::kv::Store& store, RealStackTable& table, size_t key)
+    ccf::kv::Store& store, CommitConcurrencyTable& table, size_t key)
   {
     auto tx = store.create_read_only_tx();
     return tx.ro(table)->get(key);
@@ -54,13 +54,14 @@ namespace ccf::kv::test
   // A harness combining the real stack described above, plus helpers for
   // driving genuine raft view changes (which in turn trigger genuine
   // Store::rollback() calls, exactly as a production election would).
-  struct RealStackFixture
+  struct CommitConcurrencyFixture
   {
     const ccf::NodeId node_id = ccf::kv::test::PrimaryNodeId;
     // Used only as the notional sender of the fake RequestVote messages
     // step_down() constructs below - never actually configured as a real
     // peer.
-    const ccf::NodeId phantom_peer = ccf::NodeId("RealStackFixturePhantomPeer");
+    const ccf::NodeId phantom_peer =
+      ccf::NodeId("CommitConcurrencyFixturePhantomPeer");
     std::shared_ptr<ccf::crypto::ECKeyPair> node_kp =
       ccf::crypto::make_ec_key_pair();
     std::shared_ptr<ccf::crypto::ECKeyPair_OpenSSL> service_kp =
@@ -68,15 +69,15 @@ namespace ccf::kv::test
         ccf::crypto::make_ec_key_pair());
     std::shared_ptr<ccf::kv::Store> store = std::make_shared<ccf::kv::Store>();
     std::shared_ptr<ccf::MerkleTxHistory> history;
-    std::shared_ptr<RealStackRaft> raft;
-    RealStackTable table{"public:table"};
+    std::shared_ptr<CommitConcurrencyRaft> raft;
+    CommitConcurrencyTable table{"public:table"};
     ccf::View initial_view = 0;
 
     // use_real_crypto selects between NullTxEncryptor (default: fast enough
     // for a tight fuzzing loop) and a real ccf::NodeEncryptor (slower, but
     // exercises real AES-GCM IV/nonce derivation - relevant to catching
     // nonce-reuse-across-rollback style bugs that NullTxEncryptor cannot).
-    explicit RealStackFixture(bool use_real_crypto = false)
+    explicit CommitConcurrencyFixture(bool use_real_crypto = false)
     {
       if (use_real_crypto)
       {
@@ -106,8 +107,8 @@ namespace ccf::kv::test
         service_kp, ccf::COSESignaturesConfig{});
       store->set_history(history);
 
-      raft = std::make_shared<RealStackRaft>(
-        real_stack_raft_settings(),
+      raft = std::make_shared<CommitConcurrencyRaft>(
+        commit_concurrency_raft_settings(),
         std::make_unique<aft::Adaptor<ccf::kv::Store>>(store),
         std::make_unique<aft::LedgerStubProxy>(node_id),
         std::make_shared<aft::ChannelStubProxy>(),

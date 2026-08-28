@@ -35,6 +35,8 @@ find_library(TLS_LIBRARY ssl)
 
 add_library(ccfcrypto STATIC ${CCFCRYPTO_SRC})
 add_warning_checks(ccfcrypto)
+# See the comment on ccf_kv's own CCF_STATIC_LIBRARY_BUILD in CMakeLists.txt.
+target_compile_definitions(ccfcrypto PRIVATE CCF_STATIC_LIBRARY_BUILD)
 target_compile_options(
   ccfcrypto
   PRIVATE $<$<COMPILE_LANG_AND_ID:CXX,Clang>:-Wno-vla-cxx-extension>

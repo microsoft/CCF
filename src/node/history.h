@@ -2,6 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#if defined(CCF_STATIC_LIBRARY_BUILD)
+#  error \
+    "node/history.h must never be compiled into ccf_kv, ccf_tasks, or ccfcrypto: their compiled objects are linked, unmodified, by every test binary, including one that recompiles this header with a different ccf::pal::Mutex (see src/commit_concurrency/interleaving_lock_override.h) - two different memory layouts for the same class name in one binary would be an ODR violation."
+#endif
+
 #include "ccf/crypto/cose_verifier.h"
 #include "ccf/ds/x509_time_fmt.h"
 #include "ccf/node/ledger_sign_mode.h"
@@ -650,8 +655,8 @@ namespace ccf
       const auto delay = std::chrono::milliseconds(sig_ms_interval);
 
       emit_signature_periodic_task = ccf::tasks::make_basic_task([this]() {
-        std::unique_lock<ccf::pal::Mutex> mguard(
-          this->signature_lock, std::defer_lock);
+        ccf::pal::unique_lock<ccf::pal::Mutex> mguard(
+          this->signature_lock, std::defer_lock, "periodic signature emission");
 
         bool should_emit_signature = false;
 
@@ -734,7 +739,7 @@ namespace ccf
 
       // Delay taking this lock until _after_ the read above, to avoid lock
       // inversions
-      std::lock_guard<ccf::pal::Mutex> guard(state_lock);
+      ccf::pal::unique_lock<ccf::pal::Mutex> guard(state_lock);
 
       CCF_ASSERT_FMT(
         !replicated_state_tree.in_range(1),
@@ -753,14 +758,14 @@ namespace ccf
 
     ccf::crypto::Sha256Hash get_replicated_state_root() override
     {
-      std::lock_guard<ccf::pal::Mutex> guard(state_lock);
+      ccf::pal::unique_lock<ccf::pal::Mutex> guard(state_lock);
       return replicated_state_tree.get_root();
     }
 
     std::tuple<ccf::TxID, ccf::crypto::Sha256Hash, ccf::kv::Term>
     get_replicated_state_txid_and_root() override
     {
-      std::lock_guard<ccf::pal::Mutex> guard(state_lock);
+      ccf::pal::unique_lock<ccf::pal::Mutex> guard(state_lock);
       return {
         {term_of_last_version,
          static_cast<ccf::kv::Version>(replicated_state_tree.end_index())},
@@ -875,7 +880,7 @@ namespace ccf
 
     std::vector<uint8_t> serialise_tree(size_t to) override
     {
-      std::lock_guard<ccf::pal::Mutex> guard(state_lock);
+      ccf::pal::unique_lock<ccf::pal::Mutex> guard(state_lock);
       if (to <= replicated_state_tree.end_index())
       {
         return replicated_state_tree.serialise(
@@ -889,7 +894,7 @@ namespace ccf
     {
       // This should only be called once, when the store first knows about its
       // term
-      std::lock_guard<ccf::pal::Mutex> guard(state_lock);
+      ccf::pal::unique_lock<ccf::pal::Mutex> guard(state_lock);
       term_of_last_version = t;
       term_of_next_version = t;
     }
@@ -897,7 +902,7 @@ namespace ccf
     void rollback(
       const ccf::TxID& tx_id, ccf::kv::Term term_of_next_version_) override
     {
-      std::lock_guard<ccf::pal::Mutex> guard(state_lock);
+      ccf::pal::unique_lock<ccf::pal::Mutex> guard(state_lock);
       LOG_TRACE_FMT("Rollback to {}.{}", tx_id.view, tx_id.seqno);
       term_of_last_version = tx_id.view;
       term_of_next_version = term_of_next_version_;
@@ -907,7 +912,7 @@ namespace ccf
 
     void compact(ccf::kv::Version v) override
     {
-      std::lock_guard<ccf::pal::Mutex> guard(state_lock);
+      ccf::pal::unique_lock<ccf::pal::Mutex> guard(state_lock);
       // Receipts can only be retrieved to the flushed index. Keep a range of
       // history so that a range of receipts are available.
       if (v > MAX_HISTORY_LEN)
@@ -921,7 +926,8 @@ namespace ccf
 
     void try_emit_signature() override
     {
-      std::unique_lock<ccf::pal::Mutex> mguard(signature_lock, std::defer_lock);
+      ccf::pal::unique_lock<ccf::pal::Mutex> mguard(
+        signature_lock, std::defer_lock, "on-demand signature emission");
       if (store.committable_gap() < sig_tx_interval || !mguard.try_lock())
       {
         return;
@@ -977,20 +983,20 @@ namespace ccf
 
     std::vector<uint8_t> get_proof(ccf::kv::Version index) override
     {
-      std::lock_guard<ccf::pal::Mutex> guard(state_lock);
+      ccf::pal::unique_lock<ccf::pal::Mutex> guard(state_lock);
       return replicated_state_tree.get_proof(index).to_v();
     }
 
     bool verify_proof(const std::vector<uint8_t>& v) override
     {
       Proof proof(v);
-      std::lock_guard<ccf::pal::Mutex> guard(state_lock);
+      ccf::pal::unique_lock<ccf::pal::Mutex> guard(state_lock);
       return replicated_state_tree.verify(proof);
     }
 
     std::vector<uint8_t> get_raw_leaf(uint64_t index) override
     {
-      std::lock_guard<ccf::pal::Mutex> guard(state_lock);
+      ccf::pal::unique_lock<ccf::pal::Mutex> guard(state_lock);
       auto leaf = replicated_state_tree.get_leaf(index);
       return {leaf.h.begin(), leaf.h.end()};
     }
@@ -999,7 +1005,7 @@ namespace ccf
     {
       ccf::crypto::Sha256Hash rh(data);
       log_hash(rh, APPEND);
-      std::lock_guard<ccf::pal::Mutex> guard(state_lock);
+      ccf::pal::unique_lock<ccf::pal::Mutex> guard(state_lock);
       replicated_state_tree.append(rh);
     }
 
@@ -1009,7 +1015,7 @@ namespace ccf
         std::nullopt) override
     {
       log_hash(digest, APPEND);
-      std::lock_guard<ccf::pal::Mutex> guard(state_lock);
+      ccf::pal::unique_lock<ccf::pal::Mutex> guard(state_lock);
       if (expected_term_of_next_version.has_value())
       {
         if (expected_term_of_next_version.value() != term_of_next_version)

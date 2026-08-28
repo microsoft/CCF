@@ -295,6 +295,12 @@ add_ccf_static_library(
     ${CCF_DIR}/src/kv/untyped_map_diff.cpp
   LINK_LIBS ccf_threading
 )
+# Enforced (see kv/store.h, consensus/aft/raft.h, consensus/aft/impl/state.h,
+# node/history.h) so that ccf_kv's compiled objects can safely be linked,
+# unmodified, by every test target - including one that recompiles those
+# headers with a different ccf::pal::Mutex (see
+# src/commit_concurrency/interleaving_lock_override.h) - without an ODR violation.
+target_compile_definitions(ccf_kv PRIVATE CCF_STATIC_LIBRARY_BUILD)
 
 # CCF endpoints lib
 add_ccf_static_library(
@@ -334,6 +340,8 @@ add_ccf_static_library(
     ${CCF_DIR}/src/tasks/worker.cpp
   LINK_LIBS ccf_threading
 )
+# See the comment on ccf_kv's own CCF_STATIC_LIBRARY_BUILD above.
+target_compile_definitions(ccf_tasks PRIVATE CCF_STATIC_LIBRARY_BUILD)
 
 find_library(BACKTRACE_LIBRARY backtrace)
 if(NOT BACKTRACE_LIBRARY)
@@ -726,25 +734,84 @@ if(BUILD_TESTS)
     # components production code relies on together, but which no other unit
     # test suite exercises jointly (kv_test stubs consensus, raft_test stubs
     # the store, history_test stubs consensus). DETECT_DEADLOCKS is passed
-    # because the interleaving primitive itself (src/kv/test/interleaving.h)
+    # because the interleaving primitive itself (src/commit_concurrency/interleaving.h)
     # could deadlock if buggy.
     add_unit_test(
-      real_stack_concurrency_test
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/interleaving_test.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/real_stack/main.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/real_stack/smoke.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/real_stack/deterministic.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/real_stack/fuzzer.cpp
+      commit_concurrency_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/commit_concurrency/interleaving_test.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/commit_concurrency/threaded/main.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/commit_concurrency/threaded/smoke.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/commit_concurrency/threaded/deterministic.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/commit_concurrency/threaded/fuzzer.cpp
       DETECT_DEADLOCKS
     )
     set_property(
-      TEST real_stack_concurrency_test
+      TEST commit_concurrency_test
       APPEND
       PROPERTY LABELS concurrency
     )
     target_link_libraries(
-      real_stack_concurrency_test
+      commit_concurrency_test
       PRIVATE ccfcrypto http_parser ccf_kv ccf_tasks
+    )
+
+    # Explores every legal interleaving of a bounded scenario (rather than
+    # sampling timing-dependent ones, as commit_concurrency_test does)
+    # via ccf::kv::test::explore_all_interleavings() in
+    # src/commit_concurrency/deterministic_scheduler.h. DETECT_DEADLOCKS is passed for
+    # the same reason as above.
+    add_unit_test(
+      commit_concurrency_model_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/commit_concurrency/deterministic_scheduler_test.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/commit_concurrency/model_checked/main.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/commit_concurrency/model_checked/rejected_commit_stall.cpp
+      # ccf::tasks' own sources (normally built once into ccf_tasks and
+      # shared unmodified - see kv_test's use of ccf_kv, for example) are
+      # rebuilt here instead of linking ccf_tasks, so that they see the
+      # same -include below as everything else in this target: ccf::tasks
+      # keeps a process-wide job board (a real ccf::pal::Mutex user) that
+      # outlives any single explored schedule, so every thread that can
+      # reach it - including any of ccf::tasks' own internals - needs the
+      # same scheduler-aware lock for DriverRegistration (see
+      # deterministic_scheduler.h) to keep it consistent across schedules.
+      ${CCF_DIR}/src/tasks/task_system.cpp
+      ${CCF_DIR}/src/tasks/job_board.cpp
+      ${CCF_DIR}/src/tasks/ordered_tasks.cpp
+      ${CCF_DIR}/src/tasks/fan_in_tasks.cpp
+      ${CCF_DIR}/src/tasks/thread_manager.cpp
+      ${CCF_DIR}/src/tasks/worker.cpp
+      DETECT_DEADLOCKS
+    )
+    set_property(
+      TEST commit_concurrency_model_test
+      APPEND
+      PROPERTY LABELS concurrency
+    )
+    # The -include flag makes every source file in this target (and only
+    # this target) see ccf::pal::Mutex itself resolve to SchedulerMutex -
+    # see src/commit_concurrency/interleaving_lock_override.h.
+    target_compile_options(
+      commit_concurrency_model_test
+      PRIVATE
+        -include
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/commit_concurrency/interleaving_lock_override.h
+    )
+    # ccf_kv and ccfcrypto are safe to share, unmodified, with every other
+    # test target here despite the -include above: none of their own
+    # sources include store.h, raft.h, impl/state.h, or history.h, and
+    # each of those four headers refuses to compile at all into either of
+    # them (CCF_STATIC_LIBRARY_BUILD, set on both below), so this stops
+    # being true loudly, at build time, rather than silently. ccf_tasks is
+    # deliberately not linked here - see the comment on its sources above.
+    target_link_libraries(
+      commit_concurrency_model_test
+      PRIVATE
+        ccfcrypto
+        http_parser
+        ccf_kv
+        ccf_threading
+        ${CMAKE_DL_LIBS}
+        ${BACKTRACE_LIBRARY}
     )
 
     add_unit_test(

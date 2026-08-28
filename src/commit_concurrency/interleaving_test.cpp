@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #include "ccf/crypto/sha256_hash.h"
-#include "kv/test/interleaving.h"
+#include "commit_concurrency/interleaving.h"
 
 #define DOCTEST_CONFIG_NO_SHORT_MACRO_NAMES
 #include <atomic>

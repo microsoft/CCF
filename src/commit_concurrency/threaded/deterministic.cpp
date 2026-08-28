@@ -1,6 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "consensus/aft/test/real_stack/fixture.h"
+#include "commit_concurrency/threaded/fixture.h"
 
 #define DOCTEST_CONFIG_NO_SHORT_MACRO_NAMES
 #include <atomic>
@@ -9,8 +9,8 @@
 #include <random>
 #include <thread>
 
-// Deterministic scenarios driven by RealStackFixture, pinned via
-// ccf::kv::test::Checkpoint from src/kv/test/interleaving.h.
+// Deterministic scenarios driven by CommitConcurrencyFixture, pinned via
+// ccf::kv::test::Checkpoint from src/commit_concurrency/interleaving.h.
 
 using namespace ccf::kv::test;
 
@@ -23,7 +23,7 @@ namespace
   {
     ccf::TxID txid;
     ccf::kv::Store& store;
-    RealStackTable& table;
+    CommitConcurrencyTable& table;
     size_t key;
     size_t value;
 
@@ -31,7 +31,7 @@ namespace
     ReservedWritePendingTx(
       ccf::TxID txid_,
       ccf::kv::Store& store_,
-      RealStackTable& table_,
+      CommitConcurrencyTable& table_,
       size_t key_,
       size_t value_) :
       txid(txid_),
@@ -53,9 +53,9 @@ namespace
 DOCTEST_TEST_CASE(
   "Long-lived transaction is rolled back after a real leadership loss, and "
   "TxHistory follows the Store exactly" *
-  doctest::test_suite("real_stack_deterministic"))
+  doctest::test_suite("commit_concurrency_deterministic"))
 {
-  RealStackFixture fixture;
+  CommitConcurrencyFixture fixture;
   const auto baseline_txid = fixture.commit_signature();
 
   DOCTEST_INFO("Start applying a local transaction in the initial view");
@@ -110,8 +110,8 @@ DOCTEST_TEST_CASE(
   fresh_tx.rw(fixture.table)->put(2, 3);
   DOCTEST_REQUIRE(fresh_tx.commit() == ccf::kv::CommitResult::SUCCESS);
   // Note: history_txid().view is not expected to match fresh_view here -
-  // see the comment on RealStackFixture::history_txid() for why an ordinary
-  // in-term commit does not refresh it. Seqno agreement and
+  // see the comment on CommitConcurrencyFixture::history_txid() for why an
+  // ordinary in-term commit does not refresh it. Seqno agreement and
   // history_term_of_next_version() are checked instead.
   const auto fresh_seqno = baseline_txid.seqno + 1;
   DOCTEST_CHECK(
@@ -139,7 +139,7 @@ DOCTEST_TEST_CASE(
 DOCTEST_TEST_CASE(
   "NOTE_REJECTED_COMMIT_STALL: regaining leadership before a stale-view "
   "commit lands must not permanently stall replication" *
-  doctest::test_suite("real_stack_deterministic"))
+  doctest::test_suite("commit_concurrency_deterministic"))
 {
   // NOTE_REJECTED_COMMIT_STALL: as of writing, a transaction rejected here
   // leaves its local write applied to the Store with no corresponding
@@ -148,7 +148,7 @@ DOCTEST_TEST_CASE(
   // reach consensus either - until a further election restores agreement.
   // The DOCTEST_CHECKs below marked with this tag are expected to fail
   // until that is fixed; the rest of this test still passes.
-  RealStackFixture fixture;
+  CommitConcurrencyFixture fixture;
   const auto baseline_txid = fixture.commit_signature();
 
   DOCTEST_INFO(
@@ -171,7 +171,9 @@ DOCTEST_TEST_CASE(
     "A rejected transaction should not leave a local write behind that "
     "never reaches consensus: the Store should read back exactly as it "
     "did before this transaction was attempted");
-  DOCTEST_CHECK(fixture.store->current_txid() == baseline_txid); // NOTE_REJECTED_COMMIT_STALL
+  DOCTEST_CHECK(
+    fixture.store->current_txid() ==
+    baseline_txid); // NOTE_REJECTED_COMMIT_STALL
   DOCTEST_CHECK(fixture.history_txid() == baseline_txid);
 
   DOCTEST_INFO(
@@ -199,15 +201,16 @@ DOCTEST_TEST_CASE(
     fixture.raft->get_last_idx() == fixture.store->current_txid().seqno);
   DOCTEST_CHECK(
     fixture.history_txid().seqno == fixture.store->current_txid().seqno);
-  DOCTEST_CHECK(fixture.history_term_of_next_version() == fixture.raft->get_view());
+  DOCTEST_CHECK(
+    fixture.history_term_of_next_version() == fixture.raft->get_view());
 }
 
 DOCTEST_TEST_CASE(
   "A stale-view commit that lands while merely a pre-vote candidate rolls "
   "back cleanly too, exactly like the follower case" *
-  doctest::test_suite("real_stack_deterministic"))
+  doctest::test_suite("commit_concurrency_deterministic"))
 {
-  RealStackFixture fixture;
+  CommitConcurrencyFixture fixture;
   const auto baseline_txid = fixture.commit_signature();
 
   auto tx = fixture.store->create_tx();
@@ -247,9 +250,9 @@ DOCTEST_TEST_CASE(
 DOCTEST_TEST_CASE(
   "An ordinary commit immediately after a real election keeps Store and "
   "TxHistory in agreement" *
-  doctest::test_suite("real_stack_deterministic"))
+  doctest::test_suite("commit_concurrency_deterministic"))
 {
-  RealStackFixture fixture;
+  CommitConcurrencyFixture fixture;
   const auto baseline_txid = fixture.commit_signature();
 
   DOCTEST_INFO("Win a later election with no prior in-flight transaction");
@@ -281,12 +284,12 @@ DOCTEST_TEST_CASE(
   "Concurrent rollback triggered by a real election during an in-flight "
   "commit batch does not leave TxHistory ahead of the Store's own "
   "replicated state" *
-  doctest::test_suite("real_stack_deterministic"))
+  doctest::test_suite("commit_concurrency_deterministic"))
 {
   // The election lands after the first entry of the batch has been applied,
   // but before the second has - so the rollback below runs against a batch
   // that is genuinely partway through, not one that never started.
-  RealStackFixture fixture;
+  CommitConcurrencyFixture fixture;
   const auto baseline_txid = fixture.commit_signature();
   const ccf::TxID first_txid(fixture.initial_view, baseline_txid.seqno + 1);
   const ccf::TxID second_txid(fixture.initial_view, baseline_txid.seqno + 2);
@@ -352,7 +355,7 @@ DOCTEST_TEST_CASE(
 DOCTEST_TEST_CASE(
   "Fuzz: repeated real elections against a busy writer keep TxHistory "
   "consistent with the Store" *
-  doctest::test_suite("real_stack_deterministic"))
+  doctest::test_suite("commit_concurrency_deterministic"))
 {
   // Broader, randomised complement to the pinned test above. One thread
   // continually commits new ordinary transactions (so Store::commit()'s
@@ -368,10 +371,10 @@ DOCTEST_TEST_CASE(
   // interleaved.
   //
   // This currently exercises NOTE_IS_PRIMARY_RACE (see
-  // RealStackFixture::reelect() in fixture.h). Expect this test to fail
+  // CommitConcurrencyFixture::reelect() in fixture.h). Expect this test to fail
   // occasionally, or to abort the whole process under ThreadSanitizer,
   // until that race is fixed.
-  RealStackFixture fixture;
+  CommitConcurrencyFixture fixture;
   const auto baseline_txid = fixture.commit_signature();
 
   constexpr size_t reelection_iterations = 300;

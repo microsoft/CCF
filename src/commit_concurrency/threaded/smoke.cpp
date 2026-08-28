@@ -1,20 +1,20 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "consensus/aft/test/real_stack/fixture.h"
+#include "commit_concurrency/threaded/fixture.h"
 
 #define DOCTEST_CONFIG_NO_SHORT_MACRO_NAMES
 #include <doctest/doctest.h>
 
-// Sanity checks for RealStackFixture itself, with no concurrency at all:
-// establishes that the real Store + real Aft + real MerkleTxHistory wiring
+// Sanity checks for CommitConcurrencyFixture itself, with no concurrency at
+// all: establishes that the real Store + real Aft + real MerkleTxHistory wiring
 // behaves as expected before any interleaving is layered on top.
 
 DOCTEST_TEST_CASE(
-  "RealStackFixture wires a real Store, Aft, and MerkleTxHistory in "
+  "CommitConcurrencyFixture wires a real Store, Aft, and MerkleTxHistory in "
   "agreement" *
-  doctest::test_suite("real_stack_smoke"))
+  doctest::test_suite("commit_concurrency_smoke"))
 {
-  ccf::kv::test::RealStackFixture fixture;
+  ccf::kv::test::CommitConcurrencyFixture fixture;
 
   DOCTEST_REQUIRE(fixture.raft->is_primary());
   DOCTEST_REQUIRE(fixture.store->current_txid() == ccf::TxID(0, 0));
