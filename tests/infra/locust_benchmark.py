@@ -169,7 +169,13 @@ def read_aggregated_stats(stats_path: str) -> dict[str, str]:
 
 def stat_as_float(stats: Mapping[str, str], column: str) -> float:
     """Read one numeric column from Locust's statistics."""
-    value = stats[column]
+    try:
+        value = stats[column]
+    except KeyError as exc:
+        raise RuntimeError(
+            f"Locust statistics do not contain the required {column!r} column"
+        ) from exc
+
     try:
         return float(value)
     except ValueError as exc:
