@@ -45,12 +45,10 @@ from dataclasses import dataclass
 
 from loguru import logger as LOG
 
-# The node runs WORKER_THREADS worker threads plus a host thread and some
-# bookkeeping, so four CPUs is enough for it to be scheduler-bound rather than
-# CPU-starved in the configurations we benchmark. Deliberately modest: the
-# point is to give the node a floor it cannot be pushed below, not to hand it
-# the machine.
-DEFAULT_NODE_CPUS = 4
+# The perf configuration runs two worker threads plus a host thread, so reserve
+# one CPU for each. Deliberately modest: the point is to give the node a floor
+# it cannot be pushed below, not to hand it the machine.
+DEFAULT_NODE_CPUS = 3
 
 # Below this many CPUs left over there is no point isolating, because the load
 # generator becomes the bottleneck instead.
@@ -90,13 +88,13 @@ def _parse_cpu_list(value: str) -> list[int]:
     return cpus
 
 
-def _sibling_groups(available: list[int]) -> list[list[int]]:
+def _sibling_groups(available: list[int]) -> list[list[int]] | None:
     """Group the available CPUs into physical cores.
 
     SMT siblings share execution resources, so handing the node one thread of a
     core while a client runs on the other would leave the two contending after
-    all. Group by sibling set and allocate whole cores. Where the topology is
-    not exposed, each CPU is treated as its own core.
+    all. Group by sibling set and allocate whole cores. If the topology is not
+    exposed reliably, isolation cannot preserve that guarantee.
     """
     available_set = set(available)
     groups = []
@@ -107,10 +105,20 @@ def _sibling_groups(available: list[int]) -> list[list[int]]:
         try:
             with open(SIBLINGS_PATH.format(cpu), "r") as f:
                 siblings = _parse_cpu_list(f.read())
-        except (OSError, ValueError):
-            siblings = [cpu]
+        except (OSError, ValueError) as exc:
+            LOG.warning(
+                f"CPU isolation unavailable: cannot read SMT siblings "
+                f"for CPU {cpu} ({exc})"
+            )
+            return None
         # A sibling the process is not allowed to run on is of no use.
-        group = sorted(set(siblings) & available_set) or [cpu]
+        group = sorted(set(siblings) & available_set)
+        if cpu not in group or seen.intersection(group):
+            LOG.warning(
+                f"CPU isolation unavailable: inconsistent SMT topology "
+                f"for CPU {cpu} ({_format_cpu_list(group)})"
+            )
+            return None
         seen.update(group)
         groups.append(group)
     return groups
@@ -122,6 +130,7 @@ class IsolationPlan:
 
     node_cpus: frozenset[int]
     client_cpus: frozenset[int]
+    unassigned_cpus: frozenset[int]
 
     def cpus_for(self, role: str) -> frozenset[int]:
         if role == NODE:
@@ -132,13 +141,19 @@ class IsolationPlan:
 
     def describe(self) -> str:
         """One-line summary of the layout, for logging before anything starts."""
-        total = len(self.node_cpus) + len(self.client_cpus)
-        return (
+        total = len(self.node_cpus) + len(self.client_cpus) + len(self.unassigned_cpus)
+        description = (
             f"node -> CPUs {_format_cpu_list(self.node_cpus)} "
             f"({len(self.node_cpus)} of {total}), "
             f"clients -> CPUs {_format_cpu_list(self.client_cpus)} "
             f"({len(self.client_cpus)} of {total})"
         )
+        if self.unassigned_cpus:
+            description += (
+                f", unassigned -> CPUs {_format_cpu_list(self.unassigned_cpus)} "
+                f"({len(self.unassigned_cpus)} of {total})"
+            )
+        return description
 
 
 _plan: IsolationPlan | None = None
@@ -169,8 +184,12 @@ def _taskset_works(cpus) -> bool:
 
 
 def make_plan(node_cpu_count: int = DEFAULT_NODE_CPUS) -> IsolationPlan | None:
-    """Build a plan reserving whole physical cores for the node, or return None
-    if this machine cannot usefully be split."""
+    """Build a plan with an exact node CPU count, or return None if this
+    machine cannot usefully be split.
+
+    The clients never receive an SMT sibling of a node CPU. When the requested
+    count does not fill the final sibling group, the remainder is unassigned.
+    """
     if not hasattr(os, "sched_getaffinity"):
         LOG.warning("CPU isolation unavailable: no sched_getaffinity on this platform")
         return None
@@ -190,13 +209,21 @@ def make_plan(node_cpu_count: int = DEFAULT_NODE_CPUS) -> IsolationPlan | None:
 
     # Take the node's cores from the top, leaving CPU 0 - which the kernel
     # tends to favour for interrupt handling - out of the node's set.
+    sibling_groups = _sibling_groups(available)
+    if sibling_groups is None:
+        return None
+
     node_cpus: set[int] = set()
-    for group in reversed(_sibling_groups(available)):
+    node_sibling_cpus: set[int] = set()
+    for group in reversed(sibling_groups):
         if len(node_cpus) >= node_cpu_count:
             break
-        node_cpus.update(group)
+        remaining = node_cpu_count - len(node_cpus)
+        node_cpus.update(group[-remaining:])
+        node_sibling_cpus.update(group)
 
-    client_cpus = set(available) - node_cpus
+    client_cpus = set(available) - node_sibling_cpus
+    unassigned_cpus = node_sibling_cpus - node_cpus
     if len(client_cpus) < MIN_CLIENT_CPUS:
         LOG.warning(
             "CPU isolation unavailable: only "
@@ -207,7 +234,11 @@ def make_plan(node_cpu_count: int = DEFAULT_NODE_CPUS) -> IsolationPlan | None:
     if not _taskset_works(node_cpus):
         return None
 
-    return IsolationPlan(frozenset(node_cpus), frozenset(client_cpus))
+    return IsolationPlan(
+        frozenset(node_cpus),
+        frozenset(client_cpus),
+        frozenset(unassigned_cpus),
+    )
 
 
 def enable(node_cpu_count: int = DEFAULT_NODE_CPUS):

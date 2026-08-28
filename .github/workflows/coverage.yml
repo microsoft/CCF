@@ -15,7 +15,6 @@ permissions: read-all
 # scripts/coverage_summary.py, so that the two stay in sync from a single place.
 env:
   COVERAGE_HISTORY_POINTS: "9"
-  UV_INDEX_URL: https://packagefeedproxy.microsoft.io/pypi/simple/
 
 jobs:
   coverage_virtual:

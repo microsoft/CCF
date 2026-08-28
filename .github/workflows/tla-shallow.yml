@@ -13,9 +13,6 @@ concurrency:
 
 permissions: read-all
 
-env:
-  UV_INDEX_URL: https://packagefeedproxy.microsoft.io/pypi/simple/
-
 jobs:
   simulation:
     name: TLA Simulation
