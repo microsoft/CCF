@@ -47,11 +47,11 @@ Handlers may run concurrently and must be ``Send`` and ``Sync``. CCF may also
 retry a read-write handler when a transaction conflicts, so handlers should be
 deterministic and should not perform non-transactional side effects.
 
-Request, response, transaction, and map values borrow the callback context and
-cannot be retained. The SDK requires Rust's ``unwind`` panic strategy so that
-panics are caught at the ABI boundary and become HTTP 500 errors. Builds using
-``panic = "abort"`` are rejected. C++ exceptions are also contained by the
-bridge.
+Request and response contexts, transactions, and map handles borrow the callback
+context and cannot be retained. Values returned by KV ``get`` are owned copies.
+The SDK requires Rust's ``unwind`` panic strategy so that panics are caught at
+the ABI boundary and become HTTP 500 errors. Builds using ``panic = "abort"``
+are rejected. C++ exceptions are also contained by the bridge.
 
 KV values and keys
 ------------------
