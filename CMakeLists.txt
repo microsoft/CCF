@@ -1439,7 +1439,7 @@ if(BUILD_TESTS)
       --package
       "samples/apps/logging/logging"
       --perf-label
-      "Logging Certificate Blocking Locust"
+      "Logging Certificate Blocking"
       --snapshot-tx-interval
       10000
       --users
@@ -1454,6 +1454,34 @@ if(BUILD_TESTS)
       20
   )
 
+  # JavaScript write workload driven by locust so that the number of
+  # concurrent clients can be varied.
+  add_e2e_test(
+    NAME basic_js_locust
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/basicperf_locust.py
+    LABEL perf
+    CONFIGURATIONS perf
+    ADDITIONAL_ARGS
+      --js-app-bundle
+      ${CMAKE_SOURCE_DIR}/samples/apps/basic/js
+      --perf-label
+      "Basic JS"
+      --endpoint
+      "/records/{key}"
+      --snapshot-tx-interval
+      10000
+      --users
+      320
+      --spawn-rate
+      320
+      --locust-processes
+      10
+      --measure-time-s
+      20
+      --sig-ms-intervals
+      100
+  )
+
   # Blocking commit benchmark driven by locust. Its concurrent connections
   # exercise every configured worker thread, so this also covers the
   # multi-threaded basic workload.
@@ -1466,7 +1494,7 @@ if(BUILD_TESTS)
       --package
       "samples/apps/basic/basic"
       --perf-label
-      "Basic Blocking Locust"
+      "Basic Blocking"
       # Keep snapshot disk activity out of the measurement.
       --snapshot-tx-interval
       10000
@@ -1497,7 +1525,7 @@ if(BUILD_TESTS)
       --package
       "samples/apps/logging/logging"
       --perf-label
-      "Logging JWT Blocking Locust"
+      "Logging JWT Blocking"
       --snapshot-tx-interval
       10000
       --users
@@ -1522,7 +1550,7 @@ if(BUILD_TESTS)
       --package
       "samples/apps/logging/logging"
       --perf-label
-      "Historical Queries Locust"
+      "Historical Queries"
       --snapshot-tx-interval
       10000
       --entry-count
