@@ -1244,6 +1244,8 @@ def run_attestation_checks(args):
         test_add_node_with_untrusted_host_data(network, args)
 
         if infra.platform_detection.is_snp():
+            test_add_node_via_code_policy(network, args)
+
             # Virtual has no security policy, _only_ host data (unassociated with anything)
             test_add_node_with_stubbed_security_policy(network, args)
             test_start_node_with_mismatched_host_data(network, args)
@@ -1254,6 +1256,7 @@ def run_attestation_checks(args):
             test_endorsements_tables(network, args)
             test_add_node_with_no_uvm_endorsements(network, args)
 
+            test_verify_quotes(network, args)
             test_add_node_with_no_uvm_endorsements_in_kv(network, args)
 
 
@@ -1264,8 +1267,6 @@ def run_node_join_policy(args):
         network.start_and_open(args)
 
         test_add_node_via_code_policy(network, args)
-        if infra.platform_detection.is_snp():
-            test_verify_quotes(network, args)
 
 
 def run_code_updates(args):
@@ -1292,12 +1293,14 @@ def run_code_updates(args):
 if __name__ == "__main__":
     cr = ConcurrentRunner()
 
-    targets = [
-        ("attestation", run_attestation_checks),
-        ("join-policy", run_node_join_policy),
-    ]
+    targets = [("attestation", run_attestation_checks)]
     if not infra.platform_detection.is_snp():
-        targets.append(("code-updates", run_code_updates))
+        targets.extend(
+            [
+                ("join-policy", run_node_join_policy),
+                ("code-updates", run_code_updates),
+            ]
+        )
 
     for name, target in targets:
         cr.add(
