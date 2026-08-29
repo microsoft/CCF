@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [7.0.14]
+
+[7.0.14]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.14
+
+### Added
+
+- Native CCF applications can now be written in Rust through a minimal API for registering endpoints and accessing raw-byte KV maps (#8200).
+
 ## [7.0.13]
 
 [7.0.13]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.13
@@ -17,7 +25,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - C++ endpoints can now use `ccf::endpoints::Endpoint::add_openapi_response<Out>()` to document additional HTTP responses in their generated OpenAPI schema without changing the endpoint's primary success response (#8115).
 - New `ledger.max_transaction_size` node configuration option (default `32MB`), which caps the total serialised size of transactions written to the ledger. The limit covers the whole ledger entry: the fixed 8-byte ledger entry header, the ledger encryption header, public domain size field, public domain and encrypted private domain. It is checked before a transaction is applied, so an oversized transaction is now rejected with `413 Payload Too Large` and error code `TransactionTooLarge`, and subsequent transactions are unaffected, where previously an excessively large transaction could terminate the node. Reserved internal signature transactions are exempt because they must fill their reserved ledger version. The limit applies only to newly serialised non-reserved transactions; deserialising existing entries (including during recovery), historical queries and snapshots are unaffected, so entries written under a larger or unset limit remain readable. It must be smaller than `memory.max_msg_size` by at least the ring-buffer range response overhead, which is validated at node startup and by `--check` (#7992).
-- Native CCF applications can now be written in Rust through a minimal API for registering endpoints and accessing raw-byte KV maps (#8200).
 
 ### Changed
 
