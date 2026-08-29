@@ -745,7 +745,9 @@ mod tests {
         let handler = Box::new(Handler::Write(Box::new(|_| panic!("test panic"))));
         let user_data = Box::into_raw(handler).cast::<c_void>();
         let raw_context = NonNull::<RawEndpointContext>::dangling().as_ptr();
-        // SAFETY: Both pointers are valid for this direct trampoline test.
+        // SAFETY: In the test-only FFI stubs, the context pointer is never
+        // dereferenced. This exercises the panic trampoline without invoking
+        // any real C++ bridge logic.
         let result = unsafe { invoke_handler(user_data, raw_context) };
         assert_eq!(result, RawResult::InternalError as i32);
         // SAFETY: The test retains ownership of the handler.
