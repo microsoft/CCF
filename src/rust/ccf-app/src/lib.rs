@@ -235,6 +235,7 @@ pub struct EndpointError {
     pub message: String,
 }
 
+// Known 4xx/5xx HTTP error status codes matching HTTP_STATUS_MAP in include/ccf/http_status.h.
 fn is_known_error_status(status: u16) -> bool {
     matches!(
         status,
