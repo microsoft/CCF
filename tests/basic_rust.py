@@ -9,11 +9,14 @@ import suite.test_requirements as reqs
 
 
 @reqs.description("Exercise Rust application endpoints and KV access")
-@reqs.supports_methods("/app/health", "/app/records/{key}")
+@reqs.supports_methods("/app/health", "/app/panic", "/app/records/{key}")
 def test_basic_rust(network, args):
     primary, _ = network.find_primary()
 
     with primary.client() as anonymous:
+        response = anonymous.get("/app/panic")
+        assert response.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, response
+
         response = anonymous.get("/app/health")
         assert response.status_code == http.HTTPStatus.OK, response
         assert response.body.data() == b"OK", response.body

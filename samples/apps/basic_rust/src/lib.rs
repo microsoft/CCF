@@ -41,6 +41,10 @@ fn register(registry: &mut Registry) -> Result<(), BridgeError> {
         },
     )?;
 
+    registry.read_only("/panic", "GET", Auth::None, |_| -> EndpointResult {
+        panic!("test panic")
+    })?;
+
     registry.read_only("/health", "GET", Auth::None, |context| {
         context.set_status(200)?;
         context.set_body(b"OK")?;
