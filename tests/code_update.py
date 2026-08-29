@@ -24,6 +24,7 @@ import suite.test_requirements as reqs
 from infra import snp
 from infra.checker import Checker, check_can_progress
 from infra.crypto import create_signed_statement
+from infra.runner import ConcurrentRunner
 from loguru import logger as LOG
 
 CERTIFICATE_VALID_FROM_OFFSET = timedelta(seconds=1)
@@ -123,7 +124,7 @@ def test_verify_quotes(network, args):
     return network
 
 
-def get_trusted_uvm_endorsements(node):
+def get_trusted_uvm_endorsements(node, args):
     with node.api_versioned_client(api_version=args.gov_api_version) as client:
         r = client.get("/gov/service/join-policy")
         assert r.status_code == http.HTTPStatus.OK, r
@@ -180,7 +181,7 @@ def test_endorsements_tables(network, args):
 
     LOG.info("SNP UVM endorsement table")
 
-    uvm_endorsements = get_trusted_uvm_endorsements(primary)
+    uvm_endorsements = get_trusted_uvm_endorsements(primary, args)
     assert (
         len(uvm_endorsements) == 1
     ), f"Expected one UVM endorsement, {uvm_endorsements}"
@@ -192,7 +193,7 @@ def test_endorsements_tables(network, args):
     LOG.debug("Add new feed for same DID")
     new_feed = "New feed"
     network.consortium.add_snp_uvm_endorsement(primary, did=did, feed=new_feed, svn=svn)
-    uvm_endorsements = get_trusted_uvm_endorsements(primary)
+    uvm_endorsements = get_trusted_uvm_endorsements(primary, args)
     did, value = next(iter(uvm_endorsements.items()))
     assert len(value) == 2
     assert value[new_feed]["svn"] == svn
@@ -202,7 +203,7 @@ def test_endorsements_tables(network, args):
     network.consortium.add_snp_uvm_endorsement(
         primary, did=did, feed=new_feed, svn=new_svn
     )
-    uvm_endorsements = get_trusted_uvm_endorsements(primary)
+    uvm_endorsements = get_trusted_uvm_endorsements(primary, args)
     assert (
         len(uvm_endorsements) == 1
     ), f"Expected one UVM endorsement, {uvm_endorsements}"
@@ -214,21 +215,21 @@ def test_endorsements_tables(network, args):
     network.consortium.add_snp_uvm_endorsement(
         primary, did=new_did, feed=new_feed, svn=svn
     )
-    uvm_endorsements = get_trusted_uvm_endorsements(primary)
+    uvm_endorsements = get_trusted_uvm_endorsements(primary, args)
     assert len(uvm_endorsements) == 2
     assert new_did in uvm_endorsements
     assert new_feed in uvm_endorsements[new_did]
 
     LOG.debug("Remove new DID")
     network.consortium.remove_snp_uvm_endorsement(primary, did=new_did, feed=new_feed)
-    uvm_endorsements = get_trusted_uvm_endorsements(primary)
+    uvm_endorsements = get_trusted_uvm_endorsements(primary, args)
     assert len(uvm_endorsements) == 1
     assert new_did not in uvm_endorsements
     assert did in uvm_endorsements
 
     LOG.debug("Remove new issuer for original DID")
     network.consortium.remove_snp_uvm_endorsement(primary, did=did, feed=new_feed)
-    uvm_endorsements = get_trusted_uvm_endorsements(primary)
+    uvm_endorsements = get_trusted_uvm_endorsements(primary, args)
     assert len(uvm_endorsements) == 1
     _, value = next(iter(uvm_endorsements.items()))
     assert new_feed not in value
@@ -1205,7 +1206,7 @@ def test_add_node_with_no_uvm_endorsements_in_kv(network, args):
     LOG.info("Remove KV endorsements roots of trust (expect failure)")
     primary, _ = network.find_nodes()
 
-    uvm_endorsements = get_trusted_uvm_endorsements(primary)
+    uvm_endorsements = get_trusted_uvm_endorsements(primary, args)
     assert (
         len(uvm_endorsements) == 1
     ), f"Expected one UVM endorsement, {uvm_endorsements}"
@@ -1225,7 +1226,7 @@ def test_add_node_with_no_uvm_endorsements_in_kv(network, args):
     return network
 
 
-def run(args):
+def run_attestation_checks(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
     ) as network:
@@ -1241,7 +1242,6 @@ def run(args):
         # Host data/security policy
         test_host_data_tables(network, args)
         test_add_node_with_untrusted_host_data(network, args)
-        test_add_node_via_code_policy(network, args)
 
         if infra.platform_detection.is_snp():
             # Virtual has no security policy, _only_ host data (unassociated with anything)
@@ -1254,29 +1254,57 @@ def run(args):
             test_endorsements_tables(network, args)
             test_add_node_with_no_uvm_endorsements(network, args)
 
-        if not infra.platform_detection.is_snp():
-            # NB: Assumes the current nodes are still using args.package, so must run before test_update_all_nodes
-            test_proposal_invalidation(network, args)
-
-            # This is in practice equivalent to either "unknown measurement" or "unknown host data", but is explicitly
-            # testing that (without artifically removing/corrupting those values) a replacement package differs
-            # in one of these values
-            test_add_node_with_different_package(network, args)
-            test_update_all_nodes_atomically(network, args)
-            # Upgrade back to the original package to keep sequential coverage
-            # and exercise consecutive full-network upgrades.
-            test_update_all_nodes(network, args)
-
-        # Run again at the end to confirm current nodes are acceptable
-        test_verify_quotes(network, args)
-
-        if infra.platform_detection.is_snp():
             test_add_node_with_no_uvm_endorsements_in_kv(network, args)
 
 
-if __name__ == "__main__":
-    args = infra.e2e_args.cli_args()
+def run_node_join_policy(args):
+    with infra.network.network(
+        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
+    ) as network:
+        network.start_and_open(args)
 
-    args.package = "samples/apps/logging/logging"
-    args.nodes = infra.e2e_args.min_nodes(args, f=1)
-    run(args)
+        test_add_node_via_code_policy(network, args)
+        if infra.platform_detection.is_snp():
+            test_verify_quotes(network, args)
+
+
+def run_code_updates(args):
+    with infra.network.network(
+        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
+    ) as network:
+        network.start_and_open(args)
+
+        # NB: Assumes the current nodes are still using args.package, so must run before test_update_all_nodes
+        test_proposal_invalidation(network, args)
+
+        # This is in practice equivalent to either "unknown measurement" or "unknown host data", but is explicitly
+        # testing that (without artifically removing/corrupting those values) a replacement package differs
+        # in one of these values
+        test_add_node_with_different_package(network, args)
+        test_update_all_nodes_atomically(network, args)
+        # Upgrade back to the original package to keep sequential coverage
+        # and exercise consecutive full-network upgrades.
+        test_update_all_nodes(network, args)
+
+        test_verify_quotes(network, args)
+
+
+if __name__ == "__main__":
+    cr = ConcurrentRunner()
+
+    targets = [
+        ("attestation", run_attestation_checks),
+        ("join-policy", run_node_join_policy),
+    ]
+    if not infra.platform_detection.is_snp():
+        targets.append(("code-updates", run_code_updates))
+
+    for name, target in targets:
+        cr.add(
+            name,
+            target,
+            package="samples/apps/logging/logging",
+            nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+        )
+
+    cr.run()
