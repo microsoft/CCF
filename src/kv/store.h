@@ -987,7 +987,7 @@ namespace ccf::kv
 
       {
         std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
-        if (txid.view != term_of_next_version && get_consensus()->is_primary())
+        if (txid.view != term_of_next_version)
         {
           // This can happen when a transaction started before a view change,
           // but tries to commit after the view change is complete.
