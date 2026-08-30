@@ -117,6 +117,60 @@ Opening eventually reaches Open when timeout firing is weakly fair.
 These theorems relate the canonical and legacy Lean abstractions. They do not
 claim that the canonical C++-aligned model is identical to the Rust model.
 
+## Property coverage
+
+### Kernel-checked canonical properties
+
+| Property                                                                                   | Lean theorem(s)                                                            |
+| ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------- |
+| A valid timeout is aligned with the protocol timeout lane                                  | `valid_timeout_requires_alignment`                                         |
+| Once a node chooses a recovery source, later gossip is rejected without changing state     | `gossip_freezes_after_choice`                                              |
+| Gossip rejected by validation does not change protocol state                               | `rejected_gossip_stutters`                                                 |
+| Receiving the same vote again is idempotent                                                | `duplicate_vote_is_idempotent`                                             |
+| Opening and Open nodes reject `IAmOpen` without changing state                             | `opening_rejects_iamopen`, `open_rejects_iamopen`                          |
+| An aligned Voting timeout with no votes cannot open                                        | `aligned_voting_timeout_without_votes_stutters`                            |
+| An aligned Gossiping timeout with no gossip aborts without changing state                  | `aligned_empty_gossip_timeout_aborts`                                      |
+| A quorum in Voting transitions to Opening with `QUORUM` and the opening effect             | `quorum_advance_opens`                                                     |
+| An aligned Opening timeout transitions to Open and emits completion                        | `aligned_opening_timeout_completes`, `aligned_timeout_transitions_to_open` |
+| Every non-timeout event preserves aligned Opening                                          | `non_timeout_step_preserves_aligned_opening`                               |
+| Weak timeout fairness makes an execution starting in aligned Opening eventually reach Open | `fair_aligned_opening_progress`                                            |
+
+These are theorem-checked for arbitrary configurations and states satisfying
+their explicit premises. The progress theorem assumes weak fairness; the safety
+theorems do not.
+
+### Kernel-checked refinement properties
+
+| Property                                                         | Lean theorem(s)                                                     |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------- |
+| Every canonical step projects to zero or more legacy phase steps | `canonical_step_simulates`, `compatibility_step_simulates`          |
+| Finite canonical traces project to legacy weak phase traces      | `compatibility_trace_simulates`                                     |
+| Canonical and legacy initial phases correspond                   | `initial_phase_correspondence`, `three_node_initial_correspondence` |
+| Canonical and legacy quorum thresholds agree for odd node counts | `odd_quorum_matches_legacy`                                         |
+| Canonical quorum is one larger for even node counts              | `even_quorum_exceeds_legacy_by_one`                                 |
+| Canonical Opening/Open is exactly projected legacy Open          | `reached_open_is_preserved`                                         |
+| Canonical quorum opening projects to non-timeout legacy Open     | `quorum_kind_projects_to_non_timeout_open`                          |
+| Splitting canonical Opening and Open is a legacy stutter         | `opening_to_open_is_stuttering`                                     |
+| Full single-node initial states intentionally differ             | `single_node_full_initial_models_differ`                            |
+
+The refinement is phase-level. Gossip sets, votes, timeout-lane state, node
+metadata, and retry effects are not claimed to be data-bisimilar.
+
+### Executable bounded properties
+
+The legacy BFS checker retains all nine Stateright expectations:
+
+- eventual Open, plus the unanimous-vote and majority-vote non-timeout
+  implications;
+- always no pre-failover fork, no all-OpenJoin/no-vote deadlock, and persistence
+  of the legacy committed transaction threshold; and
+- reachability of Open, timeout Open, and majority non-timeout Open.
+
+For the canonical model, exhaustive one- and two-node checks additionally
+assert that Voting has a chosen node, Opening/Open has an open kind, and a
+restart request occurs only in Joining. These are executable finite-state
+checks, not general Lean theorems.
+
 ## Legacy source mapping
 
 | Rust/Stateright source                   | Lean definition                       |
@@ -400,6 +454,20 @@ trace checks, three-node legacy property check, and the one- and two-node
 Rust/Lean comparison on relevant pull requests. The weekly continuous
 verification workflow additionally runs the exhaustive three-node comparison.
 The Rust job remains in place until the replacement criteria below are met.
+
+### Current CI evidence
+
+Draft PR [microsoft/CCF#8241](https://github.com/microsoft/CCF/pull/8241)
+validated commit `c8dd40a7` on both proof and hardware paths:
+
+- [Lean shallow verification](https://github.com/microsoft/CCF/actions/runs/33315731130/job/99268715043)
+  built every Lean target, checked trace fixtures and merger behavior, and
+  compared the bounded Rust/Lean graphs.
+- [Milan SNP](https://github.com/microsoft/CCF/actions/runs/33315731084/job/99268714883)
+  validated committed quorum, failover, and multiple-timeout implementation
+  traces.
+- [Genoa SNP](https://github.com/microsoft/CCF/actions/runs/33315731084/job/99268714839)
+  validated the same implementation traces on the second SNP generation.
 
 ## Replacement criteria
 
