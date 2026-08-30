@@ -14,14 +14,12 @@ concurrency:
 permissions: read-all
 
 env:
-  NPM_CONFIG_REGISTRY: https://packagefeedproxy.microsoft.io/npm/
   # Add bounded retries for transient runner-to-package-storage route failures.
   NPM_CONFIG_FETCH_RETRIES: "5"
   NPM_CONFIG_FETCH_RETRY_FACTOR: "2"
   NPM_CONFIG_FETCH_RETRY_MINTIMEOUT: "5000"
   NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT: "30000"
   NPM_CONFIG_FETCH_TIMEOUT: "60000"
-  PIP_INDEX_URL: https://packagefeedproxy.microsoft.io/pypi/simple/
 
 jobs:
   vmss-virtual-a:
@@ -51,6 +49,8 @@ jobs:
 
       - name: "Install dependencies"
         uses: ./.github/actions/install-ci-dependencies
+        with:
+          python-requirements: doc/requirements.txt,doc/historical_ccf_requirements.txt,tests/requirements.txt
 
       - name: "Install development dependencies"
         shell: bash
@@ -72,22 +72,21 @@ jobs:
       - name: "Run tests for Python package"
         run: |
           set -ex
-          python3 -m venv env
+          python3 -m venv --without-pip env
           source env/bin/activate
-          pip install -U -q pip pytest
-          pip install -q -U -e python
+          uv pip install -q pytest
+          uv pip install -q -e python
           cd python
           pytest
 
       - name: "Check doc builds with no warnings"
         run: |
           set -ex
-          python3 -m venv env
+          python3 -m venv --without-pip env
           source env/bin/activate
-          pip install -U pip
-          pip install -U -e ./python
-          pip install -U -r doc/requirements.txt
-          pip install -U -r doc/historical_ccf_requirements.txt
+          uv pip install -e ./python
+          uv pip install -r doc/requirements.txt
+          uv pip install -r doc/historical_ccf_requirements.txt
           sphinx-build --fail-on-warning -b html doc doc/html
 
       - name: "Run Unit tests"
@@ -314,6 +313,7 @@ jobs:
           ./tests.sh --timeout 360 -V -R '^ledger_bench$'
         shell: bash
         env:
+          CCF_TEST_SYNC_AFTER_SETUP: 1
           ELECTION_TIMEOUT_MS: 10000
 
       - name: "Capture dmesg"
@@ -399,6 +399,7 @@ jobs:
           ./tests.sh --timeout 360 -V -R '^ledger_bench$'
         shell: bash
         env:
+          CCF_TEST_SYNC_AFTER_SETUP: 1
           ELECTION_TIMEOUT_MS: 10000
 
       - name: "Capture dmesg"

@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import base64
+import concurrent.futures
 import copy
 import hashlib
 import http
@@ -1636,6 +1637,7 @@ def run_file_operations(args):
         ntf.flush()
 
         args.max_msg_size_bytes = f"{1024 ** 2}"
+        args.ledger_max_transaction_bytes = f"{1024 ** 2 - 2048}"
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             txs = app.LoggingTxs("user0")
@@ -3889,76 +3891,83 @@ def run_time_based_snapshotting(const_args):
     # 3. record baseline
     # 4. record new snapshots over 10s and compare that to the baseline
 
-    # min_tx set low
-    with net_with_min_tx("_low", 0) as net:
-        time.sleep(1)
-        net.get_committed_snapshots(
-            net.find_primary()[0],
-            force_txs=False,
-            wait_for_target_seqno=True,
-            timeout=5,
-        )
-        baseline = get_committed_snapshot_files(net)
-        time.sleep(10)
-        final = get_committed_snapshot_files(net)
-        assert (
-            len(final - baseline) >= 8
-        ), f"With min_tx_interval set to 0 we expect snapshots to be generated at around 1 per second, but got {final} snapshots 10s after a baseline of {baseline}, with {final - baseline} new snapshots seen over the test."
-
-    # min_tx set just right
-    with net_with_min_tx("_exact", 2) as net:
-        time.sleep(1)
-        try:
+    def run_low():
+        with net_with_min_tx("_low", 0) as net:
+            time.sleep(1)
             net.get_committed_snapshots(
                 net.find_primary()[0],
                 force_txs=False,
                 wait_for_target_seqno=True,
                 timeout=5,
             )
-        except TimeoutError:
-            pass
-        baseline = get_committed_snapshot_files(net)
-        time.sleep(10)
-        final = get_committed_snapshot_files(net)
-        assert (
-            final == baseline
-        ), f"With min_tx_interval set to 2 we expect no snapshots to be generated without transactions, but got {final} snapshots 10s after a baseline of {baseline}, with {final - baseline} new snapshots seen over the test."
+            baseline = get_committed_snapshot_files(net)
+            time.sleep(10)
+            final = get_committed_snapshot_files(net)
+            assert (
+                len(final - baseline) >= 8
+            ), f"With min_tx_interval set to 0 we expect snapshots to be generated at around 1 per second, but got {final} snapshots 10s after a baseline of {baseline}, with {final - baseline} new snapshots seen over the test."
 
-    # set much higher to show that
-    with net_with_min_tx("_high", 10) as net:
-        time.sleep(1)
-        try:
+    def run_exact():
+        with net_with_min_tx("_exact", 2) as net:
+            time.sleep(1)
+            try:
+                net.get_committed_snapshots(
+                    net.find_primary()[0],
+                    force_txs=False,
+                    wait_for_target_seqno=True,
+                    timeout=5,
+                )
+            except TimeoutError:
+                pass
+            baseline = get_committed_snapshot_files(net)
+            time.sleep(10)
+            final = get_committed_snapshot_files(net)
+            assert (
+                final == baseline
+            ), f"With min_tx_interval set to 2 we expect no snapshots to be generated without transactions, but got {final} snapshots 10s after a baseline of {baseline}, with {final - baseline} new snapshots seen over the test."
+
+    def run_high():
+        with net_with_min_tx("_high", 10) as net:
+            time.sleep(1)
+            try:
+                net.get_committed_snapshots(
+                    net.find_primary()[0],
+                    force_txs=False,
+                    wait_for_target_seqno=True,
+                    timeout=5,
+                )
+            except TimeoutError:
+                pass
+            baseline = get_committed_snapshot_files(net)
+            time.sleep(10)
+            final = get_committed_snapshot_files(net)
+            assert (
+                final == baseline
+            ), f"With min_tx_interval set to 10 we expect no snapshots to be generated without transactions, but got {final} snapshots 10s after a baseline of {baseline}, with {final - baseline} new snapshots seen over the test."
+
+            tx_id = net.txs.issue(net, number_txs=1)
+            baseline = get_committed_snapshot_files(net)
+            time.sleep(10)
+            final = get_committed_snapshot_files(net)
+            assert (
+                final == baseline
+            ), f"With min_tx_interval set to 10 and we expect no snapshots to be generated with only one extra tx, but got {final} snapshots 10s after a baseline of {baseline}, and in total saw {final - baseline} new snapshots over the test."
+
+            net.txs.issue(net, number_txs=20)
+            primary, _ = net.find_primary()
             net.get_committed_snapshots(
-                net.find_primary()[0],
+                primary,
+                target_seqno=tx_id.seqno,
                 force_txs=False,
                 wait_for_target_seqno=True,
-                timeout=5,
             )
-        except TimeoutError:
-            pass
-        baseline = get_committed_snapshot_files(net)
-        time.sleep(10)
-        final = get_committed_snapshot_files(net)
-        assert (
-            final == baseline
-        ), f"With min_tx_interval set to 10 we expect no snapshots to be generated without transactions, but got {final} snapshots 10s after a baseline of {baseline}, with {final - baseline} new snapshots seen over the test."
 
-        tx_id = net.txs.issue(net, number_txs=1)
-        baseline = get_committed_snapshot_files(net)
-        time.sleep(10)
-        final = get_committed_snapshot_files(net)
-        assert (
-            final == baseline
-        ), f"With min_tx_interval set to 10 and we expect no snapshots to be generated with only one extra tx, but got {final} snapshots 10s after a baseline of {baseline}, and in total saw {final - baseline} new snapshots over the test."
-
-        net.txs.issue(net, number_txs=20)
-        primary, _ = net.find_primary()
-        net.get_committed_snapshots(
-            primary,
-            target_seqno=tx_id.seqno,
-            force_txs=False,
-            wait_for_target_seqno=True,
-        )
+    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+        futures = [
+            executor.submit(run_test) for run_test in (run_low, run_exact, run_high)
+        ]
+        for future in futures:
+            future.result()
 
 
 def run_snapshot_persistence_across_primary_failure(const_args):
