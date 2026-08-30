@@ -100,6 +100,9 @@ allows delayed delivery after a sender changes phase without merging
 incompatible executions. `open`, `join_restart`, and `complete` each consume
 one matching pending effect from the observed node, so one node cannot replay
 its transition or consume another node's effect.
+An explicit send may also match an earlier send capability: this models a
+retry task that selected its work before a concurrent protocol commit and
+dispatched it afterward.
 The validator computes a finite hidden closure over retry/send stuttering
 before and after each observation. It does not guess protocol-state changes.
 `pre` and `post` filter all candidates. Message IDs constrain causal matching
@@ -115,14 +118,28 @@ prints the observed incompatible kind plus expected compatible events from the
 last nonempty candidate set. A successful parse with no compatible execution is
 never reported as success.
 
-## Instrumentation transaction rule
+## C++ instrumentation
 
-Future C++ instrumentation must emit only after the transaction containing the
-modeled state change commits. It must not log a handler mutation, open
-transition, timeout-lane advance, or restart side effect from a transaction
-that later aborts. Validation/HTTP rejection events that perform no state
-mutation may be emitted at their final rejection boundary. This slice defines
-the contract and Lean validator only; it does not instrument C++.
+Configure CCF with `-DCCF_RECOVERY_TRACE=ON` to enable implementation tracing.
+Accepted receive and timeout events are written to
+`public:ccf.internal.recovery_decision_protocol.trace_events` in the same
+transaction as the modeled state change. A global commit hook emits them only
+after commit, followed by any `open`, `join_restart`, or `complete` effect from
+that transition. Aborted transactions therefore emit nothing.
+
+The committed start hook emits `start` before scheduling retry and failover
+tasks. Transport sends are emitted immediately before dispatch and propagate
+their generated `message_id` in the internal request as `trace_message_id`;
+the committed receive records it as `caused_by`.
+
+Each log record contains `RDP_TRACE ` followed by the event object.
+`tests/infra/recovery_trace.py` extracts records from all participating node
+logs, topologically orders them by per-node sequence and causal send edges,
+writes NDJSON, and invokes the Lean validator. The quorum, failover, and
+multiple-timeout SNP e2e scenarios call this helper.
+
+Validation/HTTP rejection events that perform no state mutation remain
+optional; the current C++ instrumentation records successful committed paths.
 
 ## Example
 

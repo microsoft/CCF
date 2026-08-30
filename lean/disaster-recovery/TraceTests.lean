@@ -156,6 +156,33 @@ def main : IO UInt32 := do
       [start, retry, send, received, openingVote, openedOnce, openedTwice] 7)
     "one opening transition produced multiple committed open observations"
 
+  let votingGossip := {
+    baseEvent single "A" 1 .gossipAccepted with
+    messageId := some "voting-gossip"
+    source := some "A"
+    txid := some { view := 1, seqno := 1 }
+    pre := some .gossiping
+    post := some .voting
+  }
+  let staleOpeningVote := {
+    baseEvent single "A" 2 .voteAccepted with
+    messageId := some "voting-vote"
+    source := some "A"
+    pre := some .voting
+    post := some .opening
+  }
+  let delayedVoteSend := {
+    baseEvent single "A" 3 .send with
+    messageId := some "delayed-vote-send"
+    pre := some .opening
+    post := some .opening
+    send := some "vote:A"
+  }
+  match validate [start, votingGossip, staleOpeningVote, delayedVoteSend] with
+  | .ok 1 => pure ()
+  | result =>
+      throw (IO.userError s!"stale retry send was rejected: {repr result}")
+
   let hiddenReceive := {
     baseEvent single "A" 1 .gossipAccepted with
     messageId := some "receive-hidden"

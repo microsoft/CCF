@@ -292,13 +292,28 @@ jobs:
           python3 tests/infra/platform_detection.py snp milan
         shell: bash
 
+      - name: "Build Lean recovery trace validator"
+        run: |
+          set -euo pipefail
+          curl --proto '=https' --tlsv1.2 -sSf \
+            https://raw.githubusercontent.com/leanprover/elan/58e8d545e33641f66dbcbd22c4283109e71757be/elan-init.sh \
+            -o /tmp/elan-init.sh
+          sh /tmp/elan-init.sh -y --default-toolchain none
+          rm /tmp/elan-init.sh
+          export PATH="${HOME}/.elan/bin:${PATH}"
+          elan toolchain install "$(cat lean/disaster-recovery/lean-toolchain)"
+          cd lean/disaster-recovery
+          lake exe cache get
+          lake build trace-validator
+        shell: bash
+
       - name: "Build Debug"
         run: |
           set -ex
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DWORKER_THREADS=1 ..
+          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DWORKER_THREADS=1 -DCCF_RECOVERY_TRACE=ON ..
           ninja
         shell: bash
 
@@ -314,6 +329,7 @@ jobs:
         shell: bash
         env:
           CCF_TEST_SYNC_AFTER_SETUP: 1
+          CCF_LEAN_TRACE_VALIDATOR: ${{ github.workspace }}/lean/disaster-recovery/.lake/build/bin/trace-validator
           ELECTION_TIMEOUT_MS: 10000
 
       - name: "Capture dmesg"
@@ -336,6 +352,7 @@ jobs:
             build/workspace/*/out
             build/workspace/*/err
             build/workspace/*/*.ledger/*
+            build/workspace/**/*.recovery.ndjson
             build/workspace/*/stack_trace
             build/workspace/**/openapi_coverage.json
           if-no-files-found: ignore
@@ -378,13 +395,28 @@ jobs:
           python3 tests/infra/platform_detection.py snp genoa
         shell: bash
 
+      - name: "Build Lean recovery trace validator"
+        run: |
+          set -euo pipefail
+          curl --proto '=https' --tlsv1.2 -sSf \
+            https://raw.githubusercontent.com/leanprover/elan/58e8d545e33641f66dbcbd22c4283109e71757be/elan-init.sh \
+            -o /tmp/elan-init.sh
+          sh /tmp/elan-init.sh -y --default-toolchain none
+          rm /tmp/elan-init.sh
+          export PATH="${HOME}/.elan/bin:${PATH}"
+          elan toolchain install "$(cat lean/disaster-recovery/lean-toolchain)"
+          cd lean/disaster-recovery
+          lake exe cache get
+          lake build trace-validator
+        shell: bash
+
       - name: "Build Debug"
         run: |
           set -ex
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DWORKER_THREADS=1 ..
+          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DWORKER_THREADS=1 -DCCF_RECOVERY_TRACE=ON ..
           ninja
         shell: bash
 
@@ -400,6 +432,7 @@ jobs:
         shell: bash
         env:
           CCF_TEST_SYNC_AFTER_SETUP: 1
+          CCF_LEAN_TRACE_VALIDATOR: ${{ github.workspace }}/lean/disaster-recovery/.lake/build/bin/trace-validator
           ELECTION_TIMEOUT_MS: 10000
 
       - name: "Capture dmesg"
@@ -422,6 +455,7 @@ jobs:
             build/workspace/*/out
             build/workspace/*/err
             build/workspace/*/*.ledger/*
+            build/workspace/**/*.recovery.ndjson
             build/workspace/*/stack_trace
             build/workspace/**/openapi_coverage.json
           if-no-files-found: ignore

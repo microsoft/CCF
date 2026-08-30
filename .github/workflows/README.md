@@ -103,9 +103,10 @@ File: `tla-shallow.yml`
 
 # Lean Shallow Verification
 
-Builds and checks the Lean disaster-recovery models, validates trace fixtures,
-and compares the bounded Lean legacy model with Stateright on relevant pull
-requests.
+Builds and checks the Lean disaster-recovery models, validates trace fixtures
+and the causal log merger, and compares the bounded Lean legacy model with
+Stateright on relevant pull requests. The SNP jobs in `ci.yml` additionally
+validate committed C++ recovery traces.
 
 File: `lean-shallow.yml`
 3rd party dependencies: None

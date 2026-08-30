@@ -375,6 +375,19 @@ private def observationCompatible
             state.phase == .open
         | _ => false
 
+private def historicalSendCompatible
+    (candidate : Candidate)
+    (event : TraceEvent) : Bool :=
+  match nodeState candidate.system event.node, event.send with
+  | some state, some description =>
+      phaseMatches event.pre state.phase &&
+        phaseMatches event.post state.phase &&
+        candidate.hiddenSends.contains {
+          source := event.node
+          description
+        }
+  | _, _ => false
+
 private def removePendingEffect (node : Location) (target : Effect) :
     List PendingEffect -> Option (List PendingEffect)
   | [] => none
@@ -404,19 +417,25 @@ private def consumeObservation
     (config : Config)
     (candidate : Candidate)
     (event : TraceEvent) : Option Candidate := do
-  guard (observationCompatible config candidate.system event)
   match event.kind with
-  | .send => some candidate
+  | .send => do
+      guard (
+        observationCompatible config candidate.system event ||
+          historicalSendCompatible candidate event)
+      some candidate
   | .open => do
+      guard (observationCompatible config candidate.system event)
       let kind <- event.openKind
       let pendingEffects <- removePendingEffect event.node (.opening kind)
         candidate.pendingEffects
       some { candidate with pendingEffects }
   | .joinRestart => do
+      guard (observationCompatible config candidate.system event)
       let pendingEffects <- removePendingRestart event.node
         candidate.pendingEffects
       some { candidate with pendingEffects }
   | .complete => do
+      guard (observationCompatible config candidate.system event)
       let pendingEffects <- removePendingEffect event.node .completed
         candidate.pendingEffects
       some { candidate with pendingEffects }

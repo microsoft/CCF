@@ -10,6 +10,10 @@ on:
       - "src/node/recovery_decision_protocol.cpp"
       - "src/node/recovery_decision_protocol.h"
       - "src/node/rpc/self_healing_open_handlers.h"
+      - "tests/e2e_operations.py"
+      - "tests/infra/recovery_trace.py"
+      - "CMakeLists.txt"
+      - ".github/workflows/ci.yml"
       - ".github/workflows/lean-shallow.yml"
 
 concurrency:
@@ -69,6 +73,8 @@ jobs:
             echo "Rejected causal trace was accepted"
             exit 1
           fi
+          PYTHONPATH=../../tests python3 -m unittest discover \
+            -s ../../tests/infra -p recovery_trace_test.py
 
       - name: Compare Lean and Stateright
         working-directory: lean/disaster-recovery

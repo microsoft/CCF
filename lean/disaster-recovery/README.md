@@ -317,6 +317,9 @@ incompatible histories. Candidates also retain one-shot committed effects;
 for the node that produced them. On failure the validator reports the shortest
 failing prefix and expected compatible events.
 
+Explicit sends may match an accumulated earlier capability when a retry task
+selected work before a concurrent state commit and dispatched it afterward.
+
 The canonical v1 relation is deterministic, so a successful v1 prefix currently
 retains one candidate. The candidate list and separate histories are explicit
 for future under-observed or nondeterministic refinements.
@@ -326,6 +329,20 @@ per node, one start per participating node, required event fields, globally
 unique message IDs, feasible accepted receives from configured sources, and one
 receive per supplied causal send ID. Observable `pre`, `post`, and open-kind
 values are checked against every remaining candidate state.
+
+### Implementation trace validation
+
+`CCF_RECOVERY_TRACE` enables C++ tracing without changing default builds.
+Protocol transactions append semantic events to an internal public trace map;
+its global commit hook emits `RDP_TRACE` records only after commit. Sends are
+logged before dispatch with causal IDs propagated to accepted receive records.
+
+[`tests/infra/recovery_trace.py`](../../tests/infra/recovery_trace.py) extracts
+records from all recovery nodes and topologically orders them from per-node
+sequence and causal edges, without comparing clocks. It then invokes the Lean
+validator. The quorum, failover, and multiple-timeout recovery scenarios call
+this helper, and both SNP CI jobs build CCF with tracing enabled and provide the
+Lean validator binary.
 
 ## Commands
 
@@ -391,6 +408,6 @@ The Stateright model can be removed only after:
 3. committed traces from the quorum, failover, and multiple-timeout C++ e2e
    scenarios validate against the canonical Lean model.
 
-This change establishes the first two migration mechanisms and freezes the
-trace contract needed by the third. It does not claim implementation
-conformance before C++ emits committed semantic events.
+The migration now implements all three mechanisms. Stateright should remain
+until the bounded comparison and SNP implementation-trace jobs have established
+a stable green history.

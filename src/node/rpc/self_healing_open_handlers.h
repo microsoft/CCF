@@ -15,6 +15,8 @@
 #include "node/recovery_decision_protocol.h"
 #include "node/rpc/node_frontend_utils.h"
 
+#include <type_traits>
+
 namespace ccf::node
 {
   template <typename Input>
@@ -25,9 +27,10 @@ namespace ccf::node
   template <typename Input>
   static HandlerJsonParamsAndForward wrap_recovery_decision_protocol(
     RecoveryDecisionProtocolHandler<Input> cb,
-    ccf::AbstractNodeContext& node_context)
+    ccf::AbstractNodeContext& node_context,
+    const std::string& trace_kind)
   {
-    return [cb = std::move(cb), &node_context](
+    return [cb = std::move(cb), &node_context, trace_kind](
              endpoints::EndpointContext& args, const nlohmann::json& params) {
       auto config = node_context.get_subsystem<NodeConfigurationSubsystem>();
       auto node_operation = node_context.get_subsystem<AbstractNodeOperation>();
@@ -112,6 +115,22 @@ namespace ccf::node
         node_info_handle->put(info.location.name, src_info);
       }
 
+#ifdef CCF_RECOVERY_TRACE
+      const auto trace_pre = args.tx
+                               .ro<recovery_decision_protocol::SMState>(
+                                 Tables::RECOVERY_DECISION_PROTOCOL_SM_STATE)
+                               ->get();
+      if (!trace_pre.has_value())
+      {
+        return make_error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::InternalError,
+          "Recovery-decision-protocol state not set while tracing");
+      }
+#else
+      (void)trace_kind;
+#endif
+
       // ---- Run callback ----
 
       auto ret = cb(args, in);
@@ -125,7 +144,24 @@ namespace ccf::node
 
       try
       {
-        node_operation->recovery_decision_protocol().advance(args.tx, false);
+        auto& protocol = node_operation->recovery_decision_protocol();
+        protocol.advance(args.tx, false);
+#ifdef CCF_RECOVERY_TRACE
+        std::optional<ccf::TxID> trace_txid = std::nullopt;
+        if constexpr (std::is_same_v<
+                        Input,
+                        recovery_decision_protocol::GossipRequest>)
+        {
+          trace_txid = in.txid;
+        }
+        protocol.record_trace_receive(
+          args.tx,
+          trace_kind,
+          in.trace_message_id,
+          info.location.name,
+          trace_txid,
+          trace_pre.value());
+#endif
       }
       catch (const std::logic_error& e)
       {
@@ -186,7 +222,7 @@ namespace ccf::node
         HTTP_PUT,
         json_adapter(wrap_recovery_decision_protocol<
                      recovery_decision_protocol::GossipRequest>(
-          recovery_decision_protocol_gossip, node_context)),
+          recovery_decision_protocol_gossip, node_context, "gossip_accepted")),
         no_auth_required)
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
       .set_openapi_hidden(true)
@@ -212,7 +248,7 @@ namespace ccf::node
         HTTP_PUT,
         json_adapter(wrap_recovery_decision_protocol<
                      recovery_decision_protocol::TaggedWithNodeInfo>(
-          recovery_decision_protocol_vote, node_context)),
+          recovery_decision_protocol_vote, node_context, "vote_accepted")),
         no_auth_required)
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
       .set_openapi_hidden(true)
@@ -284,7 +320,9 @@ namespace ccf::node
         HTTP_PUT,
         json_adapter(wrap_recovery_decision_protocol<
                      recovery_decision_protocol::IAmOpenRequest>(
-          recovery_decision_protocol_iamopen, node_context)),
+          recovery_decision_protocol_iamopen,
+          node_context,
+          "iamopen_accepted")),
         no_auth_required)
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
       .set_openapi_hidden(true)
@@ -343,7 +381,14 @@ namespace ccf::node
 
       try
       {
-        node_operation->recovery_decision_protocol().advance(args.tx, true);
+        auto& protocol = node_operation->recovery_decision_protocol();
+#ifdef CCF_RECOVERY_TRACE
+        const auto trace_pre = protocol.get_trace_state(args.tx);
+#endif
+        protocol.advance(args.tx, true);
+#ifdef CCF_RECOVERY_TRACE
+        protocol.record_trace_timeout(args.tx, trace_pre);
+#endif
       }
       catch (const std::logic_error& e)
       {
