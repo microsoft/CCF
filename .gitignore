@@ -41,8 +41,6 @@ snapshot_[0-9]*
 !tests/testdata/**/ledger*
 !tests/testdata/**/snapshot*
 doc/operations/generated_config.rst
-*.parquet
-tests/perf-system/analyzer/*.png
 **/*.ipynb*
 scripts/azure_deployment/.env
 .env
