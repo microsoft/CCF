@@ -659,11 +659,6 @@ namespace ccf::kv
       // at the specified version.
       // No transactions can be prepared or committed during rollback.
 
-      if (snapshotter)
-      {
-        snapshotter->rollback(tx_id.seqno);
-      }
-
       std::lock_guard<ccf::pal::Mutex> mguard(maps_lock);
 
       {
@@ -691,6 +686,10 @@ namespace ccf::kv
 
         if (tx_id.seqno >= version)
         {
+          if (snapshotter)
+          {
+            snapshotter->rollback(tx_id.seqno);
+          }
           if (chunker)
           {
             // Keep this ordered with append_entry_size() below, so a commit
@@ -708,6 +707,10 @@ namespace ccf::kv
         unset_flag_unsafe(StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
         rollback_count++;
         pending_txs.clear();
+        if (snapshotter)
+        {
+          snapshotter->rollback(tx_id.seqno);
+        }
         if (chunker)
         {
           // Keep this ordered with append_entry_size() below, so a commit
