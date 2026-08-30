@@ -3596,6 +3596,51 @@ TEST_CASE("Chunk metadata is not restored by a batch a rollback discarded")
   CHECK(chunker->current_version() == store.current_version());
 }
 
+TEST_CASE("A rollback never moves chunk metadata past the store's version")
+{
+  ccf::kv::Store store;
+  store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+  auto consensus = std::make_shared<ccf::kv::test::PrimaryStubConsensus>();
+  store.set_consensus(consensus);
+  auto chunker = std::make_shared<InspectableChunker>();
+  store.set_chunker(chunker);
+
+  constexpr ccf::kv::Term initial_term = 2;
+  store.initialise_term(initial_term);
+  MapTypes::StringString map("public:map");
+
+  {
+    auto tx = store.create_tx();
+    tx.rw(map)->put("key", "initial");
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+
+  const auto version = store.current_version();
+  REQUIRE(chunker->current_version() == version);
+
+  SUBCASE("Rollback to the current version")
+  {
+    store.rollback(store.current_txid(), initial_term + 1);
+  }
+
+  SUBCASE("Rollback beyond the current version")
+  {
+    store.rollback({initial_term, version + 3}, initial_term + 1);
+  }
+
+  // Neither discards anything, so neither may move the chunker.
+  CHECK(store.current_version() == version);
+  CHECK(chunker->current_version() == version);
+
+  INFO("Later entries are still recorded against their own version");
+  {
+    auto tx = store.create_tx();
+    tx.rw(map)->put("key", "fresh");
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+  CHECK(chunker->current_version() == store.current_version());
+}
+
 TEST_CASE("Ledger entry chunk request")
 {
   ccf::kv::Store store;
