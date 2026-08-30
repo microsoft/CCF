@@ -39,6 +39,7 @@ namespace
     RealStackTable& table;
     size_t key;
     size_t value;
+    Checkpoint* before_reserved_prepare;
 
   public:
     ReservedWritePendingTx(
@@ -46,18 +47,25 @@ namespace
       ccf::kv::Store& store_,
       RealStackTable& table_,
       size_t key_,
-      size_t value_) :
+      size_t value_,
+      Checkpoint* before_reserved_prepare_ = nullptr) :
       txid(txid_),
       store(store_),
       table(table_),
       key(key_),
-      value(value_)
+      value(value_),
+      before_reserved_prepare(before_reserved_prepare_)
     {}
 
     ccf::kv::PendingTxInfo call() override
     {
       auto tx = store.create_reserved_tx(txid);
       tx.rw(table)->put(key, value);
+      if (before_reserved_prepare != nullptr)
+      {
+        return tx.commit_reserved(
+          checkpoint_post_apply_observer(*before_reserved_prepare));
+      }
       return tx.commit_reserved();
     }
   };
@@ -906,4 +914,48 @@ DOCTEST_TEST_CASE(
   DOCTEST_CHECK(flagged_txid.seqno < later_txid.seqno);
   DOCTEST_CHECK(fixture.chunker->has_forced_chunk(flagged_txid.seqno));
   DOCTEST_CHECK_FALSE(fixture.chunker->has_forced_chunk(later_txid.seqno));
+}
+
+DOCTEST_TEST_CASE(
+  "Rollback during reserved chunk production leaves no stale chunk marker" *
+  doctest::test_suite("real_stack_deterministic"))
+{
+  RealStackFixture fixture;
+  fixture.install_inspectable_snapshotter();
+  const auto baseline_txid = fixture.commit_signature();
+  const auto reserved_txid = fixture.store->next_txid();
+  fixture.chunker->force_end_of_chunk(baseline_txid.seqno);
+
+  Checkpoint checkpoint("before reserved side effects");
+  std::optional<ccf::kv::CommitResult> result;
+  std::thread worker([&]() {
+    result = fixture.store->commit(
+      reserved_txid,
+      std::make_unique<ReservedWritePendingTx>(
+        reserved_txid, *fixture.store, fixture.table, 7002, 7002, &checkpoint),
+      true);
+  });
+  checkpoint.wait_until_paused();
+
+  try
+  {
+    fixture.reelect();
+  }
+  catch (...)
+  {
+    checkpoint.release();
+    worker.join();
+    throw;
+  }
+
+  checkpoint.release();
+  worker.join();
+
+  DOCTEST_REQUIRE(result.has_value());
+  DOCTEST_CHECK(result.value() == ccf::kv::CommitResult::FAIL_NO_REPLICATE);
+  DOCTEST_CHECK(fixture.store->current_txid() == baseline_txid);
+  DOCTEST_CHECK(fixture.history_txid() == baseline_txid);
+  DOCTEST_CHECK(fixture.chunker->current_version() == baseline_txid.seqno);
+  DOCTEST_CHECK_FALSE(fixture.chunker->has_chunk_end(reserved_txid.seqno));
+  DOCTEST_CHECK_FALSE(fixture.snapshotter->has_recorded(reserved_txid.seqno));
 }
