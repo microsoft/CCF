@@ -659,16 +659,6 @@ namespace ccf::kv
       // at the specified version.
       // No transactions can be prepared or committed during rollback.
 
-      if (snapshotter)
-      {
-        snapshotter->rollback(tx_id.seqno);
-      }
-
-      if (chunker)
-      {
-        chunker->rolled_back_to(tx_id.seqno);
-      }
-
       std::lock_guard<ccf::pal::Mutex> mguard(maps_lock);
 
       {
@@ -696,6 +686,16 @@ namespace ccf::kv
 
         if (tx_id.seqno >= version)
         {
+          if (snapshotter)
+          {
+            snapshotter->rollback(tx_id.seqno);
+          }
+          if (chunker)
+          {
+            // Keep this ordered with append_entry_size() below, so a commit
+            // cannot restore chunk metadata after this rollback.
+            chunker->rolled_back_to(tx_id.seqno);
+          }
           return;
         }
 
@@ -707,6 +707,16 @@ namespace ccf::kv
         unset_flag_unsafe(StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
         rollback_count++;
         pending_txs.clear();
+        if (snapshotter)
+        {
+          snapshotter->rollback(tx_id.seqno);
+        }
+        if (chunker)
+        {
+          // Keep this ordered with append_entry_size() below, so a commit
+          // cannot restore chunk metadata after this rollback.
+          chunker->rolled_back_to(tx_id.seqno);
+        }
         auto e = get_encryptor();
         if (e)
         {
@@ -1083,7 +1093,18 @@ namespace ccf::kv
 
         if (chunker)
         {
-          chunker->append_entry_size(data_shared->size());
+          std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
+          // A rollback can only discard this batch's writes by truncating,
+          // which requires its target to be below `version` and therefore
+          // increments rollback_count. A rollback that does not truncate
+          // leaves the writes intact, but may still move the term on, which
+          // consensus will reject - so both are checked here.
+          if (
+            previous_rollback_count == rollback_count &&
+            replication_view == term_of_next_version)
+          {
+            chunker->append_entry_size(data_shared->size());
+          }
         }
 
         LOG_DEBUG_FMT(
