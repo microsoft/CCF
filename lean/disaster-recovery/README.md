@@ -336,6 +336,8 @@ values are checked against every remaining candidate state.
 Protocol transactions append semantic events to an internal public trace map;
 its global commit hook emits `RDP_TRACE` records only after commit. Sends are
 logged before dispatch with causal IDs propagated to accepted receive records.
+For trace-enabled joiners, the hook emits the committed receive and
+`join_restart` records before requesting host restart.
 
 [`tests/infra/recovery_trace.py`](../../tests/infra/recovery_trace.py) extracts
 records from all recovery nodes and topologically orders them from per-node

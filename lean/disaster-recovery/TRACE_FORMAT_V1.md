@@ -126,6 +126,9 @@ Accepted receive and timeout events are written to
 transaction as the modeled state change. A global commit hook emits them only
 after commit, followed by any `open`, `join_restart`, or `complete` effect from
 that transition. Aborted transactions therefore emit nothing.
+In trace-enabled builds the joiner restart request is issued by this hook after
+the committed receive and `join_restart` records are emitted; default builds
+retain the existing immediate restart path.
 
 The committed start hook emits `start` before scheduling retry and failover
 tasks. Transport sends are emitted immediately before dispatch and propagate

@@ -104,6 +104,11 @@ namespace ccf
             if (event.has_value())
             {
               emit_trace_event(event.value());
+              if (event->kind == "join_restart")
+              {
+                RINGBUFFER_WRITE_MESSAGE(
+                  AdminMessage::restart, node_state->to_host);
+              }
             }
           }
         }));
@@ -507,7 +512,9 @@ namespace ccf
           ccf::crypto::cert_der_to_pem(node_config->service_cert_der);
         LOG_INFO_FMT("{}", service_cert.str());
 
+#ifndef CCF_RECOVERY_TRACE
         RINGBUFFER_WRITE_MESSAGE(AdminMessage::restart, node_state->to_host);
+#endif
       }
       case recovery_decision_protocol::StateMachine::OPENING:
       {
