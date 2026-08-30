@@ -57,6 +57,16 @@ namespace ccf::node
       auto in = params.get<Input>();
       recovery_decision_protocol::RequestNodeInfo info = in.info;
 
+#ifdef CCF_RECOVERY_TRACE
+      if (!in.trace_message_id.has_value())
+      {
+        return make_error(
+          HTTP_STATUS_BAD_REQUEST,
+          ccf::errors::InvalidInput,
+          "Recovery trace message ID is required in trace-enabled builds");
+      }
+#endif
+
       // ---- Validate the quote against our store and store the node info ----
 
       auto cert_der = ccf::crypto::public_key_der_from_cert(

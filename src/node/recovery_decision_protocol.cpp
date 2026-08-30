@@ -118,6 +118,12 @@ namespace ccf
     recovery_decision_protocol::TraceEvent event)
   {
     std::lock_guard<pal::Mutex> guard(trace_lock);
+    emit_trace_event_unsafe(std::move(event));
+  }
+
+  void RecoveryDecisionProtocolSubsystem::emit_trace_event_unsafe(
+    recovery_decision_protocol::TraceEvent event)
+  {
     if (event.kind == "send")
     {
       event.pre = trace_committed_state;
@@ -152,15 +158,13 @@ namespace ccf
   std::string RecoveryDecisionProtocolSubsystem::new_trace_message_id()
   {
     std::lock_guard<pal::Mutex> guard(trace_lock);
-    return fmt::format(
-      "{}:{}:{}", trace_instance_id, trace_node, next_trace_message_number++);
+    return new_trace_message_id_unsafe();
   }
 
-  bool RecoveryDecisionProtocolSubsystem::is_trace_state_committed(
-    recovery_decision_protocol::StateMachine state)
+  std::string RecoveryDecisionProtocolSubsystem::new_trace_message_id_unsafe()
   {
-    std::lock_guard<pal::Mutex> guard(trace_lock);
-    return trace_committed_state == trace_state_name(state);
+    return fmt::format(
+      "{}:{}:{}", trace_instance_id, trace_node, next_trace_message_number++);
   }
 
   recovery_decision_protocol::StateMachine RecoveryDecisionProtocolSubsystem::
@@ -177,10 +181,10 @@ namespace ccf
     return state.value();
   }
 
-  void RecoveryDecisionProtocolSubsystem::emit_trace_send(
+  void RecoveryDecisionProtocolSubsystem::emit_trace_send_unsafe(
     const std::string& message_id, const std::string& description)
   {
-    emit_trace_event({
+    emit_trace_event_unsafe({
       .kind = "send",
       .message_id = message_id,
       .pre = "",
@@ -599,13 +603,6 @@ namespace ccf
         }
         auto& sm_state = sm_state_opt.value();
 
-#ifdef CCF_RECOVERY_TRACE
-        if (!is_trace_state_committed(sm_state))
-        {
-          return;
-        }
-#endif
-
         // Stop if recovery-decision-protocol is complete
         if (sm_state == recovery_decision_protocol::StateMachine::OPEN)
         {
@@ -615,10 +612,21 @@ namespace ccf
           return;
         }
 
+        std::optional<recovery_decision_protocol::GossipRequest>
+          gossip_request = std::nullopt;
+        std::optional<recovery_decision_protocol::TaggedWithNodeInfo>
+          vote_request = std::nullopt;
+        std::optional<recovery_decision_protocol::NodeInfo> chosen_node_info =
+          std::nullopt;
+        std::optional<recovery_decision_protocol::IAmOpenRequest>
+          iamopen_request = std::nullopt;
+
         switch (sm_state)
         {
           case recovery_decision_protocol::StateMachine::GOSSIPING:
-            send_gossip_unsafe(tx);
+            gossip_request = recovery_decision_protocol::GossipRequest{};
+            gossip_request->info = get_node_info(tx);
+            gossip_request->txid = get_last_recovered_signed_txid();
             break;
           case recovery_decision_protocol::StateMachine::VOTING:
           {
@@ -633,7 +641,7 @@ namespace ccf
               throw std::logic_error(
                 "Recovery-decision-protocol chosen node not set, cannot vote");
             }
-            auto chosen_node_info =
+            chosen_node_info =
               node_info_handle->get(chosen_replica_handle->get().value());
             if (!chosen_node_info.has_value())
             {
@@ -641,13 +649,15 @@ namespace ccf
                 "Recovery-decision-protocol chosen node {} not found",
                 chosen_replica_handle->get().value()));
             }
-            send_vote_unsafe(tx, chosen_node_info.value());
-            // keep gossiping to allow lagging nodes to eventually vote
-            send_gossip_unsafe(tx);
+            vote_request = recovery_decision_protocol::TaggedWithNodeInfo{
+              .info = get_node_info(tx)};
+            gossip_request = recovery_decision_protocol::GossipRequest{};
+            gossip_request->info = vote_request->info;
+            gossip_request->txid = get_last_recovered_signed_txid();
             break;
           }
           case recovery_decision_protocol::StateMachine::OPENING:
-            send_iamopen_unsafe(tx);
+            iamopen_request = get_iamopen_request(tx);
             break;
           case recovery_decision_protocol::StateMachine::JOINING:
           case recovery_decision_protocol::StateMachine::OPEN:
@@ -656,6 +666,47 @@ namespace ccf
           default:
             throw std::logic_error(fmt::format(
               "Unknown recovery-decision-protocol state: {}",
+              static_cast<int>(sm_state)));
+        }
+
+        const auto self_signed_node_cert =
+          node_state->get_self_signed_certificate();
+        const auto node_private_key =
+          node_state->node_sign_kp->private_key_pem();
+
+#ifdef CCF_RECOVERY_TRACE
+        std::lock_guard<pal::Mutex> trace_guard(trace_lock);
+        if (trace_committed_state != trace_state_name(sm_state))
+        {
+          return;
+        }
+#endif
+
+        switch (sm_state)
+        {
+          case recovery_decision_protocol::StateMachine::GOSSIPING:
+            send_gossip_unsafe(
+              gossip_request.value(), self_signed_node_cert, node_private_key);
+            break;
+          case recovery_decision_protocol::StateMachine::VOTING:
+            send_vote_unsafe(
+              vote_request.value(),
+              chosen_node_info.value(),
+              self_signed_node_cert,
+              node_private_key);
+            // Keep gossiping to allow lagging nodes to eventually vote.
+            send_gossip_unsafe(
+              gossip_request.value(), self_signed_node_cert, node_private_key);
+            break;
+          case recovery_decision_protocol::StateMachine::OPENING:
+            send_iamopen_unsafe(
+              iamopen_request.value(), self_signed_node_cert, node_private_key);
+            break;
+          case recovery_decision_protocol::StateMachine::JOINING:
+          case recovery_decision_protocol::StateMachine::OPEN:
+          default:
+            throw std::logic_error(fmt::format(
+              "Unexpected prepared recovery-decision-protocol state: {}",
               static_cast<int>(sm_state)));
         }
       },
@@ -863,27 +914,24 @@ namespace ccf
     return node_info_cache.value();
   }
 
-  void RecoveryDecisionProtocolSubsystem::send_gossip_unsafe(kv::ReadOnlyTx& tx)
+  void RecoveryDecisionProtocolSubsystem::send_gossip_unsafe(
+    recovery_decision_protocol::GossipRequest request,
+    const crypto::Pem& self_signed_node_cert,
+    const crypto::Pem& node_private_key)
   {
     auto& config = get_config();
 
     LOG_TRACE_FMT("Broadcasting recovery-decision-protocol gossip");
 
-    recovery_decision_protocol::GossipRequest request;
-    request.info = get_node_info(tx);
-    request.txid = get_last_recovered_signed_txid();
-    const auto self_signed_node_cert =
-      node_state->get_self_signed_certificate();
-    const auto node_private_key = node_state->node_sign_kp->private_key_pem();
     for (auto& target : config.expected_locations)
     {
       auto target_address = target.address;
 #ifdef CCF_RECOVERY_TRACE
-      request.trace_message_id = new_trace_message_id();
+      request.trace_message_id = new_trace_message_id_unsafe();
 #endif
       nlohmann::json request_json = request;
 #ifdef CCF_RECOVERY_TRACE
-      emit_trace_send(
+      emit_trace_send_unsafe(
         request.trace_message_id.value(),
         fmt::format("gossip:{}", target.name));
 #endif
@@ -897,24 +945,22 @@ namespace ccf
   }
 
   void RecoveryDecisionProtocolSubsystem::send_vote_unsafe(
-    kv::ReadOnlyTx& tx, const recovery_decision_protocol::NodeInfo& node_info)
+    recovery_decision_protocol::TaggedWithNodeInfo request,
+    const recovery_decision_protocol::NodeInfo& node_info,
+    const crypto::Pem& self_signed_node_cert,
+    const crypto::Pem& node_private_key)
   {
     LOG_TRACE_FMT(
       "Sending recovery-decision-protocol vote to {} at {}",
       node_info.location.name,
       node_info.location.address);
 
-    recovery_decision_protocol::TaggedWithNodeInfo request{
-      .info = get_node_info(tx)};
-    const auto self_signed_node_cert =
-      node_state->get_self_signed_certificate();
-
 #ifdef CCF_RECOVERY_TRACE
-    request.trace_message_id = new_trace_message_id();
+    request.trace_message_id = new_trace_message_id_unsafe();
 #endif
     nlohmann::json request_json = request;
 #ifdef CCF_RECOVERY_TRACE
-    emit_trace_send(
+    emit_trace_send_unsafe(
       request.trace_message_id.value(),
       fmt::format("vote:{}", node_info.location.name));
 #endif
@@ -923,7 +969,7 @@ namespace ccf
       node_info.location.address,
       "vote",
       self_signed_node_cert,
-      node_state->node_sign_kp->private_key_pem());
+      node_private_key);
   }
 
   recovery_decision_protocol::IAmOpenRequest&
@@ -964,17 +1010,14 @@ namespace ccf
   }
 
   void RecoveryDecisionProtocolSubsystem::send_iamopen_unsafe(
-    ccf::kv::ReadOnlyTx& tx)
+    recovery_decision_protocol::IAmOpenRequest request,
+    const crypto::Pem& self_signed_node_cert,
+    const crypto::Pem& node_private_key)
   {
     auto& config = get_config();
     auto& location = get_location();
 
     LOG_TRACE_FMT("Sending recovery-decision-protocol iamopen");
-
-    auto request = get_iamopen_request(tx);
-    const auto self_signed_node_cert =
-      node_state->get_self_signed_certificate();
-    const auto node_private_key = node_state->node_sign_kp->private_key_pem();
     for (auto& target : config.expected_locations)
     {
       if (target.name == location.name)
@@ -983,11 +1026,11 @@ namespace ccf
         continue;
       }
 #ifdef CCF_RECOVERY_TRACE
-      request.trace_message_id = new_trace_message_id();
+      request.trace_message_id = new_trace_message_id_unsafe();
 #endif
       nlohmann::json request_json = request;
 #ifdef CCF_RECOVERY_TRACE
-      emit_trace_send(
+      emit_trace_send_unsafe(
         request.trace_message_id.value(),
         fmt::format("iamopen:{}", target.name));
 #endif

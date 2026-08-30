@@ -15,8 +15,8 @@ def main (args : List String) : IO UInt32 := do
           | .error failure =>
               IO.eprintln (renderFailure failure)
               pure 1
-          | .ok candidates =>
-              IO.println s!"trace accepted: {events.length} events, {candidates} compatible final state(s)"
+          | .ok () =>
+              IO.println s!"trace accepted: {events.length} events"
               pure 0
   | _ =>
       IO.eprintln "usage: trace-validator TRACE.ndjson"

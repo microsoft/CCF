@@ -40,83 +40,53 @@ All integers must be nonnegative Lean `Nat` values.
 
 ## Event kinds
 
-| Kind               | Required event fields                                           | Canonical boundary                          |
-| ------------------ | --------------------------------------------------------------- | ------------------------------------------- |
-| `start`            | `pre`, `post`                                                   | Protocol state initialized                  |
-| `gossip_accepted`  | `message_id`, `source`, `view`, `seqno`, `pre`, `post`          | Validated gossip callback committed         |
-| `gossip_rejected`  | `message_id`, `source`, `view`, `seqno`, `pre`, `post`          | Validation or protocol rejection            |
-| `vote_accepted`    | `message_id`, `source`, `pre`, `post`                           | Validated vote callback committed           |
-| `vote_rejected`    | `message_id`, `source`, `pre`, `post`                           | Validation rejection                        |
-| `iamopen_accepted` | `message_id`, `source`, `pre`, `post`                           | IAmOpen selected peer and Joining committed |
-| `iamopen_rejected` | `message_id`, `source`, `pre`, `post`                           | Validation or Opening/Open rejection        |
-| `timeout`          | `pre`, `post`                                                   | Timeout transaction committed               |
-| `retry`            | `pre`, `post`                                                   | Retry task observed                         |
-| `send`             | `send` in `class:destination` form, `message_id`, `pre`, `post` | Transport send observed                     |
-| `open`             | `open_kind`, `pre`, `post`                                      | Service-open transition committed           |
-| `join_restart`     | `pre`, `post`                                                   | Joining/restart side effect committed       |
-| `complete`         | `pre`, `post`                                                   | Opening-to-Open completion committed        |
+| Kind               | Required event fields                                               | Canonical boundary                          |
+| ------------------ | ------------------------------------------------------------------- | ------------------------------------------- |
+| `start`            | `pre`, `post`                                                       | Protocol state initialized                  |
+| `gossip_accepted`  | `message_id`, `caused_by`, `source`, `view`, `seqno`, `pre`, `post` | Validated gossip callback committed         |
+| `vote_accepted`    | `message_id`, `caused_by`, `source`, `pre`, `post`                  | Validated vote callback committed           |
+| `iamopen_accepted` | `message_id`, `caused_by`, `source`, `pre`, `post`                  | IAmOpen selected peer and Joining committed |
+| `timeout`          | `pre`, `post`                                                       | Timeout transaction committed               |
+| `send`             | `send` in `class:destination` form, `message_id`, `pre`, `post`     | Transport send observed                     |
+| `open`             | `open_kind`, `pre`, `post`                                          | Service-open transition committed           |
+| `join_restart`     | `pre`, `post`                                                       | Joining/restart side effect committed       |
+| `complete`         | `pre`, `post`                                                       | Opening-to-Open completion committed        |
 
-Receive events may use `caused_by` to identify the observed send. A referenced
-send is checked for the expected sender, destination, and message class. If the
-send was not logged, the validator may match it against a compatible hidden
-send from a node that has already started. Message IDs, causal IDs, and source
-names must be nonempty. Message IDs cannot be reused. Rejected events branch
-over rejection at the explicit validation boundary and rejection by the
-protocol state. A send ID may cause at most one receive event.
-
-Even without `caused_by`, an accepted receive from a configured source must
-match a send that source could have emitted earlier. A rejected receive without
-`caused_by` may represent rejection at the untrusted validation boundary. A
-nonempty accepted source outside `expected_locations` is treated as an external
-input, matching the current C++ behavior; the validator checks the local receive
-transition but cannot constrain that external sender.
-
-Non-receive events must omit `caused_by`.
+Every receive uses `caused_by` to identify an earlier `send`. The validator
+checks the sender, destination, message class, and single consumption of that
+send. Message IDs, causal IDs, and source names must be nonempty, and message
+IDs cannot be reused. Non-receive events must omit `caused_by`.
 
 Each participating configured node has one `start` event at sequence zero. The
-first creates the initial candidate system; later starts activate other
-configured nodes without resetting candidates. Non-start events for a node
+first creates the replay system; later starts activate other configured nodes
+without resetting it. Non-start events for a node
 before its start are rejected. Configured but unavailable nodes may have no
 start event. Subsequent records must preserve `instance` and
 `expected_locations`, refer to a configured node, and increment that node's
 sequence exactly. Empty instance IDs, empty configurations, empty location
 names, and duplicate configured names are rejected.
 
-The NDJSON record order must be a topological linearization of the distributed
-trace. It must order a node's start and any observed transition enabling an
-omitted send before the receive caused by that send. The collector must retain
-this hidden happens-before edge while merging, even if it omits the send record
-from the final trace. Per-node `sequence`, message causality, and these hidden
-edges define the ordering; wall-clock timestamps do not. Unknown fields may
-carry collector-specific merge metadata.
+The NDJSON record order is a topological linearization of the distributed
+trace. Per-node `sequence` and `caused_by` edges define the ordering; wall-clock
+timestamps do not.
 
-## Under-observation
+## Strict replay
 
-An implementation trace need not expose every retry or network send. The
-validator maintains compatible candidates containing a `SystemState` and the
-send classes that could have been emitted by earlier hidden retries, plus
-unobserved one-shot effects produced by committed transitions. This history
-allows delayed delivery after a sender changes phase without merging
-incompatible executions. `open`, `join_restart`, and `complete` each consume
-one matching pending effect from the observed node, so one node cannot replay
-its transition or consume another node's effect.
-An explicit send may also match an earlier send capability: this models a
-retry task that selected its work before a concurrent protocol commit and
-dispatched it afterward.
-The validator computes a finite hidden closure over retry/send stuttering
-before and after each observation. It does not guess protocol-state changes.
-`pre` and `post` filter all candidates. Message IDs constrain causal matching
-but are not protocol state.
+Version 1 is a complete successful-execution trace: every transport send,
+accepted receive, committed timeout, and one-shot effect is explicit.
+`Trace/Replay.lean` folds these events over one deterministic `SystemState`.
+It retains only observed sends, consumed causal IDs, per-node sequences, and
+pending `open`, `join_restart`, or `complete` effects.
 
-The canonical v1 transition relation is deterministic, so a successful v1
-prefix currently retains one candidate. Candidate sets and separate histories
-remain explicit so later under-observed refinements can introduce genuine
-alternatives without changing the validation architecture.
+The validator rejects the first event that is not enabled by the canonical
+model or whose recorded pre/post state, cause, or effect does not match. It
+reports this shortest failing prefix with the current phase and expected event
+classes.
 
-If no candidate remains, validation stops at the shortest failing prefix and
-prints the observed incompatible kind plus expected compatible events from the
-last nonempty candidate set. A successful parse with no compatible execution is
-never reported as success.
+Rejected HTTP/validation inputs do not mutate the modeled state and are not
+part of version 1. A future need to validate rejection behavior or incomplete
+traces should use a new contract version rather than adding implicit behavior
+to this deterministic replay.
 
 ## C++ instrumentation
 
@@ -135,8 +105,8 @@ tasks. Transport sends are emitted immediately before dispatch and propagate
 their generated `message_id` in the internal request as `trace_message_id`;
 the committed receive records it as `caused_by`.
 If a retry observes a locally committed phase that is not yet globally visible
-to the trace hook, tracing defers that retry invocation. The periodic task sends
-on its next run after the phase event is emitted.
+to the trace hook, tracing defers that retry invocation. Once phases match, the
+trace lock serializes the complete send batch against later commit publication.
 
 Each log record contains `RDP_TRACE ` followed by the event object.
 `tests/infra/recovery_trace.py` extracts records from all participating node
@@ -144,8 +114,9 @@ logs, topologically orders them by per-node sequence and causal send edges,
 writes NDJSON, and invokes the Lean validator. The quorum, failover, and
 multiple-timeout SNP e2e scenarios call this helper.
 
-Validation/HTTP rejection events that perform no state mutation remain
-optional; the current C++ instrumentation records successful committed paths.
+The e2e helper additionally requires scenario-specific terminal evidence before
+accepting the trace: the expected open kind, at least one completed opener, and
+a `complete` or `join_restart` event for every participating node.
 
 ## Example
 

@@ -110,11 +110,19 @@ namespace ccf
     // Steady state operations
     recovery_decision_protocol::RequestNodeInfo& get_node_info(
       kv::ReadOnlyTx& tx);
-    void send_gossip_unsafe(kv::ReadOnlyTx& tx);
+    void send_gossip_unsafe(
+      recovery_decision_protocol::GossipRequest request,
+      const crypto::Pem& self_signed_node_cert,
+      const crypto::Pem& node_private_key);
     void send_vote_unsafe(
-      kv::ReadOnlyTx& tx,
-      const recovery_decision_protocol::NodeInfo& node_info);
-    void send_iamopen_unsafe(kv::ReadOnlyTx& tx);
+      recovery_decision_protocol::TaggedWithNodeInfo request,
+      const recovery_decision_protocol::NodeInfo& node_info,
+      const crypto::Pem& self_signed_node_cert,
+      const crypto::Pem& node_private_key);
+    void send_iamopen_unsafe(
+      recovery_decision_protocol::IAmOpenRequest request,
+      const crypto::Pem& self_signed_node_cert,
+      const crypto::Pem& node_private_key);
 
     RecoveryDecisionProtocolConfig& get_config();
     sealing_recovery::Location& get_location();
@@ -129,10 +137,10 @@ namespace ccf
       recovery_decision_protocol::StateMachine pre,
       recovery_decision_protocol::StateMachine post);
     void emit_trace_event(recovery_decision_protocol::TraceEvent event);
+    void emit_trace_event_unsafe(recovery_decision_protocol::TraceEvent event);
     std::string new_trace_message_id();
-    bool is_trace_state_committed(
-      recovery_decision_protocol::StateMachine state);
-    void emit_trace_send(
+    std::string new_trace_message_id_unsafe();
+    void emit_trace_send_unsafe(
       const std::string& message_id, const std::string& description);
 #endif
   };

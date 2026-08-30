@@ -24,31 +24,32 @@ intentionally differs from the legacy model in several places. It has formal
 phase-refinement and fairness-aware progress results, plus a versioned trace
 validator designed for future committed C++ instrumentation.
 
-The initial migration is approximately 4,300 lines across 26 new files:
+The initial migration is approximately 4,000 lines across 28 new files:
 
 | Area                                      | Files | Approximate lines | Purpose                                                         |
 | ----------------------------------------- | ----: | ----------------: | --------------------------------------------------------------- |
 | Exact legacy Lean model                   |     4 |               650 | Stateright state, actions, timers, network, predicates, and BFS |
 | Canonical protocol and proofs             |     4 |             1,000 | C++ behavior, phase refinement, quorum, and temporal proofs     |
-| Trace validation                          |     9 |             1,360 | NDJSON contract, validator, tests, and quorum/failover fixtures |
+| Trace validation                          |    11 |             1,020 | NDJSON format, deterministic replay, tests, and fixtures        |
 | Equivalence tooling                       |     2 |               710 | Rust graph exporter and bidirectional Rust/Lean comparison      |
 | Project, documentation, and configuration |     6 |               530 | Lake/Mathlib setup, entry points, and documentation             |
 | Pull-request CI                           |     1 |                80 | Lean model and bounded equivalence checks                       |
 
 ### Principal files
 
-| File                                                                                     | Lines | Role                                                                     |
-| ---------------------------------------------------------------------------------------- | ----: | ------------------------------------------------------------------------ |
-| [`DisasterRecovery/Model.lean`](DisasterRecovery/Model.lean)                             |   392 | Exact executable legacy semantics                                        |
-| [`DisasterRecovery/Checker.lean`](DisasterRecovery/Checker.lean)                         |   152 | BFS enumeration, property checking, and canonical graph export           |
-| [`DisasterRecovery/Protocol/Model.lean`](DisasterRecovery/Protocol/Model.lean)           |   286 | Production-oriented C++ protocol model                                   |
-| [`DisasterRecovery/Protocol/Refinement.lean`](DisasterRecovery/Protocol/Refinement.lean) |   332 | Canonical-to-legacy formal phase refinement                              |
-| [`DisasterRecovery/Protocol/Temporal.lean`](DisasterRecovery/Protocol/Temporal.lean)     |   230 | Execution streams, fairness, safety, and progress proofs                 |
-| [`DisasterRecovery/Protocol/Trace.lean`](DisasterRecovery/Protocol/Trace.lean)           |   772 | Versioned implementation-trace parser and validator                      |
-| [`TraceTests.lean`](TraceTests.lean)                                                     |   394 | Configuration, causality, delayed-send, and committed-effect regressions |
-| [`compare.py`](compare.py)                                                               |   343 | Exhaustive canonical graph comparison                                    |
-| [`../../tla/disaster-recovery/src/export.rs`](../../tla/disaster-recovery/src/export.rs) |   370 | Canonical export of the actual Stateright model                          |
-| [`TRACE_FORMAT_V1.md`](TRACE_FORMAT_V1.md)                                               |   145 | Contract for future committed C++ trace events                           |
+| File                                                                                         | Lines | Role                                                           |
+| -------------------------------------------------------------------------------------------- | ----: | -------------------------------------------------------------- |
+| [`DisasterRecovery/Model.lean`](DisasterRecovery/Model.lean)                                 |   392 | Exact executable legacy semantics                              |
+| [`DisasterRecovery/Checker.lean`](DisasterRecovery/Checker.lean)                             |   152 | BFS enumeration, property checking, and canonical graph export |
+| [`DisasterRecovery/Protocol/Model.lean`](DisasterRecovery/Protocol/Model.lean)               |   286 | Production-oriented C++ protocol model                         |
+| [`DisasterRecovery/Protocol/Refinement.lean`](DisasterRecovery/Protocol/Refinement.lean)     |   332 | Canonical-to-legacy formal phase refinement                    |
+| [`DisasterRecovery/Protocol/Temporal.lean`](DisasterRecovery/Protocol/Temporal.lean)         |   230 | Execution streams, fairness, safety, and progress proofs       |
+| [`DisasterRecovery/Protocol/Trace/Format.lean`](DisasterRecovery/Protocol/Trace/Format.lean) |   141 | Versioned NDJSON types and parser                              |
+| [`DisasterRecovery/Protocol/Trace/Replay.lean`](DisasterRecovery/Protocol/Trace/Replay.lean) |   445 | Deterministic implementation-trace replay                      |
+| [`TraceTests.lean`](TraceTests.lean)                                                         |   210 | Strict replay, causality, sequencing, and effect regressions   |
+| [`compare.py`](compare.py)                                                                   |   343 | Exhaustive canonical graph comparison                          |
+| [`../../tla/disaster-recovery/src/export.rs`](../../tla/disaster-recovery/src/export.rs)     |   370 | Canonical export of the actual Stateright model                |
+| [`TRACE_FORMAT_V1.md`](TRACE_FORMAT_V1.md)                                                   |   145 | Contract for future committed C++ trace events                 |
 
 The migration also updates the existing Stateright CLI and documentation, adds
 weekly exhaustive verification, and adds
@@ -294,9 +295,10 @@ satisfy a one-location threshold. The model preserves this behavior. The phase
 refinement theorem covers this step; expected-source restrictions appear only
 in `LegacyDataAssumptions` for richer data comparisons.
 
-The trace validator treats a nonempty accepted source outside
-`expected_locations` as an external input. It applies the C++-aligned receive
-transition but cannot validate the unmodeled sender's behavior.
+The strict version 1 trace requires every accepted receive to reference an
+instrumented send, so it covers configured protocol participants rather than
+the unexpected external-source path. That implementation discrepancy remains
+explicit in the canonical model and its tests.
 
 ## Temporal results
 
@@ -361,28 +363,20 @@ counterexample to full initial-state equality.
 ## Trace validation
 
 The versioned NDJSON contract is documented in
-[`TRACE_FORMAT_V1.md`](TRACE_FORMAT_V1.md). `trace-validator` parses it without
-another dependency, tracks a set of compatible canonical states, and closes
-that set over hidden retry/send stuttering. Each candidate retains the send
-classes that could have been emitted by earlier hidden retries, so delayed
-messages remain matchable after a sender changes phase without combining
-incompatible histories. Candidates also retain one-shot committed effects;
-`open`, `join_restart`, and `complete` observations consume these exactly once
-for the node that produced them. On failure the validator reports the shortest
-failing prefix and expected compatible events.
+[`TRACE_FORMAT_V1.md`](TRACE_FORMAT_V1.md). Version 1 records complete
+successful executions: sends, accepted receives, committed timeouts, and
+one-shot effects are explicit.
 
-Explicit sends may match an accumulated earlier capability when a retry task
-selected work before a concurrent state commit and dispatched it afterward.
+[`Trace/Format.lean`](DisasterRecovery/Protocol/Trace/Format.lean) parses the
+wire format. [`Trace/Replay.lean`](DisasterRecovery/Protocol/Trace/Replay.lean)
+then folds each event over one deterministic canonical `SystemState`. Replay
+retains only per-node sequences, observed and consumed causal sends, and
+node-scoped pending `open`, `join_restart`, or `complete` effects.
 
-The canonical v1 relation is deterministic, so a successful v1 prefix currently
-retains one candidate. The candidate list and separate histories are explicit
-for future under-observed or nondeterministic refinements.
-
-The validator also enforces configuration validity, one ordered event sequence
-per node, one start per participating node, required event fields, globally
-unique message IDs, feasible accepted receives from configured sources, and one
-receive per supplied causal send ID. Observable `pre`, `post`, and open-kind
-values are checked against every remaining candidate state.
+The validator checks configuration consistency, starts, globally unique message
+IDs, send enablement, exact send/receive causality, canonical pre/post phases,
+and single consumption of committed effects. On failure it reports the shortest
+failing prefix and current protocol phase.
 
 ### Implementation trace validation
 
@@ -393,7 +387,8 @@ logged before dispatch with causal IDs propagated to accepted receive records.
 For trace-enabled joiners, the hook emits the committed receive and
 `join_restart` records before requesting host restart.
 Trace-enabled periodic retries defer work while their locally committed phase
-is ahead of the globally visible trace phase, then send on the next invocation.
+is ahead of the globally visible trace phase. Once phases match, the trace lock
+serializes the complete send batch against later commit publication.
 
 [`tests/infra/recovery_trace.py`](../../tests/infra/recovery_trace.py) extracts
 records from all recovery nodes and topologically orders them from per-node

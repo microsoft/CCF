@@ -53,29 +53,17 @@ class RecoveryTraceTest(unittest.TestCase):
             root = pathlib.Path(directory)
             a_log = root / "a.out"
             b_log = root / "b.out"
-            a_events = [
-                event("A", 0, "start"),
-                event(
-                    "A",
-                    1,
-                    "send",
-                    message_id="send-a-b",
-                    send="gossip:B",
-                ),
-            ]
-            b_events = [
-                event("B", 0, "start"),
-                event(
-                    "B",
-                    1,
-                    "gossip_accepted",
-                    message_id="receive-a-b",
-                    caused_by="send-a-b",
-                    source="A",
-                    view=1,
-                    seqno=1,
-                ),
-            ]
+            fixture = (
+                pathlib.Path(__file__).resolve().parents[2]
+                / "lean"
+                / "disaster-recovery"
+                / "fixtures"
+                / "accepted-multinode.ndjson"
+            )
+            with open(fixture, encoding="utf-8") as trace:
+                events = [json.loads(line) for line in trace if line.strip()]
+            a_events = [item for item in events if item["node"] == "A"]
+            b_events = [item for item in events if item["node"] == "B"]
             a_log.write_text(
                 "".join(
                     f"[info] RDP_TRACE {json.dumps(trace_event)}\n"
@@ -97,10 +85,14 @@ class RecoveryTraceTest(unittest.TestCase):
 
             extracted = infra.recovery_trace.extract_events(network.nodes)
             ordered = infra.recovery_trace.linearize(extracted)
-            self.assertEqual(
-                [(item["node"], item["sequence"]) for item in ordered],
-                [("A", 0), ("A", 1), ("B", 0), ("B", 1)],
-            )
+            positions = {
+                item["message_id"]: index
+                for index, item in enumerate(ordered)
+                if "message_id" in item
+            }
+            for index, item in enumerate(ordered):
+                if "caused_by" in item:
+                    self.assertLess(positions[item["caused_by"]], index)
 
             trace_path = infra.recovery_trace.validate_recovery_trace(
                 network, "synthetic"
