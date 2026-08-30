@@ -733,6 +733,7 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/real_stack/main.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/real_stack/smoke.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/real_stack/deterministic.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/real_stack/fuzzer.cpp
       DETECT_DEADLOCKS
     )
     set_property(

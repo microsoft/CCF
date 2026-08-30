@@ -1466,6 +1466,7 @@ namespace ccf::kv
       std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
       set_flag_unsafe(f);
     }
+
     void unset_flag(StoreFlag f) override
     {
       std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
