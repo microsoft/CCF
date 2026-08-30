@@ -61,6 +61,93 @@ namespace
       return tx.commit_reserved();
     }
   };
+
+  enum class HistoryAppendPause
+  {
+    Before,
+    After
+  };
+
+  void check_election_at_history_append(
+    HistoryAppendPause pause,
+    bool regain_leadership,
+    bool use_real_crypto = false)
+  {
+    RealStackFixture fixture(use_real_crypto);
+    const auto baseline_txid = fixture.commit_signature();
+    const auto [baseline_history_txid, baseline_root, baseline_term] =
+      fixture.history->get_replicated_state_txid_and_root();
+    (void)baseline_term;
+
+    Checkpoint checkpoint("history append");
+    if (pause == HistoryAppendPause::Before)
+    {
+      fixture.history->pause_before_next_append_entry(checkpoint);
+    }
+    else
+    {
+      fixture.history->pause_after_next_append_entry(checkpoint);
+    }
+
+    constexpr size_t stale_key = 5000;
+    auto stale_tx = fixture.store->create_tx();
+    stale_tx.rw(fixture.table)->put(stale_key, stale_key);
+
+    std::optional<ccf::kv::CommitResult> stale_result;
+    std::thread stale_worker([&]() { stale_result = stale_tx.commit(); });
+    checkpoint.wait_until_paused();
+
+    try
+    {
+      if (regain_leadership)
+      {
+        fixture.reelect();
+      }
+      else
+      {
+        fixture.step_down();
+      }
+    }
+    catch (...)
+    {
+      checkpoint.release();
+      stale_worker.join();
+      throw;
+    }
+
+    checkpoint.release();
+    stale_worker.join();
+
+    DOCTEST_REQUIRE(stale_result.has_value());
+    DOCTEST_CHECK(
+      stale_result.value() == ccf::kv::CommitResult::FAIL_NO_REPLICATE);
+    DOCTEST_CHECK(fixture.store->current_txid() == baseline_txid);
+    DOCTEST_CHECK_FALSE(
+      read_value(*fixture.store, fixture.table, stale_key).has_value());
+
+    const auto [history_txid, history_root, history_term] =
+      fixture.history->get_replicated_state_txid_and_root();
+    DOCTEST_CHECK(history_txid == baseline_history_txid);
+    DOCTEST_CHECK(history_root == baseline_root);
+    DOCTEST_CHECK(history_term == fixture.raft->get_view());
+    DOCTEST_CHECK(fixture.raft->get_last_idx() == baseline_txid.seqno);
+    DOCTEST_CHECK(fixture.chunker->current_version() == baseline_txid.seqno);
+
+    if (!regain_leadership)
+    {
+      fixture.raft->force_become_primary();
+    }
+
+    auto fresh_tx = fixture.store->create_tx();
+    fresh_tx.rw(fixture.table)->put(stale_key, stale_key + 1);
+    DOCTEST_REQUIRE(fresh_tx.commit() == ccf::kv::CommitResult::SUCCESS);
+    DOCTEST_CHECK(
+      fixture.raft->get_last_idx() == fixture.store->current_txid().seqno);
+    DOCTEST_CHECK(
+      fixture.history_txid().seqno == fixture.store->current_txid().seqno);
+    DOCTEST_CHECK(
+      read_value(*fixture.store, fixture.table, stale_key) == stale_key + 1);
+  }
 }
 
 DOCTEST_TEST_CASE(
@@ -291,6 +378,17 @@ DOCTEST_TEST_CASE(
     "recorded before the rollback and never recording anything from "
     "after it");
   DOCTEST_CHECK(fixture.history_txid() == baseline_txid);
+  DOCTEST_CHECK(fixture.chunker->current_version() == baseline_txid.seqno);
+
+  auto fresh_tx = fixture.store->create_tx();
+  fresh_tx.rw(fixture.table)->put(5, 6);
+  DOCTEST_REQUIRE(fresh_tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  DOCTEST_CHECK(
+    fixture.raft->get_last_idx() == fixture.store->current_txid().seqno);
+  DOCTEST_CHECK(
+    fixture.history_txid().seqno == fixture.store->current_txid().seqno);
+  DOCTEST_CHECK(
+    fixture.chunker->current_version() == fixture.store->current_txid().seqno);
 }
 
 DOCTEST_TEST_CASE(
@@ -466,4 +564,204 @@ DOCTEST_TEST_CASE(
   fresh_tx.rw<RealStackTable>(dynamic_map_name)->put(2, 2);
   DOCTEST_REQUIRE(fresh_tx.commit() == ccf::kv::CommitResult::SUCCESS);
   DOCTEST_CHECK(hook_calls == 1);
+}
+
+DOCTEST_TEST_CASE(
+  "Elections around history append leave no stale history or replication "
+  "gap" *
+  doctest::test_suite("real_stack_deterministic"))
+{
+  DOCTEST_SUBCASE("Rollback and re-election complete before history append")
+  {
+    check_election_at_history_append(HistoryAppendPause::Before, true);
+  }
+
+  DOCTEST_SUBCASE("Step-down completes before history append")
+  {
+    check_election_at_history_append(HistoryAppendPause::Before, false);
+  }
+
+  DOCTEST_SUBCASE("Rollback and re-election complete after history append")
+  {
+    check_election_at_history_append(HistoryAppendPause::After, true);
+  }
+
+  DOCTEST_SUBCASE("Step-down completes after history append")
+  {
+    check_election_at_history_append(HistoryAppendPause::After, false);
+  }
+
+  DOCTEST_SUBCASE("Real encryption before history append")
+  {
+    check_election_at_history_append(HistoryAppendPause::Before, true, true);
+  }
+
+  DOCTEST_SUBCASE("Real encryption after history append")
+  {
+    check_election_at_history_append(HistoryAppendPause::After, true, true);
+  }
+}
+
+DOCTEST_TEST_CASE(
+  "Rejecting an old-term batch does not erase a newer transaction that has "
+  "already applied its writes" *
+  doctest::test_suite("real_stack_deterministic"))
+{
+  RealStackFixture fixture;
+  const auto baseline_txid = fixture.commit_signature();
+
+  Checkpoint stale_history_checkpoint("stale history append");
+  fixture.history->pause_before_next_append_entry(stale_history_checkpoint);
+
+  constexpr size_t stale_key = 6000;
+  auto stale_tx = fixture.store->create_tx();
+  stale_tx.rw(fixture.table)->put(stale_key, stale_key);
+  std::optional<ccf::kv::CommitResult> stale_result;
+  std::thread stale_worker([&]() { stale_result = stale_tx.commit(); });
+  stale_history_checkpoint.wait_until_paused();
+
+  try
+  {
+    fixture.reelect();
+  }
+  catch (...)
+  {
+    stale_history_checkpoint.release();
+    stale_worker.join();
+    throw;
+  }
+
+  Checkpoint fresh_write_set_checkpoint("fresh write set");
+  constexpr size_t fresh_key = 6001;
+  auto fresh_tx = fixture.store->create_tx();
+  fresh_tx.rw(fixture.table)->put(fresh_key, fresh_key);
+  std::optional<ccf::kv::CommitResult> fresh_result;
+  std::thread fresh_worker([&]() {
+    fresh_result = fresh_tx.commit(
+      ccf::empty_claims(),
+      checkpoint_write_set_observer(fresh_write_set_checkpoint));
+  });
+  fresh_write_set_checkpoint.wait_until_paused();
+
+  stale_history_checkpoint.release();
+  stale_worker.join();
+  fresh_write_set_checkpoint.release();
+  fresh_worker.join();
+
+  DOCTEST_REQUIRE(stale_result.has_value());
+  DOCTEST_CHECK(
+    stale_result.value() == ccf::kv::CommitResult::FAIL_NO_REPLICATE);
+  DOCTEST_REQUIRE(fresh_result.has_value());
+  DOCTEST_CHECK(fresh_result.value() == ccf::kv::CommitResult::SUCCESS);
+  DOCTEST_CHECK_FALSE(
+    read_value(*fixture.store, fixture.table, stale_key).has_value());
+  DOCTEST_CHECK(
+    read_value(*fixture.store, fixture.table, fresh_key) == fresh_key);
+  DOCTEST_CHECK(
+    fixture.store->current_txid() ==
+    ccf::TxID(fixture.raft->get_view(), baseline_txid.seqno + 1));
+  DOCTEST_CHECK(
+    fixture.raft->get_last_idx() == fixture.store->current_txid().seqno);
+  DOCTEST_CHECK(
+    fixture.history_txid().seqno == fixture.store->current_txid().seqno);
+  DOCTEST_CHECK(
+    fixture.chunker->current_version() == fixture.store->current_txid().seqno);
+}
+
+DOCTEST_TEST_CASE(
+  "An election after chunk metadata append rolls every component back" *
+  doctest::test_suite("real_stack_deterministic"))
+{
+  RealStackFixture fixture;
+  const auto baseline_txid = fixture.commit_signature();
+  const auto baseline_root = fixture.history->get_replicated_state_root();
+
+  Checkpoint checkpoint("chunk metadata append");
+  fixture.chunker->pause_after_next_append_entry_size(checkpoint);
+
+  constexpr size_t stale_key = 7000;
+  auto stale_tx = fixture.store->create_tx();
+  stale_tx.rw(fixture.table)->put(stale_key, stale_key);
+  std::optional<ccf::kv::CommitResult> stale_result;
+  std::thread stale_worker([&]() { stale_result = stale_tx.commit(); });
+  checkpoint.wait_until_paused();
+
+  try
+  {
+    fixture.step_down();
+  }
+  catch (...)
+  {
+    checkpoint.release();
+    stale_worker.join();
+    throw;
+  }
+
+  checkpoint.release();
+  stale_worker.join();
+
+  DOCTEST_REQUIRE(stale_result.has_value());
+  DOCTEST_CHECK(
+    stale_result.value() == ccf::kv::CommitResult::FAIL_NO_REPLICATE);
+  DOCTEST_CHECK(fixture.store->current_txid() == baseline_txid);
+  DOCTEST_CHECK(fixture.history_txid() == baseline_txid);
+  DOCTEST_CHECK(fixture.history->get_replicated_state_root() == baseline_root);
+  DOCTEST_CHECK(fixture.chunker->current_version() == baseline_txid.seqno);
+  DOCTEST_CHECK(fixture.raft->get_last_idx() == baseline_txid.seqno);
+  DOCTEST_CHECK_FALSE(
+    read_value(*fixture.store, fixture.table, stale_key).has_value());
+}
+
+DOCTEST_TEST_CASE(
+  "An election after AFT accepts a batch prevents stale Store bookkeeping" *
+  doctest::test_suite("real_stack_deterministic"))
+{
+  RealStackFixture fixture;
+  const auto baseline_txid = fixture.commit_signature();
+  const auto baseline_root = fixture.history->get_replicated_state_root();
+
+  Checkpoint checkpoint("AFT replicate");
+  fixture.raft->pause_after_next_replicate_call(checkpoint);
+
+  constexpr size_t rolled_back_key = 7001;
+  auto tx = fixture.store->create_tx();
+  tx.rw(fixture.table)->put(rolled_back_key, rolled_back_key);
+  std::optional<ccf::kv::CommitResult> result;
+  std::thread worker([&]() { result = tx.commit(); });
+  checkpoint.wait_until_paused();
+
+  try
+  {
+    fixture.reelect();
+  }
+  catch (...)
+  {
+    checkpoint.release();
+    worker.join();
+    throw;
+  }
+
+  checkpoint.release();
+  worker.join();
+
+  DOCTEST_REQUIRE(result.has_value());
+  DOCTEST_CHECK(result.value() == ccf::kv::CommitResult::SUCCESS);
+  DOCTEST_CHECK(fixture.store->current_txid() == baseline_txid);
+  DOCTEST_CHECK(fixture.history_txid() == baseline_txid);
+  DOCTEST_CHECK(fixture.history->get_replicated_state_root() == baseline_root);
+  DOCTEST_CHECK(fixture.chunker->current_version() == baseline_txid.seqno);
+  DOCTEST_CHECK(fixture.raft->get_last_idx() == baseline_txid.seqno);
+  DOCTEST_CHECK_FALSE(
+    read_value(*fixture.store, fixture.table, rolled_back_key).has_value());
+
+  auto fresh_tx = fixture.store->create_tx();
+  fresh_tx.rw(fixture.table)->put(rolled_back_key, rolled_back_key + 1);
+  DOCTEST_REQUIRE(fresh_tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  DOCTEST_CHECK(fixture.store->current_txid().seqno == baseline_txid.seqno + 1);
+  DOCTEST_CHECK(
+    fixture.raft->get_last_idx() == fixture.store->current_txid().seqno);
+  DOCTEST_CHECK(
+    fixture.history_txid().seqno == fixture.store->current_txid().seqno);
+  DOCTEST_CHECK(
+    fixture.chunker->current_version() == fixture.store->current_txid().seqno);
 }
