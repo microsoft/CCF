@@ -36,8 +36,8 @@ set_property(TARGET quickjs PROPERTY POSITION_INDEPENDENT_CODE ON)
 target_include_directories(
   quickjs
   PUBLIC
-    $<BUILD_INTERFACE:${CCF_3RD_PARTY_EXPORTED_DIR}/quickjs>
-    $<INSTALL_INTERFACE:include/3rdparty/quickjs>
+    $<BUILD_INTERFACE:${CCF_3RD_PARTY_EXPORTED_DIR}>
+    $<INSTALL_INTERFACE:include/3rdparty>
 )
 
 install(TARGETS quickjs EXPORT ccf DESTINATION lib)
