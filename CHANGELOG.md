@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [7.0.14]
+
+[7.0.14]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.14
+
+### Fixed
+
+- A transaction whose view changed while it was committing could apply its writes to the local key-value store and then fail to replicate, leaving state that never reached consensus. The transaction's view is now validated atomically with the allocation of its version, so it is rejected before any map is modified, and `ccf::kv::CommitResult::FAIL_NO_REPLICATE` no longer implies a locally applied write (#8242).
+
+### Changed
+
+- `ccf::kv::CommittableTx::commit()` no longer takes a caller-supplied version resolver. The parameter had no callers, and bypassed the view check above. Callers passing `nullptr` for it should remove the argument (#8242).
+
 ## [7.0.13]
 
 [7.0.13]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.13
