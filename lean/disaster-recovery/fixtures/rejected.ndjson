@@ -1,0 +1,2 @@
+{"version":"ccf.recovery_decision_protocol.trace/1","instance":"fixture","expected_locations":["A"],"node":"A","sequence":0,"kind":"start","pre":"GOSSIPING","post":"GOSSIPING"}
+{"version":"ccf.recovery_decision_protocol.trace/1","instance":"fixture","expected_locations":["A"],"node":"A","sequence":1,"kind":"gossip_accepted","message_id":"bad-gossip","source":"A","view":1,"seqno":10,"pre":"GOSSIPING","post":"OPEN"}

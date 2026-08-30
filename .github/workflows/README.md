@@ -101,6 +101,15 @@ Runs on pull requests that change `tla/` or `src/consensus/aft/raft.h`.
 File: `tla-shallow.yml`
 3rd party dependencies: None
 
+# Lean Shallow Verification
+
+Builds and checks the Lean disaster-recovery models, validates trace fixtures,
+and compares the bounded Lean legacy model with Stateright on relevant pull
+requests.
+
+File: `lean-shallow.yml`
+3rd party dependencies: None
+
 # Vendored Dependency Verification
 
 Verifies that files under `3rdparty/` match the Git commits or release artifacts
