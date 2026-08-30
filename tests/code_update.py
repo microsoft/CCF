@@ -124,8 +124,8 @@ def test_verify_quotes(network, args):
     return network
 
 
-def get_trusted_uvm_endorsements(node, args):
-    with node.api_versioned_client(api_version=args.gov_api_version) as client:
+def get_trusted_uvm_endorsements(node, gov_api_version):
+    with node.api_versioned_client(api_version=gov_api_version) as client:
         r = client.get("/gov/service/join-policy")
         assert r.status_code == http.HTTPStatus.OK, r
         return r.body.json()["snp"]["uvmEndorsements"]
@@ -181,7 +181,7 @@ def test_endorsements_tables(network, args):
 
     LOG.info("SNP UVM endorsement table")
 
-    uvm_endorsements = get_trusted_uvm_endorsements(primary, args)
+    uvm_endorsements = get_trusted_uvm_endorsements(primary, args.gov_api_version)
     assert (
         len(uvm_endorsements) == 1
     ), f"Expected one UVM endorsement, {uvm_endorsements}"
@@ -193,7 +193,7 @@ def test_endorsements_tables(network, args):
     LOG.debug("Add new feed for same DID")
     new_feed = "New feed"
     network.consortium.add_snp_uvm_endorsement(primary, did=did, feed=new_feed, svn=svn)
-    uvm_endorsements = get_trusted_uvm_endorsements(primary, args)
+    uvm_endorsements = get_trusted_uvm_endorsements(primary, args.gov_api_version)
     did, value = next(iter(uvm_endorsements.items()))
     assert len(value) == 2
     assert value[new_feed]["svn"] == svn
@@ -203,7 +203,7 @@ def test_endorsements_tables(network, args):
     network.consortium.add_snp_uvm_endorsement(
         primary, did=did, feed=new_feed, svn=new_svn
     )
-    uvm_endorsements = get_trusted_uvm_endorsements(primary, args)
+    uvm_endorsements = get_trusted_uvm_endorsements(primary, args.gov_api_version)
     assert (
         len(uvm_endorsements) == 1
     ), f"Expected one UVM endorsement, {uvm_endorsements}"
@@ -215,21 +215,21 @@ def test_endorsements_tables(network, args):
     network.consortium.add_snp_uvm_endorsement(
         primary, did=new_did, feed=new_feed, svn=svn
     )
-    uvm_endorsements = get_trusted_uvm_endorsements(primary, args)
+    uvm_endorsements = get_trusted_uvm_endorsements(primary, args.gov_api_version)
     assert len(uvm_endorsements) == 2
     assert new_did in uvm_endorsements
     assert new_feed in uvm_endorsements[new_did]
 
     LOG.debug("Remove new DID")
     network.consortium.remove_snp_uvm_endorsement(primary, did=new_did, feed=new_feed)
-    uvm_endorsements = get_trusted_uvm_endorsements(primary, args)
+    uvm_endorsements = get_trusted_uvm_endorsements(primary, args.gov_api_version)
     assert len(uvm_endorsements) == 1
     assert new_did not in uvm_endorsements
     assert did in uvm_endorsements
 
     LOG.debug("Remove new issuer for original DID")
     network.consortium.remove_snp_uvm_endorsement(primary, did=did, feed=new_feed)
-    uvm_endorsements = get_trusted_uvm_endorsements(primary, args)
+    uvm_endorsements = get_trusted_uvm_endorsements(primary, args.gov_api_version)
     assert len(uvm_endorsements) == 1
     _, value = next(iter(uvm_endorsements.items()))
     assert new_feed not in value
@@ -1206,7 +1206,7 @@ def test_add_node_with_no_uvm_endorsements_in_kv(network, args):
     LOG.info("Remove KV endorsements roots of trust (expect failure)")
     primary, _ = network.find_nodes()
 
-    uvm_endorsements = get_trusted_uvm_endorsements(primary, args)
+    uvm_endorsements = get_trusted_uvm_endorsements(primary, args.gov_api_version)
     assert (
         len(uvm_endorsements) == 1
     ), f"Expected one UVM endorsement, {uvm_endorsements}"
