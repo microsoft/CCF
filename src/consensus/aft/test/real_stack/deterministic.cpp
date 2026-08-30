@@ -16,6 +16,19 @@ using namespace ccf::kv::test;
 
 namespace
 {
+  class CountingConsensusHook : public ccf::kv::ConsensusHook
+  {
+    std::atomic<size_t>& calls;
+
+  public:
+    CountingConsensusHook(std::atomic<size_t>& calls_) : calls(calls_) {}
+
+    void call(ccf::kv::ConfigurableConsensus*) override
+    {
+      calls++;
+    }
+  };
+
   // Directly drives Store::commit()-style application of a write to a
   // specific, pre-reserved TxID - mirroring how a signature transaction
   // fills a slot reserved earlier via next_txid().
@@ -66,7 +79,7 @@ DOCTEST_TEST_CASE(
   std::optional<ccf::kv::CommitResult> stale_result;
   std::thread stale_worker([&]() {
     stale_result = stale_tx.commit(
-      ccf::empty_claims(), nullptr, checkpoint_write_set_observer(checkpoint));
+      ccf::empty_claims(), checkpoint_write_set_observer(checkpoint));
   });
   checkpoint.wait_until_paused();
   // stale_worker is now parked inside checkpoint.pause(), and must be
@@ -343,4 +356,114 @@ DOCTEST_TEST_CASE(
     "history recorded entries that were actually rolled back or never "
     "truly committed) and never behind");
   DOCTEST_CHECK(fixture.history_txid() == final_txid);
+}
+
+DOCTEST_TEST_CASE(
+  "Regaining leadership before a stale-view commit lands does not stall "
+  "replication" *
+  doctest::test_suite("real_stack_deterministic"))
+{
+  RealStackFixture fixture;
+  const auto baseline_txid = fixture.commit_signature();
+
+  DOCTEST_INFO(
+    "Read state (fixing this transaction's commit view) in the initial "
+    "view");
+  auto tx = fixture.store->create_tx();
+  tx.rw(fixture.table)->put(0, 1);
+
+  DOCTEST_INFO("Win a later election before assigning the transaction a TxID");
+  fixture.reelect();
+  DOCTEST_CHECK(fixture.store->current_txid() == baseline_txid);
+  DOCTEST_CHECK(fixture.history_txid() == baseline_txid);
+
+  DOCTEST_INFO(
+    "A transaction whose commit view was fixed by a read in a now-stale "
+    "term is rejected before its writes are applied");
+  DOCTEST_REQUIRE(tx.commit() == ccf::kv::CommitResult::FAIL_NO_REPLICATE);
+
+  DOCTEST_INFO(
+    "A rejected transaction should not leave a local write behind that "
+    "never reaches consensus: the Store should read back exactly as it "
+    "did before this transaction was attempted");
+  DOCTEST_CHECK(fixture.store->current_txid() == baseline_txid);
+  DOCTEST_CHECK(fixture.history_txid() == baseline_txid);
+  DOCTEST_CHECK_FALSE(read_value(*fixture.store, fixture.table, 0).has_value());
+
+  DOCTEST_INFO(
+    "Whatever the Store's state after the rejection above, every "
+    "ordinary transaction committed from here on must still reach "
+    "consensus - the Store's replicated state must never fall "
+    "permanently behind its own local version");
+  for (size_t i = 0; i < 3; ++i)
+  {
+    auto later_tx = fixture.store->create_tx();
+    later_tx.rw(fixture.table)->put(i + 1, i + 1);
+    DOCTEST_REQUIRE(later_tx.commit() == ccf::kv::CommitResult::SUCCESS);
+    DOCTEST_CHECK(
+      fixture.raft->get_last_idx() == fixture.store->current_txid().seqno);
+  }
+
+  DOCTEST_CHECK(
+    fixture.history_txid().seqno == fixture.store->current_txid().seqno);
+  DOCTEST_CHECK(
+    fixture.history_term_of_next_version() == fixture.raft->get_view());
+}
+
+DOCTEST_TEST_CASE(
+  "Late stale-view rejection removes dynamic maps and suppresses consensus "
+  "hooks" *
+  doctest::test_suite("real_stack_deterministic"))
+{
+  RealStackFixture fixture;
+  const auto baseline_txid = fixture.commit_signature();
+  constexpr auto dynamic_map_name = "public:dynamic";
+
+  std::atomic<size_t> hook_calls = 0;
+  fixture.store->set_map_hook(
+    fixture.table.get_name(),
+    fixture.table.wrap_map_hook(
+      [&hook_calls](ccf::kv::Version, const RealStackTable::Write&) {
+        return std::make_unique<CountingConsensusHook>(hook_calls);
+      }));
+
+  Checkpoint checkpoint("stale write set");
+  auto stale_tx = fixture.store->create_tx();
+  stale_tx.rw(fixture.table)->put(9000, 9000);
+  stale_tx.rw<RealStackTable>(dynamic_map_name)->put(1, 1);
+  std::optional<ccf::kv::CommitResult> stale_result;
+  std::thread stale_worker([&]() {
+    stale_result = stale_tx.commit(
+      ccf::empty_claims(), checkpoint_write_set_observer(checkpoint));
+  });
+  checkpoint.wait_until_paused();
+
+  try
+  {
+    fixture.reelect();
+  }
+  catch (...)
+  {
+    checkpoint.release();
+    stale_worker.join();
+    throw;
+  }
+
+  checkpoint.release();
+  stale_worker.join();
+
+  DOCTEST_REQUIRE(stale_result.has_value());
+  DOCTEST_CHECK(
+    stale_result.value() == ccf::kv::CommitResult::FAIL_NO_REPLICATE);
+  DOCTEST_CHECK(fixture.store->current_txid() == baseline_txid);
+  DOCTEST_CHECK(
+    fixture.store->get_map(
+      fixture.store->current_version(), dynamic_map_name) == nullptr);
+  DOCTEST_CHECK(hook_calls == 0);
+
+  auto fresh_tx = fixture.store->create_tx();
+  fresh_tx.rw(fixture.table)->put(9001, 9001);
+  fresh_tx.rw<RealStackTable>(dynamic_map_name)->put(2, 2);
+  DOCTEST_REQUIRE(fresh_tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  DOCTEST_CHECK(hook_calls == 1);
 }
