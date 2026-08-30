@@ -154,6 +154,9 @@ namespace ccf::kv
     using WriteSetObserver = std::function<void(
       const ccf::crypto::Sha256Hash& write_set_digest,
       const std::string& commit_evidence)>;
+    // Test-only hook, to pin an interleaving at a point that has no other
+    // externally observable extension point.
+    using PostApplyObserver = std::function<void()>;
 
     /** Commit this transaction to the local KV and submit it to consensus for
      * replication
@@ -170,7 +173,8 @@ namespace ccf::kv
      */
     CommitResult commit(
       const ccf::ClaimsDigest& claims = ccf::empty_claims(),
-      WriteSetObserver write_set_observer = nullptr)
+      WriteSetObserver write_set_observer = nullptr,
+      PostApplyObserver post_apply_observer = nullptr)
     {
       if (committed)
       {
@@ -263,26 +267,42 @@ namespace ccf::kv
       committed = true;
       version = c.value();
 
-      if (tx_flag_enabled(TxFlag::LEDGER_CHUNK_AT_NEXT_SIGNATURE))
+      if (post_apply_observer != nullptr)
       {
-        auto chunker = pimpl->store->get_chunker();
-        if (chunker)
-        {
-          chunker->force_end_of_chunk(version);
-        }
+        post_apply_observer();
       }
 
-      if (tx_flag_enabled(TxFlag::SNAPSHOT_AT_NEXT_SIGNATURE))
-      {
-        pimpl->store->set_flag(
-          AbstractStore::StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
-        unset_tx_flag(TxFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
-      }
+      const auto force_ledger_chunk =
+        tx_flag_enabled(TxFlag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
+      const auto snapshot_at_next_signature =
+        tx_flag_enabled(TxFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
 
       if (version == NoVersion)
       {
-        // Read-only transaction
+        // Read-only transaction. It has no version to attach a ledger chunk
+        // to, but a requested snapshot must still be armed, as it was before
+        // these flags became rollback-sensitive.
+        if (snapshot_at_next_signature)
+        {
+          pimpl->store->set_flag(
+            AbstractStore::StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
+          unset_tx_flag(TxFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
+        }
         return CommitResult::SUCCESS;
+      }
+
+      // These side effects outlive this transaction, so they must not be
+      // applied if a concurrent rollback has already discarded its writes.
+      if (
+        (force_ledger_chunk || snapshot_at_next_signature) &&
+        !pimpl->store->apply_tx_flags(
+          version,
+          pimpl->commit_view,
+          expected_rollback_count.value(),
+          force_ledger_chunk,
+          snapshot_at_next_signature))
+      {
+        return CommitResult::FAIL_NO_REPLICATE;
       }
 
       // From here, we have received a unique commit version and made

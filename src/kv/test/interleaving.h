@@ -116,6 +116,9 @@ namespace ccf::kv::test
     return [&checkpoint](const auto&, const auto&) { checkpoint.pause(); };
   }
 
+  // A ccf::kv::CommittableTx::PostApplyObserver-compatible adaptor which
+  // pauses at a Checkpoint once the transaction's writes have been applied
+  // locally, but before any side effect that outlives it is registered.
   inline auto checkpoint_post_apply_observer(Checkpoint& checkpoint)
   {
     return [&checkpoint]() { checkpoint.pause(); };

@@ -148,6 +148,52 @@ namespace
     DOCTEST_CHECK(
       read_value(*fixture.store, fixture.table, stale_key) == stale_key + 1);
   }
+
+  void check_rollback_sensitive_tx_flag(
+    ccf::kv::CommittableTx::TxFlag flag,
+    const std::function<void(RealStackFixture&, const ccf::TxID&)>&
+      check_cleared)
+  {
+    RealStackFixture fixture;
+    const auto baseline_txid = fixture.commit_signature();
+
+    Checkpoint checkpoint("after local application");
+    constexpr size_t stale_key = 8000;
+    auto stale_tx = fixture.store->create_tx();
+    stale_tx.set_tx_flag(flag);
+    stale_tx.rw(fixture.table)->put(stale_key, stale_key);
+
+    std::optional<ccf::kv::CommitResult> stale_result;
+    std::thread stale_worker([&]() {
+      stale_result = stale_tx.commit(
+        ccf::empty_claims(),
+        nullptr,
+        checkpoint_post_apply_observer(checkpoint));
+    });
+    checkpoint.wait_until_paused();
+
+    try
+    {
+      fixture.reelect();
+    }
+    catch (...)
+    {
+      checkpoint.release();
+      stale_worker.join();
+      throw;
+    }
+
+    checkpoint.release();
+    stale_worker.join();
+
+    DOCTEST_REQUIRE(stale_result.has_value());
+    DOCTEST_CHECK(
+      stale_result.value() == ccf::kv::CommitResult::FAIL_NO_REPLICATE);
+    DOCTEST_CHECK(fixture.store->current_txid() == baseline_txid);
+    DOCTEST_CHECK_FALSE(
+      read_value(*fixture.store, fixture.table, stale_key).has_value());
+    check_cleared(fixture, baseline_txid);
+  }
 }
 
 DOCTEST_TEST_CASE(
@@ -764,4 +810,100 @@ DOCTEST_TEST_CASE(
     fixture.history_txid().seqno == fixture.store->current_txid().seqno);
   DOCTEST_CHECK(
     fixture.chunker->current_version() == fixture.store->current_txid().seqno);
+}
+
+DOCTEST_TEST_CASE(
+  "Rollback-sensitive transaction flags are not restored after an election" *
+  doctest::test_suite("real_stack_deterministic"))
+{
+  DOCTEST_SUBCASE("Forced ledger chunk")
+  {
+    check_rollback_sensitive_tx_flag(
+      ccf::kv::CommittableTx::TxFlag::LEDGER_CHUNK_AT_NEXT_SIGNATURE,
+      [](RealStackFixture& fixture, const ccf::TxID& baseline_txid) {
+        DOCTEST_CHECK_FALSE(
+          fixture.chunker->is_chunk_end_requested(baseline_txid.seqno + 1));
+      });
+  }
+
+  DOCTEST_SUBCASE("Snapshot at next signature")
+  {
+    check_rollback_sensitive_tx_flag(
+      ccf::kv::CommittableTx::TxFlag::SNAPSHOT_AT_NEXT_SIGNATURE,
+      [](RealStackFixture& fixture, const ccf::TxID&) {
+        DOCTEST_CHECK_FALSE(fixture.store->flag_enabled(
+          ccf::kv::AbstractStore::StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE));
+      });
+  }
+}
+
+DOCTEST_TEST_CASE(
+  "A read-only transaction still arms a requested snapshot" *
+  doctest::test_suite("real_stack_deterministic"))
+{
+  RealStackFixture fixture;
+  fixture.commit_signature();
+  DOCTEST_REQUIRE_FALSE(fixture.store->flag_enabled(
+    ccf::kv::AbstractStore::StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE));
+
+  const auto txid_before = fixture.store->current_txid();
+  auto tx = fixture.store->create_tx();
+  tx.set_tx_flag(ccf::kv::CommittableTx::TxFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
+  // Acquire a handle without writing, so this transaction is assigned no
+  // version but still carries the flag.
+  tx.rw(fixture.table)->get(0);
+  DOCTEST_REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  DOCTEST_REQUIRE(fixture.store->current_txid() == txid_before);
+
+  DOCTEST_CHECK(fixture.store->flag_enabled(
+    ccf::kv::AbstractStore::StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE));
+}
+
+DOCTEST_TEST_CASE(
+  "Ledger chunk requests remain attached to their transaction version" *
+  doctest::test_suite("real_stack_deterministic"))
+{
+  RealStackFixture fixture;
+  fixture.commit_signature();
+
+  Checkpoint flagged_checkpoint("flagged transaction after apply");
+  auto flagged_tx = fixture.store->create_tx();
+  flagged_tx.set_tx_flag(
+    ccf::kv::CommittableTx::TxFlag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
+  flagged_tx.rw(fixture.table)->put(8100, 8100);
+  std::optional<ccf::kv::CommitResult> flagged_result;
+  std::thread flagged_worker([&]() {
+    flagged_result = flagged_tx.commit(
+      ccf::empty_claims(),
+      nullptr,
+      checkpoint_post_apply_observer(flagged_checkpoint));
+  });
+  flagged_checkpoint.wait_until_paused();
+  const auto flagged_txid = flagged_tx.get_txid().value();
+
+  Checkpoint later_checkpoint("later transaction after apply");
+  auto later_tx = fixture.store->create_tx();
+  later_tx.rw(fixture.table)->put(8101, 8101);
+  std::optional<ccf::kv::CommitResult> later_result;
+  std::thread later_worker([&]() {
+    later_result = later_tx.commit(
+      ccf::empty_claims(),
+      nullptr,
+      checkpoint_post_apply_observer(later_checkpoint));
+  });
+  later_checkpoint.wait_until_paused();
+  const auto later_txid = later_tx.get_txid().value();
+
+  flagged_checkpoint.release();
+  flagged_worker.join();
+  later_checkpoint.release();
+  later_worker.join();
+
+  DOCTEST_REQUIRE(flagged_result.has_value());
+  DOCTEST_CHECK(flagged_result.value() == ccf::kv::CommitResult::SUCCESS);
+  DOCTEST_REQUIRE(later_result.has_value());
+  DOCTEST_CHECK(later_result.value() == ccf::kv::CommitResult::SUCCESS);
+  DOCTEST_CHECK(flagged_txid.seqno < later_txid.seqno);
+  DOCTEST_CHECK(fixture.chunker->has_forced_chunk(flagged_txid.seqno));
+  DOCTEST_CHECK_FALSE(fixture.chunker->has_forced_chunk(later_txid.seqno));
 }
