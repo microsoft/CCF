@@ -130,6 +130,8 @@ namespace ccf
       recovery_decision_protocol::StateMachine post);
     void emit_trace_event(recovery_decision_protocol::TraceEvent event);
     std::string new_trace_message_id();
+    bool is_trace_state_committed(
+      recovery_decision_protocol::StateMachine state);
     void emit_trace_send(
       const std::string& message_id, const std::string& description);
 #endif

@@ -149,16 +149,12 @@ def _validator_path():
     )
 
 
-def _participating_nodes(nodes):
-    return {
-        node.get_sealing_recovery_location()["name"]
-        for node in nodes
-        if node.remote is not None
-    }
+def _participating_node_count(nodes):
+    return sum(node.remote is not None for node in nodes)
 
 
 def wait_for_terminal_events(network, expected_open_kind, timeout):
-    expected_nodes = _participating_nodes(network.nodes)
+    expected_node_count = _participating_node_count(network.nodes)
     end_time = time.time() + timeout
     events = []
     while time.time() < end_time:
@@ -175,8 +171,8 @@ def wait_for_terminal_events(network, expected_open_kind, timeout):
         }
         opened = [event for event in events if event["kind"] == "open"]
         if (
-            expected_nodes <= started
-            and expected_nodes <= terminal
+            len(started) == expected_node_count
+            and started <= terminal
             and completed
             and opened
             and all(event.get("open_kind") == expected_open_kind for event in opened)
@@ -186,7 +182,8 @@ def wait_for_terminal_events(network, expected_open_kind, timeout):
 
     raise TimeoutError(
         "timed out waiting for terminal recovery trace events: "
-        f"expected_nodes={sorted(expected_nodes)}, "
+        f"expected_node_count={expected_node_count}, "
+        f"started={sorted(started) if events else []}, "
         f"expected_open_kind={expected_open_kind}, events={events}"
     )
 

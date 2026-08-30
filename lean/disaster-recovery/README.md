@@ -338,6 +338,8 @@ its global commit hook emits `RDP_TRACE` records only after commit. Sends are
 logged before dispatch with causal IDs propagated to accepted receive records.
 For trace-enabled joiners, the hook emits the committed receive and
 `join_restart` records before requesting host restart.
+Trace-enabled periodic retries defer work while their locally committed phase
+is ahead of the globally visible trace phase, then send on the next invocation.
 
 [`tests/infra/recovery_trace.py`](../../tests/infra/recovery_trace.py) extracts
 records from all recovery nodes and topologically orders them from per-node

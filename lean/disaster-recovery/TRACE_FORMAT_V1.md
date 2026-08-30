@@ -134,6 +134,9 @@ The committed start hook emits `start` before scheduling retry and failover
 tasks. Transport sends are emitted immediately before dispatch and propagate
 their generated `message_id` in the internal request as `trace_message_id`;
 the committed receive records it as `caused_by`.
+If a retry observes a locally committed phase that is not yet globally visible
+to the trace hook, tracing defers that retry invocation. The periodic task sends
+on its next run after the phase event is emitted.
 
 Each log record contains `RDP_TRACE ` followed by the event object.
 `tests/infra/recovery_trace.py` extracts records from all participating node

@@ -156,6 +156,13 @@ namespace ccf
       "{}:{}:{}", trace_instance_id, trace_node, next_trace_message_number++);
   }
 
+  bool RecoveryDecisionProtocolSubsystem::is_trace_state_committed(
+    recovery_decision_protocol::StateMachine state)
+  {
+    std::lock_guard<pal::Mutex> guard(trace_lock);
+    return trace_committed_state == trace_state_name(state);
+  }
+
   recovery_decision_protocol::StateMachine RecoveryDecisionProtocolSubsystem::
     get_trace_state(kv::ReadOnlyTx& tx)
   {
@@ -591,6 +598,13 @@ namespace ccf
             "Recovery-decision-protocol state not set, cannot retry protocol");
         }
         auto& sm_state = sm_state_opt.value();
+
+#ifdef CCF_RECOVERY_TRACE
+        if (!is_trace_state_committed(sm_state))
+        {
+          return;
+        }
+#endif
 
         // Stop if recovery-decision-protocol is complete
         if (sm_state == recovery_decision_protocol::StateMachine::OPEN)
