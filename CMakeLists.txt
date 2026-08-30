@@ -734,6 +734,7 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/real_stack/smoke.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/real_stack/deterministic.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/real_stack/fuzzer.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/real_stack/rollback_epoch.cpp
       DETECT_DEADLOCKS
     )
     set_property(

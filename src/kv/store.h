@@ -692,9 +692,12 @@ namespace ccf::kv
           }
           if (chunker)
           {
-            // Keep this ordered with append_entry_size() below, so a commit
-            // cannot restore chunk metadata after this rollback.
-            chunker->rolled_back_to(tx_id.seqno);
+            // Nothing local is discarded here, but the chunker may still be
+            // behind `version` if an allocated entry has not reached
+            // append_entry_size() yet. Clamp so this can only ever move the
+            // chunker back, never forward past the Store.
+            chunker->rolled_back_to(
+              std::min<Version>(tx_id.seqno, version));
           }
           return;
         }
@@ -1094,6 +1097,11 @@ namespace ccf::kv
         if (chunker)
         {
           std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
+          // A rollback can only discard this batch's writes by truncating,
+          // which requires its target to be below `version` and therefore
+          // increments rollback_count. A rollback that does not truncate
+          // leaves the writes intact, but may still move the term on, which
+          // consensus will reject - so both are checked here.
           if (
             previous_rollback_count == rollback_count &&
             replication_view == term_of_next_version)
