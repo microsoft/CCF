@@ -21,12 +21,13 @@ def main (args : List String) : IO UInt32 := do
           IO.eprintln message
           pure 2
       | .ok n =>
-          let graph <- enumerate n
           match command with
           | "export" =>
+              let graph <- enumerate n
               exportGraph n graph
               pure 0
           | "check" =>
+              let graph <- enumerate n
               if <- checkGraph n graph then pure 0 else pure 1
           | _ =>
               IO.eprintln usage

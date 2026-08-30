@@ -12,6 +12,7 @@ on:
       - "src/node/rpc/self_healing_open_handlers.h"
       - "tests/e2e_operations.py"
       - "tests/infra/recovery_trace.py"
+      - "tests/infra/recovery_trace_test.py"
       - "CMakeLists.txt"
       - ".github/workflows/ci.yml"
       - ".github/workflows/lean-shallow.yml"

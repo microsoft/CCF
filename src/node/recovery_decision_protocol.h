@@ -141,7 +141,9 @@ namespace ccf
     std::string new_trace_message_id();
     std::string new_trace_message_id_unsafe();
     void emit_trace_send_unsafe(
-      const std::string& message_id, const std::string& description);
+      const std::string& message_id,
+      const std::string& description,
+      const std::optional<ccf::TxID>& txid = std::nullopt);
 #endif
   };
 }

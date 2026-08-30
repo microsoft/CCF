@@ -30,7 +30,7 @@ The initial migration is approximately 4,000 lines across 28 new files:
 | ----------------------------------------- | ----: | ----------------: | --------------------------------------------------------------- |
 | Exact legacy Lean model                   |     4 |               650 | Stateright state, actions, timers, network, predicates, and BFS |
 | Canonical protocol and proofs             |     4 |             1,000 | C++ behavior, phase refinement, quorum, and temporal proofs     |
-| Trace validation                          |    11 |             1,020 | NDJSON format, deterministic replay, tests, and fixtures        |
+| Trace validation                          |    11 |             1,040 | NDJSON format, deterministic replay, tests, and fixtures        |
 | Equivalence tooling                       |     2 |               710 | Rust graph exporter and bidirectional Rust/Lean comparison      |
 | Project, documentation, and configuration |     6 |               530 | Lake/Mathlib setup, entry points, and documentation             |
 | Pull-request CI                           |     1 |                80 | Lean model and bounded equivalence checks                       |
@@ -45,8 +45,8 @@ The initial migration is approximately 4,000 lines across 28 new files:
 | [`DisasterRecovery/Protocol/Refinement.lean`](DisasterRecovery/Protocol/Refinement.lean)     |   332 | Canonical-to-legacy formal phase refinement                    |
 | [`DisasterRecovery/Protocol/Temporal.lean`](DisasterRecovery/Protocol/Temporal.lean)         |   230 | Execution streams, fairness, safety, and progress proofs       |
 | [`DisasterRecovery/Protocol/Trace/Format.lean`](DisasterRecovery/Protocol/Trace/Format.lean) |   141 | Versioned NDJSON types and parser                              |
-| [`DisasterRecovery/Protocol/Trace/Replay.lean`](DisasterRecovery/Protocol/Trace/Replay.lean) |   445 | Deterministic implementation-trace replay                      |
-| [`TraceTests.lean`](TraceTests.lean)                                                         |   210 | Strict replay, causality, sequencing, and effect regressions   |
+| [`DisasterRecovery/Protocol/Trace/Replay.lean`](DisasterRecovery/Protocol/Trace/Replay.lean) |   452 | Deterministic implementation-trace replay                      |
+| [`TraceTests.lean`](TraceTests.lean)                                                         |   227 | Strict replay, causality, sequencing, and effect regressions   |
 | [`compare.py`](compare.py)                                                                   |   343 | Exhaustive canonical graph comparison                          |
 | [`../../tla/disaster-recovery/src/export.rs`](../../tla/disaster-recovery/src/export.rs)     |   370 | Canonical export of the actual Stateright model                |
 | [`TRACE_FORMAT_V1.md`](TRACE_FORMAT_V1.md)                                                   |   145 | Contract for future committed C++ trace events                 |
@@ -370,13 +370,15 @@ one-shot effects are explicit.
 [`Trace/Format.lean`](DisasterRecovery/Protocol/Trace/Format.lean) parses the
 wire format. [`Trace/Replay.lean`](DisasterRecovery/Protocol/Trace/Replay.lean)
 then folds each event over one deterministic canonical `SystemState`. Replay
-retains only per-node sequences, observed and consumed causal sends, and
-node-scoped pending `open`, `join_restart`, or `complete` effects.
+retains only per-node sequences, observed and consumed causal sends, exact
+ordered retry-send batches, and node-scoped pending `open`, `join_restart`, or
+`complete` effects.
 
 The validator checks configuration consistency, starts, globally unique message
-IDs, send enablement, exact send/receive causality, canonical pre/post phases,
-and single consumption of committed effects. On failure it reports the shortest
-failing prefix and current protocol phase.
+IDs, send-batch completeness, exact send/receive causality including gossip
+TxIDs, canonical pre/post phases, terminal completion, and single consumption
+of committed effects. On failure it reports the shortest failing prefix and
+current protocol phase.
 
 ### Implementation trace validation
 

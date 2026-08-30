@@ -44,6 +44,10 @@ private def sendEvent
   messageId := some messageId
   pre := some phase
   post := some phase
+  txid := if description.startsWith "gossip:" then
+    some { view := 1, seqno := 1 }
+  else
+    none
   send := some description
 }
 
@@ -170,6 +174,19 @@ def main : IO UInt32 := do
   expect
     (failedAt [start, gossipSend, wrongClass] 3)
     "vote consumed a gossip send"
+
+  let wrongTxid := {
+    gossipEvent single 2 "receive-gossip" "send-gossip" .voting with
+    txid := some { view := 9, seqno := 9 }
+  }
+  expect
+    (failedAt [start, gossipSend, wrongTxid] 3)
+    "gossip received a different TxID than its send"
+
+  let wrongPost := gossipEvent single 2 "receive-gossip" "send-gossip" .open
+  expect
+    (failedAt [start, gossipSend, wrongPost] 3)
+    "invalid gossip post-state was accepted"
 
   let received := gossipEvent single 2 "receive-gossip" "send-gossip" .voting
   let reusedCause := {

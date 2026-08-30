@@ -182,15 +182,23 @@ namespace ccf
   }
 
   void RecoveryDecisionProtocolSubsystem::emit_trace_send_unsafe(
-    const std::string& message_id, const std::string& description)
+    const std::string& message_id,
+    const std::string& description,
+    const std::optional<ccf::TxID>& txid)
   {
-    emit_trace_event_unsafe({
+    recovery_decision_protocol::TraceEvent event{
       .kind = "send",
       .message_id = message_id,
       .pre = "",
       .post = "",
       .send = description,
-    });
+    };
+    if (txid.has_value())
+    {
+      event.view = txid->view;
+      event.seqno = txid->seqno;
+    }
+    emit_trace_event_unsafe(std::move(event));
   }
 
   void RecoveryDecisionProtocolSubsystem::record_trace_effects(
@@ -933,7 +941,8 @@ namespace ccf
 #ifdef CCF_RECOVERY_TRACE
       emit_trace_send_unsafe(
         request.trace_message_id.value(),
-        fmt::format("gossip:{}", target.name));
+        fmt::format("gossip:{}", target.name),
+        request.txid);
 #endif
       dispatch_authenticated_message(
         request_json,

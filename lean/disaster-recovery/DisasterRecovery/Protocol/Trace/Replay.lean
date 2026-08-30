@@ -12,6 +12,7 @@ structure ObservedSend where
   messageId : String
   source : Location
   description : String
+  txid : Option TxID
 deriving Repr, BEq
 
 structure PendingEffect where
@@ -63,6 +64,9 @@ private def shapeError (event : TraceEvent) : Option String :=
   else if event.kind == .send &&
       (event.messageId.isNone || event.send.isNone) then
     some "message_id and send are required for sends"
+  else if event.kind == .send &&
+      (event.send.getD "").startsWith "gossip:" && event.txid.isNone then
+    some "view and seqno are required for gossip sends"
   else if event.kind == .open && event.openKind.isNone then
     some "open_kind is required for open"
   else if !isReceive event.kind && event.causedBy.isSome then
@@ -187,6 +191,8 @@ private def consumeCause
   let description := receiveDescription event |>.getD ""
   if send.source != source || send.description != description then
     throw s!"caused_by '{cause}' has the wrong source, class, or destination"
+  if event.kind == .gossipAccepted && send.txid != event.txid then
+    throw s!"caused_by '{cause}' has the wrong gossip TxID"
   pure {
     active with
     consumedSendIds := cause :: active.consumedSendIds
@@ -246,6 +252,7 @@ private def applySend
       messageId := event.messageId.getD ""
       source := event.node
       description
+      txid := event.txid
     } :: active.sends
     pendingSendBatches :=
       setPendingSendBatch event.node batch.tail active.pendingSendBatches

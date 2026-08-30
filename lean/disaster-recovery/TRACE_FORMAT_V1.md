@@ -40,22 +40,23 @@ All integers must be nonnegative Lean `Nat` values.
 
 ## Event kinds
 
-| Kind               | Required event fields                                               | Canonical boundary                          |
-| ------------------ | ------------------------------------------------------------------- | ------------------------------------------- |
-| `start`            | `pre`, `post`                                                       | Protocol state initialized                  |
-| `gossip_accepted`  | `message_id`, `caused_by`, `source`, `view`, `seqno`, `pre`, `post` | Validated gossip callback committed         |
-| `vote_accepted`    | `message_id`, `caused_by`, `source`, `pre`, `post`                  | Validated vote callback committed           |
-| `iamopen_accepted` | `message_id`, `caused_by`, `source`, `pre`, `post`                  | IAmOpen selected peer and Joining committed |
-| `timeout`          | `pre`, `post`                                                       | Timeout transaction committed               |
-| `send`             | `send` in `class:destination` form, `message_id`, `pre`, `post`     | Transport send observed                     |
-| `open`             | `open_kind`, `pre`, `post`                                          | Service-open transition committed           |
-| `join_restart`     | `pre`, `post`                                                       | Joining/restart side effect committed       |
-| `complete`         | `pre`, `post`                                                       | Opening-to-Open completion committed        |
+| Kind               | Required event fields                                                                                 | Canonical boundary                          |
+| ------------------ | ----------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| `start`            | `pre`, `post`                                                                                         | Protocol state initialized                  |
+| `gossip_accepted`  | `message_id`, `caused_by`, `source`, `view`, `seqno`, `pre`, `post`                                   | Validated gossip callback committed         |
+| `vote_accepted`    | `message_id`, `caused_by`, `source`, `pre`, `post`                                                    | Validated vote callback committed           |
+| `iamopen_accepted` | `message_id`, `caused_by`, `source`, `pre`, `post`                                                    | IAmOpen selected peer and Joining committed |
+| `timeout`          | `pre`, `post`                                                                                         | Timeout transaction committed               |
+| `send`             | `send` in `class:destination` form, `message_id`, `pre`, `post`; gossip also requires `view`, `seqno` | Transport send observed                     |
+| `open`             | `open_kind`, `pre`, `post`                                                                            | Service-open transition committed           |
+| `join_restart`     | `pre`, `post`                                                                                         | Joining/restart side effect committed       |
+| `complete`         | `pre`, `post`                                                                                         | Opening-to-Open completion committed        |
 
 Every receive uses `caused_by` to identify an earlier `send`. The validator
-checks the sender, destination, message class, and single consumption of that
-send. Message IDs, causal IDs, and source names must be nonempty, and message
-IDs cannot be reused. Non-receive events must omit `caused_by`.
+checks the sender, destination, message class, gossip TxID payload, and single
+consumption of that send. Message IDs, causal IDs, and source names must be
+nonempty, and message IDs cannot be reused. Non-receive events must omit
+`caused_by`.
 
 Each participating configured node has one `start` event at sequence zero. The
 first creates the replay system; later starts activate other configured nodes
@@ -76,7 +77,8 @@ Version 1 is a complete successful-execution trace: every transport send,
 accepted receive, committed timeout, and one-shot effect is explicit.
 `Trace/Replay.lean` folds these events over one deterministic `SystemState`.
 It retains only observed sends, consumed causal IDs, per-node sequences, and
-pending `open`, `join_restart`, or `complete` effects.
+pending ordered retry-send batches and `open`, `join_restart`, or `complete`
+effects.
 
 The validator rejects the first event that is not enabled by the canonical
 model or whose recorded pre/post state, cause, or effect does not match. It
