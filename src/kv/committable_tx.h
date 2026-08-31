@@ -557,20 +557,25 @@ namespace ccf::kv
 
       // This is a signature and, if the ledger chunking or snapshot flags are
       // enabled, we want the host to create a chunk when it sees this entry.
-      // version_lock held by Store::commit
-      if (pimpl->store->should_create_ledger_chunk_unsafe(version))
+      // Deciding this and recording the chunk must be atomic with respect to
+      // rollback, so that a signature a rollback discards leaves no marker
+      // behind.
+      const auto should_create_chunk = pimpl->store->prepare_reserved_tx(
+        version, pimpl->commit_view, rollback_count);
+      if (!should_create_chunk.has_value())
+      {
+        committed = true;
+        return {
+          CommitResult::FAIL_NO_REPLICATE, {}, ccf::empty_claims(), {}, {}};
+      }
+
+      if (should_create_chunk.value())
       {
         entry_flags |= EntryFlags::FORCE_LEDGER_CHUNK_AFTER;
         LOG_DEBUG_FMT(
           "Ending ledger chunk with signature at {}.{}",
           pimpl->commit_view,
           version);
-
-        auto chunker = pimpl->store->get_chunker();
-        if (chunker)
-        {
-          chunker->produced_chunk_at(version);
-        }
       }
 
       committed = true;

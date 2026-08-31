@@ -1150,6 +1150,28 @@ namespace ccf::kv
       return false;
     }
 
+    std::optional<bool> prepare_reserved_tx(
+      Version version,
+      Term expected_term,
+      Version expected_rollback_count) override
+    {
+      std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
+      if (
+        term_of_next_version != expected_term ||
+        rollback_count != expected_rollback_count)
+      {
+        return std::nullopt;
+      }
+
+      const auto should_create_chunk =
+        should_create_ledger_chunk_unsafe(version);
+      if (should_create_chunk && chunker)
+      {
+        chunker->produced_chunk_at(version);
+      }
+      return should_create_chunk;
+    }
+
     bool should_create_ledger_chunk(Version version) override
     {
       std::lock_guard<ccf::ds::Mutex> vguard(version_lock);
