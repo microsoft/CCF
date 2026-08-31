@@ -1,6 +1,8 @@
 import DisasterRecovery.Model
 import DisasterRecovery.Checker
 import DisasterRecovery.Protocol.Model
+import DisasterRecovery.Protocol.Global
+import DisasterRecovery.Protocol.Invariants
 import DisasterRecovery.Protocol.Temporal
 import DisasterRecovery.Protocol.Refinement
 import DisasterRecovery.Protocol.Trace

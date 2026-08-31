@@ -21,15 +21,18 @@ legacy predicate valuations.
 
 The canonical Lean model is separate because the production C++ protocol
 intentionally differs from the legacy model in several places. It has formal
-phase-refinement and fairness-aware progress results, plus a versioned trace
-validator designed for future committed C++ instrumentation.
+phase-refinement and fairness-aware progress results. A small global semantics
+adds active nodes, in-flight messages, immutable send history, and terminal
+effects around that same canonical transition function. The versioned trace
+validator also replays committed C++ instrumentation against the canonical
+model.
 
-The initial migration is approximately 4,000 lines across 23 new files:
+The migration is approximately 5,000 lines across 25 new files:
 
 | Area                                      | Files | Approximate lines | Purpose                                                         |
 | ----------------------------------------- | ----: | ----------------: | --------------------------------------------------------------- |
 | Exact legacy Lean model                   |     4 |               650 | Stateright state, actions, timers, network, predicates, and BFS |
-| Canonical protocol and proofs             |     4 |             1,000 | C++ behavior, phase refinement, quorum, and temporal proofs     |
+| Canonical protocol and proofs             |     6 |             1,900 | C++ behavior, global semantics, invariants, and temporal proofs |
 | Trace validation                          |     5 |               760 | NDJSON format, deterministic replay, and CLI                    |
 | Equivalence tooling                       |     2 |               710 | Rust graph exporter and bidirectional Rust/Lean comparison      |
 | Project, documentation, and configuration |     6 |               530 | Lake/Mathlib setup, entry points, and documentation             |
@@ -37,18 +40,20 @@ The initial migration is approximately 4,000 lines across 23 new files:
 
 ### Principal files
 
-| File                                                                                         | Lines | Role                                                           |
-| -------------------------------------------------------------------------------------------- | ----: | -------------------------------------------------------------- |
-| [`DisasterRecovery/Model.lean`](DisasterRecovery/Model.lean)                                 |   392 | Exact executable legacy semantics                              |
-| [`DisasterRecovery/Checker.lean`](DisasterRecovery/Checker.lean)                             |   152 | BFS enumeration, property checking, and canonical graph export |
-| [`DisasterRecovery/Protocol/Model.lean`](DisasterRecovery/Protocol/Model.lean)               |   286 | Production-oriented C++ protocol model                         |
-| [`DisasterRecovery/Protocol/Refinement.lean`](DisasterRecovery/Protocol/Refinement.lean)     |   332 | Canonical-to-legacy formal phase refinement                    |
-| [`DisasterRecovery/Protocol/Temporal.lean`](DisasterRecovery/Protocol/Temporal.lean)         |   230 | Execution streams, fairness, safety, and progress proofs       |
-| [`DisasterRecovery/Protocol/Trace/Format.lean`](DisasterRecovery/Protocol/Trace/Format.lean) |   141 | Versioned NDJSON types and parser                              |
-| [`DisasterRecovery/Protocol/Trace/Replay.lean`](DisasterRecovery/Protocol/Trace/Replay.lean) |   452 | Deterministic implementation-trace replay                      |
-| [`compare.py`](compare.py)                                                                   |   343 | Exhaustive canonical graph comparison                          |
-| [`../../tla/disaster-recovery/src/export.rs`](../../tla/disaster-recovery/src/export.rs)     |   370 | Canonical export of the actual Stateright model                |
-| [`TRACE_FORMAT_V1.md`](TRACE_FORMAT_V1.md)                                                   |   145 | Contract for future committed C++ trace events                 |
+| File                                                                                         | Lines | Role                                                               |
+| -------------------------------------------------------------------------------------------- | ----: | ------------------------------------------------------------------ |
+| [`DisasterRecovery/Model.lean`](DisasterRecovery/Model.lean)                                 |   392 | Exact executable legacy semantics                                  |
+| [`DisasterRecovery/Checker.lean`](DisasterRecovery/Checker.lean)                             |   152 | BFS enumeration, property checking, and canonical graph export     |
+| [`DisasterRecovery/Protocol/Model.lean`](DisasterRecovery/Protocol/Model.lean)               |   286 | Production-oriented C++ protocol model                             |
+| [`DisasterRecovery/Protocol/Refinement.lean`](DisasterRecovery/Protocol/Refinement.lean)     |   332 | Canonical-to-legacy formal phase refinement                        |
+| [`DisasterRecovery/Protocol/Temporal.lean`](DisasterRecovery/Protocol/Temporal.lean)         |   230 | Execution streams, fairness, safety, and progress proofs           |
+| [`DisasterRecovery/Protocol/Global.lean`](DisasterRecovery/Protocol/Global.lean)             |   154 | Global active-node, network, send-history, and effect semantics    |
+| [`DisasterRecovery/Protocol/Invariants.lean`](DisasterRecovery/Protocol/Invariants.lean)     |   860 | Global provenance, locality, monotonicity, and reachability proofs |
+| [`DisasterRecovery/Protocol/Trace/Format.lean`](DisasterRecovery/Protocol/Trace/Format.lean) |   141 | Versioned NDJSON types and parser                                  |
+| [`DisasterRecovery/Protocol/Trace/Replay.lean`](DisasterRecovery/Protocol/Trace/Replay.lean) |   452 | Deterministic implementation-trace replay                          |
+| [`compare.py`](compare.py)                                                                   |   343 | Exhaustive canonical graph comparison                              |
+| [`../../tla/disaster-recovery/src/export.rs`](../../tla/disaster-recovery/src/export.rs)     |   370 | Canonical export of the actual Stateright model                    |
+| [`TRACE_FORMAT_V1.md`](TRACE_FORMAT_V1.md)                                                   |   145 | Contract for future committed C++ trace events                     |
 
 The migration also updates the existing Stateright CLI and documentation, adds
 weekly exhaustive verification, and adds
@@ -138,6 +143,37 @@ claim that the canonical C++-aligned model is identical to the Rust model.
 These are theorem-checked for arbitrary configurations and states satisfying
 their explicit premises. The progress theorem assumes weak fairness; the safety
 theorems do not.
+
+### Kernel-checked global foundations
+
+`DisasterRecovery.Protocol.Global` permits only retry, delivery of an in-flight
+message, and aligned local timeout actions. Every delivery is therefore tied to
+a prior modeled send rather than an arbitrary receive input. Its reachability
+relation requires the active locations to be unique and configured.
+
+`DisasterRecovery.Protocol.Global.WellFormed` records the foundational
+invariants needed by the remaining distributed proofs. The principal results
+are:
+
+- `reachable_well_formed`: every globally reachable state has the configured
+  node keys and matching state locations, unique configured active nodes, valid
+  sent-message provenance, only previously sent messages in flight, active
+  senders, and terminal histories attributed to active nodes;
+- `valid_envelope_effect` and `valid_gossip_uses_recovered_txid`: every
+  envelope comes from a retry effect over its captured source state, and every
+  gossip payload is the recovered TxID configured for that source;
+- `retry_system_eq`, `deliver_other_node_eq`, and
+  `timeout_other_node_eq`: retry does not mutate protocol state, while delivery
+  and timeout mutate at most their target node;
+- `deliver_network_eq`, `timeout_network_eq`, and `next_sent_extends`: delivery
+  removes exactly one matching envelope, timeout leaves the network unchanged,
+  and sent-message history is append-only; and
+- `next_openings_monotonic`, `next_restarts_monotonic`, and
+  `next_completed_monotonic`: observed terminal effects are never removed.
+
+These are global semantic foundations, not yet the planned quorum-path
+uniqueness, committed-prefix preservation, or fair global termination
+theorems.
 
 ### Kernel-checked refinement properties
 

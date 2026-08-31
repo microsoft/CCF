@@ -253,7 +253,7 @@ def step (config : Config) (state : NodeState) : Event -> StepOutput
         | .joining | .open => []
       { state, effects }
 
-private def replaceNode
+def replaceNode
     (target : Location)
     (next : NodeState)
     (nodes : List (Prod Location NodeState)) :
