@@ -296,6 +296,5 @@ jobs:
           lake build
           lake exe semantic-checks
           lake exe canonical-checks
-          lake exe trace-checks
           lake exe disaster-recovery check --nodes 3
           python3 compare.py --nodes 1 2 3

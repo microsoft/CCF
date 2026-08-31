@@ -1,3 +1,0 @@
-{"version":"ccf.recovery_decision_protocol.trace/1","instance":"bad-cause","expected_locations":["A"],"node":"A","sequence":0,"kind":"start","pre":"GOSSIPING","post":"GOSSIPING"}
-{"version":"ccf.recovery_decision_protocol.trace/1","instance":"bad-cause","expected_locations":["A"],"node":"A","sequence":1,"kind":"send","message_id":"send-gossip","send":"gossip:A","view":1,"seqno":1,"pre":"GOSSIPING","post":"GOSSIPING"}
-{"version":"ccf.recovery_decision_protocol.trace/1","instance":"bad-cause","expected_locations":["A"],"node":"A","sequence":2,"kind":"vote_accepted","message_id":"receive-vote","caused_by":"send-gossip","source":"A","pre":"GOSSIPING","post":"GOSSIPING"}

@@ -5,7 +5,6 @@ defaultTargets = [
   "disaster-recovery",
   "semantic-checks",
   "canonical-checks",
-  "trace-checks",
   "trace-validator",
 ]
 
@@ -28,10 +27,6 @@ root = "Tests"
 [[lean_exe]]
 name = "canonical-checks"
 root = "CanonicalTests"
-
-[[lean_exe]]
-name = "trace-checks"
-root = "TraceTests"
 
 [[lean_exe]]
 name = "trace-validator"

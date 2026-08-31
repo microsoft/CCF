@@ -115,6 +115,8 @@ Each log record contains `RDP_TRACE ` followed by the event object.
 logs, topologically orders them by per-node sequence and causal send edges,
 writes NDJSON, and invokes the Lean validator. The quorum, failover, and
 multiple-timeout SNP e2e scenarios call this helper.
+Each generated `*.recovery.ndjson` file is retained with the SNP job's uploaded
+logs, so a failed replay can be reproduced locally.
 
 The e2e helper additionally requires scenario-specific terminal evidence before
 accepting the trace: the expected open kind, at least one completed opener, and
@@ -135,7 +137,6 @@ a `complete` or `join_restart` event for every participating node.
 }
 ```
 
-Accepted quorum, failover-with-unavailable-locations, and multi-node examples
-are `fixtures/accepted.ndjson`, `fixtures/accepted-failover.ndjson`, and
-`fixtures/accepted-multinode.ndjson`. Deliberately rejected state and causal
-examples are `fixtures/rejected.ndjson` and `fixtures/rejected-cause.ndjson`.
+No recovery-decision-protocol traces are checked into the repository. Every
+NDJSON trace passed to the validator in CI is captured from the running C++
+implementation.

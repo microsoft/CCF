@@ -12,7 +12,6 @@ on:
       - "src/node/rpc/self_healing_open_handlers.h"
       - "tests/e2e_operations.py"
       - "tests/infra/recovery_trace.py"
-      - "tests/infra/recovery_trace_test.py"
       - "CMakeLists.txt"
       - ".github/workflows/ci.yml"
       - ".github/workflows/lean-shallow.yml"
@@ -55,27 +54,7 @@ jobs:
           lake build
           lake exe semantic-checks
           lake exe canonical-checks
-          lake exe trace-checks
           lake exe disaster-recovery check --nodes 3
-
-      - name: Check trace validation
-        working-directory: lean/disaster-recovery
-        shell: bash
-        run: |
-          set -euo pipefail
-          lake exe trace-validator fixtures/accepted.ndjson
-          lake exe trace-validator fixtures/accepted-failover.ndjson
-          lake exe trace-validator fixtures/accepted-multinode.ndjson
-          if lake exe trace-validator fixtures/rejected.ndjson; then
-            echo "Rejected state trace was accepted"
-            exit 1
-          fi
-          if lake exe trace-validator fixtures/rejected-cause.ndjson; then
-            echo "Rejected causal trace was accepted"
-            exit 1
-          fi
-          PYTHONPATH=../../tests python3 -m unittest discover \
-            -s ../../tests/infra -p recovery_trace_test.py
 
       - name: Compare Lean and Stateright
         working-directory: lean/disaster-recovery

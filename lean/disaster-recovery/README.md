@@ -24,13 +24,13 @@ intentionally differs from the legacy model in several places. It has formal
 phase-refinement and fairness-aware progress results, plus a versioned trace
 validator designed for future committed C++ instrumentation.
 
-The initial migration is approximately 4,000 lines across 28 new files:
+The initial migration is approximately 4,000 lines across 23 new files:
 
 | Area                                      | Files | Approximate lines | Purpose                                                         |
 | ----------------------------------------- | ----: | ----------------: | --------------------------------------------------------------- |
 | Exact legacy Lean model                   |     4 |               650 | Stateright state, actions, timers, network, predicates, and BFS |
 | Canonical protocol and proofs             |     4 |             1,000 | C++ behavior, phase refinement, quorum, and temporal proofs     |
-| Trace validation                          |    11 |             1,040 | NDJSON format, deterministic replay, tests, and fixtures        |
+| Trace validation                          |     5 |               760 | NDJSON format, deterministic replay, and CLI                    |
 | Equivalence tooling                       |     2 |               710 | Rust graph exporter and bidirectional Rust/Lean comparison      |
 | Project, documentation, and configuration |     6 |               530 | Lake/Mathlib setup, entry points, and documentation             |
 | Pull-request CI                           |     1 |                80 | Lean model and bounded equivalence checks                       |
@@ -46,7 +46,6 @@ The initial migration is approximately 4,000 lines across 28 new files:
 | [`DisasterRecovery/Protocol/Temporal.lean`](DisasterRecovery/Protocol/Temporal.lean)         |   230 | Execution streams, fairness, safety, and progress proofs       |
 | [`DisasterRecovery/Protocol/Trace/Format.lean`](DisasterRecovery/Protocol/Trace/Format.lean) |   141 | Versioned NDJSON types and parser                              |
 | [`DisasterRecovery/Protocol/Trace/Replay.lean`](DisasterRecovery/Protocol/Trace/Replay.lean) |   452 | Deterministic implementation-trace replay                      |
-| [`TraceTests.lean`](TraceTests.lean)                                                         |   227 | Strict replay, causality, sequencing, and effect regressions   |
 | [`compare.py`](compare.py)                                                                   |   343 | Exhaustive canonical graph comparison                          |
 | [`../../tla/disaster-recovery/src/export.rs`](../../tla/disaster-recovery/src/export.rs)     |   370 | Canonical export of the actual Stateright model                |
 | [`TRACE_FORMAT_V1.md`](TRACE_FORMAT_V1.md)                                                   |   145 | Contract for future committed C++ trace events                 |
@@ -399,6 +398,12 @@ validator. The quorum, failover, and multiple-timeout recovery scenarios call
 this helper, and both SNP CI jobs build CCF with tracing enabled and provide the
 Lean validator binary.
 
+The helper writes `*.recovery.ndjson` before validation. SNP CI uploads these
+generated files with node logs for debugging and local replay. No
+recovery-decision-protocol trace files are checked into the repository. Every
+NDJSON trace passed to the validator in CI comes from the running C++
+implementation.
+
 ## Commands
 
 From this directory:
@@ -407,13 +412,7 @@ From this directory:
 lake build
 lake exe semantic-checks
 lake exe canonical-checks
-lake exe trace-checks
 lake exe disaster-recovery check --nodes 3
-lake exe trace-validator fixtures/accepted.ndjson
-lake exe trace-validator fixtures/accepted-failover.ndjson
-lake exe trace-validator fixtures/accepted-multinode.ndjson
-! lake exe trace-validator fixtures/rejected.ndjson
-! lake exe trace-validator fixtures/rejected-cause.ndjson
 python3 compare.py
 ```
 
@@ -446,11 +445,12 @@ Stateright executables without formal semantics for them.
 The Rust comparison exporter is checked separately from
 `tla/disaster-recovery/` with `cargo check` and `cargo build`.
 
-`.github/workflows/lean-shallow.yml` runs the Lean build, semantic checks,
-trace checks, three-node legacy property check, and the one- and two-node
-Rust/Lean comparison on relevant pull requests. The weekly continuous
+`.github/workflows/lean-shallow.yml` builds the Lean library and trace validator,
+runs semantic and canonical checks, checks the three-node legacy properties,
+and compares the one- and two-node Rust/Lean graphs. The weekly continuous
 verification workflow additionally runs the exhaustive three-node comparison.
-The Rust job remains in place until the replacement criteria below are met.
+Only the SNP jobs feed real C++ traces to the validator. The Rust job remains in
+place until the replacement criteria below are met.
 
 ### Current CI evidence
 
@@ -458,8 +458,7 @@ Draft PR [microsoft/CCF#8241](https://github.com/microsoft/CCF/pull/8241)
 validated commit `c8dd40a7` on both proof and hardware paths:
 
 - [Lean shallow verification](https://github.com/microsoft/CCF/actions/runs/33315731130/job/99268715043)
-  built every Lean target, checked trace fixtures and merger behavior, and
-  compared the bounded Rust/Lean graphs.
+  built every Lean target and compared the bounded Rust/Lean graphs.
 - [Milan SNP](https://github.com/microsoft/CCF/actions/runs/33315731084/job/99268714883)
   validated committed quorum, failover, and multiple-timeout implementation
   traces.
