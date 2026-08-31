@@ -7,7 +7,7 @@ abbrev Location := String
 structure TxID where
   view : Nat
   seqno : Nat
-deriving Repr, BEq, Hashable, Inhabited, DecidableEq
+deriving Repr, BEq, ReflBEq, LawfulBEq, Hashable, Inhabited, DecidableEq
 
 inductive Phase where
   | gossiping
@@ -15,12 +15,12 @@ inductive Phase where
   | opening
   | joining
   | open
-deriving Repr, BEq, Hashable, Inhabited, DecidableEq
+deriving Repr, BEq, ReflBEq, LawfulBEq, Hashable, Inhabited, DecidableEq
 
 inductive OpenKind where
   | quorum
   | failover
-deriving Repr, BEq, Hashable, Inhabited, DecidableEq
+deriving Repr, BEq, ReflBEq, LawfulBEq, Hashable, Inhabited, DecidableEq
 
 inductive Validation where
   | accepted
@@ -48,7 +48,7 @@ structure NodeState where
   chosen : Option Location := none
   openKind : Option OpenKind := none
   restartRequested : Bool := false
-deriving Repr, BEq, Hashable, Inhabited
+deriving Repr, BEq, ReflBEq, LawfulBEq, Hashable, Inhabited
 
 inductive Event where
   | receiveGossip (source : Location) (txid : TxID) (validation : Validation)
@@ -102,7 +102,7 @@ def voteQuorum (config : Config) : Nat :=
 def validTimeout (state : NodeState) (timeout : Bool) : Bool :=
   timeout && decide (state.phase = state.timeoutState)
 
-private def txScoreGreater
+def txScoreGreater
     (leftName : Location)
     (left : TxID)
     (rightName : Location)
@@ -112,14 +112,18 @@ private def txScoreGreater
       (right.seqno < left.seqno ||
         (right.seqno == left.seqno && rightName < leftName)))
 
+def selectMaximum
+    (current candidate : Prod Location TxID) :
+    Prod Location TxID :=
+  if txScoreGreater candidate.1 candidate.2 current.1 current.2 then
+    candidate
+  else
+    current
+
 def maximumGossip : List (Prod Location TxID) -> Option (Prod Location TxID)
   | [] => none
   | head :: tail =>
-      some (tail.foldl (fun current candidate =>
-        if txScoreGreater candidate.1 candidate.2 current.1 current.2 then
-          candidate
-        else
-          current) head)
+      some (tail.foldl selectMaximum head)
 
 def insertGossip
     (source : Location)

@@ -27,12 +27,12 @@ effects around that same canonical transition function. The versioned trace
 validator also replays committed C++ instrumentation against the canonical
 model.
 
-The migration is approximately 5,000 lines across 25 new files:
+The migration is approximately 7,000 lines across 27 new files:
 
 | Area                                      | Files | Approximate lines | Purpose                                                         |
 | ----------------------------------------- | ----: | ----------------: | --------------------------------------------------------------- |
 | Exact legacy Lean model                   |     4 |               650 | Stateright state, actions, timers, network, predicates, and BFS |
-| Canonical protocol and proofs             |     6 |             1,900 | C++ behavior, global semantics, invariants, and temporal proofs |
+| Canonical protocol and proofs             |     8 |             3,600 | C++ behavior, global semantics, invariants, and temporal proofs |
 | Trace validation                          |     5 |               760 | NDJSON format, deterministic replay, and CLI                    |
 | Equivalence tooling                       |     2 |               710 | Rust graph exporter and bidirectional Rust/Lean comparison      |
 | Project, documentation, and configuration |     6 |               530 | Lake/Mathlib setup, entry points, and documentation             |
@@ -44,11 +44,13 @@ The migration is approximately 5,000 lines across 25 new files:
 | -------------------------------------------------------------------------------------------- | ----: | ------------------------------------------------------------------ |
 | [`DisasterRecovery/Model.lean`](DisasterRecovery/Model.lean)                                 |   392 | Exact executable legacy semantics                                  |
 | [`DisasterRecovery/Checker.lean`](DisasterRecovery/Checker.lean)                             |   152 | BFS enumeration, property checking, and canonical graph export     |
-| [`DisasterRecovery/Protocol/Model.lean`](DisasterRecovery/Protocol/Model.lean)               |   286 | Production-oriented C++ protocol model                             |
+| [`DisasterRecovery/Protocol/Model.lean`](DisasterRecovery/Protocol/Model.lean)               |   290 | Production-oriented C++ protocol model                             |
 | [`DisasterRecovery/Protocol/Refinement.lean`](DisasterRecovery/Protocol/Refinement.lean)     |   332 | Canonical-to-legacy formal phase refinement                        |
 | [`DisasterRecovery/Protocol/Temporal.lean`](DisasterRecovery/Protocol/Temporal.lean)         |   230 | Execution streams, fairness, safety, and progress proofs           |
-| [`DisasterRecovery/Protocol/Global.lean`](DisasterRecovery/Protocol/Global.lean)             |   154 | Global active-node, network, send-history, and effect semantics    |
-| [`DisasterRecovery/Protocol/Invariants.lean`](DisasterRecovery/Protocol/Invariants.lean)     |   860 | Global provenance, locality, monotonicity, and reachability proofs |
+| [`DisasterRecovery/Protocol/Global.lean`](DisasterRecovery/Protocol/Global.lean)             |   166 | Global active-node, network, send-history, and effect semantics    |
+| [`DisasterRecovery/Protocol/Invariants.lean`](DisasterRecovery/Protocol/Invariants.lean)     |   899 | Global provenance, locality, monotonicity, and reachability proofs |
+| [`DisasterRecovery/Protocol/Quorum.lean`](DisasterRecovery/Protocol/Quorum.lean)             | 1,467 | Vote-history invariants and unbounded quorum-opener uniqueness     |
+| [`DisasterRecovery/Protocol/Committed.lean`](DisasterRecovery/Protocol/Committed.lean)       |   258 | TxID maximum and committed-prefix preservation proofs              |
 | [`DisasterRecovery/Protocol/Trace/Format.lean`](DisasterRecovery/Protocol/Trace/Format.lean) |   141 | Versioned NDJSON types and parser                                  |
 | [`DisasterRecovery/Protocol/Trace/Replay.lean`](DisasterRecovery/Protocol/Trace/Replay.lean) |   452 | Deterministic implementation-trace replay                          |
 | [`compare.py`](compare.py)                                                                   |   343 | Exhaustive canonical graph comparison                              |
@@ -152,8 +154,7 @@ a prior modeled send rather than an arbitrary receive input. Its reachability
 relation requires the active locations to be unique and configured.
 
 `DisasterRecovery.Protocol.Global.WellFormed` records the foundational
-invariants needed by the remaining distributed proofs. The principal results
-are:
+invariants used by the distributed proofs. The principal results are:
 
 - `reachable_well_formed`: every globally reachable state has the configured
   node keys and matching state locations, unique configured active nodes, valid
@@ -171,9 +172,29 @@ are:
 - `next_openings_monotonic`, `next_restarts_monotonic`, and
   `next_completed_monotonic`: observed terminal effects are never removed.
 
-These are global semantic foundations, not yet the planned quorum-path
-uniqueness, committed-prefix preservation, or fair global termination
-theorems.
+`DisasterRecovery.Protocol.Quorum` additionally proves that counted votes are
+duplicate-free and backed by prior sends, retry snapshots retain the selected
+maximum, each voter has one immutable vote target, and recorded openings retain
+their exact vote evidence. `quorum_lists_intersect` proves strict-majority
+intersection for `n / 2 + 1`, and `quorum_opener_unique` applies it to any two
+quorum openings in an arbitrary reachable execution. This is an unbounded
+safety theorem and needs no fairness assumption.
+
+`DisasterRecovery.Protocol.Committed` defines lexicographic TxID prefix order,
+proves that `maximumGossip` is a member and upper bound of every collected
+gossip, and proves `full_gossip_selection_preserves_commit`. Its assumptions are
+explicit:
+
+- `DurableCommit` says at least one configured recovered ledger covers the
+  committed TxID;
+- `FullGossipSelection` says a real sent vote selected the opener from a gossip
+  snapshot containing exactly the configured recovered TxIDs; and
+- `quorum_open_preserves_commit` combines that evidence with a recorded quorum
+  opening.
+
+Quorum opening alone does **not** imply `FullGossipSelection`: voting may follow
+a gossip timeout. The committed-prefix theorem deliberately does not hide or
+derive that premise. Fair global termination remains the next unbounded proof.
 
 ### Kernel-checked refinement properties
 

@@ -9,6 +9,7 @@ deriving Repr, BEq
 
 def Config.Valid (config : Config) : Prop :=
   config.protocol.isValid = true /\
+    config.protocol.expectedLocations.Nodup /\
     config.recovered.map Prod.fst = config.protocol.expectedLocations
 
 def recoveredTxID (config : Config) (source : Location) : Option TxID :=
@@ -18,18 +19,19 @@ inductive Payload where
   | gossip (txid : TxID)
   | vote
   | iAmOpen
-deriving Repr, BEq
+deriving Repr, BEq, ReflBEq, LawfulBEq
 
 structure Envelope where
   source : Location
   target : Location
   payload : Payload
   sourceState : NodeState
-deriving Repr, BEq
+deriving Repr, BEq, ReflBEq, LawfulBEq
 
 structure Opening where
   node : Location
   kind : OpenKind
+  state : NodeState
 deriving Repr, BEq
 
 structure State where
@@ -86,9 +88,15 @@ def removeOne [BEq α] (value : α) : List α -> List α
   | head :: tail =>
       if head == value then tail else head :: removeOne value tail
 
-def recordEffect (node : Location) (state : State) : Effect -> State
+def recordEffect
+    (node : Location)
+    (nodeState : NodeState)
+    (state : State) : Effect -> State
   | .opening kind =>
-      { state with openings := { node, kind } :: state.openings }
+      {
+        state with
+        openings := { node, kind, state := nodeState } :: state.openings
+      }
   | .restart _ =>
       { state with restarts := node :: state.restarts }
   | .completed =>
@@ -97,9 +105,10 @@ def recordEffect (node : Location) (state : State) : Effect -> State
 
 def recordEffects
     (node : Location)
+    (nodeState : NodeState)
     (effects : List Effect)
     (state : State) : State :=
-  effects.foldl (recordEffect node) state
+  effects.foldl (recordEffect node nodeState) state
 
 def initial (config : Config) (active : List Location) : State := {
   system := initialSystem config.protocol
@@ -128,17 +137,20 @@ def next (config : Config) (state : State) : Action -> Option State
         system
         network := removeOne envelope state.network
       }
-      pure (recordEffects envelope.target output.effects delivered)
+      pure
+        (recordEffects envelope.target output.state output.effects delivered)
   | .timeout target => do
       guard (state.active.contains target)
       let (system, output) <-
         systemStep config.protocol state.system target .timeout
       guard output.accepted
-      pure (recordEffects target output.effects { state with system })
+      pure
+        (recordEffects target output.state output.effects { state with system })
 
 inductive Reachable (config : Config) : State -> Prop where
   | initial
       (active : List Location)
+      (valid : config.Valid)
       (nodup : active.Nodup)
       (configured :
         forall node, node ∈ active ->

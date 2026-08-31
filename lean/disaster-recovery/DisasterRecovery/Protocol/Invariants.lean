@@ -18,6 +18,7 @@ structure WellFormed (config : Config) (state : State) : Prop where
   nodeKeys :
     state.system.nodes.map Prod.fst =
       config.protocol.expectedLocations
+  nodeKeysNodup : (state.system.nodes.map Prod.fst).Nodup
   nodeLocations :
     forall entry, entry ∈ state.system.nodes ->
       entry.2.location = entry.1
@@ -184,6 +185,7 @@ theorem nodeState_location
 theorem initial_well_formed
     (config : Config)
     (active : List Location)
+    (valid : config.Valid)
     (activeNodup : active.Nodup)
     (activeConfigured :
       forall node, node ∈ active ->
@@ -191,6 +193,7 @@ theorem initial_well_formed
     WellFormed config (initial config active) := by
   constructor
   · simp [Global.initial, initialSystem, Function.comp_def]
+  · simpa [Global.initial, initialSystem, Function.comp_def] using valid.2.1
   · simp [Global.initial, initialSystem, initialNode]
   · exact activeNodup
   · exact activeConfigured
@@ -202,15 +205,17 @@ theorem initial_well_formed
 @[simp]
 theorem recordEffects_active
     (node : Location)
+    (nodeState : NodeState)
     (effects : List Effect)
     (state : State) :
-    (recordEffects node effects state).active = state.active := by
+    (recordEffects node nodeState effects state).active = state.active := by
   induction effects generalizing state with
   | nil => rfl
   | cons effect tail ih =>
       simp only [recordEffects, List.foldl_cons]
       change
-        (recordEffects node tail (recordEffect node state effect)).active =
+        (recordEffects node nodeState tail
+          (recordEffect node nodeState state effect)).active =
           state.active
       rw [ih]
       cases effect <;> rfl
@@ -218,15 +223,17 @@ theorem recordEffects_active
 @[simp]
 theorem recordEffects_system
     (node : Location)
+    (nodeState : NodeState)
     (effects : List Effect)
     (state : State) :
-    (recordEffects node effects state).system = state.system := by
+    (recordEffects node nodeState effects state).system = state.system := by
   induction effects generalizing state with
   | nil => rfl
   | cons effect tail ih =>
       simp only [recordEffects, List.foldl_cons]
       change
-        (recordEffects node tail (recordEffect node state effect)).system =
+        (recordEffects node nodeState tail
+          (recordEffect node nodeState state effect)).system =
           state.system
       rw [ih]
       cases effect <;> rfl
@@ -234,15 +241,17 @@ theorem recordEffects_system
 @[simp]
 theorem recordEffects_network
     (node : Location)
+    (nodeState : NodeState)
     (effects : List Effect)
     (state : State) :
-    (recordEffects node effects state).network = state.network := by
+    (recordEffects node nodeState effects state).network = state.network := by
   induction effects generalizing state with
   | nil => rfl
   | cons effect tail ih =>
       simp only [recordEffects, List.foldl_cons]
       change
-        (recordEffects node tail (recordEffect node state effect)).network =
+        (recordEffects node nodeState tail
+          (recordEffect node nodeState state effect)).network =
           state.network
       rw [ih]
       cases effect <;> rfl
@@ -250,26 +259,29 @@ theorem recordEffects_network
 @[simp]
 theorem recordEffects_sent
     (node : Location)
+    (nodeState : NodeState)
     (effects : List Effect)
     (state : State) :
-    (recordEffects node effects state).sent = state.sent := by
+    (recordEffects node nodeState effects state).sent = state.sent := by
   induction effects generalizing state with
   | nil => rfl
   | cons effect tail ih =>
       simp only [recordEffects, List.foldl_cons]
       change
-        (recordEffects node tail (recordEffect node state effect)).sent =
+        (recordEffects node nodeState tail
+          (recordEffect node nodeState state effect)).sent =
           state.sent
       rw [ih]
       cases effect <;> rfl
 
 theorem recordEffect_preserves_histories_active
     {node : Location}
+    {nodeState : NodeState}
     {state : State}
     {effect : Effect}
     (wellFormed : HistoriesActive state)
     (nodeActive : node ∈ state.active) :
-    HistoriesActive (recordEffect node state effect) := by
+    HistoriesActive (recordEffect node nodeState state effect) := by
   rcases wellFormed with ⟨openings, restarts, completed⟩
   cases effect <;>
     constructor <;>
@@ -277,11 +289,12 @@ theorem recordEffect_preserves_histories_active
 
 theorem recordEffects_preserves_histories_active
     {node : Location}
+    {nodeState : NodeState}
     {effects : List Effect}
     {state : State}
     (wellFormed : HistoriesActive state)
     (nodeActive : node ∈ state.active) :
-    HistoriesActive (recordEffects node effects state) := by
+    HistoriesActive (recordEffects node nodeState effects state) := by
   induction effects generalizing state with
   | nil => exact wellFormed
   | cons effect tail ih =>
@@ -308,38 +321,42 @@ theorem mem_of_mem_removeOne
 
 theorem mem_openings_recordEffect
     {node : Location}
+    {nodeState : NodeState}
     {state : State}
     {effect : Effect}
     {opening : Opening}
     (membership : opening ∈ state.openings) :
-    opening ∈ (recordEffect node state effect).openings := by
+    opening ∈ (recordEffect node nodeState state effect).openings := by
   cases effect <;> simp_all [recordEffect]
 
 theorem mem_restarts_recordEffect
     {node : Location}
+    {nodeState : NodeState}
     {state : State}
     {effect : Effect}
     {restart : Location}
     (membership : restart ∈ state.restarts) :
-    restart ∈ (recordEffect node state effect).restarts := by
+    restart ∈ (recordEffect node nodeState state effect).restarts := by
   cases effect <;> simp_all [recordEffect]
 
 theorem mem_completed_recordEffect
     {node : Location}
+    {nodeState : NodeState}
     {state : State}
     {effect : Effect}
     {completed : Location}
     (membership : completed ∈ state.completed) :
-    completed ∈ (recordEffect node state effect).completed := by
+    completed ∈ (recordEffect node nodeState state effect).completed := by
   cases effect <;> simp_all [recordEffect]
 
 theorem mem_openings_recordEffects
     {node : Location}
+    {nodeState : NodeState}
     {state : State}
     {effects : List Effect}
     {opening : Opening}
     (membership : opening ∈ state.openings) :
-    opening ∈ (recordEffects node effects state).openings := by
+    opening ∈ (recordEffects node nodeState effects state).openings := by
   induction effects generalizing state with
   | nil => exact membership
   | cons effect tail ih =>
@@ -348,11 +365,12 @@ theorem mem_openings_recordEffects
 
 theorem mem_restarts_recordEffects
     {node : Location}
+    {nodeState : NodeState}
     {state : State}
     {effects : List Effect}
     {restart : Location}
     (membership : restart ∈ state.restarts) :
-    restart ∈ (recordEffects node effects state).restarts := by
+    restart ∈ (recordEffects node nodeState effects state).restarts := by
   induction effects generalizing state with
   | nil => exact membership
   | cons effect tail ih =>
@@ -361,11 +379,12 @@ theorem mem_restarts_recordEffects
 
 theorem mem_completed_recordEffects
     {node : Location}
+    {nodeState : NodeState}
     {state : State}
     {effects : List Effect}
     {completed : Location}
     (membership : completed ∈ state.completed) :
-    completed ∈ (recordEffects node effects state).completed := by
+    completed ∈ (recordEffects node nodeState effects state).completed := by
   induction effects generalizing state with
   | nil => exact membership
   | cons effect tail ih =>
@@ -530,11 +549,11 @@ theorem next_active_eq
   | deliver envelope =>
       simp [next, Option.bind_eq_some_iff] at transition
       rcases transition with ⟨_, _, system, output, _, rfl⟩
-      exact recordEffects_active envelope.target output.effects _
+      simp
   | timeout target =>
       simp [next, Option.bind_eq_some_iff] at transition
       rcases transition with ⟨_, system, output, _, _, rfl⟩
-      exact recordEffects_active target output.effects _
+      simp
 
 theorem next_node_keys_eq
     {config : Config}
@@ -576,7 +595,7 @@ theorem deliver_network_eq
   simp [next, Option.bind_eq_some_iff] at transition
   rcases transition with
     ⟨_, _, system, output, _, rfl⟩
-  exact recordEffects_network envelope.target output.effects _
+  simp
 
 theorem timeout_network_eq
     {config : Config}
@@ -587,7 +606,7 @@ theorem timeout_network_eq
   simp [next, Option.bind_eq_some_iff] at transition
   rcases transition with
     ⟨_, system, output, _, _, rfl⟩
-  exact recordEffects_network target output.effects _
+  simp
 
 theorem deliver_other_node_eq
     {config : Config}
@@ -659,12 +678,14 @@ theorem next_openings_monotonic
       simp [next, Option.bind_eq_some_iff] at transition
       rcases transition with
         ⟨_, _, system, output, _, rfl⟩
-      exact mem_openings_recordEffects membership
+      apply mem_openings_recordEffects
+      simpa using membership
   | timeout target =>
       simp [next, Option.bind_eq_some_iff] at transition
       rcases transition with
         ⟨_, system, output, _, _, rfl⟩
-      exact mem_openings_recordEffects membership
+      apply mem_openings_recordEffects
+      simpa using membership
 
 theorem next_restarts_monotonic
     {config : Config}
@@ -683,12 +704,14 @@ theorem next_restarts_monotonic
       simp [next, Option.bind_eq_some_iff] at transition
       rcases transition with
         ⟨_, _, system, output, _, rfl⟩
-      exact mem_restarts_recordEffects membership
+      apply mem_restarts_recordEffects
+      simpa using membership
   | timeout target =>
       simp [next, Option.bind_eq_some_iff] at transition
       rcases transition with
         ⟨_, system, output, _, _, rfl⟩
-      exact mem_restarts_recordEffects membership
+      apply mem_restarts_recordEffects
+      simpa using membership
 
 theorem next_completed_monotonic
     {config : Config}
@@ -707,12 +730,14 @@ theorem next_completed_monotonic
       simp [next, Option.bind_eq_some_iff] at transition
       rcases transition with
         ⟨_, _, system, output, _, rfl⟩
-      exact mem_completed_recordEffects membership
+      apply mem_completed_recordEffects
+      simpa using membership
   | timeout target =>
       simp [next, Option.bind_eq_some_iff] at transition
       rcases transition with
         ⟨_, system, output, _, _, rfl⟩
-      exact mem_completed_recordEffects membership
+      apply mem_completed_recordEffects
+      simpa using membership
 
 theorem retry_preserves_well_formed
     {config : Config}
@@ -729,6 +754,7 @@ theorem retry_preserves_well_formed
   rw [←stateEq]
   constructor
   · exact wellFormed.nodeKeys
+  · exact wellFormed.nodeKeysNodup
   · exact wellFormed.nodeLocations
   · exact wellFormed.activeNodup
   · exact wellFormed.activeConfigured
@@ -766,10 +792,12 @@ theorem deliver_preserves_well_formed
     ⟨_, targetActive, system, output, systemStep, stateEq⟩
   rw [←stateEq]
   constructor
-  · rw [recordEffects_system]
+  · simp only [recordEffects_system]
     exact (systemStep_node_keys_eq systemStep).trans
       wellFormed.nodeKeys
-  · rw [recordEffects_system]
+  · rw [recordEffects_system, systemStep_node_keys_eq systemStep]
+    exact wellFormed.nodeKeysNodup
+  · simp only [recordEffects_system]
     exact systemStep_preserves_node_locations
       wellFormed.nodeLocations systemStep
   · simpa using wellFormed.activeNodup
@@ -788,10 +816,10 @@ theorem deliver_preserves_well_formed
       (mem_of_mem_removeOne envelope pending before.network membership)
   · apply recordEffects_preserves_histories_active
     · constructor
-      · exact wellFormed.historiesActive.openings
-      · exact wellFormed.historiesActive.restarts
-      · exact wellFormed.historiesActive.completed
-    · exact targetActive
+      · simpa using wellFormed.historiesActive.openings
+      · simpa using wellFormed.historiesActive.restarts
+      · simpa using wellFormed.historiesActive.completed
+    · simpa using targetActive
 
 theorem timeout_preserves_well_formed
     {config : Config}
@@ -805,10 +833,12 @@ theorem timeout_preserves_well_formed
     ⟨targetActive, system, output, systemStep, _, stateEq⟩
   rw [←stateEq]
   constructor
-  · rw [recordEffects_system]
+  · simp only [recordEffects_system]
     exact (systemStep_node_keys_eq systemStep).trans
       wellFormed.nodeKeys
-  · rw [recordEffects_system]
+  · rw [recordEffects_system, systemStep_node_keys_eq systemStep]
+    exact wellFormed.nodeKeysNodup
+  · simp only [recordEffects_system]
     exact systemStep_preserves_node_locations
       wellFormed.nodeLocations systemStep
   · simpa using wellFormed.activeNodup
@@ -826,10 +856,10 @@ theorem timeout_preserves_well_formed
     exact wellFormed.networkSent pending membership
   · apply recordEffects_preserves_histories_active
     · constructor
-      · exact wellFormed.historiesActive.openings
-      · exact wellFormed.historiesActive.restarts
-      · exact wellFormed.historiesActive.completed
-    · exact targetActive
+      · simpa using wellFormed.historiesActive.openings
+      · simpa using wellFormed.historiesActive.restarts
+      · simpa using wellFormed.historiesActive.completed
+    · simpa using targetActive
 
 theorem next_preserves_well_formed
     {config : Config}
@@ -852,9 +882,18 @@ theorem reachable_well_formed
     (reachable : Reachable config state) :
     WellFormed config state := by
   induction reachable with
-  | initial active nodup configured =>
-      exact initial_well_formed config active nodup configured
+  | initial active valid nodup configured =>
+      exact initial_well_formed config active valid nodup configured
   | step reachable transition wellFormed =>
       exact next_preserves_well_formed wellFormed transition
+
+theorem reachable_config_valid
+    {config : Config}
+    {state : State}
+    (reachable : Reachable config state) :
+    config.Valid := by
+  induction reachable with
+  | initial active valid nodup configured => exact valid
+  | step reachable transition valid => exact valid
 
 end DisasterRecovery.Protocol.Global
