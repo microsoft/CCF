@@ -27,12 +27,12 @@ effects around that same canonical transition function. The versioned trace
 validator also replays committed C++ instrumentation against the canonical
 model.
 
-The migration is approximately 7,000 lines across 27 new files:
+The migration is approximately 10,000 lines across 28 new files:
 
 | Area                                      | Files | Approximate lines | Purpose                                                         |
 | ----------------------------------------- | ----: | ----------------: | --------------------------------------------------------------- |
 | Exact legacy Lean model                   |     4 |               650 | Stateright state, actions, timers, network, predicates, and BFS |
-| Canonical protocol and proofs             |     8 |             3,600 | C++ behavior, global semantics, invariants, and temporal proofs |
+| Canonical protocol and proofs             |     9 |             6,800 | C++ behavior, global semantics, invariants, and temporal proofs |
 | Trace validation                          |     5 |               760 | NDJSON format, deterministic replay, and CLI                    |
 | Equivalence tooling                       |     2 |               710 | Rust graph exporter and bidirectional Rust/Lean comparison      |
 | Project, documentation, and configuration |     6 |               530 | Lake/Mathlib setup, entry points, and documentation             |
@@ -40,22 +40,23 @@ The migration is approximately 7,000 lines across 27 new files:
 
 ### Principal files
 
-| File                                                                                         | Lines | Role                                                               |
-| -------------------------------------------------------------------------------------------- | ----: | ------------------------------------------------------------------ |
-| [`DisasterRecovery/Model.lean`](DisasterRecovery/Model.lean)                                 |   392 | Exact executable legacy semantics                                  |
-| [`DisasterRecovery/Checker.lean`](DisasterRecovery/Checker.lean)                             |   152 | BFS enumeration, property checking, and canonical graph export     |
-| [`DisasterRecovery/Protocol/Model.lean`](DisasterRecovery/Protocol/Model.lean)               |   290 | Production-oriented C++ protocol model                             |
-| [`DisasterRecovery/Protocol/Refinement.lean`](DisasterRecovery/Protocol/Refinement.lean)     |   332 | Canonical-to-legacy formal phase refinement                        |
-| [`DisasterRecovery/Protocol/Temporal.lean`](DisasterRecovery/Protocol/Temporal.lean)         |   230 | Execution streams, fairness, safety, and progress proofs           |
-| [`DisasterRecovery/Protocol/Global.lean`](DisasterRecovery/Protocol/Global.lean)             |   166 | Global active-node, network, send-history, and effect semantics    |
-| [`DisasterRecovery/Protocol/Invariants.lean`](DisasterRecovery/Protocol/Invariants.lean)     |   899 | Global provenance, locality, monotonicity, and reachability proofs |
-| [`DisasterRecovery/Protocol/Quorum.lean`](DisasterRecovery/Protocol/Quorum.lean)             | 1,467 | Vote-history invariants and unbounded quorum-opener uniqueness     |
-| [`DisasterRecovery/Protocol/Committed.lean`](DisasterRecovery/Protocol/Committed.lean)       |   258 | TxID maximum and committed-prefix preservation proofs              |
-| [`DisasterRecovery/Protocol/Trace/Format.lean`](DisasterRecovery/Protocol/Trace/Format.lean) |   141 | Versioned NDJSON types and parser                                  |
-| [`DisasterRecovery/Protocol/Trace/Replay.lean`](DisasterRecovery/Protocol/Trace/Replay.lean) |   452 | Deterministic implementation-trace replay                          |
-| [`compare.py`](compare.py)                                                                   |   343 | Exhaustive canonical graph comparison                              |
-| [`../../tla/disaster-recovery/src/export.rs`](../../tla/disaster-recovery/src/export.rs)     |   370 | Canonical export of the actual Stateright model                    |
-| [`TRACE_FORMAT_V1.md`](TRACE_FORMAT_V1.md)                                                   |   145 | Contract for future committed C++ trace events                     |
+| File                                                                                             | Lines | Role                                                               |
+| ------------------------------------------------------------------------------------------------ | ----: | ------------------------------------------------------------------ |
+| [`DisasterRecovery/Model.lean`](DisasterRecovery/Model.lean)                                     |   392 | Exact executable legacy semantics                                  |
+| [`DisasterRecovery/Checker.lean`](DisasterRecovery/Checker.lean)                                 |   152 | BFS enumeration, property checking, and canonical graph export     |
+| [`DisasterRecovery/Protocol/Model.lean`](DisasterRecovery/Protocol/Model.lean)                   |   290 | Production-oriented C++ protocol model                             |
+| [`DisasterRecovery/Protocol/Refinement.lean`](DisasterRecovery/Protocol/Refinement.lean)         |   332 | Canonical-to-legacy formal phase refinement                        |
+| [`DisasterRecovery/Protocol/Temporal.lean`](DisasterRecovery/Protocol/Temporal.lean)             |   230 | Execution streams, fairness, safety, and progress proofs           |
+| [`DisasterRecovery/Protocol/Global.lean`](DisasterRecovery/Protocol/Global.lean)                 |   166 | Global active-node, network, send-history, and effect semantics    |
+| [`DisasterRecovery/Protocol/Invariants.lean`](DisasterRecovery/Protocol/Invariants.lean)         |   899 | Global provenance, locality, monotonicity, and reachability proofs |
+| [`DisasterRecovery/Protocol/Quorum.lean`](DisasterRecovery/Protocol/Quorum.lean)                 | 1,467 | Vote-history invariants and unbounded quorum-opener uniqueness     |
+| [`DisasterRecovery/Protocol/Committed.lean`](DisasterRecovery/Protocol/Committed.lean)           |   258 | TxID maximum and committed-prefix preservation proofs              |
+| [`DisasterRecovery/Protocol/GlobalTemporal.lean`](DisasterRecovery/Protocol/GlobalTemporal.lean) | 3,168 | Global fairness, phase progress, and termination proofs            |
+| [`DisasterRecovery/Protocol/Trace/Format.lean`](DisasterRecovery/Protocol/Trace/Format.lean)     |   141 | Versioned NDJSON types and parser                                  |
+| [`DisasterRecovery/Protocol/Trace/Replay.lean`](DisasterRecovery/Protocol/Trace/Replay.lean)     |   452 | Deterministic implementation-trace replay                          |
+| [`compare.py`](compare.py)                                                                       |   343 | Exhaustive canonical graph comparison                              |
+| [`../../tla/disaster-recovery/src/export.rs`](../../tla/disaster-recovery/src/export.rs)         |   370 | Canonical export of the actual Stateright model                    |
+| [`TRACE_FORMAT_V1.md`](TRACE_FORMAT_V1.md)                                                       |   145 | Contract for future committed C++ trace events                     |
 
 The migration also updates the existing Stateright CLI and documentation, adds
 weekly exhaustive verification, and adds
@@ -194,7 +195,37 @@ explicit:
 
 Quorum opening alone does **not** imply `FullGossipSelection`: voting may follow
 a gossip timeout. The committed-prefix theorem deliberately does not hide or
-derive that premise. Fair global termination remains the next unbounded proof.
+derive that premise.
+
+`DisasterRecovery.Protocol.GlobalTemporal` defines infinite executions over
+`Global.next` and action-oriented fairness for enabled retries, reliable
+delivery, and enabled timeouts. It proves:
+
+- every active node eventually leaves Gossiping;
+- some vote target eventually reaches Opening;
+- every Opening node eventually completes, using a well-founded timeout-lane
+  measure;
+- `fair_some_opener_completes`: a nonempty active execution eventually has a
+  completed opener; and
+- `global_progress`: eventually some opener completes and eventually every
+  active node is terminal.
+
+The all-node half of `global_progress` has a separate
+`BroadcastBeforeCompletion` premise: before an opener completes, its
+`IAmOpen` messages must have been sent to every other active participant. This
+is deliberately not called weak fairness. Ordinary weak fairness does not
+order two actions that are enabled only for a finite interval, so it cannot
+guarantee a retry before the Opening timeout completes. The proof derives
+follower termination from those actual sent messages, the
+`AnnouncementsResolved` reachable invariant, reliable delivery, and replay of
+the `IAmOpen` transition.
+
+`quorum_path_progress` adds `QuorumOnlyCompletions` (no failover completion),
+uses `quorum_opener_unique` to derive the unique completed opener, and proves
+that every other active participant restarts/joins.
+
+These are conditional temporal theorems. They do not construct a concrete
+scheduler satisfying the fairness and broadcast-ordering premises.
 
 ### Kernel-checked refinement properties
 
@@ -376,7 +407,9 @@ phase to Open. `fair_aligned_opening_progress` proves that an execution whose
 initial state is `AlignedOpening` eventually reaches phase Open, assuming weak
 fairness for timeout firing while `AlignedOpening` is enabled. This is not a
 global termination theorem; reaching aligned Opening still requires separate
-message-delivery and timeout progress assumptions.
+message-delivery and timeout progress assumptions. The separate
+`Protocol/GlobalTemporal.lean` theorem supplies the distributed result under
+the stronger, explicit assumptions described above.
 
 ## Legacy compatibility
 
