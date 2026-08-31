@@ -31,25 +31,25 @@
     CCF_LOG_FMT(TRACE, "raft") \
     ("{} | {} | {} | " s, \
      state->node_id, \
-     state->leadership_state, \
+     state->leadership_state.load(), \
      state->membership_state __VA_OPT__(, ) __VA_ARGS__)
 #  define RAFT_DEBUG_FMT(s, ...) \
     CCF_LOG_FMT(DEBUG, "raft") \
     ("{} | {} | {} | " s, \
      state->node_id, \
-     state->leadership_state, \
+     state->leadership_state.load(), \
      state->membership_state __VA_OPT__(, ) __VA_ARGS__)
 #  define RAFT_INFO_FMT(s, ...) \
     CCF_LOG_FMT(INFO, "raft") \
     ("{} | {} | {} | " s, \
      state->node_id, \
-     state->leadership_state, \
+     state->leadership_state.load(), \
      state->membership_state __VA_OPT__(, ) __VA_ARGS__)
 #  define RAFT_FAIL_FMT(s, ...) \
     CCF_LOG_FMT(FAIL, "raft") \
     ("{} | {} | {} | " s, \
      state->node_id, \
-     state->leadership_state, \
+     state->leadership_state.load(), \
      state->membership_state __VA_OPT__(, ) __VA_ARGS__)
 #else
 #  define RAFT_TRACE_FMT LOG_TRACE_FMT
@@ -259,12 +259,13 @@ namespace aft
 
     bool is_primary() override
     {
-      return state->leadership_state == ccf::kv::LeadershipState::Leader;
+      return state->leadership_state.load() == ccf::kv::LeadershipState::Leader;
     }
 
     bool is_candidate() override
     {
-      return state->leadership_state == ccf::kv::LeadershipState::Candidate;
+      return state->leadership_state.load() ==
+        ccf::kv::LeadershipState::Candidate;
     }
 
     bool can_replicate() override
@@ -285,7 +286,8 @@ namespace aft
         return false;
       }
       std::unique_lock<ccf::pal::Mutex> guard(state->lock);
-      return state->leadership_state == ccf::kv::LeadershipState::Leader &&
+      return state->leadership_state.load() ==
+        ccf::kv::LeadershipState::Leader &&
         (state->last_idx - state->commit_idx >= max_uncommitted_tx_count);
     }
 
@@ -305,7 +307,8 @@ namespace aft
 
     bool is_backup() override
     {
-      return state->leadership_state == ccf::kv::LeadershipState::Follower;
+      return state->leadership_state.load() ==
+        ccf::kv::LeadershipState::Follower;
     }
 
     bool is_active() const
@@ -602,7 +605,7 @@ namespace aft
       details.primary_id = leader_id;
       details.current_view = state->current_view;
       details.ticking = ticking;
-      details.leadership_state = state->leadership_state;
+      details.leadership_state = state->leadership_state.load();
       details.membership_state = state->membership_state;
       if (is_retired())
       {
@@ -625,7 +628,7 @@ namespace aft
     {
       std::lock_guard<ccf::pal::Mutex> guard(state->lock);
 
-      if (state->leadership_state != ccf::kv::LeadershipState::Leader)
+      if (state->leadership_state.load() != ccf::kv::LeadershipState::Leader)
       {
         RAFT_DEBUG_FMT(
           "Failed to replicate {} items: not leader", entries.size());
@@ -691,7 +694,7 @@ namespace aft
           RAFT_DEBUG_FMT(
             "membership: {} leadership: {}",
             state->membership_state,
-            state->leadership_state);
+            state->leadership_state.load());
           if (
             state->membership_state == ccf::kv::MembershipState::Retired &&
             state->retirement_phase == ccf::kv::RetirementPhase::Ordered)
@@ -837,7 +840,7 @@ namespace aft
       std::unique_lock<ccf::pal::Mutex> guard(state->lock);
       timeout_elapsed += elapsed;
 
-      if (state->leadership_state == ccf::kv::LeadershipState::Leader)
+      if (state->leadership_state.load() == ccf::kv::LeadershipState::Leader)
       {
         if (timeout_elapsed >= request_timeout)
         {
@@ -981,13 +984,15 @@ namespace aft
 
     bool can_replicate_unsafe()
     {
-      return state->leadership_state == ccf::kv::LeadershipState::Leader &&
+      return state->leadership_state.load() ==
+        ccf::kv::LeadershipState::Leader &&
         !is_retired_committed();
     }
 
     bool can_sign_unsafe()
     {
-      return state->leadership_state == ccf::kv::LeadershipState::Leader &&
+      return state->leadership_state.load() ==
+        ccf::kv::LeadershipState::Leader &&
         !is_retired_committed();
     }
 
@@ -1138,8 +1143,10 @@ namespace aft
       // follower if necessary
       if (
         state->current_view == r.term &&
-        (state->leadership_state == ccf::kv::LeadershipState::Candidate ||
-         state->leadership_state == ccf::kv::LeadershipState::PreVoteCandidate))
+        (state->leadership_state.load() ==
+           ccf::kv::LeadershipState::Candidate ||
+         state->leadership_state.load() ==
+           ccf::kv::LeadershipState::PreVoteCandidate))
       {
         become_aware_of_new_term(r.term);
       }
@@ -1607,7 +1614,7 @@ namespace aft
 #endif
 
       // Ignore if we're not the leader.
-      if (state->leadership_state != ccf::kv::LeadershipState::Leader)
+      if (state->leadership_state.load() != ccf::kv::LeadershipState::Leader)
       {
         RAFT_INFO_FMT(
           "Recv {} to {} from {}: no longer leader",
@@ -1988,8 +1995,9 @@ namespace aft
       }
 
       if (
-        state->leadership_state != ccf::kv::LeadershipState::PreVoteCandidate &&
-        state->leadership_state != ccf::kv::LeadershipState::Candidate)
+        state->leadership_state.load() !=
+          ccf::kv::LeadershipState::PreVoteCandidate &&
+        state->leadership_state.load() != ccf::kv::LeadershipState::Candidate)
       {
         RAFT_INFO_FMT(
           "Recv {} to {} from: {}: we aren't a candidate",
@@ -2000,7 +2008,7 @@ namespace aft
       }
       if (
         election_type == ElectionType::RegularVote &&
-        state->leadership_state != ccf::kv::LeadershipState::Candidate)
+        state->leadership_state.load() != ccf::kv::LeadershipState::Candidate)
       {
         // Stale message from previous candidacy
         // Candidate(T) -> Follower(T) -> PreVoteCandidate(T)
@@ -2014,7 +2022,8 @@ namespace aft
       }
       if (
         election_type == ElectionType::PreVote &&
-        state->leadership_state != ccf::kv::LeadershipState::PreVoteCandidate)
+        state->leadership_state.load() !=
+          ccf::kv::LeadershipState::PreVoteCandidate)
       {
         // To receive a PreVoteResponse, we must have been a PreVoteCandidate in
         // that term.
@@ -2117,7 +2126,7 @@ namespace aft
         return;
       }
 
-      state->leadership_state = ccf::kv::LeadershipState::PreVoteCandidate;
+      state->leadership_state.store(ccf::kv::LeadershipState::PreVoteCandidate);
       leader_id.reset();
 
       reset_votes_for_me();
@@ -2162,7 +2171,7 @@ namespace aft
         return;
       }
 
-      state->leadership_state = ccf::kv::LeadershipState::Candidate;
+      state->leadership_state.store(ccf::kv::LeadershipState::Candidate);
       leader_id.reset();
 
       voted_for = state->node_id;
@@ -2219,7 +2228,7 @@ namespace aft
         store->initialise_term(state->current_view);
       }
 
-      state->leadership_state = ccf::kv::LeadershipState::Leader;
+      state->leadership_state.store(ccf::kv::LeadershipState::Leader);
       leader_id = state->node_id;
       should_sign = true;
 
@@ -2273,7 +2282,7 @@ namespace aft
       restart_election_timeout();
       reset_last_ack_timeouts();
 
-      state->leadership_state = ccf::kv::LeadershipState::Follower;
+      state->leadership_state.store(ccf::kv::LeadershipState::Follower);
       RAFT_INFO_FMT(
         "Becoming follower {}: {}.{}",
         state->node_id,
@@ -2363,7 +2372,7 @@ namespace aft
       RAFT_INFO_FMT(
         "Becoming retired, phase {} (leadership {}): {}: {} at {}",
         phase,
-        state->leadership_state,
+        state->leadership_state.load(),
         state->node_id,
         state->current_view,
         idx);
@@ -2396,7 +2405,7 @@ namespace aft
         nominate_successor();
 
         leader_id.reset();
-        state->leadership_state = ccf::kv::LeadershipState::None;
+        state->leadership_state.store(ccf::kv::LeadershipState::None);
       }
 
       state->membership_state = ccf::kv::MembershipState::Retired;
@@ -2448,7 +2457,7 @@ namespace aft
 
       if (is_elected)
       {
-        switch (state->leadership_state)
+        switch (state->leadership_state.load())
         {
           case ccf::kv::LeadershipState::PreVoteCandidate:
             become_candidate();
@@ -2471,7 +2480,7 @@ namespace aft
     // idx.
     void update_commit()
     {
-      if (state->leadership_state != ccf::kv::LeadershipState::Leader)
+      if (state->leadership_state.load() != ccf::kv::LeadershipState::Leader)
       {
         throw std::logic_error(
           "update_commit() must only be called while this node is leader");
@@ -2782,7 +2791,7 @@ namespace aft
 
     void nominate_successor() override
     {
-      if (state->leadership_state != ccf::kv::LeadershipState::Leader)
+      if (state->leadership_state.load() != ccf::kv::LeadershipState::Leader)
       {
         RAFT_DEBUG_FMT(
           "Not proposing request vote from {} since not leader",
@@ -2850,7 +2859,8 @@ namespace aft
           all_other_nodes.try_emplace(
             node_info.first, node_info.second, index, 0);
 
-          if (state->leadership_state == ccf::kv::LeadershipState::Leader)
+          if (
+            state->leadership_state.load() == ccf::kv::LeadershipState::Leader)
           {
             send_append_entries(node_info.first, index);
           }
