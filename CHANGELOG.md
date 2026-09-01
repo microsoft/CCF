@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Native CCF applications can now be written in Rust through a minimal API for registering endpoints and accessing raw-byte KV maps (#8200).
 
+### Changed
+
+- CCF and C++ applications built against it now require C++23. The supported minimum Clang version remains 18.1.2. (#8234)
+
 ## [7.0.13]
 
 [7.0.13]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.13

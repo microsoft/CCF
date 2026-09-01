@@ -326,7 +326,7 @@ TEST_CASE("Exception handling" * doctest::test_suite("basic_tasks"))
       ccf::pal::MutexGuard lock(mutex);
       for (const auto& m : messages)
       {
-        if (m.find(substring) != std::string::npos)
+        if (m.contains(substring))
         {
           return true;
         }

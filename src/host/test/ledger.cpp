@@ -113,7 +113,7 @@ size_t number_of_committed_files_in_ledger_dir(bool allow_recovery = false)
     auto file_name = f.path().string();
     if (
       (allow_recovery && is_ledger_file_name_recovery(file_name) &&
-       file_name.find(ledger_committed_suffix) != std::string::npos) ||
+       file_name.contains(ledger_committed_suffix)) ||
       is_ledger_file_name_committed(file_name))
     {
       committed_file_count++;

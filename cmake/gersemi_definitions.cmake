@@ -33,16 +33,6 @@ function(add_e2e_test)
   )
 endfunction()
 
-function(add_piccolo_test)
-  cmake_parse_arguments(
-    PARSE_ARGV 0
-    PARSED_ARGS
-    ""
-    "NAME;PYTHON_SCRIPT;CONSTITUTION;CLIENT_BIN;PERF_LABEL"
-    "ADDITIONAL_ARGS"
-  )
-endfunction()
-
 function(add_picobench name)
   cmake_parse_arguments(
     PARSE_ARGV 1

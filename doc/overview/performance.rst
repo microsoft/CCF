@@ -29,7 +29,7 @@ The end-to-end service performance tests can also be from the CCF build director
 
     ./tests.sh -VV -L "perf" -C "perf"
 
-Each of these tests creates a temporary CCF service on the local machine, then sends a high volume of transactions to measure peak and average throughput. The Python test wrappers print summary statistics including a transaction rate histogram when the test completes.
+Each of these tests creates a temporary CCF service on the local machine, then sends a high volume of transactions to measure peak and average throughput. The Python test wrappers print throughput and latency summary statistics when the test completes.
 
 For a finer grained view of performance the clients in these tests can also dump the precise times each transaction was sent and its response received, for later analysis. The ``samples`` folder contains a ``plot_tx_times`` Python script which produces plots from this data.
 
@@ -42,7 +42,7 @@ variable before running a test to enable this:
 
 .. code-block:: bash
 
-    CCF_PERF=1 ./tests.sh -VV -R '^pi_basic$' -C perf
+    CCF_PERF=1 ./tests.sh -VV -R '^basic_blocking_locust$' -C perf
 
 By default, nodes run under
 ``perf record -m 16 -e task-clock:u -F 99 -g --call-graph dwarf --quiet``.
@@ -76,7 +76,7 @@ Inspect the recorded profile directly with:
 
 .. code-block:: bash
 
-    perf report --stdio --no-children -i workspace/pi_basic_0/perf.data
+    perf report --stdio --no-children -i workspace/basic_blocking_locust_0/perf.data
 
 To install the Inferno tools and render a flame graph, run:
 
@@ -84,6 +84,6 @@ To install the Inferno tools and render a flame graph, run:
 
     cargo install inferno
 
-    perf script -i workspace/pi_basic_0/perf.data \
+    perf script -i workspace/basic_blocking_locust_0/perf.data \
       | inferno-collapse-perf \
-      | inferno-flamegraph > pi_basic_flamegraph.svg
+      | inferno-flamegraph > basic_blocking_locust_flamegraph.svg
