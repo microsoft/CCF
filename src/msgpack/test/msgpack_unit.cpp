@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <cstring>
 #include <doctest/doctest.h>
+#include <functional>
 #include <limits>
 #include <nlohmann/json.hpp>
 #include <vector>
@@ -227,13 +228,22 @@ TEST_CASE("write_str supports payloads stored in the destination buffer")
   buf.resize(buf.capacity(), 0xCC);
   auto expected = buf;
   expected.insert(expected.end(), {0xA4, 't', 'e', 's', 't'});
-  const auto* const original_data = buf.data();
   const std::string_view s{reinterpret_cast<const char*>(buf.data()), 4};
 
   write_str(buf, s);
 
-  CHECK(buf.data() != original_data);
   CHECK(buf == expected);
+}
+
+TEST_CASE("empty str and bin payloads append to a non-empty buffer")
+{
+  std::vector<uint8_t> buf = {0xDE, 0xAD};
+
+  write_str(buf, std::string_view{});
+  CHECK(buf == std::vector<uint8_t>{0xDE, 0xAD, 0xA0});
+
+  write_bin(buf, std::span<const uint8_t>{});
+  CHECK(buf == std::vector<uint8_t>{0xDE, 0xAD, 0xA0, 0xC4, 0x00});
 }
 
 // ===== write_bool, write_nil =====
@@ -309,6 +319,24 @@ TEST_CASE("write_bin supports payloads stored in the destination buffer")
     buf ==
     std::vector<uint8_t>{
       0xDE, 0xAD, 0xBE, 0xEF, 0xC4, 0x04, 0xDE, 0xAD, 0xBE, 0xEF});
+}
+
+TEST_CASE("write_bin does not copy a source below the destination")
+{
+  std::vector<uint8_t> a(64, 0xAA);
+  std::vector<uint8_t> b(64, 0xBB);
+  const auto less = std::less<const uint8_t*>{};
+  const bool a_first = less(a.data(), b.data());
+  auto& low = a_first ? a : b;
+  auto& buf = a_first ? b : a;
+
+  auto expected = buf;
+  expected.insert(expected.end(), {0xC4, 0x04});
+  expected.insert(expected.end(), low.begin(), low.begin() + 4);
+
+  write_bin(buf, std::span<const uint8_t>(low.data(), 4));
+
+  CHECK(buf == expected);
 }
 
 // ===== container headers =====
