@@ -244,12 +244,16 @@ class ConcurrentRunner:
         Each sub-test drives its own CCF network of one to five node processes.
         Nodes spend most of their time waiting on timers and sockets, but a
         network that cannot get CPU promptly sees spurious leadership elections
-        and dropped sessions, so this caps how many run at once. Half the cores
-        keeps a 16-core CI runner at roughly the peak load its heaviest test
-        already sustains today.
+        and dropped sessions, so this bounds how many run at once.
+
+        One per core. Runners were previously unbounded, and the largest of them
+        sustained around fifteen concurrent nodes on a sixteen-core CI runner
+        without trouble, so this is a ceiling on new growth rather than a
+        tightening of what already worked. Tests whose sub-tests are unusually
+        sensitive, such as partitions_test, pass a lower value to run().
         """
         cores_count = len(os.sched_getaffinity(0))
-        return max(2, cores_count // 2)
+        return max(2, cores_count)
 
     def _resolve_max_concurrent(self, max_concurrent):
         limits = [max_concurrent or self.default_max_concurrent()]
