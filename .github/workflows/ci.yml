@@ -23,7 +23,7 @@ env:
 
 jobs:
   vmss-virtual-a:
-    name: "VMSS Virtual A" # CI Checks, Clang Tidy, Python package tests, Doc build, Unit tests, e2e (bucket_a)
+    name: "VMSS Virtual A" # CI Checks, Clang Tidy, Python package tests, Doc build, Unit tests
     runs-on:
       [
         self-hosted,
@@ -94,12 +94,6 @@ jobs:
           set -ex
           cd build
           ./tests.sh --output-on-failure -L unit -j$(nproc --all)
-
-      - name: "Run e2e tests (bucket_a)"
-        run: |
-          set -ex
-          cd build
-          ./tests.sh --timeout 600 --output-on-failure -L bucket_a -j "$(../scripts/ci-test-jobs.sh)"
 
       - name: "Upload logs for virtual A"
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -188,7 +182,7 @@ jobs:
         if: success() || failure()
 
   vmss-virtual-c:
-    name: "VMSS Virtual C" # End-to-end tests (bucket_c)
+    name: "VMSS Virtual C" # End-to-end tests (bucket_a, bucket_c, partitions)
     runs-on:
       [
         self-hosted,
@@ -235,7 +229,9 @@ jobs:
           # `partitions` is labelled bucket_c but gated on the `partitions`
           # configuration, so selecting that configuration runs it alongside the
           # rest of the bucket instead of in a serial step of its own.
-          ./tests.sh --timeout 600 --output-on-failure -C partitions -L bucket_c -j "$(../scripts/ci-test-jobs.sh)"
+          # bucket_a runs here too: it is small, and job A is paced by its
+          # clang-tidy build rather than by anything it can share.
+          ./tests.sh --timeout 600 --output-on-failure -C partitions -L "bucket_a|bucket_c" -j "$(../scripts/ci-test-jobs.sh)"
         shell: bash
 
       - name: "Upload logs for virtual C"
