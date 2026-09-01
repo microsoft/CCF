@@ -34,7 +34,6 @@ find_library(CRYPTO_LIBRARY crypto)
 find_library(TLS_LIBRARY ssl)
 
 add_library(ccfcrypto STATIC ${CCFCRYPTO_SRC})
-target_compile_features(ccfcrypto PUBLIC cxx_std_23)
 add_warning_checks(ccfcrypto)
 target_compile_options(
   ccfcrypto

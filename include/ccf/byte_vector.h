@@ -8,10 +8,10 @@
 #include <climits>
 #include <fmt/format.h>
 #include <fmt/ranges.h>
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
 #include <small_vector/SmallVector.h>
-#pragma GCC diagnostic pop
+#pragma clang diagnostic pop
 
 namespace ccf
 {
