@@ -134,12 +134,16 @@ endfunction()
 #
 # Re-measure with scripts/e2e-test-load.py against the node logs uploaded by a
 # CI run when a test's set of sub-tests changes materially.
+#
+# RESOURCE_LOCK names a shared resource outside the test's own workspace, such
+# as a directory it builds in. ctest never runs two tests holding the same lock
+# concurrently. Tests that only touch their own CCF networks need no lock.
 function(add_e2e_test)
   cmake_parse_arguments(
     PARSE_ARGV 0
     PARSED_ARGS
     "DETECT_DEADLOCKS"
-    "NAME;PYTHON_SCRIPT;LABEL;CURL_CLIENT;BUCKET;PROCESSORS"
+    "NAME;PYTHON_SCRIPT;LABEL;CURL_CLIENT;BUCKET;PROCESSORS;RESOURCE_LOCK"
     "CONSTITUTION;ADDITIONAL_ARGS;CONFIGURATIONS"
   )
 
@@ -235,6 +239,13 @@ function(add_e2e_test)
       TEST ${PARSED_ARGS_NAME}
       PROPERTY PROCESSORS ${PARSED_ARGS_PROCESSORS}
     )
+
+    if(PARSED_ARGS_RESOURCE_LOCK)
+      set_property(
+        TEST ${PARSED_ARGS_NAME}
+        PROPERTY RESOURCE_LOCK ${PARSED_ARGS_RESOURCE_LOCK}
+      )
+    endif()
 
     if(PARSED_ARGS_BUCKET)
       set_property(

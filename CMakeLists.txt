@@ -1203,6 +1203,9 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/js-modules/modules.py
     BUCKET bucket_c
     PROCESSORS 2
+    # Runs npm install/build in js/ccf-app and tests/npm-app, which are shared
+    # with auth and programmability_and_jwt.
+    RESOURCE_LOCK js_ccf_app_build
     ADDITIONAL_ARGS
       --package
       js_generic
@@ -1218,6 +1221,9 @@ if(BUILD_TESTS)
       ${CMAKE_SOURCE_DIR}/tests/js-custom-authorization/custom_authorization.py
     BUCKET bucket_c
     PROCESSORS 4
+    # run_interpreter_reuse npm installs tests/js-interpreter-reuse, whose
+    # file: dependency rebuilds the shared js/ccf-app package.
+    RESOURCE_LOCK js_ccf_app_build
     ADDITIONAL_ARGS
       --package
       js_generic
@@ -1311,6 +1317,9 @@ if(BUILD_TESTS)
     LABEL snp
     BUCKET bucket_c
     PROCESSORS 5
+    # Calls npm_tests.build_npm_app, which builds the shared js/ccf-app and
+    # tests/npm-app trees.
+    RESOURCE_LOCK js_ccf_app_build
   )
 
   # This test uses large requests (so too slow for SAN)
