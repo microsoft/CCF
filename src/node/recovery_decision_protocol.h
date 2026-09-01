@@ -106,6 +106,7 @@ namespace ccf
 
     // Stop periodic tasks
     void stop_timers();
+    void restart_after_commit();
 
     // Steady state operations
     recovery_decision_protocol::RequestNodeInfo& get_node_info(

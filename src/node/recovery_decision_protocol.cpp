@@ -64,6 +64,11 @@ namespace ccf
     node_state(node_state_)
   {}
 
+  void RecoveryDecisionProtocolSubsystem::restart_after_commit()
+  {
+    RINGBUFFER_WRITE_MESSAGE(AdminMessage::restart, node_state->to_host);
+  }
+
 #ifdef CCF_RECOVERY_TRACE
   void RecoveryDecisionProtocolSubsystem::initialise_trace(ccf::kv::Tx& tx)
   {
@@ -106,8 +111,7 @@ namespace ccf
               emit_trace_event(event.value());
               if (event->kind == "join_restart")
               {
-                RINGBUFFER_WRITE_MESSAGE(
-                  AdminMessage::restart, node_state->to_host);
+                restart_after_commit();
               }
             }
           }
@@ -375,6 +379,16 @@ namespace ccf
             start_message_retry_timers();
             start_failover_timers();
           }
+          else if (
+            w.has_value() &&
+            w.value() == recovery_decision_protocol::StateMachine::JOINING)
+          {
+#ifndef CCF_RECOVERY_TRACE
+            restart_after_commit();
+#else
+        // The trace-event commit hook emits join_restart before restarting.
+#endif
+          }
         }));
   }
 
@@ -530,10 +544,6 @@ namespace ccf
         auto service_cert =
           ccf::crypto::cert_der_to_pem(node_config->service_cert_der);
         LOG_INFO_FMT("{}", service_cert.str());
-
-#ifndef CCF_RECOVERY_TRACE
-        RINGBUFFER_WRITE_MESSAGE(AdminMessage::restart, node_state->to_host);
-#endif
       }
       case recovery_decision_protocol::StateMachine::OPENING:
       {
