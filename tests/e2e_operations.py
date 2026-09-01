@@ -38,6 +38,7 @@ import infra.network
 import infra.path
 import infra.platform_detection
 import infra.proc
+import infra.recovery_trace
 import infra.utils
 import suite.test_requirements as reqs
 from ccf.tx_id import TxID
@@ -2890,6 +2891,9 @@ def run_recovery_decision_protocol(const_args):
             assert (
                 recovery_type == '"Quorum"'
             ), f"Network self-healing open type was {recovery_type} instead of Quorum"
+            infra.recovery_trace.validate_recovery_trace_if_enabled(
+                recovered_network, args.label, "QUORUM"
+            )
 
 
 def run_recovery_decision_protocol_timeout_path(const_args):
@@ -2942,6 +2946,9 @@ def run_recovery_decision_protocol_timeout_path(const_args):
             assert (
                 recovery_type == '"Failover"'
             ), f"Network self-healing open type was {recovery_type} instead of Failover"
+            infra.recovery_trace.validate_recovery_trace_if_enabled(
+                recovered_network, args.label, "FAILOVER"
+            )
 
 
 def run_recovery_decision_protocol_multiple_timeout(const_args):
@@ -2994,6 +3001,9 @@ def run_recovery_decision_protocol_multiple_timeout(const_args):
                 node.refresh_network_state(verify_ca=False)
 
             assert len(recovered_network.get_joined_nodes()) == len(args.nodes)
+            infra.recovery_trace.validate_recovery_trace_if_enabled(
+                recovered_network, args.label, "FAILOVER"
+            )
 
 
 def run_read_ledger_on_testdata(args):

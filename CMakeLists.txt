@@ -454,6 +454,15 @@ if(CCF_RAFT_TRACING)
   add_compile_definitions(CCF_RAFT_TRACING)
 endif()
 
+option(
+  CCF_RECOVERY_TRACE
+  "Enable committed recovery-decision-protocol tracing"
+  OFF
+)
+if(CCF_RECOVERY_TRACE)
+  add_compile_definitions(CCF_RECOVERY_TRACE)
+endif()
+
 # Build common library for CCF enclaves
 set(
   CCF_IMPL_SOURCE

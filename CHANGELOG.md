@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [7.0.14]
+
+[7.0.14]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.14
+
+### Fixed
+
+- Recovery-decision-protocol nodes now request host restart only after the `JOINING` state transaction commits, preventing restart for an aborted transaction. (#8241)
+
 ## [7.0.13]
 
 [7.0.13]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.13
