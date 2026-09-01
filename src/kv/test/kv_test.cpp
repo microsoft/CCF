@@ -18,9 +18,9 @@
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>
 #undef FAIL
-#include <atomic>
 #include <random>
 #include <set>
+#include <stop_token>
 #include <string>
 #include <thread>
 #include <vector>
@@ -1538,7 +1538,7 @@ TEST_CASE("foreach_key")
     auto tx = kv_store.create_tx();
     auto handle = tx.rw(map);
     REQUIRE_NOTHROW(handle->foreach_key([](const std::string& k) {
-      REQUIRE(k.find('k') != std::string::npos);
+      REQUIRE(k.contains('k'));
       return true;
     }));
 
@@ -1575,7 +1575,7 @@ TEST_CASE("foreach_value")
     auto tx = kv_store.create_tx();
     auto handle = tx.rw(map);
     REQUIRE_NOTHROW(handle->foreach_value([](const std::string& v) {
-      REQUIRE(v.find('v') != std::string::npos);
+      REQUIRE(v.contains('v'));
       return true;
     }));
 
@@ -3377,14 +3377,15 @@ TEST_CASE("Reserved transaction map creation is serialised with lookups")
     REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
   }
 
-  std::atomic<bool> stop{false};
-  std::vector<std::thread> readers;
+  // Ensure every exit path, including a failed REQUIRE, stops and joins
+  // readers.
+  std::vector<std::jthread> readers;
   readers.reserve(4);
   for (size_t r = 0; r < 4; ++r)
   {
-    readers.emplace_back([&store, &stop]() {
+    readers.emplace_back([&store](std::stop_token stop_token) {
       size_t n = 0;
-      while (!stop.load(std::memory_order_relaxed))
+      while (!stop_token.stop_requested())
       {
         // Takes maps_lock and searches the map set. Looks up names in the
         // range being inserted, so the search path traverses the nodes
@@ -3411,11 +3412,11 @@ TEST_CASE("Reserved transaction map creation is serialised with lookups")
     REQUIRE(result == ccf::kv::CommitResult::SUCCESS);
   }
 
-  stop.store(true);
   for (auto& reader : readers)
   {
-    reader.join();
+    reader.request_stop();
   }
+  readers.clear();
 
   // Confirm the writes really did extend the map set, so this exercises
   // Store::add_dynamic_map rather than silently doing nothing.
