@@ -147,9 +147,7 @@ TEST_CASE("cose_sign_ledger fails with invalid key")
     CoseKey::from_private(bad_key.data(), bad_key.size(), key_err);
   CHECK(!cose_key.is_set());
   CHECK(key_err.is_set());
-  CHECK(
-    key_err.to_string().find("d2i_AutoPrivateKey failed:") !=
-    std::string::npos);
+  CHECK(key_err.to_string().contains("d2i_AutoPrivateKey failed:"));
 }
 
 TEST_CASE("CoseKey error propagation")
@@ -169,8 +167,7 @@ TEST_CASE("CoseKey error propagation")
     auto k = CoseKey::from_private(truncated.data(), truncated.size(), err);
     CHECK(!k.is_set());
     CHECK(err.is_set());
-    CHECK(
-      err.to_string().find("d2i_AutoPrivateKey failed:") != std::string::npos);
+    CHECK(err.to_string().contains("d2i_AutoPrivateKey failed:"));
   }
 
   SUBCASE("valid key succeeds without error")

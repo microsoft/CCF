@@ -7,6 +7,7 @@ bucket_b:
   recovery_stale_snapshot_join_test
   recovery_intermediate_snapshot_join_test
   recovery_snapshot_endorsements_test
+  e2e_logging_http2
   schema_test
   nodes_test
 
@@ -23,7 +24,6 @@ bucket_c:
   programmability_and_jwt
   e2e_limits
   e2e_redirects
-  e2e_logging_http2
   tls_stress_test
 
 no_bucket:

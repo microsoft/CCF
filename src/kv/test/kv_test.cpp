@@ -1536,7 +1536,7 @@ TEST_CASE("foreach_key")
     auto tx = kv_store.create_tx();
     auto handle = tx.rw(map);
     REQUIRE_NOTHROW(handle->foreach_key([](const std::string& k) {
-      REQUIRE(k.find('k') != std::string::npos);
+      REQUIRE(k.contains('k'));
       return true;
     }));
 
@@ -1573,7 +1573,7 @@ TEST_CASE("foreach_value")
     auto tx = kv_store.create_tx();
     auto handle = tx.rw(map);
     REQUIRE_NOTHROW(handle->foreach_value([](const std::string& v) {
-      REQUIRE(v.find('v') != std::string::npos);
+      REQUIRE(v.contains('v'));
       return true;
     }));
 

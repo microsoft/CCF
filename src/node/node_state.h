@@ -2886,7 +2886,7 @@ namespace ccf
   private:
     bool is_ip(const std::string_view& hostname)
     {
-      if (hostname.find(':') != std::string_view::npos)
+      if (hostname.contains(':'))
       {
         in6_addr addr{};
         if (inet_pton(AF_INET6, std::string(hostname).c_str(), &addr) == 1)
