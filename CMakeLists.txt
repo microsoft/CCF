@@ -1096,6 +1096,7 @@ if(BUILD_TESTS)
     NAME recovery_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
     BUCKET bucket_b
+    PROCESSORS 9
     ADDITIONAL_ARGS
       ${ADDITIONAL_RECOVERY_ARGS}
       --constitution
@@ -1106,6 +1107,7 @@ if(BUILD_TESTS)
     NAME recovery_stale_snapshot_join_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/identity_recovery_snapshot.py
     BUCKET bucket_b
+    PROCESSORS 3
     ADDITIONAL_ARGS --regex ^recovery_stale_snapshot_join$
   )
 
@@ -1113,6 +1115,7 @@ if(BUILD_TESTS)
     NAME recovery_intermediate_snapshot_join_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/identity_recovery_snapshot.py
     BUCKET bucket_b
+    PROCESSORS 3
     ADDITIONAL_ARGS --regex ^recovery_intermediate_snapshot_join$
   )
 
@@ -1120,6 +1123,7 @@ if(BUILD_TESTS)
     NAME recovery_snapshot_endorsements_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery_snapshot_endorsements.py
     BUCKET bucket_b
+    PROCESSORS 1
   )
 
   add_e2e_test(
@@ -1185,6 +1189,7 @@ if(BUILD_TESTS)
     NAME js_batched_stress_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_batched.py
     BUCKET bucket_c
+    PROCESSORS 1
     ADDITIONAL_ARGS
       --js-app-bundle
       ${CMAKE_SOURCE_DIR}/src/apps/batched
@@ -1197,6 +1202,7 @@ if(BUILD_TESTS)
     NAME modules_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/js-modules/modules.py
     BUCKET bucket_c
+    PROCESSORS 2
     ADDITIONAL_ARGS
       --package
       js_generic
@@ -1211,6 +1217,7 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT
       ${CMAKE_SOURCE_DIR}/tests/js-custom-authorization/custom_authorization.py
     BUCKET bucket_c
+    PROCESSORS 4
     ADDITIONAL_ARGS
       --package
       js_generic
@@ -1237,6 +1244,7 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
     CONSTITUTION ${CONSTITUTION_ARGS}
     BUCKET bucket_c
+    PROCESSORS 10
     DETECT_DEADLOCKS
     ADDITIONAL_ARGS
       --initial-operator-count
@@ -1249,6 +1257,7 @@ if(BUILD_TESTS)
     NAME code_update_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
     BUCKET bucket_c
+    PROCESSORS 9
     ADDITIONAL_ARGS
       --js-app-bundle
       ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
@@ -1276,6 +1285,7 @@ if(BUILD_TESTS)
     NAME e2e_logging
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
     BUCKET bucket_c
+    PROCESSORS 9
     DETECT_DEADLOCKS
     ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
   )
@@ -1300,6 +1310,7 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/programmability.py
     LABEL snp
     BUCKET bucket_c
+    PROCESSORS 5
   )
 
   # This test uses large requests (so too slow for SAN)
@@ -1308,6 +1319,7 @@ if(BUILD_TESTS)
       NAME e2e_limits
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/limits.py
       BUCKET bucket_c
+      PROCESSORS 3
     )
   endif()
 
@@ -1315,6 +1327,7 @@ if(BUILD_TESTS)
     NAME e2e_redirects
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/redirects.py
     BUCKET bucket_c
+    PROCESSORS 8
     ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
   )
 
@@ -1322,16 +1335,24 @@ if(BUILD_TESTS)
     NAME e2e_logging_http2
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
     BUCKET bucket_b
+    PROCESSORS 8
     ADDITIONAL_ARGS
       --js-app-bundle
       ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
       --http2
   )
 
+  # Runs under the `partitions` configuration but is also labelled bucket_c, so
+  # that CI can schedule it alongside the rest of bucket_c. It is long but light
+  # (it drives a single partitioned network at a time), and its iptables DROP
+  # rules match only its own nodes' ports, so it does not disturb co-scheduled
+  # tests.
   add_e2e_test(
     NAME partitions
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/partitions_test.py
     LABEL partitions
+    BUCKET bucket_c
+    PROCESSORS 5
     DETECT_DEADLOCKS
     CONFIGURATIONS partitions
   )
@@ -1346,12 +1367,14 @@ if(BUILD_TESTS)
     NAME tls_stress_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/connections.py
     BUCKET bucket_c
+    PROCESSORS 2
   )
 
   add_e2e_test(
     NAME tls_groups_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/tls_groups.py
     BUCKET bucket_a
+    PROCESSORS 1
   )
 
   if(CLIENT_PROTOCOLS_TEST)
@@ -1367,6 +1390,7 @@ if(BUILD_TESTS)
     NAME schema_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/schema.py
     BUCKET bucket_b
+    PROCESSORS 11
     ADDITIONAL_ARGS
       --constitution
       ${CMAKE_SOURCE_DIR}/samples/constitutions/virtual/virtual_attestation_actions.js
@@ -1399,6 +1423,7 @@ if(BUILD_TESTS)
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/lts_compatibility.py
       LABEL e2e
       BUCKET bucket_a
+      PROCESSORS 4
       ADDITIONAL_ARGS
         ${LTS_TEST_ARGS}
         --constitution
@@ -1425,6 +1450,7 @@ if(BUILD_TESTS)
     NAME nodes_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/nodes.py
     BUCKET bucket_b
+    PROCESSORS 16
     ADDITIONAL_ARGS ${RECONFIG_TEST_ARGS} ${ROTATION_TEST_ARGS}
   )
 

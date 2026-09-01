@@ -122,14 +122,32 @@ endfunction()
 # bucket_c) so that .github/workflows/ci.yml can select the per-runner test set
 # with `ctest -L bucket_X`. Every PR-CI e2e test must be in exactly one bucket;
 # scripts/test-buckets-checks.sh flags unbucketed tests in `no_bucket:`.
+#
+# PROCESSORS declares how much of a runner a test occupies, so that CI can run a
+# bucket with `ctest -j` without overloading the machine. Most e2e tests use
+# infra.runner.ConcurrentRunner to drive several CCF networks at once, and the
+# cost of a test is dominated by how many node processes it keeps alive rather
+# than by its duration. The unit here is therefore "concurrently live CCF
+# nodes", measured as the sum of node process lifetimes divided by the test's
+# wall-clock duration. ctest keeps the sum of PROCESSORS across running tests
+# within its `-j` budget, so these values decide what gets packed together.
+#
+# Re-measure with scripts/e2e-test-load.py against the node logs uploaded by a
+# CI run when a test's set of sub-tests changes materially.
 function(add_e2e_test)
   cmake_parse_arguments(
     PARSE_ARGV 0
     PARSED_ARGS
     "DETECT_DEADLOCKS"
-    "NAME;PYTHON_SCRIPT;LABEL;CURL_CLIENT;BUCKET"
+    "NAME;PYTHON_SCRIPT;LABEL;CURL_CLIENT;BUCKET;PROCESSORS"
     "CONSTITUTION;ADDITIONAL_ARGS;CONFIGURATIONS"
   )
+
+  # Conservative default for tests that have not been measured. Only tests run
+  # with `ctest -j` (the CI buckets) are affected by this.
+  if(NOT PARSED_ARGS_PROCESSORS)
+    set(PARSED_ARGS_PROCESSORS 4)
+  endif()
 
   if(NOT PARSED_ARGS_CONSTITUTION)
     set(PARSED_ARGS_CONSTITUTION ${CCF_NETWORK_TEST_DEFAULT_CONSTITUTION})
@@ -211,6 +229,11 @@ function(add_e2e_test)
       TEST ${PARSED_ARGS_NAME}
       APPEND
       PROPERTY LABELS ${PARSED_ARGS_LABEL}
+    )
+
+    set_property(
+      TEST ${PARSED_ARGS_NAME}
+      PROPERTY PROCESSORS ${PARSED_ARGS_PROCESSORS}
     )
 
     if(PARSED_ARGS_BUCKET)

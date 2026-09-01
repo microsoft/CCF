@@ -60,7 +60,7 @@ jobs:
         run: |
           set -ex
           cd build
-          ./tests.sh --timeout 360 --output-on-failure -L bucket_a -LE lts_compatibility
+          ./tests.sh --timeout 600 --output-on-failure -L bucket_a -LE lts_compatibility -j "$(../scripts/ci-test-jobs.sh)"
         shell: bash
 
       - name: "Upload logs for AL4 virtual A"
@@ -132,7 +132,7 @@ jobs:
           rm -rf /github/home/.cache
           mkdir -p /github/home/.cache
 
-          ./tests.sh --timeout 360 --output-on-failure -L bucket_b
+          ./tests.sh --timeout 600 --output-on-failure -L bucket_b -j "$(../scripts/ci-test-jobs.sh)"
         shell: bash
 
       - name: "Upload logs for AL4 virtual B"
@@ -193,7 +193,7 @@ jobs:
           rm -rf /github/home/.cache
           mkdir -p /github/home/.cache
 
-          ./tests.sh --timeout 360 --output-on-failure -L bucket_c
+          ./tests.sh --timeout 600 --output-on-failure -L bucket_c -j "$(../scripts/ci-test-jobs.sh)"
         shell: bash
 
       - name: "Upload logs for AL4 virtual C"
