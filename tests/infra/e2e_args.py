@@ -14,7 +14,7 @@ import infra.network
 import infra.path
 
 # Every argument registered directly by cli_args must appear here. None means
-# that no single host configuration schema default applies to the argument.
+# that no single host configuration schema property applies to the argument.
 CLI_ARGUMENT_CONFIG_PATHS = {
     "binary_dir": None,
     "library_dir": None,
@@ -197,7 +197,11 @@ def _get_schema_property(schema, config_path):
     return current
 
 
-def _apply_host_config_defaults(parser, additional_cli_argument_config_paths=None):
+def _apply_host_config_metadata(
+    parser,
+    use_host_config_defaults=False,
+    additional_cli_argument_config_paths=None,
+):
     schema = _load_host_config_schema()
     argument_config_paths = CLI_ARGUMENT_CONFIG_PATHS.copy()
     if additional_cli_argument_config_paths:
@@ -215,9 +219,9 @@ def _apply_host_config_defaults(parser, additional_cli_argument_config_paths=Non
     actions.pop("help", None)
     unmapped_arguments = actions.keys() - argument_config_paths.keys()
     missing_arguments = argument_config_paths.keys() - actions.keys()
-    if unmapped_arguments or missing_arguments:
+    if (use_host_config_defaults and unmapped_arguments) or missing_arguments:
         errors = []
-        if unmapped_arguments:
+        if use_host_config_defaults and unmapped_arguments:
             errors.append(
                 "CLI arguments missing host configuration mappings: "
                 + ", ".join(sorted(unmapped_arguments))
@@ -233,15 +237,19 @@ def _apply_host_config_defaults(parser, additional_cli_argument_config_paths=Non
         if config_path is None:
             continue
         config_property = _get_schema_property(schema, config_path)
-        missing_metadata = {"default", "description"} - config_property.keys()
+        required_metadata = {"description"}
+        if use_host_config_defaults:
+            required_metadata.add("default")
+        missing_metadata = required_metadata - config_property.keys()
         if missing_metadata:
             raise KeyError(
                 f"Host config schema property {config_path} for CLI argument "
                 f"{destination} is missing: {', '.join(sorted(missing_metadata))}"
             )
-        converter = _CONFIG_DEFAULT_CONVERTERS.get(destination, lambda value: value)
-        actions[destination].default = converter(config_property["default"])
         actions[destination].help = config_property["description"]
+        if use_host_config_defaults:
+            converter = _CONFIG_DEFAULT_CONVERTERS.get(destination, lambda value: value)
+            actions[destination].default = converter(config_property["default"])
 
 
 _LOG_LEVEL_DISPLAY = {
@@ -679,8 +687,11 @@ def cli_args(
     )
     add(parser)
 
-    if use_host_config_defaults:
-        _apply_host_config_defaults(parser, additional_cli_argument_config_paths)
+    _apply_host_config_metadata(
+        parser,
+        use_host_config_defaults=use_host_config_defaults,
+        additional_cli_argument_config_paths=additional_cli_argument_config_paths,
+    )
 
     if accept_unknown:
         args, unknown_args = parser.parse_known_args()
