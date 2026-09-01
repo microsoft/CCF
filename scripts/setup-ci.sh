@@ -65,8 +65,6 @@ install_build_dependencies() {
         libuv-devel  \
         nghttp2-devel  \
         curl-devel  \
-        libarrow-devel  \
-        parquet-libs-devel  \
         doxygen  \
         clang-tools-extra-devel  \
         rust  \

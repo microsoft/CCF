@@ -15,6 +15,7 @@
 #include <optional>
 #include <sstream>
 #include <type_traits>
+#include <utility>
 
 namespace ccf::logger
 {
@@ -25,7 +26,7 @@ namespace ccf::logger
 
   static constexpr const char* to_string(LoggerLevel l)
   {
-    return LevelNames[static_cast<int>(l)];
+    return LevelNames[std::to_underlying(l)];
   }
 
   static constexpr long int ns_per_s = 1'000'000'000;
