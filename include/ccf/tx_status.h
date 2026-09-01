@@ -5,6 +5,8 @@
 #include "ccf/ds/json.h"
 #include "ccf/tx_id.h"
 
+#include <utility>
+
 namespace ccf
 {
   /** Describes the status of a transaction, as seen by this node.
@@ -34,9 +36,8 @@ namespace ccf
   // Contains only the terminal values of TxStatus
   enum class FinalTxStatus : std::underlying_type_t<TxStatus>
   {
-    Committed =
-      static_cast<std::underlying_type_t<TxStatus>>(TxStatus::Committed),
-    Invalid = static_cast<std::underlying_type_t<TxStatus>>(TxStatus::Invalid),
+    Committed = std::to_underlying(TxStatus::Committed),
+    Invalid = std::to_underlying(TxStatus::Invalid),
   };
 
   constexpr char const* tx_status_to_str(TxStatus status)

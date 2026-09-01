@@ -628,8 +628,8 @@ void run_csr(bool corrupt_csr = false)
 
   std::string valid_from_, valid_to_;
   std::tie(valid_from_, valid_to_) = v.validity_period();
-  REQUIRE(valid_from_.find(valid_from) != std::string::npos);
-  REQUIRE(valid_to_.find(valid_to) != std::string::npos);
+  REQUIRE(valid_from_.contains(valid_from));
+  REQUIRE(valid_to_.contains(valid_to));
 }
 
 TEST_CASE("2-digit years")

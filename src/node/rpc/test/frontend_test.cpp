@@ -740,9 +740,7 @@ TEST_CASE("process with caller")
       auto response = parse_response(serialized_response);
       REQUIRE(response.status == HTTP_STATUS_UNAUTHORIZED);
       const std::string error_msg(response.body.begin(), response.body.end());
-      CHECK(
-        error_msg.find("Could not find matching user certificate") !=
-        std::string::npos);
+      CHECK(error_msg.contains("Could not find matching user certificate"));
     }
 
     INFO("Anonymous caller");
@@ -752,7 +750,7 @@ TEST_CASE("process with caller")
       auto response = parse_response(serialized_response);
       REQUIRE(response.status == HTTP_STATUS_UNAUTHORIZED);
       const std::string error_msg(response.body.begin(), response.body.end());
-      CHECK(error_msg.find("No caller user certificate") != std::string::npos);
+      CHECK(error_msg.contains("No caller user certificate"));
     }
   }
 }
@@ -952,7 +950,7 @@ TEST_CASE("Restricted verbs")
         const auto it = response.headers.find(ccf::http::headers::ALLOW);
         REQUIRE(it != response.headers.end());
         const auto v = it->second;
-        CHECK(v.find(llhttp_method_name(HTTP_GET)) != std::string::npos);
+        CHECK(v.contains(llhttp_method_name(HTTP_GET)));
       }
     }
 
@@ -973,7 +971,7 @@ TEST_CASE("Restricted verbs")
         const auto it = response.headers.find(ccf::http::headers::ALLOW);
         REQUIRE(it != response.headers.end());
         const auto v = it->second;
-        CHECK(v.find(llhttp_method_name(HTTP_POST)) != std::string::npos);
+        CHECK(v.contains(llhttp_method_name(HTTP_POST)));
       }
     }
 
@@ -995,11 +993,11 @@ TEST_CASE("Restricted verbs")
         const auto it = response.headers.find(ccf::http::headers::ALLOW);
         REQUIRE(it != response.headers.end());
         const auto v = it->second;
-        CHECK(v.find(llhttp_method_name(HTTP_PUT)) != std::string::npos);
-        CHECK(v.find(llhttp_method_name(HTTP_DELETE)) != std::string::npos);
+        CHECK(v.contains(llhttp_method_name(HTTP_PUT)));
+        CHECK(v.contains(llhttp_method_name(HTTP_DELETE)));
         if (verb != HTTP_OPTIONS)
         {
-          CHECK(v.find(llhttp_method_name(verb)) == std::string::npos);
+          CHECK(!v.contains(llhttp_method_name(verb)));
         }
       }
     }

@@ -31,7 +31,6 @@ import infra.node
 import infra.openapi
 import infra.path
 import infra.proc
-import infra.service_load
 from infra.clients import CCFConnectionException, CCFIOException, flush_info
 from infra.consortium import slurp_file
 from infra.node import CCFVersion
