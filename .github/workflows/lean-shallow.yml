@@ -52,6 +52,7 @@ jobs:
         run: |
           set -euo pipefail
           lake build
+          lake env lean -DwarningAsError=true AxiomChecks.lean
           lake exe semantic-checks
           lake exe canonical-checks
           lake exe disaster-recovery check --nodes 3

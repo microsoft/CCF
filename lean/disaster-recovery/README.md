@@ -27,7 +27,7 @@ effects around that same canonical transition function. The versioned trace
 validator also replays committed C++ instrumentation against the canonical
 model.
 
-The migration is approximately 10,000 lines across 28 new files:
+The migration is approximately 10,000 lines across 29 new files:
 
 | Area                                      | Files | Approximate lines | Purpose                                                         |
 | ----------------------------------------- | ----: | ----------------: | --------------------------------------------------------------- |
@@ -35,7 +35,7 @@ The migration is approximately 10,000 lines across 28 new files:
 | Canonical protocol and proofs             |     9 |             6,800 | C++ behavior, global semantics, invariants, and temporal proofs |
 | Trace validation                          |     5 |               760 | NDJSON format, deterministic replay, and CLI                    |
 | Equivalence tooling                       |     2 |               710 | Rust graph exporter and bidirectional Rust/Lean comparison      |
-| Project, documentation, and configuration |     6 |               530 | Lake/Mathlib setup, entry points, and documentation             |
+| Project, documentation, and configuration |     7 |               550 | Lake/Mathlib setup, entry points, and documentation             |
 | Pull-request CI                           |     1 |                80 | Lean model and bounded equivalence checks                       |
 
 ### Principal files
@@ -54,6 +54,7 @@ The migration is approximately 10,000 lines across 28 new files:
 | [`DisasterRecovery/Protocol/GlobalTemporal.lean`](DisasterRecovery/Protocol/GlobalTemporal.lean) | 3,168 | Global fairness, phase progress, and termination proofs            |
 | [`DisasterRecovery/Protocol/Trace/Format.lean`](DisasterRecovery/Protocol/Trace/Format.lean)     |   141 | Versioned NDJSON types and parser                                  |
 | [`DisasterRecovery/Protocol/Trace/Replay.lean`](DisasterRecovery/Protocol/Trace/Replay.lean)     |   452 | Deterministic implementation-trace replay                          |
+| [`AxiomChecks.lean`](AxiomChecks.lean)                                                           |    21 | Project-wide transitive `sorryAx` rejection                        |
 | [`compare.py`](compare.py)                                                                       |   343 | Exhaustive canonical graph comparison                              |
 | [`../../tla/disaster-recovery/src/export.rs`](../../tla/disaster-recovery/src/export.rs)         |   370 | Canonical export of the actual Stateright model                    |
 | [`TRACE_FORMAT_V1.md`](TRACE_FORMAT_V1.md)                                                       |   145 | Contract for future committed C++ trace events                     |
@@ -500,6 +501,7 @@ From this directory:
 
 ```console
 lake build
+lake env lean -DwarningAsError=true AxiomChecks.lean
 lake exe semantic-checks
 lake exe canonical-checks
 lake exe disaster-recovery check --nodes 3
@@ -536,11 +538,13 @@ The Rust comparison exporter is checked separately from
 `tla/disaster-recovery/` with `cargo check` and `cargo build`.
 
 `.github/workflows/lean-shallow.yml` builds the Lean library and trace validator,
-runs semantic and canonical checks, checks the three-node legacy properties,
-and compares the one- and two-node Rust/Lean graphs. The weekly continuous
+runs the `sorryAx` scan, runs semantic and canonical checks, checks the
+three-node legacy properties, and compares the one- and two-node Rust/Lean
+graphs. Lake also compiles every project target with warnings as errors, so a
+direct `sorry` warning fails before the transitive scan. The weekly continuous
 verification workflow additionally runs the exhaustive three-node comparison.
-Only the SNP jobs feed real C++ traces to the validator. The Rust job remains in
-place until the replacement criteria below are met.
+Only the SNP jobs feed real C++ traces to the validator. The Rust job remains
+in place until the replacement criteria below are met.
 
 ### Current CI evidence
 
