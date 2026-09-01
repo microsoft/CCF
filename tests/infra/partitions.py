@@ -7,10 +7,11 @@ import os
 import threading
 from dataclasses import field
 
-import infra.network
-import infra.node
 import iptc
 from loguru import logger as LOG
+
+import infra.network
+import infra.node
 
 # Each Partitioner owns its own chain, so that several partitioned networks can
 # run concurrently in one container without flushing each other's rules. The
@@ -23,11 +24,14 @@ MAX_CHAIN_NAME_LENGTH = 28
 _chain_counter = itertools.count()
 _chain_counter_lock = threading.Lock()
 
-# libiptc reads the whole table, modifies it and writes it back, so two threads
-# committing at once can silently lose each other's rules. Every mutation of the
-# filter table goes through this lock, which is enough because all partitioned
-# networks in a test run live in one process (infra.runner.ConcurrentRunner
-# threads).
+# libiptc reads the whole table, modifies it and writes it back, and
+# iptc.easy operates on a table object that is shared process-wide and
+# committed and refreshed on every call. Interleaving calls from several
+# threads therefore loses updates: one thread's refresh can discard another's
+# pending change, leaving stale DROP rules behind. Every access to the filter
+# table goes through this lock, and callers hold it across a whole set of
+# related rules so that a partition appears and disappears atomically. It is
+# re-entrant so the helpers can be nested inside those wider sections.
 _iptables_lock = threading.RLock()
 
 
@@ -123,8 +127,11 @@ class Rules:
         LOG.info(f'Dropping rules "{self.name or "[unamed]"}"')
         if self.chain_name is None:
             return
-        for rule in self.rules:
-            _drop_rule(self.chain_name, rule)
+        # Drop the whole set in one locked section, so that a partition is never
+        # observed half-removed.
+        with _iptables_lock:
+            for rule in self.rules:
+                _drop_rule(self.chain_name, rule)
 
 
 class Partitioner:
@@ -272,8 +279,11 @@ class Partitioner:
         if isolation_dir & IsolationDir.OUTBOUND_RESPONSES:
             rules.append(self.reverse_rule(client_rule))
 
-        for rule in rules:
-            _replace_rule(self.chain_name, rule)
+        # Apply the whole set in one locked section, so that a partition is
+        # never observed half-applied.
+        with _iptables_lock:
+            for rule in rules:
+                _replace_rule(self.chain_name, rule)
 
         LOG.debug(name)
 
@@ -320,18 +330,21 @@ class Partitioner:
 
         rules = []
         partitions_name = []
-        for i, partition in enumerate(args):
-            partitions_name.append(f"{self._get_partition_name(partition)}")
-            # Rules are bi-directional so skip partitions that have already been enforced
-            other_partitions = args[i + 1 :]
+        # A partition is several isolate_node calls; hold the lock across all of
+        # them so the partition takes effect in one step.
+        with _iptables_lock:
+            for i, partition in enumerate(args):
+                partitions_name.append(f"{self._get_partition_name(partition)}")
+                # Rules are bi-directional so skip partitions that have already been enforced
+                other_partitions = args[i + 1 :]
 
-            for node in partition:
-                for other_partition in other_partitions:
-                    for other_node in other_partition:
+                for node in partition:
+                    for other_partition in other_partitions:
+                        for other_node in other_partition:
+                            rules.extend(self.isolate_node(node, other_node).rules)
+
+                    for other_node in other_nodes:
                         rules.extend(self.isolate_node(node, other_node).rules)
-
-                for other_node in other_nodes:
-                    rules.extend(self.isolate_node(node, other_node).rules)
 
         partitions_name.append(self._get_partition_name(other_nodes))
 

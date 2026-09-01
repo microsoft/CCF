@@ -13,12 +13,13 @@ from random import seed
 from typing import ClassVar
 
 import better_exceptions
+from loguru import logger as LOG
+
 import infra.bencher
 import infra.jwt_issuer
 import infra.network
 import infra.proc
 import infra.remote_client
-from loguru import logger as LOG
 
 logging.getLogger("matplotlib").setLevel(logging.WARNING)
 
