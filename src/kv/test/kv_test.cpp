@@ -20,7 +20,9 @@
 #undef FAIL
 #include <random>
 #include <set>
+#include <stop_token>
 #include <string>
+#include <thread>
 #include <vector>
 
 struct MapTypes
@@ -3356,6 +3358,74 @@ TEST_CASE("Range")
     REQUIRE(std_range == kv_range);
     REQUIRE(kv_range.at(existing_key) == well_known_value);
   }
+}
+
+// Reproduces the race between a reserved transaction creating a map (which
+// writes to the Store's map set) and a concurrent reader looking one up. The
+// write happens in Store::add_dynamic_map via commit_reserved; the read holds
+// maps_lock via Store::get_map. Only ThreadSanitizer can observe the failure,
+// so this asserts nothing about interleaving - it exists to give TSAN both
+// accesses concurrently.
+TEST_CASE("Reserved transaction map creation is serialised with lookups")
+{
+  ccf::kv::Store store;
+  store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+
+  {
+    auto tx = store.create_tx();
+    tx.rw<MapTypes::StringString>("public:existing")->put("k", "v");
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+
+  // Ensure every exit path, including a failed REQUIRE, stops and joins
+  // readers.
+  std::vector<std::jthread> readers;
+  readers.reserve(4);
+  for (size_t r = 0; r < 4; ++r)
+  {
+    readers.emplace_back([&store](std::stop_token stop_token) {
+      size_t n = 0;
+      while (!stop_token.stop_requested())
+      {
+        // Takes maps_lock and searches the map set. Looks up names in the
+        // range being inserted, so the search path traverses the nodes
+        // add_dynamic_map is writing. Deliberately avoids current_version(),
+        // so this contends only on maps_lock.
+        (void)store.get_map(1, fmt::format("public:reserved_{}", n % 2000));
+        n++;
+      }
+    });
+  }
+
+  constexpr size_t reserved_txs = 2000;
+  for (size_t i = 0; i < reserved_txs; ++i)
+  {
+    // Each reserved transaction writes to a map that does not exist yet, so
+    // committing it adds to the Store's map set. Nothing else here may take
+    // maps_lock, or it would order the write against the readers and hide the
+    // race being reproduced.
+    auto tx = store.create_reserved_tx(store.next_txid());
+    tx.rw<MapTypes::StringString>(fmt::format("public:reserved_{}", i))
+      ->put("k", "v");
+    const auto [result, data, claims, commit_evidence, hooks] =
+      tx.commit_reserved();
+    REQUIRE(result == ccf::kv::CommitResult::SUCCESS);
+  }
+
+  for (auto& reader : readers)
+  {
+    reader.request_stop();
+  }
+  readers.clear();
+
+  // Confirm the writes really did extend the map set, so this exercises
+  // Store::add_dynamic_map rather than silently doing nothing.
+  REQUIRE(
+    store.get_map(store.current_version(), "public:reserved_0") != nullptr);
+  REQUIRE(
+    store.get_map(
+      store.current_version(),
+      fmt::format("public:reserved_{}", reserved_txs - 1)) != nullptr);
 }
 
 TEST_CASE("Ledger entry chunk request")
