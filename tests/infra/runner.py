@@ -8,17 +8,17 @@ import re
 import sys
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from random import seed
 from typing import ClassVar
 
 import better_exceptions
-from loguru import logger as LOG
-
 import infra.bencher
 import infra.jwt_issuer
 import infra.network
 import infra.proc
 import infra.remote_client
+from loguru import logger as LOG
 
 logging.getLogger("matplotlib").setLevel(logging.WARNING)
 
@@ -197,7 +197,9 @@ threading.excepthook = log_exception
 
 
 class ConcurrentRunner:
-    threads: ClassVar[list[threading.Thread]] = []
+    # Sub-tests to run, as (name, target, args) triples. Threads are created by
+    # run(), so that the pool decides how many exist at once.
+    tests: ClassVar[list[tuple[str, object, object]]] = []
 
     # Env var to filter sub-tests by exact name match. Value is a
     # '|'-separated list, e.g. CR_FILTER="testname1|testname2". When set,
@@ -232,7 +234,44 @@ class ConcurrentRunner:
         for k, v in args_overrides.items():
             setattr(args_, k, v)
         args_.label = f"{prefix}_{self.args.label}"
-        self.threads.append(threading.Thread(name=prefix, target=target, args=[args_]))
+        self.tests.append((prefix, target, args_))
+
+    @staticmethod
+    def default_max_concurrent():
+        """Concurrent sub-tests a runner may have in flight.
+
+        Each sub-test drives its own CCF network of one to five node processes.
+        Nodes spend most of their time waiting on timers and sockets, but a
+        network that cannot get CPU promptly sees spurious leadership elections
+        and dropped sessions, so this caps how many run at once. Half the cores
+        keeps a 16-core CI runner at roughly the peak load its heaviest test
+        already sustains today.
+        """
+        cores_count = len(os.sched_getaffinity(0))
+        return max(2, cores_count // 2)
+
+    def _resolve_max_concurrent(self, max_concurrent):
+        limits = [max_concurrent or self.default_max_concurrent()]
+
+        # Instrumented builds process every operation far more slowly, so they
+        # sustain fewer concurrent networks before nodes start missing their
+        # election timeouts.
+        if os.getenv("TSAN_OPTIONS") or os.getenv("CCF_GLIBCXX_DEBUG"):
+            cores_count = len(os.sched_getaffinity(0))
+            avg_nodes_per_network = 3
+            safety_factor = 0.5
+            limits.append(
+                max(1, int(safety_factor * cores_count / avg_nodes_per_network))
+            )
+
+        return max(1, min(limits))
+
+    @staticmethod
+    def _run_one(name, target, args):
+        # Sub-tests are identified by thread name in the log format, so restore
+        # it here: pool workers are reused and carry the previous name.
+        threading.current_thread().name = name
+        target(args)
 
     def run(self, max_concurrent=None):
         config = {
@@ -247,50 +286,48 @@ class ConcurrentRunner:
         }
         LOG.configure(**config)
 
+        tests = self.tests
         if self.args.regex:
-            self.threads = [
-                thread
-                for thread in self.threads
-                if re.compile(self.args.regex).search(thread.name)
-            ]
+            pattern = re.compile(self.args.regex)
+            tests = [test for test in tests if pattern.search(test[0])]
 
         if self.args.show_only:
-            for thread in self.threads:
-                print(thread.name)
+            for name, _, _ in tests:
+                print(name)
             return
 
-        if not max_concurrent:
-            max_concurrent = len(self.threads)
+        if not tests:
+            return
 
-        if os.getenv("TSAN_OPTIONS"):
-            cores_count = len(os.sched_getaffinity(0))
-            avg_nodes_per_network = 3
-            safety_factor = 0.5
-            max_concurrent = int(safety_factor * cores_count / avg_nodes_per_network)
-            assert max_concurrent > 0
+        max_concurrent = self._resolve_max_concurrent(max_concurrent)
+        LOG.info(
+            f"Running {len(tests)} sub-tests, at most {max_concurrent} concurrently"
+        )
 
-        if os.getenv("CCF_GLIBCXX_DEBUG"):
-            # _GLIBCXX_DEBUG checks make every container op significantly
-            # slower, so a Debug build cannot sustain as many concurrent
-            # networks. Cap concurrency to avoid CPU starvation that
-            # manifests as spurious leadership elections / session loss.
-            cores_count = len(os.sched_getaffinity(0))
-            avg_nodes_per_network = 3
-            safety_factor = 0.5
-            debug_cap = max(1, int(safety_factor * cores_count / avg_nodes_per_network))
-            max_concurrent = min(max_concurrent, debug_cap)
+        # A bounded pool rather than fixed batches: a sub-test starts as soon as
+        # any other finishes, so a single long sub-test does not hold back the
+        # ones queued behind it.
+        failures = []
+        with ThreadPoolExecutor(max_workers=max_concurrent) as pool:
+            futures = {
+                pool.submit(self._run_one, name, target, args): name
+                for name, target, args in tests
+            }
+            for future in as_completed(futures):
+                name = futures[future]
+                try:
+                    future.result()
+                except Exception as e:
+                    description = f"Failure in {name}: {e!r}"
+                    failures.append(description)
+                    LOG.error(
+                        description
+                        + "\n"
+                        + "".join(better_exceptions.format_exception(*sys.exc_info()))
+                    )
 
-        thread_groups = [
-            self.threads[i : i + max_concurrent]
-            for i in range(0, len(self.threads), max_concurrent)
-        ]
-
-        for group in thread_groups:
-            for thread in group:
-                thread.start()
-
-            for thread in group:
-                thread.join()
-
-        if FAILURES:
-            raise RuntimeError(FAILURES)
+        # FAILURES catches exceptions from threads the sub-tests start
+        # themselves, which do not surface through the pool's futures.
+        failures.extend(FAILURES)
+        if failures:
+            raise RuntimeError(failures)

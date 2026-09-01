@@ -3766,9 +3766,9 @@ def test_join_idempotency_short_circuits_on_backup(network, args):
     network.consortium.retire_node_by_id(primary, joined_node_id)
 
 
-def run_backup_snapshot_download(const_args):
+def _run_backup_snapshot_download(const_args, label_suffix, tests):
     args = copy.deepcopy(const_args)
-    args.label += "_backup_snapshot_download"
+    args.label += label_suffix
     # Use a small snapshot interval to trigger snapshots quickly
     args.snapshot_tx_interval = 30
     args.nodes = infra.e2e_args.max_nodes(args, f=0)
@@ -3780,11 +3780,42 @@ def run_backup_snapshot_download(const_args):
         txs=app.LoggingTxs("user0"),
     ) as network:
         network.start_and_open(args, backup_snapshot_fetch_enabled=True)
-        test_backup_snapshot_fetch(network, args)
-        test_backup_snapshot_fetch_max_size(network, args)
-        test_join_idempotency_short_circuits_on_backup(network, args)
-        test_join_time_snapshot_fetch_failure(network, args)
-        test_error_message_on_failure_to_fetch_snapshot(network, args)
+        for test in tests:
+            test(network, args)
+
+
+# These used to run as one sequential group, which made it the longest sub-test
+# in schema_test by a wide margin. Each group below brings up its own network,
+# so they run concurrently. Every test starts by finding the primary and issuing
+# its own transactions, so none of them depend on the others.
+def run_backup_snapshot_download(const_args):
+    _run_backup_snapshot_download(
+        const_args,
+        "_backup_snapshot_download",
+        [test_backup_snapshot_fetch],
+    )
+
+
+def run_backup_snapshot_download_limits(const_args):
+    _run_backup_snapshot_download(
+        const_args,
+        "_backup_snapshot_limits",
+        [
+            test_backup_snapshot_fetch_max_size,
+            test_join_idempotency_short_circuits_on_backup,
+        ],
+    )
+
+
+def run_backup_snapshot_download_failures(const_args):
+    _run_backup_snapshot_download(
+        const_args,
+        "_backup_snapshot_failures",
+        [
+            test_join_time_snapshot_fetch_failure,
+            test_error_message_on_failure_to_fetch_snapshot,
+        ],
+    )
 
 
 def run_propose_request_vote(const_args):
