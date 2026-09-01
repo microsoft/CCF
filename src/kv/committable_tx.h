@@ -458,6 +458,17 @@ namespace ccf::kv
 
       std::vector<ConsensusHookPtr> hooks;
       bool track_deletes_on_missing_keys = false;
+
+      // A reserved transaction can create maps too - the first signature
+      // creates the signature tables. As in commit(), hold the map set while
+      // applying, so that add_dynamic_map() does not mutate it underneath a
+      // concurrent reader.
+      const bool maps_created = !pimpl->created_maps.empty();
+      if (maps_created)
+      {
+        this->pimpl->store->lock_map_set();
+      }
+
       auto c = apply_changes(
         all_changes,
         [this](bool) { return std::make_tuple(version, version - 1); },
@@ -466,6 +477,12 @@ namespace ccf::kv
         version,
         track_deletes_on_missing_keys,
         rollback_count);
+
+      if (maps_created)
+      {
+        this->pimpl->store->unlock_map_set();
+      }
+
       success = c.has_value();
 
       if (!success)
