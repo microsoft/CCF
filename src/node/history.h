@@ -119,7 +119,6 @@ namespace ccf
   protected:
     ccf::kv::Version version = 0;
     ccf::kv::Term term_of_last_version = 0;
-    ccf::kv::Term term_of_next_version = 0;
 
   public:
     NullTxHistory(
@@ -133,10 +132,7 @@ namespace ccf
       version++;
     }
 
-    void append_entry(
-      const ccf::crypto::Sha256Hash& /*digest*/,
-      std::optional<ccf::kv::Term> /*term_of_next_version_*/ =
-        std::nullopt) override
+    void append_entry(const ccf::crypto::Sha256Hash& /*digest*/) override
     {
       version++;
     }
@@ -149,14 +145,12 @@ namespace ccf
     void set_term(ccf::kv::Term t) override
     {
       term_of_last_version = t;
-      term_of_next_version = t;
     }
 
-    void rollback(const ccf::TxID& tx_id, ccf::kv::Term commit_term_) override
+    void rollback(const ccf::TxID& tx_id) override
     {
       version = tx_id.seqno;
       term_of_last_version = tx_id.view;
-      term_of_next_version = commit_term_;
     }
 
     void compact(ccf::kv::Version /*v*/) override {}
@@ -201,13 +195,12 @@ namespace ccf
       return ccf::crypto::Sha256Hash(std::to_string(version));
     }
 
-    std::tuple<ccf::TxID, ccf::crypto::Sha256Hash, ccf::kv::Term>
+    std::tuple<ccf::TxID, ccf::crypto::Sha256Hash>
     get_replicated_state_txid_and_root() override
     {
       return {
         {term_of_last_version, version},
-        ccf::crypto::Sha256Hash(std::to_string(version)),
-        term_of_next_version};
+        ccf::crypto::Sha256Hash(std::to_string(version))};
     }
 
     std::vector<uint8_t> get_proof(ccf::kv::Version /*v*/) override
@@ -575,7 +568,6 @@ namespace ccf
 
     ccf::pal::Mutex state_lock;
     ccf::kv::Term term_of_last_version = 0;
-    ccf::kv::Term term_of_next_version{};
 
     std::optional<ccf::crypto::Pem> endorsed_cert = std::nullopt;
 
@@ -757,15 +749,14 @@ namespace ccf
       return replicated_state_tree.get_root();
     }
 
-    std::tuple<ccf::TxID, ccf::crypto::Sha256Hash, ccf::kv::Term>
+    std::tuple<ccf::TxID, ccf::crypto::Sha256Hash>
     get_replicated_state_txid_and_root() override
     {
       std::lock_guard<ccf::pal::Mutex> guard(state_lock);
       return {
         {term_of_last_version,
          static_cast<ccf::kv::Version>(replicated_state_tree.end_index())},
-        replicated_state_tree.get_root(),
-        term_of_next_version};
+        replicated_state_tree.get_root()};
     }
 
     bool verify_root_signatures(ccf::kv::Version version) override
@@ -891,16 +882,13 @@ namespace ccf
       // term
       std::lock_guard<ccf::pal::Mutex> guard(state_lock);
       term_of_last_version = t;
-      term_of_next_version = t;
     }
 
-    void rollback(
-      const ccf::TxID& tx_id, ccf::kv::Term term_of_next_version_) override
+    void rollback(const ccf::TxID& tx_id) override
     {
       std::lock_guard<ccf::pal::Mutex> guard(state_lock);
       LOG_TRACE_FMT("Rollback to {}.{}", tx_id.view, tx_id.seqno);
       term_of_last_version = tx_id.view;
-      term_of_next_version = term_of_next_version_;
       replicated_state_tree.retract(tx_id.seqno);
       log_hash(replicated_state_tree.get_root(), ROLLBACK);
     }
@@ -1003,20 +991,10 @@ namespace ccf
       replicated_state_tree.append(rh);
     }
 
-    void append_entry(
-      const ccf::crypto::Sha256Hash& digest,
-      std::optional<ccf::kv::Term> expected_term_of_next_version =
-        std::nullopt) override
+    void append_entry(const ccf::crypto::Sha256Hash& digest) override
     {
       log_hash(digest, APPEND);
       std::lock_guard<ccf::pal::Mutex> guard(state_lock);
-      if (expected_term_of_next_version.has_value())
-      {
-        if (expected_term_of_next_version.value() != term_of_next_version)
-        {
-          return;
-        }
-      }
       replicated_state_tree.append(digest);
     }
 

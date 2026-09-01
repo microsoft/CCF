@@ -44,7 +44,6 @@ namespace ccf::kv
 
     ccf::pal::Mutex version_lock;
     std::atomic<Version> version = 0;
-    Version last_new_map = ccf::kv::NoVersion;
     std::atomic<Version> compacted = 0;
 
     // Calls to Store::commit are made atomic by taking this lock.
@@ -66,7 +65,9 @@ namespace ccf::kv
 
     Version rollback_count = 0;
 
-    std::unordered_map<Version, std::tuple<std::unique_ptr<PendingTx>, bool>>
+    std::unordered_map<
+      Version,
+      std::tuple<ccf::TxID, std::unique_ptr<PendingTx>, bool>>
       pending_txs;
 
   public:
@@ -79,7 +80,6 @@ namespace ccf::kv
       pending_txs.clear();
 
       version = 0;
-      last_new_map = ccf::kv::NoVersion;
       compacted = 0;
       term_of_next_version = 0;
       term_of_last_version = 0;
@@ -141,7 +141,7 @@ namespace ccf::kv
 
       auto c = apply_changes(
         changes,
-        [v](bool) { return std::make_tuple(v, v - 1); },
+        [term, v]() { return ccf::TxID(term, v); },
         hooks,
         new_maps,
         std::nullopt,
@@ -556,7 +556,7 @@ namespace ccf::kv
         bool track_deletes_on_missing_keys = false;
         auto r = apply_changes(
           changes,
-          [](bool) { return std::make_tuple(NoVersion, NoVersion); },
+          [term, v]() { return ccf::TxID(term, v); },
           hooks,
           new_maps,
           std::nullopt,
@@ -691,7 +691,7 @@ namespace ccf::kv
         auto h = get_history();
         if (h)
         {
-          h->rollback(tx_id, term_of_next_version);
+          h->rollback(tx_id);
         }
 
         if (tx_id.seqno >= version)
@@ -939,13 +939,6 @@ namespace ccf::kv
       return current_txid_unsafe();
     }
 
-    std::pair<TxID, Term> current_txid_and_commit_term() override
-    {
-      // Must lock in case the version or commit term is being incremented.
-      std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
-      return {current_txid_unsafe(), term_of_next_version};
-    }
-
     Version compacted_version() override
     {
       return compacted;
@@ -977,25 +970,20 @@ namespace ccf::kv
 
       BatchVector batch;
       Version previous_last_replicated = 0;
-      Version next_last_replicated = 0;
       Version previous_rollback_count = 0;
-      ccf::View replication_view = 0;
 
-      std::vector<std::tuple<std::unique_ptr<PendingTx>, bool>>
-        contiguous_pending_txs;
+      std::vector<decltype(pending_txs)::mapped_type> contiguous_pending_txs;
       auto h = get_history();
 
       {
         std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
-        if (txid.view != term_of_next_version && get_consensus()->is_primary())
-        {
-          // This can happen when a transaction started before a view change,
-          // but tries to commit after the view change is complete.
-          LOG_DEBUG_FMT(
-            "Want to commit for term {} but term is {}",
-            txid.view,
-            term_of_next_version);
 
+        if (txid.view != term_of_next_version)
+        {
+          LOG_DEBUG_FMT(
+            "Discarding transaction {} after Store moved to view {}",
+            txid.to_str(),
+            term_of_next_version);
           return CommitResult::FAIL_NO_REPLICATE;
         }
 
@@ -1004,9 +992,24 @@ namespace ccf::kv
           last_committable = txid.seqno;
         }
 
-        pending_txs.insert(
-          {txid.seqno,
-           std::make_tuple(std::move(pending_tx), globally_committable)});
+        auto [it, inserted] = pending_txs.try_emplace(
+          txid.seqno, txid, std::move(pending_tx), globally_committable);
+
+        if (!inserted)
+        {
+          // Extremely unexpected case: Something went very wrong with TxID
+          // assignment, but still fail report here rather than persisting the
+          // confusion
+          const auto& existing_txid = std::get<0>(it->second);
+
+          LOG_FAIL_FMT(
+            "Conflicting pending transactions at seqno {}: {} and {}",
+            txid.seqno,
+            existing_txid.to_str(),
+            txid.to_str());
+
+          return CommitResult::FAIL_NO_REPLICATE;
+        }
 
         LOG_TRACE_FMT("Inserting pending tx at {}", txid.seqno);
 
@@ -1017,12 +1020,11 @@ namespace ccf::kv
           {
             LOG_TRACE_FMT(
               "Couldn't find {} = {} + {}, giving up on batch while committing "
-              "{}.{}",
+              "{}",
               last_replicated + offset,
               last_replicated,
               offset,
-              txid.view,
-              txid.seqno);
+              txid.to_str());
             break;
           }
 
@@ -1032,9 +1034,6 @@ namespace ccf::kv
 
         previous_rollback_count = rollback_count;
         previous_last_replicated = last_replicated;
-        next_last_replicated = last_replicated + contiguous_pending_txs.size();
-
-        replication_view = term_of_next_version;
       }
       // Release version lock
 
@@ -1044,7 +1043,8 @@ namespace ccf::kv
       }
 
       size_t offset = 1;
-      for (auto& [pending_tx_, committable_] : contiguous_pending_txs)
+      for (auto& [pending_txid_, pending_tx_, committable_] :
+           contiguous_pending_txs)
       {
         auto
           [success_, data_, claims_digest_, commit_evidence_digest_, hooks_] =
@@ -1067,18 +1067,15 @@ namespace ccf::kv
         if (success_ != CommitResult::SUCCESS)
         {
           LOG_FAIL_FMT(
-            "Unexpected failure reason {} during commit of {}.{}",
+            "Unexpected failure reason {} during commit of {}",
             static_cast<int>(success_),
-            txid.view,
-            txid.seqno);
+            txid.to_str());
         }
 
         if (h)
         {
-          h->append_entry(
-            ccf::entry_leaf(
-              *data_shared, commit_evidence_digest_, claims_digest_),
-            replication_view);
+          h->append_entry(ccf::entry_leaf(
+            *data_shared, commit_evidence_digest_, claims_digest_));
         }
 
         if (chunker)
@@ -1087,31 +1084,32 @@ namespace ccf::kv
         }
 
         LOG_DEBUG_FMT(
-          "Batching {} ({}) during commit of {}.{}",
+          "Batching {} ({}) during commit of {}",
           previous_last_replicated + offset,
           data_shared->size(),
-          txid.view,
-          txid.seqno);
+          txid.to_str());
 
         batch.emplace_back(
-          previous_last_replicated + offset,
-          data_shared,
-          committable_,
-          hooks_shared);
+          pending_txid_, data_shared, committable_, hooks_shared);
 
         offset++;
       }
 
-      if (c->replicate(batch, replication_view))
+      const auto replicated_count = c->replicate(batch);
+      if (replicated_count > 0)
       {
         std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
         if (
           last_replicated == previous_last_replicated &&
           previous_rollback_count == rollback_count)
         {
-          last_replicated = next_last_replicated;
+          last_replicated += replicated_count;
         }
-        return CommitResult::SUCCESS;
+
+        if (last_replicated >= txid.seqno)
+        {
+          return CommitResult::SUCCESS;
+        }
       }
 
       LOG_DEBUG_FMT("Failed to replicate");
@@ -1174,26 +1172,6 @@ namespace ccf::kv
     {
       std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
       return rollback_count == count;
-    }
-
-    std::tuple<Version, Version> next_version(bool commit_new_map) override
-    {
-      std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
-      Version v = next_version_unsafe();
-
-      auto previous_last_new_map = last_new_map;
-      if (commit_new_map)
-      {
-        last_new_map = v;
-      }
-
-      return std::make_tuple(v, previous_last_new_map);
-    }
-
-    Version next_version() override
-    {
-      std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
-      return next_version_unsafe();
     }
 
     TxID next_txid() override

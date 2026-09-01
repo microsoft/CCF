@@ -39,15 +39,19 @@ public:
 
   DummyConsensus(ccf::kv::Store* store_) : store(store_) {}
 
-  bool replicate(const ccf::kv::BatchVector& entries, ccf::View view) override
+  size_t replicate(const ccf::kv::BatchVector& entries) override
   {
     if (store)
     {
       REQUIRE(entries.size() == 1);
-      return store->deserialize(*std::get<1>(entries[0]))->apply() !=
-        ccf::kv::ApplyResult::FAIL;
+      if (
+        store->deserialize(*std::get<1>(entries[0]))->apply() !=
+        ccf::kv::ApplyResult::FAIL)
+      {
+        return 1;
+      }
     }
-    return true;
+    return 0;
   }
 
   std::pair<ccf::View, ccf::SeqNo> get_committed_txid() override
@@ -255,15 +259,15 @@ public:
 
   CompactingConsensus(ccf::kv::Store* store_) : store(store_) {}
 
-  bool replicate(const ccf::kv::BatchVector& entries, ccf::View view) override
+  size_t replicate(const ccf::kv::BatchVector& entries) override
   {
-    for (auto& [version, data, committable, hooks] : entries)
+    for (auto& [tx_id, data, committable, hooks] : entries)
     {
       count++;
       if (committable)
-        store->compact(version);
+        store->compact(tx_id.seqno);
     }
-    return true;
+    return entries.size();
   }
 
   std::pair<ccf::View, ccf::SeqNo> get_committed_txid() override
@@ -429,15 +433,15 @@ public:
     rollback_to(rollback_to_)
   {}
 
-  bool replicate(const ccf::kv::BatchVector& entries, ccf::View view) override
+  size_t replicate(const ccf::kv::BatchVector& entries) override
   {
-    for (auto& [version, data, committable, hook] : entries)
+    for (auto& [tx_id, data, committable, hook] : entries)
     {
       count++;
-      if (version == rollback_at)
-        store->rollback({view, rollback_to}, store->commit_view());
+      if (tx_id.seqno == rollback_at)
+        store->rollback(tx_id, store->commit_view());
     }
-    return true;
+    return entries.size();
   }
 
   std::pair<ccf::View, ccf::SeqNo> get_committed_txid() override

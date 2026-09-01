@@ -207,7 +207,7 @@ namespace ccf::kv
   };
 
   using BatchVector = std::vector<std::tuple<
-    Version,
+    ccf::TxID,
     std::shared_ptr<std::vector<uint8_t>>,
     bool,
     std::shared_ptr<ConsensusHookPtrs>>>;
@@ -401,8 +401,7 @@ namespace ccf::kv
     virtual ccf::crypto::Sha256Hash get_replicated_state_root() = 0;
     virtual std::tuple<
       ccf::TxID /* TxID of last transaction seen by history */,
-      ccf::crypto::Sha256Hash /* root as of TxID */,
-      ccf::kv::Term /* term_of_next_version */>
+      ccf::crypto::Sha256Hash /* root as of TxID */>
     get_replicated_state_txid_and_root() = 0;
     virtual std::vector<uint8_t> get_proof(Version v) = 0;
     virtual bool verify_proof(const std::vector<uint8_t>& proof) = 0;
@@ -410,11 +409,8 @@ namespace ccf::kv
       const std::vector<uint8_t>& hash_at_snapshot) = 0;
     virtual std::vector<uint8_t> get_raw_leaf(uint64_t index) = 0;
     virtual void append(const std::vector<uint8_t>& data) = 0;
-    virtual void append_entry(
-      const ccf::crypto::Sha256Hash& digest,
-      std::optional<ccf::kv::Term> expected_term = std::nullopt) = 0;
-    virtual void rollback(
-      const ccf::TxID& tx_id, ccf::kv::Term term_of_next_version_) = 0;
+    virtual void append_entry(const ccf::crypto::Sha256Hash& digest) = 0;
+    virtual void rollback(const ccf::TxID& tx_id) = 0;
     virtual void compact(Version v) = 0;
     virtual void set_term(ccf::kv::Term) = 0;
     virtual std::vector<uint8_t> serialise_tree(size_t to) = 0;
@@ -452,7 +448,7 @@ namespace ccf::kv
     virtual void init_as_backup(
       ccf::SeqNo, ccf::View, const std::vector<ccf::SeqNo>&, ccf::SeqNo) = 0;
 
-    virtual bool replicate(const BatchVector& entries, ccf::View view) = 0;
+    virtual size_t replicate(const BatchVector& entries) = 0;
     virtual std::pair<ccf::View, ccf::SeqNo> get_committed_txid() = 0;
 
     virtual ccf::View get_view(ccf::SeqNo seqno) = 0;
@@ -708,13 +704,10 @@ namespace ccf::kv
     virtual void lock_map_set() = 0;
     virtual void unlock_map_set() = 0;
 
-    virtual Version next_version() = 0;
-    virtual std::tuple<Version, Version> next_version(bool commit_new_map) = 0;
     virtual ccf::TxID next_txid() = 0;
 
     virtual Version current_version() = 0;
     virtual ccf::TxID current_txid() = 0;
-    virtual std::pair<ccf::TxID, Term> current_txid_and_commit_term() = 0;
 
     virtual Version compacted_version() = 0;
     virtual Term commit_view() = 0;

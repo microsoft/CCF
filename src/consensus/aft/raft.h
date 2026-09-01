@@ -621,118 +621,128 @@ namespace aft
       return details;
     }
 
-    bool replicate(const ccf::kv::BatchVector& entries, Term term) override
+    size_t replicate(const ccf::kv::BatchVector& entries) override
     {
       std::lock_guard<ccf::pal::Mutex> guard(state->lock);
+
+      size_t replicated_count = 0;
 
       if (state->leadership_state != ccf::kv::LeadershipState::Leader)
       {
         RAFT_DEBUG_FMT(
           "Failed to replicate {} items: not leader", entries.size());
-        rollback(state->last_idx);
-        return false;
       }
-
-      if (term != state->current_view)
-      {
-        RAFT_DEBUG_FMT(
-          "Failed to replicate {} items at term {}, current term is {}",
-          entries.size(),
-          term,
-          state->current_view);
-        return false;
-      }
-
-      if (is_retired_committed())
+      else if (is_retired_committed())
       {
         RAFT_DEBUG_FMT(
           "Failed to replicate {} items: node retirement is complete",
           entries.size());
-        rollback(state->last_idx);
-        return false;
       }
-
-      RAFT_DEBUG_FMT("Replicating {} entries", entries.size());
-
-      for (const auto& [index, data, is_globally_committable, hooks] : entries)
+      else
       {
-        bool globally_committable = is_globally_committable;
+        RAFT_DEBUG_FMT("Replicating {} entries", entries.size());
 
-        if (index != state->last_idx + 1)
+        for (const auto& [tx_id, data, is_globally_committable, hooks] :
+             entries)
         {
-          return false;
-        }
+          bool globally_committable = is_globally_committable;
 
-        RAFT_DEBUG_FMT(
-          "Replicated on leader {}: {}{} ({} hooks)",
-          state->node_id,
-          index,
-          (globally_committable ? " committable" : ""),
-          hooks->size());
+          if (tx_id.seqno != state->last_idx + 1)
+          {
+            RAFT_DEBUG_FMT(
+              "Received non-contiguous batch: {} != {} + 1",
+              tx_id.seqno,
+              state->last_idx);
+            break;
+          }
+
+          if (tx_id.view != state->current_view)
+          {
+            RAFT_DEBUG_FMT(
+              "Failed to replicate item at {}.{}, current term is {}",
+              tx_id.view,
+              tx_id.seqno,
+              state->current_view);
+            break;
+          }
+
+          RAFT_DEBUG_FMT(
+            "Replicated on leader {}: {}{} ({} hooks)",
+            state->node_id,
+            tx_id.seqno,
+            (globally_committable ? " committable" : ""),
+            hooks->size());
 
 #ifdef CCF_RAFT_TRACING
-        nlohmann::json j = {};
-        j["function"] = "replicate";
-        j["state"] = *state;
-        COMMITTABLE_INDICES(j["state"], state);
-        j["view"] = term;
-        j["seqno"] = index;
-        j["globally_committable"] = globally_committable;
-        RAFT_TRACE_JSON_OUT(j);
+          nlohmann::json j = {};
+          j["function"] = "replicate";
+          j["state"] = *state;
+          COMMITTABLE_INDICES(j["state"], state);
+          j["seqno"] = tx_id.seqno;
+          j["globally_committable"] = globally_committable;
+          RAFT_TRACE_JSON_OUT(j);
 #endif
 
-        for (auto& hook : *hooks)
-        {
-          hook->call(this);
+          for (auto& hook : *hooks)
+          {
+            hook->call(this);
+          }
+
+          if (globally_committable)
+          {
+            RAFT_DEBUG_FMT(
+              "membership: {} leadership: {}",
+              state->membership_state,
+              state->leadership_state);
+            if (
+              state->membership_state == ccf::kv::MembershipState::Retired &&
+              state->retirement_phase == ccf::kv::RetirementPhase::Ordered)
+            {
+              become_retired(tx_id.seqno, ccf::kv::RetirementPhase::Signed);
+            }
+            state->committable_indices.push_back(tx_id.seqno);
+            start_ticking_if_necessary();
+
+            // Reset should_sign here - whenever we see a committable entry we
+            // don't need to produce _another_ signature
+            should_sign = false;
+          }
+
+          state->last_idx = tx_id.seqno;
+          ledger->put_entry(
+            *data, globally_committable, tx_id.view, tx_id.seqno);
+          entry_size_not_limited += data->size();
+          entry_count++;
+
+          state->view_history.update(tx_id.seqno, state->current_view);
+          if (entry_size_not_limited >= append_entries_size_limit)
+          {
+            update_batch_size();
+            entry_count = 0;
+            entry_size_not_limited = 0;
+            for (const auto& it : all_other_nodes)
+            {
+              RAFT_DEBUG_FMT("Sending updates to follower {}", it.first);
+              send_append_entries(it.first, it.second.sent_idx + 1);
+            }
+          }
+
+          replicated_count++;
         }
 
-        if (globally_committable)
+        // Try to advance commit at once if there are no other nodes.
+        if (other_nodes_in_active_configs().size() == 0)
         {
-          RAFT_DEBUG_FMT(
-            "membership: {} leadership: {}",
-            state->membership_state,
-            state->leadership_state);
-          if (
-            state->membership_state == ccf::kv::MembershipState::Retired &&
-            state->retirement_phase == ccf::kv::RetirementPhase::Ordered)
-          {
-            become_retired(index, ccf::kv::RetirementPhase::Signed);
-          }
-          state->committable_indices.push_back(index);
-          start_ticking_if_necessary();
-
-          // Reset should_sign here - whenever we see a committable entry we
-          // don't need to produce _another_ signature
-          should_sign = false;
-        }
-
-        state->last_idx = index;
-        ledger->put_entry(
-          *data, globally_committable, state->current_view, index);
-        entry_size_not_limited += data->size();
-        entry_count++;
-
-        state->view_history.update(index, state->current_view);
-        if (entry_size_not_limited >= append_entries_size_limit)
-        {
-          update_batch_size();
-          entry_count = 0;
-          entry_size_not_limited = 0;
-          for (const auto& it : all_other_nodes)
-          {
-            RAFT_DEBUG_FMT("Sending updates to follower {}", it.first);
-            send_append_entries(it.first, it.second.sent_idx + 1);
-          }
+          update_commit();
         }
       }
 
-      // Try to advance commit at once if there are no other nodes.
-      if (other_nodes_in_active_configs().size() == 0)
+      if (replicated_count != entries.size())
       {
-        update_commit();
+        rollback(state->last_idx);
       }
 
-      return true;
+      return replicated_count;
     }
 
     void recv_message(
