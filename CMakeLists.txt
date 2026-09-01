@@ -511,6 +511,7 @@ install(
   DESTINATION include/ccf/_private
   FILES_MATCHING
   PATTERN "*.h"
+  PATTERN "msgpack/*" EXCLUDE
   PATTERN "*/test*" EXCLUDE
 )
 
