@@ -249,6 +249,11 @@ namespace aft
 
     std::optional<ccf::NodeId> primary() override
     {
+      // leader_id is written under state->lock, and unlike is_primary() this
+      // is not called from Store::commit() under the KV version lock, so it
+      // can be read under the lock rather than made atomic. std::optional<
+      // NodeId> could not be made atomic in any case.
+      std::lock_guard<ccf::pal::Mutex> guard(state->lock);
       return leader_id;
     }
 
