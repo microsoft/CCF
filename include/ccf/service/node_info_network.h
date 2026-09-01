@@ -222,7 +222,7 @@ namespace ccf
     // rsplit_1 splits on the last ':'. When the address has no port it returns
     // ("", addr), which would wrongly put the host in the port slot; handle the
     // port-less case explicitly so the host stays in the first position.
-    if (addr.find(':') == std::string::npos)
+    if (!addr.contains(':'))
     {
       return std::make_pair(addr, std::string());
     }
@@ -238,7 +238,7 @@ namespace ccf
   inline static NodeInfoNetwork::NetAddress make_net_address(
     const std::string& host, const std::string& port)
   {
-    if (host.find(':') != std::string::npos && !host.starts_with('['))
+    if (host.contains(':') && !host.starts_with('['))
     {
       return fmt::format("[{}]:{}", host, port);
     }

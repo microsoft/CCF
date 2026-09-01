@@ -136,11 +136,7 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/snmalloc.cmake)
 
 option(CLANG_TIDY "Run clang-tidy on the codebase" OFF)
 
-option(
-  GLIBCXX_DEBUG
-  "Enable libstdc++ debug mode (_GLIBCXX_DEBUG). Disables the submit binary (which links against Arrow, not built with _GLIBCXX_DEBUG)."
-  OFF
-)
+option(GLIBCXX_DEBUG "Enable libstdc++ debug mode (_GLIBCXX_DEBUG)." OFF)
 if(GLIBCXX_DEBUG)
   add_compile_definitions(_GLIBCXX_DEBUG)
 endif()
@@ -533,6 +529,7 @@ install(
 install(PROGRAMS tests/sandbox/sandbox.sh DESTINATION bin)
 install(PROGRAMS tests/docker_wrap.sh DESTINATION bin)
 install(PROGRAMS scripts/ensure-snmalloc.sh DESTINATION bin)
+install(PROGRAMS scripts/install_uv.sh DESTINATION bin)
 install(FILES samples/constitutions/default/actions.js DESTINATION bin)
 install(FILES samples/constitutions/default/validate.js DESTINATION bin)
 install(FILES samples/constitutions/sandbox/resolve.js DESTINATION bin)
@@ -1324,7 +1321,7 @@ if(BUILD_TESTS)
   add_e2e_test(
     NAME e2e_logging_http2
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
-    BUCKET bucket_c
+    BUCKET bucket_b
     ADDITIONAL_ARGS
       --js-app-bundle
       ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
@@ -1431,48 +1428,65 @@ if(BUILD_TESTS)
     ADDITIONAL_ARGS ${RECONFIG_TEST_ARGS} ${ROTATION_TEST_ARGS}
   )
 
-  add_piccolo_test(
-    NAME pi_ls
-    PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/piccolo_driver.py
-    CLIENT_BIN ./submit
-    PERF_LABEL "Logging"
+  # Certificate-authenticated blocking logging workload, driven by locust so
+  # that the number of concurrent clients can be varied.
+  add_e2e_test(
+    NAME logging_cert_blocking_locust
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/logging_cert_locust.py
+    LABEL perf
+    CONFIGURATIONS perf
     ADDITIONAL_ARGS
       --package
       "samples/apps/logging/logging"
-      --max-writes-ahead
-      1000
-      --repetitions
-      100000
+      --perf-label
+      "Logging Certificate Blocking"
+      --snapshot-tx-interval
+      10000
+      --users
+      640
+      --spawn-rate
+      640
+      --locust-processes
+      10
+      --measure-time-s
+      20
+      --sig-ms-intervals
+      20
   )
 
-  add_piccolo_test(
-    NAME pi_basic
-    PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/basicperf.py
-    CLIENT_BIN ./submit
-    PERF_LABEL "Basic"
-    ADDITIONAL_ARGS
-      --package
-      "samples/apps/basic/basic"
-      --client-def
-      "1,write,3000000,primary"
-  )
-
-  add_piccolo_test(
-    NAME pi_basic_js
-    PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/basicperf.py
-    CLIENT_BIN ./submit
-    PERF_LABEL "Basic JS"
+  # JavaScript write workload driven by locust so that the number of
+  # concurrent clients can be varied.
+  add_e2e_test(
+    NAME basic_js_locust
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/basicperf_locust.py
+    LABEL perf
+    CONFIGURATIONS perf
     ADDITIONAL_ARGS
       --js-app-bundle
       ${CMAKE_SOURCE_DIR}/samples/apps/basic/js
-      --client-def
-      "1,write,300000,primary"
+      --perf-label
+      "Basic JS"
+      --endpoint
+      "/records/{key}"
+      --snapshot-tx-interval
+      10000
+      --users
+      320
+      --spawn-rate
+      320
+      --locust-processes
+      10
+      --measure-time-s
+      20
+      --sig-ms-intervals
+      100
   )
 
-  # Blocking commit benchmark driven by locust so that the number of
-  # concurrent clients can be varied.
+  # Blocking commit benchmark driven by locust. Its concurrent connections
+  # exercise every configured worker thread, so this also covers the
+  # multi-threaded basic workload.
   add_e2e_test(
-    NAME pi_basic_blocking_locust
+    NAME basic_blocking_locust
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/basicperf_locust.py
     LABEL perf
     CONFIGURATIONS perf
@@ -1480,10 +1494,8 @@ if(BUILD_TESTS)
       --package
       "samples/apps/basic/basic"
       --perf-label
-      "Basic Blocking Locust"
-      # add_piccolo_test passes this for every piccolo perf test, but
-      # add_e2e_test does not, and the default is 10. Without it this
-      # benchmark snapshots every 10 transactions and measures the disk.
+      "Basic Blocking"
+      # Keep snapshot disk activity out of the measurement.
       --snapshot-tx-interval
       10000
       --users
@@ -1502,24 +1514,10 @@ if(BUILD_TESTS)
       100
   )
 
-  if(WORKER_THREADS)
-    add_piccolo_test(
-      NAME pi_basic_mt
-      PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/basicperf.py
-      CLIENT_BIN ./submit
-      PERF_LABEL "Basic Multi-Threaded"
-      ADDITIONAL_ARGS
-        --package
-        "samples/apps/basic/basic"
-        --client-def
-        "${WORKER_THREADS},write,2000000,primary"
-    )
-  endif()
-
   # JWT-authenticated blocking logging workload, driven by locust so that the
   # number of concurrent clients can be varied.
   add_e2e_test(
-    NAME pi_logging_jwt_blocking_locust
+    NAME logging_jwt_blocking_locust
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/logging_jwt_locust.py
     LABEL perf
     CONFIGURATIONS perf
@@ -1527,7 +1525,7 @@ if(BUILD_TESTS)
       --package
       "samples/apps/logging/logging"
       --perf-label
-      "Logging JWT Blocking Locust"
+      "Logging JWT Blocking"
       --snapshot-tx-interval
       10000
       --users
@@ -1542,11 +1540,31 @@ if(BUILD_TESTS)
       20
   )
 
+  # Historical range query benchmark driven by locust against a backup.
   add_e2e_test(
-    NAME historical_query_perf_test
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/historical_query_perf.py
+    NAME historical_query_locust
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/historical_query_locust.py
     LABEL perf
     CONFIGURATIONS perf
+    ADDITIONAL_ARGS
+      --package
+      "samples/apps/logging/logging"
+      --perf-label
+      "Historical Queries"
+      --snapshot-tx-interval
+      10000
+      --entry-count
+      30000
+      --users
+      3
+      --spawn-rate
+      3
+      --locust-processes
+      3
+      --measure-time-s
+      20
+      --sig-ms-intervals
+      1000
   )
 
   add_test_bin(
@@ -1610,9 +1628,3 @@ install(
     ${CMAKE_CURRENT_SOURCE_DIR}/cmake/cpack_versions_pin.cmake
   DESTINATION ${CMAKE_INSTALL_PREFIX}/cmake
 )
-
-# Perf tool executable (requires Arrow/Parquet, not compatible with GLIBCXX_DEBUG)
-if(NOT GLIBCXX_DEBUG)
-  include(${CCF_DIR}/tests/perf-system/submitter/CMakeLists.txt)
-  add_hardening(submit)
-endif()

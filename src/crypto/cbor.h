@@ -136,7 +136,7 @@ namespace ccf::cbor
         throw CBORDecodeError(
           err.error_code(), fmt::format("{}: {}", msg, err.what()));
       }
-      throw err;
+      throw;
     }
   }
 } // namespace ccf::cbor

@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import base64
+import concurrent.futures
 import copy
 import hashlib
 import http
@@ -3890,76 +3891,83 @@ def run_time_based_snapshotting(const_args):
     # 3. record baseline
     # 4. record new snapshots over 10s and compare that to the baseline
 
-    # min_tx set low
-    with net_with_min_tx("_low", 0) as net:
-        time.sleep(1)
-        net.get_committed_snapshots(
-            net.find_primary()[0],
-            force_txs=False,
-            wait_for_target_seqno=True,
-            timeout=5,
-        )
-        baseline = get_committed_snapshot_files(net)
-        time.sleep(10)
-        final = get_committed_snapshot_files(net)
-        assert (
-            len(final - baseline) >= 8
-        ), f"With min_tx_interval set to 0 we expect snapshots to be generated at around 1 per second, but got {final} snapshots 10s after a baseline of {baseline}, with {final - baseline} new snapshots seen over the test."
-
-    # min_tx set just right
-    with net_with_min_tx("_exact", 2) as net:
-        time.sleep(1)
-        try:
+    def run_low():
+        with net_with_min_tx("_low", 0) as net:
+            time.sleep(1)
             net.get_committed_snapshots(
                 net.find_primary()[0],
                 force_txs=False,
                 wait_for_target_seqno=True,
                 timeout=5,
             )
-        except TimeoutError:
-            pass
-        baseline = get_committed_snapshot_files(net)
-        time.sleep(10)
-        final = get_committed_snapshot_files(net)
-        assert (
-            final == baseline
-        ), f"With min_tx_interval set to 2 we expect no snapshots to be generated without transactions, but got {final} snapshots 10s after a baseline of {baseline}, with {final - baseline} new snapshots seen over the test."
+            baseline = get_committed_snapshot_files(net)
+            time.sleep(10)
+            final = get_committed_snapshot_files(net)
+            assert (
+                len(final - baseline) >= 8
+            ), f"With min_tx_interval set to 0 we expect snapshots to be generated at around 1 per second, but got {final} snapshots 10s after a baseline of {baseline}, with {final - baseline} new snapshots seen over the test."
 
-    # set much higher to show that
-    with net_with_min_tx("_high", 10) as net:
-        time.sleep(1)
-        try:
+    def run_exact():
+        with net_with_min_tx("_exact", 2) as net:
+            time.sleep(1)
+            try:
+                net.get_committed_snapshots(
+                    net.find_primary()[0],
+                    force_txs=False,
+                    wait_for_target_seqno=True,
+                    timeout=5,
+                )
+            except TimeoutError:
+                pass
+            baseline = get_committed_snapshot_files(net)
+            time.sleep(10)
+            final = get_committed_snapshot_files(net)
+            assert (
+                final == baseline
+            ), f"With min_tx_interval set to 2 we expect no snapshots to be generated without transactions, but got {final} snapshots 10s after a baseline of {baseline}, with {final - baseline} new snapshots seen over the test."
+
+    def run_high():
+        with net_with_min_tx("_high", 10) as net:
+            time.sleep(1)
+            try:
+                net.get_committed_snapshots(
+                    net.find_primary()[0],
+                    force_txs=False,
+                    wait_for_target_seqno=True,
+                    timeout=5,
+                )
+            except TimeoutError:
+                pass
+            baseline = get_committed_snapshot_files(net)
+            time.sleep(10)
+            final = get_committed_snapshot_files(net)
+            assert (
+                final == baseline
+            ), f"With min_tx_interval set to 10 we expect no snapshots to be generated without transactions, but got {final} snapshots 10s after a baseline of {baseline}, with {final - baseline} new snapshots seen over the test."
+
+            tx_id = net.txs.issue(net, number_txs=1)
+            baseline = get_committed_snapshot_files(net)
+            time.sleep(10)
+            final = get_committed_snapshot_files(net)
+            assert (
+                final == baseline
+            ), f"With min_tx_interval set to 10 and we expect no snapshots to be generated with only one extra tx, but got {final} snapshots 10s after a baseline of {baseline}, and in total saw {final - baseline} new snapshots over the test."
+
+            net.txs.issue(net, number_txs=20)
+            primary, _ = net.find_primary()
             net.get_committed_snapshots(
-                net.find_primary()[0],
+                primary,
+                target_seqno=tx_id.seqno,
                 force_txs=False,
                 wait_for_target_seqno=True,
-                timeout=5,
             )
-        except TimeoutError:
-            pass
-        baseline = get_committed_snapshot_files(net)
-        time.sleep(10)
-        final = get_committed_snapshot_files(net)
-        assert (
-            final == baseline
-        ), f"With min_tx_interval set to 10 we expect no snapshots to be generated without transactions, but got {final} snapshots 10s after a baseline of {baseline}, with {final - baseline} new snapshots seen over the test."
 
-        tx_id = net.txs.issue(net, number_txs=1)
-        baseline = get_committed_snapshot_files(net)
-        time.sleep(10)
-        final = get_committed_snapshot_files(net)
-        assert (
-            final == baseline
-        ), f"With min_tx_interval set to 10 and we expect no snapshots to be generated with only one extra tx, but got {final} snapshots 10s after a baseline of {baseline}, and in total saw {final - baseline} new snapshots over the test."
-
-        net.txs.issue(net, number_txs=20)
-        primary, _ = net.find_primary()
-        net.get_committed_snapshots(
-            primary,
-            target_seqno=tx_id.seqno,
-            force_txs=False,
-            wait_for_target_seqno=True,
-        )
+    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+        futures = [
+            executor.submit(run_test) for run_test in (run_low, run_exact, run_high)
+        ]
+        for future in futures:
+            future.result()
 
 
 def run_snapshot_persistence_across_primary_failure(const_args):
@@ -4844,19 +4852,37 @@ def run_pending_node_expiration(const_args):
         test_pending_node_expiration(network, args)
 
 
-def run(args):
+# The operations tests below are split into groups which are run
+# concurrently, as separate ConcurrentRunner sub-tests (see tests/schema.py).
+# Each group runs its own tests sequentially, so tests which share a workspace
+# label must stay within a single group. Keep the groups roughly balanced, as
+# the slowest group bounds the total run time.
+
+
+def run_offline_ledger_tools(args):
     run_ledger_viz_test(args)
     run_split_ledger_test(args)
-    run_max_uncommitted_tx_count(args)
     run_file_operations(args)
+    run_read_ledger_on_testdata(args)
+    run_merkle_verification_level(args)
+
+
+def run_snapshot_manual_and_retention(args):
     run_forced_snapshot_while_opening(args)
     run_manual_snapshot_tests(args)
     run_max_retained_snapshot_files(args)
     run_backup_snapshot_cleanup(args)
+
+
+def run_ledger_chunk_operations(args):
+    run_max_uncommitted_tx_count(args)
     run_max_committed_ledger_chunk_files(args)
     run_post_snapshot_chunk_retention(args)
     run_ledger_cleanup_no_read_only_dir_check(args)
     run_ledger_chunk_cleanup_tests(args)
+
+
+def run_node_config_checks(args):
     run_tls_san_checks(args)
     run_tls_san_join_mismatch(args)
     run_config_timeout_check(args)
@@ -4866,12 +4892,19 @@ def run(args):
     run_preopen_readiness_check(args)
     run_sighup_check(args)
     run_service_subject_name_check(args)
+    run_empty_ledger_dir_check(args)
+    run_propose_request_vote(args)
+
+
+def run_cose_checks(args):
     run_cose_signatures_config_check(args)
     run_late_mounted_ledger_check(args)
-    run_empty_ledger_dir_check(args)
-    run_read_ledger_on_testdata(args)
-    run_merkle_verification_level(args)
-    run_propose_request_vote(args)
-    run_time_based_snapshotting(args)
-    run_snapshot_persistence_across_primary_failure(args)
     run_cose_only_mode_upgrade(args)
+
+
+def run_time_based_snapshots(args):
+    run_time_based_snapshotting(args)
+
+
+def run_snapshot_persistence(args):
+    run_snapshot_persistence_across_primary_failure(args)

@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [7.0.14]
+
+[7.0.14]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.14
+
+### Changed
+
+- CCF and C++ applications built against it now require C++23. The supported minimum Clang version remains 18.1.2. (#8234)
+
 ## [7.0.13]
 
 [7.0.13]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.13

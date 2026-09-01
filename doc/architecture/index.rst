@@ -85,13 +85,6 @@ Architecture
 
     Internal implementation of the TCP host layer.
 
-    ---
-
-    :fa:`dragon` :doc:`performance/index`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    Get started with the CCF performance testing tool.
-
 .. toctree::
     :hidden:
     :maxdepth: 1
@@ -108,4 +101,3 @@ Architecture
     receipts
     tls_internals
     tcp_internals
-    performance/index.rst
