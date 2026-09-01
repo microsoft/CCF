@@ -198,10 +198,6 @@ threading.excepthook = log_exception
 
 
 class ConcurrentRunner:
-    # Sub-tests to run, as (name, target, args) triples. Threads are created by
-    # run(), so that the pool decides how many exist at once.
-    tests: ClassVar[list[tuple[str, object, object]]] = []
-
     # Env var to filter sub-tests by exact name match. Value is a
     # '|'-separated list, e.g. CR_FILTER="testname1|testname2". When set,
     # only sub-tests whose name fully matches one of the entries are added.
@@ -227,6 +223,10 @@ class ConcurrentRunner:
                 add_options(parser)
 
         self.args = infra.e2e_args.cli_args(add=add)
+        # Sub-tests to run, as (name, target, args) triples. Per instance, so
+        # that two runners in one process do not inherit each other's sub-tests.
+        # Threads are created by run(), so the pool decides how many exist.
+        self.tests: list[tuple[str, object, object]] = []
 
     def add(self, prefix, target, **args_overrides):
         if self._test_filter is not None and prefix not in self._test_filter:

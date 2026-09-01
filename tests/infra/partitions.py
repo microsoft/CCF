@@ -41,7 +41,11 @@ def _next_chain_name():
     # The pid keeps chains distinct across concurrently running ctest processes,
     # the counter across Partitioners within one process.
     name = f"{CCF_IPTABLES_CHAIN_PREFIX}-{os.getpid()}-{index}"
-    assert len(name) <= MAX_CHAIN_NAME_LENGTH, name
+    if len(name) > MAX_CHAIN_NAME_LENGTH:
+        raise ValueError(
+            f"iptables chain name {name!r} is {len(name)} characters, "
+            f"but iptables allows at most {MAX_CHAIN_NAME_LENGTH}"
+        )
     return name
 
 
