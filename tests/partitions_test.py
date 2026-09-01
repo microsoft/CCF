@@ -1607,8 +1607,16 @@ def run_forwarding_and_sessions(args):
 
 def run_recovery_elections(args):
     with partitioned_network(args) as network:
-        network = test_recovery_elections(network, args)
-        test_ledger_invariants(network, args)
+        # test_recovery_elections stops this network and recovers into a new
+        # one, which the context manager does not own: it still holds the
+        # original. Stop the returned network here, or its nodes outlive the
+        # test.
+        recovery_network = test_recovery_elections(network, args)
+        try:
+            test_ledger_invariants(recovery_network, args)
+        finally:
+            if recovery_network is not network:
+                recovery_network.stop_all_nodes(skip_verification=True)
 
 
 if __name__ == "__main__":

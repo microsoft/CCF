@@ -568,16 +568,26 @@ def gov(args):
         test_consensus_status(network, args)
         test_member_data(network, args)
         test_ack_state_digest_update(network, args)
-        network = test_all_members(network, args)
-        test_user(network, args)
-        test_jinja_templates(network, args)
-        test_no_quote(network, args)
-        test_node_data(network, args)
-        test_each_node_cert_renewal(network, args)
-        test_binding_proposal_to_service_identity(network, args)
-        test_all_nodes_cert_renewal(network, args)
-        test_service_cert_renewal(network, args)
-        test_service_cert_renewal_extended(network, args)
+
+        # test_all_members stops this network and recovers into a new one, which
+        # the enclosing context manager does not own: it still holds the
+        # original. Stop the recovered network here, or its nodes outlive the
+        # test. That includes the deliberately untrusted nodes added by
+        # test_no_quote and test_node_data, which then sit in a join retry loop
+        # for the rest of the CI job.
+        recovered_network = test_all_members(network, args)
+        try:
+            test_user(recovered_network, args)
+            test_jinja_templates(recovered_network, args)
+            test_no_quote(recovered_network, args)
+            test_node_data(recovered_network, args)
+            test_each_node_cert_renewal(recovered_network, args)
+            test_binding_proposal_to_service_identity(recovered_network, args)
+            test_all_nodes_cert_renewal(recovered_network, args)
+            test_service_cert_renewal(recovered_network, args)
+            test_service_cert_renewal_extended(recovered_network, args)
+        finally:
+            recovered_network.stop_all_nodes(skip_verification=True)
 
 
 # These tests requiring starting up + shutting down a node with specific
