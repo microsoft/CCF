@@ -264,14 +264,25 @@ if __name__ == "__main__":
         initial_member_count=1,
     )
 
-    cr.add(
-        "operations",
-        e2e_operations.run,
-        package="samples/apps/logging/logging",
-        nodes=infra.e2e_args.min_nodes(cr.args, f=0),
-        initial_user_count=1,
-        ledger_chunk_bytes="1B",  # Chunk ledger at every signature transaction
-    )
+    # The operations tests are split into groups which run concurrently, as the
+    # single sequential group used to dominate this test's total run time.
+    for name, target in (
+        ("operations-offline", e2e_operations.run_offline_ledger_tools),
+        ("operations-snapshots", e2e_operations.run_snapshot_manual_and_retention),
+        ("operations-chunks", e2e_operations.run_ledger_chunk_operations),
+        ("operations-config", e2e_operations.run_node_config_checks),
+        ("operations-cose", e2e_operations.run_cose_checks),
+        ("operations-tb-snapshots", e2e_operations.run_time_based_snapshots),
+        ("operations-persistence", e2e_operations.run_snapshot_persistence),
+    ):
+        cr.add(
+            name,
+            target,
+            package="samples/apps/logging/logging",
+            nodes=infra.e2e_args.min_nodes(cr.args, f=0),
+            initial_user_count=1,
+            ledger_chunk_bytes="1B",  # Chunk ledger at every signature transaction
+        )
 
     cr.add(
         "download",

@@ -35,12 +35,12 @@ void require_throws_with(
 
     for (const auto& s : includes)
     {
-      REQUIRE(what.find(s) != std::string::npos);
+      REQUIRE(what.contains(s));
     }
 
     for (const auto& s : excludes)
     {
-      REQUIRE(what.find(s) == std::string::npos);
+      REQUIRE(!what.contains(s));
     }
   }
   REQUIRE(threw);

@@ -6,7 +6,7 @@ namespace ccf::crypto
 {
   void Pem::check_pem_format()
   {
-    if (s.find("-----BEGIN") == std::string::npos)
+    if (!s.contains("-----BEGIN"))
     {
       throw std::runtime_error(
         fmt::format("PEM constructed with non-PEM data: {}", s));
