@@ -19,15 +19,15 @@ using IdentityTypeSerialiser =
   ccf::kv::serialisers::BlitSerialiser<ccf::IdentityType>;
 
 static constexpr std::array<ccf::IdentityType, 2> IDENTITY_TYPES = {
-  ccf::IdentityType::ES, ccf::IdentityType::MLDSA};
+  ccf::IdentityType::ECDSA, ccf::IdentityType::MLDSA};
 
-TEST_CASE("ES shares the serialised key of a single-Value table")
+TEST_CASE("ECDSA shares the serialised key of a single-Value table")
 {
   // ServiceValue is a Map with a single entry, whose key is 8 null bytes. A
   // table keyed by IdentityType is therefore serialised identically to a
-  // ServiceValue for as long as ES is its only entry.
+  // ServiceValue for as long as ECDSA is its only entry.
   REQUIRE(
-    IdentityTypeSerialiser::to_serialised(ccf::IdentityType::ES) ==
+    IdentityTypeSerialiser::to_serialised(ccf::IdentityType::ECDSA) ==
     ccf::kv::serialisers::ZeroBlitUnitCreator::get());
 
   REQUIRE(
@@ -59,7 +59,7 @@ TEST_CASE("Unknown identity types are rejected")
 TEST_CASE("IdentityType names are distinct and stable")
 {
   // These names will appear in the ledger, so they must not change.
-  REQUIRE(nlohmann::json(ccf::IdentityType::ES) == "ES");
+  REQUIRE(nlohmann::json(ccf::IdentityType::ECDSA) == "ECDSA");
   REQUIRE(nlohmann::json(ccf::IdentityType::MLDSA) == "MLDSA");
 
   std::set<std::string> names;
@@ -85,7 +85,7 @@ TEST_CASE("Identity round-trips through JSON")
 TEST_CASE("Identities round-trips through JSON")
 {
   const ccf::Identities identities{
-    {ccf::IdentityType::ES,
+    {ccf::IdentityType::ECDSA,
      {ccf::IdentityKind::X509_CERT_DER, std::vector<uint8_t>{1, 2}}},
     {ccf::IdentityType::MLDSA,
      {ccf::IdentityKind::X509_SPKI_DER, std::vector<uint8_t>{3, 4}}}};
