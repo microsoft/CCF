@@ -42,4 +42,32 @@ fi
 echo "Checking headers are included..."
 "$SCRIPT_DIR"/headers-are-included.sh || STATUS=1
 
+# 4. src/ds isolation: production files under src/ds must not include other
+# CCF source components, to keep ds a dependency-free leaf and avoid source
+# cycles such as crypto -> ds -> pal -> crypto.
+echo "Checking src/ds does not depend on other CCF source components..."
+# Every top-level directory name under src/ and include/ccf/, other than ds
+# itself, is treated as a distinct CCF source component.
+components=$(
+  {
+    find "$ROOT_DIR/src" -mindepth 1 -maxdepth 1 -type d -printf "%f\n"
+    find "$ROOT_DIR/include/ccf" -mindepth 1 -maxdepth 1 -type d -printf "%f\n"
+  } | sort -u | grep -v -x "ds"
+)
+component_pattern=$(echo "$components" | paste -sd'|' -)
+violations=""
+while IFS= read -r -d '' file; do
+  matches=$(grep -nE "#include \"(ccf/)?(${component_pattern})/" "$file" || true)
+  if [[ -n "$matches" ]]; then
+    violations+=$'\n'"$file:"$'\n'"$matches"
+  fi
+done < <(find "$ROOT_DIR/src/ds" -type f \( -name "*.h" -o -name "*.hpp" -o -name "*.cpp" -o -name "*.cc" \) -not -path "*/test/*" -not -path "*/benchmark/*" -not -path "*/fuzz/*" -print0)
+if [[ -n "$violations" ]]; then
+  echo "src/ds production files include other CCF components:"
+  echo "$violations"
+  STATUS=1
+else
+  echo "No src/ds dependency violations"
+fi
+
 exit $STATUS

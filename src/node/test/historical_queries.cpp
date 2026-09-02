@@ -8,7 +8,7 @@
 #include "node/historical_queries.h"
 
 #include "ccf/crypto/rsa_key_pair.h"
-#include "ccf/pal/locking.h"
+#include "ccf/ds/locking.h"
 #include "ccf/receipt.h"
 #include "crypto/cbor.h"
 #include "crypto/openssl/hash.h"
@@ -1273,7 +1273,7 @@ TEST_CASE("StateCache concurrent access")
     {
       std::vector<StubWriter::Write> writes;
       {
-        std::lock_guard<ccf::pal::Mutex> guard(writer->writes_mutex);
+        std::lock_guard<ccf::ds::Mutex> guard(writer->writes_mutex);
         auto finished_write_it = std::partition_point(
           writer->writes.begin() + last_handled_write,
           writer->writes.end(),
