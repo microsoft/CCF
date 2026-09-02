@@ -19,19 +19,19 @@ using IdentityTypeSerialiser =
   ccf::kv::serialisers::BlitSerialiser<ccf::IdentityType>;
 
 static constexpr std::array<ccf::IdentityType, 2> IDENTITY_TYPES = {
-  ccf::IdentityType::ES384, ccf::IdentityType::MLDSA65};
+  ccf::IdentityType::ES, ccf::IdentityType::MLDSA};
 
-TEST_CASE("ES384 shares the serialised key of a single-Value table")
+TEST_CASE("ES shares the serialised key of a single-Value table")
 {
   // ServiceValue is a Map with a single entry, whose key is 8 null bytes. A
   // table keyed by IdentityType is therefore serialised identically to a
-  // ServiceValue for as long as ES384 is its only entry.
+  // ServiceValue for as long as ES is its only entry.
   REQUIRE(
-    IdentityTypeSerialiser::to_serialised(ccf::IdentityType::ES384) ==
+    IdentityTypeSerialiser::to_serialised(ccf::IdentityType::ES) ==
     ccf::kv::serialisers::ZeroBlitUnitCreator::get());
 
   REQUIRE(
-    IdentityTypeSerialiser::to_serialised(ccf::IdentityType::MLDSA65) !=
+    IdentityTypeSerialiser::to_serialised(ccf::IdentityType::MLDSA) !=
     ccf::kv::serialisers::ZeroBlitUnitCreator::get());
 }
 
@@ -59,8 +59,8 @@ TEST_CASE("Unknown identity types are rejected")
 TEST_CASE("IdentityType names are distinct and stable")
 {
   // These names will appear in the ledger, so they must not change.
-  REQUIRE(nlohmann::json(ccf::IdentityType::ES384) == "ES384");
-  REQUIRE(nlohmann::json(ccf::IdentityType::MLDSA65) == "MLDSA65");
+  REQUIRE(nlohmann::json(ccf::IdentityType::ES) == "ES");
+  REQUIRE(nlohmann::json(ccf::IdentityType::MLDSA) == "MLDSA");
 
   std::set<std::string> names;
   for (const auto identity_type : IDENTITY_TYPES)
@@ -74,10 +74,10 @@ TEST_CASE("IdentityType names are distinct and stable")
 TEST_CASE("Identity round-trips through JSON")
 {
   const ccf::Identity identity{
-    ccf::IdentityKind::RawX509Key, std::vector<uint8_t>{1, 2, 3, 4}};
+    ccf::IdentityKind::X509_SPKI_DER, std::vector<uint8_t>{1, 2, 3, 4}};
 
   const nlohmann::json j = identity;
-  REQUIRE(j["kind"] == "RawX509Key");
+  REQUIRE(j["kind"] == "X509_SPKI_DER");
 
   REQUIRE(j.get<ccf::Identity>() == identity);
 }
@@ -85,10 +85,10 @@ TEST_CASE("Identity round-trips through JSON")
 TEST_CASE("Identities round-trips through JSON")
 {
   const ccf::Identities identities{
-    {ccf::IdentityType::ES384,
-     {ccf::IdentityKind::RawX509Cert, std::vector<uint8_t>{1, 2}}},
-    {ccf::IdentityType::MLDSA65,
-     {ccf::IdentityKind::RawX509Key, std::vector<uint8_t>{3, 4}}}};
+    {ccf::IdentityType::ES,
+     {ccf::IdentityKind::X509_CERT_DER, std::vector<uint8_t>{1, 2}}},
+    {ccf::IdentityType::MLDSA,
+     {ccf::IdentityKind::X509_SPKI_DER, std::vector<uint8_t>{3, 4}}}};
 
   const nlohmann::json j = identities;
   REQUIRE(j.get<ccf::Identities>() == identities);

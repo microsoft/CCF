@@ -14,25 +14,24 @@ namespace ccf
 {
   enum class IdentityType : uint64_t
   {
-    ES384 = 0,
-    MLDSA65 = 1,
+    ES = 0,
+    MLDSA = 1,
   };
 
   DECLARE_JSON_ENUM(
-    IdentityType,
-    {{IdentityType::ES384, "ES384"}, {IdentityType::MLDSA65, "MLDSA65"}});
+    IdentityType, {{IdentityType::ES, "ES"}, {IdentityType::MLDSA, "MLDSA"}});
 
   enum class IdentityKind : uint8_t
   {
-    RawX509Cert = 0,
-    RawX509Key = 1,
+    X509_CERT_DER = 0,
+    X509_SPKI_DER = 1,
     // COSE key and JWK representations may be added here in the future.
   };
 
   DECLARE_JSON_ENUM(
     IdentityKind,
-    {{IdentityKind::RawX509Cert, "RawX509Cert"},
-     {IdentityKind::RawX509Key, "RawX509Key"}});
+    {{IdentityKind::X509_CERT_DER, "X509_CERT_DER"},
+     {IdentityKind::X509_SPKI_DER, "X509_SPKI_DER"}});
 
   using IdentityValue = std::vector<uint8_t>;
 
@@ -53,7 +52,7 @@ namespace ccf
 namespace ccf::kv::serialisers
 {
   // IdentityType is used as a KV key by tables which were previously a single
-  // Value. ES384 is 0, so it serialises to the same bytes as the unit key of
+  // Value. ES is 0, so it serialises to the same bytes as the unit key of
   // those tables, keeping their serialised form unchanged.
   template <>
   struct BlitSerialiser<ccf::IdentityType>
@@ -69,10 +68,10 @@ namespace ccf::kv::serialisers
       const auto value = BlitSerialiser<uint64_t>::from_serialised(data);
       switch (value)
       {
-        case static_cast<uint64_t>(ccf::IdentityType::ES384):
-          return ccf::IdentityType::ES384;
-        case static_cast<uint64_t>(ccf::IdentityType::MLDSA65):
-          return ccf::IdentityType::MLDSA65;
+        case static_cast<uint64_t>(ccf::IdentityType::ES):
+          return ccf::IdentityType::ES;
+        case static_cast<uint64_t>(ccf::IdentityType::MLDSA):
+          return ccf::IdentityType::MLDSA;
         default:
           throw std::logic_error(
             fmt::format("Unknown identity type: {}", value));
