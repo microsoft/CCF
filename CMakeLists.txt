@@ -511,6 +511,7 @@ install(
   DESTINATION include/ccf/_private
   FILES_MATCHING
   PATTERN "*.h"
+  PATTERN "msgpack/*" EXCLUDE
   PATTERN "*/test*" EXCLUDE
 )
 
@@ -748,6 +749,18 @@ if(BUILD_TESTS)
         ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/cbor_fuzz.cpp
       )
       target_link_libraries(cbor_fuzz_test PRIVATE evercbor)
+    endif()
+
+    add_unit_test(
+      msgpack_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/msgpack/test/msgpack_unit.cpp
+    )
+
+    if(FUZZING)
+      add_fuzz_test(
+        msgpack_fuzz_test
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/msgpack/test/msgpack_fuzz.cpp
+      )
     endif()
 
     add_unit_test(
@@ -1060,6 +1073,7 @@ if(BUILD_TESTS)
     add_picobench(map_bench SRCS src/ds/test/map_bench.cpp)
     add_picobench(logger_bench SRCS src/ds/test/logger_bench.cpp)
     add_picobench(json_bench SRCS src/ds/test/json_bench.cpp)
+    add_picobench(msgpack_bench SRCS src/msgpack/test/msgpack_bench.cpp)
     add_picobench(ring_buffer_bench SRCS src/ds/test/ring_buffer_bench.cpp)
     add_picobench(ledger_bench SRCS src/host/test/ledger_bench.cpp)
     add_picobench(crypto_bench SRCS src/crypto/test/bench.cpp LINK_LIBS)
@@ -1281,6 +1295,7 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
     BUCKET bucket_c
     DETECT_DEADLOCKS
+    TSAN_SUPPRESSIONS ${CCF_DIR}/tsan_e2e_logging_suppressions
     ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
   )
 
