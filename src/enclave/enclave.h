@@ -124,7 +124,7 @@ namespace ccf
       context->install_subsystem(indexer);
 
       lfs_access = std::make_shared<ccf::indexing::EnclaveLFSAccess>(
-        writer_factory->create_writer_to_outside());
+        ccf::tasks::get_main_job_board());
       context->install_subsystem(lfs_access);
 
       context->install_subsystem(std::make_shared<ccf::NodeOperation>(*node));
@@ -269,8 +269,6 @@ namespace ccf
 
         // reconstruct oversized messages sent to the enclave
         oversized::FragmentReconstructor fr(bp.get_dispatcher());
-
-        lfs_access->register_message_handlers(bp.get_dispatcher());
 
         DISPATCHER_SET_MESSAGE_HANDLER(
           bp, AdminMessage::stop, [this, &bp](const uint8_t*, size_t) {
