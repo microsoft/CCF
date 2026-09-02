@@ -57,7 +57,7 @@ namespace ccf::tasks
   {
   protected:
     struct PImpl;
-    std::unique_ptr<PImpl> pimpl = nullptr;
+    std::unique_ptr<PImpl> pimpl;
 
     struct ResumeOrderedTasks;
 

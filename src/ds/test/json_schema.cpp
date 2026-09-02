@@ -3,6 +3,7 @@
 #include "ccf/ds/json.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+#include <algorithm>
 #include <doctest/doctest.h>
 #include <nlohmann/json.hpp>
 #include <vector>
@@ -598,14 +599,14 @@ TEST_CASE("JSON with different field names")
   for (const auto s : required_json_fields)
   {
     REQUIRE(properties.find(s) != properties.end());
-    REQUIRE(std::find(required.begin(), required.end(), s) != required.end());
+    REQUIRE(std::ranges::contains(required, s));
   }
 
   std::vector<char const*> optional_json_fields{"A", "OTHER_NAME", "c"};
   for (const auto s : optional_json_fields)
   {
     REQUIRE(properties.find(s) != properties.end());
-    REQUIRE(std::find(required.begin(), required.end(), s) == required.end());
+    REQUIRE(!std::ranges::contains(required, s));
   }
 
   renamed::Foo foo;

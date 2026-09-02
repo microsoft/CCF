@@ -59,9 +59,9 @@ TEST_CASE("Framework logging macros")
     REQUIRE(logs.size() == 1);
 
     const auto& log = logs[0];
-    REQUIRE(log.find("info") != std::string::npos);
-    REQUIRE(log.find("logger.cpp") != std::string::npos);
-    REQUIRE(log.find("Hello A") != std::string::npos);
+    REQUIRE(log.contains("info"));
+    REQUIRE(log.contains("logger.cpp"));
+    REQUIRE(log.contains("Hello A"));
 
     logs.clear();
   }
@@ -72,9 +72,9 @@ TEST_CASE("Framework logging macros")
     REQUIRE(logs.size() == 1);
 
     const auto& log = logs[0];
-    REQUIRE(log.find("fail") != std::string::npos);
-    REQUIRE(log.find("logger.cpp") != std::string::npos);
-    REQUIRE(log.find("Hello B") != std::string::npos);
+    REQUIRE(log.contains("fail"));
+    REQUIRE(log.contains("logger.cpp"));
+    REQUIRE(log.contains("Hello B"));
 
     logs.clear();
   }
@@ -85,9 +85,9 @@ TEST_CASE("Framework logging macros")
     REQUIRE(logs.size() == 1);
 
     const auto& log = logs[0];
-    REQUIRE(log.find("fatal") != std::string::npos);
-    REQUIRE(log.find("logger.cpp") != std::string::npos);
-    REQUIRE(log.find("Hello C") != std::string::npos);
+    REQUIRE(log.contains("fatal"));
+    REQUIRE(log.contains("logger.cpp"));
+    REQUIRE(log.contains("Hello C"));
 
     logs.clear();
   }
@@ -108,10 +108,10 @@ TEST_CASE("Application logging macros")
     REQUIRE(logs.size() == 1);
 
     const auto& log = logs[0];
-    REQUIRE(log.find("info") != std::string::npos);
-    REQUIRE(log.find("[app]") != std::string::npos);
-    REQUIRE(log.find("logger.cpp") != std::string::npos);
-    REQUIRE(log.find("Hello A") != std::string::npos);
+    REQUIRE(log.contains("info"));
+    REQUIRE(log.contains("[app]"));
+    REQUIRE(log.contains("logger.cpp"));
+    REQUIRE(log.contains("Hello A"));
 
     logs.clear();
   }
@@ -122,10 +122,10 @@ TEST_CASE("Application logging macros")
     REQUIRE(logs.size() == 1);
 
     const auto& log = logs[0];
-    REQUIRE(log.find("fail") != std::string::npos);
-    REQUIRE(log.find("[app]") != std::string::npos);
-    REQUIRE(log.find("logger.cpp") != std::string::npos);
-    REQUIRE(log.find("Hello B") != std::string::npos);
+    REQUIRE(log.contains("fail"));
+    REQUIRE(log.contains("[app]"));
+    REQUIRE(log.contains("logger.cpp"));
+    REQUIRE(log.contains("Hello B"));
 
     logs.clear();
   }
@@ -136,10 +136,10 @@ TEST_CASE("Application logging macros")
     REQUIRE(logs.size() == 1);
 
     const auto& log = logs[0];
-    REQUIRE(log.find("fatal") != std::string::npos);
-    REQUIRE(log.find("[app]") != std::string::npos);
-    REQUIRE(log.find("logger.cpp") != std::string::npos);
-    REQUIRE(log.find("Hello C") != std::string::npos);
+    REQUIRE(log.contains("fatal"));
+    REQUIRE(log.contains("[app]"));
+    REQUIRE(log.contains("logger.cpp"));
+    REQUIRE(log.contains("Hello C"));
 
     logs.clear();
   }
@@ -167,10 +167,10 @@ TEST_CASE("Custom logging macros")
     REQUIRE(logs.size() == 1);
 
     const auto& log = logs[0];
-    REQUIRE(log.find("info") != std::string::npos);
-    REQUIRE(log.find(custom_tag) != std::string::npos);
-    REQUIRE(log.find("logger.cpp") != std::string::npos);
-    REQUIRE(log.find("Some message") != std::string::npos);
+    REQUIRE(log.contains("info"));
+    REQUIRE(log.contains(custom_tag));
+    REQUIRE(log.contains("logger.cpp"));
+    REQUIRE(log.contains("Some message"));
 
     logs.clear();
   }
@@ -181,21 +181,20 @@ TEST_CASE("Custom logging macros")
     REQUIRE(logs.size() == 1);
 
     const auto& log = logs[0];
-    REQUIRE(log.find("info") != std::string::npos);
+    REQUIRE(log.contains("info"));
     // Search for smaller prefixes of the long tag, expect that one is
     // eventually present
     std::string truncated_tag = custom_long_tag;
     while (truncated_tag.size() > 0)
     {
-      const auto search = log.find(truncated_tag);
-      if (search != std::string::npos)
+      if (log.contains(truncated_tag))
       {
         break;
       }
       truncated_tag.resize(truncated_tag.size() - 1);
     }
     REQUIRE(truncated_tag.size() > 0);
-    REQUIRE(log.find("Some other message") != std::string::npos);
+    REQUIRE(log.contains("Some other message"));
 
     logs.clear();
   }

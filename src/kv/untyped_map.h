@@ -631,13 +631,6 @@ namespace ccf::kv::untyped
       return ok;
     }
 
-#ifndef __cpp_impl_three_way_comparison
-    bool operator!=(const Map& that) const
-    {
-      return !(*this == that);
-    }
-#endif
-
     std::unique_ptr<AbstractMap::Snapshot> snapshot(Version v) override
     {
       // This takes a snapshot of the state of the map at the last entry
