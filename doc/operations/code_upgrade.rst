@@ -212,7 +212,7 @@ The ``apply(transparent_statements)`` function receives an array of transparent 
     [
       {
         phdr: {                           // COSE_Sign1 protected header
-          alg: <int>,                     // REQUIRED - COSE algorithm (e.g. -9 for ESP256)
+          alg: <int>,                     // REQUIRED - COSE algorithm (e.g. -7 for ES256)
           cty: <int|string|undefined>,    // OPTIONAL - content type
           x5chain: [<string>, ...],       // REQUIRED - certificate chain (PEM)
           cwt: {                          // CWT claims
@@ -271,7 +271,8 @@ Example Policy
         }
 
         for (const r of ts.receipts) {
-          if (r.alg !== -51) {
+          // ESP384, or the deprecated ES384 emitted by older services
+          if (r.alg !== -51 && r.alg !== -35) {
             return "Unexpected receipt algorithm: " + r.alg;
           }
           if (r.vds !== 1) {
