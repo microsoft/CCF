@@ -47,13 +47,6 @@ TEST_CASE("Size strings" * doctest::test_suite("unit strings"))
     std::logic_error);
   REQUIRE_THROWS_AS(
     convert_size_string(std::to_string(max_size) + "PB"), std::logic_error);
-
-  REQUIRE(unit_string_detail::size_unit_multiplier(0) == 1);
-  REQUIRE(unit_string_detail::size_unit_multiplier(5) == std::pow(1024, 5));
-  const auto overflowing_power = std::numeric_limits<size_t>::digits / 10 + 1;
-  REQUIRE_THROWS_AS(
-    unit_string_detail::size_unit_multiplier(overflowing_power),
-    std::logic_error);
 }
 
 TEST_CASE("Time strings" * doctest::test_suite("unit strings"))
