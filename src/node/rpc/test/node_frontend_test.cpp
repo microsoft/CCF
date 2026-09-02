@@ -12,6 +12,10 @@
 #include "node_stub.h"
 #include "service/internal_tables_access.h"
 
+#include <latch>
+#include <thread>
+#include <vector>
+
 using namespace ccf;
 using namespace nlohmann;
 
@@ -22,10 +26,11 @@ auto node_id = 0;
 TResponse frontend_process(
   NodeRpcFrontend& frontend,
   const json& json_params,
-  const std::string& method,
-  const ccf::crypto::Pem& caller)
+  const std::string& path,
+  const ccf::crypto::Pem& caller,
+  llhttp_method method = HTTP_POST)
 {
-  ::http::Request r(method);
+  ::http::Request r(path, method);
   const auto body = json_params.is_null() ? std::string() : json_params.dump();
   r.set_body(body);
   auto serialise_request = r.build_request();
@@ -46,6 +51,17 @@ TResponse frontend_process(
 
   return processor.received.front();
 }
+
+class TestNodeRpcFrontend : public NodeRpcFrontend
+{
+public:
+  using NodeRpcFrontend::NodeRpcFrontend;
+
+  ccf::endpoints::EndpointRegistry& get_node_endpoints()
+  {
+    return node_endpoints;
+  }
+};
 
 void require_ledger_secrets_equal(
   const LedgerSecretsMap& first, const LedgerSecretsMap& second)
@@ -175,6 +191,52 @@ TEST_CASE("Add a node to an opening service")
     check_error_message(
       http_response, "A node with the same published node address");
   }
+}
+
+TEST_CASE("JWT refresh metrics are thread-safe")
+{
+  NetworkState network;
+  StubNodeContext context;
+  TestNodeRpcFrontend frontend(network, context);
+  frontend.open();
+
+  constexpr size_t worker_count = 4;
+  constexpr size_t iterations = 1'000;
+  std::latch start(worker_count);
+  std::vector<std::thread> workers;
+  workers.reserve(worker_count);
+
+  const ccf::endpoints::RequestCompletedEvent successful_refresh{
+    "POST", "/jwt_keys/refresh", HTTP_STATUS_OK};
+  const ccf::endpoints::RequestCompletedEvent failed_refresh{
+    "POST", "/jwt_keys/refresh", HTTP_STATUS_INTERNAL_SERVER_ERROR};
+
+  auto& node_endpoints = frontend.get_node_endpoints();
+  for (size_t i = 0; i < worker_count; ++i)
+  {
+    workers.emplace_back([&]() {
+      start.arrive_and_wait();
+      for (size_t j = 0; j < iterations; ++j)
+      {
+        node_endpoints.handle_event_request_completed(successful_refresh);
+        node_endpoints.handle_event_request_completed(failed_refresh);
+      }
+    });
+  }
+
+  for (auto& worker : workers)
+  {
+    worker.join();
+  }
+
+  const auto response = frontend_process(
+    frontend, json(), "jwt_keys/refresh/metrics", member_cert, HTTP_GET);
+  REQUIRE(response.status == HTTP_STATUS_OK);
+
+  const auto metrics = parse_response_body<JWTRefreshMetrics>(response);
+  CHECK(metrics.attempts == worker_count * iterations * 2);
+  CHECK(metrics.successes == worker_count * iterations);
+  CHECK(metrics.failures == worker_count * iterations);
 }
 
 TEST_CASE("Add a node to an open service")
