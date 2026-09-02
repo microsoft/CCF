@@ -603,6 +603,59 @@ class Node:
             f"node {self.local_node_id} after {timeout}s"
         )
 
+    def find_local_ledger_start_seqno(self, target_seqno, timeout=5):
+        earliest_start_seqno = None
+        next_seqno = target_seqno
+        end_time = time.time() + timeout
+
+        with self.client(
+            interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
+        ) as c:
+            while True:
+                r = c.head(
+                    f"/node/ledger_chunk?since={next_seqno}",
+                    allow_redirects=False,
+                )
+                if r.status_code == http.HTTPStatus.PERMANENT_REDIRECT:
+                    chunk_url = urllib.parse.urlparse(r.headers["Location"])
+                    if not chunk_url.query:
+                        chunk_name = os.path.basename(chunk_url.path)
+                        start_seqno, end_seqno = ccf.ledger.range_from_filename(
+                            chunk_name
+                        )
+                        assert (
+                            end_seqno is not None
+                            and start_seqno <= next_seqno <= end_seqno
+                        ), f"Ledger chunk {chunk_name} does not cover seqno {next_seqno}"
+
+                        earliest_start_seqno = start_seqno
+                        if start_seqno == 1:
+                            return start_seqno
+
+                        next_seqno = start_seqno - 1
+                        end_time = time.time() + timeout
+                        continue
+
+                if r.status_code not in (
+                    http.HTTPStatus.NOT_FOUND,
+                    http.HTTPStatus.PERMANENT_REDIRECT,
+                ):
+                    raise RuntimeError(
+                        f"Unexpected response while finding local ledger start "
+                        f"covering seqno {next_seqno}: {r}"
+                    )
+
+                if earliest_start_seqno is not None:
+                    return earliest_start_seqno
+
+                if time.time() >= end_time:
+                    raise TimeoutError(
+                        f"Could not find local ledger chunk covering seqno "
+                        f"{target_seqno} on node {self.local_node_id} after "
+                        f"{timeout}s"
+                    )
+                time.sleep(0.1)
+
     def _download_ledger(
         self,
         ledger_dir,
