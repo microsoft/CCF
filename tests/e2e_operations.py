@@ -1296,6 +1296,22 @@ def test_ledger_chunk_access(network, args):
             range_etag == f'"sha-256=:{range_expected_b64}:"'
         ), f"Range ETag mismatch: expected sha-256=:{range_expected_b64}:, got {range_etag}"
 
+        # A suffix longer than the representation selects the full content.
+        r = c.get(
+            chunk_url,
+            headers={"range": f"bytes=-{total_size + 1}"},
+            allow_redirects=False,
+        )
+        assert r.status_code == http.HTTPStatus.PARTIAL_CONTENT.value, r
+        assert r.body.data() == chunk_data
+
+        r = c.get(
+            chunk_url,
+            headers={"range": "bytes=-0"},
+            allow_redirects=False,
+        )
+        assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r
+
         # Non-matching If-None-Match on range -> fresh partial download
         r = c.call(
             chunk_url,
@@ -1484,6 +1500,140 @@ def test_ledger_chunk_repr_digest(network, args):
         ), f"Expected partial body of {range_end + 1} bytes, got {len(r.body.data())}"
 
 
+def test_committed_ledger_prefix_access(network, args):
+    primary, _ = network.find_primary()
+    first_txid = network.txs.issue(
+        network, number_txs=1, send_private=False, send_public=True
+    )
+
+    with primary.client(
+        interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
+    ) as c:
+        locator = f"/node/ledger_chunk?since={first_txid.seqno}"
+
+        r = c.get(locator, allow_redirects=False)
+        assert r.status_code == http.HTTPStatus.NOT_FOUND, r
+
+        r = c.get(f"{locator}&include_committed_prefix=false", allow_redirects=False)
+        assert r.status_code == http.HTTPStatus.NOT_FOUND, r
+
+        r = c.get(f"{locator}&include_committed_prefix=invalid", allow_redirects=False)
+        assert r.status_code == http.HTTPStatus.BAD_REQUEST, r
+
+        r = c.head(f"{locator}&include_committed_prefix=true", allow_redirects=False)
+        assert r.status_code == http.HTTPStatus.TEMPORARY_REDIRECT, r
+        assert r.headers["cache-control"] == "no-store", r
+
+        r = c.get(f"{locator}&include_committed_prefix=true", allow_redirects=False)
+        assert r.status_code == http.HTTPStatus.TEMPORARY_REDIRECT, r
+        assert r.headers["cache-control"] == "no-store", r
+        prefix_url = urllib.parse.urlparse(r.headers["Location"]).path
+        first_prefix_name = os.path.basename(prefix_url)
+        assert first_prefix_name.endswith(
+            ccf.ledger.COMMITTED_PREFIX_FILE_SUFFIX
+        ), first_prefix_name
+        first_start, first_end = ccf.ledger.range_from_filename(first_prefix_name)
+        assert first_start == first_txid.seqno
+        assert first_end is not None and first_end >= first_start
+
+        r = c.head(prefix_url, allow_redirects=False)
+        assert r.status_code == http.HTTPStatus.OK, r
+        assert r.headers["cache-control"] == "no-store", r
+        assert r.headers["x-ms-ccf-ledger-chunk-kind"] == "committed-prefix", r
+        assert r.headers["x-ms-ccf-ledger-chunk-name"] == first_prefix_name, r
+        prefix_size = int(r.headers["content-length"])
+        first_etag = r.headers["etag"]
+
+        r = c.get(
+            prefix_url,
+            allow_redirects=False,
+            headers={"want-repr-digest": "sha-256=1"},
+        )
+        assert r.status_code == http.HTTPStatus.OK, r
+        assert r.headers["cache-control"] == "no-store", r
+        first_prefix = r.body.data()
+        assert len(first_prefix) == prefix_size
+        expected_digest = base64.b64encode(
+            hashlib.sha256(first_prefix).digest()
+        ).decode()
+        assert r.headers["repr-digest"] == f"sha-256=:{expected_digest}:"
+
+        range_end = min(31, prefix_size - 1)
+        r = c.get(
+            prefix_url,
+            allow_redirects=False,
+            headers={"range": f"bytes=0-{range_end}"},
+        )
+        assert r.status_code == http.HTTPStatus.PARTIAL_CONTENT, r
+        assert r.headers["cache-control"] == "no-store", r
+        assert r.body.data() == first_prefix[: range_end + 1]
+
+        with tempfile.TemporaryDirectory() as ledger_dir:
+            first_path = os.path.join(ledger_dir, first_prefix_name)
+            with open(first_path, "wb") as prefix_file:
+                prefix_file.write(first_prefix)
+
+            chunk = ccf.ledger.LedgerChunk(first_path)
+            assert chunk.get_seqnos() == (first_start, first_end)
+            assert len(chunk) == first_end - first_start + 1
+            assert not chunk.is_committed()
+            assert len(ccf.ledger.Ledger([ledger_dir])) == 0
+
+            second_txid = network.txs.issue(
+                network, number_txs=1, send_private=False, send_public=True
+            )
+            assert second_txid.seqno > first_end
+
+            r = c.get(prefix_url, allow_redirects=False)
+            assert r.status_code == http.HTTPStatus.OK, r
+            assert r.body.data() == first_prefix
+            assert r.headers["etag"] == first_etag
+
+            next_seqno = first_end + 1
+            r = c.get(
+                "/node/ledger_chunk"
+                f"?since={next_seqno}&include_committed_prefix=true",
+                allow_redirects=False,
+            )
+            assert r.status_code == http.HTTPStatus.TEMPORARY_REDIRECT, r
+            assert r.headers["cache-control"] == "no-store", r
+            second_url = urllib.parse.urlparse(r.headers["Location"]).path
+            second_prefix_name = os.path.basename(second_url)
+            second_start, second_end = ccf.ledger.range_from_filename(
+                second_prefix_name
+            )
+            assert second_start == next_seqno
+            assert second_end is not None and second_end >= second_txid.seqno
+
+            r = c.get(second_url, allow_redirects=False)
+            assert r.status_code == http.HTTPStatus.OK, r
+            second_path = os.path.join(ledger_dir, second_prefix_name)
+            with open(second_path, "wb") as prefix_file:
+                prefix_file.write(r.body.data())
+
+            ledger = ccf.ledger.Ledger([ledger_dir], committed_only=False)
+            assert len(ledger) == 2
+            assert [chunk.get_seqnos() for chunk in ledger] == [
+                (first_start, first_end),
+                (second_start, second_end),
+            ]
+
+        r = c.get(
+            "/node/ledger_chunk"
+            f"?since={second_end + 1_000_000}&include_committed_prefix=true",
+            allow_redirects=False,
+        )
+        assert r.status_code == http.HTTPStatus.NOT_FOUND, r
+        assert r.headers["cache-control"] == "no-store", r
+
+        r = c.get(
+            "/node/ledger_chunk/committed_prefix/not-a-prefix",
+            allow_redirects=False,
+        )
+        assert r.status_code == http.HTTPStatus.BAD_REQUEST, r
+        assert r.headers["cache-control"] == "no-store", r
+
+
 def test_ledger_chunk_redirect_recent(network, args):
     """
     Access ledger chunk that is missing locally on a backup, after the initial index,
@@ -1506,10 +1656,6 @@ def test_ledger_chunk_redirect_recent(network, args):
     with late_backup.client(
         interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
     ) as c:
-        r = c.head(
-            f"/node/ledger_chunk?since={start_of_last_chunk}", allow_redirects=False
-        )
-        assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value, r
         expected_host = primary.get_public_rpc_host(
             interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
         )
@@ -1517,6 +1663,23 @@ def test_ledger_chunk_redirect_recent(network, args):
             interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
         )
         expected_location = f"https://{infra.interfaces.make_address(expected_host, expected_port)}/node/ledger_chunk?since={start_of_last_chunk}"
+
+        r = c.head(
+            f"/node/ledger_chunk?since={start_of_last_chunk}"
+            "&include_committed_prefix=true",
+            allow_redirects=False,
+        )
+        assert r.status_code == http.HTTPStatus.TEMPORARY_REDIRECT.value, r
+        assert r.headers["cache-control"] == "no-store", r
+        assert (
+            r.headers["Location"]
+            == f"{expected_location}&include_committed_prefix=true"
+        ), r
+
+        r = c.head(
+            f"/node/ledger_chunk?since={start_of_last_chunk}", allow_redirects=False
+        )
+        assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value, r
         assert r.headers["Location"] == expected_location, r
         r = c.get(
             f"/node/ledger_chunk?since={start_of_last_chunk}", allow_redirects=True
@@ -1582,6 +1745,21 @@ def test_ledger_chunk_redirect_gap(network, args):
         with new_node.client(
             interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
         ) as c:
+            r = c.head(
+                f"/node/ledger_chunk?since={download_index}"
+                "&include_committed_prefix=true",
+                allow_redirects=False,
+            )
+            assert r.status_code == http.HTTPStatus.TEMPORARY_REDIRECT.value, r
+            assert r.headers["cache-control"] == "no-store", r
+            redirect_query = urllib.parse.parse_qs(
+                urllib.parse.urlparse(r.headers["Location"]).query
+            )
+            assert redirect_query == {
+                "since": [str(download_index)],
+                "include_committed_prefix": ["true"],
+            }, r
+
             r = c.head(
                 f"/node/ledger_chunk?since={download_index}", allow_redirects=False
             )
@@ -1692,6 +1870,18 @@ def run_ledger_chunk_download(args):
         test_ledger_chunk_repr_digest(network, args)
         test_ledger_chunk_redirect_recent(network, args)
         test_ledger_chunk_redirect_gap(network, args)
+
+
+def run_committed_ledger_prefix_download(args):
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        pdb=args.pdb,
+        txs=app.LoggingTxs("user0"),
+    ) as network:
+        network.start_and_open(args)
+        test_committed_ledger_prefix_access(network, args)
 
 
 def run_tls_san_checks(const_args):

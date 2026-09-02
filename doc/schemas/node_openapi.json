@@ -919,7 +919,7 @@
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "5.0.6"
+    "version": "5.0.7"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -1192,7 +1192,7 @@
     },
     "/node/ledger_chunk": {
       "get": {
-        "description": "Redirect to the corresponding /node/ledger_chunk/{chunk_name} endpoint for the ledger chunk including the sequence number specified in the 'since' query parameter.",
+        "description": "Redirect to the corresponding /node/ledger_chunk/{chunk_name} endpoint for the ledger chunk including the sequence number specified in the 'since' query parameter. If 'include_committed_prefix' is true and no committed file is available, this may temporarily redirect to a synthetic committed-prefix resource.",
         "operationId": "GetNodeLedgerChunk",
         "parameters": [
           {
@@ -1202,9 +1202,20 @@
             "schema": {
               "$ref": "#/components/schemas/uint64"
             }
+          },
+          {
+            "in": "query",
+            "name": "include_committed_prefix",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/boolean"
+            }
           }
         ],
         "responses": {
+          "307": {
+            "description": "Redirect to a temporary committed ledger prefix."
+          },
           "308": {
             "description": "Redirect to the selected ledger chunk."
           },
@@ -1221,7 +1232,7 @@
         }
       },
       "head": {
-        "description": "Redirect to the corresponding /node/ledger_chunk/{chunk_name} endpoint for the ledger chunk including the sequence number specified in the 'since' query parameter.",
+        "description": "Redirect to the corresponding /node/ledger_chunk/{chunk_name} endpoint for the ledger chunk including the sequence number specified in the 'since' query parameter. If 'include_committed_prefix' is true and no committed file is available, this may temporarily redirect to a synthetic committed-prefix resource.",
         "operationId": "HeadNodeLedgerChunk",
         "parameters": [
           {
@@ -1231,9 +1242,20 @@
             "schema": {
               "$ref": "#/components/schemas/uint64"
             }
+          },
+          {
+            "in": "query",
+            "name": "include_committed_prefix",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/boolean"
+            }
           }
         ],
         "responses": {
+          "307": {
+            "description": "Redirect to a temporary committed ledger prefix."
+          },
           "308": {
             "description": "Redirect to the selected ledger chunk."
           },
@@ -1249,6 +1271,82 @@
           "$ref": "#/components/x-ccf-forwarding/never"
         }
       }
+    },
+    "/node/ledger_chunk/committed_prefix/{chunk_name}": {
+      "get": {
+        "description": "Download a synthetic chunk containing only committed ledger entries. Supports HTTP Range and digest headers. The resource is not a canonical .committed ledger file and must not be used for recovery.",
+        "operationId": "GetNodeLedgerChunkCommittedPrefixChunkName",
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/Binary"
+                }
+              }
+            },
+            "description": "The requested committed ledger prefix."
+          },
+          "206": {
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/Binary"
+                }
+              }
+            },
+            "description": "The requested byte range of the committed ledger prefix."
+          },
+          "304": {
+            "description": "The requested committed ledger prefix has not changed."
+          },
+          "404": {
+            "description": "The requested committed ledger prefix is not available."
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "summary": "Download committed ledger prefix",
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/never"
+        }
+      },
+      "head": {
+        "description": "Metadata about a synthetic chunk containing only committed ledger entries. The resource is not a canonical .committed ledger file.",
+        "operationId": "HeadNodeLedgerChunkCommittedPrefixChunkName",
+        "responses": {
+          "200": {
+            "description": "Metadata for the requested committed ledger prefix."
+          },
+          "206": {
+            "description": "Metadata for the requested committed ledger prefix range."
+          },
+          "304": {
+            "description": "The requested committed ledger prefix has not changed."
+          },
+          "404": {
+            "description": "The requested committed ledger prefix is not available."
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "summary": "Committed ledger prefix metadata",
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/never"
+        }
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "chunk_name",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ]
     },
     "/node/ledger_chunk/{chunk_name}": {
       "get": {
