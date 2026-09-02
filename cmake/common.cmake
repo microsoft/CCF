@@ -1,12 +1,17 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-# DETECT_DEADLOCKS opts a test out of the repository-wide TSAN suppressions
-# (which otherwise hide lock-order-inversion reports from src/kv/store.h and
-# src/kv/untyped_map.h), and turns on TSAN's deadlock detector, which is off
-# by default. Use this only for tests specifically targeting lock ordering.
+# DETECT_DEADLOCKS opts a test out of the repository-wide TSAN suppressions and
+# turns on TSAN's deadlock detector, which is off by default. TSAN_SUPPRESSIONS
+# may select a narrower suppression file for that test.
 function(add_san_test_properties name)
-  cmake_parse_arguments(PARSE_ARGV 1 PARSED_ARGS "DETECT_DEADLOCKS" "" "")
+  cmake_parse_arguments(
+    PARSE_ARGV 1
+    PARSED_ARGS
+    "DETECT_DEADLOCKS"
+    "TSAN_SUPPRESSIONS"
+    ""
+  )
 
   if(SAN)
     set_property(
@@ -18,12 +23,20 @@ function(add_san_test_properties name)
 
   if(TSAN)
     if(PARSED_ARGS_DETECT_DEADLOCKS)
+      set(
+        TSAN_OPTIONS
+        "detect_deadlocks=1:halt_on_error=1:second_deadlock_stack=1"
+      )
+      if(PARSED_ARGS_TSAN_SUPPRESSIONS)
+        string(
+          APPEND TSAN_OPTIONS
+          ":suppressions=${PARSED_ARGS_TSAN_SUPPRESSIONS}"
+        )
+      endif()
       set_property(
         TEST ${name}
         APPEND
-        PROPERTY
-          ENVIRONMENT
-            "TSAN_OPTIONS=detect_deadlocks=1:halt_on_error=1:second_deadlock_stack=1"
+        PROPERTY ENVIRONMENT "TSAN_OPTIONS=${TSAN_OPTIONS}"
       )
     else()
       set_property(
@@ -127,7 +140,7 @@ function(add_e2e_test)
     PARSE_ARGV 0
     PARSED_ARGS
     "DETECT_DEADLOCKS"
-    "NAME;PYTHON_SCRIPT;LABEL;CURL_CLIENT;BUCKET"
+    "NAME;PYTHON_SCRIPT;LABEL;CURL_CLIENT;BUCKET;TSAN_SUPPRESSIONS"
     "CONSTITUTION;ADDITIONAL_ARGS;CONFIGURATIONS"
   )
 
@@ -193,6 +206,13 @@ function(add_e2e_test)
     set(SAN_TEST_ARGS "")
     if(PARSED_ARGS_DETECT_DEADLOCKS)
       set(SAN_TEST_ARGS DETECT_DEADLOCKS)
+    endif()
+    if(PARSED_ARGS_TSAN_SUPPRESSIONS)
+      list(
+        APPEND SAN_TEST_ARGS
+        TSAN_SUPPRESSIONS
+        ${PARSED_ARGS_TSAN_SUPPRESSIONS}
+      )
     endif()
     add_san_test_properties(${PARSED_ARGS_NAME} ${SAN_TEST_ARGS})
 
