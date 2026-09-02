@@ -224,7 +224,7 @@ The ``apply(transparent_statements)`` function receives an array of transparent 
         },
         receipts: [                       // at least one CCF receipt
           {
-            alg: <int>,                   // REQUIRED - signature algorithm (-51 for ESP384, CCF's default service identity curve)
+            alg: <int>,                   // REQUIRED - signature algorithm
             vds: <int>,                   // REQUIRED - verifiable data structure (1 = CCF_LEDGER_SHA256)
             kid: <string|undefined>,      // OPTIONAL - key identifier
             cwt: {                        // receipt CWT claims
@@ -271,7 +271,7 @@ Example Policy
         }
 
         for (const r of ts.receipts) {
-          if (r.alg !== -51 && r.alg !== -35) {
+          if (r.alg !== -7) {
             return "Unexpected receipt algorithm: " + r.alg;
           }
           if (r.vds !== 1) {
