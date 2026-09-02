@@ -14,13 +14,13 @@ namespace ccf
 {
   enum class IdentityType : uint64_t
   {
-    EC384 = 0,
+    ES384 = 0,
     MLDSA65 = 1,
   };
 
   DECLARE_JSON_ENUM(
     IdentityType,
-    {{IdentityType::EC384, "EC384"}, {IdentityType::MLDSA65, "MLDSA65"}});
+    {{IdentityType::ES384, "ES384"}, {IdentityType::MLDSA65, "MLDSA65"}});
 
   enum class IdentityKind : uint8_t
   {
@@ -53,7 +53,7 @@ namespace ccf
 namespace ccf::kv::serialisers
 {
   // IdentityType is used as a KV key by tables which were previously a single
-  // Value. EC384 is 0, so it serialises to the same bytes as the unit key of
+  // Value. ES384 is 0, so it serialises to the same bytes as the unit key of
   // those tables, keeping their serialised form unchanged.
   template <>
   struct BlitSerialiser<ccf::IdentityType>
@@ -69,8 +69,8 @@ namespace ccf::kv::serialisers
       const auto value = BlitSerialiser<uint64_t>::from_serialised(data);
       switch (value)
       {
-        case static_cast<uint64_t>(ccf::IdentityType::EC384):
-          return ccf::IdentityType::EC384;
+        case static_cast<uint64_t>(ccf::IdentityType::ES384):
+          return ccf::IdentityType::ES384;
         case static_cast<uint64_t>(ccf::IdentityType::MLDSA65):
           return ccf::IdentityType::MLDSA65;
         default:
