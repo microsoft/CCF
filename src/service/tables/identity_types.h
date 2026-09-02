@@ -25,7 +25,6 @@ namespace ccf
   {
     X509_CERT_DER = 0,
     X509_SPKI_DER = 1,
-    // COSE key and JWK representations may be added here in the future.
   };
 
   DECLARE_JSON_ENUM(
