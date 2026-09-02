@@ -5,6 +5,8 @@
 # Very crude and incomplete check, but should catch at least egregiously
 # uncompiled but exported headers.
 
+set -o pipefail
+
 find src/ include/ -type f -print0 | xargs -0 grep -h "#include" | grep -E "include .?ccf/" | cut -d " " -f 2 | jq -r . | grep -v "ccf/version.h" | grep -v "ccf/ccf_deprecated.h" | sort -u  > /tmp/CCF_INCLUDED
 
 pushd include/ || exit 1
