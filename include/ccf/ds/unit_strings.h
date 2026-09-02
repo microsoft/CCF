@@ -6,13 +6,52 @@
 #include "ccf/ds/nonstd.h"
 
 #include <charconv>
-#include <cmath>
 #include <limits>
 #include <nlohmann/json.hpp>
 #include <string>
 
 namespace ccf::ds
 {
+  namespace unit_string_detail
+  {
+    inline size_t size_unit_multiplier(size_t power)
+    {
+      constexpr size_t base = 1024;
+      size_t factor = 1;
+      for (size_t i = 0; i < power; ++i)
+      {
+        if (factor > std::numeric_limits<size_t>::max() / base)
+        {
+          throw std::logic_error("Size string unit multiplier is too large");
+        }
+        factor *= base;
+      }
+
+      return factor;
+    }
+
+    inline size_t convert_size_value(size_t value, size_t power)
+    {
+      const auto factor = size_unit_multiplier(power);
+
+      if (value > std::numeric_limits<size_t>::max() / factor)
+      {
+        throw std::logic_error(fmt::format(
+          "Size string value {} with multiplier {} exceeds the largest "
+          "representable size",
+          value,
+          factor));
+      }
+
+      return value * factor;
+    }
+
+    inline size_t convert_time_value(size_t value, size_t multiplier)
+    {
+      return value * multiplier;
+    }
+  }
+
   // Inspired by CLI11's AsNumberWithUnit
   class UnitStringConverter
   {
@@ -75,53 +114,26 @@ namespace ccf::ds
     }
   };
 
-  static size_t convert_size_string(const std::string_view& input)
+  inline size_t convert_size_string(const std::string_view& input)
   {
     std::map<std::string_view, size_t> size_suffix_to_power = {
       {"b", 0}, {"kb", 1}, {"mb", 2}, {"gb", 3}, {"tb", 4}, {"pb", 5}};
 
     return UnitStringConverter::convert(
-      input, size_suffix_to_power, [](size_t value, size_t power) {
-        constexpr size_t base = 1024;
-        size_t factor = 1;
-        for (size_t i = 0; i < power; ++i)
-        {
-          if (factor > std::numeric_limits<size_t>::max() / base)
-          {
-            throw std::logic_error("Size string unit multiplier is too large");
-          }
-          factor *= base;
-        }
-
-        if (value > std::numeric_limits<size_t>::max() / factor)
-        {
-          throw std::logic_error(fmt::format(
-            "Size string value {} with multiplier {} exceeds the largest "
-            "representable size",
-            value,
-            factor));
-        }
-
-        return value * factor;
-      });
+      input, size_suffix_to_power, unit_string_detail::convert_size_value);
   }
 
-  static size_t convert_time_string(const std::string_view& input)
+  inline size_t convert_time_string(const std::string_view& input)
   {
-    std::map<std::string_view, std::pair<size_t, size_t>> size_suffix_to_power =
-      {{"", {1, 0}},
-       {"us", {1, 0}},
-       {"ms", {1, 3}},
-       {"s", {1, 6}},
-       {"min", {60, 6}},
-       {"h", {36, 8}}};
+    std::map<std::string_view, size_t> time_suffix_to_multiplier = {
+      {"us", 1},
+      {"ms", 1'000},
+      {"s", 1'000'000},
+      {"min", 60'000'000},
+      {"h", 3'600'000'000}};
 
     return UnitStringConverter::convert(
-      input,
-      size_suffix_to_power,
-      [](size_t value, const std::pair<size_t, size_t>& factors) {
-        return value * factors.first * std::pow(10, factors.second);
-      });
+      input, time_suffix_to_multiplier, unit_string_detail::convert_time_value);
   }
 
   struct UnitString
@@ -173,7 +185,7 @@ namespace ccf::ds
   inline std::string schema_name(
     [[maybe_unused]] const SizeString* size_string_type)
   {
-    return "TimeString";
+    return "SizeString";
   }
 
   inline void fill_json_schema(
