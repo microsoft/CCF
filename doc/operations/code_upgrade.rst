@@ -271,7 +271,6 @@ Example Policy
         }
 
         for (const r of ts.receipts) {
-          // ESP384, or the deprecated ES384 emitted by older services
           if (r.alg !== -51 && r.alg !== -35) {
             return "Unexpected receipt algorithm: " + r.alg;
           }
