@@ -33,7 +33,9 @@ The helper maps CMake ``Debug`` builds to Cargo's development profile and all
 other build types to Cargo's release profile. It also links the generic C++ ABI
 bridge, launcher, and CCF libraries. Cargo is invoked on every build and decides
 whether the crate is up to date, so Rust source edits do not require CMake to be
-reconfigured. The application should commit ``Cargo.lock`` and pin a Rust
+reconfigured. ``LIB_NAME`` defaults to the package name with dashes replaced by
+underscores; set it explicitly when the crate's ``[lib] name`` differs from its
+package name. The application should commit ``Cargo.lock`` and pin a Rust
 toolchain for reproducible builds.
 
 The complete records example is in :ccf_repo:`samples/apps/basic_rust`. It

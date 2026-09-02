@@ -15,4 +15,5 @@ add_ccf_rust_app(
   basic_rust
   MANIFEST_PATH ${CMAKE_CURRENT_LIST_DIR}/Cargo.toml
   PACKAGE ccf-basic-rust
+  LIB_NAME ccf_basic_rust_app
 )

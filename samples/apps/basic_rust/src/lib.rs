@@ -51,6 +51,24 @@ fn register(registry: &mut Registry) -> Result<(), BridgeError> {
         Ok(())
     })?;
 
+    registry.read_only("/header-validation", "GET", Auth::None, |context| {
+        for (name, value) in [
+            ("bad name", "value"),
+            ("bad\r\nname", "value"),
+            ("x-test", "bad\r\nx-injected: true"),
+            ("x-test", "bad\u{7f}"),
+        ] {
+            if context.set_header(name, value) != Err(BridgeError::InvalidArgument) {
+                return Err(EndpointError::internal(
+                    "Invalid response header was accepted",
+                ));
+            }
+        }
+        context.set_header("x-valid", "safe\tvalue")?;
+        context.set_status(204)?;
+        Ok(())
+    })?;
+
     Ok(())
 }
 

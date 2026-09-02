@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [lib]
+name = "ccf_basic_rust_app"
 crate-type = ["staticlib"]
 
 [dependencies]

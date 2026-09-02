@@ -53,13 +53,22 @@ function(add_ccf_app name)
 endfunction()
 
 function(add_ccf_rust_app name)
-  cmake_parse_arguments(PARSE_ARGV 1 PARSED_ARGS "" "MANIFEST_PATH;PACKAGE" "")
+  cmake_parse_arguments(
+    PARSE_ARGV 1
+    PARSED_ARGS
+    ""
+    "MANIFEST_PATH;PACKAGE;LIB_NAME"
+    ""
+  )
 
   if(NOT PARSED_ARGS_MANIFEST_PATH)
     message(FATAL_ERROR "add_ccf_rust_app requires MANIFEST_PATH")
   endif()
   if(NOT PARSED_ARGS_PACKAGE)
     set(PARSED_ARGS_PACKAGE ${name})
+  endif()
+  if(NOT PARSED_ARGS_LIB_NAME)
+    set(PARSED_ARGS_LIB_NAME ${PARSED_ARGS_PACKAGE})
   endif()
 
   find_program(CARGO NAMES cargo REQUIRED)
@@ -80,7 +89,7 @@ function(add_ccf_rust_app name)
     set(CARGO_PROFILE_DIR release)
   endif()
 
-  string(REPLACE "-" "_" RUST_LIB_NAME ${PARSED_ARGS_PACKAGE})
+  string(REPLACE "-" "_" RUST_LIB_NAME ${PARSED_ARGS_LIB_NAME})
   get_filename_component(MANIFEST_PATH ${PARSED_ARGS_MANIFEST_PATH} ABSOLUTE)
   get_filename_component(MANIFEST_DIR ${MANIFEST_PATH} DIRECTORY)
   set(CARGO_TARGET_DIR ${CMAKE_CURRENT_BINARY_DIR}/cargo/${name})

@@ -94,6 +94,73 @@ namespace
     return value.data != nullptr || value.len == 0;
   }
 
+  bool is_http_header_name_character(uint8_t value)
+  {
+    if (
+      (value >= '0' && value <= '9') || (value >= 'A' && value <= 'Z') ||
+      (value >= 'a' && value <= 'z'))
+    {
+      return true;
+    }
+
+    switch (value)
+    {
+      case '!':
+      case '#':
+      case '$':
+      case '%':
+      case '&':
+      case '\'':
+      case '*':
+      case '+':
+      case '-':
+      case '.':
+      case '^':
+      case '_':
+      case '`':
+      case '|':
+      case '~':
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  bool is_valid_http_header_name(const ccf_rust_slice& name)
+  {
+    if (name.data == nullptr || name.len == 0)
+    {
+      return false;
+    }
+
+    for (size_t i = 0; i < name.len; ++i)
+    {
+      if (!is_http_header_name_character(name.data[i]))
+      {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  bool is_valid_http_header_value(const ccf_rust_slice& value)
+  {
+    if (!is_valid_utf8(value))
+    {
+      return false;
+    }
+
+    for (size_t i = 0; i < value.len; ++i)
+    {
+      const auto byte = value.data[i];
+      if ((byte < 0x20 && byte != '\t') || byte == 0x7f)
+      {
+        return false;
+      }
+    }
+    return true;
+  }
+
   bool is_known_http_status(uint16_t status)
   {
     switch (status)
@@ -494,8 +561,8 @@ extern "C"
     ccf_rust_endpoint_context* ctx, ccf_rust_slice name, ccf_rust_slice value)
   {
     if (
-      ctx == nullptr || !is_valid_utf8(name) || name.len == 0 ||
-      !is_valid_utf8(value))
+      ctx == nullptr || !is_valid_http_header_name(name) ||
+      !is_valid_http_header_value(value))
     {
       return CCF_RUST_INVALID_ARGUMENT;
     }
