@@ -363,7 +363,7 @@ DOCTEST_TEST_CASE(
   }
 
   LOG_INFO_FMT("Found {} conflicts", conflict_count.load());
-  DOCTEST_CHECK(conflict_seen_before_deadline);
+  DOCTEST_REQUIRE(conflict_seen_before_deadline);
   const auto last_write_version = kv_store.current_version();
 
   {
