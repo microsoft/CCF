@@ -416,15 +416,15 @@ TEST_CASE("make_cose_verifier_any_cert with PEM and DER certificates")
 
 TEST_CASE("ECDSA algorithm identifiers")
 {
-  // Fully-specified ESP identifiers, as required by RFC 9864.
-  REQUIRE(ccf::cose::is_ecdsa_alg(-9)); // ESP256
-  REQUIRE(ccf::cose::is_ecdsa_alg(-51)); // ESP384
-  REQUIRE(ccf::cose::is_ecdsa_alg(-52)); // ESP512
-
-  // Deprecated ES identifiers remain accepted.
+  // Deprecated ES identifiers.
   REQUIRE(ccf::cose::is_ecdsa_alg(-7)); // ES256
   REQUIRE(ccf::cose::is_ecdsa_alg(-35)); // ES384
   REQUIRE(ccf::cose::is_ecdsa_alg(-36)); // ES512
+
+  // Fully-specified ESP identifiers, as introduced by RFC 9864.
+  REQUIRE(ccf::cose::is_ecdsa_alg(-9)); // ESP256
+  REQUIRE(ccf::cose::is_ecdsa_alg(-51)); // ESP384
+  REQUIRE(ccf::cose::is_ecdsa_alg(-52)); // ESP512
 
   REQUIRE_FALSE(ccf::cose::is_ecdsa_alg(-8)); // EdDSA
   REQUIRE_FALSE(ccf::cose::is_ecdsa_alg(-37)); // PS256

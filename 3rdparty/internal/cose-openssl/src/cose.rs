@@ -13,14 +13,12 @@ const SIG_STRUCTURE1_CONTEXT: &str = "Signature1";
 const CBOR_SIMPLE_VALUE_NULL: u8 = 22;
 
 /// Return the COSE algorithm identifier for a given key.
-/// EC keys use the fully-specified ESP identifiers of RFC 9864, which
-/// deprecates the curve-agnostic ES ones.
 /// https://www.iana.org/assignments/cose/cose.xhtml
 fn cose_alg(key: &EvpKey) -> Result<i64, String> {
     match &key.typ {
-        KeyType::EC(WhichEC::P256) => Ok(-9),
-        KeyType::EC(WhichEC::P384) => Ok(-51),
-        KeyType::EC(WhichEC::P521) => Ok(-52),
+        KeyType::EC(WhichEC::P256) => Ok(-7),
+        KeyType::EC(WhichEC::P384) => Ok(-35),
+        KeyType::EC(WhichEC::P521) => Ok(-36),
         KeyType::RSA(WhichRSA::PS256) => Ok(-37),
         KeyType::RSA(WhichRSA::PS384) => Ok(-38),
         KeyType::RSA(WhichRSA::PS512) => Ok(-39),
@@ -33,15 +31,15 @@ fn cose_alg(key: &EvpKey) -> Result<i64, String> {
     }
 }
 
-/// Return the deprecated ES algorithm identifier equivalent to the
-/// fully-specified ESP one a key would be signed with, if any. The two
-/// are interchangeable on verification because the curve, and therefore
-/// the digest, is fixed by the key.
-fn deprecated_cose_alg(key: &EvpKey) -> Option<i64> {
+/// Return the fully-specified ESP algorithm identifier of RFC 9864 which
+/// is equivalent to the ES one a key signs with, if any. The two are
+/// interchangeable on verification because the curve, and therefore the
+/// digest, is fixed by the key.
+fn fully_specified_cose_alg(key: &EvpKey) -> Option<i64> {
     match &key.typ {
-        KeyType::EC(WhichEC::P256) => Some(-7),
-        KeyType::EC(WhichEC::P384) => Some(-35),
-        KeyType::EC(WhichEC::P521) => Some(-36),
+        KeyType::EC(WhichEC::P256) => Some(-9),
+        KeyType::EC(WhichEC::P384) => Some(-51),
+        KeyType::EC(WhichEC::P521) => Some(-52),
         _ => None,
     }
 }
@@ -126,7 +124,7 @@ pub fn cose_sign1(
 
 /// Verify a COSE_Sign1 from pre-parsed components. The caller supplies
 /// the serialized protected header, payload, fixed-size signature (all
-/// as byte slices), and the COSE algorithm integer (e.g. -9 for ESP256).
+/// as byte slices), and the COSE algorithm integer (e.g. -7 for ES256).
 pub fn cose_verify1(
     key: &EvpKey,
     alg: i64,
@@ -141,7 +139,8 @@ pub fn cose_verify1(
         }
         _ => {
             let expected_alg = cose_alg(key)?;
-            if alg != expected_alg && Some(alg) != deprecated_cose_alg(key) {
+            if alg != expected_alg && Some(alg) != fully_specified_cose_alg(key)
+            {
                 return Err(
                     "Algorithm mismatch between supplied alg and key".into()
                 );
@@ -245,28 +244,28 @@ mod tests {
     }
 
     #[test]
-    fn cose_sign1_uses_fully_specified_alg() {
-        for (which, esp) in [
-            (WhichEC::P256, -9),
-            (WhichEC::P384, -51),
-            (WhichEC::P521, -52),
+    fn cose_sign1_uses_deprecated_es_alg() {
+        for (which, es) in [
+            (WhichEC::P256, -7),
+            (WhichEC::P384, -35),
+            (WhichEC::P521, -36),
         ] {
             let key = EvpKey::new(KeyType::EC(which)).unwrap();
             let phdr = CborValue::Map(vec![]);
             let phdr_with_alg = insert_alg_value(&key, phdr).unwrap();
             assert_eq!(
                 phdr_with_alg.map_at_int(COSE_HEADER_ALG).unwrap(),
-                &CborValue::Int(esp)
+                &CborValue::Int(es)
             );
         }
     }
 
     #[test]
-    fn cose_verify1_accepts_deprecated_es_alg() {
-        for (which, es) in [
-            (WhichEC::P256, -7),
-            (WhichEC::P384, -35),
-            (WhichEC::P521, -36),
+    fn cose_verify1_accepts_fully_specified_esp_alg() {
+        for (which, esp) in [
+            (WhichEC::P256, -9),
+            (WhichEC::P384, -51),
+            (WhichEC::P521, -52),
         ] {
             let key = EvpKey::new(KeyType::EC(which)).unwrap();
             let phdr_bytes = hex_decode(TEST_PHDR);
@@ -296,7 +295,7 @@ mod tests {
             };
 
             assert!(
-                cose_verify1(&key, es, &phdr_raw, payload, &sig_raw).unwrap()
+                cose_verify1(&key, esp, &phdr_raw, payload, &sig_raw).unwrap()
             );
         }
     }

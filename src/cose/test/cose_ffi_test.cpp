@@ -139,19 +139,19 @@ TEST_CASE("cose_sign_ledger sign and verify round-trip")
   CHECK(wrong_err.to_string() == "Signature verification failed");
 }
 
-TEST_CASE("Signing uses fully-specified ESP algorithms")
+TEST_CASE("Verification accepts fully-specified ESP algorithms")
 {
   struct Curve
   {
     ccf::crypto::CurveID id;
+    int64_t es;
     int64_t esp;
-    int64_t deprecated_es;
   };
 
   const std::vector<Curve> curves = {
-    {ccf::crypto::CurveID::SECP256R1, -9, -7},
-    {ccf::crypto::CurveID::SECP384R1, -51, -35},
-    {ccf::crypto::CurveID::SECP521R1, -52, -36}};
+    {ccf::crypto::CurveID::SECP256R1, -7, -9},
+    {ccf::crypto::CurveID::SECP384R1, -35, -51},
+    {ccf::crypto::CurveID::SECP521R1, -36, -52}};
 
   for (const auto& curve : curves)
   {
@@ -185,11 +185,11 @@ TEST_CASE("Signing uses fully-specified ESP algorithms")
     auto envelope = buf.to_vector();
     auto c = decompose(envelope);
 
-    CHECK(c.alg == curve.esp);
+    CHECK(c.alg == curve.es);
     CHECK(verify_decoded(key.pub_der, c, c.payload.value()) == 0);
 
-    // The deprecated ES equivalent remains acceptable on verification.
-    c.alg = curve.deprecated_es;
+    // The fully-specified ESP equivalent is acceptable on verification.
+    c.alg = curve.esp;
     CHECK(verify_decoded(key.pub_der, c, c.payload.value()) == 0);
   }
 }
