@@ -433,7 +433,7 @@ pub unsafe extern "C" fn cose_key_from_der_cert(
 ///
 /// `key` must be a valid pointer from `cose_key_from_der_public` or
 /// `cose_key_from_der_private`.
-/// `alg` is the COSE algorithm integer (e.g. -7 for ES256).
+/// `alg` is the COSE algorithm integer (e.g. -9 for ESP256).
 ///
 /// Returns 0 on successful verification, non-zero on failure.
 ///

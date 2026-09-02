@@ -139,6 +139,61 @@ TEST_CASE("cose_sign_ledger sign and verify round-trip")
   CHECK(wrong_err.to_string() == "Signature verification failed");
 }
 
+TEST_CASE("Signing uses fully-specified ESP algorithms")
+{
+  struct Curve
+  {
+    ccf::crypto::CurveID id;
+    int64_t esp;
+    int64_t deprecated_es;
+  };
+
+  const std::vector<Curve> curves = {
+    {ccf::crypto::CurveID::SECP256R1, -9, -7},
+    {ccf::crypto::CurveID::SECP384R1, -51, -35},
+    {ccf::crypto::CurveID::SECP521R1, -52, -36}};
+
+  for (const auto& curve : curves)
+  {
+    TestKey key(curve.id);
+    CoseBuffer key_err;
+    auto cose_key =
+      CoseKey::from_private(key.priv_der.data(), key.priv_der.size(), key_err);
+    REQUIRE(cose_key.is_set());
+
+    const std::string epoch_begin = "1.1";
+    const std::vector<uint8_t> payload = {0xCA, 0xFE};
+
+    CoseBuffer buf;
+    CoseBuffer sign_err;
+    auto rc = cose_sign_endorsement(
+      cose_key,
+      0,
+      reinterpret_cast<const uint8_t*>(epoch_begin.data()),
+      epoch_begin.size(),
+      nullptr,
+      0,
+      nullptr,
+      0,
+      payload.data(),
+      payload.size(),
+      buf,
+      sign_err);
+    REQUIRE(rc == 0);
+    REQUIRE(buf.is_set());
+
+    auto envelope = buf.to_vector();
+    auto c = decompose(envelope);
+
+    CHECK(c.alg == curve.esp);
+    CHECK(verify_decoded(key.pub_der, c, c.payload.value()) == 0);
+
+    // The deprecated ES equivalent remains acceptable on verification.
+    c.alg = curve.deprecated_es;
+    CHECK(verify_decoded(key.pub_der, c, c.payload.value()) == 0);
+  }
+}
+
 TEST_CASE("cose_sign_ledger fails with invalid key")
 {
   const std::vector<uint8_t> bad_key = {0, 1, 2, 3};

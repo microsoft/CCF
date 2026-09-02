@@ -13,12 +13,14 @@ const SIG_STRUCTURE1_CONTEXT: &str = "Signature1";
 const CBOR_SIMPLE_VALUE_NULL: u8 = 22;
 
 /// Return the COSE algorithm identifier for a given key.
+/// EC keys use the fully-specified ESP identifiers of RFC 9864, which
+/// deprecates the curve-agnostic ES ones.
 /// https://www.iana.org/assignments/cose/cose.xhtml
 fn cose_alg(key: &EvpKey) -> Result<i64, String> {
     match &key.typ {
-        KeyType::EC(WhichEC::P256) => Ok(-7),
-        KeyType::EC(WhichEC::P384) => Ok(-35),
-        KeyType::EC(WhichEC::P521) => Ok(-36),
+        KeyType::EC(WhichEC::P256) => Ok(-9),
+        KeyType::EC(WhichEC::P384) => Ok(-51),
+        KeyType::EC(WhichEC::P521) => Ok(-52),
         KeyType::RSA(WhichRSA::PS256) => Ok(-37),
         KeyType::RSA(WhichRSA::PS384) => Ok(-38),
         KeyType::RSA(WhichRSA::PS512) => Ok(-39),
@@ -28,6 +30,19 @@ fn cose_alg(key: &EvpKey) -> Result<i64, String> {
             WhichMLDSA::P65 => Ok(-49),
             WhichMLDSA::P87 => Ok(-50),
         },
+    }
+}
+
+/// Return the deprecated ES algorithm identifier equivalent to the
+/// fully-specified ESP one a key would be signed with, if any. The two
+/// are interchangeable on verification because the curve, and therefore
+/// the digest, is fixed by the key.
+fn deprecated_cose_alg(key: &EvpKey) -> Option<i64> {
+    match &key.typ {
+        KeyType::EC(WhichEC::P256) => Some(-7),
+        KeyType::EC(WhichEC::P384) => Some(-35),
+        KeyType::EC(WhichEC::P521) => Some(-36),
+        _ => None,
     }
 }
 
@@ -111,7 +126,7 @@ pub fn cose_sign1(
 
 /// Verify a COSE_Sign1 from pre-parsed components. The caller supplies
 /// the serialized protected header, payload, fixed-size signature (all
-/// as byte slices), and the COSE algorithm integer (e.g. -7 for ES256).
+/// as byte slices), and the COSE algorithm integer (e.g. -9 for ESP256).
 pub fn cose_verify1(
     key: &EvpKey,
     alg: i64,
@@ -126,7 +141,7 @@ pub fn cose_verify1(
         }
         _ => {
             let expected_alg = cose_alg(key)?;
-            if alg != expected_alg {
+            if alg != expected_alg && Some(alg) != deprecated_cose_alg(key) {
                 return Err(
                     "Algorithm mismatch between supplied alg and key".into()
                 );
@@ -230,6 +245,63 @@ mod tests {
     }
 
     #[test]
+    fn cose_sign1_uses_fully_specified_alg() {
+        for (which, esp) in [
+            (WhichEC::P256, -9),
+            (WhichEC::P384, -51),
+            (WhichEC::P521, -52),
+        ] {
+            let key = EvpKey::new(KeyType::EC(which)).unwrap();
+            let phdr = CborValue::Map(vec![]);
+            let phdr_with_alg = insert_alg_value(&key, phdr).unwrap();
+            assert_eq!(
+                phdr_with_alg.map_at_int(COSE_HEADER_ALG).unwrap(),
+                &CborValue::Int(esp)
+            );
+        }
+    }
+
+    #[test]
+    fn cose_verify1_accepts_deprecated_es_alg() {
+        for (which, es) in [
+            (WhichEC::P256, -7),
+            (WhichEC::P384, -35),
+            (WhichEC::P521, -36),
+        ] {
+            let key = EvpKey::new(KeyType::EC(which)).unwrap();
+            let phdr_bytes = hex_decode(TEST_PHDR);
+            let phdr = CborValue::from_bytes(&phdr_bytes).unwrap();
+            let uhdr = CborValue::Map(vec![]);
+            let payload = b"Good boy...";
+
+            let envelope =
+                cose_sign1(&key, phdr, uhdr, payload, false).unwrap();
+
+            let parsed = CborValue::from_bytes(&envelope).unwrap();
+            let inner = match parsed {
+                CborValue::Tagged { payload, .. } => *payload,
+                _ => panic!("not tagged"),
+            };
+            let items = match inner {
+                CborValue::Array(v) => v,
+                _ => panic!("not array"),
+            };
+            let phdr_raw = match &items[0] {
+                CborValue::ByteString(b) => b.clone(),
+                _ => panic!("phdr not bstr"),
+            };
+            let sig_raw = match &items[3] {
+                CborValue::ByteString(b) => b.clone(),
+                _ => panic!("sig not bstr"),
+            };
+
+            assert!(
+                cose_verify1(&key, es, &phdr_raw, payload, &sig_raw).unwrap()
+            );
+        }
+    }
+
+    #[test]
     fn cose_detached_payload() {
         let key = EvpKey::new(KeyType::EC(WhichEC::P256)).unwrap();
         let phdr_bytes = hex_decode(TEST_PHDR);
@@ -266,10 +338,12 @@ mod tests {
     #[test]
     fn cose_verify1_wrong_alg() {
         let key = EvpKey::new(KeyType::EC(WhichEC::P256)).unwrap();
-        assert_eq!(
-            cose_verify1(&key, -35, b"", b"", b"").unwrap_err(),
-            "Algorithm mismatch between supplied alg and key"
-        );
+        for alg in [-35, -51] {
+            assert_eq!(
+                cose_verify1(&key, alg, b"", b"", b"").unwrap_err(),
+                "Algorithm mismatch between supplied alg and key"
+            );
+        }
     }
 
     #[test]

@@ -102,7 +102,7 @@ extern "C"
     const uint8_t* der_ptr, size_t der_len, uint8_t** err_ptr, size_t* err_len);
 
   /// Verify a COSE_Sign1 using a pre-created key handle.
-  /// alg: COSE algorithm integer (e.g. -7 for ES256).
+  /// alg: COSE algorithm integer (e.g. -9 for ESP256).
   /// Returns 0 on successful verification, non-zero on failure.
   /// On failure, if err_ptr/err_len are non-null, an error message
   /// is written there.

@@ -413,3 +413,27 @@ TEST_CASE("make_cose_verifier_any_cert with PEM and DER certificates")
     CHECK_THROWS(ccf::crypto::make_cose_verifier_any_cert(garbage));
   }
 }
+
+TEST_CASE("ECDSA algorithm identifiers")
+{
+  // Fully-specified ESP identifiers, as required by RFC 9864.
+  REQUIRE(ccf::cose::is_ecdsa_alg(-9)); // ESP256
+  REQUIRE(ccf::cose::is_ecdsa_alg(-51)); // ESP384
+  REQUIRE(ccf::cose::is_ecdsa_alg(-52)); // ESP512
+
+  // Deprecated ES identifiers remain accepted.
+  REQUIRE(ccf::cose::is_ecdsa_alg(-7)); // ES256
+  REQUIRE(ccf::cose::is_ecdsa_alg(-35)); // ES384
+  REQUIRE(ccf::cose::is_ecdsa_alg(-36)); // ES512
+
+  REQUIRE_FALSE(ccf::cose::is_ecdsa_alg(-8)); // EdDSA
+  REQUIRE_FALSE(ccf::cose::is_ecdsa_alg(-37)); // PS256
+  REQUIRE_FALSE(ccf::cose::is_ecdsa_alg(-47)); // ES256K
+  REQUIRE_FALSE(ccf::cose::is_ecdsa_alg(0));
+
+  REQUIRE(ccf::cose::is_rsa_alg(-37)); // PS256
+  REQUIRE(ccf::cose::is_rsa_alg(-38)); // PS384
+  REQUIRE(ccf::cose::is_rsa_alg(-39)); // PS512
+  REQUIRE_FALSE(ccf::cose::is_rsa_alg(-9));
+  REQUIRE_FALSE(ccf::cose::is_rsa_alg(-7));
+}
