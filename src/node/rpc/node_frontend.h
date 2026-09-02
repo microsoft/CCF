@@ -13,6 +13,7 @@
 #include "ccf/node/quote.h"
 #include "ccf/odata_error.h"
 #include "ccf/pal/attestation.h"
+#include "ccf/pal/locking.h"
 #include "ccf/service/reconfiguration_type.h"
 #include "ccf/version.h"
 #include "crypto/certs.h"
@@ -442,12 +443,16 @@ namespace ccf
       return make_success(rep);
     }
 
-    JWTRefreshMetrics jwt_refresh_metrics;
+    ccf::pal::Mutex jwt_refresh_metrics_lock;
+    JWTRefreshMetrics jwt_refresh_metrics
+      CCF_GUARDED_BY(jwt_refresh_metrics_lock);
+
     void handle_event_request_completed(
       const ccf::endpoints::RequestCompletedEvent& event) override
     {
       if (event.method == "POST" && event.dispatch_path == "/jwt_keys/refresh")
       {
+        ccf::pal::MutexGuard guard(jwt_refresh_metrics_lock);
         jwt_refresh_metrics.attempts += 1;
         int status_category = event.status / 100;
         if (status_category >= 4)
@@ -1917,7 +1922,12 @@ namespace ccf
 
       auto get_jwt_metrics =
         [this](auto& /*args*/, const nlohmann::json& /*params*/) {
-          return make_success(jwt_refresh_metrics);
+          JWTRefreshMetrics metrics;
+          {
+            ccf::pal::MutexGuard guard(jwt_refresh_metrics_lock);
+            metrics = jwt_refresh_metrics;
+          }
+          return make_success(metrics);
         };
       make_read_only_endpoint(
         "/jwt_keys/refresh/metrics",
