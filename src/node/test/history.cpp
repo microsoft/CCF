@@ -21,6 +21,7 @@
 
 #include <atomic>
 #include <exception>
+#include <stop_token>
 #include <thread>
 
 using MapT = ccf::kv::Map<size_t, size_t>;
