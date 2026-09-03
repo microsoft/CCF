@@ -74,7 +74,11 @@ class HistoricalRangeReader(FastHttpUser):
                     continue
 
                 if response.status_code != 200:
-                    response.failure(f"Unexpected status {response.status_code}")
+                    response.failure(
+                        infra.locust_benchmark_support.describe_unexpected_status(
+                            response
+                        )
+                    )
                     return
 
                 try:
