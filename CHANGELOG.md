@@ -32,6 +32,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Corrected the OpenAPI schema name for `ccf::ds::SizeString` from `TimeString` to `SizeString`. (#8261)
 
+### Fixed
+
+- Nodes which open node-to-node connections to each other at the same moment now agree on which of the two connections to keep, instead of each discarding the one the other is using. Previously both could be left holding a connection whose far end no longer existed, and if the resulting disconnection was not observed - for example because a network partition dropped it - the two nodes would silently stop exchanging consensus messages, stalling elections until one of them restarted (#8233).
+
 ## [7.0.13]
 
 [7.0.13]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.13
