@@ -189,9 +189,9 @@ namespace ccf::kv
      *
      * A transaction can either succeed and replicate
      * (`ccf::kv::CommitResult::SUCCESS`), fail because of a conflict with other
-     * transactions (`ccf::kv::CommitResult::FAIL_CONFLICT`), or succeed
-     * locally, but fail to replicate
-     * (`ccf::kv::CommitResult::FAIL_NO_REPLICATE`).
+     * transactions (`ccf::kv::CommitResult::FAIL_CONFLICT`), or fail to
+     * replicate (`ccf::kv::CommitResult::FAIL_NO_REPLICATE`). A transaction
+     * whose commit term is stale is rejected before its writes are applied.
      *
      * Transactions that fail are rolled back, no matter the reason.
      *
@@ -199,8 +199,6 @@ namespace ccf::kv
      */
     CommitResult commit(
       const ccf::ClaimsDigest& claims = ccf::empty_claims(),
-      std::function<std::tuple<Version, Version>(bool has_new_map)>
-        version_resolver = nullptr,
       WriteSetObserver write_set_observer = nullptr)
     {
       if (committed)
@@ -241,16 +239,25 @@ namespace ccf::kv
       std::optional<Version> new_maps_conflict_version = std::nullopt;
 
       bool track_deletes_on_missing_keys = false;
+      bool commit_term_changed = false;
       std::optional<Version> c;
       {
         MapSetLockGuard map_set_guard(*pimpl->store, maps_created);
         c = apply_changes(
           all_changes,
-          version_resolver == nullptr ?
-            [&](bool has_new_map) {
-              return pimpl->store->next_version(has_new_map);
-            } :
-            version_resolver,
+          [&](bool has_new_map) {
+            auto resolution =
+              pimpl->store->next_version(has_new_map, pimpl->commit_view);
+            commit_term_changed = !resolution.has_value();
+            if (!resolution.has_value())
+            {
+              return std::optional<VersionResolution>{};
+            }
+
+            const auto& resolved = resolution.value();
+            return std::optional<VersionResolution>(
+              std::in_place, std::get<0>(resolved), std::get<1>(resolved));
+          },
           hooks,
           pimpl->created_maps,
           new_maps_conflict_version,
@@ -263,6 +270,13 @@ namespace ccf::kv
       {
         // This Tx is now in a dead state. Caller should create a new Tx and try
         // again.
+        if (commit_term_changed)
+        {
+          LOG_TRACE_FMT(
+            "Could not commit transaction because its commit term changed");
+          return CommitResult::FAIL_NO_REPLICATE;
+        }
+
         LOG_TRACE_FMT("Could not commit transaction due to conflict");
         return CommitResult::FAIL_CONFLICT;
       }

@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [7.0.14]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.14
 
+### Fixed
+
+- If the view changed while a transaction was committing, the transaction could apply its writes to the local key-value store and then fail to replicate, leaving state that never reached consensus. The transaction's view is now validated atomically with the allocation of its version, so it is rejected before any map is modified, and `ccf::kv::CommitResult::FAIL_NO_REPLICATE` no longer implies a locally applied write (#8242).
+
 ### Changed
 
 - CCF and C++ applications built against it now require C++23. The supported minimum Clang version remains 18.1.2. (#8234)
