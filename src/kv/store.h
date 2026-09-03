@@ -2,11 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#if defined(CCF_STATIC_LIBRARY_BUILD)
-#  error \
-    "kv/store.h must never be compiled into ccf_kv, ccf_tasks, or ccfcrypto: their compiled objects are linked, unmodified, by every test binary, including one that recompiles this header with a different ccf::pal::Mutex (see src/commit_concurrency/scheduled/interleaving_lock_override.h) - two different memory layouts for the same class name in one binary would be an ODR violation."
-#endif
-
 #include "apply_changes.h"
 #include "ccf/kv/read_only_store.h"
 #include "ccf/pal/locking.h"

@@ -287,20 +287,13 @@ add_ccf_static_library(
 )
 
 # CCF kv lib
-add_ccf_static_library(
-  ccf_kv
-  SRCS
-    ${CCF_DIR}/src/kv/tx.cpp
-    ${CCF_DIR}/src/kv/untyped_map_handle.cpp
-    ${CCF_DIR}/src/kv/untyped_map_diff.cpp
-  LINK_LIBS ccf_threading
+list(
+  APPEND CCF_KV_SOURCES
+  ${CCF_DIR}/src/kv/tx.cpp
+  ${CCF_DIR}/src/kv/untyped_map_handle.cpp
+  ${CCF_DIR}/src/kv/untyped_map_diff.cpp
 )
-# Enforced (see kv/store.h, consensus/aft/raft.h, consensus/aft/impl/state.h,
-# node/history.h) so that ccf_kv's compiled objects can safely be linked,
-# unmodified, by every test target - including one that recompiles those
-# headers with a different ccf::pal::Mutex (see
-# src/commit_concurrency/scheduled/interleaving_lock_override.h) - without an ODR violation.
-target_compile_definitions(ccf_kv PRIVATE CCF_STATIC_LIBRARY_BUILD)
+add_ccf_static_library(ccf_kv SRCS ${CCF_KV_SOURCES} LINK_LIBS ccf_threading)
 
 # CCF endpoints lib
 add_ccf_static_library(
@@ -329,19 +322,20 @@ add_ccf_static_library(
 )
 
 # CCF task system library
+list(
+  APPEND CCF_TASKS_SOURCES
+  ${CCF_DIR}/src/tasks/task_system.cpp
+  ${CCF_DIR}/src/tasks/job_board.cpp
+  ${CCF_DIR}/src/tasks/ordered_tasks.cpp
+  ${CCF_DIR}/src/tasks/fan_in_tasks.cpp
+  ${CCF_DIR}/src/tasks/thread_manager.cpp
+  ${CCF_DIR}/src/tasks/worker.cpp
+)
 add_ccf_static_library(
   ccf_tasks
-  SRCS
-    ${CCF_DIR}/src/tasks/task_system.cpp
-    ${CCF_DIR}/src/tasks/job_board.cpp
-    ${CCF_DIR}/src/tasks/ordered_tasks.cpp
-    ${CCF_DIR}/src/tasks/fan_in_tasks.cpp
-    ${CCF_DIR}/src/tasks/thread_manager.cpp
-    ${CCF_DIR}/src/tasks/worker.cpp
+  SRCS ${CCF_TASKS_SOURCES}
   LINK_LIBS ccf_threading
 )
-# See the comment on ccf_kv's own CCF_STATIC_LIBRARY_BUILD above.
-target_compile_definitions(ccf_tasks PRIVATE CCF_STATIC_LIBRARY_BUILD)
 
 find_library(BACKTRACE_LIBRARY backtrace)
 if(NOT BACKTRACE_LIBRARY)
@@ -768,21 +762,14 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/commit_concurrency/scheduled/deterministic_scheduler_test.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/commit_concurrency/scheduled/main.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/commit_concurrency/scheduled/rejected_commit.cpp
-      # ccf::tasks' own sources (normally built once into ccf_tasks and
-      # shared unmodified - see kv_test's use of ccf_kv, for example) are
-      # rebuilt here instead of linking ccf_tasks, so that they see the
-      # same -include below as everything else in this target: ccf::tasks
-      # keeps a process-wide job board (a real ccf::pal::Mutex user) that
-      # outlives any single explored schedule, so every thread that can
-      # reach it - including any of ccf::tasks' own internals - needs the
-      # same scheduler-aware lock for DriverRegistration (see
-      # deterministic_scheduler.h) to keep it consistent across schedules.
-      ${CCF_DIR}/src/tasks/task_system.cpp
-      ${CCF_DIR}/src/tasks/job_board.cpp
-      ${CCF_DIR}/src/tasks/ordered_tasks.cpp
-      ${CCF_DIR}/src/tasks/fan_in_tasks.cpp
-      ${CCF_DIR}/src/tasks/thread_manager.cpp
-      ${CCF_DIR}/src/tasks/worker.cpp
+      # ccf_kv/ccf_tasks are normally built once and linked, unmodified,
+      # everywhere. This target overrides ccf::pal::Mutex via -include
+      # instead, so recompiles their sources directly, to avoid linking two
+      # differently-laid-out definitions of the same class (ODR violation).
+      # ccf_tasks also keeps a process-wide job board (a real Mutex user)
+      # that needs the same scheduler-aware lock as everything else here.
+      ${CCF_KV_SOURCES}
+      ${CCF_TASKS_SOURCES}
       DETECT_DEADLOCKS
     )
     set_property(
@@ -799,23 +786,28 @@ if(BUILD_TESTS)
         -include
         ${CMAKE_CURRENT_SOURCE_DIR}/src/commit_concurrency/scheduled/interleaving_lock_override.h
     )
-    # ccf_kv and ccfcrypto are safe to share, unmodified, with every other
-    # test target here despite the -include above: none of their own
-    # sources include store.h, raft.h, impl/state.h, or history.h, and
-    # each of those four headers refuses to compile at all into either of
-    # them (CCF_STATIC_LIBRARY_BUILD, set on both below), so this stops
-    # being true loudly, at build time, rather than silently. ccf_tasks is
-    # deliberately not linked here - see the comment on its sources above.
+    # ccfcrypto is safe to link unmodified: unlike ccf_kv/ccf_tasks above, it
+    # never includes store.h, raft.h, impl/state.h, or history.h.
     target_link_libraries(
       commit_concurrency_scheduled_test
       PRIVATE
         ccfcrypto
         http_parser
-        ccf_kv
         ccf_threading
         ${CMAKE_DL_LIBS}
         ${BACKTRACE_LIBRARY}
     )
+    # Fails configure if ccf_kv/ccf_tasks ever get linked here directly
+    # instead of recompiled above (see the comment on their sources).
+    function(ccf_forbid_layout_sensitive_libraries target)
+      get_target_property(_linked_libs ${target} LINK_LIBRARIES)
+      foreach(lib ccf_kv ccf_tasks)
+        if(lib IN_LIST _linked_libs)
+          message(FATAL_ERROR "${target} must not link ${lib} directly")
+        endif()
+      endforeach()
+    endfunction()
+    ccf_forbid_layout_sensitive_libraries(commit_concurrency_scheduled_test)
 
     add_unit_test(
       raft_enclave_test

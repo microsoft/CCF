@@ -51,6 +51,9 @@ endfunction()
 function(add_san_test_properties name)
 endfunction()
 
+function(ccf_forbid_layout_sensitive_libraries target)
+endfunction()
+
 function(add_warning_checks name)
 endfunction()
 
