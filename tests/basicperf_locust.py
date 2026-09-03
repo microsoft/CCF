@@ -21,8 +21,29 @@ import infra.locust_benchmark
 LOCUST_FILE_NAME = "basicperf_locustfile.py"
 BLOCKING_ENDPOINT = "/records/blocking/{key}"
 
+# The framework's own defaults, which the runtime options proposal must
+# restate because it replaces the whole record.
+JS_MAX_HEAP_BYTES = 100 * 1024 * 1024
+JS_MAX_STACK_BYTES = 1024 * 1024
+JS_MAX_EXECUTION_TIME_MS = 5000
 
-def prepare_workload(args, _network, primary) -> infra.locust_benchmark.Workload:
+
+def prepare_workload(args, network, primary) -> infra.locust_benchmark.Workload:
+    if args.js_app_bundle:
+        # A JS handler exception is otherwise reported only as the opaque
+        # "Exception thrown while executing.", with the reason and stack
+        # discarded. Both sinks are enabled so that a rare failure is
+        # described in the node log and in the response body the client
+        # records.
+        network.consortium.set_js_runtime_options(
+            primary,
+            max_heap_bytes=JS_MAX_HEAP_BYTES,
+            max_stack_bytes=JS_MAX_STACK_BYTES,
+            max_execution_time_ms=JS_MAX_EXECUTION_TIME_MS,
+            log_exception_details=True,
+            return_exception_details=True,
+        )
+
     infra.key_space.create_and_fill_key_space(args.key_space_size, primary)
     session_auth = primary.session_auth("user0")["session_auth"]
     return infra.locust_benchmark.Workload(
