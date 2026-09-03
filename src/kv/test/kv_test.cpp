@@ -2982,6 +2982,72 @@ TEST_CASE("Store clear")
   }
 }
 
+TEST_CASE("Stale-view writes are rejected before local application")
+{
+  ccf::kv::Store store;
+  store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+  auto consensus = std::make_shared<ccf::kv::test::PrimaryStubConsensus>();
+  store.set_consensus(consensus);
+
+  constexpr ccf::kv::Term initial_term = 2;
+  constexpr auto key = "key";
+  MapTypes::StringString map("public:map");
+  store.initialise_term(initial_term);
+
+  {
+    auto tx = store.create_tx();
+    tx.rw(map)->put(key, "initial");
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+
+  const auto baseline_txid = store.current_txid();
+  const auto baseline_replica_count = consensus->replica.size();
+
+  auto stale_tx = store.create_tx();
+  stale_tx.rw(map)->put(key, "stale");
+
+  const auto new_term = initial_term + 1;
+  store.rollback(baseline_txid, new_term);
+
+  REQUIRE(stale_tx.commit() == ccf::kv::CommitResult::FAIL_NO_REPLICATE);
+  CHECK(store.current_txid() == baseline_txid);
+  CHECK(consensus->replica.size() == baseline_replica_count);
+  {
+    auto tx = store.create_read_only_tx();
+    CHECK(tx.ro(map)->get(key) == "initial");
+  }
+
+  {
+    auto tx = store.create_tx();
+    tx.rw(map)->put(key, "fresh");
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+
+  CHECK(store.current_txid() == ccf::TxID(new_term, baseline_txid.seqno + 1));
+  CHECK(consensus->replica.size() == baseline_replica_count + 1);
+  {
+    auto tx = store.create_read_only_tx();
+    CHECK(tx.ro(map)->get(key) == "fresh");
+  }
+
+  const auto before_dynamic_map_txid = store.current_txid();
+  auto stale_dynamic_map_tx = store.create_tx();
+  stale_dynamic_map_tx.rw<MapTypes::StringString>("public:new_map")
+    ->put(key, "stale");
+
+  store.rollback(before_dynamic_map_txid, new_term + 1);
+
+  REQUIRE(
+    stale_dynamic_map_tx.commit() == ccf::kv::CommitResult::FAIL_NO_REPLICATE);
+  CHECK(store.current_txid() == before_dynamic_map_txid);
+  CHECK(store.get_map(store.current_version(), "public:new_map") == nullptr);
+
+  auto fresh_dynamic_map_tx = store.create_tx();
+  fresh_dynamic_map_tx.rw<MapTypes::StringString>("public:new_map")
+    ->put(key, "fresh");
+  REQUIRE(fresh_dynamic_map_tx.commit() == ccf::kv::CommitResult::SUCCESS);
+}
+
 TEST_CASE("Reported TxID after commit")
 {
   ccf::kv::Store kv_store;
