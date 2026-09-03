@@ -603,7 +603,7 @@ class Node:
             f"node {self.local_node_id} after {timeout}s"
         )
 
-    def find_local_ledger_start_seqno(self, target_seqno, timeout=5):
+    def _find_local_ledger_start_seqno(self, target_seqno, timeout):
         earliest_start_seqno = None
         next_seqno = target_seqno
         end_time = time.time() + timeout
@@ -684,10 +684,7 @@ class Node:
         if start_seqno is not None:
             next_seqno = start_seqno
         elif local_only:
-            with self.client() as c:
-                r = c.get("/node/state")
-                assert r.status_code == http.HTTPStatus.OK, r
-                next_seqno = max(1, r.body.json()["startup_seqno"] + 1)
+            next_seqno = self._find_local_ledger_start_seqno(target_seqno, timeout)
         else:
             next_seqno = 1
         end_time = time.time() + timeout

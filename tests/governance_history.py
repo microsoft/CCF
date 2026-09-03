@@ -220,13 +220,9 @@ def test_ledger_is_readable(network, args):
     primary, backups = network.find_nodes()
     target_seqno = network.create_and_wait_for_ledger_chunk(primary)
     for node in (primary, *backups):
-        start_seqno = node.find_local_ledger_start_seqno(
-            target_seqno, timeout=args.ledger_recovery_timeout
-        )
         with node.get_ledger_from_api(
             target_seqno,
             local_only=True,
-            start_seqno=start_seqno,
             timeout=args.ledger_recovery_timeout,
         ) as ledger:
             for chunk in ledger:
