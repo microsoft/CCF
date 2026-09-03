@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/pal/locking.h"
+#include "ccf/ds/locking.h"
 #include "ds/internal_logger.h"
 
 #include <unordered_set>
@@ -11,7 +11,7 @@
 namespace asynchost
 {
   static std::unordered_set<uv_getaddrinfo_t*> pending_resolve_requests;
-  static ccf::pal::Mutex pending_resolve_requests_mtx;
+  static ccf::ds::Mutex pending_resolve_requests_mtx;
 
   class DNS
   {
@@ -43,7 +43,7 @@ namespace asynchost
       if (async)
       {
         {
-          std::unique_lock<ccf::pal::Mutex> guard(pending_resolve_requests_mtx);
+          std::unique_lock<ccf::ds::Mutex> guard(pending_resolve_requests_mtx);
           pending_resolve_requests.insert(resolver);
         }
 
@@ -63,7 +63,7 @@ namespace asynchost
             service,
             uv_strerror(rc));
           {
-            std::unique_lock<ccf::pal::Mutex> guard(
+            std::unique_lock<ccf::ds::Mutex> guard(
               pending_resolve_requests_mtx);
             pending_resolve_requests.erase(resolver);
           }

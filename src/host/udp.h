@@ -3,7 +3,7 @@
 #pragma once
 
 #include "before_io.h"
-#include "ccf/pal/locking.h"
+#include "ccf/ds/locking.h"
 #include "dns.h"
 #include "ds/internal_logger.h"
 #include "ds/pending_io.h"
@@ -102,7 +102,7 @@ namespace asynchost
     ~UDPImpl() override
     {
       {
-        std::unique_lock<ccf::pal::Mutex> guard(pending_resolve_requests_mtx);
+        std::unique_lock<ccf::ds::Mutex> guard(pending_resolve_requests_mtx);
         for (const auto& req : pending_resolve_requests)
         {
           // The UV request objects can stay, but if there are any references
@@ -354,7 +354,7 @@ namespace asynchost
 
     static void on_resolved(uv_getaddrinfo_t* req, int rc, struct addrinfo* res)
     {
-      std::unique_lock<ccf::pal::Mutex> guard(pending_resolve_requests_mtx);
+      std::unique_lock<ccf::ds::Mutex> guard(pending_resolve_requests_mtx);
       pending_resolve_requests.erase(req);
 
       LOG_TRACE_FMT("UDP on_resolve static");

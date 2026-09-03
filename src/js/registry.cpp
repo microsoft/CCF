@@ -99,7 +99,7 @@ namespace ccf::js
     // instead to allow interpreters to be maximally reused, even across
     // threads, at the cost of locking (and potentially stalling another
     // thread's request execution) here.
-    std::lock_guard<ccf::pal::Mutex> guard(ctx.lock);
+    std::lock_guard<ccf::ds::Mutex> guard(ctx.lock);
     // Update the top of the stack for the current thread, used by the stack
     // guard Note this is only active outside SGX
     JS_UpdateStackTop(ctx.runtime());

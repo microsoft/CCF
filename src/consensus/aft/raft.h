@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/pal/locking.h"
+#include "ccf/ds/locking.h"
 #include "ccf/service/reconfiguration_type.h"
 #include "ccf/tx_id.h"
 #include "ccf/tx_status.h"
@@ -269,7 +269,7 @@ namespace aft
 
     bool can_replicate() override
     {
-      std::unique_lock<ccf::pal::Mutex> guard(state->lock);
+      std::unique_lock<ccf::ds::Mutex> guard(state->lock);
       return can_replicate_unsafe();
     }
 
@@ -284,14 +284,14 @@ namespace aft
       {
         return false;
       }
-      std::unique_lock<ccf::pal::Mutex> guard(state->lock);
+      std::unique_lock<ccf::ds::Mutex> guard(state->lock);
       return state->leadership_state == ccf::kv::LeadershipState::Leader &&
         (state->last_idx - state->commit_idx >= max_uncommitted_tx_count);
     }
 
     Consensus::SignatureDisposition get_signature_disposition() override
     {
-      std::unique_lock<ccf::pal::Mutex> guard(state->lock);
+      std::unique_lock<ccf::ds::Mutex> guard(state->lock);
       if (can_sign_unsafe())
       {
         if (should_sign)
@@ -396,7 +396,7 @@ namespace aft
     {
       // When receiving append entries as a follower, all security domains will
       // be deserialised
-      std::lock_guard<ccf::pal::Mutex> guard(state->lock);
+      std::lock_guard<ccf::ds::Mutex> guard(state->lock);
       public_only = false;
     }
 
@@ -410,7 +410,7 @@ namespace aft
           "Can't force leadership if there is already a leader");
       }
 
-      std::lock_guard<ccf::pal::Mutex> guard(state->lock);
+      std::lock_guard<ccf::ds::Mutex> guard(state->lock);
       state->current_view += starting_view_change;
       become_leader(true);
     }
@@ -429,7 +429,7 @@ namespace aft
           "Can't force leadership if there is already a leader");
       }
 
-      std::lock_guard<ccf::pal::Mutex> guard(state->lock);
+      std::lock_guard<ccf::ds::Mutex> guard(state->lock);
       state->current_view = term;
       state->last_idx = index;
       state->commit_idx = commit_idx_;
@@ -447,7 +447,7 @@ namespace aft
     {
       // This should only be called when the node resumes from a snapshot and
       // before it has received any append entries.
-      std::lock_guard<ccf::pal::Mutex> guard(state->lock);
+      std::lock_guard<ccf::ds::Mutex> guard(state->lock);
 
       state->last_idx = index;
       state->commit_idx = index;
@@ -466,26 +466,26 @@ namespace aft
 
     Index get_committed_seqno() override
     {
-      std::lock_guard<ccf::pal::Mutex> guard(state->lock);
+      std::lock_guard<ccf::ds::Mutex> guard(state->lock);
       return get_commit_idx_unsafe();
     }
 
     Term get_view() override
     {
-      std::lock_guard<ccf::pal::Mutex> guard(state->lock);
+      std::lock_guard<ccf::ds::Mutex> guard(state->lock);
       return state->current_view;
     }
 
     std::pair<Term, Index> get_committed_txid() override
     {
-      std::lock_guard<ccf::pal::Mutex> guard(state->lock);
+      std::lock_guard<ccf::ds::Mutex> guard(state->lock);
       ccf::SeqNo commit_idx = get_commit_idx_unsafe();
       return {get_term_internal(commit_idx), commit_idx};
     }
 
     Term get_view(Index idx) override
     {
-      std::lock_guard<ccf::pal::Mutex> guard(state->lock);
+      std::lock_guard<ccf::ds::Mutex> guard(state->lock);
       return get_term_internal(idx);
     }
 
@@ -591,14 +591,14 @@ namespace aft
 
     Configuration::Nodes get_latest_configuration() override
     {
-      std::lock_guard<ccf::pal::Mutex> guard(state->lock);
+      std::lock_guard<ccf::ds::Mutex> guard(state->lock);
       return get_latest_configuration_unsafe();
     }
 
     ccf::kv::ConsensusDetails get_details() override
     {
       ccf::kv::ConsensusDetails details;
-      std::lock_guard<ccf::pal::Mutex> guard(state->lock);
+      std::lock_guard<ccf::ds::Mutex> guard(state->lock);
       details.primary_id = leader_id;
       details.current_view = state->current_view;
       details.ticking = ticking;
@@ -623,7 +623,7 @@ namespace aft
 
     bool replicate(const ccf::kv::BatchVector& entries, Term term) override
     {
-      std::lock_guard<ccf::pal::Mutex> guard(state->lock);
+      std::lock_guard<ccf::ds::Mutex> guard(state->lock);
 
       if (state->leadership_state != ccf::kv::LeadershipState::Leader)
       {
@@ -834,7 +834,7 @@ namespace aft
 
     void periodic(std::chrono::milliseconds elapsed) override
     {
-      std::unique_lock<ccf::pal::Mutex> guard(state->lock);
+      std::unique_lock<ccf::ds::Mutex> guard(state->lock);
       timeout_elapsed += elapsed;
 
       if (state->leadership_state == ccf::kv::LeadershipState::Leader)
@@ -1107,7 +1107,7 @@ namespace aft
       const uint8_t* data,
       size_t size)
     {
-      std::unique_lock<ccf::pal::Mutex> guard(state->lock);
+      std::unique_lock<ccf::ds::Mutex> guard(state->lock);
 
       RAFT_DEBUG_FMT(
         "Recv {} to {} from {}: {}.{} to {}.{} in term {}",
@@ -1581,7 +1581,7 @@ namespace aft
     void recv_append_entries_response(
       const ccf::NodeId& from, AppendEntriesResponse r)
     {
-      std::lock_guard<ccf::pal::Mutex> guard(state->lock);
+      std::lock_guard<ccf::ds::Mutex> guard(state->lock);
 
       auto node = all_other_nodes.find(from);
       if (node == all_other_nodes.end())
@@ -1861,7 +1861,7 @@ namespace aft
 
     void recv_request_vote(const ccf::NodeId& from, RequestVote r)
     {
-      std::lock_guard<ccf::pal::Mutex> guard(state->lock);
+      std::lock_guard<ccf::ds::Mutex> guard(state->lock);
 
 #ifdef CCF_RAFT_TRACING
       nlohmann::json j = {};
@@ -1878,7 +1878,7 @@ namespace aft
 
     void recv_request_pre_vote(const ccf::NodeId& from, RequestPreVote r)
     {
-      std::lock_guard<ccf::pal::Mutex> guard(state->lock);
+      std::lock_guard<ccf::ds::Mutex> guard(state->lock);
 
 #ifdef CCF_RAFT_TRACING
       nlohmann::json j = {};
@@ -1941,7 +1941,7 @@ namespace aft
       RequestVoteResponse r,
       ElectionType election_type)
     {
-      std::lock_guard<ccf::pal::Mutex> guard(state->lock);
+      std::lock_guard<ccf::ds::Mutex> guard(state->lock);
 
 #ifdef CCF_RAFT_TRACING
       nlohmann::json j = {};
@@ -2067,7 +2067,7 @@ namespace aft
     void recv_propose_request_vote(
       const ccf::NodeId& from, ProposeRequestVote r)
     {
-      std::lock_guard<ccf::pal::Mutex> guard(state->lock);
+      std::lock_guard<ccf::ds::Mutex> guard(state->lock);
 
 #ifdef CCF_RAFT_TRACING
       nlohmann::json j = {};
