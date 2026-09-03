@@ -18,7 +18,9 @@ use std::ptr;
 
 use crypto::{CryptoBackend, KeyBackend};
 
-use cose::{cose_sign1, signature_key_algorithm_for_cose_alg, CborValue as NativeCborValue};
+use cose::{cose_sign1, signature_key_algorithm_for_cose_alg};
+
+use crate::cbor_view::NativeCborValue;
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -151,7 +153,7 @@ pub unsafe extern "C" fn tav_cbor_value_from_bytes(
     into_result(|| {
         unsafe { owned_out_ptr(out_value, "out_value") }?;
         let bytes = unsafe { input_bytes(bytes, len, "CBOR bytes", false) }?;
-        let value = NativeCborValue::from_bytes(bytes)
+        let value = cose::CborValue::parse_nondet(bytes)
             .map_err(|error| TavError::new(TavErrorCode::CoseCbor, error))?;
         unsafe {
             *out_value = into_raw(CborView::new(value));
@@ -169,7 +171,7 @@ pub unsafe extern "C" fn tav_cbor_value_to_bytes(
         unsafe { owned_out_ptr(out_bytes, "out_bytes") }?;
         let value = unsafe { cbor_value(value, "value") }?;
         let bytes = value
-            .to_bytes()
+            .to_bytes_det()
             .map_err(|error| TavError::new(TavErrorCode::CoseCbor, error))?;
         unsafe {
             *out_bytes = Box::into_raw(TavByteBuffer::from_bytes(bytes));

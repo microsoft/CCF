@@ -3,8 +3,8 @@
 
 #include "ccf/endpoints/authentication/cert_auth.h"
 
+#include "ccf/ds/locking.h"
 #include "ccf/ds/x509_time_fmt.h"
-#include "ccf/pal/locking.h"
 #include "ccf/rpc_context.h"
 #include "ccf/service/tables/members.h"
 #include "ccf/service/tables/nodes.h"
@@ -26,7 +26,7 @@ namespace ccf
 
     using DER = std::vector<uint8_t>;
 
-    ccf::pal::Mutex periods_lock;
+    ccf::ds::Mutex periods_lock;
     LRU<DER, ValidityPeriod> periods;
 
     ValidityPeriodsCache(size_t max_periods = DEFAULT_MAX_PERIODS) :
@@ -35,7 +35,7 @@ namespace ccf
 
     ValidityPeriod get_validity_period(const DER& der)
     {
-      std::lock_guard<ccf::pal::Mutex> guard(periods_lock);
+      std::lock_guard<ccf::ds::Mutex> guard(periods_lock);
 
       auto it = periods.find(der);
       if (it == periods.end())

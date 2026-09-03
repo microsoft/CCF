@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/locking.h"
 #include "ccf/indexing/strategies/visit_each_entry_in_map.h"
-#include "ccf/pal/locking.h"
 #include "ccf/seq_no_collection.h"
 
 namespace ccf::indexing::strategies
@@ -17,7 +17,7 @@ namespace ccf::indexing::strategies
     std::unordered_map<ccf::ByteVector, SeqNoCollection> seqnos_by_key;
 
     // Mutex guarding access to seqnos_by_key
-    ccf::pal::Mutex lock;
+    ccf::ds::Mutex lock;
 
     void visit_entry(
       const ccf::TxID& tx_id,
@@ -69,7 +69,7 @@ namespace ccf::indexing::strategies
 
     std::optional<SeqNoCollection> get_all_write_txs(const typename M::Key& key)
     {
-      std::lock_guard<ccf::pal::Mutex> guard(current_txid_lock);
+      std::lock_guard<ccf::ds::Mutex> guard(current_txid_lock);
       return get_write_txs_in_range(key, 0, current_txid.seqno);
     }
   };

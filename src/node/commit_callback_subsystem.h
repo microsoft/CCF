@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/pal/locking.h"
+#include "ccf/ds/locking.h"
 #include "consensus/aft/impl/state.h"
 #include "kv/kv_types.h"
 #include "node/commit_callback_interface.h"
@@ -15,7 +15,7 @@ namespace ccf
   {
   private:
     using Callbacks = std::vector<std::pair<ccf::TxID, CommitCallback>>;
-    ccf::pal::Mutex callbacks_mutex;
+    ccf::ds::Mutex callbacks_mutex;
     std::map<ccf::SeqNo, Callbacks> pending_callbacks
       CCF_GUARDED_BY(callbacks_mutex);
 
@@ -38,7 +38,7 @@ namespace ccf
       std::optional<ccf::FinalTxStatus> immediate_status;
 
       {
-        ccf::pal::MutexGuard guard(callbacks_mutex);
+        ccf::ds::MutexGuard guard(callbacks_mutex);
 
         if (known_commit.has_value())
         {
@@ -84,7 +84,7 @@ namespace ccf
       std::vector<ReadyCallback> ready;
 
       {
-        ccf::pal::MutexGuard guard(callbacks_mutex);
+        ccf::ds::MutexGuard guard(callbacks_mutex);
 
         known_commit = committed;
         known_view_history = view_history;
