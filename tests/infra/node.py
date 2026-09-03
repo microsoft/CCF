@@ -603,6 +603,21 @@ class Node:
             f"node {self.local_node_id} after {timeout}s"
         )
 
+    def _get_local_ledger_start_seqno(self):
+        with self.client() as c:
+            r = c.get("/node/state")
+            assert r.status_code == http.HTTPStatus.OK, r
+            startup_seqno = r.body.json()["startup_seqno"]
+            if startup_seqno != 0:
+                return startup_seqno + 1
+
+            if self.remote.start_type == infra.remote.StartType.recover:
+                r = c.get("/node/network")
+                assert r.status_code == http.HTTPStatus.OK, r
+                return TxID.from_str(r.body.json()["current_service_create_txid"]).seqno
+
+            return 1
+
     def _download_ledger(
         self,
         ledger_dir,
@@ -631,10 +646,7 @@ class Node:
         if start_seqno is not None:
             next_seqno = start_seqno
         elif local_only:
-            with self.client() as c:
-                r = c.get("/node/state")
-                assert r.status_code == http.HTTPStatus.OK, r
-                next_seqno = max(1, r.body.json()["startup_seqno"] + 1)
+            next_seqno = self._get_local_ledger_start_seqno()
         else:
             next_seqno = 1
         end_time = time.time() + timeout
