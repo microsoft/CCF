@@ -15,13 +15,18 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
-- If the view changed while a transaction was committing, the transaction could apply its writes to the local key-value store and then fail to replicate, leaving state that never reached consensus. The transaction's view is now validated atomically with the allocation of its version, so it is rejected before any map is modified, and `ccf::kv::CommitResult::FAIL_NO_REPLICATE` no longer implies a locally applied write (#8242).
+- Ledger chunk metadata and snapshot scheduling are no longer restored by a transaction whose writes a concurrent view change has already discarded. Both are now updated under the same lock as the rollback, and skipped when the transaction's rollback epoch or view no longer holds (#8243).
+- A transaction whose view changed while it was committing could apply its writes to the local key-value store and then fail to replicate, leaving state that never reached consensus. The transaction's view is now validated atomically with the allocation of its version, so it is rejected before any map is modified, and `ccf::kv::CommitResult::FAIL_NO_REPLICATE` no longer implies a locally applied write (#8242).
 
 ### Changed
 
 - CCF and C++ applications built against it now require C++23. The supported minimum Clang version remains 18.1.2. (#8234)
 - `sandbox.sh` now derives node configuration defaults and CLI descriptions from the `cchost` configuration schema, rather than using defaults selected by the end-to-end test infrastructure. This changes the sandbox defaults for signature delay (100 ms -> 1000 ms), election timeout (4000 ms -> 5000 ms), ledger chunk size (5000000 bytes -> `5MB`, or 5242880 bytes), initial node and service certificate validity (90 days -> 1 day), and tick interval (1 ms -> 10 ms). Environment variables used by the test infrastructure no longer override sandbox defaults; for example, use the existing `--election-timeout-ms` option instead of `ELECTION_TIMEOUT_MS` (#8176).
 - The generic locking primitives previously in `ccf::pal` (`Mutex`, `MutexGuard`, `ConditionVariable`) have moved to the new public header `ccf/ds/locking.h`, in the `ccf::ds` namespace. The `ccf::pal` aliases in `ccf/pal/locking.h` are kept for source compatibility but are now deprecated; applications should switch to `ccf::ds::Mutex`, `ccf::ds::MutexGuard` and `ccf::ds::ConditionVariable`. `ccf::pal::safe_memcpy` (`ccf/pal/mem.h`) is similarly deprecated in favour of `std::memcpy`, which it has been equivalent to since Open Enclave support was removed (#8265).
+
+### Removed
+
+- The experimental built-in `QUIC` application protocol and its UDP echo implementation have been removed. UDP interfaces remain available to registered custom protocols.
 
 ### Fixed
 
