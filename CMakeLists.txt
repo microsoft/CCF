@@ -287,13 +287,14 @@ add_ccf_static_library(
 )
 
 # CCF kv lib
-list(
-  APPEND CCF_KV_SOURCES
-  ${CCF_DIR}/src/kv/tx.cpp
-  ${CCF_DIR}/src/kv/untyped_map_handle.cpp
-  ${CCF_DIR}/src/kv/untyped_map_diff.cpp
+add_ccf_static_library(
+  ccf_kv
+  SRCS
+    ${CCF_DIR}/src/kv/tx.cpp
+    ${CCF_DIR}/src/kv/untyped_map_handle.cpp
+    ${CCF_DIR}/src/kv/untyped_map_diff.cpp
+  LINK_LIBS ccf_threading
 )
-add_ccf_static_library(ccf_kv SRCS ${CCF_KV_SOURCES} LINK_LIBS ccf_threading)
 
 # CCF endpoints lib
 add_ccf_static_library(
@@ -322,18 +323,15 @@ add_ccf_static_library(
 )
 
 # CCF task system library
-list(
-  APPEND CCF_TASKS_SOURCES
-  ${CCF_DIR}/src/tasks/task_system.cpp
-  ${CCF_DIR}/src/tasks/job_board.cpp
-  ${CCF_DIR}/src/tasks/ordered_tasks.cpp
-  ${CCF_DIR}/src/tasks/fan_in_tasks.cpp
-  ${CCF_DIR}/src/tasks/thread_manager.cpp
-  ${CCF_DIR}/src/tasks/worker.cpp
-)
 add_ccf_static_library(
   ccf_tasks
-  SRCS ${CCF_TASKS_SOURCES}
+  SRCS
+    ${CCF_DIR}/src/tasks/task_system.cpp
+    ${CCF_DIR}/src/tasks/job_board.cpp
+    ${CCF_DIR}/src/tasks/ordered_tasks.cpp
+    ${CCF_DIR}/src/tasks/fan_in_tasks.cpp
+    ${CCF_DIR}/src/tasks/thread_manager.cpp
+    ${CCF_DIR}/src/tasks/worker.cpp
   LINK_LIBS ccf_threading
 )
 
@@ -755,21 +753,14 @@ if(BUILD_TESTS)
     # in src/commit_concurrency/scheduled/deterministic_scheduler.h -
     # exhaustively where that space is small enough
     # (explore_all_interleavings()), or by random sampling where it isn't
-    # (explore_random_interleavings()).
-    # DETECT_DEADLOCKS is passed for the same reason as above.
+    # (explore_random_interleavings()). DETECT_DEADLOCKS is passed for the
+    # same reason as above.
     add_unit_test(
       commit_concurrency_scheduled_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/commit_concurrency/scheduled/deterministic_scheduler_test.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/commit_concurrency/scheduled/main.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/commit_concurrency/scheduled/pthread_mutex_wrap.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/commit_concurrency/scheduled/rejected_commit.cpp
-      # ccf_kv/ccf_tasks are normally built once and linked, unmodified,
-      # everywhere. This target overrides ccf::pal::Mutex via -include
-      # instead, so recompiles their sources directly, to avoid linking two
-      # differently-laid-out definitions of the same class (ODR violation).
-      # ccf_tasks also keeps a process-wide job board (a real Mutex user)
-      # that needs the same scheduler-aware lock as everything else here.
-      ${CCF_KV_SOURCES}
-      ${CCF_TASKS_SOURCES}
       DETECT_DEADLOCKS
     )
     set_property(
@@ -777,37 +768,25 @@ if(BUILD_TESTS)
       APPEND
       PROPERTY LABELS concurrency
     )
-    # The -include flag makes every source file in this target (and only
-    # this target) see ccf::pal::Mutex itself resolve to SchedulerMutex -
-    # see src/commit_concurrency/scheduled/interleaving_lock_override.h.
-    target_compile_options(
-      commit_concurrency_scheduled_test
-      PRIVATE
-        -include
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/commit_concurrency/scheduled/interleaving_lock_override.h
-    )
-    # ccfcrypto is safe to link unmodified: unlike ccf_kv/ccf_tasks above, it
-    # never includes store.h, raft.h, impl/state.h, or history.h.
+    # ccf_kv/ccf_tasks are linked normally, unmodified, exactly like every
+    # other test target - pthread_mutex_wrap.cpp intercepts their real
+    # ccf::pal::Mutex use at link time instead (see its own comment), so no
+    # source ever needs recompiling against a different Mutex type.
     target_link_libraries(
       commit_concurrency_scheduled_test
-      PRIVATE
-        ccfcrypto
-        http_parser
-        ccf_threading
-        ${CMAKE_DL_LIBS}
-        ${BACKTRACE_LIBRARY}
+      PRIVATE ccfcrypto http_parser ccf_kv ccf_tasks
     )
-    # Fails configure if ccf_kv/ccf_tasks ever get linked here directly
-    # instead of recompiled above (see the comment on their sources).
-    function(ccf_forbid_layout_sensitive_libraries target)
-      get_target_property(_linked_libs ${target} LINK_LIBRARIES)
-      foreach(lib ccf_kv ccf_tasks)
-        if(lib IN_LIST _linked_libs)
-          message(FATAL_ERROR "${target} must not link ${lib} directly")
-        endif()
-      endforeach()
-    endfunction()
-    ccf_forbid_layout_sensitive_libraries(commit_concurrency_scheduled_test)
+    # See pthread_mutex_wrap.cpp: __wrap_pthread_mutex_lock/unlock/trylock
+    # there are called instead of the real pthread_mutex_lock/unlock/
+    # trylock for every call in this target (__real_pthread_mutex_* is how
+    # they still reach the genuine, original function).
+    target_link_options(
+      commit_concurrency_scheduled_test
+      PRIVATE
+        -Wl,--wrap=pthread_mutex_lock
+        -Wl,--wrap=pthread_mutex_unlock
+        -Wl,--wrap=pthread_mutex_trylock
+    )
 
     add_unit_test(
       raft_enclave_test

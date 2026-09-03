@@ -1,5 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#include "ccf/pal/locking.h"
 #include "commit_concurrency/scheduled/deterministic_scheduler.h"
 
 #define DOCTEST_CONFIG_NO_SHORT_MACRO_NAMES
@@ -23,13 +24,51 @@ DOCTEST_TEST_CASE(
   DOCTEST_CHECK(counter == 1);
 }
 
+// A real ccf::pal::Mutex lock()/unlock() is intercepted at link time (see
+// src/commit_concurrency/scheduled/pthread_mutex_wrap.cpp) rather than
+// via a distinct C++ type, so nothing here stops a future change (e.g.
+// dropping the -Wl,--wrap=... flags in CMakeLists.txt, or a libc/compiler
+// change that stops emitting a plain pthread_mutex_lock call) from
+// silently making that interception a no-op: every actor's real lock and
+// unlock would then just succeed immediately as ordinary OS-level
+// locking, with DeterministicScheduler never told about any of it. Every
+// other test in this file could plausibly still pass in that scenario
+// (e.g. "explored > 1" could, in principle, come from yield_point() calls
+// alone) - this test instead asserts, explicitly and unambiguously, that
+// a real lock/unlock actually produced the three events before_lock()/
+// after_unlock() are documented to report, which is only possible if
+// interception genuinely engaged.
+DOCTEST_TEST_CASE(
+  "Smoke test: a real ccf::pal::Mutex lock/unlock is genuinely intercepted, "
+  "not silently left as real, untracked OS-level locking" *
+  doctest::test_suite("deterministic_scheduler"))
+{
+  ccf::pal::Mutex mtx;
+  explore_all_interleavings(
+    1,
+    [&]() -> std::vector<std::function<void()>> {
+      return {[&]() { std::lock_guard<ccf::pal::Mutex> guard(mtx); }};
+    },
+    [&](const DeterministicScheduler& scheduler) {
+      const auto& path = scheduler.decision_path();
+      const auto has_kind = [&](ActorEventKind kind) {
+        return std::any_of(path.begin(), path.end(), [&](const auto& d) {
+          return d.trigger_event.kind == kind;
+        });
+      };
+      DOCTEST_CHECK(has_kind(ActorEventKind::Requested));
+      DOCTEST_CHECK(has_kind(ActorEventKind::Acquired));
+      DOCTEST_CHECK(has_kind(ActorEventKind::Released));
+    });
+}
+
 DOCTEST_TEST_CASE(
   "Two actors each incrementing a shared counter under a shared lock reach "
   "the same, correct total on every explored interleaving" *
   doctest::test_suite("deterministic_scheduler"))
 {
   size_t counter = 0;
-  SchedulerMutex mtx;
+  ccf::pal::Mutex mtx;
 
   const auto explored = explore_all_interleavings(
     2,
@@ -37,11 +76,11 @@ DOCTEST_TEST_CASE(
       counter = 0;
       return {
         [&]() {
-          std::lock_guard<SchedulerMutex> guard(mtx);
+          std::lock_guard<ccf::pal::Mutex> guard(mtx);
           counter++;
         },
         [&]() {
-          std::lock_guard<SchedulerMutex> guard(mtx);
+          std::lock_guard<ccf::pal::Mutex> guard(mtx);
           counter++;
         }};
     },
@@ -64,19 +103,19 @@ namespace
   {
     bool initialised = false;
     size_t init_count = 0;
-    SchedulerMutex mtx;
+    ccf::pal::Mutex mtx;
 
     void run_actor_with_gap()
     {
       bool already_done;
       {
-        std::lock_guard<SchedulerMutex> guard(mtx);
+        std::lock_guard<ccf::pal::Mutex> guard(mtx);
         already_done = initialised;
       }
       yield_point("checked initialised flag, about to act on it");
       if (!already_done)
       {
-        std::lock_guard<SchedulerMutex> guard(mtx);
+        std::lock_guard<ccf::pal::Mutex> guard(mtx);
         initialised = true;
         init_count++;
       }
@@ -84,7 +123,7 @@ namespace
 
     void run_actor_without_gap()
     {
-      std::lock_guard<SchedulerMutex> guard(mtx);
+      std::lock_guard<ccf::pal::Mutex> guard(mtx);
       if (!initialised)
       {
         initialised = true;

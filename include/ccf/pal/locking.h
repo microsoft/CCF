@@ -14,20 +14,24 @@ namespace ccf::pal
   class ConditionVariable;
   class MutexGuard;
 
-#if defined(CCF_TEST_INTERLEAVING_LOCK_TYPE)
-  // A test build may define this (before this header is first included,
-  // via a -include compiler flag applying to every source file in that
-  // build) to replace ccf::pal::Mutex itself, everywhere, with a different,
-  // instrumented lock type - see that type's own declaration for what it
-  // does instead of real locking. MutexGuard and ConditionVariable below
-  // are both written against the name Mutex, so they bind to whichever
-  // type this resolves to; the replacement type must therefore expose the
-  // same public lock()/try_lock()/unlock() surface, and (for
-  // ConditionVariable::wait() and friends to keep compiling) a private
-  // member also named `mutex`, friended to ConditionVariable, of type
-  // std::mutex.
-  using Mutex = CCF_TEST_INTERLEAVING_LOCK_TYPE;
-#else
+  namespace detail
+  {
+    // Set immediately before Mutex's own lock()/try_lock()/unlock() make
+    // their real call, and consumed immediately by whatever runs next on
+    // this thread - not read by anything in this header itself. This
+    // lets a genuinely real, immediately-following OS-level lock/unlock
+    // call (which a bare mutex address alone cannot carry a label
+    // through) recover one anyway - see
+    // src/commit_concurrency/scheduled/pthread_mutex_wrap.cpp, which
+    // intercepts real pthread_mutex_lock/unlock/trylock calls to
+    // deterministically explore interleavings, and uses `pending` to
+    // tell a genuine ccf::pal::Mutex call apart from every other,
+    // unrelated lock in the process (allocator, iostream, etc.) without
+    // needing to track any mutex's address at all.
+    inline thread_local bool pending = false;
+    inline thread_local const char* pending_label = nullptr;
+  }
+
   /**
    * Virtual enclaves and the host code share the same PAL.
    */
@@ -45,18 +49,24 @@ namespace ccf::pal
     Mutex(const Mutex&) = delete;
     Mutex& operator=(const Mutex&) = delete;
 
-    void lock() CCF_ACQUIRE()
+    void lock(const char* label = nullptr) CCF_ACQUIRE()
     {
+      detail::pending = true;
+      detail::pending_label = label;
       mutex.lock();
     }
 
-    bool try_lock() CCF_TRY_ACQUIRE(true)
+    bool try_lock(const char* label = nullptr) CCF_TRY_ACQUIRE(true)
     {
+      detail::pending = true;
+      detail::pending_label = label;
       return mutex.try_lock();
     }
 
-    void unlock() CCF_RELEASE()
+    void unlock(const char* label = nullptr) CCF_RELEASE()
     {
+      detail::pending = true;
+      detail::pending_label = label;
       mutex.unlock();
     }
 
@@ -65,7 +75,6 @@ namespace ccf::pal
       return mutex.native_handle();
     }
   };
-#endif
 
   class CCF_SCOPED_CAPABILITY MutexGuard
   {
@@ -177,30 +186,12 @@ namespace ccf::pal
     }
   };
 
-  // Satisfied by a lock type whose lock()/try_lock()/unlock() calls can
-  // each be given a short label describing why - the only current
-  // example is ccf::kv::test::SchedulerMutex, which reports each label
-  // straight to whichever scheduler is exploring interleavings on the
-  // calling thread, as an Acquired or Released event tied precisely to
-  // that specific call - see its lock()/unlock() for details.
-  // ccf::pal::Mutex itself does not satisfy this (real locking has no use
-  // for a label), so unique_lock below falls back to plain, unlabelled
-  // lock()/try_lock()/unlock() calls against it.
-  template <typename LockType>
-  concept LabelledLockable = requires(LockType& mtx, const char* label) {
-    mtx.lock(label);
-    mtx.try_lock(label);
-    mtx.unlock(label);
-  };
-
   // A drop-in replacement for std::unique_lock<Mutex> (supporting the same
   // deferred-locking constructor and lock()/try_lock()/unlock() surface
   // used against ccf::pal::Mutex elsewhere in this codebase), with an
   // optional label describing why this lock is being taken - passed
-  // directly into the underlying LockType's own lock()/try_lock()/unlock()
-  // call for LockTypes that accept one (see LabelledLockable above); a
-  // plain, unlabelled call otherwise. With no label given, it defaults to
-  // the call site's source location.
+  // directly into Mutex's own lock()/try_lock()/unlock() call. With no
+  // label given, it defaults to the call site's source location.
   //
   // Carries its own CCF_SCOPED_CAPABILITY annotations (mirroring
   // MutexGuard above), rather than relying on Clang's built-in,
@@ -265,42 +256,20 @@ namespace ccf::pal
 
     void lock() CCF_ACQUIRE()
     {
-      if constexpr (LabelledLockable<LockType>)
-      {
-        mtx->lock(effective_label());
-      }
-      else
-      {
-        mtx->lock();
-      }
+      mtx->lock(effective_label());
       owned = true;
     }
 
     bool try_lock() CCF_TRY_ACQUIRE(true)
     {
-      bool locked;
-      if constexpr (LabelledLockable<LockType>)
-      {
-        locked = mtx->try_lock(effective_label());
-      }
-      else
-      {
-        locked = mtx->try_lock();
-      }
+      const bool locked = mtx->try_lock(effective_label());
       owned = locked;
       return locked;
     }
 
     void unlock() CCF_RELEASE()
     {
-      if constexpr (LabelledLockable<LockType>)
-      {
-        mtx->unlock(effective_label());
-      }
-      else
-      {
-        mtx->unlock();
-      }
+      mtx->unlock(effective_label());
       owned = false;
     }
 

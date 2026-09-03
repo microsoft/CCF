@@ -2,13 +2,17 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-// A cooperative scheduler for deterministically exploring thread
-// interleavings, plus SchedulerMutex, a lock type that reports its
-// lock()/unlock() calls to whichever scheduler is active on the calling
-// thread. Each participating actor runs on its own real OS thread, but the
+// A cooperative scheduler for deterministically exploring real thread
+// interleavings of real ccf::pal::Mutex use, without recompiling any
+// production code against a different Mutex type: every real
+// pthread_mutex_lock/unlock/trylock call is intercepted at link time (see
+// src/commit_concurrency/scheduled/pthread_mutex_wrap.cpp) and, for a
+// thread with an active DeterministicScheduler, is redirected to
+// before_lock()/after_unlock() below instead of ever reaching the real
+// mutex. Each participating actor runs on its own real OS thread, but the
 // scheduler only ever lets one actor execute application code at a time;
-// SchedulerMutex's lock()/unlock() calls are the points where it may hand
-// control to a different actor instead of letting the caller continue.
+// each such intercepted call is a point where it may hand control to a
+// different actor instead of letting the caller continue.
 //
 // explore_all_interleavings() repeats a run once for every distinct
 // sequence of such handoffs, via depth-first search with replay: each run
@@ -27,10 +31,8 @@
 // number of schedules at random instead, still fully reproducibly from a
 // seed (exactly, unlike a real-thread fuzzer's timing-based randomness).
 //
-// A SchedulerMutex used with no scheduler active on the calling thread
-// behaves like an ordinary mutex.
-
-#include "ccf/ds/thread_safety.h"
+// A real ccf::pal::Mutex used on a thread with no active
+// DeterministicScheduler behaves exactly like an ordinary mutex.
 
 #include <algorithm>
 #include <condition_variable>
@@ -46,18 +48,6 @@
 #include <unordered_map>
 #include <vector>
 
-namespace ccf::pal
-{
-  // Forward declared so SchedulerMutex below can friend it - see
-  // SchedulerMutex's own declaration for why. ccf/pal/locking.h is only
-  // included (see below) once SchedulerMutex is a complete type - it may
-  // become the definition of ccf::pal::Mutex itself for a whole build (see
-  // CCF_TEST_INTERLEAVING_LOCK_TYPE there), which locking.h's own
-  // MutexGuard and ConditionVariable need to be complete to compile
-  // against.
-  class ConditionVariable;
-}
-
 namespace ccf::kv::test
 {
   using ActorId = size_t;
@@ -68,7 +58,8 @@ namespace ccf::kv::test
   // place until the next one (all three kinds behave identically here;
   // none is cleared automatically). Acquired/Released are recorded
   // automatically by before_lock()/after_unlock(), in sync with the exact
-  // lock event that caused them - see SchedulerMutex's lock()/unlock().
+  // lock event that caused them - see pthread_mutex_wrap.cpp's own
+  // __wrap_pthread_mutex_lock()/__wrap_pthread_mutex_unlock().
   // YieldPoint is for a scenario's own yield_point() label, describing
   // something with no specific lock attached.
   enum class ActorEventKind
@@ -279,8 +270,9 @@ namespace ccf::kv::test
       cv.wait(lock, [&] { return running == self; });
     }
 
-    // Called by SchedulerMutex::lock(). Blocks until this actor actually
-    // holds the lock. The attempt itself is a decision point (its
+    // Called by __wrap_pthread_mutex_lock() (see pthread_mutex_wrap.cpp)
+    // for a real ccf::pal::Mutex lock attempt. Blocks until this actor
+    // actually holds the lock. The attempt itself is a decision point (its
     // Requested event, below), before even checking whether the lock is
     // free - without this, whichever actor happened to be running when
     // it reached an uncontended lock would always win it unconditionally,
@@ -327,7 +319,8 @@ namespace ccf::kv::test
       cv.wait(lock, [&] { return running == self; });
     }
 
-    // Called by SchedulerMutex::unlock(), after releasing it. Every
+    // Called by __wrap_pthread_mutex_unlock() (see pthread_mutex_wrap.cpp)
+    // after a real ccf::pal::Mutex release. Every
     // release is itself a decision point, whether or not anything was
     // specifically waiting on this lock - any ready actor (including one
     // now free to claim this lock) is a candidate to run next. `label`
@@ -440,10 +433,10 @@ namespace ccf::kv::test
     }
 
   private:
-    // Keyed by SchedulerMutex identity (its `this` pointer) rather than
-    // held inside SchedulerMutex itself, so SchedulerMutex stays a plain,
-    // cheap, default-constructible value with no dependency on whichever
-    // scheduler (if any) ends up using it.
+    // Keyed by the real pthread_mutex_t*'s own address (see
+    // pthread_mutex_wrap.cpp) - the scheduler never touches the real
+    // mutex at all, so this is purely bookkeeping for who is waiting on
+    // (the identity of) each one.
     std::unordered_map<void*, MutexState> mutex_states;
   };
 
@@ -499,99 +492,16 @@ namespace ccf::kv::test
     }
   }
 
-  // A BasicLockable/Lockable type, suitable everywhere ccf::pal::Mutex is
-  // (std::lock_guard, std::unique_lock, std::scoped_lock all accept any
-  // type with these three members). With no DeterministicScheduler active
-  // on the calling thread, this behaves like an ordinary mutex; the
-  // scheduler-driven behaviour above only applies inside a run started via
-  // explore_all_interleavings() (or DeterministicScheduler used directly).
-  //
-  // Carries the same Clang thread-safety annotations as ccf::pal::Mutex,
-  // and the same private member name `mutex` (friended to
-  // ccf::pal::ConditionVariable, exactly as ccf::pal::Mutex friends it), so
-  // that this can stand in for ccf::pal::Mutex itself for a whole build
-  // (see CCF_TEST_INTERLEAVING_LOCK_TYPE in include/ccf/pal/locking.h) -
-  // including code that only compiles ccf::pal::ConditionVariable::wait()
-  // and friends without ever actually executing them at runtime.
-  class CCF_CAPABILITY("mutex") SchedulerMutex
-  {
-    friend class ccf::pal::ConditionVariable;
-    std::mutex mutex;
-
-  public:
-    using native_handle_type = std::mutex::native_handle_type;
-
-    SchedulerMutex() = default;
-    SchedulerMutex(const SchedulerMutex&) = delete;
-    SchedulerMutex& operator=(const SchedulerMutex&) = delete;
-
-    // `label`, if given, is passed straight through to before_lock() -
-    // see ccf::pal::unique_lock, the only real caller that supplies one.
-    void lock(const char* label = nullptr) CCF_ACQUIRE()
-    {
-      auto* scheduler = SchedulerThreadContext::scheduler();
-      if (scheduler == nullptr)
-      {
-        mutex.lock();
-        return;
-      }
-      scheduler->before_lock(SchedulerThreadContext::actor(), this, label);
-    }
-
-    // `label`, if given, is passed straight through to after_unlock().
-    void unlock(const char* label = nullptr) CCF_RELEASE()
-    {
-      auto* scheduler = SchedulerThreadContext::scheduler();
-      if (scheduler == nullptr)
-      {
-        mutex.unlock();
-        return;
-      }
-      scheduler->after_unlock(SchedulerThreadContext::actor(), this, label);
-    }
-
-    bool try_lock(const char* label = nullptr) CCF_TRY_ACQUIRE(true)
-    {
-      auto* scheduler = SchedulerThreadContext::scheduler();
-      if (scheduler == nullptr)
-      {
-        return mutex.try_lock();
-      }
-      // Not part of any of the scenarios this rig currently drives -
-      // implement only once a scenario actually needs it, so that its
-      // scheduling semantics can be designed against a real use rather
-      // than guessed at.
-      (void)label;
-      throw std::logic_error(
-        "SchedulerMutex::try_lock() is not implemented under an active "
-        "DeterministicScheduler");
-    }
-
-    native_handle_type native_handle()
-    {
-      return mutex.native_handle();
-    }
-  };
-}
-
-// Only included here, rather than at the top of this file, because
-// ccf/pal/locking.h may make ccf::pal::Mutex itself an alias for
-// SchedulerMutex above (see CCF_TEST_INTERLEAVING_LOCK_TYPE there) - its
-// own MutexGuard and ConditionVariable need SchedulerMutex to already be a
-// complete type to compile against it.
-#include "ccf/pal/locking.h"
-
-namespace ccf::kv::test
-{
   // Registers/unregisters the calling (driver) thread with `scheduler` as
   // a reserved actor id (one beyond the real actors, so it never collides
-  // with one), so that any SchedulerMutex it locks - during make_run() or
-  // on_schedule(), the only places the driver thread runs application code
-  // - goes through the same scheduler bookkeeping a real actor's would,
-  // rather than falling back to real locking. This driver "actor" never
-  // actually contends with a real actor for any lock: make_run() runs
-  // strictly before any actor thread starts, and on_schedule() strictly
-  // after every actor thread has finished and been joined.
+  // with one), so that any real ccf::pal::Mutex it locks - during
+  // make_run() or on_schedule(), the only places the driver thread runs
+  // application code - goes through the same scheduler bookkeeping a real
+  // actor's would, rather than falling back to real locking. This driver
+  // "actor" never actually contends with a real actor for any lock:
+  // make_run() runs strictly before any actor thread starts, and
+  // on_schedule() strictly after every actor thread has finished and been
+  // joined.
   class DriverRegistration
   {
     DeterministicScheduler& scheduler;
@@ -638,8 +548,8 @@ namespace ccf::kv::test
   // exactly `num_actors` callables - the body to run, on its own thread,
   // for each actor in that particular run. Every callable must call
   // ccf::kv::test::SchedulerThreadContext::set() first if it wants that
-  // thread's SchedulerMutex use to be scheduled (any thread that never
-  // calls it behaves as if no scheduler were active at all).
+  // thread's real ccf::pal::Mutex use to be scheduled (any thread that
+  // never calls it behaves as if no scheduler were active at all).
   //
   // If given, `on_schedule` is called after every schedule's actors have
   // all finished, before the state made by that schedule's `make_run` call
@@ -705,7 +615,7 @@ namespace ccf::kv::test
       // here, on this driver thread, before any actor thread exists - so
       // it is registered with this schedule's scheduler too (as actor id
       // num_actors, never used by any real actor), rather than left
-      // unregistered. This matters whenever a SchedulerMutex reachable
+      // unregistered. This matters whenever a real ccf::pal::Mutex reachable
       // from make_run() is shared with something outside this scenario's
       // own fixture (e.g. a process-wide singleton) - an unregistered
       // thread takes such a lock for real, while a registered one only
