@@ -900,8 +900,7 @@ namespace ccf
             };
           }
 
-          ccf::kv::CommitResult result =
-            tx.commit(ctx->claims, nullptr, ws_observer);
+          ccf::kv::CommitResult result = tx.commit(ctx->claims, ws_observer);
 
           switch (result)
           {
