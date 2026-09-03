@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/ds/quote_info.h"
+#include "ccf/pal/attestation_sev_snp.h"
 #include "ccf/pal/attestation_sev_snp_endorsements.h"
 #include "ccf/pal/measurement.h"
 #include "ccf/pal/report_data.h"
@@ -24,6 +25,11 @@ namespace ccf::pal
     PlatformAttestationReportData& report_data);
 
   void verify_snp_attestation_report(
+    const QuoteInfo& quote_info,
+    PlatformAttestationMeasurement& measurement,
+    PlatformAttestationReportData& report_data);
+
+  snp::AttestationReport verify_snp_attestation_report_and_get(
     const QuoteInfo& quote_info,
     PlatformAttestationMeasurement& measurement,
     PlatformAttestationReportData& report_data);

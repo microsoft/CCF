@@ -128,6 +128,34 @@ namespace
   }
 }
 
+TEST_CASE("unverified SNP report accessors")
+{
+  using namespace ccf::pal;
+
+  auto report =
+    snp::parse_attestation_report_unverified(snp::testing::milan_attestation);
+
+  CHECK(report.version() == 3);
+  CHECK(report.cpuid_fam_id() == 25);
+  CHECK(report.cpuid_mod_id() == 1);
+  CHECK(report.reported_tcb().to_hex() == "db18000000000004");
+  const auto measurement = report.measurement();
+  auto moved_report = std::move(report);
+  CHECK(measurement.size() == snp_attestation_measurement_size);
+  CHECK(moved_report.signature_r().size() == 72);
+}
+
+TEST_CASE("unverified SNP report rejects invalid sizes")
+{
+  CHECK_THROWS_WITH_AS(
+    ccf::pal::snp::parse_attestation_report_unverified(
+      std::vector<uint8_t>(100)),
+    doctest::Contains(
+      "SEV-SNP: TAV unverified report parsing failed (1): Invalid "
+      "attestation report: expected 1184 bytes, got 100"),
+    std::logic_error);
+}
+
 TEST_CASE("milan validation")
 {
   using namespace ccf;
@@ -188,6 +216,31 @@ TEST_CASE("turin validation")
     turin_quote_info, measurement, report_data);
 }
 
+TEST_CASE("Invalid attestation signature fails TAV verification")
+{
+  using namespace ccf;
+
+  auto invalid_attestation = pal::snp::testing::milan_attestation;
+  static constexpr size_t signature_offset = 0x2a0;
+  invalid_attestation[signature_offset] ^= 1;
+  auto quote_info = QuoteInfo{
+    .format = QuoteFormat::amd_sev_snp_v1,
+    .quote = std::move(invalid_attestation),
+    .endorsements = std::vector<uint8_t>(
+      pal::snp::testing::milan_endorsements.begin(),
+      pal::snp::testing::milan_endorsements.end()),
+    .uvm_endorsements = std::nullopt,
+  };
+
+  pal::PlatformAttestationMeasurement measurement;
+  pal::PlatformAttestationReportData report_data;
+
+  CHECK_THROWS_WITH_AS(
+    pal::verify_snp_attestation_report(quote_info, measurement, report_data),
+    doctest::Contains("SEV-SNP: TAV verification failed (104):"),
+    std::logic_error);
+}
+
 TEST_CASE("Mismatched attestation and endorsements fail")
 {
   using namespace ccf;
@@ -207,9 +260,7 @@ TEST_CASE("Mismatched attestation and endorsements fail")
   CHECK_THROWS_WITH_AS(
     pal::verify_snp_attestation_report(
       mismatched_quote, measurement, report_data),
-    doctest::Contains(
-      "SEV-SNP: The root of trust public key for this attestation "
-      "was not the expected one"),
+    doctest::Contains("SEV-SNP: TAV verification failed (102):"),
     std::logic_error);
 }
 
@@ -223,9 +274,7 @@ TEST_CASE("ARK with unexpected issuer fails")
   CHECK_THROWS_WITH_AS(
     ccf::pal::verify_snp_attestation_report(
       quote_info, measurement, report_data),
-    doctest::Contains(
-      "SEV-SNP: The root of trust issuer for this attestation was not "
-      "the expected one"),
+    doctest::Contains("SEV-SNP: TAV verification failed (102):"),
     std::logic_error);
 }
 
@@ -269,11 +318,11 @@ TEST_CASE("Parsing of Tcb versions from strings")
 
 TEST_CASE("Parsing tcb versions from attestaion")
 {
-  auto milan_attestation = *reinterpret_cast<const ccf::pal::snp::Attestation*>(
-    ccf::pal::snp::testing::milan_attestation.data());
-  auto milan_tcb =
-    milan_attestation.reported_tcb.to_policy(ccf::pal::snp::ProductName::Milan)
-      .to_milan_genoa();
+  auto milan_attestation = ccf::pal::snp::parse_attestation_report_unverified(
+    ccf::pal::snp::testing::milan_attestation);
+  auto milan_tcb = milan_attestation.reported_tcb()
+                     .to_policy(ccf::pal::snp::ProductName::Milan)
+                     .to_milan_genoa();
   CHECK_EQ(milan_tcb.microcode, 0xdb);
   CHECK_EQ(milan_tcb.snp, 0x18);
   CHECK_EQ(milan_tcb.tee, 0x00);
@@ -488,7 +537,7 @@ TEST_CASE("Quote endorsements url generation")
   for (auto [attestation, servers, expected_url] : test_cases)
   {
     auto quote =
-      *reinterpret_cast<const ccf::pal::snp::Attestation*>(attestation.data());
+      ccf::pal::snp::parse_attestation_report_unverified(attestation);
     auto config =
       ccf::pal::snp::make_endorsement_endpoint_configuration(quote, servers);
 
@@ -499,12 +548,12 @@ TEST_CASE("Quote endorsements url generation")
 TEST_CASE("Quote endorsements generation for v2 attestation version fails")
 {
   auto v2_format_milan_attestation =
-    *reinterpret_cast<const ccf::pal::snp::Attestation*>(
-      ccf::pal::snp::testing::v2_format_milan_attestation.data());
+    ccf::pal::snp::parse_attestation_report_unverified(
+      ccf::pal::snp::testing::v2_format_milan_attestation);
 
-  CHECK_EQ(v2_format_milan_attestation.version, 2);
-  CHECK_EQ(v2_format_milan_attestation.cpuid_fam_id, 0x0);
-  CHECK_EQ(v2_format_milan_attestation.cpuid_mod_id, 0x0);
+  CHECK_EQ(v2_format_milan_attestation.version(), 2);
+  CHECK_EQ(v2_format_milan_attestation.cpuid_fam_id(), 0x0);
+  CHECK_EQ(v2_format_milan_attestation.cpuid_mod_id(), 0x0);
 
   CHECK_THROWS_WITH(
     ccf::pal::snp::make_endorsement_endpoint_configuration(
@@ -530,8 +579,8 @@ TEST_CASE("Extracting metadata from endorsements")
     .uvm_endorsements = std::nullopt,
   };
 
-  auto attestation = *reinterpret_cast<const pal::snp::Attestation*>(
-    milan_quote_info.quote.data());
+  auto attestation =
+    pal::snp::parse_attestation_report_unverified(milan_quote_info.quote);
 
   auto certificates = ccf::crypto::split_x509_cert_bundle(std::string_view(
     reinterpret_cast<const char*>(milan_quote_info.endorsements.data()),
@@ -544,12 +593,11 @@ TEST_CASE("Extracting metadata from endorsements")
   REQUIRE(endorsed_tcb.has_value());
   CHECK_EQ(
     nlohmann::json(endorsed_tcb.value()).dump(),
-    nlohmann::json(attestation.reported_tcb).dump());
+    nlohmann::json(attestation.reported_tcb()).dump());
 
   auto endorsed_chip_id = pal::get_endorsed_chip_id_from_cert(chip_certificate);
   REQUIRE(endorsed_chip_id.has_value());
-  auto printable_reported_chip_id = std::span<uint8_t>(
-    attestation.chip_id, attestation.chip_id + sizeof(attestation.chip_id));
+  auto printable_reported_chip_id = attestation.chip_id();
   CHECK_EQ(
     ds::to_hex(endorsed_chip_id.value()),
     ds::to_hex(printable_reported_chip_id));

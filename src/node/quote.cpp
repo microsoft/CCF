@@ -150,8 +150,8 @@ namespace ccf
     return measurement;
   }
 
-  std::optional<pal::snp::Attestation> AttestationProvider::get_snp_attestation(
-    const QuoteInfo& quote_info)
+  std::optional<pal::snp::AttestationReport> AttestationProvider::
+    get_snp_attestation(const QuoteInfo& quote_info)
   {
     if (quote_info.format != QuoteFormat::amd_sev_snp_v1)
     {
@@ -161,10 +161,7 @@ namespace ccf
     {
       pal::PlatformAttestationMeasurement d = {};
       pal::PlatformAttestationReportData r = {};
-      pal::verify_quote(quote_info, d, r);
-      auto attestation = *reinterpret_cast<const pal::snp::Attestation*>(
-        quote_info.quote.data());
-      return attestation;
+      return pal::verify_snp_attestation_report_and_get(quote_info, d, r);
     }
     catch (const std::exception& e)
     {
@@ -202,13 +199,10 @@ namespace ccf
         pal::PlatformAttestationReportData r = {};
         try
         {
-          pal::verify_quote(quote_info, d, r);
-          auto quote = *reinterpret_cast<const pal::snp::Attestation*>(
-            quote_info.quote.data());
-          std::copy(
-            std::begin(quote.host_data),
-            std::end(quote.host_data),
-            rep.begin());
+          const auto report =
+            pal::verify_snp_attestation_report_and_get(quote_info, d, r);
+          const auto host_data = report.host_data();
+          std::copy(host_data.begin(), host_data.end(), rep.begin());
         }
         catch (const std::exception& e)
         {
@@ -276,9 +270,8 @@ namespace ccf
 
     pal::PlatformAttestationMeasurement d = {};
     pal::PlatformAttestationReportData r = {};
-    pal::verify_quote(quote_info, d, r);
     auto attestation =
-      *reinterpret_cast<const pal::snp::Attestation*>(quote_info.quote.data());
+      pal::verify_snp_attestation_report_and_get(quote_info, d, r);
 
     std::optional<pal::snp::TcbVersionPolicy> min_tcb_opt = std::nullopt;
     auto* h = tx.ro<SnpTcbVersionMap>(Tables::SNP_TCB_VERSIONS);
@@ -287,9 +280,9 @@ namespace ccf
         const std::string& cpuid_hex, const pal::snp::TcbVersionPolicy& v) {
         auto cpuid = pal::snp::cpuid_from_hex(cpuid_hex);
         if (
-          cpuid.get_family_id() == attestation.cpuid_fam_id &&
-          cpuid.get_model_id() == attestation.cpuid_mod_id &&
-          cpuid.stepping == attestation.cpuid_step)
+          cpuid.get_family_id() == attestation.cpuid_fam_id() &&
+          cpuid.get_model_id() == attestation.cpuid_mod_id() &&
+          cpuid.stepping == attestation.cpuid_step())
         {
           min_tcb_opt = v;
           return false;
@@ -304,9 +297,9 @@ namespace ccf
     // CPUID of the attested cpu must now be equal to the min_tcb_opt's cpuid
 
     auto product_family = pal::snp::get_sev_snp_product(
-      attestation.cpuid_fam_id, attestation.cpuid_mod_id);
+      attestation.cpuid_fam_id(), attestation.cpuid_mod_id());
     auto attestation_tcb_policy =
-      attestation.reported_tcb.to_policy(product_family);
+      attestation.reported_tcb().to_policy(product_family);
 
     if (pal::snp::TcbVersionPolicy::is_valid(
           min_tcb_opt.value(), attestation_tcb_policy))
