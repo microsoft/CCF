@@ -692,10 +692,9 @@ namespace ccf::kv
           }
           if (chunker)
           {
-            // Nothing local is discarded here, but the chunker may still be
-            // behind `version` if an allocated entry has not reached
-            // append_entry_size() yet. Clamp so this can only ever move the
-            // chunker back, never forward past the Store.
+            // Nothing local is discarded here, but the rollback target may be
+            // at or beyond the Store's current version. Clamp so this cannot
+            // move chunk metadata forward past the Store.
             chunker->rolled_back_to(std::min<Version>(tx_id.seqno, version));
           }
           return;
