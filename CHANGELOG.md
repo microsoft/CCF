@@ -9,10 +9,19 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [7.0.14]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.14
 
+### Fixed
+
+- If the view changed while a transaction was committing, the transaction could apply its writes to the local key-value store and then fail to replicate, leaving state that never reached consensus. The transaction's view is now validated atomically with the allocation of its version, so it is rejected before any map is modified, and `ccf::kv::CommitResult::FAIL_NO_REPLICATE` no longer implies a locally applied write (#8242).
+
 ### Changed
 
 - CCF and C++ applications built against it now require C++23. The supported minimum Clang version remains 18.1.2. (#8234)
 - `sandbox.sh` now derives node configuration defaults and CLI descriptions from the `cchost` configuration schema, rather than using defaults selected by the end-to-end test infrastructure. This changes the sandbox defaults for signature delay (100 ms -> 1000 ms), election timeout (4000 ms -> 5000 ms), ledger chunk size (5000000 bytes -> `5MB`, or 5242880 bytes), initial node and service certificate validity (90 days -> 1 day), and tick interval (1 ms -> 10 ms). Environment variables used by the test infrastructure no longer override sandbox defaults; for example, use the existing `--election-timeout-ms` option instead of `ELECTION_TIMEOUT_MS` (#8176).
+- `ccf::kv::CommittableTx::commit()` no longer takes a caller-supplied version resolver. The parameter had no callers, and bypassed the view check above. Callers passing `nullptr` for it should remove the argument (#8242).
+
+### Fixed
+
+- Corrected the OpenAPI schema name for `ccf::ds::SizeString` from `TimeString` to `SizeString`. (#8261)
 
 ## [7.0.13]
 

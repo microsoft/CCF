@@ -1176,9 +1176,23 @@ namespace ccf::kv
       return rollback_count == count;
     }
 
-    std::tuple<Version, Version> next_version(bool commit_new_map) override
+    std::optional<std::tuple<Version, Version, Version>> next_version(
+      bool commit_new_map, Term expected_commit_term) override
     {
       std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
+      // If rollback updates the term before this lock is acquired, reject the
+      // transaction before map writes are applied. If version allocation wins
+      // the race, rollback observes the new version and truncates those writes.
+      if (term_of_next_version != expected_commit_term)
+      {
+        LOG_DEBUG_FMT(
+          "Refusing to assign a version to a transaction from term {} because "
+          "the current term is {}",
+          expected_commit_term,
+          term_of_next_version);
+        return std::nullopt;
+      }
+
       Version v = next_version_unsafe();
 
       auto previous_last_new_map = last_new_map;
@@ -1187,7 +1201,7 @@ namespace ccf::kv
         last_new_map = v;
       }
 
-      return std::make_tuple(v, previous_last_new_map);
+      return std::make_tuple(v, previous_last_new_map, rollback_count);
     }
 
     Version next_version() override
