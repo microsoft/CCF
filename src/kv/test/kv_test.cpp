@@ -20,7 +20,9 @@
 #undef FAIL
 #include <random>
 #include <set>
+#include <stop_token>
 #include <string>
+#include <thread>
 #include <vector>
 
 struct MapTypes
@@ -2980,6 +2982,72 @@ TEST_CASE("Store clear")
   }
 }
 
+TEST_CASE("Stale-view writes are rejected before local application")
+{
+  ccf::kv::Store store;
+  store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+  auto consensus = std::make_shared<ccf::kv::test::PrimaryStubConsensus>();
+  store.set_consensus(consensus);
+
+  constexpr ccf::kv::Term initial_term = 2;
+  constexpr auto key = "key";
+  MapTypes::StringString map("public:map");
+  store.initialise_term(initial_term);
+
+  {
+    auto tx = store.create_tx();
+    tx.rw(map)->put(key, "initial");
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+
+  const auto baseline_txid = store.current_txid();
+  const auto baseline_replica_count = consensus->replica.size();
+
+  auto stale_tx = store.create_tx();
+  stale_tx.rw(map)->put(key, "stale");
+
+  const auto new_term = initial_term + 1;
+  store.rollback(baseline_txid, new_term);
+
+  REQUIRE(stale_tx.commit() == ccf::kv::CommitResult::FAIL_NO_REPLICATE);
+  CHECK(store.current_txid() == baseline_txid);
+  CHECK(consensus->replica.size() == baseline_replica_count);
+  {
+    auto tx = store.create_read_only_tx();
+    CHECK(tx.ro(map)->get(key) == "initial");
+  }
+
+  {
+    auto tx = store.create_tx();
+    tx.rw(map)->put(key, "fresh");
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+
+  CHECK(store.current_txid() == ccf::TxID(new_term, baseline_txid.seqno + 1));
+  CHECK(consensus->replica.size() == baseline_replica_count + 1);
+  {
+    auto tx = store.create_read_only_tx();
+    CHECK(tx.ro(map)->get(key) == "fresh");
+  }
+
+  const auto before_dynamic_map_txid = store.current_txid();
+  auto stale_dynamic_map_tx = store.create_tx();
+  stale_dynamic_map_tx.rw<MapTypes::StringString>("public:new_map")
+    ->put(key, "stale");
+
+  store.rollback(before_dynamic_map_txid, new_term + 1);
+
+  REQUIRE(
+    stale_dynamic_map_tx.commit() == ccf::kv::CommitResult::FAIL_NO_REPLICATE);
+  CHECK(store.current_txid() == before_dynamic_map_txid);
+  CHECK(store.get_map(store.current_version(), "public:new_map") == nullptr);
+
+  auto fresh_dynamic_map_tx = store.create_tx();
+  fresh_dynamic_map_tx.rw<MapTypes::StringString>("public:new_map")
+    ->put(key, "fresh");
+  REQUIRE(fresh_dynamic_map_tx.commit() == ccf::kv::CommitResult::SUCCESS);
+}
+
 TEST_CASE("Reported TxID after commit")
 {
   ccf::kv::Store kv_store;
@@ -3356,6 +3424,74 @@ TEST_CASE("Range")
     REQUIRE(std_range == kv_range);
     REQUIRE(kv_range.at(existing_key) == well_known_value);
   }
+}
+
+// Reproduces the race between a reserved transaction creating a map (which
+// writes to the Store's map set) and a concurrent reader looking one up. The
+// write happens in Store::add_dynamic_map via commit_reserved; the read holds
+// maps_lock via Store::get_map. Only ThreadSanitizer can observe the failure,
+// so this asserts nothing about interleaving - it exists to give TSAN both
+// accesses concurrently.
+TEST_CASE("Reserved transaction map creation is serialised with lookups")
+{
+  ccf::kv::Store store;
+  store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+
+  {
+    auto tx = store.create_tx();
+    tx.rw<MapTypes::StringString>("public:existing")->put("k", "v");
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+
+  // Ensure every exit path, including a failed REQUIRE, stops and joins
+  // readers.
+  std::vector<std::jthread> readers;
+  readers.reserve(4);
+  for (size_t r = 0; r < 4; ++r)
+  {
+    readers.emplace_back([&store](std::stop_token stop_token) {
+      size_t n = 0;
+      while (!stop_token.stop_requested())
+      {
+        // Takes maps_lock and searches the map set. Looks up names in the
+        // range being inserted, so the search path traverses the nodes
+        // add_dynamic_map is writing. Deliberately avoids current_version(),
+        // so this contends only on maps_lock.
+        (void)store.get_map(1, fmt::format("public:reserved_{}", n % 2000));
+        n++;
+      }
+    });
+  }
+
+  constexpr size_t reserved_txs = 2000;
+  for (size_t i = 0; i < reserved_txs; ++i)
+  {
+    // Each reserved transaction writes to a map that does not exist yet, so
+    // committing it adds to the Store's map set. Nothing else here may take
+    // maps_lock, or it would order the write against the readers and hide the
+    // race being reproduced.
+    auto tx = store.create_reserved_tx(store.next_txid());
+    tx.rw<MapTypes::StringString>(fmt::format("public:reserved_{}", i))
+      ->put("k", "v");
+    const auto [result, data, claims, commit_evidence, hooks] =
+      tx.commit_reserved();
+    REQUIRE(result == ccf::kv::CommitResult::SUCCESS);
+  }
+
+  for (auto& reader : readers)
+  {
+    reader.request_stop();
+  }
+  readers.clear();
+
+  // Confirm the writes really did extend the map set, so this exercises
+  // Store::add_dynamic_map rather than silently doing nothing.
+  REQUIRE(
+    store.get_map(store.current_version(), "public:reserved_0") != nullptr);
+  REQUIRE(
+    store.get_map(
+      store.current_version(),
+      fmt::format("public:reserved_{}", reserved_txs - 1)) != nullptr);
 }
 
 TEST_CASE("Ledger entry chunk request")
