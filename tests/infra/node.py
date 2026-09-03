@@ -603,58 +603,20 @@ class Node:
             f"node {self.local_node_id} after {timeout}s"
         )
 
-    def _find_local_ledger_start_seqno(self, target_seqno, timeout):
-        earliest_start_seqno = None
-        next_seqno = target_seqno
-        end_time = time.time() + timeout
+    def _get_local_ledger_start_seqno(self):
+        with self.client() as c:
+            r = c.get("/node/state")
+            assert r.status_code == http.HTTPStatus.OK, r
+            startup_seqno = r.body.json()["startup_seqno"]
+            if startup_seqno != 0:
+                return startup_seqno + 1
 
-        with self.client(
-            interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
-        ) as c:
-            while True:
-                r = c.head(
-                    f"/node/ledger_chunk?since={next_seqno}",
-                    allow_redirects=False,
-                )
-                if r.status_code == http.HTTPStatus.PERMANENT_REDIRECT:
-                    chunk_url = urllib.parse.urlparse(r.headers["Location"])
-                    if not chunk_url.query:
-                        chunk_name = os.path.basename(chunk_url.path)
-                        start_seqno, end_seqno = ccf.ledger.range_from_filename(
-                            chunk_name
-                        )
-                        assert (
-                            end_seqno is not None
-                            and start_seqno <= next_seqno <= end_seqno
-                        ), f"Ledger chunk {chunk_name} does not cover seqno {next_seqno}"
+            if self.remote.start_type == infra.remote.StartType.recover:
+                r = c.get("/node/network")
+                assert r.status_code == http.HTTPStatus.OK, r
+                return TxID.from_str(r.body.json()["current_service_create_txid"]).seqno
 
-                        earliest_start_seqno = start_seqno
-                        if start_seqno == 1:
-                            return start_seqno
-
-                        next_seqno = start_seqno - 1
-                        end_time = time.time() + timeout
-                        continue
-
-                if r.status_code not in (
-                    http.HTTPStatus.NOT_FOUND,
-                    http.HTTPStatus.PERMANENT_REDIRECT,
-                ):
-                    raise RuntimeError(
-                        f"Unexpected response while finding local ledger start "
-                        f"covering seqno {next_seqno}: {r}"
-                    )
-
-                if earliest_start_seqno is not None:
-                    return earliest_start_seqno
-
-                if time.time() >= end_time:
-                    raise TimeoutError(
-                        f"Could not find local ledger chunk covering seqno "
-                        f"{target_seqno} on node {self.local_node_id} after "
-                        f"{timeout}s"
-                    )
-                time.sleep(0.1)
+            return 1
 
     def _download_ledger(
         self,
@@ -684,7 +646,7 @@ class Node:
         if start_seqno is not None:
             next_seqno = start_seqno
         elif local_only:
-            next_seqno = self._find_local_ledger_start_seqno(target_seqno, timeout)
+            next_seqno = self._get_local_ledger_start_seqno()
         else:
             next_seqno = 1
         end_time = time.time() + timeout
