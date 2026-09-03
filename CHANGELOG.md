@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [7.0.14]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.14
 
+### Added
+
+- COSE Sign1 verification now accepts the fully-specified ECDSA algorithm identifiers introduced by [RFC 9864](https://www.rfc-editor.org/rfc/rfc9864.html): `ESP256` (-9), `ESP384` (-51) and `ESP512` (-52), in addition to the deprecated `ES256` (-7), `ES384` (-35) and `ES512` (-36) they replace. `ESn` and `ESPn` are treated as equivalent for the curve they denote, which CCF already requires to match the verification key. Signatures produced by CCF continue to use the `ES` identifiers (#8267).
+
+### Fixed
+
+- If the view changed while a transaction was committing, the transaction could apply its writes to the local key-value store and then fail to replicate, leaving state that never reached consensus. The transaction's view is now validated atomically with the allocation of its version, so it is rejected before any map is modified, and `ccf::kv::CommitResult::FAIL_NO_REPLICATE` no longer implies a locally applied write (#8242).
+
 ### Changed
 
 - CCF and C++ applications built against it now require C++23. The supported minimum Clang version remains 18.1.2. (#8234)
