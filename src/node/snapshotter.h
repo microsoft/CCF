@@ -277,7 +277,7 @@ namespace ccf
           commit_evidence = commit_evidence_;
         };
 
-      auto rc = tx.commit(cd, nullptr, capture_ws_digest_and_commit_evidence);
+      auto rc = tx.commit(cd, capture_ws_digest_and_commit_evidence);
       if (rc != ccf::kv::CommitResult::SUCCESS)
       {
         LOG_FAIL_FMT(
