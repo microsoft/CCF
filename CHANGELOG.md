@@ -24,7 +24,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Removed
 
-- The experimental built-in `QUIC` application protocol and its UDP echo implementation have been removed. UDP interfaces remain available to registered custom protocols. (#3517)
+- The experimental built-in `QUIC` application protocol and its UDP echo implementation have been removed. UDP interfaces remain available to registered custom protocols.
 
 ### Fixed
 
