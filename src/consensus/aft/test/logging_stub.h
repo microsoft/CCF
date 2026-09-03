@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/locking.h"
 #include "ccf/entity_id.h"
-#include "ccf/pal/locking.h"
 #include "consensus/aft/raft.h"
 #include "consensus/aft/raft_types.h"
 
@@ -21,7 +21,7 @@ namespace aft
   protected:
     ccf::NodeId _id;
 
-    ccf::pal::Mutex ledger_access;
+    ccf::ds::Mutex ledger_access;
 
   public:
     std::vector<std::vector<uint8_t>> ledger;
@@ -39,7 +39,7 @@ namespace aft
       ccf::kv::Term term,
       ccf::kv::Version index)
     {
-      ccf::pal::MutexGuard lock(ledger_access);
+      ccf::ds::MutexGuard lock(ledger_access);
 
       // The payload that we eventually deserialise must include the
       // ledger entry as well as the View and Index that identify it, and
@@ -83,7 +83,7 @@ namespace aft
 
     std::optional<std::vector<uint8_t>> get_entry_by_idx(size_t idx)
     {
-      ccf::pal::MutexGuard lock(ledger_access);
+      ccf::ds::MutexGuard lock(ledger_access);
 
       // Ledger indices are 1-based, hence the -1
       if (idx > 0 && idx <= ledger.size())

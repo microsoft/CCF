@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/pal/locking.h"
+#include "ccf/ds/locking.h"
 #include "channels.h"
 #include "ds/ccf_assert.h"
 #include "node/node_to_node.h"
@@ -22,7 +22,7 @@ namespace ccf
     };
 
     std::unordered_map<NodeId, ChannelInfo> channels;
-    ccf::pal::Mutex lock; //< Protects access to channels map
+    ccf::ds::Mutex lock; //< Protects access to channels map
 
     struct ThisNode
     {
@@ -60,7 +60,7 @@ namespace ccf
           "Node-to-node message limit has not yet been set");
       }
 
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      std::lock_guard<ccf::ds::Mutex> guard(lock);
 
       auto search = channels.find(peer_id);
       if (search != channels.end())
@@ -134,7 +134,7 @@ namespace ccf
     void set_endorsed_node_cert(
       const ccf::crypto::Pem& endorsed_node_cert) override
     {
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      std::lock_guard<ccf::ds::Mutex> guard(lock);
       this_node->endorsed_node_cert = endorsed_node_cert;
     }
 
@@ -150,7 +150,7 @@ namespace ccf
 
     void tick(std::chrono::milliseconds elapsed) override
     {
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      std::lock_guard<ccf::ds::Mutex> guard(lock);
 
       if (idle_timeout.has_value())
       {
@@ -193,7 +193,7 @@ namespace ccf
 
     bool have_channel(const ccf::NodeId& nid) override
     {
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      std::lock_guard<ccf::ds::Mutex> guard(lock);
       return channels.find(nid) != channels.end();
     }
 
@@ -292,7 +292,7 @@ namespace ccf
 
     void close_channel(const NodeId& peer_id) override
     {
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      std::lock_guard<ccf::ds::Mutex> guard(lock);
 
       auto search = channels.find(peer_id);
       if (search != channels.end())
