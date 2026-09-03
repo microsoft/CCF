@@ -1,6 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "commit_concurrency/deterministic_scheduler.h"
+#include "commit_concurrency/scheduled/deterministic_scheduler.h"
 #include "commit_concurrency/threaded/fixture.h"
 
 #define DOCTEST_CONFIG_NO_SHORT_MACRO_NAMES
@@ -51,7 +51,7 @@ DOCTEST_TEST_CASE(
   "Randomly sampled: every sampled interleaving of a stale-view commit "
   "and a real election leaves replication able to catch up to the "
   "Store's own version" *
-  doctest::test_suite("commit_concurrency_model"))
+  doctest::test_suite("commit_concurrency_scheduled"))
 {
   std::unique_ptr<CommitConcurrencyFixture> fixture;
   ccf::TxID baseline_txid;
@@ -101,7 +101,7 @@ DOCTEST_TEST_CASE(
   "Randomly sampled: every sampled interleaving of two concurrent "
   "stale-view commits and a real election leaves replication able to "
   "catch up to the Store's own version" *
-  doctest::test_suite("commit_concurrency_model"))
+  doctest::test_suite("commit_concurrency_scheduled"))
 {
   std::unique_ptr<CommitConcurrencyFixture> fixture;
   ccf::TxID baseline_txid;

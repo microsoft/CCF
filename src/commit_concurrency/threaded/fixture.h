@@ -16,7 +16,7 @@
 #include "ccf/ds/unit_strings.h"
 #include "ccf/ds/x509_time_fmt.h"
 #include "ccf/service/consensus_config.h"
-#include "commit_concurrency/interleaving.h"
+#include "commit_concurrency/threaded/checkpoint.h"
 #include "consensus/aft/raft.h"
 #include "consensus/aft/test/logging_stub.h"
 #include "crypto/certs.h"

@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #include "ccf/crypto/sha256_hash.h"
-#include "commit_concurrency/interleaving.h"
+#include "commit_concurrency/threaded/checkpoint.h"
 
 #define DOCTEST_CONFIG_NO_SHORT_MACRO_NAMES
 #include <atomic>
@@ -14,7 +14,7 @@
 
 DOCTEST_TEST_CASE(
   "Checkpoint pauses a worker until explicitly released" *
-  doctest::test_suite("interleaving"))
+  doctest::test_suite("checkpoint"))
 {
   ccf::kv::test::Checkpoint checkpoint("test");
   std::atomic<bool> worker_progressed{false};
@@ -38,7 +38,7 @@ DOCTEST_TEST_CASE(
 
 DOCTEST_TEST_CASE(
   "Checkpoint can be reused for multiple sequential pause/release cycles" *
-  doctest::test_suite("interleaving"))
+  doctest::test_suite("checkpoint"))
 {
   ccf::kv::test::Checkpoint checkpoint;
   constexpr size_t cycles = 20;
@@ -60,7 +60,7 @@ DOCTEST_TEST_CASE(
 
 DOCTEST_TEST_CASE(
   "wait_until_paused_and_release is a one-shot happens-before edge" *
-  doctest::test_suite("interleaving"))
+  doctest::test_suite("checkpoint"))
 {
   ccf::kv::test::Checkpoint checkpoint;
   std::atomic<bool> worker_progressed{false};
@@ -77,7 +77,7 @@ DOCTEST_TEST_CASE(
 
 DOCTEST_TEST_CASE(
   "checkpoint_write_set_observer pauses when invoked" *
-  doctest::test_suite("interleaving"))
+  doctest::test_suite("checkpoint"))
 {
   ccf::kv::test::Checkpoint checkpoint;
   auto observer = ccf::kv::test::checkpoint_write_set_observer(checkpoint);
@@ -97,7 +97,7 @@ DOCTEST_TEST_CASE(
 
 DOCTEST_TEST_CASE(
   "random_delay respects its upper bound and can be zero" *
-  doctest::test_suite("interleaving"))
+  doctest::test_suite("checkpoint"))
 {
   std::mt19937 rng(1234);
 

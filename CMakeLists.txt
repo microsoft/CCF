@@ -299,7 +299,7 @@ add_ccf_static_library(
 # node/history.h) so that ccf_kv's compiled objects can safely be linked,
 # unmodified, by every test target - including one that recompiles those
 # headers with a different ccf::pal::Mutex (see
-# src/commit_concurrency/interleaving_lock_override.h) - without an ODR violation.
+# src/commit_concurrency/scheduled/interleaving_lock_override.h) - without an ODR violation.
 target_compile_definitions(ccf_kv PRIVATE CCF_STATIC_LIBRARY_BUILD)
 
 # CCF endpoints lib
@@ -734,12 +734,12 @@ if(BUILD_TESTS)
     # components production code relies on together, but which no other unit
     # test suite exercises jointly (kv_test stubs consensus, raft_test stubs
     # the store, history_test stubs consensus). DETECT_DEADLOCKS is passed
-    # because the interleaving primitive itself (src/commit_concurrency/interleaving.h)
-    # could deadlock if buggy.
+    # because the checkpoint primitive itself
+    # (src/commit_concurrency/threaded/checkpoint.h) could deadlock if buggy.
     add_unit_test(
       commit_concurrency_test
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/commit_concurrency/interleaving_test.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/commit_concurrency/threaded/main.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/commit_concurrency/threaded/checkpoint_test.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/commit_concurrency/threaded/smoke.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/commit_concurrency/threaded/deterministic.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/commit_concurrency/threaded/fuzzer.cpp
@@ -755,16 +755,19 @@ if(BUILD_TESTS)
       PRIVATE ccfcrypto http_parser ccf_kv ccf_tasks
     )
 
-    # Explores every legal interleaving of a bounded scenario (rather than
-    # sampling timing-dependent ones, as commit_concurrency_test does)
-    # via ccf::kv::test::explore_all_interleavings() in
-    # src/commit_concurrency/deterministic_scheduler.h. DETECT_DEADLOCKS is passed for
-    # the same reason as above.
+    # Systematically explores the space of legal interleavings of a bounded
+    # scenario (rather than sampling timing-dependent ones, as
+    # commit_concurrency_test does), via ccf::kv::test::DeterministicScheduler
+    # in src/commit_concurrency/scheduled/deterministic_scheduler.h -
+    # exhaustively where that space is small enough
+    # (explore_all_interleavings()), or by random sampling where it isn't
+    # (explore_random_interleavings()).
+    # DETECT_DEADLOCKS is passed for the same reason as above.
     add_unit_test(
-      commit_concurrency_model_test
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/commit_concurrency/deterministic_scheduler_test.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/commit_concurrency/model_checked/main.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/commit_concurrency/model_checked/rejected_commit_stall.cpp
+      commit_concurrency_scheduled_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/commit_concurrency/scheduled/deterministic_scheduler_test.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/commit_concurrency/scheduled/main.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/commit_concurrency/scheduled/rejected_commit.cpp
       # ccf::tasks' own sources (normally built once into ccf_tasks and
       # shared unmodified - see kv_test's use of ccf_kv, for example) are
       # rebuilt here instead of linking ccf_tasks, so that they see the
@@ -783,18 +786,18 @@ if(BUILD_TESTS)
       DETECT_DEADLOCKS
     )
     set_property(
-      TEST commit_concurrency_model_test
+      TEST commit_concurrency_scheduled_test
       APPEND
       PROPERTY LABELS concurrency
     )
     # The -include flag makes every source file in this target (and only
     # this target) see ccf::pal::Mutex itself resolve to SchedulerMutex -
-    # see src/commit_concurrency/interleaving_lock_override.h.
+    # see src/commit_concurrency/scheduled/interleaving_lock_override.h.
     target_compile_options(
-      commit_concurrency_model_test
+      commit_concurrency_scheduled_test
       PRIVATE
         -include
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/commit_concurrency/interleaving_lock_override.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/commit_concurrency/scheduled/interleaving_lock_override.h
     )
     # ccf_kv and ccfcrypto are safe to share, unmodified, with every other
     # test target here despite the -include above: none of their own
@@ -804,7 +807,7 @@ if(BUILD_TESTS)
     # being true loudly, at build time, rather than silently. ccf_tasks is
     # deliberately not linked here - see the comment on its sources above.
     target_link_libraries(
-      commit_concurrency_model_test
+      commit_concurrency_scheduled_test
       PRIVATE
         ccfcrypto
         http_parser

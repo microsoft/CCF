@@ -10,7 +10,7 @@
 #include <thread>
 
 // Deterministic scenarios driven by CommitConcurrencyFixture, pinned via
-// ccf::kv::test::Checkpoint from src/commit_concurrency/interleaving.h.
+// ccf::kv::test::Checkpoint from src/commit_concurrency/threaded/checkpoint.h.
 
 using namespace ccf::kv::test;
 

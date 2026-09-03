@@ -3,7 +3,7 @@
 #pragma once
 
 // Force-included (via a -include compiler flag) into every translation
-// unit of the model-checked test target, before anything else, so that
+// unit of the scheduled test target, before anything else, so that
 // ccf::pal::Mutex itself (see include/ccf/pal/locking.h) resolves to
 // SchedulerMutex for the whole of that target - and nowhere else, since no
 // other target passes this flag. Every production call site that declares
@@ -25,4 +25,4 @@
 // translation unit is the one every subsequent include sees.
 #define CCF_TEST_INTERLEAVING_LOCK_TYPE ccf::kv::test::SchedulerMutex
 
-#include "commit_concurrency/deterministic_scheduler.h"
+#include "commit_concurrency/scheduled/deterministic_scheduler.h"
