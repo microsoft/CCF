@@ -60,10 +60,12 @@ namespace ccf::crypto
           EVP_PKEY_get_group_name(key, gname.data(), gname.size(), &gname_len));
         gname.resize(gname_len);
 
-        // Map curve to COSE algorithm
+        // Map curve to COSE algorithm. RFC 9864 deprecates the curve-agnostic
+        // ES identifiers in favour of the fully-specified ESP ones, so both
+        // are accepted for the curve they denote.
         if (gname == SN_X9_62_prime256v1) // P-256
         {
-          if (cose_alg != -7)
+          if (cose_alg != -7 && cose_alg != -9)
           {
             throw std::domain_error(fmt::format(
               "secp256r1 key cannot be used with COSE algorithm {}", cose_alg));
@@ -71,7 +73,7 @@ namespace ccf::crypto
         }
         else if (gname == SN_secp384r1) // P-384
         {
-          if (cose_alg != -35)
+          if (cose_alg != -35 && cose_alg != -51)
           {
             throw std::domain_error(fmt::format(
               "secp384r1 key cannot be used with COSE algorithm {}", cose_alg));
@@ -79,7 +81,7 @@ namespace ccf::crypto
         }
         else if (gname == SN_secp521r1) // P-521
         {
-          if (cose_alg != -36)
+          if (cose_alg != -36 && cose_alg != -52)
           {
             throw std::domain_error(fmt::format(
               "secp521r1 key cannot be used with COSE algorithm {}", cose_alg));
