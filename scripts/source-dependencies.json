@@ -1,0 +1,22 @@
+{
+  "excluded_path_parts": [
+    "benchmark",
+    "benchmarks",
+    "fuzz",
+    "fuzzer",
+    "fuzzers",
+    "test",
+    "tests"
+  ],
+  "excluded_file_suffixes": [
+    "_bench",
+    "_benchmark",
+    "_fuzz",
+    "_fuzzer",
+    "_test",
+    "_tests"
+  ],
+  "allowed_internal_dependencies": {
+    "ds": []
+  }
+}
