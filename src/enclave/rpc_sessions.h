@@ -20,10 +20,6 @@
 #include "tls/server.h"
 #include "udp/msg_types.h"
 
-// NB: This should be HTTP3 including QUIC, but this is
-// ok for now, as we only have an echo service for now
-#include "quic/quic_session.h"
-
 #include <limits>
 #include <map>
 #include <stdexcept>
@@ -31,8 +27,6 @@
 
 namespace ccf
 {
-  using QUICSessionImpl = quic::QUICEchoSession;
-
   static constexpr size_t max_open_sessions_soft_default = 1000;
   static constexpr size_t max_open_sessions_hard_default = 1010;
   static const ccf::Endorsement endorsement_default = {ccf::Authority::SERVICE};
@@ -405,18 +399,10 @@ namespace ccf
         if (udp)
         {
           LOG_DEBUG_FMT("New UDP endpoint at {}", id);
-          if (per_listen_interface.app_protocol == "QUIC")
+          if (custom_protocol_subsystem)
           {
-            auto session = std::make_shared<QUICSessionImpl>(
-              rpc_map, id, listen_interface_id, writer_factory);
-            sessions.insert(std::make_pair(
-              id, std::make_pair(listen_interface_id, std::move(session))));
-          }
-          else if (custom_protocol_subsystem)
-          {
-            // We know it's a custom protocol, but the session creation function
-            // hasn't been registered yet, so we keep a nullptr until the first
-            // udp::udp_inbound message.
+            // The session creation function may not be registered yet, so keep
+            // a nullptr until the first udp::udp_inbound message.
             sessions.insert(
               std::make_pair(id, std::make_pair(listen_interface_id, nullptr)));
           }
