@@ -177,88 +177,136 @@ namespace ccf::pal
     }
   };
 
-  // Called (if non-null) whenever a ccf::pal::unique_lock below actually
-  // acquires its lock, with a short label describing why - either given
-  // explicitly at the call site, or (if not) a source-location-derived
-  // default. Null outside of test code that wants to observe this; see
-  // src/commit_concurrency/deterministic_scheduler.h's SchedulerThreadContext,
-  // the one place that currently sets it, forwarding to
-  // DeterministicScheduler::set_action() so a failing scenario's
-  // describe() can show real semantic reasons at real lock points, not
-  // just its own explicit yield_point() labels. Deliberately not
-  // thread_local: the one place that installs it already reads its own
-  // thread-local state to decide whether the calling thread has an active
-  // scheduler, so this only ever needs a single, one-time global install.
-  using LockLabelSink = void (*)(const char* label);
-  inline LockLabelSink lock_label_sink = nullptr;
+  // Satisfied by a lock type whose lock()/try_lock()/unlock() calls can
+  // each be given a short label describing why - the only current
+  // example is ccf::kv::test::SchedulerMutex, which reports each label
+  // straight to whichever scheduler is exploring interleavings on the
+  // calling thread, as an Acquired or Released event tied precisely to
+  // that specific call - see its lock()/unlock() for details.
+  // ccf::pal::Mutex itself does not satisfy this (real locking has no use
+  // for a label), so unique_lock below falls back to plain, unlabelled
+  // lock()/try_lock()/unlock() calls against it.
+  template <typename LockType>
+  concept LabelledLockable = requires(LockType& mtx, const char* label) {
+    mtx.lock(label);
+    mtx.try_lock(label);
+    mtx.unlock(label);
+  };
 
   // A drop-in replacement for std::unique_lock<Mutex> (supporting the same
   // deferred-locking constructor and lock()/try_lock()/unlock() surface
   // used against ccf::pal::Mutex elsewhere in this codebase), with an
-  // optional label describing why this lock is being taken - reported to
-  // lock_label_sink above every time this actually acquires the lock. With
-  // no label given, the label defaults to the call site's source location.
+  // optional label describing why this lock is being taken - passed
+  // directly into the underlying LockType's own lock()/try_lock()/unlock()
+  // call for LockTypes that accept one (see LabelledLockable above); a
+  // plain, unlabelled call otherwise. With no label given, it defaults to
+  // the call site's source location.
+  //
+  // Carries its own CCF_SCOPED_CAPABILITY annotations (mirroring
+  // MutexGuard above), rather than relying on Clang's built-in,
+  // name-based special-casing of std::unique_lock, since this needs to
+  // call LockType's own lock()/try_lock()/unlock() directly (to pass a
+  // label through) rather than delegating to a real std::unique_lock
+  // member. This gives real static verification for the ordinary,
+  // unconditional case - a function using this type's lock/unlock like
+  // an ordinary scoped guard is checked exactly as if it used
+  // std::unique_lock or MutexGuard. The one gap: Clang's built-in
+  // std::unique_lock support additionally understands the
+  // conditionally-taken pattern (construct with std::defer_lock, only
+  // sometimes call .lock()/.try_lock() depending on runtime state) well
+  // enough to statically verify it; that specific pattern is not
+  // supported for a user-annotated type like this one, and needs
+  // CCF_NO_THREAD_SAFETY_ANALYSIS on the specific enclosing function that
+  // does it (a handful of call sites in this codebase - see their own
+  // comments for why).
   template <typename LockType>
-  class unique_lock
+  class CCF_SCOPED_CAPABILITY unique_lock
   {
-    std::unique_lock<LockType> inner;
+    LockType* mtx;
+    bool owned = false;
     const char* label;
     std::source_location loc;
 
-    void report_if_locked()
+    const char* effective_label() const
     {
-      if (inner.owns_lock() && lock_label_sink != nullptr)
-      {
-        lock_label_sink(label != nullptr ? label : loc.function_name());
-      }
+      return label != nullptr ? label : loc.function_name();
     }
 
   public:
     explicit unique_lock(
-      LockType& mtx,
+      LockType& mtx_,
       const char* label_ = nullptr,
-      std::source_location loc_ = std::source_location::current()) :
-      inner(mtx),
+      std::source_location loc_ = std::source_location::current())
+      CCF_ACQUIRE(mtx_) :
+      mtx(&mtx_),
       label(label_),
       loc(loc_)
     {
-      report_if_locked();
+      lock();
     }
 
     unique_lock(
-      LockType& mtx,
-      std::defer_lock_t defer,
+      LockType& mtx_,
+      std::defer_lock_t,
       const char* label_ = nullptr,
       std::source_location loc_ = std::source_location::current()) :
-      inner(mtx, defer),
+      mtx(&mtx_),
       label(label_),
       loc(loc_)
     {}
 
-    void lock()
+    ~unique_lock() CCF_RELEASE()
     {
-      inner.lock();
-      report_if_locked();
+      if (owned)
+      {
+        unlock();
+      }
     }
 
-    bool try_lock()
+    void lock() CCF_ACQUIRE()
     {
-      const bool locked = inner.try_lock();
-      if (locked)
+      if constexpr (LabelledLockable<LockType>)
       {
-        report_if_locked();
+        mtx->lock(effective_label());
       }
+      else
+      {
+        mtx->lock();
+      }
+      owned = true;
+    }
+
+    bool try_lock() CCF_TRY_ACQUIRE(true)
+    {
+      bool locked;
+      if constexpr (LabelledLockable<LockType>)
+      {
+        locked = mtx->try_lock(effective_label());
+      }
+      else
+      {
+        locked = mtx->try_lock();
+      }
+      owned = locked;
       return locked;
     }
 
-    void unlock()
+    void unlock() CCF_RELEASE()
     {
-      inner.unlock();
+      if constexpr (LabelledLockable<LockType>)
+      {
+        mtx->unlock(effective_label());
+      }
+      else
+      {
+        mtx->unlock();
+      }
+      owned = false;
     }
 
     bool owns_lock() const
     {
-      return inner.owns_lock();
+      return owned;
     }
 
     unique_lock(const unique_lock&) = delete;

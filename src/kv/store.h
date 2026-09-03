@@ -130,13 +130,19 @@ namespace ccf::kv
 
     std::atomic<StoreReadiness> readiness = StoreReadiness::Ready;
 
+    // CCF_NO_THREAD_SAFETY_ANALYSIS: maps_guard below is only
+    // conditionally locked (via std::defer_lock, then .lock() only if
+    // new_maps is non-empty) - real, correct behaviour that Clang's
+    // thread-safety analysis cannot statically verify for a
+    // ccf::pal::unique_lock used this way (unlike its built-in support
+    // for std::unique_lock, which does handle this exact pattern).
     bool commit_deserialised(
       OrderedChanges& changes,
       Version v,
       Term term,
       const MapCollection& new_maps,
       ccf::kv::ConsensusHookPtrs& hooks,
-      bool track_deletes_on_missing_keys) override
+      bool track_deletes_on_missing_keys) override CCF_NO_THREAD_SAFETY_ANALYSIS
     {
       ccf::pal::unique_lock<ccf::pal::Mutex> maps_guard(
         maps_lock, std::defer_lock);

@@ -62,18 +62,40 @@ namespace ccf::kv::test
 {
   using ActorId = size_t;
 
+  // What an actor was last known to be doing, for describe() to report
+  // against whichever decision comes next - whichever of these was
+  // reported last for that actor, however many decisions ago, stays in
+  // place until the next one (all three kinds behave identically here;
+  // none is cleared automatically). Acquired/Released are recorded
+  // automatically by before_lock()/after_unlock(), in sync with the exact
+  // lock event that caused them - see SchedulerMutex's lock()/unlock().
+  // YieldPoint is for a scenario's own yield_point() label, describing
+  // something with no specific lock attached.
+  enum class ActorEventKind
+  {
+    YieldPoint,
+    Acquired,
+    Released
+  };
+
+  struct ActorEvent
+  {
+    ActorEventKind kind = ActorEventKind::YieldPoint;
+    std::string label;
+  };
+
   class DeterministicScheduler
   {
   public:
     // One entry per point where the scheduler chose which ready actor
     // would run next: every actor that was ready at that point (with
-    // whatever action label - see set_action() below - it had most
-    // recently set for itself), and the index within that list of the one
-    // actually chosen.
+    // whatever event - see ActorEvent above - it had most recently
+    // reported), and the index within that list of the one actually
+    // chosen.
     struct Decision
     {
       std::vector<ActorId> ready;
-      std::vector<std::string> ready_actions;
+      std::vector<ActorEvent> ready_actions;
       size_t chosen_index;
     };
 
@@ -94,7 +116,7 @@ namespace ccf::kv::test
     std::function<size_t(size_t num_ready)> chooser;
     std::vector<Decision> path;
     std::vector<std::string> actor_names;
-    std::vector<std::string> current_action;
+    std::vector<ActorEvent> current_event;
 
     // Falls back to "actor <n>" for any actor with no name given to the
     // constructor, or an empty name.
@@ -116,9 +138,9 @@ namespace ccf::kv::test
     // decision point (branches the search over every ready actor). A
     // useful middle ground: treat each of these as only a *candidate*
     // decision point, and let a per-scenario predicate (matched against
-    // the real semantic label already reported via
-    // ccf::pal::lock_label_sink/yield_point()'s own label - no further
-    // production code changes needed) decide whether it actually
+    // the real ActorEvent already reported directly to before_lock()/
+    // after_unlock()/yield_point() - no further production code changes
+    // needed) decide whether it actually
     // branches, or just fast-passes the current actor through unchanged
     // (as the driver "actor" already does unconditionally below). Real
     // mutual exclusion is unaffected either way - only whether the search
@@ -159,11 +181,11 @@ namespace ccf::kv::test
           "- if replaying a recorded path, the scenario is not "
           "deterministic given the choices the scheduler controls");
       }
-      std::vector<std::string> ready_actions;
+      std::vector<ActorEvent> ready_actions;
       ready_actions.reserve(ready.size());
       for (auto a : ready)
       {
-        ready_actions.push_back(current_action[a]);
+        ready_actions.push_back(current_event[a]);
       }
       path.push_back(Decision{ready, std::move(ready_actions), chosen_index});
       running = ready[chosen_index];
@@ -189,11 +211,13 @@ namespace ccf::kv::test
       chooser(std::move(chooser_)),
       actor_names(std::move(actor_names_)),
       // One extra slot beyond the real actors, for the reserved driver id
-      // (see DriverRegistration) - the driver never contends for a lock or
-      // gets scheduled, but can still call set_action() (transitively, via
-      // ccf::pal::unique_lock's label reporting) while running application
-      // code during make_run()/on_schedule().
-      current_action(num_actors_ + 1)
+      // (see DriverRegistration): the driver's own incidental lock use
+      // during make_run()/on_schedule() never reaches this array at all
+      // (before_lock()/after_unlock() return early for it, before
+      // touching an event) - but nothing stops make_run()/on_schedule()
+      // from calling yield_point() directly while the driver is
+      // registered, which does write here.
+      current_event(num_actors_ + 1)
     {}
 
     // Called by each actor's thread before it does any real work. Blocks
@@ -224,45 +248,37 @@ namespace ccf::kv::test
     // whether a lock happens to be involved there - e.g. a gap between two
     // unrelated critical sections. Called with no scheduler active, it is
     // a no-op (see yield_point()). If `label` is non-empty, it is recorded
-    // as this actor's current action (as set_action() below would) before
-    // the decision is made, so it appears in describe()'s output for this
-    // decision point.
+    // as this actor's current YieldPoint event before the decision is
+    // made, so it appears in describe()'s output for this decision point.
     void yield_point(ActorId self, std::string label = {})
     {
       std::unique_lock<std::mutex> lock(m);
       if (!label.empty())
       {
-        current_action[self] = std::move(label);
+        current_event[self] =
+          ActorEvent{ActorEventKind::YieldPoint, std::move(label)};
       }
       choose_next(lock);
       cv.wait(lock, [&] { return running == self; });
-    }
-
-    // Records what this actor is currently doing (or about to do), purely
-    // for describe() to report later - does not itself create a decision
-    // point. Overwrites whatever this actor last set, and has no effect
-    // once set until the next call (in particular, it is not cleared when
-    // the actor finishes, so the last thing an actor did remains visible
-    // in describe() for any later decision another actor triggers).
-    void set_action(ActorId self, std::string label)
-    {
-      std::unique_lock<std::mutex> lock(m);
-      current_action[self] = std::move(label);
     }
 
     // Called by SchedulerMutex::lock(). Blocks until this actor actually
     // holds the lock. Every acquisition is itself a decision point - once
     // this actor takes ownership (whether or not it had to wait for it),
     // the scheduler considers every ready actor, including this one
-    // continuing immediately, before letting it proceed. The one
-    // exception is the reserved driver "actor" (see DriverRegistration):
-    // it never actually contends with a real actor for any lock, so its
-    // own incidental lock use (e.g. real work done while constructing a
-    // scenario's fixture) only needs to update ownership bookkeeping
-    // consistently for whichever real actor looks at the same lock next -
-    // not create a decision point of its own, since no other actor thread
-    // even exists yet to be a candidate.
-    void before_lock(ActorId self, void* mutex_key)
+    // continuing immediately, before letting it proceed. `label` (if
+    // given - see ccf::pal::unique_lock, the only real caller that
+    // supplies one) becomes this actor's Acquired event, recorded right
+    // before that same decision, so it is visible from this decision
+    // onward. The one exception is the reserved driver "actor" (see
+    // DriverRegistration): it never actually contends with a real actor
+    // for any lock, so its own incidental lock use (e.g. real work done
+    // while constructing a scenario's fixture) only needs to update
+    // ownership bookkeeping consistently for whichever real actor looks
+    // at the same lock next - not create a decision point, or an event,
+    // of its own, since no other actor thread even exists yet to be a
+    // candidate.
+    void before_lock(ActorId self, void* mutex_key, const char* label = nullptr)
     {
       std::unique_lock<std::mutex> lock(m);
       auto& mtx = mutex_states[mutex_key];
@@ -281,6 +297,8 @@ namespace ccf::kv::test
         // and it running again - the loop condition re-checks that.
       }
       mtx.owner = self;
+      current_event[self] =
+        ActorEvent{ActorEventKind::Acquired, label != nullptr ? label : ""};
       choose_next(lock);
       cv.wait(lock, [&] { return running == self; });
     }
@@ -288,10 +306,13 @@ namespace ccf::kv::test
     // Called by SchedulerMutex::unlock(), after releasing it. Every
     // release is itself a decision point, whether or not anything was
     // specifically waiting on this lock - any ready actor (including one
-    // now free to claim this lock) is a candidate to run next. As in
+    // now free to claim this lock) is a candidate to run next. `label`
+    // becomes this actor's Released event, recorded right before that
+    // same decision, so it is visible from this decision onward. As in
     // before_lock() above, the reserved driver "actor" is the one
     // exception - it only needs to clear its own ownership bookkeeping.
-    void after_unlock(ActorId self, void* mutex_key)
+    void after_unlock(
+      ActorId self, void* mutex_key, const char* label = nullptr)
     {
       std::unique_lock<std::mutex> lock(m);
       auto& mtx = mutex_states[mutex_key];
@@ -306,6 +327,8 @@ namespace ccf::kv::test
         mtx.waiters.erase(mtx.waiters.begin());
         blocked_on_lock[woken] = false;
       }
+      current_event[self] =
+        ActorEvent{ActorEventKind::Released, label != nullptr ? label : ""};
       choose_next(lock);
       cv.wait(lock, [&] { return running == self; });
     }
@@ -351,9 +374,22 @@ namespace ccf::kv::test
           }
           out += (j == decision.chosen_index ? "-> " : "   ");
           out += actor_label(decision.ready[j]);
-          if (!decision.ready_actions[j].empty())
+          const auto& event = decision.ready_actions[j];
+          if (!event.label.empty())
           {
-            out += " (" + decision.ready_actions[j] + ")";
+            switch (event.kind)
+            {
+              case ActorEventKind::Acquired:
+                out += " (acquired " + event.label + ")";
+                break;
+              case ActorEventKind::Released:
+                out += " (released " + event.label + ")";
+                break;
+              case ActorEventKind::YieldPoint:
+              default:
+                out += " (" + event.label + ")";
+                break;
+            }
           }
         }
         out += "\n";
@@ -371,23 +407,14 @@ namespace ccf::kv::test
 
   // Finds, and points a thread at, whichever DeterministicScheduler (if
   // any) is exploring interleavings on the calling thread.
+  // Finds, and points a thread at, whichever DeterministicScheduler (if
+  // any) is exploring interleavings on the calling thread.
   class SchedulerThreadContext
   {
     static thread_local DeterministicScheduler* current_scheduler;
     static thread_local ActorId current_actor;
 
   public:
-    // Forwards ccf::pal::unique_lock's label reports (see
-    // include/ccf/pal/locking.h) to whichever scheduler is active on the
-    // calling thread (if any - a no-op otherwise), as with set_action()
-    // below. Installed once, globally, by the static initializer below;
-    // reads the calling thread's own current_scheduler/current_actor to
-    // decide what to do, so does not itself need to be installed or
-    // removed per-thread. Defined out-of-line, after ccf/pal/locking.h is
-    // included below (see SchedulerMutex's own comment for why that must
-    // come after this point in the file).
-    static void forward_lock_label(const char* label);
-
     static void set(DeterministicScheduler* scheduler, ActorId actor)
     {
       current_scheduler = scheduler;
@@ -419,28 +446,14 @@ namespace ccf::kv::test
   // e.g. a gap between two unrelated critical sections that a scenario
   // wants every interleaving of, not just the ones lock contention alone
   // would produce. A no-op with no scheduler active on the calling
-  // thread. If `label` is non-empty, it is recorded as with set_action()
-  // below before the decision is made.
+  // thread. If `label` is non-empty, it is recorded as this actor's
+  // current YieldPoint event before the decision is made.
   inline void yield_point(std::string label = {})
   {
     auto* scheduler = SchedulerThreadContext::scheduler();
     if (scheduler != nullptr)
     {
       scheduler->yield_point(SchedulerThreadContext::actor(), std::move(label));
-    }
-  }
-
-  // Records what the calling actor is currently doing (or about to do),
-  // purely so that DeterministicScheduler::describe() can report it
-  // against whichever decision point comes next - see
-  // DeterministicScheduler::set_action() for details. A no-op with no
-  // scheduler active on the calling thread.
-  inline void set_action(std::string label)
-  {
-    auto* scheduler = SchedulerThreadContext::scheduler();
-    if (scheduler != nullptr)
-    {
-      scheduler->set_action(SchedulerThreadContext::actor(), std::move(label));
     }
   }
 
@@ -470,7 +483,9 @@ namespace ccf::kv::test
     SchedulerMutex(const SchedulerMutex&) = delete;
     SchedulerMutex& operator=(const SchedulerMutex&) = delete;
 
-    void lock() CCF_ACQUIRE()
+    // `label`, if given, is passed straight through to before_lock() -
+    // see ccf::pal::unique_lock, the only real caller that supplies one.
+    void lock(const char* label = nullptr) CCF_ACQUIRE()
     {
       auto* scheduler = SchedulerThreadContext::scheduler();
       if (scheduler == nullptr)
@@ -478,10 +493,11 @@ namespace ccf::kv::test
         mutex.lock();
         return;
       }
-      scheduler->before_lock(SchedulerThreadContext::actor(), this);
+      scheduler->before_lock(SchedulerThreadContext::actor(), this, label);
     }
 
-    void unlock() CCF_RELEASE()
+    // `label`, if given, is passed straight through to after_unlock().
+    void unlock(const char* label = nullptr) CCF_RELEASE()
     {
       auto* scheduler = SchedulerThreadContext::scheduler();
       if (scheduler == nullptr)
@@ -489,10 +505,10 @@ namespace ccf::kv::test
         mutex.unlock();
         return;
       }
-      scheduler->after_unlock(SchedulerThreadContext::actor(), this);
+      scheduler->after_unlock(SchedulerThreadContext::actor(), this, label);
     }
 
-    bool try_lock() CCF_TRY_ACQUIRE(true)
+    bool try_lock(const char* label = nullptr) CCF_TRY_ACQUIRE(true)
     {
       auto* scheduler = SchedulerThreadContext::scheduler();
       if (scheduler == nullptr)
@@ -503,6 +519,7 @@ namespace ccf::kv::test
       // implement only once a scenario actually needs it, so that its
       // scheduling semantics can be designed against a real use rather
       // than guessed at.
+      (void)label;
       throw std::logic_error(
         "SchedulerMutex::try_lock() is not implemented under an active "
         "DeterministicScheduler");
@@ -524,30 +541,6 @@ namespace ccf::kv::test
 
 namespace ccf::kv::test
 {
-  inline void SchedulerThreadContext::forward_lock_label(const char* label)
-  {
-    if (current_scheduler != nullptr)
-    {
-      current_scheduler->set_action(current_actor, label);
-    }
-  }
-
-  // Installs forward_lock_label() as ccf::pal::lock_label_sink exactly
-  // once, for the lifetime of the process - not per-thread, since
-  // forward_lock_label() already reads its own calling thread's
-  // thread-local current_scheduler to no-op when that thread has none.
-  namespace
-  {
-    struct LockLabelSinkInstaller
-    {
-      LockLabelSinkInstaller()
-      {
-        ccf::pal::lock_label_sink = &SchedulerThreadContext::forward_lock_label;
-      }
-    };
-    const LockLabelSinkInstaller lock_label_sink_installer;
-  }
-
   // Registers/unregisters the calling (driver) thread with `scheduler` as
   // a reserved actor id (one beyond the real actors, so it never collides
   // with one), so that any SchedulerMutex it locks - during make_run() or
