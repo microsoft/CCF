@@ -4,8 +4,46 @@
 #![allow(dead_code)]
 
 use std::time::Duration;
+use std::{future::Future, pin::Pin};
 
 use super::CertificateBackend;
+
+pub(crate) fn verify_certificate_path<Certificate>(
+    mut verify_signature: impl FnMut(&Certificate, &Certificate) -> super::Result<()>,
+    root_trust_anchor: &Certificate,
+    untrusted_chain: &[&Certificate],
+    leaf: &Certificate,
+) -> super::Result<()> {
+    let mut issuer = root_trust_anchor;
+    for subject in untrusted_chain.iter().copied().chain(std::iter::once(leaf)) {
+        verify_signature(issuer, subject)
+            .map_err(|error| format!("Certificate signature verification failed: {error}"))?;
+        issuer = subject;
+    }
+    Ok(())
+}
+
+pub(crate) async fn verify_certificate_path_async<Certificate, F>(
+    mut verify_signature: F,
+    root_trust_anchor: &Certificate,
+    untrusted_chain: &[&Certificate],
+    leaf: &Certificate,
+) -> super::Result<()>
+where
+    F: for<'a> FnMut(
+        &'a Certificate,
+        &'a Certificate,
+    ) -> Pin<Box<dyn Future<Output = super::Result<()>> + 'a>>,
+{
+    let mut issuer = root_trust_anchor;
+    for subject in untrusted_chain.iter().copied().chain(std::iter::once(leaf)) {
+        verify_signature(issuer, subject)
+            .await
+            .map_err(|error| format!("Certificate signature verification failed: {error}"))?;
+        issuer = subject;
+    }
+    Ok(())
+}
 
 /// Iterates over a path with padded sliding windows.
 ///

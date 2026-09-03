@@ -62,7 +62,7 @@ unsafe fn attestation_report<'a>(
 
 unsafe fn uvm_endorsement_handle<'a>(
     uvm_endorsement: *const TavCborValue,
-) -> Result<&'a cose::CborValue, TavError> {
+) -> Result<&'a cose::CborValue<'static>, TavError> {
     if uvm_endorsement.is_null() {
         return Err(TavError::invalid_argument("uvm_endorsement is null"));
     }
