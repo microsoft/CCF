@@ -65,7 +65,7 @@ def component_for(path, root):
         return None
 
 
-def resolve_include(path, including_file, root, quoted):
+def resolve_include(path, including_file, root, quoted, generated_headers):
     candidates = []
     if quoted:
         candidates.append(including_file.parent / path)
@@ -73,7 +73,7 @@ def resolve_include(path, including_file, root, quoted):
 
     for candidate in candidates:
         candidate = candidate.resolve()
-        if candidate.is_file():
+        if candidate.is_file() or candidate in generated_headers:
             return candidate
     return None
 
@@ -118,6 +118,9 @@ def main():
 
     excluded_parts = set(config["excluded_path_parts"])
     excluded_suffixes = tuple(config["excluded_file_suffixes"])
+    generated_headers = {
+        (root / path).resolve() for path in config["generated_headers"]
+    }
     allowed_dependencies = {
         component: set(dependencies)
         for component, dependencies in config["allowed_internal_dependencies"].items()
@@ -168,7 +171,11 @@ def main():
 
             include_path = match.group("quoted") or match.group("angled")
             included_file = resolve_include(
-                include_path, source_file, root, match.group("quoted") is not None
+                include_path,
+                source_file,
+                root,
+                match.group("quoted") is not None,
+                generated_headers,
             )
             if included_file is None:
                 if is_internal_spelling(
