@@ -41,8 +41,8 @@ namespace
 
 // Randomly samples interleavings of a transaction committing across a
 // real election, rather than the one pinned interleaving in
-// deterministic.cpp - see that file for the invariant being checked and
-// why it currently fails.
+// deterministic.cpp - see that file for the invariant being checked
+// (also a regression test for #8242).
 // estimate_schedule_count() below puts this scenario's interleaving space
 // (every real lock acquisition is now a decision point, not just
 // contended ones) far beyond what is practical to exhaust, so this
@@ -66,8 +66,7 @@ DOCTEST_TEST_CASE(
     {
       const auto description = "Schedule:\n" + scheduler.describe();
       DOCTEST_INFO(description);
-      DOCTEST_CHECK(
-        replication_can_catch_up(*fixture)); // NOTE_REJECTED_COMMIT_STALL
+      DOCTEST_CHECK(replication_can_catch_up(*fixture));
     }
   };
 
@@ -120,8 +119,7 @@ DOCTEST_TEST_CASE(
     {
       const auto description = "Schedule:\n" + scheduler.describe();
       DOCTEST_INFO(description);
-      DOCTEST_CHECK(
-        replication_can_catch_up(*fixture)); // NOTE_REJECTED_COMMIT_STALL
+      DOCTEST_CHECK(replication_can_catch_up(*fixture));
     }
   };
 

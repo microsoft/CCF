@@ -66,7 +66,7 @@ DOCTEST_TEST_CASE(
   std::optional<ccf::kv::CommitResult> stale_result;
   std::thread stale_worker([&]() {
     stale_result = stale_tx.commit(
-      ccf::empty_claims(), nullptr, checkpoint_write_set_observer(checkpoint));
+      ccf::empty_claims(), checkpoint_write_set_observer(checkpoint));
   });
   checkpoint.wait_until_paused();
   // stale_worker is now parked inside checkpoint.pause(), and must be
@@ -123,10 +123,9 @@ DOCTEST_TEST_CASE(
   DOCTEST_INFO(
     "Rejecting the stale transaction did not leave anything behind to "
     "clean up: every further ordinary commit keeps reaching consensus "
-    "immediately, with no additional election required (contrast with "
-    "the test below, where regaining leadership before the stale commit "
-    "lands currently does leave the Store unable to replicate anything "
-    "further until another election happens)");
+    "immediately, with no additional election required - just like the "
+    "test below, which checks the same thing for a transaction whose "
+    "commit view goes stale before it ever reaches Store::commit()");
   for (size_t i = 0; i < 3; ++i)
   {
     auto later_tx = fixture.store->create_tx();
@@ -136,14 +135,13 @@ DOCTEST_TEST_CASE(
   }
 }
 
-// NOTE_REJECTED_COMMIT_STALL: a transaction rejected by Store::commit()
-// for a stale view (FAIL_NO_REPLICATE) can still leave its local write
-// applied to the Store, with no corresponding entry ever reaching
-// consensus. Once that has happened, every ordinary transaction
-// committed afterwards can also keep succeeding locally without
-// reaching consensus, until a further election restores agreement.
-// Elsewhere in this suite, DOCTEST_CHECKs marked with this same tag are
-// the specific assertions currently broken by this.
+// Regression test for #8242 ("Reject stale-view writes before local
+// commit"): kv_test.cpp's "Stale-view writes are rejected before local
+// application" checks the same invariant directly, single-threaded, via
+// an explicit Store::rollback() call. The test below drives the same
+// rejection through a real election instead, and additionally
+// cross-checks the result against TxHistory and raft's own replication
+// index - neither of which kv_test.cpp's version touches.
 DOCTEST_TEST_CASE(
   "Regaining leadership before a stale-view commit lands must not "
   "permanently stall replication" *
@@ -172,9 +170,7 @@ DOCTEST_TEST_CASE(
     "A rejected transaction should not leave a local write behind that "
     "never reaches consensus: the Store should read back exactly as it "
     "did before this transaction was attempted");
-  DOCTEST_CHECK(
-    fixture.store->current_txid() ==
-    baseline_txid); // NOTE_REJECTED_COMMIT_STALL
+  DOCTEST_CHECK(fixture.store->current_txid() == baseline_txid);
   DOCTEST_CHECK(fixture.history_txid() == baseline_txid);
 
   DOCTEST_INFO(
@@ -187,7 +183,7 @@ DOCTEST_TEST_CASE(
     auto later_tx = fixture.store->create_tx();
     later_tx.rw(fixture.table)->put(i + 1, i + 1);
     DOCTEST_CHECK(later_tx.commit() == ccf::kv::CommitResult::SUCCESS);
-    DOCTEST_CHECK( // NOTE_REJECTED_COMMIT_STALL
+    DOCTEST_CHECK(
       fixture.raft->get_last_idx() == fixture.store->current_txid().seqno);
   }
 
