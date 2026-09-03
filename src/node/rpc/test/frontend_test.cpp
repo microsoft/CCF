@@ -5,9 +5,9 @@
 
 #define DOCTEST_CONFIG_IMPLEMENT
 #include "ccf/app_interface.h"
+#include "ccf/ds/locking.h"
 #include "ccf/json_handler.h"
 #include "ccf/kv/map.h"
-#include "ccf/pal/locking.h"
 #include "crypto/openssl/hash.h"
 #include "ds/files.h"
 #include "ds/internal_logger.h"
@@ -1657,20 +1657,20 @@ public:
 
   struct WaitPoint
   {
-    ccf::pal::Mutex m;
-    ccf::pal::ConditionVariable cv;
+    ccf::ds::Mutex m;
+    ccf::ds::ConditionVariable cv;
     bool ready CCF_GUARDED_BY(m) = false;
 
     void wait()
     {
-      ccf::pal::MutexGuard lock(m);
+      ccf::ds::MutexGuard lock(m);
       cv.wait(lock, [this]() CCF_REQUIRES(m) { return ready; });
     }
 
     void notify()
     {
       {
-        ccf::pal::MutexGuard lock(m);
+        ccf::ds::MutexGuard lock(m);
         ready = true;
       }
       cv.notify_one();
@@ -1678,7 +1678,7 @@ public:
 
     void reset()
     {
-      ccf::pal::MutexGuard lock(m);
+      ccf::ds::MutexGuard lock(m);
       ready = false;
     }
   };

@@ -5,7 +5,6 @@
 #include "ccf/js/core/context.h"
 #include "ccf/node_context.h"
 #include "ccf/node_subsystem_interface.h"
-#include "ccf/pal/mem.h"
 #include "crypto/openssl/hash.h"
 #include "ds/internal_logger.h"
 #include "ds/oversized.h"
