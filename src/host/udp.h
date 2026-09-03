@@ -32,9 +32,7 @@ namespace asynchost
     static constexpr auto max_read_quota = max_read_size * 4;
     static size_t remaining_read_quota;
 
-    // This is a simplified version of the state machine for QUIC that
-    // mostly follows plain UDP state. We should add more when we need
-    // for QUIC, not predict complexity prematurely.
+    // UDP is connectionless, so this tracks only socket lifecycle events.
     enum Status : uint8_t
     {
       // Starting state + failure recovery (if any)
