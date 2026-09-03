@@ -3,7 +3,7 @@
 
 #include "ccf/indexing/strategies/seqnos_by_key_in_memory.h"
 
-#include "ccf/pal/locking.h"
+#include "ccf/ds/locking.h"
 
 namespace ccf::indexing::strategies
 {
@@ -11,7 +11,7 @@ namespace ccf::indexing::strategies
     const ccf::TxID& tx_id, const ccf::ByteVector& k, const ccf::ByteVector& v)
   {
     (void)v;
-    std::lock_guard<ccf::pal::Mutex> guard(lock);
+    std::lock_guard<ccf::ds::Mutex> guard(lock);
     seqnos_by_key[k].insert(tx_id.seqno);
   }
 
@@ -22,7 +22,7 @@ namespace ccf::indexing::strategies
       ccf::SeqNo to,
       std::optional<size_t> max_seqnos)
   {
-    std::lock_guard<ccf::pal::Mutex> guard(lock);
+    std::lock_guard<ccf::ds::Mutex> guard(lock);
     const auto it = seqnos_by_key.find(serialised_key);
     if (it != seqnos_by_key.end())
     {

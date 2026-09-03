@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/pal/locking.h"
+#include "ccf/ds/locking.h"
 #include "consensus/ledger_enclave_types.h"
 #include "ds/ccf_assert.h"
 #include "ds/internal_logger.h"
@@ -36,7 +36,7 @@ namespace ccf
     // Writes committed snapshot files to disk, in-process, on a task thread.
     snapshots::SnapshotWriter snapshot_writer;
 
-    ccf::pal::Mutex lock;
+    ccf::ds::Mutex lock;
 
     std::shared_ptr<ccf::kv::Store> store;
 
@@ -415,7 +415,7 @@ namespace ccf
       // After public recovery, the first node should have restored all
       // snapshot indices in next_snapshot_indices so that snapshot
       // generation can continue at the correct interval
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      std::lock_guard<ccf::ds::Mutex> guard(lock);
 
       last_snapshot_idx = next_snapshot_indices.back().idx;
       last_snapshot_time = Clock::now();
@@ -423,13 +423,13 @@ namespace ccf
 
     void set_snapshot_generation(bool enabled)
     {
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      std::lock_guard<ccf::ds::Mutex> guard(lock);
       snapshot_generation_enabled = enabled;
     }
 
     void init_from_snapshot_status(const SnapshotStatus& status)
     {
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      std::lock_guard<ccf::ds::Mutex> guard(lock);
 
       const auto timestamp = time_point_from_snapshot_status(status.timestamp);
       last_snapshot_idx = status.version;
@@ -475,7 +475,7 @@ namespace ccf
 
     bool should_schedule_snapshot(::consensus::Index threshold_idx) override
     {
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      std::lock_guard<ccf::ds::Mutex> guard(lock);
       return should_schedule_snapshot_unsafe(threshold_idx);
     }
 
@@ -483,7 +483,7 @@ namespace ccf
     {
       // Returns true if the committable idx will require the generation of a
       // snapshot, and thus a new ledger chunk
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      std::lock_guard<ccf::ds::Mutex> guard(lock);
 
       CCF_ASSERT_FMT(
         idx >= next_snapshot_indices.back().idx,
@@ -516,7 +516,7 @@ namespace ccf
     void record_cose_signature(
       ::consensus::Index idx, const std::vector<uint8_t>& cose_sig)
     {
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      std::lock_guard<ccf::ds::Mutex> guard(lock);
 
       for (auto& [_, pending_snapshot] : pending_snapshots)
       {
@@ -540,7 +540,7 @@ namespace ccf
     void record_serialised_tree(
       ::consensus::Index idx, const std::vector<uint8_t>& tree)
     {
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      std::lock_guard<ccf::ds::Mutex> guard(lock);
 
       for (auto& [_, pending_snapshot] : pending_snapshots)
       {
@@ -564,7 +564,7 @@ namespace ccf
     void record_snapshot_evidence_idx(
       ::consensus::Index idx, const SnapshotHash& snapshot)
     {
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      std::lock_guard<ccf::ds::Mutex> guard(lock);
 
       for (auto& [_, pending_snapshot] : pending_snapshots)
       {
@@ -584,7 +584,7 @@ namespace ccf
     // globally committed baseline aligned with replicated state.
     void record_snapshot_status(const SnapshotStatus& status)
     {
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      std::lock_guard<ccf::ds::Mutex> guard(lock);
 
       const auto timestamp = time_point_from_snapshot_status(status.timestamp);
       last_snapshot_idx = status.version;
@@ -637,7 +637,7 @@ namespace ccf
       // that a snapshot was generated.
 
       ccf::kv::ScopedStoreMapsLock maps_lock(store);
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      std::lock_guard<ccf::ds::Mutex> guard(lock);
 
       // Prune all but one of the requested snapshots below idx and also take
       // the opportunity to release any pending snapshots which now have commit
@@ -695,7 +695,7 @@ namespace ccf
 
     void rollback(::consensus::Index idx) override
     {
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      std::lock_guard<ccf::ds::Mutex> guard(lock);
 
       while (!next_snapshot_indices.empty() &&
              (next_snapshot_indices.back().idx > idx))
