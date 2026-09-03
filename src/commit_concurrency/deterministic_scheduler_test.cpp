@@ -246,11 +246,11 @@ DOCTEST_TEST_CASE(
   }
 
   {
-    // The exhaustive test above finds exactly 736 schedules for this
-    // scenario now that every lock/unlock (not just contended ones) is a
-    // decision point - a random-walk estimate is not expected to land on
-    // that exactly, but should be in the right ballpark rather than off
-    // by orders of magnitude.
+    // The exhaustive test above finds exactly 10968 schedules for this
+    // scenario now that every lock request/acquire/release (not just
+    // contended acquisitions) is a decision point - a random-walk
+    // estimate is not expected to land on that exactly, but should be in
+    // the right ballpark rather than off by orders of magnitude.
     std::unique_ptr<LazyInitScenario> scenario;
     const auto estimates =
       estimate_schedule_count(2, [&]() -> std::vector<std::function<void()>> {
@@ -262,10 +262,10 @@ DOCTEST_TEST_CASE(
     double min_estimate = *std::min_element(estimates.begin(), estimates.end());
     double max_estimate = *std::max_element(estimates.begin(), estimates.end());
     DOCTEST_INFO(fmt::format(
-      "Estimates ranged from {} to {} (true count is 736)",
+      "Estimates ranged from {} to {} (true count is 10968)",
       min_estimate,
       max_estimate));
     DOCTEST_CHECK(min_estimate >= 1.0);
-    DOCTEST_CHECK(max_estimate <= 20000.0);
+    DOCTEST_CHECK(max_estimate <= 200000.0);
   }
 }

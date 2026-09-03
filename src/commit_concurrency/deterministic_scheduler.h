@@ -74,6 +74,7 @@ namespace ccf::kv::test
   enum class ActorEventKind
   {
     YieldPoint,
+    Requested,
     Acquired,
     Released
   };
@@ -88,14 +89,21 @@ namespace ccf::kv::test
   {
   public:
     // One entry per point where the scheduler chose which ready actor
-    // would run next: every actor that was ready at that point (with
-    // whatever event - see ActorEvent above - it had most recently
-    // reported), and the index within that list of the one actually
-    // chosen.
+    // would run next. `trigger` is the actor whose own progress led here
+    // (with `trigger_event`, the event it had just reported when it did)
+    // - std::nullopt only for the very first decision (see kick_off()),
+    // which has no preceding actor to attribute it to. Since only one
+    // actor's code ever runs at a time, `trigger` is always exactly
+    // whichever actor was `ready[chosen_index]` at the previous Decision.
+    // `ready` and `chosen_index` are the full set of candidates the
+    // scheduler picked from and which one it picked - not rendered by
+    // describe() below, but load-bearing for explore_all_interleavings()'s
+    // backtracking (see its own comments).
     struct Decision
     {
+      std::optional<ActorId> trigger;
+      ActorEvent trigger_event;
       std::vector<ActorId> ready;
-      std::vector<ActorEvent> ready_actions;
       size_t chosen_index;
     };
 
@@ -106,17 +114,28 @@ namespace ccf::kv::test
       std::vector<ActorId> waiters;
     };
 
+    // Per-actor state, indexed by ActorId - one entry per real actor,
+    // plus one extra for the reserved driver id (see DriverRegistration):
+    // the driver never gets marked finished or blocked_on_lock (its own
+    // before_lock()/after_unlock() return early, before touching either),
+    // but can still report a `current_event` via yield_point() while
+    // registered.
+    struct ActorState
+    {
+      bool finished = false;
+      bool blocked_on_lock = false;
+      ActorEvent current_event;
+    };
+
     std::mutex m;
     std::condition_variable cv;
     size_t num_actors;
     size_t parked_count = 0;
-    std::vector<bool> finished;
-    std::vector<bool> blocked_on_lock;
+    std::vector<ActorState> actors;
     std::optional<ActorId> running;
     std::function<size_t(size_t num_ready)> chooser;
     std::vector<Decision> path;
     std::vector<std::string> actor_names;
-    std::vector<ActorEvent> current_event;
 
     // Falls back to "actor <n>" for any actor with no name given to the
     // constructor, or an empty name.
@@ -161,7 +180,7 @@ namespace ccf::kv::test
       std::vector<ActorId> ready;
       for (ActorId a = 0; a < num_actors; ++a)
       {
-        if (!finished[a] && !blocked_on_lock[a])
+        if (!actors[a].finished && !actors[a].blocked_on_lock)
         {
           ready.push_back(a);
         }
@@ -181,13 +200,18 @@ namespace ccf::kv::test
           "- if replaying a recorded path, the scenario is not "
           "deterministic given the choices the scheduler controls");
       }
-      std::vector<ActorEvent> ready_actions;
-      ready_actions.reserve(ready.size());
-      for (auto a : ready)
-      {
-        ready_actions.push_back(current_event[a]);
-      }
-      path.push_back(Decision{ready, std::move(ready_actions), chosen_index});
+      // `running` still holds whichever actor was chosen at the previous
+      // Decision (or nullopt, only for this very first one) - since only
+      // one actor's code ever runs at a time, that is exactly the actor
+      // whose own progress brought execution to this choose_next() call,
+      // and actors[*running].current_event is exactly the event it just
+      // reported to get here (see before_lock()/after_unlock()/
+      // yield_point()'s own comments, all of which set their actor's
+      // event immediately before calling this).
+      const std::optional<ActorId> trigger = running;
+      const ActorEvent trigger_event =
+        trigger.has_value() ? actors[*trigger].current_event : ActorEvent{};
+      path.push_back(Decision{trigger, trigger_event, ready, chosen_index});
       running = ready[chosen_index];
       cv.notify_all();
     }
@@ -206,18 +230,11 @@ namespace ccf::kv::test
       std::function<size_t(size_t num_ready)> chooser_,
       std::vector<std::string> actor_names_ = {}) :
       num_actors(num_actors_),
-      finished(num_actors_, false),
-      blocked_on_lock(num_actors_, false),
-      chooser(std::move(chooser_)),
-      actor_names(std::move(actor_names_)),
       // One extra slot beyond the real actors, for the reserved driver id
-      // (see DriverRegistration): the driver's own incidental lock use
-      // during make_run()/on_schedule() never reaches this array at all
-      // (before_lock()/after_unlock() return early for it, before
-      // touching an event) - but nothing stops make_run()/on_schedule()
-      // from calling yield_point() directly while the driver is
-      // registered, which does write here.
-      current_event(num_actors_ + 1)
+      // (see ActorState's own comment, and DriverRegistration).
+      actors(num_actors_ + 1),
+      chooser(std::move(chooser_)),
+      actor_names(std::move(actor_names_))
     {}
 
     // Called by each actor's thread before it does any real work. Blocks
@@ -255,7 +272,7 @@ namespace ccf::kv::test
       std::unique_lock<std::mutex> lock(m);
       if (!label.empty())
       {
-        current_event[self] =
+        actors[self].current_event =
           ActorEvent{ActorEventKind::YieldPoint, std::move(label)};
       }
       choose_next(lock);
@@ -263,21 +280,23 @@ namespace ccf::kv::test
     }
 
     // Called by SchedulerMutex::lock(). Blocks until this actor actually
-    // holds the lock. Every acquisition is itself a decision point - once
-    // this actor takes ownership (whether or not it had to wait for it),
-    // the scheduler considers every ready actor, including this one
-    // continuing immediately, before letting it proceed. `label` (if
-    // given - see ccf::pal::unique_lock, the only real caller that
-    // supplies one) becomes this actor's Acquired event, recorded right
-    // before that same decision, so it is visible from this decision
-    // onward. The one exception is the reserved driver "actor" (see
-    // DriverRegistration): it never actually contends with a real actor
-    // for any lock, so its own incidental lock use (e.g. real work done
-    // while constructing a scenario's fixture) only needs to update
-    // ownership bookkeeping consistently for whichever real actor looks
-    // at the same lock next - not create a decision point, or an event,
-    // of its own, since no other actor thread even exists yet to be a
-    // candidate.
+    // holds the lock. The attempt itself is a decision point (its
+    // Requested event, below), before even checking whether the lock is
+    // free - without this, whichever actor happened to be running when
+    // it reached an uncontended lock would always win it unconditionally,
+    // since (only one actor's code ever runs at a time) no other actor
+    // could otherwise ever get a chance to reach for the same lock first.
+    // Acquiring it (whether or not this actor had to wait first) is a
+    // further decision point of its own, with an Acquired event. `label`
+    // (if given - see ccf::pal::unique_lock, the only real caller that
+    // supplies one) is used for both events. The one exception is the
+    // reserved driver "actor" (see DriverRegistration): it never actually
+    // contends with a real actor for any lock, so its own incidental lock
+    // use (e.g. real work done while constructing a scenario's fixture)
+    // only needs to update ownership bookkeeping consistently for
+    // whichever real actor looks at the same lock next - not create any
+    // decision point, or event, of its own, since no other actor thread
+    // even exists yet to be a candidate.
     void before_lock(ActorId self, void* mutex_key, const char* label = nullptr)
     {
       std::unique_lock<std::mutex> lock(m);
@@ -287,17 +306,22 @@ namespace ccf::kv::test
         mtx.owner = self;
         return;
       }
+      actors[self].current_event =
+        ActorEvent{ActorEventKind::Requested, label != nullptr ? label : ""};
+      choose_next(lock);
+      cv.wait(lock, [&] { return running == self; });
+
       while (mtx.owner.has_value())
       {
         mtx.waiters.push_back(self);
-        blocked_on_lock[self] = true;
+        actors[self].blocked_on_lock = true;
         choose_next(lock);
         cv.wait(lock, [&] { return running == self; });
         // Someone else may have taken it between this actor being woken
         // and it running again - the loop condition re-checks that.
       }
       mtx.owner = self;
-      current_event[self] =
+      actors[self].current_event =
         ActorEvent{ActorEventKind::Acquired, label != nullptr ? label : ""};
       choose_next(lock);
       cv.wait(lock, [&] { return running == self; });
@@ -325,9 +349,9 @@ namespace ccf::kv::test
       {
         const auto woken = mtx.waiters.front();
         mtx.waiters.erase(mtx.waiters.begin());
-        blocked_on_lock[woken] = false;
+        actors[woken].blocked_on_lock = false;
       }
-      current_event[self] =
+      actors[self].current_event =
         ActorEvent{ActorEventKind::Released, label != nullptr ? label : ""};
       choose_next(lock);
       cv.wait(lock, [&] { return running == self; });
@@ -337,9 +361,13 @@ namespace ccf::kv::test
     void finish(ActorId self)
     {
       std::unique_lock<std::mutex> lock(m);
-      finished[self] = true;
+      actors[self].finished = true;
+      // Only the real actors (not the reserved driver slot, which is
+      // never marked finished) need to have finished.
       if (std::all_of(
-            finished.begin(), finished.end(), [](bool f) { return f; }))
+            actors.begin(),
+            actors.begin() + static_cast<ptrdiff_t>(num_actors),
+            [](const ActorState& a) { return a.finished; }))
       {
         running.reset();
         cv.notify_all();
@@ -353,12 +381,17 @@ namespace ccf::kv::test
       return path;
     }
 
-    // A human-readable rendering of decision_path(), one line per
-    // decision: every actor that was ready at that point (name and
-    // current action, if either was given), with the one chosen marked.
-    // Intended for a failing test to attach to its own failure output
-    // (e.g. via DOCTEST_INFO) - this scheduler has no opinion on when
-    // that should happen.
+    // A human-readable event stream, one line per decision: what the
+    // triggering actor (see Decision's own comment) just did, and - only
+    // when a genuine handoff happens, i.e. a different actor is chosen
+    // to continue - which actor resumes next. Deliberately does not list
+    // every other actor that was merely ready at that point (blocked or
+    // idly-ready-but-not-chosen are not a meaningful distinction here);
+    // decision_path() above still has that, for anything that needs it
+    // (e.g. explore_all_interleavings()'s own backtracking). Intended for
+    // a failing test to attach to its own failure output (e.g. via
+    // DOCTEST_INFO) - this scheduler has no opinion on when that should
+    // happen.
     std::string describe() const
     {
       std::string out;
@@ -366,31 +399,40 @@ namespace ccf::kv::test
       {
         const auto& decision = path[i];
         out += std::to_string(i) + ": ";
-        for (size_t j = 0; j < decision.ready.size(); ++j)
+        if (decision.trigger.has_value())
         {
-          if (j > 0)
-          {
-            out += ", ";
-          }
-          out += (j == decision.chosen_index ? "-> " : "   ");
-          out += actor_label(decision.ready[j]);
-          const auto& event = decision.ready_actions[j];
+          out += actor_label(*decision.trigger);
+          const auto& event = decision.trigger_event;
           if (!event.label.empty())
           {
             switch (event.kind)
             {
+              case ActorEventKind::Requested:
+                out += " requests " + event.label;
+                break;
               case ActorEventKind::Acquired:
-                out += " (acquired " + event.label + ")";
+                out += " acquires " + event.label;
                 break;
               case ActorEventKind::Released:
-                out += " (released " + event.label + ")";
+                out += " releases " + event.label;
                 break;
               case ActorEventKind::YieldPoint:
               default:
-                out += " (" + event.label + ")";
+                out += ": " + event.label;
                 break;
             }
           }
+          const auto chosen = decision.ready[decision.chosen_index];
+          if (chosen != *decision.trigger)
+          {
+            out += ", " + actor_label(chosen) + " resumes";
+          }
+        }
+        else
+        {
+          // The very first decision (see kick_off()) - nobody's own
+          // progress caused this one, it is simply who runs first.
+          out += actor_label(decision.ready[decision.chosen_index]) + " starts";
         }
         out += "\n";
       }
