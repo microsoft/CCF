@@ -2,6 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#warning "ccf/pal/locking.h is deprecated; use ccf/ds/locking.h instead"
+
 // This header is kept for source compatibility only. The generic locking
 // implementation has moved to ccf/ds/locking.h and the ccf::ds namespace,
 // to break the crypto -> ds -> pal -> crypto source dependency cycle.
