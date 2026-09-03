@@ -473,26 +473,6 @@ UserId user_id;
 MemberId member_id;
 MemberId invalid_member_id;
 
-class TestNodeConfiguration : public NodeConfigurationInterface
-{
-private:
-  StartupConfig config;
-  NodeConfigurationState state;
-
-public:
-  TestNodeConfiguration() : state{config, {}, true}
-  {
-    NodeInfoNetwork_v2::NetInterface interface;
-    interface.redirections = NodeInfoNetwork_v2::NetInterface::Redirections{};
-    config.network.rpc_interfaces.emplace("test_interface", interface);
-  }
-
-  const NodeConfigurationState& get() override
-  {
-    return state;
-  }
-};
-
 class BlockingUserEndpointRegistry : public UserEndpointRegistry
 {
   std::latch& init_started;
@@ -635,7 +615,10 @@ TEST_CASE("Redirect resolution handles unpublished consensus")
   NetworkState network;
   prepare_callers(network);
   TestUserFrontend frontend(*network.tables);
-  frontend.context.install_subsystem(std::make_shared<TestNodeConfiguration>());
+  NodeInfoNetwork_v2::NetInterface interface;
+  interface.redirections = NodeInfoNetwork_v2::NetInterface::Redirections{};
+  frontend.context.node_configuration->config.network.rpc_interfaces.emplace(
+    "test_interface", interface);
 
   const auto request = create_simple_request("/empty_function_no_auth");
   const auto serialised_request = request.build_request();
