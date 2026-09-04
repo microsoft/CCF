@@ -125,9 +125,9 @@ namespace ccf::js
       get_extensions(endpoint_ctx);
 
     // ccf.kv.*
-    local_extensions.emplace_back(
-      std::make_shared<ccf::js::extensions::KvExtension>(
-        &endpoint_ctx.tx, namespace_restriction));
+    auto kv_extension = std::make_shared<ccf::js::extensions::KvExtension>(
+      &endpoint_ctx.tx, namespace_restriction);
+    local_extensions.emplace_back(kv_extension);
 
     // ccf.rpc.*
     local_extensions.emplace_back(
@@ -188,7 +188,23 @@ namespace ccf::js
       ctx.remove_extension(extension);
     }
 
+    // Retrieved before the rethrow below, so that an interpreter which is
+    // returned to the cache does not hold a pending exception.
+    std::optional<std::pair<std::string, std::optional<std::string>>> js_error =
+      std::nullopt;
     if (val.is_exception())
+    {
+      js_error = ctx.error_message();
+    }
+
+    // A conflict with compaction is trapped during execution, because it is
+    // not safe to throw through the JS runtime. It is raised here, from a
+    // purely C++ stack, so that the transaction is re-executed. This takes
+    // precedence over the endpoint's result, which may have caught the
+    // corresponding JS exception.
+    kv_extension->rethrow_trapped_exceptions();
+
+    if (js_error.has_value())
     {
       bool time_out = ctx.interrupt_data.request_timed_out;
       std::string error_msg = "Exception thrown while executing.";
@@ -197,7 +213,7 @@ namespace ccf::js
         error_msg = "Operation took too long to complete.";
       }
 
-      auto [reason, trace] = ctx.error_message();
+      auto& [reason, trace] = js_error.value();
 
       if (options.log_exception_details)
       {

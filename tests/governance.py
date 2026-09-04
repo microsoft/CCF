@@ -23,6 +23,7 @@ import infra.path
 import infra.proc
 import infra.proposal
 import jinja2
+import js_compaction_conflict
 import memberclient
 import membership
 import suite.test_requirements as reqs
@@ -848,6 +849,17 @@ if __name__ == "__main__":
         memberclient.run,
         package="samples/apps/logging/logging",
         nodes=infra.e2e_args.max_nodes(cr.args, f=1),
+    )
+
+    cr.add(
+        "js_compaction_conflict",
+        js_compaction_conflict.run,
+        package="js_generic",
+        js_app_bundle=None,
+        nodes=infra.e2e_args.min_nodes(cr.args, f=0),
+        # The endpoint under test occupies one thread for as long as it
+        # executes, so others are needed to serve the concurrent writes.
+        worker_threads=2,
     )
 
     cr.run()
