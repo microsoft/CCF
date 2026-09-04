@@ -82,6 +82,8 @@ use stateright::Model;
 use std::collections::{HashMap, VecDeque};
 use std::io::{self, Write};
 
+const PREDICATE_COUNT: usize = 9;
+
 fn fmt_id(id: Id) -> String {
     usize::from(id).to_string()
 }
@@ -239,10 +241,9 @@ pub fn fmt_action(action: &ActorModelAction<Msg, Timer, ()>) -> String {
         ActorModelAction::Timeout(id, Timer::ElectionTimeout) => {
             format!("timeout({},election)", fmt_id(*id))
         }
-        other => unreachable!(
-            "action variant {:?} is outside the ccf-legacy-dr-graph-v1 contract \
-             (only Deliver/Timeout are ever produced by this model's configuration)",
-            other
+        _ => unreachable!(
+            "action variant is outside the ccf-legacy-dr-graph-v1 contract \
+             (only Deliver/Timeout are ever produced by this model's configuration)"
         ),
     }
 }
@@ -282,6 +283,12 @@ pub fn export_graph<W: Write>(
     model: &ActorModel<Node, ModelCfg, ()>,
     out: &mut W,
 ) -> io::Result<()> {
+    assert_eq!(
+        model.properties.len(),
+        PREDICATE_COUNT,
+        "ccf-legacy-dr-graph-v1 requires exactly {PREDICATE_COUNT} registered model properties"
+    );
+
     // Indexed by BFS discovery order (a "discovery id"); remapped to the
     // canonical sorted-key id only once the full state set is known.
     let mut visited: HashMap<ActorModelState<Node>, usize> = HashMap::new();
