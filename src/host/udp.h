@@ -7,8 +7,8 @@
 #include "dns.h"
 #include "ds/internal_logger.h"
 #include "ds/pending_io.h"
-#include "proxy.h"
 #include "socket.h"
+#include "uv/proxy.h"
 
 #include <optional>
 
