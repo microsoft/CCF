@@ -3,7 +3,7 @@
 #pragma once
 
 #include "ds/internal_logger.h"
-#include "proxy.h"
+#include "uv/proxy.h"
 
 namespace asynchost
 {
