@@ -4,3 +4,4 @@ import DisasterRecovery.Protocol.Global
 import DisasterRecovery.Protocol.Invariants
 import DisasterRecovery.Protocol.Quorum
 import DisasterRecovery.Protocol.Committed
+import DisasterRecovery.Protocol.GlobalTemporal
