@@ -2,12 +2,10 @@
 # Licensed under the Apache 2.0 License.
 import enum
 import itertools
-import json
 import os
+import subprocess
 import threading
-from dataclasses import field
 
-import iptc
 from loguru import logger as LOG
 
 import infra.network
@@ -24,15 +22,68 @@ MAX_CHAIN_NAME_LENGTH = 28
 _chain_counter = itertools.count()
 _chain_counter_lock = threading.Lock()
 
-# libiptc reads the whole table, modifies it and writes it back, and
-# iptc.easy operates on a table object that is shared process-wide and
-# committed and refreshed on every call. Interleaving calls from several
-# threads therefore loses updates: one thread's refresh can discard another's
-# pending change, leaving stale DROP rules behind. Every access to the filter
-# table goes through this lock, and callers hold it across a whole set of
-# related rules so that a partition appears and disappears atomically. It is
-# re-entrant so the helpers can be nested inside those wider sections.
-_iptables_lock = threading.RLock()
+
+# python-iptables captures C stdout by replacing the process-wide file
+# descriptor, so concurrent test logging can corrupt the rule text it parses.
+# Invoke the CLI in a subprocess to keep that output capture isolated, and use
+# its xtables lock to serialise updates across threads and ctest processes.
+def _run_iptables(*args, allowed_returncodes=(0,)):
+    command = ["iptables", "--wait", "--table", "filter", *args]
+    result = subprocess.run(command, capture_output=True, text=True, check=False)
+    if result.returncode not in allowed_returncodes:
+        detail = result.stderr.strip() or result.stdout.strip()
+        raise RuntimeError(
+            f"{' '.join(command)} exited with {result.returncode}: {detail}"
+        )
+    return result
+
+
+def _rule_args(rule):
+    protocol = rule.get("protocol")
+    supported_fields = {"protocol", "src", "dst", "target"}
+    if protocol is not None:
+        supported_fields.add(protocol)
+    unsupported_fields = set(rule) - supported_fields
+    if unsupported_fields:
+        raise ValueError(
+            f"Unsupported iptables rule fields: {sorted(unsupported_fields)}"
+        )
+
+    args = []
+    if protocol is not None:
+        args.extend(("--protocol", str(protocol)))
+    if "src" in rule:
+        args.extend(("--source", str(rule["src"])))
+    if "dst" in rule:
+        args.extend(("--destination", str(rule["dst"])))
+
+    if protocol in rule:
+        args.extend(("--match", str(protocol)))
+        for name, value in rule[protocol].items():
+            args.extend((f"--{name}", str(value)))
+
+    if "target" in rule:
+        args.extend(("--jump", str(rule["target"])))
+    return args
+
+
+def _has_chain(chain_name):
+    return (
+        _run_iptables("--list-rules", chain_name, allowed_returncodes=(0, 1)).returncode
+        == 0
+    )
+
+
+def _has_rule(chain_name, rule):
+    return (
+        _run_iptables(
+            "--check",
+            chain_name,
+            *_rule_args(rule),
+            allowed_returncodes=(0, 1),
+        ).returncode
+        == 0
+    )
 
 
 def _next_chain_name():
@@ -54,40 +105,37 @@ def _input_rule(chain_name):
 
 
 def _delete_chain(chain_name):
-    with _iptables_lock:
-        if iptc.easy.has_chain("filter", chain_name):
-            iptc.easy.flush_chain("filter", chain_name)
-            if iptc.easy.has_rule("filter", "INPUT", _input_rule(chain_name)):
-                iptc.easy.delete_rule("filter", "INPUT", _input_rule(chain_name))
-            iptc.easy.delete_chain("filter", chain_name)
+    if _has_chain(chain_name):
+        _run_iptables("--flush", chain_name)
+        input_rule = _input_rule(chain_name)
+        if _has_rule("INPUT", input_rule):
+            _run_iptables("--delete", "INPUT", *_rule_args(input_rule))
+        _run_iptables("--delete-chain", chain_name)
 
 
 def _create_chain(chain_name):
-    with _iptables_lock:
-        iptc.easy.add_chain("filter", chain_name)
-        iptc.easy.insert_rule("filter", "INPUT", _input_rule(chain_name))
+    _run_iptables("--new-chain", chain_name)
+    _run_iptables("--insert", "INPUT", "1", *_rule_args(_input_rule(chain_name)))
 
 
 def _replace_rule(chain_name, rule):
-    with _iptables_lock:
-        if iptc.easy.has_rule("filter", chain_name, rule):
-            iptc.easy.delete_rule("filter", chain_name, rule)
-        iptc.easy.insert_rule("filter", chain_name, rule)
+    rule_args = _rule_args(rule)
+    if _has_rule(chain_name, rule):
+        _run_iptables("--delete", chain_name, *rule_args)
+    _run_iptables("--insert", chain_name, "1", *rule_args)
 
 
 def _drop_rule(chain_name, rule):
-    with _iptables_lock:
-        if iptc.easy.has_rule("filter", chain_name, rule):
-            iptc.easy.delete_rule("filter", chain_name, rule)
+    if _has_rule(chain_name, rule):
+        _run_iptables("--delete", chain_name, *_rule_args(rule))
 
 
 def _ccf_chains():
-    with _iptables_lock:
-        return [
-            chain
-            for chain in iptc.easy.get_chains("filter")
-            if chain.startswith(CCF_IPTABLES_CHAIN_PREFIX)
-        ]
+    return [
+        line.removeprefix("-N ")
+        for line in _run_iptables("--list-rules").stdout.splitlines()
+        if line.startswith(f"-N {CCF_IPTABLES_CHAIN_PREFIX}")
+    ]
 
 
 # Note: When playing with iptables rules on a remote VM, you may want to:
@@ -112,10 +160,6 @@ class Rules:
     Set of iptables rules created by the :py:class:`infra.partitions.Partitioner`
     """
 
-    rules: list[dict] = field(default_factory=list)
-
-    name: str | None = None
-
     def __init__(self, rules, name=None, chain_name=None):
         self.rules = rules
         self.name = name
@@ -128,14 +172,11 @@ class Rules:
         self.drop()
 
     def drop(self):
-        LOG.info(f'Dropping rules "{self.name or "[unamed]"}"')
+        LOG.info(f'Dropping rules "{self.name or "[unnamed]"}"')
         if self.chain_name is None:
             return
-        # Drop the whole set in one locked section, so that a partition is never
-        # observed half-removed.
-        with _iptables_lock:
-            for rule in self.rules:
-                _drop_rule(self.chain_name, rule)
+        for rule in self.rules:
+            _drop_rule(self.chain_name, rule)
 
 
 class Partitioner:
@@ -157,15 +198,14 @@ class Partitioner:
     """
 
     def dump(self):
-        if iptc.easy.has_chain("filter", self.chain_name):
+        if _has_chain(self.chain_name):
             chain_status = (
                 "active"
-                if iptc.easy.has_rule("filter", "INPUT", _input_rule(self.chain_name))
+                if _has_rule("INPUT", _input_rule(self.chain_name))
                 else "inactive"
             )
-            LOG.info(
-                f'Dumping {chain_status} chain {self.chain_name}:\n{json.dumps(iptc.easy.dump_chain("filter", self.chain_name), indent=2)}'
-            )
+            rules = _run_iptables("--list-rules", self.chain_name).stdout.rstrip()
+            LOG.info(f"Dumping {chain_status} chain {self.chain_name}:\n{rules}")
         else:
             LOG.info(f"Chain {self.chain_name} does not exist")
 
@@ -177,13 +217,10 @@ class Partitioner:
             return
         for chain_name in chains:
             chain_status = (
-                "active"
-                if iptc.easy.has_rule("filter", "INPUT", _input_rule(chain_name))
-                else "inactive"
+                "active" if _has_rule("INPUT", _input_rule(chain_name)) else "inactive"
             )
-            LOG.info(
-                f'Dumping {chain_status} chain {chain_name}:\n{json.dumps(iptc.easy.dump_chain("filter", chain_name), indent=2)}'
-            )
+            rules = _run_iptables("--list-rules", chain_name).stdout.rstrip()
+            LOG.info(f"Dumping {chain_status} chain {chain_name}:\n{rules}")
 
     def cleanup(self):
         _delete_chain(self.chain_name)
@@ -283,11 +320,8 @@ class Partitioner:
         if isolation_dir & IsolationDir.OUTBOUND_RESPONSES:
             rules.append(self.reverse_rule(client_rule))
 
-        # Apply the whole set in one locked section, so that a partition is
-        # never observed half-applied.
-        with _iptables_lock:
-            for rule in rules:
-                _replace_rule(self.chain_name, rule)
+        for rule in rules:
+            _replace_rule(self.chain_name, rule)
 
         LOG.debug(name)
 
@@ -334,21 +368,18 @@ class Partitioner:
 
         rules = []
         partitions_name = []
-        # A partition is several isolate_node calls; hold the lock across all of
-        # them so the partition takes effect in one step.
-        with _iptables_lock:
-            for i, partition in enumerate(args):
-                partitions_name.append(f"{self._get_partition_name(partition)}")
-                # Rules are bi-directional so skip partitions that have already been enforced
-                other_partitions = args[i + 1 :]
+        for i, partition in enumerate(args):
+            partitions_name.append(f"{self._get_partition_name(partition)}")
+            # Rules are bi-directional so skip partitions that have already been enforced
+            other_partitions = args[i + 1 :]
 
-                for node in partition:
-                    for other_partition in other_partitions:
-                        for other_node in other_partition:
-                            rules.extend(self.isolate_node(node, other_node).rules)
-
-                    for other_node in other_nodes:
+            for node in partition:
+                for other_partition in other_partitions:
+                    for other_node in other_partition:
                         rules.extend(self.isolate_node(node, other_node).rules)
+
+                for other_node in other_nodes:
+                    rules.extend(self.isolate_node(node, other_node).rules)
 
         partitions_name.append(self._get_partition_name(other_nodes))
 
