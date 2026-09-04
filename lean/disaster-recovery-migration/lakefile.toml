@@ -1,0 +1,24 @@
+name = "disaster_recovery_migration"
+version = "0.1.0"
+moreLeanArgs = ["-DwarningAsError=true"]
+defaultTargets = [
+  "DisasterRecoveryMigration",
+  "migration-model-checker",
+  "migration-semantic-checks",
+]
+
+[[require]]
+name = "disaster_recovery"
+path = "../disaster-recovery"
+
+[[lean_lib]]
+name = "DisasterRecoveryMigration"
+
+[[lean_exe]]
+name = "migration-model-checker"
+root = "Main"
+
+[[lean_exe]]
+name = "migration-semantic-checks"
+root = "Tests"
+
