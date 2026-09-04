@@ -13,7 +13,7 @@ if __name__ == "__main__":
     )
 
     if len(sys.argv) > 1 and sys.argv[1] in ["-d", "--dump"]:
-        infra.partitions.Partitioner.dump()
+        infra.partitions.Partitioner.dump_all()
     else:
-        infra.partitions.Partitioner.dump()
-        infra.partitions.Partitioner.cleanup()
+        infra.partitions.Partitioner.dump_all()
+        infra.partitions.Partitioner.cleanup_all()
