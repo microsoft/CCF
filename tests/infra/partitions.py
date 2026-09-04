@@ -23,16 +23,11 @@ MAX_CHAIN_NAME_LENGTH = 28
 _chain_counter = itertools.count()
 _chain_counter_lock = threading.Lock()
 
-# Callers hold this across a whole set of related rules so that a partition
-# appears and disappears atomically within this process. It is re-entrant so
-# the helpers can be nested inside those wider sections. The iptables CLI also
-# takes the xtables lock, serialising individual updates across ctest processes.
-_iptables_lock = threading.RLock()
-
 
 # python-iptables captures C stdout by replacing the process-wide file
 # descriptor, so concurrent test logging can corrupt the rule text it parses.
-# Invoke the CLI in a subprocess to keep that output capture isolated.
+# Invoke the CLI in a subprocess to keep that output capture isolated, and use
+# its xtables lock to serialise updates across threads and ctest processes.
 def _run_iptables(*args, allowed_returncodes=(0,)):
     command = ["iptables", "--wait", "--table", "filter", *args]
     result = subprocess.run(command, capture_output=True, text=True, check=False)
@@ -109,42 +104,37 @@ def _input_rule(chain_name):
 
 
 def _delete_chain(chain_name):
-    with _iptables_lock:
-        if _has_chain(chain_name):
-            _run_iptables("--flush", chain_name)
-            input_rule = _input_rule(chain_name)
-            if _has_rule("INPUT", input_rule):
-                _run_iptables("--delete", "INPUT", *_rule_args(input_rule))
-            _run_iptables("--delete-chain", chain_name)
+    if _has_chain(chain_name):
+        _run_iptables("--flush", chain_name)
+        input_rule = _input_rule(chain_name)
+        if _has_rule("INPUT", input_rule):
+            _run_iptables("--delete", "INPUT", *_rule_args(input_rule))
+        _run_iptables("--delete-chain", chain_name)
 
 
 def _create_chain(chain_name):
-    with _iptables_lock:
-        _run_iptables("--new-chain", chain_name)
-        _run_iptables("--insert", "INPUT", "1", *_rule_args(_input_rule(chain_name)))
+    _run_iptables("--new-chain", chain_name)
+    _run_iptables("--insert", "INPUT", "1", *_rule_args(_input_rule(chain_name)))
 
 
 def _replace_rule(chain_name, rule):
-    with _iptables_lock:
-        rule_args = _rule_args(rule)
-        if _has_rule(chain_name, rule):
-            _run_iptables("--delete", chain_name, *rule_args)
-        _run_iptables("--insert", chain_name, "1", *rule_args)
+    rule_args = _rule_args(rule)
+    if _has_rule(chain_name, rule):
+        _run_iptables("--delete", chain_name, *rule_args)
+    _run_iptables("--insert", chain_name, "1", *rule_args)
 
 
 def _drop_rule(chain_name, rule):
-    with _iptables_lock:
-        if _has_rule(chain_name, rule):
-            _run_iptables("--delete", chain_name, *_rule_args(rule))
+    if _has_rule(chain_name, rule):
+        _run_iptables("--delete", chain_name, *_rule_args(rule))
 
 
 def _ccf_chains():
-    with _iptables_lock:
-        return [
-            line.removeprefix("-N ")
-            for line in _run_iptables("--list-rules").stdout.splitlines()
-            if line.startswith(f"-N {CCF_IPTABLES_CHAIN_PREFIX}")
-        ]
+    return [
+        line.removeprefix("-N ")
+        for line in _run_iptables("--list-rules").stdout.splitlines()
+        if line.startswith(f"-N {CCF_IPTABLES_CHAIN_PREFIX}")
+    ]
 
 
 # Note: When playing with iptables rules on a remote VM, you may want to:
@@ -188,11 +178,8 @@ class Rules:
         LOG.info(f'Dropping rules "{self.name or "[unamed]"}"')
         if self.chain_name is None:
             return
-        # Drop the whole set in one locked section, so that a partition is never
-        # observed half-removed.
-        with _iptables_lock:
-            for rule in self.rules:
-                _drop_rule(self.chain_name, rule)
+        for rule in self.rules:
+            _drop_rule(self.chain_name, rule)
 
 
 class Partitioner:
@@ -214,33 +201,29 @@ class Partitioner:
     """
 
     def dump(self):
-        with _iptables_lock:
-            if _has_chain(self.chain_name):
-                chain_status = (
-                    "active"
-                    if _has_rule("INPUT", _input_rule(self.chain_name))
-                    else "inactive"
-                )
-                rules = _run_iptables("--list-rules", self.chain_name).stdout.rstrip()
-                LOG.info(f"Dumping {chain_status} chain {self.chain_name}:\n{rules}")
-            else:
-                LOG.info(f"Chain {self.chain_name} does not exist")
+        if _has_chain(self.chain_name):
+            chain_status = (
+                "active"
+                if _has_rule("INPUT", _input_rule(self.chain_name))
+                else "inactive"
+            )
+            rules = _run_iptables("--list-rules", self.chain_name).stdout.rstrip()
+            LOG.info(f"Dumping {chain_status} chain {self.chain_name}:\n{rules}")
+        else:
+            LOG.info(f"Chain {self.chain_name} does not exist")
 
     @staticmethod
     def dump_all():
-        with _iptables_lock:
-            chains = _ccf_chains()
-            if not chains:
-                LOG.info(f"No {CCF_IPTABLES_CHAIN_PREFIX} iptables chain exists")
-                return
-            for chain_name in chains:
-                chain_status = (
-                    "active"
-                    if _has_rule("INPUT", _input_rule(chain_name))
-                    else "inactive"
-                )
-                rules = _run_iptables("--list-rules", chain_name).stdout.rstrip()
-                LOG.info(f"Dumping {chain_status} chain {chain_name}:\n{rules}")
+        chains = _ccf_chains()
+        if not chains:
+            LOG.info(f"No {CCF_IPTABLES_CHAIN_PREFIX} iptables chain exists")
+            return
+        for chain_name in chains:
+            chain_status = (
+                "active" if _has_rule("INPUT", _input_rule(chain_name)) else "inactive"
+            )
+            rules = _run_iptables("--list-rules", chain_name).stdout.rstrip()
+            LOG.info(f"Dumping {chain_status} chain {chain_name}:\n{rules}")
 
     def cleanup(self):
         _delete_chain(self.chain_name)
@@ -340,11 +323,8 @@ class Partitioner:
         if isolation_dir & IsolationDir.OUTBOUND_RESPONSES:
             rules.append(self.reverse_rule(client_rule))
 
-        # Apply the whole set in one locked section, so that a partition is
-        # never observed half-applied.
-        with _iptables_lock:
-            for rule in rules:
-                _replace_rule(self.chain_name, rule)
+        for rule in rules:
+            _replace_rule(self.chain_name, rule)
 
         LOG.debug(name)
 
@@ -391,21 +371,18 @@ class Partitioner:
 
         rules = []
         partitions_name = []
-        # A partition is several isolate_node calls; hold the lock across all of
-        # them so the partition takes effect in one step.
-        with _iptables_lock:
-            for i, partition in enumerate(args):
-                partitions_name.append(f"{self._get_partition_name(partition)}")
-                # Rules are bi-directional so skip partitions that have already been enforced
-                other_partitions = args[i + 1 :]
+        for i, partition in enumerate(args):
+            partitions_name.append(f"{self._get_partition_name(partition)}")
+            # Rules are bi-directional so skip partitions that have already been enforced
+            other_partitions = args[i + 1 :]
 
-                for node in partition:
-                    for other_partition in other_partitions:
-                        for other_node in other_partition:
-                            rules.extend(self.isolate_node(node, other_node).rules)
-
-                    for other_node in other_nodes:
+            for node in partition:
+                for other_partition in other_partitions:
+                    for other_node in other_partition:
                         rules.extend(self.isolate_node(node, other_node).rules)
+
+                for other_node in other_nodes:
+                    rules.extend(self.isolate_node(node, other_node).rules)
 
         partitions_name.append(self._get_partition_name(other_nodes))
 
