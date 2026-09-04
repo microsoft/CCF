@@ -101,6 +101,15 @@ Runs on pull requests that change `tla/` or `src/consensus/aft/raft.h`.
 File: `tla-shallow.yml`
 3rd party dependencies: None
 
+# Lean Disaster Recovery
+
+Builds the canonical Lean disaster recovery model, checks its proofs without
+warnings or project `sorryAx` dependencies, and runs its executable canonical
+behavior checks on relevant pull requests.
+
+File: `lean-disaster-recovery.yml`
+3rd party dependencies: None
+
 # Vendored Dependency Verification
 
 Verifies that files under `3rdparty/` match the Git commits or release artifacts
