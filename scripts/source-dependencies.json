@@ -33,6 +33,7 @@
     "threading": [],
     "tls": ["crypto", "ds"],
     "udp": ["ds"],
-    "uv": []
+    "uv": [],
+    "http": ["ccf-api", "crypto", "ds", "uv"]
   }
 }
