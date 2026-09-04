@@ -45,6 +45,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Corrected the OpenAPI schema name for `ccf::ds::SizeString` from `TimeString` to `SizeString` (#8261).
 - A transaction in a JavaScript application endpoint which conflicts with compaction is now re-executed, rather than returning `500 Internal Server Error` (#8289).
 - A `Range` header requesting a suffix longer than the file is now clamped to the whole file, per RFC 9110. Ranges which select no bytes, such as `bytes=-0`, are now rejected with `400 Bad Request` (#8299).
+- Recovery-decision-protocol nodes now request host restart only after the `JOINING` state transaction commits, preventing restart for an aborted transaction. (#8282)
 
 ### Changed
 
