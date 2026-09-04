@@ -21,6 +21,7 @@ bucket_c:
   governance_test
   code_update_test
   e2e_logging
+  basic_rust
   programmability_and_jwt
   e2e_limits
   e2e_redirects

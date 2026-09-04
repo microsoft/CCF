@@ -174,6 +174,27 @@ install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/tools.cmake DESTINATION cmake)
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf_app.cmake)
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf_app.cmake DESTINATION cmake)
+install(
+  DIRECTORY ${CCF_DIR}/src/rust/
+  DESTINATION share/ccf/src/rust
+  PATTERN target EXCLUDE
+)
+install(
+  DIRECTORY ${CCF_DIR}/src/cose/cose_rs/
+  DESTINATION share/ccf/src/cose/cose_rs
+  PATTERN target EXCLUDE
+)
+install(
+  DIRECTORY ${CCF_DIR}/3rdparty/internal/cose-openssl/
+  DESTINATION share/ccf/3rdparty/internal/cose-openssl
+  PATTERN target EXCLUDE
+)
+install(FILES ${CCF_DIR}/src/rust/app_bridge.cpp DESTINATION share/ccf/rust)
+install(
+  FILES ${CCF_DIR}/samples/apps/main.cpp
+  DESTINATION share/ccf/rust
+  RENAME app_main.cpp
+)
 
 # Copy and install CCF utilities
 set(CCF_UTILITIES keygenerator.sh submit_recovery_share.sh)
@@ -575,6 +596,19 @@ if(BUILD_TESTS)
 
   # Unit tests
   if(BUILD_UNIT_TESTS)
+    add_test(
+      NAME ccf_app_rust_test
+      COMMAND
+        ${CMAKE_COMMAND} -E env --unset=CARGO_BUILD_TARGET "CARGO_NET_RETRY=10"
+        "CARGO_HTTP_TIMEOUT=60" "CARGO_BUILD_RUSTC=${RUSTC}" ${CARGO} test
+        --manifest-path ${CCF_DIR}/src/rust/ccf-app/Cargo.toml --target-dir
+        ${CMAKE_BINARY_DIR}/cargo/ccf-app-test --locked
+    )
+    set_tests_properties(
+      ccf_app_rust_test
+      PROPERTIES LABELS unit WORKING_DIRECTORY ${CCF_DIR}/src/rust/ccf-app
+    )
+
     add_test(
       NAME verify_uvm_attestation_and_endorsements
       COMMAND
@@ -1308,6 +1342,13 @@ if(BUILD_TESTS)
     DETECT_DEADLOCKS
     TSAN_SUPPRESSIONS ${CCF_DIR}/tsan_e2e_logging_suppressions
     ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
+  )
+
+  add_e2e_test(
+    NAME basic_rust
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/basic_rust.py
+    BUCKET bucket_c
+    ADDITIONAL_ARGS --package samples/apps/basic_rust/basic_rust
   )
 
   set(

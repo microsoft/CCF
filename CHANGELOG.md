@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- Native CCF applications can now be written in Rust through a minimal, experimental API for registering endpoints and accessing raw-byte KV maps (#8200).
 - COSE Sign1 verification now accepts the fully-specified ECDSA algorithm identifiers introduced by [RFC 9864](https://www.rfc-editor.org/rfc/rfc9864.html): `ESP256` (-9), `ESP384` (-51) and `ESP512` (-52), in addition to the deprecated `ES256` (-7), `ES384` (-35) and `ES512` (-36) they replace. `ESn` and `ESPn` are treated as equivalent for the curve they denote, which CCF already requires to match the verification key. Signatures produced by CCF continue to use the `ES` identifiers (#8267).
 
 ### Fixed
