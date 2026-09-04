@@ -9,8 +9,12 @@ elab "#assert_no_migration_sorries" : command => do
   let env <- getEnv
   let mut offenders : Array Name := #[]
   for (name, _) in env.constants.toList do
-    if name.toString.startsWith "DisasterRecoveryMigration" ||
-        name.toString.startsWith "DisasterRecovery" then
+    let projectDeclaration :=
+      match env.getModuleIdxFor? name with
+      | none => false
+      | some index =>
+          env.header.moduleNames[index.toNat]!.toString.startsWith "DisasterRecovery"
+    if projectDeclaration then
       let axioms <- liftCoreM <| Lean.collectAxioms name
       if axioms.contains (Name.mkSimple "sorryAx") then
         offenders := offenders.push name

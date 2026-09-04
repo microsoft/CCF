@@ -3,6 +3,7 @@ name: "Lean Disaster Recovery Migration Evidence"
 on:
   pull_request:
     paths:
+      - "lean/disaster-recovery/**"
       - "lean/disaster-recovery-migration/**"
       - "tla/disaster-recovery/**"
       - ".github/workflows/lean-disaster-recovery-migration.yml"
