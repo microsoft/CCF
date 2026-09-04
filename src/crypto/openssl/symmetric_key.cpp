@@ -19,35 +19,208 @@ namespace ccf::crypto
   static constexpr size_t KEY_SIZE_192 = 192;
   static constexpr size_t KEY_SIZE_128 = 128;
 
-  KeyAesGcm_OpenSSL::KeyAesGcm_OpenSSL(std::span<const uint8_t> rawKey) :
-    key(std::vector<uint8_t>(rawKey.data(), rawKey.data() + rawKey.size()))
+  namespace
   {
-    const auto n = static_cast<unsigned int>(rawKey.size() * CHAR_BIT);
-    if (n >= KEY_SIZE_256)
+    const EVP_CIPHER* get_gcm_cipher(std::span<const uint8_t> raw_key)
     {
-      evp_cipher = EVP_aes_256_gcm();
-      evp_cipher_wrap_pad = EVP_aes_256_wrap_pad();
-    }
-    else if (n >= KEY_SIZE_192)
-    {
-      evp_cipher = EVP_aes_192_gcm();
-      evp_cipher_wrap_pad = EVP_aes_192_wrap_pad();
-    }
-    else if (n >= KEY_SIZE_128)
-    {
-      evp_cipher = EVP_aes_128_gcm();
-      evp_cipher_wrap_pad = EVP_aes_128_wrap_pad();
-    }
-    else
-    {
+      const auto n = static_cast<unsigned int>(raw_key.size() * CHAR_BIT);
+      if (n >= KEY_SIZE_256)
+      {
+        return EVP_aes_256_gcm();
+      }
+      if (n >= KEY_SIZE_192)
+      {
+        return EVP_aes_192_gcm();
+      }
+      if (n >= KEY_SIZE_128)
+      {
+        return EVP_aes_128_gcm();
+      }
       throw std::logic_error(
         fmt::format("Need at least {} bits, only have {}", KEY_SIZE_128, n));
     }
+
+    const EVP_CIPHER* get_wrap_pad_cipher(std::span<const uint8_t> raw_key)
+    {
+      const auto n = static_cast<unsigned int>(raw_key.size() * CHAR_BIT);
+      if (n >= KEY_SIZE_256)
+      {
+        return EVP_aes_256_wrap_pad();
+      }
+      if (n >= KEY_SIZE_192)
+      {
+        return EVP_aes_192_wrap_pad();
+      }
+      return EVP_aes_128_wrap_pad();
+    }
+
+    void encrypt_with_context(
+      EVP_CIPHER_CTX* ctx,
+      std::span<const uint8_t> iv,
+      std::span<const uint8_t> plain,
+      std::span<const uint8_t> aad,
+      std::vector<uint8_t>& cipher,
+      uint8_t tag[GCM_SIZE_TAG])
+    {
+      if (aad.empty() && plain.empty())
+      {
+        throw std::logic_error("aad and plain cannot both be empty");
+      }
+
+      CHECK1(
+        EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN, iv.size(), nullptr));
+      CHECK1(EVP_EncryptInit_ex2(ctx, nullptr, nullptr, iv.data(), nullptr));
+
+      if (!aad.empty())
+      {
+        int aad_outl{0};
+        CHECK1(
+          EVP_EncryptUpdate(ctx, nullptr, &aad_outl, aad.data(), aad.size()));
+      }
+
+      std::vector<uint8_t> ciphertext(plain.size());
+      if (!plain.empty())
+      {
+        int cypher_outl{0};
+        CHECK1(EVP_EncryptUpdate(
+          ctx, ciphertext.data(), &cypher_outl, plain.data(), plain.size()));
+
+        // As we use no padding, we expect the input and output lengths to
+        // match.
+        assert(static_cast<size_t>(cypher_outl) == plain.size());
+      }
+
+      int final_outl{0};
+      CHECK1(EVP_EncryptFinal_ex(ctx, nullptr, &final_outl));
+
+      // As long as we use GCM cipher, the final outl must be 0, because there's
+      // no padding and the block size is equal to 1, so EncryptUpdate() always
+      // does the whole thing. Final is still a must to finalize and check the
+      // error.
+      //
+      // See https://docs.openssl.org/3.3/man3/EVP_EncryptInit/#aead-interface.
+      assert(final_outl == 0);
+
+      CHECK1(
+        EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_GET_TAG, GCM_SIZE_TAG, &tag[0]));
+
+      cipher = std::move(ciphertext);
+    }
+
+    bool decrypt_with_context(
+      EVP_CIPHER_CTX* ctx,
+      std::span<const uint8_t> iv,
+      const uint8_t tag[GCM_SIZE_TAG],
+      std::span<const uint8_t> cipher,
+      std::span<const uint8_t> aad,
+      std::vector<uint8_t>& plain)
+    {
+      CHECK1(
+        EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN, iv.size(), nullptr));
+
+      CHECK1(EVP_DecryptInit_ex2(ctx, nullptr, nullptr, iv.data(), nullptr));
+      if (!aad.empty())
+      {
+        int aad_outl{0};
+        CHECK1(
+          EVP_DecryptUpdate(ctx, nullptr, &aad_outl, aad.data(), aad.size()));
+      }
+
+      std::vector<uint8_t> plaintext(cipher.size());
+      if (!cipher.empty())
+      {
+        int plain_outl{0};
+        CHECK1(EVP_DecryptUpdate(
+          ctx, plaintext.data(), &plain_outl, cipher.data(), cipher.size()));
+
+        // As we use no padding, we expect the input and output lengths to
+        // match.
+        assert(static_cast<size_t>(plain_outl) == cipher.size());
+      }
+
+      void* tag_ptr = const_cast<void*>(static_cast<const void*>(tag));
+      CHECK1(
+        EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_TAG, GCM_SIZE_TAG, tag_ptr));
+
+      plain.clear();
+
+      int final_outl{0};
+      if (EVP_DecryptFinal_ex(ctx, nullptr, &final_outl) != 1)
+      {
+        return false;
+      }
+
+      // As long as we use GCM cipher, the final outl must be 0, because there's
+      // no padding and the block size is equal to 1, so EncryptUpdate() always
+      // does the whole thing. Final is still a must to finalize and check the
+      // error.
+      //
+      // See https://docs.openssl.org/3.3/man3/EVP_EncryptInit/#aead-interface.
+      assert(final_outl == 0);
+
+      plain = std::move(plaintext);
+
+      return true;
+    }
+
+    class AesGcmContext_OpenSSL : public KeyAesGcm::Context
+    {
+    private:
+      Unique_EVP_CIPHER_CTX encrypt_context;
+      Unique_EVP_CIPHER_CTX decrypt_context;
+
+    public:
+      AesGcmContext_OpenSSL(
+        const EVP_CIPHER* cipher, std::span<const uint8_t> key)
+      {
+        CHECK1(EVP_EncryptInit_ex2(
+          encrypt_context, cipher, key.data(), nullptr, nullptr));
+        CHECK1(EVP_DecryptInit_ex2(
+          decrypt_context, cipher, key.data(), nullptr, nullptr));
+      }
+
+      void encrypt(
+        std::span<const uint8_t> iv,
+        std::span<const uint8_t> plain,
+        std::span<const uint8_t> aad,
+        std::vector<uint8_t>& cipher,
+        uint8_t tag[GCM_SIZE_TAG]) override
+      {
+        encrypt_with_context(encrypt_context, iv, plain, aad, cipher, tag);
+      }
+
+      bool decrypt(
+        std::span<const uint8_t> iv,
+        const uint8_t tag[GCM_SIZE_TAG],
+        std::span<const uint8_t> cipher,
+        std::span<const uint8_t> aad,
+        std::vector<uint8_t>& plain) override
+      {
+        return decrypt_with_context(
+          decrypt_context, iv, tag, cipher, aad, plain);
+      }
+    };
+  }
+
+  KeyAesGcm_OpenSSL::KeyAesGcm_OpenSSL(std::span<const uint8_t> rawKey) :
+    key(std::vector<uint8_t>(rawKey.data(), rawKey.data() + rawKey.size())),
+    evp_cipher(get_gcm_cipher(rawKey)),
+    evp_cipher_wrap_pad(get_wrap_pad_cipher(rawKey))
+  {}
+
+  KeyAesGcm_OpenSSL::~KeyAesGcm_OpenSSL()
+  {
+    OPENSSL_cleanse(const_cast<uint8_t*>(key.data()), key.size());
   }
 
   size_t KeyAesGcm_OpenSSL::key_size() const
   {
     return key.size() * CHAR_BIT;
+  }
+
+  std::unique_ptr<KeyAesGcm::Context> KeyAesGcm_OpenSSL::make_context()
+  {
+    return std::make_unique<AesGcmContext_OpenSSL>(evp_cipher, key);
   }
 
   void KeyAesGcm_OpenSSL::encrypt(
@@ -57,53 +230,10 @@ namespace ccf::crypto
     std::vector<uint8_t>& cipher,
     uint8_t tag[GCM_SIZE_TAG]) const
   {
-    if (aad.empty() && plain.empty())
-    {
-      throw std::logic_error("aad and plain cannot both be empty");
-    }
-
-    Unique_EVP_CIPHER_CTX ctx;
-    CHECK1(EVP_EncryptInit_ex(ctx, evp_cipher, nullptr, key.data(), nullptr));
-
+    Unique_EVP_CIPHER_CTX context;
     CHECK1(
-      EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN, iv.size(), nullptr));
-    CHECK1(EVP_EncryptInit_ex(ctx, nullptr, nullptr, key.data(), iv.data()));
-
-    if (!aad.empty())
-    {
-      int aad_outl{0};
-      CHECK1(
-        EVP_EncryptUpdate(ctx, nullptr, &aad_outl, aad.data(), aad.size()));
-    }
-
-    std::vector<uint8_t> ciphertext(plain.size());
-    if (!plain.empty())
-    {
-      int cypher_outl{0};
-      CHECK1(EVP_EncryptUpdate(
-        ctx, ciphertext.data(), &cypher_outl, plain.data(), plain.size()));
-
-      // As we use no padding, we expect the input and output lengths to match.
-      assert(static_cast<size_t>(cypher_outl) == plain.size());
-    }
-
-    int final_outl{0};
-    CHECK1(EVP_EncryptFinal_ex(ctx, nullptr, &final_outl));
-
-    // As long a we use GSM cipher, the final outl must be 0, because there's no
-    // padding and the block size is equal to 1, so EncryptUpdate() always does
-    // the whole thing. Final is still a must to finalize and check the error.
-    //
-    // See https://docs.openssl.org/3.3/man3/EVP_EncryptInit/#aead-interface.
-    assert(final_outl == 0);
-
-    CHECK1(
-      EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_GET_TAG, GCM_SIZE_TAG, &tag[0]));
-
-    if (!plain.empty())
-    {
-      cipher = std::move(ciphertext);
-    }
+      EVP_EncryptInit_ex2(context, evp_cipher, key.data(), nullptr, nullptr));
+    encrypt_with_context(context, iv, plain, aad, cipher, tag);
   }
 
   bool KeyAesGcm_OpenSSL::decrypt(
@@ -113,53 +243,10 @@ namespace ccf::crypto
     std::span<const uint8_t> aad,
     std::vector<uint8_t>& plain) const
   {
-    Unique_EVP_CIPHER_CTX ctx;
-    CHECK1(EVP_DecryptInit_ex(ctx, evp_cipher, nullptr, nullptr, nullptr));
+    Unique_EVP_CIPHER_CTX context;
     CHECK1(
-      EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN, iv.size(), nullptr));
-
-    CHECK1(EVP_DecryptInit_ex(ctx, nullptr, nullptr, key.data(), iv.data()));
-    if (!aad.empty())
-    {
-      int aad_outl{0};
-      CHECK1(
-        EVP_DecryptUpdate(ctx, nullptr, &aad_outl, aad.data(), aad.size()));
-    }
-
-    std::vector<uint8_t> plaintext(cipher.size());
-    if (!cipher.empty())
-    {
-      int plain_outl{0};
-      CHECK1(EVP_DecryptUpdate(
-        ctx, plaintext.data(), &plain_outl, cipher.data(), cipher.size()));
-
-      // As we use no padding, we expect the input and output lengths to match.
-      assert(static_cast<size_t>(plain_outl) == cipher.size());
-    }
-
-    void* tag_ptr = const_cast<void*>(static_cast<const void*>(tag));
-    CHECK1(
-      EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_TAG, GCM_SIZE_TAG, tag_ptr));
-
-    int final_outl{0};
-    if (EVP_DecryptFinal_ex(ctx, nullptr, &final_outl) != 1)
-    {
-      return false;
-    }
-
-    // As long a we use GSM cipher, the final outl must be 0, because there's no
-    // padding and the block size is equal to 1, so EncryptUpdate() always does
-    // the whole thing. Final is still a must to finalize and check the error.
-    //
-    // See https://docs.openssl.org/3.3/man3/EVP_EncryptInit/#aead-interface.
-    assert(final_outl == 0);
-
-    if (!cipher.empty())
-    {
-      plain = std::move(plaintext);
-    }
-
-    return true;
+      EVP_DecryptInit_ex2(context, evp_cipher, key.data(), nullptr, nullptr));
+    return decrypt_with_context(context, iv, tag, cipher, aad, plain);
   }
 
   std::vector<uint8_t> KeyAesGcm_OpenSSL::ckm_aes_key_wrap_pad(

@@ -13,19 +13,17 @@ namespace ccf::crypto
   {
   private:
     const std::vector<uint8_t> key;
-    const EVP_CIPHER* evp_cipher = nullptr;
+    const EVP_CIPHER* evp_cipher;
     const EVP_CIPHER* evp_cipher_wrap_pad;
 
   public:
     KeyAesGcm_OpenSSL(std::span<const uint8_t> rawKey);
     KeyAesGcm_OpenSSL(const KeyAesGcm_OpenSSL& that) = delete;
-    KeyAesGcm_OpenSSL(KeyAesGcm_OpenSSL&& that) noexcept;
-    ~KeyAesGcm_OpenSSL() override
-    {
-      OPENSSL_cleanse(const_cast<uint8_t*>(key.data()), key.size());
-    }
+    ~KeyAesGcm_OpenSSL() override;
 
     [[nodiscard]] size_t key_size() const override;
+
+    std::unique_ptr<Context> make_context() override;
 
     void encrypt(
       std::span<const uint8_t> iv,
