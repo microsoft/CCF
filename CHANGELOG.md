@@ -9,19 +9,35 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [7.0.14]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.14
 
+### Added
+
+- COSE Sign1 verification now accepts the fully-specified ECDSA algorithm identifiers introduced by [RFC 9864](https://www.rfc-editor.org/rfc/rfc9864.html): `ESP256` (-9), `ESP384` (-51) and `ESP512` (-52), in addition to the deprecated `ES256` (-7), `ES384` (-35) and `ES512` (-36) they replace. `ESn` and `ESPn` are treated as equivalent for the curve they denote, which CCF already requires to match the verification key. Signatures produced by CCF continue to use the `ES` identifiers (#8267).
+
 ### Fixed
 
-- If the view changed while a transaction was committing, the transaction could apply its writes to the local key-value store and then fail to replicate, leaving state that never reached consensus. The transaction's view is now validated atomically with the allocation of its version, so it is rejected before any map is modified, and `ccf::kv::CommitResult::FAIL_NO_REPLICATE` no longer implies a locally applied write (#8242).
+- A transaction's `force_ledger_chunk` and `snapshot_at_next_signature` flags are no longer applied once a concurrent view change has discarded the transaction's writes, which previously left a chunk boundary, or an armed snapshot, for a transaction no longer present in the ledger. The forced chunk is also attached to the transaction's own version rather than whichever version the store had reached (#8245).
+- A rollback whose target is at or beyond the store's own version no longer moves ledger chunk metadata forward past it, which previously left a permanent offset skewing later chunk boundaries (#8244).
+- Ledger chunk metadata and snapshot scheduling are no longer restored by a transaction whose writes a concurrent view change has already discarded. Both are now updated under the same lock as the rollback, and skipped when the transaction's rollback epoch or view no longer holds (#8243).
+- A transaction whose view changed while it was committing could apply its writes to the local key-value store and then fail to replicate, leaving state that never reached consensus. The transaction's view is now validated atomically with the allocation of its version, so it is rejected before any map is modified, and `ccf::kv::CommitResult::FAIL_NO_REPLICATE` no longer implies a locally applied write (#8242).
+- A transaction in a JavaScript application endpoint which conflicts with compaction is now re-executed, rather than returning `500 Internal Server Error` (#8289).
 
 ### Changed
 
 - CCF and C++ applications built against it now require C++23. The supported minimum Clang version remains 18.1.2. (#8234)
 - `sandbox.sh` now derives node configuration defaults and CLI descriptions from the `cchost` configuration schema, rather than using defaults selected by the end-to-end test infrastructure. This changes the sandbox defaults for signature delay (100 ms -> 1000 ms), election timeout (4000 ms -> 5000 ms), ledger chunk size (5000000 bytes -> `5MB`, or 5242880 bytes), initial node and service certificate validity (90 days -> 1 day), and tick interval (1 ms -> 10 ms). Environment variables used by the test infrastructure no longer override sandbox defaults; for example, use the existing `--election-timeout-ms` option instead of `ELECTION_TIMEOUT_MS` (#8176).
-- `ccf::kv::CommittableTx::commit()` no longer takes a caller-supplied version resolver. The parameter had no callers, and bypassed the view check above. Callers passing `nullptr` for it should remove the argument (#8242).
+- The generic locking primitives previously in `ccf::pal` (`Mutex`, `MutexGuard`, `ConditionVariable`) have moved to the new public header `ccf/ds/locking.h`, in the `ccf::ds` namespace. The `ccf::pal` aliases in `ccf/pal/locking.h` are kept for source compatibility but are now deprecated; applications should switch to `ccf::ds::Mutex`, `ccf::ds::MutexGuard` and `ccf::ds::ConditionVariable`. `ccf::pal::safe_memcpy` (`ccf/pal/mem.h`) is similarly deprecated in favour of `std::memcpy`, which it has been equivalent to since Open Enclave support was removed (#8265).
+
+### Removed
+
+- The experimental built-in `QUIC` application protocol and its UDP echo implementation have been removed. UDP interfaces remain available to registered custom protocols.
 
 ### Fixed
 
 - Corrected the OpenAPI schema name for `ccf::ds::SizeString` from `TimeString` to `SizeString`. (#8261)
+
+### Fixed
+
+- Nodes which open node-to-node connections to each other at the same moment now agree on which of the two connections to keep, instead of each discarding the one the other is using. Previously both could be left holding a connection whose far end no longer existed, and if the resulting disconnection was not observed - for example because a network partition dropped it - the two nodes would silently stop exchanging consensus messages, stalling elections until one of them restarted (#8233).
 
 ## [7.0.13]
 
