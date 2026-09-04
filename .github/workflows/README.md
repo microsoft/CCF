@@ -117,6 +117,15 @@ library module, so newly added proofs cannot silently escape the checks.
 File: `lean.yml`
 3rd party dependencies: None
 
+# Lean Disaster Recovery Trace
+
+Builds the isolated strict trace validator and runs its parser, replay, and
+no-sorry checks. The Milan and Genoa SNP jobs in `ci.yml` validate real
+committed C++ recovery traces and upload the generated NDJSON evidence.
+
+File: `lean-disaster-recovery-trace.yml`
+3rd party dependencies: None
+
 # Vendored Dependency Verification
 
 Verifies that files under `3rdparty/` match the Git commits or release artifacts

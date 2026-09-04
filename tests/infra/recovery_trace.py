@@ -94,9 +94,7 @@ def linearize(events):
             )
             or len(set(expected_locations)) != len(expected_locations)
         ):
-            raise ValueError(
-                f"trace event {index} has invalid expected_locations"
-            )
+            raise ValueError(f"trace event {index} has invalid expected_locations")
         event_identity = (instance, tuple(expected_locations))
         if identity is None:
             identity = event_identity
