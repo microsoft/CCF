@@ -26,4 +26,3 @@ root = "Tests"
 [[lean_exe]]
 name = "migration-exporter"
 root = "ExportMain"
-

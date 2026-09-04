@@ -22,4 +22,3 @@ def main (args : List String) : IO UInt32 := do
       let graph <- enumerate n
       exportGraph n graph
       pure 0
-

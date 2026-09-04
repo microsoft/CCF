@@ -21,4 +21,3 @@ elab "#assert_no_migration_sorries" : command => do
 
 def main : IO Unit :=
   pure ()
-
