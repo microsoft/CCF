@@ -32,7 +32,7 @@
 #include "handle_ring_buffer.h"
 #include "host/env.h"
 #include "host/files_cleanup_timer.h"
-#include "http/curl.h"
+#include "http_client/curl.h"
 #include "json_schema.h"
 #include "lfs_file_handler.h"
 #include "node_connections.h"

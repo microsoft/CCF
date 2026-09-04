@@ -58,7 +58,7 @@ Use this to verify that the correct check macro is used and that the error path 
 
 ## libcurl
 
-CCF wraps libcurl in `src/http/curl.h`.
+CCF wraps libcurl in `src/http_client/curl.h`.
 
 | Macro                                        | Use when …                          |
 | -------------------------------------------- | ----------------------------------- |
