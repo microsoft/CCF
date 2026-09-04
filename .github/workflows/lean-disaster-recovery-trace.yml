@@ -53,3 +53,10 @@ jobs:
           lake build
           lake env lean -DwarningAsError=true AxiomChecks.lean
           lake exe trace-checks
+
+      - name: Test trace extraction and ordering
+        working-directory: tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest infra.recovery_trace_test
