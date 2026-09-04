@@ -5,6 +5,7 @@ defaultTargets = [
   "DisasterRecoveryMigration",
   "migration-model-checker",
   "migration-semantic-checks",
+  "migration-exporter",
 ]
 
 [[require]]
@@ -21,4 +22,8 @@ root = "Main"
 [[lean_exe]]
 name = "migration-semantic-checks"
 root = "Tests"
+
+[[lean_exe]]
+name = "migration-exporter"
+root = "ExportMain"
 
