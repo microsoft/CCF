@@ -3,6 +3,7 @@ version = "0.1.0"
 moreLeanArgs = ["-DwarningAsError=true"]
 defaultTargets = [
   "DisasterRecovery",
+  "canonical-checks",
 ]
 
 [[require]]
@@ -12,3 +13,7 @@ rev = "v4.28.0"
 
 [[lean_lib]]
 name = "DisasterRecovery"
+
+[[lean_exe]]
+name = "canonical-checks"
+root = "CanonicalTests"
