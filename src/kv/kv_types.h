@@ -744,6 +744,12 @@ namespace ccf::kv
       std::unique_ptr<PendingTx> pending_tx,
       bool globally_committable) = 0;
     virtual bool check_rollback_count(Version count) = 0;
+    virtual bool apply_tx_flags(
+      Version version,
+      Term expected_term,
+      Version expected_rollback_count,
+      bool force_ledger_chunk,
+      bool snapshot_at_next_signature) = 0;
 
     virtual std::unique_ptr<AbstractSnapshot> snapshot_unsafe_maps(
       Version v) = 0;
