@@ -7,7 +7,7 @@
 #include "ccf/http_configuration.h"
 #include "ccf/rest_verb.h"
 #include "ds/internal_logger.h"
-#include "host/proxy.h"
+#include "uv/proxy.h"
 
 #include <cstddef>
 #include <cstdint>
