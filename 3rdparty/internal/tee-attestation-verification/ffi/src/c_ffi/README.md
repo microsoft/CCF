@@ -16,12 +16,12 @@ malformed input), the panic is caught at the FFI boundary and reported as a
 ## Building and linking
 
 ```sh
-cargo build --manifest-path ffi/Cargo.toml --no-default-features --features crypto_openssl
+cargo build --manifest-path ffi/Cargo.toml
 ```
 
 That produces `libtee_attestation_verification_ffi.{a,so}` under
-`target/debug/` (or `crypto_pure_rust` for the portable backend). Link against
-it and include `ffi/include/tav/`. See `ffi/tests/c-consumer/CMakeLists.txt`
+`target/debug/`. Link against it and include `ffi/include/tav/`. See
+`ffi/tests/c-consumer/CMakeLists.txt`
 for a worked CMake setup, including static linking.
 
 ## CBOR handle ownership

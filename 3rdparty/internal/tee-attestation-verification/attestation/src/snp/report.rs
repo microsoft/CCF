@@ -701,38 +701,6 @@ mod tests {
                 .expect_err("Zeroed signature should not verify");
         }
 
-        #[cfg(all(feature = "crypto_pure_rust", not(feature = "crypto_openssl")))]
-        #[test]
-        fn nonzero_r_scalar_padding_fails() {
-            let vcek = cert(MILAN_VCEK);
-            let mut report = report();
-
-            report.signature.r[48] = 1;
-
-            let err = verify_report_signature(&vcek, &report)
-                .expect_err("Nonzero r scalar padding should not verify");
-            assert!(
-                err.to_string().contains("Invalid r scalar padding"),
-                "expected r scalar padding error, got: {err}"
-            );
-        }
-
-        #[cfg(all(feature = "crypto_pure_rust", not(feature = "crypto_openssl")))]
-        #[test]
-        fn nonzero_s_scalar_padding_fails() {
-            let vcek = cert(MILAN_VCEK);
-            let mut report = report();
-
-            report.signature.s[48] = 1;
-
-            let err = verify_report_signature(&vcek, &report)
-                .expect_err("Nonzero s scalar padding should not verify");
-            assert!(
-                err.to_string().contains("Invalid s scalar padding"),
-                "expected s scalar padding error, got: {err}"
-            );
-        }
-
         #[test]
         fn wrong_cert_rejects_signature() {
             verify_report_signature(&cert(GENOA_VCEK), &report())

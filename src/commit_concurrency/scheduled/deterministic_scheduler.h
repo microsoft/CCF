@@ -3,7 +3,7 @@
 #pragma once
 
 // A cooperative scheduler for deterministically exploring real thread
-// interleavings of real ccf::pal::Mutex use, without recompiling any
+// interleavings of real ccf::ds::Mutex use, without recompiling any
 // production code against a different Mutex type: every real
 // pthread_mutex_lock/unlock/trylock call is intercepted at link time (see
 // src/commit_concurrency/scheduled/pthread_mutex_wrap.cpp) and, for a
@@ -31,7 +31,7 @@
 // number of schedules at random instead, still fully reproducibly from a
 // seed (exactly, unlike a real-thread fuzzer's timing-based randomness).
 //
-// A real ccf::pal::Mutex used on a thread with no active
+// A real ccf::ds::Mutex used on a thread with no active
 // DeterministicScheduler behaves exactly like an ordinary mutex.
 
 #include <algorithm>
@@ -271,7 +271,7 @@ namespace ccf::kv::test
     }
 
     // Called by __wrap_pthread_mutex_lock() (see pthread_mutex_wrap.cpp)
-    // for a real ccf::pal::Mutex lock attempt. Blocks until this actor
+    // for a real ccf::ds::Mutex lock attempt. Blocks until this actor
     // actually holds the lock. The attempt itself is a decision point (its
     // Requested event, below), before even checking whether the lock is
     // free - without this, whichever actor happened to be running when
@@ -280,7 +280,7 @@ namespace ccf::kv::test
     // could otherwise ever get a chance to reach for the same lock first.
     // Acquiring it (whether or not this actor had to wait first) is a
     // further decision point of its own, with an Acquired event. `label`
-    // (if given - see ccf::pal::unique_lock, the only real caller that
+    // (if given - see ccf::ds::unique_lock, the only real caller that
     // supplies one) is used for both events. The one exception is the
     // reserved driver "actor" (see DriverRegistration): it never actually
     // contends with a real actor for any lock, so its own incidental lock
@@ -320,7 +320,7 @@ namespace ccf::kv::test
     }
 
     // Called by __wrap_pthread_mutex_unlock() (see pthread_mutex_wrap.cpp)
-    // after a real ccf::pal::Mutex release. Every
+    // after a real ccf::ds::Mutex release. Every
     // release is itself a decision point, whether or not anything was
     // specifically waiting on this lock - any ready actor (including one
     // now free to claim this lock) is a candidate to run next. `label`
@@ -494,7 +494,7 @@ namespace ccf::kv::test
 
   // Registers/unregisters the calling (driver) thread with `scheduler` as
   // a reserved actor id (one beyond the real actors, so it never collides
-  // with one), so that any real ccf::pal::Mutex it locks - during
+  // with one), so that any real ccf::ds::Mutex it locks - during
   // make_run() or on_schedule(), the only places the driver thread runs
   // application code - goes through the same scheduler bookkeeping a real
   // actor's would, rather than falling back to real locking. This driver
@@ -548,7 +548,7 @@ namespace ccf::kv::test
   // exactly `num_actors` callables - the body to run, on its own thread,
   // for each actor in that particular run. Every callable must call
   // ccf::kv::test::SchedulerThreadContext::set() first if it wants that
-  // thread's real ccf::pal::Mutex use to be scheduled (any thread that
+  // thread's real ccf::ds::Mutex use to be scheduled (any thread that
   // never calls it behaves as if no scheduler were active at all).
   //
   // If given, `on_schedule` is called after every schedule's actors have
@@ -615,7 +615,7 @@ namespace ccf::kv::test
       // here, on this driver thread, before any actor thread exists - so
       // it is registered with this schedule's scheduler too (as actor id
       // num_actors, never used by any real actor), rather than left
-      // unregistered. This matters whenever a real ccf::pal::Mutex reachable
+      // unregistered. This matters whenever a real ccf::ds::Mutex reachable
       // from make_run() is shared with something outside this scenario's
       // own fixture (e.g. a process-wide singleton) - an unregistered
       // thread takes such a lock for real, while a registered one only

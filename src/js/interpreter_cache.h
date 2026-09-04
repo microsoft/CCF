@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/locking.h"
 #include "ccf/js/interpreter_cache_interface.h"
-#include "ccf/pal/locking.h"
 #include "ds/lru.h"
 
 namespace ccf::js
@@ -12,7 +12,7 @@ namespace ccf::js
   {
   protected:
     // Locks access to all internal fields
-    ccf::pal::Mutex lock;
+    ccf::ds::Mutex lock;
     LRU<std::string, std::shared_ptr<js::core::Context>> lru;
     size_t cache_build_marker = 0;
 
@@ -44,7 +44,7 @@ namespace ccf::js
           "interpreters");
       }
 
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      std::lock_guard<ccf::ds::Mutex> guard(lock);
 
       if (cache_build_marker != freshness_marker)
       {
@@ -100,7 +100,7 @@ namespace ccf::js
 
     void set_max_cached_interpreters(size_t max) override
     {
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      std::lock_guard<ccf::ds::Mutex> guard(lock);
       lru.set_max_size(max);
     }
 

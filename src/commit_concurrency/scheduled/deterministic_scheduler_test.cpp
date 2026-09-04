@@ -1,6 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "ccf/pal/locking.h"
+#include "ccf/ds/locking.h"
 #include "commit_concurrency/scheduled/deterministic_scheduler.h"
 
 #define DOCTEST_CONFIG_NO_SHORT_MACRO_NAMES
@@ -24,7 +24,7 @@ DOCTEST_TEST_CASE(
   DOCTEST_CHECK(counter == 1);
 }
 
-// A real ccf::pal::Mutex lock()/unlock() is intercepted at link time (see
+// A real ccf::ds::Mutex lock()/unlock() is intercepted at link time (see
 // src/commit_concurrency/scheduled/pthread_mutex_wrap.cpp) rather than
 // via a distinct C++ type, so nothing here stops a future change (e.g.
 // dropping the -Wl,--wrap=... flags in CMakeLists.txt, or a libc/compiler
@@ -39,15 +39,15 @@ DOCTEST_TEST_CASE(
 // after_unlock() are documented to report, which is only possible if
 // interception genuinely engaged.
 DOCTEST_TEST_CASE(
-  "Smoke test: a real ccf::pal::Mutex lock/unlock is genuinely intercepted, "
+  "Smoke test: a real ccf::ds::Mutex lock/unlock is genuinely intercepted, "
   "not silently left as real, untracked OS-level locking" *
   doctest::test_suite("deterministic_scheduler"))
 {
-  ccf::pal::Mutex mtx;
+  ccf::ds::Mutex mtx;
   explore_all_interleavings(
     1,
     [&]() -> std::vector<std::function<void()>> {
-      return {[&]() { std::lock_guard<ccf::pal::Mutex> guard(mtx); }};
+      return {[&]() { std::lock_guard<ccf::ds::Mutex> guard(mtx); }};
     },
     [&](const DeterministicScheduler& scheduler) {
       const auto& path = scheduler.decision_path();
@@ -68,7 +68,7 @@ DOCTEST_TEST_CASE(
   doctest::test_suite("deterministic_scheduler"))
 {
   size_t counter = 0;
-  ccf::pal::Mutex mtx;
+  ccf::ds::Mutex mtx;
 
   const auto explored = explore_all_interleavings(
     2,
@@ -76,11 +76,11 @@ DOCTEST_TEST_CASE(
       counter = 0;
       return {
         [&]() {
-          std::lock_guard<ccf::pal::Mutex> guard(mtx);
+          std::lock_guard<ccf::ds::Mutex> guard(mtx);
           counter++;
         },
         [&]() {
-          std::lock_guard<ccf::pal::Mutex> guard(mtx);
+          std::lock_guard<ccf::ds::Mutex> guard(mtx);
           counter++;
         }};
     },
@@ -103,19 +103,19 @@ namespace
   {
     bool initialised = false;
     size_t init_count = 0;
-    ccf::pal::Mutex mtx;
+    ccf::ds::Mutex mtx;
 
     void run_actor_with_gap()
     {
       bool already_done;
       {
-        std::lock_guard<ccf::pal::Mutex> guard(mtx);
+        std::lock_guard<ccf::ds::Mutex> guard(mtx);
         already_done = initialised;
       }
       yield_point("checked initialised flag, about to act on it");
       if (!already_done)
       {
-        std::lock_guard<ccf::pal::Mutex> guard(mtx);
+        std::lock_guard<ccf::ds::Mutex> guard(mtx);
         initialised = true;
         init_count++;
       }
@@ -123,7 +123,7 @@ namespace
 
     void run_actor_without_gap()
     {
-      std::lock_guard<ccf::pal::Mutex> guard(mtx);
+      std::lock_guard<ccf::ds::Mutex> guard(mtx);
       if (!initialised)
       {
         initialised = true;
