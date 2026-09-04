@@ -241,6 +241,7 @@ namespace ccf::kv
       bool track_deletes_on_missing_keys = false;
       bool commit_term_changed = false;
       std::optional<Version> c;
+      std::optional<Version> expected_rollback_count;
       {
         MapSetLockGuard map_set_guard(*pimpl->store, maps_created);
         c = apply_changes(
@@ -254,9 +255,12 @@ namespace ccf::kv
               return std::optional<VersionResolution>{};
             }
 
-            const auto& resolved = resolution.value();
+            const auto
+              [resolved_version, previous_last_new_map, rollback_count] =
+                resolution.value();
+            expected_rollback_count = rollback_count;
             return std::optional<VersionResolution>(
-              std::in_place, std::get<0>(resolved), std::get<1>(resolved));
+              std::in_place, resolved_version, previous_last_new_map);
           },
           hooks,
           pimpl->created_maps,
@@ -284,26 +288,44 @@ namespace ccf::kv
       committed = true;
       version = c.value();
 
-      if (tx_flag_enabled(TxFlag::LEDGER_CHUNK_AT_NEXT_SIGNATURE))
-      {
-        auto chunker = pimpl->store->get_chunker();
-        if (chunker)
-        {
-          chunker->force_end_of_chunk(version);
-        }
-      }
-
-      if (tx_flag_enabled(TxFlag::SNAPSHOT_AT_NEXT_SIGNATURE))
-      {
-        pimpl->store->set_flag(
-          AbstractStore::StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
-        unset_tx_flag(TxFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
-      }
+      const auto force_ledger_chunk =
+        tx_flag_enabled(TxFlag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
+      const auto snapshot_at_next_signature =
+        tx_flag_enabled(TxFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
 
       if (version == NoVersion)
       {
-        // Read-only transaction
+        // Read-only transaction. It has no version to attach a ledger chunk
+        // to, but a requested snapshot must still be armed, as it was before
+        // these flags became rollback-sensitive.
+        if (snapshot_at_next_signature)
+        {
+          pimpl->store->set_flag(
+            AbstractStore::StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
+          unset_tx_flag(TxFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
+        }
         return CommitResult::SUCCESS;
+      }
+
+      // These side effects outlive this transaction, so they must not be
+      // applied if a concurrent rollback has already discarded its writes.
+      if (force_ledger_chunk || snapshot_at_next_signature)
+      {
+        if (!expected_rollback_count.has_value())
+        {
+          throw std::logic_error(
+            "Transaction was allocated a version without a rollback count");
+        }
+
+        if (!pimpl->store->apply_tx_flags(
+              version,
+              pimpl->commit_view,
+              expected_rollback_count.value(),
+              force_ledger_chunk,
+              snapshot_at_next_signature))
+        {
+          return CommitResult::FAIL_NO_REPLICATE;
+        }
       }
 
       // From here, we have received a unique commit version and made
