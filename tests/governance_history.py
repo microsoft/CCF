@@ -215,12 +215,16 @@ def test_tables_doc(network, args):
     return network
 
 
-@reqs.description("Test that all nodes' ledgers can be read")
+@reqs.description("Test that all nodes' API-readable ledger chunks can be read")
 def test_ledger_is_readable(network, args):
     primary, backups = network.find_nodes()
     target_seqno = network.create_and_wait_for_ledger_chunk(primary)
     for node in (primary, *backups):
-        with node.get_ledger_from_api(target_seqno, local_only=True) as ledger:
+        with node.get_ledger_from_api(
+            target_seqno,
+            local_only=True,
+            timeout=args.ledger_recovery_timeout,
+        ) as ledger:
             for chunk in ledger:
                 for _ in chunk:
                     pass

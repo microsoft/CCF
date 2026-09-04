@@ -8,7 +8,7 @@
 #include "node/historical_queries.h"
 
 #include "ccf/crypto/rsa_key_pair.h"
-#include "ccf/pal/locking.h"
+#include "ccf/ds/locking.h"
 #include "ccf/receipt.h"
 #include "crypto/cbor.h"
 #include "crypto/openssl/hash.h"
@@ -851,10 +851,7 @@ TEST_CASE("StateCache range queries")
 
         // Don't validate anything about signature transactions, just the
         // business transactions between them
-        if (
-          std::find(
-            signature_versions.begin(), signature_versions.end(), seqno) ==
-          signature_versions.end())
+        if (!std::ranges::contains(signature_versions, seqno))
         {
           validate_business_transaction(store, seqno);
         }
@@ -1193,10 +1190,7 @@ TEST_CASE("StateCache sparse queries")
 
         // Don't validate anything about signature transactions, just the
         // business transactions between them
-        if (
-          std::find(
-            signature_versions.begin(), signature_versions.end(), seqno) ==
-          signature_versions.end())
+        if (!std::ranges::contains(signature_versions, seqno))
         {
           validate_business_transaction(store, seqno);
         }
@@ -1279,7 +1273,7 @@ TEST_CASE("StateCache concurrent access")
     {
       std::vector<StubWriter::Write> writes;
       {
-        std::lock_guard<ccf::pal::Mutex> guard(writer->writes_mutex);
+        std::lock_guard<ccf::ds::Mutex> guard(writer->writes_mutex);
         auto finished_write_it = std::partition_point(
           writer->writes.begin() + last_handled_write,
           writer->writes.end(),
@@ -1382,10 +1376,7 @@ TEST_CASE("StateCache concurrent access")
       {
         REQUIRE(store != nullptr);
         const auto seqno = store->current_txid().seqno;
-        if (
-          std::find(
-            signature_versions.begin(), signature_versions.end(), seqno) ==
-          signature_versions.end())
+        if (!std::ranges::contains(signature_versions, seqno))
         {
           validate_business_transaction(store, seqno);
         }
@@ -1398,10 +1389,7 @@ TEST_CASE("StateCache concurrent access")
       {
         REQUIRE(state != nullptr);
         const auto seqno = state->store->current_txid().seqno;
-        if (
-          std::find(
-            signature_versions.begin(), signature_versions.end(), seqno) ==
-          signature_versions.end())
+        if (!std::ranges::contains(signature_versions, seqno))
         {
           validate_business_transaction(state, seqno);
         }

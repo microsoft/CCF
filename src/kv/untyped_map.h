@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/locking.h"
 #include "ccf/kv/untyped_map_diff.h"
 #include "ccf/kv/untyped_map_handle.h"
-#include "ccf/pal/locking.h"
 #include "ds/dl_list.h"
 #include "ds/internal_logger.h"
 #include "kv/kv_serialiser.h"
@@ -84,7 +84,7 @@ namespace ccf::kv::untyped
     CommitHook global_hook = nullptr;
     MapHook hook = nullptr;
     std::list<std::pair<Version, Write>> commit_deltas;
-    ccf::pal::Mutex sl;
+    ccf::ds::Mutex sl;
     const SecurityDomain security_domain;
 
     static State deserialize_map_snapshot(
@@ -630,13 +630,6 @@ namespace ccf::kv::untyped
 
       return ok;
     }
-
-#ifndef __cpp_impl_three_way_comparison
-    bool operator!=(const Map& that) const
-    {
-      return !(*this == that);
-    }
-#endif
 
     std::unique_ptr<AbstractMap::Snapshot> snapshot(Version v) override
     {
