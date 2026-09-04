@@ -692,9 +692,10 @@ namespace ccf::kv
           }
           if (chunker)
           {
-            // Keep this ordered with append_entry_size() below, so a commit
-            // cannot restore chunk metadata after this rollback.
-            chunker->rolled_back_to(tx_id.seqno);
+            // Nothing local is discarded here, but the rollback target may be
+            // at or beyond the Store's current version. Clamp so this cannot
+            // move chunk metadata forward past the Store.
+            chunker->rolled_back_to(std::min<Version>(tx_id.seqno, version));
           }
           return;
         }
