@@ -2,12 +2,12 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/locking.h"
 #include "ccf/js/core/runtime.h"
 #include "ccf/js/core/wrapped_value.h"
 #include "ccf/js/extensions/extension_interface.h"
 #include "ccf/js/modules/module_loader_interface.h"
 #include "ccf/js/tx_access.h"
-#include "ccf/pal/locking.h"
 
 #include <chrono>
 #include <quickjs/quickjs.h>
@@ -58,7 +58,7 @@ namespace ccf::js::core
       loaded_modules_cache;
 
   public:
-    ccf::pal::Mutex lock;
+    ccf::ds::Mutex lock;
 
     const TxAccess access;
     InterruptData interrupt_data;

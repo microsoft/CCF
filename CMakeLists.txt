@@ -748,6 +748,12 @@ if(BUILD_TESTS)
     target_link_libraries(rpc_connections_test PRIVATE uv)
 
     add_unit_test(
+      node_connections_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/host/test/node_connections.cpp
+    )
+    target_link_libraries(node_connections_test PRIVATE uv)
+
+    add_unit_test(
       raft_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/main.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/view_history.cpp
@@ -916,6 +922,11 @@ if(BUILD_TESTS)
     add_unit_test(
       node_info_json_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/node_info_json.cpp
+    )
+
+    add_unit_test(
+      identity_types_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/identity_types.cpp
     )
 
     add_unit_test(tls_test ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/main.cpp)

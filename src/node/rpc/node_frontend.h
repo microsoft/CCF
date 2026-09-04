@@ -4,6 +4,7 @@
 
 #include "ccf/common_auth_policies.h"
 #include "ccf/common_endpoint_registry.h"
+#include "ccf/ds/locking.h"
 #include "ccf/endpoint_context.h"
 #include "ccf/endpoints/authentication/cert_auth.h"
 #include "ccf/http_query.h"
@@ -12,7 +13,6 @@
 #include "ccf/node/quote.h"
 #include "ccf/odata_error.h"
 #include "ccf/pal/attestation.h"
-#include "ccf/pal/locking.h"
 #include "ccf/service/reconfiguration_type.h"
 #include "ccf/version.h"
 #include "crypto/certs.h"
@@ -416,7 +416,7 @@ namespace ccf
       return make_success(rep);
     }
 
-    ccf::pal::Mutex jwt_refresh_metrics_lock;
+    ccf::ds::Mutex jwt_refresh_metrics_lock;
     JWTRefreshMetrics jwt_refresh_metrics
       CCF_GUARDED_BY(jwt_refresh_metrics_lock);
 
@@ -425,7 +425,7 @@ namespace ccf
     {
       if (event.method == "POST" && event.dispatch_path == "/jwt_keys/refresh")
       {
-        ccf::pal::MutexGuard guard(jwt_refresh_metrics_lock);
+        ccf::ds::MutexGuard guard(jwt_refresh_metrics_lock);
         jwt_refresh_metrics.attempts += 1;
         int status_category = event.status / 100;
         if (status_category >= 4)
@@ -1794,7 +1794,7 @@ namespace ccf
         [this](auto& /*args*/, const nlohmann::json& /*params*/) {
           JWTRefreshMetrics metrics;
           {
-            ccf::pal::MutexGuard guard(jwt_refresh_metrics_lock);
+            ccf::ds::MutexGuard guard(jwt_refresh_metrics_lock);
             metrics = jwt_refresh_metrics;
           }
           return make_success(metrics);

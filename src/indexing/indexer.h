@@ -69,7 +69,7 @@ namespace ccf::indexing
 
       std::optional<ccf::SeqNo> min_requested = std::nullopt;
 
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      std::lock_guard<ccf::ds::Mutex> guard(lock);
 
       for (const auto& strategy : strategies)
       {

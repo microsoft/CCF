@@ -2982,6 +2982,72 @@ TEST_CASE("Store clear")
   }
 }
 
+TEST_CASE("Stale-view writes are rejected before local application")
+{
+  ccf::kv::Store store;
+  store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+  auto consensus = std::make_shared<ccf::kv::test::PrimaryStubConsensus>();
+  store.set_consensus(consensus);
+
+  constexpr ccf::kv::Term initial_term = 2;
+  constexpr auto key = "key";
+  MapTypes::StringString map("public:map");
+  store.initialise_term(initial_term);
+
+  {
+    auto tx = store.create_tx();
+    tx.rw(map)->put(key, "initial");
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+
+  const auto baseline_txid = store.current_txid();
+  const auto baseline_replica_count = consensus->replica.size();
+
+  auto stale_tx = store.create_tx();
+  stale_tx.rw(map)->put(key, "stale");
+
+  const auto new_term = initial_term + 1;
+  store.rollback(baseline_txid, new_term);
+
+  REQUIRE(stale_tx.commit() == ccf::kv::CommitResult::FAIL_NO_REPLICATE);
+  CHECK(store.current_txid() == baseline_txid);
+  CHECK(consensus->replica.size() == baseline_replica_count);
+  {
+    auto tx = store.create_read_only_tx();
+    CHECK(tx.ro(map)->get(key) == "initial");
+  }
+
+  {
+    auto tx = store.create_tx();
+    tx.rw(map)->put(key, "fresh");
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+
+  CHECK(store.current_txid() == ccf::TxID(new_term, baseline_txid.seqno + 1));
+  CHECK(consensus->replica.size() == baseline_replica_count + 1);
+  {
+    auto tx = store.create_read_only_tx();
+    CHECK(tx.ro(map)->get(key) == "fresh");
+  }
+
+  const auto before_dynamic_map_txid = store.current_txid();
+  auto stale_dynamic_map_tx = store.create_tx();
+  stale_dynamic_map_tx.rw<MapTypes::StringString>("public:new_map")
+    ->put(key, "stale");
+
+  store.rollback(before_dynamic_map_txid, new_term + 1);
+
+  REQUIRE(
+    stale_dynamic_map_tx.commit() == ccf::kv::CommitResult::FAIL_NO_REPLICATE);
+  CHECK(store.current_txid() == before_dynamic_map_txid);
+  CHECK(store.get_map(store.current_version(), "public:new_map") == nullptr);
+
+  auto fresh_dynamic_map_tx = store.create_tx();
+  fresh_dynamic_map_tx.rw<MapTypes::StringString>("public:new_map")
+    ->put(key, "fresh");
+  REQUIRE(fresh_dynamic_map_tx.commit() == ccf::kv::CommitResult::SUCCESS);
+}
+
 TEST_CASE("Reported TxID after commit")
 {
   ccf::kv::Store kv_store;
@@ -3426,6 +3492,108 @@ TEST_CASE("Reserved transaction map creation is serialised with lookups")
     store.get_map(
       store.current_version(),
       fmt::format("public:reserved_{}", reserved_txs - 1)) != nullptr);
+}
+
+// Exposes the version the chunker has recorded entries up to, which is the
+// state a rollback and a concurrent commit can disagree about.
+class InspectableChunker : public ccf::kv::LedgerChunker
+{
+public:
+  ccf::kv::Version current_version()
+  {
+    ccf::ds::MutexGuard guard(chunker_lock);
+    return current_tx_version;
+  }
+};
+
+// A PendingTx which rolls the store back while Store::commit() is midway
+// through the batch it belongs to. Store::commit() calls this after releasing
+// version_lock, so it reproduces a rollback landing between a batch being
+// assembled and its chunk metadata being recorded, without needing threads.
+class RollingBackPendingTx : public ccf::kv::PendingTx
+{
+  ccf::TxID txid;
+  ccf::kv::Store& store;
+  MapTypes::StringString& table;
+  ccf::TxID rollback_to;
+  ccf::kv::Term rollback_term;
+
+public:
+  RollingBackPendingTx(
+    ccf::TxID txid_,
+    ccf::kv::Store& store_,
+    MapTypes::StringString& table_,
+    ccf::TxID rollback_to_,
+    ccf::kv::Term rollback_term_) :
+    txid(txid_),
+    store(store_),
+    table(table_),
+    rollback_to(rollback_to_),
+    rollback_term(rollback_term_)
+  {}
+
+  ccf::kv::PendingTxInfo call() override
+  {
+    auto tx = store.create_reserved_tx(txid);
+    tx.rw(table)->put("key", "value");
+    auto info = tx.commit_reserved();
+    store.rollback(rollback_to, rollback_term);
+    return info;
+  }
+};
+
+TEST_CASE("Chunk metadata is not restored by a batch a rollback discarded")
+{
+  ccf::kv::Store store;
+  store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+  auto consensus = std::make_shared<ccf::kv::test::PrimaryStubConsensus>();
+  store.set_consensus(consensus);
+  auto chunker = std::make_shared<InspectableChunker>();
+  store.set_chunker(chunker);
+
+  constexpr ccf::kv::Term initial_term = 2;
+  store.initialise_term(initial_term);
+  MapTypes::StringString map("public:map");
+
+  INFO("Commit an ordinary transaction to establish a baseline");
+  {
+    auto tx = store.create_tx();
+    tx.rw(map)->put("key", "initial");
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+
+  const auto baseline_txid = store.current_txid();
+  REQUIRE(chunker->current_version() == baseline_txid.seqno);
+
+  INFO(
+    "A batch whose writes are discarded by a rollback must not leave chunk "
+    "metadata behind");
+  {
+    const auto reserved = store.next_txid();
+    REQUIRE(reserved.seqno == baseline_txid.seqno + 1);
+
+    // The rollback target is below the reserved version, so it truncates and
+    // moves the rollback epoch on - exactly what a real election would do.
+    store.commit(
+      reserved,
+      std::make_unique<RollingBackPendingTx>(
+        reserved, store, map, baseline_txid, initial_term + 1),
+      false);
+  }
+
+  CHECK(store.current_txid() == baseline_txid);
+  CHECK(chunker->current_version() == baseline_txid.seqno);
+
+  INFO(
+    "The next transaction is chunked against its own version, with no "
+    "accumulated offset from the discarded batch");
+  {
+    auto tx = store.create_tx();
+    tx.rw(map)->put("key", "fresh");
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+
+  CHECK(chunker->current_version() == store.current_version());
 }
 
 TEST_CASE("Ledger entry chunk request")
