@@ -88,11 +88,32 @@ jobs:
 
       - name: Build and run virtual perf tests
         run: |
+          set -eo pipefail
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
           cmake -GNinja -DWORKER_THREADS=2 ..
-          ninja
+          # Build only the binaries the benchmark and perf suites actually run.
+          # A bare `ninja` also builds every unit-test binary, which this job
+          # never executes and which dominates the build.
+          # add_picobench names each test after its executable target
+          readarray -t bench_targets < <(
+            ctest -N -L benchmark | sed -n 's/^ *Test *#[0-9]*: //p'
+          )
+          # perf tests name the app they need on their command line
+          readarray -t app_targets < <(
+            ctest -N -V -L perf -C perf | tr ' ' '\n' | tr -d '"' | awk '
+              /^--package$/       { getline; print }
+              /^-c$/              { getline; sub(/^\.\//, ""); print }
+              /^--js-app-bundle$/ { print "js_generic" }' | sort -u
+          )
+          # Guard each half separately: the benchmark names alone would satisfy
+          # a combined count check even if app discovery silently returned none.
+          if [ "${#bench_targets[@]}" -eq 0 ] || [ "${#app_targets[@]}" -eq 0 ]; then
+            echo "Derived ${#bench_targets[@]} benchmark and ${#app_targets[@]} app targets, expected both non-empty" >&2
+            exit 1
+          fi
+          ninja "${bench_targets[@]}" "${app_targets[@]}"
           # Microbenchmarks
           ./tests.sh -VV -L benchmark
           # End to end performance tests
@@ -177,11 +198,32 @@ jobs:
 
       - name: Build and run SNP perf tests
         run: |
+          set -eo pipefail
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
           cmake -GNinja -DWORKER_THREADS=2 ..
-          ninja
+          # Build only the binaries the benchmark and perf suites actually run.
+          # A bare `ninja` also builds every unit-test binary, which this job
+          # never executes and which dominates the build.
+          # add_picobench names each test after its executable target
+          readarray -t bench_targets < <(
+            ctest -N -L benchmark | sed -n 's/^ *Test *#[0-9]*: //p'
+          )
+          # perf tests name the app they need on their command line
+          readarray -t app_targets < <(
+            ctest -N -V -L perf -C perf | tr ' ' '\n' | tr -d '"' | awk '
+              /^--package$/       { getline; print }
+              /^-c$/              { getline; sub(/^\.\//, ""); print }
+              /^--js-app-bundle$/ { print "js_generic" }' | sort -u
+          )
+          # Guard each half separately: the benchmark names alone would satisfy
+          # a combined count check even if app discovery silently returned none.
+          if [ "${#bench_targets[@]}" -eq 0 ] || [ "${#app_targets[@]}" -eq 0 ]; then
+            echo "Derived ${#bench_targets[@]} benchmark and ${#app_targets[@]} app targets, expected both non-empty" >&2
+            exit 1
+          fi
+          ninja "${bench_targets[@]}" "${app_targets[@]}"
           # Microbenchmarks
           ./tests.sh -VV -L benchmark -E task_bench
           # End to end performance tests
