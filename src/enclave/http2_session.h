@@ -4,10 +4,10 @@
 
 #include "ds/internal_logger.h"
 #include "enclave/rpc_map.h"
-#include "error_reporter.h"
+#include "http/error_reporter.h"
+#include "http/http2_parser.h"
 #include "http/http2_types.h"
-#include "http2_parser.h"
-#include "http_responder.h"
+#include "http/http_responder.h"
 #include "http_rpc_context.h"
 
 namespace http
