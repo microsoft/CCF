@@ -3,8 +3,8 @@
 #pragma once
 
 #include "ccf/ds/json.h"
+#include "ccf/ds/locking.h"
 #include "ccf/node/startup_config.h"
-#include "ccf/pal/locking.h"
 #include "ccf/service/tables/self_healing_open.h"
 #include "ccf/tx.h"
 #include "ccf/tx_id.h"
@@ -51,7 +51,7 @@ namespace ccf
     ccf::tasks::Task retry_task;
     ccf::tasks::Task failover_task;
 
-    pal::Mutex recovery_decision_protocol_lock;
+    ds::Mutex recovery_decision_protocol_lock;
     std::optional<recovery_decision_protocol::RequestNodeInfo> node_info_cache;
     std::optional<recovery_decision_protocol::IAmOpenRequest>
       iamopen_request_cache;
