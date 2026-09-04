@@ -3784,10 +3784,9 @@ def _run_backup_snapshot_download(const_args, label_suffix, tests):
             test(network, args)
 
 
-# These used to run as one sequential group, which made it the longest sub-test
-# in schema_test by a wide margin. Each group below brings up its own network,
-# so they run concurrently. Every test starts by finding the primary and issuing
-# its own transactions, so none of them depend on the others.
+# Each group below brings up its own network and runs concurrently with the
+# others. Every test starts by finding the primary and issuing its own
+# transactions, so none of them depend on the others.
 def run_backup_snapshot_download(const_args):
     _run_backup_snapshot_download(
         const_args,

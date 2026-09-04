@@ -264,8 +264,7 @@ if __name__ == "__main__":
         initial_member_count=1,
     )
 
-    # The operations tests are split into groups which run concurrently, as the
-    # single sequential group used to dominate this test's total run time.
+    # These groups run concurrently, each on its own network.
     for name, target in (
         ("operations-offline", e2e_operations.run_offline_ledger_tools),
         ("operations-snapshots", e2e_operations.run_snapshot_manual_and_retention),

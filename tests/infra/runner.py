@@ -246,11 +246,11 @@ class ConcurrentRunner:
         network that cannot get CPU promptly sees spurious leadership elections
         and dropped sessions, so this bounds how many run at once.
 
-        One per core. Runners were previously unbounded, and the largest of them
-        sustained around fifteen concurrent nodes on a sixteen-core CI runner
-        without trouble, so this is a ceiling on new growth rather than a
-        tightening of what already worked. Tests whose sub-tests are unusually
-        sensitive, such as partitions_test, pass a lower value to run().
+        One per core: a ceiling on new growth rather than a tightening of what
+        already worked, since the largest runner sustains around fifteen
+        concurrent nodes on a sixteen-core CI runner without trouble. Tests
+        whose sub-tests are unusually sensitive, such as partitions_test, pass
+        a lower value to run().
         """
         cores_count = len(os.sched_getaffinity(0))
         return max(2, cores_count)

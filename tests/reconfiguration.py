@@ -1420,9 +1420,9 @@ def run_ipv6(args):
     run_all(args, ipv6=True)
 
 
-# These used to run sequentially at the end of run_all. They each build their
-# own single-node network and share no state with it, so they are registered as
-# their own sub-tests and run concurrently instead.
+# Each of these builds its own single-node network and shares no state with
+# run_all, so they are registered as their own sub-tests and run concurrently
+# to minimise end-to-end test duration.
 def run_join_old_snapshot_ipv6(args):
     _assert_ipv6_available()
 

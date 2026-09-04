@@ -1625,9 +1625,8 @@ if __name__ == "__main__":
         20  # Increase snapshot frequency for faster reconfigurations
     )
 
-    # A single sequential network used to dominate this test's run time. The
-    # groups below each run on their own network, concurrently, and preserve the
-    # original relative order of the tests they contain.
+    # Each group below runs on its own network, concurrently, and preserves the
+    # relative order of the tests it contains.
     for name, target in (
         ("basic", run_basic_partitions),
         ("certs", run_certificate_partitions),

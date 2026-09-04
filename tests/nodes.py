@@ -322,8 +322,8 @@ if __name__ == "__main__":
         nodes=infra.e2e_args.min_nodes(cr.args, f=1),
     )
 
-    # Previously run sequentially at the end of run_all. Each builds its own
-    # single-node network, so they run concurrently with everything else.
+    # Each of these builds its own single-node network, so they run
+    # concurrently with everything else.
     for name, target in (
         ("join_old_snapshot", reconfiguration.run_join_old_snapshot),
         (
