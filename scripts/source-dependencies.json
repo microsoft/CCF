@@ -22,8 +22,16 @@
     "src/node/gov/api_schema.h"
   ],
   "allowed_internal_dependencies": {
+    "apps": ["ccf-api", "js"],
+    "cose": [],
     "crypto": ["cose", "ds"],
     "ds": [],
-    "pal": ["crypto", "ds"]
+    "msgpack": [],
+    "pal": ["crypto", "ds"],
+    "tasks": ["ds"],
+    "tcp": ["ds"],
+    "threading": [],
+    "tls": ["crypto", "ds"],
+    "udp": ["ds"]
   }
 }
