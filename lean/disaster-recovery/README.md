@@ -64,17 +64,17 @@ satisfies the fairness and broadcast-before-completion premises.
 
 ## Files
 
-| File | Purpose |
-| --- | --- |
-| `DisasterRecovery/Protocol/Model.lean` | C++-aligned local transition model |
-| `DisasterRecovery/Protocol/Temporal.lean` | Local safety and liveness |
-| `DisasterRecovery/Protocol/Global.lean` | Distributed transition semantics |
-| `DisasterRecovery/Protocol/Invariants.lean` | Reachability invariants |
-| `DisasterRecovery/Protocol/Quorum.lean` | Quorum uniqueness |
-| `DisasterRecovery/Protocol/Committed.lean` | Committed-prefix safety |
-| `DisasterRecovery/Protocol/GlobalTemporal.lean` | Global liveness |
-| `CanonicalTests.lean` | Executable canonical behavior checks |
-| `AxiomChecks.lean` | Transitive project `sorryAx` rejection |
+| File                                            | Purpose                                |
+| ----------------------------------------------- | -------------------------------------- |
+| `DisasterRecovery/Protocol/Model.lean`          | C++-aligned local transition model     |
+| `DisasterRecovery/Protocol/Temporal.lean`       | Local safety and liveness              |
+| `DisasterRecovery/Protocol/Global.lean`         | Distributed transition semantics       |
+| `DisasterRecovery/Protocol/Invariants.lean`     | Reachability invariants                |
+| `DisasterRecovery/Protocol/Quorum.lean`         | Quorum uniqueness                      |
+| `DisasterRecovery/Protocol/Committed.lean`      | Committed-prefix safety                |
+| `DisasterRecovery/Protocol/GlobalTemporal.lean` | Global liveness                        |
+| `CanonicalTests.lean`                           | Executable canonical behavior checks   |
+| `AxiomChecks.lean`                              | Transitive project `sorryAx` rejection |
 
 ## Validation
 
