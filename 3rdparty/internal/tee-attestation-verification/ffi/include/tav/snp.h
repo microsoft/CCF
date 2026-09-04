@@ -20,18 +20,19 @@ extern "C" {
  *
  * Usage summary:
  * - Call tav_verify_snp_attestation with the raw attestation report and the
- *   ARK, ASK, and VCEK certificates in PEM format.
- * - On success, verification writes a TavSnpAttestationReport* to out_report.
+ *   ARK, ASK, and VCEK certificates in PEM format, or call
+ *   tav_snp_attestation_report_from_unverified_bytes for fixed-size decoding
+ *   without authentication or semantic validation.
+ * - On success, either function writes a TavSnpAttestationReport* to out_report.
  *   Pass that report handle to the tav_snp_attestation_report_* accessors.
  * - Free the report handle with tav_snp_attestation_report_free when finished.
  *
  * Error behavior:
- * - tav_verify_snp_attestation returns NULL on success, or an owned TavError*
- *   on failure. Inspect failures with tav_error_code and tav_error_message,
- *   then free them with tav_error_free.
- * - tav_verify_snp_attestation reports invalid verification inputs and invalid
- *   out_report state as TavError failures. Each input buffer is capped at
- *   1 GiB.
+ * - Both report constructors return NULL on success, or an owned TavError* on
+ *   failure. Inspect failures with tav_error_code and tav_error_message, then
+ *   free them with tav_error_free.
+ * - Both constructors report invalid inputs and invalid out_report state as
+ *   TavError failures. Each input buffer is capped at 1 GiB.
  * - Error accessors are defensive for NULL TavError pointers: tav_error_code
  *   returns TAV_ERROR_IS_NULL and tav_error_message returns a static
  *   diagnostic string.
@@ -63,7 +64,22 @@ TAV_API TavError *tav_verify_snp_attestation(
     size_t vcek_pem_len,
     TavSnpAttestationReport **out_report);
 
-/* Scalar report accessors. Invalid report pointers are undefined behavior. */
+/*
+ * Parse an SNP attestation report without cryptographic verification.
+ *
+ * This checks only that the input has the fixed SNP report size. It does not
+ * validate field values, reserved bytes, signatures, certificates, or TCBs.
+ * Do not make trust decisions from the returned report.
+ *
+ * out_report must point to a writable report-handle slot. The slot is set to
+ * NULL before any fallible work and set to an owned handle only on success.
+ */
+TAV_API TavError *tav_snp_attestation_report_from_unverified_bytes(
+    const uint8_t *report_bytes,
+    size_t report_len,
+    TavSnpAttestationReport **out_report);
+
+/* Report accessors. Invalid report pointers are undefined behavior. */
 TAV_API uint32_t tav_snp_attestation_report_version(
     const TavSnpAttestationReport *report);
 TAV_API uint32_t tav_snp_attestation_report_guest_svn(
@@ -196,7 +212,7 @@ TAV_API void tav_snp_attestation_report_signature_s(
     const uint8_t **data,
     size_t *len);
 
-/* Frees a report handle returned by tav_verify_snp_attestation. NULL is a no-op. */
+/* Frees a report handle returned by either report constructor. NULL is a no-op. */
 TAV_API void tav_snp_attestation_report_free(TavSnpAttestationReport *report);
 
 #ifdef __cplusplus

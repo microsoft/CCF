@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/locking.h"
 #include "ccf/historical_queries_interface.h"
-#include "ccf/pal/locking.h"
 #include "consensus/ledger_enclave_types.h"
 #include "ds/ccf_assert.h"
 #include "kv/store.h"
@@ -594,7 +594,7 @@ namespace ccf::historical
     };
 
     // Guard all access to internal state with this lock
-    ccf::pal::Mutex requests_lock;
+    ccf::ds::Mutex requests_lock;
 
     // Track all things currently requested by external callers
     std::map<CompoundHandle, Request> requests;
@@ -1032,7 +1032,7 @@ namespace ccf::historical
           "Invalid range for historical query: Cannot request empty range");
       }
 
-      std::lock_guard<ccf::pal::Mutex> guard(requests_lock);
+      std::lock_guard<ccf::ds::Mutex> guard(requests_lock);
 
       const auto ms_until_expiry =
         std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -1287,7 +1287,7 @@ namespace ccf::historical
 
     bool drop_cached_states(const CompoundHandle& handle)
     {
-      std::lock_guard<ccf::pal::Mutex> guard(requests_lock);
+      std::lock_guard<ccf::ds::Mutex> guard(requests_lock);
       lru_evict(handle);
       const auto erased_count = requests.erase(handle);
       return erased_count > 0;
@@ -1300,7 +1300,7 @@ namespace ccf::historical
 
     bool handle_ledger_entry(ccf::SeqNo seqno, const uint8_t* data, size_t size)
     {
-      std::lock_guard<ccf::pal::Mutex> guard(requests_lock);
+      std::lock_guard<ccf::ds::Mutex> guard(requests_lock);
       const auto it = all_stores.find(seqno);
       auto details = it == all_stores.end() ? nullptr : it->second.lock();
       if (details == nullptr || details->current_stage != StoreStage::Fetching)
@@ -1452,7 +1452,7 @@ namespace ccf::historical
 
     void handle_no_entry_range(ccf::SeqNo from_seqno, ccf::SeqNo to_seqno)
     {
-      std::lock_guard<ccf::pal::Mutex> guard(requests_lock);
+      std::lock_guard<ccf::ds::Mutex> guard(requests_lock);
 
       LOG_TRACE_FMT("handle_no_entry_range({}, {})", from_seqno, to_seqno);
 
@@ -1546,13 +1546,13 @@ namespace ccf::historical
 
     size_t get_estimated_store_cache_size()
     {
-      std::lock_guard<ccf::pal::Mutex> guard(requests_lock);
+      std::lock_guard<ccf::ds::Mutex> guard(requests_lock);
       return estimated_store_cache_size;
     }
 
     void tick(const std::chrono::milliseconds& elapsed_ms)
     {
-      std::lock_guard<ccf::pal::Mutex> guard(requests_lock);
+      std::lock_guard<ccf::ds::Mutex> guard(requests_lock);
 
       {
         auto it = requests.begin();
