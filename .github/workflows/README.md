@@ -114,10 +114,6 @@ and the proof implementation files marked as generated for review purposes.
 The standard `mk_all --check` command ensures that the audit root imports every
 library module, so newly added proofs cannot silently escape the checks.
 
-The temporary migration-evidence job builds and audits the Lean mirror of the
-legacy Rust/Stateright disaster recovery model, exercises both implementations,
-and exhaustively compares their complete graphs for up to three nodes.
-
 File: `lean.yml`
 3rd party dependencies: None
 
