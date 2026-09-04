@@ -3507,7 +3507,7 @@ public:
 
   bool has_chunk_end_at(ccf::kv::Version v)
   {
-    ccf::pal::MutexGuard guard(chunker_lock);
+    ccf::ds::MutexGuard guard(chunker_lock);
     return chunk_ends.contains(v);
   }
 };
@@ -3753,8 +3753,10 @@ TEST_CASE("Reserved signature side effects are not applied after a rollback")
     store.rollback({initial_term, reserved.seqno - 1}, initial_term + 1);
     REQUIRE(store.check_rollback_count(1));
 
-    CHECK_FALSE(
-      store.prepare_reserved_tx(reserved.seqno, reserved.view, 0).has_value());
+    CHECK_FALSE(store
+                  .should_create_ledger_chunk_for_reserved_tx(
+                    reserved.seqno, reserved.view, 0)
+                  .has_value());
     CHECK_FALSE(chunker->has_chunk_end_at(reserved.seqno));
   }
 
@@ -3775,7 +3777,9 @@ TEST_CASE("Reserved signature side effects are not applied after a rollback")
     REQUIRE(store.flag_enabled(
       ccf::kv::AbstractStore::StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE));
 
-    CHECK_FALSE(store.prepare_reserved_tx(superseded.seqno, superseded.view, 1)
+    CHECK_FALSE(store
+                  .should_create_ledger_chunk_for_reserved_tx(
+                    superseded.seqno, superseded.view, 1)
                   .has_value());
     CHECK_FALSE(chunker->has_chunk_end_at(superseded.seqno));
   }
@@ -3790,7 +3794,8 @@ TEST_CASE("Reserved signature side effects are not applied after a rollback")
       ccf::kv::AbstractStore::StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
 
     const auto should_create_chunk =
-      store.prepare_reserved_tx(replacement.seqno, replacement.view, 1);
+      store.should_create_ledger_chunk_for_reserved_tx(
+        replacement.seqno, replacement.view, 1);
     REQUIRE(should_create_chunk.has_value());
     CHECK(should_create_chunk.value());
     CHECK(chunker->has_chunk_end_at(replacement.seqno));

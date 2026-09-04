@@ -560,8 +560,9 @@ namespace ccf::kv
       // Deciding this and recording the chunk must be atomic with respect to
       // rollback, so that a signature a rollback discards leaves no marker
       // behind.
-      const auto should_create_chunk = pimpl->store->prepare_reserved_tx(
-        version, pimpl->commit_view, rollback_count);
+      const auto should_create_chunk =
+        pimpl->store->should_create_ledger_chunk_for_reserved_tx(
+          version, pimpl->commit_view, rollback_count);
       if (!should_create_chunk.has_value())
       {
         committed = true;
