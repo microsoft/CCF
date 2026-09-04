@@ -243,24 +243,34 @@ jobs:
           path: |
             tla/traces/*
 
-  model-checking-self-healing-open:
-    name: Model Checking - Self-Healing Open
-    runs-on: [self-hosted, 1ES.Pool=gha-vmss-d16av6-ci]
-    container:
-      image: mcr.microsoft.com/azurelinux/base/core:3.0
-      options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
+  lean-disaster-recovery:
+    name: Lean Disaster Recovery - Canonical Model
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
-      - name: "Checkout dependencies"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Lean
         shell: bash
         run: |
-          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
-          tdnf -y update
-          tdnf -y install ca-certificates git
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y elan
+          elan toolchain install "$(cat lean/disaster-recovery/lean-toolchain)"
 
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Install Stateright dependencies
+      - name: Restore Mathlib cache
+        working-directory: lean/disaster-recovery
+        shell: bash
         run: |
-          tdnf install -y cargo
+          set -euo pipefail
+          lake exe cache get
 
-      - run: cd tla/disaster-recovery && cargo run check
+      - name: Build and check canonical model
+        working-directory: lean/disaster-recovery
+        shell: bash
+        run: |
+          set -euo pipefail
+          lake build
+          lake env lean -DwarningAsError=true AxiomChecks.lean
+          lake exe canonical-checks
