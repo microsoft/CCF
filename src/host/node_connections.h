@@ -586,7 +586,7 @@ namespace asynchost
     }
 
     // Remove the connection with this peer, if any.
-    bool remove_connection(const ccf::NodeId& node)
+    bool remove_connection(ccf::NodeId node)
     {
       if (connections.erase(node) < 1)
       {
