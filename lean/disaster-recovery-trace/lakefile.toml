@@ -1,0 +1,28 @@
+name = "disaster_recovery_trace"
+version = "0.1.0"
+moreLeanArgs = ["-DwarningAsError=true"]
+defaultTargets = [
+  "DisasterRecoveryTrace",
+  "trace-checks",
+  "trace-validator",
+  "axiom-checks",
+]
+
+[[require]]
+name = "disaster_recovery"
+path = "../disaster-recovery"
+
+[[lean_lib]]
+name = "DisasterRecoveryTrace"
+
+[[lean_exe]]
+name = "trace-checks"
+root = "TraceTests"
+
+[[lean_exe]]
+name = "trace-validator"
+root = "TraceMain"
+
+[[lean_exe]]
+name = "axiom-checks"
+root = "AxiomChecks"
