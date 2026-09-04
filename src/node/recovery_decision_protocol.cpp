@@ -25,6 +25,11 @@ namespace ccf
     node_state(node_state_)
   {}
 
+  void RecoveryDecisionProtocolSubsystem::restart_after_commit()
+  {
+    RINGBUFFER_WRITE_MESSAGE(AdminMessage::restart, node_state->to_host);
+  }
+
   void RecoveryDecisionProtocolSubsystem::reset_state(ccf::kv::Tx& tx)
   {
     // Clear any previous state
@@ -89,6 +94,12 @@ namespace ccf
           {
             start_message_retry_timers();
             start_failover_timers();
+          }
+          else if (
+            w.has_value() &&
+            w.value() == recovery_decision_protocol::StateMachine::JOINING)
+          {
+            restart_after_commit();
           }
         }));
   }
@@ -245,8 +256,6 @@ namespace ccf
         auto service_cert =
           ccf::crypto::cert_der_to_pem(node_config->service_cert_der);
         LOG_INFO_FMT("{}", service_cert.str());
-
-        RINGBUFFER_WRITE_MESSAGE(AdminMessage::restart, node_state->to_host);
       }
       case recovery_decision_protocol::StateMachine::OPENING:
       {
