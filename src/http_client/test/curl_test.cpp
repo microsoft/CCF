@@ -4,7 +4,7 @@
 #include "ccf/ds/json.h"
 #include "curl/curl.h"
 #include "ds/internal_logger.h"
-#include "http/curl.h"
+#include "http_client/curl.h"
 
 #include <cstdlib>
 #include <curl/header.h>

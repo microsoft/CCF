@@ -8,7 +8,7 @@
 #include "ccf/http_consts.h"
 #include "ccf/pal/attestation.h"
 #include "ccf/pal/attestation_sev_snp_endorsements.h"
-#include "http/curl.h"
+#include "http_client/curl.h"
 #include "tasks/basic_task.h"
 #include "tasks/task.h"
 #include "tasks/task_system.h"
