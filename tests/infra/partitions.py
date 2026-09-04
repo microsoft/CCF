@@ -5,7 +5,6 @@ import itertools
 import os
 import subprocess
 import threading
-from dataclasses import field
 
 from loguru import logger as LOG
 
@@ -46,7 +45,9 @@ def _rule_args(rule):
         supported_fields.add(protocol)
     unsupported_fields = set(rule) - supported_fields
     if unsupported_fields:
-        raise ValueError(f"Unsupported iptables rule fields: {unsupported_fields}")
+        raise ValueError(
+            f"Unsupported iptables rule fields: {sorted(unsupported_fields)}"
+        )
 
     args = []
     if protocol is not None:
@@ -159,10 +160,6 @@ class Rules:
     Set of iptables rules created by the :py:class:`infra.partitions.Partitioner`
     """
 
-    rules: list[dict] = field(default_factory=list)
-
-    name: str | None = None
-
     def __init__(self, rules, name=None, chain_name=None):
         self.rules = rules
         self.name = name
@@ -175,7 +172,7 @@ class Rules:
         self.drop()
 
     def drop(self):
-        LOG.info(f'Dropping rules "{self.name or "[unamed]"}"')
+        LOG.info(f'Dropping rules "{self.name or "[unnamed]"}"')
         if self.chain_name is None:
             return
         for rule in self.rules:
