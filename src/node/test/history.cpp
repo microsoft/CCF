@@ -369,6 +369,7 @@ TEST_CASE("Pending signatures retain their endorsed certificate")
     {
       history->set_endorsed_certificate(first_cert);
       history->set_endorsed_certificate(second_cert);
+      std::this_thread::yield();
     }
   });
 
