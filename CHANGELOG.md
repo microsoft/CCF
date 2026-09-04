@@ -15,7 +15,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
-- If the view changed while a transaction was committing, the transaction could apply its writes to the local key-value store and then fail to replicate, leaving state that never reached consensus. The transaction's view is now validated atomically with the allocation of its version, so it is rejected before any map is modified, and `ccf::kv::CommitResult::FAIL_NO_REPLICATE` no longer implies a locally applied write (#8242).
+- Ledger chunk metadata and snapshot scheduling are no longer restored by a transaction whose writes a concurrent view change has already discarded. Both are now updated under the same lock as the rollback, and skipped when the transaction's rollback epoch or view no longer holds (#8243).
+- A transaction whose view changed while it was committing could apply its writes to the local key-value store and then fail to replicate, leaving state that never reached consensus. The transaction's view is now validated atomically with the allocation of its version, so it is rejected before any map is modified, and `ccf::kv::CommitResult::FAIL_NO_REPLICATE` no longer implies a locally applied write (#8242).
 
 ### Changed
 
@@ -30,6 +31,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - Corrected the OpenAPI schema name for `ccf::ds::SizeString` from `TimeString` to `SizeString`. (#8261)
+
+### Fixed
+
+- Nodes which open node-to-node connections to each other at the same moment now agree on which of the two connections to keep, instead of each discarding the one the other is using. Previously both could be left holding a connection whose far end no longer existed, and if the resulting disconnection was not observed - for example because a network partition dropped it - the two nodes would silently stop exchanging consensus messages, stalling elections until one of them restarted (#8233).
 
 ## [7.0.13]
 

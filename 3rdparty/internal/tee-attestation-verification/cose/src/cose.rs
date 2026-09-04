@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-use crate::cbor::{serialize_array, CborSlice, CborValue};
+use cbor::CborValue;
 #[cfg(async_crypto)]
 use crypto::AsyncCryptoBackend;
 #[cfg(sync_crypto)]
@@ -46,7 +46,7 @@ pub const COSE_ALG_PS384: i64 = -38;
 pub const COSE_ALG_PS512: i64 = -39;
 
 /// Return the COSE_Sign1 array from a tagged or untagged COSE_Sign1 document.
-pub fn cose_sign1(document: &CborValue) -> Result<&CborValue, String> {
+pub fn cose_sign1<'a, 'b>(document: &'a CborValue<'b>) -> Result<&'a CborValue<'b>, String> {
     // RFC 9052, Section 4.2: COSE_Sign1 may be encoded as CBOR tag 18
     // wrapping the underlying COSE_Sign1 array or a raw array
     match document {
@@ -126,12 +126,15 @@ pub fn cose_alg_for_signature_key_algorithm(
 /// To-be-signed (TBS).
 /// https://www.rfc-editor.org/rfc/rfc9052.html#section-4.4.
 fn sig_structure(phdr: &[u8], payload: &[u8]) -> Result<Vec<u8>, String> {
-    serialize_array(&[
-        CborSlice::TextStr(SIG_STRUCTURE1_CONTEXT),
-        CborSlice::ByteStr(phdr),
-        CborSlice::ByteStr(&[]),
-        CborSlice::ByteStr(payload),
+    // Borrowed payloads, so building the array copies nothing. The TBS bytes
+    // must be deterministic because they are what gets signed.
+    CborValue::Array(vec![
+        CborValue::text(SIG_STRUCTURE1_CONTEXT),
+        CborValue::bytes(phdr),
+        CborValue::bytes(&[][..]),
+        CborValue::bytes(payload),
     ])
+    .to_bytes_det()
 }
 
 /// Verify a COSE_Sign1 signature with the active synchronous crypto backend.
@@ -215,7 +218,7 @@ fn protected_header_alg(phdr: &[u8]) -> Result<Option<i64>, String> {
         return Ok(None);
     }
 
-    let protected = CborValue::from_bytes(phdr)?;
+    let protected = CborValue::parse_nondet(phdr)?;
     for (key, value) in protected.iter_map()? {
         if key == &CborValue::Int(COSE_HEADER_ALG) {
             return match value {
@@ -317,10 +320,10 @@ mod tests {
     #[test]
     fn cose_sign1_accepts_tagged_and_untagged_sign1_arrays() {
         let sign1 = CborValue::Array(vec![
-            CborValue::ByteString(vec![]),
+            CborValue::bytes(vec![]),
             CborValue::Map(vec![]),
-            CborValue::ByteString(vec![]),
-            CborValue::ByteString(vec![]),
+            CborValue::bytes(vec![]),
+            CborValue::bytes(vec![]),
         ]);
         let tagged = CborValue::Tagged {
             tag: 18,
@@ -350,12 +353,12 @@ mod tests {
     #[test]
     fn cose_sign1_requires_four_fields() {
         let valid = CborValue::Array(vec![
-            CborValue::ByteString(vec![]),
+            CborValue::bytes(vec![]),
             CborValue::Map(vec![]),
-            CborValue::ByteString(vec![]),
-            CborValue::ByteString(vec![]),
+            CborValue::bytes(vec![]),
+            CborValue::bytes(vec![]),
         ]);
-        let invalid = CborValue::Array(vec![CborValue::ByteString(vec![])]);
+        let invalid = CborValue::Array(vec![CborValue::bytes(vec![])]);
 
         cose_sign1(&valid).unwrap();
         assert_eq!(
