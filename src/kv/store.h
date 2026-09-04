@@ -692,9 +692,10 @@ namespace ccf::kv
           }
           if (chunker)
           {
-            // Keep this ordered with append_entry_size() below, so a commit
-            // cannot restore chunk metadata after this rollback.
-            chunker->rolled_back_to(tx_id.seqno);
+            // Nothing local is discarded here, but the rollback target may be
+            // at or beyond the Store's current version. Clamp so this cannot
+            // move chunk metadata forward past the Store.
+            chunker->rolled_back_to(std::min<Version>(tx_id.seqno, version));
           }
           return;
         }
@@ -1414,6 +1415,34 @@ namespace ccf::kv
     {
       std::lock_guard<ccf::ds::Mutex> vguard(version_lock);
       return {this, term_of_last_version, tx_id, rollback_count};
+    }
+
+    bool apply_tx_flags(
+      Version tx_version,
+      Term expected_term,
+      Version expected_rollback_count,
+      bool force_ledger_chunk,
+      bool snapshot_at_next_signature) override
+    {
+      std::lock_guard<ccf::ds::Mutex> vguard(version_lock);
+      if (
+        term_of_next_version != expected_term ||
+        rollback_count != expected_rollback_count)
+      {
+        return false;
+      }
+
+      if (force_ledger_chunk && chunker)
+      {
+        chunker->force_end_of_chunk(tx_version);
+      }
+
+      if (snapshot_at_next_signature)
+      {
+        set_flag_unsafe(StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
+      }
+
+      return true;
     }
 
     void set_flag(StoreFlag f) override
