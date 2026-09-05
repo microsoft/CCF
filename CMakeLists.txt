@@ -291,6 +291,30 @@ add_ccf_static_library(
 )
 
 # CCF kv lib
+option(CCF_KV_TRACING "Enable test-only KV semantic trace capture" OFF)
+set(
+  CCF_KV_TRACE_REVISION
+  "${CCF_VERSION}"
+  CACHE STRING
+  "Source revision for KV traces"
+)
+set(
+  CCF_KV_TRACE_CHECKER
+  ""
+  CACHE FILEPATH
+  "Existing Lean KV trace checker executable"
+)
+set(
+  CCF_KV_TRACE_TIMEOUT
+  "900"
+  CACHE STRING
+  "Timeout in seconds for each KV trace capture or replay subprocess"
+)
+if(CCF_KV_TRACING)
+  # Internal headers are shared by libraries and test translation units.
+  add_compile_definitions(CCF_KV_TRACING)
+endif()
+
 add_ccf_static_library(
   ccf_kv
   SRCS
@@ -299,6 +323,14 @@ add_ccf_static_library(
     ${CCF_DIR}/src/kv/untyped_map_diff.cpp
   LINK_LIBS ccf_threading
 )
+if(CCF_KV_TRACING)
+  target_sources(ccf_kv PRIVATE ${CCF_DIR}/src/kv/trace.cpp)
+  target_compile_definitions(
+    ccf_kv
+    PUBLIC CCF_KV_TRACING
+    PRIVATE CCF_KV_TRACE_REVISION="${CCF_KV_TRACE_REVISION}"
+  )
+endif()
 
 # CCF endpoints lib
 add_ccf_static_library(
@@ -660,11 +692,46 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_serialisation.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_snapshot.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_dynamic_tables.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_trace.cpp
     )
     target_link_libraries(
       kv_test
       PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser ccf_kv
     )
+    if(CCF_KV_TRACING)
+      add_test(
+        NAME kv_trace_runner_test
+        COMMAND
+          python3 ${CMAKE_CURRENT_SOURCE_DIR}/tests/kv_trace_validation_test.py
+      )
+      set_property(
+        TEST kv_trace_runner_test
+        APPEND
+        PROPERTY LABELS unit kv_trace_tool
+      )
+      set_property(
+        TEST kv_trace_runner_test
+        APPEND
+        PROPERTY ENVIRONMENT "TMPDIR=${CMAKE_CURRENT_BINARY_DIR}"
+      )
+      if(CCF_KV_TRACE_CHECKER)
+        add_test(
+          NAME kv_trace_validation
+          COMMAND
+            python3 ${CMAKE_CURRENT_SOURCE_DIR}/tests/kv_trace_validation.py
+            --binary $<TARGET_FILE:kv_test> --checker ${CCF_KV_TRACE_CHECKER}
+            --output ${CMAKE_CURRENT_BINARY_DIR}/kv-traces --manifest
+            ${CMAKE_CURRENT_SOURCE_DIR}/tests/kv_trace_cases.json --timeout
+            ${CCF_KV_TRACE_TIMEOUT}
+        )
+        set_property(TEST kv_trace_validation APPEND PROPERTY LABELS kv_trace)
+        set_property(
+          TEST kv_trace_validation
+          APPEND
+          PROPERTY ENVIRONMENT "TMPDIR=${CMAKE_CURRENT_BINARY_DIR}"
+        )
+      endif()
+    endif()
 
     add_unit_test(
       ds_test
