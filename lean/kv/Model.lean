@@ -29,7 +29,7 @@ def txOf (w : World) (sid tid : Nat) : Except Failure Tx := do
   return t
 
 def snapOf (t : Tx) : Except Failure Snapshot :=
-  present t.snapshot "map operation before paired snapshot"
+  present t.snapshot "map operation before current snapshot capture"
 
 def active (t : Tx) : Except Failure Unit :=
   require (t.phase == .active) "operation outside active attempt"
@@ -40,7 +40,7 @@ def operationPosition (t : Tx) : Except Failure Unit :=
 
 def completeCapture (t : Tx) : Except Failure Unit :=
   require (t.snapshot.isNone || !t.handles.isEmpty || t.unavailable)
-    "paired snapshot missing first map acquisition/outcome"
+    "current snapshot missing first map acquisition/outcome"
 
 def withTx (w : World) (sid tid : Nat) (f : Tx → Except Failure Tx) :
     Except Failure World := do
@@ -53,6 +53,9 @@ def handleOf (t : Tx) (m : String) : Except Failure Snapshot := do
   operationPosition t
   require (t.handles.contains m) s!"map {m} used before acquisition"
   snapOf t
+
+def globalOf (t : Tx) (m : String) : Except Failure GlobalView :=
+  present (find t.globalViews m) s!"map {m} has no captured global view"
 
 def runOp (t : Tx) (op : NormalOp String String String) : Except Failure Tx := do
   match hs : t.snapshot with
@@ -85,7 +88,26 @@ def mapAvailable (s : Store) (f : Frame) (m : String) : Bool :=
     decide (base.version ≤ stamp.version) && mapLineage s f m
 
 def available (s : Store) (snap : Snapshot) (m : String) : Bool :=
-  mapAvailable s snap.current m && mapAvailable s snap.committed m
+  mapAvailable s snap.current m
+
+def captureGlobal (s : Store) (snap : Snapshot) (m : String) : GlobalView :=
+  if (find snap.current.births m).isNone then
+    { frame := {}, origin := Or.inl rfl }
+  else
+    { frame := atCut s s.global, origin := Or.inr ⟨s, rfl⟩ }
+
+def acquireMap (s : Store) (t : Tx) (m : String) (version global : Nat) : Except Failure Tx := do
+  active t
+  operationPosition t
+  let snap ← snapOf t
+  require (!(t.handles.contains m)) "duplicate map_acquire; handles share one change set"
+  require ((find t.globalViews m).isNone) "global map view already captured"
+  let view := captureGlobal s snap m
+  expect (version == (revision snap.current m).version &&
+          global == (revision view.frame m).version)
+    s!"map acquisition expected local={(revision snap.current m).version}, global={(revision view.frame m).version}; observed local={version}, global={global}"
+  expect (available s snap m) "snapshot no longer available for later map acquisition"
+  return { t with handles := m :: t.handles, globalViews := set t.globalViews m view }
 
 def validLineage (s : Store) (t : Tx) : Bool :=
   match t.snapshot with
@@ -201,24 +223,15 @@ def stepEvent (w : World) (event : Event) : Except Failure World := do
       active t
       if hs : t.snapshot = none then
         expect (version == s.head.version && global == s.global && term == established.term)
-          s!"paired snapshot expected local={s.head.version}, global={s.global}, term={established.term}; observed local={version}, global={global}, term={term}"
+          s!"initial snapshot metadata expected local={s.head.version}, global={s.global}, term={established.term}; observed local={version}, global={global}, term={term}"
         have hzero : t.normal = {} := by simpa [hs] using t.certificate
         return { t with
-          snapshot := some { current := s.head, committed := atCut s s.global, term, origin := ⟨s, rfl, rfl⟩ }
+          snapshot := some { current := s.head, initialGlobal := s.global, term, origin := ⟨s, rfl, rfl⟩ }
           certificate := by simp [hzero, normalRun] }
       else invalid "snapshot refreshed inside attempt"
   | .acquire sid tid m version global =>
     let s ← storeOf w sid
-    withTx w sid tid fun t => do
-      active t
-      operationPosition t
-      let snap ← snapOf t
-      require (!(t.handles.contains m)) "duplicate map_acquire; handles share one change set"
-      expect (version == (revision snap.current m).version &&
-              global == (revision snap.committed m).version)
-        s!"map revisions at fixed cuts expected local={(revision snap.current m).version}, global={(revision snap.committed m).version}; observed local={version}, global={global}"
-      expect (available s snap m) "snapshot no longer available for later map acquisition"
-      return { t with handles := m :: t.handles }
+    withTx w sid tid fun t => acquireMap s t m version global
   | .unavailable sid tid m =>
     let s ← storeOf w sid
     withTx w sid tid fun t => do
@@ -230,18 +243,20 @@ def stepEvent (w : World) (event : Event) : Except Failure World := do
       return { t with unavailable := true }
   | .get sid tid m k value global =>
     withTx w sid tid fun t => do
-      let snap ← handleOf t m
+      let _ ← handleOf t m
       if global then
-        let expected := (find snap.committed.data (m, k)).map Cell.value
+        let view ← globalOf t m
+        let expected := (find view.frame.data (m, k)).map Cell.value
         expect (expected == value)
-          s!"global read at fixed cut {snap.committed.version}: expected {repr expected}, observed {repr value}"
+          s!"global read for map {m} at captured cut {view.frame.version}: expected {repr expected}, observed {repr value}"
         return t
       else runOp t (.read (m, k) value)
   | .has sid tid m k value global =>
     withTx w sid tid fun t => do
       let snap ← handleOf t m
       if global then
-        expect ((find snap.committed.data (m, k)).isSome == value) "wrong global presence"
+        let view ← globalOf t m
+        expect ((find view.frame.data (m, k)).isSome == value) "wrong global presence"
         return t
       else
         let actual := valueAt snap.current.data t.normal.writes (m, k)

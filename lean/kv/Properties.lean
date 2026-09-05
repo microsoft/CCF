@@ -526,9 +526,9 @@ theorem executable_branch_serializability (s final : Store) (ts : List Tx)
     rw [← hw.2, ← hversion]
     exact ih
 
-theorem global_ignores_writes (snap : Snapshot) (a : Addr String String) :
-    valueAt snap.committed.data ([] : Pending) a =
-      (find snap.committed.data a).map Cell.value := by
+theorem map_global_ignores_writes (view : GlobalView) (a : Addr String String) :
+    valueAt view.frame.data ([] : Pending) a =
+      (find view.frame.data a).map Cell.value := by
   simp [valueAt, find]
 
 /-- The typed transition relation is the graph of the single executable step.

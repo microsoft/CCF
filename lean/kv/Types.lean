@@ -242,9 +242,14 @@ theorem atCut_spec (s : Store) (cut : Nat) (hc : cut ≤ s.head.version) :
 
 structure Snapshot where
   current : Frame
-  committed : Frame
+  initialGlobal : Nat
   term : Nat
-  origin : ∃ s : Store, current = s.head ∧ committed = atCut s s.global
+  origin : ∃ s : Store, current = s.head ∧ initialGlobal = s.global
+  deriving Repr
+
+structure GlobalView where
+  frame : Frame
+  origin : frame = {} ∨ ∃ s : Store, frame = atCut s s.global
   deriving Repr
 
 structure Iteration where
@@ -266,6 +271,7 @@ structure Tx where
   store : Nat
   snapshot : Option Snapshot := none
   handles : List String := []
+  globalViews : Assoc String GlobalView := []
   normal : Normal String String String := {}
   iterations : List Iteration := []
   iterationIds : List (String × Nat) := []

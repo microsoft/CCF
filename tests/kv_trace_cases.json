@@ -130,8 +130,12 @@
       "features": ["pinned snapshots", "unavailable snapshots", "rollback"]
     },
     {
-      "name": "KV trace global cut disagreement",
-      "features": ["transaction-wide global snapshot", "contract discrepancy"]
+      "name": "KV trace per-map global snapshots",
+      "features": [
+        "per-map global snapshots",
+        "stable aliases",
+        "cross-key global snapshot"
+      ]
     },
     {
       "name": "KV trace disjoint concurrent commits",

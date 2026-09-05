@@ -126,6 +126,31 @@ def globalPrefix : List Event :=
   seed 1 0 0 "11" ++ [.compact 1 1 1] ++ seed 2 1 1 "22" ++
     start 3 2 1 ++ [.acquire 1 3 "a" 2 1]
 
+def seedKeys (t r g : Nat) (v0 v1 : String) : List Event :=
+  start t r g ++ [.acquire 1 t "a" r g, .acquire 1 t "b" r g,
+    .put 1 t "a" "00" v0, .put 1 t "a" "01" v1,
+    .put 1 t "b" "00" v0, .put 1 t "b" "01" v1] ++
+  commit t (r + 1) [(("a", "00"), some v0), (("a", "01"), some v1),
+    (("b", "00"), some v0), (("b", "01"), some v1)]
+
+def keyGlobalPrefix : List Event :=
+  seedKeys 1 0 0 "11" "aa" ++ [.compact 1 1 1] ++
+    seedKeys 2 1 1 "22" "bb" ++ start 3 2 1 ++ [.acquire 1 3 "a" 2 1]
+
+def perMapGlobals : List Event :=
+  keyGlobalPrefix ++ [
+    .get 1 3 "a" "00" (some "11") true, .compact 1 2 2, .acquire 1 3 "b" 2 2,
+    .get 1 3 "a" "01" (some "aa") true, .has 1 3 "a" "01" true true,
+    .get 1 3 "a" "00" (some "11") true,
+    .put 1 3 "a" "01" "cc", .get 1 3 "a" "01" (some "cc") false,
+    .get 1 3 "a" "01" (some "aa") true,
+    .remove 1 3 "a" "00", .has 1 3 "a" "00" false false, .has 1 3 "a" "00" true true,
+    .get 1 3 "b" "00" (some "22") true, .get 1 3 "b" "01" (some "bb") true,
+    .has 1 3 "b" "01" true true, .put 1 3 "b" "02" "",
+    .get 1 3 "b" "02" none true, .has 1 3 "b" "02" false true,
+    .get 1 3 "b" "02" (some "") false, .txEnd 1 3
+  ]
+
 def rollbackPinned : List Event :=
   seed 1 0 0 "11" ++ [.compact 1 1 1] ++ seed 2 1 1 "22" ++
   start 3 2 1 ++ [.acquire 1 3 "a" 2 1,
@@ -195,11 +220,13 @@ def interleavedSegment : List Event :=
     .compact 1 1 1, .compact 1 1 20, .compact 1 1 0
   ]
 
-def absentThenCreated : List Event :=
+def absentCreationPrefix : List Event :=
   start 1 0 0 ++ [.acquire 1 1 "a" 0 0] ++
   start 2 0 0 ++ [.acquire 1 2 "b" 0 0, .put 1 2 "b" "00" "11"] ++
-  commit 2 1 [(("b", "00"), some "11")] ++ [
-    .compact 1 1 1, .acquire 1 1 "b" 0 0,
+  commit 2 1 [(("b", "00"), some "11")] ++ [.compact 1 1 1]
+
+def absentThenCreated : List Event :=
+  absentCreationPrefix ++ [.acquire 1 1 "b" 0 0,
     .get 1 1 "b" "00" none false, .get 1 1 "b" "00" none true,
     .has 1 1 "b" "00" false false, .has 1 1 "b" "00" false true,
     .previous 1 1 "b" "00" none, .size 1 1 "b" 0, .txEnd 1 1
@@ -215,12 +242,21 @@ def existingEmptyCompacted : List Event :=
   commit 3 2 [(("b", "00"), some "11")] ++ [.compact 1 2 2]
 
 def positive : List (String × List Event) := [
+  ("per-map globals, different keys, aliases and pending writes", perMapGlobals),
+  ("first map captures global progress after initial snapshot", seedKeys 1 0 0 "11" "aa" ++
+    [.compact 1 1 1] ++ seedKeys 2 1 1 "22" "bb" ++ start 3 2 1 ++ [
+      .compact 1 2 2, .acquire 1 3 "a" 2 2, .get 1 3 "a" "00" (some "22") true,
+      .has 1 3 "a" "01" true true, .txEnd 1 3]),
+  ("acquired global view survives later compaction and term-only rollback", keyGlobalPrefix ++ [
+    .compact 1 2 2, .rollback 1 2 2 1, .get 1 3 "a" "00" (some "11") true,
+    .get 1 3 "a" "01" (some "aa") true, .txEnd 1 3]),
   ("absent map created and compacted after snapshot remains an empty placeholder", absentThenCreated),
   ("existing empty map is not an absent placeholder", existingEmptyCompacted ++ [
     .unavailable 1 2 "b", .txEnd 1 2]),
-  ("map absent at global cut stays globally absent after compaction", seed 1 0 0 "11" ++
-    start 2 1 0 ++ [.acquire 1 2 "a" 1 0, .compact 1 1 1, .acquire 1 2 "b" 1 0,
-      .get 1 2 "b" "00" (some "11") false, .get 1 2 "b" "00" none true, .txEnd 1 2]),
+  ("later map capture does not reuse initial global frontier", seed 1 0 0 "11" ++
+    start 2 1 0 ++ [.acquire 1 2 "a" 1 0, .compact 1 1 1, .acquire 1 2 "b" 1 1,
+      .get 1 2 "b" "00" (some "11") false, .get 1 2 "b" "00" (some "11") true,
+      .get 1 2 "a" "00" none true, .txEnd 1 2]),
   ("above-head compaction and interleaved branch projection", interleavedSegment),
   ("iteration IDs are scoped by map", start 1 0 0 ++ [
     .acquire 1 1 "a" 0 0, .acquire 1 1 "b" 0 0,
@@ -238,8 +274,9 @@ def positive : List (String × List Event) := [
   ("pinned local and global across compaction", globalPrefix ++ [
     .acquire 1 3 "b" 2 1, .compact 1 2 2,
     .get 1 3 "a" "00" (some "22") false, .get 1 3 "b" "00" (some "11") true, .txEnd 1 3]),
-  ("fixed global cut becomes unavailable on late acquisition", globalPrefix ++ [
-    .compact 1 2 2, .unavailable 1 3 "b", .txEnd 1 3]),
+  ("only local availability gates later acquisition", globalPrefix ++ [
+    .compact 1 2 2, .acquire 1 3 "b" 2 2, .get 1 3 "b" "00" (some "22") true,
+    .get 1 3 "a" "00" (some "11") true, .txEnd 1 3]),
   ("pinned rollback views and durable prefix", rollbackPinned),
   ("no_replicate after local apply", noReplicate),
   ("sparse map retention and unavailable changed map", sparse),
@@ -269,6 +306,18 @@ def positive : List (String × List Event) := [
 ]
 
 def negative : List (String × String × List Event) := [
+  ("existing map cannot refresh its global view", "rejected", keyGlobalPrefix ++ [
+    .compact 1 2 2, .get 1 3 "a" "00" (some "22") true]),
+  ("previously unread keys use the same captured map view", "rejected", keyGlobalPrefix ++ [
+    .compact 1 2 2, .get 1 3 "a" "01" (some "bb") true]),
+  ("global presence must use the captured map", "rejected", keyGlobalPrefix ++ [
+    .has 1 3 "a" "01" false true]),
+  ("map aliases cannot manufacture another capture", "invalid_trace", keyGlobalPrefix ++ [
+    .compact 1 2 2, .acquire 1 3 "a" 2 2]),
+  ("global read requires a map capture", "invalid_trace", start 1 0 0 ++ [
+    .get 1 1 "a" "00" none true]),
+  ("placeholder cannot capture subsequently created real map", "rejected",
+    absentCreationPrefix ++ [.acquire 1 1 "b" 0 1]),
   ("compacted existing empty map cannot be treated as newly absent", "rejected",
     existingEmptyCompacted ++ [.acquire 1 2 "b" 0 0]),
   ("empty map rollback/recreation does not restore birth lineage", "rejected",
@@ -298,11 +347,11 @@ def negative : List (String × String × List Event) := [
   ("same-value write changes previous-write dependency", "rejected", sameValuePrevious),
   ("term-only stale attempt", "rejected", termConflict),
   ("reused version does not restore lineage", "rejected", reusedVersion),
-  ("selected per-map global-cut implementation discrepancy", "rejected",
-    globalPrefix ++ [.compact 1 2 2, .acquire 1 3 "b" 2 2]),
+  ("wrong map-global acquisition revision", "rejected",
+    globalPrefix ++ [.compact 1 2 2, .acquire 1 3 "b" 2 0]),
   ("refreshed snapshot", "invalid_trace", start 1 0 0 ++ [.snapshot 1 1 0 0 0]),
   ("illegal rollback", "rejected", seed 1 0 0 "11" ++ [.compact 1 1 1, .rollback 1 0 0 1]),
-  ("compacted snapshot resurrection", "rejected",
+  ("acquisition cannot choose an arbitrary older global revision", "rejected",
     globalPrefix ++ [.compact 1 2 2, .acquire 1 3 "b" 2 1]),
   ("global read cannot overlay pending write", "rejected", start 1 0 0 ++ [
     .acquire 1 1 "a" 0 0, .put 1 1 "a" "00" "11", .get 1 1 "a" "00" (some "11") true]),
@@ -364,7 +413,7 @@ def assertProjection : IO Unit := do
 def assertStreamingFixtures : IO Unit := do
   let binaryDir := (← IO.appPath).parent.getD "."
   let fixtures := binaryDir / ".." / ".." / ".." / "fixtures"
-  for name in ["basic.ndjson", "global_cut_mismatch.ndjson"] do
+  for name in ["basic.ndjson", "per_map_global_snapshots.ndjson"] do
     let path := fixtures / name
     let streamed ← checkFile path
     let buffered := checkText (← IO.FS.readFile path)
@@ -414,9 +463,9 @@ def run : IO Unit := do
   | .ok j =>
     if (num j "seq").toOption != some uint64Max then
       throw (IO.userError "uint64 precision was lost")
-  let discrepancy := checkText (encode (closed (globalPrefix ++ [.compact 1 2 2, .acquire 1 3 "b" 2 2])))
-  if discrepancy.store != some 1 || discrepancy.tx != some 3 || discrepancy.seq.isNone then
-    throw (IO.userError "missing discrepancy context")
+  let diagnostic := checkText (encode (closed (globalPrefix ++ [.compact 1 2 2, .acquire 1 3 "b" 2 1])))
+  if diagnostic.store != some 1 || diagnostic.tx != some 3 || diagnostic.seq.isNone then
+    throw (IO.userError "missing rejection context")
   IO.println s!"{positive.length + negative.length + malformed.length + auditCases.length + 5} checker self-tests passed"
 
 end Kv.Tests

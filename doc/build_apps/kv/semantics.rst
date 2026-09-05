@@ -1,10 +1,10 @@
-KV Contract Model
-=================
+KV Implementation Model
+=======================
 
-The Lean project in ``lean/kv`` gives an executable specification of KV
+The Lean project in ``lean/kv`` gives an executable model of KV
 observations and a checker for traces from the C++ KV unit tests. It complements
-the :doc:`kv_how_to` and :doc:`api`: it makes the interpretation of the contract,
-its assumptions, and implementation discrepancies explicit.
+the :doc:`kv_how_to` and :doc:`api`: it makes the observed implementation
+semantics, their assumptions, and differences from documentation explicit.
 
 The model covers one node, with arbitrarily many finite maps, keys, values, and
 transaction attempts. Transactions may span several maps. Consensus is abstracted
@@ -24,8 +24,9 @@ Observation contract
 --------------------
 
 The :ref:`transaction semantics <build_apps/kv/kv_how_to:Transaction Semantics>`
-promise atomic interaction across maps and a consistent, opaque view. The model
-makes the following interpretation explicit:
+promise atomic interaction across maps and a consistent, opaque view. Current
+reads use one transaction-wide snapshot. Global reads follow the implementation's
+per-map capture described below, not a transaction-wide global snapshot:
 
 .. list-table::
    :header-rows: 1
@@ -34,9 +35,12 @@ makes the following interpretation explicit:
    * - Operation
      - Model interpretation
    * - First map access
-     - Capture a current-state cut and a globally committed cut together. Both
-       cuts remain fixed for this transaction, across all its maps. Constructing
-       a transaction without accessing the KV does not capture either cut.
+     - Capture the current-state cut used by all maps in this transaction.
+       Constructing a transaction without accessing the KV does not capture it.
+   * - First handle for each map
+     - Capture that map's globally committed view at acquisition. Reused handles
+       and different handle facets for this map share the captured view; later
+       acquisitions of other maps may capture a newer global prefix.
    * - ``get`` / ``has``
      - Read the current snapshot overlaid with the transaction's pending writes.
        Missing and deleted keys are absent. Handles in one transaction share
@@ -48,8 +52,8 @@ makes the following interpretation explicit:
      - Observe the previous write in the captured current snapshot, not a pending
        write in this transaction. Equal value bytes do not imply equal versions.
    * - ``get_globally_committed``
-     - Read the captured globally committed snapshot, ignoring pending writes
-       and subsequent consensus progress.
+     - Read the global view captured for this map, ignoring pending writes and
+       subsequent consensus progress. Reading another key does not refresh it.
    * - ``foreach``
      - Capture the map's entries at iteration start. Visit them in unspecified
        order, with optional early termination. Callback mutations affect
@@ -83,29 +87,30 @@ committed observations.
 
 ``get`` and ``get_globally_committed`` may intentionally return different values
 for the same key. The serializability claim about normal current-state reads
-must therefore be distinguished from the full two-snapshot observation
-contract. Historical global reads are not silently converted into current-state
-reads or current-state conflict dependencies.
+must therefore be distinguished from the per-map global observation contract.
+Historical global reads are not silently converted into current-state reads
+or current-state conflict dependencies.
 
 .. important::
 
-   The selected model contract fixes the global snapshot once per transaction.
-   The current C++ implementation captures committed state separately when
-   each map's change set is acquired. If commitment advances between acquisitions,
-   while the transaction's local snapshot remains available, those captures can
-   differ from the model.
+   The implementation captures committed state when each map's change set is
+   acquired. A transaction can therefore observe different global prefixes
+   through different maps, while each acquired map retains one fixed view.
+   Even the first map can be acquired after commitment advances beyond the
+   global frontier observed alongside the transaction's initial current cut.
 
    The how-to's global-commit example also appears to refresh a read through an
-   existing handle, whereas the API reference describes a fixed view. The trace
-   tooling reports disagreements with the transaction-wide fixed contract; it
-   does not change KV behavior or silently weaken the specification.
+   existing handle, whereas the API reference describes a transaction-wide
+   fixed view. This model explicitly follows the implementation's per-map
+   behavior. It does not establish the stronger documentation claim or change
+   C++ KV behavior.
 
-A diagnostic schedule uses two maps with two locally applied versions. Compact
+A regression schedule uses two maps with two locally applied versions. Compact
 only version one, then begin a transaction and acquire map A. Its current cut is
-version two and its global cut is version one. Compact version two before
-acquiring map B. The model still requires global observations from version one.
-This separates global-cut drift from failure to acquire an already discarded
-local snapshot.
+version two, while A's global view is from version one. Compact version two
+before acquiring map B. A keeps its version-one global view, including for keys
+not previously read, while B captures version two. Ordinary reads through both
+maps still use the transaction's version-two current snapshot.
 
 Local application, commitment, and rollback
 -------------------------------------------
@@ -132,14 +137,19 @@ one store-wide number.
 
 Map birth and effective revision are distinct. A map that did not exist at a
 captured cut can still have a fresh empty view at that cut after another
-transaction creates and compacts it. A map already persisted by a deletion of
-an absent key is an existing empty map, even though its effective revision is
-zero; its old view remains subject to retention checks. This metadata does not
-introduce a public map-existence query.
+transaction creates and compacts it. This placeholder's global view is empty
+too; it must not expose the newer map merely because that map is now globally
+committed. A map already persisted by a deletion of an absent key is an existing
+empty map, even though its effective revision is zero; its old local view remains
+subject to retention checks. This metadata does not introduce a public
+map-existence query.
 
-An attempt must not silently switch to a newer cut if its snapshot is unavailable.
-The corresponding conflict requires a fresh attempt. Retaining old states for
-proofs or diagnostic history does not make them operationally available again.
+An attempt must not silently switch to a newer current cut if a required local
+snapshot is unavailable. The corresponding conflict requires a fresh attempt.
+Discarding an earlier global prefix does not itself prevent acquiring another
+map's current committed view. Already acquired global views remain fixed.
+Retaining old states for proofs or diagnostics does not make unavailable local
+snapshots operationally accessible again.
 
 Rollback truncates only a provisional suffix. It cannot cross the irrevocable
 prefix. The model accounts for removed maps, retained handles, invalidated writing
@@ -150,10 +160,11 @@ that does not authorize it to republish an invalidated write set.
 Proof and trust boundaries
 --------------------------
 
-The model's statements separate read semantics, cross-map snapshot consistency,
-atomic application, normal-view serializability, compaction, rollback, and
-executable replay. The :ccf_repo:`proof catalogue <lean/kv/README.md>` records
-their precise scope and the corresponding Lean declarations.
+The model's statements separate read semantics, cross-map current-snapshot
+consistency, per-map global-view stability, atomic application, normal-view
+serializability, compaction, rollback, and executable replay. The
+:ccf_repo:`proof catalogue <lean/kv/README.md>` records their precise scope and
+the corresponding Lean declarations.
 
 .. list-table::
    :header-rows: 1
@@ -169,11 +180,15 @@ their precise scope and the corresponding Lean declarations.
    * - ``reachable_store_invariants``
      - Store constructors preserve complete publication histories, matching
        heads, and globally committed cuts no later than the local head.
-   * - ``capture_replay_preserves_pair``
-     - Both snapshots come from the actual capture event and remain fixed
-       during the attempt, including across compaction and rollback.
-   * - ``step_global_read_from_irrevocable_prefix``
-     - Accepted global reads originate in the captured irrevocable prefix.
+   * - ``replay_snapshot_fixed``
+     - The current snapshot comes from the initial capture and remains fixed
+       across all maps during the attempt.
+   * - ``capture_replay_preserves_map``
+     - An acquired map's global view remains fixed, including for other keys,
+       aliases, compaction, and rollback. This is not cross-map global consistency.
+   * - ``step_global_read_from_captured_map``
+     - Accepted global reads originate in that map's captured irrevocable view,
+       with the explicit empty-placeholder case for a map absent at the local cut.
    * - ``durable_cut_survives_rollback``
      - Legal rollback preserves observations from the irrevocable prefix.
 
@@ -206,11 +221,17 @@ reporter. It is disabled in normal builds. Traces contain test data and are not 
 production logging facility.
 
 Versioned NDJSON records include stable store and transaction-attempt identities,
-snapshot acquisition, operation inputs and actual outputs, iteration callbacks,
-local application, commit results, compaction, rollback, and explicit lifecycle
-boundaries. The attempt identity is distinct from CCF's transaction ID:
-read-only attempts can share a transaction ID, and rollback can reuse sequence
-numbers.
+current-snapshot and per-map acquisition, operation inputs and actual outputs,
+iteration callbacks, local application, commit results, compaction, rollback,
+and explicit lifecycle boundaries. The attempt identity is distinct from CCF's
+transaction ID: read-only attempts can share a transaction ID, and rollback
+can reuse sequence numbers.
+
+The initial ``snapshot.global`` field is checked as an observation of the
+frontier at current-snapshot capture. It does not set the global view for every
+subsequent map. ``map_acquire.global`` records the effective revision captured
+for that map; it can be older than the store's global frontier for an unchanged
+map.
 
 Keys and values are represented losslessly, including the difference between
 empty bytes and absence. The checker reconstructs pending writes and dependencies
@@ -248,8 +269,9 @@ of normal CCF builds:
    ./tests.sh -R '^(kv_test|kv_trace_runner_test)$' -L unit --no-tests=error
    ./tests.sh -R '^kv_trace_validation$' -L kv_trace --no-tests=error
 
-The conformance command returns a failure for a rejected trace, including a known
-contract discrepancy. This is separate from whether the Lean proofs/checker
+The conformance command returns a failure for rejected, invalid, or unsupported
+traces and for capture/test failures. It does not turn unsupported mechanisms
+into accepted observations. This is separate from whether the Lean proofs/checker
 regressions and C++ unit tests succeed.
 
 ``tests/kv_trace_cases.json`` records selected test cases and explicit exclusions.
@@ -264,8 +286,8 @@ The full contention case produces a large trace, unlike the small focused
 schedules. The checker streams records and stops at the first diagnostic;
 accepted model history is not constant-memory.
 
-The manually dispatched ``KV Contract Verification`` workflow builds the
-specification and instrumented tests, then uploads diagnostics even if strict
-conformance fails. It is not a required conformance gate while separately
-approved behavior fixes remain outstanding. It uses a standard Linux runner:
+The manually dispatched ``KV Contract Verification`` workflow builds the model
+and instrumented tests, then uploads diagnostics even if conformance fails.
+It remains opt-in: selected tests can also exercise explicitly unsupported
+mechanisms, which remain non-passing outcomes. It uses a standard Linux runner;
 these single-node KV tests do not require an enclave or a multi-node network.

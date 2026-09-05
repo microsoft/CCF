@@ -325,7 +325,7 @@ TEST_CASE("KV trace compaction rollback")
   }
 }
 
-TEST_CASE("KV trace global cut disagreement")
+TEST_CASE("KV trace per-map global snapshots")
 {
   TraceStore store;
   Map a("trace.a");
@@ -334,7 +334,9 @@ TEST_CASE("KV trace global cut disagreement")
   {
     auto tx = store.create_tx();
     tx.rw(a)->put("key", value);
+    tx.rw(a)->put("other", std::string(value) + "-other");
     tx.rw(b)->put("key", value);
+    tx.rw(b)->put("other", std::string(value) + "-other");
     REQUIRE(tx.commit() == Result::SUCCESS);
     if (store.current_version() == 1)
     {
@@ -348,10 +350,12 @@ TEST_CASE("KV trace global cut disagreement")
   store.compact(2);
   auto hb = tx.ro(b);
   CHECK(hb->get("key") == "two");
-  // Preserve the implementation's per-map global snapshots. Strict replay
-  // deliberately diagnoses their disagreement with the transaction-wide cut.
+  // Each map retains its global view, including unread keys and handle aliases.
+  CHECK(tx.ro(a) == ha);
   CHECK(ha->get_globally_committed("key") == "one");
+  CHECK(ha->get_globally_committed("other") == "one-other");
   CHECK(hb->get_globally_committed("key") == "two");
+  CHECK(hb->get_globally_committed("other") == "two-other");
   CHECK(tx.commit() == Result::SUCCESS);
 }
 
