@@ -662,7 +662,8 @@ namespace ccf::kv
       std::lock_guard<ccf::ds::Mutex> mguard(maps_lock);
 
       {
-        std::lock_guard<ccf::ds::Mutex> vguard(version_lock);
+        ccf::ds::unique_lock<ccf::ds::Mutex> vguard(
+          version_lock, "roll version and history back to tx_id");
         if (tx_id.seqno < compacted)
         {
           throw std::logic_error(fmt::format(
@@ -979,7 +980,8 @@ namespace ccf::kv
         return CommitResult::SUCCESS;
       }
 
-      std::lock_guard<ccf::ds::Mutex> cguard(commit_lock);
+      ccf::ds::unique_lock<ccf::ds::Mutex> cguard(
+        commit_lock, "serialise concurrent Store::commit() calls");
 
       LOG_DEBUG_FMT(
         "Store::commit {}{}",
@@ -997,7 +999,9 @@ namespace ccf::kv
       auto h = get_history();
 
       {
-        std::lock_guard<ccf::ds::Mutex> vguard(version_lock);
+        ccf::ds::unique_lock<ccf::ds::Mutex> vguard(
+          version_lock,
+          "assign version and enqueue pending tx for replication");
         if (txid.view != term_of_next_version && get_consensus()->is_primary())
         {
           // This can happen when a transaction started before a view change,
@@ -1126,7 +1130,8 @@ namespace ccf::kv
 
       if (c->replicate(batch, replication_view))
       {
-        std::lock_guard<ccf::ds::Mutex> vguard(version_lock);
+        ccf::ds::unique_lock<ccf::ds::Mutex> vguard(
+          version_lock, "advance last_replicated after successful replicate()");
         if (
           last_replicated == previous_last_replicated &&
           previous_rollback_count == rollback_count)

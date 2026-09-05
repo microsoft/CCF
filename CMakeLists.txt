@@ -727,6 +727,73 @@ if(BUILD_TESTS)
     )
     target_link_libraries(raft_test PRIVATE ccfcrypto ccf_tasks)
 
+    # Combines a real ccf::kv::Store, a real aft::Aft (raft consensus), and a
+    # real ccf::MerkleTxHistory under real OS-thread concurrency - the three
+    # components production code relies on together, but which no other unit
+    # test suite exercises jointly (kv_test stubs consensus, raft_test stubs
+    # the store, history_test stubs consensus). DETECT_DEADLOCKS is passed
+    # because the checkpoint primitive itself
+    # (src/commit_concurrency/threaded/checkpoint.h) could deadlock if buggy.
+    add_unit_test(
+      commit_concurrency_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/commit_concurrency/threaded/main.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/commit_concurrency/threaded/checkpoint_test.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/commit_concurrency/threaded/smoke.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/commit_concurrency/threaded/deterministic.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/commit_concurrency/threaded/fuzzer.cpp
+      DETECT_DEADLOCKS
+    )
+    set_property(
+      TEST commit_concurrency_test
+      APPEND
+      PROPERTY LABELS concurrency
+    )
+    target_link_libraries(
+      commit_concurrency_test
+      PRIVATE ccfcrypto http_parser ccf_kv ccf_tasks
+    )
+
+    # Systematically explores the space of legal interleavings of a bounded
+    # scenario (rather than sampling timing-dependent ones, as
+    # commit_concurrency_test does), via ccf::kv::test::DeterministicScheduler
+    # in src/commit_concurrency/scheduled/deterministic_scheduler.h -
+    # exhaustively where that space is small enough
+    # (explore_all_interleavings()), or by random sampling where it isn't
+    # (explore_random_interleavings()). DETECT_DEADLOCKS is passed for the
+    # same reason as above.
+    add_unit_test(
+      commit_concurrency_scheduled_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/commit_concurrency/scheduled/deterministic_scheduler_test.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/commit_concurrency/scheduled/main.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/commit_concurrency/scheduled/pthread_mutex_wrap.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/commit_concurrency/scheduled/rejected_commit.cpp
+      DETECT_DEADLOCKS
+    )
+    set_property(
+      TEST commit_concurrency_scheduled_test
+      APPEND
+      PROPERTY LABELS concurrency
+    )
+    # ccf_kv/ccf_tasks are linked normally, unmodified, exactly like every
+    # other test target - pthread_mutex_wrap.cpp intercepts their real
+    # ccf::pal::Mutex use at link time instead (see its own comment), so no
+    # source ever needs recompiling against a different Mutex type.
+    target_link_libraries(
+      commit_concurrency_scheduled_test
+      PRIVATE ccfcrypto http_parser ccf_kv ccf_tasks
+    )
+    # See pthread_mutex_wrap.cpp: __wrap_pthread_mutex_lock/unlock/trylock
+    # there are called instead of the real pthread_mutex_lock/unlock/
+    # trylock for every call in this target (__real_pthread_mutex_* is how
+    # they still reach the genuine, original function).
+    target_link_options(
+      commit_concurrency_scheduled_test
+      PRIVATE
+        -Wl,--wrap=pthread_mutex_lock
+        -Wl,--wrap=pthread_mutex_unlock
+        -Wl,--wrap=pthread_mutex_trylock
+    )
+
     add_unit_test(
       raft_enclave_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/enclave.cpp

@@ -649,56 +649,66 @@ namespace ccf
     {
       const auto delay = std::chrono::milliseconds(sig_ms_interval);
 
-      emit_signature_periodic_task = ccf::tasks::make_basic_task([this]() {
-        std::unique_lock<ccf::ds::Mutex> mguard(
-          this->signature_lock, std::defer_lock);
+      // CCF_NO_THREAD_SAFETY_ANALYSIS: mguard below is only
+      // conditionally locked (via std::defer_lock, then .try_lock()) -
+      // real, correct behaviour that Clang's thread-safety analysis
+      // cannot statically verify for a ccf::ds::unique_lock used this
+      // way (unlike its built-in support for std::unique_lock, which
+      // does handle this exact pattern).
+      emit_signature_periodic_task =
+        ccf::tasks::make_basic_task([this]() CCF_NO_THREAD_SAFETY_ANALYSIS {
+          ccf::ds::unique_lock<ccf::ds::Mutex> mguard(
+            this->signature_lock,
+            std::defer_lock,
+            "periodic signature emission");
 
-        bool should_emit_signature = false;
+          bool should_emit_signature = false;
 
-        if (mguard.try_lock())
-        {
-          auto consensus = this->store.get_consensus();
-          if (consensus != nullptr)
+          if (mguard.try_lock())
           {
-            auto sig_disp = consensus->get_signature_disposition();
-            switch (sig_disp)
+            auto consensus = this->store.get_consensus();
+            if (consensus != nullptr)
             {
-              case ccf::kv::Consensus::SignatureDisposition::CANT_REPLICATE:
+              auto sig_disp = consensus->get_signature_disposition();
+              switch (sig_disp)
               {
-                break;
-              }
-              case ccf::kv::Consensus::SignatureDisposition::CAN_SIGN:
-              {
-                // To snapshot we need to complete the chunk and to do that we
-                // need to set the force_chunk_after flag on the last snapshot
-                // in it.
-                // At this point the previous signature is already replicating
-                // and is immutable.
-                // So if we need to snapshot, we need to emit a new signature to
-                // ensure we can set the force_chunk_after flag, even if there
-                // are no other transactions between this and the last snapshot
-                if (
-                  this->store.committable_gap() > 0 ||
-                  this->store.should_schedule_snapshot())
+                case ccf::kv::Consensus::SignatureDisposition::CANT_REPLICATE:
+                {
+                  break;
+                }
+                case ccf::kv::Consensus::SignatureDisposition::CAN_SIGN:
+                {
+                  // To snapshot we need to complete the chunk and to do that we
+                  // need to set the force_chunk_after flag on the last snapshot
+                  // in it.
+                  // At this point the previous signature is already replicating
+                  // and is immutable.
+                  // So if we need to snapshot, we need to emit a new signature
+                  // to ensure we can set the force_chunk_after flag, even if
+                  // there are no other transactions between this and the last
+                  // snapshot
+                  if (
+                    this->store.committable_gap() > 0 ||
+                    this->store.should_schedule_snapshot())
+                  {
+                    should_emit_signature = true;
+                  }
+                  break;
+                }
+                case ccf::kv::Consensus::SignatureDisposition::SHOULD_SIGN:
                 {
                   should_emit_signature = true;
+                  break;
                 }
-                break;
-              }
-              case ccf::kv::Consensus::SignatureDisposition::SHOULD_SIGN:
-              {
-                should_emit_signature = true;
-                break;
               }
             }
           }
-        }
 
-        if (should_emit_signature)
-        {
-          this->emit_signature();
-        }
-      });
+          if (should_emit_signature)
+          {
+            this->emit_signature();
+          }
+        });
 
       ccf::tasks::add_periodic_task(emit_signature_periodic_task, delay, delay);
     }
@@ -919,9 +929,16 @@ namespace ccf
 
     ccf::ds::Mutex signature_lock;
 
-    void try_emit_signature() override
+    // CCF_NO_THREAD_SAFETY_ANALYSIS: mguard below is only conditionally
+    // locked (via std::defer_lock, then .try_lock()) - real, correct
+    // behaviour that Clang's thread-safety analysis cannot statically
+    // verify for a ccf::ds::unique_lock used this way (unlike its
+    // built-in support for std::unique_lock, which does handle this
+    // exact pattern).
+    void try_emit_signature() override CCF_NO_THREAD_SAFETY_ANALYSIS
     {
-      std::unique_lock<ccf::ds::Mutex> mguard(signature_lock, std::defer_lock);
+      ccf::ds::unique_lock<ccf::ds::Mutex> mguard(
+        signature_lock, std::defer_lock, "on-demand signature emission");
       if (store.committable_gap() < sig_tx_interval || !mguard.try_lock())
       {
         return;

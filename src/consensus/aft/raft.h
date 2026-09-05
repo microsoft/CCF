@@ -418,7 +418,8 @@ namespace aft
           "Can't force leadership if there is already a leader");
       }
 
-      std::lock_guard<ccf::ds::Mutex> guard(state->lock);
+      ccf::ds::unique_lock<ccf::ds::Mutex> guard(
+        state->lock, "force this node to become primary");
       state->current_view += starting_view_change;
       become_leader(true);
     }
@@ -437,7 +438,8 @@ namespace aft
           "Can't force leadership if there is already a leader");
       }
 
-      std::lock_guard<ccf::ds::Mutex> guard(state->lock);
+      ccf::ds::unique_lock<ccf::ds::Mutex> guard(
+        state->lock, "force this node to become primary from a known index");
       state->current_view = term;
       state->last_idx = index;
       state->commit_idx = commit_idx_;

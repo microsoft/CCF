@@ -7,12 +7,31 @@
 #include <chrono>
 #include <condition_variable>
 #include <mutex>
+#include <source_location>
 #include <utility>
 
 namespace ccf::ds
 {
   class ConditionVariable;
   class MutexGuard;
+
+  namespace detail
+  {
+    // Set immediately before Mutex's own lock()/try_lock()/unlock() make
+    // their real call, and consumed immediately by whatever runs next on
+    // this thread - not read by anything in this header itself. This
+    // lets a genuinely real, immediately-following OS-level lock/unlock
+    // call (which a bare mutex address alone cannot carry a label
+    // through) recover one anyway - see
+    // src/commit_concurrency/scheduled/pthread_mutex_wrap.cpp, which
+    // intercepts real pthread_mutex_lock/unlock/trylock calls to
+    // deterministically explore interleavings, and uses `pending` to
+    // tell a genuine ccf::ds::Mutex call apart from every other,
+    // unrelated lock in the process (allocator, iostream, etc.) without
+    // needing to track any mutex's address at all.
+    inline thread_local bool pending = false;
+    inline thread_local const char* pending_label = nullptr;
+  }
 
   /**
    * Generic locking primitives shared across CCF components.
@@ -31,18 +50,24 @@ namespace ccf::ds
     Mutex(const Mutex&) = delete;
     Mutex& operator=(const Mutex&) = delete;
 
-    void lock() CCF_ACQUIRE()
+    void lock(const char* label = nullptr) CCF_ACQUIRE()
     {
+      detail::pending = true;
+      detail::pending_label = label;
       mutex.lock();
     }
 
-    bool try_lock() CCF_TRY_ACQUIRE(true)
+    bool try_lock(const char* label = nullptr) CCF_TRY_ACQUIRE(true)
     {
+      detail::pending = true;
+      detail::pending_label = label;
       return mutex.try_lock();
     }
 
-    void unlock() CCF_RELEASE()
+    void unlock(const char* label = nullptr) CCF_RELEASE()
     {
+      detail::pending = true;
+      detail::pending_label = label;
       mutex.unlock();
     }
 
@@ -160,5 +185,101 @@ namespace ccf::ds
       return condition_variable.wait_until(
         lock.get(), timeout_time, std::move(predicate));
     }
+  };
+
+  // A drop-in replacement for std::unique_lock<Mutex> (supporting the same
+  // deferred-locking constructor and lock()/try_lock()/unlock() surface
+  // used against ccf::ds::Mutex elsewhere in this codebase), with an
+  // optional label describing why this lock is being taken - passed
+  // directly into Mutex's own lock()/try_lock()/unlock() call. With no
+  // label given, it defaults to the call site's source location.
+  //
+  // Carries its own CCF_SCOPED_CAPABILITY annotations (mirroring
+  // MutexGuard above), rather than relying on Clang's built-in,
+  // name-based special-casing of std::unique_lock, since this needs to
+  // call LockType's own lock()/try_lock()/unlock() directly (to pass a
+  // label through) rather than delegating to a real std::unique_lock
+  // member. This gives real static verification for the ordinary,
+  // unconditional case - a function using this type's lock/unlock like
+  // an ordinary scoped guard is checked exactly as if it used
+  // std::unique_lock or MutexGuard. The one gap: Clang's built-in
+  // std::unique_lock support additionally understands the
+  // conditionally-taken pattern (construct with std::defer_lock, only
+  // sometimes call .lock()/.try_lock() depending on runtime state) well
+  // enough to statically verify it; that specific pattern is not
+  // supported for a user-annotated type like this one, and needs
+  // CCF_NO_THREAD_SAFETY_ANALYSIS on the specific enclosing function that
+  // does it (a handful of call sites in this codebase - see their own
+  // comments for why).
+  template <typename LockType>
+  class CCF_SCOPED_CAPABILITY unique_lock
+  {
+    LockType* mtx;
+    bool owned = false;
+    const char* label;
+    std::source_location loc;
+
+    const char* effective_label() const
+    {
+      return label != nullptr ? label : loc.function_name();
+    }
+
+  public:
+    explicit unique_lock(
+      LockType& mtx_,
+      const char* label_ = nullptr,
+      std::source_location loc_ = std::source_location::current())
+      CCF_ACQUIRE(mtx_) :
+      mtx(&mtx_),
+      label(label_),
+      loc(loc_)
+    {
+      lock();
+    }
+
+    unique_lock(
+      LockType& mtx_,
+      std::defer_lock_t,
+      const char* label_ = nullptr,
+      std::source_location loc_ = std::source_location::current()) :
+      mtx(&mtx_),
+      label(label_),
+      loc(loc_)
+    {}
+
+    ~unique_lock() CCF_RELEASE()
+    {
+      if (owned)
+      {
+        unlock();
+      }
+    }
+
+    void lock() CCF_ACQUIRE()
+    {
+      mtx->lock(effective_label());
+      owned = true;
+    }
+
+    bool try_lock() CCF_TRY_ACQUIRE(true)
+    {
+      const bool locked = mtx->try_lock(effective_label());
+      owned = locked;
+      return locked;
+    }
+
+    void unlock() CCF_RELEASE()
+    {
+      mtx->unlock(effective_label());
+      owned = false;
+    }
+
+    bool owns_lock() const
+    {
+      return owned;
+    }
+
+    unique_lock(const unique_lock&) = delete;
+    unique_lock& operator=(const unique_lock&) = delete;
   };
 }
