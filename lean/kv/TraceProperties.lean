@@ -206,23 +206,6 @@ theorem reachable_store_invariants (w : World) (_reachable : Reachable w)
       s.global ≤ s.head.version ∧ (atCut s s.global).version = s.global :=
   ⟨s.historyShape, s.headFirst, s.globalBound, (atCut_spec s s.global s.globalBound).1⟩
 
-theorem initial_frontier_safety (snap : Snapshot) :
-    ∃ source : Store, snap.current = source.head ∧
-      snap.initialGlobal = source.global ∧
-      snap.initialGlobal ≤ snap.current.version := by
-  obtain ⟨source, current, initial⟩ := snap.origin
-  refine ⟨source, current, initial, ?_⟩
-  rw [current, initial]
-  exact source.globalBound
-
-theorem reachable_initial_frontier_safety (w : World) (_reachable : Reachable w)
-    (tid : Nat) (t : Tx) (_live : find w.txs tid = some t)
-    (snap : Snapshot) (_captured : t.snapshot = some snap) :
-    ∃ source : Store, snap.current = source.head ∧
-      snap.initialGlobal = source.global ∧
-      snap.initialGlobal ≤ snap.current.version :=
-  initial_frontier_safety snap
-
 theorem txOf_found (w : World) (sid tid : Nat) (t : Tx)
     (accepted : txOf w sid tid = .ok t) : find w.txs tid = some t := by
   cases lookup : find w.txs tid <;>
@@ -324,14 +307,18 @@ theorem stepEvent_attempt_live (w next : World) (tid : Nat) (before : Tx) (e : E
     | cases accepted
     | split at accepted
 
-theorem replay_snapshot_fixed (w final : World) (tid : Nat) (before : Tx) (snap : Snapshot)
+theorem replay_attempt_invariant (tid : Nat) (P : Tx → Prop)
+    (preserve : ∀ (w next : World) (before after : Tx) (r : Record),
+      find w.txs tid = some before → find next.txs tid = some after →
+      P before → AttemptEvent tid r.event → step w r = .ok next → P after)
+    (w final : World) (before : Tx)
     (rs : List Record) (live : find w.txs tid = some before)
-    (captured : before.snapshot = some snap)
+    (holds : P before)
     (segment : ∀ r ∈ rs, AttemptEvent tid r.event)
     (accepted : replay w rs = .ok final) :
-    ∃ after, find final.txs tid = some after ∧ after.snapshot = some snap := by
+    ∃ after, find final.txs tid = some after ∧ P after := by
   induction rs generalizing w before with
-  | nil => cases accepted; exact ⟨before, live, captured⟩
+  | nil => cases accepted; exact ⟨before, live, holds⟩
   | cons r rs ih =>
     cases one : step w r with
     | error err => simp [replay, one, Except.bind] at accepted
@@ -341,20 +328,27 @@ theorem replay_snapshot_fixed (w final : World) (tid : Nat) (before : Tx) (snap 
       obtain ⟨midTx, midLive⟩ := stepEvent_attempt_live w eventNext tid before r.event
         live thisSegment eventStep
       have midLive' : find middle.txs tid = some midTx := by simpa [txs] using midLive
-      have midSnapshot := step_snapshot_fixed w middle tid before midTx snap r live
-        midLive' captured thisSegment one
-      apply ih middle midTx midLive' midSnapshot
+      have midProperty := preserve w middle before midTx r live midLive' holds thisSegment one
+      apply ih middle midTx midLive' midProperty
       · intro e he; exact segment e (by simp [he])
       · simpa [replay, one, Except.bind] using accepted
+
+theorem replay_snapshot_fixed (w final : World) (tid : Nat) (before : Tx) (snap : Snapshot)
+    (rs : List Record) (live : find w.txs tid = some before)
+    (captured : before.snapshot = some snap)
+    (segment : ∀ r ∈ rs, AttemptEvent tid r.event)
+    (accepted : replay w rs = .ok final) :
+    ∃ after, find final.txs tid = some after ∧ after.snapshot = some snap :=
+  replay_attempt_invariant tid (fun t => t.snapshot = some snap)
+    (fun w next before after r => step_snapshot_fixed w next tid before after snap r)
+    w final before rs live captured segment accepted
 
 theorem stepEvent_capture_metadata (w next : World) (sid tid version global term : Nat)
     (s : Store) (t : Tx) (source : storeOf w sid = .ok s)
     (accepted : stepEvent w (.snapshot sid tid version global term) = .ok next)
     (capturedTx : find next.txs tid = some t) :
-    ∃ snap, t.snapshot = some snap ∧ snap.current = s.head ∧
-      snap.initialGlobal = s.global ∧ snap.term = term := by
-  refine ⟨{ current := s.head, initialGlobal := s.global, term, origin := ⟨s, rfl, rfl⟩ },
-    ?_, rfl, rfl, rfl⟩
+    ∃ snap, t.snapshot = some snap ∧ snap.current = s.head ∧ snap.term = term := by
+  refine ⟨{ current := s.head, term, origin := ⟨s, rfl⟩ }, ?_, rfl, rfl⟩
   simp only [stepEvent, withTx, source, Bind.bind, Pure.pure, Except.bind, Except.pure,
     expect, invalid, reject] at accepted
   repeat' first
@@ -367,8 +361,7 @@ theorem step_capture_metadata (w next : World) (sid tid version global term seq 
     (s : Store) (t : Tx) (source : storeOf w sid = .ok s)
     (accepted : step w ⟨seq, .snapshot sid tid version global term⟩ = .ok next)
     (capturedTx : find next.txs tid = some t) :
-    ∃ snap, t.snapshot = some snap ∧ snap.current = s.head ∧
-      snap.initialGlobal = s.global ∧ snap.term = term := by
+    ∃ snap, t.snapshot = some snap ∧ snap.current = s.head ∧ snap.term = term := by
   obtain ⟨eventNext, eventStep, _, txs⟩ := step_event_result w next _ accepted
   exact stepEvent_capture_metadata w eventNext sid tid version global term s t source eventStep
     (by simpa [txs] using capturedTx)
@@ -400,12 +393,12 @@ theorem capture_replay_preserves_metadata (w capturedWorld final : World)
     (segment : ∀ r ∈ tail, AttemptEvent tid r.event)
     (accepted : replay capturedWorld tail = .ok final) :
     ∃ after snap, find final.txs tid = some after ∧ after.snapshot = some snap ∧
-      snap.current = s.head ∧ snap.initialGlobal = s.global ∧ snap.term = term := by
-  obtain ⟨snap, captured, current, initial, snapshotTerm⟩ :=
+      snap.current = s.head ∧ snap.term = term := by
+  obtain ⟨snap, captured, current, snapshotTerm⟩ :=
     step_capture_metadata w capturedWorld sid tid version global term seq s t source capture live
   obtain ⟨after, afterLive, same⟩ := replay_snapshot_fixed capturedWorld final tid t snap
     tail live captured segment accepted
-  exact ⟨after, snap, afterLive, same, current, initial, snapshotTerm⟩
+  exact ⟨after, snap, afterLive, same, current, snapshotTerm⟩
 
 def CellsBounded (db : Data) (version : Nat) : Prop :=
   ∀ key cell, find db key = some cell → cell.version ≤ version
@@ -637,22 +630,10 @@ theorem replay_map_global_fixed (w final : World) (tid : Nat) (before : Tx)
     (live : find w.txs tid = some before) (captured : find before.globalViews map = some view)
     (segment : ∀ r ∈ rs, AttemptEvent tid r.event)
     (accepted : replay w rs = .ok final) :
-    ∃ after, find final.txs tid = some after ∧ find after.globalViews map = some view := by
-  induction rs generalizing w before with
-  | nil => cases accepted; exact ⟨before, live, captured⟩
-  | cons r rs ih =>
-    cases one : step w r with
-    | error err => simp [replay, one, Except.bind] at accepted
-    | ok middle =>
-      obtain ⟨eventNext, eventStep, _, txs⟩ := step_event_result w middle r one
-      have thisSegment := segment r (by simp)
-      obtain ⟨midTx, midLive⟩ := stepEvent_attempt_live w eventNext tid before r.event live thisSegment eventStep
-      have midLive' : find middle.txs tid = some midTx := by simpa [txs] using midLive
-      have fixed := step_map_global_fixed w middle tid before midTx map view r live midLive'
-        captured thisSegment one
-      apply ih middle midTx midLive' fixed
-      · intro e he; exact segment e (by simp [he])
-      · simpa [replay, one, Except.bind] using accepted
+    ∃ after, find final.txs tid = some after ∧ find after.globalViews map = some view :=
+  replay_attempt_invariant tid (fun t => find t.globalViews map = some view)
+    (fun w next before after r => step_map_global_fixed w next tid before after map view r)
+    w final before rs live captured segment accepted
 
 theorem capture_replay_preserves_map (w capturedWorld final : World)
     (sid tid localVersion globalVersion seq : Nat) (map : String)

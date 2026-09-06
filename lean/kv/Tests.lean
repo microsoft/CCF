@@ -306,6 +306,10 @@ def positive : List (String × List Event) := [
 ]
 
 def negative : List (String × String × List Event) := [
+  ("initial frontier is validated without storing it", "rejected",
+    seed 1 0 0 "11" ++ [.compact 1 1 1] ++ start 2 1 0),
+  ("an acquired map cannot be reported unavailable", "invalid_trace",
+    keyGlobalPrefix ++ [.compact 1 2 2, .unavailable 1 3 "a"]),
   ("existing map cannot refresh its global view", "rejected", keyGlobalPrefix ++ [
     .compact 1 2 2, .get 1 3 "a" "00" (some "22") true]),
   ("previously unread keys use the same captured map view", "rejected", keyGlobalPrefix ++ [

@@ -423,7 +423,7 @@ theorem stale_term_cannot_apply (s : Store) (t : Tx) (snap : Snapshot)
   simp [canApply, validLineage, hs, ht]
 
 theorem discarded_handle_cannot_apply (s : Store) (t : Tx) (snap : Snapshot)
-    (hs : t.snapshot = some snap) (m : String) (hm : m ∈ t.handles)
+    (hs : t.snapshot = some snap) (m : String) (view : GlobalView) (hm : (m, view) ∈ t.globalViews)
     (gone : ∀ f ∈ s.history, (revision f m == revision snap.current m) = false) :
     canApply s t = false := by
   apply Bool.eq_false_iff.mpr
@@ -431,15 +431,15 @@ theorem discarded_handle_cannot_apply (s : Store) (t : Tx) (snap : Snapshot)
   have hh : (!t.unavailable = true ∧ validLineage s t = true) ∧
       validates s.head.data t.normal.deps = true := by simpa [canApply] using h
   have hp : (s.term == snap.term) = true ∧
-      t.handles.all (mapLineage s snap.current) = true := by
+      t.globalViews.all (fun (name, _) => mapLineage s snap.current name) = true := by
     simpa [validLineage, hs] using hh.1.2
   have hall := hp.2
-  have hit := List.all_eq_true.mp hall m hm
+  have hit := List.all_eq_true.mp hall (m, view) hm
   obtain ⟨f, hf, he⟩ := List.any_eq_true.mp hit
   simp [gone f hf] at he
 
 theorem discarded_birth_cannot_apply (s : Store) (t : Tx) (snap : Snapshot)
-    (hs : t.snapshot = some snap) (m : String) (hm : m ∈ t.handles)
+    (hs : t.snapshot = some snap) (m : String) (view : GlobalView) (hm : (m, view) ∈ t.globalViews)
     (gone : ∀ f ∈ s.history, (find f.births m == find snap.current.births m) = false) :
     canApply s t = false := by
   apply Bool.eq_false_iff.mpr
@@ -447,9 +447,9 @@ theorem discarded_birth_cannot_apply (s : Store) (t : Tx) (snap : Snapshot)
   have hh : (!t.unavailable = true ∧ validLineage s t = true) ∧
       validates s.head.data t.normal.deps = true := by simpa [canApply] using h
   have hp : (s.term == snap.term) = true ∧
-      t.handles.all (mapLineage s snap.current) = true := by
+      t.globalViews.all (fun (name, _) => mapLineage s snap.current name) = true := by
     simpa [validLineage, hs] using hh.1.2
-  have hit := List.all_eq_true.mp hp.2 m hm
+  have hit := List.all_eq_true.mp hp.2 (m, view) hm
   obtain ⟨f, hf, he⟩ := List.any_eq_true.mp hit
   simp [gone f hf] at he
 
@@ -530,41 +530,5 @@ theorem map_global_ignores_writes (view : GlobalView) (a : Addr String String) :
     valueAt view.frame.data ([] : Pending) a =
       (find view.frame.data a).map Cell.value := by
   simp [valueAt, find]
-
-/-- The typed transition relation is the graph of the single executable step.
-Parsing, instrumentation, and IO are outside this relation. -/
-inductive Transition (w : World) (r : Record) (next : World) : Prop
-  | checked (accepted : step w r = .ok next)
-
-theorem step_correspondence (w next : World) (r : Record) :
-    step w r = .ok next ↔ Transition w r next :=
-  ⟨Transition.checked, fun h => by cases h with | checked h => exact h⟩
-
-inductive Execution : World → List Record → World → Prop
-  | nil (w) : Execution w [] w
-  | cons (w middle final) (r rs)
-      (first : Transition w r middle) (rest : Execution middle rs final) :
-      Execution w (r :: rs) final
-
-theorem replay_correspondence (w final : World) (rs : List Record) :
-    replay w rs = .ok final ↔ Execution w rs final := by
-  induction rs generalizing w with
-  | nil =>
-    constructor
-    · intro h; cases h; exact .nil _
-    · intro h; cases h; rfl
-  | cons r rs ih =>
-    constructor
-    · intro h
-      cases hs : step w r with
-      | error err => simp [replay, hs, Except.bind] at h
-      | ok next =>
-        have hr : replay next rs = .ok final := by simpa [replay, hs, Except.bind] using h
-        exact .cons w next final r rs (.checked hs) ((ih next).mp hr)
-    · intro h
-      cases h with
-      | cons _ middle _ _ _ first rest =>
-        have hs := (step_correspondence w middle r).mpr first
-        simpa [replay, hs, Except.bind] using (ih middle).mpr rest
 
 end Kv

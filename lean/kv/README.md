@@ -53,8 +53,8 @@ absence, and a missing required `value` field is an invalid trace.
 
 `Model.lean` implements the **one transition used by replay**:
 
-- First access captures one current snapshot R shared by all maps and observes
-  the initial global frontier as metadata. All acquired handles share staged
+- First access captures one current snapshot R shared by all maps and validates
+  the initial global frontier without storing it. All acquired handles share staged
   writes. Normal reads overlay writes; previous-write observations ignore them.
 - Each map's first `map_acquire` captures its globally committed view from the
   **then-current** global prefix. Even the first map can be acquired after a
@@ -125,9 +125,14 @@ compaction and rollback. History starts with the empty version-zero frame,
 contains every descending version through the current head, and each successor
 frame results from publishing a finite write set over its predecessor.
 The head is the first history frame and the global cut never exceeds it.
-`Snapshot.origin` records the current snapshot and initial-frontier metadata,
-not a shared global-read view. `Tx.globalViews` stores a distinct immutable
-`GlobalView` per map. Its erased provenance is explicitly either an empty
+`Snapshot` retains the current frame and captured commit term; its erased
+`origin` certifies the current frame's provenance. The initial global frontier
+is checked at capture, not retained as transaction state. Historical `Frame`
+objects do not store an unused term; the necessary store and transaction terms
+still drive stale-term rejection.
+`Tx.globalViews` is the sole acquired-map table, storing a distinct immutable
+`GlobalView` per map without a redundant handle-name list. Its erased provenance
+is explicitly either an empty
 genesis/placeholder frame or a frame from a store's committed prefix. The
 actual acquisition theorem selects the placeholder only when the map did not
 exist at R; otherwise it selects the prefix current at acquisition.
@@ -167,7 +172,7 @@ building either target also enforces it. Add new main guarantees to this list.
 | `branch_normal_serializability`                                                                                         | Type-parameterized version for arbitrary finite OCC programs                                                                                                                    |
 | `step_store_effect`, `replay_segment_serializability`                                                                   | Actual successful steps/replays project to a selected live store's application-order serial witness; the attempts come from pre-event `txOf`                                    |
 | `reachable_store_invariants`, `reachable_store_data_invariants`                                                         | Starting from empty World, live stores have certified complete publication histories, matching heads, bounded global cuts, unique data keys and bounded previous-write versions |
-| `step_capture_metadata`, `step_capture_cut_values`, `capture_replay_preserves_metadata`, `replay_snapshot_fixed`        | The current snapshot and initial-frontier metadata originate in the actual pre-event store and remain fixed; this is not a global API read guarantee                            |
+| `step_capture_metadata`, `step_capture_cut_values`, `capture_replay_preserves_metadata`, `replay_snapshot_fixed`        | Current snapshot and commit term capture/preservation; initial global metadata must match the store at capture but is not stored                                                |
 | `step_map_capture`, `captureGlobal_committed`, `captureGlobal_placeholder`                                              | Actual map acquisitions derive the current committed map revision, or an explicit empty placeholder for a map absent at R                                                       |
 | `replay_map_global_fixed`, `capture_replay_preserves_map`                                                               | A map's captured global view remains unchanged through a live attempt, across all keys, aliases, compaction and rollback                                                        |
 | `map_global_view_safety`, `step_global_read_from_captured_map`, `step_global_has_from_captured_map`                     | Actual global observations use that map's frozen frame, ignore pending writes, and have committed-prefix or explicit empty-placeholder provenance                               |
@@ -176,7 +181,6 @@ building either target also enforces it. Add new main guarantees to this list.
 | `rollback_keeps_prefix`, `rollback_discards_suffix`, `durable_cut_survives_rollback`                                    | Durable-prefix frames and contents survive; suffix frames disappear                                                                                                             |
 | `stale_term_cannot_apply`, `discarded_handle_cannot_apply`, `discarded_birth_cannot_apply`, `compacted_map_unavailable` | Stale-term/removed-lineage rejection, including recreated empty maps, and retained-base gating for existing maps                                                                |
 | `absent_map_available`, `absent_placeholder_has_no_values`                                                              | Truly absent map cuts permit empty placeholders independently of retention; this path cannot expose old map values                                                              |
-| `step_correspondence`, `replay_correspondence`                                                                          | Accepted typed steps/replays correspond to the operational transition/execution relation                                                                                        |
 
 The sequential reference (`serialStep`, `serialRun`, `serialTransactions`) has
 no dependency validation and is not consulted by the checker. Serializability
@@ -206,12 +210,13 @@ Other stores may even roll back or end within the segment. Selected-store
 rollback partitions branches; the durable-prefix theorems cover that boundary.
 Snapshot preservation requires no creation/end of the selected attempt during
 its segment, but permits store rollback: the current snapshot and each acquired
-map's committed view remain pinned. The initial global frontier's immutability
-is metadata-only and is not used to choose later map captures.
+map's committed view remain pinned. Their replay-preservation proofs reuse
+`replay_attempt_invariant`, which lifts an already-proved single-step property
+through a successful replay while retaining the live attempt.
 
-The correspondence relation is explicitly the graph of the common executable
-transition, not a second independent CCF specification. The theorem covers
-typed replay, not the JSON parser. The listed trace-to-property theorems cover
+The principal guarantees are proved directly from successful executable
+`step` and `replay` results, without optional graph-wrapper relations.
+They cover typed replay, not the JSON parser. The trace-to-property theorems cover
 normal-view serial projection, history safety, current-snapshot consistency,
 and per-map global provenance/immutability.
 They do not prove that arbitrary C++ executions refine this model or that the

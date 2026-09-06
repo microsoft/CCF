@@ -31,7 +31,6 @@ def mainGuarantees : Array Name := #[
   ``Kv.step_capture_cut_values,
   ``Kv.capture_replay_preserves_metadata,
   ``Kv.replay_snapshot_fixed,
-  ``Kv.reachable_initial_frontier_safety,
   ``Kv.step_map_capture,
   ``Kv.replay_map_global_fixed,
   ``Kv.capture_replay_preserves_map,
@@ -48,9 +47,7 @@ def mainGuarantees : Array Name := #[
   ``Kv.discarded_birth_cannot_apply,
   ``Kv.compacted_map_unavailable,
   ``Kv.absent_map_available,
-  ``Kv.absent_placeholder_has_no_values,
-  ``Kv.step_correspondence,
-  ``Kv.replay_correspondence
+  ``Kv.absent_placeholder_has_no_values
 ]
 
 def checkDependencies (root : Name) (dependencies : Array Name) : Except String Unit := do

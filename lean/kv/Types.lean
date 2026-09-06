@@ -155,7 +155,6 @@ structure Stamp where
 
 structure Frame where
   version : Nat := 0
-  term : Nat := 0
   data : Data := []
   revisions : Assoc String Stamp := []
   births : Assoc String Stamp := []
@@ -242,9 +241,8 @@ theorem atCut_spec (s : Store) (cut : Nat) (hc : cut ≤ s.head.version) :
 
 structure Snapshot where
   current : Frame
-  initialGlobal : Nat
   term : Nat
-  origin : ∃ s : Store, current = s.head ∧ initialGlobal = s.global
+  origin : ∃ s : Store, current = s.head
   deriving Repr
 
 structure GlobalView where
@@ -270,7 +268,6 @@ inductive Phase where
 structure Tx where
   store : Nat
   snapshot : Option Snapshot := none
-  handles : List String := []
   globalViews : Assoc String GlobalView := []
   normal : Normal String String String := {}
   iterations : List Iteration := []

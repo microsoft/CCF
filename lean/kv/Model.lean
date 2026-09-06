@@ -39,7 +39,7 @@ def operationPosition (t : Tx) : Except Failure Unit :=
     "operation between iteration callbacks"
 
 def completeCapture (t : Tx) : Except Failure Unit :=
-  require (t.snapshot.isNone || !t.handles.isEmpty || t.unavailable)
+  require (t.snapshot.isNone || !t.globalViews.isEmpty || t.unavailable)
     "current snapshot missing first map acquisition/outcome"
 
 def withTx (w : World) (sid tid : Nat) (f : Tx → Except Failure Tx) :
@@ -51,7 +51,7 @@ def withTx (w : World) (sid tid : Nat) (f : Tx → Except Failure Tx) :
 def handleOf (t : Tx) (m : String) : Except Failure Snapshot := do
   active t
   operationPosition t
-  require (t.handles.contains m) s!"map {m} used before acquisition"
+  require ((find t.globalViews m).isSome) s!"map {m} used before acquisition"
   snapOf t
 
 def globalOf (t : Tx) (m : String) : Except Failure GlobalView :=
@@ -100,21 +100,20 @@ def acquireMap (s : Store) (t : Tx) (m : String) (version global : Nat) : Except
   active t
   operationPosition t
   let snap ← snapOf t
-  require (!(t.handles.contains m)) "duplicate map_acquire; handles share one change set"
-  require ((find t.globalViews m).isNone) "global map view already captured"
+  require ((find t.globalViews m).isNone) "duplicate map_acquire; handles share one change set"
   let view := captureGlobal s snap m
   expect (version == (revision snap.current m).version &&
           global == (revision view.frame m).version)
     s!"map acquisition expected local={(revision snap.current m).version}, global={(revision view.frame m).version}; observed local={version}, global={global}"
   expect (available s snap m) "snapshot no longer available for later map acquisition"
-  return { t with handles := m :: t.handles, globalViews := set t.globalViews m view }
+  return { t with globalViews := set t.globalViews m view }
 
 def validLineage (s : Store) (t : Tx) : Bool :=
   match t.snapshot with
   | none => true
   | some snap =>
     s.term == snap.term &&
-    t.handles.all (mapLineage s snap.current)
+    t.globalViews.all (fun (m, _) => mapLineage s snap.current m)
 
 def canApply (s : Store) (t : Tx) : Bool :=
   !t.unavailable && validLineage s t && validates s.head.data t.normal.deps
@@ -129,7 +128,7 @@ def advance (s : Store) (writes : Pending) : Store :=
   let births := writes.foldl (fun bs (a, _) =>
     if (find bs a.1).isSome then bs
     else set bs a.1 { version := v, identity := s.nextIdentity }) s.head.births
-  let f : Frame := { version := v, term := s.term, data, revisions, births }
+  let f : Frame := { version := v, data, revisions, births }
   have historyShape : History (f :: s.history) (s.head.version + 1) :=
     .succ f s.head.version s.history rfl
       ⟨writes, by simp only [s.headFirst, Option.getD_some]; rfl⟩ s.historyShape
@@ -168,7 +167,7 @@ def uniqueKeys [DecidableEq K] (a : Assoc K V) : Bool :=
 
 def eachTop (t : Tx) (m : String) (id : Nat) : Except Failure (Iteration × List Iteration) := do
   active t
-  require (t.handles.contains m) "iteration uses unacquired map"
+  require ((find t.globalViews m).isSome) "iteration uses unacquired map"
   let _ ← snapOf t
   match t.iterations with
   | [] => invalid "iteration event without foreach_begin"
@@ -226,7 +225,7 @@ def stepEvent (w : World) (event : Event) : Except Failure World := do
           s!"initial snapshot metadata expected local={s.head.version}, global={s.global}, term={established.term}; observed local={version}, global={global}, term={term}"
         have hzero : t.normal = {} := by simpa [hs] using t.certificate
         return { t with
-          snapshot := some { current := s.head, initialGlobal := s.global, term, origin := ⟨s, rfl, rfl⟩ }
+          snapshot := some { current := s.head, term, origin := ⟨s, rfl⟩ }
           certificate := by simp [hzero, normalRun] }
       else invalid "snapshot refreshed inside attempt"
   | .acquire sid tid m version global =>
@@ -238,7 +237,7 @@ def stepEvent (w : World) (event : Event) : Except Failure World := do
       active t
       operationPosition t
       let snap ← snapOf t
-      require (!(t.handles.contains m)) "pinned handle reported unavailable"
+      require ((find t.globalViews m).isNone) "pinned handle reported unavailable"
       expect (!(available s snap m)) "available snapshot reported unavailable"
       return { t with unavailable := true }
   | .get sid tid m k value global =>
