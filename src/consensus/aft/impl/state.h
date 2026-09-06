@@ -9,6 +9,7 @@
 #include "ds/internal_logger.h"
 #include "kv/kv_types.h"
 
+#include <atomic>
 #include <deque>
 #include <map>
 #include <set>
@@ -130,6 +131,54 @@ namespace aft
     }
   };
 
+  // std::atomic is neither copyable nor movable, so it cannot be a field of a
+  // type declared with the DECLARE_JSON_* macros, which round-trip each field
+  // by value. This wrapper restores value semantics for serialisation while
+  // keeping every access to the underlying value atomic.
+  class AtomicLeadershipState
+  {
+    std::atomic<ccf::kv::LeadershipState> value;
+
+  public:
+    AtomicLeadershipState(
+      ccf::kv::LeadershipState value_ = ccf::kv::LeadershipState::None) :
+      value(value_)
+    {}
+
+    AtomicLeadershipState(const AtomicLeadershipState& other) :
+      value(other.load())
+    {}
+
+    AtomicLeadershipState& operator=(const AtomicLeadershipState& other)
+    {
+      if (this != &other)
+      {
+        store(other.load());
+      }
+      return *this;
+    }
+
+    [[nodiscard]] ccf::kv::LeadershipState load() const
+    {
+      return value.load(std::memory_order_acquire);
+    }
+
+    void store(ccf::kv::LeadershipState value_)
+    {
+      value.store(value_, std::memory_order_release);
+    }
+  };
+
+  inline void to_json(nlohmann::json& j, const AtomicLeadershipState& state)
+  {
+    j = state.load();
+  }
+
+  inline void from_json(const nlohmann::json& j, AtomicLeadershipState& state)
+  {
+    state.store(j.get<ccf::kv::LeadershipState>());
+  }
+
   struct State
   {
     State(ccf::NodeId node_id_, bool pre_vote_enabled_ = true) :
@@ -161,7 +210,15 @@ namespace aft
     // the node
     // Leader -> Follower, when receiving entries for a newer term
     // Candidate -> Follower, when receiving entries for a newer term
-    ccf::kv::LeadershipState leadership_state = ccf::kv::LeadershipState::None;
+    //
+    // Written only under `lock`, but read without it by the unsynchronised
+    // accessors (is_primary(), is_candidate(), ...) which callers outside
+    // consensus rely on. Atomic so those reads are not data races. Taking
+    // `lock` in those accessors instead is not an option: Store::commit()
+    // calls is_primary() while holding the KV version lock, and Aft calls
+    // into the Store from under `lock`, so locking here would invert an
+    // existing lock order.
+    AtomicLeadershipState leadership_state;
     ccf::kv::MembershipState membership_state =
       ccf::kv::MembershipState::Active;
 
