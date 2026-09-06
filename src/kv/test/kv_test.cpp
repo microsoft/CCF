@@ -3064,9 +3064,10 @@ TEST_CASE("Stale-view writes are rejected before local application")
 // allocated and the writes applied locally, but before Store::commit() - so it
 // is used here to drive the view change deterministically, without threads.
 //
-// The CHECKs marked BUG record the current, incorrect behaviour, so that the
-// divergence is explicit. Fixing #8293 should flip them.
-TEST_CASE("Stale-view writes which took their version early are not rejected")
+// This asserts the behaviour the store should have, so it fails until #8293 is
+// fixed. Each expectation which does not currently hold is marked FAILS TODAY,
+// with the behaviour actually observed.
+TEST_CASE("Stale-view writes which took their version early are rejected")
 {
   ccf::kv::Store store;
   store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
@@ -3120,11 +3121,13 @@ TEST_CASE("Stale-view writes which took their version early are not rejected")
       store.rollback({initial_term, committed_seqno}, new_term);
     };
 
-    // BUG (#8293): this transaction's writes have been discarded, and it is
-    // committing in a term which is no longer current, but it reports success
+    // This transaction's writes have been discarded, and it is committing in a
+    // term which is no longer current, so it must not report success.
+    // FAILS TODAY: returns SUCCESS, and parks an entry at seqno 4 in
+    // pending_txs, behind the hole the rollback left at seqno 3
     CHECK(
       stale_tx.commit(ccf::empty_claims(), lose_view) ==
-      ccf::kv::CommitResult::SUCCESS);
+      ccf::kv::CommitResult::FAIL_NO_REPLICATE);
 
     CHECK(store.current_txid() == ccf::TxID(initial_term, committed_seqno));
     CHECK(!read("stale").has_value());
@@ -3142,29 +3145,35 @@ TEST_CASE("Stale-view writes which took their version early are not rejected")
     store.rollback({new_term, committed_seqno}, new_term);
   }
 
-  INFO("The first write of the new term drags the discarded write with it");
+  INFO("The first write of the new term replicates only itself");
   {
+    const auto replicated_before = consensus->replica.size();
     REQUIRE(write("fresh", "3") == ccf::kv::CommitResult::SUCCESS);
     CHECK(read("fresh") == "3");
     CHECK(store.current_version() == 3);
 
-    // BUG (#8293): seqno 3 completed the batch, so the parked entry at seqno 4
-    // was replicated too, carrying writes this store has already discarded and
-    // which no transaction on this node ever observed
-    CHECK(replicated_to() == 4);
-    CHECK(store.current_version() < replicated_to());
+    // FAILS TODAY: seqno 3 completes the batch, so the parked entry at seqno 4
+    // is replicated too, carrying writes this store has already discarded and
+    // which no transaction on this node ever observed. Two entries are handed
+    // to consensus, and replicated_to() reaches 4
+    CHECK(consensus->replica.size() == replicated_before + 1);
+    CHECK(replicated_to() == 3);
+    CHECK(store.current_version() == replicated_to());
   }
 
-  INFO("The store can no longer replicate anything");
+  INFO("Later writes continue to be replicated");
   {
-    // The store's next version is 4, but consensus has already been given an
-    // entry at seqno 4, so no batch this store builds from here is ever
-    // contiguous with what has been replicated
-    REQUIRE(write("lost", "4") == ccf::kv::CommitResult::SUCCESS);
-    CHECK(read("lost") == "4");
+    const auto replicated_before = consensus->replica.size();
+    REQUIRE(write("next", "4") == ccf::kv::CommitResult::SUCCESS);
+    CHECK(read("next") == "4");
 
-    // BUG (#8293): reported as committed, but never handed to consensus
-    CHECK(replicated_to() == 4);
+    // FAILS TODAY: last_replicated is now ahead of version, so no batch this
+    // store builds is contiguous with what has been replicated. This write, and
+    // every write after it, reports success but is never handed to consensus.
+    // Note that replicated_to() alone cannot see this, because the entry
+    // already sitting at seqno 4 is the discarded write, not this one
+    CHECK(consensus->replica.size() == replicated_before + 1);
+    CHECK(store.current_version() == replicated_to());
   }
 }
 
