@@ -8,8 +8,8 @@
 //! verification. It is the native backend selected when `crypto_openssl` is
 //! enabled for a non-`wasm32` target.
 
-use foreign_types::{ForeignType, ForeignTypeRef};
-use openssl::asn1::{Asn1Object, Asn1ObjectRef, Asn1Time};
+use foreign_types_shared::ForeignType;
+use openssl::asn1::{Asn1Object, Asn1Time};
 use openssl::bn::BigNum;
 use openssl::ecdsa::EcdsaSig;
 use openssl::hash::{hash, MessageDigest};
@@ -21,7 +21,7 @@ use openssl::stack::Stack;
 use openssl::x509::verify::X509VerifyFlags;
 use openssl::x509::verify::X509VerifyParam;
 use openssl_sys::{
-    ASN1_STRING_get0_data, ASN1_STRING_length, X509_EXTENSION_get_critical,
+    ASN1_STRING_get0_data, ASN1_STRING_length, OBJ_obj2txt, X509_EXTENSION_get_critical,
     X509_EXTENSION_get_data, X509_EXTENSION_get_object, X509_get_ext, X509_get_ext_by_OBJ,
     X509_get_ext_count, X509_get_extension_flags, X509_get_key_usage, X509v3_KU_KEY_CERT_SIGN,
     EXFLAG_CA,
@@ -281,10 +281,31 @@ impl CertificateBackend for Crypto {
                     return None;
                 }
 
-                Some(unsafe { Asn1ObjectRef::from_ptr(object) }.to_string())
+                dotted_decimal_oid(object)
             })
             .collect()
     }
+}
+
+/// `Asn1Object`'s display form is the long name for known OIDs, so ask OpenSSL
+/// for the numeric form that `CertificateBackend` specifies.
+fn dotted_decimal_oid(object: *mut openssl_sys::ASN1_OBJECT) -> Option<String> {
+    let mut buffer = [0u8; 128];
+    let written = unsafe {
+        OBJ_obj2txt(
+            buffer.as_mut_ptr().cast(),
+            buffer.len() as i32,
+            object,
+            1, // no_name: always emit the dotted-decimal form.
+        )
+    };
+    if written <= 0 || written as usize >= buffer.len() {
+        return None;
+    }
+
+    std::str::from_utf8(&buffer[..written as usize])
+        .ok()
+        .map(str::to_owned)
 }
 
 mod oid {

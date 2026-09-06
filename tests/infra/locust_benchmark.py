@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-"""Shared orchestration and reporting for blocking Locust benchmarks."""
+"""Shared orchestration and reporting for Locust benchmarks."""
 
 import argparse
 import csv
@@ -26,12 +26,22 @@ RUN_TIME_MARGIN_S = 60
 MIN_MEASURED_FRACTION = 0.9
 JWT_ENVIRONMENT_VARIABLE = "CCF_LOCUST_JWT"
 
+# Authentication subcommands understood by logging_locustfile.py.
+AUTHENTICATION_CERTIFICATE = "cert"
+AUTHENTICATION_JWT = "jwt"
+
 
 @dataclasses.dataclass(frozen=True)
 class Workload:
     locust_file_name: str
+    # Appended after every option this module passes, so a locustfile that
+    # takes a subcommand must place it last within these arguments.
     arguments: tuple[str, ...] = ()
     environment: Mapping[str, str] = dataclasses.field(default_factory=dict)
+    statistics_name: str = AGGREGATED_ROW_NAME
+    response_length_as_throughput_units: bool = False
+    throughput_unit: str = "tx"
+    target_node: Any | None = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -41,6 +51,7 @@ class Result:
     p99_latency_ms: float
     min_latency_ms: float
     memory: dict[str, int] | None
+    throughput_unit: str
 
 
 PrepareWorkload = Callable[[argparse.Namespace, Any, Any], Workload]
@@ -56,8 +67,8 @@ def positive_int(value: str) -> int:
 def add_cli_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--users",
-        help="Number of concurrent Locust users, each sending one blocking write at a time",
-        type=int,
+        help="Number of concurrent Locust users, each sending one request at a time",
+        type=positive_int,
         default=320,
     )
     parser.add_argument(
@@ -93,12 +104,13 @@ def locust_file_path(file_name: str) -> str:
 
 
 def run_locust(
-    args: argparse.Namespace, network: Any, primary: Any, workload: Workload
+    args: argparse.Namespace, network: Any, default_target: Any, workload: Workload
 ) -> dict[str, str]:
-    """Run Locust to completion and return its aggregated statistics."""
+    """Run Locust to completion and return the workload's selected statistics."""
     csv_prefix = os.path.join(network.common_dir, CSV_PREFIX)
+    target = workload.target_node or default_target
     host = "https://" + infra.interfaces.make_address(
-        primary.get_public_rpc_host(), primary.get_public_rpc_port()
+        target.get_public_rpc_host(), target.get_public_rpc_port()
     )
 
     cmd = [
@@ -109,7 +121,7 @@ def run_locust(
         "--host",
         host,
         "--ca",
-        primary.session_ca()["ca"],
+        target.session_ca()["ca"],
         "--users",
         str(args.users),
         "--spawn-rate",
@@ -117,7 +129,6 @@ def run_locust(
         "--measure-time-s",
         str(args.measure_time_s),
     ]
-    cmd.extend(workload.arguments)
 
     # The locustfile ends the run after a full measurement window following the
     # ramp. Locust's own deadline is only a generous backstop for a stuck ramp.
@@ -135,31 +146,45 @@ def run_locust(
     # Report only steady state, at the full user count.
     cmd += ["--reset-stats", "--csv", csv_prefix]
 
+    # Last, because a locustfile may take a subcommand, and argparse gives every
+    # subsequent argument to the subparser.
+    cmd.extend(workload.arguments)
+
     LOG.info(f"Starting Locust: {' '.join(cmd)}")
     process_environment = os.environ.copy()
     process_environment.update(workload.environment)
     # Locust exits non-zero if any request failed, which should fail the test.
     subprocess.run(cmd, check=True, env=process_environment)
 
-    return read_aggregated_stats(f"{csv_prefix}_stats.csv")
+    return read_stats(f"{csv_prefix}_stats.csv", workload.statistics_name)
 
 
-def read_aggregated_stats(stats_path: str) -> dict[str, str]:
+def read_stats(stats_path: str, statistics_name: str) -> dict[str, str]:
     with open(stats_path, encoding="utf-8", newline="") as stats_file:
         for row in csv.DictReader(stats_file):
-            if row.get("Name") == AGGREGATED_ROW_NAME:
+            if row.get("Name") == statistics_name:
                 return {
                     key: value
                     for key, value in row.items()
                     if key is not None and value is not None
                 }
 
-    raise RuntimeError(f"No {AGGREGATED_ROW_NAME} row found in {stats_path}")
+    raise RuntimeError(f"No {statistics_name!r} row found in {stats_path}")
+
+
+def read_aggregated_stats(stats_path: str) -> dict[str, str]:
+    return read_stats(stats_path, AGGREGATED_ROW_NAME)
 
 
 def stat_as_float(stats: Mapping[str, str], column: str) -> float:
     """Read one numeric column from Locust's statistics."""
-    value = stats[column]
+    try:
+        value = stats[column]
+    except KeyError as exc:
+        raise RuntimeError(
+            f"Locust statistics do not contain the required {column!r} column"
+        ) from exc
+
     try:
         return float(value)
     except ValueError as exc:
@@ -181,11 +206,16 @@ def stat_as_int(stats: Mapping[str, str], column: str) -> int:
 
 
 def parse_result(
-    stats: Mapping[str, str], measure_time_s: int, memory: dict[str, int] | None
+    stats: Mapping[str, str],
+    measure_time_s: int,
+    memory: dict[str, int] | None,
+    *,
+    response_length_as_throughput_units: bool = False,
+    throughput_unit: str = "tx",
 ) -> Result:
     request_count = stat_as_int(stats, "Request Count")
     failure_count = stat_as_int(stats, "Failure Count")
-    throughput = stat_as_float(stats, "Requests/s")
+    request_rate = stat_as_float(stats, "Requests/s")
     median_latency_ms = stat_as_float(stats, "Median Response Time")
     p99_latency_ms = stat_as_float(stats, "99%")
     min_latency_ms = stat_as_float(stats, "Min Response Time")
@@ -196,10 +226,20 @@ def parse_result(
         raise RuntimeError(
             f"Locust recorded {failure_count} failures out of {request_count} requests"
         )
-    if throughput <= 0:
-        raise RuntimeError(f"Locust reported non-positive throughput {throughput}")
+    if request_rate <= 0:
+        raise RuntimeError(f"Locust reported non-positive request rate {request_rate}")
 
-    measured_duration_s = request_count / throughput
+    throughput = request_rate
+    if response_length_as_throughput_units:
+        units_per_request = stat_as_float(stats, "Average Content Size")
+        if units_per_request <= 0:
+            raise RuntimeError(
+                "Locust reported non-positive average throughput units per request "
+                f"{units_per_request}"
+            )
+        throughput *= units_per_request
+
+    measured_duration_s = request_count / request_rate
     if measured_duration_s < measure_time_s * MIN_MEASURED_FRACTION:
         raise RuntimeError(
             f"Measured over {measured_duration_s:.1f}s, but expected "
@@ -207,7 +247,7 @@ def parse_result(
             "not describe steady state."
         )
 
-    LOG.info(f"{request_count} requests => {throughput:.1f} tx/s")
+    LOG.info(f"{request_count} requests => {throughput:.1f} {throughput_unit}/s")
     LOG.info(
         f"Latency: min={min_latency_ms:.1f}ms p50={median_latency_ms:.1f}ms "
         f"p99={p99_latency_ms:.1f}ms"
@@ -220,6 +260,7 @@ def parse_result(
         p99_latency_ms=p99_latency_ms,
         min_latency_ms=min_latency_ms,
         memory=memory,
+        throughput_unit=throughput_unit,
     )
 
 
@@ -230,9 +271,9 @@ def measure(
 ) -> Result:
     """Run one workload against a fresh network at one signature interval."""
     args.sig_ms_interval = sig_ms_interval
-    # Commit cannot be observed faster than consensus updates are sent. Keep
-    # this in step with signatures so shorter intervals are not gated by the
-    # 100ms default.
+    # Keep consensus updates in step with signatures. This is required by
+    # workloads which wait for commit and gives all workloads consistent
+    # interval configuration.
     args.consensus_update_timeout_ms = sig_ms_interval
 
     LOG.info(f"Starting nodes on {args.nodes} with {sig_ms_interval}ms signatures")
@@ -243,8 +284,17 @@ def measure(
         primary, _ = network.find_primary()
         workload = prepare_workload(args, network, primary)
         stats = run_locust(args, network, primary, workload)
-        memory = infra.proc.get_proc_memory_stats(primary.remote.remote.proc.pid)
-        result = parse_result(stats, args.measure_time_s, memory)
+        target = workload.target_node or primary
+        memory = infra.proc.get_proc_memory_stats(target.remote.remote.proc.pid)
+        result = parse_result(
+            stats,
+            args.measure_time_s,
+            memory,
+            response_length_as_throughput_units=(
+                workload.response_length_as_throughput_units
+            ),
+            throughput_unit=workload.throughput_unit,
+        )
         network.stop_all_nodes()
         return result
 
@@ -280,6 +330,6 @@ def run(args: argparse.Namespace, prepare_workload: PrepareWorkload) -> None:
     for sig_ms_interval, result in results.items():
         LOG.info(
             f"  {sig_ms_interval:>5}ms signatures: "
-            f"{result.throughput:>9.1f} tx/s, "
+            f"{result.throughput:>9.1f} {result.throughput_unit}/s, "
             f"p50 {result.median_latency_ms:.1f}ms"
         )

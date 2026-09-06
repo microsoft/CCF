@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 
 #include "ccf/ds/json.h"
-#include "ccf/pal/locking.h"
+#include "ccf/ds/locking.h"
 #include "ccf/version.h"
 #include "common/enclave_interface_types.h"
 #include "ds/internal_logger.h"
@@ -16,7 +16,7 @@
 // the central enclave object
 namespace
 {
-  ccf::pal::Mutex create_lock;
+  ccf::ds::Mutex create_lock;
   std::atomic<ccf::Enclave*> e;
 }
 
@@ -36,7 +36,7 @@ namespace ccf
     const ccf::ds::WorkBeaconPtr& work_beacon,
     asynchost::Ledger& ledger)
   {
-    std::lock_guard<ccf::pal::Mutex> guard(create_lock);
+    std::lock_guard<ccf::ds::Mutex> guard(create_lock);
 
     if (e != nullptr)
     {
@@ -161,7 +161,7 @@ namespace ccf
     {
       uint16_t tid = 0;
       {
-        std::lock_guard<ccf::pal::Mutex> guard(create_lock);
+        std::lock_guard<ccf::ds::Mutex> guard(create_lock);
 
         tid = ccf::threading::get_current_thread_id();
         num_pending_threads.fetch_sub(1);

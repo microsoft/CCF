@@ -52,11 +52,11 @@ if poll_for_service_open ${network_live_time}; then
     exit 1
 fi
 
-python3 -m venv env
+python3 -m venv --without-pip env
+bash "$INSTALL_PREFIX"/bin/install_uv.sh "$PWD"/env/bin
 # shellcheck source=/dev/null
 source env/bin/activate
-python -m pip install -U pip
-python -m pip install -U -e ../../../python
+uv pip install -e ../../../python
 
 # Poll until service has died
 while [ "$(service_http_status)" == "200" ]; do

@@ -14,7 +14,7 @@ namespace ccf::tasks
   {
   protected:
     struct PImpl;
-    std::unique_ptr<PImpl> pimpl = nullptr;
+    std::unique_ptr<PImpl> pimpl;
 
     void enqueue_on_board();
     void do_task_implementation() override;

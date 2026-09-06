@@ -362,7 +362,6 @@ namespace ccf::js::extensions::kvhelpers
   HANDLE_GETTER) \
   do \
   { \
-    /* This could use std::to_underlying from C++23 */ \
     const auto permitted = \
       ccf::js::intersect_access_permissions( \
         access_permission, PERMISSION_FLAGS) != KVAccessPermissions::ILLEGAL; \

@@ -4,6 +4,7 @@
 
 #include "ccf/common_auth_policies.h"
 #include "ccf/common_endpoint_registry.h"
+#include "ccf/ds/locking.h"
 #include "ccf/endpoint_context.h"
 #include "ccf/endpoints/authentication/cert_auth.h"
 #include "ccf/http_query.h"
@@ -415,12 +416,16 @@ namespace ccf
       return make_success(rep);
     }
 
-    JWTRefreshMetrics jwt_refresh_metrics;
+    ccf::ds::Mutex jwt_refresh_metrics_lock;
+    JWTRefreshMetrics jwt_refresh_metrics
+      CCF_GUARDED_BY(jwt_refresh_metrics_lock);
+
     void handle_event_request_completed(
       const ccf::endpoints::RequestCompletedEvent& event) override
     {
       if (event.method == "POST" && event.dispatch_path == "/jwt_keys/refresh")
       {
+        ccf::ds::MutexGuard guard(jwt_refresh_metrics_lock);
         jwt_refresh_metrics.attempts += 1;
         int status_category = event.status / 100;
         if (status_category >= 4)
@@ -1787,7 +1792,12 @@ namespace ccf
 
       auto get_jwt_metrics =
         [this](auto& /*args*/, const nlohmann::json& /*params*/) {
-          return make_success(jwt_refresh_metrics);
+          JWTRefreshMetrics metrics;
+          {
+            ccf::ds::MutexGuard guard(jwt_refresh_metrics_lock);
+            metrics = jwt_refresh_metrics;
+          }
+          return make_success(metrics);
         };
       make_read_only_endpoint(
         "/jwt_keys/refresh/metrics",

@@ -3,7 +3,6 @@ name: Continuous Integration AL4
 on:
   schedule:
     - cron: "0 0 * * 1-5"
-  pull_request:
   workflow_dispatch:
 
 concurrency:
@@ -11,9 +10,6 @@ concurrency:
   cancel-in-progress: ${{ !contains(github.ref, 'main')}}
 
 permissions: read-all
-
-env:
-  PIP_INDEX_URL: https://packagefeedproxy.microsoft.io/pypi/simple/
 
 jobs:
   vmss-virtual-a:

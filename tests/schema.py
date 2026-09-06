@@ -264,14 +264,24 @@ if __name__ == "__main__":
         initial_member_count=1,
     )
 
-    cr.add(
-        "operations",
-        e2e_operations.run,
-        package="samples/apps/logging/logging",
-        nodes=infra.e2e_args.min_nodes(cr.args, f=0),
-        initial_user_count=1,
-        ledger_chunk_bytes="1B",  # Chunk ledger at every signature transaction
-    )
+    # These groups run concurrently, each on its own network.
+    for name, target in (
+        ("operations-offline", e2e_operations.run_offline_ledger_tools),
+        ("operations-snapshots", e2e_operations.run_snapshot_manual_and_retention),
+        ("operations-chunks", e2e_operations.run_ledger_chunk_operations),
+        ("operations-config", e2e_operations.run_node_config_checks),
+        ("operations-cose", e2e_operations.run_cose_checks),
+        ("operations-tb-snapshots", e2e_operations.run_time_based_snapshots),
+        ("operations-persistence", e2e_operations.run_snapshot_persistence),
+    ):
+        cr.add(
+            name,
+            target,
+            package="samples/apps/logging/logging",
+            nodes=infra.e2e_args.min_nodes(cr.args, f=0),
+            initial_user_count=1,
+            ledger_chunk_bytes="1B",  # Chunk ledger at every signature transaction
+        )
 
     cr.add(
         "download",
@@ -282,12 +292,23 @@ if __name__ == "__main__":
         ledger_chunk_bytes="1B",  # Chunk ledger at every signature transaction
     )
 
-    cr.add(
-        "download-snapshot",
-        e2e_operations.run_backup_snapshot_download,
-        package="samples/apps/logging/logging",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-        initial_user_count=1,
-    )
+    for name, target in (
+        ("download-snapshot", e2e_operations.run_backup_snapshot_download),
+        (
+            "download-snapshot-limits",
+            e2e_operations.run_backup_snapshot_download_limits,
+        ),
+        (
+            "download-snapshot-failures",
+            e2e_operations.run_backup_snapshot_download_failures,
+        ),
+    ):
+        cr.add(
+            name,
+            target,
+            package="samples/apps/logging/logging",
+            nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+            initial_user_count=1,
+        )
 
     cr.run()

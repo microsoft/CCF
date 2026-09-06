@@ -4,10 +4,10 @@
 
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/json.h"
+#include "ccf/ds/locking.h"
 #include "ccf/http_consts.h"
 #include "ccf/pal/attestation.h"
 #include "ccf/pal/attestation_sev_snp_endorsements.h"
-#include "ccf/pal/locking.h"
 #include "http/curl.h"
 #include "tasks/basic_task.h"
 #include "tasks/task.h"
@@ -53,7 +53,7 @@ namespace ccf
 
     std::vector<uint8_t> endorsements_pem;
 
-    ccf::pal::Mutex lock;
+    ccf::ds::Mutex lock;
 
     // Iteration variables
     std::list<Server> servers;
@@ -136,7 +136,7 @@ namespace ccf
 
     void fetch()
     {
-      std::lock_guard<ccf::pal::Mutex> guard(this->lock);
+      std::lock_guard<ccf::ds::Mutex> guard(this->lock);
       fetch_unsafe();
     }
 
@@ -160,7 +160,7 @@ namespace ccf
 
       void do_task_implementation() override
       {
-        std::lock_guard<ccf::pal::Mutex> guard(self->lock);
+        std::lock_guard<ccf::ds::Mutex> guard(self->lock);
 
         auto* response_body = request->get_response_body();
         const auto& response_headers = request->get_response_headers();
@@ -344,7 +344,7 @@ namespace ccf
 
     void fetch_endorsements()
     {
-      std::lock_guard<ccf::pal::Mutex> guard(this->lock);
+      std::lock_guard<ccf::ds::Mutex> guard(this->lock);
       servers = std::list<Server>(config.servers);
       server_retries_count = 0;
 

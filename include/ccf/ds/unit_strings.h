@@ -173,7 +173,7 @@ namespace ccf::ds
   inline std::string schema_name(
     [[maybe_unused]] const SizeString* size_string_type)
   {
-    return "TimeString";
+    return "SizeString";
   }
 
   inline void fill_json_schema(

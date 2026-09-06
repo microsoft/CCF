@@ -4,6 +4,8 @@
 
 set -exo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
+
 retry() {
     local description=$1
     shift
@@ -42,7 +44,6 @@ install_dev_dependencies() {
     # is installed by setup-ci-al4.sh; here we add the developer-only tools.
     dnf -y install  \
         clang-tools-extra  \
-        python3-pip  \
         kernel-tools  \
         jq  \
         tar
@@ -53,18 +54,10 @@ install_lts_test_dependencies() {
     dnf -y install cpio
 }
 
-install_python_tools() {
-    # Match the clang-format version used by the existing formatting checks.
-    if ! python3 -m pip install gersemi clang-format==18.1.8 --break-system-packages; then
-        python3 -m pip install gersemi clang-format==18.1.8
-    fi
-
-    local clang_format
-    clang_format=$(PATH="/usr/local/bin:$PATH" command -v clang-format)
-    # The PyPI package provides an unversioned executable, so add the expected name.
-    ln -sf "$clang_format" /usr/local/bin/clang-format-18
+install_uv() {
+    bash "$SCRIPT_DIR/install_uv.sh" /usr/local/bin
 }
 
 retry "Development dependencies" install_dev_dependencies
 retry "LTS test dependencies" install_lts_test_dependencies
-retry "Python tools" install_python_tools
+retry "uv" install_uv

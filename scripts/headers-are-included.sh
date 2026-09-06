@@ -5,12 +5,17 @@
 # Very crude and incomplete check, but should catch at least egregiously
 # uncompiled but exported headers.
 
-find src/ include/ -type f -print0 | xargs -0 grep -h "#include" | grep -E "include .?ccf/" | cut -d " " -f 2 | jq -r . | grep -v "ccf/version.h" | sort -u  > /tmp/CCF_INCLUDED
+set -o pipefail
+
+find src/ include/ -type f -print0 | xargs -0 grep -h "#include" | grep -E "include .?ccf/" | cut -d " " -f 2 | jq -r . | grep -v "ccf/version.h" | grep -v "ccf/ccf_deprecated.h" | sort -u  > /tmp/CCF_INCLUDED
 
 pushd include/ || exit 1
 # version.h may have been generated, if cmake was run
 # ccf_deprecated.h may not be included if no APIs are currently deprecated
-find ccf -type f -name "*.h" | grep -v "ccf/version.h" | grep -v "ccf/ccf_deprecated.h" | sort -u > /tmp/CCF_HEADERS
+# ccf/pal/locking.h and ccf/pal/mem.h are deprecated compatibility shims
+# (see ccf/ds/locking.h and CCF_DEPRECATED(safe_memcpy)) kept for source
+# compatibility only, and are not expected to be included in-tree
+find ccf -type f -name "*.h" | grep -v "ccf/version.h" | grep -v "ccf/ccf_deprecated.h" | grep -v "ccf/pal/locking.h" | grep -v "ccf/pal/mem.h" | sort -u > /tmp/CCF_HEADERS
 popd || exit 1
 
 diff -y --suppress-common-lines /tmp/CCF_HEADERS /tmp/CCF_INCLUDED

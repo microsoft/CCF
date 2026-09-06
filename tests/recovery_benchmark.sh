@@ -38,7 +38,7 @@ while [ "$1" != "" ]; do
     shift
 done
 
-set -e
+set -eo pipefail
 
 function service_http_status()
 {
@@ -96,9 +96,10 @@ if poll_for_service_open ${network_live_time} ${sandbox_pid}; then
 fi
 
 echo "** Load service"
-python3 -m venv .recovery_bench_env
+python3 -m venv --without-pip .recovery_bench_env
+bash "${ccf_install_path}"/bin/install_uv.sh "$PWD"/.recovery_bench_env/bin
 source .recovery_bench_env/bin/activate
-python -m pip -q install locust
+uv pip install -q locust
 
 locust --headless --locustfile ../tests/infra/locust_file.py --ca ./workspace/sandbox_common/service_cert.pem --key ./workspace/sandbox_common/user0_privk.pem --cert ./workspace/sandbox_common/user0_cert.pem --spawn-rate 100 --users 100 --rate 1000000 --node-host https://127.0.0.1:8000 --host https://0.0.0.0 --run-time "${load_run_time_s}s"
 

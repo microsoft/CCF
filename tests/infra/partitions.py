@@ -1,7 +1,10 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import enum
+import itertools
 import json
+import os
+import threading
 from dataclasses import field
 
 import iptc
@@ -10,12 +13,82 @@ from loguru import logger as LOG
 import infra.network
 import infra.node
 
-CCF_IPTABLES_CHAIN = "CCF-TEST"
+# Each Partitioner owns its own chain, so that several partitioned networks can
+# run concurrently in one container without flushing each other's rules. The
+# prefix is shared so that leftovers from a killed run can all be found.
+CCF_IPTABLES_CHAIN_PREFIX = "CCF-TEST"
 
-CCF_INPUT_RULE = {
-    "protocol": "tcp",
-    "target": CCF_IPTABLES_CHAIN,
-}
+# iptables chain names are limited to 28 characters.
+MAX_CHAIN_NAME_LENGTH = 28
+
+_chain_counter = itertools.count()
+_chain_counter_lock = threading.Lock()
+
+# libiptc reads the whole table, modifies it and writes it back, and
+# iptc.easy operates on a table object that is shared process-wide and
+# committed and refreshed on every call. Interleaving calls from several
+# threads therefore loses updates: one thread's refresh can discard another's
+# pending change, leaving stale DROP rules behind. Every access to the filter
+# table goes through this lock, and callers hold it across a whole set of
+# related rules so that a partition appears and disappears atomically. It is
+# re-entrant so the helpers can be nested inside those wider sections.
+_iptables_lock = threading.RLock()
+
+
+def _next_chain_name():
+    with _chain_counter_lock:
+        index = next(_chain_counter)
+    # The pid keeps chains distinct across concurrently running ctest processes,
+    # the counter across Partitioners within one process.
+    name = f"{CCF_IPTABLES_CHAIN_PREFIX}-{os.getpid()}-{index}"
+    if len(name) > MAX_CHAIN_NAME_LENGTH:
+        raise ValueError(
+            f"iptables chain name {name!r} is {len(name)} characters, "
+            f"but iptables allows at most {MAX_CHAIN_NAME_LENGTH}"
+        )
+    return name
+
+
+def _input_rule(chain_name):
+    return {"protocol": "tcp", "target": chain_name}
+
+
+def _delete_chain(chain_name):
+    with _iptables_lock:
+        if iptc.easy.has_chain("filter", chain_name):
+            iptc.easy.flush_chain("filter", chain_name)
+            if iptc.easy.has_rule("filter", "INPUT", _input_rule(chain_name)):
+                iptc.easy.delete_rule("filter", "INPUT", _input_rule(chain_name))
+            iptc.easy.delete_chain("filter", chain_name)
+
+
+def _create_chain(chain_name):
+    with _iptables_lock:
+        iptc.easy.add_chain("filter", chain_name)
+        iptc.easy.insert_rule("filter", "INPUT", _input_rule(chain_name))
+
+
+def _replace_rule(chain_name, rule):
+    with _iptables_lock:
+        if iptc.easy.has_rule("filter", chain_name, rule):
+            iptc.easy.delete_rule("filter", chain_name, rule)
+        iptc.easy.insert_rule("filter", chain_name, rule)
+
+
+def _drop_rule(chain_name, rule):
+    with _iptables_lock:
+        if iptc.easy.has_rule("filter", chain_name, rule):
+            iptc.easy.delete_rule("filter", chain_name, rule)
+
+
+def _ccf_chains():
+    with _iptables_lock:
+        return [
+            chain
+            for chain in iptc.easy.get_chains("filter")
+            if chain.startswith(CCF_IPTABLES_CHAIN_PREFIX)
+        ]
+
 
 # Note: When playing with iptables rules on a remote VM, you may want to:
 #   1. Save the current iptable rules: $ sudo iptables-save > /etc/iptables.conf
@@ -43,9 +116,10 @@ class Rules:
 
     name: str | None = None
 
-    def __init__(self, rules, name=None):
+    def __init__(self, rules, name=None, chain_name=None):
         self.rules = rules
         self.name = name
+        self.chain_name = chain_name
 
     def __enter__(self):
         return self
@@ -55,9 +129,13 @@ class Rules:
 
     def drop(self):
         LOG.info(f'Dropping rules "{self.name or "[unamed]"}"')
-        for rule in self.rules:
-            if iptc.easy.has_rule("filter", CCF_IPTABLES_CHAIN, rule):
-                iptc.easy.delete_rule("filter", CCF_IPTABLES_CHAIN, rule)
+        if self.chain_name is None:
+            return
+        # Drop the whole set in one locked section, so that a partition is never
+        # observed half-removed.
+        with _iptables_lock:
+            for rule in self.rules:
+                _drop_rule(self.chain_name, rule)
 
 
 class Partitioner:
@@ -72,29 +150,55 @@ class Partitioner:
 
     Note: It should be managed by a :py:class:`infra.network.Network` instance so that rules
     outlive nodes to avoid spurious log messages when the network is shutdown.
+
+    Each instance owns a private iptables chain, so several partitioned networks
+    may exist at once. Rules only ever match their own network's node addresses
+    and ports, so co-existing chains do not affect each other.
     """
 
-    @staticmethod
-    def dump():
-        if iptc.easy.has_chain("filter", CCF_IPTABLES_CHAIN):
+    def dump(self):
+        if iptc.easy.has_chain("filter", self.chain_name):
             chain_status = (
                 "active"
-                if iptc.easy.has_rule("filter", "INPUT", CCF_INPUT_RULE)
+                if iptc.easy.has_rule("filter", "INPUT", _input_rule(self.chain_name))
                 else "inactive"
             )
             LOG.info(
-                f'Dumping {chain_status} chain {CCF_IPTABLES_CHAIN}:\n{json.dumps(iptc.easy.dump_chain("filter", CCF_IPTABLES_CHAIN), indent=2)}'
+                f'Dumping {chain_status} chain {self.chain_name}:\n{json.dumps(iptc.easy.dump_chain("filter", self.chain_name), indent=2)}'
             )
         else:
-            LOG.info(f"Chain {CCF_IPTABLES_CHAIN} does not exist")
+            LOG.info(f"Chain {self.chain_name} does not exist")
 
     @staticmethod
-    def cleanup():
-        if iptc.easy.has_chain("filter", CCF_IPTABLES_CHAIN):
-            iptc.easy.flush_chain("filter", CCF_IPTABLES_CHAIN)
-            iptc.easy.delete_rule("filter", "INPUT", CCF_INPUT_RULE)
-            iptc.easy.delete_chain("filter", CCF_IPTABLES_CHAIN)
-        LOG.info(f"{CCF_IPTABLES_CHAIN} iptables chain cleaned up")
+    def dump_all():
+        chains = _ccf_chains()
+        if not chains:
+            LOG.info(f"No {CCF_IPTABLES_CHAIN_PREFIX} iptables chain exists")
+            return
+        for chain_name in chains:
+            chain_status = (
+                "active"
+                if iptc.easy.has_rule("filter", "INPUT", _input_rule(chain_name))
+                else "inactive"
+            )
+            LOG.info(
+                f'Dumping {chain_status} chain {chain_name}:\n{json.dumps(iptc.easy.dump_chain("filter", chain_name), indent=2)}'
+            )
+
+    def cleanup(self):
+        _delete_chain(self.chain_name)
+        LOG.info(f"{self.chain_name} iptables chain cleaned up")
+
+    @staticmethod
+    def cleanup_all():
+        """Remove every chain this infrastructure may have left behind.
+
+        Only safe to call when no partitioned network is running, so it is used
+        by tests/cleanup_iptables.py rather than by the test infrastructure.
+        """
+        for chain_name in _ccf_chains():
+            _delete_chain(chain_name)
+        LOG.info(f"{CCF_IPTABLES_CHAIN_PREFIX} iptables chains cleaned up")
 
     @staticmethod
     def reverse_rule(rule):
@@ -119,15 +223,14 @@ class Partitioner:
 
     def __init__(self, network):
         self.network = network
+        self.chain_name = _next_chain_name()
 
-        # Cleanup any leftover rules
-        self.cleanup()
+        # Cleanup any leftover rules from a previous run that happened to reuse
+        # this name
+        _delete_chain(self.chain_name)
 
-        # Create iptables chain
-        iptc.easy.add_chain("filter", CCF_IPTABLES_CHAIN)
-
-        # Create iptables rule in INPUT chain
-        iptc.easy.insert_rule("filter", "INPUT", CCF_INPUT_RULE)
+        # Create iptables chain, and the INPUT rule that jumps into it
+        _create_chain(self.chain_name)
 
     def isolate_node(
         self,
@@ -180,15 +283,15 @@ class Partitioner:
         if isolation_dir & IsolationDir.OUTBOUND_RESPONSES:
             rules.append(self.reverse_rule(client_rule))
 
-        for rule in rules:
-            if iptc.easy.has_rule("filter", CCF_IPTABLES_CHAIN, rule):
-                iptc.easy.delete_rule("filter", CCF_IPTABLES_CHAIN, rule)
-
-            iptc.easy.insert_rule("filter", CCF_IPTABLES_CHAIN, rule)
+        # Apply the whole set in one locked section, so that a partition is
+        # never observed half-applied.
+        with _iptables_lock:
+            for rule in rules:
+                _replace_rule(self.chain_name, rule)
 
         LOG.debug(name)
 
-        return Rules(rules, name)
+        return Rules(rules, name, self.chain_name)
 
     @staticmethod
     def _get_partition_name(partition: list[infra.node.Node]):
@@ -231,18 +334,21 @@ class Partitioner:
 
         rules = []
         partitions_name = []
-        for i, partition in enumerate(args):
-            partitions_name.append(f"{self._get_partition_name(partition)}")
-            # Rules are bi-directional so skip partitions that have already been enforced
-            other_partitions = args[i + 1 :]
+        # A partition is several isolate_node calls; hold the lock across all of
+        # them so the partition takes effect in one step.
+        with _iptables_lock:
+            for i, partition in enumerate(args):
+                partitions_name.append(f"{self._get_partition_name(partition)}")
+                # Rules are bi-directional so skip partitions that have already been enforced
+                other_partitions = args[i + 1 :]
 
-            for node in partition:
-                for other_partition in other_partitions:
-                    for other_node in other_partition:
+                for node in partition:
+                    for other_partition in other_partitions:
+                        for other_node in other_partition:
+                            rules.extend(self.isolate_node(node, other_node).rules)
+
+                    for other_node in other_nodes:
                         rules.extend(self.isolate_node(node, other_node).rules)
-
-                for other_node in other_nodes:
-                    rules.extend(self.isolate_node(node, other_node).rules)
 
         partitions_name.append(self._get_partition_name(other_nodes))
 
@@ -251,10 +357,10 @@ class Partitioner:
 
         LOG.success(f"Created new partition {partition_name}")
 
-        return Rules(rules, partition_name)
+        return Rules(rules, partition_name, self.chain_name)
 
     def partitions(self, *args: list[list[infra.node.Node]]):
-        rule = Rules([])
+        rule = Rules([], chain_name=self.chain_name)
         names = []
         for nodes in args:
             r = self.partition(*nodes)

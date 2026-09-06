@@ -4,6 +4,7 @@
 #include "test_common.h"
 
 #define DOCTEST_CONFIG_NO_SHORT_MACRO_NAMES
+#include <algorithm>
 #include <doctest/doctest.h>
 
 void keep_messages_for_multiple(
@@ -16,7 +17,7 @@ void keep_messages_for_multiple(
   while (it != messages.end())
   {
     if (
-      std::find(targets.begin(), targets.end(), it->first) == targets.end() ||
+      !std::ranges::contains(targets, it->first) ||
       (max_to_keep.has_value() && kept[it->first] >= *max_to_keep))
     {
       it = messages.erase(it);

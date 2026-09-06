@@ -61,7 +61,6 @@ The main reasons why we moved to OpenSSL are:
 
 - We already use OpenSSL for our crypto library ('src/crypto').
 - We wanted TLS 1.3 support that the MbedTLS version in use did not provide.
-- We wanted to support QUIC through OpenSSL.
 
 MbedTLS has since been removed from the runtime implementation.
 

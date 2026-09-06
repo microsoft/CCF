@@ -1,0 +1,2 @@
+# TSan confuses a recycled directory file descriptor with a libuv socket.
+race:asynchost::get_file_name_with_idx

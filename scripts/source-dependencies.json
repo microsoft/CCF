@@ -1,0 +1,37 @@
+{
+  "excluded_path_parts": [
+    "benchmark",
+    "benchmarks",
+    "fuzz",
+    "fuzzer",
+    "fuzzers",
+    "test",
+    "tests"
+  ],
+  "excluded_file_suffixes": [
+    "_bench",
+    "_benchmark",
+    "_fuzz",
+    "_fuzzer",
+    "_test",
+    "_tests"
+  ],
+  "generated_headers": [
+    "include/ccf/version.h",
+    "src/host/config_schema.h",
+    "src/node/gov/api_schema.h"
+  ],
+  "allowed_internal_dependencies": {
+    "apps": ["ccf-api", "js"],
+    "cose": [],
+    "crypto": ["cose", "ds"],
+    "ds": [],
+    "msgpack": [],
+    "pal": ["crypto", "ds"],
+    "tasks": ["ds"],
+    "tcp": ["ds"],
+    "threading": [],
+    "tls": ["crypto", "ds"],
+    "udp": ["ds"]
+  }
+}

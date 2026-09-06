@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-"""Locust-side helpers shared by blocking benchmark workloads."""
+"""Locust-side helpers shared by benchmark workloads."""
 
 import logging
 import ssl
@@ -12,6 +12,26 @@ from locust.runners import WorkerRunner
 
 DEFAULT_MEASURE_TIME_S = 20
 LOG = logging.getLogger(__name__)
+
+# Locust reports each distinct failure message in full, so the body is bounded
+# to stop an unexpectedly large one from flooding the report.
+MAX_FAILURE_BODY_CHARS = 2000
+
+
+def describe_unexpected_status(response: Any) -> str:
+    """Describe an unexpected response, for use as a Locust failure message.
+
+    The body carries the service's own error message, which is not recorded
+    anywhere else on the client side, so it is kept rather than discarded.
+    """
+    # FastResponse.text is None when the body is absent or cannot be decoded,
+    # which includes the connection failures reported as status 0.
+    body = (response.text or "").strip()
+    if not body:
+        return f"Unexpected status {response.status_code}"
+    if len(body) > MAX_FAILURE_BODY_CHARS:
+        body = f"{body[:MAX_FAILURE_BODY_CHARS]}... [truncated]"
+    return f"Unexpected status {response.status_code}: {body}"
 
 
 def add_common_arguments(parser: Any) -> None:

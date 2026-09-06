@@ -28,6 +28,35 @@ namespace ccf::kv
     };
 
   protected:
+    class MapSetLockGuard
+    {
+    private:
+      AbstractStore& store;
+      const bool locked;
+
+    public:
+      MapSetLockGuard(AbstractStore& store_, bool should_lock) :
+        store(store_),
+        locked(should_lock)
+      {
+        if (locked)
+        {
+          store.lock_map_set();
+        }
+      }
+
+      ~MapSetLockGuard()
+      {
+        if (locked)
+        {
+          store.unlock_map_set();
+        }
+      }
+
+      MapSetLockGuard(const MapSetLockGuard&) = delete;
+      MapSetLockGuard& operator=(const MapSetLockGuard&) = delete;
+    };
+
     bool committed = false;
     bool success = false;
 
@@ -160,9 +189,9 @@ namespace ccf::kv
      *
      * A transaction can either succeed and replicate
      * (`ccf::kv::CommitResult::SUCCESS`), fail because of a conflict with other
-     * transactions (`ccf::kv::CommitResult::FAIL_CONFLICT`), or succeed
-     * locally, but fail to replicate
-     * (`ccf::kv::CommitResult::FAIL_NO_REPLICATE`).
+     * transactions (`ccf::kv::CommitResult::FAIL_CONFLICT`), or fail to
+     * replicate (`ccf::kv::CommitResult::FAIL_NO_REPLICATE`). A transaction
+     * whose commit term is stale is rejected before its writes are applied.
      *
      * Transactions that fail are rolled back, no matter the reason.
      *
@@ -170,8 +199,6 @@ namespace ccf::kv
      */
     CommitResult commit(
       const ccf::ClaimsDigest& claims = ccf::empty_claims(),
-      std::function<std::tuple<Version, Version>(bool has_new_map)>
-        version_resolver = nullptr,
       WriteSetObserver write_set_observer = nullptr)
     {
       if (committed)
@@ -206,31 +233,39 @@ namespace ccf::kv
       // If this transaction creates any maps, ensure that commit gets a
       // consistent snapshot of the existing map set
       const bool maps_created = !pimpl->created_maps.empty();
-      if (maps_created)
-      {
-        this->pimpl->store->lock_map_set();
-      }
 
       ccf::kv::ConsensusHookPtrs hooks;
 
       std::optional<Version> new_maps_conflict_version = std::nullopt;
 
       bool track_deletes_on_missing_keys = false;
-      auto c = apply_changes(
-        all_changes,
-        version_resolver == nullptr ?
-          [&](bool has_new_map) {
-            return pimpl->store->next_version(has_new_map);
-          } :
-          version_resolver,
-        hooks,
-        pimpl->created_maps,
-        new_maps_conflict_version,
-        track_deletes_on_missing_keys);
-
-      if (maps_created)
+      bool commit_term_changed = false;
+      std::optional<Version> c;
+      std::optional<Version> expected_rollback_count;
       {
-        this->pimpl->store->unlock_map_set();
+        MapSetLockGuard map_set_guard(*pimpl->store, maps_created);
+        c = apply_changes(
+          all_changes,
+          [&](bool has_new_map) {
+            auto resolution =
+              pimpl->store->next_version(has_new_map, pimpl->commit_view);
+            commit_term_changed = !resolution.has_value();
+            if (!resolution.has_value())
+            {
+              return std::optional<VersionResolution>{};
+            }
+
+            const auto
+              [resolved_version, previous_last_new_map, rollback_count] =
+                resolution.value();
+            expected_rollback_count = rollback_count;
+            return std::optional<VersionResolution>(
+              std::in_place, resolved_version, previous_last_new_map);
+          },
+          hooks,
+          pimpl->created_maps,
+          new_maps_conflict_version,
+          track_deletes_on_missing_keys);
       }
 
       success = c.has_value();
@@ -239,6 +274,13 @@ namespace ccf::kv
       {
         // This Tx is now in a dead state. Caller should create a new Tx and try
         // again.
+        if (commit_term_changed)
+        {
+          LOG_TRACE_FMT(
+            "Could not commit transaction because its commit term changed");
+          return CommitResult::FAIL_NO_REPLICATE;
+        }
+
         LOG_TRACE_FMT("Could not commit transaction due to conflict");
         return CommitResult::FAIL_CONFLICT;
       }
@@ -246,26 +288,44 @@ namespace ccf::kv
       committed = true;
       version = c.value();
 
-      if (tx_flag_enabled(TxFlag::LEDGER_CHUNK_AT_NEXT_SIGNATURE))
-      {
-        auto chunker = pimpl->store->get_chunker();
-        if (chunker)
-        {
-          chunker->force_end_of_chunk(version);
-        }
-      }
-
-      if (tx_flag_enabled(TxFlag::SNAPSHOT_AT_NEXT_SIGNATURE))
-      {
-        pimpl->store->set_flag(
-          AbstractStore::StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
-        unset_tx_flag(TxFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
-      }
+      const auto force_ledger_chunk =
+        tx_flag_enabled(TxFlag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
+      const auto snapshot_at_next_signature =
+        tx_flag_enabled(TxFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
 
       if (version == NoVersion)
       {
-        // Read-only transaction
+        // Read-only transaction. It has no version to attach a ledger chunk
+        // to, but a requested snapshot must still be armed, as it was before
+        // these flags became rollback-sensitive.
+        if (snapshot_at_next_signature)
+        {
+          pimpl->store->set_flag(
+            AbstractStore::StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
+          unset_tx_flag(TxFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
+        }
         return CommitResult::SUCCESS;
+      }
+
+      // These side effects outlive this transaction, so they must not be
+      // applied if a concurrent rollback has already discarded its writes.
+      if (force_ledger_chunk || snapshot_at_next_signature)
+      {
+        if (!expected_rollback_count.has_value())
+        {
+          throw std::logic_error(
+            "Transaction was allocated a version without a rollback count");
+        }
+
+        if (!pimpl->store->apply_tx_flags(
+              version,
+              pimpl->commit_view,
+              expected_rollback_count.value(),
+              force_ledger_chunk,
+              snapshot_at_next_signature))
+        {
+          return CommitResult::FAIL_NO_REPLICATE;
+        }
       }
 
       // From here, we have received a unique commit version and made
@@ -458,14 +518,26 @@ namespace ccf::kv
 
       std::vector<ConsensusHookPtr> hooks;
       bool track_deletes_on_missing_keys = false;
-      auto c = apply_changes(
-        all_changes,
-        [this](bool) { return std::make_tuple(version, version - 1); },
-        hooks,
-        pimpl->created_maps,
-        version,
-        track_deletes_on_missing_keys,
-        rollback_count);
+
+      // A reserved transaction can create maps too - the first signature
+      // creates the signature tables. As in commit(), hold the map set while
+      // applying, so that add_dynamic_map() does not mutate it underneath a
+      // concurrent reader.
+      const bool maps_created = !pimpl->created_maps.empty();
+
+      std::optional<Version> c;
+      {
+        MapSetLockGuard map_set_guard(*pimpl->store, maps_created);
+        c = apply_changes(
+          all_changes,
+          [this](bool) { return std::make_tuple(version, version - 1); },
+          hooks,
+          pimpl->created_maps,
+          version,
+          track_deletes_on_missing_keys,
+          rollback_count);
+      }
+
       success = c.has_value();
 
       if (!success)
@@ -485,20 +557,26 @@ namespace ccf::kv
 
       // This is a signature and, if the ledger chunking or snapshot flags are
       // enabled, we want the host to create a chunk when it sees this entry.
-      // version_lock held by Store::commit
-      if (pimpl->store->should_create_ledger_chunk_unsafe(version))
+      // Deciding this and recording the chunk must be atomic with respect to
+      // rollback, so that a signature a rollback discards leaves no marker
+      // behind.
+      const auto should_create_chunk =
+        pimpl->store->should_create_ledger_chunk_for_reserved_tx(
+          version, pimpl->commit_view, rollback_count);
+      if (!should_create_chunk.has_value())
+      {
+        committed = true;
+        return {
+          CommitResult::FAIL_NO_REPLICATE, {}, ccf::empty_claims(), {}, {}};
+      }
+
+      if (should_create_chunk.value())
       {
         entry_flags |= EntryFlags::FORCE_LEDGER_CHUNK_AFTER;
         LOG_DEBUG_FMT(
           "Ending ledger chunk with signature at {}.{}",
           pimpl->commit_view,
           version);
-
-        auto chunker = pimpl->store->get_chunker();
-        if (chunker)
-        {
-          chunker->produced_chunk_at(version);
-        }
       }
 
       committed = true;

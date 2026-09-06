@@ -606,19 +606,19 @@
       "ParserConfiguration": {
         "properties": {
           "initial_window_size": {
-            "$ref": "#/components/schemas/TimeString"
+            "$ref": "#/components/schemas/SizeString"
           },
           "max_body_size": {
-            "$ref": "#/components/schemas/TimeString"
+            "$ref": "#/components/schemas/SizeString"
           },
           "max_concurrent_streams_count": {
             "$ref": "#/components/schemas/uint64"
           },
           "max_frame_size": {
-            "$ref": "#/components/schemas/TimeString"
+            "$ref": "#/components/schemas/SizeString"
           },
           "max_header_size": {
-            "$ref": "#/components/schemas/TimeString"
+            "$ref": "#/components/schemas/SizeString"
           },
           "max_headers_count": {
             "$ref": "#/components/schemas/uint32"
@@ -820,7 +820,7 @@
         ],
         "type": "object"
       },
-      "TimeString": {
+      "SizeString": {
         "pattern": "^[0-9]+(B|KB|MB|GB|TB|PB)?$",
         "type": "string"
       },

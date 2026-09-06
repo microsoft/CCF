@@ -8,20 +8,21 @@ or encryption APIs.
 
 ## Crypto backends
 
-At least one target-compatible backend must be enabled.
+The default feature set enables every backend selector. The build selects the
+target-compatible backend.
 
 | Feature | Platforms | sync | async | Notes |
 |---|---|---:|---:|---|
-| `crypto_openssl` | Native | yes | yes | Native OpenSSL-backed verification. |
-| `crypto_pure_rust` | Native, WASM | yes | yes | Portable RustCrypto-backed verification. |
+| `crypto_openssl` | Native non-Windows | yes | yes | Native OpenSSL-backed verification. |
 | `crypto_webcrypto` | WASM | no | yes | Uses `globalThis.crypto.subtle` for signature verification. |
+| `crypto_windows` | Windows | yes | yes | Native CNG and Crypt32-backed verification. |
 
-Native targets prefer OpenSSL when enabled. WASM targets prefer WebCrypto when
-enabled.
+Windows targets prefer the Windows backend when enabled. Other native targets
+prefer OpenSSL. WASM targets prefer WebCrypto.
 
 ## Parsing and verification
 
-Use `CborValue::from_bytes` to parse a COSE_Sign1 envelope. COSE_Sign1 is
+Use `CborValue::parse_nondet` to parse a COSE_Sign1 envelope. COSE_Sign1 is
 encoded as CBOR tag 18 over an array:
 
 ```text
@@ -56,7 +57,7 @@ use tee_attestation_verification_cose::{
     SignatureKeyAlgorithm,
 };
 
-let envelope = CborValue::from_bytes(cose_sign1)?;
+let envelope = CborValue::parse_nondet(cose_sign1)?;
 let sign1 = match envelope {
     CborValue::Tagged { tag: 18, payload } => *payload,
     _ => return Err("expected COSE_Sign1 tag".into()),

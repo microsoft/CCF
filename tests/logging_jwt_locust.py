@@ -9,7 +9,7 @@ import infra.e2e_args
 import infra.jwt_issuer
 import infra.locust_benchmark
 
-LOCUST_FILE_NAME = "logging_jwt_locustfile.py"
+LOCUST_FILE_NAME = "logging_locustfile.py"
 DEFAULT_KEY_SPACE_SIZE = 1000
 
 
@@ -19,9 +19,13 @@ def prepare_workload(args, network, _primary) -> infra.locust_benchmark.Workload
     jwt = jwt_issuer.issue_jwt()
     return infra.locust_benchmark.Workload(
         locust_file_name=LOCUST_FILE_NAME,
-        arguments=("--key-space-size", str(args.key_space_size)),
-        # The token is inherited by Locust workers but never appears in the
-        # process command line or the logged command.
+        arguments=(
+            "--key-space-size",
+            str(args.key_space_size),
+            infra.locust_benchmark.AUTHENTICATION_JWT,
+        ),
+        # Read by the jwt subcommand's --jwt, which takes its value from this
+        # variable so that the token never appears on the command line.
         environment={infra.locust_benchmark.JWT_ENVIRONMENT_VARIABLE: jwt},
     )
 
