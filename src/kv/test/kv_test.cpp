@@ -3048,132 +3048,116 @@ TEST_CASE("Stale-view writes are rejected before local application")
   REQUIRE(fresh_dynamic_map_tx.commit() == ccf::kv::CommitResult::SUCCESS);
 }
 
-// Reproduces https://github.com/microsoft/CCF/issues/8293.
-//
-// The stale-view check above only covers transactions which take their version
-// after the view change. A transaction which takes its version before the view
-// change, but reaches Store::commit() after it, is not rejected, because that
-// check is additionally gated on the node still being primary. Its entry is
-// parked in pending_txs behind the hole the rollback left, survives the next
-// election, and is then replicated by the first transaction of the new term -
-// even though its writes were discarded and are no longer in the store.
-//
-// In production the two transactions which produce the hole are concurrent, and
-// this one is held mid-commit by another thread. A write set observer runs at
-// exactly the point that thread would be parked - after the version has been
-// allocated and the writes applied locally, but before Store::commit() - so it
-// is used here to drive the view change deterministically, without threads.
-//
-// This asserts the behaviour the store should have, so it fails until #8293 is
-// fixed. Each expectation which does not currently hold is marked FAILS TODAY,
-// with the behaviour actually observed.
 TEST_CASE("Stale-view writes which took their version early are rejected")
 {
-  ccf::kv::Store store;
-  store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
-  auto consensus = std::make_shared<ccf::kv::test::StubConsensus>();
-  consensus->state = ccf::kv::test::StubConsensus::Primary;
-  store.set_consensus(consensus);
-
-  constexpr ccf::kv::Term initial_term = 2;
-  constexpr ccf::kv::Term new_term = initial_term + 1;
-  constexpr ccf::SeqNo committed_seqno = 2;
-  MapTypes::StringString map("public:map");
-  store.initialise_term(initial_term);
-
-  auto write = [&](const std::string& key, const std::string& value) {
-    auto tx = store.create_tx();
-    tx.rw(map)->put(key, value);
-    return tx.commit();
-  };
-
-  auto read = [&](const std::string& key) {
-    auto tx = store.create_read_only_tx();
-    return tx.ro(map)->get(key);
-  };
-
-  // Seqno of the last entry consensus has been given
-  auto replicated_to = [&]() -> ccf::SeqNo {
-    return consensus->replica.empty() ? 0 :
-                                        std::get<0>(consensus->replica.back());
-  };
-
-  INFO("Two committed entries, and one which is replicated but not committed");
+  bool reuse_versions = false;
+  SUBCASE("No versions allocated after rollback")
   {
+    reuse_versions = false;
+  }
+  SUBCASE("Versions allocated again after rollback")
+  {
+    reuse_versions = true;
+  }
+
+  for (const auto state :
+       {ccf::kv::test::StubConsensus::Primary,
+        ccf::kv::test::StubConsensus::Backup,
+        ccf::kv::test::StubConsensus::Candidate})
+  {
+    CAPTURE(state);
+
+    ccf::kv::Store store;
+    store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+    auto consensus = std::make_shared<ccf::kv::test::StubConsensus>();
+    consensus->state = ccf::kv::test::StubConsensus::Primary;
+    store.set_consensus(consensus);
+
+    constexpr ccf::kv::Term initial_term = 2;
+    constexpr ccf::kv::Term new_term = initial_term + 1;
+    constexpr ccf::SeqNo committed_seqno = 2;
+    MapTypes::StringString map("public:map");
+    store.initialise_term(initial_term);
+
+    auto write = [&](const std::string& key, const std::string& value) {
+      auto tx = store.create_tx();
+      tx.rw(map)->put(key, value);
+      return tx.commit();
+    };
+
+    auto read = [&](const std::string& key) {
+      auto tx = store.create_read_only_tx();
+      return tx.ro(map)->get(key);
+    };
+
+    auto replicated_to = [&]() {
+      return std::get<0>(consensus->replica.back());
+    };
+
     REQUIRE(write("first", "1") == ccf::kv::CommitResult::SUCCESS);
     REQUIRE(write("second", "2") == ccf::kv::CommitResult::SUCCESS);
     REQUIRE(write("truncated", "3") == ccf::kv::CommitResult::SUCCESS);
     REQUIRE(store.current_version() == 3);
-    REQUIRE(replicated_to() == 3);
-  }
+    REQUIRE(consensus->replica.size() == 3);
 
-  INFO("A write takes seqno 4, then loses the view before Store::commit()");
-  {
-    auto stale_tx = store.create_tx();
-    stale_tx.rw(map)->put("stale", "4");
+    INFO("Reject a transaction whose writes were rolled back mid-commit");
+    {
+      auto stale_tx = store.create_tx();
+      stale_tx.rw(map)->put("stale", "4");
 
-    auto lose_view = [&](const ccf::crypto::Sha256Hash&, const std::string&) {
-      // The node hears from the new primary, steps down, and truncates its
-      // uncommitted suffix - discarding seqno 3, and this transaction's own
-      // writes at seqno 4. Seqno 3 is now a hole.
-      consensus->state = ccf::kv::test::StubConsensus::Backup;
-      consensus->replica.resize(committed_seqno);
-      store.rollback({initial_term, committed_seqno}, new_term);
-    };
+      // The observer runs after local application, before Store::commit().
+      auto lose_view = [&](const ccf::crypto::Sha256Hash&, const std::string&) {
+        REQUIRE(store.current_version() == 4);
+        consensus->state = state;
+        consensus->replica.resize(committed_seqno);
+        store.rollback({initial_term, committed_seqno}, new_term);
 
-    // This transaction's writes have been discarded, and it is committing in a
-    // term which is no longer current, so it must not report success.
-    // FAILS TODAY: returns SUCCESS, and parks an entry at seqno 4 in
-    // pending_txs, behind the hole the rollback left at seqno 3
-    CHECK(
-      stale_tx.commit(ccf::empty_claims(), lose_view) ==
-      ccf::kv::CommitResult::FAIL_NO_REPLICATE);
+        if (reuse_versions)
+        {
+          // New reservations must not make the old-view transaction valid.
+          REQUIRE(store.next_txid() == ccf::TxID(new_term, 3));
+          REQUIRE(store.next_txid() == ccf::TxID(new_term, 4));
+        }
+      };
 
-    CHECK(store.current_txid() == ccf::TxID(initial_term, committed_seqno));
-    CHECK(!read("stale").has_value());
-    CHECK(!read("truncated").has_value());
-    CHECK(replicated_to() == committed_seqno);
-  }
+      CHECK(
+        stale_tx.commit(ccf::empty_claims(), lose_view) ==
+        ccf::kv::CommitResult::FAIL_NO_REPLICATE);
+      const auto expected_txid = reuse_versions ?
+        ccf::TxID(new_term, 4) :
+        ccf::TxID(initial_term, committed_seqno);
+      CHECK(store.current_txid() == expected_txid);
+      CHECK(!read("stale").has_value());
+      CHECK(!read("truncated").has_value());
+      CHECK(replicated_to() == committed_seqno);
+    }
 
-  INFO("The node wins the next election");
-  {
-    consensus->state = ccf::kv::test::StubConsensus::Primary;
-    // aft::Aft::become_leader() rolls back to the last committable index, which
-    // is at or above the store's current version. Such a rollback discards
-    // nothing, so it returns early - without clearing pending_txs, which still
-    // holds the parked entry at seqno 4.
-    store.rollback({new_term, committed_seqno}, new_term);
-  }
+    INFO("Become primary, rolling back any new reservations");
+    {
+      store.rollback({initial_term, committed_seqno}, new_term + 1);
+      consensus->state = ccf::kv::test::StubConsensus::Primary;
+    }
 
-  INFO("The first write of the new term replicates only itself");
-  {
-    const auto replicated_before = consensus->replica.size();
-    REQUIRE(write("fresh", "3") == ccf::kv::CommitResult::SUCCESS);
-    CHECK(read("fresh") == "3");
-    CHECK(store.current_version() == 3);
+    INFO("The first write after election replicates only itself");
+    {
+      const auto replicated_before = consensus->replica.size();
+      REQUIRE(write("fresh", "3") == ccf::kv::CommitResult::SUCCESS);
+      CHECK(read("fresh") == "3");
+      CHECK(store.current_txid() == ccf::TxID(new_term + 1, 3));
+      CHECK(consensus->replica.size() == replicated_before + 1);
+      CHECK(replicated_to() == 3);
+      CHECK(store.current_version() == replicated_to());
+    }
 
-    // FAILS TODAY: seqno 3 completes the batch, so the parked entry at seqno 4
-    // is replicated too, carrying writes this store has already discarded and
-    // which no transaction on this node ever observed. Two entries are handed
-    // to consensus, and replicated_to() reaches 4
-    CHECK(consensus->replica.size() == replicated_before + 1);
-    CHECK(replicated_to() == 3);
-    CHECK(store.current_version() == replicated_to());
-  }
-
-  INFO("Later writes continue to be replicated");
-  {
-    const auto replicated_before = consensus->replica.size();
-    REQUIRE(write("next", "4") == ccf::kv::CommitResult::SUCCESS);
-    CHECK(read("next") == "4");
-
-    // FAILS TODAY: last_replicated is now ahead of version, so no batch this
-    // store builds is contiguous with what has been replicated. This write, and
-    // every write after it, reports success but is never handed to consensus.
-    // Note that replicated_to() alone cannot see this, because the entry
-    // already sitting at seqno 4 is the discarded write, not this one
-    CHECK(consensus->replica.size() == replicated_before + 1);
-    CHECK(store.current_version() == replicated_to());
+    INFO("Subsequent writes continue to replicate");
+    {
+      const auto replicated_before = consensus->replica.size();
+      REQUIRE(write("next", "4") == ccf::kv::CommitResult::SUCCESS);
+      CHECK(read("next") == "4");
+      CHECK(!read("stale").has_value());
+      CHECK(consensus->replica.size() == replicated_before + 1);
+      CHECK(store.current_version() == replicated_to());
+    }
   }
 }
 

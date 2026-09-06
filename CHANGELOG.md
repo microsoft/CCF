@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- Transactions from an earlier view are now rejected before entering the replication queue even after the node has stepped down. This prevents rolled-back writes from being replicated after a later election and blocking subsequent replication (#8293, #8295).
 - A signature transaction decided whether to end a ledger chunk, and recorded that decision on the chunker, outside the version lock. A rollback landing in that window discarded the signature but left the chunk marker behind. The decision and the record are now made atomically, and skipped when the signature's view or rollback epoch no longer holds (#8246).
 - A transaction's `force_ledger_chunk` and `snapshot_at_next_signature` flags are no longer applied once a concurrent view change has discarded the transaction's writes, which previously left a chunk boundary, or an armed snapshot, for a transaction no longer present in the ledger. The forced chunk is also attached to the transaction's own version rather than whichever version the store had reached (#8245).
 - A rollback whose target is at or beyond the store's own version no longer moves ledger chunk metadata forward past it, which previously left a permanent offset skewing later chunk boundaries (#8244).
