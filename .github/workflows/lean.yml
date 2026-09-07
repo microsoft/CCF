@@ -1,10 +1,10 @@
-name: "Lean Disaster Recovery"
+name: "Lean"
 
 on:
   pull_request:
     paths:
-      - "lean/disaster-recovery/**"
-      - ".github/workflows/lean-disaster-recovery.yml"
+      - "lean/**"
+      - ".github/workflows/lean.yml"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -13,8 +13,8 @@ concurrency:
 permissions: read-all
 
 jobs:
-  canonical-model:
-    name: Canonical model and proofs
+  disaster-recovery:
+    name: Disaster recovery model and proofs
     runs-on: ubuntu-latest
     timeout-minutes: 30
 

@@ -101,9 +101,12 @@ Runs on pull requests that change `tla/` or `src/consensus/aft/raft.h`.
 File: `tla-shallow.yml`
 3rd party dependencies: None
 
-# Lean Disaster Recovery
+# Lean
 
-Builds the canonical Lean disaster recovery model with `lake build --wfail`,
+Runs all Lean verification for the repository. Future Lean checks should be
+added as jobs to this workflow.
+
+The disaster recovery job builds the canonical model with `lake build --wfail`,
 audits its transitive axiom dependencies with `lake lint`, and runs its
 executable canonical behavior checks on relevant pull requests.
 The build and audit include both the human-reviewed model and system properties
@@ -111,7 +114,7 @@ and the proof implementation files marked as generated for review purposes.
 The standard `mk_all --check` command ensures that the audit root imports every
 library module, so newly added proofs cannot silently escape the checks.
 
-File: `lean-disaster-recovery.yml`
+File: `lean.yml`
 3rd party dependencies: None
 
 # Vendored Dependency Verification
