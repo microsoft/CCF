@@ -7,17 +7,18 @@
 #include "ccf/historical_queries_utils.h"
 #include "ccf/rpc_context.h"
 #include "ccf/service/tables/service.h"
-#include "crypto/cbor.h"
 #include "crypto/cose.h"
 #include "kv/kv_types.h"
 #include "node/rpc/network_identity_subsystem.h"
 #include "node/tx_receipt_impl.h"
 
+#include <tav/cbor.hpp>
+
 namespace
 {
-  ccf::cbor::Value encode_leaf_cbor(const ccf::TxReceiptImpl& receipt)
+  tav::cbor::Value encode_leaf_cbor(const ccf::TxReceiptImpl& receipt)
   {
-    using namespace ccf::cbor;
+    using namespace tav::cbor;
     std::vector<Value> items;
 
     // 1 WSD
@@ -40,9 +41,9 @@ namespace
     return make_array(std::move(items));
   }
 
-  ccf::cbor::Value encode_path_cbor(const ccf::HistoryTree::Path& path)
+  tav::cbor::Value encode_path_cbor(const ccf::HistoryTree::Path& path)
   {
-    using namespace ccf::cbor;
+    using namespace tav::cbor;
     std::vector<Value> items;
 
     for (const auto& node : path)
@@ -244,7 +245,7 @@ namespace ccf
       return std::nullopt;
     }
 
-    using namespace ccf::cbor;
+    using namespace tav::cbor;
     std::vector<MapItem> proof;
 
     proof.emplace_back(
@@ -256,7 +257,7 @@ namespace ccf
       encode_path_cbor(*receipt.path));
 
     auto proof_map = make_map(std::move(proof));
-    return serialize(proof_map);
+    return proof_map.nondet_serialize();
   }
 
   std::optional<SerialisedCoseEndorsements> describe_cose_endorsements_v1(
