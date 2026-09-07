@@ -1584,6 +1584,44 @@ TEST_CASE("Server certificate is verified by the client")
   }
 }
 
+TEST_CASE("Server presents configured intermediate certificate chain")
+{
+  using namespace std::literals;
+
+  const auto root = make_ca();
+  const auto valid_from =
+    ccf::ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
+  const auto valid_to =
+    ccf::crypto::compute_cert_valid_to_string(valid_from, 365);
+
+  const auto intermediate_kp = ccf::crypto::make_ec_key_pair();
+  const auto intermediate_cert = ccf::crypto::create_endorsed_cert(
+    intermediate_kp->public_key_pem(),
+    "CN=intermediate",
+    {},
+    valid_from,
+    valid_to,
+    root.kp->private_key_pem(),
+    root.cert,
+    true);
+
+  const auto leaf_kp = ccf::crypto::make_ec_key_pair();
+  const auto leaf_cert = ccf::crypto::create_endorsed_cert(
+    leaf_kp,
+    "CN=localhost",
+    {},
+    valid_from,
+    /*validity_days*/ 365,
+    intermediate_kp->private_key_pem(),
+    intermediate_cert);
+
+  EchoServer s(
+    leaf_cert.str() + "\n" + intermediate_cert.str(),
+    leaf_kp->private_key_pem().str());
+
+  REQUIRE(verifying_client_handshake(s.port(), root.cert));
+}
+
 namespace
 {
   // Connect to host:port (resolved via getaddrinfo, any family), TLS

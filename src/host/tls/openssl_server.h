@@ -8,6 +8,7 @@
 // graceful close away from the loop thread.
 
 #include "ccf/crypto/openssl/openssl_wrappers.h"
+#include "ccf/crypto/pem.h"
 #include "ds/internal_logger.h"
 #include "host/tls/inbound_admission.h"
 #include "tasks/ordered_tasks.h"
@@ -427,8 +428,13 @@ namespace asynchost
     {
       namespace OpenSSL = ccf::crypto::OpenSSL;
 
-      OpenSSL::Unique_BIO cbio(
-        cert_pem.data(), static_cast<int>(cert_pem.size()));
+      const auto certs = ccf::crypto::split_x509_cert_bundle(cert_pem);
+      if (certs.empty())
+      {
+        return false;
+      }
+
+      OpenSSL::Unique_BIO cbio(certs.front());
       // check_null defaults to false for this overload: a malformed PEM yields
       // a null pointer rather than an exception.
       OpenSSL::Unique_X509 cert(cbio, true);
@@ -436,9 +442,16 @@ namespace asynchost
       {
         return false;
       }
-      if (SSL_CTX_use_certificate(ctx, cert) != 1)
+      OpenSSL::Unique_STACK_OF_X509 chain;
+      for (auto it = certs.begin() + 1; it != certs.end(); ++it)
       {
-        return false;
+        OpenSSL::Unique_BIO chain_bio(*it);
+        OpenSSL::Unique_X509 chain_cert(chain_bio, true);
+        if (chain_cert == nullptr || sk_X509_push(chain, chain_cert) <= 0)
+        {
+          return false;
+        }
+        (void)chain_cert.release();
       }
 
       OpenSSL::Unique_BIO kbio(
@@ -451,7 +464,7 @@ namespace asynchost
       {
         return false;
       }
-      if (SSL_CTX_use_PrivateKey(ctx, pkey) != 1)
+      if (SSL_CTX_use_cert_and_key(ctx, cert, pkey, chain, 1) != 1)
       {
         return false;
       }
