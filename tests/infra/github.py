@@ -146,7 +146,10 @@ def get_major_version_from_branch_name(branch_name):
 
 def get_devel_package_prefix_with_platform(tag_name, platform="snp"):
     tag_components = tag_name.split("-")
-    tag_components[0] += f"_{platform}_devel"
+    if get_version_from_tag_name(tag_name) >= Version("7.0.0.dev1"):
+        tag_components[0] += "_devel"
+    else:
+        tag_components[0] += f"_{platform}_devel"
     return "-".join(tag_components)
 
 
@@ -309,7 +312,11 @@ class Repository:
     def install_release(self, tag, platform="snp"):
         stripped_tag = strip_release_tag_name(tag)
         install_directory = f"{INSTALL_DIRECTORY_PREFIX}{stripped_tag}"
-        if get_version_from_tag_name(tag) >= Version("3.0.0-rc1"):
+        if (
+            Version("3.0.0-rc1")
+            <= get_version_from_tag_name(tag)
+            < Version("7.0.0.dev1")
+        ):
             install_path = os.path.abspath(
                 os.path.join(
                     install_directory, f"{INSTALL_DIRECTORY_SUB_PATH}_{platform}"
@@ -465,6 +472,8 @@ class Repository:
 
 if __name__ == "__main__":
     # Run this to test
+    from unittest.mock import patch
+
     class MockGitEnv:
         def __init__(self, tags=None, local_branch=None):
             self.tags = set(tags or ())
@@ -595,3 +604,60 @@ if __name__ == "__main__":
             ) == get_major_version_from_release_branch_name(e.local_branch)
 
     LOG.success(f"Successfully verified scenario of size {len(test_scenario)}")
+
+    package_scenarios = [
+        ("6.0.0-dev19", "ccf_{platform}_6.0.0_dev19", "opt/ccf_{platform}"),
+        ("6.0.0-rc2", "ccf_{platform}_devel_6.0.0_rc2", "opt/ccf_{platform}"),
+        ("6.0.28", "ccf_{platform}_devel_6.0.28", "opt/ccf_{platform}"),
+        ("7.0.0-dev0", "ccf_{platform}_devel_7.0.0_dev0", "opt/ccf_{platform}"),
+        ("7.0.0-dev1", "ccf_devel_7.0.0_dev1", "opt/ccf"),
+        ("7.0.0", "ccf_devel_7.0.0", "opt/ccf"),
+        ("7.0.13", "ccf_devel_7.0.13", "opt/ccf"),
+    ]
+    for version, package_prefix, install_subpath in package_scenarios:
+        tag = f"ccf-{version}"
+        for platform in ("snp", "virtual"):
+            expected_url = (
+                f"{REMOTE_URL}/releases/download/{tag}/"
+                f"{package_prefix.format(platform=platform)}_x86_64.rpm"
+            )
+            assert get_package_url_from_tag_name(tag, platform) == expected_url
+            expected_install_path = os.path.abspath(
+                os.path.join(
+                    f"ccf_install_{version}",
+                    install_subpath.format(platform=platform),
+                )
+            )
+            with patch.object(os.path, "isfile", return_value=True) as isfile:
+                assert Repository(MockGitEnv()).install_release(tag, platform) == (
+                    tag,
+                    expected_install_path,
+                )
+                isfile.assert_called_once_with(
+                    os.path.join(expected_install_path, INSTALL_SUCCESS_FILE)
+                )
+
+    class PackageGitEnv(MockGitEnv):
+        has_release_for_tag_name = GitEnv.has_release_for_tag_name
+
+    published_urls = {
+        f"{REMOTE_URL}/releases/download/ccf-6.0.28/ccf_snp_devel_6.0.28_x86_64.rpm",
+        f"{REMOTE_URL}/releases/download/ccf-7.0.13/ccf_devel_7.0.13_x86_64.rpm",
+    }
+    with patch.object(requests, "head") as head:
+
+        def release_head(url, **kwargs):
+            response = requests.Response()
+            response.status_code = 200 if url in published_urls else 404
+            return response
+
+        head.side_effect = release_head
+        repo = Repository(
+            PackageGitEnv(tags=["ccf-6.0.28", "ccf-7.0.13", "ccf-7.0.14"])
+        )
+        assert repo.get_latest_released_tag_for_branch("main", False) == "ccf-7.0.13"
+        assert repo.get_supported_lts_releases("main") == {
+            6: "ccf-6.0.28",
+            7: "ccf-7.0.13",
+        }
+    LOG.success("Successfully verified release package discovery and install paths")
