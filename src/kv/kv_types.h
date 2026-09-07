@@ -709,7 +709,8 @@ namespace ccf::kv
     virtual void unlock_map_set() = 0;
 
     virtual Version next_version() = 0;
-    virtual std::tuple<Version, Version> next_version(bool commit_new_map) = 0;
+    virtual std::optional<std::tuple<Version, Version, Version>> next_version(
+      bool commit_new_map, Term expected_commit_term) = 0;
     virtual ccf::TxID next_txid() = 0;
 
     virtual Version current_version() = 0;
@@ -743,6 +744,14 @@ namespace ccf::kv
       std::unique_ptr<PendingTx> pending_tx,
       bool globally_committable) = 0;
     virtual bool check_rollback_count(Version count) = 0;
+    virtual bool apply_tx_flags(
+      Version version,
+      Term expected_term,
+      Version expected_rollback_count,
+      bool force_ledger_chunk,
+      bool snapshot_at_next_signature) = 0;
+    virtual std::optional<bool> should_create_ledger_chunk_for_reserved_tx(
+      Version version, Term expected_term, Version expected_rollback_count) = 0;
 
     virtual std::unique_ptr<AbstractSnapshot> snapshot_unsafe_maps(
       Version v) = 0;

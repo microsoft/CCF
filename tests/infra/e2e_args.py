@@ -1,14 +1,256 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import argparse
+import json
 import os
+import re
 import sys
+from pathlib import Path
 
 from loguru import logger as LOG
 
 import infra.interfaces
 import infra.network
 import infra.path
+
+# Every argument registered directly by cli_args must appear here. None means
+# that no single host configuration schema property applies to the argument.
+CLI_ARGUMENT_CONFIG_PATHS = {
+    "binary_dir": None,
+    "library_dir": None,
+    "debug_nodes": None,
+    "log_level": None,
+    "log_format_json": "logging.format",
+    "package": None,
+    "constitution": None,
+    "js_app_bundle": None,
+    "jwt_issuer": None,
+    "jwt_key_refresh_max_response_size": "jwt.key_refresh_max_response_size",
+    "network_only": None,
+    "sig_tx_interval": "ledger_signatures.tx_count",
+    "sig_ms_interval": "ledger_signatures.delay",
+    "memory_reserve_startup": None,
+    "election_timeout_ms": "consensus.election_timeout",
+    "consensus_update_timeout_ms": "consensus.message_timeout",
+    "worker_threads": "worker_threads",
+    "pdb": None,
+    "workspace": None,
+    "label": None,
+    "perf_label": None,
+    "throws_if_reqs_not_met": None,
+    "subject_name": "node_certificate.subject_name",
+    "subject_alt_names": None,
+    "participants_curve": None,
+    "join_timer_s": "command.join.retry_timeout",
+    "initial_member_count": None,
+    "initial_operator_provisioner_count": None,
+    "initial_operator_count": None,
+    "initial_user_count": None,
+    "initial_recovery_participant_count": None,
+    "initial_recovery_owner_count": None,
+    "ledger_recovery_timeout": None,
+    "ledger_chunk_bytes": "ledger.chunk_size",
+    "ledger_max_transaction_bytes": "ledger.max_transaction_size",
+    "snapshot_tx_interval": "snapshots.tx_count",
+    "snapshot_min_tx_interval": "snapshots.min_tx_count",
+    "snapshot_time_interval": "snapshots.time_interval",
+    "max_open_sessions": "network.rpc_interfaces.*.max_open_sessions_soft",
+    "max_open_sessions_hard": "network.rpc_interfaces.*.max_open_sessions_hard",
+    "jwt_key_refresh_interval_s": "jwt.key_refresh_interval",
+    "common_read_only_ledger_dir": None,
+    "curve_id": "node_certificate.curve_id",
+    "ccf_version": None,
+    "initial_node_cert_validity_days": "node_certificate.initial_validity_days",
+    "initial_service_cert_validity_days": (
+        "command.start.initial_service_certificate_validity_days"
+    ),
+    "maximum_node_certificate_validity_days": (
+        "command.start.service_configuration.maximum_node_certificate_validity_days"
+    ),
+    "maximum_service_certificate_validity_days": (
+        "command.start.service_configuration.maximum_service_certificate_validity_days"
+    ),
+    "reconfiguration_type": None,
+    "previous_service_identity_file": None,
+    "config_file": None,
+    "max_http_body_size": ("network.rpc_interfaces.*.http_configuration.max_body_size"),
+    "max_http_header_size": (
+        "network.rpc_interfaces.*.http_configuration.max_header_size"
+    ),
+    "max_http_headers_count": (
+        "network.rpc_interfaces.*.http_configuration.max_headers_count"
+    ),
+    "http2": "network.rpc_interfaces.*.app_protocol",
+    "snp_endorsements_servers": None,
+    "forwarding_timeout_ms": "network.rpc_interfaces.*.forwarding_timeout_ms",
+    "tick_ms": "tick_interval",
+    "max_msg_size_bytes": "memory.max_msg_size",
+    "gov_api_version": None,
+}
+
+_TIME_UNITS_IN_US = {
+    "us": 1,
+    "ms": 1000,
+    "s": 1000 * 1000,
+    "min": 60 * 1000 * 1000,
+    "h": 60 * 60 * 1000 * 1000,
+}
+
+_SIZE_UNITS_IN_BYTES = {
+    "B": 1,
+    "KB": 1024,
+    "MB": 1024 * 1024,
+    "GB": 1024 * 1024 * 1024,
+    "TB": 1024 * 1024 * 1024 * 1024,
+}
+
+
+def _convert_time_string(value, target_unit):
+    match = re.fullmatch(r"(\d+)(us|ms|s|min|h)", value)
+    if match is None:
+        raise ValueError(f"Invalid time string in host config schema: {value}")
+
+    source_value, source_unit = match.groups()
+    value_in_us = int(source_value) * _TIME_UNITS_IN_US[source_unit]
+    target_unit_in_us = _TIME_UNITS_IN_US[target_unit]
+    if value_in_us % target_unit_in_us != 0:
+        raise ValueError(
+            f"Host config default {value} cannot be represented in {target_unit}"
+        )
+    return value_in_us // target_unit_in_us
+
+
+def _convert_size_string_to_bytes(value):
+    match = re.fullmatch(r"(\d+)(B|KB|MB|GB|TB)?", value)
+    if match is None:
+        raise ValueError(f"Invalid size string in host config schema: {value}")
+
+    source_value, source_unit = match.groups()
+    return int(source_value) * _SIZE_UNITS_IN_BYTES[source_unit or "B"]
+
+
+def _convert_curve_id(value):
+    return infra.network.EllipticCurve[value.lower()]
+
+
+_CONFIG_DEFAULT_CONVERTERS = {
+    "log_format_json": lambda value: value == "Json",
+    "sig_ms_interval": lambda value: _convert_time_string(value, "ms"),
+    "election_timeout_ms": lambda value: _convert_time_string(value, "ms"),
+    "consensus_update_timeout_ms": lambda value: _convert_time_string(value, "ms"),
+    "join_timer_s": lambda value: _convert_time_string(value, "s"),
+    "jwt_key_refresh_interval_s": lambda value: _convert_time_string(value, "s"),
+    "curve_id": _convert_curve_id,
+    "max_http_body_size": _convert_size_string_to_bytes,
+    "max_http_header_size": _convert_size_string_to_bytes,
+    "http2": lambda value: value == "HTTP2",
+    "tick_ms": lambda value: _convert_time_string(value, "ms"),
+}
+
+
+def _load_host_config_schema():
+    candidates = (
+        Path(__file__).with_name("host_config.json"),
+        Path(__file__).parents[2] / "doc/host_config_schema/host_config.json",
+    )
+    for candidate in candidates:
+        if candidate.is_file():
+            with candidate.open(encoding="utf-8") as schema_file:
+                return json.load(schema_file)
+
+    raise FileNotFoundError(
+        "Cannot find host configuration schema in "
+        + " or ".join(str(candidate) for candidate in candidates)
+    )
+
+
+def _get_schema_property(schema, config_path):
+    current = schema
+    for name in config_path.split("."):
+        if name == "*":
+            additional_properties = current.get("additionalProperties")
+            if not isinstance(additional_properties, dict):
+                raise KeyError(
+                    f"Expected additionalProperties while resolving {config_path}"
+                )
+            current = additional_properties
+            continue
+
+        matches = []
+        properties = current.get("properties", {})
+        if name in properties:
+            matches.append(properties[name])
+
+        for condition in current.get("allOf", []):
+            for branch_name in ("then", "else"):
+                branch = condition.get(branch_name, {})
+                branch_properties = branch.get("properties", {})
+                if name in branch_properties:
+                    matches.append(branch_properties[name])
+
+        if len(matches) != 1:
+            raise KeyError(
+                f"Expected one schema property for {config_path}, found {len(matches)}"
+            )
+        current = matches[0]
+
+    return current
+
+
+def _apply_host_config_metadata(
+    parser,
+    use_host_config_defaults=False,
+    additional_cli_argument_config_paths=None,
+):
+    schema = _load_host_config_schema()
+    argument_config_paths = CLI_ARGUMENT_CONFIG_PATHS.copy()
+    if additional_cli_argument_config_paths:
+        duplicate_arguments = (
+            argument_config_paths.keys() & additional_cli_argument_config_paths.keys()
+        )
+        if duplicate_arguments:
+            raise ValueError(
+                "Additional host configuration mappings duplicate CLI arguments: "
+                + ", ".join(sorted(duplicate_arguments))
+            )
+        argument_config_paths.update(additional_cli_argument_config_paths)
+
+    actions = {action.dest: action for action in parser._actions}
+    actions.pop("help", None)
+    unmapped_arguments = actions.keys() - argument_config_paths.keys()
+    missing_arguments = argument_config_paths.keys() - actions.keys()
+    if (use_host_config_defaults and unmapped_arguments) or missing_arguments:
+        errors = []
+        if use_host_config_defaults and unmapped_arguments:
+            errors.append(
+                "CLI arguments missing host configuration mappings: "
+                + ", ".join(sorted(unmapped_arguments))
+            )
+        if missing_arguments:
+            errors.append(
+                "Host configuration mappings without CLI arguments: "
+                + ", ".join(sorted(missing_arguments))
+            )
+        raise ValueError("; ".join(errors))
+
+    for destination, config_path in argument_config_paths.items():
+        if config_path is None:
+            continue
+        config_property = _get_schema_property(schema, config_path)
+        required_metadata = {"description"}
+        if use_host_config_defaults:
+            required_metadata.add("default")
+        missing_metadata = required_metadata - config_property.keys()
+        if missing_metadata:
+            raise KeyError(
+                f"Host config schema property {config_path} for CLI argument "
+                f"{destination} is missing: {', '.join(sorted(missing_metadata))}"
+            )
+        actions[destination].help = config_property["description"]
+        if use_host_config_defaults:
+            converter = _CONFIG_DEFAULT_CONVERTERS.get(destination, lambda value: value)
+            actions[destination].default = converter(config_property["default"])
+
 
 _LOG_LEVEL_DISPLAY = {
     "TRACE": "TRC ",
@@ -80,6 +322,8 @@ def cli_args(
     parser=None,
     accept_unknown=False,
     ledger_chunk_bytes_override=None,
+    use_host_config_defaults=False,
+    additional_cli_argument_config_paths=None,
 ):
     LOG.remove()
     LOG.add(
@@ -442,6 +686,12 @@ def cli_args(
         default=infra.clients.API_VERSION_LATEST,
     )
     add(parser)
+
+    _apply_host_config_metadata(
+        parser,
+        use_host_config_defaults=use_host_config_defaults,
+        additional_cli_argument_config_paths=additional_cli_argument_config_paths,
+    )
 
     if accept_unknown:
         args, unknown_args = parser.parse_known_args()

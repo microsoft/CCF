@@ -10,6 +10,7 @@
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #define DOCTEST_CONFIG_NO_SHORT_MACRO_NAMES
+#include <algorithm>
 #include <doctest/doctest.h>
 #include <queue>
 #include <string>
@@ -466,9 +467,9 @@ DOCTEST_TEST_CASE("URL parsing")
   std::string path_, query_, fragment_;
   std::tie(path_, query_, fragment_) = http::split_url_path(m.url);
   DOCTEST_CHECK(path_ == path);
-  DOCTEST_CHECK(query_.find("balance=42") != std::string::npos);
-  DOCTEST_CHECK(query_.find("id=100") != std::string::npos);
-  DOCTEST_CHECK(query_.find("&") != std::string::npos);
+  DOCTEST_CHECK(query_.contains("balance=42"));
+  DOCTEST_CHECK(query_.contains("id=100"));
+  DOCTEST_CHECK(query_.contains("&"));
 }
 
 DOCTEST_TEST_CASE("Pessimal transport")
@@ -837,8 +838,7 @@ DOCTEST_TEST_CASE("Query parser")
   for (auto it = parsed.begin(); it != parsed.end(); ++it)
   {
     const auto k = it->first;
-    const auto found = std::find(checked_keys.begin(), checked_keys.end(), k);
-    DOCTEST_REQUIRE(found != checked_keys.end());
+    DOCTEST_REQUIRE(std::ranges::contains(checked_keys, k));
   }
 }
 

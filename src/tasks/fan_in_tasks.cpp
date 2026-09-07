@@ -3,7 +3,7 @@
 
 #include "tasks/fan_in_tasks.h"
 
-#include "ccf/pal/locking.h"
+#include "ccf/ds/locking.h"
 
 #include <map>
 #include <stdexcept>
@@ -18,7 +18,7 @@ namespace ccf::tasks
     JobBoard& job_board;
 
     // Synchronise access to pending_tasks and next_expected_task_index
-    ccf::pal::Mutex pending_tasks_mutex;
+    ccf::ds::Mutex pending_tasks_mutex;
     std::map<size_t, Task> pending_tasks CCF_GUARDED_BY(pending_tasks_mutex);
     size_t next_expected_task_index CCF_GUARDED_BY(pending_tasks_mutex) = 0;
 
@@ -35,7 +35,7 @@ namespace ccf::tasks
     std::vector<Task> current_batch;
 
     {
-      ccf::pal::MutexGuard lock(pimpl->pending_tasks_mutex);
+      ccf::ds::MutexGuard lock(pimpl->pending_tasks_mutex);
       pimpl->active.store(true);
 
       auto it = pimpl->pending_tasks.find(pimpl->next_expected_task_index);
@@ -55,7 +55,7 @@ namespace ccf::tasks
     }
 
     {
-      ccf::pal::MutexGuard lock(pimpl->pending_tasks_mutex);
+      ccf::ds::MutexGuard lock(pimpl->pending_tasks_mutex);
       pimpl->active.store(false);
 
       auto it = pimpl->pending_tasks.find(pimpl->next_expected_task_index);
@@ -86,7 +86,7 @@ namespace ccf::tasks
   void FanInTasks::add_task(size_t task_index, Task task)
   {
     {
-      ccf::pal::MutexGuard lock(pimpl->pending_tasks_mutex);
+      ccf::ds::MutexGuard lock(pimpl->pending_tasks_mutex);
 
       if (task_index < pimpl->next_expected_task_index)
       {

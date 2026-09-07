@@ -176,7 +176,7 @@ TEST_CASE("Check KV Map access")
 
 bool str_contains(const std::string& s, std::string_view sv)
 {
-  const auto b = s.find(sv) != std::string::npos;
+  const auto b = s.contains(sv);
   if (!b)
   {
     fmt::print("Didn't find\n {}\nin\n {}\n", sv, s);

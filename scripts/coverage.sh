@@ -164,8 +164,9 @@ build_cov_args() {
   for bin in "${BINARIES[@]:1}"; do
     args+=("-object" "${bin}")
   done
-  # Exclude third-party code from all reports
-  args+=("-ignore-filename-regex=3rdparty/")
+  # Exclude third-party and test code: coverage should measure the framework
+  # being tested, not the tests exercising it.
+  args+=("-ignore-filename-regex=3rdparty/|/test/|/tests/|_test\.(cpp|h)$|/perf/")
   # Override compilation directory so llvm-cov can resolve mapped source paths
   if [[ -n "${COMPILATION_DIR}" ]]; then
     args+=("-compilation-dir=${COMPILATION_DIR}")

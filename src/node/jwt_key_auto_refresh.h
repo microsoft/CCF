@@ -3,8 +3,8 @@
 #pragma once
 
 #include "ccf/ds/json.h"
+#include "ccf/ds/locking.h"
 #include "ccf/ds/nonstd.h"
-#include "ccf/pal/locking.h"
 #include "ccf/service/tables/cert_bundles.h"
 #include "ccf/service/tables/jwt.h"
 #include "http/curl.h"
@@ -45,7 +45,7 @@ namespace ccf
       ccf::tasks::Task task = nullptr;
     };
 
-    ccf::pal::Mutex retry_states_lock;
+    ccf::ds::Mutex retry_states_lock;
     std::map<JwtIssuer, RetryState> retry_states
       CCF_GUARDED_BY(retry_states_lock);
     size_t next_retry_generation CCF_GUARDED_BY(retry_states_lock) = 0;
@@ -56,7 +56,7 @@ namespace ccf
 
     bool begin_retry(const JwtIssuer& issuer, size_t generation)
     {
-      ccf::pal::MutexGuard guard(retry_states_lock);
+      ccf::ds::MutexGuard guard(retry_states_lock);
       const auto it = retry_states.find(issuer);
       if (
         it == retry_states.end() || it->second.generation != generation ||
@@ -71,7 +71,7 @@ namespace ccf
 
     void cancel_retry(const JwtIssuer& issuer)
     {
-      ccf::pal::MutexGuard guard(retry_states_lock);
+      ccf::ds::MutexGuard guard(retry_states_lock);
       const auto it = retry_states.find(issuer);
       if (it == retry_states.end())
       {
@@ -87,7 +87,7 @@ namespace ccf
 
     void cancel_retries()
     {
-      ccf::pal::MutexGuard guard(retry_states_lock);
+      ccf::ds::MutexGuard guard(retry_states_lock);
       for (auto& retry_state_entry : retry_states)
       {
         auto& retry_state = retry_state_entry.second;
@@ -104,7 +104,7 @@ namespace ccf
       ccf::tasks::Task retry_task;
       size_t delay_s = 0;
       {
-        ccf::pal::MutexGuard guard(retry_states_lock);
+        ccf::ds::MutexGuard guard(retry_states_lock);
         if (stopped.load())
         {
           return;

@@ -3766,9 +3766,9 @@ def test_join_idempotency_short_circuits_on_backup(network, args):
     network.consortium.retire_node_by_id(primary, joined_node_id)
 
 
-def run_backup_snapshot_download(const_args):
+def _run_backup_snapshot_download(const_args, label_suffix, tests):
     args = copy.deepcopy(const_args)
-    args.label += "_backup_snapshot_download"
+    args.label += label_suffix
     # Use a small snapshot interval to trigger snapshots quickly
     args.snapshot_tx_interval = 30
     args.nodes = infra.e2e_args.max_nodes(args, f=0)
@@ -3780,11 +3780,41 @@ def run_backup_snapshot_download(const_args):
         txs=app.LoggingTxs("user0"),
     ) as network:
         network.start_and_open(args, backup_snapshot_fetch_enabled=True)
-        test_backup_snapshot_fetch(network, args)
-        test_backup_snapshot_fetch_max_size(network, args)
-        test_join_idempotency_short_circuits_on_backup(network, args)
-        test_join_time_snapshot_fetch_failure(network, args)
-        test_error_message_on_failure_to_fetch_snapshot(network, args)
+        for test in tests:
+            test(network, args)
+
+
+# Each group below brings up its own network and runs concurrently with the
+# others. Every test starts by finding the primary and issuing its own
+# transactions, so none of them depend on the others.
+def run_backup_snapshot_download(const_args):
+    _run_backup_snapshot_download(
+        const_args,
+        "_backup_snapshot_download",
+        [test_backup_snapshot_fetch],
+    )
+
+
+def run_backup_snapshot_download_limits(const_args):
+    _run_backup_snapshot_download(
+        const_args,
+        "_backup_snapshot_limits",
+        [
+            test_backup_snapshot_fetch_max_size,
+            test_join_idempotency_short_circuits_on_backup,
+        ],
+    )
+
+
+def run_backup_snapshot_download_failures(const_args):
+    _run_backup_snapshot_download(
+        const_args,
+        "_backup_snapshot_failures",
+        [
+            test_join_time_snapshot_fetch_failure,
+            test_error_message_on_failure_to_fetch_snapshot,
+        ],
+    )
 
 
 def run_propose_request_vote(const_args):
@@ -4801,19 +4831,37 @@ def run_ledger_chunk_cleanup_tests(const_args):
             test_ledger_chunk_cleanup_digest_mismatch(network, args)
 
 
-def run(args):
+# The operations tests below are split into groups which are run
+# concurrently, as separate ConcurrentRunner sub-tests (see tests/schema.py).
+# Each group runs its own tests sequentially, so tests which share a workspace
+# label must stay within a single group. Keep the groups roughly balanced, as
+# the slowest group bounds the total run time.
+
+
+def run_offline_ledger_tools(args):
     run_ledger_viz_test(args)
     run_split_ledger_test(args)
-    run_max_uncommitted_tx_count(args)
     run_file_operations(args)
+    run_read_ledger_on_testdata(args)
+    run_merkle_verification_level(args)
+
+
+def run_snapshot_manual_and_retention(args):
     run_forced_snapshot_while_opening(args)
     run_manual_snapshot_tests(args)
     run_max_retained_snapshot_files(args)
     run_backup_snapshot_cleanup(args)
+
+
+def run_ledger_chunk_operations(args):
+    run_max_uncommitted_tx_count(args)
     run_max_committed_ledger_chunk_files(args)
     run_post_snapshot_chunk_retention(args)
     run_ledger_cleanup_no_read_only_dir_check(args)
     run_ledger_chunk_cleanup_tests(args)
+
+
+def run_node_config_checks(args):
     run_tls_san_checks(args)
     run_tls_san_join_mismatch(args)
     run_config_timeout_check(args)
@@ -4822,12 +4870,19 @@ def run(args):
     run_preopen_readiness_check(args)
     run_sighup_check(args)
     run_service_subject_name_check(args)
+    run_empty_ledger_dir_check(args)
+    run_propose_request_vote(args)
+
+
+def run_cose_checks(args):
     run_cose_signatures_config_check(args)
     run_late_mounted_ledger_check(args)
-    run_empty_ledger_dir_check(args)
-    run_read_ledger_on_testdata(args)
-    run_merkle_verification_level(args)
-    run_propose_request_vote(args)
-    run_time_based_snapshotting(args)
-    run_snapshot_persistence_across_primary_failure(args)
     run_cose_only_mode_upgrade(args)
+
+
+def run_time_based_snapshots(args):
+    run_time_based_snapshotting(args)
+
+
+def run_snapshot_persistence(args):
+    run_snapshot_persistence_across_primary_failure(args)

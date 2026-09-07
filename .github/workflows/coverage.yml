@@ -100,7 +100,9 @@ jobs:
             job_id=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/jobs" \
               --jq '.jobs[0].id' || true)
             [[ -z "$job_id" ]] && continue
-            gh api "repos/${GITHUB_REPOSITORY}/actions/jobs/${job_id}/logs" \
+            # Job logs contain ANSI sequences, which gh 2.97+ blocks by default.
+            gh api --allow-escape-sequences \
+              "repos/${GITHUB_REPOSITORY}/actions/jobs/${job_id}/logs" \
               > "coverage_history/${run_id}-${run_number}.log" || true
           done <<< "$runs"
         shell: bash

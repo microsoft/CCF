@@ -1,12 +1,17 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-# DETECT_DEADLOCKS opts a test out of the repository-wide TSAN suppressions
-# (which otherwise hide lock-order-inversion reports from src/kv/store.h and
-# src/kv/untyped_map.h), and turns on TSAN's deadlock detector, which is off
-# by default. Use this only for tests specifically targeting lock ordering.
+# DETECT_DEADLOCKS opts a test out of the repository-wide TSAN suppressions and
+# turns on TSAN's deadlock detector, which is off by default. TSAN_SUPPRESSIONS
+# may select a narrower suppression file for that test.
 function(add_san_test_properties name)
-  cmake_parse_arguments(PARSE_ARGV 1 PARSED_ARGS "DETECT_DEADLOCKS" "" "")
+  cmake_parse_arguments(
+    PARSE_ARGV 1
+    PARSED_ARGS
+    "DETECT_DEADLOCKS"
+    "TSAN_SUPPRESSIONS"
+    ""
+  )
 
   if(SAN)
     set_property(
@@ -18,12 +23,20 @@ function(add_san_test_properties name)
 
   if(TSAN)
     if(PARSED_ARGS_DETECT_DEADLOCKS)
+      set(
+        TSAN_OPTIONS
+        "detect_deadlocks=1:halt_on_error=1:second_deadlock_stack=1"
+      )
+      if(PARSED_ARGS_TSAN_SUPPRESSIONS)
+        string(
+          APPEND TSAN_OPTIONS
+          ":suppressions=${PARSED_ARGS_TSAN_SUPPRESSIONS}"
+        )
+      endif()
       set_property(
         TEST ${name}
         APPEND
-        PROPERTY
-          ENVIRONMENT
-            "TSAN_OPTIONS=detect_deadlocks=1:halt_on_error=1:second_deadlock_stack=1"
+        PROPERTY ENVIRONMENT "TSAN_OPTIONS=${TSAN_OPTIONS}"
       )
     else()
       set_property(
@@ -127,7 +140,7 @@ function(add_e2e_test)
     PARSE_ARGV 0
     PARSED_ARGS
     "DETECT_DEADLOCKS"
-    "NAME;PYTHON_SCRIPT;LABEL;CURL_CLIENT;BUCKET"
+    "NAME;PYTHON_SCRIPT;LABEL;CURL_CLIENT;BUCKET;TSAN_SUPPRESSIONS"
     "CONSTITUTION;ADDITIONAL_ARGS;CONFIGURATIONS"
   )
 
@@ -194,6 +207,13 @@ function(add_e2e_test)
     if(PARSED_ARGS_DETECT_DEADLOCKS)
       set(SAN_TEST_ARGS DETECT_DEADLOCKS)
     endif()
+    if(PARSED_ARGS_TSAN_SUPPRESSIONS)
+      list(
+        APPEND SAN_TEST_ARGS
+        TSAN_SUPPRESSIONS
+        ${PARSED_ARGS_TSAN_SUPPRESSIONS}
+      )
+    endif()
     add_san_test_properties(${PARSED_ARGS_NAME} ${SAN_TEST_ARGS})
 
     if(COVERAGE)
@@ -229,48 +249,6 @@ function(add_e2e_test)
       )
     endif()
   endif()
-endfunction()
-
-# Helper for building end-to-end perf tests using the python infrastucture
-function(add_piccolo_test)
-  cmake_parse_arguments(
-    PARSE_ARGV 0
-    PARSED_ARGS
-    ""
-    "NAME;PYTHON_SCRIPT;CONSTITUTION;CLIENT_BIN;PERF_LABEL"
-    "ADDITIONAL_ARGS"
-  )
-
-  if(NOT PARSED_ARGS_CONSTITUTION)
-    set(PARSED_ARGS_CONSTITUTION ${CCF_NETWORK_TEST_DEFAULT_CONSTITUTION})
-  endif()
-
-  set(TEST_NAME "${PARSED_ARGS_NAME}")
-
-  if(NOT PARSED_ARGS_PERF_LABEL)
-    set(PARSED_ARGS_PERF_LABEL ${TEST_NAME})
-  endif()
-
-  add_test(
-    NAME "${PARSED_ARGS_NAME}"
-    COMMAND
-      ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT} -b . -c ${PARSED_ARGS_CLIENT_BIN}
-      ${CCF_NETWORK_TEST_ARGS} ${PARSED_ARGS_CONSTITUTION} --label ${TEST_NAME}
-      --perf-label ${PARSED_ARGS_PERF_LABEL} --snapshot-tx-interval 10000
-      ${PARSED_ARGS_ADDITIONAL_ARGS} ${NODES}
-    CONFIGURATIONS perf
-  )
-
-  # Make python test client framework importable
-  set_property(
-    TEST ${TEST_NAME}
-    APPEND
-    PROPERTY ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH}"
-  )
-
-  set_property(TEST ${TEST_NAME} APPEND PROPERTY LABELS perf)
-
-  add_san_test_properties(${TEST_NAME})
 endfunction()
 
 # Picobench wrapper
