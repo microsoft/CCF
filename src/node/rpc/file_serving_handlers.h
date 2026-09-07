@@ -391,10 +391,9 @@ namespace ccf::node
         HTTP_STATUS_BAD_REQUEST,
         ccf::errors::InvalidHeaderValue,
         fmt::format(
-          "Invalid range: Requested range is empty (starts and ends at {} in a "
-          "file of size {}), must request at least one byte",
+          "Invalid range: Start ({}) and end ({}) out of order",
           range_start,
-          total_size));
+          range_end));
       return;
     }
 
