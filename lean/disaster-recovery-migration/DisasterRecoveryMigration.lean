@@ -1,3 +1,3 @@
-import DisasterRecoveryMigration.Legacy.Model
 import DisasterRecoveryMigration.Legacy.Checker
+import DisasterRecoveryMigration.Legacy.Model
 import DisasterRecoveryMigration.Refinement
