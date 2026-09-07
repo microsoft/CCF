@@ -659,16 +659,6 @@ namespace ccf::kv
       // at the specified version.
       // No transactions can be prepared or committed during rollback.
 
-      if (snapshotter)
-      {
-        snapshotter->rollback(tx_id.seqno);
-      }
-
-      if (chunker)
-      {
-        chunker->rolled_back_to(tx_id.seqno);
-      }
-
       std::lock_guard<ccf::ds::Mutex> mguard(maps_lock);
 
       {
@@ -696,6 +686,17 @@ namespace ccf::kv
 
         if (tx_id.seqno >= version)
         {
+          if (snapshotter)
+          {
+            snapshotter->rollback(tx_id.seqno);
+          }
+          if (chunker)
+          {
+            // Nothing local is discarded here, but the rollback target may be
+            // at or beyond the Store's current version. Clamp so this cannot
+            // move chunk metadata forward past the Store.
+            chunker->rolled_back_to(std::min<Version>(tx_id.seqno, version));
+          }
           return;
         }
 
@@ -707,6 +708,16 @@ namespace ccf::kv
         unset_flag_unsafe(StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
         rollback_count++;
         pending_txs.clear();
+        if (snapshotter)
+        {
+          snapshotter->rollback(tx_id.seqno);
+        }
+        if (chunker)
+        {
+          // Keep this ordered with append_entry_size() below, so a commit
+          // cannot restore chunk metadata after this rollback.
+          chunker->rolled_back_to(tx_id.seqno);
+        }
         auto e = get_encryptor();
         if (e)
         {
@@ -1083,7 +1094,18 @@ namespace ccf::kv
 
         if (chunker)
         {
-          chunker->append_entry_size(data_shared->size());
+          std::lock_guard<ccf::ds::Mutex> vguard(version_lock);
+          // A rollback can only discard this batch's writes by truncating,
+          // which requires its target to be below `version` and therefore
+          // increments rollback_count. A rollback that does not truncate
+          // leaves the writes intact, but may still move the term on, which
+          // consensus will reject - so both are checked here.
+          if (
+            previous_rollback_count == rollback_count &&
+            replication_view == term_of_next_version)
+          {
+            chunker->append_entry_size(data_shared->size());
+          }
         }
 
         LOG_DEBUG_FMT(
@@ -1126,6 +1148,28 @@ namespace ccf::kv
         return snapshotter->should_schedule_snapshot(last_committable);
       }
       return false;
+    }
+
+    std::optional<bool> should_create_ledger_chunk_for_reserved_tx(
+      Version version,
+      Term expected_term,
+      Version expected_rollback_count) override
+    {
+      std::lock_guard<ccf::ds::Mutex> vguard(version_lock);
+      if (
+        term_of_next_version != expected_term ||
+        rollback_count != expected_rollback_count)
+      {
+        return std::nullopt;
+      }
+
+      const auto should_create_chunk =
+        should_create_ledger_chunk_unsafe(version);
+      if (should_create_chunk && chunker)
+      {
+        chunker->produced_chunk_at(version);
+      }
+      return should_create_chunk;
     }
 
     bool should_create_ledger_chunk(Version version) override
@@ -1393,6 +1437,34 @@ namespace ccf::kv
     {
       std::lock_guard<ccf::ds::Mutex> vguard(version_lock);
       return {this, term_of_last_version, tx_id, rollback_count};
+    }
+
+    bool apply_tx_flags(
+      Version tx_version,
+      Term expected_term,
+      Version expected_rollback_count,
+      bool force_ledger_chunk,
+      bool snapshot_at_next_signature) override
+    {
+      std::lock_guard<ccf::ds::Mutex> vguard(version_lock);
+      if (
+        term_of_next_version != expected_term ||
+        rollback_count != expected_rollback_count)
+      {
+        return false;
+      }
+
+      if (force_ledger_chunk && chunker)
+      {
+        chunker->force_end_of_chunk(tx_version);
+      }
+
+      if (snapshot_at_next_signature)
+      {
+        set_flag_unsafe(StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
+      }
+
+      return true;
     }
 
     void set_flag(StoreFlag f) override

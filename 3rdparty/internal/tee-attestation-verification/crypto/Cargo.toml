@@ -1,8 +1,8 @@
 [package]
 name = "tee-attestation-verification-crypto"
-version = "1.0.4"
+version = "1.0.8"
 edition = "2021"
-rust-version = "1.77"
+rust-version = "1.85"
 repository = "https://github.com/microsoft/TEE-Attestation-Verification"
 keywords = ["confidentiality", "sev-snp", "tpm"]
 description = "Cryptographic backends for TEE attestation verification"
@@ -11,45 +11,35 @@ license = "MIT"
 links = "tav_crypto"
 
 [features]
-default = ["crypto_openssl", "crypto_webcrypto"]
-crypto_openssl = ["dep:foreign-types", "dep:openssl", "dep:openssl-sys"]
-crypto_pure_rust = [
-    "dep:ecdsa",
-    "dep:getrandom",
-    "dep:p256",
-    "dep:p384",
-    "dep:p521",
-    "dep:pkcs1",
-    "dep:rsa",
-    "dep:sha2",
-    "dep:x509-cert",
-    "getrandom/js",
-]
+default = ["crypto_openssl", "crypto_webcrypto", "crypto_windows"]
+crypto_openssl = ["dep:foreign-types-shared", "dep:openssl", "dep:openssl-sys"]
 crypto_webcrypto = ["dep:pkcs1", "dep:x509-cert"]
+crypto_windows = ["dep:windows"]
 
-[dependencies]
-foreign-types = { version = "0.3", optional = true }
-ecdsa = { version = "0.16", features = ["der", "verifying"], optional = true }
-p256 = { version = "0.13", features = ["ecdsa", "pkcs8"], optional = true }
-p384 = { version = "0.13", features = ["ecdsa", "pkcs8"], optional = true }
-p521 = { version = "0.13", features = ["ecdsa", "pkcs8"], optional = true }
-pkcs1 = { version = "0.7", optional = true }
-rsa = { version = "0.9", optional = true }
-sha2 = { version = "0.10", features = ["oid"], optional = true }
-x509-cert = { version = "0.2", optional = true }
+[target.'cfg(all(not(target_family = "wasm"), not(windows)))'.dependencies]
+foreign-types-shared = { version = ">=0.1, <0.4", optional = true }
+openssl = { version = ">=0.10, <0.11", optional = true }
+openssl-sys = { version = ">=0.9, <0.10", optional = true }
 
-[target.'cfg(not(target_family = "wasm"))'.dependencies]
-openssl = { version = "0.10", optional = true }
-openssl-sys = { version = "0.9", optional = true }
+[target.'cfg(windows)'.dependencies]
+# 0.62 supports the workspace MSRV while exposing the required Crypt32 and CNG APIs.
+windows = { version = ">=0.62.2, <0.63", optional = true, features = [
+    "Win32_Foundation",
+    "Win32_Security_Cryptography",
+] }
 
 [target.'cfg(target_family = "wasm")'.dependencies]
-getrandom = { version = "0.2", optional = true }
-js-sys = "0.3"
-wasm-bindgen = "0.2"
-wasm-bindgen-futures = "0.4"
+js-sys = ">=0.3, <0.4"
+pkcs1 = { version = ">=0.8.0-rc.4, <0.9", optional = true }
+wasm-bindgen = ">=0.2, <0.3"
+wasm-bindgen-futures = ">=0.4, <0.5"
+x509-cert = { version = ">=0.3.0, <0.4", optional = true }
 
 [dev-dependencies]
-wasm-bindgen-test = "0.3"
+getrandom = { version = ">=0.4, <0.5", features = ["wasm_js"] }
+rand = ">=0.10.0, <0.11"
+sha2 = { version = ">=0.11, <0.12", features = ["oid"] }
+wasm-bindgen-test = ">=0.3, <0.4"
 
 [target.'cfg(not(target_family = "wasm"))'.dev-dependencies]
-tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+tokio = { version = ">=1, <2", features = ["rt-multi-thread", "macros"] }

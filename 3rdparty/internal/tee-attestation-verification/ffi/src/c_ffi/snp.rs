@@ -5,9 +5,12 @@
 //!
 //! This module exports the symbols declared in `ffi/include/tav/snp.h`.
 //!
-//! [`tav_verify_snp_attestation`] returns a null [`TavError`] pointer on
-//! success and an owned [`TavError`] pointer on failure. On success it
-//! writes an owned [`TavSnpAttestationReport`] handle to `out_report`.
+//! [`tav_verify_snp_attestation`] and
+//! [`tav_snp_attestation_report_from_unverified_bytes`] return a null
+//! [`TavError`] pointer on success and an owned [`TavError`] pointer on failure.
+//! On success they write an owned [`TavSnpAttestationReport`] handle to
+//! `out_report`. The latter performs fixed-size decoding only; its handle must
+//! not be used where a cryptographically verified report is required.
 //! Callers release these handles with [`crate::c_ffi::utils::tav_error_free`] and
 //! [`tav_snp_attestation_report_free`].
 //!
@@ -39,11 +42,20 @@ fn tav_error_from_verification_error(error: VerificationError) -> TavError {
     TavError::new(code, error.to_string())
 }
 
+fn parse_report(report_bytes: &[u8]) -> Result<&AttestationReport, TavError> {
+    AttestationReport::ref_from_bytes(report_bytes).map_err(|_| {
+        TavError::invalid_argument(format!(
+            "Invalid attestation report: expected {} bytes, got {}",
+            std::mem::size_of::<AttestationReport>(),
+            report_bytes.len()
+        ))
+    })
+}
+
 impl TavSnpAttestationReport {
     pub fn report(&self) -> &AttestationReport {
-        AttestationReport::ref_from_bytes(&self.bytes).expect(
-            "TavSnpAttestationReport is only constructed from verified bytes so parsing should not fail",
-        )
+        AttestationReport::ref_from_bytes(&self.bytes)
+            .expect("TavSnpAttestationReport is only constructed from exact-size bytes")
     }
 }
 
@@ -94,13 +106,7 @@ pub unsafe extern "C" fn tav_verify_snp_attestation(
 
         let report_bytes =
             unsafe { input_bytes(report_bytes, report_len, "attestation report", false) }?;
-        let report = AttestationReport::ref_from_bytes(report_bytes).map_err(|_| {
-            TavError::invalid_argument(format!(
-                "Invalid attestation report: expected {} bytes, got {}",
-                std::mem::size_of::<AttestationReport>(),
-                report_len
-            ))
-        })?;
+        let report = parse_report(report_bytes)?;
 
         let ark_pem = unsafe { input_bytes(ark_pem, ark_pem_len, "ARK", false) }?;
         let ark = certificate_from_pem(ark_pem).map_err(|error| {
@@ -126,6 +132,29 @@ pub unsafe extern "C" fn tav_verify_snp_attestation(
             },
         )
         .map_err(tav_error_from_verification_error)?;
+
+        let report = TavSnpAttestationReport {
+            bytes: report_bytes.to_vec(),
+        };
+        unsafe {
+            *out_report = Box::into_raw(Box::new(report));
+        }
+        Ok(())
+    })
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn tav_snp_attestation_report_from_unverified_bytes(
+    report_bytes: *const u8,
+    report_len: usize,
+    out_report: *mut *mut TavSnpAttestationReport,
+) -> *mut TavError {
+    into_result(|| {
+        unsafe { owned_out_ptr(out_report, "out_report") }?;
+
+        let report_bytes =
+            unsafe { input_bytes(report_bytes, report_len, "attestation report", false) }?;
+        parse_report(report_bytes)?;
 
         let report = TavSnpAttestationReport {
             bytes: report_bytes.to_vec(),

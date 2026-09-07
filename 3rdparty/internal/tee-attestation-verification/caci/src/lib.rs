@@ -25,6 +25,7 @@ use crypto::CertificateBackend;
 use crypto::{AsyncCryptoBackend, AsyncKeyBackend};
 #[cfg(sync_crypto)]
 use crypto::{CryptoBackend, KeyBackend};
+use std::collections::BTreeSet;
 
 #[cfg(sync_crypto)]
 use didx509::verify_didx509_root;
@@ -130,11 +131,11 @@ pub mod synchronous {
     ///
     /// This verifies the COSE_Sign1 signature, the `x5chain`, and that the
     /// chain root matches `trusted_didx509`.
-    pub fn verify_uvm_endorsement(
-        uvm_endorsement: &[u8],
+    pub fn verify_uvm_endorsement<'a>(
+        uvm_endorsement: &'a [u8],
         trusted_didx509: &str,
-    ) -> Result<CborValue, AciError> {
-        let parsed = CborValue::from_bytes(uvm_endorsement).map_err(AciError::Cose)?;
+    ) -> Result<CborValue<'a>, AciError> {
+        let parsed = CborValue::parse_nondet(uvm_endorsement).map_err(AciError::Cose)?;
         let sign1 = cose::cose_sign1(&parsed).map_err(AciError::Cose)?;
         // sign1 fields
         let protected = required_bstr(sign1.array_at(0).map_err(AciError::Cose)?, "protected")?;
@@ -142,7 +143,7 @@ pub mod synchronous {
         let payload = required_bstr(sign1.array_at(2).map_err(AciError::Cose)?, "payload")?;
         let signature = required_bstr(sign1.array_at(3).map_err(AciError::Cose)?, "signature")?;
 
-        let protected_header = CborValue::from_bytes(&protected).map_err(AciError::Cose)?;
+        let protected_header = CborValue::parse_nondet(&protected).map_err(AciError::Cose)?;
         let x5chain = parse::parse_x5chain(
             protected_header
                 .map_at_int(cose::COSE_HEADER_X5CHAIN)
@@ -261,7 +262,7 @@ pub mod synchronous {
         attestation: AttestationReport,
         minimum_tcb: Vec<(snp::Cpuid, TcbVersionRaw)>,
         trusted_caci_execution_policy: Vec<[u8; SNP_HOST_DATA_LEN]>,
-        uvm_endorsement: &CborValue,
+        uvm_endorsement: &CborValue<'_>,
         uvm_feed: &str,
         minimum_svn: u64,
     ) -> Result<[u8; SNP_REPORT_DATA_LEN], AciError> {
@@ -359,11 +360,11 @@ pub mod asynchronous {
     /// chain root matches `trusted_didx509`. This is stage 2 of the ACI flow;
     /// call [`verify_caci_attestation`] afterwards to bind the UVM
     /// endorsement to the verified attestation report and relying-party policy.
-    pub async fn verify_uvm_endorsement(
-        uvm_endorsement: &[u8],
+    pub async fn verify_uvm_endorsement<'a>(
+        uvm_endorsement: &'a [u8],
         trusted_didx509: &str,
-    ) -> Result<CborValue, AciError> {
-        let parsed = CborValue::from_bytes(uvm_endorsement).map_err(AciError::Cose)?;
+    ) -> Result<CborValue<'a>, AciError> {
+        let parsed = CborValue::parse_nondet(uvm_endorsement).map_err(AciError::Cose)?;
         let sign1 = cose::cose_sign1(&parsed).map_err(AciError::Cose)?;
         // Sign1 fields
         let protected = required_bstr(sign1.array_at(0).map_err(AciError::Cose)?, "protected")?;
@@ -371,7 +372,7 @@ pub mod asynchronous {
         let payload = required_bstr(sign1.array_at(2).map_err(AciError::Cose)?, "payload")?;
         let signature = required_bstr(sign1.array_at(3).map_err(AciError::Cose)?, "signature")?;
 
-        let protected_header = CborValue::from_bytes(&protected).map_err(AciError::Cose)?;
+        let protected_header = CborValue::parse_nondet(&protected).map_err(AciError::Cose)?;
         let x5chain = parse::parse_x5chain(
             protected_header
                 .map_at_int(cose::COSE_HEADER_X5CHAIN)
@@ -494,7 +495,7 @@ pub mod asynchronous {
         attestation: AttestationReport,
         minimum_tcb: Vec<(snp::Cpuid, TcbVersionRaw)>,
         trusted_caci_execution_policy: Vec<[u8; SNP_HOST_DATA_LEN]>,
-        uvm_endorsement: &CborValue,
+        uvm_endorsement: &CborValue<'_>,
         uvm_feed: &str,
         minimum_svn: u64,
     ) -> Result<[u8; SNP_REPORT_DATA_LEN], AciError> {
@@ -513,10 +514,20 @@ fn verify_caci_attestation_impl(
     attestation: AttestationReport,
     minimum_tcb: Vec<(snp::Cpuid, TcbVersionRaw)>,
     trusted_caci_execution_policy: Vec<[u8; SNP_HOST_DATA_LEN]>,
-    uvm_endorsement: &CborValue,
+    uvm_endorsement: &CborValue<'_>,
     uvm_feed: &str,
     minimum_svn: u64,
 ) -> Result<[u8; SNP_REPORT_DATA_LEN], AciError> {
+    let mut minimum_tcb_cpuids = BTreeSet::new();
+    for (cpuid, _) in &minimum_tcb {
+        if !minimum_tcb_cpuids.insert(cpuid.0) {
+            return Err(AciError::Policy(format!(
+                "duplicate minimum TCB CPUID 0x{}",
+                cpuid.hex_str()
+            )));
+        }
+    }
+
     if attestation.policy().debug() {
         return Err(AciError::Policy(
             "SNP guest policy allows debug mode".to_string(),
@@ -555,7 +566,7 @@ fn verify_caci_attestation_impl(
     let sign1 = cose::cose_sign1(uvm_endorsement).map_err(AciError::Cose)?;
     let payload = parse::cose_payload(sign1)?;
     let protected = required_bstr(sign1.array_at(0).map_err(AciError::Cose)?, "protected")?;
-    let protected_header = CborValue::from_bytes(&protected).map_err(AciError::Cose)?;
+    let protected_header = CborValue::parse_nondet(&protected).map_err(AciError::Cose)?;
 
     let content_type = protected_header
         .map_at_int(cose::COSE_HEADER_CONTENT_TYPE)
