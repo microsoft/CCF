@@ -22,7 +22,8 @@ namespace ccf::cbor
     items.reserve(array.size());
     for (size_t i = 0; i < array.size(); ++i)
     {
-      items.push_back(i == index ? std::move(replacement) : array.array_at(i));
+      items.push_back(
+        i == index ? std::exchange(replacement, {}) : array.array_at(i));
     }
     return tav::cbor::make_array(std::move(items));
   }
@@ -40,7 +41,7 @@ namespace ccf::cbor
         existing.as_signed() == key;
       entries.emplace_back(
         std::move(existing),
-        matches ? std::move(replacement) : map.map_value_at(i));
+        matches ? std::exchange(replacement, {}) : map.map_value_at(i));
     }
     return tav::cbor::make_map(std::move(entries));
   }

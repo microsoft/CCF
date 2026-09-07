@@ -396,16 +396,18 @@ namespace ccf::cose
 
     std::vector<MerkleProof> proofs;
 
-    rethrow_with_msg(
+    const auto proof_count = rethrow_with_msg(
       [&]() {
-        if (proofs_array.size() == 0)
+        const auto count = proofs_array.size();
+        if (count == 0)
         {
           throw DecodeError(Error::DECODE_FAILED, "Empty proofs array");
         }
+        return count;
       },
       "Check proofs array");
 
-    for (size_t i = 0; i < proofs_array.size(); ++i)
+    for (size_t i = 0; i < proof_count; ++i)
     {
       auto cbor_proof = rethrow_with_msg(
         [&]() { return nondet_parse(proofs_array.array_at(i).as_bytes()); },
@@ -450,16 +452,18 @@ namespace ccf::cose
         },
         "Parse proof: path");
 
-      rethrow_with_msg(
+      const auto path_length = rethrow_with_msg(
         [&]() {
-          if (cbor_path.size() == 0)
+          const auto length = cbor_path.size();
+          if (length == 0)
           {
             throw DecodeError(Error::DECODE_FAILED, "Empty path");
           }
+          return length;
         },
         "Check proof: path");
 
-      for (size_t j = 0; j < cbor_path.size(); j++)
+      for (size_t j = 0; j < path_length; j++)
       {
         std::pair<int64_t, std::vector<uint8_t>> path_item;
         const auto link = rethrow_with_msg(
