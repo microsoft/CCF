@@ -31,7 +31,16 @@ namespace ccf
       {
         if (!opt_ni.has_value())
         {
-          // Deleted node will have already been retired
+          // A node is normally written as RETIRED before its row is deleted,
+          // and that RETIRED write already removes it from consensus. Disaster
+          // recovery is different: replaying the public ledger rebuilds the
+          // previous service's trusted-node configuration in the new consensus
+          // instance, then the recovery create transaction deletes those rows
+          // directly. The deletions must therefore also remove the old nodes
+          // from consensus, or they remain voters and the recovery nodes may be
+          // unable to elect a primary. If a node was already retired, erasing
+          // it from the configuration is a no-op.
+          cfg_delta.try_emplace(node_id, std::nullopt);
           continue;
         }
 
@@ -70,18 +79,21 @@ namespace ccf
     void call(ccf::kv::ConfigurableConsensus* consensus) override
     {
       auto configuration = consensus->get_latest_configuration_unsafe();
+      bool configuration_changed = false;
       for (const auto& [node_id, opt_ni] : cfg_delta)
       {
         if (opt_ni.has_value())
         {
-          configuration.try_emplace(node_id, opt_ni->hostname, opt_ni->port);
+          configuration_changed |=
+            configuration.try_emplace(node_id, opt_ni->hostname, opt_ni->port)
+              .second;
         }
         else
         {
-          configuration.erase(node_id);
+          configuration_changed |= configuration.erase(node_id) > 0;
         }
       }
-      if (!cfg_delta.empty())
+      if (configuration_changed)
       {
         consensus->add_configuration(version, configuration);
       }

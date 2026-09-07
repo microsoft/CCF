@@ -222,7 +222,7 @@ namespace ccf::node
           return;
         }
 
-        if (ranges.find(',') != std::string::npos)
+        if (ranges.contains(','))
         {
           ctx.rpc_ctx->set_error(
             HTTP_STATUS_BAD_REQUEST,

@@ -97,7 +97,7 @@ namespace ccf
       {
         if (err.error_code() != Error::KEY_NOT_FOUND)
         {
-          throw err;
+          throw;
         }
       }
 
@@ -112,7 +112,7 @@ namespace ccf
       {
         if (err.error_code() != Error::KEY_NOT_FOUND)
         {
-          throw err;
+          throw;
         }
       }
 
@@ -181,7 +181,7 @@ namespace ccf
       {
         if (err.error_code() != Error::KEY_NOT_FOUND)
         {
-          throw err;
+          throw;
         }
       }
 
@@ -204,7 +204,7 @@ namespace ccf
       {
         if (err.error_code() != Error::KEY_NOT_FOUND)
         {
-          throw err;
+          throw;
         }
       }
 

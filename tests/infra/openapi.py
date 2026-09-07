@@ -300,7 +300,9 @@ class OpenAPIValidator:
             # Preserve required-body semantics when the client-generated COSE
             # envelope is not available to this validation layer.
             body=(
-                b"" if cose and request.body is None else self._body_bytes(request.body)
+                b"\0"
+                if cose and request.body is None
+                else self._body_bytes(request.body)
             ),
             content_type=content_type,
         )

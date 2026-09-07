@@ -4,6 +4,7 @@
 
 #include "ccf/common_auth_policies.h"
 #include "ccf/common_endpoint_registry.h"
+#include "ccf/ds/locking.h"
 #include "ccf/endpoint_context.h"
 #include "ccf/endpoints/authentication/cert_auth.h"
 #include "ccf/http_query.h"
@@ -415,12 +416,16 @@ namespace ccf
       return make_success(rep);
     }
 
-    JWTRefreshMetrics jwt_refresh_metrics;
+    ccf::ds::Mutex jwt_refresh_metrics_lock;
+    JWTRefreshMetrics jwt_refresh_metrics
+      CCF_GUARDED_BY(jwt_refresh_metrics_lock);
+
     void handle_event_request_completed(
       const ccf::endpoints::RequestCompletedEvent& event) override
     {
       if (event.method == "POST" && event.dispatch_path == "/jwt_keys/refresh")
       {
+        ccf::ds::MutexGuard guard(jwt_refresh_metrics_lock);
         jwt_refresh_metrics.attempts += 1;
         int status_category = event.status / 100;
         if (status_category >= 4)
@@ -1078,81 +1083,59 @@ namespace ccf
         .set_auto_schema<void, GetNodes::Out>()
         .install();
 
-      auto delete_retired_committed_node = [this](
-                                             auto& args, nlohmann::json&&) {
-        GetNodes::Out out;
+      auto delete_retired_committed_node =
+        [this](auto& args, nlohmann::json&&) {
+          GetNodes::Out out;
 
-        std::string node_id;
-        std::string error;
-        if (!get_path_param(
-              args.rpc_ctx->get_request_path_params(),
-              "node_id",
-              node_id,
-              error))
-        {
-          return make_error(
-            HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
-        }
+          std::string node_id;
+          std::string error;
+          if (!get_path_param(
+                args.rpc_ctx->get_request_path_params(),
+                "node_id",
+                node_id,
+                error))
+          {
+            return make_error(
+              HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
+          }
 
-        auto nodes = args.tx.rw(this->network.nodes);
-        if (!nodes->has(node_id))
-        {
-          return make_error(
-            HTTP_STATUS_NOT_FOUND,
-            ccf::errors::ResourceNotFound,
-            "No such node");
-        }
+          auto nodes = args.tx.rw(this->network.nodes);
+          if (!nodes->has(node_id))
+          {
+            return make_error(
+              HTTP_STATUS_NOT_FOUND,
+              ccf::errors::ResourceNotFound,
+              "No such node");
+          }
 
-        auto node_endorsed_certificates =
-          args.tx.rw(network.node_endorsed_certificates);
+          // A node's retirement is only complete when the
+          // transition of retired_committed is itself committed,
+          // i.e. when the next eligible primary is guaranteed to
+          // be aware the retirement is committed.
+          // As a result, the handler must check node info at the
+          // current committed level, rather than at the end of the
+          // local suffix.
+          // While this transaction does execute a write, it specifically
+          // deletes the value it reads from. It is therefore safe to
+          // execute on the basis of a potentially stale read-set,
+          // which get_globally_committed() typically produces.
+          auto node = nodes->get_globally_committed(node_id);
+          if (
+            node.has_value() && node->status == ccf::NodeStatus::RETIRED &&
+            node->retired_committed)
+          {
+            InternalTablesAccess::remove_node(args.tx, node_id);
+          }
+          else
+          {
+            return make_error(
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::NodeNotRetiredCommitted,
+              "Node is not completely retired");
+          }
 
-        // A node's retirement is only complete when the
-        // transition of retired_committed is itself committed,
-        // i.e. when the next eligible primary is guaranteed to
-        // be aware the retirement is committed.
-        // As a result, the handler must check node info at the
-        // current committed level, rather than at the end of the
-        // local suffix.
-        // While this transaction does execute a write, it specifically
-        // deletes the value it reads from. It is therefore safe to
-        // execute on the basis of a potentially stale read-set,
-        // which get_globally_committed() typically produces.
-        auto node = nodes->get_globally_committed(node_id);
-        if (
-          node.has_value() && node->status == ccf::NodeStatus::RETIRED &&
-          node->retired_committed)
-        {
-          nodes->remove(node_id);
-          node_endorsed_certificates->remove(node_id);
-
-          // clean up sealing tables
-          auto* local_sealing_node_id_map =
-            args.tx.template rw<LocalSealingNodeIdMap>(
-              Tables::SEALING_RECOVERY_NAMES);
-          local_sealing_node_id_map->foreach(
-            [&](
-              const auto& sealing_recovery_name, const auto& sealing_node_id) {
-              if (sealing_node_id == node_id)
-              {
-                local_sealing_node_id_map->remove(sealing_recovery_name);
-                return false;
-              }
-              return true;
-            });
-          auto* sealed_recovery_keys = args.tx.template rw<SealedRecoveryKeys>(
-            Tables::SEALED_RECOVERY_KEYS);
-          sealed_recovery_keys->remove(node_id);
-        }
-        else
-        {
-          return make_error(
-            HTTP_STATUS_BAD_REQUEST,
-            ccf::errors::NodeNotRetiredCommitted,
-            "Node is not completely retired");
-        }
-
-        return make_success(true);
-      };
+          return make_success(true);
+        };
 
       make_endpoint(
         "/network/nodes/{node_id}",
@@ -1574,8 +1557,12 @@ namespace ccf
         InternalTablesAccess::create_service(
           ctx.tx, in.service_cert, in.create_txid, in.service_data, recovering);
 
-        // Retire all nodes, in case there are any (i.e. post recovery)
-        InternalTablesAccess::retire_active_nodes(ctx.tx);
+        if (recovering)
+        {
+          // Recovery starts with a fresh consensus configuration, so previous
+          // service nodes can be removed immediately.
+          InternalTablesAccess::remove_previous_service_nodes(ctx.tx);
+        }
 
         // Genesis transaction (i.e. not after recovery)
         if (in.genesis_info.has_value())
@@ -1805,7 +1792,12 @@ namespace ccf
 
       auto get_jwt_metrics =
         [this](auto& /*args*/, const nlohmann::json& /*params*/) {
-          return make_success(jwt_refresh_metrics);
+          JWTRefreshMetrics metrics;
+          {
+            ccf::ds::MutexGuard guard(jwt_refresh_metrics_lock);
+            metrics = jwt_refresh_metrics;
+          }
+          return make_success(metrics);
         };
       make_read_only_endpoint(
         "/jwt_keys/refresh/metrics",

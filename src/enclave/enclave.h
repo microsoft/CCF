@@ -5,7 +5,6 @@
 #include "ccf/js/core/context.h"
 #include "ccf/node_context.h"
 #include "ccf/node_subsystem_interface.h"
-#include "ccf/pal/mem.h"
 #include "crypto/openssl/hash.h"
 #include "ds/internal_logger.h"
 #include "ds/oversized.h"
@@ -83,6 +82,7 @@ namespace ccf
       size_t sig_tx_interval,
       size_t sig_ms_interval,
       size_t chunk_threshold,
+      size_t max_transaction_size,
       const ccf::consensus::Configuration& consensus_config,
       const ccf::crypto::CurveID& curve_id,
       ccf::ds::WorkBeaconPtr work_beacon_,
@@ -101,6 +101,7 @@ namespace ccf
 
       network.tables->set_chunker(
         std::make_shared<ccf::kv::LedgerChunker>(chunk_threshold));
+      network.tables->set_max_transaction_size(max_transaction_size);
 
       LOG_TRACE_FMT("Creating node");
       node = std::make_unique<ccf::NodeState>(

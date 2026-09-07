@@ -10,6 +10,18 @@
 
 namespace ccf::gov::endpoints
 {
+  namespace api
+  {
+    struct Transaction
+    {
+      ccf::TxStatus status = ccf::TxStatus::Unknown;
+      ccf::TxID transaction_id;
+    };
+    DECLARE_JSON_TYPE(Transaction);
+    DECLARE_JSON_REQUIRED_FIELDS_WITH_RENAMES(
+      Transaction, status, "status", transaction_id, "transactionId");
+  }
+
   inline void init_transactions_handlers(ccf::BaseEndpointRegistry& registry)
   {
     auto get_transaction_status = [&](auto& ctx, ApiVersion api_version) {
@@ -17,7 +29,7 @@ namespace ccf::gov::endpoints
       {
         case ApiVersion::preview_v1:
         case ApiVersion::v1:
-        default:
+        case ApiVersion::Latest:
         {
           // Extract transaction ID from path parameter
           std::string tx_id_str;
@@ -68,10 +80,7 @@ namespace ccf::gov::endpoints
           }
 
           // Build response
-          auto body = nlohmann::json::object();
-
-          body["status"] = status;
-          body["transactionId"] = tx_id->to_str();
+          const api::Transaction body{status, tx_id.value()};
 
           ctx.rpc_ctx->set_response_json(body, HTTP_STATUS_OK);
           return;
@@ -84,7 +93,8 @@ namespace ccf::gov::endpoints
         HTTP_GET,
         api_version_adapter(get_transaction_status),
         no_auth_required)
-      .set_openapi_hidden(true)
+      .set_auto_schema<void, api::Transaction>()
+      .set_openapi_summary("Get transaction status")
       .install();
 
     auto get_commit = [&](auto& ctx, ApiVersion api_version) {
@@ -92,7 +102,7 @@ namespace ccf::gov::endpoints
       {
         case ApiVersion::preview_v1:
         case ApiVersion::v1:
-        default:
+        case ApiVersion::Latest:
         {
           // Lookup committed
           ccf::View view = 0;
@@ -126,10 +136,7 @@ namespace ccf::gov::endpoints
           }
 
           // Build response
-          auto body = nlohmann::json::object();
-
-          body["status"] = status;
-          body["transactionId"] = ccf::TxID{view, seqno};
+          const api::Transaction body{status, ccf::TxID{view, seqno}};
 
           ctx.rpc_ctx->set_response_json(body, HTTP_STATUS_OK);
           return;
@@ -142,7 +149,8 @@ namespace ccf::gov::endpoints
         HTTP_GET,
         api_version_adapter(get_commit),
         no_auth_required)
-      .set_openapi_hidden(true)
+      .set_auto_schema<void, api::Transaction>()
+      .set_openapi_summary("Get the latest committed transaction")
       .install();
   }
 }

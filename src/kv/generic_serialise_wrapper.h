@@ -24,6 +24,7 @@ namespace ccf::kv
     TxID tx_id;
     EntryType entry_type;
     SerialisedEntryFlags header_flags;
+    size_t max_transaction_size;
 
     std::shared_ptr<AbstractTxEncryptor> crypto_util;
 
@@ -68,10 +69,12 @@ namespace ccf::kv
       // in regular transactions, but absent in snapshots.
       const ccf::crypto::Sha256Hash& commit_evidence_digest_ = {},
       const ccf::ClaimsDigest& claims_digest_ = ccf::no_claims(),
-      bool historical_hint_ = false) :
+      bool historical_hint_ = false,
+      size_t max_transaction_size_ = max_serialised_entry_size) :
       tx_id(tx_id_),
       entry_type(entry_type_),
       header_flags(header_flags_),
+      max_transaction_size(max_transaction_size_),
       crypto_util(std::move(e)),
       historical_hint(historical_hint_)
     {
@@ -156,6 +159,27 @@ namespace ccf::kv
         public_writer.get_raw_data(), private_writer.get_raw_data());
     }
 
+    /** Size of the ledger entry which get_raw_data() would produce for
+     * everything serialised so far.
+     *
+     * This covers the whole entry: the fixed-size ledger entry header, the
+     * ledger encryption header, the public domain size field, and both
+     * domains. Encryption does not change the size of the private domain, so
+     * this is exact.
+     */
+    [[nodiscard]] size_t get_serialised_size() const
+    {
+      size_t size_ = public_writer.size();
+
+      if (crypto_util)
+      {
+        size_ += crypto_util->get_header_length() + sizeof(size_t) +
+          private_writer.size();
+      }
+
+      return size_ + sizeof(SerialisedEntryHeader);
+    }
+
     std::vector<uint8_t> serialise_domains(
       const std::vector<uint8_t>& serialised_public_domain,
       const std::vector<uint8_t>& serialised_private_domain) override
@@ -173,9 +197,21 @@ namespace ccf::kv
         size_ += crypto_util->get_header_length() + sizeof(size_t) +
           serialised_private_domain.size();
       }
-      entry_header.set_size(size_);
 
-      size_ += sizeof(SerialisedEntryHeader);
+      // The configured limit applies to the whole serialised ledger entry,
+      // including the fixed-size entry header.
+      const size_t entry_size = size_ + sizeof(SerialisedEntryHeader);
+      if (entry_size > max_transaction_size)
+      {
+        // Non-reserved transactions measure this exact size before applying
+        // their changes. Reserved signature transactions use the largest
+        // representable entry size here. Reaching this point is always fatal.
+        throw KvSerialiserException(describe_serialised_entry_size_error(
+          entry_size, max_transaction_size));
+      }
+
+      entry_header.set_size(size_);
+      size_ = entry_size;
 
       std::vector<uint8_t> entry(size_);
       auto* data_ = entry.data();

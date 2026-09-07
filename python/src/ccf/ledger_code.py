@@ -4,12 +4,45 @@
 import argparse
 import json
 from collections import defaultdict
+from collections.abc import MutableMapping
+from typing import Any
 
 import ccf.ledger
 
+CodeIdentity = tuple[str, str]
+TrustedNodesByCode = MutableMapping[CodeIdentity, set[bytes]]
 
-def code_identity(info):
+
+def code_identity(info: dict[str, Any]) -> CodeIdentity:
+    """Return the attestation format and code digest for a node."""
     return (info["quote_info"]["format"], info["code_digest"])
+
+
+def update_trusted_nodes(
+    code_to_nodes: TrustedNodesByCode,
+    node_id: bytes,
+    raw_node_info: bytes | None,
+) -> bool:
+    """Apply a node-table write to the trusted nodes grouped by code identity."""
+    if raw_node_info is None:
+        # Nodes are deleted after normal retirement, while disaster recovery
+        # deletes previous-service nodes without first writing them as Retired.
+        # The deletion has no value from which to recover the code identity.
+        removed = False
+        for nodes in code_to_nodes.values():
+            removed |= node_id in nodes
+            nodes.discard(node_id)
+        return removed
+
+    node_info = json.loads(raw_node_info)
+    code_id = code_identity(node_info)
+    if node_info["status"] == "Trusted":
+        code_to_nodes[code_id].add(node_id)
+        return True
+    if node_info["status"] == "Retired":
+        code_to_nodes[code_id].discard(node_id)
+        return True
+    return False
 
 
 def main():
@@ -92,16 +125,8 @@ def main():
             if ccf.ledger.NODES_TABLE_NAME in public:
                 nodes_info = public[ccf.ledger.NODES_TABLE_NAME]
                 for key, value in nodes_info.items():
-                    if value:
-                        info = json.loads(value)
-                        code_id = code_identity(info)
-                        if info["status"] == "Trusted":
-                            code_to_nodes[code_id].add(key)
-                            print_state(view, seqno)
-                        elif info["status"] == "Retired":
-                            if key in code_to_nodes[code_id]:
-                                code_to_nodes[code_id].remove(key)
-                            print_state(view, seqno)
+                    if update_trusted_nodes(code_to_nodes, key, value):
+                        print_state(view, seqno)
 
             post_code_ids = code_ids_with_trusted_nodes()
 

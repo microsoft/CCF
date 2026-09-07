@@ -21,11 +21,14 @@
 #include "node/ledger_secrets.h"
 #include "node/uvm_endorsements.h"
 #include "service/tables/governance_history.h"
+#include "service/tables/local_sealing.h"
 #include "service/tables/previous_service_identity.h"
 
 #include <algorithm>
 #include <ostream>
+#include <set>
 #include <stdexcept>
+#include <vector>
 
 namespace ccf
 {
@@ -50,30 +53,61 @@ namespace ccf
   // available.
   class InternalTablesAccess
   {
+  private:
+    static void remove_nodes(ccf::kv::Tx& tx, const std::set<NodeId>& node_ids)
+    {
+      auto* nodes = tx.rw<ccf::Nodes>(Tables::NODES);
+      auto* node_endorsed_certificates = tx.rw<ccf::NodeEndorsedCertificates>(
+        Tables::NODE_ENDORSED_CERTIFICATES);
+      auto* local_sealing_node_id_map =
+        tx.rw<LocalSealingNodeIdMap>(Tables::SEALING_RECOVERY_NAMES);
+      auto* sealed_recovery_keys =
+        tx.rw<SealedRecoveryKeys>(Tables::SEALED_RECOVERY_KEYS);
+
+      for (const auto& node_id : node_ids)
+      {
+        nodes->remove(node_id);
+        node_endorsed_certificates->remove(node_id);
+        sealed_recovery_keys->remove(node_id);
+      }
+
+      std::vector<sealing_recovery::Name> sealing_recovery_names;
+      local_sealing_node_id_map->foreach(
+        [&sealing_recovery_names, &node_ids](
+          const auto& sealing_recovery_name, const auto& sealing_node_id) {
+          if (node_ids.contains(sealing_node_id))
+          {
+            sealing_recovery_names.push_back(sealing_recovery_name);
+          }
+          return true;
+        });
+      for (const auto& sealing_recovery_name : sealing_recovery_names)
+      {
+        local_sealing_node_id_map->remove(sealing_recovery_name);
+      }
+    }
+
   public:
     // This class is purely a container for static methods, should not be
     // instantiated
     InternalTablesAccess() = delete;
 
-    static void retire_active_nodes(ccf::kv::Tx& tx)
+    static void remove_node(ccf::kv::Tx& tx, const NodeId& node_id)
+    {
+      remove_nodes(tx, {node_id});
+    }
+
+    static void remove_previous_service_nodes(ccf::kv::Tx& tx)
     {
       auto* nodes = tx.rw<ccf::Nodes>(Tables::NODES);
+      std::set<NodeId> previous_service_node_ids;
+      nodes->foreach(
+        [&previous_service_node_ids](const NodeId& node_id, const NodeInfo&) {
+          previous_service_node_ids.insert(node_id);
+          return true;
+        });
 
-      std::map<NodeId, NodeInfo> nodes_to_delete;
-      nodes->foreach([&nodes_to_delete](const NodeId& nid, const NodeInfo& ni) {
-        // Only retire nodes that have not already been retired
-        if (ni.status != NodeStatus::RETIRED)
-        {
-          nodes_to_delete[nid] = ni;
-        }
-        return true;
-      });
-
-      for (auto [nid, ni] : nodes_to_delete)
-      {
-        ni.status = NodeStatus::RETIRED;
-        nodes->put(nid, ni);
-      }
+      remove_nodes(tx, previous_service_node_ids);
     }
 
     static bool is_recovery_participant_or_owner(

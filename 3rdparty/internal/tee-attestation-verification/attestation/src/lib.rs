@@ -15,7 +15,7 @@
 //!
 //! - `crypto_openssl`: native OpenSSL-backed verification.
 //! - `crypto_webcrypto`: WASM WebCrypto-backed verification.
-//! - `crypto_pure_rust`: portable pure-Rust verification, selected when no target-preferred backend is enabled.
+//! - `crypto_windows`: Windows CNG and Crypt32-backed verification.
 //!
 //! ## Additional features
 //!

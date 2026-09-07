@@ -160,8 +160,15 @@ BackfillLedgerBranches ==
     \* Similar to TruncateLedgerAction, but only advances the view
     /\ LET view == logline.tx_id[1]
            seqno == logline.tx_id[2]
+           sourceBranch == Last(ledgerBranches)
+           prefixLength == Min({seqno - 1, Len(sourceBranch)})
        IN /\ Len(ledgerBranches) < view
-          /\ ledgerBranches' = Append(ledgerBranches, Last(ledgerBranches))
+          \* A new primary may reuse seqno after rolling back an uncommitted
+          \* suffix. Copying that suffix would prevent the logged transaction
+          \* from occupying seqno in the new view.
+          /\ ledgerBranches' = Append(
+               ledgerBranches,
+               SubSeq(sourceBranch, 1, prefixLength))
     /\ UNCHANGED history
 
 TraceNext ==

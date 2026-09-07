@@ -1,5 +1,15 @@
 Documents the various GitHub Actions workflows, the role they fulfill and 3rd party (i.e. outside of https://github.com/actions/) dependencies if any.
 
+# Shared actions
+
+## Azure Linux CI dependencies
+
+The local composite action in `.github/actions/install-ci-dependencies/action.yml` installs Azure Linux 3 and 4 CI dependencies and caches downloaded RPM and npm packages. Cache keys separate runner architectures, hash the relevant dependency inputs, and include the date of the most recent Sunday at midnight UTC. The RPM key also separates package managers, while the npm key separates jobs so each job can save the packages it downloads. The weekly date makes GitHub Actions create refreshed immutable caches each week.
+
+At a weekly rollover, restore keys first reuse the latest cache for the same dependency inputs and then fall back to a compatible cache for the same architecture. The package managers refresh registry metadata and download only missing or updated packages. `actions/cache` saves each populated directory automatically after a successful job when the exact weekly key was not restored.
+
+The action also assigns uv a writable cache directory outside `/github/home/.cache`, because some tests clear that directory. A weekly cache persists uv's content-addressed package cache, keyed on the pinned uv installer, `python/pyproject.toml`, and the `python-requirements` input, which each workflow sets to the requirements files it installs so unrelated jobs do not invalidate each other's cache; jobs that do not install Python packages disable this cache entirely with `cache-python-packages: false`. CI dependency setup uses `uv pip` so cached packages remain reusable, with workflows configuring the package index through `UV_INDEX_URL`. Pip is not used for package installation because the PyPI proxy redirects artifacts to short-lived URLs that pip cannot reuse across jobs.
+
 # Maintained
 
 ## Bencher
@@ -33,6 +43,13 @@ Main continuous integration job. Builds CCF for all target platforms, runs unit,
 File: `ci.yml`
 3rd party dependencies: None
 
+# Continuous Integration AL4
+
+Builds CCF on Azure Linux 4 and runs unit and end to end tests, to track readiness for the move from Azure Linux 3, which `ci.yml` builds against. Runs daily on `main` on week days, and manually. It deliberately does not run on PRs, to keep PR feedback fast and limit pool usage.
+
+File: `ci-al4.yml`
+3rd party dependencies: None
+
 # Coverage
 
 Builds CCF with coverage enabled, runs unit and end to end tests, and uploads HTML coverage reports. Triggered on every commit on `main`, twice daily on week days, and manually.
@@ -62,19 +79,36 @@ File: `codeql-analysis.yml`
 
 # Continuous Verification
 
-Runs quick verification jobs: trace validation, simulation and short model checking configurations. Triggered on PRs that affect tla/, src/consensus, tests/raft_scenarios, or the workflow itself, weekly, and manually.
+Runs the standard model checking, simulation, trace validation, counterexample, and disaster recovery jobs each week.
 
 File: `ci-verification.yml`
 3rd party dependencies: None
 
 # Long Verification
 
-Runs more expensive verification jobs, such as model checking with reconfiguration.
-
-- Runs weekly.
-- Can be manually run on a PR by setting `run-long-verification` label.
+Runs the longer consensus model checking and simulation jobs each week.
 
 File: `long-verification.yml`
+3rd party dependencies: None
+
+# TLA Shallow Verification
+
+Runs on pull requests that change `tla/` or `src/consensus/aft/raft.h`.
+
+- Simulates the consistency and consensus specifications on a GitHub-hosted runner. The simulation job has a 10-minute timeout.
+- Builds the Raft scenario driver and validates its traces against the consensus specification on a GitHub-hosted runner.
+
+File: `tla-shallow.yml`
+3rd party dependencies: None
+
+# Vendored Dependency Verification
+
+Verifies that files under `3rdparty/` match the Git commits or release artifacts
+recorded in `cgmanifest.json`. Triggered on pull requests and pushes to `main`
+that change vendored sources, the manifest, the verifier, or this workflow. It
+can also be run manually.
+
+File: `vendor-verification.yml`
 3rd party dependencies: None
 
 # Release

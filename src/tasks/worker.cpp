@@ -11,6 +11,7 @@
 #include <limits>
 #include <memory>
 #include <sstream>
+#include <utility>
 
 namespace ccf::tasks
 {
@@ -285,6 +286,6 @@ extern "C"
     // Both real_cxa_throw and std::abort() are [[noreturn]], but the compiler
     // may not recognize that for function pointers. This satisfies the compiler
     // that we never return from this function.
-    __builtin_unreachable();
+    std::unreachable();
   }
 }

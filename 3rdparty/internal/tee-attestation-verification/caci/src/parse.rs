@@ -114,7 +114,7 @@ pub(crate) fn parse_signing_time(value: &CborValue) -> Result<std::time::Duratio
 
 pub(crate) fn parse_x5chain(value: &CborValue) -> Result<Vec<Vec<u8>>, AciError> {
     match value {
-        CborValue::ByteString(cert) => Ok(vec![cert.clone()]),
+        CborValue::ByteString(cert) => Ok(vec![cert.to_vec()]),
         CborValue::Array(certs) => {
             if certs.len() < 2 {
                 return Err(AciError::Cose(
@@ -132,21 +132,21 @@ pub(crate) fn parse_x5chain(value: &CborValue) -> Result<Vec<Vec<u8>>, AciError>
     }
 }
 
-pub fn required_bstr(value: &CborValue, name: &str) -> Result<Vec<u8>, AciError> {
+pub fn required_bstr(value: &CborValue<'_>, name: &str) -> Result<Vec<u8>, AciError> {
     match value {
-        CborValue::ByteString(bytes) => Ok(bytes.clone()),
+        CborValue::ByteString(bytes) => Ok(bytes.to_vec()),
         _ => Err(AciError::Cose(format!("{name} must be a byte string"))),
     }
 }
 
-pub fn required_text(value: &CborValue, name: &str) -> Result<String, AciError> {
+pub fn required_text(value: &CborValue<'_>, name: &str) -> Result<String, AciError> {
     match value {
-        CborValue::TextString(text) => Ok(text.clone()),
+        CborValue::TextString(text) => Ok(text.to_string()),
         _ => Err(AciError::Cose(format!("{name} must be a text string"))),
     }
 }
 
-pub fn required_int(value: &CborValue, name: &str) -> Result<i64, AciError> {
+pub fn required_int(value: &CborValue<'_>, name: &str) -> Result<i64, AciError> {
     match value {
         CborValue::Int(i) => Ok(*i),
         _ => Err(AciError::Cose(format!("{name} must be an integer"))),

@@ -5,6 +5,7 @@
 
 #define DOCTEST_CONFIG_IMPLEMENT
 #include "ccf/app_interface.h"
+#include "ccf/ds/locking.h"
 #include "ccf/json_handler.h"
 #include "ccf/kv/map.h"
 #include "crypto/openssl/hash.h"
@@ -739,9 +740,7 @@ TEST_CASE("process with caller")
       auto response = parse_response(serialized_response);
       REQUIRE(response.status == HTTP_STATUS_UNAUTHORIZED);
       const std::string error_msg(response.body.begin(), response.body.end());
-      CHECK(
-        error_msg.find("Could not find matching user certificate") !=
-        std::string::npos);
+      CHECK(error_msg.contains("Could not find matching user certificate"));
     }
 
     INFO("Anonymous caller");
@@ -751,7 +750,7 @@ TEST_CASE("process with caller")
       auto response = parse_response(serialized_response);
       REQUIRE(response.status == HTTP_STATUS_UNAUTHORIZED);
       const std::string error_msg(response.body.begin(), response.body.end());
-      CHECK(error_msg.find("No caller user certificate") != std::string::npos);
+      CHECK(error_msg.contains("No caller user certificate"));
     }
   }
 }
@@ -951,7 +950,7 @@ TEST_CASE("Restricted verbs")
         const auto it = response.headers.find(ccf::http::headers::ALLOW);
         REQUIRE(it != response.headers.end());
         const auto v = it->second;
-        CHECK(v.find(llhttp_method_name(HTTP_GET)) != std::string::npos);
+        CHECK(v.contains(llhttp_method_name(HTTP_GET)));
       }
     }
 
@@ -972,7 +971,7 @@ TEST_CASE("Restricted verbs")
         const auto it = response.headers.find(ccf::http::headers::ALLOW);
         REQUIRE(it != response.headers.end());
         const auto v = it->second;
-        CHECK(v.find(llhttp_method_name(HTTP_POST)) != std::string::npos);
+        CHECK(v.contains(llhttp_method_name(HTTP_POST)));
       }
     }
 
@@ -994,11 +993,11 @@ TEST_CASE("Restricted verbs")
         const auto it = response.headers.find(ccf::http::headers::ALLOW);
         REQUIRE(it != response.headers.end());
         const auto v = it->second;
-        CHECK(v.find(llhttp_method_name(HTTP_PUT)) != std::string::npos);
-        CHECK(v.find(llhttp_method_name(HTTP_DELETE)) != std::string::npos);
+        CHECK(v.contains(llhttp_method_name(HTTP_PUT)));
+        CHECK(v.contains(llhttp_method_name(HTTP_DELETE)));
         if (verb != HTTP_OPTIONS)
         {
-          CHECK(v.find(llhttp_method_name(verb)) == std::string::npos);
+          CHECK(!v.contains(llhttp_method_name(verb)));
         }
       }
     }
@@ -1658,23 +1657,29 @@ public:
 
   struct WaitPoint
   {
-    std::mutex m;
-    std::condition_variable cv;
-    bool ready = false;
+    ccf::ds::Mutex m;
+    ccf::ds::ConditionVariable cv;
+    bool ready CCF_GUARDED_BY(m) = false;
 
     void wait()
     {
-      std::unique_lock lock(m);
-      cv.wait(lock, [this] { return ready; });
+      ccf::ds::MutexGuard lock(m);
+      cv.wait(lock, [this]() CCF_REQUIRES(m) { return ready; });
     }
 
     void notify()
     {
       {
-        std::lock_guard lock(m);
+        ccf::ds::MutexGuard lock(m);
         ready = true;
       }
       cv.notify_one();
+    }
+
+    void reset()
+    {
+      ccf::ds::MutexGuard lock(m);
+      ready = false;
     }
   };
 
@@ -1815,10 +1820,10 @@ TEST_CASE("Manual conflicts")
                     std::function<void()>&& read_write_op,
                     std::shared_ptr<ccf::SessionContext> session = user_session,
                     ccf::http_status expected_status = HTTP_STATUS_OK) {
-    frontend.registry.before_read.ready = false;
-    frontend.registry.after_read.ready = false;
-    frontend.registry.before_write.ready = false;
-    frontend.registry.after_write.ready = false;
+    frontend.registry.before_read.reset();
+    frontend.registry.after_read.reset();
+    frontend.registry.before_write.reset();
+    frontend.registry.after_write.reset();
 
     std::thread worker(call_pausable, session, expected_status);
 

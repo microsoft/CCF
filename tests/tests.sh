@@ -7,14 +7,24 @@ set -e
 echo "Setting up Python environment..."
 if [ ! -f "env/bin/activate" ]
     then
-        python3 -m venv env
+        python3 -m venv --without-pip env
 fi
 
+bash ../scripts/install_uv.sh env/bin
 source env/bin/activate
-pip install -q -U pip
-pip install -q -U -e ../python/
-pip install -q -U -r ../tests/requirements.txt
+if [ -n "${PIP_INDEX_URL:-}" ] && [ -z "${UV_INDEX_URL:-}" ]; then
+    export UV_INDEX_URL="$PIP_INDEX_URL"
+fi
+uv pip install -q -e ../python/
+uv pip install -q -r ../tests/requirements.txt
 echo "Python environment successfully setup"
+
+if [[ "${CCF_TEST_SYNC_AFTER_SETUP:-0}" == "1" ]]; then
+    echo "Flushing filesystem writeback after Python environment setup..."
+    sync_start=$SECONDS
+    sync
+    echo "Filesystem writeback completed in $((SECONDS - sync_start))s"
+fi
 
 # Export where the VENV has been set, so tests running
 # a sandbox.sh can inherit it rather create a new one

@@ -5,9 +5,13 @@
 set -exo pipefail
 
 H2SPEC_VERSION="v2.6.0"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 
-export SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH:-$(date +%s)}
-echo "Using SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH}"
+TDNF_OPTIONS=(-y)
+if [[ -n ${SOURCE_DATE_EPOCH:-} ]]; then
+    echo "Using SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH}"
+    TDNF_OPTIONS+=("--snapshottime=$SOURCE_DATE_EPOCH")
+fi
 
 retry() {
     local description=$1
@@ -44,14 +48,14 @@ retry() {
 
 install_source_control() {
     # Source control
-    tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install  \
+    tdnf "${TDNF_OPTIONS[@]}" install  \
         git  \
         ca-certificates
 }
 
 install_build_dependencies() {
     # To build CCF
-    tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install  \
+    tdnf "${TDNF_OPTIONS[@]}" install  \
         build-essential  \
         clang  \
         cmake  \
@@ -61,8 +65,6 @@ install_build_dependencies() {
         libuv-devel  \
         nghttp2-devel  \
         curl-devel  \
-        libarrow-devel  \
-        parquet-libs-devel  \
         doxygen  \
         clang-tools-extra-devel  \
         rust  \
@@ -85,7 +87,7 @@ install_test_dependencies() {
         iptables
         strace
     )
-    tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install "${packages[@]}" &&
+    tdnf "${TDNF_OPTIONS[@]}" install "${packages[@]}" &&
     gem install cddl
 }
 
@@ -106,7 +108,7 @@ install_node() {
     # constraint pins the major version (failing rather than silently selecting
     # an older nodejs); `nodejs-npm` provides npm and depends on that same
     # `nodejs`, so it follows the selected version.
-    tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install  \
+    tdnf "${TDNF_OPTIONS[@]}" install  \
         "nodejs >= 24"  \
         nodejs-npm
 }
@@ -116,10 +118,10 @@ install_packaging_and_python() {
         # For packaging
         rpm-build
         # For end to end tests and scripts
-        python3-pip
+        python3
     )
-    tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install "${packages[@]}" &&
-    pip install uv==0.11.19
+    tdnf "${TDNF_OPTIONS[@]}" install "${packages[@]}" &&
+    bash "$SCRIPT_DIR/install_uv.sh" /usr/local/bin
 }
 
 retry "Source control dependencies" install_source_control

@@ -9,6 +9,7 @@
 #include "node/node_types.h"
 
 #include <set>
+#include <utility>
 
 namespace ccf
 {
@@ -80,7 +81,7 @@ namespace ccf
       default:
       {
         throw std::logic_error(fmt::format(
-          "Unknown node message type: {}", static_cast<uint32_t>(msg_type)));
+          "Unknown node message type: {}", std::to_underlying(msg_type)));
       }
     }
   }

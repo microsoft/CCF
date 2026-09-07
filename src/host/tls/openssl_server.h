@@ -489,12 +489,23 @@ namespace asynchost
         return fail("SSL_CTX_set_min_proto_version");
       }
 
-      // Disable renegotiation to avoid DoS
+      // Require a fresh authenticated key exchange for every connection.
+      SSL_CTX_set_session_cache_mode(c, SSL_SESS_CACHE_OFF);
+      if (SSL_CTX_set_num_tickets(c, 0) != 1)
+      {
+        return fail("SSL_CTX_set_num_tickets");
+      }
+      if (SSL_CTX_set_max_early_data(c, 0) != 1)
+      {
+        return fail("SSL_CTX_set_max_early_data");
+      }
+
+      // Disable renegotiation and stateless session tickets.
       SSL_CTX_set_options(
         c,
         SSL_OP_CIPHER_SERVER_PREFERENCE |
           SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION |
-          SSL_OP_NO_RENEGOTIATION);
+          SSL_OP_NO_RENEGOTIATION | SSL_OP_NO_TICKET);
 
       // Set cipher for TLS 1.2
       const auto* const cipher_list =

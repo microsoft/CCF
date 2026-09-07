@@ -31,7 +31,6 @@ import infra.node
 import infra.openapi
 import infra.path
 import infra.proc
-import infra.service_load
 from infra.clients import CCFConnectionException, CCFIOException, flush_info
 from infra.consortium import slurp_file
 from infra.node import CCFVersion
@@ -194,6 +193,7 @@ class Network:
         "join_timer_s",
         "worker_threads",
         "ledger_chunk_bytes",
+        "ledger_max_transaction_bytes",
         "subject_alt_names",
         "snapshot_tx_interval",
         "snapshot_min_tx_interval",
@@ -2229,11 +2229,19 @@ class Network:
         return operator_features is not None and feature in operator_features
 
     def create_and_wait_for_ledger_chunk(self, node=None, timeout=5):
+        """Create a chunk boundary and return a seqno in the committed chunk."""
         if node is None:
             node, _ = self.find_primary()
 
         if self._supports_operator_feature(node, "SnapshotCreate"):
-            target_seqno = node.trigger_snapshot().seqno
+            snapshot_txid = node.trigger_snapshot()
+            # A signature whose seqno was reserved before this request may consume
+            # the snapshot flag after the request commits. In that case the chunk
+            # ends immediately before the request; otherwise it ends at a later
+            # signature. The preceding seqno is covered in either ordering.
+            target_seqno = snapshot_txid.seqno
+            if target_seqno > 1:
+                target_seqno -= 1
         else:
             proposal = self.consortium.force_ledger_chunk(node)
             target_seqno = proposal.completed_seqno

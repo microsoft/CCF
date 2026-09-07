@@ -13,6 +13,43 @@ using namespace consensus;
 
 using WFactory = ringbuffer::WriterFactory;
 
+TEST_CASE("Enclave rejects malformed entries")
+{
+  const auto check_rejected = [](const std::vector<uint8_t>& entry) {
+    {
+      const auto* data = entry.data();
+      auto size = entry.size();
+      REQUIRE_THROWS_AS(LedgerEnclave::get_entry(data, size), std::logic_error);
+    }
+
+    {
+      const auto* data = entry.data();
+      auto size = entry.size();
+      REQUIRE_THROWS_AS(
+        LedgerEnclave::skip_entry(data, size), std::logic_error);
+    }
+  };
+
+  SUBCASE("Truncated header")
+  {
+    check_rejected(
+      std::vector<uint8_t>(ccf::kv::serialised_entry_header_size - 1));
+  }
+
+  SUBCASE("Claimed body exceeds buffer")
+  {
+    ccf::kv::SerialisedEntryHeader header;
+    header.set_size(2);
+
+    std::vector<uint8_t> entry(ccf::kv::serialised_entry_header_size + 1);
+    auto* data = entry.data();
+    auto size = entry.size();
+    serialized::write(data, size, header);
+
+    check_rejected(entry);
+  }
+}
+
 TEST_CASE("Enclave put")
 {
   constexpr auto buffer_size = 1024;

@@ -31,6 +31,10 @@ namespace ccf::ds::openapi
   struct Binary
   {};
 
+  /** Tag type representing JavaScript source (text/javascript). */
+  struct Javascript
+  {};
+
   inline void fill_json_schema(
     nlohmann::json& schema, [[maybe_unused]] const Cose* cose)
   {
@@ -53,6 +57,17 @@ namespace ccf::ds::openapi
   inline std::string schema_name([[maybe_unused]] const Binary* binary)
   {
     return "Binary";
+  }
+
+  inline void fill_json_schema(
+    nlohmann::json& schema, [[maybe_unused]] const Javascript* javascript)
+  {
+    schema["type"] = "string";
+  }
+
+  inline std::string schema_name([[maybe_unused]] const Javascript* javascript)
+  {
+    return "Javascript";
   }
 }
 
@@ -436,6 +451,10 @@ namespace ccf::ds::openapi
     else if constexpr (std::is_same_v<T, Binary>)
     {
       return http::headervalues::contenttype::OCTET_STREAM;
+    }
+    else if constexpr (std::is_same_v<T, Javascript>)
+    {
+      return http::headervalues::contenttype::JAVASCRIPT;
     }
     else
     {

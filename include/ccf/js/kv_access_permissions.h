@@ -4,6 +4,8 @@
 
 #include "ccf/js/core/context.h"
 
+#include <utility>
+
 namespace ccf::js
 {
   enum class KVAccessPermissions : uint8_t
@@ -17,9 +19,7 @@ namespace ccf::js
   inline KVAccessPermissions intersect_access_permissions(
     KVAccessPermissions l, KVAccessPermissions r)
   {
-    /* This could use std::to_underlying from C++23 */
-    using T = std::underlying_type_t<KVAccessPermissions>;
-    const auto intersection = (T)l & (T)r;
-    return KVAccessPermissions(intersection);
+    const auto intersection = std::to_underlying(l) & std::to_underlying(r);
+    return static_cast<KVAccessPermissions>(intersection);
   }
 }

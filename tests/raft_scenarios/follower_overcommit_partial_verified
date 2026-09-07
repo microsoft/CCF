@@ -1,0 +1,134 @@
+# Repro for #8172: a follower may commit a divergent local suffix beyond the
+# range verified by an AppendEntries request. This scenario reproduces that
+# issue.
+#
+# Common committed prefix ends at 2.4. Node 1 then leads term 3:
+#   - [5,6]@3 is shared with every node.
+#   - [7,8]@3 is shared only with node 2 and remains divergent.
+# Node 0 later leads term 4, creates and commits conflicting [7,8]@4 with
+# nodes 3 and 4.
+#
+# A delayed term-3 NACK from node 2 then backs node 0's sentIndex[2] to 4.
+# The next periodic sends two AEs split at the term boundary:
+#   1. prev=4, idx=6, matching [5,6]@3, leaderCommit=8
+#   2. prev=6, idx=8, conflicting [7,8]@4, leaderCommit=8
+#
+# Delivering only (1) takes the already-done path. The buggy implementation
+# commits node 2's local signature at 8, although the request verified only
+# through index 6. Node 2 commits [7,8]@3 while node 0 committed [7,8]@4.
+
+pre_vote_enabled,false
+start_node,0
+emit_signature,2
+trust_nodes,2,1,2,3,4
+emit_signature,2
+dispatch_all
+periodic_all,10
+dispatch_all
+periodic_all,10
+dispatch_all
+assert_commit_idx,0,4
+assert_state_sync
+
+# Queue a term-2 heartbeat to node 2. It will be delivered after node 2
+# observes term 3, producing the delayed NACK used at the end.
+periodic_one,0,10
+drop_pending_to,0,1
+drop_pending_to,0,3
+drop_pending_to,0,4
+
+# Node 1 wins term 3 with nodes 2 and 3. Deliver the queued heartbeat after
+# node 2 processes the vote request, but leave its NACK to node 0 pending.
+periodic_one,1,100
+dispatch_single,1,2
+dispatch_single,0,2
+dispatch_single,1,3
+dispatch_single,1,0
+dispatch_single,1,4
+dispatch_single,2,1
+dispatch_single,3,1
+dispatch_single,0,1
+dispatch_single,4,1
+assert_detail,1,leadership_state,Leader
+assert_detail,1,current_view,3
+
+# Drain the leader's immediate empty heartbeats so later dispatches select the
+# entry-bearing [5,6] request.
+dispatch_single,1,0
+dispatch_single,1,2
+dispatch_single,1,3
+dispatch_single,1,4
+dispatch_single,0,1
+dispatch_single,2,1
+dispatch_single,3,1
+dispatch_single,4,1
+
+# Build [5,6]@3 and share it with every node.
+replicate,3,shared
+emit_signature,3
+periodic_one,1,10
+dispatch_single,1,0
+dispatch_single,1,2
+dispatch_single,1,3
+dispatch_single,1,4
+drop_pending_to,0,1
+drop_pending_to,3,1
+drop_pending_to,4,1
+assert_last_txid,0,3.6
+assert_last_txid,2,3.6
+assert_last_txid,3,3.6
+assert_last_txid,4,3.6
+
+# Build a divergent signed suffix [7,8]@3 only on node 2.
+replicate,3,old-branch
+emit_signature,3
+periodic_one,1,10
+drop_pending_to,1,0
+drop_pending_to,1,3
+drop_pending_to,1,4
+dispatch_single,1,2
+drop_pending_to,2,1
+assert_last_txid,2,3.8
+assert_last_txid,0,3.6
+
+# Node 0 wins term 4 with nodes 3 and 4, retaining the shared prefix.
+periodic_one,0,100
+drop_pending_to,0,1
+drop_pending_to,0,2
+dispatch_single,0,3
+dispatch_single,0,4
+dispatch_single,3,0
+dispatch_single,4,0
+assert_detail,0,leadership_state,Leader
+assert_detail,0,current_view,4
+
+# Build conflicting [7,8]@4 and commit it with nodes 3 and 4.
+replicate,4,new-branch
+emit_signature,4
+periodic_one,0,10
+drop_pending_to,0,1
+drop_pending_to,0,2
+dispatch_single,0,3
+dispatch_single,0,4
+dispatch_single,3,0
+dispatch_single,4,0
+dispatch_single,0,3
+dispatch_single,0,4
+dispatch_single,3,0
+dispatch_single,4,0
+assert_commit_idx,0,8
+assert_last_txid,0,4.8
+assert_last_txid,2,3.8
+
+# Deliver the retained NACK. It resets node 0's sentIndex[2] to 4.
+summarise_messages,2,0
+dispatch_single,2,0
+
+# Node 0 queues [5,6]@3 and [7,8]@4 as separate messages. The first message is
+# already present on node 2 but carries leaderCommit=8.
+periodic_one,0,10
+summarise_messages,0,2
+
+# Node 2 only commits through the range verified by this request.
+dispatch_single,0,2
+assert_commit_idx,2,6

@@ -39,10 +39,7 @@ jobs:
           fetch-depth: 0
 
       - name: "Install dependencies"
-        shell: bash
-        run: |
-          set -ex
-          ./scripts/setup-ci.sh
+        uses: ./.github/actions/install-ci-dependencies
 
       - name: "Machine info"
         shell: bash
@@ -132,6 +129,7 @@ jobs:
             build/workspace/*/err
             build/workspace/*/*.ledger/*
             build/workspace/*/stack_trace
+            build/workspace/*/locust_failures.csv
             build/workspace/**/openapi_coverage.json
           if-no-files-found: ignore
         if: success() || failure()
@@ -215,6 +213,7 @@ jobs:
             build/workspace/*/err
             build/workspace/*/*.ledger/*
             build/workspace/*/stack_trace
+            build/workspace/*/locust_failures.csv
             build/workspace/**/openapi_coverage.json
           if-no-files-found: ignore
         if: success() || failure()

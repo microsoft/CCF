@@ -15,9 +15,9 @@
       "component": {
         "type": "git",
         "git": {
-          "repositoryUrl": "https://github.com/onqtam/doctest.git",
-          "commitHash": "1da23a3e8119ec5cce4f9388e91b065e20bf06f5",
-          "tag": "v2.4.12"
+          "repositoryUrl": "https://github.com/doctest/doctest.git",
+          "commitHash": "2d0a9359a60c51affe2a9bebb1be1dca47868151",
+          "tag": "v2.5.3"
         }
       }
     },
@@ -56,7 +56,8 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/bellard/quickjs",
-          "commitHash": "fa628f8c523ecac8ce560c081411e91fcaba2d20"
+          "commitHash": "fa628f8c523ecac8ce560c081411e91fcaba2d20",
+          "tag": "2025-09-13-2"
         }
       }
     },
@@ -134,8 +135,8 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/microsoft/TEE-Attestation-Verification",
-          "commitHash": "cbe514e65f96eda1e359c3ededbd8ce8c0c61657",
-          "tag": "tav-1.0.4"
+          "commitHash": "2bf79838084806523a8a1fbea88b05877e80e239",
+          "tag": "tav-1.0.8"
         }
       }
     }

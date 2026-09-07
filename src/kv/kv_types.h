@@ -30,6 +30,7 @@
 #include <memory>
 #include <optional>
 #include <set>
+#include <stdexcept>
 #include <string>
 #include <tuple>
 #include <unordered_set>
@@ -383,6 +384,13 @@ namespace ccf::kv
     }
   };
 
+  class MaxTransactionSizeExceeded : public std::logic_error
+  {
+  public:
+    MaxTransactionSizeExceeded(const std::string& msg) : std::logic_error(msg)
+    {}
+  };
+
   class TxHistory
   {
   public:
@@ -701,7 +709,8 @@ namespace ccf::kv
     virtual void unlock_map_set() = 0;
 
     virtual Version next_version() = 0;
-    virtual std::tuple<Version, Version> next_version(bool commit_new_map) = 0;
+    virtual std::optional<std::tuple<Version, Version, Version>> next_version(
+      bool commit_new_map, Term expected_commit_term) = 0;
     virtual ccf::TxID next_txid() = 0;
 
     virtual Version current_version() = 0;
@@ -722,6 +731,7 @@ namespace ccf::kv
     virtual std::shared_ptr<TxHistory> get_history() = 0;
     virtual std::shared_ptr<ILedgerChunker> get_chunker() = 0;
     virtual EncryptorPtr get_encryptor() = 0;
+    [[nodiscard]] virtual size_t get_max_transaction_size() const = 0;
     virtual std::unique_ptr<AbstractExecutionWrapper> deserialize(
       const std::vector<uint8_t>& data,
       bool public_only = false,
@@ -734,6 +744,14 @@ namespace ccf::kv
       std::unique_ptr<PendingTx> pending_tx,
       bool globally_committable) = 0;
     virtual bool check_rollback_count(Version count) = 0;
+    virtual bool apply_tx_flags(
+      Version version,
+      Term expected_term,
+      Version expected_rollback_count,
+      bool force_ledger_chunk,
+      bool snapshot_at_next_signature) = 0;
+    virtual std::optional<bool> should_create_ledger_chunk_for_reserved_tx(
+      Version version, Term expected_term, Version expected_rollback_count) = 0;
 
     virtual std::unique_ptr<AbstractSnapshot> snapshot_unsafe_maps(
       Version v) = 0;

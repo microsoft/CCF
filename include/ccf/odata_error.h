@@ -100,6 +100,7 @@ namespace ccf
     ERROR(TransactionNotFound)
     ERROR(TransactionCommitAttemptsExceedLimit)
     ERROR(TransactionReplicationFailed)
+    ERROR(TransactionTooLarge)
     ERROR(UnknownCertificate)
     ERROR(VoteNotFound)
     ERROR(VoteAlreadyExists)

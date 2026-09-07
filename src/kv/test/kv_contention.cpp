@@ -266,6 +266,7 @@ DOCTEST_TEST_CASE(
   constexpr size_t k = 42;
 
   std::atomic<size_t> conflict_count = 0;
+  std::atomic<bool> stop = false;
 
   auto point_at_previous_write = [&]() {
     auto sleep_time = std::chrono::microseconds(5);
@@ -311,27 +312,59 @@ DOCTEST_TEST_CASE(
     }
   };
 
-  std::vector<std::thread> threads;
   constexpr auto num_threads = 64;
-  constexpr auto writes_per_thread = 100;
+  std::vector<std::thread> threads;
+  std::atomic<size_t> ready_count = 0;
+  std::atomic<bool> start = false;
+
   for (size_t i = 0; i < num_threads; ++i)
   {
     threads.emplace_back([&]() {
-      for (size_t n = 0; n < writes_per_thread; ++n)
+      ++ready_count;
+      while (!start.load())
+      {
+        std::this_thread::yield();
+      }
+
+      while (!stop.load())
       {
         point_at_previous_write();
       }
     });
   }
 
+  // Wait until all worker threads are ready, so contention begins together
+  while (ready_count.load() < num_threads)
+  {
+    std::this_thread::yield();
+  }
+  start.store(true);
+
+  // Wait until at least one conflict has been observed, or a deadline is
+  // reached, then signal all workers to stop
+  using Clock = std::chrono::steady_clock;
+  const auto deadline = Clock::now() + std::chrono::seconds(5);
+  bool conflict_seen_before_deadline = false;
+  while (Clock::now() < deadline)
+  {
+    if (conflict_count.load() > 0)
+    {
+      conflict_seen_before_deadline = true;
+      break;
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  }
+
+  stop.store(true);
+
   for (auto& thread : threads)
   {
     thread.join();
   }
 
-  LOG_INFO_FMT("Found {} conflicts", conflict_count);
-  DOCTEST_CHECK(conflict_count > 0);
-  constexpr auto last_write_version = num_threads * writes_per_thread;
+  LOG_INFO_FMT("Found {} conflicts", conflict_count.load());
+  DOCTEST_REQUIRE(conflict_seen_before_deadline);
+  const auto last_write_version = kv_store.current_version();
 
   {
     DOCTEST_INFO("Read final write from current state");

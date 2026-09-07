@@ -646,7 +646,9 @@ class LedgerValidator:
             for node_id, node_info in node_table.items():
                 node_id = node_id.decode()
                 if node_info is None:
-                    # Node has been removed from the store
+                    # Node rows are deleted after normal retirement and may also
+                    # be deleted directly during disaster recovery, without a
+                    # RETIRED write.
                     self.node_activity_status.pop(node_id)
                     continue
 
