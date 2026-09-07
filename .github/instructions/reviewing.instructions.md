@@ -1,124 +1,77 @@
 ---
-applyTo:
-  - "**/*.cpp"
-  - "**/*.h"
-  - "**/*.hpp"
-  - "**/*.cc"
-  - "**/*.c"
+applyTo: "**/*.cpp,**/*.h,**/*.hpp,**/*.cc,**/*.c"
 ---
 
-# Code review – third-party library error handling
+# C/C++ conventions and third-party library error handling
 
-When flagging a third-party error-handling issue during review, cite this file (`.github/instructions/reviewing.instructions.md`) so the author can look up the full guidelines.
+Use these conventions when implementing C++ changes and the error-handling guidance when implementing or reviewing C/C++ library calls.
 
-When reviewing any C++ change that adds or modifies calls to OpenSSL (or another third-party C library), apply the checks below. The goal is to catch unchecked return values and inconsistent error-handling patterns before they reach production.
+## C++ conventions
 
-## General principles
+- Use `PascalCase` for classes/structs; `snake_case` for functions, members (no prefix), namespaces, and filenames; `UPPER_SNAKE_CASE` for constants. Use `#pragma once` for headers.
+- Use `DECLARE_JSON_*` macros from `include/ccf/ds/json.h` for struct serialisation, selecting required, optional, and base fields to match the data contract.
+- Register endpoints in `init_handlers()`: `make_endpoint` for read-write transactions, `make_read_only_endpoint` for read-only transactions, and `make_command_endpoint` for no KV access. Select authentication and forwarding policies explicitly for the endpoint's semantics; follow nearby handlers rather than copying an arbitrary policy.
+- Access typed KV maps through transaction handles (`tx.rw` or `tx.ro`), not directly. Handle absent values returned by `get`.
+- Use `CCF_APP_*` logging macros in applications and `LOG_*_FMT` macros from `src/ds/internal_logger.h` internally. Levels, in decreasing verbosity: `TRACE`, `DEBUG`, `INFO`, `FAIL`, `FATAL`.
+- Prefer existing RAII wrappers and smart pointers. Follow surrounding comment density; explain invariants or non-obvious behaviour, not the history of an edit.
 
-1. **Every call that can fail must be checked.** If a C function documents a failure return (error code, null pointer, negative value, …), the caller must test for it. Silently discarding the result is always a defect in this codebase.
-2. **Use the project's own helpers.** CCF already provides wrapper macros and RAII types for the most common libraries (see tables below). Prefer those over ad-hoc `if` checks so that error messages stay consistent and nothing is accidentally skipped.
-3. **Consistent style within a function.** If the first half of a function uses `CHECK1()` for every OpenSSL call but the second half silently ignores a return value, flag the inconsistency even if the ignored call "usually succeeds."
-4. **Clean up on every error path.** When RAII wrappers are not used, verify that every early-return or throw after a partial allocation frees the already-acquired resources.
+## Error-handling review method
+
+1. Establish the specific API's return-value and ownership contract using the version shipped by the repository, its headers, wrappers, and matching documentation. Do not infer a contract from a function-name prefix.
+2. Check whether failure is handled locally, by a wrapper, or by propagation to the caller. Distinguish failures from normal outcomes such as verification mismatch, EOF, retry, or absent properties.
+3. Prefer existing check helpers when their success predicate and throwing behaviour fit the call site. Explicit checks are valid for recoverable errors, partial results, callbacks, and non-throwing cleanup.
+4. Trace resource ownership through partial allocation, early return, exceptions, and ownership transfer. Do not add duplicate checks or frees when a wrapper already handles them.
+5. Flag ignored failures when they cause incorrect behaviour or lose necessary diagnostics. Best-effort cleanup may intentionally ignore a result when it cannot affect correctness; verify that justification rather than treating every discarded return as a defect.
+6. Explain the concrete failure path in a review finding. A different check style, manual ownership that is demonstrably correct, or a missing preferred error string alone is not a correctness defect.
 
 ## OpenSSL
 
 CCF wraps OpenSSL with helpers defined in `include/ccf/crypto/openssl/openssl_wrappers.h`.
 
-### Available check macros
+### Check helpers
 
-| Macro                        | Use when the OpenSSL function …                                   |
-| ---------------------------- | ----------------------------------------------------------------- |
-| `CHECK1(rc)`                 | returns **1** on success (most `EVP_*`, `BN_*`, `X509_*` setters) |
-| `CHECKNULL(ptr)`             | returns a **pointer** that is null on failure                     |
-| `CHECKPOSITIVE(val)`         | returns a **positive int** on success (e.g. `EVP_PKEY_CTX_set_*`) |
-| `CHECKEQUAL(expect, actual)` | must return an **exact value**                                    |
+| Helper                       | Success predicate  |
+| ---------------------------- | ------------------ |
+| `CHECK1(rc)`                 | `rc == 1`          |
+| `CHECKNULL(ptr)`             | `ptr != nullptr`   |
+| `CHECKPOSITIVE(val)`         | `val > 0`          |
+| `CHECKEQUAL(expect, actual)` | `actual == expect` |
 
-### Available RAII wrappers (`Unique_*`)
+Choose the predicate from the individual API contract. `CHECK1` rejects valid values above 1 for APIs allowing any positive success result. `CHECKPOSITIVE` is also correct for an API whose only success is 1 and whose failures are all non-positive; do not flag that equivalence as a bug. These helpers throw, and `CHECKNULL` validates rather than returns the pointer.
 
-`Unique_EVP_PKEY_CTX`, `Unique_BIO`, `Unique_PKEY`, `Unique_X509`, `Unique_X509_REQ`, `Unique_X509_CRL`, `Unique_SSL_CTX`, `Unique_SSL`, `Unique_BIGNUM`, `Unique_X509_TIME`, and others. These call the correct `*_free()` destructor automatically.
-
-### What to look for
-
-- **Allocations without `CHECKNULL`:** Any direct call to `EVP_PKEY_new()`, `BIO_new()`, `X509_new()`, `EVP_MD_CTX_new()`, `BN_new()`, `SSL_CTX_new()`, `SSL_new()`, or similar that stores the result without passing it through `CHECKNULL()` or an equivalent null check.
-- **`CHECK1` vs `CHECKPOSITIVE` mix-ups:** Some OpenSSL functions (notably `EVP_PKEY_CTX_set_*`) return a positive value on success, not exactly 1. Using `CHECK1` on those calls will incorrectly treat valid return codes > 1 as failures and trigger false-positive error handling. Conversely, `CHECKPOSITIVE` is wrong for functions that return exactly 1 on success.
-- **`BIO_get_mem_ptr` / `BIO_read` ignored:** These return an int indicating success. Verify the return is tested before dereferencing the output pointer.
-- **Missing `ERR_get_error` drain on error paths:** When an OpenSSL failure is caught but the error queue is not drained (or vice-versa), later calls may see stale errors.
-- **Raw `new`/`free` instead of RAII wrappers:** If a `Unique_*` type exists for the object, the review should suggest using it rather than manual `*_free()` calls.
-- **Partial checks:** A sequence of OpenSSL calls where some are wrapped in a check macro and others are not is a red flag. All calls in the sequence should be checked.
-
-### Consult the documentation
-
-OpenSSL documents return values on its man pages (<https://docs.openssl.org/master/man3/>). When reviewing a call you are unfamiliar with, look up the specific function to confirm:
-
-- What value indicates success (1, 0, positive, non-null, …).
-- Whether the function sets the OpenSSL error queue on failure.
-- Whether the caller must free the returned object.
-
-Use this to verify that the correct check macro is used and that the error path is appropriate.
+- Existing `Unique_*` wrappers cover objects such as BIOs, keys, certificates, and SSL contexts. Verify the chosen constructor's allocation/null check and ownership semantics before adding another check.
+- `BIO_get_mem_ptr` returns a control result and writes an output pointer; validate success before using that pointer. `BIO_read` returns a byte count, not a Boolean: handle short reads and the BIO's EOF/retry/error semantics.
+- Inspect error-queue ownership at the recovery boundary. Preserve errors needed by the caller (notably before `SSL_get_error`); drain or clear stale errors only where the API contract and recovery flow require it. One `ERR_get_error()` removes one entry, not the entire queue.
+- For unfamiliar APIs, consult the matching-version [OpenSSL documentation](https://docs.openssl.org/) for success values, error-queue behaviour, and whether returned objects are owned or borrowed.
 
 ## libcurl
 
 CCF wraps libcurl in `src/http/curl.h`.
 
-| Macro                                        | Use when …                          |
-| -------------------------------------------- | ----------------------------------- |
-| `CHECK_CURL_EASY(fn, ...)`                   | calling any `curl_easy_*` function  |
-| `CHECK_CURL_EASY_SETOPT(handle, opt, arg)`   | calling `curl_easy_setopt`          |
-| `CHECK_CURL_EASY_GETINFO(handle, info, arg)` | calling `curl_easy_getinfo`         |
-| `CHECK_CURL_MULTI(fn, ...)`                  | calling any `curl_multi_*` function |
+| Macro                                        | Applicable return contract      |
+| -------------------------------------------- | ------------------------------- |
+| `CHECK_CURL_EASY(fn, ...)`                   | `CURLcode`, success `CURLE_OK`  |
+| `CHECK_CURL_EASY_SETOPT(handle, opt, arg)`   | `curl_easy_setopt`              |
+| `CHECK_CURL_EASY_GETINFO(handle, info, arg)` | `curl_easy_getinfo`             |
+| `CHECK_CURL_MULTI(fn, ...)`                  | `CURLMcode`, success `CURLM_OK` |
 
-### What to look for
-
-- Direct calls to `curl_easy_setopt`, `curl_easy_perform`, or `curl_multi_*` that do not use the above macros.
-- `curl_easy_init()` or `curl_multi_init()` returns not checked for null.
-- `curl_slist_append()` return not checked for null (it returns null on allocation failure).
+These macros throw; use explicit handling for recoverable transfer errors. They do not apply to pointer- or void-returning APIs. `curl_easy_init()` and `curl_multi_init()` need null checks, already provided by CCF's `UniqueCURL`/`UniqueCURLM` constructors. On `curl_slist_append()` failure, preserve ownership of the original list rather than overwriting its only pointer with null.
 
 ## llhttp (HTTP/1.x parser)
 
-Used in `src/http/http_parser.h`. The parser entry point is `llhttp_execute()`; its return must be compared against `HPE_OK` (and, where relevant, `HPE_PAUSED_UPGRADE`).
-
-### What to look for
-
-- Calls to `llhttp_execute()` whose return value is not tested.
-- Missing use of `llhttp_errno_name()` / `llhttp_get_error_reason()` in the error message (makes debugging harder).
-- Callback return values: llhttp callbacks (e.g. `on_message_complete`) that return non-zero indicate a parse error to the library. Ensure these are intentional.
+Used in `src/http/http_parser.h`. Check `llhttp_execute()` against `HPE_OK`, handling supported pause/upgrade outcomes explicitly. Callback return contracts differ; distinguish intentional pause/upgrade from parse errors using the shipped API. For parse failures, prefer diagnostics from `llhttp_errno_name()` / `llhttp_get_error_reason()`.
 
 ## nghttp2 (HTTP/2)
 
-Used in `src/http/http2_callbacks.h` and `src/http/http2_session.h`. Most `nghttp2_*` functions return 0 on success or a negative error code.
-
-### What to look for
-
-- Calls to `nghttp2_session_*`, `nghttp2_submit_*`, or `nghttp2_hd_*` where the return value is silently discarded.
-- Error messages that print only the raw integer code instead of `nghttp2_strerror(rc)`.
-- `nghttp2_session_send()` / `nghttp2_session_mem_recv()` return values not checked.
+Used in `src/http/http2_callbacks.h` and `src/http/http2_session.h`. Many APIs return 0 on success and negative error codes, but others return counts or identifiers. In particular, `nghttp2_session_mem_recv()` returns consumed bytes on success; account for partial consumption. Check `nghttp2_session_send()` failures and prefer `nghttp2_strerror(rc)` in error diagnostics.
 
 ## QuickJS
 
-Used in `src/js/`. `JS_*` functions return `JSValue`; errors are indicated by `JS_IsException()`.
+Used in `src/js/`, with declarations in `3rdparty/exported/quickjs/quickjs.h`.
 
-### What to look for
+- Fallible `JSValue` producers such as `JS_Call`, `JS_Eval`, and `JS_GetPropertyStr` indicate exceptions via `JS_IsException()`. Check or propagate exceptions before treating the value as a successful result.
+- Integer-returning APIs such as `JS_ToInt32` and `JS_SetPropertyStr` use their documented integer failure convention, not `JS_IsException()`.
+- Pointer-returning constructors such as `JS_NewRuntime` need null checks; void-returning functions cannot be return-checked.
+- Track owned, borrowed, duplicated, and consumed values. Free owned values no longer needed (or use existing RAII wrappers), but do not free values after a consuming API has taken ownership.
 
-- `JS_Call`, `JS_Eval`, `JS_GetPropertyStr`, `JS_NewObject`, etc. whose return value is not passed through `JS_IsException()` (or an equivalent check) before use.
-- Missing `JS_FreeValue()` on values that are no longer needed (leaks in the JS runtime).
-
-## Other third-party libraries
-
-For any other C library call added in a change (e.g. `uv_*` from libuv, zlib, or platform APIs), apply the same discipline:
-
-1. Look up the function's documented return-value contract.
-2. Confirm the call site checks for the failure case.
-3. Confirm the error message includes enough context (function name, error code or string) to be debuggable.
-4. Confirm resources are released on the error path.
-
-## Checklist for reviewers
-
-Use this as a mental checklist when reviewing a diff that touches third-party library calls:
-
-- [ ] Every function that can fail has its return value checked.
-- [ ] The correct check macro/pattern is used (e.g. `CHECK1` vs `CHECKPOSITIVE` for OpenSSL).
-- [ ] All allocations are null-checked, ideally via RAII wrappers.
-- [ ] Error handling is consistent within each function — no unchecked calls mixed with checked ones.
-- [ ] Error messages include the library's own error string (e.g. `error_string(ec)`, `nghttp2_strerror(rc)`).
-- [ ] Resources allocated before the failing call are freed on the error path.
-- [ ] No OpenSSL error-queue state is leaked across unrelated operations.
+Apply the same contract-first review method to other libraries, including libuv, zlib, and platform APIs.

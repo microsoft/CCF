@@ -6,49 +6,39 @@ description: "Format and lint CCF changes. Use when choosing or running checks f
 
 # Formatting and linting
 
-`scripts/ci-checks.sh` orchestrates all formatting and linting checks by running individual scripts concurrently. You can run all checks at once, or run only the scripts relevant to the files you changed.
+## Scope and prerequisites
 
-To run **all** checks with auto-fix: `scripts/ci-checks.sh -f`
+Run commands from the repository root. `scripts/ci-checks.sh` runs the individual checks concurrently, including a build-configuration check. Use the global instructions' validation policy to choose targeted local checks or the full suite.
 
-To run **only the checks you need**, use the individual scripts below based on the file types you modified. When a script supports `-f`, you **must** use it to auto-fix issues. When `-f` is not available, run the script and read its error output to determine what changes are needed.
+The Copilot setup workflow runs `scripts/setup-ubuntu-ci-checks.sh` for Ubuntu formatting/lint prerequisites. Some checks use `uvx` or npm to obtain tools at runtime and need network access. The test-bucket check additionally requires the full CMake configure prerequisites; the setup workflow does not install those.
 
-## Scripts with auto-fix (`-f`)
+## Check first, fix only task-owned changes
 
-These scripts accept a `-f` flag that automatically corrects issues. Always run them with `-f`:
+- Run scripts without `-f` initially. Success is exit status 0; inspect failure output to distinguish changed-file issues, unrelated failures, and environment blockers.
+- The scripts generally scan whole directories or tracked files, not just the diff. Selecting a script by file type does not restrict which files it may rewrite.
+- For auto-fix, use the existing underlying formatter/linter with explicit changed-file paths and the same version/configuration used by the script. Only fix files or hunks owned by the task; preserve existing user edits.
+- Use a script's `-f` mode only after verifying its complete write scope is intended. Do not run repository-wide auto-fix as a default.
+- Inspect the resulting diff and rerun the applicable check. Do not remove unrelated edits to make checks pass. Report blockers and unrelated failures under the global validation policy.
 
-| Script                            | Run with                             | File types                                                                    | Tool                     |
-| --------------------------------- | ------------------------------------ | ----------------------------------------------------------------------------- | ------------------------ |
-| `scripts/cpp-format-checks.sh`    | `scripts/cpp-format-checks.sh -f`    | `.h`, `.hpp`, `.c`, `.cpp`, `.cc` in `include/`, `src/`, `samples/`           | clang-format             |
-| `scripts/python-format-checks.sh` | `scripts/python-format-checks.sh -f` | `.py` in `tests/`, `python/`, `scripts/`, `tla/`                              | black                    |
-| `scripts/python-lint-checks.sh`   | `scripts/python-lint-checks.sh -f`   | `.py` in `python/`, `tests/`                                                  | ruff                     |
-| `scripts/prettier-checks.sh`      | `scripts/prettier-checks.sh -f`      | `.ts`, `.js`, `.md`, `.yaml`, `.yml`, `.json` (excludes `tests/sandbox/`)     | prettier                 |
-| `scripts/cmake-format-checks.sh`  | `scripts/cmake-format-checks.sh -f`  | `CMakeLists.txt` and `.cmake` files in `cmake/`, `samples/`, `src/`, `tests/` | gersemi                  |
-| `scripts/release-notes-checks.sh` | `scripts/release-notes-checks.sh -f` | Release notes in `CHANGELOG.md`                                               | extract-release-notes.py |
+## Check inventory
 
-## Scripts without auto-fix
+Each command below is under `scripts/`. This table is a routing guide; the scripts own exact file coverage, exclusions, tool versions, and options. When changing that coverage, update this guide too. Include cross-cutting checks (copyright, disallowed comments, ASCII) when applicable.
 
-These scripts only report problems. Run them and read their error output to determine what manual changes are needed:
+| Script                    | Relevant changes                                             | Tool/check                                         | Supports auto-fix |
+| ------------------------- | ------------------------------------------------------------ | -------------------------------------------------- | ----------------- |
+| `cpp-format-checks.sh`    | C/C++ in `include/`, `src/`, `samples/`                      | clang-format                                       | `-f`              |
+| `python-format-checks.sh` | Python in `tests/`, `python/`, `scripts/`, `tla/`            | black                                              | `-f`              |
+| `python-lint-checks.sh`   | Python in `python/`, `tests/`                                | ruff                                               | `-f`              |
+| `python-types-checks.sh`  | Python SDK                                                   | mypy                                               | No                |
+| `prettier-checks.sh`      | TS, JS, Markdown, YAML, JSON (excluding `tests/sandbox/`)    | prettier                                           | `-f`              |
+| `cmake-format-checks.sh`  | CMake files                                                  | gersemi                                            | `-f`              |
+| `release-notes-checks.sh` | `CHANGELOG.md` (also run prettier)                           | extract-release-notes.py                           | `-f`              |
+| `shellcheck-checks.sh`    | Shell scripts outside `3rdparty/`                            | shellcheck                                         | No                |
+| `includes-checks.sh`      | Public C++ headers and their uses                            | Public/private include and exported-header checks  | No                |
+| `copyright-checks.sh`     | Source files                                                 | Copyright notices                                  | No                |
+| `openapi-checks.sh`       | JSON under `doc/schemas/`                                    | openapi-spec-validator                             | No                |
+| `todo-checks.sh`          | Tracked files                                                | Disallowed comments                                | No                |
+| `ascii-checks.sh`         | Source/config files, including Rust and TLA+                 | ASCII policy and intentional exceptions            | No                |
+| `test-buckets-checks.sh`  | CMake test registration, defaults, or `tests/ci-buckets.txt` | Fresh configure and CI bucket inventory comparison | No                |
 
-| Script                           | Run with                         | File types                                                                         | What to look for in the output                                                                                                         |
-| -------------------------------- | -------------------------------- | ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `scripts/shellcheck-checks.sh`   | `scripts/shellcheck-checks.sh`   | `.sh` files (excludes `3rdparty/`)                                                 | shellcheck warnings and errors with line numbers and fix suggestions                                                                   |
-| `scripts/python-types-checks.sh` | `scripts/python-types-checks.sh` | `.py` in `python/`                                                                 | mypy type errors with file, line number, and expected types                                                                            |
-| `scripts/includes-checks.sh`     | `scripts/includes-checks.sh`     | Public headers under `include/ccf/` (`.h`, `.hpp`)                                 | Public/private include violations in files under `include/ccf/`, missing `namespace ccf` in public headers, or unused exported headers |
-| `scripts/copyright-checks.sh`    | `scripts/copyright-checks.sh`    | All source files                                                                   | Files missing or with incorrect copyright notice headers                                                                               |
-| `scripts/openapi-checks.sh`      | `scripts/openapi-checks.sh`      | `.json` in `doc/schemas/`                                                          | OpenAPI schema validation errors from swagger-cli                                                                                      |
-| `scripts/todo-checks.sh`         | `scripts/todo-checks.sh`         | All tracked files                                                                  | Unacceptable comments that must be removed or resolved                                                                                 |
-| `scripts/ascii-checks.sh`        | `scripts/ascii-checks.sh`        | Source files (excludes `3rdparty/`, prose docs, and intentionally non-ASCII files) | Non-ASCII characters that must be replaced with their plain ASCII equivalents                                                          |
-
-## Which scripts to run for each file type
-
-| If you modified                                             | Run these scripts                                                                                                            |
-| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| C/C++ source or headers (`.h`, `.hpp`, `.c`, `.cpp`, `.cc`) | `cpp-format-checks.sh -f`, `includes-checks.sh`, `copyright-checks.sh`, `ascii-checks.sh`                                    |
-| Python files (`.py`)                                        | `python-format-checks.sh -f`, `python-lint-checks.sh -f`, `python-types-checks.sh`, `copyright-checks.sh`, `ascii-checks.sh` |
-| TypeScript/JavaScript (`.ts`, `.js`)                        | `prettier-checks.sh -f`, `copyright-checks.sh`, `ascii-checks.sh`                                                            |
-| Markdown (`.md`)                                            | `prettier-checks.sh -f`                                                                                                      |
-| YAML (`.yaml`, `.yml`)                                      | `prettier-checks.sh -f`, `ascii-checks.sh`                                                                                   |
-| JSON (`.json`)                                              | `prettier-checks.sh -f`, `openapi-checks.sh` (if in `doc/schemas/`), `ascii-checks.sh`                                       |
-| CMake files (`CMakeLists.txt`, `.cmake`)                    | `cmake-format-checks.sh -f`, `ascii-checks.sh`                                                                               |
-| Shell scripts (`.sh`)                                       | `shellcheck-checks.sh`, `copyright-checks.sh`, `ascii-checks.sh`                                                             |
-| Release notes (`CHANGELOG.md`)                              | `release-notes-checks.sh -f`, `prettier-checks.sh -f`                                                                        |
+Some report-only scripts accept `-f` for interface compatibility without changing files. For Rust or other file types not covered by a formatter above, consult their existing build/CI configuration rather than introducing a new tool.
