@@ -69,7 +69,7 @@ sphinx-build --fail-on-warning -b html doc doc/html
 
 ## Reviews
 
-- Security and safety are the highest review priority: protect confidentiality, authorization, integrity, consensus safety, and availability before considering performance or convenience. Use the historical failure patterns in the review guidance where relevant.
+- Security and safety are the highest review priority: protect confidentiality, authorization, integrity, consensus safety, and availability before considering performance or convenience. Apply the security and safety review approaches in the scoped guidance where relevant.
 - Report actionable issues introduced by the diff, with a code location, triggering condition, and consequence. Separate demonstrated security impact from correctness risks and unverified hypotheses; do not call a finding exploitable without a supported path.
 - Leave mechanical formatting to existing checks; do not repeat their findings as inline review comments. For ASCII policy, `scripts/ascii-checks.sh` owns file coverage and exceptions. Review intentional non-ASCII exceptions for justification; uncovered accidental non-ASCII source is an explicit exception to the no-formatting-comments rule.
 - Bash scripts with pipelines must enable `set -o pipefail`. For other shells, check support before recommending Bash-specific options.
