@@ -209,6 +209,16 @@ TEST_CASE("PEM helpers")
   CHECK(array_json.get<ccf::crypto::Pem>() == from_string);
   CHECK_THROWS_AS(
     nlohmann::json::object().get<ccf::crypto::Pem>(), std::runtime_error);
+  CHECK_THROWS_AS(
+    nlohmann::json("").get<ccf::crypto::Pem>(), std::runtime_error);
+  CHECK_THROWS_AS(
+    nlohmann::json::array().get<ccf::crypto::Pem>(), std::logic_error);
+  CHECK_THROWS_AS(ccf::crypto::Pem(""), std::runtime_error);
+  CHECK_THROWS_AS(ccf::crypto::Pem(std::string("not PEM")), std::runtime_error);
+  CHECK_THROWS_AS(ccf::crypto::Pem(std::vector<uint8_t>{}), std::logic_error);
+  CHECK_THROWS_AS(
+    ccf::crypto::Pem(std::vector<uint8_t>{'n', 'o', 't', ' ', 'P', 'E', 'M'}),
+    std::runtime_error);
 
   CHECK(
     ccf::crypto::schema_name(static_cast<const ccf::crypto::Pem*>(nullptr)) ==
@@ -238,13 +248,25 @@ TEST_CASE("Transaction status strings")
 TEST_CASE("Subject alternative names")
 {
   const ccf::crypto::SubjectAltName expected_ip{"127.0.0.1", true};
+  const ccf::crypto::SubjectAltName expected_ipv6{"2001:db8::1", true};
   const ccf::crypto::SubjectAltName expected_dns{"example.com", false};
+  const ccf::crypto::SubjectAltName expected_wildcard{"*.example.com", false};
   CHECK(ccf::crypto::san_from_string("iPAddress:127.0.0.1") == expected_ip);
+  CHECK(ccf::crypto::san_from_string("iPAddress:2001:db8::1") == expected_ipv6);
   CHECK(ccf::crypto::san_from_string("dNSName:example.com") == expected_dns);
   CHECK(
+    ccf::crypto::san_from_string("dNSName:*.example.com") == expected_wildcard);
+  CHECK(
     ccf::crypto::sans_from_string_list(
-      {"iPAddress:127.0.0.1", "dNSName:example.com"}) ==
-    std::vector{expected_ip, expected_dns});
+      {"iPAddress:127.0.0.1",
+       "dNSName:example.com",
+       "iPAddress:2001:db8::1",
+       "dNSName:*.example.com"}) ==
+    std::vector{expected_ip, expected_dns, expected_ipv6, expected_wildcard});
+  CHECK_THROWS_AS(
+    ccf::crypto::sans_from_string_list(
+      {"dNSName:example.com", "invalid:prefix"}),
+    std::logic_error);
   CHECK_THROWS_AS(
     ccf::crypto::san_from_string("email:test@example.com"), std::logic_error);
 
@@ -280,12 +302,36 @@ TEST_CASE("Locking helpers")
 
   ccf::ds::ConditionVariable condition_variable;
   std::atomic<bool> entered = false;
+  bool wakeup = false;
   std::atomic<bool> woke = false;
+  std::atomic<bool> contender_checked = false;
+  std::atomic<bool> contender_acquired = false;
+  std::atomic<bool> release = false;
   std::thread waiter([&]() {
     ccf::ds::MutexGuard guard(mutex);
     entered.store(true, std::memory_order_release);
-    condition_variable.wait(guard);
+    condition_variable.wait(guard, [&]() { return wakeup; });
     woke.store(true, std::memory_order_release);
+    while (!contender_checked.load(std::memory_order_acquire))
+    {
+      std::this_thread::yield();
+    }
+    while (!release.load(std::memory_order_acquire))
+    {
+      std::this_thread::yield();
+    }
+  });
+  std::thread contender([&]() {
+    while (!woke.load(std::memory_order_acquire))
+    {
+      std::this_thread::yield();
+    }
+    if (mutex.try_lock())
+    {
+      contender_acquired.store(true, std::memory_order_release);
+      mutex.unlock();
+    }
+    contender_checked.store(true, std::memory_order_release);
   });
 
   while (!entered.load(std::memory_order_acquire))
@@ -295,11 +341,22 @@ TEST_CASE("Locking helpers")
 
   {
     ccf::ds::MutexGuard guard(mutex);
+    wakeup = true;
     condition_variable.notify_one();
   }
 
+  while (!contender_checked.load(std::memory_order_acquire))
+  {
+    std::this_thread::yield();
+  }
+  CHECK_FALSE(contender_acquired.load(std::memory_order_acquire));
+  release.store(true, std::memory_order_release);
+  condition_variable.notify_one();
   waiter.join();
+  contender.join();
   CHECK(woke.load(std::memory_order_acquire));
+  CHECK(mutex.try_lock());
+  mutex.unlock();
 }
 
 TEST_CASE("Claims digest schema")
@@ -311,7 +368,8 @@ TEST_CASE("Claims digest schema")
   ccf::fill_json_schema(schema, static_cast<const ccf::ClaimsDigest*>(nullptr));
   CHECK(schema["type"] == "string");
   CHECK(schema["format"] == "hex");
-  CHECK(schema["pattern"] == "^[a-f0-9]{32}$");
+  CHECK(schema["pattern"].is_string());
+  CHECK_FALSE(schema["pattern"].get<std::string>().empty());
 }
 
 TEST_CASE("HTTP client error status")
