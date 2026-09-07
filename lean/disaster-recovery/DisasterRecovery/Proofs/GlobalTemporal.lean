@@ -1856,7 +1856,7 @@ lemma next_preserves_announcements_live
         rw [identity.2] at opening
         exact Or.inl
           ⟨sourceState,
-            by simpa [identity.1] using found,
+            by simpa [identity.1, Global.nodeState] using found,
             opening⟩
   | deliver delivered =>
       intro envelope membership payload
@@ -2873,9 +2873,9 @@ lemma fair_target_terminal_after_completion
         rcases fair_opening_completes execution initial fair
             openingActive targetOpening with
           ⟨completedAt, deliveryCompleted, targetCompleted⟩
+        rw [targetEq] at targetCompleted
         exact
-          ⟨completedAt, by omega,
-            by simpa [targetEq] using (Or.inr targetCompleted)⟩
+          ⟨completedAt, by omega, Or.inr targetCompleted⟩
     · exact
         ⟨start, Nat.le_refl start, by simpa [targetEq] using terminal⟩
     · have openingActive :=
@@ -2885,9 +2885,9 @@ lemma fair_target_terminal_after_completion
       rcases fair_opening_completes execution initial fair
           openingActive opening with
         ⟨completedAt, startCompleted, targetCompleted⟩
+      rw [targetEq] at targetCompleted
       exact
-        ⟨completedAt, startCompleted,
-          by simpa [targetEq] using (Or.inr targetCompleted)⟩
+        ⟨completedAt, startCompleted, Or.inr targetCompleted⟩
 
 lemma fair_all_terminal_after_completion
     {config : Config}

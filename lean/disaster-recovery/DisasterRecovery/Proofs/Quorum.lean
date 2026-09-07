@@ -1307,7 +1307,7 @@ lemma quorum_lists_intersect
       expected.length / 2 + 1 <= second.length) :
     exists value, value ∈ first /\ value ∈ second := by
   by_contra noShared
-  push_neg at noShared
+  push Not at noShared
   have disjoint : Disjoint first.toFinset second.toFinset :=
     Finset.disjoint_left.mpr (by
       intro value firstMember secondMember

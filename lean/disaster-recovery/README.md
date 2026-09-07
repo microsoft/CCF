@@ -2,7 +2,7 @@
 
 This package contains the canonical Lean model of CCF's C++ recovery decision
 protocol and its permanent safety and liveness proofs. It is pinned to Lean
-4.28.0 and Mathlib `v4.28.0`.
+4.33.1 and Mathlib `v4.33.1`.
 
 ## Model
 
