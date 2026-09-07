@@ -36,7 +36,7 @@ namespace ccf
     ForwardedCommandId next_command_id = 0;
 
     std::unordered_map<ForwardedCommandId, ccf::tasks::Task> timeout_tasks;
-    ccf::pal::Mutex timeout_tasks_lock;
+    ccf::ds::Mutex timeout_tasks_lock;
 
     using IsCallerCertForwarded = bool;
 
@@ -110,7 +110,7 @@ namespace ccf
 
       ForwardedCommandId command_id = 0;
       {
-        std::lock_guard<ccf::pal::Mutex> guard(timeout_tasks_lock);
+        std::lock_guard<ccf::ds::Mutex> guard(timeout_tasks_lock);
         command_id = next_command_id++;
         auto task =
           ccf::tasks::make_basic_task([this, to, client_session_id, timeout]() {
@@ -399,7 +399,7 @@ namespace ccf
 
             // Cancel and delete the corresponding timeout task, so it will no
             // longer trigger a timeout error
-            std::lock_guard<ccf::pal::Mutex> guard(timeout_tasks_lock);
+            std::lock_guard<ccf::ds::Mutex> guard(timeout_tasks_lock);
             auto it = timeout_tasks.find(cmd_id);
             if (it != timeout_tasks.end())
             {

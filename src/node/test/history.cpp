@@ -3,8 +3,8 @@
 #include "node/history.h"
 
 #include "ccf/app_interface.h"
+#include "ccf/ds/locking.h"
 #include "ccf/ds/x509_time_fmt.h"
-#include "ccf/pal/locking.h"
 #include "ccf/service/tables/nodes.h"
 #include "crypto/certs.h"
 #include "crypto/openssl/hash.h"
@@ -316,9 +316,9 @@ public:
 
 struct PausedSignatureCommit
 {
-  ccf::pal::Mutex lock;
-  ccf::pal::ConditionVariable reserved_tx_created_cv;
-  ccf::pal::ConditionVariable resume_cv;
+  ccf::ds::Mutex lock;
+  ccf::ds::ConditionVariable reserved_tx_created_cv;
+  ccf::ds::ConditionVariable resume_cv;
   bool reserved_tx_created CCF_GUARDED_BY(lock) = false;
   bool resume CCF_GUARDED_BY(lock) = false;
 };
@@ -351,12 +351,12 @@ public:
     tree->put({});
 
     {
-      ccf::pal::MutexGuard guard(paused.lock);
+      ccf::ds::MutexGuard guard(paused.lock);
       paused.reserved_tx_created = true;
     }
     paused.reserved_tx_created_cv.notify_one();
 
-    ccf::pal::MutexGuard guard(paused.lock);
+    ccf::ds::MutexGuard guard(paused.lock);
     paused.resume_cv.wait(
       guard, [this]() CCF_REQUIRES(paused.lock) { return paused.resume; });
 
@@ -556,7 +556,7 @@ TEST_CASE(
   });
 
   {
-    ccf::pal::MutexGuard guard(paused.lock);
+    ccf::ds::MutexGuard guard(paused.lock);
     paused.reserved_tx_created_cv.wait(
       guard, [&paused]() CCF_REQUIRES(paused.lock) {
         return paused.reserved_tx_created;
@@ -573,7 +573,7 @@ TEST_CASE(
   REQUIRE(store.current_txid() == ccf::TxID(store_term, 1));
 
   {
-    ccf::pal::MutexGuard guard(paused.lock);
+    ccf::ds::MutexGuard guard(paused.lock);
     paused.resume = true;
   }
   paused.resume_cv.notify_one();

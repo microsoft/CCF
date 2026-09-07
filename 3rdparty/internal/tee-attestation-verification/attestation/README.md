@@ -10,14 +10,14 @@ A minimal-external-dependencies, portable and safe library for verifying a TEE a
 
 ## Crypto Backends
 
-At least one target-compatible crypto backend must be enabled.
-If multiple backends are enabled, the target-compatible backend is selected with `crypto_openssl` and `crypto_webcrypto` preferred over `crypto_pure_rust`.
+The default feature set enables every backend selector. The build selects the
+target-compatible backend.
 
 | Feature | Platforms | sync | async | Dependencies |
 |---|---|---|---|---|
-| `crypto_openssl` | Native | ✓ | ✓ | OpenSSL |
+| `crypto_openssl` | Native non-Windows | ✓ | ✓ | OpenSSL |
 | `crypto_webcrypto` | WASM only | | ✓ | WebCrypto API |
-| `crypto_pure_rust` | Native, WASM | ✓ | ✓ | Pure Rust (`p384`, `rsa`, `sha2`); selected when enabled and no target-preferred backend is enabled |
+| `crypto_windows` | Windows | ✓ | ✓ | Windows CNG and Crypt32 |
 
 ## Optional Features
 
@@ -27,11 +27,11 @@ If multiple backends are enabled, the target-compatible backend is selected with
 
 ## Usage
 
-Add the library to your `Cargo.toml` with a crypto backend:
+Add the library to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-tee-attestation-verification-lib = { git = "https://github.com/microsoft/TEE-Attestation-Verification", tag = "tav-X.X.X", features = ["crypto_openssl"] }
+tee-attestation-verification-lib = { git = "https://github.com/microsoft/TEE-Attestation-Verification", tag = "tav-X.X.X" }
 ```
 
 ### Offline verification (caller provides certificates)
@@ -60,7 +60,7 @@ Enable the `kds` feature to let the library fetch certificates from AMD's KDS:
 
 ```toml
 [dependencies]
-tee-attestation-verification-lib = { git = "https://github.com/microsoft/TEE-Attestation-Verification", tag = "tav-X.X.X", features = ["crypto_openssl", "kds"] }
+tee-attestation-verification-lib = { git = "https://github.com/microsoft/TEE-Attestation-Verification", tag = "tav-X.X.X", features = ["kds"] }
 ```
 
 ```rust

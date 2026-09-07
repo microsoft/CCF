@@ -4,7 +4,7 @@
 #include "ccf/indexing/strategies/seqnos_by_key_bucketed.h"
 
 #include "ccf/ds/hex.h"
-#include "ccf/pal/locking.h"
+#include "ccf/ds/locking.h"
 #include "ds/internal_logger.h"
 #include "ds/lru.h"
 #include "ds/serialized.h"
@@ -35,18 +35,18 @@ namespace ccf::indexing::strategies
 
     // When results_access and current_txid_lock need to be
     // taken at the same time, results_access should be first
-    ccf::pal::Mutex results_access;
+    ccf::ds::Mutex results_access;
 
     std::string name;
 
     std::shared_ptr<AbstractLFSAccess> lfs_access;
 
-    ccf::pal::Mutex& current_txid_lock;
+    ccf::ds::Mutex& current_txid_lock;
     ccf::TxID& current_txid;
 
     Impl(
       std::string name_,
-      ccf::pal::Mutex& current_txid_lock_,
+      ccf::ds::Mutex& current_txid_lock_,
       ccf::TxID& current_txid_,
       const std::shared_ptr<AbstractLFSAccess>& lfs_access_,
       size_t seqnos_per_bucket_,
@@ -172,7 +172,7 @@ namespace ccf::indexing::strategies
           fmt::format("Range goes backwards: {} -> {}", from, to));
       }
 
-      if (std::lock_guard<ccf::pal::Mutex> guard(current_txid_lock);
+      if (std::lock_guard<ccf::ds::Mutex> guard(current_txid_lock);
           to > current_txid.seqno)
       {
         // If the requested range hasn't been populated yet, indicate
@@ -216,7 +216,7 @@ namespace ccf::indexing::strategies
 
       while (true)
       {
-        std::lock_guard<ccf::pal::Mutex> guard(results_access);
+        std::lock_guard<ccf::ds::Mutex> guard(results_access);
 
         const auto bucket_key = std::make_pair(serialised_key, from_range);
         const auto old_it = old_results.find(bucket_key);
@@ -272,7 +272,7 @@ namespace ccf::indexing::strategies
                 // strategies currently used, this re-indexes everything from
                 // the start of time.
                 {
-                  std::lock_guard<ccf::pal::Mutex> current_txid_guard(
+                  std::lock_guard<ccf::ds::Mutex> current_txid_guard(
                     current_txid_lock);
                   current_txid = {};
                 }
@@ -361,7 +361,7 @@ namespace ccf::indexing::strategies
     (void)v;
     const auto range = impl->get_range_for(tx_id.seqno);
 
-    std::lock_guard<ccf::pal::Mutex> guard(impl->results_access);
+    std::lock_guard<ccf::ds::Mutex> guard(impl->results_access);
 
     auto it = impl->current_results.find(k);
     if (it != impl->current_results.end())
@@ -408,7 +408,7 @@ namespace ccf::indexing::strategies
   {
     auto j = VisitEachEntryInMap::describe();
     {
-      std::lock_guard<ccf::pal::Mutex> guard(impl->results_access);
+      std::lock_guard<ccf::ds::Mutex> guard(impl->results_access);
       j["seqnos_per_bucket"] = impl->seqnos_per_bucket;
       j["old_results_max_size"] = impl->old_results.get_max_size();
       j["old_results_current_size"] = impl->old_results.size();

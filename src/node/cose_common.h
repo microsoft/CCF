@@ -26,11 +26,19 @@ namespace ccf::cose
   static bool is_ecdsa_alg(int64_t cose_alg)
   {
     // https://www.iana.org/assignments/cose/cose.xhtml
+    // RFC 9864 deprecates the curve-agnostic ES identifiers in favour of the
+    // fully-specified ESP ones. Both are accepted, since the curve, and
+    // therefore the digest, is fixed by the verification key.
     constexpr int COSE_ALGORITHM_ES256 = -7;
     constexpr int COSE_ALGORITHM_ES384 = -35;
     constexpr int COSE_ALGORITHM_ES512 = -36;
+    constexpr int COSE_ALGORITHM_ESP256 = -9;
+    constexpr int COSE_ALGORITHM_ESP384 = -51;
+    constexpr int COSE_ALGORITHM_ESP512 = -52;
     return cose_alg == COSE_ALGORITHM_ES256 ||
-      cose_alg == COSE_ALGORITHM_ES384 || cose_alg == COSE_ALGORITHM_ES512;
+      cose_alg == COSE_ALGORITHM_ES384 || cose_alg == COSE_ALGORITHM_ES512 ||
+      cose_alg == COSE_ALGORITHM_ESP256 || cose_alg == COSE_ALGORITHM_ESP384 ||
+      cose_alg == COSE_ALGORITHM_ESP512;
   }
 
   static bool is_rsa_alg(int64_t cose_alg)

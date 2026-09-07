@@ -4,7 +4,7 @@
 #include "node/recovery_decision_protocol.h"
 
 #include "ccf/crypto/verifier.h"
-#include "ccf/pal/locking.h"
+#include "ccf/ds/locking.h"
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/self_healing_open.h"
 #include "ccf/tx.h"
@@ -555,7 +555,7 @@ namespace ccf
   recovery_decision_protocol::RequestNodeInfo&
   RecoveryDecisionProtocolSubsystem::get_node_info(kv::ReadOnlyTx& tx)
   {
-    std::lock_guard<pal::Mutex> guard(recovery_decision_protocol_lock);
+    std::lock_guard<ds::Mutex> guard(recovery_decision_protocol_lock);
 
     if (node_info_cache.has_value())
     {
@@ -570,7 +570,7 @@ namespace ccf
         "Node {} not found in nodes table", node_state->get_node_id()));
     }
     {
-      std::lock_guard<pal::Mutex> ns_guard(node_state->lock);
+      std::lock_guard<ds::Mutex> ns_guard(node_state->lock);
       node_info_cache = recovery_decision_protocol::RequestNodeInfo{
         .quote_info = node_info_opt->quote_info,
         .location = get_location(),
@@ -633,7 +633,7 @@ namespace ccf
   RecoveryDecisionProtocolSubsystem::get_iamopen_request(kv::ReadOnlyTx& tx)
   {
     {
-      std::lock_guard<pal::Mutex> guard(recovery_decision_protocol_lock);
+      std::lock_guard<ds::Mutex> guard(recovery_decision_protocol_lock);
       if (iamopen_request_cache.has_value())
       {
         return iamopen_request_cache.value();
@@ -655,7 +655,7 @@ namespace ccf
     auto& node_info = get_node_info(tx);
 
     {
-      std::lock_guard<pal::Mutex> guard(recovery_decision_protocol_lock);
+      std::lock_guard<ds::Mutex> guard(recovery_decision_protocol_lock);
       iamopen_request_cache = recovery_decision_protocol::IAmOpenRequest{};
       iamopen_request_cache->info = node_info;
       iamopen_request_cache->prev_service_fingerprint =

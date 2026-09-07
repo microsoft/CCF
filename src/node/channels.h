@@ -8,8 +8,8 @@
 #include "ccf/crypto/symmetric_key.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/hex.h"
+#include "ccf/ds/locking.h"
 #include "ccf/entity_id.h"
-#include "ccf/pal/locking.h"
 #include "crypto/key_exchange.h"
 #include "ds/internal_logger.h"
 #include "ds/serialized.h"
@@ -178,7 +178,7 @@ namespace ccf
       {}
     };
 
-    ccf::pal::Mutex lock;
+    ccf::ds::Mutex lock;
 
     NodeId self;
     const ccf::crypto::Pem& service_cert;
@@ -983,7 +983,7 @@ namespace ccf
 
     bool channel_open()
     {
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      std::lock_guard<ccf::ds::Mutex> guard(lock);
       return recv_key != nullptr && send_key != nullptr;
     }
 
@@ -1003,7 +1003,7 @@ namespace ccf
       std::span<const uint8_t> aad,
       std::span<const uint8_t> plain = {})
     {
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      std::lock_guard<ccf::ds::Mutex> guard(lock);
 
       return send_unsafe(type, aad, plain);
     }
@@ -1011,7 +1011,7 @@ namespace ccf
     bool recv_authenticated(
       std::span<const uint8_t> aad, const uint8_t*& data, size_t& size)
     {
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      std::lock_guard<ccf::ds::Mutex> guard(lock);
 
       // Receive authenticated message, modifying data to point to the start of
       // the non-authenticated plaintext payload
@@ -1040,7 +1040,7 @@ namespace ccf
 
     bool recv_authenticated_with_load(const uint8_t*& data, size_t& size)
     {
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      std::lock_guard<ccf::ds::Mutex> guard(lock);
 
       // Receive authenticated message, modifying data to point to the start of
       // the non-authenticated plaintext payload. data contains payload first,
@@ -1077,7 +1077,7 @@ namespace ccf
     std::optional<std::vector<uint8_t>> recv_encrypted(
       std::span<const uint8_t> aad, const uint8_t*& data, size_t& size)
     {
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      std::lock_guard<ccf::ds::Mutex> guard(lock);
 
       // Receive encrypted message, returning the decrypted payload
       if (recv_key == nullptr)
@@ -1106,7 +1106,7 @@ namespace ccf
 
     void close_channel()
     {
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      std::lock_guard<ccf::ds::Mutex> guard(lock);
 
       RINGBUFFER_WRITE_MESSAGE(close_node_outbound, to_host, peer_id.value());
       reset_key_exchange();
@@ -1118,7 +1118,7 @@ namespace ccf
 
     bool recv_key_exchange_message(const uint8_t* data, size_t size)
     {
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      std::lock_guard<ccf::ds::Mutex> guard(lock);
 
       try
       {

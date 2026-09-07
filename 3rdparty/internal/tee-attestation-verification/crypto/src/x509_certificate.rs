@@ -1,9 +1,6 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-#[cfg(all(async_crypto, not(sync_crypto)))]
-use std::{future::Future, pin::Pin};
-
 use pkcs1::{RsaPssParams, TrailerField};
 use x509_cert::der::{
     asn1::AnyRef, oid::ObjectIdentifier, pem::LineEnding, referenced::OwnedToRef, Decode,
@@ -11,6 +8,10 @@ use x509_cert::der::{
 };
 use x509_cert::ext::pkix::{BasicConstraints as X509BasicConstraints, KeyUsage as X509KeyUsage};
 use x509_cert::spki::AlgorithmIdentifierOwned;
+use x509_cert::{
+    certificate::{CertificateInner, Profile},
+    time::Time,
+};
 
 use super::{
     BasicConstraints, KeyUsage, Result, RsaPkcs1v15SignatureKeyAlgorithm,
@@ -19,85 +20,28 @@ use super::{
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Certificate {
-    inner: x509_cert::Certificate,
+    inner: CertificateInner<PreserveTimeEncoding>,
 }
 
-/// Synchronous checking of a certificate path
-#[cfg(sync_crypto)]
-pub fn verify_certificate_path(
-    mut verify_signature: impl FnMut(&Certificate, &Certificate) -> Result<()>,
-    root_trust_anchor: &Certificate,
-    untrusted_chain: &[&Certificate],
-    leaf: &Certificate,
-) -> Result<()> {
-    // Verify that the chain is properly ordered and that signatures are valid.
-    let full_chain = untrusted_chain
-        .iter()
-        .copied()
-        .chain(std::iter::once(leaf))
-        .collect::<Vec<_>>();
+#[derive(Clone, Copy, Debug, Default, Eq, Ord, PartialEq, PartialOrd)]
+struct PreserveTimeEncoding;
 
-    // The trusted certificate must issue the first certificate in the path.
-    verify_signature(root_trust_anchor, full_chain[0])
-        .map_err(|e| format!("Certificate signature verification failed: {e}"))?;
-    for edge in full_chain.windows(2) {
-        let issuer = edge[0];
-        let subject = edge[1];
-        verify_signature(issuer, subject)
-            .map_err(|e| format!("Certificate signature verification failed: {e}"))?;
+impl Profile for PreserveTimeEncoding {
+    fn time_encoding(time: Time) -> x509_cert::der::Result<Time> {
+        Ok(time)
     }
-
-    Ok(())
-}
-
-/// Asynchronous checking of the certificate path
-// If sync_crypto enabled, this is automatically dispatched to verify_certificate_path
-// So disable if sync_crypto is enabled to avoid unused warnings
-#[cfg(all(async_crypto, not(sync_crypto)))]
-pub async fn verify_certificate_path_async<F>(
-    mut verify_signature: F,
-    root_trust_anchor: &Certificate,
-    untrusted_chain: &[&Certificate],
-    leaf: &Certificate,
-) -> Result<()>
-where
-    F: for<'a> FnMut(
-        &'a Certificate,
-        &'a Certificate,
-    ) -> Pin<Box<dyn Future<Output = Result<()>> + 'a>>,
-{
-    // Verify that the chain is properly ordered and that signatures are valid.
-    let full_chain = untrusted_chain
-        .iter()
-        .copied()
-        .chain(std::iter::once(leaf))
-        .collect::<Vec<_>>();
-
-    // The trusted certificate must issue the first certificate in the path.
-    verify_signature(root_trust_anchor, full_chain[0])
-        .await
-        .map_err(|e| format!("Certificate signature verification failed: {e}"))?;
-    for edge in full_chain.windows(2) {
-        let issuer = edge[0];
-        let subject = edge[1];
-        verify_signature(issuer, subject)
-            .await
-            .map_err(|e| format!("Certificate signature verification failed: {e}"))?;
-    }
-
-    Ok(())
 }
 
 impl Certificate {
     // Certificate accessors.
     pub fn from_pem(pem: &[u8]) -> Result<Self> {
         Ok(Self {
-            inner: x509_cert::Certificate::from_pem(pem)?,
+            inner: CertificateInner::from_pem(pem)?,
         })
     }
 
     pub fn from_pem_chain(pem: &[u8]) -> Result<Vec<Self>> {
-        x509_cert::Certificate::load_pem_chain(pem)?
+        CertificateInner::load_pem_chain(pem)?
             .into_iter()
             .map(|inner| Ok(Self { inner }))
             .collect()
@@ -105,7 +49,7 @@ impl Certificate {
 
     pub fn from_der(der: &[u8]) -> Result<Self> {
         Ok(Self {
-            inner: x509_cert::Certificate::from_der(der)?,
+            inner: CertificateInner::from_der(der)?,
         })
     }
 
@@ -120,15 +64,15 @@ impl Certificate {
     pub fn public_key_spki_der(&self) -> Result<Vec<u8>> {
         Ok(self
             .inner
-            .tbs_certificate
-            .subject_public_key_info
+            .tbs_certificate()
+            .subject_public_key_info()
             .to_der()?)
     }
 
     pub fn get_extension_value_by_oid(&self, oid: &str) -> Result<Option<Vec<u8>>> {
         let oid = ObjectIdentifier::new(oid)?;
 
-        let extensions = match self.inner.tbs_certificate.extensions.as_ref() {
+        let extensions = match self.inner.tbs_certificate().extensions() {
             Some(extensions) => extensions,
             None => return Ok(None),
         };
@@ -140,47 +84,47 @@ impl Certificate {
     }
 
     pub fn tbs_certificate_der(&self) -> Result<Vec<u8>> {
-        Ok(self.inner.tbs_certificate.to_der()?)
+        Ok(self.inner.tbs_certificate().to_der()?)
     }
 
     pub fn signature_bytes(&self) -> &[u8] {
-        self.inner.signature.raw_bytes()
+        self.inner.signature().raw_bytes()
     }
 
     pub fn signature_algorithm(&self) -> Result<SignatureKeyAlgorithm> {
-        parse_signature_algorithm(&self.inner.signature_algorithm)
+        parse_signature_algorithm(self.inner.signature_algorithm())
     }
     pub fn subject_name(&self) -> String {
-        self.inner.tbs_certificate.subject.to_string()
+        self.inner.tbs_certificate().subject().to_string()
     }
 
     pub fn issuer_name(&self) -> String {
-        self.inner.tbs_certificate.issuer.to_string()
+        self.inner.tbs_certificate().issuer().to_string()
     }
 
     pub fn subject_name_der(&self) -> Result<Vec<u8>> {
-        Ok(self.inner.tbs_certificate.subject.to_der()?)
+        Ok(self.inner.tbs_certificate().subject().to_der()?)
     }
 
     pub fn issuer_name_der(&self) -> Result<Vec<u8>> {
-        Ok(self.inner.tbs_certificate.issuer.to_der()?)
+        Ok(self.inner.tbs_certificate().issuer().to_der()?)
     }
 
     pub fn is_valid_at(&self, unix_time: std::time::Duration) -> Result<bool> {
-        let validity = self.inner.tbs_certificate.validity;
+        let validity = self.inner.tbs_certificate().validity();
         Ok(validity.not_before.to_unix_duration() <= unix_time
             && unix_time <= validity.not_after.to_unix_duration())
     }
 
     pub fn version(&self) -> u8 {
-        self.inner.tbs_certificate.version as u8
+        self.inner.tbs_certificate().version() as u8
     }
 
     pub fn basic_constraints(&self) -> Result<Option<BasicConstraints>> {
         Ok(self
             .inner
-            .tbs_certificate
-            .get::<X509BasicConstraints>()?
+            .tbs_certificate()
+            .get_extension::<X509BasicConstraints>()?
             .map(|(critical, basic_constraints)| BasicConstraints {
                 critical,
                 ca: basic_constraints.ca,
@@ -191,8 +135,8 @@ impl Certificate {
     pub fn key_usage(&self) -> Result<Option<KeyUsage>> {
         Ok(self
             .inner
-            .tbs_certificate
-            .get::<X509KeyUsage>()?
+            .tbs_certificate()
+            .get_extension::<X509KeyUsage>()?
             .map(|(_, key_usage)| KeyUsage {
                 key_cert_sign: key_usage.key_cert_sign(),
             }))
@@ -203,9 +147,9 @@ impl Certificate {
 
         Ok(self
             .inner
-            .tbs_certificate
-            .extensions
-            .as_deref()
+            .tbs_certificate()
+            .extensions()
+            .map(Vec::as_slice)
             .unwrap_or(&[])
             .iter()
             .find(|extension| extension.extn_id == oid)
@@ -214,9 +158,9 @@ impl Certificate {
 
     pub fn critical_extension_oids(&self) -> Vec<String> {
         self.inner
-            .tbs_certificate
-            .extensions
-            .as_deref()
+            .tbs_certificate()
+            .extensions()
+            .map(Vec::as_slice)
             .unwrap_or(&[])
             .iter()
             .filter_map(|extension| extension.critical.then(|| extension.extn_id.to_string()))
@@ -345,9 +289,14 @@ mod oid {
 
 #[cfg(test)]
 mod test {
-    use x509_cert::der::{asn1::AnyRef, Decode, Encode};
+    use x509_cert::certificate::{Profile, Rfc5280};
+    use x509_cert::der::{
+        asn1::{AnyRef, GeneralizedTime},
+        DateTime, Decode, Encode,
+    };
+    use x509_cert::time::Time;
 
-    use super::Certificate;
+    use super::{Certificate, PreserveTimeEncoding};
     use crate::{
         RsaPkcs1v15SignatureKeyAlgorithm, RsaPssSignatureKeyAlgorithm, SignatureKeyAlgorithm,
     };
@@ -358,6 +307,22 @@ mod test {
 
     fn cert(pem: &[u8]) -> Certificate {
         Certificate::from_pem(pem).unwrap()
+    }
+
+    #[test]
+    fn certificate_profile_preserves_pre_2050_generalized_time() {
+        let time = Time::GeneralTime(GeneralizedTime::from_date_time(
+            DateTime::new(2026, 8, 17, 0, 0, 0).expect("test date should be valid"),
+        ));
+
+        assert!(matches!(
+            PreserveTimeEncoding::time_encoding(time).expect("time encoding should be preserved"),
+            Time::GeneralTime(_)
+        ));
+        assert!(matches!(
+            Rfc5280::time_encoding(time).expect("RFC 5280 time encoding should succeed"),
+            Time::UtcTime(_)
+        ));
     }
 
     #[test]
@@ -377,8 +342,8 @@ mod test {
             cert.public_key_spki_der()
                 .expect("SPKI extraction should succeed"),
             cert.inner
-                .tbs_certificate
-                .subject_public_key_info
+                .tbs_certificate()
+                .subject_public_key_info()
                 .to_der()
                 .expect("SPKI DER should encode")
         );
