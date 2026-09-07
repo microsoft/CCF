@@ -330,8 +330,12 @@ TEST_CASE("Locking helpers")
   waiter.join();
   contender.join();
   CHECK(woke.load(std::memory_order_acquire));
-  CHECK(mutex.try_lock());
-  mutex.unlock();
+  const bool acquired = mutex.try_lock();
+  CHECK(acquired);
+  if (acquired)
+  {
+    mutex.unlock();
+  }
 }
 
 TEST_CASE("HTTP client error status")
