@@ -21,7 +21,7 @@ CCF (Confidential Consortium Framework) is a replicated state machine for confid
 
 ## Task-specific guidance
 
-- For C/C++ changes, read [C/C++ conventions and library error handling](/.github/instructions/reviewing.instructions.md).
+- For C/C++ changes and security-sensitive reviews in any language, read [security/safety review guidance and C/C++ conventions](/.github/instructions/reviewing.instructions.md).
 - Before selecting, running, or writing tests, load the [testing skill](/.github/skills/testing/SKILL.md).
 - Before formatting or linting, load the [formatting-and-linting skill](/.github/skills/formatting-and-linting/SKILL.md).
 - For user-facing API or behaviour changes, update existing documentation and follow the [changelog instructions](/.github/instructions/changelog.instructions.md). Link to existing documentation rather than duplicating it.
@@ -69,7 +69,8 @@ sphinx-build --fail-on-warning -b html doc doc/html
 
 ## Reviews
 
-- Report actionable issues introduced by the diff, with a code location, triggering condition, and consequence. Prioritise authentication/authorization, external input handling, cryptography, memory ownership, and failure paths.
+- Security and safety are the highest review priority: protect confidentiality, authorization, integrity, consensus safety, and availability before considering performance or convenience. Use the historical failure patterns in the review guidance where relevant.
+- Report actionable issues introduced by the diff, with a code location, triggering condition, and consequence. Separate demonstrated security impact from correctness risks and unverified hypotheses; do not call a finding exploitable without a supported path.
 - Leave mechanical formatting to existing checks; do not repeat their findings as inline review comments. For ASCII policy, `scripts/ascii-checks.sh` owns file coverage and exceptions. Review intentional non-ASCII exceptions for justification; uncovered accidental non-ASCII source is an explicit exception to the no-formatting-comments rule.
 - Bash scripts with pipelines must enable `set -o pipefail`. For other shells, check support before recommending Bash-specific options.
 - Include a "Custom instructions used" section in PR review summaries listing the repository instruction files actually loaded and applied. Cite the scoped error-handling instructions when reporting a violation of that policy.

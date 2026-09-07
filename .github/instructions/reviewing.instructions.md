@@ -2,9 +2,32 @@
 applyTo: "**/*.cpp,**/*.h,**/*.hpp,**/*.cc,**/*.c"
 ---
 
-# C/C++ conventions and third-party library error handling
+# Security/safety review guidance and C/C++ conventions
 
-Use these conventions when implementing C++ changes and the error-handling guidance when implementing or reviewing C/C++ library calls.
+The security/safety guidance applies to security-sensitive reviews in any language, as linked from the global instructions. The `applyTo` patterns additionally load this file for C/C++ changes; the C++ conventions and library-specific sections apply only where relevant.
+
+## Security and safety first
+
+CCF's primary review concern is preserving its security guarantees and distributed-system safety. Review confidentiality, authentication/authorization, data and ledger integrity, consensus safety, and resistance to denial of service before performance or convenience. A safety violation matters even without a demonstrated attacker.
+
+- Identify the trust boundary and who controls each input: unauthenticated clients, users, members, peer nodes, or the untrusted host. Do not assume authenticated input is well-formed or authorized for every operation.
+- Trace validation through the protected operation, including forwarding, asynchronous callbacks, retries, recovery, and rollback. A check is insufficient if the checked identity/state can change before use or if another path bypasses it.
+- Check that failures leave state consistent and do not expose secrets, grant access, or continue using partially validated data. Distinguish rejected input from retryable outcomes and internal invariant failures; do not turn attacker-controlled errors into process-wide termination.
+- Require regression coverage appropriate to the changed invariant: malformed and boundary inputs, unauthorized callers, and relevant lifetime or commit/rollback interleavings. Follow the testing skill rather than adding unrelated tests or tools.
+- For each finding, identify the changed location, controllable input or triggering interleaving, missing protection, and concrete consequence. State uncertainty and prerequisites; historical similarity alone is not evidence of a current vulnerability.
+
+### Patterns from past CCF fixes
+
+These merged PRs are examples of security hardening and safety/correctness fixes, not a claim that each was a disclosed vulnerability. Apply the underlying invariant to the current diff and supported release; do not copy historical implementation details blindly.
+
+- **Bind authenticated claims to the trusted identity.** [JWT issuer validation (#6175)](https://github.com/microsoft/CCF/pull/6175) added framework validation of token `iss` against signing-key issuer metadata. Check issuer/tenant binding and the endpoint's required claims and permissions, not just signature validity or key lookup. Negative tests should include correctly signed tokens from the wrong issuer and missing required claims.
+- **Validate cryptographic material when admitting it.** [Constitution validation (#7924)](https://github.com/microsoft/CCF/pull/7924) hardened JWKS, CA, and member-key inputs. Check uniqueness of key identifiers, permitted key types/algorithms/uses, key strength, certificate structure, and issuer URL constraints against the service's policy. For CCF's root-CA bundle policy, verify root status rather than accepting an intermediate as an unintended trust anchor. Governance authorization does not replace input validation.
+- **Preserve the complete attestation trust contract.** [ARK pinning (#7934)](https://github.com/microsoft/CCF/pull/7934) added issuer and algorithm checks alongside pinned public-key comparison; [attestation validation ordering (#7295)](https://github.com/microsoft/CCF/pull/7295) moved certificate validation ahead of report-content checks. Verify the expected chain, pinned metadata, report signature, and required report policy before trusting or returning claims. Necessary pre-verification parsing must be bounded and must not authorize actions or expose unverified outputs.
+- **Verify TLS peer identity without broadening trust.** [Node join client migration (#8040)](https://github.com/microsoft/CCF/pull/8040) enforced hostname verification and prevented fallback to the host CA store. Check both certificate-chain validation and the expected peer name: SNI alone is not verification. Where a service certificate is the sole intended anchor, preserve that restriction across client/library changes. Test wrong names and wrong trust anchors.
+- **Bound sizes before allocation, access, and state mutation.** [Maximum ledger transaction size (#7992)](https://github.com/microsoft/CCF/pull/7992) hardened ledger length handling and rejected oversized new transactions before applying changes. Check declared lengths against available bytes, overflow-safe offset arithmetic, allocation limits, and relationships between transaction and transport limits. Include truncated, oversized, and duplicate-message paths; preserve documented historical-ledger compatibility rather than imposing new-write limits indiscriminately on old entries.
+- **Check representable ranges before conversion and arithmetic.** [Time point parsing bounds (#7648)](https://github.com/microsoft/CCF/pull/7648) fixed certificate-time overflow beyond the nanosecond clock range. Check externally supplied time/size values at every narrowing or unit conversion, including intermediate arithmetic. Test values at and beyond the supported bounds; a valid ASN.1 time is not necessarily representable by the selected C++ clock.
+- **Audit consensus index semantics across term transitions.** [Retaining signatures during soft rollback (#5749)](https://github.com/microsoft/CCF/pull/5749) corrected use of a current-term committable index where the last signature across terms was needed. Trace all affected consumers when changing an index's meaning; distinguish signed, committed, unsigned, and term-local state. Review rollback/recovery paths as well as the happy path, and use existing scenario/model tests for the affected transition.
+- **Create host files with restrictive permissions and safe ownership.** [Host-created file permissions (#7916)](https://github.com/microsoft/CCF/pull/7916) used explicit `0600` creation permissions rather than relying on umask. Check permissions at creation, preservation of exclusive-create semantics where required, and descriptor cleanup if wrapping/opening fails. Prefer the existing file helpers. These controls limit accidental local exposure; they do not make the host trusted or replace CCF's confidentiality protections.
 
 ## C++ conventions
 
