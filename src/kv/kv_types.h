@@ -319,8 +319,6 @@ namespace ccf::kv
       const std::vector<Version>& view_history) = 0;
     virtual void serialise_entry_version(const Version& version) = 0;
     virtual void serialise_count_header(uint64_t ctr) = 0;
-    virtual void serialise_read(
-      const SerialisedKey& k, const Version& version) = 0;
     virtual void serialise_write(
       const SerialisedKey& k, const SerialisedValue& v) = 0;
     virtual void serialise_remove(const SerialisedKey& k) = 0;
@@ -641,9 +639,7 @@ namespace ccf::kv
 
     virtual AbstractStore* get_store() = 0;
     virtual void serialise_changes(
-      const AbstractChangeSet* changes,
-      KvStoreSerialiser& s,
-      bool include_reads) = 0;
+      const AbstractChangeSet* changes, KvStoreSerialiser& s) = 0;
     virtual void compact(Version v) = 0;
     virtual std::unique_ptr<Snapshot> snapshot(Version v) = 0;
     virtual void post_compact() = 0;
