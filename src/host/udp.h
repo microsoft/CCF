@@ -16,14 +16,14 @@ namespace asynchost
 {
   // NOLINTBEGIN(cppcoreguidelines-virtual-class-destructor)
   class UDPImpl;
-  using UDP = proxy_ptr<UDPImpl>;
+  using UDP = ccf::uv::proxy_ptr<UDPImpl>;
 
   /// For now this is server only, as we have no immediate plans to
   /// create node-to-node UDP channels or use UDP for REST between nodes
-  class UDPImpl : public with_uv_handle<uv_udp_t>
+  class UDPImpl : public ccf::uv::with_uv_handle<uv_udp_t>
   {
   private:
-    friend class close_ptr<UDPImpl>;
+    friend class ccf::uv::close_ptr<UDPImpl>;
 
     static constexpr int backlog = 128;
     static constexpr size_t max_read_size = 16384;
@@ -537,5 +537,5 @@ namespace asynchost
     }
   };
 
-  using ResetUDPReadQuota = proxy_ptr<BeforeIO<ResetUDPReadQuotaImpl>>;
+  using ResetUDPReadQuota = ccf::uv::proxy_ptr<BeforeIO<ResetUDPReadQuotaImpl>>;
 }

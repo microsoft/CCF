@@ -9,10 +9,10 @@ namespace asynchost
   // This runs every loop. If any instance of this is active, the loop's poll
   // timeout will be 0 (see uv_prepare_t vs uv_idle_t)
   template <typename Behaviour>
-  class EveryIO : public with_uv_handle<uv_idle_t>
+  class EveryIO : public ccf::uv::with_uv_handle<uv_idle_t>
   {
   private:
-    friend class close_ptr<EveryIO<Behaviour>>;
+    friend class ccf::uv::close_ptr<EveryIO<Behaviour>>;
     Behaviour behaviour;
 
     template <typename... Args>

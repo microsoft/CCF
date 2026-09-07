@@ -73,5 +73,5 @@ namespace asynchost
     }
   };
 
-  using HandleRingbuffer = proxy_ptr<Timer<HandleRingbufferImpl>>;
+  using HandleRingbuffer = ccf::uv::proxy_ptr<Timer<HandleRingbufferImpl>>;
 }

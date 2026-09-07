@@ -7,7 +7,7 @@
 #include <utility>
 #include <uv.h>
 
-namespace asynchost
+namespace ccf::uv
 {
   template <typename T>
   class proxy_ptr;

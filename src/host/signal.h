@@ -9,10 +9,10 @@
 namespace asynchost
 {
   template <int signum, typename Behaviour>
-  class Signal : public with_uv_handle<uv_signal_t>
+  class Signal : public ccf::uv::with_uv_handle<uv_signal_t>
   {
   private:
-    friend class close_ptr<Signal<signum, Behaviour>>;
+    friend class ccf::uv::close_ptr<Signal<signum, Behaviour>>;
     Behaviour behaviour;
 
     template <typename... Args>

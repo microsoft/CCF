@@ -7,10 +7,10 @@
 namespace asynchost
 {
   template <typename Behaviour>
-  class AfterIO : public with_uv_handle<uv_check_t>
+  class AfterIO : public ccf::uv::with_uv_handle<uv_check_t>
   {
   private:
-    friend class close_ptr<AfterIO<Behaviour>>;
+    friend class ccf::uv::close_ptr<AfterIO<Behaviour>>;
     Behaviour behaviour;
 
     template <typename... Args>

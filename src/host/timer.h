@@ -9,13 +9,13 @@
 namespace asynchost
 {
   template <typename Behaviour>
-  class Timer : public with_uv_handle<uv_timer_t>
+  class Timer : public ccf::uv::with_uv_handle<uv_timer_t>
   {
   public:
     Behaviour behaviour;
 
   private:
-    friend class close_ptr<Timer<Behaviour>>;
+    friend class ccf::uv::close_ptr<Timer<Behaviour>>;
 
     template <typename... Args>
     Timer(std::chrono::milliseconds repeat_ms, Args&&... args) :
