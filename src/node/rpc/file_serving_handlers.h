@@ -305,7 +305,7 @@ namespace ccf::node
             if (inclusive_range_end >= total_size)
             {
               LOG_DEBUG_FMT(
-                "Requested ledger chunk range ending at {}, but file size is "
+                "Requested range ending at {}, but file size is "
                 "only {} - shrinking range end",
                 inclusive_range_end,
                 total_size);
