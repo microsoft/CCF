@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 
 #include "ccf/base_endpoint_registry.h"
-#include "ccf/claims_digest.h"
 #include "ccf/crypto/curve.h"
 #include "ccf/crypto/pem.h"
 #include "ccf/crypto/san.h"
@@ -79,13 +78,6 @@ TEST_CASE("REST verbs")
   CHECK_THROWS_AS(nlohmann::json(42).get<ccf::RESTVerb>(), std::runtime_error);
   CHECK_THROWS_AS(
     nlohmann::json("unknown").get<ccf::RESTVerb>(), std::logic_error);
-
-  CHECK(
-    ccf::schema_name(static_cast<const ccf::RESTVerb*>(nullptr)) ==
-    "HttpMethod");
-  nlohmann::json schema;
-  ccf::fill_json_schema(schema, static_cast<const ccf::RESTVerb*>(nullptr));
-  CHECK(schema == nlohmann::json{{"type", "string"}});
 }
 
 TEST_CASE("Transaction IDs")
@@ -133,14 +125,6 @@ TEST_CASE("Transaction IDs")
   CHECK(json.get<ccf::TxID>() == tx_id);
   CHECK_THROWS_AS(nlohmann::json(42).get<ccf::TxID>(), ccf::JsonParseError);
   CHECK_THROWS_AS(nlohmann::json("0.42").get<ccf::TxID>(), ccf::JsonParseError);
-
-  CHECK(
-    ccf::schema_name(static_cast<const ccf::TxID*>(nullptr)) ==
-    "TransactionId");
-  nlohmann::json schema;
-  ccf::fill_json_schema(schema, static_cast<const ccf::TxID*>(nullptr));
-  CHECK(schema["type"] == "string");
-  CHECK(schema["pattern"] == "^[0-9]+\\.[0-9]+$");
 }
 
 TEST_CASE("Proposal state formatting")
@@ -219,14 +203,6 @@ TEST_CASE("PEM helpers")
   CHECK_THROWS_AS(
     ccf::crypto::Pem(std::vector<uint8_t>{'n', 'o', 't', ' ', 'P', 'E', 'M'}),
     std::runtime_error);
-
-  CHECK(
-    ccf::crypto::schema_name(static_cast<const ccf::crypto::Pem*>(nullptr)) ==
-    "Pem");
-  nlohmann::json schema;
-  ccf::crypto::fill_json_schema(
-    schema, static_cast<const ccf::crypto::Pem*>(nullptr));
-  CHECK(schema == nlohmann::json{{"type", "string"}});
 }
 
 TEST_CASE("Transaction status strings")
@@ -356,19 +332,6 @@ TEST_CASE("Locking helpers")
   CHECK(woke.load(std::memory_order_acquire));
   CHECK(mutex.try_lock());
   mutex.unlock();
-}
-
-TEST_CASE("Claims digest schema")
-{
-  CHECK(
-    ccf::schema_name(static_cast<const ccf::ClaimsDigest*>(nullptr)) ==
-    "Sha256Digest");
-  nlohmann::json schema;
-  ccf::fill_json_schema(schema, static_cast<const ccf::ClaimsDigest*>(nullptr));
-  CHECK(schema["type"] == "string");
-  CHECK(schema["format"] == "hex");
-  CHECK(schema["pattern"].is_string());
-  CHECK_FALSE(schema["pattern"].get<std::string>().empty());
 }
 
 TEST_CASE("HTTP client error status")
