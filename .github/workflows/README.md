@@ -108,7 +108,7 @@ added as jobs to this workflow.
 
 The disaster recovery job builds the canonical model with `lake build --wfail`,
 audits its transitive axiom dependencies with `lake lint`, and runs its
-executable canonical behavior checks on relevant pull requests.
+executable canonical behavior checks on relevant pull requests and weekly.
 The build and audit include both the human-reviewed model and system properties
 and the proof implementation files marked as generated for review purposes.
 The standard `mk_all --check` command ensures that the audit root imports every
