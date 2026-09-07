@@ -144,6 +144,16 @@
     {
       "name": "KV trace replication failure after apply",
       "features": ["local application", "failed replication", "rollback"]
+    },
+    {
+      "name": "KV trace concurrent operation fuzzer",
+      "features": [
+        "seeded concurrent operation programs",
+        "iteration and callback mutations",
+        "current and per-map global views",
+        "compaction and rollback interleavings",
+        "coverage accounting"
+      ]
     }
   ],
   "exclusions": [

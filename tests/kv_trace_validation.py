@@ -188,10 +188,13 @@ def preserve_prefix(trace, seq):
     raise ValueError(f"Failing event {seq} is absent from {trace.name}")
 
 
-def run_case(binary, checker, name, directory, timeout):
+def run_case(binary, checker, name, directory, timeout, extra_env=None):
     arguments = test_arguments(name)
     trace = directory / "trace.ndjson"
-    environment = dict(os.environ, CCF_KV_TRACE_FILE=str(trace))
+    environment = dict(os.environ)
+    if extra_env is not None:
+        environment.update(extra_env)
+    environment["CCF_KV_TRACE_FILE"] = str(trace)
     with (directory / "test.stdout.txt").open("wb") as stdout, (
         directory / "test.stderr.txt"
     ).open("wb") as stderr:

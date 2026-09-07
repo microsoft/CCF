@@ -310,6 +310,26 @@ set(
   CACHE STRING
   "Timeout in seconds for each KV trace capture or replay subprocess"
 )
+set(
+  CCF_KV_FUZZ_SEEDS
+  "8"
+  CACHE STRING
+  "Number of bounded concurrent KV fuzz seeds checked by trace replay"
+)
+set(CCF_KV_FUZZ_SEED_START "0" CACHE STRING "First concurrent KV fuzz seed")
+set(CCF_KV_FUZZ_THREADS "4" CACHE STRING "Concurrent KV fuzz worker count")
+set(
+  CCF_KV_FUZZ_TRANSACTIONS
+  "24"
+  CACHE STRING
+  "KV fuzz transactions per worker"
+)
+set(
+  CCF_KV_FUZZ_OPERATIONS
+  "8"
+  CACHE STRING
+  "KV fuzz operations per transaction"
+)
 if(CCF_KV_TRACING)
   # Internal headers are shared by libraries and test translation units.
   add_compile_definitions(CCF_KV_TRACING)
@@ -693,6 +713,7 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_snapshot.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_dynamic_tables.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_trace.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_fuzzer.cpp
     )
     target_link_libraries(
       kv_test
@@ -714,6 +735,20 @@ if(BUILD_TESTS)
         APPEND
         PROPERTY ENVIRONMENT "TMPDIR=${CMAKE_CURRENT_BINARY_DIR}"
       )
+      add_test(
+        NAME kv_fuzz_runner_test
+        COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/tests/kv_fuzz_test.py
+      )
+      set_property(
+        TEST kv_fuzz_runner_test
+        APPEND
+        PROPERTY LABELS unit kv_trace_tool
+      )
+      set_property(
+        TEST kv_fuzz_runner_test
+        APPEND
+        PROPERTY ENVIRONMENT "TMPDIR=${CMAKE_CURRENT_BINARY_DIR}"
+      )
       if(CCF_KV_TRACE_CHECKER)
         add_test(
           NAME kv_trace_validation
@@ -727,6 +762,27 @@ if(BUILD_TESTS)
         set_property(TEST kv_trace_validation APPEND PROPERTY LABELS kv_trace)
         set_property(
           TEST kv_trace_validation
+          APPEND
+          PROPERTY ENVIRONMENT "TMPDIR=${CMAKE_CURRENT_BINARY_DIR}"
+        )
+        add_test(
+          NAME kv_fuzz_validation
+          COMMAND
+            python3 ${CMAKE_CURRENT_SOURCE_DIR}/tests/kv_fuzz.py --binary
+            $<TARGET_FILE:kv_test> --checker ${CCF_KV_TRACE_CHECKER} --output
+            ${CMAKE_CURRENT_BINARY_DIR}/kv-fuzz --seeds ${CCF_KV_FUZZ_SEEDS}
+            --seed-start ${CCF_KV_FUZZ_SEED_START} --threads
+            ${CCF_KV_FUZZ_THREADS} --transactions ${CCF_KV_FUZZ_TRANSACTIONS}
+            --operations ${CCF_KV_FUZZ_OPERATIONS} --timeout
+            ${CCF_KV_TRACE_TIMEOUT}
+        )
+        set_property(
+          TEST kv_fuzz_validation
+          APPEND
+          PROPERTY LABELS kv_trace kv_fuzz
+        )
+        set_property(
+          TEST kv_fuzz_validation
           APPEND
           PROPERTY ENVIRONMENT "TMPDIR=${CMAKE_CURRENT_BINARY_DIR}"
         )

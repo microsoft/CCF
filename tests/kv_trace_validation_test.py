@@ -2,9 +2,12 @@
 # Licensed under the Apache 2.0 License.
 
 import json
+import os
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import kv_trace_validation as validation
 
@@ -115,6 +118,29 @@ class CoverageTests(unittest.TestCase):
 
 
 class ArtifactTests(unittest.TestCase):
+    def test_run_environment_is_isolated_and_trace_path_is_owned(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory)
+            extra = {
+                "CCF_KV_FUZZ_SEED": "17",
+                "CCF_KV_TRACE_FILE": "not-the-output-path",
+            }
+            with patch.dict(os.environ, {"CCF_KV_FUZZ_SEED": "original"}), patch(
+                "kv_trace_validation.subprocess.run",
+                return_value=subprocess.CompletedProcess([], 0),
+            ) as run:
+                result = validation.run_case(
+                    Path("kv"), Path("lean"), "case", path, 30, extra_env=extra
+                )
+                environment = run.call_args.kwargs["env"]
+                self.assertEqual(environment["CCF_KV_FUZZ_SEED"], "17")
+                self.assertEqual(
+                    environment["CCF_KV_TRACE_FILE"], str(path / "trace.ndjson")
+                )
+                self.assertEqual(os.environ["CCF_KV_FUZZ_SEED"], "original")
+            self.assertEqual(result["status"], "capture_failed")
+            self.assertEqual(extra["CCF_KV_TRACE_FILE"], "not-the-output-path")
+
     def test_prefix_preserves_original_events(self):
         with tempfile.TemporaryDirectory() as directory:
             trace = Path(directory) / "trace.ndjson"

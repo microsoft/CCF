@@ -273,6 +273,13 @@ global values/presence/revisions, no-op deletion, same-value writes,
 absent/phantom/write-skew conflicts, nested iteration, compaction, rollback,
 branch identity, exact uint64 decoding and damaged streams.
 
+## Recorded failure analyses
+
+- [Whole-map dependency at revision zero](failures/revision_zero_map_dependency.md):
+  source-linked diagnosis of the saved concurrent-fuzzer rejection. The model
+  records a dependency that the implementation's zero-valued marker fails to
+  distinguish from an absent map-read dependency.
+
 ## Trust and exclusions
 
 Consensus supplies valid irrevocability decisions. Liveness, successful retry,

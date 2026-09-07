@@ -291,3 +291,83 @@ and instrumented tests, then uploads diagnostics even if conformance fails.
 It remains opt-in: selected tests can also exercise explicitly unsupported
 mechanisms, which remain non-passing outcomes. It uses a standard Linux runner;
 these single-node KV tests do not require an enclave or a multi-node network.
+
+Seeded concurrent campaigns
+---------------------------
+
+``KV trace concurrent operation fuzzer`` generates bounded KV operation programs
+on multiple worker threads. It exercises the KV interface and transaction
+lifetimes, not binary parsers or a running network. Each worker has its own
+deterministically seeded operation choices and transaction objects.
+
+Concurrent workers mix current/global reads, version observations, writes,
+deletions, map-wide operations, callback mutations, read-only completion and
+abandonment. A maintenance thread can compact while ordinary transactions run.
+Coordinated phases retain transactions and handles across global advancement,
+compaction and rollback, covering less frequent lifetime and conflict cases.
+Rollback occurs between KV calls rather than overlapping its internal
+multi-step implementation: an overlap which the existing tracer cannot order
+must not be mistaken for a valid atomic transition.
+
+Campaigns use the same Lean checker as ordinary trace validation. A seed fixes
+program choices, not the operating system's scheduling. The captured trace is
+the exact observed execution to replay. Every seed retains its configuration,
+binary/checker digests, console output, trace, and diagnostics under a unique
+campaign directory. C++ writes recipe and coverage metadata to console records,
+separately from the strict NDJSON event schema.
+
+The campaign checks both completed-operation counters and actual emitted event
+families and outcomes, including successful/conflicting/nonreplicating commits,
+absent/present reads and early iteration termination. Empty coverage, missing
+metadata, unsupported operations, timeout, rejection and malformed capture
+remain non-passing outcomes. A campaign stops at the first non-passing seed by
+default and records how many of its requested seeds were executed; the runner's
+``--keep-going`` option retains subsequent results too. Coverage of these
+families is not an exhaustive exploration of every program or thread schedule.
+
+After configuring a tracing build as above:
+
+.. code-block:: bash
+
+   cd build-kv-trace
+   ./tests.sh -R '^(kv_fuzz_runner_test|kv_fuzz_validation)$' --no-tests=error
+
+The CMake options below configure the campaign, without modifying the test
+program or its trace schema:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 45 15 40
+
+   * - Option
+     - Default
+     - Meaning
+   * - ``CCF_KV_FUZZ_SEED_START``
+     - ``0``
+     - First unsigned 64-bit seed.
+   * - ``CCF_KV_FUZZ_SEEDS``
+     - ``8``
+     - Number of consecutive seeds, from 1 to 256 without overflow.
+   * - ``CCF_KV_FUZZ_THREADS``
+     - ``4``
+     - Worker count, from 1 to 16.
+   * - ``CCF_KV_FUZZ_TRANSACTIONS``
+     - ``24``
+     - Random transaction budget per worker, from 1 to 256.
+   * - ``CCF_KV_FUZZ_OPERATIONS``
+     - ``8``
+     - Operation budget per random transaction, from 1 to 32.
+
+The product of the three worker-budget settings must not exceed 65,536.
+Iteration depth, callback visits and key/map universes are bounded separately
+by the C++ workload. ``CCF_KV_TRACE_TIMEOUT`` bounds each capture/replay process.
+For example, to explore a different seed range:
+
+.. code-block:: bash
+
+   cmake -S .. -B . -DCCF_KV_FUZZ_SEED_START=100 -DCCF_KV_FUZZ_SEEDS=16
+   ./tests.sh -R '^kv_fuzz_validation$' -L kv_fuzz --no-tests=error
+
+The manual verification workflow runs this campaign before the broader
+diagnostic corpus, so known unsupported mechanisms in unrelated corpus cases
+do not prevent the fuzzer from running.
