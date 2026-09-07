@@ -1,16 +1,22 @@
 name = "disaster_recovery_trace"
 version = "0.1.0"
 moreLeanArgs = ["-DwarningAsError=true"]
+lintDriver = "axiomAudit/\u00abaxiom-audit\u00bb"
+lintDriverArgs = ["--root", "DisasterRecoveryTrace"]
 defaultTargets = [
   "DisasterRecoveryTrace",
   "trace-checks",
   "trace-validator",
-  "axiom-checks",
 ]
 
 [[require]]
 name = "disaster_recovery"
 path = "../disaster-recovery"
+
+[[require]]
+name = "axiomAudit"
+git = "https://github.com/leanprover-community/axiom-audit.git"
+rev = "46024e005996495c65ef609368e11ab39c4222e3" # v0.1.2
 
 [[lean_lib]]
 name = "DisasterRecoveryTrace"
@@ -22,7 +28,3 @@ root = "TraceTests"
 [[lean_exe]]
 name = "trace-validator"
 root = "TraceMain"
-
-[[lean_exe]]
-name = "axiom-checks"
-root = "AxiomChecks"

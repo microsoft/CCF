@@ -3,7 +3,7 @@
 This package validates version 1 implementation traces from CCF's C++ recovery
 decision protocol against the permanent model in `../disaster-recovery`. It is
 deliberately separate from the canonical model and depends only on
-`DisasterRecovery.Protocol.Model`.
+`DisasterRecovery.Protocol.Model`. Both packages are pinned to Lean 4.33.1.
 
 `DisasterRecoveryTrace.Protocol.Trace.Format` parses the strict versioned
 NDJSON contract. `DisasterRecoveryTrace.Protocol.Trace.Replay` replays each
@@ -14,9 +14,10 @@ incompatible event and reports the shortest failing prefix.
 
 ```sh
 lake exe cache get
-lake build
+lake exe mk_all --check --lib DisasterRecoveryTrace
+lake build --wfail
+lake lint
 lake exe trace-checks
-lake exe axiom-checks
 ```
 
 Run the validator with:
