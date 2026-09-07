@@ -112,6 +112,30 @@ static void benchmark_hmac(picobench::state& s)
   s.stop_timer();
 }
 
+template <size_t NContents>
+static void benchmark_aes_gcm_encrypt(picobench::state& s)
+{
+  const std::vector<uint8_t> key(GCM_DEFAULT_KEY_SIZE, 0x42);
+  const auto contents = make_contents<NContents>();
+  auto aes_gcm_key = make_key_aes_gcm(key);
+  auto context = aes_gcm_key->make_context();
+  StandardGcmHeader header;
+  std::vector<uint8_t> cipher;
+  uint64_t iv = 0;
+
+  s.start_timer();
+  for (auto _ : s)
+  {
+    (void)_;
+    memcpy(header.iv.data(), &iv, sizeof(iv));
+    ++iv;
+    context->encrypt(header.get_iv(), contents, {}, cipher, header.tag);
+    do_not_optimize(cipher);
+    clobber_memory();
+  }
+  s.stop_timer();
+}
+
 template <typename P, MDType M, size_t NContents>
 static void benchmark_hash(picobench::state& s)
 {
@@ -463,6 +487,16 @@ namespace HMAC_bench
 
   auto openssl_hmac_sha256_64 = benchmark_hmac<MDType::SHA256, 64>;
   PICOBENCH(openssl_hmac_sha256_64).PICO_HASH_SUFFIX();
+}
+
+PICOBENCH_SUITE("aes gcm");
+namespace AES_GCM_bench
+{
+  auto aes_gcm_encrypt_64 = benchmark_aes_gcm_encrypt<64>;
+  PICOBENCH(aes_gcm_encrypt_64).iterations({100000});
+
+  auto aes_gcm_encrypt_1024 = benchmark_aes_gcm_encrypt<1024>;
+  PICOBENCH(aes_gcm_encrypt_1024).iterations({100000});
 }
 
 std::vector<ccf::crypto::sharing::Share> shares;

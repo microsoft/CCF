@@ -70,8 +70,37 @@ namespace ccf::crypto
   class KeyAesGcm
   {
   public:
+    class Context
+    {
+    public:
+      Context() = default;
+      virtual ~Context() = default;
+
+      Context(const Context&) = delete;
+      Context& operator=(const Context&) = delete;
+      Context(Context&&) = delete;
+      Context& operator=(Context&&) = delete;
+
+      // Contexts are reusable, but are not safe for concurrent use.
+      virtual void encrypt(
+        std::span<const uint8_t> iv,
+        std::span<const uint8_t> plain,
+        std::span<const uint8_t> aad,
+        std::vector<uint8_t>& cipher,
+        uint8_t tag[GCM_SIZE_TAG]) = 0;
+
+      virtual bool decrypt(
+        std::span<const uint8_t> iv,
+        const uint8_t tag[GCM_SIZE_TAG],
+        std::span<const uint8_t> cipher,
+        std::span<const uint8_t> aad,
+        std::vector<uint8_t>& plain) = 0;
+    };
+
     KeyAesGcm() = default;
     virtual ~KeyAesGcm() = default;
+
+    virtual std::unique_ptr<Context> make_context() = 0;
 
     // AES-GCM encryption
     virtual void encrypt(

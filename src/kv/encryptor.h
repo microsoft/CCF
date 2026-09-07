@@ -82,14 +82,14 @@ namespace ccf::kv
 
       set_iv(hdr, tx_id, entry_type);
 
-      auto key =
-        ledger_secrets->get_encryption_key_for(tx_id.seqno, historical_hint);
-      if (key == nullptr)
+      auto secret =
+        ledger_secrets->get_secret_for(tx_id.seqno, historical_hint);
+      if (secret == nullptr)
       {
         return false;
       }
 
-      key->encrypt(hdr.get_iv(), plain, additional_data, cipher, hdr.tag);
+      secret->encrypt(hdr.get_iv(), plain, additional_data, cipher, hdr.tag);
 
       serialised_header = hdr.serialise();
 
@@ -125,15 +125,14 @@ namespace ccf::kv
       hdr.deserialise(serialised_header);
       term = hdr.get_term();
 
-      auto key =
-        ledger_secrets->get_encryption_key_for(version, historical_hint);
-      if (key == nullptr)
+      auto secret = ledger_secrets->get_secret_for(version, historical_hint);
+      if (secret == nullptr)
       {
         return false;
       }
 
       auto ret =
-        key->decrypt(hdr.get_iv(), hdr.tag, cipher, additional_data, plain);
+        secret->decrypt(hdr.get_iv(), hdr.tag, cipher, additional_data, plain);
       if (!ret)
       {
         plain.resize(0);
