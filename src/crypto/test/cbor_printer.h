@@ -4,7 +4,6 @@
 #pragma once
 
 #include "ccf/ds/hex.h"
-#include "crypto/test/cbor_printer.h"
 
 #include <cstddef>
 #include <sstream>
