@@ -130,12 +130,6 @@ namespace ccf::kv
       serialise_internal(ctr);
     }
 
-    void serialise_read(const SerialisedKey& k, const Version& version) override
-    {
-      serialise_internal(k);
-      serialise_internal(version);
-    }
-
     void serialise_write(
       const SerialisedKey& k, const SerialisedValue& v) override
     {

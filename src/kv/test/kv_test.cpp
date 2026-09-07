@@ -3075,7 +3075,7 @@ TEST_CASE("Stale-view writes which took their version early are rejected")
 
     constexpr ccf::kv::Term initial_term = 2;
     constexpr ccf::kv::Term new_term = initial_term + 1;
-    constexpr ccf::SeqNo committed_seqno = 2;
+    constexpr ccf::SeqNo rollback_seqno = 2;
     MapTypes::StringString map("public:map");
     store.initialise_term(initial_term);
 
@@ -3109,8 +3109,8 @@ TEST_CASE("Stale-view writes which took their version early are rejected")
       auto lose_view = [&](const ccf::crypto::Sha256Hash&, const std::string&) {
         REQUIRE(store.current_version() == 4);
         consensus->state = state;
-        consensus->replica.resize(committed_seqno);
-        store.rollback({initial_term, committed_seqno}, new_term);
+        consensus->replica.resize(rollback_seqno);
+        store.rollback({initial_term, rollback_seqno}, new_term);
 
         if (reuse_versions)
         {
@@ -3125,16 +3125,16 @@ TEST_CASE("Stale-view writes which took their version early are rejected")
         ccf::kv::CommitResult::FAIL_NO_REPLICATE);
       const auto expected_txid = reuse_versions ?
         ccf::TxID(new_term, 4) :
-        ccf::TxID(initial_term, committed_seqno);
+        ccf::TxID(initial_term, rollback_seqno);
       CHECK(store.current_txid() == expected_txid);
       CHECK(!read("stale").has_value());
       CHECK(!read("truncated").has_value());
-      CHECK(replicated_to() == committed_seqno);
+      CHECK(replicated_to() == rollback_seqno);
     }
 
     INFO("Become primary, rolling back any new reservations");
     {
-      store.rollback({initial_term, committed_seqno}, new_term + 1);
+      store.rollback({initial_term, rollback_seqno}, new_term + 1);
       consensus->state = ccf::kv::test::StubConsensus::Primary;
     }
 
