@@ -3504,6 +3504,12 @@ public:
     ccf::ds::MutexGuard guard(chunker_lock);
     return current_tx_version;
   }
+
+  bool has_chunk_end_at(ccf::kv::Version v)
+  {
+    ccf::ds::MutexGuard guard(chunker_lock);
+    return chunk_ends.contains(v);
+  }
 };
 
 // A PendingTx which rolls the store back while Store::commit() is midway
@@ -3594,6 +3600,206 @@ TEST_CASE("Chunk metadata is not restored by a batch a rollback discarded")
   }
 
   CHECK(chunker->current_version() == store.current_version());
+}
+
+TEST_CASE("A rollback never moves chunk metadata past the store's version")
+{
+  ccf::kv::Store store;
+  store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+  auto consensus = std::make_shared<ccf::kv::test::PrimaryStubConsensus>();
+  store.set_consensus(consensus);
+  auto chunker = std::make_shared<InspectableChunker>();
+  store.set_chunker(chunker);
+
+  constexpr ccf::kv::Term initial_term = 2;
+  store.initialise_term(initial_term);
+  MapTypes::StringString map("public:map");
+
+  {
+    auto tx = store.create_tx();
+    tx.rw(map)->put("key", "initial");
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+
+  const auto version = store.current_version();
+  REQUIRE(chunker->current_version() == version);
+
+  SUBCASE("Rollback to the current version")
+  {
+    store.rollback(store.current_txid(), initial_term + 1);
+  }
+
+  SUBCASE("Rollback beyond the current version")
+  {
+    store.rollback({initial_term, version + 3}, initial_term + 1);
+  }
+
+  // Neither discards anything, so neither may move the chunker.
+  CHECK(store.current_version() == version);
+  CHECK(chunker->current_version() == version);
+
+  INFO("Later entries are still recorded against their own version");
+  {
+    auto tx = store.create_tx();
+    tx.rw(map)->put("key", "fresh");
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+  CHECK(chunker->current_version() == store.current_version());
+}
+
+TEST_CASE("Rollback-sensitive transaction flags are not restored")
+{
+  ccf::kv::Store store;
+  store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+  auto consensus = std::make_shared<ccf::kv::test::PrimaryStubConsensus>();
+  store.set_consensus(consensus);
+  auto chunker = std::make_shared<InspectableChunker>();
+  store.set_chunker(chunker);
+
+  constexpr ccf::kv::Term initial_term = 2;
+  store.initialise_term(initial_term);
+  MapTypes::StringString map("public:map");
+
+  for (const auto* value : {"first", "second"})
+  {
+    auto tx = store.create_tx();
+    tx.rw(map)->put("key", value);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+
+  const auto discarded = store.current_txid();
+  REQUIRE(store.check_rollback_count(0));
+
+  INFO("Flags from a transaction a rollback discarded are dropped");
+  {
+    // A view change truncates the transaction's write away, then the
+    // transaction reaches the point where it would apply its flags.
+    store.rollback({initial_term, discarded.seqno - 1}, initial_term + 1);
+    REQUIRE(store.check_rollback_count(1));
+
+    CHECK_FALSE(store.apply_tx_flags(
+      discarded.seqno,
+      discarded.view,
+      0,
+      /* force_ledger_chunk */ true,
+      /* snapshot_at_next_signature */ true));
+
+    CHECK_FALSE(store.flag_enabled(
+      ccf::kv::AbstractStore::StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE));
+    CHECK_FALSE(chunker->is_chunk_end_requested(discarded.seqno));
+  }
+
+  INFO("Flags from a transaction still in its own epoch are applied");
+  {
+    auto tx = store.create_tx();
+    tx.rw(map)->put("key", "replacement");
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+    const auto replacement = store.current_txid();
+
+    // Commit a later transaction, so that the store's version has moved on by
+    // the time the earlier transaction applies its flags.
+    {
+      auto later = store.create_tx();
+      later.rw(map)->put("other", "later");
+      REQUIRE(later.commit() == ccf::kv::CommitResult::SUCCESS);
+    }
+    REQUIRE(store.current_txid().seqno == replacement.seqno + 1);
+
+    CHECK(store.apply_tx_flags(
+      replacement.seqno,
+      replacement.view,
+      1,
+      /* force_ledger_chunk */ true,
+      /* snapshot_at_next_signature */ true));
+
+    CHECK(store.flag_enabled(
+      ccf::kv::AbstractStore::StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE));
+
+    INFO("The chunk is requested at the transaction's own version");
+    CHECK(chunker->is_chunk_end_requested(replacement.seqno));
+    CHECK_FALSE(chunker->is_chunk_end_requested(replacement.seqno - 1));
+  }
+}
+
+TEST_CASE("Reserved signature side effects are not applied after a rollback")
+{
+  ccf::kv::Store store;
+  store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+  auto consensus = std::make_shared<ccf::kv::test::PrimaryStubConsensus>();
+  store.set_consensus(consensus);
+  auto chunker = std::make_shared<InspectableChunker>();
+  store.set_chunker(chunker);
+
+  constexpr ccf::kv::Term initial_term = 2;
+  store.initialise_term(initial_term);
+  MapTypes::StringString map("public:map");
+
+  for (const auto* value : {"first", "second"})
+  {
+    auto tx = store.create_tx();
+    tx.rw(map)->put("key", value);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+
+  const auto reserved = store.current_txid();
+  REQUIRE(store.check_rollback_count(0));
+
+  INFO("A signature a rollback discarded records no chunk end");
+  {
+    // A signature ends a chunk when a snapshot is due, which is what the
+    // reserved transaction records once it decides to replicate.
+    store.set_flag(
+      ccf::kv::AbstractStore::StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
+    store.rollback({initial_term, reserved.seqno - 1}, initial_term + 1);
+    REQUIRE(store.check_rollback_count(1));
+
+    CHECK_FALSE(store
+                  .should_create_ledger_chunk_for_reserved_tx(
+                    reserved.seqno, reserved.view, 0)
+                  .has_value());
+    CHECK_FALSE(chunker->has_chunk_end_at(reserved.seqno));
+  }
+
+  INFO("A signature whose view has moved on records no chunk end");
+  {
+    auto tx = store.create_tx();
+    tx.rw(map)->put("key", "next");
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+    const auto superseded = store.current_txid();
+    store.set_flag(
+      ccf::kv::AbstractStore::StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
+
+    // A rollback which discards nothing locally, but moves the view on, so
+    // consensus will refuse to replicate this signature. The snapshot flag
+    // survives, so without the view check the chunk end would be recorded.
+    store.rollback(superseded, superseded.view + 1);
+    REQUIRE(store.check_rollback_count(1));
+    REQUIRE(store.flag_enabled(
+      ccf::kv::AbstractStore::StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE));
+
+    CHECK_FALSE(store
+                  .should_create_ledger_chunk_for_reserved_tx(
+                    superseded.seqno, superseded.view, 1)
+                  .has_value());
+    CHECK_FALSE(chunker->has_chunk_end_at(superseded.seqno));
+  }
+
+  INFO("A signature still in its own epoch records its chunk end");
+  {
+    auto tx = store.create_tx();
+    tx.rw(map)->put("key", "replacement");
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+    const auto replacement = store.current_txid();
+    store.set_flag(
+      ccf::kv::AbstractStore::StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
+
+    const auto should_create_chunk =
+      store.should_create_ledger_chunk_for_reserved_tx(
+        replacement.seqno, replacement.view, 1);
+    REQUIRE(should_create_chunk.has_value());
+    CHECK(should_create_chunk.value());
+    CHECK(chunker->has_chunk_end_at(replacement.seqno));
+  }
 }
 
 TEST_CASE("Ledger entry chunk request")

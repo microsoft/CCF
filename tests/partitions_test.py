@@ -24,6 +24,7 @@ from ccf.tx_id import TxID
 from e2e_logging import verify_receipt
 from infra.checker import check_can_progress, check_does_not_progress
 from infra.log_capture import flush_info
+from infra.runner import ConcurrentRunner
 from infra.tx_status import TxStatus
 from loguru import logger as LOG
 from reconfiguration import test_ledger_invariants
@@ -1549,46 +1550,102 @@ def run_ledger_chunk_bytes_check(const_args):
         assert len(chunk_ends_to_expected_size) == 0
 
 
-def run(args):
-    txs = app.LoggingTxs("user0")
+@contextlib.contextmanager
+def partitioned_network(args):
+    """A fresh partitioned network for one group of tests.
 
+    Each group runs on its own network so that groups can run concurrently.
+    Every Partitioner owns a private iptables chain whose rules only match its
+    own nodes' addresses and ports, so co-existing groups do not interfere.
+    """
     with infra.network.network(
         args.nodes,
         args.binary_dir,
         args.debug_nodes,
         pdb=args.pdb,
-        txs=txs,
+        txs=app.LoggingTxs("user0"),
         init_partitioner=True,
     ) as network:
         network.start_and_open(args)
+        yield network
 
+
+def run_basic_partitions(args):
+    with partitioned_network(args) as network:
         test_invalid_partitions(network, args)
         test_partition_majority(network, args)
         test_isolate_primary_from_one_backup(network, args)
         test_new_joiner_helps_liveness(network, args)
+
+
+def run_certificate_partitions(args):
+    with partitioned_network(args) as network:
         test_expired_certs(network, args)
         test_rolled_back_node_certificate(network, args)
+
+
+def run_isolate_and_reconnect(args):
+    with partitioned_network(args) as network:
         for n in range(5):
             test_isolate_and_reconnect_primary(network, args, iteration=n)
+
+
+def run_reconfiguration_partitions(args):
+    with partitioned_network(args) as network:
         test_join_rollback_on_primary_isolation(network, args)
         test_election_reconfiguration(network, args)
+
+
+def run_forwarding_and_sessions(args):
+    with partitioned_network(args) as network:
         test_forwarding_timeout(network, args)
         test_invalidated_blocking_calls(network, args)
         # HTTP2 doesn't support forwarding
         if not args.http2:
             test_session_consistency(network, args)
-        network = test_recovery_elections(network, args)
-        test_ledger_invariants(network, args)
-    run_ledger_chunk_bytes_check(args)
-    run_in_place_restart_uncommittable_ledger_check(args)
+
+
+def run_recovery_elections(args):
+    with partitioned_network(args) as network:
+        # test_recovery_elections stops this network and recovers into a new
+        # one, which the context manager does not own: it still holds the
+        # original. Stop the returned network here, or its nodes outlive the
+        # test.
+        recovery_network = test_recovery_elections(network, args)
+        try:
+            test_ledger_invariants(recovery_network, args)
+        finally:
+            if recovery_network is not network:
+                recovery_network.stop_all_nodes(skip_verification=True)
 
 
 if __name__ == "__main__":
-    args = infra.e2e_args.cli_args()
-    args.nodes = infra.e2e_args.min_nodes(args, f=1)
-    args.package = "samples/apps/logging/logging"
-    args.snapshot_tx_interval = (
+    cr = ConcurrentRunner()
+    cr.args.snapshot_tx_interval = (
         20  # Increase snapshot frequency for faster reconfigurations
     )
 
-    run(args)
+    # Each group below runs on its own network, concurrently, and preserves the
+    # relative order of the tests it contains.
+    for name, target in (
+        ("basic", run_basic_partitions),
+        ("certs", run_certificate_partitions),
+        ("isolate-reconnect", run_isolate_and_reconnect),
+        ("reconfiguration", run_reconfiguration_partitions),
+        ("forwarding", run_forwarding_and_sessions),
+        ("recovery-elections", run_recovery_elections),
+        ("ledger-chunks", run_ledger_chunk_bytes_check),
+        ("in-place-restart", run_in_place_restart_uncommittable_ledger_check),
+    ):
+        cr.add(
+            name,
+            target,
+            package="samples/apps/logging/logging",
+            nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+        )
+
+    # These groups deliberately isolate nodes and wait for elections, so they
+    # are the most sensitive in the suite both to not getting CPU promptly and
+    # to contention on the shared iptables table: a starved or still-partitioned
+    # node looks like a failed election. Run few at once.
+    cr.run(max_concurrent=2)
