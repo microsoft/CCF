@@ -6,6 +6,7 @@ build*/
 Debug*/
 Release*/
 CMakeFiles/
+/CMakeUserPresets.json
 .vscode/
 .vs/
 libuv/

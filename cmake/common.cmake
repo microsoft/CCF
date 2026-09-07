@@ -141,7 +141,7 @@ function(add_e2e_test)
     PARSED_ARGS
     "DETECT_DEADLOCKS"
     "NAME;PYTHON_SCRIPT;LABEL;CURL_CLIENT;BUCKET;TSAN_SUPPRESSIONS"
-    "CONSTITUTION;ADDITIONAL_ARGS;CONFIGURATIONS"
+    "CONSTITUTION;ADDITIONAL_ARGS;CONFIGURATIONS;BUILD_TARGETS"
   )
 
   if(NOT PARSED_ARGS_CONSTITUTION)
@@ -149,6 +149,16 @@ function(add_e2e_test)
   endif()
 
   if(BUILD_END_TO_END_TESTS)
+    if("${PARSED_ARGS_LABEL}" STREQUAL "perf")
+      if(NOT PARSED_ARGS_BUILD_TARGETS)
+        message(
+          FATAL_ERROR
+          "Perf test ${PARSED_ARGS_NAME} must specify BUILD_TARGETS"
+        )
+      endif()
+      add_dependencies(ccf_bencher ${PARSED_ARGS_BUILD_TARGETS})
+    endif()
+
     set(PYTHON_WRAPPER ${PYTHON})
 
     # For fast e2e runs, tick node faster than default value (except for
@@ -262,6 +272,7 @@ function(add_picobench name)
   )
 
   add_executable(${name} ${PARSED_ARGS_SRCS})
+  add_dependencies(ccf_bencher ${name})
 
   target_include_directories(${name} PRIVATE src ${PARSED_ARGS_INCLUDE_DIRS})
 

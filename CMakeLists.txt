@@ -573,6 +573,8 @@ install(TARGETS verify_attestation DESTINATION bin)
 if(BUILD_TESTS)
   enable_testing()
 
+  add_custom_target(ccf_bencher)
+
   # Unit tests
   if(BUILD_UNIT_TESTS)
     add_test(
@@ -1202,6 +1204,7 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/commit_latency.py
     LABEL perf
     CONFIGURATIONS perf
+    BUILD_TARGETS logging
   )
 
   add_e2e_test(
@@ -1459,6 +1462,7 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/logging_cert_locust.py
     LABEL perf
     CONFIGURATIONS perf
+    BUILD_TARGETS logging
     ADDITIONAL_ARGS
       --package
       "samples/apps/logging/logging"
@@ -1485,6 +1489,7 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/basicperf_locust.py
     LABEL perf
     CONFIGURATIONS perf
+    BUILD_TARGETS js_generic
     ADDITIONAL_ARGS
       --js-app-bundle
       ${CMAKE_SOURCE_DIR}/samples/apps/basic/js
@@ -1514,6 +1519,7 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/basicperf_locust.py
     LABEL perf
     CONFIGURATIONS perf
+    BUILD_TARGETS basic
     ADDITIONAL_ARGS
       --package
       "samples/apps/basic/basic"
@@ -1545,6 +1551,7 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/logging_jwt_locust.py
     LABEL perf
     CONFIGURATIONS perf
+    BUILD_TARGETS logging
     ADDITIONAL_ARGS
       --package
       "samples/apps/logging/logging"
@@ -1570,6 +1577,7 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/historical_query_locust.py
     LABEL perf
     CONFIGURATIONS perf
+    BUILD_TARGETS logging
     ADDITIONAL_ARGS
       --package
       "samples/apps/logging/logging"

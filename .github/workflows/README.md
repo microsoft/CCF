@@ -19,6 +19,22 @@ Triggered on every commit on `main`, twice daily on week days, and manually, but
 
 Tests are run on two different testbeds for comparison: gha-vmss-d16av6-ci (d16av6 VMs) and gha-c-aci-ci (C-ACI with 16 cores and 32Gb RAM).
 
+Both jobs use the `bencher` configure and build presets in [`CMakePresets.json`](../../CMakePresets.json). With the build dependencies installed, run these commands from the repository root to use the same build settings locally:
+
+```bash
+cmake --preset bencher
+cmake --build --preset bencher
+cd build
+./tests.sh -VV -L benchmark
+./tests.sh -VV -L perf -C perf
+```
+
+On SNP, add `-E task_bench` to the microbenchmark command to match the workflow.
+
+The configure preset selects Ninja, `RelWithDebInfo`, and two worker threads, using the existing `build/` directory. Additional configure options can still be supplied, for example `cmake --preset bencher -DWORKER_THREADS=4`. Local presets can be defined in the ignored `CMakeUserPresets.json` file.
+
+The build preset selects the `ccf_bencher` aggregate target rather than building every target. `add_picobench()` automatically registers its executable with this target. Each perf `add_e2e_test()` must declare its dependencies with `BUILD_TARGETS`, using CMake target names such as `logging`, not executable paths such as `samples/apps/logging/logging`. Declare these dependencies alongside each perf test so the build follows the registered tests without parsing CTest output. Normal builds without presets remain unchanged.
+
 File: `bencher.yml`
 3rd party dependencies: None
 

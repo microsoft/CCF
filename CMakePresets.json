@@ -1,0 +1,28 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 21,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "bencher",
+      "displayName": "Bencher",
+      "description": "Configure the microbenchmark and end-to-end performance test build.",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "WORKER_THREADS": "2"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "bencher",
+      "configurePreset": "bencher",
+      "targets": ["ccf_bencher"]
+    }
+  ]
+}
