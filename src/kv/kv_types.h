@@ -750,6 +750,8 @@ namespace ccf::kv
       Version expected_rollback_count,
       bool force_ledger_chunk,
       bool snapshot_at_next_signature) = 0;
+    virtual std::optional<bool> should_create_ledger_chunk_for_reserved_tx(
+      Version version, Term expected_term, Version expected_rollback_count) = 0;
 
     virtual std::unique_ptr<AbstractSnapshot> snapshot_unsafe_maps(
       Version v) = 0;
