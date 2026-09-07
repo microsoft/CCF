@@ -140,8 +140,16 @@ def run_locust(
     cmd += ["--processes", str(args.locust_processes)]
 
     # Avoid colliding with another Locust master on its default port.
-    master_port = infra.net.probably_free_local_port("0.0.0.0")
-    cmd += ["--master-bind-port", str(master_port), "--master-port", str(master_port)]
+    master_host = "localhost"
+    master_port = infra.net.probably_free_local_port(master_host)
+    cmd += [
+        "--master-bind-host",
+        master_host,
+        "--master-bind-port",
+        str(master_port),
+        "--master-port",
+        str(master_port),
+    ]
 
     # Report only steady state, at the full user count.
     cmd += ["--reset-stats", "--csv", csv_prefix]
