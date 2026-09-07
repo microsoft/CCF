@@ -26,7 +26,9 @@
 #include "tasks/task_system.h"
 
 #include <array>
+#include <atomic>
 #include <deque>
+#include <memory>
 #include <string.h>
 
 #define HAVE_OPENSSL
@@ -313,7 +315,7 @@ namespace ccf
     NodeId id;
     ccf::crypto::ECKeyPair& node_kp;
     ccf::crypto::ECKeyPair_OpenSSL& service_kp;
-    ccf::crypto::Pem& endorsed_cert;
+    std::shared_ptr<const ccf::crypto::Pem> endorsed_cert;
     const ccf::COSESignaturesConfig& cose_signatures_config;
     const ccf::LedgerSignMode ledger_sign_mode;
     std::unordered_map<std::string, CoseKey>& cose_key_cache;
@@ -326,7 +328,7 @@ namespace ccf
       NodeId id_,
       ccf::crypto::ECKeyPair& node_kp_,
       ccf::crypto::ECKeyPair_OpenSSL& service_kp_,
-      ccf::crypto::Pem& endorsed_cert_,
+      std::shared_ptr<const ccf::crypto::Pem> endorsed_cert_,
       const ccf::COSESignaturesConfig& cose_signatures_config_,
       ccf::LedgerSignMode ledger_sign_mode_,
       std::unordered_map<std::string, CoseKey>& cose_key_cache_) :
@@ -336,7 +338,7 @@ namespace ccf
       id(std::move(id_)),
       node_kp(node_kp_),
       service_kp(service_kp_),
-      endorsed_cert(endorsed_cert_),
+      endorsed_cert(std::move(endorsed_cert_)),
       cose_signatures_config(cose_signatures_config_),
       ledger_sign_mode(ledger_sign_mode_),
       cose_key_cache(cose_key_cache_)
@@ -364,7 +366,7 @@ namespace ccf
           root,
           {}, // Nonce is currently empty
           primary_sig,
-          endorsed_cert);
+          *endorsed_cert);
 
         signatures->put(sig_value);
       }
@@ -577,7 +579,8 @@ namespace ccf
     ccf::kv::Term term_of_last_version = 0;
     ccf::kv::Term term_of_next_version{};
 
-    std::optional<ccf::crypto::Pem> endorsed_cert = std::nullopt;
+    std::atomic<std::shared_ptr<const ccf::crypto::Pem>> endorsed_cert =
+      nullptr;
 
     struct ServiceSigningIdentity
     {
@@ -943,7 +946,8 @@ namespace ccf
         return;
       }
 
-      if (!endorsed_cert.has_value())
+      auto endorsed_cert_ = endorsed_cert.load(std::memory_order_acquire);
+      if (endorsed_cert_ == nullptr)
       {
         throw std::logic_error(
           fmt::format("No endorsed certificate set to emit signature"));
@@ -968,7 +972,7 @@ namespace ccf
           id,
           node_kp,
           *signing_identity->service_kp,
-          endorsed_cert.value(),
+          std::move(endorsed_cert_),
           signing_identity->cose_signatures_config,
           signing_identity->ledger_sign_mode,
           cose_key_cache),
@@ -1022,7 +1026,9 @@ namespace ccf
 
     void set_endorsed_certificate(const ccf::crypto::Pem& cert) override
     {
-      endorsed_cert = cert;
+      endorsed_cert.store(
+        std::make_shared<const ccf::crypto::Pem>(cert),
+        std::memory_order_release);
     }
 
   private:
