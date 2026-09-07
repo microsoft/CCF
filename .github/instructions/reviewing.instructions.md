@@ -6,6 +6,12 @@ applyTo: "**/*.cpp,**/*.h,**/*.hpp,**/*.cc,**/*.c"
 
 The security/safety guidance applies to security-sensitive reviews in any language, as linked from the global instructions. The `applyTo` patterns additionally load this file for C/C++ changes; the C++ conventions and library-specific sections apply only where relevant.
 
+## ASCII-only authoring and review
+
+- Never introduce non-ASCII characters in committed code, including comments, docstrings, and string literals, or in agent instruction files. Use plain ASCII punctuation and language-appropriate ASCII escapes for required Unicode data without changing runtime behaviour.
+- Check additions and modified text for non-ASCII before committing or approving, including files excluded from `scripts/ascii-checks.sh`. Report uncovered violations; do not duplicate findings already reported by the automated check.
+- Keep fixes scoped to the current change. Do not rewrite unrelated existing Unicode fixtures, vendored files, or prose documentation.
+
 ## Security and safety first
 
 CCF's primary review concern is preserving its security guarantees and distributed-system safety. Review confidentiality, authentication/authorization, data and ledger integrity, consensus safety, and resistance to denial of service before performance or convenience. A safety violation matters even without a demonstrated attacker.
