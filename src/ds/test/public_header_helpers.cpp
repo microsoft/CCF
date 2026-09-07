@@ -351,7 +351,6 @@ TEST_CASE("Locking helpers")
   }
   CHECK_FALSE(contender_acquired.load(std::memory_order_acquire));
   release.store(true, std::memory_order_release);
-  condition_variable.notify_one();
   waiter.join();
   contender.join();
   CHECK(woke.load(std::memory_order_acquire));
