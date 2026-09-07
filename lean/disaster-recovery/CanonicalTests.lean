@@ -141,5 +141,5 @@ def main : IO UInt32 := do
   let (twoStates, twoEdges) <- enumerate config "A"
   IO.println s!"canonical n=1: {oneStates} states, {oneEdges} event edges"
   IO.println s!"canonical n=2: {twoStates} states, {twoEdges} event edges"
-  IO.println "all canonical semantic and proof checks passed"
+  IO.println "all canonical semantic checks passed"
   pure 0

@@ -103,9 +103,13 @@ File: `tla-shallow.yml`
 
 # Lean Disaster Recovery
 
-Builds the canonical Lean disaster recovery model, checks its proofs without
-warnings or project `sorryAx` dependencies, and runs its executable canonical
-behavior checks on relevant pull requests.
+Builds the canonical Lean disaster recovery model with `lake build --wfail`,
+audits its transitive axiom dependencies with `lake lint`, and runs its
+executable canonical behavior checks on relevant pull requests.
+The build and audit include both the human-reviewed model and system properties
+and the proof implementation files marked as generated for review purposes.
+The standard `mk_all --check` command ensures that the audit root imports every
+library module, so newly added proofs cannot silently escape the checks.
 
 File: `lean-disaster-recovery.yml`
 3rd party dependencies: None

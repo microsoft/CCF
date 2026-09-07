@@ -41,6 +41,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          lake build
-          lake env lean -DwarningAsError=true AxiomChecks.lean
+          lake exe mk_all --check --lib DisasterRecovery
+          lake build --wfail
+          lake lint
           lake exe canonical-checks
