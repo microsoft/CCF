@@ -3,8 +3,9 @@
 This package is the temporary PR 2 evidence layer for migrating the legacy
 Rust/Stateright disaster recovery model to Lean. It depends locally on the
 canonical package in `../disaster-recovery`; it does not modify or duplicate
-that package. This directory and its dedicated workflow are intended to be
-deleted wholesale by PR 3 once the migration evidence has served its purpose.
+that package. This directory and the shared Lean workflow's migration-evidence
+job are intended to be deleted by PR 3 once the evidence has served its
+purpose.
 
 ## Scope
 
@@ -81,16 +82,15 @@ Two intentional model differences are explicit:
 
 ## Files
 
-| File                                            | Purpose                                                             |
-| ----------------------------------------------- | ------------------------------------------------------------------- |
-| `DisasterRecoveryMigration/Legacy/Model.lean`   | Exact executable legacy semantics                                   |
-| `DisasterRecoveryMigration/Legacy/Checker.lean` | BFS model checker and canonical graph encoder                       |
-| `Main.lean`                                     | Legacy model-checker CLI                                            |
-| `ExportMain.lean`                               | Separate Lean graph-exporter CLI                                    |
-| `Tests.lean`                                    | Focused legacy semantic checks                                      |
-| `DisasterRecoveryMigration/Refinement.lean`     | Canonical-to-legacy phase refinement                                |
-| `AxiomChecks.lean`                              | `sorryAx` rejection for loaded migration and canonical declarations |
-| `compare.py`                                    | Bidirectional exhaustive Rust/Lean comparison                       |
+| File                                            | Purpose                                       |
+| ----------------------------------------------- | --------------------------------------------- |
+| `DisasterRecoveryMigration/Legacy/Model.lean`   | Exact executable legacy semantics             |
+| `DisasterRecoveryMigration/Legacy/Checker.lean` | BFS model checker and canonical graph encoder |
+| `Main.lean`                                     | Legacy model-checker CLI                      |
+| `ExportMain.lean`                               | Separate Lean graph-exporter CLI              |
+| `Tests.lean`                                    | Focused legacy semantic checks                |
+| `DisasterRecoveryMigration/Refinement.lean`     | Canonical-to-legacy phase refinement          |
+| `compare.py`                                    | Bidirectional exhaustive Rust/Lean comparison |
 
 ## Validation
 
@@ -98,14 +98,16 @@ Run from this directory:
 
 ```console
 lake exe cache get
-lake build
+lake exe mk_all --check --lib DisasterRecoveryMigration
+lake build --wfail
+lake lint
 lake exe migration-semantic-checks
 lake exe migration-model-checker --nodes 3
-lake env lean -DwarningAsError=true AxiomChecks.lean
 python3 compare.py --nodes 1 2 3
 ```
 
-The canonical package's own `AxiomChecks.lean` remains authoritative for all
-canonical declarations and is also run by the dedicated migration workflow.
-The migration Lake package pins the same Lean toolchain, transitively resolves
-the same Mathlib revision, and treats warnings as errors.
+The canonical package's own axiom-audit configuration remains authoritative
+for all canonical declarations and is run by the canonical job in the shared
+Lean workflow. The migration Lake package pins Lean 4.33.1, transitively
+resolves Mathlib v4.33.1, treats warnings as errors, verifies complete library
+coverage with `mk_all --check`, and audits transitive axioms with `lake lint`.

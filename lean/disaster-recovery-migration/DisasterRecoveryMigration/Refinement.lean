@@ -206,14 +206,14 @@ theorem compatibility_step_simulates
   rw [compatible.canonical]
   exact canonical_step_simulates config before event
 
-def retryCompatibility
+theorem retryCompatibility
     (config : Config)
     (state : NodeState) :
     CompatibilityStep config state .retry state := {
   canonical := rfl
 }
 
-def voteQuorumCompatibility
+theorem voteQuorumCompatibility
     (config : Config)
     (before : NodeState)
     (source : Location) :
