@@ -114,16 +114,12 @@ and the proof implementation files marked as generated for review purposes.
 The standard `mk_all --check` command ensures that the audit root imports every
 library module, so newly added proofs cannot silently escape the checks.
 
+The trace-validator job builds and audits the isolated strict trace validator,
+then runs its parser, replay, extraction, and ordering checks. The Milan and
+Genoa SNP jobs in `ci.yml` validate real committed C++ recovery traces and
+upload the generated NDJSON evidence.
+
 File: `lean.yml`
-3rd party dependencies: None
-
-# Lean Disaster Recovery Trace
-
-Builds the isolated strict trace validator and runs its parser, replay, and
-no-sorry checks. The Milan and Genoa SNP jobs in `ci.yml` validate real
-committed C++ recovery traces and upload the generated NDJSON evidence.
-
-File: `lean-disaster-recovery-trace.yml`
 3rd party dependencies: None
 
 # Vendored Dependency Verification
