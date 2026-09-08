@@ -1443,6 +1443,11 @@ if(BUILD_TESTS)
       APPEND
       PROPERTY LABELS lts_compatibility
     )
+    if(LONG_TESTS)
+      # Full ledger and snapshot recovery across releases exceeds the default
+      # e2e timeout, particularly in coverage builds.
+      set_tests_properties(lts_compatibility PROPERTIES TIMEOUT 900)
+    endif()
   endif()
 
   if(LONG_TESTS)
