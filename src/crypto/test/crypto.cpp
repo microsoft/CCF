@@ -25,6 +25,7 @@
 #include "crypto/openssl/verifier.h"
 #include "crypto/openssl/x509_time.h"
 
+#include <algorithm>
 #include <chrono>
 #include <cstring>
 #include <ctime>
@@ -207,7 +208,40 @@ TEST_CASE("Check verifier handles nested certs for both PEM and DER inputs")
   CHECK(pem_key_from_der.str() == pem_key_for_nested_cert);
 }
 
-TEST_CASE("Verifier rejects unsupported certificate public key types")
+TEST_CASE("Verifier rejects unloadable public key")
+{
+  // A certificate can be structurally valid X.509, and so be accepted by
+  // d2i_X509/PEM_read_bio_X509, while the key in its SubjectPublicKeyInfo
+  // cannot be loaded. X509_get_pubkey() then returns nullptr, which must be
+  // reported rather than dereferenced.
+  const auto kp = make_ec_key_pair();
+  auto cert_der = cert_pem_to_der(generate_self_signed_cert(kp, "CN=name"));
+  const auto public_key = kp->public_key_der();
+
+  // The certificate embeds the subject public key verbatim, so it can be
+  // found and modified in the encoded certificate.
+  auto key_in_cert = std::search(
+    cert_der.begin(), cert_der.end(), public_key.begin(), public_key.end());
+  REQUIRE(key_in_cert != cert_der.end());
+  // Invert the last byte of the encoded key, which is the end of the EC
+  // point's y coordinate, so that the point no longer satisfies the curve
+  // equation. The surrounding ASN.1 is untouched, so the certificate still
+  // parses.
+  *(key_in_cert + public_key.size() - 1) ^= 0xff;
+
+  const auto expected_error =
+    doctest::Contains("OpenSSL error loading certificate public key:");
+  CHECK_THROWS_WITH_AS(
+    make_verifier(cert_der), expected_error, std::invalid_argument);
+  CHECK_THROWS_WITH_AS(
+    make_verifier(fmt::format(
+      "-----BEGIN CERTIFICATE-----\n{}\n-----END CERTIFICATE-----",
+      b64_from_raw(cert_der))),
+    expected_error,
+    std::invalid_argument);
+}
+
+TEST_CASE("Verifier rejects unsupported public key type")
 {
   const auto issuer = make_ec_key_pair();
   const auto issuer_cert = generate_self_signed_cert(issuer, "CN=issuer");
