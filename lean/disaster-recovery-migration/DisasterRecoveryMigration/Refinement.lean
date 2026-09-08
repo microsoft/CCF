@@ -4,7 +4,7 @@ import Mathlib.Logic.Relation
 
 namespace DisasterRecoveryMigration.Refinement
 
-open DisasterRecovery.Protocol
+open DisasterRecovery.Protocol.Model
 
 def projectPhase (state : NodeState) : DisasterRecoveryMigration.Legacy.Phase :=
   match state.phase with
