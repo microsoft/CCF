@@ -6,7 +6,9 @@ Machine-checked proof implementations. Review the system-level statements in
 `DisasterRecovery.Properties` and definitions in `DisasterRecovery.Protocol.Temporal`.
 -/
 
-namespace DisasterRecovery.Protocol
+namespace DisasterRecovery.Proofs.Temporal
+
+open Protocol.Model Protocol.Temporal
 
 lemma valid_timeout_requires_alignment
     (state : NodeState)
@@ -194,4 +196,4 @@ lemma fair_aligned_opening_progress
   rw [execution.step_succ n, timeout]
   exact aligned_timeout_transitions_to_open config _ (alignedAlways n)
 
-end DisasterRecovery.Protocol
+end DisasterRecovery.Proofs.Temporal

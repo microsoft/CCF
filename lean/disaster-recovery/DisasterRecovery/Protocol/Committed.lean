@@ -2,7 +2,10 @@ import DisasterRecovery.Protocol.Quorum
 
 /-! Human-reviewed committed-prefix ordering and completeness assumptions. -/
 
-namespace DisasterRecovery.Protocol
+namespace DisasterRecovery.Protocol.Committed
+
+open Model hiding Config
+open Global
 
 namespace TxID
 
@@ -11,8 +14,6 @@ def PrefixOf (left right : TxID) : Prop :=
     (left.view = right.view /\ left.seqno <= right.seqno)
 
 end TxID
-
-namespace Global
 
 def FullGossipSelection
     (config : Config)
@@ -31,6 +32,4 @@ def DurableCommit (config : Config) (committed : TxID) : Prop :=
     (location, txid) ∈ config.recovered /\
       TxID.PrefixOf committed txid
 
-end Global
-
-end DisasterRecovery.Protocol
+end DisasterRecovery.Protocol.Committed

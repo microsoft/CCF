@@ -2,7 +2,10 @@ import DisasterRecovery.Protocol.Global
 
 /-! Human-reviewed reachability and message-provenance invariants. -/
 
-namespace DisasterRecovery.Protocol.Global
+namespace DisasterRecovery.Protocol.Invariants
+
+open Model hiding Config
+open Global
 
 structure HistoriesActive (state : State) : Prop where
   openings :
@@ -38,4 +41,4 @@ structure WellFormed (config : Config) (state : State) : Prop where
       envelope ∈ state.sent
   historiesActive : HistoriesActive state
 
-end DisasterRecovery.Protocol.Global
+end DisasterRecovery.Protocol.Invariants

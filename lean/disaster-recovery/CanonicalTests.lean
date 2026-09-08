@@ -1,6 +1,6 @@
 import DisasterRecovery.Protocol.Temporal
 
-open DisasterRecovery.Protocol
+open DisasterRecovery.Protocol.Model
 
 private def expect (condition : Bool) (message : String) : IO Unit :=
   unless condition do throw (IO.userError message)

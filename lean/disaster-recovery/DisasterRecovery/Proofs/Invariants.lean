@@ -6,7 +6,11 @@ Machine-checked proof implementations. Review the system-level statements in
 `DisasterRecovery.Properties` and definitions in `DisasterRecovery.Protocol.Invariants`.
 -/
 
-namespace DisasterRecovery.Protocol.Global
+namespace DisasterRecovery.Proofs.Invariants
+
+open Protocol
+open Model hiding Config
+open Global Protocol.Invariants
 
 lemma messageForEffect_source
     {config : Config}
@@ -125,7 +129,7 @@ lemma valid_gossip_uses_recovered_txid
       simp [messageForEffect] at created
 
 lemma step_preserves_location
-    (config : Protocol.Config)
+    (config : Model.Config)
     (state : NodeState)
     (event : Event) :
     (step config state event).state.location = state.location := by
@@ -445,7 +449,7 @@ lemma findNode_replaceNode_ne
       simp [replace, notTarget]
 
 lemma systemStep_node_keys_eq
-    {config : Protocol.Config}
+    {config : Model.Config}
     {before after : SystemState}
     {target : Location}
     {event : Event}
@@ -460,7 +464,7 @@ lemma systemStep_node_keys_eq
     (step config node event).state before.nodes
 
 lemma systemStep_preserves_node_locations
-    {config : Protocol.Config}
+    {config : Model.Config}
     {before after : SystemState}
     {target : Location}
     {event : Event}
@@ -490,7 +494,7 @@ lemma systemStep_preserves_node_locations
               entry.1 == target) found)
 
 lemma systemStep_other_node_eq
-    {config : Protocol.Config}
+    {config : Model.Config}
     {before after : SystemState}
     {target other : Location}
     {event : Event}
@@ -867,4 +871,4 @@ lemma reachable_config_valid
   | initial active valid nodup configured => exact valid
   | step reachable transition valid => exact valid
 
-end DisasterRecovery.Protocol.Global
+end DisasterRecovery.Proofs.Invariants

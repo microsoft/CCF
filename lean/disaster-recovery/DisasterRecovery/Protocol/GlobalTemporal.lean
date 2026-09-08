@@ -3,7 +3,11 @@ import DisasterRecovery.Protocol.Temporal
 
 /-! Human-reviewed global execution, termination and fairness assumptions. -/
 
-namespace DisasterRecovery.Protocol.Global
+namespace DisasterRecovery.Protocol.GlobalTemporal
+
+open Model hiding Config
+open Global Quorum
+open Temporal (EventuallyFrom)
 
 structure Execution (config : Config) where
   states : Nat -> State
@@ -177,4 +181,4 @@ def openingDistance : Phase -> Nat
   | .opening => 1
   | .joining | .open => 0
 
-end DisasterRecovery.Protocol.Global
+end DisasterRecovery.Protocol.GlobalTemporal

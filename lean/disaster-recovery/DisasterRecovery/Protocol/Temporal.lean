@@ -2,7 +2,9 @@ import DisasterRecovery.Protocol.Model
 
 /-! Human-reviewed local execution and fairness definitions. -/
 
-namespace DisasterRecovery.Protocol
+namespace DisasterRecovery.Protocol.Temporal
+
+open Model
 
 def EventuallyFrom (start : Nat) (predicate : Nat -> Prop) : Prop :=
   exists n, start <= n /\ predicate n
@@ -44,4 +46,4 @@ def StrongFairness
 def AlignedOpening (state : NodeState) : Prop :=
   state.phase = .opening /\ state.timeoutState = .opening
 
-end DisasterRecovery.Protocol
+end DisasterRecovery.Protocol.Temporal

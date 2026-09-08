@@ -2,7 +2,10 @@ import DisasterRecovery.Protocol.Invariants
 
 /-! Human-reviewed vote provenance, quorum and opening predicates. -/
 
-namespace DisasterRecovery.Protocol.Global
+namespace DisasterRecovery.Protocol.Quorum
+
+open Model hiding Config
+open Global
 
 def SentVote (state : State) (voter target : Location) : Prop :=
   exists envelope,
@@ -67,7 +70,7 @@ structure Opening.Valid
 
 def OpeningsValid (config : Config) (state : State) : Prop :=
   forall opening, opening ∈ state.openings ->
-    opening.Valid config state
+    Opening.Valid config state opening
 
 structure QuorumInvariant (config : Config) (state : State) : Prop where
   votesNodup : NodeVotesNodup state
@@ -88,4 +91,4 @@ def QuorumOpened (state : State) (node : Location) : Prop :=
       opening.node = node /\
       opening.kind = .quorum
 
-end DisasterRecovery.Protocol.Global
+end DisasterRecovery.Protocol.Quorum

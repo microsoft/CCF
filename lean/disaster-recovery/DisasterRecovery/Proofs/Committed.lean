@@ -7,24 +7,23 @@ Machine-checked proof implementations. Review the system-level statements in
 `DisasterRecovery.Properties` and assumptions in `DisasterRecovery.Protocol.Committed`.
 -/
 
-namespace DisasterRecovery.Protocol
+namespace DisasterRecovery.Proofs.Committed
 
-namespace TxID
+open Protocol
+open Model hiding Config
+open Global Protocol.Invariants Protocol.Quorum Protocol.Committed
+open DisasterRecovery.Proofs.Invariants DisasterRecovery.Proofs.Quorum
 
-lemma prefix_refl (txid : TxID) : PrefixOf txid txid := by
-  simp [PrefixOf]
+lemma prefix_refl (txid : TxID) : TxID.PrefixOf txid txid := by
+  simp [TxID.PrefixOf]
 
 lemma prefix_trans
     {first second third : TxID}
-    (firstSecond : PrefixOf first second)
-    (secondThird : PrefixOf second third) :
-    PrefixOf first third := by
-  simp [PrefixOf] at firstSecond secondThird ⊢
+    (firstSecond : TxID.PrefixOf first second)
+    (secondThird : TxID.PrefixOf second third) :
+    TxID.PrefixOf first third := by
+  simp [TxID.PrefixOf] at firstSecond secondThird ⊢
   omega
-
-end TxID
-
-namespace Global
 
 lemma prefix_of_score_true
     (leftName rightName : Location)
@@ -55,7 +54,7 @@ lemma current_prefix_selectMaximum
   · rename_i score
     exact prefix_of_score_true
       candidate.1 current.1 candidate.2 current.2 score
-  · exact TxID.prefix_refl current.2
+  · exact prefix_refl current.2
 
 lemma candidate_prefix_selectMaximum
     (current candidate : Prod Location TxID) :
@@ -63,7 +62,7 @@ lemma candidate_prefix_selectMaximum
       (selectMaximum current candidate).2 := by
   unfold selectMaximum
   split
-  · exact TxID.prefix_refl candidate.2
+  · exact prefix_refl candidate.2
   · rename_i score
     exact prefix_of_score_false
       candidate.1 current.1 candidate.2 current.2
@@ -79,19 +78,19 @@ lemma foldl_selectMaximum_upper_bound
   | nil =>
       simp at membership
       subst member
-      exact TxID.prefix_refl current.2
+      exact prefix_refl current.2
   | cons candidate rest ih =>
       simp only [List.foldl_cons]
       rcases membership with currentMember | tailMember
       · subst member
-        exact TxID.prefix_trans
+        exact prefix_trans
           (current_prefix_selectMaximum current candidate)
           (ih (selectMaximum current candidate)
             (selectMaximum current candidate) (Or.inl rfl))
       · rw [List.mem_cons] at tailMember
         rcases tailMember with candidateMember | restMember
         · subst member
-          exact TxID.prefix_trans
+          exact prefix_trans
             (candidate_prefix_selectMaximum current candidate)
             (ih (selectMaximum current candidate)
               (selectMaximum current candidate) (Or.inl rfl))
@@ -216,7 +215,7 @@ lemma full_gossip_selection_preserves_commit
   exact
     ⟨selectedTxID,
       recoveredTxID_of_mem configValid selectedRecovered,
-      TxID.prefix_trans committedDurable durableMaximum⟩
+      prefix_trans committedDurable durableMaximum⟩
 
 /--
 Quorum opening scopes the result to an actual decision, while the separate
@@ -238,6 +237,4 @@ lemma quorum_open_preserves_commit
         TxID.PrefixOf committed recovered :=
   full_gossip_selection_preserves_commit reachable full durable
 
-end Global
-
-end DisasterRecovery.Protocol
+end DisasterRecovery.Proofs.Committed

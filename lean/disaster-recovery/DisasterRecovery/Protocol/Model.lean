@@ -1,6 +1,6 @@
 import Std
 
-namespace DisasterRecovery.Protocol
+namespace DisasterRecovery.Protocol.Model
 
 abbrev Location := String
 
@@ -287,4 +287,4 @@ def stateKey (state : NodeState) : String :=
   let kind := state.openKind.map openKindName |>.getD "-"
   s!"{state.location}|{phaseName state.phase}|{phaseName state.timeoutState}|g={gossips}|v={votes}|c={chosen}|k={kind}|r={state.restartRequested}"
 
-end DisasterRecovery.Protocol
+end DisasterRecovery.Protocol.Model

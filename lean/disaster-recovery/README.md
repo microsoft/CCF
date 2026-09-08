@@ -39,9 +39,19 @@ deployment.
 The 233 supporting declarations are `lemma`s in
 `DisasterRecovery/Proofs/`. Their implementations can normally be omitted from
 line-by-line human review once the build and axiom audit pass. Mathlib's
-`lemma` is a synonym for `theorem`, not a weaker form of checking. The existing
-helper names are preserved, and the public statements remain explicitly linked
-to them rather than being detached specifications.
+`lemma` is a synonym for `theorem`, not a weaker form of checking. The public
+statements remain explicitly linked to these lemmas rather than being detached
+specifications.
+
+Declaration namespaces follow the module paths. Model definitions live under
+`DisasterRecovery.Protocol.<Module>`, supporting lemmas under
+`DisasterRecovery.Proofs.<Module>`, and the 15 reviewed theorems under
+`DisasterRecovery.Properties`. For example,
+`DisasterRecovery.Properties.gossip_freezes_after_choice` explicitly applies
+`DisasterRecovery.Proofs.Temporal.gossip_freezes_after_choice` from
+`DisasterRecovery/Proofs/Temporal.lean`. Local and global properties share the
+`DisasterRecovery.Properties` namespace; their `Config` and `Execution` types
+come from the corresponding protocol modules.
 
 Only the Lean files under `DisasterRecovery/Proofs/` are marked
 `linguist-generated` in the repository's `.gitattributes`, so GitHub can collapse

@@ -9,7 +9,11 @@ lemma from `DisasterRecovery.Proofs`; changing a statement must preserve that
 checked connection. Intermediate facts remain lemmas in the proof modules.
 -/
 
-namespace DisasterRecovery.Protocol.Properties
+namespace DisasterRecovery.Properties
+
+section Local
+
+open Protocol.Model Protocol.Temporal
 
 /-! ## Local safety and progress -/
 
@@ -21,7 +25,7 @@ theorem gossip_freezes_after_choice
     (chosen : state.chosen.isSome = true) :
     let output := step config state (.receiveGossip source txid .accepted)
     output.state = state /\ output.accepted = false :=
-  DisasterRecovery.Protocol.gossip_freezes_after_choice config state source txid chosen
+  Proofs.Temporal.gossip_freezes_after_choice config state source txid chosen
 
 theorem rejected_gossip_stutters
     (config : Config)
@@ -30,7 +34,7 @@ theorem rejected_gossip_stutters
     (txid : TxID) :
     let output := step config state (.receiveGossip source txid .rejected)
     output.state = state /\ output.accepted = false :=
-  DisasterRecovery.Protocol.rejected_gossip_stutters config state source txid
+  Proofs.Temporal.rejected_gossip_stutters config state source txid
 
 theorem quorum_advance_opens
     (config : Config)
@@ -41,7 +45,7 @@ theorem quorum_advance_opens
     output.state.phase = .opening /\
       output.state.openKind = some .quorum /\
       output.effects = [.opening .quorum] :=
-  DisasterRecovery.Protocol.quorum_advance_opens config state phase quorum
+  Proofs.Temporal.quorum_advance_opens config state phase quorum
 
 theorem aligned_opening_timeout_completes
     (config : Config)
@@ -55,7 +59,7 @@ theorem aligned_opening_timeout_completes
     output.state.phase = .open /\
       output.state.timeoutState = .opening /\
       output.effects = [.completed] :=
-  DisasterRecovery.Protocol.aligned_opening_timeout_completes config state
+  Proofs.Temporal.aligned_opening_timeout_completes config state
 
 theorem fair_aligned_opening_progress
     {config : Config}
@@ -65,11 +69,15 @@ theorem fair_aligned_opening_progress
       (fun _ event => event = .timeout)) :
     EventuallyFrom 0
       (fun n => (execution.states n).phase = .open) :=
-  DisasterRecovery.Protocol.fair_aligned_opening_progress execution initial fair
+  Proofs.Temporal.fair_aligned_opening_progress execution initial fair
 
-end DisasterRecovery.Protocol.Properties
+end Local
 
-namespace DisasterRecovery.Protocol.Global.Properties
+section Global
+
+open Protocol.Model hiding Config
+open Protocol.Global Protocol.Invariants Protocol.Quorum Protocol.Committed Protocol.GlobalTemporal
+open Protocol.Temporal (EventuallyFrom)
 
 /-! ## Reachability and quorum safety -/
 
@@ -78,14 +86,14 @@ theorem reachable_well_formed
     {state : State}
     (reachable : Reachable config state) :
     WellFormed config state :=
-  DisasterRecovery.Protocol.Global.reachable_well_formed reachable
+  Proofs.Invariants.reachable_well_formed reachable
 
 theorem reachable_quorum_invariant
     {config : Config}
     {state : State}
     (reachable : Reachable config state) :
     QuorumInvariant config state :=
-  DisasterRecovery.Protocol.Global.reachable_quorum_invariant reachable
+  Proofs.Quorum.reachable_quorum_invariant reachable
 
 theorem quorum_opener_unique
     {config : Config}
@@ -95,7 +103,7 @@ theorem quorum_opener_unique
     (firstOpened : QuorumOpened state first)
     (secondOpened : QuorumOpened state second) :
     first = second :=
-  DisasterRecovery.Protocol.Global.quorum_opener_unique
+  Proofs.Quorum.quorum_opener_unique
     reachable firstOpened secondOpened
 
 /-! ## Committed-prefix safety -/
@@ -111,7 +119,7 @@ theorem full_gossip_selection_preserves_commit
     exists recovered,
       recoveredTxID config opener = some recovered /\
         TxID.PrefixOf committed recovered :=
-  DisasterRecovery.Protocol.Global.full_gossip_selection_preserves_commit
+  Proofs.Committed.full_gossip_selection_preserves_commit
     reachable full durable
 
 theorem quorum_open_preserves_commit
@@ -126,7 +134,7 @@ theorem quorum_open_preserves_commit
     exists recovered,
       recoveredTxID config opener = some recovered /\
         TxID.PrefixOf committed recovered :=
-  DisasterRecovery.Protocol.Global.quorum_open_preserves_commit
+  Proofs.Committed.quorum_open_preserves_commit
     reachable opened full durable
 
 /-! ## Conditional global progress -/
@@ -142,7 +150,7 @@ theorem fair_opening_completes
     (phase : HasPhase (execution.states start) node .opening) :
     EventuallyFrom start (fun n =>
       CompletedOpen (execution.states n) node) :=
-  DisasterRecovery.Protocol.Global.fair_opening_completes
+  Proofs.GlobalTemporal.fair_opening_completes
     execution initial fair active phase
 
 theorem fair_some_opener_completes
@@ -153,7 +161,7 @@ theorem fair_some_opener_completes
     (activeNonempty : (execution.states 0).active ≠ []) :
     EventuallyFrom 0 (fun n =>
       exists node, CompletedOpen (execution.states n) node) :=
-  DisasterRecovery.Protocol.Global.fair_some_opener_completes
+  Proofs.GlobalTemporal.fair_some_opener_completes
     execution initial fair activeNonempty
 
 theorem global_progress
@@ -168,7 +176,7 @@ theorem global_progress
     EventuallyFrom 0 (fun n =>
       forall node, node ∈ (execution.states 0).active ->
         Terminal (execution.states n) node) :=
-  DisasterRecovery.Protocol.Global.global_progress
+  Proofs.GlobalTemporal.global_progress
     execution initial fair broadcast activeNonempty
 
 theorem single_completion_path_joins_others
@@ -184,7 +192,7 @@ theorem single_completion_path_joins_others
     EventuallyFrom start (fun n =>
       forall node, node ∈ (execution.states start).active ->
         node = opener \/ node ∈ (execution.states n).restarts) :=
-  DisasterRecovery.Protocol.Global.single_completion_path_joins_others
+  Proofs.GlobalTemporal.single_completion_path_joins_others
     execution initial fair broadcast completed onlyOpener
 
 theorem quorum_path_progress
@@ -203,7 +211,9 @@ theorem quorum_path_progress
       EventuallyFrom start (fun n =>
         forall node, node ∈ (execution.states start).active ->
           node = opener \/ node ∈ (execution.states n).restarts) :=
-  DisasterRecovery.Protocol.Global.quorum_path_progress
+  Proofs.GlobalTemporal.quorum_path_progress
     execution initial fair broadcast opened completed quorumOnly
 
-end DisasterRecovery.Protocol.Global.Properties
+end Global
+
+end DisasterRecovery.Properties

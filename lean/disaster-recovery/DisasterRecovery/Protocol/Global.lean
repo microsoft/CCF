@@ -2,8 +2,10 @@ import DisasterRecovery.Protocol.Model
 
 namespace DisasterRecovery.Protocol.Global
 
+open Model
+
 structure Config where
-  protocol : Protocol.Config
+  protocol : Model.Config
   recovered : List (Prod Location TxID)
 deriving Repr, BEq
 

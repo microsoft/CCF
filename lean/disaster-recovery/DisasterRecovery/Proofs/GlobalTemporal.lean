@@ -8,7 +8,14 @@ Machine-checked proof implementations. Review the system-level statements in
 `DisasterRecovery.Properties` and assumptions in `DisasterRecovery.Protocol.GlobalTemporal`.
 -/
 
-namespace DisasterRecovery.Protocol.Global
+namespace DisasterRecovery.Proofs.GlobalTemporal
+
+open Protocol
+open Model hiding Config
+open Global Protocol.Invariants Protocol.Quorum Protocol.Committed Protocol.GlobalTemporal
+open Protocol.Temporal (EventuallyFrom)
+open DisasterRecovery.Proofs.Invariants DisasterRecovery.Proofs.Quorum
+open DisasterRecovery.Proofs.Committed DisasterRecovery.Proofs.Temporal
 
 lemma hasPhase_unique
     {state : State}
@@ -25,7 +32,7 @@ lemma hasPhase_unique
   exact firstEq.symm.trans secondEq
 
 lemma step_preserves_lane
-    (config : Protocol.Config)
+    (config : Model.Config)
     (state : NodeState)
     (event : Event)
     (valid : LaneValid state) :
@@ -38,7 +45,7 @@ lemma step_preserves_lane
   all_goals repeat first | split | simp_all | aesop
 
 lemma step_preserves_advanced_lane
-    (config : Protocol.Config)
+    (config : Model.Config)
     (state : NodeState)
     (event : Event)
     (advanced : state.timeoutState ≠ .gossiping) :
@@ -51,7 +58,7 @@ lemma step_preserves_advanced_lane
   all_goals repeat first | split | simp_all
 
 lemma systemStep_preserves_lanes
-    {config : Protocol.Config}
+    {config : Model.Config}
     {before after : SystemState}
     {target : Location}
     {event : Event}
@@ -209,7 +216,7 @@ lemma timeout_target_state
   · simpa using systemStep
 
 lemma systemStep_output_eq
-    {config : Protocol.Config}
+    {config : Model.Config}
     {global : State}
     {after : SystemState}
     {target : Location}
@@ -423,7 +430,7 @@ lemma retry_iamopen_state
   | rejected reason => simp [messageForEffect] at created
 
 lemma step_joining_origin
-    (config : Protocol.Config)
+    (config : Model.Config)
     (state : NodeState)
     (event : Event)
     (joining : (step config state event).state.phase = .joining) :
@@ -438,7 +445,7 @@ lemma step_joining_origin
     repeat first | split at joining | split | simp_all | aesop
 
 lemma step_open_origin
-    (config : Protocol.Config)
+    (config : Model.Config)
     (state : NodeState)
     (event : Event)
     (opened : (step config state event).state.phase = .open) :
@@ -453,7 +460,7 @@ lemma step_open_origin
     repeat first | split at opened | split | simp_all | aesop
 
 lemma iamopen_delivery_outcome
-    (config : Protocol.Config)
+    (config : Model.Config)
     (state : NodeState)
     (source : Location) :
     let output := step config state (.receiveIAmOpen source .accepted)
@@ -464,7 +471,7 @@ lemma iamopen_delivery_outcome
     simp [step, phase, rejected, advance, advanceTimeoutLane]
 
 lemma iamopen_open_predecessor
-    (config : Protocol.Config)
+    (config : Model.Config)
     (state : NodeState)
     (source : Location)
     (opened :
@@ -699,7 +706,7 @@ lemma maximumGossip_some
       exact ⟨tail.foldl selectMaximum head, rfl⟩
 
 lemma gossip_receive_progress
-    (config : Protocol.Config)
+    (config : Model.Config)
     (state : NodeState)
     (source : Location)
     (txid : TxID)
@@ -717,7 +724,7 @@ lemma gossip_receive_progress
   repeat first | split | simp_all
 
 lemma gossip_timeout_progress
-    (config : Protocol.Config)
+    (config : Model.Config)
     (state : NodeState)
     (valid : LaneValid state)
     (phase : state.phase = .gossiping)
@@ -729,7 +736,7 @@ lemma gossip_timeout_progress
   repeat first | split at accepted | split | simp_all
 
 lemma gossip_timeout_enabled_local
-    (config : Protocol.Config)
+    (config : Model.Config)
     (state : NodeState)
     (valid : LaneValid state)
     (phase : state.phase = .gossiping)
@@ -760,7 +767,7 @@ lemma gossip_timeout_enabled
     gossiping nonempty
 
 lemma opening_timeout_local
-    (config : Protocol.Config)
+    (config : Model.Config)
     (state : NodeState)
     (valid : LaneValid state)
     (phase : state.phase = .opening) :
@@ -778,7 +785,7 @@ lemma opening_timeout_local
       advanceTimeoutState, openingDistance]
 
 lemma opening_step_distance_le
-    (config : Protocol.Config)
+    (config : Model.Config)
     (state : NodeState)
     (event : Event)
     (valid : LaneValid state)
@@ -807,7 +814,7 @@ lemma opening_step_distance_le
   | retry => simp [step]
 
 lemma opening_step_or_completed
-    (config : Protocol.Config)
+    (config : Model.Config)
     (state : NodeState)
     (event : Event)
     (phase : state.phase = .opening) :
@@ -833,7 +840,7 @@ lemma opening_step_or_completed
   | retry => simp [step, phase]
 
 lemma opening_non_timeout
-    (config : Protocol.Config)
+    (config : Model.Config)
     (state : NodeState)
     (event : Event)
     (phase : state.phase = .opening)
@@ -1001,7 +1008,7 @@ lemma insertVote_nonempty
     simp at lengths
 
 lemma step_preserves_nonempty_votes
-    (config : Protocol.Config)
+    (config : Model.Config)
     (state : NodeState)
     (event : Event)
     (nonempty : state.votes ≠ []) :
@@ -1246,7 +1253,7 @@ lemma timeout_gossip_progress
     ⟨output.state, foundAfter, by simpa [outputEq] using voting⟩
 
 lemma vote_receive_progress
-    (config : Protocol.Config)
+    (config : Model.Config)
     (state : NodeState)
     (source : Location)
     (phase : state.phase = .voting) :
@@ -1258,7 +1265,7 @@ lemma vote_receive_progress
   repeat first | split | simp_all
 
 lemma voting_timeout_local
-    (config : Protocol.Config)
+    (config : Model.Config)
     (state : NodeState)
     (valid : LaneValid state)
     (phase : state.phase = .voting)
@@ -1275,7 +1282,7 @@ lemma voting_timeout_local
       advanceTimeoutLane, advanceTimeoutState]
 
 lemma aligned_voting_timeout_opens
-    (config : Protocol.Config)
+    (config : Model.Config)
     (state : NodeState)
     (phase : state.phase = .voting)
     (lane : state.timeoutState = .voting)
@@ -1989,7 +1996,7 @@ lemma next_preserves_announcements_resolved
             ⟨afterState, foundAfter, phaseAfter⟩)
 
 lemma systemStep_preserves_joining_announcements
-    {config : Protocol.Config}
+    {config : Model.Config}
     {before after : SystemState}
     {target : Location}
     {event : Event}
@@ -2156,7 +2163,7 @@ lemma reachable_joining_announcements
         (reachable_well_formed reachable) valid transition
 
 lemma systemStep_preserves_open_completed
-    {config : Protocol.Config}
+    {config : Model.Config}
     {before after : SystemState}
     {target : Location}
     {event : Event}
@@ -2417,7 +2424,7 @@ lemma openerWitness_after_leave_voting
     active notGossip notVoting
 
 lemma systemStep_preserves_advanced_active
-    {config : Protocol.Config}
+    {config : Model.Config}
     {before after : SystemState}
     {target : Location}
     {event : Event}
@@ -2999,4 +3006,4 @@ lemma quorum_path_progress
       single_completion_path_joins_others
         execution initial fair broadcast completed onlyOpener⟩
 
-end DisasterRecovery.Protocol.Global
+end DisasterRecovery.Proofs.GlobalTemporal
