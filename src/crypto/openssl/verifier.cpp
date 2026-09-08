@@ -54,7 +54,7 @@ namespace ccf::crypto
       }
     }
 
-    Unique_PKEY pk(X509_get_pubkey(cert), EVP_PKEY_free, false);
+    EVP_PKEY* pk = X509_get_pubkey(cert);
     if (pk == nullptr)
     {
       throw std::invalid_argument(fmt::format(
@@ -62,6 +62,8 @@ namespace ccf::crypto
         OpenSSL::error_string(ERR_get_error())));
     }
 
+    // The constructed public key takes ownership of pk, so it is only freed
+    // here on the branch where no public key is constructed.
     auto base_id = EVP_PKEY_get_base_id(pk);
     if (base_id == EVP_PKEY_EC)
     {
@@ -73,9 +75,9 @@ namespace ccf::crypto
     }
     else
     {
+      EVP_PKEY_free(pk);
       throw std::logic_error("unsupported public key type");
     }
-    (void)pk.release(); // public_key now owns the key.
   }
 
   Verifier_OpenSSL::~Verifier_OpenSSL() = default;
