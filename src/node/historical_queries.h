@@ -1426,6 +1426,16 @@ namespace ccf::historical
           serialized::peek<ccf::kv::SerialisedEntryHeader>(data, size);
         const auto whole_size =
           header.size + ccf::kv::serialised_entry_header_size;
+        if (whole_size > size)
+        {
+          LOG_FAIL_FMT(
+            "Corrupt ledger entry received at {} - claims to be {} bytes but "
+            "only {} bytes remain",
+            seqno,
+            whole_size,
+            size);
+          return false;
+        }
         all_accepted &= handle_ledger_entry(seqno, data, whole_size);
         data += whole_size;
         size -= whole_size;
