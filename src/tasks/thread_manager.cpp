@@ -3,7 +3,7 @@
 
 #include "tasks/thread_manager.h"
 
-#include "ccf/pal/locking.h"
+#include "ccf/ds/locking.h"
 #include "ds/internal_logger.h"
 #include "tasks/worker.h"
 
@@ -27,7 +27,7 @@ namespace ccf::tasks
 
     static constexpr size_t MAX_WORKERS = 64;
 
-    ccf::pal::Mutex worker_count_mutex;
+    ccf::ds::Mutex worker_count_mutex;
     std::thread workers[MAX_WORKERS] CCF_GUARDED_BY(worker_count_mutex) = {};
     StopSignal stop_signals[MAX_WORKERS] CCF_GUARDED_BY(
       worker_count_mutex) = {};
@@ -59,7 +59,7 @@ namespace ccf::tasks
 
     void set_task_threads(size_t new_worker_count)
     {
-      ccf::pal::MutexGuard lock(worker_count_mutex);
+      ccf::ds::MutexGuard lock(worker_count_mutex);
 
       if (new_worker_count >= MAX_WORKERS)
       {

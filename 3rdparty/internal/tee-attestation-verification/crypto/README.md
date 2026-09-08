@@ -1,22 +1,22 @@
 # TEE Attestation Verification Crypto
 
 Rather than implementing any cryptographic primitives, this crate dispatches these to one of several backends.
-It narrowly exposes a unified surface for signature verification and certificate chain verification across OpenSSL and WebCrypto.
-There is a fallback pure-rust backend for workloads that don't have webcrypto or openssl available.
+It narrowly exposes a unified surface for signature verification and certificate chain verification across native and WebCrypto backends.
 
 ## Backends
 
-At least one target-compatible backend feature must be enabled. If multiple
-backend features are enabled, `build.rs` selects the target-preferred backend.
+The default feature set enables every backend selector. `build.rs` chooses the
+target-compatible backend, and Cargo activates only that target's dependencies.
 
 | Feature | Platforms | sync | async | Notes |
 |---|---|---:|---:|---|
-| `crypto_openssl` | Native | yes | yes | Uses OpenSSL for native certificate-chain verification and primitive verification. |
+| `crypto_openssl` | Native non-Windows | yes | yes | Uses OpenSSL for native certificate-chain verification and primitive verification. |
 | `crypto_webcrypto` | WASM | no | yes | Uses `globalThis.crypto.subtle` for primitive verification and the shared X.509 path validator. |
-| `crypto_pure_rust` | Native, WASM | yes | yes | Uses RustCrypto crates and the shared X.509 path validator. |
+| `crypto_windows` | Windows | yes | yes | Uses Windows CNG for primitive verification and Crypt32 for certificate-chain verification. |
 
-Native targets prefer `crypto_openssl` when enabled, then `crypto_pure_rust`.
-WASM targets prefer `crypto_webcrypto` when enabled, then `crypto_pure_rust`.
+Use `--no-default-features` with an explicit backend feature to test or restrict
+the selected backend. Windows targets require `crypto_windows`. Other native
+targets use `crypto_openssl`, and WASM targets use `crypto_webcrypto`.
 
 ## Scope
 

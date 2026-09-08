@@ -3,8 +3,8 @@
 #include "node/history.h"
 
 #include "ccf/app_interface.h"
+#include "ccf/ds/locking.h"
 #include "ccf/ds/x509_time_fmt.h"
-#include "ccf/pal/locking.h"
 #include "ccf/service/tables/nodes.h"
 #include "crypto/certs.h"
 #include "crypto/openssl/hash.h"
@@ -19,7 +19,9 @@
 #include <doctest/doctest.h>
 #undef FAIL
 
+#include <atomic>
 #include <exception>
+#include <stop_token>
 #include <thread>
 
 using MapT = ccf::kv::Map<size_t, size_t>;
@@ -314,11 +316,82 @@ public:
   }
 };
 
+TEST_CASE("Pending signatures retain their endorsed certificate")
+{
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
+  auto consensus = std::make_shared<ccf::kv::test::PrimaryStubConsensus>();
+  auto node_kp = ccf::crypto::make_ec_key_pair();
+  auto service_kp = std::dynamic_pointer_cast<ccf::crypto::ECKeyPair_OpenSSL>(
+    ccf::crypto::make_ec_key_pair());
+
+  const auto first_cert =
+    node_kp->self_sign("CN=First Node", valid_from, valid_to);
+  const auto second_cert =
+    node_kp->self_sign("CN=Second Node", valid_from, valid_to);
+
+  ccf::kv::Store store;
+  store.set_encryptor(encryptor);
+  store.set_consensus(consensus);
+
+  auto history = std::make_shared<ccf::MerkleTxHistory>(
+    store, ccf::kv::test::PrimaryNodeId, *node_kp);
+  history->set_endorsed_certificate(first_cert);
+  history->set_service_signing_identity(
+    service_kp, ccf::COSESignaturesConfig{});
+  store.set_history(history);
+
+  constexpr auto store_term = 2;
+  store.initialise_term(store_term);
+
+  MapT table("public:table");
+  const auto gap_txid = store.next_txid();
+
+  history->emit_signature();
+  REQUIRE(consensus->number_of_replicas() == 0);
+
+  history->set_endorsed_certificate(second_cert);
+  REQUIRE(
+    store.commit(
+      gap_txid,
+      std::make_unique<TestPendingTx>(gap_txid, store, table),
+      false) == ccf::kv::CommitResult::SUCCESS);
+
+  auto tx = store.create_read_only_tx();
+  auto signatures = tx.ro<ccf::Signatures>(ccf::Tables::SIGNATURES);
+  const auto signature = signatures->get();
+  REQUIRE(signature.has_value());
+  REQUIRE(signature->cert == first_cert);
+
+  std::atomic<bool> updater_started = false;
+  std::jthread updater([&](std::stop_token stop_token) {
+    updater_started.store(true, std::memory_order_release);
+    while (!stop_token.stop_requested())
+    {
+      history->set_endorsed_certificate(first_cert);
+      history->set_endorsed_certificate(second_cert);
+      std::this_thread::yield();
+    }
+  });
+
+  while (!updater_started.load(std::memory_order_acquire))
+  {
+    std::this_thread::yield();
+  }
+
+  for (size_t i = 0; i < 32; ++i)
+  {
+    history->emit_signature();
+  }
+
+  updater.request_stop();
+  updater.join();
+}
+
 struct PausedSignatureCommit
 {
-  ccf::pal::Mutex lock;
-  ccf::pal::ConditionVariable reserved_tx_created_cv;
-  ccf::pal::ConditionVariable resume_cv;
+  ccf::ds::Mutex lock;
+  ccf::ds::ConditionVariable reserved_tx_created_cv;
+  ccf::ds::ConditionVariable resume_cv;
   bool reserved_tx_created CCF_GUARDED_BY(lock) = false;
   bool resume CCF_GUARDED_BY(lock) = false;
 };
@@ -351,12 +424,12 @@ public:
     tree->put({});
 
     {
-      ccf::pal::MutexGuard guard(paused.lock);
+      ccf::ds::MutexGuard guard(paused.lock);
       paused.reserved_tx_created = true;
     }
     paused.reserved_tx_created_cv.notify_one();
 
-    ccf::pal::MutexGuard guard(paused.lock);
+    ccf::ds::MutexGuard guard(paused.lock);
     paused.resume_cv.wait(
       guard, [this]() CCF_REQUIRES(paused.lock) { return paused.resume; });
 
@@ -556,7 +629,7 @@ TEST_CASE(
   });
 
   {
-    ccf::pal::MutexGuard guard(paused.lock);
+    ccf::ds::MutexGuard guard(paused.lock);
     paused.reserved_tx_created_cv.wait(
       guard, [&paused]() CCF_REQUIRES(paused.lock) {
         return paused.reserved_tx_created;
@@ -573,7 +646,7 @@ TEST_CASE(
   REQUIRE(store.current_txid() == ccf::TxID(store_term, 1));
 
   {
-    ccf::pal::MutexGuard guard(paused.lock);
+    ccf::ds::MutexGuard guard(paused.lock);
     paused.resume = true;
   }
   paused.resume_cv.notify_one();

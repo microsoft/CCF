@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #include "tasks/job_board.h"
 
-#include "ccf/pal/locking.h"
+#include "ccf/ds/locking.h"
 
 #include <chrono>
 #include <map>
@@ -14,7 +14,7 @@ namespace ccf::tasks
   struct WaitingWorkerThread
   {
     // Ownership of a condition variable that a single thread will wait on
-    ccf::pal::ConditionVariable cv;
+    ccf::ds::ConditionVariable cv;
 
     // Output variable to assign that thread a task
     Task& assigned_task;
@@ -50,14 +50,14 @@ namespace ccf::tasks
     std::atomic<std::chrono::milliseconds> total_elapsed =
       std::chrono::milliseconds(0);
 
-    ccf::pal::Mutex tasks_mutex;
+    ccf::ds::Mutex tasks_mutex;
     DelayedTasksByTime tasks CCF_GUARDED_BY(tasks_mutex);
   };
 
   struct JobBoard::PImpl
   {
     // Mutex protects access to both pending_tasks and waiting_worker_threads
-    ccf::pal::Mutex mutex;
+    ccf::ds::Mutex mutex;
 
     // Collection of tasks that are ready for execution
     std::queue<Task> pending_tasks CCF_GUARDED_BY(mutex);
@@ -78,7 +78,7 @@ namespace ccf::tasks
     void add_task(Task&& task)
     {
       // Under lock
-      ccf::pal::MutexGuard lock(mutex);
+      ccf::ds::MutexGuard lock(mutex);
 
       // First check if there is an idle worker waiting for a task
       for (WorkerThreadPtr& worker : *waiting_worker_threads)
@@ -112,7 +112,7 @@ namespace ccf::tasks
 
       {
         // Under lock
-        ccf::pal::MutexGuard lock(mutex);
+        ccf::ds::MutexGuard lock(mutex);
 
         // Get local copy to extend life, even if this object dies while we're
         // waiting.
@@ -160,7 +160,7 @@ namespace ccf::tasks
       std::chrono::milliseconds initial_delay,
       std::optional<std::chrono::milliseconds> periodic_delay)
     {
-      ccf::pal::MutexGuard lock(delayed.tasks_mutex);
+      ccf::ds::MutexGuard lock(delayed.tasks_mutex);
 
       const auto trigger_time = delayed.total_elapsed.load() + initial_delay;
       delayed.tasks[trigger_time].emplace_back(task, periodic_delay);
@@ -171,7 +171,7 @@ namespace ccf::tasks
       elapsed += delayed.total_elapsed.load();
 
       {
-        ccf::pal::MutexGuard lock(delayed.tasks_mutex);
+        ccf::ds::MutexGuard lock(delayed.tasks_mutex);
         auto end_it = delayed.tasks.upper_bound(elapsed);
 
         Delayed::DelayedTasksByTime repeats;
@@ -246,7 +246,7 @@ namespace ccf::tasks
   {
     Summary summary{};
     {
-      ccf::pal::MutexGuard lock(pimpl->mutex);
+      ccf::ds::MutexGuard lock(pimpl->mutex);
       summary.pending_tasks = pimpl->pending_tasks.size();
       summary.idle_workers = pimpl->waiting_worker_threads->size();
     }

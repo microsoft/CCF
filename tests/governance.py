@@ -23,6 +23,7 @@ import infra.path
 import infra.proc
 import infra.proposal
 import jinja2
+import js_compaction_conflict
 import memberclient
 import membership
 import suite.test_requirements as reqs
@@ -320,6 +321,17 @@ def test_ack_state_digest_update(network, args):
             r = c.get(f"/gov/members/state-digests/{member.service_id}")
             assert r.status_code == http.HTTPStatus.OK, r
             assert r.body.json() == updated_digest
+
+        for invalid_body in ({}, {"stateDigest": 42}):
+            with node.api_versioned_client(
+                *member.auth(write=True), api_version=args.gov_api_version
+            ) as c:
+                r = c.post(
+                    f"/gov/members/state-digests/{member.service_id}:ack",
+                    body=invalid_body,
+                )
+                assert r.status_code == http.HTTPStatus.BAD_REQUEST, r
+                assert r.body.json()["error"]["code"] == "InvalidInput", r
     return network
 
 
@@ -568,16 +580,26 @@ def gov(args):
         test_consensus_status(network, args)
         test_member_data(network, args)
         test_ack_state_digest_update(network, args)
-        network = test_all_members(network, args)
-        test_user(network, args)
-        test_jinja_templates(network, args)
-        test_no_quote(network, args)
-        test_node_data(network, args)
-        test_each_node_cert_renewal(network, args)
-        test_binding_proposal_to_service_identity(network, args)
-        test_all_nodes_cert_renewal(network, args)
-        test_service_cert_renewal(network, args)
-        test_service_cert_renewal_extended(network, args)
+
+        # test_all_members stops this network and recovers into a new one, which
+        # the enclosing context manager does not own: it still holds the
+        # original. Stop the recovered network here, or its nodes outlive the
+        # test. That includes the deliberately untrusted nodes added by
+        # test_no_quote and test_node_data, which then sit in a join retry loop
+        # for the rest of the CI job.
+        recovered_network = test_all_members(network, args)
+        try:
+            test_user(recovered_network, args)
+            test_jinja_templates(recovered_network, args)
+            test_no_quote(recovered_network, args)
+            test_node_data(recovered_network, args)
+            test_each_node_cert_renewal(recovered_network, args)
+            test_binding_proposal_to_service_identity(recovered_network, args)
+            test_all_nodes_cert_renewal(recovered_network, args)
+            test_service_cert_renewal(recovered_network, args)
+            test_service_cert_renewal_extended(recovered_network, args)
+        finally:
+            recovered_network.stop_all_nodes(skip_verification=True)
 
 
 # These tests requiring starting up + shutting down a node with specific
@@ -838,6 +860,17 @@ if __name__ == "__main__":
         memberclient.run,
         package="samples/apps/logging/logging",
         nodes=infra.e2e_args.max_nodes(cr.args, f=1),
+    )
+
+    cr.add(
+        "js_compaction_conflict",
+        js_compaction_conflict.run,
+        package="js_generic",
+        js_app_bundle=None,
+        nodes=infra.e2e_args.min_nodes(cr.args, f=0),
+        # The endpoint under test occupies one thread for as long as it
+        # executes, so others are needed to serve the concurrent writes.
+        worker_threads=2,
     )
 
     cr.run()

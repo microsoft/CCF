@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/pal/locking.h"
+#include "ccf/ds/locking.h"
 
 #include <memory>
 
@@ -21,8 +21,8 @@ namespace ccf::ds
   class WorkerShutdownGate
   {
   private:
-    mutable ccf::pal::Mutex lock;
-    ccf::pal::ConditionVariable all_workers_done;
+    mutable ccf::ds::Mutex lock;
+    ccf::ds::ConditionVariable all_workers_done;
     size_t active_workers CCF_GUARDED_BY(lock) = 0;
     bool alive CCF_GUARDED_BY(lock) = true;
 
@@ -34,7 +34,7 @@ namespace ccf::ds
      */
     [[nodiscard]] bool try_register()
     {
-      ccf::pal::MutexGuard guard(lock);
+      ccf::ds::MutexGuard guard(lock);
       if (!alive)
       {
         return false;
@@ -49,7 +49,7 @@ namespace ccf::ds
      */
     void unregister()
     {
-      ccf::pal::MutexGuard guard(lock);
+      ccf::ds::MutexGuard guard(lock);
       --active_workers;
       if (active_workers == 0)
       {
@@ -64,7 +64,7 @@ namespace ccf::ds
      */
     void shutdown_and_wait()
     {
-      ccf::pal::MutexGuard guard(lock);
+      ccf::ds::MutexGuard guard(lock);
       alive = false;
       all_workers_done.wait(
         guard, [this]() CCF_REQUIRES(lock) { return active_workers == 0; });
@@ -78,7 +78,7 @@ namespace ccf::ds
       // alive is only ever written under the lock and only transitions
       // false->true, so a relaxed read is safe for a non-blocking check.
       // However, to avoid UB we still take the lock briefly.
-      ccf::pal::MutexGuard guard(lock);
+      ccf::ds::MutexGuard guard(lock);
       return !alive;
     }
 

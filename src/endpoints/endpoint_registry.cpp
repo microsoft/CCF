@@ -4,8 +4,8 @@
 #include "ccf/endpoint_registry.h"
 
 #include "ccf/common_auth_policies.h"
+#include "ccf/ds/locking.h"
 #include "ccf/node_context.h"
-#include "ccf/pal/locking.h"
 #include "ds/nonstd.h"
 #include "endpoint_utils.h"
 #include "http/http_parser.h"

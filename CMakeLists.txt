@@ -623,6 +623,12 @@ if(BUILD_TESTS)
     )
 
     add_unit_test(
+      public_header_helpers_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/public_header_helpers.cpp
+    )
+    target_link_libraries(public_header_helpers_test PRIVATE http_parser)
+
+    add_unit_test(
       state_machine_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/state_machine.cpp
     )
@@ -712,6 +718,12 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/host/test/rpc_connections.cpp
     )
     target_link_libraries(rpc_connections_test PRIVATE uv)
+
+    add_unit_test(
+      node_connections_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/host/test/node_connections.cpp
+    )
+    target_link_libraries(node_connections_test PRIVATE uv)
 
     add_unit_test(
       raft_test
@@ -882,6 +894,11 @@ if(BUILD_TESTS)
     add_unit_test(
       node_info_json_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/node_info_json.cpp
+    )
+
+    add_unit_test(
+      identity_types_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/identity_types.cpp
     )
 
     add_unit_test(tls_test ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/main.cpp)
@@ -1196,13 +1213,6 @@ if(BUILD_TESTS)
       all
       --jinja-templates-path
       ${CMAKE_SOURCE_DIR}/samples/templates
-  )
-
-  add_e2e_test(
-    NAME commit_latency
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/commit_latency.py
-    LABEL perf
-    CONFIGURATIONS perf
   )
 
   add_e2e_test(

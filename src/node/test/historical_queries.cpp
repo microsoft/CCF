@@ -8,7 +8,7 @@
 #include "node/historical_queries.h"
 
 #include "ccf/crypto/rsa_key_pair.h"
-#include "ccf/pal/locking.h"
+#include "ccf/ds/locking.h"
 #include "ccf/receipt.h"
 #include "crypto/cbor.h"
 #include "crypto/openssl/hash.h"
@@ -887,6 +887,55 @@ TEST_CASE("StateCache range queries")
   }
 }
 
+TEST_CASE("Ledger entry bounds")
+{
+  auto state = create_and_init_state();
+  auto& kv_store = *state.kv_store;
+  const auto begin_seqno = kv_store.current_version() + 1;
+  const auto end_seqno = write_transactions_and_signature(kv_store, 2);
+  const auto ledger = construct_host_ledger(kv_store.get_consensus());
+  ccf::historical::StateCache cache(
+    kv_store, state.ledger_secrets, std::make_shared<StubWriter>());
+
+  constexpr auto handle = 0;
+  REQUIRE(cache.get_store_range(handle, begin_seqno, end_seqno).empty());
+
+  std::vector<uint8_t> combined;
+  auto invalid_seqno = begin_seqno;
+  SUBCASE("Invalid first entry") {}
+  SUBCASE("Invalid entry after a valid entry")
+  {
+    // Check against the remaining bytes, not the original batch size.
+    combined = ledger.at(begin_seqno);
+    ++invalid_seqno;
+  }
+
+  // Claim a one-byte body, but supply only the header.
+  ccf::kv::SerialisedEntryHeader header;
+  header.set_size(1);
+  const auto offset = combined.size();
+  combined.resize(offset + ccf::kv::serialised_entry_header_size);
+  auto* data = combined.data() + offset;
+  auto size = ccf::kv::serialised_entry_header_size;
+  serialized::write(data, size, header);
+
+  REQUIRE_FALSE(
+    cache.handle_ledger_entries(begin_seqno, invalid_seqno, combined));
+  REQUIRE(cache.get_store_range(handle, begin_seqno, end_seqno).empty());
+
+  // Retry from the rejected entry. Any valid prefix must remain cached.
+  combined.clear();
+  for (auto seqno = invalid_seqno; seqno <= end_seqno; ++seqno)
+  {
+    const auto& entry = ledger.at(seqno);
+    combined.insert(combined.end(), entry.begin(), entry.end());
+  }
+  REQUIRE(cache.handle_ledger_entries(invalid_seqno, end_seqno, combined));
+  REQUIRE(
+    cache.get_store_range(handle, begin_seqno, end_seqno).size() ==
+    end_seqno - begin_seqno + 1);
+}
+
 TEST_CASE("Incremental progress")
 {
   const auto seed = time(NULL);
@@ -1273,7 +1322,7 @@ TEST_CASE("StateCache concurrent access")
     {
       std::vector<StubWriter::Write> writes;
       {
-        std::lock_guard<ccf::pal::Mutex> guard(writer->writes_mutex);
+        std::lock_guard<ccf::ds::Mutex> guard(writer->writes_mutex);
         auto finished_write_it = std::partition_point(
           writer->writes.begin() + last_handled_write,
           writer->writes.end(),

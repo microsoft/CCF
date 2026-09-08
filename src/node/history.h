@@ -3,9 +3,9 @@
 #pragma once
 
 #include "ccf/crypto/cose_verifier.h"
+#include "ccf/ds/locking.h"
 #include "ccf/ds/x509_time_fmt.h"
 #include "ccf/node/ledger_sign_mode.h"
-#include "ccf/pal/locking.h"
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/service.h"
 #include "common/configuration.h"
@@ -26,7 +26,9 @@
 #include "tasks/task_system.h"
 
 #include <array>
+#include <atomic>
 #include <deque>
+#include <memory>
 #include <string.h>
 
 #define HAVE_OPENSSL
@@ -313,7 +315,7 @@ namespace ccf
     NodeId id;
     ccf::crypto::ECKeyPair& node_kp;
     ccf::crypto::ECKeyPair_OpenSSL& service_kp;
-    ccf::crypto::Pem& endorsed_cert;
+    std::shared_ptr<const ccf::crypto::Pem> endorsed_cert;
     const ccf::COSESignaturesConfig& cose_signatures_config;
     const ccf::LedgerSignMode ledger_sign_mode;
     std::unordered_map<std::string, CoseKey>& cose_key_cache;
@@ -326,7 +328,7 @@ namespace ccf
       NodeId id_,
       ccf::crypto::ECKeyPair& node_kp_,
       ccf::crypto::ECKeyPair_OpenSSL& service_kp_,
-      ccf::crypto::Pem& endorsed_cert_,
+      std::shared_ptr<const ccf::crypto::Pem> endorsed_cert_,
       const ccf::COSESignaturesConfig& cose_signatures_config_,
       ccf::LedgerSignMode ledger_sign_mode_,
       std::unordered_map<std::string, CoseKey>& cose_key_cache_) :
@@ -336,7 +338,7 @@ namespace ccf
       id(std::move(id_)),
       node_kp(node_kp_),
       service_kp(service_kp_),
-      endorsed_cert(endorsed_cert_),
+      endorsed_cert(std::move(endorsed_cert_)),
       cose_signatures_config(cose_signatures_config_),
       ledger_sign_mode(ledger_sign_mode_),
       cose_key_cache(cose_key_cache_)
@@ -364,7 +366,7 @@ namespace ccf
           root,
           {}, // Nonce is currently empty
           primary_sig,
-          endorsed_cert);
+          *endorsed_cert);
 
         signatures->put(sig_value);
       }
@@ -573,11 +575,12 @@ namespace ccf
     size_t sig_tx_interval;
     size_t sig_ms_interval;
 
-    ccf::pal::Mutex state_lock;
+    ccf::ds::Mutex state_lock;
     ccf::kv::Term term_of_last_version = 0;
     ccf::kv::Term term_of_next_version{};
 
-    std::optional<ccf::crypto::Pem> endorsed_cert = std::nullopt;
+    std::atomic<std::shared_ptr<const ccf::crypto::Pem>> endorsed_cert =
+      nullptr;
 
     struct ServiceSigningIdentity
     {
@@ -650,7 +653,7 @@ namespace ccf
       const auto delay = std::chrono::milliseconds(sig_ms_interval);
 
       emit_signature_periodic_task = ccf::tasks::make_basic_task([this]() {
-        std::unique_lock<ccf::pal::Mutex> mguard(
+        std::unique_lock<ccf::ds::Mutex> mguard(
           this->signature_lock, std::defer_lock);
 
         bool should_emit_signature = false;
@@ -734,7 +737,7 @@ namespace ccf
 
       // Delay taking this lock until _after_ the read above, to avoid lock
       // inversions
-      std::lock_guard<ccf::pal::Mutex> guard(state_lock);
+      std::lock_guard<ccf::ds::Mutex> guard(state_lock);
 
       CCF_ASSERT_FMT(
         !replicated_state_tree.in_range(1),
@@ -753,14 +756,14 @@ namespace ccf
 
     ccf::crypto::Sha256Hash get_replicated_state_root() override
     {
-      std::lock_guard<ccf::pal::Mutex> guard(state_lock);
+      std::lock_guard<ccf::ds::Mutex> guard(state_lock);
       return replicated_state_tree.get_root();
     }
 
     std::tuple<ccf::TxID, ccf::crypto::Sha256Hash, ccf::kv::Term>
     get_replicated_state_txid_and_root() override
     {
-      std::lock_guard<ccf::pal::Mutex> guard(state_lock);
+      std::lock_guard<ccf::ds::Mutex> guard(state_lock);
       return {
         {term_of_last_version,
          static_cast<ccf::kv::Version>(replicated_state_tree.end_index())},
@@ -875,7 +878,7 @@ namespace ccf
 
     std::vector<uint8_t> serialise_tree(size_t to) override
     {
-      std::lock_guard<ccf::pal::Mutex> guard(state_lock);
+      std::lock_guard<ccf::ds::Mutex> guard(state_lock);
       if (to <= replicated_state_tree.end_index())
       {
         return replicated_state_tree.serialise(
@@ -889,7 +892,7 @@ namespace ccf
     {
       // This should only be called once, when the store first knows about its
       // term
-      std::lock_guard<ccf::pal::Mutex> guard(state_lock);
+      std::lock_guard<ccf::ds::Mutex> guard(state_lock);
       term_of_last_version = t;
       term_of_next_version = t;
     }
@@ -897,7 +900,7 @@ namespace ccf
     void rollback(
       const ccf::TxID& tx_id, ccf::kv::Term term_of_next_version_) override
     {
-      std::lock_guard<ccf::pal::Mutex> guard(state_lock);
+      std::lock_guard<ccf::ds::Mutex> guard(state_lock);
       LOG_TRACE_FMT("Rollback to {}.{}", tx_id.view, tx_id.seqno);
       term_of_last_version = tx_id.view;
       term_of_next_version = term_of_next_version_;
@@ -907,7 +910,7 @@ namespace ccf
 
     void compact(ccf::kv::Version v) override
     {
-      std::lock_guard<ccf::pal::Mutex> guard(state_lock);
+      std::lock_guard<ccf::ds::Mutex> guard(state_lock);
       // Receipts can only be retrieved to the flushed index. Keep a range of
       // history so that a range of receipts are available.
       if (v > MAX_HISTORY_LEN)
@@ -917,11 +920,11 @@ namespace ccf
       log_hash(replicated_state_tree.get_root(), COMPACT);
     }
 
-    ccf::pal::Mutex signature_lock;
+    ccf::ds::Mutex signature_lock;
 
     void try_emit_signature() override
     {
-      std::unique_lock<ccf::pal::Mutex> mguard(signature_lock, std::defer_lock);
+      std::unique_lock<ccf::ds::Mutex> mguard(signature_lock, std::defer_lock);
       if (store.committable_gap() < sig_tx_interval || !mguard.try_lock())
       {
         return;
@@ -943,7 +946,8 @@ namespace ccf
         return;
       }
 
-      if (!endorsed_cert.has_value())
+      auto endorsed_cert_ = endorsed_cert.load(std::memory_order_acquire);
+      if (endorsed_cert_ == nullptr)
       {
         throw std::logic_error(
           fmt::format("No endorsed certificate set to emit signature"));
@@ -968,7 +972,7 @@ namespace ccf
           id,
           node_kp,
           *signing_identity->service_kp,
-          endorsed_cert.value(),
+          std::move(endorsed_cert_),
           signing_identity->cose_signatures_config,
           signing_identity->ledger_sign_mode,
           cose_key_cache),
@@ -977,20 +981,20 @@ namespace ccf
 
     std::vector<uint8_t> get_proof(ccf::kv::Version index) override
     {
-      std::lock_guard<ccf::pal::Mutex> guard(state_lock);
+      std::lock_guard<ccf::ds::Mutex> guard(state_lock);
       return replicated_state_tree.get_proof(index).to_v();
     }
 
     bool verify_proof(const std::vector<uint8_t>& v) override
     {
       Proof proof(v);
-      std::lock_guard<ccf::pal::Mutex> guard(state_lock);
+      std::lock_guard<ccf::ds::Mutex> guard(state_lock);
       return replicated_state_tree.verify(proof);
     }
 
     std::vector<uint8_t> get_raw_leaf(uint64_t index) override
     {
-      std::lock_guard<ccf::pal::Mutex> guard(state_lock);
+      std::lock_guard<ccf::ds::Mutex> guard(state_lock);
       auto leaf = replicated_state_tree.get_leaf(index);
       return {leaf.h.begin(), leaf.h.end()};
     }
@@ -999,7 +1003,7 @@ namespace ccf
     {
       ccf::crypto::Sha256Hash rh(data);
       log_hash(rh, APPEND);
-      std::lock_guard<ccf::pal::Mutex> guard(state_lock);
+      std::lock_guard<ccf::ds::Mutex> guard(state_lock);
       replicated_state_tree.append(rh);
     }
 
@@ -1009,7 +1013,7 @@ namespace ccf
         std::nullopt) override
     {
       log_hash(digest, APPEND);
-      std::lock_guard<ccf::pal::Mutex> guard(state_lock);
+      std::lock_guard<ccf::ds::Mutex> guard(state_lock);
       if (expected_term_of_next_version.has_value())
       {
         if (expected_term_of_next_version.value() != term_of_next_version)
@@ -1022,7 +1026,9 @@ namespace ccf
 
     void set_endorsed_certificate(const ccf::crypto::Pem& cert) override
     {
-      endorsed_cert = cert;
+      endorsed_cert.store(
+        std::make_shared<const ccf::crypto::Pem>(cert),
+        std::memory_order_release);
     }
 
   private:
