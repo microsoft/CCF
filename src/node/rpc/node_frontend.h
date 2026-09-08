@@ -606,24 +606,14 @@ namespace ccf
             if (
               pending_node_timeout.value() > std::chrono::milliseconds::zero())
             {
-              const auto now = current_time_ms();
-              const auto refresh_interval =
-                pending_node_timeout.value().count() / 2;
-              if (
-                !node_info->pending_last_seen.has_value() ||
-                node_info->pending_last_seen.value() < 0 ||
-                node_info->pending_last_seen.value() > now ||
-                now - node_info->pending_last_seen.value() >= refresh_interval)
+              if (should_redirect_to_primary)
               {
-                if (should_redirect_to_primary)
-                {
-                  return redirect_to_primary();
-                }
-
-                node_info->pending_last_seen = now;
-                args.tx.rw(network.nodes)
-                  ->put(existing_node_info->node_id, node_info.value());
+                return redirect_to_primary();
               }
+
+              node_info->pending_last_seen = current_time_ms();
+              args.tx.rw(network.nodes)
+                ->put(existing_node_info->node_id, node_info.value());
             }
 
             // Only return node status and ID
@@ -746,7 +736,7 @@ namespace ccf
 
         const auto now = current_time_ms();
         auto nodes = ctx.tx.rw(network.nodes);
-        std::map<NodeId, NodeInfo> pending_nodes_to_timestamp;
+        std::map<NodeId, NodeInfo> untimestamped_pending_nodes;
         std::vector<NodeId> expired_pending_nodes;
         nodes->foreach([&](const auto& node_id, const auto& node_info) {
           if (node_info.status != NodeStatus::PENDING)
@@ -761,7 +751,7 @@ namespace ccf
           {
             auto updated_node_info = node_info;
             updated_node_info.pending_last_seen = now;
-            pending_nodes_to_timestamp.emplace(
+            untimestamped_pending_nodes.emplace(
               node_id, std::move(updated_node_info));
           }
           else if (
@@ -774,7 +764,7 @@ namespace ccf
           return true;
         });
 
-        for (const auto& [node_id, node_info] : pending_nodes_to_timestamp)
+        for (const auto& [node_id, node_info] : untimestamped_pending_nodes)
         {
           nodes->put(node_id, node_info);
         }

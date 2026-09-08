@@ -4875,7 +4875,8 @@ def test_pending_node_expiration(network, args):
 
     pending_node.stop()
 
-    end_time = time.time() + 30
+    timeout_s = infra.e2e_args._convert_time_string(args.pending_node_timeout, "s")
+    end_time = time.time() + 3 * timeout_s
     with primary.client() as c:
         while time.time() < end_time:
             r = c.get(f"/node/network/nodes/{pending_node.node_id}")
