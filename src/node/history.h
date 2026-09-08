@@ -857,6 +857,11 @@ namespace ccf
         }
       }
 
+      if (signatures_passed == 0)
+      {
+        LOG_FAIL_FMT("No signatures found in transaction {}", version);
+      }
+
       return signatures_passed > 0;
     }
 
