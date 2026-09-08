@@ -59,7 +59,7 @@
     } \
   } while (0)
 
-namespace ccf::curl
+namespace ccf::http_client
 {
   // Returns true for libcurl transfer failures at the transport/protocol layer
   // that are generally safe to retry: the peer may not be ready yet, a
@@ -522,9 +522,9 @@ namespace ccf::curl
     UniqueCURL curl_handle;
     RESTVerb method;
     std::string url;
-    ccf::curl::UniqueSlist headers;
-    std::unique_ptr<ccf::curl::RequestBody> request_body;
-    std::unique_ptr<ccf::curl::ResponseBody> response;
+    ccf::http_client::UniqueSlist headers;
+    std::unique_ptr<ccf::http_client::RequestBody> request_body;
+    std::unique_ptr<ccf::http_client::ResponseBody> response;
     ResponseHeaders response_headers;
     std::optional<ResponseCallback> response_callback;
 
@@ -535,7 +535,7 @@ namespace ccf::curl
       std::string url_,
       UniqueSlist&& headers_,
       std::unique_ptr<RequestBody>&& request_body_,
-      std::unique_ptr<ccf::curl::ResponseBody>&& response_,
+      std::unique_ptr<ccf::http_client::ResponseBody>&& response_,
       std::optional<ResponseCallback>&& response_callback_) :
       curl_handle(std::move(curl_handle_)),
       method(method_),
@@ -762,7 +762,7 @@ namespace ccf::curl
           auto result = msg->data.result;
 
           // retrieve the request data and attach a lifetime to it
-          ccf::curl::CurlRequest* request = nullptr;
+          ccf::http_client::CurlRequest* request = nullptr;
           try
           {
             CHECK_CURL_EASY_GETINFO(easy, CURLINFO_PRIVATE, &request);
@@ -778,7 +778,8 @@ namespace ccf::curl
             throw std::runtime_error(
               "CURLMSG_DONE received with no associated request data");
           }
-          std::unique_ptr<ccf::curl::CurlRequest> request_data_ptr(request);
+          std::unique_ptr<ccf::http_client::CurlRequest> request_data_ptr(
+            request);
 
           // detach the easy handle such that it can be cleaned up with the
           // destructor of CurlRequest
@@ -1332,7 +1333,7 @@ namespace ccf::curl
           if (easy != nullptr)
           {
             // attach a lifetime to the request
-            ccf::curl::CurlRequest* request = nullptr;
+            ccf::http_client::CurlRequest* request = nullptr;
             const auto getinfo_res =
               curl_easy_getinfo(easy, CURLINFO_PRIVATE, &request);
             if (getinfo_res != CURLE_OK)
@@ -1352,7 +1353,8 @@ namespace ccf::curl
               curl_easy_cleanup(easy);
               continue;
             }
-            std::unique_ptr<ccf::curl::CurlRequest> request_data_ptr(request);
+            std::unique_ptr<ccf::http_client::CurlRequest> request_data_ptr(
+              request);
             long status_code = 0;
             const auto status_res =
               curl_easy_getinfo(easy, CURLINFO_RESPONSE_CODE, &status_code);
@@ -1471,4 +1473,4 @@ namespace ccf::curl
     CurlmLibuvContextSingleton& operator=(CurlmLibuvContextSingleton&&) =
       default;
   };
-} // namespace ccf::curl
+} // namespace ccf::http_client

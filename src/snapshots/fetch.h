@@ -75,7 +75,7 @@ namespace snapshots
   };
 
   static ContentRangeHeader parse_content_range_header(
-    const ccf::curl::CurlRequest& request)
+    const ccf::http_client::CurlRequest& request)
   {
     const auto& headers = request.get_response_headers();
 
@@ -212,11 +212,12 @@ namespace snapshots
   {
     try
     {
-      ccf::curl::UniqueCURL curl_easy;
+      ccf::http_client::UniqueCURL curl_easy;
       curl_easy.set_blob_opt(
         CURLOPT_CAINFO_BLOB, peer_ca.data(), peer_ca.size());
 
-      auto response_body = std::make_unique<ccf::curl::ResponseBody>(max_size);
+      auto response_body =
+        std::make_unique<ccf::http_client::ResponseBody>(max_size);
 
       // Get snapshot. This may be redirected multiple times, and we follow
       // these redirects ourself so we can extract the final URL. Once the
@@ -242,7 +243,7 @@ namespace snapshots
       bool fetched_all = false;
 
       auto process_partial_response =
-        [&](const ccf::curl::CurlRequest& request) {
+        [&](const ccf::http_client::CurlRequest& request) {
           auto content_range = parse_content_range_header(request);
 
           if (content_range.range_start != range_start)
@@ -302,17 +303,17 @@ namespace snapshots
           max_redirects,
           snapshot_url);
 
-        ccf::curl::UniqueSlist headers;
+        ccf::http_client::UniqueSlist headers;
         headers.append(
           ccf::http::headers::RANGE,
           fmt::format("bytes={}-{}", range_start, inclusive_range_end));
 
         CURLcode curl_response = CURLE_FAILED_INIT;
         long status_code = 0;
-        std::unique_ptr<ccf::curl::CurlRequest> request;
-        ccf::curl::CurlRequest::ResponseCallback response_callback =
+        std::unique_ptr<ccf::http_client::CurlRequest> request;
+        ccf::http_client::CurlRequest::ResponseCallback response_callback =
           [&curl_response, &status_code, &request](
-            std::unique_ptr<ccf::curl::CurlRequest>&& request_,
+            std::unique_ptr<ccf::http_client::CurlRequest>&& request_,
             CURLcode curl_response_,
             long status_code_) {
             curl_response = curl_response_;
@@ -320,8 +321,8 @@ namespace snapshots
             request = std::move(request_);
           };
 
-        ccf::curl::CurlRequest::synchronous_perform(
-          std::make_unique<ccf::curl::CurlRequest>(
+        ccf::http_client::CurlRequest::synchronous_perform(
+          std::make_unique<ccf::http_client::CurlRequest>(
             std::move(curl_easy),
             HTTP_GET,
             snapshot_url,
@@ -384,27 +385,28 @@ namespace snapshots
 
       while (!fetched_all)
       {
-        ccf::curl::UniqueSlist headers;
+        ccf::http_client::UniqueSlist headers;
         headers.append(
           ccf::http::headers::RANGE,
           fmt::format("bytes={}-{}", range_start, inclusive_range_end));
 
-        std::unique_ptr<ccf::curl::CurlRequest> snapshot_range_request;
+        std::unique_ptr<ccf::http_client::CurlRequest> snapshot_range_request;
         CURLcode curl_response = CURLE_OK;
         long snapshot_range_status_code = 0;
 
-        ccf::curl::CurlRequest::ResponseCallback snapshot_response_callback =
-          [&](
-            std::unique_ptr<ccf::curl::CurlRequest>&& request_,
-            CURLcode curl_response_,
-            long status_code_) {
-            snapshot_range_request = std::move(request_);
-            curl_response = curl_response_;
-            snapshot_range_status_code = status_code_;
-          };
+        ccf::http_client::CurlRequest::ResponseCallback
+          snapshot_response_callback =
+            [&](
+              std::unique_ptr<ccf::http_client::CurlRequest>&& request_,
+              CURLcode curl_response_,
+              long status_code_) {
+              snapshot_range_request = std::move(request_);
+              curl_response = curl_response_;
+              snapshot_range_status_code = status_code_;
+            };
 
-        ccf::curl::CurlRequest::synchronous_perform(
-          std::make_unique<ccf::curl::CurlRequest>(
+        ccf::http_client::CurlRequest::synchronous_perform(
+          std::make_unique<ccf::http_client::CurlRequest>(
             std::move(curl_easy),
             HTTP_GET,
             snapshot_url,
