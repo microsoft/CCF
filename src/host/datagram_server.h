@@ -31,6 +31,7 @@
 #include <cstring>
 #include <fcntl.h>
 #include <functional>
+#include <memory>
 #include <mutex>
 #include <netdb.h>
 #include <netinet/in.h>
@@ -228,19 +229,12 @@ namespace asynchost
         throw std::runtime_error("getaddrinfo (udp) failed for " + host);
       }
 
-      const int one = 1;
       bool bound = false;
       for (addrinfo* ai = res; ai != nullptr; ai = ai->ai_next)
       {
         sock = ::socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
         if (sock < 0)
         {
-          continue;
-        }
-        if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one)) != 0)
-        {
-          ::close(sock);
-          sock = -1;
           continue;
         }
         if (::bind(sock, ai->ai_addr, ai->ai_addrlen) == 0)
@@ -303,23 +297,25 @@ namespace asynchost
       stopping = false;
       torn_down = false;
 
-      socket_poll = new uv_poll_t{}; // NOLINT(cppcoreguidelines-owning-memory)
-      socket_poll->data = this;
-      int rc = uv_poll_init_socket(loop, socket_poll, sock);
+      auto poll = std::make_unique<uv_poll_t>();
+      int rc = uv_poll_init_socket(loop, poll.get(), sock);
       if (rc != 0)
       {
         throw std::runtime_error(
           std::string("uv_poll_init_socket(udp) failed: ") + uv_strerror(rc));
       }
+      socket_poll = poll.release();
+      socket_poll->data = this;
 
-      stop_handle = new uv_async_t{}; // NOLINT(cppcoreguidelines-owning-memory)
-      stop_handle->data = this;
-      rc = uv_async_init(loop, stop_handle, on_stop);
+      auto stop = std::make_unique<uv_async_t>();
+      rc = uv_async_init(loop, stop.get(), on_stop);
       if (rc != 0)
       {
         throw std::runtime_error(
           std::string("uv_async_init(udp) failed: ") + uv_strerror(rc));
       }
+      stop_handle = stop.release();
+      stop_handle->data = this;
 
       rc = uv_poll_start(socket_poll, UV_READABLE, on_socket_poll);
       if (rc != 0)

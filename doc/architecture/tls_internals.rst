@@ -102,7 +102,7 @@ Closing is deferred rather than immediate. A close requested while output is sti
 
 This matters because the common pattern is to write a response and immediately close. Closing eagerly truncates any response large enough to have been backpressured, which the client observes as a connection reset partway through the body rather than as a well-formed response.
 
-Server shutdown is the exception: there the close is forced rather than deferred. Each connection takes exactly one further worker pass, writing whatever the socket will accept, and then goes. Waiting for the flush would let a peer which has stopped reading hold the whole node's shutdown open indefinitely.
+Server shutdown and idle expiry are exceptions: there the close is forced rather than deferred. Each connection takes exactly one further worker pass, writing whatever the socket will accept, and then goes. Waiting for the flush would let a peer which has stopped reading hold the whole node's shutdown open, or retain an expired connection, indefinitely.
 
 Idle connections are closed separately. If an idle timeout is configured, a repeating ``uv_timer_t`` periodically sweeps connections whose last I/O is older than the timeout. This retains the once-per-second scheduling used by the previous RPC transport while comparing actual ``steady_clock`` timestamps rather than counting timer ticks.
 
@@ -157,3 +157,5 @@ QUIC is not yet implemented. Server-side QUIC requires OpenSSL 3.5 or later, whi
 :ccf_repo:`DatagramServer </src/host/datagram_server.h>` exists as the substrate for that work. It is deliberately shaped as the UDP socket a QUIC server operates on: socket creation, binding, ``uv_poll_t`` readiness and per-datagram dispatch are all reusable as-is. The points that change for QUIC are marked ``QUIC EXTENSION POINT`` inline, and consist of wrapping the socket with ``BIO_new_dgram``/``SSL_set_fd`` on a listener ``SSL``, adding the OpenSSL event timeout, and replacing the datagram callback with ``SSL_handle_events``.
 
 There is no built-in ``QUIC`` application protocol or UDP echo service. UDP interfaces are served only by registered custom protocols (:ccf_repo:`custom_protocol_subsystem_interface.h </include/ccf/research/custom_protocol_subsystem_interface.h>`), with one session per source address, swept on the same idle timeout as TCP connections.
+
+UDP listeners bind exclusively: configuring two listeners on the same address and port fails rather than silently redirecting datagrams between them. Unlike TCP, UDP has no ``TIME_WAIT`` state, so rebinding after shutdown does not require ``SO_REUSEADDR``.

@@ -268,10 +268,8 @@ namespace asynchost
       int pending_events = 0;
       bool worker_active = false;
       bool close_requested = false;
-      // Set once, when the server is being torn down. Unlike close_requested
-      // it is sticky, and it does not wait for buffered output to drain: a
-      // peer which has stopped reading must not be able to keep the connection
-      // (and so the shutdown) alive indefinitely.
+      // Set on shutdown or idle expiry. Unlike close_requested it is sticky
+      // and does not wait for buffered output to drain.
       bool force_close = false;
     };
 
@@ -978,8 +976,7 @@ namespace asynchost
       }
       if (input.force_close)
       {
-        // The server is going away. Whatever could be written above has been,
-        // but the connection is not held open waiting for more room.
+        // Shutdown and idle expiry do not wait for buffered output to drain.
         alive = false;
       }
       if (!alive && conn->ssl != nullptr)
@@ -1404,7 +1401,7 @@ namespace asynchost
         if (it != conns.end())
         {
           LOG_DEBUG_FMT("Closing idle connection {}", it->second->id);
-          it->second->close_requested = true;
+          it->second->force_close = true;
           dispatch_connection(it->second);
         }
       }
@@ -1705,35 +1702,38 @@ namespace asynchost
       started = true;
       listening = false;
 
-      listen_poll = new_handle<uv_poll_t>();
-      listen_poll->data = this;
-      int rc = uv_poll_init_socket(loop, listen_poll, listen_fd);
+      auto poll = std::make_unique<uv_poll_t>();
+      int rc = uv_poll_init_socket(loop, poll.get(), listen_fd);
       if (rc != 0)
       {
         throw std::runtime_error(
           std::string("uv_poll_init_socket(listen) failed: ") +
           uv_strerror(rc));
       }
+      listen_poll = poll.release();
+      listen_poll->data = this;
 
-      wake_handle = new_handle<uv_async_t>();
-      wake_handle->data = this;
-      rc = uv_async_init(loop, wake_handle, on_wake);
+      auto wake = std::make_unique<uv_async_t>();
+      rc = uv_async_init(loop, wake.get(), on_wake);
       if (rc != 0)
       {
         throw std::runtime_error(
           std::string("uv_async_init failed: ") + uv_strerror(rc));
       }
+      wake_handle = wake.release();
+      wake_handle->data = this;
 
       if (idle_timeout.has_value())
       {
-        idle_timer = new_handle<uv_timer_t>();
-        idle_timer->data = this;
-        rc = uv_timer_init(loop, idle_timer);
+        auto timer = std::make_unique<uv_timer_t>();
+        rc = uv_timer_init(loop, timer.get());
         if (rc != 0)
         {
           throw std::runtime_error(
             std::string("uv_timer_init failed: ") + uv_strerror(rc));
         }
+        idle_timer = timer.release();
+        idle_timer->data = this;
         rc = uv_timer_start(
           idle_timer,
           on_idle_timer,

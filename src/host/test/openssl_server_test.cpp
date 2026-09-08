@@ -43,6 +43,60 @@ using namespace asynchost;
 
 namespace
 {
+  enum class UVInitFailure
+  {
+    None,
+    Poll,
+    Async,
+    Timer,
+  };
+
+  // Linker wrappers inject failures only on the thread starting the test
+  // server.
+  thread_local UVInitFailure fail_next_uv_init = UVInitFailure::None;
+
+  bool fail_uv_init(UVInitFailure operation)
+  {
+    if (fail_next_uv_init != operation)
+    {
+      return false;
+    }
+    fail_next_uv_init = UVInitFailure::None;
+    return true;
+  }
+}
+
+extern "C"
+{
+  int __real_uv_poll_init_socket(uv_loop_t*, uv_poll_t*, uv_os_sock_t);
+  int __wrap_uv_poll_init_socket(
+    uv_loop_t* loop, uv_poll_t* handle, uv_os_sock_t socket)
+  {
+    return fail_uv_init(UVInitFailure::Poll) ?
+      UV_ENOMEM :
+      __real_uv_poll_init_socket(loop, handle, socket);
+  }
+
+  int __real_uv_async_init(uv_loop_t*, uv_async_t*, uv_async_cb);
+  int __wrap_uv_async_init(
+    uv_loop_t* loop, uv_async_t* handle, uv_async_cb callback)
+  {
+    return fail_uv_init(UVInitFailure::Async) ?
+      UV_ENOMEM :
+      __real_uv_async_init(loop, handle, callback);
+  }
+
+  int __real_uv_timer_init(uv_loop_t*, uv_timer_t*);
+  int __wrap_uv_timer_init(uv_loop_t* loop, uv_timer_t* handle)
+  {
+    return fail_uv_init(UVInitFailure::Timer) ?
+      UV_ENOMEM :
+      __real_uv_timer_init(loop, handle);
+  }
+}
+
+namespace
+{
   // The host process ignores SIGPIPE (see src/host/run.cpp), so writes to a
   // socket the peer has already closed return EPIPE rather than killing it.
   // Tests must do the same to reproduce production behaviour.
@@ -624,6 +678,71 @@ TEST_CASE("Transport shutdown drains TLS tasks with no background workers")
   ::close(fd);
 }
 
+TEST_CASE("Transport startup failures release initialized handles")
+{
+  bool udp = false;
+  UVInitFailure failure = UVInitFailure::Poll;
+  std::string operation = "uv_poll_init_socket(listen)";
+  SUBCASE("TCP poll initialization") {}
+  SUBCASE("TCP async initialization")
+  {
+    failure = UVInitFailure::Async;
+    operation = "uv_async_init";
+  }
+  SUBCASE("TCP timer initialization")
+  {
+    failure = UVInitFailure::Timer;
+    operation = "uv_timer_init";
+  }
+  SUBCASE("UDP poll initialization")
+  {
+    udp = true;
+    operation = "uv_poll_init_socket(udp)";
+  }
+  SUBCASE("UDP async initialization")
+  {
+    udp = true;
+    failure = UVInitFailure::Async;
+    operation = "uv_async_init(udp)";
+  }
+
+  uv_loop_t loop{};
+  REQUIRE(uv_loop_init(&loop) == 0);
+  const auto expected_error = operation + " failed: " + uv_strerror(UV_ENOMEM);
+  if (udp)
+  {
+    DatagramServer server(
+      "127.0.0.1",
+      0,
+      [](const uint8_t*, size_t, const sockaddr_storage&, socklen_t) {},
+      &loop);
+    fail_next_uv_init = failure;
+    CHECK_THROWS_WITH_AS(
+      server.start(), expected_error.c_str(), std::runtime_error);
+  }
+  else
+  {
+    auto server = std::make_shared<OpenSSLServer>(
+      OpenSSLServer::Config{
+        .host = "127.0.0.1",
+        .plaintext = true,
+        .idle_timeout = std::chrono::milliseconds(100),
+        .loop = &loop},
+      [](
+        ::tcp::ConnID,
+        std::vector<uint8_t>,
+        const std::vector<uint8_t>&,
+        bool) {});
+    fail_next_uv_init = failure;
+    CHECK_THROWS_WITH_AS(
+      server->start(), expected_error.c_str(), std::runtime_error);
+  }
+  CHECK(fail_next_uv_init == UVInitFailure::None);
+  fail_next_uv_init = UVInitFailure::None;
+  CHECK(uv_run(&loop, UV_RUN_DEFAULT) == 0);
+  CHECK(uv_loop_close(&loop) == 0);
+}
+
 // Shutdown must not declare itself complete on a transient lull in the
 // pending-close count. Connections close one at a time, and libuv runs close
 // callbacks at the end of each loop iteration, so a connection which tears
@@ -1018,6 +1137,114 @@ TEST_CASE("Idle connections are closed after the configured timeout")
   REQUIRE(uv_loop_alive(uv_default_loop()) == 0);
 }
 
+TEST_CASE("Idle expiry closes connections with blocked output")
+{
+  bool plaintext = false;
+  SUBCASE("TLS") {}
+  SUBCASE("Plaintext")
+  {
+    plaintext = true;
+  }
+
+  auto [cert, key] = make_server_cert();
+  std::mutex mutex;
+  std::condition_variable closed_cv;
+  size_t close_count = 0;
+  std::shared_ptr<OpenSSLServer> server;
+  server = std::make_shared<OpenSSLServer>(
+    OpenSSLServer::Config{
+      .host = "127.0.0.1",
+      .cert_pem = cert,
+      .key_pem = key,
+      .plaintext = plaintext,
+      .idle_timeout = std::chrono::milliseconds(100)},
+    [&](
+      ::tcp::ConnID id,
+      std::vector<uint8_t>,
+      const std::vector<uint8_t>&,
+      bool) { server->send(id, std::vector<uint8_t>(32 * 1024 * 1024, 'z')); },
+    [&](::tcp::ConnID) {
+      std::lock_guard<std::mutex> guard(mutex);
+      ++close_count;
+      closed_cv.notify_all();
+    });
+  UVLoopRunner loop;
+  server->start();
+  loop.start();
+
+  struct StopOnExit
+  {
+    std::shared_ptr<OpenSSLServer> server;
+    ~StopOnExit()
+    {
+      server->stop(OpenSSLServer::LoopState::Running);
+    }
+  } stop_on_exit{server};
+
+  const int fd = ::socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
+  REQUIRE(fd >= 0);
+  struct CloseSocketOnExit
+  {
+    int fd;
+    ~CloseSocketOnExit()
+    {
+      ::close(fd);
+    }
+  } close_socket_on_exit{fd};
+  const int receive_buffer_size = 4096;
+  REQUIRE(
+    setsockopt(
+      fd,
+      SOL_SOCKET,
+      SO_RCVBUF,
+      &receive_buffer_size,
+      sizeof(receive_buffer_size)) == 0);
+  sockaddr_in addr{};
+  addr.sin_family = AF_INET;
+  addr.sin_port = htons(server->port());
+  REQUIRE(inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr) == 1);
+  REQUIRE(::connect(fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) == 0);
+
+  ccf::crypto::OpenSSL::Unique_SSL_CTX cctx(TLS_client_method());
+  ccf::crypto::OpenSSL::Unique_SSL ssl(cctx);
+  if (!plaintext)
+  {
+    REQUIRE(SSL_set_fd(ssl, fd) == 1);
+    REQUIRE(SSL_connect(ssl) == 1);
+  }
+
+  const uint8_t request = 'x';
+  if (plaintext)
+  {
+    REQUIRE(::send(fd, &request, 1, MSG_NOSIGNAL) == 1);
+  }
+  else
+  {
+    REQUIRE(SSL_write(ssl, &request, 1) == 1);
+  }
+  uint8_t response = 0;
+  REQUIRE(
+    (plaintext ? ::recv(fd, &response, 1, 0) : SSL_read(ssl, &response, 1)) ==
+    1);
+  REQUIRE(response == 'z');
+
+  // Leave the response backpressured and observe server-side eviction before
+  // closing the client socket or requesting server shutdown.
+  bool expired = false;
+  {
+    std::unique_lock<std::mutex> lock(mutex);
+    expired = closed_cv.wait_for(
+      lock, std::chrono::seconds(10), [&]() { return close_count != 0; });
+  }
+
+  server->stop(OpenSSLServer::LoopState::Running);
+  server.reset();
+  loop.thread.join();
+  REQUIRE(expired);
+  REQUIRE(close_count == 1);
+  REQUIRE(uv_loop_alive(uv_default_loop()) == 0);
+}
+
 TEST_CASE("TCP connections use the legacy latency and keepalive options")
 {
   const int fd = ::socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
@@ -1325,6 +1552,38 @@ TEST_CASE("Reply from a worker thread")
   }
   cv.notify_one();
   worker.join();
+}
+
+TEST_CASE("Datagram listeners bind exclusively and can rebind after stopping")
+{
+  std::string host = "127.0.0.1";
+  SUBCASE("IPv4") {}
+  SUBCASE("IPv6")
+  {
+    host = "::1";
+  }
+  const auto on_datagram =
+    [](const uint8_t*, size_t, const sockaddr_storage&, socklen_t) {};
+  uv_loop_t loop{};
+  REQUIRE(uv_loop_init(&loop) == 0);
+  {
+    DatagramServer server(host, 0, on_datagram, &loop);
+    server.start();
+    const auto port = server.port();
+    REQUIRE(port != 0);
+    CHECK_THROWS_WITH_AS(
+      DatagramServer(host, port, on_datagram, &loop),
+      ("bind (udp) failed for " + host).c_str(),
+      std::runtime_error);
+    server.stop();
+
+    DatagramServer rebound(host, port, on_datagram, &loop);
+    CHECK(rebound.port() == port);
+    rebound.start();
+    rebound.stop();
+  }
+  CHECK(uv_run(&loop, UV_RUN_DEFAULT) == 0);
+  CHECK(uv_loop_close(&loop) == 0);
 }
 
 TEST_CASE("Datagram server round-trip on the libuv reactor")
