@@ -207,6 +207,23 @@ TEST_CASE("Check verifier handles nested certs for both PEM and DER inputs")
   CHECK(pem_key_from_der.str() == pem_key_for_nested_cert);
 }
 
+TEST_CASE("Verifier rejects unsupported certificate public key types")
+{
+  const auto issuer = make_ec_key_pair();
+  const auto issuer_cert = generate_self_signed_cert(issuer, "CN=issuer");
+  const auto subject = make_eddsa_key_pair(CurveID::CURVE25519);
+  const auto cert_pem = create_endorsed_cert(
+    subject->public_key_pem(),
+    "CN=unsupported key type",
+    {},
+    make_verifier(issuer_cert)->validity_period(),
+    issuer->private_key_pem(),
+    issuer_cert);
+
+  CHECK_THROWS_WITH_AS(
+    make_verifier(cert_pem), "unsupported public key type", std::logic_error);
+}
+
 TEST_CASE("Sign, verify, with ECKeyPair")
 {
   for (const auto curve : supported_curves)

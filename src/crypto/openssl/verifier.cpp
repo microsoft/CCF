@@ -54,7 +54,13 @@ namespace ccf::crypto
       }
     }
 
-    EVP_PKEY* pk = X509_get_pubkey(cert);
+    Unique_PKEY pk(X509_get_pubkey(cert), EVP_PKEY_free, false);
+    if (pk == nullptr)
+    {
+      throw std::invalid_argument(fmt::format(
+        "OpenSSL error loading certificate public key: {}",
+        OpenSSL::error_string(ERR_get_error())));
+    }
 
     auto base_id = EVP_PKEY_get_base_id(pk);
     if (base_id == EVP_PKEY_EC)
@@ -69,6 +75,7 @@ namespace ccf::crypto
     {
       throw std::logic_error("unsupported public key type");
     }
+    (void)pk.release(); // public_key now owns the key.
   }
 
   Verifier_OpenSSL::~Verifier_OpenSSL() = default;
