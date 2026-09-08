@@ -5,7 +5,9 @@
 #include "ccf/odata_error.h"
 #include "ccf/rpc_context.h"
 #include "ds/actors.h"
-#include "http_parser.h"
+#include "enclave/rpc_handler.h"
+#include "enclave/rpc_map.h"
+#include "http/http_parser.h"
 #include "node/rpc_context_impl.h"
 
 namespace http

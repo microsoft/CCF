@@ -2,8 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #include "ccf/js/core/wrapped_value.h"
 #include "ccf/js/extensions/ccf/gov.h"
+#include "ccf/js/extensions/ccf/historical.h"
 #include "js/global_class_ids.h"
 #include "js/permissions_checks.h"
+#include "kv/store.h"
+#include "node/tx_receipt_impl.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>
@@ -633,6 +636,77 @@ TEST_CASE("Context::to_str preserves embedded NUL bytes")
     REQUIRE(result.has_value());
     REQUIRE(*result == input);
   }
+}
+
+TEST_CASE("Historical state")
+{
+  class CountingStore : public ccf::kv::Store
+  {
+  public:
+    size_t tx_creations = 0;
+
+    std::unique_ptr<ccf::kv::ReadOnlyTx> create_read_only_tx_ptr() override
+    {
+      ++tx_creations;
+      return ccf::kv::Store::create_read_only_tx_ptr();
+    }
+  };
+
+  auto store = std::make_shared<CountingStore>();
+  auto receipt = std::make_shared<ccf::TxReceiptImpl>(
+    std::vector<uint8_t>{1, 2, 3},
+    std::nullopt,
+    ccf::HistoryTree::Hash{},
+    nullptr,
+    ccf::NodeId("test-node"),
+    std::nullopt);
+  auto state =
+    std::make_shared<ccf::historical::State>(store, receipt, ccf::TxID{1, 1});
+  std::weak_ptr<ccf::historical::State> original_state = state;
+
+  {
+    ccf::js::core::Context ctx(TxAccess::APP_RO);
+    auto extension =
+      std::make_shared<ccf::js::extensions::HistoricalExtension>(nullptr);
+    ctx.add_extension(extension);
+
+    auto first = extension->create_historical_state_object(ctx, state);
+    REQUIRE_FALSE(first.is_exception());
+    REQUIRE(store->tx_creations == 1);
+    auto map = first["kv"]["public:records"];
+    REQUIRE_FALSE(map.is_exception());
+    REQUIRE(ctx.to_str(map["size"]) == "0");
+
+    SUBCASE("Repeated access to the same state")
+    {
+      auto second = extension->create_historical_state_object(ctx, state);
+      REQUIRE_FALSE(second.is_exception());
+      REQUIRE(store->tx_creations == 1);
+    }
+
+    SUBCASE("A newly retrieved state for the same sequence number")
+    {
+      auto duplicate = std::make_shared<ccf::historical::State>(*state);
+      state.reset();
+      auto second = extension->create_historical_state_object(ctx, duplicate);
+      REQUIRE_FALSE(second.is_exception());
+      REQUIRE_FALSE(original_state.expired());
+      REQUIRE(store->tx_creations == 1);
+    }
+
+    auto next_state =
+      std::make_shared<ccf::historical::State>(store, receipt, ccf::TxID{1, 2});
+    auto next = extension->create_historical_state_object(ctx, next_state);
+    REQUIRE_FALSE(next.is_exception());
+    REQUIRE(ctx.to_str(next["transactionId"]) == "1.2");
+    REQUIRE(store->tx_creations == 2);
+    REQUIRE(ctx.to_str(map["size"]) == "0");
+
+    state.reset();
+    REQUIRE_FALSE(original_state.expired());
+  }
+
+  REQUIRE(original_state.expired());
 }
 
 int main(int argc, char** argv)

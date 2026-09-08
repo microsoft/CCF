@@ -436,12 +436,15 @@ namespace ccf::js::extensions
 
     try
     {
-      // Create a tx which will be used to access this state
-      auto tx = state->store->create_read_only_tx_ptr();
-
-      // Extend lifetime of state and tx, by storing on this extension
-      impl->historical_handles[transaction_id.seqno] = {
-        state, std::move(tx), {}};
+      // Keep the original tx and its map handles alive: a JS callback may
+      // request this seqno again while one of those handles is in use.
+      if (!impl->historical_handles.contains(transaction_id.seqno))
+      {
+        auto tx = state->store->create_read_only_tx_ptr();
+        impl->historical_handles.emplace(
+          transaction_id.seqno,
+          Impl::HistoricalHandle{state, std::move(tx), {}});
+      }
     }
     catch (const std::exception& e)
     {
