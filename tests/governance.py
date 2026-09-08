@@ -321,6 +321,17 @@ def test_ack_state_digest_update(network, args):
             r = c.get(f"/gov/members/state-digests/{member.service_id}")
             assert r.status_code == http.HTTPStatus.OK, r
             assert r.body.json() == updated_digest
+
+        for invalid_body in ({}, {"stateDigest": 42}):
+            with node.api_versioned_client(
+                *member.auth(write=True), api_version=args.gov_api_version
+            ) as c:
+                r = c.post(
+                    f"/gov/members/state-digests/{member.service_id}:ack",
+                    body=invalid_body,
+                )
+                assert r.status_code == http.HTTPStatus.BAD_REQUEST, r
+                assert r.body.json()["error"]["code"] == "InvalidInput", r
     return network
 
 
