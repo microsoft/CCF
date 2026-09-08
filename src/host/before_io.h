@@ -3,15 +3,15 @@
 #pragma once
 
 #include "ds/internal_logger.h"
-#include "proxy.h"
+#include "uv/proxy.h"
 
 namespace asynchost
 {
   template <typename Behaviour>
-  class BeforeIO : public with_uv_handle<uv_prepare_t>
+  class BeforeIO : public ccf::uv::with_uv_handle<uv_prepare_t>
   {
   private:
-    friend class close_ptr<BeforeIO<Behaviour>>;
+    friend class ccf::uv::close_ptr<BeforeIO<Behaviour>>;
     Behaviour behaviour;
 
     template <typename... Args>
