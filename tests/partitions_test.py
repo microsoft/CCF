@@ -498,8 +498,6 @@ def test_election_reconfiguration(network, args):
     # Note: this test makes use of node-endorsed secondary RPC interface since
     # new nodes never observe commit of their configuration and thus never
     # open their service-endorsed primary RPC interface.
-    primary, backups = network.find_nodes()
-
     LOG.info("Join new nodes without trusting them just yet")
     new_nodes = []
     # Start N+1 new nodes to make sure they cannot elect one of them as a primary
@@ -518,6 +516,11 @@ def test_election_reconfiguration(network, args):
     # Wait until all backups know about these joins, so they have an equal chance of
     # becoming primary afterwards
     network.wait_for_node_commit_sync()
+
+    # An election may have occurred while the new nodes were joining. Use the
+    # current roles so the partition does not isolate the actual primary.
+    primary = network.wait_for_primary_unanimity()
+    backups = network.find_backups(primary=primary)
 
     LOG.info("Isolate original backups and issue reconfiguration of another quorum")
     # Partition backups _from each other_
