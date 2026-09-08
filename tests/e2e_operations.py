@@ -509,6 +509,27 @@ def test_snapshot_access(network, args):
                 expected == actual
             ), f"Binary mismatch, {len(expected)} vs {len(actual)}:\n{expected}\nvs\n{actual}"
 
+        # Ranges which reach beyond the end of the file are clamped to the
+        # whole file, rather than underflowing or overflowing
+        for oversized_range in [
+            f"-{total_size + 1}",
+            f"-{2**64 - 1}",
+            f"0-{2**64 - 1}",
+        ]:
+            for want_digest in [None, "sha-256=1"]:
+                headers = {"range": f"bytes={oversized_range}"}
+                if want_digest is not None:
+                    headers["want-repr-digest"] = want_digest
+                r = do_request("GET", path, headers=headers)
+                assert r.status_code == http.HTTPStatus.PARTIAL_CONTENT.value, r
+                assert (
+                    r.headers["content-range"] == f"bytes 0-{range_max}/{total_size}"
+                ), r.headers
+                actual = r.body.data()
+                assert (
+                    snapshot_data == actual
+                ), f"Binary mismatch for range {oversized_range}, {total_size} vs {len(actual)}"
+
         # Check error handling for invalid ranges
         for invalid_range, err_msg in [
             (f"{a}-foo", "Unable to parse end of range value foo"),
@@ -517,6 +538,10 @@ def test_snapshot_access(network, args):
             (f"{b}-{a}", "out of order"),
             ("-1-5", "Invalid format"),
             ("-", "Invalid range"),
+            ("-0", "out of order"),
+            (f"{total_size}-", "out of order"),
+            (f"{total_size}-{total_size}", "out of order"),
+            (f"{a}-{a - 1}", "out of order"),
             ("-foo", "Unable to parse end of range offset value foo"),
             ("", "Invalid format"),
         ]:

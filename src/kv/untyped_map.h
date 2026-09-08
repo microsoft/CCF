@@ -326,9 +326,7 @@ namespace ccf::kv::untyped
     }
 
     void serialise_changes(
-      const AbstractChangeSet* changes,
-      KvStoreSerialiser& s,
-      bool include_reads) override
+      const AbstractChangeSet* changes, KvStoreSerialiser& s) override
     {
       const auto* const non_abstract =
         dynamic_cast<const ccf::kv::untyped::ChangeSet*>(changes);
@@ -342,21 +340,9 @@ namespace ccf::kv::untyped
 
       s.start_map(name, security_domain);
 
-      if (include_reads)
-      {
-        s.serialise_entry_version(change_set.read_version);
-
-        s.serialise_count_header(change_set.reads.size());
-        for (const auto& [key, value] : change_set.reads)
-        {
-          s.serialise_read(key, std::get<0>(value));
-        }
-      }
-      else
-      {
-        s.serialise_entry_version(NoVersion);
-        s.serialise_count_header(0);
-      }
+      // Retain the legacy read-set headers for ledger compatibility.
+      s.serialise_entry_version(NoVersion);
+      s.serialise_count_header(0);
 
       uint64_t write_ctr = 0;
       uint64_t remove_ctr = 0;
