@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/node/startup_config.h"
+#include "ccf/node/configuration.h"
 #include "ds/internal_logger.h"
 #include "host/ledger_filenames.h"
 #include "kv/kv_serialiser.h"

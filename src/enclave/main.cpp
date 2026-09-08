@@ -27,7 +27,7 @@ namespace ccf
 {
   CreateNodeStatus enclave_create_node(
     const EnclaveConfig& enclave_config,
-    const ccf::StartupConfig& ccf_config,
+    const ccf::CCFConfig& ccf_config,
     std::vector<uint8_t>& node_cert,
     std::vector<uint8_t>& service_cert,
     StartType start_type,
@@ -66,9 +66,11 @@ namespace ccf
     // 2-tx reconfiguration is currently experimental, disable it in release
     // enclaves
     if (
-      ccf_config.start.service_configuration.reconfiguration_type.has_value() &&
-      ccf_config.start.service_configuration.reconfiguration_type.value() !=
-        ccf::ReconfigurationType::ONE_TRANSACTION)
+      start_type == StartType::Start &&
+      ccf_config.command.start.service_configuration.reconfiguration_type
+        .has_value() &&
+      ccf_config.command.start.service_configuration.reconfiguration_type
+          .value() != ccf::ReconfigurationType::ONE_TRANSACTION)
     {
       LOG_FAIL_FMT(
         "2TX reconfiguration is experimental, disabled in release mode");

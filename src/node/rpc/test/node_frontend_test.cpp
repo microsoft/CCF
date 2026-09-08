@@ -74,6 +74,120 @@ void require_ledger_secrets_equal(
     [](const auto& a, const auto& b) { return (*a.second == *b.second); }));
 }
 
+TEST_CASE("Node configuration retains operator file paths")
+{
+  const json input = {
+    {"network", CCFConfig{}.network},
+    {"node_data_json_file", "not-loaded/node.json"},
+    {"service_data_json_file", "not-loaded/service.json"},
+    {"tick_interval", "25ms"},
+    {"memory", {{"max_msg_size", "128MB"}}},
+    {"snapshots", {{"tx_count", 42}}},
+    {"command",
+     {{"type", "Start"},
+      {"service_certificate_file", "not-loaded/service.pem"},
+      {"start",
+       {{"members",
+         {{{"certificate_file", "not-loaded/member.pem"},
+           {"encryption_public_key_file", "not-loaded/member_enc.pem"},
+           {"data_json_file", "not-loaded/member.json"},
+           {"recovery_role", MemberRecoveryRole::Owner}}}},
+        {"constitution_files", {"not-loaded/first.js", "not-loaded/second.js"}},
+        {"initial_service_certificate_validity_days", 7},
+        {"service_subject_name", "CN=Configured Service"}}},
+      {"join",
+       {{"target_rpc_address", "localhost:1234"},
+        {"retry_timeout", "2s"},
+        {"follow_redirect", false},
+        {"fetch_recent_snapshot", false},
+        {"fetch_snapshot_max_attempts", 5},
+        {"fetch_snapshot_retry_interval", "3s"},
+        {"fetch_snapshot_max_size", "20MB"},
+        {"host_data_transparent_statement_path", "not-loaded/statement.cose"}}},
+      {"recover",
+       {{"previous_service_identity_file", "not-loaded/previous.pem"},
+        {"initial_service_certificate_validity_days", 13}}}}}};
+
+  auto config = input.get<CCFConfig>();
+  CHECK(config.command.type == StartType::Start);
+  CHECK(
+    config.command.start.members.front().certificate_file ==
+    "not-loaded/member.pem");
+  CHECK(
+    config.command.start.members.front().recovery_role ==
+    MemberRecoveryRole::Owner);
+  CHECK(config.command.start.initial_service_certificate_validity_days == 7);
+  CHECK(config.command.start.service_subject_name == "CN=Configured Service");
+  CHECK(config.snapshots.tx_count == 42);
+  CHECK(config.memory.max_msg_size.count_bytes() == 128 * 1024 * 1024);
+  CHECK(config.tick_interval.count_ms() == 25);
+
+  const NodeConfigurationState state{config, {}, false};
+  CHECK(state.node_config.node_data_json_file == "not-loaded/node.json");
+  CHECK(state.node_config.service_data_json_file == "not-loaded/service.json");
+
+  for (const auto type :
+       {StartType::Start, StartType::Join, StartType::Recover})
+  {
+    config.command.type = type;
+    const auto encoded = json(config);
+    const auto decoded = encoded.get<CCFConfig>();
+    CHECK(decoded.command.type == type);
+    CHECK(decoded.command.start == config.command.start);
+    CHECK(decoded.command.join == config.command.join);
+    CHECK(decoded.command.recover == config.command.recover);
+    CHECK(json(decoded) == encoded);
+    CHECK_FALSE(encoded.contains("startup_host_time"));
+    CHECK_FALSE(encoded.contains("start"));
+    CHECK_FALSE(encoded.contains("node_data"));
+  }
+
+  CHECK(config.command.join.target_rpc_address == "localhost:1234");
+  CHECK(config.command.join.retry_timeout.count_ms() == 2000);
+  CHECK_FALSE(config.command.join.follow_redirect);
+  CHECK_FALSE(config.command.join.fetch_recent_snapshot);
+  CHECK(config.command.join.fetch_snapshot_max_attempts == 5);
+  CHECK(config.command.join.fetch_snapshot_retry_interval.count_ms() == 3000);
+  CHECK(
+    config.command.join.fetch_snapshot_max_size.count_bytes() ==
+    20 * 1024 * 1024);
+  CHECK(
+    config.command.join.host_data_transparent_statement_path ==
+    "not-loaded/statement.cose");
+  CHECK(
+    config.command.recover.previous_service_identity_file ==
+    "not-loaded/previous.pem");
+  CHECK(config.command.recover.initial_service_certificate_validity_days == 13);
+
+  const auto defaults = json{
+    {"network", CCFConfig{}.network},
+    {"command",
+     {{"type", "Join"}}}}.get<CCFConfig>();
+  CHECK(defaults.command.join.retry_timeout.count_ms() == 1000);
+  CHECK(defaults.command.join.follow_redirect);
+  CHECK(defaults.command.join.fetch_recent_snapshot);
+  CHECK(
+    defaults.command.recover.initial_service_certificate_validity_days == 1);
+}
+
+TEST_CASE("Genesis request retains resolved data on the wire")
+{
+  CreateNetworkNodeToNode::GenesisInfo genesis;
+  const auto member_cert = ccf::crypto::make_ec_key_pair()->self_sign(
+    "CN=Member", valid_from, valid_to);
+  genesis.members.emplace_back(member_cert);
+  genesis.constitution = "export function validate() { return true; }";
+  genesis.service_configuration.recovery_threshold = 1;
+
+  const json encoded = genesis;
+  CHECK(encoded.size() == 3);
+  CHECK(encoded["members"] == json(genesis.members));
+  CHECK(encoded["constitution"] == genesis.constitution);
+  CHECK(
+    encoded["service_configuration"] == json(genesis.service_configuration));
+  CHECK(encoded.get<CreateNetworkNodeToNode::GenesisInfo>() == genesis);
+}
+
 TEST_CASE("Add a node to an opening service")
 {
   NetworkState network;

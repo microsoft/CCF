@@ -476,7 +476,7 @@ MemberId invalid_member_id;
 class TestNodeConfiguration : public NodeConfigurationInterface
 {
 private:
-  StartupConfig config;
+  CCFConfig config;
   NodeConfigurationState state;
 
 public:
