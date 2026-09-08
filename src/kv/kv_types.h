@@ -319,8 +319,6 @@ namespace ccf::kv
       const std::vector<Version>& view_history) = 0;
     virtual void serialise_entry_version(const Version& version) = 0;
     virtual void serialise_count_header(uint64_t ctr) = 0;
-    virtual void serialise_read(
-      const SerialisedKey& k, const Version& version) = 0;
     virtual void serialise_write(
       const SerialisedKey& k, const SerialisedValue& v) = 0;
     virtual void serialise_remove(const SerialisedKey& k) = 0;
@@ -361,12 +359,7 @@ namespace ccf::kv
   {
     PASS = 1,
     PASS_SIGNATURE = 2,
-    PASS_BACKUP_SIGNATURE = 3,
-    PASS_BACKUP_SIGNATURE_SEND_ACK = 4,
-    PASS_NONCES = 5,
-    PASS_NEW_VIEW = 6,
     PASS_ENCRYPTED_PAST_LEDGER_SECRET = 8,
-    PASS_APPLY = 9,
     FAIL = 10
   };
 
@@ -641,9 +634,7 @@ namespace ccf::kv
 
     virtual AbstractStore* get_store() = 0;
     virtual void serialise_changes(
-      const AbstractChangeSet* changes,
-      KvStoreSerialiser& s,
-      bool include_reads) = 0;
+      const AbstractChangeSet* changes, KvStoreSerialiser& s) = 0;
     virtual void compact(Version v) = 0;
     virtual std::unique_ptr<Snapshot> snapshot(Version v) = 0;
     virtual void post_compact() = 0;
@@ -669,26 +660,9 @@ namespace ccf::kv
     virtual const std::vector<uint8_t>& get_entry() = 0;
     virtual ccf::kv::Term get_term() = 0;
     virtual ccf::kv::Version get_index() = 0;
-    virtual bool support_async_execution() = 0;
-    virtual bool is_public_only() = 0;
     virtual ccf::ClaimsDigest&& consume_claims_digest() = 0;
     virtual std::optional<ccf::crypto::Sha256Hash>&&
     consume_commit_evidence_digest() = 0;
-
-    // Setting a short rollback is a work around that should be fixed
-    // shortly. In BFT mode when we deserialize and realize we need to
-    // create a new map we remember this. If we need to create the same
-    // map multiple times (for tx in the same group of append entries) the
-    // first create successes but the second fails because the map is
-    // already there. This works around the problem by stopping just
-    // before the 2nd create (which failed at this point) and when the
-    // primary resends the append entries we will succeed as the map is
-    // already there. This will only occur on BFT startup so not a perf
-    // problem but still need to be resolved.
-    //
-    // Thus, a large rollback is one which did not result from the map creating
-    // issue. https://github.com/microsoft/CCF/issues/2799
-    virtual bool should_rollback_to_last_committed() = 0;
   };
 
   class AbstractStore
