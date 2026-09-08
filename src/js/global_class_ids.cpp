@@ -4,6 +4,7 @@
 #include "js/global_class_ids.h"
 
 #include "ccf/js/core/context.h"
+#include "js/extensions/ccf/kv_map_handle_state.h"
 
 namespace ccf::js
 {
@@ -14,6 +15,16 @@ namespace ccf::js
 
   JSClassDef kv_map_handle_class_def = {};
 
+  namespace
+  {
+    void kv_map_handle_finalizer([[maybe_unused]] JSRuntime* rt, JSValue val)
+    {
+      auto* state = static_cast<extensions::kvhelpers::KVMapHandleState*>(
+        JS_GetOpaque(val, kv_map_handle_class_id));
+      delete state;
+    }
+  }
+
   void register_class_ids()
   {
     JS_NewClassID(&kv_class_id);
@@ -22,5 +33,6 @@ namespace ccf::js
 
     JS_NewClassID(&kv_map_handle_class_id);
     kv_map_handle_class_def.class_name = "KV Map Handle";
+    kv_map_handle_class_def.finalizer = kv_map_handle_finalizer;
   }
 }

@@ -98,10 +98,30 @@ namespace ccf::js
   static std::string explain_kv_map_access(
     ccf::js::KVAccessPermissions permission, ccf::js::TxAccess access)
   {
-    char const* table_kind = permission == KVAccessPermissions::READ_ONLY ?
-      "read-only" :
-      (permission == KVAccessPermissions::WRITE_ONLY ? "write-only" :
-                                                       "inaccessible");
+    char const* table_kind = nullptr;
+    switch (permission)
+    {
+      case (KVAccessPermissions::READ_WRITE):
+      {
+        table_kind = "read-write";
+        break;
+      }
+      case (KVAccessPermissions::READ_ONLY):
+      {
+        table_kind = "read-only";
+        break;
+      }
+      case (KVAccessPermissions::WRITE_ONLY):
+      {
+        table_kind = "write-only";
+        break;
+      }
+      case (KVAccessPermissions::ILLEGAL):
+      {
+        table_kind = "inaccessible";
+        break;
+      }
+    }
 
     char const* exec_context = nullptr;
     switch (access)

@@ -3,6 +3,7 @@
 import http
 import json
 import os
+import time
 
 import ccf.cose
 import infra.checker
@@ -275,6 +276,24 @@ def test_custom_endpoints_kv_restrictions(network, args):
                 mode="readwrite",
             )
         },
+        "/try_read_retargeted": {
+            "post": endpoint_properties(
+                js_module=module_name,
+                js_function="try_read_retargeted",
+            )
+        },
+        "/try_read_historical": {
+            "post": endpoint_properties(
+                js_module=module_name,
+                js_function="try_read_historical",
+            )
+        },
+        "/try_read_current_via_historical_handle": {
+            "post": endpoint_properties(
+                js_module=module_name,
+                js_function="try_read_current_via_historical_handle",
+            )
+        },
     }
 
     with open(
@@ -354,6 +373,63 @@ def test_custom_endpoints_kv_restrictions(network, args):
         r = c.post("/app/try_read", {"table": "ccf.internal.foo"})
         assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
         r = c.post("/app/try_write", {"table": "ccf.internal.foo"})
+        assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
+
+        LOG.info("Restrictions cannot be bypassed by re-targeting a method")
+        # Reading via a handle the endpoint _is_ permitted to use must not
+        # grant access to a table it is not
+        r = c.post(
+            "/app/try_read_retargeted",
+            {"table": "my_js_table", "via": "my_js_table"},
+        )
+        assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
+        r = c.post(
+            "/app/try_read_retargeted",
+            {"table": "programmability.foo", "via": "my_js_table"},
+        )
+        assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
+        r = c.post(
+            "/app/try_read_retargeted",
+            {"table": "ccf.gov.foo", "via": "my_js_table"},
+        )
+        assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
+
+    # Obtain a seqno for the historical queries.
+    with primary.client(user.local_id) as c:
+        r = c.post("/app/try_write", {"table": "my_js_table"})
+        assert r.status_code == http.HTTPStatus.OK.value, r.status_code
+        c.wait_for_commit(r)
+        seqno = r.headers[infra.clients.CCF_TX_ID_HEADER].split(".")[1]
+
+    def post_until_available(client, path, body):
+        r = client.post(path, body)
+        end_time = time.time() + 10
+        while (
+            r.status_code == http.HTTPStatus.ACCEPTED.value and time.time() < end_time
+        ):
+            time.sleep(0.5)
+            r = client.post(path, body)
+        return r
+
+    with primary.client() as c:
+        LOG.info("Restrictions confine the historical KV too")
+        r = post_until_available(
+            c, "/app/try_read_historical", {"table": "my_js_table", "seqno": seqno}
+        )
+        assert r.status_code == http.HTTPStatus.OK.value, r.status_code
+
+        for table in ("programmability.foo", "public:programmability.foo"):
+            r = post_until_available(
+                c, "/app/try_read_historical", {"table": table, "seqno": seqno}
+            )
+            assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
+
+        LOG.info("A historical handle cannot be used against the current KV")
+        r = post_until_available(
+            c,
+            "/app/try_read_current_via_historical_handle",
+            {"table": "my_js_table", "seqno": seqno},
+        )
         assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
 
     return network
