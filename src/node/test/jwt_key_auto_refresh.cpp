@@ -97,9 +97,11 @@ namespace
       }
     }
 
-    void expect_retry_after(std::chrono::milliseconds delay)
+    void expect_attempt_after(std::chrono::milliseconds delay)
     {
       const auto attempts = refresh->get_attempts();
+      CAPTURE(delay.count());
+      CAPTURE(attempts);
       advance(delay - 1ms);
       REQUIRE(refresh->get_attempts() == attempts);
       advance(1ms);
@@ -133,7 +135,7 @@ TEST_CASE("JWT retries double their delay up to the configured maximum")
   REQUIRE(f.refresh->get_attempts() == 1);
   for (const auto delay : {5s, 10s, 20s, 30s, 30s})
   {
-    f.expect_retry_after(delay);
+    f.expect_attempt_after(delay);
   }
 }
 
@@ -141,19 +143,89 @@ TEST_CASE("JWT retries respect a maximum below the initial retry delay")
 {
   Fixture f(3);
   f.refresh->refresh_jwt_keys(f.issuer);
-  f.expect_retry_after(3s);
-  f.expect_retry_after(3s);
+  f.expect_attempt_after(3s);
+  f.expect_attempt_after(3s);
 }
 
 TEST_CASE("JWT refresh failures do not replace or advance a pending retry")
 {
   Fixture f;
-  f.refresh->refresh_jwt_keys(f.issuer);
+  f.refresh->schedule_once();
+  f.advance(0ms);
+  REQUIRE(f.refresh->get_attempts() == 1);
   f.advance(2s);
-  f.refresh->refresh_jwt_keys(f.issuer);
+  f.refresh->schedule_once();
+  f.advance(0ms);
   REQUIRE(f.refresh->get_attempts() == 2);
-  f.expect_retry_after(3s);
-  f.expect_retry_after(10s);
+  f.expect_attempt_after(3s);
+  f.expect_attempt_after(10s);
+}
+
+TEST_CASE("Periodic JWT refresh failures preserve the pending retry deadline")
+{
+  Fixture f(12);
+  f.refresh->start();
+  f.refresh->schedule_once();
+  f.advance(0ms);
+  REQUIRE(f.refresh->get_attempts() == 1);
+  f.expect_attempt_after(5s);
+
+  // The periodic failure at 12s must not replace the retry due at 15s.
+  f.expect_attempt_after(7s);
+  f.expect_attempt_after(3s);
+  // The same holds at 24s, with the retry delay now capped at 12s.
+  f.expect_attempt_after(9s);
+  f.expect_attempt_after(3s);
+}
+
+TEST_CASE("JWT response failures schedule an initial retry")
+{
+  Fixture f;
+  SUBCASE("Metadata HTTP error")
+  {
+    f.refresh->handle_jwt_metadata_response(
+      f.issuer, "", HTTP_STATUS_SERVICE_UNAVAILABLE, {});
+  }
+  SUBCASE("Malformed metadata")
+  {
+    f.refresh->handle_jwt_metadata_response(f.issuer, "", HTTP_STATUS_OK, {});
+  }
+  SUBCASE("JWKS HTTP error")
+  {
+    f.refresh->handle_jwt_jwks_response(
+      f.issuer, std::nullopt, HTTP_STATUS_SERVICE_UNAVAILABLE, {});
+  }
+  SUBCASE("Malformed JWKS")
+  {
+    f.refresh->handle_jwt_jwks_response(
+      f.issuer, std::nullopt, HTTP_STATUS_OK, {});
+  }
+
+  REQUIRE(f.endpoint->key_updates == 0);
+  REQUIRE(f.refresh->get_attempts() == 0);
+  f.expect_attempt_after(5s);
+  f.expect_attempt_after(10s);
+}
+
+TEST_CASE("A JWT key update schedules an initial retry only if rejected")
+{
+  Fixture f;
+  SUBCASE("Accepted")
+  {
+    f.respond_with_keys(f.issuer);
+    ccf::tasks::tick(30s);
+    REQUIRE(f.refresh->get_attempts() == 0);
+    REQUIRE(ccf::tasks::get_main_job_board().get_task() == nullptr);
+  }
+  SUBCASE("Rejected")
+  {
+    f.endpoint->accept_keys = false;
+    f.respond_with_keys(f.issuer);
+    REQUIRE(f.refresh->get_attempts() == 0);
+    f.expect_attempt_after(5s);
+    f.expect_attempt_after(10s);
+  }
+  REQUIRE(f.endpoint->key_updates == 1);
 }
 
 TEST_CASE("JWT retry backoff and successful resets are independent per issuer")
@@ -162,29 +234,29 @@ TEST_CASE("JWT retry backoff and successful resets are independent per issuer")
   const ccf::JwtIssuer other = "https://other.example";
   f.set_issuer(other);
   f.refresh->refresh_jwt_keys(f.issuer);
-  f.expect_retry_after(5s);
+  f.expect_attempt_after(5s);
 
   f.refresh->refresh_jwt_keys(other);
-  f.expect_retry_after(5s);
+  f.expect_attempt_after(5s);
   f.respond_with_keys(other);
   REQUIRE(f.endpoint->key_updates == 1);
 
-  f.expect_retry_after(5s);
+  f.expect_attempt_after(5s);
   f.refresh->refresh_jwt_keys(other);
-  f.expect_retry_after(5s);
+  f.expect_attempt_after(5s);
   f.respond_with_keys(other);
-  f.expect_retry_after(15s);
+  f.expect_attempt_after(15s);
 }
 
 TEST_CASE("JWT retries reset only after the keys are accepted")
 {
   Fixture f;
   f.refresh->refresh_jwt_keys(f.issuer);
-  f.expect_retry_after(5s);
+  f.expect_attempt_after(5s);
 
   f.endpoint->accept_keys = false;
   f.respond_with_keys(f.issuer);
-  f.expect_retry_after(10s);
+  f.expect_attempt_after(10s);
 
   f.endpoint->accept_keys = true;
   f.respond_with_keys(f.issuer);
@@ -194,7 +266,7 @@ TEST_CASE("JWT retries reset only after the keys are accepted")
   REQUIRE(f.refresh->get_attempts() == attempts);
 
   f.refresh->refresh_jwt_keys(f.issuer);
-  f.expect_retry_after(5s);
+  f.expect_attempt_after(5s);
 }
 
 TEST_CASE("Stale JWT retry callbacks cannot consume a newer retry")
@@ -221,7 +293,7 @@ TEST_CASE("Stale JWT retry callbacks cannot consume a newer retry")
   // BaseTask's cancellation check before the newer retry was scheduled.
   stale->fn();
   REQUIRE(f.refresh->get_attempts() == attempts);
-  f.expect_retry_after(stale->is_cancelled() ? 5s : 10s);
+  f.expect_attempt_after(stale->is_cancelled() ? 5s : 10s);
 }
 
 TEST_CASE("JWT retries stop when the issuer or primary role is lost")
@@ -251,19 +323,30 @@ TEST_CASE("JWT retries stop when the issuer or primary role is lost")
   f.set_issuer(f.issuer);
   f.consensus->force_become_primary();
   f.refresh->refresh_jwt_keys(f.issuer);
-  f.expect_retry_after(5s);
+  f.expect_attempt_after(5s);
 }
 
 TEST_CASE("Stopping JWT refresh cancels callbacks and prevents new retries")
 {
   Fixture f;
-  f.refresh->refresh_jwt_keys(f.issuer);
+  const ccf::JwtIssuer other = "https://other.example";
+  f.set_issuer(other);
+  f.refresh->start();
+  f.refresh->refresh_jwt_keys();
+  REQUIRE(f.refresh->get_attempts() == 2);
   ccf::tasks::tick(5s);
   auto retry = f.take_ready_retry();
+  auto other_retry = f.take_ready_retry();
   f.refresh->stop();
   REQUIRE(retry->is_cancelled());
+  REQUIRE(other_retry->is_cancelled());
   retry->fn();
+  other_retry->fn();
   f.refresh->send_refresh_jwt_keys_error(f.issuer);
-  f.advance(30s);
-  REQUIRE(f.refresh->get_attempts() == 1);
+  f.refresh->send_refresh_jwt_keys_error(other);
+  ccf::tasks::tick(30s);
+  // Check the queue before running callbacks: their stopped checks could hide
+  // an incorrectly scheduled task from the attempts counter.
+  REQUIRE(ccf::tasks::get_main_job_board().get_task() == nullptr);
+  REQUIRE(f.refresh->get_attempts() == 2);
 }
