@@ -7,6 +7,7 @@
 #include "ccf/ds/nonstd.h"
 #include "ccf/service/tables/cert_bundles.h"
 #include "ccf/service/tables/jwt.h"
+#include "enclave/rpc_map.h"
 #include "http/curl.h"
 #include "http/http_builder.h"
 #include "http/http_rpc_context.h"
@@ -26,7 +27,7 @@ namespace ccf
     : public std::enable_shared_from_this<JwtKeyAutoRefresh>
   {
   private:
-    size_t refresh_interval_s;
+    size_t max_refresh_interval_s;
     NetworkState& network;
     std::shared_ptr<ccf::kv::Consensus> consensus;
     std::shared_ptr<ccf::RPCMap> rpc_map;
@@ -41,6 +42,9 @@ namespace ccf
     struct RetryState
     {
       size_t delay_s;
+      // Identifies the scheduled callback, not the issuer. Cancellation cannot
+      // stop a callback that has already started, so it must also check this
+      // ID.
       size_t generation = 0;
       ccf::tasks::Task task = nullptr;
     };
@@ -48,13 +52,14 @@ namespace ccf
     ccf::ds::Mutex retry_states_lock;
     std::map<JwtIssuer, RetryState> retry_states
       CCF_GUARDED_BY(retry_states_lock);
+    // Never reuse an ID, even after an issuer's retry state is erased.
     size_t next_retry_generation CCF_GUARDED_BY(retry_states_lock) = 0;
 
     static constexpr size_t initial_retry_delay_s = 5;
     static constexpr long request_connection_timeout_s = 5;
     static constexpr long request_response_timeout_s = 5;
 
-    bool begin_retry(const JwtIssuer& issuer, size_t generation)
+    bool should_begin_retry(const JwtIssuer& issuer, size_t generation)
     {
       ccf::ds::MutexGuard guard(retry_states_lock);
       const auto it = retry_states.find(issuer);
@@ -65,6 +70,8 @@ namespace ccf
         return false;
       }
 
+      // Consume this callback's slot so a failed refresh can schedule the next
+      // retry, retaining the increased delay.
       it->second.task = nullptr;
       return true;
     }
@@ -105,13 +112,15 @@ namespace ccf
       size_t delay_s = 0;
       {
         ccf::ds::MutexGuard guard(retry_states_lock);
+        // Keep this check under the lock: otherwise stop() could clear retries
+        // between the check and insertion, leaving a new retry after shutdown.
         if (stopped.load())
         {
           return;
         }
 
         const auto initial_delay_s =
-          std::min(initial_retry_delay_s, refresh_interval_s);
+          std::min(initial_retry_delay_s, max_refresh_interval_s);
         const auto it =
           retry_states
             .try_emplace(issuer, RetryState{initial_delay_s, 0, nullptr})
@@ -130,7 +139,7 @@ namespace ccf
           const auto self_sp = self.lock();
           if (
             self_sp == nullptr || self_sp->stopped.load() ||
-            !self_sp->begin_retry(issuer, generation))
+            !self_sp->should_begin_retry(issuer, generation))
           {
             return;
           }
@@ -147,10 +156,10 @@ namespace ccf
         });
         retry_state.task = retry_task;
 
-        if (retry_state.delay_s < refresh_interval_s)
+        if (retry_state.delay_s < max_refresh_interval_s)
         {
           retry_state.delay_s =
-            std::min(retry_state.delay_s * 2, refresh_interval_s);
+            std::min(retry_state.delay_s * 2, max_refresh_interval_s);
         }
       }
 
@@ -201,14 +210,14 @@ namespace ccf
 
   public:
     JwtKeyAutoRefresh(
-      size_t refresh_interval_s,
+      size_t max_refresh_interval_s,
       NetworkState& network,
       const std::shared_ptr<ccf::kv::Consensus>& consensus,
       const std::shared_ptr<ccf::RPCMap>& rpc_map,
       ccf::crypto::ECKeyPairPtr node_sign_kp,
       ccf::crypto::Pem node_cert,
       size_t max_response_size) :
-      refresh_interval_s(refresh_interval_s),
+      max_refresh_interval_s(max_refresh_interval_s),
       network(network),
       consensus(consensus),
       rpc_map(rpc_map),
@@ -247,10 +256,10 @@ namespace ccf
 
         LOG_DEBUG_FMT(
           "JWT key auto-refresh: Scheduling in {}s",
-          self_sp->refresh_interval_s);
+          self_sp->max_refresh_interval_s);
       });
 
-      const std::chrono::seconds period(refresh_interval_s);
+      const std::chrono::seconds period(max_refresh_interval_s);
       ccf::tasks::add_periodic_task(periodic_refresh_task, period, period);
     }
 

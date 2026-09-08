@@ -984,6 +984,15 @@ if(BUILD_TESTS)
     target_link_libraries(jwt_auth_test PRIVATE ccf_endpoints)
 
     add_unit_test(
+      jwt_key_auto_refresh_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/jwt_key_auto_refresh.cpp
+    )
+    target_link_libraries(
+      jwt_key_auto_refresh_test
+      PRIVATE http_parser ccf_endpoints ccf_kv ccf_tasks curl uv
+    )
+
+    add_unit_test(
       tx_status_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/tx_status_test.cpp
     )
