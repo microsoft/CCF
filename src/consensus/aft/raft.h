@@ -1479,15 +1479,6 @@ namespace aft
           {
             break;
           }
-
-          case ccf::kv::ApplyResult::PASS_BACKUP_SIGNATURE:
-          case ccf::kv::ApplyResult::PASS_BACKUP_SIGNATURE_SEND_ACK:
-          case ccf::kv::ApplyResult::PASS_NONCES:
-          case ccf::kv::ApplyResult::PASS_NEW_VIEW:
-          case ccf::kv::ApplyResult::PASS_APPLY:
-          {
-            throw std::logic_error("Unknown ApplyResult value");
-          }
         }
       }
 
