@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [7.0.15]
+
+[7.0.15]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.15
+
+### Changed
+
+- `ccf::NodeConfigurationState::node_config` now exposes the operator configuration as `ccf::CCFConfig` in `ccf/node/configuration.h`, replacing `ccf::StartupConfig` and the private host configuration type. Command-specific settings are under `command.start`, `command.join`, and `command.recover`; file-backed inputs are loaded by the node when needed, rather than converted into a second startup configuration. Resolved node data is available as `ccf::NodeConfigurationState::node_data`. The operator JSON format and node-to-node genesis format are unchanged. `StartType` is now declared in `ccf/node/start_type.h` in the `ccf` namespace (#8309, #7565).
+
 ## [7.0.14]
 
 [7.0.14]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.14

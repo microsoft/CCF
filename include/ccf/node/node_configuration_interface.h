@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/node/startup_config.h"
+#include "ccf/node/configuration.h"
 #include "ccf/node_subsystem_interface.h"
 #include "ccf/service/node_info_network.h"
 
@@ -13,7 +13,8 @@ namespace ccf
 {
   struct NodeConfigurationState
   {
-    const ccf::StartupConfig& node_config;
+    const ccf::CCFConfig& node_config;
+    const nlohmann::json& node_data;
     std::map<NodeInfoNetwork::RpcInterfaceID, std::vector<std::regex>>
       rpc_interface_regexes;
     bool initialized = false;

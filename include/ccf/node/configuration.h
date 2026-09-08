@@ -6,6 +6,7 @@
 #include "ccf/ds/unit_strings.h"
 #include "ccf/entity_id.h"
 #include "ccf/node/cose_signatures_config.h"
+#include "ccf/node/start_type.h"
 #include "ccf/pal/attestation_sev_snp_endorsements.h"
 #include "ccf/service/consensus_config.h"
 #include "ccf/service/node_info_network.h"
@@ -20,6 +21,38 @@
 
 namespace ccf
 {
+  enum class LogFormat : uint8_t
+  {
+    TEXT,
+    JSON
+  };
+
+  struct ParsedMemberInfo
+  {
+    std::string certificate_file;
+    std::optional<std::string> encryption_public_key_file = std::nullopt;
+    std::optional<std::string> data_json_file = std::nullopt;
+    std::optional<ccf::MemberRecoveryRole> recovery_role = std::nullopt;
+
+    bool operator==(const ParsedMemberInfo&) const = default;
+  };
+
+  struct RecoveryDecisionProtocolConfig
+  {
+    std::vector<sealing_recovery::Location> expected_locations;
+    ccf::ds::TimeString message_retry_timeout = {"100ms"};
+    ccf::ds::TimeString failover_timeout = {"2000ms"};
+    bool operator==(const RecoveryDecisionProtocolConfig&) const = default;
+  };
+
+  struct SealingRecoveryConfig
+  {
+    sealing_recovery::Location location;
+    std::optional<RecoveryDecisionProtocolConfig> recovery_decision_protocol =
+      std::nullopt;
+    bool operator==(const SealingRecoveryConfig&) const = default;
+  };
+
   struct CCFConfig
   {
     size_t worker_threads = 0;
@@ -137,73 +170,90 @@ namespace ccf
       bool operator==(const IdentityHistoryFetch&) const = default;
     };
     IdentityHistoryFetch identity_history_fetch = {};
-  };
-
-  struct RecoveryDecisionProtocolConfig
-  {
-    std::vector<sealing_recovery::Location> expected_locations;
-    ccf::ds::TimeString message_retry_timeout = {"100ms"};
-    ccf::ds::TimeString failover_timeout = {"2000ms"};
-    bool operator==(const RecoveryDecisionProtocolConfig&) const = default;
-  };
-
-  struct SealingRecoveryConfig
-  {
-    sealing_recovery::Location location;
-    std::optional<RecoveryDecisionProtocolConfig> recovery_decision_protocol =
-      std::nullopt;
-    bool operator==(const SealingRecoveryConfig&) const = default;
-  };
-
-  struct StartupConfig : CCFConfig
-  {
-    StartupConfig() = default;
-    StartupConfig(const CCFConfig& common_base) : CCFConfig(common_base) {}
-
-    std::string startup_host_time;
-    size_t snapshot_tx_interval = 10'000;
-
-    // Only if starting or recovering
-    size_t initial_service_certificate_validity_days = 1;
-    std::string service_subject_name = "CN=CCF Service";
-    ccf::COSESignaturesConfig cose_signatures;
-
+    ccf::ds::TimeString tick_interval = {"10ms"};
+    ccf::ds::TimeString slow_io_logging_threshold = {"10ms"};
+    std::optional<std::string> node_client_interface = std::nullopt;
+    ccf::ds::TimeString client_connection_timeout = {"2000ms"};
+    std::optional<ccf::ds::TimeString> idle_connection_timeout =
+      ccf::ds::TimeString("60s");
+    std::optional<std::string> node_data_json_file = std::nullopt;
+    std::optional<std::string> service_data_json_file = std::nullopt;
+    bool ignore_first_sigterm = false;
     std::optional<SealingRecoveryConfig> sealing_recovery = std::nullopt;
 
-    nlohmann::json service_data = nullptr;
-
-    nlohmann::json node_data = nullptr;
-
-    struct Start
+    struct OutputFiles
     {
-      std::vector<ccf::NewMember> members;
-      std::string constitution;
-      ccf::ServiceConfiguration service_configuration;
+      std::string node_certificate_file = "nodecert.pem";
+      std::string pid_file = "my_node.pid";
 
-      bool operator==(const Start& other) const = default;
+      // Addresses files
+      std::string node_to_node_address_file;
+      std::string rpc_addresses_file;
+
+      bool operator==(const OutputFiles&) const = default;
     };
-    Start start = {};
+    OutputFiles output_files = {};
 
-    struct Join
+    struct Logging
     {
-      ccf::NodeInfoNetwork::NetAddress target_rpc_address;
-      ccf::ds::TimeString retry_timeout;
-      std::vector<uint8_t> service_cert;
-      bool follow_redirect{};
-      bool fetch_recent_snapshot{};
-      size_t fetch_snapshot_max_attempts{};
-      ccf::ds::TimeString fetch_snapshot_retry_interval;
-      ccf::ds::SizeString fetch_snapshot_max_size;
-      std::optional<std::string> host_data_transparent_statement_path =
-        std::nullopt;
-    };
-    Join join = {};
+      LogFormat format = LogFormat::TEXT;
 
-    struct Recover
-    {
-      std::optional<std::vector<uint8_t>> previous_service_identity =
-        std::nullopt;
+      bool operator==(const Logging&) const = default;
     };
-    Recover recover = {};
+    Logging logging = {};
+
+    struct Memory
+    {
+      ccf::ds::SizeString circuit_size = {"16MB"};
+      ccf::ds::SizeString max_msg_size = {"64MB"};
+      ccf::ds::SizeString max_fragment_size = {"256KB"};
+
+      bool operator==(const Memory&) const = default;
+    };
+    Memory memory = {};
+
+    struct Command
+    {
+      StartType type = StartType::Start;
+      std::string service_certificate_file = "service_cert.pem";
+
+      struct Start
+      {
+        std::vector<ParsedMemberInfo> members;
+        std::vector<std::string> constitution_files;
+        ccf::ServiceConfiguration service_configuration;
+        size_t initial_service_certificate_validity_days = 1;
+        std::string service_subject_name = "CN=CCF Service";
+        ccf::COSESignaturesConfig cose_signatures;
+
+        bool operator==(const Start&) const = default;
+      };
+      Start start = {};
+
+      struct Join
+      {
+        ccf::NodeInfoNetwork::NetAddress target_rpc_address;
+        ccf::ds::TimeString retry_timeout = {"1000ms"};
+        bool follow_redirect = true;
+        bool fetch_recent_snapshot = true;
+        size_t fetch_snapshot_max_attempts = 3;
+        ccf::ds::TimeString fetch_snapshot_retry_interval = {"1000ms"};
+        ccf::ds::SizeString fetch_snapshot_max_size = {"10GB"};
+        std::optional<std::string> host_data_transparent_statement_path =
+          std::nullopt;
+
+        bool operator==(const Join&) const = default;
+      };
+      Join join = {};
+
+      struct Recover
+      {
+        size_t initial_service_certificate_validity_days = 1;
+        std::string previous_service_identity_file;
+        bool operator==(const Recover&) const = default;
+      };
+      Recover recover = {};
+    };
+    Command command = {};
   };
 }

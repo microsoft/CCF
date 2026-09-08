@@ -226,11 +226,7 @@ include(${CCF_DIR}/cmake/quickjs.cmake)
 include(${CCF_DIR}/cmake/evercbor.cmake)
 
 # Launcher library
-list(
-  APPEND CCF_LAUNCHER_SOURCES
-  ${CCF_DIR}/src/host/run.cpp
-  ${CCF_DIR}/src/host/env.cpp
-)
+list(APPEND CCF_LAUNCHER_SOURCES ${CCF_DIR}/src/host/run.cpp)
 
 add_ccf_static_library(
   ccf_launcher
@@ -458,6 +454,7 @@ endif()
 set(
   CCF_IMPL_SOURCE
   ${CCF_DIR}/src/enclave/main.cpp
+  ${CCF_DIR}/src/host/env.cpp
   ${CCF_DIR}/src/node/quote.cpp
   ${CCF_DIR}/src/node/uvm_endorsements.cpp
   ${CCF_DIR}/src/node/recovery_decision_protocol.cpp

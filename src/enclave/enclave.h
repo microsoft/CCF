@@ -194,7 +194,7 @@ namespace ccf
 
     CreateNodeStatus create_new_node(
       StartType start_type_,
-      const ccf::StartupConfig& ccf_config_,
+      const ccf::CCFConfig& ccf_config_,
       std::vector<uint8_t>& node_cert,
       std::vector<uint8_t>& service_cert)
     {

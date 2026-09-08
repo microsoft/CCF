@@ -1257,7 +1257,7 @@ namespace ccf
           ccf::NodeStatus::PENDING,
           is_primary,
           node_startup_config.network.rpc_interfaces,
-          node_startup_config.node_data,
+          node_configuration_subsystem->get().node_data,
           0});
       };
       make_read_only_endpoint(
