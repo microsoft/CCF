@@ -13,6 +13,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Transactions from an earlier view are now rejected before entering the replication queue even after the node has stepped down. This prevents rolled-back writes from being replicated after a later election and blocking subsequent replication (#8293, #8295).
 
+### Changed
+
+- CBOR parsing now rejects composite (array or map) and tagged values used as map keys anywhere in the decoded document, including nested maps in optional COSE headers (#8297).
+
+### Removed
+
+- Removed the exported `evercbor` CMake target and installed `libevercbor.a` library. Applications using CCF's public APIs that explicitly depend on this target or link this library directly must remove that dependency. No further build changes are necessary: the replacement CBOR implementation is linked transitively by CCF (#8297).
+
 ## [7.0.14]
 
 [7.0.14]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.14
