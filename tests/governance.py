@@ -5,6 +5,7 @@ import json
 import os
 import random
 import tempfile
+import time
 from datetime import datetime, timezone
 from hashlib import sha256
 
@@ -182,6 +183,19 @@ def test_node_data(network, args):
             assert untrusted_node.node_id in nodes, nodes
             new_node_info = nodes[untrusted_node.node_id]
             assert new_node_info["node_data"] == new_node_data, new_node_info
+
+            # Pending nodes must retain their data after consuming the input file.
+            ntf.close()
+            time.sleep(2 * args.join_timer_s)
+            assert not untrusted_node.remote.check_done()
+            with untrusted_node.client(
+                ca=os.path.join(
+                    untrusted_node.common_dir, f"{untrusted_node.local_node_id}.pem"
+                )
+            ) as uc:
+                r = uc.get("/node/network/nodes/self")
+                assert r.status_code == http.HTTPStatus.OK, r
+                assert r.body.json()["node_data"] == new_node_data, r.body.json()
 
             # Set modified node data
             new_node_data["previous_locations"] = [new_node_data["location"]]

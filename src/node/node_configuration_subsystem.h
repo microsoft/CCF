@@ -43,6 +43,11 @@ namespace ccf
       return node_state.has_received_stop_notice();
     }
 
+    const nlohmann::json& get_node_data() const
+    {
+      return node_state.get_node_data();
+    }
+
     void initialize_interface_regexes()
     {
       for (const auto& [id, interface] :

@@ -147,23 +147,32 @@ namespace ccf
     struct FetchSnapshot : public ccf::tasks::BaseTask
     {
       const ccf::CCFConfig::Command::Join join_config;
-      const std::string service_certificate_file;
+      const std::vector<uint8_t> service_cert;
       const ccf::CCFConfig::Snapshots snapshot_config;
       NodeState* owner;
 
       FetchSnapshot(
         ccf::CCFConfig::Command::Join join_config_,
-        std::string service_certificate_file_,
+        std::vector<uint8_t> service_cert_,
         ccf::CCFConfig::Snapshots snapshot_config_,
         NodeState* owner_) :
         join_config(std::move(join_config_)),
-        service_certificate_file(std::move(service_certificate_file_)),
+        service_cert(std::move(service_cert_)),
         snapshot_config(std::move(snapshot_config_)),
         owner(owner_)
       {}
 
       void do_task_implementation() override
       {
+        // NB: Eventually this shouldn't be blocking, but reusing the current
+        // (blocking) helper for now
+        auto latest_peer_snapshot = snapshots::fetch_from_peer(
+          join_config.target_rpc_address,
+          service_cert,
+          join_config.fetch_snapshot_max_attempts,
+          join_config.fetch_snapshot_retry_interval.count_ms(),
+          join_config.fetch_snapshot_max_size.count_bytes());
+
         // Ensure the in-flight task reference is cleared when this
         // task completes, regardless of outcome, so that a subsequent
         // join-retry can schedule a new fetch if needed.
@@ -176,16 +185,6 @@ namespace ccf
             owner->snapshot_fetch_task = nullptr;
           }
         } clear_on_exit{owner};
-
-        const auto service_cert = files::slurp(service_certificate_file);
-        // NB: Eventually this shouldn't be blocking, but reusing the current
-        // (blocking) helper for now
-        auto latest_peer_snapshot = snapshots::fetch_from_peer(
-          join_config.target_rpc_address,
-          service_cert,
-          join_config.fetch_snapshot_max_attempts,
-          join_config.fetch_snapshot_retry_interval.count_ms(),
-          join_config.fetch_snapshot_max_size.count_bytes());
 
         if (latest_peer_snapshot.has_value())
         {
@@ -431,7 +430,9 @@ namespace ccf
     std::optional<pal::snp::TcbVersionRaw> snp_tcb_version = std::nullopt;
     ccf::CCFConfig config;
     std::string startup_time;
+    nlohmann::json node_data = nullptr;
     std::optional<std::vector<uint8_t>> previous_service_identity;
+    std::optional<std::vector<uint8_t>> join_service_cert;
     std::optional<pal::UVMEndorsements> snp_uvm_endorsements = std::nullopt;
     std::shared_ptr<QuoteEndorsementsClient> quote_endorsements_client =
       nullptr;
@@ -1220,6 +1221,11 @@ namespace ccf
       start_type = start_type_;
 
       config = config_;
+      if (config.node_data_json_file.has_value())
+      {
+        node_data = files::slurp_json(config.node_data_json_file.value());
+        LOG_TRACE_FMT("Read node_data: {}", node_data.dump());
+      }
       if (config.sealing_recovery.has_value())
       {
         CCF_ASSERT_FMT(
@@ -1384,11 +1390,7 @@ namespace ccf
       }
       join_params.certificate_signing_request = node_sign_kp->create_csr(
         config.node_certificate.subject_name, subject_alt_names);
-      if (config.node_data_json_file.has_value())
-      {
-        join_params.node_data =
-          files::slurp_json(config.node_data_json_file.value());
-      }
+      join_params.node_data = node_data;
       join_params.ledger_sign_mode = ccf::get_ledger_sign_mode();
       if (config.sealing_recovery.has_value() && snp_tcb_version.has_value())
       {
@@ -1423,8 +1425,12 @@ namespace ccf
       curl_handle.set_opt(CURLOPT_SSL_VERIFYPEER, 1L);
       curl_handle.set_opt(CURLOPT_SSL_VERIFYHOST, 2L);
       curl_handle.set_opt(CURLOPT_PROTOCOLS_STR, "https");
-      const auto service_cert =
-        files::slurp(config.command.service_certificate_file);
+      if (!join_service_cert.has_value())
+      {
+        join_service_cert =
+          files::slurp(config.command.service_certificate_file);
+      }
+      const auto& service_cert = join_service_cert.value();
       curl_handle.set_blob_opt(
         CURLOPT_CAINFO_BLOB, service_cert.data(), service_cert.size());
       curl_handle.set_opt(CURLOPT_CAPATH, nullptr);
@@ -1646,7 +1652,7 @@ namespace ccf
                   {
                     snapshot_fetch_task = std::make_shared<FetchSnapshot>(
                       config.command.join,
-                      config.command.service_certificate_file,
+                      join_service_cert.value(),
                       config.snapshots,
                       this);
                     ccf::tasks::add_task(snapshot_fetch_task);
@@ -3166,11 +3172,7 @@ namespace ccf
         config.attestation.environment.security_policy;
 
       create_params.node_info_network = config.network;
-      if (config.node_data_json_file.has_value())
-      {
-        create_params.node_data =
-          files::slurp_json(config.node_data_json_file.value());
-      }
+      create_params.node_data = node_data;
       if (config.service_data_json_file.has_value())
       {
         create_params.service_data =
@@ -3930,6 +3932,11 @@ namespace ccf
     [[nodiscard]] const ccf::CCFConfig& get_node_config() const override
     {
       return config;
+    }
+
+    [[nodiscard]] const nlohmann::json& get_node_data() const override
+    {
+      return node_data;
     }
 
     ccf::crypto::Pem get_network_cert() override

@@ -173,8 +173,6 @@ TEST_CASE("Node configuration retains operator file paths")
 TEST_CASE("Genesis request retains resolved data on the wire")
 {
   CreateNetworkNodeToNode::GenesisInfo genesis;
-  const auto member_cert = ccf::crypto::make_ec_key_pair()->self_sign(
-    "CN=Member", valid_from, valid_to);
   genesis.members.emplace_back(member_cert);
   genesis.constitution = "export function validate() { return true; }";
   genesis.service_configuration.recovery_threshold = 1;

@@ -59,6 +59,7 @@ namespace ccf
     get_recovery_decision_protocol() = 0;
     virtual void shuffle_sealed_shares(ccf::kv::Tx& tx) = 0;
     [[nodiscard]] virtual const ccf::CCFConfig& get_node_config() const = 0;
+    [[nodiscard]] virtual const nlohmann::json& get_node_data() const = 0;
     virtual ccf::crypto::Pem get_network_cert() = 0;
     virtual void stop_notice() = 0;
     virtual bool has_received_stop_notice() = 0;
