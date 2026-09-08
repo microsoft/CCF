@@ -8,8 +8,8 @@ The security/safety guidance applies to security-sensitive reviews in any langua
 
 ## ASCII-only authoring and review
 
-- Never introduce non-ASCII characters in committed code, including comments, docstrings, and string literals, or in agent instruction files. Use plain ASCII punctuation and language-appropriate ASCII escapes for required Unicode data without changing runtime behaviour.
-- Check additions and modified text for non-ASCII before committing or approving, including files excluded from `scripts/ascii-checks.sh`. Report uncovered violations; do not duplicate findings already reported by the automated check.
+- Apply the ASCII policy and Lean exception in the [repository instructions](/.github/copilot-instructions.md#task-boundaries).
+- For files subject to the ASCII policy, check additions and modified text before committing or approving, including files outside `scripts/ascii-checks.sh` coverage. Report uncovered violations; do not duplicate findings already reported by the automated check.
 - Keep fixes scoped to the current change. Do not rewrite unrelated existing Unicode fixtures, vendored files, or prose documentation.
 
 ## Security and safety first

@@ -38,7 +38,10 @@ Each command below is under `scripts/`. This table is a routing guide; the scrip
 | `copyright-checks.sh`     | Source files                                                 | Copyright notices                                  | No                |
 | `openapi-checks.sh`       | JSON under `doc/schemas/`                                    | openapi-spec-validator                             | No                |
 | `todo-checks.sh`          | Tracked files                                                | Disallowed comments                                | No                |
-| `ascii-checks.sh`         | Source/config files, including Rust and TLA+                 | ASCII policy and intentional exceptions            | No                |
+| `ascii-checks.sh`         | Source/config files and agent-instruction Markdown           | ASCII policy and grandfathered Unicode lines       | No                |
+| `ascii-policy-tests.sh`   | ASCII policy/checker changes                                 | ASCII policy regression tests                      | No                |
 | `test-buckets-checks.sh`  | CMake test registration, defaults, or `tests/ci-buckets.txt` | Fresh configure and CI bucket inventory comparison | No                |
 
 Some report-only scripts accept `-f` for interface compatibility without changing files. For Rust or other file types not covered by a formatter above, consult their existing build/CI configuration rather than introducing a new tool.
+
+The ASCII check includes Rust and TLA+, but exempts Lean source files (`*.lean`). Existing Unicode is grandfathered by exact line hashes, not file-wide exemptions. Do not extend the grandfathered hashes to accept new Unicode.
