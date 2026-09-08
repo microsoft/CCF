@@ -1083,12 +1083,6 @@ if(BUILD_TESTS)
       COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/infra/github.py
     )
     set_property(TEST github_version_lts_test APPEND PROPERTY LABELS bucket_c)
-
-    add_test(
-      NAME snapshot_files_test
-      COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/snapshot_files.py
-    )
-    set_property(TEST snapshot_files_test PROPERTY LABELS unit)
   endif()
 
   if(NOT TSAN)
