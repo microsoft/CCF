@@ -57,6 +57,35 @@ def interface_caps(i):
     }
 
 
+def run_removed_quic_tests(args):
+    for node_spec in args.nodes:
+        node_spec.rpc_interfaces["removed_quic"] = infra.interfaces.RPCInterface(
+            host="127.0.0.1",
+            transport="udp",
+            app_protocol="QUIC",
+        )
+
+    with infra.network.network(
+        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
+    ) as network:
+        network.start_and_open(args)
+        primary, _ = network.find_nodes()
+        interface = primary.host.rpc_interfaces["removed_quic"]
+
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            sock.settimeout(1)
+            sock.sendto(b"QUIC echo is not supported", (interface.host, interface.port))
+            try:
+                response, _ = sock.recvfrom(1024)
+            except TimeoutError:
+                pass
+            else:
+                raise AssertionError(f"Removed QUIC protocol replied: {response!r}")
+
+        metrics = get_session_metrics(primary)
+        assert metrics["interfaces"]["removed_quic"]["active"] == 0, metrics
+
+
 def run_connection_caps_tests(args):
     # Listen on additional RPC interfaces with even lower session caps
     for i, node_spec in enumerate(args.nodes):
@@ -464,6 +493,13 @@ if __name__ == "__main__":
     cr.add(
         "idletimeout",
         run_idle_timeout_tests,
+        package="samples/apps/logging/logging",
+        nodes=infra.e2e_args.nodes(cr.args, 1),
+    )
+
+    cr.add(
+        "removed_quic",
+        run_removed_quic_tests,
         package="samples/apps/logging/logging",
         nodes=infra.e2e_args.nodes(cr.args, 1),
     )

@@ -206,9 +206,8 @@ namespace ccf
       ::tcp::ConnID,
       std::shared_ptr<asynchost::OpenSSLSessionManager>>
       connection_transports;
-    // UDP interface state, keyed by interface name. Only custom UDP protocols
-    // hold state here, one session per peer; "QUIC" interfaces are echoed
-    // statelessly (see listen_udp) and so have no entries at all.
+    // UDP interface state, keyed by interface name, with one custom protocol
+    // session per peer.
     std::map<std::string, std::unique_ptr<DatagramInterface>> udp_interfaces;
     // cert/key PEM per endorsement authority (for cert-deferred listening).
     std::map<ccf::Authority, std::pair<std::string, std::string>> certs;
@@ -795,11 +794,6 @@ namespace ccf
 
     // Bind and start a UDP listener for `name` (interfaces with protocol
     // "udp").
-    //
-    // === QUIC EXTENSION POINT ===
-    // A real QUIC interface would, instead of echoing, hand each datagram to an
-    // OpenSSL QUIC listener (OpenSSL >= 3.5). The DatagramServer below is the
-    // shared substrate for that (see host/datagram_server.h).
     uint16_t listen_udp(
       const std::string& name, const std::string& host, const std::string& port)
     {
@@ -833,25 +827,6 @@ namespace ccf
           size_t len,
           const sockaddr_storage& peer,
           socklen_t peerlen) {
-          if (li->app_protocol == "QUIC")
-          {
-            // Placeholder behaviour until OpenSSL-native QUIC: echo the
-            // datagram straight back.
-            //
-            // Deliberately stateless. UDP has no connection to close, and
-            // source addresses are trivially spoofable, so retaining anything
-            // per peer here would let an attacker grow the session map and
-            // consume the interface's session capacity permanently with a
-            // handful of forged packets. The echo needs no state, so it keeps
-            // none.
-            if (!udp_ptr->server->send_to(peer, peerlen, data, len))
-            {
-              LOG_DEBUG_FMT(
-                "Failed to echo UDP datagram on interface {}", li->name);
-            }
-            return;
-          }
-
           auto session =
             get_or_create_udp_session(li, udp_ptr, *writer, peer, peerlen);
           if (session == nullptr)

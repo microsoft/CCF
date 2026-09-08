@@ -261,7 +261,7 @@ namespace ccf
           auto& interface = ccf_config_.network.rpc_interfaces.at(name);
           const auto [host, port] =
             ccf::split_net_address(interface.bind_address);
-          // UDP interfaces use the datagram (echo) path; TCP interfaces the
+          // UDP interfaces use the custom protocol path; TCP interfaces the
           // OpenSSL stream path.
           const uint16_t bound = (interface.protocol == "udp") ?
             rpcsessions->listen_udp(name, host, port) :
