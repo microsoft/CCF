@@ -22,6 +22,7 @@
 #include <set>
 #include <stop_token>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <vector>
 
@@ -58,6 +59,90 @@ TEST_CASE("Map name parsing")
 
   REQUIRE(parse("ccf_foo") == mp(SD::PRIVATE, AC::APPLICATION));
   REQUIRE(parse("public:ccf_foo") == mp(SD::PUBLIC, AC::APPLICATION));
+}
+
+TEST_CASE("Zero-revision whole-map dependencies")
+{
+  using Result = ccf::kv::CommitResult;
+  for (const std::string_view observation : {"foreach", "size", "clear"})
+  {
+    INFO("Map-wide observation: ", observation);
+    ccf::kv::Store store;
+    store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+    MapTypes::StringString empty("public:empty");
+    MapTypes::StringString other("public:other");
+    {
+      auto tx = store.create_tx();
+      // Register an empty map without advancing its initial revision.
+      tx.rw(empty)->remove("missing");
+      REQUIRE(tx.commit() == Result::SUCCESS);
+      REQUIRE(tx.commit_version() == 1);
+    }
+
+    auto pending = store.create_tx();
+    auto* handle = pending.rw(empty);
+    if (observation == "foreach")
+    {
+      handle->put("own", "pending");
+      size_t visited = 0;
+      handle->foreach([&](const auto&, const auto&) {
+        ++visited;
+        return true;
+      });
+      REQUIRE(visited == 1);
+    }
+    else if (observation == "size")
+    {
+      REQUIRE(handle->size() == 0);
+    }
+    else
+    {
+      handle->clear();
+    }
+    pending.rw(other)->put("must_not_apply", "pending");
+    {
+      auto tx = store.create_tx();
+      tx.rw(empty)->put("concurrent", "committed");
+      REQUIRE(tx.commit() == Result::SUCCESS);
+    }
+    CHECK(pending.commit() == Result::FAIL_CONFLICT);
+    auto check = store.create_tx();
+    CHECK_FALSE(check.ro(other)->has("must_not_apply"));
+    CHECK_FALSE(check.ro(empty)->has("own"));
+    REQUIRE(check.ro(empty)->get("concurrent") == "committed");
+  }
+
+  ccf::kv::Store store;
+  store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+  MapTypes::StringString empty("public:empty");
+  MapTypes::StringString other("public:other");
+  {
+    auto tx = store.create_tx();
+    tx.rw(empty)->remove("missing");
+    REQUIRE(tx.commit() == Result::SUCCESS);
+  }
+  {
+    auto tx = store.create_tx();
+    REQUIRE(tx.ro(empty)->size() == 0);
+    tx.rw(other)->put("unchanged", "accepted");
+    REQUIRE(tx.commit() == Result::SUCCESS);
+  }
+  {
+    auto reader = store.create_tx();
+    REQUIRE(reader.ro(empty)->size() == 0);
+    auto writer = store.create_tx();
+    writer.wo(empty)->put("key", "value");
+    auto blind = store.create_tx();
+    blind.wo(empty)->put("blind", "value");
+    REQUIRE(writer.commit() == Result::SUCCESS);
+    REQUIRE(reader.commit() == Result::SUCCESS);
+    REQUIRE(reader.commit_version() == ccf::kv::NoVersion);
+    REQUIRE(blind.commit() == Result::SUCCESS);
+  }
+  auto check = store.create_tx();
+  REQUIRE(check.ro(other)->get("unchanged") == "accepted");
+  REQUIRE(check.ro(empty)->get("key") == "value");
+  REQUIRE(check.ro(empty)->get("blind") == "value");
 }
 
 TEST_CASE("Reads/writes and deletions")
