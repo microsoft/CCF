@@ -37,6 +37,8 @@ namespace ccf
 
   using IdentityValue = std::vector<uint8_t>;
 
+  // The kind is supplied by aggregate initialisation or required JSON fields.
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-member-init)
   struct Identity
   {
     IdentityKind kind;

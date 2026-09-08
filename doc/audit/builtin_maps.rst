@@ -253,6 +253,17 @@ Service identity and status.
         WaitingForRecoveryShares -- member shares reassembly--> Open;
         Open-- "start in recovery"-->Recovering;
 
+``service.signing_identities``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Public keys for verifying service COSE signatures.
+
+**Key** Identity type as a little-endian 64-bit unsigned integer. Only ``CLASSICAL`` (0) is populated.
+
+**Value** JSON with ``kind`` set to ``"X509_SPKI_DER"`` and ``value`` containing the base64-encoded DER public key.
+
+For legacy ledgers, an empty table falls back to ``service.info.cert`` for ``CLASSICAL``.
+
 ``service.config``
 ~~~~~~~~~~~~~~~~~~
 
