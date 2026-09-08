@@ -1,5 +1,10 @@
 ---
-applyTo: "**/*.cpp,**/*.h,**/*.hpp,**/*.cc,**/*.c"
+applyTo:
+  - "**/*.cpp"
+  - "**/*.h"
+  - "**/*.hpp"
+  - "**/*.cc"
+  - "**/*.c"
 ---
 
 # Security/safety review guidance and C/C++ conventions
