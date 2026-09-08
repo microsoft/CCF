@@ -27,7 +27,7 @@ namespace ccf
     : public std::enable_shared_from_this<JwtKeyAutoRefresh>
   {
   private:
-    size_t max_refresh_interval_s;
+    size_t refresh_interval_s;
     NetworkState& network;
     std::shared_ptr<ccf::kv::Consensus> consensus;
     std::shared_ptr<ccf::RPCMap> rpc_map;
@@ -120,7 +120,7 @@ namespace ccf
         }
 
         const auto initial_delay_s =
-          std::min(initial_retry_delay_s, max_refresh_interval_s);
+          std::min(initial_retry_delay_s, refresh_interval_s);
         const auto it =
           retry_states
             .try_emplace(issuer, RetryState{initial_delay_s, 0, nullptr})
@@ -156,10 +156,10 @@ namespace ccf
         });
         retry_state.task = retry_task;
 
-        if (retry_state.delay_s < max_refresh_interval_s)
+        if (retry_state.delay_s < refresh_interval_s)
         {
           retry_state.delay_s =
-            std::min(retry_state.delay_s * 2, max_refresh_interval_s);
+            std::min(retry_state.delay_s * 2, refresh_interval_s);
         }
       }
 
@@ -210,14 +210,14 @@ namespace ccf
 
   public:
     JwtKeyAutoRefresh(
-      size_t max_refresh_interval_s,
+      size_t refresh_interval_s,
       NetworkState& network,
       const std::shared_ptr<ccf::kv::Consensus>& consensus,
       const std::shared_ptr<ccf::RPCMap>& rpc_map,
       ccf::crypto::ECKeyPairPtr node_sign_kp,
       ccf::crypto::Pem node_cert,
       size_t max_response_size) :
-      max_refresh_interval_s(max_refresh_interval_s),
+      refresh_interval_s(refresh_interval_s),
       network(network),
       consensus(consensus),
       rpc_map(rpc_map),
@@ -256,10 +256,10 @@ namespace ccf
 
         LOG_DEBUG_FMT(
           "JWT key auto-refresh: Scheduling in {}s",
-          self_sp->max_refresh_interval_s);
+          self_sp->refresh_interval_s);
       });
 
-      const std::chrono::seconds period(max_refresh_interval_s);
+      const std::chrono::seconds period(refresh_interval_s);
       ccf::tasks::add_periodic_task(periodic_refresh_task, period, period);
     }
 

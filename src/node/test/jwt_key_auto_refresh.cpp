@@ -53,7 +53,7 @@ namespace
     std::shared_ptr<ccf::JwtKeyAutoRefresh> refresh;
     const ccf::JwtIssuer issuer = "https://issuer.example";
 
-    Fixture(size_t max_refresh_interval_s = 30)
+    Fixture(size_t refresh_interval_s = 30)
     {
       network.tables->set_encryptor(
         std::make_shared<ccf::kv::NullTxEncryptor>());
@@ -61,7 +61,7 @@ namespace
       auto rpc_map = std::make_shared<ccf::RPCMap>();
       rpc_map->register_frontend<ccf::ActorsType::nodes>(endpoint);
       refresh = std::make_shared<ccf::JwtKeyAutoRefresh>(
-        max_refresh_interval_s,
+        refresh_interval_s,
         network,
         consensus,
         rpc_map,
