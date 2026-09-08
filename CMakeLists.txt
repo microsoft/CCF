@@ -623,6 +623,12 @@ if(BUILD_TESTS)
     )
 
     add_unit_test(
+      public_header_helpers_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/public_header_helpers.cpp
+    )
+    target_link_libraries(public_header_helpers_test PRIVATE http_parser)
+
+    add_unit_test(
       state_machine_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/state_machine.cpp
     )
