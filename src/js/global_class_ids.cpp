@@ -21,7 +21,10 @@ namespace ccf::js
     {
       auto* state = static_cast<extensions::kvhelpers::KVMapHandleState*>(
         JS_GetOpaque(val, kv_map_handle_class_id));
-      delete state;
+      // Ownership was transferred to this object by JS_SetOpaque, so it must be
+      // released by hand here. A smart pointer cannot be used, since QuickJS
+      // stores the raw pointer.
+      delete state; // NOLINT(cppcoreguidelines-owning-memory)
     }
   }
 

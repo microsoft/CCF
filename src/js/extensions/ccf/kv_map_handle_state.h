@@ -10,7 +10,7 @@
 namespace ccf::js::extensions::kvhelpers
 {
   // Prevent methods for one KV source from accepting handles for the other.
-  enum class KVSource
+  enum class KVSource : uint8_t
   {
     CurrentTx,
     Historical
