@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
-- Strengthened access checks on JavaScript KV handles, including namespace restrictions in the historical KV (#8315).
+- Strengthened access checks on JavaScript KV handles, including namespace restrictions in the historical KV (#8318).
 
 ## [7.0.14]
 
