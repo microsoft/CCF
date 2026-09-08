@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
-- Transactions which observe an existing empty KV table with `foreach`, `size`, or `clear` now detect conflicts with intervening writes when the table is still at revision zero. Previously, these observations could be mistaken for no read dependency (#8320).
+- Transactions with pending writes now correctly validate `foreach`, `size`, and `clear` observations of an existing empty KV table made at revision zero. Previously, these observations could be mistaken for no whole-map read dependency (#8320).
 
 ## [7.0.14]
 
