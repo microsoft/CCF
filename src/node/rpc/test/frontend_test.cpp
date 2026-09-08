@@ -477,10 +477,11 @@ class TestNodeConfiguration : public NodeConfigurationInterface
 {
 private:
   CCFConfig config;
+  const nlohmann::json node_data = nullptr;
   NodeConfigurationState state;
 
 public:
-  TestNodeConfiguration() : state{config, {}, true}
+  TestNodeConfiguration() : state{config, node_data, {}, true}
   {
     NodeInfoNetwork_v2::NetInterface interface;
     interface.redirections = NodeInfoNetwork_v2::NetInterface::Redirections{};

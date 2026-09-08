@@ -14,6 +14,7 @@ namespace ccf
   struct NodeConfigurationState
   {
     const ccf::CCFConfig& node_config;
+    const nlohmann::json& node_data;
     std::map<NodeInfoNetwork::RpcInterfaceID, std::vector<std::regex>>
       rpc_interface_regexes;
     bool initialized = false;

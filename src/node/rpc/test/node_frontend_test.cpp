@@ -122,7 +122,9 @@ TEST_CASE("Node configuration retains operator file paths")
   CHECK(config.memory.max_msg_size.count_bytes() == 128 * 1024 * 1024);
   CHECK(config.tick_interval.count_ms() == 25);
 
-  const NodeConfigurationState state{config, {}, false};
+  const json runtime_node_data = {{"name", "runtime node data"}};
+  const NodeConfigurationState state{config, runtime_node_data, {}, false};
+  CHECK(state.node_data == runtime_node_data);
   CHECK(state.node_config.node_data_json_file == "not-loaded/node.json");
   CHECK(state.node_config.service_data_json_file == "not-loaded/service.json");
 

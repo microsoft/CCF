@@ -18,7 +18,8 @@ namespace ccf
   public:
     NodeConfigurationSubsystem(AbstractNodeState& node_state_) :
       node_state(node_state_),
-      node_config_state({node_state_.get_node_config(), {}, false})
+      node_config_state(
+        {node_state_.get_node_config(), node_state_.get_node_data(), {}, false})
     {}
 
     ~NodeConfigurationSubsystem() override = default;
@@ -41,11 +42,6 @@ namespace ccf
     virtual bool has_received_stop_notice()
     {
       return node_state.has_received_stop_notice();
-    }
-
-    const nlohmann::json& get_node_data() const
-    {
-      return node_state.get_node_data();
     }
 
     void initialize_interface_regexes()

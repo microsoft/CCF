@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
-- `ccf::NodeConfigurationState::node_config` now exposes the operator configuration as `ccf::CCFConfig` in `ccf/node/configuration.h`, replacing `ccf::StartupConfig` and the private host configuration type. Command-specific settings are under `command.start`, `command.join`, and `command.recover`; file-backed inputs are loaded by the node when needed, rather than converted into a second startup configuration. The operator JSON format and node-to-node genesis format are unchanged. `StartType` is now declared in `ccf/node/start_type.h` in the `ccf` namespace (#8309, #7565).
+- `ccf::NodeConfigurationState::node_config` now exposes the operator configuration as `ccf::CCFConfig` in `ccf/node/configuration.h`, replacing `ccf::StartupConfig` and the private host configuration type. Command-specific settings are under `command.start`, `command.join`, and `command.recover`; file-backed inputs are loaded by the node when needed, rather than converted into a second startup configuration. Resolved node data is available as `ccf::NodeConfigurationState::node_data`. The operator JSON format and node-to-node genesis format are unchanged. `StartType` is now declared in `ccf/node/start_type.h` in the `ccf` namespace (#8309, #7565).
 
 ## [7.0.14]
 
