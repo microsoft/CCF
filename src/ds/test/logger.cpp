@@ -2,10 +2,12 @@
 // Licensed under the Apache 2.0 License.
 
 #include "ds/internal_logger.h"
+#include "ds/time_bound_logger.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
 #include <thread>
+#include <utility>
 
 TEST_CASE("Thread IDs are provided by the logger headers")
 {
@@ -45,6 +47,71 @@ public:
 
 using TestTextLogger = TestLogger<ccf::logger::TextConsoleLogger>;
 using TestJsonLogger = TestLogger<ccf::logger::JsonConsoleLogger>;
+
+TEST_CASE("Time-bound logger duration formatting")
+{
+  using ccf::ds::TimeBoundLogger;
+  using namespace std::chrono_literals;
+
+  CHECK(TimeBoundLogger::human_time(0us) == "  0.000us");
+  CHECK(TimeBoundLogger::human_time(999us) == "999.000us");
+  CHECK(TimeBoundLogger::human_time(1000us) == "  1.000ms");
+  CHECK(TimeBoundLogger::human_time(999999us) == "999.999ms");
+  CHECK(TimeBoundLogger::human_time(1s) == "  1.000s");
+}
+
+TEST_CASE("Time-bound logger captures the configured default")
+{
+  using ccf::ds::TimeBoundLogger;
+  using namespace std::chrono_literals;
+
+  const auto previous_default =
+    std::exchange(TimeBoundLogger::default_max_time, 1s);
+  TimeBoundLogger first("first");
+  TimeBoundLogger::default_max_time = 2s;
+  TimeBoundLogger second("second");
+  TimeBoundLogger explicit_threshold("explicit", 3s);
+  TimeBoundLogger::default_max_time = previous_default;
+
+  CHECK(first.max_time == 1s);
+  CHECK(second.max_time == 2s);
+  CHECK(explicit_threshold.max_time == 3s);
+}
+
+TEST_CASE("Time-bound logger reports slow operations at the expected level")
+{
+  using ccf::ds::TimeBoundLogger;
+  using namespace std::chrono_literals;
+
+  std::vector<std::string> logs;
+  auto previous_loggers = std::exchange(ccf::logger::config::loggers(), {});
+  const auto previous_level =
+    std::exchange(ccf::logger::config::level(), ccf::LoggerLevel::INFO);
+  ccf::logger::config::loggers().emplace_back(
+    std::make_unique<TestTextLogger>(logs));
+
+  {
+    TimeBoundLogger timer("fast", 1h);
+    timer.start_time -= 30min;
+  }
+  {
+    TimeBoundLogger timer("slow", 1h);
+    timer.start_time -= 2h;
+  }
+  {
+    TimeBoundLogger timer("very slow", 1h);
+    timer.start_time -= 200h;
+  }
+
+  ccf::logger::config::loggers() = std::move(previous_loggers);
+  ccf::logger::config::level() = previous_level;
+
+  REQUIRE(logs.size() == 2);
+  CHECK(logs[0].contains("info"));
+  CHECK(logs[0].contains("): slow"));
+  CHECK(logs[1].contains("fail"));
+  CHECK(logs[1].contains("): very slow"));
+}
 
 TEST_CASE("Framework logging macros")
 {

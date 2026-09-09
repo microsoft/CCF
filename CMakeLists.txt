@@ -640,6 +640,7 @@ if(BUILD_TESTS)
     add_unit_test(
       logger_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/logger.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/time_bound_logger_header_test.cpp
     )
 
     add_unit_test(
@@ -704,6 +705,8 @@ if(BUILD_TESTS)
     add_unit_test(
       ledger_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/host/test/ledger.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/snapshots/test/filenames_header_test.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/snapshots/test/snapshot_writer_header_test.cpp
     )
     target_link_libraries(ledger_test PRIVATE uv)
 
@@ -1607,6 +1610,7 @@ if(BUILD_TESTS)
     curl_test
     ${CMAKE_CURRENT_SOURCE_DIR}/src/http_client/test/curl_header_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/http_client/test/curl_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/snapshots/test/fetch_header_test.cpp
   )
   target_link_libraries(curl_test PRIVATE curl uv http_parser)
 
