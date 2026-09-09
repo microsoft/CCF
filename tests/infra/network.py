@@ -1998,13 +1998,12 @@ class Network:
         remote_node,
         node_id,
         node_status,  # None indicates that the node should not be present
-        wait_for_commit=False,
         **kwargs,
     ):
         with remote_node.client(**kwargs) as c:
             r = c.get(f"/node/network/nodes/{node_id}")
             resp = r.body.json()
-            matches = (
+            return (
                 r.status_code == http.HTTPStatus.NOT_FOUND.value
                 and node_status is None
                 and resp["error"]["message"] == "Node not found"
@@ -2013,43 +2012,15 @@ class Network:
                 and node_status is not None
                 and resp["status"] == node_status.value
             )
-            if not matches or not wait_for_commit:
-                return matches
-
-            if r.view is None or r.seqno is None:
-                raise ValueError(f"Response has no transaction ID: {r}")
-            commit_response = c.get(f"/node/tx?transaction_id={r.view}.{r.seqno}")
-            if commit_response.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR:
-                assert (
-                    commit_response.body.json()["error"]["code"]
-                    == "SessionConsistencyLost"
-                ), commit_response
-                return False
-            assert commit_response.status_code == http.HTTPStatus.OK, commit_response
-            # Re-read a rolled-back observation instead of waiting on an invalid TxID.
-            return TxStatus(commit_response.body.json()["status"]) == TxStatus.Committed
 
     def wait_for_node_in_store(
-        self,
-        remote_node,
-        node_id,
-        node_status,
-        timeout=3,
-        wait_for_commit=False,
-        **kwargs,
+        self, remote_node, node_id, node_status, timeout=3, **kwargs
     ):
-        """Wait for a node state, optionally requiring the observed TxID to commit."""
         success = False
         end_time = time.time() + timeout
         while time.time() < end_time:
             try:
-                if self._check_node_status(
-                    remote_node,
-                    node_id,
-                    node_status,
-                    wait_for_commit=wait_for_commit,
-                    **kwargs,
-                ):
+                if self._check_node_status(remote_node, node_id, node_status, **kwargs):
                     success = True
                     break
             except TimeoutError:
@@ -2057,8 +2028,7 @@ class Network:
             time.sleep(0.5)
         if not success:
             raise TimeoutError(
-                f'Node {node_id} is not in expected {"committed " if wait_for_commit else ""}'
-                f'state: {node_status or "absent"}'
+                f'Node {node_id} is not in expected state: {node_status or "absent"}'
             )
 
     def wait_for_all_nodes_to_be_trusted(self, remote_node, timeout=3):
@@ -2191,6 +2161,111 @@ class Network:
             f"Primary unanimity after {delay:.2f}s: {primary.local_node_id} ({primary.node_id})"
         )
         return primary
+
+    def wait_for_stability(
+        self, nodes=None, timeout_multiplier=DEFAULT_TIMEOUT_MULTIPLIER, min_view=None
+    ):
+        """Wait for primary/backup connectivity and leadership for two election timeouts.
+
+        All selected nodes must agree on the primary and view, with matching
+        leader/follower roles and recent ACKs from every selected backup. Any
+        unhealthy observation or leadership change restarts the stability window.
+        This is a readiness check, not a guarantee against future elections.
+        """
+        nodes = self.get_joined_nodes() if nodes is None else nodes
+        nodes_by_id = {node.node_id: node for node in nodes}
+        if not nodes_by_id:
+            raise ValueError("Cannot wait for stability without any joined nodes")
+
+        # ACK timers reset on election, so one healthy snapshot is not enough.
+        stable_duration = 2 * self.election_duration
+        timeout = self.observed_election_duration * timeout_multiplier
+        if timeout <= 0:
+            raise ValueError("Stability timeout must be positive")
+        LOG.info(
+            f"Waiting up to {timeout}s for {stable_duration}s of stable leadership "
+            f"and ACKs from every backup among {len(nodes_by_id)} nodes"
+        )
+
+        start_time = time.monotonic()
+        end_time = start_time + timeout
+        stable_since = None
+        stable_primary_view = None
+        details = {}
+        logs = []
+        while time.monotonic() < end_time:
+            details = {}
+            logs = []
+            for node_id, node in nodes_by_id.items():
+                remaining = end_time - time.monotonic()
+                if remaining <= 0:
+                    break
+                request_timeout = min(1, remaining)
+                try:
+                    with node.client(connection_timeout=request_timeout) as c:
+                        r = c.get(
+                            "/node/consensus",
+                            timeout=request_timeout,
+                            log_capture=logs,
+                        )
+                        assert r.status_code == http.HTTPStatus.OK, r
+                        details[node_id] = r.body.json()["details"]
+                except (CCFConnectionException, TimeoutError) as e:
+                    LOG.debug(f"Could not query consensus on {node_id}: {e}")
+                    break
+
+            primary_views = {
+                (d["primary_id"], d["current_view"]) for d in details.values()
+            }
+            primary_view = (
+                next(iter(primary_views)) if len(primary_views) == 1 else None
+            )
+            primary_id = primary_view[0] if primary_view is not None else None
+            healthy = (
+                len(details) == len(nodes_by_id)
+                and primary_id in details
+                and (min_view is None or primary_view[1] >= min_view)
+                and all(
+                    d["leadership_state"]
+                    == ("Leader" if node_id == primary_id else "Follower")
+                    for node_id, d in details.items()
+                )
+            )
+            if healthy:
+                acks = details[primary_id]["acks"]
+                healthy = all(
+                    node_id in acks
+                    and acks[node_id]["seqno"] > 0
+                    and acks[node_id]["last_received_ms"]
+                    < self.election_duration * 1000
+                    for node_id in nodes_by_id
+                    if node_id != primary_id
+                )
+
+            now = time.monotonic()
+            if now >= end_time:
+                break
+            if not healthy:
+                stable_since = None
+                stable_primary_view = None
+            elif primary_view != stable_primary_view:
+                stable_since = now
+                stable_primary_view = primary_view
+            elif now - stable_since >= stable_duration:
+                primary = nodes_by_id[primary_id]
+                LOG.info(
+                    f"Network stable after {now - start_time:.2f}s: primary "
+                    f"{primary.local_node_id} in view {primary_view[1]}"
+                )
+                return primary
+            time.sleep(min(0.1, max(0, end_time - now)))
+
+        flush_info(logs)
+        raise TimeoutError(
+            f"Network did not remain stable for {stable_duration}s within {timeout}s. "
+            f"Missing responses from: {sorted(nodes_by_id.keys() - details.keys())}. "
+            f"Last consensus details: {pprint.pformat(details)}"
+        )
 
     def get_committed_snapshots(
         self,
