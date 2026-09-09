@@ -65,6 +65,7 @@ function(add_ccf_static_library name)
   add_hardening(${name})
   add_tidy(${name})
   add_warning_checks(${name})
+  enable_coverage(${name})
 
   install(TARGETS ${name} EXPORT ccf DESTINATION lib)
 
