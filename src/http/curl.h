@@ -7,7 +7,7 @@
 #include "ccf/http_configuration.h"
 #include "ccf/rest_verb.h"
 #include "ds/internal_logger.h"
-#include "host/proxy.h"
+#include "uv/proxy.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -823,7 +823,7 @@ namespace ccf::curl
     CurlRequestCURLM curl_request_curlm;
     std::atomic<bool> is_stopping = false;
 
-    class SocketContextImpl : public asynchost::with_uv_handle<uv_poll_t>
+    class SocketContextImpl : public ccf::uv::with_uv_handle<uv_poll_t>
     {
       friend class CurlmLibuvContextImpl;
 
@@ -832,7 +832,7 @@ namespace ccf::curl
       CurlmLibuvContextImpl* context = nullptr;
     };
 
-    using SocketContext = asynchost::proxy_ptr<SocketContextImpl>;
+    using SocketContext = ccf::uv::proxy_ptr<SocketContextImpl>;
 
     uv_async_t async_requests_handle{};
     ccf::ds::Mutex requests_mutex;
@@ -1281,9 +1281,9 @@ namespace ccf::curl
 
   private:
     // Interface to allow the proxy pointer to close and delete this safely
-    // Make the templated asynchost::close_ptr a friend so it can call close()
+    // Make the templated ccf::uv::close_ptr a friend so it can call close()
     template <typename T>
-    friend class ::asynchost::close_ptr;
+    friend class ::ccf::uv::close_ptr;
     size_t closed_uv_handle_count = 0;
 
     void close_impl()
@@ -1428,7 +1428,7 @@ namespace ccf::curl
   // 2. Close the libuv timer handle.
   //    Prevents any further callbacks from the libuv timer
   // 3. Delete CurlmLibuvContextImpl via the on_close callback
-  using CurlmLibuvContext = asynchost::proxy_ptr<CurlmLibuvContextImpl>;
+  using CurlmLibuvContext = ccf::uv::proxy_ptr<CurlmLibuvContextImpl>;
 
   class CurlmLibuvContextSingleton
   {

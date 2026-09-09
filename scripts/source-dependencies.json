@@ -32,6 +32,8 @@
     "tcp": ["ds"],
     "threading": [],
     "tls": ["crypto", "ds"],
-    "udp": ["ds"]
+    "udp": ["ds"],
+    "uv": [],
+    "http": ["ccf-api", "crypto", "ds", "uv"]
   }
 }

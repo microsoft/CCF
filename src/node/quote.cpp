@@ -16,10 +16,13 @@
 #include "ccf/service/tables/tcb_verification.h"
 #include "ccf/service/tables/uvm_endorsements.h"
 #include "ccf/service/tables/virtual_measurements.h"
+#include "crypto/cbor_helpers.h"
 #include "crypto/cose_utils.h"
 #include "ds/internal_logger.h"
 #include "node/js_policy.h"
 #include "node/uvm_endorsements.h"
+
+#include <tav/cbor.hpp>
 
 namespace ccf
 {
@@ -346,13 +349,13 @@ namespace ccf
     // Verify the COSE_Sign1 signature and that the payload matches the
     // expected host_data.  Returns the decoded protected header on success.
     cose::Sign1ProtectedHeader verify_ts_signature_and_payload(
-      const ccf::cbor::Value& cose_array, const HostData& host_data)
+      const tav::cbor::Value& cose_array, const HostData& host_data)
     {
-      const auto& phdr_raw = ccf::cbor::rethrow_with_msg(
-        [&]() -> const ccf::cbor::Value& { return cose_array->array_at(0); },
+      const auto& phdr_raw = tav::cbor::rethrow_with_msg(
+        [&]() { return cose_array.array_at(0); },
         "COSE_Sign1 protected header");
-      auto phdr_cbor = ccf::cbor::rethrow_with_msg(
-        [&]() { return ccf::cbor::parse(phdr_raw->as_bytes()); },
+      auto phdr_cbor = tav::cbor::rethrow_with_msg(
+        [&]() { return tav::cbor::nondet_parse(phdr_raw.as_bytes()); },
         "Parse protected header");
 
       auto h = cose::decode_sign1_protected_header(phdr_cbor);
@@ -373,15 +376,15 @@ namespace ccf
       auto pubk = resolve_pubkey_from_x5chain_and_issuer(h.x5chain, h.cwt.iss);
       auto verifier = ccf::crypto::make_cose_verifier_from_key(pubk);
 
-      auto payload = ccf::cbor::rethrow_with_msg(
-        [&]() { return cose_array->array_at(2)->as_bytes(); },
+      auto payload = tav::cbor::rethrow_with_msg(
+        [&]() { return cose_array.array_at(2).as_bytes(); },
         "COSE_Sign1 payload");
-      auto sig_bytes = ccf::cbor::rethrow_with_msg(
-        [&]() { return cose_array->array_at(3)->as_bytes(); },
+      auto sig_bytes = tav::cbor::rethrow_with_msg(
+        [&]() { return cose_array.array_at(3).as_bytes(); },
         "COSE_Sign1 signature");
 
       if (!verifier->verify_decomposed(
-            phdr_raw->as_bytes(), payload, sig_bytes, h.alg))
+            phdr_raw.as_bytes(), payload, sig_bytes, h.alg))
       {
         throw std::logic_error(
           "Transparent statement signature verification failed");
@@ -404,22 +407,22 @@ namespace ccf
     // Returns the collected policy inputs for each receipt.
     std::vector<ccf::policy::ReceiptPolicyInput> verify_ts_receipts(
       const std::vector<uint8_t>& ts_raw,
-      const ccf::cbor::Value& cose_array,
+      const tav::cbor::Value& cose_array,
       std::shared_ptr<NetworkIdentitySubsystemInterface>
         network_identity_subsystem)
     {
-      const auto& uhdr = ccf::cbor::rethrow_with_msg(
-        [&]() -> const ccf::cbor::Value& { return cose_array->array_at(1); },
+      const auto& uhdr = tav::cbor::rethrow_with_msg(
+        [&]() { return cose_array.array_at(1); },
         "Parse transparent statement unprotected header");
 
-      const auto& receipts_array = ccf::cbor::rethrow_with_msg(
-        [&]() -> const ccf::cbor::Value& {
-          return uhdr->map_at(
-            ccf::cbor::make_signed(ccf::cose::header::iana::VDP));
+      const auto& receipts_array = tav::cbor::rethrow_with_msg(
+        [&]() {
+          return uhdr.map_at(
+            tav::cbor::make_signed(ccf::cose::header::iana::VDP));
         },
         "Parse receipts array from unprotected header");
 
-      const auto num_receipts = receipts_array->size();
+      const auto num_receipts = receipts_array.size();
       if (num_receipts == 0)
       {
         throw std::logic_error("No receipts in transparent statement");
@@ -440,30 +443,28 @@ namespace ccf
 
       for (size_t i = 0; i < num_receipts; ++i)
       {
-        const auto& receipt_bytes = ccf::cbor::rethrow_with_msg(
-          [&]() { return receipts_array->array_at(i)->as_bytes(); },
+        const auto& receipt_bytes = tav::cbor::rethrow_with_msg(
+          [&]() { return receipts_array.array_at(i).as_bytes(); },
           fmt::format("Extract receipt {} from array", i));
 
         std::vector<uint8_t> receipt_raw(
           receipt_bytes.begin(), receipt_bytes.end());
 
-        auto receipt_cbor = ccf::cbor::rethrow_with_msg(
-          [&]() { return ccf::cbor::parse(receipt_raw); },
+        auto receipt_cbor = tav::cbor::rethrow_with_msg(
+          [&]() { return tav::cbor::nondet_parse(receipt_raw); },
           fmt::format("Parse receipt {} COSE envelope", i));
 
-        const auto& receipt_envelope = ccf::cbor::rethrow_with_msg(
-          [&]() -> const ccf::cbor::Value& {
-            return receipt_cbor->tag_at(ccf::cbor::tag::COSE_SIGN_1);
-          },
+        const auto& receipt_envelope = tav::cbor::rethrow_with_msg(
+          [&]() { return receipt_cbor.tag_at(ccf::cbor::tag::COSE_SIGN_1); },
           fmt::format("Parse receipt {} COSE_Sign1 tag", i));
 
-        auto receipt_phdr_raw = ccf::cbor::rethrow_with_msg(
-          [&]() -> const ccf::cbor::Value& {
-            return receipt_envelope->array_at(0);
-          },
+        auto receipt_phdr_raw = tav::cbor::rethrow_with_msg(
+          [&]() { return receipt_envelope.array_at(0); },
           fmt::format("Parse receipt {} protected header bytes", i));
-        auto receipt_phdr_cbor = ccf::cbor::rethrow_with_msg(
-          [&]() { return ccf::cbor::parse(receipt_phdr_raw->as_bytes()); },
+        auto receipt_phdr_cbor = tav::cbor::rethrow_with_msg(
+          [&]() {
+            return tav::cbor::nondet_parse(receipt_phdr_raw.as_bytes());
+          },
           fmt::format("Decode receipt {} protected header", i));
         auto decoded_receipt_phdr =
           cose::decode_ccf_receipt_phdr(receipt_phdr_cbor);
@@ -560,14 +561,12 @@ namespace ccf
   {
     try
     {
-      auto parsed = ccf::cbor::rethrow_with_msg(
-        [&]() { return ccf::cbor::parse(ts_raw); },
+      auto parsed = tav::cbor::rethrow_with_msg(
+        [&]() { return tav::cbor::nondet_parse(ts_raw); },
         "Transparent statement COSE envelope");
 
-      const auto& cose_array = ccf::cbor::rethrow_with_msg(
-        [&]() -> const ccf::cbor::Value& {
-          return parsed->tag_at(ccf::cbor::tag::COSE_SIGN_1);
-        },
+      const auto& cose_array = tav::cbor::rethrow_with_msg(
+        [&]() { return parsed.tag_at(ccf::cbor::tag::COSE_SIGN_1); },
         "COSE_Sign1 tag");
 
       auto phdr = verify_ts_signature_and_payload(cose_array, host_data);
