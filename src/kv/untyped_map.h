@@ -256,11 +256,6 @@ namespace ccf::kv::untyped
         // are still locked when post_commit is run.
         return map.trigger_map_hook(commit_version, change_set.writes);
       }
-
-      void set_commit_version(Version v)
-      {
-        commit_version = v;
-      }
     };
 
     class Snapshot : public AbstractMap::Snapshot
