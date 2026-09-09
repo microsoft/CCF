@@ -198,6 +198,17 @@ TEST_CASE("Check KV Map access")
                  KVAccessPermissions::READ_WRITE, TxAccess::APP_RW)
                  .contains("inaccessible"));
     }
+
+    for (const auto permission_value : {4, 5, 255})
+    {
+      INFO("Unexpected permission bits are rejected");
+      CAPTURE(permission_value);
+      REQUIRE_THROWS_WITH_AS(
+        explain_kv_map_access(
+          static_cast<KVAccessPermissions>(permission_value), TxAccess::APP_RW),
+        fmt::format("Unexpected KV access permission: {}", permission_value),
+        std::logic_error);
+    }
   }
 }
 

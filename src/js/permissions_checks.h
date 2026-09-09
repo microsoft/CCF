@@ -121,6 +121,12 @@ namespace ccf::js
         table_kind = "inaccessible";
         break;
       }
+      default:
+      {
+        throw std::logic_error(fmt::format(
+          "Unexpected KV access permission: {}",
+          std::to_underlying(permission)));
+      }
     }
 
     char const* exec_context = nullptr;
