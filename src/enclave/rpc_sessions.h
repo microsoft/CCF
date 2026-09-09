@@ -316,6 +316,8 @@ namespace ccf
       auto& per_listen_interface = it->second;
       const auto unsecured =
         per_listen_interface.endorsement.authority == Authority::UNSECURED;
+      const auto is_http2_interface =
+        per_listen_interface.app_protocol == "HTTP2";
       const auto cert_it = certs.find(listen_interface_id);
 
       if (!unsecured && cert_it == certs.end())
@@ -364,11 +366,11 @@ namespace ccf
         else
         {
           ctx = std::make_unique<::tls::Server>(
-            cert_it->second, per_listen_interface.app_protocol == "HTTP2");
+            cert_it->second, is_http2_interface);
         }
 
         std::shared_ptr<Session> capped_session;
-        if (per_listen_interface.app_protocol == "HTTP2")
+        if (is_http2_interface)
         {
           capped_session =
             std::make_shared<NoMoreSessionsImpl<::http::HTTP2ServerSession>>(
@@ -437,7 +439,7 @@ namespace ccf
           else
           {
             ctx = std::make_unique<::tls::Server>(
-              cert_it->second, per_listen_interface.app_protocol == "HTTP2");
+              cert_it->second, is_http2_interface);
           }
 
           auto session = make_server_session(
