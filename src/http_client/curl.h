@@ -7,19 +7,33 @@
 #include "ccf/http_configuration.h"
 #include "ccf/rest_verb.h"
 #include "ds/internal_logger.h"
-#include "host/proxy.h"
+#include "uv/proxy.h"
 
+#include <algorithm>
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
+#include <cstring>
 #include <curl/curl.h>
 #include <curl/multi.h>
+#include <deque>
+#include <exception>
+#include <fmt/format.h>
+#include <functional>
 #include <memory>
+#include <nlohmann/json.hpp>
 #include <optional>
 #include <regex>
 #include <span>
 #include <stdexcept>
+#include <string>
+#include <string_view>
 #include <tuple>
+#include <unordered_map>
+#include <utility>
 #include <uv.h>
+#include <vector>
 
 #define CHECK_CURL_EASY(fn, ...) \
   do \
@@ -59,7 +73,7 @@
     } \
   } while (0)
 
-namespace ccf::curl
+namespace ccf::http_client
 {
   // Returns true for libcurl transfer failures at the transport/protocol layer
   // that are generally safe to retry: the peer may not be ready yet, a
@@ -273,7 +287,7 @@ namespace ccf::curl
       const auto bytes_to_copy = std::min(data->unsent.size(), size * nitems);
       if (bytes_to_copy > 0)
       {
-        memcpy(ptr, data->unsent.data(), bytes_to_copy);
+        std::memcpy(ptr, data->unsent.data(), bytes_to_copy);
       }
       data->unsent = data->unsent.subspan(bytes_to_copy);
       return bytes_to_copy;
@@ -535,9 +549,9 @@ namespace ccf::curl
     UniqueCURL curl_handle;
     RESTVerb method;
     std::string url;
-    ccf::curl::UniqueSlist headers;
-    std::unique_ptr<ccf::curl::RequestBody> request_body;
-    std::unique_ptr<ccf::curl::ResponseBody> response;
+    ccf::http_client::UniqueSlist headers;
+    std::unique_ptr<ccf::http_client::RequestBody> request_body;
+    std::unique_ptr<ccf::http_client::ResponseBody> response;
     ResponseHeaders response_headers;
     std::optional<ResponseCallback> response_callback;
 
@@ -548,7 +562,7 @@ namespace ccf::curl
       std::string url_,
       UniqueSlist&& headers_,
       std::unique_ptr<RequestBody>&& request_body_,
-      std::unique_ptr<ccf::curl::ResponseBody>&& response_,
+      std::unique_ptr<ccf::http_client::ResponseBody>&& response_,
       std::optional<ResponseCallback>&& response_callback_) :
       curl_handle(std::move(curl_handle_)),
       method(method_),
@@ -775,7 +789,7 @@ namespace ccf::curl
           auto result = msg->data.result;
 
           // retrieve the request data and attach a lifetime to it
-          ccf::curl::CurlRequest* request = nullptr;
+          ccf::http_client::CurlRequest* request = nullptr;
           try
           {
             CHECK_CURL_EASY_GETINFO(easy, CURLINFO_PRIVATE, &request);
@@ -791,7 +805,8 @@ namespace ccf::curl
             throw std::runtime_error(
               "CURLMSG_DONE received with no associated request data");
           }
-          std::unique_ptr<ccf::curl::CurlRequest> request_data_ptr(request);
+          std::unique_ptr<ccf::http_client::CurlRequest> request_data_ptr(
+            request);
 
           // detach the easy handle such that it can be cleaned up with the
           // destructor of CurlRequest
@@ -836,7 +851,7 @@ namespace ccf::curl
     CurlRequestCURLM curl_request_curlm;
     std::atomic<bool> is_stopping = false;
 
-    class SocketContextImpl : public asynchost::with_uv_handle<uv_poll_t>
+    class SocketContextImpl : public ccf::uv::with_uv_handle<uv_poll_t>
     {
       friend class CurlmLibuvContextImpl;
 
@@ -845,7 +860,7 @@ namespace ccf::curl
       CurlmLibuvContextImpl* context = nullptr;
     };
 
-    using SocketContext = asynchost::proxy_ptr<SocketContextImpl>;
+    using SocketContext = ccf::uv::proxy_ptr<SocketContextImpl>;
 
     uv_async_t async_requests_handle{};
     ccf::ds::Mutex requests_mutex;
@@ -1294,9 +1309,9 @@ namespace ccf::curl
 
   private:
     // Interface to allow the proxy pointer to close and delete this safely
-    // Make the templated asynchost::close_ptr a friend so it can call close()
+    // Make the templated ccf::uv::close_ptr a friend so it can call close()
     template <typename T>
-    friend class ::asynchost::close_ptr;
+    friend class ::ccf::uv::close_ptr;
     size_t closed_uv_handle_count = 0;
 
     void close_impl()
@@ -1345,7 +1360,7 @@ namespace ccf::curl
           if (easy != nullptr)
           {
             // attach a lifetime to the request
-            ccf::curl::CurlRequest* request = nullptr;
+            ccf::http_client::CurlRequest* request = nullptr;
             const auto getinfo_res =
               curl_easy_getinfo(easy, CURLINFO_PRIVATE, &request);
             if (getinfo_res != CURLE_OK)
@@ -1365,7 +1380,8 @@ namespace ccf::curl
               curl_easy_cleanup(easy);
               continue;
             }
-            std::unique_ptr<ccf::curl::CurlRequest> request_data_ptr(request);
+            std::unique_ptr<ccf::http_client::CurlRequest> request_data_ptr(
+              request);
             long status_code = 0;
             const auto status_res =
               curl_easy_getinfo(easy, CURLINFO_RESPONSE_CODE, &status_code);
@@ -1441,7 +1457,7 @@ namespace ccf::curl
   // 2. Close the libuv timer handle.
   //    Prevents any further callbacks from the libuv timer
   // 3. Delete CurlmLibuvContextImpl via the on_close callback
-  using CurlmLibuvContext = asynchost::proxy_ptr<CurlmLibuvContextImpl>;
+  using CurlmLibuvContext = ccf::uv::proxy_ptr<CurlmLibuvContextImpl>;
 
   class CurlmLibuvContextSingleton
   {
@@ -1484,4 +1500,4 @@ namespace ccf::curl
     CurlmLibuvContextSingleton& operator=(CurlmLibuvContextSingleton&&) =
       default;
   };
-} // namespace ccf::curl
+} // namespace ccf::http_client

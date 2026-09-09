@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ds/internal_logger.h"
 #include "http2_types.h"
 #include "http_builder.h"
 

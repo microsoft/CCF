@@ -2,10 +2,12 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include <cstddef>
 #include <memory>
+#include <utility>
 #include <uv.h>
 
-namespace asynchost
+namespace ccf::uv
 {
   template <typename T>
   class proxy_ptr;

@@ -4,7 +4,7 @@
 #include "ccf/ds/json.h"
 #include "curl/curl.h"
 #include "ds/internal_logger.h"
-#include "http/curl.h"
+#include "http_client/curl.h"
 
 #include <cstdlib>
 #include <curl/header.h>
@@ -55,7 +55,7 @@ TEST_CASE("is_transient_transport_error classifies curl errors")
   for (const auto code : transient)
   {
     INFO("code = " << static_cast<int>(code));
-    CHECK(ccf::curl::is_transient_transport_error(code));
+    CHECK(ccf::http_client::is_transient_transport_error(code));
   }
 
   // Errors that must be treated as fatal (never retried): explicit certificate
@@ -77,52 +77,55 @@ TEST_CASE("is_transient_transport_error classifies curl errors")
   for (const auto code : fatal)
   {
     INFO("code = " << static_cast<int>(code));
-    CHECK_FALSE(ccf::curl::is_transient_transport_error(code));
+    CHECK_FALSE(ccf::http_client::is_transient_transport_error(code));
   }
 }
 
 TEST_CASE("is_retryable_join_error narrows generic TLS handshake failures")
 {
   CHECK_FALSE(
-    ccf::curl::is_retryable_join_error(CURLE_SSL_CONNECT_ERROR, false));
-  CHECK(ccf::curl::is_retryable_join_error(CURLE_SSL_CONNECT_ERROR, true));
+    ccf::http_client::is_retryable_join_error(CURLE_SSL_CONNECT_ERROR, false));
+  CHECK(
+    ccf::http_client::is_retryable_join_error(CURLE_SSL_CONNECT_ERROR, true));
 
-  CHECK(ccf::curl::is_retryable_join_error(CURLE_COULDNT_CONNECT, false));
+  CHECK(
+    ccf::http_client::is_retryable_join_error(CURLE_COULDNT_CONNECT, false));
+  CHECK_FALSE(ccf::http_client::is_retryable_join_error(
+    CURLE_PEER_FAILED_VERIFICATION, true));
   CHECK_FALSE(
-    ccf::curl::is_retryable_join_error(CURLE_PEER_FAILED_VERIFICATION, true));
+    ccf::http_client::is_retryable_join_error(CURLE_SSL_CACERT_BADFILE, true));
   CHECK_FALSE(
-    ccf::curl::is_retryable_join_error(CURLE_SSL_CACERT_BADFILE, true));
-  CHECK_FALSE(ccf::curl::is_retryable_join_error(CURLE_SSL_CERTPROBLEM, true));
+    ccf::http_client::is_retryable_join_error(CURLE_SSL_CERTPROBLEM, true));
 }
 
 TEST_CASE("RequestBody supports replay")
 {
   const std::vector<uint8_t> expected = {1, 2, 3, 4};
   const auto data = expected;
-  ccf::curl::RequestBody body(data);
+  ccf::http_client::RequestBody body(data);
 
   std::vector<char> partial(2);
   REQUIRE(
-    ccf::curl::RequestBody::send_data(
+    ccf::http_client::RequestBody::send_data(
       partial.data(), 1, partial.size(), &body) == partial.size());
   REQUIRE(static_cast<uint8_t>(partial[0]) == expected[0]);
   REQUIRE(static_cast<uint8_t>(partial[1]) == expected[1]);
 
   REQUIRE(body.seek(-1, SEEK_CUR));
   char current = 0;
-  REQUIRE(ccf::curl::RequestBody::send_data(&current, 1, 1, &body) == 1);
+  REQUIRE(ccf::http_client::RequestBody::send_data(&current, 1, 1, &body) == 1);
   REQUIRE(static_cast<uint8_t>(current) == expected[1]);
 
   REQUIRE(body.seek(-1, SEEK_END));
   char last = 0;
-  REQUIRE(ccf::curl::RequestBody::send_data(&last, 1, 1, &body) == 1);
+  REQUIRE(ccf::http_client::RequestBody::send_data(&last, 1, 1, &body) == 1);
   REQUIRE(static_cast<uint8_t>(last) == expected.back());
 
   REQUIRE(body.seek(0, SEEK_SET));
 
   std::vector<char> replayed(expected.size());
   REQUIRE(
-    ccf::curl::RequestBody::send_data(
+    ccf::http_client::RequestBody::send_data(
       replayed.data(), 1, replayed.size(), &body) == replayed.size());
   REQUIRE(std::equal(
     replayed.begin(), replayed.end(), expected.begin(), [](char lhs, auto rhs) {
@@ -133,7 +136,8 @@ TEST_CASE("RequestBody supports replay")
   REQUIRE_FALSE(body.seek(std::numeric_limits<curl_off_t>::max(), SEEK_CUR));
   char after_failed_seek = 0;
   REQUIRE(
-    ccf::curl::RequestBody::send_data(&after_failed_seek, 1, 1, &body) == 1);
+    ccf::http_client::RequestBody::send_data(&after_failed_seek, 1, 1, &body) ==
+    1);
   REQUIRE(static_cast<uint8_t>(after_failed_seek) == expected[2]);
 
   REQUIRE_FALSE(body.seek(-1, SEEK_SET));
@@ -144,18 +148,19 @@ TEST_CASE("RequestBody supports replay")
     body.seek(-static_cast<curl_off_t>(expected.size()) - 1, SEEK_END));
 
   REQUIRE(
-    ccf::curl::RequestBody::seek_data(&body, 0, SEEK_SET) == CURL_SEEKFUNC_OK);
+    ccf::http_client::RequestBody::seek_data(&body, 0, SEEK_SET) ==
+    CURL_SEEKFUNC_OK);
   REQUIRE(
-    ccf::curl::RequestBody::seek_data(&body, expected.size() + 1, SEEK_SET) ==
-    CURL_SEEKFUNC_CANTSEEK);
+    ccf::http_client::RequestBody::seek_data(
+      &body, expected.size() + 1, SEEK_SET) == CURL_SEEKFUNC_CANTSEEK);
   REQUIRE(
-    ccf::curl::RequestBody::seek_data(nullptr, 0, SEEK_SET) ==
+    ccf::http_client::RequestBody::seek_data(nullptr, 0, SEEK_SET) ==
     CURL_SEEKFUNC_FAIL);
 }
 
 TEST_CASE("RequestBody supports empty bodies")
 {
-  ccf::curl::RequestBody body(std::vector<uint8_t>{});
+  ccf::http_client::RequestBody body(std::vector<uint8_t>{});
 
   REQUIRE(body.size() == 0);
   REQUIRE(body.seek(0, SEEK_SET));
@@ -163,60 +168,60 @@ TEST_CASE("RequestBody supports empty bodies")
   REQUIRE(body.seek(0, SEEK_END));
 
   char unused = 0;
-  REQUIRE(ccf::curl::RequestBody::send_data(&unused, 1, 1, &body) == 0);
+  REQUIRE(ccf::http_client::RequestBody::send_data(&unused, 1, 1, &body) == 0);
 }
 
 TEST_CASE("ResponseHeaders rejects oversized headers")
 {
-  ccf::curl::ResponseHeaders headers;
+  ccf::http_client::ResponseHeaders headers;
   std::string status = "HTTP/1.1 200 OK\r\n";
   REQUIRE(
-    ccf::curl::ResponseHeaders::recv_header_line(
+    ccf::http_client::ResponseHeaders::recv_header_line(
       status.data(), 1, status.size(), &headers) == status.size());
 
   std::string oversized_value(
     ccf::http::default_max_header_size.count_bytes() + 1, 'x');
   std::string header = fmt::format("X-Large: {}\r\n", oversized_value);
   REQUIRE(
-    ccf::curl::ResponseHeaders::recv_header_line(
+    ccf::http_client::ResponseHeaders::recv_header_line(
       header.data(), 1, header.size(), &headers) == 0);
 }
 
 TEST_CASE("ResponseHeaders rejects oversized header fields")
 {
-  ccf::curl::ResponseHeaders headers;
+  ccf::http_client::ResponseHeaders headers;
   std::string status = "HTTP/1.1 200 OK\r\n";
   REQUIRE(
-    ccf::curl::ResponseHeaders::recv_header_line(
+    ccf::http_client::ResponseHeaders::recv_header_line(
       status.data(), 1, status.size(), &headers) == status.size());
 
   std::string oversized_field(
     ccf::http::default_max_header_size.count_bytes() + 1, 'x');
   std::string header = fmt::format("{}: value\r\n", oversized_field);
   REQUIRE(
-    ccf::curl::ResponseHeaders::recv_header_line(
+    ccf::http_client::ResponseHeaders::recv_header_line(
       header.data(), 1, header.size(), &headers) == 0);
 }
 
 TEST_CASE("ResponseHeaders rejects too many headers")
 {
-  ccf::curl::ResponseHeaders headers;
+  ccf::http_client::ResponseHeaders headers;
   std::string status = "HTTP/1.1 200 OK\r\n";
   REQUIRE(
-    ccf::curl::ResponseHeaders::recv_header_line(
+    ccf::http_client::ResponseHeaders::recv_header_line(
       status.data(), 1, status.size(), &headers) == status.size());
 
   for (size_t i = 0; i < ccf::http::default_max_headers_count; ++i)
   {
     std::string header = fmt::format("X-Test-{}: value\r\n", i);
     REQUIRE(
-      ccf::curl::ResponseHeaders::recv_header_line(
+      ccf::http_client::ResponseHeaders::recv_header_line(
         header.data(), 1, header.size(), &headers) == header.size());
   }
 
   std::string header = "X-Too-Many: value\r\n";
   REQUIRE(
-    ccf::curl::ResponseHeaders::recv_header_line(
+    ccf::http_client::ResponseHeaders::recv_header_line(
       header.data(), 1, header.size(), &headers) == 0);
 }
 
@@ -227,11 +232,11 @@ TEST_CASE("CurlmLibuvContext aborts queued requests on close")
   long observed_status_code = -1;
 
   {
-    ccf::curl::CurlmLibuvContextSingleton singleton(uv_default_loop());
+    ccf::http_client::CurlmLibuvContextSingleton singleton(uv_default_loop());
 
     auto response_callback =
       [&response_count, &observed_curl_response, &observed_status_code](
-        std::unique_ptr<ccf::curl::CurlRequest>&& request,
+        std::unique_ptr<ccf::http_client::CurlRequest>&& request,
         CURLcode curl_response,
         long status_code) {
         REQUIRE(request != nullptr);
@@ -240,17 +245,17 @@ TEST_CASE("CurlmLibuvContext aborts queued requests on close")
         observed_status_code = status_code;
       };
 
-    auto request = std::make_unique<ccf::curl::CurlRequest>(
-      ccf::curl::UniqueCURL(),
+    auto request = std::make_unique<ccf::http_client::CurlRequest>(
+      ccf::http_client::UniqueCURL(),
       HTTP_GET,
       "http://127.0.0.1:1/pending",
-      ccf::curl::UniqueSlist(),
+      ccf::http_client::UniqueSlist(),
       nullptr,
-      std::make_unique<ccf::curl::ResponseBody>(SIZE_MAX),
+      std::make_unique<ccf::http_client::ResponseBody>(SIZE_MAX),
       std::move(response_callback));
 
-    ccf::curl::CurlmLibuvContextSingleton::get_instance()->attach_request(
-      std::move(request));
+    ccf::http_client::CurlmLibuvContextSingleton::get_instance()
+      ->attach_request(std::move(request));
   }
 
   uv_run(uv_default_loop(), UV_RUN_DEFAULT);
@@ -269,34 +274,35 @@ TEST_CASE("Synchronous")
   {
     data.iter = i;
     std::string url = fmt::format("http://{}/{}", server_address, i);
-    auto body = std::make_unique<ccf::curl::RequestBody>(data);
+    auto body = std::make_unique<ccf::http_client::RequestBody>(data);
 
-    auto headers = ccf::curl::UniqueSlist();
+    auto headers = ccf::http_client::UniqueSlist();
     headers.append("Content-Type", "application/json");
 
-    auto curl_handle = ccf::curl::UniqueCURL();
+    auto curl_handle = ccf::http_client::UniqueCURL();
 
     CURLcode curl_code = CURLE_OK;
     long status_code = 0;
 
-    auto response = [&curl_code, &status_code](
-                      std::unique_ptr<ccf::curl::CurlRequest>&& /*request*/,
-                      CURLcode curl_response,
-                      long status) {
-      curl_code = curl_response;
-      status_code = status;
-    };
+    auto response =
+      [&curl_code, &status_code](
+        std::unique_ptr<ccf::http_client::CurlRequest>&& /*request*/,
+        CURLcode curl_response,
+        long status) {
+        curl_code = curl_response;
+        status_code = status;
+      };
 
-    auto request = std::make_unique<ccf::curl::CurlRequest>(
+    auto request = std::make_unique<ccf::http_client::CurlRequest>(
       std::move(curl_handle),
       HTTP_PUT,
       std::move(url),
       std::move(headers),
       std::move(body),
-      std::make_unique<ccf::curl::ResponseBody>(SIZE_MAX),
+      std::make_unique<ccf::http_client::ResponseBody>(SIZE_MAX),
       response);
 
-    ccf::curl::CurlRequest::synchronous_perform(std::move(request));
+    ccf::http_client::CurlRequest::synchronous_perform(std::move(request));
 
     constexpr size_t HTTP_SUCCESS = 200;
     if (curl_code == CURLE_OK && status_code == HTTP_SUCCESS)
@@ -314,12 +320,13 @@ TEST_CASE("Synchronous POST echoes body")
   // transmitted correctly.
   const std::string sent_body = R"({"message":"join","iter":42})";
   std::vector<uint8_t> body_bytes(sent_body.begin(), sent_body.end());
-  auto body = std::make_unique<ccf::curl::RequestBody>(std::move(body_bytes));
+  auto body =
+    std::make_unique<ccf::http_client::RequestBody>(std::move(body_bytes));
 
-  auto headers = ccf::curl::UniqueSlist();
+  auto headers = ccf::http_client::UniqueSlist();
   headers.append("Content-Type", "application/json");
 
-  auto curl_handle = ccf::curl::UniqueCURL();
+  auto curl_handle = ccf::http_client::UniqueCURL();
   std::string url = fmt::format("http://{}/join", server_address);
 
   CURLcode curl_code = CURLE_FAILED_INIT;
@@ -327,7 +334,7 @@ TEST_CASE("Synchronous POST echoes body")
   std::string response_body;
 
   auto response = [&curl_code, &status_code, &response_body](
-                    std::unique_ptr<ccf::curl::CurlRequest>&& request,
+                    std::unique_ptr<ccf::http_client::CurlRequest>&& request,
                     CURLcode curl_response,
                     long status) {
     curl_code = curl_response;
@@ -336,16 +343,16 @@ TEST_CASE("Synchronous POST echoes body")
     response_body = std::string(rb->buffer.begin(), rb->buffer.end());
   };
 
-  auto request = std::make_unique<ccf::curl::CurlRequest>(
+  auto request = std::make_unique<ccf::http_client::CurlRequest>(
     std::move(curl_handle),
     HTTP_POST,
     std::move(url),
     std::move(headers),
     std::move(body),
-    std::make_unique<ccf::curl::ResponseBody>(SIZE_MAX),
+    std::make_unique<ccf::http_client::ResponseBody>(SIZE_MAX),
     response);
 
-  ccf::curl::CurlRequest::synchronous_perform(std::move(request));
+  ccf::http_client::CurlRequest::synchronous_perform(std::move(request));
 
   constexpr long HTTP_SUCCESS = 200;
   REQUIRE(curl_code == CURLE_OK);
@@ -360,12 +367,13 @@ TEST_CASE("Synchronous POST replays body after redirect")
 {
   const std::string sent_body = R"({"message":"replay"})";
   std::vector<uint8_t> body_bytes(sent_body.begin(), sent_body.end());
-  auto body = std::make_unique<ccf::curl::RequestBody>(std::move(body_bytes));
+  auto body =
+    std::make_unique<ccf::http_client::RequestBody>(std::move(body_bytes));
 
-  auto headers = ccf::curl::UniqueSlist();
+  auto headers = ccf::http_client::UniqueSlist();
   headers.append("Content-Type", "application/json");
 
-  auto curl_handle = ccf::curl::UniqueCURL();
+  auto curl_handle = ccf::http_client::UniqueCURL();
   curl_handle.set_opt(CURLOPT_FOLLOWLOCATION, 1L);
   std::string url = fmt::format("http://{}/redirect", server_address);
 
@@ -374,7 +382,7 @@ TEST_CASE("Synchronous POST replays body after redirect")
   std::string response_body;
 
   auto response = [&curl_code, &status_code, &response_body](
-                    std::unique_ptr<ccf::curl::CurlRequest>&& request,
+                    std::unique_ptr<ccf::http_client::CurlRequest>&& request,
                     CURLcode curl_response,
                     long status) {
     curl_code = curl_response;
@@ -383,16 +391,16 @@ TEST_CASE("Synchronous POST replays body after redirect")
     response_body = std::string(rb->buffer.begin(), rb->buffer.end());
   };
 
-  auto request = std::make_unique<ccf::curl::CurlRequest>(
+  auto request = std::make_unique<ccf::http_client::CurlRequest>(
     std::move(curl_handle),
     HTTP_POST,
     std::move(url),
     std::move(headers),
     std::move(body),
-    std::make_unique<ccf::curl::ResponseBody>(SIZE_MAX),
+    std::make_unique<ccf::http_client::ResponseBody>(SIZE_MAX),
     response);
 
-  ccf::curl::CurlRequest::synchronous_perform(std::move(request));
+  ccf::http_client::CurlRequest::synchronous_perform(std::move(request));
 
   constexpr long HTTP_SUCCESS = 200;
   REQUIRE(curl_code == CURLE_OK);
@@ -445,7 +453,7 @@ TEST_CASE("VERIFYHOST rejects a certificate SAN mismatch")
                        const std::string& url,
                        long verifyhost,
                        const std::optional<std::string>& resolve_entry) {
-    auto curl_handle = ccf::curl::UniqueCURL();
+    auto curl_handle = ccf::http_client::UniqueCURL();
     curl_handle.set_opt(CURLOPT_SSL_VERIFYPEER, 1L);
     curl_handle.set_opt(CURLOPT_SSL_VERIFYHOST, verifyhost);
     curl_handle.set_opt(CURLOPT_PROTOCOLS_STR, "https");
@@ -457,7 +465,7 @@ TEST_CASE("VERIFYHOST rejects a certificate SAN mismatch")
     curl_handle.set_opt(CURLOPT_CONNECTTIMEOUT, 5L);
     curl_handle.set_opt(CURLOPT_TIMEOUT, 10L);
 
-    auto resolve = ccf::curl::UniqueSlist();
+    auto resolve = ccf::http_client::UniqueSlist();
     if (resolve_entry.has_value())
     {
       resolve.append(resolve_entry->c_str());
@@ -465,19 +473,20 @@ TEST_CASE("VERIFYHOST rejects a certificate SAN mismatch")
     }
 
     CURLcode result = CURLE_FAILED_INIT;
-    auto callback = [&result](
-                      std::unique_ptr<ccf::curl::CurlRequest>&& /*request*/,
-                      CURLcode curl_response,
-                      long /*status*/) { result = curl_response; };
+    auto callback =
+      [&result](
+        std::unique_ptr<ccf::http_client::CurlRequest>&& /*request*/,
+        CURLcode curl_response,
+        long /*status*/) { result = curl_response; };
 
-    ccf::curl::CurlRequest::synchronous_perform(
-      std::make_unique<ccf::curl::CurlRequest>(
+    ccf::http_client::CurlRequest::synchronous_perform(
+      std::make_unique<ccf::http_client::CurlRequest>(
         std::move(curl_handle),
         HTTP_GET,
         url,
-        ccf::curl::UniqueSlist(),
+        ccf::http_client::UniqueSlist(),
         nullptr,
-        std::make_unique<ccf::curl::ResponseBody>(SIZE_MAX),
+        std::make_unique<ccf::http_client::ResponseBody>(SIZE_MAX),
         callback));
     return result;
   };
@@ -530,17 +539,17 @@ TEST_CASE("CurlmLibuvContext")
 
       data.iter = i;
       std::string url = fmt::format("http://{}/{}", server_address, i);
-      auto body = std::make_unique<ccf::curl::RequestBody>(data);
+      auto body = std::make_unique<ccf::http_client::RequestBody>(data);
 
-      auto headers = ccf::curl::UniqueSlist();
+      auto headers = ccf::http_client::UniqueSlist();
       headers.append("Content-Type", "application/json");
 
-      auto curl_handle = ccf::curl::UniqueCURL();
+      auto curl_handle = ccf::http_client::UniqueCURL();
       curl_handle.set_opt(CURLOPT_FORBID_REUSE, 1L);
 
       auto response_callback =
         [response_count_ptr](
-          std::unique_ptr<ccf::curl::CurlRequest>&& request,
+          std::unique_ptr<ccf::http_client::CurlRequest>&& request,
           CURLcode curl_response,
           long status_code) {
           (void)request;
@@ -551,22 +560,22 @@ TEST_CASE("CurlmLibuvContext")
           }
         };
 
-      auto request = std::make_unique<ccf::curl::CurlRequest>(
+      auto request = std::make_unique<ccf::http_client::CurlRequest>(
         std::move(curl_handle),
         HTTP_PUT,
         std::move(url),
         std::move(headers),
         std::move(body),
-        std::make_unique<ccf::curl::ResponseBody>(SIZE_MAX),
+        std::make_unique<ccf::http_client::ResponseBody>(SIZE_MAX),
         std::move(response_callback));
 
-      ccf::curl::CurlmLibuvContextSingleton::get_instance()->attach_request(
-        std::move(request));
+      ccf::http_client::CurlmLibuvContextSingleton::get_instance()
+        ->attach_request(std::move(request));
     }
   };
 
   {
-    ccf::curl::CurlmLibuvContextSingleton singleton(uv_default_loop());
+    ccf::http_client::CurlmLibuvContextSingleton singleton(uv_default_loop());
 
     uv_work_t work_req;
     work_req.data = &response_count;
@@ -595,17 +604,17 @@ TEST_CASE("CurlmLibuvContext slow")
 
       data.iter = i;
       std::string url = fmt::format("http://{}/{}", server_address, i);
-      auto body = std::make_unique<ccf::curl::RequestBody>(data);
+      auto body = std::make_unique<ccf::http_client::RequestBody>(data);
 
-      auto headers = ccf::curl::UniqueSlist();
+      auto headers = ccf::http_client::UniqueSlist();
       headers.append("Content-Type", "application/json");
 
-      auto curl_handle = ccf::curl::UniqueCURL();
+      auto curl_handle = ccf::http_client::UniqueCURL();
       curl_handle.set_opt(CURLOPT_FORBID_REUSE, 1L);
 
       auto response_callback =
         [response_count_ptr](
-          std::unique_ptr<ccf::curl::CurlRequest>&& request,
+          std::unique_ptr<ccf::http_client::CurlRequest>&& request,
           CURLcode curl_response,
           long status_code) {
           (void)request;
@@ -616,22 +625,22 @@ TEST_CASE("CurlmLibuvContext slow")
           }
         };
 
-      auto request = std::make_unique<ccf::curl::CurlRequest>(
+      auto request = std::make_unique<ccf::http_client::CurlRequest>(
         std::move(curl_handle),
         HTTP_PUT,
         std::move(url),
         std::move(headers),
         std::move(body),
-        std::make_unique<ccf::curl::ResponseBody>(SIZE_MAX),
+        std::make_unique<ccf::http_client::ResponseBody>(SIZE_MAX),
         std::move(response_callback));
 
-      ccf::curl::CurlmLibuvContextSingleton::get_instance()->attach_request(
-        std::move(request));
+      ccf::http_client::CurlmLibuvContextSingleton::get_instance()
+        ->attach_request(std::move(request));
     }
   };
 
   {
-    ccf::curl::CurlmLibuvContextSingleton singleton(uv_default_loop());
+    ccf::http_client::CurlmLibuvContextSingleton singleton(uv_default_loop());
 
     uv_work_t work_req;
     work_req.data = &response_count;
@@ -666,18 +675,18 @@ TEST_CASE("CurlmLibuvContext timeouts")
       // unroutable.
       const std::string unreachable_base = "http://192.0.2.1:65535";
       std::string url = fmt::format("{}/{}", unreachable_base, i);
-      auto body = std::make_unique<ccf::curl::RequestBody>(data);
+      auto body = std::make_unique<ccf::http_client::RequestBody>(data);
 
-      auto headers = ccf::curl::UniqueSlist();
+      auto headers = ccf::http_client::UniqueSlist();
       headers.append("Content-Type", "application/json");
 
-      auto curl_handle = ccf::curl::UniqueCURL();
+      auto curl_handle = ccf::http_client::UniqueCURL();
       curl_handle.set_opt(CURLOPT_TIMEOUT_MS, max_delay_ms);
       curl_handle.set_opt(CURLOPT_FORBID_REUSE, 1L);
 
       auto response_callback =
         [response_count_ptr](
-          std::unique_ptr<ccf::curl::CurlRequest>&& request,
+          std::unique_ptr<ccf::http_client::CurlRequest>&& request,
           CURLcode curl_response,
           long status_code) {
           (void)request;
@@ -689,22 +698,22 @@ TEST_CASE("CurlmLibuvContext timeouts")
           }
         };
 
-      auto request = std::make_unique<ccf::curl::CurlRequest>(
+      auto request = std::make_unique<ccf::http_client::CurlRequest>(
         std::move(curl_handle),
         HTTP_PUT,
         std::move(url),
         std::move(headers),
         std::move(body),
-        std::make_unique<ccf::curl::ResponseBody>(SIZE_MAX),
+        std::make_unique<ccf::http_client::ResponseBody>(SIZE_MAX),
         std::move(response_callback));
 
-      ccf::curl::CurlmLibuvContextSingleton::get_instance()->attach_request(
-        std::move(request));
+      ccf::http_client::CurlmLibuvContextSingleton::get_instance()
+        ->attach_request(std::move(request));
     }
   };
 
   {
-    ccf::curl::CurlmLibuvContextSingleton singleton(uv_default_loop());
+    ccf::http_client::CurlmLibuvContextSingleton singleton(uv_default_loop());
 
     uv_work_t work_req;
     work_req.data = &response_count;
@@ -738,18 +747,18 @@ TEST_CASE("CurlmLibuvContext multiple init")
       data.iter = i;
 
       std::string url = fmt::format("http://{}/{}", server_address, i);
-      auto body = std::make_unique<ccf::curl::RequestBody>(data);
+      auto body = std::make_unique<ccf::http_client::RequestBody>(data);
 
-      auto headers = ccf::curl::UniqueSlist();
+      auto headers = ccf::http_client::UniqueSlist();
       headers.append("Content-Type", "application/json");
 
-      auto curl_handle = ccf::curl::UniqueCURL();
+      auto curl_handle = ccf::http_client::UniqueCURL();
       curl_handle.set_opt(CURLOPT_TIMEOUT_MS, max_delay_ms);
       curl_handle.set_opt(CURLOPT_FORBID_REUSE, 1L);
 
       auto response_callback =
         [response_count_ptr](
-          std::unique_ptr<ccf::curl::CurlRequest>&& request,
+          std::unique_ptr<ccf::http_client::CurlRequest>&& request,
           CURLcode curl_response,
           long status_code) {
           //(void)request;
@@ -768,23 +777,23 @@ TEST_CASE("CurlmLibuvContext multiple init")
           }
         };
 
-      auto request = std::make_unique<ccf::curl::CurlRequest>(
+      auto request = std::make_unique<ccf::http_client::CurlRequest>(
         std::move(curl_handle),
         HTTP_PUT,
         std::move(url),
         std::move(headers),
         std::move(body),
-        std::make_unique<ccf::curl::ResponseBody>(SIZE_MAX),
+        std::make_unique<ccf::http_client::ResponseBody>(SIZE_MAX),
         std::move(response_callback));
 
-      ccf::curl::CurlmLibuvContextSingleton::get_instance()->attach_request(
-        std::move(request));
+      ccf::http_client::CurlmLibuvContextSingleton::get_instance()
+        ->attach_request(std::move(request));
     }
   };
 
   for (size_t i = 0; i < number_iterations; ++i)
   {
-    ccf::curl::CurlmLibuvContextSingleton singleton(uv_default_loop());
+    ccf::http_client::CurlmLibuvContextSingleton singleton(uv_default_loop());
 
     uv_work_t work_req;
     work_req.data = &response_count;

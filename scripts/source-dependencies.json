@@ -30,6 +30,9 @@
     "pal": ["crypto", "ds"],
     "tasks": ["ds"],
     "tcp": ["ds"],
-    "threading": []
+    "threading": [],
+    "uv": [],
+    "http": ["ccf-api", "crypto", "ds"],
+    "http_client": ["ccf-api", "ds", "uv"]
   }
 }

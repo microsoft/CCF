@@ -7,7 +7,9 @@
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/hex.h"
 #include "cose/cose_rs_ffi.h"
+#include "crypto/cbor_helpers.h"
 #include "crypto/openssl/cose_verifier.h"
+#include "crypto/test/cbor_printer.h"
 #include "node/cose_common.h"
 
 #include <array>
@@ -15,6 +17,7 @@
 #include <doctest/doctest.h>
 #include <limits>
 #include <string>
+#include <tav/cbor.hpp>
 #include <vector>
 
 // Hardcoded test vectors signed with pycose / Python cryptography (P-384).
@@ -164,7 +167,7 @@ TEST_CASE("Check unprotected header")
 {
   for (auto& [envelope, payload, detached] : test_envelopes())
   {
-    using namespace ccf::cbor;
+    using namespace tav::cbor;
 
     for (const auto& key : keys)
     {
@@ -173,14 +176,15 @@ TEST_CASE("Check unprotected header")
         ccf::cose::edit::desc::Value desc{position, key, value};
         auto edited = ccf::cose::edit::set_unprotected_header(envelope, desc);
 
-        auto parsed = parse(edited);
+        auto parsed = nondet_parse(edited);
         const auto& uhdr =
-          parsed->tag_at(ccf::cbor::tag::COSE_SIGN_1)->array_at(1);
+          parsed.tag_at(ccf::cbor::tag::COSE_SIGN_1).array_at(1);
 
         std::vector<MapItem> ref;
         if (std::holds_alternative<ccf::cose::edit::pos::InArray>(position))
         {
-          std::vector<Value> items{make_bytes(value)};
+          std::vector<Value> items;
+          items.push_back(make_bytes(value));
 
           ref.emplace_back(make_signed(key), make_array(std::move(items)));
         }
@@ -188,15 +192,19 @@ TEST_CASE("Check unprotected header")
         {
           auto subkey = std::get<ccf::cose::edit::pos::AtKey>(position).key;
 
-          std::vector<Value> items{make_bytes(value)};
-          std::vector<MapItem> inner_map{
-            {make_signed(subkey), make_array(std::move(items))}};
+          std::vector<Value> items;
+          items.push_back(make_bytes(value));
+          std::vector<MapItem> inner_map;
+          inner_map.emplace_back(
+            make_signed(subkey), make_array(std::move(items)));
 
           ref.emplace_back(make_signed(key), make_map(std::move(inner_map)));
         }
         auto ref_map = make_map(std::move(ref));
 
-        REQUIRE_EQ(to_string(ref_map), to_string(uhdr));
+        REQUIRE_EQ(
+          ccf::cbor::test::to_string(ref_map),
+          ccf::cbor::test::to_string(uhdr));
       }
     }
 
@@ -204,13 +212,13 @@ TEST_CASE("Check unprotected header")
       auto edited = ccf::cose::edit::set_unprotected_header(
         envelope, ccf::cose::edit::desc::Empty{});
 
-      auto parsed = parse(edited);
-      const auto& uhdr =
-        parsed->tag_at(ccf::cbor::tag::COSE_SIGN_1)->array_at(1);
+      auto parsed = nondet_parse(edited);
+      const auto& uhdr = parsed.tag_at(ccf::cbor::tag::COSE_SIGN_1).array_at(1);
 
       auto ref_map = make_map({});
 
-      REQUIRE_EQ(to_string(ref_map), to_string(uhdr));
+      REQUIRE_EQ(
+        ccf::cbor::test::to_string(ref_map), ccf::cbor::test::to_string(uhdr));
     }
   }
 }
@@ -240,45 +248,66 @@ TEST_CASE("Decode CCF COSE receipt")
     Sibling,
   };
   const auto with_proof_hash_size = [&](ProofHashField field, size_t size) {
-    using namespace ccf::cbor;
+    using namespace tav::cbor;
 
-    auto receipt = parse(receipt_bytes);
-    const auto& envelope = receipt->tag_at(ccf::cbor::tag::COSE_SIGN_1);
-    const auto& unprotected = envelope->array_at(1);
+    auto receipt = nondet_parse(receipt_bytes);
+    const auto& envelope = receipt.tag_at(ccf::cbor::tag::COSE_SIGN_1);
+    const auto& unprotected = envelope.array_at(1);
     const auto& vdp =
-      unprotected->map_at(make_signed(ccf::cose::header::iana::VDP));
+      unprotected.map_at(make_signed(ccf::cose::header::iana::VDP));
     const auto& proofs =
-      vdp->map_at(make_signed(ccf::cose::header::iana::INCLUSION_PROOFS));
-    auto proof = parse(proofs->array_at(0)->as_bytes());
+      vdp.map_at(make_signed(ccf::cose::header::iana::INCLUSION_PROOFS));
+    auto proof = nondet_parse(proofs.array_at(0).as_bytes());
 
     std::vector<uint8_t> replacement(size, 0x42);
     std::array<uint8_t, 1> empty_replacement{};
     const std::span<const uint8_t> replacement_span = replacement.empty() ?
       std::span<const uint8_t>(empty_replacement.data(), 0) :
       std::span<const uint8_t>(replacement);
+    Value edited_proof;
     if (field == ProofHashField::Sibling)
     {
-      const auto& path = proof->map_at(
+      const auto path = proof.map_at(
         make_signed(ccf::MerkleProofLabel::MERKLE_PROOF_PATH_LABEL));
-      const auto& link = path->array_at(0);
-      std::get<Array>(link->value).items.at(1) = make_bytes(replacement_span);
+      const auto link = path.array_at(0);
+      auto edited_link =
+        ccf::cbor::with_element(link, 1, make_bytes(replacement_span));
+      auto edited_path =
+        ccf::cbor::with_element(path, 0, std::move(edited_link));
+      edited_proof = ccf::cbor::with_entry(
+        proof,
+        ccf::MerkleProofLabel::MERKLE_PROOF_PATH_LABEL,
+        std::move(edited_path));
     }
     else
     {
-      const auto& leaf = proof->map_at(
+      const auto leaf = proof.map_at(
         make_signed(ccf::MerkleProofLabel::MERKLE_PROOF_LEAF_LABEL));
       const auto index = field == ProofHashField::WriteSetDigest ? 0 : 2;
-      std::get<Array>(leaf->value).items.at(index) =
-        make_bytes(replacement_span);
+      auto edited_leaf =
+        ccf::cbor::with_element(leaf, index, make_bytes(replacement_span));
+      edited_proof = ccf::cbor::with_entry(
+        proof,
+        ccf::MerkleProofLabel::MERKLE_PROOF_LEAF_LABEL,
+        std::move(edited_leaf));
     }
 
-    auto serialised_proof = serialize(proof);
-    std::get<Array>(proofs->value).items.at(0) = make_bytes(serialised_proof);
-    return serialize(receipt);
+    const auto serialised_proof = edited_proof.nondet_serialize();
+    auto edited_proofs =
+      ccf::cbor::with_element(proofs, 0, make_bytes(serialised_proof));
+    auto edited_vdp = ccf::cbor::with_entry(
+      vdp, ccf::cose::header::iana::INCLUSION_PROOFS, std::move(edited_proofs));
+    auto edited_unprotected = ccf::cbor::with_entry(
+      unprotected, ccf::cose::header::iana::VDP, std::move(edited_vdp));
+    auto edited_envelope =
+      ccf::cbor::with_element(envelope, 1, std::move(edited_unprotected));
+    const Value edited_receipt =
+      make_tagged(ccf::cbor::tag::COSE_SIGN_1, std::move(edited_envelope));
+    return edited_receipt.nondet_serialize();
   };
   const auto decode_proofs = [](const std::vector<uint8_t>& receipt_bytes) {
-    auto receipt = ccf::cbor::parse(receipt_bytes);
-    const auto& envelope = receipt->tag_at(ccf::cbor::tag::COSE_SIGN_1);
+    auto receipt = tav::cbor::nondet_parse(receipt_bytes);
+    const auto& envelope = receipt.tag_at(ccf::cbor::tag::COSE_SIGN_1);
     return ccf::cose::decode_merkle_proofs(envelope);
   };
   const auto with_decoded_proof_hash_size =
