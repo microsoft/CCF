@@ -9,17 +9,31 @@
 #include "ds/internal_logger.h"
 #include "uv/proxy.h"
 
+#include <algorithm>
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
+#include <cstring>
 #include <curl/curl.h>
 #include <curl/multi.h>
+#include <deque>
+#include <exception>
+#include <fmt/format.h>
+#include <functional>
 #include <memory>
+#include <nlohmann/json.hpp>
 #include <optional>
 #include <regex>
 #include <span>
 #include <stdexcept>
+#include <string>
+#include <string_view>
 #include <tuple>
+#include <unordered_map>
+#include <utility>
 #include <uv.h>
+#include <vector>
 
 #define CHECK_CURL_EASY(fn, ...) \
   do \
@@ -260,7 +274,7 @@ namespace ccf::http_client
       const auto bytes_to_copy = std::min(data->unsent.size(), size * nitems);
       if (bytes_to_copy > 0)
       {
-        memcpy(ptr, data->unsent.data(), bytes_to_copy);
+        std::memcpy(ptr, data->unsent.data(), bytes_to_copy);
       }
       data->unsent = data->unsent.subspan(bytes_to_copy);
       return bytes_to_copy;
