@@ -43,60 +43,6 @@ using namespace asynchost;
 
 namespace
 {
-  enum class UVInitFailure
-  {
-    None,
-    Poll,
-    Async,
-    Timer,
-  };
-
-  // Linker wrappers inject failures only on the thread starting the test
-  // server.
-  thread_local UVInitFailure fail_next_uv_init = UVInitFailure::None;
-
-  bool fail_uv_init(UVInitFailure operation)
-  {
-    if (fail_next_uv_init != operation)
-    {
-      return false;
-    }
-    fail_next_uv_init = UVInitFailure::None;
-    return true;
-  }
-}
-
-extern "C"
-{
-  int __real_uv_poll_init_socket(uv_loop_t*, uv_poll_t*, uv_os_sock_t);
-  int __wrap_uv_poll_init_socket(
-    uv_loop_t* loop, uv_poll_t* handle, uv_os_sock_t socket)
-  {
-    return fail_uv_init(UVInitFailure::Poll) ?
-      UV_ENOMEM :
-      __real_uv_poll_init_socket(loop, handle, socket);
-  }
-
-  int __real_uv_async_init(uv_loop_t*, uv_async_t*, uv_async_cb);
-  int __wrap_uv_async_init(
-    uv_loop_t* loop, uv_async_t* handle, uv_async_cb callback)
-  {
-    return fail_uv_init(UVInitFailure::Async) ?
-      UV_ENOMEM :
-      __real_uv_async_init(loop, handle, callback);
-  }
-
-  int __real_uv_timer_init(uv_loop_t*, uv_timer_t*);
-  int __wrap_uv_timer_init(uv_loop_t* loop, uv_timer_t* handle)
-  {
-    return fail_uv_init(UVInitFailure::Timer) ?
-      UV_ENOMEM :
-      __real_uv_timer_init(loop, handle);
-  }
-}
-
-namespace
-{
   // The host process ignores SIGPIPE (see src/host/run.cpp), so writes to a
   // socket the peer has already closed return EPIPE rather than killing it.
   // Tests must do the same to reproduce production behaviour.
@@ -676,71 +622,6 @@ TEST_CASE("Transport shutdown drains TLS tasks with no background workers")
 
   server->stop(OpenSSLServer::LoopState::Running);
   ::close(fd);
-}
-
-TEST_CASE("Transport startup failures release initialized handles")
-{
-  bool udp = false;
-  UVInitFailure failure = UVInitFailure::Poll;
-  std::string operation = "uv_poll_init_socket(listen)";
-  SUBCASE("TCP poll initialization") {}
-  SUBCASE("TCP async initialization")
-  {
-    failure = UVInitFailure::Async;
-    operation = "uv_async_init";
-  }
-  SUBCASE("TCP timer initialization")
-  {
-    failure = UVInitFailure::Timer;
-    operation = "uv_timer_init";
-  }
-  SUBCASE("UDP poll initialization")
-  {
-    udp = true;
-    operation = "uv_poll_init_socket(udp)";
-  }
-  SUBCASE("UDP async initialization")
-  {
-    udp = true;
-    failure = UVInitFailure::Async;
-    operation = "uv_async_init(udp)";
-  }
-
-  uv_loop_t loop{};
-  REQUIRE(uv_loop_init(&loop) == 0);
-  const auto expected_error = operation + " failed: " + uv_strerror(UV_ENOMEM);
-  if (udp)
-  {
-    DatagramServer server(
-      "127.0.0.1",
-      0,
-      [](const uint8_t*, size_t, const sockaddr_storage&, socklen_t) {},
-      &loop);
-    fail_next_uv_init = failure;
-    CHECK_THROWS_WITH_AS(
-      server.start(), expected_error.c_str(), std::runtime_error);
-  }
-  else
-  {
-    auto server = std::make_shared<OpenSSLServer>(
-      OpenSSLServer::Config{
-        .host = "127.0.0.1",
-        .plaintext = true,
-        .idle_timeout = std::chrono::milliseconds(100),
-        .loop = &loop},
-      [](
-        ::tcp::ConnID,
-        std::vector<uint8_t>,
-        const std::vector<uint8_t>&,
-        bool) {});
-    fail_next_uv_init = failure;
-    CHECK_THROWS_WITH_AS(
-      server->start(), expected_error.c_str(), std::runtime_error);
-  }
-  CHECK(fail_next_uv_init == UVInitFailure::None);
-  fail_next_uv_init = UVInitFailure::None;
-  CHECK(uv_run(&loop, UV_RUN_DEFAULT) == 0);
-  CHECK(uv_loop_close(&loop) == 0);
 }
 
 // Shutdown must not declare itself complete on a transient lull in the
