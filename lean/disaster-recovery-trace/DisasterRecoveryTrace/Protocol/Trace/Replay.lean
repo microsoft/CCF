@@ -2,7 +2,7 @@ import DisasterRecoveryTrace.Protocol.Trace.Format
 
 namespace DisasterRecoveryTrace.Protocol.Trace
 
-open DisasterRecovery.Protocol
+open DisasterRecovery.Protocol.Model
 
 structure Failure where
   prefixLength : Nat
