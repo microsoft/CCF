@@ -437,21 +437,6 @@ namespace aft
       {
         return index;
       }
-
-      bool support_async_execution() override
-      {
-        return false;
-      }
-
-      bool is_public_only() override
-      {
-        return false;
-      }
-
-      bool should_rollback_to_last_committed() override
-      {
-        return false;
-      }
     };
 
     virtual std::unique_ptr<ccf::kv::AbstractExecutionWrapper> deserialize(

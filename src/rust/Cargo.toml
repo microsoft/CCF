@@ -7,8 +7,8 @@ edition = "2024"
 crate-type = ["staticlib"]
 
 [dependencies]
+tav-ffi = { package = "tee-attestation-verification-ffi", path = "../../3rdparty/internal/tee-attestation-verification/ffi", default-features = false, features = ["crypto_openssl"] }
 cose-rs = { path = "../cose/cose_rs" }
-tav = { package = "tee-attestation-verification-ffi", path = "../../3rdparty/internal/tee-attestation-verification/ffi", default-features = false, features = ["crypto_openssl"] }
 
 [profile.release]
 lto = true

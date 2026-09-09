@@ -998,10 +998,11 @@ namespace ccf::kv
 
       {
         std::lock_guard<ccf::ds::Mutex> vguard(version_lock);
-        if (txid.view != term_of_next_version && get_consensus()->is_primary())
+        if (txid.view != term_of_next_version)
         {
           // This can happen when a transaction started before a view change,
-          // but tries to commit after the view change is complete.
+          // but tries to commit after the view change is complete. Reject it
+          // even after stepping down, before it can enter pending_txs.
           LOG_DEBUG_FMT(
             "Want to commit for term {} but term is {}",
             txid.view,
@@ -1148,6 +1149,28 @@ namespace ccf::kv
         return snapshotter->should_schedule_snapshot(last_committable);
       }
       return false;
+    }
+
+    std::optional<bool> should_create_ledger_chunk_for_reserved_tx(
+      Version version,
+      Term expected_term,
+      Version expected_rollback_count) override
+    {
+      std::lock_guard<ccf::ds::Mutex> vguard(version_lock);
+      if (
+        term_of_next_version != expected_term ||
+        rollback_count != expected_rollback_count)
+      {
+        return std::nullopt;
+      }
+
+      const auto should_create_chunk =
+        should_create_ledger_chunk_unsafe(version);
+      if (should_create_chunk && chunker)
+      {
+        chunker->produced_chunk_at(version);
+      }
+      return should_create_chunk;
     }
 
     bool should_create_ledger_chunk(Version version) override
@@ -1415,6 +1438,34 @@ namespace ccf::kv
     {
       std::lock_guard<ccf::ds::Mutex> vguard(version_lock);
       return {this, term_of_last_version, tx_id, rollback_count};
+    }
+
+    bool apply_tx_flags(
+      Version tx_version,
+      Term expected_term,
+      Version expected_rollback_count,
+      bool force_ledger_chunk,
+      bool snapshot_at_next_signature) override
+    {
+      std::lock_guard<ccf::ds::Mutex> vguard(version_lock);
+      if (
+        term_of_next_version != expected_term ||
+        rollback_count != expected_rollback_count)
+      {
+        return false;
+      }
+
+      if (force_ledger_chunk && chunker)
+      {
+        chunker->force_end_of_chunk(tx_version);
+      }
+
+      if (snapshot_at_next_signature)
+      {
+        set_flag_unsafe(StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
+      }
+
+      return true;
     }
 
     void set_flag(StoreFlag f) override

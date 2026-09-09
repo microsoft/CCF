@@ -10,8 +10,10 @@
 #include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/ds/locking.h"
 #include "ccf/receipt.h"
-#include "crypto/cbor.h"
+#include "crypto/cbor_helpers.h"
+#include "crypto/cbor_tags.h"
 #include "crypto/openssl/hash.h"
+#include "crypto/test/cbor_printer.h"
 #include "ds/messaging.h"
 #include "ds/test/stub_writer.h"
 #include "kv/test/null_encryptor.h"
@@ -21,6 +23,7 @@
 
 #include <algorithm>
 #include <random>
+#include <tav/cbor.hpp>
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>
 
@@ -268,32 +271,32 @@ MerkleProofData decode_merkle_proof(const std::vector<uint8_t>& encoded)
 {
   MerkleProofData data;
 
-  auto decoded = ccf::cbor::parse(encoded);
+  auto decoded = tav::cbor::nondet_parse(encoded);
 
-  const auto& leaf = decoded->map_at(
-    ccf::cbor::make_signed(ccf::MerkleProofLabel::MERKLE_PROOF_LEAF_LABEL));
+  const auto& leaf = decoded.map_at(
+    tav::cbor::make_signed(ccf::MerkleProofLabel::MERKLE_PROOF_LEAF_LABEL));
 
-  REQUIRE_EQ(leaf->size(), 3);
+  REQUIRE_EQ(leaf.size(), 3);
 
-  const auto& wsd = leaf->array_at(0)->as_bytes();
+  const auto& wsd = leaf.array_at(0).as_bytes();
   data.write_set_digest.assign(wsd.begin(), wsd.end());
 
-  data.commit_evidence = leaf->array_at(1)->as_string();
+  data.commit_evidence = leaf.array_at(1).as_string();
 
-  const auto& cd = leaf->array_at(2)->as_bytes();
+  const auto& cd = leaf.array_at(2).as_bytes();
   data.claims_digest.assign(cd.begin(), cd.end());
 
-  const auto& path = decoded->map_at(
-    ccf::cbor::make_signed(ccf::MerkleProofLabel::MERKLE_PROOF_PATH_LABEL));
+  const auto& path = decoded.map_at(
+    tav::cbor::make_signed(ccf::MerkleProofLabel::MERKLE_PROOF_PATH_LABEL));
 
-  for (size_t i = 0; i < path->size(); i++)
+  for (size_t i = 0; i < path.size(); i++)
   {
-    const auto& node = path->array_at(i);
-    const auto& dir = node->array_at(0)->as_simple();
-    const auto& hash = node->array_at(1)->as_bytes();
+    const auto& node = path.array_at(i);
+    const auto& dir = node.array_at(0).as_simple();
+    const auto& hash = node.array_at(1).as_bytes();
 
     MerkleProofData::PathItem item;
-    item.first = ccf::cbor::simple_to_boolean(dir);
+    item.first = tav::cbor::simple_to_boolean(dir);
     item.second.assign(hash.begin(), hash.end());
     data.path.push_back(item);
   }
@@ -885,6 +888,55 @@ TEST_CASE("StateCache range queries")
       }
     }
   }
+}
+
+TEST_CASE("Ledger entry bounds")
+{
+  auto state = create_and_init_state();
+  auto& kv_store = *state.kv_store;
+  const auto begin_seqno = kv_store.current_version() + 1;
+  const auto end_seqno = write_transactions_and_signature(kv_store, 2);
+  const auto ledger = construct_host_ledger(kv_store.get_consensus());
+  ccf::historical::StateCache cache(
+    kv_store, state.ledger_secrets, std::make_shared<StubWriter>());
+
+  constexpr auto handle = 0;
+  REQUIRE(cache.get_store_range(handle, begin_seqno, end_seqno).empty());
+
+  std::vector<uint8_t> combined;
+  auto invalid_seqno = begin_seqno;
+  SUBCASE("Invalid first entry") {}
+  SUBCASE("Invalid entry after a valid entry")
+  {
+    // Check against the remaining bytes, not the original batch size.
+    combined = ledger.at(begin_seqno);
+    ++invalid_seqno;
+  }
+
+  // Claim a one-byte body, but supply only the header.
+  ccf::kv::SerialisedEntryHeader header;
+  header.set_size(1);
+  const auto offset = combined.size();
+  combined.resize(offset + ccf::kv::serialised_entry_header_size);
+  auto* data = combined.data() + offset;
+  auto size = ccf::kv::serialised_entry_header_size;
+  serialized::write(data, size, header);
+
+  REQUIRE_FALSE(
+    cache.handle_ledger_entries(begin_seqno, invalid_seqno, combined));
+  REQUIRE(cache.get_store_range(handle, begin_seqno, end_seqno).empty());
+
+  // Retry from the rejected entry. Any valid prefix must remain cached.
+  combined.clear();
+  for (auto seqno = invalid_seqno; seqno <= end_seqno; ++seqno)
+  {
+    const auto& entry = ledger.at(seqno);
+    combined.insert(combined.end(), entry.begin(), entry.end());
+  }
+  REQUIRE(cache.handle_ledger_entries(invalid_seqno, end_seqno, combined));
+  REQUIRE(
+    cache.get_store_range(handle, begin_seqno, end_seqno).size() ==
+    end_seqno - begin_seqno + 1);
 }
 
 TEST_CASE("Incremental progress")

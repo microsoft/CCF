@@ -13,11 +13,17 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Fixed swapped `current_minor` and `current_build` values in JavaScript `verifySnpAttestation()` results. These fields now match the AMD SEV-SNP report layout. The deprecated C++ `ccf::pal::snp::Attestation` retains its previous field mapping for compatibility. (#8083)
 - The exported `ccf_rs` CMake target now supplies its OpenSSL link dependencies, so downstream consumers no longer need to add them manually. (#8083)
+- Transactions from an earlier view are now rejected before entering the replication queue even after the node has stepped down. This prevents rolled-back writes from being replicated after a later election and blocking subsequent replication (#8293, #8295).
 
 ### Changed
 
 - SNP attestation reports are now parsed and verified through the move-only, TAV-backed `ccf::pal::snp::AttestationReport` accessor API. Byte accessors return read-only spans into the report; moves preserve these views, but destroying or replacing the owning report invalidates them. The packed `ccf::pal::snp::Attestation` wire-layout type and its legacy accessors remain available for compatibility but are deprecated. (#8083)
 - `ccf::pal::snp::get_attestation_bytes()` in `ccf/pal/snp_ioctl.h` requests an unverified SNP report as owned bytes, without using the legacy report type. `AttestationInterface::get_raw()` and its ioctl implementation remain available but are deprecated. (#8083)
+- CBOR parsing now rejects composite (array or map) and tagged values used as map keys anywhere in the decoded document, including nested maps in optional COSE headers (#8297).
+
+### Removed
+
+- Removed the exported `evercbor` CMake target and installed `libevercbor.a` library. Applications using CCF's public APIs that explicitly depend on this target or link this library directly must remove that dependency. No further build changes are necessary: the replacement CBOR implementation is linked transitively by CCF (#8297).
 
 ## [7.0.14]
 
@@ -29,9 +35,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- Nodes which open node-to-node connections to each other at the same moment now agree on which of the two connections to keep, instead of each discarding the one the other is using. Previously both could be left holding a connection whose far end no longer existed, and if the resulting disconnection was not observed - for example because a network partition dropped it - the two nodes would silently stop exchanging consensus messages, stalling elections until one of them restarted (#8233).
+- A signature transaction decided whether to end a ledger chunk, and recorded that decision on the chunker, outside the version lock. A rollback landing in that window discarded the signature but left the chunk marker behind. The decision and the record are now made atomically, and skipped when the signature's view or rollback epoch no longer holds (#8246).
+- A transaction's `force_ledger_chunk` and `snapshot_at_next_signature` flags are no longer applied once a concurrent view change has discarded the transaction's writes, which previously left a chunk boundary, or an armed snapshot, for a transaction no longer present in the ledger. The forced chunk is also attached to the transaction's own version rather than whichever version the store had reached (#8245).
 - A rollback whose target is at or beyond the store's own version no longer moves ledger chunk metadata forward past it, which previously left a permanent offset skewing later chunk boundaries (#8244).
 - Ledger chunk metadata and snapshot scheduling are no longer restored by a transaction whose writes a concurrent view change has already discarded. Both are now updated under the same lock as the rollback, and skipped when the transaction's rollback epoch or view no longer holds (#8243).
 - A transaction whose view changed while it was committing could apply its writes to the local key-value store and then fail to replicate, leaving state that never reached consensus. The transaction's view is now validated atomically with the allocation of its version, so it is rejected before any map is modified, and `ccf::kv::CommitResult::FAIL_NO_REPLICATE` no longer implies a locally applied write (#8242).
+- Corrected the OpenAPI schema name for `ccf::ds::SizeString` from `TimeString` to `SizeString` (#8261).
+- A transaction in a JavaScript application endpoint which conflicts with compaction is now re-executed, rather than returning `500 Internal Server Error` (#8289).
+- A `Range` header requesting a suffix longer than the file is now clamped to the whole file, per RFC 9110. Ranges which select no bytes, such as `bytes=-0`, are now rejected with `400 Bad Request` (#8299).
 
 ### Changed
 
@@ -42,14 +54,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Removed
 
 - The experimental built-in `QUIC` application protocol and its UDP echo implementation have been removed. UDP interfaces remain available to registered custom protocols.
-
-### Fixed
-
-- Corrected the OpenAPI schema name for `ccf::ds::SizeString` from `TimeString` to `SizeString`. (#8261)
-
-### Fixed
-
-- Nodes which open node-to-node connections to each other at the same moment now agree on which of the two connections to keep, instead of each discarding the one the other is using. Previously both could be left holding a connection whose far end no longer existed, and if the resulting disconnection was not observed - for example because a network partition dropped it - the two nodes would silently stop exchanging consensus messages, stalling elections until one of them restarted (#8233).
 
 ## [7.0.13]
 

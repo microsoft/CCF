@@ -65,8 +65,7 @@ namespace ccf::kv
     TxFlags flags = 0;
     SerialisedEntryFlags entry_flags = 0;
 
-    void serialise_all_changes(
-      KvStoreSerialiser& serialiser, bool include_reads)
+    void serialise_all_changes(KvStoreSerialiser& serialiser)
     {
       // Process in security domain order
       for (auto domain : {SecurityDomain::PUBLIC, SecurityDomain::PRIVATE})
@@ -77,7 +76,7 @@ namespace ccf::kv
           const auto& changeset = it.second.changeset;
           if (map->get_security_domain() == domain && changeset->has_writes())
           {
-            map->serialise_changes(changeset.get(), serialiser, include_reads);
+            map->serialise_changes(changeset.get(), serialiser);
           }
         }
       }
@@ -91,8 +90,7 @@ namespace ccf::kv
         });
     }
 
-    size_t projected_serialised_size(
-      const ccf::ClaimsDigest& claims_digest_, bool include_reads = false)
+    size_t projected_serialised_size(const ccf::ClaimsDigest& claims_digest_)
     {
       if (claims_digest_.empty())
       {
@@ -115,7 +113,7 @@ namespace ccf::kv
         ccf::crypto::Sha256Hash{},
         claims_digest_);
 
-      serialise_all_changes(size_serialiser, include_reads);
+      serialise_all_changes(size_serialiser);
 
       return size_serialiser.get_serialised_size();
     }
@@ -124,8 +122,7 @@ namespace ccf::kv
       ccf::crypto::Sha256Hash& commit_evidence_digest,
       std::string& commit_evidence,
       const ccf::ClaimsDigest& claims_digest_,
-      size_t max_transaction_size,
-      bool include_reads = false)
+      size_t max_transaction_size)
     {
       if (!committed)
       {
@@ -173,7 +170,7 @@ namespace ccf::kv
         false /* historical_hint */,
         max_transaction_size);
 
-      serialise_all_changes(serialiser, include_reads);
+      serialise_all_changes(serialiser);
       return serialiser.get_raw_data();
     }
 
@@ -241,6 +238,7 @@ namespace ccf::kv
       bool track_deletes_on_missing_keys = false;
       bool commit_term_changed = false;
       std::optional<Version> c;
+      std::optional<Version> expected_rollback_count;
       {
         MapSetLockGuard map_set_guard(*pimpl->store, maps_created);
         c = apply_changes(
@@ -254,9 +252,12 @@ namespace ccf::kv
               return std::optional<VersionResolution>{};
             }
 
-            const auto& resolved = resolution.value();
+            const auto
+              [resolved_version, previous_last_new_map, rollback_count] =
+                resolution.value();
+            expected_rollback_count = rollback_count;
             return std::optional<VersionResolution>(
-              std::in_place, std::get<0>(resolved), std::get<1>(resolved));
+              std::in_place, resolved_version, previous_last_new_map);
           },
           hooks,
           pimpl->created_maps,
@@ -284,26 +285,44 @@ namespace ccf::kv
       committed = true;
       version = c.value();
 
-      if (tx_flag_enabled(TxFlag::LEDGER_CHUNK_AT_NEXT_SIGNATURE))
-      {
-        auto chunker = pimpl->store->get_chunker();
-        if (chunker)
-        {
-          chunker->force_end_of_chunk(version);
-        }
-      }
-
-      if (tx_flag_enabled(TxFlag::SNAPSHOT_AT_NEXT_SIGNATURE))
-      {
-        pimpl->store->set_flag(
-          AbstractStore::StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
-        unset_tx_flag(TxFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
-      }
+      const auto force_ledger_chunk =
+        tx_flag_enabled(TxFlag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
+      const auto snapshot_at_next_signature =
+        tx_flag_enabled(TxFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
 
       if (version == NoVersion)
       {
-        // Read-only transaction
+        // Read-only transaction. It has no version to attach a ledger chunk
+        // to, but a requested snapshot must still be armed, as it was before
+        // these flags became rollback-sensitive.
+        if (snapshot_at_next_signature)
+        {
+          pimpl->store->set_flag(
+            AbstractStore::StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
+          unset_tx_flag(TxFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
+        }
         return CommitResult::SUCCESS;
+      }
+
+      // These side effects outlive this transaction, so they must not be
+      // applied if a concurrent rollback has already discarded its writes.
+      if (force_ledger_chunk || snapshot_at_next_signature)
+      {
+        if (!expected_rollback_count.has_value())
+        {
+          throw std::logic_error(
+            "Transaction was allocated a version without a rollback count");
+        }
+
+        if (!pimpl->store->apply_tx_flags(
+              version,
+              pimpl->commit_view,
+              expected_rollback_count.value(),
+              force_ledger_chunk,
+              snapshot_at_next_signature))
+        {
+          return CommitResult::FAIL_NO_REPLICATE;
+        }
       }
 
       // From here, we have received a unique commit version and made
@@ -535,20 +554,26 @@ namespace ccf::kv
 
       // This is a signature and, if the ledger chunking or snapshot flags are
       // enabled, we want the host to create a chunk when it sees this entry.
-      // version_lock held by Store::commit
-      if (pimpl->store->should_create_ledger_chunk_unsafe(version))
+      // Deciding this and recording the chunk must be atomic with respect to
+      // rollback, so that a signature a rollback discards leaves no marker
+      // behind.
+      const auto should_create_chunk =
+        pimpl->store->should_create_ledger_chunk_for_reserved_tx(
+          version, pimpl->commit_view, rollback_count);
+      if (!should_create_chunk.has_value())
+      {
+        committed = true;
+        return {
+          CommitResult::FAIL_NO_REPLICATE, {}, ccf::empty_claims(), {}, {}};
+      }
+
+      if (should_create_chunk.value())
       {
         entry_flags |= EntryFlags::FORCE_LEDGER_CHUNK_AFTER;
         LOG_DEBUG_FMT(
           "Ending ledger chunk with signature at {}.{}",
           pimpl->commit_view,
           version);
-
-        auto chunker = pimpl->store->get_chunker();
-        if (chunker)
-        {
-          chunker->produced_chunk_at(version);
-        }
       }
 
       committed = true;

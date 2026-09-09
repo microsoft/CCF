@@ -4,11 +4,9 @@
 
 #include "ccf/ds/nonstd.h"
 #include "ds/internal_logger.h"
-#include "enclave/session.h"
 #include "http2_callbacks.h"
 #include "http2_types.h"
 #include "http_proc.h"
-#include "http_rpc_context.h"
 
 #include <utility>
 
