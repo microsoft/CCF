@@ -904,12 +904,6 @@ if(BUILD_TESTS)
     )
 
     add_unit_test(
-      tls_test
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/clients/tls/test/main.cpp
-    )
-    target_link_libraries(tls_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
-
-    add_unit_test(
       base64_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/base64.cpp
     )

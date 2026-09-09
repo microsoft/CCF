@@ -134,7 +134,7 @@ Outbound connections
 
 ``OpenSSLServer`` is inbound only. Outbound requests - fetching quote endorsements, refreshing JWT signing keys, and the recovery decision protocol - are made with libcurl, which does its own TLS.
 
-The only remaining OpenSSL client helpers, :ccf_repo:`CA </src/clients/tls/ca.h>` and :ccf_repo:`Cert </src/clients/tls/cert.h>`, are used solely by the C++ test and perf clients in :ccf_repo:`src/clients </src/clients>`. No node code uses them.
+CCF no longer has any OpenSSL client helpers of its own: the ``CA`` and ``Cert`` wrappers were removed along with the last C++ clients that used them.
 
 Why OpenSSL?
 ~~~~~~~~~~~~

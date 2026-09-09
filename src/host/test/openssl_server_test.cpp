@@ -5,11 +5,12 @@
 
 #include "ccf/crypto/ec_key_pair.h"
 #include "ccf/ds/x509_time_fmt.h"
-#include "clients/rpc_tls_client.h"
 #include "crypto/certs.h"
 #include "host/datagram_server.h"
 #include "host/tls/openssl_server.h"
 #include "host/tls/openssl_session_manager.h"
+#include "http/http_parser.h"
+#include "http/http_proc.h"
 #include "tasks/task_system.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT
@@ -169,6 +170,90 @@ namespace
     SSL_CTX_free(cctx);
     ::close(fd);
     return resp;
+  }
+
+  // Sends `request` over TLS, then parses the response stream until
+  // `expected_count` complete HTTP responses have been read. Used to assert
+  // that multiple responses coalesced into a single write are all delivered
+  // intact, which needs an HTTP parser rather than a raw byte comparison.
+  struct ParsedResponse
+  {
+    ccf::http_status status;
+    std::string body;
+  };
+
+  std::vector<ParsedResponse> tls_collect_http_responses(
+    uint16_t port, const std::vector<uint8_t>& request, size_t expected_count)
+  {
+    struct Collector : public ::http::ResponseProcessor
+    {
+      std::vector<ParsedResponse> responses;
+
+      void handle_response(
+        ccf::http_status status,
+        ccf::http::HeaderMap&& /*headers*/,
+        std::vector<uint8_t>&& body) override
+      {
+        responses.push_back(
+          ParsedResponse{status, std::string(body.begin(), body.end())});
+      }
+    };
+
+    Collector collector;
+    ::http::ResponseParser parser(collector);
+
+    const int fd = ::socket(AF_INET, SOCK_STREAM, 0);
+    REQUIRE(fd >= 0);
+
+    sockaddr_in addr{};
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(port);
+    REQUIRE(inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr) == 1);
+    REQUIRE(
+      ::connect(fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) == 0);
+
+    // Bound the read loop below: if the server fails to deliver every
+    // response, the test must fail on the count assertion rather than block
+    // here until the whole suite times out.
+    timeval recv_timeout{};
+    recv_timeout.tv_sec = 10;
+    REQUIRE(
+      ::setsockopt(
+        fd, SOL_SOCKET, SO_RCVTIMEO, &recv_timeout, sizeof(recv_timeout)) == 0);
+
+    SSL_CTX* cctx = SSL_CTX_new(TLS_client_method());
+    REQUIRE(cctx != nullptr);
+    SSL* ssl = SSL_new(cctx);
+    REQUIRE(ssl != nullptr);
+    REQUIRE(SSL_set_fd(ssl, fd) == 1);
+    SSL_set_connect_state(ssl);
+    REQUIRE(SSL_connect(ssl) == 1);
+
+    size_t off = 0;
+    while (off < request.size())
+    {
+      const int n = SSL_write(
+        ssl, request.data() + off, static_cast<int>(request.size() - off));
+      REQUIRE(n > 0);
+      off += static_cast<size_t>(n);
+    }
+
+    while (collector.responses.size() < expected_count)
+    {
+      uint8_t buf[16384];
+      const int n = SSL_read(ssl, buf, static_cast<int>(sizeof(buf)));
+      if (n <= 0)
+      {
+        break;
+      }
+      parser.execute(buf, static_cast<size_t>(n));
+    }
+
+    SSL_shutdown(ssl);
+    SSL_free(ssl);
+    SSL_CTX_free(cctx);
+    ::close(fd);
+    return collector.responses;
   }
 
   std::vector<uint8_t> random_bytes(size_t n)
@@ -1189,18 +1274,15 @@ TEST_CASE("Coalesced pipelined HTTP responses are preserved")
   loop.start();
 
   {
-    auto ca = std::make_shared<::tls::CA>(cert);
-    client::RpcTlsClient client(
-      "127.0.0.1", std::to_string(server->port()), ca);
-    const std::array<uint8_t, 1> request = {'x'};
-    client.write(request);
+    const std::vector<uint8_t> request = {'x'};
+    const auto responses =
+      tls_collect_http_responses(server->port(), request, 2);
 
-    const auto first = client.read_response();
-    const auto second = client.read_response();
-    REQUIRE(first.status == HTTP_STATUS_OK);
-    REQUIRE(std::string(first.body.begin(), first.body.end()) == "a");
-    REQUIRE(second.status == HTTP_STATUS_CREATED);
-    REQUIRE(std::string(second.body.begin(), second.body.end()) == "b");
+    REQUIRE(responses.size() == 2);
+    REQUIRE(responses[0].status == HTTP_STATUS_OK);
+    REQUIRE(responses[0].body == "a");
+    REQUIRE(responses[1].status == HTTP_STATUS_CREATED);
+    REQUIRE(responses[1].body == "b");
   }
 
   server->stop(OpenSSLServer::LoopState::Running);
