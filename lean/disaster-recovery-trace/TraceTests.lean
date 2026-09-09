@@ -1,6 +1,6 @@
 import DisasterRecoveryTrace.Protocol.Trace
 
-open DisasterRecovery.Protocol
+open DisasterRecovery.Protocol.Model
 open DisasterRecoveryTrace.Protocol.Trace
 
 private def expect (condition : Bool) (message : String) : IO Unit :=

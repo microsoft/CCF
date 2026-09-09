@@ -4,7 +4,7 @@ import Lean.Data.Json.FromToJson
 
 namespace DisasterRecoveryTrace.Protocol.Trace
 
-open DisasterRecovery.Protocol
+open DisasterRecovery.Protocol.Model
 
 open Lean
 
