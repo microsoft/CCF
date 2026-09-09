@@ -9,7 +9,7 @@ open Global
 
 namespace TxID
 
-def PrefixOf (left right : TxID) : Prop :=
+def EarlierThan (left right : TxID) : Prop :=
   left.view < right.view \/
     (left.view = right.view /\ left.seqno <= right.seqno)
 
@@ -30,6 +30,6 @@ def FullGossipSelection
 def DurableCommit (config : Config) (committed : TxID) : Prop :=
   exists location txid,
     (location, txid) ∈ config.recovered /\
-      TxID.PrefixOf committed txid
+      TxID.EarlierThan committed txid
 
 end DisasterRecovery.Protocol.Committed

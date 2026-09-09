@@ -1,4 +1,4 @@
-import DisasterRecovery.Protocol.Temporal
+import DisasterRecovery.Protocol.Model
 
 open DisasterRecovery.Protocol.Model
 

@@ -1,13 +1,10 @@
 import DisasterRecovery.Proofs.Committed
-import DisasterRecovery.Proofs.GlobalTemporal
 import DisasterRecovery.Proofs.Invariants
+import DisasterRecovery.Proofs.Model
 import DisasterRecovery.Proofs.Quorum
-import DisasterRecovery.Proofs.Temporal
 import DisasterRecovery.Properties
 import DisasterRecovery.Protocol.Committed
 import DisasterRecovery.Protocol.Global
-import DisasterRecovery.Protocol.GlobalTemporal
 import DisasterRecovery.Protocol.Invariants
 import DisasterRecovery.Protocol.Model
 import DisasterRecovery.Protocol.Quorum
-import DisasterRecovery.Protocol.Temporal

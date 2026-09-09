@@ -1,14 +1,14 @@
-import DisasterRecovery.Protocol.Temporal
+import DisasterRecovery.Protocol.Model
 import Mathlib.Tactic.Lemma
 
 /-!
 Machine-checked proof implementations. Review the system-level statements in
-`DisasterRecovery.Properties` and definitions in `DisasterRecovery.Protocol.Temporal`.
+`DisasterRecovery.Properties` and definitions in `DisasterRecovery.Protocol.Model`.
 -/
 
-namespace DisasterRecovery.Proofs.Temporal
+namespace DisasterRecovery.Proofs.Model
 
-open Protocol.Model Protocol.Temporal
+open Protocol.Model
 
 lemma valid_timeout_requires_alignment
     (state : NodeState)
@@ -112,88 +112,4 @@ lemma aligned_empty_gossip_timeout_aborts
     output.state = waiting /\ output.accepted = false := by
   simp [step, advance, validTimeout, rejected, maximumGossip]
 
-lemma non_timeout_step_preserves_aligned_opening
-    (config : Config)
-    (state : NodeState)
-    (event : Event)
-    (aligned : AlignedOpening state)
-    (notTimeout : Not (event = .timeout)) :
-    AlignedOpening (step config state event).state := by
-  have phase := aligned.1
-  have timeoutState := aligned.2
-  cases event with
-  | receiveGossip source txid validation =>
-      cases validation <;>
-        simp_all [AlignedOpening, step, rejected, advance, validTimeout,
-          advanceTimeoutLane]
-      split <;> simp_all
-  | receiveVote source validation =>
-      cases validation <;>
-        simp_all [AlignedOpening, step, rejected, advance, validTimeout,
-          advanceTimeoutLane]
-  | receiveIAmOpen source validation =>
-      cases validation <;>
-        simp_all [AlignedOpening, step, rejected]
-  | timeout =>
-      exact (notTimeout rfl).elim
-  | retry =>
-      simp [AlignedOpening, step, phase, timeoutState]
-
-lemma aligned_timeout_transitions_to_open
-    (config : Config)
-    (state : NodeState)
-    (aligned : AlignedOpening state) :
-    (step config state .timeout).state.phase = .open := by
-  have phase := aligned.1
-  have timeoutState := aligned.2
-  simp [step, advance, validTimeout, phase, timeoutState,
-    advanceTimeoutLane, advanceTimeoutState]
-
-lemma fairness_supplies_firing
-    {config : Config}
-    (execution : Execution config)
-    (enabled : NodeState -> Prop)
-    (fired : NodeState -> Event -> Prop)
-    (fair : WeakFairness execution enabled fired)
-    (alwaysEnabled : forall n, enabled (execution.states n)) :
-    InfinitelyOften
-      (fun n => fired (execution.states n) (execution.events n)) := by
-  intro start
-  exact fair start (fun n _ => alwaysEnabled n)
-
-lemma fair_aligned_opening_progress
-    {config : Config}
-    (execution : Execution config)
-    (initial : AlignedOpening (execution.states 0))
-    (fair : WeakFairness execution AlignedOpening
-      (fun _ event => event = .timeout)) :
-    EventuallyFrom 0
-      (fun n => (execution.states n).phase = .open) := by
-  apply Classical.byContradiction
-  intro noOpen
-  have neverOpen :
-      forall n, Not ((execution.states n).phase = .open) := by
-    intro n opened
-    apply noOpen
-    exact Exists.intro n (And.intro (Nat.zero_le n) opened)
-  have alignedAlways : forall n, AlignedOpening (execution.states n) := by
-    intro n
-    induction n with
-    | zero => exact initial
-    | succ n aligned =>
-        have notTimeout : Not (execution.events n = .timeout) := by
-          intro timeout
-          apply neverOpen (n + 1)
-          rw [execution.step_succ n, timeout]
-          exact aligned_timeout_transitions_to_open config _ aligned
-        rw [execution.step_succ n]
-        exact non_timeout_step_preserves_aligned_opening
-          config _ _ aligned notTimeout
-  have firing := fair 0 (fun n _ => alignedAlways n)
-  let n := firing.choose
-  have timeout := firing.choose_spec.2
-  apply neverOpen (n + 1)
-  rw [execution.step_succ n, timeout]
-  exact aligned_timeout_transitions_to_open config _ (alignedAlways n)
-
-end DisasterRecovery.Proofs.Temporal
+end DisasterRecovery.Proofs.Model

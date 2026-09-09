@@ -14,15 +14,15 @@ open Model hiding Config
 open Global Protocol.Invariants Protocol.Quorum Protocol.Committed
 open DisasterRecovery.Proofs.Invariants DisasterRecovery.Proofs.Quorum
 
-lemma prefix_refl (txid : TxID) : TxID.PrefixOf txid txid := by
-  simp [TxID.PrefixOf]
+lemma prefix_refl (txid : TxID) : TxID.EarlierThan txid txid := by
+  simp [TxID.EarlierThan]
 
 lemma prefix_trans
     {first second third : TxID}
-    (firstSecond : TxID.PrefixOf first second)
-    (secondThird : TxID.PrefixOf second third) :
-    TxID.PrefixOf first third := by
-  simp [TxID.PrefixOf] at firstSecond secondThird ⊢
+    (firstSecond : TxID.EarlierThan first second)
+    (secondThird : TxID.EarlierThan second third) :
+    TxID.EarlierThan first third := by
+  simp [TxID.EarlierThan] at firstSecond secondThird ⊢
   omega
 
 lemma prefix_of_score_true
@@ -30,9 +30,9 @@ lemma prefix_of_score_true
     (left right : TxID)
     (score :
       txScoreGreater leftName left rightName right = true) :
-    TxID.PrefixOf right left := by
+    TxID.EarlierThan right left := by
   simp [txScoreGreater] at score
-  simp [TxID.PrefixOf]
+  simp [TxID.EarlierThan]
   omega
 
 lemma prefix_of_score_false
@@ -40,14 +40,14 @@ lemma prefix_of_score_false
     (left right : TxID)
     (score :
       txScoreGreater leftName left rightName right = false) :
-    TxID.PrefixOf left right := by
+    TxID.EarlierThan left right := by
   simp [txScoreGreater] at score
-  simp [TxID.PrefixOf]
+  simp [TxID.EarlierThan]
   omega
 
 lemma current_prefix_selectMaximum
     (current candidate : Prod Location TxID) :
-    TxID.PrefixOf current.2
+    TxID.EarlierThan current.2
       (selectMaximum current candidate).2 := by
   unfold selectMaximum
   split
@@ -58,7 +58,7 @@ lemma current_prefix_selectMaximum
 
 lemma candidate_prefix_selectMaximum
     (current candidate : Prod Location TxID) :
-    TxID.PrefixOf candidate.2
+    TxID.EarlierThan candidate.2
       (selectMaximum current candidate).2 := by
   unfold selectMaximum
   split
@@ -72,7 +72,7 @@ lemma foldl_selectMaximum_upper_bound
     (current member : Prod Location TxID)
     (tail : List (Prod Location TxID))
     (membership : member = current \/ member ∈ tail) :
-    TxID.PrefixOf member.2
+    TxID.EarlierThan member.2
       (tail.foldl selectMaximum current).2 := by
   induction tail generalizing current member with
   | nil =>
@@ -102,7 +102,7 @@ lemma maximumGossip_upper_bound
     {selected member : Prod Location TxID}
     (maximum : maximumGossip gossips = some selected)
     (membership : member ∈ gossips) :
-    TxID.PrefixOf member.2 selected.2 := by
+    TxID.EarlierThan member.2 selected.2 := by
   cases gossips with
   | nil => simp at membership
   | cons head tail =>
@@ -186,7 +186,7 @@ lemma full_gossip_selection_preserves_commit
     (durable : DurableCommit config committed) :
     exists recovered,
       recoveredTxID config opener = some recovered /\
-        TxID.PrefixOf committed recovered := by
+        TxID.EarlierThan committed recovered := by
   have configValid := reachable_config_valid reachable
   have wellFormed := reachable_well_formed reachable
   have invariant := reachable_quorum_invariant reachable
@@ -234,7 +234,7 @@ lemma quorum_open_preserves_commit
     (durable : DurableCommit config committed) :
     exists recovered,
       recoveredTxID config opener = some recovered /\
-        TxID.PrefixOf committed recovered :=
+        TxID.EarlierThan committed recovered :=
   full_gossip_selection_preserves_commit reachable full durable
 
 end DisasterRecovery.Proofs.Committed
