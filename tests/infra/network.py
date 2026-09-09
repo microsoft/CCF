@@ -2058,7 +2058,7 @@ class Network:
         if not success:
             raise TimeoutError(
                 f'Node {node_id} is not in expected {"committed " if wait_for_commit else ""}'
-                f'state: {node_status or "absent"})'
+                f'state: {node_status or "absent"}'
             )
 
     def wait_for_all_nodes_to_be_trusted(self, remote_node, timeout=3):
