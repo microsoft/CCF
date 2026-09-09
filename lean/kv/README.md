@@ -277,8 +277,9 @@ branch identity, exact uint64 decoding and damaged streams.
 
 - [Whole-map dependency at revision zero](failures/revision_zero_map_dependency.md):
   source-linked diagnosis of the saved concurrent-fuzzer rejection. The model
-  records a dependency that the implementation's zero-valued marker fails to
-  distinguish from an absent map-read dependency.
+  recorded a dependency that the implementation's zero-valued marker failed to
+  distinguish from an absent map-read dependency. The correction is now included
+  in upstream CCF; the saved pre-fix trace remains a rejection.
 
 ## Trust and exclusions
 

@@ -2,6 +2,14 @@
   "schema": 1,
   "cases": [
     {
+      "name": "Zero-revision whole-map non-conflicts",
+      "features": [
+        "zero-revision map observations",
+        "read-only completion",
+        "blind writes"
+      ]
+    },
+    {
       "name": "Reads/writes and deletions",
       "features": [
         "point operations",
@@ -157,6 +165,14 @@
     }
   ],
   "exclusions": [
+    {
+      "name": "Zero-revision whole-map dependencies",
+      "reason": "Includes the internal untyped range API, which is explicitly unsupported by the current trace schema. The ordinary KV unit run still executes this regression."
+    },
+    {
+      "name": "Stale-view writes which took their version early are rejected",
+      "reason": "Includes reserved transaction IDs and replication-buffer assertions outside ordinary application attempts."
+    },
     {
       "name": "Dynamic map serialisation",
       "reason": "Serialization and replicated-state import are outside the application transaction model."

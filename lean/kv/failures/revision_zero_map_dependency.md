@@ -154,4 +154,23 @@ absence/version semantics. Follow-up should preserve individual-key absence
 dependencies and read-your-writes behavior, and cover the zero-revision and
 ordinary nonzero-revision cases consistently.
 
-No corrective implementation or model change is included in this report.
+## Upstream correction
+
+The diagnosis and source locations above describe the original, pre-fix
+execution. [microsoft/CCF#8320](https://github.com/microsoft/CCF/pull/8320)
+corrected the in-memory whole-map dependency to `std::optional<Version>`:
+`nullopt` means no observation, while a present zero is checked against the
+current map revision. The first transaction is still numbered 1 and ordinary
+ledger encoding is unchanged. The obsolete read-inclusive emission path was
+separately removed by
+[microsoft/CCF#8303](https://github.com/microsoft/CCF/pull/8303).
+
+The model branch now inherits these changes from upstream rather than applying
+the earlier local fix again. The original trace must remain rejected because it
+records an application that the corrected implementation prevents. Fresh
+executions are checked against the unchanged Lean model.
+
+The upstream conflict regression now includes `range`, which remains outside the
+current trace schema. It runs in the ordinary KV unit suite and is explicitly
+excluded from trace conformance; the separate non-conflict regression is
+selected. No unsupported range event is silently skipped.
