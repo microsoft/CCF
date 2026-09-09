@@ -10,6 +10,63 @@
 using namespace std;
 using namespace ccf::crypto;
 
+TEST_CASE("Invalid PEM errors do not disclose input")
+{
+  const std::string invalid_pem =
+    "test-only-private-key-material\n-----END PRIVATE KEY-----";
+  const auto* expected_error = "PEM constructed with non-PEM data";
+  const auto* data = reinterpret_cast<const uint8_t*>(invalid_pem.data());
+
+  REQUIRE_THROWS_WITH_AS(Pem{invalid_pem}, expected_error, std::runtime_error);
+  REQUIRE_THROWS_WITH_AS(
+    Pem(data, invalid_pem.size()), expected_error, std::runtime_error);
+  REQUIRE_THROWS_WITH_AS(
+    Pem(data, invalid_pem.size() + 1), expected_error, std::runtime_error);
+
+  const std::vector<uint8_t> bytes(invalid_pem.begin(), invalid_pem.end());
+  REQUIRE_THROWS_WITH_AS(Pem{bytes}, expected_error, std::runtime_error);
+  REQUIRE_THROWS_WITH_AS(
+    Pem{std::span<const uint8_t>(bytes)}, expected_error, std::runtime_error);
+  REQUIRE_THROWS_WITH_AS(
+    nlohmann::json(invalid_pem).get<Pem>(), expected_error, std::runtime_error);
+  const nlohmann::json byte_array =
+    nlohmann::json::array_t(bytes.begin(), bytes.end());
+  REQUIRE_THROWS_WITH_AS(
+    byte_array.get<Pem>(), expected_error, std::runtime_error);
+
+  REQUIRE_THROWS_WITH_AS(
+    Pem{std::string{}}, expected_error, std::runtime_error);
+  REQUIRE_THROWS_WITH_AS(
+    Pem(nullptr, 0), "Got PEM of size 0", std::logic_error);
+
+  const nlohmann::json invalid_json_values[] = {
+    {{"private_key", invalid_pem}}, nullptr, false, 42};
+  for (const auto& j : invalid_json_values)
+  {
+    REQUIRE_THROWS_WITH_AS(
+      j.get<Pem>(),
+      "Unable to parse PEM: expected a string or array of bytes",
+      std::runtime_error);
+  }
+}
+
+TEST_CASE("PEM construction and JSON round trips")
+{
+  const std::string pem_string =
+    "-----BEGIN PRIVATE KEY-----\ntest-only-placeholder\n"
+    "-----END PRIVATE KEY-----";
+  const Pem pem(pem_string);
+  REQUIRE(pem.str() == pem_string);
+  REQUIRE(Pem(pem.data(), pem.size()) == pem);
+  REQUIRE(Pem(pem.data(), pem.size() + 1) == pem);
+  REQUIRE(Pem(pem.raw()) == pem);
+  REQUIRE(Pem(std::span<const uint8_t>(pem.data(), pem.size())) == pem);
+  REQUIRE(nlohmann::json(pem).get<Pem>() == pem);
+  const nlohmann::json byte_array =
+    nlohmann::json::array_t(pem_string.begin(), pem_string.end());
+  REQUIRE(byte_array.get<Pem>() == pem);
+}
+
 void check_bundles(
   const std::string& single_cert,
   const Pem& cert_pem,

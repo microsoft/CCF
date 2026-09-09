@@ -92,7 +92,7 @@ namespace ccf::crypto
     else
     {
       throw std::runtime_error(
-        fmt::format("Unable to parse pem from this JSON: {}", j.dump()));
+        "Unable to parse PEM: expected a string or array of bytes");
     }
   }
 
