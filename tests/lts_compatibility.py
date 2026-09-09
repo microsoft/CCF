@@ -48,7 +48,7 @@ def validate_compatibility_report(report):
     if current_match is None:
         return
 
-    current_major, current_patch = map(int, current_match.groups())
+    current_major, current_patch = (int(group) for group in current_match.groups())
     live_compatibility = report["live compatibility"]
 
     previous_lts = live_compatibility["with previous LTS"]
