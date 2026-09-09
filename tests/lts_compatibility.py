@@ -52,11 +52,14 @@ def validate_compatibility_report(report):
     live_compatibility = report["live compatibility"]
 
     previous_lts = live_compatibility["with previous LTS"]
-    previous_lts_match = FINAL_RELEASE_TAG.fullmatch(previous_lts or "")
-    assert (
-        previous_lts_match is not None
-        and int(previous_lts_match.group(1)) == current_major - 1
-    ), f"Expected previous LTS from major {current_major - 1}, got {previous_lts}"
+    if current_major == 1:
+        assert previous_lts is None, f"Expected no previous LTS, got {previous_lts}"
+    else:
+        previous_lts_match = FINAL_RELEASE_TAG.fullmatch(previous_lts or "")
+        assert (
+            previous_lts_match is not None
+            and int(previous_lts_match.group(1)) == current_major - 1
+        ), f"Expected previous LTS from major {current_major - 1}, got {previous_lts}"
 
     same_lts = live_compatibility["with same LTS"]
     expected_same_lts = (
@@ -73,7 +76,9 @@ def validate_compatibility_report(report):
         assert (
             ledger_versions == snapshot_versions
         ), "Ledger and snapshot compatibility covered different releases"
-        expected_versions = {previous_lts}
+        expected_versions = set()
+        if previous_lts is not None:
+            expected_versions.add(previous_lts)
         if same_lts is not None:
             expected_versions.add(same_lts)
         missing_versions = expected_versions.difference(ledger_versions)
@@ -934,6 +939,8 @@ if __name__ == "__main__":
             LOG.info(
                 f"Compatibility report written to {args.compatibility_report_file}"
             )
+        # An explicit release path emits "with release (<path>)" rather than
+        # exercising the automatic previous- and same-LTS discovery checked here.
         if not args.release_install_path:
             with open(
                 args.compatibility_report_file, encoding="utf-8"
