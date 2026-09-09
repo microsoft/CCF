@@ -4,7 +4,6 @@
 import base64
 import http
 import json
-import os
 
 import ccf.ledger
 import ccf.read_ledger
@@ -250,9 +249,9 @@ def test_read_ledger_utility(network, args):
                 tables_format_rules=format_rule,
             )
 
-    snapshot_dir = network.get_committed_snapshots(primary)
+    snapshot_path = primary.wait_for_snapshot(target_seqno)
     assert ccf.read_ledger.run(
-        paths=[os.path.join(snapshot_dir, os.listdir(snapshot_dir)[-1])],
+        paths=[snapshot_path],
         print_mode=ccf.read_ledger.PrintMode.Contents,
         is_snapshot=True,
         tables_format_rules=format_rule,
