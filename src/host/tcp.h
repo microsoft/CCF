@@ -915,14 +915,24 @@ namespace asynchost
     {
       if (uv_is_closing(reinterpret_cast<uv_handle_t*>(&uv_handle)) != 0)
       {
-        LOG_DEBUG_FMT("on_connect: closing");
+        LOG_INFO_FMT(
+          "TCP on_connect: closing socket={}, behaviour={}, peer={}",
+          fmt::ptr(this),
+          fmt::ptr(behaviour.get()),
+          get_address_name());
         return;
       }
 
       if (rc < 0)
       {
         // Try again on the next address.
-        LOG_DEBUG_FMT("uv_tcp_connect async retry: {}", uv_strerror(rc));
+        LOG_INFO_FMT(
+          "TCP connect retry: socket={}, behaviour={}, peer={}, error={} ({})",
+          fmt::ptr(this),
+          fmt::ptr(behaviour.get()),
+          get_address_name(),
+          rc,
+          uv_strerror(rc));
         addr_current = addr_current->ai_next;
         assert_status(CONNECTING, CONNECTING_RESOLVING);
         connect_resolved();
@@ -1029,7 +1039,13 @@ namespace asynchost
         on_free(buf);
         uv_read_stop(reinterpret_cast<uv_stream_t*>(&uv_handle));
 
-        LOG_DEBUG_FMT("TCP on_read: {}", uv_strerror(static_cast<int>(sz)));
+        LOG_INFO_FMT(
+          "TCP read closed: socket={}, behaviour={}, peer={}, error={} ({})",
+          fmt::ptr(this),
+          fmt::ptr(behaviour.get()),
+          get_address_name(),
+          sz,
+          uv_strerror(static_cast<int>(sz)));
         behaviour->on_disconnect();
         return;
       }
@@ -1044,6 +1060,11 @@ namespace asynchost
 
       if (!read_good)
       {
+        LOG_INFO_FMT(
+          "TCP read rejected by behaviour: socket={}, behaviour={}, peer={}",
+          fmt::ptr(this),
+          fmt::ptr(behaviour.get()),
+          get_address_name());
         behaviour->on_disconnect();
         return;
       }

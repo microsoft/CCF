@@ -23,6 +23,7 @@ env:
 
 jobs:
   vmss-virtual-a:
+    if: false # DEBUG ONLY: do not merge this branch.
     name: "VMSS Virtual A" # CI Checks, Clang Tidy, Python package tests, Doc build, Unit tests, e2e (bucket_a)
     runs-on:
       [
@@ -116,6 +117,7 @@ jobs:
         if: success() || failure()
 
   vmss-virtual-b:
+    if: false # DEBUG ONLY: do not merge this branch.
     name: "VMSS Virtual B" # End-to-end tests (bucket_b)
     runs-on:
       [
@@ -188,7 +190,8 @@ jobs:
         if: success() || failure()
 
   vmss-virtual-c:
-    name: "VMSS Virtual C" # End-to-end tests (bucket_c)
+    name: "DEBUG ONLY - partitions until first failure (DO NOT MERGE)"
+    timeout-minutes: 360
     runs-on:
       [
         self-hosted,
@@ -222,30 +225,26 @@ jobs:
           mkdir build
           cd build
           cmake -GNinja -DCMAKE_BUILD_TYPE=Debug ..
-          ninja
+          ninja logging
         shell: bash
 
-      - name: "Test virtual"
-        run: |
-          set -ex
-          cd build
-          rm -rf /github/home/.cache
-          mkdir -p /github/home/.cache
-
-          ./tests.sh --timeout 360 --output-on-failure -L bucket_c
+      - name: "DEBUG ONLY - repeat partitions, stop at first failure"
+        timeout-minutes: 330
         shell: bash
-
-      - name: "Run partitions tests"
         run: |
-          set -ex
-          cd build
-          ./tests.sh --timeout 360 --output-on-failure -L partitions -C partitions
+          ./scripts/debug-partitions-loop.sh
 
-      - name: "Upload logs for virtual C"
+      - name: "Upload final partition iteration only"
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: logs-azurelinux-virtual-c
+          retention-days: 3
+          compression-level: 9
           path: |
+            build/partitions-current.log
+            build/partitions-iterations.tsv
+            build/Testing/Temporary/LastTest.log
+            build/Testing/Temporary/LastTestsFailed.log
             build/workspace/*/*.config.json
             build/workspace/*/out
             build/workspace/*/err
@@ -253,9 +252,10 @@ jobs:
             build/workspace/*/stack_trace
             build/workspace/**/openapi_coverage.json
           if-no-files-found: ignore
-        if: success() || failure()
+        if: always()
 
   aci_snp_milan:
+    if: false # DEBUG ONLY: do not merge this branch.
     name: "ACI SNP Milan"
     runs-on:
       [
@@ -342,6 +342,7 @@ jobs:
         if: success() || failure()
 
   aci_snp_genoa:
+    if: false # DEBUG ONLY: do not merge this branch.
     name: "ACI SNP Genoa"
     runs-on:
       [

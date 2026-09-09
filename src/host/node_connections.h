@@ -192,7 +192,11 @@ namespace asynchost
 
       void on_disconnect() override
       {
-        LOG_INFO_FMT("Disconnecting incoming connection {}", id);
+        LOG_INFO_FMT(
+          "Disconnecting incoming connection {}, behaviour={}, node={}",
+          id,
+          fmt::ptr(this),
+          node_id.value_or(UnassociatedNode));
         parent.unassociated_incoming.erase(id);
 
         if (node_id.has_value())
@@ -242,11 +246,27 @@ namespace asynchost
           return false;
         }
 
+        if (existing != parent.connections.end())
+        {
+          LOG_INFO_FMT(
+            "Replacing connection to {} with incoming {}, outgoing={}, "
+            "age_ms={}",
+            n,
+            id,
+            existing->second.outgoing,
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+              std::chrono::steady_clock::now() - existing->second.created)
+              .count());
+        }
         node_id = n;
         parent.connections[n] = {unassociated->second, false};
         parent.unassociated_incoming.erase(unassociated);
 
-        LOG_INFO_FMT("Node incoming connection ({}) associated with {}", id, n);
+        LOG_INFO_FMT(
+          "Node incoming connection ({}) associated with {}, behaviour={}",
+          id,
+          n,
+          fmt::ptr(this));
         return true;
       }
     };
@@ -292,8 +312,10 @@ namespace asynchost
       void on_disconnect() override
       {
         LOG_INFO_FMT(
-          "Disconnecting outgoing connection with {}: disconnected",
-          *node); // NOLINT(bugprone-unchecked-optional-access)
+          "Disconnecting outgoing connection with {}: disconnected, "
+          "behaviour={}",
+          *node, // NOLINT(bugprone-unchecked-optional-access)
+          fmt::ptr(this));
         parent.remove_connection(
           *node); // NOLINT(bugprone-unchecked-optional-access)
       }
@@ -400,6 +422,7 @@ namespace asynchost
           auto [node_id] =
             ringbuffer::read_message<ccf::close_node_outbound>(data, size);
 
+          LOG_INFO_FMT("Enclave requested connection closure with {}", node_id);
           remove_connection(node_id);
         });
 
@@ -588,6 +611,17 @@ namespace asynchost
     // Remove the connection with this peer, if any.
     bool remove_connection(ccf::NodeId node)
     {
+      const auto existing = connections.find(node);
+      if (existing != connections.end())
+      {
+        LOG_INFO_FMT(
+          "Removing connection with {}, outgoing={}, age_ms={}",
+          node,
+          existing->second.outgoing,
+          std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now() - existing->second.created)
+            .count());
+      }
       if (connections.erase(node) < 1)
       {
         LOG_DEBUG_FMT("Cannot remove node connection {}: does not exist", node);

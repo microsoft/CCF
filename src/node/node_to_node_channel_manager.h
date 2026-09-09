@@ -165,7 +165,7 @@ namespace ccf
           }
           else
           {
-            LOG_DEBUG_FMT(
+            LOG_INFO_FMT(
               "Closing idle channel to node {}. Was idle for {}, threshold for "
               "closure is {}",
               it->first,
