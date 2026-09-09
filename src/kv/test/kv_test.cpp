@@ -96,10 +96,11 @@ TEST_CASE("Zero-revision whole-map dependencies")
     {
       handle->put("own", "pending");
       size_t visited = 0;
-      handle->range(
-        [&](const auto&, const auto&) { ++visited; },
-        std::nullopt,
-        std::nullopt);
+      pending.rw<MapTypes::UntypedMap>(empty.get_name())
+        ->range(
+          [&](const auto&, const auto&) { ++visited; },
+          std::nullopt,
+          std::nullopt);
       REQUIRE(visited == 1);
     }
     else if (observation == "size")
