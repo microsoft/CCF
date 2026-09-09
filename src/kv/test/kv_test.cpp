@@ -64,7 +64,8 @@ TEST_CASE("Map name parsing")
 TEST_CASE("Zero-revision whole-map dependencies")
 {
   using Result = ccf::kv::CommitResult;
-  for (const std::string_view observation : {"foreach", "size", "clear"})
+  for (const std::string_view observation :
+       {"foreach", "range", "size", "clear"})
   {
     INFO("Map-wide observation: ", observation);
     ccf::kv::Store store;
@@ -89,6 +90,16 @@ TEST_CASE("Zero-revision whole-map dependencies")
         ++visited;
         return true;
       });
+      REQUIRE(visited == 1);
+    }
+    else if (observation == "range")
+    {
+      handle->put("own", "pending");
+      size_t visited = 0;
+      handle->range(
+        [&](const auto&, const auto&) { ++visited; },
+        std::nullopt,
+        std::nullopt);
       REQUIRE(visited == 1);
     }
     else if (observation == "size")
