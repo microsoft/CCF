@@ -23,6 +23,7 @@
   ],
   "allowed_internal_dependencies": {
     "apps": ["ccf-api", "js"],
+    "clients": ["ccf-api", "crypto", "ds", "http"],
     "cose": [],
     "crypto": ["cose", "ds"],
     "ds": [],
