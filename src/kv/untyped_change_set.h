@@ -9,6 +9,8 @@
 #include "kv/kv_types.h"
 #include "kv/version_v.h"
 
+#include <optional>
+
 namespace ccf::kv::untyped
 {
   using SerialisedEntry = ccf::ByteVector;
@@ -41,7 +43,7 @@ namespace ccf::kv::untyped
     const ccf::kv::untyped::State committed;
     const Version start_version = {};
 
-    Version read_version = NoVersion;
+    std::optional<Version> read_version = std::nullopt;
     ccf::kv::untyped::Read reads;
     ccf::kv::untyped::Write writes;
 
