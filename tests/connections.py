@@ -3,6 +3,7 @@
 import contextlib
 import functools
 import http
+import http.client
 import os
 import random
 import resource
