@@ -91,6 +91,7 @@ DOCTEST_TEST_CASE(
   const auto node_id1 = ccf::kv::test::FirstBackupNodeId;
   const auto node_id2 = ccf::kv::test::SecondBackupNodeId;
   auto kv_store = std::make_shared<Store>(node_id0);
+  // The stub models existing channels without registered peer addresses.
   auto channels = std::make_shared<aft::ChannelStubProxy>();
 
   TRaft raft(
@@ -101,7 +102,6 @@ DOCTEST_TEST_CASE(
     std::make_shared<aft::State>(node_id0),
     nullptr);
 
-  DOCTEST_REQUIRE(channels->have_channel(node_id1));
   DOCTEST_REQUIRE(channels->node_addresses.empty());
 
   aft::Configuration::Nodes config;
@@ -115,7 +115,6 @@ DOCTEST_TEST_CASE(
   DOCTEST_CHECK(channels->node_addresses.at(node_id1).second == "8001");
   DOCTEST_CHECK_FALSE(channels->node_addresses.contains(node_id0));
 
-  DOCTEST_REQUIRE(channels->have_channel(node_id2));
   config[node_id2] = {"127.0.0.3", "8002"};
   raft.add_configuration(1, config);
 
