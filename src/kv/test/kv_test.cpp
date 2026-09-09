@@ -81,9 +81,9 @@ TEST_CASE("Zero-revision whole-map dependencies")
     }
 
     auto pending = store.create_tx();
-    auto* handle = pending.rw(empty);
     if (observation == "foreach")
     {
+      auto* handle = pending.rw(empty);
       handle->put("own", "pending");
       size_t visited = 0;
       handle->foreach([&](const auto&, const auto&) {
@@ -94,7 +94,11 @@ TEST_CASE("Zero-revision whole-map dependencies")
     }
     else if (observation == "range")
     {
-      handle->put("own", "pending");
+      auto* handle = pending.rw<MapTypes::UntypedMap>("public:empty");
+      handle->put(
+        ccf::kv::serialisers::JsonSerialiser<std::string>::to_serialised("own"),
+        ccf::kv::serialisers::JsonSerialiser<std::string>::to_serialised(
+          "pending"));
       size_t visited = 0;
       pending.rw<MapTypes::UntypedMap>(empty.get_name())
         ->range(
@@ -105,10 +109,12 @@ TEST_CASE("Zero-revision whole-map dependencies")
     }
     else if (observation == "size")
     {
+      auto* handle = pending.rw(empty);
       REQUIRE(handle->size() == 0);
     }
     else
     {
+      auto* handle = pending.rw(empty);
       handle->clear();
     }
     pending.rw(other)->put("must_not_apply", "pending");
