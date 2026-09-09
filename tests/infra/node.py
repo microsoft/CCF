@@ -605,16 +605,17 @@ class Node:
 
     def _get_local_ledger_start_seqno(self):
         with self.client() as c:
+            # Recovery input may not be locally served, even after a startup snapshot.
+            if self.remote.start_type == infra.remote.StartType.recover:
+                r = c.get("/node/network")
+                assert r.status_code == http.HTTPStatus.OK, r
+                return TxID.from_str(r.body.json()["current_service_create_txid"]).seqno
+
             r = c.get("/node/state")
             assert r.status_code == http.HTTPStatus.OK, r
             startup_seqno = r.body.json()["startup_seqno"]
             if startup_seqno != 0:
                 return startup_seqno + 1
-
-            if self.remote.start_type == infra.remote.StartType.recover:
-                r = c.get("/node/network")
-                assert r.status_code == http.HTTPStatus.OK, r
-                return TxID.from_str(r.body.json()["current_service_create_txid"]).seqno
 
             return 1
 
