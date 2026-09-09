@@ -479,6 +479,18 @@ def test_js_exception_output(network, args):
             == "    at nested (/endpoints/rpc.js:27:24)\n    at throwError (/endpoints/rpc.js:29:11)\n"
         )
 
+        LOG.info("Invalid private PEM errors do not disclose input")
+        invalid_pem = "test-only-private-key-material\n-----END PRIVATE KEY-----"
+        for endpoint in ("pemToJwk", "rsaPemToJwk", "eddsaPemToJwk"):
+            r = c.post(f"/app/{endpoint}", body={"pem": invalid_pem})
+            assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR
+            error = r.body.json()["error"]
+            assert error["details"][0]["message"] == (
+                "InternalError: Failed to convert pem to jwk: "
+                "PEM constructed with non-PEM data"
+            )
+            assert "test-only-private-key-material" not in r.body.text()
+
         network.consortium.set_js_runtime_options(
             primary,
             max_heap_bytes=default_max_heap_size,

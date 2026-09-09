@@ -1000,30 +1000,4 @@ def test_npm_app(network, args):
         validate_openapi(c)
         generate_and_verify_jwk(c)
 
-        LOG.info("Invalid private PEM errors do not disclose input")
-        metrics = c.get("/node/js_metrics").body.json()
-        runtime_options = {
-            "max_heap_bytes": metrics["max_heap_size"],
-            "max_stack_bytes": metrics["max_stack_size"],
-            "max_execution_time_ms": metrics["max_execution_time"],
-        }
-        network.consortium.set_js_runtime_options(
-            primary, **runtime_options, return_exception_details=True
-        )
-        try:
-            invalid_pem = "test-only-private-key-material\n-----END PRIVATE KEY-----"
-            for endpoint in ("pemToJwk", "rsaPemToJwk", "eddsaPemToJwk"):
-                r = c.post(f"/app/{endpoint}", body={"pem": invalid_pem})
-                assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR
-                error = r.body.json()["error"]
-                assert error["details"][0]["message"] == (
-                    "InternalError: Failed to convert pem to jwk: "
-                    "PEM constructed with non-PEM data"
-                )
-                assert "test-only-private-key-material" not in r.body.text()
-        finally:
-            network.consortium.set_js_runtime_options(
-                primary, **runtime_options, return_exception_details=False
-            )
-
     return network
