@@ -20,6 +20,7 @@
 #include <chrono>
 #include <condition_variable>
 #include <csignal>
+#include <cstdlib>
 #include <deque>
 #include <doctest/doctest.h>
 #include <future>
@@ -34,6 +35,7 @@
 #include <random>
 #include <set>
 #include <string>
+#include <string_view>
 #include <sys/socket.h>
 #include <thread>
 #include <unistd.h>
@@ -254,6 +256,19 @@ namespace
     SSL_CTX_free(cctx);
     ::close(fd);
     return collector.responses;
+  }
+
+  // IPv6 loopback is expected wherever these tests run: every CI job which
+  // runs them enables it explicitly (see the --sysctl arguments on the
+  // vmss-virtual containers). A missing ::1 is therefore a real failure by
+  // default, rather than something to skip past silently. Environments which
+  // genuinely cannot provide it - an unprivileged container, or a kernel built
+  // without IPv6 - must opt out deliberately by setting
+  // CCF_TEST_SKIP_IPV6=1, so the loss of coverage is always a visible choice.
+  bool ipv6_skip_requested()
+  {
+    const char* const opt_out = std::getenv("CCF_TEST_SKIP_IPV6");
+    return opt_out != nullptr && std::string_view(opt_out) == "1";
   }
 
   std::vector<uint8_t> random_bytes(size_t n)
@@ -1530,23 +1545,15 @@ TEST_CASE("Datagram listeners bind exclusively and can rebind after stopping")
   uv_loop_t loop{};
   REQUIRE(uv_loop_init(&loop) == 0);
   {
-    // Not every environment provides an IPv6 loopback (some CI containers run
-    // without the enabling sysctls), so treat it as unavailable rather than
-    // failing, matching "Listener binds IPv6 loopback when available".
-    std::unique_ptr<DatagramServer> initial;
-    try
+    if (host == "::1" && ipv6_skip_requested())
     {
-      initial = std::make_unique<DatagramServer>(host, 0, on_datagram, &loop);
-    }
-    catch (const std::exception&)
-    {
-      MESSAGE(host << " unavailable in this environment - skipping");
+      MESSAGE("CCF_TEST_SKIP_IPV6=1 - skipping IPv6 datagram coverage");
       CHECK(uv_run(&loop, UV_RUN_DEFAULT) == 0);
       CHECK(uv_loop_close(&loop) == 0);
       return;
     }
 
-    DatagramServer& server = *initial;
+    DatagramServer server(host, 0, on_datagram, &loop);
     server.start();
     const auto port = server.port();
     REQUIRE(port != 0);
@@ -1938,22 +1945,19 @@ TEST_CASE("Listener binds a hostname (localhost)")
   REQUIRE(tls_echo_roundtrip("localhost", s.port(), msg) == msg);
 }
 
-TEST_CASE("Listener binds IPv6 loopback when available")
+TEST_CASE("Listener binds IPv6 loopback")
 {
-  auto [cert, key] = make_server_cert();
-  std::unique_ptr<EchoServer> s;
-  try
+  if (ipv6_skip_requested())
   {
-    s = std::make_unique<EchoServer>(cert, key, "::1");
-  }
-  catch (const std::exception&)
-  {
-    MESSAGE("IPv6 loopback unavailable in this environment - skipping");
+    MESSAGE("CCF_TEST_SKIP_IPV6=1 - skipping IPv6 listener coverage");
     return;
   }
 
+  auto [cert, key] = make_server_cert();
+  EchoServer s(cert, key, "::1");
+
   const std::vector<uint8_t> msg = {'v', '6'};
-  REQUIRE(tls_echo_roundtrip("::1", s->port(), msg) == msg);
+  REQUIRE(tls_echo_roundtrip("::1", s.port(), msg) == msg);
 }
 
 TEST_CASE("Graceful close flushes buffered response without truncation")
