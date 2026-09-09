@@ -176,21 +176,6 @@ def test_forced_ledger_chunk(network, args):
     return network
 
 
-def find_snapshot_after_seqno(snapshots_dir, seqno):
-    for snapshot_name in os.listdir(snapshots_dir):
-        with ccf.ledger.Snapshot(
-            os.path.join(snapshots_dir, snapshot_name)
-        ) as snapshot:
-            snapshot_seqno = snapshot.get_public_domain().get_seqno()
-            if snapshot_seqno > seqno:
-                LOG.info(f"Found a snapshot at {snapshot_seqno} which is after {seqno}")
-                return snapshot_seqno
-
-    raise RuntimeError(
-        f"Could not find a snapshot after seqno {seqno} in {snapshots_dir}"
-    )
-
-
 def find_latest_committed_snapshot_name(network, count=1):
     assert count > 0, f"Expected positive snapshot count, got {count}"
     primary, _ = network.find_primary()
@@ -231,10 +216,9 @@ def test_forced_snapshot(network, args):
     # Issue some more transactions
     network.txs.issue(network, number_txs=5)
 
-    snapshots_dir = network.get_committed_snapshots(
-        primary, target_seqno=hwm_pre_proposal + 1, wait_for_target_seqno=True
-    )
-    find_snapshot_after_seqno(snapshots_dir, hwm_pre_proposal)
+    snapshot_path = primary.wait_for_snapshot(hwm_pre_proposal + 1)
+    with ccf.ledger.Snapshot(snapshot_path) as snapshot:
+        assert snapshot.get_public_domain().get_seqno() > hwm_pre_proposal
 
     # Do not issue another transaction after this call. The snapshot request
     # must make all preceding transactions available in a committed chunk even
@@ -283,13 +267,10 @@ def test_forced_snapshot_while_opening(network, args):
 
     issue_governance_txs(5)
 
-    snapshots_dir = network.get_committed_snapshots(
-        primary,
-        target_seqno=hwm_pre_proposal + 1,
-        force_txs=False,
-        wait_for_target_seqno=True,
-    )
-    snapshot_seqno = find_snapshot_after_seqno(snapshots_dir, hwm_pre_proposal)
+    snapshot_path = primary.wait_for_snapshot(hwm_pre_proposal + 1)
+    with ccf.ledger.Snapshot(snapshot_path) as snapshot:
+        snapshot_seqno = snapshot.get_public_domain().get_seqno()
+        assert snapshot_seqno > hwm_pre_proposal
 
     _, committed_ledger_dirs = primary.get_ledger()
     ledger = ccf.ledger.Ledger(
@@ -334,13 +315,9 @@ def test_snapshot_create_endpoint(network, args):
         r = c.post("/node/snapshot:create")
         assert r.status_code == http.HTTPStatus.NO_CONTENT, r
 
-    snapshots_dir = network.get_committed_snapshots(
-        primary,
-        target_seqno=hwm_pre_request + 1,
-        force_txs=False,
-        wait_for_target_seqno=True,
-    )
-    find_snapshot_after_seqno(snapshots_dir, hwm_pre_request)
+    snapshot_path = primary.wait_for_snapshot(hwm_pre_request + 1)
+    with ccf.ledger.Snapshot(snapshot_path) as snapshot:
+        assert snapshot.get_public_domain().get_seqno() > hwm_pre_request
 
     return network
 
@@ -1569,8 +1546,10 @@ def test_ledger_chunk_redirect_gap(network, args):
         commit_seqno = TxID.from_str(r["transaction_id"]).seqno
 
     new_node = network.create_node()
-    # force primary to generate a new snapshot after commit idx
-    network.get_committed_snapshots()
+    # Commit a transaction beyond the old boundary before requesting a snapshot.
+    target = network.txs.issue(network, number_txs=1)
+    primary.trigger_snapshot()
+    primary.wait_for_snapshot(target.seqno)
     network.join_node(
         new_node,
         args.package,
@@ -3455,8 +3434,9 @@ def test_join_time_snapshot_fetch_failure(network, args):
 
     # Ensure at least one committed snapshot exists so that joining nodes
     # can be given one (startup_seqno > 0).
-    network.txs.issue(network, number_txs=args.snapshot_tx_interval * 2)
-    network.get_committed_snapshots(primary)
+    target = network.txs.issue(network, number_txs=1)
+    primary.trigger_snapshot()
+    primary.wait_for_snapshot(target.seqno)
 
     # Full reconfigure so every remaining node has startup_seqno > 0
     # (otherwise a redirect to the primary would let the joiner succeed).
@@ -3545,11 +3525,12 @@ def test_error_message_on_failure_to_fetch_snapshot(network, args):
     )
     network.trust_node(new_node, args)
 
-    # Issue enough transactions to trigger a new snapshot on the primary.
+    # Explicitly trigger a snapshot after the new node has joined.
     # The snapshot_evidence hook on new_node then schedules BackupSnapshotFetch,
     # which exhausts its 3 attempts (all HTTP 404) and logs "giving up".
-    network.txs.issue(network, number_txs=args.snapshot_tx_interval * 2)
-    network.get_committed_snapshots(primary)
+    target = network.txs.issue(network, number_txs=1)
+    primary.trigger_snapshot()
+    primary.wait_for_snapshot(target.seqno)
 
     _assert_snapshot_fetch_failure_messages(new_node, timeout_s=30)
 
@@ -3559,26 +3540,21 @@ def test_backup_snapshot_fetch(network, args):
     backups = network.find_backups()
     assert len(backups) > 0, "Expected at least one backup node"
 
-    # Issue enough transactions to trigger snapshot generation
-    # The primary will create a snapshot after snapshot_tx_interval txs
-    LOG.info("Issuing transactions to trigger snapshot generation")
-    network.txs.issue(network, number_txs=args.snapshot_tx_interval * 2)
+    target = network.txs.issue(network, number_txs=1)
+    primary.trigger_snapshot()
 
     # Wait for committed snapshots on the primary, and use those as expected
     # snapshot files on backups.
     LOG.info("Waiting for committed snapshot on primary")
-    primary_snapshots_dir = network.get_committed_snapshots(primary)
+    primary.wait_for_snapshot(target.seqno)
     expected_snapshot_sizes = {
-        snapshot_name: os.path.getsize(
-            os.path.join(primary_snapshots_dir, snapshot_name)
-        )
-        for snapshot_name in os.listdir(primary_snapshots_dir)
-        if ccf.ledger.is_snapshot_file_committed(snapshot_name)
+        os.path.basename(path): os.path.getsize(path)
+        for path in primary.get_snapshots(include_read_only=True)
     }
 
     assert (
         len(expected_snapshot_sizes) > 0
-    ), f"No committed snapshots found in {primary_snapshots_dir}"
+    ), f"No committed snapshots found on primary {primary.local_node_id}"
 
     for backup in backups:
         backup_snapshots_dir = os.path.join(
