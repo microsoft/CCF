@@ -27,16 +27,6 @@ namespace ccf::pal
       {}
     };
 
-    class AttestationReportFactory
-    {
-    public:
-      static AttestationReport make(TavAttestationReportPtr&& report)
-      {
-        return AttestationReport(
-          std::make_unique<AttestationReport::Impl>(std::move(report)));
-      }
-    };
-
     AttestationReport::AttestationReport(std::unique_ptr<Impl> impl_) :
       impl(std::move(impl_))
     {}
@@ -51,7 +41,7 @@ namespace ccf::pal
       using BytesAccessor =
         void (*)(const TavSnpAttestationReport*, const uint8_t**, size_t*);
 
-      std::vector<uint8_t> get_bytes(
+      std::span<const uint8_t> get_bytes(
         const TavSnpAttestationReport* report,
         BytesAccessor accessor,
         size_t expected_size,
@@ -69,7 +59,7 @@ namespace ccf::pal
             data == nullptr ? "is null" : "is not null",
             expected_size));
         }
-        return {data, data + size};
+        return {data, size};
       }
 
       [[noreturn]] void throw_tav_error(
@@ -142,7 +132,7 @@ namespace ccf::pal
 #undef SNP_SCALAR_ACCESSOR
 
 #define SNP_BYTES_ACCESSOR(method, tav_accessor, size) \
-  std::vector<uint8_t> AttestationReport::method() const \
+  std::span<const uint8_t> AttestationReport::method() const \
   { \
     return get_bytes(impl->report.get(), tav_accessor, size, #method); \
   }
@@ -173,7 +163,7 @@ namespace ccf::pal
 
     TcbVersionRaw AttestationReport::platform_version() const
     {
-      return TcbVersionRaw(get_bytes(
+      return TcbVersionRaw::from_span(get_bytes(
         impl->report.get(),
         tav_snp_attestation_report_platform_version,
         snp_tcb_version_size,
@@ -182,7 +172,7 @@ namespace ccf::pal
 
     TcbVersionRaw AttestationReport::reported_tcb() const
     {
-      return TcbVersionRaw(get_bytes(
+      return TcbVersionRaw::from_span(get_bytes(
         impl->report.get(),
         tav_snp_attestation_report_reported_tcb,
         snp_tcb_version_size,
@@ -191,7 +181,7 @@ namespace ccf::pal
 
     TcbVersionRaw AttestationReport::committed_tcb() const
     {
-      return TcbVersionRaw(get_bytes(
+      return TcbVersionRaw::from_span(get_bytes(
         impl->report.get(),
         tav_snp_attestation_report_committed_tcb,
         snp_tcb_version_size,
@@ -200,14 +190,14 @@ namespace ccf::pal
 
     TcbVersionRaw AttestationReport::launch_tcb() const
     {
-      return TcbVersionRaw(get_bytes(
+      return TcbVersionRaw::from_span(get_bytes(
         impl->report.get(),
         tav_snp_attestation_report_launch_tcb,
         snp_tcb_version_size,
         "launch_tcb"));
     }
 
-    std::vector<uint8_t> AttestationReport::chip_id_for_vcek() const
+    std::span<const uint8_t> AttestationReport::chip_id_for_vcek() const
     {
       auto id = chip_id();
       const auto product = get_sev_snp_product(cpuid_fam_id(), cpuid_mod_id());
@@ -217,14 +207,13 @@ namespace ccf::pal
       }
       if (product == ProductName::Turin)
       {
-        id.resize(8);
-        return id;
+        return id.first(8);
       }
       throw std::logic_error(
         fmt::format("Unsupported SEV-SNP product: {}", product));
     }
 
-    AttestationReport parse_attestation_report_unverified(
+    AttestationReport AttestationReport::from_unverified(
       std::span<const uint8_t> report)
     {
       TavSnpAttestationReport* raw_report = nullptr;
@@ -240,7 +229,14 @@ namespace ccf::pal
         throw std::logic_error(
           "SEV-SNP: TAV parsing succeeded without returning a report");
       }
-      return AttestationReportFactory::make(std::move(parsed_report));
+      return AttestationReport(
+        std::make_unique<Impl>(std::move(parsed_report)));
+    }
+
+    AttestationReport parse_attestation_report_unverified(
+      std::span<const uint8_t> report)
+    {
+      return AttestationReport::from_unverified(report);
     }
   }
 
@@ -437,23 +433,25 @@ namespace ccf::pal
   }
 
   // Verifying SNP attestation report is available on all platforms.
-  snp::AttestationReport verify_snp_attestation_report_and_get(
-    const QuoteInfo& quote_info,
+  snp::AttestationReport snp::AttestationReport::verify(
+    std::span<const uint8_t> report,
+    std::span<const uint8_t> endorsements,
     PlatformAttestationMeasurement& measurement,
-    PlatformAttestationReportData& report_data)
+    PlatformAttestationReportData& report_data,
+    std::optional<std::string_view> claimed_endorsed_tcb)
   {
-    if (quote_info.format != QuoteFormat::amd_sev_snp_v1)
+    if (report.size() != snp::attestation_report_size)
     {
       throw std::logic_error(fmt::format(
-        "Unexpected attestation report to verify for SEV-SNP: {}",
-        quote_info.format));
+        "Input SEV-SNP attestation report is not of expected size {}: {}",
+        snp::attestation_report_size,
+        report.size()));
     }
 
     // ---- Verify certificate chain ----
 
     auto certificates = ccf::crypto::split_x509_cert_bundle(std::string_view(
-      reinterpret_cast<const char*>(quote_info.endorsements.data()),
-      quote_info.endorsements.size()));
+      reinterpret_cast<const char*>(endorsements.data()), endorsements.size()));
     if (certificates.size() != 3)
     {
       throw std::logic_error(fmt::format(
@@ -468,8 +466,8 @@ namespace ccf::pal
 
     TavSnpAttestationReport* verified_report_raw = nullptr;
     TavErrorPtr verification_error(tav_verify_snp_attestation(
-      quote_info.quote.data(),
-      quote_info.quote.size(),
+      report.data(),
+      report.size(),
       ark_cert.data(),
       ark_cert.size(),
       ask_cert.data(),
@@ -495,7 +493,7 @@ namespace ccf::pal
     }
 
     auto attestation =
-      snp::AttestationReportFactory::make(std::move(verified_report));
+      AttestationReport(std::make_unique<Impl>(std::move(verified_report)));
 
     if (attestation.version() < snp::minimum_attestation_version)
     {
@@ -586,10 +584,10 @@ namespace ccf::pal
         ccf::ds::to_hex(reported_chip_id)));
     }
 
-    if (quote_info.endorsed_tcb.has_value())
+    if (claimed_endorsed_tcb.has_value())
     {
-      const auto& quote_endorsed_tcb = quote_info.endorsed_tcb.value();
-      auto raw_endorsed_tcb = snp::TcbVersionRaw::from_hex(quote_endorsed_tcb);
+      auto raw_endorsed_tcb =
+        snp::TcbVersionRaw::from_hex(std::string(claimed_endorsed_tcb.value()));
 
       const auto reported_tcb = attestation.reported_tcb();
       if (raw_endorsed_tcb != reported_tcb)
@@ -610,12 +608,44 @@ namespace ccf::pal
     return attestation;
   }
 
+  snp::AttestationReport verify_snp_attestation_report_and_get(
+    const QuoteInfo& quote_info,
+    PlatformAttestationMeasurement& measurement,
+    PlatformAttestationReportData& report_data)
+  {
+    if (quote_info.format != QuoteFormat::amd_sev_snp_v1)
+    {
+      throw std::logic_error(fmt::format(
+        "Unexpected attestation report to verify for SEV-SNP: {}",
+        quote_info.format));
+    }
+
+    return snp::AttestationReport::verify(
+      quote_info.quote,
+      quote_info.endorsements,
+      measurement,
+      report_data,
+      quote_info.endorsed_tcb);
+  }
+
   void verify_snp_attestation_report(
     const QuoteInfo& quote_info,
     PlatformAttestationMeasurement& measurement,
     PlatformAttestationReportData& report_data)
   {
-    verify_snp_attestation_report_and_get(quote_info, measurement, report_data);
+    if (quote_info.format != QuoteFormat::amd_sev_snp_v1)
+    {
+      throw std::logic_error(fmt::format(
+        "Unexpected attestation report to verify for SEV-SNP: {}",
+        quote_info.format));
+    }
+
+    snp::AttestationReport::verify(
+      quote_info.quote,
+      quote_info.endorsements,
+      measurement,
+      report_data,
+      quote_info.endorsed_tcb);
   }
 
   void verify_quote(

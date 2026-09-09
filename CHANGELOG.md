@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [7.0.15]
+
+[7.0.15]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.15
+
+### Fixed
+
+- Fixed swapped `current_minor` and `current_build` values in JavaScript `verifySnpAttestation()` results. These fields now match the AMD SEV-SNP report layout. The deprecated C++ `ccf::pal::snp::Attestation` retains its previous field mapping for compatibility. (#8083)
+- The exported `ccf_rs` CMake target now supplies its OpenSSL link dependencies, so downstream consumers no longer need to add them manually. (#8083)
+
+### Changed
+
+- SNP attestation reports are now parsed and verified through the move-only, TAV-backed `ccf::pal::snp::AttestationReport` accessor API. Byte accessors return read-only spans into the report; moves preserve these views, but destroying or replacing the owning report invalidates them. The packed `ccf::pal::snp::Attestation` wire-layout type and its legacy accessors remain available for compatibility but are deprecated. (#8083)
+- `ccf::pal::snp::get_attestation_bytes()` in `ccf/pal/snp_ioctl.h` requests an unverified SNP report as owned bytes, without using the legacy report type. `AttestationInterface::get_raw()` and its ioctl implementation remain available but are deprecated. (#8083)
+
 ## [7.0.14]
 
 [7.0.14]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.14
@@ -87,7 +101,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
-- SNP attestation reports are now parsed and verified through TAV accessors. The public packed `ccf::pal::snp::Attestation` wire-layout type has been replaced by the move-only `ccf::pal::snp::AttestationReport` accessor API. (#8083)
 - TLS handshakes now prefer hybrid post-quantum key exchange groups, in the order `SecP384r1MLKEM1024`, `SecP256r1MLKEM768`, `X25519MLKEM768`, when the linked crypto provider supports them. The `P-521`, `P-384` and `P-256` groups are retained as fallbacks (#8107).
 - `ccf.cose.verify_receipt()` has moved and been renamed to `ccf.receipt.verify_cose()`; the old name still works but is deprecated (#8109).
 

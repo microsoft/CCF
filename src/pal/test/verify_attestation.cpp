@@ -19,7 +19,7 @@ void fetch_endorsements(
   const std::vector<uint8_t>& attestation_raw, std::vector<uint8_t>& output)
 {
   auto attestation =
-    ccf::pal::snp::parse_attestation_report_unverified(attestation_raw);
+    ccf::pal::snp::AttestationReport::from_unverified(attestation_raw);
 
   auto endorsement_config =
     ccf::pal::snp::make_endorsement_endpoint_configuration(
@@ -66,7 +66,7 @@ int main(int argc, char** argv)
     ->check([](const std::string& attestation_hex) {
       try
       {
-        ccf::pal::snp::parse_attestation_report_unverified(
+        ccf::pal::snp::AttestationReport::from_unverified(
           ccf::ds::from_hex(attestation_hex));
         return std::string();
       }

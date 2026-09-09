@@ -1662,7 +1662,8 @@ namespace ccf
               ctx.tx, in.snp_uvm_endorsements, recovering);
 
             auto attestation =
-              AttestationProvider::get_snp_attestation(in.quote_info).value();
+              AttestationProvider::get_snp_attestation_report(in.quote_info)
+                .value();
             InternalTablesAccess::trust_node_snp_tcb_version(
               ctx.tx, attestation);
             break;

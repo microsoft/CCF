@@ -24,6 +24,19 @@ namespace ccf::pal::snp::ioctl6
 {
   constexpr auto DEVICE = "/dev/sev-guest";
 
+  namespace detail
+  {
+    constexpr size_t ATTESTATION_RESPONSE_SIZE = 4000;
+    constexpr size_t REPORT_SIZE_OFFSET = sizeof(uint32_t);
+    constexpr size_t REPORT_OFFSET = 0x20;
+    using AttestationResponseBytes =
+      std::array<uint8_t, ATTESTATION_RESPONSE_SIZE>;
+    static_assert(
+      sizeof(AttestationResponseBytes) == ATTESTATION_RESPONSE_SIZE);
+    static_assert(
+      REPORT_OFFSET + attestation_report_size <= ATTESTATION_RESPONSE_SIZE);
+  }
+
 #pragma pack(push, 1)
   // Helper to add padding to a struct, so that the resulting struct has some
   // minimum size. As a minor detail, the padding will be initialised to 0.
@@ -110,19 +123,25 @@ namespace ccf::pal::snp::ioctl6
 #pragma pack(pop)
 
   // Table 25
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 #pragma pack(push, 1)
   struct AttestationResp
   {
     uint32_t status = 0;
     uint32_t report_size = 0;
     uint8_t reserved[0x20 - 0x8] = {0};
-    std::array<uint8_t, attestation_report_size> report = {};
+    [[deprecated("Use get_attestation_bytes()")]]
+    snp::Attestation report = {};
     uint8_t padding[64] = {0};
     // padding to the size of SEV_SNP_REPORT_RSP_BUF_SZ (i.e., 1280 bytes)
   };
 #pragma pack(pop)
-  static_assert(offsetof(AttestationResp, report) == 0x20);
+  static_assert(
+    offsetof(AttestationResp, report_size) == detail::REPORT_SIZE_OFFSET);
+  static_assert(offsetof(AttestationResp, report) == detail::REPORT_OFFSET);
   static_assert(sizeof(AttestationResp) == 1280);
+#pragma GCC diagnostic pop
 
   // Table 20 of the SEVSNP ABI
   constexpr uint8_t GUEST_FIELD_SELECT_GUEST_POLICY = 0b00000001;
@@ -195,10 +214,21 @@ namespace ccf::pal::snp::ioctl6
   using GuestRequestDerivedKey =
     GuestRequest<DerivedKeyReq, PaddedDerivedKeyResp>;
 
+  namespace detail
+  {
+    using GuestRequestAttestationBytes =
+      GuestRequest<AttestationReq, AttestationResponseBytes>;
+    static_assert(
+      sizeof(GuestRequestAttestationBytes) == sizeof(GuestRequestAttestation));
+  }
+
   // From linux/include/uapi/linux/sev-guest.h
   constexpr char SEV_GUEST_IOC_TYPE = 'S';
   constexpr int SEV_SNP_GUEST_MSG_REPORT =
-    _IOWR(SEV_GUEST_IOC_TYPE, 0x0, GuestRequestAttestation);
+    _IOWR(SEV_GUEST_IOC_TYPE, 0x0, detail::GuestRequestAttestationBytes);
+  static_assert(
+    _IOWR(SEV_GUEST_IOC_TYPE, 0x0, detail::GuestRequestAttestationBytes) ==
+    _IOWR(SEV_GUEST_IOC_TYPE, 0x0, GuestRequestAttestation));
   constexpr int SEV_SNP_GUEST_MSG_DERIVED_KEY =
     _IOWR(SEV_GUEST_IOC_TYPE, 0x1, GuestRequestDerivedKey);
 
@@ -207,14 +237,39 @@ namespace ccf::pal::snp::ioctl6
     return access(DEVICE, W_OK) == 0;
   }
 
-  class Attestation : public AttestationInterface
+  namespace detail
   {
-    IoctlSentinel<PaddedAttestationResp> resp_with_sentinel;
-    PaddedAttestationResp& padded_resp = resp_with_sentinel.data;
-
-  public:
-    Attestation(const PlatformAttestationReportData& report_data)
+    inline void validate_report_size(uint32_t report_size)
     {
+      if (report_size != attestation_report_size)
+      {
+        throw std::logic_error(fmt::format(
+          "Unexpected SEV-SNP attestation report size: {} != {}",
+          report_size,
+          attestation_report_size));
+      }
+    }
+
+    inline std::vector<uint8_t> extract_attestation_bytes(
+      const AttestationResponseBytes& response)
+    {
+      uint32_t report_size = 0;
+      std::memcpy(
+        &report_size,
+        response.data() + REPORT_SIZE_OFFSET,
+        sizeof(report_size));
+      validate_report_size(report_size);
+      return {
+        response.begin() + REPORT_OFFSET,
+        response.begin() + REPORT_OFFSET + attestation_report_size};
+    }
+
+    template <typename Response>
+    void request_attestation(
+      const PlatformAttestationReportData& report_data,
+      IoctlSentinel<Response>& response)
+    {
+      static_assert(sizeof(Response) == ATTESTATION_RESPONSE_SIZE);
       AttestationReq req = {};
       if (report_data.data.size() <= snp_attestation_report_data_size)
       {
@@ -237,8 +292,8 @@ namespace ccf::pal::snp::ioctl6
 
       // Documented at
       // https://www.kernel.org/doc/html/latest/virt/coco/sev-guest.html
-      GuestRequestAttestation payload = {
-        .req_data = &req, .resp_wrapper = &padded_resp, .exit_info = {0}};
+      GuestRequest<AttestationReq, Response> payload = {
+        .req_data = &req, .resp_wrapper = &response.data, .exit_info = {0}};
 
       int rc = ioctl(fd, SEV_SNP_GUEST_MSG_REPORT, &payload);
       if (rc < 0)
@@ -252,7 +307,7 @@ namespace ccf::pal::snp::ioctl6
         throw std::logic_error(msg);
       }
 
-      if (!resp_with_sentinel.sentinels_intact())
+      if (!response.sentinels_intact())
       {
         // This occurs if a kernel/firmware upgrade causes the response to
         // overflow our struct. If that happens, it is better to fail early than
@@ -261,18 +316,49 @@ namespace ccf::pal::snp::ioctl6
           "SEV_SNP_GUEST_MSG_REPORT IOCTL overwrote safety sentinels.");
       }
     }
+  }
 
+  static std::vector<uint8_t> get_attestation_bytes(
+    const PlatformAttestationReportData& report_data)
+  {
+    IoctlSentinel<detail::AttestationResponseBytes> response;
+    response.data.fill(0);
+    detail::request_attestation(report_data, response);
+    return detail::extract_attestation_bytes(response.data);
+  }
+
+  class Attestation : public AttestationInterface
+  {
+    IoctlSentinel<PaddedAttestationResp> resp_with_sentinel;
+    PaddedAttestationResp& padded_resp = resp_with_sentinel.data;
+
+  public:
+    Attestation(const PlatformAttestationReportData& report_data)
+    {
+      detail::request_attestation(report_data, resp_with_sentinel);
+    }
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+    [[deprecated(
+      "Use get_attestation_bytes() and "
+      "AttestationReport::from_unverified")]] [[nodiscard]] const ccf::pal::
+      snp::Attestation&
+      get() const override
+    {
+      detail::validate_report_size(padded_resp.report_size);
+      return padded_resp.report;
+    }
+
+    [[deprecated("Use get_attestation_bytes()")]]
     std::vector<uint8_t> get_raw() override
     {
-      if (padded_resp.report_size != attestation_report_size)
-      {
-        throw std::logic_error(fmt::format(
-          "Unexpected SEV-SNP attestation report size: {} != {}",
-          padded_resp.report_size,
-          attestation_report_size));
-      }
-      return {padded_resp.report.begin(), padded_resp.report.end()};
+      detail::validate_report_size(padded_resp.report_size);
+      const auto* report =
+        reinterpret_cast<const uint8_t*>(&padded_resp.report);
+      return {report, report + attestation_report_size};
     }
+#pragma GCC diagnostic pop
   };
 
   class DerivedKey

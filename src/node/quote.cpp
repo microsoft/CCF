@@ -21,6 +21,8 @@
 #include "node/js_policy.h"
 #include "node/uvm_endorsements.h"
 
+#include <cstring>
+
 namespace ccf
 {
   bool verify_enclave_measurement_against_uvm_endorsements(
@@ -151,7 +153,7 @@ namespace ccf
   }
 
   std::optional<pal::snp::AttestationReport> AttestationProvider::
-    get_snp_attestation(const QuoteInfo& quote_info)
+    get_snp_attestation_report(const QuoteInfo& quote_info)
   {
     if (quote_info.format != QuoteFormat::amd_sev_snp_v1)
     {
@@ -161,7 +163,12 @@ namespace ccf
     {
       pal::PlatformAttestationMeasurement d = {};
       pal::PlatformAttestationReportData r = {};
-      return pal::verify_snp_attestation_report_and_get(quote_info, d, r);
+      return pal::snp::AttestationReport::verify(
+        quote_info.quote,
+        quote_info.endorsements,
+        d,
+        r,
+        quote_info.endorsed_tcb);
     }
     catch (const std::exception& e)
     {
@@ -169,6 +176,33 @@ namespace ccf
       return std::nullopt;
     }
   }
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+  std::optional<pal::snp::Attestation> AttestationProvider::get_snp_attestation(
+    const QuoteInfo& quote_info)
+  {
+    auto report = get_snp_attestation_report(quote_info);
+    if (!report.has_value())
+    {
+      return std::nullopt;
+    }
+
+    if (quote_info.quote.size() != sizeof(pal::snp::Attestation))
+    {
+      LOG_FAIL_FMT(
+        "Verified SNP report has unexpected size {} (expected {})",
+        quote_info.quote.size(),
+        sizeof(pal::snp::Attestation));
+      return std::nullopt;
+    }
+
+    pal::snp::Attestation legacy_report = {};
+    std::memcpy(
+      &legacy_report, quote_info.quote.data(), sizeof(pal::snp::Attestation));
+    return legacy_report;
+  }
+#pragma GCC diagnostic pop
 
   std::optional<HostData> AttestationProvider::get_host_data(
     const QuoteInfo& quote_info)
@@ -199,8 +233,12 @@ namespace ccf
         pal::PlatformAttestationReportData r = {};
         try
         {
-          const auto report =
-            pal::verify_snp_attestation_report_and_get(quote_info, d, r);
+          const auto report = pal::snp::AttestationReport::verify(
+            quote_info.quote,
+            quote_info.endorsements,
+            d,
+            r,
+            quote_info.endorsed_tcb);
           const auto host_data = report.host_data();
           std::copy(host_data.begin(), host_data.end(), rep.begin());
         }
@@ -270,8 +308,8 @@ namespace ccf
 
     pal::PlatformAttestationMeasurement d = {};
     pal::PlatformAttestationReportData r = {};
-    auto attestation =
-      pal::verify_snp_attestation_report_and_get(quote_info, d, r);
+    auto attestation = pal::snp::AttestationReport::verify(
+      quote_info.quote, quote_info.endorsements, d, r, quote_info.endorsed_tcb);
 
     std::optional<pal::snp::TcbVersionPolicy> min_tcb_opt = std::nullopt;
     auto* h = tx.ro<SnpTcbVersionMap>(Tables::SNP_TCB_VERSIONS);

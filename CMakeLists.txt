@@ -257,7 +257,7 @@ install(TARGETS http_parser EXPORT ccf DESTINATION lib)
 add_ccf_static_library(
   ccf_pal
   SRCS ${CCF_DIR}/src/pal/attestation.cpp
-  LINK_LIBS ccfcrypto ${CMAKE_THREAD_LIBS_INIT} ${CMAKE_DL_LIBS} m
+  LINK_LIBS ccfcrypto
 )
 target_include_directories(
   ccf_pal
@@ -923,6 +923,24 @@ if(BUILD_TESTS)
       cose_ffi_test
       PRIVATE ${CMAKE_THREAD_LIBS_INIT} ccfcrypto
     )
+
+    # Do not link ccfcrypto: it can mask missing Rust native dependencies.
+    add_executable(ccf_rs_link_test src/rust/test/native_link.c)
+    target_include_directories(
+      ccf_rs_link_test
+      PRIVATE
+        ${CCF_DIR}/3rdparty/internal/tee-attestation-verification/ffi/include
+    )
+    target_link_libraries(ccf_rs_link_test PRIVATE ccf_rs)
+    target_link_options(
+      ccf_rs_link_test
+      PRIVATE $<$<PLATFORM_ID:Linux>:LINKER:--as-needed>
+    )
+    add_warning_checks(ccf_rs_link_test)
+    add_san(ccf_rs_link_test)
+    add_test(NAME ccf_rs_link_test COMMAND ccf_rs_link_test)
+    set_property(TEST ccf_rs_link_test APPEND PROPERTY LABELS unit)
+    add_san_test_properties(ccf_rs_link_test)
 
     add_unit_test(pem_test ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/pem.cpp)
     target_link_libraries(pem_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})

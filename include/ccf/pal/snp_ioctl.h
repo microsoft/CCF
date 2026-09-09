@@ -11,6 +11,17 @@ namespace ccf::pal::snp
     return ioctl6::supports_sev_snp();
   }
 
+  // Request a fresh, unverified SNP report as owned bytes.
+  static std::vector<uint8_t> get_attestation_bytes(
+    const PlatformAttestationReportData& report_data)
+  {
+    if (ioctl6::supports_sev_snp())
+    {
+      return ioctl6::get_attestation_bytes(report_data);
+    }
+    throw std::logic_error("SEV-SNP not supported");
+  }
+
   static std::unique_ptr<AttestationInterface> get_attestation(
     const PlatformAttestationReportData& report_data)
   {

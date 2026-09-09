@@ -242,7 +242,7 @@ int main(int argc, char** argv)
 
         LOG_INFO_FMT("Verifying endorsements");
         const auto attestation_unverified =
-          ccf::pal::snp::parse_attestation_report_unverified(quote_info.quote);
+          ccf::pal::snp::AttestationReport::from_unverified(quote_info.quote);
         validate_endorsements(
           endorsements,
           attestation_unverified.reported_tcb(),

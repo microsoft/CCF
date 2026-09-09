@@ -29,6 +29,7 @@ namespace ccf::pal
     PlatformAttestationMeasurement& measurement,
     PlatformAttestationReportData& report_data);
 
+  [[deprecated("Use snp::AttestationReport::verify")]]
   snp::AttestationReport verify_snp_attestation_report_and_get(
     const QuoteInfo& quote_info,
     PlatformAttestationMeasurement& measurement,

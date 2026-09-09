@@ -39,8 +39,15 @@ namespace ccf
 
     static std::optional<HostData> get_host_data(const QuoteInfo& quote_info);
 
-    static std::optional<pal::snp::AttestationReport> get_snp_attestation(
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+    [[deprecated("Use get_snp_attestation_report")]]
+    static std::optional<pal::snp::Attestation> get_snp_attestation(
       const QuoteInfo& quote_info);
+#pragma GCC diagnostic pop
+
+    static std::optional<pal::snp::AttestationReport>
+    get_snp_attestation_report(const QuoteInfo& quote_info);
 
     static QuoteVerificationResult verify_quote_against_store(
       ccf::kv::ReadOnlyTx& tx,

@@ -23,10 +23,10 @@ TEST_CASE("SNP request attestation")
     snp_report_data.report_data.begin(), snp_report_data.report_data.end(), 0);
 
   PlatformAttestationReportData report_data(snp_report_data);
-  snp::ioctl6::Attestation ioctl_attestation(report_data);
-
+  const auto report_bytes = snp::get_attestation_bytes(report_data);
+  REQUIRE(report_bytes.size() == snp::attestation_report_size);
   const auto attestation =
-    snp::parse_attestation_report_unverified(ioctl_attestation.get_raw());
+    snp::AttestationReport::from_unverified(report_bytes);
 
   SnpAttestationReportData attested_report_data(attestation.report_data());
 

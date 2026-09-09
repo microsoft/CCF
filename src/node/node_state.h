@@ -881,7 +881,7 @@ namespace ccf
       }
 
       auto snp_attestation =
-        AttestationProvider::get_snp_attestation(quote_info);
+        AttestationProvider::get_snp_attestation_report(quote_info);
       if (snp_attestation.has_value())
       {
         snp_tcb_version = snp_attestation.value().reported_tcb();
@@ -1033,7 +1033,7 @@ namespace ccf
               // Check that tcbm in endorsement matches reported TCB in our
               // retrieved attestation
               const auto report =
-                ccf::pal::snp::parse_attestation_report_unverified(
+                ccf::pal::snp::AttestationReport::from_unverified(
                   quote_info.quote);
               const auto reported_tcb = report.reported_tcb();
 
