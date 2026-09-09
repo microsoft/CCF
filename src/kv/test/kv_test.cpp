@@ -111,7 +111,11 @@ TEST_CASE("Zero-revision whole-map dependencies")
     CHECK_FALSE(check.ro(empty)->has("own"));
     REQUIRE(check.ro(empty)->get("concurrent") == "committed");
   }
+}
 
+TEST_CASE("Zero-revision whole-map non-conflicts")
+{
+  using Result = ccf::kv::CommitResult;
   ccf::kv::Store store;
   store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
   MapTypes::StringString empty("public:empty");
