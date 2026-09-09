@@ -526,6 +526,22 @@ def test_recover_service(
     )
 
 
+@reqs.description("Recover with committed ledger entries after the startup snapshot")
+def test_recover_service_with_ledger_after_snapshot(network, args):
+    primary, _ = network.find_primary()
+    snapshots_dir = network.get_committed_snapshots(primary)
+    snapshot_name = ccf.ledger.latest_snapshot(snapshots_dir)
+    assert snapshot_name is not None
+    snapshot_seqno, _ = ccf.ledger.snapshot_index_from_filename(snapshot_name)
+
+    # Keep the copied snapshot, but commit the chunk after it before recovery.
+    # get_ledger() then puts snapshot_seqno + 1 in read-only recovery input,
+    # rather than leaving it in the main directory's current chunk by chance.
+    committed_seqno = network.create_and_wait_for_ledger_chunk(primary)
+    assert committed_seqno > snapshot_seqno, (committed_seqno, snapshot_seqno)
+    return test_recover_service(network, args, snapshots_dir=snapshots_dir)
+
+
 def _recover_service(
     network,
     args,
