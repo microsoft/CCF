@@ -299,6 +299,12 @@ def test_large_messages(network, args):
             args.max_http_request_target_size + 1,
         ):
             prefix = "/node/commit?padding="
+            if size < len(prefix):
+                LOG.warning(
+                    f"Skipping {size} byte request target: the test endpoint "
+                    f"requires at least {len(prefix)} bytes"
+                )
+                continue
             target = prefix + "a" * (size - len(prefix))
             assert len(target) == size
             LOG.info(f"Verifying cap on request target, sending a {size} byte target")
