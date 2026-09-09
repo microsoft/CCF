@@ -1998,12 +1998,13 @@ class Network:
         remote_node,
         node_id,
         node_status,  # None indicates that the node should not be present
+        wait_for_commit=False,
         **kwargs,
     ):
         with remote_node.client(**kwargs) as c:
             r = c.get(f"/node/network/nodes/{node_id}")
             resp = r.body.json()
-            return (
+            matches = (
                 r.status_code == http.HTTPStatus.NOT_FOUND.value
                 and node_status is None
                 and resp["error"]["message"] == "Node not found"
@@ -2012,15 +2013,43 @@ class Network:
                 and node_status is not None
                 and resp["status"] == node_status.value
             )
+            if not matches or not wait_for_commit:
+                return matches
+
+            if r.view is None or r.seqno is None:
+                raise ValueError(f"Response has no transaction ID: {r}")
+            commit_response = c.get(f"/node/tx?transaction_id={r.view}.{r.seqno}")
+            if commit_response.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR:
+                assert (
+                    commit_response.body.json()["error"]["code"]
+                    == "SessionConsistencyLost"
+                ), commit_response
+                return False
+            assert commit_response.status_code == http.HTTPStatus.OK, commit_response
+            # Re-read a rolled-back observation instead of waiting on an invalid TxID.
+            return TxStatus(commit_response.body.json()["status"]) == TxStatus.Committed
 
     def wait_for_node_in_store(
-        self, remote_node, node_id, node_status, timeout=3, **kwargs
+        self,
+        remote_node,
+        node_id,
+        node_status,
+        timeout=3,
+        wait_for_commit=False,
+        **kwargs,
     ):
+        """Wait for a node state, optionally requiring the observed TxID to commit."""
         success = False
         end_time = time.time() + timeout
         while time.time() < end_time:
             try:
-                if self._check_node_status(remote_node, node_id, node_status, **kwargs):
+                if self._check_node_status(
+                    remote_node,
+                    node_id,
+                    node_status,
+                    wait_for_commit=wait_for_commit,
+                    **kwargs,
+                ):
                     success = True
                     break
             except TimeoutError:
@@ -2028,7 +2057,8 @@ class Network:
             time.sleep(0.5)
         if not success:
             raise TimeoutError(
-                f'Node {node_id} is not in expected state: {node_status or "absent"})'
+                f'Node {node_id} is not in expected {"committed " if wait_for_commit else ""}'
+                f'state: {node_status or "absent"})'
             )
 
     def wait_for_all_nodes_to_be_trusted(self, remote_node, timeout=3):

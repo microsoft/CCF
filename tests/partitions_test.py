@@ -513,6 +513,17 @@ def test_election_reconfiguration(network, args):
         network.join_node(new_node, args.package, args, from_snapshot=False)
         new_nodes.append(new_node)
 
+    # Equal commit positions do not prove that pending joins survived an election.
+    primary = network.wait_for_primary_unanimity()
+    for node in new_nodes:
+        network.wait_for_node_in_store(
+            primary,
+            node.node_id,
+            ccf.ledger.NodeStatus.PENDING,
+            timeout=args.ledger_recovery_timeout,
+            wait_for_commit=True,
+        )
+
     # Wait until all backups know about these joins, so they have an equal chance of
     # becoming primary afterwards
     network.wait_for_node_commit_sync()
@@ -609,6 +620,19 @@ def test_join_rollback_on_primary_isolation(network, args):
             primary, pending_node.node_id, ccf.ledger.NodeStatus.PENDING
         )
 
+        try:
+            network.wait_for_node_in_store(
+                primary,
+                pending_node.node_id,
+                ccf.ledger.NodeStatus.PENDING,
+                timeout=1,
+                wait_for_commit=True,
+            )
+        except TimeoutError:
+            pass
+        else:
+            assert False, "Pending join committed while the primary was isolated"
+
         network.wait_for_new_primary(primary, nodes=backups)
 
     LOG.info("Check the pending join is retried after rollback")
@@ -618,6 +642,7 @@ def test_join_rollback_on_primary_isolation(network, args):
         pending_node.node_id,
         ccf.ledger.NodeStatus.PENDING,
         timeout=args.ledger_recovery_timeout,
+        wait_for_commit=True,
     )
     valid_from = datetime.now(timezone.utc)
     network.consortium.trust_node(
