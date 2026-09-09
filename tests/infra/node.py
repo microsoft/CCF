@@ -326,7 +326,7 @@ class Node:
         if self.version is None or Version(strip_version(self.version)) > Version(
             "7.0.0-dev1"
         ):
-            lib_path = lib_name
+            lib_path = infra.path.build_bin_path(lib_name, binary_dir=self.binary_dir)
         else:
             lib_path = infra.path.build_lib_path(
                 lib_name,
