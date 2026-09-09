@@ -14,7 +14,7 @@
 #include "ccf/crypto/symmetric_key.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/x509_time_fmt.h"
-#include "crypto/cbor.h"
+#include "crypto/cbor_tags.h"
 #include "crypto/certs.h"
 #include "crypto/cose.h"
 #include "crypto/csr.h"
@@ -32,6 +32,7 @@
 #include <doctest/doctest.h>
 #include <optional>
 #include <span>
+#include <tav/cbor.hpp>
 
 using namespace std;
 using namespace ccf::crypto;

@@ -998,10 +998,11 @@ namespace ccf::kv
 
       {
         std::lock_guard<ccf::ds::Mutex> vguard(version_lock);
-        if (txid.view != term_of_next_version && get_consensus()->is_primary())
+        if (txid.view != term_of_next_version)
         {
           // This can happen when a transaction started before a view change,
-          // but tries to commit after the view change is complete.
+          // but tries to commit after the view change is complete. Reject it
+          // even after stepping down, before it can enter pending_txs.
           LOG_DEBUG_FMT(
             "Want to commit for term {} but term is {}",
             txid.view,

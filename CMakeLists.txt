@@ -164,9 +164,14 @@ include_directories(${CCF_DIR}/src)
 
 set(CCF_3RD_PARTY_EXPORTED_DIR "${CCF_DIR}/3rdparty/exported")
 set(CCF_3RD_PARTY_INTERNAL_DIR "${CCF_DIR}/3rdparty/internal")
+set(
+  TAV_INCLUDE_DIR
+  "${CCF_3RD_PARTY_INTERNAL_DIR}/tee-attestation-verification/ffi/include"
+)
 
 include_directories(SYSTEM ${CCF_3RD_PARTY_EXPORTED_DIR})
 include_directories(SYSTEM ${CCF_3RD_PARTY_INTERNAL_DIR})
+include_directories(SYSTEM ${TAV_INCLUDE_DIR})
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/tools.cmake)
 
@@ -223,7 +228,6 @@ include(${CCF_DIR}/cmake/ccf_rs.cmake)
 include(${CCF_DIR}/cmake/threading.cmake)
 include(${CCF_DIR}/cmake/crypto.cmake)
 include(${CCF_DIR}/cmake/quickjs.cmake)
-include(${CCF_DIR}/cmake/evercbor.cmake)
 
 # Launcher library
 list(
@@ -757,10 +761,9 @@ if(BUILD_TESTS)
     if(FUZZING)
       add_fuzz_test(
         cbor_fuzz_test
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/cbor.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/cbor_fuzz.cpp
       )
-      target_link_libraries(cbor_fuzz_test PRIVATE evercbor)
+      target_link_libraries(cbor_fuzz_test PRIVATE ccfcrypto)
     endif()
 
     add_unit_test(
@@ -842,7 +845,6 @@ if(BUILD_TESTS)
         ENVIRONMENT
           "TEST_ENDORSEMENTS_PATH=${CMAKE_CURRENT_SOURCE_DIR}/tests/uvm_endorsements"
     )
-    target_link_libraries(endorsements_test PRIVATE evercbor)
 
     add_unit_test(
       historical_queries_test
