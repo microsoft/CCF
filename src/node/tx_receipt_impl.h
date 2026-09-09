@@ -5,6 +5,7 @@
 #include "ccf/network_identity_interface.h"
 #include "ccf/receipt.h"
 #include "node/history.h"
+#include "service/tables/signatures.h"
 
 namespace ccf
 {
@@ -13,7 +14,7 @@ namespace ccf
   struct TxReceiptImpl
   {
     std::optional<std::vector<uint8_t>> signature;
-    std::optional<std::vector<uint8_t>> cose_signature = std::nullopt;
+    CoseSignatureMap cose_signatures;
     std::optional<HistoryTree::Hash> root;
     std::shared_ptr<ccf::HistoryTree::Path> path;
     ccf::NodeId node_id;
@@ -27,7 +28,7 @@ namespace ccf
 
     TxReceiptImpl(
       const std::optional<std::vector<uint8_t>>& signature_,
-      const std::optional<std::vector<uint8_t>>& cose_signature,
+      CoseSignatureMap cose_signatures_,
       const std::optional<HistoryTree::Hash>& root_,
       std::shared_ptr<ccf::HistoryTree::Path> path_,
       NodeId node_id_,
@@ -43,7 +44,7 @@ namespace ccf
       const std::optional<CoseEndorsementsChain>& cose_endorsements_ =
         std::nullopt) :
       signature(signature_),
-      cose_signature(cose_signature),
+      cose_signatures(std::move(cose_signatures_)),
       root(root_),
       path(std::move(path_)),
       node_id(std::move(node_id_)),

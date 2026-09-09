@@ -494,11 +494,11 @@ Signatures emitted by the primary node at regular interval, over the root of the
 ``cose_signatures``
 ~~~~~~~~~~~~~~~~~~~
 
-COSE signatures emitted by the primary node over the root of the Merkle Tree at that sequence number.
+COSE signatures over the Merkle root, keyed by service signing identity type.
 
-**Key** Sentinel value 0, represented as a little-endian 64-bit unsigned integer.
+**Key** Identity type as a little-endian 64-bit unsigned integer: ``CLASSICAL`` (0), ``PQ`` (1). Only ``CLASSICAL`` is populated.
 
-**Value** Raw COSE Sign1 message as byte string (DER-encoded). Implements the following :ccf_repo:`CDDL schema </cddl/ccf-merkle-tree-cose-signature.cddl>`.
+**Value** A CBOR-encoded COSE Sign1 message, stored as a base64-encoded JSON string. Implements the following :ccf_repo:`CDDL schema </cddl/ccf-merkle-tree-cose-signature.cddl>`.
 
 ``recovery_shares``
 ~~~~~~~~~~~~~~~~~~~

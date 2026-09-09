@@ -727,3 +727,85 @@ int main(int argc, char** argv)
     return res;
   return res;
 }
+
+TEST_CASE("COSE signature table holds one entry per identity")
+{
+  ccf::kv::Store store;
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
+  store.set_encryptor(encryptor);
+
+  const ccf::CoseSignature ec384_sig{1, 2, 3};
+  const ccf::CoseSignature mldsa65_sig{4, 5, 6};
+
+  INFO("A table carrying two identities round-trips both");
+  {
+    auto tx = store.create_tx();
+    auto* handle = tx.wo<ccf::CoseSignatures>(ccf::Tables::COSE_SIGNATURES);
+    handle->put(ccf::IdentityType::CLASSICAL, ec384_sig);
+    handle->put(ccf::IdentityType::PQ, mldsa65_sig);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+
+  {
+    auto tx = store.create_read_only_tx();
+    auto* handle = tx.ro<ccf::CoseSignatures>(ccf::Tables::COSE_SIGNATURES);
+
+    // A reader which only understands ECDSA still finds it, unaffected by
+    // the presence of identities it does not know about.
+    REQUIRE(handle->get(ccf::IdentityType::CLASSICAL) == ec384_sig);
+    REQUIRE(handle->get(ccf::IdentityType::PQ) == mldsa65_sig);
+
+    ccf::CoseSignatureMap read_back;
+    handle->foreach([&read_back](const auto& identity_type, const auto& sig) {
+      read_back.emplace(identity_type, sig);
+      return true;
+    });
+    REQUIRE(read_back.size() == 2);
+  }
+}
+
+TEST_CASE("CLASSICAL COSE signatures interoperate with the legacy singleton")
+{
+  using LegacyCoseSignatures = ccf::ServiceValue<ccf::CoseSignature>;
+  ccf::kv::Store store;
+  store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+  const ccf::CoseSignature legacy_signature{1, 2, 3};
+  const ccf::CoseSignature keyed_signature{4, 5, 6};
+
+  {
+    auto tx = store.create_tx();
+    tx.wo<LegacyCoseSignatures>(ccf::Tables::COSE_SIGNATURES)
+      ->put(legacy_signature);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+
+  {
+    auto tx = store.create_tx();
+    auto* signatures = tx.rw<ccf::CoseSignatures>(ccf::Tables::COSE_SIGNATURES);
+    REQUIRE(signatures->get(ccf::IdentityType::CLASSICAL) == legacy_signature);
+    signatures->put(ccf::IdentityType::CLASSICAL, keyed_signature);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+
+  {
+    auto tx = store.create_read_only_tx();
+    REQUIRE(
+      tx.ro<LegacyCoseSignatures>(ccf::Tables::COSE_SIGNATURES)->get() ==
+      keyed_signature);
+  }
+}
+
+TEST_CASE("extract_cose_signatures skips removals")
+{
+  ccf::CoseSignatures::Write writes;
+  writes[ccf::IdentityType::CLASSICAL] = ccf::CoseSignature{1, 2, 3};
+  // A removal is recorded as an unset value, and must not be reported as a
+  // signature.
+  writes[ccf::IdentityType::PQ] = std::nullopt;
+
+  const auto extracted = ccf::extract_cose_signatures(writes);
+  REQUIRE(extracted.size() == 1);
+  REQUIRE(
+    extracted.at(ccf::IdentityType::CLASSICAL) == ccf::CoseSignature{1, 2, 3});
+  REQUIRE_FALSE(extracted.contains(ccf::IdentityType::PQ));
+}

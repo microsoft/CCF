@@ -717,7 +717,7 @@ namespace ccf
         ccf::kv::Version cose_seqno = 0;
         auto cose_signatures =
           args.tx.template ro<CoseSignatures>(Tables::COSE_SIGNATURES);
-        auto cose_sig = cose_signatures->get();
+        auto cose_sig = cose_signatures->get(ccf::IdentityType::CLASSICAL);
         if (cose_sig.has_value() && !cose_sig->empty())
         {
           auto receipt = ccf::cose::decode_ccf_receipt(cose_sig.value(), false);
