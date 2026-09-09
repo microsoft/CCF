@@ -80,7 +80,7 @@ Choose the predicate from the individual API contract. `CHECK1` rejects valid va
 
 ## libcurl
 
-CCF wraps libcurl in `src/http/curl.h`.
+CCF wraps libcurl in `src/http_client/curl.h`.
 
 | Macro                                        | Applicable return contract      |
 | -------------------------------------------- | ------------------------------- |
