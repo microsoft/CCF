@@ -220,14 +220,15 @@ def test_large_messages(network, args):
         metrics_name,
         length,
         *args,
+        path="/node/commit",
         **kwargs,
     ):
         with primary.client("user0") as client:
-            before_errors_count = get_main_interface_errors()[metrics_name]
+            before_errors = get_main_interface_errors()
             # Note: endpoint does not matter as request parsing is done before dispatch
             try:
                 r = client.get(
-                    "/node/commit",
+                    path,
                     *args,
                     **kwargs,
                 )
@@ -235,22 +236,17 @@ def test_large_messages(network, args):
                 # In some cases, the client ends up writing to the now-closed socket first
                 # before reading the server error, resulting in a connection error
                 assert length > threshold
-                assert (
-                    get_main_interface_errors()[metrics_name] == before_errors_count + 1
-                )
             else:
                 if length > threshold:
                     assert r.status_code == expected_status.value
                     assert r.body.json()["error"]["code"] == expected_code
-                    assert (
-                        get_main_interface_errors()[metrics_name]
-                        == before_errors_count + 1
-                    )
                 else:
                     assert r.status_code == http.HTTPStatus.OK.value
-                    assert (
-                        get_main_interface_errors()[metrics_name] == before_errors_count
-                    )
+
+            expected_errors = before_errors.copy()
+            if length > threshold:
+                expected_errors[metrics_name] += 1
+            assert get_main_interface_errors() == expected_errors
 
     def get_sizes(n, http2):
         ns = [n // 2, n - 10, n - 1, n, n + 1, n + 10, n * 2]
@@ -295,6 +291,25 @@ def test_large_messages(network, args):
             len(long_header),
             headers={long_header: "some header value"},
         )
+
+    if not args.http2:
+        for size in (
+            args.max_http_request_target_size - 1,
+            args.max_http_request_target_size,
+            args.max_http_request_target_size + 1,
+        ):
+            prefix = "/node/commit?padding="
+            target = prefix + "a" * (size - len(prefix))
+            assert len(target) == size
+            LOG.info(f"Verifying cap on request target, sending a {size} byte target")
+            run_large_message_test(
+                args.max_http_request_target_size,
+                http.HTTPStatus.REQUEST_URI_TOO_LONG,
+                "RequestTargetTooLong",
+                "request_target_too_long",
+                len(target),
+                path=target,
+            )
 
     # Note: infra generally inserts extra headers (eg, content type and length, user-agent, accept)
     extra_headers_count = infra.clients.CCFClient.default_impl_type.extra_headers_count(

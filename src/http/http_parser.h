@@ -422,6 +422,16 @@ namespace http
 
     void append_url(const char* at, size_t length)
     {
+      const auto max_url_size =
+        configuration.max_request_target_size
+          .value_or(ccf::http::default_max_request_target_size)
+          .count_bytes();
+      if (length > max_url_size || url.size() > max_url_size - length)
+      {
+        throw RequestTargetTooLongException(fmt::format(
+          "HTTP request target is too long (max size allowed: {})",
+          max_url_size));
+      }
       url.append(at, length);
     }
 
