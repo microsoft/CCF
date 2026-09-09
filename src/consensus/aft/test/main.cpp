@@ -84,6 +84,50 @@ DOCTEST_TEST_CASE("Single node commit" * doctest::test_suite("single"))
 }
 
 DOCTEST_TEST_CASE(
+  "Register peer addresses with existing channels" *
+  doctest::test_suite("multiple"))
+{
+  const auto node_id0 = ccf::kv::test::PrimaryNodeId;
+  const auto node_id1 = ccf::kv::test::FirstBackupNodeId;
+  const auto node_id2 = ccf::kv::test::SecondBackupNodeId;
+  auto kv_store = std::make_shared<Store>(node_id0);
+  auto channels = std::make_shared<aft::ChannelStubProxy>();
+
+  TRaft raft(
+    raft_settings,
+    std::make_unique<Adaptor>(kv_store),
+    std::make_unique<aft::LedgerStubProxy>(node_id0),
+    channels,
+    std::make_shared<aft::State>(node_id0),
+    nullptr);
+
+  DOCTEST_REQUIRE(channels->have_channel(node_id1));
+  DOCTEST_REQUIRE(channels->node_addresses.empty());
+
+  aft::Configuration::Nodes config;
+  config[node_id0] = {};
+  config[node_id1] = {"127.0.0.2", "8001"};
+  raft.add_configuration(0, config);
+
+  DOCTEST_REQUIRE(channels->node_addresses.size() == 1);
+  DOCTEST_REQUIRE(channels->node_addresses.contains(node_id1));
+  DOCTEST_CHECK(channels->node_addresses.at(node_id1).first == "127.0.0.2");
+  DOCTEST_CHECK(channels->node_addresses.at(node_id1).second == "8001");
+  DOCTEST_CHECK_FALSE(channels->node_addresses.contains(node_id0));
+
+  DOCTEST_REQUIRE(channels->have_channel(node_id2));
+  config[node_id2] = {"127.0.0.3", "8002"};
+  raft.add_configuration(1, config);
+
+  DOCTEST_REQUIRE(channels->node_addresses.size() == 2);
+  DOCTEST_REQUIRE(channels->node_addresses.contains(node_id2));
+  DOCTEST_CHECK(channels->node_addresses.at(node_id2).first == "127.0.0.3");
+  DOCTEST_CHECK(channels->node_addresses.at(node_id2).second == "8002");
+  DOCTEST_CHECK(channels->node_addresses.at(node_id1).first == "127.0.0.2");
+  DOCTEST_CHECK(channels->node_addresses.at(node_id1).second == "8001");
+}
+
+DOCTEST_TEST_CASE(
   "Multiple nodes startup and election" * doctest::test_suite("multiple"))
 {
   ccf::NodeId node_id0 = ccf::kv::test::PrimaryNodeId;
