@@ -748,6 +748,9 @@ def run_ledger_compatibility_since_first(
 
                 issue_activity_on_live_service(network, args)
 
+                # Keep the issuer and legacy JWT records for subsequent recoveries.
+                # Destructive cleanup must only run on the final, local version.
+                run_jwt_cleanup = test_jwt_cleanup and lts_release is None
                 if idx > 0:
                     test_new_service(
                         network,
@@ -756,7 +759,7 @@ def run_ledger_compatibility_since_first(
                         binary_dir,
                         library_dir,
                         version,
-                        test_jwt_cleanup=test_jwt_cleanup,
+                        test_jwt_cleanup=run_jwt_cleanup,
                     )
 
                 snapshots_dir = (
@@ -768,14 +771,12 @@ def run_ledger_compatibility_since_first(
                 # Ledger file chunking changed from 1.x to 2.x and if it does not join from a snapshot the eol ledger files will be re-chunked differently on the joining node
                 check_file_invariants = use_snapshot
 
-                skip_verification = test_jwt_cleanup
-
                 LOG.info(
                     f"Stopping network recovering from version {previous_version} to {version}"
                 )
                 network.stop_all_nodes(
                     check_file_invariants=check_file_invariants,
-                    skip_verification=skip_verification,
+                    skip_verification=run_jwt_cleanup,
                 )
 
                 ledger_dir, committed_ledger_dirs = primary.get_ledger()
