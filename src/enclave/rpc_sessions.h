@@ -314,10 +314,11 @@ namespace ccf
       }
 
       auto& per_listen_interface = it->second;
+      const auto unsecured =
+        per_listen_interface.endorsement.authority == Authority::UNSECURED;
+      const auto cert_it = certs.find(listen_interface_id);
 
-      if (
-        per_listen_interface.endorsement.authority != Authority::UNSECURED &&
-        certs.find(listen_interface_id) == certs.end())
+      if (!unsecured && cert_it == certs.end())
       {
         LOG_DEBUG_FMT(
           "Refusing TLS session {} inside the enclave - interface {} "
@@ -355,7 +356,17 @@ namespace ccf
           listen_interface_id,
           per_listen_interface.max_open_sessions_soft);
 
-        auto ctx = std::make_unique<::tls::Server>(certs[listen_interface_id]);
+        std::unique_ptr<tls::Context> ctx;
+        if (unsecured)
+        {
+          ctx = std::make_unique<nontls::PlaintextServer>();
+        }
+        else
+        {
+          ctx = std::make_unique<::tls::Server>(
+            cert_it->second, per_listen_interface.app_protocol == "HTTP2");
+        }
+
         std::shared_ptr<Session> capped_session;
         if (per_listen_interface.app_protocol == "HTTP2")
         {
@@ -419,16 +430,14 @@ namespace ccf
         else
         {
           std::unique_ptr<tls::Context> ctx;
-          if (
-            per_listen_interface.endorsement.authority == Authority::UNSECURED)
+          if (unsecured)
           {
             ctx = std::make_unique<nontls::PlaintextServer>();
           }
           else
           {
             ctx = std::make_unique<::tls::Server>(
-              certs[listen_interface_id],
-              per_listen_interface.app_protocol == "HTTP2");
+              cert_it->second, per_listen_interface.app_protocol == "HTTP2");
           }
 
           auto session = make_server_session(

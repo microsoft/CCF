@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- Reaching the soft session cap on an unsecured RPC interface no longer terminates the node by attempting a TLS handshake without a certificate.
 - Transactions from an earlier view are now rejected before entering the replication queue even after the node has stepped down. This prevents rolled-back writes from being replicated after a later election and blocking subsequent replication (#8293, #8295).
 
 ### Changed

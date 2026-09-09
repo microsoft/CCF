@@ -57,6 +57,72 @@ def interface_caps(i):
     }
 
 
+def run_unsecured_connection_cap_test(args):
+    interface_name = "unsecured_interface"
+    soft_cap = 3
+    for i, node_spec in enumerate(args.nodes):
+        node_spec.rpc_interfaces[interface_name] = infra.interfaces.RPCInterface(
+            host=f"127.{i}.0.1",
+            max_open_sessions_soft=soft_cap,
+            endorsement=infra.interfaces.Endorsement(
+                infra.interfaces.EndorsementAuthority.Unsecured
+            ),
+            accepted_endpoints=["/node/version"],
+        )
+
+    with infra.network.network(
+        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
+    ) as network:
+        network.start_and_open(args)
+        primary, _ = network.find_nodes()
+        rpc_interface = primary.host.rpc_interfaces[interface_name]
+
+        with contextlib.ExitStack() as es:
+            for _ in range(soft_cap):
+                connection = socket.create_connection(
+                    (rpc_interface.public_host, rpc_interface.public_port),
+                    timeout=1,
+                )
+                es.callback(connection.close)
+
+            end_time = time.time() + 3
+            while time.time() < end_time:
+                metrics = get_session_metrics(primary)
+                interface_metrics = metrics["interfaces"][interface_name]
+                if interface_metrics["active"] == soft_cap:
+                    break
+                time.sleep(0.1)
+            assert interface_metrics["active"] == soft_cap, interface_metrics
+
+            with contextlib.closing(
+                http.client.HTTPConnection(
+                    rpc_interface.public_host,
+                    rpc_interface.public_port,
+                    timeout=1,
+                )
+            ) as capped_connection:
+                capped_connection.request(
+                    "GET", "/node/version", headers={"Content-Length": "0"}
+                )
+                try:
+                    response = capped_connection.getresponse()
+                except http.client.RemoteDisconnected:
+                    pass
+                else:
+                    assert (
+                        response.status == http.HTTPStatus.SERVICE_UNAVAILABLE
+                    ), response.status
+                    response.read()
+
+            with primary.client() as client:
+                response = client.get("/node/commit")
+                assert response.status_code == http.HTTPStatus.OK, response
+
+            metrics = get_session_metrics(primary)
+            interface_metrics = metrics["interfaces"][interface_name]
+            assert interface_metrics["peak"] == soft_cap + 1, interface_metrics
+
+
 def run_connection_caps_tests(args):
     # Listen on additional RPC interfaces with even lower session caps
     for i, node_spec in enumerate(args.nodes):
@@ -462,6 +528,13 @@ if __name__ == "__main__":
     cr.add(
         "idletimeout",
         run_idle_timeout_tests,
+        package="samples/apps/logging/logging",
+        nodes=infra.e2e_args.nodes(cr.args, 1),
+    )
+
+    cr.add(
+        "unsecured_caps",
+        run_unsecured_connection_cap_test,
         package="samples/apps/logging/logging",
         nodes=infra.e2e_args.nodes(cr.args, 1),
     )
