@@ -23,6 +23,7 @@
 #include "service/tables/governance_history.h"
 #include "service/tables/local_sealing.h"
 #include "service/tables/previous_service_identity.h"
+#include "service/tables/signing_identities.h"
 
 #include <algorithm>
 #include <ostream>
@@ -557,6 +558,14 @@ namespace ccf
         // first recovery.
         recovery_count = prev_service_info->recovery_count.value_or(0) + 1;
       }
+
+      const auto service_cert_der = ccf::crypto::cert_pem_to_der(service_cert);
+      // Current contract is to keep the existing service key for signing.
+      tx.wo<SigningIdentities>(Tables::SIGNING_IDENTITIES)
+        ->put(
+          IdentityType::CLASSICAL,
+          {IdentityKind::X509_SPKI_DER,
+           ccf::crypto::public_key_der_from_cert(service_cert_der)});
 
       service->put(
         {service_cert,

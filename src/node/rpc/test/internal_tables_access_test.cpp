@@ -5,6 +5,7 @@
 #include "ccf/service/tables/host_data.h"
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/service.h"
+#include "crypto/certs.h"
 #include "service/tables/config.h"
 #include "service/tables/signatures.h"
 
@@ -401,5 +402,152 @@ TEST_CASE("remove_previous_service_nodes")
       REQUIRE_FALSE(
         local_sealing_node_ids_handle->get(sealing_name).has_value());
     }
+  }
+}
+
+TEST_CASE("create_service publishes the classical signing identity")
+{
+  ccf::kv::Store kv_store;
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
+  kv_store.set_encryptor(encryptor);
+
+  auto service_key = ccf::crypto::make_ec_key_pair();
+  const auto valid_from =
+    ccf::ds::to_x509_time_string(std::chrono::system_clock::now());
+  const auto valid_to =
+    ccf::crypto::compute_cert_valid_to_string(valid_from, 1);
+  const auto service_cert =
+    service_key->self_sign("CN=Service", valid_from, valid_to);
+  const ccf::Identity expected_identity{
+    ccf::IdentityKind::X509_SPKI_DER, service_key->public_key_der()};
+
+  INFO("Creation publishes the existing service key, without a PQ identity");
+  {
+    auto tx = kv_store.create_tx();
+    InternalTablesAccess::create_service(tx, service_cert, {1, 1});
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+
+  {
+    auto tx = kv_store.create_read_only_tx();
+    auto* handle = tx.ro<ccf::SigningIdentities>(Tables::SIGNING_IDENTITIES);
+    REQUIRE(handle->size() == 1);
+    REQUIRE(handle->get(ccf::IdentityType::CLASSICAL) == expected_identity);
+    REQUIRE_FALSE(handle->get(ccf::IdentityType::PQ).has_value());
+    REQUIRE(tx.ro<ccf::Service>(Tables::SERVICE)->get()->cert == service_cert);
+  }
+
+  SUBCASE("Recovering a service with a published signing identity") {}
+
+  SUBCASE("Recovering a legacy service without the signing identities table")
+  {
+    auto tx = kv_store.create_tx();
+    tx.rw<ccf::SigningIdentities>(Tables::SIGNING_IDENTITIES)
+      ->remove(ccf::IdentityType::CLASSICAL);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+
+  const auto recovered_key = ccf::crypto::make_ec_key_pair();
+  const auto recovered_cert =
+    recovered_key->self_sign("CN=Service", valid_from, valid_to);
+  const ccf::Identity recovered_identity{
+    ccf::IdentityKind::X509_SPKI_DER, recovered_key->public_key_der()};
+  ccf::MerkleTreeHistory tree;
+
+  INFO("Recovery publishes the new key and preserves legacy recovery state");
+  {
+    auto tx = kv_store.create_tx();
+    tx.wo<ccf::SerialisedMerkleTree>(Tables::SERIALISED_MERKLE_TREE)
+      ->put(tree.serialise());
+    InternalTablesAccess::create_service(
+      tx, recovered_cert, {2, 10}, nullptr, true /* recovering */);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+
+  {
+    auto tx = kv_store.create_read_only_tx();
+    auto* handle = tx.ro<ccf::SigningIdentities>(Tables::SIGNING_IDENTITIES);
+    REQUIRE(handle->size() == 1);
+    REQUIRE(handle->get(ccf::IdentityType::CLASSICAL) == recovered_identity);
+    REQUIRE_FALSE(handle->get(ccf::IdentityType::PQ).has_value());
+    REQUIRE(recovered_identity != expected_identity);
+    const auto service = tx.ro<ccf::Service>(Tables::SERVICE)->get();
+    REQUIRE(service.has_value());
+    REQUIRE(service->cert == recovered_cert);
+    REQUIRE(service->status == ccf::ServiceStatus::RECOVERING);
+    REQUIRE(
+      tx.ro<ccf::PreviousServiceIdentity>(Tables::PREVIOUS_SERVICE_IDENTITY)
+        ->get() == service_cert);
+    REQUIRE(
+      tx.ro<ccf::PreviousServiceLastSignedRoot>(
+          Tables::PREVIOUS_SERVICE_LAST_SIGNED_ROOT)
+        ->get() == tree.get_root());
+  }
+}
+
+TEST_CASE("Signing identity lookup only falls back for legacy CLASSICAL state")
+{
+  ccf::kv::Store store;
+  store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+  const auto service_key = ccf::crypto::make_ec_key_pair();
+  const auto valid_from =
+    ccf::ds::to_x509_time_string(std::chrono::system_clock::now());
+  const auto service_cert = service_key->self_sign(
+    "CN=Service",
+    valid_from,
+    ccf::crypto::compute_cert_valid_to_string(valid_from, 1));
+  const ccf::Identity identity{
+    ccf::IdentityKind::X509_SPKI_DER, service_key->public_key_der()};
+  auto tx = store.create_tx();
+  auto* service = tx.rw<ccf::Service>(Tables::SERVICE);
+  service->put(ccf::ServiceInfo{.cert = service_cert});
+  auto* signing_identities =
+    tx.rw<ccf::SigningIdentities>(Tables::SIGNING_IDENTITIES);
+
+  SUBCASE("Legacy certificate supplies only CLASSICAL")
+  {
+    REQUIRE(
+      ccf::get_service_signing_identity(tx, ccf::IdentityType::CLASSICAL) ==
+      identity);
+    REQUIRE_FALSE(
+      ccf::get_service_signing_identity(tx, ccf::IdentityType::PQ).has_value());
+  }
+
+  SUBCASE("No identity is available without either source")
+  {
+    service->clear();
+    REQUIRE_FALSE(
+      ccf::get_service_signing_identity(tx, ccf::IdentityType::CLASSICAL)
+        .has_value());
+  }
+
+  SUBCASE("Published keys do not require a legacy certificate")
+  {
+    signing_identities->put(ccf::IdentityType::CLASSICAL, identity);
+    service->put(ccf::ServiceInfo{.cert = service_key->public_key_pem()});
+    REQUIRE(
+      ccf::get_service_signing_identity(tx, ccf::IdentityType::CLASSICAL) ==
+      identity);
+    REQUIRE_FALSE(
+      ccf::get_service_signing_identity(tx, ccf::IdentityType::PQ).has_value());
+  }
+
+  SUBCASE("A populated table must contain CLASSICAL")
+  {
+    signing_identities->put(ccf::IdentityType::PQ, identity);
+    REQUIRE_THROWS_WITH(
+      ccf::get_service_signing_identity(tx, ccf::IdentityType::CLASSICAL),
+      "Non-empty signing identities table has no CLASSICAL identity");
+  }
+
+  SUBCASE("A certificate entry must not be interpreted as a public key")
+  {
+    signing_identities->put(
+      ccf::IdentityType::CLASSICAL,
+      {ccf::IdentityKind::X509_CERT_DER,
+       ccf::crypto::cert_pem_to_der(service_cert)});
+    REQUIRE_THROWS_WITH(
+      ccf::get_service_signing_identity(tx, ccf::IdentityType::CLASSICAL),
+      "Service signing identity must be a DER SubjectPublicKeyInfo");
   }
 }

@@ -12,6 +12,8 @@
 
 namespace ccf
 {
+  // Keep the key width compatible with legacy single-value tables.
+  // NOLINTNEXTLINE(performance-enum-size)
   enum class IdentityType : uint64_t
   {
     CLASSICAL = 0,
@@ -35,6 +37,8 @@ namespace ccf
 
   using IdentityValue = std::vector<uint8_t>;
 
+  // The kind is supplied by aggregate initialisation or required JSON fields.
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-member-init)
   struct Identity
   {
     IdentityKind kind;
