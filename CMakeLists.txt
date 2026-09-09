@@ -513,6 +513,11 @@ install(
   PATTERN "*.inc"
 )
 
+install(
+  FILES ${TAV_INCLUDE_DIR}/tav/snp.h ${TAV_INCLUDE_DIR}/tav/utils.h
+  DESTINATION include/3rdparty/tav
+)
+
 # Install all private CCF headers, which may still be needed
 install(
   DIRECTORY src/

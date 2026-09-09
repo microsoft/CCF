@@ -8,235 +8,47 @@
 #include "ccf/pal/attestation_sev_snp.h"
 #include "ccf/pal/sev_snp_cpuid.h"
 #include "ds/internal_logger.h"
-#include "pal/tav_ffi.h"
 
 #include <cstdint>
 #include <openssl/objects.h>
 
 namespace ccf::pal
 {
-  namespace snp
+  namespace
   {
-    class AttestationReport::Impl
+    using TavErrorPtr = std::unique_ptr<TavError, decltype(&tav_error_free)>;
+
+    void check_tav_error(std::string_view operation, const TavError* error)
     {
-    public:
-      TavAttestationReportPtr report;
-
-      explicit Impl(TavAttestationReportPtr&& report_) :
-        report(std::move(report_))
-      {}
-    };
-
-    AttestationReport::AttestationReport(std::unique_ptr<Impl> impl_) :
-      impl(std::move(impl_))
-    {}
-    AttestationReport::AttestationReport(AttestationReport&&) noexcept =
-      default;
-    AttestationReport& AttestationReport::operator=(
-      AttestationReport&&) noexcept = default;
-    AttestationReport::~AttestationReport() = default;
-
-    namespace
-    {
-      using BytesAccessor =
-        void (*)(const TavSnpAttestationReport*, const uint8_t**, size_t*);
-
-      std::span<const uint8_t> get_bytes(
-        const TavSnpAttestationReport* report,
-        BytesAccessor accessor,
-        size_t expected_size,
-        std::string_view field)
+      if (error != nullptr)
       {
-        const uint8_t* data = nullptr;
-        size_t size = 0;
-        accessor(report, &data, &size);
-        if (size != expected_size || data == nullptr)
-        {
-          throw std::logic_error(fmt::format(
-            "SEV-SNP: TAV returned {} bytes for {} (data {}), expected {}",
-            size,
-            field,
-            data == nullptr ? "is null" : "is not null",
-            expected_size));
-        }
-        return {data, size};
-      }
-
-      [[noreturn]] void throw_tav_error(
-        std::string_view operation, const TavError* error)
-      {
-        const auto error_code = tav_error_code(error);
-        const auto* error_message = tav_error_message(error);
         throw std::logic_error(fmt::format(
           "SEV-SNP: TAV {} failed ({}): {}",
           operation,
-          static_cast<uint32_t>(error_code),
-          error_message == nullptr ? "Unknown TAV error" : error_message));
+          static_cast<uint32_t>(tav_error_code(error)),
+          tav_error_message(error)));
       }
     }
-
-#define SNP_SCALAR_ACCESSOR(method, tav_accessor, type) \
-  type AttestationReport::method() const \
-  { \
-    return tav_accessor(impl->report.get()); \
   }
 
-    SNP_SCALAR_ACCESSOR(version, tav_snp_attestation_report_version, uint32_t)
-    SNP_SCALAR_ACCESSOR(
-      guest_svn, tav_snp_attestation_report_guest_svn, uint32_t)
-    SNP_SCALAR_ACCESSOR(policy, tav_snp_attestation_report_policy, uint64_t)
-    SNP_SCALAR_ACCESSOR(
-      policy_abi_minor, tav_snp_attestation_report_policy_abi_minor, uint8_t)
-    SNP_SCALAR_ACCESSOR(
-      policy_abi_major, tav_snp_attestation_report_policy_abi_major, uint8_t)
-    SNP_SCALAR_ACCESSOR(policy_smt, tav_snp_attestation_report_policy_smt, bool)
-    SNP_SCALAR_ACCESSOR(
-      policy_migrate_ma, tav_snp_attestation_report_policy_migrate_ma, bool)
-    SNP_SCALAR_ACCESSOR(
-      policy_debug, tav_snp_attestation_report_policy_debug, bool)
-    SNP_SCALAR_ACCESSOR(
-      policy_single_socket,
-      tav_snp_attestation_report_policy_single_socket,
-      bool)
-    SNP_SCALAR_ACCESSOR(vmpl, tav_snp_attestation_report_vmpl, uint32_t)
-    SNP_SCALAR_ACCESSOR(
-      signature_algo, tav_snp_attestation_report_signature_algo, uint32_t)
-    SNP_SCALAR_ACCESSOR(
-      platform_info, tav_snp_attestation_report_platform_info, uint64_t)
-    SNP_SCALAR_ACCESSOR(flags, tav_snp_attestation_report_flags, uint32_t)
-    SNP_SCALAR_ACCESSOR(
-      flags_author_key_en, tav_snp_attestation_report_flags_author_key_en, bool)
-    SNP_SCALAR_ACCESSOR(
-      flags_mask_chip_key, tav_snp_attestation_report_flags_mask_chip_key, bool)
-    SNP_SCALAR_ACCESSOR(
-      flags_signing_key, tav_snp_attestation_report_flags_signing_key, uint8_t)
-    SNP_SCALAR_ACCESSOR(
-      cpuid_fam_id, tav_snp_attestation_report_cpuid_fam_id, uint8_t)
-    SNP_SCALAR_ACCESSOR(
-      cpuid_mod_id, tav_snp_attestation_report_cpuid_mod_id, uint8_t)
-    SNP_SCALAR_ACCESSOR(
-      cpuid_step, tav_snp_attestation_report_cpuid_step, uint8_t)
-    SNP_SCALAR_ACCESSOR(
-      current_build, tav_snp_attestation_report_current_build, uint8_t)
-    SNP_SCALAR_ACCESSOR(
-      current_minor, tav_snp_attestation_report_current_minor, uint8_t)
-    SNP_SCALAR_ACCESSOR(
-      current_major, tav_snp_attestation_report_current_major, uint8_t)
-    SNP_SCALAR_ACCESSOR(
-      committed_build, tav_snp_attestation_report_committed_build, uint8_t)
-    SNP_SCALAR_ACCESSOR(
-      committed_minor, tav_snp_attestation_report_committed_minor, uint8_t)
-    SNP_SCALAR_ACCESSOR(
-      committed_major, tav_snp_attestation_report_committed_major, uint8_t)
-
-#undef SNP_SCALAR_ACCESSOR
-
-#define SNP_BYTES_ACCESSOR(method, tav_accessor, size) \
-  std::span<const uint8_t> AttestationReport::method() const \
-  { \
-    return get_bytes(impl->report.get(), tav_accessor, size, #method); \
-  }
-
-    SNP_BYTES_ACCESSOR(family_id, tav_snp_attestation_report_family_id, 16)
-    SNP_BYTES_ACCESSOR(image_id, tav_snp_attestation_report_image_id, 16)
-    SNP_BYTES_ACCESSOR(
-      report_data,
-      tav_snp_attestation_report_report_data,
-      snp_attestation_report_data_size)
-    SNP_BYTES_ACCESSOR(
-      measurement,
-      tav_snp_attestation_report_measurement,
-      snp_attestation_measurement_size)
-    SNP_BYTES_ACCESSOR(host_data, tav_snp_attestation_report_host_data, 32)
-    SNP_BYTES_ACCESSOR(
-      id_key_digest, tav_snp_attestation_report_id_key_digest, 48)
-    SNP_BYTES_ACCESSOR(
-      author_key_digest, tav_snp_attestation_report_author_key_digest, 48)
-    SNP_BYTES_ACCESSOR(report_id, tav_snp_attestation_report_report_id, 32)
-    SNP_BYTES_ACCESSOR(
-      report_id_ma, tav_snp_attestation_report_report_id_ma, 32)
-    SNP_BYTES_ACCESSOR(chip_id, tav_snp_attestation_report_chip_id, 64)
-    SNP_BYTES_ACCESSOR(signature_r, tav_snp_attestation_report_signature_r, 72)
-    SNP_BYTES_ACCESSOR(signature_s, tav_snp_attestation_report_signature_s, 72)
-
-#undef SNP_BYTES_ACCESSOR
-
-    TcbVersionRaw AttestationReport::platform_version() const
-    {
-      return TcbVersionRaw::from_span(get_bytes(
-        impl->report.get(),
-        tav_snp_attestation_report_platform_version,
-        snp_tcb_version_size,
-        "platform_version"));
-    }
-
-    TcbVersionRaw AttestationReport::reported_tcb() const
-    {
-      return TcbVersionRaw::from_span(get_bytes(
-        impl->report.get(),
-        tav_snp_attestation_report_reported_tcb,
-        snp_tcb_version_size,
-        "reported_tcb"));
-    }
-
-    TcbVersionRaw AttestationReport::committed_tcb() const
-    {
-      return TcbVersionRaw::from_span(get_bytes(
-        impl->report.get(),
-        tav_snp_attestation_report_committed_tcb,
-        snp_tcb_version_size,
-        "committed_tcb"));
-    }
-
-    TcbVersionRaw AttestationReport::launch_tcb() const
-    {
-      return TcbVersionRaw::from_span(get_bytes(
-        impl->report.get(),
-        tav_snp_attestation_report_launch_tcb,
-        snp_tcb_version_size,
-        "launch_tcb"));
-    }
-
-    std::span<const uint8_t> AttestationReport::chip_id_for_vcek() const
-    {
-      auto id = chip_id();
-      const auto product = get_sev_snp_product(cpuid_fam_id(), cpuid_mod_id());
-      if (product == ProductName::Milan || product == ProductName::Genoa)
-      {
-        return id;
-      }
-      if (product == ProductName::Turin)
-      {
-        return id.first(8);
-      }
-      throw std::logic_error(
-        fmt::format("Unsupported SEV-SNP product: {}", product));
-    }
-
-    AttestationReport AttestationReport::from_unverified(
+  namespace snp
+  {
+    AttestationReport parse_attestation_report_unverified(
       std::span<const uint8_t> report)
     {
       TavSnpAttestationReport* raw_report = nullptr;
-      TavErrorPtr error(tav_snp_attestation_report_from_unverified_bytes(
-        report.data(), report.size(), &raw_report));
-      TavAttestationReportPtr parsed_report(raw_report);
-      if (error != nullptr)
-      {
-        throw_tav_error("unverified report parsing", error.get());
-      }
+      TavErrorPtr error(
+        tav_snp_attestation_report_from_unverified_bytes(
+          report.data(), report.size(), &raw_report),
+        tav_error_free);
+      AttestationReport parsed_report(raw_report);
+      check_tav_error("unverified report parsing", error.get());
       if (parsed_report == nullptr)
       {
         throw std::logic_error(
           "SEV-SNP: TAV parsing succeeded without returning a report");
       }
-      return AttestationReport(
-        std::make_unique<Impl>(std::move(parsed_report)));
-    }
-
-    AttestationReport parse_attestation_report_unverified(
-      std::span<const uint8_t> report)
-    {
-      return AttestationReport::from_unverified(report);
+      return parsed_report;
     }
   }
 
@@ -433,7 +245,7 @@ namespace ccf::pal
   }
 
   // Verifying SNP attestation report is available on all platforms.
-  snp::AttestationReport snp::AttestationReport::verify(
+  snp::AttestationReport snp::verify_attestation_report(
     std::span<const uint8_t> report,
     std::span<const uint8_t> endorsements,
     PlatformAttestationMeasurement& measurement,
@@ -464,61 +276,54 @@ namespace ccf::pal
     auto ask_cert = certificates[1];
     auto ark_cert = certificates[2];
 
-    TavSnpAttestationReport* verified_report_raw = nullptr;
-    TavErrorPtr verification_error(tav_verify_snp_attestation(
-      report.data(),
-      report.size(),
-      ark_cert.data(),
-      ark_cert.size(),
-      ask_cert.data(),
-      ask_cert.size(),
-      vcek_cert.data(),
-      vcek_cert.size(),
-      &verified_report_raw));
-    TavAttestationReportPtr verified_report(verified_report_raw);
-    if (verification_error != nullptr)
-    {
-      const auto error_code = tav_error_code(verification_error.get());
-      const auto* error_message = tav_error_message(verification_error.get());
-      throw std::logic_error(fmt::format(
-        "SEV-SNP: TAV verification failed ({}): {}",
-        static_cast<uint32_t>(error_code),
-        error_message == nullptr ? "Unknown TAV error" : error_message));
-    }
-
-    if (verified_report == nullptr)
+    TavSnpAttestationReport* raw_report = nullptr;
+    TavErrorPtr error(
+      tav_verify_snp_attestation(
+        report.data(),
+        report.size(),
+        ark_cert.data(),
+        ark_cert.size(),
+        ask_cert.data(),
+        ask_cert.size(),
+        vcek_cert.data(),
+        vcek_cert.size(),
+        &raw_report),
+      tav_error_free);
+    AttestationReport attestation(raw_report);
+    check_tav_error("verification", error.get());
+    if (attestation == nullptr)
     {
       throw std::logic_error(
         "SEV-SNP: TAV verification succeeded without returning a report");
     }
 
-    auto attestation =
-      AttestationReport(std::make_unique<Impl>(std::move(verified_report)));
-
-    if (attestation.version() < snp::minimum_attestation_version)
+    if (
+      tav_snp_attestation_report_version(attestation.get()) <
+      snp::minimum_attestation_version)
     {
       throw std::logic_error(fmt::format(
         "SEV-SNP: Attestation version is {} not >= expected minimum {}",
-        attestation.version(),
+        tav_snp_attestation_report_version(attestation.get()),
         snp::minimum_attestation_version));
     }
 
     const auto product_family = snp::get_sev_snp_product(
-      attestation.cpuid_fam_id(), attestation.cpuid_mod_id());
+      tav_snp_attestation_report_cpuid_fam_id(attestation.get()),
+      tav_snp_attestation_report_cpuid_mod_id(attestation.get()));
 
     // ---- Verify attestation report contents ----
 
     if (
-      attestation.flags_signing_key() !=
+      tav_snp_attestation_report_flags_signing_key(attestation.get()) !=
       snp::attestation_flags_signing_key_vcek)
     {
       throw std::logic_error(fmt::format(
         "SEV-SNP: Attestation report must be signed by VCEK: {}",
-        attestation.flags_signing_key()));
+        tav_snp_attestation_report_flags_signing_key(attestation.get())));
     }
 
     // mask_chip_key if set means the operator set the vcek to 0s
-    if (attestation.flags_mask_chip_key())
+    if (tav_snp_attestation_report_flags_mask_chip_key(attestation.get()))
     {
       throw std::logic_error(
         fmt::format("SEV-SNP: Mask chip key must not be set"));
@@ -527,15 +332,15 @@ namespace ccf::pal
     // All attestation reports generated by guests must have VMPL <= 3
     // while host generated reports have VMPL > 3.
     // We should reject host generated reports.
-    if (attestation.vmpl() > 3)
+    if (tav_snp_attestation_report_vmpl(attestation.get()) > 3)
     {
       throw std::logic_error(fmt::format(
         "SEV-SNP: This report seems to be host generated (VMPL {} > 3)",
-        attestation.vmpl()));
+        tav_snp_attestation_report_vmpl(attestation.get())));
     }
 
     // Debug mode would allow decryption of guest pages
-    if (attestation.policy_debug())
+    if (tav_snp_attestation_report_policy_debug(attestation.get()))
     {
       throw std::logic_error(
         "SEV-SNP: SNP attestation report guest policy debugging must not be "
@@ -544,7 +349,7 @@ namespace ccf::pal
 
     // Migration of CCF nodes and other services could allow duplicates, and
     // hence must be disallowed
-    if (attestation.policy_migrate_ma())
+    if (tav_snp_attestation_report_policy_migrate_ma(attestation.get()))
     {
       throw std::logic_error(
         "SEV-SNP: SNP attestation report guest policy migration must not be "
@@ -555,7 +360,11 @@ namespace ccf::pal
     if (endorsed_tcb.has_value())
     {
       auto endorsed_tcb_policy = endorsed_tcb->to_policy(product_family);
-      auto reported_tcb = attestation.reported_tcb().to_policy(product_family);
+      auto reported_tcb =
+        TcbVersionRaw::from_span(
+          snp::get_report_bytes(
+            attestation.get(), tav_snp_attestation_report_reported_tcb))
+          .to_policy(product_family);
 
       if (!snp::TcbVersionPolicy::is_valid(endorsed_tcb_policy, reported_tcb))
       {
@@ -568,7 +377,7 @@ namespace ccf::pal
     }
 
     auto endorsed_chip_id = get_endorsed_chip_id_from_cert(vcek_cert);
-    auto reported_chip_id = attestation.chip_id_for_vcek();
+    auto reported_chip_id = get_chip_id_for_vcek(attestation);
     if (
       endorsed_chip_id.has_value() &&
       (endorsed_chip_id->size() != reported_chip_id.size() ||
@@ -589,7 +398,8 @@ namespace ccf::pal
       auto raw_endorsed_tcb =
         snp::TcbVersionRaw::from_hex(std::string(claimed_endorsed_tcb.value()));
 
-      const auto reported_tcb = attestation.reported_tcb();
+      const auto reported_tcb = TcbVersionRaw::from_span(snp::get_report_bytes(
+        attestation.get(), tav_snp_attestation_report_reported_tcb));
       if (raw_endorsed_tcb != reported_tcb)
       {
         auto endorsed_tcb_hex = raw_endorsed_tcb.to_hex();
@@ -603,8 +413,10 @@ namespace ccf::pal
 
     // ---- Set return values ----
 
-    report_data = SnpAttestationReportData(attestation.report_data());
-    measurement = SnpAttestationMeasurement(attestation.measurement());
+    report_data = SnpAttestationReportData(snp::get_report_bytes(
+      attestation.get(), tav_snp_attestation_report_report_data));
+    measurement = SnpAttestationMeasurement(snp::get_report_bytes(
+      attestation.get(), tav_snp_attestation_report_measurement));
     return attestation;
   }
 
@@ -620,7 +432,7 @@ namespace ccf::pal
         quote_info.format));
     }
 
-    return snp::AttestationReport::verify(
+    return snp::verify_attestation_report(
       quote_info.quote,
       quote_info.endorsements,
       measurement,
@@ -640,7 +452,7 @@ namespace ccf::pal
         quote_info.format));
     }
 
-    snp::AttestationReport::verify(
+    snp::verify_attestation_report(
       quote_info.quote,
       quote_info.endorsements,
       measurement,

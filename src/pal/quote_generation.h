@@ -91,14 +91,16 @@ namespace ccf::pal
     node_quote_info.format = QuoteFormat::amd_sev_snp_v1;
     node_quote_info.quote = snp::get_attestation_bytes(report_data);
     auto report =
-      snp::AttestationReport::from_unverified(node_quote_info.quote);
+      snp::parse_attestation_report_unverified(node_quote_info.quote);
 
-    if (report.version() < pal::snp::minimum_attestation_version)
+    if (
+      tav_snp_attestation_report_version(report.get()) <
+      pal::snp::minimum_attestation_version)
     {
       throw std::logic_error(fmt::format(
         "SEV-SNP: attestation version {} is less than the minimum supported "
         "version {}",
-        report.version(),
+        tav_snp_attestation_report_version(report.get()),
         pal::snp::minimum_attestation_version));
     }
 

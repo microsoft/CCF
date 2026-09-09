@@ -26,9 +26,10 @@ TEST_CASE("SNP request attestation")
   const auto report_bytes = snp::get_attestation_bytes(report_data);
   REQUIRE(report_bytes.size() == snp::attestation_report_size);
   const auto attestation =
-    snp::AttestationReport::from_unverified(report_bytes);
+    snp::parse_attestation_report_unverified(report_bytes);
 
-  SnpAttestationReportData attested_report_data(attestation.report_data());
+  SnpAttestationReportData attested_report_data(snp::get_report_bytes(
+    attestation.get(), tav_snp_attestation_report_report_data));
 
   REQUIRE_EQ(snp_report_data.report_data, attested_report_data.report_data);
 }

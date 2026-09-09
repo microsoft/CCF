@@ -342,7 +342,7 @@ namespace ccf::pal::snp::ioctl6
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
     [[deprecated(
       "Use get_attestation_bytes() and "
-      "AttestationReport::from_unverified")]] [[nodiscard]] const ccf::pal::
+      "parse_attestation_report_unverified")]] [[nodiscard]] const ccf::pal::
       snp::Attestation&
       get() const override
     {

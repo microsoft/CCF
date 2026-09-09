@@ -29,7 +29,18 @@ namespace ccf::pal
     PlatformAttestationMeasurement& measurement,
     PlatformAttestationReportData& report_data);
 
-  [[deprecated("Use snp::AttestationReport::verify")]]
+  namespace snp
+  {
+    /// Verify with TAV, then enforce CCF's SNP attestation policy.
+    AttestationReport verify_attestation_report(
+      std::span<const uint8_t> report,
+      std::span<const uint8_t> endorsements,
+      PlatformAttestationMeasurement& measurement,
+      PlatformAttestationReportData& report_data,
+      std::optional<std::string_view> endorsed_tcb = std::nullopt);
+  }
+
+  [[deprecated("Use snp::verify_attestation_report")]]
   snp::AttestationReport verify_snp_attestation_report_and_get(
     const QuoteInfo& quote_info,
     PlatformAttestationMeasurement& measurement,

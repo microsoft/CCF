@@ -21,6 +21,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <tav/snp.h>
 #include <vector>
 
 namespace ccf::pal::snp
@@ -441,81 +442,55 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
   };
 #pragma pack(pop)
 
-  class AttestationReport
+  struct AttestationReportDeleter
   {
-  private:
-    class Impl;
-    std::unique_ptr<Impl> impl;
-
-    explicit AttestationReport(std::unique_ptr<Impl> impl_);
-
-  public:
-    static AttestationReport from_unverified(std::span<const uint8_t> report);
-    static AttestationReport verify(
-      std::span<const uint8_t> report,
-      std::span<const uint8_t> endorsements,
-      PlatformAttestationMeasurement& measurement,
-      PlatformAttestationReportData& report_data,
-      std::optional<std::string_view> endorsed_tcb = std::nullopt);
-
-    // Do not call accessors on a moved-from report.
-    AttestationReport(AttestationReport&&) noexcept;
-    AttestationReport& operator=(AttestationReport&&) noexcept;
-    ~AttestationReport();
-
-    AttestationReport(const AttestationReport&) = delete;
-    AttestationReport& operator=(const AttestationReport&) = delete;
-
-    [[nodiscard]] uint32_t version() const;
-    [[nodiscard]] uint32_t guest_svn() const;
-    [[nodiscard]] uint64_t policy() const;
-    [[nodiscard]] uint8_t policy_abi_minor() const;
-    [[nodiscard]] uint8_t policy_abi_major() const;
-    [[nodiscard]] bool policy_smt() const;
-    [[nodiscard]] bool policy_migrate_ma() const;
-    [[nodiscard]] bool policy_debug() const;
-    [[nodiscard]] bool policy_single_socket() const;
-    [[nodiscard]] uint32_t vmpl() const;
-    [[nodiscard]] uint32_t signature_algo() const;
-    [[nodiscard]] uint64_t platform_info() const;
-    [[nodiscard]] uint32_t flags() const;
-    [[nodiscard]] bool flags_author_key_en() const;
-    [[nodiscard]] bool flags_mask_chip_key() const;
-    [[nodiscard]] uint8_t flags_signing_key() const;
-    [[nodiscard]] uint8_t cpuid_fam_id() const;
-    [[nodiscard]] uint8_t cpuid_mod_id() const;
-    [[nodiscard]] uint8_t cpuid_step() const;
-    [[nodiscard]] uint8_t current_build() const;
-    [[nodiscard]] uint8_t current_minor() const;
-    [[nodiscard]] uint8_t current_major() const;
-    [[nodiscard]] uint8_t committed_build() const;
-    [[nodiscard]] uint8_t committed_minor() const;
-    [[nodiscard]] uint8_t committed_major() const;
-
-    // Byte spans borrow report storage. Moves transfer ownership without
-    // invalidating these views. Destroying or replacing the owner invalidates
-    // them.
-    [[nodiscard]] std::span<const uint8_t> family_id() const;
-    [[nodiscard]] std::span<const uint8_t> image_id() const;
-    [[nodiscard]] TcbVersionRaw platform_version() const;
-    [[nodiscard]] std::span<const uint8_t> report_data() const;
-    [[nodiscard]] std::span<const uint8_t> measurement() const;
-    [[nodiscard]] std::span<const uint8_t> host_data() const;
-    [[nodiscard]] std::span<const uint8_t> id_key_digest() const;
-    [[nodiscard]] std::span<const uint8_t> author_key_digest() const;
-    [[nodiscard]] std::span<const uint8_t> report_id() const;
-    [[nodiscard]] std::span<const uint8_t> report_id_ma() const;
-    [[nodiscard]] TcbVersionRaw reported_tcb() const;
-    [[nodiscard]] std::span<const uint8_t> chip_id() const;
-    [[nodiscard]] std::span<const uint8_t> chip_id_for_vcek() const;
-    [[nodiscard]] TcbVersionRaw committed_tcb() const;
-    [[nodiscard]] TcbVersionRaw launch_tcb() const;
-    [[nodiscard]] std::span<const uint8_t> signature_r() const;
-    [[nodiscard]] std::span<const uint8_t> signature_s() const;
+    void operator()(TavSnpAttestationReport* report) const noexcept
+    {
+      tav_snp_attestation_report_free(report);
+    }
   };
 
-  [[deprecated("Use AttestationReport::from_unverified")]]
-  AttestationReport parse_attestation_report_unverified(
+  using AttestationReport =
+    std::unique_ptr<TavSnpAttestationReport, AttestationReportDeleter>;
+
+  using ReportBytesAccessor =
+    void (*)(const TavSnpAttestationReport*, const uint8_t**, size_t*);
+
+  // The returned view borrows storage owned by the report handle.
+  inline std::span<const uint8_t> get_report_bytes(
+    const TavSnpAttestationReport* report, ReportBytesAccessor accessor)
+  {
+    if (report == nullptr)
+    {
+      throw std::logic_error("Cannot access an empty SNP attestation report");
+    }
+    const uint8_t* data = nullptr;
+    size_t size = 0;
+    accessor(report, &data, &size);
+    return {data, size};
+  }
+
+  inline std::span<const uint8_t> get_chip_id_for_vcek(
+    const AttestationReport& report)
+  {
+    const auto chip_id =
+      get_report_bytes(report.get(), tav_snp_attestation_report_chip_id);
+    const auto product = get_sev_snp_product(
+      tav_snp_attestation_report_cpuid_fam_id(report.get()),
+      tav_snp_attestation_report_cpuid_mod_id(report.get()));
+    if (product == ProductName::Milan || product == ProductName::Genoa)
+    {
+      return chip_id;
+    }
+    if (product == ProductName::Turin)
+    {
+      return chip_id.first(8);
+    }
+    throw std::logic_error(
+      fmt::format("Unsupported SEV-SNP product: {}", product));
+  }
+
+  [[nodiscard]] AttestationReport parse_attestation_report_unverified(
     std::span<const uint8_t> report);
 
   inline void to_json(nlohmann::json& j, const TcbVersionRaw& tcb_version)
@@ -563,20 +538,23 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
     const AttestationReport& quote,
     const snp::EndorsementsServers& endorsements_servers = {})
   {
-    if (quote.version() < minimum_attestation_version)
+    if (
+      tav_snp_attestation_report_version(quote.get()) <
+      minimum_attestation_version)
     {
       throw std::logic_error(fmt::format(
         "SEV-SNP: attestation version {} is not supported. Minimum "
         "supported version is {}",
-        quote.version(),
+        tav_snp_attestation_report_version(quote.get()),
         minimum_attestation_version));
     }
 
     EndorsementEndpointsConfiguration config;
 
     auto chip_id_hex =
-      fmt::format("{:02x}", fmt::join(quote.chip_id_for_vcek(), ""));
-    const auto reported_tcb_raw = quote.reported_tcb().data();
+      fmt::format("{:02x}", fmt::join(get_chip_id_for_vcek(quote), ""));
+    const auto reported_tcb_raw =
+      get_report_bytes(quote.get(), tav_snp_attestation_report_reported_tcb);
     uint64_t reported_tcb_value = 0;
     std::memcpy(
       &reported_tcb_value, reported_tcb_raw.data(), sizeof(reported_tcb_value));
@@ -621,8 +599,9 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
         }
         case EndorsementsEndpointType::AMD:
         {
-          auto product =
-            get_sev_snp_product(quote.cpuid_fam_id(), quote.cpuid_mod_id());
+          auto product = get_sev_snp_product(
+            tav_snp_attestation_report_cpuid_fam_id(quote.get()),
+            tav_snp_attestation_report_cpuid_mod_id(quote.get()));
 
           std::string boot_loader;
           std::string tee;
@@ -635,7 +614,11 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
             case ProductName::Genoa:
             {
               auto tcb =
-                quote.reported_tcb().to_policy(product).to_milan_genoa();
+                TcbVersionRaw::from_span(
+                  get_report_bytes(
+                    quote.get(), tav_snp_attestation_report_reported_tcb))
+                  .to_policy(product)
+                  .to_milan_genoa();
               boot_loader = fmt::format("{}", tcb.boot_loader);
               tee = fmt::format("{}", tcb.tee);
               snp = fmt::format("{}", tcb.snp);
@@ -644,7 +627,12 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
             }
             case ProductName::Turin:
             {
-              auto tcb = quote.reported_tcb().to_policy(product).to_turin();
+              auto tcb =
+                TcbVersionRaw::from_span(
+                  get_report_bytes(
+                    quote.get(), tav_snp_attestation_report_reported_tcb))
+                  .to_policy(product)
+                  .to_turin();
               boot_loader = fmt::format("{}", tcb.boot_loader);
               tee = fmt::format("{}", tcb.tee);
               snp = fmt::format("{}", tcb.snp);
@@ -707,7 +695,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
   {
     const auto* report = reinterpret_cast<const uint8_t*>(&quote);
     return make_endorsement_endpoint_configuration(
-      AttestationReport::from_unverified({report, attestation_report_size}),
+      parse_attestation_report_unverified({report, attestation_report_size}),
       endorsements_servers);
   }
 
@@ -716,7 +704,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
   public:
     [[deprecated(
       "Use get_attestation_bytes() from ccf/pal/snp_ioctl.h and "
-      "AttestationReport::from_unverified")]] [[nodiscard]] virtual const snp::
+      "parse_attestation_report_unverified")]] [[nodiscard]] virtual const snp::
       Attestation&
       get() const = 0;
     [[deprecated("Use get_attestation_bytes() from ccf/pal/snp_ioctl.h")]]

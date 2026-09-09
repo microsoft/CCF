@@ -966,33 +966,43 @@ namespace ccf
     static void trust_node_snp_tcb_version(
       ccf::kv::Tx& tx, const pal::snp::AttestationReport& attestation)
     {
-      if (attestation.version() < pal::snp::minimum_attestation_version)
+      if (
+        tav_snp_attestation_report_version(attestation.get()) <
+        pal::snp::minimum_attestation_version)
       {
         throw std::logic_error(fmt::format(
           "SEV-SNP: attestation version {} is not supported. Minimum "
           "supported version is {}",
-          attestation.version(),
+          tav_snp_attestation_report_version(attestation.get()),
           pal::snp::minimum_attestation_version));
       }
       // As cpuid -> attestation cpuid is surjective, we must use the local
       // cpuid and validate it against the attestation's cpuid
       auto cpuid = pal::snp::get_cpuid_untrusted();
       if (
-        cpuid.get_family_id() != attestation.cpuid_fam_id() ||
-        cpuid.get_model_id() != attestation.cpuid_mod_id() ||
-        cpuid.stepping != attestation.cpuid_step())
+        cpuid.get_family_id() !=
+          tav_snp_attestation_report_cpuid_fam_id(attestation.get()) ||
+        cpuid.get_model_id() !=
+          tav_snp_attestation_report_cpuid_mod_id(attestation.get()) ||
+        cpuid.stepping !=
+          tav_snp_attestation_report_cpuid_step(attestation.get()))
       {
         throw std::runtime_error(fmt::format(
           "CPU-sourced cpuid does not match attestation cpuid ({} != {}, {}, "
           "{})",
           cpuid.hex_str(),
-          attestation.cpuid_fam_id(),
-          attestation.cpuid_mod_id(),
-          attestation.cpuid_step()));
+          tav_snp_attestation_report_cpuid_fam_id(attestation.get()),
+          tav_snp_attestation_report_cpuid_mod_id(attestation.get()),
+          tav_snp_attestation_report_cpuid_step(attestation.get())));
       }
       auto* h = tx.wo<ccf::SnpTcbVersionMap>(Tables::SNP_TCB_VERSIONS);
       auto product = pal::snp::get_sev_snp_product(cpuid);
-      h->put(cpuid.hex_str(), attestation.reported_tcb().to_policy(product));
+      h->put(
+        cpuid.hex_str(),
+        pal::snp::TcbVersionRaw::from_span(
+          pal::snp::get_report_bytes(
+            attestation.get(), tav_snp_attestation_report_reported_tcb))
+          .to_policy(product));
     }
 
     static void init_configuration(

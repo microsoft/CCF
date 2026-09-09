@@ -165,7 +165,7 @@ namespace ccf
     {
       pal::PlatformAttestationMeasurement d = {};
       pal::PlatformAttestationReportData r = {};
-      return pal::snp::AttestationReport::verify(
+      return pal::snp::verify_attestation_report(
         quote_info.quote,
         quote_info.endorsements,
         d,
@@ -235,13 +235,14 @@ namespace ccf
         pal::PlatformAttestationReportData r = {};
         try
         {
-          const auto report = pal::snp::AttestationReport::verify(
+          const auto report = pal::snp::verify_attestation_report(
             quote_info.quote,
             quote_info.endorsements,
             d,
             r,
             quote_info.endorsed_tcb);
-          const auto host_data = report.host_data();
+          const auto host_data = pal::snp::get_report_bytes(
+            report.get(), tav_snp_attestation_report_host_data);
           std::copy(host_data.begin(), host_data.end(), rep.begin());
         }
         catch (const std::exception& e)
@@ -310,7 +311,7 @@ namespace ccf
 
     pal::PlatformAttestationMeasurement d = {};
     pal::PlatformAttestationReportData r = {};
-    auto attestation = pal::snp::AttestationReport::verify(
+    auto attestation = pal::snp::verify_attestation_report(
       quote_info.quote, quote_info.endorsements, d, r, quote_info.endorsed_tcb);
 
     std::optional<pal::snp::TcbVersionPolicy> min_tcb_opt = std::nullopt;
@@ -320,9 +321,12 @@ namespace ccf
         const std::string& cpuid_hex, const pal::snp::TcbVersionPolicy& v) {
         auto cpuid = pal::snp::cpuid_from_hex(cpuid_hex);
         if (
-          cpuid.get_family_id() == attestation.cpuid_fam_id() &&
-          cpuid.get_model_id() == attestation.cpuid_mod_id() &&
-          cpuid.stepping == attestation.cpuid_step())
+          cpuid.get_family_id() ==
+            tav_snp_attestation_report_cpuid_fam_id(attestation.get()) &&
+          cpuid.get_model_id() ==
+            tav_snp_attestation_report_cpuid_mod_id(attestation.get()) &&
+          cpuid.stepping ==
+            tav_snp_attestation_report_cpuid_step(attestation.get()))
         {
           min_tcb_opt = v;
           return false;
@@ -337,9 +341,13 @@ namespace ccf
     // CPUID of the attested cpu must now be equal to the min_tcb_opt's cpuid
 
     auto product_family = pal::snp::get_sev_snp_product(
-      attestation.cpuid_fam_id(), attestation.cpuid_mod_id());
+      tav_snp_attestation_report_cpuid_fam_id(attestation.get()),
+      tav_snp_attestation_report_cpuid_mod_id(attestation.get()));
     auto attestation_tcb_policy =
-      attestation.reported_tcb().to_policy(product_family);
+      pal::snp::TcbVersionRaw::from_span(
+        pal::snp::get_report_bytes(
+          attestation.get(), tav_snp_attestation_report_reported_tcb))
+        .to_policy(product_family);
 
     if (pal::snp::TcbVersionPolicy::is_valid(
           min_tcb_opt.value(), attestation_tcb_policy))

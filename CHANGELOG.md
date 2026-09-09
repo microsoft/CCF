@@ -17,7 +17,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
-- SNP attestation reports are now parsed and verified through the move-only, TAV-backed `ccf::pal::snp::AttestationReport` accessor API. Byte accessors return read-only spans into the report; moves preserve these views, but destroying or replacing the owning report invalidates them. The packed `ccf::pal::snp::Attestation` wire-layout type and its legacy accessors remain available for compatibility but are deprecated. (#8083)
+- SNP attestation reports now use TAV's C API with `ccf::pal::snp::AttestationReport` as an owning smart-pointer alias. Use `parse_attestation_report_unverified()` to decode reports and `verify_attestation_report()` to apply TAV verification and CCF's policy. TAV byte accessors borrow report storage; destroying or replacing the owner invalidates those views. The packed `ccf::pal::snp::Attestation` wire-layout type and its legacy accessors remain available but are deprecated. (#8083)
 - `ccf::pal::snp::get_attestation_bytes()` in `ccf/pal/snp_ioctl.h` requests an unverified SNP report as owned bytes, without using the legacy report type. `AttestationInterface::get_raw()` and its ioctl implementation remain available but are deprecated. (#8083)
 - CBOR parsing now rejects composite (array or map) and tagged values used as map keys anywhere in the decoded document, including nested maps in optional COSE headers (#8297).
 
