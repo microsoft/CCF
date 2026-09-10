@@ -874,7 +874,7 @@ foo.bar.baz;
 static int get_ref_count(JSValue v)
 {
   REQUIRE(JS_VALUE_HAS_REF_COUNT(v));
-  auto* p = (JSRefCountHeader*)JS_VALUE_GET_PTR(v);
+  auto* p = __js_rc(JS_VALUE_GET_PTR(v));
   return p->ref_count;
 }
 
