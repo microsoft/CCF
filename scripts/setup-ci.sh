@@ -60,6 +60,7 @@ install_build_dependencies() {
         clang  \
         cmake  \
         ninja-build  \
+        patch  \
         which  \
         openssl-devel  \
         libuv-devel  \

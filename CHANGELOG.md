@@ -13,12 +13,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Restricted `ccf.gov.validateConstitution` to the constitution's `validate` step. It is no longer exposed to applications, ballots, or the constitution's `resolve` and `apply` steps. Evaluating the proposed constitution is now bounded by the caller's `js_runtime_options` heap, stack and execution time limits, sharing the remaining execution time of the `validate` step, rather than running unbounded (#8341).
 - Failures of the JS interpreter itself (out of memory, stack overflow, or interruption) while evaluating a module's top-level code are now reported as a failure to load that module, rather than being ignored (#8341).
+- Strengthened access checks on JavaScript KV handles, including namespace restrictions in the historical KV (#8318).
 - Invalid PEM construction and JSON deserialisation errors no longer include the supplied data, which may contain private key material (#8330).
 - Reaching the soft session cap on an unsecured RPC interface no longer terminates the node by attempting a TLS handshake without a certificate. (#8331)
 - Transactions from an earlier view are now rejected before entering the replication queue even after the node has stepped down. This prevents rolled-back writes from being replicated after a later election and blocking subsequent replication (#8293, #8295).
 
 ### Changed
 
+- Updated QuickJS to `2026-06-04`, with isolated build-time patches for out-of-memory backtrace handling and enforcement of lowered heap limits (#8340).
 - CBOR parsing now rejects composite (array or map) and tagged values used as map keys anywhere in the decoded document, including nested maps in optional COSE headers (#8297).
 
 ### Removed
@@ -28,6 +30,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - Transactions with pending writes now correctly validate `foreach`, `size`, and `clear` observations of an existing empty KV table made at revision zero. Previously, these observations could be mistaken for no whole-map read dependency (#8320).
+- The OpenAPI schema for `GET /node/consensus` and `GET /node/network` now correctly marks `details.primary_id` and `primary_id` as nullable, matching their `null` value while no primary is known (e.g. between elections). Previously the schema required a non-null string, causing spurious response validation failures (#8344).
 
 ## [7.0.14]
 
