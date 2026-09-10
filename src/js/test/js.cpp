@@ -4,9 +4,12 @@
 #include "ccf/js/core/wrapped_value.h"
 #include "ccf/js/extensions/ccf/gov.h"
 #include "ccf/js/extensions/ccf/historical.h"
+#include "ccf/js/extensions/ccf/kv.h"
 #include "js/global_class_ids.h"
 #include "js/permissions_checks.h"
 #include "kv/store.h"
+#include "kv/test/null_encryptor.h"
+#include "kv/untyped_map.h"
 #include "node/tx_receipt_impl.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT
@@ -280,6 +283,40 @@ TEST_CASE("Check KV Map access")
         KVAccessPermissions::ILLEGAL);
     }
   }
+
+  {
+    INFO("Every permission is described accurately");
+    REQUIRE(
+      explain_kv_map_access(KVAccessPermissions::READ_WRITE, TxAccess::APP_RW)
+        .contains("read-write"));
+    REQUIRE(
+      explain_kv_map_access(KVAccessPermissions::READ_ONLY, TxAccess::APP_RW)
+        .contains("read-only"));
+    REQUIRE(
+      explain_kv_map_access(KVAccessPermissions::WRITE_ONLY, TxAccess::GOV_RW)
+        .contains("write-only"));
+    REQUIRE(
+      explain_kv_map_access(KVAccessPermissions::ILLEGAL, TxAccess::APP_RW)
+        .contains("inaccessible"));
+
+    {
+      INFO("A permitted table is never described as inaccessible");
+      REQUIRE(!explain_kv_map_access(
+                 KVAccessPermissions::READ_WRITE, TxAccess::APP_RW)
+                 .contains("inaccessible"));
+    }
+
+    for (const auto permission_value : {4, 5, 255})
+    {
+      INFO("Unexpected permission bits are rejected");
+      CAPTURE(permission_value);
+      REQUIRE_THROWS_WITH_AS(
+        explain_kv_map_access(
+          static_cast<KVAccessPermissions>(permission_value), TxAccess::APP_RW),
+        fmt::format("Unexpected KV access permission: {}", permission_value),
+        std::logic_error);
+    }
+  }
 }
 
 bool str_contains(const std::string& s, std::string_view sv)
@@ -295,6 +332,299 @@ bool str_contains(const std::string& s, std::string_view sv)
 bool str_contains(const std::optional<std::string>& s, std::string_view sv)
 {
   return str_contains(s.value_or(""), sv);
+}
+
+using KVMap = ccf::kv::untyped::Map;
+
+// Returns an error message if the JS script throws.
+std::optional<std::string> run_kv_script(
+  ccf::kv::Tx& tx, TxAccess access, const std::string& body)
+{
+  ccf::js::core::Context ctx(access);
+  ctx.add_extension(std::make_shared<ccf::js::extensions::KvExtension>(&tx));
+
+  const auto module = fmt::format("export function run() {{\n{}\n}}", body);
+  auto func = ctx.get_exported_function(module, "run", "/test/kv_script");
+
+  const auto result = ctx.call_with_rt_options(
+    func, {}, std::nullopt, ccf::js::core::RuntimeLimitsPolicy::NONE);
+  if (!result.is_exception())
+  {
+    return std::nullopt;
+  }
+
+  auto [reason, trace] = ctx.error_message();
+  return reason;
+}
+
+bool table_contains(ccf::kv::Tx& tx, const std::string& table_name)
+{
+  auto* handle = tx.ro<KVMap>(table_name);
+  return handle->has({'k'});
+}
+
+// Access is resolved once, when a handle is created. These cases confirm that
+// decision cannot then be bypassed by re-targeting a method at another
+// receiver, or by mutating the handle from JS.
+TEST_CASE("KV handle permissions")
+{
+  constexpr auto app_table = "public:my_app_table";
+  constexpr auto gov_table = "public:ccf.gov.my_custom_table";
+  constexpr auto private_app_table = "my_app_table";
+
+  // Every script below operates on a single key, and refers to tables by these
+  // names rather than repeating the string literals
+  const auto js_prelude = fmt::format(
+    R"JS(
+const key = new Uint8Array([107]).buffer;
+const value = new Uint8Array([118]).buffer;
+const appTable = "{}";
+const govTable = "{}";
+const privateAppTable = "{}";
+)JS",
+    app_table,
+    gov_table,
+    private_app_table);
+
+  auto make_store = []() {
+    auto store = std::make_unique<ccf::kv::Store>();
+    store->set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+    return store;
+  };
+
+  {
+    INFO("Permitted operations on a handle still work");
+
+    auto store = make_store();
+    auto tx = store->create_tx();
+
+    const auto err = run_kv_script(tx, TxAccess::APP_RW, js_prelude + R"JS(
+const t = ccf.kv[appTable];
+t.set(key, value);
+if (!t.has(key)) { throw new Error("has"); }
+if (new Uint8Array(t.get(key))[0] !== 118) { throw new Error("get"); }
+if (t.size !== 1) { throw new Error("size"); }
+let seen = 0;
+t.forEach(() => { seen++; });
+if (seen !== 1) { throw new Error("forEach"); }
+t.delete(key);
+if (t.has(key)) { throw new Error("delete"); }
+)JS");
+    REQUIRE(!err.has_value());
+  }
+
+  {
+    INFO("Restrictions are enforced on a directly-used handle");
+
+    auto store = make_store();
+    auto tx = store->create_tx();
+
+    const auto err = run_kv_script(tx, TxAccess::APP_RW, js_prelude + R"JS(
+ccf.kv[govTable].set(key, value);
+)JS");
+    REQUIRE(!table_contains(tx, gov_table));
+    REQUIRE(str_contains(err, "Cannot call \"set\" on table named"));
+    REQUIRE(str_contains(err, gov_table));
+  }
+
+  {
+    INFO("A permitted method cannot be re-targeted at a forged receiver");
+
+    auto store = make_store();
+    auto tx = store->create_tx();
+
+    const auto err = run_kv_script(tx, TxAccess::APP_RW, js_prelude + R"JS(
+ccf.kv[appTable].set.call({ _map_name: govTable }, key, value);
+)JS");
+    REQUIRE(!table_contains(tx, gov_table));
+    REQUIRE(str_contains(err, "KV Map Handle object expected"));
+  }
+
+  {
+    INFO("A permitted method cannot be re-targeted at a restricted handle");
+
+    auto store = make_store();
+    auto tx = store->create_tx();
+
+    const auto err = run_kv_script(tx, TxAccess::APP_RW, js_prelude + R"JS(
+ccf.kv[appTable].set.call(ccf.kv[govTable], key, value);
+)JS");
+    REQUIRE(!table_contains(tx, gov_table));
+    REQUIRE(str_contains(err, "Cannot perform this operation on table named"));
+    REQUIRE(str_contains(err, gov_table));
+  }
+
+  {
+    INFO("A handle method cannot be invoked via a derived object");
+
+    auto store = make_store();
+    auto tx = store->create_tx();
+
+    const auto err = run_kv_script(tx, TxAccess::APP_RW, js_prelude + R"JS(
+Object.create(ccf.kv[appTable]).set(key, value);
+)JS");
+    REQUIRE(!table_contains(tx, app_table));
+    REQUIRE(str_contains(err, "KV Map Handle object expected"));
+  }
+
+  {
+    INFO("A handle method cannot be invoked via a Proxy");
+
+    auto store = make_store();
+    auto tx = store->create_tx();
+
+    const auto err = run_kv_script(tx, TxAccess::APP_RW, js_prelude + R"JS(
+const p = new Proxy(ccf.kv[appTable], {
+  get(target, prop) {
+    return prop === "_map_name" ? govTable : Reflect.get(target, prop);
+  }
+});
+p.set(key, value);
+)JS");
+    REQUIRE(!table_contains(tx, gov_table));
+    REQUIRE(str_contains(err, "KV Map Handle object expected"));
+  }
+
+  {
+    INFO("Copying a handle's properties does not copy its identity");
+
+    auto store = make_store();
+    auto tx = store->create_tx();
+
+    // Spreading a handle onto a plain object was the original forgery
+    // primitive, when the table name was a JS property
+    const auto err = run_kv_script(tx, TxAccess::APP_RW, js_prelude + R"JS(
+const copy = { ...ccf.kv[appTable], _map_name: govTable };
+copy.set(key, value);
+)JS");
+    REQUIRE(!table_contains(tx, gov_table));
+    REQUIRE(str_contains(err, "KV Map Handle object expected"));
+  }
+
+  {
+    INFO("A handle method cannot be bound to a forged receiver");
+
+    auto store = make_store();
+    auto tx = store->create_tx();
+
+    const auto err = run_kv_script(tx, TxAccess::APP_RW, js_prelude + R"JS(
+ccf.kv[appTable].set.bind({ _map_name: govTable })(key, value);
+)JS");
+    REQUIRE(!table_contains(tx, gov_table));
+    REQUIRE(str_contains(err, "KV Map Handle object expected"));
+  }
+
+  {
+    INFO("A denied method does not describe an unrelated permitted table");
+
+    auto store = make_store();
+    auto tx = store->create_tx();
+
+    // The denied stub reports the table of whatever receiver it is given, so
+    // that description must remain true when the receiver is permitted
+    const auto err = run_kv_script(tx, TxAccess::APP_RW, js_prelude + R"JS(
+ccf.kv[govTable].set.call(ccf.kv[appTable], key, value);
+)JS");
+    REQUIRE(!table_contains(tx, gov_table));
+    REQUIRE(str_contains(err, app_table));
+    REQUIRE(str_contains(err, "read-write"));
+    REQUIRE(!err.value().contains("inaccessible"));
+  }
+
+  {
+    INFO("Setting _map_name on a permitted handle does not redirect it");
+
+    auto store = make_store();
+    auto tx = store->create_tx();
+
+    const auto err = run_kv_script(tx, TxAccess::APP_RW, js_prelude + R"JS(
+const t = ccf.kv[appTable];
+t._map_name = govTable;
+t.set(key, value);
+)JS");
+    REQUIRE(!err.has_value());
+    REQUIRE(!table_contains(tx, gov_table));
+    REQUIRE(table_contains(tx, app_table));
+  }
+
+  {
+    INFO("Governance ballots cannot read private application tables");
+
+    auto store = make_store();
+
+    {
+      auto tx = store->create_tx();
+      tx.rw<KVMap>(private_app_table)->put({'k'}, {'v'});
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+    }
+
+    auto tx = store->create_tx();
+    const auto err = run_kv_script(tx, TxAccess::GOV_RO, js_prelude + R"JS(
+const gov = ccf.kv["public:ccf.gov.proposals_info"];
+const leaked = gov.get.call({ _map_name: privateAppTable }, key);
+if (leaked !== undefined) {
+  throw new Error("Leaked " + new Uint8Array(leaked));
+}
+)JS");
+    REQUIRE(err.has_value());
+    REQUIRE(!err.value().contains("Leaked"));
+    REQUIRE(str_contains(err, "KV Map Handle object expected"));
+  }
+}
+
+// Handle state is owned by C++ and released by a class finalizer, so it is only
+// freed if QuickJS destroys every handle. These cases are the ones plain
+// reference counting would not cover. Leaks are detected by the ASAN build.
+TEST_CASE("KV handle lifetime")
+{
+  constexpr auto js_prelude = R"JS(
+const key = new Uint8Array([107]).buffer;
+const value = new Uint8Array([118]).buffer;
+)JS";
+
+  auto run = [&](const std::string& body) {
+    ccf::kv::Store store;
+    store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+    auto tx = store.create_tx();
+    return run_kv_script(tx, TxAccess::APP_RW, js_prelude + body);
+  };
+
+  {
+    INFO("Handle in a reference cycle, which only the cycle collector breaks");
+    REQUIRE(!run(R"JS(
+const t = ccf.kv["tbl"];
+t.self = t;
+t.indirect = { back: t };
+t.set(key, value);
+)JS")
+               .has_value());
+  }
+
+  {
+    INFO("Handle still reachable when the interpreter is destroyed");
+    REQUIRE(!run(R"JS(
+globalThis.escaped = ccf.kv["tbl"];
+globalThis.escaped.set(key, value);
+)JS")
+               .has_value());
+  }
+
+  {
+    INFO("Handle live while an exception unwinds");
+    REQUIRE(run(R"JS(
+globalThis.escaped = ccf.kv["tbl"];
+throw new Error("boom");
+)JS")
+              .has_value());
+  }
+
+  {
+    INFO("Handle whose methods were all replaced by denied stubs");
+    REQUIRE(run(R"JS(
+ccf.kv["public:ccf.gov.tbl"].set(key, value);
+)JS")
+              .has_value());
+  }
 }
 
 // Returns error string, or nullopt if validation succeeded
