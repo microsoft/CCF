@@ -1,0 +1,15 @@
+name = "kv"
+version = "0.1.0"
+defaultTargets = ["Kv", "kv_trace_check", "kv_trace_tests"]
+leanOptions = { warningAsError = true }
+
+[[lean_lib]]
+name = "Kv"
+
+[[lean_exe]]
+name = "kv_trace_check"
+root = "Main"
+
+[[lean_exe]]
+name = "kv_trace_tests"
+root = "Tests"

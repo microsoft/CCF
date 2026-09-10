@@ -1,0 +1,369 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "name": "Zero-revision whole-map non-conflicts",
+      "features": [
+        "zero-revision map observations",
+        "read-only completion",
+        "blind writes"
+      ]
+    },
+    {
+      "name": "Reads/writes and deletions",
+      "features": [
+        "point operations",
+        "previous-write versions",
+        "local application"
+      ]
+    },
+    {
+      "name": "Cross-map conflicts",
+      "features": ["multi-map dependencies", "atomic conflict rejection"]
+    },
+    {
+      "name": "Rollback and compact",
+      "features": ["rollback", "compaction", "globally committed reads"]
+    },
+    {
+      "name": "Mid-tx compaction",
+      "features": [
+        "snapshot capture",
+        "pinned handles",
+        "snapshot unavailability"
+      ]
+    },
+    {
+      "name": "Mid rollback safety",
+      "features": ["map removal", "retained handles", "rollback conflicts"]
+    },
+    {
+      "name": "foreach",
+      "features": ["iteration", "early termination", "map-wide dependencies"]
+    },
+    {
+      "name": "foreach_key",
+      "features": ["key iteration"]
+    },
+    {
+      "name": "foreach_value",
+      "features": ["value iteration"]
+    },
+    {
+      "name": "Modifications during foreach iteration",
+      "features": ["iteration snapshots", "callback writes", "read-your-writes"]
+    },
+    {
+      "name": "Conflict resolution",
+      "features": ["read dependencies", "concurrent attempts"]
+    },
+    {
+      "name": "Conflict resolution - removals",
+      "features": ["absence dependencies", "deletions"]
+    },
+    {
+      "name": "Concurrent kv access",
+      "features": ["concurrent writes", "concurrent compaction"]
+    },
+    {
+      "name": "get_version_of_previous_write ordering",
+      "features": ["previous-write versions", "concurrent ordering"]
+    },
+    {
+      "name": "Basic dynamic table",
+      "features": ["missing maps", "map creation", "compaction", "rollback"]
+    },
+    {
+      "name": "Dynamic table opacity",
+      "features": ["multi-map snapshots", "map creation"]
+    },
+    {
+      "name": "Dynamic table visibility by version",
+      "features": ["snapshot visibility", "map creation"]
+    },
+    {
+      "name": "Read only handles",
+      "features": ["read-only map access"]
+    },
+    {
+      "name": "Mixed map dependencies",
+      "features": ["multi-map dependencies", "map creation"]
+    },
+    {
+      "name": "sets and values",
+      "features": ["map wrappers", "globally committed reads"]
+    },
+    {
+      "name": "multiple handles",
+      "features": ["shared pending writes", "read-your-writes"]
+    },
+    {
+      "name": "clear",
+      "features": ["whole-map deletion"]
+    },
+    {
+      "name": "get_version_of_previous_write",
+      "features": ["previous-write versions", "pending writes"]
+    },
+    {
+      "name": "size",
+      "features": ["whole-map observation", "pending writes"]
+    },
+    {
+      "name": "Read-only tx",
+      "features": ["read-only completion", "snapshot witnesses"]
+    },
+    {
+      "name": "Stale-view writes are rejected before local application",
+      "features": ["stale terms", "pre-application rejection"]
+    },
+    {
+      "name": "Reported TxID after commit",
+      "features": ["local application versions", "read-only completion"]
+    },
+    {
+      "name": "KV trace multi-map semantics",
+      "features": ["multi-map atomicity", "read-your-writes", "abandonment"]
+    },
+    {
+      "name": "KV trace dependencies",
+      "features": ["write skew", "absence dependencies", "blind writes"]
+    },
+    {
+      "name": "KV trace iteration",
+      "features": ["frozen iteration", "callback writes", "nested callbacks"]
+    },
+    {
+      "name": "KV trace compaction rollback",
+      "features": ["pinned snapshots", "unavailable snapshots", "rollback"]
+    },
+    {
+      "name": "KV trace per-map global snapshots",
+      "features": [
+        "per-map global snapshots",
+        "stable aliases",
+        "cross-key global snapshot"
+      ]
+    },
+    {
+      "name": "KV trace disjoint concurrent commits",
+      "features": ["application order", "concurrent disjoint maps"]
+    },
+    {
+      "name": "KV trace replication failure after apply",
+      "features": ["local application", "failed replication", "rollback"]
+    },
+    {
+      "name": "KV trace concurrent operation fuzzer",
+      "features": [
+        "seeded concurrent operation programs",
+        "iteration and callback mutations",
+        "current and per-map global views",
+        "compaction and rollback interleavings",
+        "coverage accounting"
+      ]
+    }
+  ],
+  "exclusions": [
+    {
+      "name": "Zero-revision whole-map dependencies",
+      "reason": "Includes the internal untyped range API, which is explicitly unsupported by the current trace schema. The ordinary KV unit run still executes this regression."
+    },
+    {
+      "name": "Stale-view writes which took their version early are rejected",
+      "reason": "Includes reserved transaction IDs and replication-buffer assertions outside ordinary application attempts."
+    },
+    {
+      "name": "Dynamic map serialisation",
+      "reason": "Serialization and replicated-state import are outside the application transaction model."
+    },
+    {
+      "name": "Concurrent deserialised dynamic map publication",
+      "reason": "Concurrent replicated-state import requires an additional import protocol."
+    },
+    {
+      "name": "Dynamic map snapshot serialisation",
+      "reason": "Snapshot serialization and import are not modelled."
+    },
+    {
+      "name": "Security domain is determined by map name",
+      "reason": "Public/private domain policy is explicitly excluded."
+    },
+    {
+      "name": "Swapping dynamic maps",
+      "reason": "Cross-store map swaps are outside the single-store transaction contract."
+    },
+    {
+      "name": "Raw reader rejects truncated entries",
+      "reason": "Binary deserialization and malformed ledger input are not modelled."
+    },
+    {
+      "name": "KV deserialiser rejects invalid public domains",
+      "reason": "Deserialization and public/private domain policy are excluded."
+    },
+    {
+      "name": "Serialise/deserialise public map only",
+      "reason": "Serialization, state import, and domain policy are excluded."
+    },
+    {
+      "name": "Serialise/deserialise private map only",
+      "reason": "Serialization, state import, and domain policy are excluded."
+    },
+    {
+      "name": "Reject transactions exceeding configured serialised size",
+      "reason": "Serialized transaction-size policy is not part of the abstract KV contract."
+    },
+    {
+      "name": "The transaction size limit is compared against the exact entry size",
+      "reason": "Serialized transaction-size policy is not modelled."
+    },
+    {
+      "name": "The transaction size limit includes encrypted private data",
+      "reason": "Encryption and serialized transaction-size policy are excluded."
+    },
+    {
+      "name": "Deserialisation is not subject to the transaction size limit",
+      "reason": "State import and serialized transaction-size policy are excluded."
+    },
+    {
+      "name": "RawWriter and SizeWriter agree",
+      "reason": "Binary serialization correctness is not modelled."
+    },
+    {
+      "name": "Reserved signature transactions ignore the configured transaction size limit",
+      "reason": "Reserved signature machinery and transaction-size policy are excluded."
+    },
+    {
+      "name": "Reject configuring a maximum transaction size beyond the serialisable limit",
+      "reason": "Serialized-size configuration is outside the application transaction model."
+    },
+    {
+      "name": "Serialise/deserialise private map and public maps",
+      "reason": "Serialization, state import, and domain policy are excluded."
+    },
+    {
+      "name": "Serialise/deserialise removed keys",
+      "reason": "The removed-key serialization and import protocol is not modelled."
+    },
+    {
+      "name": "Custom type serialisation test<ccf::kv::TypedMap<CustomClass, CustomClass, ccf::kv::serialisers::JsonSerialiser<CustomClass>, ccf::kv::serialisers::JsonSerialiser<CustomClass>>>",
+      "reason": "Custom serializers are outside the lossless-byte KV abstraction."
+    },
+    {
+      "name": "Custom type serialisation test<ccf::kv::TypedMap<CustomClass, CustomClass, ccf::kv::serialisers::BlitSerialiser<CustomClass>, ccf::kv::serialisers::BlitSerialiser<CustomClass>>>",
+      "reason": "Custom serializers are outside the lossless-byte KV abstraction."
+    },
+    {
+      "name": "Custom type serialisation test<ccf::kv::TypedMap<CustomClass, CustomClass, ccf::kv::serialisers::JsonSerialiser<CustomClass>, ccf::kv::serialisers::BlitSerialiser<CustomClass>>>",
+      "reason": "Custom serializers are outside the lossless-byte KV abstraction."
+    },
+    {
+      "name": "Custom type serialisation test<ccf::kv::TypedMap<CustomClass, CustomClass, CustomSerialiser, CustomSerialiser>>",
+      "reason": "Custom serializers are outside the lossless-byte KV abstraction."
+    },
+    {
+      "name": "Custom type serialisation test<ccf::kv::TypedMap<CustomClass, CustomClass, CustomJsonSerialiser, CustomJsonSerialiser>>",
+      "reason": "Custom serializers are outside the lossless-byte KV abstraction."
+    },
+    {
+      "name": "Custom type serialisation test<ccf::kv::TypedMap<CustomClass, CustomClass, CustomVerboseDumbSerialiser<KPrefix>, CustomVerboseDumbSerialiser<VPrefix>>>",
+      "reason": "Custom serializers are outside the lossless-byte KV abstraction."
+    },
+    {
+      "name": "nlohmann (de)serialisation",
+      "reason": "JSON serialization correctness is not modelled."
+    },
+    {
+      "name": "Exceptional serdes",
+      "reason": "Serializer exceptions are outside the lossless-byte KV abstraction."
+    },
+    {
+      "name": "Serialise/deserialise maps with claims",
+      "reason": "Claims, serialization, and imported state are not modelled."
+    },
+    {
+      "name": "Snapshots are not subject to the transaction size limit",
+      "reason": "Snapshot serialization and size-policy exceptions are excluded."
+    },
+    {
+      "name": "Simple snapshot",
+      "reason": "Snapshot serialization and restoration are outside this contract."
+    },
+    {
+      "name": "Old snapshots",
+      "reason": "Historical snapshot export/import is not transaction snapshot acquisition."
+    },
+    {
+      "name": "Commit transaction while applying snapshot",
+      "reason": "Concurrent snapshot import requires an additional import protocol."
+    },
+    {
+      "name": "Commit hooks with snapshot",
+      "reason": "Snapshot import and external commit-hook effects are excluded."
+    },
+    {
+      "name": "Map name parsing",
+      "reason": "Name parsing and security domains are excluded; model map names are opaque."
+    },
+    {
+      "name": "serialisation of Unit type",
+      "reason": "Serializer representation is outside the lossless-byte KV abstraction."
+    },
+    {
+      "name": "Local commit hooks",
+      "reason": "External commit-hook side effects are not modelled."
+    },
+    {
+      "name": "Global commit hooks",
+      "reason": "External commit-hook side effects are not modelled."
+    },
+    {
+      "name": "Deserialising from other Store",
+      "reason": "Cross-store state transfer and deserialization are excluded."
+    },
+    {
+      "name": "Deserialise return status",
+      "reason": "The state-import return-status protocol is not modelled."
+    },
+    {
+      "name": "Map swap between stores",
+      "reason": "Cross-store map swaps are outside the transaction contract."
+    },
+    {
+      "name": "Private recovery map swap",
+      "reason": "Recovery, security domains, and cross-store swaps are excluded."
+    },
+    {
+      "name": "Store clear",
+      "reason": "Resetting the entire store and history is not transactional MapHandle::clear."
+    },
+    {
+      "name": "Range",
+      "reason": "The internal untyped range API is outside the documented typed MapHandle interface."
+    },
+    {
+      "name": "Reserved transaction map creation is serialised with lookups",
+      "reason": "Reserved signature-transaction publication is outside ordinary application attempts."
+    },
+    {
+      "name": "Chunk metadata is not restored by a batch a rollback discarded",
+      "reason": "Ledger-chunk metadata is outside KV key/value observations."
+    },
+    {
+      "name": "A rollback never moves chunk metadata past the store's version",
+      "reason": "Ledger-chunk metadata is outside KV key/value observations."
+    },
+    {
+      "name": "Rollback-sensitive transaction flags are not restored",
+      "reason": "Ledger/snapshot scheduling flags are outside KV key/value observations."
+    },
+    {
+      "name": "Reserved signature side effects are not applied after a rollback",
+      "reason": "Reserved signatures and their non-KV side effects are excluded."
+    },
+    {
+      "name": "Ledger entry chunk request",
+      "reason": "Ledger-chunk scheduling is outside KV key/value observations."
+    }
+  ]
+}

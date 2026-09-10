@@ -1,0 +1,37 @@
+{"type":"trace_start","seq":1,"schema":1}
+{"type":"case_begin","seq":2,"name":"per-map global snapshots"}
+{"type":"store_create","seq":3,"store":1}
+{"type":"tx_create","seq":4,"store":1,"tx":1}
+{"type":"snapshot","seq":5,"store":1,"tx":1,"version":0,"global":0,"term":0}
+{"type":"map_acquire","seq":6,"store":1,"tx":1,"map":"a","version":0,"global":0}
+{"type":"map_acquire","seq":7,"store":1,"tx":1,"map":"b","version":0,"global":0}
+{"type":"put","seq":8,"store":1,"tx":1,"map":"a","key":"00","value":"11"}
+{"type":"put","seq":9,"store":1,"tx":1,"map":"b","key":"00","value":"11"}
+{"type":"commit_begin","seq":10,"store":1,"tx":1}
+{"type":"apply","seq":11,"store":1,"tx":1,"version":1,"term":0,"writes":[{"map":"a","key":"00","value":"11"},{"map":"b","key":"00","value":"11"}]}
+{"type":"commit_result","seq":12,"store":1,"tx":1,"result":"success","version":1}
+{"type":"tx_end","seq":13,"store":1,"tx":1}
+{"type":"compact","seq":14,"store":1,"version":1,"requested":1}
+{"type":"tx_create","seq":15,"store":1,"tx":2}
+{"type":"snapshot","seq":16,"store":1,"tx":2,"version":1,"global":1,"term":0}
+{"type":"map_acquire","seq":17,"store":1,"tx":2,"map":"a","version":1,"global":1}
+{"type":"map_acquire","seq":18,"store":1,"tx":2,"map":"b","version":1,"global":1}
+{"type":"put","seq":19,"store":1,"tx":2,"map":"a","key":"00","value":"22"}
+{"type":"put","seq":20,"store":1,"tx":2,"map":"b","key":"00","value":"22"}
+{"type":"commit_begin","seq":21,"store":1,"tx":2}
+{"type":"apply","seq":22,"store":1,"tx":2,"version":2,"term":0,"writes":[{"map":"a","key":"00","value":"22"},{"map":"b","key":"00","value":"22"}]}
+{"type":"commit_result","seq":23,"store":1,"tx":2,"result":"success","version":2}
+{"type":"tx_end","seq":24,"store":1,"tx":2}
+{"type":"tx_create","seq":25,"store":1,"tx":3}
+{"type":"snapshot","seq":26,"store":1,"tx":3,"version":2,"global":1,"term":0}
+{"type":"map_acquire","seq":27,"store":1,"tx":3,"map":"a","version":2,"global":1}
+{"type":"compact","seq":28,"store":1,"version":2,"requested":2}
+{"type":"map_acquire","seq":29,"store":1,"tx":3,"map":"b","version":2,"global":2}
+{"type":"get_global","seq":30,"store":1,"tx":3,"map":"a","key":"00","value":"11"}
+{"type":"has_global","seq":31,"store":1,"tx":3,"map":"a","key":"00","value":true}
+{"type":"get_global","seq":32,"store":1,"tx":3,"map":"b","key":"00","value":"22"}
+{"type":"has_global","seq":33,"store":1,"tx":3,"map":"b","key":"00","value":true}
+{"type":"tx_end","seq":34,"store":1,"tx":3}
+{"type":"store_end","seq":35,"store":1}
+{"type":"case_end","seq":36,"name":"per-map global snapshots","failed":false}
+{"type":"trace_end","seq":37,"events":36}
