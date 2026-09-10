@@ -520,5 +520,6 @@ namespace asynchost
   };
 
   template <class ConnType>
-  using RPCConnections = proxy_ptr<Timer<RPCConnectionsImpl<ConnType>>>;
+  using RPCConnections =
+    ccf::uv::proxy_ptr<Timer<RPCConnectionsImpl<ConnType>>>;
 }

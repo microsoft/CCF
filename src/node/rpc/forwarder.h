@@ -3,8 +3,8 @@
 #pragma once
 
 #include "enclave/forwarder_types.h"
+#include "enclave/http_rpc_context.h"
 #include "enclave/rpc_map.h"
-#include "http/http_rpc_context.h"
 #include "kv/kv_types.h"
 #include "node/node_to_node.h"
 #include "tasks/basic_task.h"
