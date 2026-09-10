@@ -37,21 +37,11 @@ namespace http
     Message() = default;
 
   public:
-    [[nodiscard]] const ccf::http::HeaderMap& get_headers() const
-    {
-      return headers;
-    }
-
     void set_header(std::string k, const std::string& v)
     {
       // Store all headers lower-cased to simplify case-insensitive lookup
       ccf::nonstd::to_lower(k);
       headers[k] = v;
-    }
-
-    void clear_headers()
-    {
-      headers.clear();
     }
 
     [[nodiscard]] size_t get_content_length() const
@@ -62,11 +52,6 @@ namespace http
       }
 
       return body_size;
-    }
-
-    [[nodiscard]] const uint8_t* get_content_data() const
-    {
-      return body;
     }
 
     void set_body(
@@ -132,11 +117,6 @@ namespace http
       method = m;
     }
 
-    [[nodiscard]] llhttp_method get_method() const
-    {
-      return method;
-    }
-
     void set_path(const std::string_view& p)
     {
       if (!p.empty() && p[0] == '/')
@@ -147,11 +127,6 @@ namespace http
       {
         path = fmt::format("/{}", p);
       }
-    }
-
-    [[nodiscard]] std::string get_path() const
-    {
-      return path;
     }
 
     void set_query_param(const std::string& k, const std::string& v)

@@ -24,7 +24,7 @@ Before adding an entry, identify the target branch's release line and whether it
 Each new or modified entry must reference the introducing PR using `(#1234)`. Preserve original PR references when correcting an existing entry; include the current PR when it introduces an additional change. Issue references are optional in changelog entries; closing references belong in the PR description.
 
 - Before a PR number exists, omit the reference temporarily and report that it must be added once the PR exists, before merge. Never invent a number or add a fake numeric placeholder.
-- When reviewing a PR, flag touched entries missing the relevant PR reference, including nested entries. A reference to an issue alone does not satisfy the PR-reference requirement.
+- When reviewing a PR, flag touched entries missing the relevant PR reference, including nested entries. Directly propose the correct PR number with a GitHub suggested change rather than asking the author to add it. A reference to an issue alone does not satisfy the PR-reference requirement.
 
 Do not flag:
 
