@@ -561,10 +561,9 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
       quote.get(), &reported_tcb_data, &reported_tcb_size);
     const auto reported_tcb_raw =
       std::span<const uint8_t>{reported_tcb_data, reported_tcb_size};
-    uint64_t reported_tcb_value = 0;
-    std::memcpy(
-      &reported_tcb_value, reported_tcb_raw.data(), sizeof(reported_tcb_value));
-    auto reported_tcb = fmt::format("{:0x}", reported_tcb_value);
+    auto reported_tcb = fmt::format(
+      "{:02x}",
+      fmt::join(reported_tcb_raw.rbegin(), reported_tcb_raw.rend(), ""));
 
     constexpr size_t default_max_retries_count = 10;
     static const ds::SizeString default_max_client_response_size =
@@ -703,11 +702,11 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
   {
   public:
     [[deprecated(
-      "Use get_attestation_bytes() from ccf/pal/snp_ioctl.h and "
-      "parse_attestation_report_unverified")]] [[nodiscard]] virtual const snp::
-      Attestation&
-      get() const = 0;
-    [[deprecated("Use get_attestation_bytes() from ccf/pal/snp_ioctl.h")]]
+      "Use request_attestation().report() from ccf/pal/snp_ioctl.h for "
+      "unverified parsing")]] [[nodiscard]] virtual const snp::Attestation&
+    get() const = 0;
+    [[deprecated(
+      "Use request_attestation().report_bytes from ccf/pal/snp_ioctl.h")]]
     virtual std::vector<uint8_t> get_raw() = 0;
 
     virtual ~AttestationInterface() = default;

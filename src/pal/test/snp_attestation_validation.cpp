@@ -385,28 +385,42 @@ TEST_CASE("SNP verification rejects other quote formats before parsing")
   }
 }
 
-TEST_CASE("SNP ioctl response bytes exclude response headers and padding")
+TEST_CASE(
+  "SNP ioctl response owns report bytes separately from header and padding")
 {
   using namespace ccf::pal::snp;
   static_assert(
     std::is_same_v<
-      decltype(get_attestation_bytes(
+      decltype(request_attestation(
         std::declval<const ccf::pal::PlatformAttestationReportData&>())),
-      std::vector<uint8_t>>);
+      AttestationResponse>);
+  static_assert(
+    std::is_same_v<
+      decltype(ioctl6::request_attestation(
+        std::declval<const ccf::pal::PlatformAttestationReportData&>())),
+      AttestationResponse>);
 
-  using Response = ioctl6::detail::AttestationResponse;
+  using Response = AttestationResponse;
+  static_assert(std::is_standard_layout_v<Response>);
+  static_assert(std::is_trivially_copyable_v<Response>);
+  static_assert(std::is_same_v<
+                decltype(std::declval<const Response&>().report()),
+                AttestationReport>);
+  static_assert(std::is_same_v<
+                decltype(Response::report_bytes),
+                std::array<uint8_t, attestation_report_size>>);
   static_assert(sizeof(Response) == 4000);
   static_assert(offsetof(Response, status) == 0);
   static_assert(offsetof(Response, report_size) == 4);
   static_assert(offsetof(Response, reserved) == 8);
-  static_assert(offsetof(Response, report) == 0x20);
+  static_assert(offsetof(Response, report_bytes) == 0x20);
   static_assert(offsetof(Response, padding) == 0x20 + attestation_report_size);
 
   ioctl6::IoctlSentinel<Response> response;
   CHECK(response.data.status == 0);
   CHECK(response.data.report_size == 0);
   CHECK(response.data.reserved == decltype(response.data.reserved){});
-  CHECK(response.data.report == decltype(response.data.report){});
+  CHECK(response.data.report_bytes == decltype(response.data.report_bytes){});
   CHECK(response.data.padding == decltype(response.data.padding){});
   response.data.status = 0xa5a5a5a5;
   response.data.report_size = attestation_report_size;
@@ -415,44 +429,71 @@ TEST_CASE("SNP ioctl response bytes exclude response headers and padding")
   std::copy(
     testing::milan_attestation.begin(),
     testing::milan_attestation.end(),
-    response.data.report.begin());
+    response.data.report_bytes.begin());
 
-  const auto report_bytes =
-    ioctl6::detail::extract_attestation_bytes(response.data);
-  CHECK(report_bytes == testing::milan_attestation);
+  ioctl6::detail::validate_report_size(response.data.report_size);
+  auto attestation = response.data;
+  CHECK(std::equal(
+    attestation.report_bytes.begin(),
+    attestation.report_bytes.end(),
+    testing::milan_attestation.begin(),
+    testing::milan_attestation.end()));
+  auto report = attestation.report();
+  CHECK(tav_snp_attestation_report_version(report.get()) == 3);
   CHECK(response.sentinels_intact());
   response.data = {};
-  CHECK(report_bytes == testing::milan_attestation);
+  CHECK(std::equal(
+    attestation.report_bytes.begin(),
+    attestation.report_bytes.end(),
+    testing::milan_attestation.begin(),
+    testing::milan_attestation.end()));
 
-  response.post_sentinels[1] ^= 1;
-  CHECK_FALSE(response.sentinels_intact());
+  attestation.report_bytes[0x050] ^= 1;
+  const auto updated_report = attestation.report();
+  const uint8_t* data = nullptr;
+  size_t size = 0;
+  tav_snp_attestation_report_report_data(updated_report.get(), &data, &size);
+  REQUIRE(size == ccf::pal::snp_attestation_report_data_size);
+  CHECK(data[0] == attestation.report_bytes[0x050]);
+  tav_snp_attestation_report_report_data(report.get(), &data, &size);
+  REQUIRE(size == ccf::pal::snp_attestation_report_data_size);
+  CHECK(data[0] == testing::milan_attestation[0x050]);
+
+  for (auto* sentinels : {response.pre_sentinels, response.post_sentinels})
+  {
+    for (size_t i = 0; i < response.num_sentinel_bytes; ++i)
+    {
+      sentinels[i] ^= 1;
+      CHECK_FALSE(response.sentinels_intact());
+      sentinels[i] ^= 1;
+      CHECK(response.sentinels_intact());
+    }
+  }
 }
 
 TEST_CASE("SNP ioctl response bytes reject invalid report sizes")
 {
   using namespace ccf::pal::snp;
-  ioctl6::detail::AttestationResponse response = {};
   for (const uint32_t report_size :
        {0U, 1183U, 1185U, std::numeric_limits<uint32_t>::max()})
   {
-    response.report_size = report_size;
     const auto expected_error = fmt::format(
       "Unexpected SEV-SNP attestation report size: {} != {}",
       report_size,
       attestation_report_size);
     CHECK_THROWS_WITH_AS(
-      ioctl6::detail::extract_attestation_bytes(response),
+      ioctl6::detail::validate_report_size(report_size),
       expected_error.c_str(),
       std::logic_error);
   }
 }
 
-TEST_CASE("SNP byte acquisition rejects oversized report data before ioctl")
+TEST_CASE("SNP request rejects oversized report data before ioctl")
 {
   ccf::pal::PlatformAttestationReportData report_data;
   report_data.data.resize(ccf::pal::snp_attestation_report_data_size + 1);
   CHECK_THROWS_WITH_AS(
-    ccf::pal::snp::ioctl6::get_attestation_bytes(report_data),
+    ccf::pal::snp::ioctl6::request_attestation(report_data),
     "User-defined report data is larger than available space",
     std::logic_error);
 }
@@ -911,6 +952,38 @@ TEST_CASE("Quote endorsements url generation")
       ccf::pal::snp::make_endorsement_endpoint_configuration(quote, servers);
 
     CHECK_EQ(nlohmann::json(config), nlohmann::json(expected_url));
+  }
+}
+
+TEST_CASE("Quote endorsement TCB formatting preserves leading zeroes")
+{
+  using namespace ccf::pal::snp;
+
+  for (const auto& expected_tcb :
+       {"0000000000000000", "0001000000000004", "0b18000000000004"})
+  {
+    auto report = testing::milan_attestation;
+    const auto tcb_bytes = ccf::ds::from_hex(expected_tcb);
+    std::reverse_copy(
+      tcb_bytes.begin(), tcb_bytes.end(), report.begin() + 0x180);
+    auto quote = parse_attestation_report_unverified(report);
+
+    const auto default_config = make_endorsement_endpoint_configuration(quote);
+    REQUIRE_EQ(default_config.servers.size(), 1);
+    REQUIRE_EQ(default_config.servers.front().size(), 1);
+    CHECK(default_config.servers.front().front().uri.ends_with(
+      std::string("/") + expected_tcb));
+
+    const auto config = make_endorsement_endpoint_configuration(
+      quote,
+      {{EndorsementsEndpointType::Azure}, {EndorsementsEndpointType::THIM}});
+    REQUIRE_EQ(config.servers.size(), 2);
+    REQUIRE_EQ(config.servers.front().size(), 1);
+    REQUIRE_EQ(config.servers.back().size(), 1);
+    CHECK(config.servers.front().front().uri.ends_with(
+      std::string("/") + expected_tcb));
+    CHECK_EQ(
+      config.servers.back().front().params.at("tcbVersion"), expected_tcb);
   }
 }
 

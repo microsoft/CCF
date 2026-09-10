@@ -23,14 +23,13 @@ TEST_CASE("SNP request attestation")
     snp_report_data.report_data.begin(), snp_report_data.report_data.end(), 0);
 
   PlatformAttestationReportData report_data(snp_report_data);
-  const auto report_bytes = snp::get_attestation_bytes(report_data);
-  REQUIRE(report_bytes.size() == snp::attestation_report_size);
-  const auto attestation =
-    snp::parse_attestation_report_unverified(report_bytes);
+  const auto attestation = snp::request_attestation(report_data);
+  REQUIRE(attestation.report_size == snp::attestation_report_size);
+  const auto report = attestation.report();
 
   const uint8_t* data = nullptr;
   size_t size = 0;
-  tav_snp_attestation_report_report_data(attestation.get(), &data, &size);
+  tav_snp_attestation_report_report_data(report.get(), &data, &size);
   SnpAttestationReportData attested_report_data({data, size});
 
   REQUIRE_EQ(snp_report_data.report_data, attested_report_data.report_data);

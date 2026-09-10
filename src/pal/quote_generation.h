@@ -89,9 +89,10 @@ namespace ccf::pal
   {
     QuoteInfo node_quote_info = {};
     node_quote_info.format = QuoteFormat::amd_sev_snp_v1;
-    node_quote_info.quote = snp::get_attestation_bytes(report_data);
-    auto report =
-      snp::parse_attestation_report_unverified(node_quote_info.quote);
+    auto attestation = snp::request_attestation(report_data);
+    node_quote_info.quote.assign(
+      attestation.report_bytes.begin(), attestation.report_bytes.end());
+    auto report = attestation.report();
 
     if (
       tav_snp_attestation_report_version(report.get()) <

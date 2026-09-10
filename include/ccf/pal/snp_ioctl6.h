@@ -32,21 +32,29 @@ namespace ccf::pal::snp::ioctl6
     // https://github.com/torvalds/linux/blob/v6.8/drivers/virt/coco/sev-guest/sev-guest.h
     // https://github.com/torvalds/linux/blob/v6.8/include/uapi/linux/sev-guest.h
     constexpr size_t ATTESTATION_RESPONSE_SIZE = 4000;
-    struct AttestationResponse
-    {
-      uint32_t status = 0;
-      uint32_t report_size = 0;
-      std::array<uint8_t, 24> reserved = {};
-      std::array<uint8_t, attestation_report_size> report = {};
-      std::array<
-        uint8_t,
-        ATTESTATION_RESPONSE_SIZE - 0x20 - attestation_report_size>
-        padding = {};
-    };
-    static_assert(sizeof(AttestationResponse) == ATTESTATION_RESPONSE_SIZE);
-    static_assert(offsetof(AttestationResponse, report_size) == 0x04);
-    static_assert(offsetof(AttestationResponse, report) == 0x20);
   }
+
+  struct AttestationResponse
+  {
+    uint32_t status = 0;
+    uint32_t report_size = 0;
+    std::array<uint8_t, 24> reserved = {};
+    std::array<uint8_t, attestation_report_size> report_bytes = {};
+    std::array<
+      uint8_t,
+      detail::ATTESTATION_RESPONSE_SIZE - 0x20 - attestation_report_size>
+      padding = {};
+
+    // Decodes owned bytes into a fresh report without verifying authenticity.
+    [[nodiscard]] snp::AttestationReport report() const
+    {
+      return snp::parse_attestation_report_unverified(report_bytes);
+    }
+  };
+  static_assert(
+    sizeof(AttestationResponse) == detail::ATTESTATION_RESPONSE_SIZE);
+  static_assert(offsetof(AttestationResponse, report_size) == 0x04);
+  static_assert(offsetof(AttestationResponse, report_bytes) == 0x20);
 
 #pragma pack(push, 1)
   // Helper to add padding to a struct, so that the resulting struct has some
@@ -142,7 +150,7 @@ namespace ccf::pal::snp::ioctl6
     uint32_t status = 0;
     uint32_t report_size = 0;
     uint8_t reserved[0x20 - 0x8] = {0};
-    [[deprecated("Use get_attestation_bytes()")]]
+    [[deprecated("Use request_attestation().report() for unverified parsing")]]
     snp::Attestation report = {};
     uint8_t padding[64] = {0};
     // padding to the size of SEV_SNP_REPORT_RSP_BUF_SZ (i.e., 1280 bytes)
@@ -226,18 +234,22 @@ namespace ccf::pal::snp::ioctl6
 
   namespace detail
   {
-    using GuestRequestAttestationBytes =
+    using AttestationRequest =
       GuestRequest<AttestationReq, AttestationResponse>;
     static_assert(
-      sizeof(GuestRequestAttestationBytes) == sizeof(GuestRequestAttestation));
+      sizeof(AttestationRequest) == sizeof(GuestRequestAttestation));
+    static_assert(offsetof(AttestationRequest, req_data) == 8);
+    static_assert(offsetof(AttestationRequest, resp_wrapper) == 16);
+    static_assert(offsetof(AttestationRequest, exit_info) == 24);
+    static_assert(sizeof(AttestationRequest) == 32);
   }
 
   // From linux/include/uapi/linux/sev-guest.h
   constexpr char SEV_GUEST_IOC_TYPE = 'S';
   constexpr int SEV_SNP_GUEST_MSG_REPORT =
-    _IOWR(SEV_GUEST_IOC_TYPE, 0x0, detail::GuestRequestAttestationBytes);
+    _IOWR(SEV_GUEST_IOC_TYPE, 0x0, detail::AttestationRequest);
   static_assert(
-    _IOWR(SEV_GUEST_IOC_TYPE, 0x0, detail::GuestRequestAttestationBytes) ==
+    _IOWR(SEV_GUEST_IOC_TYPE, 0x0, detail::AttestationRequest) ==
     _IOWR(SEV_GUEST_IOC_TYPE, 0x0, GuestRequestAttestation));
   constexpr int SEV_SNP_GUEST_MSG_DERIVED_KEY =
     _IOWR(SEV_GUEST_IOC_TYPE, 0x1, GuestRequestDerivedKey);
@@ -258,13 +270,6 @@ namespace ccf::pal::snp::ioctl6
           report_size,
           attestation_report_size));
       }
-    }
-
-    inline std::vector<uint8_t> extract_attestation_bytes(
-      const AttestationResponse& response)
-    {
-      validate_report_size(response.report_size);
-      return {response.report.begin(), response.report.end()};
     }
 
     template <typename Response>
@@ -321,12 +326,14 @@ namespace ccf::pal::snp::ioctl6
     }
   }
 
-  static std::vector<uint8_t> get_attestation_bytes(
+  // Validates ioctl safety and report size, not report authenticity.
+  static AttestationResponse request_attestation(
     const PlatformAttestationReportData& report_data)
   {
-    IoctlSentinel<detail::AttestationResponse> response;
+    IoctlSentinel<AttestationResponse> response;
     detail::request_attestation(report_data, response);
-    return detail::extract_attestation_bytes(response.data);
+    detail::validate_report_size(response.data.report_size);
+    return response.data;
   }
 
   class Attestation : public AttestationInterface
@@ -343,16 +350,15 @@ namespace ccf::pal::snp::ioctl6
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
     [[deprecated(
-      "Use get_attestation_bytes() and "
-      "parse_attestation_report_unverified")]] [[nodiscard]] const ccf::pal::
-      snp::Attestation&
-      get() const override
+      "Use request_attestation().report() for unverified "
+      "parsing")]] [[nodiscard]] const ccf::pal::snp::Attestation&
+    get() const override
     {
       detail::validate_report_size(padded_resp.report_size);
       return padded_resp.report;
     }
 
-    [[deprecated("Use get_attestation_bytes()")]]
+    [[deprecated("Use request_attestation().report_bytes")]]
     std::vector<uint8_t> get_raw() override
     {
       detail::validate_report_size(padded_resp.report_size);
