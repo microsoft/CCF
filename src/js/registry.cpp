@@ -15,6 +15,7 @@
 #include "ds/internal_logger.h"
 #include "js/checks.h"
 
+#include <algorithm>
 #include <charconv>
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
@@ -267,7 +268,26 @@ namespace ccf::js
           size_t buf_size_total = 0;
           array_buffer =
             JS_GetArrayBuffer(ctx, &buf_size_total, typed_array_buffer.val);
-          array_buffer += buf_offset;
+          if (array_buffer != nullptr)
+          {
+            // JS_GetTypedArrayBuffer returns the typed array's construction-
+            // time byte length, which for length-tracking views over a
+            // resizable ArrayBuffer can exceed the buffer's current size
+            // after a resize()/transfer(). Additionally, a script-side
+            // byteLength getter override must not be able to widen the copy.
+            // Clamp the copy strictly against the backing buffer's real
+            // current size, treating an out-of-bounds byteOffset as an
+            // empty view (matching how QuickJS treats out-of-bounds views).
+            if (buf_offset > buf_size_total)
+            {
+              buf_size = 0;
+            }
+            else
+            {
+              buf_size = std::min(buf_size, buf_size_total - buf_offset);
+            }
+            array_buffer += buf_offset;
+          }
         }
         else
         {
