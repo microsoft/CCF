@@ -9,13 +9,17 @@ import e2e_tutorial
 import infra.checker
 import infra.e2e_args
 import infra.network
+import infra.openapi
 import infra.proc
 import nobuiltins
 import openapi_spec_validator
 import packaging.version
 from infra.runner import ConcurrentRunner
 from loguru import logger as LOG
+from openapi_core import OpenAPI
+from openapi_core.datatypes import RequestParameters
 from packaging import version
+from werkzeug.datastructures import Headers, ImmutableMultiDict
 
 
 def is_newer_openapi_version(fetched_version, file_version):
@@ -26,6 +30,41 @@ def is_newer_openapi_version(fetched_version, file_version):
         return version.parse(fetched_version) > version.parse(file_version)
     except packaging.version.InvalidVersion:
         return fetched_version > file_version
+
+
+def validate_nullable_consensus_primary(schema):
+    api = OpenAPI.from_dict(schema)
+    request = infra.openapi._Request(
+        host_url="https://localhost",
+        path="/node/consensus",
+        method="get",
+        parameters=RequestParameters(
+            query=ImmutableMultiDict(),
+            header=Headers(),
+            cookie=ImmutableMultiDict(),
+            path={},
+        ),
+        body=None,
+        content_type="",
+    )
+    body = {
+        "details": {
+            "configs": [],
+            "acks": {},
+            "membership_state": "Active",
+            "primary_id": None,
+            "current_view": 0,
+            "ticking": False,
+        }
+    }
+    response = infra.openapi._Response(
+        status_code=http.HTTPStatus.OK,
+        headers=Headers({"content-type": "application/json"}),
+        data=json.dumps(body).encode(),
+        content_type="application/json",
+    )
+
+    api.validate_response(request, response)
 
 
 def run(args):
@@ -99,6 +138,8 @@ def run(args):
 
         try:
             openapi_spec_validator.validate_spec(response_body)
+            if target_file_path == "node_openapi.json":
+                validate_nullable_consensus_primary(response_body)
         except Exception as e:
             LOG.error(f"Validation of {prefix} schema failed")
             LOG.error(e)
