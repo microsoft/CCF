@@ -8,8 +8,7 @@ namespace ccf::crypto
   {
     if (!s.contains("-----BEGIN"))
     {
-      throw std::runtime_error(
-        fmt::format("PEM constructed with non-PEM data: {}", s));
+      throw std::runtime_error("PEM constructed with non-PEM data");
     }
   }
 
