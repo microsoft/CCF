@@ -92,6 +92,184 @@ TEST_CASE("Runtime limits reset timeout state for reused interpreters")
   CHECK_FALSE(ctx.interrupt_data.request_timed_out);
 }
 
+namespace
+{
+  // Minimal test-only extension that either installs successfully or throws
+  // std::runtime_error from install().
+  class TestExtension : public ccf::js::extensions::ExtensionInterface
+  {
+  public:
+    bool throw_on_install = false;
+    bool installed = false;
+
+    void install(ccf::js::core::Context& /*ctx*/) override
+    {
+      if (throw_on_install)
+      {
+        throw std::runtime_error("install failed");
+      }
+      installed = true;
+    }
+  };
+
+  // Non-std::exception type, matching the shape of
+  // ccf::kv::CompactedVersionConflict.
+  struct NonStdException
+  {};
+}
+
+TEST_CASE("Extension teardown runs for non-std::exception unwinds")
+{
+  ccf::js::core::Context ctx(TxAccess::APP_RO);
+  JS_UpdateStackTop(ctx.runtime());
+
+  auto ext = std::make_shared<TestExtension>();
+
+  try
+  {
+    struct ExtensionScope
+    {
+      ccf::js::core::Context& ctx;
+      ccf::js::extensions::Extensions installed;
+
+      explicit ExtensionScope(ccf::js::core::Context& c) : ctx(c) {}
+
+      void add(const ccf::js::extensions::ExtensionPtr& extension)
+      {
+        ctx.add_extension(extension);
+        installed.push_back(extension);
+      }
+
+      ~ExtensionScope()
+      {
+        for (const auto& extension : installed)
+        {
+          ctx.remove_extension(extension);
+        }
+      }
+    };
+
+    ExtensionScope scope(ctx);
+    scope.add(ext);
+    REQUIRE(ctx.get_extension<TestExtension>() == ext.get());
+    throw NonStdException{};
+  }
+  catch (const NonStdException&)
+  {
+    // Expected: destructor of the scope should have removed the extension.
+  }
+
+  CHECK(ctx.get_extension<TestExtension>() == nullptr);
+}
+
+TEST_CASE(
+  "Extension teardown only removes successfully-installed extensions on "
+  "partial failure")
+{
+  ccf::js::core::Context ctx(TxAccess::APP_RO);
+  JS_UpdateStackTop(ctx.runtime());
+
+  auto good = std::make_shared<TestExtension>();
+  auto bad = std::make_shared<TestExtension>();
+  bad->throw_on_install = true;
+  auto never_added = std::make_shared<TestExtension>();
+
+  bool caught = false;
+  try
+  {
+    struct ExtensionScope
+    {
+      ccf::js::core::Context& ctx;
+      ccf::js::extensions::Extensions installed;
+
+      explicit ExtensionScope(ccf::js::core::Context& c) : ctx(c) {}
+
+      void add(const ccf::js::extensions::ExtensionPtr& extension)
+      {
+        try
+        {
+          ctx.add_extension(extension);
+        }
+        catch (...)
+        {
+          ctx.remove_extension(extension);
+          throw;
+        }
+        installed.push_back(extension);
+      }
+
+      ~ExtensionScope()
+      {
+        for (const auto& extension : installed)
+        {
+          ctx.remove_extension(extension);
+        }
+      }
+    };
+
+    ExtensionScope scope(ctx);
+    scope.add(good);
+    scope.add(bad); // throws from install()
+    scope.add(never_added); // unreachable
+  }
+  catch (const std::runtime_error&)
+  {
+    caught = true;
+  }
+
+  REQUIRE(caught);
+  // 'good' was installed and must have been removed.
+  CHECK(ctx.get_extension<TestExtension>() == nullptr);
+  // 'never_added' must not have been touched by install().
+  CHECK_FALSE(never_added->installed);
+}
+
+TEST_CASE("error_message drains secondary exceptions raised during extraction")
+{
+  ccf::js::core::Context ctx(TxAccess::APP_RO);
+  JS_UpdateStackTop(ctx.runtime());
+
+  // First call: throw an Error whose 'stack' getter itself throws. Extracting
+  // the stack property inside error_message() must not leave that secondary
+  // exception behind on the context.
+  auto stack_getter_throws = ctx.get_exported_function(
+    "export function handler() {"
+    "  const e = new Error('primary');"
+    "  Object.defineProperty(e, 'stack', {"
+    "    get() { throw new Error('secondary'); }"
+    "  });"
+    "  throw e;"
+    "}",
+    "handler",
+    "stack_getter.js");
+
+  ccf::JSRuntimeOptions options;
+  const auto result = ctx.call_with_rt_options(
+    stack_getter_throws, {}, options, ccf::js::core::RuntimeLimitsPolicy::NONE);
+  REQUIRE(result.is_exception());
+
+  const auto [reason, trace] = ctx.error_message();
+  // The primary exception's toString reason is reported (Error{message}).
+  CHECK(reason.find("primary") != std::string::npos);
+  // The secondary exception raised while reading .stack must have been
+  // drained; the interpreter must be safe to reuse.
+  CHECK(JS_HasException(ctx) == 0);
+
+  // Second call: a fresh, unrelated exception. error_message() must report
+  // its own reason, not anything left over from the previous call.
+  auto second = ctx.get_exported_function(
+    "export function handler() { throw new Error('second'); }",
+    "handler",
+    "second.js");
+  const auto second_result = ctx.call_with_rt_options(
+    second, {}, options, ccf::js::core::RuntimeLimitsPolicy::NONE);
+  REQUIRE(second_result.is_exception());
+  const auto [second_reason, second_trace] = ctx.error_message();
+  CHECK(second_reason.find("second") != std::string::npos);
+  CHECK(second_reason.find("primary") == std::string::npos);
+  CHECK(JS_HasException(ctx) == 0);
+}
+
 TEST_CASE("Check KV Map access")
 {
   constexpr auto public_internal_table_name = "public:ccf.internal.table";

@@ -330,6 +330,19 @@ def test_execution_time_limit_across_request(network, args):
     return network
 
 
+@reqs.description("Test regular exceptions in response getters are preserved")
+def test_response_exception_message(network, args):
+    primary, _ = network.find_nodes()
+
+    with primary.client("user0") as c:
+        r = c.post("/app/response_getter_throws")
+        assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r
+        message = r.body.json()["error"]["message"]
+        assert message == "Exception thrown while executing.", message
+
+    return network
+
+
 def run_limits(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
@@ -339,6 +352,7 @@ def run_limits(args):
         network = test_heap_size_limit(network, args)
         network = test_execution_time_limit(network, args)
         network = test_execution_time_limit_across_request(network, args)
+        network = test_response_exception_message(network, args)
 
 
 @reqs.description("Cert authentication")

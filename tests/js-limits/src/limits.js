@@ -86,3 +86,11 @@ export function responseStatusCodeGetter() {
     },
   };
 }
+
+export function responseGetterThrows() {
+  return {
+    get body() {
+      throw new Error("boom");
+    },
+  };
+}

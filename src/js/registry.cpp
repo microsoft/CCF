@@ -132,15 +132,30 @@ namespace ccf::js
     };
 
     const auto set_execution_error = [&](const std::string& reason) {
+      // If a JavaScript exception is still pending (for instance because
+      // JS_CHECK_OR_THROW fired inside an extension's install(), or because
+      // create_request_obj tripped a limit), drain it so this cached
+      // interpreter is not returned to the pool with a stale exception, and
+      // fold its details into the reported error under the same gating as
+      // other error paths.
+      std::string full_reason = reason;
+      std::optional<std::string> trace = std::nullopt;
+      if (JS_HasException(ctx) != 0)
+      {
+        auto [js_reason, js_trace] = ctx.error_message();
+        full_reason = fmt::format("{}: {}", reason, js_reason);
+        trace = std::move(js_trace);
+      }
+
       if (options.log_exception_details)
       {
-        CCF_APP_FAIL("{}", reason);
+        CCF_APP_FAIL("{}", full_reason);
       }
 
       if (options.return_exception_details)
       {
         std::vector<nlohmann::json> details = {ccf::ODataJSExceptionDetails{
-          ccf::errors::JSException, reason, std::nullopt}};
+          ccf::errors::JSException, full_reason, trace}};
         endpoint_ctx.rpc_ctx->set_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
           ccf::errors::InternalError,
@@ -176,48 +191,81 @@ namespace ccf::js
         endpoint_ctx.rpc_ctx.get());
     local_extensions.push_back(request_extension);
 
+    // RAII helper installing the request-scoped extensions on ctx and
+    // guaranteeing they are removed on every exit path, including exceptions
+    // that do not derive from std::exception (for instance
+    // ccf::kv::CompactedVersionConflict, which the frontend catches and
+    // retries on the same cached interpreter). Only extensions successfully
+    // added are tracked, so a mid-loop install failure never double-removes
+    // or touches uninstalled entries.
+    struct ExtensionScope
+    {
+      ccf::js::core::Context& ctx;
+      ccf::js::extensions::Extensions installed;
+
+      explicit ExtensionScope(ccf::js::core::Context& c) : ctx(c) {}
+
+      void add(const ccf::js::extensions::ExtensionPtr& extension)
+      {
+        try
+        {
+          ctx.add_extension(extension);
+        }
+        catch (...)
+        {
+          // Context::add_extension pushes the extension onto ctx.extensions
+          // before calling install(), so a failing install() leaves a
+          // half-installed entry behind. Remove it before propagating.
+          ctx.remove_extension(extension);
+          throw;
+        }
+        installed.push_back(extension);
+      }
+
+      ~ExtensionScope()
+      {
+        for (const auto& extension : installed)
+        {
+          ctx.remove_extension(extension);
+        }
+      }
+    };
+
     ccf::js::core::JSWrappedValue val;
-    try
     {
-      for (const auto& extension : local_extensions)
+      ExtensionScope extension_scope(ctx);
+      try
       {
-        ctx.add_extension(extension);
-      }
+        for (const auto& extension : local_extensions)
+        {
+          extension_scope.add(extension);
+        }
 
-      if (pre_exec_hook.has_value())
+        if (pre_exec_hook.has_value())
+        {
+          pre_exec_hook.value()(ctx);
+        }
+
+        const auto& props = endpoint->properties;
+        auto module_val = ctx.get_module(props.js_module);
+        if (!module_val.has_value())
+        {
+          throw std::logic_error(
+            fmt::format("Module '{}' could not be loaded", props.js_module));
+        }
+        auto export_func = ctx.get_exported_function(
+          *module_val, props.js_function, props.js_module);
+
+        auto request = request_extension->create_request_obj(
+          ctx, endpoint->full_uri_path, endpoint_ctx, this);
+
+        val = ctx.inner_call(export_func, {request});
+      }
+      catch (const std::exception& exc)
       {
-        pre_exec_hook.value()(ctx);
+        set_execution_error(exc.what());
+        return;
       }
-
-      const auto& props = endpoint->properties;
-      auto module_val = ctx.get_module(props.js_module);
-      if (!module_val.has_value())
-      {
-        throw std::logic_error(
-          fmt::format("Module '{}' could not be loaded", props.js_module));
-      }
-      auto export_func = ctx.get_exported_function(
-        *module_val, props.js_function, props.js_module);
-
-      auto request = request_extension->create_request_obj(
-        ctx, endpoint->full_uri_path, endpoint_ctx, this);
-
-      val = ctx.inner_call(export_func, {request});
-    }
-    catch (const std::exception& exc)
-    {
-      for (const auto& extension : local_extensions)
-      {
-        ctx.remove_extension(extension);
-      }
-
-      set_execution_error(exc.what());
-      return;
-    }
-
-    for (const auto& extension : local_extensions)
-    {
-      ctx.remove_extension(extension);
     }
 
     // Retrieved before the rethrow below, so that an interpreter which is
@@ -693,8 +741,9 @@ namespace ccf::js
         out_buf = JS_WriteObject(jsctx, &out_buf_len, module_val.val, flags);
         if (!out_buf)
         {
-          throw std::runtime_error(fmt::format(
-            "Unable to serialize bytecode for JS module '{}'", name));
+          throw std::runtime_error(
+            fmt::format(
+              "Unable to serialize bytecode for JS module '{}'", name));
         }
 
         quickjs_bytecode->put(name, {out_buf, out_buf + out_buf_len});
