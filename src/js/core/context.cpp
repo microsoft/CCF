@@ -398,7 +398,7 @@ namespace ccf::js::core
 // "compound literals are a C99-specific feature"
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wc99-extensions"
-    return wrap((JSValue){(JSValueUnion){.int32 = val}, tag});
+    return wrap(JS_MKVAL(tag, val));
 #pragma clang diagnostic pop
   }
 

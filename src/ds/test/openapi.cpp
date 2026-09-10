@@ -272,6 +272,70 @@ TEST_CASE("Manual function definitions")
   }
 }
 
+struct WithRequiredOptionalField
+{
+  std::optional<Foo> maybe_foo;
+};
+DECLARE_JSON_TYPE(WithRequiredOptionalField);
+DECLARE_JSON_REQUIRED_FIELDS(WithRequiredOptionalField, maybe_foo);
+
+TEST_CASE(
+  "Required optional field produces nullable component schema, not "
+  "generated output")
+{
+  // Regression test: a std::optional<T> field which is JSON-required (always
+  // present, but may hold a null value - e.g.
+  // ccf::kv::ConsensusDetails::primary_id while no primary is known) must
+  // produce a schema that permits null, in addition to the ref/inline schema
+  // for T. See https://github.com/microsoft/CCF/issues/8323.
+  auto doc = openapi::create_document(
+    "Test generated API",
+    "Some longer description enhanced with **Markdown**",
+    "0.1.42");
+
+  openapi::server(doc, server_url);
+
+  openapi::add_response_schema<WithRequiredOptionalField>(
+    doc, "/app/required_optional", HTTP_GET, HTTP_STATUS_OK);
+
+  const auto& components_schemas = doc["components"]["schemas"];
+  const auto it = components_schemas.find("WithRequiredOptionalField");
+  REQUIRE(it != components_schemas.end());
+
+  const auto& schema = *it;
+  REQUIRE(schema.contains("required"));
+  const auto& required = schema["required"];
+  bool found_required = false;
+  for (const auto& field : required)
+  {
+    if (field == "maybe_foo")
+    {
+      found_required = true;
+    }
+  }
+  REQUIRE(found_required);
+
+  const auto& properties = schema["properties"];
+  const auto prop_it = properties.find("maybe_foo");
+  REQUIRE(prop_it != properties.end());
+  const auto& maybe_foo_schema = *prop_it;
+
+  // OpenAPI 3.0 does not support "type": "null", nor a $ref with sibling
+  // keys. Express this as the referenced type or a branch constrained to
+  // null. The enum is necessary so this branch does not accept arbitrary
+  // values as well as null.
+  REQUIRE(maybe_foo_schema.contains("anyOf"));
+  const auto& any_of = maybe_foo_schema["anyOf"];
+  REQUIRE(any_of.is_array());
+  REQUIRE(any_of.size() == 2);
+  CHECK(any_of[0]["$ref"] == "#/components/schemas/Foo");
+  CHECK(any_of[1]["type"] == "object");
+  CHECK(any_of[1]["nullable"] == true);
+  REQUIRE(any_of[1]["enum"].is_array());
+  REQUIRE(any_of[1]["enum"].size() == 1);
+  CHECK(any_of[1]["enum"][0].is_null());
+}
+
 TEST_CASE("sanitise_components_key")
 {
   using namespace ccf::ds::openapi;

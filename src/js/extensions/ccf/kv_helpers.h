@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "js/extensions/ccf/kv_map_handle_state.h"
 #include "js/global_class_ids.h"
 #include "js/permissions_checks.h"
 #include "kv/untyped_map.h"
@@ -15,31 +16,85 @@ namespace ccf::js::extensions::kvhelpers
   using RWHandleGetter = KVMap::Handle* (*)(js::core::Context& jsctx,
                                             JSValueConst this_val);
 
+  // Applies a namespace restriction without granting additional access.
+  static void apply_namespace_restriction(
+    const ccf::js::NamespaceRestriction& namespace_restriction,
+    const std::string& map_name,
+    KVAccessPermissions& access_permission,
+    std::string& explanation)
+  {
+    if (namespace_restriction == nullptr)
+    {
+      return;
+    }
+
+    std::string proposed_explanation;
+    const auto proposed_permission =
+      namespace_restriction(map_name, proposed_explanation);
+
+    const auto combined_permission = ccf::js::intersect_access_permissions(
+      proposed_permission, access_permission);
+    if (combined_permission != access_permission)
+    {
+      access_permission = combined_permission;
+      explanation = proposed_explanation;
+    }
+  }
+
+  // Validates a handle receiver, source, and stored permission.
+  static KVMapHandleState* get_checked_handle_state(
+    js::core::Context& jsctx,
+    JSValueConst this_val,
+    KVAccessPermissions required_permission,
+    KVSource expected_source)
+  {
+    auto* state = static_cast<KVMapHandleState*>(
+      JS_GetOpaque2(jsctx, this_val, kv_map_handle_class_id));
+    if (state == nullptr)
+    {
+      return nullptr;
+    }
+
+    if (state->source != expected_source)
+    {
+      JS_ThrowTypeError(
+        jsctx,
+        "Handle for table named %s belongs to a different key-value store",
+        state->map_name.c_str());
+      return nullptr;
+    }
+
+    if (
+      ccf::js::intersect_access_permissions(
+        state->access_permission, required_permission) ==
+      KVAccessPermissions::ILLEGAL)
+    {
+      JS_ThrowTypeError(
+        jsctx,
+        "Cannot perform this operation on table named %s. %s",
+        state->map_name.c_str(),
+        state->permission_explanation.c_str());
+      return nullptr;
+    }
+
+    return state;
+  }
+
 #define JS_KV_PERMISSION_ERROR_HELPER(C_FUNC_NAME, JS_METHOD_NAME) \
   static JSValue C_FUNC_NAME( \
     JSContext* ctx, JSValueConst this_val, int, JSValueConst*) \
   { \
-    js::core::Context& jsctx = \
-      *static_cast<js::core::Context*>(JS_GetContextOpaque(ctx)); \
-    const auto table_name = \
-      jsctx.to_str(JS_GetPropertyStr(jsctx, this_val, "_map_name")) \
-        .value_or(""); \
-    if (table_name.empty()) \
+    auto* state = static_cast<KVMapHandleState*>( \
+      JS_GetOpaque2(ctx, this_val, kv_map_handle_class_id)); \
+    if (state == nullptr) \
     { \
-      return JS_ThrowTypeError(ctx, "Internal: No map name stored on handle"); \
-    } \
-    auto func = jsctx.get_property(this_val, JS_METHOD_NAME); \
-    std::string explanation; \
-    auto error_msg = func["_error_msg"]; \
-    if (!error_msg.is_undefined()) \
-    { \
-      explanation = jsctx.to_str(error_msg).value_or(""); \
+      return ccf::js::core::constants::Exception; \
     } \
     return JS_ThrowTypeError( \
       ctx, \
       "Cannot call " #JS_METHOD_NAME " on table named %s. %s", \
-      table_name.c_str(), \
-      explanation.c_str()); \
+      state->map_name.c_str(), \
+      state->permission_explanation.c_str()); \
   }
 
   JS_KV_PERMISSION_ERROR_HELPER(js_kv_map_has_denied, "has")
@@ -58,6 +113,10 @@ namespace ccf::js::extensions::kvhelpers
   { \
     if (h == nullptr) \
     { \
+      if (JS_HasException(ctx)) \
+      { \
+        return ccf::js::core::constants::Exception; \
+      } \
       return JS_ThrowInternalError( \
         ctx, "Internal: Unable to access MapHandle"); \
     } \
@@ -330,11 +389,10 @@ namespace ccf::js::extensions::kvhelpers
 
   template <ROHandleGetter GetReadOnlyHandle, RWHandleGetter GetWriteHandle>
   static JSValue create_kv_map_handle(
-    js::core::Context& ctx,
-    const std::string& map_name,
-    KVAccessPermissions access_permission,
-    const std::string& permission_explanation)
+    js::core::Context& ctx, KVMapHandleState&& handle_state)
   {
+    const auto access_permission = handle_state.access_permission;
+
     // This follows the interface of Map:
     // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Map
     // Keys and values are ArrayBuffers. Keys are matched based on their
@@ -342,10 +400,9 @@ namespace ccf::js::extensions::kvhelpers
     auto view_val = ctx.new_obj_class(kv_map_handle_class_id);
     JS_CHECK_EXC(view_val);
 
-    // Store (owning) copy of map_name in a property on this JSValue
-    auto map_name_val = ctx.new_string(map_name);
-    JS_CHECK_EXC(map_name_val);
-    JS_CHECK_SET(view_val.set("_map_name", std::move(map_name_val)));
+    // Ownership passes to the handle finalizer.
+    auto state = std::make_unique<KVMapHandleState>(std::move(handle_state));
+    JS_SetOpaque(view_val.val, state.release());
 
     // Add methods to handle object. Note that this is done once, when this
     // object is created, because jsctx.access is constant. If the access
@@ -370,11 +427,6 @@ namespace ccf::js::extensions::kvhelpers
       JS_METHOD_NAME, \
       ARG_COUNT); \
     JS_CHECK_EXC(fn_val); \
-    if (!permitted) \
-    { \
-      JS_CHECK_SET( \
-        fn_val.set("_error_msg", ctx.new_string(permission_explanation))); \
-    } \
     JS_CHECK_SET(view_val.SETTER_METHOD(JS_METHOD_NAME, std::move(fn_val))); \
   } while (0)
 
