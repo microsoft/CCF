@@ -433,6 +433,13 @@ DECLARE_JSON_ENUM(
 DECLARE_JSON_TYPE(EnumStruct);
 DECLARE_JSON_REQUIRED_FIELDS(EnumStruct, se);
 
+struct RequiredOptionalEnum
+{
+  std::optional<EnumStruct::SampleEnum> maybe_enum = std::nullopt;
+};
+DECLARE_JSON_TYPE(RequiredOptionalEnum);
+DECLARE_JSON_REQUIRED_FIELDS(RequiredOptionalEnum, maybe_enum);
+
 TEST_CASE("enum")
 {
   {
@@ -448,6 +455,17 @@ TEST_CASE("enum")
 
     const nlohmann::json expected{"one", "two", "three"};
     REQUIRE(schema["properties"]["se"]["enum"] == expected);
+  }
+
+  {
+    INFO("Required optional enum schema generation");
+    const auto schema =
+      ccf::ds::json::build_schema<RequiredOptionalEnum>("RequiredOptionalEnum");
+    const auto& property = schema["properties"]["maybe_enum"];
+
+    REQUIRE(property["nullable"] == true);
+    const nlohmann::json expected{"one", "two", "three", nullptr};
+    REQUIRE(property["enum"] == expected);
   }
 
   {

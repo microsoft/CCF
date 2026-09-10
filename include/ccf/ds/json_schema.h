@@ -4,6 +4,7 @@
 
 #include "ccf/ds/nonstd.h"
 
+#include <algorithm>
 #include <optional>
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
@@ -78,6 +79,13 @@ namespace ccf::ds::json
     {
       auto element = schema_element<typename T::value_type>();
       element["nullable"] = true;
+      const auto enum_it = element.find("enum");
+      if (
+        enum_it != element.end() &&
+        std::find(enum_it->begin(), enum_it->end(), nullptr) == enum_it->end())
+      {
+        enum_it->push_back(nullptr);
+      }
       return element;
     }
     else

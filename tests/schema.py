@@ -18,6 +18,7 @@ from infra.runner import ConcurrentRunner
 from loguru import logger as LOG
 from openapi_core import OpenAPI
 from openapi_core.datatypes import RequestParameters
+from openapi_core.validation.response.exceptions import InvalidData
 from packaging import version
 from werkzeug.datastructures import Headers, ImmutableMultiDict
 
@@ -47,24 +48,38 @@ def validate_nullable_consensus_primary(schema):
         body=None,
         content_type="",
     )
-    body = {
-        "details": {
-            "configs": [],
-            "acks": {},
-            "membership_state": "Active",
-            "primary_id": None,
-            "current_view": 0,
-            "ticking": False,
-        }
+    details = {
+        "configs": [],
+        "acks": {},
+        "membership_state": "Active",
+        "current_view": 0,
+        "ticking": False,
     }
-    response = infra.openapi._Response(
-        status_code=http.HTTPStatus.OK,
-        headers=Headers({"content-type": "application/json"}),
-        data=json.dumps(body).encode(),
-        content_type="application/json",
-    )
 
-    api.validate_response(request, response)
+    def validate_response(details):
+        response = infra.openapi._Response(
+            status_code=http.HTTPStatus.OK,
+            headers=Headers({"content-type": "application/json"}),
+            data=json.dumps({"details": details}).encode(),
+            content_type="application/json",
+        )
+        api.validate_response(request, response)
+
+    validate_response({**details, "primary_id": None})
+
+    for invalid_details in (
+        {**details, "primary_id": "not-a-node-id"},
+        details,
+    ):
+        try:
+            validate_response(invalid_details)
+        except InvalidData:
+            pass
+        else:
+            raise AssertionError(
+                f"Invalid consensus details passed schema validation: "
+                f"{invalid_details}"
+            )
 
 
 def run(args):
