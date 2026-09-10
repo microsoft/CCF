@@ -281,6 +281,18 @@ namespace ccf::js::core
       ctx, obj.val, pbyte_offset, pbyte_length, pbytes_per_element));
   }
 
+  std::optional<std::vector<uint8_t>> Context::copy_array_buffer(
+    JSValueConst val) const
+  {
+    size_t size = 0;
+    uint8_t* data = JS_GetArrayBuffer(ctx, &size, val);
+    if (data == nullptr)
+    {
+      return std::nullopt;
+    }
+    return std::vector<uint8_t>(data, data + size);
+  }
+
   JSWrappedValue Context::get_exported_function(
     const std::string& code, const std::string& func, const std::string& path)
   {
