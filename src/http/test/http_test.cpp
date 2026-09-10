@@ -467,8 +467,14 @@ DOCTEST_TEST_CASE("Request target configuration")
   DOCTEST_CHECK(encoded["max_request_target_size"] == "32KB");
   DOCTEST_CHECK(encoded.get<ccf::http::ParserConfiguration>() == config);
 
+  const auto permissive = ccf::http::permissive_configuration();
+  DOCTEST_REQUIRE(permissive.max_request_target_size.has_value());
+  DOCTEST_CHECK(
+    permissive.max_request_target_size->count_bytes() ==
+    std::numeric_limits<size_t>::max());
+
   http::SimpleRequestProcessor sp;
-  http::RequestParser p(sp, ccf::http::permissive_configuration());
+  http::RequestParser p(sp, permissive);
   const auto target = "/" + std::string(32 * 1024, 'a');
   const auto request = http::Request(target, HTTP_GET).build_request();
   p.execute(request.data(), request.size());

@@ -1245,6 +1245,35 @@ TEST_CASE("Decoded Templated paths")
   }
 }
 
+TEST_CASE(
+  "Forwarded request target retains ingress acceptance" *
+  doctest::test_suite("forwarding"))
+{
+  constexpr size_t target_size = 100 * 1024 * 1024 + 1;
+  const std::string prefix = "/app/empty_function?padding=";
+  const auto target = prefix + std::string(target_size - prefix.size(), 'a');
+  const auto packed = ::http::Request(target, HTTP_POST).build_request();
+
+  ccf::http::ParserConfiguration config;
+  config.max_request_target_size = "101MB";
+  {
+    ::http::SimpleRequestProcessor processor;
+    ::http::RequestParser ingress(processor, config);
+    ingress.execute(packed.data(), packed.size());
+    REQUIRE(processor.received.size() == 1);
+    CHECK(processor.received.front().url == target);
+  }
+
+  auto forwarded =
+    ccf::make_fwd_rpc_context(user_session, packed, ccf::FrameFormat::http);
+  REQUIRE(forwarded != nullptr);
+  CHECK(forwarded->get_request_path() == "/app/empty_function");
+  CHECK(
+    forwarded->get_request_query() ==
+    std::string_view(target).substr(target.find('?') + 1));
+  CHECK(forwarded->get_serialised_request() == packed);
+}
+
 TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
 {
   NetworkState network_primary;
