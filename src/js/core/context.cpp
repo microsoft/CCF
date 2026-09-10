@@ -12,6 +12,7 @@
 #include "js/checks.h"
 #include "js/global_class_ids.h"
 
+#include <algorithm>
 #include <chrono>
 #include <cstdarg>
 #include <quickjs/quickjs.h>
@@ -460,24 +461,52 @@ namespace ccf::js::core
     }
   }
 
+  RuntimeLimitsScope::RuntimeLimitsScope(
+    Context& context,
+    const std::optional<ccf::JSRuntimeOptions>& options,
+    RuntimeLimitsPolicy policy,
+    const std::optional<InterruptData>& inherited) :
+    ctx(context)
+  {
+    auto& rt = ctx.runtime();
+    rt.set_runtime_options(options, policy);
+
+    if (inherited.has_value())
+    {
+      ctx.interrupt_data.start_time = inherited->start_time;
+      // Never allow more than either the inherited budget, or the budget
+      // produced by the options being applied here
+      ctx.interrupt_data.max_execution_time =
+        std::min(inherited->max_execution_time, rt.get_max_exec_time());
+      ctx.interrupt_data.access = inherited->access;
+    }
+    else
+    {
+      ctx.interrupt_data.start_time =
+        decltype(InterruptData::start_time)::clock::now();
+      ctx.interrupt_data.max_execution_time = rt.get_max_exec_time();
+    }
+
+    JS_SetInterruptHandler(
+      rt, js_custom_interrupt_handler, &ctx.interrupt_data);
+  }
+
+  RuntimeLimitsScope::~RuntimeLimitsScope()
+  {
+    auto& rt = ctx.runtime();
+    JS_SetInterruptHandler(rt, nullptr, nullptr);
+    rt.reset_runtime_options();
+  }
+
   JSWrappedValue Context::call_with_rt_options(
     const JSWrappedValue& f,
     const std::vector<JSWrappedValue>& argv,
     const std::optional<ccf::JSRuntimeOptions>& options,
     RuntimeLimitsPolicy policy)
   {
-    rt.set_runtime_options(options, policy);
-    const auto curr_time = decltype(InterruptData::start_time)::clock::now();
-    interrupt_data.start_time = curr_time;
-    interrupt_data.max_execution_time = rt.get_max_exec_time();
-    JS_SetInterruptHandler(rt, js_custom_interrupt_handler, &interrupt_data);
+    const RuntimeLimitsScope limits(*this, options, policy);
 
-    auto rv = inner_call(f, argv);
-
-    JS_SetInterruptHandler(rt, nullptr, nullptr);
-    rt.reset_runtime_options();
-
-    return rv;
+    return inner_call(f, argv);
   }
 
   JSWrappedValue Context::inner_call(

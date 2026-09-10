@@ -209,7 +209,10 @@ TEST_CASE("Common contexts do not expose constitution validation")
 std::optional<std::string> call_validate_constitution(
   const std::string& constitution,
   ccf::js::extensions::ExtensionPtr extra_extension = nullptr,
-  const std::string& module_suffix = "")
+  const std::string& module_suffix = "",
+  const std::optional<ccf::JSRuntimeOptions>& runtime_options = std::nullopt,
+  bool* request_timed_out = nullptr,
+  const std::string& call_prefix = "")
 {
   ccf::js::core::Context ctx(TxAccess::GOV_RO);
 
@@ -224,16 +227,22 @@ std::optional<std::string> call_validate_constitution(
 
   auto module = fmt::format(
                   "export function call_validate () {{\n"
+                  "  {}\n"
                   "  let constitution = {};\n"
                   "  return ccf.gov.validateConstitution(constitution);\n"
                   "}}",
+                  call_prefix,
                   constitution) +
     module_suffix;
 
   auto func = ctx.get_exported_function(module, "call_validate", path);
 
   const auto result = ctx.call_with_rt_options(
-    func, {}, std::nullopt, ccf::js::core::RuntimeLimitsPolicy::NONE);
+    func, {}, runtime_options, ccf::js::core::RuntimeLimitsPolicy::NONE);
+  if (request_timed_out != nullptr)
+  {
+    *request_timed_out = ctx.interrupt_data.request_timed_out;
+  }
   if (result.is_true())
   {
     return std::nullopt;
@@ -551,6 +560,136 @@ foo.bar.baz;
       auto error = call_validate_constitution(constitution);
       REQUIRE_FALSE(error.has_value());
     }
+  }
+}
+
+TEST_CASE("Constitution validation is bounded by runtime limits")
+{
+  // Deliberately small limits, well below the defaults, so that evaluation
+  // being bounded by the inherited limits rather than the defaults is
+  // observable
+  ccf::JSRuntimeOptions options;
+  options.max_execution_time_ms = 200;
+  options.max_heap_bytes = 8 * 1024 * 1024;
+
+  {
+    INFO("valid constitution is accepted under the same limits");
+    const auto constitution = R"!!!(`
+export function validate(input) {}
+export function resolve(proposal, proposerId, votes) {}
+export function apply(proposal, proposerId) {}
+`)!!!";
+
+    bool timed_out = false;
+    const auto error = call_validate_constitution(
+      constitution, nullptr, "", options, &timed_out);
+    REQUIRE_FALSE(error.has_value());
+    REQUIRE_FALSE(timed_out);
+  }
+
+  {
+    INFO("infinite loop at module scope is interrupted");
+    const auto constitution = R"!!!(`
+export function validate(input) {}
+export function resolve(proposal, proposerId, votes) {}
+export function apply(proposal, proposerId) {}
+for (;;) {}
+`)!!!";
+
+    bool timed_out = false;
+    const auto start = std::chrono::steady_clock::now();
+    const auto error = call_validate_constitution(
+      constitution, nullptr, "", options, &timed_out);
+    const auto elapsed = std::chrono::steady_clock::now() - start;
+
+    REQUIRE(error.has_value());
+    REQUIRE(str_contains(error, "took too long to evaluate"));
+    REQUIRE(timed_out);
+    // Bounded by the caller's limit, not the default execution time
+    REQUIRE(
+      elapsed < std::chrono::milliseconds(
+                  ccf::JSRuntimeOptions::Defaults::max_execution_time_ms / 2));
+  }
+
+  {
+    INFO("timeout cannot be caught by the calling constitution");
+    const auto constitution = R"!!!(`
+export function validate(input) {}
+export function resolve(proposal, proposerId, votes) {}
+export function apply(proposal, proposerId) {}
+for (;;) {}
+`)!!!";
+
+    // Wrap the call in a try/catch which would otherwise swallow the error
+    const auto module_suffix = R"!!!(
+export function call_validate_catching () {
+  try {
+    return call_validate();
+  } catch (e) {
+    return true;
+  }
+}
+)!!!";
+
+    ccf::js::core::Context ctx(TxAccess::GOV_RO);
+    ctx.add_extension(std::make_shared<ccf::js::extensions::GovExtension>());
+    const auto module =
+      fmt::format(
+        "export function call_validate () {{\n"
+        "  let constitution = {};\n"
+        "  return ccf.gov.validateConstitution(constitution);\n"
+        "}}",
+        constitution) +
+      module_suffix;
+    auto func = ctx.get_exported_function(
+      module, "call_validate_catching", "/path/to/constitution");
+    const auto result = ctx.call_with_rt_options(
+      func, {}, options, ccf::js::core::RuntimeLimitsPolicy::NONE);
+    REQUIRE(result.is_exception());
+    REQUIRE(ctx.interrupt_data.request_timed_out);
+    auto [reason, trace] = ctx.error_message();
+    REQUIRE(str_contains(reason, "took too long to evaluate"));
+  }
+
+  {
+    INFO("remaining budget is inherited, rather than a fresh window");
+    // The constitution takes less than the full budget to evaluate, so would
+    // succeed in a fresh window, but the caller has already consumed a large
+    // part of the budget before evaluating it
+    const auto constitution = R"!!!(`
+export function validate(input) {}
+export function resolve(proposal, proposerId, votes) {}
+export function apply(proposal, proposerId) {}
+const start = Date.now();
+while (Date.now() - start < 150) {}
+`)!!!";
+    const auto call_prefix =
+      "const start = Date.now(); while (Date.now() - start < 120) {}";
+
+    bool timed_out = false;
+    const auto error = call_validate_constitution(
+      constitution, nullptr, "", options, &timed_out, call_prefix);
+    REQUIRE(error.has_value());
+    REQUIRE(str_contains(error, "took too long to evaluate"));
+    REQUIRE(timed_out);
+  }
+
+  {
+    INFO("unbounded allocation at module scope is rejected");
+    const auto constitution = R"!!!(`
+export function validate(input) {}
+export function resolve(proposal, proposerId, votes) {}
+export function apply(proposal, proposerId) {}
+const buffers = [];
+for (;;) { buffers.push(new ArrayBuffer(1024 * 1024)); }
+`)!!!";
+
+    bool timed_out = false;
+    const auto error = call_validate_constitution(
+      constitution, nullptr, "", options, &timed_out);
+    REQUIRE(error.has_value());
+    REQUIRE(str_contains(error, "out of memory"));
+    REQUIRE_FALSE(timed_out);
   }
 }
 

@@ -1214,6 +1214,44 @@ def test_set_constitution_validation(network, args):
     return network
 
 
+@reqs.description("Test execution time limit on evaluation of proposed constitution")
+def test_set_constitution_evaluation_timeout(network, args):
+    # NB: Governance JS is bounded by no less than the default execution time
+    # limit, so this stalls the node for at least that long. That exceeds the
+    # election timeout used in tests, so this must only run on a single node
+    # network, where there is no backup to trigger an election.
+    assert (
+        len(network.get_joined_nodes()) == 1
+    ), "This test stalls the primary beyond the election timeout"
+    node = choose_node(network)
+
+    # Evaluating the proposed constitution is bounded by the same execution time
+    # limit as the calling validate step, so a constitution which never finishes
+    # evaluating fails the proposal rather than stalling the node indefinitely.
+    try:
+        network.consortium.set_constitution_raw(
+            node,
+            """
+            export function validate(input) {}
+            export function resolve(proposal, proposerId, votes) {}
+            export function apply(proposal, proposerId) {}
+            for (;;) {}
+            """,
+        )
+    except infra.proposal.ProposalNotCreated as e:
+        r = e.response
+        assert r.status_code == 500, r
+        message = r.body.json()["error"]["message"]
+        assert "Operation took too long to complete." in message, r.body.text()
+    else:
+        assert False, "Expected timeout from validateConstitution"
+
+    # The node is still responsive, and accepts a valid constitution
+    network.consortium.set_constitution(node, args.constitution)
+
+    return network
+
+
 @contextmanager
 def temporary_constitution(network, args, js_constitution_suffix):
     primary, _ = network.find_primary()
