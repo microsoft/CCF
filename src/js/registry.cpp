@@ -278,8 +278,13 @@ namespace ccf::js
             // Clamp the copy strictly against the backing buffer's real
             // current size, treating an out-of-bounds byteOffset as an
             // empty view (matching how QuickJS treats out-of-bounds views).
+            // Only advance the pointer by an in-bounds offset; advancing a
+            // pointer past one-past-the-end is undefined behaviour, so in
+            // the OOB case clamp the offset to buf_size_total (which is
+            // one-past-the-end of the allocation) and set buf_size to 0.
             if (buf_offset > buf_size_total)
             {
+              buf_offset = buf_size_total;
               buf_size = 0;
             }
             else
