@@ -147,7 +147,12 @@
             "$ref": "#/components/schemas/MembershipState"
           },
           "primary_id": {
-            "$ref": "#/components/schemas/NodeId"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/NodeId"
+              }
+            ],
+            "nullable": true
           },
           "reconfiguration_type": {
             "$ref": "#/components/schemas/ReconfigurationType"
@@ -262,7 +267,12 @@
             "$ref": "#/components/schemas/uint64"
           },
           "primary_id": {
-            "$ref": "#/components/schemas/NodeId"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/NodeId"
+              }
+            ],
+            "nullable": true
           },
           "recovery_count": {
             "$ref": "#/components/schemas/uint64"
@@ -919,7 +929,7 @@
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "5.0.6"
+    "version": "5.0.7"
   },
   "openapi": "3.0.0",
   "paths": {

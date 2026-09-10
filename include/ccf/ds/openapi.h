@@ -435,6 +435,36 @@ namespace ccf::ds::openapi
         return components_ref_object(name);
       }
     }
+
+    /** Produces the schema for a field which is marked as required (ie -
+     * always present in the JSON object), but whose C++ type is
+     * std::optional<T>. Such fields are always serialised, but may hold a
+     * JSON null when the C++ value is std::nullopt (for instance, a
+     * consensus's primary_id while no primary is currently known). The
+     * produced schema therefore describes the inner type T, additionally
+     * allowing a null value.
+     *
+     * OpenAPI 3.0 does not support "type": "null", and a bare $ref cannot
+     * carry a sibling "nullable" key, so the inner schema is wrapped in an
+     * "allOf" and "nullable" is set alongside it. This is the standard
+     * OpenAPI 3.0 idiom for a nullable reference.
+     */
+    template <typename T>
+    nlohmann::json add_required_schema_component()
+    {
+      if constexpr (ccf::nonstd::is_specialization<T, std::optional>::value)
+      {
+        auto inner = add_schema_component<typename T::value_type>();
+        auto schema = nlohmann::json::object();
+        schema["allOf"] = {inner};
+        schema["nullable"] = true;
+        return schema;
+      }
+      else
+      {
+        return add_schema_component<T>();
+      }
+    }
   };
 
   template <typename T>

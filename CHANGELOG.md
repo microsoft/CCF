@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - Transactions with pending writes now correctly validate `foreach`, `size`, and `clear` observations of an existing empty KV table made at revision zero. Previously, these observations could be mistaken for no whole-map read dependency (#8320).
+- The OpenAPI schema for `GET /node/consensus` and `GET /node/network` now correctly marks `details.primary_id` and `primary_id` as nullable, matching their `null` value while no primary is known (e.g. between elections). Previously the schema required a non-null string, causing spurious response validation failures.
 
 ## [7.0.14]
 
