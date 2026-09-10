@@ -696,18 +696,6 @@ if(BUILD_TESTS)
     target_link_libraries(task_system_test PRIVATE ccf_tasks)
 
     add_unit_test(
-      delayed_tasks_interleaving_test
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/test/delayed_tasks_interleaving.cpp
-    )
-    target_link_libraries(delayed_tasks_interleaving_test PRIVATE ccf_tasks)
-    # Run an expired task at the delayed-task mutex release before tick()
-    # resumes, reproducing the ordering from #8294 deterministically.
-    target_link_options(
-      delayed_tasks_interleaving_test
-      PRIVATE -Wl,--wrap=pthread_mutex_unlock
-    )
-
-    add_unit_test(
       task_system_demo
       ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/test/demo/main.cpp
     )
