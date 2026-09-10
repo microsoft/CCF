@@ -1,11 +1,15 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#include "ccf/js/common_context.h"
 #include "ccf/js/core/wrapped_value.h"
 #include "ccf/js/extensions/ccf/gov.h"
 #include "ccf/js/extensions/ccf/historical.h"
+#include "ccf/js/extensions/ccf/kv.h"
 #include "js/global_class_ids.h"
 #include "js/permissions_checks.h"
 #include "kv/store.h"
+#include "kv/test/null_encryptor.h"
+#include "kv/untyped_map.h"
 #include "node/tx_receipt_impl.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT
@@ -175,6 +179,40 @@ TEST_CASE("Check KV Map access")
         KVAccessPermissions::ILLEGAL);
     }
   }
+
+  {
+    INFO("Every permission is described accurately");
+    REQUIRE(
+      explain_kv_map_access(KVAccessPermissions::READ_WRITE, TxAccess::APP_RW)
+        .contains("read-write"));
+    REQUIRE(
+      explain_kv_map_access(KVAccessPermissions::READ_ONLY, TxAccess::APP_RW)
+        .contains("read-only"));
+    REQUIRE(
+      explain_kv_map_access(KVAccessPermissions::WRITE_ONLY, TxAccess::GOV_RW)
+        .contains("write-only"));
+    REQUIRE(
+      explain_kv_map_access(KVAccessPermissions::ILLEGAL, TxAccess::APP_RW)
+        .contains("inaccessible"));
+
+    {
+      INFO("A permitted table is never described as inaccessible");
+      REQUIRE(!explain_kv_map_access(
+                 KVAccessPermissions::READ_WRITE, TxAccess::APP_RW)
+                 .contains("inaccessible"));
+    }
+
+    for (const auto permission_value : {4, 5, 255})
+    {
+      INFO("Unexpected permission bits are rejected");
+      CAPTURE(permission_value);
+      REQUIRE_THROWS_WITH_AS(
+        explain_kv_map_access(
+          static_cast<KVAccessPermissions>(permission_value), TxAccess::APP_RW),
+        fmt::format("Unexpected KV access permission: {}", permission_value),
+        std::logic_error);
+    }
+  }
 }
 
 bool str_contains(const std::string& s, std::string_view sv)
@@ -192,11 +230,319 @@ bool str_contains(const std::optional<std::string>& s, std::string_view sv)
   return str_contains(s.value_or(""), sv);
 }
 
+TEST_CASE("Common contexts do not expose constitution validation")
+{
+  for (const auto access :
+       {TxAccess::APP_RO, TxAccess::APP_RW, TxAccess::GOV_RO, TxAccess::GOV_RW})
+  {
+    INFO("Transaction access: ", static_cast<int>(access));
+    ccf::js::CommonContext ctx(access);
+    CHECK(ctx.get_extension<ccf::js::extensions::GovExtension>() == nullptr);
+    CHECK(ctx.get_global_obj()["ccf"]["gov"].is_undefined());
+  }
+}
+
+using KVMap = ccf::kv::untyped::Map;
+
+// Returns an error message if the JS script throws.
+std::optional<std::string> run_kv_script(
+  ccf::kv::Tx& tx, TxAccess access, const std::string& body)
+{
+  ccf::js::core::Context ctx(access);
+  ctx.add_extension(std::make_shared<ccf::js::extensions::KvExtension>(&tx));
+
+  const auto module = fmt::format("export function run() {{\n{}\n}}", body);
+  auto func = ctx.get_exported_function(module, "run", "/test/kv_script");
+
+  const auto result = ctx.call_with_rt_options(
+    func, {}, std::nullopt, ccf::js::core::RuntimeLimitsPolicy::NONE);
+  if (!result.is_exception())
+  {
+    return std::nullopt;
+  }
+
+  auto [reason, trace] = ctx.error_message();
+  return reason;
+}
+
+bool table_contains(ccf::kv::Tx& tx, const std::string& table_name)
+{
+  auto* handle = tx.ro<KVMap>(table_name);
+  return handle->has({'k'});
+}
+
+// Access is resolved once, when a handle is created. These cases confirm that
+// decision cannot then be bypassed by re-targeting a method at another
+// receiver, or by mutating the handle from JS.
+TEST_CASE("KV handle permissions")
+{
+  constexpr auto app_table = "public:my_app_table";
+  constexpr auto gov_table = "public:ccf.gov.my_custom_table";
+  constexpr auto private_app_table = "my_app_table";
+
+  // Every script below operates on a single key, and refers to tables by these
+  // names rather than repeating the string literals
+  const auto js_prelude = fmt::format(
+    R"JS(
+const key = new Uint8Array([107]).buffer;
+const value = new Uint8Array([118]).buffer;
+const appTable = "{}";
+const govTable = "{}";
+const privateAppTable = "{}";
+)JS",
+    app_table,
+    gov_table,
+    private_app_table);
+
+  auto make_store = []() {
+    auto store = std::make_unique<ccf::kv::Store>();
+    store->set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+    return store;
+  };
+
+  {
+    INFO("Permitted operations on a handle still work");
+
+    auto store = make_store();
+    auto tx = store->create_tx();
+
+    const auto err = run_kv_script(tx, TxAccess::APP_RW, js_prelude + R"JS(
+const t = ccf.kv[appTable];
+t.set(key, value);
+if (!t.has(key)) { throw new Error("has"); }
+if (new Uint8Array(t.get(key))[0] !== 118) { throw new Error("get"); }
+if (t.size !== 1) { throw new Error("size"); }
+let seen = 0;
+t.forEach(() => { seen++; });
+if (seen !== 1) { throw new Error("forEach"); }
+t.delete(key);
+if (t.has(key)) { throw new Error("delete"); }
+)JS");
+    REQUIRE(!err.has_value());
+  }
+
+  {
+    INFO("Restrictions are enforced on a directly-used handle");
+
+    auto store = make_store();
+    auto tx = store->create_tx();
+
+    const auto err = run_kv_script(tx, TxAccess::APP_RW, js_prelude + R"JS(
+ccf.kv[govTable].set(key, value);
+)JS");
+    REQUIRE(!table_contains(tx, gov_table));
+    REQUIRE(str_contains(err, "Cannot call \"set\" on table named"));
+    REQUIRE(str_contains(err, gov_table));
+  }
+
+  {
+    INFO("A permitted method cannot be re-targeted at a forged receiver");
+
+    auto store = make_store();
+    auto tx = store->create_tx();
+
+    const auto err = run_kv_script(tx, TxAccess::APP_RW, js_prelude + R"JS(
+ccf.kv[appTable].set.call({ _map_name: govTable }, key, value);
+)JS");
+    REQUIRE(!table_contains(tx, gov_table));
+    REQUIRE(str_contains(err, "KV Map Handle object expected"));
+  }
+
+  {
+    INFO("A permitted method cannot be re-targeted at a restricted handle");
+
+    auto store = make_store();
+    auto tx = store->create_tx();
+
+    const auto err = run_kv_script(tx, TxAccess::APP_RW, js_prelude + R"JS(
+ccf.kv[appTable].set.call(ccf.kv[govTable], key, value);
+)JS");
+    REQUIRE(!table_contains(tx, gov_table));
+    REQUIRE(str_contains(err, "Cannot perform this operation on table named"));
+    REQUIRE(str_contains(err, gov_table));
+  }
+
+  {
+    INFO("A handle method cannot be invoked via a derived object");
+
+    auto store = make_store();
+    auto tx = store->create_tx();
+
+    const auto err = run_kv_script(tx, TxAccess::APP_RW, js_prelude + R"JS(
+Object.create(ccf.kv[appTable]).set(key, value);
+)JS");
+    REQUIRE(!table_contains(tx, app_table));
+    REQUIRE(str_contains(err, "KV Map Handle object expected"));
+  }
+
+  {
+    INFO("A handle method cannot be invoked via a Proxy");
+
+    auto store = make_store();
+    auto tx = store->create_tx();
+
+    const auto err = run_kv_script(tx, TxAccess::APP_RW, js_prelude + R"JS(
+const p = new Proxy(ccf.kv[appTable], {
+  get(target, prop) {
+    return prop === "_map_name" ? govTable : Reflect.get(target, prop);
+  }
+});
+p.set(key, value);
+)JS");
+    REQUIRE(!table_contains(tx, gov_table));
+    REQUIRE(str_contains(err, "KV Map Handle object expected"));
+  }
+
+  {
+    INFO("Copying a handle's properties does not copy its identity");
+
+    auto store = make_store();
+    auto tx = store->create_tx();
+
+    // Spreading a handle onto a plain object was the original forgery
+    // primitive, when the table name was a JS property
+    const auto err = run_kv_script(tx, TxAccess::APP_RW, js_prelude + R"JS(
+const copy = { ...ccf.kv[appTable], _map_name: govTable };
+copy.set(key, value);
+)JS");
+    REQUIRE(!table_contains(tx, gov_table));
+    REQUIRE(str_contains(err, "KV Map Handle object expected"));
+  }
+
+  {
+    INFO("A handle method cannot be bound to a forged receiver");
+
+    auto store = make_store();
+    auto tx = store->create_tx();
+
+    const auto err = run_kv_script(tx, TxAccess::APP_RW, js_prelude + R"JS(
+ccf.kv[appTable].set.bind({ _map_name: govTable })(key, value);
+)JS");
+    REQUIRE(!table_contains(tx, gov_table));
+    REQUIRE(str_contains(err, "KV Map Handle object expected"));
+  }
+
+  {
+    INFO("A denied method does not describe an unrelated permitted table");
+
+    auto store = make_store();
+    auto tx = store->create_tx();
+
+    // The denied stub reports the table of whatever receiver it is given, so
+    // that description must remain true when the receiver is permitted
+    const auto err = run_kv_script(tx, TxAccess::APP_RW, js_prelude + R"JS(
+ccf.kv[govTable].set.call(ccf.kv[appTable], key, value);
+)JS");
+    REQUIRE(!table_contains(tx, gov_table));
+    REQUIRE(str_contains(err, app_table));
+    REQUIRE(str_contains(err, "read-write"));
+    REQUIRE(!err.value().contains("inaccessible"));
+  }
+
+  {
+    INFO("Setting _map_name on a permitted handle does not redirect it");
+
+    auto store = make_store();
+    auto tx = store->create_tx();
+
+    const auto err = run_kv_script(tx, TxAccess::APP_RW, js_prelude + R"JS(
+const t = ccf.kv[appTable];
+t._map_name = govTable;
+t.set(key, value);
+)JS");
+    REQUIRE(!err.has_value());
+    REQUIRE(!table_contains(tx, gov_table));
+    REQUIRE(table_contains(tx, app_table));
+  }
+
+  {
+    INFO("Governance ballots cannot read private application tables");
+
+    auto store = make_store();
+
+    {
+      auto tx = store->create_tx();
+      tx.rw<KVMap>(private_app_table)->put({'k'}, {'v'});
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+    }
+
+    auto tx = store->create_tx();
+    const auto err = run_kv_script(tx, TxAccess::GOV_RO, js_prelude + R"JS(
+const gov = ccf.kv["public:ccf.gov.proposals_info"];
+const leaked = gov.get.call({ _map_name: privateAppTable }, key);
+if (leaked !== undefined) {
+  throw new Error("Leaked " + new Uint8Array(leaked));
+}
+)JS");
+    REQUIRE(err.has_value());
+    REQUIRE(!err.value().contains("Leaked"));
+    REQUIRE(str_contains(err, "KV Map Handle object expected"));
+  }
+}
+
+// Handle state is owned by C++ and released by a class finalizer, so it is only
+// freed if QuickJS destroys every handle. These cases are the ones plain
+// reference counting would not cover. Leaks are detected by the ASAN build.
+TEST_CASE("KV handle lifetime")
+{
+  constexpr auto js_prelude = R"JS(
+const key = new Uint8Array([107]).buffer;
+const value = new Uint8Array([118]).buffer;
+)JS";
+
+  auto run = [&](const std::string& body) {
+    ccf::kv::Store store;
+    store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+    auto tx = store.create_tx();
+    return run_kv_script(tx, TxAccess::APP_RW, js_prelude + body);
+  };
+
+  {
+    INFO("Handle in a reference cycle, which only the cycle collector breaks");
+    REQUIRE(!run(R"JS(
+const t = ccf.kv["tbl"];
+t.self = t;
+t.indirect = { back: t };
+t.set(key, value);
+)JS")
+               .has_value());
+  }
+
+  {
+    INFO("Handle still reachable when the interpreter is destroyed");
+    REQUIRE(!run(R"JS(
+globalThis.escaped = ccf.kv["tbl"];
+globalThis.escaped.set(key, value);
+)JS")
+               .has_value());
+  }
+
+  {
+    INFO("Handle live while an exception unwinds");
+    REQUIRE(run(R"JS(
+globalThis.escaped = ccf.kv["tbl"];
+throw new Error("boom");
+)JS")
+              .has_value());
+  }
+
+  {
+    INFO("Handle whose methods were all replaced by denied stubs");
+    REQUIRE(run(R"JS(
+ccf.kv["public:ccf.gov.tbl"].set(key, value);
+)JS")
+              .has_value());
+  }
+}
+
 // Returns error string, or nullopt if validation succeeded
 std::optional<std::string> call_validate_constitution(
   const std::string& constitution,
   ccf::js::extensions::ExtensionPtr extra_extension = nullptr,
-  const std::string& module_suffix = "")
+  const std::string& module_suffix = "",
+  const std::optional<ccf::JSRuntimeOptions>& runtime_options = std::nullopt,
+  bool* request_timed_out = nullptr,
+  const std::string& call_prefix = "")
 {
   ccf::js::core::Context ctx(TxAccess::GOV_RO);
 
@@ -211,16 +557,22 @@ std::optional<std::string> call_validate_constitution(
 
   auto module = fmt::format(
                   "export function call_validate () {{\n"
+                  "  {}\n"
                   "  let constitution = {};\n"
                   "  return ccf.gov.validateConstitution(constitution);\n"
                   "}}",
+                  call_prefix,
                   constitution) +
     module_suffix;
 
   auto func = ctx.get_exported_function(module, "call_validate", path);
 
   const auto result = ctx.call_with_rt_options(
-    func, {}, std::nullopt, ccf::js::core::RuntimeLimitsPolicy::NONE);
+    func, {}, runtime_options, ccf::js::core::RuntimeLimitsPolicy::NONE);
+  if (request_timed_out != nullptr)
+  {
+    *request_timed_out = ctx.interrupt_data.request_timed_out;
+  }
   if (result.is_true())
   {
     return std::nullopt;
@@ -399,16 +751,30 @@ setGlobal(100)
     INFO("error detectability");
 
     {
-      INFO("global throws");
-      const auto constitution = R"!!!(`
+      INFO("exceptions at module scope are not checked");
+      // The proposed constitution is evaluated without the CCF APIs it may use
+      // at module scope, so exceptions thrown there are not treated as
+      // validation failures. Only failures of the interpreter itself are, see
+      // "Constitution validation is bounded by runtime limits".
+      for (const auto& c :
+           {R"!!!(`
 export function validate(input) {}
 export function resolve(proposal, proposerId, votes) {}
 export function apply(proposal, proposerId) {}
 
-throw new Error(`I'm not happy`);
-`)!!!";
+throw new Error("I'm not happy");
+`)!!!",
+            R"!!!(`
+export function validate(input) {}
+export function resolve(proposal, proposerId, votes) {}
+export function apply(proposal, proposerId) {}
 
-      REQUIRE_THROWS(call_validate_constitution(constitution));
+foo.bar.baz;
+`)!!!"})
+      {
+        const auto error = call_validate_constitution(c);
+        REQUIRE_FALSE(error.has_value());
+      }
     }
 
     {
@@ -524,27 +890,146 @@ export function apply(a, b) {}
         REQUIRE_FALSE(error.has_value());
       }
     }
+  }
+}
 
-    {
-      INFO("null accesses can't be checked");
-      const auto constitution = R"!!!(`
+TEST_CASE("Constitution validation is bounded by runtime limits")
+{
+  // Deliberately small limits, well below the defaults, so that evaluation
+  // being bounded by the inherited limits rather than the defaults is
+  // observable
+  ccf::JSRuntimeOptions options;
+  options.max_execution_time_ms = 200;
+  options.max_heap_bytes = 8 * 1024 * 1024;
+
+  {
+    INFO("valid constitution is accepted under the same limits");
+    const auto constitution = R"!!!(`
 export function validate(input) {}
 export function resolve(proposal, proposerId, votes) {}
 export function apply(proposal, proposerId) {}
-
-foo.bar.baz;
 `)!!!";
 
-      auto error = call_validate_constitution(constitution);
-      REQUIRE_FALSE(error.has_value());
-    }
+    bool timed_out = false;
+    const auto error = call_validate_constitution(
+      constitution, nullptr, "", options, &timed_out);
+    REQUIRE_FALSE(error.has_value());
+    REQUIRE_FALSE(timed_out);
+  }
+
+  {
+    INFO("infinite loop at module scope is interrupted");
+    const auto constitution = R"!!!(`
+export function validate(input) {}
+export function resolve(proposal, proposerId, votes) {}
+export function apply(proposal, proposerId) {}
+for (;;) {}
+`)!!!";
+
+    bool timed_out = false;
+    const auto start = std::chrono::steady_clock::now();
+    const auto error = call_validate_constitution(
+      constitution, nullptr, "", options, &timed_out);
+    const auto elapsed = std::chrono::steady_clock::now() - start;
+
+    REQUIRE(error.has_value());
+    REQUIRE(str_contains(error, "took too long to evaluate"));
+    REQUIRE(timed_out);
+    // Bounded by the caller's limit, not the default execution time
+    REQUIRE(
+      elapsed < std::chrono::milliseconds(
+                  ccf::JSRuntimeOptions::Defaults::max_execution_time_ms / 2));
+  }
+
+  {
+    INFO("timeout cannot be caught by the calling constitution");
+    const auto constitution = R"!!!(`
+export function validate(input) {}
+export function resolve(proposal, proposerId, votes) {}
+export function apply(proposal, proposerId) {}
+for (;;) {}
+`)!!!";
+
+    // Wrap the call in a try/catch which would otherwise swallow the error
+    const auto module_suffix = R"!!!(
+export function call_validate_catching () {
+  try {
+    return call_validate();
+  } catch (e) {
+    return true;
+  }
+}
+)!!!";
+
+    ccf::js::core::Context ctx(TxAccess::GOV_RO);
+    ctx.add_extension(std::make_shared<ccf::js::extensions::GovExtension>());
+    const auto module =
+      fmt::format(
+        "export function call_validate () {{\n"
+        "  let constitution = {};\n"
+        "  return ccf.gov.validateConstitution(constitution);\n"
+        "}}",
+        constitution) +
+      module_suffix;
+    auto func = ctx.get_exported_function(
+      module, "call_validate_catching", "/path/to/constitution");
+    const auto result = ctx.call_with_rt_options(
+      func, {}, options, ccf::js::core::RuntimeLimitsPolicy::NONE);
+    REQUIRE(result.is_exception());
+    REQUIRE(ctx.interrupt_data.request_timed_out);
+    auto [reason, trace] = ctx.error_message();
+    REQUIRE(str_contains(reason, "took too long to evaluate"));
+  }
+
+  {
+    INFO("remaining budget is inherited, rather than a fresh window");
+    // The constitution takes less than the full budget to evaluate, so would
+    // succeed in a fresh window, but the caller has already consumed a large
+    // part of the budget before evaluating it
+    const auto constitution = R"!!!(`
+export function validate(input) {}
+export function resolve(proposal, proposerId, votes) {}
+export function apply(proposal, proposerId) {}
+const start = Date.now();
+while (Date.now() - start < 150) {}
+`)!!!";
+    const auto call_prefix =
+      "const start = Date.now(); while (Date.now() - start < 120) {}";
+
+    bool timed_out = false;
+    const auto error = call_validate_constitution(
+      constitution, nullptr, "", options, &timed_out, call_prefix);
+    REQUIRE(error.has_value());
+    REQUIRE(str_contains(error, "took too long to evaluate"));
+    REQUIRE(timed_out);
+  }
+
+  {
+    INFO("unbounded allocation at module scope is rejected");
+    const auto constitution = R"!!!(`
+export function validate(input) {}
+export function resolve(proposal, proposerId, votes) {}
+export function apply(proposal, proposerId) {}
+const buffers = [];
+for (;;) { buffers.push(new ArrayBuffer(1024 * 1024)); }
+`)!!!";
+
+    bool timed_out = false;
+    const auto error = call_validate_constitution(
+      constitution, nullptr, "", options, &timed_out);
+    REQUIRE(error.has_value());
+    // QuickJS throws null if it cannot allocate the error object itself.
+    REQUIRE(
+      (error->contains("out of memory") ||
+       error->ends_with("Failed to execute proposed constitution: null")));
+    REQUIRE_FALSE(timed_out);
   }
 }
 
 static int get_ref_count(JSValue v)
 {
   REQUIRE(JS_VALUE_HAS_REF_COUNT(v));
-  auto* p = (JSRefCountHeader*)JS_VALUE_GET_PTR(v);
+  auto* p = __js_rc(JS_VALUE_GET_PTR(v));
   return p->ref_count;
 }
 
@@ -588,6 +1073,82 @@ TEST_CASE("JSWrappedValue copy assignment frees old value")
   JS_FreeValue(ctx, raw_b);
   JS_FreeContext(ctx);
   JS_FreeRuntime(rt);
+}
+
+TEST_CASE("QuickJS rejects arena allocations above a lowered heap limit")
+{
+  ccf::js::core::Context ctx(TxAccess::APP_RW);
+  auto* rt = static_cast<JSRuntime*>(ctx.runtime());
+  auto* allocation = js_malloc_rt(rt, 17);
+  REQUIRE(allocation != nullptr);
+  static_cast<uint8_t*>(allocation)[0] = 42;
+
+  JSMemoryUsage usage;
+  JS_ComputeMemoryUsage(rt, &usage);
+  REQUIRE(usage.malloc_size > 100);
+  for (const auto limit : {size_t{100}, size_t(usage.malloc_size - 1)})
+  {
+    INFO("Heap limit: ", limit);
+    JS_SetMemoryLimit(rt, limit);
+    auto* extra = js_malloc_rt(rt, 17);
+    CHECK(extra == nullptr);
+    js_free_rt(rt, extra);
+
+    // Even a reallocation which fits the existing arena slot must check the
+    // cap.
+    auto* resized = js_realloc_rt(rt, allocation, 17);
+    CHECK(resized == nullptr);
+    if (resized != nullptr)
+    {
+      allocation = resized;
+    }
+    CHECK(static_cast<uint8_t*>(allocation)[0] == 42);
+  }
+
+  // Freeing remains possible after lowering the cap.
+  CHECK(js_realloc_rt(rt, allocation, 0) == nullptr);
+  JS_SetMemoryLimit(rt, size_t(-1));
+  allocation = js_malloc_rt(rt, 17);
+  REQUIRE(allocation != nullptr);
+  js_free_rt(rt, allocation);
+}
+
+TEST_CASE("QuickJS handles OOM while constructing a backtrace")
+{
+  ccf::js::core::Context ctx(TxAccess::APP_RW);
+  const auto func = ctx.get_exported_function(
+    R"(
+export function run() {
+  throw (() => {
+    const error = new Error("test");
+    delete error.stack;
+    return error;
+  })();
+}
+Object.defineProperty(run, "name", {value: "\u1234".repeat(128 * 1024)});
+)",
+    "run",
+    "/heap-backtrace.js");
+
+  // Converting the wide function name to a backtrace string must exhaust the
+  // remaining heap while the pending exception owns the only error reference.
+  JSMemoryUsage usage;
+  JS_ComputeMemoryUsage(ctx.runtime(), &usage);
+  ccf::JSRuntimeOptions options;
+  options.max_heap_bytes = usage.malloc_size + 64 * 1024;
+  const auto result = ctx.call_with_rt_options(
+    func, {}, options, ccf::js::core::RuntimeLimitsPolicy::NONE);
+  REQUIRE(result.is_exception());
+  REQUIRE(ctx.error_message().first == "InternalError: out of memory");
+
+  // The same interpreter must still report ordinary exceptions with a trace.
+  const auto recovered = ctx.call_with_rt_options(
+    func, {}, std::nullopt, ccf::js::core::RuntimeLimitsPolicy::NONE);
+  REQUIRE(recovered.is_exception());
+  const auto [message, trace] = ctx.error_message();
+  REQUIRE(message == "Error: test");
+  REQUIRE(trace.has_value());
+  REQUIRE(trace->contains("/heap-backtrace.js:"));
 }
 
 TEST_CASE("Context::to_str preserves embedded NUL bytes")

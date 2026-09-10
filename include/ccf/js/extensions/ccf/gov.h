@@ -9,7 +9,7 @@ namespace ccf::js::extensions
   /**
    * Adds the following functions:
    *
-   * - ccf.gov.isValidConstitution
+   * - ccf.gov.validateConstitution
    *
    **/
   class GovExtension : public ExtensionInterface

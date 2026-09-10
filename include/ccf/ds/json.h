@@ -496,7 +496,7 @@ namespace std
 #define FILL_SCHEMA_REQUIRED_WITH_RENAMES_FOR_JSON_NEXT( \
   TYPE, C_FIELD, JSON_FIELD) \
   j["properties"][JSON_FIELD] = \
-    ccf::ds::json::schema_element<decltype(TYPE::C_FIELD)>(); \
+    ccf::ds::json::required_schema_element<decltype(TYPE::C_FIELD)>(); \
   j["required"].push_back(JSON_FIELD);
 #define FILL_SCHEMA_REQUIRED_WITH_RENAMES_FOR_JSON_FINAL( \
   TYPE, C_FIELD, JSON_FIELD) \
@@ -523,7 +523,7 @@ namespace std
 #define ADD_SCHEMA_COMPONENTS_REQUIRED_WITH_RENAMES_FOR_JSON_NEXT( \
   TYPE, C_FIELD, JSON_FIELD) \
   j["properties"][JSON_FIELD] = \
-    doc.template add_schema_component<decltype(TYPE::C_FIELD)>(); \
+    doc.template add_required_schema_component<decltype(TYPE::C_FIELD)>(); \
   j["required"].push_back(JSON_FIELD);
 #define ADD_SCHEMA_COMPONENTS_REQUIRED_WITH_RENAMES_FOR_JSON_FINAL( \
   TYPE, C_FIELD, JSON_FIELD) \

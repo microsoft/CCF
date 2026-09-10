@@ -140,6 +140,17 @@ TEST_CASE("Check signature verification")
     REQUIRE(backup_store.current_version() == 2);
   }
 
+  INFO("Verify signatures after appending one unsigned transaction");
+  {
+    MapT table("public:table");
+    auto tx = primary_store.create_tx();
+    tx.rw(table)->put(0, 1);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+    REQUIRE(backup_store.current_version() == 3);
+    REQUIRE_FALSE(
+      backup_history->verify_root_signatures(backup_store.current_version()));
+  }
+
   INFO("Issue a bogus signature, rejected by verification on the backup");
   {
     auto txs = primary_store.create_tx();
