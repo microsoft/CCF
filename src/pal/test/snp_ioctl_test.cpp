@@ -28,8 +28,10 @@ TEST_CASE("SNP request attestation")
   const auto attestation =
     snp::parse_attestation_report_unverified(report_bytes);
 
-  SnpAttestationReportData attested_report_data(snp::get_report_bytes(
-    attestation.get(), tav_snp_attestation_report_report_data));
+  const uint8_t* data = nullptr;
+  size_t size = 0;
+  tav_snp_attestation_report_report_data(attestation.get(), &data, &size);
+  SnpAttestationReportData attested_report_data({data, size});
 
   REQUIRE_EQ(snp_report_data.report_data, attested_report_data.report_data);
 }

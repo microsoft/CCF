@@ -151,19 +151,17 @@ TEST_CASE("unverified SNP report accessors")
   CHECK(tav_snp_attestation_report_version(report.get()) == 3);
   CHECK(tav_snp_attestation_report_cpuid_fam_id(report.get()) == 25);
   CHECK(tav_snp_attestation_report_cpuid_mod_id(report.get()) == 1);
+  const uint8_t* data = nullptr;
+  size_t size = 0;
+  tav_snp_attestation_report_reported_tcb(report.get(), &data, &size);
   CHECK(
-    snp::TcbVersionRaw::from_span(
-      ccf::pal::snp::get_report_bytes(
-        report.get(), tav_snp_attestation_report_reported_tcb))
-      .to_hex() == "db18000000000004");
-  const auto measurement = ccf::pal::snp::get_report_bytes(
-    report.get(), tav_snp_attestation_report_measurement);
+    snp::TcbVersionRaw::from_span({data, size}).to_hex() == "db18000000000004");
+  tav_snp_attestation_report_measurement(report.get(), &data, &size);
+  const auto measurement = std::span<const uint8_t>{data, size};
   auto moved_report = std::move(report);
   CHECK(measurement.size() == snp_attestation_measurement_size);
-  CHECK(
-    ccf::pal::snp::get_report_bytes(
-      moved_report.get(), tav_snp_attestation_report_signature_r)
-      .size() == 72);
+  tav_snp_attestation_report_signature_r(moved_report.get(), &data, &size);
+  CHECK(size == 72);
 }
 
 TEST_CASE("CCF policy is separate from generic TAV verification")
@@ -221,7 +219,7 @@ TEST_CASE("SNP byte accessors borrow report storage")
 {
   struct ByteField
   {
-    ccf::pal::snp::ReportBytesAccessor accessor;
+    void (*accessor)(const TavSnpAttestationReport*, const uint8_t**, size_t*);
     size_t offset;
     size_t size;
   };
@@ -247,20 +245,25 @@ TEST_CASE("SNP byte accessors borrow report storage")
   auto report = ccf::pal::snp::parse_attestation_report_unverified(raw_report);
   for (const auto& [accessor, offset, size] : fields)
   {
-    const auto first = ccf::pal::snp::get_report_bytes(report.get(), accessor);
-    const auto second = ccf::pal::snp::get_report_bytes(report.get(), accessor);
+    const uint8_t* data = nullptr;
+    size_t length = 0;
+    accessor(report.get(), &data, &length);
+    const auto first = std::span<const uint8_t>{data, length};
+    data = nullptr;
+    length = 0;
+    accessor(report.get(), &data, &length);
+    const auto second = std::span<const uint8_t>{data, length};
     CHECK(first.data() == second.data());
     REQUIRE(first.size() == size);
     CHECK(std::equal(first.begin(), first.end(), raw_report.begin() + offset));
   }
 }
 
-TEST_CASE("SNP borrowed byte access rejects empty handles")
+TEST_CASE("SNP chip ID access rejects empty handles")
 {
   ccf::pal::snp::AttestationReport report;
   CHECK_THROWS_WITH_AS(
-    ccf::pal::snp::get_report_bytes(
-      report.get(), tav_snp_attestation_report_measurement),
+    ccf::pal::snp::get_chip_id_for_vcek(report),
     "Cannot access an empty SNP attestation report",
     std::logic_error);
 }
@@ -271,27 +274,25 @@ TEST_CASE("SNP borrowed bytes survive report ownership transfers")
   auto raw_report = testing::milan_attestation;
   std::optional<AttestationReport> original =
     parse_attestation_report_unverified(raw_report);
-  const auto measurement = ccf::pal::snp::get_report_bytes(
-    original->get(), tav_snp_attestation_report_measurement);
+  const uint8_t* data = nullptr;
+  size_t size = 0;
+  tav_snp_attestation_report_measurement(original->get(), &data, &size);
+  const auto measurement = std::span<const uint8_t>{data, size};
   raw_report[0x090] ^= 0xff;
   CHECK(measurement[0] == testing::milan_attestation[0x090]);
 
   auto moved = std::move(*original);
   original.reset();
-  CHECK(
-    measurement.data() ==
-    ccf::pal::snp::get_report_bytes(
-      moved.get(), tav_snp_attestation_report_measurement)
-      .data());
+  tav_snp_attestation_report_measurement(moved.get(), &data, &size);
+  CHECK(measurement.data() == data);
+  CHECK(measurement.size() == size);
 
   auto assigned =
     parse_attestation_report_unverified(testing::genoa_attestation);
   assigned = std::move(moved);
-  CHECK(
-    measurement.data() ==
-    ccf::pal::snp::get_report_bytes(
-      assigned.get(), tav_snp_attestation_report_measurement)
-      .data());
+  tav_snp_attestation_report_measurement(assigned.get(), &data, &size);
+  CHECK(measurement.data() == data);
+  CHECK(measurement.size() == size);
   CHECK(std::equal(
     measurement.begin(),
     measurement.end(),
@@ -307,8 +308,10 @@ TEST_CASE("VCEK chip ID borrows the product-specific prefix")
         &testing::turin_attestation})
   {
     auto report = parse_attestation_report_unverified(*raw_report);
-    const auto chip_id = ccf::pal::snp::get_report_bytes(
-      report.get(), tav_snp_attestation_report_chip_id);
+    const uint8_t* data = nullptr;
+    size_t size = 0;
+    tav_snp_attestation_report_chip_id(report.get(), &data, &size);
+    const auto chip_id = std::span<const uint8_t>{data, size};
     const auto vcek_chip_id = get_chip_id_for_vcek(report);
     CHECK(vcek_chip_id.data() == chip_id.data());
     CHECK(
@@ -637,12 +640,13 @@ TEST_CASE("Parsing tcb versions from attestaion")
 {
   auto milan_attestation = ccf::pal::snp::parse_attestation_report_unverified(
     ccf::pal::snp::testing::milan_attestation);
-  auto milan_tcb =
-    ccf::pal::snp::TcbVersionRaw::from_span(
-      ccf::pal::snp::get_report_bytes(
-        milan_attestation.get(), tav_snp_attestation_report_reported_tcb))
-      .to_policy(ccf::pal::snp::ProductName::Milan)
-      .to_milan_genoa();
+  const uint8_t* data = nullptr;
+  size_t size = 0;
+  tav_snp_attestation_report_reported_tcb(
+    milan_attestation.get(), &data, &size);
+  auto milan_tcb = ccf::pal::snp::TcbVersionRaw::from_span({data, size})
+                     .to_policy(ccf::pal::snp::ProductName::Milan)
+                     .to_milan_genoa();
   CHECK_EQ(milan_tcb.microcode, 0xdb);
   CHECK_EQ(milan_tcb.snp, 0x18);
   CHECK_EQ(milan_tcb.tee, 0x00);
@@ -916,17 +920,17 @@ TEST_CASE("Extracting metadata from endorsements")
   auto endorsed_tcb = pal::get_endorsed_tcb_from_cert(
     pal::snp::ProductName::Milan, chip_certificate);
   REQUIRE(endorsed_tcb.has_value());
+  const uint8_t* data = nullptr;
+  size_t size = 0;
+  tav_snp_attestation_report_reported_tcb(attestation.get(), &data, &size);
   CHECK_EQ(
     nlohmann::json(endorsed_tcb.value()).dump(),
-    nlohmann::json(
-      pal::snp::TcbVersionRaw::from_span(ccf::pal::snp::get_report_bytes(
-        attestation.get(), tav_snp_attestation_report_reported_tcb)))
-      .dump());
+    nlohmann::json(pal::snp::TcbVersionRaw::from_span({data, size})).dump());
 
   auto endorsed_chip_id = pal::get_endorsed_chip_id_from_cert(chip_certificate);
   REQUIRE(endorsed_chip_id.has_value());
-  auto printable_reported_chip_id = ccf::pal::snp::get_report_bytes(
-    attestation.get(), tav_snp_attestation_report_chip_id);
+  tav_snp_attestation_report_chip_id(attestation.get(), &data, &size);
+  const auto printable_reported_chip_id = std::span<const uint8_t>{data, size};
   CHECK_EQ(
     ds::to_hex(endorsed_chip_id.value()),
     ds::to_hex(printable_reported_chip_id));

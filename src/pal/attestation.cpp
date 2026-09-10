@@ -356,15 +356,18 @@ namespace ccf::pal
         "enabled");
     }
 
+    const uint8_t* reported_tcb_data = nullptr;
+    size_t reported_tcb_size = 0;
+    tav_snp_attestation_report_reported_tcb(
+      attestation.get(), &reported_tcb_data, &reported_tcb_size);
+    const auto reported_tcb_raw =
+      std::span<const uint8_t>{reported_tcb_data, reported_tcb_size};
     auto endorsed_tcb = get_endorsed_tcb_from_cert(product_family, vcek_cert);
     if (endorsed_tcb.has_value())
     {
       auto endorsed_tcb_policy = endorsed_tcb->to_policy(product_family);
       auto reported_tcb =
-        TcbVersionRaw::from_span(
-          snp::get_report_bytes(
-            attestation.get(), tav_snp_attestation_report_reported_tcb))
-          .to_policy(product_family);
+        TcbVersionRaw::from_span(reported_tcb_raw).to_policy(product_family);
 
       if (!snp::TcbVersionPolicy::is_valid(endorsed_tcb_policy, reported_tcb))
       {
@@ -398,8 +401,7 @@ namespace ccf::pal
       auto raw_endorsed_tcb =
         snp::TcbVersionRaw::from_hex(std::string(claimed_endorsed_tcb.value()));
 
-      const auto reported_tcb = TcbVersionRaw::from_span(snp::get_report_bytes(
-        attestation.get(), tav_snp_attestation_report_reported_tcb));
+      const auto reported_tcb = TcbVersionRaw::from_span(reported_tcb_raw);
       if (raw_endorsed_tcb != reported_tcb)
       {
         auto endorsed_tcb_hex = raw_endorsed_tcb.to_hex();
@@ -413,10 +415,12 @@ namespace ccf::pal
 
     // ---- Set return values ----
 
-    report_data = SnpAttestationReportData(snp::get_report_bytes(
-      attestation.get(), tav_snp_attestation_report_report_data));
-    measurement = SnpAttestationMeasurement(snp::get_report_bytes(
-      attestation.get(), tav_snp_attestation_report_measurement));
+    const uint8_t* data = nullptr;
+    size_t size = 0;
+    tav_snp_attestation_report_report_data(attestation.get(), &data, &size);
+    report_data = SnpAttestationReportData({data, size});
+    tav_snp_attestation_report_measurement(attestation.get(), &data, &size);
+    measurement = SnpAttestationMeasurement({data, size});
     return attestation;
   }
 

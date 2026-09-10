@@ -160,15 +160,21 @@ namespace ccf::js::extensions
       JS_CHECK_SET(a.set("policy", std::move(policy)));
 
       {
-        auto family_id = jsctx.new_array_buffer_copy(pal::snp::get_report_bytes(
-          attestation.get(), tav_snp_attestation_report_family_id));
+        const uint8_t* data = nullptr;
+        size_t size = 0;
+        tav_snp_attestation_report_family_id(attestation.get(), &data, &size);
+        auto family_id =
+          jsctx.new_array_buffer_copy(std::span<const uint8_t>{data, size});
         JS_CHECK_EXC(family_id);
         JS_CHECK_SET(a.set("family_id", std::move(family_id)));
       }
 
       {
-        auto image_id = jsctx.new_array_buffer_copy(pal::snp::get_report_bytes(
-          attestation.get(), tav_snp_attestation_report_image_id));
+        const uint8_t* data = nullptr;
+        size_t size = 0;
+        tav_snp_attestation_report_image_id(attestation.get(), &data, &size);
+        auto image_id =
+          jsctx.new_array_buffer_copy(std::span<const uint8_t>{data, size});
         JS_CHECK_EXC(image_id);
         JS_CHECK_SET(a.set("image_id", std::move(image_id)));
       }
@@ -181,10 +187,12 @@ namespace ccf::js::extensions
           tav_snp_attestation_report_signature_algo(attestation.get()))));
 
       {
-        auto platform_version = jsctx.wrap(make_js_tcb_version(
-          jsctx,
-          pal::snp::get_report_bytes(
-            attestation.get(), tav_snp_attestation_report_platform_version)));
+        const uint8_t* data = nullptr;
+        size_t size = 0;
+        tav_snp_attestation_report_platform_version(
+          attestation.get(), &data, &size);
+        auto platform_version = jsctx.wrap(
+          make_js_tcb_version(jsctx, std::span<const uint8_t>{data, size}));
         JS_CHECK_EXC(platform_version);
         JS_CHECK_SET(a.set("platform_version", std::move(platform_version)));
       }
@@ -216,69 +224,88 @@ namespace ccf::js::extensions
       }
 
       {
+        const uint8_t* data = nullptr;
+        size_t size = 0;
+        tav_snp_attestation_report_report_data(attestation.get(), &data, &size);
         auto attestation_report_data =
-          jsctx.new_array_buffer_copy(pal::snp::get_report_bytes(
-            attestation.get(), tav_snp_attestation_report_report_data));
+          jsctx.new_array_buffer_copy(std::span<const uint8_t>{data, size});
         JS_CHECK_EXC(attestation_report_data);
         JS_CHECK_SET(a.set("report_data", std::move(attestation_report_data)));
       }
 
       {
+        const uint8_t* data = nullptr;
+        size_t size = 0;
+        tav_snp_attestation_report_measurement(attestation.get(), &data, &size);
         auto attestation_measurement =
-          jsctx.new_array_buffer_copy(pal::snp::get_report_bytes(
-            attestation.get(), tav_snp_attestation_report_measurement));
+          jsctx.new_array_buffer_copy(std::span<const uint8_t>{data, size});
         JS_CHECK_EXC(attestation_measurement);
         JS_CHECK_SET(a.set("measurement", std::move(attestation_measurement)));
       }
 
       {
+        const uint8_t* data = nullptr;
+        size_t size = 0;
+        tav_snp_attestation_report_host_data(attestation.get(), &data, &size);
         auto attestation_host_data =
-          jsctx.new_array_buffer_copy(pal::snp::get_report_bytes(
-            attestation.get(), tav_snp_attestation_report_host_data));
+          jsctx.new_array_buffer_copy(std::span<const uint8_t>{data, size});
         JS_CHECK_EXC(attestation_host_data);
         JS_CHECK_SET(a.set("host_data", std::move(attestation_host_data)));
       }
 
       {
+        const uint8_t* data = nullptr;
+        size_t size = 0;
+        tav_snp_attestation_report_id_key_digest(
+          attestation.get(), &data, &size);
         auto attestation_id_key_digest =
-          jsctx.new_array_buffer_copy(pal::snp::get_report_bytes(
-            attestation.get(), tav_snp_attestation_report_id_key_digest));
+          jsctx.new_array_buffer_copy(std::span<const uint8_t>{data, size});
         JS_CHECK_EXC(attestation_id_key_digest);
         JS_CHECK_SET(
           a.set("id_key_digest", std::move(attestation_id_key_digest)));
       }
 
       {
+        const uint8_t* data = nullptr;
+        size_t size = 0;
+        tav_snp_attestation_report_author_key_digest(
+          attestation.get(), &data, &size);
         auto attestation_author_key_digest =
-          jsctx.new_array_buffer_copy(pal::snp::get_report_bytes(
-            attestation.get(), tav_snp_attestation_report_author_key_digest));
+          jsctx.new_array_buffer_copy(std::span<const uint8_t>{data, size});
         JS_CHECK_EXC(attestation_author_key_digest);
         JS_CHECK_SET(
           a.set("author_key_digest", std::move(attestation_author_key_digest)));
       }
 
       {
+        const uint8_t* data = nullptr;
+        size_t size = 0;
+        tav_snp_attestation_report_report_id(attestation.get(), &data, &size);
         auto attestation_report_id =
-          jsctx.new_array_buffer_copy(pal::snp::get_report_bytes(
-            attestation.get(), tav_snp_attestation_report_report_id));
+          jsctx.new_array_buffer_copy(std::span<const uint8_t>{data, size});
         JS_CHECK_EXC(attestation_report_id);
         JS_CHECK_SET(a.set("report_id", std::move(attestation_report_id)));
       }
 
       {
+        const uint8_t* data = nullptr;
+        size_t size = 0;
+        tav_snp_attestation_report_report_id_ma(
+          attestation.get(), &data, &size);
         auto attestation_report_id_ma =
-          jsctx.new_array_buffer_copy(pal::snp::get_report_bytes(
-            attestation.get(), tav_snp_attestation_report_report_id_ma));
+          jsctx.new_array_buffer_copy(std::span<const uint8_t>{data, size});
         JS_CHECK_EXC(attestation_report_id_ma);
         JS_CHECK_SET(
           a.set("report_id_ma", std::move(attestation_report_id_ma)));
       }
 
       {
-        auto reported_tcb = jsctx.wrap(make_js_tcb_version(
-          jsctx,
-          pal::snp::get_report_bytes(
-            attestation.get(), tav_snp_attestation_report_reported_tcb)));
+        const uint8_t* data = nullptr;
+        size_t size = 0;
+        tav_snp_attestation_report_reported_tcb(
+          attestation.get(), &data, &size);
+        auto reported_tcb = jsctx.wrap(
+          make_js_tcb_version(jsctx, std::span<const uint8_t>{data, size}));
         JS_CHECK_EXC(reported_tcb);
         JS_CHECK_SET(a.set("reported_tcb", std::move(reported_tcb)));
       }
@@ -294,18 +321,22 @@ namespace ccf::js::extensions
         tav_snp_attestation_report_cpuid_step(attestation.get())));
 
       {
+        const uint8_t* data = nullptr;
+        size_t size = 0;
+        tav_snp_attestation_report_chip_id(attestation.get(), &data, &size);
         auto attestation_chip_id =
-          jsctx.new_array_buffer_copy(pal::snp::get_report_bytes(
-            attestation.get(), tav_snp_attestation_report_chip_id));
+          jsctx.new_array_buffer_copy(std::span<const uint8_t>{data, size});
         JS_CHECK_EXC(attestation_chip_id);
         JS_CHECK_SET(a.set("chip_id", std::move(attestation_chip_id)));
       }
 
       {
-        auto committed_tcb = jsctx.wrap(make_js_tcb_version(
-          jsctx,
-          pal::snp::get_report_bytes(
-            attestation.get(), tav_snp_attestation_report_committed_tcb)));
+        const uint8_t* data = nullptr;
+        size_t size = 0;
+        tav_snp_attestation_report_committed_tcb(
+          attestation.get(), &data, &size);
+        auto committed_tcb = jsctx.wrap(
+          make_js_tcb_version(jsctx, std::span<const uint8_t>{data, size}));
         JS_CHECK_EXC(committed_tcb);
         JS_CHECK_SET(a.set("committed_tcb", std::move(committed_tcb)));
       }
@@ -330,10 +361,11 @@ namespace ccf::js::extensions
         tav_snp_attestation_report_committed_major(attestation.get())));
 
       {
-        auto launch_tcb = jsctx.wrap(make_js_tcb_version(
-          jsctx,
-          pal::snp::get_report_bytes(
-            attestation.get(), tav_snp_attestation_report_launch_tcb)));
+        const uint8_t* data = nullptr;
+        size_t size = 0;
+        tav_snp_attestation_report_launch_tcb(attestation.get(), &data, &size);
+        auto launch_tcb = jsctx.wrap(
+          make_js_tcb_version(jsctx, std::span<const uint8_t>{data, size}));
         JS_CHECK_EXC(launch_tcb);
         JS_CHECK_SET(a.set("launch_tcb", std::move(launch_tcb)));
       }
@@ -342,17 +374,21 @@ namespace ccf::js::extensions
       JS_CHECK_EXC(signature);
 
       {
+        const uint8_t* data = nullptr;
+        size_t size = 0;
+        tav_snp_attestation_report_signature_r(attestation.get(), &data, &size);
         auto signature_r =
-          jsctx.new_array_buffer_copy(pal::snp::get_report_bytes(
-            attestation.get(), tav_snp_attestation_report_signature_r));
+          jsctx.new_array_buffer_copy(std::span<const uint8_t>{data, size});
         JS_CHECK_EXC(signature_r);
         JS_CHECK_SET(signature.set("r", std::move(signature_r)));
       }
 
       {
+        const uint8_t* data = nullptr;
+        size_t size = 0;
+        tav_snp_attestation_report_signature_s(attestation.get(), &data, &size);
         auto signature_s =
-          jsctx.new_array_buffer_copy(pal::snp::get_report_bytes(
-            attestation.get(), tav_snp_attestation_report_signature_s));
+          jsctx.new_array_buffer_copy(std::span<const uint8_t>{data, size});
         JS_CHECK_EXC(signature_s);
         JS_CHECK_SET(signature.set("s", std::move(signature_s)));
       }

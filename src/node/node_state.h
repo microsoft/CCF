@@ -884,10 +884,11 @@ namespace ccf
         AttestationProvider::get_snp_attestation_report(quote_info);
       if (snp_attestation.has_value())
       {
-        snp_tcb_version = ccf::pal::snp::TcbVersionRaw::from_span(
-          ccf::pal::snp::get_report_bytes(
-            snp_attestation.value().get(),
-            tav_snp_attestation_report_reported_tcb));
+        const uint8_t* data = nullptr;
+        size_t size = 0;
+        tav_snp_attestation_report_reported_tcb(
+          snp_attestation.value().get(), &data, &size);
+        snp_tcb_version = ccf::pal::snp::TcbVersionRaw::from_span({data, size});
       }
 
       // Verify that the security policy matches the quoted digest of the policy
@@ -1038,9 +1039,12 @@ namespace ccf
               const auto report =
                 ccf::pal::snp::parse_attestation_report_unverified(
                   quote_info.quote);
-              const auto reported_tcb = ccf::pal::snp::TcbVersionRaw::from_span(
-                ccf::pal::snp::get_report_bytes(
-                  report.get(), tav_snp_attestation_report_reported_tcb));
+              const uint8_t* data = nullptr;
+              size_t size = 0;
+              tav_snp_attestation_report_reported_tcb(
+                report.get(), &data, &size);
+              const auto reported_tcb =
+                ccf::pal::snp::TcbVersionRaw::from_span({data, size});
 
               // tcbm is a single hex value, like DB18000000000004.
               auto tcb_as_hex = reported_tcb.to_hex();

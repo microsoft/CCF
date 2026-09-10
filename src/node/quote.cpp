@@ -241,8 +241,10 @@ namespace ccf
             d,
             r,
             quote_info.endorsed_tcb);
-          const auto host_data = pal::snp::get_report_bytes(
-            report.get(), tav_snp_attestation_report_host_data);
+          const uint8_t* data = nullptr;
+          size_t size = 0;
+          tav_snp_attestation_report_host_data(report.get(), &data, &size);
+          const auto host_data = std::span<const uint8_t>{data, size};
           std::copy(host_data.begin(), host_data.end(), rep.begin());
         }
         catch (const std::exception& e)
@@ -343,10 +345,11 @@ namespace ccf
     auto product_family = pal::snp::get_sev_snp_product(
       tav_snp_attestation_report_cpuid_fam_id(attestation.get()),
       tav_snp_attestation_report_cpuid_mod_id(attestation.get()));
+    const uint8_t* data = nullptr;
+    size_t size = 0;
+    tav_snp_attestation_report_reported_tcb(attestation.get(), &data, &size);
     auto attestation_tcb_policy =
-      pal::snp::TcbVersionRaw::from_span(
-        pal::snp::get_report_bytes(
-          attestation.get(), tav_snp_attestation_report_reported_tcb))
+      pal::snp::TcbVersionRaw::from_span({data, size})
         .to_policy(product_family);
 
     if (pal::snp::TcbVersionPolicy::is_valid(

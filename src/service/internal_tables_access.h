@@ -997,12 +997,12 @@ namespace ccf
       }
       auto* h = tx.wo<ccf::SnpTcbVersionMap>(Tables::SNP_TCB_VERSIONS);
       auto product = pal::snp::get_sev_snp_product(cpuid);
+      const uint8_t* data = nullptr;
+      size_t size = 0;
+      tav_snp_attestation_report_reported_tcb(attestation.get(), &data, &size);
       h->put(
         cpuid.hex_str(),
-        pal::snp::TcbVersionRaw::from_span(
-          pal::snp::get_report_bytes(
-            attestation.get(), tav_snp_attestation_report_reported_tcb))
-          .to_policy(product));
+        pal::snp::TcbVersionRaw::from_span({data, size}).to_policy(product));
     }
 
     static void init_configuration(

@@ -442,6 +442,9 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
   };
 #pragma pack(pop)
 
+  // Reports are allocated in Rust and must be freed through TAV, not C++
+  // delete. A stateless deleter keeps the smart pointer default-constructible
+  // without storing a cleanup function pointer.
   struct AttestationReportDeleter
   {
     void operator()(TavSnpAttestationReport* report) const noexcept
@@ -453,12 +456,8 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
   using AttestationReport =
     std::unique_ptr<TavSnpAttestationReport, AttestationReportDeleter>;
 
-  using ReportBytesAccessor =
-    void (*)(const TavSnpAttestationReport*, const uint8_t**, size_t*);
-
-  // The returned view borrows storage owned by the report handle.
-  inline std::span<const uint8_t> get_report_bytes(
-    const TavSnpAttestationReport* report, ReportBytesAccessor accessor)
+  inline std::span<const uint8_t> get_chip_id_for_vcek(
+    const AttestationReport& report)
   {
     if (report == nullptr)
     {
@@ -466,15 +465,8 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
     }
     const uint8_t* data = nullptr;
     size_t size = 0;
-    accessor(report, &data, &size);
-    return {data, size};
-  }
-
-  inline std::span<const uint8_t> get_chip_id_for_vcek(
-    const AttestationReport& report)
-  {
-    const auto chip_id =
-      get_report_bytes(report.get(), tav_snp_attestation_report_chip_id);
+    tav_snp_attestation_report_chip_id(report.get(), &data, &size);
+    const auto chip_id = std::span<const uint8_t>{data, size};
     const auto product = get_sev_snp_product(
       tav_snp_attestation_report_cpuid_fam_id(report.get()),
       tav_snp_attestation_report_cpuid_mod_id(report.get()));
@@ -553,8 +545,12 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
 
     auto chip_id_hex =
       fmt::format("{:02x}", fmt::join(get_chip_id_for_vcek(quote), ""));
+    const uint8_t* reported_tcb_data = nullptr;
+    size_t reported_tcb_size = 0;
+    tav_snp_attestation_report_reported_tcb(
+      quote.get(), &reported_tcb_data, &reported_tcb_size);
     const auto reported_tcb_raw =
-      get_report_bytes(quote.get(), tav_snp_attestation_report_reported_tcb);
+      std::span<const uint8_t>{reported_tcb_data, reported_tcb_size};
     uint64_t reported_tcb_value = 0;
     std::memcpy(
       &reported_tcb_value, reported_tcb_raw.data(), sizeof(reported_tcb_value));
@@ -613,12 +609,9 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
             case ProductName::Milan:
             case ProductName::Genoa:
             {
-              auto tcb =
-                TcbVersionRaw::from_span(
-                  get_report_bytes(
-                    quote.get(), tav_snp_attestation_report_reported_tcb))
-                  .to_policy(product)
-                  .to_milan_genoa();
+              auto tcb = TcbVersionRaw::from_span(reported_tcb_raw)
+                           .to_policy(product)
+                           .to_milan_genoa();
               boot_loader = fmt::format("{}", tcb.boot_loader);
               tee = fmt::format("{}", tcb.tee);
               snp = fmt::format("{}", tcb.snp);
@@ -627,12 +620,9 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
             }
             case ProductName::Turin:
             {
-              auto tcb =
-                TcbVersionRaw::from_span(
-                  get_report_bytes(
-                    quote.get(), tav_snp_attestation_report_reported_tcb))
-                  .to_policy(product)
-                  .to_turin();
+              auto tcb = TcbVersionRaw::from_span(reported_tcb_raw)
+                           .to_policy(product)
+                           .to_turin();
               boot_loader = fmt::format("{}", tcb.boot_loader);
               tee = fmt::format("{}", tcb.tee);
               snp = fmt::format("{}", tcb.snp);
