@@ -37,8 +37,8 @@ jobs:
         id: lean-cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ${{ runner.temp }}/ccf-lean/lean-4.28.0-linux
-          key: lean-${{ runner.os }}-${{ runner.arch }}-4.28.0-ceb3a3f844f7aebf
+          path: ${{ runner.temp }}/ccf-lean/lean-4.33.1-linux
+          key: lean-${{ runner.os }}-${{ runner.arch }}-4.33.1-890afd185370f856
 
       - name: Download pinned Lean distribution
         if: steps.lean-cache.outputs.cache-hit != 'true'
@@ -47,21 +47,21 @@ jobs:
           mkdir -p "$RUNNER_TEMP/ccf-lean"
           cd "$RUNNER_TEMP/ccf-lean"
           curl --fail --location --retry 3 \
-            https://github.com/leanprover/lean4/releases/download/v4.28.0/lean-4.28.0-linux.tar.zst \
+            https://github.com/leanprover/lean4/releases/download/v4.33.1/lean-4.33.1-linux.tar.zst \
             --output lean.tar.zst
-          echo 'ceb3a3f844f7aebf63245e2b51c28d5b0ed38942c19f93cf3febd520302160bd  lean.tar.zst' | sha256sum --check
+          echo '890afd185370f85666025b883914ab4f4b339136f8c96167b69cfb62aecaf235  lean.tar.zst' | sha256sum --check
           tar --zstd -xf lean.tar.zst
           rm lean.tar.zst
 
       - name: Select the repository toolchain
         run: |
           set -euo pipefail
-          test "$(tr -d '\r\n' < lean/kv/lean-toolchain)" = 'leanprover/lean4:v4.28.0'
-          echo "$RUNNER_TEMP/ccf-lean/lean-4.28.0-linux/bin" >> "$GITHUB_PATH"
+          test "$(tr -d '\r\n' < lean/kv/lean-toolchain)" = 'leanprover/lean4:v4.33.1'
+          echo "$RUNNER_TEMP/ccf-lean/lean-4.33.1-linux/bin" >> "$GITHUB_PATH"
 
       - name: Build Lean proofs and replay checker
         working-directory: lean/kv
-        run: lake build
+        run: lake build --wfail
 
       - name: Exercise checker acceptance and rejection cases
         working-directory: lean/kv

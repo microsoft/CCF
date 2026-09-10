@@ -1,9 +1,13 @@
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
 
-import Model
+import Kv.Protocol.Programs
+import Kv.Proofs.Types
 
-namespace Kv
+/-! Supporting lemmas and proof implementations for the executable KV model. -/
+
+namespace Kv.Proofs.Model
+open Kv.Proofs.Types
 
 section Generic
 variable {M K V : Type} [DecidableEq M] [DecidableEq K]
@@ -125,23 +129,6 @@ theorem validates_append (db : DB M K V) (a b : List (Dependency M K V)) :
     validates db (a ++ b) = (validates db a && validates db b) := by
   simp [validates]
 
-/-- The reference transaction has no dependency tracking or OCC validation. -/
-def serialStep (base : DB M K V) (ws : Writes M K V)
-    (op : NormalOp M K V) : Option (Writes M K V) :=
-  match op with
-  | .read a observed =>
-    if valueAt base ws a = observed then some ws else none
-  | .previous a observed =>
-    if previousAt base a = observed then some ws else none
-  | .scan m observed =>
-    if scanAt base ws m = observed then some ws else none
-  | .write a value => some (set ws a value)
-
-def serialRun (base : DB M K V) (ws : Writes M K V) :
-    List (NormalOp M K V) → Option (Writes M K V)
-  | [] => some ws
-  | op :: ops => (serialStep base ws op).bind fun next => serialRun base next ops
-
 theorem serialStep_eq (base : DB M K V) (ws : Writes M K V) (op : NormalOp M K V) :
     serialStep base ws op =
       if observes base ws op then some (stage ws op) else none := by
@@ -162,11 +149,13 @@ theorem dependency_rebase (snapshot current : DB M K V) (ws : Writes M K V)
   | previous a v =>
     have heq : find current a = find snapshot a := by
       simpa [needs, validates, Dependency.holds] using hv
-    simp [observes, previousAt, heq]
+    apply decide_eq_decide.mpr
+    simp only [previousAt, heq]
   | scan m vs =>
     have heq : image current m = image snapshot m := by
       simpa [needs, validates, Dependency.holds] using hv
-    simp [observes, scanAt, heq]
+    apply decide_eq_decide.mpr
+    simp only [scanAt, heq]
   | write _ _ => rfl
 
 theorem normalStep_prefix_valid (snapshot current : DB M K V)
@@ -265,26 +254,6 @@ theorem readonly_snapshot_witness (snapshot : DB M K V) (ops : List (NormalOp M 
     serialRun snapshot [] ops = some n.writes :=
   normalRun_serial_witness snapshot snapshot ops {} n hr
     (normalRun_snapshot_valid snapshot ops {} n (by rfl) hr)
-
-structure AppliedProgram (M K V : Type) where
-  snapshot : DB M K V
-  ops : List (NormalOp M K V)
-  result : Normal M K V
-  version : Nat
-
-/-- OCC application mechanics on a branch. Rollback selects another branch;
-replication return statuses deliberately do not occur here. -/
-inductive BranchExecution : DB M K V → List (AppliedProgram M K V) → DB M K V → Prop
-  | nil (db) : BranchExecution db [] db
-  | apply (db tail : DB M K V) (p : AppliedProgram M K V) (ps)
-      (executed : normalRun p.snapshot {} p.ops = some p.result)
-      (validated : validates db p.result.deps = true)
-      (rest : BranchExecution (publish db p.version p.result.writes) ps tail) :
-      BranchExecution db (p :: ps) tail
-
-def serialBranch (db : DB M K V) : List (AppliedProgram M K V) → Option (DB M K V)
-  | [] => some db
-  | p :: ps => (serialRun db [] p.ops).bind fun ws => serialBranch (publish db p.version ws) ps
 
 /-- A genuine application-order witness for every finite branch of normal
 programs admitted by OCC. The reference interpreter contains no validation. -/
@@ -492,22 +461,6 @@ theorem tryApply_serial_witness (s next : Store) (t : Tx)
     | some snap => exact transaction_application_serial_witness s t snap hs hv
   next => simp at ha
 
-/-- A branch of actual executable applications, including no_replicate ones.
-The sequence supplied to the reference interpreter is the recorded operation
-program of each transaction, not a list of final-state observations. -/
-inductive AppliedBranch : Store → List Tx → Store → Prop
-  | nil (s) : AppliedBranch s [] s
-  | cons (s middle final : Store) (t : Tx) (ts : List Tx)
-      (one : tryApply s t = some middle)
-      (rest : AppliedBranch middle ts final) : AppliedBranch s (t :: ts) final
-  | compact (s final : Store) (v : Nat) (ts : List Tx)
-      (rest : AppliedBranch (compactStore s v) ts final) : AppliedBranch s ts final
-
-def serialTransactions (db : Data) (version : Nat) : List Tx → Option Data
-  | [] => some db
-  | t :: ts => (serialRun db [] t.normal.log).bind fun writes =>
-      serialTransactions (publish db (version + 1) writes) (version + 1) ts
-
 theorem executable_branch_serializability (s final : Store) (ts : List Tx)
     (h : AppliedBranch s ts final) :
     serialTransactions s.head.data s.head.version ts = some final.head.data := by
@@ -531,4 +484,4 @@ theorem map_global_ignores_writes (view : GlobalView) (a : Addr String String) :
       (find view.frame.data a).map Cell.value := by
   simp [valueAt, find]
 
-end Kv
+end Kv.Proofs.Model

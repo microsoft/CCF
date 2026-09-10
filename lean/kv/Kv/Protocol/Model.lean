@@ -1,7 +1,8 @@
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
 
-import Types
+import Kv.Protocol.Types
+import Kv.Proofs.Types
 
 namespace Kv
 
@@ -63,13 +64,9 @@ def runOp (t : Tx) (op : NormalOp String String String) : Except Failure Tx := d
   | some snap =>
     match hn : normalStep snap.current.data t.normal op with
     | some n =>
-      have old : normalRun snap.current.data {} t.normal.log = some t.normal := by
-        simpa [hs] using t.certificate
-      have cert : match t.snapshot with
-          | none => n = {}
-          | some snap => normalRun snap.current.data {} n.log = some n := by
-        simpa [hs] using normalRun_extend snap.current.data t.normal n op old hn
-      return { t with normal := n, certificate := cert }
+      return { t with
+        normal := n
+        certificate := Proofs.Types.operation_certificate t snap n op hs hn }
     | none => reject s!"normal observation disagrees with captured snapshot {snap.current.version}: {repr op}"
 
 def clearWrites (t : Tx) (map : String) (entries : Assoc String String) : Except Failure Tx :=
@@ -129,12 +126,9 @@ def advance (s : Store) (writes : Pending) : Store :=
     if (find bs a.1).isSome then bs
     else set bs a.1 { version := v, identity := s.nextIdentity }) s.head.births
   let f : Frame := { version := v, data, revisions, births }
-  have historyShape : History (f :: s.history) (s.head.version + 1) :=
-    .succ f s.head.version s.history rfl
-      ⟨writes, by simp only [s.headFirst, Option.getD_some]; rfl⟩ s.historyShape
   { s with
     history := f :: s.history, head := f, nextIdentity := s.nextIdentity + 1
-    historyShape
+    historyShape := Proofs.Types.history_extension s f writes rfl rfl
     headFirst := rfl
     globalBound := Nat.le_trans s.globalBound (Nat.le_succ _) }
 
@@ -151,13 +145,12 @@ def rollbackCut (s : Store) (v : Nat) : Nat := max s.global (min s.head.version 
 def rollbackStore (s : Store) (v term : Nat) : Store :=
   let cut := rollbackCut s v
   have within : cut ≤ s.head.version := Nat.max_le.mpr ⟨s.globalBound, Nat.min_le_left _ _⟩
-  let spec := atCut_spec s cut within
   { s with
     history := s.history.filter (fun f => f.version ≤ cut)
     head := atCut s cut, term, termKnown := true
-    historyShape := by rw [spec.1]; exact spec.2.1
-    headFirst := spec.2.2
-    globalBound := by rw [spec.1]; exact Nat.le_max_left _ _ }
+    historyShape := Proofs.Types.cut_history s cut within
+    headFirst := (Proofs.Types.atCut_spec s cut within).2.2
+    globalBound := Proofs.Types.cut_global_bound s cut within (Nat.le_max_left _ _) }
 
 def writesEqual (a b : Pending) : Bool :=
   a.length == b.length && a.all (fun (k, v) => find b k == some v)
@@ -223,10 +216,9 @@ def stepEvent (w : World) (event : Event) : Except Failure World := do
       if hs : t.snapshot = none then
         expect (version == s.head.version && global == s.global && term == established.term)
           s!"initial snapshot metadata expected local={s.head.version}, global={s.global}, term={established.term}; observed local={version}, global={global}, term={term}"
-        have hzero : t.normal = {} := by simpa [hs] using t.certificate
         return { t with
           snapshot := some { current := s.head, term, origin := ⟨s, rfl⟩ }
-          certificate := by simp [hzero, normalRun] }
+          certificate := Proofs.Types.snapshot_certificate t s.head.data hs }
       else invalid "snapshot refreshed inside attempt"
   | .acquire sid tid m version global =>
     let s ← storeOf w sid

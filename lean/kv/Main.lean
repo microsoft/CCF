@@ -1,8 +1,7 @@
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
 
-import Trace
-import AxiomAudit
+import Kv
 
 open Kv.Trace
 

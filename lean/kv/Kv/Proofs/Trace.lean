@@ -1,23 +1,13 @@
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
 
-import Properties
+import Kv.Protocol.Invariants
+import Kv.Proofs.Model
 
-namespace Kv
+/-! Supporting lemmas and proof implementations connecting accepted replay to its contracts. -/
 
-def SegmentEvent (sid : Nat) : Event → Prop
-  | .storeCreate id | .storeEnd id | .rollback id _ _ _ => id ≠ sid
-  | _ => True
-
-def projectedApplication (w : World) (sid : Nat) : Event → List Tx
-  | .apply id tid _ _ _ =>
-    if id = sid then (txOf w id tid).toOption.toList else []
-  | _ => []
-
-inductive HeadEffect (before after : Store) : List Tx → Prop
-  | stutter (data : after.head.data = before.head.data)
-      (version : after.head.version = before.head.version) : HeadEffect before after []
-  | apply (tx : Tx) (one : tryApply before tx = some after) : HeadEffect before after [tx]
+namespace Kv.Proofs.Trace
+open Kv.Proofs.Types Kv.Proofs.Model
 
 theorem storeOf_ok (w : World) (sid : Nat) (s : Store) :
     storeOf w sid = .ok s ↔ find w.stores sid = some s := by
@@ -59,7 +49,7 @@ theorem applied_update_store_effect (w next : World) (sid id tid : Nat)
     have ho : old = s := Option.some.inj (hf.symm.trans hs)
     subst old
     refine ⟨new, by simp [same, find_set_same], ?_⟩
-    simpa [htx] using HeadEffect.apply t ha
+    simpa [htx, Except.toOption, Option.toList] using HeadEffect.apply t ha
   · refine ⟨s, by simpa [same, find_set_other _ id sid new h] using hs, ?_⟩
     simpa [h] using HeadEffect.stutter (before := s) rfl rfl
 
@@ -155,13 +145,6 @@ theorem serialTransactions_append (db : Data) (version : Nat) (xs ys : List Tx) 
     | some writes =>
       simp [serialTransactions, h, ih, Nat.add_comm, Nat.add_left_comm]
 
-def projectApplications (w : World) (sid : Nat) : List Record → Except Failure (List Tx)
-  | [] => .ok []
-  | r :: rs => do
-    let next ← step w r
-    let rest ← projectApplications next sid rs
-    return projectedApplication w sid r.event ++ rest
-
 /-- A selected store stays live throughout the segment. Its rollback/create/end
 events partition segments; all other-store events are permitted. The projected
 attempts are obtained from the real pre-event txOf, not supplied as a premise. -/
@@ -195,8 +178,6 @@ theorem replay_segment_serializability (w final : World) (sid : Nat) (s : Store)
       · simp only [List.length_append]
         rw [tailVersion, one.2]
         omega
-
-def Reachable (w : World) : Prop := ∃ rs, replay {} rs = .ok w
 
 /-- Every constructor of Store carries these erased proofs. In particular,
 accepted replay cannot produce a hole in history or a provisional global cut. -/
@@ -255,10 +236,6 @@ theorem acquireMap_snapshot_fixed (s : Store) (t next : Tx) (map : String) (vers
     | rfl
     | cases accepted
     | split at accepted
-
-def AttemptEvent (tid : Nat) : Event → Prop
-  | .txCreate _ id | .txEnd _ id => id ≠ tid
-  | _ => True
 
 theorem stepEvent_snapshot_fixed (w next : World) (tid : Nat) (before after : Tx)
     (snap : Snapshot) (e : Event)
@@ -399,9 +376,6 @@ theorem capture_replay_preserves_metadata (w capturedWorld final : World)
   obtain ⟨after, afterLive, same⟩ := replay_snapshot_fixed capturedWorld final tid t snap
     tail live captured segment accepted
   exact ⟨after, snap, afterLive, same, current, snapshotTerm⟩
-
-def CellsBounded (db : Data) (version : Nat) : Prop :=
-  ∀ key cell, find db key = some cell → cell.version ≤ version
 
 theorem publish_cells_bounded (db : Data) (version : Nat) (writes : Pending)
     (before : CellsBounded db version) : CellsBounded (publish db version writes) version := by
@@ -656,4 +630,4 @@ theorem capture_replay_preserves_map (w capturedWorld final : World)
       tail live view segment accepted
   exact ⟨after, afterLive, fixed, localRevision, globalRevision⟩
 
-end Kv
+end Kv.Proofs.Trace

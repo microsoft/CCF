@@ -5,7 +5,6 @@ leanOptions = { warningAsError = true }
 
 [[lean_lib]]
 name = "Kv"
-roots = ["Types", "Model", "Properties", "Trace", "TraceProperties", "AxiomAudit"]
 
 [[lean_exe]]
 name = "kv_trace_check"

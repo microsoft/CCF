@@ -1,6 +1,6 @@
 # Executable KV implementation profile
 
-Standalone Lean 4.28.0 project, using only Lean core/Std and the bundled JSON
+Standalone Lean 4.33.1 project, using only Lean core/Std and the bundled JSON
 parser. It does not change CCF behavior or introduce a normal-build dependency.
 The fuller contract and provenance belong in
 `doc/build_apps/kv/semantics.rst`.
@@ -13,13 +13,13 @@ The original stronger transaction-wide-global model is preserved at checkpoint
 Run under Linux, from `lean/kv`:
 
 ```bash
-lake build
+lake build --wfail
 lake exe kv_trace_tests
 lake exe kv_trace_check fixtures/basic.ndjson
 lake exe kv_trace_check --json fixtures/per_map_global_snapshots.ndjson
 ```
 
-Elan is optional: putting the official Lean 4.28.0 distribution's `bin`
+Elan is optional: putting the official Lean 4.33.1 distribution's `bin`
 directory on `PATH` is sufficient. The project invokes no elan commands and
 has no Lake package dependencies.
 
@@ -41,9 +41,48 @@ through EOF after a valid `trace_end` to reject trailing records. Accepted
 prefixes retain model history and lifecycle metadata, so total model memory
 is not constant even though whole-file input buffering is avoided.
 
+## Review guide
+
+Start with [`Kv/Properties.lean`](Kv/Properties.lean). It exposes the 37
+review-facing guarantees previously listed by the axiom audit, with their
+original hypotheses and conclusions. Each theorem directly applies a checked
+implementation in `Kv.Proofs`; these are not detached proposition declarations.
+Review the statements together with every definition and assumption they use in
+`Kv/Protocol/`.
+
+| Surface                                                                                | Review role     | Contents                                                        |
+| -------------------------------------------------------------------------------------- | --------------- | --------------------------------------------------------------- |
+| [`Kv/Properties.lean`](Kv/Properties.lean)                                             | Human           | Property statements and explicit checked-proof links            |
+| [`Kv/Protocol/Types.lean`](Kv/Protocol/Types.lean)                                     | Human           | State, observations, dependencies, and erased certificate types |
+| [`Kv/Protocol/Model.lean`](Kv/Protocol/Model.lean)                                     | Human           | Executable transitions and replay                               |
+| [`Kv/Protocol/Programs.lean`](Kv/Protocol/Programs.lean)                               | Human           | Independent sequential reference and branch predicates          |
+| [`Kv/Protocol/Invariants.lean`](Kv/Protocol/Invariants.lean)                           | Human           | Trace projections, segment assumptions, and store invariants    |
+| [`Kv/Trace.lean`](Kv/Trace.lean), [`Main.lean`](Main.lean), [`Tests.lean`](Tests.lean) | Human           | Strict decoding, CLI, and executable examples                   |
+| [`Kv/Proofs/Types.lean`](Kv/Proofs/Types.lean)                                         | Machine-checked | Certificate construction and history lemmas                     |
+| [`Kv/Proofs/Model.lean`](Kv/Proofs/Model.lean)                                         | Machine-checked | Read, publication, serializability, and rollback proofs         |
+| [`Kv/Proofs/Trace.lean`](Kv/Proofs/Trace.lean)                                         | Machine-checked | Proofs connecting accepted replay to the contracts              |
+| [`Kv.lean`](Kv.lean), [`Kv/AxiomAudit.lean`](Kv/AxiomAudit.lean), Lake/toolchain files | Human           | Complete import root, audit coverage, and trust policy          |
+
+Only Lean files under `Kv/Proofs/` are marked `linguist-generated` by the
+repository's `.gitattributes`; GitHub can collapse their proof steps without
+hiding the executable model, assumptions, or public statements. Imports, audit
+code, toolchain changes, the import-root check, and the attribute rules still
+require human review.
+
+The 116 supporting lemmas live in `Kv.Proofs.Types`, `Kv.Proofs.Model`, and
+`Kv.Proofs.Trace`. They use Lean's `theorem` declaration, retaining this package's
+core/Std-only dependencies rather than importing Mathlib for its `lemma` synonym.
+Public guarantees live in `Kv.Properties`. Runtime definitions retain their
+existing `Kv` names, preserving trace diagnostics and model identifiers.
+
+The model imports `Kv.Proofs.Types` only to construct the same runtime-erased
+certificates it carried before the separation. Their types and the state
+construction remain review-visible in `Protocol/`; moving the proof terms does
+not add an assumption or a new replay acceptance condition.
+
 ## Model
 
-`Types.lean` defines finite association lists over arbitrary equality-bearing
+`Kv/Protocol/Types.lean` defines finite association lists over arbitrary equality-bearing
 map/key/value types. The executable instance uses opaque map-name strings and
 lossless serialized bytes encoded as lowercase hex. There are no fixed bounds
 on map/key/transaction counts. `Unique`, `set_unique`, `publish_unique` and
@@ -51,7 +90,7 @@ on map/key/transaction counts. `Unique`, `set_unique`, `publish_unique` and
 absence are distinct: `""` denotes a present zero-byte value, `null` denotes
 absence, and a missing required `value` field is an invalid trace.
 
-`Model.lean` implements the **one transition used by replay**:
+`Kv/Protocol/Model.lean` implements the **one transition used by replay**:
 
 - First access captures one current snapshot R shared by all maps and validates
   the initial global frontier without storing it. All acquired handles share staged
@@ -146,7 +185,8 @@ schema are not changed by choosing this model profile.
 
 ## Proof scope
 
-Proofs are in `Types.lean`, `Properties.lean` and `TraceProperties.lean`.
+The reviewed statements are in `Kv/Properties.lean`; proof implementations and
+intermediate lemmas are in `Kv/Proofs/`.
 No `sorry`, custom axioms,
 unsafe declarations, Mathlib, or external solver are used. Lean's intentional
 Unicode mathematical notation is used in source.
@@ -154,30 +194,38 @@ The audited trace projection and history theorems use Lean's standard
 `propext` and `Quot.sound`; the snapshot/global-observation proofs additionally
 use standard `Classical.choice`.
 The normal Lake build treats every Lean warning as an error, including
-admission warnings. `AxiomAudit.lean` checks the transitive dependencies of the
+admission warnings. `Kv/AxiomAudit.lean` checks the transitive dependencies of the
 exported main guarantees listed in `mainGuarantees`, using Lean's
 `collectAxioms` over the kernel-checked environment. Only the three standard
 dependencies above are permitted; `sorryAx`, custom assumptions and native
-evaluation assumptions are rejected. Both executables import this audit, so
-building either target also enforces it. Add new main guarantees to this list.
+evaluation assumptions are rejected. The audit also checks supporting
+declarations in `Kv.Proofs` and rejects a public theorem directly in
+`Kv.Properties` that is missing from the catalogue.
+
+Both executables import the complete `Kv.lean` root, which runs the audit after
+all library imports are available.
+`kv_trace_tests` checks that this root imports every module under `Kv/` exactly
+once and exercises missing, duplicated, and unexpected import cases. Add new
+library modules to the root and new public guarantees to `mainGuarantees`.
+
+The property names below are in `Kv.Properties`; additional supporting lemmas
+remain available in their proof namespaces.
 
 | Theorems                                                                                                                | Established scope                                                                                                                                                               |
 | ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `read_your_write`, `read_your_deletion`, `absent_read`, `staged_noninterference`, `previous_ignores_pending`            | Point-read and overlay semantics                                                                                                                                                |
 | `publish_lookup`, `publication_noninterference`, `publish_unique`, `apply_atomic`                                       | Entire finite multi-map publication and unrelated-key preservation                                                                                                              |
-| `dependency_rebase`, `normalRun_serial_witness`                                                                         | Actual read/previous/whole-map observations replay identically at a dependency-valid current state                                                                              |
-| `transaction_snapshot_witness`, `runOp_preserves_snapshot`                                                              | Every certified attempt's normal log has its captured current snapshot witness, including read-only completions                                                                 |
-| `transaction_application_serial_witness`, `tryApply_serial_witness`                                                     | The same executable application primitive used by replay has an independent sequential transaction witness                                                                      |
+| `transaction_snapshot_witness`                                                                                          | Every certified attempt's normal log has its captured current snapshot witness, including read-only completions                                                                 |
+| `transaction_application_serial_witness`                                                                                | The same executable application primitive used by replay has an independent sequential transaction witness                                                                      |
 | `executable_branch_serializability`                                                                                     | Every finite branch of executable applications, with compaction interleavings, admits application order as a serial witness, including locally applied `no_replicate` attempts  |
 | `branch_normal_serializability`                                                                                         | Type-parameterized version for arbitrary finite OCC programs                                                                                                                    |
-| `step_store_effect`, `replay_segment_serializability`                                                                   | Actual successful steps/replays project to a selected live store's application-order serial witness; the attempts come from pre-event `txOf`                                    |
+| `replay_segment_serializability`                                                                                        | Actual successful replay projects to a selected live store's application-order serial witness; the attempts come from pre-event `txOf`                                          |
 | `reachable_store_invariants`, `reachable_store_data_invariants`                                                         | Starting from empty World, live stores have certified complete publication histories, matching heads, bounded global cuts, unique data keys and bounded previous-write versions |
 | `step_capture_metadata`, `step_capture_cut_values`, `capture_replay_preserves_metadata`, `replay_snapshot_fixed`        | Current snapshot and commit term capture/preservation; initial global metadata must match the store at capture but is not stored                                                |
 | `step_map_capture`, `captureGlobal_committed`, `captureGlobal_placeholder`                                              | Actual map acquisitions derive the current committed map revision, or an explicit empty placeholder for a map absent at R                                                       |
 | `replay_map_global_fixed`, `capture_replay_preserves_map`                                                               | A map's captured global view remains unchanged through a live attempt, across all keys, aliases, compaction and rollback                                                        |
-| `map_global_view_safety`, `step_global_read_from_captured_map`, `step_global_has_from_captured_map`                     | Actual global observations use that map's frozen frame, ignore pending writes, and have committed-prefix or explicit empty-placeholder provenance                               |
-| `withTx_preserves_stores`, `compact_preserves_head`, `compact_preserves_history`                                        | Nonpublishing transaction updates and compaction preserve store contents/history                                                                                                |
-| `compact_above_head_noop`, `rollbackCut_exact`, `rollback_effective_version`                                            | Above-head compaction leaves the store unchanged; legal rollback boundaries are preserved exactly by the total internal constructor                                             |
+| `step_global_read_from_captured_map`, `step_global_has_from_captured_map`                                               | Actual global observations use that map's frozen frame, ignore pending writes, and have committed-prefix or explicit empty-placeholder provenance                               |
+| `compact_above_head_noop`                                                                                               | Above-head compaction leaves the store unchanged                                                                                                                                |
 | `rollback_keeps_prefix`, `rollback_discards_suffix`, `durable_cut_survives_rollback`                                    | Durable-prefix frames and contents survive; suffix frames disappear                                                                                                             |
 | `stale_term_cannot_apply`, `discarded_handle_cannot_apply`, `discarded_birth_cannot_apply`, `compacted_map_unavailable` | Stale-term/removed-lineage rejection, including recreated empty maps, and retained-base gating for existing maps                                                                |
 | `absent_map_available`, `absent_placeholder_has_no_values`                                                              | Truly absent map cuts permit empty placeholders independently of retention; this path cannot expose old map values                                                              |

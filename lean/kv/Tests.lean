@@ -1,8 +1,7 @@
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
 
-import Trace
-import AxiomAudit
+import Kv
 
 namespace Kv.Tests
 open Lean Trace
@@ -424,9 +423,45 @@ def assertStreamingFixtures : IO Unit := do
     if streamed != buffered then
       throw (IO.userError s!"streaming and pure replay disagree for {name}")
 
+partial def libraryModules (directory : System.FilePath) (modulePrefix : String) : IO (List String) := do
+  let mut modules := []
+  for entry in ← directory.readDir do
+    if ← entry.path.isDir then
+      modules := modules ++ (← libraryModules entry.path s!"{modulePrefix}.{entry.fileName}")
+    else if entry.path.extension == some "lean" then
+      match entry.path.fileStem with
+      | some stem => modules := s!"{modulePrefix}.{stem}" :: modules
+      | none => throw (IO.userError s!"library module has no file stem: {entry.path}")
+  return modules
+
+def importsComplete (expected actual : List String) : Bool :=
+  expected.length == actual.length &&
+    expected.all actual.contains && actual.all expected.contains
+
+def assertLibraryImports : IO Unit := do
+  let packageDir := (← IO.appPath).parent.getD "." / ".." / ".." / ".."
+  let expected ← libraryModules (packageDir / "Kv") "Kv"
+  let root ← IO.FS.readFile (packageDir / "Kv.lean")
+  let actual := root.splitOn "\n" |>.filterMap fun line =>
+    match line.trimAscii.toString.splitOn " " with
+    | ["import", name] => some name
+    | _ => none
+  unless importsComplete expected actual do
+    throw (IO.userError s!"Kv.lean must import every library module exactly once; expected {expected}, found {actual}")
+
 def run : IO Unit := do
   assertProjection
   assertStreamingFixtures
+  assertLibraryImports
+  let expectedImports := ["Kv.Protocol.Types", "Kv.Proofs.Types"]
+  let importCases := [
+    (expectedImports, true),
+    (["Kv.Protocol.Types"], false),
+    (["Kv.Protocol.Types", "Kv.Protocol.Types"], false),
+    (expectedImports ++ ["Kv.Unexpected"], false)]
+  for (actual, expected) in importCases do
+    if importsComplete expectedImports actual != expected then
+      throw (IO.userError "library import coverage policy regression")
   let auditCases : List (Array Name × Bool) := [
     (#[``propext, ``Classical.choice, ``Quot.sound], true),
     (#[`sorryAx], false),
@@ -470,7 +505,7 @@ def run : IO Unit := do
   let diagnostic := checkText (encode (closed (globalPrefix ++ [.compact 1 2 2, .acquire 1 3 "b" 2 1])))
   if diagnostic.store != some 1 || diagnostic.tx != some 3 || diagnostic.seq.isNone then
     throw (IO.userError "missing rejection context")
-  IO.println s!"{positive.length + negative.length + malformed.length + auditCases.length + 5} checker self-tests passed"
+  IO.println s!"{positive.length + negative.length + malformed.length + auditCases.length + importCases.length + 6} checker self-tests passed"
 
 end Kv.Tests
 

@@ -68,7 +68,7 @@ immediately before event 168:
 | Individual key dependency                        | Holds                                                    |
 | Whole-map dependencies                           | **Two copies of the `fuzz.4` empty-map dependency fail** |
 
-`canApply` in `Model.lean` combines availability, lineage, and dependency
+`canApply` (now in `Kv/Protocol/Model.lean`) combines availability, lineage, and dependency
 validation. Here `validLineage` is true and `unavailable` is false, but
 `validates` is false.
 
