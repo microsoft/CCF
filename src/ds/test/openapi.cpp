@@ -327,6 +327,7 @@ TEST_CASE(
   CHECK(maybe_foo_schema["nullable"] == true);
   REQUIRE(maybe_foo_schema.contains("allOf"));
   const auto& all_of = maybe_foo_schema["allOf"];
+  REQUIRE(all_of.is_array());
   REQUIRE(all_of.size() == 1);
   CHECK(all_of[0]["$ref"] == "#/components/schemas/Foo");
 }

@@ -456,7 +456,7 @@ namespace ccf::ds::openapi
       {
         auto inner = add_schema_component<typename T::value_type>();
         auto schema = nlohmann::json::object();
-        schema["allOf"] = {inner};
+        schema["allOf"] = nlohmann::json::array({inner});
         schema["nullable"] = true;
         return schema;
       }
