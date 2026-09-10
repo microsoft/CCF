@@ -1,0 +1,47 @@
+name: "Lean"
+
+on:
+  pull_request:
+    paths:
+      - "lean/**"
+      - ".github/workflows/lean.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: read-all
+
+jobs:
+  disaster-recovery:
+    name: Disaster recovery model and proofs
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Lean
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y elan
+          elan toolchain install "$(cat lean/disaster-recovery/lean-toolchain)"
+
+      - name: Restore Mathlib cache
+        working-directory: lean/disaster-recovery
+        shell: bash
+        run: |
+          set -euo pipefail
+          lake exe cache get
+
+      - name: Build and check canonical model
+        working-directory: lean/disaster-recovery
+        shell: bash
+        run: |
+          set -euo pipefail
+          lake exe mk_all --check --lib DisasterRecovery
+          lake build --wfail
+          lake lint
+          lake exe canonical-checks
