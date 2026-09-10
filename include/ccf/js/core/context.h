@@ -58,6 +58,24 @@ namespace ccf::js::core
       loaded_modules_cache;
 
   public:
+    class RuntimeLimitsGuard
+    {
+    private:
+      Context& context;
+
+    public:
+      RuntimeLimitsGuard(
+        Context& context,
+        const std::optional<ccf::JSRuntimeOptions>& options,
+        RuntimeLimitsPolicy policy);
+      ~RuntimeLimitsGuard();
+
+      RuntimeLimitsGuard(const RuntimeLimitsGuard&) = delete;
+      RuntimeLimitsGuard& operator=(const RuntimeLimitsGuard&) = delete;
+      RuntimeLimitsGuard(RuntimeLimitsGuard&&) = delete;
+      RuntimeLimitsGuard& operator=(RuntimeLimitsGuard&&) = delete;
+    };
+
     ccf::ds::Mutex lock;
 
     const TxAccess access;
@@ -114,14 +132,17 @@ namespace ccf::js::core
       size_t* pbyte_offset,
       size_t* pbyte_length,
       size_t* pbytes_per_element) const;
+    // Completing module evaluation runs its top-level code before returning.
     JSWrappedValue get_exported_function(
       const std::string& code,
       const std::string& func,
-      const std::string& path);
+      const std::string& path,
+      bool complete_module_evaluation = false);
     JSWrappedValue get_exported_function(
       const JSWrappedValue& module,
       const std::string& func,
-      const std::string& path);
+      const std::string& path,
+      bool complete_module_evaluation = false);
 
     // Constant values
     [[nodiscard]] JSWrappedValue null() const;

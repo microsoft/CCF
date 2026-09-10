@@ -1,5 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#include "ccf/js/core/context.h"
 #include "ccf/js/core/wrapped_value.h"
 #include "ccf/js/extensions/ccf/gov.h"
 #include "ccf/js/extensions/ccf/historical.h"
@@ -13,6 +14,110 @@
 #include <random>
 
 using namespace ccf::js;
+
+TEST_CASE("Runtime limits cover top-level module evaluation")
+{
+  ccf::JSRuntimeOptions options;
+  ccf::js::core::Context ctx(TxAccess::APP_RO);
+  JS_UpdateStackTop(ctx.runtime());
+
+  SUBCASE("Heap")
+  {
+    options.max_heap_bytes = 10 * 1024 * 1024;
+    ccf::js::core::Context::RuntimeLimitsGuard limits(
+      ctx, options, ccf::js::core::RuntimeLimitsPolicy::NONE);
+    CHECK_THROWS_WITH_AS(
+      ctx.get_exported_function(
+        "globalThis.largeAllocation = new Uint8Array(50 * 1024 * 1024);"
+        "export function handler() {}",
+        "handler",
+        "heap.js",
+        true),
+      doctest::Contains("out of memory"),
+      std::runtime_error);
+  }
+
+  SUBCASE("Stack")
+  {
+    options.max_stack_bytes = 64 * 1024;
+    ccf::js::core::Context::RuntimeLimitsGuard limits(
+      ctx, options, ccf::js::core::RuntimeLimitsPolicy::NONE);
+    CHECK_THROWS_WITH_AS(
+      ctx.get_exported_function(
+        "function recurse() { recurse(); }"
+        "recurse();"
+        "export function handler() {}",
+        "handler",
+        "stack.js",
+        true),
+      doctest::Contains("stack overflow"),
+      std::runtime_error);
+  }
+
+  SUBCASE("Execution time")
+  {
+    options.max_execution_time_ms = 1;
+    ccf::js::core::Context::RuntimeLimitsGuard limits(
+      ctx, options, ccf::js::core::RuntimeLimitsPolicy::NONE);
+    CHECK_THROWS_AS(
+      ctx.get_exported_function(
+        "while (true) {}"
+        "export function handler() {}",
+        "handler",
+        "time.js",
+        true),
+      std::runtime_error);
+    CHECK(ctx.interrupt_data.request_timed_out);
+  }
+}
+
+TEST_CASE("Runtime limit scope drains pending jobs")
+{
+  ccf::js::core::Context ctx(TxAccess::APP_RO);
+  JS_UpdateStackTop(ctx.runtime());
+
+  {
+    ccf::js::core::Context::RuntimeLimitsGuard limits(
+      ctx, ccf::JSRuntimeOptions{}, ccf::js::core::RuntimeLimitsPolicy::NONE);
+    constexpr std::string_view source =
+      "globalThis.jobRan = false;"
+      "Promise.resolve().then(() => { globalThis.jobRan = true; });";
+    auto result = ctx.eval(
+      source.data(), source.size(), "pending_job.js", JS_EVAL_TYPE_GLOBAL);
+    REQUIRE(!result.is_exception());
+    REQUIRE(JS_IsJobPending(ctx.runtime()));
+  }
+
+  CHECK(!JS_IsJobPending(ctx.runtime()));
+  CHECK(ctx.get_global_property("jobRan").is_true());
+}
+
+TEST_CASE("Pending job cleanup preserves synchronous exceptions")
+{
+  ccf::js::core::Context ctx(TxAccess::APP_RO);
+  JS_UpdateStackTop(ctx.runtime());
+
+  ccf::js::core::JSWrappedValue result;
+  {
+    ccf::js::core::Context::RuntimeLimitsGuard limits(
+      ctx, ccf::JSRuntimeOptions{}, ccf::js::core::RuntimeLimitsPolicy::NONE);
+    auto handler = ctx.get_exported_function(
+      "export function handler() {"
+      "  Promise.resolve().then(() => { throw new Error('async'); });"
+      "  throw new Error('sync');"
+      "}",
+      "handler",
+      "exceptions.js",
+      true);
+    result = ctx.inner_call(handler, {});
+    REQUIRE(result.is_exception());
+    REQUIRE(JS_IsJobPending(ctx.runtime()));
+  }
+
+  CHECK(!JS_IsJobPending(ctx.runtime()));
+  auto [reason, trace] = ctx.error_message();
+  CHECK(reason == "Error: sync");
+}
 
 TEST_CASE("Check KV Map access")
 {

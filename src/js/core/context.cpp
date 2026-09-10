@@ -246,7 +246,10 @@ namespace ccf::js::core
   }
 
   JSWrappedValue Context::get_exported_function(
-    const std::string& code, const std::string& func, const std::string& path)
+    const std::string& code,
+    const std::string& func,
+    const std::string& path,
+    bool complete_module_evaluation)
   {
     auto module = eval(
       code.c_str(),
@@ -259,18 +262,44 @@ namespace ccf::js::core
       throw std::runtime_error(fmt::format("Failed to compile {}", path));
     }
 
-    return get_exported_function(module, func, path);
+    return get_exported_function(
+      module, func, path, complete_module_evaluation);
   }
 
   JSWrappedValue Context::get_exported_function(
     const JSWrappedValue& module,
     const std::string& func,
-    const std::string& path)
+    const std::string& path,
+    bool complete_module_evaluation)
   {
     // JS_EvalFunction consumes one reference to the module value, so we must
     // provide it with its own via JS_DupValue. Our JSWrappedValue destructor
     // will free the original reference separately.
     auto eval_val = wrap(JS_EvalFunction(ctx, JS_DupValue(ctx, module.val)));
+
+    if (complete_module_evaluation && !eval_val.is_exception())
+    {
+      JSContext* job_context = nullptr;
+      while (JS_PromiseState(ctx, eval_val.val) == JS_PROMISE_PENDING)
+      {
+        const auto result = JS_ExecutePendingJob(rt, &job_context);
+        if (result <= 0)
+        {
+          break;
+        }
+      }
+
+      if (JS_PromiseState(ctx, eval_val.val) == JS_PROMISE_REJECTED)
+      {
+        JS_Throw(ctx, JS_PromiseResult(ctx, eval_val.val));
+        eval_val = wrap(ccf::js::core::constants::Exception);
+      }
+      else if (JS_PromiseState(ctx, eval_val.val) == JS_PROMISE_PENDING)
+      {
+        throw std::runtime_error(
+          fmt::format("Module evaluation did not complete for {}", path));
+      }
+    }
 
     if (eval_val.is_exception())
     {
@@ -460,24 +489,64 @@ namespace ccf::js::core
     }
   }
 
+  Context::RuntimeLimitsGuard::RuntimeLimitsGuard(
+    Context& context_,
+    const std::optional<ccf::JSRuntimeOptions>& options,
+    RuntimeLimitsPolicy policy) :
+    context(context_)
+  {
+    context.rt.set_runtime_options(options, policy);
+    context.interrupt_data.start_time =
+      decltype(InterruptData::start_time)::clock::now();
+    context.interrupt_data.max_execution_time = context.rt.get_max_exec_time();
+    context.interrupt_data.request_timed_out = false;
+    JS_SetInterruptHandler(
+      context.rt, js_custom_interrupt_handler, &context.interrupt_data);
+  }
+
+  Context::RuntimeLimitsGuard::~RuntimeLimitsGuard()
+  {
+    auto pending_exception = ccf::js::core::constants::Undefined;
+    if (JS_HasException(context.ctx))
+    {
+      pending_exception = JS_GetException(context.ctx);
+    }
+
+    JSContext* job_context = nullptr;
+    while (JS_IsJobPending(context.rt))
+    {
+      const auto result = JS_ExecutePendingJob(context.rt, &job_context);
+      if (result < 0)
+      {
+        if (job_context != nullptr)
+        {
+          auto exception = JS_GetException(job_context);
+          JS_FreeValue(job_context, exception);
+        }
+      }
+      else if (result == 0)
+      {
+        break;
+      }
+    }
+
+    if (!JS_IsUndefined(pending_exception))
+    {
+      JS_Throw(context.ctx, pending_exception);
+    }
+
+    JS_SetInterruptHandler(context.rt, nullptr, nullptr);
+    context.rt.reset_runtime_options();
+  }
+
   JSWrappedValue Context::call_with_rt_options(
     const JSWrappedValue& f,
     const std::vector<JSWrappedValue>& argv,
     const std::optional<ccf::JSRuntimeOptions>& options,
     RuntimeLimitsPolicy policy)
   {
-    rt.set_runtime_options(options, policy);
-    const auto curr_time = decltype(InterruptData::start_time)::clock::now();
-    interrupt_data.start_time = curr_time;
-    interrupt_data.max_execution_time = rt.get_max_exec_time();
-    JS_SetInterruptHandler(rt, js_custom_interrupt_handler, &interrupt_data);
-
-    auto rv = inner_call(f, argv);
-
-    JS_SetInterruptHandler(rt, nullptr, nullptr);
-    rt.reset_runtime_options();
-
-    return rv;
+    RuntimeLimitsGuard limits(*this, options, policy);
+    return inner_call(f, argv);
   }
 
   JSWrappedValue Context::inner_call(

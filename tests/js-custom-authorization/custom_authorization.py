@@ -76,10 +76,10 @@ def temporary_js_limits(network, primary, **kwargs):
         **temp_kwargs,
     )
 
-    yield
-
-    # Restore defaults
-    network.consortium.set_js_runtime_options(primary, **default_kwargs)
+    try:
+        yield
+    finally:
+        network.consortium.set_js_runtime_options(primary, **default_kwargs)
 
 
 def set_issuer_with_a_key(primary, network, issuer, kid, constraint):
@@ -306,6 +306,30 @@ def test_execution_time_limit(network, args):
     return network
 
 
+@reqs.description("Test execution time limit in nested and response JS")
+def test_execution_time_limit_across_request(network, args):
+    primary, _ = network.find_nodes()
+
+    with temporary_js_limits(
+        network, primary, max_execution_time_ms=30
+    ), primary.client("user0") as c:
+        for path in (
+            "nested_eval",
+            "nested_function",
+            "response_body_getter",
+            "response_headers_getter",
+            "response_header_value_getter",
+            "response_headers_proxy",
+            "response_status_code_getter",
+        ):
+            r = c.post(f"/app/{path}")
+            assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r
+            message = r.body.json()["error"]["message"]
+            assert message == "Operation took too long to complete.", message
+
+    return network
+
+
 def run_limits(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
@@ -314,6 +338,7 @@ def run_limits(args):
         network = test_stack_size_limit(network, args)
         network = test_heap_size_limit(network, args)
         network = test_execution_time_limit(network, args)
+        network = test_execution_time_limit_across_request(network, args)
 
 
 @reqs.description("Cert authentication")
