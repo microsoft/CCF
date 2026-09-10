@@ -109,7 +109,7 @@ namespace http
     IN_MESSAGE
   };
 
-  enum class RequestTargetSizeLimitMode
+  enum class RequestTargetSizeLimitMode : uint8_t
   {
     ENFORCE,
     ALREADY_ENFORCED
