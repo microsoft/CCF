@@ -4314,6 +4314,20 @@ def run_backup_snapshot_cleanup(const_args):
         test_backup_snapshot_cleanup(network, args)
 
 
+def copy_ledger_chunk_to_read_only_dir(src, dst):
+    with tempfile.NamedTemporaryFile(
+        dir=os.path.dirname(dst), delete=False
+    ) as tmp_file:
+        tmp_path = tmp_file.name
+
+    try:
+        shutil.copyfile(src, tmp_path)
+        os.replace(tmp_path, dst)
+    finally:
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+
+
 def test_max_committed_ledger_chunk_files(network, args, read_only_ledger_dir):
     """
     Verify that the periodic cleanup timer deletes committed ledger chunks
@@ -4340,7 +4354,8 @@ def test_max_committed_ledger_chunk_files(network, args, read_only_ledger_dir):
             if f.startswith("ledger_") and ccf.ledger.is_ledger_chunk_committed(f):
                 dst = os.path.join(read_only_ledger_dir, f)
                 if not os.path.exists(dst):
-                    shutil.copy2(os.path.join(main_ledger_dir, f), dst)
+                    src = os.path.join(main_ledger_dir, f)
+                    copy_ledger_chunk_to_read_only_dir(src, dst)
 
     def wait_for_cleanup(max_count, timeout=15):
         end_time = time.time() + timeout
@@ -4414,9 +4429,8 @@ def run_max_committed_ledger_chunk_files(const_args):
             main_ledger_dir = primary.get_main_ledger_dir()
             for f in os.listdir(main_ledger_dir):
                 if f.startswith("ledger_") and ccf.ledger.is_ledger_chunk_committed(f):
-                    shutil.copy2(
-                        os.path.join(main_ledger_dir, f),
-                        os.path.join(tmp_dir, f),
+                    copy_ledger_chunk_to_read_only_dir(
+                        os.path.join(main_ledger_dir, f), os.path.join(tmp_dir, f)
                     )
 
             test_max_committed_ledger_chunk_files(network, args, tmp_dir)
@@ -4469,7 +4483,7 @@ def test_ledger_chunk_cleanup_with_read_only_dir(network, args):
     for f in committed[:num_to_backup]:
         src = os.path.join(main_ledger_dir, f)
         dst = os.path.join(read_only_ledger_dir, f)
-        shutil.copy2(src, dst)
+        copy_ledger_chunk_to_read_only_dir(src, dst)
         backed_up.append(f)
         LOG.info(f"Backed up {f} to read-only dir")
 
@@ -4624,7 +4638,8 @@ def test_post_snapshot_chunks_retained(network, args, read_only_ledger_dir):
             if f.startswith("ledger_") and ccf.ledger.is_ledger_chunk_committed(f):
                 dst = os.path.join(read_only_ledger_dir, f)
                 if not os.path.exists(dst):
-                    shutil.copy2(os.path.join(main_ledger_dir, f), dst)
+                    src = os.path.join(main_ledger_dir, f)
+                    copy_ledger_chunk_to_read_only_dir(src, dst)
 
     def get_latest_committed_snapshot_seqno():
         best = None
@@ -4743,10 +4758,9 @@ def run_post_snapshot_chunk_retention(const_args):
             main_ledger_dir = primary.get_main_ledger_dir()
             for f in os.listdir(main_ledger_dir):
                 if f.startswith("ledger_") and ccf.ledger.is_ledger_chunk_committed(f):
-                    shutil.copy2(
-                        os.path.join(main_ledger_dir, f),
-                        os.path.join(tmp_dir, f),
-                    )
+                    src = os.path.join(main_ledger_dir, f)
+                    dst = os.path.join(tmp_dir, f)
+                    copy_ledger_chunk_to_read_only_dir(src, dst)
 
             test_post_snapshot_chunks_retained(network, args, tmp_dir)
 
