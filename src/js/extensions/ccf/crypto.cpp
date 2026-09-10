@@ -619,20 +619,21 @@ namespace ccf::js::extensions
       return JS_NewString(ctx, pem.str().c_str());
     }
 
-    // Cleanses (via OPENSSL_cleanse) the referenced byte range when the
-    // guard goes out of scope. Used to scrub owned copies of key material
-    // on all exit paths, including exceptions.
+    // Cleanses (via OPENSSL_cleanse) the contents of the referenced
+    // container when the guard goes out of scope. Used to scrub owned copies
+    // of key material on all exit paths, including exceptions.
+    template <typename T>
     struct ScopeCleanse
     {
-      std::span<uint8_t> bytes;
-      explicit ScopeCleanse(std::span<uint8_t> b) : bytes(b) {}
+      T& secret;
+      explicit ScopeCleanse(T& s) : secret(s) {}
       ScopeCleanse(const ScopeCleanse&) = delete;
       ScopeCleanse& operator=(const ScopeCleanse&) = delete;
       ~ScopeCleanse()
       {
-        if (!bytes.empty())
+        if (secret.size() > 0)
         {
-          OPENSSL_cleanse(bytes.data(), bytes.size());
+          OPENSSL_cleanse(secret.data(), secret.size());
         }
       }
     };
@@ -647,7 +648,7 @@ namespace ccf::js::extensions
       const js::core::JSWrappedValue& label_val,
       std::optional<std::vector<uint8_t>>& label_opt)
     {
-      if (label_val.is_undefined() || JS_IsNull(label_val.val))
+      if (label_val.is_undefined() || JS_IsNull(label_val.val) != 0)
       {
         return true;
       }
@@ -701,9 +702,8 @@ namespace ccf::js::extensions
       // Both owned copies hold secret material: key is the plaintext being
       // wrapped, and wrapping_key is a symmetric secret for AES-KWP. Cleanse
       // both on all exit paths, including exceptions.
-      ScopeCleanse key_cleanse(std::span<uint8_t>{key.data(), key.size()});
-      ScopeCleanse wrapping_key_cleanse(
-        std::span<uint8_t>{wrapping_key.data(), wrapping_key.size()});
+      ScopeCleanse key_cleanse(key);
+      ScopeCleanse wrapping_key_cleanse(wrapping_key);
 
       auto parameters = argv[2];
       auto wrap_algo_name_val = jsctx.get_property(parameters, "name");
@@ -827,8 +827,7 @@ namespace ccf::js::extensions
       auto& unwrapping_key = *unwrapping_key_opt;
       // unwrapping_key is secret key material; cleanse on all exit paths.
       // key is the wrapped (encrypted) blob here, so it is not secret.
-      ScopeCleanse unwrapping_key_cleanse(
-        std::span<uint8_t>{unwrapping_key.data(), unwrapping_key.size()});
+      ScopeCleanse unwrapping_key_cleanse(unwrapping_key);
 
       auto parameters = argv[2];
       auto wrap_algo_name_val = jsctx.get_property(parameters, "name");
@@ -859,15 +858,13 @@ namespace ccf::js::extensions
 
           auto pemPrivateUnwrappingKey =
             ccf::crypto::Pem(unwrapping_key.data(), unwrapping_key.size());
-          ScopeCleanse pem_cleanse(std::span<uint8_t>{
-            pemPrivateUnwrappingKey.data(), pemPrivateUnwrappingKey.size()});
+          ScopeCleanse pem_cleanse(pemPrivateUnwrappingKey);
 
           auto unwrapped_key = ccf::crypto::ckm_rsa_pkcs_oaep_unwrap(
             pemPrivateUnwrappingKey, key, label_opt);
           // The unwrapped key is plaintext secret material. This guard runs
           // after JS_NewArrayBufferCopy has taken its own copy.
-          ScopeCleanse unwrapped_cleanse(
-            std::span<uint8_t>{unwrapped_key.data(), unwrapped_key.size()});
+          ScopeCleanse unwrapped_cleanse(unwrapped_key);
 
           return JS_NewArrayBufferCopy(
             ctx, unwrapped_key.data(), unwrapped_key.size());
@@ -879,8 +876,7 @@ namespace ccf::js::extensions
             ccf::crypto::ckm_aes_key_unwrap_pad(unwrapping_key, key);
           // The unwrapped key is plaintext secret material. This guard runs
           // after JS_NewArrayBufferCopy has taken its own copy.
-          ScopeCleanse unwrapped_cleanse(
-            std::span<uint8_t>{unwrapped_key.data(), unwrapped_key.size()});
+          ScopeCleanse unwrapped_cleanse(unwrapped_key);
 
           return JS_NewArrayBufferCopy(
             ctx, unwrapped_key.data(), unwrapped_key.size());
@@ -909,15 +905,13 @@ namespace ccf::js::extensions
 
           auto privPemUnwrappingKey =
             ccf::crypto::Pem(unwrapping_key.data(), unwrapping_key.size());
-          ScopeCleanse pem_cleanse(std::span<uint8_t>{
-            privPemUnwrappingKey.data(), privPemUnwrappingKey.size()});
+          ScopeCleanse pem_cleanse(privPemUnwrappingKey);
 
           auto unwrapped_key = ccf::crypto::ckm_rsa_aes_key_unwrap(
             privPemUnwrappingKey, key, label_opt);
           // The unwrapped key is plaintext secret material. This guard runs
           // after JS_NewArrayBufferCopy has taken its own copy.
-          ScopeCleanse unwrapped_cleanse(
-            std::span<uint8_t>{unwrapped_key.data(), unwrapped_key.size()});
+          ScopeCleanse unwrapped_cleanse(unwrapped_key);
 
           return JS_NewArrayBufferCopy(
             ctx, unwrapped_key.data(), unwrapped_key.size());
