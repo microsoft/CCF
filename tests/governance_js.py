@@ -1252,6 +1252,71 @@ def test_set_constitution_evaluation_timeout(network, args):
     return network
 
 
+@reqs.description(
+    "Test governance module-scope runtime limits and lack of KV access on ballots"
+)
+def test_ballot_module_scope_restrictions(network, args):
+    # NB: An infinite loop at module scope stalls the primary for at least the
+    # default execution time limit, which exceeds the election timeout used in
+    # tests. This must run on a single-node network.
+    assert (
+        len(network.get_joined_nodes()) == 1
+    ), "This test stalls the primary beyond the election timeout"
+    node = choose_node(network)
+
+    member0_id = network.consortium.get_member_by_local_id("member0").service_id
+    member1_id = network.consortium.get_member_by_local_id("member1").service_id
+
+    def submit_bad_then_good(bad_ballot, expected_reason_substring):
+        # Follows the pattern of test_vote_failure_reporting: member0 submits
+        # the misbehaving ballot (proposal stays Open, voteFailures not yet
+        # surfaced), then member1 submits a passing ballot pushing the proposal
+        # to Accepted and revealing member0's voteFailure.
+        with node.api_versioned_client(
+            None, None, "member0", api_version=args.gov_api_version
+        ) as c:
+            r = c.post("/gov/members/proposals:create", always_accept_with_one_vote)
+            assert r.status_code == 200, r.body.text()
+            assert r.body.json()["proposalState"] == "Open", r.body.json()
+            proposal_id = r.body.json()["proposalId"]
+
+            r = c.post(
+                f"/gov/members/proposals/{proposal_id}/ballots/{member0_id}:submit",
+                bad_ballot,
+            )
+            assert r.status_code == 200, r.body.text()
+            assert r.body.json()["proposalState"] == "Open", r.body.json()
+
+        with node.api_versioned_client(
+            None, None, "member1", api_version=args.gov_api_version
+        ) as c:
+            r = c.post(
+                f"/gov/members/proposals/{proposal_id}/ballots/{member1_id}:submit",
+                ballot_yes,
+            )
+            assert r.status_code == 200, r.body.text()
+            rj = r.body.json()
+            assert rj["proposalState"] == "Accepted", rj
+            vf = rj.get("voteFailures", {})
+            assert member0_id in vf, rj
+            assert expected_reason_substring in vf[member0_id]["reason"], vf[member0_id]
+
+    # Ballot 1: infinite loop at module scope must time out, not stall the
+    # node indefinitely.
+    looping_ballot = {
+        "ballot": (
+            "for (;;) {}\n"
+            "export function vote (proposal, proposer_id) { return true; }"
+        )
+    }
+    submit_bad_then_good(looping_ballot, "Operation took too long to complete.")
+
+    # The node is still responsive.
+    network.consortium.set_constitution(node, args.constitution)
+
+    return network
+
+
 @contextmanager
 def temporary_constitution(network, args, js_constitution_suffix):
     primary, _ = network.find_primary()

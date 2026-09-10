@@ -709,6 +709,11 @@ def single_node(args):
             test_desc("Execution time limit on evaluation of proposed constitution")
             governance_js.test_set_constitution_evaluation_timeout(network, args)
 
+            # Same reasoning: module-scope loop in a ballot stalls the primary
+            # for at least the default execution time limit.
+            test_desc("Module-scope runtime limits and KV restrictions on ballots")
+            governance_js.test_ballot_module_scope_restrictions(network, args)
+
             LOG.info("Stopping network to read node logs")
 
     test_desc("Checking logging after node shutdown")
