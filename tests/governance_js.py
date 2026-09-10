@@ -1149,8 +1149,44 @@ def test_set_constitution_validation(network, args):
                 False
             ), f"Expected error from validateConstitution for: '{constitution}'"
 
-    # Minimal valid constitutions
+    # Ballots must not have access to constitution validation.
+    with node.api_versioned_client(
+        None, None, "member0", api_version=args.gov_api_version
+    ) as c:
+        r = c.post("/gov/members/proposals:create", always_accept_with_one_vote)
+        assert r.status_code == 200, r.body.text()
+        assert r.body.json()["proposalState"] == "Open", r.body.json()
+        proposal_id = r.body.json()["proposalId"]
+        member_id = network.consortium.get_member_by_local_id("member0").service_id
+        r = c.post(
+            f"/gov/members/proposals/{proposal_id}/ballots/{member_id}:submit",
+            vote("""
+                if (typeof ccf.gov !== "undefined") {
+                    throw new Error("ccf.gov is available in a ballot");
+                }
+                return true;
+                """),
+        )
+        assert r.status_code == 200, r.body.text()
+        assert r.body.json()["proposalState"] == "Accepted", r.body.json()
+
+    # Minimal valid constitutions, checking API access in each execution phase.
+    validate_body = """
+        if (moduleGovType !== "object" || typeof ccf.gov.validateConstitution !== "function") {
+            throw new Error("validateConstitution is not available in validate");
+        }
+        return {valid: true};
+        """
+    resolve_body = """
+        if (moduleGovType !== "undefined" || typeof ccf.gov !== "undefined") {
+            throw new Error("ccf.gov is available in resolve");
+        }
+        return "Accepted";
+        """
     apply_body = """
+        if (moduleGovType !== "undefined" || typeof ccf.gov !== "undefined") {
+            throw new Error("ccf.gov is available in apply");
+        }
         const proposed_actions = JSON.parse(proposal)["actions"];
         if (proposed_actions.length !== 1 || proposed_actions[0].name !== "set_constitution")
         {
@@ -1160,16 +1196,16 @@ def test_set_constitution_validation(network, args):
             new ArrayBuffer(8),
             ccf.jsonCompatibleToBuf(proposed_actions[0].args.constitution));
         """
-    for constitution in (
-        """
-        export function validate(input) { return {valid: true} }
-        export function resolve(proposal, proposerId, votes) { return "Accepted" }
-        export function apply(proposal, proposerId) { """ + apply_body + "}",
-        """
-        export function validate(input) { return {valid: true} }
-        export function resolve(proposal, proposerId, votes, proposalId) { return "Accepted" }
-        export function apply(proposal, proposerId) { """ + apply_body + "}",
+    for resolve_args in (
+        "proposal, proposerId, votes",
+        "proposal, proposerId, votes, proposalId",
     ):
+        constitution = f"""
+        const moduleGovType = typeof ccf.gov;
+        export function validate(input) {{ {validate_body} }}
+        export function resolve({resolve_args}) {{ {resolve_body} }}
+        export function apply(proposal, proposerId) {{ {apply_body} }}
+        """
         network.consortium.set_constitution_raw(node, constitution)
 
     # Reset original constitution

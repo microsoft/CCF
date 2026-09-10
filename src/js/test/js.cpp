@@ -1,5 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#include "ccf/js/common_context.h"
 #include "ccf/js/core/wrapped_value.h"
 #include "ccf/js/extensions/ccf/gov.h"
 #include "ccf/js/extensions/ccf/historical.h"
@@ -190,6 +191,18 @@ bool str_contains(const std::string& s, std::string_view sv)
 bool str_contains(const std::optional<std::string>& s, std::string_view sv)
 {
   return str_contains(s.value_or(""), sv);
+}
+
+TEST_CASE("Common contexts do not expose constitution validation")
+{
+  for (const auto access :
+       {TxAccess::APP_RO, TxAccess::APP_RW, TxAccess::GOV_RO, TxAccess::GOV_RW})
+  {
+    INFO("Transaction access: ", static_cast<int>(access));
+    ccf::js::CommonContext ctx(access);
+    CHECK(ctx.get_extension<ccf::js::extensions::GovExtension>() == nullptr);
+    CHECK(ctx.get_global_obj()["ccf"]["gov"].is_undefined());
+  }
 }
 
 // Returns error string, or nullopt if validation succeeded
