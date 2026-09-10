@@ -507,9 +507,7 @@ def test_custom_endpoints_resizable_body(network, args):
             assert len(r.body.data()) == grown, (len(r.body.data()), grown)
             assert all(b == 0xCD for b in r.body.data()), r.body.data()
 
-        LOG.info(
-            "byteOffset past current buffer size: response body must be empty"
-        )
+        LOG.info("byteOffset past current buffer size: response body must be empty")
         r = c.get("/app/oob_offset_body")
         assert r.status_code == http.HTTPStatus.OK.value, r.status_code
         assert len(r.body.data()) == 0, len(r.body.data())
