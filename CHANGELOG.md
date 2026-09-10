@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- Strengthened access checks on JavaScript KV handles, including namespace restrictions in the historical KV (#8318).
 - Invalid PEM construction and JSON deserialisation errors no longer include the supplied data, which may contain private key material (#8330).
 - Reaching the soft session cap on an unsecured RPC interface no longer terminates the node by attempting a TLS handshake without a certificate. (#8331)
 - Transactions from an earlier view are now rejected before entering the replication queue even after the node has stepped down. This prevents rolled-back writes from being replicated after a later election and blocking subsequent replication (#8293, #8295).
@@ -26,6 +27,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - Transactions with pending writes now correctly validate `foreach`, `size`, and `clear` observations of an existing empty KV table made at revision zero. Previously, these observations could be mistaken for no whole-map read dependency (#8320).
+- The OpenAPI schema for `GET /node/consensus` and `GET /node/network` now correctly marks `details.primary_id` and `primary_id` as nullable, matching their `null` value while no primary is known (e.g. between elections). Previously the schema required a non-null string, causing spurious response validation failures (#8344).
 
 ## [7.0.14]
 
