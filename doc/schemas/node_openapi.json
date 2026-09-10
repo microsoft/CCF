@@ -147,7 +147,18 @@
             "$ref": "#/components/schemas/MembershipState"
           },
           "primary_id": {
-            "$ref": "#/components/schemas/NodeId"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NodeId"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true,
+                "type": "object"
+              }
+            ]
           },
           "reconfiguration_type": {
             "$ref": "#/components/schemas/ReconfigurationType"
@@ -256,13 +267,46 @@
       "GetNetworkInfo__Out": {
         "properties": {
           "current_service_create_txid": {
-            "$ref": "#/components/schemas/TransactionId"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TransactionId"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true,
+                "type": "object"
+              }
+            ]
           },
           "current_view": {
-            "$ref": "#/components/schemas/uint64"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/uint64"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true,
+                "type": "object"
+              }
+            ]
           },
           "primary_id": {
-            "$ref": "#/components/schemas/NodeId"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NodeId"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true,
+                "type": "object"
+              }
+            ]
           },
           "recovery_count": {
             "$ref": "#/components/schemas/uint64"
@@ -919,7 +963,7 @@
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "5.0.6"
+    "version": "5.0.7"
   },
   "openapi": "3.0.0",
   "paths": {
