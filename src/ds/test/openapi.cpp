@@ -321,15 +321,19 @@ TEST_CASE(
   const auto& maybe_foo_schema = *prop_it;
 
   // OpenAPI 3.0 does not support "type": "null", nor a $ref with sibling
-  // keys, so a nullable $ref'd field is expressed as "allOf": [{"$ref": ...}]
-  // alongside "nullable": true.
-  REQUIRE(maybe_foo_schema.contains("nullable"));
-  CHECK(maybe_foo_schema["nullable"] == true);
-  REQUIRE(maybe_foo_schema.contains("allOf"));
-  const auto& all_of = maybe_foo_schema["allOf"];
-  REQUIRE(all_of.is_array());
-  REQUIRE(all_of.size() == 1);
-  CHECK(all_of[0]["$ref"] == "#/components/schemas/Foo");
+  // keys. Express this as the referenced type or a branch constrained to
+  // null. The enum is necessary so this branch does not accept arbitrary
+  // values as well as null.
+  REQUIRE(maybe_foo_schema.contains("anyOf"));
+  const auto& any_of = maybe_foo_schema["anyOf"];
+  REQUIRE(any_of.is_array());
+  REQUIRE(any_of.size() == 2);
+  CHECK(any_of[0]["$ref"] == "#/components/schemas/Foo");
+  CHECK(any_of[1]["type"] == "object");
+  CHECK(any_of[1]["nullable"] == true);
+  REQUIRE(any_of[1]["enum"].is_array());
+  REQUIRE(any_of[1]["enum"].size() == 1);
+  CHECK(any_of[1]["enum"][0].is_null());
 }
 
 TEST_CASE("sanitise_components_key")

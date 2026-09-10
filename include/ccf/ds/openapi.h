@@ -444,10 +444,10 @@ namespace ccf::ds::openapi
      * produced schema therefore describes the inner type T, additionally
      * allowing a null value.
      *
-     * OpenAPI 3.0 does not support "type": "null", and a bare $ref cannot
-     * carry a sibling "nullable" key, so the inner schema is wrapped in an
-     * "allOf" and "nullable" is set alongside it. This is the standard
-     * OpenAPI 3.0 idiom for a nullable reference.
+     * OpenAPI 3.0 does not support "type": "null", and "nullable" only
+     * affects a "type" defined in the same schema object. The second "anyOf"
+     * branch therefore describes only null, while the first retains all
+     * constraints from the inner schema.
      */
     template <typename T>
     nlohmann::json add_required_schema_component()
@@ -456,8 +456,12 @@ namespace ccf::ds::openapi
       {
         auto inner = add_schema_component<typename T::value_type>();
         auto schema = nlohmann::json::object();
-        schema["allOf"] = nlohmann::json::array({inner});
-        schema["nullable"] = true;
+        schema["anyOf"] = nlohmann::json::array(
+          {inner,
+           nlohmann::json{
+             {"type", "object"},
+             {"nullable", true},
+             {"enum", nlohmann::json::array({nullptr})}}});
         return schema;
       }
       else

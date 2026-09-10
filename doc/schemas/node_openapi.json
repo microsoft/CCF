@@ -147,12 +147,18 @@
             "$ref": "#/components/schemas/MembershipState"
           },
           "primary_id": {
-            "allOf": [
+            "anyOf": [
               {
                 "$ref": "#/components/schemas/NodeId"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true,
+                "type": "object"
               }
-            ],
-            "nullable": true
+            ]
           },
           "reconfiguration_type": {
             "$ref": "#/components/schemas/ReconfigurationType"
@@ -267,12 +273,18 @@
             "$ref": "#/components/schemas/uint64"
           },
           "primary_id": {
-            "allOf": [
+            "anyOf": [
               {
                 "$ref": "#/components/schemas/NodeId"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true,
+                "type": "object"
               }
-            ],
-            "nullable": true
+            ]
           },
           "recovery_count": {
             "$ref": "#/components/schemas/uint64"

@@ -145,7 +145,9 @@ def test_isolate_primary_from_one_backup(network, args):
     timeout = time.time() + 2 * network.args.election_timeout_ms / 1000
     while True:
         with p.client() as c:
-            r = c.get("/node/consensus", log_capture=[]).body.json()["details"]
+            r = c.get(
+                "/node/consensus", log_capture=[], validate_openapi=False
+            ).body.json()["details"]
             ack = r["acks"][b_0.node_id]["last_received_ms"]
             has_stepped_down = r["leadership_state"] in {"Follower", "PreVoteCandidate"}
             if not has_stepped_down:
@@ -154,7 +156,9 @@ def test_isolate_primary_from_one_backup(network, args):
                 ), f"Nodes {p.local_node_id} and {b_0.local_node_id} are no longer partitioned"
                 last_ack = ack
         with b_0.client() as c:
-            r = c.get("/node/consensus", log_capture=[]).body.json()["details"]
+            r = c.get(
+                "/node/consensus", log_capture=[], validate_openapi=False
+            ).body.json()["details"]
             if r["leadership_state"] == "Leader":
                 LOG.info(
                     f"Backup {b_0.local_node_id} has become primary in new view {r['current_view']}"
@@ -168,11 +172,32 @@ def test_isolate_primary_from_one_backup(network, args):
 
         time.sleep(0.1)
 
-    p.wait_for_leadership_state(
-        initial_txid.view,
-        ["Follower", "PreVoteCandidate"],
-        timeout=4 * network.args.election_timeout_ms / 1000,
-    )
+    timeout = time.time() + 4 * network.args.election_timeout_ms / 1000
+    while True:
+        with p.client() as c:
+            r = c.get(
+                "/node/consensus", log_capture=[], validate_openapi=False
+            ).body.json()["details"]
+        if (
+            r["current_view"] > initial_txid.view
+            and r["leadership_state"] in {"Follower", "PreVoteCandidate"}
+            and r["primary_id"] is None
+        ):
+            break
+        if time.time() > timeout:
+            raise RuntimeError(
+                f"Former primary {p.local_node_id} did not enter a "
+                f"no-known-primary state within timeout: {r}"
+            )
+        time.sleep(0.1)
+
+    # Keep the polling above out of OpenAPI validation so this is the first
+    # validated /node/consensus response. This exercises the exact runtime
+    # validation path that previously rejected the legitimate null primary_id.
+    with p.client() as c:
+        response = c.get("/node/consensus", log_capture=[])
+        assert response.status_code == http.HTTPStatus.OK, response
+        assert response.body.json()["details"]["primary_id"] is None
 
     # Verify that b_0 is stably the primary, and that p is a Follower/PreVoteCandidate
     timeout = time.time() + 2 * network.args.election_timeout_ms / 1000
