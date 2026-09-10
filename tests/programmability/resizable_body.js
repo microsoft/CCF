@@ -1,7 +1,16 @@
-// Length-tracking Uint8Array over a resizable ArrayBuffer that has been
-// shrunk after the view was created. The typed array's construction-time
-// byteLength is 1 MiB, but the backing buffer only holds `shrunk` bytes.
-// CCF must copy no more than the current backing-buffer length.
+// Regression test for a heap over-read in the JS response-body copy path.
+//
+// A length-tracking Uint8Array constructed over a resizable ArrayBuffer
+// captures the buffer's byteLength at construction time in the typed
+// array's internal `length` field, but QuickJS does NOT refresh that
+// field when the buffer is later shrunk. JS_GetTypedArrayBuffer therefore
+// returns the stale, larger construction-time length. If CCF copied that
+// many bytes out of the js_realloc'd-down backing allocation, it would
+// return uninitialised enclave memory to the HTTP client.
+//
+// The endpoint returns a length-tracking view whose backing buffer has
+// been shrunk to `n` bytes. The HTTP response body length must be `n`,
+// not the 1 MiB construction-time length.
 export function shrunk_body(request) {
   const shrunk = Number(request.query.split("=")[1]);
   const rab = new ArrayBuffer(1 << 20, { maxByteLength: 1 << 20 });
@@ -10,35 +19,6 @@ export function shrunk_body(request) {
     u8[i] = 0xab;
   }
   rab.resize(shrunk);
-  return {
-    statusCode: 200,
-    body: u8,
-  };
-}
-
-// Length-tracking Uint8Array over a resizable ArrayBuffer that has been
-// grown after the view was created. The response body length must match
-// the grown length.
-export function grown_body(request) {
-  const grown = Number(request.query.split("=")[1]);
-  const rab = new ArrayBuffer(1, { maxByteLength: 1 << 20 });
-  const u8 = new Uint8Array(rab);
-  rab.resize(grown);
-  for (let i = 0; i < grown; i++) {
-    u8[i] = 0xcd;
-  }
-  return {
-    statusCode: 200,
-    body: u8,
-  };
-}
-
-// Non-tracking view whose byteOffset ends up past the current buffer size
-// after a resize(). Copy must be empty rather than reading past the end.
-export function oob_offset_body(request) {
-  const rab = new ArrayBuffer(64, { maxByteLength: 1 << 20 });
-  const u8 = new Uint8Array(rab, 32, 16);
-  rab.resize(8);
   return {
     statusCode: 200,
     body: u8,

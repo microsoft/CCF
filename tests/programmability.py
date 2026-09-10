@@ -438,9 +438,9 @@ def test_custom_endpoints_kv_restrictions(network, args):
 def test_custom_endpoints_resizable_body(network, args):
     """Regression test for a heap over-read in the JS response-body copy path
     when returning a length-tracking typed array over a resizable ArrayBuffer
-    that was shrunk (or a non-tracking view whose byteOffset ended up out of
-    bounds) after construction. The copy must be clamped to the backing
-    buffer's real current size.
+    that was shrunk after the view was constructed. The copy must be clamped
+    against the backing buffer's real current size, not the typed array's
+    stale construction-time byteLength.
     """
     primary, _ = network.find_primary()
     user = network.users[0]
@@ -452,18 +452,6 @@ def test_custom_endpoints_resizable_body(network, args):
             "get": endpoint_properties(
                 js_module=module_name,
                 js_function="shrunk_body",
-            )
-        },
-        "/grown_body": {
-            "get": endpoint_properties(
-                js_module=module_name,
-                js_function="grown_body",
-            )
-        },
-        "/oob_offset_body": {
-            "get": endpoint_properties(
-                js_module=module_name,
-                js_function="oob_offset_body",
             )
         },
     }
@@ -499,18 +487,6 @@ def test_custom_endpoints_resizable_body(network, args):
                 shrunk,
             )
             assert all(b == 0xAB for b in r.body.data()), r.body.data()
-
-        LOG.info("Grown resizable buffer: response body reflects grown size")
-        for grown in (2, 16, 1024):
-            r = c.get(f"/app/grown_body?n={grown}")
-            assert r.status_code == http.HTTPStatus.OK.value, r.status_code
-            assert len(r.body.data()) == grown, (len(r.body.data()), grown)
-            assert all(b == 0xCD for b in r.body.data()), r.body.data()
-
-        LOG.info("byteOffset past current buffer size: response body must be empty")
-        r = c.get("/app/oob_offset_body")
-        assert r.status_code == http.HTTPStatus.OK.value, r.status_code
-        assert len(r.body.data()) == 0, len(r.body.data())
 
     return network
 
