@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Invalid PEM construction and JSON deserialisation errors no longer include the supplied data, which may contain private key material (#8330).
 - Reaching the soft session cap on an unsecured RPC interface no longer terminates the node by attempting a TLS handshake without a certificate. (#8331)
 - Transactions from an earlier view are now rejected before entering the replication queue even after the node has stepped down. This prevents rolled-back writes from being replicated after a later election and blocking subsequent replication (#8293, #8295).
+- Nodes now retain a peer's reconnect address even when an incoming node-to-node channel was established before its Raft configuration was applied. Previously, losing that connection could prevent outbound consensus messages from reaching the peer and stall elections (#8336).
 
 ### Changed
 
