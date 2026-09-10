@@ -230,6 +230,13 @@ namespace ccf::js::core
         trace = to_str(val);
       }
     }
+
+    // Converting the original exception (json_stringify, toString, reading the
+    // stack property) executes JavaScript and can itself raise, or hit the
+    // active runtime limits. Drain any resulting secondary exception so this
+    // interpreter never returns to the cache with a pending exception.
+    JS_FreeValue(ctx, JS_GetException(ctx));
+
     return {message.value_or(""), trace};
   }
 
@@ -514,6 +521,7 @@ namespace ccf::js::core
   {
     auto& rt = ctx.runtime();
     rt.set_runtime_options(options, policy);
+    ctx.interrupt_data.request_timed_out = false;
 
     if (inherited.has_value())
     {
