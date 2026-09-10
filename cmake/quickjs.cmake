@@ -17,11 +17,15 @@ set(
   QUICKJS_HEAP_LIMIT_PATCH
   ${QUICKJS_PATCH_DIR}/0002-enforce-lowered-heap-limit.patch
 )
-set(QUICKJS_PATCHED_SOURCE ${CMAKE_CURRENT_BINARY_DIR}/quickjs/quickjs.c)
+# Mirror the source prefix (3rdparty/exported/quickjs) under the build
+# directory so that the generated, patched quickjs.c still matches the
+# path-based sanitizer suppressions in src/san_common.suppressions.
+set(QUICKJS_PATCHED_DIR ${CMAKE_CURRENT_BINARY_DIR}/3rdparty/exported/quickjs)
+set(QUICKJS_PATCHED_SOURCE ${QUICKJS_PATCHED_DIR}/quickjs.c)
 add_custom_command(
   OUTPUT ${QUICKJS_PATCHED_SOURCE}
   BYPRODUCTS ${QUICKJS_PATCHED_SOURCE}.backtrace
-  COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/quickjs
+  COMMAND ${CMAKE_COMMAND} -E make_directory ${QUICKJS_PATCHED_DIR}
   COMMAND
     ${PATCH_EXECUTABLE} --batch --forward --fuzz=0 --output
     ${QUICKJS_PATCHED_SOURCE}.backtrace ${QUICKJS_PREFIX}/quickjs.c
