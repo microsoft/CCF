@@ -339,36 +339,34 @@ def test_large_snapshot(network, args):
                 log_capture=[],
             )
 
-    # Force a snapshot at the following signature
+    target = network.txs.issue(network, number_txs=1)
+    # Force a snapshot covering the large entries at the following signature.
     primary.trigger_snapshot()
 
     # Check that there is at least a snapshot larger than args.max_msg_size_bytes
-    snapshots_dir = network.get_committed_snapshots(primary)
+    snapshot_path = primary.wait_for_snapshot(target.seqno)
     extra_data_size_bytes = 10000  # Upper bound on additional snapshot data (e.g. receipt) that is passed separately from the snapshot
-    for s in os.listdir(snapshots_dir):
-        snapshot_size = os.stat(os.path.join(snapshots_dir, s)).st_size
-        if snapshot_size > int(args.max_msg_size_bytes) + extra_data_size_bytes:
-            # Make sure that large snapshot can be parsed
-            snapshot = ccf.ledger.Snapshot(os.path.join(snapshots_dir, s))
-            assert snapshot.get_len() == snapshot_size
-            LOG.info(
-                f"Found snapshot [{snapshot_size}] larger than ring buffer max msg size {args.max_msg_size_bytes}"
-            )
-            return network
-
-    raise RuntimeError(
-        f"Could not find any snapshot file larger than {args.max_msg_size_bytes}"
+    snapshot_size = os.path.getsize(snapshot_path)
+    assert snapshot_size > int(args.max_msg_size_bytes) + extra_data_size_bytes, (
+        f"Snapshot {snapshot_path} has size {snapshot_size}, expected more than "
+        f"{int(args.max_msg_size_bytes) + extra_data_size_bytes}"
     )
+    with ccf.ledger.Snapshot(snapshot_path) as snapshot:
+        assert snapshot.get_len() == snapshot_size
+    return network
 
 
 def test_snapshot_access(network, args):
     primary, backups = network.find_nodes()
 
-    snapshots_dir = network.get_committed_snapshots(primary)
-    snapshot_name = ccf.ledger.latest_snapshot(snapshots_dir)
+    target = network.txs.issue(network, number_txs=1)
+    primary.trigger_snapshot()
+    primary.wait_for_snapshot(target.seqno)
+    snapshot_path = primary.get_snapshots()[-1]
+    snapshot_name = os.path.basename(snapshot_path)
     snapshot_index, _ = ccf.ledger.snapshot_index_from_filename(snapshot_name)
 
-    with open(os.path.join(snapshots_dir, snapshot_name), "rb") as f:
+    with open(snapshot_path, "rb") as f:
         snapshot_data = f.read()
 
     for node in (primary, *backups):
@@ -535,9 +533,11 @@ def test_snapshot_repr_digest(network, args):
     """
     primary, _ = network.find_nodes()
 
-    snapshots_dir = network.get_committed_snapshots(primary)
-    snapshot_name = ccf.ledger.latest_snapshot(snapshots_dir)
-    snapshot_path = os.path.join(snapshots_dir, snapshot_name)
+    target = network.txs.issue(network, number_txs=1)
+    primary.trigger_snapshot()
+    primary.wait_for_snapshot(target.seqno)
+    snapshot_path = primary.get_snapshots()[-1]
+    snapshot_name = os.path.basename(snapshot_path)
     with open(snapshot_path, "rb") as f:
         snapshot_data = f.read()
 
@@ -674,24 +674,15 @@ def test_snapshot_selection(network, args):
 
     LOG.info("Creating snapshots")
     primary, backups = network.find_nodes()
-    for i in range(3):
+    for _ in range(max(3, len(backups))):
+        target = network.txs.issue(network, number_txs=1)
         primary.trigger_snapshot()
-        # Snapshot creation and commit takes time. All of the helpers we have to track/poll this
-        # are expensive, so try a short sleep
-        time.sleep(1)
-
-    snapshots_dir = network.get_committed_snapshots(
-        primary,
-        force_txs=False,
-    )
+        primary.wait_for_snapshot(target.seqno)
 
     src_snapshots = []
-    for snapshot_name in os.listdir(snapshots_dir):
-        if ccf.ledger.is_snapshot_file_committed(snapshot_name):
-            seqno, _ = ccf.ledger.snapshot_index_from_filename(snapshot_name)
-            src_snapshots.append(
-                (seqno, snapshot_name, os.path.join(snapshots_dir, snapshot_name))
-            )
+    for snapshot_path in primary.get_snapshots():
+        seqno, _ = ccf.ledger.snapshot_index_from_filename(snapshot_path)
+        src_snapshots.append((seqno, os.path.basename(snapshot_path), snapshot_path))
 
     src_snapshots.sort()
     best_snapshot = src_snapshots[-1][1]
@@ -3642,7 +3633,10 @@ def test_backup_snapshot_fetch_max_size(network, args):
         ), f"Expected snapshot directory {snapshot_dir} to exist"
 
     assert_no_snapshot_is_present()
-    network.txs.issue(network, number_txs=args.snapshot_tx_interval * 2)
+    target = network.txs.issue(network, number_txs=1, msg="X" * 2048)
+    primary.trigger_snapshot()
+    snapshot_path = primary.wait_for_snapshot(target.seqno)
+    assert os.path.getsize(snapshot_path) > 1024, snapshot_path
     assert_no_snapshot_is_present()
     expected_log_message = "Failed writing received data to disk/application"
     out_path, _ = new_node.get_logs()
