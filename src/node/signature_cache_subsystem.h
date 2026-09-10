@@ -83,7 +83,7 @@ namespace ccf
 
       const auto& [version, entry] = *it;
       if (
-        !(entry.sig.has_value() || !entry.cose_signatures.empty()) ||
+        (!entry.sig.has_value() && entry.cose_signatures.empty()) ||
         !entry.serialised_tree.has_value())
       {
         return std::nullopt;

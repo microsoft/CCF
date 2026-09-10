@@ -496,7 +496,7 @@ Signatures emitted by the primary node at regular interval, over the root of the
 
 COSE signatures over the Merkle root, keyed by service signing identity type.
 
-**Key** Identity type as a little-endian 64-bit unsigned integer: ``CLASSICAL`` (0), ``PQ`` (1). Only ``CLASSICAL`` is populated.
+**Key** Identity type as a little-endian 64-bit unsigned integer. Only ``CLASSICAL`` (0) is currently populated; ``PQ`` (1) is reserved for future support.
 
 **Value** A CBOR-encoded COSE Sign1 message, stored as a base64-encoded JSON string. Implements the following :ccf_repo:`CDDL schema </cddl/ccf-merkle-tree-cose-signature.cddl>`.
 
