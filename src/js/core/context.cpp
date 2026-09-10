@@ -12,6 +12,7 @@
 #include "js/checks.h"
 #include "js/global_class_ids.h"
 
+#include <algorithm>
 #include <chrono>
 #include <cstdarg>
 #include <quickjs/quickjs.h>
@@ -53,6 +54,34 @@ namespace ccf::js::core
         }
         return nullptr;
       }
+    }
+
+    // QuickJS reports failures of the interpreter itself (out of memory, stack
+    // overflow, interruption) as InternalErrors. When even the error object
+    // cannot be allocated, it throws null instead.
+    bool is_interpreter_failure(
+      const Context& jsctx, const JSWrappedValue& exception)
+    {
+      if (JS_IsNull(exception.val) != 0)
+      {
+        return true;
+      }
+
+      if (!exception.is_error())
+      {
+        return false;
+      }
+
+      const auto name_val = exception["name"];
+      if (name_val.is_exception())
+      {
+        // Discard whatever an unusual name getter threw
+        JS_FreeValue(jsctx, JS_GetException(jsctx));
+        return false;
+      }
+
+      const auto name = jsctx.to_str(name_val);
+      return name.has_value() && name.value() == "InternalError";
     }
   }
 
@@ -246,10 +275,7 @@ namespace ccf::js::core
   }
 
   JSWrappedValue Context::get_exported_function(
-    const std::string& code,
-    const std::string& func,
-    const std::string& path,
-    bool check_module_evaluation)
+    const std::string& code, const std::string& func, const std::string& path)
   {
     auto module = eval(
       code.c_str(),
@@ -262,31 +288,32 @@ namespace ccf::js::core
       throw std::runtime_error(fmt::format("Failed to compile {}", path));
     }
 
-    return get_exported_function(module, func, path, check_module_evaluation);
+    return get_exported_function(module, func, path);
   }
 
   JSWrappedValue Context::get_exported_function(
     const JSWrappedValue& module,
     const std::string& func,
-    const std::string& path,
-    bool check_module_evaluation)
+    const std::string& path)
   {
     // JS_EvalFunction consumes one reference to the module value, so we must
     // provide it with its own via JS_DupValue. Our JSWrappedValue destructor
     // will free the original reference separately.
     auto eval_val = wrap(JS_EvalFunction(ctx, JS_DupValue(ctx, module.val)));
 
-    if (check_module_evaluation && !eval_val.is_exception())
+    // Evaluating a module produces a promise, which is rejected if the module
+    // body threw, rather than that exception being returned. Failures of the
+    // interpreter itself while evaluating the module (out of memory, stack
+    // overflow, interruption) are re-raised here, so that a module which
+    // exhausted its limits is not used. Other exceptions thrown at module scope
+    // are not reported.
+    if (JS_PromiseState(ctx, eval_val.val) == JS_PROMISE_REJECTED)
     {
-      if (JS_PromiseState(ctx, eval_val.val) == JS_PROMISE_REJECTED)
+      auto reason = wrap(JS_PromiseResult(ctx, eval_val.val));
+      if (is_interpreter_failure(*this, reason))
       {
-        JS_Throw(ctx, JS_PromiseResult(ctx, eval_val.val));
-        eval_val = wrap(ccf::js::core::constants::Exception);
-      }
-      else if (JS_PromiseState(ctx, eval_val.val) == JS_PROMISE_PENDING)
-      {
-        throw std::runtime_error(
-          fmt::format("Module evaluation did not complete for {}", path));
+        // JS_Throw takes ownership of the reference it is given
+        eval_val = wrap(JS_Throw(ctx, JS_DupValue(ctx, reason.val)));
       }
     }
 
@@ -416,7 +443,7 @@ namespace ccf::js::core
 // "compound literals are a C99-specific feature"
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wc99-extensions"
-    return wrap((JSValue){(JSValueUnion){.int32 = val}, tag});
+    return wrap(JS_MKVAL(tag, val));
 #pragma clang diagnostic pop
   }
 
@@ -478,25 +505,42 @@ namespace ccf::js::core
     }
   }
 
-  Context::RuntimeLimitsGuard::RuntimeLimitsGuard(
-    Context& context_,
+  RuntimeLimitsScope::RuntimeLimitsScope(
+    Context& context,
     const std::optional<ccf::JSRuntimeOptions>& options,
-    RuntimeLimitsPolicy policy) :
-    context(context_)
+    RuntimeLimitsPolicy policy,
+    const std::optional<InterruptData>& inherited) :
+    ctx(context)
   {
-    context.rt.set_runtime_options(options, policy);
-    context.interrupt_data.start_time =
-      decltype(InterruptData::start_time)::clock::now();
-    context.interrupt_data.max_execution_time = context.rt.get_max_exec_time();
-    context.interrupt_data.request_timed_out = false;
+    auto& rt = ctx.runtime();
+    rt.set_runtime_options(options, policy);
+    ctx.interrupt_data.request_timed_out = false;
+
+    if (inherited.has_value())
+    {
+      ctx.interrupt_data.start_time = inherited->start_time;
+      // Never allow more than either the inherited budget, or the budget
+      // produced by the options being applied here
+      ctx.interrupt_data.max_execution_time =
+        std::min(inherited->max_execution_time, rt.get_max_exec_time());
+      ctx.interrupt_data.access = inherited->access;
+    }
+    else
+    {
+      ctx.interrupt_data.start_time =
+        decltype(InterruptData::start_time)::clock::now();
+      ctx.interrupt_data.max_execution_time = rt.get_max_exec_time();
+    }
+
     JS_SetInterruptHandler(
-      context.rt, js_custom_interrupt_handler, &context.interrupt_data);
+      rt, js_custom_interrupt_handler, &ctx.interrupt_data);
   }
 
-  Context::RuntimeLimitsGuard::~RuntimeLimitsGuard()
+  RuntimeLimitsScope::~RuntimeLimitsScope()
   {
-    JS_SetInterruptHandler(context.rt, nullptr, nullptr);
-    context.rt.reset_runtime_options();
+    auto& rt = ctx.runtime();
+    JS_SetInterruptHandler(rt, nullptr, nullptr);
+    rt.reset_runtime_options();
   }
 
   JSWrappedValue Context::call_with_rt_options(
@@ -505,7 +549,8 @@ namespace ccf::js::core
     const std::optional<ccf::JSRuntimeOptions>& options,
     RuntimeLimitsPolicy policy)
   {
-    RuntimeLimitsGuard limits(*this, options, policy);
+    const RuntimeLimitsScope limits(*this, options, policy);
+
     return inner_call(f, argv);
   }
 

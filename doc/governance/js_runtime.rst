@@ -37,3 +37,5 @@ an application by default, so this exception normally applies at application
 installation rather than while handling a request. Disabling the bytecode
 cache causes module source compilation to occur while loading the first
 request in each interpreter, where the same exception applies.
+
+The heap limit includes memory already allocated by the runtime, not just allocations made by the current request. Lowering it below current usage prevents further nonzero allocations, including reuse of existing arena slots. Uncaught out-of-memory errors are reported as request failures; constructing their JavaScript stack traces must not terminate the node.

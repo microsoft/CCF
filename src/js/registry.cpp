@@ -120,7 +120,7 @@ namespace ccf::js
     ctx.set_module_loader(std::move(module_loader));
 
     const auto options = options_opt.value_or(ccf::JSRuntimeOptions());
-    ccf::js::core::Context::RuntimeLimitsGuard runtime_limits(
+    const ccf::js::core::RuntimeLimitsScope runtime_limits(
       ctx, options, ccf::js::core::RuntimeLimitsPolicy::NONE);
 
     const auto error_message_or_timeout = [&](std::string error_msg) {
@@ -197,7 +197,7 @@ namespace ccf::js
           fmt::format("Module '{}' could not be loaded", props.js_module));
       }
       auto export_func = ctx.get_exported_function(
-        *module_val, props.js_function, props.js_module, true);
+        *module_val, props.js_function, props.js_module);
 
       auto request = request_extension->create_request_obj(
         ctx, endpoint->full_uri_path, endpoint_ctx, this);

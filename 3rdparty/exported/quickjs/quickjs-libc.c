@@ -46,6 +46,7 @@
 #include <termios.h>
 #include <sys/ioctl.h>
 #include <sys/wait.h>
+#include <poll.h>
 
 #if defined(__FreeBSD__)
 extern char **environ;
@@ -87,6 +88,7 @@ typedef sig_t sighandler_t;
 typedef struct {
     struct list_head link;
     int fd;
+    int poll_fd_index; /* temporary use in js_os_poll() */
     JSValue rw_func[2];
 } JSOSRWHandler;
 
@@ -134,6 +136,7 @@ typedef struct {
     struct list_head link;
     JSWorkerMessagePipe *recv_pipe;
     JSValue on_message_func;
+    int poll_fd_index; /* temporary use in js_os_poll() */
 } JSWorkerMessageHandler;
 
 typedef struct {
@@ -152,6 +155,10 @@ typedef struct JSThreadState {
     int next_timer_id; /* for setTimeout() */
     /* not used in the main thread */
     JSWorkerMessagePipe *recv_pipe, *send_pipe;
+#if !defined(_WIN32)
+    struct pollfd *poll_fds;
+    int poll_fds_size;
+#endif    
 } JSThreadState;
 
 static uint64_t os_pending_signals;
@@ -2507,16 +2514,44 @@ static int js_os_poll(JSContext *ctx)
 
 #else
 
+static no_inline int js_poll_expand(JSThreadState *ts)
+{
+    struct pollfd *new_fds;
+    int new_size = max_int(ts->poll_fds_size +
+                           ts->poll_fds_size / 2, 16);
+    new_fds = realloc(ts->poll_fds, new_size * sizeof(struct pollfd));
+    if (!new_fds)
+        return -1;
+    ts->poll_fds = new_fds;
+    ts->poll_fds_size = new_size;
+    return 0;
+}
+
+static int js_poll_add_poll_fd(JSThreadState *ts, int *pnfds, int fd, int events)
+{
+    struct pollfd *fds;
+    int nfds;
+    nfds = *pnfds;
+    if (unlikely(nfds >= ts->poll_fds_size)) {
+        if (js_poll_expand(ts))
+            return -1;
+    }
+    fds = &ts->poll_fds[nfds++];
+    fds->fd = fd;
+    fds->events = events;
+    fds->revents = 0;
+    *pnfds = nfds;
+    return 0;
+}
+
 static int js_os_poll(JSContext *ctx)
 {
     JSRuntime *rt = JS_GetRuntime(ctx);
     JSThreadState *ts = JS_GetRuntimeOpaque(rt);
-    int ret, fd_max, min_delay;
+    int min_delay, nfds;
     int64_t cur_time, delay;
-    fd_set rfds, wfds;
     JSOSRWHandler *rh;
     struct list_head *el;
-    struct timeval tv, *tvp;
 
     /* only check signals in the main thread */
     if (!ts->recv_pipe &&
@@ -2558,46 +2593,49 @@ static int js_os_poll(JSContext *ctx)
                 min_delay = delay;
             }
         }
-        tv.tv_sec = min_delay / 1000;
-        tv.tv_usec = (min_delay % 1000) * 1000;
-        tvp = &tv;
     } else {
-        tvp = NULL;
+        min_delay = -1; /* infinite */
     }
 
-    FD_ZERO(&rfds);
-    FD_ZERO(&wfds);
-    fd_max = -1;
+    nfds = 0;
     list_for_each(el, &ts->os_rw_handlers) {
+        int events;
+
         rh = list_entry(el, JSOSRWHandler, link);
-        fd_max = max_int(fd_max, rh->fd);
+        events = 0;
         if (!JS_IsNull(rh->rw_func[0]))
-            FD_SET(rh->fd, &rfds);
+            events |= POLLIN;
         if (!JS_IsNull(rh->rw_func[1]))
-            FD_SET(rh->fd, &wfds);
+            events |= POLLOUT;
+        if (events) {
+            rh->poll_fd_index = nfds;
+            if (js_poll_add_poll_fd(ts, &nfds, rh->fd, events))
+                return -1;
+        }
     }
 
     list_for_each(el, &ts->port_list) {
         JSWorkerMessageHandler *port = list_entry(el, JSWorkerMessageHandler, link);
         if (!JS_IsNull(port->on_message_func)) {
             JSWorkerMessagePipe *ps = port->recv_pipe;
-            fd_max = max_int(fd_max, ps->waker.read_fd);
-            FD_SET(ps->waker.read_fd, &rfds);
+            port->poll_fd_index = nfds;
+            if (js_poll_add_poll_fd(ts, &nfds, ps->waker.read_fd, POLLIN))
+                return -1;
         }
     }
 
-    ret = select(fd_max + 1, &rfds, &wfds, NULL, tvp);
-    if (ret > 0) {
+    nfds = poll(ts->poll_fds, nfds, min_delay);
+    if (nfds > 0) {
         list_for_each(el, &ts->os_rw_handlers) {
             rh = list_entry(el, JSOSRWHandler, link);
             if (!JS_IsNull(rh->rw_func[0]) &&
-                FD_ISSET(rh->fd, &rfds)) {
+                (ts->poll_fds[rh->poll_fd_index].revents & (POLLERR | POLLHUP | POLLNVAL | POLLIN))) {
                 call_handler(ctx, rh->rw_func[0]);
                 /* must stop because the list may have been modified */
                 goto done;
             }
             if (!JS_IsNull(rh->rw_func[1]) &&
-                FD_ISSET(rh->fd, &wfds)) {
+                (ts->poll_fds[rh->poll_fd_index].revents & (POLLERR | POLLHUP | POLLNVAL | POLLOUT))) {
                 call_handler(ctx, rh->rw_func[1]);
                 /* must stop because the list may have been modified */
                 goto done;
@@ -2607,8 +2645,7 @@ static int js_os_poll(JSContext *ctx)
         list_for_each(el, &ts->port_list) {
             JSWorkerMessageHandler *port = list_entry(el, JSWorkerMessageHandler, link);
             if (!JS_IsNull(port->on_message_func)) {
-                JSWorkerMessagePipe *ps = port->recv_pipe;
-                if (FD_ISSET(ps->waker.read_fd, &rfds)) {
+                if (ts->poll_fds[port->poll_fd_index].revents != 0) {
                     if (handle_posted_message(rt, ctx, port))
                         goto done;
                 }
@@ -3268,12 +3305,12 @@ static JSValue js_os_exec(JSContext *ctx, JSValueConst this_val,
             if (chdir(cwd) < 0)
                 _exit(127);
         }
-        if (uid != -1) {
-            if (setuid(uid) < 0)
-                _exit(127);
-        }
         if (gid != -1) {
             if (setgid(gid) < 0)
+                _exit(127);
+        }
+        if (uid != -1) {
+            if (setuid(uid) < 0)
                 _exit(127);
         }
 
@@ -3309,7 +3346,7 @@ static JSValue js_os_exec(JSContext *ctx, JSValueConst this_val,
     for(i = 0; i < exec_argc; i++)
         JS_FreeCString(ctx, exec_argv[i]);
     js_free(ctx, exec_argv);
-    if (envp != environ) {
+    if (envp && envp != environ) {
         char **p;
         p = envp;
         while (*p != NULL) {
@@ -3543,7 +3580,8 @@ static void js_free_port(JSRuntime *rt, JSWorkerMessageHandler *port)
     if (port) {
         js_free_message_pipe(port->recv_pipe);
         JS_FreeValueRT(rt, port->on_message_func);
-        list_del(&port->link);
+        if (port->link.prev)
+            list_del(&port->link);
         js_free_rt(rt, port);
     }
 }
@@ -3559,9 +3597,22 @@ static void js_worker_finalizer(JSRuntime *rt, JSValue val)
     }
 }
 
+static void js_worker_mark(JSRuntime *rt, JSValueConst val,
+                           JS_MarkFunc *mark_func)
+{
+    JSWorkerData *worker = JS_GetOpaque(val, js_worker_class_id);
+    if (worker) {
+        JSWorkerMessageHandler *port = worker->msg_handler;
+        if (port) {
+            JS_MarkValue(rt, port->on_message_func, mark_func);
+        }
+    }
+}
+
 static JSClassDef js_worker_class = {
     "Worker",
     .finalizer = js_worker_finalizer,
+    .gc_mark = js_worker_mark,
 };
 
 static void *worker_func(void *opaque)
@@ -3865,7 +3916,7 @@ void js_std_set_worker_new_context_func(JSContext *(*func)(JSRuntime *rt))
 #define OS_PLATFORM "win32"
 #elif defined(__APPLE__)
 #define OS_PLATFORM "darwin"
-#elif defined(EMSCRIPTEN)
+#elif defined(__EMSCRIPTEN__)
 #define OS_PLATFORM "js"
 #else
 #define OS_PLATFORM "linux"
@@ -4139,9 +4190,19 @@ void js_std_free_handlers(JSRuntime *rt)
     }
 
 #ifdef USE_WORKER
-    /* XXX: free port_list ? */
     js_free_message_pipe(ts->recv_pipe);
     js_free_message_pipe(ts->send_pipe);
+
+    list_for_each_safe(el, el1, &ts->port_list) {
+        JSWorkerMessageHandler *port = list_entry(el, JSWorkerMessageHandler, link);
+        /* unlink the message ports. They are freed by the Worker object */
+        port->link.prev = NULL;
+        port->link.next = NULL;
+    }
+#endif
+
+#if !defined(_WIN32)
+    free(ts->poll_fds);
 #endif
 
     free(ts);

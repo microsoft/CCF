@@ -704,6 +704,11 @@ def single_node(args):
                 else:
                     assert False, "Expected to throw"
 
+            # Stalls the node for the default JS execution time limit, which
+            # would trigger an election in a multi-node network
+            test_desc("Execution time limit on evaluation of proposed constitution")
+            governance_js.test_set_constitution_evaluation_timeout(network, args)
+
             LOG.info("Stopping network to read node logs")
 
     test_desc("Checking logging after node shutdown")

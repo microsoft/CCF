@@ -52,6 +52,9 @@ namespace ccf::js::core
 
     this->max_exec_time =
       std::chrono::milliseconds{Defaults::max_execution_time_ms};
+
+    this->current_options = std::nullopt;
+    this->current_policy = RuntimeLimitsPolicy::NONE;
   }
 
   void Runtime::set_runtime_options(
@@ -83,5 +86,8 @@ namespace ccf::js::core
     this->log_exception_details = js_runtime_options.log_exception_details;
     this->return_exception_details =
       js_runtime_options.return_exception_details;
+
+    this->current_options = options_opt;
+    this->current_policy = policy;
   }
 }

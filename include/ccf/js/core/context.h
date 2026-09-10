@@ -58,24 +58,6 @@ namespace ccf::js::core
       loaded_modules_cache;
 
   public:
-    class RuntimeLimitsGuard
-    {
-    private:
-      Context& context;
-
-    public:
-      RuntimeLimitsGuard(
-        Context& context,
-        const std::optional<ccf::JSRuntimeOptions>& options,
-        RuntimeLimitsPolicy policy);
-      ~RuntimeLimitsGuard();
-
-      RuntimeLimitsGuard(const RuntimeLimitsGuard&) = delete;
-      RuntimeLimitsGuard& operator=(const RuntimeLimitsGuard&) = delete;
-      RuntimeLimitsGuard(RuntimeLimitsGuard&&) = delete;
-      RuntimeLimitsGuard& operator=(RuntimeLimitsGuard&&) = delete;
-    };
-
     ccf::ds::Mutex lock;
 
     const TxAccess access;
@@ -132,18 +114,14 @@ namespace ccf::js::core
       size_t* pbyte_offset,
       size_t* pbyte_length,
       size_t* pbytes_per_element) const;
-    // Checking module evaluation reports synchronous failures and rejects
-    // unsupported asynchronous module initialisation.
     JSWrappedValue get_exported_function(
       const std::string& code,
       const std::string& func,
-      const std::string& path,
-      bool check_module_evaluation = false);
+      const std::string& path);
     JSWrappedValue get_exported_function(
       const JSWrappedValue& module,
       const std::string& func,
-      const std::string& path,
-      bool check_module_evaluation = false);
+      const std::string& path);
 
     // Constant values
     [[nodiscard]] JSWrappedValue null() const;
@@ -226,5 +204,33 @@ namespace ccf::js::core
 
       return nullptr;
     }
+  };
+
+  // Applies heap, stack and execution time limits to a Context's runtime for
+  // the lifetime of this object, including the interrupt handler which enforces
+  // the execution time limit. The limits are removed when it is destroyed.
+  class RuntimeLimitsScope
+  {
+  private:
+    Context& ctx;
+
+  public:
+    // Applies the limits derived from options and policy. If inherited is
+    // given, the execution deadline (start time and budget) is taken from it,
+    // so that the remaining execution time of an in-progress execution is
+    // shared rather than a fresh window being opened. Otherwise the execution
+    // time window starts now.
+    RuntimeLimitsScope(
+      Context& context,
+      const std::optional<ccf::JSRuntimeOptions>& options,
+      RuntimeLimitsPolicy policy,
+      const std::optional<InterruptData>& inherited = std::nullopt);
+
+    ~RuntimeLimitsScope();
+
+    RuntimeLimitsScope(const RuntimeLimitsScope&) = delete;
+    RuntimeLimitsScope& operator=(const RuntimeLimitsScope&) = delete;
+    RuntimeLimitsScope(RuntimeLimitsScope&&) = delete;
+    RuntimeLimitsScope& operator=(RuntimeLimitsScope&&) = delete;
   };
 }
