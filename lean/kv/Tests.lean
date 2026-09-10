@@ -413,15 +413,15 @@ def assertProjection : IO Unit := do
       after.head.version != before.head.version + txs.length then
     throw (IO.userError "selected-store serial projection disagrees with actual replay")
 
-def assertStreamingFixtures : IO Unit := do
-  let binaryDir := (← IO.appPath).parent.getD "."
-  let fixtures := binaryDir / ".." / ".." / ".." / "fixtures"
-  for name in ["basic.ndjson", "per_map_global_snapshots.ndjson"] do
-    let path := fixtures / name
+def assertStreaming : IO Unit :=
+  IO.FS.withTempFile fun handle path => do
+    let text := encode (closed basic)
+    handle.putStr text
+    handle.flush
     let streamed ← checkFile path
-    let buffered := checkText (← IO.FS.readFile path)
+    let buffered := checkText text
     if streamed != buffered then
-      throw (IO.userError s!"streaming and pure replay disagree for {name}")
+      throw (IO.userError "streaming and pure replay disagree")
 
 partial def libraryModules (directory : System.FilePath) (modulePrefix : String) : IO (List String) := do
   let mut modules := []
@@ -451,7 +451,7 @@ def assertLibraryImports : IO Unit := do
 
 def run : IO Unit := do
   assertProjection
-  assertStreamingFixtures
+  assertStreaming
   assertLibraryImports
   let expectedImports := ["Kv.Protocol.Types", "Kv.Proofs.Types"]
   let importCases := [

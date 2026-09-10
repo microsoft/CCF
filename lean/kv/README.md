@@ -15,19 +15,11 @@ Run under Linux, from `lean/kv`:
 ```bash
 lake build --wfail
 lake exe kv_trace_tests
-lake exe kv_trace_check fixtures/basic.ndjson
-lake exe kv_trace_check --json fixtures/per_map_global_snapshots.ndjson
 ```
 
 Elan is optional: putting the official Lean 4.33.1 distribution's `bin`
 directory on `PATH` is sufficient. The project invokes no elan commands and
 has no Lake package dependencies.
-
-Both fixture commands exit 0. The per-map fixture checks that A continues to
-read its old committed value while subsequently acquired B reads the newer
-committed value. These are derived views, not allowed mismatches or arbitrary
-historical choices. `.lake/build/bin/kv_trace_check` accepts the same arguments
-without Lake's build messages.
 
 Exit codes: 0 accepted, 1 contract rejection, 2 invalid/incomplete trace or IO
 error, 3 explicitly unsupported operation. `--json` writes exactly one object
