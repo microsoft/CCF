@@ -453,8 +453,6 @@ namespace aft
     {
       return false;
     }
-
-    void unset_flag(ccf::kv::AbstractStore::StoreFlag) {}
   };
 
   class LoggingStubStoreConfig : public LoggingStubStore
