@@ -421,16 +421,30 @@ setGlobal(100)
     INFO("error detectability");
 
     {
-      INFO("global throws");
-      const auto constitution = R"!!!(`
+      INFO("exceptions at module scope are not checked");
+      // The proposed constitution is evaluated without the CCF APIs it may use
+      // at module scope, so exceptions thrown there are not treated as
+      // validation failures. Only failures of the interpreter itself are, see
+      // "Constitution validation is bounded by runtime limits".
+      for (const auto& c :
+           {R"!!!(`
 export function validate(input) {}
 export function resolve(proposal, proposerId, votes) {}
 export function apply(proposal, proposerId) {}
 
-throw new Error(`I'm not happy`);
-`)!!!";
+throw new Error("I'm not happy");
+`)!!!",
+            R"!!!(`
+export function validate(input) {}
+export function resolve(proposal, proposerId, votes) {}
+export function apply(proposal, proposerId) {}
 
-      REQUIRE_THROWS(call_validate_constitution(constitution));
+foo.bar.baz;
+`)!!!"})
+      {
+        const auto error = call_validate_constitution(c);
+        REQUIRE_FALSE(error.has_value());
+      }
     }
 
     {
@@ -545,20 +559,6 @@ export function apply(a, b) {}
         auto error = call_validate_constitution(constitution);
         REQUIRE_FALSE(error.has_value());
       }
-    }
-
-    {
-      INFO("null accesses can't be checked");
-      const auto constitution = R"!!!(`
-export function validate(input) {}
-export function resolve(proposal, proposerId, votes) {}
-export function apply(proposal, proposerId) {}
-
-foo.bar.baz;
-`)!!!";
-
-      auto error = call_validate_constitution(constitution);
-      REQUIRE_FALSE(error.has_value());
     }
   }
 }

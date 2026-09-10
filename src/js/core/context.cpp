@@ -55,6 +55,34 @@ namespace ccf::js::core
         return nullptr;
       }
     }
+
+    // QuickJS reports failures of the interpreter itself (out of memory, stack
+    // overflow, interruption) as InternalErrors. When even the error object
+    // cannot be allocated, it throws null instead.
+    bool is_interpreter_failure(
+      const Context& jsctx, const JSWrappedValue& exception)
+    {
+      if (JS_IsNull(exception.val) != 0)
+      {
+        return true;
+      }
+
+      if (!exception.is_error())
+      {
+        return false;
+      }
+
+      const auto name_val = exception["name"];
+      if (name_val.is_exception())
+      {
+        // Discard whatever an unusual name getter threw
+        JS_FreeValue(jsctx, JS_GetException(jsctx));
+        return false;
+      }
+
+      const auto name = jsctx.to_str(name_val);
+      return name.has_value() && name.value() == "InternalError";
+    }
   }
 
   Context::Context(TxAccess acc) : access(acc)
@@ -272,6 +300,22 @@ namespace ccf::js::core
     // provide it with its own via JS_DupValue. Our JSWrappedValue destructor
     // will free the original reference separately.
     auto eval_val = wrap(JS_EvalFunction(ctx, JS_DupValue(ctx, module.val)));
+
+    // Evaluating a module produces a promise, which is rejected if the module
+    // body threw, rather than that exception being returned. Failures of the
+    // interpreter itself while evaluating the module (out of memory, stack
+    // overflow, interruption) are re-raised here, so that a module which
+    // exhausted its limits is not used. Other exceptions thrown at module scope
+    // are not reported.
+    if (JS_PromiseState(ctx, eval_val.val) == JS_PROMISE_REJECTED)
+    {
+      auto reason = wrap(JS_PromiseResult(ctx, eval_val.val));
+      if (is_interpreter_failure(*this, reason))
+      {
+        // JS_Throw takes ownership of the reference it is given
+        eval_val = wrap(JS_Throw(ctx, JS_DupValue(ctx, reason.val)));
+      }
+    }
 
     if (eval_val.is_exception())
     {
