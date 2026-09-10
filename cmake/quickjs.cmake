@@ -4,16 +4,53 @@
 # Path prefix to the QuickJS library source directory
 set(QUICKJS_PREFIX ${CCF_3RD_PARTY_EXPORTED_DIR}/quickjs)
 
+find_program(PATCH_EXECUTABLE patch REQUIRED)
+set(
+  QUICKJS_PATCH_DIR
+  ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/patches/quickjs-2026-06-04
+)
+set(
+  QUICKJS_BACKTRACE_PATCH
+  ${QUICKJS_PATCH_DIR}/0001-retain-exception-during-backtrace.patch
+)
+set(
+  QUICKJS_HEAP_LIMIT_PATCH
+  ${QUICKJS_PATCH_DIR}/0002-enforce-lowered-heap-limit.patch
+)
+set(QUICKJS_PATCHED_SOURCE ${CMAKE_CURRENT_BINARY_DIR}/quickjs/quickjs.c)
+add_custom_command(
+  OUTPUT ${QUICKJS_PATCHED_SOURCE}
+  BYPRODUCTS ${QUICKJS_PATCHED_SOURCE}.backtrace
+  COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/quickjs
+  COMMAND
+    ${PATCH_EXECUTABLE} --batch --forward --fuzz=0 --output
+    ${QUICKJS_PATCHED_SOURCE}.backtrace ${QUICKJS_PREFIX}/quickjs.c
+    ${QUICKJS_BACKTRACE_PATCH}
+  COMMAND
+    ${PATCH_EXECUTABLE} --batch --forward --fuzz=0 --output
+    ${QUICKJS_PATCHED_SOURCE}.tmp ${QUICKJS_PATCHED_SOURCE}.backtrace
+    ${QUICKJS_HEAP_LIMIT_PATCH}
+  COMMAND
+    ${CMAKE_COMMAND} -E rename ${QUICKJS_PATCHED_SOURCE}.tmp
+    ${QUICKJS_PATCHED_SOURCE}
+  DEPENDS
+    ${QUICKJS_PREFIX}/quickjs.c
+    ${QUICKJS_BACKTRACE_PATCH}
+    ${QUICKJS_HEAP_LIMIT_PATCH}
+  COMMENT "Applying local QuickJS patches"
+  VERBATIM
+)
+
 set(
   QUICKJS_SRC
   ${QUICKJS_PREFIX}/cutils.c
   ${QUICKJS_PREFIX}/dtoa.c
   ${QUICKJS_PREFIX}/libunicode.c
   ${QUICKJS_PREFIX}/libregexp.c
-  ${QUICKJS_PREFIX}/quickjs.c
+  ${QUICKJS_PATCHED_SOURCE}
 )
 set_source_files_properties(
-  ${QUICKJS_PREFIX}/quickjs.c
+  ${QUICKJS_PATCHED_SOURCE}
   PROPERTIES COMPILE_FLAGS -Wno-implicit-int-float-conversion
 )
 

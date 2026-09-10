@@ -56,8 +56,8 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/bellard/quickjs",
-          "commitHash": "fa628f8c523ecac8ce560c081411e91fcaba2d20",
-          "tag": "2025-09-13-2"
+          "commitHash": "3d5e064e9dd67c70f7962836505a7fa067bf0a4e",
+          "tag": "2026-06-04"
         }
       }
     },
@@ -95,8 +95,8 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/microsoft/merklecpp",
-          "commitHash": "30d1dc7dc3b46b7da71124fb8df385a8b67ef59b",
-          "tag": "v1.1.1"
+          "commitHash": "8be8cf393ebec13c8939af21c08a6a52abb5069c",
+          "tag": "v1.1.5"
         }
       }
     },

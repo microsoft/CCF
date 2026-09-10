@@ -287,6 +287,7 @@ add_ccf_static_library(
     ${CCF_DIR}/src/js/extensions/ccf/rpc.cpp
     ${CCF_DIR}/src/js/extensions/ccf/request.cpp
     ${CCF_DIR}/src/js/registry.cpp
+    ${CCF_DIR}/src/node/uvm_endorsements.cpp
   LINK_LIBS ccfcrypto quickjs ccf_pal
 )
 
@@ -1605,7 +1606,8 @@ if(BUILD_TESTS)
 
   add_test_bin(
     curl_test
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/http/test/curl_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/http_client/test/curl_header_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/http_client/test/curl_test.cpp
   )
   target_link_libraries(curl_test PRIVATE curl uv http_parser)
 
