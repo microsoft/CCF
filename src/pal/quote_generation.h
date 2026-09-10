@@ -92,7 +92,8 @@ namespace ccf::pal
     auto attestation = snp::request_attestation(report_data);
     node_quote_info.quote.assign(
       attestation.report_bytes.begin(), attestation.report_bytes.end());
-    auto report = attestation.report();
+    auto report =
+      snp::parse_attestation_report_unverified(attestation.report_bytes);
 
     if (
       tav_snp_attestation_report_version(report.get()) <

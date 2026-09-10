@@ -702,9 +702,10 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
   {
   public:
     [[deprecated(
-      "Use request_attestation().report() from ccf/pal/snp_ioctl.h for "
-      "unverified parsing")]] [[nodiscard]] virtual const snp::Attestation&
-    get() const = 0;
+      "Use request_attestation().report_bytes from ccf/pal/snp_ioctl.h and "
+      "parse_attestation_report_unverified")]] [[nodiscard]] virtual const snp::
+      Attestation&
+      get() const = 0;
     [[deprecated(
       "Use request_attestation().report_bytes from ccf/pal/snp_ioctl.h")]]
     virtual std::vector<uint8_t> get_raw() = 0;

@@ -44,12 +44,6 @@ namespace ccf::pal::snp::ioctl6
       uint8_t,
       detail::ATTESTATION_RESPONSE_SIZE - 0x20 - attestation_report_size>
       padding = {};
-
-    // Decodes owned bytes into a fresh report without verifying authenticity.
-    [[nodiscard]] snp::AttestationReport report() const
-    {
-      return snp::parse_attestation_report_unverified(report_bytes);
-    }
   };
   static_assert(
     sizeof(AttestationResponse) == detail::ATTESTATION_RESPONSE_SIZE);
@@ -150,7 +144,7 @@ namespace ccf::pal::snp::ioctl6
     uint32_t status = 0;
     uint32_t report_size = 0;
     uint8_t reserved[0x20 - 0x8] = {0};
-    [[deprecated("Use request_attestation().report() for unverified parsing")]]
+    [[deprecated("Use request_attestation().report_bytes")]]
     snp::Attestation report = {};
     uint8_t padding[64] = {0};
     // padding to the size of SEV_SNP_REPORT_RSP_BUF_SZ (i.e., 1280 bytes)
@@ -261,17 +255,6 @@ namespace ccf::pal::snp::ioctl6
 
   namespace detail
   {
-    inline void validate_report_size(uint32_t report_size)
-    {
-      if (report_size != attestation_report_size)
-      {
-        throw std::logic_error(fmt::format(
-          "Unexpected SEV-SNP attestation report size: {} != {}",
-          report_size,
-          attestation_report_size));
-      }
-    }
-
     template <typename Response>
     void request_attestation(
       const PlatformAttestationReportData& report_data,
@@ -332,7 +315,13 @@ namespace ccf::pal::snp::ioctl6
   {
     IoctlSentinel<AttestationResponse> response;
     detail::request_attestation(report_data, response);
-    detail::validate_report_size(response.data.report_size);
+    if (response.data.report_size != attestation_report_size)
+    {
+      throw std::logic_error(fmt::format(
+        "Unexpected SEV-SNP attestation report size: {} != {}",
+        response.data.report_size,
+        attestation_report_size));
+    }
     return response.data;
   }
 
@@ -350,18 +339,31 @@ namespace ccf::pal::snp::ioctl6
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
     [[deprecated(
-      "Use request_attestation().report() for unverified "
-      "parsing")]] [[nodiscard]] const ccf::pal::snp::Attestation&
-    get() const override
+      "Use request_attestation().report_bytes and "
+      "parse_attestation_report_unverified")]] [[nodiscard]] const ccf::pal::
+      snp::Attestation&
+      get() const override
     {
-      detail::validate_report_size(padded_resp.report_size);
+      if (padded_resp.report_size != attestation_report_size)
+      {
+        throw std::logic_error(fmt::format(
+          "Unexpected SEV-SNP attestation report size: {} != {}",
+          padded_resp.report_size,
+          attestation_report_size));
+      }
       return padded_resp.report;
     }
 
     [[deprecated("Use request_attestation().report_bytes")]]
     std::vector<uint8_t> get_raw() override
     {
-      detail::validate_report_size(padded_resp.report_size);
+      if (padded_resp.report_size != attestation_report_size)
+      {
+        throw std::logic_error(fmt::format(
+          "Unexpected SEV-SNP attestation report size: {} != {}",
+          padded_resp.report_size,
+          attestation_report_size));
+      }
       const auto* report =
         reinterpret_cast<const uint8_t*>(&padded_resp.report);
       return {report, report + attestation_report_size};

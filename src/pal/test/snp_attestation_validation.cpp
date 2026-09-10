@@ -21,7 +21,6 @@
 
 #include <algorithm>
 #include <array>
-#include <limits>
 #include <memory>
 #include <type_traits>
 
@@ -208,12 +207,21 @@ TEST_CASE("CCF policy is separate from generic TAV verification")
 
 TEST_CASE("unverified SNP report rejects invalid sizes")
 {
-  CHECK_THROWS_WITH_AS(
-    static_cast<void>(ccf::pal::snp::parse_attestation_report_unverified(
-      std::vector<uint8_t>(100))),
-    "SEV-SNP: TAV unverified report parsing failed (1): Invalid "
-    "attestation report: expected 1184 bytes, got 100",
-    std::logic_error);
+  for (const size_t size : {0U, 100U, 1183U, 1185U})
+  {
+    const auto expected_error = size == 0 ?
+      "SEV-SNP: TAV unverified report parsing failed (1): attestation report "
+      "is empty" :
+      fmt::format(
+        "SEV-SNP: TAV unverified report parsing failed (1): Invalid "
+        "attestation report: expected 1184 bytes, got {}",
+        size);
+    CHECK_THROWS_WITH_AS(
+      static_cast<void>(ccf::pal::snp::parse_attestation_report_unverified(
+        std::vector<uint8_t>(size))),
+      expected_error.c_str(),
+      std::logic_error);
+  }
 }
 
 TEST_CASE("SNP byte accessors borrow report storage")
@@ -403,9 +411,7 @@ TEST_CASE(
   using Response = AttestationResponse;
   static_assert(std::is_standard_layout_v<Response>);
   static_assert(std::is_trivially_copyable_v<Response>);
-  static_assert(std::is_same_v<
-                decltype(std::declval<const Response&>().report()),
-                AttestationReport>);
+  static_assert(std::is_aggregate_v<Response>);
   static_assert(std::is_same_v<
                 decltype(Response::report_bytes),
                 std::array<uint8_t, attestation_report_size>>);
@@ -431,14 +437,14 @@ TEST_CASE(
     testing::milan_attestation.end(),
     response.data.report_bytes.begin());
 
-  ioctl6::detail::validate_report_size(response.data.report_size);
-  auto attestation = response.data;
+  CHECK(response.data.report_size == attestation_report_size);
+  const auto attestation = response.data;
   CHECK(std::equal(
     attestation.report_bytes.begin(),
     attestation.report_bytes.end(),
     testing::milan_attestation.begin(),
     testing::milan_attestation.end()));
-  auto report = attestation.report();
+  auto report = parse_attestation_report_unverified(attestation.report_bytes);
   CHECK(tav_snp_attestation_report_version(report.get()) == 3);
   CHECK(response.sentinels_intact());
   response.data = {};
@@ -447,17 +453,6 @@ TEST_CASE(
     attestation.report_bytes.end(),
     testing::milan_attestation.begin(),
     testing::milan_attestation.end()));
-
-  attestation.report_bytes[0x050] ^= 1;
-  const auto updated_report = attestation.report();
-  const uint8_t* data = nullptr;
-  size_t size = 0;
-  tav_snp_attestation_report_report_data(updated_report.get(), &data, &size);
-  REQUIRE(size == ccf::pal::snp_attestation_report_data_size);
-  CHECK(data[0] == attestation.report_bytes[0x050]);
-  tav_snp_attestation_report_report_data(report.get(), &data, &size);
-  REQUIRE(size == ccf::pal::snp_attestation_report_data_size);
-  CHECK(data[0] == testing::milan_attestation[0x050]);
 
   for (auto* sentinels : {response.pre_sentinels, response.post_sentinels})
   {
@@ -468,23 +463,6 @@ TEST_CASE(
       sentinels[i] ^= 1;
       CHECK(response.sentinels_intact());
     }
-  }
-}
-
-TEST_CASE("SNP ioctl response bytes reject invalid report sizes")
-{
-  using namespace ccf::pal::snp;
-  for (const uint32_t report_size :
-       {0U, 1183U, 1185U, std::numeric_limits<uint32_t>::max()})
-  {
-    const auto expected_error = fmt::format(
-      "Unexpected SEV-SNP attestation report size: {} != {}",
-      report_size,
-      attestation_report_size);
-    CHECK_THROWS_WITH_AS(
-      ioctl6::detail::validate_report_size(report_size),
-      expected_error.c_str(),
-      std::logic_error);
   }
 }
 

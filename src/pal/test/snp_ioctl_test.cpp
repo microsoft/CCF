@@ -25,7 +25,8 @@ TEST_CASE("SNP request attestation")
   PlatformAttestationReportData report_data(snp_report_data);
   const auto attestation = snp::request_attestation(report_data);
   REQUIRE(attestation.report_size == snp::attestation_report_size);
-  const auto report = attestation.report();
+  const auto report =
+    snp::parse_attestation_report_unverified(attestation.report_bytes);
 
   const uint8_t* data = nullptr;
   size_t size = 0;
