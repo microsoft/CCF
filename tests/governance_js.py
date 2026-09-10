@@ -1201,7 +1201,7 @@ def test_set_constitution_validation(network, args):
         "proposal, proposerId, votes, proposalId",
     ):
         constitution = f"""
-        const moduleGovType = typeof ccf.gov;
+        const moduleGovType = typeof ccf === "undefined" ? "undefined" : typeof ccf.gov;
         export function validate(input) {{ {validate_body} }}
         export function resolve({resolve_args}) {{ {resolve_body} }}
         export function apply(proposal, proposerId) {{ {apply_body} }}
