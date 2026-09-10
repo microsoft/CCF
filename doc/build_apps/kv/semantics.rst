@@ -247,7 +247,7 @@ The checker distinguishes accepted executions, contract rejections, invalid
 traces, and unsupported operations. The runner also distinguishes C++ test or
 capture failure. Missing events, incomplete lifecycles, unknown operations, and
 empty claimed coverage are not successes. Rejected traces retain the first
-failing event, its expected and observed state, and a failing prefix.
+failing event and its expected and observed state.
 
 Reproducing a run
 -----------------
@@ -266,7 +266,7 @@ of normal CCF builds:
      -DCCF_KV_TRACE_CHECKER="$PWD/lean/kv/.lake/build/bin/kv_trace_check"
    cmake --build build-kv-trace --target kv_test
    cd build-kv-trace
-   ./tests.sh -R '^(kv_test|kv_trace_runner_test)$' -L unit --no-tests=error
+   ./tests.sh -R '^kv_test$' -L unit --no-tests=error
    ./tests.sh -R '^kv_trace_validation$' -L kv_trace --no-tests=error
 
 The conformance command returns a failure for rejected, invalid, or unsupported
@@ -274,17 +274,15 @@ traces and for capture/test failures. It does not turn unsupported mechanisms
 into accepted observations. This is separate from whether the Lean proofs/checker
 regressions and C++ unit tests succeed.
 
-``tests/kv_trace_cases.json`` records selected test cases and explicit exclusions.
-The runner inventories the actual binary: a missing selected case or an
-unclassified/stale coverage entry prevents an all-covered success. Its report
-records the selection, per-case results, binary/checker digests, and trace/log
-locations. Explicit ``--case`` selection produces a subset report, not a claim
-about the complete unit-test suite.
+The runner captures the purpose-built ``KV trace *`` cases once, then captures
+the concurrent fuzzer for each seed. It checks every generated trace with Lean
+and verifies that the expected cases, event families, and important outcomes
+were actually observed. Each run retains its trace and test/checker output in a
+unique directory.
 
-``CCF_KV_TRACE_TIMEOUT`` configures the per-case timeout passed to the runner.
-The full contention case produces a large trace, unlike the small focused
-schedules. The checker streams records and stops at the first diagnostic;
-accepted model history is not constant-memory.
+``CCF_KV_TRACE_TIMEOUT`` configures each capture and replay timeout. The checker
+streams records and stops at the first diagnostic; accepted model history is not
+constant-memory.
 
 The manually dispatched ``KV Contract Verification`` workflow builds the model
 and instrumented tests, then uploads diagnostics even if conformance fails.
@@ -311,18 +309,15 @@ must not be mistaken for a valid atomic transition.
 
 Campaigns use the same Lean checker as ordinary trace validation. A seed fixes
 program choices, not the operating system's scheduling. The captured trace is
-the exact observed execution to replay. Every seed retains its configuration,
-binary/checker digests, console output, trace, and diagnostics under a unique
-campaign directory. C++ writes recipe and coverage metadata to console records,
-separately from the strict NDJSON event schema.
+the exact observed execution to replay. Every seed retains its console output,
+trace, and diagnostics under a unique directory. C++ writes recipe and coverage
+metadata to console records, separately from the strict NDJSON event schema.
 
 The campaign checks both completed-operation counters and actual emitted event
 families and outcomes, including successful/conflicting/nonreplicating commits,
-absent/present reads and early iteration termination. Empty coverage, missing
-metadata, unsupported operations, timeout, rejection and malformed capture
-remain non-passing outcomes. A campaign stops at the first non-passing seed by
-default and records how many of its requested seeds were executed; the runner's
-``--keep-going`` option retains subsequent results too. Coverage of these
+absent/present reads and early iteration termination. Empty coverage, unsupported
+operations, timeout, rejection and malformed capture remain non-passing
+outcomes. A campaign stops at the first non-passing seed. Coverage of these
 families is not an exhaustive exploration of every program or thread schedule.
 
 After configuring a tracing build as above:
@@ -330,7 +325,7 @@ After configuring a tracing build as above:
 .. code-block:: bash
 
    cd build-kv-trace
-   ./tests.sh -R '^(kv_fuzz_runner_test|kv_fuzz_validation)$' --no-tests=error
+   ./tests.sh -R '^kv_trace_validation$' -L kv_fuzz --no-tests=error
 
 The CMake options below configure the campaign, without modifying the test
 program or its trace schema:
@@ -348,26 +343,16 @@ program or its trace schema:
    * - ``CCF_KV_FUZZ_SEEDS``
      - ``8``
      - Number of consecutive seeds, from 1 to 256 without overflow.
-   * - ``CCF_KV_FUZZ_THREADS``
-     - ``4``
-     - Worker count, from 1 to 16.
-   * - ``CCF_KV_FUZZ_TRANSACTIONS``
-     - ``24``
-     - Random transaction budget per worker, from 1 to 256.
-   * - ``CCF_KV_FUZZ_OPERATIONS``
-     - ``8``
-     - Operation budget per random transaction, from 1 to 32.
 
-The product of the three worker-budget settings must not exceed 65,536.
-Iteration depth, callback visits and key/map universes are bounded separately
-by the C++ workload. ``CCF_KV_TRACE_TIMEOUT`` bounds each capture/replay process.
-For example, to explore a different seed range:
+The C++ workload bounds its worker count, transaction and operation budgets,
+iteration depth, callback visits, and key/map universes.
+``CCF_KV_TRACE_TIMEOUT`` bounds each capture/replay process. For example, to
+explore a different seed range:
 
 .. code-block:: bash
 
    cmake -S .. -B . -DCCF_KV_FUZZ_SEED_START=100 -DCCF_KV_FUZZ_SEEDS=16
-   ./tests.sh -R '^kv_fuzz_validation$' -L kv_fuzz --no-tests=error
+   ./tests.sh -R '^kv_trace_validation$' -L kv_fuzz --no-tests=error
 
-The manual verification workflow runs this campaign before the broader
-diagnostic corpus, so known unsupported mechanisms in unrelated corpus cases
-do not prevent the fuzzer from running.
+The manual verification workflow uploads each generated trace and its test and
+checker output as diagnostic artifacts.

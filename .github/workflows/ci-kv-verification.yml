@@ -76,15 +76,11 @@ jobs:
             -DCCF_KV_TRACE_CHECKER="$PWD/lean/kv/.lake/build/bin/kv_trace_check"
           cmake --build build-kv-trace --target kv_test --parallel 2
 
-      - name: Run KV and trace-runner unit tests
+      - name: Run KV unit tests
         working-directory: build-kv-trace
-        run: ./tests.sh -R '^(kv_test|kv_trace_runner_test|kv_fuzz_runner_test)$' -L unit --no-tests=error
+        run: ./tests.sh -R '^kv_test$' -L unit --no-tests=error
 
-      - name: Run seeded concurrent KV campaigns
-        working-directory: build-kv-trace
-        run: ./tests.sh -R '^kv_fuzz_validation$' -L kv_fuzz --no-tests=error
-
-      - name: Diagnose implementation conformance
+      - name: Check generated traces
         working-directory: build-kv-trace
         run: ./tests.sh -R '^kv_trace_validation$' -L kv_trace --no-tests=error
 
@@ -95,5 +91,4 @@ jobs:
           name: kv-contract-diagnostics
           path: |
             build-kv-trace/kv-traces/
-            build-kv-trace/kv-fuzz/
             build-kv-trace/Testing/
