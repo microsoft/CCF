@@ -283,7 +283,16 @@ namespace ccf::js::core
       while (JS_PromiseState(ctx, eval_val.val) == JS_PROMISE_PENDING)
       {
         const auto result = JS_ExecutePendingJob(rt, &job_context);
-        if (result <= 0)
+        if (result < 0)
+        {
+          if (job_context != nullptr)
+          {
+            auto exception = JS_GetException(job_context);
+            JS_FreeValue(job_context, exception);
+          }
+          break;
+        }
+        else if (result == 0)
         {
           break;
         }

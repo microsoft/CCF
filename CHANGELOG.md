@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
-- JavaScript application heap, stack, and execution-time limits now cover top-level module initialisation and response conversion, in addition to endpoint handler execution.
+- JavaScript application heap, stack, and execution-time limits now cover top-level module initialisation and response conversion, in addition to endpoint handler execution. (#8346)
 - Transactions from an earlier view are now rejected before entering the replication queue even after the node has stepped down. This prevents rolled-back writes from being replicated after a later election and blocking subsequent replication (#8293, #8295).
 
 ### Changed
