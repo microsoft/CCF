@@ -58,7 +58,6 @@ namespace ccf::http
     ParserConfiguration config;
     config.max_body_size = "1GB";
     config.max_header_size = "100MB";
-    config.max_request_target_size = "100MB";
     config.max_headers_count = 1024;
     config.max_concurrent_streams_count = 1;
     config.initial_window_size = "64KB";
