@@ -94,3 +94,7 @@ export function responseGetterThrows() {
     },
   };
 }
+
+export function handlerThrows() {
+  throw new Error("boom");
+}

@@ -330,15 +330,27 @@ def test_execution_time_limit_across_request(network, args):
     return network
 
 
-@reqs.description("Test regular exceptions in response getters are preserved")
+@reqs.description("Test regular exceptions are not masked by the timeout message")
 def test_response_exception_message(network, args):
     primary, _ = network.find_nodes()
 
+    # Each of these raises an ordinary Error, well within the execution time
+    # limit. The reported message must describe the actual failure, and must
+    # never be the timeout message.
+    cases = {
+        "handler_throws": "Exception thrown while executing.",
+        "response_getter_throws": (
+            "Invalid endpoint function return value (error reading body)."
+        ),
+    }
+
     with primary.client("user0") as c:
-        r = c.post("/app/response_getter_throws")
-        assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r
-        message = r.body.json()["error"]["message"]
-        assert message == "Exception thrown while executing.", message
+        for path, expected in cases.items():
+            r = c.post(f"/app/{path}")
+            assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r
+            message = r.body.json()["error"]["message"]
+            assert message != "Operation took too long to complete.", message
+            assert message == expected, message
 
     return network
 

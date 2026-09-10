@@ -120,6 +120,17 @@
         "mode": "readonly",
         "openapi": {}
       }
+    },
+    "/handler_throws": {
+      "post": {
+        "js_module": "limits.js",
+        "js_function": "handlerThrows",
+        "forwarding_required": "never",
+        "redirection_strategy": "none",
+        "authn_policies": ["user_cert"],
+        "mode": "readonly",
+        "openapi": {}
+      }
     }
   }
 }
