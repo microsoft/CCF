@@ -5,9 +5,7 @@
 #include "ccf/ds/json.h"
 #include "ccf/ds/unit_strings.h"
 
-#include <limits>
 #include <optional>
-#include <string>
 
 namespace ccf::http
 {
@@ -60,8 +58,6 @@ namespace ccf::http
     ParserConfiguration config;
     config.max_body_size = "1GB";
     config.max_header_size = "100MB";
-    config.max_request_target_size =
-      ccf::ds::SizeString(std::to_string(std::numeric_limits<size_t>::max()));
     config.max_headers_count = 1024;
     config.max_concurrent_streams_count = 1;
     config.initial_window_size = "64KB";

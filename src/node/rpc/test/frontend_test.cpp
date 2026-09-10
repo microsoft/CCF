@@ -1506,7 +1506,17 @@ TEST_CASE("Userfrontend forwarding" * doctest::test_suite("forwarding"))
   publish_frontend_state(user_frontend_backup, network_backup);
 
   auto write_req = create_simple_request();
+  write_req.set_query_param(
+    "padding",
+    std::string(ccf::http::default_max_request_target_size.count_bytes(), 'a'));
   auto serialized_call = write_req.build_request();
+
+  ccf::http::ParserConfiguration ingress_config;
+  ingress_config.max_request_target_size = "32KB";
+  ::http::SimpleRequestProcessor ingress_processor;
+  ::http::RequestParser ingress_parser(ingress_processor, ingress_config);
+  ingress_parser.execute(serialized_call.data(), serialized_call.size());
+  REQUIRE(ingress_processor.received.size() == 1);
 
   auto ctx = ccf::make_rpc_context(user_session, serialized_call);
   user_frontend_backup.process(ctx);
@@ -1519,6 +1529,7 @@ TEST_CASE("Userfrontend forwarding" * doctest::test_suite("forwarding"))
       ccf::kv::test::FirstBackupNodeId,
       forwarded_msg.data(),
       forwarded_msg.size());
+  REQUIRE(fwd_ctx != nullptr);
 
   user_frontend_primary.process_forwarded(fwd_ctx);
   auto response = parse_response(fwd_ctx->serialise_response());
