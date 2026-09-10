@@ -32,23 +32,22 @@ namespace ccf::pal::snp::ioctl6
     // https://github.com/torvalds/linux/blob/v6.8/drivers/virt/coco/sev-guest/sev-guest.h
     // https://github.com/torvalds/linux/blob/v6.8/include/uapi/linux/sev-guest.h
     constexpr size_t ATTESTATION_RESPONSE_SIZE = 4000;
+    struct AttestationResponse
+    {
+      uint32_t status = 0;
+      uint32_t report_size = 0;
+      std::array<uint8_t, 24> reserved = {};
+      std::array<uint8_t, attestation_report_size> report_bytes = {};
+      std::array<
+        uint8_t,
+        detail::ATTESTATION_RESPONSE_SIZE - 0x20 - attestation_report_size>
+        padding = {};
+    };
+    static_assert(
+      sizeof(AttestationResponse) == detail::ATTESTATION_RESPONSE_SIZE);
+    static_assert(offsetof(AttestationResponse, report_size) == 0x04);
+    static_assert(offsetof(AttestationResponse, report_bytes) == 0x20);
   }
-
-  struct AttestationResponse
-  {
-    uint32_t status = 0;
-    uint32_t report_size = 0;
-    std::array<uint8_t, 24> reserved = {};
-    std::array<uint8_t, attestation_report_size> report_bytes = {};
-    std::array<
-      uint8_t,
-      detail::ATTESTATION_RESPONSE_SIZE - 0x20 - attestation_report_size>
-      padding = {};
-  };
-  static_assert(
-    sizeof(AttestationResponse) == detail::ATTESTATION_RESPONSE_SIZE);
-  static_assert(offsetof(AttestationResponse, report_size) == 0x04);
-  static_assert(offsetof(AttestationResponse, report_bytes) == 0x20);
 
 #pragma pack(push, 1)
   // Helper to add padding to a struct, so that the resulting struct has some
@@ -144,7 +143,7 @@ namespace ccf::pal::snp::ioctl6
     uint32_t status = 0;
     uint32_t report_size = 0;
     uint8_t reserved[0x20 - 0x8] = {0};
-    [[deprecated("Use request_attestation().report_bytes")]]
+    [[deprecated("Use get_raw() and parse_attestation_report_unverified")]]
     snp::Attestation report = {};
     uint8_t padding[64] = {0};
     // padding to the size of SEV_SNP_REPORT_RSP_BUF_SZ (i.e., 1280 bytes)
@@ -255,12 +254,10 @@ namespace ccf::pal::snp::ioctl6
 
   namespace detail
   {
-    template <typename Response>
-    void request_attestation(
+    inline void request_attestation(
       const PlatformAttestationReportData& report_data,
-      IoctlSentinel<Response>& response)
+      IoctlSentinel<AttestationResponse>& response)
     {
-      static_assert(sizeof(Response) == ATTESTATION_RESPONSE_SIZE);
       AttestationReq req = {};
       if (report_data.data.size() <= snp_attestation_report_data_size)
       {
@@ -283,7 +280,7 @@ namespace ccf::pal::snp::ioctl6
 
       // Documented at
       // https://www.kernel.org/doc/html/latest/virt/coco/sev-guest.html
-      GuestRequest<AttestationReq, Response> payload = {
+      AttestationRequest payload = {
         .req_data = &req, .resp_wrapper = &response.data, .exit_info = {0}};
 
       int rc = ioctl(fd, SEV_SNP_GUEST_MSG_REPORT, &payload);
@@ -309,37 +306,24 @@ namespace ccf::pal::snp::ioctl6
     }
   }
 
-  // Validates ioctl safety and report size, not report authenticity.
-  static AttestationResponse request_attestation(
-    const PlatformAttestationReportData& report_data)
-  {
-    IoctlSentinel<AttestationResponse> response;
-    detail::request_attestation(report_data, response);
-    if (response.data.report_size != attestation_report_size)
-    {
-      throw std::logic_error(fmt::format(
-        "Unexpected SEV-SNP attestation report size: {} != {}",
-        response.data.report_size,
-        attestation_report_size));
-    }
-    return response.data;
-  }
-
   class Attestation : public AttestationInterface
   {
-    IoctlSentinel<PaddedAttestationResp> resp_with_sentinel;
-    PaddedAttestationResp& padded_resp = resp_with_sentinel.data;
+    PaddedAttestationResp padded_resp;
 
   public:
     Attestation(const PlatformAttestationReportData& report_data)
     {
-      detail::request_attestation(report_data, resp_with_sentinel);
+      IoctlSentinel<detail::AttestationResponse> response;
+      detail::request_attestation(report_data, response);
+      // Retain legacy storage for the reference returned by get().
+      static_assert(sizeof(padded_resp) == sizeof(response.data));
+      std::memcpy(&padded_resp, &response.data, sizeof(padded_resp));
     }
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
     [[deprecated(
-      "Use request_attestation().report_bytes and "
+      "Use get_raw() and explicitly decode with "
       "parse_attestation_report_unverified")]] [[nodiscard]] const ccf::pal::
       snp::Attestation&
       get() const override
@@ -354,7 +338,6 @@ namespace ccf::pal::snp::ioctl6
       return padded_resp.report;
     }
 
-    [[deprecated("Use request_attestation().report_bytes")]]
     std::vector<uint8_t> get_raw() override
     {
       if (padded_resp.report_size != attestation_report_size)

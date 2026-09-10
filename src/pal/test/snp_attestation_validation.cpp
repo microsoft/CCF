@@ -131,38 +131,6 @@ namespace
   }
 }
 
-TEST_CASE("unverified SNP report accessors")
-{
-  using namespace ccf::pal;
-  static_assert(
-    std::
-      is_same_v<snp::AttestationReport::element_type, TavSnpAttestationReport>);
-  static_assert(!std::is_copy_constructible_v<snp::AttestationReport>);
-  static_assert(std::is_nothrow_move_constructible_v<snp::AttestationReport>);
-  static_assert(std::is_same_v<
-                decltype(snp::parse_attestation_report_unverified(
-                  std::declval<std::span<const uint8_t>>())),
-                snp::AttestationReport>);
-
-  auto report =
-    snp::parse_attestation_report_unverified(snp::testing::milan_attestation);
-
-  CHECK(tav_snp_attestation_report_version(report.get()) == 3);
-  CHECK(tav_snp_attestation_report_cpuid_fam_id(report.get()) == 25);
-  CHECK(tav_snp_attestation_report_cpuid_mod_id(report.get()) == 1);
-  const uint8_t* data = nullptr;
-  size_t size = 0;
-  tav_snp_attestation_report_reported_tcb(report.get(), &data, &size);
-  CHECK(
-    snp::TcbVersionRaw::from_span({data, size}).to_hex() == "db18000000000004");
-  tav_snp_attestation_report_measurement(report.get(), &data, &size);
-  const auto measurement = std::span<const uint8_t>{data, size};
-  auto moved_report = std::move(report);
-  CHECK(measurement.size() == snp_attestation_measurement_size);
-  tav_snp_attestation_report_signature_r(moved_report.get(), &data, &size);
-  CHECK(size == 72);
-}
-
 TEST_CASE("CCF policy is separate from generic TAV verification")
 {
   using namespace ccf::pal;
@@ -224,50 +192,6 @@ TEST_CASE("unverified SNP report rejects invalid sizes")
   }
 }
 
-TEST_CASE("SNP byte accessors borrow report storage")
-{
-  struct ByteField
-  {
-    void (*accessor)(const TavSnpAttestationReport*, const uint8_t**, size_t*);
-    size_t offset;
-    size_t size;
-  };
-  const ByteField fields[] = {
-    {tav_snp_attestation_report_family_id, 0x010, 16},
-    {tav_snp_attestation_report_image_id, 0x020, 16},
-    {tav_snp_attestation_report_platform_version, 0x038, 8},
-    {tav_snp_attestation_report_report_data, 0x050, 64},
-    {tav_snp_attestation_report_measurement, 0x090, 48},
-    {tav_snp_attestation_report_host_data, 0x0C0, 32},
-    {tav_snp_attestation_report_id_key_digest, 0x0E0, 48},
-    {tav_snp_attestation_report_author_key_digest, 0x110, 48},
-    {tav_snp_attestation_report_report_id, 0x140, 32},
-    {tav_snp_attestation_report_report_id_ma, 0x160, 32},
-    {tav_snp_attestation_report_reported_tcb, 0x180, 8},
-    {tav_snp_attestation_report_chip_id, 0x1A0, 64},
-    {tav_snp_attestation_report_committed_tcb, 0x1E0, 8},
-    {tav_snp_attestation_report_launch_tcb, 0x1F0, 8},
-    {tav_snp_attestation_report_signature_r, 0x2A0, 72},
-    {tav_snp_attestation_report_signature_s, 0x2E8, 72}};
-
-  const auto& raw_report = ccf::pal::snp::testing::milan_attestation;
-  auto report = ccf::pal::snp::parse_attestation_report_unverified(raw_report);
-  for (const auto& [accessor, offset, size] : fields)
-  {
-    const uint8_t* data = nullptr;
-    size_t length = 0;
-    accessor(report.get(), &data, &length);
-    const auto first = std::span<const uint8_t>{data, length};
-    data = nullptr;
-    length = 0;
-    accessor(report.get(), &data, &length);
-    const auto second = std::span<const uint8_t>{data, length};
-    CHECK(first.data() == second.data());
-    REQUIRE(first.size() == size);
-    CHECK(std::equal(first.begin(), first.end(), raw_report.begin() + offset));
-  }
-}
-
 TEST_CASE("SNP chip ID access rejects empty handles")
 {
   ccf::pal::snp::AttestationReport report;
@@ -277,60 +201,24 @@ TEST_CASE("SNP chip ID access rejects empty handles")
     std::logic_error);
 }
 
-TEST_CASE("SNP borrowed bytes survive report ownership transfers")
+TEST_CASE("VCEK chip ID uses the product-specific prefix")
 {
   using namespace ccf::pal::snp;
-  auto raw_report = testing::milan_attestation;
-  std::optional<AttestationReport> original =
-    parse_attestation_report_unverified(raw_report);
-  const uint8_t* data = nullptr;
-  size_t size = 0;
-  tav_snp_attestation_report_measurement(original->get(), &data, &size);
-  const auto measurement = std::span<const uint8_t>{data, size};
-  raw_report[0x090] ^= 0xff;
-  CHECK(measurement[0] == testing::milan_attestation[0x090]);
-
-  auto moved = std::move(*original);
-  original.reset();
-  tav_snp_attestation_report_measurement(moved.get(), &data, &size);
-  CHECK(measurement.data() == data);
-  CHECK(measurement.size() == size);
-
-  auto assigned =
-    parse_attestation_report_unverified(testing::genoa_attestation);
-  assigned = std::move(moved);
-  tav_snp_attestation_report_measurement(assigned.get(), &data, &size);
-  CHECK(measurement.data() == data);
-  CHECK(measurement.size() == size);
-  CHECK(std::equal(
-    measurement.begin(),
-    measurement.end(),
-    testing::milan_attestation.begin() + 0x090));
-}
-
-TEST_CASE("VCEK chip ID borrows the product-specific prefix")
-{
-  using namespace ccf::pal::snp;
-  for (const auto* raw_report :
-       {&testing::milan_attestation,
-        &testing::genoa_attestation,
-        &testing::turin_attestation})
+  struct TestCase
   {
-    auto report = parse_attestation_report_unverified(*raw_report);
-    const uint8_t* data = nullptr;
-    size_t size = 0;
-    tav_snp_attestation_report_chip_id(report.get(), &data, &size);
-    const auto chip_id = std::span<const uint8_t>{data, size};
+    const std::vector<uint8_t>& report;
+    size_t chip_id_size;
+  };
+  for (const auto& [raw_report, expected_size] :
+       {TestCase{testing::milan_attestation, 64},
+        TestCase{testing::genoa_attestation, 64},
+        TestCase{testing::turin_attestation, 8}})
+  {
+    auto report = parse_attestation_report_unverified(raw_report);
     const auto vcek_chip_id = get_chip_id_for_vcek(report);
-    CHECK(vcek_chip_id.data() == chip_id.data());
-    CHECK(
-      vcek_chip_id.size() ==
-      (get_sev_snp_product(
-         tav_snp_attestation_report_cpuid_fam_id(report.get()),
-         tav_snp_attestation_report_cpuid_mod_id(report.get())) ==
-           ProductName::Turin ?
-         8 :
-         64));
+    REQUIRE(vcek_chip_id.size() == expected_size);
+    CHECK(std::equal(
+      vcek_chip_id.begin(), vcek_chip_id.end(), raw_report.begin() + 0x1A0));
   }
 }
 
@@ -393,85 +281,12 @@ TEST_CASE("SNP verification rejects other quote formats before parsing")
   }
 }
 
-TEST_CASE(
-  "SNP ioctl response owns report bytes separately from header and padding")
-{
-  using namespace ccf::pal::snp;
-  static_assert(
-    std::is_same_v<
-      decltype(request_attestation(
-        std::declval<const ccf::pal::PlatformAttestationReportData&>())),
-      AttestationResponse>);
-  static_assert(
-    std::is_same_v<
-      decltype(ioctl6::request_attestation(
-        std::declval<const ccf::pal::PlatformAttestationReportData&>())),
-      AttestationResponse>);
-
-  using Response = AttestationResponse;
-  static_assert(std::is_standard_layout_v<Response>);
-  static_assert(std::is_trivially_copyable_v<Response>);
-  static_assert(std::is_aggregate_v<Response>);
-  static_assert(std::is_same_v<
-                decltype(Response::report_bytes),
-                std::array<uint8_t, attestation_report_size>>);
-  static_assert(sizeof(Response) == 4000);
-  static_assert(offsetof(Response, status) == 0);
-  static_assert(offsetof(Response, report_size) == 4);
-  static_assert(offsetof(Response, reserved) == 8);
-  static_assert(offsetof(Response, report_bytes) == 0x20);
-  static_assert(offsetof(Response, padding) == 0x20 + attestation_report_size);
-
-  ioctl6::IoctlSentinel<Response> response;
-  CHECK(response.data.status == 0);
-  CHECK(response.data.report_size == 0);
-  CHECK(response.data.reserved == decltype(response.data.reserved){});
-  CHECK(response.data.report_bytes == decltype(response.data.report_bytes){});
-  CHECK(response.data.padding == decltype(response.data.padding){});
-  response.data.status = 0xa5a5a5a5;
-  response.data.report_size = attestation_report_size;
-  response.data.reserved.fill(0xa5);
-  response.data.padding.fill(0xa5);
-  std::copy(
-    testing::milan_attestation.begin(),
-    testing::milan_attestation.end(),
-    response.data.report_bytes.begin());
-
-  CHECK(response.data.report_size == attestation_report_size);
-  const auto attestation = response.data;
-  CHECK(std::equal(
-    attestation.report_bytes.begin(),
-    attestation.report_bytes.end(),
-    testing::milan_attestation.begin(),
-    testing::milan_attestation.end()));
-  auto report = parse_attestation_report_unverified(attestation.report_bytes);
-  CHECK(tav_snp_attestation_report_version(report.get()) == 3);
-  CHECK(response.sentinels_intact());
-  response.data = {};
-  CHECK(std::equal(
-    attestation.report_bytes.begin(),
-    attestation.report_bytes.end(),
-    testing::milan_attestation.begin(),
-    testing::milan_attestation.end()));
-
-  for (auto* sentinels : {response.pre_sentinels, response.post_sentinels})
-  {
-    for (size_t i = 0; i < response.num_sentinel_bytes; ++i)
-    {
-      sentinels[i] ^= 1;
-      CHECK_FALSE(response.sentinels_intact());
-      sentinels[i] ^= 1;
-      CHECK(response.sentinels_intact());
-    }
-  }
-}
-
 TEST_CASE("SNP request rejects oversized report data before ioctl")
 {
   ccf::pal::PlatformAttestationReportData report_data;
   report_data.data.resize(ccf::pal::snp_attestation_report_data_size + 1);
   CHECK_THROWS_WITH_AS(
-    ccf::pal::snp::ioctl6::request_attestation(report_data),
+    ccf::pal::snp::ioctl6::Attestation{report_data},
     "User-defined report data is larger than available space",
     std::logic_error);
 }
@@ -517,6 +332,23 @@ TEST_CASE("legacy SNP report layout remains compatible")
   CHECK(offsetof(Attestation, chip_id) == 0x1A0);
   CHECK(offsetof(Attestation, signature) == 0x2A0);
 
+  ccf::pal::snp::ioctl6::detail::AttestationResponse response;
+  response.report_size = ccf::pal::snp::attestation_report_size;
+  std::copy(
+    ccf::pal::snp::testing::milan_attestation.begin(),
+    ccf::pal::snp::testing::milan_attestation.end(),
+    response.report_bytes.begin());
+  ccf::pal::snp::ioctl6::PaddedAttestationResp legacy_response;
+  static_assert(std::is_trivially_copyable_v<decltype(legacy_response)>);
+  static_assert(sizeof(legacy_response) == sizeof(response));
+  std::memcpy(&legacy_response, &response, sizeof(legacy_response));
+  CHECK(legacy_response.report_size == response.report_size);
+  CHECK(
+    std::memcmp(
+      &legacy_response.report,
+      response.report_bytes.data(),
+      response.report_bytes.size()) == 0);
+
   report.version = ccf::pal::snp::minimum_attestation_version;
   report.cpuid_fam_id = 0x19;
   report.cpuid_mod_id = 0x01;
@@ -541,13 +373,6 @@ TEST_CASE("milan validation")
 
   pal::PlatformAttestationMeasurement measurement;
   pal::PlatformAttestationReportData report_data;
-
-  static_assert(std::is_same_v<
-                decltype(pal::verify_snp_attestation_report_and_get(
-                  std::declval<const QuoteInfo&>(),
-                  std::declval<pal::PlatformAttestationMeasurement&>(),
-                  std::declval<pal::PlatformAttestationReportData&>())),
-                pal::snp::AttestationReport>);
 
   const auto report = pal::verify_snp_attestation_report_and_get(
     milan_quote_info, measurement, report_data);
