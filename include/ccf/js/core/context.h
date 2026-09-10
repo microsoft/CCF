@@ -205,4 +205,32 @@ namespace ccf::js::core
       return nullptr;
     }
   };
+
+  // Applies heap, stack and execution time limits to a Context's runtime for
+  // the lifetime of this object, including the interrupt handler which enforces
+  // the execution time limit. The limits are removed when it is destroyed.
+  class RuntimeLimitsScope
+  {
+  private:
+    Context& ctx;
+
+  public:
+    // Applies the limits derived from options and policy. If inherited is
+    // given, the execution deadline (start time and budget) is taken from it,
+    // so that the remaining execution time of an in-progress execution is
+    // shared rather than a fresh window being opened. Otherwise the execution
+    // time window starts now.
+    RuntimeLimitsScope(
+      Context& context,
+      const std::optional<ccf::JSRuntimeOptions>& options,
+      RuntimeLimitsPolicy policy,
+      const std::optional<InterruptData>& inherited = std::nullopt);
+
+    ~RuntimeLimitsScope();
+
+    RuntimeLimitsScope(const RuntimeLimitsScope&) = delete;
+    RuntimeLimitsScope& operator=(const RuntimeLimitsScope&) = delete;
+    RuntimeLimitsScope(RuntimeLimitsScope&&) = delete;
+    RuntimeLimitsScope& operator=(RuntimeLimitsScope&&) = delete;
+  };
 }

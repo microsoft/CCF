@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- Restricted `ccf.gov.validateConstitution` to the constitution's `validate` step. It is no longer exposed to applications, ballots, or the constitution's `resolve` and `apply` steps. Evaluating the proposed constitution is now bounded by the caller's `js_runtime_options` heap, stack and execution time limits, sharing the remaining execution time of the `validate` step, rather than running unbounded (#8341).
+- Failures of the JS interpreter itself (out of memory, stack overflow, or interruption) while evaluating a module's top-level code are now reported as a failure to load that module, rather than being ignored (#8341).
 - Strengthened access checks on JavaScript KV handles, including namespace restrictions in the historical KV (#8318).
 - Invalid PEM construction and JSON deserialisation errors no longer include the supplied data, which may contain private key material (#8330).
 - Reaching the soft session cap on an unsecured RPC interface no longer terminates the node by attempting a TLS handshake without a certificate. (#8331)
