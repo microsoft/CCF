@@ -26,15 +26,26 @@ namespace ccf::pal::snp::ioctl6
 
   namespace detail
   {
+    // Linux snp_guest_msg is 4096 bytes: a 96-byte outer message header and
+    // 4000-byte payload. The ioctl returns only the decrypted payload, with
+    // its own 32-byte report response header before the report.
+    // https://github.com/torvalds/linux/blob/v6.8/drivers/virt/coco/sev-guest/sev-guest.h
+    // https://github.com/torvalds/linux/blob/v6.8/include/uapi/linux/sev-guest.h
     constexpr size_t ATTESTATION_RESPONSE_SIZE = 4000;
-    constexpr size_t REPORT_SIZE_OFFSET = sizeof(uint32_t);
-    constexpr size_t REPORT_OFFSET = 0x20;
-    using AttestationResponseBytes =
-      std::array<uint8_t, ATTESTATION_RESPONSE_SIZE>;
-    static_assert(
-      sizeof(AttestationResponseBytes) == ATTESTATION_RESPONSE_SIZE);
-    static_assert(
-      REPORT_OFFSET + attestation_report_size <= ATTESTATION_RESPONSE_SIZE);
+    struct AttestationResponse
+    {
+      uint32_t status = 0;
+      uint32_t report_size = 0;
+      std::array<uint8_t, 24> reserved = {};
+      std::array<uint8_t, attestation_report_size> report = {};
+      std::array<
+        uint8_t,
+        ATTESTATION_RESPONSE_SIZE - 0x20 - attestation_report_size>
+        padding = {};
+    };
+    static_assert(sizeof(AttestationResponse) == ATTESTATION_RESPONSE_SIZE);
+    static_assert(offsetof(AttestationResponse, report_size) == 0x04);
+    static_assert(offsetof(AttestationResponse, report) == 0x20);
   }
 
 #pragma pack(push, 1)
@@ -137,9 +148,8 @@ namespace ccf::pal::snp::ioctl6
     // padding to the size of SEV_SNP_REPORT_RSP_BUF_SZ (i.e., 1280 bytes)
   };
 #pragma pack(pop)
-  static_assert(
-    offsetof(AttestationResp, report_size) == detail::REPORT_SIZE_OFFSET);
-  static_assert(offsetof(AttestationResp, report) == detail::REPORT_OFFSET);
+  static_assert(offsetof(AttestationResp, report_size) == 0x04);
+  static_assert(offsetof(AttestationResp, report) == 0x20);
   static_assert(sizeof(AttestationResp) == 1280);
 #pragma GCC diagnostic pop
 
@@ -217,7 +227,7 @@ namespace ccf::pal::snp::ioctl6
   namespace detail
   {
     using GuestRequestAttestationBytes =
-      GuestRequest<AttestationReq, AttestationResponseBytes>;
+      GuestRequest<AttestationReq, AttestationResponse>;
     static_assert(
       sizeof(GuestRequestAttestationBytes) == sizeof(GuestRequestAttestation));
   }
@@ -251,17 +261,10 @@ namespace ccf::pal::snp::ioctl6
     }
 
     inline std::vector<uint8_t> extract_attestation_bytes(
-      const AttestationResponseBytes& response)
+      const AttestationResponse& response)
     {
-      uint32_t report_size = 0;
-      std::memcpy(
-        &report_size,
-        response.data() + REPORT_SIZE_OFFSET,
-        sizeof(report_size));
-      validate_report_size(report_size);
-      return {
-        response.begin() + REPORT_OFFSET,
-        response.begin() + REPORT_OFFSET + attestation_report_size};
+      validate_report_size(response.report_size);
+      return {response.report.begin(), response.report.end()};
     }
 
     template <typename Response>
@@ -321,8 +324,7 @@ namespace ccf::pal::snp::ioctl6
   static std::vector<uint8_t> get_attestation_bytes(
     const PlatformAttestationReportData& report_data)
   {
-    IoctlSentinel<detail::AttestationResponseBytes> response;
-    response.data.fill(0);
+    IoctlSentinel<detail::AttestationResponse> response;
     detail::request_attestation(report_data, response);
     return detail::extract_attestation_bytes(response.data);
   }

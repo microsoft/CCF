@@ -194,13 +194,14 @@ TEST_CASE("CCF policy is separate from generic TAV verification")
   const std::vector<uint8_t> endorsements(
     snp::testing::milan_endorsements.begin(),
     snp::testing::milan_endorsements.end());
+  const ccf::QuoteInfo quote_info = {
+    .format = ccf::QuoteFormat::amd_sev_snp_v1,
+    .quote = snp::testing::milan_attestation,
+    .endorsements = endorsements,
+    .uvm_endorsements = std::nullopt,
+    .endorsed_tcb = "0000000000000000"};
   CHECK_THROWS_WITH_AS(
-    snp::verify_attestation_report(
-      snp::testing::milan_attestation,
-      endorsements,
-      measurement,
-      report_data,
-      "0000000000000000"),
+    verify_snp_attestation_report_and_get(quote_info, measurement, report_data),
     doctest::Contains("does not match reported TCB"),
     std::logic_error);
 }
@@ -344,12 +345,44 @@ TEST_CASE("SNP verification preserves invalid size error")
 {
   ccf::pal::PlatformAttestationMeasurement measurement;
   ccf::pal::PlatformAttestationReportData report_data;
+  const ccf::QuoteInfo quote_info = {
+    .format = ccf::QuoteFormat::amd_sev_snp_v1,
+    .quote = std::vector<uint8_t>(100),
+    .endorsements = {},
+    .uvm_endorsements = std::nullopt};
   CHECK_THROWS_WITH_AS(
-    ccf::pal::snp::verify_attestation_report(
-      std::vector<uint8_t>(100), {}, measurement, report_data),
+    ccf::pal::verify_snp_attestation_report_and_get(
+      quote_info, measurement, report_data),
     doctest::Contains(
       "Input SEV-SNP attestation report is not of expected size 1184: 100"),
     std::logic_error);
+}
+
+TEST_CASE("SNP verification rejects other quote formats before parsing")
+{
+  for (const auto format :
+       {ccf::QuoteFormat::insecure_virtual, ccf::QuoteFormat::oe_sgx_v1})
+  {
+    const ccf::QuoteInfo quote_info = {
+      .format = format,
+      .quote = {},
+      .endorsements = {},
+      .uvm_endorsements = std::nullopt};
+    ccf::pal::PlatformAttestationMeasurement measurement;
+    ccf::pal::PlatformAttestationReportData report_data;
+    const auto expected_error = fmt::format(
+      "Unexpected attestation report to verify for SEV-SNP: {}", format);
+    CHECK_THROWS_WITH_AS(
+      ccf::pal::verify_snp_attestation_report_and_get(
+        quote_info, measurement, report_data),
+      expected_error.c_str(),
+      std::logic_error);
+    CHECK_THROWS_WITH_AS(
+      ccf::pal::verify_snp_attestation_report(
+        quote_info, measurement, report_data),
+      expected_error.c_str(),
+      std::logic_error);
+  }
 }
 
 TEST_CASE("SNP ioctl response bytes exclude response headers and padding")
@@ -361,23 +394,34 @@ TEST_CASE("SNP ioctl response bytes exclude response headers and padding")
         std::declval<const ccf::pal::PlatformAttestationReportData&>())),
       std::vector<uint8_t>>);
 
-  ioctl6::IoctlSentinel<ioctl6::detail::AttestationResponseBytes> response;
-  response.data.fill(0xa5);
-  const uint32_t report_size = attestation_report_size;
-  std::memcpy(
-    response.data.data() + ioctl6::detail::REPORT_SIZE_OFFSET,
-    &report_size,
-    sizeof(report_size));
+  using Response = ioctl6::detail::AttestationResponse;
+  static_assert(sizeof(Response) == 4000);
+  static_assert(offsetof(Response, status) == 0);
+  static_assert(offsetof(Response, report_size) == 4);
+  static_assert(offsetof(Response, reserved) == 8);
+  static_assert(offsetof(Response, report) == 0x20);
+  static_assert(offsetof(Response, padding) == 0x20 + attestation_report_size);
+
+  ioctl6::IoctlSentinel<Response> response;
+  CHECK(response.data.status == 0);
+  CHECK(response.data.report_size == 0);
+  CHECK(response.data.reserved == decltype(response.data.reserved){});
+  CHECK(response.data.report == decltype(response.data.report){});
+  CHECK(response.data.padding == decltype(response.data.padding){});
+  response.data.status = 0xa5a5a5a5;
+  response.data.report_size = attestation_report_size;
+  response.data.reserved.fill(0xa5);
+  response.data.padding.fill(0xa5);
   std::copy(
     testing::milan_attestation.begin(),
     testing::milan_attestation.end(),
-    response.data.begin() + ioctl6::detail::REPORT_OFFSET);
+    response.data.report.begin());
 
   const auto report_bytes =
     ioctl6::detail::extract_attestation_bytes(response.data);
   CHECK(report_bytes == testing::milan_attestation);
   CHECK(response.sentinels_intact());
-  response.data.fill(0);
+  response.data = {};
   CHECK(report_bytes == testing::milan_attestation);
 
   response.post_sentinels[1] ^= 1;
@@ -387,14 +431,11 @@ TEST_CASE("SNP ioctl response bytes exclude response headers and padding")
 TEST_CASE("SNP ioctl response bytes reject invalid report sizes")
 {
   using namespace ccf::pal::snp;
-  ioctl6::detail::AttestationResponseBytes response = {};
+  ioctl6::detail::AttestationResponse response = {};
   for (const uint32_t report_size :
        {0U, 1183U, 1185U, std::numeric_limits<uint32_t>::max()})
   {
-    std::memcpy(
-      response.data() + ioctl6::detail::REPORT_SIZE_OFFSET,
-      &report_size,
-      sizeof(report_size));
+    response.report_size = report_size;
     const auto expected_error = fmt::format(
       "Unexpected SEV-SNP attestation report size: {} != {}",
       report_size,
@@ -482,18 +523,22 @@ TEST_CASE("milan validation")
   pal::PlatformAttestationMeasurement measurement;
   pal::PlatformAttestationReportData report_data;
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
   static_assert(std::is_same_v<
                 decltype(pal::verify_snp_attestation_report_and_get(
                   std::declval<const QuoteInfo&>(),
                   std::declval<pal::PlatformAttestationMeasurement&>(),
                   std::declval<pal::PlatformAttestationReportData&>())),
                 pal::snp::AttestationReport>);
-#pragma GCC diagnostic pop
 
+  const auto report = pal::verify_snp_attestation_report_and_get(
+    milan_quote_info, measurement, report_data);
+  REQUIRE(report != nullptr);
+  const auto verified_measurement = measurement.data;
+  const auto verified_report_data = report_data.data;
   pal::verify_snp_attestation_report(
     milan_quote_info, measurement, report_data);
+  CHECK(measurement.data == verified_measurement);
+  CHECK(report_data.data == verified_report_data);
 }
 
 TEST_CASE("genoa validation")

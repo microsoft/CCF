@@ -245,13 +245,20 @@ namespace ccf::pal
   }
 
   // Verifying SNP attestation report is available on all platforms.
-  snp::AttestationReport snp::verify_attestation_report(
-    std::span<const uint8_t> report,
-    std::span<const uint8_t> endorsements,
+  snp::AttestationReport verify_snp_attestation_report_and_get(
+    const QuoteInfo& quote_info,
     PlatformAttestationMeasurement& measurement,
-    PlatformAttestationReportData& report_data,
-    std::optional<std::string_view> claimed_endorsed_tcb)
+    PlatformAttestationReportData& report_data)
   {
+    if (quote_info.format != QuoteFormat::amd_sev_snp_v1)
+    {
+      throw std::logic_error(fmt::format(
+        "Unexpected attestation report to verify for SEV-SNP: {}",
+        quote_info.format));
+    }
+
+    const auto& report = quote_info.quote;
+    const auto& endorsements = quote_info.endorsements;
     if (report.size() != snp::attestation_report_size)
     {
       throw std::logic_error(fmt::format(
@@ -289,7 +296,7 @@ namespace ccf::pal
         vcek_cert.size(),
         &raw_report),
       tav_error_free);
-    AttestationReport attestation(raw_report);
+    snp::AttestationReport attestation(raw_report);
     check_tav_error("verification", error.get());
     if (attestation == nullptr)
     {
@@ -366,8 +373,8 @@ namespace ccf::pal
     if (endorsed_tcb.has_value())
     {
       auto endorsed_tcb_policy = endorsed_tcb->to_policy(product_family);
-      auto reported_tcb =
-        TcbVersionRaw::from_span(reported_tcb_raw).to_policy(product_family);
+      auto reported_tcb = snp::TcbVersionRaw::from_span(reported_tcb_raw)
+                            .to_policy(product_family);
 
       if (!snp::TcbVersionPolicy::is_valid(endorsed_tcb_policy, reported_tcb))
       {
@@ -380,7 +387,7 @@ namespace ccf::pal
     }
 
     auto endorsed_chip_id = get_endorsed_chip_id_from_cert(vcek_cert);
-    auto reported_chip_id = get_chip_id_for_vcek(attestation);
+    auto reported_chip_id = snp::get_chip_id_for_vcek(attestation);
     if (
       endorsed_chip_id.has_value() &&
       (endorsed_chip_id->size() != reported_chip_id.size() ||
@@ -396,12 +403,12 @@ namespace ccf::pal
         ccf::ds::to_hex(reported_chip_id)));
     }
 
-    if (claimed_endorsed_tcb.has_value())
+    if (quote_info.endorsed_tcb.has_value())
     {
       auto raw_endorsed_tcb =
-        snp::TcbVersionRaw::from_hex(std::string(claimed_endorsed_tcb.value()));
+        snp::TcbVersionRaw::from_hex(quote_info.endorsed_tcb.value());
 
-      const auto reported_tcb = TcbVersionRaw::from_span(reported_tcb_raw);
+      const auto reported_tcb = snp::TcbVersionRaw::from_span(reported_tcb_raw);
       if (raw_endorsed_tcb != reported_tcb)
       {
         auto endorsed_tcb_hex = raw_endorsed_tcb.to_hex();
@@ -424,44 +431,12 @@ namespace ccf::pal
     return attestation;
   }
 
-  snp::AttestationReport verify_snp_attestation_report_and_get(
-    const QuoteInfo& quote_info,
-    PlatformAttestationMeasurement& measurement,
-    PlatformAttestationReportData& report_data)
-  {
-    if (quote_info.format != QuoteFormat::amd_sev_snp_v1)
-    {
-      throw std::logic_error(fmt::format(
-        "Unexpected attestation report to verify for SEV-SNP: {}",
-        quote_info.format));
-    }
-
-    return snp::verify_attestation_report(
-      quote_info.quote,
-      quote_info.endorsements,
-      measurement,
-      report_data,
-      quote_info.endorsed_tcb);
-  }
-
   void verify_snp_attestation_report(
     const QuoteInfo& quote_info,
     PlatformAttestationMeasurement& measurement,
     PlatformAttestationReportData& report_data)
   {
-    if (quote_info.format != QuoteFormat::amd_sev_snp_v1)
-    {
-      throw std::logic_error(fmt::format(
-        "Unexpected attestation report to verify for SEV-SNP: {}",
-        quote_info.format));
-    }
-
-    snp::verify_attestation_report(
-      quote_info.quote,
-      quote_info.endorsements,
-      measurement,
-      report_data,
-      quote_info.endorsed_tcb);
+    verify_snp_attestation_report_and_get(quote_info, measurement, report_data);
   }
 
   void verify_quote(

@@ -165,12 +165,7 @@ namespace ccf
     {
       pal::PlatformAttestationMeasurement d = {};
       pal::PlatformAttestationReportData r = {};
-      return pal::snp::verify_attestation_report(
-        quote_info.quote,
-        quote_info.endorsements,
-        d,
-        r,
-        quote_info.endorsed_tcb);
+      return pal::verify_snp_attestation_report_and_get(quote_info, d, r);
     }
     catch (const std::exception& e)
     {
@@ -235,12 +230,8 @@ namespace ccf
         pal::PlatformAttestationReportData r = {};
         try
         {
-          const auto report = pal::snp::verify_attestation_report(
-            quote_info.quote,
-            quote_info.endorsements,
-            d,
-            r,
-            quote_info.endorsed_tcb);
+          const auto report =
+            pal::verify_snp_attestation_report_and_get(quote_info, d, r);
           const uint8_t* data = nullptr;
           size_t size = 0;
           tav_snp_attestation_report_host_data(report.get(), &data, &size);
@@ -313,8 +304,8 @@ namespace ccf
 
     pal::PlatformAttestationMeasurement d = {};
     pal::PlatformAttestationReportData r = {};
-    auto attestation = pal::snp::verify_attestation_report(
-      quote_info.quote, quote_info.endorsements, d, r, quote_info.endorsed_tcb);
+    auto attestation =
+      pal::verify_snp_attestation_report_and_get(quote_info, d, r);
 
     std::optional<pal::snp::TcbVersionPolicy> min_tcb_opt = std::nullopt;
     auto* h = tx.ro<SnpTcbVersionMap>(Tables::SNP_TCB_VERSIONS);

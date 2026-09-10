@@ -12,12 +12,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - Fixed swapped `current_minor` and `current_build` values in JavaScript `verifySnpAttestation()` results. These fields now match the AMD SEV-SNP report layout. The deprecated C++ `ccf::pal::snp::Attestation` retains its previous field mapping for compatibility. (#8083)
-- The exported `ccf_rs` CMake target now supplies its OpenSSL link dependencies, so downstream consumers no longer need to add them manually. (#8083)
 - Transactions from an earlier view are now rejected before entering the replication queue even after the node has stepped down. This prevents rolled-back writes from being replicated after a later election and blocking subsequent replication (#8293, #8295).
 
 ### Changed
 
-- SNP attestation reports now use TAV's C API with `ccf::pal::snp::AttestationReport` as an owning smart-pointer alias. Use `parse_attestation_report_unverified()` to decode reports and `verify_attestation_report()` to apply TAV verification and CCF's policy. TAV byte accessors borrow report storage; destroying or replacing the owner invalidates those views. The packed `ccf::pal::snp::Attestation` wire-layout type and its legacy accessors remain available but are deprecated. (#8083)
+- SNP attestation reports now use TAV's C API with `ccf::pal::snp::AttestationReport` as an owning smart-pointer alias. Use `parse_attestation_report_unverified()` to decode reports and `ccf::pal::verify_snp_attestation_report_and_get()` to apply TAV verification and CCF's policy. TAV byte accessors borrow report storage; destroying or replacing the owner invalidates those views. The packed `ccf::pal::snp::Attestation` wire-layout type and its legacy accessors remain available but are deprecated. (#8083)
 - `ccf::pal::snp::get_attestation_bytes()` in `ccf/pal/snp_ioctl.h` requests an unverified SNP report as owned bytes, without using the legacy report type. `AttestationInterface::get_raw()` and its ioctl implementation remain available but are deprecated. (#8083)
 - CBOR parsing now rejects composite (array or map) and tagged values used as map keys anywhere in the decoded document, including nested maps in optional COSE headers (#8297).
 

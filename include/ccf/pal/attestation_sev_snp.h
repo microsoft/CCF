@@ -31,8 +31,9 @@ namespace ccf::pal::snp
 
   static constexpr auto NO_SECURITY_POLICY = "";
 
+  // From https://developer.amd.com/sev/
   [[deprecated("TAV verifies AMD root signing keys internally")]]
-  inline constexpr auto amd_milan_root_signing_public_key =
+  constexpr auto amd_milan_root_signing_public_key =
     R"(-----BEGIN PUBLIC KEY-----
 MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEA0Ld52RJOdeiJlqK2JdsV
 mD7FktuotWwX1fNgW41XY9Xz1HEhSUmhLz9Cu9DHRlvgJSNxbeYYsnJfvyjx1MfU
@@ -49,7 +50,7 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
 -----END PUBLIC KEY-----
 )";
   [[deprecated("TAV verifies AMD root signing keys internally")]]
-  inline constexpr auto amd_genoa_root_signing_public_key =
+  constexpr auto amd_genoa_root_signing_public_key =
     R"(-----BEGIN PUBLIC KEY-----
 MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEA3Cd95S/uFOuRIskW9vz9
 VDBF69NDQF79oRhL/L2PVQGhK3YdfEBgpF/JiwWFBsT/fXDhzA01p3LkcT/7Ldjc
@@ -66,7 +67,7 @@ HP1qYrnvhzaG1S70vw6OkbaaC9EjiH/uHgAJQGxon7u0Q7xgoREWA/e7JcBQwLg8
 -----END PUBLIC KEY-----
 )";
   [[deprecated("TAV verifies AMD root signing keys internally")]]
-  inline constexpr auto amd_turin_root_signing_public_key =
+  constexpr auto amd_turin_root_signing_public_key =
     R"(-----BEGIN PUBLIC KEY-----
 MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAwaAriB7EIuVc4ZB1wD3Y
 fDxL+9eyS7+izm0Jj3W772NINCWl8Bj3w/JD2ZjmbRxWdIq/4d9iarCKorXloJUB
@@ -325,6 +326,25 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
   static_assert(
     sizeof(TcbVersionRaw) == snp_tcb_version_size,
     "TCB version raw size mismatch");
+#pragma pack(push, 1)
+  inline void to_json(nlohmann::json& j, const TcbVersionRaw& tcb_version)
+  {
+    j = tcb_version.to_hex();
+  }
+  inline void from_json(const nlohmann::json& j, TcbVersionRaw& tcb_version_raw)
+  {
+    if (!j.is_string())
+    {
+      throw std::logic_error(
+        fmt::format("Invalid TCB version raw data: {}", j.dump()));
+    }
+    tcb_version_raw = TcbVersionRaw::from_hex(j.get<std::string>());
+  }
+  inline std::string schema_name(const TcbVersionRaw& tcb_version)
+  {
+    (void)tcb_version;
+    return "TcbVersionRaw";
+  }
 
   struct Signature
   {
@@ -332,7 +352,9 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
     uint8_t s[72];
     uint8_t reserved[512 - 144];
   };
+#pragma pack(pop)
 
+  // Table 105
   // NOLINTNEXTLINE(performance-enum-size)
   enum class SignatureAlgorithm : uint32_t
   {
@@ -341,6 +363,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
   };
 
 #pragma pack(push, 1)
+  // Table 8
   struct GuestPolicy
   {
     uint8_t abi_minor;
@@ -357,6 +380,8 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
     sizeof(GuestPolicy) == sizeof(uint64_t),
     "Cannot cast GuestPolicy to uint64_t");
 
+  static constexpr uint8_t attestation_flags_signing_key_vcek = 0;
+
 #pragma pack(push, 1)
   struct Flags
   {
@@ -370,6 +395,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
     sizeof(Flags) == sizeof(uint32_t), "Cannot cast Flags to uint32_t");
 
 #pragma pack(push, 1)
+  // Table 22
   struct PlatformInfo
   {
     uint8_t smt_en : 1;
@@ -386,6 +412,11 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
   struct [[deprecated("Use ccf::pal::snp::AttestationReport")]] Attestation;
 
 #pragma pack(push, 1)
+  // Table 21
+
+  static constexpr uint32_t minimum_attestation_version = 3;
+  static constexpr uint32_t attestation_policy_abi_major = 1;
+
   struct Attestation
   {
     uint32_t version = 0; /* 0x000 */
@@ -407,7 +438,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
     uint8_t report_id[32] = {0}; /* 0x140 */
     uint8_t report_id_ma[32] = {0}; /* 0x160 */
     TcbVersionRaw reported_tcb; /* 0x180 */
-    uint8_t cpuid_fam_id = 0; /* 0x188 */
+    uint8_t cpuid_fam_id = 0; /* 0x188*/
     uint8_t cpuid_mod_id = 0; /* 0x189 */
     uint8_t cpuid_step = 0; /* 0x18A */
     uint8_t reserved1[21] = {0}; /* 0x18B */
@@ -432,6 +463,8 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
       {
         return {chip_id, sizeof(chip_id)};
       }
+      // On Turin only the first 8 bytes are used for the chip ID
+      // VCEK certificate and KDS interface spec section 3.1
       if (product == ProductName::Turin)
       {
         return {chip_id, 8};
@@ -484,29 +517,6 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
 
   [[nodiscard]] AttestationReport parse_attestation_report_unverified(
     std::span<const uint8_t> report);
-
-  inline void to_json(nlohmann::json& j, const TcbVersionRaw& tcb_version)
-  {
-    j = tcb_version.to_hex();
-  }
-  inline void from_json(const nlohmann::json& j, TcbVersionRaw& tcb_version_raw)
-  {
-    if (!j.is_string())
-    {
-      throw std::logic_error(
-        fmt::format("Invalid TCB version raw data: {}", j.dump()));
-    }
-    tcb_version_raw = TcbVersionRaw::from_hex(j.get<std::string>());
-  }
-  inline std::string schema_name(const TcbVersionRaw& tcb_version)
-  {
-    (void)tcb_version;
-    return "TcbVersionRaw";
-  }
-
-  static constexpr uint8_t attestation_flags_signing_key_vcek = 0;
-  static constexpr uint32_t minimum_attestation_version = 3;
-  static constexpr uint32_t attestation_policy_abi_major = 1;
 
   static HostPort get_endpoint_loc(
     const EndorsementsServer& server, const HostPort& default_values)

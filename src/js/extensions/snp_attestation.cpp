@@ -104,12 +104,8 @@ namespace ccf::js::extensions
 
       try
       {
-        verified_attestation.emplace(pal::snp::verify_attestation_report(
-          quote_info.quote,
-          quote_info.endorsements,
-          measurement,
-          report_data,
-          quote_info.endorsed_tcb));
+        verified_attestation.emplace(pal::verify_snp_attestation_report_and_get(
+          quote_info, measurement, report_data));
         if (uvm_endorsements.has_value())
         {
           parsed_uvm_endorsements =
