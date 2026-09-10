@@ -332,12 +332,6 @@ namespace aft
         state->retirement_phase == ccf::kv::RetirementPhase::RetiredCommitted;
     }
 
-    bool is_retired_completed() const
-    {
-      return state->membership_state == ccf::kv::MembershipState::Retired &&
-        state->retirement_phase == ccf::kv::RetirementPhase::Completed;
-    }
-
     void set_retired_committed(
       ccf::SeqNo seqno, const std::vector<ccf::kv::NodeId>& node_ids) override
     {

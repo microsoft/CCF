@@ -12,17 +12,26 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - Fixed swapped `current_minor` and `current_build` values in JavaScript `verifySnpAttestation()` results. These fields now match the AMD SEV-SNP report layout. The deprecated C++ `ccf::pal::snp::Attestation` retains its previous field mapping for compatibility. (#8083)
+- Strengthened access checks on JavaScript KV handles, including namespace restrictions in the historical KV (#8318).
+- Invalid PEM construction and JSON deserialisation errors no longer include the supplied data, which may contain private key material (#8330).
+- Reaching the soft session cap on an unsecured RPC interface no longer terminates the node by attempting a TLS handshake without a certificate. (#8331)
 - Transactions from an earlier view are now rejected before entering the replication queue even after the node has stepped down. This prevents rolled-back writes from being replicated after a later election and blocking subsequent replication (#8293, #8295).
 
 ### Changed
 
 - SNP attestation reports now use TAV's C API with `ccf::pal::snp::AttestationReport` as an owning smart-pointer alias. Use `parse_attestation_report_unverified()` to decode reports and `ccf::pal::verify_snp_attestation_report_and_get()` to apply TAV verification and CCF's policy. TAV byte accessors borrow report storage; destroying or replacing the owner invalidates those views. The packed `ccf::pal::snp::Attestation` wire-layout type and its legacy accessors remain available but are deprecated. Azure cache and THIM endorsement requests now encode the reported TCB as 16 hexadecimal digits, preserving leading zeroes. (#8083)
 - `ccf::pal::snp::get_attestation(data)` in `ccf/pal/snp_ioctl.h` retains its `std::unique_ptr<AttestationInterface>` return type. Call `get_raw()` to obtain an owned `std::vector<uint8_t>` of unverified report bytes, then decode them explicitly with `parse_attestation_report_unverified()`. `get_raw()` is not deprecated. The deprecated `get()` remains available for legacy callers. Ioctl acquisition checks safety sentinels, and both accessors check report size. (#8083)
+- Updated QuickJS to `2026-06-04`, with isolated build-time patches for out-of-memory backtrace handling and enforcement of lowered heap limits (#8340).
 - CBOR parsing now rejects composite (array or map) and tagged values used as map keys anywhere in the decoded document, including nested maps in optional COSE headers (#8297).
 
 ### Removed
 
 - Removed the exported `evercbor` CMake target and installed `libevercbor.a` library. Applications using CCF's public APIs that explicitly depend on this target or link this library directly must remove that dependency. No further build changes are necessary: the replacement CBOR implementation is linked transitively by CCF (#8297).
+
+### Fixed
+
+- Transactions with pending writes now correctly validate `foreach`, `size`, and `clear` observations of an existing empty KV table made at revision zero. Previously, these observations could be mistaken for no whole-map read dependency (#8320).
+- The OpenAPI schema for `GET /node/consensus` and `GET /node/network` now correctly marks `details.primary_id` and `primary_id` as nullable, matching their `null` value while no primary is known (e.g. between elections). Previously the schema required a non-null string, causing spurious response validation failures (#8344).
 
 ## [7.0.14]
 

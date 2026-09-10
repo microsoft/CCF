@@ -103,7 +103,7 @@ int main(int argc, char** argv)
 
   curl_global_init(CURL_GLOBAL_DEFAULT);
   auto curl_libuv_context =
-    ccf::curl::CurlmLibuvContextSingleton(uv_default_loop());
+    ccf::http_client::CurlmLibuvContextSingleton(uv_default_loop());
 
   ccf::QuoteInfo quote = {};
   quote.format = ccf::QuoteFormat::amd_sev_snp_v1;

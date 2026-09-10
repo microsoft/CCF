@@ -160,11 +160,6 @@ namespace ccf::kv
       return true;
     }
 
-    bool has_map_internal(const std::string& name)
-    {
-      return maps.contains(name);
-    }
-
     Version next_version_unsafe()
     {
       // Get the next global version
@@ -1249,12 +1244,6 @@ namespace ccf::kv
       return std::make_tuple(v, previous_last_new_map, rollback_count);
     }
 
-    Version next_version() override
-    {
-      std::lock_guard<ccf::ds::Mutex> vguard(version_lock);
-      return next_version_unsafe();
-    }
-
     TxID next_txid() override
     {
       std::lock_guard<ccf::ds::Mutex> vguard(version_lock);
@@ -1472,12 +1461,6 @@ namespace ccf::kv
     {
       std::lock_guard<ccf::ds::Mutex> vguard(version_lock);
       set_flag_unsafe(f);
-    }
-
-    void unset_flag(StoreFlag f) override
-    {
-      std::lock_guard<ccf::ds::Mutex> vguard(version_lock);
-      unset_flag_unsafe(f);
     }
 
     bool flag_enabled(StoreFlag f) override
