@@ -637,6 +637,35 @@ namespace ccf::js::extensions
       }
     };
 
+    // Reads the optional RSA-OAEP "label" parameter. An absent, null or
+    // empty label means "no label", matching the behaviour of the previous
+    // JS_GetArrayBuffer-based code, which silently ignored a null pointer.
+    // Returns false, leaving the pending QuickJS TypeError in place, only
+    // when the label is present but is not an ArrayBuffer.
+    bool try_get_optional_label(
+      js::core::Context& jsctx,
+      const js::core::JSWrappedValue& label_val,
+      std::optional<std::vector<uint8_t>>& label_opt)
+    {
+      if (label_val.is_undefined() || JS_IsNull(label_val.val))
+      {
+        return true;
+      }
+
+      auto label_buf = jsctx.copy_array_buffer(label_val.val);
+      if (!label_buf.has_value())
+      {
+        return false;
+      }
+
+      if (!label_buf->empty())
+      {
+        label_opt = std::move(label_buf);
+      }
+
+      return true;
+    }
+
     JSValue js_wrap_key(
       JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
     {
@@ -669,7 +698,10 @@ namespace ccf::js::extensions
       }
       auto& key = *key_opt;
       auto& wrapping_key = *wrapping_key_opt;
-      // wrapping_key is secret key material for AES-KWP; cleanse on exit.
+      // Both owned copies hold secret material: key is the plaintext being
+      // wrapped, and wrapping_key is a symmetric secret for AES-KWP. Cleanse
+      // both on all exit paths, including exceptions.
+      ScopeCleanse key_cleanse(std::span<uint8_t>{key.data(), key.size()});
       ScopeCleanse wrapping_key_cleanse(
         std::span<uint8_t>{wrapping_key.data(), wrapping_key.size()});
 
@@ -695,12 +727,9 @@ namespace ccf::js::extensions
           JS_CHECK_EXC(label_val);
 
           auto label_opt = std::optional<std::vector<uint8_t>>{};
+          if (!try_get_optional_label(jsctx, label_val, label_opt))
           {
-            auto label_buf = jsctx.copy_array_buffer(label_val.val);
-            if (label_buf.has_value() && !label_buf->empty())
-            {
-              label_opt = std::move(label_buf);
-            }
+            return ccf::js::core::constants::Exception;
           }
 
           auto wrapped_key = ccf::crypto::ckm_rsa_pkcs_oaep_wrap(
@@ -737,12 +766,9 @@ namespace ccf::js::extensions
           JS_CHECK_EXC(label_val);
 
           auto label_opt = std::optional<std::vector<uint8_t>>{};
+          if (!try_get_optional_label(jsctx, label_val, label_opt))
           {
-            auto label_buf = jsctx.copy_array_buffer(label_val.val);
-            if (label_buf.has_value() && !label_buf->empty())
-            {
-              label_opt = std::move(label_buf);
-            }
+            return ccf::js::core::constants::Exception;
           }
 
           auto wrapped_key = ccf::crypto::ckm_rsa_aes_key_wrap(
@@ -800,6 +826,7 @@ namespace ccf::js::extensions
       auto& key = *key_opt;
       auto& unwrapping_key = *unwrapping_key_opt;
       // unwrapping_key is secret key material; cleanse on all exit paths.
+      // key is the wrapped (encrypted) blob here, so it is not secret.
       ScopeCleanse unwrapping_key_cleanse(
         std::span<uint8_t>{unwrapping_key.data(), unwrapping_key.size()});
 
@@ -825,21 +852,22 @@ namespace ccf::js::extensions
           JS_CHECK_EXC(label_val);
 
           auto label_opt = std::optional<std::vector<uint8_t>>{};
+          if (!try_get_optional_label(jsctx, label_val, label_opt))
           {
-            auto label_buf = jsctx.copy_array_buffer(label_val.val);
-            if (label_buf.has_value() && !label_buf->empty())
-            {
-              label_opt = std::move(label_buf);
-            }
+            return ccf::js::core::constants::Exception;
           }
 
           auto pemPrivateUnwrappingKey =
             ccf::crypto::Pem(unwrapping_key.data(), unwrapping_key.size());
+          ScopeCleanse pem_cleanse(std::span<uint8_t>{
+            pemPrivateUnwrappingKey.data(), pemPrivateUnwrappingKey.size()});
+
           auto unwrapped_key = ccf::crypto::ckm_rsa_pkcs_oaep_unwrap(
             pemPrivateUnwrappingKey, key, label_opt);
-
-          OPENSSL_cleanse(
-            pemPrivateUnwrappingKey.data(), pemPrivateUnwrappingKey.size());
+          // The unwrapped key is plaintext secret material. This guard runs
+          // after JS_NewArrayBufferCopy has taken its own copy.
+          ScopeCleanse unwrapped_cleanse(
+            std::span<uint8_t>{unwrapped_key.data(), unwrapped_key.size()});
 
           return JS_NewArrayBufferCopy(
             ctx, unwrapped_key.data(), unwrapped_key.size());
@@ -849,6 +877,10 @@ namespace ccf::js::extensions
         {
           std::vector<uint8_t> unwrapped_key =
             ccf::crypto::ckm_aes_key_unwrap_pad(unwrapping_key, key);
+          // The unwrapped key is plaintext secret material. This guard runs
+          // after JS_NewArrayBufferCopy has taken its own copy.
+          ScopeCleanse unwrapped_cleanse(
+            std::span<uint8_t>{unwrapped_key.data(), unwrapped_key.size()});
 
           return JS_NewArrayBufferCopy(
             ctx, unwrapped_key.data(), unwrapped_key.size());
@@ -870,21 +902,22 @@ namespace ccf::js::extensions
           JS_CHECK_EXC(label_val);
 
           auto label_opt = std::optional<std::vector<uint8_t>>{};
+          if (!try_get_optional_label(jsctx, label_val, label_opt))
           {
-            auto label_buf = jsctx.copy_array_buffer(label_val.val);
-            if (label_buf.has_value() && !label_buf->empty())
-            {
-              label_opt = std::move(label_buf);
-            }
+            return ccf::js::core::constants::Exception;
           }
 
           auto privPemUnwrappingKey =
             ccf::crypto::Pem(unwrapping_key.data(), unwrapping_key.size());
+          ScopeCleanse pem_cleanse(std::span<uint8_t>{
+            privPemUnwrappingKey.data(), privPemUnwrappingKey.size()});
+
           auto unwrapped_key = ccf::crypto::ckm_rsa_aes_key_unwrap(
             privPemUnwrappingKey, key, label_opt);
-
-          OPENSSL_cleanse(
-            privPemUnwrappingKey.data(), privPemUnwrappingKey.size());
+          // The unwrapped key is plaintext secret material. This guard runs
+          // after JS_NewArrayBufferCopy has taken its own copy.
+          ScopeCleanse unwrapped_cleanse(
+            std::span<uint8_t>{unwrapped_key.data(), unwrapped_key.size()});
 
           return JS_NewArrayBufferCopy(
             ctx, unwrapped_key.data(), unwrapped_key.size());
