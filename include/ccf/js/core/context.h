@@ -132,17 +132,18 @@ namespace ccf::js::core
       size_t* pbyte_offset,
       size_t* pbyte_length,
       size_t* pbytes_per_element) const;
-    // Completing module evaluation runs its top-level code before returning.
+    // Checking module evaluation reports synchronous failures and rejects
+    // unsupported asynchronous module initialisation.
     JSWrappedValue get_exported_function(
       const std::string& code,
       const std::string& func,
       const std::string& path,
-      bool complete_module_evaluation = false);
+      bool check_module_evaluation = false);
     JSWrappedValue get_exported_function(
       const JSWrappedValue& module,
       const std::string& func,
       const std::string& path,
-      bool complete_module_evaluation = false);
+      bool check_module_evaluation = false);
 
     // Constant values
     [[nodiscard]] JSWrappedValue null() const;

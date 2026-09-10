@@ -74,52 +74,22 @@ TEST_CASE("Runtime limits cover top-level module evaluation")
   }
 }
 
-TEST_CASE("Runtime limit scope drains pending jobs")
+TEST_CASE("Asynchronous module initialisation is unsupported")
 {
   ccf::js::core::Context ctx(TxAccess::APP_RO);
   JS_UpdateStackTop(ctx.runtime());
 
-  {
-    ccf::js::core::Context::RuntimeLimitsGuard limits(
-      ctx, ccf::JSRuntimeOptions{}, ccf::js::core::RuntimeLimitsPolicy::NONE);
-    constexpr std::string_view source =
-      "globalThis.jobRan = false;"
-      "Promise.resolve().then(() => { globalThis.jobRan = true; });";
-    auto result = ctx.eval(
-      source.data(), source.size(), "pending_job.js", JS_EVAL_TYPE_GLOBAL);
-    REQUIRE(!result.is_exception());
-    REQUIRE(JS_IsJobPending(ctx.runtime()));
-  }
-
-  CHECK(!JS_IsJobPending(ctx.runtime()));
-  CHECK(ctx.get_global_property("jobRan").is_true());
-}
-
-TEST_CASE("Pending job cleanup preserves synchronous exceptions")
-{
-  ccf::js::core::Context ctx(TxAccess::APP_RO);
-  JS_UpdateStackTop(ctx.runtime());
-
-  ccf::js::core::JSWrappedValue result;
-  {
-    ccf::js::core::Context::RuntimeLimitsGuard limits(
-      ctx, ccf::JSRuntimeOptions{}, ccf::js::core::RuntimeLimitsPolicy::NONE);
-    auto handler = ctx.get_exported_function(
-      "export function handler() {"
-      "  Promise.resolve().then(() => { throw new Error('async'); });"
-      "  throw new Error('sync');"
-      "}",
+  ccf::js::core::Context::RuntimeLimitsGuard limits(
+    ctx, ccf::JSRuntimeOptions{}, ccf::js::core::RuntimeLimitsPolicy::NONE);
+  CHECK_THROWS_WITH_AS(
+    ctx.get_exported_function(
+      "await Promise.resolve();"
+      "export function handler() {}",
       "handler",
-      "exceptions.js",
-      true);
-    result = ctx.inner_call(handler, {});
-    REQUIRE(result.is_exception());
-    REQUIRE(JS_IsJobPending(ctx.runtime()));
-  }
-
-  CHECK(!JS_IsJobPending(ctx.runtime()));
-  auto [reason, trace] = ctx.error_message();
-  CHECK(reason == "Error: sync");
+      "async.js",
+      true),
+    doctest::Contains("Module evaluation did not complete"),
+    std::runtime_error);
 }
 
 TEST_CASE("Check KV Map access")
