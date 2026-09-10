@@ -874,7 +874,7 @@ foo.bar.baz;
 static int get_ref_count(JSValue v)
 {
   REQUIRE(JS_VALUE_HAS_REF_COUNT(v));
-  auto* p = (JSRefCountHeader*)JS_VALUE_GET_PTR(v);
+  auto* p = __js_rc(JS_VALUE_GET_PTR(v));
   return p->ref_count;
 }
 
@@ -918,6 +918,82 @@ TEST_CASE("JSWrappedValue copy assignment frees old value")
   JS_FreeValue(ctx, raw_b);
   JS_FreeContext(ctx);
   JS_FreeRuntime(rt);
+}
+
+TEST_CASE("QuickJS rejects arena allocations above a lowered heap limit")
+{
+  ccf::js::core::Context ctx(TxAccess::APP_RW);
+  auto* rt = static_cast<JSRuntime*>(ctx.runtime());
+  auto* allocation = js_malloc_rt(rt, 17);
+  REQUIRE(allocation != nullptr);
+  static_cast<uint8_t*>(allocation)[0] = 42;
+
+  JSMemoryUsage usage;
+  JS_ComputeMemoryUsage(rt, &usage);
+  REQUIRE(usage.malloc_size > 100);
+  for (const auto limit : {size_t{100}, size_t(usage.malloc_size - 1)})
+  {
+    INFO("Heap limit: ", limit);
+    JS_SetMemoryLimit(rt, limit);
+    auto* extra = js_malloc_rt(rt, 17);
+    CHECK(extra == nullptr);
+    js_free_rt(rt, extra);
+
+    // Even a reallocation which fits the existing arena slot must check the
+    // cap.
+    auto* resized = js_realloc_rt(rt, allocation, 17);
+    CHECK(resized == nullptr);
+    if (resized != nullptr)
+    {
+      allocation = resized;
+    }
+    CHECK(static_cast<uint8_t*>(allocation)[0] == 42);
+  }
+
+  // Freeing remains possible after lowering the cap.
+  CHECK(js_realloc_rt(rt, allocation, 0) == nullptr);
+  JS_SetMemoryLimit(rt, size_t(-1));
+  allocation = js_malloc_rt(rt, 17);
+  REQUIRE(allocation != nullptr);
+  js_free_rt(rt, allocation);
+}
+
+TEST_CASE("QuickJS handles OOM while constructing a backtrace")
+{
+  ccf::js::core::Context ctx(TxAccess::APP_RW);
+  const auto func = ctx.get_exported_function(
+    R"(
+export function run() {
+  throw (() => {
+    const error = new Error("test");
+    delete error.stack;
+    return error;
+  })();
+}
+Object.defineProperty(run, "name", {value: "\u1234".repeat(128 * 1024)});
+)",
+    "run",
+    "/heap-backtrace.js");
+
+  // Converting the wide function name to a backtrace string must exhaust the
+  // remaining heap while the pending exception owns the only error reference.
+  JSMemoryUsage usage;
+  JS_ComputeMemoryUsage(ctx.runtime(), &usage);
+  ccf::JSRuntimeOptions options;
+  options.max_heap_bytes = usage.malloc_size + 64 * 1024;
+  const auto result = ctx.call_with_rt_options(
+    func, {}, options, ccf::js::core::RuntimeLimitsPolicy::NONE);
+  REQUIRE(result.is_exception());
+  REQUIRE(ctx.error_message().first == "InternalError: out of memory");
+
+  // The same interpreter must still report ordinary exceptions with a trace.
+  const auto recovered = ctx.call_with_rt_options(
+    func, {}, std::nullopt, ccf::js::core::RuntimeLimitsPolicy::NONE);
+  REQUIRE(recovered.is_exception());
+  const auto [message, trace] = ctx.error_message();
+  REQUIRE(message == "Error: test");
+  REQUIRE(trace.has_value());
+  REQUIRE(trace->contains("/heap-backtrace.js:"));
 }
 
 TEST_CASE("Context::to_str preserves embedded NUL bytes")
