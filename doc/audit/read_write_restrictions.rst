@@ -39,7 +39,7 @@ There are multiple possible contexts in which developer-specified code may execu
 
 .. note::
 
-    Since the constitution (and JS application) are written in JavaScript, there is also technically a global module evaluation context when the code is first ingested. It is expected that this only defines and exports the necessary functions. It has no access to the KV, and will result in errors if it attempts to access any KV table.
+    Since the constitution (and JS application) are written in JavaScript, there is also technically a global module evaluation context when the code is first ingested. Module top-level code runs in the same context, with the same KV read/write permissions, and under the same runtime limits as the function that is about to be invoked (the pre-approval governance context for ballots and the constitution's ``validate`` and ``resolve``, the post-approval context for ``apply``, or the application context for endpoint handlers). This is well-defined in the default fresh-interpreter mode, where each request creates a new interpreter and re-evaluates the module against the current transaction. It is expected that module top-level code only defines and exports the necessary functions. Any KV value read at module scope should not be relied upon: with ``interpreter_reuse`` enabled a module is only evaluated once per cached interpreter, so any value captured then is not refreshed for later requests on the same interpreter (KV handles remain safe because they resolve through the per-request KV binding at each access).
 
 Restricted Permissions
 ----------------------
