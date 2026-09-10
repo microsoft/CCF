@@ -109,12 +109,6 @@ namespace http
     IN_MESSAGE
   };
 
-  enum class RequestTargetSizeLimitMode : uint8_t
-  {
-    ENFORCE,
-    ALREADY_ENFORCED
-  };
-
   static int on_msg_begin(llhttp_t* parser);
   static int on_url(llhttp_t* parser, const char* at, size_t length);
   static int on_header_field(llhttp_t* parser, const char* at, size_t length);
@@ -412,7 +406,7 @@ namespace http
     RequestProcessor& proc;
 
     std::string url;
-    std::optional<size_t> max_request_target_size;
+    size_t max_request_target_size;
 
   public:
     ~RequestParser() override = default;
@@ -420,32 +414,26 @@ namespace http
     RequestParser(
       RequestProcessor& proc_,
       const ccf::http::ParserConfiguration& config =
-        ccf::http::ParserConfiguration{},
-      RequestTargetSizeLimitMode request_target_size_limit_mode =
-        RequestTargetSizeLimitMode::ENFORCE) :
+        ccf::http::ParserConfiguration{}) :
       Parser(HTTP_REQUEST, config),
-      proc(proc_)
+      proc(proc_),
+      max_request_target_size(
+        config.max_request_target_size
+          .value_or(ccf::http::default_max_request_target_size)
+          .count_bytes())
     {
       settings.on_url = on_url;
-      if (request_target_size_limit_mode == RequestTargetSizeLimitMode::ENFORCE)
-      {
-        max_request_target_size =
-          config.max_request_target_size
-            .value_or(ccf::http::default_max_request_target_size)
-            .count_bytes();
-      }
     }
 
     void append_url(const char* at, size_t length)
     {
       if (
-        max_request_target_size.has_value() &&
-        (length > max_request_target_size.value() ||
-         url.size() > max_request_target_size.value() - length))
+        length > max_request_target_size ||
+        url.size() > max_request_target_size - length)
       {
         throw RequestTargetTooLongException(fmt::format(
           "HTTP request target is too long (max size allowed: {})",
-          max_request_target_size.value()));
+          max_request_target_size));
       }
       url.append(at, length);
     }

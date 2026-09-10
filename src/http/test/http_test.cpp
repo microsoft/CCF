@@ -468,10 +468,12 @@ DOCTEST_TEST_CASE("Request target configuration")
   DOCTEST_CHECK(encoded.get<ccf::http::ParserConfiguration>() == config);
 
   const auto permissive_config = ccf::http::permissive_configuration();
-  DOCTEST_CHECK_FALSE(permissive_config.max_request_target_size.has_value());
+  DOCTEST_REQUIRE(permissive_config.max_request_target_size.has_value());
+  DOCTEST_CHECK(
+    permissive_config.max_request_target_size->count_bytes() ==
+    100 * 1024 * 1024);
   http::SimpleRequestProcessor sp;
-  http::RequestParser p(
-    sp, permissive_config, http::RequestTargetSizeLimitMode::ALREADY_ENFORCED);
+  http::RequestParser p(sp, permissive_config);
   const auto target = "/" + std::string(32 * 1024, 'a');
   const auto request = http::Request(target, HTTP_GET).build_request();
   p.execute(request.data(), request.size());

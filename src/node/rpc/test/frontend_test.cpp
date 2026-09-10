@@ -1245,11 +1245,15 @@ TEST_CASE("Decoded Templated paths")
   }
 }
 
-TEST_CASE(
-  "Forwarded request target retains ingress acceptance" *
-  doctest::test_suite("forwarding"))
+TEST_CASE("Forwarded request target limit" * doctest::test_suite("forwarding"))
 {
-  constexpr size_t target_size = 100 * 1024 * 1024 + 1;
+  constexpr size_t forwarding_limit = 100 * 1024 * 1024;
+  auto target_size = forwarding_limit;
+  SUBCASE("At the forwarding limit") {}
+  SUBCASE("Above the forwarding limit")
+  {
+    target_size += 1;
+  }
   const std::string prefix = "/app/empty_function?padding=";
   const auto target = prefix + std::string(target_size - prefix.size(), 'a');
   const auto packed = ::http::Request(target, HTTP_POST).build_request();
@@ -1264,14 +1268,23 @@ TEST_CASE(
     CHECK(processor.received.front().url == target);
   }
 
-  auto forwarded =
-    ccf::make_fwd_rpc_context(user_session, packed, ccf::FrameFormat::http);
-  REQUIRE(forwarded != nullptr);
-  CHECK(forwarded->get_request_path() == "/app/empty_function");
-  CHECK(
-    forwarded->get_request_query() ==
-    std::string_view(target).substr(target.find('?') + 1));
-  CHECK(forwarded->get_serialised_request() == packed);
+  if (target_size > forwarding_limit)
+  {
+    CHECK_THROWS_AS(
+      ccf::make_fwd_rpc_context(user_session, packed, ccf::FrameFormat::http),
+      ::http::RequestTargetTooLongException);
+  }
+  else
+  {
+    auto forwarded =
+      ccf::make_fwd_rpc_context(user_session, packed, ccf::FrameFormat::http);
+    REQUIRE(forwarded != nullptr);
+    CHECK(forwarded->get_request_path() == "/app/empty_function");
+    CHECK(
+      forwarded->get_request_query() ==
+      std::string_view(target).substr(target.find('?') + 1));
+    CHECK(forwarded->get_serialised_request() == packed);
+  }
 }
 
 TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
