@@ -1,5 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#include "ccf/js/common_context.h"
 #include "ccf/js/core/wrapped_value.h"
 #include "ccf/js/extensions/ccf/gov.h"
 #include "ccf/js/extensions/ccf/historical.h"
@@ -16,6 +17,258 @@
 #include <random>
 
 using namespace ccf::js;
+
+TEST_CASE("Runtime limits cover top-level module evaluation")
+{
+  ccf::JSRuntimeOptions options;
+  ccf::js::core::Context ctx(TxAccess::APP_RO);
+  JS_UpdateStackTop(ctx.runtime());
+
+  SUBCASE("Heap")
+  {
+    options.max_heap_bytes = 10 * 1024 * 1024;
+    const ccf::js::core::RuntimeLimitsScope limits(
+      ctx, options, ccf::js::core::RuntimeLimitsPolicy::NONE);
+    CHECK_THROWS_WITH_AS(
+      ctx.get_exported_function(
+        "globalThis.largeAllocation = new Uint8Array(50 * 1024 * 1024);"
+        "export function handler() {}",
+        "handler",
+        "heap.js"),
+      doctest::Contains("out of memory"),
+      std::runtime_error);
+  }
+
+  SUBCASE("Stack")
+  {
+    options.max_stack_bytes = 64 * 1024;
+    const ccf::js::core::RuntimeLimitsScope limits(
+      ctx, options, ccf::js::core::RuntimeLimitsPolicy::NONE);
+    CHECK_THROWS_WITH_AS(
+      ctx.get_exported_function(
+        "function recurse() { recurse(); }"
+        "recurse();"
+        "export function handler() {}",
+        "handler",
+        "stack.js"),
+      doctest::Contains("stack overflow"),
+      std::runtime_error);
+  }
+
+  SUBCASE("Execution time")
+  {
+    options.max_execution_time_ms = 1;
+    const ccf::js::core::RuntimeLimitsScope limits(
+      ctx, options, ccf::js::core::RuntimeLimitsPolicy::NONE);
+    CHECK_THROWS_AS(
+      ctx.get_exported_function(
+        "while (true) {}"
+        "export function handler() {}",
+        "handler",
+        "time.js"),
+      std::runtime_error);
+    CHECK(ctx.interrupt_data.request_timed_out);
+  }
+}
+
+TEST_CASE("Runtime limits reset timeout state for reused interpreters")
+{
+  ccf::js::core::Context ctx(TxAccess::APP_RO);
+  JS_UpdateStackTop(ctx.runtime());
+
+  auto handler = ctx.get_exported_function(
+    "export function handler() { while (true) {} }", "handler", "timeout.js");
+  ccf::JSRuntimeOptions options;
+  options.max_execution_time_ms = 1;
+  REQUIRE(ctx
+            .call_with_rt_options(
+              handler, {}, options, ccf::js::core::RuntimeLimitsPolicy::NONE)
+            .is_exception());
+  REQUIRE(ctx.interrupt_data.request_timed_out);
+  ctx.error_message();
+
+  const ccf::js::core::RuntimeLimitsScope limits(
+    ctx, options, ccf::js::core::RuntimeLimitsPolicy::NONE);
+  CHECK_FALSE(ctx.interrupt_data.request_timed_out);
+}
+
+namespace
+{
+  // Minimal test-only extension that either installs successfully or throws
+  // std::runtime_error from install().
+  class TestExtension : public ccf::js::extensions::ExtensionInterface
+  {
+  public:
+    bool throw_on_install = false;
+    bool installed = false;
+
+    void install(ccf::js::core::Context& /*ctx*/) override
+    {
+      if (throw_on_install)
+      {
+        throw std::runtime_error("install failed");
+      }
+      installed = true;
+    }
+  };
+
+  // Non-std::exception type, matching the shape of
+  // ccf::kv::CompactedVersionConflict.
+  struct NonStdException
+  {};
+}
+
+TEST_CASE("Extension teardown runs for non-std::exception unwinds")
+{
+  ccf::js::core::Context ctx(TxAccess::APP_RO);
+  JS_UpdateStackTop(ctx.runtime());
+
+  auto ext = std::make_shared<TestExtension>();
+
+  try
+  {
+    struct ExtensionScope
+    {
+      ccf::js::core::Context& ctx;
+      ccf::js::extensions::Extensions installed;
+
+      explicit ExtensionScope(ccf::js::core::Context& c) : ctx(c) {}
+
+      void add(const ccf::js::extensions::ExtensionPtr& extension)
+      {
+        ctx.add_extension(extension);
+        installed.push_back(extension);
+      }
+
+      ~ExtensionScope()
+      {
+        for (const auto& extension : installed)
+        {
+          ctx.remove_extension(extension);
+        }
+      }
+    };
+
+    ExtensionScope scope(ctx);
+    scope.add(ext);
+    REQUIRE(ctx.get_extension<TestExtension>() == ext.get());
+    throw NonStdException{};
+  }
+  catch (const NonStdException&)
+  {
+    // Expected: destructor of the scope should have removed the extension.
+  }
+
+  CHECK(ctx.get_extension<TestExtension>() == nullptr);
+}
+
+TEST_CASE(
+  "Extension teardown only removes successfully-installed extensions on "
+  "partial failure")
+{
+  ccf::js::core::Context ctx(TxAccess::APP_RO);
+  JS_UpdateStackTop(ctx.runtime());
+
+  auto good = std::make_shared<TestExtension>();
+  auto bad = std::make_shared<TestExtension>();
+  bad->throw_on_install = true;
+  auto never_added = std::make_shared<TestExtension>();
+
+  bool caught = false;
+  try
+  {
+    struct ExtensionScope
+    {
+      ccf::js::core::Context& ctx;
+      ccf::js::extensions::Extensions installed;
+
+      explicit ExtensionScope(ccf::js::core::Context& c) : ctx(c) {}
+
+      void add(const ccf::js::extensions::ExtensionPtr& extension)
+      {
+        try
+        {
+          ctx.add_extension(extension);
+        }
+        catch (...)
+        {
+          ctx.remove_extension(extension);
+          throw;
+        }
+        installed.push_back(extension);
+      }
+
+      ~ExtensionScope()
+      {
+        for (const auto& extension : installed)
+        {
+          ctx.remove_extension(extension);
+        }
+      }
+    };
+
+    ExtensionScope scope(ctx);
+    scope.add(good);
+    scope.add(bad); // throws from install()
+    scope.add(never_added); // unreachable
+  }
+  catch (const std::runtime_error&)
+  {
+    caught = true;
+  }
+
+  REQUIRE(caught);
+  // 'good' was installed and must have been removed.
+  CHECK(ctx.get_extension<TestExtension>() == nullptr);
+  // 'never_added' must not have been touched by install().
+  CHECK_FALSE(never_added->installed);
+}
+
+TEST_CASE("error_message drains secondary exceptions raised during extraction")
+{
+  ccf::js::core::Context ctx(TxAccess::APP_RO);
+  JS_UpdateStackTop(ctx.runtime());
+
+  // First call: throw an Error whose 'stack' getter itself throws. Extracting
+  // the stack property inside error_message() must not leave that secondary
+  // exception behind on the context.
+  auto stack_getter_throws = ctx.get_exported_function(
+    "export function handler() {"
+    "  const e = new Error('primary');"
+    "  Object.defineProperty(e, 'stack', {"
+    "    get() { throw new Error('secondary'); }"
+    "  });"
+    "  throw e;"
+    "}",
+    "handler",
+    "stack_getter.js");
+
+  ccf::JSRuntimeOptions options;
+  const auto result = ctx.call_with_rt_options(
+    stack_getter_throws, {}, options, ccf::js::core::RuntimeLimitsPolicy::NONE);
+  REQUIRE(result.is_exception());
+
+  const auto [reason, trace] = ctx.error_message();
+  // The primary exception's toString reason is reported (Error{message}).
+  CHECK(reason.find("primary") != std::string::npos);
+  // The secondary exception raised while reading .stack must have been
+  // drained; the interpreter must be safe to reuse.
+  CHECK(JS_HasException(ctx) == 0);
+
+  // Second call: a fresh, unrelated exception. error_message() must report
+  // its own reason, not anything left over from the previous call.
+  auto second = ctx.get_exported_function(
+    "export function handler() { throw new Error('second'); }",
+    "handler",
+    "second.js");
+  const auto second_result = ctx.call_with_rt_options(
+    second, {}, options, ccf::js::core::RuntimeLimitsPolicy::NONE);
+  REQUIRE(second_result.is_exception());
+  const auto [second_reason, second_trace] = ctx.error_message();
+  CHECK(second_reason.find("second") != std::string::npos);
+  CHECK(second_reason.find("primary") == std::string::npos);
+  CHECK(JS_HasException(ctx) == 0);
+}
 
 TEST_CASE("Check KV Map access")
 {
@@ -227,6 +480,18 @@ bool str_contains(const std::string& s, std::string_view sv)
 bool str_contains(const std::optional<std::string>& s, std::string_view sv)
 {
   return str_contains(s.value_or(""), sv);
+}
+
+TEST_CASE("Common contexts do not expose constitution validation")
+{
+  for (const auto access :
+       {TxAccess::APP_RO, TxAccess::APP_RW, TxAccess::GOV_RO, TxAccess::GOV_RW})
+  {
+    INFO("Transaction access: ", static_cast<int>(access));
+    ccf::js::CommonContext ctx(access);
+    CHECK(ctx.get_extension<ccf::js::extensions::GovExtension>() == nullptr);
+    CHECK(ctx.get_global_obj()["ccf"]["gov"].is_undefined());
+  }
 }
 
 using KVMap = ccf::kv::untyped::Map;
@@ -526,7 +791,10 @@ ccf.kv["public:ccf.gov.tbl"].set(key, value);
 std::optional<std::string> call_validate_constitution(
   const std::string& constitution,
   ccf::js::extensions::ExtensionPtr extra_extension = nullptr,
-  const std::string& module_suffix = "")
+  const std::string& module_suffix = "",
+  const std::optional<ccf::JSRuntimeOptions>& runtime_options = std::nullopt,
+  bool* request_timed_out = nullptr,
+  const std::string& call_prefix = "")
 {
   ccf::js::core::Context ctx(TxAccess::GOV_RO);
 
@@ -541,16 +809,22 @@ std::optional<std::string> call_validate_constitution(
 
   auto module = fmt::format(
                   "export function call_validate () {{\n"
+                  "  {}\n"
                   "  let constitution = {};\n"
                   "  return ccf.gov.validateConstitution(constitution);\n"
                   "}}",
+                  call_prefix,
                   constitution) +
     module_suffix;
 
   auto func = ctx.get_exported_function(module, "call_validate", path);
 
   const auto result = ctx.call_with_rt_options(
-    func, {}, std::nullopt, ccf::js::core::RuntimeLimitsPolicy::NONE);
+    func, {}, runtime_options, ccf::js::core::RuntimeLimitsPolicy::NONE);
+  if (request_timed_out != nullptr)
+  {
+    *request_timed_out = ctx.interrupt_data.request_timed_out;
+  }
   if (result.is_true())
   {
     return std::nullopt;
@@ -729,16 +1003,30 @@ setGlobal(100)
     INFO("error detectability");
 
     {
-      INFO("global throws");
-      const auto constitution = R"!!!(`
+      INFO("exceptions at module scope are not checked");
+      // The proposed constitution is evaluated without the CCF APIs it may use
+      // at module scope, so exceptions thrown there are not treated as
+      // validation failures. Only failures of the interpreter itself are, see
+      // "Constitution validation is bounded by runtime limits".
+      for (const auto& c :
+           {R"!!!(`
 export function validate(input) {}
 export function resolve(proposal, proposerId, votes) {}
 export function apply(proposal, proposerId) {}
 
-throw new Error(`I'm not happy`);
-`)!!!";
+throw new Error("I'm not happy");
+`)!!!",
+            R"!!!(`
+export function validate(input) {}
+export function resolve(proposal, proposerId, votes) {}
+export function apply(proposal, proposerId) {}
 
-      REQUIRE_THROWS(call_validate_constitution(constitution));
+foo.bar.baz;
+`)!!!"})
+      {
+        const auto error = call_validate_constitution(c);
+        REQUIRE_FALSE(error.has_value());
+      }
     }
 
     {
@@ -854,27 +1142,146 @@ export function apply(a, b) {}
         REQUIRE_FALSE(error.has_value());
       }
     }
+  }
+}
 
-    {
-      INFO("null accesses can't be checked");
-      const auto constitution = R"!!!(`
+TEST_CASE("Constitution validation is bounded by runtime limits")
+{
+  // Deliberately small limits, well below the defaults, so that evaluation
+  // being bounded by the inherited limits rather than the defaults is
+  // observable
+  ccf::JSRuntimeOptions options;
+  options.max_execution_time_ms = 200;
+  options.max_heap_bytes = 8 * 1024 * 1024;
+
+  {
+    INFO("valid constitution is accepted under the same limits");
+    const auto constitution = R"!!!(`
 export function validate(input) {}
 export function resolve(proposal, proposerId, votes) {}
 export function apply(proposal, proposerId) {}
-
-foo.bar.baz;
 `)!!!";
 
-      auto error = call_validate_constitution(constitution);
-      REQUIRE_FALSE(error.has_value());
-    }
+    bool timed_out = false;
+    const auto error = call_validate_constitution(
+      constitution, nullptr, "", options, &timed_out);
+    REQUIRE_FALSE(error.has_value());
+    REQUIRE_FALSE(timed_out);
+  }
+
+  {
+    INFO("infinite loop at module scope is interrupted");
+    const auto constitution = R"!!!(`
+export function validate(input) {}
+export function resolve(proposal, proposerId, votes) {}
+export function apply(proposal, proposerId) {}
+for (;;) {}
+`)!!!";
+
+    bool timed_out = false;
+    const auto start = std::chrono::steady_clock::now();
+    const auto error = call_validate_constitution(
+      constitution, nullptr, "", options, &timed_out);
+    const auto elapsed = std::chrono::steady_clock::now() - start;
+
+    REQUIRE(error.has_value());
+    REQUIRE(str_contains(error, "took too long to evaluate"));
+    REQUIRE(timed_out);
+    // Bounded by the caller's limit, not the default execution time
+    REQUIRE(
+      elapsed < std::chrono::milliseconds(
+                  ccf::JSRuntimeOptions::Defaults::max_execution_time_ms / 2));
+  }
+
+  {
+    INFO("timeout cannot be caught by the calling constitution");
+    const auto constitution = R"!!!(`
+export function validate(input) {}
+export function resolve(proposal, proposerId, votes) {}
+export function apply(proposal, proposerId) {}
+for (;;) {}
+`)!!!";
+
+    // Wrap the call in a try/catch which would otherwise swallow the error
+    const auto module_suffix = R"!!!(
+export function call_validate_catching () {
+  try {
+    return call_validate();
+  } catch (e) {
+    return true;
+  }
+}
+)!!!";
+
+    ccf::js::core::Context ctx(TxAccess::GOV_RO);
+    ctx.add_extension(std::make_shared<ccf::js::extensions::GovExtension>());
+    const auto module =
+      fmt::format(
+        "export function call_validate () {{\n"
+        "  let constitution = {};\n"
+        "  return ccf.gov.validateConstitution(constitution);\n"
+        "}}",
+        constitution) +
+      module_suffix;
+    auto func = ctx.get_exported_function(
+      module, "call_validate_catching", "/path/to/constitution");
+    const auto result = ctx.call_with_rt_options(
+      func, {}, options, ccf::js::core::RuntimeLimitsPolicy::NONE);
+    REQUIRE(result.is_exception());
+    REQUIRE(ctx.interrupt_data.request_timed_out);
+    auto [reason, trace] = ctx.error_message();
+    REQUIRE(str_contains(reason, "took too long to evaluate"));
+  }
+
+  {
+    INFO("remaining budget is inherited, rather than a fresh window");
+    // The constitution takes less than the full budget to evaluate, so would
+    // succeed in a fresh window, but the caller has already consumed a large
+    // part of the budget before evaluating it
+    const auto constitution = R"!!!(`
+export function validate(input) {}
+export function resolve(proposal, proposerId, votes) {}
+export function apply(proposal, proposerId) {}
+const start = Date.now();
+while (Date.now() - start < 150) {}
+`)!!!";
+    const auto call_prefix =
+      "const start = Date.now(); while (Date.now() - start < 120) {}";
+
+    bool timed_out = false;
+    const auto error = call_validate_constitution(
+      constitution, nullptr, "", options, &timed_out, call_prefix);
+    REQUIRE(error.has_value());
+    REQUIRE(str_contains(error, "took too long to evaluate"));
+    REQUIRE(timed_out);
+  }
+
+  {
+    INFO("unbounded allocation at module scope is rejected");
+    const auto constitution = R"!!!(`
+export function validate(input) {}
+export function resolve(proposal, proposerId, votes) {}
+export function apply(proposal, proposerId) {}
+const buffers = [];
+for (;;) { buffers.push(new ArrayBuffer(1024 * 1024)); }
+`)!!!";
+
+    bool timed_out = false;
+    const auto error = call_validate_constitution(
+      constitution, nullptr, "", options, &timed_out);
+    REQUIRE(error.has_value());
+    // QuickJS throws null if it cannot allocate the error object itself.
+    REQUIRE(
+      (error->contains("out of memory") ||
+       error->ends_with("Failed to execute proposed constitution: null")));
+    REQUIRE_FALSE(timed_out);
   }
 }
 
 static int get_ref_count(JSValue v)
 {
   REQUIRE(JS_VALUE_HAS_REF_COUNT(v));
-  auto* p = (JSRefCountHeader*)JS_VALUE_GET_PTR(v);
+  auto* p = __js_rc(JS_VALUE_GET_PTR(v));
   return p->ref_count;
 }
 
@@ -918,6 +1325,82 @@ TEST_CASE("JSWrappedValue copy assignment frees old value")
   JS_FreeValue(ctx, raw_b);
   JS_FreeContext(ctx);
   JS_FreeRuntime(rt);
+}
+
+TEST_CASE("QuickJS rejects arena allocations above a lowered heap limit")
+{
+  ccf::js::core::Context ctx(TxAccess::APP_RW);
+  auto* rt = static_cast<JSRuntime*>(ctx.runtime());
+  auto* allocation = js_malloc_rt(rt, 17);
+  REQUIRE(allocation != nullptr);
+  static_cast<uint8_t*>(allocation)[0] = 42;
+
+  JSMemoryUsage usage;
+  JS_ComputeMemoryUsage(rt, &usage);
+  REQUIRE(usage.malloc_size > 100);
+  for (const auto limit : {size_t{100}, size_t(usage.malloc_size - 1)})
+  {
+    INFO("Heap limit: ", limit);
+    JS_SetMemoryLimit(rt, limit);
+    auto* extra = js_malloc_rt(rt, 17);
+    CHECK(extra == nullptr);
+    js_free_rt(rt, extra);
+
+    // Even a reallocation which fits the existing arena slot must check the
+    // cap.
+    auto* resized = js_realloc_rt(rt, allocation, 17);
+    CHECK(resized == nullptr);
+    if (resized != nullptr)
+    {
+      allocation = resized;
+    }
+    CHECK(static_cast<uint8_t*>(allocation)[0] == 42);
+  }
+
+  // Freeing remains possible after lowering the cap.
+  CHECK(js_realloc_rt(rt, allocation, 0) == nullptr);
+  JS_SetMemoryLimit(rt, size_t(-1));
+  allocation = js_malloc_rt(rt, 17);
+  REQUIRE(allocation != nullptr);
+  js_free_rt(rt, allocation);
+}
+
+TEST_CASE("QuickJS handles OOM while constructing a backtrace")
+{
+  ccf::js::core::Context ctx(TxAccess::APP_RW);
+  const auto func = ctx.get_exported_function(
+    R"(
+export function run() {
+  throw (() => {
+    const error = new Error("test");
+    delete error.stack;
+    return error;
+  })();
+}
+Object.defineProperty(run, "name", {value: "\u1234".repeat(128 * 1024)});
+)",
+    "run",
+    "/heap-backtrace.js");
+
+  // Converting the wide function name to a backtrace string must exhaust the
+  // remaining heap while the pending exception owns the only error reference.
+  JSMemoryUsage usage;
+  JS_ComputeMemoryUsage(ctx.runtime(), &usage);
+  ccf::JSRuntimeOptions options;
+  options.max_heap_bytes = usage.malloc_size + 64 * 1024;
+  const auto result = ctx.call_with_rt_options(
+    func, {}, options, ccf::js::core::RuntimeLimitsPolicy::NONE);
+  REQUIRE(result.is_exception());
+  REQUIRE(ctx.error_message().first == "InternalError: out of memory");
+
+  // The same interpreter must still report ordinary exceptions with a trace.
+  const auto recovered = ctx.call_with_rt_options(
+    func, {}, std::nullopt, ccf::js::core::RuntimeLimitsPolicy::NONE);
+  REQUIRE(recovered.is_exception());
+  const auto [message, trace] = ctx.error_message();
+  REQUIRE(message == "Error: test");
+  REQUIRE(trace.has_value());
+  REQUIRE(trace->contains("/heap-backtrace.js:"));
 }
 
 TEST_CASE("Context::to_str preserves embedded NUL bytes")
