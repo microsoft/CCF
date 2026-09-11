@@ -11,7 +11,7 @@ on:
       from_version:
         description: CCF version to build on Azure Linux 3
         required: false
-        default: 7.0.13
+        default: 7.0.14
         type: string
       to_version:
         description: CCF version to build on Azure Linux 4
@@ -35,7 +35,7 @@ jobs:
         include:
           - name: Azure Linux 3
             artifact: al3
-            ccf_version: ${{ inputs.from_version || '7.0.13' }}
+            ccf_version: ${{ inputs.from_version || '7.0.14' }}
             pool: gha-vmss-d16av6-ci
             image: mcr.microsoft.com/azurelinux/base/core:3.0
           - name: Azure Linux 4
@@ -91,24 +91,6 @@ jobs:
         with:
           cache-python-packages: false
 
-      - name: "Install historical build dependencies"
-        shell: bash
-        run: |
-          set -euo pipefail
-          source /etc/os-release
-          case "$VERSION_ID" in
-            3.0)
-              tdnf -y install libarrow-devel parquet-libs-devel
-              ;;
-            4.0)
-              dnf -y install libarrow-devel parquet-libs-devel
-              ;;
-            *)
-              echo "Unsupported Azure Linux version: $VERSION_ID" >&2
-              exit 1
-              ;;
-          esac
-
       - name: "Build install tree"
         shell: bash
         run: |
@@ -127,7 +109,7 @@ jobs:
           if-no-files-found: error
 
   test-upgrade:
-    name: "Upgrade ${{ inputs.from_version || '7.0.13' }} AL3 to ${{ inputs.to_version || '7.0.14' }} AL4"
+    name: "Upgrade ${{ inputs.from_version || '7.0.14' }} AL3 to ${{ inputs.to_version || '7.0.14' }} AL4"
     needs: build-install
     timeout-minutes: 60
     runs-on:
