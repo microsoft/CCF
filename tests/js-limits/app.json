@@ -32,6 +32,105 @@
         "mode": "readonly",
         "openapi": {}
       }
+    },
+    "/nested_eval": {
+      "post": {
+        "js_module": "limits.js",
+        "js_function": "nestedEval",
+        "forwarding_required": "never",
+        "redirection_strategy": "none",
+        "authn_policies": ["user_cert"],
+        "mode": "readonly",
+        "openapi": {}
+      }
+    },
+    "/nested_function": {
+      "post": {
+        "js_module": "limits.js",
+        "js_function": "nestedFunction",
+        "forwarding_required": "never",
+        "redirection_strategy": "none",
+        "authn_policies": ["user_cert"],
+        "mode": "readonly",
+        "openapi": {}
+      }
+    },
+    "/response_body_getter": {
+      "post": {
+        "js_module": "limits.js",
+        "js_function": "responseBodyGetter",
+        "forwarding_required": "never",
+        "redirection_strategy": "none",
+        "authn_policies": ["user_cert"],
+        "mode": "readonly",
+        "openapi": {}
+      }
+    },
+    "/response_headers_getter": {
+      "post": {
+        "js_module": "limits.js",
+        "js_function": "responseHeadersGetter",
+        "forwarding_required": "never",
+        "redirection_strategy": "none",
+        "authn_policies": ["user_cert"],
+        "mode": "readonly",
+        "openapi": {}
+      }
+    },
+    "/response_header_value_getter": {
+      "post": {
+        "js_module": "limits.js",
+        "js_function": "responseHeaderValueGetter",
+        "forwarding_required": "never",
+        "redirection_strategy": "none",
+        "authn_policies": ["user_cert"],
+        "mode": "readonly",
+        "openapi": {}
+      }
+    },
+    "/response_headers_proxy": {
+      "post": {
+        "js_module": "limits.js",
+        "js_function": "responseHeadersProxy",
+        "forwarding_required": "never",
+        "redirection_strategy": "none",
+        "authn_policies": ["user_cert"],
+        "mode": "readonly",
+        "openapi": {}
+      }
+    },
+    "/response_status_code_getter": {
+      "post": {
+        "js_module": "limits.js",
+        "js_function": "responseStatusCodeGetter",
+        "forwarding_required": "never",
+        "redirection_strategy": "none",
+        "authn_policies": ["user_cert"],
+        "mode": "readonly",
+        "openapi": {}
+      }
+    },
+    "/response_getter_throws": {
+      "post": {
+        "js_module": "limits.js",
+        "js_function": "responseGetterThrows",
+        "forwarding_required": "never",
+        "redirection_strategy": "none",
+        "authn_policies": ["user_cert"],
+        "mode": "readonly",
+        "openapi": {}
+      }
+    },
+    "/handler_throws": {
+      "post": {
+        "js_module": "limits.js",
+        "js_function": "handlerThrows",
+        "forwarding_required": "never",
+        "redirection_strategy": "none",
+        "authn_policies": ["user_cert"],
+        "mode": "readonly",
+        "openapi": {}
+      }
     }
   }
 }

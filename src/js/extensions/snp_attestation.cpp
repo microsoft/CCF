@@ -45,17 +45,19 @@ namespace ccf::js::extensions
       js::core::Context& jsctx =
         *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
 
-      size_t evidence_size = 0;
-      uint8_t* evidence = JS_GetArrayBuffer(ctx, &evidence_size, argv[0]);
-      if (evidence == nullptr)
+      // Copy the ArrayBuffer arguments up-front before any call that can
+      // re-enter JavaScript. Since QuickJS 2026-06-04, ArrayBuffer.prototype
+      // .transfer() and .resize() let script free or reallocate the backing
+      // store; converting argv[3] to a string below via to_str() can invoke
+      // a user-defined toString / Symbol.toPrimitive that transfers or
+      // shrinks the evidence, endorsements or UVM buffers.
+      auto evidence_opt = jsctx.copy_array_buffer(argv[0]);
+      if (!evidence_opt.has_value())
       {
         return ccf::js::core::constants::Exception;
       }
-
-      size_t endorsements_size = 0;
-      uint8_t* endorsements =
-        JS_GetArrayBuffer(ctx, &endorsements_size, argv[1]);
-      if (endorsements == nullptr)
+      auto endorsements_opt = jsctx.copy_array_buffer(argv[1]);
+      if (!endorsements_opt.has_value())
       {
         return ccf::js::core::constants::Exception;
       }
@@ -63,16 +65,11 @@ namespace ccf::js::extensions
       std::optional<std::vector<uint8_t>> uvm_endorsements;
       if (argc >= 3 && JS_IsUndefined(argv[2]) == 0)
       {
-        size_t uvm_endorsements_size = 0;
-        uint8_t* uvm_endorsements_array =
-          JS_GetArrayBuffer(ctx, &uvm_endorsements_size, argv[2]);
-        if (uvm_endorsements_array == nullptr)
+        uvm_endorsements = jsctx.copy_array_buffer(argv[2]);
+        if (!uvm_endorsements.has_value())
         {
           return ccf::js::core::constants::Exception;
         }
-        uvm_endorsements = std::vector<uint8_t>(
-          uvm_endorsements_array,
-          uvm_endorsements_array + uvm_endorsements_size);
       }
 
       std::optional<std::string> endorsed_tcb;
@@ -87,10 +84,8 @@ namespace ccf::js::extensions
 
       QuoteInfo quote_info = {};
       quote_info.format = QuoteFormat::amd_sev_snp_v1;
-      quote_info.quote =
-        std::vector<uint8_t>(evidence, evidence + evidence_size);
-      quote_info.endorsements =
-        std::vector<uint8_t>(endorsements, endorsements + endorsements_size);
+      quote_info.quote = std::move(*evidence_opt);
+      quote_info.endorsements = std::move(*endorsements_opt);
       if (endorsed_tcb.has_value())
       {
         quote_info.endorsed_tcb = endorsed_tcb.value();

@@ -230,6 +230,13 @@ namespace ccf::js::core
         trace = to_str(val);
       }
     }
+
+    // Converting the original exception (json_stringify, toString, reading the
+    // stack property) executes JavaScript and can itself raise, or hit the
+    // active runtime limits. Drain any resulting secondary exception so this
+    // interpreter never returns to the cache with a pending exception.
+    JS_FreeValue(ctx, JS_GetException(ctx));
+
     return {message.value_or(""), trace};
   }
 
@@ -272,6 +279,18 @@ namespace ccf::js::core
   {
     return wrap(JS_GetTypedArrayBuffer(
       ctx, obj.val, pbyte_offset, pbyte_length, pbytes_per_element));
+  }
+
+  std::optional<std::vector<uint8_t>> Context::copy_array_buffer(
+    JSValueConst val) const
+  {
+    size_t size = 0;
+    uint8_t* data = JS_GetArrayBuffer(ctx, &size, val);
+    if (data == nullptr)
+    {
+      return std::nullopt;
+    }
+    return std::vector<uint8_t>(data, data + size);
   }
 
   JSWrappedValue Context::get_exported_function(
@@ -514,6 +533,7 @@ namespace ccf::js::core
   {
     auto& rt = ctx.runtime();
     rt.set_runtime_options(options, policy);
+    ctx.interrupt_data.request_timed_out = false;
 
     if (inherited.has_value())
     {

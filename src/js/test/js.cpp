@@ -2,9 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #include "ccf/js/common_context.h"
 #include "ccf/js/core/wrapped_value.h"
+#include "ccf/js/extensions/ccf/crypto.h"
 #include "ccf/js/extensions/ccf/gov.h"
 #include "ccf/js/extensions/ccf/historical.h"
 #include "ccf/js/extensions/ccf/kv.h"
+#include "ccf/js/extensions/snp_attestation.h"
 #include "js/global_class_ids.h"
 #include "js/permissions_checks.h"
 #include "kv/store.h"
@@ -17,6 +19,258 @@
 #include <random>
 
 using namespace ccf::js;
+
+TEST_CASE("Runtime limits cover top-level module evaluation")
+{
+  ccf::JSRuntimeOptions options;
+  ccf::js::core::Context ctx(TxAccess::APP_RO);
+  JS_UpdateStackTop(ctx.runtime());
+
+  SUBCASE("Heap")
+  {
+    options.max_heap_bytes = 10 * 1024 * 1024;
+    const ccf::js::core::RuntimeLimitsScope limits(
+      ctx, options, ccf::js::core::RuntimeLimitsPolicy::NONE);
+    CHECK_THROWS_WITH_AS(
+      ctx.get_exported_function(
+        "globalThis.largeAllocation = new Uint8Array(50 * 1024 * 1024);"
+        "export function handler() {}",
+        "handler",
+        "heap.js"),
+      doctest::Contains("out of memory"),
+      std::runtime_error);
+  }
+
+  SUBCASE("Stack")
+  {
+    options.max_stack_bytes = 64 * 1024;
+    const ccf::js::core::RuntimeLimitsScope limits(
+      ctx, options, ccf::js::core::RuntimeLimitsPolicy::NONE);
+    CHECK_THROWS_WITH_AS(
+      ctx.get_exported_function(
+        "function recurse() { recurse(); }"
+        "recurse();"
+        "export function handler() {}",
+        "handler",
+        "stack.js"),
+      doctest::Contains("stack overflow"),
+      std::runtime_error);
+  }
+
+  SUBCASE("Execution time")
+  {
+    options.max_execution_time_ms = 1;
+    const ccf::js::core::RuntimeLimitsScope limits(
+      ctx, options, ccf::js::core::RuntimeLimitsPolicy::NONE);
+    CHECK_THROWS_AS(
+      ctx.get_exported_function(
+        "while (true) {}"
+        "export function handler() {}",
+        "handler",
+        "time.js"),
+      std::runtime_error);
+    CHECK(ctx.interrupt_data.request_timed_out);
+  }
+}
+
+TEST_CASE("Runtime limits reset timeout state for reused interpreters")
+{
+  ccf::js::core::Context ctx(TxAccess::APP_RO);
+  JS_UpdateStackTop(ctx.runtime());
+
+  auto handler = ctx.get_exported_function(
+    "export function handler() { while (true) {} }", "handler", "timeout.js");
+  ccf::JSRuntimeOptions options;
+  options.max_execution_time_ms = 1;
+  REQUIRE(ctx
+            .call_with_rt_options(
+              handler, {}, options, ccf::js::core::RuntimeLimitsPolicy::NONE)
+            .is_exception());
+  REQUIRE(ctx.interrupt_data.request_timed_out);
+  ctx.error_message();
+
+  const ccf::js::core::RuntimeLimitsScope limits(
+    ctx, options, ccf::js::core::RuntimeLimitsPolicy::NONE);
+  CHECK_FALSE(ctx.interrupt_data.request_timed_out);
+}
+
+namespace
+{
+  // Minimal test-only extension that either installs successfully or throws
+  // std::runtime_error from install().
+  class TestExtension : public ccf::js::extensions::ExtensionInterface
+  {
+  public:
+    bool throw_on_install = false;
+    bool installed = false;
+
+    void install(ccf::js::core::Context& /*ctx*/) override
+    {
+      if (throw_on_install)
+      {
+        throw std::runtime_error("install failed");
+      }
+      installed = true;
+    }
+  };
+
+  // Non-std::exception type, matching the shape of
+  // ccf::kv::CompactedVersionConflict.
+  struct NonStdException
+  {};
+}
+
+TEST_CASE("Extension teardown runs for non-std::exception unwinds")
+{
+  ccf::js::core::Context ctx(TxAccess::APP_RO);
+  JS_UpdateStackTop(ctx.runtime());
+
+  auto ext = std::make_shared<TestExtension>();
+
+  try
+  {
+    struct ExtensionScope
+    {
+      ccf::js::core::Context& ctx;
+      ccf::js::extensions::Extensions installed;
+
+      explicit ExtensionScope(ccf::js::core::Context& c) : ctx(c) {}
+
+      void add(const ccf::js::extensions::ExtensionPtr& extension)
+      {
+        ctx.add_extension(extension);
+        installed.push_back(extension);
+      }
+
+      ~ExtensionScope()
+      {
+        for (const auto& extension : installed)
+        {
+          ctx.remove_extension(extension);
+        }
+      }
+    };
+
+    ExtensionScope scope(ctx);
+    scope.add(ext);
+    REQUIRE(ctx.get_extension<TestExtension>() == ext.get());
+    throw NonStdException{};
+  }
+  catch (const NonStdException&)
+  {
+    // Expected: destructor of the scope should have removed the extension.
+  }
+
+  CHECK(ctx.get_extension<TestExtension>() == nullptr);
+}
+
+TEST_CASE(
+  "Extension teardown only removes successfully-installed extensions on "
+  "partial failure")
+{
+  ccf::js::core::Context ctx(TxAccess::APP_RO);
+  JS_UpdateStackTop(ctx.runtime());
+
+  auto good = std::make_shared<TestExtension>();
+  auto bad = std::make_shared<TestExtension>();
+  bad->throw_on_install = true;
+  auto never_added = std::make_shared<TestExtension>();
+
+  bool caught = false;
+  try
+  {
+    struct ExtensionScope
+    {
+      ccf::js::core::Context& ctx;
+      ccf::js::extensions::Extensions installed;
+
+      explicit ExtensionScope(ccf::js::core::Context& c) : ctx(c) {}
+
+      void add(const ccf::js::extensions::ExtensionPtr& extension)
+      {
+        try
+        {
+          ctx.add_extension(extension);
+        }
+        catch (...)
+        {
+          ctx.remove_extension(extension);
+          throw;
+        }
+        installed.push_back(extension);
+      }
+
+      ~ExtensionScope()
+      {
+        for (const auto& extension : installed)
+        {
+          ctx.remove_extension(extension);
+        }
+      }
+    };
+
+    ExtensionScope scope(ctx);
+    scope.add(good);
+    scope.add(bad); // throws from install()
+    scope.add(never_added); // unreachable
+  }
+  catch (const std::runtime_error&)
+  {
+    caught = true;
+  }
+
+  REQUIRE(caught);
+  // 'good' was installed and must have been removed.
+  CHECK(ctx.get_extension<TestExtension>() == nullptr);
+  // 'never_added' must not have been touched by install().
+  CHECK_FALSE(never_added->installed);
+}
+
+TEST_CASE("error_message drains secondary exceptions raised during extraction")
+{
+  ccf::js::core::Context ctx(TxAccess::APP_RO);
+  JS_UpdateStackTop(ctx.runtime());
+
+  // First call: throw an Error whose 'stack' getter itself throws. Extracting
+  // the stack property inside error_message() must not leave that secondary
+  // exception behind on the context.
+  auto stack_getter_throws = ctx.get_exported_function(
+    "export function handler() {"
+    "  const e = new Error('primary');"
+    "  Object.defineProperty(e, 'stack', {"
+    "    get() { throw new Error('secondary'); }"
+    "  });"
+    "  throw e;"
+    "}",
+    "handler",
+    "stack_getter.js");
+
+  ccf::JSRuntimeOptions options;
+  const auto result = ctx.call_with_rt_options(
+    stack_getter_throws, {}, options, ccf::js::core::RuntimeLimitsPolicy::NONE);
+  REQUIRE(result.is_exception());
+
+  const auto [reason, trace] = ctx.error_message();
+  // The primary exception's toString reason is reported (Error{message}).
+  CHECK(reason.find("primary") != std::string::npos);
+  // The secondary exception raised while reading .stack must have been
+  // drained; the interpreter must be safe to reuse.
+  CHECK(JS_HasException(ctx) == 0);
+
+  // Second call: a fresh, unrelated exception. error_message() must report
+  // its own reason, not anything left over from the previous call.
+  auto second = ctx.get_exported_function(
+    "export function handler() { throw new Error('second'); }",
+    "handler",
+    "second.js");
+  const auto second_result = ctx.call_with_rt_options(
+    second, {}, options, ccf::js::core::RuntimeLimitsPolicy::NONE);
+  REQUIRE(second_result.is_exception());
+  const auto [second_reason, second_trace] = ctx.error_message();
+  CHECK(second_reason.find("second") != std::string::npos);
+  CHECK(second_reason.find("primary") == std::string::npos);
+  CHECK(JS_HasException(ctx) == 0);
+}
 
 TEST_CASE("Check KV Map access")
 {
@@ -1196,6 +1450,319 @@ TEST_CASE("Context::to_str preserves embedded NUL bytes")
     JS_FreeAtom(ctx, atom);
     REQUIRE(result.has_value());
     REQUIRE(*result == input);
+  }
+}
+
+TEST_CASE(
+  "ArrayBuffer arguments to crypto/attestation bindings are copied before "
+  "re-entering JS")
+{
+  // Regression test for the QuickJS 2026-06-04 upgrade (see PR #8340).
+  // ArrayBuffer.prototype.transfer / .resize() let JS free or reallocate an
+  // ArrayBuffer's backing store. If the native bindings hold the raw
+  // uint8_t* returned by JS_GetArrayBuffer across any call that can re-enter
+  // JS (property getters, toString / Symbol.toPrimitive, JSON conversion,
+  // JS_Call...), that pointer can be freed or moved from under them,
+  // producing a use-after-free that ASAN catches. The bindings must instead
+  // copy the bytes immediately.
+  //
+  // These tests exercise the previously-vulnerable paths with argument
+  // objects whose getters/toString transfer or resize the target
+  // ArrayBuffer. They must not crash or read freed memory: results must be
+  // computed either from the pre-copy bytes (success case) or with a clean
+  // JS-level exception (failure case). Under ASAN, unfixed code hits a
+  // heap-use-after-free before returning.
+
+  SUBCASE("wrapKey (AES-KWP): algorithm.name getter transfers the key buffer")
+  {
+    // Uses a 16-byte AES-128 wrapping key and a 1024-byte plaintext. The
+    // plaintext is deliberately large enough (> 512 bytes) that QuickJS
+    // routes its backing allocation to the system malloc rather than its
+    // internal small-object arena, so ASAN can observe the transfer(0) as
+    // a real free and the subsequent C++ read of the raw pointer as a
+    // heap-use-after-free. With the fix, the wrap operates on the
+    // pre-transfer copy and returns an ArrayBuffer of length 1032
+    // (plaintext + 8 bytes of AES-KWP overhead).
+    ccf::js::core::Context ctx(TxAccess::APP_RW);
+    ctx.add_extension(std::make_shared<ccf::js::extensions::CryptoExtension>());
+    const auto script = R"(
+export function run() {
+  const key = new Uint8Array(1024);
+  for (let i = 0; i < 1024; ++i) key[i] = i & 0xff;
+  const wrappingKey = new Uint8Array(16);
+  for (let i = 0; i < 16; ++i) wrappingKey[i] = 0xa0 + i;
+  const params = {
+    get name() {
+      // transfer(0) creates a fresh empty ArrayBuffer and then detaches
+      // (and frees) the original backing store, so any raw pointer
+      // captured earlier by JS_GetArrayBuffer is dangling. Without the
+      // fix, the AES-KWP branch reads through that pointer.
+      key.buffer.transfer(0);
+      return "AES-KWP";
+    }
+  };
+  const result = ccf.crypto.wrapKey(key.buffer, wrappingKey.buffer, params);
+  return "" + result.byteLength;
+}
+)";
+    auto func = ctx.get_exported_function(script, "run", "/reentry-wrap.js");
+    const auto result = ctx.call_with_rt_options(
+      func, {}, std::nullopt, ccf::js::core::RuntimeLimitsPolicy::NONE);
+    REQUIRE_FALSE(result.is_exception());
+    const auto s = ctx.to_str(result);
+    REQUIRE(s.has_value());
+    REQUIRE(*s == "1032");
+  }
+
+  SUBCASE(
+    "unwrapKey (AES-KWP): algorithm.name getter transfers the wrapped key")
+  {
+    // Same > 512-byte allocation trick as the wrapKey test: a 1024-byte
+    // wrapped payload routes through the system malloc so ASAN can see
+    // the transfer(0) as a real free and catch the C++ read.
+    ccf::js::core::Context ctx(TxAccess::APP_RW);
+    ctx.add_extension(std::make_shared<ccf::js::extensions::CryptoExtension>());
+    const auto script = R"(
+export function run() {
+  const wrapped = new Uint8Array(1024);
+  for (let i = 0; i < 1024; ++i) wrapped[i] = i & 0xff;
+  const unwrappingKey = new Uint8Array(16);
+  for (let i = 0; i < 16; ++i) unwrappingKey[i] = 0xa0 + i;
+  const params = {
+    get name() {
+      wrapped.buffer.transfer(0);
+      return "AES-KWP";
+    }
+  };
+  try {
+    ccf.crypto.unwrapKey(wrapped.buffer, unwrappingKey.buffer, params);
+    return "no throw";
+  } catch (e) {
+    return "threw";
+  }
+}
+)";
+    auto func = ctx.get_exported_function(script, "run", "/reentry-unwrap.js");
+    const auto result = ctx.call_with_rt_options(
+      func, {}, std::nullopt, ccf::js::core::RuntimeLimitsPolicy::NONE);
+    REQUIRE_FALSE(result.is_exception());
+    // Random ciphertext + random unwrapping key must fail; success would
+    // suggest we accidentally ran on freed memory.
+    const auto s = ctx.to_str(result);
+    REQUIRE(s.has_value());
+    REQUIRE(*s == "threw");
+  }
+
+  SUBCASE(
+    "verifySignature: algorithm.name getter resizes the signature and data "
+    "buffers")
+  {
+    // A resizable ArrayBuffer shrunk from inside the `name` getter is the
+    // clearest way to demonstrate the bug: the raw pointer taken earlier
+    // now covers memory past the current end of the backing store. With
+    // the fix, the binding operates on the pre-resize copies and reports
+    // the signature as invalid.
+    ccf::js::core::Context ctx(TxAccess::APP_RW);
+    ctx.add_extension(std::make_shared<ccf::js::extensions::CryptoExtension>());
+    const auto script = R"(
+const dummyKey = "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAENUpsFqLPRhO3AZKB6CjMv3vc4dTL\n0O73/CjhcyBqZeqklKZyU+i6PYtOtj3iIzZTfHhF11eyxYuGh85wF13Q0Q==\n-----END PUBLIC KEY-----\n";
+
+export function run() {
+  // > 512 bytes routes through the system malloc so ASAN can see the
+  // detach as a real free.
+  const sigBuf = new ArrayBuffer(1024);
+  new Uint8Array(sigBuf).fill(0xaa);
+  const dataBuf = new ArrayBuffer(1024);
+  new Uint8Array(dataBuf).fill(0xbb);
+  const algorithm = {
+    hash: "SHA-256",
+    get name() {
+      sigBuf.transfer(0);
+      dataBuf.transfer(0);
+      return "ECDSA";
+    }
+  };
+  try {
+    const ok = ccf.crypto.verifySignature(algorithm, dummyKey, sigBuf, dataBuf);
+    return ok ? "valid" : "invalid";
+  } catch (e) {
+    return "threw";
+  }
+}
+)";
+    auto func = ctx.get_exported_function(script, "run", "/reentry-verify.js");
+    const auto result = ctx.call_with_rt_options(
+      func, {}, std::nullopt, ccf::js::core::RuntimeLimitsPolicy::NONE);
+    REQUIRE_FALSE(result.is_exception());
+    // A random signature over random data cannot verify against the fixed
+    // key, so the outcome must be a clean "invalid" or a thrown error.
+    const auto s = ctx.to_str(result);
+    REQUIRE(s.has_value());
+    REQUIRE((*s == "invalid" || *s == "threw"));
+  }
+
+  SUBCASE(
+    "verifySnpAttestation: endorsed_tcb toString transfers evidence and "
+    "endorsements")
+  {
+    // Attestation verification will fail on junk bytes, but the path from
+    // JS_GetArrayBuffer -> to_str(argv[3]) was previously carrying raw
+    // pointers across a re-entrant call. With the fix, the evidence and
+    // endorsements copies survive the toString hook.
+    ccf::js::core::Context ctx(TxAccess::APP_RW);
+    ctx.add_extension(
+      std::make_shared<ccf::js::extensions::SnpAttestationExtension>());
+    const auto script = R"(
+export function run() {
+  // > 512 bytes so QuickJS routes to the system malloc; ASAN can then
+  // observe transfer(0) as a real free.
+  const evidence = new Uint8Array(1024);
+  for (let i = 0; i < 1024; ++i) evidence[i] = i & 0xff;
+  const endorsements = new Uint8Array(1024);
+  for (let i = 0; i < 1024; ++i) endorsements[i] = (i + 1) & 0xff;
+  const tcb = {
+    toString() {
+      evidence.buffer.transfer(0);
+      endorsements.buffer.transfer(0);
+      return "1234567890abcdef";
+    }
+  };
+  try {
+    snp_attestation.verifySnpAttestation(
+      evidence.buffer, endorsements.buffer, undefined, tcb);
+    return "no throw";
+  } catch (e) {
+    return "threw";
+  }
+}
+)";
+    auto func = ctx.get_exported_function(script, "run", "/reentry-snp.js");
+    const auto result = ctx.call_with_rt_options(
+      func, {}, std::nullopt, ccf::js::core::RuntimeLimitsPolicy::NONE);
+    REQUIRE_FALSE(result.is_exception());
+    const auto s = ctx.to_str(result);
+    REQUIRE(s.has_value());
+    REQUIRE(*s == "threw");
+  }
+}
+
+TEST_CASE("Optional RSA-OAEP label in wrapKey/unwrapKey")
+{
+  // The "label" parameter of RSA-OAEP is optional. JS_GetArrayBuffer throws
+  // a TypeError when handed a non-ArrayBuffer, so copying the label
+  // unconditionally left that exception pending on the context even when the
+  // operation itself succeeded. A label that is genuinely absent must be
+  // ignored silently; one that is present but is not an ArrayBuffer is a
+  // caller error and must be reported.
+  ccf::js::core::Context ctx(TxAccess::APP_RW);
+  ctx.add_extension(std::make_shared<ccf::js::extensions::CryptoExtension>());
+
+  // Converts an ASCII PEM string to an ArrayBuffer without relying on the
+  // converters extension, which this context does not install.
+  const auto* const prelude = R"(
+function strToBuf(s) {
+  const b = new Uint8Array(s.length);
+  for (let i = 0; i < s.length; ++i) b[i] = s.charCodeAt(i);
+  return b.buffer;
+}
+function makePlaintext() {
+  const p = new Uint8Array(32);
+  for (let i = 0; i < 32; ++i) p[i] = i;
+  return p;
+}
+)";
+
+  SUBCASE("absent label round-trips and leaves no pending exception")
+  {
+    const auto script = std::string(prelude) + R"(
+export function run() {
+  const kp = ccf.crypto.generateRsaKeyPair(2048);
+  const plaintext = makePlaintext();
+  // Note: no "label" property at all.
+  const wrapped = ccf.crypto.wrapKey(
+    plaintext.buffer, strToBuf(kp.publicKey), { name: "RSA-OAEP" });
+  const unwrapped = new Uint8Array(ccf.crypto.unwrapKey(
+    wrapped, strToBuf(kp.privateKey), { name: "RSA-OAEP" }));
+  if (unwrapped.length !== 32) return "bad-length";
+  for (let i = 0; i < 32; ++i) {
+    if (unwrapped[i] !== i) return "mismatch";
+  }
+  return "ok";
+}
+)";
+    auto func = ctx.get_exported_function(script, "run", "/label-absent.js");
+    const auto result = ctx.call_with_rt_options(
+      func, {}, std::nullopt, ccf::js::core::RuntimeLimitsPolicy::NONE);
+    REQUIRE_FALSE(result.is_exception());
+    const auto s = ctx.to_str(result);
+    REQUIRE(s.has_value());
+    REQUIRE(*s == "ok");
+    // The regression: wrapKey/unwrapKey succeeded, so nothing may be left
+    // pending on the context.
+    REQUIRE(JS_HasException(ctx) == 0);
+  }
+
+  SUBCASE("empty label is treated as no label")
+  {
+    const auto script = std::string(prelude) + R"(
+export function run() {
+  const kp = ccf.crypto.generateRsaKeyPair(2048);
+  const plaintext = makePlaintext();
+  // Wrapped without a label, unwrapped with a zero-length one: the two are
+  // equivalent, so this must round-trip.
+  const wrapped = ccf.crypto.wrapKey(
+    plaintext.buffer, strToBuf(kp.publicKey), { name: "RSA-OAEP" });
+  const unwrapped = new Uint8Array(ccf.crypto.unwrapKey(
+    wrapped,
+    strToBuf(kp.privateKey),
+    { name: "RSA-OAEP", label: new ArrayBuffer(0) }));
+  return unwrapped.length === 32 ? "ok" : "bad-length";
+}
+)";
+    auto func = ctx.get_exported_function(script, "run", "/label-empty.js");
+    const auto result = ctx.call_with_rt_options(
+      func, {}, std::nullopt, ccf::js::core::RuntimeLimitsPolicy::NONE);
+    REQUIRE_FALSE(result.is_exception());
+    const auto s = ctx.to_str(result);
+    REQUIRE(s.has_value());
+    REQUIRE(*s == "ok");
+    REQUIRE(JS_HasException(ctx) == 0);
+  }
+
+  SUBCASE("non-ArrayBuffer label is rejected")
+  {
+    const auto script = std::string(prelude) + R"(
+export function run() {
+  const kp = ccf.crypto.generateRsaKeyPair(2048);
+  const plaintext = makePlaintext();
+  let wrapThrew = false;
+  try {
+    ccf.crypto.wrapKey(plaintext.buffer, strToBuf(kp.publicKey),
+      { name: "RSA-OAEP", label: 42 });
+  } catch (e) {
+    wrapThrew = true;
+  }
+  // Produce a genuinely wrapped blob so that the unwrap below fails on the
+  // label rather than on malformed ciphertext.
+  const wrapped = ccf.crypto.wrapKey(
+    plaintext.buffer, strToBuf(kp.publicKey), { name: "RSA-OAEP" });
+  let unwrapThrew = false;
+  try {
+    ccf.crypto.unwrapKey(wrapped, strToBuf(kp.privateKey),
+      { name: "RSA-OAEP", label: 42 });
+  } catch (e) {
+    unwrapThrew = true;
+  }
+  return (wrapThrew ? "w" : "-") + (unwrapThrew ? "u" : "-");
+}
+)";
+    auto func = ctx.get_exported_function(script, "run", "/label-bad.js");
+    const auto result = ctx.call_with_rt_options(
+      func, {}, std::nullopt, ccf::js::core::RuntimeLimitsPolicy::NONE);
+    REQUIRE_FALSE(result.is_exception());
+    const auto s = ctx.to_str(result);
+    REQUIRE(s.has_value());
+    REQUIRE(*s == "wu");
   }
 }
 
