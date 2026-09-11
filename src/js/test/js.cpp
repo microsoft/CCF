@@ -1329,6 +1329,110 @@ TEST_CASE("JSWrappedValue copy assignment frees old value")
   JS_FreeRuntime(rt);
 }
 
+// QuickJS frees the value passed to JS_SetProperty* and JS_DefinePropertyValue*
+// on every return path, so the wrapper must relinquish its reference even when
+// the set fails. Script can make these fail by placing a setter or read-only
+// property on the target's prototype chain, or by making the target
+// non-extensible, before the C++ side populates an object.
+TEST_CASE("JSWrappedValue setters release the value when the set fails")
+{
+  ccf::js::core::Context ctx(TxAccess::APP_RW);
+  JS_UpdateStackTop(ctx.runtime());
+
+  // Drain any pending exception and return its message
+  auto pending_exception = [&]() {
+    REQUIRE(JS_HasException(ctx) != 0);
+    return ctx.error_message().first;
+  };
+
+  SUBCASE("Non-extensible target")
+  {
+    auto target = ctx.new_obj();
+    REQUIRE(JS_PreventExtensions(ctx, target.val) == 1);
+
+    auto value = ctx.new_obj();
+    JSValue raw = JS_DupValue(ctx, value.val);
+    REQUIRE(get_ref_count(raw) == 2);
+
+    REQUIRE(target.set("x", std::move(value)) == -1);
+    REQUIRE(get_ref_count(raw) == 1);
+    CHECK(pending_exception() == "TypeError: object is not extensible");
+
+    JS_FreeValue(ctx, raw);
+  }
+
+  SUBCASE("Inherited throwing setter which retains the value")
+  {
+    auto handler = ctx.get_exported_function(
+      "Object.defineProperty(Object.prototype, 'headers', {"
+      "  set(v) { globalThis.leaked = v; throw new Error('boom'); },"
+      "  configurable: true });"
+      "export function handler() { globalThis.leaked.tag = 'ok'; "
+      "return JSON.stringify(globalThis.leaked); }",
+      "handler",
+      "/test/poisoned_setter");
+
+    auto target = ctx.new_obj();
+    JSValue raw = ctx.undefined().val;
+    {
+      auto value = ctx.new_obj();
+      raw = JS_DupValue(ctx, value.val);
+      REQUIRE(get_ref_count(raw) == 2);
+
+      REQUIRE(target.set("headers", std::move(value)) == -1);
+      CHECK(pending_exception() == "Error: boom");
+    }
+    // Held by raw and by globalThis.leaked
+    REQUIRE(get_ref_count(raw) == 2);
+
+    // The stashed value must still be a valid object
+    auto result = ctx.inner_call(handler, {});
+    REQUIRE_FALSE(result.is_exception());
+    CHECK(ctx.to_str(result).value() == "{\"tag\":\"ok\"}");
+
+    JS_FreeValue(ctx, raw);
+  }
+
+  SUBCASE("Inherited read-only data property")
+  {
+    ctx.get_exported_function(
+      "Object.defineProperty(Object.prototype, 'headers', {"
+      "  value: 1, writable: false, configurable: true });"
+      "export function handler() {}",
+      "handler",
+      "/test/poisoned_readonly");
+
+    auto target = ctx.new_obj();
+    auto value = ctx.new_obj();
+    JSValue raw = JS_DupValue(ctx, value.val);
+    REQUIRE(get_ref_count(raw) == 2);
+
+    REQUIRE(target.set("headers", std::move(value)) == -1);
+    REQUIRE(get_ref_count(raw) == 1);
+    CHECK(pending_exception() == "TypeError: 'headers' is read-only");
+
+    JS_FreeValue(ctx, raw);
+  }
+
+  SUBCASE("set_at_index on a non-extensible array")
+  {
+    auto target = ctx.new_array();
+    REQUIRE(JS_PreventExtensions(ctx, target.val) == 1);
+
+    auto value = ctx.new_obj();
+    JSValue raw = JS_DupValue(ctx, value.val);
+    REQUIRE(get_ref_count(raw) == 2);
+
+    // Define does not request JS_PROP_THROW, so this is a rejection (0)
+    // rather than an exception (-1), but the value is consumed either way
+    REQUIRE(target.set_at_index(0, std::move(value)) == 0);
+    REQUIRE(get_ref_count(raw) == 1);
+    CHECK(JS_HasException(ctx) == 0);
+
+    JS_FreeValue(ctx, raw);
+  }
+}
+
 TEST_CASE("QuickJS rejects arena allocations above a lowered heap limit")
 {
   ccf::js::core::Context ctx(TxAccess::APP_RW);

@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [7.0.16]
+
+[7.0.16]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.16
+
+### Fixed
+
+- The C++ wrapper used to populate JavaScript objects (`JSWrappedValue::set` and `set_at_index`) now always releases the value it is given, as QuickJS frees that value whether or not the property is set. Previously, a rejected set freed the value a second time. Application script could trigger this by defining a setter or read-only property on `Object.prototype` at module scope, before the request object was built, and a setter which retained the value was left holding a dangling reference. Such a rejected set is now reported as a failed request.
+
 ## [7.0.15]
 
 [7.0.15]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.15
