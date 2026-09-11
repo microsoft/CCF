@@ -4314,7 +4314,15 @@ def run_backup_snapshot_cleanup(const_args):
         test_backup_snapshot_cleanup(network, args)
 
 
-def copy_ledger_chunk_to_read_only_dir(src, dst):
+def copy_ledger_chunk_to_read_only_dir(src, dst, mutate=None):
+    """
+    Copy a ledger chunk into a read-only ledger directory without exposing
+    a partial or transient copy under its final name. Ledger cleanup deletes
+    the source as soon as a digest-identical copy is visible in the read-only
+    directory, so the copy is published atomically once the source is no
+    longer needed and, if a mutate callback is given, only after the callback
+    has been applied to the temporary copy.
+    """
     with tempfile.NamedTemporaryFile(
         dir=os.path.dirname(dst), delete=False
     ) as tmp_file:
@@ -4322,6 +4330,8 @@ def copy_ledger_chunk_to_read_only_dir(src, dst):
 
     try:
         shutil.copyfile(src, tmp_path)
+        if mutate is not None:
+            mutate(tmp_path)
         os.replace(tmp_path, dst)
     finally:
         if os.path.exists(tmp_path):
@@ -4570,18 +4580,21 @@ def test_ledger_chunk_cleanup_digest_mismatch(network, args):
         LOG.warning("Not enough committed chunks to test cleanup, skipping")
         return network
 
-    # Copy oldest chunk to read-only dir, but corrupt it
+    # Copy oldest chunk to read-only dir, but corrupt it. The corruption is
+    # applied before the copy is published under its final name: a transient
+    # digest-identical copy would legitimately allow cleanup to delete the
+    # source, making the assertion below fail spuriously.
     target_chunk = committed[0]
     src = os.path.join(main_ledger_dir, target_chunk)
     dst = os.path.join(read_only_ledger_dir, target_chunk)
-    shutil.copy2(src, dst)
 
-    # Corrupt the read-only copy by flipping a byte
-    with open(dst, "r+b") as f:
-        f.seek(0)
-        original_byte = f.read(1)
-        f.seek(0)
-        f.write(bytes([original_byte[0] ^ 0xFF]))
+    def flip_first_byte(path):
+        with open(path, "r+b") as f:
+            original_byte = f.read(1)
+            f.seek(0)
+            f.write(bytes([original_byte[0] ^ 0xFF]))
+
+    copy_ledger_chunk_to_read_only_dir(src, dst, mutate=flip_first_byte)
 
     LOG.info(f"Corrupted read-only copy of {target_chunk}")
 
