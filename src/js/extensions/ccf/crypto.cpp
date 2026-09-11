@@ -631,7 +631,7 @@ namespace ccf::js::extensions
       ScopeCleanse& operator=(const ScopeCleanse&) = delete;
       ~ScopeCleanse()
       {
-        if (secret.size() > 0)
+        if (!secret.empty())
         {
           OPENSSL_cleanse(secret.data(), secret.size());
         }
