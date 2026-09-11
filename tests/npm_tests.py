@@ -689,6 +689,8 @@ def test_npm_app(network, args):
 
         r = c.post("/app/isValidX509CertBundle", "garbage")
         assert not r.body.json(), r.body
+        r = c.post("/app/isValidX509CertBundle", "")
+        assert not r.body.json(), r.body
 
         priv_key_pem1, _ = infra.crypto.generate_rsa_keypair(2048)
         pem1 = infra.crypto.generate_cert(priv_key_pem1, cn="1", ca=True)
