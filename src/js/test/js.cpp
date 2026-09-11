@@ -2,16 +2,22 @@
 // Licensed under the Apache 2.0 License.
 #include "ccf/js/common_context.h"
 #include "ccf/js/core/wrapped_value.h"
+#include "ccf/js/extensions/ccf/consensus.h"
 #include "ccf/js/extensions/ccf/crypto.h"
 #include "ccf/js/extensions/ccf/gov.h"
 #include "ccf/js/extensions/ccf/historical.h"
 #include "ccf/js/extensions/ccf/kv.h"
 #include "ccf/js/extensions/snp_attestation.h"
+#include "ccf/js/registry.h"
+#include "ccf/service/tables/modules.h"
+#include "enclave/http_rpc_context.h"
 #include "js/global_class_ids.h"
+#include "js/interpreter_cache.h"
 #include "js/permissions_checks.h"
 #include "kv/store.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/untyped_map.h"
+#include "node/rpc/test/node_stub.h"
 #include "node/tx_receipt_impl.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT
@@ -1870,7 +1876,7 @@ export function run() {
   }
 }
 
-TEST_CASE("Historical state")
+namespace
 {
   class CountingStore : public ccf::kv::Store
   {
@@ -1884,14 +1890,22 @@ TEST_CASE("Historical state")
     }
   };
 
+  ccf::TxReceiptImplPtr make_test_receipt()
+  {
+    return std::make_shared<ccf::TxReceiptImpl>(
+      std::vector<uint8_t>{1, 2, 3},
+      std::nullopt,
+      ccf::HistoryTree::Hash{},
+      nullptr,
+      ccf::NodeId("test-node"),
+      std::nullopt);
+  }
+}
+
+TEST_CASE("Historical state")
+{
   auto store = std::make_shared<CountingStore>();
-  auto receipt = std::make_shared<ccf::TxReceiptImpl>(
-    std::vector<uint8_t>{1, 2, 3},
-    std::nullopt,
-    ccf::HistoryTree::Hash{},
-    nullptr,
-    ccf::NodeId("test-node"),
-    std::nullopt);
+  auto receipt = make_test_receipt();
   auto state =
     std::make_shared<ccf::historical::State>(store, receipt, ccf::TxID{1, 1});
   std::weak_ptr<ccf::historical::State> original_state = state;
@@ -1939,6 +1953,200 @@ TEST_CASE("Historical state")
   }
 
   REQUIRE(original_state.expired());
+}
+
+TEST_CASE("Historical handles are scoped to their extension")
+{
+  ccf::js::core::Context ctx(TxAccess::APP_RO);
+  auto receipt = make_test_receipt();
+
+  auto run_request = [&](ccf::SeqNo seqno, const auto& during_request) {
+    auto store = std::make_shared<CountingStore>();
+    std::weak_ptr<ccf::kv::Store> weak_store = store;
+    auto state = std::make_shared<ccf::historical::State>(
+      store, receipt, ccf::TxID{1, seqno});
+    std::weak_ptr<ccf::historical::State> weak_state = state;
+
+    auto extension =
+      std::make_shared<ccf::js::extensions::HistoricalExtension>(nullptr);
+    ctx.add_extension(extension);
+
+    auto js_state = extension->create_historical_state_object(ctx, state);
+    REQUIRE_FALSE(js_state.is_exception());
+    auto map = js_state["kv"]["public:records"];
+    REQUIRE_FALSE(map.is_exception());
+    REQUIRE(ctx.to_str(map["size"]) == "0");
+    REQUIRE(store->tx_creations == 1);
+
+    during_request();
+
+    // End of request: the extension goes away, the interpreter and JS values
+    // remain
+    REQUIRE(ctx.remove_extension(extension));
+    extension.reset();
+    state.reset();
+    store.reset();
+    REQUIRE(weak_state.expired());
+    REQUIRE(weak_store.expired());
+
+    return map;
+  };
+
+  auto expect_unavailable = [&](const ccf::js::core::JSWrappedValue& map) {
+    auto size = map["size"];
+    REQUIRE(size.is_exception());
+    auto [reason, trace] = ctx.error_message();
+    REQUIRE(reason.find("Unable to access MapHandle") != std::string::npos);
+  };
+
+  auto stale_map = run_request(1, [] {});
+
+  {
+    INFO("A handle retained after its request completed fails gracefully");
+    expect_unavailable(stale_map);
+  }
+
+  run_request(2, [&] {
+    INFO("Handles from earlier requests are not visible to later ones");
+    expect_unavailable(stale_map);
+  });
+}
+
+TEST_CASE("JS registry does not share historical state between interpreters")
+{
+  ccf::AbstractNodeContext context;
+  context.install_subsystem<ccf::historical::AbstractStateCache>(
+    std::make_shared<ccf::StubNodeStateCache>());
+  auto interpreter_cache = std::make_shared<ccf::js::InterpreterCache>(1);
+  context.install_subsystem<ccf::js::AbstractInterpreterCache>(
+    interpreter_cache);
+
+  [[maybe_unused]] ccf::js::BaseDynamicJSEndpointRegistry registry(context);
+
+  for (const auto access : {TxAccess::APP_RO, TxAccess::APP_RW})
+  {
+    auto interpreter =
+      interpreter_cache->get_interpreter(access, std::nullopt, 0);
+    REQUIRE(interpreter != nullptr);
+    REQUIRE(
+      interpreter->get_extension<ccf::js::extensions::ConsensusExtension>() !=
+      nullptr);
+    REQUIRE(
+      interpreter->get_extension<ccf::js::extensions::HistoricalExtension>() ==
+      nullptr);
+  }
+}
+
+TEST_CASE("Historical response conversion preserves request isolation")
+{
+  class StateCache : public ccf::StubNodeStateCache
+  {
+  public:
+    std::weak_ptr<ccf::historical::State> latest_state;
+
+    std::vector<ccf::historical::StatePtr> get_state_range(
+      ccf::historical::RequestHandle,
+      ccf::SeqNo,
+      ccf::SeqNo,
+      ccf::historical::ExpiryDuration) override
+    {
+      auto state = std::make_shared<ccf::historical::State>(
+        std::make_shared<CountingStore>(),
+        make_test_receipt(),
+        ccf::TxID{1, 1});
+      latest_state = state;
+      return {state};
+    }
+  };
+
+  ccf::AbstractNodeContext context;
+  auto state_cache = std::make_shared<StateCache>();
+  context.install_subsystem<ccf::historical::AbstractStateCache>(state_cache);
+  auto interpreter_cache = std::make_shared<ccf::js::InterpreterCache>(1);
+  context.install_subsystem<ccf::js::AbstractInterpreterCache>(
+    interpreter_cache);
+  ccf::js::BaseDynamicJSEndpointRegistry registry(context, "public:test");
+  registry.set_js_kv_namespace_restriction(
+    [](const std::string& map_name, std::string& explanation) {
+      explanation = "Restricted test table";
+      return map_name == "public:restricted" ? KVAccessPermissions::ILLEGAL :
+                                               KVAccessPermissions::READ_WRITE;
+    });
+
+  ccf::kv::Store store;
+  store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+  {
+    auto tx = store.create_tx();
+    tx.rw<ccf::Modules>("public:test.modules")->put("/response.js", R"(
+export function run(request) {
+  const live = ccf.kv["public:records"];
+  if (live.size !== 0) {
+    throw new Error("Unexpected live state");
+  }
+  const state = ccf.historical.getStateRange(1, 1, 1, 1)[0];
+  if (request.query === "handler_throw") {
+    throw new Error("Handler failure");
+  }
+  return {
+    body: {
+      toJSON() {
+        if (request.query === "restricted") {
+          return state.kv["public:restricted"].size;
+        }
+        if (request.query === "live") {
+          return live.size;
+        }
+        if (request.query === "throw") {
+          throw new Error("Response failure");
+        }
+        return state.kv["public:records"].size;
+      }
+    }
+  };
+}
+)");
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+
+  auto endpoint = std::make_shared<ccf::js::CustomJSEndpoint>();
+  endpoint->properties.js_module = "/response.js";
+  endpoint->properties.js_function = "run";
+  endpoint->properties.mode = ccf::endpoints::Mode::ReadWrite;
+  endpoint->properties.interpreter_reuse =
+    ccf::endpoints::InterpreterReusePolicy{.key = "historical"};
+
+  for (const std::string query :
+       {"ok", "restricted", "live", "throw", "handler_throw", "ok"})
+  {
+    INFO(query);
+    auto rpc_ctx = std::make_shared<http::HttpRpcContext>(
+      std::make_shared<ccf::SessionContext>(
+        ccf::InvalidSessionId, std::vector<uint8_t>{}),
+      ccf::HttpVersion::HTTP1,
+      HTTP_GET,
+      "/response?" + query,
+      ccf::http::HeaderMap{},
+      std::vector<uint8_t>{});
+    auto tx = store.create_tx();
+    ccf::endpoints::EndpointContext endpoint_ctx(rpc_ctx, tx);
+    registry.execute_endpoint(endpoint, endpoint_ctx);
+    REQUIRE(
+      rpc_ctx->get_response_status() ==
+      (query == "ok" ? HTTP_STATUS_OK : HTTP_STATUS_INTERNAL_SERVER_ERROR));
+    if (query == "ok")
+    {
+      REQUIRE(nlohmann::json::parse(rpc_ctx->get_response_body()) == 0);
+    }
+    REQUIRE(state_cache->latest_state.expired());
+    auto interpreter = interpreter_cache->get_interpreter(
+      TxAccess::APP_RW, endpoint->properties.interpreter_reuse, 0);
+    REQUIRE(
+      interpreter->get_extension<ccf::js::extensions::HistoricalExtension>() ==
+      nullptr);
+    REQUIRE(
+      interpreter->get_extension<ccf::js::extensions::KvExtension>() ==
+      nullptr);
+  }
 }
 
 int main(int argc, char** argv)
