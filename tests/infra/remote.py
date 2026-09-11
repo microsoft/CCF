@@ -662,8 +662,8 @@ class CCFRemote:
                 # This will also ensure the render produced valid JSON
                 j = json.loads(output)
 
-                # Older releases reject this unknown HTTP configuration field.
-                if v is not None and v < Version("7.0.15"):
+                # Releases before 7.0.16 reject this unknown HTTP configuration field.
+                if v is not None and v < Version("7.0.16"):
                     for interface in j["network"]["rpc_interfaces"].values():
                         interface["http_configuration"].pop(
                             "max_request_target_size", None
