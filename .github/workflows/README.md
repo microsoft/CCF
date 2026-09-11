@@ -52,7 +52,7 @@ File: `ci-al4.yml`
 
 # Cross-platform LTS
 
-Builds release install trees on Azure Linux 3 and Azure Linux 4 in parallel, then runs the LTS live-upgrade test directly on a VMSS runner. Each CCF node runs in the container matching the distribution on which its binary was built, while the existing Python test infrastructure orchestrates the rolling upgrade over host networking. Runs weekly and manually, but not on pull requests because both full builds and the compatibility test are expensive.
+Builds a pinned 7.x release install tree on Azure Linux 3 and the current ref on Azure Linux 4 in parallel, then runs the LTS live-upgrade test directly on a VMSS runner. Each CCF node runs in the container matching the distribution on which its binary was built, while the existing Python test infrastructure orchestrates the rolling upgrade over host networking. The 7.x ref can be overridden on manual runs. Runs weekly and manually, but not on pull requests because both full builds and the compatibility test are expensive.
 
 File: `cross-platform-lts.yml`
 3rd party dependencies:

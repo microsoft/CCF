@@ -4,6 +4,12 @@ on:
   schedule:
     - cron: "0 3 * * 0"
   workflow_dispatch:
+    inputs:
+      from_ref:
+        description: Git ref to build for the Azure Linux 3 side
+        required: false
+        default: ccf-7.0.14
+        type: string
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -54,6 +60,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          ref: ${{ matrix.artifact == 'al3' && (inputs.from_ref || 'ccf-7.0.14') || github.sha }}
 
       - name: "Install build dependencies"
         uses: ./.github/actions/install-ci-dependencies
