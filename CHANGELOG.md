@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- Governance JavaScript evaluation (member ballots and the constitution's `validate`, `resolve` and `apply` steps) is now bounded by the same `js_runtime_options` heap, stack and execution time limits used for application requests, including while loading and initialising the module that contains those functions. A single member can no longer stall or exhaust the primary by supplying module-scope code without a bounded execution window. (#8341, #8346, #8351)
 - JavaScript application heap, stack, and execution-time limits now cover top-level module initialisation and response conversion, in addition to endpoint handler execution. (#8346)
 - Restricted `ccf.gov.validateConstitution` to the constitution's `validate` step. It is no longer exposed to applications, ballots, or the constitution's `resolve` and `apply` steps. Evaluating the proposed constitution is now bounded by the caller's `js_runtime_options` heap, stack and execution time limits, sharing the remaining execution time of the `validate` step, rather than running unbounded (#8341).
 - Failures of the JS interpreter itself (out of memory, stack overflow, or interruption) while evaluating a module's top-level code are now reported as a failure to load that module, rather than being ignored (#8341).
