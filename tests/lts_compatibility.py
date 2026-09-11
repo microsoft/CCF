@@ -199,14 +199,15 @@ def test_new_service(
         kwargs["from_snapshot"] = False
         kwargs["fetch_recent_snapshot"] = True
 
-    new_node = network.create_node(
-        binary_dir=binary_dir,
-        library_dir=library_dir,
-        version=version,
+    new_node = create_and_join_node(
+        network,
+        args,
+        binary_dir,
+        library_dir,
+        version,
         node_container_image=node_container_image,
+        **kwargs,
     )
-
-    network.join_node(new_node, args.package, args, **kwargs)
     network.trust_node(
         new_node,
         args,
@@ -290,6 +291,30 @@ def get_bin_and_lib_dirs_for_install_path(install_path):
         if install_path == LOCAL_CHECKOUT_DIRECTORY
         else (os.path.join(install_path, "bin"), os.path.join(install_path, "lib"))
     )
+
+
+def create_and_join_node(
+    network,
+    args,
+    binary_dir,
+    library_dir,
+    version,
+    node_container_image=None,
+    **join_kwargs,
+):
+    node = network.create_node(
+        binary_dir=binary_dir,
+        library_dir=library_dir,
+        version=version,
+    )
+    network.join_node(
+        node,
+        args.package,
+        args,
+        node_container_image=node_container_image,
+        **join_kwargs,
+    )
+    return node
 
 
 def set_js_args(args, from_install_path, to_install_path=None):
@@ -417,20 +442,20 @@ def run_code_upgrade_from(
             new_nodes = []
             fetch_recent_snapshot = True
             for _ in range(len(old_nodes)):
-                new_node = network.create_node(
-                    binary_dir=to_binary_dir,
-                    library_dir=to_library_dir,
-                    version=to_version,
-                    node_container_image=to_container_image,
-                )
-
                 kwargs = {}
                 kwargs["fetch_recent_snapshot"] = fetch_recent_snapshot
                 if not fetch_recent_snapshot:
                     kwargs["copy_ledger"] = True
 
-                network.join_node(
-                    new_node, args.package, args, from_snapshot=False, **kwargs
+                new_node = create_and_join_node(
+                    network,
+                    args,
+                    to_binary_dir,
+                    to_library_dir,
+                    to_version,
+                    node_container_image=to_container_image,
+                    from_snapshot=False,
+                    **kwargs,
                 )
                 network.trust_node(
                     new_node,
