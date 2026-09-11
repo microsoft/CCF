@@ -692,17 +692,19 @@ namespace ccf::js::extensions
       {
         return ccf::js::core::constants::Exception;
       }
+      // key is the plaintext being wrapped. Guard it before copying the
+      // wrapping key: that copy allocates and can fail, and the early return
+      // below must not drop the plaintext without scrubbing it.
+      auto& key = *key_opt;
+      ScopeCleanse key_cleanse(key);
+
       auto wrapping_key_opt = jsctx.copy_array_buffer(argv[1]);
       if (!wrapping_key_opt.has_value())
       {
         return ccf::js::core::constants::Exception;
       }
-      auto& key = *key_opt;
+      // wrapping_key is a symmetric secret for AES-KWP.
       auto& wrapping_key = *wrapping_key_opt;
-      // Both owned copies hold secret material: key is the plaintext being
-      // wrapped, and wrapping_key is a symmetric secret for AES-KWP. Cleanse
-      // both on all exit paths, including exceptions.
-      ScopeCleanse key_cleanse(key);
       ScopeCleanse wrapping_key_cleanse(wrapping_key);
 
       auto parameters = argv[2];
@@ -818,15 +820,19 @@ namespace ccf::js::extensions
       {
         return ccf::js::core::constants::Exception;
       }
+      // key is the wrapped (encrypted) blob here, so it is not secret and
+      // needs no cleansing.
+      auto& key = *key_opt;
+
       auto unwrapping_key_opt = jsctx.copy_array_buffer(argv[1]);
       if (!unwrapping_key_opt.has_value())
       {
         return ccf::js::core::constants::Exception;
       }
-      auto& key = *key_opt;
-      auto& unwrapping_key = *unwrapping_key_opt;
       // unwrapping_key is secret key material; cleanse on all exit paths.
-      // key is the wrapped (encrypted) blob here, so it is not secret.
+      // The guard is kept adjacent to the copy so that no fallible statement
+      // can sit between creating the secret and protecting it.
+      auto& unwrapping_key = *unwrapping_key_opt;
       ScopeCleanse unwrapping_key_cleanse(unwrapping_key);
 
       auto parameters = argv[2];
