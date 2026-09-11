@@ -711,7 +711,7 @@ def single_node(args):
 
             # Same reasoning: module-scope loop in a ballot stalls the primary
             # for at least the default execution time limit.
-            test_desc("Module-scope runtime limits and KV restrictions on ballots")
+            test_desc("Module-scope runtime limits on ballots")
             governance_js.test_ballot_module_scope_restrictions(network, args)
 
             LOG.info("Stopping network to read node logs")

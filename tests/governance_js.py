@@ -1252,9 +1252,7 @@ def test_set_constitution_evaluation_timeout(network, args):
     return network
 
 
-@reqs.description(
-    "Test governance module-scope runtime limits and lack of KV access on ballots"
-)
+@reqs.description("Test governance module-scope runtime limits on ballots")
 def test_ballot_module_scope_restrictions(network, args):
     # NB: An infinite loop at module scope stalls the primary for at least the
     # default execution time limit, which exceeds the election timeout used in
