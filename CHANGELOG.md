@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
-- Joining nodes can verify downloaded COSE snapshots signed by a previous service identity using an endorsement chain rooted in the configured current service identity.
+- Joining nodes can verify downloaded COSE snapshots signed by a previous service identity using an endorsement chain rooted in the configured current service identity (#8361).
 
 ## [7.0.15]
 
