@@ -2,11 +2,14 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/base64.h"
+#include "ccf/ds/json.h"
 #include "ccf/ds/nonstd.h"
 #include "ccf/rest_verb.h"
 #include "ds/internal_logger.h"
 #include "http/http_builder.h"
 #include "http_client/curl.h"
+#include "snapshots/endorsements.h"
 
 #include <charconv>
 #include <curl/curl.h>
@@ -65,7 +68,62 @@ namespace snapshots
   {
     std::string snapshot_name;
     std::vector<uint8_t> snapshot_data;
+    std::string snapshot_url;
   };
+
+  static std::vector<std::vector<uint8_t>> fetch_endorsements(
+    const std::string& snapshot_url, const std::vector<uint8_t>& peer_ca)
+  {
+    ccf::http_client::UniqueCURL curl_easy;
+    curl_easy.set_blob_opt(CURLOPT_CAINFO_BLOB, peer_ca.data(), peer_ca.size());
+    auto response_body = std::make_unique<ccf::http_client::ResponseBody>(
+      MAX_ENDORSEMENTS_RESPONSE_SIZE);
+    std::unique_ptr<ccf::http_client::CurlRequest> response;
+    CURLcode curl_status = CURLE_FAILED_INIT;
+    long http_status = 0;
+    ccf::http_client::CurlRequest::synchronous_perform(
+      std::make_unique<ccf::http_client::CurlRequest>(
+        std::move(curl_easy),
+        HTTP_GET,
+        snapshot_url + "/endorsements",
+        ccf::http_client::UniqueSlist{},
+        nullptr,
+        std::move(response_body),
+        [&](auto&& request, CURLcode status, long code) {
+          response = std::move(request);
+          curl_status = status;
+          http_status = code;
+        }));
+    if (curl_status != CURLE_OK)
+    {
+      throw std::runtime_error(fmt::format(
+        "Error fetching snapshot endorsements: {}",
+        curl_easy_strerror(curl_status)));
+    }
+    EXPECT_HTTP_RESPONSE_STATUS(
+      response, http_status, HTTP_STATUS_OK, response->get_response_ptr());
+    const auto& body = response->get_response_ptr()->buffer;
+    const auto json = ccf::parse_json_safe(body.begin(), body.end(), 2);
+    if (!json.is_array() || json.size() > MAX_ENDORSEMENTS_COUNT)
+    {
+      throw std::logic_error("Invalid snapshot endorsement chain response");
+    }
+    std::vector<std::vector<uint8_t>> endorsements;
+    for (const auto& encoded : json)
+    {
+      if (
+        !encoded.is_string() ||
+        encoded.get_ref<const std::string&>().size() >
+          ((MAX_ENDORSEMENT_SIZE + 2) / 3) * 4)
+      {
+        throw std::logic_error("Invalid encoded snapshot endorsement");
+      }
+      endorsements.push_back(
+        ccf::crypto::raw_from_b64(encoded.get_ref<const std::string&>()));
+    }
+    check_endorsements_size(endorsements);
+    return endorsements;
+  }
 
   struct ContentRangeHeader
   {
@@ -437,7 +495,8 @@ namespace snapshots
       const auto url_components = ccf::nonstd::split(snapshot_url, "/");
       const std::string snapshot_name(url_components.back());
 
-      return SnapshotResponse{snapshot_name, std::move(response_body->buffer)};
+      return SnapshotResponse{
+        snapshot_name, std::move(response_body->buffer), snapshot_url};
     }
     catch (const std::exception& e)
     {

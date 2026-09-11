@@ -6,9 +6,11 @@
 #include "ccf/crypto/base64.h"
 #include "ccf/crypto/hash_provider.h"
 #include "ccf/http_etag.h"
+#include "ccf/network_identity_interface.h"
 #include "ccf/service/tables/nodes.h"
 #include "http/http_digest.h"
 #include "node/rpc/ledger_subsystem.h"
+#include "snapshots/endorsements.h"
 #include "snapshots/filenames.h"
 
 namespace ccf::node
@@ -953,6 +955,119 @@ namespace ccf::node
         HTTP_STATUS_NOT_MODIFIED, "The requested snapshot has not changed.")
       .add_openapi_response(
         HTTP_STATUS_NOT_FOUND, "The requested snapshot is not available.")
+      .require_operator_feature(endpoints::OperatorFeature::SnapshotRead)
+      .install();
+
+    auto get_snapshot_endorsements = [&](ccf::endpoints::CommandEndpointContext&
+                                           ctx) {
+      auto configuration = get_node_configuration_subsystem(node_context, ctx);
+      if (configuration == nullptr)
+      {
+        return;
+      }
+      std::string name;
+      std::string error;
+      if (!ccf::endpoints::get_path_param(
+            ctx.rpc_ctx->get_request_path_params(),
+            "snapshot_name",
+            name,
+            error))
+      {
+        ctx.rpc_ctx->set_error(
+          HTTP_STATUS_BAD_REQUEST,
+          ccf::errors::InvalidResourceName,
+          std::move(error));
+        return;
+      }
+      const files::fs::path filename(name);
+      size_t seqno = 0;
+      try
+      {
+        if (
+          filename.has_parent_path() || filename.is_absolute() ||
+          !snapshots::is_snapshot_file(name) ||
+          !snapshots::is_snapshot_file_committed(name))
+        {
+          throw std::logic_error("Expected a committed snapshot filename");
+        }
+        seqno = snapshots::get_snapshot_idx_from_file_name(name);
+      }
+      catch (const std::logic_error& e)
+      {
+        ctx.rpc_ctx->set_error(
+          HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, e.what());
+        return;
+      }
+      const auto snapshot_path =
+        files::fs::path(configuration->get().node_config.snapshots.directory) /
+        filename;
+      if (!files::fs::is_regular_file(snapshot_path))
+      {
+        ctx.rpc_ctx->set_error(
+          HTTP_STATUS_NOT_FOUND,
+          ccf::errors::ResourceNotFound,
+          "Snapshot is not available on this node");
+        return;
+      }
+      auto identity =
+        node_context.get_subsystem<NetworkIdentitySubsystemInterface>();
+      if (identity == nullptr)
+      {
+        ctx.rpc_ctx->set_error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::InternalError,
+          "Network identity subsystem is not available");
+        return;
+      }
+      std::optional<CoseEndorsementsChain> chain;
+      try
+      {
+        chain = identity->get_cose_endorsements_chain(seqno);
+      }
+      catch (const IdentityHistoryNotFetched& e)
+      {
+        ctx.rpc_ctx->set_response_header(http::headers::RETRY_AFTER, "1");
+        ctx.rpc_ctx->set_error(
+          HTTP_STATUS_SERVICE_UNAVAILABLE,
+          ccf::errors::InternalError,
+          e.what());
+        return;
+      }
+      if (!chain.has_value())
+      {
+        ctx.rpc_ctx->set_error(
+          HTTP_STATUS_NOT_FOUND,
+          ccf::errors::ResourceNotFound,
+          "Snapshot endorsement history is not available");
+        return;
+      }
+      snapshots::check_endorsements_size(*chain);
+      std::vector<std::string> encoded;
+      encoded.reserve(chain->size());
+      for (const auto& endorsement : *chain)
+      {
+        encoded.push_back(crypto::b64_from_raw(endorsement));
+      }
+      ctx.rpc_ctx->set_response_header(
+        http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+      ctx.rpc_ctx->set_response_body(nlohmann::json(encoded).dump());
+    };
+    registry
+      .make_command_endpoint(
+        "/snapshot/{snapshot_name}/endorsements",
+        HTTP_GET,
+        get_snapshot_endorsements,
+        no_auth_required)
+      .set_forwarding_required(endpoints::ForwardingRequired::Never)
+      .add_openapi_response<std::vector<std::string>>(
+        HTTP_STATUS_OK,
+        "Base64-encoded COSE endorsements, newest first, linking the current "
+        "service identity to the snapshot's service epoch.")
+      .add_openapi_response(
+        HTTP_STATUS_NOT_FOUND,
+        "Snapshot or endorsement history is unavailable.")
+      .add_openapi_response(
+        HTTP_STATUS_SERVICE_UNAVAILABLE, "Identity history is still loading.")
       .require_operator_feature(endpoints::OperatorFeature::SnapshotRead)
       .install();
 

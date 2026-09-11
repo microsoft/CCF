@@ -5,9 +5,11 @@ import copy
 import hashlib
 import os
 import shutil
+import tempfile
 
 import ccf.ledger
 import infra.e2e_args
+import infra.interfaces
 import infra.logging_app as app
 import infra.network
 import infra.node
@@ -290,6 +292,73 @@ def run_recovery_snapshot_endorsements(args):
         )
 
 
+def run_join_snapshot_endorsements(args):
+    with infra.network.network(
+        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
+    ) as initial_network, tempfile.TemporaryDirectory() as saved_snapshots:
+        initial_network.start_and_open(args)
+        primary, _ = initial_network.find_primary()
+        target = app.LoggingTxs("user0").issue(initial_network, number_txs=1)
+        primary.trigger_snapshot()
+        snapshot_path = primary.wait_for_snapshot(target.seqno)
+        saved_snapshot = shutil.copy2(snapshot_path, saved_snapshots)
+        snapshot_name = os.path.basename(saved_snapshot)
+        snapshot_seqno, _ = ccf.ledger.snapshot_index_from_filename(snapshot_name)
+        with open(saved_snapshot, "rb") as snapshot:
+            snapshot_digest = hashlib.sha256(snapshot.read()).digest()
+
+        network = initial_network
+        try:
+            for generation in (1, 2):
+                network, recovery_args = _recover_and_open(
+                    network, args, f"{args.label}_identity_{generation}"
+                )
+                primary, _ = network.find_primary()
+                target = app.LoggingTxs("user0").issue(network, number_txs=1)
+                primary.trigger_snapshot()
+                primary.wait_for_snapshot(target.seqno)
+
+                # Serve only the original service's snapshot, even after two
+                # recoveries. The joiner must validate it via the current identity.
+                snapshot_dir = os.path.join(
+                    primary.remote.remote.root, primary.remote.snapshots_dir_name
+                )
+                for path in primary.get_snapshots():
+                    os.remove(path)
+                shutil.copy2(saved_snapshot, snapshot_dir)
+
+                joiner = network.create_node()
+                network.join_node(
+                    joiner,
+                    args.package,
+                    recovery_args,
+                    target_node=primary,
+                    copy_ledger=False,
+                    from_snapshot=False,
+                    fetch_recent_snapshot=True,
+                )
+                network.trust_node(joiner, recovery_args)
+                with primary.client(
+                    interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
+                ) as c:
+                    response = c.get(f"/node/snapshot/{snapshot_name}/endorsements")
+                    assert response.status_code == 200, response
+                    assert len(response.body.json()) == generation
+                with primary.client() as c:
+                    response = c.get(f"/node/snapshot/{snapshot_name}/endorsements")
+                    assert response.status_code == 404, response
+                with joiner.client() as c:
+                    assert c.get("/node/state").body.json()["startup_seqno"] == (
+                        snapshot_seqno
+                    )
+                assert f"through {generation} service identity endorsement(s)" in _logs(
+                    joiner
+                )
+                _assert_node_snapshot_unchanged(joiner, snapshot_name, snapshot_digest)
+        finally:
+            network.stop_all_nodes(skip_verification=True)
+
+
 if __name__ == "__main__":
 
     def add(parser):
@@ -306,6 +375,15 @@ if __name__ == "__main__":
         nodes=infra.e2e_args.min_nodes(cr.args, f=0),
         ledger_chunk_bytes="50KB",
         snapshot_tx_interval=10,
+        sig_tx_interval=1,
+    )
+    cr.add(
+        "join_snapshot_endorsements",
+        run_join_snapshot_endorsements,
+        package="samples/apps/logging/logging",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=0),
+        ledger_chunk_bytes="50KB",
+        snapshot_tx_interval=1000000,
         sig_tx_interval=1,
     )
     cr.run()

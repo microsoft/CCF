@@ -7,6 +7,7 @@
 #include "ccf/crypto/pem.h"
 #include "ccf/ds/json.h"
 #include "ccf/historical_queries_adapter.h"
+#include "ccf/network_identity_interface.h"
 #include "ccf/service/tables/nodes.h"
 #include "crypto/cose.h"
 #include "ds/internal_logger.h"
@@ -17,10 +18,17 @@
 #include "node/history.h"
 #include "node/rpc/network_identity_chain_helpers.h"
 #include "node/tx_receipt_impl.h"
+#include "snapshots/endorsements.h"
 
 #include <nlohmann/json.hpp>
+#include <stdexcept>
 namespace ccf
 {
+  struct SnapshotServiceIdentityMismatch : public std::logic_error
+  {
+    using std::logic_error::logic_error;
+  };
+
   struct StartupSnapshotInfo
   {
     ccf::kv::Version seqno;
@@ -264,7 +272,7 @@ namespace ccf
         ccf::crypto::Pem(*prev_service_identity));
       if (!verifier->verify_detached(segments.receipt, receipt.merkle_root))
       {
-        throw std::logic_error(
+        throw SnapshotServiceIdentityMismatch(
           "Previous service identity does not match the service identity that "
           "signed the snapshot");
       }
@@ -371,6 +379,83 @@ namespace ccf
       throw std::logic_error(fmt::format(
         "Invalid snapshot receipt: unrecognised format (first byte: 0x{:02X})",
         first_byte));
+    }
+  }
+
+  // The caller must bind snapshot_seqno to the body with verify_snapshot_seqno
+  // before installing the snapshot. The wire chain is ordered newest first.
+  static void verify_snapshot_endorsement_chain(
+    const SnapshotSegments& segments,
+    const std::vector<uint8_t>& trusted_service_cert,
+    const CoseEndorsementsChain& chain,
+    ccf::kv::Version snapshot_seqno)
+  {
+    snapshots::check_endorsements_size(chain);
+    if (chain.empty())
+    {
+      verify_snapshot(segments, trusted_service_cert);
+      return;
+    }
+    if (segments.receipt.empty() || segments.receipt.front() != 0xd2)
+    {
+      throw std::logic_error(
+        "Snapshot endorsement chains require a COSE receipt");
+    }
+
+    auto trusted_key =
+      ccf::crypto::make_unique_verifier(ccf::crypto::Pem(trusted_service_cert))
+        ->public_key_der();
+    std::optional<ccf::CoseEndorsement> newer;
+    for (const auto& link : chain)
+    {
+      // Authenticate each envelope before interpreting its epoch claims.
+      trusted_key = verify_cose_endorsement_signature(link, trusted_key);
+      const auto [from, to] =
+        ccf::crypto::extract_cose_endorsement_validity(link);
+      const auto begin = ccf::TxID::from_str(from);
+      const auto end = ccf::TxID::from_str(to);
+      if (
+        !begin.has_value() || !end.has_value() || begin->seqno > end->seqno ||
+        begin->view > end->view ||
+        (begin->seqno == end->seqno && begin->view != end->view))
+      {
+        throw std::logic_error("Invalid snapshot endorsement epoch range");
+      }
+      ccf::CoseEndorsement current;
+      current.endorsement_epoch_begin = *begin;
+      current.endorsement_epoch_end = *end;
+      if (newer.has_value())
+      {
+        if (newer->endorsement_epoch_begin.view <= aft::starting_view_change)
+        {
+          throw std::logic_error("Invalid snapshot endorsement recovery view");
+        }
+        verify_endorsements_connected(*newer, current);
+      }
+      newer = std::move(current);
+    }
+
+    const auto receipt = decode_and_verify_cose_snapshot_receipt(segments);
+    if (!ccf::crypto::make_cose_verifier_from_key(trusted_key)
+           ->verify_detached(segments.receipt, receipt.merkle_root))
+    {
+      throw std::logic_error(
+        "Endorsed service identity does not match snapshot signer");
+    }
+    const auto& begin = newer->endorsement_epoch_begin;
+    const auto& end = *newer->endorsement_epoch_end;
+    const auto receipt_txid = ccf::TxID::from_str(receipt.phdr.ccf.txid);
+    if (
+      snapshot_seqno < begin.seqno || snapshot_seqno > end.seqno ||
+      !receipt_txid.has_value() || receipt_txid->seqno < snapshot_seqno ||
+      receipt_txid->seqno > end.seqno || receipt_txid->view < begin.view ||
+      receipt_txid->view > end.view ||
+      (receipt_txid->seqno == begin.seqno &&
+       receipt_txid->view != begin.view) ||
+      (receipt_txid->seqno == end.seqno && receipt_txid->view != end.view))
+    {
+      throw std::logic_error(
+        "Snapshot state or receipt is outside the endorsed epoch");
     }
   }
 

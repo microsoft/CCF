@@ -188,11 +188,46 @@ namespace ccf
             latest_peer_snapshot->snapshot_name,
             latest_peer_snapshot->snapshot_data.size());
 
+          const auto snapshot_path =
+            std::filesystem::path(latest_peer_snapshot->snapshot_name);
+          if (
+            snapshot_path.empty() || snapshot_path.is_absolute() ||
+            snapshot_path.has_parent_path() ||
+            snapshot_path.filename() != snapshot_path)
+          {
+            LOG_FAIL_FMT(
+              "Rejecting snapshot with invalid name '{}' from peer",
+              latest_peer_snapshot->snapshot_name);
+            return;
+          }
+          size_t snapshot_seqno = 0;
           try
           {
             const auto segments =
               separate_segments(latest_peer_snapshot->snapshot_data);
-            verify_snapshot(segments, join_config.service_cert);
+            snapshot_seqno = snapshots::get_snapshot_idx_from_file_name(
+              latest_peer_snapshot->snapshot_name);
+            try
+            {
+              verify_snapshot(segments, join_config.service_cert);
+            }
+            catch (const SnapshotServiceIdentityMismatch&)
+            {
+              const auto endorsements = snapshots::fetch_endorsements(
+                latest_peer_snapshot->snapshot_url, join_config.service_cert);
+              verify_snapshot_endorsement_chain(
+                segments,
+                join_config.service_cert,
+                endorsements,
+                snapshot_seqno);
+              LOG_INFO_FMT(
+                "Verified snapshot {} through {} service identity "
+                "endorsement(s)",
+                latest_peer_snapshot->snapshot_name,
+                endorsements.size());
+            }
+            verify_snapshot_seqno(
+              segments, owner->network.tables->get_encryptor(), snapshot_seqno);
           }
           catch (const std::exception& e)
           {
@@ -204,21 +239,6 @@ namespace ccf
             return;
           }
 
-          const auto snapshot_path =
-            std::filesystem::path(latest_peer_snapshot->snapshot_name);
-
-          // Ensure snapshot name is a simple filename (no directories, no "..",
-          // not absolute) before using it as a filesystem path.
-          if (
-            snapshot_path.empty() || snapshot_path.is_absolute() ||
-            snapshot_path.has_parent_path() ||
-            snapshot_path.filename() != snapshot_path)
-          {
-            LOG_FAIL_FMT(
-              "Rejecting snapshot with invalid name '{}' from peer",
-              latest_peer_snapshot->snapshot_name);
-            return;
-          }
           const auto dst_path =
             std::filesystem::path(snapshot_config.directory) / snapshot_path;
 
@@ -233,10 +253,6 @@ namespace ccf
               dst_path);
           }
           files::dump(latest_peer_snapshot->snapshot_data, dst_path);
-
-          const auto snapshot_seqno =
-            snapshots::get_snapshot_idx_from_file_name(
-              latest_peer_snapshot->snapshot_name);
 
           std::lock_guard<ds::Mutex> guard(owner->lock);
           owner->set_startup_snapshot(

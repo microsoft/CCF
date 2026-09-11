@@ -1996,6 +1996,45 @@
         }
       ]
     },
+    "/node/snapshot/{snapshot_name}/endorsements": {
+      "get": {
+        "operationId": "GetNodeSnapshotSnapshotNameEndorsements",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/string_array"
+                }
+              }
+            },
+            "description": "Base64-encoded COSE endorsements, newest first, linking the current service identity to the snapshot's service epoch."
+          },
+          "404": {
+            "description": "Snapshot or endorsement history is unavailable."
+          },
+          "503": {
+            "description": "Identity history is still loading."
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/never"
+        }
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "snapshot_name",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ]
+    },
     "/node/snapshot:create": {
       "post": {
         "operationId": "PostNodeSnapshotCreate",

@@ -3,6 +3,7 @@
 
 #include "node/snapshotter.h"
 
+#include "cose/cose_rs_ffi.h"
 #include "crypto/openssl/hash.h"
 #include "ds/files.h"
 #include "ds/internal_logger.h"
@@ -353,6 +354,220 @@ void issue_transactions(ccf::NetworkState& network, size_t tx_count)
     map->put("foo", "bar");
     REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
   }
+}
+
+TEST_CASE("Downloaded snapshot endorsement chains authenticate state and epoch")
+{
+  auto oldest = ccf::crypto::make_ec_key_pair();
+  auto middle = ccf::crypto::make_ec_key_pair();
+  auto newest = ccf::crypto::make_ec_key_pair();
+  const auto certificate = [](const auto& key) {
+    return key
+      ->self_sign(
+        "CN=Snapshot test service", "20250101000000Z", "20270101000000Z")
+      .raw();
+  };
+  const auto endorse = [](
+                         const auto& signer,
+                         const auto& subject,
+                         const std::string& from,
+                         const std::string& to) {
+    const auto der = signer->private_key_der();
+    CoseBuffer error;
+    auto key = CoseKey::from_private(der.data(), der.size(), error);
+    REQUIRE(key.is_set());
+    const auto payload = subject->public_key_der();
+    CoseBuffer output;
+    REQUIRE(
+      cose_sign_endorsement(
+        key,
+        1700000000,
+        reinterpret_cast<const uint8_t*>(from.data()),
+        from.size(),
+        to.empty() ? nullptr : reinterpret_cast<const uint8_t*>(to.data()),
+        to.size(),
+        nullptr,
+        0,
+        payload.data(),
+        payload.size(),
+        output,
+        error) == 0);
+    return output.to_vector();
+  };
+
+  ccf::NetworkState network;
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
+  network.tables->set_encryptor(encryptor);
+  network.tables->initialise_term(2);
+  issue_transactions(network, 5);
+  std::unique_ptr<ccf::kv::AbstractStore::AbstractSnapshot> snapshot;
+  {
+    ccf::kv::ScopedStoreMapsLock lock(network.tables.get());
+    snapshot = network.tables->snapshot_unsafe_maps(5);
+  }
+  auto body = network.tables->serialise_snapshot(std::move(snapshot));
+  const auto claims = ccf::crypto::Sha256Hash(body);
+  const ccf::crypto::Sha256Hash write_set_digest{};
+  const std::string evidence = "ce:2.6:test";
+  ccf::MerkleTreeHistory tree;
+  for (size_t i = 1; i < 6; ++i)
+  {
+    tree.append({});
+  }
+  tree.append(ccf::crypto::Sha256Hash(
+    write_set_digest, ccf::crypto::Sha256Hash(evidence), claims));
+  const auto root = tree.get_root();
+  const auto make_receipt = [&](const auto& signer, const std::string& txid) {
+    const auto der = signer->private_key_der();
+    CoseBuffer error;
+    auto key = CoseKey::from_private(der.data(), der.size(), error);
+    REQUIRE(key.is_set());
+    const std::string label = "snapshot-test";
+    CoseBuffer output;
+    REQUIRE(
+      cose_sign_ledger(
+        key,
+        reinterpret_cast<const uint8_t*>(label.data()),
+        label.size(),
+        1700000000,
+        reinterpret_cast<const uint8_t*>(label.data()),
+        label.size(),
+        reinterpret_cast<const uint8_t*>(label.data()),
+        label.size(),
+        reinterpret_cast<const uint8_t*>(txid.data()),
+        txid.size(),
+        root.h.data(),
+        root.h.size(),
+        output,
+        error) == 0);
+    return ccf::build_and_serialise_receipt(
+      output.to_vector(),
+      tree.serialise(),
+      6,
+      write_set_digest,
+      evidence,
+      ccf::crypto::Sha256Hash(claims));
+  };
+  auto receipt = make_receipt(oldest, "2.7");
+  const ccf::SnapshotSegments segments{body, receipt};
+  const auto oldest_cert = certificate(oldest);
+  const auto middle_cert = certificate(middle);
+  const auto newest_cert = certificate(newest);
+  const auto first = endorse(middle, oldest, "2.1", "2.10");
+  const auto second = endorse(newest, middle, "4.11", "4.20");
+  const ccf::CoseEndorsementsChain chain{second, first};
+
+  REQUIRE_NOTHROW(ccf::verify_snapshot_seqno(segments, encryptor, 5));
+  REQUIRE_THROWS(ccf::verify_snapshot_seqno(segments, encryptor, 6));
+  REQUIRE_NOTHROW(
+    ccf::verify_snapshot_endorsement_chain(segments, oldest_cert, {}, 5));
+  REQUIRE_NOTHROW(
+    ccf::verify_snapshot_endorsement_chain(segments, middle_cert, {first}, 5));
+  REQUIRE_NOTHROW(
+    ccf::verify_snapshot_endorsement_chain(segments, newest_cert, chain, 5));
+  REQUIRE_NOTHROW(ccf::verify_snapshot_endorsement_chain(
+    segments, middle_cert, {endorse(middle, oldest, "2.5", "2.7")}, 5));
+  REQUIRE_THROWS_AS(
+    ccf::verify_snapshot_endorsement_chain(segments, newest_cert, {}, 5),
+    ccf::SnapshotServiceIdentityMismatch);
+  REQUIRE_THROWS_AS(
+    ccf::verify_snapshot(segments, newest_cert),
+    ccf::SnapshotServiceIdentityMismatch);
+  REQUIRE_THROWS(
+    ccf::verify_snapshot_endorsement_chain(segments, middle_cert, chain, 5));
+  REQUIRE_THROWS(ccf::verify_snapshot_endorsement_chain(
+    segments, newest_cert, {first, second}, 5));
+  REQUIRE_THROWS(
+    ccf::verify_snapshot_endorsement_chain(segments, newest_cert, {second}, 5));
+  REQUIRE_THROWS(ccf::verify_snapshot_endorsement_chain(
+    segments,
+    newest_cert,
+    {endorse(newest, oldest, "4.11", "4.20"), first},
+    5));
+  for (const auto seqno : {0, 11})
+  {
+    REQUIRE_THROWS(ccf::verify_snapshot_endorsement_chain(
+      segments, newest_cert, chain, seqno));
+  }
+  for (const auto& from : {"4.12", "5.11", "0.11", "4.0", "4.21", "5.20"})
+  {
+    REQUIRE_THROWS(ccf::verify_snapshot_endorsement_chain(
+      segments,
+      newest_cert,
+      {endorse(newest, middle, from, "4.20"), first},
+      5));
+  }
+  for (const auto& to : {"", "bad", "0.10", "2.0", "1.10", "2.4"})
+  {
+    REQUIRE_THROWS(ccf::verify_snapshot_endorsement_chain(
+      segments, middle_cert, {endorse(middle, oldest, "2.1", to)}, 5));
+  }
+  REQUIRE_THROWS(ccf::verify_snapshot_endorsement_chain(
+    segments, middle_cert, {endorse(middle, oldest, "2.6", "2.10")}, 5));
+  for (const auto& txid : {"2.4", "2.11", "1.7", "3.7", "0.7", "bad"})
+  {
+    const auto outside_receipt = make_receipt(oldest, txid);
+    REQUIRE_THROWS(ccf::verify_snapshot_endorsement_chain(
+      {body, outside_receipt}, newest_cert, chain, 5));
+  }
+  const auto wrong_receipt = make_receipt(middle, "2.7");
+  REQUIRE_THROWS(ccf::verify_snapshot_endorsement_chain(
+    {body, wrong_receipt}, newest_cert, chain, 5));
+  auto bad_link = first;
+  bad_link.back() ^= 1;
+  REQUIRE_THROWS(ccf::verify_snapshot_endorsement_chain(
+    segments, newest_cert, {second, bad_link}, 5));
+  bad_link = endorse(middle, oldest, "bad", "bad");
+  bad_link.back() ^= 1;
+  REQUIRE_THROWS_WITH(
+    ccf::verify_snapshot_endorsement_chain(
+      segments, middle_cert, {bad_link}, 5),
+    "COSE endorsement failed signature verification");
+  auto bad_receipt = receipt;
+  bad_receipt.back() ^= 1;
+  REQUIRE_THROWS(ccf::verify_snapshot_endorsement_chain(
+    {body, bad_receipt}, newest_cert, chain, 5));
+  body.back() ^= 1;
+  REQUIRE_THROWS_WITH(
+    ccf::verify_snapshot(segments, newest_cert),
+    fmt::format(
+      "Snapshot digest ({}) does not match receipt claim ({})",
+      ccf::crypto::Sha256Hash(body),
+      ccf::ds::to_hex(claims.h)));
+  REQUIRE_THROWS(
+    ccf::verify_snapshot_endorsement_chain(segments, newest_cert, chain, 5));
+}
+
+TEST_CASE("Downloaded snapshot endorsement chains reject excess work first")
+{
+  ccf::CoseEndorsementsChain chain(snapshots::MAX_ENDORSEMENTS_COUNT + 1);
+  REQUIRE_THROWS_WITH(
+    ccf::verify_snapshot_endorsement_chain({}, {}, chain, 1),
+    "Snapshot endorsement chain has too many links");
+  chain = {std::vector<uint8_t>(snapshots::MAX_ENDORSEMENT_SIZE + 1)};
+  REQUIRE_THROWS_WITH(
+    ccf::verify_snapshot_endorsement_chain({}, {}, chain, 1),
+    "Snapshot endorsement chain exceeds size limits");
+  chain.assign(
+    snapshots::MAX_ENDORSEMENTS_SIZE / snapshots::MAX_ENDORSEMENT_SIZE,
+    std::vector<uint8_t>(snapshots::MAX_ENDORSEMENT_SIZE));
+  REQUIRE_THROWS_WITH(
+    ccf::verify_snapshot_endorsement_chain({}, {}, chain, 1),
+    "Snapshot endorsement chains require a COSE receipt");
+  chain.push_back({0xd2});
+  REQUIRE_THROWS_WITH(
+    ccf::verify_snapshot_endorsement_chain({}, {}, chain, 1),
+    "Snapshot endorsement chain exceeds size limits");
+  REQUIRE_THROWS_WITH(
+    ccf::verify_snapshot_endorsement_chain({}, {}, {{}}, 1),
+    "Snapshot endorsement chain exceeds size limits");
+  REQUIRE_THROWS_WITH(
+    ccf::verify_snapshot_endorsement_chain({}, {}, {{0xd2}}, 1),
+    "Snapshot endorsement chains require a COSE receipt");
+  const std::vector<uint8_t> json_receipt{'{', '}'};
+  REQUIRE_THROWS_WITH(
+    ccf::verify_snapshot_endorsement_chain({{}, json_receipt}, {}, {{0xd2}}, 1),
+    "Snapshot endorsement chains require a COSE receipt");
 }
 
 size_t read_latest_snapshot_evidence(
