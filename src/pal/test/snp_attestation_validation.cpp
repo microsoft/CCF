@@ -323,7 +323,7 @@ TEST_CASE("SNP request rejects oversized report data before ioctl")
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
-TEST_CASE("legacy SNP report layout remains compatible")
+TEST_CASE("legacy SNP report layout matches the AMD specification")
 {
   using ccf::pal::snp::Attestation;
 
@@ -354,12 +354,16 @@ TEST_CASE("legacy SNP report layout remains compatible")
 
   Attestation report = {};
   CHECK(sizeof(report) == ccf::pal::snp::attestation_report_size);
+  CHECK(alignof(Attestation) == 1);
   CHECK(offsetof(Attestation, version) == 0x000);
   CHECK(offsetof(Attestation, policy) == 0x008);
   CHECK(offsetof(Attestation, report_data) == 0x050);
   CHECK(offsetof(Attestation, measurement) == 0x090);
   CHECK(offsetof(Attestation, reported_tcb) == 0x180);
   CHECK(offsetof(Attestation, chip_id) == 0x1A0);
+  CHECK(offsetof(Attestation, current_build) == 0x1E8);
+  CHECK(offsetof(Attestation, current_minor) == 0x1E9);
+  CHECK(offsetof(Attestation, current_major) == 0x1EA);
   CHECK(offsetof(Attestation, signature) == 0x2A0);
 
   ccf::pal::snp::ioctl6::detail::AttestationResponse response;
@@ -373,6 +377,9 @@ TEST_CASE("legacy SNP report layout remains compatible")
   static_assert(sizeof(legacy_response) == sizeof(response));
   std::memcpy(&legacy_response, &response, sizeof(legacy_response));
   CHECK(legacy_response.report_size == response.report_size);
+  REQUIRE(response.report_bytes[0x1E8] != response.report_bytes[0x1E9]);
+  CHECK(legacy_response.report.current_build == response.report_bytes[0x1E8]);
+  CHECK(legacy_response.report.current_minor == response.report_bytes[0x1E9]);
   CHECK(
     std::memcmp(
       &legacy_response.report,

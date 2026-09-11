@@ -437,8 +437,8 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
     uint8_t reserved1[21] = {0}; /* 0x18B */
     uint8_t chip_id[64] = {0}; /* 0x1A0 */
     TcbVersionRaw committed_tcb; /* 0x1E0 */
-    uint8_t current_minor = 0; /* 0x1E8 */
-    uint8_t current_build = 0; /* 0x1E9 */
+    uint8_t current_build = 0; /* 0x1E8 */
+    uint8_t current_minor = 0; /* 0x1E9 */
     uint8_t current_major = 0; /* 0x1EA */
     uint8_t reserved2 = 0; /* 0x1EB */
     uint8_t committed_build = 0; /* 0x1EC */
