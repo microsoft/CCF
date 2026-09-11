@@ -1,7 +1,9 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#include "ccf/crypto/scoped_cleanse.h"
 #include "ccf/js/common_context.h"
 #include "ccf/js/core/wrapped_value.h"
+#include "ccf/js/extensions/ccf/crypto.h"
 #include "ccf/js/extensions/ccf/gov.h"
 #include "ccf/js/extensions/ccf/historical.h"
 #include "ccf/js/extensions/ccf/kv.h"
@@ -1520,6 +1522,175 @@ TEST_CASE("Historical state")
   }
 
   REQUIRE(original_state.expired());
+}
+
+TEST_CASE("ScopedCleanse scrubs secret bytes on scope exit")
+{
+  SUBCASE("std::string")
+  {
+    std::string secret(32, 'A');
+    {
+      ccf::crypto::ScopedCleanse<std::string> guard(secret);
+      REQUIRE(secret == std::string(32, 'A'));
+    }
+    // The guard destructor has zeroed the string's bytes in place. The
+    // std::string object itself is still alive here so its buffer can be
+    // safely inspected.
+    for (char c : secret)
+    {
+      CHECK(c == '\0');
+    }
+  }
+
+  SUBCASE("std::vector<uint8_t>")
+  {
+    std::vector<uint8_t> secret(32, 0xAB);
+    {
+      ccf::crypto::ScopedCleanse<std::vector<uint8_t>> guard(secret);
+      REQUIRE(secret == std::vector<uint8_t>(32, 0xAB));
+    }
+    for (auto b : secret)
+    {
+      CHECK(b == 0);
+    }
+  }
+
+  SUBCASE("ccf::crypto::Pem")
+  {
+    const std::string pem_text =
+      "-----BEGIN FAKE-----\nabcdefghij\n-----END FAKE-----\n";
+    ccf::crypto::Pem pem(pem_text);
+    REQUIRE(pem.str() == pem_text);
+    {
+      ccf::crypto::ScopedCleanse<ccf::crypto::Pem> guard(pem);
+    }
+    for (size_t i = 0; i < pem.size(); ++i)
+    {
+      CHECK(pem.data()[i] == 0);
+    }
+  }
+
+  SUBCASE("Scrubs on exception unwind")
+  {
+    std::string secret(16, 'S');
+    try
+    {
+      ccf::crypto::ScopedCleanse<std::string> guard(secret);
+      throw std::runtime_error("boom");
+    }
+    catch (const std::runtime_error&)
+    {}
+    for (char c : secret)
+    {
+      CHECK(c == '\0');
+    }
+  }
+
+  SUBCASE("Empty target is a no-op")
+  {
+    std::string empty;
+    ccf::crypto::ScopedCleanse<std::string> guard(empty);
+    CHECK(empty.empty());
+  }
+}
+
+namespace
+{
+  // Helper: run a JS snippet through a ccf.crypto-equipped context and assert
+  // it returned without throwing. The snippet must define and return from a
+  // handler() function.
+  void run_crypto_handler(const std::string& body)
+  {
+    ccf::js::CommonContext ctx(TxAccess::APP_RW);
+    JS_UpdateStackTop(ctx.runtime());
+    const auto module =
+      fmt::format("export function handler() {{\n{}\n}}", body);
+    auto handler =
+      ctx.get_exported_function(module, "handler", "/test/crypto.js");
+    const auto result = ctx.call_with_rt_options(
+      handler, {}, std::nullopt, ccf::js::core::RuntimeLimitsPolicy::NONE);
+    if (result.is_exception())
+    {
+      const auto [reason, trace] = ctx.error_message();
+      FAIL("JS threw: ", reason);
+    }
+  }
+}
+
+TEST_CASE("ccf.crypto private-key bindings still succeed after scrubbing")
+{
+  // These regression tests exercise the binding paths whose C++-side private
+  // key copies are now guarded by ScopedCleanse. Direct assertion that
+  // freed memory was scrubbed would be undefined behaviour; the unit tests
+  // above cover the guard's scrubbing semantics.
+
+  SUBCASE("generateRsaKeyPair")
+  {
+    run_crypto_handler(R"JS(
+      const kp = ccf.crypto.generateRsaKeyPair(2048);
+      if (typeof kp.privateKey !== "string" || kp.privateKey.length === 0)
+        throw new Error("bad privateKey");
+      if (typeof kp.publicKey !== "string" || kp.publicKey.length === 0)
+        throw new Error("bad publicKey");
+    )JS");
+  }
+
+  SUBCASE("generateEcdsaKeyPair")
+  {
+    run_crypto_handler(R"JS(
+      const kp = ccf.crypto.generateEcdsaKeyPair("secp256r1");
+      if (!kp.privateKey.includes("PRIVATE KEY"))
+        throw new Error("bad privateKey");
+      if (!kp.publicKey.includes("PUBLIC KEY"))
+        throw new Error("bad publicKey");
+    )JS");
+  }
+
+  SUBCASE("generateEddsaKeyPair")
+  {
+    run_crypto_handler(R"JS(
+      const kp = ccf.crypto.generateEddsaKeyPair("curve25519");
+      if (!kp.privateKey.includes("PRIVATE KEY"))
+        throw new Error("bad privateKey");
+      if (!kp.publicKey.includes("PUBLIC KEY"))
+        throw new Error("bad publicKey");
+    )JS");
+  }
+
+  SUBCASE("jwkToPem round-trips a private EC key")
+  {
+    run_crypto_handler(R"JS(
+      const kp = ccf.crypto.generateEcdsaKeyPair("secp256r1");
+      const jwk = ccf.crypto.pemToJwk(kp.privateKey);
+      const pem = ccf.crypto.jwkToPem(jwk);
+      if (!pem.includes("PRIVATE KEY"))
+        throw new Error("jwkToPem returned non-PEM");
+    )JS");
+  }
+
+  SUBCASE("sign with ECDSA")
+  {
+    run_crypto_handler(R"JS(
+      const kp = ccf.crypto.generateEcdsaKeyPair("secp256r1");
+      const data = ccf.strToBuf("hello");
+      const sig = ccf.crypto.sign(
+        {name: "ECDSA", hash: "SHA-256"}, kp.privateKey, data);
+      if (!(sig instanceof ArrayBuffer) || sig.byteLength === 0)
+        throw new Error("bad signature");
+    )JS");
+  }
+
+  SUBCASE("sign with EdDSA")
+  {
+    run_crypto_handler(R"JS(
+      const kp = ccf.crypto.generateEddsaKeyPair("curve25519");
+      const data = ccf.strToBuf("hello");
+      const sig = ccf.crypto.sign(
+        {name: "EdDSA"}, kp.privateKey, data);
+      if (!(sig instanceof ArrayBuffer) || sig.byteLength === 0)
+        throw new Error("bad signature");
+    )JS");
+  }
 }
 
 int main(int argc, char** argv)
