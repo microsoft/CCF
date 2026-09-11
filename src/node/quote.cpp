@@ -22,6 +22,7 @@
 #include "node/js_policy.h"
 #include "node/uvm_endorsements.h"
 
+#include <cstring>
 #include <tav/cbor.hpp>
 
 namespace ccf
@@ -153,8 +154,8 @@ namespace ccf
     return measurement;
   }
 
-  std::optional<pal::snp::Attestation> AttestationProvider::get_snp_attestation(
-    const QuoteInfo& quote_info)
+  std::optional<pal::snp::AttestationReport> AttestationProvider::
+    get_snp_attestation_report(const QuoteInfo& quote_info)
   {
     if (quote_info.format != QuoteFormat::amd_sev_snp_v1)
     {
@@ -164,10 +165,7 @@ namespace ccf
     {
       pal::PlatformAttestationMeasurement d = {};
       pal::PlatformAttestationReportData r = {};
-      pal::verify_quote(quote_info, d, r);
-      auto attestation = *reinterpret_cast<const pal::snp::Attestation*>(
-        quote_info.quote.data());
-      return attestation;
+      return pal::verify_snp_attestation_report_and_get(quote_info, d, r);
     }
     catch (const std::exception& e)
     {
@@ -175,6 +173,33 @@ namespace ccf
       return std::nullopt;
     }
   }
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+  std::optional<pal::snp::Attestation> AttestationProvider::get_snp_attestation(
+    const QuoteInfo& quote_info)
+  {
+    auto report = get_snp_attestation_report(quote_info);
+    if (!report.has_value())
+    {
+      return std::nullopt;
+    }
+
+    if (quote_info.quote.size() != sizeof(pal::snp::Attestation))
+    {
+      LOG_FAIL_FMT(
+        "Verified SNP report has unexpected size {} (expected {})",
+        quote_info.quote.size(),
+        sizeof(pal::snp::Attestation));
+      return std::nullopt;
+    }
+
+    pal::snp::Attestation legacy_report = {};
+    std::memcpy(
+      &legacy_report, quote_info.quote.data(), sizeof(pal::snp::Attestation));
+    return legacy_report;
+  }
+#pragma GCC diagnostic pop
 
   std::optional<HostData> AttestationProvider::get_host_data(
     const QuoteInfo& quote_info)
@@ -205,13 +230,13 @@ namespace ccf
         pal::PlatformAttestationReportData r = {};
         try
         {
-          pal::verify_quote(quote_info, d, r);
-          auto quote = *reinterpret_cast<const pal::snp::Attestation*>(
-            quote_info.quote.data());
-          std::copy(
-            std::begin(quote.host_data),
-            std::end(quote.host_data),
-            rep.begin());
+          const auto report =
+            pal::verify_snp_attestation_report_and_get(quote_info, d, r);
+          const uint8_t* data = nullptr;
+          size_t size = 0;
+          tav_snp_attestation_report_host_data(report.get(), &data, &size);
+          const auto host_data = std::span<const uint8_t>{data, size};
+          std::copy(host_data.begin(), host_data.end(), rep.begin());
         }
         catch (const std::exception& e)
         {
@@ -279,9 +304,8 @@ namespace ccf
 
     pal::PlatformAttestationMeasurement d = {};
     pal::PlatformAttestationReportData r = {};
-    pal::verify_quote(quote_info, d, r);
     auto attestation =
-      *reinterpret_cast<const pal::snp::Attestation*>(quote_info.quote.data());
+      pal::verify_snp_attestation_report_and_get(quote_info, d, r);
 
     std::optional<pal::snp::TcbVersionPolicy> min_tcb_opt = std::nullopt;
     auto* h = tx.ro<SnpTcbVersionMap>(Tables::SNP_TCB_VERSIONS);
@@ -290,9 +314,12 @@ namespace ccf
         const std::string& cpuid_hex, const pal::snp::TcbVersionPolicy& v) {
         auto cpuid = pal::snp::cpuid_from_hex(cpuid_hex);
         if (
-          cpuid.get_family_id() == attestation.cpuid_fam_id &&
-          cpuid.get_model_id() == attestation.cpuid_mod_id &&
-          cpuid.stepping == attestation.cpuid_step)
+          cpuid.get_family_id() ==
+            tav_snp_attestation_report_cpuid_fam_id(attestation.get()) &&
+          cpuid.get_model_id() ==
+            tav_snp_attestation_report_cpuid_mod_id(attestation.get()) &&
+          cpuid.stepping ==
+            tav_snp_attestation_report_cpuid_step(attestation.get()))
         {
           min_tcb_opt = v;
           return false;
@@ -307,9 +334,13 @@ namespace ccf
     // CPUID of the attested cpu must now be equal to the min_tcb_opt's cpuid
 
     auto product_family = pal::snp::get_sev_snp_product(
-      attestation.cpuid_fam_id, attestation.cpuid_mod_id);
+      tav_snp_attestation_report_cpuid_fam_id(attestation.get()),
+      tav_snp_attestation_report_cpuid_mod_id(attestation.get()));
+    const uint8_t* data = nullptr;
+    size_t size = 0;
+    tav_snp_attestation_report_reported_tcb(attestation.get(), &data, &size);
     auto attestation_tcb_policy =
-      attestation.reported_tcb.to_policy(product_family);
+      pal::snp::TcbVersionRaw({data, size}).to_policy(product_family);
 
     if (pal::snp::TcbVersionPolicy::is_valid(
           min_tcb_opt.value(), attestation_tcb_policy))

@@ -449,7 +449,7 @@ namespace ccf
       openapi_info.description =
         "This API provides public, uncredentialed access to service and node "
         "state.";
-      openapi_info.document_version = "5.0.6";
+      openapi_info.document_version = "5.0.8";
     }
 
     // NOLINTNEXTLINE(readability-function-cognitive-complexity)
@@ -1662,7 +1662,8 @@ namespace ccf
               ctx.tx, in.snp_uvm_endorsements, recovering);
 
             auto attestation =
-              AttestationProvider::get_snp_attestation(in.quote_info).value();
+              AttestationProvider::get_snp_attestation_report(in.quote_info)
+                .value();
             InternalTablesAccess::trust_node_snp_tcb_version(
               ctx.tx, attestation);
             break;
