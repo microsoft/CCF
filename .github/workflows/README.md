@@ -10,6 +10,10 @@ At a weekly rollover, restore keys first reuse the latest cache for the same dep
 
 The action also assigns uv a writable cache directory outside `/github/home/.cache`, because some tests clear that directory. A weekly cache persists uv's content-addressed package cache, keyed on the pinned uv installer, `python/pyproject.toml`, and the `python-requirements` input, which each workflow sets to the requirements files it installs so unrelated jobs do not invalidate each other's cache; jobs that do not install Python packages disable this cache entirely with `cache-python-packages: false`. CI dependency setup uses `uv pip` so cached packages remain reusable, with workflows configuring the package index through `UV_INDEX_URL`. Pip is not used for package installation because the PyPI proxy redirects artifacts to short-lived URLs that pip cannot reuse across jobs.
 
+## Compiler cache
+
+The local composite actions in `.github/actions/setup-ccache/action.yml` and `.github/actions/save-ccache/action.yml` wrap a `ccache` compiler cache around the CMake build steps. `setup-ccache` installs `ccache` when the runner image lacks it, points CMake at it through the `CMAKE_C_COMPILER_LAUNCHER` and `CMAKE_CXX_COMPILER_LAUNCHER` environment variables, and restores the newest cache saved for the `key` input, which names a build configuration. Jobs that compile the same sources with the same flags on the same runner image share a key, so a cache populated by one job warms the others. `save-ccache` runs immediately after the build, reports hit statistics, and saves a new immutable entry named after the job and run, so the build result is kept even when a later test step fails. The compiler is identified by its version output rather than its modification time, and the cache directory is bounded by the `max-size` input.
+
 # Maintained
 
 ## Bencher

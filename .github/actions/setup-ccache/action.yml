@@ -1,0 +1,105 @@
+name: Set up compiler cache
+description: Install and configure ccache, then restore the newest cache for this build configuration
+
+inputs:
+  key:
+    description: Identifies the build configuration; jobs sharing a key restore each other's caches
+    required: true
+  max-size:
+    description: Upper bound on the local ccache directory, in ccache size syntax
+    required: false
+    default: 500M
+
+outputs:
+  enabled:
+    description: Whether ccache is installed and configured for subsequent build steps
+    value: ${{ steps.configure.outputs.enabled }}
+
+runs:
+  using: composite
+  steps:
+    - name: Configure ccache
+      id: configure
+      shell: bash
+      env:
+        CACHE_KEY_INPUT: ${{ inputs.key }}
+        MAX_SIZE_INPUT: ${{ inputs.max-size }}
+      run: |
+        set -euo pipefail
+
+        if ! command -v ccache > /dev/null; then
+          package_manager=""
+          for candidate in tdnf dnf; do
+            if command -v "$candidate" > /dev/null; then
+              package_manager=$candidate
+              break
+            fi
+          done
+
+          installed=false
+          if [[ -n $package_manager ]]; then
+            for attempt in 1 2 3; do
+              if "$package_manager" -y install ccache; then
+                installed=true
+                break
+              fi
+              if (( attempt == 1 )); then
+                sleep 5
+              elif (( attempt == 2 )); then
+                sleep 30
+              fi
+            done
+          fi
+
+          if [[ $installed != true ]]; then
+            echo "::warning::ccache is not available on this runner, building without a compiler cache"
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+        fi
+
+        ccache_dir="$RUNNER_TEMP/ccache"
+        mkdir -p "$ccache_dir"
+
+        # Every run saves a new immutable entry, so the key must be unique per
+        # job and attempt. Restore matches on the configuration prefix, which
+        # picks the most recently saved cache for that configuration.
+        restore_prefix="ccache-${CACHE_KEY_INPUT}-${RUNNER_ARCH}-"
+        cache_key="${restore_prefix}${GITHUB_JOB}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+
+        {
+          echo "CCACHE_DIR=$ccache_dir"
+          echo "CCACHE_MAXSIZE=$MAX_SIZE_INPUT"
+          # Hash the compiler by version rather than by mtime, so a cache
+          # populated on one runner image is reusable on another with the same
+          # toolchain.
+          echo "CCACHE_COMPILERCHECK=%compiler% --version"
+          echo "CCACHE_CACHE_KEY=$cache_key"
+          echo "CCACHE_RESTORE_PREFIX=$restore_prefix"
+          # CMake reads these as the initial values of the matching cache
+          # variables, so build steps need no changes to opt in.
+          echo "CMAKE_C_COMPILER_LAUNCHER=ccache"
+          echo "CMAKE_CXX_COMPILER_LAUNCHER=ccache"
+        } >> "$GITHUB_ENV"
+
+        echo "enabled=true" >> "$GITHUB_OUTPUT"
+        ccache --version | head -n 1
+
+    - name: Restore compiler cache
+      if: steps.configure.outputs.enabled == 'true'
+      continue-on-error: true
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ env.CCACHE_DIR }}
+        key: ${{ env.CCACHE_CACHE_KEY }}
+        restore-keys: ${{ env.CCACHE_RESTORE_PREFIX }}
+
+    - name: Reset ccache statistics
+      if: steps.configure.outputs.enabled == 'true'
+      shell: bash
+      run: |
+        set -euo pipefail
+        # Zero the counters so the statistics reported after the build only
+        # cover this job's compilations.
+        ccache --zero-stats > /dev/null
+        echo "Restored cache size: $(du -sh "$CCACHE_DIR" | cut -f 1)"

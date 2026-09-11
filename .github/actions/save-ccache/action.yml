@@ -1,0 +1,26 @@
+name: Save compiler cache
+description: Report ccache statistics for the build that just ran and save the cache for later runs
+
+runs:
+  using: composite
+  steps:
+    - name: Report ccache statistics
+      if: env.CCACHE_CACHE_KEY != ''
+      shell: bash
+      run: |
+        set -euo pipefail
+        echo "::group::ccache statistics"
+        ccache --show-stats --verbose
+        echo "::endgroup::"
+        # Drop entries that no longer fit under CCACHE_MAXSIZE before the
+        # directory is archived, so the saved entry stays bounded.
+        ccache --cleanup > /dev/null
+        echo "Saving cache size: $(du -sh "$CCACHE_DIR" | cut -f 1)"
+
+    - name: Save compiler cache
+      if: env.CCACHE_CACHE_KEY != ''
+      continue-on-error: true
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ env.CCACHE_DIR }}
+        key: ${{ env.CCACHE_CACHE_KEY }}

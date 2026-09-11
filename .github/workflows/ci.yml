@@ -58,6 +58,11 @@ jobs:
           set -ex
           ./scripts/setup-dev.sh
 
+      - name: "Set up ccache"
+        uses: ./.github/actions/setup-ccache
+        with:
+          key: virtual-debug
+
       - name: "Run Checks and Build Debug with clang-tidy"
         run: |
           set -ex
@@ -68,6 +73,10 @@ jobs:
           cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DCLANG_TIDY=ON ..
           ninja
         shell: bash
+
+      - name: "Save ccache"
+        uses: ./.github/actions/save-ccache
+        if: success() || failure()
 
       - name: "Run tests for Python package"
         run: |
@@ -153,6 +162,11 @@ jobs:
           python3 tests/infra/platform_detection.py virtual
         shell: bash
 
+      - name: "Set up ccache"
+        uses: ./.github/actions/setup-ccache
+        with:
+          key: virtual-debug
+
       - name: "Build Debug"
         run: |
           set -ex
@@ -162,6 +176,10 @@ jobs:
           cmake -GNinja -DCMAKE_BUILD_TYPE=Debug ..
           ninja
         shell: bash
+
+      - name: "Save ccache"
+        uses: ./.github/actions/save-ccache
+        if: success() || failure()
 
       - name: "Test virtual"
         run: |
@@ -215,6 +233,11 @@ jobs:
       - name: "Install dependencies"
         uses: ./.github/actions/install-ci-dependencies
 
+      - name: "Set up ccache"
+        uses: ./.github/actions/setup-ccache
+        with:
+          key: virtual-debug
+
       - name: "Build Debug"
         run: |
           set -ex
@@ -224,6 +247,10 @@ jobs:
           cmake -GNinja -DCMAKE_BUILD_TYPE=Debug ..
           ninja
         shell: bash
+
+      - name: "Save ccache"
+        uses: ./.github/actions/save-ccache
+        if: success() || failure()
 
       - name: "Test virtual"
         run: |
@@ -292,6 +319,11 @@ jobs:
           python3 tests/infra/platform_detection.py snp milan
         shell: bash
 
+      - name: "Set up ccache"
+        uses: ./.github/actions/setup-ccache
+        with:
+          key: aci-debug
+
       - name: "Build Debug"
         run: |
           set -ex
@@ -301,6 +333,10 @@ jobs:
           cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DWORKER_THREADS=1 ..
           ninja
         shell: bash
+
+      - name: "Save ccache"
+        uses: ./.github/actions/save-ccache
+        if: success() || failure()
 
       - name: "Tests"
         run: |
@@ -378,6 +414,11 @@ jobs:
           python3 tests/infra/platform_detection.py snp genoa
         shell: bash
 
+      - name: "Set up ccache"
+        uses: ./.github/actions/setup-ccache
+        with:
+          key: aci-debug
+
       - name: "Build Debug"
         run: |
           set -ex
@@ -387,6 +428,10 @@ jobs:
           cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DWORKER_THREADS=1 ..
           ninja
         shell: bash
+
+      - name: "Save ccache"
+        uses: ./.github/actions/save-ccache
+        if: success() || failure()
 
       - name: "Tests"
         run: |

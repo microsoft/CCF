@@ -69,7 +69,8 @@ install_build_dependencies() {
         doxygen  \
         clang-tools-extra-devel  \
         rust  \
-        libbacktrace-static
+        libbacktrace-static  \
+        ccache
 }
 
 install_test_dependencies() {
