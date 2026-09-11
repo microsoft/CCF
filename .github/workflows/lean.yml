@@ -4,6 +4,15 @@ on:
   pull_request:
     paths:
       - "lean/**"
+      - "include/ccf/service/tables/self_healing_open.h"
+      - "src/node/recovery_decision_protocol.cpp"
+      - "src/node/recovery_decision_protocol.h"
+      - "src/node/rpc/self_healing_open_handlers.h"
+      - "tests/e2e_operations.py"
+      - "tests/infra/recovery_trace.py"
+      - "tests/infra/recovery_trace_test.py"
+      - "CMakeLists.txt"
+      - ".github/workflows/ci.yml"
       - ".github/workflows/lean.yml"
 
 concurrency:
@@ -45,3 +54,43 @@ jobs:
           lake build --wfail
           lake lint
           lake exe canonical-checks
+
+  trace-validator:
+    name: Trace validator
+    runs-on: ubuntu-26.04
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Lean
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y elan
+          elan toolchain install "$(cat lean/disaster-recovery-trace/lean-toolchain)"
+
+      - name: Restore Mathlib cache
+        working-directory: lean/disaster-recovery-trace
+        shell: bash
+        run: |
+          set -euo pipefail
+          lake exe cache get
+
+      - name: Build and test validator
+        working-directory: lean/disaster-recovery-trace
+        shell: bash
+        run: |
+          set -euo pipefail
+          lake exe mk_all --check --lib DisasterRecoveryTrace
+          lake build --wfail
+          lake lint
+          lake exe trace-checks
+
+      - name: Test trace extraction and ordering
+        working-directory: tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest infra.recovery_trace_test

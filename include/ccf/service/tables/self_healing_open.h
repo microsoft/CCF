@@ -94,6 +94,28 @@ namespace ccf
     using TimeoutSMState =
       ServiceValue<ccf::recovery_decision_protocol::StateMachine>;
     using OpenKind = ServiceValue<ccf::recovery_decision_protocol::OpenKinds>;
+
+#ifdef CCF_RECOVERY_TRACE
+    struct TraceEvent
+    {
+      std::string kind;
+      std::optional<std::string> message_id = std::nullopt;
+      std::optional<std::string> caused_by = std::nullopt;
+      std::optional<sealing_recovery::Name> source = std::nullopt;
+      std::optional<ccf::View> view = std::nullopt;
+      std::optional<ccf::SeqNo> seqno = std::nullopt;
+      std::string pre;
+      std::string post;
+      std::optional<std::string> open_kind = std::nullopt;
+      std::optional<std::string> send = std::nullopt;
+    };
+    DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(TraceEvent);
+    DECLARE_JSON_REQUIRED_FIELDS(TraceEvent, kind, pre, post);
+    DECLARE_JSON_OPTIONAL_FIELDS(
+      TraceEvent, message_id, caused_by, source, view, seqno, open_kind, send);
+
+    using TraceEvents = ServiceMap<uint64_t, TraceEvent>;
+#endif
   }
 
   namespace Tables
@@ -112,5 +134,9 @@ namespace ccf
       "public:ccf.gov.recovery_decision_protocol.timeout_sm_state";
     static constexpr auto RECOVERY_DECISION_PROTOCOL_OPEN_KIND =
       "public:ccf.gov.recovery_decision_protocol.open_kind";
+#ifdef CCF_RECOVERY_TRACE
+    static constexpr auto RECOVERY_DECISION_PROTOCOL_TRACE_EVENTS =
+      "public:ccf.internal.recovery_decision_protocol.trace_events";
+#endif
   }
 }
