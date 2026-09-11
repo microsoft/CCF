@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
-- Historical states retrieved by JavaScript endpoints, through `ccf.historicalState` or `ccf.historical.getStateRange`, are now released when the request completes, rather than being retained for the lifetime of the node.
+- Historical states retrieved by JavaScript endpoints, through `ccf.historicalState` or `ccf.historical.getStateRange`, remain available through response conversion and are released when the request completes, rather than being retained for the lifetime of the node (#8355).
 
 ## [7.0.15]
 
