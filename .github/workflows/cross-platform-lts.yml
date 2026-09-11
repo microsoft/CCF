@@ -136,17 +136,15 @@ jobs:
           name: cross-platform-lts-al4
           path: artifacts/al4
 
-      - name: "Set up Python"
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        with:
-          python-version: "3.12"
-
       - name: "Install test dependencies"
         shell: bash
         run: |
           set -euo pipefail
-          python -m venv env
-          env/bin/python -m pip install --disable-pip-version-check \
+          bash scripts/install_uv.sh "$RUNNER_TEMP/bin"
+          export PATH="$RUNNER_TEMP/bin:$PATH"
+          uv python install 3.12
+          uv venv --python 3.12 env
+          uv pip install --python env/bin/python \
             -r tests/requirements.txt \
             -e python
 
