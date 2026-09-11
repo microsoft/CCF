@@ -74,11 +74,8 @@ namespace ccf::js::core
   int JSWrappedValue::set(const char* prop, JSWrappedValue&& value) const
   {
     // JS_SetPropertyStr takes ownership of the value on every return path,
-    // including failure (a rejected or throwing set, or an allocation failure
-    // while creating the atom), so this wrapper must always give up its
-    // reference. Only releasing on success would free the value a second time
-    // from the destructor, which app JS can trigger by installing a setter or
-    // read-only property on the target's prototype chain.
+    // including failure, so we call .take() to always drop our local owning
+    // reference
     return JS_SetPropertyStr(ctx, val, prop, value.take());
   }
 
@@ -92,9 +89,8 @@ namespace ccf::js::core
       return -1;
     }
 
-    // NB: Where other calls check the return code to determine whether they
-    // are responsible for freeing, this call unconditionally frees the getter
-    // arg, so we call .take() to always drop our local owning reference
+    // NB: This call unconditionally frees the getter arg, so we call .take() to
+    // always drop our local owning reference
     int rc = JS_DefinePropertyGetSet(
       ctx,
       val,
@@ -142,8 +138,8 @@ namespace ccf::js::core
 
   int JSWrappedValue::set_at_index(uint32_t index, JSWrappedValue&& value) const
   {
-    // As with set(), JS_DefinePropertyValueUint32 frees the value regardless
-    // of the outcome, so ownership is always transferred.
+    // As with set(), JS_DefinePropertyValueUint32 takes ownership of the value
+    // on every return path, including failure
     return JS_DefinePropertyValueUint32(
       ctx, val, index, value.take(), JS_PROP_C_W_E);
   }
