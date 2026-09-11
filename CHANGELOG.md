@@ -34,6 +34,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
+- HTTP/1.x request targets, including query strings, are now bounded before accumulation by a new `max_request_target_size` setting (16 KB by default), independent of `max_header_size`. Oversized targets return HTTP 414 `RequestTargetTooLong`, increment the per-interface `request_target_too_long` error metric, and close the session. HTTP/2 limits are unchanged (#8333).
 - Updated QuickJS to `2026-06-04`, with isolated build-time patches for out-of-memory backtrace handling and enforcement of lowered heap limits (#8340).
 - CBOR parsing now rejects composite (array or map) and tagged values used as map keys anywhere in the decoded document, including nested maps in optional COSE headers (#8297).
 

@@ -79,7 +79,7 @@ File: `codeql-analysis.yml`
 
 # Continuous Verification
 
-Runs the standard model checking, simulation, trace validation, counterexample, and disaster recovery jobs each week.
+Runs the standard model checking, simulation, trace validation, and counterexample jobs each week.
 
 File: `ci-verification.yml`
 3rd party dependencies: None
@@ -113,10 +113,6 @@ The build and audit include both the human-reviewed model and system properties
 and the proof implementation files marked as generated for review purposes.
 The standard `mk_all --check` command ensures that the audit root imports every
 library module, so newly added proofs cannot silently escape the checks.
-
-The temporary migration-evidence job builds and audits the Lean mirror of the
-legacy Rust/Stateright disaster recovery model, exercises both implementations,
-and exhaustively compares their complete graphs for up to three nodes.
 
 File: `lean.yml`
 3rd party dependencies: None
