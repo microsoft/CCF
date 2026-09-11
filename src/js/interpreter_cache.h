@@ -4,6 +4,7 @@
 
 #include "ccf/ds/locking.h"
 #include "ccf/js/interpreter_cache_interface.h"
+#include "ds/internal_logger.h"
 #include "ds/lru.h"
 
 namespace ccf::js

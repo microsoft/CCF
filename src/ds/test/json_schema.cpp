@@ -173,6 +173,49 @@ TEST_CASE("schema generation")
   }
 }
 
+// Some struct fields are always present in the serialised JSON (ie - they
+// are required), but are std::optional<T> in C++, and may be serialised as a
+// JSON null. For instance, a node's consensus does not always know its
+// current primary. This must be reflected in the produced schema, which
+// should mark such fields as nullable rather than simply describing the
+// inner (non-optional) type.
+struct RequiredOptional
+{
+  std::optional<size_t> maybe_present = std::nullopt;
+};
+DECLARE_JSON_TYPE(RequiredOptional);
+DECLARE_JSON_REQUIRED_FIELDS(RequiredOptional, maybe_present);
+
+TEST_CASE("schema generation for required optional field")
+{
+  const auto schema =
+    ccf::ds::json::build_schema<RequiredOptional>("RequiredOptional");
+
+  const auto required_it = schema.find("required");
+  REQUIRE(required_it != schema.end());
+  REQUIRE(required_it->size() == 1);
+  REQUIRE((*required_it)[0] == "maybe_present");
+
+  const auto& property = schema.at("properties").at("maybe_present");
+  REQUIRE(property.at("type") == "integer");
+  REQUIRE(property.at("nullable") == true);
+
+  // A JSON null is accepted for this required-but-nullable field
+  auto j = nlohmann::json::object();
+  j["maybe_present"] = nullptr;
+  const RequiredOptional parsed = j;
+  REQUIRE(!parsed.maybe_present.has_value());
+
+  // As is a concrete value
+  j["maybe_present"] = 7;
+  const RequiredOptional parsed_value = j;
+  REQUIRE(parsed_value.maybe_present == 7);
+
+  // But the field must still be present
+  auto j_missing = nlohmann::json::object();
+  REQUIRE_THROWS_AS(j_missing.get<RequiredOptional>(), ccf::JsonParseError);
+}
+
 TEST_CASE_TEMPLATE("schema types, integer", T, size_t, ssize_t)
 {
   std::map<T, std::string> m;
@@ -390,6 +433,13 @@ DECLARE_JSON_ENUM(
 DECLARE_JSON_TYPE(EnumStruct);
 DECLARE_JSON_REQUIRED_FIELDS(EnumStruct, se);
 
+struct RequiredOptionalEnum
+{
+  std::optional<EnumStruct::SampleEnum> maybe_enum = std::nullopt;
+};
+DECLARE_JSON_TYPE(RequiredOptionalEnum);
+DECLARE_JSON_REQUIRED_FIELDS(RequiredOptionalEnum, maybe_enum);
+
 TEST_CASE("enum")
 {
   {
@@ -405,6 +455,17 @@ TEST_CASE("enum")
 
     const nlohmann::json expected{"one", "two", "three"};
     REQUIRE(schema["properties"]["se"]["enum"] == expected);
+  }
+
+  {
+    INFO("Required optional enum schema generation");
+    const auto schema =
+      ccf::ds::json::build_schema<RequiredOptionalEnum>("RequiredOptionalEnum");
+    const auto& property = schema["properties"]["maybe_enum"];
+
+    REQUIRE(property["nullable"] == true);
+    const nlohmann::json expected{"one", "two", "three", nullptr};
+    REQUIRE(property["enum"] == expected);
   }
 
   {
