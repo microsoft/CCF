@@ -353,10 +353,7 @@ def test_custom_endpoints_kv_restrictions(network, args):
         r = c.post("/app/try_write", {"table": "public:programmability.foo"})
         assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
 
-        LOG.info("Tables managed by the JS registry itself are read-only")
-        # These tables hold endpoint definitions, module source and compiled
-        # bytecode, so JS must never be able to write to them. This protection
-        # is built-in to the registry, independent of the app's restriction.
+        LOG.info("The JS registry's entire table namespace is read-only")
         for suffix in [
             "modules",
             "modules_quickjs_bytecode",
@@ -367,6 +364,9 @@ def test_custom_endpoints_kv_restrictions(network, args):
             "recent_actions",
             "audit.input",
             "audit.info",
+            "my_table",
+            "nested.table",
+            "",
         ]:
             table = f"public:custom_endpoints.{suffix}"
             r = c.post("/app/try_read", {"table": table})
@@ -378,10 +378,14 @@ def test_custom_endpoints_kv_restrictions(network, args):
             )
             assert "managed by the endpoint registry" in r.body.text(), r.body.text()
 
-        # Only the registry's own tables are protected; the rest of the prefix
-        # remains an ordinary application namespace.
-        r = c.post("/app/try_write", {"table": "public:custom_endpoints.my_table"})
-        assert r.status_code == http.HTTPStatus.OK.value, r.status_code
+        LOG.info("Tables outside the registry's namespace remain writable")
+        for table in [
+            "public:custom_endpoints",
+            "public:custom_endpoints_other.my_table",
+            "custom_endpoints.my_table",
+        ]:
+            r = c.post("/app/try_write", {"table": table})
+            assert r.status_code == http.HTTPStatus.OK.value, (table, r.status_code)
 
         LOG.info("Cannot grant access to gov/internal tables")
         r = c.post("/app/try_read", {"table": "public:ccf.gov.foo"})

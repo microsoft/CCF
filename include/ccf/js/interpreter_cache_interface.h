@@ -6,6 +6,8 @@
 #include "ccf/js/tx_access.h"
 #include "ccf/node_subsystem_interface.h"
 
+#include <stdexcept>
+
 namespace ccf::js
 {
   namespace core
@@ -46,6 +48,12 @@ namespace ccf::js
     // underlying cache functions as an LRU, evicting the interpreter which has
     // been idle the longest when the cap is reached.
     virtual void set_max_cached_interpreters(size_t max) = 0;
+
+    // Discard retained interpreters without changing the cache capacity.
+    virtual void clear_cached_interpreters()
+    {
+      throw std::logic_error("Interpreter cache does not support clearing");
+    }
 
     virtual void set_interpreter_factory(const InterpreterFactory& ip) = 0;
   };

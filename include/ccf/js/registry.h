@@ -48,8 +48,9 @@ namespace ccf::js
     // App-provided restriction, see set_js_kv_namespace_restriction
     ccf::js::NamespaceRestriction namespace_restriction;
 
-    // Combines the built-in protection of this registry's own tables with the
-    // app-provided restriction. Never grants more access than either.
+    const std::string registry_managed_prefix;
+    bool registry_tables_protected = true;
+
     ccf::js::NamespaceRestriction get_effective_namespace_restriction() const;
 
     using PreExecutionHook = std::function<void(ccf::js::core::Context&)>;
@@ -72,11 +73,8 @@ namespace ccf::js
     std::string runtime_options_map;
 
     /**
-     * Names of all KV tables managed by this registry, evaluated at request
-     * time so that subclasses which reassign the map names above are
-     * respected. JS endpoints are never permitted to write to these tables,
-     * regardless of any app-provided namespace restriction. Subclasses which
-     * manage additional tables should override this and extend the result.
+     * Registry-managed tables, resolved at request time. Subclasses should
+     * extend this set for tables outside kv_prefix + ".".
      */
     virtual std::set<std::string> get_registry_managed_tables() const;
 
@@ -119,14 +117,15 @@ namespace ccf::js
       const std::string& module_name);
 
     /**
-     * Pass a function to control which maps can be accessed by JS endpoints.
-     * This can only remove access, never grant it. The tables used by this
-     * registry to store endpoint definitions (see
-     * get_registry_managed_tables()) are always read-only for JS endpoints,
-     * regardless of the restriction passed here.
+     * Set the JS KV restriction. By default, registry-managed tables and the
+     * kv_prefix + "." namespace are also read-only.
+     * Pass false to apply only restriction, or ({}, false) for no namespace
+     * restrictions. Platform permissions still apply. Clears cached
+     * interpreters.
      */
     void set_js_kv_namespace_restriction(
-      const ccf::js::NamespaceRestriction& restriction);
+      const ccf::js::NamespaceRestriction& restriction,
+      bool protect_registry_tables = true);
 
     /**
      * Set options to control JS execution. Some hard limits may be applied to

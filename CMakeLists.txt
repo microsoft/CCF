@@ -818,7 +818,11 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/node_client.cpp
     )
 
-    add_unit_test(js_test ${CMAKE_CURRENT_SOURCE_DIR}/src/js/test/js.cpp)
+    add_unit_test(
+      js_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/js/test/js.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/uvm_endorsements.cpp
+    )
     target_link_libraries(
       js_test
       PRIVATE ccf_js ccf_kv ccf_endpoints ccfcrypto http_parser

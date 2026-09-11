@@ -4,11 +4,15 @@
 #include "ccf/js/extensions/ccf/gov.h"
 #include "ccf/js/extensions/ccf/historical.h"
 #include "ccf/js/extensions/ccf/kv.h"
+#include "ccf/js/registry.h"
+#include "enclave/http_rpc_context.h"
 #include "js/global_class_ids.h"
+#include "js/interpreter_cache.h"
 #include "js/permissions_checks.h"
 #include "kv/store.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/untyped_map.h"
+#include "node/rpc/test/node_stub.h"
 #include "node/tx_receipt_impl.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT
@@ -256,6 +260,192 @@ bool table_contains(ccf::kv::Tx& tx, const std::string& table_name)
 {
   auto* handle = tx.ro<KVMap>(table_name);
   return handle->has({'k'});
+}
+
+TEST_CASE("Interpreter cache without a clearing override")
+{
+  class LegacyInterpreterCache : public AbstractInterpreterCache
+  {
+    InterpreterCache cache{1};
+
+  public:
+    std::shared_ptr<core::Context> get_interpreter(
+      TxAccess access,
+      const std::optional<ccf::endpoints::InterpreterReusePolicy>& reuse,
+      size_t freshness_marker) override
+    {
+      return cache.get_interpreter(access, reuse, freshness_marker);
+    }
+
+    void set_max_cached_interpreters(size_t max) override
+    {
+      cache.set_max_cached_interpreters(max);
+    }
+
+    void set_interpreter_factory(const InterpreterFactory& factory) override
+    {
+      cache.set_interpreter_factory(factory);
+    }
+  };
+
+  LegacyInterpreterCache cache;
+  CHECK_THROWS_WITH_AS(
+    cache.clear_cached_interpreters(),
+    "Interpreter cache does not support clearing",
+    std::logic_error);
+}
+
+TEST_CASE("JS registry namespace restrictions")
+{
+  ccf::AbstractNodeContext context;
+  context.install_subsystem(std::make_shared<ccf::StubNodeStateCache>());
+  context.install_subsystem(std::make_shared<InterpreterCache>(1));
+
+  DynamicJSEndpointRegistry registry(context);
+  const NamespaceRestriction app_restriction =
+    [](const std::string& name, std::string& explanation) {
+      if (
+        name == "public:app_restricted" ||
+        name == "public:custom_endpoints.app_restricted")
+      {
+        explanation = "Restricted by the application";
+        return KVAccessPermissions::ILLEGAL;
+      }
+      return KVAccessPermissions::READ_WRITE;
+    };
+
+  bool protect_registry_tables = true;
+  bool restrict_app_table = false;
+  bool reenable_after_execution = false;
+  auto mode = ccf::endpoints::Mode::ReadWrite;
+  SUBCASE("Registry protection applies without calling the setter") {}
+  SUBCASE("Setter protects registry tables by default")
+  {
+    registry.set_js_kv_namespace_restriction(app_restriction);
+    restrict_app_table = true;
+  }
+  SUBCASE("Empty callback preserves default registry protection")
+  {
+    registry.set_js_kv_namespace_restriction({});
+  }
+  SUBCASE("Opt-out preserves the app restriction")
+  {
+    registry.set_js_kv_namespace_restriction(app_restriction, false);
+    protect_registry_tables = false;
+    restrict_app_table = true;
+  }
+  SUBCASE("Empty callback and opt-out disable all namespace restrictions")
+  {
+    registry.set_js_kv_namespace_restriction({}, false);
+    protect_registry_tables = false;
+  }
+  SUBCASE("Full opt-out preserves read-only execution")
+  {
+    registry.set_js_kv_namespace_restriction({}, false);
+    protect_registry_tables = false;
+    mode = ccf::endpoints::Mode::ReadOnly;
+  }
+  SUBCASE("One-argument setter re-enables registry protection")
+  {
+    registry.set_js_kv_namespace_restriction({}, false);
+    protect_registry_tables = false;
+    reenable_after_execution = true;
+  }
+
+  ccf::kv::Store store;
+  store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+  Bundle bundle;
+  auto& properties = bundle.metadata.endpoints["/write"]["POST"];
+  properties.js_module = "/write.js";
+  properties.js_function = "write";
+  properties.mode = mode;
+  properties.interpreter_reuse =
+    ccf::endpoints::InterpreterReusePolicy{.key = "namespace-restrictions"};
+  bundle.modules.push_back({"/write.js", R"JS(
+const handles = new Map();
+export function write(request) {
+  try {
+    const table = request.body.text();
+    if (!handles.has(table)) {
+      handles.set(table, ccf.kv[table]);
+    }
+    handles.get(table).set(
+      new Uint8Array([107]).buffer, new Uint8Array([118]).buffer);
+  } catch (e) {
+    return {statusCode: 400, body: e.message};
+  }
+  return {statusCode: 200};
+}
+)JS"});
+  {
+    auto tx = store.create_tx();
+    REQUIRE(
+      registry.install_custom_endpoints_v1(tx, bundle) == ccf::ApiResult::OK);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+
+  auto check_write = [&](const std::string& table, bool permitted) {
+    INFO(table);
+    auto rpc_ctx = std::make_shared<http::HttpRpcContext>(
+      std::make_shared<ccf::SessionContext>(0, std::vector<uint8_t>{}),
+      ccf::HttpVersion::HTTP1,
+      HTTP_POST,
+      "/write",
+      ccf::http::HeaderMap{},
+      std::vector<uint8_t>(table.begin(), table.end()));
+    auto tx = store.create_tx();
+    // Remove any earlier write so a rejected attempt must leave the key absent.
+    tx.rw<KVMap>(table)->remove({'k'});
+    auto endpoint = registry.find_endpoint(tx, *rpc_ctx);
+    REQUIRE(endpoint != nullptr);
+    ccf::endpoints::EndpointContext endpoint_ctx(rpc_ctx, tx);
+    registry.execute_endpoint(endpoint, endpoint_ctx);
+    CHECK(
+      rpc_ctx->get_response_status() ==
+      (permitted ? HTTP_STATUS_OK : HTTP_STATUS_BAD_REQUEST));
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+    auto read_tx = store.create_tx();
+    CHECK(table_contains(read_tx, table) == permitted);
+  };
+
+  const bool read_write = mode == ccf::endpoints::Mode::ReadWrite;
+  for (const auto* suffix :
+       {"modules",
+        "modules_quickjs_bytecode",
+        "modules_quickjs_version",
+        "metadata",
+        "interpreter_flush",
+        "runtime_options",
+        "recent_actions",
+        "audit.input",
+        "audit.info",
+        "my_table"})
+  {
+    check_write(
+      fmt::format("public:custom_endpoints.{}", suffix),
+      !protect_registry_tables && read_write);
+  }
+  check_write(
+    "public:custom_endpoints.app_restricted",
+    !protect_registry_tables && !restrict_app_table && read_write);
+  check_write("public:app_restricted", !restrict_app_table && read_write);
+  check_write("public:ordinary_app_table", read_write);
+  check_write("public:ccf.gov.table", false);
+  check_write("public:ccf.internal.table", false);
+  check_write("ccf.gov.table", false);
+  check_write("ccf.internal.table", false);
+
+  if (reenable_after_execution)
+  {
+    registry.set_js_kv_namespace_restriction(app_restriction);
+    check_write("public:custom_endpoints.my_table", false);
+    check_write("public:app_restricted", false);
+    check_write("public:ordinary_app_table", true);
+
+    registry.set_js_kv_namespace_restriction({}, false);
+    check_write("public:custom_endpoints.my_table", true);
+    check_write("public:app_restricted", true);
+  }
 }
 
 // Access is resolved once, when a handle is created. These cases confirm that

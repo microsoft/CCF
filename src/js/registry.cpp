@@ -495,6 +495,7 @@ namespace ccf::js
   BaseDynamicJSEndpointRegistry::BaseDynamicJSEndpointRegistry(
     ccf::AbstractNodeContext& context, const std::string& kv_prefix) :
     ccf::UserEndpointRegistry(context),
+    registry_managed_prefix(fmt::format("{}.", kv_prefix)),
     modules_map(fmt::format("{}.modules", kv_prefix)),
     metadata_map(fmt::format("{}.metadata", kv_prefix)),
     interpreter_flush_map(fmt::format("{}.interpreter_flush", kv_prefix)),
@@ -715,9 +716,14 @@ namespace ccf::js
   }
 
   void BaseDynamicJSEndpointRegistry::set_js_kv_namespace_restriction(
-    const ccf::js::NamespaceRestriction& restriction)
+    const ccf::js::NamespaceRestriction& restriction,
+    bool protect_registry_tables)
   {
+    // Cached KV handles retain their permissions from creation.
+    interpreter_cache->clear_cached_interpreters();
+
     namespace_restriction = restriction;
+    registry_tables_protected = protect_registry_tables;
   }
 
   std::set<std::string> BaseDynamicJSEndpointRegistry::
@@ -735,13 +741,21 @@ namespace ccf::js
   ccf::js::NamespaceRestriction BaseDynamicJSEndpointRegistry::
     get_effective_namespace_restriction() const
   {
-    return [managed_tables = get_registry_managed_tables(),
+    if (!registry_tables_protected)
+    {
+      return namespace_restriction;
+    }
+
+    return [managed_prefix = registry_managed_prefix,
+            managed_tables = get_registry_managed_tables(),
             app_restriction = namespace_restriction](
              const std::string& map_name,
              std::string& explanation) -> ccf::js::KVAccessPermissions {
       auto permission = ccf::js::KVAccessPermissions::READ_WRITE;
 
-      if (managed_tables.contains(map_name))
+      if (
+        map_name.starts_with(managed_prefix) ||
+        managed_tables.contains(map_name))
       {
         explanation = fmt::format(
           "The {} table is managed by the endpoint registry, so is read-only "
