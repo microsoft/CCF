@@ -4,7 +4,7 @@
 
 #include <openssl/crypto.h>
 
-namespace ccf::crypto
+namespace ccf::js
 {
   // RAII guard that securely erases the bytes of a container-like target on
   // destruction, so that private key material and other secrets are scrubbed

@@ -1,12 +1,12 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "ccf/crypto/scoped_cleanse.h"
 #include "ccf/js/common_context.h"
 #include "ccf/js/core/wrapped_value.h"
 #include "ccf/js/extensions/ccf/crypto.h"
 #include "ccf/js/extensions/ccf/gov.h"
 #include "ccf/js/extensions/ccf/historical.h"
 #include "ccf/js/extensions/ccf/kv.h"
+#include "js/extensions/ccf/scoped_cleanse.h"
 #include "js/global_class_ids.h"
 #include "js/permissions_checks.h"
 #include "kv/store.h"
@@ -1530,7 +1530,7 @@ TEST_CASE("ScopedCleanse scrubs secret bytes on scope exit")
   {
     std::string secret(32, 'A');
     {
-      ccf::crypto::ScopedCleanse<std::string> guard(secret);
+      ccf::js::ScopedCleanse<std::string> guard(secret);
       REQUIRE(secret == std::string(32, 'A'));
     }
     // The guard destructor has zeroed the string's bytes in place. The
@@ -1546,7 +1546,7 @@ TEST_CASE("ScopedCleanse scrubs secret bytes on scope exit")
   {
     std::vector<uint8_t> secret(32, 0xAB);
     {
-      ccf::crypto::ScopedCleanse<std::vector<uint8_t>> guard(secret);
+      ccf::js::ScopedCleanse<std::vector<uint8_t>> guard(secret);
       REQUIRE(secret == std::vector<uint8_t>(32, 0xAB));
     }
     for (auto b : secret)
@@ -1562,7 +1562,7 @@ TEST_CASE("ScopedCleanse scrubs secret bytes on scope exit")
     ccf::crypto::Pem pem(pem_text);
     REQUIRE(pem.str() == pem_text);
     {
-      ccf::crypto::ScopedCleanse<ccf::crypto::Pem> guard(pem);
+      ccf::js::ScopedCleanse<ccf::crypto::Pem> guard(pem);
     }
     for (size_t i = 0; i < pem.size(); ++i)
     {
@@ -1575,7 +1575,7 @@ TEST_CASE("ScopedCleanse scrubs secret bytes on scope exit")
     std::string secret(16, 'S');
     try
     {
-      ccf::crypto::ScopedCleanse<std::string> guard(secret);
+      ccf::js::ScopedCleanse<std::string> guard(secret);
       throw std::runtime_error("boom");
     }
     catch (const std::runtime_error&)
@@ -1589,7 +1589,7 @@ TEST_CASE("ScopedCleanse scrubs secret bytes on scope exit")
   SUBCASE("Empty target is a no-op")
   {
     std::string empty;
-    ccf::crypto::ScopedCleanse<std::string> guard(empty);
+    ccf::js::ScopedCleanse<std::string> guard(empty);
     CHECK(empty.empty());
   }
 }

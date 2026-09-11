@@ -10,13 +10,13 @@
 #include "ccf/crypto/hmac.h"
 #include "ccf/crypto/key_wrap.h"
 #include "ccf/crypto/rsa_key_pair.h"
-#include "ccf/crypto/scoped_cleanse.h"
 #include "ccf/crypto/sha256.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/json.h"
 #include "ccf/js/core/context.h"
 #include "ds/internal_logger.h"
 #include "js/checks.h"
+#include "js/extensions/ccf/scoped_cleanse.h"
 #include "tls/ca.h"
 
 #include <climits>
@@ -108,7 +108,7 @@ namespace ccf::js::extensions
       try
       {
         ccf::crypto::Pem prv = k->private_key_pem();
-        ccf::crypto::ScopedCleanse<ccf::crypto::Pem> prv_guard(prv);
+        ccf::js::ScopedCleanse<ccf::crypto::Pem> prv_guard(prv);
         ccf::crypto::Pem pub = k->public_key_pem();
 
         auto r = jsctx.new_obj();
@@ -171,7 +171,7 @@ namespace ccf::js::extensions
         auto k = ccf::crypto::make_ec_key_pair(cid);
 
         ccf::crypto::Pem prv = k->private_key_pem();
-        ccf::crypto::ScopedCleanse<ccf::crypto::Pem> prv_guard(prv);
+        ccf::js::ScopedCleanse<ccf::crypto::Pem> prv_guard(prv);
         ccf::crypto::Pem pub = k->public_key_pem();
 
         auto r = jsctx.new_obj();
@@ -229,7 +229,7 @@ namespace ccf::js::extensions
         auto k = ccf::crypto::make_eddsa_key_pair(cid);
 
         ccf::crypto::Pem prv = k->private_key_pem();
-        ccf::crypto::ScopedCleanse<ccf::crypto::Pem> prv_guard(prv);
+        ccf::js::ScopedCleanse<ccf::crypto::Pem> prv_guard(prv);
         ccf::crypto::Pem pub = k->public_key_pem();
 
         auto r = jsctx.new_obj();
@@ -483,7 +483,7 @@ namespace ccf::js::extensions
       // JsonWebKeyRSAPrivate, JsonWebKeyEdDSAPrivate) contains private key
       // material; scrub the string copy on every exit path. For public
       // variants this is a no-op on non-secret bytes.
-      ccf::crypto::ScopedCleanse<std::string> pem_str_guard(*pem_str);
+      ccf::js::ScopedCleanse<std::string> pem_str_guard(*pem_str);
 
       std::optional<std::string> kid = std::nullopt;
       if (argc == 2)
@@ -545,7 +545,7 @@ namespace ccf::js::extensions
       try
       {
         auto jwk_str = nlohmann::json(jwk).dump();
-        ccf::crypto::ScopedCleanse<std::string> jwk_str_guard(jwk_str);
+        ccf::js::ScopedCleanse<std::string> jwk_str_guard(jwk_str);
         return JS_ParseJSON(ctx, jwk_str.c_str(), jwk_str.size(), "<jwk>");
       }
       catch (const std::exception& ex)
@@ -576,13 +576,13 @@ namespace ccf::js::extensions
       // For the private JWK variants the JSON blob contains the private key
       // parameters (`d`, and for RSA also `p`, `q`, `dp`, `dq`, `qi`). Scrub
       // this copy on every exit path.
-      ccf::crypto::ScopedCleanse<std::string> jwk_str_guard(*jwk_str);
+      ccf::js::ScopedCleanse<std::string> jwk_str_guard(*jwk_str);
 
       ccf::crypto::Pem pem;
       // For private variants `pem` will hold the private PEM once computed.
       // Guard it unconditionally so the copy is scrubbed on every exit path;
       // scrubbing a public PEM at scope end is harmless.
-      ccf::crypto::ScopedCleanse<ccf::crypto::Pem> pem_guard(pem);
+      ccf::js::ScopedCleanse<ccf::crypto::Pem> pem_guard(pem);
 
       try
       {
@@ -940,7 +940,7 @@ namespace ccf::js::extensions
       }
       // The JS-supplied argument is a private key PEM; scrub the string copy
       // held on the C++ side on every exit path.
-      ccf::crypto::ScopedCleanse<std::string> key_str_guard(*key_str);
+      ccf::js::ScopedCleanse<std::string> key_str_guard(*key_str);
       auto& key = *key_str;
 
       size_t data_size = 0;
@@ -957,7 +957,7 @@ namespace ccf::js::extensions
         try
         {
           ccf::crypto::Pem key_pem(key);
-          ccf::crypto::ScopedCleanse<ccf::crypto::Pem> key_pem_guard(key_pem);
+          ccf::js::ScopedCleanse<ccf::crypto::Pem> key_pem_guard(key_pem);
           auto key_pair = ccf::crypto::make_eddsa_key_pair(key_pem);
           auto sig = key_pair->sign(contents);
           return JS_NewArrayBufferCopy(ctx, sig.data(), sig.size());
@@ -1032,7 +1032,7 @@ namespace ccf::js::extensions
         if (algo_name == "HMAC")
         {
           std::vector<uint8_t> vkey(key.begin(), key.end());
-          ccf::crypto::ScopedCleanse<std::vector<uint8_t>> vkey_guard(vkey);
+          ccf::js::ScopedCleanse<std::vector<uint8_t>> vkey_guard(vkey);
           const auto sig = ccf::crypto::hmac(mdtype, vkey, contents);
           return JS_NewArrayBufferCopy(ctx, sig.data(), sig.size());
         }
