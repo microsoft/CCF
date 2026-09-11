@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [7.0.16]
+
+[7.0.16]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.16
+
+### Fixed
+
+- Temporary native PEM buffers, string copies, private JWK fields and JSON values owned by the `ccf.crypto.generateRsaKeyPair`, `ccf.crypto.generateEcdsaKeyPair`, `ccf.crypto.generateEddsaKeyPair`, `ccf.crypto.pemToJwk` (and its RSA/EdDSA variants), `ccf.crypto.jwkToPem` (and its RSA/EdDSA variants), and `ccf.crypto.sign` bindings are now scrubbed on scope exit. Previously these copies were scrubbed only on success or not at all. JavaScript-owned strings and internal library temporaries are not covered by this change (#8354).
+
 ## [7.0.15]
 
 [7.0.15]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.15

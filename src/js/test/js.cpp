@@ -7,6 +7,7 @@
 #include "ccf/js/extensions/ccf/historical.h"
 #include "ccf/js/extensions/ccf/kv.h"
 #include "ccf/js/extensions/snp_attestation.h"
+#include "js/extensions/ccf/scoped_cleanse.h"
 #include "js/global_class_ids.h"
 #include "js/permissions_checks.h"
 #include "kv/store.h"
@@ -1835,6 +1836,333 @@ TEST_CASE("Historical state")
   }
 
   REQUIRE(original_state.expired());
+}
+
+TEST_CASE("ScopedCleanse scrubs secret bytes on scope exit")
+{
+  SUBCASE("std::string")
+  {
+    std::string secret(32, 'A');
+    {
+      ccf::js::ScopedCleanse<std::string> guard(secret);
+      REQUIRE(secret == std::string(32, 'A'));
+    }
+    // The guard destructor has zeroed the string's bytes in place. The
+    // std::string object itself is still alive here so its buffer can be
+    // safely inspected.
+    for (char c : secret)
+    {
+      CHECK(c == '\0');
+    }
+  }
+
+  SUBCASE("std::vector<uint8_t>")
+  {
+    std::vector<uint8_t> secret(32, 0xAB);
+    {
+      ccf::js::ScopedCleanse<std::vector<uint8_t>> guard(secret);
+      REQUIRE(secret == std::vector<uint8_t>(32, 0xAB));
+    }
+    for (auto b : secret)
+    {
+      CHECK(b == 0);
+    }
+  }
+
+  SUBCASE("ccf::crypto::Pem")
+  {
+    const std::string pem_text =
+      "-----BEGIN FAKE-----\nabcdefghij\n-----END FAKE-----\n";
+    ccf::crypto::Pem pem(pem_text);
+    REQUIRE(pem.str() == pem_text);
+    {
+      ccf::js::ScopedCleanse<ccf::crypto::Pem> guard(pem);
+    }
+    for (size_t i = 0; i < pem.size(); ++i)
+    {
+      CHECK(pem.data()[i] == 0);
+    }
+  }
+
+  SUBCASE("Scrubs on exception unwind")
+  {
+    std::string secret(16, 'S');
+    try
+    {
+      ccf::js::ScopedCleanse<std::string> guard(secret);
+      throw std::runtime_error("boom");
+    }
+    catch (const std::runtime_error&)
+    {}
+    for (char c : secret)
+    {
+      CHECK(c == '\0');
+    }
+  }
+
+  SUBCASE("Empty target is a no-op")
+  {
+    std::string empty;
+    ccf::js::ScopedCleanse<std::string> guard(empty);
+    CHECK(empty.empty());
+  }
+
+  SUBCASE("Private JWK fields")
+  {
+    ccf::crypto::JsonWebKeyECPrivate ec;
+    ccf::crypto::JsonWebKeyEdDSAPrivate eddsa;
+    ccf::crypto::JsonWebKeyRSAPrivate rsa;
+    ec.d = eddsa.d = "short secret";
+    ec.x = eddsa.x = "public";
+    rsa.n = "public";
+    for (auto* field : {&rsa.d, &rsa.p, &rsa.q, &rsa.dp, &rsa.dq, &rsa.qi})
+    {
+      *field = std::string(64, 'S');
+    }
+    {
+      ccf::js::ScopedCleanse ec_guard(ec);
+      ccf::js::ScopedCleanse eddsa_guard(eddsa);
+      ccf::js::ScopedCleanse rsa_guard(rsa);
+    }
+    CHECK(ec.d == std::string(12, '\0'));
+    CHECK(eddsa.d == std::string(12, '\0'));
+    CHECK(ec.x == "public");
+    CHECK(eddsa.x == "public");
+    CHECK(rsa.n == "public");
+    for (const auto* field :
+         {&rsa.d, &rsa.p, &rsa.q, &rsa.dp, &rsa.dq, &rsa.qi})
+    {
+      CHECK(*field == std::string(64, '\0'));
+    }
+  }
+
+  SUBCASE("Partially deserialised JWK on exception unwind")
+  {
+    nlohmann::json json = {
+      {"kty", "RSA"},
+      {"n", "public"},
+      {"e", "AQAB"},
+      {"d", "secret"},
+      {"p", "secret"}};
+    ccf::crypto::JsonWebKeyRSAPrivate jwk;
+    const auto parse = [&]() {
+      ccf::js::ScopedCleanse json_guard(json);
+      ccf::js::ScopedCleanse jwk_guard(jwk);
+      json.get_to(jwk);
+    };
+    CHECK_THROWS_AS(parse(), std::exception);
+    CHECK(jwk.d == std::string(6, '\0'));
+    CHECK(jwk.p == std::string(6, '\0'));
+    CHECK(jwk.q.empty());
+    CHECK(json["d"] == std::string(6, '\0'));
+    CHECK(json["p"] == std::string(6, '\0'));
+  }
+
+  SUBCASE("JSON strings in objects and arrays on early return")
+  {
+    nlohmann::json json = {
+      {"d", "secret"},
+      {"nested", nlohmann::json::array({"another", 42, nullptr, true})}};
+    const auto leave_scope = [&]() {
+      ccf::js::ScopedCleanse guard(json);
+      return;
+    };
+    leave_scope();
+    CHECK(json["d"] == std::string(6, '\0'));
+    CHECK(json["nested"][0] == std::string(7, '\0'));
+    CHECK(json["nested"][1] == 42);
+    CHECK(json["nested"][2].is_null());
+    CHECK(json["nested"][3] == true);
+  }
+}
+
+namespace
+{
+  // Helper: run a JS snippet through a ccf.crypto-equipped context and assert
+  // it returned without throwing. The snippet must define and return from a
+  // handler() function.
+  void run_crypto_handler(const std::string& body)
+  {
+    ccf::js::CommonContext ctx(TxAccess::APP_RW);
+    JS_UpdateStackTop(ctx.runtime());
+    const auto module =
+      fmt::format("export function handler() {{\n{}\n}}", body);
+    auto handler =
+      ctx.get_exported_function(module, "handler", "/test/crypto.js");
+    const auto result = ctx.call_with_rt_options(
+      handler, {}, std::nullopt, ccf::js::core::RuntimeLimitsPolicy::NONE);
+    if (result.is_exception())
+    {
+      const auto [reason, trace] = ctx.error_message();
+      FAIL("JS threw: ", reason);
+    }
+  }
+}
+
+TEST_CASE("ccf.crypto private-key bindings still succeed after scrubbing")
+{
+  // These regression tests exercise the binding paths whose C++-side private
+  // key copies are now guarded by ScopedCleanse. Direct assertion that
+  // freed memory was scrubbed would be undefined behaviour; the unit tests
+  // above cover the guard's scrubbing semantics.
+
+  SUBCASE("generateRsaKeyPair")
+  {
+    run_crypto_handler(R"JS(
+      const kp = ccf.crypto.generateRsaKeyPair(2048);
+      if (typeof kp.privateKey !== "string" || kp.privateKey.length === 0)
+        throw new Error("bad privateKey");
+      if (typeof kp.publicKey !== "string" || kp.publicKey.length === 0)
+        throw new Error("bad publicKey");
+    )JS");
+  }
+
+  SUBCASE("generateEcdsaKeyPair")
+  {
+    run_crypto_handler(R"JS(
+      const kp = ccf.crypto.generateEcdsaKeyPair("secp256r1");
+      if (!kp.privateKey.includes("PRIVATE KEY"))
+        throw new Error("bad privateKey");
+      if (!kp.publicKey.includes("PUBLIC KEY"))
+        throw new Error("bad publicKey");
+    )JS");
+  }
+
+  SUBCASE("generateEddsaKeyPair")
+  {
+    run_crypto_handler(R"JS(
+      const kp = ccf.crypto.generateEddsaKeyPair("curve25519");
+      if (!kp.privateKey.includes("PRIVATE KEY"))
+        throw new Error("bad privateKey");
+      if (!kp.publicKey.includes("PUBLIC KEY"))
+        throw new Error("bad publicKey");
+    )JS");
+  }
+
+  SUBCASE("Private and public JWK conversions preserve caller-owned values")
+  {
+    run_crypto_handler(R"JS(
+      const cases = [
+        [ccf.crypto.generateEcdsaKeyPair("secp256r1"),
+         ccf.crypto.pemToJwk, ccf.crypto.jwkToPem,
+         ccf.crypto.pubPemToJwk, ccf.crypto.pubJwkToPem],
+        [ccf.crypto.generateRsaKeyPair(2048),
+         ccf.crypto.rsaPemToJwk, ccf.crypto.rsaJwkToPem,
+         ccf.crypto.pubRsaPemToJwk, ccf.crypto.pubRsaJwkToPem],
+        [ccf.crypto.generateEddsaKeyPair("curve25519"),
+         ccf.crypto.eddsaPemToJwk, ccf.crypto.eddsaJwkToPem,
+         ccf.crypto.pubEddsaPemToJwk, ccf.crypto.pubEddsaJwkToPem],
+      ];
+      for (const [kp, toJwk, toPem, pubToJwk, pubToPem] of cases) {
+        for (const [pem, encode, decode] of [
+          [kp.privateKey, toJwk, toPem],
+          [kp.publicKey, pubToJwk, pubToPem],
+        ]) {
+          const jwk = encode(pem, "test-key");
+          const original = JSON.stringify(jwk);
+          const roundTrip = decode(jwk);
+          if (JSON.stringify(encode(roundTrip, "test-key")) !== original)
+            throw new Error("key round trip changed JWK");
+          if (JSON.stringify(jwk) !== original ||
+              JSON.stringify(encode(pem, "test-key")) !== original)
+            throw new Error("caller-owned key was scrubbed");
+        }
+      }
+    )JS");
+  }
+
+  SUBCASE("sign with ECDSA")
+  {
+    run_crypto_handler(R"JS(
+      const kp = ccf.crypto.generateEcdsaKeyPair("secp256r1");
+      const data = ccf.strToBuf("hello");
+      const sig = ccf.crypto.sign(
+        {name: "ECDSA", hash: "SHA-256"}, kp.privateKey, data);
+      if (!(sig instanceof ArrayBuffer) || sig.byteLength === 0)
+        throw new Error("bad signature");
+      if (!ccf.crypto.verifySignature(
+          {name: "ECDSA", hash: "SHA-256"}, kp.publicKey, sig, data))
+        throw new Error("signature did not verify");
+    )JS");
+  }
+
+  SUBCASE("sign with EdDSA")
+  {
+    run_crypto_handler(R"JS(
+      const kp = ccf.crypto.generateEddsaKeyPair("curve25519");
+      const data = ccf.strToBuf("hello");
+      const sig = ccf.crypto.sign(
+        {name: "EdDSA"}, kp.privateKey, data);
+      if (!(sig instanceof ArrayBuffer) || sig.byteLength === 0)
+        throw new Error("bad signature");
+      if (!ccf.crypto.verifySignature(
+          {name: "EdDSA"}, kp.publicKey, sig, data))
+        throw new Error("signature did not verify");
+    )JS");
+  }
+
+  SUBCASE("sign with RSA-PSS")
+  {
+    run_crypto_handler(R"JS(
+      const kp = ccf.crypto.generateRsaKeyPair(2048);
+      const data = ccf.strToBuf("hello");
+      const algorithm = {name: "RSA-PSS", hash: "SHA-256", saltLength: 32};
+      const sig = ccf.crypto.sign(algorithm, kp.privateKey, data);
+      if (!ccf.crypto.verifySignature(algorithm, kp.publicKey, sig, data))
+        throw new Error("signature did not verify");
+    )JS");
+  }
+
+  SUBCASE("HMAC accepts a non-PEM key")
+  {
+    run_crypto_handler(R"JS(
+      const key = String.fromCharCode(11).repeat(20);
+      const sig = new Uint8Array(ccf.crypto.sign(
+        {name: "HMAC", hash: "SHA-256"}, key, ccf.strToBuf("Hi There")));
+      const hex = Array.from(sig, b => b.toString(16).padStart(2, "0")).join("");
+      if (hex !== "b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7")
+        throw new Error("bad HMAC");
+      if (key !== String.fromCharCode(11).repeat(20))
+        throw new Error("caller-owned HMAC key was scrubbed");
+    )JS");
+  }
+
+  SUBCASE("Malformed PEMs and JWKs still throw")
+  {
+    run_crypto_handler(R"JS(
+      function expectError(fn) {
+        let threw = false;
+        try { fn(); } catch (e) { threw = true; }
+        if (!threw) throw new Error("malformed key was accepted");
+      }
+      for (const pem of ["not a PEM", "-----BEGIN PRIVATE KEY-----\ninvalid"]) {
+        for (const toJwk of [
+          ccf.crypto.pemToJwk, ccf.crypto.rsaPemToJwk, ccf.crypto.eddsaPemToJwk,
+        ]) {
+          expectError(() => toJwk(pem));
+        }
+        for (const name of ["ECDSA", "EdDSA", "RSA-PSS"]) {
+          expectError(() => ccf.crypto.sign(
+            {name, hash: "SHA-256", saltLength: 32}, pem, ccf.strToBuf("hello")));
+        }
+      }
+      const jwks = [
+        [ccf.crypto.pemToJwk(ccf.crypto.generateEcdsaKeyPair("secp256r1").privateKey),
+         ccf.crypto.jwkToPem, "d"],
+        [ccf.crypto.rsaPemToJwk(ccf.crypto.generateRsaKeyPair(2048).privateKey),
+         ccf.crypto.rsaJwkToPem, "qi"],
+        [ccf.crypto.eddsaPemToJwk(ccf.crypto.generateEddsaKeyPair("curve25519").privateKey),
+         ccf.crypto.eddsaJwkToPem, "d"],
+      ];
+      for (const [jwk, toPem, field] of jwks) {
+        jwk[field] = {};
+        const original = JSON.stringify(jwk);
+        expectError(() => toPem(jwk));
+        if (JSON.stringify(jwk) !== original)
+          throw new Error("caller-owned invalid JWK was scrubbed");
+      }
+    )JS");
+  }
 }
 
 int main(int argc, char** argv)
