@@ -207,10 +207,10 @@ theorem find_erase_cases [DecidableEq K] (xs : Assoc K V) (id key : K) :
     find (erase xs id) key = if id = key then none else find xs key := by
   by_cases h : id = key <;> simp [h, find_erase_same, find_erase_other]
 
-theorem foldlM_snapshot_fixed {A : Type} (items : List A) (f : Tx → A → Except Failure Tx)
-    (fixed : ∀ t a next, f t a = .ok next → next.snapshot = t.snapshot)
-    (t next : Tx) (accepted : items.foldlM f t = .ok next) :
-    next.snapshot = t.snapshot := by
+theorem foldlM_tx_fixed {A B : Type} (g : Tx → B) (items : List A)
+    (f : Tx → A → Except Failure Tx)
+    (fixed : ∀ t a next, f t a = .ok next → g next = g t)
+    (t next : Tx) (accepted : items.foldlM f t = .ok next) : g next = g t := by
   induction items generalizing t with
   | nil => cases accepted; rfl
   | cons a items ih =>
@@ -224,7 +224,7 @@ theorem foldlM_snapshot_fixed {A : Type} (items : List A) (f : Tx → A → Exce
 theorem clearWrites_snapshot_fixed (entries : Assoc String String) (map : String) (t next : Tx)
     (accepted : clearWrites t map entries = .ok next) :
     next.snapshot = t.snapshot :=
-  foldlM_snapshot_fixed entries _ (fun t (key, _) next h =>
+  foldlM_tx_fixed Tx.snapshot entries _ (fun t (key, _) next h =>
     runOp_preserves_snapshot t next (.write (map, key) none) h) t next accepted
 
 theorem acquireMap_snapshot_fixed (s : Store) (t next : Tx) (map : String) (version global : Nat)
@@ -538,24 +538,10 @@ theorem runOp_globalViews_fixed (t next : Tx) (op : NormalOp String String Strin
       rfl
     next => simp [reject] at accepted
 
-theorem foldlM_globalViews_fixed {A : Type} (items : List A) (f : Tx → A → Except Failure Tx)
-    (fixed : ∀ t a next, f t a = .ok next → next.globalViews = t.globalViews)
-    (t next : Tx) (accepted : items.foldlM f t = .ok next) :
-    next.globalViews = t.globalViews := by
-  induction items generalizing t with
-  | nil => cases accepted; rfl
-  | cons a items ih =>
-    simp only [List.foldlM_cons, Bind.bind, Except.bind] at accepted
-    cases one : f t a with
-    | error err => simp [one] at accepted
-    | ok middle =>
-      have rest : items.foldlM f middle = .ok next := by simpa [one] using accepted
-      exact (ih middle rest).trans (fixed t a middle one)
-
 theorem clearWrites_globalViews_fixed (entries : Assoc String String) (map : String) (t next : Tx)
     (accepted : clearWrites t map entries = .ok next) :
     next.globalViews = t.globalViews :=
-  foldlM_globalViews_fixed entries _ (fun t (key, _) next h =>
+  foldlM_tx_fixed Tx.globalViews entries _ (fun t (key, _) next h =>
     runOp_globalViews_fixed t next (.write (map, key) none) h) t next accepted
 
 theorem acquireMap_global_fixed (s : Store) (t next : Tx) (map wanted : String)

@@ -109,10 +109,9 @@ def normalStep [DecidableEq M] [DecidableEq K] [DecidableEq V]
   else none
 
 def normalRun [DecidableEq M] [DecidableEq K] [DecidableEq V]
-    (snapshot : DB M K V) (n : Normal M K V) :
-    List (NormalOp M K V) → Option (Normal M K V)
-  | [] => some n
-  | op :: ops => (normalStep snapshot n op).bind fun next => normalRun snapshot next ops
+    (snapshot : DB M K V) (n : Normal M K V) (ops : List (NormalOp M K V)) :
+    Option (Normal M K V) :=
+  ops.foldlM (normalStep snapshot) n
 
 def publish [DecidableEq M] [DecidableEq K]
     (db : DB M K V) (version : Nat) (writes : Writes M K V) : DB M K V :=

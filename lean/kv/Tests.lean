@@ -59,7 +59,7 @@ def eventJson (e : Event) : String × List (String × Json) :=
     ("unsupported", [("operation", toJson op)] ++ sid.toList.map fun s => ("store", toJson s))
 
 def encode (events : List Event) : String :=
-  String.intercalate "\n" <| events.zipIdx |>.map fun (e, index) =>
+  String.intercalate "\n" <| events.mapIdx fun index e =>
     let (kind, fields) := eventJson e
     (Json.mkObj (("type", toJson kind) :: ("seq", toJson (index + 1)) :: fields)).compress
 
@@ -280,7 +280,7 @@ def assertStatus (name expected text : String) : IO Unit := do
     throw (IO.userError s!"missing diagnostic: {name}")
 
 def assertProjection : IO Unit := do
-  let records := (closed interleavedSegment).zipIdx.map fun (event, index) =>
+  let records := (closed interleavedSegment).mapIdx fun index event =>
     { event, seq := index + 1 : Record }
   let initial ← match replay {} (records.take 3) with
     | .ok w => pure w
@@ -312,19 +312,19 @@ def assertStreaming : IO Unit :=
 def run : IO Unit := do
   assertProjection
   assertStreaming
-  assertStatus "basic accepted history" "accepted" (encode (closed basic))
+  let good := encode (closed basic)
+  assertStatus "basic accepted history" "accepted" good
   for (name, body) in accepted do
     assertStatus name "accepted" (encode (closed body))
   for (name, expected, body) in negative do
     assertStatus name expected (encode (closed body))
-  let good := encode (closed basic)
   let missingValue := (encode (closed (start 1 0 0 ++ [
     .acquire 1 1 "a" 0 0, .get 1 1 "a" "00" none false, .txEnd 1 1]))).replace
     ",\"value\":null" ""
   let malformed : List (String × String) := [
     ("missing point result is not absence", missingValue),
     ("empty", ""), ("blank record", "\n" ++ good),
-    ("truncated", String.intercalate "\n" ((encode (closed basic)).splitOn "\n").dropLast),
+    ("truncated", String.intercalate "\n" (good.splitOn "\n").dropLast),
     ("duplicate key", "{\"type\":\"trace_start\",\"seq\":1,\"seq\":2,\"schema\":1}"),
     ("escaped duplicate key", "{\"type\":\"trace_start\",\"seq\":1,\"\\u0073eq\":2,\"schema\":1}"),
     ("float", "{\"type\":\"trace_start\",\"seq\":1.0,\"schema\":1}"),
@@ -336,8 +336,8 @@ def run : IO Unit := do
     ("unknown field", "{\"type\":\"trace_start\",\"seq\":1,\"schema\":1,\"extra\":true}"),
     ("missing field", "{\"type\":\"trace_start\",\"seq\":1}"),
     ("trailing record", good ++ "\n{\"type\":\"trace_start\",\"seq\":999,\"schema\":1}"),
-    ("uppercase bytes", (encode (closed basic)).replace "\"22\"" "\"AA\""),
-    ("odd bytes", (encode (closed basic)).replace "\"22\"" "\"a\""),
+    ("uppercase bytes", good.replace "\"22\"" "\"AA\""),
+    ("odd bytes", good.replace "\"22\"" "\"a\""),
     ("sequence regression", good.replace "\"seq\":2," "\"seq\":1,")]
   for (name, text) in malformed do assertStatus name "invalid_trace" text
   match parseLine "{\"seq\":18446744073709551615}" with
@@ -346,7 +346,7 @@ def run : IO Unit := do
     if (num j "seq").toOption != some uint64Max then
       throw (IO.userError "uint64 precision was lost")
   let diagnostic := checkText (encode (closed (globalPrefix ++ [.compact 1 2 2, .acquire 1 3 "b" 2 1])))
-  if diagnostic.store != some 1 || diagnostic.tx != some 3 || diagnostic.seq.isNone then
+  if diagnostic.store? != some 1 || diagnostic.tx? != some 3 || diagnostic.seq?.isNone then
     throw (IO.userError "missing rejection context")
   IO.println "checker self-tests passed"
 

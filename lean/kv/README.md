@@ -17,7 +17,7 @@ lake exe cache get
 lake exe mk_all --check --lib Kv
 lake build --wfail
 lake lint
-lake exe kv_trace_tests
+lake test
 ```
 
 Elan is optional: putting the official Lean 4.33.1 distribution's `bin`

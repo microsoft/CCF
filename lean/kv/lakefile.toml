@@ -4,6 +4,7 @@ defaultTargets = ["Kv", "kv_trace_check", "kv_trace_tests"]
 leanOptions = { warningAsError = true }
 lintDriver = "axiomAudit/\u00abaxiom-audit\u00bb"
 lintDriverArgs = ["--root", "Kv"]
+testDriver = "kv_trace_tests"
 
 [[require]]
 name = "mathlib"

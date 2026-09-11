@@ -260,7 +260,7 @@ of normal CCF builds:
 
    cd lean/kv
    lake build
-   lake exe kv_trace_tests
+   lake test
    cd ../..
    cmake -S . -B build-kv-trace -GNinja \
      -DCMAKE_BUILD_TYPE=Debug -DCCF_KV_TRACING=ON \

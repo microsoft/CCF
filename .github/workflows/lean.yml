@@ -112,7 +112,7 @@ jobs:
           lake exe mk_all --check --lib Kv
           lake build --wfail
           lake lint
-          lake exe kv_trace_tests
+          lake test
 
       - name: Build instrumented KV unit tests
         run: |

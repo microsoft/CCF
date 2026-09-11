@@ -51,12 +51,8 @@ theorem empty_map_has_no_values (db : DB M K V) (m : M) (key : K)
   rfl
 
 theorem erase_keys (xs : Assoc K V) (k : K) :
-    (erase xs k).map Prod.fst = (xs.map Prod.fst).filter (· != k) := by
-  induction xs with
-  | nil => rfl
-  | cons p xs ih =>
-    rcases p with ⟨a, v⟩
-    by_cases h : a = k <;> simp_all [erase]
+    (erase xs k).map Prod.fst = (xs.map Prod.fst).filter (· != k) :=
+  (List.filter_map (f := Prod.fst) (p := (· != k)) (l := xs)).symm
 
 theorem erase_unique (xs : Assoc K V) (k : K) (h : Unique xs) :
     Unique (erase xs k) := by
@@ -313,25 +309,16 @@ theorem runOp_preserves_snapshot (t next : Tx) (op : NormalOp String String Stri
       rfl
     next => simp [reject] at h
 
-theorem find_filter_of_imp (xs : List α) (p q : α → Bool)
-    (imp : ∀ x, q x = true → p x = true) :
-    (xs.filter p).find? q = xs.find? q := by
-  induction xs with
-  | nil => rfl
-  | cons x xs ih =>
-    by_cases hp : p x = true <;> by_cases hq : q x = true <;>
-      simp_all [List.find?]
-
 theorem rollback_preserves_earlier_cuts (s : Store) (v term cut : Nat)
     (hcut : cut ≤ v) (hhead : cut ≤ s.head.version) :
     atCut (rollbackStore s v term) cut = atCut s cut := by
+  have hmono : ∀ f : Frame, f.version ≤ cut → f.version ≤ rollbackCut s v := fun f h =>
+    Nat.le_trans h (Nat.le_trans (Nat.le_min.mpr ⟨hhead, hcut⟩) (Nat.le_max_right _ _))
   unfold atCut rollbackStore
   congr 1
-  apply find_filter_of_imp
-  intro f h
-  simp only [decide_eq_true_eq] at h ⊢
-  apply Nat.le_trans h
-  exact Nat.le_trans (Nat.le_min.mpr ⟨hhead, hcut⟩) (Nat.le_max_right _ _)
+  rw [List.find?_filter]
+  congr 1
+  exact funext fun f => by by_cases h : f.version ≤ cut <;> simp [h, hmono f]
 
 theorem durable_cut_survives_rollback (s : Store) (v term cut : Nat)
     (hcut : cut ≤ s.global) (hboundary : s.global ≤ v) :

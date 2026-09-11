@@ -17,7 +17,7 @@ def main (args : List String) : IO UInt32 := do
     | _ => pure { status := "invalid_trace", events := 0,
                   message := "usage: kv_trace_check [--json] <trace.ndjson>" }
   if jsonMode then
-    (← IO.getStdout).putStrLn report.json.compress
+    (← IO.getStdout).putStrLn (Lean.toJson report).compress
   else
     (← IO.getStderr).putStrLn s!"{report.status}: {report.message}"
   return report.exitCode

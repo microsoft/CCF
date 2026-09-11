@@ -11,10 +11,8 @@ theorem normalRun_append [DecidableEq M] [DecidableEq K] [DecidableEq V]
     (db : DB M K V) (n : Normal M K V) (a b : List (NormalOp M K V)) :
     normalRun db n (a ++ b) =
       (normalRun db n a).bind (fun next => normalRun db next b) := by
-  induction a generalizing n with
-  | nil => rfl
-  | cons op ops ih =>
-    cases hs : normalStep db n op <;> simp [normalRun, hs, ih]
+  unfold normalRun
+  simp
 
 theorem normalStep_log [DecidableEq M] [DecidableEq K] [DecidableEq V]
     (db : DB M K V) (n n' : Normal M K V) (op : NormalOp M K V)

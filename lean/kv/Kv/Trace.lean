@@ -7,17 +7,14 @@ import Lean.Data.Json
 namespace Kv.Trace
 open Lean
 
-def uint64Max : Nat := 18446744073709551615
+def uint64Max : Nat := UInt64.size - 1
 
 def nat64 (j : Json) : Except String Nat := do
-  match j with
-  | .num n =>
-    if n.exponent != 0 || n.mantissa < 0 then
-      throw "expected a nonnegative JSON integer, not a floating-point number"
-    let v := n.mantissa.toNat
-    if v > uint64Max then throw "integer exceeds uint64"
-    return v
-  | _ => throw "expected a JSON integer"
+  let v ← j.getNat?.mapError fun _ =>
+    if j matches .num _ then "expected a nonnegative JSON integer, not a floating-point number"
+    else "expected a JSON integer"
+  if v > uint64Max then throw "integer exceeds uint64"
+  return v
 
 def field (j : Json) (name : String) : Except String Json := j.getObjVal? name
 def str (j : Json) (name : String) : Except String String := (field j name).bind Json.getStr?
@@ -26,8 +23,7 @@ def boolean (j : Json) (name : String) : Except String Bool := (field j name).bi
 
 def hex (j : Json) : Except String String := do
   let s ← j.getStr?
-  if s.length % 2 != 0 ||
-      !s.toList.all (fun c => c.isDigit || ('a' ≤ c && c ≤ 'f')) then
+  if s.length % 2 != 0 || !s.all (fun c => c.isDigit || ('a' ≤ c && c ≤ 'f')) then
     throw "bytes must be even-length lowercase hexadecimal (empty bytes are allowed)"
   return s
 
@@ -45,50 +41,46 @@ def optionalNum (j : Json) (name : String) : Except String (Option Nat) :=
   (field j name).bind (nullable nat64)
 
 def fields (j : Json) (allowed : List String) : Except String Unit := do
-  let obj ← j.getObj?
-  for (k, _) in obj.toList do
-    if !allowed.contains k then throw s!"unknown field '{k}'"
-
-/-- The bundled parser normalizes numbers and object keys. Check the lexical
-information it would otherwise discard before giving it any numeric input. -/
-partial def quoted (cs : List Char) (acc : List Char := ['"']) (escaped := false) :
-    Except String (String × List Char) := do
-  match cs with
-  | [] => throw "unterminated JSON string"
-  | c :: rest =>
-    if c == '"' && !escaped then
-      let raw := String.ofList ((c :: acc).reverse)
-      let j ← Json.parse raw
-      return (← j.getStr?, rest)
-    else
-      quoted rest (c :: acc) (c == '\\' && !escaped)
+  match (← j.getObj?).keys.find? (!allowed.contains ·) with
+  | some k => throw s!"unknown field '{k}'"
+  | none => return ()
 
 def numberChar (c : Char) : Bool :=
   c.isDigit || c == '.' || c == 'e' || c == 'E' || c == '+' || c == '-'
 
-partial def lexicalCheck (cs : List Char) (objects : List (List String) := []) :
-    Except String Unit := do
-  match cs with
-  | [] => return ()
-  | '"' :: rest =>
-    let (value, rest) ← quoted rest
-    if (rest.dropWhile Char.isWhitespace).head? == some ':' then
-      match objects with
-      | [] => throw "object key outside object"
+open Std.Internal.Parsec Std.Internal.Parsec.String in
+/-- The bundled parser normalizes numbers and object keys. Check the lexical
+information it would otherwise discard before giving it any numeric input. -/
+partial def lexicalScan (objects : List (List String)) : Parser Unit := do
+  match ← peek? with
+  | none => return ()
+  | some '"' =>
+    skip
+    let key ← Json.Parser.str
+    ws
+    if (← peek?) != some ':' then lexicalScan objects
+    else match objects with
+      | [] => fail "object key outside object"
       | keys :: parents =>
-        if keys.contains value then throw s!"duplicate object key '{value}'"
-        lexicalCheck rest ((value :: keys) :: parents)
-    else lexicalCheck rest objects
-  | '{' :: rest => lexicalCheck rest ([] :: objects)
-  | '}' :: rest => lexicalCheck rest (objects.drop 1)
-  | c :: rest =>
-    if c.isDigit || c == '-' then
-      let (tail, remaining) := rest.span numberChar
-      let token := c :: tail
+        if keys.contains key then fail s!"duplicate object key '{key}'"
+        lexicalScan ((key :: keys) :: parents)
+  | some '{' => skip; lexicalScan ([] :: objects)
+  | some '}' => skip; lexicalScan (objects.drop 1)
+  | some c =>
+    skip
+    if !(c.isDigit || c == '-') then lexicalScan objects
+    else
+      let token := c.toString ++ (← manyChars (satisfy numberChar))
       if !token.all Char.isDigit || token.length > 20 then
-        throw "number must be an exact nonnegative uint64 JSON integer (no sign, fraction, or exponent)"
-      lexicalCheck remaining objects
-    else lexicalCheck rest objects
+        fail "number must be an exact nonnegative uint64 JSON integer (no sign, fraction, or exponent)"
+      lexicalScan objects
+
+open Std.Internal.Parsec in
+def lexicalCheck (line : String) : Except String Unit :=
+  match lexicalScan [] ⟨line, line.startPos⟩ with
+  | .success .. => .ok ()
+  | .error _ .eof => .error "unterminated JSON string"
+  | .error _ (.other message) => .error message
 
 def decodeWrites (j : Json) : Except String Pending := do
   let array ← j.getArr?
@@ -198,17 +190,17 @@ def decode (j : Json) : Except String Record := do
   return { seq := ← num j "seq", event := ← decodeEvent j (← str j "type") }
 
 def parseLine (line : String) : Except String Json := do
-  lexicalCheck line.toList
+  lexicalCheck line
   Json.parse line
 
 structure Report where
   status : String
   events : Nat
   message : String
-  seq : Option Nat := none
-  store : Option Nat := none
-  tx : Option Nat := none
-  deriving Repr, BEq
+  seq? : Option Nat := none
+  store? : Option Nat := none
+  tx? : Option Nat := none
+  deriving Repr, BEq, ToJson
 
 def statusName : FailureKind → String
   | .rejected => "rejected"
@@ -223,7 +215,7 @@ def failureReport (w : World) (j : Json) (failure : Failure) : Report :=
   { status := statusName failure.kind
     events := w.count
     message := s!"event {w.count + 1} type={kind} case={w.currentCase.getD "<none>"} store={repr sid} tx={repr tid}: {failure.message}"
-    seq, store := sid, tx := tid }
+    seq? := seq, store? := sid, tx? := tid }
 
 def checkLine (w : World) (line : String) : Except Report World := do
   let j ← match parseLine line with
@@ -259,10 +251,7 @@ def checkHandle (handle : IO.FS.Handle) : IO Report := do
   let mut w : World := {}
   let mut eof := false
   while !eof do
-    let lineResult : Except IO.Error String ← try
-      pure (Except.ok (← handle.getLine) : Except IO.Error String)
-    catch e => pure (Except.error e)
-    match lineResult with
+    match ← handle.getLine.toBaseIO with
     | .error e => return failureReport w .null ⟨.invalidTrace, s!"cannot read trace: {e}"⟩
     | .ok line =>
       if line.isEmpty then
@@ -275,13 +264,6 @@ def checkHandle (handle : IO.FS.Handle) : IO Report := do
 
 def checkFile (path : System.FilePath) : IO Report :=
   IO.FS.withFile path .read checkHandle
-
-def Report.json (r : Report) : Json :=
-  Json.mkObj <| [
-    ("status", toJson r.status), ("events", toJson r.events), ("message", toJson r.message)] ++
-    (r.seq.toList.map fun n => ("seq", toJson n)) ++
-    (r.store.toList.map fun n => ("store", toJson n)) ++
-    (r.tx.toList.map fun n => ("tx", toJson n))
 
 def Report.exitCode (r : Report) : UInt32 :=
   match r.status with
