@@ -619,6 +619,54 @@ namespace ccf::js::extensions
       return JS_NewString(ctx, pem.str().c_str());
     }
 
+    // Cleanses (via OPENSSL_cleanse) the contents of the referenced
+    // container when the guard goes out of scope. Used to scrub owned copies
+    // of key material on all exit paths, including exceptions.
+    template <typename T>
+    struct ScopeCleanse
+    {
+      T& secret;
+      explicit ScopeCleanse(T& s) : secret(s) {}
+      ScopeCleanse(const ScopeCleanse&) = delete;
+      ScopeCleanse& operator=(const ScopeCleanse&) = delete;
+      ~ScopeCleanse()
+      {
+        if (!secret.empty())
+        {
+          OPENSSL_cleanse(secret.data(), secret.size());
+        }
+      }
+    };
+
+    // Reads the optional RSA-OAEP "label" parameter. An absent, null or
+    // empty label means "no label", matching the behaviour of the previous
+    // JS_GetArrayBuffer-based code, which silently ignored a null pointer.
+    // Returns false, leaving the pending QuickJS TypeError in place, only
+    // when the label is present but is not an ArrayBuffer.
+    bool try_get_optional_label(
+      js::core::Context& jsctx,
+      const js::core::JSWrappedValue& label_val,
+      std::optional<std::vector<uint8_t>>& label_opt)
+    {
+      if (label_val.is_undefined() || JS_IsNull(label_val.val) != 0)
+      {
+        return true;
+      }
+
+      auto label_buf = jsctx.copy_array_buffer(label_val.val);
+      if (!label_buf.has_value())
+      {
+        return false;
+      }
+
+      if (!label_buf->empty())
+      {
+        label_opt = std::move(label_buf);
+      }
+
+      return true;
+    }
+
     JSValue js_wrap_key(
       JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
     {
@@ -631,23 +679,33 @@ namespace ccf::js::extensions
       // API loosely modeled after
       // https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/wrapKey.
 
-      size_t key_size = 0;
-      uint8_t* key = JS_GetArrayBuffer(ctx, &key_size, argv[0]);
-      if (key == nullptr)
-      {
-        return ccf::js::core::constants::Exception;
-      }
-
-      size_t wrapping_key_size = 0;
-      uint8_t* wrapping_key =
-        JS_GetArrayBuffer(ctx, &wrapping_key_size, argv[1]);
-      if (wrapping_key == nullptr)
-      {
-        return ccf::js::core::constants::Exception;
-      }
-
       js::core::Context& jsctx =
         *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
+
+      // Copy the ArrayBuffer arguments before any call that can re-enter
+      // JavaScript. Since QuickJS 2026-06-04, ArrayBuffer.prototype.transfer
+      // and .resize() let script free or reallocate the backing store, so
+      // holding raw pointers from JS_GetArrayBuffer across property getters,
+      // toString hooks, JS_Call etc. is a use-after-free hazard.
+      auto key_opt = jsctx.copy_array_buffer(argv[0]);
+      if (!key_opt.has_value())
+      {
+        return ccf::js::core::constants::Exception;
+      }
+      // key is the plaintext being wrapped. Guard it before copying the
+      // wrapping key: that copy allocates and can fail, and the early return
+      // below must not drop the plaintext without scrubbing it.
+      auto& key = *key_opt;
+      ScopeCleanse key_cleanse(key);
+
+      auto wrapping_key_opt = jsctx.copy_array_buffer(argv[1]);
+      if (!wrapping_key_opt.has_value())
+      {
+        return ccf::js::core::constants::Exception;
+      }
+      // wrapping_key is a symmetric secret for AES-KWP.
+      auto& wrapping_key = *wrapping_key_opt;
+      ScopeCleanse wrapping_key_cleanse(wrapping_key);
 
       auto parameters = argv[2];
       auto wrap_algo_name_val = jsctx.get_property(parameters, "name");
@@ -670,19 +728,15 @@ namespace ccf::js::extensions
           auto label_val = jsctx.get_property(parameters, "label");
           JS_CHECK_EXC(label_val);
 
-          size_t label_buf_size = 0;
-          uint8_t* label_buf =
-            JS_GetArrayBuffer(ctx, &label_buf_size, label_val.val);
-
-          std::optional<std::vector<uint8_t>> label_opt = std::nullopt;
-          if ((label_buf != nullptr) && (label_buf_size > 0))
+          auto label_opt = std::optional<std::vector<uint8_t>>{};
+          if (!try_get_optional_label(jsctx, label_val, label_opt))
           {
-            label_opt = {label_buf, label_buf + label_buf_size};
+            return ccf::js::core::constants::Exception;
           }
 
           auto wrapped_key = ccf::crypto::ckm_rsa_pkcs_oaep_wrap(
-            ccf::crypto::Pem(wrapping_key, wrapping_key_size),
-            {key, key + key_size},
+            ccf::crypto::Pem(wrapping_key.data(), wrapping_key.size()),
+            key,
             label_opt);
 
           return JS_NewArrayBufferCopy(
@@ -691,12 +745,8 @@ namespace ccf::js::extensions
 
         if (algo_name == "AES-KWP")
         {
-          std::vector<uint8_t> privateKey(
-            wrapping_key, wrapping_key + wrapping_key_size);
-          std::vector<uint8_t> wrapped_key = ccf::crypto::ckm_aes_key_wrap_pad(
-            privateKey, {key, key + key_size});
-
-          OPENSSL_cleanse(privateKey.data(), privateKey.size());
+          std::vector<uint8_t> wrapped_key =
+            ccf::crypto::ckm_aes_key_wrap_pad(wrapping_key, key);
 
           return JS_NewArrayBufferCopy(
             ctx, wrapped_key.data(), wrapped_key.size());
@@ -717,20 +767,16 @@ namespace ccf::js::extensions
           auto label_val = jsctx.get_property(parameters, "label");
           JS_CHECK_EXC(label_val);
 
-          size_t label_buf_size = 0;
-          uint8_t* label_buf =
-            JS_GetArrayBuffer(ctx, &label_buf_size, label_val.val);
-
-          std::optional<std::vector<uint8_t>> label_opt = std::nullopt;
-          if ((label_buf != nullptr) && (label_buf_size > 0))
+          auto label_opt = std::optional<std::vector<uint8_t>>{};
+          if (!try_get_optional_label(jsctx, label_val, label_opt))
           {
-            label_opt = {label_buf, label_buf + label_buf_size};
+            return ccf::js::core::constants::Exception;
           }
 
           auto wrapped_key = ccf::crypto::ckm_rsa_aes_key_wrap(
             aes_key_size,
-            ccf::crypto::Pem(wrapping_key, wrapping_key_size),
-            {key, key + key_size},
+            ccf::crypto::Pem(wrapping_key.data(), wrapping_key.size()),
+            key,
             label_opt);
 
           return JS_NewArrayBufferCopy(
@@ -764,23 +810,30 @@ namespace ccf::js::extensions
       // API loosely modeled after
       // https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/unwrapKey.
 
-      size_t key_size = 0;
-      uint8_t* key = JS_GetArrayBuffer(ctx, &key_size, argv[0]);
-      if (key == nullptr)
-      {
-        return ccf::js::core::constants::Exception;
-      }
-
-      size_t unwrapping_key_size = 0;
-      uint8_t* unwrapping_key =
-        JS_GetArrayBuffer(ctx, &unwrapping_key_size, argv[1]);
-      if (unwrapping_key == nullptr)
-      {
-        return ccf::js::core::constants::Exception;
-      }
-
       js::core::Context& jsctx =
         *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
+
+      // Copy ArrayBuffer arguments before any potentially re-entrant call
+      // (see js_wrap_key for the rationale).
+      auto key_opt = jsctx.copy_array_buffer(argv[0]);
+      if (!key_opt.has_value())
+      {
+        return ccf::js::core::constants::Exception;
+      }
+      // key is the wrapped (encrypted) blob here, so it is not secret and
+      // needs no cleansing.
+      auto& key = *key_opt;
+
+      auto unwrapping_key_opt = jsctx.copy_array_buffer(argv[1]);
+      if (!unwrapping_key_opt.has_value())
+      {
+        return ccf::js::core::constants::Exception;
+      }
+      // unwrapping_key is secret key material; cleanse on all exit paths.
+      // The guard is kept adjacent to the copy so that no fallible statement
+      // can sit between creating the secret and protecting it.
+      auto& unwrapping_key = *unwrapping_key_opt;
+      ScopeCleanse unwrapping_key_cleanse(unwrapping_key);
 
       auto parameters = argv[2];
       auto wrap_algo_name_val = jsctx.get_property(parameters, "name");
@@ -803,23 +856,21 @@ namespace ccf::js::extensions
           auto label_val = jsctx.get_property(parameters, "label");
           JS_CHECK_EXC(label_val);
 
-          size_t label_buf_size = 0;
-          uint8_t* label_buf =
-            JS_GetArrayBuffer(ctx, &label_buf_size, label_val.val);
-
-          std::optional<std::vector<uint8_t>> label_opt = std::nullopt;
-          if ((label_buf != nullptr) && (label_buf_size > 0))
+          auto label_opt = std::optional<std::vector<uint8_t>>{};
+          if (!try_get_optional_label(jsctx, label_val, label_opt))
           {
-            label_opt = {label_buf, label_buf + label_buf_size};
+            return ccf::js::core::constants::Exception;
           }
 
           auto pemPrivateUnwrappingKey =
-            ccf::crypto::Pem(unwrapping_key, unwrapping_key_size);
-          auto unwrapped_key = ccf::crypto::ckm_rsa_pkcs_oaep_unwrap(
-            pemPrivateUnwrappingKey, {key, key + key_size}, label_opt);
+            ccf::crypto::Pem(unwrapping_key.data(), unwrapping_key.size());
+          ScopeCleanse pem_cleanse(pemPrivateUnwrappingKey);
 
-          OPENSSL_cleanse(
-            pemPrivateUnwrappingKey.data(), pemPrivateUnwrappingKey.size());
+          auto unwrapped_key = ccf::crypto::ckm_rsa_pkcs_oaep_unwrap(
+            pemPrivateUnwrappingKey, key, label_opt);
+          // The unwrapped key is plaintext secret material. This guard runs
+          // after JS_NewArrayBufferCopy has taken its own copy.
+          ScopeCleanse unwrapped_cleanse(unwrapped_key);
 
           return JS_NewArrayBufferCopy(
             ctx, unwrapped_key.data(), unwrapped_key.size());
@@ -827,13 +878,11 @@ namespace ccf::js::extensions
 
         if (algo_name == "AES-KWP")
         {
-          std::vector<uint8_t> privateKey(
-            unwrapping_key, unwrapping_key + unwrapping_key_size);
           std::vector<uint8_t> unwrapped_key =
-            ccf::crypto::ckm_aes_key_unwrap_pad(
-              privateKey, {key, key + key_size});
-
-          OPENSSL_cleanse(privateKey.data(), privateKey.size());
+            ccf::crypto::ckm_aes_key_unwrap_pad(unwrapping_key, key);
+          // The unwrapped key is plaintext secret material. This guard runs
+          // after JS_NewArrayBufferCopy has taken its own copy.
+          ScopeCleanse unwrapped_cleanse(unwrapped_key);
 
           return JS_NewArrayBufferCopy(
             ctx, unwrapped_key.data(), unwrapped_key.size());
@@ -854,23 +903,21 @@ namespace ccf::js::extensions
           auto label_val = jsctx.get_property(parameters, "label");
           JS_CHECK_EXC(label_val);
 
-          size_t label_buf_size = 0;
-          uint8_t* label_buf =
-            JS_GetArrayBuffer(ctx, &label_buf_size, label_val.val);
-
-          std::optional<std::vector<uint8_t>> label_opt = std::nullopt;
-          if ((label_buf != nullptr) && (label_buf_size > 0))
+          auto label_opt = std::optional<std::vector<uint8_t>>{};
+          if (!try_get_optional_label(jsctx, label_val, label_opt))
           {
-            label_opt = {label_buf, label_buf + label_buf_size};
+            return ccf::js::core::constants::Exception;
           }
 
           auto privPemUnwrappingKey =
-            ccf::crypto::Pem(unwrapping_key, unwrapping_key_size);
-          auto unwrapped_key = ccf::crypto::ckm_rsa_aes_key_unwrap(
-            privPemUnwrappingKey, {key, key + key_size}, label_opt);
+            ccf::crypto::Pem(unwrapping_key.data(), unwrapping_key.size());
+          ScopeCleanse pem_cleanse(privPemUnwrappingKey);
 
-          OPENSSL_cleanse(
-            privPemUnwrappingKey.data(), privPemUnwrappingKey.size());
+          auto unwrapped_key = ccf::crypto::ckm_rsa_aes_key_unwrap(
+            privPemUnwrappingKey, key, label_opt);
+          // The unwrapped key is plaintext secret material. This guard runs
+          // after JS_NewArrayBufferCopy has taken its own copy.
+          ScopeCleanse unwrapped_cleanse(unwrapped_key);
 
           return JS_NewArrayBufferCopy(
             ctx, unwrapped_key.data(), unwrapped_key.size());
@@ -1055,19 +1102,22 @@ namespace ccf::js::extensions
       // API loosely modeled after
       // https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/verify.
 
-      size_t signature_size = 0;
-      uint8_t* signature = JS_GetArrayBuffer(ctx, &signature_size, argv[2]);
-      if (signature == nullptr)
+      // Copy ArrayBuffer arguments before any potentially re-entrant call
+      // (property getters on `algorithm`, toString on `key`, etc.), since
+      // script can transfer or resize the backing ArrayBuffer and invalidate
+      // raw pointers taken from JS_GetArrayBuffer.
+      auto signature_opt = jsctx.copy_array_buffer(argv[2]);
+      if (!signature_opt.has_value())
       {
         return ccf::js::core::constants::Exception;
       }
-
-      size_t data_size = 0;
-      uint8_t* data = JS_GetArrayBuffer(ctx, &data_size, argv[3]);
-      if (data == nullptr)
+      auto data_opt = jsctx.copy_array_buffer(argv[3]);
+      if (!data_opt.has_value())
       {
         return ccf::js::core::constants::Exception;
       }
+      auto& signature = *signature_opt;
+      auto& data = *data_opt;
 
       auto algorithm = argv[0];
 
@@ -1097,7 +1147,11 @@ namespace ccf::js::extensions
           return JS_NewBool(
             ctx,
             static_cast<int>(verify_eddsa_signature(
-              data, data_size, signature, signature_size, *key_str)));
+              data.data(),
+              data.size(),
+              signature.data(),
+              signature.size(),
+              *key_str)));
         }
         catch (const std::exception& ex)
         {
@@ -1137,11 +1191,11 @@ namespace ccf::js::extensions
             "EdDSA");
         }
 
-        std::vector<uint8_t> sig(signature, signature + signature_size);
+        std::vector<uint8_t> sig = signature;
         if (algo_name == "ECDSA")
         {
-          sig =
-            ccf::crypto::ecdsa_sig_p1363_to_der({signature, signature_size});
+          sig = ccf::crypto::ecdsa_sig_p1363_to_der(
+            {signature.data(), signature.size()});
         }
 
         auto is_cert = key.starts_with("-----BEGIN CERTIFICATE");
@@ -1151,14 +1205,14 @@ namespace ccf::js::extensions
         if (is_cert)
         {
           auto verifier = ccf::crypto::make_unique_verifier(key);
-          valid =
-            verifier->verify(data, data_size, sig.data(), sig.size(), mdtype);
+          valid = verifier->verify(
+            data.data(), data.size(), sig.data(), sig.size(), mdtype);
         }
         else if (algo_name == "ECDSA")
         {
           auto public_key = ccf::crypto::make_ec_public_key(key);
-          valid =
-            public_key->verify(data, data_size, sig.data(), sig.size(), mdtype);
+          valid = public_key->verify(
+            data.data(), data.size(), sig.data(), sig.size(), mdtype);
         }
         else
         {
@@ -1171,8 +1225,8 @@ namespace ccf::js::extensions
           auto public_key = ccf::crypto::make_rsa_public_key(key);
           // Only supporting PSS (with salt), PKCS1v15 has been deprecated.
           valid = public_key->verify(
-            data,
-            data_size,
+            data.data(),
+            data.size(),
             sig.data(),
             sig.size(),
             mdtype,
