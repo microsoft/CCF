@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- Fixed a double free when setting a property on a JavaScript object fails, which application script could trigger while the request object was being built. Such failures are now reported as a failed request (#8356).
 - Historical states retrieved by JavaScript endpoints, through `ccf.historicalState` or `ccf.historical.getStateRange`, remain available through response conversion and are released when the request completes, rather than being retained for the lifetime of the node (#8355).
 - Recovery-decision-protocol nodes now request host restart only after the `JOINING` state transaction commits, preventing restart for an aborted transaction. (#8282)
 
