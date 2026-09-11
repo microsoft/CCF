@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
-- JS registry tables and their namespace (`public:custom_endpoints.*` by default) are now read-only to JS endpoints. Apps requiring writes can opt out with `set_js_kv_namespace_restriction(restriction, false)`.
+- JS registry tables and their namespace (`public:custom_endpoints.*` by default) are now read-only to JS endpoints. Apps requiring writes can opt out with `set_js_kv_namespace_restriction(restriction, false)` (#8359).
 
 ## [7.0.15]
 
