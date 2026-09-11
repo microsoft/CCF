@@ -540,6 +540,10 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
     const AttestationReport& quote,
     const snp::EndorsementsServers& endorsements_servers = {})
   {
+    if (quote == nullptr)
+    {
+      throw std::logic_error("Cannot access an empty SNP attestation report");
+    }
     if (
       tav_snp_attestation_report_version(quote.get()) <
       minimum_attestation_version)

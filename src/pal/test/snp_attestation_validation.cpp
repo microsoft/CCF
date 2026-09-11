@@ -201,6 +201,28 @@ TEST_CASE("SNP chip ID access rejects empty handles")
     std::logic_error);
 }
 
+TEST_CASE("SNP endorsement configuration rejects empty owners")
+{
+  using namespace ccf::pal::snp;
+  AttestationReport report;
+
+  SUBCASE("default constructed") {}
+
+  SUBCASE("moved from")
+  {
+    report = parse_attestation_report_unverified(testing::milan_attestation);
+    auto owner = std::move(report);
+    REQUIRE(owner != nullptr);
+    CHECK_NOTHROW(make_endorsement_endpoint_configuration(owner));
+  }
+
+  REQUIRE(report == nullptr);
+  CHECK_THROWS_WITH_AS(
+    make_endorsement_endpoint_configuration(report),
+    "Cannot access an empty SNP attestation report",
+    std::logic_error);
+}
+
 TEST_CASE("VCEK chip ID uses the product-specific prefix")
 {
   using namespace ccf::pal::snp;

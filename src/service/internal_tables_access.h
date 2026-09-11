@@ -966,6 +966,10 @@ namespace ccf
     static void trust_node_snp_tcb_version(
       ccf::kv::Tx& tx, const pal::snp::AttestationReport& attestation)
     {
+      if (attestation == nullptr)
+      {
+        throw std::logic_error("Cannot access an empty SNP attestation report");
+      }
       if (
         tav_snp_attestation_report_version(attestation.get()) <
         pal::snp::minimum_attestation_version)
