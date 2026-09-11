@@ -284,11 +284,11 @@ unique directory.
 streams records and stops at the first diagnostic; accepted model history is not
 constant-memory.
 
-The manually dispatched ``KV Contract Verification`` workflow builds the model
-and instrumented tests, then uploads diagnostics even if conformance fails.
-It remains opt-in: selected tests can also exercise explicitly unsupported
-mechanisms, which remain non-passing outcomes. It uses a standard Linux runner;
-these single-node KV tests do not require an enclave or a multi-node network.
+The ``Lean`` workflow builds the model and instrumented tests, then uploads
+diagnostics even if conformance fails. Selected tests can exercise explicitly
+unsupported mechanisms, which remain non-passing outcomes. It uses a standard
+Linux runner; these single-node KV tests do not require an enclave or a
+multi-node network.
 
 Seeded concurrent campaigns
 ---------------------------
@@ -354,5 +354,5 @@ explore a different seed range:
    cmake -S .. -B . -DCCF_KV_FUZZ_SEED_START=100 -DCCF_KV_FUZZ_SEEDS=16
    ./tests.sh -R '^kv_trace_validation$' -L kv_fuzz --no-tests=error
 
-The manual verification workflow uploads each generated trace and its test and
-checker output as diagnostic artifacts.
+The workflow uploads each generated trace and its test and checker output as
+diagnostic artifacts.
