@@ -13,6 +13,7 @@ namespace ccf::http
   // requests that are too large.
   static const ccf::ds::SizeString default_max_body_size = {"1MB"};
   static const ccf::ds::SizeString default_max_header_size = {"16KB"};
+  static const ccf::ds::SizeString default_max_request_target_size = {"16KB"};
   static const uint32_t default_max_headers_count = 256;
 
   // HTTP/2 only, as per nghttp2 defaults
@@ -25,6 +26,9 @@ namespace ccf::http
     std::optional<ccf::ds::SizeString> max_body_size = std::nullopt;
     std::optional<ccf::ds::SizeString> max_header_size = std::nullopt;
     std::optional<uint32_t> max_headers_count = std::nullopt;
+
+    // HTTP/1.x only, including the query string.
+    std::optional<ccf::ds::SizeString> max_request_target_size = std::nullopt;
 
     // HTTP/2 only
     std::optional<size_t> max_concurrent_streams_count = std::nullopt;
@@ -42,6 +46,7 @@ namespace ccf::http
     max_body_size,
     max_header_size,
     max_headers_count,
+    max_request_target_size,
     max_concurrent_streams_count,
     initial_window_size,
     max_frame_size);
@@ -53,6 +58,7 @@ namespace ccf::http
     ParserConfiguration config;
     config.max_body_size = "1GB";
     config.max_header_size = "100MB";
+    config.max_request_target_size = "100MB";
     config.max_headers_count = 1024;
     config.max_concurrent_streams_count = 1;
     config.initial_window_size = "64KB";

@@ -10,8 +10,10 @@
 #include "ccf/js/tx_access.h"
 
 #include <chrono>
+#include <optional>
 #include <quickjs/quickjs.h>
 #include <span>
+#include <vector>
 
 // Forward declarations
 namespace ccf
@@ -114,6 +116,17 @@ namespace ccf::js::core
       size_t* pbyte_offset,
       size_t* pbyte_length,
       size_t* pbytes_per_element) const;
+
+    // Copies an ArrayBuffer's bytes into an owned std::vector. Returns
+    // nullopt and leaves a pending QuickJS TypeError when the value is not
+    // an ArrayBuffer, mirroring JS_GetArrayBuffer's error behaviour.
+    // Prefer this over holding the raw pointer from JS_GetArrayBuffer
+    // across any call that may re-enter JavaScript (property getters,
+    // toString / Symbol.toPrimitive, JSON conversion, JS_Call, ...), since
+    // script code can transfer or resize the backing ArrayBuffer and
+    // invalidate that pointer.
+    [[nodiscard]] std::optional<std::vector<uint8_t>> copy_array_buffer(
+      JSValueConst val) const;
     JSWrappedValue get_exported_function(
       const std::string& code,
       const std::string& func,
@@ -204,5 +217,33 @@ namespace ccf::js::core
 
       return nullptr;
     }
+  };
+
+  // Applies heap, stack and execution time limits to a Context's runtime for
+  // the lifetime of this object, including the interrupt handler which enforces
+  // the execution time limit. The limits are removed when it is destroyed.
+  class RuntimeLimitsScope
+  {
+  private:
+    Context& ctx;
+
+  public:
+    // Applies the limits derived from options and policy. If inherited is
+    // given, the execution deadline (start time and budget) is taken from it,
+    // so that the remaining execution time of an in-progress execution is
+    // shared rather than a fresh window being opened. Otherwise the execution
+    // time window starts now.
+    RuntimeLimitsScope(
+      Context& context,
+      const std::optional<ccf::JSRuntimeOptions>& options,
+      RuntimeLimitsPolicy policy,
+      const std::optional<InterruptData>& inherited = std::nullopt);
+
+    ~RuntimeLimitsScope();
+
+    RuntimeLimitsScope(const RuntimeLimitsScope&) = delete;
+    RuntimeLimitsScope& operator=(const RuntimeLimitsScope&) = delete;
+    RuntimeLimitsScope(RuntimeLimitsScope&&) = delete;
+    RuntimeLimitsScope& operator=(RuntimeLimitsScope&&) = delete;
   };
 }

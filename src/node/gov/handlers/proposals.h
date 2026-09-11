@@ -5,6 +5,7 @@
 #include "ccf/base_endpoint_registry.h"
 #include "ccf/ds/json.h"
 #include "ccf/js/common_context.h"
+#include "ccf/js/extensions/ccf/gov.h"
 #include "ccf/js/extensions/ccf/gov_effects.h"
 #include "js/checks.h"
 #include "js/extensions/ccf/network.h"
@@ -205,24 +206,41 @@ namespace ccf::gov::endpoints
       {
         js::CommonContextWithLocalTx js_context(js::TxAccess::GOV_RO, &tx);
 
-        auto ballot_func = js_context.get_exported_function(
-          mb,
-          "vote",
-          fmt::format(
-            "{}[{}].ballots[{}]",
-            ccf::jsgov::Tables::PROPOSALS_INFO,
-            proposal_id,
-            mid));
+        // Establish the runtime execution limits (heap, stack, time) and the
+        // interrupt handler around both module-scope evaluation and the call
+        // to vote(), so a ballot cannot stall the primary at module scope.
+        const ccf::js::core::RuntimeLimitsScope limits(
+          js_context,
+          tx.ro<ccf::JSEngine>(ccf::Tables::JSENGINE)->get(),
+          js::core::RuntimeLimitsPolicy::NO_LOWER_THAN_DEFAULTS);
+        JS_UpdateStackTop(js_context.runtime());
+
+        js::core::JSWrappedValue ballot_func;
+        try
+        {
+          ballot_func = js_context.get_exported_function(
+            mb,
+            "vote",
+            fmt::format(
+              "{}[{}].ballots[{}]",
+              ccf::jsgov::Tables::PROPOSALS_INFO,
+              proposal_id,
+              mid));
+        }
+        catch (const std::exception& exc)
+        {
+          std::string reason = js_context.interrupt_data.request_timed_out ?
+            "Operation took too long to complete." :
+            exc.what();
+          vote_failures[mid] = ccf::jsgov::Failure{reason, std::nullopt};
+          continue;
+        }
 
         std::vector<js::core::JSWrappedValue> argv = {
           js_context.new_string(proposal),
           js_context.new_string(proposal_info.proposer_id.value())};
 
-        auto val = js_context.call_with_rt_options(
-          ballot_func,
-          argv,
-          tx.ro<ccf::JSEngine>(ccf::Tables::JSENGINE)->get(),
-          js::core::RuntimeLimitsPolicy::NO_LOWER_THAN_DEFAULTS);
+        auto val = js_context.inner_call(ballot_func, argv);
 
         if (!val.is_exception())
         {
@@ -247,10 +265,33 @@ namespace ccf::gov::endpoints
         {
           js::CommonContextWithLocalTx js_context(js::TxAccess::GOV_RO, &tx);
 
-          auto resolve_func = js_context.get_exported_function(
-            constitution,
-            "resolve",
-            fmt::format("{}[0]", ccf::Tables::CONSTITUTION));
+          const ccf::js::core::RuntimeLimitsScope limits(
+            js_context,
+            tx.ro<ccf::JSEngine>(ccf::Tables::JSENGINE)->get(),
+            js::core::RuntimeLimitsPolicy::NO_LOWER_THAN_DEFAULTS);
+          JS_UpdateStackTop(js_context.runtime());
+
+          js::core::JSWrappedValue resolve_func;
+          try
+          {
+            resolve_func = js_context.get_exported_function(
+              constitution,
+              "resolve",
+              fmt::format("{}[0]", ccf::Tables::CONSTITUTION));
+          }
+          catch (const std::exception& exc)
+          {
+            proposal_info.state = ProposalState::FAILED;
+            std::string reason = js_context.interrupt_data.request_timed_out ?
+              "Operation took too long to complete." :
+              exc.what();
+            proposal_info.failure = ccf::jsgov::Failure{
+              fmt::format("Failed to resolve(): {}", reason), std::nullopt};
+            proposal_info.final_votes = votes;
+            proposal_info.vote_failures = vote_failures;
+            proposal_info_handle->put(proposal_id, proposal_info);
+            return;
+          }
 
           std::vector<js::core::JSWrappedValue> argv;
           argv.push_back(js_context.new_string(proposal));
@@ -278,11 +319,7 @@ namespace ccf::gov::endpoints
           // example to examine/distinguish themselves other pending proposals.
           argv.push_back(js_context.new_string(proposal_id));
 
-          auto val = js_context.call_with_rt_options(
-            resolve_func,
-            argv,
-            tx.ro<ccf::JSEngine>(ccf::Tables::JSENGINE)->get(),
-            js::core::RuntimeLimitsPolicy::NO_LOWER_THAN_DEFAULTS);
+          auto val = js_context.inner_call(resolve_func, argv);
 
           if (val.is_exception())
           {
@@ -358,20 +395,37 @@ namespace ccf::gov::endpoints
             js_context.add_extension(
               std::make_shared<ccf::js::extensions::GovEffectsExtension>(&tx));
 
-            auto apply_func = js_context.get_exported_function(
-              constitution,
-              "apply",
-              fmt::format("{}[0]", ccf::Tables::CONSTITUTION));
+            const ccf::js::core::RuntimeLimitsScope limits(
+              js_context,
+              tx.ro<ccf::JSEngine>(ccf::Tables::JSENGINE)->get(),
+              js::core::RuntimeLimitsPolicy::NO_LOWER_THAN_DEFAULTS);
+            JS_UpdateStackTop(js_context.runtime());
+
+            js::core::JSWrappedValue apply_func;
+            try
+            {
+              apply_func = js_context.get_exported_function(
+                constitution,
+                "apply",
+                fmt::format("{}[0]", ccf::Tables::CONSTITUTION));
+            }
+            catch (const std::exception& exc)
+            {
+              proposal_info.state = ProposalState::FAILED;
+              std::string reason = js_context.interrupt_data.request_timed_out ?
+                "Operation took too long to complete." :
+                exc.what();
+              proposal_info.failure = ccf::jsgov::Failure{
+                fmt::format("Failed to apply(): {}", reason), std::nullopt};
+              proposal_info_handle->put(proposal_id, proposal_info);
+              return;
+            }
 
             std::vector<js::core::JSWrappedValue> argv = {
               js_context.new_string(proposal),
               js_context.new_string(proposal_id)};
 
-            auto val = js_context.call_with_rt_options(
-              apply_func,
-              argv,
-              tx.ro<ccf::JSEngine>(ccf::Tables::JSENGINE)->get(),
-              js::core::RuntimeLimitsPolicy::NO_LOWER_THAN_DEFAULTS);
+            auto val = js_context.inner_call(apply_func, argv);
 
             if (val.is_exception())
             {
@@ -478,18 +532,39 @@ namespace ccf::gov::endpoints
             }
 
             js::CommonContextWithLocalTx context(js::TxAccess::GOV_RO, &ctx.tx);
+            context.add_extension(
+              std::make_shared<ccf::js::extensions::GovExtension>());
 
-            auto validate_func = context.get_exported_function(
-              constitution.value(),
-              "validate",
-              fmt::format("{}[0]", ccf::Tables::CONSTITUTION));
-
-            auto proposal_arg = context.new_string_len(cose_ident.content);
-            auto validate_result = context.call_with_rt_options(
-              validate_func,
-              {proposal_arg},
+            const ccf::js::core::RuntimeLimitsScope limits(
+              context,
               ctx.tx.template ro<ccf::JSEngine>(ccf::Tables::JSENGINE)->get(),
               js::core::RuntimeLimitsPolicy::NO_LOWER_THAN_DEFAULTS);
+            JS_UpdateStackTop(context.runtime());
+
+            ccf::js::core::JSWrappedValue validate_func;
+            try
+            {
+              validate_func = context.get_exported_function(
+                constitution.value(),
+                "validate",
+                fmt::format("{}[0]", ccf::Tables::CONSTITUTION));
+            }
+            catch (const std::exception& exc)
+            {
+              std::string reason = context.interrupt_data.request_timed_out ?
+                "Operation took too long to complete." :
+                exc.what();
+              detail::set_gov_error(
+                ctx.rpc_ctx,
+                HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                ccf::errors::InternalError,
+                fmt::format("Failed to load validate: {}", reason));
+              return;
+            }
+
+            auto proposal_arg = context.new_string_len(cose_ident.content);
+            auto validate_result =
+              context.inner_call(validate_func, {proposal_arg});
 
             // Handle error cases of validation
             {
