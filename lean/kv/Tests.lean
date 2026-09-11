@@ -95,31 +95,12 @@ def basic : List Event :=
     .get 1 2 "b" "00" none true, .commitBegin 1 2,
     .commitResult 1 2 .success 0, .txEnd 1 2]
 
-def blind : List Event :=
-  start 1 0 0 ++ [.acquire 1 1 "a" 0 0, .put 1 1 "a" "00" "11"] ++
-  start 2 0 0 ++ [.acquire 1 2 "a" 0 0, .put 1 2 "a" "00" "22",
-    .get 1 2 "a" "00" (some "22") false] ++
-  commit 1 1 [(("a", "00"), some "11")] ++
-  commit 2 2 [(("a", "00"), some "22")]
-
 def absencePrefix : List Event :=
   start 1 0 0 ++ [.acquire 1 1 "a" 0 0, .acquire 1 1 "b" 0 0,
     .get 1 1 "a" "00" none false] ++
   start 2 0 0 ++ [.acquire 1 2 "a" 0 0, .put 1 2 "a" "00" "11"] ++
   commit 2 1 [(("a", "00"), some "11")] ++
   [.put 1 1 "b" "00" "22", .commitBegin 1 1]
-
-def iteration : List Event :=
-  start 1 0 0 ++ [
-    .acquire 1 1 "a" 0 0, .put 1 1 "a" "00" "11", .put 1 1 "a" "01" "22",
-    .foreachBegin 1 1 "a" 1, .foreachEntry 1 1 "a" 1 "00" "11",
-    .put 1 1 "a" "01" "33", .get 1 1 "a" "01" (some "33") false,
-    .foreachBegin 1 1 "a" 2, .foreachEntry 1 1 "a" 2 "01" "33",
-    .foreachContinue 1 1 "a" 2 false, .foreachEnd 1 1 "a" 2,
-    .foreachContinue 1 1 "a" 1 true, .foreachEntry 1 1 "a" 1 "01" "22",
-    .foreachContinue 1 1 "a" 1 true, .foreachEnd 1 1 "a" 1,
-    .size 1 1 "a" 2, .clear 1 1 "a", .size 1 1 "a" 0
-  ] ++ commit 1 1 [(("a", "00"), none), (("a", "01"), none)]
 
 def globalPrefix : List Event :=
   seed 1 0 0 "11" ++ [.compact 1 1 1] ++ seed 2 1 1 "22" ++
@@ -135,37 +116,6 @@ def seedKeys (t r g : Nat) (v0 v1 : String) : List Event :=
 def keyGlobalPrefix : List Event :=
   seedKeys 1 0 0 "11" "aa" ++ [.compact 1 1 1] ++
     seedKeys 2 1 1 "22" "bb" ++ start 3 2 1 ++ [.acquire 1 3 "a" 2 1]
-
-def perMapGlobals : List Event :=
-  keyGlobalPrefix ++ [
-    .get 1 3 "a" "00" (some "11") true, .compact 1 2 2, .acquire 1 3 "b" 2 2,
-    .get 1 3 "a" "01" (some "aa") true, .has 1 3 "a" "01" true true,
-    .get 1 3 "a" "00" (some "11") true,
-    .put 1 3 "a" "01" "cc", .get 1 3 "a" "01" (some "cc") false,
-    .get 1 3 "a" "01" (some "aa") true,
-    .remove 1 3 "a" "00", .has 1 3 "a" "00" false false, .has 1 3 "a" "00" true true,
-    .get 1 3 "b" "00" (some "22") true, .get 1 3 "b" "01" (some "bb") true,
-    .has 1 3 "b" "01" true true, .put 1 3 "b" "02" "",
-    .get 1 3 "b" "02" none true, .has 1 3 "b" "02" false true,
-    .get 1 3 "b" "02" (some "") false, .txEnd 1 3
-  ]
-
-def rollbackPinned : List Event :=
-  seed 1 0 0 "11" ++ [.compact 1 1 1] ++ seed 2 1 1 "22" ++
-  start 3 2 1 ++ [.acquire 1 3 "a" 2 1,
-    .rollback 1 1 1 1, .get 1 3 "a" "00" (some "22") false,
-    .get 1 3 "a" "00" (some "11") true, .put 1 3 "a" "00" "33",
-    .commitBegin 1 3, .commitResult 1 3 .conflict 0, .txEnd 1 3,
-    .rollbackRejected 1 0 2] ++
-  start 4 1 1 1 ++ [.acquire 1 4 "a" 1 1, .get 1 4 "a" "00" (some "11") false,
-    .txEnd 1 4]
-
-def noReplicate : List Event :=
-  start 1 0 0 ++ [.acquire 1 1 "a" 0 0, .put 1 1 "a" "00" "11"] ++
-  commit 1 1 [(("a", "00"), some "11")] 0 .noReplicate ++
-  start 2 1 0 ++ [.acquire 1 2 "a" 1 0, .get 1 2 "a" "00" (some "11") false,
-    .txEnd 1 2, .rollback 1 0 0 1] ++
-  start 3 0 0 1 ++ [.acquire 1 3 "a" 0 0, .get 1 3 "a" "00" none false, .txEnd 1 3]
 
 def writeSkew : List Event :=
   start 1 0 0 ++ [.acquire 1 1 "a" 0 0, .acquire 1 1 "b" 0 0,
@@ -198,12 +148,6 @@ def reusedVersion : List Event :=
     .rollback 1 0 0 0] ++ seed 3 0 0 "22" ++
   [.put 1 2 "a" "00" "33", .commitBegin 1 2, .apply 1 2 2 0 [(("a", "00"), some "33")]]
 
-def sparse : List Event :=
-  seed 1 0 0 "11" ++ start 2 1 0 ++ [.acquire 1 2 "empty" 0 0] ++
-  seed 3 1 0 "22" ++ [.compact 1 2 2,
-    .acquire 1 2 "unchanged" 0 0, .get 1 2 "unchanged" "00" none false,
-    .unavailable 1 2 "a", .get 1 2 "empty" "00" none false, .txEnd 1 2]
-
 def interleavedSegment : List Event :=
   start 1 0 0 7 ++ [.acquire 1 1 "a" 0 0, .put 1 1 "a" "00" "11"] ++
   commit 1 1 [(("a", "00"), some "11")] 7 .noReplicate ++ [
@@ -224,13 +168,6 @@ def absentCreationPrefix : List Event :=
   start 2 0 0 ++ [.acquire 1 2 "b" 0 0, .put 1 2 "b" "00" "11"] ++
   commit 2 1 [(("b", "00"), some "11")] ++ [.compact 1 1 1]
 
-def absentThenCreated : List Event :=
-  absentCreationPrefix ++ [.acquire 1 1 "b" 0 0,
-    .get 1 1 "b" "00" none false, .get 1 1 "b" "00" none true,
-    .has 1 1 "b" "00" false false, .has 1 1 "b" "00" false true,
-    .previous 1 1 "b" "00" none, .size 1 1 "b" 0, .txEnd 1 1
-  ]
-
 def persistEmpty (tid : Nat) : List Event :=
   start tid 0 0 ++ [.acquire 1 tid "b" 0 0, .remove 1 tid "b" "00"] ++
     commit tid 1 [(("b", "00"), none)]
@@ -240,68 +177,17 @@ def existingEmptyCompacted : List Event :=
   start 3 1 0 ++ [.acquire 1 3 "b" 0 0, .put 1 3 "b" "00" "11"] ++
   commit 3 2 [(("b", "00"), some "11")] ++ [.compact 1 2 2]
 
-def positive : List (String × List Event) := [
-  ("per-map globals, different keys, aliases and pending writes", perMapGlobals),
-  ("first map captures global progress after initial snapshot", seedKeys 1 0 0 "11" "aa" ++
-    [.compact 1 1 1] ++ seedKeys 2 1 1 "22" "bb" ++ start 3 2 1 ++ [
-      .compact 1 2 2, .acquire 1 3 "a" 2 2, .get 1 3 "a" "00" (some "22") true,
-      .has 1 3 "a" "01" true true, .txEnd 1 3]),
-  ("acquired global view survives later compaction and term-only rollback", keyGlobalPrefix ++ [
-    .compact 1 2 2, .rollback 1 2 2 1, .get 1 3 "a" "00" (some "11") true,
-    .get 1 3 "a" "01" (some "aa") true, .txEnd 1 3]),
-  ("absent map created and compacted after snapshot remains an empty placeholder", absentThenCreated),
-  ("existing empty map is not an absent placeholder", existingEmptyCompacted ++ [
-    .unavailable 1 2 "b", .txEnd 1 2]),
-  ("later map capture does not reuse initial global frontier", seed 1 0 0 "11" ++
-    start 2 1 0 ++ [.acquire 1 2 "a" 1 0, .compact 1 1 1, .acquire 1 2 "b" 1 1,
-      .get 1 2 "b" "00" (some "11") false, .get 1 2 "b" "00" (some "11") true,
-      .get 1 2 "a" "00" none true, .txEnd 1 2]),
-  ("above-head compaction and interleaved branch projection", interleavedSegment),
-  ("iteration IDs are scoped by map", start 1 0 0 ++ [
-    .acquire 1 1 "a" 0 0, .acquire 1 1 "b" 0 0,
-    .foreachBegin 1 1 "a" 1, .foreachEnd 1 1 "a" 1,
-    .foreachBegin 1 1 "b" 1, .foreachEnd 1 1 "b" 1, .txEnd 1 1]),
-  ("initial term is observed once, not assumed zero", start 1 0 0 1 ++ [
-    .acquire 1 1 "a" 0 0, .put 1 1 "a" "00" "11"] ++
-    commit 1 1 [(("a", "00"), some "11")] 1),
-  ("rollback establishes initial term before first access", [.rollback 1 0 0 5] ++
-    start 1 0 0 5 ++ [.acquire 1 1 "a" 0 0, .txEnd 1 1]),
-  ("basic multi-map, empty bytes, no-op delete, readonly", basic),
-  ("blind concurrent writes and own-read", blind),
-  ("absent dependency conflict", absencePrefix ++ [.commitResult 1 1 .conflict 0, .txEnd 1 1]),
-  ("nested frozen iteration, callbacks, early stop, clear", iteration),
-  ("pinned local and global across compaction", globalPrefix ++ [
-    .acquire 1 3 "b" 2 1, .compact 1 2 2,
-    .get 1 3 "a" "00" (some "22") false, .get 1 3 "b" "00" (some "11") true, .txEnd 1 3]),
-  ("only local availability gates later acquisition", globalPrefix ++ [
-    .compact 1 2 2, .acquire 1 3 "b" 2 2, .get 1 3 "b" "00" (some "22") true,
-    .get 1 3 "a" "00" (some "11") true, .txEnd 1 3]),
-  ("pinned rollback views and durable prefix", rollbackPinned),
-  ("no_replicate after local apply", noReplicate),
-  ("sparse map retention and unavailable changed map", sparse),
+def accepted : List (String × List Event) := [
   ("unrelated same-term rollback keeps attempt valid", seed 1 0 0 "11" ++
     start 2 1 0 ++ [.acquire 1 2 "a" 1 0] ++
     start 3 1 0 ++ [.acquire 1 3 "b" 1 0, .put 1 3 "b" "00" "22"] ++
     commit 3 2 [(("b", "00"), some "22")] ++ [.rollback 1 1 1 0, .put 1 2 "a" "00" "33"] ++
     commit 2 2 [(("a", "00"), some "33")]),
-  ("abandonment publishes nothing", start 1 0 0 ++ [
-    .acquire 1 1 "a" 0 0, .put 1 1 "a" "00" "11", .txEnd 1 1] ++
-    start 2 0 0 ++ [.acquire 1 2 "a" 0 0, .get 1 2 "a" "00" none false, .txEnd 1 2]),
-  ("readonly completion despite changed dependency", start 1 0 0 ++ [
-    .acquire 1 1 "a" 0 0, .get 1 1 "a" "00" none false] ++
-    start 2 0 0 ++ [.acquire 1 2 "a" 0 0, .put 1 2 "a" "00" "11"] ++
-    commit 2 1 [(("a", "00"), some "11")] ++ [
-    .commitBegin 1 1, .commitResult 1 1 .success 0, .txEnd 1 1]),
   ("global reads introduce no normal dependency", start 1 0 0 ++ [
     .acquire 1 1 "a" 0 0, .acquire 1 1 "b" 0 0, .get 1 1 "a" "00" none true] ++
     start 2 0 0 ++ [.acquire 1 2 "a" 0 0, .put 1 2 "a" "00" "11"] ++
     commit 2 1 [(("a", "00"), some "11")] ++ [.put 1 1 "b" "00" "22"] ++
-    commit 1 2 [(("b", "00"), some "22")]),
-  ("opaque map names and independent stores", [
-    .storeCreate 2, .txCreate 2 2, .snapshot 2 2 0 0 0, .acquire 2 2 "public:a" 0 0,
-    .put 2 2 "public:a" "00" "11", .acquire 2 2 "a" 0 0,
-    .get 2 2 "a" "00" none false, .txEnd 2 2, .storeEnd 2,
-    .txCreate 1 1, .txEnd 1 1])
+    commit 1 2 [(("b", "00"), some "22")])
 ]
 
 def negative : List (String × String × List Event) := [
@@ -423,54 +309,11 @@ def assertStreaming : IO Unit :=
     if streamed != buffered then
       throw (IO.userError "streaming and pure replay disagree")
 
-partial def libraryModules (directory : System.FilePath) (modulePrefix : String) : IO (List String) := do
-  let mut modules := []
-  for entry in ← directory.readDir do
-    if ← entry.path.isDir then
-      modules := modules ++ (← libraryModules entry.path s!"{modulePrefix}.{entry.fileName}")
-    else if entry.path.extension == some "lean" then
-      match entry.path.fileStem with
-      | some stem => modules := s!"{modulePrefix}.{stem}" :: modules
-      | none => throw (IO.userError s!"library module has no file stem: {entry.path}")
-  return modules
-
-def importsComplete (expected actual : List String) : Bool :=
-  expected.length == actual.length &&
-    expected.all actual.contains && actual.all expected.contains
-
-def assertLibraryImports : IO Unit := do
-  let packageDir := (← IO.appPath).parent.getD "." / ".." / ".." / ".."
-  let expected ← libraryModules (packageDir / "Kv") "Kv"
-  let root ← IO.FS.readFile (packageDir / "Kv.lean")
-  let actual := root.splitOn "\n" |>.filterMap fun line =>
-    match line.trimAscii.toString.splitOn " " with
-    | ["import", name] => some name
-    | _ => none
-  unless importsComplete expected actual do
-    throw (IO.userError s!"Kv.lean must import every library module exactly once; expected {expected}, found {actual}")
-
 def run : IO Unit := do
   assertProjection
   assertStreaming
-  assertLibraryImports
-  let expectedImports := ["Kv.Protocol.Types", "Kv.Proofs.Types"]
-  let importCases := [
-    (expectedImports, true),
-    (["Kv.Protocol.Types"], false),
-    (["Kv.Protocol.Types", "Kv.Protocol.Types"], false),
-    (expectedImports ++ ["Kv.Unexpected"], false)]
-  for (actual, expected) in importCases do
-    if importsComplete expectedImports actual != expected then
-      throw (IO.userError "library import coverage policy regression")
-  let auditCases : List (Array Name × Bool) := [
-    (#[``propext, ``Classical.choice, ``Quot.sound], true),
-    (#[`sorryAx], false),
-    (#[`Kv.UnapprovedAssumption], false),
-    (#[`Lean.ofReduceBool], false)]
-  for (dependencies, allowed) in auditCases do
-    if (BuildAudit.checkDependencies `policyRegression dependencies).toOption.isSome != allowed then
-      throw (IO.userError "build-time dependency policy regression")
-  for (name, body) in positive do
+  assertStatus "basic accepted history" "accepted" (encode (closed basic))
+  for (name, body) in accepted do
     assertStatus name "accepted" (encode (closed body))
   for (name, expected, body) in negative do
     assertStatus name expected (encode (closed body))
@@ -505,7 +348,7 @@ def run : IO Unit := do
   let diagnostic := checkText (encode (closed (globalPrefix ++ [.compact 1 2 2, .acquire 1 3 "b" 2 1])))
   if diagnostic.store != some 1 || diagnostic.tx != some 3 || diagnostic.seq.isNone then
     throw (IO.userError "missing rejection context")
-  IO.println s!"{positive.length + negative.length + malformed.length + auditCases.length + importCases.length + 6} checker self-tests passed"
+  IO.println "checker self-tests passed"
 
 end Kv.Tests
 

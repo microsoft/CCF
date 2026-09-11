@@ -99,13 +99,20 @@ jobs:
           test "$(tr -d '\r\n' < lean/kv/lean-toolchain)" = 'leanprover/lean4:v4.33.1'
           echo "$RUNNER_TEMP/ccf-lean/lean-4.33.1-linux/bin" >> "$GITHUB_PATH"
 
-      - name: Build Lean proofs and replay checker
+      - name: Restore Mathlib cache
         working-directory: lean/kv
-        run: lake build --wfail
+        run: |
+          set -euo pipefail
+          lake exe cache get
 
-      - name: Exercise checker acceptance and rejection cases
+      - name: Build and check KV model
         working-directory: lean/kv
-        run: lake exe kv_trace_tests
+        run: |
+          set -euo pipefail
+          lake exe mk_all --check --lib Kv
+          lake build --wfail
+          lake lint
+          lake exe kv_trace_tests
 
       - name: Build instrumented KV unit tests
         run: |

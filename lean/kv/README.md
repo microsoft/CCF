@@ -1,8 +1,8 @@
 # Executable KV implementation profile
 
-Standalone Lean 4.33.1 project, using only Lean core/Std and the bundled JSON
-parser. It does not change CCF behavior or introduce a normal-build dependency.
-The fuller contract and provenance belong in
+Standalone Lean 4.33.1 project, using the same pinned Mathlib and axiom-audit
+tooling as the disaster-recovery model. It does not change CCF behavior or
+introduce a normal-build dependency. The fuller contract and provenance belong in
 `doc/build_apps/kv/semantics.rst`.
 This profile follows the implementation's **per-map globally committed views**.
 The original stronger transaction-wide-global model is preserved at checkpoint
@@ -13,13 +13,16 @@ The original stronger transaction-wide-global model is preserved at checkpoint
 Run under Linux, from `lean/kv`:
 
 ```bash
+lake exe cache get
+lake exe mk_all --check --lib Kv
 lake build --wfail
+lake lint
 lake exe kv_trace_tests
 ```
 
 Elan is optional: putting the official Lean 4.33.1 distribution's `bin`
-directory on `PATH` is sufficient. The project invokes no elan commands and
-has no Lake package dependencies.
+directory on `PATH` is sufficient. Lake dependencies and their transitive
+revisions are pinned in `lake-manifest.json`.
 
 Exit codes: 0 accepted, 1 contract rejection, 2 invalid/incomplete trace or IO
 error, 3 explicitly unsupported operation. `--json` writes exactly one object
@@ -53,19 +56,18 @@ Review the statements together with every definition and assumption they use in
 | [`Kv/Proofs/Types.lean`](Kv/Proofs/Types.lean)                                         | Machine-checked | Certificate construction and history lemmas                     |
 | [`Kv/Proofs/Model.lean`](Kv/Proofs/Model.lean)                                         | Machine-checked | Read, publication, serializability, and rollback proofs         |
 | [`Kv/Proofs/Trace.lean`](Kv/Proofs/Trace.lean)                                         | Machine-checked | Proofs connecting accepted replay to the contracts              |
-| [`Kv.lean`](Kv.lean), [`Kv/AxiomAudit.lean`](Kv/AxiomAudit.lean), Lake/toolchain files | Human           | Complete import root, audit coverage, and trust policy          |
+| [`Kv.lean`](Kv.lean), Lake/toolchain files                                             | Human           | Generated import root, dependency pins, and trust policy        |
 
 Only Lean files under `Kv/Proofs/` are marked `linguist-generated` by the
 repository's `.gitattributes`; GitHub can collapse their proof steps without
 hiding the executable model, assumptions, or public statements. Imports, audit
-code, toolchain changes, the import-root check, and the attribute rules still
-require human review.
+configuration, toolchain changes, the import-root check, and the attribute rules
+still require human review.
 
 The 116 supporting lemmas live in `Kv.Proofs.Types`, `Kv.Proofs.Model`, and
-`Kv.Proofs.Trace`. They use Lean's `theorem` declaration, retaining this package's
-core/Std-only dependencies rather than importing Mathlib for its `lemma` synonym.
-Public guarantees live in `Kv.Properties`. Runtime definitions retain their
-existing `Kv` names, preserving trace diagnostics and model identifiers.
+`Kv.Proofs.Trace`. Public guarantees live in `Kv.Properties`. Runtime definitions
+retain their existing `Kv` names, preserving trace diagnostics and model
+identifiers.
 
 The model imports `Kv.Proofs.Types` only to construct the same runtime-erased
 certificates it carried before the separation. Their types and the state
@@ -179,26 +181,17 @@ schema are not changed by choosing this model profile.
 
 The reviewed statements are in `Kv/Properties.lean`; proof implementations and
 intermediate lemmas are in `Kv/Proofs/`.
-No `sorry`, custom axioms,
-unsafe declarations, Mathlib, or external solver are used. Lean's intentional
-Unicode mathematical notation is used in source.
+No `sorry`, custom axioms, unsafe declarations, or external solver are used.
+Lean's intentional Unicode mathematical notation is used in source.
 The audited trace projection and history theorems use Lean's standard
 `propext` and `Quot.sound`; the snapshot/global-observation proofs additionally
 use standard `Classical.choice`.
-The normal Lake build treats every Lean warning as an error, including
-admission warnings. `Kv/AxiomAudit.lean` checks the transitive dependencies of the
-exported main guarantees listed in `mainGuarantees`, using Lean's
-`collectAxioms` over the kernel-checked environment. Only the three standard
-dependencies above are permitted; `sorryAx`, custom assumptions and native
-evaluation assumptions are rejected. The audit also checks supporting
-declarations in `Kv.Proofs` and rejects a public theorem directly in
-`Kv.Properties` that is missing from the catalogue.
-
-Both executables import the complete `Kv.lean` root, which runs the audit after
-all library imports are available.
-`kv_trace_tests` checks that this root imports every module under `Kv/` exactly
-once and exercises missing, duplicated, and unexpected import cases. Add new
-library modules to the root and new public guarantees to `mainGuarantees`.
+The Lake build treats every warning as an error, including admission warnings.
+The pinned `axiom-audit` lint driver checks every declaration under `Kv` against
+that three-axiom allowlist, rejecting `sorryAx`, custom assumptions, and native
+evaluation assumptions. Mathlib's `mk_all --check` verifies that the generated
+`Kv.lean` root imports every library module; run `lake exe mk_all --lib Kv` after
+adding a module.
 
 The property names below are in `Kv.Properties`; additional supporting lemmas
 remain available in their proof namespaces.
@@ -305,13 +298,13 @@ events; an active `tx_end` abandons writes. Retries need new attempt IDs.
 | `unsupported`                                | optional `store`, `operation:string`                                                                |
 | `trace_end`                                  | `events:uint64` counting all prior records                                                          |
 
-`Tests.lean` exercises positive schedules and expected rejections, including
-different global cuts across maps, different keys/aliases sharing one frozen
-map view, compaction before the first acquisition, local-only availability,
-placeholder versus existing-empty-map retention, forbidden refreshes, wrong
-global values/presence/revisions, no-op deletion, same-value writes,
-absent/phantom/write-skew conflicts, nested iteration, compaction, rollback,
-branch identity, exact uint64 decoding and damaged streams.
+`Tests.lean` retains a basic accepted history and two acceptance relationships
+not guaranteed by generated-trace event coverage. It exercises expected
+rejections, including forbidden map-view refreshes, wrong global
+values/presence/revisions, partial applications, absent/phantom/write-skew
+conflicts, stale lineage, iteration lifecycle errors, exact uint64 decoding, and
+damaged streams. Other positive implementation schedules come from the focused
+C++ tests and concurrent fuzzer.
 
 ## Recorded failure analyses
 

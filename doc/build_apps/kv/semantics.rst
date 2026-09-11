@@ -197,8 +197,9 @@ that an accepted transaction is already serializable. Runtime-erased
 certificates carry snapshot execution and store-history invariants through the
 constructors; they are not extra sequential-oracle acceptance checks.
 
-The Lake build treats warnings as errors and checks the transitive axiom
-dependencies of the main guarantees. Only Lean's standard trusted axioms are
+Mathlib's ``mk_all --check`` verifies the complete library import root. The Lake
+build treats warnings as errors, and the pinned ``axiom-audit`` lint driver
+checks every declaration under ``Kv``. Only Lean's standard trusted axioms are
 allowed; admitted proofs and custom assumptions fail the build.
 
 The consensus abstraction assumes a valid irrevocable prefix and permitted
