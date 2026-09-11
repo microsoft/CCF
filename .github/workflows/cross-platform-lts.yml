@@ -16,7 +16,7 @@ on:
       to_version:
         description: CCF version to build on Azure Linux 4
         required: false
-        default: 7.0.14
+        default: 7.0.15
         type: string
 
 concurrency:
@@ -40,7 +40,7 @@ jobs:
             image: mcr.microsoft.com/azurelinux/base/core:3.0
           - name: Azure Linux 4
             artifact: al4
-            ccf_version: ${{ inputs.to_version || '7.0.14' }}
+            ccf_version: ${{ inputs.to_version || '7.0.15' }}
             pool: gha-vmss-d16av5-ci
             image: azlpubstagingacroxz2o4gw.azurecr.io/azurelinux/base/core:4.0
     runs-on:
@@ -109,7 +109,7 @@ jobs:
           if-no-files-found: error
 
   test-upgrade:
-    name: "Upgrade ${{ inputs.from_version || '7.0.14' }} AL3 to ${{ inputs.to_version || '7.0.14' }} AL4"
+    name: "Upgrade ${{ inputs.from_version || '7.0.14' }} AL3 to ${{ inputs.to_version || '7.0.15' }} AL4"
     needs: build-install
     timeout-minutes: 60
     runs-on:
