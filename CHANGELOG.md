@@ -13,6 +13,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Fixed a double free when setting a property on a JavaScript object fails, which application script could trigger while the request object was being built. Such failures are now reported as a failed request (#8356).
 - Historical states retrieved by JavaScript endpoints, through `ccf.historicalState` or `ccf.historical.getStateRange`, remain available through response conversion and are released when the request completes, rather than being retained for the lifetime of the node (#8355).
+- JavaScript `verifySnpAttestation()` and the deprecated C++ `ccf::pal::snp::Attestation` returned swapped `current_minor` and `current_build` values. Both now match the AMD SEV-SNP report layout, with `current_build` at offset `0x1E8` and `current_minor` at `0x1E9` (#8083).
+
+### Changed
+
+- SNP attestation reports are now parsed and verified through TAV. Decode a report with `ccf::pal::snp::parse_attestation_report_unverified()`, which returns `ccf::pal::snp::AttestationReport`, an owning smart pointer, and verify it against TAV and CCF's policy with `ccf::pal::verify_snp_attestation_report_and_get()`. Field accessors borrow the report's storage, so destroying or replacing the owner invalidates them. The packed `ccf::pal::snp::Attestation` wire-layout type and its accessors still work, but are deprecated (#8083).
+- `ccf::pal::snp::get_attestation()` in `ccf/pal/snp_ioctl.h` is unchanged, but its `get()` accessor is deprecated. Call `get_raw()` instead for the unverified report bytes, then decode them with `parse_attestation_report_unverified()` (#8083).
 
 ## [7.0.15]
 
