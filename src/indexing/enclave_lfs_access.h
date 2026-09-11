@@ -146,7 +146,7 @@ namespace ccf::indexing
 
     struct BlobReadResult
     {
-      enum class Status
+      enum class Status : std::uint8_t
       {
         Success,
         NotFound,
@@ -154,7 +154,7 @@ namespace ccf::indexing
       };
 
       Status status;
-      LFSEncryptedContents contents = {};
+      LFSEncryptedContents contents;
     };
 
     BlobReadResult read_blob(const LFSKey& obfuscated)
@@ -169,11 +169,17 @@ namespace ccf::indexing
             "Failed to inspect LFS file {}: {}",
             target_path.string(),
             ec.message());
-          return {BlobReadResult::Status::Error};
+          return {
+            .status = BlobReadResult::Status::Error,
+            .contents = {},
+          };
         }
 
         LOG_TRACE_FMT("File {} not found", target_path.string());
-        return {BlobReadResult::Status::NotFound};
+        return {
+          .status = BlobReadResult::Status::NotFound,
+          .contents = {},
+        };
       }
 
       asynchost::TimeBoundLogger log_if_slow(
@@ -182,7 +188,10 @@ namespace ccf::indexing
       if (!f)
       {
         LOG_FAIL_FMT("Failed to open LFS file {}", target_path.string());
-        return {BlobReadResult::Status::Error};
+        return {
+          .status = BlobReadResult::Status::Error,
+          .contents = {},
+        };
       }
 
       const auto file_size = static_cast<std::streamoff>(f.tellg());
@@ -197,7 +206,10 @@ namespace ccf::indexing
         LOG_FAIL_FMT(
           "Failed to determine a supported size for LFS file {}",
           target_path.string());
-        return {BlobReadResult::Status::Error};
+        return {
+          .status = BlobReadResult::Status::Error,
+          .contents = {},
+        };
       }
 
       f.seekg(0, std::ios::beg);
@@ -205,7 +217,10 @@ namespace ccf::indexing
       {
         LOG_FAIL_FMT(
           "Failed to seek to the start of LFS file {}", target_path.string());
-        return {BlobReadResult::Status::Error};
+        return {
+          .status = BlobReadResult::Status::Error,
+          .contents = {},
+        };
       }
 
       blob.resize(static_cast<size_t>(file_size));
@@ -217,11 +232,17 @@ namespace ccf::indexing
         {
           LOG_FAIL_FMT(
             "Failed to read the complete LFS file {}", target_path.string());
-          return {BlobReadResult::Status::Error};
+          return {
+            .status = BlobReadResult::Status::Error,
+            .contents = {},
+          };
         }
       }
 
-      return {BlobReadResult::Status::Success, std::move(blob)};
+      return {
+        .status = BlobReadResult::Status::Success,
+        .contents = std::move(blob),
+      };
     }
 
   public:
