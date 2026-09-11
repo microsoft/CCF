@@ -29,10 +29,6 @@ namespace ccf::js::core
 
     JSWrappedValue operator[](uint32_t i) const;
 
-    // Setters taking a JSWrappedValue&& always consume the value, whether or
-    // not the property is successfully set, matching the QuickJS API they
-    // wrap. Return 1 on success, 0 if the set was rejected, or -1 if a JS
-    // exception is pending.
     [[nodiscard]] int set(const char* prop, JSWrappedValue&& value) const;
 
     [[nodiscard]] int set_getter(
