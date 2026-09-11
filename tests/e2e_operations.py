@@ -3863,12 +3863,7 @@ def run_propose_request_vote(const_args):
             original_primary, original_term = network.find_primary()
 
             LOG.info("Waiting for initial snapshot")
-            network.get_committed_snapshots(
-                original_primary,
-                target_seqno=1,
-                force_txs=False,
-                wait_for_target_seqno=True,
-            )
+            original_primary.wait_for_snapshot(1)
             network.wait_for_node_commit_sync(timeout=16)
 
             original_primary.remote.remote.proc.send_signal(signal.SIGTERM)
@@ -3916,29 +3911,11 @@ def run_time_based_snapshotting(const_args):
             net.start_and_open(inner_args)
             yield net
 
-    def get_committed_snapshot_files(net):
-        primary, _ = net.find_primary()
-        snapshots_dirs = [
-            os.path.join(primary.remote.remote.root, primary.remote.snapshots_dir_name)
-        ]
-        if primary.remote.read_only_snapshots_dir_name is not None:
-            snapshots_dirs.append(
-                os.path.join(
-                    primary.remote.remote.root,
-                    primary.remote.read_only_snapshots_dir_name,
-                )
-            )
-
-        snapshots = set()
-        for snapshots_dir in snapshots_dirs:
-            if not os.path.isdir(snapshots_dir):
-                continue
-
-            for snapshot_name in os.listdir(snapshots_dir):
-                if ccf.ledger.is_snapshot_file_committed(snapshot_name):
-                    snapshots.add(snapshot_name)
-
-        return snapshots
+    def snapshot_names(node):
+        return {
+            os.path.basename(path)
+            for path in node.get_snapshots(include_read_only=True)
+        }
 
     # Pattern for these tests:
     # 1. wait for any startup triggered txs to commit and net to settle
@@ -3949,15 +3926,15 @@ def run_time_based_snapshotting(const_args):
     def run_low():
         with net_with_min_tx("_low", 0) as net:
             time.sleep(1)
-            net.get_committed_snapshots(
-                net.find_primary()[0],
-                force_txs=False,
-                wait_for_target_seqno=True,
-                timeout=5,
-            )
-            baseline = get_committed_snapshot_files(net)
+            primary, _ = net.find_primary()
+            with primary.client() as c:
+                target = TxID.from_str(
+                    c.get("/node/commit").body.json()["transaction_id"]
+                )
+            primary.wait_for_snapshot(target.seqno, timeout=5)
+            baseline = snapshot_names(primary)
             time.sleep(10)
-            final = get_committed_snapshot_files(net)
+            final = snapshot_names(primary)
             assert (
                 len(final - baseline) >= 8
             ), f"With min_tx_interval set to 0 we expect snapshots to be generated at around 1 per second, but got {final} snapshots 10s after a baseline of {baseline}, with {final - baseline} new snapshots seen over the test."
@@ -3965,18 +3942,18 @@ def run_time_based_snapshotting(const_args):
     def run_exact():
         with net_with_min_tx("_exact", 2) as net:
             time.sleep(1)
-            try:
-                net.get_committed_snapshots(
-                    net.find_primary()[0],
-                    force_txs=False,
-                    wait_for_target_seqno=True,
-                    timeout=5,
+            primary, _ = net.find_primary()
+            with primary.client() as c:
+                target = TxID.from_str(
+                    c.get("/node/commit").body.json()["transaction_id"]
                 )
+            try:
+                primary.wait_for_snapshot(target.seqno, timeout=5)
             except TimeoutError:
                 pass
-            baseline = get_committed_snapshot_files(net)
+            baseline = snapshot_names(primary)
             time.sleep(10)
-            final = get_committed_snapshot_files(net)
+            final = snapshot_names(primary)
             assert (
                 final == baseline
             ), f"With min_tx_interval set to 2 we expect no snapshots to be generated without transactions, but got {final} snapshots 10s after a baseline of {baseline}, with {final - baseline} new snapshots seen over the test."
@@ -3984,38 +3961,32 @@ def run_time_based_snapshotting(const_args):
     def run_high():
         with net_with_min_tx("_high", 10) as net:
             time.sleep(1)
-            try:
-                net.get_committed_snapshots(
-                    net.find_primary()[0],
-                    force_txs=False,
-                    wait_for_target_seqno=True,
-                    timeout=5,
+            primary, _ = net.find_primary()
+            with primary.client() as c:
+                target = TxID.from_str(
+                    c.get("/node/commit").body.json()["transaction_id"]
                 )
+            try:
+                primary.wait_for_snapshot(target.seqno, timeout=5)
             except TimeoutError:
                 pass
-            baseline = get_committed_snapshot_files(net)
+            baseline = snapshot_names(primary)
             time.sleep(10)
-            final = get_committed_snapshot_files(net)
+            final = snapshot_names(primary)
             assert (
                 final == baseline
             ), f"With min_tx_interval set to 10 we expect no snapshots to be generated without transactions, but got {final} snapshots 10s after a baseline of {baseline}, with {final - baseline} new snapshots seen over the test."
 
             tx_id = net.txs.issue(net, number_txs=1)
-            baseline = get_committed_snapshot_files(net)
+            baseline = snapshot_names(primary)
             time.sleep(10)
-            final = get_committed_snapshot_files(net)
+            final = snapshot_names(primary)
             assert (
                 final == baseline
             ), f"With min_tx_interval set to 10 and we expect no snapshots to be generated with only one extra tx, but got {final} snapshots 10s after a baseline of {baseline}, and in total saw {final - baseline} new snapshots over the test."
 
             net.txs.issue(net, number_txs=20)
-            primary, _ = net.find_primary()
-            net.get_committed_snapshots(
-                primary,
-                target_seqno=tx_id.seqno,
-                force_txs=False,
-                wait_for_target_seqno=True,
-            )
+            primary.wait_for_snapshot(tx_id.seqno)
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
         futures = [
@@ -4070,8 +4041,10 @@ def run_snapshot_persistence_across_primary_failure(const_args):
         elapsed = time.time() - start_time
         snapshots = set()
         for node in net.nodes:
-            snapshots_dir = net.get_committed_snapshots(node, force_txs=False)
-            snapshots = snapshots.union(set(os.listdir(snapshots_dir)))
+            snapshots.update(
+                os.path.basename(path)
+                for path in node.get_snapshots(include_read_only=True)
+            )
 
         total_snapshots = len(snapshots)
 
