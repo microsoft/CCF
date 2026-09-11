@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - HTTP/1.x request targets, including query strings, are now bounded before accumulation by a new `max_request_target_size` setting (16 KB by default), independent of `max_header_size`. Oversized targets return HTTP 414 `RequestTargetTooLong`, increment the per-interface `request_target_too_long` error metric, and close the session. HTTP/2 limits are unchanged (#8333).
 
+### Fixed
+
+- Historical states retrieved by JavaScript endpoints, through `ccf.historicalState` or `ccf.historical.getStateRange`, remain available through response conversion and are released when the request completes, rather than being retained for the lifetime of the node (#8355).
+
 ## [7.0.15]
 
 [7.0.15]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.15
