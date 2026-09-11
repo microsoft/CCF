@@ -23,11 +23,14 @@ TEST_CASE("SNP request attestation")
     snp_report_data.report_data.begin(), snp_report_data.report_data.end(), 0);
 
   PlatformAttestationReportData report_data(snp_report_data);
-  snp::ioctl6::Attestation ioctl_attestation(report_data);
+  const auto attestation = snp::get_attestation(report_data)->get_raw();
+  REQUIRE(attestation.size() == snp::attestation_report_size);
+  const auto report = snp::parse_attestation_report_unverified(attestation);
 
-  const snp::Attestation& attestation = ioctl_attestation.get();
-
-  SnpAttestationReportData attested_report_data(attestation.report_data);
+  const uint8_t* data = nullptr;
+  size_t size = 0;
+  tav_snp_attestation_report_report_data(report.get(), &data, &size);
+  SnpAttestationReportData attested_report_data({data, size});
 
   REQUIRE_EQ(snp_report_data.report_data, attested_report_data.report_data);
 }
