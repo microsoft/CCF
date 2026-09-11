@@ -1,7 +1,9 @@
 extern crate clap;
 extern crate stateright;
 use clap::Parser;
+mod export;
 mod model;
+use export::export_graph;
 use model::{ModelCfg, Msg, NextStep, Node, State};
 use stateright::{actor::*, report::WriteReporter, util::HashableHashSet, Checker, Model};
 use std::sync::Arc;
@@ -198,7 +200,11 @@ fn properties(model: ActorModel<Node, ModelCfg, ()>) -> ActorModel<Node, ModelCf
 #[derive(Parser, Debug)]
 #[command(version, about = "Model for CCF's self-healing-open", long_about = None)]
 struct CliArgs {
-    #[clap(short, long, default_value = "3")]
+    /// `global = true` lets this be given either before or after the
+    /// subcommand (e.g. `--n-nodes 3 check` or `export --nodes 3`); the
+    /// `nodes` alias matches the shared exporter invocation
+    /// `export --nodes N`.
+    #[clap(short, long, alias = "nodes", default_value = "3", global = true)]
     n_nodes: usize,
 
     #[command(subcommand)]
@@ -211,6 +217,14 @@ enum Commands {
     Check,
     /// Serve the model on localhost:8080
     Serve,
+    /// Export the exhaustive reachable state graph in a stable, canonical,
+    /// line-oriented text format (see Readme.md), suitable for byte-for-byte
+    /// comparison against an independent re-implementation of the model.
+    Export {
+        /// Output file path; defaults to stdout
+        #[clap(short, long)]
+        out: Option<String>,
+    },
 }
 
 fn check(model: ActorModel<Node, ModelCfg, ()>) {
@@ -227,6 +241,21 @@ fn serve(model: ActorModel<Node, ModelCfg, ()>) {
     checker.serve("localhost:8080");
 }
 
+fn export(model: ActorModel<Node, ModelCfg, ()>, out: Option<String>) {
+    match out {
+        Some(path) => {
+            let mut file = std::fs::File::create(&path)
+                .unwrap_or_else(|e| panic!("failed to create '{}': {}", path, e));
+            export_graph(&model, &mut file).expect("failed to write model export");
+        }
+        None => {
+            let stdout = std::io::stdout();
+            let mut handle = stdout.lock();
+            export_graph(&model, &mut handle).expect("failed to write model export");
+        }
+    }
+}
+
 fn main() {
     let args = CliArgs::parse();
 
@@ -240,5 +269,6 @@ fn main() {
     match args.command {
         Commands::Check => check(model),
         Commands::Serve => serve(model),
+        Commands::Export { out } => export(model, out),
     }
 }
