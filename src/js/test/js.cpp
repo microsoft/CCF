@@ -1915,7 +1915,7 @@ TEST_CASE("JS registry does not share historical state between interpreters")
   context.install_subsystem<ccf::js::AbstractInterpreterCache>(
     interpreter_cache);
 
-  ccf::js::BaseDynamicJSEndpointRegistry registry(context);
+  [[maybe_unused]] ccf::js::BaseDynamicJSEndpointRegistry registry(context);
 
   for (const auto access : {TxAccess::APP_RO, TxAccess::APP_RW})
   {
