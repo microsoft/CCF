@@ -5,10 +5,15 @@ on:
     - cron: "0 3 * * 0"
   workflow_dispatch:
     inputs:
-      from_ref:
-        description: Git ref to build for the Azure Linux 3 side
+      from_version:
+        description: CCF version to build on Azure Linux 3
         required: false
-        default: ccf-7.0.14
+        default: 7.0.13
+        type: string
+      to_version:
+        description: CCF version to build on Azure Linux 4
+        required: false
+        default: 7.0.14
         type: string
 
 concurrency:
@@ -19,7 +24,7 @@ permissions: read-all
 
 jobs:
   build-install:
-    name: "Build ${{ matrix.name }} install"
+    name: "Build CCF ${{ matrix.ccf_version }} on ${{ matrix.name }}"
     timeout-minutes: 90
     strategy:
       fail-fast: false
@@ -27,10 +32,12 @@ jobs:
         include:
           - name: Azure Linux 3
             artifact: al3
+            ccf_version: ${{ inputs.from_version || '7.0.13' }}
             pool: gha-vmss-d16av6-ci
             image: mcr.microsoft.com/azurelinux/base/core:3.0
           - name: Azure Linux 4
             artifact: al4
+            ccf_version: ${{ inputs.to_version || '7.0.14' }}
             pool: gha-vmss-d16av5-ci
             image: azlpubstagingacroxz2o4gw.azurecr.io/azurelinux/base/core:4.0
     runs-on:
@@ -48,19 +55,33 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if command -v tdnf >/dev/null 2>&1; then
-            gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
-            tdnf -y update
-            tdnf -y install ca-certificates git
-          else
-            dnf -y update
-            dnf -y install ca-certificates git
-          fi
+          source /etc/os-release
+          case "$VERSION_ID" in
+            3.0)
+              gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
+              tdnf -y update
+              tdnf -y install ca-certificates git
+              ;;
+            4.0)
+              dnf -y update
+              dnf -y install ca-certificates git
+              ;;
+            *)
+              echo "Unsupported Azure Linux version: $VERSION_ID" >&2
+              exit 1
+              ;;
+          esac
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-          ref: ${{ matrix.artifact == 'al3' && (inputs.from_ref || 'ccf-7.0.14') || github.sha }}
+
+      - name: "Checkout CCF ${{ matrix.ccf_version }}"
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          path: version-source
+          ref: ccf-${{ matrix.ccf_version }}
 
       - name: "Install build dependencies"
         uses: ./.github/actions/install-ci-dependencies
@@ -71,8 +92,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          git config --global --add safe.directory /__w/CCF/CCF
-          cmake -S . -B build -GNinja -DCMAKE_BUILD_TYPE=Release
+          git config --global --add safe.directory /__w/CCF/CCF/version-source
+          cmake -S version-source -B build -GNinja -DCMAKE_BUILD_TYPE=Release
           cmake --build build --parallel "$(nproc --all)"
           DESTDIR="$PWD/stage" cmake --install build
           tar -C stage -czf ccf-install.tar.gz opt/ccf
@@ -85,7 +106,7 @@ jobs:
           if-no-files-found: error
 
   test-upgrade:
-    name: "Upgrade AL3 to AL4"
+    name: "Upgrade ${{ inputs.from_version || '7.0.13' }} AL3 to ${{ inputs.to_version || '7.0.14' }} AL4"
     needs: build-install
     timeout-minutes: 60
     runs-on:
