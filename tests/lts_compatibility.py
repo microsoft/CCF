@@ -156,6 +156,7 @@ def test_new_service(
     version,
     expected_subject_name=None,
     test_jwt_cleanup=False,
+    node_container_image=None,
 ):
     if infra.platform_detection.is_snp():
         LOG.info(
@@ -202,6 +203,7 @@ def test_new_service(
         binary_dir=binary_dir,
         library_dir=library_dir,
         version=version,
+        node_container_image=node_container_image,
     )
 
     network.join_node(new_node, args.package, args, **kwargs)
@@ -581,6 +583,7 @@ def run_code_upgrade_from(
                 to_library_dir,
                 to_version,
                 expected_subject_name=service_subject_name,
+                node_container_image=to_container_image,
             )
             network.create_and_wait_for_ledger_chunk()
 

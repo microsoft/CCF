@@ -1,0 +1,140 @@
+name: Cross-platform LTS
+
+on:
+  schedule:
+    - cron: "0 3 * * 0"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+permissions: read-all
+
+jobs:
+  build-install:
+    name: "Build ${{ matrix.name }} install"
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Azure Linux 3
+            artifact: al3
+            pool: gha-vmss-d16av6-ci
+            image: mcr.microsoft.com/azurelinux/base/core:3.0
+          - name: Azure Linux 4
+            artifact: al4
+            pool: gha-vmss-d16av5-ci
+            image: azlpubstagingacroxz2o4gw.azurecr.io/azurelinux/base/core:4.0
+    runs-on:
+      [
+        self-hosted,
+        "1ES.Pool=${{ matrix.pool }}",
+        "JobId=cross_platform_lts_build_${{ matrix.artifact }}-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
+      ]
+    container:
+      image: ${{ matrix.image }}
+      options: --user root
+
+    steps:
+      - name: "Install checkout dependencies"
+        shell: bash
+        run: |
+          set -euo pipefail
+          if command -v tdnf >/dev/null 2>&1; then
+            gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
+            tdnf -y update
+            tdnf -y install ca-certificates git
+          else
+            dnf -y update
+            dnf -y install ca-certificates git
+          fi
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: "Install build dependencies"
+        uses: ./.github/actions/install-ci-dependencies
+        with:
+          cache-python-packages: false
+
+      - name: "Build install tree"
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory /__w/CCF/CCF
+          cmake -S . -B build -GNinja -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --parallel "$(nproc --all)"
+          DESTDIR="$PWD/stage" cmake --install build
+          tar -C stage -czf ccf-install.tar.gz opt/ccf
+
+      - name: "Upload install tree"
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cross-platform-lts-${{ matrix.artifact }}
+          path: ccf-install.tar.gz
+          if-no-files-found: error
+
+  test-upgrade:
+    name: "Upgrade AL3 to AL4"
+    needs: build-install
+    timeout-minutes: 60
+    runs-on:
+      [
+        self-hosted,
+        1ES.Pool=gha-vmss-d16av6-ci,
+        "JobId=cross_platform_lts_test-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
+      ]
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: "Download Azure Linux 3 install"
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: cross-platform-lts-al3
+          path: artifacts/al3
+
+      - name: "Download Azure Linux 4 install"
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: cross-platform-lts-al4
+          path: artifacts/al4
+
+      - name: "Set up Python"
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: "Install test dependencies"
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m venv env
+          env/bin/python -m pip install --disable-pip-version-check \
+            -r tests/requirements.txt \
+            -e python
+
+      - name: "Run cross-platform upgrade"
+        shell: bash
+        run: |
+          set -euo pipefail
+          source env/bin/activate
+          tests/docker/run_lts_compatibility.sh \
+            artifacts/al3/ccf-install.tar.gz \
+            mcr.microsoft.com/azurelinux/base/core:3.0 \
+            artifacts/al4/ccf-install.tar.gz \
+            azlpubstagingacroxz2o4gw.azurecr.io/azurelinux/base/core:4.0 \
+            cross-platform-lts-workspace
+
+      - name: "Upload logs"
+        if: success() || failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cross-platform-lts-logs
+          path: cross-platform-lts-workspace
+          if-no-files-found: ignore
