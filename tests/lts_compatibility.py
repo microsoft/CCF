@@ -300,9 +300,12 @@ def set_js_args(args, from_install_path, to_install_path=None):
     )
     args.js_app_bundle = os.path.join(from_install_path, js_app_directory)
     if to_install_path:
-        args.new_js_app_bundle = os.path.join(
-            to_install_path, "../samples/apps/logging/js"
+        new_js_app_directory = (
+            "../samples/apps/logging/js"
+            if to_install_path == LOCAL_CHECKOUT_DIRECTORY
+            else "samples/logging/js"
         )
+        args.new_js_app_bundle = os.path.join(to_install_path, new_js_app_directory)
 
     get_new_constitution_for_install(args, from_install_path)
 
@@ -314,6 +317,7 @@ def run_code_upgrade_from(
     from_version=None,
     to_version=None,
     from_container_image=None,
+    to_container_image=None,
 ):
     if infra.platform_detection.is_snp():
         LOG.info(
@@ -415,6 +419,7 @@ def run_code_upgrade_from(
                     binary_dir=to_binary_dir,
                     library_dir=to_library_dir,
                     version=to_version,
+                    node_container_image=to_container_image,
                 )
 
                 kwargs = {}
@@ -588,6 +593,8 @@ def run_live_compatibility_with_latest(
     this_release_branch_only=False,
     lts_install_path=None,
     lts_container_image=None,
+    local_install_path=LOCAL_CHECKOUT_DIRECTORY,
+    local_container_image=None,
 ):
     """
     Tests that a service from the latest LTS can be safely upgraded to the version of
@@ -610,13 +617,19 @@ def run_live_compatibility_with_latest(
 
     LOG.info(f"From LTS {lts_version} to local {local_branch} branch")
     if not args.dry_run:
+        local_version = (
+            None
+            if local_install_path == LOCAL_CHECKOUT_DIRECTORY
+            else infra.github.get_version_from_install(local_install_path)
+        )
         run_code_upgrade_from(
             args,
             from_install_path=lts_install_path,
-            to_install_path=LOCAL_CHECKOUT_DIRECTORY,
+            to_install_path=local_install_path,
             from_version=lts_version,
-            to_version=None,
+            to_version=local_version,
             from_container_image=lts_container_image,
+            to_container_image=local_container_image,
         )
     return lts_version
 
@@ -860,6 +873,20 @@ if __name__ == "__main__":
             help='Absolute path to existing CCF release, e.g. "/opt/ccf"',
             default=None,
         )
+        parser.add_argument(
+            "--release-install-image",
+            help="Container image used to run nodes from --release-install-path",
+        )
+        parser.add_argument(
+            "--local-install-path",
+            type=str,
+            help="Path to a pre-built local CCF install tree",
+            default=LOCAL_CHECKOUT_DIRECTORY,
+        )
+        parser.add_argument(
+            "--local-install-image",
+            help="Container image used to run nodes from --local-install-path",
+        )
         parser.add_argument("--dry-run", action="store_true")
 
     args = infra.e2e_args.cli_args(add)
@@ -878,6 +905,14 @@ if __name__ == "__main__":
 
     if args.dry_run:
         LOG.warning("Dry run: no compatibility check")
+    if args.release_install_image and not args.release_install_path:
+        raise ValueError(
+            "--release-install-image requires an explicit --release-install-path"
+        )
+    if args.local_install_image and args.local_install_path == LOCAL_CHECKOUT_DIRECTORY:
+        raise ValueError(
+            "--local-install-image requires an explicit --local-install-path"
+        )
 
     compatibility_report = {}
     compatibility_report["version"] = args.ccf_version
@@ -889,6 +924,8 @@ if __name__ == "__main__":
             local_branch,
             lts_install_path=args.release_install_path,
             lts_container_image=args.release_install_image,
+            local_install_path=args.local_install_path,
+            local_container_image=args.local_install_image,
         )
         compatibility_report["live compatibility"].update(
             {f"with release ({args.release_install_path})": version}
@@ -897,7 +934,12 @@ if __name__ == "__main__":
         # Compatibility with previous LTS
         # (e.g. when releasing 2.0.1, check compatibility with existing 1.0.17)
         latest_lts_version = run_live_compatibility_with_latest(
-            args, repo, local_branch, this_release_branch_only=False
+            args,
+            repo,
+            local_branch,
+            this_release_branch_only=False,
+            local_install_path=args.local_install_path,
+            local_container_image=args.local_install_image,
         )
         compatibility_report["live compatibility"].update(
             {"with previous LTS": latest_lts_version}
@@ -906,7 +948,12 @@ if __name__ == "__main__":
         # Compatibility with latest LTS on the same release branch
         # (e.g. when releasing 2.0.1, check compatibility with existing 2.0.0)
         latest_lts_version = run_live_compatibility_with_latest(
-            args, repo, local_branch, this_release_branch_only=True
+            args,
+            repo,
+            local_branch,
+            this_release_branch_only=True,
+            local_install_path=args.local_install_path,
+            local_container_image=args.local_install_image,
         )
         compatibility_report["live compatibility"].update(
             {"with same LTS": latest_lts_version}
