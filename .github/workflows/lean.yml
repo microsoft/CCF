@@ -117,6 +117,7 @@ jobs:
       - name: Build instrumented KV unit tests
         run: |
           set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
           cmake -S . -B build-kv-trace -GNinja \
             -DCMAKE_BUILD_TYPE=Debug \
             -DCCF_KV_TRACING=ON \
