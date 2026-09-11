@@ -14,6 +14,8 @@
 #include "ccf/tx_id.h"
 
 #include <charconv>
+#include <set>
+#include <string>
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
 
@@ -43,7 +45,12 @@ namespace ccf::js
     std::shared_ptr<ccf::js::AbstractInterpreterCache> interpreter_cache =
       nullptr;
 
+    // App-provided restriction, see set_js_kv_namespace_restriction
     ccf::js::NamespaceRestriction namespace_restriction;
+
+    // Combines the built-in protection of this registry's own tables with the
+    // app-provided restriction. Never grants more access than either.
+    ccf::js::NamespaceRestriction get_effective_namespace_restriction() const;
 
     using PreExecutionHook = std::function<void(ccf::js::core::Context&)>;
 
@@ -63,6 +70,15 @@ namespace ccf::js
     std::string modules_quickjs_version_map;
     std::string modules_quickjs_bytecode_map;
     std::string runtime_options_map;
+
+    /**
+     * Names of all KV tables managed by this registry, evaluated at request
+     * time so that subclasses which reassign the map names above are
+     * respected. JS endpoints are never permitted to write to these tables,
+     * regardless of any app-provided namespace restriction. Subclasses which
+     * manage additional tables should override this and extend the result.
+     */
+    virtual std::set<std::string> get_registry_managed_tables() const;
 
   public:
     BaseDynamicJSEndpointRegistry(
@@ -104,6 +120,10 @@ namespace ccf::js
 
     /**
      * Pass a function to control which maps can be accessed by JS endpoints.
+     * This can only remove access, never grant it. The tables used by this
+     * registry to store endpoint definitions (see
+     * get_registry_managed_tables()) are always read-only for JS endpoints,
+     * regardless of the restriction passed here.
      */
     void set_js_kv_namespace_restriction(
       const ccf::js::NamespaceRestriction& restriction);
@@ -160,6 +180,16 @@ namespace ccf::js
     std::string recent_actions_map;
     std::string audit_input_map;
     std::string audit_info_map;
+
+    std::set<std::string> get_registry_managed_tables() const override
+    {
+      auto tables =
+        BaseDynamicJSEndpointRegistry::get_registry_managed_tables();
+      tables.insert(recent_actions_map);
+      tables.insert(audit_input_map);
+      tables.insert(audit_info_map);
+      return tables;
+    }
 
   public:
     DynamicJSEndpointRegistry(

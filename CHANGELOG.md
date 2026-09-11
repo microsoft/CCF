@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- The KV tables managed by `BaseDynamicJSEndpointRegistry` and `DynamicJSEndpointRegistry` (module source, compiled bytecode, endpoint metadata, runtime options, interpreter flush and audit tables) are now always read-only for JS endpoints, independently of any restriction passed to `set_js_kv_namespace_restriction`. Previously, with the default `public:custom_endpoints` prefix, these tables were writable by any JS endpoint executing in a read-write transaction. Subclasses which manage additional tables can extend the protected set by overriding `get_registry_managed_tables()`.
 - Strengthened access checks on JavaScript KV handles, including namespace restrictions in the historical KV (#8318).
 - Invalid PEM construction and JSON deserialisation errors no longer include the supplied data, which may contain private key material (#8330).
 - Reaching the soft session cap on an unsecured RPC interface no longer terminates the node by attempting a TLS handshake without a certificate. (#8331)

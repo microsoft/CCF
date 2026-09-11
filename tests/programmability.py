@@ -353,6 +353,36 @@ def test_custom_endpoints_kv_restrictions(network, args):
         r = c.post("/app/try_write", {"table": "public:programmability.foo"})
         assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
 
+        LOG.info("Tables managed by the JS registry itself are read-only")
+        # These tables hold endpoint definitions, module source and compiled
+        # bytecode, so JS must never be able to write to them. This protection
+        # is built-in to the registry, independent of the app's restriction.
+        for suffix in [
+            "modules",
+            "modules_quickjs_bytecode",
+            "modules_quickjs_version",
+            "metadata",
+            "interpreter_flush",
+            "runtime_options",
+            "recent_actions",
+            "audit.input",
+            "audit.info",
+        ]:
+            table = f"public:custom_endpoints.{suffix}"
+            r = c.post("/app/try_read", {"table": table})
+            assert r.status_code == http.HTTPStatus.OK.value, (table, r.status_code)
+            r = c.post("/app/try_write", {"table": table})
+            assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, (
+                table,
+                r.status_code,
+            )
+            assert "managed by the endpoint registry" in r.body.text(), r.body.text()
+
+        # Only the registry's own tables are protected; the rest of the prefix
+        # remains an ordinary application namespace.
+        r = c.post("/app/try_write", {"table": "public:custom_endpoints.my_table"})
+        assert r.status_code == http.HTTPStatus.OK.value, r.status_code
+
         LOG.info("Cannot grant access to gov/internal tables")
         r = c.post("/app/try_read", {"table": "public:ccf.gov.foo"})
         assert r.status_code == http.HTTPStatus.OK.value, r.status_code
