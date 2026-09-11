@@ -91,6 +91,24 @@ jobs:
         with:
           cache-python-packages: false
 
+      - name: "Install historical build dependencies"
+        shell: bash
+        run: |
+          set -euo pipefail
+          source /etc/os-release
+          case "$VERSION_ID" in
+            3.0)
+              tdnf -y install libarrow-devel parquet-libs-devel
+              ;;
+            4.0)
+              dnf -y install libarrow-devel parquet-libs-devel
+              ;;
+            *)
+              echo "Unsupported Azure Linux version: $VERSION_ID" >&2
+              exit 1
+              ;;
+          esac
+
       - name: "Build install tree"
         shell: bash
         run: |
