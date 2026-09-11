@@ -1,6 +1,9 @@
 name: Cross-platform LTS
 
 on:
+  push:
+    branches:
+      - achamayou-psychic-happiness
   schedule:
     - cron: "0 3 * * 0"
   workflow_dispatch:
