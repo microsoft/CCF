@@ -187,6 +187,11 @@ namespace ccf::js
       std::make_shared<ccf::js::extensions::RpcExtension>(
         endpoint_ctx.rpc_ctx.get()));
 
+    // ccf.historical.*
+    local_extensions.emplace_back(
+      std::make_shared<ccf::js::extensions::HistoricalExtension>(
+        &context.get_historical_state()));
+
     auto request_extension =
       std::make_shared<ccf::js::extensions::RequestExtension>(
         endpoint_ctx.rpc_ctx.get());
@@ -686,10 +691,6 @@ namespace ccf::js
     // add ccf.consensus.*
     extensions.emplace_back(
       std::make_shared<ccf::js::extensions::ConsensusExtension>(this));
-    // add ccf.historical.*
-    extensions.emplace_back(
-      std::make_shared<ccf::js::extensions::HistoricalExtension>(
-        &context.get_historical_state()));
 
     interpreter_cache->set_interpreter_factory(
       [extensions](ccf::js::TxAccess access) {

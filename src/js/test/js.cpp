@@ -2,16 +2,20 @@
 // Licensed under the Apache 2.0 License.
 #include "ccf/js/common_context.h"
 #include "ccf/js/core/wrapped_value.h"
+#include "ccf/js/extensions/ccf/consensus.h"
 #include "ccf/js/extensions/ccf/crypto.h"
 #include "ccf/js/extensions/ccf/gov.h"
 #include "ccf/js/extensions/ccf/historical.h"
 #include "ccf/js/extensions/ccf/kv.h"
 #include "ccf/js/extensions/snp_attestation.h"
+#include "ccf/js/registry.h"
 #include "js/global_class_ids.h"
+#include "js/interpreter_cache.h"
 #include "js/permissions_checks.h"
 #include "kv/store.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/untyped_map.h"
+#include "node/rpc/test/node_stub.h"
 #include "node/tx_receipt_impl.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT
@@ -1766,7 +1770,7 @@ export function run() {
   }
 }
 
-TEST_CASE("Historical state")
+namespace
 {
   class CountingStore : public ccf::kv::Store
   {
@@ -1780,14 +1784,22 @@ TEST_CASE("Historical state")
     }
   };
 
+  ccf::TxReceiptImplPtr make_test_receipt()
+  {
+    return std::make_shared<ccf::TxReceiptImpl>(
+      std::vector<uint8_t>{1, 2, 3},
+      std::nullopt,
+      ccf::HistoryTree::Hash{},
+      nullptr,
+      ccf::NodeId("test-node"),
+      std::nullopt);
+  }
+}
+
+TEST_CASE("Historical state")
+{
   auto store = std::make_shared<CountingStore>();
-  auto receipt = std::make_shared<ccf::TxReceiptImpl>(
-    std::vector<uint8_t>{1, 2, 3},
-    std::nullopt,
-    ccf::HistoryTree::Hash{},
-    nullptr,
-    ccf::NodeId("test-node"),
-    std::nullopt);
+  auto receipt = make_test_receipt();
   auto state =
     std::make_shared<ccf::historical::State>(store, receipt, ccf::TxID{1, 1});
   std::weak_ptr<ccf::historical::State> original_state = state;
@@ -1835,6 +1847,88 @@ TEST_CASE("Historical state")
   }
 
   REQUIRE(original_state.expired());
+}
+
+TEST_CASE("Historical handles are scoped to their extension")
+{
+  ccf::js::core::Context ctx(TxAccess::APP_RO);
+  auto receipt = make_test_receipt();
+
+  auto run_request = [&](ccf::SeqNo seqno, const auto& during_request) {
+    auto store = std::make_shared<CountingStore>();
+    std::weak_ptr<ccf::kv::Store> weak_store = store;
+    auto state = std::make_shared<ccf::historical::State>(
+      store, receipt, ccf::TxID{1, seqno});
+    std::weak_ptr<ccf::historical::State> weak_state = state;
+
+    auto extension =
+      std::make_shared<ccf::js::extensions::HistoricalExtension>(nullptr);
+    ctx.add_extension(extension);
+
+    auto js_state = extension->create_historical_state_object(ctx, state);
+    REQUIRE_FALSE(js_state.is_exception());
+    auto map = js_state["kv"]["public:records"];
+    REQUIRE_FALSE(map.is_exception());
+    REQUIRE(ctx.to_str(map["size"]) == "0");
+    REQUIRE(store->tx_creations == 1);
+
+    during_request();
+
+    // End of request: the extension goes away, the interpreter and JS values
+    // remain
+    REQUIRE(ctx.remove_extension(extension));
+    extension.reset();
+    state.reset();
+    store.reset();
+    REQUIRE(weak_state.expired());
+    REQUIRE(weak_store.expired());
+
+    return map;
+  };
+
+  auto expect_unavailable = [&](const ccf::js::core::JSWrappedValue& map) {
+    auto size = map["size"];
+    REQUIRE(size.is_exception());
+    auto [reason, trace] = ctx.error_message();
+    REQUIRE(reason.find("Unable to access MapHandle") != std::string::npos);
+  };
+
+  auto stale_map = run_request(1, [] {});
+
+  {
+    INFO("A handle retained after its request completed fails gracefully");
+    expect_unavailable(stale_map);
+  }
+
+  run_request(2, [&] {
+    INFO("Handles from earlier requests are not visible to later ones");
+    expect_unavailable(stale_map);
+  });
+}
+
+TEST_CASE("JS registry does not share historical state between interpreters")
+{
+  ccf::AbstractNodeContext context;
+  context.install_subsystem<ccf::historical::AbstractStateCache>(
+    std::make_shared<ccf::StubNodeStateCache>());
+  auto interpreter_cache = std::make_shared<ccf::js::InterpreterCache>(1);
+  context.install_subsystem<ccf::js::AbstractInterpreterCache>(
+    interpreter_cache);
+
+  ccf::js::BaseDynamicJSEndpointRegistry registry(context);
+
+  for (const auto access : {TxAccess::APP_RO, TxAccess::APP_RW})
+  {
+    auto interpreter =
+      interpreter_cache->get_interpreter(access, std::nullopt, 0);
+    REQUIRE(interpreter != nullptr);
+    REQUIRE(
+      interpreter->get_extension<ccf::js::extensions::ConsensusExtension>() !=
+      nullptr);
+    REQUIRE(
+      interpreter->get_extension<ccf::js::extensions::HistoricalExtension>() ==
+      nullptr);
+  }
 }
 
 int main(int argc, char** argv)
