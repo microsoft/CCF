@@ -89,7 +89,7 @@ namespace ccf::historical
   }
 
   // This historical API exposes a single COSE signature, so receipts are
-  // described by the ECDSA one.
+  // described by the CLASSICAL one.
   static std::optional<ccf::CoseSignature> select_described_cose_signature(
     const ccf::CoseSignatureMap& cose_signatures)
   {
