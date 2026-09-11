@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [7.0.16]
+
+[7.0.16]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.16
+
+### Fixed
+
+- Historical states retrieved by JavaScript endpoints, through `ccf.historicalState` or `ccf.historical.getStateRange`, remain available through response conversion and are released when the request completes, rather than being retained for the lifetime of the node (#8355).
+
 ## [7.0.15]
 
 [7.0.15]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.15

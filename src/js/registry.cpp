@@ -232,6 +232,9 @@ namespace ccf::js
       }
     };
 
+    // Historical reads remain valid in response getters and toJSON, but must
+    // still be released before the interpreter can serve another request.
+    ExtensionScope historical_extension_scope(ctx);
     ccf::js::core::JSWrappedValue val;
     {
       ExtensionScope extension_scope(ctx);
@@ -241,6 +244,20 @@ namespace ccf::js
         {
           extension_scope.add(extension);
         }
+
+        if (namespace_restriction)
+        {
+          // The live KvExtension takes precedence until handler teardown.
+          // After that, retain only its namespace policy for historical reads,
+          // including while extracting exceptions and converting the response.
+          historical_extension_scope.add(
+            std::make_shared<ccf::js::extensions::KvExtension>(
+              nullptr, namespace_restriction));
+        }
+
+        historical_extension_scope.add(
+          std::make_shared<ccf::js::extensions::HistoricalExtension>(
+            &context.get_historical_state()));
 
         if (pre_exec_hook.has_value())
         {
@@ -686,10 +703,6 @@ namespace ccf::js
     // add ccf.consensus.*
     extensions.emplace_back(
       std::make_shared<ccf::js::extensions::ConsensusExtension>(this));
-    // add ccf.historical.*
-    extensions.emplace_back(
-      std::make_shared<ccf::js::extensions::HistoricalExtension>(
-        &context.get_historical_state()));
 
     interpreter_cache->set_interpreter_factory(
       [extensions](ccf::js::TxAccess access) {
