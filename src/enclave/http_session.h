@@ -71,6 +71,22 @@ namespace http
 
         close_session();
       }
+      catch (RequestTargetTooLongException& e)
+      {
+        if (error_reporter)
+        {
+          error_reporter->report_request_target_too_long_error(interface_id);
+        }
+
+        LOG_DEBUG_FMT("Request target is too long: {}", e.what());
+
+        send_odata_error_response(ccf::ErrorDetails{
+          HTTP_STATUS_URI_TOO_LONG,
+          ccf::errors::RequestTargetTooLong,
+          e.what()});
+
+        close_session();
+      }
       catch (RequestHeaderTooLargeException& e)
       {
         if (error_reporter)

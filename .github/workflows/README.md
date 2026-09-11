@@ -79,7 +79,7 @@ File: `codeql-analysis.yml`
 
 # Continuous Verification
 
-Runs the standard model checking, simulation, trace validation, counterexample, and disaster recovery jobs each week.
+Runs the standard model checking, simulation, trace validation, and counterexample jobs each week.
 
 File: `ci-verification.yml`
 3rd party dependencies: None
