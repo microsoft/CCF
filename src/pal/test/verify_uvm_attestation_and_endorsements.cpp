@@ -249,7 +249,7 @@ int main(int argc, char** argv)
           attestation_unverified.get(), &data, &size);
         validate_endorsements(
           endorsements,
-          ccf::pal::snp::TcbVersionRaw::from_span({data, size}),
+          ccf::pal::snp::TcbVersionRaw({data, size}),
           quote_info.endorsements);
 
         LOG_INFO_FMT("Verifying quote");

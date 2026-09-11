@@ -1006,7 +1006,7 @@ namespace ccf
       tav_snp_attestation_report_reported_tcb(attestation.get(), &data, &size);
       h->put(
         cpuid.hex_str(),
-        pal::snp::TcbVersionRaw::from_span({data, size}).to_policy(product));
+        pal::snp::TcbVersionRaw({data, size}).to_policy(product));
     }
 
     static void init_configuration(

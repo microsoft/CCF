@@ -373,8 +373,8 @@ namespace ccf::pal
     if (endorsed_tcb.has_value())
     {
       auto endorsed_tcb_policy = endorsed_tcb->to_policy(product_family);
-      auto reported_tcb = snp::TcbVersionRaw::from_span(reported_tcb_raw)
-                            .to_policy(product_family);
+      auto reported_tcb =
+        snp::TcbVersionRaw(reported_tcb_raw).to_policy(product_family);
 
       if (!snp::TcbVersionPolicy::is_valid(endorsed_tcb_policy, reported_tcb))
       {
@@ -408,7 +408,7 @@ namespace ccf::pal
       auto raw_endorsed_tcb =
         snp::TcbVersionRaw::from_hex(quote_info.endorsed_tcb.value());
 
-      const auto reported_tcb = snp::TcbVersionRaw::from_span(reported_tcb_raw);
+      const auto reported_tcb = snp::TcbVersionRaw(reported_tcb_raw);
       if (raw_endorsed_tcb != reported_tcb)
       {
         auto endorsed_tcb_hex = raw_endorsed_tcb.to_hex();

@@ -231,21 +231,14 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
 
     TcbVersionRaw() = default;
 
-    TcbVersionRaw(const std::vector<uint8_t>& data) :
-      TcbVersionRaw(from_span(data))
-    {}
-
-    static TcbVersionRaw from_span(std::span<const uint8_t> data)
+    TcbVersionRaw(std::span<const uint8_t> data)
     {
       if (data.size() != snp_tcb_version_size)
       {
         throw std::logic_error(
           fmt::format("Invalid TCB version raw data size: {}", data.size()));
       }
-      TcbVersionRaw tcb_version;
-      std::memcpy(
-        tcb_version.underlying_data, data.data(), snp_tcb_version_size);
-      return tcb_version;
+      std::memcpy(underlying_data, data.data(), snp_tcb_version_size);
     }
 
     [[nodiscard]] std::vector<uint8_t> data() const
@@ -622,7 +615,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
             case ProductName::Milan:
             case ProductName::Genoa:
             {
-              auto tcb = TcbVersionRaw::from_span(reported_tcb_raw)
+              auto tcb = TcbVersionRaw(reported_tcb_raw)
                            .to_policy(product)
                            .to_milan_genoa();
               boot_loader = fmt::format("{}", tcb.boot_loader);
@@ -633,9 +626,8 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
             }
             case ProductName::Turin:
             {
-              auto tcb = TcbVersionRaw::from_span(reported_tcb_raw)
-                           .to_policy(product)
-                           .to_turin();
+              auto tcb =
+                TcbVersionRaw(reported_tcb_raw).to_policy(product).to_turin();
               boot_loader = fmt::format("{}", tcb.boot_loader);
               tee = fmt::format("{}", tcb.tee);
               snp = fmt::format("{}", tcb.snp);

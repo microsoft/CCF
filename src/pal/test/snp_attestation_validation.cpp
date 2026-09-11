@@ -248,15 +248,23 @@ TEST_CASE("TCB values can be constructed from borrowed bytes")
 {
   using ccf::pal::snp::TcbVersionRaw;
   std::array<uint8_t, 8> bytes = {4, 0, 0, 0, 0, 0, 24, 219};
-  const auto tcb = TcbVersionRaw::from_span(bytes);
+  const auto tcb = TcbVersionRaw(std::span<const uint8_t>(bytes));
   CHECK(tcb.to_hex() == "db18000000000004");
   CHECK(tcb == TcbVersionRaw(std::vector<uint8_t>(bytes.begin(), bytes.end())));
   bytes.fill(0);
   CHECK(tcb.to_hex() == "db18000000000004");
-  CHECK_THROWS_WITH_AS(
-    TcbVersionRaw::from_span(std::span(bytes).first(7)),
-    "Invalid TCB version raw data size: 7",
-    std::logic_error);
+  for (const size_t size : {0, 7, 9})
+  {
+    const std::vector<uint8_t> invalid_bytes(size);
+    const auto expected_error =
+      fmt::format("Invalid TCB version raw data size: {}", size);
+    CHECK_THROWS_WITH_AS(
+      TcbVersionRaw{invalid_bytes}, expected_error.c_str(), std::logic_error);
+    CHECK_THROWS_WITH_AS(
+      TcbVersionRaw(std::span<const uint8_t>(invalid_bytes)),
+      expected_error.c_str(),
+      std::logic_error);
+  }
 }
 
 TEST_CASE("SNP verification preserves invalid size error")
@@ -555,7 +563,7 @@ TEST_CASE("Parsing tcb versions from attestaion")
   size_t size = 0;
   tav_snp_attestation_report_reported_tcb(
     milan_attestation.get(), &data, &size);
-  auto milan_tcb = ccf::pal::snp::TcbVersionRaw::from_span({data, size})
+  auto milan_tcb = ccf::pal::snp::TcbVersionRaw({data, size})
                      .to_policy(ccf::pal::snp::ProductName::Milan)
                      .to_milan_genoa();
   CHECK_EQ(milan_tcb.microcode, 0xdb);
@@ -868,7 +876,7 @@ TEST_CASE("Extracting metadata from endorsements")
   tav_snp_attestation_report_reported_tcb(attestation.get(), &data, &size);
   CHECK_EQ(
     nlohmann::json(endorsed_tcb.value()).dump(),
-    nlohmann::json(pal::snp::TcbVersionRaw::from_span({data, size})).dump());
+    nlohmann::json(pal::snp::TcbVersionRaw({data, size})).dump());
 
   auto endorsed_chip_id = pal::get_endorsed_chip_id_from_cert(chip_certificate);
   REQUIRE(endorsed_chip_id.has_value());

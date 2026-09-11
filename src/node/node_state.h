@@ -888,7 +888,7 @@ namespace ccf
         size_t size = 0;
         tav_snp_attestation_report_reported_tcb(
           snp_attestation.value().get(), &data, &size);
-        snp_tcb_version = ccf::pal::snp::TcbVersionRaw::from_span({data, size});
+        snp_tcb_version = ccf::pal::snp::TcbVersionRaw({data, size});
       }
 
       // Verify that the security policy matches the quoted digest of the policy
@@ -1044,7 +1044,7 @@ namespace ccf
               tav_snp_attestation_report_reported_tcb(
                 report.get(), &data, &size);
               const auto reported_tcb =
-                ccf::pal::snp::TcbVersionRaw::from_span({data, size});
+                ccf::pal::snp::TcbVersionRaw({data, size});
 
               // tcbm is a single hex value, like DB18000000000004.
               auto tcb_as_hex = reported_tcb.to_hex();

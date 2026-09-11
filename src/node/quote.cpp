@@ -340,8 +340,7 @@ namespace ccf
     size_t size = 0;
     tav_snp_attestation_report_reported_tcb(attestation.get(), &data, &size);
     auto attestation_tcb_policy =
-      pal::snp::TcbVersionRaw::from_span({data, size})
-        .to_policy(product_family);
+      pal::snp::TcbVersionRaw({data, size}).to_policy(product_family);
 
     if (pal::snp::TcbVersionPolicy::is_valid(
           min_tcb_opt.value(), attestation_tcb_policy))
