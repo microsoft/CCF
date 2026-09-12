@@ -11,6 +11,8 @@ namespace ccf::pal::snp
     return ioctl6::supports_sev_snp();
   }
 
+  // Acquire an attestation object. get_raw() returns owned, unverified bytes;
+  // decode them explicitly with parse_attestation_report_unverified().
   static std::unique_ptr<AttestationInterface> get_attestation(
     const PlatformAttestationReportData& report_data)
   {

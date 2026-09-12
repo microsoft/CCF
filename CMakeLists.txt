@@ -263,6 +263,10 @@ add_ccf_static_library(
   SRCS ${CCF_DIR}/src/pal/attestation.cpp
   LINK_LIBS ccfcrypto
 )
+target_include_directories(
+  ccf_pal
+  PRIVATE ${CCF_DIR}/3rdparty/internal/tee-attestation-verification/ffi/include
+)
 
 # CCF js lib
 add_ccf_static_library(
@@ -510,6 +514,11 @@ install(
   PATTERN "*.inc"
 )
 
+install(
+  FILES ${TAV_INCLUDE_DIR}/tav/snp.h ${TAV_INCLUDE_DIR}/tav/utils.h
+  DESTINATION include/3rdparty/tav
+)
+
 # Install all private CCF headers, which may still be needed
 install(
   DIRECTORY src/
@@ -598,6 +607,7 @@ if(BUILD_TESTS)
       snp_ioctl_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/pal/test/snp_ioctl_test.cpp
     )
+    target_link_libraries(snp_ioctl_test PRIVATE ccf_pal)
     set_property(TEST snp_ioctl_test APPEND PROPERTY LABELS snp)
     set_property(TEST snp_ioctl_test APPEND PROPERTY CONFIGURATIONS snp)
 
