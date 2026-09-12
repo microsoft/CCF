@@ -7,3 +7,4 @@ The key-value store represents the internal state of the network. It is used by 
   kv_how_to
   kv_serialisation
   api
+  semantics

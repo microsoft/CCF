@@ -1,0 +1,28 @@
+name = "kv"
+version = "0.1.0"
+defaultTargets = ["Kv", "kv_trace_check", "kv_trace_tests"]
+leanOptions = { warningAsError = true }
+lintDriver = "axiomAudit/\u00abaxiom-audit\u00bb"
+lintDriverArgs = ["--root", "Kv"]
+testDriver = "kv_trace_tests"
+
+[[require]]
+name = "mathlib"
+git = "https://github.com/leanprover-community/mathlib4.git"
+rev = "v4.33.1"
+
+[[require]]
+name = "axiomAudit"
+git = "https://github.com/leanprover-community/axiom-audit.git"
+rev = "46024e005996495c65ef609368e11ab39c4222e3" # v0.1.2
+
+[[lean_lib]]
+name = "Kv"
+
+[[lean_exe]]
+name = "kv_trace_check"
+root = "Main"
+
+[[lean_exe]]
+name = "kv_trace_tests"
+root = "Tests"

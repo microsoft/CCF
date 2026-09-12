@@ -4,7 +4,11 @@ on:
   pull_request:
     paths:
       - "lean/**"
+      - "src/kv/**"
+      - "tests/kv_trace_validation.py"
+      - "CMakeLists.txt"
       - ".github/workflows/lean.yml"
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -45,3 +49,94 @@ jobs:
           lake build --wfail
           lake lint
           lake exe canonical-checks
+
+  kv-contract:
+    name: KV model and trace conformance
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/azurelinux/base/core:3.0
+      options: --user root
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Bootstrap checkout dependencies
+        run: |
+          set -euo pipefail
+          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
+          tdnf -y update
+          tdnf -y install ca-certificates git
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install CCF build dependencies
+        uses: ./.github/actions/install-ci-dependencies
+
+      - name: Cache pinned Lean distribution
+        id: lean-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/ccf-lean/lean-4.33.1-linux
+          key: lean-${{ runner.os }}-${{ runner.arch }}-4.33.1-890afd185370f856
+
+      - name: Download pinned Lean distribution
+        if: steps.lean-cache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/ccf-lean"
+          cd "$RUNNER_TEMP/ccf-lean"
+          curl --fail --location --retry 3 \
+            https://github.com/leanprover/lean4/releases/download/v4.33.1/lean-4.33.1-linux.tar.zst \
+            --output lean.tar.zst
+          echo '890afd185370f85666025b883914ab4f4b339136f8c96167b69cfb62aecaf235  lean.tar.zst' | sha256sum --check
+          tar --zstd -xf lean.tar.zst
+          rm lean.tar.zst
+
+      - name: Select the repository toolchain
+        run: |
+          set -euo pipefail
+          test "$(tr -d '\r\n' < lean/kv/lean-toolchain)" = 'leanprover/lean4:v4.33.1'
+          echo "$RUNNER_TEMP/ccf-lean/lean-4.33.1-linux/bin" >> "$GITHUB_PATH"
+
+      - name: Restore Mathlib cache
+        working-directory: lean/kv
+        run: |
+          set -euo pipefail
+          lake exe cache get
+
+      - name: Build and check KV model
+        working-directory: lean/kv
+        run: |
+          set -euo pipefail
+          lake exe mk_all --check --lib Kv
+          lake build --wfail
+          lake lint
+          lake test
+
+      - name: Build instrumented KV unit tests
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          cmake -S . -B build-kv-trace -GNinja \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCCF_KV_TRACING=ON \
+            -DCCF_KV_TRACE_CHECKER="$PWD/lean/kv/.lake/build/bin/kv_trace_check"
+          cmake --build build-kv-trace --target kv_test --parallel 2
+
+      - name: Run KV unit tests
+        working-directory: build-kv-trace
+        run: ./tests.sh -R '^kv_test$' -L unit --no-tests=error
+
+      - name: Check generated traces
+        working-directory: build-kv-trace
+        run: ./tests.sh -R '^kv_trace_validation$' -L kv_trace --no-tests=error
+
+      - name: Upload conformance diagnostics
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: kv-contract-diagnostics
+          path: |
+            build-kv-trace/kv-traces/
+            build-kv-trace/Testing/

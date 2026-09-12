@@ -7,6 +7,7 @@
 #include "ccf/kv/untyped.h"
 #include "ds/champ_map.h"
 #include "kv/kv_types.h"
+#include "kv/trace.h"
 #include "kv/version_v.h"
 
 #include <optional>
@@ -38,6 +39,9 @@ namespace ccf::kv::untyped
     ChangeSet() = default;
 
   public:
+#ifdef CCF_KV_TRACING
+    trace::MapMetadata trace_metadata;
+#endif
     const size_t rollback_counter = {};
     const ccf::kv::untyped::State state;
     const ccf::kv::untyped::State committed;

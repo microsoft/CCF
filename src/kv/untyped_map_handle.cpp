@@ -99,6 +99,11 @@ namespace ccf::kv::untyped
   {
     const auto* value_p = read_key(key);
     auto found = value_p != nullptr;
+    KV_TRACE(trace::operation(
+      tx_changes.trace_metadata,
+      "get",
+      map_name,
+      {{"key", ccf::ds::to_hex(key)}, {"value", trace::bytes(value_p)}}));
     LOG_TRACE_FMT(
       "KV[{}]::get({}) - {}found", map_name, key, found ? "" : "not ");
     if (!found)
@@ -119,6 +124,11 @@ namespace ccf::kv::untyped
     {
       tx_changes.reads.insert(
         std::make_pair(key, std::make_tuple(NoVersion, NoVersion)));
+      KV_TRACE(trace::operation(
+        tx_changes.trace_metadata,
+        "previous_write",
+        map_name,
+        {{"key", ccf::ds::to_hex(key)}, {"value", nullptr}}));
       return std::nullopt;
     }
 
@@ -126,6 +136,11 @@ namespace ccf::kv::untyped
     tx_changes.reads.insert(std::make_pair(
       key, std::make_tuple(search->version, search->read_version)));
 
+    KV_TRACE(trace::operation(
+      tx_changes.trace_metadata,
+      "previous_write",
+      map_name,
+      {{"key", ccf::ds::to_hex(key)}, {"value", search->version}}));
     return search->version;
   }
 
@@ -134,6 +149,13 @@ namespace ccf::kv::untyped
   {
     // If there is no committed value, return empty.
     auto search = tx_changes.committed.get(key);
+    KV_TRACE(trace::operation(
+      tx_changes.trace_metadata,
+      "get_global",
+      map_name,
+      {{"key", ccf::ds::to_hex(key)},
+       {"value",
+        trace::bytes(search.has_value() ? &search->value : nullptr)}}));
     if (!search.has_value())
     {
       return std::nullopt;
@@ -147,6 +169,11 @@ namespace ccf::kv::untyped
   {
     const auto* versionv_p = read_key(key);
     auto found = versionv_p != nullptr;
+    KV_TRACE(trace::operation(
+      tx_changes.trace_metadata,
+      "has",
+      map_name,
+      {{"key", ccf::ds::to_hex(key)}, {"value", found}}));
     LOG_TRACE_FMT(
       "KV[{}]::has({}) - {}found", map_name, key, found ? "" : "not ");
     return found;
@@ -155,6 +182,11 @@ namespace ccf::kv::untyped
   bool MapHandle::has_globally_committed(const MapHandle::KeyType& key)
   {
     const auto* raw = tx_changes.committed.getp(key);
+    KV_TRACE(trace::operation(
+      tx_changes.trace_metadata,
+      "has_global",
+      map_name,
+      {{"key", ccf::ds::to_hex(key)}, {"value", raw != nullptr}}));
     return raw != nullptr;
   }
 
@@ -164,6 +196,11 @@ namespace ccf::kv::untyped
     LOG_TRACE_FMT("KV[{}]::put({}, {})", map_name, key, value);
     // Record in the write set.
     tx_changes.writes[key] = value;
+    KV_TRACE(trace::operation(
+      tx_changes.trace_metadata,
+      "put",
+      map_name,
+      {{"key", ccf::ds::to_hex(key)}, {"value", ccf::ds::to_hex(value)}}));
   }
 
   void MapHandle::remove(const MapHandle::KeyType& key)
@@ -171,10 +208,19 @@ namespace ccf::kv::untyped
     LOG_TRACE_FMT("KV[{}]::remove({})", map_name, key);
     // Record in the write set
     tx_changes.writes[key] = std::nullopt;
+    KV_TRACE(trace::operation(
+      tx_changes.trace_metadata,
+      "remove",
+      map_name,
+      {{"key", ccf::ds::to_hex(key)}}));
   }
 
   void MapHandle::clear()
   {
+    KV_TRACE(trace::operation(tx_changes.trace_metadata, "clear", map_name));
+#ifdef CCF_KV_TRACING
+    trace::Suppress trace_suppress(tx_changes.trace_metadata);
+#endif
     foreach([this](const auto& k, const auto&) {
       remove(k);
       return true;
@@ -183,6 +229,44 @@ namespace ccf::kv::untyped
 
   void MapHandle::foreach(const MapHandle::ElementVisitorWithEarlyOut& f)
   {
+    KV_TRACE(if (tx_changes.trace_metadata.suppressed == 0) {
+      auto& metadata = tx_changes.trace_metadata;
+      const auto iteration = ++metadata.iteration;
+      trace::operation(
+        metadata, "foreach_begin", map_name, {{"iteration", iteration}});
+      try
+      {
+        foreach_state_and_writes(
+          [&](const KeyType& k, const ValueType& v) {
+            trace::operation(
+              metadata,
+              "foreach_entry",
+              map_name,
+              {{"iteration", iteration},
+               {"key", ccf::ds::to_hex(k)},
+               {"value", ccf::ds::to_hex(v)}});
+            const auto result = f(k, v);
+            trace::operation(
+              metadata,
+              "foreach_continue",
+              map_name,
+              {{"iteration", iteration}, {"value", result}});
+            return result;
+          },
+          false);
+      }
+      catch (...)
+      {
+        trace::transaction(
+          metadata.id,
+          "unsupported",
+          {{"operation", "foreach callback exception"}});
+        throw;
+      }
+      trace::operation(
+        metadata, "foreach_end", map_name, {{"iteration", iteration}});
+      return;
+    });
     foreach_state_and_writes(f, false);
   }
 
@@ -190,11 +274,18 @@ namespace ccf::kv::untyped
   {
     size_t size_ = 0;
 
-    foreach([&size_](const auto&, const auto&) {
-      ++size_;
-      return true;
-    });
+    {
+#ifdef CCF_KV_TRACING
+      trace::Suppress trace_suppress(tx_changes.trace_metadata);
+#endif
+      foreach([&size_](const auto&, const auto&) {
+        ++size_;
+        return true;
+      });
+    }
 
+    KV_TRACE(trace::operation(
+      tx_changes.trace_metadata, "size", map_name, {{"value", size_}}));
     return size_;
   }
 
@@ -203,6 +294,10 @@ namespace ccf::kv::untyped
     const std::optional<MapHandle::KeyType>& from,
     const std::optional<MapHandle::KeyType>& to)
   {
+    KV_TRACE(trace::transaction(
+      tx_changes.trace_metadata.id,
+      "unsupported",
+      {{"operation", "range"}, {"map", map_name}}));
     // Current limitations/ineficiencies:
     // - The state and writes are wastefully looped over until `from` is
     // found.
