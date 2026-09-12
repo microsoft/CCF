@@ -386,11 +386,13 @@ set(
 )
 
 # SNIPPET_START: JS generic application
+include(${CCF_DIR}/samples/apps/common.cmake)
+
 add_ccf_app(
   js_generic
   SRCS
     ${CCF_DIR}/src/apps/js_generic/js_generic.cpp
-    ${CCF_DIR}/samples/apps/main.cpp
+    $<TARGET_OBJECTS:ccf_app_main>
   INSTALL_LIBS ON
 )
 # SNIPPET_END: JS generic application

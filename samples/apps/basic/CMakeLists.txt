@@ -11,4 +11,6 @@ if(NOT TARGET "ccf")
   find_package(${CCF_PROJECT} REQUIRED)
 endif()
 
-add_ccf_app(basic SRCS basic.cpp ${CCF_DIR}/samples/apps/main.cpp)
+include(../common.cmake)
+
+add_ccf_app(basic SRCS basic.cpp $<TARGET_OBJECTS:ccf_app_main>)

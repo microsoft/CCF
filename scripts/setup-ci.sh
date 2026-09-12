@@ -58,6 +58,7 @@ install_build_dependencies() {
     tdnf "${TDNF_OPTIONS[@]}" install  \
         build-essential  \
         clang  \
+        lld  \
         cmake  \
         ninja-build  \
         patch  \

@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
+- `add_ccf_app()` accepts `OBJECT` to share compiled application sources between executables. The sample applications now reuse their common entry point and logging implementation instead of compiling them for each binary.
 - SNP attestation reports are now parsed and verified through TAV. Decode a report with `ccf::pal::snp::parse_attestation_report_unverified()`, which returns `ccf::pal::snp::AttestationReport`, an owning smart pointer, and verify it against TAV and CCF's policy with `ccf::pal::verify_snp_attestation_report_and_get()`. Field accessors borrow the report's storage, so destroying or replacing the owner invalidates them. The packed `ccf::pal::snp::Attestation` wire-layout type and its accessors still work, but are deprecated (#8083).
 - `ccf::pal::snp::get_attestation()` in `ccf/pal/snp_ioctl.h` is unchanged, but its `get()` accessor is deprecated. Call `get_raw()` instead for the unverified report bytes, then decode them with `parse_attestation_report_unverified()` (#8083).
 
