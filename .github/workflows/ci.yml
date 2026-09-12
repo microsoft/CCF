@@ -66,6 +66,7 @@ jobs:
           mkdir build
           cd build
           cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DCLANG_TIDY=ON ..
+          # Keep the full graph here to preserve clang-tidy coverage.
           ninja
         shell: bash
 
@@ -160,7 +161,8 @@ jobs:
           mkdir build
           cd build
           cmake -GNinja -DCMAKE_BUILD_TYPE=Debug ..
-          ninja
+          # Recovery and schema dynamically select all three logging variants.
+          ninja js_generic logging logging_cose_only logging_cose_only_allow_join_dual programmability nobuiltins
         shell: bash
 
       - name: "Test virtual"
@@ -222,7 +224,8 @@ jobs:
           mkdir build
           cd build
           cmake -GNinja -DCMAKE_BUILD_TYPE=Debug ..
-          ninja
+          # bucket_c and partitions, including the Python-driven Raft scenarios.
+          ninja js_generic logging logging_cose_only programmability raft_driver
         shell: bash
 
       - name: "Test virtual"
@@ -299,7 +302,8 @@ jobs:
           mkdir build
           cd build
           cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DWORKER_THREADS=1 ..
-          ninja
+          # SNP unit/e2e tests, code_update, and the explicitly run ledger bench.
+          ninja logging programmability snp_ioctl_test snp_attestation_test ledger_bench
         shell: bash
 
       - name: "Tests"
@@ -385,7 +389,8 @@ jobs:
           mkdir build
           cd build
           cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DWORKER_THREADS=1 ..
-          ninja
+          # SNP unit/e2e tests, code_update, and the explicitly run ledger bench.
+          ninja logging programmability snp_ioctl_test snp_attestation_test ledger_bench
         shell: bash
 
       - name: "Tests"
