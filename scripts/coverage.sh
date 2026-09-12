@@ -20,6 +20,7 @@ Options:
   -d <dir>          Directory to search for .profraw files (default: .)
   -o <file>         Output merged profile file (default: <dir>/coverage.profdata)
   --html <dir>      Generate an HTML coverage report in <dir>
+  --json <file>     Export LLVM per-file coverage counts as JSON
   --show-uncovered  Print files and line numbers with zero coverage
   -h, --help        Show this help
 
@@ -33,8 +34,8 @@ Examples:
   ctest -L unit
   ../scripts/coverage.sh
 
-  # Generate an HTML report:
-  ../scripts/coverage.sh --html ./coverage_html
+  # Generate HTML and machine-readable per-file counts:
+  ../scripts/coverage.sh --html ./coverage_html --json ./coverage_html/coverage.json
 
   # Show which specific lines are uncovered:
   ../scripts/coverage.sh --show-uncovered
@@ -56,6 +57,7 @@ EOF
 PROFRAW_DIR="."
 OUTPUT_FILE=""
 HTML_DIR=""
+JSON_FILE=""
 SHOW_UNCOVERED=0
 BINARIES=()
 
@@ -64,6 +66,7 @@ while [[ $# -gt 0 ]]; do
     -d) PROFRAW_DIR="$2"; shift 2 ;;
     -o) OUTPUT_FILE="$2"; shift 2 ;;
     --html) HTML_DIR="$2"; shift 2 ;;
+    --json) JSON_FILE="$2"; shift 2 ;;
     --show-uncovered) SHOW_UNCOVERED=1; shift ;;
     -h|--help) usage ;;
     --) shift; BINARIES+=("$@"); break ;;
@@ -225,4 +228,10 @@ if [[ -n "${HTML_DIR}" ]]; then
   mkdir -p "${HTML_DIR}"
   "${LLVM_COV}" show "${COV_ARGS[@]}" --format=html --output-dir="${HTML_DIR}"
   echo "HTML report written to '${HTML_DIR}/index.html'"
+fi
+
+if [[ -n "${JSON_FILE}" ]]; then
+  mkdir -p "$(dirname "${JSON_FILE}")"
+  "${LLVM_COV}" export "${COV_ARGS[@]}" --summary-only > "${JSON_FILE}"
+  echo "Per-file coverage counts written to '${JSON_FILE}'"
 fi

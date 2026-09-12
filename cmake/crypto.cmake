@@ -41,6 +41,7 @@ target_compile_options(
 add_san(ccfcrypto)
 add_hardening(ccfcrypto)
 add_tidy(ccfcrypto)
+enable_coverage(ccfcrypto)
 
 target_link_libraries(ccfcrypto PUBLIC crypto ssl ccf_threading)
 target_link_libraries(ccfcrypto PUBLIC ccf_rs)
