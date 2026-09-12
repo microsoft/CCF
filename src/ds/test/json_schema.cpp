@@ -40,6 +40,49 @@ TEST_CASE("basic macro parser generation")
   REQUIRE(bar_1.c == j["c"]);
 }
 
+TEST_CASE("parse errors do not include field values")
+{
+  {
+    // Missing required field: message names the fields present, but not
+    // their values
+    nlohmann::json j;
+    j["b"] = "SECRET_VALUE";
+    j["c"] = 12345;
+
+    try
+    {
+      j.get<Bar>();
+      FAIL("Expected JsonParseError");
+    }
+    catch (const ccf::JsonParseError& jpe)
+    {
+      const std::string msg = jpe.what();
+      REQUIRE(msg.find("Missing required field 'a'") != std::string::npos);
+      REQUIRE(msg.find("b") != std::string::npos);
+      REQUIRE(msg.find("c") != std::string::npos);
+      REQUIRE(msg.find("SECRET_VALUE") == std::string::npos);
+      REQUIRE(msg.find("12345") == std::string::npos);
+    }
+  }
+
+  {
+    // Not an object: message names the type, but not the value
+    const nlohmann::json j = "SECRET_VALUE";
+    try
+    {
+      j.get<Bar>();
+      FAIL("Expected JsonParseError");
+    }
+    catch (const ccf::JsonParseError& jpe)
+    {
+      const std::string msg = jpe.what();
+      REQUIRE(msg.find("Expected object") != std::string::npos);
+      REQUIRE(msg.find("string") != std::string::npos);
+      REQUIRE(msg.find("SECRET_VALUE") == std::string::npos);
+    }
+  }
+}
+
 struct Biz : public Bar
 {
   size_t f = {};
@@ -693,6 +736,27 @@ TEST_CASE("JSON with different field names")
   REQUIRE(foo2.a == foo.a);
   REQUIRE(foo2.b == foo.b);
   REQUIRE(foo2.c == foo.c);
+
+  {
+    // Missing required renamed field: message names the fields present, but
+    // not their values
+    nlohmann::json j_missing;
+    j_missing["X"] = 987654;
+    try
+    {
+      j_missing.get<renamed::Foo>();
+      FAIL("Expected JsonParseError");
+    }
+    catch (const ccf::JsonParseError& jpe)
+    {
+      const std::string msg = jpe.what();
+      REQUIRE(
+        msg.find("Missing required field 'SOMETHING_ELSE'") !=
+        std::string::npos);
+      REQUIRE(msg.find("X") != std::string::npos);
+      REQUIRE(msg.find("987654") == std::string::npos);
+    }
+  }
 }
 
 TEST_CASE("example validation")
