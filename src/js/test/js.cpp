@@ -2295,6 +2295,38 @@ TEST_CASE("ScopedCleanse scrubs secret bytes on scope exit")
     CHECK(json["nested"][2].is_null());
     CHECK(json["nested"][3] == true);
   }
+
+  SUBCASE("JSON roots on exception unwind")
+  {
+    const auto check_unwind =
+      [](nlohmann::json value, const nlohmann::json& expected) {
+        const auto fail = [&]() {
+          ccf::js::ScopedCleanse guard(value);
+          throw std::runtime_error("boom");
+        };
+        CHECK_THROWS_AS(fail(), std::runtime_error);
+        CHECK(value.type() == expected.type());
+        CHECK(value == expected);
+      };
+    check_unwind("secret", std::string(6, '\0'));
+    check_unwind(
+      nlohmann::json::array({"secret", {{"d", "nested"}}}),
+      nlohmann::json::array(
+        {std::string(6, '\0'), {{"d", std::string(6, '\0')}}}));
+    for (const auto& value :
+         {nlohmann::json(),
+          nlohmann::json(true),
+          nlohmann::json(42),
+          nlohmann::json(42u),
+          nlohmann::json(3.5),
+          nlohmann::json(""),
+          nlohmann::json::array(),
+          nlohmann::json::object(),
+          nlohmann::json::binary({1, 2, 3})})
+    {
+      check_unwind(value, value);
+    }
+  }
 }
 
 namespace

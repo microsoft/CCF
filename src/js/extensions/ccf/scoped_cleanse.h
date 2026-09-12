@@ -24,9 +24,9 @@ namespace ccf::js
       }
     }
 
-    inline void cleanse(ccf::crypto::JsonWebKeyECPublic&) {}
-    inline void cleanse(ccf::crypto::JsonWebKeyRSAPublic&) {}
-    inline void cleanse(ccf::crypto::JsonWebKeyEdDSAPublic&) {}
+    inline void cleanse(ccf::crypto::JsonWebKeyECPublic& jwk) {}
+    inline void cleanse(ccf::crypto::JsonWebKeyRSAPublic& jwk) {}
+    inline void cleanse(ccf::crypto::JsonWebKeyEdDSAPublic& jwk) {}
 
     inline void cleanse(ccf::crypto::JsonWebKeyECPrivate& jwk)
     {
@@ -50,13 +50,20 @@ namespace ccf::js
 
     inline void cleanse(nlohmann::json& value)
     {
-      if (value.is_string())
+      if (auto* string = value.get_ptr<nlohmann::json::string_t*>())
       {
-        cleanse(value.get_ref<nlohmann::json::string_t&>());
+        cleanse(*string);
       }
-      else if (value.is_structured())
+      else if (auto* array = value.get_ptr<nlohmann::json::array_t*>())
       {
-        for (auto& child : value)
+        for (auto& child : *array)
+        {
+          cleanse(child);
+        }
+      }
+      else if (auto* object = value.get_ptr<nlohmann::json::object_t*>())
+      {
+        for (auto& [key, child] : *object)
         {
           cleanse(child);
         }
