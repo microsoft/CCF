@@ -785,7 +785,7 @@ namespace ccf
 
       RecoveryDecisionProtocolNode(NodeState& owner_) : owner(owner_) {}
 
-      NodeId get_node_id() const override
+      [[nodiscard]] NodeId get_node_id() const override
       {
         return owner.get_node_id();
       }

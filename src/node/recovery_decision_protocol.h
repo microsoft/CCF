@@ -50,7 +50,7 @@ namespace ccf
   {
   public:
     virtual ~AbstractRecoveryDecisionProtocolNode() = default;
-    virtual NodeId get_node_id() const = 0;
+    [[nodiscard]] virtual NodeId get_node_id() const = 0;
     virtual void cache_node_info(
       std::optional<recovery_decision_protocol::RequestNodeInfo>& cache,
       const QuoteInfo& quote_info) = 0;

@@ -34,8 +34,9 @@ namespace ccf::recovery_decision_protocol::test
     TxID recovered_txid = {2, 42};
     size_t cache_calls = 0;
     size_t restarts = 0;
+    bool populate_cache = true;
 
-    NodeId get_node_id() const override
+    [[nodiscard]] NodeId get_node_id() const override
     {
       return NodeId{"test-node"};
     }
@@ -45,8 +46,11 @@ namespace ccf::recovery_decision_protocol::test
       const QuoteInfo& quote_info) override
     {
       ++cache_calls;
-      cache = info;
-      cache->quote_info = quote_info;
+      if (populate_cache)
+      {
+        cache = info;
+        cache->quote_info = quote_info;
+      }
     }
 
     crypto::Pem get_self_signed_certificate() override
@@ -297,6 +301,24 @@ namespace ccf::recovery_decision_protocol::test
     ccf::NodeInfo node_info;
     node_info.encryption_pub_key = dummy_enc_pubk;
     tx.rw<Nodes>(Tables::NODES)->put(f.node.get_node_id(), node_info);
+    SUBCASE("Adapter leaves cache empty")
+    {
+      f.node.populate_cache = false;
+      bool caught = false;
+      try
+      {
+        f.protocol.get_iamopen_request(tx);
+      }
+      catch (const std::bad_optional_access& e)
+      {
+        caught = true;
+        CHECK(std::string(e.what()) == std::bad_optional_access().what());
+      }
+      CHECK(caught);
+      CHECK(f.node.cache_calls == 1);
+      f.node.cache_calls = 0;
+      f.node.populate_cache = true;
+    }
     auto first = f.protocol.get_iamopen_request(tx);
     CHECK(first.txid == f.node.recovered_txid);
     CHECK(first.info.location == f.config->location);

@@ -69,7 +69,7 @@ namespace ccf
       LOG_INFO_FMT("Recovery-decision-protocol not configured, skipping");
       return;
     }
-    auto& config = sealing_recovery->recovery_decision_protocol;
+    const auto& config = sealing_recovery->recovery_decision_protocol;
     if (!recovering || !config.has_value())
     {
       LOG_INFO_FMT("Skipping recovery-decision-protocol");
@@ -104,7 +104,7 @@ namespace ccf
 
   void RecoveryDecisionProtocolSubsystem::advance(ccf::kv::Tx& tx, bool timeout)
   {
-    auto& config = get_config();
+    const auto& config = get_config();
 
     auto* sm_state_handle = tx.rw<recovery_decision_protocol::SMState>(
       Tables::RECOVERY_DECISION_PROTOCOL_SM_STATE);
@@ -304,7 +304,7 @@ namespace ccf
   {
     LOG_TRACE_FMT("Recovery-decision-protocol: Setting up retry timers");
 
-    auto& config = get_config();
+    const auto& config = get_config();
 
     retry_task = ccf::tasks::make_basic_task(
       [this]() {
@@ -314,7 +314,7 @@ namespace ccf
             "Recovery-decision-protocol not configured, skipping retry timers");
           return;
         }
-        auto& config = sealing_recovery->recovery_decision_protocol;
+        const auto& config = sealing_recovery->recovery_decision_protocol;
         if (!config.has_value())
         {
           throw std::logic_error("Recovery-decision-protocol not configured");
@@ -395,7 +395,7 @@ namespace ccf
 
   void RecoveryDecisionProtocolSubsystem::start_failover_timers()
   {
-    auto& config = get_config();
+    const auto& config = get_config();
 
     if (config.failover_timeout.count_ms() == 0)
     {
@@ -409,7 +409,7 @@ namespace ccf
 
     failover_task = ccf::tasks::make_basic_task(
       [this]() {
-        auto& location = get_location();
+        const auto& location = get_location();
 
         LOG_TRACE_FMT(
           "Recovery-decision-protocol timeout, sending timeout to internal "
@@ -578,12 +578,16 @@ namespace ccf
         fmt::format("Node {} not found in nodes table", node.get_node_id()));
     }
     node.cache_node_info(node_info_cache, node_info_opt->quote_info);
+    if (!node_info_cache.has_value())
+    {
+      throw std::bad_optional_access();
+    }
     return node_info_cache.value();
   }
 
   void RecoveryDecisionProtocolSubsystem::send_gossip_unsafe(kv::ReadOnlyTx& tx)
   {
-    auto& config = get_config();
+    const auto& config = get_config();
 
     LOG_TRACE_FMT("Broadcasting recovery-decision-protocol gossip");
 
@@ -594,7 +598,7 @@ namespace ccf
     const auto self_signed_node_cert = node.get_self_signed_certificate();
     const auto node_private_key = node.get_private_key();
 
-    for (auto& target : config.expected_locations)
+    for (const auto& target : config.expected_locations)
     {
       auto target_address = target.address;
       dispatch_authenticated_message(
@@ -667,8 +671,8 @@ namespace ccf
   void RecoveryDecisionProtocolSubsystem::send_iamopen_unsafe(
     ccf::kv::ReadOnlyTx& tx)
   {
-    auto& config = get_config();
-    auto& location = get_location();
+    const auto& config = get_config();
+    const auto& location = get_location();
 
     LOG_TRACE_FMT("Sending recovery-decision-protocol iamopen");
 
@@ -676,7 +680,7 @@ namespace ccf
     const auto self_signed_node_cert = node.get_self_signed_certificate();
     const auto node_private_key = node.get_private_key();
 
-    for (auto& target : config.expected_locations)
+    for (const auto& target : config.expected_locations)
     {
       if (target.name == location.name)
       {
@@ -699,7 +703,7 @@ namespace ccf
     {
       throw std::logic_error("Sealing recovery not configured");
     }
-    auto& config = sealing_recovery->recovery_decision_protocol;
+    const auto& config = sealing_recovery->recovery_decision_protocol;
     if (!config.has_value())
     {
       throw std::logic_error("Recovery-decision-protocol not configured");
