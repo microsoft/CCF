@@ -4,7 +4,9 @@
 
 #include "ccf/service/map.h"
 #include "node_signature.h"
+#include "service/tables/identity_types.h"
 
+#include <map>
 #include <string>
 #include <vector>
 
@@ -62,9 +64,26 @@ namespace ccf
     ccf::kv::RawCopySerialisedValue<std::vector<uint8_t>>;
 
   using CoseSignature = std::vector<uint8_t>;
+  using CoseSignatureMap = std::map<IdentityType, CoseSignature>;
 
-  // Most recent COSE signature is a single Value in the KV
-  using CoseSignatures = ServiceValue<CoseSignature>;
+  // One COSE signature per service signing identity. CLASSICAL is 0, so its
+  // key serialises to the same 8 zero bytes as the single-value table which
+  // preceded multiple signing identities.
+  using CoseSignatures = ServiceMap<IdentityType, CoseSignature>;
+
+  inline CoseSignatureMap extract_cose_signatures(
+    const CoseSignatures::Write& writes)
+  {
+    CoseSignatureMap signatures;
+    for (const auto& [identity_type, signature] : writes)
+    {
+      if (signature.has_value())
+      {
+        signatures.emplace(identity_type, signature.value());
+      }
+    }
+    return signatures;
+  }
 
   namespace Tables
   {

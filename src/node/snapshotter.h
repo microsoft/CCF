@@ -71,7 +71,7 @@ namespace ccf
 
       std::optional<::consensus::Index> evidence_idx = std::nullopt;
 
-      std::optional<std::vector<uint8_t>> cose_sig = std::nullopt;
+      std::optional<CoseSignatureMap> cose_sigs = std::nullopt;
       std::optional<std::vector<uint8_t>> tree = std::nullopt;
 
       // Outputs of the serialise action, handed to the persist action.
@@ -203,7 +203,7 @@ namespace ccf
       std::shared_ptr<Snapshotter> self;
       ccf::kv::Version version;
       ::consensus::Index evidence_idx;
-      std::vector<uint8_t> cose_sig;
+      CoseSignatureMap cose_sigs;
       std::vector<uint8_t> tree;
       std::shared_ptr<SnapshotSerialisation> serialised;
 
@@ -213,13 +213,13 @@ namespace ccf
         std::shared_ptr<Snapshotter> _self,
         ccf::kv::Version _version,
         ::consensus::Index _evidence_idx,
-        std::vector<uint8_t> _cose_sig,
+        CoseSignatureMap _cose_sigs,
         std::vector<uint8_t> _tree,
         std::shared_ptr<SnapshotSerialisation> _serialised) :
         self(std::move(_self)),
         version(_version),
         evidence_idx(_evidence_idx),
-        cose_sig(std::move(_cose_sig)),
+        cose_sigs(std::move(_cose_sigs)),
         tree(std::move(_tree)),
         serialised(std::move(_serialised)),
         name(fmt::format("persist-snapshot@{}", version))
@@ -228,7 +228,7 @@ namespace ccf
       void do_action() override
       {
         self->persist_snapshot_(
-          version, evidence_idx, cose_sig, tree, serialised);
+          version, evidence_idx, cose_sigs, tree, serialised);
       }
 
       [[nodiscard]] const std::string& get_name() const override
@@ -310,12 +310,12 @@ namespace ccf
     void persist_snapshot_(
       ccf::kv::Version version,
       ::consensus::Index evidence_idx,
-      const std::vector<uint8_t>& cose_sig,
+      const CoseSignatureMap& cose_sigs,
       const std::vector<uint8_t>& tree,
       const std::shared_ptr<SnapshotSerialisation>& serialised)
     {
       auto serialised_receipt = build_and_serialise_receipt(
-        cose_sig,
+        cose_sigs,
         tree,
         evidence_idx,
         serialised->write_set_digest,
@@ -365,7 +365,7 @@ namespace ccf
         if (
           snapshot_info.evidence_idx.has_value() &&
           idx > snapshot_info.evidence_idx.value() &&
-          snapshot_info.cose_sig.has_value() && snapshot_info.tree.has_value())
+          snapshot_info.cose_sigs.has_value() && snapshot_info.tree.has_value())
         {
           // Commit evidence is durable. Enqueue the persist action on this
           // generation's ordered task collection. OrderedTasks guarantees it
@@ -378,7 +378,7 @@ namespace ccf
               shared_from_this(),
               snapshot_info.version,
               snapshot_info.evidence_idx.value(),
-              std::move(snapshot_info.cose_sig.value()),
+              std::move(snapshot_info.cose_sigs.value()),
               std::move(snapshot_info.tree.value()),
               snapshot_info.serialised));
 
@@ -513,8 +513,8 @@ namespace ccf
       return false;
     }
 
-    void record_cose_signature(
-      ::consensus::Index idx, const std::vector<uint8_t>& cose_sig)
+    void record_cose_signatures(
+      ::consensus::Index idx, const CoseSignatureMap& cose_sigs)
     {
       std::lock_guard<ccf::ds::Mutex> guard(lock);
 
@@ -523,16 +523,17 @@ namespace ccf
         if (
           pending_snapshot.evidence_idx.has_value() &&
           idx > pending_snapshot.evidence_idx.value() &&
-          !pending_snapshot.cose_sig.has_value())
+          !pending_snapshot.cose_sigs.has_value())
         {
           LOG_TRACE_FMT(
-            "Recording COSE signature at {} for snapshot {} with evidence at "
-            "{}",
+            "Recording {} COSE signature(s) at {} for snapshot {} with "
+            "evidence at {}",
+            cose_sigs.size(),
             idx,
             pending_snapshot.version,
             pending_snapshot.evidence_idx.value());
 
-          pending_snapshot.cose_sig = cose_sig;
+          pending_snapshot.cose_sigs = cose_sigs;
         }
       }
     }

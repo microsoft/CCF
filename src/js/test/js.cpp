@@ -1904,7 +1904,7 @@ namespace
   {
     return std::make_shared<ccf::TxReceiptImpl>(
       std::vector<uint8_t>{1, 2, 3},
-      std::nullopt,
+      ccf::CoseSignatureMap{},
       ccf::HistoryTree::Hash{},
       nullptr,
       ccf::NodeId("test-node"),
