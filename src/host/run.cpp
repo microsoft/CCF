@@ -28,6 +28,7 @@
 #include "ds/non_blocking.h"
 #include "ds/notifying.h"
 #include "ds/oversized.h"
+#include "ds/time_bound_logger.h"
 #include "enclave/entry_points.h"
 #include "handle_ring_buffer.h"
 #include "host/env.h"
@@ -41,7 +42,6 @@
 #include "sig_term.h"
 #include "tcp.h"
 #include "ticker.h"
-#include "time_bound_logger.h"
 #include "udp.h"
 
 #include <CLI11/CLI11.hpp>
@@ -1077,7 +1077,7 @@ namespace ccf
     // set the host log level
     ccf::logger::config::level() = log_level;
 
-    asynchost::TimeBoundLogger::default_max_time =
+    ccf::ds::TimeBoundLogger::default_max_time =
       config.slow_io_logging_threshold;
 
     // create the enclave:

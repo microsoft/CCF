@@ -15,6 +15,7 @@
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>
 #include <fcntl.h>
+#include <limits>
 #include <random>
 #include <string>
 #include <sys/file.h>
@@ -1633,7 +1634,7 @@ TEST_CASE("Snapshot file name" * doctest::test_suite("snapshot"))
   std::vector<size_t> snapshot_idx_interval_ranges = {
     10, 1000, 10000, std::numeric_limits<size_t>::max() - 2};
 
-  using namespace snapshots;
+  using namespace ccf::snapshots;
 
   for (auto const& snapshot_idx_interval_range : snapshot_idx_interval_ranges)
   {
@@ -1680,7 +1681,7 @@ TEST_CASE("Generate and commit snapshots" * doctest::test_suite("snapshot"))
   auto snap_ro_dir = AutoDeleteFolder(snapshot_dir_read_only);
   fs::create_directory(snapshot_dir_read_only);
 
-  using namespace snapshots;
+  using namespace ccf::snapshots;
   SnapshotWriter snapshots(snapshot_dir);
 
   const std::vector<fs::path> find_dirs{snapshot_dir, snapshot_dir_read_only};
@@ -1745,6 +1746,37 @@ TEST_CASE("Generate and commit snapshots" * doctest::test_suite("snapshot"))
     const auto& snapshot = latest_committed_snapshot->filename();
     REQUIRE(get_snapshot_idx_from_file_name(snapshot) == new_snapshot_idx);
   }
+}
+
+TEST_CASE(
+  "Snapshot writer preserves full-width sequence numbers" *
+  doctest::test_suite("snapshot"))
+{
+  auto snap_dir = AutoDeleteFolder(snapshot_dir);
+  ccf::snapshots::SnapshotWriter writer(snapshot_dir);
+
+  const ccf::SeqNo evidence_idx = std::numeric_limits<ccf::SeqNo>::max();
+  const ccf::SeqNo snapshot_idx = evidence_idx - 1;
+  writer.persist_snapshot(
+    snapshot_idx, evidence_idx, dummy_snapshot, dummy_receipt);
+
+  const auto expected_path = fs::path(snapshot_dir) /
+    fmt::format("snapshot_{}_{}.committed", snapshot_idx, evidence_idx);
+  REQUIRE(fs::exists(expected_path));
+  CHECK(
+    ccf::snapshots::find_latest_committed_snapshot_in_directory(snapshot_dir) ==
+    expected_path);
+  CHECK(
+    ccf::snapshots::get_snapshot_idx_from_file_name(
+      expected_path.filename().string()) == snapshot_idx);
+  CHECK(
+    ccf::snapshots::get_snapshot_evidence_idx_from_file_name(
+      expected_path.filename().string()) == evidence_idx);
+
+  auto expected_data = dummy_snapshot;
+  expected_data.insert(
+    expected_data.end(), dummy_receipt.begin(), dummy_receipt.end());
+  CHECK(files::slurp(expected_path.string()) == expected_data);
 }
 
 TEST_CASE("Chunking according to entry header flag")

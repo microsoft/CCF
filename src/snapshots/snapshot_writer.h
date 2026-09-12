@@ -3,9 +3,9 @@
 #pragma once
 
 #include "ccf/ds/logger.h"
-#include "consensus/ledger_enclave_types.h"
+#include "ccf/tx_id.h"
 #include "ds/files.h"
-#include "host/time_bound_logger.h"
+#include "ds/time_bound_logger.h"
 #include "snapshots/filenames.h"
 
 #include <cerrno>
@@ -18,7 +18,7 @@
 #include <unistd.h>
 #include <vector>
 
-namespace snapshots
+namespace ccf::snapshots
 {
   namespace fs = std::filesystem;
 
@@ -48,12 +48,12 @@ namespace snapshots
     SnapshotWriter& operator=(const SnapshotWriter&) = delete;
 
     void persist_snapshot(
-      ::consensus::Index snapshot_idx,
-      ::consensus::Index evidence_idx,
+      ccf::SeqNo snapshot_idx,
+      ccf::SeqNo evidence_idx,
       const std::vector<uint8_t>& snapshot,
       const std::vector<uint8_t>& receipt)
     {
-      asynchost::TimeBoundLogger log_if_slow(
+      ccf::ds::TimeBoundLogger log_if_slow(
         fmt::format("Committing snapshot - snapshot_idx={}", snapshot_idx));
 
       // e.g. snapshot_100_105
@@ -121,7 +121,7 @@ namespace snapshots
           snapshot.size() + receipt.size());
 
         {
-          asynchost::TimeBoundLogger log_sync_if_slow(
+          ccf::ds::TimeBoundLogger log_sync_if_slow(
             fmt::format("Syncing snapshot - fsync({})", file_name));
           // NOLINTNEXTLINE(concurrency-mt-unsafe)
           if (fsync(snapshot_fd) == -1)
@@ -142,7 +142,7 @@ namespace snapshots
         auto committed_file_name =
           fmt::format("{}{}", file_name, snapshot_committed_suffix);
         {
-          asynchost::TimeBoundLogger log_rename_if_slow(fmt::format(
+          ccf::ds::TimeBoundLogger log_rename_if_slow(fmt::format(
             "Renaming snapshot to committed - rename({})", file_name));
           files::rename(
             snapshot_dir / file_name, snapshot_dir / committed_file_name);
@@ -169,7 +169,7 @@ namespace snapshots
     static bool write_all(
       int fd, const std::string& file_name, const uint8_t* data, size_t size)
     {
-      asynchost::TimeBoundLogger log_if_slow(fmt::format(
+      ccf::ds::TimeBoundLogger log_if_slow(fmt::format(
         "Writing snapshot data ({} bytes) - write({})", size, file_name));
 
       size_t offset = 0;
