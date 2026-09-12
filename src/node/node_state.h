@@ -46,6 +46,7 @@
 #include "node/node_to_node_channel_manager.h"
 #include "node/recovery_decision_protocol.h"
 #include "node/recovery_snapshot_ledger.h"
+#include "node/rpc/gov_effects.h"
 #include "node/signature_cache_subsystem.h"
 #include "node/snapshotter.h"
 #include "node_to_node.h"
@@ -140,8 +141,6 @@ namespace ccf
 
   class NodeState : public AbstractNodeState
   {
-    friend class RecoveryDecisionProtocolSubsystem;
-
     struct FetchSnapshot : public ccf::tasks::BaseTask
     {
       const ccf::StartupConfig::Join join_config;
@@ -779,6 +778,67 @@ namespace ccf
       start_public_ledger_recovery_unsafe();
     }
 
+    struct RecoveryDecisionProtocolNode
+      : public AbstractRecoveryDecisionProtocolNode
+    {
+      NodeState& owner;
+
+      RecoveryDecisionProtocolNode(NodeState& owner_) : owner(owner_) {}
+
+      NodeId get_node_id() const override
+      {
+        return owner.get_node_id();
+      }
+
+      void cache_node_info(
+        std::optional<recovery_decision_protocol::RequestNodeInfo>& cache,
+        const QuoteInfo& quote_info_) override
+      {
+        std::lock_guard<ds::Mutex> guard(owner.lock);
+        if (!owner.config.sealing_recovery.has_value())
+        {
+          throw std::logic_error("Sealing recovery not configured");
+        }
+        cache = recovery_decision_protocol::RequestNodeInfo{
+          .quote_info = quote_info_,
+          .location = owner.config.sealing_recovery->location,
+          .service_cert_der =
+            ccf::crypto::cert_pem_to_der(owner.network.identity->cert),
+        };
+      }
+
+      crypto::Pem get_self_signed_certificate() override
+      {
+        return owner.get_self_signed_certificate();
+      }
+
+      crypto::Pem get_private_key() override
+      {
+        return owner.node_sign_kp->private_key_pem();
+      }
+
+      TxID get_last_recovered_signed_txid() override
+      {
+        auto recovery_seqno = owner.last_recovered_signed_idx;
+        auto recovery_view = owner.consensus->get_view(recovery_seqno);
+        // get_view returns VIEW_UNKNOWN if the seqno is outside view history.
+        if (recovery_view == ccf::VIEW_UNKNOWN)
+        {
+          throw std::logic_error(fmt::format(
+            "Could not find view for last recovered signed seqno {}",
+            recovery_seqno));
+        }
+        return {recovery_view, recovery_seqno};
+      }
+
+      void restart() override
+      {
+        RINGBUFFER_WRITE_MESSAGE(AdminMessage::restart, owner.to_host);
+      }
+    };
+
+    GovernanceEffects recovery_governance;
+    RecoveryDecisionProtocolNode recovery_node;
     RecoveryDecisionProtocolSubsystem recovery_decision_protocol;
 
   public:
@@ -797,7 +857,13 @@ namespace ccf
       network(network),
       rpcsessions(std::move(rpcsessions)),
       share_manager(network.ledger_secrets),
-      recovery_decision_protocol(this)
+      recovery_governance(*this),
+      recovery_node(*this),
+      recovery_decision_protocol(
+        config.sealing_recovery,
+        network.tables,
+        recovery_governance,
+        recovery_node)
     {
       network.tables->set_readiness(ccf::kv::StoreReadiness::Unavailable);
     }

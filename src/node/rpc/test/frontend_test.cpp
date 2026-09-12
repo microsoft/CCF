@@ -20,6 +20,7 @@
 #include "node/rpc/node_frontend.h"
 #include "node/test/channel_stub.h"
 #include "node_stub.h"
+#include "recovery_decision_protocol_test.h"
 #include "service/internal_tables_access.h"
 
 #include <doctest/doctest.h>

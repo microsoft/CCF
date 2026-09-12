@@ -39,13 +39,37 @@ namespace ccf::recovery_decision_protocol
 
 namespace ccf
 {
-  class NodeState;
+  namespace kv
+  {
+    class Store;
+  }
+
+  class AbstractGovernanceEffects;
+
+  class AbstractRecoveryDecisionProtocolNode
+  {
+  public:
+    virtual ~AbstractRecoveryDecisionProtocolNode() = default;
+    virtual NodeId get_node_id() const = 0;
+    virtual void cache_node_info(
+      std::optional<recovery_decision_protocol::RequestNodeInfo>& cache,
+      const QuoteInfo& quote_info) = 0;
+    virtual crypto::Pem get_self_signed_certificate() = 0;
+    virtual crypto::Pem get_private_key() = 0;
+    virtual TxID get_last_recovered_signed_txid() = 0;
+    virtual void restart() = 0;
+  };
+
   class RecoveryDecisionProtocolSubsystem
   {
   private:
-    // RecoveryDecisionProtocolSubsystem is solely owned by NodeState, and all
-    // tasks should finish before NodeState is destroyed
-    NodeState* node_state;
+    // The owner must keep these dependencies alive and finish all tasks before
+    // destroying the subsystem. Retain references to configuration and store
+    // slots, which are populated after NodeState construction.
+    const std::optional<SealingRecoveryConfig>& sealing_recovery;
+    const std::shared_ptr<kv::Store>& tables;
+    AbstractGovernanceEffects& governance;
+    AbstractRecoveryDecisionProtocolNode& node;
 
     // Periodic task handles - kept to allow cancellation
     ccf::tasks::Task retry_task;
@@ -57,7 +81,11 @@ namespace ccf
       iamopen_request_cache;
 
   public:
-    RecoveryDecisionProtocolSubsystem(NodeState* node_state);
+    RecoveryDecisionProtocolSubsystem(
+      const std::optional<SealingRecoveryConfig>& sealing_recovery,
+      const std::shared_ptr<kv::Store>& tables,
+      AbstractGovernanceEffects& governance,
+      AbstractRecoveryDecisionProtocolNode& node);
     void reset_state(ccf::kv::Tx& tx);
     void try_start(ccf::kv::Tx& tx, bool recovering);
     void advance(ccf::kv::Tx& tx, bool timeout);
@@ -82,8 +110,7 @@ namespace ccf
       const recovery_decision_protocol::NodeInfo& node_info);
     void send_iamopen_unsafe(kv::ReadOnlyTx& tx);
 
-    RecoveryDecisionProtocolConfig& get_config();
-    sealing_recovery::Location& get_location();
-    ccf::TxID get_last_recovered_signed_txid();
+    const RecoveryDecisionProtocolConfig& get_config();
+    const sealing_recovery::Location& get_location();
   };
 }

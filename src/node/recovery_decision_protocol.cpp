@@ -7,10 +7,14 @@
 #include "ccf/ds/locking.h"
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/self_healing_open.h"
+#include "ccf/service/tables/service.h"
 #include "ccf/tx.h"
 #include "ccf/tx_id.h"
+#include "ds/actors.h"
 #include "http_client/curl.h"
-#include "node_state.h"
+#include "kv/store.h"
+#include "node/rpc/gov_effects_interface.h"
+#include "service/tables/previous_service_identity.h"
 #include "tasks/basic_task.h"
 #include "tasks/task_system.h"
 
@@ -21,8 +25,14 @@ namespace ccf
 {
 
   RecoveryDecisionProtocolSubsystem::RecoveryDecisionProtocolSubsystem(
-    NodeState* node_state_) :
-    node_state(node_state_)
+    const std::optional<SealingRecoveryConfig>& sealing_recovery_,
+    const std::shared_ptr<kv::Store>& tables_,
+    AbstractGovernanceEffects& governance_,
+    AbstractRecoveryDecisionProtocolNode& node_) :
+    sealing_recovery(sealing_recovery_),
+    tables(tables_),
+    governance(governance_),
+    node(node_)
   {}
 
   void RecoveryDecisionProtocolSubsystem::reset_state(ccf::kv::Tx& tx)
@@ -54,13 +64,12 @@ namespace ccf
   void RecoveryDecisionProtocolSubsystem::try_start(
     ccf::kv::Tx& tx, bool recovering)
   {
-    if (!node_state->config.sealing_recovery.has_value())
+    if (!sealing_recovery.has_value())
     {
       LOG_INFO_FMT("Recovery-decision-protocol not configured, skipping");
       return;
     }
-    auto& config =
-      node_state->config.sealing_recovery->recovery_decision_protocol;
+    auto& config = sealing_recovery->recovery_decision_protocol;
     if (!recovering || !config.has_value())
     {
       LOG_INFO_FMT("Skipping recovery-decision-protocol");
@@ -77,7 +86,7 @@ namespace ccf
       ->put(recovery_decision_protocol::StateMachine::GOSSIPING);
 
     // Delay start of message retry and failover timers until after commit
-    node_state->network.tables->set_global_hook(
+    tables->set_global_hook(
       Tables::RECOVERY_DECISION_PROTOCOL_SM_STATE,
       recovery_decision_protocol::SMState::wrap_commit_hook(
         [this](
@@ -211,7 +220,7 @@ namespace ccf
           sm_state_handle->put(
             recovery_decision_protocol::StateMachine::OPENING);
 
-          node_state->transition_service_to_open(tx, identities);
+          governance.transition_service_to_open(tx, identities);
         }
         break;
       }
@@ -246,7 +255,7 @@ namespace ccf
           ccf::crypto::cert_der_to_pem(node_config->service_cert_der);
         LOG_INFO_FMT("{}", service_cert.str());
 
-        RINGBUFFER_WRITE_MESSAGE(AdminMessage::restart, node_state->to_host);
+        node.restart();
       }
       case recovery_decision_protocol::StateMachine::OPENING:
       {
@@ -299,20 +308,19 @@ namespace ccf
 
     retry_task = ccf::tasks::make_basic_task(
       [this]() {
-        if (!node_state->config.sealing_recovery.has_value())
+        if (!sealing_recovery.has_value())
         {
           LOG_INFO_FMT(
             "Recovery-decision-protocol not configured, skipping retry timers");
           return;
         }
-        auto& config =
-          node_state->config.sealing_recovery->recovery_decision_protocol;
+        auto& config = sealing_recovery->recovery_decision_protocol;
         if (!config.has_value())
         {
           throw std::logic_error("Recovery-decision-protocol not configured");
         }
 
-        auto tx = node_state->network.tables->create_read_only_tx();
+        auto tx = tables->create_read_only_tx();
         auto* sm_state_handle = tx.ro<recovery_decision_protocol::SMState>(
           Tables::RECOVERY_DECISION_PROTOCOL_SM_STATE);
 
@@ -409,7 +417,7 @@ namespace ccf
 
         // Stop the timer if the node has completed its
         // recovery-decision-protocol
-        auto tx = node_state->network.tables->create_read_only_tx();
+        auto tx = tables->create_read_only_tx();
         auto* sm_state_handle = tx.ro<recovery_decision_protocol::SMState>(
           Tables::RECOVERY_DECISION_PROTOCOL_SM_STATE);
         if (!sm_state_handle->get().has_value())
@@ -429,8 +437,8 @@ namespace ccf
         // Send a timeout to the internal handlers
         http_client::UniqueCURL curl_handle;
 
-        const auto cert = node_state->get_self_signed_certificate();
-        const auto privkey_pem = node_state->node_sign_kp->private_key_pem();
+        const auto cert = node.get_self_signed_certificate();
+        const auto privkey_pem = node.get_private_key();
 
         curl_handle.set_opt(CURLOPT_SSL_VERIFYHOST, 0L);
         curl_handle.set_opt(CURLOPT_SSL_VERIFYPEER, 0L);
@@ -563,21 +571,13 @@ namespace ccf
     }
 
     auto* nodes_handle = tx.ro<Nodes>(Tables::NODES);
-    auto node_info_opt = nodes_handle->get(node_state->get_node_id());
+    auto node_info_opt = nodes_handle->get(node.get_node_id());
     if (!node_info_opt.has_value())
     {
-      throw std::logic_error(fmt::format(
-        "Node {} not found in nodes table", node_state->get_node_id()));
+      throw std::logic_error(
+        fmt::format("Node {} not found in nodes table", node.get_node_id()));
     }
-    {
-      std::lock_guard<ds::Mutex> ns_guard(node_state->lock);
-      node_info_cache = recovery_decision_protocol::RequestNodeInfo{
-        .quote_info = node_info_opt->quote_info,
-        .location = get_location(),
-        .service_cert_der =
-          ccf::crypto::cert_pem_to_der(node_state->network.identity->cert),
-      };
-    }
+    node.cache_node_info(node_info_cache, node_info_opt->quote_info);
     return node_info_cache.value();
   }
 
@@ -589,11 +589,10 @@ namespace ccf
 
     recovery_decision_protocol::GossipRequest request;
     request.info = get_node_info(tx);
-    request.txid = get_last_recovered_signed_txid();
+    request.txid = node.get_last_recovered_signed_txid();
     nlohmann::json request_json = request;
-    const auto self_signed_node_cert =
-      node_state->get_self_signed_certificate();
-    const auto node_private_key = node_state->node_sign_kp->private_key_pem();
+    const auto self_signed_node_cert = node.get_self_signed_certificate();
+    const auto node_private_key = node.get_private_key();
 
     for (auto& target : config.expected_locations)
     {
@@ -618,15 +617,14 @@ namespace ccf
     recovery_decision_protocol::TaggedWithNodeInfo request{
       .info = get_node_info(tx)};
     nlohmann::json request_json = request;
-    const auto self_signed_node_cert =
-      node_state->get_self_signed_certificate();
+    const auto self_signed_node_cert = node.get_self_signed_certificate();
 
     dispatch_authenticated_message(
       request_json,
       node_info.location.address,
       "vote",
       self_signed_node_cert,
-      node_state->node_sign_kp->private_key_pem());
+      node.get_private_key());
   }
 
   recovery_decision_protocol::IAmOpenRequest&
@@ -641,7 +639,7 @@ namespace ccf
     }
 
     auto previous_service_cert =
-      tx.ro(node_state->network.previous_service_identity)->get();
+      tx.ro<PreviousServiceIdentity>(Tables::PREVIOUS_SERVICE_IDENTITY)->get();
     if (!previous_service_cert.has_value())
     {
       throw std::logic_error(
@@ -660,7 +658,7 @@ namespace ccf
       iamopen_request_cache->info = node_info;
       iamopen_request_cache->prev_service_fingerprint =
         previous_service_identity_fingerprint;
-      iamopen_request_cache->txid = get_last_recovered_signed_txid();
+      iamopen_request_cache->txid = node.get_last_recovered_signed_txid();
     }
 
     return iamopen_request_cache.value();
@@ -675,9 +673,8 @@ namespace ccf
     LOG_TRACE_FMT("Sending recovery-decision-protocol iamopen");
 
     nlohmann::json request_json = get_iamopen_request(tx);
-    const auto self_signed_node_cert =
-      node_state->get_self_signed_certificate();
-    const auto node_private_key = node_state->node_sign_kp->private_key_pem();
+    const auto self_signed_node_cert = node.get_self_signed_certificate();
+    const auto node_private_key = node.get_private_key();
 
     for (auto& target : config.expected_locations)
     {
@@ -695,15 +692,14 @@ namespace ccf
     }
   }
 
-  RecoveryDecisionProtocolConfig& RecoveryDecisionProtocolSubsystem::
+  const RecoveryDecisionProtocolConfig& RecoveryDecisionProtocolSubsystem::
     get_config()
   {
-    if (!node_state->config.sealing_recovery.has_value())
+    if (!sealing_recovery.has_value())
     {
       throw std::logic_error("Sealing recovery not configured");
     }
-    auto& config =
-      node_state->config.sealing_recovery->recovery_decision_protocol;
+    auto& config = sealing_recovery->recovery_decision_protocol;
     if (!config.has_value())
     {
       throw std::logic_error("Recovery-decision-protocol not configured");
@@ -711,27 +707,13 @@ namespace ccf
     return config.value();
   }
 
-  sealing_recovery::Location& RecoveryDecisionProtocolSubsystem::get_location()
+  const sealing_recovery::Location& RecoveryDecisionProtocolSubsystem::
+    get_location()
   {
-    if (!node_state->config.sealing_recovery.has_value())
+    if (!sealing_recovery.has_value())
     {
       throw std::logic_error("Sealing recovery not configured");
     }
-    return node_state->config.sealing_recovery->location;
-  }
-
-  ccf::TxID RecoveryDecisionProtocolSubsystem::get_last_recovered_signed_txid()
-  {
-    auto recovery_seqno = node_state->last_recovered_signed_idx;
-    auto recovery_view = node_state->consensus->get_view(recovery_seqno);
-    // get_view returns VIEW_UNKNOWN=InvalidView if the view is not in the view
-    // history (too old or too new)
-    if (recovery_view == ccf::VIEW_UNKNOWN)
-    {
-      throw std::logic_error(fmt::format(
-        "Could not find view for last recovered signed seqno {}",
-        recovery_seqno));
-    }
-    return ccf::TxID{recovery_view, recovery_seqno};
+    return sealing_recovery->location;
   }
 }
