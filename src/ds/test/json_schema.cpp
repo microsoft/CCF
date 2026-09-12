@@ -43,8 +43,7 @@ TEST_CASE("basic macro parser generation")
 TEST_CASE("parse errors do not include field values")
 {
   {
-    // Missing required field: message names the fields present, but not
-    // their values
+    // Missing required field: message does not include the object's values
     nlohmann::json j;
     j["b"] = "SECRET_VALUE";
     j["c"] = 12345;
@@ -58,15 +57,13 @@ TEST_CASE("parse errors do not include field values")
     {
       const std::string msg = jpe.what();
       REQUIRE(msg.find("Missing required field 'a'") != std::string::npos);
-      REQUIRE(msg.find("b") != std::string::npos);
-      REQUIRE(msg.find("c") != std::string::npos);
       REQUIRE(msg.find("SECRET_VALUE") == std::string::npos);
       REQUIRE(msg.find("12345") == std::string::npos);
     }
   }
 
   {
-    // Not an object: message names the type, but not the value
+    // Not an object: message does not include the value
     const nlohmann::json j = "SECRET_VALUE";
     try
     {
@@ -77,7 +74,6 @@ TEST_CASE("parse errors do not include field values")
     {
       const std::string msg = jpe.what();
       REQUIRE(msg.find("Expected object") != std::string::npos);
-      REQUIRE(msg.find("string") != std::string::npos);
       REQUIRE(msg.find("SECRET_VALUE") == std::string::npos);
     }
   }
@@ -738,8 +734,8 @@ TEST_CASE("JSON with different field names")
   REQUIRE(foo2.c == foo.c);
 
   {
-    // Missing required renamed field: message names the fields present, but
-    // not their values
+    // Missing required renamed field: message does not include the object's
+    // values
     nlohmann::json j_missing;
     j_missing["X"] = 987654;
     try
@@ -753,7 +749,6 @@ TEST_CASE("JSON with different field names")
       REQUIRE(
         msg.find("Missing required field 'SOMETHING_ELSE'") !=
         std::string::npos);
-      REQUIRE(msg.find("X") != std::string::npos);
       REQUIRE(msg.find("987654") == std::string::npos);
     }
   }

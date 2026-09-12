@@ -18,7 +18,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Fixed a double free when setting a property on a JavaScript object fails, which application script could trigger while the request object was being built. Such failures are now reported as a failed request (#8356).
 - Historical states retrieved by JavaScript endpoints, through `ccf.historicalState` or `ccf.historical.getStateRange`, remain available through response conversion and are released when the request completes, rather than being retained for the lifetime of the node (#8355).
 - JavaScript `verifySnpAttestation()` and the deprecated C++ `ccf::pal::snp::Attestation` returned swapped `current_minor` and `current_build` values. Both now match the AMD SEV-SNP report layout, with `current_build` at offset `0x1E8` and `current_minor` at `0x1E9` (#8083).
-- `ccf::JsonParseError` messages for a missing required field or a non-object value no longer include a serialisation of the parsed JSON, which could contain sensitive values such as private JWK fields. They now list the field names present, or the JSON type found (#8363).
+- `ccf::JsonParseError` messages for a missing required field or a non-object value no longer include a serialisation of the parsed JSON, which could contain sensitive values such as private JWK fields (#8363).
 
 ### Changed
 

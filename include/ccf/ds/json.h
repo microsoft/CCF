@@ -44,19 +44,6 @@ namespace ccf
     }
   };
 
-  // Describes an object's shape for error messages without including any of
-  // its values, which may be sensitive (eg. private key material).
-  inline std::string describe_json_keys(const nlohmann::json& j)
-  {
-    std::vector<std::string> keys;
-    keys.reserve(j.size());
-    for (const auto& item : j.items())
-    {
-      keys.push_back(item.key());
-    }
-    return fmt::format("[{}]", fmt::join(keys, ", "));
-  }
-
   inline constexpr size_t MAX_JSON_NESTING_DEPTH = 64;
 
   class JsonTooDeep : public ccf::JsonParseError
@@ -469,9 +456,8 @@ namespace std
     const auto it = j.find(JSON_FIELD); \
     if (it == j.end()) \
     { \
-      throw ccf::JsonParseError( \
-        "Missing required field '" JSON_FIELD "' in object with fields: " + \
-        ccf::describe_json_keys(j)); \
+      throw ccf::JsonParseError("Missing required field '" JSON_FIELD \
+                                "' in object"); \
     } \
     try \
     { \
@@ -814,8 +800,7 @@ namespace std
   { \
     if (!j.is_object()) \
     { \
-      throw ccf::JsonParseError( \
-        std::string("Expected object, found: ") + j.type_name()); \
+      throw ccf::JsonParseError("Expected object"); \
     } \
     _FOR_JSON_COUNT_NN(__VA_ARGS__)(POP1)(READ_REQUIRED, TYPE, ##__VA_ARGS__) \
   } \
@@ -851,8 +836,7 @@ namespace std
   { \
     if (!j.is_object()) \
     { \
-      throw ccf::JsonParseError( \
-        std::string("Expected object, found: ") + j.type_name()); \
+      throw ccf::JsonParseError("Expected object"); \
     } \
     _FOR_JSON_COUNT_NN(__VA_ARGS__) \
     (POP2)(READ_REQUIRED_WITH_RENAMES, TYPE, ##__VA_ARGS__) \
