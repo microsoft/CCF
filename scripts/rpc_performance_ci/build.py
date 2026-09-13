@@ -21,6 +21,7 @@ from common import (
     SOURCES,
     VARIANTS,
     VENV,
+    WORKSPACE,
     assert_clean,
     binary_path,
     client_fingerprint,
@@ -207,7 +208,7 @@ def main():
     state = {"status": "building", "started_at": time.time()}
     write_json(ROOT / "build-state.json", state)
     try:
-        workspace = Path(os.environ["GITHUB_WORKSPACE"]).resolve()
+        workspace = WORKSPACE
         git(
             workspace, "merge-base", "--is-ancestor", REVISIONS["base"], REVISIONS["pr"]
         )

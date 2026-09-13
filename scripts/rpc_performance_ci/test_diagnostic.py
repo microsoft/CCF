@@ -10,6 +10,7 @@ import io
 import json
 import os
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -31,6 +32,13 @@ class DiagnosticTests(unittest.TestCase):
         cls.controller = importlib.import_module("run")
         cls.report = importlib.import_module("report")
         cls.addClassCleanup(cls.measure._run_lock.close)
+
+    def workflow_document(self):
+        yaml = importlib.import_module("yaml")
+        return yaml.load(
+            (self.common.WORKSPACE / ".github/workflows/bencher.yml").read_text(),
+            Loader=yaml.BaseLoader,
+        )
 
     def statistics(self, users=320, duration=20, failures=0):
         rows = [
@@ -99,12 +107,7 @@ class DiagnosticTests(unittest.TestCase):
             )
 
     def test_workflow_remains_one_manual_only_unprivileged_pool_job(self):
-        yaml = importlib.import_module("yaml")
-        repository = self.common.HERE.parents[1]
-        document = yaml.load(
-            (repository / ".github/workflows/bencher.yml").read_text(),
-            Loader=yaml.BaseLoader,
-        )
+        document = self.workflow_document()
         self.assertEqual(set(document["on"]), {"workflow_dispatch"})
         self.assertEqual(document["permissions"], "read-all")
         self.assertEqual(len(document["jobs"]), 1)
@@ -120,6 +123,130 @@ class DiagnosticTests(unittest.TestCase):
             "./.github/actions/install-ci-dependencies",
             [step.get("uses") for step in job["steps"]],
         )
+
+    def test_container_paths_are_shared_by_collector_and_uploads(self):
+        job = next(iter(self.workflow_document()["jobs"].values()))
+        self.assertNotIn("CCF_RPC_DIAGNOSTIC_ARTIFACTS", job.get("env", {}))
+        setup = next(step for step in job["steps"] if step.get("id") == "paths")
+        with tempfile.TemporaryDirectory(prefix="ccf-rpc-container-") as directory:
+            root = Path(directory)
+            container_workspace = root / "container workspace"
+            container_workspace.mkdir()
+            environment = {
+                **os.environ,
+                "GITHUB_WORKSPACE": "/mnt/azure_nvme_temp/_work/CCF/CCF",
+                "GITHUB_ENV": str(root / "github-env"),
+                "GITHUB_STEP_SUMMARY": str(root / "summary.log"),
+                "GITHUB_RUN_ID": "123",
+                "GITHUB_RUN_ATTEMPT": "2",
+                "RUNNER_TEMP": str(root / "container temp"),
+            }
+            subprocess.run(
+                ["bash", "-c", setup["run"]],
+                cwd=container_workspace,
+                env=environment,
+                check=True,
+            )
+            exported = dict(
+                line.split("=", 1)
+                for line in (root / "github-env").read_text().splitlines()
+            )
+            expected = container_workspace / "rpc-performance-artifacts"
+            self.assertEqual(exported["CCF_RPC_DIAGNOSTIC_ARTIFACTS"], str(expected))
+            self.assertEqual(
+                exported["CCF_RPC_DIAGNOSTIC_ROOT"],
+                str(root / "container temp" / "ccf-rpc-123-2"),
+            )
+            subprocess.run(
+                [sys.executable, str(self.common.HERE / "report.py")],
+                cwd=container_workspace,
+                env={**environment, **exported},
+                check=True,
+                capture_output=True,
+            )
+            for step in job["steps"]:
+                if step.get("uses", "").startswith("actions/upload-artifact@"):
+                    upload_path = step["with"]["path"].replace(
+                        "${{ env.CCF_RPC_DIAGNOSTIC_ARTIFACTS }}", str(expected)
+                    )
+                    self.assertTrue(Path(upload_path).is_dir())
+                    self.assertTrue(any(Path(upload_path).iterdir()))
+            self.assertTrue((expected / "data/operational-summary.json").is_file())
+
+    def test_checkout_failure_skips_collection_and_uploads(self):
+        job = next(iter(self.workflow_document()["jobs"].values()))
+        steps = {step["id"]: step for step in job["steps"] if "id" in step}
+        self.assertEqual(steps["checkout"]["with"]["set-safe-directory"], "true")
+        self.assertNotIn("continue-on-error", steps["checkout"])
+        self.assertEqual(
+            steps["collect"]["if"],
+            "always() && steps.checkout.outcome == 'success'",
+        )
+        self.assertEqual(
+            steps["checkout_failure"]["if"],
+            "always() && steps.checkout.outcome != 'success'",
+        )
+        for step in job["steps"]:
+            if step.get("uses", "").startswith("actions/upload-artifact@"):
+                self.assertEqual(
+                    step["if"], "always() && steps.collect.outcome == 'success'"
+                )
+        with tempfile.TemporaryDirectory(
+            prefix="ccf-rpc-checkout-failure-"
+        ) as directory:
+            summary = Path(directory) / "summary.log"
+            subprocess.run(
+                ["bash", "-c", steps["checkout_failure"]["run"]],
+                cwd=directory,
+                env={**os.environ, "GITHUB_STEP_SUMMARY": str(summary)},
+                check=True,
+            )
+            self.assertIn("Operational success: no", summary.read_text())
+            self.assertIn(
+                "No diagnostic build or measurements ran", summary.read_text()
+            )
+            self.assertFalse((Path(directory) / "rpc-performance-artifacts").exists())
+
+    def test_git_trust_is_scoped_to_expected_checkouts(self):
+        self.assertEqual(self.common.WORKSPACE, self.common.HERE.parents[1])
+        for source in (self.common.WORKSPACE, *self.common.SOURCES.values()):
+            if source != self.common.WORKSPACE:
+                source.mkdir(parents=True, exist_ok=True)
+            with patch.object(
+                self.common.subprocess, "check_output", return_value="revision\n"
+            ) as execute:
+                self.assertEqual(
+                    self.common.git(source, "rev-parse", "HEAD"), "revision"
+                )
+                execute.assert_called_once_with(
+                    [
+                        "git",
+                        "-c",
+                        f"safe.directory={source}",
+                        "-C",
+                        str(source),
+                        "rev-parse",
+                        "HEAD",
+                    ],
+                    text=True,
+                )
+        with patch.object(self.common.subprocess, "check_output") as execute:
+            with self.assertRaises(ValueError):
+                self.common.git(self.common.ROOT / "unrelated", "status")
+            execute.assert_not_called()
+
+    def test_git_trust_rejects_foreign_owned_diagnostic_worktree(self):
+        source = self.common.SOURCES["base"]
+        source.mkdir(parents=True, exist_ok=True)
+        with (
+            patch.object(
+                self.common.os, "geteuid", return_value=source.stat().st_uid + 1
+            ),
+            patch.object(self.common.subprocess, "check_output") as execute,
+        ):
+            with self.assertRaises(PermissionError):
+                self.common.git(source, "status")
+            execute.assert_not_called()
 
     def test_statistics_reject_invalid_measurements(self):
         _, duration, marker = self.measure.validate_statistics(*self.statistics())

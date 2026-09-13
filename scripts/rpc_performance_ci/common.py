@@ -10,6 +10,7 @@ import subprocess
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+WORKSPACE = HERE.parents[1]
 ROOT = Path(os.environ["CCF_RPC_DIAGNOSTIC_ROOT"]).resolve()
 REVISIONS = {
     "base": "31f5f9fe14972cda34f7f44e258557f4dc574b51",
@@ -63,6 +64,13 @@ def sha256(path):
 
 
 def git(source, *arguments):
+    source = Path(source).resolve()
+    if source not in {WORKSPACE, *SOURCES.values()}:
+        raise ValueError(f"Refusing Git trust outside diagnostic checkouts: {source}")
+    if source != WORKSPACE and source.stat().st_uid != os.geteuid():
+        raise PermissionError(
+            f"Diagnostic worktree is not owned by this process: {source}"
+        )
     return subprocess.check_output(
         ["git", "-c", f"safe.directory={source}", "-C", str(source), *arguments],
         text=True,

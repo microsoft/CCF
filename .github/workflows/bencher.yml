@@ -25,13 +25,15 @@ jobs:
     defaults:
       run:
         shell: bash
-    env:
-      CCF_RPC_DIAGNOSTIC_ARTIFACTS: ${{ github.workspace }}/rpc-performance-artifacts
     steps:
-      - name: Define diagnostic scratch directory
+      - name: Define diagnostic container paths
+        id: paths
         run: |
           set -euo pipefail
-          echo "CCF_RPC_DIAGNOSTIC_ROOT=$RUNNER_TEMP/ccf-rpc-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" >> "$GITHUB_ENV"
+          {
+            printf 'CCF_RPC_DIAGNOSTIC_ROOT=%s/ccf-rpc-%s-%s\n' "$RUNNER_TEMP" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT"
+            printf 'CCF_RPC_DIAGNOSTIC_ARTIFACTS=%s/rpc-performance-artifacts\n' "$(pwd -P)"
+          } >> "$GITHUB_ENV"
 
       - name: Set up container dependencies
         run: |
@@ -41,10 +43,11 @@ jobs:
           tdnf -y install ca-certificates git gh
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        id: checkout
         with:
           fetch-depth: 0
           persist-credentials: false
-          set-safe-directory: false
+          set-safe-directory: true
 
       - name: Install dependencies
         uses: ./.github/actions/install-ci-dependencies
@@ -62,23 +65,36 @@ jobs:
             -u scripts/rpc_performance_ci/run.py
 
       - name: Collect allowlisted evidence and operational summary
-        if: always()
+        id: collect
+        if: always() && steps.checkout.outcome == 'success'
         run: python3 scripts/rpc_performance_ci/report.py
 
+      - name: Report unavailable checkout
+        id: checkout_failure
+        if: always() && steps.checkout.outcome != 'success'
+        run: |
+          set -euo pipefail
+          printf '%s\n' \
+            '## RPC #8117 isolated diagnostic' \
+            '**Operational success: no.** Source checkout is unavailable.' \
+            'No diagnostic build or measurements ran. Collection and uploads were skipped.' \
+            'See the preceding failed step for the primary failure.' \
+            >> "$GITHUB_STEP_SUMMARY"
+
       - name: Upload diagnostic data
-        if: always()
+        if: always() && steps.collect.outcome == 'success'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: rpc-performance-ci-data
-          path: rpc-performance-artifacts/data
+          path: ${{ env.CCF_RPC_DIAGNOSTIC_ARTIFACTS }}/data
           retention-days: 7
           if-no-files-found: error
 
       - name: Upload diagnostic logs
-        if: always()
+        if: always() && steps.collect.outcome == 'success'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: rpc-performance-ci-logs
-          path: rpc-performance-artifacts/logs
+          path: ${{ env.CCF_RPC_DIAGNOSTIC_ARTIFACTS }}/logs
           retention-days: 7
           if-no-files-found: error
