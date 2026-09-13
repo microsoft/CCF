@@ -1,2 +1,3 @@
 import DisasterRecoveryTrace.Protocol.Trace.Format
+import DisasterRecoveryTrace.Protocol.Trace.Logs
 import DisasterRecoveryTrace.Protocol.Trace.Replay

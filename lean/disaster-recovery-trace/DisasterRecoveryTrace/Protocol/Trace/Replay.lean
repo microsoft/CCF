@@ -402,7 +402,7 @@ private def process
     seenMessageIds := event.messageId.toList ++ state.seenMessageIds
   }
 
-def validate (events : List TraceEvent) : Except Failure Unit := do
+def replay (events : List TraceEvent) : Except Failure ReplayState := do
   if events.isEmpty then
     throw {
       prefixLength := 0
@@ -412,38 +412,44 @@ def validate (events : List TraceEvent) : Except Failure Unit := do
   let mut state : ReplayState := {}
   for (event, index) in events.zipIdx do
     state <- process index state event
+  pure state
+
+def finish (state : ReplayState) (eventCount : Nat) : Except Failure Unit := do
   let active <- match state.active with
     | none =>
         throw {
-          prefixLength := events.length
+          prefixLength := eventCount
           message := "trace has no start event"
           expected := ["start"]
         }
     | some active => pure active
   if !active.pendingEffects.isEmpty then
     throw {
-      prefixLength := events.length
+      prefixLength := eventCount
       message := "trace ended with unobserved committed effects"
       expected := ["open", "join_restart", "complete"]
     }
   if !active.pendingSendBatches.isEmpty then
     throw {
-      prefixLength := events.length
+      prefixLength := eventCount
       message := "trace ended with incomplete retry send batches"
       expected := ["send"]
     }
   if !active.startedNodes.all (fun node => active.terminalNodes.contains node) then
     throw {
-      prefixLength := events.length
+      prefixLength := eventCount
       message := "trace ended before every participating node terminated"
       expected := ["join_restart", "complete"]
     }
   if active.completedNodes.isEmpty then
     throw {
-      prefixLength := events.length
+      prefixLength := eventCount
       message := "trace has no completed opener"
       expected := ["complete"]
     }
+
+def validate (events : List TraceEvent) : Except Failure Unit := do
+  finish (← replay events) events.length
 
 def renderFailure (failure : Failure) : String :=
   let expected :=

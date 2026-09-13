@@ -112,16 +112,21 @@ to the trace hook, tracing defers that retry invocation. Once phases match, the
 trace lock serializes the complete send batch against later commit publication.
 
 Each log record contains `RDP_TRACE ` followed by the event object.
-`../../tests/infra/recovery_trace.py` extracts records from all participating node
-logs, topologically orders them by per-node sequence and causal send edges,
-writes NDJSON, and invokes the Lean validator. The quorum, failover, and
-multiple-timeout SNP e2e scenarios call this helper.
-Each generated `*.recovery.ndjson` file is retained with the SNP job's uploaded
-logs, so a failed replay can be reproduced locally.
+`../../tests/infra/recovery_trace.py` passes the original participating node log
+paths and scenario expectations to the Lean validator without reading or
+rewriting their contents. Lean extracts the records from text logs or JSON
+`msg` envelopes, topologically orders them by per-node sequence and causal send
+edges, and replays them. The quorum, failover, and multiple-timeout SNP e2e
+scenarios call this helper. The original logs are retained with the SNP job's
+uploaded artifacts, so a failed replay can be reproduced locally.
 
-The e2e helper additionally requires scenario-specific terminal evidence before
-accepting the trace: the expected open kind, at least one completed opener, and
-a `complete` or `join_restart` event for every participating node.
+Lean additionally requires scenario-specific terminal evidence before accepting
+the trace: the expected number of participating nodes and open kind, at least
+one completed opener, and a `complete` or `join_restart` event for every
+participating node. While logs are growing, it waits for missing records and
+terminal evidence up to the supplied deadline. Contradictory or malformed
+complete records fail immediately; an unterminated final line remains
+incomplete and cannot be accepted.
 
 ## Example
 
@@ -139,5 +144,5 @@ a `complete` or `join_restart` event for every participating node.
 ```
 
 No recovery-decision-protocol traces are checked into the repository. Every
-NDJSON trace passed to the validator in CI is captured from the running C++
+raw log passed to the validator in CI is captured from the running C++
 implementation.
