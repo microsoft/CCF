@@ -138,19 +138,15 @@ def run_recovery_snapshot_endorsements(args):
         initial_network.start_and_open(args)
         primary, _ = initial_network.find_primary()
 
-        app.LoggingTxs("user0").issue(
+        target = app.LoggingTxs("user0").issue(
             initial_network,
             number_txs=2,
             send_private=False,
             send_public=True,
             wait_for_sync=True,
         )
-        snapshot_trigger = primary.trigger_snapshot()
-        initial_network.get_committed_snapshots(
-            primary,
-            target_seqno=snapshot_trigger.seqno,
-            wait_for_target_seqno=True,
-        )
+        primary.trigger_snapshot()
+        primary.wait_for_snapshot(target.seqno)
         app.LoggingTxs("user0").issue(
             initial_network,
             number_txs=2,
