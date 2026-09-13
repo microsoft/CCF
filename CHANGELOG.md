@@ -49,6 +49,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - Updated QuickJS to `2026-06-04`, with isolated build-time patches for out-of-memory backtrace handling and enforcement of lowered heap limits (#8340).
+- TLS is now terminated by OpenSSL directly on the socket, rather than being relayed over the ringbuffer and decrypted through a memory BIO. Session interfaces now exchange plaintext through a `ccf::SessionWriter`, and empty X.509 certificate bundles are rejected by the replacement validation path (#8117).
 - CBOR parsing now rejects composite (array or map) and tagged values used as map keys anywhere in the decoded document, including nested maps in optional COSE headers (#8297).
 
 ### Removed
