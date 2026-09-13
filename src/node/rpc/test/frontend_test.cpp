@@ -1245,6 +1245,48 @@ TEST_CASE("Decoded Templated paths")
   }
 }
 
+TEST_CASE("Forwarded request target limit" * doctest::test_suite("forwarding"))
+{
+  constexpr size_t forwarding_limit = 100 * 1024 * 1024;
+  auto target_size = forwarding_limit;
+  SUBCASE("At the forwarding limit") {}
+  SUBCASE("Above the forwarding limit")
+  {
+    target_size += 1;
+  }
+  const std::string prefix = "/app/empty_function?padding=";
+  const auto target = prefix + std::string(target_size - prefix.size(), 'a');
+  const auto packed = ::http::Request(target, HTTP_POST).build_request();
+
+  ccf::http::ParserConfiguration config;
+  config.max_request_target_size = "101MB";
+  {
+    ::http::SimpleRequestProcessor processor;
+    ::http::RequestParser ingress(processor, config);
+    ingress.execute(packed.data(), packed.size());
+    REQUIRE(processor.received.size() == 1);
+    CHECK(processor.received.front().url == target);
+  }
+
+  if (target_size > forwarding_limit)
+  {
+    CHECK_THROWS_AS(
+      ccf::make_fwd_rpc_context(user_session, packed, ccf::FrameFormat::http),
+      ::http::RequestTargetTooLongException);
+  }
+  else
+  {
+    auto forwarded =
+      ccf::make_fwd_rpc_context(user_session, packed, ccf::FrameFormat::http);
+    REQUIRE(forwarded != nullptr);
+    CHECK(forwarded->get_request_path() == "/app/empty_function");
+    CHECK(
+      forwarded->get_request_query() ==
+      std::string_view(target).substr(target.find('?') + 1));
+    CHECK(forwarded->get_serialised_request() == packed);
+  }
+}
+
 TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
 {
   NetworkState network_primary;
@@ -1477,7 +1519,17 @@ TEST_CASE("Userfrontend forwarding" * doctest::test_suite("forwarding"))
   publish_frontend_state(user_frontend_backup, network_backup);
 
   auto write_req = create_simple_request();
+  write_req.set_query_param(
+    "padding",
+    std::string(ccf::http::default_max_request_target_size.count_bytes(), 'a'));
   auto serialized_call = write_req.build_request();
+
+  ccf::http::ParserConfiguration ingress_config;
+  ingress_config.max_request_target_size = "32KB";
+  ::http::SimpleRequestProcessor ingress_processor;
+  ::http::RequestParser ingress_parser(ingress_processor, ingress_config);
+  ingress_parser.execute(serialized_call.data(), serialized_call.size());
+  REQUIRE(ingress_processor.received.size() == 1);
 
   auto ctx = ccf::make_rpc_context(user_session, serialized_call);
   user_frontend_backup.process(ctx);
@@ -1490,6 +1542,7 @@ TEST_CASE("Userfrontend forwarding" * doctest::test_suite("forwarding"))
       ccf::kv::test::FirstBackupNodeId,
       forwarded_msg.data(),
       forwarded_msg.size());
+  REQUIRE(fwd_ctx != nullptr);
 
   user_frontend_primary.process_forwarded(fwd_ctx);
   auto response = parse_response(fwd_ctx->serialise_response());

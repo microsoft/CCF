@@ -89,6 +89,17 @@ TEST_CASE("direct node deletion updates consensus configuration")
   REQUIRE(consensus.configuration_changes == 1);
 }
 
+TEST_CASE("trust_node_snp_tcb_version rejects an empty owner")
+{
+  ccf::kv::Store kv_store;
+  auto tx = kv_store.create_tx();
+  const pal::snp::AttestationReport report;
+  CHECK_THROWS_WITH_AS(
+    InternalTablesAccess::trust_node_snp_tcb_version(tx, report),
+    "Cannot access an empty SNP attestation report",
+    std::logic_error);
+}
+
 TEST_CASE("trust_node_uvm_endorsements - not recovering, empty map")
 {
   ccf::kv::Store kv_store;

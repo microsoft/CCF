@@ -580,6 +580,11 @@ class CCFRemote:
             )
 
         # Configuration file
+        v = (
+            ccf._versionifier.to_python_version(version)
+            if version is not None
+            else None
+        )
         if config_file:
             LOG.info(
                 f"Node {self.local_node_id}: Using configuration file {config_file}"
@@ -657,6 +662,13 @@ class CCFRemote:
                 # This will also ensure the render produced valid JSON
                 j = json.loads(output)
 
+                # Releases before 7.0.16 reject this unknown HTTP configuration field.
+                if v is not None and v < Version("7.0.16"):
+                    for interface in j["network"]["rpc_interfaces"].values():
+                        interface["http_configuration"].pop(
+                            "max_request_target_size", None
+                        )
+
                 # Enclave config removed from 7.x onwards.
                 if major_version is not None and major_version < 7:
                     enclave_platform = infra.platform_detection.get_platform()
@@ -695,11 +707,6 @@ class CCFRemote:
             os.path.basename(config_file),
         ]
 
-        v = (
-            ccf._versionifier.to_python_version(version)
-            if version is not None
-            else None
-        )
         if v is None or v >= Version("7.0.0.dev0"):
             cmd += [
                 "--log-level",

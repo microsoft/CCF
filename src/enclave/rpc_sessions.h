@@ -187,6 +187,13 @@ namespace ccf
       get_interface_from_interface_id(id).errors.request_header_too_large++;
     }
 
+    void report_request_target_too_long_error(
+      const ccf::ListenInterfaceID& id) override
+    {
+      std::lock_guard<ccf::ds::Mutex> guard(lock);
+      get_interface_from_interface_id(id).errors.request_target_too_long++;
+    }
+
     void update_listening_interface_options(
       const ccf::NodeInfoNetwork& node_info)
     {

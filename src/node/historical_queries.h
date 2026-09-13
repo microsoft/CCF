@@ -74,12 +74,31 @@ namespace ccf::historical
     return signatures->get();
   }
 
-  static std::optional<ccf::CoseSignature> get_cose_signature(
+  static ccf::CoseSignatureMap get_cose_signatures(
     const ccf::kv::StorePtr& sig_store)
   {
     auto tx = sig_store->create_read_only_tx();
     auto* signatures = tx.ro<ccf::CoseSignatures>(ccf::Tables::COSE_SIGNATURES);
-    return signatures->get();
+    ccf::CoseSignatureMap cose_signatures;
+    signatures->foreach(
+      [&cose_signatures](const auto& identity_type, const auto& signature) {
+        cose_signatures.emplace(identity_type, signature);
+        return true;
+      });
+    return cose_signatures;
+  }
+
+  // This historical API exposes a single COSE signature, so receipts are
+  // described by the CLASSICAL one.
+  static std::optional<ccf::CoseSignature> select_described_cose_signature(
+    const ccf::CoseSignatureMap& cose_signatures)
+  {
+    const auto signature = cose_signatures.find(ccf::IdentityType::CLASSICAL);
+    if (signature == cose_signatures.end())
+    {
+      return std::nullopt;
+    }
+    return signature->second;
   }
 
   static std::optional<std::vector<uint8_t>> get_tree(
@@ -497,8 +516,10 @@ namespace ccf::historical
         // Iterate through earlier indices. If this signature covers them
         // then create a receipt for them
         const auto sig = get_signature(sig_details->store);
-        const auto cose_sig = get_cose_signature(sig_details->store);
-        if (!sig.has_value() && !cose_sig.has_value())
+        const auto cose_sigs = get_cose_signatures(sig_details->store);
+        const auto described_cose_sig =
+          select_described_cose_signature(cose_sigs);
+        if (!sig.has_value() && !described_cose_sig.has_value())
         {
           return false;
         }
@@ -533,7 +554,7 @@ namespace ccf::historical
                   details->transaction_id = {sig->view, seqno};
                   details->receipt = std::make_shared<TxReceiptImpl>(
                     sig->sig,
-                    cose_sig,
+                    cose_sigs,
                     proof.get_root(),
                     proof.get_path(),
                     sig->node,
@@ -544,8 +565,8 @@ namespace ccf::historical
                 }
                 else
                 {
-                  auto cose_receipt =
-                    ccf::cose::decode_ccf_receipt(cose_sig.value(), false);
+                  auto cose_receipt = ccf::cose::decode_ccf_receipt(
+                    described_cose_sig.value(), false);
                   auto parsed_txid =
                     ccf::TxID::from_str(cose_receipt.phdr.ccf.txid);
                   if (!parsed_txid.has_value())
@@ -557,7 +578,7 @@ namespace ccf::historical
                   details->transaction_id = {parsed_txid->view, seqno};
                   details->receipt = std::make_shared<TxReceiptImpl>(
                     std::nullopt,
-                    cose_sig,
+                    cose_sigs,
                     proof.get_root(),
                     proof.get_path(),
                     ccf::NodeId{},
@@ -842,17 +863,19 @@ namespace ccf::historical
         // the receipt _later_ for an already-fetched signature
         // transaction.
         const auto sig = get_signature(details->store);
-        const auto cose_sig = get_cose_signature(details->store);
+        const auto cose_sigs = get_cose_signatures(details->store);
+        const auto described_cose_sig =
+          select_described_cose_signature(cose_sigs);
         if (sig.has_value())
         {
           details->transaction_id = {sig->view, sig->seqno};
           details->receipt = std::make_shared<TxReceiptImpl>(
-            sig->sig, cose_sig, sig->root.h, nullptr, sig->node, sig->cert);
+            sig->sig, cose_sigs, sig->root.h, nullptr, sig->node, sig->cert);
         }
-        else if (cose_sig.has_value())
+        else if (described_cose_sig.has_value())
         {
           auto as_receipt =
-            ccf::cose::decode_ccf_receipt(cose_sig.value(), false);
+            ccf::cose::decode_ccf_receipt(described_cose_sig.value(), false);
           const auto& txid = as_receipt.phdr.ccf.txid;
           auto parsed_txid = ccf::TxID::from_str(txid);
 
@@ -864,7 +887,7 @@ namespace ccf::historical
           details->transaction_id = parsed_txid.value();
           details->receipt = std::make_shared<TxReceiptImpl>(
             std::nullopt,
-            cose_sig,
+            cose_sigs,
             std::nullopt,
             nullptr,
             ccf::NodeId{},
