@@ -4,6 +4,7 @@
 
 #include "ccf/ds/join.h"
 
+#include <cstdint>
 #include <format>
 #include <span>
 #include <string>
