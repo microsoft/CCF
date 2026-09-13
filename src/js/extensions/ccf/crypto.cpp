@@ -17,6 +17,7 @@
 #include "ccf/js/core/context.h"
 #include "ds/internal_logger.h"
 #include "js/checks.h"
+#include "js/extensions/ccf/scoped_cleanse.h"
 
 #include <climits>
 
@@ -107,12 +108,12 @@ namespace ccf::js::extensions
       try
       {
         ccf::crypto::Pem prv = k->private_key_pem();
+        ccf::js::ScopedCleanse<ccf::crypto::Pem> prv_guard(prv);
         ccf::crypto::Pem pub = k->public_key_pem();
 
         auto r = jsctx.new_obj();
         JS_CHECK_EXC(r);
         auto private_key = jsctx.new_string(prv.str());
-        OPENSSL_cleanse(prv.data(), prv.size());
         JS_CHECK_EXC(private_key);
         JS_CHECK_SET(r.set("privateKey", std::move(private_key)));
         auto public_key = jsctx.new_string(pub.str());
@@ -170,12 +171,12 @@ namespace ccf::js::extensions
         auto k = ccf::crypto::make_ec_key_pair(cid);
 
         ccf::crypto::Pem prv = k->private_key_pem();
+        ccf::js::ScopedCleanse<ccf::crypto::Pem> prv_guard(prv);
         ccf::crypto::Pem pub = k->public_key_pem();
 
         auto r = jsctx.new_obj();
         JS_CHECK_EXC(r);
         auto private_key = jsctx.new_string(prv.str());
-        OPENSSL_cleanse(prv.data(), prv.size());
         JS_CHECK_EXC(private_key);
         JS_CHECK_SET(r.set("privateKey", std::move(private_key)));
         auto public_key = jsctx.new_string(pub.str());
@@ -228,12 +229,12 @@ namespace ccf::js::extensions
         auto k = ccf::crypto::make_eddsa_key_pair(cid);
 
         ccf::crypto::Pem prv = k->private_key_pem();
+        ccf::js::ScopedCleanse<ccf::crypto::Pem> prv_guard(prv);
         ccf::crypto::Pem pub = k->public_key_pem();
 
         auto r = jsctx.new_obj();
         JS_CHECK_EXC(r);
         auto private_key = jsctx.new_string(prv.str());
-        OPENSSL_cleanse(prv.data(), prv.size());
         JS_CHECK_EXC(private_key);
         JS_CHECK_SET(r.set("privateKey", std::move(private_key)));
         auto public_key = jsctx.new_string(pub.str());
@@ -487,6 +488,7 @@ namespace ccf::js::extensions
       {
         return ccf::js::core::constants::Exception;
       }
+      ccf::js::ScopedCleanse<std::string> pem_str_guard(*pem_str);
 
       std::optional<std::string> kid = std::nullopt;
       if (argc == 2)
@@ -500,38 +502,42 @@ namespace ccf::js::extensions
       }
 
       T jwk;
+      ccf::js::ScopedCleanse jwk_guard(jwk);
       try
       {
+        ccf::crypto::Pem pem(*pem_str);
+        ccf::js::ScopedCleanse pem_guard(pem);
+
         if constexpr (std::is_same_v<T, ccf::crypto::JsonWebKeyECPublic>)
         {
-          auto pubk = ccf::crypto::make_ec_public_key(*pem_str);
+          auto pubk = ccf::crypto::make_ec_public_key(pem);
           jwk = pubk->public_key_jwk(kid);
         }
         else if constexpr (std::is_same_v<T, ccf::crypto::JsonWebKeyECPrivate>)
         {
-          auto kp = ccf::crypto::make_ec_key_pair(*pem_str);
+          auto kp = ccf::crypto::make_ec_key_pair(pem);
           jwk = kp->private_key_jwk(kid);
         }
         else if constexpr (std::is_same_v<T, ccf::crypto::JsonWebKeyRSAPublic>)
         {
-          auto pubk = ccf::crypto::make_rsa_public_key(*pem_str);
+          auto pubk = ccf::crypto::make_rsa_public_key(pem);
           jwk = pubk->public_key_jwk(kid);
         }
         else if constexpr (std::is_same_v<T, ccf::crypto::JsonWebKeyRSAPrivate>)
         {
-          auto kp = ccf::crypto::make_rsa_key_pair(*pem_str);
+          auto kp = ccf::crypto::make_rsa_key_pair(pem);
           jwk = kp->private_key_jwk(kid);
         }
         else if constexpr (std::
                              is_same_v<T, ccf::crypto::JsonWebKeyEdDSAPublic>)
         {
-          auto pubk = ccf::crypto::make_eddsa_public_key(*pem_str);
+          auto pubk = ccf::crypto::make_eddsa_public_key(pem);
           jwk = pubk->public_key_jwk_eddsa(kid);
         }
         else if constexpr (std::
                              is_same_v<T, ccf::crypto::JsonWebKeyEdDSAPrivate>)
         {
-          auto kp = ccf::crypto::make_eddsa_key_pair(*pem_str);
+          auto kp = ccf::crypto::make_eddsa_key_pair(pem);
           jwk = kp->private_key_jwk_eddsa(kid);
         }
         else
@@ -547,7 +553,11 @@ namespace ccf::js::extensions
 
       try
       {
-        auto jwk_str = nlohmann::json(jwk).dump();
+        nlohmann::json jwk_json;
+        ccf::js::ScopedCleanse jwk_json_guard(jwk_json);
+        ccf::crypto::to_json(jwk_json, jwk);
+        auto jwk_str = jwk_json.dump();
+        ccf::js::ScopedCleanse<std::string> jwk_str_guard(jwk_str);
         return JS_ParseJSON(ctx, jwk_str.c_str(), jwk_str.size(), "<jwk>");
       }
       catch (const std::exception& ex)
@@ -575,12 +585,18 @@ namespace ccf::js::extensions
       {
         return ccf::js::core::constants::Exception;
       }
+      ccf::js::ScopedCleanse<std::string> jwk_str_guard(*jwk_str);
 
       ccf::crypto::Pem pem;
+      ccf::js::ScopedCleanse<ccf::crypto::Pem> pem_guard(pem);
 
       try
       {
-        T jwk = ccf::parse_json_safe(jwk_str.value());
+        auto jwk_json = ccf::parse_json_safe(*jwk_str);
+        ccf::js::ScopedCleanse jwk_json_guard(jwk_json);
+        T jwk;
+        ccf::js::ScopedCleanse jwk_guard(jwk);
+        jwk_json.get_to(jwk);
 
         if constexpr (std::is_same_v<T, ccf::crypto::JsonWebKeyECPublic>)
         {
@@ -627,25 +643,6 @@ namespace ccf::js::extensions
 
       return JS_NewString(ctx, pem.str().c_str());
     }
-
-    // Cleanses (via OPENSSL_cleanse) the contents of the referenced
-    // container when the guard goes out of scope. Used to scrub owned copies
-    // of key material on all exit paths, including exceptions.
-    template <typename T>
-    struct ScopeCleanse
-    {
-      T& secret;
-      explicit ScopeCleanse(T& s) : secret(s) {}
-      ScopeCleanse(const ScopeCleanse&) = delete;
-      ScopeCleanse& operator=(const ScopeCleanse&) = delete;
-      ~ScopeCleanse()
-      {
-        if (!secret.empty())
-        {
-          OPENSSL_cleanse(secret.data(), secret.size());
-        }
-      }
-    };
 
     // Reads the optional RSA-OAEP "label" parameter. An absent, null or
     // empty label means "no label", matching the behaviour of the previous
@@ -705,7 +702,7 @@ namespace ccf::js::extensions
       // wrapping key: that copy allocates and can fail, and the early return
       // below must not drop the plaintext without scrubbing it.
       auto& key = *key_opt;
-      ScopeCleanse key_cleanse(key);
+      ccf::js::ScopedCleanse key_cleanse(key);
 
       auto wrapping_key_opt = jsctx.copy_array_buffer(argv[1]);
       if (!wrapping_key_opt.has_value())
@@ -714,7 +711,7 @@ namespace ccf::js::extensions
       }
       // wrapping_key is a symmetric secret for AES-KWP.
       auto& wrapping_key = *wrapping_key_opt;
-      ScopeCleanse wrapping_key_cleanse(wrapping_key);
+      ccf::js::ScopedCleanse wrapping_key_cleanse(wrapping_key);
 
       auto parameters = argv[2];
       auto wrap_algo_name_val = jsctx.get_property(parameters, "name");
@@ -842,7 +839,7 @@ namespace ccf::js::extensions
       // The guard is kept adjacent to the copy so that no fallible statement
       // can sit between creating the secret and protecting it.
       auto& unwrapping_key = *unwrapping_key_opt;
-      ScopeCleanse unwrapping_key_cleanse(unwrapping_key);
+      ccf::js::ScopedCleanse unwrapping_key_cleanse(unwrapping_key);
 
       auto parameters = argv[2];
       auto wrap_algo_name_val = jsctx.get_property(parameters, "name");
@@ -873,13 +870,13 @@ namespace ccf::js::extensions
 
           auto pemPrivateUnwrappingKey =
             ccf::crypto::Pem(unwrapping_key.data(), unwrapping_key.size());
-          ScopeCleanse pem_cleanse(pemPrivateUnwrappingKey);
+          ccf::js::ScopedCleanse pem_cleanse(pemPrivateUnwrappingKey);
 
           auto unwrapped_key = ccf::crypto::ckm_rsa_pkcs_oaep_unwrap(
             pemPrivateUnwrappingKey, key, label_opt);
           // The unwrapped key is plaintext secret material. This guard runs
           // after JS_NewArrayBufferCopy has taken its own copy.
-          ScopeCleanse unwrapped_cleanse(unwrapped_key);
+          ccf::js::ScopedCleanse unwrapped_cleanse(unwrapped_key);
 
           return JS_NewArrayBufferCopy(
             ctx, unwrapped_key.data(), unwrapped_key.size());
@@ -891,7 +888,7 @@ namespace ccf::js::extensions
             ccf::crypto::ckm_aes_key_unwrap_pad(unwrapping_key, key);
           // The unwrapped key is plaintext secret material. This guard runs
           // after JS_NewArrayBufferCopy has taken its own copy.
-          ScopeCleanse unwrapped_cleanse(unwrapped_key);
+          ccf::js::ScopedCleanse unwrapped_cleanse(unwrapped_key);
 
           return JS_NewArrayBufferCopy(
             ctx, unwrapped_key.data(), unwrapped_key.size());
@@ -920,13 +917,13 @@ namespace ccf::js::extensions
 
           auto privPemUnwrappingKey =
             ccf::crypto::Pem(unwrapping_key.data(), unwrapping_key.size());
-          ScopeCleanse pem_cleanse(privPemUnwrappingKey);
+          ccf::js::ScopedCleanse pem_cleanse(privPemUnwrappingKey);
 
           auto unwrapped_key = ccf::crypto::ckm_rsa_aes_key_unwrap(
             privPemUnwrappingKey, key, label_opt);
           // The unwrapped key is plaintext secret material. This guard runs
           // after JS_NewArrayBufferCopy has taken its own copy.
-          ScopeCleanse unwrapped_cleanse(unwrapped_key);
+          ccf::js::ScopedCleanse unwrapped_cleanse(unwrapped_key);
 
           return JS_NewArrayBufferCopy(
             ctx, unwrapped_key.data(), unwrapped_key.size());
@@ -979,7 +976,8 @@ namespace ccf::js::extensions
       {
         return ccf::js::core::constants::Exception;
       }
-      auto key = *key_str;
+      ccf::js::ScopedCleanse<std::string> key_str_guard(*key_str);
+      auto& key = *key_str;
 
       size_t data_size = 0;
       uint8_t* data = JS_GetArrayBuffer(ctx, &data_size, argv[2]);
@@ -995,6 +993,7 @@ namespace ccf::js::extensions
         try
         {
           ccf::crypto::Pem key_pem(key);
+          ccf::js::ScopedCleanse<ccf::crypto::Pem> key_pem_guard(key_pem);
           auto key_pair = ccf::crypto::make_eddsa_key_pair(key_pem);
           auto sig = key_pair->sign(contents);
           return JS_NewArrayBufferCopy(ctx, sig.data(), sig.size());
@@ -1043,7 +1042,9 @@ namespace ccf::js::extensions
 
         if (algo_name == "ECDSA")
         {
-          auto key_pair = ccf::crypto::make_ec_key_pair(key);
+          ccf::crypto::Pem key_pem(key);
+          ccf::js::ScopedCleanse key_pem_guard(key_pem);
+          auto key_pair = ccf::crypto::make_ec_key_pair(key_pem);
           auto sig_der = key_pair->sign(contents, mdtype);
           auto sig = ccf::crypto::ecdsa_sig_der_to_p1363(
             sig_der, key_pair->get_curve_id());
@@ -1052,7 +1053,9 @@ namespace ccf::js::extensions
 
         if (algo_name == "RSA-PSS")
         {
-          auto key_pair = ccf::crypto::make_rsa_key_pair(key);
+          ccf::crypto::Pem key_pem(key);
+          ccf::js::ScopedCleanse key_pem_guard(key_pem);
+          auto key_pair = ccf::crypto::make_rsa_key_pair(key_pem);
 
           int64_t salt_length{};
           std::ignore = JS_ToInt64(
@@ -1069,6 +1072,7 @@ namespace ccf::js::extensions
         if (algo_name == "HMAC")
         {
           std::vector<uint8_t> vkey(key.begin(), key.end());
+          ccf::js::ScopedCleanse<std::vector<uint8_t>> vkey_guard(vkey);
           const auto sig = ccf::crypto::hmac(mdtype, vkey, contents);
           return JS_NewArrayBufferCopy(ctx, sig.data(), sig.size());
         }

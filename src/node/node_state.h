@@ -112,7 +112,8 @@ namespace ccf
       best_view = ls->view;
     }
 
-    auto lcs = tx.ro<ccf::CoseSignatures>(Tables::COSE_SIGNATURES)->get();
+    auto lcs = tx.ro<ccf::CoseSignatures>(Tables::COSE_SIGNATURES)
+                 ->get(ccf::IdentityType::CLASSICAL);
     if (lcs.has_value())
     {
       auto receipt = cose::decode_ccf_receipt(lcs.value(), false);
@@ -2043,7 +2044,8 @@ namespace ccf
       }
 
       ccf::COSESignaturesConfig cs_cfg{};
-      auto lcs = tx.ro(network.cose_signatures)->get();
+      auto lcs =
+        tx.ro(network.cose_signatures)->get(ccf::IdentityType::CLASSICAL);
       if (lcs.has_value())
       {
         CoseSignature cs = lcs.value();
@@ -3637,8 +3639,9 @@ namespace ccf
           [s = this->snapshotter](
             ccf::kv::Version version,
             const CoseSignatures::Write& w) -> ccf::kv::ConsensusHookPtr {
-            assert(w.has_value());
-            s->record_cose_signature(version, w.value());
+            const auto cose_signatures = extract_cose_signatures(w);
+            assert(!cose_signatures.empty());
+            s->record_cose_signatures(version, cose_signatures);
             return {nullptr};
           }));
 
