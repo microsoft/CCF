@@ -112,7 +112,8 @@ namespace ccf
       best_view = ls->view;
     }
 
-    auto lcs = tx.ro<ccf::CoseSignatures>(Tables::COSE_SIGNATURES)->get();
+    auto lcs = tx.ro<ccf::CoseSignatures>(Tables::COSE_SIGNATURES)
+                 ->get(ccf::IdentityType::CLASSICAL);
     if (lcs.has_value())
     {
       auto receipt = cose::decode_ccf_receipt(lcs.value(), false);
@@ -881,10 +882,14 @@ namespace ccf
       }
 
       auto snp_attestation =
-        AttestationProvider::get_snp_attestation(quote_info);
+        AttestationProvider::get_snp_attestation_report(quote_info);
       if (snp_attestation.has_value())
       {
-        snp_tcb_version = snp_attestation.value().reported_tcb;
+        const uint8_t* data = nullptr;
+        size_t size = 0;
+        tav_snp_attestation_report_reported_tcb(
+          snp_attestation.value().get(), &data, &size);
+        snp_tcb_version = ccf::pal::snp::TcbVersionRaw({data, size});
       }
 
       // Verify that the security policy matches the quoted digest of the policy
@@ -1032,19 +1037,18 @@ namespace ccf
 
               // Check that tcbm in endorsement matches reported TCB in our
               // retrieved attestation
-              const auto* quote =
-                reinterpret_cast<const ccf::pal::snp::Attestation*>(
-                  quote_info.quote.data());
-              const auto reported_tcb = quote->reported_tcb;
+              const auto report =
+                ccf::pal::snp::parse_attestation_report_unverified(
+                  quote_info.quote);
+              const uint8_t* data = nullptr;
+              size_t size = 0;
+              tav_snp_attestation_report_reported_tcb(
+                report.get(), &data, &size);
+              const auto reported_tcb =
+                ccf::pal::snp::TcbVersionRaw({data, size});
 
-              // tcbm is a single hex value, like DB18000000000004. To match
-              // that with a TcbVersion, reverse the bytes.
-              const auto* tcb_begin =
-                reinterpret_cast<const uint8_t*>(&reported_tcb);
-              const std::span<const uint8_t> tcb_bytes{
-                tcb_begin, tcb_begin + sizeof(reported_tcb)};
-              auto tcb_as_hex = fmt::format(
-                "{:02x}", fmt::join(tcb_bytes.rbegin(), tcb_bytes.rend(), ""));
+              // tcbm is a single hex value, like DB18000000000004.
+              auto tcb_as_hex = reported_tcb.to_hex();
               ccf::nonstd::to_upper(tcb_as_hex);
 
               if (tcb_as_hex == aci_endorsements.tcbm)
@@ -2036,7 +2040,8 @@ namespace ccf
       }
 
       ccf::COSESignaturesConfig cs_cfg{};
-      auto lcs = tx.ro(network.cose_signatures)->get();
+      auto lcs =
+        tx.ro(network.cose_signatures)->get(ccf::IdentityType::CLASSICAL);
       if (lcs.has_value())
       {
         CoseSignature cs = lcs.value();
@@ -3630,8 +3635,9 @@ namespace ccf
           [s = this->snapshotter](
             ccf::kv::Version version,
             const CoseSignatures::Write& w) -> ccf::kv::ConsensusHookPtr {
-            assert(w.has_value());
-            s->record_cose_signature(version, w.value());
+            const auto cose_signatures = extract_cose_signatures(w);
+            assert(!cose_signatures.empty());
+            s->record_cose_signatures(version, cose_signatures);
             return {nullptr};
           }));
 

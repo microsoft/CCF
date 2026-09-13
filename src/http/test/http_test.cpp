@@ -363,6 +363,124 @@ DOCTEST_TEST_CASE("Body too large")
   }
 }
 
+DOCTEST_TEST_CASE("Request target size limit")
+{
+  ccf::http::ParserConfiguration config;
+  DOCTEST_SUBCASE("Default limit") {}
+  DOCTEST_SUBCASE("Smaller configured limit")
+  {
+    config.max_request_target_size = "32B";
+  }
+  DOCTEST_SUBCASE("Larger configured limit")
+  {
+    config.max_request_target_size = "32KB";
+  }
+  DOCTEST_SUBCASE("Smaller header limit does not lower target default")
+  {
+    config.max_header_size = "32B";
+  }
+  DOCTEST_SUBCASE("Larger header limit does not raise target default")
+  {
+    config.max_header_size = "32KB";
+  }
+
+  const auto limit = config.max_request_target_size
+                       .value_or(ccf::http::default_max_request_target_size)
+                       .count_bytes();
+
+  for (const auto size : {limit - 1, limit, limit + 1})
+  {
+    for (const size_t chunk_size : {size_t{1}, size_t{7}, size + 4})
+    {
+      DOCTEST_CAPTURE(size);
+      DOCTEST_CAPTURE(chunk_size);
+      http::SimpleRequestProcessor sp;
+      http::RequestParser p(sp, config);
+      const auto target = "/?q=" + std::string(size - 4, 'a');
+      const auto prefix = s_to_v(("GET " + target).c_str());
+      size_t offset = 0;
+      while (offset < prefix.size())
+      {
+        const auto length = std::min(chunk_size, prefix.size() - offset);
+        if (size > limit && offset + length > limit + 4)
+        {
+          DOCTEST_CHECK_THROWS_AS(
+            p.execute(prefix.data() + offset, length),
+            http::RequestTargetTooLongException);
+          break;
+        }
+        DOCTEST_CHECK_NOTHROW(p.execute(prefix.data() + offset, length));
+        offset += length;
+      }
+      DOCTEST_CHECK(sp.received.empty());
+      if (size <= limit)
+      {
+        const auto suffix = s_to_v(" HTTP/1.1\r\n\r\n");
+        p.execute(suffix.data(), suffix.size());
+        DOCTEST_REQUIRE(sp.received.size() == 1);
+        DOCTEST_CHECK(sp.received.front().url == target);
+        sp.received.pop();
+
+        // The limit is per request, not per connection.
+        const auto next = http::Request(target, HTTP_GET).build_request();
+        p.execute(next.data(), next.size());
+        DOCTEST_REQUIRE(sp.received.size() == 1);
+        DOCTEST_CHECK(sp.received.front().url == target);
+      }
+    }
+  }
+}
+
+DOCTEST_TEST_CASE("Request target rejected before append")
+{
+  ccf::http::ParserConfiguration config;
+  config.max_request_target_size = "4B";
+  http::SimpleRequestProcessor sp;
+  http::RequestParser p(sp, config);
+  p.new_message();
+  p.append_url("/abc", 4);
+  DOCTEST_CHECK_THROWS_AS(
+    p.append_url("d", 1), http::RequestTargetTooLongException);
+  p.end_message();
+  DOCTEST_REQUIRE(sp.received.size() == 1);
+  DOCTEST_CHECK(sp.received.front().url == "/abc");
+
+  config.max_request_target_size = "0B";
+  http::RequestParser zero_limit(sp, config);
+  DOCTEST_CHECK_THROWS_AS(
+    zero_limit.append_url("/", 1), http::RequestTargetTooLongException);
+}
+
+DOCTEST_TEST_CASE("Request target configuration")
+{
+  const auto omitted =
+    nlohmann::json::object().get<ccf::http::ParserConfiguration>();
+  DOCTEST_CHECK_FALSE(omitted.max_request_target_size.has_value());
+
+  const auto config = nlohmann::json{
+    {"max_request_target_size",
+     "32KB"}}.get<ccf::http::ParserConfiguration>();
+  DOCTEST_REQUIRE(config.max_request_target_size.has_value());
+  DOCTEST_CHECK(config.max_request_target_size->count_bytes() == 32 * 1024);
+  DOCTEST_CHECK_FALSE(config.max_header_size.has_value());
+  const nlohmann::json encoded = config;
+  DOCTEST_CHECK(encoded["max_request_target_size"] == "32KB");
+  DOCTEST_CHECK(encoded.get<ccf::http::ParserConfiguration>() == config);
+
+  const auto permissive_config = ccf::http::permissive_configuration();
+  DOCTEST_REQUIRE(permissive_config.max_request_target_size.has_value());
+  DOCTEST_CHECK(
+    permissive_config.max_request_target_size->count_bytes() ==
+    100 * 1024 * 1024);
+  http::SimpleRequestProcessor sp;
+  http::RequestParser p(sp, permissive_config);
+  const auto target = "/" + std::string(32 * 1024, 'a');
+  const auto request = http::Request(target, HTTP_GET).build_request();
+  p.execute(request.data(), request.size());
+  DOCTEST_REQUIRE(sp.received.size() == 1);
+  DOCTEST_CHECK(sp.received.front().url == target);
+}
+
 DOCTEST_TEST_CASE("Multiple requests")
 {
   http::SimpleRequestProcessor sp;
