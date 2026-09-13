@@ -8,6 +8,7 @@ on:
       - "tests/kv_trace_validation.py"
       - "CMakeLists.txt"
       - ".github/workflows/lean.yml"
+      - ".github/actions/lean-checks/**"
   workflow_dispatch:
 
 concurrency:
@@ -33,22 +34,11 @@ jobs:
           sudo apt-get install -y elan
           elan toolchain install "$(cat lean/disaster-recovery/lean-toolchain)"
 
-      - name: Restore Mathlib cache
-        working-directory: lean/disaster-recovery
-        shell: bash
-        run: |
-          set -euo pipefail
-          lake exe cache get
-
       - name: Build and check canonical model
-        working-directory: lean/disaster-recovery
-        shell: bash
-        run: |
-          set -euo pipefail
-          lake exe mk_all --check --lib DisasterRecovery
-          lake build --wfail
-          lake lint
-          lake exe canonical-checks
+        uses: ./.github/actions/lean-checks
+        with:
+          working-directory: lean/disaster-recovery
+          library: DisasterRecovery
 
   kv-contract:
     name: KV model and trace conformance
@@ -95,26 +85,17 @@ jobs:
           tar --zstd -xf lean.tar.zst
           rm lean.tar.zst
 
-      - name: Select the repository toolchain
+      - name: Verify the repository toolchain version
         run: |
           set -euo pipefail
           test "$(tr -d '\r\n' < lean/kv/lean-toolchain)" = 'leanprover/lean4:v4.33.1'
-          echo "$RUNNER_TEMP/ccf-lean/lean-4.33.1-linux/bin" >> "$GITHUB_PATH"
-
-      - name: Restore Mathlib cache
-        working-directory: lean/kv
-        run: |
-          set -euo pipefail
-          lake exe cache get
 
       - name: Build and check KV model
-        working-directory: lean/kv
-        run: |
-          set -euo pipefail
-          lake exe mk_all --check --lib Kv
-          lake build --wfail
-          lake lint
-          lake test
+        uses: ./.github/actions/lean-checks
+        with:
+          working-directory: lean/kv
+          library: Kv
+          lean-bin-path: ${{ runner.temp }}/ccf-lean/lean-4.33.1-linux/bin
 
       - name: Build instrumented KV unit tests
         run: |
