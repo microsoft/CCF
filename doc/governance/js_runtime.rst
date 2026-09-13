@@ -27,6 +27,14 @@ entry module and its imports, calling the endpoint handler, nested JavaScript
 execution such as ``eval()`` and the ``Function`` constructor, and any
 JavaScript invoked while converting the handler's response.
 
+The same limits apply to governance JavaScript evaluation, including loading
+and initialising the module that contains each member ballot's ``vote``
+function and the constitution's ``validate``, ``resolve`` and ``apply``
+functions, as well as the subsequent calls into those functions. Governance
+evaluation applies the configured ``js_runtime_options`` with a
+``NO_LOWER_THAN_DEFAULTS`` floor so that operator-provided limits cannot be
+lowered below the built-in defaults for governance code.
+
 The execution time limit is enforced by QuickJS interrupt checks while it
 executes bytecode. QuickJS does not perform these interrupt checks while
 parsing or compiling JavaScript source. Consequently, source compilation,

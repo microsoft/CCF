@@ -281,6 +281,18 @@ namespace ccf::js::core
       ctx, obj.val, pbyte_offset, pbyte_length, pbytes_per_element));
   }
 
+  std::optional<std::vector<uint8_t>> Context::copy_array_buffer(
+    JSValueConst val) const
+  {
+    size_t size = 0;
+    uint8_t* data = JS_GetArrayBuffer(ctx, &size, val);
+    if (data == nullptr)
+    {
+      return std::nullopt;
+    }
+    return std::vector<uint8_t>(data, data + size);
+  }
+
   JSWrappedValue Context::get_exported_function(
     const std::string& code, const std::string& func, const std::string& path)
   {
@@ -602,44 +614,23 @@ namespace ccf::js::core
 
   std::optional<std::string> Context::to_str(const JSWrappedValue& x) const
   {
-    size_t len = 0;
-    const auto* val = JS_ToCStringLen(ctx, &len, x.val);
-    if (val == nullptr)
-    {
-      // JS_ToCStringLen returns nullptr when a JS exception is already set (eg
-      // OOM, or an exception during coercion). Preserve that exception for
-      // callers.
-      return std::nullopt;
-    }
-    // Construct with explicit length rather than relying on the returned
-    // buffer's NUL terminator, since the JS string may itself contain
-    // embedded NUL characters which would otherwise silently truncate it.
-    std::string r(val, len);
-    JS_FreeCString(ctx, val);
-    return r;
+    return to_str(x.val);
   }
 
   std::optional<std::string> Context::to_str(const JSValue& x) const
   {
     size_t len = 0;
-    const auto* val = JS_ToCStringLen(ctx, &len, x);
-    if (val == nullptr)
-    {
-      // JS_ToCStringLen returns nullptr when a JS exception is already set (eg
-      // OOM, or an exception during coercion). Preserve that exception for
-      // callers.
-      return std::nullopt;
-    }
-    // See comment in to_str(const JSWrappedValue&) above.
-    std::string r(val, len);
-    JS_FreeCString(ctx, val);
-    return r;
+    return to_str(x, len);
   }
 
   std::optional<std::string> Context::to_str(
     const JSValue& x, size_t& len) const
   {
-    const auto* val = JS_ToCStringLen(ctx, &len, x);
+    const auto free_cstring = [this](const char* str) {
+      JS_FreeCString(ctx, str);
+    };
+    const std::unique_ptr<const char, decltype(free_cstring)> val(
+      JS_ToCStringLen(ctx, &len, x), free_cstring);
     if (val == nullptr)
     {
       // JS_ToCStringLen returns nullptr when a JS exception is already set (eg
@@ -647,26 +638,26 @@ namespace ccf::js::core
       // caller
       return std::nullopt;
     }
-    // See comment in to_str(const JSWrappedValue&) above.
-    std::string r(val, len);
-    JS_FreeCString(ctx, val);
-    return r;
+    // Preserve embedded NUL bytes. The QuickJS buffer may alias a live JS
+    // string, so release it even if copying throws, but do not cleanse it.
+    return std::string(val.get(), len);
   }
 
   std::optional<std::string> Context::to_str(const JSAtom& atom) const
   {
     size_t len = 0;
-    const auto* val = JS_AtomToCStringLen(ctx, &len, atom);
+    const auto free_cstring = [this](const char* str) {
+      JS_FreeCString(ctx, str);
+    };
+    const std::unique_ptr<const char, decltype(free_cstring)> val(
+      JS_AtomToCStringLen(ctx, &len, atom), free_cstring);
     if (val == nullptr)
     {
       // JS_AtomToCStringLen returns nullptr when a JS exception is already set
       // (eg OOM). Preserve that exception for callers.
       return std::nullopt;
     }
-    // See comment in to_str(const JSWrappedValue&) above.
-    std::string r(val, len);
-    JS_FreeCString(ctx, val);
-    return r;
+    return std::string(val.get(), len);
   }
 
   void Context::add_extension(const js::extensions::ExtensionPtr& extension)

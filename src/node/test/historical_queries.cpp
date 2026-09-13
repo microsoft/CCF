@@ -20,6 +20,7 @@
 #include "kv/test/stub_consensus.h"
 #include "node/history.h"
 #include "node/share_manager.h"
+#include "node/signature_cache_subsystem.h"
 
 #include <algorithm>
 #include <random>
@@ -2194,6 +2195,93 @@ TEST_CASE("adjust_ranges")
       REQUIRE(actual_removed == expected_removed);
     }
   }
+}
+
+TEST_CASE(
+  "Historical and cached COSE signatures belong to the same transaction")
+{
+  auto state = create_and_init_state();
+  auto& store = *state.kv_store;
+  ccf::SignatureCacheSubsystem signature_cache;
+  signature_cache.register_hooks(store);
+  ccf::historical::StateCache historical_cache(
+    store, state.ledger_secrets, std::make_shared<StubWriter>());
+
+  const std::vector<ccf::CoseSignatureMap> signature_transactions{
+    {{ccf::IdentityType::CLASSICAL, {1, 2}}, {ccf::IdentityType::PQ, {3, 4}}},
+    {{ccf::IdentityType::CLASSICAL, {5, 6}}},
+    {{ccf::IdentityType::PQ, {7, 8}}}};
+
+  for (const auto& written_signatures : signature_transactions)
+  {
+    auto tx = store.create_tx();
+    auto* signatures = tx.wo<ccf::CoseSignatures>(ccf::Tables::COSE_SIGNATURES);
+    for (const auto& [identity_type, signature] : written_signatures)
+    {
+      signatures->put(identity_type, signature);
+    }
+    tx.wo<ccf::SerialisedMerkleTree>(ccf::Tables::SERIALISED_MERKLE_TREE)
+      ->put({});
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+
+    const auto txid = store.current_txid();
+    INFO("Signature transaction: ", txid.to_str());
+    {
+      auto read_tx = store.create_read_only_tx();
+      REQUIRE(
+        read_tx.ro<ccf::CoseSignatures>(ccf::Tables::COSE_SIGNATURES)->size() ==
+        2);
+    }
+    store.compact(txid.seqno);
+    const auto cached = signature_cache.get_signature_for(txid.seqno - 1);
+    REQUIRE(cached.has_value());
+    REQUIRE(cached->sig_seqno == txid.seqno);
+    REQUIRE(cached->cose_signatures == written_signatures);
+
+    const auto ledger = construct_host_ledger(store.get_consensus());
+    const auto& entry = ledger.at(txid.seqno);
+    auto result = ccf::kv::ApplyResult::FAIL;
+    ccf::ClaimsDigest claims_digest;
+    bool has_commit_evidence = false;
+    const auto historical_store = historical_cache.deserialise_ledger_entry(
+      txid.seqno,
+      entry.data(),
+      entry.size(),
+      result,
+      claims_digest,
+      has_commit_evidence);
+    REQUIRE(historical_store != nullptr);
+    REQUIRE(result == ccf::kv::ApplyResult::PASS_SIGNATURE);
+    REQUIRE(historical_store->current_txid() == txid);
+    REQUIRE(
+      ccf::historical::get_cose_signatures(historical_store) ==
+      cached->cose_signatures);
+  }
+}
+
+TEST_CASE("Legacy COSE receipt descriptions select CLASSICAL, not PQ")
+{
+  const ccf::CoseSignature classical_signature{1, 2, 3};
+  const ccf::CoseSignature pq_signature{4, 5, 6};
+  ccf::TxReceiptImpl receipt(
+    std::nullopt,
+    {{ccf::IdentityType::CLASSICAL, classical_signature},
+     {ccf::IdentityType::PQ, pq_signature}},
+    std::nullopt,
+    nullptr,
+    ccf::NodeId{},
+    std::nullopt);
+
+  REQUIRE(ccf::describe_cose_signature_v1(receipt) == classical_signature);
+  REQUIRE(
+    ccf::historical::select_described_cose_signature(receipt.cose_signatures) ==
+    classical_signature);
+
+  receipt.cose_signatures.erase(ccf::IdentityType::CLASSICAL);
+  REQUIRE_FALSE(ccf::describe_cose_signature_v1(receipt).has_value());
+  REQUIRE_FALSE(
+    ccf::historical::select_described_cose_signature(receipt.cose_signatures)
+      .has_value());
 }
 
 int main(int argc, char** argv)

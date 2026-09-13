@@ -27,6 +27,7 @@ DEFAULT_MAX_OPEN_SESSIONS_HARD = DEFAULT_MAX_OPEN_SESSIONS_SOFT + 10
 
 DEFAULT_MAX_HTTP_BODY_SIZE = 1024 * 1024
 DEFAULT_MAX_HTTP_HEADER_SIZE = 16 * 1024
+DEFAULT_MAX_HTTP_REQUEST_TARGET_SIZE = 16 * 1024
 DEFAULT_MAX_HTTP_HEADERS_COUNT = 256
 
 DEFAULT_MAX_CONCURRENT_STREAMS_COUNT = 100
@@ -180,6 +181,9 @@ class RPCInterface(Interface):
     max_http_header_size: int | None = field(
         default_factory=lambda: DEFAULT_MAX_HTTP_HEADER_SIZE
     )
+    max_http_request_target_size: int | None = field(
+        default_factory=lambda: DEFAULT_MAX_HTTP_REQUEST_TARGET_SIZE
+    )
     max_http_headers_count: int | None = field(
         default_factory=lambda: DEFAULT_MAX_HTTP_HEADERS_COUNT
     )
@@ -204,6 +208,7 @@ class RPCInterface(Interface):
         self.max_open_sessions_hard = args.max_open_sessions_hard
         self.max_http_body_size = args.max_http_body_size
         self.max_http_header_size = args.max_http_header_size
+        self.max_http_request_target_size = args.max_http_request_target_size
         self.max_http_headers_count = args.max_http_headers_count
         self.forwarding_timeout_ms = args.forwarding_timeout_ms
         self.app_protocol = "HTTP2" if args.http2 else "HTTP1"
@@ -227,6 +232,7 @@ class RPCInterface(Interface):
         http_config = {
             "max_body_size": str(interface.max_http_body_size),
             "max_header_size": str(interface.max_http_header_size),
+            "max_request_target_size": str(interface.max_http_request_target_size),
             "max_headers_count": interface.max_http_headers_count,
         }
         if interface.app_protocol == "HTTP2":

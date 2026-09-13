@@ -14,6 +14,7 @@ from contextlib import contextmanager
 from functools import partial
 from http import HTTPStatus
 
+import infra.clients
 import infra.e2e_args
 import infra.net
 import infra.network
@@ -1428,6 +1429,45 @@ def test_caching_of_kv_handles(network, args):
     return network
 
 
+@reqs.description("Historical state remains available through response conversion")
+def test_historical_response_conversion(network, args):
+    primary, _ = network.find_nodes()
+    with primary.client() as c:
+        writes = []
+        for _ in range(2):
+            r = c.post("/app/increment")
+            assert r.status_code == http.HTTPStatus.OK, r
+            c.wait_for_commit(r)
+            writes.append(r)
+
+        for write in writes:
+            expected_value = write.body.json()["value"]
+            for path in ("/app/historical", f"/app/historical/range/{write.seqno}"):
+                headers = {
+                    infra.clients.CCF_TX_ID_HEADER: f"{write.view}.{write.seqno}"
+                }
+                timeout = time.time() + 10
+                while True:
+                    r = c.get(path, headers=headers)
+                    if r.status_code != http.HTTPStatus.ACCEPTED:
+                        break
+                    assert time.time() < timeout, r
+                    time.sleep(0.1)
+
+                assert r.status_code == http.HTTPStatus.OK, r
+                assert r.body.json() == {"value": expected_value}, r
+                assert r.headers["x-historical-value"] == str(expected_value), r
+
+                for fail in ("body", "json"):
+                    r = c.get(path, headers={**headers, "x-throw": fail})
+                    assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r
+                    r = c.get(path, headers=headers)
+                    assert r.status_code == http.HTTPStatus.OK, r
+                    assert r.body.json() == {"value": expected_value}, r
+
+    return network
+
+
 def test_caching_of_app_code(network, args):
     primary, backups = network.find_nodes()
     LOG.info(
@@ -1471,6 +1511,7 @@ def run_interpreter_reuse(args):
 
         network = test_reused_interpreter_behaviour(network, args)
         network = test_caching_of_kv_handles(network, args)
+        network = test_historical_response_conversion(network, args)
         network = test_caching_of_app_code(network, args)
 
 

@@ -75,10 +75,29 @@ add_custom_target(
     "${CCF_RS_DIR}/rust-toolchain.toml"
     "${CCF_DIR}/src/cose/cose_rs/Cargo.toml"
     "${CCF_DIR}/3rdparty/internal/cose-openssl/Cargo.toml"
+    "${CCF_DIR}/3rdparty/internal/tee-attestation-verification/ffi/Cargo.toml"
   COMMENT
     "Building ${CCF_RS_PACKAGE} Rust static library (Cargo profile: ${CCF_RS_CARGO_PROFILE_NAME})"
   USES_TERMINAL
   VERBATIM
 )
 
+add_library(ccf_rs INTERFACE)
+target_link_libraries(
+  ccf_rs
+  INTERFACE
+    $<BUILD_INTERFACE:${CCF_RS_LIB_BUILD_PATH}>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/lib/${CCF_RS_LIB}>
+    ssl
+    crypto
+)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  target_link_libraries(
+    ccf_rs
+    INTERFACE ${CMAKE_THREAD_LIBS_INIT} ${CMAKE_DL_LIBS} m
+  )
+endif()
+add_dependencies(ccf_rs cargo-build_ccf_rs)
+
 install(FILES "${CCF_RS_LIB_BUILD_PATH}" DESTINATION lib)
+install(TARGETS ccf_rs EXPORT ccf)

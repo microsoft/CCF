@@ -666,6 +666,9 @@
           },
           "max_headers_count": {
             "$ref": "#/components/schemas/uint32"
+          },
+          "max_request_target_size": {
+            "$ref": "#/components/schemas/SizeString"
           }
         },
         "type": "object"
@@ -828,12 +831,16 @@
           },
           "request_payload_too_large": {
             "$ref": "#/components/schemas/uint64"
+          },
+          "request_target_too_long": {
+            "$ref": "#/components/schemas/uint64"
           }
         },
         "required": [
           "parsing",
           "request_payload_too_large",
-          "request_header_too_large"
+          "request_header_too_large",
+          "request_target_too_long"
         ],
         "type": "object"
       },
@@ -963,7 +970,7 @@
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "5.0.7"
+    "version": "5.0.8"
   },
   "openapi": "3.0.0",
   "paths": {
