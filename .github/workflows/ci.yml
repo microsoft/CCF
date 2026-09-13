@@ -52,6 +52,8 @@ jobs:
         uses: ./.github/actions/install-ci-dependencies
         with:
           python-requirements: doc/requirements.txt,doc/historical_ccf_requirements.txt,tests/requirements.txt
+        env:
+          CCF_INSTALL_LLD: "true"
 
       - name: "Install development dependencies"
         shell: bash
@@ -149,6 +151,8 @@ jobs:
 
       - name: "Install dependencies"
         uses: ./.github/actions/install-ci-dependencies
+        env:
+          CCF_INSTALL_LLD: "true"
 
       - name: "Confirm running on Virtual"
         run: |
@@ -219,6 +223,8 @@ jobs:
 
       - name: "Install dependencies"
         uses: ./.github/actions/install-ci-dependencies
+        env:
+          CCF_INSTALL_LLD: "true"
 
       - name: "Build Debug"
         run: |
@@ -299,17 +305,13 @@ jobs:
           python3 tests/infra/platform_detection.py snp milan
         shell: bash
 
-      - name: "Install LLD"
-        run: tdnf -y install lld
-        shell: bash
-
       - name: "Build Debug"
         run: |
           set -ex
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DWORKER_THREADS=1 -DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=lld ..
+          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DWORKER_THREADS=1 ..
           ninja
           cp .ninja_log ninja.log
         shell: bash
@@ -391,17 +393,13 @@ jobs:
           python3 tests/infra/platform_detection.py snp genoa
         shell: bash
 
-      - name: "Install LLD"
-        run: tdnf -y install lld
-        shell: bash
-
       - name: "Build Debug"
         run: |
           set -ex
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DWORKER_THREADS=1 -DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=lld ..
+          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DWORKER_THREADS=1 ..
           ninja
           cp .ninja_log ninja.log
         shell: bash
