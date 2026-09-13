@@ -79,7 +79,7 @@ File: `codeql-analysis.yml`
 
 # Continuous Verification
 
-Runs the standard model checking, simulation, trace validation, counterexample, and disaster recovery jobs each week.
+Runs the standard model checking, simulation, trace validation, and counterexample jobs each week.
 
 File: `ci-verification.yml`
 3rd party dependencies: None
@@ -99,6 +99,22 @@ Runs on pull requests that change `tla/` or `src/consensus/aft/raft.h`.
 - Builds the Raft scenario driver and validates its traces against the consensus specification on a GitHub-hosted runner.
 
 File: `tla-shallow.yml`
+3rd party dependencies: None
+
+# Lean
+
+Runs all Lean verification for the repository. Future Lean checks should be
+added as jobs to this workflow.
+
+The disaster recovery job builds the canonical model with `lake build --wfail`,
+audits its transitive axiom dependencies with `lake lint`, and runs its
+executable canonical behavior checks on Ubuntu 26.04 on relevant pull requests.
+The build and audit include both the human-reviewed model and system properties
+and the proof implementation files marked as generated for review purposes.
+The standard `mk_all --check` command ensures that the audit root imports every
+library module, so newly added proofs cannot silently escape the checks.
+
+File: `lean.yml`
 3rd party dependencies: None
 
 # Vendored Dependency Verification

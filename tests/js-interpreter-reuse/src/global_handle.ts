@@ -80,4 +80,52 @@ function increment() {
   return { body: { value: v } };
 }
 
-export { globals, increment };
+function historical(request) {
+  const seqno = Number(request.params.seqno);
+  const getState = request.params.seqno
+    ? () => ccf.historical.getStateRange(seqno, seqno, seqno, 180)?.[0]
+    : () => ccf.historicalState;
+  if (!getState()) {
+    return { statusCode: 202 };
+  }
+
+  const read = () =>
+    ccfapp.uint32.decode(
+      getState().kv["public:cached_handle_table"].get(
+        ccfapp.string.encode("single_key"),
+      ),
+    );
+  const fail = request.headers["x-throw"];
+
+  // These reads happen after the endpoint handler has returned.
+  return {
+    get body() {
+      read();
+      if (fail === "body") {
+        throw new Error("Historical response body failure");
+      }
+      return {
+        toJSON() {
+          const value = read();
+          if (fail === "json") {
+            throw new Error("Historical response JSON failure");
+          }
+          return { value };
+        },
+      };
+    },
+    get headers() {
+      return {
+        get "x-historical-value"() {
+          return `${read()}`;
+        },
+      };
+    },
+    get statusCode() {
+      read();
+      return 200;
+    },
+  };
+}
+
+export { globals, increment, historical };

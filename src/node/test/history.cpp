@@ -19,7 +19,9 @@
 #include <doctest/doctest.h>
 #undef FAIL
 
+#include <atomic>
 #include <exception>
+#include <stop_token>
 #include <thread>
 
 using MapT = ccf::kv::Map<size_t, size_t>;
@@ -136,6 +138,17 @@ TEST_CASE("Check signature verification")
   {
     primary_history->emit_signature();
     REQUIRE(backup_store.current_version() == 2);
+  }
+
+  INFO("Verify signatures after appending one unsigned transaction");
+  {
+    MapT table("public:table");
+    auto tx = primary_store.create_tx();
+    tx.rw(table)->put(0, 1);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+    REQUIRE(backup_store.current_version() == 3);
+    REQUIRE_FALSE(
+      backup_history->verify_root_signatures(backup_store.current_version()));
   }
 
   INFO("Issue a bogus signature, rejected by verification on the backup");
@@ -313,6 +326,77 @@ public:
     return txr.commit_reserved();
   }
 };
+
+TEST_CASE("Pending signatures retain their endorsed certificate")
+{
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
+  auto consensus = std::make_shared<ccf::kv::test::PrimaryStubConsensus>();
+  auto node_kp = ccf::crypto::make_ec_key_pair();
+  auto service_kp = std::dynamic_pointer_cast<ccf::crypto::ECKeyPair_OpenSSL>(
+    ccf::crypto::make_ec_key_pair());
+
+  const auto first_cert =
+    node_kp->self_sign("CN=First Node", valid_from, valid_to);
+  const auto second_cert =
+    node_kp->self_sign("CN=Second Node", valid_from, valid_to);
+
+  ccf::kv::Store store;
+  store.set_encryptor(encryptor);
+  store.set_consensus(consensus);
+
+  auto history = std::make_shared<ccf::MerkleTxHistory>(
+    store, ccf::kv::test::PrimaryNodeId, *node_kp);
+  history->set_endorsed_certificate(first_cert);
+  history->set_service_signing_identity(
+    service_kp, ccf::COSESignaturesConfig{});
+  store.set_history(history);
+
+  constexpr auto store_term = 2;
+  store.initialise_term(store_term);
+
+  MapT table("public:table");
+  const auto gap_txid = store.next_txid();
+
+  history->emit_signature();
+  REQUIRE(consensus->number_of_replicas() == 0);
+
+  history->set_endorsed_certificate(second_cert);
+  REQUIRE(
+    store.commit(
+      gap_txid,
+      std::make_unique<TestPendingTx>(gap_txid, store, table),
+      false) == ccf::kv::CommitResult::SUCCESS);
+
+  auto tx = store.create_read_only_tx();
+  auto signatures = tx.ro<ccf::Signatures>(ccf::Tables::SIGNATURES);
+  const auto signature = signatures->get();
+  REQUIRE(signature.has_value());
+  REQUIRE(signature->cert == first_cert);
+
+  std::atomic<bool> updater_started = false;
+  std::jthread updater([&](std::stop_token stop_token) {
+    updater_started.store(true, std::memory_order_release);
+    while (!stop_token.stop_requested())
+    {
+      history->set_endorsed_certificate(first_cert);
+      history->set_endorsed_certificate(second_cert);
+      std::this_thread::yield();
+    }
+  });
+
+  while (!updater_started.load(std::memory_order_acquire))
+  {
+    std::this_thread::yield();
+  }
+
+  for (size_t i = 0; i < 32; ++i)
+  {
+    history->emit_signature();
+  }
+
+  updater.request_stop();
+  updater.join();
+}
 
 struct PausedSignatureCommit
 {
@@ -642,4 +726,86 @@ int main(int argc, char** argv)
   if (context.shouldExit())
     return res;
   return res;
+}
+
+TEST_CASE("COSE signature table holds one entry per identity")
+{
+  ccf::kv::Store store;
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
+  store.set_encryptor(encryptor);
+
+  const ccf::CoseSignature ec384_sig{1, 2, 3};
+  const ccf::CoseSignature mldsa65_sig{4, 5, 6};
+
+  INFO("A table carrying two identities round-trips both");
+  {
+    auto tx = store.create_tx();
+    auto* handle = tx.wo<ccf::CoseSignatures>(ccf::Tables::COSE_SIGNATURES);
+    handle->put(ccf::IdentityType::CLASSICAL, ec384_sig);
+    handle->put(ccf::IdentityType::PQ, mldsa65_sig);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+
+  {
+    auto tx = store.create_read_only_tx();
+    auto* handle = tx.ro<ccf::CoseSignatures>(ccf::Tables::COSE_SIGNATURES);
+
+    // A reader which only understands ECDSA still finds it, unaffected by
+    // the presence of identities it does not know about.
+    REQUIRE(handle->get(ccf::IdentityType::CLASSICAL) == ec384_sig);
+    REQUIRE(handle->get(ccf::IdentityType::PQ) == mldsa65_sig);
+
+    ccf::CoseSignatureMap read_back;
+    handle->foreach([&read_back](const auto& identity_type, const auto& sig) {
+      read_back.emplace(identity_type, sig);
+      return true;
+    });
+    REQUIRE(read_back.size() == 2);
+  }
+}
+
+TEST_CASE("CLASSICAL COSE signatures interoperate with the legacy singleton")
+{
+  using LegacyCoseSignatures = ccf::ServiceValue<ccf::CoseSignature>;
+  ccf::kv::Store store;
+  store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+  const ccf::CoseSignature legacy_signature{1, 2, 3};
+  const ccf::CoseSignature keyed_signature{4, 5, 6};
+
+  {
+    auto tx = store.create_tx();
+    tx.wo<LegacyCoseSignatures>(ccf::Tables::COSE_SIGNATURES)
+      ->put(legacy_signature);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+
+  {
+    auto tx = store.create_tx();
+    auto* signatures = tx.rw<ccf::CoseSignatures>(ccf::Tables::COSE_SIGNATURES);
+    REQUIRE(signatures->get(ccf::IdentityType::CLASSICAL) == legacy_signature);
+    signatures->put(ccf::IdentityType::CLASSICAL, keyed_signature);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+
+  {
+    auto tx = store.create_read_only_tx();
+    REQUIRE(
+      tx.ro<LegacyCoseSignatures>(ccf::Tables::COSE_SIGNATURES)->get() ==
+      keyed_signature);
+  }
+}
+
+TEST_CASE("extract_cose_signatures skips removals")
+{
+  ccf::CoseSignatures::Write writes;
+  writes[ccf::IdentityType::CLASSICAL] = ccf::CoseSignature{1, 2, 3};
+  // A removal is recorded as an unset value, and must not be reported as a
+  // signature.
+  writes[ccf::IdentityType::PQ] = std::nullopt;
+
+  const auto extracted = ccf::extract_cose_signatures(writes);
+  REQUIRE(extracted.size() == 1);
+  REQUIRE(
+    extracted.at(ccf::IdentityType::CLASSICAL) == ccf::CoseSignature{1, 2, 3});
+  REQUIRE_FALSE(extracted.contains(ccf::IdentityType::PQ));
 }

@@ -164,9 +164,14 @@ include_directories(${CCF_DIR}/src)
 
 set(CCF_3RD_PARTY_EXPORTED_DIR "${CCF_DIR}/3rdparty/exported")
 set(CCF_3RD_PARTY_INTERNAL_DIR "${CCF_DIR}/3rdparty/internal")
+set(
+  TAV_INCLUDE_DIR
+  "${CCF_3RD_PARTY_INTERNAL_DIR}/tee-attestation-verification/ffi/include"
+)
 
 include_directories(SYSTEM ${CCF_3RD_PARTY_EXPORTED_DIR})
 include_directories(SYSTEM ${CCF_3RD_PARTY_INTERNAL_DIR})
+include_directories(SYSTEM ${TAV_INCLUDE_DIR})
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/tools.cmake)
 
@@ -244,7 +249,6 @@ include(${CCF_DIR}/cmake/ccf_rs.cmake)
 include(${CCF_DIR}/cmake/threading.cmake)
 include(${CCF_DIR}/cmake/crypto.cmake)
 include(${CCF_DIR}/cmake/quickjs.cmake)
-include(${CCF_DIR}/cmake/evercbor.cmake)
 
 # Launcher library
 list(
@@ -280,6 +284,10 @@ add_ccf_static_library(
   SRCS ${CCF_DIR}/src/pal/attestation.cpp
   LINK_LIBS ccfcrypto
 )
+target_include_directories(
+  ccf_pal
+  PRIVATE ${CCF_DIR}/3rdparty/internal/tee-attestation-verification/ffi/include
+)
 
 # CCF js lib
 add_ccf_static_library(
@@ -304,6 +312,7 @@ add_ccf_static_library(
     ${CCF_DIR}/src/js/extensions/ccf/rpc.cpp
     ${CCF_DIR}/src/js/extensions/ccf/request.cpp
     ${CCF_DIR}/src/js/registry.cpp
+    ${CCF_DIR}/src/node/uvm_endorsements.cpp
   LINK_LIBS ccfcrypto quickjs ccf_pal
 )
 
@@ -526,6 +535,11 @@ install(
   PATTERN "*.inc"
 )
 
+install(
+  FILES ${TAV_INCLUDE_DIR}/tav/snp.h ${TAV_INCLUDE_DIR}/tav/utils.h
+  DESTINATION include/3rdparty/tav
+)
+
 # Install all private CCF headers, which may still be needed
 install(
   DIRECTORY src/
@@ -627,6 +641,7 @@ if(BUILD_TESTS)
       snp_ioctl_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/pal/test/snp_ioctl_test.cpp
     )
+    target_link_libraries(snp_ioctl_test PRIVATE ccf_pal)
     set_property(TEST snp_ioctl_test APPEND PROPERTY LABELS snp)
     set_property(TEST snp_ioctl_test APPEND PROPERTY CONFIGURATIONS snp)
 
@@ -655,6 +670,12 @@ if(BUILD_TESTS)
       parse_json_safe_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/parse_json_safe.cpp
     )
+
+    add_unit_test(
+      public_header_helpers_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/public_header_helpers.cpp
+    )
+    target_link_libraries(public_header_helpers_test PRIVATE http_parser)
 
     add_unit_test(
       state_machine_test
@@ -785,10 +806,9 @@ if(BUILD_TESTS)
     if(FUZZING)
       add_fuzz_test(
         cbor_fuzz_test
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/cbor.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/cbor_fuzz.cpp
       )
-      target_link_libraries(cbor_fuzz_test PRIVATE evercbor)
+      target_link_libraries(cbor_fuzz_test PRIVATE ccfcrypto)
     endif()
 
     add_unit_test(
@@ -870,7 +890,6 @@ if(BUILD_TESTS)
         ENVIRONMENT
           "TEST_ENDORSEMENTS_PATH=${CMAKE_CURRENT_SOURCE_DIR}/tests/uvm_endorsements"
     )
-    target_link_libraries(endorsements_test PRIVATE evercbor)
 
     add_unit_test(
       historical_queries_test
@@ -1238,13 +1257,6 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
-    NAME commit_latency
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/commit_latency.py
-    LABEL perf
-    CONFIGURATIONS perf
-  )
-
-  add_e2e_test(
     NAME js_batched_stress_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_batched.py
     BUCKET bucket_c
@@ -1485,6 +1497,11 @@ if(BUILD_TESTS)
       APPEND
       PROPERTY LABELS lts_compatibility
     )
+    if(LONG_TESTS)
+      # Full ledger and snapshot recovery across releases exceeds the default
+      # e2e timeout, particularly in coverage builds.
+      set_tests_properties(lts_compatibility PROPERTIES TIMEOUT 900)
+    endif()
   endif()
 
   if(LONG_TESTS)
@@ -1640,7 +1657,8 @@ if(BUILD_TESTS)
 
   add_test_bin(
     curl_test
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/http/test/curl_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/http_client/test/curl_header_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/http_client/test/curl_test.cpp
   )
   target_link_libraries(curl_test PRIVATE curl uv http_parser)
 

@@ -3,6 +3,7 @@
 import datetime
 import json
 import os
+import re
 import shutil
 
 import ccf.ledger
@@ -33,11 +34,57 @@ ENV_VAR_LATEST_LTS_BRANCH_NAME = (
 )
 
 LOCAL_CHECKOUT_DIRECTORY = "."
+FINAL_RELEASE_TAG = re.compile(r"^ccf-(\d+)\.0\.(\d+)$")
 
 # When a 2.x node joins a 1.x service, the node has to self-endorse
 # its certificate, using a default value for the validity period
 # hardcoded in CCF.
 DEFAULT_NODE_CERTIFICATE_VALIDITY_DAYS = 365
+
+
+def validate_compatibility_report(report):
+    current_tag = report["version"]
+    current_match = FINAL_RELEASE_TAG.fullmatch(current_tag)
+    if current_match is None:
+        return
+
+    current_major, current_patch = (int(group) for group in current_match.groups())
+    live_compatibility = report["live compatibility"]
+
+    previous_lts = live_compatibility["with previous LTS"]
+    if current_major == 1:
+        assert previous_lts is None, f"Expected no previous LTS, got {previous_lts}"
+    else:
+        previous_lts_match = FINAL_RELEASE_TAG.fullmatch(previous_lts or "")
+        assert (
+            previous_lts_match is not None
+            and int(previous_lts_match.group(1)) == current_major - 1
+        ), f"Expected previous LTS from major {current_major - 1}, got {previous_lts}"
+
+    same_lts = live_compatibility["with same LTS"]
+    expected_same_lts = (
+        None if current_patch == 0 else f"ccf-{current_major}.0.{current_patch - 1}"
+    )
+    assert (
+        same_lts == expected_same_lts
+    ), f"Expected same LTS {expected_same_lts}, got {same_lts}"
+
+    data_compatibility = report.get("data compatibility")
+    if data_compatibility is not None:
+        ledger_versions = data_compatibility["with previous ledger"]
+        snapshot_versions = data_compatibility["with previous snapshots"]
+        assert (
+            ledger_versions == snapshot_versions
+        ), "Ledger and snapshot compatibility covered different releases"
+        expected_versions = set()
+        if previous_lts is not None:
+            expected_versions.add(previous_lts)
+        if same_lts is not None:
+            expected_versions.add(same_lts)
+        missing_versions = expected_versions.difference(ledger_versions)
+        assert (
+            not missing_versions
+        ), f"Data compatibility did not cover releases {missing_versions}"
 
 
 def disable_openapi_validation(network):
@@ -748,6 +795,9 @@ def run_ledger_compatibility_since_first(
 
                 issue_activity_on_live_service(network, args)
 
+                # Keep the issuer and legacy JWT records for subsequent recoveries.
+                # Destructive cleanup must only run on the final, local version.
+                run_jwt_cleanup = test_jwt_cleanup and lts_release is None
                 if idx > 0:
                     test_new_service(
                         network,
@@ -756,7 +806,7 @@ def run_ledger_compatibility_since_first(
                         binary_dir,
                         library_dir,
                         version,
-                        test_jwt_cleanup=test_jwt_cleanup,
+                        test_jwt_cleanup=run_jwt_cleanup,
                     )
 
                 snapshots_dir = (
@@ -768,14 +818,12 @@ def run_ledger_compatibility_since_first(
                 # Ledger file chunking changed from 1.x to 2.x and if it does not join from a snapshot the eol ledger files will be re-chunked differently on the joining node
                 check_file_invariants = use_snapshot
 
-                skip_verification = test_jwt_cleanup
-
                 LOG.info(
                     f"Stopping network recovering from version {previous_version} to {version}"
                 )
                 network.stop_all_nodes(
                     check_file_invariants=check_file_invariants,
-                    skip_verification=skip_verification,
+                    skip_verification=run_jwt_cleanup,
                 )
 
                 ledger_dir, committed_ledger_dirs = primary.get_ledger()
@@ -891,5 +939,12 @@ if __name__ == "__main__":
             LOG.info(
                 f"Compatibility report written to {args.compatibility_report_file}"
             )
+        # An explicit release path emits "with release (<path>)" rather than
+        # exercising the automatic previous- and same-LTS discovery checked here.
+        if not args.release_install_path:
+            with open(
+                args.compatibility_report_file, encoding="utf-8"
+            ) as compatibility_report_file:
+                validate_compatibility_report(json.load(compatibility_report_file))
 
     LOG.success(f"Compatibility report:\n {json.dumps(compatibility_report, indent=2)}")

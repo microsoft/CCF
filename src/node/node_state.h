@@ -30,8 +30,8 @@
 #include "enclave/rpc_sessions.h"
 #include "encryptor.h"
 #include "history.h"
-#include "http/curl.h"
 #include "http/http_parser.h"
+#include "http_client/curl.h"
 #include "indexing/indexer.h"
 #include "js/global_class_ids.h"
 #include "network_state.h"
@@ -112,7 +112,8 @@ namespace ccf
       best_view = ls->view;
     }
 
-    auto lcs = tx.ro<ccf::CoseSignatures>(Tables::COSE_SIGNATURES)->get();
+    auto lcs = tx.ro<ccf::CoseSignatures>(Tables::COSE_SIGNATURES)
+                 ->get(ccf::IdentityType::CLASSICAL);
     if (lcs.has_value())
     {
       auto receipt = cose::decode_ccf_receipt(lcs.value(), false);
@@ -881,10 +882,14 @@ namespace ccf
       }
 
       auto snp_attestation =
-        AttestationProvider::get_snp_attestation(quote_info);
+        AttestationProvider::get_snp_attestation_report(quote_info);
       if (snp_attestation.has_value())
       {
-        snp_tcb_version = snp_attestation.value().reported_tcb;
+        const uint8_t* data = nullptr;
+        size_t size = 0;
+        tav_snp_attestation_report_reported_tcb(
+          snp_attestation.value().get(), &data, &size);
+        snp_tcb_version = ccf::pal::snp::TcbVersionRaw({data, size});
       }
 
       // Verify that the security policy matches the quoted digest of the policy
@@ -1032,19 +1037,18 @@ namespace ccf
 
               // Check that tcbm in endorsement matches reported TCB in our
               // retrieved attestation
-              const auto* quote =
-                reinterpret_cast<const ccf::pal::snp::Attestation*>(
-                  quote_info.quote.data());
-              const auto reported_tcb = quote->reported_tcb;
+              const auto report =
+                ccf::pal::snp::parse_attestation_report_unverified(
+                  quote_info.quote);
+              const uint8_t* data = nullptr;
+              size_t size = 0;
+              tav_snp_attestation_report_reported_tcb(
+                report.get(), &data, &size);
+              const auto reported_tcb =
+                ccf::pal::snp::TcbVersionRaw({data, size});
 
-              // tcbm is a single hex value, like DB18000000000004. To match
-              // that with a TcbVersion, reverse the bytes.
-              const auto* tcb_begin =
-                reinterpret_cast<const uint8_t*>(&reported_tcb);
-              const std::span<const uint8_t> tcb_bytes{
-                tcb_begin, tcb_begin + sizeof(reported_tcb)};
-              auto tcb_as_hex = fmt::format(
-                "{:02x}", fmt::join(tcb_bytes.rbegin(), tcb_bytes.rend(), ""));
+              // tcbm is a single hex value, like DB18000000000004.
+              auto tcb_as_hex = reported_tcb.to_hex();
               ccf::nonstd::to_upper(tcb_as_hex);
 
               if (tcb_as_hex == aci_endorsements.tcbm)
@@ -1322,7 +1326,7 @@ namespace ccf
       // (it is not yet endorsed at join time). CURLOPT_SSL_VERIFYHOST=2
       // additionally checks that the target certificate matches the address we
       // connected to.
-      ccf::curl::UniqueCURL curl_handle;
+      ccf::http_client::UniqueCURL curl_handle;
       curl_handle.set_opt(CURLOPT_SSL_VERIFYPEER, 1L);
       curl_handle.set_opt(CURLOPT_SSL_VERIFYHOST, 2L);
       curl_handle.set_opt(CURLOPT_PROTOCOLS_STR, "https");
@@ -1348,7 +1352,7 @@ namespace ccf
         CURLOPT_SSLKEY_BLOB, client_key_pem.data(), client_key_pem.size());
       curl_handle.set_opt(CURLOPT_SSLKEYTYPE, "PEM");
 
-      ccf::curl::UniqueSlist request_headers;
+      ccf::http_client::UniqueSlist request_headers;
       request_headers.append(
         http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
 
@@ -1358,7 +1362,7 @@ namespace ccf
         get_actor_prefix(ActorsType::nodes),
         "join");
 
-      auto request_body = std::make_unique<ccf::curl::RequestBody>(
+      auto request_body = std::make_unique<ccf::http_client::RequestBody>(
         std::vector<uint8_t>(body.begin(), body.end()));
 
       // Generous cap on the join response body (service identity, endorsed
@@ -1370,9 +1374,9 @@ namespace ccf
       // response. Do not use the config target address, which may have been
       // updated by a redirect in the interim.
       // NOLINTBEGIN(readability-function-cognitive-complexity)
-      ccf::curl::CurlRequest::ResponseCallback response_callback =
+      ccf::http_client::CurlRequest::ResponseCallback response_callback =
         [this, target_address = config.join.target_rpc_address](
-          std::unique_ptr<ccf::curl::CurlRequest>&& request,
+          std::unique_ptr<ccf::http_client::CurlRequest>&& request,
           CURLcode curl_response,
           long status_code) {
           // The request has completed (with a response, a transport error, or
@@ -1402,7 +1406,7 @@ namespace ccf
           // are torn down during enclave shutdown, before NodeState is
           // destroyed), so capturing raw `this` is safe.
           auto response_headers =
-            std::make_shared<ccf::curl::ResponseHeaders::HeaderMap>(
+            std::make_shared<ccf::http_client::ResponseHeaders::HeaderMap>(
               request->get_response_headers());
           auto response_body = std::make_shared<std::vector<uint8_t>>(
             request->get_response_body() != nullptr ?
@@ -1434,7 +1438,8 @@ namespace ccf
                 // handshake failures (e.g. an untrusted service certificate) as
                 // fatal. Preserve both behaviours: transient transport errors
                 // are retried, everything else is fatal.
-                if (ccf::curl::is_transient_transport_error(curl_response))
+                if (ccf::http_client::is_transient_transport_error(
+                      curl_response))
                 {
                   LOG_INFO_FMT(
                     "Transient error contacting {} to join: {} ({}). The join "
@@ -1777,13 +1782,14 @@ namespace ccf
         };
       // NOLINTEND(readability-function-cognitive-complexity)
 
-      auto join_request = std::make_unique<ccf::curl::CurlRequest>(
+      auto join_request = std::make_unique<ccf::http_client::CurlRequest>(
         std::move(curl_handle),
         HTTP_POST,
         url,
         std::move(request_headers),
         std::move(request_body),
-        std::make_unique<ccf::curl::ResponseBody>(max_join_response_size),
+        std::make_unique<ccf::http_client::ResponseBody>(
+          max_join_response_size),
         std::move(response_callback));
 
       // Mark a request as in flight before handing it to the shared curl
@@ -1795,8 +1801,8 @@ namespace ccf
       join_request_in_flight.store(true);
       try
       {
-        ccf::curl::CurlmLibuvContextSingleton::get_instance()->attach_request(
-          std::move(join_request));
+        ccf::http_client::CurlmLibuvContextSingleton::get_instance()
+          ->attach_request(std::move(join_request));
       }
       catch (...)
       {
@@ -2034,7 +2040,8 @@ namespace ccf
       }
 
       ccf::COSESignaturesConfig cs_cfg{};
-      auto lcs = tx.ro(network.cose_signatures)->get();
+      auto lcs =
+        tx.ro(network.cose_signatures)->get(ccf::IdentityType::CLASSICAL);
       if (lcs.has_value())
       {
         CoseSignature cs = lcs.value();
@@ -3628,8 +3635,9 @@ namespace ccf
           [s = this->snapshotter](
             ccf::kv::Version version,
             const CoseSignatures::Write& w) -> ccf::kv::ConsensusHookPtr {
-            assert(w.has_value());
-            s->record_cose_signature(version, w.value());
+            const auto cose_signatures = extract_cose_signatures(w);
+            assert(!cose_signatures.empty());
+            s->record_cose_signatures(version, cose_signatures);
             return {nullptr};
           }));
 

@@ -6,12 +6,14 @@
 #include "ccf/ds/hex.h"
 #include "ccf/ds/logger.h"
 #include "ccf/ds/quote_info.h"
+#include "ccf/node/quote.h"
 #include "ccf/pal/attestation.h"
 #include "ccf/pal/attestation_sev_snp.h"
 #include "ccf/pal/attestation_sev_snp_endorsements.h"
 #include "ccf/pal/measurement.h"
 #include "ccf/pal/report_data.h"
 #include "ccf/pal/sev_snp_cpuid.h"
+#include "ccf/pal/snp_ioctl.h"
 #include "crypto/openssl/hash.h"
 #include "pal/test/attestation.h"
 #include "pal/test/attestation_sev_snp_endorsements.h"
@@ -20,6 +22,7 @@
 #include <algorithm>
 #include <array>
 #include <memory>
+#include <type_traits>
 
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>
@@ -128,6 +131,270 @@ namespace
   }
 }
 
+TEST_CASE("CCF policy is separate from generic TAV verification")
+{
+  using namespace ccf::pal;
+  const auto certs = milan_endorsement_certs();
+  REQUIRE(certs.size() == 3);
+  TavSnpAttestationReport* raw_report = nullptr;
+  const std::unique_ptr<TavError, decltype(&tav_error_free)> error(
+    tav_verify_snp_attestation(
+      snp::testing::milan_attestation.data(),
+      snp::testing::milan_attestation.size(),
+      certs[2].data(),
+      certs[2].size(),
+      certs[1].data(),
+      certs[1].size(),
+      certs[0].data(),
+      certs[0].size(),
+      &raw_report),
+    tav_error_free);
+  const snp::AttestationReport report(raw_report);
+  REQUIRE(error == nullptr);
+  REQUIRE(report != nullptr);
+  CHECK(
+    tav_snp_attestation_report_version(report.get()) ==
+    snp::minimum_attestation_version);
+
+  PlatformAttestationMeasurement measurement;
+  PlatformAttestationReportData report_data;
+  const std::vector<uint8_t> endorsements(
+    snp::testing::milan_endorsements.begin(),
+    snp::testing::milan_endorsements.end());
+  const ccf::QuoteInfo quote_info = {
+    .format = ccf::QuoteFormat::amd_sev_snp_v1,
+    .quote = snp::testing::milan_attestation,
+    .endorsements = endorsements,
+    .uvm_endorsements = std::nullopt,
+    .endorsed_tcb = "0000000000000000"};
+  CHECK_THROWS_WITH_AS(
+    verify_snp_attestation_report_and_get(quote_info, measurement, report_data),
+    doctest::Contains("does not match reported TCB"),
+    std::logic_error);
+}
+
+TEST_CASE("unverified SNP report rejects invalid sizes")
+{
+  for (const size_t size : {0U, 100U, 1183U, 1185U})
+  {
+    const auto expected_error = size == 0 ?
+      "SEV-SNP: TAV unverified report parsing failed (1): attestation report "
+      "is empty" :
+      fmt::format(
+        "SEV-SNP: TAV unverified report parsing failed (1): Invalid "
+        "attestation report: expected 1184 bytes, got {}",
+        size);
+    CHECK_THROWS_WITH_AS(
+      static_cast<void>(ccf::pal::snp::parse_attestation_report_unverified(
+        std::vector<uint8_t>(size))),
+      expected_error.c_str(),
+      std::logic_error);
+  }
+}
+
+TEST_CASE("SNP chip ID access rejects empty handles")
+{
+  ccf::pal::snp::AttestationReport report;
+  CHECK_THROWS_WITH_AS(
+    ccf::pal::snp::get_chip_id_for_vcek(report),
+    "Cannot access an empty SNP attestation report",
+    std::logic_error);
+}
+
+TEST_CASE("SNP endorsement configuration rejects empty owners")
+{
+  using namespace ccf::pal::snp;
+  AttestationReport report;
+
+  SUBCASE("default constructed") {}
+
+  SUBCASE("moved from")
+  {
+    report = parse_attestation_report_unverified(testing::milan_attestation);
+    auto owner = std::move(report);
+    REQUIRE(owner != nullptr);
+    CHECK_NOTHROW(make_endorsement_endpoint_configuration(owner));
+  }
+
+  REQUIRE(report == nullptr);
+  CHECK_THROWS_WITH_AS(
+    make_endorsement_endpoint_configuration(report),
+    "Cannot access an empty SNP attestation report",
+    std::logic_error);
+}
+
+TEST_CASE("VCEK chip ID uses the product-specific prefix")
+{
+  using namespace ccf::pal::snp;
+  struct TestCase
+  {
+    const std::vector<uint8_t>& report;
+    size_t chip_id_size;
+  };
+  for (const auto& [raw_report, expected_size] :
+       {TestCase{testing::milan_attestation, 64},
+        TestCase{testing::genoa_attestation, 64},
+        TestCase{testing::turin_attestation, 8}})
+  {
+    auto report = parse_attestation_report_unverified(raw_report);
+    const auto vcek_chip_id = get_chip_id_for_vcek(report);
+    REQUIRE(vcek_chip_id.size() == expected_size);
+    CHECK(std::equal(
+      vcek_chip_id.begin(), vcek_chip_id.end(), raw_report.begin() + 0x1A0));
+  }
+}
+
+TEST_CASE("TCB values can be constructed from borrowed bytes")
+{
+  using ccf::pal::snp::TcbVersionRaw;
+  std::array<uint8_t, 8> bytes = {4, 0, 0, 0, 0, 0, 24, 219};
+  const auto tcb = TcbVersionRaw(std::span<const uint8_t>(bytes));
+  CHECK(tcb.to_hex() == "db18000000000004");
+  CHECK(tcb == TcbVersionRaw(std::vector<uint8_t>(bytes.begin(), bytes.end())));
+  bytes.fill(0);
+  CHECK(tcb.to_hex() == "db18000000000004");
+  for (const size_t size : {0, 7, 9})
+  {
+    const std::vector<uint8_t> invalid_bytes(size);
+    const auto expected_error =
+      fmt::format("Invalid TCB version raw data size: {}", size);
+    CHECK_THROWS_WITH_AS(
+      TcbVersionRaw{invalid_bytes}, expected_error.c_str(), std::logic_error);
+    CHECK_THROWS_WITH_AS(
+      TcbVersionRaw(std::span<const uint8_t>(invalid_bytes)),
+      expected_error.c_str(),
+      std::logic_error);
+  }
+}
+
+TEST_CASE("SNP verification preserves invalid size error")
+{
+  ccf::pal::PlatformAttestationMeasurement measurement;
+  ccf::pal::PlatformAttestationReportData report_data;
+  const ccf::QuoteInfo quote_info = {
+    .format = ccf::QuoteFormat::amd_sev_snp_v1,
+    .quote = std::vector<uint8_t>(100),
+    .endorsements = {},
+    .uvm_endorsements = std::nullopt};
+  CHECK_THROWS_WITH_AS(
+    ccf::pal::verify_snp_attestation_report_and_get(
+      quote_info, measurement, report_data),
+    doctest::Contains(
+      "Input SEV-SNP attestation report is not of expected size 1184: 100"),
+    std::logic_error);
+}
+
+TEST_CASE("SNP verification rejects other quote formats before parsing")
+{
+  for (const auto format :
+       {ccf::QuoteFormat::insecure_virtual, ccf::QuoteFormat::oe_sgx_v1})
+  {
+    const ccf::QuoteInfo quote_info = {
+      .format = format,
+      .quote = {},
+      .endorsements = {},
+      .uvm_endorsements = std::nullopt};
+    ccf::pal::PlatformAttestationMeasurement measurement;
+    ccf::pal::PlatformAttestationReportData report_data;
+    const auto expected_error = fmt::format(
+      "Unexpected attestation report to verify for SEV-SNP: {}", format);
+    CHECK_THROWS_WITH_AS(
+      ccf::pal::verify_snp_attestation_report_and_get(
+        quote_info, measurement, report_data),
+      expected_error.c_str(),
+      std::logic_error);
+    CHECK_THROWS_WITH_AS(
+      ccf::pal::verify_snp_attestation_report(
+        quote_info, measurement, report_data),
+      expected_error.c_str(),
+      std::logic_error);
+  }
+}
+
+TEST_CASE("SNP request rejects oversized report data before ioctl")
+{
+  ccf::pal::PlatformAttestationReportData report_data;
+  report_data.data.resize(ccf::pal::snp_attestation_report_data_size + 1);
+  CHECK_THROWS_WITH_AS(
+    ccf::pal::snp::ioctl6::Attestation{report_data},
+    "User-defined report data is larger than available space",
+    std::logic_error);
+}
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+TEST_CASE("legacy SNP report layout matches the AMD specification")
+{
+  using ccf::pal::snp::Attestation;
+
+  static_assert(
+    std::is_same_v<
+      decltype(std::declval<ccf::pal::snp::AttestationInterface&>().get()),
+      const Attestation&>);
+  static_assert(
+    std::is_same_v<
+      decltype(std::declval<ccf::pal::snp::AttestationInterface&>().get_raw()),
+      std::vector<uint8_t>>);
+  static_assert(
+    std::is_same_v<
+      decltype(std::declval<ccf::pal::snp::ioctl6::Attestation&>().get_raw()),
+      std::vector<uint8_t>>);
+  static_assert(std::is_same_v<
+                decltype(ccf::AttestationProvider::get_snp_attestation(
+                  std::declval<const ccf::QuoteInfo&>())),
+                std::optional<Attestation>>);
+  static_assert(std::is_same_v<
+                decltype(ccf::pal::snp::ioctl6::AttestationResp::report),
+                Attestation>);
+
+  CHECK(ccf::pal::snp::amd_root_signing_keys.size() == 3);
+  CHECK(
+    ccf::pal::snp::amd_root_signing_keys.at(ccf::pal::snp::ProductName::Milan)
+      .public_key == ccf::pal::snp::amd_milan_root_signing_public_key);
+
+  Attestation report = {};
+  CHECK(sizeof(report) == ccf::pal::snp::attestation_report_size);
+  CHECK(alignof(Attestation) == 1);
+  CHECK(offsetof(Attestation, version) == 0x000);
+  CHECK(offsetof(Attestation, policy) == 0x008);
+  CHECK(offsetof(Attestation, report_data) == 0x050);
+  CHECK(offsetof(Attestation, measurement) == 0x090);
+  CHECK(offsetof(Attestation, reported_tcb) == 0x180);
+  CHECK(offsetof(Attestation, chip_id) == 0x1A0);
+  CHECK(offsetof(Attestation, current_build) == 0x1E8);
+  CHECK(offsetof(Attestation, current_minor) == 0x1E9);
+  CHECK(offsetof(Attestation, current_major) == 0x1EA);
+  CHECK(offsetof(Attestation, signature) == 0x2A0);
+
+  ccf::pal::snp::ioctl6::detail::AttestationResponse response;
+  response.report_size = ccf::pal::snp::attestation_report_size;
+  std::copy(
+    ccf::pal::snp::testing::milan_attestation.begin(),
+    ccf::pal::snp::testing::milan_attestation.end(),
+    response.report_bytes.begin());
+  ccf::pal::snp::ioctl6::PaddedAttestationResp legacy_response;
+  static_assert(std::is_trivially_copyable_v<decltype(legacy_response)>);
+  static_assert(sizeof(legacy_response) == sizeof(response));
+  std::memcpy(&legacy_response, &response, sizeof(legacy_response));
+  CHECK(legacy_response.report_size == response.report_size);
+  REQUIRE(response.report_bytes[0x1E8] != response.report_bytes[0x1E9]);
+  CHECK(legacy_response.report.current_build == response.report_bytes[0x1E8]);
+  CHECK(legacy_response.report.current_minor == response.report_bytes[0x1E9]);
+  CHECK(
+    std::memcmp(
+      &legacy_response.report,
+      response.report_bytes.data(),
+      response.report_bytes.size()) == 0);
+
+  report.version = ccf::pal::snp::minimum_attestation_version;
+  report.cpuid_fam_id = 0x19;
+  report.cpuid_mod_id = 0x01;
+  const auto config =
+    ccf::pal::snp::make_endorsement_endpoint_configuration(report);
+  CHECK(config.servers.size() == 1);
+}
+#pragma clang diagnostic pop
+
 TEST_CASE("milan validation")
 {
   using namespace ccf;
@@ -144,8 +411,15 @@ TEST_CASE("milan validation")
   pal::PlatformAttestationMeasurement measurement;
   pal::PlatformAttestationReportData report_data;
 
+  const auto report = pal::verify_snp_attestation_report_and_get(
+    milan_quote_info, measurement, report_data);
+  REQUIRE(report != nullptr);
+  const auto verified_measurement = measurement.data;
+  const auto verified_report_data = report_data.data;
   pal::verify_snp_attestation_report(
     milan_quote_info, measurement, report_data);
+  CHECK(measurement.data == verified_measurement);
+  CHECK(report_data.data == verified_report_data);
 }
 
 TEST_CASE("genoa validation")
@@ -188,6 +462,31 @@ TEST_CASE("turin validation")
     turin_quote_info, measurement, report_data);
 }
 
+TEST_CASE("Invalid attestation signature fails TAV verification")
+{
+  using namespace ccf;
+
+  auto invalid_attestation = pal::snp::testing::milan_attestation;
+  static constexpr size_t signature_offset = 0x2a0;
+  invalid_attestation[signature_offset] ^= 1;
+  auto quote_info = QuoteInfo{
+    .format = QuoteFormat::amd_sev_snp_v1,
+    .quote = std::move(invalid_attestation),
+    .endorsements = std::vector<uint8_t>(
+      pal::snp::testing::milan_endorsements.begin(),
+      pal::snp::testing::milan_endorsements.end()),
+    .uvm_endorsements = std::nullopt,
+  };
+
+  pal::PlatformAttestationMeasurement measurement;
+  pal::PlatformAttestationReportData report_data;
+
+  CHECK_THROWS_WITH_AS(
+    pal::verify_snp_attestation_report(quote_info, measurement, report_data),
+    doctest::Contains("SEV-SNP: TAV verification failed (104):"),
+    std::logic_error);
+}
+
 TEST_CASE("Mismatched attestation and endorsements fail")
 {
   using namespace ccf;
@@ -207,9 +506,7 @@ TEST_CASE("Mismatched attestation and endorsements fail")
   CHECK_THROWS_WITH_AS(
     pal::verify_snp_attestation_report(
       mismatched_quote, measurement, report_data),
-    doctest::Contains(
-      "SEV-SNP: The root of trust public key for this attestation "
-      "was not the expected one"),
+    doctest::Contains("SEV-SNP: TAV verification failed (102):"),
     std::logic_error);
 }
 
@@ -223,9 +520,7 @@ TEST_CASE("ARK with unexpected issuer fails")
   CHECK_THROWS_WITH_AS(
     ccf::pal::verify_snp_attestation_report(
       quote_info, measurement, report_data),
-    doctest::Contains(
-      "SEV-SNP: The root of trust issuer for this attestation was not "
-      "the expected one"),
+    doctest::Contains("SEV-SNP: TAV verification failed (102):"),
     std::logic_error);
 }
 
@@ -269,11 +564,15 @@ TEST_CASE("Parsing of Tcb versions from strings")
 
 TEST_CASE("Parsing tcb versions from attestaion")
 {
-  auto milan_attestation = *reinterpret_cast<const ccf::pal::snp::Attestation*>(
-    ccf::pal::snp::testing::milan_attestation.data());
-  auto milan_tcb =
-    milan_attestation.reported_tcb.to_policy(ccf::pal::snp::ProductName::Milan)
-      .to_milan_genoa();
+  auto milan_attestation = ccf::pal::snp::parse_attestation_report_unverified(
+    ccf::pal::snp::testing::milan_attestation);
+  const uint8_t* data = nullptr;
+  size_t size = 0;
+  tav_snp_attestation_report_reported_tcb(
+    milan_attestation.get(), &data, &size);
+  auto milan_tcb = ccf::pal::snp::TcbVersionRaw({data, size})
+                     .to_policy(ccf::pal::snp::ProductName::Milan)
+                     .to_milan_genoa();
   CHECK_EQ(milan_tcb.microcode, 0xdb);
   CHECK_EQ(milan_tcb.snp, 0x18);
   CHECK_EQ(milan_tcb.tee, 0x00);
@@ -488,7 +787,7 @@ TEST_CASE("Quote endorsements url generation")
   for (auto [attestation, servers, expected_url] : test_cases)
   {
     auto quote =
-      *reinterpret_cast<const ccf::pal::snp::Attestation*>(attestation.data());
+      ccf::pal::snp::parse_attestation_report_unverified(attestation);
     auto config =
       ccf::pal::snp::make_endorsement_endpoint_configuration(quote, servers);
 
@@ -496,15 +795,52 @@ TEST_CASE("Quote endorsements url generation")
   }
 }
 
+TEST_CASE("Quote endorsement TCB formatting preserves leading zeroes")
+{
+  using namespace ccf::pal::snp;
+
+  for (const auto& expected_tcb :
+       {"0000000000000000", "0001000000000004", "0b18000000000004"})
+  {
+    auto report = testing::milan_attestation;
+    const auto tcb_bytes = ccf::ds::from_hex(expected_tcb);
+    std::reverse_copy(
+      tcb_bytes.begin(), tcb_bytes.end(), report.begin() + 0x180);
+    auto quote = parse_attestation_report_unverified(report);
+
+    const auto default_config = make_endorsement_endpoint_configuration(quote);
+    REQUIRE_EQ(default_config.servers.size(), 1);
+    REQUIRE_EQ(default_config.servers.front().size(), 1);
+    CHECK(default_config.servers.front().front().uri.ends_with(
+      std::string("/") + expected_tcb));
+
+    const auto config = make_endorsement_endpoint_configuration(
+      quote,
+      {{EndorsementsEndpointType::Azure}, {EndorsementsEndpointType::THIM}});
+    REQUIRE_EQ(config.servers.size(), 2);
+    REQUIRE_EQ(config.servers.front().size(), 1);
+    REQUIRE_EQ(config.servers.back().size(), 1);
+    CHECK(config.servers.front().front().uri.ends_with(
+      std::string("/") + expected_tcb));
+    CHECK_EQ(
+      config.servers.back().front().params.at("tcbVersion"), expected_tcb);
+  }
+}
+
 TEST_CASE("Quote endorsements generation for v2 attestation version fails")
 {
   auto v2_format_milan_attestation =
-    *reinterpret_cast<const ccf::pal::snp::Attestation*>(
-      ccf::pal::snp::testing::v2_format_milan_attestation.data());
+    ccf::pal::snp::parse_attestation_report_unverified(
+      ccf::pal::snp::testing::v2_format_milan_attestation);
 
-  CHECK_EQ(v2_format_milan_attestation.version, 2);
-  CHECK_EQ(v2_format_milan_attestation.cpuid_fam_id, 0x0);
-  CHECK_EQ(v2_format_milan_attestation.cpuid_mod_id, 0x0);
+  CHECK_EQ(
+    tav_snp_attestation_report_version(v2_format_milan_attestation.get()), 2);
+  CHECK_EQ(
+    tav_snp_attestation_report_cpuid_fam_id(v2_format_milan_attestation.get()),
+    0x0);
+  CHECK_EQ(
+    tav_snp_attestation_report_cpuid_mod_id(v2_format_milan_attestation.get()),
+    0x0);
 
   CHECK_THROWS_WITH(
     ccf::pal::snp::make_endorsement_endpoint_configuration(
@@ -530,8 +866,8 @@ TEST_CASE("Extracting metadata from endorsements")
     .uvm_endorsements = std::nullopt,
   };
 
-  auto attestation = *reinterpret_cast<const pal::snp::Attestation*>(
-    milan_quote_info.quote.data());
+  auto attestation =
+    pal::snp::parse_attestation_report_unverified(milan_quote_info.quote);
 
   auto certificates = ccf::crypto::split_x509_cert_bundle(std::string_view(
     reinterpret_cast<const char*>(milan_quote_info.endorsements.data()),
@@ -542,14 +878,17 @@ TEST_CASE("Extracting metadata from endorsements")
   auto endorsed_tcb = pal::get_endorsed_tcb_from_cert(
     pal::snp::ProductName::Milan, chip_certificate);
   REQUIRE(endorsed_tcb.has_value());
+  const uint8_t* data = nullptr;
+  size_t size = 0;
+  tav_snp_attestation_report_reported_tcb(attestation.get(), &data, &size);
   CHECK_EQ(
     nlohmann::json(endorsed_tcb.value()).dump(),
-    nlohmann::json(attestation.reported_tcb).dump());
+    nlohmann::json(pal::snp::TcbVersionRaw({data, size})).dump());
 
   auto endorsed_chip_id = pal::get_endorsed_chip_id_from_cert(chip_certificate);
   REQUIRE(endorsed_chip_id.has_value());
-  auto printable_reported_chip_id = std::span<uint8_t>(
-    attestation.chip_id, attestation.chip_id + sizeof(attestation.chip_id));
+  tav_snp_attestation_report_chip_id(attestation.get(), &data, &size);
+  const auto printable_reported_chip_id = std::span<const uint8_t>{data, size};
   CHECK_EQ(
     ds::to_hex(endorsed_chip_id.value()),
     ds::to_hex(printable_reported_chip_id));

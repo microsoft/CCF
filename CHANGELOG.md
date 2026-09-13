@@ -5,6 +5,56 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [7.0.16]
+
+[7.0.16]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.16
+
+### Changed
+
+- HTTP/1.x request targets, including query strings, are now bounded before accumulation by a new `max_request_target_size` setting (16 KB by default), independent of `max_header_size`. Oversized targets return HTTP 414 `RequestTargetTooLong`, increment the per-interface `request_target_too_long` error metric, and close the session. HTTP/2 limits are unchanged (#8333).
+
+### Fixed
+
+- Temporary native PEM buffers, string copies, private JWK fields and JSON values owned by the `ccf.crypto.generateRsaKeyPair`, `ccf.crypto.generateEcdsaKeyPair`, `ccf.crypto.generateEddsaKeyPair`, `ccf.crypto.pemToJwk` (and its RSA/EdDSA variants), `ccf.crypto.jwkToPem` (and its RSA/EdDSA variants), and `ccf.crypto.sign` bindings are now scrubbed on scope exit. Previously these copies were scrubbed only on success or not at all. JavaScript-owned strings and internal library temporaries are not covered by this change (#8354).
+- Fixed a double free when setting a property on a JavaScript object fails, which application script could trigger while the request object was being built. Such failures are now reported as a failed request (#8356).
+- Historical states retrieved by JavaScript endpoints, through `ccf.historicalState` or `ccf.historical.getStateRange`, remain available through response conversion and are released when the request completes, rather than being retained for the lifetime of the node (#8355).
+- JavaScript `verifySnpAttestation()` and the deprecated C++ `ccf::pal::snp::Attestation` returned swapped `current_minor` and `current_build` values. Both now match the AMD SEV-SNP report layout, with `current_build` at offset `0x1E8` and `current_minor` at `0x1E9` (#8083).
+
+### Changed
+
+- SNP attestation reports are now parsed and verified through TAV. Decode a report with `ccf::pal::snp::parse_attestation_report_unverified()`, which returns `ccf::pal::snp::AttestationReport`, an owning smart pointer, and verify it against TAV and CCF's policy with `ccf::pal::verify_snp_attestation_report_and_get()`. Field accessors borrow the report's storage, so destroying or replacing the owner invalidates them. The packed `ccf::pal::snp::Attestation` wire-layout type and its accessors still work, but are deprecated (#8083).
+- `ccf::pal::snp::get_attestation()` in `ccf/pal/snp_ioctl.h` is unchanged, but its `get()` accessor is deprecated. Call `get_raw()` instead for the unverified report bytes, then decode them with `parse_attestation_report_unverified()` (#8083).
+
+## [7.0.15]
+
+[7.0.15]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.15
+
+### Fixed
+
+- Governance JavaScript evaluation (member ballots and the constitution's `validate`, `resolve` and `apply` steps) is now bounded by the same `js_runtime_options` heap, stack and execution time limits used for application requests, including while loading and initialising the module that contains those functions. A single member can no longer stall or exhaust the primary by supplying module-scope code without a bounded execution window. (#8341, #8346, #8351)
+- JavaScript application heap, stack, and execution-time limits now cover top-level module initialisation and response conversion, in addition to endpoint handler execution. (#8346)
+- Restricted `ccf.gov.validateConstitution` to the constitution's `validate` step. It is no longer exposed to applications, ballots, or the constitution's `resolve` and `apply` steps. Evaluating the proposed constitution is now bounded by the caller's `js_runtime_options` heap, stack and execution time limits, sharing the remaining execution time of the `validate` step, rather than running unbounded (#8341).
+- Failures of the JS interpreter itself (out of memory, stack overflow, or interruption) while evaluating a module's top-level code are now reported as a failure to load that module, rather than being ignored (#8341).
+- The JS crypto bindings (`ccf.crypto.wrapKey`, `ccf.crypto.unwrapKey`, `ccf.crypto.verifySignature`) and `snp_attestation.verifySnpAttestation` now copy each `ArrayBuffer` argument into an owned buffer before running any code that can re-enter JavaScript (property getters, `toString` / `Symbol.toPrimitive`, JSON conversion, etc.). Since QuickJS `2026-06-04`, `ArrayBuffer.prototype.transfer` and `.resize()` let script free or reallocate the backing store, so the previous pattern of holding a raw pointer returned by `JS_GetArrayBuffer` across such calls was a use-after-free hazard (#8340, #8349).
+- An RSA-OAEP `label` passed to `ccf.crypto.wrapKey` or `ccf.crypto.unwrapKey` which is present but is not an `ArrayBuffer` is now reported as a `TypeError`. Previously it was ignored, but left an exception pending on the interpreter which could surface later as an unrelated failure. An absent, `null` or zero-length `label` continues to mean "no label" (#8349).
+- Strengthened access checks on JavaScript KV handles, including namespace restrictions in the historical KV (#8318).
+- The JS response body copy path no longer trusts the typed array's construction-time length: for a length-tracking `Uint8Array` over a resizable `ArrayBuffer` that was later shrunk (or a view whose `byteOffset` has fallen outside the current buffer), the copy is now clamped against the backing buffer's real current size, preventing a heap over-read introduced with the QuickJS `2026-06-04` update (#8340, #8347).
+- Invalid PEM construction and JSON deserialisation errors no longer include the supplied data, which may contain private key material (#8330).
+- Reaching the soft session cap on an unsecured RPC interface no longer terminates the node by attempting a TLS handshake without a certificate. (#8331)
+- Transactions from an earlier view are now rejected before entering the replication queue even after the node has stepped down. This prevents rolled-back writes from being replicated after a later election and blocking subsequent replication (#8293, #8295).
+- Nodes now retain a peer's reconnect address even when an incoming node-to-node channel was established before its Raft configuration was applied. Previously, losing that connection could prevent outbound consensus messages from reaching the peer and stall elections (#8336).
+- Transactions with pending writes now correctly validate `foreach`, `size`, and `clear` observations of an existing empty KV table made at revision zero. Previously, these observations could be mistaken for no whole-map read dependency (#8320).
+- The OpenAPI schema for `GET /node/consensus` and `GET /node/network` now correctly marks `details.primary_id` and `primary_id` as nullable, matching their `null` value while no primary is known (e.g. between elections). Previously the schema required a non-null string, causing spurious response validation failures (#8344).
+
+### Changed
+
+- Updated QuickJS to `2026-06-04`, with isolated build-time patches for out-of-memory backtrace handling and enforcement of lowered heap limits (#8340).
+- CBOR parsing now rejects composite (array or map) and tagged values used as map keys anywhere in the decoded document, including nested maps in optional COSE headers (#8297).
+
+### Removed
+
+- Removed the exported `evercbor` CMake target and installed `libevercbor.a` library. Applications using CCF's public APIs that explicitly depend on this target or link this library directly must remove that dependency. No further build changes are necessary: the replacement CBOR implementation is linked transitively by CCF (#8297).
+
 ## [7.0.14]
 
 [7.0.14]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.14
@@ -16,12 +66,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- Nodes which open node-to-node connections to each other at the same moment now agree on which of the two connections to keep, instead of each discarding the one the other is using. Previously both could be left holding a connection whose far end no longer existed, and if the resulting disconnection was not observed - for example because a network partition dropped it - the two nodes would silently stop exchanging consensus messages, stalling elections until one of them restarted (#8233).
 - A signature transaction decided whether to end a ledger chunk, and recorded that decision on the chunker, outside the version lock. A rollback landing in that window discarded the signature but left the chunk marker behind. The decision and the record are now made atomically, and skipped when the signature's view or rollback epoch no longer holds (#8246).
 - A transaction's `force_ledger_chunk` and `snapshot_at_next_signature` flags are no longer applied once a concurrent view change has discarded the transaction's writes, which previously left a chunk boundary, or an armed snapshot, for a transaction no longer present in the ledger. The forced chunk is also attached to the transaction's own version rather than whichever version the store had reached (#8245).
 - A rollback whose target is at or beyond the store's own version no longer moves ledger chunk metadata forward past it, which previously left a permanent offset skewing later chunk boundaries (#8244).
 - Ledger chunk metadata and snapshot scheduling are no longer restored by a transaction whose writes a concurrent view change has already discarded. Both are now updated under the same lock as the rollback, and skipped when the transaction's rollback epoch or view no longer holds (#8243).
 - A transaction whose view changed while it was committing could apply its writes to the local key-value store and then fail to replicate, leaving state that never reached consensus. The transaction's view is now validated atomically with the allocation of its version, so it is rejected before any map is modified, and `ccf::kv::CommitResult::FAIL_NO_REPLICATE` no longer implies a locally applied write (#8242).
+- Corrected the OpenAPI schema name for `ccf::ds::SizeString` from `TimeString` to `SizeString` (#8261).
 - A transaction in a JavaScript application endpoint which conflicts with compaction is now re-executed, rather than returning `500 Internal Server Error` (#8289).
+- A `Range` header requesting a suffix longer than the file is now clamped to the whole file, per RFC 9110. Ranges which select no bytes, such as `bytes=-0`, are now rejected with `400 Bad Request` (#8299).
 
 ### Changed
 
@@ -32,14 +85,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Removed
 
 - The experimental built-in `QUIC` application protocol and its UDP echo implementation have been removed. UDP interfaces remain available to registered custom protocols.
-
-### Fixed
-
-- Corrected the OpenAPI schema name for `ccf::ds::SizeString` from `TimeString` to `SizeString`. (#8261)
-
-### Fixed
-
-- Nodes which open node-to-node connections to each other at the same moment now agree on which of the two connections to keep, instead of each discarding the one the other is using. Previously both could be left holding a connection whose far end no longer existed, and if the resulting disconnection was not observed - for example because a network partition dropped it - the two nodes would silently stop exchanging consensus messages, stalling elections until one of them restarted (#8233).
 
 ## [7.0.13]
 
