@@ -3,6 +3,7 @@
 
 #include "ccf/crypto/pem.h"
 #include "ccf/crypto/verifier.h"
+#include "ccf/node/node_configuration_interface.h"
 #include "crypto/openssl/hash.h"
 #include "ds/internal_logger.h"
 #include "frontend_test_infra.h"
@@ -13,6 +14,7 @@
 #include "service/internal_tables_access.h"
 
 #include <latch>
+#include <limits>
 #include <thread>
 #include <vector>
 
@@ -35,8 +37,8 @@ TResponse frontend_process(
   r.set_body(body);
   auto serialise_request = r.build_request();
 
-  auto session = std::make_shared<ccf::SessionContext>(
-    ccf::InvalidSessionId, ccf::crypto::cert_pem_to_der(caller));
+  auto session =
+    std::make_shared<ccf::SessionContext>(ccf::InvalidSessionId, caller.raw());
   auto rpc_ctx = ccf::make_rpc_context(session, serialise_request);
   frontend.process(rpc_ctx);
 
@@ -60,6 +62,18 @@ public:
   ccf::endpoints::EndpointRegistry& get_node_endpoints()
   {
     return node_endpoints;
+  }
+};
+
+class StubNodeConfiguration : public NodeConfigurationInterface
+{
+public:
+  StartupConfig config = {};
+  NodeConfigurationState state = {config, {}, true};
+
+  const NodeConfigurationState& get() override
+  {
+    return state;
   }
 };
 
@@ -252,6 +266,8 @@ TEST_CASE("Add a node to an open service")
 
   StubNodeContext context;
   context.node_operation->is_public = true;
+  auto node_configuration = std::make_shared<StubNodeConfiguration>();
+  context.install_subsystem(node_configuration);
   NodeRpcFrontend frontend(network, context);
   frontend.open();
 
@@ -414,43 +430,55 @@ TEST_CASE("Add a node to an open service")
       CHECK(!node_info_json.get<NodeInfo>().pending_last_seen.has_value());
     }
 
-    {
-      auto age_tx = network.tables->create_tx();
-      auto nodes = age_tx.rw(network.nodes);
-      auto node_info = nodes->get(expired_node_id);
-      REQUIRE(node_info.has_value());
-      node_info->pending_last_seen.reset();
-      nodes->put(expired_node_id, node_info.value());
-      REQUIRE(age_tx.commit() == ccf::kv::CommitResult::SUCCESS);
-    }
-
-    http_response = frontend_process(
-      frontend,
-      nullptr,
-      "network/nodes/remove_expired_pending",
-      expired_node_caller);
-    CHECK(http_response.status == HTTP_STATUS_OK);
-    {
+    const auto get_node = [&](const NodeId& id) {
       auto verify_tx = network.tables->create_tx();
-      const auto node_info = verify_tx.ro(network.nodes)->get(expired_node_id);
+      const auto node_info = verify_tx.ro(network.nodes)->get(id);
       REQUIRE(node_info.has_value());
-      CHECK(node_info->pending_last_seen.has_value());
+      return node_info.value();
+    };
+    const auto now_ms = []() {
+      return std::chrono::duration_cast<std::chrono::milliseconds>(
+               std::chrono::system_clock::now().time_since_epoch())
+        .count();
+    };
+    const auto set_last_seen =
+      [&](const NodeId& id, std::optional<int64_t> last_seen) {
+        auto age_tx = network.tables->create_tx();
+        auto nodes = age_tx.rw(network.nodes);
+        auto node_info = nodes->get(id);
+        REQUIRE(node_info.has_value());
+        node_info->pending_last_seen = last_seen;
+        nodes->put(id, node_info.value());
+        REQUIRE(age_tx.commit() == ccf::kv::CommitResult::SUCCESS);
+      };
+    const auto cleanup = [&]() {
+      const auto response = frontend_process(
+        frontend,
+        nullptr,
+        "network/nodes/remove_expired_pending",
+        expired_node_caller);
+      REQUIRE(response.status == HTTP_STATUS_OK);
+    };
+
+    for (const auto timestamp :
+         {std::optional<int64_t>{},
+          std::optional<int64_t>{-1},
+          std::optional<int64_t>{std::numeric_limits<int64_t>::max()}})
+    {
+      set_last_seen(expired_node_id, timestamp);
+      const auto before = now_ms();
+      cleanup();
+      const auto last_seen = get_node(expired_node_id).pending_last_seen;
+      REQUIRE(last_seen.has_value());
+      CHECK(last_seen.value() >= before);
+      CHECK(last_seen.value() <= now_ms());
     }
 
-    const auto stale_pending_last_seen =
+    const auto stale_pending_last_seen = now_ms() -
       std::chrono::duration_cast<std::chrono::milliseconds>(
-        (std::chrono::system_clock::now() - std::chrono::minutes(31))
-          .time_since_epoch())
+        std::chrono::minutes(31))
         .count();
-    {
-      auto age_tx = network.tables->create_tx();
-      auto nodes = age_tx.rw(network.nodes);
-      auto node_info = nodes->get(expired_node_id);
-      REQUIRE(node_info.has_value());
-      node_info->pending_last_seen = stale_pending_last_seen;
-      nodes->put(expired_node_id, node_info.value());
-      REQUIRE(age_tx.commit() == ccf::kv::CommitResult::SUCCESS);
-    }
+    set_last_seen(expired_node_id, stale_pending_last_seen);
 
     auto consensus = std::make_shared<ccf::kv::test::StubConsensus>();
     consensus->state = ccf::kv::test::StubConsensus::Backup;
@@ -460,55 +488,43 @@ TEST_CASE("Add a node to an open service")
     http_response = frontend_process(
       frontend, expired_join_input, "join", expired_node_caller);
     CHECK(http_response.status != HTTP_STATUS_OK);
-    {
-      auto verify_tx = network.tables->create_tx();
-      const auto node_info = verify_tx.ro(network.nodes)->get(expired_node_id);
-      REQUIRE(node_info.has_value());
-      CHECK(node_info->pending_last_seen == stale_pending_last_seen);
-    }
+    CHECK(
+      get_node(expired_node_id).pending_last_seen == stale_pending_last_seen);
 
     consensus->state = ccf::kv::test::StubConsensus::Primary;
     context.node_operation->can_replicate_result = true;
+    const auto before_retry = now_ms();
     http_response = frontend_process(
       frontend, expired_join_input, "join", expired_node_caller);
     CHECK(http_response.status == HTTP_STATUS_OK);
-    {
-      auto verify_tx = network.tables->create_tx();
-      const auto node_info = verify_tx.ro(network.nodes)->get(expired_node_id);
-      REQUIRE(node_info.has_value());
-      REQUIRE(node_info->pending_last_seen.has_value());
-      CHECK(
-        node_info->pending_last_seen.value() >
-        std::chrono::duration_cast<std::chrono::milliseconds>(
-          (std::chrono::system_clock::now() - std::chrono::minutes(1))
-            .time_since_epoch())
-          .count());
-    }
+    const auto refreshed = get_node(expired_node_id).pending_last_seen;
+    REQUIRE(refreshed.has_value());
+    CHECK(refreshed.value() >= before_retry);
+    CHECK(refreshed.value() <= now_ms());
+    cleanup();
+    CHECK(get_node(expired_node_id).pending_last_seen == refreshed);
 
-    {
-      auto age_tx = network.tables->create_tx();
-      auto nodes = age_tx.rw(network.nodes);
-      auto node_info = nodes->get(expired_node_id);
-      REQUIRE(node_info.has_value());
-      node_info->pending_last_seen =
-        std::chrono::duration_cast<std::chrono::milliseconds>(
-          (std::chrono::system_clock::now() - std::chrono::hours(2))
-            .time_since_epoch())
-          .count();
-      nodes->put(expired_node_id, node_info.value());
-      REQUIRE(age_tx.commit() == ccf::kv::CommitResult::SUCCESS);
-    }
+    const auto expired = now_ms() -
+      std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::hours(2))
+        .count();
+    const auto trusted_node_id = ccf::compute_node_id_from_kp(node_kp);
+    set_last_seen(expired_node_id, expired);
+    set_last_seen(trusted_node_id, expired);
 
-    http_response = frontend_process(
-      frontend,
-      nullptr,
-      "network/nodes/remove_expired_pending",
-      expired_node_caller);
-    CHECK(http_response.status == HTTP_STATUS_OK);
+    node_configuration->config.pending_node_timeout = {"0s"};
+    cleanup();
+    CHECK(get_node(expired_node_id).pending_last_seen == expired);
+    CHECK(get_node(expired_node_id).status == NodeStatus::PENDING);
+
+    node_configuration->config.pending_node_timeout = {"1h"};
+    cleanup();
     {
       auto verify_tx = network.tables->create_tx();
       CHECK(!verify_tx.ro(network.nodes)->has(expired_node_id));
     }
+    CHECK(get_node(trusted_node_id).status == NodeStatus::TRUSTED);
+    CHECK(get_node(trusted_node_id).pending_last_seen == expired);
   }
 }
 

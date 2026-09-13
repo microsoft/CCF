@@ -1918,6 +1918,27 @@ def run_configuration_file_checks(args):
         assert rc == 0, f"Failed to check configuration: {rc}"
         LOG.success(f"Successfully check sample configuration file {config}")
 
+        with open(config, encoding="utf-8") as config_file:
+            config_json = json.load(config_file)
+        for timeout in ("0s", "0us", "1us", "500us", "999us", "1000us", "1ms"):
+            valid = timeout in ("0s", "0us", "1000us", "1ms")
+            config_json["pending_node_timeout"] = timeout
+            with tempfile.NamedTemporaryFile(mode="w+") as temp_config:
+                json.dump(config_json, temp_config)
+                temp_config.flush()
+                for flags in (["--check"],) if valid else (["--check"], []):
+                    result = infra.proc.ccall(
+                        bin_path, f"--config={temp_config.name}", *flags
+                    )
+                    if valid:
+                        assert result.returncode == 0, result
+                    else:
+                        assert result.returncode != 0, result
+                        assert (
+                            b"pending_node_timeout must be 0s or at least 1ms"
+                            in result.stdout + result.stderr
+                        ), result
+
 
 def run_preopen_readiness_check(args):
     with infra.network.network(
