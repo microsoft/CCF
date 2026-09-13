@@ -47,10 +47,9 @@ namespace ccf::tasks
     using DelayedTasksByTime =
       std::map<std::chrono::milliseconds, DelayedTasks>;
 
-    std::atomic<std::chrono::milliseconds> total_elapsed =
-      std::chrono::milliseconds(0);
-
     ccf::ds::Mutex tasks_mutex;
+    std::chrono::milliseconds total_elapsed CCF_GUARDED_BY(tasks_mutex) =
+      std::chrono::milliseconds(0);
     DelayedTasksByTime tasks CCF_GUARDED_BY(tasks_mutex);
   };
 
@@ -162,16 +161,17 @@ namespace ccf::tasks
     {
       ccf::ds::MutexGuard lock(delayed.tasks_mutex);
 
-      const auto trigger_time = delayed.total_elapsed.load() + initial_delay;
+      const auto trigger_time = delayed.total_elapsed + initial_delay;
       delayed.tasks[trigger_time].emplace_back(task, periodic_delay);
     }
 
     void tick(std::chrono::milliseconds elapsed)
     {
-      elapsed += delayed.total_elapsed.load();
-
       {
         ccf::ds::MutexGuard lock(delayed.tasks_mutex);
+        elapsed += delayed.total_elapsed;
+        delayed.total_elapsed = elapsed;
+
         auto end_it = delayed.tasks.upper_bound(elapsed);
 
         Delayed::DelayedTasksByTime repeats;
@@ -210,8 +210,6 @@ namespace ccf::tasks
             repeated_tasks.end());
         }
       }
-
-      delayed.total_elapsed.store(elapsed);
     }
   };
 

@@ -746,6 +746,12 @@ def test_npm_app(network, args):
         assert r.status_code == http.HTTPStatus.OK, r.status_code
         report_json = r.body.json()["attestation"]
         print(f"{report_json=}")
+        raw_report = b64decode(reference_quote["raw"])
+        expected_current_build = raw_report[0x1E8]
+        expected_current_minor = raw_report[0x1E9]
+        assert expected_current_build != expected_current_minor
+        assert report_json["current_build"] == expected_current_build
+        assert report_json["current_minor"] == expected_current_minor
         assert report_json[
             "report_data"
         ] == "7a6a68c0a2b85b8aae00ca04f644831680222f44167e5558a9e072b70c60e958" + (

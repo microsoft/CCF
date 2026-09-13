@@ -15,9 +15,13 @@
 #include <cstdint>
 #include <cstring>
 #include <map>
+#include <memory>
 #include <optional>
+#include <span>
 #include <stdexcept>
 #include <string>
+#include <string_view>
+#include <tav/snp.h>
 #include <vector>
 
 namespace ccf::pal::snp
@@ -28,6 +32,7 @@ namespace ccf::pal::snp
   static constexpr auto NO_SECURITY_POLICY = "";
 
   // From https://developer.amd.com/sev/
+  [[deprecated("TAV verifies AMD root signing keys internally")]]
   constexpr auto amd_milan_root_signing_public_key =
     R"(-----BEGIN PUBLIC KEY-----
 MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEA0Ld52RJOdeiJlqK2JdsV
@@ -44,6 +49,7 @@ pCCoMNit2uLo9M18fHz10lOMT8nWAUvRZFzteXCm+7PHdYPlmQwUw3LvenJ/ILXo
 QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
 -----END PUBLIC KEY-----
 )";
+  [[deprecated("TAV verifies AMD root signing keys internally")]]
   constexpr auto amd_genoa_root_signing_public_key =
     R"(-----BEGIN PUBLIC KEY-----
 MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEA3Cd95S/uFOuRIskW9vz9
@@ -60,6 +66,7 @@ HP1qYrnvhzaG1S70vw6OkbaaC9EjiH/uHgAJQGxon7u0Q7xgoREWA/e7JcBQwLg8
 0Hq/sbRuqesxz7wBWSY254cCAwEAAQ==
 -----END PUBLIC KEY-----
 )";
+  [[deprecated("TAV verifies AMD root signing keys internally")]]
   constexpr auto amd_turin_root_signing_public_key =
     R"(-----BEGIN PUBLIC KEY-----
 MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAwaAriB7EIuVc4ZB1wD3Y
@@ -77,12 +84,14 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
 -----END PUBLIC KEY-----
 )";
 
-  struct AmdRootSigningKey
+  struct [[deprecated(
+    "TAV verifies AMD root signing keys internally")]] AmdRootSigningKey
   {
     const char* public_key;
     const char* issuer;
   };
 
+  [[deprecated("TAV verifies AMD root signing keys internally")]]
   inline const std::map<ProductName, AmdRootSigningKey> amd_root_signing_keys{
     {ProductName::Milan,
      {amd_milan_root_signing_public_key,
@@ -222,15 +231,14 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
 
     TcbVersionRaw() = default;
 
-    TcbVersionRaw(const std::vector<uint8_t>& data)
+    TcbVersionRaw(std::span<const uint8_t> data)
     {
       if (data.size() != snp_tcb_version_size)
       {
         throw std::logic_error(
           fmt::format("Invalid TCB version raw data size: {}", data.size()));
       }
-      std::memcpy(
-        static_cast<void*>(underlying_data), data.data(), snp_tcb_version_size);
+      std::memcpy(underlying_data, data.data(), snp_tcb_version_size);
     }
 
     [[nodiscard]] std::vector<uint8_t> data() const
@@ -392,6 +400,10 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
     sizeof(PlatformInfo) == sizeof(uint64_t),
     "Cannot cast PlatformInfo to uint64_t");
 
+  static constexpr size_t attestation_report_size = 1184;
+
+  struct [[deprecated("Use ccf::pal::snp::AttestationReport")]] Attestation;
+
 #pragma pack(push, 1)
   // Table 21
 
@@ -425,8 +437,8 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
     uint8_t reserved1[21] = {0}; /* 0x18B */
     uint8_t chip_id[64] = {0}; /* 0x1A0 */
     TcbVersionRaw committed_tcb; /* 0x1E0 */
-    uint8_t current_minor = 0; /* 0x1E8 */
-    uint8_t current_build = 0; /* 0x1E9 */
+    uint8_t current_build = 0; /* 0x1E8 */
+    uint8_t current_minor = 0; /* 0x1E9 */
     uint8_t current_major = 0; /* 0x1EA */
     uint8_t reserved2 = 0; /* 0x1EB */
     uint8_t committed_build = 0; /* 0x1EC */
@@ -456,6 +468,49 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
   };
 #pragma pack(pop)
 
+  // Reports are allocated in Rust and must be freed through TAV, not C++
+  // delete. A stateless deleter keeps the smart pointer default-constructible
+  // without storing a cleanup function pointer.
+  struct AttestationReportDeleter
+  {
+    void operator()(TavSnpAttestationReport* report) const noexcept
+    {
+      tav_snp_attestation_report_free(report);
+    }
+  };
+
+  using AttestationReport =
+    std::unique_ptr<TavSnpAttestationReport, AttestationReportDeleter>;
+
+  inline std::span<const uint8_t> get_chip_id_for_vcek(
+    const AttestationReport& report)
+  {
+    if (report == nullptr)
+    {
+      throw std::logic_error("Cannot access an empty SNP attestation report");
+    }
+    const uint8_t* data = nullptr;
+    size_t size = 0;
+    tav_snp_attestation_report_chip_id(report.get(), &data, &size);
+    const auto chip_id = std::span<const uint8_t>{data, size};
+    const auto product = get_sev_snp_product(
+      tav_snp_attestation_report_cpuid_fam_id(report.get()),
+      tav_snp_attestation_report_cpuid_mod_id(report.get()));
+    if (product == ProductName::Milan || product == ProductName::Genoa)
+    {
+      return chip_id;
+    }
+    if (product == ProductName::Turin)
+    {
+      return chip_id.first(8);
+    }
+    throw std::logic_error(
+      fmt::format("Unsupported SEV-SNP product: {}", product));
+  }
+
+  [[nodiscard]] AttestationReport parse_attestation_report_unverified(
+    std::span<const uint8_t> report);
+
   static HostPort get_endpoint_loc(
     const EndorsementsServer& server, const HostPort& default_values)
   {
@@ -475,24 +530,37 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
 
   static EndorsementEndpointsConfiguration
   make_endorsement_endpoint_configuration(
-    const Attestation& quote,
+    const AttestationReport& quote,
     const snp::EndorsementsServers& endorsements_servers = {})
   {
-    if (quote.version < minimum_attestation_version)
+    if (quote == nullptr)
+    {
+      throw std::logic_error("Cannot access an empty SNP attestation report");
+    }
+    if (
+      tav_snp_attestation_report_version(quote.get()) <
+      minimum_attestation_version)
     {
       throw std::logic_error(fmt::format(
         "SEV-SNP: attestation version {} is not supported. Minimum "
         "supported version is {}",
-        quote.version,
+        tav_snp_attestation_report_version(quote.get()),
         minimum_attestation_version));
     }
 
     EndorsementEndpointsConfiguration config;
 
     auto chip_id_hex =
-      fmt::format("{:02x}", fmt::join(quote.get_chip_id_for_vcek(), ""));
+      fmt::format("{:02x}", fmt::join(get_chip_id_for_vcek(quote), ""));
+    const uint8_t* reported_tcb_data = nullptr;
+    size_t reported_tcb_size = 0;
+    tav_snp_attestation_report_reported_tcb(
+      quote.get(), &reported_tcb_data, &reported_tcb_size);
+    const auto reported_tcb_raw =
+      std::span<const uint8_t>{reported_tcb_data, reported_tcb_size};
     auto reported_tcb = fmt::format(
-      "{:0x}", *reinterpret_cast<const uint64_t*>(&quote.reported_tcb));
+      "{:02x}",
+      fmt::join(reported_tcb_raw.rbegin(), reported_tcb_raw.rend(), ""));
 
     constexpr size_t default_max_retries_count = 10;
     static const ds::SizeString default_max_client_response_size =
@@ -533,8 +601,9 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
         }
         case EndorsementsEndpointType::AMD:
         {
-          auto product =
-            get_sev_snp_product(quote.cpuid_fam_id, quote.cpuid_mod_id);
+          auto product = get_sev_snp_product(
+            tav_snp_attestation_report_cpuid_fam_id(quote.get()),
+            tav_snp_attestation_report_cpuid_mod_id(quote.get()));
 
           std::string boot_loader;
           std::string tee;
@@ -546,7 +615,9 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
             case ProductName::Milan:
             case ProductName::Genoa:
             {
-              auto tcb = quote.reported_tcb.to_policy(product).to_milan_genoa();
+              auto tcb = TcbVersionRaw(reported_tcb_raw)
+                           .to_policy(product)
+                           .to_milan_genoa();
               boot_loader = fmt::format("{}", tcb.boot_loader);
               tee = fmt::format("{}", tcb.tee);
               snp = fmt::format("{}", tcb.snp);
@@ -555,7 +626,8 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
             }
             case ProductName::Turin:
             {
-              auto tcb = quote.reported_tcb.to_policy(product).to_turin();
+              auto tcb =
+                TcbVersionRaw(reported_tcb_raw).to_policy(product).to_turin();
               boot_loader = fmt::format("{}", tcb.boot_loader);
               tee = fmt::format("{}", tcb.tee);
               snp = fmt::format("{}", tcb.snp);
@@ -608,14 +680,33 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
     return config;
   }
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+  [[deprecated("Use the AttestationReport overload")]]
+  static EndorsementEndpointsConfiguration
+  make_endorsement_endpoint_configuration(
+    const Attestation& quote,
+    const snp::EndorsementsServers& endorsements_servers = {})
+  {
+    const auto* report = reinterpret_cast<const uint8_t*>(&quote);
+    return make_endorsement_endpoint_configuration(
+      parse_attestation_report_unverified({report, attestation_report_size}),
+      endorsements_servers);
+  }
+
   class AttestationInterface
   {
   public:
-    [[nodiscard]] virtual const snp::Attestation& get() const = 0;
+    [[deprecated(
+      "Use get_raw() and explicitly decode with "
+      "parse_attestation_report_unverified")]] [[nodiscard]] virtual const snp::
+      Attestation&
+      get() const = 0;
     virtual std::vector<uint8_t> get_raw() = 0;
 
     virtual ~AttestationInterface() = default;
   };
+#pragma GCC diagnostic pop
 
 }
 

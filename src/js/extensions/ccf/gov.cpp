@@ -66,8 +66,39 @@ namespace ccf::js::extensions
           // requires evaluating the module, and that must have no side effects
           // or write to the parent's global environment.
           ccf::js::core::Context sub_context(ccf::js::TxAccess::GOV_RO);
-          auto func = sub_context.get_exported_function(
-            constitution.value(), fn_name, path);
+
+          // Evaluating the module executes member-supplied code, so it is
+          // bounded by the calling context's heap, stack and execution time
+          // limits. The caller's remaining execution time budget is inherited,
+          // rather than a fresh window being opened.
+          const ccf::js::core::RuntimeLimitsScope limits(
+            sub_context,
+            jsctx.runtime().get_current_options(),
+            jsctx.runtime().get_current_policy(),
+            jsctx.interrupt_data);
+          JS_UpdateStackTop(sub_context.runtime());
+
+          ccf::js::core::JSWrappedValue func;
+          try
+          {
+            func = sub_context.get_exported_function(
+              constitution.value(), fn_name, path);
+          }
+          catch (const std::exception&)
+          {
+            if (sub_context.interrupt_data.request_timed_out)
+            {
+              // The execution time budget shared with the calling context is
+              // exhausted, so the caller must stop too. As with QuickJS's own
+              // interrupt handling, this cannot be caught by the constitution.
+              jsctx.interrupt_data.request_timed_out = true;
+              JS_ThrowInternalError(
+                ctx, "%s took too long to evaluate", path.c_str());
+              JS_SetUncatchableException(ctx, 1);
+              return ccf::js::core::constants::Exception;
+            }
+            throw;
+          }
 
           auto length_val = sub_context.get_property(func.val, "length");
           uint32_t length = 0;

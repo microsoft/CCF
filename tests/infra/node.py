@@ -877,6 +877,59 @@ class Node:
 
         return current_ledger_dir, [committed_ledger_dir]
 
+    def get_snapshots(self, *, include_read_only=False) -> list[str]:
+        """List committed snapshot paths on this node, ordered by snapshot seqno.
+
+        Paths are node-owned: copy them before modifying them or relying on them
+        surviving cleanup. Read-only startup snapshots are excluded by default.
+        """
+        directories = [self.remote.snapshots_dir_name]
+        if include_read_only and self.remote.read_only_snapshots_dir_name is not None:
+            directories.append(self.remote.read_only_snapshots_dir_name)
+
+        snapshots = []
+        for directory in directories:
+            path = os.path.join(self.remote.remote.root, directory)
+            try:
+                with os.scandir(path) as entries:
+                    snapshots.extend(
+                        entry.path
+                        for entry in entries
+                        if entry.name.startswith("snapshot_")
+                        and ccf.ledger.is_snapshot_file_committed(entry.name)
+                        and entry.is_file()
+                    )
+            except FileNotFoundError:
+                LOG.debug(f"Snapshot directory does not exist yet: {path}")
+
+        return sorted(snapshots, key=ccf.ledger.snapshot_index_from_filename)
+
+    def wait_for_snapshot(self, target_seqno, timeout=20) -> str:
+        """Wait for a committed snapshot in this node's writable directory.
+
+        The snapshot state must include target_seqno. This does not emit
+        transactions, trigger snapshots, or copy files.
+        """
+        LOG.info(
+            f"Waiting for node {self.local_node_id} snapshot including seqno {target_seqno}"
+        )
+        end_time = time.monotonic() + timeout
+        while True:
+            snapshots = self.get_snapshots()
+            for snapshot in snapshots:
+                if ccf.ledger.snapshot_index_from_filename(snapshot)[0] >= target_seqno:
+                    LOG.info(f"Found committed snapshot {snapshot}")
+                    return snapshot
+
+            remaining = end_time - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError(
+                    f"Could not find committed snapshot on node {self.local_node_id} "
+                    f"including seqno {target_seqno} after {timeout}s; "
+                    f"snapshot files: {snapshots}"
+                )
+            time.sleep(min(0.1, remaining))
+
     def get_committed_snapshots(self, pre_condition_func=lambda src_dir, _: True):
         (
             main_snapshots_dir,

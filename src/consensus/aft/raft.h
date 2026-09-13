@@ -2832,16 +2832,13 @@ namespace aft
 
         if (all_other_nodes.find(node_info.first) == all_other_nodes.end())
         {
-          if (!channels->have_channel(node_info.first))
-          {
-            RAFT_DEBUG_FMT(
-              "Configurations: create node channel with {}", node_info.first);
+          RAFT_DEBUG_FMT(
+            "Configurations: associate node address for {}", node_info.first);
 
-            channels->associate_node_address(
-              node_info.first,
-              node_info.second.hostname,
-              node_info.second.port);
-          }
+          // An incoming channel may predate this configuration. The host still
+          // needs the peer's address to reconnect after that channel closes.
+          channels->associate_node_address(
+            node_info.first, node_info.second.hostname, node_info.second.port);
 
           // A new node is sent only future entries initially. If it does not
           // have prior data, it will communicate that back to the leader.
