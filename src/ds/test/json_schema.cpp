@@ -752,6 +752,20 @@ TEST_CASE("JSON with different field names")
       REQUIRE(msg.find("987654") == std::string::npos);
     }
   }
+
+  {
+    const nlohmann::json j_scalar = "SECRET_VALUE";
+    try
+    {
+      j_scalar.get<renamed::Foo>();
+      FAIL("Expected JsonParseError");
+    }
+    catch (const ccf::JsonParseError& jpe)
+    {
+      const std::string msg = jpe.what();
+      REQUIRE(msg == "Expected object");
+    }
+  }
 }
 
 TEST_CASE("example validation")
