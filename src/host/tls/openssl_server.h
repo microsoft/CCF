@@ -265,6 +265,7 @@ namespace asynchost
       // The fields below are accessed only on the libuv thread. Polling stays
       // stopped while worker_active is true.
       int polled_events = 0;
+      bool dirty_queued = false;
       std::vector<OutItem> pending_commands;
       int pending_events = 0;
       bool worker_active = false;
@@ -341,6 +342,10 @@ namespace asynchost
     // any thread and wake the loop, which drains it on the libuv thread.
     std::vector<OutItem> pending_out;
     std::vector<DriveResult> completed_drives;
+    // Loop-owned connections affected by commands or worker completions.
+    std::vector<std::shared_ptr<Conn>> dirty_connections;
+    // Remember resumption even if saturation clears between loop passes.
+    std::atomic<bool> recheck_read_interest{false};
 
     // Cross-thread server-cert (re)load requests (deferred cert / rotation),
     // applied on the loop thread so `ctx` is only ever touched there.
@@ -1196,6 +1201,7 @@ namespace asynchost
           release_admitted();
           continue;
         }
+        c->polled_events = UV_READABLE;
         conns.emplace(cfd, std::move(c));
         id_to_fd.emplace(cid, cfd);
         LOG_TRACE_FMT("Accepted connection {} on fd {}", cid, cfd);
@@ -1277,6 +1283,8 @@ namespace asynchost
     // Apply worker completions and cross-thread commands on the libuv thread.
     void drain_pending_out()
     {
+      const bool recheck_all =
+        recheck_read_interest.exchange(false, std::memory_order_acq_rel);
       std::vector<OutItem> items;
       std::vector<DriveResult> completions;
       std::vector<std::pair<std::string, std::string>> certs;
@@ -1286,6 +1294,14 @@ namespace asynchost
         std::swap(completions, completed_drives);
         std::swap(certs, pending_certs);
       }
+
+      const auto mark_dirty = [this](const std::shared_ptr<Conn>& conn) {
+        if (!conn->dirty_queued)
+        {
+          dirty_connections.push_back(conn);
+          conn->dirty_queued = true;
+        }
+      };
 
       for (auto& [cert_pem, key_pem] : certs)
       {
@@ -1336,6 +1352,7 @@ namespace asynchost
           cit->second->last_active = std::chrono::steady_clock::now();
           cit->second->pending_commands.push_back(std::move(item));
         }
+        mark_dirty(cit->second);
       }
 
       for (auto& completion : completions)
@@ -1352,19 +1369,22 @@ namespace asynchost
         {
           close_conn(conn->fd);
         }
-        else if (completion.more_to_read)
+        else
         {
-          // Data is buffered where polling cannot see it, so ask for another
-          // pass explicitly. The loop below dispatches on pending_events.
-          conn->pending_events |= UV_READABLE;
+          if (completion.more_to_read)
+          {
+            // Data is buffered where polling cannot see it, so ask for another
+            // pass explicitly. The loop below dispatches on pending_events.
+            conn->pending_events |= UV_READABLE;
+          }
+          mark_dirty(conn);
         }
       }
 
-      for (auto& [fd, conn] : conns)
-      {
+      const auto service = [this](const std::shared_ptr<Conn>& conn) {
         if (conn->worker_active)
         {
-          continue;
+          return;
         }
         if (
           conn->force_close || conn->close_requested ||
@@ -1376,7 +1396,31 @@ namespace asynchost
         {
           update_interest(*conn);
         }
+      };
+      if (recheck_all || inbound_saturated())
+      {
+        for (auto& conn : dirty_connections)
+        {
+          conn->dirty_queued = false;
+        }
+        for (auto& [fd, conn] : conns)
+        {
+          service(conn);
+        }
       }
+      else
+      {
+        for (auto& conn : dirty_connections)
+        {
+          conn->dirty_queued = false;
+          const auto it = conns.find(conn->fd);
+          if (it != conns.end() && it->second == conn)
+          {
+            service(conn);
+          }
+        }
+      }
+      dirty_connections.clear();
 
       bool shutting_down = false;
       {
@@ -1772,6 +1816,8 @@ namespace asynchost
           inbound_admission->register_waker([weak = weak_from_this()]() {
             if (auto self = weak.lock())
             {
+              self->recheck_read_interest.store(
+                true, std::memory_order_release);
               self->wake();
             }
           });

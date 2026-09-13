@@ -2104,6 +2104,127 @@ TEST_CASE("Server prefers the strongest hybrid post-quantum group")
   }
 }
 
+TEST_CASE("Budget resumption revisits idle connections on every interface")
+{
+  constexpr size_t interface_count = 2;
+  constexpr size_t limit = 1;
+  auto admission = std::make_shared<InboundAdmission>(limit);
+  admission->queued(limit);
+
+  std::array<std::atomic<size_t>, interface_count> received{};
+  std::array<std::atomic<bool>, interface_count> correct_payload{};
+  std::atomic<size_t> accepted{0};
+  std::array<std::shared_ptr<OpenSSLServer>, interface_count> servers;
+  std::array<int, interface_count> clients;
+  clients.fill(-1);
+
+  UVLoopRunner loop;
+  for (size_t i = 0; i < interface_count; ++i)
+  {
+    servers[i] = std::make_shared<OpenSSLServer>(
+      OpenSSLServer::Config{
+        .host = "127.0.0.1", .plaintext = true, .inbound_admission = admission},
+      [&, i](
+        ::tcp::ConnID,
+        std::vector<uint8_t> data,
+        const std::vector<uint8_t>&,
+        bool) {
+        correct_payload[i] =
+          data.size() == 1 && data[0] == static_cast<uint8_t>('a' + i);
+        received[i] += data.size();
+      },
+      OpenSSLServer::OnClose{},
+      [&](::tcp::ConnID) -> std::optional<bool> {
+        ++accepted;
+        return false;
+      });
+    servers[i]->start();
+  }
+  loop.start();
+
+  int setup_error = 0;
+  for (size_t i = 0; i < interface_count; ++i)
+  {
+    clients[i] = ::socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
+    if (clients[i] < 0)
+    {
+      setup_error = errno;
+      break;
+    }
+    sockaddr_in address{};
+    address.sin_family = AF_INET;
+    address.sin_port = htons(servers[i]->port());
+    address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    if (
+      ::connect(
+        clients[i], reinterpret_cast<sockaddr*>(&address), sizeof(address)) !=
+      0)
+    {
+      setup_error = errno;
+      break;
+    }
+    const auto payload = static_cast<uint8_t>('a' + i);
+    const auto sent =
+      ::send(clients[i], &payload, sizeof(payload), MSG_NOSIGNAL);
+    if (sent != 1)
+    {
+      setup_error = sent < 0 ? errno : EIO;
+      break;
+    }
+  }
+
+  const auto accepted_deadline =
+    std::chrono::steady_clock::now() + std::chrono::seconds(5);
+  while (setup_error == 0 && accepted.load() != interface_count &&
+         std::chrono::steady_clock::now() < accepted_deadline)
+  {
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  }
+
+  // Let the masked readability passes finish, leaving no dirty connections.
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  const std::array<size_t, interface_count> stalled_at = {
+    received[0].load(), received[1].load()};
+
+  // Only the shared admission wake can revisit these otherwise idle sockets.
+  admission->consumed(limit);
+  const auto resumed_deadline =
+    std::chrono::steady_clock::now() + std::chrono::seconds(5);
+  while (setup_error == 0 &&
+         (received[0].load() == 0 || received[1].load() == 0) &&
+         std::chrono::steady_clock::now() < resumed_deadline)
+  {
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  }
+  const std::array<size_t, interface_count> resumed_at = {
+    received[0].load(), received[1].load()};
+  const std::array<bool, interface_count> valid_at_resume = {
+    correct_payload[0].load(), correct_payload[1].load()};
+
+  for (const auto fd : clients)
+  {
+    if (fd >= 0)
+    {
+      ::close(fd);
+    }
+  }
+  for (auto& server : servers)
+  {
+    server->stop(OpenSSLServer::LoopState::Running);
+  }
+  loop.thread.join();
+
+  INFO("Socket setup error: " << setup_error);
+  CHECK(setup_error == 0);
+  CHECK(accepted.load() == interface_count);
+  for (size_t i = 0; i < interface_count; ++i)
+  {
+    CHECK(stalled_at[i] == 0);
+    CHECK(resumed_at[i] == 1);
+    CHECK(valid_at_resume[i]);
+  }
+}
+
 // A client which sends faster than the node can execute must not be able to
 // make it queue unbounded work. Reads pause once the node-wide budget is
 // exhausted and resume once it is released, without dropping or truncating
