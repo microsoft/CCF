@@ -6,6 +6,7 @@
 #include "ccf/ds/hex.h"
 #include "ccf/historical_queries_interface.h"
 #include "ccf/js/core/context.h"
+#include "ccf/js/extensions/ccf/kv.h"
 #include "js/checks.h"
 #include "js/extensions/ccf/kv_helpers.h"
 #include "kv/untyped_map.h"
@@ -270,20 +271,17 @@ namespace ccf::js::extensions
     }
 
     kvhelpers::KVMap::ReadOnlyHandle* get_map_handle_historical(
-      js::core::Context& jsctx, JSValueConst _this_val)
+      js::core::Context& jsctx, JSValueConst this_val)
     {
-      auto this_val = jsctx.duplicate_value(_this_val);
-      auto map_name_val = this_val["_map_name"];
-      auto map_name = jsctx.to_str(map_name_val);
-
-      if (!map_name.has_value())
+      auto* state = kvhelpers::get_checked_handle_state(
+        jsctx,
+        this_val,
+        KVAccessPermissions::READ_ONLY,
+        kvhelpers::KVSource::Historical);
+      if (state == nullptr)
       {
-        LOG_FAIL_FMT("No map name stored on handle");
         return nullptr;
       }
-
-      const auto seqno = reinterpret_cast<ccf::SeqNo>(
-        JS_GetOpaque(_this_val, kv_map_handle_class_id));
 
       // Handle to historical KV
       auto* extension = jsctx.get_extension<HistoricalExtension>();
@@ -293,19 +291,20 @@ namespace ccf::js::extensions
         return nullptr;
       }
 
-      auto it = extension->impl->historical_handles.find(seqno);
+      auto it = extension->impl->historical_handles.find(state->seqno);
       if (it == extension->impl->historical_handles.end())
       {
         LOG_FAIL_FMT(
-          "Unable to retrieve any historical handles for state at {}", seqno);
+          "Unable to retrieve any historical handles for state at {}",
+          state->seqno);
         return nullptr;
       }
 
       auto& handles = it->second.kv_handles;
-      auto hit = handles.find(map_name.value());
+      auto hit = handles.find(state->map_name);
       if (hit == handles.end())
       {
-        hit = handles.emplace_hint(hit, map_name.value(), nullptr);
+        hit = handles.emplace_hint(hit, state->map_name, nullptr);
       }
 
       if (hit->second == nullptr)
@@ -317,7 +316,7 @@ namespace ccf::js::extensions
           return nullptr;
         }
 
-        hit->second = tx->ro<kvhelpers::KVMap>(map_name.value());
+        hit->second = tx->ro<kvhelpers::KVMap>(state->map_name);
       }
 
       return hit->second;
@@ -342,25 +341,37 @@ namespace ccf::js::extensions
       std::string explanation =
         ccf::js::explain_kv_map_access(access_permission, jsctx.access);
 
-      // If it's illegal, it stays illegal in historical lookup
+      // Historical KV access can never exceed current-KV access.
+      access_permission = ccf::js::intersect_access_permissions(
+        access_permission, KVAccessPermissions::READ_ONLY);
       if (access_permission != KVAccessPermissions::ILLEGAL)
       {
-        // But otherwise, ignore evaluated access permissions - all tables are
-        // read-only in historical KV
-        access_permission = KVAccessPermissions::READ_ONLY;
         explanation = "All tables are read-only during historical transaction.";
+      }
+
+      // Apply the same namespace restriction to historical KV.
+      auto* kv_extension = jsctx.get_extension<KvExtension>();
+      if (kv_extension != nullptr)
+      {
+        kvhelpers::apply_namespace_restriction(
+          kv_extension->namespace_restriction,
+          map_name,
+          access_permission,
+          explanation);
       }
 
       auto handle_val =
         kvhelpers::create_kv_map_handle<get_map_handle_historical, nullptr>(
-          jsctx, map_name, access_permission, explanation);
+          jsctx,
+          {.map_name = map_name,
+           .access_permission = access_permission,
+           .permission_explanation = explanation,
+           .source = kvhelpers::KVSource::Historical,
+           .seqno = seqno});
       if (JS_IsException(handle_val) != 0)
       {
         return -1;
       }
-
-      // Copy seqno from kv to handle
-      JS_SetOpaque(handle_val, reinterpret_cast<void*>(seqno));
 
       desc->flags = 0;
       desc->value = handle_val;
@@ -436,12 +447,15 @@ namespace ccf::js::extensions
 
     try
     {
-      // Create a tx which will be used to access this state
-      auto tx = state->store->create_read_only_tx_ptr();
-
-      // Extend lifetime of state and tx, by storing on this extension
-      impl->historical_handles[transaction_id.seqno] = {
-        state, std::move(tx), {}};
+      // Keep the original tx and its map handles alive: a JS callback may
+      // request this seqno again while one of those handles is in use.
+      if (!impl->historical_handles.contains(transaction_id.seqno))
+      {
+        auto tx = state->store->create_read_only_tx_ptr();
+        impl->historical_handles.emplace(
+          transaction_id.seqno,
+          Impl::HistoricalHandle{state, std::move(tx), {}});
+      }
     }
     catch (const std::exception& e)
     {

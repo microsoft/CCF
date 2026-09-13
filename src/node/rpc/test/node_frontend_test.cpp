@@ -277,8 +277,6 @@ TEST_CASE("Add a node to an open service")
   ccf::crypto::ECKeyPairPtr node_kp = ccf::crypto::make_ec_key_pair();
   const auto caller = node_kp->self_sign("CN=Joiner", valid_from, valid_to);
 
-  auto tx = network.tables->create_tx();
-
   const auto node_public_encryption_key =
     ccf::crypto::make_ec_key_pair()->public_key_pem();
 
@@ -288,6 +286,7 @@ TEST_CASE("Add a node to an open service")
 
   INFO("Add node once service is open");
   {
+    auto tx = network.tables->create_tx();
     auto http_response = frontend_process(frontend, join_input, "join", caller);
     CHECK(http_response.status == HTTP_STATUS_OK);
 
@@ -339,6 +338,7 @@ TEST_CASE("Add a node to an open service")
 
   INFO("Trust node and attempt to join");
   {
+    auto tx = network.tables->create_tx();
     // In a real scenario, nodes are trusted via member governance.
     auto joining_node_id = ccf::compute_node_id_from_kp(node_kp);
     InternalTablesAccess::trust_node(

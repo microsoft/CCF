@@ -476,7 +476,7 @@ namespace ccf
       openapi_info.description =
         "This API provides public, uncredentialed access to service and node "
         "state.";
-      openapi_info.document_version = "5.0.6";
+      openapi_info.document_version = "5.0.8";
     }
 
     // NOLINTNEXTLINE(readability-function-cognitive-complexity)
@@ -837,7 +837,7 @@ namespace ccf
         ccf::kv::Version cose_seqno = 0;
         auto cose_signatures =
           args.tx.template ro<CoseSignatures>(Tables::COSE_SIGNATURES);
-        auto cose_sig = cose_signatures->get();
+        auto cose_sig = cose_signatures->get(ccf::IdentityType::CLASSICAL);
         if (cose_sig.has_value() && !cose_sig->empty())
         {
           auto receipt = ccf::cose::decode_ccf_receipt(cose_sig.value(), false);
@@ -1782,7 +1782,8 @@ namespace ccf
               ctx.tx, in.snp_uvm_endorsements, recovering);
 
             auto attestation =
-              AttestationProvider::get_snp_attestation(in.quote_info).value();
+              AttestationProvider::get_snp_attestation_report(in.quote_info)
+                .value();
             InternalTablesAccess::trust_node_snp_tcb_version(
               ctx.tx, attestation);
             break;

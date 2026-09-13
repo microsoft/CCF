@@ -12,6 +12,7 @@
 #include "js/checks.h"
 #include "js/global_class_ids.h"
 
+#include <algorithm>
 #include <chrono>
 #include <cstdarg>
 #include <quickjs/quickjs.h>
@@ -53,6 +54,34 @@ namespace ccf::js::core
         }
         return nullptr;
       }
+    }
+
+    // QuickJS reports failures of the interpreter itself (out of memory, stack
+    // overflow, interruption) as InternalErrors. When even the error object
+    // cannot be allocated, it throws null instead.
+    bool is_interpreter_failure(
+      const Context& jsctx, const JSWrappedValue& exception)
+    {
+      if (JS_IsNull(exception.val) != 0)
+      {
+        return true;
+      }
+
+      if (!exception.is_error())
+      {
+        return false;
+      }
+
+      const auto name_val = exception["name"];
+      if (name_val.is_exception())
+      {
+        // Discard whatever an unusual name getter threw
+        JS_FreeValue(jsctx, JS_GetException(jsctx));
+        return false;
+      }
+
+      const auto name = jsctx.to_str(name_val);
+      return name.has_value() && name.value() == "InternalError";
     }
   }
 
@@ -201,6 +230,13 @@ namespace ccf::js::core
         trace = to_str(val);
       }
     }
+
+    // Converting the original exception (json_stringify, toString, reading the
+    // stack property) executes JavaScript and can itself raise, or hit the
+    // active runtime limits. Drain any resulting secondary exception so this
+    // interpreter never returns to the cache with a pending exception.
+    JS_FreeValue(ctx, JS_GetException(ctx));
+
     return {message.value_or(""), trace};
   }
 
@@ -245,6 +281,18 @@ namespace ccf::js::core
       ctx, obj.val, pbyte_offset, pbyte_length, pbytes_per_element));
   }
 
+  std::optional<std::vector<uint8_t>> Context::copy_array_buffer(
+    JSValueConst val) const
+  {
+    size_t size = 0;
+    uint8_t* data = JS_GetArrayBuffer(ctx, &size, val);
+    if (data == nullptr)
+    {
+      return std::nullopt;
+    }
+    return std::vector<uint8_t>(data, data + size);
+  }
+
   JSWrappedValue Context::get_exported_function(
     const std::string& code, const std::string& func, const std::string& path)
   {
@@ -271,6 +319,22 @@ namespace ccf::js::core
     // provide it with its own via JS_DupValue. Our JSWrappedValue destructor
     // will free the original reference separately.
     auto eval_val = wrap(JS_EvalFunction(ctx, JS_DupValue(ctx, module.val)));
+
+    // Evaluating a module produces a promise, which is rejected if the module
+    // body threw, rather than that exception being returned. Failures of the
+    // interpreter itself while evaluating the module (out of memory, stack
+    // overflow, interruption) are re-raised here, so that a module which
+    // exhausted its limits is not used. Other exceptions thrown at module scope
+    // are not reported.
+    if (JS_PromiseState(ctx, eval_val.val) == JS_PROMISE_REJECTED)
+    {
+      auto reason = wrap(JS_PromiseResult(ctx, eval_val.val));
+      if (is_interpreter_failure(*this, reason))
+      {
+        // JS_Throw takes ownership of the reference it is given
+        eval_val = wrap(JS_Throw(ctx, JS_DupValue(ctx, reason.val)));
+      }
+    }
 
     if (eval_val.is_exception())
     {
@@ -398,7 +462,7 @@ namespace ccf::js::core
 // "compound literals are a C99-specific feature"
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wc99-extensions"
-    return wrap((JSValue){(JSValueUnion){.int32 = val}, tag});
+    return wrap(JS_MKVAL(tag, val));
 #pragma clang diagnostic pop
   }
 
@@ -460,24 +524,53 @@ namespace ccf::js::core
     }
   }
 
+  RuntimeLimitsScope::RuntimeLimitsScope(
+    Context& context,
+    const std::optional<ccf::JSRuntimeOptions>& options,
+    RuntimeLimitsPolicy policy,
+    const std::optional<InterruptData>& inherited) :
+    ctx(context)
+  {
+    auto& rt = ctx.runtime();
+    rt.set_runtime_options(options, policy);
+    ctx.interrupt_data.request_timed_out = false;
+
+    if (inherited.has_value())
+    {
+      ctx.interrupt_data.start_time = inherited->start_time;
+      // Never allow more than either the inherited budget, or the budget
+      // produced by the options being applied here
+      ctx.interrupt_data.max_execution_time =
+        std::min(inherited->max_execution_time, rt.get_max_exec_time());
+      ctx.interrupt_data.access = inherited->access;
+    }
+    else
+    {
+      ctx.interrupt_data.start_time =
+        decltype(InterruptData::start_time)::clock::now();
+      ctx.interrupt_data.max_execution_time = rt.get_max_exec_time();
+    }
+
+    JS_SetInterruptHandler(
+      rt, js_custom_interrupt_handler, &ctx.interrupt_data);
+  }
+
+  RuntimeLimitsScope::~RuntimeLimitsScope()
+  {
+    auto& rt = ctx.runtime();
+    JS_SetInterruptHandler(rt, nullptr, nullptr);
+    rt.reset_runtime_options();
+  }
+
   JSWrappedValue Context::call_with_rt_options(
     const JSWrappedValue& f,
     const std::vector<JSWrappedValue>& argv,
     const std::optional<ccf::JSRuntimeOptions>& options,
     RuntimeLimitsPolicy policy)
   {
-    rt.set_runtime_options(options, policy);
-    const auto curr_time = decltype(InterruptData::start_time)::clock::now();
-    interrupt_data.start_time = curr_time;
-    interrupt_data.max_execution_time = rt.get_max_exec_time();
-    JS_SetInterruptHandler(rt, js_custom_interrupt_handler, &interrupt_data);
+    const RuntimeLimitsScope limits(*this, options, policy);
 
-    auto rv = inner_call(f, argv);
-
-    JS_SetInterruptHandler(rt, nullptr, nullptr);
-    rt.reset_runtime_options();
-
-    return rv;
+    return inner_call(f, argv);
   }
 
   JSWrappedValue Context::inner_call(
@@ -521,44 +614,23 @@ namespace ccf::js::core
 
   std::optional<std::string> Context::to_str(const JSWrappedValue& x) const
   {
-    size_t len = 0;
-    const auto* val = JS_ToCStringLen(ctx, &len, x.val);
-    if (val == nullptr)
-    {
-      // JS_ToCStringLen returns nullptr when a JS exception is already set (eg
-      // OOM, or an exception during coercion). Preserve that exception for
-      // callers.
-      return std::nullopt;
-    }
-    // Construct with explicit length rather than relying on the returned
-    // buffer's NUL terminator, since the JS string may itself contain
-    // embedded NUL characters which would otherwise silently truncate it.
-    std::string r(val, len);
-    JS_FreeCString(ctx, val);
-    return r;
+    return to_str(x.val);
   }
 
   std::optional<std::string> Context::to_str(const JSValue& x) const
   {
     size_t len = 0;
-    const auto* val = JS_ToCStringLen(ctx, &len, x);
-    if (val == nullptr)
-    {
-      // JS_ToCStringLen returns nullptr when a JS exception is already set (eg
-      // OOM, or an exception during coercion). Preserve that exception for
-      // callers.
-      return std::nullopt;
-    }
-    // See comment in to_str(const JSWrappedValue&) above.
-    std::string r(val, len);
-    JS_FreeCString(ctx, val);
-    return r;
+    return to_str(x, len);
   }
 
   std::optional<std::string> Context::to_str(
     const JSValue& x, size_t& len) const
   {
-    const auto* val = JS_ToCStringLen(ctx, &len, x);
+    const auto free_cstring = [this](const char* str) {
+      JS_FreeCString(ctx, str);
+    };
+    const std::unique_ptr<const char, decltype(free_cstring)> val(
+      JS_ToCStringLen(ctx, &len, x), free_cstring);
     if (val == nullptr)
     {
       // JS_ToCStringLen returns nullptr when a JS exception is already set (eg
@@ -566,26 +638,26 @@ namespace ccf::js::core
       // caller
       return std::nullopt;
     }
-    // See comment in to_str(const JSWrappedValue&) above.
-    std::string r(val, len);
-    JS_FreeCString(ctx, val);
-    return r;
+    // Preserve embedded NUL bytes. The QuickJS buffer may alias a live JS
+    // string, so release it even if copying throws, but do not cleanse it.
+    return std::string(val.get(), len);
   }
 
   std::optional<std::string> Context::to_str(const JSAtom& atom) const
   {
     size_t len = 0;
-    const auto* val = JS_AtomToCStringLen(ctx, &len, atom);
+    const auto free_cstring = [this](const char* str) {
+      JS_FreeCString(ctx, str);
+    };
+    const std::unique_ptr<const char, decltype(free_cstring)> val(
+      JS_AtomToCStringLen(ctx, &len, atom), free_cstring);
     if (val == nullptr)
     {
       // JS_AtomToCStringLen returns nullptr when a JS exception is already set
       // (eg OOM). Preserve that exception for callers.
       return std::nullopt;
     }
-    // See comment in to_str(const JSWrappedValue&) above.
-    std::string r(val, len);
-    JS_FreeCString(ctx, val);
-    return r;
+    return std::string(val.get(), len);
   }
 
   void Context::add_extension(const js::extensions::ExtensionPtr& extension)
