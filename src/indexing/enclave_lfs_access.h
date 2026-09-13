@@ -18,7 +18,6 @@
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
-#include <limits>
 #include <unordered_map>
 
 // Uncomment to disable encryption and obfuscation, writing cache content
@@ -39,7 +38,17 @@ namespace ccf::indexing
     std::vector<uint8_t>& plaintext)
   {
     ccf::crypto::GcmCipher gcm;
-    gcm.deserialise(encrypted);
+    try
+    {
+      gcm.deserialise(encrypted);
+    }
+    catch (const serialized::InsufficientSpaceException& e)
+    {
+      // The file on disk is untrusted, and may have been truncated below the
+      // size of a GCM header
+      LOG_TRACE_FMT("Malformed encrypted contents for {}: {}", key, e.what());
+      return false;
+    }
 
 #ifdef PLAINTEXT_CACHE
     plaintext = gcm.cipher;
@@ -104,6 +113,23 @@ namespace ccf::indexing
 
     ccf::crypto::EntropyPtr entropy_src;
     std::unique_ptr<ccf::crypto::KeyAesGcm> encryption_key;
+
+    // Size of the largest encrypted blob written by this instance. Only files
+    // written by this instance can be decrypted, so any larger file on disk
+    // cannot be valid, and is rejected before it is read into memory.
+    std::atomic<size_t> max_stored_size = 0;
+
+    void update_max_stored_size(size_t size)
+    {
+      auto current = max_stored_size.load();
+      while (size > current)
+      {
+        if (max_stored_size.compare_exchange_weak(current, size))
+        {
+          break;
+        }
+      }
+    }
 
     LFSEncryptedContents encrypt(const LFSKey& key, LFSContents&& contents)
     {
@@ -195,17 +221,28 @@ namespace ccf::indexing
       }
 
       const auto file_size = static_cast<std::streamoff>(f.tellg());
-      LFSEncryptedContents blob;
-      if (
-        file_size < 0 ||
-        static_cast<std::uintmax_t>(file_size) > blob.max_size() ||
-        static_cast<std::uintmax_t>(file_size) >
-          static_cast<std::uintmax_t>(
-            std::numeric_limits<std::streamsize>::max()))
+      if (file_size < 0)
       {
         LOG_FAIL_FMT(
-          "Failed to determine a supported size for LFS file {}",
-          target_path.string());
+          "Failed to determine the size of LFS file {}", target_path.string());
+        return {
+          .status = BlobReadResult::Status::Error,
+          .contents = {},
+        };
+      }
+
+      // The file contents are untrusted, so bound the allocation below by the
+      // largest blob this instance has written. Any store of a larger blob
+      // publishes its size before its write is queued, so a fetch ordered
+      // after that store always accepts the resulting file.
+      const auto max_size = max_stored_size.load();
+      if (static_cast<std::uintmax_t>(file_size) > max_size)
+      {
+        LOG_FAIL_FMT(
+          "LFS file {} is {} bytes, larger than any stored blob ({} bytes)",
+          target_path.string(),
+          file_size,
+          max_size);
         return {
           .status = BlobReadResult::Status::Error,
           .contents = {},
@@ -223,7 +260,7 @@ namespace ccf::indexing
         };
       }
 
-      blob.resize(static_cast<size_t>(file_size));
+      LFSEncryptedContents blob(static_cast<size_t>(file_size));
       if (!blob.empty())
       {
         const auto expected_size = static_cast<std::streamsize>(blob.size());
@@ -302,6 +339,7 @@ namespace ccf::indexing
       // is encrypted and stored at an obfuscated key. Encryption happens on the
       // calling thread; the resulting blob is written to disk asynchronously.
       auto encrypted = encrypt(obfuscated, std::move(contents));
+      update_max_stored_size(encrypted.size());
       tasks->add_action(ccf::tasks::make_basic_action(
         [this, obfuscated, encrypted = std::move(encrypted)]() {
           write_blob(obfuscated, encrypted);

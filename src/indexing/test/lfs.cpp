@@ -20,6 +20,14 @@ std::vector<uint8_t> read_file(const std::filesystem::path& p)
   return contents;
 }
 
+void write_file(
+  const std::filesystem::path& p, const std::vector<uint8_t>& contents)
+{
+  std::ofstream f(p, std::ios::trunc | std::ios::binary);
+  f.write((char const*)contents.data(), contents.size());
+  f.close();
+}
+
 void write_file_corrupted_at(
   const std::filesystem::path& p,
   size_t i,
@@ -28,9 +36,7 @@ void write_file_corrupted_at(
   auto corrupted(original);
   REQUIRE(i < corrupted.size());
   corrupted[i]++;
-  std::ofstream f(p, std::ios::trunc | std::ios::binary);
-  f.write((char const*)corrupted.data(), corrupted.size());
-  f.close();
+  write_file(p, corrupted);
 }
 
 // Synchronously execute any LFS disk I/O actions (store/fetch) that have been
@@ -163,12 +169,13 @@ TEST_CASE("Basic cache" * doctest::test_suite("lfs"))
     REQUIRE(result->contents != blob_a);
   }
 
+  const auto b_path =
+    index_dir / ccf::indexing::EnclaveLFSAccess::obfuscate_key(key_b);
+  const auto original_b_contents = read_file(b_path);
+
 #ifndef PLAINTEXT_CACHE
   {
     INFO("Cache provides corrupt file");
-    const auto b_path =
-      index_dir / ccf::indexing::EnclaveLFSAccess::obfuscate_key(key_b);
-    const auto original_b_contents = read_file(b_path);
 
     for (size_t i = 0; i < original_b_contents.size(); ++i)
     {
@@ -185,6 +192,63 @@ TEST_CASE("Basic cache" * doctest::test_suite("lfs"))
     }
   }
 #endif
+
+  {
+    INFO("Cache provides truncated file");
+
+    // Every truncation must be reported as corrupt, including files too short
+    // to contain a GCM header, rather than escaping as an exception
+    for (size_t size = 0; size < original_b_contents.size(); ++size)
+    {
+      write_file(
+        b_path,
+        std::vector<uint8_t>(
+          original_b_contents.begin(), original_b_contents.begin() + size));
+
+      auto result = lfs_access.fetch(key_b);
+
+      flush_lfs(board);
+
+      REQUIRE(
+        result->fetch_result ==
+        ccf::indexing::FetchResult::FetchResultType::Corrupt);
+      REQUIRE(result->contents != blob_b);
+    }
+  }
+
+  {
+    INFO("Cache provides oversized file");
+
+    // Sparsely extend the file far beyond any blob this instance has written.
+    // The read must be rejected by size, before any allocation is attempted.
+    std::error_code ec;
+    std::filesystem::resize_file(
+      b_path, static_cast<std::uintmax_t>(1) << 40, ec);
+    REQUIRE_MESSAGE(!ec, ec.message());
+
+    auto result = lfs_access.fetch(key_b);
+
+    flush_lfs(board);
+
+    REQUIRE(
+      result->fetch_result ==
+      ccf::indexing::FetchResult::FetchResultType::Corrupt);
+    REQUIRE(result->contents != blob_b);
+  }
+
+  {
+    INFO("Restored file loads again");
+    write_file(b_path, original_b_contents);
+
+    auto result = lfs_access.fetch(key_b);
+
+    flush_lfs(board);
+
+    REQUIRE(
+      result->fetch_result ==
+      ccf::indexing::FetchResult::FetchResultType::Loaded);
+    REQUIRE(result->contents == blob_b);
+  }
 }
 
 TEST_CASE("Integrated cache" * doctest::test_suite("lfs"))
