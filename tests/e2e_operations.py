@@ -3800,15 +3800,16 @@ def run_backup_snapshot_download(const_args):
 
 
 def run_backup_snapshot_download_limits(const_args):
+    args = copy.deepcopy(const_args)
+    args.pending_node_timeout = "1h"
     _run_backup_snapshot_download(
-        const_args,
+        args,
         "_backup_snapshot_limits",
         [
             test_backup_snapshot_fetch_max_size,
             test_join_idempotency_on_backup,
         ],
     )
-    args = copy.deepcopy(const_args)
     args.pending_node_timeout = "0s"
     _run_backup_snapshot_download(
         args,
