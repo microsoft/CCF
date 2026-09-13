@@ -229,7 +229,9 @@ namespace ccf
         });
     }
 
-    if (post == recovery_decision_protocol::StateMachine::JOINING)
+    if (
+      post == recovery_decision_protocol::StateMachine::JOINING &&
+      pre != recovery_decision_protocol::StateMachine::JOINING)
     {
       record_trace_event(
         tx,

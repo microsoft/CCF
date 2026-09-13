@@ -1030,6 +1030,7 @@ if(BUILD_TESTS)
     add_unit_test(
       node_frontend_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/node_frontend_test.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/recovery_decision_protocol.cpp
       ${CCF_DIR}/src/node/quote.cpp
       ${CCF_DIR}/src/node/uvm_endorsements.cpp
       ${CCF_DIR}/src/node/recovery_decision_protocol.cpp

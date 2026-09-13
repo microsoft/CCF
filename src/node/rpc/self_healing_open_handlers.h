@@ -58,12 +58,13 @@ namespace ccf::node
       recovery_decision_protocol::RequestNodeInfo info = in.info;
 
 #ifdef CCF_RECOVERY_TRACE
-      if (!in.trace_message_id.has_value())
+      if (!in.trace_message_id.has_value() || in.trace_message_id->empty())
       {
         return make_error(
           HTTP_STATUS_BAD_REQUEST,
           ccf::errors::InvalidInput,
-          "Recovery trace message ID is required in trace-enabled builds");
+          "A nonempty recovery trace message ID is required in trace-enabled "
+          "builds");
       }
 #endif
 
