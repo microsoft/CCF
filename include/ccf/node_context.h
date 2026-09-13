@@ -6,6 +6,8 @@
 #include "ccf/indexing/indexer_interface.h"
 #include "ccf/node_subsystem_interface.h"
 
+#include <format>
+
 namespace ccf
 {
   struct AbstractNodeContext
@@ -27,7 +29,7 @@ namespace ccf
       if (it != subsystems.end())
       {
         throw std::logic_error(
-          fmt::format("Already registered subsystem {}", name));
+          std::format("Already registered subsystem {}", name));
       }
 
       subsystems.emplace_hint(it, name, subsystem);

@@ -3,6 +3,8 @@
 
 #include "ccf/tx.h"
 
+#include <format>
+
 #define DOCTEST_CONFIG_IMPLEMENT
 #include "ccf/app_interface.h"
 #include "ccf/ds/locking.h"
@@ -896,7 +898,8 @@ TEST_CASE("JsonWrappedEndpointFunction")
          })
     {
       INFO("Calling failable, with error");
-      const auto msg = fmt::format("An error message about {}", err);
+      const auto msg =
+        std::format("An error message about {}", std::to_underlying(err));
       auto fail = create_simple_request("/failable");
       const nlohmann::json j_body = {
         {"error", {{"code", err}, {"message", msg}}}};
@@ -1666,7 +1669,7 @@ TEST_CASE("Retry on conflict")
   {
     frontend.execution_count = 0;
     size_t retry_count = ccf_max_attempts - 1;
-    req.set_header("test-retry-count", fmt::format("{}", retry_count));
+    req.set_header("test-retry-count", std::format("{}", retry_count));
     auto serialized_call = req.build_request();
     auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_call);
 
@@ -1684,7 +1687,7 @@ TEST_CASE("Retry on conflict")
   {
     frontend.execution_count = 0;
     size_t retry_count = ccf_max_attempts + 1;
-    req.set_header("test-retry-count", fmt::format("{}", retry_count));
+    req.set_header("test-retry-count", std::format("{}", retry_count));
     auto serialized_call = req.build_request();
     auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_call);
 

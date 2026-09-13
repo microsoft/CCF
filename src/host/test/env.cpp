@@ -3,11 +3,10 @@
 
 #include "host/env.h"
 
+#include <format>
+
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
-
-#define FMT_HEADER_ONLY
-#include <fmt/format.h>
 
 TEST_CASE("envvars" * doctest::test_suite("env"))
 {
@@ -44,23 +43,23 @@ TEST_CASE("envvars" * doctest::test_suite("env"))
     REQUIRE("/foo/bar" == ccf::env::expand_envvars_in_path("/foo/bar"));
 
     REQUIRE(
-      fmt::format("{}", test_value1) ==
+      std::format("{}", test_value1) ==
       ccf::env::expand_envvars_in_path("$TEST_ENV_VAR1"));
     REQUIRE(
-      fmt::format("{}/", test_value1) ==
+      std::format("{}/", test_value1) ==
       ccf::env::expand_envvars_in_path("$TEST_ENV_VAR1/"));
     REQUIRE(
-      fmt::format("{}/{}", test_value1, test_value2) ==
+      std::format("{}/{}", test_value1, test_value2) ==
       ccf::env::expand_envvars_in_path("$TEST_ENV_VAR1/$TEST_ENV_VAR2"));
 
     REQUIRE(
-      fmt::format("/{}", test_value1) ==
+      std::format("/{}", test_value1) ==
       ccf::env::expand_envvars_in_path("/$TEST_ENV_VAR1"));
     REQUIRE(
-      fmt::format("/{}/", test_value1) ==
+      std::format("/{}/", test_value1) ==
       ccf::env::expand_envvars_in_path("/$TEST_ENV_VAR1/"));
     REQUIRE(
-      fmt::format("/{}/{}", test_value1, test_value2) ==
+      std::format("/{}/{}", test_value1, test_value2) ==
       ccf::env::expand_envvars_in_path("/$TEST_ENV_VAR1/$TEST_ENV_VAR2"));
   }
 }

@@ -10,6 +10,7 @@
 #include "tls/tls.h"
 
 #include <exception>
+#include <format>
 
 namespace ccf
 {
@@ -372,7 +373,7 @@ namespace ccf
 
         case TLS_ERR_NEED_CERT:
         {
-          on_handshake_error(fmt::format(
+          on_handshake_error(std::format(
             "TLS {} verify error on handshake: {}",
             session_id,
             ::tls::error_string(rc)));
@@ -393,7 +394,7 @@ namespace ccf
         case TLS_ERR_X509_VERIFY:
         {
           auto err = ctx->get_verify_error();
-          on_handshake_error(fmt::format(
+          on_handshake_error(std::format(
             "TLS {} invalid cert on handshake: {} [{}]",
             session_id,
             err,
@@ -404,7 +405,7 @@ namespace ccf
 
         default:
         {
-          on_handshake_error(fmt::format(
+          on_handshake_error(std::format(
             "TLS {} error on handshake: {}",
             session_id,
             ::tls::error_string(rc)));
@@ -482,8 +483,10 @@ namespace ccf
         }
 
         default:
-          throw std::logic_error(
-            fmt::format("TLS {} unknown status: {}", session_id, status));
+          throw std::logic_error(std::format(
+            "TLS {} unknown status: {}",
+            session_id,
+            std::to_underlying(status)));
       }
     }
 

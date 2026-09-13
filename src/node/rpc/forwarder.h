@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/join.h"
 #include "enclave/forwarder_types.h"
 #include "enclave/http_rpc_context.h"
 #include "enclave/rpc_map.h"
@@ -9,6 +10,8 @@
 #include "node/node_to_node.h"
 #include "tasks/basic_task.h"
 #include "tasks/task_system.h"
+
+#include <format>
 
 namespace ccf
 {
@@ -49,7 +52,7 @@ namespace ccf
       if (rpc_responder_shared)
       {
         auto response = ::http::Response(HTTP_STATUS_GATEWAY_TIMEOUT);
-        auto body = fmt::format(
+        auto body = std::format(
           "Request was forwarded to node {}, but no response was received "
           "after {}ms",
           to,
@@ -140,7 +143,7 @@ namespace ccf
       try
       {
         LOG_TRACE_FMT("Receiving forwarded command of {} bytes", size);
-        LOG_TRACE_FMT(" => {:02x}", fmt::join(data, data + size, ""));
+        LOG_TRACE_FMT(" => {:02x}", ccf::ds::join(data, data + size, ""));
 
         r = n2n_channels->template recv_encrypted<TFwdHdr>(from, data, size);
       }
@@ -229,7 +232,7 @@ namespace ccf
       try
       {
         LOG_TRACE_FMT("Receiving response of {} bytes", size);
-        LOG_TRACE_FMT(" => {:02x}", fmt::join(data, data + size, ""));
+        LOG_TRACE_FMT(" => {:02x}", ccf::ds::join(data, data + size, ""));
 
         r = n2n_channels->template recv_encrypted<TFwdHdr>(from, data, size);
       }
@@ -461,7 +464,9 @@ namespace ccf
 
           default:
           {
-            LOG_FAIL_FMT("Unknown frontend msg type: {}", forwarded_msg);
+            LOG_FAIL_FMT(
+              "Unknown frontend msg type: {}",
+              std::to_underlying(forwarded_msg));
             break;
           }
         }

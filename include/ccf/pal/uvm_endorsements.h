@@ -4,6 +4,8 @@
 
 #include "ccf/service/tables/uvm_endorsements.h"
 
+#include <format>
+
 namespace ccf::pal
 {
   struct UVMEndorsements
@@ -16,7 +18,7 @@ namespace ccf::pal
 
     std::string to_str()
     {
-      return fmt::format("did: {}, feed: {}, svn: {}", did, feed, svn);
+      return std::format("did: {}, feed: {}, svn: {}", did, feed, svn);
     }
   };
   DECLARE_JSON_TYPE(UVMEndorsements);

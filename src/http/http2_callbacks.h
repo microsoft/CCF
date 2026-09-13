@@ -8,6 +8,8 @@
 #include "http2_types.h"
 #include "http2_utils.h"
 
+#include <format>
+
 namespace http2
 {
   static ssize_t read_outgoing_callback(
@@ -24,7 +26,7 @@ namespace http2
     {
       LOG_FAIL_FMT(
         "http2::read_outgoing_callback error: unexpected state {}",
-        stream_data->outgoing.state);
+        std::to_underlying(stream_data->outgoing.state));
       return NGHTTP2_ERR_CALLBACK_FAILURE;
     }
 
@@ -153,14 +155,14 @@ namespace http2
     {
       // Streams are created in on_begin_frame_recv_callback
       throw std::logic_error(
-        fmt::format("Stream {} should already exist", stream_id));
+        std::format("Stream {} should already exist", stream_id));
     }
 
     auto rc = nghttp2_session_set_stream_user_data(
       session, stream_id, stream_data.get());
     if (rc != 0)
     {
-      throw std::logic_error(fmt::format(
+      throw std::logic_error(std::format(
         "HTTP/2: Could not set user data for stream {}: {}",
         stream_id,
         nghttp2_strerror(rc)));
@@ -192,7 +194,7 @@ namespace http2
     if (namelen > max_header_size)
     {
       throw http::RequestHeaderTooLargeException(
-        fmt::format(
+        std::format(
           "Header key for '{}' is too large (max size allowed: {})",
           k,
           max_header_size),
@@ -202,7 +204,7 @@ namespace http2
     if (valuelen > max_header_size)
     {
       throw http::RequestHeaderTooLargeException(
-        fmt::format(
+        std::format(
           "Header value for key '{}' is too large (size: {}, max size allowed: "
           "{})",
           k,
@@ -217,7 +219,7 @@ namespace http2
     if (stream_data->incoming.headers.size() >= max_headers_count)
     {
       throw http::RequestHeaderTooLargeException(
-        fmt::format(
+        std::format(
           "Too many headers (max number allowed: {})", max_headers_count),
         stream_id);
     }
@@ -249,7 +251,7 @@ namespace http2
     if (stream_data->incoming.body.size() > max_body_size)
     {
       throw http::RequestPayloadTooLargeException(
-        fmt::format(
+        std::format(
           "HTTP request body is too large (max size allowed: {})",
           max_body_size),
         stream_id);

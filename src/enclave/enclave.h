@@ -361,7 +361,8 @@ namespace ccf
               }
               default:
               {
-                LOG_FAIL_FMT("Unhandled purpose: {}", purpose);
+                LOG_FAIL_FMT(
+                  "Unhandled purpose: {}", std::to_underlying(purpose));
               }
             }
           });
@@ -388,7 +389,8 @@ namespace ccf
               }
               default:
               {
-                LOG_FAIL_FMT("Unhandled purpose: {}", purpose);
+                LOG_FAIL_FMT(
+                  "Unhandled purpose: {}", std::to_underlying(purpose));
               }
             }
           });

@@ -4,12 +4,15 @@
 #include "ccf/indexing/strategies/seqnos_by_key_bucketed.h"
 
 #include "ccf/ds/hex.h"
+#include "ccf/ds/join.h"
 #include "ccf/ds/locking.h"
 #include "ds/internal_logger.h"
 #include "ds/lru.h"
 #include "ds/serialized.h"
 #include "indexing/lfs_interface.h"
 #include "kv/kv_types.h"
+
+#include <format>
 
 namespace ccf::indexing::strategies
 {
@@ -60,7 +63,7 @@ namespace ccf::indexing::strategies
     {
       if (lfs_access == nullptr)
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Cannot create this strategy without access to the LFS subsystem"));
       }
     }
@@ -129,7 +132,7 @@ namespace ccf::indexing::strategies
     {
       const auto hex_key = ds::to_hex(bk.first.begin(), bk.first.end());
       const auto& range = bk.second;
-      return fmt::format(
+      return std::format(
         "{}: {} -> {} for {}", name, range.first, range.second, hex_key);
     }
 
@@ -142,7 +145,7 @@ namespace ccf::indexing::strategies
           "Storing empty bucket for range [{}, {}) for key {:02x}",
           begin.first,
           begin.second,
-          fmt::join(k, ""));
+          ccf::ds::join(k, ""));
         store_to_disk(k, begin, {});
         begin = get_range_for(begin.second);
       }
@@ -169,7 +172,7 @@ namespace ccf::indexing::strategies
       if (to < from)
       {
         throw std::logic_error(
-          fmt::format("Range goes backwards: {} -> {}", from, to));
+          std::format("Range goes backwards: {} -> {}", from, to));
       }
 
       if (std::lock_guard<ccf::ds::Mutex> guard(current_txid_lock);
@@ -188,7 +191,7 @@ namespace ccf::indexing::strategies
       const auto range_len = to - from;
       if (range_len > max_requestable_range())
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Requesting transactions from {} to {} requires buckets covering "
           "[{}, {}). These {} transactions are larger than the maximum "
           "requestable {}",
@@ -377,7 +380,7 @@ namespace ccf::indexing::strategies
           current_result.second.size(),
           current_range.first,
           current_range.second,
-          fmt::join(k, ""));
+          ccf::ds::join(k, ""));
         impl->store_to_disk(k, current_range, std::move(current_result.second));
 
         const auto next_range = impl->get_range_for(current_range.second);
@@ -435,7 +438,7 @@ namespace ccf::indexing::strategies
       ccf::kv::get_security_domain(map_name_) !=
       ccf::kv::SecurityDomain::PUBLIC)
     {
-      throw std::logic_error(fmt::format(
+      throw std::logic_error(std::format(
         "This Strategy ({}) is currently only implemented for public tables, "
         "so cannot be used for '{}'",
         get_name(),

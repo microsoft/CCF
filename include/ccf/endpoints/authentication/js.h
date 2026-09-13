@@ -6,6 +6,8 @@
 #include "ccf/endpoint.h"
 #include "ccf/endpoints/authentication/all_of_auth.h"
 
+#include <format>
+
 namespace ccf
 {
   using NamedAuthPolicies =
@@ -104,7 +106,7 @@ namespace ccf
         if (policy == nullptr)
         {
           throw std::logic_error(
-            fmt::format("Unknown auth policy: {}", policy_name));
+            std::format("Unknown auth policy: {}", policy_name));
         }
         endpoint.authn_policies.push_back(std::move(policy));
       }
@@ -132,7 +134,7 @@ namespace ccf
                 if (policy == nullptr)
                 {
                   throw std::logic_error(
-                    fmt::format("Unknown auth policy: {}", policy_name));
+                    std::format("Unknown auth policy: {}", policy_name));
                 }
                 constituent_policies.push_back(std::move(policy));
               }
@@ -149,7 +151,7 @@ namespace ccf
         }
 
         // Any failure in above checks falls through to this detailed error.
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Unsupported auth policy. Policies must be either a string, or an "
           "object containing an \"all_of\" key with list-of-strings value. "
           "Unsupported value: {}",

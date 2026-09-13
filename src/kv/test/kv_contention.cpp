@@ -10,6 +10,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <format>
 #define DOCTEST_CONFIG_NO_SHORT_MACRO_NAMES
 
 #include <doctest/doctest.h>
@@ -66,7 +67,7 @@ DOCTEST_TEST_CASE("Concurrent kv access" * doctest::test_suite("concurrency"))
   constexpr size_t map_count = 8;
   for (size_t i = 0u; i < map_count; ++i)
   {
-    const auto name = fmt::format("public:{}", i);
+    const auto name = std::format("public:{}", i);
     MapType map(name);
 
     // Every thread gets the first map, and a random half of the others
@@ -280,11 +281,11 @@ DOCTEST_TEST_CASE(
       std::string message;
       if (ver.has_value())
       {
-        message = fmt::format("Key {} was previously modified at {}", k, *ver);
+        message = std::format("Key {} was previously modified at {}", k, *ver);
       }
       else
       {
-        message = fmt::format("Key {} has never been written to before", k);
+        message = std::format("Key {} has never been written to before", k);
       }
 
       auto j = nlohmann::json::object();

@@ -8,6 +8,7 @@
 #include "ds/state_machine.h"
 #include "node/node_types.h"
 
+#include <format>
 #include <set>
 #include <utility>
 
@@ -80,7 +81,7 @@ namespace ccf
       }
       default:
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Unknown node message type: {}", std::to_underlying(msg_type)));
       }
     }

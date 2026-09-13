@@ -3,8 +3,11 @@
 
 #include "verify_uvm_attestation_and_endorsements.h"
 
+#include "ccf/ds/join.h"
 #include "ccf/ds/quote_info.h"
 #include "node/uvm_endorsements.h"
+
+#include <format>
 
 std::string read_in(const std::string& path)
 {
@@ -33,8 +36,8 @@ void validate_endorsements(
   const auto* tcb_begin = reinterpret_cast<const uint8_t*>(&attested_tcb);
   const std::span<const uint8_t> tcb_bytes{
     tcb_begin, tcb_begin + sizeof(attested_tcb)};
-  auto tcb_as_hex =
-    fmt::format("{:02x}", fmt::join(tcb_bytes.rbegin(), tcb_bytes.rend(), ""));
+  auto tcb_as_hex = std::format(
+    "{:02x}", ccf::ds::join(tcb_bytes.rbegin(), tcb_bytes.rend(), ""));
   ccf::nonstd::to_upper(tcb_as_hex);
 
   if (tcb_as_hex == aci_endorsements.tcbm)
@@ -44,7 +47,7 @@ void validate_endorsements(
   }
   else
   {
-    throw std::runtime_error(fmt::format(
+    throw std::runtime_error(std::format(
       "SNP endorsements loaded from disk contained tcbm {}, which does not "
       "match reported TCB of current attestation {}. ",
       aci_endorsements.tcbm,
@@ -78,7 +81,7 @@ void validate_security_policy(
     ccf::crypto::Sha256Hash(security_policy);
   if (security_policy_digest != quoted_digest.value())
   {
-    throw std::logic_error(fmt::format(
+    throw std::logic_error(std::format(
       "Digest of decoded security policy \"{}\" {} does not match "
       "attestation host data {}",
       security_policy,
@@ -107,7 +110,7 @@ void validate_uvm_endorsements(
   catch (const std::exception& e)
   {
     throw std::logic_error(
-      fmt::format("Error verifying UVM endorsements: {}", e.what()));
+      std::format("Error verifying UVM endorsements: {}", e.what()));
   }
 }
 
@@ -198,7 +201,8 @@ int main(int argc, char** argv)
     std::string endorsements = read_in(endorsements_path);
 
     LOG_INFO_FMT(
-      "Reading SNP UVM endorsements from: {}", uvm_endorsements_path);
+      "Reading SNP UVM endorsements from: {}",
+      uvm_endorsements_path.value_or("<not provided>"));
     std::optional<std::string> uvm_endorsements = std::nullopt;
     if (uvm_endorsements_path.has_value())
     {
@@ -213,7 +217,7 @@ int main(int argc, char** argv)
     if (security_policy_path.has_value())
     {
       LOG_INFO_FMT(
-        "Reading SNP security policy from: {}", security_policy_path);
+        "Reading SNP security policy from: {}", security_policy_path.value());
       security_policy = read_in(security_policy_path.value());
     }
     else
@@ -275,7 +279,7 @@ int main(int argc, char** argv)
         if (rc != ccf::QuoteVerificationResult::Verified)
         {
           throw std::logic_error(
-            fmt::format("Join policy validation failed: {}", (int)rc));
+            std::format("Join policy validation failed: {}", (int)rc));
         }
       },
       {});

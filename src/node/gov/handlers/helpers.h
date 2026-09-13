@@ -6,6 +6,8 @@
 #include "ccf/endpoints/authentication/cose_auth.h"
 #include "node/rpc/gov_logging.h"
 
+#include <format>
+
 namespace ccf::gov::endpoints::detail
 {
   inline AuthnPolicies member_sig_only_policies(const std::string& gov_msg_type)
@@ -31,7 +33,7 @@ namespace ccf::gov::endpoints::detail
       "{} {} returning error {}: {}",
       rpc_ctx->get_request_verb().c_str(),
       rpc_ctx->get_request_path(),
-      status,
+      std::to_underlying(status),
       msg);
 
     rpc_ctx->set_error(status, code, std::move(msg));
@@ -86,7 +88,7 @@ namespace ccf::gov::endpoints::detail
         rpc_ctx,
         HTTP_STATUS_BAD_REQUEST,
         ccf::errors::InvalidResourceName,
-        fmt::format(
+        std::format(
           "'{}' is not a valid hex-encoded member ID", member_id_str));
       return false;
     }
@@ -146,7 +148,7 @@ namespace ccf::gov::endpoints::detail
         rpc_ctx,
         HTTP_STATUS_BAD_REQUEST,
         ccf::errors::InvalidResourceName,
-        fmt::format("'{}' is not a valid hex-encoded user ID", user_id_str));
+        std::format("'{}' is not a valid hex-encoded user ID", user_id_str));
       return false;
     }
 
@@ -184,7 +186,7 @@ namespace ccf::gov::endpoints::detail
         rpc_ctx,
         HTTP_STATUS_BAD_REQUEST,
         ccf::errors::InvalidResourceName,
-        fmt::format(
+        std::format(
           "'{}' is not a valid hex-encoded proposal ID", proposal_id_str));
       return false;
     }
@@ -248,7 +250,7 @@ namespace ccf::gov::endpoints::detail
         rpc_ctx,
         HTTP_STATUS_BAD_REQUEST,
         ccf::errors::InvalidResourceName,
-        fmt::format("'{}' is not a valid hex-encoded node ID", node_id_str));
+        std::format("'{}' is not a valid hex-encoded node ID", node_id_str));
       return false;
     }
 

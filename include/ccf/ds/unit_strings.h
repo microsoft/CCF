@@ -7,6 +7,7 @@
 
 #include <charconv>
 #include <cmath>
+#include <format>
 #include <limits>
 #include <nlohmann/json.hpp>
 #include <string>
@@ -43,10 +44,10 @@ namespace ccf::ds
         std::from_chars(value.data(), value.data() + value.size(), ret);
       if (res.ec != std::errc())
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Could not convert value from size string \"{}\": {}",
           value,
-          res.ec));
+          std::to_underlying(res.ec)));
       }
 
       if (unit.empty())
@@ -67,7 +68,7 @@ namespace ccf::ds
             allowed_units_str += ", ";
           }
         }
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Unit {} is invalid. Allowed: {}", unit, allowed_units_str));
       }
 
@@ -95,7 +96,7 @@ namespace ccf::ds
 
         if (value > std::numeric_limits<size_t>::max() / factor)
         {
-          throw std::logic_error(fmt::format(
+          throw std::logic_error(std::format(
             "Size string value {} with multiplier {} exceeds the largest "
             "representable size",
             value,
@@ -240,9 +241,8 @@ namespace ccf::ds
   }
 }
 
-FMT_BEGIN_NAMESPACE
 template <>
-struct formatter<ccf::ds::SizeString>
+struct std::formatter<ccf::ds::SizeString>
 {
   template <typename ParseContext>
   constexpr auto parse(ParseContext& ctx)
@@ -255,7 +255,6 @@ struct formatter<ccf::ds::SizeString>
   {
     std::stringstream ss;
     ss << v.str;
-    return format_to(ctx.out(), "{}", ss.str());
+    return std::format_to(ctx.out(), "{}", ss.str());
   }
 };
-FMT_END_NAMESPACE

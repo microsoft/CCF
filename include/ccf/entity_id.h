@@ -5,6 +5,7 @@
 #include "ccf/ds/json.h"
 #include "ccf/kv/serialisers/blit_serialiser.h"
 
+#include <format>
 #include <string>
 
 namespace ccf
@@ -101,7 +102,7 @@ namespace ccf
     }
     else
     {
-      throw ccf::JsonParseError(fmt::format(
+      throw ccf::JsonParseError(std::format(
         "{} should be hex-encoded string: {}",
         FmtExtender::ID_LABEL,
         j.dump()));
@@ -127,14 +128,14 @@ namespace ccf
     // https://swagger.io/docs/specification/data-models/data-types/#format
     schema["format"] = "hex";
     schema["pattern"] =
-      fmt::format("^[a-f0-9]{{{}}}$", EntityId<FmtExtender>::LENGTH);
+      std::format("^[a-f0-9]{{{}}}$", EntityId<FmtExtender>::LENGTH);
   }
 
   struct MemberIdFormatter
   {
     static std::string format(const std::string& core)
     {
-      return fmt::format("m[{}]", core);
+      return std::format("m[{}]", core);
     }
 
     static constexpr auto ID_LABEL = "MemberId";
@@ -145,7 +146,7 @@ namespace ccf
   {
     static std::string format(const std::string& core)
     {
-      return fmt::format("u[{}]", core);
+      return std::format("u[{}]", core);
     }
 
     static constexpr auto ID_LABEL = "UserId";
@@ -156,7 +157,7 @@ namespace ccf
   {
     static std::string format(const std::string& core)
     {
-      return fmt::format("n[{}]", core);
+      return std::format("n[{}]", core);
     }
 
     static constexpr auto ID_LABEL = "NodeId";
@@ -193,9 +194,8 @@ namespace std
 }
 // NOLINTEND(cert-dcl58-cpp)
 
-FMT_BEGIN_NAMESPACE
 template <typename FmtExtender>
-struct formatter<ccf::EntityId<FmtExtender>>
+struct std::formatter<ccf::EntityId<FmtExtender>>
 {
   template <typename ParseContext>
   constexpr auto parse(ParseContext& ctx)
@@ -208,10 +208,9 @@ struct formatter<ccf::EntityId<FmtExtender>>
   {
     std::stringstream ss;
     ss << v;
-    return format_to(ctx.out(), "{}", ss.str());
+    return std::format_to(ctx.out(), "{}", ss.str());
   }
 };
-FMT_END_NAMESPACE
 
 namespace ccf::kv::serialisers
 {

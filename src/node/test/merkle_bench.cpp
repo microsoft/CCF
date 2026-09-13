@@ -3,10 +3,8 @@
 #define PICOBENCH_IMPLEMENT
 #include "../history.h"
 
-#define FMT_HEADER_ONLY
-
 #include <algorithm>
-#include <fmt/format.h>
+#include <format>
 #include <picobench/picobench.hpp>
 #include <random>
 
@@ -187,7 +185,7 @@ static void serialised_size(picobench::state& s)
   auto buf = t.serialise();
   s.stop_timer();
   auto bph = ((float)buf.size()) / s.iterations();
-  std::cout << fmt::format(
+  std::cout << std::format(
                  "mt_serialize n={} : {} bytes, {} bytes/hash, {}% overhead",
                  s.iterations(),
                  buf.size(),

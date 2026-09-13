@@ -6,6 +6,8 @@
 #include "ccf/kv/map.h"
 #include "ccf/service/tables/proposals.h"
 
+#include <format>
+
 namespace ccf::jsgov
 {
   using Ballots = std::unordered_map<ccf::MemberId, std::string>;
@@ -110,9 +112,8 @@ namespace ccf::jsgov
   DECLARE_JSON_REQUIRED_FIELDS(Ballot, ballot);
 }
 
-FMT_BEGIN_NAMESPACE
 template <>
-struct formatter<std::optional<ccf::jsgov::Failure>>
+struct std::formatter<std::optional<ccf::jsgov::Failure>>
 {
   template <typename ParseContext>
   constexpr auto parse(ParseContext& ctx)
@@ -126,10 +127,9 @@ struct formatter<std::optional<ccf::jsgov::Failure>>
   {
     if (f.has_value())
     {
-      return format_to(
+      return std::format_to(
         ctx.out(), "{}\nTrace: {}", f->reason, f->trace.value_or("N/A"));
     }
-    return format_to(ctx.out(), "N/A");
+    return std::format_to(ctx.out(), "N/A");
   }
 };
-FMT_END_NAMESPACE

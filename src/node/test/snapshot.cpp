@@ -9,6 +9,8 @@
 #include "node/history.h"
 #include "service/tables/signatures.h"
 
+#include <format>
+
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>
 #undef FAIL
@@ -47,7 +49,7 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
     {
       auto tx = source_store.create_tx();
       auto map = tx.rw(string_map);
-      map->put(fmt::format("key#{}", i), "value");
+      map->put(std::format("key#{}", i), "value");
       REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     }
   }

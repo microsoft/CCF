@@ -11,6 +11,7 @@
 #include "ccf/rpc_exception.h"
 #include "ds/internal_logger.h"
 
+#include <format>
 #include <llhttp/llhttp.h>
 
 namespace ccf
@@ -83,7 +84,7 @@ namespace ccf
                   throw RpcException(
                     HTTP_STATUS_NOT_ACCEPTABLE,
                     ccf::errors::UnsupportedContentType,
-                    fmt::format(
+                    std::format(
                       "No supported content type in accept header: {}\nOnly {} "
                       "is currently supported",
                       accept_it.value(),
@@ -126,7 +127,10 @@ namespace ccf
     ccf::http_status status, const std::string& code, const std::string& msg)
   {
     LOG_DEBUG_FMT(
-      "Frontend error: status={} code={} msg={}", status, code, msg);
+      "Frontend error: status={} code={} msg={}",
+      std::to_underlying(status),
+      code,
+      msg);
     return ErrorDetails{status, code, msg};
   }
 

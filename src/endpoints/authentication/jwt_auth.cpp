@@ -13,6 +13,8 @@
 #include "ds/lru.h"
 #include "http/http_jwt.h"
 
+#include <format>
+
 namespace
 {
   const std::string multitenancy_indicator{"{tenantid}"};
@@ -43,7 +45,7 @@ namespace ccf
     LOG_DEBUG_FMT(
       "Verify token.iss {} and token.tid {} against published key issuer {}",
       iss,
-      tid,
+      tid.value_or("<missing>"),
       constraint);
 
     const auto issuer_url = ::http::parse_url_full(constraint);
@@ -182,7 +184,7 @@ namespace ccf
     if (!token_keys || token_keys->empty())
     {
       error_reason =
-        fmt::format("JWT signing key not found for kid {}", key_id);
+        std::format("JWT signing key not found for kid {}", key_id);
       return nullptr;
     }
 
@@ -206,16 +208,16 @@ namespace ccf
           .count();
       if (token.payload_typed.nbf && time_now < *token.payload_typed.nbf)
       {
-        error_reason = fmt::format(
+        error_reason = std::format(
           "Current time {} is before token's Not Before (nbf) claim {}",
           time_now,
-          token.payload_typed.nbf);
+          token.payload_typed.nbf.value());
         continue;
       }
 
       if (time_now > token.payload_typed.exp)
       {
-        error_reason = fmt::format(
+        error_reason = std::format(
           "Current time {} is after token's Expiration Time (exp) claim {}",
           time_now,
           token.payload_typed.exp);
@@ -230,7 +232,7 @@ namespace ccf
           token.payload_typed.tid,
           *metadata.constraint))
       {
-        error_reason = fmt::format(
+        error_reason = std::format(
           "Kid {} failed issuer constraint validation {}",
           key_id,
           *metadata.constraint);

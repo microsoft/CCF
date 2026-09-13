@@ -6,6 +6,7 @@
 #include "crypto/openssl/rsa_key_pair.h"
 
 #include <climits>
+#include <format>
 #include <openssl/core_names.h>
 #include <openssl/encoder.h>
 
@@ -83,7 +84,7 @@ namespace ccf::crypto
       cleanup_pkey(&key);
       unsigned long ec = ERR_get_error();
       auto msg = OpenSSL::error_string(ec);
-      throw std::runtime_error(fmt::format("OpenSSL error: {}", msg));
+      throw std::runtime_error(std::format("OpenSSL error: {}", msg));
     }
 
     if (EVP_PKEY_get_base_id(key) != EVP_PKEY_RSA)
@@ -234,7 +235,7 @@ namespace ccf::crypto
     {
       if (salt_length > INT_MAX)
       {
-        throw std::invalid_argument(fmt::format(
+        throw std::invalid_argument(std::format(
           "salt_length {} exceeds maximum ({})", salt_length, INT_MAX));
       }
       CHECKPOSITIVE(EVP_PKEY_CTX_set_rsa_pss_saltlen(pctx, salt_length));

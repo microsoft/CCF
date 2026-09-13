@@ -23,6 +23,7 @@
 #include "node/uvm_endorsements.h"
 
 #include <cstring>
+#include <format>
 #include <tav/cbor.hpp>
 
 namespace ccf
@@ -115,9 +116,9 @@ namespace ccf
       }
       default:
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Unexpected quote format {} when verifying quote against store",
-          quote_format));
+          std::to_underlying(quote_format)));
       }
     }
 
@@ -369,8 +370,10 @@ namespace ccf
 
       if (generic_jwk.kty != ccf::crypto::JsonWebKeyType::EC)
       {
-        throw std::logic_error(fmt::format(
-          "Unsupported key type ({}) for DID {}", generic_jwk.kty, issuer_did));
+        throw std::logic_error(std::format(
+          "Unsupported key type ({}) for DID {}",
+          std::to_underlying(generic_jwk.kty),
+          issuer_did));
       }
 
       auto ec_jwk = jwk.get<ccf::crypto::JsonWebKeyECPublic>();
@@ -425,7 +428,7 @@ namespace ccf
         payload.size() != HostData::SIZE ||
         std::memcmp(payload.data(), host_data.h.data(), HostData::SIZE) != 0)
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Transparent statement payload ({}) does not match host_data ({})",
           ccf::ds::to_hex(payload),
           host_data.hex_str()));
@@ -476,27 +479,27 @@ namespace ccf
       {
         const auto& receipt_bytes = tav::cbor::rethrow_with_msg(
           [&]() { return receipts_array.array_at(i).as_bytes(); },
-          fmt::format("Extract receipt {} from array", i));
+          std::format("Extract receipt {} from array", i));
 
         std::vector<uint8_t> receipt_raw(
           receipt_bytes.begin(), receipt_bytes.end());
 
         auto receipt_cbor = tav::cbor::rethrow_with_msg(
           [&]() { return tav::cbor::nondet_parse(receipt_raw); },
-          fmt::format("Parse receipt {} COSE envelope", i));
+          std::format("Parse receipt {} COSE envelope", i));
 
         const auto& receipt_envelope = tav::cbor::rethrow_with_msg(
           [&]() { return receipt_cbor.tag_at(ccf::cbor::tag::COSE_SIGN_1); },
-          fmt::format("Parse receipt {} COSE_Sign1 tag", i));
+          std::format("Parse receipt {} COSE_Sign1 tag", i));
 
         auto receipt_phdr_raw = tav::cbor::rethrow_with_msg(
           [&]() { return receipt_envelope.array_at(0); },
-          fmt::format("Parse receipt {} protected header bytes", i));
+          std::format("Parse receipt {} protected header bytes", i));
         auto receipt_phdr_cbor = tav::cbor::rethrow_with_msg(
           [&]() {
             return tav::cbor::nondet_parse(receipt_phdr_raw.as_bytes());
           },
-          fmt::format("Decode receipt {} protected header", i));
+          std::format("Decode receipt {} protected header", i));
         auto decoded_receipt_phdr =
           cose::decode_ccf_receipt_phdr(receipt_phdr_cbor);
 
@@ -504,7 +507,7 @@ namespace ccf
         if (proofs.empty())
         {
           throw std::logic_error(
-            fmt::format("No Merkle proofs found in receipt {}", i));
+            std::format("No Merkle proofs found in receipt {}", i));
         }
 
         for (const auto& proof : proofs)
@@ -516,7 +519,7 @@ namespace ccf
               expected_claims_digest.h.data(),
               ccf::crypto::Sha256Hash::SIZE) != 0)
           {
-            throw std::logic_error(fmt::format(
+            throw std::logic_error(std::format(
               "Receipt {} claims_digest ({}) does not match signed "
               "statement hash ({})",
               i,
@@ -572,11 +575,11 @@ namespace ccf
       catch (const std::runtime_error& e)
       {
         throw std::logic_error(
-          fmt::format("Failed to populate JS policy inputs: {}", e.what()));
+          std::format("Failed to populate JS policy inputs: {}", e.what()));
       }
       if (violation.has_value())
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Code update policy rejected transparent statement: {}",
           violation.value()));
       }

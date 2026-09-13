@@ -6,6 +6,7 @@
 #include "ccf/ds/json.h"
 #include "ccf/ds/logger.h"
 
+#include <format>
 #include <string>
 
 namespace ccf::crypto
@@ -72,8 +73,8 @@ namespace ccf::crypto
       case CurveID::NONE:
       case CurveID::CURVE25519:
       case CurveID::X25519:
-        throw std::logic_error(
-          fmt::format("Invalid JWK EC CurveId {}", curve_id));
+        throw std::logic_error(std::format(
+          "Invalid JWK EC CurveId {}", std::to_underlying(curve_id)));
       case CurveID::SECP384R1:
         return JsonWebKeyECCurve::P384;
       case CurveID::SECP256R1:
@@ -81,7 +82,8 @@ namespace ccf::crypto
       case CurveID::SECP521R1:
         return JsonWebKeyECCurve::P521;
       default:
-        throw std::logic_error(fmt::format("Unknown curve {}", curve_id));
+        throw std::logic_error(
+          std::format("Unknown curve {}", std::to_underlying(curve_id)));
     }
   }
 
@@ -96,7 +98,8 @@ namespace ccf::crypto
       case JsonWebKeyECCurve::P256:
         return CurveID::SECP256R1;
       default:
-        throw std::logic_error(fmt::format("Unknown JWK curve {}", jwk_curve));
+        throw std::logic_error(
+          std::format("Unknown JWK curve {}", std::to_underlying(jwk_curve)));
     }
   }
 
@@ -118,13 +121,15 @@ namespace ccf::crypto
       case CurveID::SECP384R1:
       case CurveID::SECP256R1:
       case CurveID::SECP521R1:
-        throw std::logic_error(fmt::format("Invalid EdDSA curve {}", curve_id));
+        throw std::logic_error(
+          std::format("Invalid EdDSA curve {}", std::to_underlying(curve_id)));
       case CurveID::CURVE25519:
         return JsonWebKeyEdDSACurve::ED25519;
       case CurveID::X25519:
         return JsonWebKeyEdDSACurve::X25519;
       default:
-        throw std::logic_error(fmt::format("Unknown EdDSA curve {}", curve_id));
+        throw std::logic_error(
+          std::format("Unknown EdDSA curve {}", std::to_underlying(curve_id)));
     }
   }
 

@@ -12,6 +12,7 @@
 #include "node/rpc/network_identity_subsystem.h"
 #include "node/tx_receipt_impl.h"
 
+#include <format>
 #include <tav/cbor.hpp>
 
 namespace
@@ -314,7 +315,7 @@ namespace ccf::historical
       args.rpc_ctx->set_error(
         HTTP_STATUS_BAD_REQUEST,
         ccf::errors::MissingRequiredHeader,
-        fmt::format(
+        std::format(
           "Historical query is missing '{}' header.",
           http::headers::CCF_TX_ID));
       return std::nullopt;
@@ -326,7 +327,7 @@ namespace ccf::historical
       args.rpc_ctx->set_error(
         HTTP_STATUS_BAD_REQUEST,
         ccf::errors::InvalidHeaderValue,
-        fmt::format(
+        std::format(
           "The value '{}' in header '{}' could not be converted to a valid "
           "Tx ID.",
           tx_id_header.value(),
@@ -384,7 +385,8 @@ namespace ccf::historical
       }
       default:
       {
-        LOG_FAIL_FMT("Unexpected historical query error {}", err);
+        LOG_FAIL_FMT(
+          "Unexpected historical query error {}", std::to_underlying(err));
       }
     }
   }
@@ -407,7 +409,7 @@ namespace ccf::historical
     {
       case ccf::TxStatus::Unknown:
       case ccf::TxStatus::Pending:
-        error_reason = fmt::format(
+        error_reason = std::format(
           "Only committed transactions can be queried. Transaction {}.{} "
           "is "
           "{}",
@@ -416,7 +418,7 @@ namespace ccf::historical
           ccf::tx_status_to_str(tx_status));
         return HistoricalTxStatus::PendingOrUnknown;
       case ccf::TxStatus::Invalid:
-        error_reason = fmt::format(
+        error_reason = std::format(
           "Only committed transactions can be queried. Transaction {}.{} "
           "is "
           "{}",
@@ -473,7 +475,7 @@ namespace ccf::historical
 
       // Check that the requested transaction ID is available
       {
-        auto error_reason = fmt::format(
+        auto error_reason = std::format(
           "Transaction {} is not available.", target_tx_id.to_str());
         auto is_available =
           available(target_tx_id.view, target_tx_id.seqno, error_reason);
@@ -514,7 +516,7 @@ namespace ccf::historical
           active_service->current_service_create_txid &&
           target_tx_id.view < active_service->current_service_create_txid->view)
         {
-          auto reason = fmt::format(
+          auto reason = std::format(
             "Historical transaction {} is not signed by the current service "
             "identity key and cannot be retrieved until recovery is complete.",
             target_tx_id.to_str());
@@ -547,7 +549,7 @@ namespace ccf::historical
           !populate_cose_service_endorsements(
             args.tx, historical_state, network_identity_subsystem))
         {
-          auto reason = fmt::format(
+          auto reason = std::format(
             "Historical transaction {} is not currently available.",
             target_tx_id.to_str());
           ehandler(
@@ -559,7 +561,7 @@ namespace ccf::historical
       }
       catch (const std::exception& e)
       {
-        auto reason = fmt::format(
+        auto reason = std::format(
           "Historical transaction {} failed with error: {}",
           target_tx_id.to_str(),
           e.what());

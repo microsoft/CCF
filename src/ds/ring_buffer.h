@@ -6,6 +6,7 @@
 
 #include <atomic>
 #include <cstring>
+#include <format>
 #include <functional>
 #include <thread>
 
@@ -125,7 +126,7 @@ namespace ringbuffer
 #ifdef RINGBUFFER_USE_ABORT
         abort();
 #else
-        throw std::runtime_error(fmt::format(
+        throw std::runtime_error(std::format(
           "Ringbuffer access out of bounds - attempting to access {}, max "
           "index is {}",
           index + access_size,
@@ -190,7 +191,7 @@ namespace ringbuffer
       if (!Const::is_power_of_2(bd.size))
       {
         throw std::logic_error(
-          fmt::format("Buffer size must be a power of 2, not {}", bd.size));
+          std::format("Buffer size must be a power of 2, not {}", bd.size));
       }
 
       if (!Const::is_aligned(bd.data, 8))
@@ -298,7 +299,7 @@ namespace ringbuffer
       if ((m < Const::msg_min) || (m > Const::msg_max))
       {
         throw message_error(
-          m, fmt::format("Cannot use a reserved message ({})", m));
+          m, std::format("Cannot use a reserved message ({})", m));
       }
 
       // Make sure the message fits.
@@ -306,7 +307,7 @@ namespace ringbuffer
       {
         throw message_error(
           m,
-          fmt::format(
+          std::format(
             "Message ({}) is too long for any writer: {} > {}",
             m,
             size,
@@ -318,7 +319,7 @@ namespace ringbuffer
       {
         throw message_error(
           m,
-          fmt::format(
+          std::format(
             "Message ({}) is too long for this writer: {} > {}",
             m,
             rsize,

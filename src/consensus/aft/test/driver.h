@@ -2,12 +2,14 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/join.h"
 #include "consensus/aft/raft.h"
 #include "consensus/aft/raft_types.h"
 #include "ds/internal_logger.h"
 #include "logging_stub.h"
 
 #include <chrono>
+#include <format>
 #include <random>
 #include <set>
 #include <sstream>
@@ -18,18 +20,18 @@
 
 #ifdef CCF_RAFT_TRACING
 #  define RAFT_DRIVER_PRINT(...) \
-    std::cout << "<RaftDriver>  " << fmt::format(__VA_ARGS__) \
-              << fmt::format(" (ts={})", ccf::logger::logical_clock) \
+    std::cout << "<RaftDriver>  " << std::format(__VA_ARGS__) \
+              << std::format(" (ts={})", ccf::logger::logical_clock) \
               << std::endl;
 #else
 #  define RAFT_DRIVER_PRINT(...) \
-    std::cout << "<RaftDriver>  " << fmt::format(__VA_ARGS__) << std::endl;
+    std::cout << "<RaftDriver>  " << std::format(__VA_ARGS__) << std::endl;
 #endif
 
 std::string stringify(const std::vector<uint8_t>& v, size_t max_size = 15ul)
 {
   auto size = std::min(v.size(), max_size);
-  return fmt::format(
+  return std::format(
     "[{} bytes] {}", v.size(), std::string(v.begin(), v.begin() + size));
 }
 
@@ -210,7 +212,7 @@ private:
 
     if (_nodes.find(node_id) != _nodes.end())
     {
-      throw std::logic_error(fmt::format("Node {} already exists", node_id));
+      throw std::logic_error(std::format("Node {} already exists", node_id));
     }
 
     _nodes.emplace(node_id, NodeDriver{kv, raft});
@@ -268,7 +270,7 @@ public:
     ccf::NodeId node_id(node_id_s);
     if (_nodes.find(node_id) == _nodes.end())
     {
-      throw std::runtime_error(fmt::format(
+      throw std::runtime_error(std::format(
         "Attempted to nominate unknown node {} on line {}", node_id, lineno));
     }
 
@@ -288,7 +290,7 @@ public:
     {
       if (_nodes.find(id) == _nodes.end())
       {
-        throw std::runtime_error(fmt::format(
+        throw std::runtime_error(std::format(
           "Attempted to clean up unknown node {} on line {}", id, lineno));
       }
       retired_committed.try_emplace(id);
@@ -413,7 +415,7 @@ public:
     aft::RequestPreVote rv,
     bool dropped)
   {
-    const auto s = fmt::format(
+    const auto s = std::format(
       "{} for term {}, at tx {}.{}",
       rv.msg,
       rv.term,
@@ -428,7 +430,7 @@ public:
     aft::RequestVote rv,
     bool dropped)
   {
-    const auto s = fmt::format(
+    const auto s = std::format(
       "{} for term {}, at tx {}.{}",
       rv.msg,
       rv.term,
@@ -443,7 +445,7 @@ public:
     aft::RequestPreVoteResponse rv,
     bool dropped)
   {
-    const auto s = fmt::format(
+    const auto s = std::format(
       "{} for term {} = {}", rv.msg, rv.term, (rv.vote_granted ? "Y" : "N"));
     rlog(node_id, tgt_node_id, s, dropped);
   }
@@ -454,7 +456,7 @@ public:
     aft::RequestVoteResponse rv,
     bool dropped)
   {
-    const auto s = fmt::format(
+    const auto s = std::format(
       "{} for term {} = {}", rv.msg, rv.term, (rv.vote_granted ? "Y" : "N"));
     rlog(node_id, tgt_node_id, s, dropped);
   }
@@ -465,7 +467,7 @@ public:
     aft::AppendEntries ae,
     bool dropped)
   {
-    const auto s = fmt::format(
+    const auto s = std::format(
       "{} ({}.{}, {}.{}] (term {}, commit {})",
       ae.msg,
       ae.prev_term,
@@ -497,7 +499,7 @@ public:
         break;
       }
     }
-    const auto s = fmt::format(
+    const auto s = std::format(
       "{} {} for {}.{}", aer.msg, success, aer.term, aer.last_log_idx);
     rlog(node_id, tgt_node_id, s, dropped);
   }
@@ -508,7 +510,7 @@ public:
     aft::ProposeRequestVote prv,
     bool dropped)
   {
-    const auto s = fmt::format("{} for term {}", prv.msg, prv.term);
+    const auto s = std::format("{} for term {}", prv.msg, prv.term);
     log(node_id, tgt_node_id, s, dropped);
   }
 
@@ -583,7 +585,7 @@ public:
       default:
       {
         throw std::runtime_error(
-          fmt::format("Unhandled RaftMsgType: {}", msg_type));
+          std::format("Unhandled RaftMsgType: {}", msg_type));
       }
     }
 
@@ -634,14 +636,14 @@ public:
     for (ccf::kv::Version i = 1; i <= r.get_last_idx(); ++i)
     {
       const auto t = r.get_view(i);
-      auto s = fmt::format("{}.{}", t, i);
+      auto s = std::format("{}.{}", t, i);
       if (i == r.get_committed_seqno())
       {
-        s = fmt::format("[{}]", s);
+        s = std::format("[{}]", s);
       }
       entries.push_back(s);
     }
-    return fmt::format("{}", fmt::join(entries, ", "));
+    return std::format("{}", ccf::ds::join(entries, ", "));
   }
 
   void summarise_log(ccf::NodeId node_id)
@@ -677,7 +679,7 @@ public:
       case (aft::RaftMsgType::raft_append_entries):
       {
         auto ae = *(aft::AppendEntries*)data;
-        return fmt::format(
+        return std::format(
           "AE(t{}, ({}.{}, {}.{}])",
           ae.term,
           ae.prev_term,
@@ -688,7 +690,7 @@ public:
       case (aft::RaftMsgType::raft_append_entries_response):
       {
         auto aer = *(aft::AppendEntriesResponse*)data;
-        return fmt::format(
+        return std::format(
           "AER({}, t{}, i{})",
           aer.success == aft::AppendEntriesResponseType::OK ? "ACK" : "NACK",
           aer.term,
@@ -713,7 +715,7 @@ public:
       default:
       {
         throw std::runtime_error(
-          fmt::format("Unhandled RaftMsgType: {}", msg_type));
+          std::format("Unhandled RaftMsgType: {}", msg_type));
       }
     }
   }
@@ -736,7 +738,7 @@ public:
       src,
       message_reps.size(),
       dst,
-      fmt::join(message_reps, ", "));
+      ccf::ds::join(message_reps, ", "));
   }
 
   void state_one(ccf::NodeId node_id)
@@ -974,7 +976,7 @@ public:
     }
 
     throw std::runtime_error(
-      fmt::format("Found no primary in term {} on line {}", term_s, lineno));
+      std::format("Found no primary in term {} on line {}", term_s, lineno));
   }
 
   void replicate(
@@ -1098,7 +1100,7 @@ public:
 
       if (raft->get_view() != target_term)
       {
-        discrepancies[node_id].push_back(fmt::format(
+        discrepancies[node_id].push_back(std::format(
           "Term {} doesn't match term {} on {}",
           raft->get_view(),
           target_term,
@@ -1107,7 +1109,7 @@ public:
 
       if (raft->get_last_idx() != target_last_idx)
       {
-        discrepancies[node_id].push_back(fmt::format(
+        discrepancies[node_id].push_back(std::format(
           "Last index {} doesn't match last index {} on {}",
           raft->get_last_idx(),
           target_last_idx,
@@ -1122,7 +1124,7 @@ public:
           if (!target_entry.has_value())
           {
             discrepancies[node_id].push_back(
-              fmt::format("Missing ledger entry at {}", idx));
+              std::format("Missing ledger entry at {}", idx));
             break;
           }
           else
@@ -1131,12 +1133,12 @@ public:
             if (!entry.has_value())
             {
               discrepancies[node_id].push_back(
-                fmt::format("Missing ledger entry at {}", idx));
+                std::format("Missing ledger entry at {}", idx));
               break;
             }
             else if (entry != target_entry)
             {
-              discrepancies[node_id].push_back(fmt::format(
+              discrepancies[node_id].push_back(std::format(
                 "Entry at index {} doesn't match entry on {}: {} != {}",
                 idx,
                 target_id,
@@ -1150,7 +1152,7 @@ public:
 
       if (raft->get_committed_seqno() != target_commit_idx)
       {
-        discrepancies[node_id].push_back(fmt::format(
+        discrepancies[node_id].push_back(std::format(
           "Commit index {} doesn't match commit index {} on {}",
           raft->get_committed_seqno(),
           target_commit_idx,
@@ -1180,7 +1182,7 @@ public:
     {
       print_discrepancies(discrepancies);
 
-      throw std::runtime_error(fmt::format(
+      throw std::runtime_error(std::format(
         "States not in sync on line {}", std::to_string((int)lineno)));
     }
   }
@@ -1201,7 +1203,7 @@ public:
       {
         // If no primary exists, try to create one? No such scenario, so far
         throw std::runtime_error(
-          fmt::format("Can't currently loop until sync, no primary"));
+          std::format("Can't currently loop until sync, no primary"));
       }
     }
 
@@ -1250,7 +1252,7 @@ public:
       {
         print_discrepancies(discrepancies);
 
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Failed to reach state sync after {} loop iterations", iterations));
       }
     }
@@ -1315,7 +1317,7 @@ public:
             quorum,
             configuration.rid,
             configuration.idx);
-          throw std::runtime_error(fmt::format(
+          throw std::runtime_error(std::format(
             "Node ({}) at unsafe commit idx ({}) on line {}",
             node_id,
             committed_seqno,
@@ -1348,7 +1350,7 @@ public:
     {
       RAFT_DRIVER_PRINT(
         "Note over {}: Node is not at expected commit idx {}", node_id, idx);
-      throw std::runtime_error(fmt::format(
+      throw std::runtime_error(std::format(
         "Node {} not at expected commit idx ({}) on line {} : {}",
         node_id,
         idx,
@@ -1379,7 +1381,7 @@ public:
     {
       RAFT_DRIVER_PRINT(
         "  Note over {}: Node does not have detail {}", node_id, detail);
-      throw std::runtime_error(fmt::format(
+      throw std::runtime_error(std::format(
         "Node {} does not have detail {} on line {}",
         node_id,
         detail,
@@ -1397,7 +1399,7 @@ public:
         value,
         cmp,
         expected);
-      throw std::runtime_error(fmt::format(
+      throw std::runtime_error(std::format(
         "Node {} detail {} is not as expected: {} {}= {} on line {}",
         node_id,
         detail,
@@ -1428,10 +1430,10 @@ public:
         if (expected_nodes != actual_nodes)
         {
           auto actual_str =
-            fmt::format("{{{}}}", fmt::join(actual_nodes, ", "));
+            std::format("{{{}}}", ccf::ds::join(actual_nodes, ", "));
           auto expected_str =
-            fmt::format("{{{}}}", fmt::join(expected_nodes, ", "));
-          throw std::runtime_error(fmt::format(
+            std::format("{{{}}}", ccf::ds::join(expected_nodes, ", "));
+          throw std::runtime_error(std::format(
             "Node {} configuration at idx {} ({}) does not match expected ({})",
             node_id,
             config_idx,
@@ -1441,7 +1443,7 @@ public:
         return;
       }
     }
-    throw std::runtime_error(fmt::format(
+    throw std::runtime_error(std::format(
       "Node {} does not have a configuration at idx {}", node_id, config_idx));
   }
 
@@ -1454,7 +1456,7 @@ public:
     {
       if (config.idx == config_idx)
       {
-        throw std::runtime_error(fmt::format(
+        throw std::runtime_error(std::format(
           "Node {} has unexpected configuration at idx {}",
           node_id,
           config_idx));
@@ -1467,10 +1469,10 @@ public:
   {
     auto idx = _nodes.at(node_id).raft->get_last_idx();
     auto view = _nodes.at(node_id).raft->get_view(idx);
-    auto last_txid = fmt::format("{}.{}", view, idx);
+    auto last_txid = std::format("{}.{}", view, idx);
     if (last_txid != last_txid_s)
     {
-      throw std::runtime_error(fmt::format(
+      throw std::runtime_error(std::format(
         "Node {} lastTxID is not as expected: {} != {}",
         node_id,
         last_txid,

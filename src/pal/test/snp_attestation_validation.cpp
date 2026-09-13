@@ -21,6 +21,7 @@
 
 #include <algorithm>
 #include <array>
+#include <format>
 #include <memory>
 #include <type_traits>
 
@@ -180,7 +181,7 @@ TEST_CASE("unverified SNP report rejects invalid sizes")
     const auto expected_error = size == 0 ?
       "SEV-SNP: TAV unverified report parsing failed (1): attestation report "
       "is empty" :
-      fmt::format(
+      std::format(
         "SEV-SNP: TAV unverified report parsing failed (1): Invalid "
         "attestation report: expected 1184 bytes, got {}",
         size);
@@ -257,7 +258,7 @@ TEST_CASE("TCB values can be constructed from borrowed bytes")
   {
     const std::vector<uint8_t> invalid_bytes(size);
     const auto expected_error =
-      fmt::format("Invalid TCB version raw data size: {}", size);
+      std::format("Invalid TCB version raw data size: {}", size);
     CHECK_THROWS_WITH_AS(
       TcbVersionRaw{invalid_bytes}, expected_error.c_str(), std::logic_error);
     CHECK_THROWS_WITH_AS(
@@ -296,8 +297,9 @@ TEST_CASE("SNP verification rejects other quote formats before parsing")
       .uvm_endorsements = std::nullopt};
     ccf::pal::PlatformAttestationMeasurement measurement;
     ccf::pal::PlatformAttestationReportData report_data;
-    const auto expected_error = fmt::format(
-      "Unexpected attestation report to verify for SEV-SNP: {}", format);
+    const auto expected_error = std::format(
+      "Unexpected attestation report to verify for SEV-SNP: {}",
+      std::to_underlying(format));
     CHECK_THROWS_WITH_AS(
       ccf::pal::verify_snp_attestation_report_and_get(
         quote_info, measurement, report_data),

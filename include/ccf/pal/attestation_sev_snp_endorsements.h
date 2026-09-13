@@ -6,13 +6,11 @@
 #include "ccf/ds/unit_strings.h"
 #include "ccf/pal/sev_snp_cpuid.h"
 
+#include <format>
 #include <list>
 #include <map>
 #include <string>
 #include <vector>
-
-#define FMT_HEADER_ONLY
-#include <fmt/format.h>
 
 namespace ccf::pal::snp
 {
@@ -109,7 +107,7 @@ namespace ccf::pal::snp
       .host = endpoint.host,
       .port = endpoint.port,
       .uri =
-        fmt::format("/SevSnpVM/certificates/{}/{}", chip_id_hex, reported_tcb),
+        std::format("/SevSnpVM/certificates/{}/{}", chip_id_hex, reported_tcb),
       .params = params,
       .headers = {}};
 
@@ -151,7 +149,7 @@ namespace ccf::pal::snp
       .host = endpoint.host,
       .port = endpoint.port,
       .uri =
-        fmt::format("/vcek/v1/{}/{}", to_string(product_name), chip_id_hex),
+        std::format("/vcek/v1/{}/{}", to_string(product_name), chip_id_hex),
       .params = params,
       .response_is_der = true,
       .headers = {}};
@@ -160,7 +158,7 @@ namespace ccf::pal::snp
     EndorsementEndpointsConfiguration::EndpointInfo chain{
       .host = endpoint.host,
       .port = endpoint.port,
-      .uri = fmt::format("/vcek/v1/{}/cert_chain", to_string(product_name)),
+      .uri = std::format("/vcek/v1/{}/cert_chain", to_string(product_name)),
       .params = {},
       .headers = {}};
     chain.max_retries_count = max_retries_count;
@@ -202,9 +200,9 @@ namespace ccf::pal::snp
   }
 }
 
-FMT_BEGIN_NAMESPACE
 template <>
-struct formatter<ccf::pal::snp::EndorsementEndpointsConfiguration::EndpointInfo>
+struct std::formatter<
+  ccf::pal::snp::EndorsementEndpointsConfiguration::EndpointInfo>
 {
   template <typename ParseContext>
   constexpr auto parse(ParseContext& ctx)
@@ -217,8 +215,7 @@ struct formatter<ccf::pal::snp::EndorsementEndpointsConfiguration::EndpointInfo>
     const ccf::pal::snp::EndorsementEndpointsConfiguration::EndpointInfo& e,
     FormatContext& ctx) const
   {
-    return format_to(
+    return std::format_to(
       ctx.out(), "http{}://{}:{}", e.tls ? "s" : "", e.host, e.port);
   }
 };
-FMT_END_NAMESPACE

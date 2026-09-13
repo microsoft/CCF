@@ -9,6 +9,7 @@
 #include "ccf/service/node_info_network.h"
 #include "node/rpc/node_interface.h"
 
+#include <format>
 #include <functional>
 #include <memory>
 
@@ -47,7 +48,7 @@ namespace ccf
       {
         return it->second(conn_id, std::move(ctx));
       }
-      throw std::logic_error(fmt::format(
+      throw std::logic_error(std::format(
         "Session creation function for protocol '{}' has not been installed",
         protocol_name));
     }

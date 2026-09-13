@@ -146,7 +146,7 @@ namespace asynchost
             "node in: from node {}, size {}, type {}",
             node.value(),
             msg_size.value(),
-            msg_type);
+            std::to_underlying(msg_type));
 
           RINGBUFFER_WRITE_MESSAGE(
             ccf::node_inbound,

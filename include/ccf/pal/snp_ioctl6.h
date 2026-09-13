@@ -9,6 +9,7 @@
 #include <array>
 #include <cstring>
 #include <fcntl.h>
+#include <format>
 #include <openssl/crypto.h>
 #include <stdint.h>
 #include <sys/ioctl.h>
@@ -274,7 +275,7 @@ namespace ccf::pal::snp::ioctl6
       if (fd < 0)
       {
         throw std::logic_error(
-          fmt::format("Failed to open \"{}\" ({})", DEVICE, fd));
+          std::format("Failed to open \"{}\" ({})", DEVICE, fd));
       }
       auto close_guard = nonstd::make_close_fd_guard(&fd);
 
@@ -286,7 +287,7 @@ namespace ccf::pal::snp::ioctl6
       int rc = ioctl(fd, SEV_SNP_GUEST_MSG_REPORT, &payload);
       if (rc < 0)
       {
-        const auto msg = fmt::format(
+        const auto msg = std::format(
           "Failed to issue ioctl SEV_SNP_GUEST_MSG_REPORT: {} fw_error: {} "
           "vmm_error: {}",
           nonstd::strerror(errno),
@@ -330,7 +331,7 @@ namespace ccf::pal::snp::ioctl6
     {
       if (padded_resp.report_size != attestation_report_size)
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Unexpected SEV-SNP attestation report size: {} != {}",
           padded_resp.report_size,
           attestation_report_size));
@@ -342,7 +343,7 @@ namespace ccf::pal::snp::ioctl6
     {
       if (padded_resp.report_size != attestation_report_size)
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Unexpected SEV-SNP attestation report size: {} != {}",
           padded_resp.report_size,
           attestation_report_size));
@@ -366,7 +367,7 @@ namespace ccf::pal::snp::ioctl6
       if (fd < 0)
       {
         throw std::logic_error(
-          fmt::format("Failed to open \"{}\" ({})", DEVICE, fd));
+          std::format("Failed to open \"{}\" ({})", DEVICE, fd));
       }
       auto close_guard = nonstd::make_close_fd_guard(&fd);
 
@@ -382,7 +383,7 @@ namespace ccf::pal::snp::ioctl6
       int rc = ioctl(fd, SEV_SNP_GUEST_MSG_DERIVED_KEY, &payload);
       if (rc < 0)
       {
-        const auto msg = fmt::format(
+        const auto msg = std::format(
           "Failed to issue ioctl SEV_SNP_GUEST_MSG_DERIVED_KEY: {} fw_error: "
           "{} vmm_error: {}",
           nonstd::strerror(errno),
@@ -402,7 +403,7 @@ namespace ccf::pal::snp::ioctl6
 
       if (padded_resp.status != 0)
       {
-        const auto msg = fmt::format(
+        const auto msg = std::format(
           "Failed to issue ioctl SEV_SNP_GUEST_MSG_DERIVED_KEY: {}",
           padded_resp.status);
         throw std::logic_error(msg);

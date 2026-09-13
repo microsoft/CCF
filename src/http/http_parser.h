@@ -12,6 +12,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <format>
 #include <llhttp/llhttp.h>
 #include <map>
 #include <queue>
@@ -138,7 +139,7 @@ namespace http
     std::smatch match;
     if (!std::regex_match(url, match, url_regex))
     {
-      throw std::invalid_argument(fmt::format("Unable to parse url: {}", url));
+      throw std::invalid_argument(std::format("Unable to parse url: {}", url));
     }
 
     const auto host_port = match[4].str();
@@ -222,7 +223,7 @@ namespace http
       }
       else if (err_no != HPE_OK)
       {
-        throw std::runtime_error(fmt::format(
+        throw std::runtime_error(std::format(
           "HTTP parsing failed ({}: {}) around byte {}",
           llhttp_errno_name(err_no),
           llhttp_get_error_reason(&parser),
@@ -241,7 +242,7 @@ namespace http
           ccf::http::default_max_body_size);
         if (body_buf.size() > max_body_size)
         {
-          throw RequestPayloadTooLargeException(fmt::format(
+          throw RequestPayloadTooLargeException(std::format(
             "HTTP request body is too large (max size allowed: {})",
             max_body_size));
         }
@@ -295,7 +296,7 @@ namespace http
         ccf::http::default_max_headers_count);
       if (headers.size() >= max_headers_count)
       {
-        throw RequestHeaderTooLargeException(fmt::format(
+        throw RequestHeaderTooLargeException(std::format(
           "Too many headers (max number allowed: {})", max_headers_count));
       }
 
@@ -310,7 +311,7 @@ namespace http
         ccf::http::default_max_header_size);
       if (partial_header_key.size() > max_header_size)
       {
-        throw RequestHeaderTooLargeException(fmt::format(
+        throw RequestHeaderTooLargeException(std::format(
           "Header key for '{}' is too large (max size allowed: {})",
           partial_parsed_header.first,
           max_header_size));
@@ -325,7 +326,7 @@ namespace http
         ccf::http::default_max_header_size);
       if (partial_header_value.size() > max_header_size)
       {
-        throw RequestHeaderTooLargeException(fmt::format(
+        throw RequestHeaderTooLargeException(std::format(
           "Header value for '{}' is too large (max size allowed: {})",
           partial_parsed_header.first,
           max_header_size));
@@ -348,7 +349,7 @@ namespace http
         (parser.flags & F_CONTENT_LENGTH) != 0 &&
         parser.content_length > max_body_size)
       {
-        throw RequestPayloadTooLargeException(fmt::format(
+        throw RequestPayloadTooLargeException(std::format(
           "HTTP message body is too large (Content-Length: {}, max size "
           "allowed: {})",
           parser.content_length,
@@ -431,7 +432,7 @@ namespace http
         length > max_request_target_size ||
         url.size() > max_request_target_size - length)
       {
-        throw RequestTargetTooLongException(fmt::format(
+        throw RequestTargetTooLongException(std::format(
           "HTTP request target is too long (max size allowed: {})",
           max_request_target_size));
       }

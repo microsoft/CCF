@@ -7,6 +7,7 @@
 #include "ccf/http_consts.h"
 #include "ccf/http_status.h"
 
+#include <format>
 #include <llhttp/llhttp.h>
 #include <nlohmann/json.hpp>
 #include <regex>
@@ -132,7 +133,7 @@ namespace ccf::ds::openapi
     std::string s;
     if (!p.starts_with('/'))
     {
-      s = fmt::format("/{}", p);
+      s = std::format("/{}", p);
       p = s;
     }
 
@@ -216,7 +217,7 @@ namespace ccf::ds::openapi
   {
     if (!extension_name.starts_with("x-"))
     {
-      throw std::logic_error(fmt::format(
+      throw std::logic_error(std::format(
         "Adding extension with name '{}'. Extension fields must begin with "
         "'x-'",
         extension_name));
@@ -234,7 +235,7 @@ namespace ccf::ds::openapi
   {
     auto schema_ref_object = nlohmann::json::object();
     schema_ref_object["$ref"] =
-      fmt::format("#/components/schemas/{}", element_name);
+      std::format("#/components/schemas/{}", element_name);
     return schema_ref_object;
   }
 
@@ -257,7 +258,7 @@ namespace ccf::ds::openapi
       const auto& existing_schema = schema_it.value();
       if (schema_ != existing_schema)
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Adding schema with name '{}'. Does not match previous schema "
           "registered with this name: {} vs {}",
           name,
@@ -291,7 +292,7 @@ namespace ccf::ds::openapi
       const auto& existing_scheme = schema_it.value();
       if (security_scheme != existing_scheme)
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Adding security scheme with name '{}'. Does not match previous "
           "scheme registered with this name: {} vs {}",
           name,

@@ -8,6 +8,7 @@
 #include "ccf/ds/hash.h"
 
 #include <cassert>
+#include <format>
 #include <fstream>
 #include <iostream>
 #include <regex>
@@ -46,7 +47,7 @@ int main(int argc, char** argv)
   if (!fstream.is_open())
   {
     throw std::runtime_error(
-      fmt::format("File {} does not exist or could not be opened", filename));
+      std::format("File {} does not exist or could not be opened", filename));
   }
 
   string line;
@@ -95,7 +96,7 @@ int main(int argc, char** argv)
         }
         else
         {
-          throw std::runtime_error(fmt::format(
+          throw std::runtime_error(std::format(
             "pre_vote_enabled value must be true or false on line "
             "{}",
             lineno));
@@ -157,7 +158,7 @@ int main(int argc, char** argv)
         }
         else
         {
-          throw std::runtime_error(fmt::format(
+          throw std::runtime_error(std::format(
             "swap_nodes: expected 'in' or 'out' after term on line {}",
             lineno));
         }
@@ -323,7 +324,7 @@ int main(int argc, char** argv)
         break;
       default:
         throw std::runtime_error(
-          fmt::format("Unknown action '{}' at line {}", items[0], lineno));
+          std::format("Unknown action '{}' at line {}", items[0], lineno));
     }
 
     if (!skip_invariants)

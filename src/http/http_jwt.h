@@ -8,8 +8,7 @@
 #include "ccf/http_consts.h"
 #include "http_parser.h"
 
-#define FMT_HEADER_ONLY
-#include <fmt/format.h>
+#include <format>
 #include <optional>
 #include <string>
 
@@ -69,7 +68,7 @@ namespace http
       auto auth_scheme = auth_header_value.substr(0, next_space);
       if (auth_scheme != ccf::http::auth::BEARER_AUTH_SCHEME)
       {
-        error_reason = fmt::format(
+        error_reason = std::format(
           "Authorization header does not have {} scheme",
           ccf::http::auth::BEARER_AUTH_SCHEME);
         return false;
@@ -86,7 +85,7 @@ namespace http
         auto raw = ccf::crypto::raw_from_b64url(b64url);
         if (raw.empty())
         {
-          error_reason = fmt::format("JWT part is empty ({})", part);
+          error_reason = std::format("JWT part is empty ({})", part);
           return {};
         }
         return raw;
@@ -94,7 +93,7 @@ namespace http
       catch (const std::exception& e)
       {
         error_reason =
-          fmt::format("Failed to parse base64url in JWT ({})", part);
+          std::format("Failed to parse base64url in JWT ({})", part);
         return {};
       }
     }
@@ -158,7 +157,7 @@ namespace http
       }
       catch (const ccf::JsonParseError& e)
       {
-        error_reason = fmt::format(
+        error_reason = std::format(
           "JWT header or payload exceeds permitted JSON nesting depth: {}",
           e.what());
         return std::nullopt;
@@ -166,7 +165,7 @@ namespace http
       catch (const nlohmann::json::parse_error& e)
       {
         error_reason =
-          fmt::format("JWT header or payload is not valid JSON: {}", e.what());
+          std::format("JWT header or payload is not valid JSON: {}", e.what());
         return std::nullopt;
       }
       if (!header.is_object() || !payload.is_object())
@@ -182,7 +181,7 @@ namespace http
       catch (const ccf::JsonParseError& e)
       {
         error_reason =
-          fmt::format("JWT header does not follow schema: {}", e.describe());
+          std::format("JWT header does not follow schema: {}", e.describe());
         return std::nullopt;
       }
       JwtPayload payload_typed;
@@ -192,7 +191,7 @@ namespace http
       }
       catch (const ccf::JsonParseError& e)
       {
-        error_reason = fmt::format(
+        error_reason = std::format(
           "JWT payload is missing required field: {}", e.describe());
         return std::nullopt;
       }
@@ -213,7 +212,7 @@ namespace http
       if (auth_it == headers.end())
       {
         error_reason =
-          fmt::format("Missing {} header", ccf::http::headers::AUTHORIZATION);
+          std::format("Missing {} header", ccf::http::headers::AUTHORIZATION);
         return std::nullopt;
       }
       std::string_view token = auth_it->second;

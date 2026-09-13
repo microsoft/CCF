@@ -4,6 +4,7 @@
 
 #include "ccf/crypto/openssl/openssl_wrappers.h"
 
+#include <format>
 #include <openssl/evp.h>
 #include <stdexcept>
 #include <string>
@@ -67,7 +68,7 @@ namespace ccf::crypto
         {
           if (cose_alg != -7 && cose_alg != -9)
           {
-            throw std::domain_error(fmt::format(
+            throw std::domain_error(std::format(
               "secp256r1 key cannot be used with COSE algorithm {}", cose_alg));
           }
         }
@@ -75,7 +76,7 @@ namespace ccf::crypto
         {
           if (cose_alg != -35 && cose_alg != -51)
           {
-            throw std::domain_error(fmt::format(
+            throw std::domain_error(std::format(
               "secp384r1 key cannot be used with COSE algorithm {}", cose_alg));
           }
         }
@@ -83,14 +84,14 @@ namespace ccf::crypto
         {
           if (cose_alg != -36 && cose_alg != -52)
           {
-            throw std::domain_error(fmt::format(
+            throw std::domain_error(std::format(
               "secp521r1 key cannot be used with COSE algorithm {}", cose_alg));
           }
         }
         else
         {
           throw std::domain_error(
-            fmt::format("Unsupported EC curve: {}", gname));
+            std::format("Unsupported EC curve: {}", gname));
         }
       }
       else if (key_type == EVP_PKEY_RSA || key_type == EVP_PKEY_RSA_PSS)
@@ -103,13 +104,13 @@ namespace ccf::crypto
         if (cose_alg != -37 && cose_alg != -38 && cose_alg != -39)
         {
           throw std::domain_error(
-            fmt::format("Incompatible cose algorithm {} for RSA", cose_alg));
+            std::format("Incompatible cose algorithm {} for RSA", cose_alg));
         }
       }
       else
       {
         throw std::domain_error(
-          fmt::format("Unsupported key type {}", key_type));
+          std::format("Unsupported key type {}", key_type));
       }
     }
 
