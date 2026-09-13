@@ -20,8 +20,6 @@
 namespace ccf
 {
 #ifdef CCF_RECOVERY_TRACE
-  static constexpr auto RECOVERY_TRACE_VERSION =
-    "ccf.recovery_decision_protocol.trace/1";
   static constexpr auto RECOVERY_TRACE_MARKER = "RDP_TRACE";
 
   static std::string trace_state_name(
@@ -138,7 +136,6 @@ namespace ccf
       trace_committed_state = event.post;
     }
     nlohmann::json trace = event;
-    trace["version"] = RECOVERY_TRACE_VERSION;
     trace["instance"] = trace_instance_id;
     trace["expected_locations"] = trace_expected_locations;
     trace["node"] = trace_node;
