@@ -1,0 +1,10 @@
+--- a/src/host/tls/openssl_server.h
++++ b/src/host/tls/openssl_server.h
+@@ -556,6 +556,7 @@
+       SSL_CTX_set_mode(
+         c, SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER | SSL_MODE_ENABLE_PARTIAL_WRITE);
+ 
++      SSL_CTX_set_read_ahead(c, 1);
+       // Request the client certificate during the handshake so it can be used
+       // for application-level caller authentication (user/member cert auth).
+       // Verification is not enforced here - the application decides.

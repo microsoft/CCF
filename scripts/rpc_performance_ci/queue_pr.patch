@@ -1,0 +1,143 @@
+--- a/src/enclave/session.h
++++ b/src/enclave/session.h
+@@ -3,6 +3,7 @@
+ #pragma once
+ 
+ #include "ccf/node/session.h"
++#include "ccf_queue_probe.h"
+ #include "tasks/ordered_tasks.h"
+ #include "tasks/task.h"
+ #include "tasks/task_system.h"
+@@ -24,6 +25,7 @@
+     {
+       std::vector<uint8_t> data;
+       std::shared_ptr<ThreadedSession> self;
++      ccf::queue_probe::Stamp queued_at = ccf::queue_probe::stamp();
+ 
+       // The caller has already built a buffer for us, so take it rather than
+       // copying a request or response which may be arbitrarily large.
+@@ -40,6 +42,8 @@
+ 
+       void do_action() override
+       {
++        ccf::queue_probe::record(ccf::queue_probe::RX_QUEUE, queued_at);
++        ccf::queue_probe::Scope work(ccf::queue_probe::RX_WORK);
+         // The transport is holding this data against a node-wide budget until
+         // we say we are done with it, so report on every exit path - including
+         // the early return below, and an exception out of the parser.
+@@ -75,6 +79,8 @@
+ 
+       void do_action() override
+       {
++        ccf::queue_probe::record(ccf::queue_probe::SEND_QUEUE, queued_at);
++        ccf::queue_probe::Scope work(ccf::queue_probe::SEND_WORK);
+         self->send_data_thread(std::move(data));
+       }
+ 
+--- a/src/enclave/http_session.h
++++ b/src/enclave/http_session.h
+@@ -2,6 +2,7 @@
+ // Licensed under the Apache 2.0 License.
+ #pragma once
+ 
++#include "ccf_queue_probe.h"
+ #include "ds/internal_logger.h"
+ #include "enclave/rpc_handler.h"
+ #include "enclave/rpc_map.h"
+@@ -210,10 +211,20 @@
+ 
+           // Register for a callback when this TxID is committed (or
+           // invalidated)
++          const auto commit_started = ccf::queue_probe::stamp();
+           commit_callbacks->add_callback(
+             tx_id,
+-            [self, rpc_ctx, paused_task, committed_func, ws_digest, ce, claims](
++            [self,
++             rpc_ctx,
++             paused_task,
++             committed_func,
++             ws_digest,
++             ce,
++             claims,
++             commit_started](
+               ccf::TxID transaction_id, ccf::FinalTxStatus status) {
++              ccf::queue_probe::record(
++                ccf::queue_probe::COMMIT_WAIT, commit_started);
+               try
+               {
+                 // Build the context and let the handler modify the response
+--- a/src/host/tls/openssl_server.h
++++ b/src/host/tls/openssl_server.h
+@@ -9,6 +9,7 @@
+ 
+ #include "ccf/crypto/openssl/openssl_wrappers.h"
+ #include "ccf/crypto/pem.h"
++#include "ccf_queue_probe.h"
+ #include "ds/internal_logger.h"
+ #include "host/tls/inbound_admission.h"
+ #include "tasks/ordered_tasks.h"
+@@ -278,6 +279,7 @@
+       ::tcp::ConnID id = 0;
+       std::vector<uint8_t> data;
+       bool close = false;
++      ccf::queue_probe::Stamp queued_at = ccf::queue_probe::stamp();
+     };
+ 
+     struct DriveInput
+@@ -286,6 +288,7 @@
+       std::vector<OutItem> commands;
+       bool close_requested = false;
+       bool force_close = false;
++      ccf::queue_probe::Stamp queued_at = ccf::queue_probe::stamp();
+     };
+ 
+     struct DriveResult
+@@ -297,6 +300,7 @@
+       // another pass rather than re-arm polling.
+       bool more_to_read = false;
+       std::chrono::steady_clock::time_point last_active;
++      ccf::queue_probe::Stamp queued_at = ccf::queue_probe::stamp();
+     };
+ 
+     std::shared_ptr<SSL_CTX> ctx;
+@@ -903,6 +907,11 @@
+ 
+     void drive_connection(std::shared_ptr<Conn> conn, DriveInput input)
+     {
++      ccf::queue_probe::record(
++        input.commands.empty() ? ccf::queue_probe::TLS_RX_QUEUE :
++                                 ccf::queue_probe::TLS_TX_QUEUE,
++        input.queued_at);
++      ccf::queue_probe::Scope work(ccf::queue_probe::TLS_WORK);
+       bool alive = true;
+       bool more_to_read = false;
+ 
+@@ -1265,6 +1274,7 @@
+     // Apply worker completions and cross-thread commands on the libuv thread.
+     void drain_pending_out()
+     {
++      ccf::queue_probe::Scope work(ccf::queue_probe::LOOP_DRAIN_WORK);
+       std::vector<OutItem> items;
+       std::vector<DriveResult> completions;
+       std::vector<std::pair<std::string, std::string>> certs;
+@@ -1305,6 +1315,11 @@
+ 
+       for (auto& item : items)
+       {
++        if (!item.close)
++        {
++          ccf::queue_probe::record(
++            ccf::queue_probe::OUT_LOOP_WAIT, item.queued_at);
++        }
+         auto fit = id_to_fd.find(item.id);
+         if (fit == id_to_fd.end())
+         {
+@@ -1328,6 +1343,8 @@
+ 
+       for (auto& completion : completions)
+       {
++        ccf::queue_probe::record(
++          ccf::queue_probe::COMPLETION_LOOP_WAIT, completion.queued_at);
+         const auto& conn = completion.conn;
+         auto it = conns.find(conn->fd);
+         if (it == conns.end() || it->second.get() != conn.get())

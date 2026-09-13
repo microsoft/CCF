@@ -1,0 +1,75 @@
+--- a/src/enclave/session.h
++++ b/src/enclave/session.h
+@@ -3,6 +3,7 @@
+ #pragma once
+ 
+ #include "ccf/node/session.h"
++#include "ccf_queue_probe.h"
+ #include "enclave/tls_session.h"
+ #include "tasks/ordered_tasks.h"
+ #include "tasks/task.h"
+@@ -24,12 +25,14 @@
+     {
+       std::vector<uint8_t> data;
+       std::shared_ptr<ThreadedSession> self;
++      ccf::queue_probe::Stamp queued_at{};
+ 
+       SessionDataTask(
+         std::span<const uint8_t> d, std::shared_ptr<ThreadedSession> s) :
+         self(std::move(s))
+       {
+         data.assign(d.begin(), d.end());
++        queued_at = ccf::queue_probe::stamp();
+       }
+     };
+ 
+@@ -39,6 +42,8 @@
+ 
+       void do_action() override
+       {
++        ccf::queue_probe::record(ccf::queue_probe::RX_QUEUE, queued_at);
++        ccf::queue_probe::Scope work(ccf::queue_probe::RX_WORK);
+         if (self->is_closing.load())
+         {
+           return;
+@@ -61,6 +66,8 @@
+ 
+       void do_action() override
+       {
++        ccf::queue_probe::record(ccf::queue_probe::SEND_QUEUE, queued_at);
++        ccf::queue_probe::Scope work(ccf::queue_probe::SEND_WORK);
+         self->send_data_thread(std::move(data));
+       }
+ 
+--- a/src/enclave/http_session.h
++++ b/src/enclave/http_session.h
+@@ -2,6 +2,7 @@
+ // Licensed under the Apache 2.0 License.
+ #pragma once
+ 
++#include "ccf_queue_probe.h"
+ #include "ds/internal_logger.h"
+ #include "enclave/rpc_handler.h"
+ #include "enclave/rpc_map.h"
+@@ -210,10 +211,20 @@
+ 
+           // Register for a callback when this TxID is committed (or
+           // invalidated)
++          const auto commit_started = ccf::queue_probe::stamp();
+           commit_callbacks->add_callback(
+             tx_id,
+-            [self, rpc_ctx, paused_task, committed_func, ws_digest, ce, claims](
++            [self,
++             rpc_ctx,
++             paused_task,
++             committed_func,
++             ws_digest,
++             ce,
++             claims,
++             commit_started](
+               ccf::TxID transaction_id, ccf::FinalTxStatus status) {
++              ccf::queue_probe::record(
++                ccf::queue_probe::COMMIT_WAIT, commit_started);
+               try
+               {
+                 // Build the context and let the handler modify the response

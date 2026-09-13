@@ -1,35 +1,41 @@
-name: "Benchmarks"
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache 2.0 License.
+
+name: "RPC performance diagnostic"
+run-name: "RPC #8117 diagnostic (${{ github.sha }})"
 
 on:
-  schedule:
-    - cron: "0 8,20 * * 1-5"
-  push:
-    branches:
-      - main
   workflow_dispatch:
 
 permissions: read-all
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  queue: max
-
 jobs:
-  benchmark_virtual:
-    name: Benchmark Virtual
+  rpc_performance:
+    name: Isolated Basic Blocking comparison
+    timeout-minutes: 90
     runs-on:
       [
         self-hosted,
         1ES.Pool=gha-vmss-d16av6-ci,
-        "JobId=bench_virtual-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
+        "JobId=rpc_perf_ci-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
       ]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root
-    steps:
-      - name: "Checkout dependencies"
+    defaults:
+      run:
         shell: bash
+    env:
+      CCF_RPC_DIAGNOSTIC_ARTIFACTS: ${{ github.workspace }}/rpc-performance-artifacts
+    steps:
+      - name: Define diagnostic scratch directory
         run: |
+          set -euo pipefail
+          echo "CCF_RPC_DIAGNOSTIC_ROOT=$RUNNER_TEMP/ccf-rpc-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" >> "$GITHUB_ENV"
+
+      - name: Set up container dependencies
+        run: |
+          set -euo pipefail
           gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
           tdnf -y update
           tdnf -y install ca-certificates git gh
@@ -37,191 +43,42 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
+          set-safe-directory: false
 
-      - name: "Install dependencies"
+      - name: Install dependencies
         uses: ./.github/actions/install-ci-dependencies
 
-      - name: "Machine info"
-        shell: bash
-        run: &machine_info |
-          set -ex
-          uname -a
-          nproc
-          cat /proc/cpuinfo
-          cat /proc/meminfo
-          cpuid=$(awk '/^cpu family/{f=$NF} /^model\t/{m=$NF} /^stepping/{s=$NF; printf "%02x%02x%02x",f,m,s; exit}' /proc/cpuinfo)
-          echo "CCF_CPUID=${cpuid}" >> "$GITHUB_ENV"
-          echo "CCF_CORES=$(nproc)" >> "$GITHUB_ENV"
-          echo "CCF_MEM_GB=$(awk '/^MemTotal/{printf "%d",$2/1024/1024}' /proc/meminfo)" >> "$GITHUB_ENV"
-          if [[ -e /dev/sev-guest ]]; then
-            echo "CCF_PLATFORM_SLUG=snp" >> "$GITHUB_ENV"
-          else
-            echo "CCF_PLATFORM_SLUG=virtual" >> "$GITHUB_ENV"
-          fi
+      - name: Confirm benchmark platform
+        run: python3 tests/infra/platform_detection.py virtual
 
-      - name: "Confirm running on Virtual"
+      - name: Build all six Basic variants and shared client environment
+        run: python3 -u scripts/rpc_performance_ci/build.py
+
+      - name: Measure sequentially on the same VM
         run: |
-          set -ex
-          python3 tests/infra/platform_detection.py virtual
-        shell: bash
+          set -euo pipefail
+          "$CCF_RPC_DIAGNOSTIC_ROOT/sources/base/build/env/bin/python" \
+            -u scripts/rpc_performance_ci/run.py
 
-      - name: "Restore previous perf results"
-        run: &restore_perf |
-          set -ex
-          slug="${GITHUB_REF_NAME//\//-}"
-          echo "BRANCH_SLUG=${slug}" >> "$GITHUB_ENV"
-          name="${ARTIFACT_PREFIX}-${slug}"
-          mkdir -p perf
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          run_ids=$(gh api "repos/${{ github.repository }}/actions/artifacts?name=${name}&per_page=100" \
-            --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0:20] | .[].workflow_run.id')
-          for run_id in $run_ids; do
-            if gh run download "$run_id" --name "$name" --dir prev_artifact; then
-              find prev_artifact -name '*.json' -exec cp {} perf/ \;
-              break
-            fi
-          done
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          ARTIFACT_PREFIX: perf-bench-virtual
+      - name: Collect allowlisted evidence and operational summary
+        if: always()
+        run: python3 scripts/rpc_performance_ci/report.py
 
-      - name: Build and run virtual perf tests
-        run: |
-          git config --global --add safe.directory /__w/CCF/CCF
-          mkdir build
-          cd build
-          cmake -GNinja -DWORKER_THREADS=2 ..
-          ninja
-          # Microbenchmarks
-          ./tests.sh -VV -L benchmark
-          # End to end performance tests
-          ./tests.sh -VV -L perf -C perf
-          # Convert microbenchmark output to bencher json
-          source env/bin/activate
-          PYTHONPATH=../tests python convert_pico_to_bencher.py
-        shell: bash
-
-      - name: "Collect perf results"
-        run: &collect_perf |
-          set -exo pipefail
-          jobid="${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}"
-          mkdir -p perf
-          cp build/bencher.json "perf/${jobid}.json"
-          (cd perf && ls -1 | sort -t- -k1,1n -k2,2n -k3,3n | head -n -180 | xargs -r rm -f)
-        shell: bash
-        if: success() || failure()
-
-      - name: "Summarise perf data files"
-        run: &perf_summary |
-          set -ex
-          python3 scripts/perf_summary.py perf >> "$GITHUB_STEP_SUMMARY"
-        shell: bash
-        if: success() || failure()
-
-      - name: "Upload logs"
+      - name: Upload diagnostic data
+        if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: logs-bench-virtual-${{ env.BRANCH_SLUG }}
-          path: |
-            build/workspace/*/*.config.json
-            build/workspace/*/out
-            build/workspace/*/err
-            build/workspace/*/*.ledger/*
-            build/workspace/*/stack_trace
-            build/workspace/*/locust_failures.csv
-            build/workspace/**/openapi_coverage.json
-          if-no-files-found: ignore
-        if: success() || failure()
+          name: rpc-performance-ci-data
+          path: rpc-performance-artifacts/data
+          retention-days: 7
+          if-no-files-found: error
 
-      - name: "Upload perf data"
+      - name: Upload diagnostic logs
+        if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: perf-bench-virtual-${{ env.BRANCH_SLUG }}
-          path: perf
-          if-no-files-found: ignore
-        if: success() || failure()
-
-  benchmark_snp:
-    name: Benchmark SNP
-    runs-on:
-      [
-        self-hosted,
-        1ES.Pool=gha-c-aci-ci,
-        "JobId=bench_snp-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
-      ]
-    steps:
-      - name: "Install gh"
-        shell: bash
-        run: tdnf -y install gh
-
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-
-      - name: "Machine info"
-        shell: bash
-        run: *machine_info
-
-      - name: "Confirm running on SEV-SNP"
-        run: |
-          set -ex
-          python3 tests/infra/platform_detection.py snp
-        shell: bash
-
-      - name: "Restore previous perf results"
-        run: *restore_perf
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          ARTIFACT_PREFIX: perf-bench-snp
-
-      - name: Build and run SNP perf tests
-        run: |
-          git config --global --add safe.directory /__w/CCF/CCF
-          mkdir build
-          cd build
-          cmake -GNinja -DWORKER_THREADS=2 ..
-          ninja
-          # Microbenchmarks
-          ./tests.sh -VV -L benchmark -E task_bench
-          # End to end performance tests
-          ./tests.sh -VV -L perf -C perf
-          # Convert microbenchmark output to bencher json
-          source env/bin/activate
-          PYTHONPATH=../tests python convert_pico_to_bencher.py
-        shell: bash
-
-      - name: "Collect perf results"
-        run: *collect_perf
-        shell: bash
-        if: success() || failure()
-
-      - name: "Summarise perf data files"
-        run: *perf_summary
-        shell: bash
-        if: success() || failure()
-
-      - name: "Upload logs"
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: logs-bench-snp-${{ env.BRANCH_SLUG }}
-          path: |
-            dmesg.log
-            build/workspace/*/*.config.json
-            build/workspace/*/out
-            build/workspace/*/err
-            build/workspace/*/*.ledger/*
-            build/workspace/*/stack_trace
-            build/workspace/*/locust_failures.csv
-            build/workspace/**/openapi_coverage.json
-          if-no-files-found: ignore
-        if: success() || failure()
-
-      - name: "Upload perf data"
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: perf-bench-snp-${{ env.BRANCH_SLUG }}
-          path: perf
-          if-no-files-found: ignore
-        if: success() || failure()
+          name: rpc-performance-ci-logs
+          path: rpc-performance-artifacts/logs
+          retention-days: 7
+          if-no-files-found: error

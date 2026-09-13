@@ -1,0 +1,55 @@
+--- a/src/host/tls/openssl_server.h
++++ b/src/host/tls/openssl_server.h
+@@ -264,6 +264,7 @@
+ 
+       // The fields below are accessed only on the libuv thread. Polling stays
+       // stopped while worker_active is true.
++      int polled_events = 0;
+       std::vector<OutItem> pending_commands;
+       int pending_events = 0;
+       bool worker_active = false;
+@@ -583,12 +584,17 @@
+       {
+         events |= UV_READABLE;
+       }
++      if (events == c.polled_events)
++      {
++        return;
++      }
+       if (events == 0)
+       {
+         // uv_poll_start rejects an empty mask, and there is genuinely nothing
+         // to wait for: this connection resumes when the node drops back under
+         // its inbound budget, at which point every transport is woken.
+         (void)uv_poll_stop(c.poll);
++        c.polled_events = 0;
+         return;
+       }
+       const int rc = uv_poll_start(c.poll, events, on_connection_poll);
+@@ -599,6 +605,10 @@
+         LOG_FAIL_FMT(
+           "uv_poll_start failed for connection {}: {}", c.id, uv_strerror(rc));
+       }
++      else
++      {
++        c.polled_events = events;
++      }
+     }
+ 
+     static int alpn_select_cb(
+@@ -998,6 +1008,7 @@
+       if (conn->poll != nullptr)
+       {
+         (void)uv_poll_stop(conn->poll);
++        conn->polled_events = 0;
+       }
+       conn->worker_active = true;
+       DriveInput input;
+@@ -1040,6 +1051,7 @@
+       if (conn->poll != nullptr)
+       {
+         (void)uv_poll_stop(conn->poll);
++        conn->polled_events = 0;
+       }
+       assert(conn->ssl == nullptr);
+       // The poll handle frees itself, so the Conn can be dropped here rather
