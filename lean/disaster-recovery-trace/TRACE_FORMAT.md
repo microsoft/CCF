@@ -1,11 +1,8 @@
-# Recovery decision protocol trace format, version 1
+# Recovery decision protocol trace format
 
 The media type is newline-delimited JSON. Each nonempty line is one committed
-semantic observation. The version string is:
-
-```text
-ccf.recovery_decision_protocol.trace/1
-```
+semantic observation. This format is used by CI with the producer and validator
+from the same source revision; it is not a versioned compatibility contract.
 
 ## Record
 
@@ -13,7 +10,6 @@ Every record is a JSON object with these required fields:
 
 | Field                | Type             | Meaning                             |
 | -------------------- | ---------------- | ----------------------------------- |
-| `version`            | string           | Exactly the version above           |
 | `instance`           | string           | Stable recovery instance identifier |
 | `expected_locations` | array of strings | Stable configured location names    |
 | `node`               | string           | Observed node/location name         |
@@ -35,7 +31,7 @@ These fields are optional unless the event requires them:
 | `send`       | string           | Send class and destination: `gossip:NAME`, `vote:NAME`, or `iamopen:NAME` |
 
 Phase strings are `GOSSIPING`, `VOTING`, `OPENING`, `JOINING`, and `OPEN`.
-Unknown fields are ignored for forward-compatible instrumentation metadata.
+Unknown fields are ignored as instrumentation metadata.
 All integers must be nonnegative Lean `Nat` values.
 
 ## Event kinds
@@ -73,7 +69,7 @@ timestamps do not.
 
 ## Strict replay
 
-Version 1 is a complete successful-execution trace: every transport send,
+A trace describes a complete successful execution: every transport send,
 accepted receive, committed timeout, and one-shot effect is explicit.
 `DisasterRecoveryTrace/Protocol/Trace/Replay.lean` folds these events over one deterministic `SystemState`.
 It retains only observed sends, consumed causal IDs, per-node sequences, and
@@ -86,9 +82,8 @@ reports this shortest failing prefix with the current phase and expected event
 classes.
 
 Rejected HTTP/validation inputs do not mutate the modeled state and are not
-part of version 1. A future need to validate rejection behavior or incomplete
-traces should use a new contract version rather than adding implicit behavior
-to this deterministic replay.
+part of this trace format. Supporting rejection behavior or incomplete traces
+would require explicit changes to the instrumentation and deterministic replay.
 
 ## C++ instrumentation
 
@@ -132,7 +127,6 @@ incomplete and cannot be accepted.
 
 ```json
 {
-  "version": "ccf.recovery_decision_protocol.trace/1",
   "instance": "example",
   "expected_locations": ["node0"],
   "node": "node0",
