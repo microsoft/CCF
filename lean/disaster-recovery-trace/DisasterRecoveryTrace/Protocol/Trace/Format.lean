@@ -8,9 +8,6 @@ open DisasterRecovery.Protocol.Model
 
 open Lean
 
-def contractVersion : String :=
-  "ccf.recovery_decision_protocol.trace/1"
-
 inductive Kind where
   | start
   | gossipAccepted
@@ -24,7 +21,6 @@ inductive Kind where
 deriving Repr, BEq, Inhabited
 
 structure TraceEvent where
-  version : String
   instanceId : String
   expectedLocations : List Location
   node : Location
@@ -88,10 +84,6 @@ private def optionalParsed
 
 def parseEvent (line : String) : Except String TraceEvent := do
   let json <- Json.parse line
-  let version <- json.getObjValAs? String "version"
-  if version != contractVersion then
-    throw s!"unsupported version '{version}'"
-
   let view <- optionalNat json "view"
   let seqno <- optionalNat json "seqno"
   if view.isSome != seqno.isSome then
@@ -112,7 +104,6 @@ def parseEvent (line : String) : Except String TraceEvent := do
   let openKind <- optionalParsed json "open_kind" parseOpenKind
   let send <- optionalString json "send"
   pure {
-    version
     instanceId
     expectedLocations
     node

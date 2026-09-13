@@ -11,7 +11,6 @@ private def baseEvent
     (node : Location)
     (sequence : Nat)
     (kind : Kind) : TraceEvent := {
-  version := contractVersion
   instanceId := "trace-tests"
   expectedLocations := locations
   node
@@ -148,7 +147,6 @@ private def eventJson (event : TraceEvent) : Lean.Json :=
     | .joinRestart => "join_restart"
     | .complete => "complete"
   Lean.Json.mkObj ([
-    ("version", Lean.toJson event.version),
     ("instance", Lean.toJson event.instanceId),
     ("expected_locations", Lean.toJson event.expectedLocations),
     ("node", Lean.toJson event.node),
@@ -487,12 +485,11 @@ def main : IO UInt32 := do
     "trace with an unobserved opening effect was accepted"
 
   let rejectedJson :=
-    "{\"version\":\"ccf.recovery_decision_protocol.trace/1\","
-      ++ "\"instance\":\"x\",\"expected_locations\":[\"A\"],"
+    "{\"instance\":\"x\",\"expected_locations\":[\"A\"],"
       ++ "\"node\":\"A\",\"sequence\":0,\"kind\":\"gossip_rejected\","
       ++ "\"pre\":\"GOSSIPING\",\"post\":\"GOSSIPING\"}"
   expect (parseFails rejectedJson)
-    "unused rejection event remains in the strict v1 format"
+    "unused rejection event remains in the trace format"
 
   IO.println "all raw log, CLI, and strict trace replay checks passed"
   pure 0

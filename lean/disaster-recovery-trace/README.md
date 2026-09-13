@@ -1,11 +1,11 @@
 # Disaster recovery trace validation
 
-This package validates version 1 implementation traces from CCF's C++ recovery
+This package validates implementation traces from CCF's C++ recovery
 decision protocol against the permanent model in `../disaster-recovery`. It is
 deliberately separate from the canonical model and depends only on
 `DisasterRecovery.Protocol.Model`. Both packages are pinned to Lean 4.33.1.
 
-`DisasterRecoveryTrace.Protocol.Trace.Format` parses the strict versioned
+`DisasterRecoveryTrace.Protocol.Trace.Format` parses the strict
 NDJSON contract. `DisasterRecoveryTrace.Protocol.Trace.Logs` extracts records
 directly from text or JSON node logs and orders them using per-node sequences
 and causal send edges, not timestamps.
@@ -48,4 +48,4 @@ exercise rejection behavior; they are not implementation conformance evidence.
 Conformance evidence is produced only from real C++ SNP recovery runs and is
 uploaded by the Milan and Genoa jobs.
 
-See [TRACE_FORMAT_V1.md](TRACE_FORMAT_V1.md) for the complete contract.
+See [TRACE_FORMAT.md](TRACE_FORMAT.md) for the complete contract.
