@@ -681,8 +681,8 @@ def test_snapshot_selection(network, args):
 
     src_snapshots = []
     for snapshot_path in primary.get_snapshots():
-        seqno, _ = ccf.ledger.snapshot_index_from_filename(snapshot_path)
-        src_snapshots.append((seqno, os.path.basename(snapshot_path), snapshot_path))
+        index = ccf.ledger.snapshot_index_from_filename(snapshot_path)
+        src_snapshots.append((index, os.path.basename(snapshot_path), snapshot_path))
 
     src_snapshots.sort()
     best_snapshot = src_snapshots[-1][1]
