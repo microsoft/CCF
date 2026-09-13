@@ -24,6 +24,7 @@
 #include <format>
 #include <memory>
 #include <type_traits>
+#include <utility>
 
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>

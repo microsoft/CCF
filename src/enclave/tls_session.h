@@ -11,6 +11,7 @@
 
 #include <exception>
 #include <format>
+#include <utility>
 
 namespace ccf
 {

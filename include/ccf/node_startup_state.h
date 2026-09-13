@@ -5,6 +5,7 @@
 #include "ccf/ds/json.h"
 
 #include <format>
+#include <utility>
 
 namespace ccf
 {

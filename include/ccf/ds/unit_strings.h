@@ -11,6 +11,7 @@
 #include <limits>
 #include <nlohmann/json.hpp>
 #include <string>
+#include <utility>
 
 namespace ccf::ds
 {

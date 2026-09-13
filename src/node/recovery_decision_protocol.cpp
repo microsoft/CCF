@@ -17,6 +17,7 @@
 #include <format>
 #include <stdexcept>
 #include <tuple>
+#include <utility>
 
 namespace ccf
 {

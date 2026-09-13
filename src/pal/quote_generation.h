@@ -13,6 +13,7 @@
 #include <format>
 #include <nlohmann/json.hpp>
 #include <string>
+#include <utility>
 
 namespace ccf::pal
 {

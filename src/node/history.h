@@ -31,6 +31,7 @@
 #include <format>
 #include <memory>
 #include <string.h>
+#include <utility>
 
 #define HAVE_OPENSSL
 // merklecpp traces are off by default, even when CCF tracing is enabled

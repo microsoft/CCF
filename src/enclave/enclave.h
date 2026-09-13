@@ -36,6 +36,8 @@
 #include "rpc_sessions.h"
 #include "tasks/worker.h"
 
+#include <utility>
+
 namespace ccf
 {
   class Enclave

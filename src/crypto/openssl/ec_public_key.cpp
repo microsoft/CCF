@@ -20,6 +20,7 @@
 #include <openssl/x509v3.h>
 #include <stdexcept>
 #include <string>
+#include <utility>
 
 namespace ccf::crypto
 {

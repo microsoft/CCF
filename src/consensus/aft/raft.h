@@ -25,6 +25,7 @@
 #include <list>
 #include <random>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #ifdef VERBOSE_RAFT_LOGGING

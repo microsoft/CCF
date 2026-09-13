@@ -23,6 +23,7 @@
 #include <string>
 #include <string_view>
 #include <tav/snp.h>
+#include <utility>
 #include <vector>
 
 namespace ccf::pal::snp

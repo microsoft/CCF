@@ -6,6 +6,7 @@
 #include "crypto/openssl/hash.h"
 
 #include <format>
+#include <utility>
 
 namespace ccf::crypto
 {

@@ -7,6 +7,7 @@
 #include "node/rpc/gov_logging.h"
 
 #include <format>
+#include <utility>
 
 namespace ccf::gov::endpoints::detail
 {

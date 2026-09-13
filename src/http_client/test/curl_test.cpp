@@ -19,6 +19,7 @@
 #include <optional>
 #include <random>
 #include <span>
+#include <utility>
 #include <uv.h>
 
 #define DOCTEST_CONFIG_IMPLEMENT

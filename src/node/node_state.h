@@ -77,6 +77,7 @@
 #include <nlohmann/json.hpp>
 #include <stdexcept>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 namespace ccf

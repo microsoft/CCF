@@ -20,6 +20,7 @@
 
 #include <format>
 #include <nlohmann/json.hpp>
+#include <utility>
 namespace ccf
 {
   struct StartupSnapshotInfo

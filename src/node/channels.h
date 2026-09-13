@@ -20,6 +20,7 @@
 #include <iostream>
 #include <map>
 #include <openssl/crypto.h>
+#include <utility>
 
 // -Wpedantic flags token pasting of __VA_ARGS__
 #pragma clang diagnostic push

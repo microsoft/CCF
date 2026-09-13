@@ -12,6 +12,7 @@
 #include <cstdint>
 #include <format>
 #include <openssl/objects.h>
+#include <utility>
 
 namespace ccf::pal
 {

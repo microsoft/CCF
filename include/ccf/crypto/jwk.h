@@ -8,6 +8,7 @@
 
 #include <format>
 #include <string>
+#include <utility>
 
 namespace ccf::crypto
 {

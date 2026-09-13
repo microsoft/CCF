@@ -25,6 +25,7 @@
 #include <cstring>
 #include <format>
 #include <tav/cbor.hpp>
+#include <utility>
 
 namespace ccf
 {

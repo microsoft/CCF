@@ -10,6 +10,7 @@
 
 #include <chrono>
 #include <unordered_map>
+#include <utility>
 
 namespace asynchost
 {

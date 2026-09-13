@@ -16,6 +16,7 @@
 #include "node/rpc/node_frontend_utils.h"
 
 #include <format>
+#include <utility>
 
 namespace ccf::node
 {

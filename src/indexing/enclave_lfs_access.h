@@ -15,6 +15,7 @@
 #include <optional>
 #include <set>
 #include <unordered_map>
+#include <utility>
 
 // Uncomment to disable encryption and obfuscation, writing cache content
 // directly unencrypted to host disk
