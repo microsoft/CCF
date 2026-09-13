@@ -2,21 +2,4 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include <string>
-
-namespace ccf::kv
-{
-  class CompactedVersionConflict
-  {
-  private:
-    std::string msg;
-
-  public:
-    CompactedVersionConflict(std::string s) : msg(std::move(s)) {}
-
-    [[nodiscard]] char const* what() const
-    {
-      return msg.c_str();
-    }
-  };
-}
+#include "ccf/kv/compacted_version_conflict.h"
