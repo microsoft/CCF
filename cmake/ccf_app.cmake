@@ -6,13 +6,16 @@ function(add_ccf_app name)
   cmake_parse_arguments(
     PARSE_ARGV 1
     PARSED_ARGS
-    ""
+    "OBJECT"
     ""
     "SRCS;INCLUDE_DIRS;SYSTEM_INCLUDE_DIRS;LINK_LIBS;DEPS;INSTALL_LIBS"
   )
 
-  # Build app executable
-  add_executable(${name} ${PARSED_ARGS_SRCS})
+  if(PARSED_ARGS_OBJECT)
+    add_library(${name} OBJECT ${PARSED_ARGS_SRCS})
+  else()
+    add_executable(${name} ${PARSED_ARGS_SRCS})
+  endif()
 
   target_include_directories(${name} PRIVATE ${PARSED_ARGS_INCLUDE_DIRS})
   target_include_directories(
@@ -27,7 +30,7 @@ function(add_ccf_app name)
     PRIVATE ${PARSED_ARGS_LINK_LIBS} ccf_launcher ccf
   )
 
-  if(NOT (SAN OR TSAN))
+  if(NOT (SAN OR TSAN OR PARSED_ARGS_OBJECT))
     target_link_options(${name} PRIVATE LINKER:--no-undefined)
   endif()
 

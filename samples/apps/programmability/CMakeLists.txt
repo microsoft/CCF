@@ -11,7 +11,9 @@ if(NOT TARGET "ccf")
   find_package(${CCF_PROJECT} REQUIRED)
 endif()
 
+include(../common.cmake)
+
 add_ccf_app(
   programmability
-  SRCS programmability.cpp ${CCF_DIR}/samples/apps/main.cpp
+  SRCS programmability.cpp $<TARGET_OBJECTS:ccf_app_main>
 )

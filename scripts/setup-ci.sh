@@ -7,6 +7,16 @@ set -exo pipefail
 H2SPEC_VERSION="v2.6.0"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 
+# Virtual CI opts in; SNP image provisioning keeps the default linker.
+case "${CCF_INSTALL_LLD:-false}" in
+    true) LLD_PACKAGES=(lld) ;;
+    false) LLD_PACKAGES=() ;;
+    *)
+        echo "CCF_INSTALL_LLD must be true or false" >&2
+        exit 1
+        ;;
+esac
+
 TDNF_OPTIONS=(-y)
 if [[ -n ${SOURCE_DATE_EPOCH:-} ]]; then
     echo "Using SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH}"
@@ -58,6 +68,7 @@ install_build_dependencies() {
     tdnf "${TDNF_OPTIONS[@]}" install  \
         build-essential  \
         clang  \
+        "${LLD_PACKAGES[@]}"  \
         cmake  \
         ninja-build  \
         patch  \

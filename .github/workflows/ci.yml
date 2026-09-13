@@ -14,6 +14,7 @@ concurrency:
 permissions: read-all
 
 env:
+  NINJA_STATUS: "[%f/%t %e s] "
   # Add bounded retries for transient runner-to-package-storage route failures.
   NPM_CONFIG_FETCH_RETRIES: "5"
   NPM_CONFIG_FETCH_RETRY_FACTOR: "2"
@@ -51,6 +52,8 @@ jobs:
         uses: ./.github/actions/install-ci-dependencies
         with:
           python-requirements: doc/requirements.txt,doc/historical_ccf_requirements.txt,tests/requirements.txt
+        env:
+          CCF_INSTALL_LLD: "true"
 
       - name: "Install development dependencies"
         shell: bash
@@ -65,8 +68,9 @@ jobs:
           ./scripts/ci-checks.sh
           mkdir build
           cd build
-          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DCLANG_TIDY=ON ..
+          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DCLANG_TIDY=ON -DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=lld ..
           ninja
+          cp .ninja_log ninja.log
         shell: bash
 
       - name: "Run tests for Python package"
@@ -106,6 +110,7 @@ jobs:
         with:
           name: logs-azurelinux-virtual-a
           path: |
+            build/ninja.log
             build/workspace/*/*.config.json
             build/workspace/*/out
             build/workspace/*/err
@@ -146,6 +151,8 @@ jobs:
 
       - name: "Install dependencies"
         uses: ./.github/actions/install-ci-dependencies
+        env:
+          CCF_INSTALL_LLD: "true"
 
       - name: "Confirm running on Virtual"
         run: |
@@ -159,8 +166,9 @@ jobs:
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug ..
+          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=lld ..
           ninja
+          cp .ninja_log ninja.log
         shell: bash
 
       - name: "Test virtual"
@@ -178,6 +186,7 @@ jobs:
         with:
           name: logs-azurelinux-virtual-b
           path: |
+            build/ninja.log
             build/workspace/*/*.config.json
             build/workspace/*/out
             build/workspace/*/err
@@ -214,6 +223,8 @@ jobs:
 
       - name: "Install dependencies"
         uses: ./.github/actions/install-ci-dependencies
+        env:
+          CCF_INSTALL_LLD: "true"
 
       - name: "Build Debug"
         run: |
@@ -221,8 +232,9 @@ jobs:
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug ..
+          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=lld ..
           ninja
+          cp .ninja_log ninja.log
         shell: bash
 
       - name: "Test virtual"
@@ -246,6 +258,7 @@ jobs:
         with:
           name: logs-azurelinux-virtual-c
           path: |
+            build/ninja.log
             build/workspace/*/*.config.json
             build/workspace/*/out
             build/workspace/*/err
@@ -300,6 +313,7 @@ jobs:
           cd build
           cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DWORKER_THREADS=1 ..
           ninja
+          cp .ninja_log ninja.log
         shell: bash
 
       - name: "Tests"
@@ -331,6 +345,7 @@ jobs:
         with:
           name: logs-aci-snp-milan
           path: |
+            build/ninja.log
             dmesg.log
             build/workspace/*/*.config.json
             build/workspace/*/out
@@ -386,6 +401,7 @@ jobs:
           cd build
           cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DWORKER_THREADS=1 ..
           ninja
+          cp .ninja_log ninja.log
         shell: bash
 
       - name: "Tests"
@@ -417,6 +433,7 @@ jobs:
         with:
           name: logs-caci-snp-genoa
           path: |
+            build/ninja.log
             dmesg.log
             build/workspace/*/*.config.json
             build/workspace/*/out
