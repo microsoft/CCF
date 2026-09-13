@@ -41,6 +41,7 @@ namespace ccf::historical
 };
 
 template <>
+// NOLINTNEXTLINE(cert-dcl58-cpp) - Specialization depends on a CCF type.
 struct std::formatter<ccf::historical::CompoundHandle>
 {
   template <typename ParseContext>

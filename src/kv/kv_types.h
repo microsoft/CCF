@@ -778,6 +778,7 @@ namespace ccf::kv
 }
 
 template <>
+// NOLINTNEXTLINE(cert-dcl58-cpp) - Specialization depends on CCF types.
 struct std::formatter<ccf::kv::Configuration::Nodes>
 {
   template <typename ParseContext>

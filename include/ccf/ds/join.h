@@ -27,6 +27,8 @@ namespace ccf::ds
   }
 
   template <typename Range>
+  // Borrow temporary views as lvalues: their begin/end need not be const.
+  // NOLINTNEXTLINE(cppcoreguidelines-missing-std-forward)
   auto join(Range&& range, std::string_view separator)
   {
     return join(std::begin(range), std::end(range), separator);
@@ -34,6 +36,7 @@ namespace ccf::ds
 }
 
 template <typename Iterator, typename Sentinel>
+// NOLINTNEXTLINE(cert-dcl58-cpp) - Specialization depends on a CCF type.
 struct std::formatter<ccf::ds::Join<Iterator, Sentinel>>
   : std::formatter<std::remove_cvref_t<decltype(*std::declval<Iterator&>())>>
 {

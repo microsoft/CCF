@@ -522,6 +522,7 @@ namespace ccf::ds
 }
 
 template <typename T>
+// NOLINTNEXTLINE(cert-dcl58-cpp) - Specialization depends on a CCF type.
 struct std::formatter<ccf::ds::ContiguousSet<T>>
 {
   template <typename ParseContext>

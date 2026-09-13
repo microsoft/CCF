@@ -195,6 +195,7 @@ namespace std
 // NOLINTEND(cert-dcl58-cpp)
 
 template <typename FmtExtender>
+// NOLINTNEXTLINE(cert-dcl58-cpp) - Specialization depends on a CCF type.
 struct std::formatter<ccf::EntityId<FmtExtender>>
 {
   template <typename ParseContext>

@@ -6,6 +6,7 @@
 #include "ccf/crypto/ec_public_key.h"
 #include "ccf/crypto/ecdsa.h"
 #include "ccf/crypto/rsa_public_key.h"
+#include "ccf/ds/join.h"
 #include "ccf/ds/locking.h"
 #include "ccf/ds/nonstd.h"
 #include "ccf/rpc_context.h"
@@ -124,7 +125,7 @@ namespace ccf
       const auto& key = it->second;
       if (std::holds_alternative<ccf::crypto::RSAPublicKeyPtr>(key))
       {
-        LOG_DEBUG_FMT("Verify der: {} as RSA key", der);
+        LOG_DEBUG_FMT("Verify der: [{}] as RSA key", ccf::ds::join(der, ", "));
         // Obsolete PKCS1 padding is chosen for JWT, as explained in details in
         // https://github.com/microsoft/CCF/issues/6601#issuecomment-2512059875.
         return std::get<ccf::crypto::RSAPublicKeyPtr>(key)->verify(
@@ -138,7 +139,7 @@ namespace ccf
 
       if (std::holds_alternative<ccf::crypto::ECPublicKeyPtr>(key))
       {
-        LOG_DEBUG_FMT("Verify der: {} as EC key", der);
+        LOG_DEBUG_FMT("Verify der: [{}] as EC key", ccf::ds::join(der, ", "));
 
         const auto sig_der =
           ccf::crypto::ecdsa_sig_p1363_to_der({signature, signature_size});
@@ -150,7 +151,7 @@ namespace ccf
           ccf::crypto::MDType::SHA256);
       }
 
-      LOG_DEBUG_FMT("Key not found for der: {}", der);
+      LOG_DEBUG_FMT("Key not found for der: [{}]", ccf::ds::join(der, ", "));
       return false;
     }
   };

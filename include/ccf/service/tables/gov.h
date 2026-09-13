@@ -113,6 +113,7 @@ namespace ccf::jsgov
 }
 
 template <>
+// NOLINTNEXTLINE(cert-dcl58-cpp) - Specialization depends on a CCF type.
 struct std::formatter<std::optional<ccf::jsgov::Failure>>
 {
   template <typename ParseContext>

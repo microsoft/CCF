@@ -16,6 +16,9 @@ TEST_CASE("Joined ranges preserve element formatting")
 {
   const std::vector<uint8_t> bytes{0, 9, 16, 127, 128, 255};
   CHECK(
+    std::format("[{}]", ccf::ds::join(bytes, ", ")) ==
+    "[0, 9, 16, 127, 128, 255]");
+  CHECK(
     std::format("{:02x}", ccf::ds::join(bytes, " ")) == "00 09 10 7f 80 ff");
   CHECK(
     std::format("{:02X}", ccf::ds::join(bytes.rbegin(), bytes.rend(), "")) ==
@@ -39,6 +42,13 @@ TEST_CASE("Joined ranges preserve element formatting")
   const std::map<int, int> values{{1, 10}, {2, 20}};
   CHECK(
     std::format("{}", ccf::ds::join(std::views::keys(values), ",")) == "1,2");
+  CHECK(
+    std::format(
+      "{}",
+      ccf::ds::join(
+        std::views::iota(1, 5) |
+          std::views::filter([](int value) { return value % 2 == 0; }),
+        ", ")) == "2, 4");
 
   const auto range = ccf::ds::join(bytes, "");
   CHECK_THROWS_AS(
