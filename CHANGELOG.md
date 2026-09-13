@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [7.0.16]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.16
 
+### Added
+
+- Pending node entries are now automatically removed when they stop retrying joins for the configurable `pending_node_timeout` delay (1 hour by default). Set it to `0s` to disable automatic removal (#8173).
+
 ### Changed
 
 - HTTP/1.x request targets, including query strings, are now bounded before accumulation by a new `max_request_target_size` setting (16 KB by default), independent of `max_header_size`. Oversized targets return HTTP 414 `RequestTargetTooLong`, increment the per-interface `request_target_too_long` error metric, and close the session. HTTP/2 limits are unchanged (#8333).

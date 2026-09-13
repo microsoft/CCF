@@ -3651,12 +3651,9 @@ def test_backup_snapshot_fetch_max_size(network, args):
             )
 
 
-def test_join_idempotency_short_circuits_on_backup(network, args):
-    # Verify that once the primary has registered a joining identity as
-    # PENDING, a subsequent /node/join request from the same TLS identity
-    # sent to a backup is short-circuited via check_node_exists
-    # (src/node/rpc/node_frontend.h:486-524) and answered locally with
-    # 200 + node_status=PENDING -- no redirect, no duplicate add_node.
+def test_join_idempotency_on_backup(network, args):
+    # Pending retries must reach the primary to refresh their expiration
+    # timestamp. With expiration disabled, backups can answer locally.
     #
     # The C++ joiner cannot exercise this path: after the first 308 it
     # permanently retargets the primary (node_state.h:1144), so its retries
@@ -3668,7 +3665,7 @@ def test_join_idempotency_short_circuits_on_backup(network, args):
     # Skipped on snp because we cannot synthesize a valid SNP quote.
     if infra.platform_detection.get_platform() == "snp":
         LOG.warning(
-            "Skipping test_join_idempotency_short_circuits_on_backup on snp: "
+            "Skipping test_join_idempotency_on_backup on snp: "
             "cannot synthesize a valid SNP quote for raw Python join."
         )
         return
@@ -3677,8 +3674,8 @@ def test_join_idempotency_short_circuits_on_backup(network, args):
     assert backups, "Test requires at least one backup"
     backup = backups[0]
 
-    # Generate a fresh synthetic identity once and reuse it across all three
-    # POSTs. add_node binds the virtual quote to the joiner's public key
+    # Reuse a fresh synthetic identity across all join attempts.
+    # add_node binds the virtual quote to the joiner's public key
     # (src/node/quote.cpp:122-132 verify_quoted_node_public_key).
     priv_pem, _ = infra.crypto.generate_ec_keypair()
     cert_pem = infra.crypto.generate_cert(priv_pem, cn="fake_joiner")
@@ -3714,15 +3711,28 @@ def test_join_idempotency_short_circuits_on_backup(network, args):
     # so that its check_node_exists lookup succeeds on the second attempt.
     network.wait_for_all_nodes_to_commit(primary)
 
-    # --- Attempt 2: POST to SAME backup, expect 200 + Pending (early-exit) ---
+    # Retry the same identity after its Pending entry reaches the backup.
     r2, _ = network.fake_join(backup, kp)
-    assert r2.status_code == http.HTTPStatus.OK, (
-        f"Backup must short-circuit and return 200 on second attempt, "
-        f"got {r2.status_code}: {r2.body.text()}"
+    expiration_enabled = (
+        infra.e2e_args._convert_time_string(args.pending_node_timeout, "s") > 0
     )
+    if expiration_enabled:
+        assert r2.status_code == http.HTTPStatus.PERMANENT_REDIRECT, (
+            f"Backup must redirect Pending retries to refresh their timestamp, "
+            f"got {r2.status_code}: {r2.body.text()}"
+        )
+        retry_location = next(
+            (v for k, v in r2.headers.items() if k.lower() == "location"), None
+        )
+        assert retry_location == location, (retry_location, location)
+        r2, _ = network.fake_join(primary, kp)
+
+    assert (
+        r2.status_code == http.HTTPStatus.OK
+    ), f"Pending retry must succeed, got {r2.status_code}: {r2.body.text()}"
     assert not any(
         k.lower() == "location" for k in r2.headers
-    ), "Short-circuit response must not include a Location header"
+    ), "Successful Pending response must not include a Location header"
     body2 = r2.body.json()
     assert body2["node_status"] == "Pending", body2
     assert body2["node_id"] == joined_node_id, (
@@ -3733,8 +3743,7 @@ def test_join_idempotency_short_circuits_on_backup(network, args):
         body2.get("network_info") is None
     ), "PENDING response must not include network_info"
 
-    # Log assertions: backup logged BOTH branches; backup did not run add_node;
-    # primary ran add_node exactly once for this id.
+    # The backup must not add nodes, and retries must not duplicate entries.
     backup_out, _ = backup.get_logs()
     primary_out, _ = primary.get_logs()
     with open(backup_out, encoding="utf-8") as backup_output:
@@ -3791,13 +3800,21 @@ def run_backup_snapshot_download(const_args):
 
 
 def run_backup_snapshot_download_limits(const_args):
+    args = copy.deepcopy(const_args)
+    args.pending_node_timeout = "1h"
     _run_backup_snapshot_download(
-        const_args,
+        args,
         "_backup_snapshot_limits",
         [
             test_backup_snapshot_fetch_max_size,
-            test_join_idempotency_short_circuits_on_backup,
+            test_join_idempotency_on_backup,
         ],
+    )
+    args.pending_node_timeout = "0s"
+    _run_backup_snapshot_download(
+        args,
+        "_join_idempotency_cleanup_disabled",
+        [test_join_idempotency_on_backup],
     )
 
 
@@ -4826,6 +4843,58 @@ def run_ledger_chunk_cleanup_tests(const_args):
             test_ledger_chunk_cleanup_digest_mismatch(network, args)
 
 
+@reqs.description("Pending node entries expire after the configured timeout")
+def test_pending_node_expiration(network, args):
+    primary, _ = network.find_primary()
+    pending_node = network.create_node()
+    network.join_node(
+        pending_node,
+        args.package,
+        args,
+        target_node=primary,
+        from_snapshot=False,
+    )
+
+    with primary.client() as c:
+        r = c.get(f"/node/network/nodes/{pending_node.node_id}")
+        assert r.status_code == http.HTTPStatus.OK, r
+        assert r.body.json()["status"] == "Pending", r.body.json()
+
+    pending_node.stop()
+
+    timeout_s = infra.e2e_args._convert_time_string(args.pending_node_timeout, "s")
+    end_time = time.time() + 3 * timeout_s
+    with primary.client() as c:
+        while time.time() < end_time:
+            r = c.get(f"/node/network/nodes/{pending_node.node_id}")
+            if r.status_code == http.HTTPStatus.NOT_FOUND:
+                break
+            assert r.status_code == http.HTTPStatus.OK, r
+            assert r.body.json()["status"] == "Pending", r.body.json()
+            time.sleep(0.1)
+        else:
+            raise TimeoutError(f"Pending node {pending_node.node_id} was not removed")
+
+    return network
+
+
+def run_pending_node_expiration(const_args):
+    args = copy.deepcopy(const_args)
+    args.label += "_pending_node_expiration"
+    args.nodes = infra.e2e_args.min_nodes(args, f=0)
+    args.pending_node_timeout = "10s"
+
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        pdb=args.pdb,
+        txs=app.LoggingTxs("user0"),
+    ) as network:
+        network.start_and_open(args)
+        test_pending_node_expiration(network, args)
+
+
 # The operations tests below are split into groups which are run
 # concurrently, as separate ConcurrentRunner sub-tests (see tests/schema.py).
 # Each group runs its own tests sequentially, so tests which share a workspace
@@ -4860,6 +4929,7 @@ def run_node_config_checks(args):
     run_tls_san_checks(args)
     run_tls_san_join_mismatch(args)
     run_config_timeout_check(args)
+    run_pending_node_expiration(args)
     run_configuration_file_checks(args)
     run_pid_file_check(args)
     run_preopen_readiness_check(args)
