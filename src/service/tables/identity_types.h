@@ -12,6 +12,8 @@
 
 namespace ccf
 {
+  // Preserve the existing 64-bit C++ representation.
+  // NOLINTNEXTLINE(performance-enum-size)
   enum class IdentityType : uint64_t
   {
     CLASSICAL = 0,

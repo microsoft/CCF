@@ -107,7 +107,7 @@ namespace ccf
         ccf::Tables::SERIALISED_MERKLE_TREE);
       PrimarySignature sig_value(id, txid.seqno);
       signatures->put(sig_value);
-      cose_signatures->put(ccf::CoseSignature{});
+      cose_signatures->put(ccf::IdentityType::CLASSICAL, ccf::CoseSignature{});
       serialised_tree->put({});
       return sig.commit_reserved();
     }
@@ -424,7 +424,7 @@ namespace ccf
       }
       std::vector<uint8_t> cose_sign(cose_buf.to_vector());
 
-      cose_signatures->put(cose_sign);
+      cose_signatures->put(ccf::IdentityType::CLASSICAL, cose_sign);
 
       auto* serialised_tree = sig.template wo<ccf::SerialisedMerkleTree>(
         ccf::Tables::SERIALISED_MERKLE_TREE);
@@ -807,9 +807,10 @@ namespace ccf
       // verifying.
       auto* cose_signatures =
         tx.template ro<ccf::CoseSignatures>(ccf::Tables::COSE_SIGNATURES);
-      auto cose_sig = cose_signatures->get();
+      auto cose_sig = cose_signatures->get(ccf::IdentityType::CLASSICAL);
       const auto cose_sig_version =
-        cose_signatures->get_version_of_previous_write();
+        cose_signatures->get_version_of_previous_write(
+          ccf::IdentityType::CLASSICAL);
       if (
         cose_sig.has_value() && cose_sig_version.has_value() &&
         cose_sig_version.value() == version)
