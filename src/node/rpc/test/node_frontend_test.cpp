@@ -88,6 +88,80 @@ void require_ledger_secrets_equal(
     [](const auto& a, const auto& b) { return (*a.second == *b.second); }));
 }
 
+TEST_CASE("Self certificate authentication")
+{
+  NetworkState network;
+  auto tx = network.tables->create_tx();
+  StubNodeContext context;
+  SelfCertAuthnPolicy policy(context);
+  CHECK(policy.get_security_scheme_name() == "self_cert");
+
+  const auto self_kp = ccf::crypto::make_ec_key_pair();
+  const auto self_cert = self_kp->self_sign("CN=Self", valid_from, valid_to);
+  const auto self_der = ccf::crypto::make_verifier(self_cert)->cert_der();
+  std::string error_reason;
+  const auto authenticate = [&](const std::vector<uint8_t>& cert) {
+    error_reason.clear();
+    auto session =
+      std::make_shared<ccf::SessionContext>(ccf::InvalidSessionId, cert);
+    ::http::Request request("/node/create", HTTP_POST);
+    auto rpc_ctx = ccf::make_rpc_context(session, request.build_request());
+    return policy.authenticate(tx, rpc_ctx, error_reason);
+  };
+
+  CHECK(authenticate(self_der) == nullptr);
+  CHECK(error_reason == "Only the node itself can call this endpoint.");
+
+  context.node_id = ccf::compute_node_id_from_kp(self_kp);
+  CHECK(!tx.ro(network.nodes)->has(context.node_id));
+  const auto identity = authenticate(self_der);
+  REQUIRE(identity != nullptr);
+  const auto* cert_identity =
+    dynamic_cast<const AnyCertAuthnIdentity*>(identity.get());
+  REQUIRE(cert_identity != nullptr);
+  CHECK(cert_identity->cert == self_der);
+  CHECK(error_reason.empty());
+
+  CHECK(authenticate(self_cert.raw()) != nullptr);
+
+  const auto issuer = make_test_network_ident();
+  const auto endorsed_cert = ccf::crypto::create_endorsed_cert(
+    self_kp->create_csr("CN=Self"),
+    valid_from,
+    valid_to,
+    issuer->priv_key,
+    issuer->cert);
+  CHECK(authenticate(endorsed_cert.raw()) != nullptr);
+
+  const auto other_kp = ccf::crypto::make_ec_key_pair();
+  const auto other_cert = other_kp->self_sign("CN=Self", valid_from, valid_to);
+  CHECK(authenticate(other_cert.raw()) == nullptr);
+  CHECK(error_reason == "Only the node itself can call this endpoint.");
+
+  NodeInfo other_node;
+  other_node.status = NodeStatus::TRUSTED;
+  tx.rw(network.nodes)->put(ccf::compute_node_id_from_kp(other_kp), other_node);
+  CHECK(authenticate(other_cert.raw()) == nullptr);
+  CHECK(error_reason == "Only the node itself can call this endpoint.");
+
+  CHECK(authenticate({}) == nullptr);
+  CHECK(error_reason == "No caller certificate");
+
+  const auto expired_cert =
+    self_kp->self_sign("CN=Self", "20200101000000Z", "20200102000000Z");
+  CHECK(authenticate(expired_cert.raw()) == nullptr);
+  CHECK(error_reason.contains("after certificate's Not After"));
+
+  const auto future_from =
+    ccf::ds::to_x509_time_string(std::chrono::system_clock::now() + 24h);
+  const auto future_cert = self_kp->self_sign(
+    "CN=Self",
+    future_from,
+    ccf::crypto::compute_cert_valid_to_string(future_from, 1));
+  CHECK(authenticate(future_cert.raw()) == nullptr);
+  CHECK(error_reason.contains("before certificate's Not Before"));
+}
+
 TEST_CASE("Add a node to an opening service")
 {
   NetworkState network;
@@ -394,6 +468,11 @@ TEST_CASE("Add a node to an open service")
 
   INFO("Expired Pending nodes are removed");
   {
+    const auto self_kp = ccf::crypto::make_ec_key_pair();
+    const auto self_caller =
+      self_kp->self_sign("CN=Self", valid_from, valid_to);
+    context.node_id = ccf::compute_node_id_from_kp(self_kp);
+
     CHECK(
       std::chrono::milliseconds(StartupConfig{}.pending_node_timeout) ==
       std::chrono::hours(1));
@@ -453,11 +532,9 @@ TEST_CASE("Add a node to an open service")
       };
     const auto cleanup = [&]() {
       const auto response = frontend_process(
-        frontend,
-        nullptr,
-        "network/nodes/remove_expired_pending",
-        expired_node_caller);
+        frontend, nullptr, "network/nodes/remove_expired_pending", self_caller);
       REQUIRE(response.status == HTTP_STATUS_OK);
+      CHECK(!response.headers.contains(ccf::http::headers::LOCATION));
     };
 
     for (const auto timestamp :
@@ -491,6 +568,10 @@ TEST_CASE("Add a node to an open service")
     CHECK(
       get_node(expired_node_id).pending_last_seen == stale_pending_last_seen);
 
+    cleanup();
+    CHECK(
+      get_node(expired_node_id).pending_last_seen == stale_pending_last_seen);
+
     consensus->state = ccf::kv::test::StubConsensus::Primary;
     context.node_operation->can_replicate_result = true;
     const auto before_retry = now_ms();
@@ -511,6 +592,24 @@ TEST_CASE("Add a node to an open service")
     const auto trusted_node_id = ccf::compute_node_id_from_kp(node_kp);
     set_last_seen(expired_node_id, expired);
     set_last_seen(trusted_node_id, expired);
+
+    for (const auto timeout : {"0s", "1h"})
+    {
+      node_configuration->config.pending_node_timeout = {timeout};
+      for (const auto& other_caller : {caller, expired_node_caller})
+      {
+        const auto response = frontend_process(
+          frontend,
+          nullptr,
+          "network/nodes/remove_expired_pending",
+          other_caller);
+        CHECK(response.status == HTTP_STATUS_UNAUTHORIZED);
+        check_error_message(
+          response, "Only the node itself can call this endpoint.");
+        CHECK(get_node(expired_node_id).pending_last_seen == expired);
+        CHECK(get_node(trusted_node_id).pending_last_seen == expired);
+      }
+    }
 
     node_configuration->config.pending_node_timeout = {"0s"};
     cleanup();

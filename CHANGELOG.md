@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - Pending node entries are now automatically removed when they stop retrying joins for the configurable `pending_node_timeout` delay (1 hour by default). Set it to `0s` to disable automatic removal (#8173).
+- Added `ccf::SelfCertAuthnPolicy` for endpoints restricted to the receiving node's certificate identity, without requiring a nodes-table entry (#8173).
 
 ### Changed
 

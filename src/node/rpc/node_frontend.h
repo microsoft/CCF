@@ -484,6 +484,9 @@ namespace ccf
     {
       CommonEndpointRegistry::init_handlers();
 
+      const auto self_cert_auth_policy =
+        std::make_shared<SelfCertAuthnPolicy>(this->context);
+
       auto accept = [this](auto& args, const nlohmann::json& params) {
         const auto in = params.get<JoinNetworkNodeToNode::In>();
 
@@ -781,7 +784,8 @@ namespace ccf
         "network/nodes/remove_expired_pending",
         HTTP_POST,
         json_adapter(remove_expired_pending),
-        {std::make_shared<NodeCertAuthnPolicy>()})
+        {self_cert_auth_policy})
+        .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .set_openapi_hidden(true)
         .install();
 
@@ -1651,19 +1655,6 @@ namespace ccf
             "Node is not in initial state.");
         }
 
-        const auto& sig_auth_ident =
-          ctx.template get_caller<ccf::AnyCertAuthnIdentity>();
-        // AnyCertAuthnIdentity requires DER format certificates
-        const auto caller_node_id =
-          compute_node_id_from_cert_der(sig_auth_ident.cert);
-        if (caller_node_id != this->context.get_node_id())
-        {
-          return make_error(
-            HTTP_STATUS_FORBIDDEN,
-            ccf::errors::AuthorizationFailed,
-            "Only the node itself can call this endpoint.");
-        }
-
         const auto in = params.get<CreateNetworkNodeToNode::In>();
 
         if (InternalTablesAccess::is_service_created(ctx.tx, in.service_cert))
@@ -1810,10 +1801,7 @@ namespace ccf
         return make_success(true);
       };
       make_endpoint(
-        "/create",
-        HTTP_POST,
-        json_adapter(create),
-        {std::make_shared<AnyCertAuthnPolicy>()})
+        "/create", HTTP_POST, json_adapter(create), {self_cert_auth_policy})
         .set_openapi_hidden(true)
         .install();
 

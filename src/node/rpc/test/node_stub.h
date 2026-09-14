@@ -281,6 +281,7 @@ namespace ccf
   struct StubNodeContext : public ccf::AbstractNodeContext
   {
   public:
+    ccf::NodeId node_id = ccf::kv::test::PrimaryNodeId;
     std::shared_ptr<StubNodeOperation> node_operation = nullptr;
     std::shared_ptr<StubGovernanceEffects> gov_effects = nullptr;
     std::shared_ptr<StubNodeStateCache> cache = nullptr;
@@ -299,7 +300,7 @@ namespace ccf
 
     ccf::NodeId get_node_id() const override
     {
-      return ccf::kv::test::PrimaryNodeId;
+      return node_id;
     }
   };
 }

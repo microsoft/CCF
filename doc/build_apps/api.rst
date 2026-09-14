@@ -65,6 +65,10 @@ Policies
 .. doxygenvariable:: ccf::any_cert_auth_policy
    :project: CCF
 
+.. doxygenclass:: ccf::SelfCertAuthnPolicy
+   :project: CCF
+   :members:
+
 .. doxygenvariable:: ccf::member_cose_sign1_auth_policy
    :project: CCF
 

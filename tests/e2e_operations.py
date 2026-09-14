@@ -4865,7 +4865,7 @@ def run_ledger_chunk_cleanup_tests(const_args):
 
 
 @reqs.description("Pending node entries expire after the configured timeout")
-def test_pending_node_expiration(network, args):
+def test_pending_node_expiration(network, args, failover=False):
     primary, _ = network.find_primary()
     pending_node = network.create_node()
     network.join_node(
@@ -4882,6 +4882,11 @@ def test_pending_node_expiration(network, args):
         assert r.body.json()["status"] == "Pending", r.body.json()
 
     pending_node.stop()
+
+    if failover:
+        network.wait_for_all_nodes_to_commit(primary)
+        primary.stop()
+        primary, _ = network.wait_for_new_primary(primary)
 
     timeout_s = infra.e2e_args._convert_time_string(args.pending_node_timeout, "s")
     end_time = time.time() + 3 * timeout_s
@@ -4902,7 +4907,7 @@ def test_pending_node_expiration(network, args):
 def run_pending_node_expiration(const_args):
     args = copy.deepcopy(const_args)
     args.label += "_pending_node_expiration"
-    args.nodes = infra.e2e_args.min_nodes(args, f=0)
+    args.nodes = infra.e2e_args.min_nodes(args, f=1)
     args.pending_node_timeout = "10s"
 
     with infra.network.network(
@@ -4914,6 +4919,7 @@ def run_pending_node_expiration(const_args):
     ) as network:
         network.start_and_open(args)
         test_pending_node_expiration(network, args)
+        test_pending_node_expiration(network, args, failover=True)
 
 
 # The operations tests below are split into groups which are run
