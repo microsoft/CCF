@@ -25,6 +25,10 @@ concurrency:
 
 permissions: read-all
 
+env:
+  AZL3_IMAGE: &azl3_image mcr.microsoft.com/azurelinux/base/core:3.0
+  AZL4_IMAGE: &azl4_image azlpubstagingacroxz2o4gw.azurecr.io/azurelinux/base/core:4.0
+
 jobs:
   build-install:
     name: "Build CCF ${{ matrix.ccf_version }} on ${{ matrix.name }}"
@@ -37,12 +41,12 @@ jobs:
             artifact: al3
             ccf_version: ${{ inputs.from_version || '7.0.14' }}
             pool: gha-vmss-d16av6-ci
-            image: mcr.microsoft.com/azurelinux/base/core:3.0
+            image: *azl3_image
           - name: Azure Linux 4
             artifact: al4
             ccf_version: ${{ inputs.to_version || '7.0.15' }}
             pool: gha-vmss-d16av5-ci
-            image: azlpubstagingacroxz2o4gw.azurecr.io/azurelinux/base/core:4.0
+            image: *azl4_image
     runs-on:
       [
         self-hosted,
@@ -155,9 +159,9 @@ jobs:
           source env/bin/activate
           tests/docker/run_lts_compatibility.sh \
             artifacts/al3/ccf-install.tar.gz \
-            mcr.microsoft.com/azurelinux/base/core:3.0 \
+            "$AZL3_IMAGE" \
             artifacts/al4/ccf-install.tar.gz \
-            azlpubstagingacroxz2o4gw.azurecr.io/azurelinux/base/core:4.0 \
+            "$AZL4_IMAGE" \
             cross-platform-lts-workspace
 
       - name: "Upload logs"
