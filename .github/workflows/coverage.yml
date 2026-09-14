@@ -77,7 +77,11 @@ jobs:
         run: |
           set -exo pipefail
           cd build
-          ../scripts/coverage.sh --html coverage_html | tee coverage_report.txt
+          python3 ../scripts/tests/coverage_report_test.py
+          ../scripts/coverage.sh --html coverage_html --json coverage_html/coverage.json \
+            | tee coverage_report.txt
+          python3 ../scripts/coverage_report.py coverage_html/coverage.json \
+            --check-instrumentation | tee coverage_html/summary.md
         shell: bash
 
       - name: "Download previous coverage summaries"
@@ -114,6 +118,9 @@ jobs:
         run: |
           set -ex
           cd build
+          if [[ -f coverage_html/summary.md ]]; then
+            cat coverage_html/summary.md >> "$GITHUB_STEP_SUMMARY"
+          fi
           if [[ -f coverage_report.txt ]]; then
             python3 ../scripts/coverage_summary.py coverage_report.txt coverage_history \
               >> "$GITHUB_STEP_SUMMARY" || true
@@ -127,7 +134,7 @@ jobs:
           fi
         shell: bash
 
-      - name: "Upload HTML coverage report"
+      - name: "Upload HTML and JSON coverage report"
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: coverage-report-html

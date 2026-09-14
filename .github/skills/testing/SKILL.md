@@ -54,9 +54,19 @@ Configure with `-DCOVERAGE=ON`, build instrumented targets, and run the selected
 ```bash
 ../scripts/coverage.sh                  # Print summary
 ../scripts/coverage.sh --html report/   # Generate HTML report
+../scripts/coverage.sh --html report/ --json report/coverage.json
+python3 ../scripts/coverage_report.py report/coverage.json
 ```
 
 These paths assume `build` is immediately under the repository root. For another layout, use the actual path to `scripts/coverage.sh` while retaining the build working directory. The script consumes `.profraw` files and the generated `coverage_binaries.txt`; building alone does not produce coverage.
+
+The JSON export contains LLVM's per-file line and branch counts with the same exclusions as the HTML report. `coverage_report.py` separates framework (`src/`, `include/`), sample (`samples/`) and other paths without dropping any paths from the combined total. For reports produced elsewhere, pass `--source-dir` with that report's source root.
+
+After the coverage workflow's unit and e2e selection, use `coverage_report.py --check-instrumentation report/coverage.json` to require nonzero line coverage in representative implementation files and headers. This guard is intentionally opt-in for smaller local test selections. Its reporting tests use the standard library: `python3 scripts/tests/coverage_report_test.py` from the source root.
+
+First-party C++ static libraries are instrumented, but only linked binaries are report inputs; archives are not counted a second time. Their coverage runtime link requirement also applies to consumers of installed instrumented libraries. Rust is not instrumented by the C++ coverage flags.
+
+For a baseline, use a fresh coverage build/profile directory and record the source revision, build options and exact test selection. Targeted tests do not establish a full-suite baseline. Reports predating library instrumentation have a different denominator and are not directly comparable; including previously invisible code can lower the headline percentage.
 
 ## End-to-end test infrastructure
 
