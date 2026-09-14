@@ -39,8 +39,16 @@ set(
 # + runtime dependencies
 set(
   CCF_RPM_DEPENDENCIES
-  "${CCF_RPM_DEPENDENCIES}, libuv-devel >= ${LIBUV_MINIMAL_VERSION}, curl-devel >= ${CURL_MINIMAL_VERSION}, libbacktrace-static >= ${LIBBACKTRACE_MINIMAL_VERSION}"
+  "${CCF_RPM_DEPENDENCIES}, libuv-devel >= ${LIBUV_MINIMAL_VERSION}, curl-devel >= ${CURL_MINIMAL_VERSION}"
 )
+if(CCF_STACKTRACE_BACKEND_RESOLVED STREQUAL "LIBBACKTRACE")
+  string(
+    APPEND CCF_RPM_DEPENDENCIES
+    ", libbacktrace-static >= ${LIBBACKTRACE_MINIMAL_VERSION}"
+  )
+elseif(CCF_STACKTRACE_SUPPORT_LIBRARY MATCHES "^stdc\\+\\+")
+  string(APPEND CCF_RPM_DEPENDENCIES ", libstdc++-devel")
+endif()
 # + alter name
 set(CPACK_PACKAGE_NAME "${CPACK_PACKAGE_NAME}_devel")
 # + alter summary
