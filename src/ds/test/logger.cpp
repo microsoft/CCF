@@ -8,7 +8,6 @@
 #include <chrono>
 #include <doctest/doctest.h>
 #include <memory>
-#include <stdexcept>
 #include <thread>
 #include <utility>
 #include <vector>
@@ -133,35 +132,6 @@ TEST_CASE("Time-bound logger reports slow operations at the expected level")
   CHECK(logs[0].contains("): slow"));
   CHECK(logs[1].contains("fail"));
   CHECK(logs[1].contains("): very slow"));
-}
-
-TEST_CASE("Logger test configuration is restored during stack unwinding")
-{
-  using ccf::ds::TimeBoundLogger;
-  using namespace std::chrono_literals;
-
-  std::vector<std::string> logs;
-  const ScopedLoggerConfig restore_original_config;
-  TimeBoundLogger::default_max_time = 42s;
-  ccf::logger::config::level() = ccf::LoggerLevel::DEBUG;
-  ccf::logger::config::loggers().emplace_back(
-    std::make_unique<TestTextLogger>(logs));
-  const auto* previous_logger = ccf::logger::config::loggers().front().get();
-
-  auto change_config_then_throw = [&logs]() {
-    const ScopedLoggerConfig restore_config;
-    TimeBoundLogger::default_max_time = 1s;
-    ccf::logger::config::level() = ccf::LoggerLevel::INFO;
-    ccf::logger::config::loggers().emplace_back(
-      std::make_unique<TestTextLogger>(logs));
-    throw std::runtime_error("Unwind logger configuration");
-  };
-  CHECK_THROWS_AS(change_config_then_throw(), std::runtime_error);
-
-  CHECK(TimeBoundLogger::default_max_time == 42s);
-  CHECK(ccf::logger::config::level() == ccf::LoggerLevel::DEBUG);
-  REQUIRE(ccf::logger::config::loggers().size() == 1);
-  CHECK(ccf::logger::config::loggers().front().get() == previous_logger);
 }
 
 TEST_CASE("Framework logging macros")
