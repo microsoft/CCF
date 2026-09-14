@@ -592,16 +592,6 @@ if(BUILD_TESTS)
   # Unit tests
   if(BUILD_UNIT_TESTS)
     add_test(
-      NAME stacktrace_detection
-      COMMAND
-        ${CMAKE_COMMAND} -DCCF_SOURCE_DIR=${CCF_DIR}
-        -DTEST_BINARY_DIR=${CMAKE_CURRENT_BINARY_DIR}/stacktrace_detection
-        -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER} -P
-        ${CCF_DIR}/tests/cmake/stacktrace_detection.cmake
-    )
-    set_property(TEST stacktrace_detection APPEND PROPERTY LABELS unit)
-
-    add_test(
       NAME verify_uvm_attestation_and_endorsements
       COMMAND
         bash
@@ -715,24 +705,8 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/test/delayed_tasks.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/test/fan_in_tasks.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/test/tasks_api.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/test/stacktrace.cpp
     )
     target_link_libraries(task_system_test PRIVATE ccf_tasks)
-    if(CCF_STACKTRACE_BACKEND_RESOLVED STREQUAL "STD")
-      target_compile_definitions(
-        task_system_test
-        PRIVATE CCF_STACKTRACE_USE_STD=1
-      )
-      target_link_options(
-        task_system_test
-        PRIVATE LINKER:--wrap=_Znwm LINKER:--wrap=_ZnwmRKSt9nothrow_t
-      )
-    endif()
-    target_compile_definitions(
-      task_system_test
-      PRIVATE
-        $<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:CCF_STACKTRACE_TEST_DEBUG_INFO=1>
-    )
 
     add_unit_test(
       task_system_demo

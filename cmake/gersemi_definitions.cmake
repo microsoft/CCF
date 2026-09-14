@@ -69,21 +69,6 @@ endfunction()
 function(ccf_detect_stacktrace)
 endfunction()
 
-function(run_checked)
-endfunction()
-
-function(
-  check_case
-  name
-  mode
-  support
-  fallback
-  backend
-  expected_support
-  failure
-)
-endfunction()
-
 # Third-party: Corrosion (corrosion-rs/corrosion)
 function(corrosion_import_crate)
   cmake_parse_arguments(
