@@ -11,7 +11,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
-- Task exception stacktraces prefer C++23 `std::stacktrace` when supported, with an explicit `CCF_STACKTRACE_BACKEND` build option and a libbacktrace fallback. Azure Linux 4 builds no longer require the Azure Linux 3 libbacktrace RPM. See [Build CCF from Source](https://microsoft.github.io/CCF/main/contribute/build_ccf.html#task-stacktraces) for backend and link requirements (#8373).
 - HTTP/1.x request targets, including query strings, are now bounded before accumulation by a new `max_request_target_size` setting (16 KB by default), independent of `max_header_size`. Oversized targets return HTTP 414 `RequestTargetTooLong`, increment the per-interface `request_target_too_long` error metric, and close the session. HTTP/2 limits are unchanged (#8333).
 
 ### Fixed
