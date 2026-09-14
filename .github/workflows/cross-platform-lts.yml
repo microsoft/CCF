@@ -9,14 +9,12 @@ on:
   workflow_dispatch:
     inputs:
       from_version:
-        description: CCF version to build on Azure Linux 3
+        description: CCF version to build on Azure Linux 3 (defaults to previous release)
         required: false
-        default: 7.0.14
         type: string
       to_version:
-        description: CCF version to build on Azure Linux 4
+        description: CCF version to build on Azure Linux 4 (defaults to latest release)
         required: false
-        default: 7.0.15
         type: string
 
 concurrency:
@@ -35,8 +33,46 @@ env:
   LTS_WORKSPACE: cross-platform-lts-workspace
 
 jobs:
+  configure:
+    name: "Configure cross-platform LTS"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      from_version: ${{ steps.versions.outputs.from_version }}
+      to_version: ${{ steps.versions.outputs.to_version }}
+    steps:
+      - name: "Resolve CCF versions"
+        id: versions
+        shell: bash
+        env:
+          FROM_VERSION: ${{ inputs.from_version }}
+          GH_TOKEN: ${{ github.token }}
+          TO_VERSION: ${{ inputs.to_version }}
+        run: |
+          set -euo pipefail
+          release_tags=$(gh release list \
+            --repo "$GITHUB_REPOSITORY" \
+            --exclude-drafts \
+            --exclude-pre-releases \
+            --limit 2 \
+            --json tagName \
+            --jq '.[].tagName')
+          mapfile -t release_tags <<< "$release_tags"
+          if [[ ${#release_tags[@]} -ne 2 ]] ||
+            [[ "${release_tags[0]}" != ccf-* ]] ||
+            [[ "${release_tags[1]}" != ccf-* ]]; then
+            echo "Expected two stable CCF releases, found: ${release_tags[*]}" >&2
+            exit 1
+          fi
+
+          from_version=${FROM_VERSION:-${release_tags[1]#ccf-}}
+          to_version=${TO_VERSION:-${release_tags[0]#ccf-}}
+          echo "from_version=$from_version" >> "$GITHUB_OUTPUT"
+          echo "to_version=$to_version" >> "$GITHUB_OUTPUT"
+
   build-install:
     name: "Build CCF ${{ matrix.ccf_version }} on ${{ matrix.name }}"
+    needs: configure
     timeout-minutes: 90
     strategy:
       fail-fast: false
@@ -44,12 +80,12 @@ jobs:
         include:
           - name: Azure Linux 3
             artifact: al3
-            ccf_version: ${{ inputs.from_version || '7.0.14' }}
+            ccf_version: ${{ needs.configure.outputs.from_version }}
             pool: *azl3_pool
             image: *azl3_image
           - name: Azure Linux 4
             artifact: al4
-            ccf_version: ${{ inputs.to_version || '7.0.15' }}
+            ccf_version: ${{ needs.configure.outputs.to_version }}
             pool: *azl4_pool
             image: *azl4_image
     runs-on:
@@ -118,8 +154,8 @@ jobs:
           if-no-files-found: error
 
   test-upgrade:
-    name: "Upgrade ${{ inputs.from_version || '7.0.14' }} AL3 to ${{ inputs.to_version || '7.0.15' }} AL4"
-    needs: build-install
+    name: "Upgrade ${{ needs.configure.outputs.from_version }} AL3 to ${{ needs.configure.outputs.to_version }} AL4"
+    needs: [configure, build-install]
     timeout-minutes: 60
     runs-on:
       [
