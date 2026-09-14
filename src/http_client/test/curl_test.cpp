@@ -5,6 +5,7 @@
 #include "curl/curl.h"
 #include "ds/internal_logger.h"
 #include "http_client/curl.h"
+#include "snapshots/fetch.h"
 
 #include <cstdlib>
 #include <curl/header.h>
