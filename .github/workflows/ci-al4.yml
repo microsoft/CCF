@@ -45,7 +45,7 @@ jobs:
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DCCF_STACKTRACE_BACKEND=AUTO ..
+          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug ..
           grep -Fx "CCF_STACKTRACE_BACKEND_RESOLVED:INTERNAL=STD" CMakeCache.txt
           ninja
         shell: bash
@@ -122,7 +122,7 @@ jobs:
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DCCF_STACKTRACE_BACKEND=AUTO ..
+          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug ..
           grep -Fx "CCF_STACKTRACE_BACKEND_RESOLVED:INTERNAL=STD" CMakeCache.txt
           ninja
         shell: bash
@@ -184,7 +184,7 @@ jobs:
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DCCF_STACKTRACE_BACKEND=AUTO ..
+          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug ..
           grep -Fx "CCF_STACKTRACE_BACKEND_RESOLVED:INTERNAL=STD" CMakeCache.txt
           ninja
         shell: bash
