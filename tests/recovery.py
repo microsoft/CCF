@@ -184,7 +184,7 @@ def recover_with_primary_dying(args, recovered_network):
     nodes = recovered_network.get_joined_nodes()
     retired_primary, initial_view = recovered_network.find_primary()
     retired_id = retired_primary.node_id
-    reading = infra.node.State.READING_PRIVATE_LEDGER.value
+    reading_private_ledger = infra.node.State.READING_PRIVATE_LEDGER.value
 
     with contextlib.ExitStack() as stack:
         clients = {
@@ -205,7 +205,10 @@ def recover_with_primary_dying(args, recovered_network):
         end_time = time.time() + args.ledger_recovery_timeout
         while pending:
             for node in list(pending):
-                if clients[node].get("/node/state").body.json()["state"] == reading:
+                if (
+                    clients[node].get("/node/state").body.json()["state"]
+                    == reading_private_ledger
+                ):
                     pending.remove(node)
             if pending:
                 assert (
@@ -219,7 +222,7 @@ def recover_with_primary_dying(args, recovered_network):
         # election, avoids racing the fast private-ledger read.
         primary_state = clients[retired_primary].get("/node/state").body.json()
         assert (
-            primary_state["state"] == reading
+            primary_state["state"] == reading_private_ledger
         ), f"Primary {retired_id} finished reading before it could be prodded: {primary_state}"
 
         # SIGTERM (not SIGKILL) the primary: thanks to ignore_first_sigterm it
